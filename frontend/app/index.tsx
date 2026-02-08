@@ -970,18 +970,19 @@ function ListeningActions({
         </Text>
       )}
       <View style={styles.actionRow}>
-        <Pressable
-          style={[styles.actionButton, styles.gotItButton]}
-          onPress={() => onSubmit("understood")}
-        >
-          <Text style={styles.actionButtonText}>Got it</Text>
-        </Pressable>
-        {missedCount > 0 && (
+        {missedCount > 0 ? (
           <Pressable
             style={[styles.actionButton, styles.continueButton]}
             onPress={() => onSubmit("partial")}
           >
             <Text style={styles.actionButtonText}>Continue</Text>
+          </Pressable>
+        ) : (
+          <Pressable
+            style={[styles.actionButton, styles.gotItButton]}
+            onPress={() => onSubmit("understood")}
+          >
+            <Text style={styles.actionButtonText}>Got it</Text>
           </Pressable>
         )}
       </View>
@@ -1033,20 +1034,34 @@ function ReadingActions({
         </Text>
       )}
       <View style={styles.actionRow}>
-        <Pressable
-          style={[styles.actionButton, styles.gotItButton]}
-          onPress={() => onSubmit("understood")}
-        >
-          <Text style={styles.actionButtonText}>Got it</Text>
-        </Pressable>
-        {(missedCount > 0 || !hasSentence) && (
+        {missedCount > 0 ? (
           <Pressable
             style={[styles.actionButton, styles.continueButton]}
-            onPress={() => onSubmit(hasSentence ? "partial" : "partial")}
+            onPress={() => onSubmit("partial")}
           >
-            <Text style={styles.actionButtonText}>
-              {hasSentence ? "Continue" : "Missed"}
-            </Text>
+            <Text style={styles.actionButtonText}>Continue</Text>
+          </Pressable>
+        ) : !hasSentence ? (
+          <>
+            <Pressable
+              style={[styles.actionButton, styles.gotItButton]}
+              onPress={() => onSubmit("understood")}
+            >
+              <Text style={styles.actionButtonText}>Got it</Text>
+            </Pressable>
+            <Pressable
+              style={[styles.actionButton, styles.continueButton]}
+              onPress={() => onSubmit("partial")}
+            >
+              <Text style={styles.actionButtonText}>Missed</Text>
+            </Pressable>
+          </>
+        ) : (
+          <Pressable
+            style={[styles.actionButton, styles.gotItButton]}
+            onPress={() => onSubmit("understood")}
+          >
+            <Text style={styles.actionButtonText}>Got it</Text>
           </Pressable>
         )}
       </View>
