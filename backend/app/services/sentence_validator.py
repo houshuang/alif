@@ -271,7 +271,9 @@ def _lookup_lemma(bare_norm: str, lemma_lookup: dict[str, int]) -> int | None:
 def build_lemma_lookup(lemmas: list) -> dict[str, int]:
     """Build a normalized bare form → lemma_id lookup dict.
 
-    Includes both with and without al-prefix for each lemma.
+    Includes both with and without al-prefix for each lemma,
+    plus inflected forms from forms_json (plurals, feminines, verb
+    conjugations, etc.).
     Args:
         lemmas: List of Lemma model objects with lemma_ar_bare and lemma_id.
     """
@@ -283,6 +285,19 @@ def build_lemma_lookup(lemmas: list) -> dict[str, int]:
             lookup[bare_norm[2:]] = lem.lemma_id
         elif not bare_norm.startswith("ال"):
             lookup["ال" + bare_norm] = lem.lemma_id
+
+        forms = getattr(lem, "forms_json", None)
+        if forms and isinstance(forms, dict):
+            for key in ("plural", "present", "masdar", "active_participle",
+                        "feminine", "elative"):
+                form_val = forms.get(key)
+                if form_val and isinstance(form_val, str):
+                    form_bare = normalize_alef(strip_diacritics(form_val))
+                    if form_bare not in lookup:
+                        lookup[form_bare] = lem.lemma_id
+                    al_form = "ال" + form_bare
+                    if not form_bare.startswith("ال") and al_form not in lookup:
+                        lookup[al_form] = lem.lemma_id
     return lookup
 
 

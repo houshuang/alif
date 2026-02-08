@@ -440,9 +440,10 @@ class TestCliticIntegration:
 
 class _FakeLemma:
     """Minimal lemma-like object for testing build_lemma_lookup."""
-    def __init__(self, lemma_id: int, lemma_ar_bare: str):
+    def __init__(self, lemma_id: int, lemma_ar_bare: str, forms_json: dict | None = None):
         self.lemma_id = lemma_id
         self.lemma_ar_bare = lemma_ar_bare
+        self.forms_json = forms_json
 
 
 class TestBuildLemmaLookup:
@@ -467,6 +468,69 @@ class TestBuildLemmaLookup:
         lemmas = [_FakeLemma(5, "أكل")]
         lookup = build_lemma_lookup(lemmas)
         assert lookup[normalize_alef("أكل")] == 5  # "اكل"
+
+
+class TestBuildLemmaLookupInflectedForms:
+    """Test that inflected forms from forms_json are indexed in the lookup."""
+
+    def test_noun_plural(self):
+        lemmas = [_FakeLemma(1, "مدرسة", forms_json={"plural": "مَدارِس"})]
+        lookup = build_lemma_lookup(lemmas)
+        assert lookup["مدارس"] == 1
+        assert lookup["المدارس"] == 1
+
+    def test_verb_present(self):
+        lemmas = [_FakeLemma(2, "فهم", forms_json={"present": "يَفْهَمُ"})]
+        lookup = build_lemma_lookup(lemmas)
+        assert lookup["يفهم"] == 2
+
+    def test_adjective_feminine(self):
+        lemmas = [_FakeLemma(3, "جميل", forms_json={"feminine": "جَمِيلَة"})]
+        lookup = build_lemma_lookup(lemmas)
+        assert lookup["جميلة"] == 3
+
+    def test_adjective_elative(self):
+        lemmas = [_FakeLemma(4, "كبير", forms_json={"elative": "أَكْبَر"})]
+        lookup = build_lemma_lookup(lemmas)
+        assert lookup[normalize_alef("أكبر")] == 4
+
+    def test_verb_masdar(self):
+        lemmas = [_FakeLemma(5, "درس", forms_json={"masdar": "دِراسَة"})]
+        lookup = build_lemma_lookup(lemmas)
+        assert lookup["دراسة"] == 5
+
+    def test_active_participle(self):
+        lemmas = [_FakeLemma(6, "كتب", forms_json={"active_participle": "كاتِب"})]
+        lookup = build_lemma_lookup(lemmas)
+        assert lookup["كاتب"] == 6
+
+    def test_base_form_not_overwritten_by_inflected(self):
+        """If two lemmas share a form, the base-form lemma keeps priority."""
+        lemmas = [
+            _FakeLemma(1, "كتب"),
+            _FakeLemma(2, "كاتب", forms_json={"plural": "كُتُب"}),
+        ]
+        lookup = build_lemma_lookup(lemmas)
+        assert lookup["كتب"] == 1  # base form, not overwritten
+
+    def test_none_forms_json(self):
+        lemmas = [_FakeLemma(1, "بيت", forms_json=None)]
+        lookup = build_lemma_lookup(lemmas)
+        assert lookup["بيت"] == 1
+
+    def test_empty_forms_json(self):
+        lemmas = [_FakeLemma(1, "بيت", forms_json={})]
+        lookup = build_lemma_lookup(lemmas)
+        assert lookup["بيت"] == 1
+
+    def test_no_forms_json_attr(self):
+        """Lemma object without forms_json attribute should not break."""
+        class _BareLemma:
+            def __init__(self):
+                self.lemma_id = 1
+                self.lemma_ar_bare = "بيت"
+        lookup = build_lemma_lookup([_BareLemma()])
+        assert lookup["بيت"] == 1
 
 
 class TestMapTokensToLemmas:
