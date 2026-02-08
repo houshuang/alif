@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import {
   View,
   Text,
@@ -6,6 +6,8 @@ import {
   Pressable,
   StyleSheet,
   ActivityIndicator,
+  type GestureResponderEvent,
+  type LayoutChangeEvent,
 } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { colors, fonts } from "../../lib/theme";
@@ -31,6 +33,7 @@ export default function StoryReadScreen() {
   const [lookedUp, setLookedUp] = useState<Set<number>>(new Set());
   const [lookedUpLemmaIds, setLookedUpLemmaIds] = useState<Set<number>>(new Set());
   const [submitting, setSubmitting] = useState(false);
+  const wordLayouts = useRef<Map<number, { x: number; y: number; w: number; h: number }>>(new Map());
   const router = useRouter();
 
   useEffect(() => {
@@ -56,6 +59,30 @@ export default function StoryReadScreen() {
 
   function persistLookups(positions: Set<number>, lemmaIds: Set<number>) {
     if (id) saveStoryLookups(Number(id), positions, lemmaIds).catch(() => {});
+  }
+
+  function recordWordLayout(position: number, e: LayoutChangeEvent) {
+    const { x, y, width, height } = e.nativeEvent.layout;
+    wordLayouts.current.set(position, { x, y, w: width, h: height });
+  }
+
+  function handleStoryPress(e: GestureResponderEvent) {
+    if (!story) return;
+    const { locationX, locationY } = e.nativeEvent;
+    for (const [position, layout] of wordLayouts.current) {
+      if (
+        locationX >= layout.x &&
+        locationX <= layout.x + layout.w &&
+        locationY >= layout.y &&
+        locationY <= layout.y + layout.h
+      ) {
+        const word = story.words.find((w) => w.position === position);
+        if (word && !word.is_function_word && word.lemma_id != null) {
+          handleWordTap(word);
+        }
+        return;
+      }
+    }
   }
 
   const handleWordTap = useCallback(
@@ -167,8 +194,6 @@ export default function StoryReadScreen() {
     );
   }
 
-  const sentences = groupBySentence(story.words);
-
   return (
     <View style={styles.container}>
       <View style={styles.tabBar}>
@@ -205,54 +230,44 @@ export default function StoryReadScreen() {
         contentContainerStyle={styles.scrollContent}
       >
         {viewMode === "arabic" ? (
-          <View style={styles.storyFlow}>
-            {sentences.map((sentenceWords, si) => {
-              const elements: React.ReactNode[] = [];
-              sentenceWords.forEach((word) => {
-                const tappable =
-                  !word.is_function_word && word.lemma_id != null;
-                const isLookedUp = lookedUp.has(word.position);
-                const isSelected = selectedPosition === word.position;
-
-                elements.push(
-                  tappable ? (
-                    <Pressable
-                      key={word.position}
-                      onPress={() => handleWordTap(word)}
-                      style={[
-                        styles.wordChip,
-                        isLookedUp && styles.lookedUpChip,
-                        isSelected && styles.selectedChip,
-                      ]}
-                    >
-                      <Text
-                        style={[
-                          styles.storyWord,
-                          isLookedUp && styles.lookedUpWord,
-                          isSelected && styles.selectedWord,
-                        ]}
-                      >
-                        {word.surface_form}
-                      </Text>
-                    </Pressable>
-                  ) : (
-                    <View key={word.position} style={styles.wordChip}>
-                      <Text style={styles.storyWord}>
-                        {word.surface_form}
-                      </Text>
-                    </View>
-                  )
+          <Pressable onPress={handleStoryPress} style={styles.storyFlow}>
+            {buildFlatWordList(story.words).map((item) => {
+              if (item.type === "period") {
+                return (
+                  <View key={item.key} style={styles.wordChip}>
+                    <Text style={styles.storyWord}>.</Text>
+                  </View>
                 );
-              });
-              // Add period after each sentence
-              elements.push(
-                <View key={`period-${si}`} style={styles.wordChip}>
-                  <Text style={styles.storyWord}>.</Text>
+              }
+              const word = item.word!;
+              const tappable =
+                !word.is_function_word && word.lemma_id != null;
+              const isLookedUp = lookedUp.has(word.position);
+              const isSelected = selectedPosition === word.position;
+
+              return (
+                <View
+                  key={word.position}
+                  onLayout={tappable ? (e) => recordWordLayout(word.position, e) : undefined}
+                  style={[
+                    styles.wordChip,
+                    isLookedUp && styles.lookedUpChip,
+                    isSelected && styles.selectedChip,
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.storyWord,
+                      isLookedUp && styles.lookedUpWord,
+                      isSelected && styles.selectedWord,
+                    ]}
+                  >
+                    {word.surface_form}
+                  </Text>
                 </View>
               );
-              return elements;
             })}
-          </View>
+          </Pressable>
         ) : (
           <Text style={styles.englishText}>
             {story.body_en || "No translation available."}
@@ -326,16 +341,22 @@ export default function StoryReadScreen() {
   );
 }
 
-function groupBySentence(words: StoryWordMeta[]): StoryWordMeta[][] {
-  const groups: Map<number, StoryWordMeta[]> = new Map();
+type FlatItem = { type: "word"; word: StoryWordMeta; key: string } | { type: "period"; key: string; word?: undefined };
+
+function buildFlatWordList(words: StoryWordMeta[]): FlatItem[] {
+  const items: FlatItem[] = [];
+  let lastSentenceIndex = -1;
   for (const w of words) {
-    const list = groups.get(w.sentence_index) || [];
-    list.push(w);
-    groups.set(w.sentence_index, list);
+    if (lastSentenceIndex >= 0 && w.sentence_index !== lastSentenceIndex) {
+      items.push({ type: "period", key: `period-${lastSentenceIndex}` });
+    }
+    items.push({ type: "word", word: w, key: `w-${w.position}` });
+    lastSentenceIndex = w.sentence_index;
   }
-  return Array.from(groups.entries())
-    .sort(([a], [b]) => a - b)
-    .map(([, ws]) => ws.sort((a, b) => a.position - b.position));
+  if (items.length > 0) {
+    items.push({ type: "period", key: `period-final` });
+  }
+  return items;
 }
 
 const styles = StyleSheet.create({
@@ -384,14 +405,13 @@ const styles = StyleSheet.create({
     paddingBottom: 40,
   },
   storyFlow: {
-    flexDirection: "row",
+    flexDirection: "row-reverse",
     flexWrap: "wrap",
-    transform: [{ scaleX: -1 }],
+    alignItems: "flex-start",
     gap: 6,
-    rowGap: 12,
+    rowGap: 14,
   },
   wordChip: {
-    transform: [{ scaleX: -1 }],
     paddingVertical: 6,
     paddingHorizontal: 4,
     borderRadius: 4,
