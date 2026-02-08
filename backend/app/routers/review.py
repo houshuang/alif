@@ -154,6 +154,20 @@ def sync_reviews(body: BulkSyncIn, db: Session = Depends(get_db)):
                     client_review_id=item.client_review_id,
                 )
                 status = "duplicate" if result.get("duplicate") else "ok"
+                if status != "duplicate":
+                    log_interaction(
+                        event="sentence_review",
+                        sentence_id=payload.get("sentence_id"),
+                        lemma_id=payload["primary_lemma_id"],
+                        comprehension_signal=payload["comprehension_signal"],
+                        missed_lemma_ids=payload.get("missed_lemma_ids", []),
+                        response_ms=payload.get("response_ms"),
+                        session_id=payload.get("session_id"),
+                        review_mode=payload.get("review_mode", "reading"),
+                        words_reviewed=len(result.get("word_results", [])),
+                        collateral_count=len([w for w in result.get("word_results", []) if w.get("credit_type") == "collateral"]),
+                        source="sync",
+                    )
                 results.append({"client_review_id": item.client_review_id, "status": status})
             elif item.type == "legacy":
                 payload = item.payload
@@ -168,6 +182,16 @@ def sync_reviews(body: BulkSyncIn, db: Session = Depends(get_db)):
                     client_review_id=item.client_review_id,
                 )
                 status = "duplicate" if result.get("duplicate") else "ok"
+                if status != "duplicate":
+                    log_interaction(
+                        event="legacy_review",
+                        lemma_id=payload["lemma_id"],
+                        rating=payload["rating"],
+                        response_ms=payload.get("response_ms"),
+                        session_id=payload.get("session_id"),
+                        review_mode=payload.get("review_mode", "reading"),
+                        source="sync",
+                    )
                 results.append({"client_review_id": item.client_review_id, "status": status})
             else:
                 results.append({"client_review_id": item.client_review_id, "status": "error", "error": f"Unknown type: {item.type}"})
