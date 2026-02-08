@@ -229,15 +229,16 @@ def select_next_words(
             db, lemma.grammar_features_json
         )
 
-        # Words in active stories get a large boost
+        # Words in active stories get a flat boost on top of normal scoring
+        # so they always rank above non-story words
         story_bonus = 1.0 if lemma.lemma_id in story_lemmas else 0.0
 
         total_score = (
-            freq_score * 0.3
-            + root_score * 0.2
-            + recency_bonus * 0.1
+            freq_score * 0.4
+            + root_score * 0.3
+            + recency_bonus * 0.2
             + pattern_score * 0.1
-            + story_bonus * 0.3
+            + story_bonus
         )
 
         scored.append({
