@@ -6,7 +6,6 @@ import {
   Pressable,
   StyleSheet,
   ActivityIndicator,
-  type LayoutChangeEvent,
 } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { colors, fonts } from "../../lib/theme";
@@ -32,10 +31,6 @@ export default function StoryReadScreen() {
   const [lookedUp, setLookedUp] = useState<Set<number>>(new Set());
   const [lookedUpLemmaIds, setLookedUpLemmaIds] = useState<Set<number>>(new Set());
   const [submitting, setSubmitting] = useState(false);
-  const wordLayouts = useRef<Map<number, { x: number; y: number; w: number; h: number }>>(new Map());
-  const touchStart = useRef<{ px: number; py: number; t: number } | null>(null);
-  const storyRef = useRef<View>(null);
-  const storyOrigin = useRef<{ px: number; py: number }>({ px: 0, py: 0 });
   const router = useRouter();
 
   useEffect(() => {
@@ -61,55 +56,6 @@ export default function StoryReadScreen() {
 
   function persistLookups(positions: Set<number>, lemmaIds: Set<number>) {
     if (id) saveStoryLookups(Number(id), positions, lemmaIds).catch(() => {});
-  }
-
-  function recordWordLayout(position: number, e: LayoutChangeEvent) {
-    const { x, y, width, height } = e.nativeEvent.layout;
-    wordLayouts.current.set(position, { x, y, w: width, h: height });
-  }
-
-  function measureStoryOrigin() {
-    storyRef.current?.measureInWindow((x, y) => {
-      storyOrigin.current = { px: x, py: y };
-    });
-  }
-
-  function onStoryTouchStart(e: any) {
-    touchStart.current = {
-      px: e.nativeEvent.pageX,
-      py: e.nativeEvent.pageY,
-      t: Date.now(),
-    };
-  }
-
-  function onStoryTouchEnd(e: any) {
-    if (!touchStart.current || !story) return;
-    const dx = Math.abs(e.nativeEvent.pageX - touchStart.current.px);
-    const dy = Math.abs(e.nativeEvent.pageY - touchStart.current.py);
-    const dt = Date.now() - touchStart.current.t;
-    touchStart.current = null;
-
-    // Ignore if finger moved (scroll) or held too long
-    if (dx > 12 || dy > 12 || dt > 400) return;
-
-    // Convert page coordinates to local coordinates
-    const localX = e.nativeEvent.pageX - storyOrigin.current.px;
-    const localY = e.nativeEvent.pageY - storyOrigin.current.py;
-
-    for (const [position, layout] of wordLayouts.current) {
-      if (
-        localX >= layout.x &&
-        localX <= layout.x + layout.w &&
-        localY >= layout.y &&
-        localY <= layout.y + layout.h
-      ) {
-        const word = story.words.find((w) => w.position === position);
-        if (word) {
-          handleWordTap(word);
-        }
-        return;
-      }
-    }
   }
 
   const handleWordTap = useCallback(
@@ -272,13 +218,7 @@ export default function StoryReadScreen() {
         contentContainerStyle={styles.scrollContent}
       >
         {viewMode === "arabic" ? (
-          <View
-            ref={storyRef}
-            onLayout={measureStoryOrigin}
-            onTouchStart={onStoryTouchStart}
-            onTouchEnd={onStoryTouchEnd}
-            style={styles.storyFlow}
-          >
+          <View style={styles.storyFlow}>
             {buildFlatWordList(story.words).map((item) => {
               if (item.type === "break") {
                 return (
@@ -291,9 +231,9 @@ export default function StoryReadScreen() {
               const isNewWord = !word.is_known && !word.is_function_word;
 
               return (
-                <View
+                <Pressable
                   key={word.position}
-                  onLayout={(e) => recordWordLayout(word.position, e)}
+                  onPress={() => handleWordTap(word)}
                   style={[
                     styles.wordChip,
                     isLookedUp && styles.lookedUpChip,
@@ -312,7 +252,7 @@ export default function StoryReadScreen() {
                   {isNewWord && !isLookedUp && (
                     <View style={styles.newWordDot} />
                   )}
-                </View>
+                </Pressable>
               );
             })}
           </View>
