@@ -96,7 +96,10 @@ def _create_story_words(
 
     Returns (total_words, known_count, function_word_count).
     """
-    sentences = [s.strip() for s in body_ar.split(".") if s.strip()]
+    # Split on periods and newlines to preserve poem/verse formatting
+    import re
+    raw_parts = re.split(r"[.\n]", body_ar)
+    sentences = [s.strip() for s in raw_parts if s.strip()]
     position = 0
     total = 0
     known = 0

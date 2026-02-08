@@ -279,11 +279,9 @@ export default function StoryReadScreen() {
             style={styles.storyFlow}
           >
             {buildFlatWordList(story.words).map((item) => {
-              if (item.type === "period") {
+              if (item.type === "break") {
                 return (
-                  <View key={item.key} style={styles.wordChip}>
-                    <Text style={styles.storyWord}>.</Text>
-                  </View>
+                  <View key={item.key} style={styles.lineBreak} />
                 );
               }
               const word = item.word!;
@@ -386,20 +384,17 @@ export default function StoryReadScreen() {
   );
 }
 
-type FlatItem = { type: "word"; word: StoryWordMeta; key: string } | { type: "period"; key: string; word?: undefined };
+type FlatItem = { type: "word"; word: StoryWordMeta; key: string } | { type: "break"; key: string; word?: undefined };
 
 function buildFlatWordList(words: StoryWordMeta[]): FlatItem[] {
   const items: FlatItem[] = [];
   let lastSentenceIndex = -1;
   for (const w of words) {
     if (lastSentenceIndex >= 0 && w.sentence_index !== lastSentenceIndex) {
-      items.push({ type: "period", key: `period-${lastSentenceIndex}` });
+      items.push({ type: "break", key: `break-${lastSentenceIndex}` });
     }
     items.push({ type: "word", word: w, key: `w-${w.position}` });
     lastSentenceIndex = w.sentence_index;
-  }
-  if (items.length > 0) {
-    items.push({ type: "period", key: `period-final` });
   }
   return items;
 }
@@ -455,6 +450,10 @@ const styles = StyleSheet.create({
     alignItems: "flex-start",
     gap: 6,
     rowGap: 14,
+  },
+  lineBreak: {
+    width: "100%",
+    height: 12,
   },
   wordChip: {
     paddingVertical: 6,
