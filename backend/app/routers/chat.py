@@ -86,6 +86,8 @@ def ask_question(body: AskQuestionIn, db: Session = Depends(get_db)):
         event="ai_ask",
         screen=body.screen,
         conversation_id=conversation_id,
+        question=body.question[:200],
+        context=body.context[:200] if body.context else None,
     )
 
     return AskQuestionOut(answer=answer, conversation_id=conversation_id)

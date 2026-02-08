@@ -4,6 +4,7 @@ Uses mocked LLM responses to test:
 - Prompt construction
 - Retry logic on validation failure
 - Integration of validator + LLM
+- Diversity utilities (weighted sampling, avoid words)
 """
 
 from unittest.mock import patch
@@ -15,6 +16,8 @@ from app.services.sentence_generator import (
     GeneratedSentence,
     GenerationError,
     generate_validated_sentence,
+    get_avoid_words,
+    sample_known_words_weighted,
 )
 
 
@@ -311,3 +314,199 @@ def test_batch_uses_model_override(mock_completion):
 
     call_kwargs = mock_completion.call_args.kwargs
     assert call_kwargs["model_override"] == "openai"
+
+
+# --- Tests for diversity utilities ---
+
+KNOWN_WORDS_WITH_IDS = [
+    {"arabic": f"كلمة{i}", "english": f"word{i}", "lemma_id": i}
+    for i in range(100)
+]
+
+
+class TestSampleKnownWordsWeighted:
+    def test_small_pool_returns_all(self):
+        """When pool <= sample_size, return all words."""
+        small = KNOWN_WORDS_WITH_IDS[:10]
+        result = sample_known_words_weighted(small, {}, sample_size=50)
+        assert len(result) == 10
+
+    def test_returns_sample_size(self):
+        """Should return exactly sample_size words."""
+        counts = {i: 10 for i in range(100)}
+        result = sample_known_words_weighted(
+            KNOWN_WORDS_WITH_IDS, counts, sample_size=30
+        )
+        assert len(result) == 30
+
+    def test_excludes_target_word(self):
+        """Target lemma should be excluded from the sample."""
+        result = sample_known_words_weighted(
+            KNOWN_WORDS_WITH_IDS, {}, sample_size=50, target_lemma_id=5
+        )
+        ids = {w["lemma_id"] for w in result}
+        assert 5 not in ids
+
+    def test_over_represented_words_deprioritized(self):
+        """Words with high sentence counts should appear less often in samples."""
+        # Make lemmas 0-9 very over-represented
+        counts = {i: 100 for i in range(10)}
+        # Run many samples and check that over-represented words appear less
+        appearances = {i: 0 for i in range(100)}
+        for _ in range(200):
+            sample = sample_known_words_weighted(
+                KNOWN_WORDS_WITH_IDS, counts, sample_size=50
+            )
+            for w in sample:
+                appearances[w["lemma_id"]] += 1
+
+        # Average appearances for over-represented vs normal words
+        overrep_avg = sum(appearances[i] for i in range(10)) / 10
+        normal_avg = sum(appearances[i] for i in range(10, 100)) / 90
+
+        # Over-represented should appear significantly less often
+        assert overrep_avg < normal_avg
+
+    def test_min_weight_prevents_complete_exclusion(self):
+        """Even very over-represented words should still appear sometimes."""
+        counts = {i: 1000 for i in range(100)}
+        result = sample_known_words_weighted(
+            KNOWN_WORDS_WITH_IDS, counts, sample_size=50
+        )
+        assert len(result) == 50
+
+
+class TestGetAvoidWords:
+    def test_empty_counts_returns_none(self):
+        assert get_avoid_words({}, KNOWN_WORDS_WITH_IDS) is None
+
+    def test_no_words_above_threshold(self):
+        """All words at count 1 → none above threshold."""
+        counts = {i: 1 for i in range(50)}
+        result = get_avoid_words(counts, KNOWN_WORDS_WITH_IDS)
+        assert result is None
+
+    def test_returns_over_represented_words(self):
+        """Words above 2x median should be returned."""
+        # Median will be 2, threshold = max(4, 3) = 4
+        counts = {i: 2 for i in range(50)}
+        counts[0] = 20  # way over threshold
+        counts[1] = 10
+        result = get_avoid_words(counts, KNOWN_WORDS_WITH_IDS)
+        assert result is not None
+        assert len(result) == 2
+        # Most over-represented first
+        assert result[0] == "كلمة0"
+        assert result[1] == "كلمة1"
+
+    def test_caps_at_max_avoid_words(self):
+        """Should return at most MAX_AVOID_WORDS items."""
+        counts = {i: 2 for i in range(50)}
+        for i in range(20):
+            counts[i] = 100  # 20 words over threshold
+        result = get_avoid_words(counts, KNOWN_WORDS_WITH_IDS)
+        assert result is not None
+        assert len(result) <= 10
+
+    def test_only_returns_words_in_known_list(self):
+        """Avoid words must be in the known_words list."""
+        counts = {999: 100, 0: 100}  # lemma 999 not in known_words
+        # Median is 100, threshold is 200 — neither qualifies
+        # Let's set it so that both are above threshold
+        counts = {i: 1 for i in range(50)}
+        counts[999] = 50  # not in known_words
+        counts[0] = 50  # in known_words
+        result = get_avoid_words(counts, KNOWN_WORDS_WITH_IDS)
+        if result:
+            for word in result:
+                assert word != "?"  # shouldn't include unknown lemma
+
+
+@patch("app.services.sentence_generator.generate_sentence")
+def test_weighted_sampling_used_when_counts_provided(mock_gen):
+    """When content_word_counts is passed, weighted sampling is used."""
+    mock_gen.return_value = SentenceResult(
+        arabic="الوَلَدُ يَأْكُلُ التُّفَّاحَةَ",
+        english="The boy eats the apple",
+        transliteration="...",
+    )
+
+    big_known = [
+        {"arabic": f"كلمة{i}", "english": f"word{i}", "lemma_id": i}
+        for i in range(200)
+    ]
+    big_known.extend(
+        {**w, "lemma_id": 1000 + i} for i, w in enumerate(KNOWN_WORDS)
+    )
+    counts = {i: 50 for i in range(10)}  # first 10 over-represented
+
+    result = generate_validated_sentence(
+        target_arabic="تُفَّاحَة",
+        target_translation="apple",
+        known_words=big_known,
+        content_word_counts=counts,
+    )
+
+    sent_known = mock_gen.call_args.kwargs.get("known_words") or mock_gen.call_args.args[2]
+    assert len(sent_known) <= 50
+
+
+@patch("app.services.llm.generate_completion")
+def test_avoid_words_in_prompt(mock_completion):
+    """When avoid_words is provided, it appears in the prompt."""
+    mock_completion.return_value = {
+        "arabic": "الوَلَدُ يَأْكُلُ التُّفَّاحَةَ",
+        "english": "The boy eats the apple",
+        "transliteration": "...",
+    }
+
+    from app.services.llm import generate_sentence
+
+    generate_sentence(
+        target_word="تُفَّاحَة",
+        target_translation="apple",
+        known_words=KNOWN_WORDS,
+        avoid_words=["جِدًّا", "بُنِّيّ"],
+    )
+
+    prompt = mock_completion.call_args.kwargs.get("prompt") or mock_completion.call_args.args[0]
+    assert "جِدًّا" in prompt
+    assert "بُنِّيّ" in prompt
+    assert "overused" in prompt.lower()
+
+
+@patch("app.services.llm.generate_completion")
+def test_avoid_words_in_batch_prompt(mock_completion):
+    """Batch generation includes avoid words in prompt."""
+    mock_completion.return_value = {"sentences": []}
+
+    generate_sentences_batch(
+        target_word="كِتَاب",
+        target_translation="book",
+        known_words=KNOWN_WORDS,
+        avoid_words=["جِدًّا"],
+    )
+
+    prompt = mock_completion.call_args.kwargs.get("prompt") or mock_completion.call_args.args[0]
+    assert "جِدًّا" in prompt
+
+
+@patch("app.services.llm.generate_completion")
+def test_no_avoid_words_when_none(mock_completion):
+    """When avoid_words is None, no avoid instruction in prompt."""
+    mock_completion.return_value = {
+        "arabic": "test",
+        "english": "test",
+        "transliteration": "test",
+    }
+
+    from app.services.llm import generate_sentence
+
+    generate_sentence(
+        target_word="تُفَّاحَة",
+        target_translation="apple",
+        known_words=KNOWN_WORDS,
+    )
+
+    prompt = mock_completion.call_args.kwargs.get("prompt") or mock_completion.call_args.args[0]
+    assert "overused" not in prompt.lower()

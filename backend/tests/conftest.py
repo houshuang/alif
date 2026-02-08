@@ -4,6 +4,7 @@ from sqlalchemy import create_engine, StaticPool
 from sqlalchemy.orm import sessionmaker
 
 os.environ["ALIF_SKIP_MIGRATIONS"] = "1"
+os.environ["TESTING"] = "1"
 
 from app.database import Base, get_db
 from app.main import app

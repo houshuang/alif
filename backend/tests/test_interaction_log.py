@@ -1,8 +1,20 @@
 import json
+import os
 from pathlib import Path
 from unittest.mock import patch
 
+import pytest
+
 from app.services.interaction_logger import log_interaction
+
+
+@pytest.fixture(autouse=True)
+def _allow_logging():
+    """Temporarily clear TESTING so these tests can exercise the logger."""
+    old = os.environ.pop("TESTING", None)
+    yield
+    if old is not None:
+        os.environ["TESTING"] = old
 
 
 def test_log_interaction(tmp_path):

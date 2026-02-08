@@ -19,6 +19,11 @@ from app.services.llm import (
     AllProvidersFailed,
     generate_completion,
 )
+from app.services.sentence_generator import (
+    get_content_word_counts,
+    get_avoid_words,
+    sample_known_words_weighted,
+)
 from app.services.sentence_validator import (
     FUNCTION_WORDS,
     build_lemma_lookup,
@@ -59,7 +64,7 @@ Vocabulary constraint:
 لن، قد، الذي، التي، كل، بعض، هنا، هناك، الآن، جدا، فقط، أيضا، أو، ثم، لكن، يا
 - Do NOT invent or use Arabic content words not in the vocabulary list
 - Include full diacritics (tashkeel) on ALL Arabic words with correct i'rab
-- Separate sentences with periods
+- Include Arabic punctuation: use ؟ for questions, . for statements, ، between clauses
 - Transliteration: ALA-LC standard with macrons for long vowels
 
 Respond with JSON only: {{"title_ar": "...", "title_en": "...", "body_ar": "...", "body_en": "...", "transliteration": "..."}}"""
@@ -195,11 +200,12 @@ def generate_story(
     if not known_words:
         raise ValueError("No known/learning words found. Learn some words first.")
 
-    sample = (
-        random.sample(known_words, KNOWN_SAMPLE_SIZE)
-        if len(known_words) > KNOWN_SAMPLE_SIZE
-        else known_words
+    # Diversity: weighted sampling to avoid over-represented words
+    content_word_counts = get_content_word_counts(db)
+    sample = sample_known_words_weighted(
+        known_words, content_word_counts, KNOWN_SAMPLE_SIZE,
     )
+    avoid_words = get_avoid_words(content_word_counts, known_words)
 
     vocab_list = "\n".join(
         f"- {w['arabic']} ({w['english']})" for w in sample
@@ -260,7 +266,7 @@ IMPORTANT RULES:
 - Every sentence must connect to the next — no disconnected practice sentences!
 - Include full diacritics (tashkeel) on ALL Arabic words
 - The title should hint at the story without spoiling it
-
+{f"- For variety, try NOT to use these overused words (pick other vocabulary instead): {'، '.join(avoid_words)}" if avoid_words else ""}
 Respond with JSON: {{"title_ar": "...", "title_en": "...", "body_ar": "full story in Arabic with diacritics", "body_en": "English translation", "transliteration": "ALA-LC transliteration"}}"""
 
     try:
@@ -451,6 +457,7 @@ def complete_story(
     db: Session,
     story_id: int,
     looked_up_lemma_ids: list[int],
+    reading_time_ms: int | None = None,
 ) -> dict:
     """Mark story as completed and submit FSRS reviews for all words."""
     story = db.query(Story).filter(Story.id == story_id).first()
@@ -499,6 +506,9 @@ def complete_story(
         context=f"story_id:{story_id}",
         good_count=good_count,
         again_count=again_count,
+        words_reviewed=len(reviewed_lemmas),
+        words_looked_up=len(looked_up_set),
+        reading_time_ms=reading_time_ms,
     )
 
     return {
@@ -514,6 +524,7 @@ def skip_story(
     db: Session,
     story_id: int,
     looked_up_lemma_ids: list[int] | None = None,
+    reading_time_ms: int | None = None,
 ) -> dict:
     """Mark story as skipped. Submit rating=1 for looked-up words only."""
     story = db.query(Story).filter(Story.id == story_id).first()
@@ -540,6 +551,8 @@ def skip_story(
         event="story_skipped",
         context=f"story_id:{story_id}",
         again_count=again_count,
+        words_looked_up=len(looked_up_lemma_ids) if looked_up_lemma_ids else 0,
+        reading_time_ms=reading_time_ms,
     )
 
     return {"story_id": story_id, "status": "skipped", "again_count": again_count}
@@ -549,6 +562,7 @@ def too_difficult_story(
     db: Session,
     story_id: int,
     looked_up_lemma_ids: list[int] | None = None,
+    reading_time_ms: int | None = None,
 ) -> dict:
     """Mark story as too_difficult. Submit rating=1 for looked-up words only."""
     story = db.query(Story).filter(Story.id == story_id).first()
@@ -575,6 +589,8 @@ def too_difficult_story(
         event="story_too_difficult",
         context=f"story_id:{story_id}",
         again_count=again_count,
+        words_looked_up=len(looked_up_lemma_ids) if looked_up_lemma_ids else 0,
+        reading_time_ms=reading_time_ms,
     )
 
     return {"story_id": story_id, "status": "too_difficult", "again_count": again_count}

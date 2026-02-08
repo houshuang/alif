@@ -198,6 +198,8 @@
 - Identify words that are consistently hard → provide extra context/examples
 - Detect if difficulty ratings are miscalibrated
 - A/B test different presentation modes (with logging data)
+- **Response time as difficulty signal**: response_ms is already captured for reading/listening reviews (stored in ReviewLog + SentenceReviewLog + JSONL logs) but never used. Possible uses: slow response → word is harder (could influence FSRS scheduling or sentence selection), decreasing response time over repeated reviews of same word = fluency/acquisition signal, analytics dashboard showing time-per-card trends. Caveat: response time is noisy (distracted vs. genuinely struggling), best as supplementary signal alongside ratings.
+- **Learn mode quiz timing gap**: `frontend/app/learn.tsx` hardcodes `response_ms: 0` for quiz reviews — should measure actual time
 
 ---
 

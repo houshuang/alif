@@ -7,7 +7,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.database import get_db, SessionLocal
-from app.models import Lemma, Sentence, SentenceWord, UserLemmaKnowledge
+from app.models import Lemma, Root, Sentence, SentenceWord, UserLemmaKnowledge
 from app.services.word_selector import (
     select_next_words,
     introduce_word,
@@ -113,10 +113,16 @@ def introduce_batch(req: IntroduceBatchRequest, db: Session = Depends(get_db)):
 @router.get("/root-family/{root_id}")
 def root_family(root_id: int, db: Session = Depends(get_db)):
     """Get all words from a root with their knowledge state."""
+    root_obj = db.query(Root).filter(Root.root_id == root_id).first()
     family = get_root_family(db, root_id)
     if not family:
         raise HTTPException(status_code=404, detail="Root not found")
-    return {"root_id": root_id, "words": family}
+    return {
+        "root_id": root_id,
+        "root": root_obj.root if root_obj else None,
+        "root_meaning": root_obj.core_meaning_en if root_obj else None,
+        "words": family,
+    }
 
 
 @router.post("/quiz-result")
@@ -143,6 +149,7 @@ def quiz_result(req: QuizResultRequest, db: Session = Depends(get_db)):
         event="quiz_review",
         lemma_id=req.lemma_id,
         rating=rating,
+        comprehension_signal="understood" if req.got_it else "no_idea",
     )
     return result
 
@@ -243,7 +250,7 @@ def _generate_material_for_word(lemma_id: int, needed: int) -> None:
         if not lemma:
             return
 
-        # Build known words list for the LLM prompt
+        # Build known words list for the LLM prompt (with lemma_id for diversity weighting)
         all_lemmas = (
             db.query(Lemma)
             .join(UserLemmaKnowledge)
@@ -251,11 +258,17 @@ def _generate_material_for_word(lemma_id: int, needed: int) -> None:
             .all()
         )
         known_words = [
-            {"arabic": lem.lemma_ar, "english": lem.gloss_en or ""}
+            {"arabic": lem.lemma_ar, "english": lem.gloss_en or "", "lemma_id": lem.lemma_id}
             for lem in all_lemmas
         ]
 
         from app.services.llm import generate_sentences_batch, AllProvidersFailed
+        from app.services.sentence_generator import (
+            get_content_word_counts,
+            get_avoid_words,
+            sample_known_words_weighted,
+            KNOWN_SAMPLE_SIZE,
+        )
         from app.services.sentence_validator import (
             build_lemma_lookup,
             map_tokens_to_lemmas,
@@ -268,13 +281,21 @@ def _generate_material_for_word(lemma_id: int, needed: int) -> None:
         target_bare = strip_diacritics(lemma.lemma_ar)
         all_bare_forms = set(lemma_lookup.keys())
 
+        # Diversity: weighted sampling + avoid overused words
+        content_word_counts = get_content_word_counts(db)
+        sample = sample_known_words_weighted(
+            known_words, content_word_counts, KNOWN_SAMPLE_SIZE, target_lemma_id=lemma_id
+        )
+        avoid_words = get_avoid_words(content_word_counts, known_words)
+
         try:
             results = generate_sentences_batch(
                 target_word=lemma.lemma_ar,
                 target_translation=lemma.gloss_en or "",
-                known_words=known_words,
+                known_words=sample,
                 count=needed + 1,
                 difficulty_hint="beginner",
+                avoid_words=avoid_words,
             )
         except AllProvidersFailed:
             logger.warning(f"LLM unavailable for sentence generation (lemma {lemma_id})")

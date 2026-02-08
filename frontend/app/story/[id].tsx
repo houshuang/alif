@@ -32,6 +32,7 @@ export default function StoryReadScreen() {
   const [lookedUp, setLookedUp] = useState<Set<number>>(new Set());
   const [lookedUpLemmaIds, setLookedUpLemmaIds] = useState<Set<number>>(new Set());
   const [submitting, setSubmitting] = useState(false);
+  const storyStartTime = useRef(Date.now());
   const router = useRouter();
 
   useEffect(() => {
@@ -129,7 +130,8 @@ export default function StoryReadScreen() {
     if (!story || submitting) return;
     setSubmitting(true);
     try {
-      await completeStory(story.id, Array.from(lookedUpLemmaIds));
+      const readingTimeMs = Date.now() - storyStartTime.current;
+      await completeStory(story.id, Array.from(lookedUpLemmaIds), readingTimeMs);
       clearStoryLookups(story.id).catch(() => {});
       router.back();
     } catch (e) {
@@ -143,7 +145,8 @@ export default function StoryReadScreen() {
     if (!story || submitting) return;
     setSubmitting(true);
     try {
-      await skipStory(story.id, Array.from(lookedUpLemmaIds));
+      const readingTimeMs = Date.now() - storyStartTime.current;
+      await skipStory(story.id, Array.from(lookedUpLemmaIds), readingTimeMs);
       clearStoryLookups(story.id).catch(() => {});
       router.back();
     } catch (e) {
@@ -157,7 +160,8 @@ export default function StoryReadScreen() {
     if (!story || submitting) return;
     setSubmitting(true);
     try {
-      await tooDifficultStory(story.id, Array.from(lookedUpLemmaIds));
+      const readingTimeMs = Date.now() - storyStartTime.current;
+      await tooDifficultStory(story.id, Array.from(lookedUpLemmaIds), readingTimeMs);
       clearStoryLookups(story.id).catch(() => {});
       router.back();
     } catch (e) {

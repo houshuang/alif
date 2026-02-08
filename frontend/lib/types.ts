@@ -237,6 +237,8 @@ export interface SentenceReviewSubmission {
   session_id: string;
   review_mode: ReviewMode;
   client_review_id?: string;
+  audio_play_count?: number;
+  lookup_count?: number;
 }
 
 export interface Analytics {

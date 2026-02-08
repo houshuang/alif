@@ -6,13 +6,17 @@ The core loop: generate → validate → retry (up to MAX_RETRIES).
 
 import json
 import random
+import statistics
 from datetime import datetime
 from pathlib import Path
 from typing import Any
 
 from pydantic import BaseModel
+from sqlalchemy import func as sa_func
+from sqlalchemy.orm import Session
 
 from app.config import settings
+from app.models import SentenceWord
 from app.services.llm import (
     AllProvidersFailed,
     SentenceResult,
@@ -26,6 +30,91 @@ from app.services.sentence_validator import (
 
 MAX_RETRIES = 3
 KNOWN_SAMPLE_SIZE = 50
+MAX_AVOID_WORDS = 10
+MIN_WEIGHT = 0.05
+
+
+def get_content_word_counts(db: Session) -> dict[int, int]:
+    """Count how many sentences each content lemma appears in as a non-target word.
+
+    Returns {lemma_id: distinct_sentence_count}. Excludes function words
+    (lemma_id=NULL) and target word appearances.
+    """
+    rows = (
+        db.query(
+            SentenceWord.lemma_id,
+            sa_func.count(sa_func.distinct(SentenceWord.sentence_id)),
+        )
+        .filter(
+            SentenceWord.lemma_id.isnot(None),
+            SentenceWord.is_target_word == False,  # noqa: E712
+        )
+        .group_by(SentenceWord.lemma_id)
+        .all()
+    )
+    return {lid: cnt for lid, cnt in rows}
+
+
+def sample_known_words_weighted(
+    known_words: list[dict[str, str]],
+    content_word_counts: dict[int, int],
+    sample_size: int = KNOWN_SAMPLE_SIZE,
+    target_lemma_id: int | None = None,
+) -> list[dict[str, str]]:
+    """Sample known words with inverse-frequency weighting.
+
+    Words appearing in many existing sentences get lower probability,
+    biasing generation toward under-represented vocabulary.
+    """
+    pool = known_words
+    if target_lemma_id is not None:
+        pool = [w for w in known_words if w.get("lemma_id") != target_lemma_id]
+
+    if len(pool) <= sample_size:
+        return pool
+
+    weighted = []
+    for w in pool:
+        lid = w.get("lemma_id")
+        count = content_word_counts.get(lid, 0) if lid else 0
+        weight = max(MIN_WEIGHT, 1.0 / (1 + count))
+        jittered = weight * random.uniform(0.5, 1.5)
+        weighted.append((jittered, w))
+
+    weighted.sort(key=lambda x: x[0], reverse=True)
+    return [w for _, w in weighted[:sample_size]]
+
+
+def get_avoid_words(
+    content_word_counts: dict[int, int],
+    known_words: list[dict[str, str]],
+) -> list[str] | None:
+    """Return Arabic forms of the most over-represented content words.
+
+    Threshold: sentence count >= max(median * 2, 3).
+    """
+    if not content_word_counts:
+        return None
+
+    counts = sorted(content_word_counts.values())
+    median = statistics.median(counts)
+    threshold = max(median * 2, 3)
+
+    lid_to_arabic: dict[int, str] = {}
+    for w in known_words:
+        lid = w.get("lemma_id")
+        if lid is not None:
+            lid_to_arabic[lid] = w["arabic"]
+
+    over_represented = [
+        (lid, cnt)
+        for lid, cnt in content_word_counts.items()
+        if cnt >= threshold and lid in lid_to_arabic
+    ]
+    over_represented.sort(key=lambda x: x[1], reverse=True)
+
+    result = [lid_to_arabic[lid] for lid, _ in over_represented[:MAX_AVOID_WORDS]]
+    return result or None
 
 
 class GeneratedSentence(BaseModel):
@@ -72,6 +161,8 @@ def generate_validated_sentence(
     known_words: list[dict[str, str]],
     difficulty_hint: str = "beginner",
     max_words: int | None = None,
+    content_word_counts: dict[int, int] | None = None,
+    target_lemma_id: int | None = None,
 ) -> GeneratedSentence:
     """Generate and validate a sentence with retry loop.
 
@@ -81,6 +172,8 @@ def generate_validated_sentence(
         known_words: Full list of user's known words as
                      [{"arabic": "...", "english": "..."}].
         difficulty_hint: Difficulty level for prompt.
+        content_word_counts: Per-lemma sentence counts for diversity weighting.
+        target_lemma_id: Lemma ID of the target word (excluded from sampling).
 
     Returns:
         GeneratedSentence with validated sentence data.
@@ -88,12 +181,19 @@ def generate_validated_sentence(
     Raises:
         GenerationError: If all retries fail.
     """
-    # Sample known words for prompt (don't send hundreds)
-    sample = (
-        random.sample(known_words, KNOWN_SAMPLE_SIZE)
-        if len(known_words) > KNOWN_SAMPLE_SIZE
-        else known_words
-    )
+    # Sample known words for prompt with diversity weighting when available
+    if content_word_counts is not None:
+        sample = sample_known_words_weighted(
+            known_words, content_word_counts, KNOWN_SAMPLE_SIZE, target_lemma_id
+        )
+        avoid_words = get_avoid_words(content_word_counts, known_words)
+    else:
+        sample = (
+            random.sample(known_words, KNOWN_SAMPLE_SIZE)
+            if len(known_words) > KNOWN_SAMPLE_SIZE
+            else known_words
+        )
+        avoid_words = None
 
     # Build the known bare forms set for validation
     known_bare = {strip_diacritics(w["arabic"]) for w in known_words}
@@ -111,6 +211,7 @@ def generate_validated_sentence(
                 difficulty_hint=difficulty_hint,
                 retry_feedback=retry_feedback,
                 max_words=max_words,
+                avoid_words=avoid_words,
             )
         except AllProvidersFailed as e:
             _log_generation(

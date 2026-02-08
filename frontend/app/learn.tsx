@@ -164,6 +164,7 @@ export default function LearnScreen() {
   const [quizLoading, setQuizLoading] = useState(false);
   const [quizFeedback, setQuizFeedback] = useState<"correct" | "incorrect" | null>(null);
   const sessionId = useRef(generateUuid());
+  const quizStartTime = useRef<number>(0);
 
   useEffect(() => {
     loadCandidates();
@@ -259,6 +260,7 @@ export default function LearnScreen() {
         if (result.ready && result.sentence) {
           setQuizSentence(result.sentence);
           setQuizLoading(false);
+          quizStartTime.current = Date.now();
           return;
         }
       } catch {}
@@ -267,6 +269,7 @@ export default function LearnScreen() {
 
     // Timeout — no sentence available, show word-only
     setQuizLoading(false);
+    quizStartTime.current = Date.now();
   }
 
   async function handleQuizAnswer(gotIt: boolean) {
@@ -280,7 +283,7 @@ export default function LearnScreen() {
         primary_lemma_id: current.candidate.lemma_id,
         comprehension_signal: gotIt ? "understood" : "no_idea",
         missed_lemma_ids: gotIt ? [] : [current.candidate.lemma_id],
-        response_ms: 0,
+        response_ms: Date.now() - quizStartTime.current,
         session_id: sessionId.current,
         review_mode: "quiz",
       });

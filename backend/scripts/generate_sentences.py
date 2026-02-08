@@ -27,6 +27,12 @@ from app.services.llm import (
     AllProvidersFailed,
     generate_sentences_batch,
 )
+from app.services.sentence_generator import (
+    get_content_word_counts,
+    get_avoid_words,
+    sample_known_words_weighted,
+    KNOWN_SAMPLE_SIZE,
+)
 from app.services.sentence_validator import (
     ValidationResult,
     build_lemma_lookup,
@@ -119,6 +125,7 @@ def generate_for_word(
     dry_run: bool = False,
     model: str = "gemini",
     delay: float = 0,
+    avoid_words: list[str] | None = None,
 ) -> tuple[int, int]:
     """Generate sentences for a single word. Returns (stored, failed)."""
     stored = 0
@@ -140,6 +147,7 @@ def generate_for_word(
                 count=min(remaining + 1, 3),  # ask for 1 extra to account for validation failures
                 difficulty_hint="beginner",
                 model_override=model,
+                avoid_words=avoid_words,
             )
         except AllProvidersFailed as e:
             print(f"    LLM error: {e}")
@@ -186,10 +194,16 @@ def main():
 
         # Build known words list and lemma lookup
         known_words = [
-            {"arabic": lem.lemma_ar, "english": lem.gloss_en or ""}
+            {"arabic": lem.lemma_ar, "english": lem.gloss_en or "", "lemma_id": lem.lemma_id}
             for lem in all_lemmas
         ]
         lemma_lookup = build_lemma_lookup(all_lemmas)
+
+        # Diversity: compute content word counts and avoid list
+        content_word_counts = get_content_word_counts(db)
+        avoid_words = get_avoid_words(content_word_counts, known_words)
+        if avoid_words:
+            print(f"Avoiding overused words: {', '.join(avoid_words)}")
 
         # Existing sentence counts
         existing_counts = get_existing_sentence_counts(db)
@@ -229,15 +243,22 @@ def main():
             if i > 0 and args.delay > 0:
                 time.sleep(args.delay)
 
+            # Per-word weighted sample for diversity
+            word_sample = sample_known_words_weighted(
+                known_words, content_word_counts, KNOWN_SAMPLE_SIZE,
+                target_lemma_id=lemma.lemma_id,
+            )
+
             stored, failed = generate_for_word(
                 db=db,
                 target_lemma=lemma,
-                known_words=known_words,
+                known_words=word_sample,
                 lemma_lookup=lemma_lookup,
                 needed=needed,
                 dry_run=args.dry_run,
                 model=args.model,
                 delay=args.delay,
+                avoid_words=avoid_words,
             )
 
             total_stored += stored

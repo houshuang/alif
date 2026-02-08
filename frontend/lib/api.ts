@@ -264,6 +264,8 @@ export async function submitSentenceReview(
     response_ms: submission.response_ms,
     session_id: submission.session_id,
     review_mode: submission.review_mode,
+    audio_play_count: submission.audio_play_count,
+    lookup_count: submission.lookup_count,
   }, clientReviewId);
 
   if (netStatus.isOnline) {
@@ -313,24 +315,24 @@ export async function importStory(arabicText: string, title?: string): Promise<S
   });
 }
 
-export async function completeStory(storyId: number, lookedUpLemmaIds: number[]): Promise<void> {
+export async function completeStory(storyId: number, lookedUpLemmaIds: number[], readingTimeMs?: number): Promise<void> {
   await fetchApi(`/api/stories/${storyId}/complete`, {
     method: "POST",
-    body: JSON.stringify({ looked_up_lemma_ids: lookedUpLemmaIds }),
+    body: JSON.stringify({ looked_up_lemma_ids: lookedUpLemmaIds, reading_time_ms: readingTimeMs }),
   });
 }
 
-export async function skipStory(storyId: number, lookedUpLemmaIds: number[]): Promise<void> {
+export async function skipStory(storyId: number, lookedUpLemmaIds: number[], readingTimeMs?: number): Promise<void> {
   await fetchApi(`/api/stories/${storyId}/skip`, {
     method: "POST",
-    body: JSON.stringify({ looked_up_lemma_ids: lookedUpLemmaIds }),
+    body: JSON.stringify({ looked_up_lemma_ids: lookedUpLemmaIds, reading_time_ms: readingTimeMs }),
   });
 }
 
-export async function tooDifficultStory(storyId: number, lookedUpLemmaIds: number[]): Promise<void> {
+export async function tooDifficultStory(storyId: number, lookedUpLemmaIds: number[], readingTimeMs?: number): Promise<void> {
   await fetchApi(`/api/stories/${storyId}/too-difficult`, {
     method: "POST",
-    body: JSON.stringify({ looked_up_lemma_ids: lookedUpLemmaIds }),
+    body: JSON.stringify({ looked_up_lemma_ids: lookedUpLemmaIds, reading_time_ms: readingTimeMs }),
   });
 }
 

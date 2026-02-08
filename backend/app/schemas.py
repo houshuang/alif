@@ -195,6 +195,8 @@ class SentenceReviewSubmitIn(BaseModel):
     session_id: str | None = None
     review_mode: str = "reading"
     client_review_id: str | None = None
+    audio_play_count: int | None = None
+    lookup_count: int | None = None
 
 
 class SentenceReviewSubmitOut(BaseModel):
@@ -280,6 +282,7 @@ class StoryImportIn(BaseModel):
 
 class StoryCompleteIn(BaseModel):
     looked_up_lemma_ids: list[int] = []
+    reading_time_ms: int | None = None
 
 
 class StoryLookupIn(BaseModel):

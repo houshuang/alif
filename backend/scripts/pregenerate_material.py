@@ -31,6 +31,12 @@ from app.database import SessionLocal
 from app.models import Lemma, Sentence, SentenceWord, UserLemmaKnowledge
 from app.services.word_selector import select_next_words
 from app.services.llm import AllProvidersFailed, generate_sentences_batch
+from app.services.sentence_generator import (
+    get_content_word_counts,
+    get_avoid_words,
+    sample_known_words_weighted,
+    KNOWN_SAMPLE_SIZE,
+)
 from app.services.sentence_validator import (
     build_lemma_lookup,
     map_tokens_to_lemmas,
@@ -66,6 +72,7 @@ def generate_sentences_for_word(
     needed: int,
     model: str = "gemini",
     delay: float = 1.0,
+    avoid_words: list[str] | None = None,
 ) -> int:
     target_bare = strip_diacritics(lemma.lemma_ar)
     all_bare = set(lemma_lookup.keys())
@@ -85,6 +92,7 @@ def generate_sentences_for_word(
                 count=min(needed - stored + 1, 3),
                 difficulty_hint="beginner",
                 model_override=model,
+                avoid_words=avoid_words,
             )
         except AllProvidersFailed as e:
             print(f"    LLM error: {e}")
@@ -194,10 +202,16 @@ async def main():
             .all()
         )
         known_words = [
-            {"arabic": lem.lemma_ar, "english": lem.gloss_en or ""}
+            {"arabic": lem.lemma_ar, "english": lem.gloss_en or "", "lemma_id": lem.lemma_id}
             for lem in all_lemmas
         ]
         lemma_lookup = build_lemma_lookup(all_lemmas)
+
+        # Diversity: compute content word counts and avoid list
+        content_word_counts = get_content_word_counts(db)
+        avoid_words = get_avoid_words(content_word_counts, known_words)
+        if avoid_words:
+            print(f"Avoiding overused words: {', '.join(avoid_words)}")
 
         existing_counts = get_existing_counts(db)
 
@@ -220,9 +234,14 @@ async def main():
                 else:
                     lemma = db.query(Lemma).filter(Lemma.lemma_id == lid).first()
                     if lemma:
+                        word_sample = sample_known_words_weighted(
+                            known_words, content_word_counts, KNOWN_SAMPLE_SIZE,
+                            target_lemma_id=lemma.lemma_id,
+                        )
                         stored = generate_sentences_for_word(
-                            db, lemma, known_words, lemma_lookup,
+                            db, lemma, word_sample, lemma_lookup,
                             needed=needed, model=args.model, delay=args.delay,
+                            avoid_words=avoid_words,
                         )
                         total_sentences += stored
                         print(f"    Generated {stored} sentences")

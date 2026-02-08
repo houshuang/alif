@@ -82,7 +82,7 @@ def complete_story_endpoint(
     db: Session = Depends(get_db),
 ):
     try:
-        return complete_story(db, story_id, body.looked_up_lemma_ids)
+        return complete_story(db, story_id, body.looked_up_lemma_ids, reading_time_ms=body.reading_time_ms)
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
 
@@ -94,7 +94,7 @@ def skip_story_endpoint(
     db: Session = Depends(get_db),
 ):
     try:
-        return skip_story(db, story_id, body.looked_up_lemma_ids)
+        return skip_story(db, story_id, body.looked_up_lemma_ids, reading_time_ms=body.reading_time_ms)
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
 
@@ -106,7 +106,7 @@ def too_difficult_story_endpoint(
     db: Session = Depends(get_db),
 ):
     try:
-        return too_difficult_story(db, story_id, body.looked_up_lemma_ids)
+        return too_difficult_story(db, story_id, body.looked_up_lemma_ids, reading_time_ms=body.reading_time_ms)
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
 

@@ -126,7 +126,11 @@ def submit_review(
     new_card, review_log_entry = scheduler.review_card(card, fsrs_rating, now)
 
     new_state = STATE_MAP.get(new_card.state, "learning")
-    knowledge.fsrs_card_json = new_card.to_dict()
+    card_dict = new_card.to_dict()
+    stability = card_dict.get("stability", 0)
+    if new_state == "known" and stability < 1.0:
+        new_state = "lapsed"
+    knowledge.fsrs_card_json = card_dict
     knowledge.knowledge_state = new_state
     knowledge.last_reviewed = now
     knowledge.times_seen = (knowledge.times_seen or 0) + 1

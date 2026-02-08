@@ -251,6 +251,7 @@ def generate_sentence(
     difficulty_hint: str = "beginner",
     retry_feedback: str | None = None,
     max_words: int | None = None,
+    avoid_words: list[str] | None = None,
 ) -> SentenceResult:
     """Generate a single Arabic sentence featuring the target word.
 
@@ -261,6 +262,7 @@ def generate_sentence(
         difficulty_hint: "beginner", "intermediate", or "advanced".
         retry_feedback: Feedback from a previous failed attempt.
         max_words: Maximum word count for the sentence (for cognitive load management).
+        avoid_words: Arabic words to avoid for diversity.
 
     Returns:
         SentenceResult with arabic, english, transliteration.
@@ -280,6 +282,11 @@ def generate_sentence(
             "Keep it as simple as possible to minimize cognitive load."
         )
 
+    avoid_instruction = ""
+    if avoid_words:
+        avoid_str = "، ".join(avoid_words)
+        avoid_instruction = f"\nFor variety, try NOT to use these overused words (pick other vocabulary instead): {avoid_str}\n"
+
     prompt = f"""Create a natural MSA sentence for a {difficulty_hint} Arabic learner.
 
 TARGET WORD (must appear in the sentence):
@@ -291,7 +298,7 @@ KNOWN WORDS (you may use these):
 Do NOT use Arabic content words outside the lists above (function words are fine).
 {length_instruction}
 Include full diacritics on all Arabic text.
-"""
+{avoid_instruction}"""
 
     if retry_feedback:
         prompt += f"\nPREVIOUS ATTEMPT FAILED: {retry_feedback}\nPlease fix and try again.\n"
@@ -319,6 +326,7 @@ def generate_sentences_batch(
     count: int = 3,
     difficulty_hint: str = "beginner",
     model_override: str = "gemini",
+    avoid_words: list[str] | None = None,
 ) -> list[SentenceResult]:
     """Generate multiple sentences for a target word in a single LLM call.
 
@@ -327,6 +335,11 @@ def generate_sentences_batch(
     known_list = "\n".join(
         f"- {w['arabic']} ({w['english']})" for w in known_words
     )
+
+    avoid_instruction = ""
+    if avoid_words:
+        avoid_str = "، ".join(avoid_words)
+        avoid_instruction = f"\nFor variety, try NOT to use these overused words (pick other vocabulary instead): {avoid_str}"
 
     prompt = f"""Create {count} different natural MSA sentences for a {difficulty_hint} Arabic learner.
 
@@ -339,7 +352,7 @@ VOCABULARY (you may ONLY use these Arabic content words, plus function words):
 IMPORTANT: Do NOT use any Arabic content words that are not in the list above.
 Each sentence should be 4-8 words, with a different structure or context.
 Include full diacritics on all Arabic text.
-
+{avoid_instruction}
 Respond with JSON: {{"sentences": [{{"arabic": "...", "english": "...", "transliteration": "..."}}, ...]}}"""
 
     result = generate_completion(

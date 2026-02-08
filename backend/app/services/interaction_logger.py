@@ -1,4 +1,5 @@
 import json
+import os
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -21,6 +22,8 @@ def log_interaction(
     session_id: str | None = None,
     **extra,
 ) -> None:
+    if os.environ.get("TESTING"):
+        return
     entry = {
         "ts": datetime.now(timezone.utc).isoformat(),
         "event": event,

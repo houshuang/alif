@@ -168,6 +168,9 @@ def submit_sentence(body: SentenceReviewSubmitIn, db: Session = Depends(get_db))
         review_mode=body.review_mode,
         words_reviewed=len(result.get("word_results", [])),
         collateral_count=len([w for w in result.get("word_results", []) if w.get("credit_type") == "collateral"]),
+        word_ratings={w["lemma_id"]: w["rating"] for w in result.get("word_results", []) if "lemma_id" in w and "rating" in w},
+        audio_play_count=body.audio_play_count,
+        lookup_count=body.lookup_count,
     )
 
     return result
@@ -213,7 +216,13 @@ def word_lookup(lemma_id: int, db: Session = Depends(get_db)):
                 "state": sib_knowledge.knowledge_state if sib_knowledge else "new",
             })
 
-    log_interaction(event="review_word_lookup", lemma_id=lemma_id)
+    log_interaction(
+        event="review_word_lookup",
+        lemma_id=lemma_id,
+        word_ar=lemma.lemma_ar,
+        word_en=lemma.gloss_en,
+        root=root_obj.root if root_obj else None,
+    )
 
     return result
 

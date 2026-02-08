@@ -85,6 +85,8 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
   const [lookupResult, setLookupResult] = useState<WordLookupResult | null>(null);
   const [lookupLoading, setLookupLoading] = useState(false);
   const [lookupShowMeaning, setLookupShowMeaning] = useState(false);
+  const [audioPlayCount, setAudioPlayCount] = useState(0);
+  const [lookupCount, setLookupCount] = useState(0);
   const showTime = useRef<number>(0);
   const soundRef = useRef<Audio.Sound | null>(null);
 
@@ -140,6 +142,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
 
   async function playTtsAudio(slow = false) {
     setAudioPlaying(true);
+    setAudioPlayCount(prev => prev + 1);
     await cleanupSound();
 
     const currentItem = usingSentences
@@ -235,6 +238,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
       next.add(index);
       return next;
     });
+    setLookupCount(prev => prev + 1);
     setLookupLoading(true);
     setLookupShowMeaning(false);
     setLookupResult(null);
@@ -287,6 +291,8 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
       response_ms: responseMs,
       session_id: sentenceSession.session_id,
       review_mode: mode,
+      audio_play_count: audioPlayCount > 0 ? audioPlayCount : undefined,
+      lookup_count: lookupCount > 0 ? lookupCount : undefined,
     });
 
     advanceAfterSubmit(signal);
@@ -355,6 +361,8 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
       setMissedIndices(new Set());
       setLastMarkedIndex(null);
       setAudioPlaying(false);
+      setAudioPlayCount(0);
+      setLookupCount(0);
       setLookupResult(null);
       setLookupShowMeaning(false);
     }
