@@ -149,12 +149,12 @@ export default function StoryReadScreen() {
       setSelectedPosition(word.position);
       setLookedUp(nextPositions);
       setLookedUpLemmaIds(nextLemmaIds);
-      persistLookups(nextPositions, nextLemmaIds);
 
       if (word.lemma_id != null) {
         try {
           const result = await lookupStoryWord(story.id, word.lemma_id, word.position);
           setSelectedWord(result);
+          persistLookups(nextPositions, nextLemmaIds);
         } catch (e) {
           setSelectedWord({
             lemma_id: word.lemma_id,
@@ -172,6 +172,7 @@ export default function StoryReadScreen() {
           root: null,
           pos: word.is_function_word ? "function word" : "not in vocabulary",
         });
+        persistLookups(nextPositions, nextLemmaIds);
       }
     },
     [story, lookedUp, selectedPosition]
@@ -295,7 +296,6 @@ export default function StoryReadScreen() {
                   onLayout={(e) => recordWordLayout(word.position, e)}
                   style={[
                     styles.wordChip,
-                    isNewWord && !isLookedUp && styles.newWordChip,
                     isLookedUp && styles.lookedUpChip,
                     isSelected && styles.selectedChip,
                   ]}
@@ -303,13 +303,15 @@ export default function StoryReadScreen() {
                   <Text
                     style={[
                       styles.storyWord,
-                      isNewWord && !isLookedUp && styles.newWordText,
                       isLookedUp && styles.lookedUpWord,
                       isSelected && styles.selectedWord,
                     ]}
                   >
                     {word.surface_form}
                   </Text>
+                  {isNewWord && !isLookedUp && (
+                    <View style={styles.newWordDot} />
+                  )}
                 </View>
               );
             })}
@@ -468,12 +470,14 @@ const styles = StyleSheet.create({
     lineHeight: 36,
     color: colors.arabic,
   },
-  newWordChip: {
-    borderBottomWidth: 2,
-    borderBottomColor: colors.stateLearning,
-  },
-  newWordText: {
-    color: colors.stateLearning,
+  newWordDot: {
+    width: 4,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: colors.textSecondary,
+    alignSelf: "center",
+    opacity: 0.4,
+    marginTop: 2,
   },
   lookedUpChip: {
     backgroundColor: colors.missed + "20",
