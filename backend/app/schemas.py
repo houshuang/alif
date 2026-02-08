@@ -216,3 +216,80 @@ class BulkSyncItemResult(BaseModel):
 
 class BulkSyncOut(BaseModel):
     results: list[BulkSyncItemResult]
+
+
+# --- Story schemas ---
+
+class StoryWordMetaOut(BaseModel):
+    position: int
+    surface_form: str
+    lemma_id: int | None = None
+    gloss_en: str | None = None
+    is_known: bool = False
+    is_function_word: bool = False
+    sentence_index: int = 0
+
+
+class StoryOut(BaseModel):
+    id: int
+    title_ar: str | None = None
+    title_en: str | None = None
+    source: str
+    status: str
+    readiness_pct: float
+    unknown_count: int
+    total_words: int
+    created_at: str
+    model_config = {"from_attributes": True}
+
+
+class StoryDetailOut(BaseModel):
+    id: int
+    title_ar: str | None = None
+    title_en: str | None = None
+    body_ar: str
+    body_en: str | None = None
+    transliteration: str | None = None
+    source: str
+    status: str
+    readiness_pct: float
+    unknown_count: int
+    total_words: int
+    known_count: int
+    created_at: str
+    words: list[StoryWordMetaOut]
+
+
+class StoryGenerateIn(BaseModel):
+    difficulty: str = "beginner"
+    max_sentences: int = 6
+    length: str = "medium"  # short/medium/long
+    topic: str | None = None
+
+
+class StoryImportIn(BaseModel):
+    arabic_text: str
+    title: str | None = None
+
+
+class StoryCompleteIn(BaseModel):
+    looked_up_lemma_ids: list[int] = []
+
+
+class StoryLookupIn(BaseModel):
+    lemma_id: int
+    position: int
+
+
+class StoryLookupOut(BaseModel):
+    lemma_id: int
+    gloss_en: str | None = None
+    transliteration: str | None = None
+    root: str | None = None
+    pos: str | None = None
+
+
+class StoryReadinessOut(BaseModel):
+    readiness_pct: float
+    unknown_count: int
+    unknown_words: list[dict]

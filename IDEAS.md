@@ -342,10 +342,18 @@
 - Font selection prioritizing maximum letter distinctiveness (especially ة/ه, ى/ي)
 
 #### Story and Extensive Reading Mode
+- [DONE] Generated story mode: LLM generates 4-8 sentence stories using only known vocabulary, validates all words
+- [DONE] Imported story mode: paste any Arabic text, app analyzes known/unknown words, calculates readiness percentage, tracks learning progress toward reading the story
+- [DONE] Story reading UI: full-screen Arabic with word-level tapping, fixed translation panel, Arabic/English tab toggle
+- [DONE] Story completion: complete (FSRS credit for all words), skip (no effect), too difficult (mark for later)
+- [DONE] Story list with readiness indicators (green/yellow/red), generate + import buttons
 - Graded text mode supporting 95-98% vocabulary coverage for extensive reading
 - Narrow reading: offer multiple texts on the same topic to recycle vocabulary
 - Story series with recurring characters/themes for context building
 - Three-stage listening reveal: audio only -> Arabic text -> English translation
+- Story difficulty auto-selection: pick stories where readiness is 85-95% for optimal learning
+- Story audio: TTS for full story, sentence-by-sentence playback with highlighting
+- Story sharing: export stories as formatted PDF with glossary of unknown words
 
 ### Ideas from Cognitive Load Theory Research (2026-02-08)
 

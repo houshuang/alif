@@ -165,3 +165,42 @@ class UserGrammarExposure(Base):
     comfort_score = Column(Float, default=0.0)
 
     feature = relationship("GrammarFeature", back_populates="exposures")
+
+
+class Story(Base):
+    __tablename__ = "stories"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    title_ar = Column(Text, nullable=True)
+    title_en = Column(Text, nullable=True)
+    body_ar = Column(Text, nullable=False)
+    body_en = Column(Text, nullable=True)
+    transliteration = Column(Text, nullable=True)
+    source = Column(String(20), nullable=False)  # generated/imported
+    status = Column(String(20), default="active")  # active/completed/too_difficult/skipped
+    total_words = Column(Integer, default=0)
+    known_count = Column(Integer, default=0)
+    unknown_count = Column(Integer, default=0)
+    readiness_pct = Column(Float, default=0.0)
+    difficulty_level = Column(String(20), nullable=True)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    completed_at = Column(DateTime, nullable=True)
+
+    words = relationship("StoryWord", back_populates="story", order_by="StoryWord.position")
+
+
+class StoryWord(Base):
+    __tablename__ = "story_words"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    story_id = Column(Integer, ForeignKey("stories.id"), nullable=False)
+    position = Column(Integer, nullable=False)
+    surface_form = Column(Text, nullable=False)
+    lemma_id = Column(Integer, ForeignKey("lemmas.lemma_id"), nullable=True)
+    sentence_index = Column(Integer, default=0)
+    gloss_en = Column(Text, nullable=True)
+    is_known_at_creation = Column(Integer, default=0)  # 0/1
+    is_function_word = Column(Integer, default=0)  # 0/1
+
+    story = relationship("Story", back_populates="words")
+    lemma = relationship("Lemma")

@@ -215,3 +215,41 @@ export interface Analytics {
   cefr: CEFREstimate;
   daily_history: DailyStats[];
 }
+
+export interface StoryWordMeta {
+  position: number;
+  surface_form: string;
+  lemma_id: number | null;
+  gloss_en: string | null;
+  is_known: boolean;
+  is_function_word: boolean;
+  sentence_index: number;
+}
+
+export interface StoryListItem {
+  id: number;
+  title_ar: string | null;
+  title_en: string | null;
+  source: "generated" | "imported";
+  status: "active" | "completed" | "too_difficult" | "skipped";
+  readiness_pct: number;
+  unknown_count: number;
+  total_words: number;
+  created_at: string;
+}
+
+export interface StoryDetail extends StoryListItem {
+  body_ar: string;
+  body_en: string | null;
+  transliteration: string | null;
+  known_count: number;
+  words: StoryWordMeta[];
+}
+
+export interface StoryLookupResult {
+  lemma_id: number;
+  gloss_en: string | null;
+  transliteration: string | null;
+  root: string | null;
+  pos: string | null;
+}

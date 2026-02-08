@@ -6,6 +6,7 @@ import {
   StyleSheet,
   ActivityIndicator,
   ScrollView,
+  Animated,
 } from "react-native";
 import { Audio } from "expo-av";
 import { colors, fonts } from "../lib/theme";
@@ -15,6 +16,7 @@ import {
   getSentenceReviewSession,
   submitSentenceReview,
   introduceWord,
+  getAnalytics,
   BASE_URL,
 } from "../lib/api";
 import {
@@ -25,6 +27,7 @@ import {
   SentenceReviewItem,
   SentenceReviewSession,
   IntroCandidate,
+  Analytics,
 } from "../lib/types";
 import { syncEvents } from "../lib/sync-events";
 import { useNetStatus } from "../lib/net-status";
@@ -351,19 +354,11 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
 
   if (totalCards === 0) {
     return (
-      <View style={styles.container}>
-
-        <Text style={styles.emptyText}>
-          {!online
-            ? "No sessions available offline"
-            : mode === "listening"
-              ? "No sentences ready for listening practice"
-              : "No cards due for review"}
-        </Text>
-        <Pressable style={styles.startButton} onPress={() => loadSession()}>
-          <Text style={styles.startButtonText}>Refresh</Text>
-        </Pressable>
-      </View>
+      <EmptyState
+        online={online}
+        mode={mode}
+        onRefresh={() => loadSession()}
+      />
     );
   }
 
@@ -371,40 +366,11 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
 
   if (isSessionDone) {
     return (
-      <ScrollView contentContainerStyle={styles.container}>
-        <Text style={styles.summaryTitle}>Session Complete</Text>
-        <Text style={styles.summarySubtitle}>
-          {mode === "listening" ? "Listening" : "Reading"} mode
-        </Text>
-        <Text style={styles.summaryCount}>
-          {results.total} cards reviewed
-        </Text>
-        <View style={styles.summaryGrid}>
-          <View style={styles.summaryItem}>
-            <Text style={[styles.summaryLabel, { color: colors.gotIt }]}>
-              Got it
-            </Text>
-            <Text style={styles.summaryValue}>{results.gotIt}</Text>
-          </View>
-          <View style={styles.summaryItem}>
-            <Text style={[styles.summaryLabel, { color: colors.missed }]}>
-              Missed
-            </Text>
-            <Text style={styles.summaryValue}>{results.missed}</Text>
-          </View>
-          {results.noIdea > 0 && (
-            <View style={styles.summaryItem}>
-              <Text style={[styles.summaryLabel, { color: colors.noIdea }]}>
-                No idea
-              </Text>
-              <Text style={styles.summaryValue}>{results.noIdea}</Text>
-            </View>
-          )}
-        </View>
-        <Pressable style={styles.startButton} onPress={() => loadSession()}>
-          <Text style={styles.startButtonText}>Start New Session</Text>
-        </Pressable>
-      </ScrollView>
+      <SessionComplete
+        results={results}
+        mode={mode}
+        onNewSession={() => loadSession()}
+      />
     );
   }
 

@@ -96,6 +96,14 @@ export default function Layout() {
           }}
         />
         <Tabs.Screen
+          name="stories"
+          options={{
+            title: "Stories",
+            tabBarLabel: "Stories",
+            tabBarIcon: ({ color, size }) => <Ionicons name="book" size={size} color={color} />,
+          }}
+        />
+        <Tabs.Screen
           name="stats"
           options={{
             title: "Stats",
@@ -108,6 +116,13 @@ export default function Layout() {
           options={{
             href: null,
             title: "Word Detail",
+          }}
+        />
+        <Tabs.Screen
+          name="story/[id]"
+          options={{
+            href: null,
+            title: "Story",
           }}
         />
       </Tabs>
