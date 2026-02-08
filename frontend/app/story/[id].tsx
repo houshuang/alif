@@ -17,6 +17,7 @@ import {
   tooDifficultStory,
 } from "../../lib/api";
 import { StoryDetail, StoryWordMeta, StoryLookupResult } from "../../lib/types";
+import { saveStoryLookups, getStoryLookups, clearStoryLookups } from "../../lib/offline-store";
 
 type ViewMode = "arabic" | "english";
 
@@ -41,11 +42,20 @@ export default function StoryReadScreen() {
     try {
       const data = await getStoryDetail(storyId);
       setStory(data);
+      const saved = await getStoryLookups(storyId);
+      if (saved) {
+        setLookedUp(saved.positions);
+        setLookedUpLemmaIds(saved.lemmaIds);
+      }
     } catch (e) {
       console.error("Failed to load story:", e);
     } finally {
       setLoading(false);
     }
+  }
+
+  function persistLookups(positions: Set<number>, lemmaIds: Set<number>) {
+    if (id) saveStoryLookups(Number(id), positions, lemmaIds).catch(() => {});
   }
 
   const handleWordTap = useCallback(
@@ -55,22 +65,20 @@ export default function StoryReadScreen() {
 
       // Toggle off if already looked up
       if (lookedUp.has(word.position)) {
-        setLookedUp((prev) => {
-          const next = new Set(prev);
-          next.delete(word.position);
-          return next;
-        });
-        // Only remove lemma ID if no other looked-up positions share it
+        const nextPositions = new Set(lookedUp);
+        nextPositions.delete(word.position);
+        setLookedUp(nextPositions);
+
+        const nextLemmaIds = new Set(lookedUpLemmaIds);
         const otherPositionsWithSameLemma = story.words.some(
-          (w) => w.lemma_id === word.lemma_id && w.position !== word.position && lookedUp.has(w.position)
+          (w) => w.lemma_id === word.lemma_id && w.position !== word.position && nextPositions.has(w.position)
         );
         if (!otherPositionsWithSameLemma) {
-          setLookedUpLemmaIds((prev) => {
-            const next = new Set(prev);
-            next.delete(word.lemma_id!);
-            return next;
-          });
+          nextLemmaIds.delete(word.lemma_id!);
+          setLookedUpLemmaIds(nextLemmaIds);
         }
+        persistLookups(nextPositions, nextLemmaIds);
+
         if (selectedPosition === word.position) {
           setSelectedWord(null);
           setSelectedPosition(null);
@@ -78,9 +86,12 @@ export default function StoryReadScreen() {
         return;
       }
 
+      const nextPositions = new Set(lookedUp).add(word.position);
+      const nextLemmaIds = new Set(lookedUpLemmaIds).add(word.lemma_id!);
       setSelectedPosition(word.position);
-      setLookedUp((prev) => new Set(prev).add(word.position));
-      setLookedUpLemmaIds((prev) => new Set(prev).add(word.lemma_id!));
+      setLookedUp(nextPositions);
+      setLookedUpLemmaIds(nextLemmaIds);
+      persistLookups(nextPositions, nextLemmaIds);
 
       try {
         const result = await lookupStoryWord(story.id, word.lemma_id, word.position);
@@ -103,6 +114,7 @@ export default function StoryReadScreen() {
     setSubmitting(true);
     try {
       await completeStory(story.id, Array.from(lookedUpLemmaIds));
+      clearStoryLookups(story.id).catch(() => {});
       router.back();
     } catch (e) {
       console.error("Failed to complete story:", e);
@@ -116,6 +128,7 @@ export default function StoryReadScreen() {
     setSubmitting(true);
     try {
       await skipStory(story.id, Array.from(lookedUpLemmaIds));
+      clearStoryLookups(story.id).catch(() => {});
       router.back();
     } catch (e) {
       console.error("Failed to skip story:", e);
@@ -129,6 +142,7 @@ export default function StoryReadScreen() {
     setSubmitting(true);
     try {
       await tooDifficultStory(story.id, Array.from(lookedUpLemmaIds));
+      clearStoryLookups(story.id).catch(() => {});
       router.back();
     } catch (e) {
       console.error("Failed to mark story:", e);

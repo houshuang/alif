@@ -7,6 +7,7 @@ const KEYS = {
   words: "@alif/words",
   stats: "@alif/stats",
   analytics: "@alif/analytics",
+  storyLookups: (storyId: number) => `@alif/story-lookups/${storyId}`,
 };
 
 const MAX_CACHED_SESSIONS = 3;
@@ -84,4 +85,35 @@ export async function getCachedData<T>(
   type: "words" | "stats" | "analytics"
 ): Promise<T | null> {
   return getJson<T>(KEYS[type]);
+}
+
+interface StoryLookupState {
+  positions: number[];
+  lemmaIds: number[];
+}
+
+export async function saveStoryLookups(
+  storyId: number,
+  positions: Set<number>,
+  lemmaIds: Set<number>,
+): Promise<void> {
+  await setJson(KEYS.storyLookups(storyId), {
+    positions: Array.from(positions),
+    lemmaIds: Array.from(lemmaIds),
+  });
+}
+
+export async function getStoryLookups(
+  storyId: number,
+): Promise<{ positions: Set<number>; lemmaIds: Set<number> } | null> {
+  const data = await getJson<StoryLookupState>(KEYS.storyLookups(storyId));
+  if (!data) return null;
+  return {
+    positions: new Set(data.positions),
+    lemmaIds: new Set(data.lemmaIds),
+  };
+}
+
+export async function clearStoryLookups(storyId: number): Promise<void> {
+  await AsyncStorage.removeItem(KEYS.storyLookups(storyId));
 }
