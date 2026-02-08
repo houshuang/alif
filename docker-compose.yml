@@ -1,0 +1,15 @@
+services:
+  backend:
+    build: ./backend
+    ports:
+      - "8000:8000"
+    volumes:
+      - backend-data:/app/data
+      - backend-db:/app
+    env_file:
+      - ./backend/.env
+    restart: unless-stopped
+
+volumes:
+  backend-data:
+  backend-db:

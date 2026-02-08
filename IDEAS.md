@@ -1,0 +1,387 @@
+# Alif — Master Ideas File
+
+> This file tracks ALL ideas for the project. Never delete ideas. Mark as [DEFERRED], [REJECTED], or [DONE] with reasoning. Every agent should add new ideas discovered during work.
+
+---
+
+## Core Learning Model
+
+### Word Knowledge Tracking
+- Track at three levels: root, lemma (base form), conjugation/inflected form
+- Primary tracking at lemma level, root familiarity derived from its lemmas
+- Conjugation-level tracking deferred to Phase 2 [DEFERRED — reduces MVP complexity]
+- When user clicks a word: show root, base form, translation. User marks known/unknown
+- Imported words get partial credit (not full "known" status) — need verification through review
+
+### Spaced Repetition
+- Use FSRS algorithm (py-fsrs), superior to SM-2
+- Reading-focused: user sees Arabic → tries to comprehend → reveals translation → rates
+- No production exercises (no typing Arabic, no translation to Arabic)
+- Self-assessed: trust user not to cheat since no gamification pressure
+- Could track response time as implicit difficulty signal
+- Consider separate FSRS cards for recognition vs. recall if we ever add production
+
+### Root-Based Learning
+- Learning KTB root → Maktaba, Maktab, Kataba etc. are highly productive
+- Identify morphological patterns (e.g., how to form "place of doing X" = maf3al)
+- Verb form patterns (Form I-X) as learning accelerators
+- Group kitchen appliances, professions, etc. by pattern
+- Root family exploration UI: show all known/unknown words from a root
+- Prioritize roots by "productivity" (number of common derivatives)
+
+### Curriculum Design
+- Structure learning by word frequency + domain
+- Use CAMeL MSA Frequency Lists (11.4M types from 17.3B tokens)
+- KELLY project for CEFR-level word mapping
+- Learning progression: A1 (top 100 roots, Form I only) → C1 (all forms, dialectal variants)
+- Domain-based modules (food, family, politics, religion, etc.)
+
+---
+
+## Sentence Generation & Validation
+
+### LLM + Deterministic Validation
+- Generate-then-validate pattern: LLM generates sentence → CAMeL Tools lemmatizes every word → check against known-word DB → verify exactly 1 unknown word
+- Retry loop with feedback to LLM (max 3 attempts)
+- Function words (في، من، على، و، ال) treated as always-known
+- Sentence templates for quick generation: "the X is Y", "I went to the X"
+- Pre-generate and cache validated sentences for offline use
+
+### Sentence Sources
+- LLM-generated sentences with vocabulary constraints
+- Tatoeba corpus (8.5M Arabic-English pairs, CC BY 2.0)
+- BAREC corpus (69K sentences across 19 readability levels)
+- Quran (Tanzil corpus) — gold-standard diacritized text
+- News articles segmented into sentences
+
+### Difficulty Assessment
+- SAMER lexicon: 40K lemmas with 5-level readability scale
+- BAREC: 19-level sentence difficulty
+- Word frequency rank as proxy for difficulty
+- Sentence difficulty = function of (unknown words, grammar complexity, length)
+
+---
+
+## Text Processing Features
+
+### Text Import & Analysis
+- Paste any Arabic text → extract all words → analyze with CAMeL Tools
+- Show: total words, unique lemmas, known/unknown breakdown, difficulty score
+- Create training plan: learn unknown words in frequency order until text is readable
+- Track progress toward "ready to read" target text
+
+### Text Rewriting
+- Rewrite text to a desired difficulty level using LLM
+- Replace unknown words with known synonyms where possible
+- Simplify grammar while preserving meaning
+- Output both simplified and original for comparison
+
+### Glossing
+- Generate interlinear glosses for any text
+- Annotate only unknown words (based on user's knowledge)
+- Export glossed text as PDF for offline reading
+- Progressive glossing: reduce annotations as knowledge grows
+
+---
+
+## Audio & Listening
+
+### Text-to-Speech
+- ElevenLabs for high-quality audio generation
+- Google Cloud TTS (1M chars/month free) as fallback for MSA
+- ARBML/Klaam for self-hosted open-source option
+- Generate audio per-sentence and for full texts
+- Cache all generated audio
+- Use Duolingo CDN audio URLs as fallback for words that were imported from Duolingo (already have per-word audio URLs in the export)
+- Audio filename keyed by SHA256 of (text + voice_id) for deterministic caching
+- Consider pre-generating audio for all sentences during off-peak hours to avoid API latency during reviews
+
+### Listening Practice Modes
+- Listen-only mode: hear sentence, try to understand, then see text
+- Read-along mode: see text + hear audio simultaneously
+- Sentence-by-sentence: practice individual sentences, then full story
+- Speed control: slow down audio for beginners
+- Minimal pair practice: distinguish similar-sounding words
+
+### Story Mode
+- Generate stories with controlled vocabulary (LLM + validation)
+- Progressive difficulty: each story slightly harder than the last
+- Story series: recurring characters/themes for context building
+- Record which stories have been "mastered" (all words known + comprehension)
+
+---
+
+## Duolingo Import
+- 302 lexemes exported with diacritics and audio URLs
+- Many inflected forms (كَلْبِك، كَلْبَك، كَلْبي from كَلْب)
+- Includes proper nouns, country/city names to filter
+- Audio URLs from Duolingo CDN — could potentially cache these
+- Import as "learning" state, not "known" — verify through review cycle
+
+---
+
+## Diacritization (Tashkeel)
+
+### Tools
+- CATT (Apache 2.0) — best open-source accuracy, pip-installable
+- Mishkal — rule-based, good for simple cases
+- CAMeL Tools — built-in diacritization
+- Risk: published benchmarks inflated by 34.6% data leakage
+
+### Application
+- Diacritize all displayed Arabic text by default
+- Option to hide diacritics for advanced practice
+- Partial diacritization: only show diacritics on difficult/ambiguous words
+- Pre-diacritize and cache for lesson content
+- Human review for critical educational materials
+
+---
+
+## UI / UX Ideas
+
+### Review Interface
+- Large Arabic text (32pt+), RTL-aligned
+- Tap to reveal translation, root, morphological info
+- Four-button rating: Again / Hard / Good / Easy
+- Progress indicator: cards remaining, streak, session stats
+- Night mode for comfortable reading
+
+### Word Detail View
+- Show: Arabic (diacritized), English gloss, root, POS
+- All known words from same root
+- Verb conjugation table (via Qutrub)
+- Example sentences using this word
+- Audio pronunciation
+- Frequency rank / difficulty level
+
+### Word List Browser
+- Filter by: knowledge state, POS, root, frequency, source
+- Sort by: due date, frequency, alphabetical
+- Search by Arabic or English
+- Bulk operations: mark known, mark for review, delete
+
+### Text Reader View
+- Display Arabic text with word-level tap interactions
+- Color-code words: known (green), learning (yellow), unknown (red)
+- Tap unknown word → add to learning queue
+- Show difficulty score for the text
+- Track reading progress
+
+---
+
+## Data & Analytics
+
+### Interaction Logging
+- Log every interaction in JSONL format
+- Fields: timestamp, event type, lemma/word ID, rating, response time, context, session ID
+- Append-only log files, partitioned by date
+- Essential for: algorithm tuning, learning curve analysis, identifying problem words
+
+### Analytics Dashboard
+- Words learned over time (cumulative)
+- Review accuracy by category (POS, frequency band, root family)
+- Time per review card
+- Retention curves
+- Root coverage: % of top-N roots mastered
+- Predicted vocabulary size
+
+### Algorithm Optimization
+- Use logged data to tune FSRS parameters per-user
+- Identify words that are consistently hard → provide extra context/examples
+- Detect if difficulty ratings are miscalibrated
+- A/B test different presentation modes (with logging data)
+
+---
+
+## Technical Ideas
+
+### Offline Architecture
+- All review data in IndexedDB (web) / SQLite (mobile)
+- Pre-sync: download next N days of review cards + sentences + audio
+- Background sync when online: upload logs, download new content
+- Service worker for web PWA caching
+- Expo offline-first with AsyncStorage or expo-sqlite
+
+### Deployment
+- Backend: Hetzner CAX11 ARM + Coolify (~$4/mo), git-push deploys
+- Fly.io as alternative (~$7-8/mo with persistent volume for SQLite)
+- Pre-process everything server-side, client only needs processed data
+- Consider edge functions for simple lookups
+
+### Data Sources to Integrate
+- CAMeL Lab MSA Frequency Lists (11.4M types)
+- KELLY project (CEFR-tagged Arabic)
+- Arabic Roots & Derivatives DB (142K records, 10K+ roots, CC BY-SA)
+- Kaikki.org Wiktionary (57K Arabic entries, JSONL)
+- Arramooz dictionary (SQL/XML/TSV)
+- Tashkeela (75M diacritized words)
+- UN Parallel Corpus (20M pairs)
+- Buckwalter Morphological Analyzer (83K entries, GPL-2.0)
+
+### API Strategy
+- Farasa REST API — free morphology/diacritization (research use only)
+- Azure Translator — 2M chars/month free
+- Google Cloud TTS — 1M chars/month free (MSA voices)
+- LibreTranslate — self-hostable, unlimited
+- HuggingFace Inference — free tier for AraBERT/CAMeLBERT
+
+---
+
+## Patterns from Other Projects
+
+### From Bookifier (content-hash caching, glossed PDFs)
+- **Content-hash caching for LLM outputs**: Cache sentence translations and generated sentences by SHA256 hash of (input + model + prompt_version). Avoids regenerating identical content. Use SQLite cache table with content_hash as primary key.
+- **WeasyPrint for glossed PDFs**: Generate Arabic reading PDFs with CSS page footnotes for glosses. WeasyPrint supports `float: footnote` CSS for scholarly annotations. Perfect for annotating unknown words in a text.
+- **Stage-based processing**: Independent pipeline stages (extract → translate → annotate → assemble) with JSON intermediate outputs. Each stage can be inspected/adjusted independently.
+- **Vocabulary extraction per paragraph**: When processing a text, extract 2-3 difficult words per paragraph with definitions. Store in vocabulary_json field.
+- **Bilingual EPUB generation**: Side-by-side original + translation with highlighted vocabulary and clickable glossary anchors.
+- **Rate limiting with Bottleneck**: Use bottleneck library pattern for API rate limiting (max concurrent + min time between requests).
+
+### From Comenius (production schema, ingestion, offline sync)
+- **Drizzle ORM schema**: Normalized: Languages → Lemmas → Senses → Surface Forms → Inflections → Sentence Tokens. Consider adopting for Phase 2.
+- **Book Bundle protocol**: Server queries only lemmas/inflections relevant to a specific text. Client syncs only what's needed. Critical for keeping mobile app lightweight.
+- **Gemini JSON schema enforcement**: `responseMimeType: 'application/json'` + `temperature: 0` + `topK: 1` for deterministic, validated JSON output from LLM.
+- **SM-2 scheduler as pure function**: Immutable `advanceReviewState(state, outcome, now)` — same pattern for our FSRS wrapper. Pure, testable, no side effects.
+- **AsyncStorage + interaction queue**: Buffer offline changes, sync when online. Silent background sync.
+- **Intl.Segmenter for sentence splitting**: Native API with fallback regex. Add Arabic punctuation (U+061F, U+060C, U+061B).
+
+### From NRK/Kulturperler (LiteLLM, multi-model, logging)
+- **LiteLLM unified API**: Single `call_with_search()` function wrapping Gemini + GPT with automatic fallback, retry, and exponential backoff.
+- **API call logging**: Log every LLM call with provider, response time, success/failure, prompt hash. Essential for cost tracking and debugging.
+- **Proposal-based data changes**: For curated content, use a proposal → review → apply workflow instead of direct edits.
+
+### From Ninjaord (ElevenLabs patterns)
+- **REST API over SDK**: Direct fetch to `https://api.elevenlabs.io/v1` with `xi-api-key` header. Simpler, fewer dependencies.
+- **Audio provider fallback**: ElevenLabs → Browser Web Speech API fallback chain.
+- **Voice selection UI**: Load voices from API, filter by language, let user pick and test.
+
+### Sentence Validation Improvements (discovered during implementation)
+- **Suffix/clitic handling in validator**: Arabic attaches possessive pronouns (ها، هم، ك) and preposition clitics (بال، لل) to words. The MVP validator only handles ال prefix. CAMeL Tools integration will solve this properly, but a rule-based suffix stripper could improve accuracy before then.
+- **Morphological pattern matching**: Instead of exact bare form matching, match words by root + pattern. E.g., if user knows "كتاب" (kitāb), they likely can parse "كتب" (kutub, plural) and "مكتبة" (maktaba, library). This requires root extraction from CAMeL Tools.
+- **Sentence difficulty scoring**: Beyond word-level validation, score sentences by syntactic complexity (clause depth, verb forms used, agreement patterns). Could use sentence length + unknown-word ratio as simple proxy.
+- **Multi-sentence generation**: Generate 2-3 variant sentences per target word in one LLM call to reduce API calls and provide variety.
+- **Negative examples in prompt**: Include words the LLM should NOT use (recently failed unknown words from previous attempts) to make retries more effective.
+
+## Future / Speculative Ideas
+
+- Dialect support: track MSA vs. Levantine/Egyptian/Gulf vocabulary separately
+- Reading difficulty predictor: given a URL, estimate how ready the user is to read it
+- Browser extension: highlight unknown words on any Arabic webpage
+- Anki export: generate Anki decks from the app's word database
+- Social features: share word lists, compare progress (far future, if ever)
+- Handwriting recognition: practice writing Arabic letters (contradicts reading-only focus, but useful for letter learning)
+- Grammar drills: sentence transformation exercises (passive, negation, etc.)
+- Cloze deletion: show sentence with one word blanked, user guesses from context
+- Collocations: track which words commonly appear together
+- Arabic-to-Arabic definitions: as level increases, use Arabic definitions instead of English
+- Morphological pattern drills: given root + pattern → predict meaning
+- Spaced reading: schedule re-reading of texts at increasing intervals
+- Vocabulary prediction: estimate total passive vocabulary from tested sample (like a placement test)
+
+### Ideas from Arabic Linguistic Challenges Research (2026-02-08)
+
+#### Root Explorer UI
+- Root Explorer as a first-class feature: tap any root to see a tree/map of all derivatives organized by pattern type (agent nouns, place nouns, verb forms, etc.)
+- Color-code words in reader view by root family (subtle background tint) to build unconscious root awareness
+- "Root discovery" celebrations: when user learns 3rd word from a new root, show root family and how many more words they can now partially understand
+- Root productivity ranking: prioritize teaching high-productivity roots (most common derivatives) first
+
+#### Pattern-Based Learning Acceleration
+- Pattern bonus in SRS: after user knows N words following same wazn (e.g., maf'al = place), reduce initial difficulty for new words with that pattern
+- Verb form semantic labels in UI: always show "Form II = intensive/causative" next to verb form number
+- Broken plural pattern grouping: review broken plurals in pattern clusters (fu'ul, af'al, etc.) rather than individually
+- Masdar (verbal noun) pattern teaching: Forms II-X have predictable masdars; only Form I masdars need individual memorization
+
+#### Diacritics Training System
+- 4-level progressive diacritics mode: (a) full tashkeel, (b) no case endings, (c) ambiguous/unknown words only, (d) bare text
+- Diacritics independence assessment: periodically present undiacritized versions of known words to measure reading ability without crutch
+- Partial diacritization based on user knowledge: show tashkeel only on words the user has not yet mastered
+
+#### Phonological Training for Listening
+- Minimal pair exercises for emphatic consonants: ص/س, ض/د, ط/ت, ظ/ذ
+- Pharyngeal consonant training: ع/ا and ح/ه discrimination drills
+- Sun/moon letter assimilation highlighting: visually show assimilation of lam in definite article
+- Confusion pair tracking: when user confuses two phonologically similar words, link them and schedule targeted review of both
+
+#### Grammar Concept Tagging
+- Tag every sentence with grammar concepts it illustrates (idafa, relative clause, conditional, nominal/verbal sentence, etc.)
+- Grammar concept progression: sequence exposure to grammar naturally (nominal -> verbal -> idafa -> relative clauses -> conditionals)
+- Grammar familiarity tracking: track user's implicit grammar knowledge based on comprehension success with tagged sentences
+
+#### Register-Aware Content
+- Tag all content by MSA register (news, literary, religious, academic, everyday)
+- Register selection in onboarding: let user choose primary interest
+- Register-specific frequency ranks: a word common in news Arabic may be rare in literary Arabic
+- Gradual register expansion as proficiency grows
+
+#### Conjugation Transparency
+- Regular conjugations of known verbs should NOT count as separate vocabulary items
+- Track conjugation pattern familiarity separately (does user recognize 3rd person feminine plural?)
+- Only create explicit review cards for irregular verb forms (hollow, defective, doubled, hamzated)
+- Mini conjugation tables available on tap for any verb in context
+
+#### Function Word Bootstrap
+- Pre-load ~200 essential function words (particles, prepositions, conjunctions, demonstratives, pronouns)
+- Teach function words in Phase 1 before any content words
+- Exclude function words from "unknown word" count in sentence validation
+- Function words should be marked in data model with is_function_word flag
+
+#### Writing System Features
+- Hamzat al-wasl vs al-qat' visual distinction in reading mode (gray out hamzat al-wasl to show it's elided)
+- Ta' marbuta pronunciation context indicator (show when /t/ is pronounced vs. silent)
+- Letter similarity overlay: option to highlight dot-differentiated letter pairs for beginners
+- Font selection prioritizing maximum letter distinctiveness (especially ة/ه, ى/ي)
+
+#### Story and Extensive Reading Mode
+- Graded text mode supporting 95-98% vocabulary coverage for extensive reading
+- Narrow reading: offer multiple texts on the same topic to recycle vocabulary
+- Story series with recurring characters/themes for context building
+- Three-stage listening reveal: audio only -> Arabic text -> English translation
+
+### Ideas from Cognitive Load Theory Research (2026-02-08)
+
+#### Sentence Difficulty Scaling by Word Maturity
+- Tie sentence complexity directly to FSRS stability of the target word: newly introduced words get 4-7 word simple sentences, mature words get 10-20 word complex sentences
+- Store a "sentence difficulty tier" (1-5) on generated sentences and select appropriate tier based on the target word's FSRS state
+- Sentence validator should check not just that surrounding words are "known" but that they have FSRS stability > 14 days for sentences containing new words -- recently-seen-but-fragile words in the surrounding context compete for working memory with the target word
+- Consider using CAMeL token count (after clitic separation) rather than raw word count for sentence length targets, since Arabic agglutination makes raw word count misleading
+
+#### Adaptive Session Pacing
+- Track rolling accuracy over the last 10 items during a session; if it drops below 75%, automatically pause new word introductions and show only easy review items until accuracy recovers above 85%
+- Track response time as a cognitive load signal: if average response time increases beyond 2x the learner's rolling average, treat it as overload even if accuracy is maintained
+- Default to 5 new words per 20-minute session for Arabic (conservative, research-backed); allow learner to adjust but show guidance about cognitive load tradeoffs
+- After 3 consecutive "Again" ratings on different items: insert 5 easy review items as a cognitive "rest stop"
+- If learner continues a session beyond 20 minutes, show only review items (no new introductions in "overtime")
+- Session-level accuracy trend tracking: compare first-half vs. second-half accuracy; if second half degrades, suggest shorter sessions in settings
+
+#### New/Review Item Interleaving
+- Never show two new word introductions back-to-back -- always interleave with 4-6 review items between new introductions
+- Start each session with 3-4 easy review items (FSRS stability > 30 days) as warm-up before any new items
+- End each session with 3-4 easy review items for positive session closure (recency effect protects motivation)
+- Distribute new items evenly throughout the session rather than front-loading them
+- Maintain a 1:4 to 1:6 ratio of new to review items throughout the session
+
+#### Flashcard-First Introduction Flow
+- Introduce new words initially as isolated flashcards (word + transliteration + gloss + root + audio) before embedding them in sentences -- isolated word pairs have low element interactivity (Sweller), allowing form-meaning mapping before the higher-load sentence processing task
+- First sentence review should come only after the initial flashcard introduction succeeds (rated Good or Easy)
+- Consider a two-step learning flow: step 1 = flashcard with root info, step 2 = simple sentence with strong context clues, step 3 = varied sentence contexts in subsequent reviews
+
+#### Within-Session Spacing for Failed Items
+- If a word is rated "Again," re-show it after 5-10 intervening items rather than immediately -- leverages spacing effect even within a single session
+- If the same word fails twice in one session, do not show it again in that session; let FSRS schedule it for the next session to avoid frustration and wasted working memory
+
+#### Expertise Reversal Awareness
+- As the learner advances, progressively reduce scaffolding: offer transliteration as tap-to-reveal rather than always-visible, increase default sentence complexity, reduce auto-display of root/morphology info
+- Optionally reduce diacritization on well-known words (FSRS stability > 60 days) as an advanced reading challenge
+- Track when scaffolding reduction is appropriate based on accuracy patterns, not just vocabulary count
+
+#### Sentence Context Quality Labels
+- Distinguish between "informative context" (sentence provides clues to word meaning) and "opaque context" (word must be recalled from memory) -- both are useful at different learning stages
+- For newly introduced words: generate sentences with informative context (the surrounding words should help the learner infer the target word's meaning)
+- For mature words: generate sentences with opaque context (the learner must recall the meaning from memory, not from contextual clues) -- this is a desirable difficulty that strengthens long-term retention
+- Tag generated sentences with context informativeness so the appropriate type can be selected based on word maturity
+
+#### Generation/Prediction Effect
+- Before revealing a new word's meaning, offer the learner a chance to predict it from root knowledge or morphological patterns -- even incorrect predictions enhance later recall (Bjork & Kroll, 2015) as long as the prediction is informed (the learner has some basis for guessing)
+- For words with known roots: "You know the root ك.ت.ب (writing). What might مَكْتَبَة mean?" -- then reveal
+- Only use prediction prompts when the learner has relevant prior knowledge (known root, known pattern, known cognate); uninformed guessing has no benefit
