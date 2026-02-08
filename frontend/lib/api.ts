@@ -108,6 +108,7 @@ export async function getWords(): Promise<Word[]> {
       times_seen: w.times_seen || 0,
       times_correct: w.times_correct || 0,
       last_reviewed: w.last_reviewed || null,
+      knowledge_score: w.knowledge_score || 0,
     }));
     cacheData("words", words).catch(() => {});
     return words;
@@ -132,6 +133,7 @@ export async function getWordDetail(id: number): Promise<WordDetail> {
     times_seen: w.times_seen || 0,
     times_correct: w.times_correct || 0,
     last_reviewed: w.last_reviewed || null,
+    knowledge_score: w.knowledge_score || 0,
     frequency_rank: w.frequency_rank,
     times_reviewed: w.times_seen || 0,
     correct_count: w.times_correct || 0,

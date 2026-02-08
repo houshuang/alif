@@ -48,6 +48,7 @@ export interface Word {
   times_seen: number;
   times_correct: number;
   last_reviewed: string | null;
+  knowledge_score: number;
 }
 
 export interface ReviewHistoryEntry {

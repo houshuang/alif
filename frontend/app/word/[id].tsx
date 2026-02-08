@@ -73,7 +73,8 @@ export default function WordDetailScreen() {
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Review History</Text>
         <View style={styles.statsRow}>
-          <StatBox label="Times Reviewed" value={word.times_reviewed} />
+          <StatBox label="Score" value={word.knowledge_score} />
+          <StatBox label="Reviewed" value={word.times_reviewed} />
           <StatBox label="Correct" value={word.correct_count} />
           <StatBox label="Accuracy" value={`${accuracy}%`} />
         </View>

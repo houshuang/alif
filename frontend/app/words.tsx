@@ -133,6 +133,9 @@ export default function WordsScreen() {
           )}
         </View>
         <View style={styles.wordRight}>
+          {item.knowledge_score > 0 && (
+            <Text style={styles.scoreText}>{item.knowledge_score}</Text>
+          )}
           <View
             style={[
               styles.stateBadge,
@@ -289,6 +292,12 @@ const styles = StyleSheet.create({
   wordRight: {
     alignItems: "flex-end",
     marginLeft: 12,
+  },
+  scoreText: {
+    fontSize: 20,
+    fontWeight: "700",
+    color: colors.accent,
+    marginBottom: 4,
   },
   stateBadge: {
     paddingHorizontal: 10,
