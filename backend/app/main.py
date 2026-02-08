@@ -14,28 +14,22 @@ from app.routers import words, review, analyze, stats, import_data, sentences, t
 async def lifespan(app: FastAPI):
     alembic_ini = Path(__file__).resolve().parent.parent / "alembic.ini"
     if alembic_ini.exists() and os.environ.get("ALIF_SKIP_MIGRATIONS") != "1":
-        # Dispose engine pool to avoid SQLite locking conflicts with alembic
-        engine.dispose()
-        await asyncio.to_thread(_run_alembic, alembic_ini)
+        # Run in subprocess to avoid SQLite/WAL locking issues with uvicorn's event loop
+        import subprocess, sys
+        result = subprocess.run(
+            [sys.executable, "-c",
+             "from alembic import command; from alembic.config import Config; "
+             f"c = Config('{alembic_ini}'); "
+             f"c.set_main_option('script_location', '{alembic_ini.parent / 'alembic'}'); "
+             "command.upgrade(c, 'head')"],
+            capture_output=True, text=True, timeout=30,
+        )
+        if result.returncode != 0:
+            import logging
+            logging.getLogger(__name__).error(f"Alembic failed: {result.stderr}")
     else:
         Base.metadata.create_all(bind=engine)
     yield
-
-
-def _run_alembic(alembic_ini: Path):
-    import sqlite3
-    from app.config import settings
-    # Checkpoint WAL before alembic to avoid lock contention
-    db_path = settings.database_url.replace("sqlite:///", "")
-    conn = sqlite3.connect(db_path)
-    conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
-    conn.close()
-
-    from alembic import command
-    from alembic.config import Config
-    alembic_cfg = Config(str(alembic_ini))
-    alembic_cfg.set_main_option("script_location", str(alembic_ini.parent / "alembic"))
-    command.upgrade(alembic_cfg, "head")
 
 
 app = FastAPI(title="Alif Arabic Learning API", version="0.1.0", lifespan=lifespan)
