@@ -201,6 +201,14 @@ def run_import(db: Session) -> dict:
         if bare in seen_bare or bare_no_al in seen_bare:
             continue
 
+        # Use al-stripped form as the canonical bare form
+        # "الكلب" -> stored as bare "كلب", not "الكلب"
+        is_al_form = bare != bare_no_al
+        canonical_bare = bare_no_al if is_al_form else bare
+        # Strip "the " from English gloss for al- forms
+        if is_al_form and gloss.lower().startswith("the "):
+            gloss = gloss[4:]
+
         # Try to find/create root
         root_obj = None
         lookup_bare = bare_no_al
@@ -217,7 +225,7 @@ def run_import(db: Session) -> dict:
 
         lemma = Lemma(
             lemma_ar=text,
-            lemma_ar_bare=bare,
+            lemma_ar_bare=canonical_bare,
             root_id=root_obj.root_id if root_obj else None,
             gloss_en=gloss,
             source="duolingo",
@@ -235,8 +243,9 @@ def run_import(db: Session) -> dict:
             times_correct=0,
         )
         db.add(knowledge)
-        seen_bare.add(bare)
-        seen_bare.add(bare_no_al)
+        seen_bare.add(canonical_bare)
+        if bare != canonical_bare:
+            seen_bare.add(bare)
         imported += 1
 
     db.commit()
