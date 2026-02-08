@@ -386,13 +386,14 @@ const styles = StyleSheet.create({
   storyFlow: {
     flexDirection: "row",
     flexWrap: "wrap",
-    direction: "rtl",
+    transform: [{ scaleX: -1 }],
     gap: 6,
     rowGap: 12,
   },
   wordChip: {
-    paddingVertical: 4,
-    paddingHorizontal: 3,
+    transform: [{ scaleX: -1 }],
+    paddingVertical: 6,
+    paddingHorizontal: 4,
     borderRadius: 4,
   },
   storyWord: {
