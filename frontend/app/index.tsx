@@ -79,6 +79,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
   const [loading, setLoading] = useState(true);
   const [results, setResults] = useState<SessionResults | null>(null);
   const [missedIndices, setMissedIndices] = useState<Set<number>>(new Set());
+  const [lastMarkedIndex, setLastMarkedIndex] = useState<number | null>(null);
   const [audioPlaying, setAudioPlaying] = useState(false);
   const [autoIntroduced, setAutoIntroduced] = useState<IntroCandidate[]>([]);
   const [lookupResult, setLookupResult] = useState<WordLookupResult | null>(null);
@@ -122,12 +123,11 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
   // Reload session when sync completes and user is between sessions
   useEffect(() => {
     return syncEvents.on("synced", () => {
-      const isSessionDone = results && results.total >= totalCards;
-      if (isSessionDone || totalCards === 0) {
+      if (totalCards === 0) {
         loadSession();
       }
     });
-  }, [results, totalCards]);
+  }, [totalCards]);
 
   async function cleanupSound() {
     if (soundRef.current) {
@@ -184,6 +184,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
     setCardIndex(0);
     setCardState(m === "listening" ? "audio" : "front");
     setMissedIndices(new Set());
+    setLastMarkedIndex(null);
     setAudioPlaying(false);
     setAutoIntroduced([]);
     setSentenceSession(null);
@@ -218,8 +219,10 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
       const next = new Set(prev);
       if (next.has(index)) {
         next.delete(index);
+        setLastMarkedIndex(null);
       } else {
         next.add(index);
+        setLastMarkedIndex(index);
       }
       return next;
     });
@@ -350,6 +353,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
       setCardIndex(nextCardIndex);
       setCardState(mode === "listening" ? "audio" : "front");
       setMissedIndices(new Set());
+      setLastMarkedIndex(null);
       setAudioPlaying(false);
       setLookupResult(null);
       setLookupShowMeaning(false);
@@ -405,6 +409,21 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
 
   // --- Render ---
 
+  const isSessionDone = !!(results && totalCards > 0 && results.total >= totalCards);
+
+  // Session complete takes priority over loading — prevents flash-and-disappear
+  // when background sync triggers a reload
+  if (isSessionDone) {
+    return (
+      <SessionComplete
+        results={results}
+        mode={mode}
+        autoIntroduced={autoIntroduced}
+        onNewSession={() => loadSession()}
+      />
+    );
+  }
+
   if (loading) {
     return (
       <View style={styles.container}>
@@ -419,19 +438,6 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
         online={online}
         mode={mode}
         onRefresh={() => loadSession()}
-      />
-    );
-  }
-
-  const isSessionDone = results && results.total >= totalCards;
-
-  if (isSessionDone) {
-    return (
-      <SessionComplete
-        results={results}
-        mode={mode}
-        autoIntroduced={autoIntroduced}
-        onNewSession={() => loadSession()}
       />
     );
   }
@@ -494,6 +500,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
           <ListeningActions
             cardState={cardState as ListeningCardState}
             missedCount={missedIndices.size}
+            lastMarkedGloss={lastMarkedIndex !== null ? item.words[lastMarkedIndex]?.gloss_en ?? null : null}
             onAdvance={advanceState}
             onSubmit={handleSubmit}
           />
@@ -502,6 +509,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
             cardState={cardState as ReadingCardState}
             hasSentence={!isWordOnly}
             missedCount={missedIndices.size}
+            lastMarkedGloss={lastMarkedIndex !== null ? item.words[lastMarkedIndex]?.gloss_en ?? null : null}
             onAdvance={advanceState}
             onSubmit={handleSubmit}
           />
@@ -752,6 +760,12 @@ function WordLookupPanel({
   );
 }
 
+interface RootFamilyData {
+  root: string;
+  root_meaning: string | null;
+  siblings: { lemma_ar: string; gloss_en: string; state: string }[];
+}
+
 function RootInfoBar({
   words,
   missedIndices,
@@ -759,29 +773,77 @@ function RootInfoBar({
   words: SentenceReviewItem["words"];
   missedIndices: Set<number>;
 }) {
-  // Show root info for missed words that have roots
+  const [familyData, setFamilyData] = useState<Record<number, RootFamilyData>>({});
+
   const missedWithRoots = Array.from(missedIndices)
     .map((i) => words[i])
-    .filter((w) => w && w.root);
+    .filter((w) => w && w.root_id);
 
-  if (missedWithRoots.length === 0) return null;
+  // Deduplicate by root_id
+  const uniqueRoots = new Map<number, typeof missedWithRoots[0]>();
+  for (const w of missedWithRoots) {
+    if (!uniqueRoots.has(w.root_id!)) uniqueRoots.set(w.root_id!, w);
+  }
 
-  // Deduplicate by root
-  const seen = new Set<string>();
-  const unique = missedWithRoots.filter((w) => {
-    if (seen.has(w.root!)) return false;
-    seen.add(w.root!);
-    return true;
-  });
+  const rootIds = Array.from(uniqueRoots.keys());
+  const rootIdsKey = rootIds.sort().join(",");
+
+  useEffect(() => {
+    if (rootIds.length === 0) return;
+    let cancelled = false;
+    for (const rootId of rootIds) {
+      if (familyData[rootId]) continue;
+      fetch(`${BASE_URL}/api/learn/root-family/${rootId}`)
+        .then((r) => r.json())
+        .then((data) => {
+          if (cancelled) return;
+          const knownSiblings = (data.words || []).filter(
+            (w: any) => w.state === "known" || w.state === "learning"
+          );
+          const rootWord = uniqueRoots.get(rootId);
+          setFamilyData((prev) => ({
+            ...prev,
+            [rootId]: {
+              root: data.root || rootWord?.root || "",
+              root_meaning: data.root_meaning || rootWord?.root_meaning || null,
+              siblings: knownSiblings.map((s: any) => ({
+                lemma_ar: s.lemma_ar,
+                gloss_en: s.gloss_en,
+                state: s.state,
+              })),
+            },
+          }));
+        })
+        .catch(() => {});
+    }
+    return () => { cancelled = true; };
+  }, [rootIdsKey]);
+
+  if (uniqueRoots.size === 0) return null;
 
   return (
     <View style={styles.rootInfoBar}>
-      {unique.map((w) => (
-        <Text key={w.root} style={styles.rootInfoText}>
-          {w.surface_form}: root {w.root}
-          {w.root_meaning ? ` (${w.root_meaning})` : ""}
-        </Text>
-      ))}
+      {Array.from(uniqueRoots.entries()).map(([rootId, w]) => {
+        const family = familyData[rootId];
+        return (
+          <View key={rootId} style={styles.rootInfoEntry}>
+            <Text style={styles.rootInfoText}>
+              Root: {w.root}
+              {(family?.root_meaning || w.root_meaning) ? ` \u2014 ${family?.root_meaning || w.root_meaning}` : ""}
+            </Text>
+            {family && family.siblings.length > 0 && (
+              <View style={styles.rootSiblings}>
+                {family.siblings.slice(0, 4).map((sib, i) => (
+                  <View key={i} style={styles.rootSiblingPill}>
+                    <Text style={styles.rootSiblingAr}>{sib.lemma_ar}</Text>
+                    <Text style={styles.rootSiblingEn}>{sib.gloss_en}</Text>
+                  </View>
+                ))}
+              </View>
+            )}
+          </View>
+        );
+      })}
     </View>
   );
 }
@@ -1104,11 +1166,13 @@ function LegacyWordOnlyCard({
 function ListeningActions({
   cardState,
   missedCount,
+  lastMarkedGloss,
   onAdvance,
   onSubmit,
 }: {
   cardState: ListeningCardState;
   missedCount: number;
+  lastMarkedGloss?: string | null;
   onAdvance: () => void;
   onSubmit: (signal: ComprehensionSignal) => void;
 }) {
@@ -1134,9 +1198,14 @@ function ListeningActions({
     return (
       <View style={styles.actionColumn}>
         {missedCount > 0 && (
-          <Text style={styles.missedHint}>
-            {missedCount} word{missedCount > 1 ? "s" : ""} marked
-          </Text>
+          <View style={styles.missedHintRow}>
+            <Text style={styles.missedHint}>
+              {missedCount} word{missedCount > 1 ? "s" : ""} marked
+            </Text>
+            {lastMarkedGloss && (
+              <Text style={styles.lastMarkedGloss}>{lastMarkedGloss}</Text>
+            )}
+          </View>
         )}
         <View style={styles.actionRow}>
           <Pressable
@@ -1168,9 +1237,14 @@ function ListeningActions({
   return (
     <View style={styles.actionColumn}>
       {missedCount > 0 && (
-        <Text style={styles.missedHint}>
-          {missedCount} word{missedCount > 1 ? "s" : ""} marked
-        </Text>
+        <View style={styles.missedHintRow}>
+          <Text style={styles.missedHint}>
+            {missedCount} word{missedCount > 1 ? "s" : ""} marked
+          </Text>
+          {lastMarkedGloss && (
+            <Text style={styles.lastMarkedGloss}>{lastMarkedGloss}</Text>
+          )}
+        </View>
       )}
       <View style={styles.actionRow}>
         {missedCount > 0 ? (
@@ -1202,12 +1276,14 @@ function ReadingActions({
   cardState,
   hasSentence,
   missedCount,
+  lastMarkedGloss,
   onAdvance,
   onSubmit,
 }: {
   cardState: ReadingCardState;
   hasSentence: boolean;
   missedCount: number;
+  lastMarkedGloss?: string | null;
   onAdvance: () => void;
   onSubmit: (signal: ComprehensionSignal) => void;
 }) {
@@ -1232,9 +1308,14 @@ function ReadingActions({
   return (
     <View style={styles.actionColumn}>
       {hasSentence && missedCount > 0 && (
-        <Text style={styles.missedHint}>
-          {missedCount} word{missedCount > 1 ? "s" : ""} marked
-        </Text>
+        <View style={styles.missedHintRow}>
+          <Text style={styles.missedHint}>
+            {missedCount} word{missedCount > 1 ? "s" : ""} marked
+          </Text>
+          {lastMarkedGloss && (
+            <Text style={styles.lastMarkedGloss}>{lastMarkedGloss}</Text>
+          )}
+        </View>
       )}
       <View style={styles.actionRow}>
         {missedCount > 0 ? (
@@ -1803,11 +1884,20 @@ const styles = StyleSheet.create({
     opacity: 0.8,
     textAlign: "center",
   },
+  missedHintRow: {
+    alignItems: "center",
+    marginBottom: 10,
+    gap: 2,
+  },
   missedHint: {
     color: colors.missed,
     fontSize: fonts.small,
-    marginBottom: 10,
     fontWeight: "600",
+  },
+  lastMarkedGloss: {
+    color: colors.textSecondary,
+    fontSize: fonts.small,
+    fontStyle: "italic",
   },
 
   progressContainer: {
@@ -2076,12 +2166,39 @@ const styles = StyleSheet.create({
   },
   rootInfoBar: {
     marginTop: 12,
-    gap: 4,
+    gap: 12,
     alignItems: "center",
+    width: "100%",
+  },
+  rootInfoEntry: {
+    alignItems: "center",
+    gap: 6,
   },
   rootInfoText: {
     fontSize: 13,
     color: colors.accent,
-    fontStyle: "italic",
+    fontWeight: "600",
+  },
+  rootSiblings: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 6,
+    justifyContent: "center",
+  },
+  rootSiblingPill: {
+    backgroundColor: colors.surfaceLight,
+    borderRadius: 8,
+    paddingVertical: 3,
+    paddingHorizontal: 8,
+    alignItems: "center",
+  },
+  rootSiblingAr: {
+    fontSize: 15,
+    color: colors.arabic,
+    writingDirection: "rtl",
+  },
+  rootSiblingEn: {
+    fontSize: 11,
+    color: colors.textSecondary,
   },
 });
