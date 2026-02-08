@@ -118,6 +118,7 @@ def generate_for_word(
     needed: int,
     dry_run: bool = False,
     model: str = "gemini",
+    delay: float = 0,
 ) -> tuple[int, int]:
     """Generate sentences for a single word. Returns (stored, failed)."""
     stored = 0
@@ -129,6 +130,8 @@ def generate_for_word(
             break
 
         remaining = needed - stored
+        if delay > 0 and batch_num > 0:
+            time.sleep(delay)
         try:
             results = generate_sentences_batch(
                 target_word=target_lemma.lemma_ar,
@@ -164,6 +167,7 @@ def main():
     parser.add_argument("--word-id", type=int, help="Generate for a single lemma_id only")
     parser.add_argument("--dry-run", action="store_true", help="Validate without writing to DB")
     parser.add_argument("--model", default="gemini", help="LLM model: gemini/openai/anthropic (default: gemini)")
+    parser.add_argument("--delay", type=float, default=0, help="Seconds to wait between LLM calls (for rate limiting)")
     args = parser.parse_args()
 
     db = SessionLocal()
@@ -222,6 +226,9 @@ def main():
 
             print(f"[{i+1}/{len(targets)}] {lemma.lemma_ar} ({lemma.gloss_en}) — need {needed}, have {existing}")
 
+            if i > 0 and args.delay > 0:
+                time.sleep(args.delay)
+
             stored, failed = generate_for_word(
                 db=db,
                 target_lemma=lemma,
@@ -230,6 +237,7 @@ def main():
                 needed=needed,
                 dry_run=args.dry_run,
                 model=args.model,
+                delay=args.delay,
             )
 
             total_stored += stored
