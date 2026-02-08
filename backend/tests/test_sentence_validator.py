@@ -8,8 +8,11 @@ import pytest
 
 from app.services.sentence_validator import (
     FUNCTION_WORDS,
+    TokenMapping,
     ValidationResult,
     _strip_clitics,
+    build_lemma_lookup,
+    map_tokens_to_lemmas,
     normalize_alef,
     normalize_arabic,
     strip_diacritics,
@@ -433,3 +436,89 @@ class TestCliticIntegration:
         assert result.valid is True
         # وبيتها matched via و+بيت+ها, بالمدرسة is target via بال+مدرسة
         assert result.target_found is True
+
+
+class _FakeLemma:
+    """Minimal lemma-like object for testing build_lemma_lookup."""
+    def __init__(self, lemma_id: int, lemma_ar_bare: str):
+        self.lemma_id = lemma_id
+        self.lemma_ar_bare = lemma_ar_bare
+
+
+class TestBuildLemmaLookup:
+    def test_basic_lookup(self):
+        lemmas = [
+            _FakeLemma(1, "كتاب"),
+            _FakeLemma(2, "ولد"),
+        ]
+        lookup = build_lemma_lookup(lemmas)
+        assert lookup["كتاب"] == 1
+        assert lookup["الكتاب"] == 1
+        assert lookup["ولد"] == 2
+        assert lookup["الولد"] == 2
+
+    def test_al_prefix_lemma(self):
+        lemmas = [_FakeLemma(10, "القهوة")]
+        lookup = build_lemma_lookup(lemmas)
+        assert lookup["القهوة"] == 10
+        assert lookup["قهوة"] == 10
+
+    def test_alef_normalization(self):
+        lemmas = [_FakeLemma(5, "أكل")]
+        lookup = build_lemma_lookup(lemmas)
+        assert lookup[normalize_alef("أكل")] == 5  # "اكل"
+
+
+class TestMapTokensToLemmas:
+    def setup_method(self):
+        self.lemmas = [
+            _FakeLemma(1, "ولد"),
+            _FakeLemma(2, "كتاب"),
+            _FakeLemma(3, "يقرأ"),
+        ]
+        self.lookup = build_lemma_lookup(self.lemmas)
+
+    def test_basic_sentence(self):
+        tokens = tokenize("الوَلَدُ يَقْرَأُ الكِتَابَ")
+        mappings = map_tokens_to_lemmas(tokens, self.lookup, target_lemma_id=2, target_bare="كتاب")
+        assert len(mappings) == 3
+
+        # الولد → lemma 1
+        assert mappings[0].lemma_id == 1
+        assert mappings[0].is_target is False
+
+        # يقرأ → lemma 3
+        assert mappings[1].lemma_id == 3
+
+        # الكتاب → target (lemma 2)
+        assert mappings[2].lemma_id == 2
+        assert mappings[2].is_target is True
+
+    def test_function_word_gets_none(self):
+        tokens = tokenize("هُوَ يَقْرَأُ")
+        mappings = map_tokens_to_lemmas(tokens, self.lookup, target_lemma_id=3, target_bare="يقرأ")
+        assert mappings[0].is_function_word is True
+        assert mappings[0].lemma_id is None
+        assert mappings[1].is_target is True
+
+    def test_unknown_word_gets_none(self):
+        tokens = tokenize("يَقْرَأُ سَيَّارَة")
+        mappings = map_tokens_to_lemmas(tokens, self.lookup, target_lemma_id=3, target_bare="يقرأ")
+        assert mappings[0].is_target is True
+        # سيارة not in lookup
+        assert mappings[1].lemma_id is None
+        assert mappings[1].is_function_word is False
+
+    def test_cliticized_word_maps_to_lemma(self):
+        tokens = tokenize("وَالكِتَابَ")
+        mappings = map_tokens_to_lemmas(tokens, self.lookup, target_lemma_id=1, target_bare="ولد")
+        # والكتاب should resolve to lemma 2 via clitic stripping
+        assert mappings[0].lemma_id == 2
+
+    def test_possessive_suffix_maps_to_lemma(self):
+        lemmas = [_FakeLemma(10, "مدرسة")]
+        lookup = build_lemma_lookup(lemmas)
+        tokens = tokenize("مَدْرَسَتُهَا")
+        mappings = map_tokens_to_lemmas(tokens, lookup, target_lemma_id=99, target_bare="xxx")
+        # مدرستها → مدرسة via taa marbuta + suffix stripping
+        assert mappings[0].lemma_id == 10

@@ -10,7 +10,7 @@ from unittest.mock import patch
 
 import pytest
 
-from app.services.llm import SentenceResult
+from app.services.llm import SentenceResult, generate_sentences_batch
 from app.services.sentence_generator import (
     GeneratedSentence,
     GenerationError,
@@ -195,3 +195,119 @@ def test_known_words_sampling(mock_gen):
     call_kwargs = mock_gen.call_args
     sent_known = call_kwargs.kwargs.get("known_words") or call_kwargs.args[2]
     assert len(sent_known) <= 50
+
+
+# --- Tests for batch generation ---
+
+
+@patch("app.services.llm.generate_completion")
+def test_batch_generates_multiple_sentences(mock_completion):
+    """Batch generation returns multiple SentenceResult objects."""
+    mock_completion.return_value = {
+        "sentences": [
+            {
+                "arabic": "الوَلَدُ يَقْرَأُ الكِتَابَ",
+                "english": "The boy reads the book",
+                "transliteration": "al-waladu yaqra'u al-kitāba",
+            },
+            {
+                "arabic": "الكِتَابُ فِي البَيْتِ",
+                "english": "The book is in the house",
+                "transliteration": "al-kitābu fī al-bayti",
+            },
+            {
+                "arabic": "هَذَا كِتَابٌ كَبِيرٌ",
+                "english": "This is a big book",
+                "transliteration": "hādhā kitābun kabīrun",
+            },
+        ]
+    }
+
+    results = generate_sentences_batch(
+        target_word="كِتَاب",
+        target_translation="book",
+        known_words=KNOWN_WORDS,
+        count=3,
+    )
+
+    assert len(results) == 3
+    assert all(isinstance(r, SentenceResult) for r in results)
+    assert results[0].arabic == "الوَلَدُ يَقْرَأُ الكِتَابَ"
+    assert results[2].english == "This is a big book"
+
+
+@patch("app.services.llm.generate_completion")
+def test_batch_handles_partial_results(mock_completion):
+    """Batch gracefully handles fewer sentences than requested."""
+    mock_completion.return_value = {
+        "sentences": [
+            {
+                "arabic": "الوَلَدُ يَقْرَأُ الكِتَابَ",
+                "english": "The boy reads the book",
+                "transliteration": "...",
+            },
+        ]
+    }
+
+    results = generate_sentences_batch(
+        target_word="كِتَاب",
+        target_translation="book",
+        known_words=KNOWN_WORDS,
+        count=3,
+    )
+
+    assert len(results) == 1
+
+
+@patch("app.services.llm.generate_completion")
+def test_batch_handles_malformed_response(mock_completion):
+    """Batch returns empty list for malformed LLM output."""
+    mock_completion.return_value = {"not_sentences": "oops"}
+
+    results = generate_sentences_batch(
+        target_word="كِتَاب",
+        target_translation="book",
+        known_words=KNOWN_WORDS,
+    )
+
+    assert results == []
+
+
+@patch("app.services.llm.generate_completion")
+def test_batch_skips_entries_without_arabic(mock_completion):
+    """Entries missing arabic text are skipped."""
+    mock_completion.return_value = {
+        "sentences": [
+            {"arabic": "", "english": "no arabic", "transliteration": ""},
+            {
+                "arabic": "الوَلَدُ يَقْرَأُ",
+                "english": "The boy reads",
+                "transliteration": "al-waladu yaqra'u",
+            },
+        ]
+    }
+
+    results = generate_sentences_batch(
+        target_word="يَقْرَأ",
+        target_translation="reads",
+        known_words=KNOWN_WORDS,
+    )
+
+    assert len(results) == 1
+    assert results[0].arabic == "الوَلَدُ يَقْرَأُ"
+
+
+@patch("app.services.llm.generate_completion")
+def test_batch_uses_model_override(mock_completion):
+    """Batch passes model_override to generate_completion."""
+    mock_completion.return_value = {"sentences": []}
+
+    generate_sentences_batch(
+        target_word="كِتَاب",
+        target_translation="book",
+        known_words=KNOWN_WORDS,
+        model_override="openai",
+    )
+
+    call_kwargs = mock_completion.call_args.kwargs
+    assert call_kwargs["model_override"] == "openai"

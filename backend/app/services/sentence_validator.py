@@ -179,6 +179,113 @@ def _bare_forms_match(word_bare: str, candidate_bare: str) -> bool:
     return normalize_alef(word_bare) == normalize_alef(candidate_bare)
 
 
+@dataclass
+class TokenMapping:
+    position: int
+    surface_form: str
+    lemma_id: int | None
+    is_target: bool
+    is_function_word: bool
+
+
+def map_tokens_to_lemmas(
+    tokens: list[str],
+    lemma_lookup: dict[str, int],
+    target_lemma_id: int,
+    target_bare: str,
+) -> list[TokenMapping]:
+    """Map tokenized sentence words to lemma IDs.
+
+    Args:
+        tokens: Tokenized Arabic words (from tokenize()).
+        lemma_lookup: Dict of {normalized_bare_form: lemma_id} including
+                      al-prefix variants.
+        target_lemma_id: The lemma_id of the target word.
+        target_bare: Bare form of the target word.
+
+    Returns:
+        List of TokenMapping with position, surface_form, lemma_id, flags.
+    """
+    target_normalized = normalize_alef(target_bare)
+    target_forms = {target_normalized}
+    if not target_normalized.startswith("ال"):
+        target_forms.add("ال" + target_normalized)
+    if target_normalized.startswith("ال") and len(target_normalized) > 2:
+        target_forms.add(target_normalized[2:])
+
+    result: list[TokenMapping] = []
+    for i, token in enumerate(tokens):
+        bare = strip_diacritics(token)
+        bare_clean = strip_tatweel(bare)
+        bare_norm = normalize_alef(bare_clean)
+
+        # Check target
+        is_target = bare_norm in target_forms
+        if not is_target:
+            for stem in _strip_clitics(bare_norm):
+                if normalize_alef(stem) in target_forms:
+                    is_target = True
+                    break
+
+        if is_target:
+            result.append(TokenMapping(i, token, target_lemma_id, True, False))
+            continue
+
+        # Check function word
+        if _is_function_word(bare_clean):
+            result.append(TokenMapping(i, token, None, False, True))
+            continue
+
+        # Look up lemma
+        lemma_id = _lookup_lemma(bare_norm, lemma_lookup)
+        result.append(TokenMapping(i, token, lemma_id, False, False))
+
+    return result
+
+
+def _lookup_lemma(bare_norm: str, lemma_lookup: dict[str, int]) -> int | None:
+    """Find a lemma_id for a normalized bare form, trying variants and clitic stripping."""
+    # Direct match
+    if bare_norm in lemma_lookup:
+        return lemma_lookup[bare_norm]
+
+    # With/without al-prefix
+    if bare_norm.startswith("ال") and len(bare_norm) > 2:
+        without_al = bare_norm[2:]
+        if without_al in lemma_lookup:
+            return lemma_lookup[without_al]
+    else:
+        with_al = "ال" + bare_norm
+        if with_al in lemma_lookup:
+            return lemma_lookup[with_al]
+
+    # Clitic stripping
+    for stem in _strip_clitics(bare_norm):
+        norm_stem = normalize_alef(stem)
+        if norm_stem in lemma_lookup:
+            return lemma_lookup[norm_stem]
+
+    return None
+
+
+def build_lemma_lookup(lemmas: list) -> dict[str, int]:
+    """Build a normalized bare form → lemma_id lookup dict.
+
+    Includes both with and without al-prefix for each lemma.
+    Args:
+        lemmas: List of Lemma model objects with lemma_ar_bare and lemma_id.
+    """
+    lookup: dict[str, int] = {}
+    for lem in lemmas:
+        bare_norm = normalize_alef(lem.lemma_ar_bare)
+        lookup[bare_norm] = lem.lemma_id
+        if bare_norm.startswith("ال") and len(bare_norm) > 2:
+            lookup[bare_norm[2:]] = lem.lemma_id
+        elif not bare_norm.startswith("ال"):
+            lookup["ال" + bare_norm] = lem.lemma_id
+    return lookup
+
+
 def validate_sentence(
     arabic_text: str,
     target_bare: str,

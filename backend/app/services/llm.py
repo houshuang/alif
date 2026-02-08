@@ -190,6 +190,25 @@ Rules:
 Respond with JSON only: {"arabic": "...", "english": "...", "transliteration": "..."}"""
 
 
+BATCH_SENTENCE_SYSTEM_PROMPT = """\
+You are an Arabic language tutor creating MSA (Modern Standard Arabic) sentences \
+for reading practice. You generate multiple varied sentences for a target word.
+
+Rules:
+- Write grammatically correct MSA (fusha)
+- ONLY use words from the provided vocabulary list, the target word, and common function words
+- Common function words you may freely use: في، من، على، إلى، و، ب، ل، ك، هذا، هذه، \
+ذلك، تلك، هو، هي، أنا، أنت، نحن، هم، ما، لا، أن، إن، كان، كانت، ليس، هل، لم، \
+لن، قد، الذي، التي، كل، بعض، هنا، هناك، الآن، جدا، فقط، أيضا، أو، ثم، لكن
+- Do NOT invent or use Arabic content words not in the vocabulary list
+- Include full diacritics (tashkeel) on ALL Arabic words
+- Each sentence should be 4-8 words long
+- Each sentence should use a different structure/context
+- Transliteration must use ALA-LC standard with macrons for long vowels
+
+Respond with JSON: {"sentences": [{"arabic": "...", "english": "...", "transliteration": "..."}, ...]}"""
+
+
 def generate_sentence(
     target_word: str,
     target_translation: str,
@@ -256,3 +275,62 @@ Include full diacritics on all Arabic text.
         english=result.get("english", ""),
         transliteration=result.get("transliteration", ""),
     )
+
+
+def generate_sentences_batch(
+    target_word: str,
+    target_translation: str,
+    known_words: list[dict[str, str]],
+    count: int = 3,
+    difficulty_hint: str = "beginner",
+    model_override: str = "gemini",
+) -> list[SentenceResult]:
+    """Generate multiple sentences for a target word in a single LLM call.
+
+    Returns up to `count` SentenceResult objects (may be fewer if parsing fails).
+    """
+    known_list = "\n".join(
+        f"- {w['arabic']} ({w['english']})" for w in known_words
+    )
+
+    prompt = f"""Create {count} different natural MSA sentences for a {difficulty_hint} Arabic learner.
+
+TARGET WORD (must appear in every sentence):
+- {target_word} ({target_translation})
+
+VOCABULARY (you may ONLY use these Arabic content words, plus function words):
+{known_list}
+
+IMPORTANT: Do NOT use any Arabic content words that are not in the list above.
+Each sentence should be 4-8 words, with a different structure or context.
+Include full diacritics on all Arabic text.
+
+Respond with JSON: {{"sentences": [{{"arabic": "...", "english": "...", "transliteration": "..."}}, ...]}}"""
+
+    result = generate_completion(
+        prompt=prompt,
+        system_prompt=BATCH_SENTENCE_SYSTEM_PROMPT,
+        json_mode=True,
+        temperature=0.5,
+        model_override=model_override,
+    )
+
+    sentences: list[SentenceResult] = []
+    raw_list = result.get("sentences", [])
+    if not isinstance(raw_list, list):
+        return sentences
+
+    for item in raw_list[:count]:
+        if not isinstance(item, dict):
+            continue
+        arabic = item.get("arabic", "").strip()
+        english = item.get("english", "").strip()
+        transliteration = item.get("transliteration", "").strip()
+        if arabic and english:
+            sentences.append(SentenceResult(
+                arabic=arabic,
+                english=english,
+                transliteration=transliteration,
+            ))
+
+    return sentences

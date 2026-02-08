@@ -1,0 +1,110 @@
+{
+  "timestamp": "2026-02-08T13:24:28.805739",
+  "models": [
+    "gemini",
+    "openai",
+    "anthropic"
+  ],
+  "results": {
+    "diacritization": {
+      "gemini": {
+        "avg_der": 0.0791,
+        "accuracy": 0.9209,
+        "total_time_s": 32.8,
+        "cases": 30
+      },
+      "openai": {
+        "avg_der": 0.068,
+        "accuracy": 0.932,
+        "total_time_s": 32.5,
+        "cases": 30
+      },
+      "anthropic": {
+        "avg_der": 0.0371,
+        "accuracy": 0.9629,
+        "total_time_s": 34.0,
+        "cases": 30
+      }
+    },
+    "translation": {
+      "gemini": {
+        "avg_score_0_3": 3.0,
+        "key_term_recall": 0.9667,
+        "total_time_s": 20.8,
+        "cases": 20
+      },
+      "openai": {
+        "avg_score_0_3": 2.95,
+        "key_term_recall": 0.9667,
+        "total_time_s": 17.5,
+        "cases": 20
+      },
+      "anthropic": {
+        "avg_score_0_3": 2.9,
+        "key_term_recall": 0.95,
+        "total_time_s": 19.6,
+        "cases": 20
+      }
+    },
+    "transliteration": {
+      "gemini": {
+        "exact_match_rate": 0.6,
+        "avg_levenshtein": 1.1,
+        "total_time_s": 20.2,
+        "cases": 20
+      },
+      "openai": {
+        "exact_match_rate": 0.6,
+        "avg_levenshtein": 1.1,
+        "total_time_s": 17.4,
+        "cases": 20
+      },
+      "anthropic": {
+        "exact_match_rate": 0.15,
+        "avg_levenshtein": 2.35,
+        "total_time_s": 15.3,
+        "cases": 20
+      }
+    },
+    "sentence_generation": {
+      "gemini": {
+        "validation_pass_rate": 0.4,
+        "target_found_rate": 0.95,
+        "total_time_s": 27.8,
+        "cases": 20
+      },
+      "openai": {
+        "validation_pass_rate": 0.45,
+        "target_found_rate": 0.95,
+        "total_time_s": 34.4,
+        "cases": 20
+      },
+      "anthropic": {
+        "validation_pass_rate": 0.4,
+        "target_found_rate": 0.95,
+        "total_time_s": 33.8,
+        "cases": 20
+      }
+    },
+    "grammar_tagging": {
+      "gemini": {
+        "pos_accuracy": 1.0,
+        "feature_accuracy": 0.9187,
+        "total_time_s": 33.7,
+        "cases": 15
+      },
+      "openai": {
+        "pos_accuracy": 1.0,
+        "feature_accuracy": 0.5188,
+        "total_time_s": 49.4,
+        "cases": 15
+      },
+      "anthropic": {
+        "pos_accuracy": 1.0,
+        "feature_accuracy": 0.9125,
+        "total_time_s": 27.9,
+        "cases": 15
+      }
+    }
+  }
+}
