@@ -12,6 +12,7 @@ RUN pip install --no-cache-dir .
 COPY alembic.ini .
 COPY alembic/ alembic/
 COPY app/ app/
+COPY scripts/ scripts/
 
 RUN mkdir -p data/logs data/audio
 

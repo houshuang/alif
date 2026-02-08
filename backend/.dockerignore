@@ -5,5 +5,4 @@ __pycache__
 data/logs/*
 data/audio/*
 tests/
-scripts/
 .pytest_cache
