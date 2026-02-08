@@ -127,7 +127,7 @@ export default function ReviewScreen() {
 
     const audioUri = currentItem?.audio_url
       ? `${BASE_URL}${currentItem.audio_url}`
-      : `${BASE_URL}/api/tts/audio/${encodeURIComponent(arabicText)}`;
+      : `${BASE_URL}/api/tts/speak/${encodeURIComponent(arabicText)}`;
 
     try {
       const { sound } = await Audio.Sound.createAsync({

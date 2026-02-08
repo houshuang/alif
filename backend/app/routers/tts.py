@@ -1,3 +1,4 @@
+import time
 from pathlib import Path
 
 from fastapi import APIRouter, HTTPException
@@ -6,14 +7,17 @@ from pydantic import BaseModel
 
 from ..services.tts import (
     AUDIO_DIR,
+    DEFAULT_VOICE_ID as TTS_DEFAULT_VOICE_ID,
     TTSError,
     TTSKeyMissing,
     cache_key_for,
     filter_arabic_compatible_voices,
     generate_and_cache,
+    get_cached_path,
     list_voices,
     update_index,
 )
+from ..services.interaction_logger import log_interaction
 
 router = APIRouter(prefix="/api/tts", tags=["tts"])
 
@@ -81,6 +85,53 @@ async def generate_for_sentence(req: GenerateForSentenceRequest):
         "audio_url": f"/api/tts/audio/{path.name}",
         "cached": True,
     }
+
+
+@router.get("/speak/{text:path}")
+async def speak(text: str):
+    """Generate TTS audio on-demand and return it. Caches by content hash."""
+    voice_id = TTS_DEFAULT_VOICE_ID
+    ck = cache_key_for(text, voice_id)
+    cached = get_cached_path(ck)
+    cache_hit = cached is not None
+
+    t0 = time.monotonic()
+    try:
+        path = await generate_and_cache(text, voice_id, cache_key=ck)
+    except TTSKeyMissing:
+        log_interaction(
+            event="tts_request",
+            text_length=len(text),
+            cache_hit=False,
+            success=False,
+            error="key_missing",
+        )
+        raise HTTPException(
+            status_code=503,
+            detail="ElevenLabs API key not configured.",
+        )
+    except TTSError as e:
+        latency_ms = int((time.monotonic() - t0) * 1000)
+        log_interaction(
+            event="tts_request",
+            text_length=len(text),
+            cache_hit=False,
+            success=False,
+            latency_ms=latency_ms,
+            error=str(e),
+        )
+        raise HTTPException(status_code=502, detail=str(e))
+
+    latency_ms = int((time.monotonic() - t0) * 1000)
+    log_interaction(
+        event="tts_request",
+        text_length=len(text),
+        cache_hit=cache_hit,
+        success=True,
+        latency_ms=latency_ms,
+    )
+
+    return FileResponse(path, media_type="audio/mpeg")
 
 
 @router.get("/audio/{filename}")
