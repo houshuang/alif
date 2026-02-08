@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useCallback, useMemo } from "react";
 import {
   View,
   Text,
@@ -8,7 +8,7 @@ import {
   StyleSheet,
   ActivityIndicator,
 } from "react-native";
-import { useRouter } from "expo-router";
+import { useRouter, useFocusEffect } from "expo-router";
 import { colors, fonts } from "../lib/theme";
 import { getWords } from "../lib/api";
 import { Word } from "../lib/types";
@@ -20,9 +20,11 @@ export default function WordsScreen() {
   const [filter, setFilter] = useState<"all" | "new" | "learning" | "known">("all");
   const router = useRouter();
 
-  useEffect(() => {
-    loadWords();
-  }, []);
+  useFocusEffect(
+    useCallback(() => {
+      loadWords();
+    }, [])
+  );
 
   async function loadWords() {
     setLoading(true);
@@ -62,6 +64,10 @@ export default function WordsScreen() {
   }
 
   function renderWord({ item }: { item: Word }) {
+    const accuracy =
+      item.times_seen > 0
+        ? Math.round((item.times_correct / item.times_seen) * 100)
+        : null;
     return (
       <Pressable
         style={styles.wordRow}
@@ -80,7 +86,13 @@ export default function WordsScreen() {
           >
             <Text style={styles.stateBadgeText}>{item.state}</Text>
           </View>
-          <Text style={styles.wordPos}>{item.pos}</Text>
+          {item.times_seen > 0 ? (
+            <Text style={styles.wordStats}>
+              {item.times_seen}x · {accuracy}%
+            </Text>
+          ) : (
+            <Text style={styles.wordPos}>{item.pos}</Text>
+          )}
         </View>
       </Pressable>
     );
@@ -229,6 +241,10 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
   wordPos: {
+    fontSize: fonts.caption,
+    color: colors.textSecondary,
+  },
+  wordStats: {
     fontSize: fonts.caption,
     color: colors.textSecondary,
   },

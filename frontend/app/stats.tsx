@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useCallback } from "react";
 import {
   View,
   Text,
@@ -7,6 +7,7 @@ import {
   ActivityIndicator,
   Pressable,
 } from "react-native";
+import { useFocusEffect } from "expo-router";
 import { colors, fonts } from "../lib/theme";
 import { getAnalytics } from "../lib/api";
 import { Analytics } from "../lib/types";
@@ -15,9 +16,11 @@ export default function StatsScreen() {
   const [analytics, setAnalytics] = useState<Analytics | null>(null);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    loadAnalytics();
-  }, []);
+  useFocusEffect(
+    useCallback(() => {
+      loadAnalytics();
+    }, [])
+  );
 
   async function loadAnalytics() {
     setLoading(true);

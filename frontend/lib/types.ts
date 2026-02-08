@@ -44,6 +44,20 @@ export interface Word {
   pos: string;
   state: "new" | "learning" | "known";
   due_date: string | null;
+  times_seen: number;
+  times_correct: number;
+  last_reviewed: string | null;
+}
+
+export interface ReviewHistoryEntry {
+  rating: number;
+  reviewed_at: string | null;
+  response_ms: number | null;
+  credit_type: string | null;
+  comprehension_signal: string | null;
+  review_mode: string | null;
+  sentence_arabic?: string;
+  sentence_english?: string;
 }
 
 export interface WordDetail extends Word {
@@ -51,6 +65,7 @@ export interface WordDetail extends Word {
   times_reviewed: number;
   correct_count: number;
   root_family: { id: number; arabic: string; english: string }[];
+  review_history: ReviewHistoryEntry[];
 }
 
 export interface Stats {

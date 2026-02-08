@@ -3,7 +3,7 @@ from fastapi import APIRouter, Depends, Query, HTTPException
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.models import Lemma, UserLemmaKnowledge
+from app.models import Lemma, UserLemmaKnowledge, ReviewLog, Sentence
 from app.services.word_selector import get_root_family
 
 router = APIRouter(prefix="/api/words", tags=["words"])
@@ -25,6 +25,8 @@ def list_words(
     results = []
     for lemma in lemmas:
         k = lemma.knowledge
+        times_seen = k.times_seen if k else 0
+        times_correct = k.times_correct if k else 0
         results.append({
             "lemma_id": lemma.lemma_id,
             "lemma_ar": lemma.lemma_ar,
@@ -36,6 +38,9 @@ def list_words(
             "knowledge_state": k.knowledge_state if k else "new",
             "frequency_rank": lemma.frequency_rank,
             "audio_url": lemma.audio_url,
+            "times_seen": times_seen,
+            "times_correct": times_correct,
+            "last_reviewed": k.last_reviewed.isoformat() if k and k.last_reviewed else None,
         })
     return results
 
@@ -55,6 +60,31 @@ def get_word(lemma_id: int, db: Session = Depends(get_db)):
             if w["lemma_id"] != lemma.lemma_id
         ]
 
+    reviews = (
+        db.query(ReviewLog)
+        .filter(ReviewLog.lemma_id == lemma_id)
+        .order_by(ReviewLog.reviewed_at.desc())
+        .limit(50)
+        .all()
+    )
+
+    review_history = []
+    for r in reviews:
+        entry = {
+            "rating": r.rating,
+            "reviewed_at": r.reviewed_at.isoformat() if r.reviewed_at else None,
+            "response_ms": r.response_ms,
+            "credit_type": r.credit_type,
+            "comprehension_signal": r.comprehension_signal,
+            "review_mode": r.review_mode,
+        }
+        if r.sentence_id:
+            sent = db.query(Sentence).filter(Sentence.id == r.sentence_id).first()
+            if sent:
+                entry["sentence_arabic"] = sent.arabic_diacritized or sent.arabic_text
+                entry["sentence_english"] = sent.english_translation
+        review_history.append(entry)
+
     return {
         "lemma_id": lemma.lemma_id,
         "lemma_ar": lemma.lemma_ar,
@@ -69,4 +99,5 @@ def get_word(lemma_id: int, db: Session = Depends(get_db)):
         "times_seen": k.times_seen if k else 0,
         "times_correct": k.times_correct if k else 0,
         "root_family": root_family,
+        "review_history": review_history,
     }

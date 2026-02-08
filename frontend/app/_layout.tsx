@@ -17,19 +17,19 @@ export default function Layout() {
         }}
       >
         <Tabs.Screen
-          name="learn"
+          name="index"
           options={{
-            title: "Learn",
-            tabBarLabel: "Learn",
-            tabBarIcon: ({ color, size }) => <Ionicons name="school-outline" size={size} color={color} />,
+            title: "Reading",
+            tabBarLabel: "Reading",
+            tabBarIcon: ({ color, size }) => <Ionicons name="book-outline" size={size} color={color} />,
           }}
         />
         <Tabs.Screen
-          name="index"
+          name="listening"
           options={{
-            title: "Review",
-            tabBarLabel: "Review",
-            tabBarIcon: ({ color, size }) => <Ionicons name="book-outline" size={size} color={color} />,
+            title: "Listening",
+            tabBarLabel: "Listening",
+            tabBarIcon: ({ color, size }) => <Ionicons name="headset-outline" size={size} color={color} />,
           }}
         />
         <Tabs.Screen
@@ -47,6 +47,10 @@ export default function Layout() {
             tabBarLabel: "Stats",
             tabBarIcon: ({ color, size }) => <Ionicons name="bar-chart-outline" size={size} color={color} />,
           }}
+        />
+        <Tabs.Screen
+          name="learn"
+          options={{ href: null, title: "Learn" }}
         />
         <Tabs.Screen
           name="word/[id]"

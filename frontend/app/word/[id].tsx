@@ -10,7 +10,7 @@ import {
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { colors, fonts } from "../../lib/theme";
 import { getWordDetail } from "../../lib/api";
-import { WordDetail } from "../../lib/types";
+import { WordDetail, ReviewHistoryEntry } from "../../lib/types";
 
 export default function WordDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -78,6 +78,45 @@ export default function WordDetailScreen() {
           <StatBox label="Accuracy" value={`${accuracy}%`} />
         </View>
       </View>
+
+      {word.review_history && word.review_history.length > 0 && (
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Reviews</Text>
+          {word.review_history.map((r: ReviewHistoryEntry, i: number) => (
+            <View key={i} style={styles.reviewRow}>
+              <View style={styles.reviewHeader}>
+                <View
+                  style={[
+                    styles.ratingBadge,
+                    { backgroundColor: r.rating >= 3 ? colors.good : colors.missed },
+                  ]}
+                >
+                  <Text style={styles.ratingBadgeText}>
+                    {r.rating >= 3 ? "Pass" : "Fail"}
+                  </Text>
+                </View>
+                {r.credit_type && (
+                  <Text style={styles.reviewMeta}>{r.credit_type}</Text>
+                )}
+                {r.review_mode && (
+                  <Text style={styles.reviewMeta}>{r.review_mode}</Text>
+                )}
+                {r.reviewed_at && (
+                  <Text style={styles.reviewDate}>
+                    {new Date(r.reviewed_at).toLocaleDateString()}
+                  </Text>
+                )}
+              </View>
+              {r.sentence_arabic && (
+                <Text style={styles.reviewSentence}>{r.sentence_arabic}</Text>
+              )}
+              {r.sentence_english && (
+                <Text style={styles.reviewTranslation}>{r.sentence_english}</Text>
+              )}
+            </View>
+          ))}
+        </View>
+      )}
 
       {word.root_family.length > 0 && (
         <View style={styles.section}>
@@ -223,6 +262,50 @@ const styles = StyleSheet.create({
     fontSize: fonts.small,
     color: colors.textSecondary,
     marginLeft: 12,
+  },
+  reviewRow: {
+    backgroundColor: colors.surface,
+    borderRadius: 10,
+    padding: 12,
+    marginBottom: 8,
+  },
+  reviewHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 4,
+  },
+  ratingBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 8,
+  },
+  ratingBadgeText: {
+    color: "#fff",
+    fontSize: fonts.caption,
+    fontWeight: "600",
+  },
+  reviewMeta: {
+    fontSize: fonts.caption,
+    color: colors.textSecondary,
+  },
+  reviewDate: {
+    fontSize: fonts.caption,
+    color: colors.textSecondary,
+    marginLeft: "auto",
+  },
+  reviewSentence: {
+    fontSize: fonts.arabicList,
+    color: colors.arabic,
+    writingDirection: "rtl",
+    textAlign: "right",
+    marginTop: 6,
+    lineHeight: 28,
+  },
+  reviewTranslation: {
+    fontSize: fonts.small,
+    color: colors.textSecondary,
+    marginTop: 4,
   },
   errorText: {
     color: colors.textSecondary,

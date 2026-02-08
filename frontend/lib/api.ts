@@ -89,6 +89,9 @@ export async function getWords(): Promise<Word[]> {
     pos: w.pos || "",
     state: w.knowledge_state || "new",
     due_date: null,
+    times_seen: w.times_seen || 0,
+    times_correct: w.times_correct || 0,
+    last_reviewed: w.last_reviewed || null,
   }));
 }
 
@@ -103,6 +106,9 @@ export async function getWordDetail(id: number): Promise<WordDetail> {
     pos: w.pos || "",
     state: w.knowledge_state || "new",
     due_date: null,
+    times_seen: w.times_seen || 0,
+    times_correct: w.times_correct || 0,
+    last_reviewed: w.last_reviewed || null,
     frequency_rank: w.frequency_rank,
     times_reviewed: w.times_seen || 0,
     correct_count: w.times_correct || 0,
@@ -111,6 +117,7 @@ export async function getWordDetail(id: number): Promise<WordDetail> {
       arabic: f.arabic,
       english: f.english,
     })),
+    review_history: (w.review_history || []),
   };
 }
 
