@@ -214,6 +214,7 @@ Vocabulary constraint:
 - Common function words you may freely use: في، من، على، إلى، و، ب، ل، هذا، هذه، \
 هو، هي، أنا، أنت، ما، لا، أن، إن، كان، ليس، هل، لم، لن، قد، الذي، التي
 - Include full diacritics (tashkeel) on ALL Arabic words with correct i'rab
+- Include Arabic punctuation: use ؟ for questions, . for statements, ، between clauses
 - Transliteration: ALA-LC standard with macrons for long vowels
 
 Respond with JSON only: {{"arabic": "...", "english": "...", "transliteration": "..."}}"""
@@ -235,6 +236,7 @@ Vocabulary constraint:
 لن، قد، الذي، التي، كل، بعض، هنا، هناك، الآن، جدا، فقط، أيضا، أو، ثم، لكن
 - Do NOT invent or use Arabic content words not in the vocabulary list
 - Include full diacritics (tashkeel) on ALL Arabic words with correct i'rab
+- Include Arabic punctuation: use ؟ for questions, . for statements, ، between clauses
 - Each sentence should be 4-8 words long
 - Each sentence should use a DIFFERENT syntactic structure (vary VSO/SVO, nominal/verbal, question/statement)
 - Transliteration: ALA-LC standard with macrons for long vowels
@@ -349,7 +351,12 @@ Respond with JSON: {{"sentences": [{{"arabic": "...", "english": "...", "transli
     )
 
     sentences: list[SentenceResult] = []
-    raw_list = result.get("sentences", [])
+    if isinstance(result, list):
+        raw_list = result
+    elif isinstance(result, dict):
+        raw_list = result.get("sentences", [])
+    else:
+        return sentences
     if not isinstance(raw_list, list):
         return sentences
 
