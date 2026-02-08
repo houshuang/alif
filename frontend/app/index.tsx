@@ -26,6 +26,8 @@ import {
   SentenceReviewSession,
   IntroCandidate,
 } from "../lib/types";
+import { syncEvents } from "../lib/sync-events";
+import { useNetStatus } from "../lib/net-status";
 
 type ReadingCardState = "front" | "back";
 type ListeningCardState = "audio" | "arabic" | "answer";
@@ -59,6 +61,7 @@ export default function ReadingScreen() {
 
 export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
   const mode = fixedMode;
+  const online = useNetStatus();
   // Sentence-first session (preferred)
   const [sentenceSession, setSentenceSession] =
     useState<SentenceReviewSession | null>(null);
@@ -83,6 +86,10 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
     : legacySession?.cards.length ?? 0;
 
   useEffect(() => {
+    Audio.setAudioModeAsync({
+      playsInSilentModeIOS: true,
+      staysActiveInBackground: false,
+    });
     loadSession();
     return () => {
       cleanupSound();
@@ -95,15 +102,25 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
     }
   }, [cardIndex, cardState]);
 
-  // TTS audio playback for listening mode
+  // TTS audio playback for listening mode — wait until session data is loaded
   useEffect(() => {
-    if (cardState === "audio") {
+    if (cardState === "audio" && !loading && totalCards > 0) {
       playTtsAudio();
     }
     return () => {
       cleanupSound();
     };
-  }, [cardState, cardIndex]);
+  }, [cardState, cardIndex, loading, totalCards]);
+
+  // Reload session when sync completes and user is between sessions
+  useEffect(() => {
+    return syncEvents.on("synced", () => {
+      const isSessionDone = results && results.total >= totalCards;
+      if (isSessionDone || totalCards === 0) {
+        loadSession();
+      }
+    });
+  }, [results, totalCards]);
 
   async function cleanupSound() {
     if (soundRef.current) {
@@ -149,11 +166,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
       });
       await sound.playAsync();
     } catch {
-      // Fallback: simulate with timer if TTS fails
-      const timer = setTimeout(() => {
-        setAudioPlaying(false);
-      }, 2000);
-      return () => clearTimeout(timer);
+      setAudioPlaying(false);
     }
   }
 
@@ -206,7 +219,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
     });
   }, []);
 
-  async function handleSentenceSubmit(signal: ComprehensionSignal) {
+  function handleSentenceSubmit(signal: ComprehensionSignal) {
     if (!sentenceSession) return;
     const item = sentenceSession.items[cardIndex];
     const responseMs = Date.now() - showTime.current;
@@ -223,7 +236,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
       missedLemmaIds.push(item.primary_lemma_id);
     }
 
-    await submitSentenceReview({
+    submitSentenceReview({
       sentence_id: item.sentence_id,
       primary_lemma_id: item.primary_lemma_id,
       comprehension_signal: signal,
@@ -236,7 +249,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
     advanceAfterSubmit(signal);
   }
 
-  async function handleLegacySubmit(signal: ComprehensionSignal) {
+  function handleLegacySubmit(signal: ComprehensionSignal) {
     if (!legacySession) return;
     const card = legacySession.cards[cardIndex];
     const responseMs = Date.now() - showTime.current;
@@ -265,7 +278,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
 
     const rating: 1 | 3 = targetMissed ? 1 : 3;
 
-    await submitReview({
+    submitReview({
       lemma_id: card.lemma_id,
       rating,
       response_ms: responseMs,
@@ -341,9 +354,11 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
       <View style={styles.container}>
 
         <Text style={styles.emptyText}>
-          {mode === "listening"
-            ? "No sentences ready for listening practice"
-            : "No cards due for review"}
+          {!online
+            ? "No sessions available offline"
+            : mode === "listening"
+              ? "No sentences ready for listening practice"
+              : "No cards due for review"}
         </Text>
         <Pressable style={styles.startButton} onPress={() => loadSession()}>
           <Text style={styles.startButtonText}>Refresh</Text>
