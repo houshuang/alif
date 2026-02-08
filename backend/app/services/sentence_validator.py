@@ -113,6 +113,55 @@ class ValidationResult:
     issues: list[str] = field(default_factory=list)
 
 
+PROCLITICS = ["وال", "بال", "فال", "لل", "كال", "و", "ف", "ب", "ل", "ك"]
+
+ENCLITICS = ["هما", "هم", "هن", "ها", "كم", "كن", "نا", "ني", "ه", "ك"]
+
+
+def _strip_clitics(bare_form: str) -> list[str]:
+    """Return all possible stems after removing Arabic proclitics/enclitics.
+
+    Tries prefix-only, suffix-only, and prefix+suffix combinations.
+    Handles taa marbuta: ة→ت before suffixes (e.g. مدرسته → مدرسة + ه).
+    Also tries ال removal on the remaining stem.
+    """
+    candidates: set[str] = set()
+
+    def _add_with_al_variants(stem: str) -> None:
+        if len(stem) < 2:
+            return
+        candidates.add(stem)
+        if stem.startswith("ال") and len(stem) > 2:
+            candidates.add(stem[2:])
+        else:
+            candidates.add("ال" + stem)
+
+    def _strip_suffix(stem: str) -> list[str]:
+        results = [stem]
+        for suf in ENCLITICS:
+            if stem.endswith(suf) and len(stem) > len(suf):
+                base = stem[: -len(suf)]
+                results.append(base)
+                # taa marbuta restoration: final ت → ة
+                if base.endswith("ت"):
+                    results.append(base[:-1] + "ة")
+        return results
+
+    # 1. Suffix-only stripping
+    for stem in _strip_suffix(bare_form):
+        _add_with_al_variants(stem)
+
+    # 2. Prefix stripping (then optional suffix stripping)
+    for pre in PROCLITICS:
+        if bare_form.startswith(pre) and len(bare_form) > len(pre):
+            after_pre = bare_form[len(pre):]
+            for stem in _strip_suffix(after_pre):
+                _add_with_al_variants(stem)
+
+    candidates.discard(bare_form)
+    return list(candidates)
+
+
 def _is_function_word(bare_form: str) -> bool:
     """Check if a bare form is a known function word."""
     normalized = normalize_alef(bare_form)
@@ -175,7 +224,14 @@ def validate_sentence(
         if target_normalized.startswith("ال") and len(target_normalized) > 2:
             target_forms.append(target_normalized[2:])
 
-        if bare_normalized in target_forms:
+        is_target = bare_normalized in target_forms
+        if not is_target:
+            for stem in _strip_clitics(bare_normalized):
+                if normalize_alef(stem) in target_forms:
+                    is_target = True
+                    break
+
+        if is_target:
             classifications.append(
                 WordClassification(token, bare_clean, "target_word")
             )
@@ -204,6 +260,13 @@ def validate_sentence(
             if form in known_normalized:
                 is_known = True
                 break
+
+        # Try clitic stripping if direct match failed
+        if not is_known:
+            for stem in _strip_clitics(bare_normalized):
+                if normalize_alef(stem) in known_normalized:
+                    is_known = True
+                    break
 
         if is_known:
             classifications.append(

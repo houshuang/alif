@@ -256,7 +256,7 @@
 - **Voice selection UI**: Load voices from API, filter by language, let user pick and test.
 
 ### Sentence Validation Improvements (discovered during implementation)
-- **Suffix/clitic handling in validator**: Arabic attaches possessive pronouns (ها، هم، ك) and preposition clitics (بال، لل) to words. The MVP validator only handles ال prefix. CAMeL Tools integration will solve this properly, but a rule-based suffix stripper could improve accuracy before then.
+- [DONE] **Suffix/clitic handling in validator**: Rule-based clitic stripping implemented in sentence_validator.py. Handles proclitics (و، ف، ب، ل، ك، وال، بال، فال، لل، كال), enclitics (ه، ها، هم، هن، هما، كم، كن، ك، نا، ني), and taa marbuta (ة→ت). CAMeL Tools will improve accuracy further.
 - **Morphological pattern matching**: Instead of exact bare form matching, match words by root + pattern. E.g., if user knows "كتاب" (kitāb), they likely can parse "كتب" (kutub, plural) and "مكتبة" (maktaba, library). This requires root extraction from CAMeL Tools.
 - **Sentence difficulty scoring**: Beyond word-level validation, score sentences by syntactic complexity (clause depth, verb forms used, agreement patterns). Could use sentence length + unknown-word ratio as simple proxy.
 - **Multi-sentence generation**: Generate 2-3 variant sentences per target word in one LLM call to reduce API calls and provide variety.
@@ -304,9 +304,9 @@
 - Confusion pair tracking: when user confuses two phonologically similar words, link them and schedule targeted review of both
 
 #### Grammar Concept Tagging
-- Tag every sentence with grammar concepts it illustrates (idafa, relative clause, conditional, nominal/verbal sentence, etc.)
-- Grammar concept progression: sequence exposure to grammar naturally (nominal -> verbal -> idafa -> relative clauses -> conditionals)
-- Grammar familiarity tracking: track user's implicit grammar knowledge based on comprehension success with tagged sentences
+- [DONE] Tag every sentence with grammar concepts it illustrates — implemented via grammar_tagger.py (LLM-based) and sentence_grammar_features table
+- [DONE] Grammar concept progression: 5-tier system (Tier 0 always available → Tier 4 requiring comfort ≥ 0.5) with comfort score formula based on exposure, accuracy, and recency decay
+- [DONE] Grammar familiarity tracking: user_grammar_exposure table tracks times_seen, times_correct, comfort_score per feature
 
 #### Register-Aware Content
 - Tag all content by MSA register (news, literary, religious, academic, everyday)
@@ -341,9 +341,9 @@
 ### Ideas from Cognitive Load Theory Research (2026-02-08)
 
 #### Sentence Difficulty Scaling by Word Maturity
-- Tie sentence complexity directly to FSRS stability of the target word: newly introduced words get 4-7 word simple sentences, mature words get 10-20 word complex sentences
+- [DONE] Tie sentence complexity directly to FSRS stability of the target word — implemented in sentence_selector.py difficulty matching formula (stability < 1d → scaffold stability > 7d; stability 1-7d → scaffold avg > 14d; stability > 7d → mixed OK)
 - Store a "sentence difficulty tier" (1-5) on generated sentences and select appropriate tier based on the target word's FSRS state
-- Sentence validator should check not just that surrounding words are "known" but that they have FSRS stability > 14 days for sentences containing new words -- recently-seen-but-fragile words in the surrounding context compete for working memory with the target word
+- [DONE] Sentence validator should check not just that surrounding words are "known" but that they have FSRS stability > 14 days for sentences containing new words — implemented via difficulty_match_quality scoring in greedy set cover
 - Consider using CAMeL token count (after clitic separation) rather than raw word count for sentence length targets, since Arabic agglutination makes raw word count misleading
 
 #### Adaptive Session Pacing

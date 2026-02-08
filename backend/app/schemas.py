@@ -138,3 +138,45 @@ class ImportResultOut(BaseModel):
     skipped_names: int
     skipped_phrases: int
     roots_found: int
+
+
+class SentenceWordMeta(BaseModel):
+    lemma_id: int | None
+    surface_form: str
+    gloss_en: str | None = None
+    stability: float | None = None
+    is_due: bool = False
+    is_function_word: bool = False
+
+
+class SentenceReviewItem(BaseModel):
+    sentence_id: int | None
+    arabic_text: str
+    arabic_diacritized: str | None = None
+    english_translation: str
+    transliteration: str | None = None
+    primary_lemma_id: int
+    primary_lemma_ar: str
+    primary_gloss_en: str
+    words: list[SentenceWordMeta]
+
+
+class SentenceSessionOut(BaseModel):
+    session_id: str
+    items: list[SentenceReviewItem]
+    total_due_words: int
+    covered_due_words: int
+
+
+class SentenceReviewSubmitIn(BaseModel):
+    sentence_id: int | None = None
+    primary_lemma_id: int
+    comprehension_signal: str  # understood/partial/no_idea
+    missed_lemma_ids: list[int] = []
+    response_ms: int | None = None
+    session_id: str | None = None
+    review_mode: str = "reading"
+
+
+class SentenceReviewSubmitOut(BaseModel):
+    word_results: list[dict]

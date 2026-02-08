@@ -127,7 +127,7 @@ export default function WordsScreen() {
               ]}
             >
               {f.charAt(0).toUpperCase() + f.slice(1)}
-              {f !== "all" && ` (${words.filter((w) => f === "all" || w.state === f).length})`}
+              {f !== "all" && ` (${words.filter((w) => w.state === f).length})`}
             </Text>
           </Pressable>
         ))}

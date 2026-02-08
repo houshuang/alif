@@ -5,9 +5,14 @@ services:
       - "3000:8000"
     volumes:
       - backend-data:/app/data
-      - backend-db:/app
+    environment:
+      - GEMINI_KEY=${GEMINI_KEY}
+      - OPENAI_KEY=${OPENAI_KEY}
+      - ELEVENLABS_API_KEY=${ELEVENLABS_API_KEY}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - DATABASE_URL=${DATABASE_URL:-sqlite:////app/data/alif.db}
+      - CORS_ORIGINS=${CORS_ORIGINS:-}
     restart: unless-stopped
 
 volumes:
   backend-data:
-  backend-db:

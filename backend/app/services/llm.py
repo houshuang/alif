@@ -1,11 +1,13 @@
 """LLM service using LiteLLM with multi-model fallback.
 
 Primary: Gemini Flash (fast, cheap)
-Fallback: GPT-4o-mini (reliable)
+Fallback: GPT (reliable)
+Tertiary: Claude Haiku (quality)
 """
 
 import json
 import os
+import re
 import time
 from datetime import datetime
 from pathlib import Path
@@ -33,28 +35,35 @@ class SentenceResult(BaseModel):
     transliteration: str
 
 
-# Model configs in priority order
 MODELS = [
     {
         "name": "gemini",
-        "model": "gemini/gemini-2.5-flash",
+        "model": "gemini/gemini-3-flash-preview",
         "key_env": "GEMINI_KEY",
         "key_setting": "gemini_key",
     },
     {
         "name": "openai",
-        "model": "gpt-4o-mini",
+        "model": "gpt-5.2",
         "key_env": "OPENAI_KEY",
         "key_setting": "openai_key",
+    },
+    {
+        "name": "anthropic",
+        "model": "claude-haiku-4-5",
+        "key_env": "ANTHROPIC_API_KEY",
+        "key_setting": "anthropic_api_key",
+        "key_settings": ["anthropic_api_key", "anthropic_key"],
     },
 ]
 
 
 def _get_api_key(model_config: dict) -> str | None:
     """Get API key from settings or environment."""
-    key = getattr(settings, model_config["key_setting"], "")
-    if key:
-        return key
+    for setting_name in model_config.get("key_settings", [model_config["key_setting"]]):
+        key = getattr(settings, setting_name, "")
+        if key:
+            return key
     return os.environ.get(model_config["key_env"], "") or None
 
 
@@ -88,20 +97,31 @@ def generate_completion(
     json_mode: bool = True,
     temperature: float = 0.7,
     timeout: int = 60,
+    model_override: str | None = None,
 ) -> dict[str, Any]:
     """Call LLM with automatic fallback across providers.
 
     Returns parsed JSON dict when json_mode=True, otherwise raw content string
     wrapped as {"content": "..."}.
+
+    When model_override is provided (e.g. "gemini", "openai", "anthropic"),
+    only that specific model is tried — no fallback to others.
     """
     messages = []
     if system_prompt:
         messages.append({"role": "system", "content": system_prompt})
     messages.append({"role": "user", "content": prompt})
 
+    if model_override:
+        models_to_try = [m for m in MODELS if m["name"] == model_override]
+        if not models_to_try:
+            raise LLMError(f"Unknown model override: {model_override}")
+    else:
+        models_to_try = MODELS
+
     errors: list[str] = []
 
-    for model_config in MODELS:
+    for model_config in models_to_try:
         api_key = _get_api_key(model_config)
         if not api_key:
             continue
@@ -131,7 +151,12 @@ def generate_completion(
             )
 
             if json_mode:
-                return json.loads(content)
+                # Some models wrap JSON in markdown fences
+                text = content.strip()
+                if text.startswith("```"):
+                    text = re.sub(r"^```(?:json)?\s*", "", text)
+                    text = re.sub(r"\s*```$", "", text)
+                return json.loads(text)
             return {"content": content}
 
         except Exception as e:

@@ -6,7 +6,10 @@ from alembic import context
 
 from app.database import Base
 from app.config import settings
-from app.models import Root, Lemma, UserLemmaKnowledge, ReviewLog, Sentence, SentenceWord  # noqa: F401
+from app.models import (  # noqa: F401
+    Root, Lemma, UserLemmaKnowledge, ReviewLog, Sentence, SentenceWord,
+    SentenceReviewLog, GrammarFeature, SentenceGrammarFeature, UserGrammarExposure,
+)
 
 config = context.config
 config.set_main_option("sqlalchemy.url", settings.database_url)

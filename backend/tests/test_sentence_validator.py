@@ -9,6 +9,7 @@ import pytest
 from app.services.sentence_validator import (
     FUNCTION_WORDS,
     ValidationResult,
+    _strip_clitics,
     normalize_alef,
     normalize_arabic,
     strip_diacritics,
@@ -261,3 +262,174 @@ class TestFunctionWordsCompleteness:
             assert q in FUNCTION_WORDS or normalize_alef(q) in {
                 normalize_alef(fw) for fw in FUNCTION_WORDS
             }, f"Missing question word: {q}"
+
+
+class TestStripClitics:
+    """Test the _strip_clitics helper directly."""
+
+    def test_suffix_ha(self):
+        # بيتها = بيت + ها
+        stems = _strip_clitics("بيتها")
+        assert "بيت" in stems
+
+    def test_suffix_hum(self):
+        # اولادهم = اولاد + هم
+        stems = _strip_clitics("اولادهم")
+        assert "اولاد" in stems
+
+    def test_prefix_wa(self):
+        # والكتب = و + ال + كتب
+        stems = _strip_clitics("والكتب")
+        assert "كتب" in stems or "الكتب" in stems
+
+    def test_prefix_bal(self):
+        # بالمدرسة = ب + ال + مدرسة
+        stems = _strip_clitics("بالمدرسة")
+        assert "مدرسة" in stems or "المدرسة" in stems
+
+    def test_taa_marbuta_restoration(self):
+        # مدرسته = مدرسة + ه (ة→ت before suffix)
+        stems = _strip_clitics("مدرسته")
+        assert "مدرسة" in stems
+
+    def test_taa_marbuta_with_ha(self):
+        # معلمتها = معلمة + ها
+        stems = _strip_clitics("معلمتها")
+        assert "معلمة" in stems
+
+    def test_prefix_and_suffix_combined(self):
+        # وبيته = و + بيت + ه (with ت→ة)
+        stems = _strip_clitics("وبيته")
+        assert "بيت" in stems or "بيتة" in stems
+
+    def test_prefix_lil(self):
+        # للمدرسة = لل + مدرسة
+        stems = _strip_clitics("للمدرسة")
+        assert "مدرسة" in stems or "المدرسة" in stems
+
+    def test_short_word_not_stripped_too_aggressively(self):
+        # Stripping should not produce empty or single-char stems
+        stems = _strip_clitics("به")
+        for s in stems:
+            assert len(s) >= 2
+
+    def test_no_match_returns_candidates(self):
+        stems = _strip_clitics("كتاب")
+        # No clitics to strip, but prefix-based candidates may exist
+        assert "كتاب" not in stems  # original should not be in candidates
+
+    def test_suffix_na(self):
+        # معلمتنا = معلمة + نا
+        stems = _strip_clitics("معلمتنا")
+        assert "معلمة" in stems
+
+    def test_prefix_fa(self):
+        # فالبيت = ف + ال + بيت
+        stems = _strip_clitics("فالبيت")
+        assert "بيت" in stems or "البيت" in stems
+
+    def test_prefix_kal(self):
+        # كالماء = ك + ال + ماء
+        stems = _strip_clitics("كالماء")
+        assert "ماء" in stems or "الماء" in stems
+
+
+class TestCliticIntegration:
+    """Test clitic handling within validate_sentence()."""
+
+    def test_possessive_suffix_ha(self):
+        """بيتها should match known word بيت"""
+        result = validate_sentence(
+            arabic_text="بيتها كبير",
+            target_bare="كبير",
+            known_bare_forms={"بيت"},
+        )
+        assert result.valid is True
+        assert result.target_found is True
+        assert len(result.unknown_words) == 0
+
+    def test_prefix_wa_al(self):
+        """والكتب should match known word كتب"""
+        result = validate_sentence(
+            arabic_text="قرأت والكتب جميلة",
+            target_bare="جميلة",
+            known_bare_forms={"قرأت", "كتب"},
+        )
+        assert result.valid is True
+        assert len(result.unknown_words) == 0
+
+    def test_prefix_bal(self):
+        """بالمدرسة should match known word مدرسة"""
+        result = validate_sentence(
+            arabic_text="ذهبت بالمدرسة",
+            target_bare="ذهبت",
+            known_bare_forms={"مدرسة"},
+        )
+        assert result.valid is True
+
+    def test_taa_marbuta_possessive(self):
+        """معلمتنا should match known word معلمة"""
+        result = validate_sentence(
+            arabic_text="معلمتنا جيدة",
+            target_bare="جيدة",
+            known_bare_forms={"معلمة"},
+        )
+        assert result.valid is True
+        assert len(result.unknown_words) == 0
+
+    def test_taa_marbuta_suffix_hu(self):
+        """مدرسته should match known word مدرسة"""
+        result = validate_sentence(
+            arabic_text="مدرسته كبيرة",
+            target_bare="كبيرة",
+            known_bare_forms={"مدرسة"},
+        )
+        assert result.valid is True
+
+    def test_prefix_lil(self):
+        """للمدرسة should match known word مدرسة"""
+        result = validate_sentence(
+            arabic_text="ذهب للمدرسة",
+            target_bare="ذهب",
+            known_bare_forms={"مدرسة"},
+        )
+        assert result.valid is True
+
+    def test_clitic_word_still_unknown_if_stem_not_known(self):
+        """Clitic stripping shouldn't make truly unknown words pass."""
+        result = validate_sentence(
+            arabic_text="وكتابها جميل",
+            target_bare="جميل",
+            known_bare_forms=set(),  # no known words at all
+        )
+        assert result.valid is False
+        assert len(result.unknown_words) >= 1
+
+    def test_existing_tests_still_pass_with_diacritics(self):
+        """Existing diacritized sentence should still work."""
+        result = validate_sentence(
+            arabic_text="الطَّالِبُ يَقْرَأُ الكِتَابَ فِي المَكْتَبَةِ كُلَّ يَوْمٍ",
+            target_bare="مكتبة",
+            known_bare_forms={"طالب", "يقرأ", "كتاب", "يوم"},
+        )
+        assert result.valid is True
+
+    def test_prefix_with_diacritics(self):
+        """Diacritized cliticized word should still be recognized."""
+        result = validate_sentence(
+            arabic_text="ذَهَبَ بِالْمَدْرَسَةِ",
+            target_bare="ذهب",
+            known_bare_forms={"مدرسة"},
+        )
+        assert result.valid is True
+
+    def test_multiple_cliticized_words(self):
+        """Multiple cliticized words in the same sentence."""
+        result = validate_sentence(
+            arabic_text="وبيتها بالمدرسة",
+            target_bare="مدرسة",
+            known_bare_forms={"بيت"},
+        )
+        assert result.valid is True
+        # وبيتها matched via و+بيت+ها, بالمدرسة is target via بال+مدرسة
+        assert result.target_found is True

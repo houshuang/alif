@@ -1,0 +1,507 @@
+{
+  "diacritization": [
+    {"bare": "الكتاب على الطاولة", "gold": "الْكِتَابُ عَلَى الطَّاوِلَةِ"},
+    {"bare": "هذا بيت كبير", "gold": "هَذَا بَيْتٌ كَبِيرٌ"},
+    {"bare": "المعلم في المدرسة", "gold": "الْمُعَلِّمُ فِي الْمَدْرَسَةِ"},
+    {"bare": "البنت جميلة جدا", "gold": "الْبِنْتُ جَمِيلَةٌ جِدًّا"},
+    {"bare": "انا من لبنان", "gold": "أَنَا مِنْ لُبْنَانَ"},
+    {"bare": "هو طالب في الجامعة", "gold": "هُوَ طَالِبٌ فِي الْجَامِعَةِ"},
+    {"bare": "الولد يلعب في الحديقة", "gold": "الْوَلَدُ يَلْعَبُ فِي الْحَدِيقَةِ"},
+    {"bare": "هذه سيارة جديدة", "gold": "هَذِهِ سَيَّارَةٌ جَدِيدَةٌ"},
+    {"bare": "الباب مفتوح", "gold": "الْبَابُ مَفْتُوحٌ"},
+    {"bare": "المدينة كبيرة ومزدحمة", "gold": "الْمَدِينَةُ كَبِيرَةٌ وَمُزْدَحِمَةٌ"},
+    {"bare": "اللغة العربية جميلة", "gold": "اللُّغَةُ الْعَرَبِيَّةُ جَمِيلَةٌ"},
+    {"bare": "الطقس بارد اليوم", "gold": "الطَّقْسُ بَارِدٌ الْيَوْمَ"},
+    {"bare": "كتب الولد الدرس", "gold": "كَتَبَ الْوَلَدُ الدَّرْسَ"},
+    {"bare": "ذهبت الى السوق", "gold": "ذَهَبْتُ إِلَى السُّوقِ"},
+    {"bare": "قرأ الكتاب بسرعة", "gold": "قَرَأَ الْكِتَابَ بِسُرْعَةٍ"},
+    {"bare": "الماء بارد جدا", "gold": "الْمَاءُ بَارِدٌ جِدًّا"},
+    {"bare": "الاستاذ يشرح الدرس", "gold": "الْأُسْتَاذُ يَشْرَحُ الدَّرْسَ"},
+    {"bare": "هل عندك كتاب", "gold": "هَلْ عِنْدَكَ كِتَابٌ"},
+    {"bare": "البحر ازرق وجميل", "gold": "الْبَحْرُ أَزْرَقُ وَجَمِيلٌ"},
+    {"bare": "الرجل طويل وقوي", "gold": "الرَّجُلُ طَوِيلٌ وَقَوِيٌّ"},
+    {"bare": "اكل الطفل التفاحة", "gold": "أَكَلَ الطِّفْلُ التُّفَّاحَةَ"},
+    {"bare": "فتح الباب ودخل البيت", "gold": "فَتَحَ الْبَابَ وَدَخَلَ الْبَيْتَ"},
+    {"bare": "الكلب تحت الطاولة", "gold": "الْكَلْبُ تَحْتَ الطَّاوِلَةِ"},
+    {"bare": "جلس على الكرسي", "gold": "جَلَسَ عَلَى الْكُرْسِيِّ"},
+    {"bare": "المهندسة في المكتب", "gold": "الْمُهَنْدِسَةُ فِي الْمَكْتَبِ"},
+    {"bare": "شربت القهوة صباحا", "gold": "شَرِبْتُ الْقَهْوَةَ صَبَاحًا"},
+    {"bare": "هذا الولد ذكي", "gold": "هَذَا الْوَلَدُ ذَكِيٌّ"},
+    {"bare": "الجامعة مشهورة", "gold": "الْجَامِعَةُ مَشْهُورَةٌ"},
+    {"bare": "سافر الى فرنسا", "gold": "سَافَرَ إِلَى فَرَنْسَا"},
+    {"bare": "الغرفة واسعة ونظيفة", "gold": "الْغُرْفَةُ وَاسِعَةٌ وَنَظِيفَةٌ"}
+  ],
+  "translation": [
+    {
+      "arabic": "الْكِتَابُ عَلَى الطَّاوِلَةِ",
+      "reference": "The book is on the table.",
+      "key_terms": ["book", "table"]
+    },
+    {
+      "arabic": "هَذَا بَيْتٌ كَبِيرٌ",
+      "reference": "This is a big house.",
+      "key_terms": ["big", "house"]
+    },
+    {
+      "arabic": "الْمُعَلِّمُ فِي الْمَدْرَسَةِ",
+      "reference": "The teacher is in the school.",
+      "key_terms": ["teacher", "school"]
+    },
+    {
+      "arabic": "أَنَا مِنْ لُبْنَانَ",
+      "reference": "I am from Lebanon.",
+      "key_terms": ["Lebanon"]
+    },
+    {
+      "arabic": "هُوَ طَالِبٌ فِي الْجَامِعَةِ",
+      "reference": "He is a student at the university.",
+      "key_terms": ["student", "university"]
+    },
+    {
+      "arabic": "الْوَلَدُ يَلْعَبُ فِي الْحَدِيقَةِ",
+      "reference": "The boy is playing in the garden.",
+      "key_terms": ["boy", "playing", "garden"]
+    },
+    {
+      "arabic": "هَذِهِ سَيَّارَةٌ جَدِيدَةٌ",
+      "reference": "This is a new car.",
+      "key_terms": ["new", "car"]
+    },
+    {
+      "arabic": "الْمَدِينَةُ كَبِيرَةٌ وَمُزْدَحِمَةٌ",
+      "reference": "The city is big and crowded.",
+      "key_terms": ["city", "big", "crowded"]
+    },
+    {
+      "arabic": "ذَهَبْتُ إِلَى السُّوقِ",
+      "reference": "I went to the market.",
+      "key_terms": ["went", "market"]
+    },
+    {
+      "arabic": "اللُّغَةُ الْعَرَبِيَّةُ جَمِيلَةٌ",
+      "reference": "The Arabic language is beautiful.",
+      "key_terms": ["Arabic", "language", "beautiful"]
+    },
+    {
+      "arabic": "الطَّقْسُ بَارِدٌ الْيَوْمَ",
+      "reference": "The weather is cold today.",
+      "key_terms": ["weather", "cold", "today"]
+    },
+    {
+      "arabic": "قَرَأَ الْكِتَابَ بِسُرْعَةٍ",
+      "reference": "He read the book quickly.",
+      "key_terms": ["read", "book", "quickly"]
+    },
+    {
+      "arabic": "الْأُسْتَاذُ يَشْرَحُ الدَّرْسَ",
+      "reference": "The professor is explaining the lesson.",
+      "key_terms": ["professor", "explaining", "lesson"]
+    },
+    {
+      "arabic": "هَلْ عِنْدَكَ كِتَابٌ",
+      "reference": "Do you have a book?",
+      "key_terms": ["have", "book"]
+    },
+    {
+      "arabic": "فَتَحَ الْبَابَ وَدَخَلَ الْبَيْتَ",
+      "reference": "He opened the door and entered the house.",
+      "key_terms": ["opened", "door", "entered", "house"]
+    },
+    {
+      "arabic": "شَرِبْتُ الْقَهْوَةَ صَبَاحًا",
+      "reference": "I drank coffee in the morning.",
+      "key_terms": ["drank", "coffee", "morning"]
+    },
+    {
+      "arabic": "سَافَرَ إِلَى فَرَنْسَا",
+      "reference": "He traveled to France.",
+      "key_terms": ["traveled", "France"]
+    },
+    {
+      "arabic": "الْبَحْرُ أَزْرَقُ وَجَمِيلٌ",
+      "reference": "The sea is blue and beautiful.",
+      "key_terms": ["sea", "blue", "beautiful"]
+    },
+    {
+      "arabic": "الرَّجُلُ طَوِيلٌ وَقَوِيٌّ",
+      "reference": "The man is tall and strong.",
+      "key_terms": ["man", "tall", "strong"]
+    },
+    {
+      "arabic": "الْجَامِعَةُ مَشْهُورَةٌ",
+      "reference": "The university is famous.",
+      "key_terms": ["university", "famous"]
+    }
+  ],
+  "transliteration": [
+    {"arabic": "كِتَابٌ", "ala_lc": "kitābun"},
+    {"arabic": "مَدْرَسَةٌ", "ala_lc": "madrasatun"},
+    {"arabic": "جَامِعَةٌ", "ala_lc": "jāmiʿatun"},
+    {"arabic": "مُعَلِّمٌ", "ala_lc": "muʿallimun"},
+    {"arabic": "سَيَّارَةٌ", "ala_lc": "sayyāratun"},
+    {"arabic": "حَدِيقَةٌ", "ala_lc": "ḥadīqatun"},
+    {"arabic": "بَيْتٌ", "ala_lc": "baytun"},
+    {"arabic": "مَدِينَةٌ", "ala_lc": "madīnatun"},
+    {"arabic": "طَاوِلَةٌ", "ala_lc": "ṭāwilatun"},
+    {"arabic": "جَمِيلٌ", "ala_lc": "jamīlun"},
+    {"arabic": "كَبِيرٌ", "ala_lc": "kabīrun"},
+    {"arabic": "صَغِيرٌ", "ala_lc": "ṣaghīrun"},
+    {"arabic": "طَوِيلٌ", "ala_lc": "ṭawīlun"},
+    {"arabic": "قَدِيمٌ", "ala_lc": "qadīmun"},
+    {"arabic": "جَدِيدٌ", "ala_lc": "jadīdun"},
+    {"arabic": "مُهَنْدِسٌ", "ala_lc": "muhandisun"},
+    {"arabic": "دُكْتُورٌ", "ala_lc": "duktūrun"},
+    {"arabic": "أُسْتَاذٌ", "ala_lc": "ustādhun"},
+    {"arabic": "غُرْفَةٌ", "ala_lc": "ghurfatun"},
+    {"arabic": "لُغَةٌ", "ala_lc": "lughatun"}
+  ],
+  "sentence_generation": [
+    {
+      "target_word": "كِتَاب",
+      "target_translation": "book",
+      "known_words": [
+        {"arabic": "كَبِير", "english": "big"},
+        {"arabic": "جَدِيد", "english": "new"},
+        {"arabic": "طَاوِلَة", "english": "table"},
+        {"arabic": "مُعَلِّم", "english": "teacher"}
+      ],
+      "criteria": {"must_contain_target": true, "max_unknown": 0}
+    },
+    {
+      "target_word": "بَيْت",
+      "target_translation": "house",
+      "known_words": [
+        {"arabic": "كَبِير", "english": "big"},
+        {"arabic": "جَمِيل", "english": "beautiful"},
+        {"arabic": "جَدِيد", "english": "new"},
+        {"arabic": "بَاب", "english": "door"}
+      ],
+      "criteria": {"must_contain_target": true, "max_unknown": 0}
+    },
+    {
+      "target_word": "مَدِينَة",
+      "target_translation": "city",
+      "known_words": [
+        {"arabic": "كَبِير", "english": "big"},
+        {"arabic": "جَمِيل", "english": "beautiful"},
+        {"arabic": "مَشْهُور", "english": "famous"},
+        {"arabic": "قَدِيم", "english": "old"}
+      ],
+      "criteria": {"must_contain_target": true, "max_unknown": 0}
+    },
+    {
+      "target_word": "مُعَلِّم",
+      "target_translation": "teacher",
+      "known_words": [
+        {"arabic": "جَامِعَة", "english": "university"},
+        {"arabic": "جَدِيد", "english": "new"},
+        {"arabic": "ذَكِيّ", "english": "smart"},
+        {"arabic": "كِتَاب", "english": "book"}
+      ],
+      "criteria": {"must_contain_target": true, "max_unknown": 0}
+    },
+    {
+      "target_word": "سَيَّارَة",
+      "target_translation": "car",
+      "known_words": [
+        {"arabic": "جَدِيد", "english": "new"},
+        {"arabic": "سَرِيع", "english": "fast"},
+        {"arabic": "كَبِير", "english": "big"},
+        {"arabic": "أَبْيَض", "english": "white"}
+      ],
+      "criteria": {"must_contain_target": true, "max_unknown": 0}
+    },
+    {
+      "target_word": "حَدِيقَة",
+      "target_translation": "garden",
+      "known_words": [
+        {"arabic": "جَمِيل", "english": "beautiful"},
+        {"arabic": "كَبِير", "english": "big"},
+        {"arabic": "وَلَد", "english": "boy"},
+        {"arabic": "كَلْب", "english": "dog"}
+      ],
+      "criteria": {"must_contain_target": true, "max_unknown": 0}
+    },
+    {
+      "target_word": "غُرْفَة",
+      "target_translation": "room",
+      "known_words": [
+        {"arabic": "وَاسِع", "english": "spacious"},
+        {"arabic": "جَمِيل", "english": "beautiful"},
+        {"arabic": "بَاب", "english": "door"},
+        {"arabic": "بَيْت", "english": "house"}
+      ],
+      "criteria": {"must_contain_target": true, "max_unknown": 0}
+    },
+    {
+      "target_word": "جَامِعَة",
+      "target_translation": "university",
+      "known_words": [
+        {"arabic": "كَبِير", "english": "big"},
+        {"arabic": "مَشْهُور", "english": "famous"},
+        {"arabic": "مُعَلِّم", "english": "teacher"},
+        {"arabic": "طَالِب", "english": "student"}
+      ],
+      "criteria": {"must_contain_target": true, "max_unknown": 0}
+    },
+    {
+      "target_word": "طَاوِلَة",
+      "target_translation": "table",
+      "known_words": [
+        {"arabic": "كِتَاب", "english": "book"},
+        {"arabic": "كَبِير", "english": "big"},
+        {"arabic": "جَدِيد", "english": "new"},
+        {"arabic": "غُرْفَة", "english": "room"}
+      ],
+      "criteria": {"must_contain_target": true, "max_unknown": 0}
+    },
+    {
+      "target_word": "كَلْب",
+      "target_translation": "dog",
+      "known_words": [
+        {"arabic": "كَبِير", "english": "big"},
+        {"arabic": "جَمِيل", "english": "beautiful"},
+        {"arabic": "بَيْت", "english": "house"},
+        {"arabic": "حَدِيقَة", "english": "garden"}
+      ],
+      "criteria": {"must_contain_target": true, "max_unknown": 0}
+    },
+    {
+      "target_word": "لُغَة",
+      "target_translation": "language",
+      "known_words": [
+        {"arabic": "عَرَبِيّ", "english": "Arabic"},
+        {"arabic": "جَمِيل", "english": "beautiful"},
+        {"arabic": "سَهْل", "english": "easy"},
+        {"arabic": "مُهِمّ", "english": "important"}
+      ],
+      "criteria": {"must_contain_target": true, "max_unknown": 0}
+    },
+    {
+      "target_word": "وَلَد",
+      "target_translation": "boy",
+      "known_words": [
+        {"arabic": "صَغِير", "english": "small"},
+        {"arabic": "ذَكِيّ", "english": "smart"},
+        {"arabic": "كِتَاب", "english": "book"},
+        {"arabic": "مَدْرَسَة", "english": "school"}
+      ],
+      "criteria": {"must_contain_target": true, "max_unknown": 0}
+    },
+    {
+      "target_word": "بِنْت",
+      "target_translation": "girl",
+      "known_words": [
+        {"arabic": "جَمِيل", "english": "beautiful"},
+        {"arabic": "ذَكِيّ", "english": "smart"},
+        {"arabic": "مَدْرَسَة", "english": "school"},
+        {"arabic": "كِتَاب", "english": "book"}
+      ],
+      "criteria": {"must_contain_target": true, "max_unknown": 0}
+    },
+    {
+      "target_word": "رَجُل",
+      "target_translation": "man",
+      "known_words": [
+        {"arabic": "طَوِيل", "english": "tall"},
+        {"arabic": "كَبِير", "english": "big"},
+        {"arabic": "بَيْت", "english": "house"},
+        {"arabic": "سَيَّارَة", "english": "car"}
+      ],
+      "criteria": {"must_contain_target": true, "max_unknown": 0}
+    },
+    {
+      "target_word": "بَاب",
+      "target_translation": "door",
+      "known_words": [
+        {"arabic": "كَبِير", "english": "big"},
+        {"arabic": "بَيْت", "english": "house"},
+        {"arabic": "جَدِيد", "english": "new"},
+        {"arabic": "قَدِيم", "english": "old"}
+      ],
+      "criteria": {"must_contain_target": true, "max_unknown": 0}
+    },
+    {
+      "target_word": "بَحْر",
+      "target_translation": "sea",
+      "known_words": [
+        {"arabic": "كَبِير", "english": "big"},
+        {"arabic": "جَمِيل", "english": "beautiful"},
+        {"arabic": "أَزْرَق", "english": "blue"},
+        {"arabic": "مَدِينَة", "english": "city"}
+      ],
+      "criteria": {"must_contain_target": true, "max_unknown": 0}
+    },
+    {
+      "target_word": "قِطَّة",
+      "target_translation": "cat",
+      "known_words": [
+        {"arabic": "صَغِير", "english": "small"},
+        {"arabic": "جَمِيل", "english": "beautiful"},
+        {"arabic": "بَيْت", "english": "house"},
+        {"arabic": "لَطِيف", "english": "nice"}
+      ],
+      "criteria": {"must_contain_target": true, "max_unknown": 0}
+    },
+    {
+      "target_word": "زَوْج",
+      "target_translation": "husband",
+      "known_words": [
+        {"arabic": "طَوِيل", "english": "tall"},
+        {"arabic": "جَمِيل", "english": "handsome"},
+        {"arabic": "مُهَنْدِس", "english": "engineer"},
+        {"arabic": "بَيْت", "english": "house"}
+      ],
+      "criteria": {"must_contain_target": true, "max_unknown": 0}
+    },
+    {
+      "target_word": "مُهَنْدِس",
+      "target_translation": "engineer",
+      "known_words": [
+        {"arabic": "ذَكِيّ", "english": "smart"},
+        {"arabic": "جَامِعَة", "english": "university"},
+        {"arabic": "مَدِينَة", "english": "city"},
+        {"arabic": "جَدِيد", "english": "new"}
+      ],
+      "criteria": {"must_contain_target": true, "max_unknown": 0}
+    },
+    {
+      "target_word": "دُكْتُور",
+      "target_translation": "doctor",
+      "known_words": [
+        {"arabic": "جَيِّد", "english": "good"},
+        {"arabic": "مَشْهُور", "english": "famous"},
+        {"arabic": "جَامِعَة", "english": "university"},
+        {"arabic": "مُهِمّ", "english": "important"}
+      ],
+      "criteria": {"must_contain_target": true, "max_unknown": 0}
+    }
+  ],
+  "grammar_tagging": [
+    {
+      "arabic": "الْكِتَابُ جَدِيدٌ",
+      "words": [
+        {"word": "الْكِتَابُ", "pos": "NOUN", "features": {"case": "nominative", "definiteness": "definite", "gender": "masculine", "number": "singular"}},
+        {"word": "جَدِيدٌ", "pos": "ADJ", "features": {"case": "nominative", "definiteness": "indefinite", "gender": "masculine", "number": "singular"}}
+      ]
+    },
+    {
+      "arabic": "ذَهَبَ الْوَلَدُ إِلَى الْمَدْرَسَةِ",
+      "words": [
+        {"word": "ذَهَبَ", "pos": "VERB", "features": {"tense": "past", "person": "third", "gender": "masculine", "number": "singular"}},
+        {"word": "الْوَلَدُ", "pos": "NOUN", "features": {"case": "nominative", "definiteness": "definite", "gender": "masculine", "number": "singular"}},
+        {"word": "إِلَى", "pos": "PREP", "features": {}},
+        {"word": "الْمَدْرَسَةِ", "pos": "NOUN", "features": {"case": "genitive", "definiteness": "definite", "gender": "feminine", "number": "singular"}}
+      ]
+    },
+    {
+      "arabic": "هِيَ مُعَلِّمَةٌ جَمِيلَةٌ",
+      "words": [
+        {"word": "هِيَ", "pos": "PRON", "features": {"person": "third", "gender": "feminine", "number": "singular"}},
+        {"word": "مُعَلِّمَةٌ", "pos": "NOUN", "features": {"case": "nominative", "definiteness": "indefinite", "gender": "feminine", "number": "singular"}},
+        {"word": "جَمِيلَةٌ", "pos": "ADJ", "features": {"case": "nominative", "definiteness": "indefinite", "gender": "feminine", "number": "singular"}}
+      ]
+    },
+    {
+      "arabic": "يَقْرَأُ الطَّالِبُ الْكِتَابَ",
+      "words": [
+        {"word": "يَقْرَأُ", "pos": "VERB", "features": {"tense": "present", "person": "third", "gender": "masculine", "number": "singular"}},
+        {"word": "الطَّالِبُ", "pos": "NOUN", "features": {"case": "nominative", "definiteness": "definite", "gender": "masculine", "number": "singular"}},
+        {"word": "الْكِتَابَ", "pos": "NOUN", "features": {"case": "accusative", "definiteness": "definite", "gender": "masculine", "number": "singular"}}
+      ]
+    },
+    {
+      "arabic": "فِي الْبَيْتِ غُرْفَةٌ وَاسِعَةٌ",
+      "words": [
+        {"word": "فِي", "pos": "PREP", "features": {}},
+        {"word": "الْبَيْتِ", "pos": "NOUN", "features": {"case": "genitive", "definiteness": "definite", "gender": "masculine", "number": "singular"}},
+        {"word": "غُرْفَةٌ", "pos": "NOUN", "features": {"case": "nominative", "definiteness": "indefinite", "gender": "feminine", "number": "singular"}},
+        {"word": "وَاسِعَةٌ", "pos": "ADJ", "features": {"case": "nominative", "definiteness": "indefinite", "gender": "feminine", "number": "singular"}}
+      ]
+    },
+    {
+      "arabic": "كَتَبْتُ رِسَالَةً طَوِيلَةً",
+      "words": [
+        {"word": "كَتَبْتُ", "pos": "VERB", "features": {"tense": "past", "person": "first", "gender": "masculine", "number": "singular"}},
+        {"word": "رِسَالَةً", "pos": "NOUN", "features": {"case": "accusative", "definiteness": "indefinite", "gender": "feminine", "number": "singular"}},
+        {"word": "طَوِيلَةً", "pos": "ADJ", "features": {"case": "accusative", "definiteness": "indefinite", "gender": "feminine", "number": "singular"}}
+      ]
+    },
+    {
+      "arabic": "هَذِهِ الْمَدِينَةُ مَشْهُورَةٌ",
+      "words": [
+        {"word": "هَذِهِ", "pos": "DEM", "features": {"gender": "feminine", "number": "singular"}},
+        {"word": "الْمَدِينَةُ", "pos": "NOUN", "features": {"case": "nominative", "definiteness": "definite", "gender": "feminine", "number": "singular"}},
+        {"word": "مَشْهُورَةٌ", "pos": "ADJ", "features": {"case": "nominative", "definiteness": "indefinite", "gender": "feminine", "number": "singular"}}
+      ]
+    },
+    {
+      "arabic": "الْمُهَنْدِسُ يَعْمَلُ فِي الشَّرِكَةِ",
+      "words": [
+        {"word": "الْمُهَنْدِسُ", "pos": "NOUN", "features": {"case": "nominative", "definiteness": "definite", "gender": "masculine", "number": "singular"}},
+        {"word": "يَعْمَلُ", "pos": "VERB", "features": {"tense": "present", "person": "third", "gender": "masculine", "number": "singular"}},
+        {"word": "فِي", "pos": "PREP", "features": {}},
+        {"word": "الشَّرِكَةِ", "pos": "NOUN", "features": {"case": "genitive", "definiteness": "definite", "gender": "feminine", "number": "singular"}}
+      ]
+    },
+    {
+      "arabic": "أَنَا طَالِبٌ مِنْ لُبْنَانَ",
+      "words": [
+        {"word": "أَنَا", "pos": "PRON", "features": {"person": "first", "number": "singular"}},
+        {"word": "طَالِبٌ", "pos": "NOUN", "features": {"case": "nominative", "definiteness": "indefinite", "gender": "masculine", "number": "singular"}},
+        {"word": "مِنْ", "pos": "PREP", "features": {}},
+        {"word": "لُبْنَانَ", "pos": "PROPN", "features": {"case": "genitive"}}
+      ]
+    },
+    {
+      "arabic": "شَرِبَتِ الْبِنْتُ الْحَلِيبَ",
+      "words": [
+        {"word": "شَرِبَتِ", "pos": "VERB", "features": {"tense": "past", "person": "third", "gender": "feminine", "number": "singular"}},
+        {"word": "الْبِنْتُ", "pos": "NOUN", "features": {"case": "nominative", "definiteness": "definite", "gender": "feminine", "number": "singular"}},
+        {"word": "الْحَلِيبَ", "pos": "NOUN", "features": {"case": "accusative", "definiteness": "definite", "gender": "masculine", "number": "singular"}}
+      ]
+    },
+    {
+      "arabic": "هُمْ أَصْدِقَاءُ قُدَامَى",
+      "words": [
+        {"word": "هُمْ", "pos": "PRON", "features": {"person": "third", "gender": "masculine", "number": "plural"}},
+        {"word": "أَصْدِقَاءُ", "pos": "NOUN", "features": {"case": "nominative", "definiteness": "indefinite", "gender": "masculine", "number": "plural"}},
+        {"word": "قُدَامَى", "pos": "ADJ", "features": {"definiteness": "indefinite", "gender": "masculine", "number": "plural"}}
+      ]
+    },
+    {
+      "arabic": "لَمْ يَذْهَبْ إِلَى الْعَمَلِ",
+      "words": [
+        {"word": "لَمْ", "pos": "PART", "features": {"function": "negation"}},
+        {"word": "يَذْهَبْ", "pos": "VERB", "features": {"tense": "present_jussive", "person": "third", "gender": "masculine", "number": "singular"}},
+        {"word": "إِلَى", "pos": "PREP", "features": {}},
+        {"word": "الْعَمَلِ", "pos": "NOUN", "features": {"case": "genitive", "definiteness": "definite", "gender": "masculine", "number": "singular"}}
+      ]
+    },
+    {
+      "arabic": "الْأُسْتَاذَةُ تَشْرَحُ الدَّرْسَ",
+      "words": [
+        {"word": "الْأُسْتَاذَةُ", "pos": "NOUN", "features": {"case": "nominative", "definiteness": "definite", "gender": "feminine", "number": "singular"}},
+        {"word": "تَشْرَحُ", "pos": "VERB", "features": {"tense": "present", "person": "third", "gender": "feminine", "number": "singular"}},
+        {"word": "الدَّرْسَ", "pos": "NOUN", "features": {"case": "accusative", "definiteness": "definite", "gender": "masculine", "number": "singular"}}
+      ]
+    },
+    {
+      "arabic": "عِنْدَ الرَّجُلِ سَيَّارَةٌ سَرِيعَةٌ",
+      "words": [
+        {"word": "عِنْدَ", "pos": "PREP", "features": {}},
+        {"word": "الرَّجُلِ", "pos": "NOUN", "features": {"case": "genitive", "definiteness": "definite", "gender": "masculine", "number": "singular"}},
+        {"word": "سَيَّارَةٌ", "pos": "NOUN", "features": {"case": "nominative", "definiteness": "indefinite", "gender": "feminine", "number": "singular"}},
+        {"word": "سَرِيعَةٌ", "pos": "ADJ", "features": {"case": "nominative", "definiteness": "indefinite", "gender": "feminine", "number": "singular"}}
+      ]
+    },
+    {
+      "arabic": "هَلْ تُحِبُّ الْقَهْوَةَ",
+      "words": [
+        {"word": "هَلْ", "pos": "PART", "features": {"function": "interrogative"}},
+        {"word": "تُحِبُّ", "pos": "VERB", "features": {"tense": "present", "person": "second", "gender": "masculine", "number": "singular"}},
+        {"word": "الْقَهْوَةَ", "pos": "NOUN", "features": {"case": "accusative", "definiteness": "definite", "gender": "feminine", "number": "singular"}}
+      ]
+    }
+  ]
+}

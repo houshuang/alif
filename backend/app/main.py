@@ -6,7 +6,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.database import engine, Base
-from app.routers import words, review, analyze, stats, import_data, sentences, tts, learn
+from app.routers import words, review, analyze, stats, import_data, sentences, tts, learn, grammar
 
 
 @asynccontextmanager
@@ -27,11 +27,7 @@ app = FastAPI(title="Alif Arabic Learning API", version="0.1.0", lifespan=lifesp
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:8081",
-        "http://localhost:19006",
-        "http://localhost:5173",
-    ],
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -45,6 +41,7 @@ app.include_router(import_data.router)
 app.include_router(sentences.router)
 app.include_router(tts.router)
 app.include_router(learn.router)
+app.include_router(grammar.router)
 
 
 @app.get("/")

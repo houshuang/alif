@@ -1,5 +1,6 @@
 import { Tabs } from "expo-router";
 import { StatusBar } from "expo-status-bar";
+import { Ionicons } from "@expo/vector-icons";
 import { colors } from "../lib/theme";
 
 export default function Layout() {
@@ -20,7 +21,7 @@ export default function Layout() {
           options={{
             title: "Learn",
             tabBarLabel: "Learn",
-            tabBarIcon: () => null,
+            tabBarIcon: ({ color, size }) => <Ionicons name="school-outline" size={size} color={color} />,
           }}
         />
         <Tabs.Screen
@@ -28,7 +29,7 @@ export default function Layout() {
           options={{
             title: "Review",
             tabBarLabel: "Review",
-            tabBarIcon: () => null,
+            tabBarIcon: ({ color, size }) => <Ionicons name="book-outline" size={size} color={color} />,
           }}
         />
         <Tabs.Screen
@@ -36,7 +37,7 @@ export default function Layout() {
           options={{
             title: "Words",
             tabBarLabel: "Words",
-            tabBarIcon: () => null,
+            tabBarIcon: ({ color, size }) => <Ionicons name="text-outline" size={size} color={color} />,
           }}
         />
         <Tabs.Screen
@@ -44,7 +45,7 @@ export default function Layout() {
           options={{
             title: "Stats",
             tabBarLabel: "Stats",
-            tabBarIcon: () => null,
+            tabBarIcon: ({ color, size }) => <Ionicons name="bar-chart-outline" size={size} color={color} />,
           }}
         />
         <Tabs.Screen

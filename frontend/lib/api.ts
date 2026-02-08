@@ -1,8 +1,11 @@
+import Constants from "expo-constants";
 import {
   ReviewSession,
   ReviewSubmission,
   ReviewMode,
   ReviewCard,
+  SentenceReviewSession,
+  SentenceReviewSubmission,
   Word,
   WordDetail,
   Stats,
@@ -11,7 +14,8 @@ import {
   IntroduceResult,
 } from "./types";
 
-const BASE_URL = "http://localhost:8000";
+export const BASE_URL =
+  Constants.expoConfig?.extra?.apiUrl ?? "http://localhost:8000";
 
 function generateSessionId(): string {
   return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (c) => {
@@ -142,5 +146,23 @@ export async function introduceWord(
   return fetchApi<IntroduceResult>("/api/learn/introduce", {
     method: "POST",
     body: JSON.stringify({ lemma_id: lemmaId }),
+  });
+}
+
+export async function getSentenceReviewSession(
+  mode: ReviewMode = "reading"
+): Promise<SentenceReviewSession> {
+  const data = await fetchApi<any>(
+    `/api/review/next-sentences?limit=10&mode=${mode}`
+  );
+  return { ...data, session_id: generateSessionId() };
+}
+
+export async function submitSentenceReview(
+  submission: SentenceReviewSubmission
+): Promise<any> {
+  return fetchApi("/api/review/submit-sentence", {
+    method: "POST",
+    body: JSON.stringify(submission),
   });
 }

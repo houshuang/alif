@@ -29,6 +29,9 @@
     },
     "plugins": [
       "expo-router"
-    ]
+    ],
+    "extra": {
+      "apiUrl": "http://46.225.75.29:3000"
+    }
   }
 }

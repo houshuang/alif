@@ -132,6 +132,44 @@ export interface IntroduceResult {
   root_family?: RootFamilyWord[];
 }
 
+export interface SentenceWordMeta {
+  lemma_id: number | null;
+  surface_form: string;
+  gloss_en: string | null;
+  stability: number | null;
+  is_due: boolean;
+  is_function_word: boolean;
+}
+
+export interface SentenceReviewItem {
+  sentence_id: number | null;
+  arabic_text: string;
+  arabic_diacritized: string | null;
+  english_translation: string;
+  transliteration: string | null;
+  primary_lemma_id: number;
+  primary_lemma_ar: string;
+  primary_gloss_en: string;
+  words: SentenceWordMeta[];
+}
+
+export interface SentenceReviewSession {
+  session_id: string;
+  items: SentenceReviewItem[];
+  total_due_words: number;
+  covered_due_words: number;
+}
+
+export interface SentenceReviewSubmission {
+  sentence_id: number | null;
+  primary_lemma_id: number;
+  comprehension_signal: ComprehensionSignal;
+  missed_lemma_ids: number[];
+  response_ms: number;
+  session_id: string;
+  review_mode: ReviewMode;
+}
+
 export interface Analytics {
   stats: {
     total_words: number;

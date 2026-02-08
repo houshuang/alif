@@ -19,6 +19,7 @@ from sqlalchemy import func
 
 from app.models import Root, Lemma, UserLemmaKnowledge, ReviewLog, Sentence
 from app.services.fsrs_service import create_new_card
+from app.services.grammar_service import grammar_pattern_score
 
 
 # Semantic categories that should NOT be introduced together
@@ -163,11 +164,15 @@ def select_next_words(
         if 1.0 <= days <= 3.0 and root_score > 0:
             recency_bonus = 0.2
 
+        pattern_score = grammar_pattern_score(
+            db, lemma.grammar_features_json
+        )
+
         total_score = (
             freq_score * 0.4
             + root_score * 0.3
             + recency_bonus * 0.2
-            + 0.1  # base pattern score (placeholder until we track patterns)
+            + pattern_score * 0.1
         )
 
         scored.append({
