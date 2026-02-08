@@ -930,9 +930,34 @@ function ListeningActions({
   if (cardState === "arabic") {
     return (
       <View style={styles.actionColumn}>
-        <Pressable style={styles.showButton} onPress={onAdvance}>
-          <Text style={styles.showButtonText}>Show Translation</Text>
-        </Pressable>
+        {missedCount > 0 && (
+          <Text style={styles.missedHint}>
+            {missedCount} word{missedCount > 1 ? "s" : ""} marked
+          </Text>
+        )}
+        <View style={styles.actionRow}>
+          <Pressable
+            style={[styles.actionButton, styles.gotItButton]}
+            onPress={() => onSubmit(missedCount > 0 ? "partial" : "understood")}
+          >
+            <Text style={styles.actionButtonText}>
+              {missedCount > 0 ? "Continue" : "Understood"}
+            </Text>
+          </Pressable>
+          <Pressable
+            style={[styles.actionButton, { backgroundColor: colors.surfaceLight }]}
+            onPress={onAdvance}
+          >
+            <Text style={[styles.actionButtonText, { color: colors.textSecondary }]}>
+              Translation
+            </Text>
+          </Pressable>
+        </View>
+        {missedCount === 0 && (
+          <Text style={styles.tapHintListening}>
+            Tap words you didn't catch, or show translation
+          </Text>
+        )}
       </View>
     );
   }
