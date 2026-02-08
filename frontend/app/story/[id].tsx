@@ -205,46 +205,35 @@ export default function StoryReadScreen() {
         contentContainerStyle={styles.scrollContent}
       >
         {viewMode === "arabic" ? (
-          <View style={styles.arabicContainer}>
+          <Text style={styles.storyText}>
             {sentences.map((sentenceWords, si) => (
-              <View key={si} style={styles.sentenceRow}>
-                {sentenceWords.map((word) => {
+              <Text key={si}>
+                {si > 0 && " "}
+                {sentenceWords.map((word, wi) => {
                   const tappable =
                     !word.is_function_word && word.lemma_id != null;
                   const isLookedUp = lookedUp.has(word.position);
                   const isSelected = selectedPosition === word.position;
 
-                  return tappable ? (
-                    <Pressable
+                  return (
+                    <Text
                       key={word.position}
-                      onPress={() => handleWordTap(word)}
+                      onPress={tappable ? () => handleWordTap(word) : undefined}
                       style={[
-                        styles.wordTouchTarget,
-                        isLookedUp && styles.lookedUpTarget,
-                        isSelected && styles.selectedTarget,
+                        styles.storyWord,
+                        tappable && styles.tappableWord,
+                        isLookedUp && styles.lookedUpWord,
+                        isSelected && styles.selectedWord,
                       ]}
                     >
-                      <Text
-                        style={[
-                          styles.storyWord,
-                          isLookedUp && styles.lookedUpWord,
-                          isSelected && styles.selectedWord,
-                        ]}
-                      >
-                        {word.surface_form}
-                      </Text>
-                    </Pressable>
-                  ) : (
-                    <View key={word.position} style={styles.wordTouchTarget}>
-                      <Text style={styles.storyWord}>
-                        {word.surface_form}
-                      </Text>
-                    </View>
+                      {wi > 0 ? ` ${word.surface_form}` : word.surface_form}
+                    </Text>
                   );
                 })}
-              </View>
+                <Text style={styles.storyWord}>.</Text>
+              </Text>
             ))}
-          </View>
+          </Text>
         ) : (
           <Text style={styles.englishText}>
             {story.body_en || "No translation available."}
@@ -375,37 +364,26 @@ const styles = StyleSheet.create({
     padding: 20,
     paddingBottom: 40,
   },
-  arabicContainer: {
-    gap: 16,
-  },
-  sentenceRow: {
-    flexDirection: "row-reverse",
-    flexWrap: "wrap",
-    gap: 6,
-    rowGap: 10,
-  },
-  wordTouchTarget: {
-    paddingVertical: 4,
-    paddingHorizontal: 2,
+  storyText: {
+    fontSize: 28,
+    lineHeight: 52,
+    color: colors.arabic,
+    writingDirection: "rtl",
+    textAlign: "right",
   },
   storyWord: {
-    fontSize: 28,
-    lineHeight: 40,
     color: colors.arabic,
+  },
+  tappableWord: {
+    // no visual diff until tapped — keeps it clean
   },
   lookedUpWord: {
     color: colors.missed,
+    backgroundColor: colors.missed + "20",
   },
   selectedWord: {
     color: colors.missed,
-  },
-  lookedUpTarget: {
-    backgroundColor: colors.missed + "25",
-    borderRadius: 4,
-  },
-  selectedTarget: {
-    backgroundColor: colors.missed + "40",
-    borderRadius: 4,
+    backgroundColor: colors.missed + "35",
   },
   englishText: {
     fontSize: 20,
