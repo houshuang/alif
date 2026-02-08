@@ -109,19 +109,25 @@ export default function ReviewScreen() {
     setAudioPlaying(true);
     await cleanupSound();
 
-    const arabicText = usingSentences
-      ? sentenceSession!.items[cardIndex]?.arabic_text
-      : legacySession?.cards[cardIndex]?.sentence?.arabic ??
-        legacySession?.cards[cardIndex]?.lemma_ar;
+    const currentItem = usingSentences
+      ? sentenceSession!.items[cardIndex]
+      : null;
+    const arabicText = currentItem?.arabic_text
+      ?? legacySession?.cards[cardIndex]?.sentence?.arabic
+      ?? legacySession?.cards[cardIndex]?.lemma_ar;
 
     if (!arabicText) {
       setAudioPlaying(false);
       return;
     }
 
+    const audioUri = currentItem?.audio_url
+      ? `${BASE_URL}${currentItem.audio_url}`
+      : `${BASE_URL}/api/tts/audio/${encodeURIComponent(arabicText)}`;
+
     try {
       const { sound } = await Audio.Sound.createAsync({
-        uri: `${BASE_URL}/api/tts/audio/${encodeURIComponent(arabicText)}`,
+        uri: audioUri,
       });
       soundRef.current = sound;
       sound.setOnPlaybackStatusUpdate((status) => {

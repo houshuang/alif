@@ -168,7 +168,7 @@ class TestGenerateAudio:
         body = call_kwargs[1]["json"]
         assert body["text"] == "مرحبا"
         assert body["model_id"] == "eleven_turbo_v2_5"
-        assert body["voice_settings"]["stability"] == 0.5
+        assert body["voice_settings"]["stability"] == 0.85
 
     def test_rate_limit(self):
         mock_resp = httpx.Response(

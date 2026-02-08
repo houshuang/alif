@@ -147,6 +147,7 @@ export interface SentenceReviewItem {
   arabic_diacritized: string | null;
   english_translation: string;
   transliteration: string | null;
+  audio_url: string | null;
   primary_lemma_id: number;
   primary_lemma_ar: string;
   primary_gloss_en: string;

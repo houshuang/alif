@@ -292,6 +292,7 @@ def build_session(
             "arabic_diacritized": sent.arabic_diacritized,
             "english_translation": sent.english_translation or "",
             "transliteration": sent.transliteration,
+            "audio_url": sent.audio_url,
             "primary_lemma_id": primary_lid,
             "primary_lemma_ar": primary_lemma.lemma_ar if primary_lemma else "",
             "primary_gloss_en": primary_lemma.gloss_en if primary_lemma else "",

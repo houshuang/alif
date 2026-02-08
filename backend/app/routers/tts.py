@@ -29,7 +29,7 @@ class GenerateForSentenceRequest(BaseModel):
     voice_id: str | None = None
 
 
-DEFAULT_VOICE_ID = "21m00Tcm4TlvDq8ikWAM"  # "Rachel" — premade multilingual
+DEFAULT_VOICE_ID = "G1HOkzin3NMwRHSq60UI"  # "Chaouki" — MSA male, clear neutral accent
 
 
 @router.get("/voices")

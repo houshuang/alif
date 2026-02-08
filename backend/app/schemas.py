@@ -155,6 +155,7 @@ class SentenceReviewItem(BaseModel):
     arabic_diacritized: str | None = None
     english_translation: str
     transliteration: str | None = None
+    audio_url: str | None = None
     primary_lemma_id: int
     primary_lemma_ar: str
     primary_gloss_en: str

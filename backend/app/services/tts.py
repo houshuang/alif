@@ -8,12 +8,13 @@ import httpx
 
 ELEVENLABS_BASE_URL = "https://api.elevenlabs.io/v1"
 DEFAULT_MODEL = "eleven_turbo_v2_5"
+DEFAULT_VOICE_ID = "G1HOkzin3NMwRHSq60UI"  # Chaouki — MSA male, clear neutral accent
 DEFAULT_VOICE_SETTINGS = {
-    "stability": 0.5,
+    "stability": 0.85,
     "similarity_boost": 0.75,
-    "style": 0,
+    "style": 0.0,
+    "speed": 0.8,
     "use_speaker_boost": True,
-    "speed": 1.0,
 }
 
 AUDIO_DIR = Path(__file__).resolve().parent.parent.parent / "data" / "audio"
@@ -112,6 +113,8 @@ async def generate_audio(
             json={
                 "text": text,
                 "model_id": model_id,
+                "language_code": "ar",
+                "apply_text_normalization": "on",
                 "voice_settings": settings,
             },
             timeout=60.0,
