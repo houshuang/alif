@@ -11,7 +11,6 @@ from app.routers import words, review, analyze, stats, import_data, sentences, t
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    Base.metadata.create_all(bind=engine)
     alembic_ini = Path(__file__).resolve().parent.parent / "alembic.ini"
     if alembic_ini.exists() and os.environ.get("ALIF_SKIP_MIGRATIONS") != "1":
         from alembic import command
@@ -19,6 +18,8 @@ async def lifespan(app: FastAPI):
         alembic_cfg = Config(str(alembic_ini))
         alembic_cfg.set_main_option("script_location", str(alembic_ini.parent / "alembic"))
         command.upgrade(alembic_cfg, "head")
+    else:
+        Base.metadata.create_all(bind=engine)
     yield
 
 
