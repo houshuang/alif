@@ -80,6 +80,14 @@ export default function Layout() {
           }}
         />
         <Tabs.Screen
+          name="learn"
+          options={{
+            title: "Learn",
+            tabBarLabel: "Learn",
+            tabBarIcon: ({ color, size }) => <Ionicons name="add-circle-outline" size={size} color={color} />,
+          }}
+        />
+        <Tabs.Screen
           name="words"
           options={{
             title: "Words",
@@ -94,10 +102,6 @@ export default function Layout() {
             tabBarLabel: "Stats",
             tabBarIcon: ({ color, size }) => <Ionicons name="bar-chart-outline" size={size} color={color} />,
           }}
-        />
-        <Tabs.Screen
-          name="learn"
-          options={{ href: null, title: "Learn" }}
         />
         <Tabs.Screen
           name="word/[id]"
