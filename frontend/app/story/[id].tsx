@@ -104,7 +104,7 @@ export default function StoryReadScreen() {
         localY <= layout.y + layout.h
       ) {
         const word = story.words.find((w) => w.position === position);
-        if (word && !word.is_function_word && word.lemma_id != null) {
+        if (word) {
           handleWordTap(word);
         }
         return;
@@ -115,7 +115,6 @@ export default function StoryReadScreen() {
   const handleWordTap = useCallback(
     async (word: StoryWordMeta) => {
       if (!story) return;
-      if (word.is_function_word || word.lemma_id == null) return;
 
       // Toggle off if already looked up
       if (lookedUp.has(word.position)) {
@@ -124,12 +123,14 @@ export default function StoryReadScreen() {
         setLookedUp(nextPositions);
 
         const nextLemmaIds = new Set(lookedUpLemmaIds);
-        const otherPositionsWithSameLemma = story.words.some(
-          (w) => w.lemma_id === word.lemma_id && w.position !== word.position && nextPositions.has(w.position)
-        );
-        if (!otherPositionsWithSameLemma) {
-          nextLemmaIds.delete(word.lemma_id!);
-          setLookedUpLemmaIds(nextLemmaIds);
+        if (word.lemma_id != null) {
+          const otherPositionsWithSameLemma = story.words.some(
+            (w) => w.lemma_id === word.lemma_id && w.position !== word.position && nextPositions.has(w.position)
+          );
+          if (!otherPositionsWithSameLemma) {
+            nextLemmaIds.delete(word.lemma_id);
+            setLookedUpLemmaIds(nextLemmaIds);
+          }
         }
         persistLookups(nextPositions, nextLemmaIds);
 
@@ -141,22 +142,35 @@ export default function StoryReadScreen() {
       }
 
       const nextPositions = new Set(lookedUp).add(word.position);
-      const nextLemmaIds = new Set(lookedUpLemmaIds).add(word.lemma_id!);
+      const nextLemmaIds = new Set(lookedUpLemmaIds);
+      if (word.lemma_id != null) {
+        nextLemmaIds.add(word.lemma_id);
+      }
       setSelectedPosition(word.position);
       setLookedUp(nextPositions);
       setLookedUpLemmaIds(nextLemmaIds);
       persistLookups(nextPositions, nextLemmaIds);
 
-      try {
-        const result = await lookupStoryWord(story.id, word.lemma_id, word.position);
-        setSelectedWord(result);
-      } catch (e) {
+      if (word.lemma_id != null) {
+        try {
+          const result = await lookupStoryWord(story.id, word.lemma_id, word.position);
+          setSelectedWord(result);
+        } catch (e) {
+          setSelectedWord({
+            lemma_id: word.lemma_id,
+            gloss_en: word.gloss_en || null,
+            transliteration: null,
+            root: null,
+            pos: null,
+          });
+        }
+      } else {
         setSelectedWord({
-          lemma_id: word.lemma_id,
-          gloss_en: word.gloss_en,
+          lemma_id: null as any,
+          gloss_en: word.gloss_en || (word.is_function_word ? "function word" : null),
           transliteration: null,
           root: null,
-          pos: null,
+          pos: word.is_function_word ? "function word" : "not in vocabulary",
         });
       }
     },
@@ -273,15 +287,13 @@ export default function StoryReadScreen() {
                 );
               }
               const word = item.word!;
-              const tappable =
-                !word.is_function_word && word.lemma_id != null;
               const isLookedUp = lookedUp.has(word.position);
               const isSelected = selectedPosition === word.position;
 
               return (
                 <View
                   key={word.position}
-                  onLayout={tappable ? (e) => recordWordLayout(word.position, e) : undefined}
+                  onLayout={(e) => recordWordLayout(word.position, e)}
                   style={[
                     styles.wordChip,
                     isLookedUp && styles.lookedUpChip,
