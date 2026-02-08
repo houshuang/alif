@@ -14,6 +14,7 @@ from sqlalchemy.orm import Session
 
 from app.models import (
     Lemma,
+    ReviewLog,
     Sentence,
     SentenceWord,
     UserLemmaKnowledge,
@@ -46,7 +47,7 @@ def _get_stability(knowledge: Optional[UserLemmaKnowledge]) -> float:
     card_data = knowledge.fsrs_card_json
     if isinstance(card_data, str):
         card_data = json.loads(card_data)
-    return card_data.get("stability", 0.0)
+    return card_data.get("stability") or 0.0
 
 
 def _get_due_dt(knowledge: UserLemmaKnowledge) -> Optional[datetime]:
@@ -345,11 +346,14 @@ def _with_fallbacks(
         })
         covered_ids.add(lid)
 
+    intro_candidates = _get_intro_candidates(db, items)
+
     return {
         "session_id": session_id,
         "items": items,
         "total_due_words": total_due,
         "covered_due_words": len(covered_ids),
+        "intro_candidates": intro_candidates,
     }
 
 
@@ -372,3 +376,60 @@ def _order_session(
     middle = sorted_by_difficulty[2:]
 
     return start + middle + end
+
+
+MAX_INTRO_PER_SESSION = 2
+MIN_ACCURACY_FOR_INTRO = 0.75
+MIN_ITEMS_FOR_INTRO = 4
+
+
+def _get_intro_candidates(
+    db: Session,
+    items: list[dict],
+) -> list[dict]:
+    """Suggest new words to introduce during a review session.
+
+    Only suggests if user has enough review items and decent recent accuracy.
+    Returns up to MAX_INTRO_PER_SESSION candidates with insertion positions.
+    """
+    if len(items) < MIN_ITEMS_FOR_INTRO:
+        return []
+
+    # Check recent accuracy (last 20 reviews)
+    recent_reviews = (
+        db.query(ReviewLog)
+        .order_by(ReviewLog.id.desc())
+        .limit(20)
+        .all()
+    )
+    if len(recent_reviews) >= 5:
+        correct = sum(1 for r in recent_reviews if r.rating >= 3)
+        accuracy = correct / len(recent_reviews)
+        if accuracy < MIN_ACCURACY_FOR_INTRO:
+            return []
+
+    from app.services.word_selector import select_next_words
+
+    candidates = select_next_words(db, count=MAX_INTRO_PER_SESSION)
+    if not candidates:
+        return []
+
+    result = []
+    # Insert at positions 4 and 8 (0-indexed: after 3rd and 7th review items)
+    insert_positions = [3, 7]
+    for i, cand in enumerate(candidates[:MAX_INTRO_PER_SESSION]):
+        pos = insert_positions[i] if i < len(insert_positions) else len(items) - 1
+        pos = min(pos, len(items))
+        result.append({
+            "lemma_id": cand["lemma_id"],
+            "lemma_ar": cand["lemma_ar"],
+            "gloss_en": cand["gloss_en"],
+            "pos": cand.get("pos"),
+            "transliteration": cand.get("transliteration"),
+            "root": cand.get("root"),
+            "root_meaning": cand.get("root_meaning"),
+            "root_id": cand.get("root_id"),
+            "insert_at": pos,
+        })
+
+    return result
