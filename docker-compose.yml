@@ -8,8 +8,8 @@ services:
     environment:
       - GEMINI_KEY=${GEMINI_KEY}
       - OPENAI_KEY=${OPENAI_KEY}
-      - ELEVENLABS_API_KEY=${ELEVENLABS_API_KEY}
-      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - ELEVENLABS_API_KEY=${ELEVENLABS_API_KEY:-${ELEVENLABS_KEY:-}}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-${ANTHROPIC_KEY:-}}
       - DATABASE_URL=${DATABASE_URL:-sqlite:////app/data/alif.db}
       - CORS_ORIGINS=${CORS_ORIGINS:-}
     restart: unless-stopped
