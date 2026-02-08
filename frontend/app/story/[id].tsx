@@ -53,6 +53,31 @@ export default function StoryReadScreen() {
       if (!story) return;
       if (word.is_function_word || word.lemma_id == null) return;
 
+      // Toggle off if already looked up
+      if (lookedUp.has(word.position)) {
+        setLookedUp((prev) => {
+          const next = new Set(prev);
+          next.delete(word.position);
+          return next;
+        });
+        // Only remove lemma ID if no other looked-up positions share it
+        const otherPositionsWithSameLemma = story.words.some(
+          (w) => w.lemma_id === word.lemma_id && w.position !== word.position && lookedUp.has(w.position)
+        );
+        if (!otherPositionsWithSameLemma) {
+          setLookedUpLemmaIds((prev) => {
+            const next = new Set(prev);
+            next.delete(word.lemma_id!);
+            return next;
+          });
+        }
+        if (selectedPosition === word.position) {
+          setSelectedWord(null);
+          setSelectedPosition(null);
+        }
+        return;
+      }
+
       setSelectedPosition(word.position);
       setLookedUp((prev) => new Set(prev).add(word.position));
       setLookedUpLemmaIds((prev) => new Set(prev).add(word.lemma_id!));
@@ -70,7 +95,7 @@ export default function StoryReadScreen() {
         });
       }
     },
-    [story]
+    [story, lookedUp, selectedPosition]
   );
 
   async function handleComplete() {
