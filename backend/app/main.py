@@ -1,3 +1,4 @@
+import asyncio
 import os
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -9,8 +10,8 @@ from app.database import engine, Base
 from app.routers import words, review, analyze, stats, import_data, sentences, tts, learn, grammar, stories
 
 
-@asynccontextmanager
-async def lifespan(app: FastAPI):
+def _run_migrations():
+    """Run alembic migrations synchronously (called from a thread)."""
     alembic_ini = Path(__file__).resolve().parent.parent / "alembic.ini"
     if alembic_ini.exists() and os.environ.get("ALIF_SKIP_MIGRATIONS") != "1":
         from alembic import command
@@ -20,6 +21,11 @@ async def lifespan(app: FastAPI):
         command.upgrade(alembic_cfg, "head")
     else:
         Base.metadata.create_all(bind=engine)
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    await asyncio.to_thread(_run_migrations)
     yield
 
 
