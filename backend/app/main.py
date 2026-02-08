@@ -23,6 +23,14 @@ async def lifespan(app: FastAPI):
 
 
 def _run_alembic(alembic_ini: Path):
+    import sqlite3
+    from app.config import settings
+    # Checkpoint WAL before alembic to avoid lock contention
+    db_path = settings.database_url.replace("sqlite:///", "")
+    conn = sqlite3.connect(db_path)
+    conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+    conn.close()
+
     from alembic import command
     from alembic.config import Config
     alembic_cfg = Config(str(alembic_ini))
