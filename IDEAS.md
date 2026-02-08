@@ -12,6 +12,8 @@
 - Conjugation-level tracking deferred to Phase 2 [DEFERRED — reduces MVP complexity]
 - When user clicks a word: show root, base form, translation. User marks known/unknown
 - Imported words get partial credit (not full "known" status) — need verification through review
+- [DONE] Knowledge score (0-100) per word: 70% FSRS stability (log-scaled, measures memory durability) + 30% accuracy, scaled by confidence ramp (diminishing returns on review count). Stability dominates because it only grows through successful spaced repetition.
+- [DONE] Al- prefix deduplication: "الكلب" and "كلب" are the same lemma. Import strips ال before dedup check. Merged 14 duplicates in existing data.
 
 ### Spaced Repetition
 - Use FSRS algorithm (py-fsrs), superior to SM-2
@@ -159,6 +161,9 @@
 - Sort by: due date, frequency, alphabetical
 - Search by Arabic or English
 - Bulk operations: mark known, mark for review, delete
+- [DONE] Sort by review status: failed words first (red tint + border), then passed (green), then unseen
+- [DONE] Show review stats per word: "Seen 3x · 2 correct · 1 failed" with colored counts
+- [DONE] "Reviewed" filter chip, knowledge score display, refresh on tab focus
 
 ### Text Reader View
 - Display Arabic text with word-level tap interactions
@@ -176,6 +181,9 @@
 - Fields: timestamp, event type, lemma/word ID, rating, response time, context, session ID
 - Append-only log files, partitioned by date
 - Essential for: algorithm tuning, learning curve analysis, identifying problem words
+- [DONE] JSONL events: session_start, sentence_selected, sentence_review, tts_request, legacy_review
+- [DONE] DB tables: review_log (per-word with credit_type, sentence context), sentence_review_log (per-sentence)
+- [DONE] Fixed: /sync endpoint (offline queue) now also writes JSONL logs (was only writing to DB)
 
 ### Analytics Dashboard
 - Words learned over time (cumulative)
