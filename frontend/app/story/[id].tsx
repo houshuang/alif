@@ -287,6 +287,7 @@ export default function StoryReadScreen() {
               const word = item.word!;
               const isLookedUp = lookedUp.has(word.position);
               const isSelected = selectedPosition === word.position;
+              const isNewWord = !word.is_known && !word.is_function_word;
 
               return (
                 <View
@@ -294,6 +295,7 @@ export default function StoryReadScreen() {
                   onLayout={(e) => recordWordLayout(word.position, e)}
                   style={[
                     styles.wordChip,
+                    isNewWord && !isLookedUp && styles.newWordChip,
                     isLookedUp && styles.lookedUpChip,
                     isSelected && styles.selectedChip,
                   ]}
@@ -301,6 +303,7 @@ export default function StoryReadScreen() {
                   <Text
                     style={[
                       styles.storyWord,
+                      isNewWord && !isLookedUp && styles.newWordText,
                       isLookedUp && styles.lookedUpWord,
                       isSelected && styles.selectedWord,
                     ]}
@@ -464,6 +467,13 @@ const styles = StyleSheet.create({
     fontSize: 28,
     lineHeight: 36,
     color: colors.arabic,
+  },
+  newWordChip: {
+    borderBottomWidth: 2,
+    borderBottomColor: colors.stateLearning,
+  },
+  newWordText: {
+    color: colors.stateLearning,
   },
   lookedUpChip: {
     backgroundColor: colors.missed + "20",

@@ -179,6 +179,31 @@ def generate_story(
         f"- {w['arabic']} ({w['english']})" for w in sample
     )
 
+    # Pick up to MAX_NEW_WORDS_IN_STORY unknown words to weave into the story
+    known_ids = {w["lemma_id"] for w in known_words}
+    unknown_lemmas = (
+        db.query(Lemma)
+        .filter(Lemma.lemma_id.notin_(known_ids) if known_ids else True)
+        .filter(Lemma.frequency_rank.isnot(None))
+        .order_by(Lemma.frequency_rank.asc())
+        .limit(MAX_NEW_WORDS_IN_STORY * 3)
+        .all()
+    )
+    new_words = random.sample(
+        unknown_lemmas,
+        min(MAX_NEW_WORDS_IN_STORY, len(unknown_lemmas)),
+    ) if unknown_lemmas else []
+
+    new_words_section = ""
+    if new_words:
+        new_words_list = "\n".join(
+            f"- {w.lemma_ar} ({w.gloss_en or ''})" for w in new_words
+        )
+        new_words_section = f"""
+NEW VOCABULARY (weave these new words into the story — the reader will learn them from context):
+{new_words_list}
+"""
+
     lo, hi = LENGTH_SENTENCES.get(length, LENGTH_SENTENCES["medium"])
     topic_line = f"\nTOPIC/THEME: Write the story about or inspired by: {topic}" if topic else ""
 
@@ -197,11 +222,13 @@ def generate_story(
 
 GENRE: {genre}
 {topic_line}
-VOCABULARY (use ONLY these Arabic content words, plus common function words):
+KNOWN VOCABULARY (the reader already knows these words):
 {vocab_list}
-
+{new_words_section}
 IMPORTANT RULES:
-- Do NOT use any Arabic content words that are not in the vocabulary list above
+- Use ONLY words from the known vocabulary, new vocabulary, and common function words
+- Try to use ALL of the new vocabulary words naturally in the story
+- Make new words understandable from context
 - Write a REAL STORY with a narrative arc: setup → tension/development → resolution/punchline
 - Give the main character a name. Make the reader care about what happens
 - Every sentence must connect to the next — no disconnected practice sentences!
