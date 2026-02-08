@@ -111,6 +111,16 @@ def merge(dry_run: bool = False):
             if not dry_run:
                 al_ulk.lemma_id = bare_id
 
+        # 5. Delete the orphaned al- Lemma row
+        al_sw_remaining = db.query(SentenceWord).filter(SentenceWord.lemma_id == al_id).count()
+        al_st_remaining = db.query(Sentence).filter(Sentence.target_lemma_id == al_id).count()
+        if al_sw_remaining == 0 and al_st_remaining == 0:
+            print(f"  Deleting al- lemma row")
+            if not dry_run:
+                db.delete(al_lemma)
+        else:
+            print(f"  Keeping al- lemma (still has {al_sw_remaining} sentence_words, {al_st_remaining} targets)")
+
         print(f"  Done")
 
     if not dry_run:

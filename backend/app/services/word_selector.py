@@ -100,15 +100,25 @@ def _days_since_introduced(db: Session, root_id: Optional[int]) -> float:
 
 
 def get_root_family(db: Session, root_id: int) -> list[dict]:
-    """Get all words from a root with their knowledge state."""
+    """Get all words from a root with their knowledge state.
+
+    Deduplicates al- prefixed forms when a bare form exists in the same root.
+    """
     lemmas = (
         db.query(Lemma)
         .filter(Lemma.root_id == root_id)
         .order_by(Lemma.frequency_rank.asc().nullslast())
         .all()
     )
+    # Collect bare forms to detect al- duplicates
+    bare_forms = {l.lemma_ar_bare for l in lemmas if l.lemma_ar_bare and not l.lemma_ar_bare.startswith("ال")}
+
     result = []
     for lemma in lemmas:
+        bare = lemma.lemma_ar_bare or ""
+        # Skip al- form if bare counterpart exists in same root
+        if bare.startswith("ال") and bare[2:] in bare_forms:
+            continue
         knowledge = lemma.knowledge
         result.append({
             "lemma_id": lemma.lemma_id,
