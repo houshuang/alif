@@ -66,6 +66,22 @@ export default function StatsScreen() {
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <Text style={styles.title}>Your Progress</Text>
 
+      {/* Today Banner */}
+      {stats.reviews_today > 0 && (
+        <View style={styles.todayBanner}>
+          <Text style={styles.todayText}>
+            Today: {stats.reviews_today} reviews
+            {daily_history.length > 0 && daily_history[daily_history.length - 1].words_learned > 0
+              ? ` \u00B7 ${daily_history[daily_history.length - 1].words_learned} new`
+              : ""}
+            {pace.current_streak >= 2 ? ` \u00B7 ${pace.current_streak} day streak` : ""}
+            {daily_history.length > 0 && daily_history[daily_history.length - 1].accuracy !== null
+              ? ` \u00B7 ${daily_history[daily_history.length - 1].accuracy}% accuracy`
+              : ""}
+          </Text>
+        </View>
+      )}
+
       {/* CEFR Level Card */}
       <View style={styles.cefrCard}>
         <Text style={styles.cefrLevel}>{cefr.sublevel}</Text>
@@ -236,6 +252,21 @@ const styles = StyleSheet.create({
     color: colors.text,
     fontWeight: "700",
     marginBottom: 20,
+  },
+  todayBanner: {
+    backgroundColor: colors.surfaceLight,
+    borderRadius: 10,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    marginBottom: 16,
+    width: "100%",
+    maxWidth: 500,
+  },
+  todayText: {
+    color: colors.textSecondary,
+    fontSize: 13,
+    fontWeight: "600",
+    textAlign: "center",
   },
   sectionTitle: {
     fontSize: 18,

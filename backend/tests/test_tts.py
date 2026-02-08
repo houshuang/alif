@@ -167,7 +167,7 @@ class TestGenerateAudio:
         call_kwargs = mock_client.post.call_args
         body = call_kwargs[1]["json"]
         assert body["text"] == "مرحبا"
-        assert body["model_id"] == "eleven_turbo_v2_5"
+        assert body["model_id"] == "eleven_multilingual_v2"
         assert body["voice_settings"]["stability"] == 0.85
 
     def test_rate_limit(self):

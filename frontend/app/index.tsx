@@ -1104,6 +1104,284 @@ function InlineIntroCard({
   );
 }
 
+// --- Sparkle Effect ---
+
+function SparkleEffect({ count = 8 }: { count?: number }) {
+  const anims = useRef(
+    Array.from({ length: count }, () => ({
+      opacity: new Animated.Value(0),
+      translateY: new Animated.Value(0),
+      scale: new Animated.Value(0.5),
+    }))
+  ).current;
+
+  useEffect(() => {
+    const animations = anims.map((a, i) =>
+      Animated.sequence([
+        Animated.delay(i * 80),
+        Animated.parallel([
+          Animated.timing(a.opacity, { toValue: 1, duration: 300, useNativeDriver: true }),
+          Animated.timing(a.scale, { toValue: 1.3, duration: 300, useNativeDriver: true }),
+          Animated.timing(a.translateY, { toValue: -(20 + Math.random() * 30), duration: 600, useNativeDriver: true }),
+        ]),
+        Animated.parallel([
+          Animated.timing(a.opacity, { toValue: 0, duration: 400, useNativeDriver: true }),
+          Animated.timing(a.scale, { toValue: 0.6, duration: 400, useNativeDriver: true }),
+        ]),
+      ])
+    );
+    Animated.parallel(animations).start();
+  }, []);
+
+  const sparkleChars = ["\u2728", "\u2B50", "\u2728", "\u2B50"];
+
+  return (
+    <View style={styles.sparkleContainer}>
+      {anims.map((a, i) => {
+        const angle = (i / count) * 2 * Math.PI;
+        const radius = 35 + (i % 3) * 10;
+        const left = 50 + Math.cos(angle) * radius;
+        const top = 50 + Math.sin(angle) * radius;
+        return (
+          <Animated.Text
+            key={i}
+            style={{
+              position: "absolute",
+              left,
+              top,
+              fontSize: 12 + (i % 3) * 4,
+              opacity: a.opacity,
+              transform: [{ translateY: a.translateY }, { scale: a.scale }],
+            }}
+          >
+            {sparkleChars[i % sparkleChars.length]}
+          </Animated.Text>
+        );
+      })}
+    </View>
+  );
+}
+
+// --- Motivational Message ---
+
+function getMotivationalMessage(
+  accuracy: number,
+  streak: number,
+  wordsToNext: number | null,
+): string {
+  let msg: string;
+  if (accuracy === 100) {
+    msg = "Flawless! Every word understood.";
+  } else if (accuracy >= 90) {
+    msg = "Sharp recall today.";
+  } else if (accuracy >= 70) {
+    msg = "Solid session. Consistency builds fluency.";
+  } else if (accuracy >= 50) {
+    msg = "Good effort. Missed words will come back for practice.";
+  } else {
+    msg = "Tough session. These words will get easier with repetition.";
+  }
+
+  if (streak >= 7) {
+    msg += ` ${streak} days in a row!`;
+  }
+
+  if (wordsToNext !== null && wordsToNext <= 15) {
+    msg += ` Only ${wordsToNext} words to the next level.`;
+  }
+
+  return msg;
+}
+
+// --- Session Complete ---
+
+function SessionComplete({
+  results,
+  mode,
+  onNewSession,
+}: {
+  results: SessionResults;
+  mode: ReviewMode;
+  onNewSession: () => void;
+}) {
+  const [analytics, setAnalytics] = useState<Analytics | null>(null);
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+
+  const accuracy = results.total > 0
+    ? Math.round((results.gotIt / results.total) * 100)
+    : 0;
+
+  const showSparkles = accuracy >= 70;
+  const sparkleCount = accuracy === 100 ? 12 : 8;
+
+  const title =
+    accuracy === 100 ? "Perfect!" :
+    accuracy >= 80 ? "Great Session!" :
+    accuracy >= 60 ? "Session Complete" :
+    "Keep Practicing!";
+
+  useEffect(() => {
+    getAnalytics()
+      .then((data) => {
+        setAnalytics(data);
+        Animated.timing(fadeAnim, {
+          toValue: 1,
+          duration: 400,
+          useNativeDriver: true,
+        }).start();
+      })
+      .catch(() => {});
+  }, []);
+
+  const accuracyColor =
+    accuracy >= 80 ? colors.gotIt :
+    accuracy >= 60 ? colors.accent :
+    colors.noIdea;
+
+  return (
+    <ScrollView contentContainerStyle={styles.container}>
+      {/* Celebration header */}
+      <View style={styles.celebrationHeader}>
+        {showSparkles && <SparkleEffect count={sparkleCount} />}
+        <Text style={styles.celebrationIcon}>
+          {accuracy === 100 ? "\u{1F31F}" : accuracy >= 70 ? "\u2728" : "\u{1F4DA}"}
+        </Text>
+      </View>
+
+      <Text style={styles.summaryTitle}>{title}</Text>
+      <Text style={styles.summarySubtitle}>
+        {mode === "listening" ? "Listening" : "Reading"} mode
+      </Text>
+
+      {/* Accuracy */}
+      <Text style={[styles.accuracyText, { color: accuracyColor }]}>
+        {accuracy}%
+      </Text>
+
+      {/* Session breakdown */}
+      <View style={styles.summaryGrid}>
+        <View style={styles.summaryItem}>
+          <Text style={[styles.summaryLabel, { color: colors.gotIt }]}>
+            Got it
+          </Text>
+          <Text style={styles.summaryValue}>{results.gotIt}</Text>
+        </View>
+        <View style={styles.summaryItem}>
+          <Text style={[styles.summaryLabel, { color: colors.missed }]}>
+            Missed
+          </Text>
+          <Text style={styles.summaryValue}>{results.missed}</Text>
+        </View>
+        {results.noIdea > 0 && (
+          <View style={styles.summaryItem}>
+            <Text style={[styles.summaryLabel, { color: colors.noIdea }]}>
+              No idea
+            </Text>
+            <Text style={styles.summaryValue}>{results.noIdea}</Text>
+          </View>
+        )}
+      </View>
+
+      {/* Progress nuggets (fades in when analytics loads) */}
+      {analytics && (
+        <Animated.View style={[styles.progressNuggets, { opacity: fadeAnim }]}>
+          <View style={styles.nuggetPill}>
+            <Text style={styles.nuggetText}>
+              {analytics.stats.reviews_today} reviews today
+            </Text>
+          </View>
+          {analytics.pace.current_streak >= 2 && (
+            <View style={styles.nuggetPill}>
+              <Text style={styles.nuggetText}>
+                {analytics.pace.current_streak} day streak
+              </Text>
+            </View>
+          )}
+          <View style={styles.nuggetPill}>
+            <Text style={styles.nuggetText}>
+              {analytics.cefr.known_words} words known
+            </Text>
+          </View>
+          {analytics.cefr.words_to_next !== null && analytics.cefr.words_to_next <= 20 && (
+            <View style={[styles.nuggetPill, { backgroundColor: colors.accent + "30" }]}>
+              <Text style={[styles.nuggetText, { color: colors.accent }]}>
+                {analytics.cefr.words_to_next} to {analytics.cefr.next_level}
+              </Text>
+            </View>
+          )}
+        </Animated.View>
+      )}
+
+      {/* Motivational message */}
+      {analytics && (
+        <Animated.Text style={[styles.motivationalText, { opacity: fadeAnim }]}>
+          {getMotivationalMessage(
+            accuracy,
+            analytics.pace.current_streak,
+            analytics.cefr.words_to_next,
+          )}
+        </Animated.Text>
+      )}
+
+      <Pressable style={styles.startButton} onPress={onNewSession}>
+        <Text style={styles.startButtonText}>Start New Session</Text>
+      </Pressable>
+    </ScrollView>
+  );
+}
+
+// --- Empty State with Progress ---
+
+function EmptyState({
+  online,
+  mode,
+  onRefresh,
+}: {
+  online: boolean;
+  mode: ReviewMode;
+  onRefresh: () => void;
+}) {
+  const [analytics, setAnalytics] = useState<Analytics | null>(null);
+
+  useEffect(() => {
+    if (online) {
+      getAnalytics().then(setAnalytics).catch(() => {});
+    }
+  }, [online]);
+
+  return (
+    <View style={styles.container}>
+      <Text style={styles.emptyText}>
+        {!online
+          ? "No sessions available offline"
+          : mode === "listening"
+            ? "No sentences ready for listening practice"
+            : "No cards due for review"}
+      </Text>
+
+      {analytics && analytics.cefr.known_words > 0 && (
+        <View style={styles.emptyProgressCard}>
+          <Text style={styles.emptyProgressLevel}>
+            {analytics.cefr.sublevel}
+          </Text>
+          <Text style={styles.emptyProgressDetail}>
+            {analytics.cefr.known_words} words known
+          </Text>
+          {analytics.pace.current_streak >= 2 && (
+            <Text style={styles.emptyProgressDetail}>
+              {analytics.pace.current_streak} day streak
+            </Text>
+          )}
+        </View>
+      )}
+
+      <Pressable style={styles.startButton} onPress={onRefresh}>
+        <Text style={styles.startButtonText}>Refresh</Text>
+      </Pressable>
+    </View>
+  );
+}
+
 // --- Styles ---
 
 const styles = StyleSheet.create({
@@ -1349,6 +1627,74 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "600",
   },
+  sparkleContainer: {
+    width: 100,
+    height: 100,
+    position: "absolute",
+  },
+  celebrationHeader: {
+    width: 100,
+    height: 100,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 8,
+  },
+  celebrationIcon: {
+    fontSize: 48,
+  },
+  accuracyText: {
+    fontSize: 36,
+    fontWeight: "800",
+    marginBottom: 16,
+  },
+  progressNuggets: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "center",
+    gap: 8,
+    marginTop: 20,
+    marginBottom: 8,
+  },
+  nuggetPill: {
+    backgroundColor: colors.surfaceLight,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 16,
+  },
+  nuggetText: {
+    color: colors.textSecondary,
+    fontSize: 13,
+    fontWeight: "600",
+  },
+  motivationalText: {
+    color: colors.textSecondary,
+    fontSize: 14,
+    fontStyle: "italic",
+    textAlign: "center",
+    marginTop: 12,
+    marginBottom: 8,
+    paddingHorizontal: 20,
+  },
+  emptyProgressCard: {
+    backgroundColor: colors.surface,
+    borderRadius: 12,
+    padding: 20,
+    alignItems: "center",
+    marginBottom: 16,
+    width: "100%",
+    maxWidth: 300,
+  },
+  emptyProgressLevel: {
+    fontSize: 28,
+    color: colors.accent,
+    fontWeight: "800",
+    marginBottom: 4,
+  },
+  emptyProgressDetail: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    marginTop: 2,
+  },
   summaryTitle: {
     fontSize: 28,
     color: colors.text,
@@ -1359,11 +1705,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: colors.textSecondary,
     marginBottom: 12,
-  },
-  summaryCount: {
-    fontSize: 18,
-    color: colors.textSecondary,
-    marginBottom: 24,
   },
   summaryGrid: {
     flexDirection: "row",

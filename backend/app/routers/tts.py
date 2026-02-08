@@ -71,7 +71,7 @@ async def generate_for_sentence(req: GenerateForSentenceRequest):
     voice_id = req.voice_id or DEFAULT_VOICE_ID
     cache_key = cache_key_for(req.text, voice_id)
     try:
-        path = await generate_and_cache(req.text, voice_id, cache_key=cache_key)
+        path = await generate_and_cache(req.text, voice_id, cache_key=cache_key, slow_mode=True)
     except TTSKeyMissing:
         raise HTTPException(
             status_code=503,
@@ -97,7 +97,8 @@ async def speak(text: str):
 
     t0 = time.monotonic()
     try:
-        path = await generate_and_cache(text, voice_id, cache_key=ck)
+        is_sentence = len(text.split()) >= 3
+        path = await generate_and_cache(text, voice_id, cache_key=ck, slow_mode=is_sentence)
     except TTSKeyMissing:
         log_interaction(
             event="tts_request",

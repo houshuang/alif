@@ -7,13 +7,13 @@ from typing import Optional
 import httpx
 
 ELEVENLABS_BASE_URL = "https://api.elevenlabs.io/v1"
-DEFAULT_MODEL = "eleven_turbo_v2_5"
+DEFAULT_MODEL = "eleven_multilingual_v2"
 DEFAULT_VOICE_ID = "G1HOkzin3NMwRHSq60UI"  # Chaouki — MSA male, clear neutral accent
 DEFAULT_VOICE_SETTINGS = {
     "stability": 0.85,
     "similarity_boost": 0.75,
     "style": 0.0,
-    "speed": 0.8,
+    "speed": 0.7,
     "use_speaker_boost": True,
 }
 
@@ -92,15 +92,33 @@ def filter_arabic_compatible_voices(voices: list[dict]) -> list[dict]:
     return results
 
 
+def _add_learner_pauses(text: str) -> str:
+    """Insert commas between word groups to slow down TTS for learners."""
+    words = text.split()
+    if len(words) <= 2:
+        return text
+    # Insert Arabic comma every 2 words
+    parts = []
+    for i, w in enumerate(words):
+        parts.append(w)
+        if i < len(words) - 1 and (i + 1) % 2 == 0:
+            parts.append("،")
+    return " ".join(parts)
+
+
 async def generate_audio(
     text: str,
     voice_id: str,
     api_key: Optional[str] = None,
     model_id: str = DEFAULT_MODEL,
     voice_settings: Optional[dict] = None,
+    slow_mode: bool = False,
 ) -> bytes:
     key = api_key or _get_api_key()
     settings = voice_settings or DEFAULT_VOICE_SETTINGS
+
+    if slow_mode:
+        text = _add_learner_pauses(text)
 
     async with httpx.AsyncClient() as client:
         resp = await client.post(
@@ -133,6 +151,7 @@ async def generate_and_cache(
     voice_id: str,
     cache_key: Optional[str] = None,
     api_key: Optional[str] = None,
+    slow_mode: bool = False,
 ) -> Path:
     _ensure_audio_dir()
     key = cache_key or cache_key_for(text, voice_id)
@@ -140,7 +159,7 @@ async def generate_and_cache(
     if cached:
         return cached
 
-    audio_bytes = await generate_audio(text, voice_id, api_key=api_key)
+    audio_bytes = await generate_audio(text, voice_id, api_key=api_key, slow_mode=slow_mode)
     path = AUDIO_DIR / f"{key}.mp3"
     path.write_bytes(audio_bytes)
     return path
