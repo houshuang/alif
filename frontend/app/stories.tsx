@@ -9,6 +9,7 @@ import {
   ActivityIndicator,
   Modal,
   Alert,
+  Platform,
 } from "react-native";
 import { useRouter, useFocusEffect } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -97,23 +98,23 @@ export default function StoriesScreen() {
     }
   }
 
-  function handleDelete(item: StoryListItem) {
+  async function handleDelete(item: StoryListItem) {
     const title = item.title_en || item.title_ar || "this story";
-    Alert.alert("Delete Story", `Delete "${title}"?`, [
-      { text: "Cancel", style: "cancel" },
-      {
-        text: "Delete",
-        style: "destructive",
-        onPress: async () => {
-          try {
-            await deleteStory(item.id);
-            setStories((prev) => prev.filter((s) => s.id !== item.id));
-          } catch (e) {
-            console.error("Failed to delete story:", e);
-          }
-        },
-      },
-    ]);
+    const confirmed = Platform.OS === "web"
+      ? window.confirm(`Delete "${title}"?`)
+      : await new Promise<boolean>((resolve) =>
+          Alert.alert("Delete Story", `Delete "${title}"?`, [
+            { text: "Cancel", style: "cancel", onPress: () => resolve(false) },
+            { text: "Delete", style: "destructive", onPress: () => resolve(true) },
+          ])
+        );
+    if (!confirmed) return;
+    try {
+      await deleteStory(item.id);
+      setStories((prev) => prev.filter((s) => s.id !== item.id));
+    } catch (e) {
+      console.error("Failed to delete story:", e);
+    }
   }
 
   function readinessColor(item: StoryListItem): string {
@@ -155,84 +156,81 @@ export default function StoriesScreen() {
     const pctWidth = Math.min(100, Math.max(4, item.readiness_pct));
 
     return (
-      <Pressable
-        style={styles.storyCard}
-        onPress={() => router.push(`/story/${item.id}`)}
-      >
-        <View style={styles.cardTop}>
-          <View style={styles.cardTitleRow}>
-            <Ionicons
-              name={statusIcon(item.status) as any}
-              size={18}
-              color={ready}
-              style={{ marginRight: 8 }}
-            />
-            <Text style={styles.storyTitle} numberOfLines={1}>
-              {title}
-            </Text>
-            <Pressable
-              onPress={(e) => {
-                e.stopPropagation();
-                handleDelete(item);
-              }}
-              hitSlop={8}
-              style={{ padding: 4, marginLeft: 8 }}
-            >
-              <Ionicons name="trash-outline" size={16} color={colors.textSecondary} />
-            </Pressable>
+      <View style={styles.storyCard}>
+        <Pressable onPress={() => router.push(`/story/${item.id}`)}>
+          <View style={styles.cardTop}>
+            <View style={styles.cardTitleRow}>
+              <Ionicons
+                name={statusIcon(item.status) as any}
+                size={18}
+                color={ready}
+                style={{ marginRight: 8 }}
+              />
+              <Text style={styles.storyTitle} numberOfLines={1}>
+                {title}
+              </Text>
+            </View>
+            {item.title_ar && (
+              <Text style={styles.storyTitleAr} numberOfLines={1}>
+                {item.title_ar}
+              </Text>
+            )}
           </View>
-          {item.title_ar && (
-            <Text style={styles.storyTitleAr} numberOfLines={1}>
-              {item.title_ar}
-            </Text>
-          )}
-        </View>
 
-        <View style={styles.progressBar}>
-          <View
-            style={[
-              styles.progressFill,
-              { width: `${pctWidth}%`, backgroundColor: ready },
-            ]}
-          />
-        </View>
-
-        <View style={styles.cardBottom}>
-          <View style={styles.cardBadges}>
+          <View style={styles.progressBar}>
             <View
               style={[
-                styles.badge,
-                {
-                  backgroundColor:
-                    item.source === "generated"
-                      ? colors.accent + "20"
-                      : colors.listening + "20",
-                },
+                styles.progressFill,
+                { width: `${pctWidth}%`, backgroundColor: ready },
               ]}
-            >
-              <Text
+            />
+          </View>
+
+          <View style={styles.cardBottom}>
+            <View style={styles.cardBadges}>
+              <View
                 style={[
-                  styles.badgeText,
+                  styles.badge,
                   {
-                    color:
+                    backgroundColor:
                       item.source === "generated"
-                        ? colors.accent
-                        : colors.listening,
+                        ? colors.accent + "20"
+                        : colors.listening + "20",
                   },
                 ]}
               >
-                {item.source === "generated" ? "Generated" : "Imported"}
+                <Text
+                  style={[
+                    styles.badgeText,
+                    {
+                      color:
+                        item.source === "generated"
+                          ? colors.accent
+                          : colors.listening,
+                    },
+                  ]}
+                >
+                  {item.source === "generated" ? "Generated" : "Imported"}
+                </Text>
+              </View>
+              <Text style={styles.wordCount}>
+                {item.total_words} words
               </Text>
             </View>
-            <Text style={styles.wordCount}>
-              {item.total_words} words
+            <Text style={[styles.readinessLabel, { color: ready }]}>
+              {readyText}
             </Text>
           </View>
-          <Text style={[styles.readinessLabel, { color: ready }]}>
-            {readyText}
-          </Text>
-        </View>
-      </Pressable>
+        </Pressable>
+
+        <Pressable
+          onPress={() => handleDelete(item)}
+          hitSlop={8}
+          style={styles.deleteBtn}
+        >
+          <Ionicons name="trash-outline" size={16} color={colors.textSecondary} />
+        </Pressable>
+      </View>
     );
   }
 
@@ -470,6 +468,13 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 16,
     marginBottom: 10,
+    position: "relative" as const,
+  },
+  deleteBtn: {
+    position: "absolute" as const,
+    top: 14,
+    right: 14,
+    padding: 6,
   },
   cardTop: {
     marginBottom: 10,
