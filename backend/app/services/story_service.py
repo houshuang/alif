@@ -26,6 +26,7 @@ from app.services.sentence_validator import (
 )
 
 KNOWN_SAMPLE_SIZE = 80
+MAX_NEW_WORDS_IN_STORY = 5
 
 STORY_SYSTEM_PROMPT = """\
 You are a creative Arabic storyteller writing for language learners. Your job is to write \
@@ -264,6 +265,23 @@ Respond with JSON: {{"title_ar": "...", "title_en": "...", "body_ar": "full stor
     return story
 
 
+def _generate_title(arabic_text: str) -> dict:
+    """Use LLM to generate Arabic and English titles for imported text."""
+    snippet = arabic_text[:500]
+    try:
+        result = generate_completion(
+            prompt=f"Give this Arabic text a short, evocative title (3-6 words) in both Arabic and English.\n\nText:\n{snippet}\n\nRespond with JSON: {{\"title_ar\": \"...\", \"title_en\": \"...\"}}",
+            system_prompt="You generate short titles for Arabic texts. Include diacritics on the Arabic title. Respond with JSON only.",
+            json_mode=True,
+        )
+        return {
+            "title_ar": result.get("title_ar") or None,
+            "title_en": result.get("title_en") or None,
+        }
+    except (AllProvidersFailed, Exception):
+        return {"title_ar": None, "title_en": None}
+
+
 def import_story(
     db: Session,
     arabic_text: str,
@@ -274,8 +292,16 @@ def import_story(
     lemma_lookup = build_lemma_lookup(all_lemmas)
     knowledge_map = _build_knowledge_map(db)
 
+    title_ar = title or None
+    title_en = None
+    if not title_ar:
+        titles = _generate_title(arabic_text)
+        title_ar = titles["title_ar"]
+        title_en = titles["title_en"]
+
     story = Story(
-        title_ar=title,
+        title_ar=title_ar,
+        title_en=title_en,
         body_ar=arabic_text,
         source="imported",
         status="active",

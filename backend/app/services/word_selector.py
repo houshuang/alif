@@ -18,7 +18,7 @@ from typing import Optional
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 
-from app.models import Root, Lemma, UserLemmaKnowledge, ReviewLog, Sentence
+from app.models import Root, Lemma, UserLemmaKnowledge, ReviewLog, Sentence, StoryWord, Story
 from app.services.fsrs_service import create_new_card
 from app.services.grammar_service import grammar_pattern_score
 
@@ -60,6 +60,23 @@ def _is_noise_lemma(lemma) -> bool:
     if bare and _NON_ARABIC_RE.search(bare):
         return True
     return False
+
+
+def _active_story_lemma_ids(db: Session) -> set[int]:
+    """Get lemma_ids of unknown words in active stories."""
+    rows = (
+        db.query(StoryWord.lemma_id)
+        .join(Story, StoryWord.story_id == Story.id)
+        .filter(
+            Story.status == "active",
+            StoryWord.lemma_id.isnot(None),
+            StoryWord.is_function_word == 0,
+            StoryWord.is_known_at_creation == 0,
+        )
+        .distinct()
+        .all()
+    )
+    return {r[0] for r in rows}
 
 
 def _frequency_score(frequency_rank: Optional[int], max_rank: int = 50000) -> float:
@@ -192,6 +209,8 @@ def select_next_words(
     if not candidates:
         return []
 
+    story_lemmas = _active_story_lemma_ids(db)
+
     scored = []
     for lemma in candidates:
         freq_score = _frequency_score(lemma.frequency_rank)
@@ -210,11 +229,15 @@ def select_next_words(
             db, lemma.grammar_features_json
         )
 
+        # Words in active stories get a large boost
+        story_bonus = 1.0 if lemma.lemma_id in story_lemmas else 0.0
+
         total_score = (
-            freq_score * 0.4
-            + root_score * 0.3
-            + recency_bonus * 0.2
+            freq_score * 0.3
+            + root_score * 0.2
+            + recency_bonus * 0.1
             + pattern_score * 0.1
+            + story_bonus * 0.3
         )
 
         scored.append({
@@ -237,6 +260,7 @@ def select_next_words(
                 "frequency": round(freq_score, 3),
                 "root_familiarity": round(root_score, 3),
                 "recency_bonus": round(recency_bonus, 3),
+                "story_bonus": round(story_bonus, 3),
                 "known_siblings": known_siblings,
                 "total_siblings": total_siblings,
             },

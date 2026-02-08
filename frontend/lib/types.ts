@@ -138,6 +138,7 @@ export interface LearnCandidate {
     frequency: number;
     root_familiarity: number;
     recency_bonus: number;
+    story_bonus: number;
     known_siblings: number;
     total_siblings: number;
   };
