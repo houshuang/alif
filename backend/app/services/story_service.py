@@ -501,6 +501,21 @@ def too_difficult_story(
     return {"story_id": story_id, "status": "too_difficult", "again_count": again_count}
 
 
+def delete_story(db: Session, story_id: int) -> dict:
+    """Permanently delete a story and its words."""
+    story = db.query(Story).filter(Story.id == story_id).first()
+    if not story:
+        raise ValueError(f"Story {story_id} not found")
+
+    db.query(StoryWord).filter(StoryWord.story_id == story_id).delete()
+    db.delete(story)
+    db.commit()
+
+    log_interaction(event="story_deleted", context=f"story_id:{story_id}")
+
+    return {"story_id": story_id, "deleted": True}
+
+
 def lookup_word(
     db: Session,
     story_id: int,

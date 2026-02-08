@@ -16,6 +16,7 @@ from app.schemas import (
 )
 from app.services.story_service import (
     complete_story,
+    delete_story,
     generate_story,
     get_stories,
     get_story_detail,
@@ -106,6 +107,14 @@ def too_difficult_story_endpoint(
 ):
     try:
         return too_difficult_story(db, story_id, body.looked_up_lemma_ids)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+
+@router.delete("/{story_id}")
+def delete_story_endpoint(story_id: int, db: Session = Depends(get_db)):
+    try:
+        return delete_story(db, story_id)
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
 

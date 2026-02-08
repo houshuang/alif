@@ -331,6 +331,10 @@ export async function tooDifficultStory(storyId: number, lookedUpLemmaIds: numbe
   });
 }
 
+export async function deleteStory(storyId: number): Promise<void> {
+  await fetchApi(`/api/stories/${storyId}`, { method: "DELETE" });
+}
+
 export async function lookupStoryWord(storyId: number, lemmaId: number, position: number): Promise<StoryLookupResult> {
   return fetchApi<StoryLookupResult>(`/api/stories/${storyId}/lookup`, {
     method: "POST",

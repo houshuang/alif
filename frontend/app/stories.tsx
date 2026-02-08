@@ -8,11 +8,12 @@ import {
   StyleSheet,
   ActivityIndicator,
   Modal,
+  Alert,
 } from "react-native";
 import { useRouter, useFocusEffect } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { colors, fonts } from "../lib/theme";
-import { getStories, generateStory, importStory } from "../lib/api";
+import { getStories, generateStory, importStory, deleteStory } from "../lib/api";
 import { StoryListItem } from "../lib/types";
 
 type StoryLength = "short" | "medium" | "long";
@@ -96,6 +97,25 @@ export default function StoriesScreen() {
     }
   }
 
+  function handleDelete(item: StoryListItem) {
+    const title = item.title_en || item.title_ar || "this story";
+    Alert.alert("Delete Story", `Delete "${title}"?`, [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Delete",
+        style: "destructive",
+        onPress: async () => {
+          try {
+            await deleteStory(item.id);
+            setStories((prev) => prev.filter((s) => s.id !== item.id));
+          } catch (e) {
+            console.error("Failed to delete story:", e);
+          }
+        },
+      },
+    ]);
+  }
+
   function readinessColor(item: StoryListItem): string {
     if (item.status === "completed") return colors.gotIt;
     if (item.readiness_pct >= 90 || item.unknown_count <= 10)
@@ -150,6 +170,16 @@ export default function StoriesScreen() {
             <Text style={styles.storyTitle} numberOfLines={1}>
               {title}
             </Text>
+            <Pressable
+              onPress={(e) => {
+                e.stopPropagation();
+                handleDelete(item);
+              }}
+              hitSlop={8}
+              style={{ padding: 4, marginLeft: 8 }}
+            >
+              <Ionicons name="trash-outline" size={16} color={colors.textSecondary} />
+            </Pressable>
           </View>
           {item.title_ar && (
             <Text style={styles.storyTitleAr} numberOfLines={1}>
