@@ -10,23 +10,24 @@ from app.database import engine, Base
 from app.routers import words, review, analyze, stats, import_data, sentences, tts, learn, grammar, stories
 
 
-def _run_migrations():
-    """Run alembic migrations synchronously (called from a thread)."""
-    alembic_ini = Path(__file__).resolve().parent.parent / "alembic.ini"
-    if alembic_ini.exists() and os.environ.get("ALIF_SKIP_MIGRATIONS") != "1":
-        from alembic import command
-        from alembic.config import Config
-        alembic_cfg = Config(str(alembic_ini))
-        alembic_cfg.set_main_option("script_location", str(alembic_ini.parent / "alembic"))
-        command.upgrade(alembic_cfg, "head")
-    else:
-        Base.metadata.create_all(bind=engine)
-
-
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    await asyncio.to_thread(_run_migrations)
+    alembic_ini = Path(__file__).resolve().parent.parent / "alembic.ini"
+    if alembic_ini.exists() and os.environ.get("ALIF_SKIP_MIGRATIONS") != "1":
+        # Dispose engine pool to avoid SQLite locking conflicts with alembic
+        engine.dispose()
+        await asyncio.to_thread(_run_alembic, alembic_ini)
+    else:
+        Base.metadata.create_all(bind=engine)
     yield
+
+
+def _run_alembic(alembic_ini: Path):
+    from alembic import command
+    from alembic.config import Config
+    alembic_cfg = Config(str(alembic_ini))
+    alembic_cfg.set_main_option("script_location", str(alembic_ini.parent / "alembic"))
+    command.upgrade(alembic_cfg, "head")
 
 
 app = FastAPI(title="Alif Arabic Learning API", version="0.1.0", lifespan=lifespan)
