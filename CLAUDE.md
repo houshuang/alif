@@ -3,26 +3,51 @@
 ## Project Overview
 A personal Arabic (MSA/fusha) learning app focused exclusively on reading and listening comprehension. No production/writing exercises. Tracks word knowledge at root, lemma, and conjugation levels using FSRS spaced repetition. Combines LLM sentence generation with deterministic NLP validation (CAMeL Tools).
 
+## Quick Start
+```bash
+# Backend
+cd backend
+cp .env.example .env  # add API keys
+pip install -e ".[dev]"
+python scripts/import_duolingo.py  # import 196 words
+uvicorn app.main:app --port 8000
+
+# Frontend
+cd frontend
+npm install
+npx expo start --web  # opens on localhost:8081
+```
+
 ## Architecture
-- **Backend**: Python + FastAPI + SQLite (single user, no auth)
-- **Frontend**: Expo (React Native) with web mode for testing on iPhone via Expo Go
-- **NLP**: CAMeL Tools (morphology, lemmatization, root extraction), CATT (diacritization)
-- **SRS**: py-fsrs (FSRS algorithm)
-- **LLM**: LiteLLM for unified multi-model (Gemini Flash primary, GPT fallback). See `/Users/stian/src/nrk/kulturperler/web/scripts/api_client.py` for reference pattern. Keys: GEMINI_KEY, OPENAI_KEY in `.env`
-- **TTS**: ElevenLabs REST API (not SDK). See `/Users/stian/src/ninjaord/src/lib/elevenlabs.ts` for reference pattern. Model: `eleven_turbo_v2_5`. Key: ELEVENLABS_API_KEY in `.env`
-- **Offline**: App works fully offline for reviews. Backend needed only for NLP processing, LLM sentence generation, and TTS.
-- **Hosting**: Local for now. When ready: Hetzner CAX11 + Coolify (~$4/mo). Code must be deploy-ready (Dockerfile, .env separation).
-- **Migrations**: Alembic for SQLite schema migrations. Every schema change must have a migration file.
+- **Backend**: Python 3.11+ / FastAPI / SQLite (single user, no auth) — `backend/`
+- **Frontend**: Expo (React Native) with web mode — `frontend/`
+- **SRS**: py-fsrs (FSRS algorithm) — `backend/app/services/fsrs_service.py`
+- **LLM**: LiteLLM for unified multi-model (Gemini Flash primary, GPT fallback). Keys: GEMINI_KEY, OPENAI_KEY in `.env`
+- **TTS**: ElevenLabs REST API (not SDK). Model: `eleven_turbo_v2_5`. Key: ELEVENLABS_API_KEY in `.env`
+- **NLP**: CAMeL Tools (morphology, lemmatization, root extraction) — planned, stub in place
+- **Migrations**: Alembic for SQLite schema migrations. Every schema change must have a migration file. Migrations run automatically on startup.
+- **Hosting**: Local for now. When ready: Hetzner CAX11 + Coolify (~$4/mo). Dockerfile + docker-compose.yml included.
 - **Transliteration**: ALA-LC standard (kitāb, madrasa) with macrons for long vowels
 - **Diacritics**: Always show on all Arabic text
-- **Related projects**: Comenius (`/Users/stian/src/comenius`) has production-ready patterns for schema, ingestion, SRS, offline sync, and Gemini integration. Adapt patterns but keep Python backend.
 
-## Review Flow
-1. User sees Arabic sentence (fully diacritized, large RTL text)
-2. Self-assesses comprehension
-3. Taps to reveal: English translation + ALA-LC transliteration
-4. Rates: Again / Hard / Good / Easy
-5. Future mode: Audio-first (blank screen → hear sentence → tap to reveal Arabic → tap for English)
+## Review Modes
+
+### Reading Mode (implemented)
+1. User sees Arabic word (diacritized, large RTL text)
+2. Taps "Show Answer" to reveal: English translation
+3. Rates: Got it / Missed
+4. With sentences: tap individual words you didn't know
+
+### Listening Mode (implemented, audio simulated)
+1. Audio plays (simulated with timer, TTS integration pending)
+2. Tap to reveal Arabic text — tap words you didn't catch
+3. Tap to reveal English translation + transliteration
+4. Rate comprehension
+
+### Learn Mode (implemented)
+1. Algorithm selects best next words (frequency + root familiarity scoring)
+2. Tap a word to introduce it (creates FSRS card, shows root family)
+3. Quick quiz on introduced words
 
 ## Critical Rules for All Agents
 
@@ -89,24 +114,75 @@ As we build features, create reusable Claude Code skills (`.claude/skills/`) for
 ## Key Files
 - `IDEAS.md` — Master ideas file (always update)
 - `research/` — Detailed research reports on Arabic NLP tools, datasets, APIs, hosting
-- `backend/app/services/morphology.py` — Core NLP wrapper (CAMeL Tools)
-- `backend/app/services/fsrs_service.py` — Spaced repetition engine
-- `backend/app/models.py` — SQLAlchemy data model
+- `backend/app/models.py` — SQLAlchemy models (Root, Lemma, UserLemmaKnowledge, ReviewLog, Sentence, SentenceWord)
+- `backend/app/services/fsrs_service.py` — FSRS spaced repetition (get_due_cards, submit_review)
+- `backend/app/services/word_selector.py` — Next-word selection algorithm (frequency + root familiarity scoring)
+- `backend/app/services/sentence_generator.py` — LLM sentence generation with validation
+- `backend/app/services/sentence_validator.py` — Deterministic sentence validation against known words
+- `backend/app/services/listening.py` — Listening mode candidate selection
+- `backend/app/services/llm.py` — LiteLLM wrapper with retry/fallback
+- `backend/app/services/tts.py` — ElevenLabs TTS integration
+- `backend/app/services/morphology.py` — NLP wrapper (stub, CAMeL Tools planned)
+- `backend/app/services/interaction_logger.py` — JSONL interaction logging
 - `backend/app/data/duolingo_raw.json` — Raw Duolingo export (302 lexemes)
-- `data/logs/` — Interaction logs (JSONL)
+- `backend/scripts/import_duolingo.py` — Duolingo import (196 words, 23 roots after filtering)
+- `backend/data/logs/` — Interaction logs (JSONL, gitignored)
+- `frontend/lib/api.ts` — API client (maps backend responses to frontend types)
+- `frontend/lib/types.ts` — TypeScript interfaces for all data shapes
+- `frontend/app/index.tsx` — Review screen (reading + listening modes)
+- `frontend/app/learn.tsx` — Learn new words screen
+- `frontend/app/words.tsx` — Word browser with search + filter
+- `frontend/app/stats.tsx` — Analytics dashboard (CEFR, pace, history chart)
+- `frontend/app/word/[id].tsx` — Word detail with root family
 
-## Data Model (MVP)
-- `roots` — 3/4 consonant roots with core meaning
-- `lemmas` — Base dictionary forms with root FK, POS, gloss, frequency rank
-- `user_lemma_knowledge` — FSRS card state per lemma
-- `review_log` — Full review history (rating, timing, context)
-- `interaction_log` — All app interactions (JSONL files)
+## API Endpoints
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/api/words?limit=50&status=learning` | List words with knowledge state |
+| GET | `/api/words/{id}` | Word detail with review stats + root family |
+| GET | `/api/review/next?limit=10` | Due review cards (FSRS scheduling) |
+| GET | `/api/review/next-listening` | Listening-suitable review cards |
+| POST | `/api/review/submit` | Submit review rating |
+| GET | `/api/learn/next-words?count=3` | Best next words to introduce |
+| POST | `/api/learn/introduce` | Introduce a word (create FSRS card) |
+| GET | `/api/learn/root-family/{root_id}` | Words from a root with knowledge state |
+| GET | `/api/stats` | Basic stats (total, known, learning, due) |
+| GET | `/api/stats/analytics` | Full analytics (pace, CEFR estimate, history) |
+| GET | `/api/stats/cefr` | CEFR reading level estimate |
+| POST | `/api/import/duolingo` | Run Duolingo import |
+| POST | `/api/sentences/generate` | Generate sentence for a target word |
+| GET | `/api/tts/audio/{text}` | Generate TTS audio |
 
-## NLP Pipeline
+## Data Model
+- `roots` — 3/4 consonant roots with core meaning (23 roots imported)
+- `lemmas` — Base dictionary forms with root FK, POS, gloss, frequency rank (196 words)
+- `user_lemma_knowledge` — FSRS card state per lemma (knowledge_state: new/learning/known/lapsed)
+- `review_log` — Full review history (rating, timing, mode, comprehension signal)
+- `sentences` — Generated/imported sentences with target word
+- `sentence_words` — Word-level breakdown of sentences
+- `interaction_log` — All app interactions (JSONL files in `backend/data/logs/`)
+
+## NLP Pipeline (planned)
 1. Input word → CAMeL Tools `analyze_word()` → multiple analyses
 2. In sentence context → CAMeL Tools MLE disambiguator → best analysis
 3. Extract: lemma (diacritized), root, POS, morphological features
 4. For sentence validation: tokenize → lemmatize each word → check against known-lemma set
 
+Currently using a stub morphology service. CAMeL Tools integration is the next major step.
+
+## Testing
+```bash
+cd backend && python -m pytest  # 188 tests, ~3s
+```
+All services have dedicated test files in `backend/tests/`.
+
 ## Current Phase
-Phase 0: NLP pipeline validation + Duolingo import + simple web preview
+Phase 0 complete. Working MVP with:
+- 196 Duolingo words imported with root families
+- FSRS spaced repetition with reading + listening review modes
+- Word selection algorithm for learning new words
+- LLM sentence generation + validation (needs API keys)
+- Full analytics (CEFR estimate, learning pace, streak tracking)
+- Expo web frontend connected to real backend API
+
+Next: CAMeL Tools integration, real TTS audio, deploy to Hetzner
