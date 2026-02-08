@@ -321,15 +321,10 @@ def build_session(
     # 4. Order: easy bookends, hard in middle
     ordered = _order_session(selected, stability_map)
 
-    # Build response items + update last shown
+    # Build response items (shown_at is set on review submission, not here)
     items: list[dict] = []
     for cand in ordered:
         sent = sentence_map[cand.sentence_id]
-        if mode == "listening":
-            sent.last_listening_shown_at = now
-        else:
-            sent.last_reading_shown_at = now
-        sent.times_shown = (sent.times_shown or 0) + 1
 
         primary_lid = sent.target_lemma_id
         if primary_lid not in due_lemma_ids and cand.due_words_covered:
