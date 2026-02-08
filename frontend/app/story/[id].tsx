@@ -168,32 +168,38 @@ export default function StoryReadScreen() {
         {viewMode === "arabic" ? (
           <View style={styles.arabicContainer}>
             {sentences.map((sentenceWords, si) => (
-              <Text key={si} style={styles.sentenceBlock}>
-                {sentenceWords.map((word, wi) => {
+              <View key={si} style={styles.sentenceRow}>
+                {sentenceWords.map((word) => {
                   const tappable =
                     !word.is_function_word && word.lemma_id != null;
                   const isLookedUp = lookedUp.has(word.position);
                   const isSelected = selectedPosition === word.position;
 
-                  return (
-                    <Text key={word.position}>
-                      {wi > 0 && " "}
+                  return tappable ? (
+                    <Pressable
+                      key={word.position}
+                      onPress={() => handleWordTap(word)}
+                      style={styles.wordTouchTarget}
+                    >
                       <Text
-                        onPress={tappable ? () => handleWordTap(word) : undefined}
                         style={[
                           styles.storyWord,
-                          tappable && styles.tappableWord,
                           isLookedUp && styles.lookedUpWord,
                           isSelected && styles.selectedWord,
                         ]}
                       >
                         {word.surface_form}
                       </Text>
-                    </Text>
+                    </Pressable>
+                  ) : (
+                    <View key={word.position} style={styles.wordTouchTarget}>
+                      <Text style={styles.storyWord}>
+                        {word.surface_form}
+                      </Text>
+                    </View>
                   );
                 })}
-                {"  "}
-              </Text>
+              </View>
             ))}
           </View>
         ) : (
@@ -327,20 +333,22 @@ const styles = StyleSheet.create({
     paddingBottom: 40,
   },
   arabicContainer: {
-    alignItems: "flex-end",
+    gap: 16,
   },
-  sentenceBlock: {
-    fontSize: 28,
-    color: colors.arabic,
-    writingDirection: "rtl",
-    textAlign: "right",
-    lineHeight: 52,
+  sentenceRow: {
+    flexDirection: "row-reverse",
+    flexWrap: "wrap",
+    gap: 6,
+    rowGap: 10,
+  },
+  wordTouchTarget: {
+    paddingVertical: 4,
+    paddingHorizontal: 2,
   },
   storyWord: {
+    fontSize: 28,
+    lineHeight: 40,
     color: colors.arabic,
-  },
-  tappableWord: {
-    // no visual difference until tapped
   },
   lookedUpWord: {
     color: colors.missed,

@@ -81,6 +81,11 @@ def introduce(
             )
             result["sentences_generating"] = needed
 
+        # Generate word-level TTS audio if not cached
+        lemma = db.query(Lemma).filter(Lemma.lemma_id == req.lemma_id).first()
+        if lemma and not lemma.audio_url:
+            background_tasks.add_task(_generate_word_audio, req.lemma_id)
+
     return result
 
 
@@ -200,8 +205,11 @@ def get_lemma_sentence(lemma_id: int, db: Session = Depends(get_db)):
     lemmas = db.query(Lemma).filter(Lemma.lemma_id.in_(lemma_ids)).all() if lemma_ids else []
     lemma_map = {l.lemma_id: l for l in lemmas}
 
+    target_lemma = db.query(Lemma).filter(Lemma.lemma_id == lemma_id).first()
+
     return {
         "ready": True,
+        "word_audio_url": target_lemma.audio_url if target_lemma else None,
         "sentence": {
             "sentence_id": sentence.id,
             "arabic_text": sentence.arabic_diacritized or sentence.arabic_text,
@@ -323,6 +331,47 @@ def _generate_material_for_word(lemma_id: int, needed: int) -> None:
 
     except Exception:
         logger.exception(f"Error generating material for lemma {lemma_id}")
+    finally:
+        db.close()
+
+
+def _generate_word_audio(lemma_id: int) -> None:
+    """Background task: generate TTS audio for the word itself."""
+    import asyncio
+    from app.services.tts import (
+        DEFAULT_VOICE_ID,
+        TTSError,
+        TTSKeyMissing,
+        cache_key_for,
+        generate_and_cache,
+        get_cached_path,
+    )
+
+    db = SessionLocal()
+    try:
+        lemma = db.query(Lemma).filter(Lemma.lemma_id == lemma_id).first()
+        if not lemma or lemma.audio_url:
+            return
+
+        key = cache_key_for(lemma.lemma_ar, DEFAULT_VOICE_ID)
+        if get_cached_path(key):
+            lemma.audio_url = f"/api/tts/audio/{key}.mp3"
+            db.commit()
+            return
+
+        loop = asyncio.new_event_loop()
+        try:
+            loop.run_until_complete(
+                generate_and_cache(lemma.lemma_ar, DEFAULT_VOICE_ID, cache_key=key)
+            )
+            lemma.audio_url = f"/api/tts/audio/{key}.mp3"
+            db.commit()
+        except (TTSError, TTSKeyMissing):
+            logger.warning(f"TTS failed for word {lemma_id}")
+        finally:
+            loop.close()
+    except Exception:
+        logger.exception(f"Error generating word audio for lemma {lemma_id}")
     finally:
         db.close()
 

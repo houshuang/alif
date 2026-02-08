@@ -1,21 +1,122 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import {
   View,
   Text,
   Pressable,
   StyleSheet,
   ActivityIndicator,
+  Animated,
 } from "react-native";
+import { Audio } from "expo-av";
 import { colors, fonts } from "../lib/theme";
 import {
+  BASE_URL,
   getNextWords,
   introduceWord,
   suspendWord,
   getLemmaSentence,
   submitSentenceReview,
+  getAnalytics,
   generateUuid,
 } from "../lib/api";
-import { LearnCandidate } from "../lib/types";
+import { LearnCandidate, WordForms, Analytics } from "../lib/types";
+
+function posLabel(pos: string | null, forms: WordForms | null): string {
+  const p = (pos || "").toLowerCase();
+  const parts: string[] = [];
+
+  if (p === "noun") {
+    parts.push("noun");
+    if (forms?.gender === "m") parts[0] += " (m)";
+    else if (forms?.gender === "f") parts[0] += " (f)";
+  } else if (p === "verb") {
+    parts.push("verb");
+    if (forms?.verb_form && forms.verb_form !== "I") {
+      parts[0] += `, Form ${forms.verb_form}`;
+    }
+  } else if (p === "adj" || p === "adjective") {
+    parts.push("adjective");
+  } else if (p) {
+    parts.push(p);
+  }
+
+  return parts.join(" ");
+}
+
+function FormsRow({ pos, forms }: { pos: string | null; forms: WordForms | null }) {
+  if (!forms) return null;
+  const p = (pos || "").toLowerCase();
+  const items: { label: string; value: string }[] = [];
+
+  if (p === "noun" || p === "") {
+    if (forms.plural) items.push({ label: "pl.", value: forms.plural });
+  } else if (p === "verb") {
+    if (forms.present) items.push({ label: "pres.", value: forms.present });
+    if (forms.masdar) items.push({ label: "masdar", value: forms.masdar });
+  } else if (p === "adj" || p === "adjective") {
+    if (forms.feminine) items.push({ label: "fem.", value: forms.feminine });
+    if (forms.plural) items.push({ label: "pl.", value: forms.plural });
+  }
+
+  if (items.length === 0) return null;
+
+  return (
+    <View style={styles.formsRow}>
+      {items.map((item, i) => (
+        <Text key={i} style={styles.formItem}>
+          <Text style={styles.formLabel}>{item.label} </Text>
+          <Text style={styles.formValue}>{item.value}</Text>
+        </Text>
+      ))}
+    </View>
+  );
+}
+
+function PlayButton({ audioUrl, word }: { audioUrl: string | null; word: string }) {
+  const [playing, setPlaying] = useState(false);
+  const soundRef = useRef<Audio.Sound | null>(null);
+
+  const play = useCallback(async () => {
+    if (playing) return;
+    setPlaying(true);
+    try {
+      // Use word audio if available, otherwise use TTS endpoint
+      const url = audioUrl
+        ? `${BASE_URL}${audioUrl}`
+        : `${BASE_URL}/api/tts/audio/${encodeURIComponent(word)}`;
+
+      if (soundRef.current) {
+        await soundRef.current.unloadAsync();
+      }
+      const { sound } = await Audio.Sound.createAsync(
+        { uri: url },
+        { shouldPlay: true }
+      );
+      soundRef.current = sound;
+      sound.setOnPlaybackStatusUpdate((status) => {
+        if (status.isLoaded && status.didJustFinish) {
+          setPlaying(false);
+        }
+      });
+    } catch {
+      setPlaying(false);
+    }
+  }, [audioUrl, word, playing]);
+
+  useEffect(() => {
+    return () => {
+      soundRef.current?.unloadAsync();
+    };
+  }, []);
+
+  return (
+    <Pressable style={styles.playButton} onPress={play} disabled={playing}>
+      <Text style={[styles.playIcon, playing && { opacity: 0.5 }]}>
+        {playing ? "\u23F8" : "\u25B6"}
+      </Text>
+    </Pressable>
+  );
+}
 
 type Phase = "loading" | "pick" | "quiz" | "done";
 
@@ -234,12 +335,18 @@ export default function LearnScreen() {
         </View>
 
         <View style={styles.card}>
-          <Text style={styles.wordArabic}>{c.lemma_ar}</Text>
+          <View style={styles.wordHeader}>
+            <Text style={styles.wordArabic}>{c.lemma_ar}</Text>
+            <PlayButton audioUrl={c.audio_url} word={c.lemma_ar} />
+          </View>
           <Text style={styles.wordEnglish}>{c.gloss_en}</Text>
           {c.transliteration && (
             <Text style={styles.wordTranslit}>{c.transliteration}</Text>
           )}
-          <Text style={styles.wordPos}>{c.pos}</Text>
+          <Text style={styles.wordPos}>
+            {posLabel(c.pos, c.forms_json)}
+          </Text>
+          <FormsRow pos={c.pos} forms={c.forms_json} />
 
           {c.root && (
             <View style={styles.rootInfo}>
@@ -416,32 +523,153 @@ export default function LearnScreen() {
   // --- Done Phase ---
   const correct = quizResults.filter(Boolean).length;
   return (
+    <LearnDoneScreen
+      introduced={introduced}
+      correct={correct}
+      quizTotal={quizResults.length}
+      onReset={resetSession}
+    />
+  );
+}
+
+function LearnSparkle({ count = 6 }: { count?: number }) {
+  const anims = useRef(
+    Array.from({ length: count }, () => ({
+      opacity: new Animated.Value(0),
+      translateY: new Animated.Value(0),
+      scale: new Animated.Value(0.5),
+    }))
+  ).current;
+
+  useEffect(() => {
+    const animations = anims.map((a, i) =>
+      Animated.sequence([
+        Animated.delay(i * 80),
+        Animated.parallel([
+          Animated.timing(a.opacity, { toValue: 1, duration: 300, useNativeDriver: true }),
+          Animated.timing(a.scale, { toValue: 1.3, duration: 300, useNativeDriver: true }),
+          Animated.timing(a.translateY, { toValue: -(15 + Math.random() * 25), duration: 600, useNativeDriver: true }),
+        ]),
+        Animated.parallel([
+          Animated.timing(a.opacity, { toValue: 0, duration: 400, useNativeDriver: true }),
+          Animated.timing(a.scale, { toValue: 0.6, duration: 400, useNativeDriver: true }),
+        ]),
+      ])
+    );
+    Animated.parallel(animations).start();
+  }, []);
+
+  const chars = ["\u2728", "\u2B50", "\u2728", "\u2B50"];
+
+  return (
+    <View style={styles.sparkleContainer}>
+      {anims.map((a, i) => {
+        const angle = (i / count) * 2 * Math.PI;
+        const radius = 30 + (i % 3) * 8;
+        const left = 40 + Math.cos(angle) * radius;
+        const top = 40 + Math.sin(angle) * radius;
+        return (
+          <Animated.Text
+            key={i}
+            style={{
+              position: "absolute",
+              left,
+              top,
+              fontSize: 11 + (i % 3) * 3,
+              opacity: a.opacity,
+              transform: [{ translateY: a.translateY }, { scale: a.scale }],
+            }}
+          >
+            {chars[i % chars.length]}
+          </Animated.Text>
+        );
+      })}
+    </View>
+  );
+}
+
+function LearnDoneScreen({
+  introduced,
+  correct,
+  quizTotal,
+  onReset,
+}: {
+  introduced: IntroducedWord[];
+  correct: number;
+  quizTotal: number;
+  onReset: () => void;
+}) {
+  const [analytics, setAnalytics] = useState<Analytics | null>(null);
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    getAnalytics()
+      .then((data) => {
+        setAnalytics(data);
+        Animated.timing(fadeAnim, {
+          toValue: 1,
+          duration: 400,
+          useNativeDriver: true,
+        }).start();
+      })
+      .catch(() => {});
+  }, []);
+
+  return (
     <View style={styles.centered}>
-      <Text style={styles.doneTitle}>Session Complete</Text>
+      {introduced.length > 0 && (
+        <View style={styles.doneCelebration}>
+          <LearnSparkle />
+          <Text style={styles.doneCelebrationIcon}>{"\u2728"}</Text>
+        </View>
+      )}
+
+      <Text style={styles.doneTitle}>
+        {introduced.length > 0 ? "Words Learned!" : "Session Complete"}
+      </Text>
+
       {introduced.length > 0 ? (
         <>
           <Text style={styles.doneSubtitle}>
             {introduced.length} new word{introduced.length !== 1 ? "s" : ""}{" "}
             learned
           </Text>
-          {quizResults.length > 0 && (
+          {quizTotal > 0 && (
             <View style={styles.doneStats}>
               <Text style={[styles.doneStat, { color: colors.good }]}>
                 Got it: {correct}
               </Text>
               <Text style={[styles.doneStat, { color: colors.missed }]}>
-                Missed: {quizResults.length - correct}
+                Missed: {quizTotal - correct}
               </Text>
             </View>
           )}
-          <Text style={styles.doneNote}>
-            These words will now appear in your review sessions.
-          </Text>
         </>
       ) : (
         <Text style={styles.doneSubtitle}>No words learned this session</Text>
       )}
-      <Pressable style={styles.primaryButton} onPress={resetSession}>
+
+      {analytics && (
+        <Animated.View style={[styles.doneProgress, { opacity: fadeAnim }]}>
+          <Text style={styles.doneProgressTotal}>
+            {analytics.cefr.known_words} words known
+          </Text>
+          <Text style={styles.doneProgressLevel}>
+            {analytics.cefr.sublevel} reading level
+          </Text>
+          {analytics.cefr.words_to_next !== null && analytics.cefr.words_to_next <= 30 && (
+            <Text style={styles.doneProgressNext}>
+              {analytics.cefr.words_to_next} words to {analytics.cefr.next_level}
+            </Text>
+          )}
+        </Animated.View>
+      )}
+
+      <Text style={styles.doneNote}>
+        These words will now appear in your review sessions.
+      </Text>
+
+      <Pressable style={styles.primaryButton} onPress={onReset}>
         <Text style={styles.primaryButtonText}>Learn More Words</Text>
       </Pressable>
     </View>
@@ -515,12 +743,17 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginBottom: 24,
   },
+  wordHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    marginBottom: 12,
+  },
   wordArabic: {
     fontSize: 44,
     color: colors.arabic,
     fontWeight: "700",
     writingDirection: "rtl",
-    marginBottom: 12,
   },
   wordEnglish: {
     fontSize: 22,
@@ -538,7 +771,38 @@ const styles = StyleSheet.create({
   wordPos: {
     fontSize: 13,
     color: colors.textSecondary,
+    marginBottom: 8,
+  },
+  formsRow: {
+    flexDirection: "row",
+    gap: 16,
     marginBottom: 12,
+    flexWrap: "wrap",
+    justifyContent: "center",
+  },
+  formItem: {
+    fontSize: 18,
+  },
+  formLabel: {
+    color: colors.textSecondary,
+    fontSize: 13,
+  },
+  formValue: {
+    color: colors.arabic,
+    fontSize: 18,
+    writingDirection: "rtl",
+  },
+  playButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: colors.surfaceLight,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  playIcon: {
+    fontSize: 18,
+    color: colors.accent,
   },
   rootInfo: {
     borderTopWidth: 1,
@@ -707,5 +971,45 @@ const styles = StyleSheet.create({
     maxWidth: 300,
     marginBottom: 24,
     lineHeight: 20,
+  },
+  sparkleContainer: {
+    width: 80,
+    height: 80,
+    position: "absolute",
+  },
+  doneCelebration: {
+    width: 80,
+    height: 80,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 8,
+  },
+  doneCelebrationIcon: {
+    fontSize: 40,
+  },
+  doneProgress: {
+    backgroundColor: colors.surface,
+    borderRadius: 12,
+    padding: 16,
+    alignItems: "center",
+    marginBottom: 16,
+    width: "100%",
+    maxWidth: 300,
+  },
+  doneProgressTotal: {
+    fontSize: 18,
+    color: colors.text,
+    fontWeight: "700",
+  },
+  doneProgressLevel: {
+    fontSize: 14,
+    color: colors.accent,
+    fontWeight: "600",
+    marginTop: 2,
+  },
+  doneProgressNext: {
+    fontSize: 13,
+    color: colors.textSecondary,
+    marginTop: 4,
   },
 });

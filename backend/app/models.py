@@ -33,6 +33,7 @@ class Lemma(Base):
     audio_url = Column(Text)
 
     grammar_features_json = Column(JSON, nullable=True)
+    forms_json = Column(JSON, nullable=True)
 
     root = relationship("Root", back_populates="lemmas")
     knowledge = relationship("UserLemmaKnowledge", back_populates="lemma", uselist=False)

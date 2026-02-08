@@ -107,6 +107,17 @@ export interface CEFREstimate {
   reading_coverage_pct: number;
 }
 
+export interface WordForms {
+  gender?: string;
+  plural?: string;
+  present?: string;
+  masdar?: string;
+  active_participle?: string;
+  verb_form?: string;
+  feminine?: string;
+  elative?: string;
+}
+
 export interface LearnCandidate {
   lemma_id: number;
   lemma_ar: string;
@@ -118,6 +129,8 @@ export interface LearnCandidate {
   root: string | null;
   root_meaning: string | null;
   root_id: number | null;
+  forms_json: WordForms | null;
+  audio_url: string | null;
   score: number;
   score_breakdown: {
     frequency: number;

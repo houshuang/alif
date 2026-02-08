@@ -196,6 +196,8 @@ def select_next_words(
             "root_id": lemma.root_id,
             "root": lemma.root.root if lemma.root else None,
             "root_meaning": lemma.root.core_meaning_en if lemma.root else None,
+            "forms_json": lemma.forms_json,
+            "audio_url": lemma.audio_url,
             "score": round(total_score, 3),
             "score_breakdown": {
                 "frequency": round(freq_score, 3),
