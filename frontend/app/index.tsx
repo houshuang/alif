@@ -42,6 +42,7 @@ function stripDiacritics(s: string): string {
   return s.replace(/[\u0610-\u065f\u0670\u06D6-\u06ED]/g, "");
 }
 
+
 function isTargetWordIndex(word: string, bareWord: string): boolean {
   const wordBare = stripDiacritics(word);
   const alPrefix = "\u0627\u0644";
@@ -52,8 +53,12 @@ function isTargetWordIndex(word: string, bareWord: string): boolean {
   );
 }
 
-export default function ReviewScreen() {
-  const [mode, setMode] = useState<ReviewMode>("reading");
+export default function ReadingScreen() {
+  return <ReviewScreen fixedMode="reading" />;
+}
+
+export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
+  const mode = fixedMode;
   // Sentence-first session (preferred)
   const [sentenceSession, setSentenceSession] =
     useState<SentenceReviewSession | null>(null);
@@ -109,7 +114,7 @@ export default function ReviewScreen() {
     }
   }
 
-  async function playTtsAudio() {
+  async function playTtsAudio(slow = false) {
     setAudioPlaying(true);
     await cleanupSound();
 
@@ -134,6 +139,9 @@ export default function ReviewScreen() {
         uri: audioUri,
       });
       soundRef.current = sound;
+      if (slow) {
+        await sound.setRateAsync(0.6, true);
+      }
       sound.setOnPlaybackStatusUpdate((status) => {
         if (status.isLoaded && status.didJustFinish) {
           setAudioPlaying(false);
@@ -184,11 +192,6 @@ export default function ReviewScreen() {
     } finally {
       setLoading(false);
     }
-  }
-
-  function switchMode(newMode: ReviewMode) {
-    setMode(newMode);
-    loadSession(newMode);
   }
 
   const toggleMissed = useCallback((index: number) => {
@@ -336,7 +339,7 @@ export default function ReviewScreen() {
   if (totalCards === 0) {
     return (
       <View style={styles.container}>
-        <ModeToggle mode={mode} onSwitch={switchMode} />
+
         <Text style={styles.emptyText}>
           {mode === "listening"
             ? "No sentences ready for listening practice"
@@ -396,7 +399,7 @@ export default function ReviewScreen() {
   if (showingIntro) {
     return (
       <View style={styles.container}>
-        <ModeToggle mode={mode} onSwitch={switchMode} />
+
         <ProgressBar current={cardIndex + 1} total={totalCards} mode={mode} />
         <InlineIntroCard
           candidate={showingIntro}
@@ -423,7 +426,7 @@ export default function ReviewScreen() {
       <View
         style={[styles.container, isListening && styles.listeningContainer]}
       >
-        <ModeToggle mode={mode} onSwitch={switchMode} />
+
         <ProgressBar current={cardIndex + 1} total={totalCards} mode={mode} />
 
         <View style={[styles.card, isListening && styles.listeningCard]}>
@@ -437,6 +440,8 @@ export default function ReviewScreen() {
               }
               isListening={isListening}
               audioPlaying={audioPlaying}
+              onReplay={() => playTtsAudio()}
+              onReplaySlow={() => playTtsAudio(true)}
             />
           ) : isListening ? (
             <SentenceListeningCard
@@ -445,6 +450,8 @@ export default function ReviewScreen() {
               missedIndices={missedIndices}
               onToggleMissed={toggleMissed}
               audioPlaying={audioPlaying}
+              onReplay={() => playTtsAudio()}
+              onReplaySlow={() => playTtsAudio(true)}
             />
           ) : (
             <SentenceReadingCard
@@ -482,7 +489,8 @@ export default function ReviewScreen() {
 
   return (
     <View style={[styles.container, isListening && styles.listeningContainer]}>
-      <ModeToggle mode={mode} onSwitch={switchMode} />
+
+
       <ProgressBar current={cardIndex + 1} total={totalCards} mode={mode} />
 
       <View style={[styles.card, isListening && styles.listeningCard]}>
@@ -493,6 +501,8 @@ export default function ReviewScreen() {
             missedIndices={missedIndices}
             onToggleMissed={toggleMissed}
             audioPlaying={audioPlaying}
+            onReplay={() => playTtsAudio()}
+            onReplaySlow={() => playTtsAudio(true)}
           />
         ) : hasSentence ? (
           <LegacySentenceCard
@@ -529,52 +539,6 @@ export default function ReviewScreen() {
   );
 }
 
-// --- Mode Toggle ---
-
-function ModeToggle({
-  mode,
-  onSwitch,
-}: {
-  mode: ReviewMode;
-  onSwitch: (m: ReviewMode) => void;
-}) {
-  return (
-    <View style={styles.modeToggle}>
-      <Pressable
-        style={[
-          styles.modeButton,
-          mode === "reading" && styles.modeButtonActive,
-        ]}
-        onPress={() => onSwitch("reading")}
-      >
-        <Text
-          style={[
-            styles.modeButtonText,
-            mode === "reading" && styles.modeButtonTextActive,
-          ]}
-        >
-          Reading
-        </Text>
-      </Pressable>
-      <Pressable
-        style={[
-          styles.modeButton,
-          mode === "listening" && styles.modeButtonActiveListening,
-        ]}
-        onPress={() => onSwitch("listening")}
-      >
-        <Text
-          style={[
-            styles.modeButtonText,
-            mode === "listening" && styles.modeButtonTextActive,
-          ]}
-        >
-          Listening
-        </Text>
-      </Pressable>
-    </View>
-  );
-}
 
 // --- Sentence-First Cards ---
 
@@ -589,26 +553,20 @@ function SentenceReadingCard({
   missedIndices: Set<number>;
   onToggleMissed: (index: number) => void;
 }) {
-  const arabicText = item.arabic_diacritized ?? item.arabic_text;
-
   return (
     <>
       <Text style={styles.sentenceArabic}>
         {item.words.map((word, i) => {
           const isMissed = cardState === "back" && missedIndices.has(i);
-          const isPrimary = word.lemma_id === item.primary_lemma_id;
-
-          const wordStyle = isMissed
-            ? styles.missedWord
-            : isPrimary
-            ? styles.targetWord
-            : undefined;
 
           if (cardState === "back") {
             return (
               <Text key={`t-${i}`}>
                 {i > 0 && " "}
-                <Text onPress={() => onToggleMissed(i)} style={wordStyle}>
+                <Text
+                  onPress={() => onToggleMissed(i)}
+                  style={isMissed ? styles.missedWord : undefined}
+                >
                   {word.surface_form}
                 </Text>
               </Text>
@@ -618,7 +576,7 @@ function SentenceReadingCard({
           return (
             <Text key={`t-${i}`}>
               {i > 0 && " "}
-              <Text style={wordStyle}>{word.surface_form}</Text>
+              <Text>{word.surface_form}</Text>
             </Text>
           );
         })}
@@ -626,6 +584,9 @@ function SentenceReadingCard({
 
       {cardState === "back" && (
         <View style={styles.answerSection}>
+          {missedIndices.size === 0 && (
+            <Text style={styles.tapHint}>Tap any word you didn't know</Text>
+          )}
           <View style={styles.divider} />
           <Text style={styles.sentenceEnglish}>
             {item.english_translation}
@@ -635,17 +596,40 @@ function SentenceReadingCard({
               {item.transliteration}
             </Text>
           )}
-          <View style={styles.targetWordBox}>
-            <Text style={styles.targetWordArabic}>
-              {item.primary_lemma_ar}
-            </Text>
-            <Text style={styles.targetWordGloss}>
-              {item.primary_gloss_en}
-            </Text>
-          </View>
         </View>
       )}
     </>
+  );
+}
+
+function AudioControls({
+  audioPlaying,
+  onReplay,
+  onReplaySlow,
+}: {
+  audioPlaying: boolean;
+  onReplay: () => void;
+  onReplaySlow: () => void;
+}) {
+  return (
+    <View style={styles.audioControls}>
+      <Pressable
+        style={[styles.audioControlButton, audioPlaying && styles.audioControlDisabled]}
+        onPress={onReplay}
+        disabled={audioPlaying}
+      >
+        <Text style={styles.audioControlIcon}>{"\u{1F501}"}</Text>
+        <Text style={styles.audioControlLabel}>Replay</Text>
+      </Pressable>
+      <Pressable
+        style={[styles.audioControlButton, audioPlaying && styles.audioControlDisabled]}
+        onPress={onReplaySlow}
+        disabled={audioPlaying}
+      >
+        <Text style={styles.audioControlIcon}>{"\u{1F422}"}</Text>
+        <Text style={styles.audioControlLabel}>Slow</Text>
+      </Pressable>
+    </View>
   );
 }
 
@@ -655,12 +639,16 @@ function SentenceListeningCard({
   missedIndices,
   onToggleMissed,
   audioPlaying,
+  onReplay,
+  onReplaySlow,
 }: {
   item: SentenceReviewItem;
   cardState: ListeningCardState;
   missedIndices: Set<number>;
   onToggleMissed: (index: number) => void;
   audioPlaying: boolean;
+  onReplay: () => void;
+  onReplaySlow: () => void;
 }) {
   if (cardState === "audio") {
     return (
@@ -671,6 +659,7 @@ function SentenceListeningCard({
         <Text style={styles.listeningHint}>
           {audioPlaying ? "Listening..." : "Audio finished \u2014 tap to reveal"}
         </Text>
+        <AudioControls audioPlaying={audioPlaying} onReplay={onReplay} onReplaySlow={onReplaySlow} />
       </View>
     );
   }
@@ -682,24 +671,22 @@ function SentenceListeningCard({
       <Text style={styles.sentenceArabic}>
         {item.words.map((word, i) => {
           const isMissed = missedIndices.has(i);
-          const isPrimary = word.lemma_id === item.primary_lemma_id;
-
-          const wordStyle = isMissed
-            ? styles.missedWord
-            : showAnswer && isPrimary
-            ? styles.targetWord
-            : undefined;
 
           return (
             <Text key={`t-${i}`}>
               {i > 0 && " "}
-              <Text onPress={() => onToggleMissed(i)} style={wordStyle}>
+              <Text
+                onPress={() => onToggleMissed(i)}
+                style={isMissed ? styles.missedWord : undefined}
+              >
                 {word.surface_form}
               </Text>
             </Text>
           );
         })}
       </Text>
+
+      <AudioControls audioPlaying={audioPlaying} onReplay={onReplay} onReplaySlow={onReplaySlow} />
 
       {showAnswer && (
         <View style={styles.answerSection}>
@@ -712,14 +699,6 @@ function SentenceListeningCard({
               {item.transliteration}
             </Text>
           )}
-          <View style={styles.targetWordBox}>
-            <Text style={styles.targetWordArabic}>
-              {item.primary_lemma_ar}
-            </Text>
-            <Text style={styles.targetWordGloss}>
-              {item.primary_gloss_en}
-            </Text>
-          </View>
         </View>
       )}
 
@@ -737,11 +716,15 @@ function WordOnlySentenceCard({
   cardState,
   isListening,
   audioPlaying,
+  onReplay,
+  onReplaySlow,
 }: {
   item: SentenceReviewItem;
   cardState: CardState;
   isListening: boolean;
   audioPlaying: boolean;
+  onReplay: () => void;
+  onReplaySlow: () => void;
 }) {
   if (isListening && cardState === "audio") {
     return (
@@ -752,6 +735,7 @@ function WordOnlySentenceCard({
         <Text style={styles.listeningHint}>
           {audioPlaying ? "Listening..." : "Audio finished \u2014 tap to reveal"}
         </Text>
+        <AudioControls audioPlaying={audioPlaying} onReplay={onReplay} onReplaySlow={onReplaySlow} />
       </View>
     );
   }
@@ -784,12 +768,16 @@ function LegacyListeningCard({
   missedIndices,
   onToggleMissed,
   audioPlaying,
+  onReplay,
+  onReplaySlow,
 }: {
   card: ReviewCard;
   cardState: ListeningCardState;
   missedIndices: Set<number>;
   onToggleMissed: (index: number) => void;
   audioPlaying: boolean;
+  onReplay: () => void;
+  onReplaySlow: () => void;
 }) {
   const sentence = card.sentence!;
 
@@ -802,6 +790,7 @@ function LegacyListeningCard({
         <Text style={styles.listeningHint}>
           {audioPlaying ? "Listening..." : "Audio finished \u2014 tap to reveal"}
         </Text>
+        <AudioControls audioPlaying={audioPlaying} onReplay={onReplay} onReplaySlow={onReplaySlow} />
       </View>
     );
   }
@@ -813,19 +802,15 @@ function LegacyListeningCard({
     <>
       <Text style={styles.sentenceArabic}>
         {words.map((word, i) => {
-          const isTarget = isTargetWordIndex(word, card.lemma_ar_bare);
           const isMissed = missedIndices.has(i);
-
-          const wordStyle = isMissed
-            ? styles.missedWord
-            : showAnswer && isTarget
-            ? styles.targetWord
-            : undefined;
 
           return (
             <Text key={`t-${i}`}>
               {i > 0 && " "}
-              <Text onPress={() => onToggleMissed(i)} style={wordStyle}>
+              <Text
+                onPress={() => onToggleMissed(i)}
+                style={isMissed ? styles.missedWord : undefined}
+              >
                 {word}
               </Text>
             </Text>
@@ -840,17 +825,6 @@ function LegacyListeningCard({
           <Text style={styles.sentenceTranslit}>
             {sentence.transliteration}
           </Text>
-
-          <View style={styles.targetWordBox}>
-            <Text style={styles.targetWordArabic}>{card.lemma_ar}</Text>
-            <Text style={styles.targetWordGloss}>{card.gloss_en}</Text>
-            <View style={styles.targetWordMeta}>
-              {card.root && (
-                <Text style={styles.metaText}>{card.root}</Text>
-              )}
-              <Text style={styles.metaText}>{card.pos}</Text>
-            </View>
-          </View>
         </View>
       )}
 
@@ -881,20 +855,16 @@ function LegacySentenceCard({
     <>
       <Text style={styles.sentenceArabic}>
         {words.map((word, i) => {
-          const isTarget = isTargetWordIndex(word, card.lemma_ar_bare);
           const isMissed = cardState === "back" && missedIndices.has(i);
-
-          const wordStyle = isMissed
-            ? styles.missedWord
-            : isTarget
-            ? styles.targetWord
-            : undefined;
 
           if (cardState === "back") {
             return (
               <Text key={`t-${i}`}>
                 {i > 0 && " "}
-                <Text onPress={() => onToggleMissed(i)} style={wordStyle}>
+                <Text
+                  onPress={() => onToggleMissed(i)}
+                  style={isMissed ? styles.missedWord : undefined}
+                >
                   {word}
                 </Text>
               </Text>
@@ -904,7 +874,7 @@ function LegacySentenceCard({
           return (
             <Text key={`t-${i}`}>
               {i > 0 && " "}
-              <Text style={wordStyle}>{word}</Text>
+              <Text>{word}</Text>
             </Text>
           );
         })}
@@ -917,17 +887,6 @@ function LegacySentenceCard({
           <Text style={styles.sentenceTranslit}>
             {sentence.transliteration}
           </Text>
-
-          <View style={styles.targetWordBox}>
-            <Text style={styles.targetWordArabic}>{card.lemma_ar}</Text>
-            <Text style={styles.targetWordGloss}>{card.gloss_en}</Text>
-            <View style={styles.targetWordMeta}>
-              {card.root && (
-                <Text style={styles.metaText}>{card.root}</Text>
-              )}
-              <Text style={styles.metaText}>{card.pos}</Text>
-            </View>
-          </View>
         </View>
       )}
     </>
@@ -950,12 +909,6 @@ function LegacyWordOnlyCard({
         <View style={styles.answerSection}>
           <View style={styles.divider} />
           <Text style={styles.wordOnlyGloss}>{card.gloss_en}</Text>
-          <View style={styles.targetWordMeta}>
-            {card.root && (
-              <Text style={styles.metaText}>{card.root}</Text>
-            )}
-            <Text style={styles.metaText}>{card.pos}</Text>
-          </View>
         </View>
       )}
     </>
@@ -1197,32 +1150,6 @@ const styles = StyleSheet.create({
     borderColor: colors.listening + "40",
   },
 
-  modeToggle: {
-    flexDirection: "row",
-    backgroundColor: colors.surfaceLight,
-    borderRadius: 10,
-    padding: 3,
-    marginBottom: 16,
-  },
-  modeButton: {
-    paddingVertical: 8,
-    paddingHorizontal: 20,
-    borderRadius: 8,
-  },
-  modeButtonActive: {
-    backgroundColor: colors.accent,
-  },
-  modeButtonActiveListening: {
-    backgroundColor: colors.listening,
-  },
-  modeButtonText: {
-    color: colors.textSecondary,
-    fontSize: 14,
-    fontWeight: "600",
-  },
-  modeButtonTextActive: {
-    color: "#fff",
-  },
 
   listeningAudioState: {
     alignItems: "center",
@@ -1237,6 +1164,31 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontStyle: "italic",
   },
+  audioControls: {
+    flexDirection: "row",
+    gap: 16,
+    marginTop: 20,
+  },
+  audioControlButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 20,
+    backgroundColor: colors.surfaceLight,
+  },
+  audioControlDisabled: {
+    opacity: 0.4,
+  },
+  audioControlIcon: {
+    fontSize: 18,
+  },
+  audioControlLabel: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    fontWeight: "600",
+  },
 
   sentenceArabic: {
     fontSize: 30,
@@ -1244,11 +1196,6 @@ const styles = StyleSheet.create({
     writingDirection: "rtl",
     textAlign: "center",
     lineHeight: 50,
-  },
-  targetWord: {
-    color: colors.targetWord,
-    textDecorationLine: "underline",
-    textDecorationColor: colors.targetWord,
   },
   missedWord: {
     color: colors.missed,
@@ -1267,35 +1214,6 @@ const styles = StyleSheet.create({
     fontStyle: "italic",
     marginTop: 6,
     textAlign: "center",
-  },
-  targetWordBox: {
-    backgroundColor: colors.surfaceLight,
-    borderRadius: 12,
-    padding: 16,
-    marginTop: 20,
-    width: "100%",
-    alignItems: "center",
-  },
-  targetWordArabic: {
-    fontSize: fonts.arabicMedium,
-    color: colors.targetWord,
-    writingDirection: "rtl",
-    fontWeight: "600",
-  },
-  targetWordGloss: {
-    fontSize: 18,
-    color: colors.text,
-    fontWeight: "600",
-    marginTop: 4,
-  },
-  targetWordMeta: {
-    flexDirection: "row",
-    gap: 12,
-    marginTop: 8,
-  },
-  metaText: {
-    fontSize: 14,
-    color: colors.textSecondary,
   },
 
   wordOnlyIndicator: {
