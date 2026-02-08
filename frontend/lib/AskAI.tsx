@@ -64,10 +64,12 @@ export default function AskAI({ contextBuilder, screen }: AskAIProps) {
       const result = await askAI(question, context, screen, conversationId);
       setConversationId(result.conversation_id);
       setMessages((prev) => [...prev, { role: "assistant", content: result.answer }]);
-    } catch (e) {
+    } catch (e: any) {
+      console.error("AskAI error:", e);
+      const detail = e?.message || String(e);
       setMessages((prev) => [
         ...prev,
-        { role: "assistant", content: "Sorry, I could not get a response. Please try again." },
+        { role: "assistant", content: `Error: ${detail}` },
       ]);
     } finally {
       setLoading(false);
