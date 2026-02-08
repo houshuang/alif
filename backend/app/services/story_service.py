@@ -28,15 +28,26 @@ from app.services.sentence_validator import (
 KNOWN_SAMPLE_SIZE = 80
 
 STORY_SYSTEM_PROMPT = """\
-You are an Arabic language teacher. Write a short story in Modern Standard Arabic (MSA/fusha) \
-using ONLY the vocabulary provided below. The story should be interesting — funny, mysterious, \
-or poetic. Include full diacritics (tashkeel) on ALL Arabic words.
+You are a creative Arabic storyteller writing for language learners. Your job is to write \
+genuinely engaging mini-stories in Modern Standard Arabic (MSA/fusha) — with a real narrative \
+arc, characters, and a satisfying ending. Think micro-fiction, not practice sentences.
 
-Rules:
+CRITICAL: Write a COHESIVE STORY with a beginning, middle, and end. Every sentence must \
+connect to the previous one and advance the narrative. Do NOT write disconnected practice \
+sentences that happen to use the same words.
+
+Story quality guidelines:
+- Give the main character a name and a situation/problem
+- Build tension or curiosity — why should the reader keep reading?
+- End with a twist, punchline, resolution, or poetic moment
+- Vary sentence structure: mix short punchy sentences with longer ones
+- Use dialogue (with قال/قالت) when it serves the story
+
+Vocabulary constraint:
 - Use ONLY words from the provided vocabulary list and common function words
 - Common function words you may freely use: في، من، على، إلى، و، ب، ل، ك، هذا، هذه، \
 ذلك، تلك، هو، هي، أنا، أنت، نحن، هم، ما، لا، أن، إن، كان، كانت، ليس، هل، لم، \
-لن، قد، الذي، التي، كل، بعض، هنا، هناك، الآن، جدا، فقط، أيضا، أو، ثم، لكن
+لن، قد، الذي، التي، كل، بعض، هنا، هناك، الآن، جدا، فقط، أيضا، أو، ثم، لكن، يا
 - Do NOT invent or use Arabic content words not in the vocabulary list
 - Include full diacritics (tashkeel) on ALL Arabic words
 - Separate sentences with periods
@@ -165,16 +176,33 @@ def generate_story(
     )
 
     lo, hi = LENGTH_SENTENCES.get(length, LENGTH_SENTENCES["medium"])
-    topic_line = f"\nTOPIC: Write the story about or inspired by: {topic}" if topic else ""
+    topic_line = f"\nTOPIC/THEME: Write the story about or inspired by: {topic}" if topic else ""
 
-    prompt = f"""Write a short story ({lo}-{hi} sentences) for a {difficulty} Arabic learner.
+    # Pick a random genre to keep stories varied
+    genres = [
+        "a funny story with a punchline at the end",
+        "a mystery — something is not what it seems",
+        "a heartwarming story about an unexpected friendship",
+        "a story with an ironic twist ending",
+        "a short adventure with a moment of danger",
+        "a story where someone learns a surprising lesson",
+    ]
+    genre = random.choice(genres)
 
-VOCABULARY (use ONLY these Arabic content words, plus function words):
-{vocab_list}
+    prompt = f"""Write a cohesive mini-story ({lo}-{hi} sentences) for a {difficulty} Arabic learner.
+
+GENRE: {genre}
 {topic_line}
-IMPORTANT: Do NOT use any Arabic content words that are not in the list above.
-Make the story interesting — funny, mysterious, or poetic.
-Include full diacritics on all Arabic text.
+VOCABULARY (use ONLY these Arabic content words, plus common function words):
+{vocab_list}
+
+IMPORTANT RULES:
+- Do NOT use any Arabic content words that are not in the vocabulary list above
+- Write a REAL STORY with a narrative arc: setup → tension/development → resolution/punchline
+- Give the main character a name. Make the reader care about what happens
+- Every sentence must connect to the next — no disconnected practice sentences!
+- Include full diacritics (tashkeel) on ALL Arabic words
+- The title should hint at the story without spoiling it
 
 Respond with JSON: {{"title_ar": "...", "title_en": "...", "body_ar": "full story in Arabic with diacritics", "body_en": "English translation", "transliteration": "ALA-LC transliteration"}}"""
 
@@ -183,7 +211,8 @@ Respond with JSON: {{"title_ar": "...", "title_en": "...", "body_ar": "full stor
             prompt=prompt,
             system_prompt=STORY_SYSTEM_PROMPT,
             json_mode=True,
-            temperature=0.8,
+            temperature=0.9,
+            model_override="openai",
         )
     except AllProvidersFailed as e:
         raise ValueError(f"LLM providers unavailable: {e}") from e
