@@ -148,6 +148,9 @@ class SentenceWordMeta(BaseModel):
     stability: float | None = None
     is_due: bool = False
     is_function_word: bool = False
+    root: str | None = None
+    root_meaning: str | None = None
+    root_id: int | None = None
 
 
 class SentenceReviewItem(BaseModel):

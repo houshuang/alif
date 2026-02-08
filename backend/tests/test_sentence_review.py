@@ -172,7 +172,8 @@ class TestNoIdea:
 
 
 class TestEncounterOnly:
-    def test_word_without_card_gets_encounter(self, db_session):
+    def test_word_without_card_gets_fsrs_card(self, db_session):
+        """Words without FSRS cards get full FSRS cards when seen in a sentence."""
         _seed_word(db_session, 1, "كتاب", "book")
         _seed_word(db_session, 2, "ولد", "boy", with_card=False)
         _seed_sentence(db_session, 1, "الولد الكتاب", "boy book",
@@ -186,9 +187,11 @@ class TestEncounterOnly:
             comprehension_signal="understood",
         )
 
-        encountered = [wr for wr in result["word_results"] if wr["new_state"] == "encountered"]
-        assert len(encountered) == 1
-        assert encountered[0]["lemma_id"] == 2
+        # All words now get FSRS cards, no more "encountered" state
+        word2_result = [wr for wr in result["word_results"] if wr["lemma_id"] == 2]
+        assert len(word2_result) == 1
+        assert word2_result[0]["new_state"] in ("learning", "known")
+        assert word2_result[0]["next_due"] is not None
 
     def test_unknown_word_creates_knowledge_record(self, db_session):
         _seed_word(db_session, 1, "كتاب", "book")
@@ -213,6 +216,7 @@ class TestEncounterOnly:
         assert k is not None
         assert k.source == "encountered"
         assert k.total_encounters == 1
+        assert k.fsrs_card_json is not None
 
 
 class TestSentenceReviewLog:

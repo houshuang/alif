@@ -15,6 +15,7 @@ import {
   StoryListItem,
   StoryDetail,
   StoryLookupResult,
+  WordLookupResult,
 } from "./types";
 import { netStatus } from "./net-status";
 import {
@@ -339,4 +340,8 @@ export async function lookupStoryWord(storyId: number, lemmaId: number, position
 
 export async function getStoryReadiness(storyId: number): Promise<{ readiness_pct: number; unknown_count: number }> {
   return fetchApi(`/api/stories/${storyId}/readiness`);
+}
+
+export async function lookupReviewWord(lemmaId: number): Promise<WordLookupResult> {
+  return fetchApi<WordLookupResult>(`/api/review/word-lookup/${lemmaId}`);
 }

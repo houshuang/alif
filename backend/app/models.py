@@ -34,6 +34,8 @@ class Lemma(Base):
 
     grammar_features_json = Column(JSON, nullable=True)
     forms_json = Column(JSON, nullable=True)
+    example_ar = Column(Text, nullable=True)
+    example_en = Column(Text, nullable=True)
 
     root = relationship("Root", back_populates="lemmas")
     knowledge = relationship("UserLemmaKnowledge", back_populates="lemma", uselist=False)
@@ -94,6 +96,7 @@ class Sentence(Base):
     times_shown = Column(Integer, default=0)
     max_word_count = Column(Integer, nullable=True)
     last_shown_at = Column(DateTime, nullable=True)
+    last_comprehension = Column(String(20), nullable=True)
 
     words = relationship("SentenceWord", back_populates="sentence")
 

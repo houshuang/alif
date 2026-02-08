@@ -1,7 +1,8 @@
-from fastapi import APIRouter, Depends, Query
-from sqlalchemy.orm import Session
+from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy.orm import Session, joinedload
 
 from app.database import get_db
+from app.models import Lemma, Root, UserLemmaKnowledge
 from app.schemas import (
     BulkSyncIn,
     ReviewCardOut,
@@ -131,6 +132,51 @@ def submit_sentence(body: SentenceReviewSubmitIn, db: Session = Depends(get_db))
         words_reviewed=len(result.get("word_results", [])),
         collateral_count=len([w for w in result.get("word_results", []) if w.get("credit_type") == "collateral"]),
     )
+
+    return result
+
+
+@router.get("/word-lookup/{lemma_id}")
+def word_lookup(lemma_id: int, db: Session = Depends(get_db)):
+    """Look up a word's details during sentence review. Returns root family for known-root prediction."""
+    lemma = db.query(Lemma).options(joinedload(Lemma.root)).filter(Lemma.lemma_id == lemma_id).first()
+    if not lemma:
+        raise HTTPException(status_code=404, detail=f"Lemma {lemma_id} not found")
+
+    root_obj = lemma.root
+    result = {
+        "lemma_id": lemma.lemma_id,
+        "lemma_ar": lemma.lemma_ar,
+        "gloss_en": lemma.gloss_en,
+        "transliteration": lemma.transliteration_ala_lc,
+        "root": root_obj.root if root_obj else None,
+        "root_meaning": root_obj.core_meaning_en if root_obj else None,
+        "root_id": root_obj.root_id if root_obj else None,
+        "pos": lemma.pos,
+        "root_family": [],
+    }
+
+    if root_obj:
+        siblings = (
+            db.query(Lemma)
+            .filter(Lemma.root_id == root_obj.root_id, Lemma.lemma_id != lemma_id)
+            .all()
+        )
+        for sib in siblings:
+            sib_knowledge = (
+                db.query(UserLemmaKnowledge)
+                .filter(UserLemmaKnowledge.lemma_id == sib.lemma_id)
+                .first()
+            )
+            result["root_family"].append({
+                "lemma_id": sib.lemma_id,
+                "lemma_ar": sib.lemma_ar,
+                "gloss_en": sib.gloss_en,
+                "pos": sib.pos,
+                "state": sib_knowledge.knowledge_state if sib_knowledge else "new",
+            })
+
+    log_interaction(event="review_word_lookup", lemma_id=lemma_id)
 
     return result
 

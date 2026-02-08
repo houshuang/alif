@@ -17,6 +17,7 @@ import {
   submitSentenceReview,
   introduceWord,
   getAnalytics,
+  lookupReviewWord,
   BASE_URL,
 } from "../lib/api";
 import {
@@ -28,6 +29,7 @@ import {
   SentenceReviewSession,
   IntroCandidate,
   Analytics,
+  WordLookupResult,
 } from "../lib/types";
 import { syncEvents } from "../lib/sync-events";
 import { useNetStatus } from "../lib/net-status";
@@ -80,6 +82,9 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
   const [audioPlaying, setAudioPlaying] = useState(false);
   const [introQueue, setIntroQueue] = useState<IntroCandidate[]>([]);
   const [showingIntro, setShowingIntro] = useState<IntroCandidate | null>(null);
+  const [lookupResult, setLookupResult] = useState<WordLookupResult | null>(null);
+  const [lookupLoading, setLookupLoading] = useState(false);
+  const [lookupShowMeaning, setLookupShowMeaning] = useState(false);
   const showTime = useRef<number>(0);
   const soundRef = useRef<Audio.Sound | null>(null);
 
@@ -222,6 +227,40 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
     });
   }, []);
 
+  const handleWordLookup = useCallback(async (index: number, lemmaId: number) => {
+    // Auto-mark as missed
+    setMissedIndices((prev) => {
+      const next = new Set(prev);
+      next.add(index);
+      return next;
+    });
+    setLookupLoading(true);
+    setLookupShowMeaning(false);
+    setLookupResult(null);
+    try {
+      const result = await lookupReviewWord(lemmaId);
+      setLookupResult(result);
+      // If root has 2+ known siblings, don't show meaning yet (prediction mode)
+      const knownSiblings = result.root_family.filter(
+        (s) => s.state === "known" || s.state === "learning"
+      );
+      if (knownSiblings.length >= 2) {
+        setLookupShowMeaning(false);
+      } else {
+        setLookupShowMeaning(true);
+      }
+    } catch {
+      setLookupResult(null);
+      setLookupShowMeaning(true);
+    }
+    setLookupLoading(false);
+  }, []);
+
+  const dismissLookup = useCallback(() => {
+    setLookupResult(null);
+    setLookupShowMeaning(false);
+  }, []);
+
   function handleSentenceSubmit(signal: ComprehensionSignal) {
     if (!sentenceSession) return;
     const item = sentenceSession.items[cardIndex];
@@ -322,6 +361,8 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
       setCardState(mode === "listening" ? "audio" : "front");
       setMissedIndices(new Set());
       setAudioPlaying(false);
+      setLookupResult(null);
+      setLookupShowMeaning(false);
     }
   }
 
@@ -440,6 +481,12 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
               cardState={cardState as ReadingCardState}
               missedIndices={missedIndices}
               onToggleMissed={toggleMissed}
+              onWordLookup={handleWordLookup}
+              lookupResult={lookupResult}
+              lookupLoading={lookupLoading}
+              lookupShowMeaning={lookupShowMeaning}
+              onShowMeaning={() => setLookupShowMeaning(true)}
+              onDismissLookup={dismissLookup}
             />
           )}
         </View>
@@ -528,17 +575,29 @@ function SentenceReadingCard({
   cardState,
   missedIndices,
   onToggleMissed,
+  onWordLookup,
+  lookupResult,
+  lookupLoading,
+  lookupShowMeaning,
+  onShowMeaning,
+  onDismissLookup,
 }: {
   item: SentenceReviewItem;
   cardState: ReadingCardState;
   missedIndices: Set<number>;
   onToggleMissed: (index: number) => void;
+  onWordLookup: (index: number, lemmaId: number) => void;
+  lookupResult: WordLookupResult | null;
+  lookupLoading: boolean;
+  lookupShowMeaning: boolean;
+  onShowMeaning: () => void;
+  onDismissLookup: () => void;
 }) {
   return (
     <>
       <Text style={styles.sentenceArabic}>
         {item.words.map((word, i) => {
-          const isMissed = cardState === "back" && missedIndices.has(i);
+          const isMissed = missedIndices.has(i);
 
           if (cardState === "back") {
             return (
@@ -554,14 +613,36 @@ function SentenceReadingCard({
             );
           }
 
+          // Front phase: tap to look up (non-function words only)
+          const canTap = word.lemma_id != null && !word.is_function_word;
           return (
             <Text key={`t-${i}`}>
               {i > 0 && " "}
-              <Text>{word.surface_form}</Text>
+              <Text
+                onPress={canTap ? () => onWordLookup(i, word.lemma_id!) : undefined}
+                style={isMissed ? styles.missedWord : undefined}
+              >
+                {word.surface_form}
+              </Text>
             </Text>
           );
         })}
       </Text>
+
+      {/* Lookup panel (front phase) */}
+      {cardState === "front" && (lookupResult || lookupLoading) && (
+        <WordLookupPanel
+          result={lookupResult}
+          loading={lookupLoading}
+          showMeaning={lookupShowMeaning}
+          onShowMeaning={onShowMeaning}
+          onDismiss={onDismissLookup}
+        />
+      )}
+
+      {cardState === "front" && !lookupResult && !lookupLoading && (
+        <Text style={styles.tapHintFront}>Tap a word to look it up</Text>
+      )}
 
       {cardState === "back" && (
         <View style={styles.answerSection}>
@@ -577,9 +658,130 @@ function SentenceReadingCard({
               {item.transliteration}
             </Text>
           )}
+          <RootInfoBar words={item.words} missedIndices={missedIndices} />
         </View>
       )}
     </>
+  );
+}
+
+function WordLookupPanel({
+  result,
+  loading,
+  showMeaning,
+  onShowMeaning,
+  onDismiss,
+}: {
+  result: WordLookupResult | null;
+  loading: boolean;
+  showMeaning: boolean;
+  onShowMeaning: () => void;
+  onDismiss: () => void;
+}) {
+  if (loading) {
+    return (
+      <View style={styles.lookupPanel}>
+        <ActivityIndicator size="small" color={colors.accent} />
+      </View>
+    );
+  }
+
+  if (!result) return null;
+
+  const knownSiblings = result.root_family.filter(
+    (s) => s.state === "known" || s.state === "learning"
+  );
+  const hasPredictionMode = knownSiblings.length >= 2 && !showMeaning;
+
+  return (
+    <View style={styles.lookupPanel}>
+      {result.root && (
+        <Text style={styles.lookupRoot}>
+          Root: {result.root}
+          {result.root_meaning ? ` \u2014 ${result.root_meaning}` : ""}
+        </Text>
+      )}
+      {hasPredictionMode ? (
+        <>
+          <Text style={styles.lookupPredictionHint}>
+            You know words from this root:
+          </Text>
+          <View style={styles.lookupSiblings}>
+            {knownSiblings.slice(0, 4).map((sib) => (
+              <View key={sib.lemma_id} style={styles.lookupSiblingPill}>
+                <Text style={styles.lookupSiblingAr}>{sib.lemma_ar}</Text>
+                <Text style={styles.lookupSiblingEn}>{sib.gloss_en}</Text>
+              </View>
+            ))}
+          </View>
+          <Text style={styles.lookupPredictionPrompt}>
+            Can you guess the meaning?
+          </Text>
+          <Pressable style={styles.lookupRevealButton} onPress={onShowMeaning}>
+            <Text style={styles.lookupRevealText}>Show meaning</Text>
+          </Pressable>
+        </>
+      ) : (
+        <>
+          <Text style={styles.lookupMeaning}>
+            {result.lemma_ar} \u2014 {result.gloss_en}
+          </Text>
+          {result.transliteration && (
+            <Text style={styles.lookupTranslit}>{result.transliteration}</Text>
+          )}
+          {result.pos && (
+            <Text style={styles.lookupPos}>{result.pos}</Text>
+          )}
+          {knownSiblings.length > 0 && (
+            <View style={styles.lookupSiblings}>
+              {knownSiblings.slice(0, 3).map((sib) => (
+                <View key={sib.lemma_id} style={styles.lookupSiblingPill}>
+                  <Text style={styles.lookupSiblingAr}>{sib.lemma_ar}</Text>
+                  <Text style={styles.lookupSiblingEn}>{sib.gloss_en}</Text>
+                </View>
+              ))}
+            </View>
+          )}
+        </>
+      )}
+      <Pressable onPress={onDismiss} style={styles.lookupDismiss}>
+        <Text style={styles.lookupDismissText}>Done</Text>
+      </Pressable>
+    </View>
+  );
+}
+
+function RootInfoBar({
+  words,
+  missedIndices,
+}: {
+  words: SentenceReviewItem["words"];
+  missedIndices: Set<number>;
+}) {
+  // Show root info for missed words that have roots
+  const missedWithRoots = Array.from(missedIndices)
+    .map((i) => words[i])
+    .filter((w) => w && w.root);
+
+  if (missedWithRoots.length === 0) return null;
+
+  // Deduplicate by root
+  const seen = new Set<string>();
+  const unique = missedWithRoots.filter((w) => {
+    if (seen.has(w.root!)) return false;
+    seen.add(w.root!);
+    return true;
+  });
+
+  return (
+    <View style={styles.rootInfoBar}>
+      {unique.map((w) => (
+        <Text key={w.root} style={styles.rootInfoText}>
+          {w.surface_form}: root {w.root}
+          {w.root_meaning ? ` (${w.root_meaning})` : ""}
+        </Text>
+      ))}
+    </View>
   );
 }
 
@@ -1813,5 +2015,105 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     gap: 12,
     width: "100%",
+  },
+  tapHintFront: {
+    color: colors.textSecondary,
+    fontSize: fonts.small,
+    marginTop: 16,
+    opacity: 0.5,
+    fontStyle: "italic",
+  },
+  lookupPanel: {
+    width: "100%",
+    backgroundColor: colors.surfaceLight,
+    borderRadius: 12,
+    padding: 16,
+    marginTop: 16,
+    alignItems: "center",
+    gap: 8,
+  },
+  lookupRoot: {
+    fontSize: 14,
+    color: colors.accent,
+    fontWeight: "600",
+  },
+  lookupMeaning: {
+    fontSize: 18,
+    color: colors.text,
+    fontWeight: "600",
+    textAlign: "center",
+  },
+  lookupTranslit: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    fontStyle: "italic",
+  },
+  lookupPos: {
+    fontSize: 12,
+    color: colors.textSecondary,
+  },
+  lookupPredictionHint: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    fontStyle: "italic",
+  },
+  lookupPredictionPrompt: {
+    fontSize: 15,
+    color: colors.text,
+    fontWeight: "500",
+    marginTop: 4,
+  },
+  lookupSiblings: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 6,
+    justifyContent: "center",
+    marginTop: 4,
+  },
+  lookupSiblingPill: {
+    backgroundColor: colors.surface,
+    borderRadius: 8,
+    paddingVertical: 4,
+    paddingHorizontal: 10,
+    alignItems: "center",
+  },
+  lookupSiblingAr: {
+    fontSize: 16,
+    color: colors.arabic,
+    writingDirection: "rtl",
+  },
+  lookupSiblingEn: {
+    fontSize: 11,
+    color: colors.textSecondary,
+  },
+  lookupRevealButton: {
+    backgroundColor: colors.accent,
+    paddingVertical: 8,
+    paddingHorizontal: 20,
+    borderRadius: 8,
+    marginTop: 4,
+  },
+  lookupRevealText: {
+    color: "#fff",
+    fontSize: 14,
+    fontWeight: "600",
+  },
+  lookupDismiss: {
+    paddingVertical: 6,
+    paddingHorizontal: 16,
+  },
+  lookupDismissText: {
+    color: colors.textSecondary,
+    fontSize: 13,
+  },
+  rootInfoBar: {
+    marginTop: 12,
+    gap: 4,
+    alignItems: "center",
+  },
+  rootInfoText: {
+    fontSize: 13,
+    color: colors.accent,
+    fontStyle: "italic",
   },
 });

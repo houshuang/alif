@@ -11,6 +11,7 @@ and scheduling initial reinforcement.
 """
 
 import math
+import re
 from datetime import datetime, timezone, timedelta
 from typing import Optional
 
@@ -30,6 +31,35 @@ AVOID_SAME_SESSION = {
 
 MAX_NEW_PER_SESSION = 5
 DEFAULT_BATCH_SIZE = 3
+
+# Gloss prefixes that indicate Wiktionary reference entries, not real words
+_SKIP_GLOSS_PREFIXES = (
+    "alternative form of",
+    "alternative spelling of",
+    "active participle of",
+    "passive participle of",
+    "accusative plural of",
+    "genitive plural of",
+    "nominative plural of",
+    "accusative singular of",
+    "genitive singular of",
+    "judeo-arabic spelling of",
+    "verbal noun of",
+)
+
+# Arabic Unicode block: U+0600–U+06FF, plus supplemental U+0750–U+077F and Arabic Presentation Forms
+_NON_ARABIC_RE = re.compile(r"[^\u0600-\u06FF\u0750-\u077F\uFB50-\uFDFF\uFE70-\uFEFF\s\u0640]")
+
+
+def _is_noise_lemma(lemma) -> bool:
+    """Return True if this lemma is a Wiktionary reference entry or non-Arabic."""
+    gloss = (lemma.gloss_en or "").lower().strip()
+    if any(gloss.startswith(prefix) for prefix in _SKIP_GLOSS_PREFIXES):
+        return True
+    bare = lemma.lemma_ar_bare or ""
+    if bare and _NON_ARABIC_RE.search(bare):
+        return True
+    return False
 
 
 def _frequency_score(frequency_rank: Optional[int], max_rank: int = 50000) -> float:
@@ -157,6 +187,8 @@ def select_next_words(
         .all()
     )
 
+    candidates = [c for c in candidates if not _is_noise_lemma(c)]
+
     if not candidates:
         return []
 
@@ -198,6 +230,8 @@ def select_next_words(
             "root_meaning": lemma.root.core_meaning_en if lemma.root else None,
             "forms_json": lemma.forms_json,
             "audio_url": lemma.audio_url,
+            "example_ar": lemma.example_ar,
+            "example_en": lemma.example_en,
             "score": round(total_score, 3),
             "score_breakdown": {
                 "frequency": round(freq_score, 3),

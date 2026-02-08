@@ -9,6 +9,7 @@ from app.services.word_selector import (
     get_sentence_difficulty_params,
     _frequency_score,
     _root_familiarity_score,
+    _is_noise_lemma,
 )
 
 
@@ -104,6 +105,42 @@ class TestRootFamiliarity:
         assert score == 0.1  # fully known = low priority
 
 
+class TestNoiseFilter:
+    def test_alternative_form_filtered(self, db_session):
+        l = _create_lemma(db_session, "test", "alternative form of X", freq=10)
+        db_session.commit()
+        assert _is_noise_lemma(l) is True
+
+    def test_active_participle_filtered(self, db_session):
+        l = _create_lemma(db_session, "test", "Active participle of Y", freq=10)
+        db_session.commit()
+        assert _is_noise_lemma(l) is True
+
+    def test_judeo_arabic_filtered(self, db_session):
+        l = _create_lemma(db_session, "test", "Judeo-Arabic spelling of Z", freq=10)
+        db_session.commit()
+        assert _is_noise_lemma(l) is True
+
+    def test_non_arabic_script_filtered(self, db_session):
+        l = Lemma(lemma_ar="גלם", lemma_ar_bare="גלם", gloss_en="test", pos="noun", frequency_rank=10)
+        db_session.add(l)
+        db_session.flush()
+        assert _is_noise_lemma(l) is True
+
+    def test_normal_word_not_filtered(self, db_session):
+        l = _create_lemma(db_session, "كتاب", "book", freq=10)
+        db_session.commit()
+        assert _is_noise_lemma(l) is False
+
+    def test_noise_excluded_from_candidates(self, db_session):
+        _create_lemma(db_session, "كتاب", "book", freq=10)
+        _create_lemma(db_session, "test", "alternative form of X", freq=5)
+        db_session.commit()
+        result = select_next_words(db_session, count=5)
+        assert len(result) == 1
+        assert result[0]["gloss_en"] == "book"
+
+
 class TestSelectNextWords:
     def test_empty_db(self, db_session):
         result = select_next_words(db_session)
@@ -133,9 +170,9 @@ class TestSelectNextWords:
         assert result[0]["lemma_id"] == l2.lemma_id
 
     def test_frequency_ordering(self, db_session):
-        l1 = _create_lemma(db_session, "word1", "first", freq=10)
-        l2 = _create_lemma(db_session, "word2", "second", freq=5000)
-        l3 = _create_lemma(db_session, "word3", "third", freq=100)
+        l1 = _create_lemma(db_session, "بيت", "house", freq=10)
+        l2 = _create_lemma(db_session, "سيارة", "car", freq=5000)
+        l3 = _create_lemma(db_session, "قلم", "pen", freq=100)
         db_session.commit()
 
         result = select_next_words(db_session, count=3)
@@ -156,8 +193,8 @@ class TestSelectNextWords:
         assert ids[0] == l2.lemma_id
 
     def test_exclude_ids(self, db_session):
-        l1 = _create_lemma(db_session, "word1", "first", freq=10)
-        l2 = _create_lemma(db_session, "word2", "second", freq=20)
+        l1 = _create_lemma(db_session, "بيت", "house", freq=10)
+        l2 = _create_lemma(db_session, "قلم", "pen", freq=20)
         db_session.commit()
 
         result = select_next_words(db_session, count=2, exclude_lemma_ids=[l1.lemma_id])
@@ -298,8 +335,8 @@ class TestSentenceDifficultyParams:
 
 class TestLearnAPI:
     def test_next_words_endpoint(self, client, db_session):
-        _create_lemma(db_session, "word1", "first", freq=10)
-        _create_lemma(db_session, "word2", "second", freq=20)
+        _create_lemma(db_session, "بيت", "house", freq=10)
+        _create_lemma(db_session, "قلم", "pen", freq=20)
         db_session.commit()
 
         resp = client.get("/api/learn/next-words?count=2")
@@ -322,8 +359,8 @@ class TestLearnAPI:
         assert data["already_known"] is False
 
     def test_introduce_batch_endpoint(self, client, db_session):
-        l1 = _create_lemma(db_session, "word1", "first", freq=10)
-        l2 = _create_lemma(db_session, "word2", "second", freq=20)
+        l1 = _create_lemma(db_session, "بيت", "house", freq=10)
+        l2 = _create_lemma(db_session, "قلم", "pen", freq=20)
         db_session.commit()
 
         resp = client.post(

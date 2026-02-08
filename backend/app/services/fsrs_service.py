@@ -105,12 +105,21 @@ def submit_review(
         .first()
     )
     if not knowledge:
-        raise ValueError(f"No knowledge record for lemma {lemma_id}")
+        knowledge = UserLemmaKnowledge(
+            lemma_id=lemma_id,
+            knowledge_state="learning",
+            source="encountered",
+            total_encounters=0,
+        )
+        db.add(knowledge)
 
     card_data = knowledge.fsrs_card_json
-    if isinstance(card_data, str):
-        card_data = json.loads(card_data)
-    card = Card.from_dict(card_data)
+    if card_data is None:
+        card = Card()
+    elif isinstance(card_data, str):
+        card = Card.from_dict(json.loads(card_data))
+    else:
+        card = Card.from_dict(card_data)
     fsrs_rating = RATING_MAP[rating_int]
 
     now = datetime.now(timezone.utc)

@@ -12,9 +12,12 @@ from typing import Optional
 
 from sqlalchemy.orm import Session
 
+from sqlalchemy.orm import joinedload
+
 from app.models import (
     Lemma,
     ReviewLog,
+    Root,
     Sentence,
     SentenceWord,
     UserLemmaKnowledge,
@@ -105,7 +108,10 @@ def build_session(
     """
     session_id = str(uuid.uuid4())[:8]
     now = datetime.now(timezone.utc)
-    cutoff = now - timedelta(days=7)
+    # Comprehension-aware recency cutoffs
+    cutoff_understood = now - timedelta(days=7)
+    cutoff_partial = now - timedelta(days=2)
+    cutoff_no_idea = now - timedelta(hours=4)
 
     # 1. Fetch all due words
     all_knowledge = (
@@ -144,11 +150,23 @@ def build_session(
     if not sentence_ids_with_due:
         return _with_fallbacks(db, session_id, due_lemma_ids, stability_map, total_due, [], limit)
 
+    from sqlalchemy import or_
+
     sentences = (
         db.query(Sentence)
         .filter(
             Sentence.id.in_(sentence_ids_with_due),
-            (Sentence.last_shown_at.is_(None)) | (Sentence.last_shown_at < cutoff),
+            or_(
+                Sentence.last_shown_at.is_(None),
+                # understood: 7 day cooldown
+                (Sentence.last_comprehension == "understood") & (Sentence.last_shown_at < cutoff_understood),
+                # partial: 2 day cooldown
+                (Sentence.last_comprehension == "partial") & (Sentence.last_shown_at < cutoff_partial),
+                # no_idea: 4 hour cooldown
+                (Sentence.last_comprehension == "no_idea") & (Sentence.last_shown_at < cutoff_no_idea),
+                # legacy (no comprehension recorded): 7 day cooldown
+                (Sentence.last_comprehension.is_(None)) & (Sentence.last_shown_at < cutoff_understood),
+            ),
         )
         .all()
     )
@@ -173,7 +191,7 @@ def build_session(
     # Load lemma info
     all_lemma_ids = {sw.lemma_id for sw in all_sw if sw.lemma_id}
     all_lemma_ids |= due_lemma_ids
-    lemmas = db.query(Lemma).filter(Lemma.lemma_id.in_(all_lemma_ids)).all() if all_lemma_ids else []
+    lemmas = db.query(Lemma).options(joinedload(Lemma.root)).filter(Lemma.lemma_id.in_(all_lemma_ids)).all() if all_lemma_ids else []
     lemma_map = {l.lemma_id: l for l in lemmas}
 
     # For listening mode, pre-compute which words are "listening-ready":
@@ -313,17 +331,21 @@ def build_session(
 
         primary_lemma = lemma_map.get(primary_lid)
 
-        word_dicts = [
-            {
+        word_dicts = []
+        for w in cand.words_meta:
+            lemma = lemma_map.get(w.lemma_id) if w.lemma_id else None
+            root_obj = lemma.root if lemma else None
+            word_dicts.append({
                 "lemma_id": w.lemma_id,
                 "surface_form": w.surface_form,
                 "gloss_en": w.gloss_en,
                 "stability": w.stability,
                 "is_due": w.is_due,
                 "is_function_word": w.is_function_word,
-            }
-            for w in cand.words_meta
-        ]
+                "root": root_obj.root if root_obj else None,
+                "root_meaning": root_obj.core_meaning_en if root_obj else None,
+                "root_id": root_obj.root_id if root_obj else None,
+            })
 
         items.append({
             "sentence_id": cand.sentence_id,
@@ -361,9 +383,10 @@ def _with_fallbacks(
     for lid in uncovered:
         if len(items) >= limit:
             break
-        lemma = db.query(Lemma).filter(Lemma.lemma_id == lid).first()
+        lemma = db.query(Lemma).options(joinedload(Lemma.root)).filter(Lemma.lemma_id == lid).first()
         if lemma is None:
             continue
+        root_obj = lemma.root
         items.append({
             "sentence_id": None,
             "arabic_text": lemma.lemma_ar,
@@ -380,6 +403,9 @@ def _with_fallbacks(
                 "stability": stability_map.get(lid, 0.0),
                 "is_due": True,
                 "is_function_word": False,
+                "root": root_obj.root if root_obj else None,
+                "root_meaning": root_obj.core_meaning_en if root_obj else None,
+                "root_id": root_obj.root_id if root_obj else None,
             }],
         })
         covered_ids.add(lid)

@@ -31,11 +31,11 @@ def submit_sentence_review(
 ) -> dict:
     """Submit a review for a whole sentence, distributing ratings to words.
 
-    - "understood" -> all words with FSRS cards get rating=3
+    - "understood" -> all words get rating=3
     - "partial" + missed_lemma_ids -> missed get rating=1, rest get rating=3
     - "no_idea" -> all words get rating=1
 
-    Words without UserLemmaKnowledge get encounter-only tracking.
+    All words (including previously unseen) get full FSRS cards.
     """
     if client_review_id:
         existing = (
@@ -73,60 +73,43 @@ def submit_sentence_review(
 
         credit_type = "primary" if lemma_id == primary_lemma_id else "collateral"
 
+        result = submit_review(
+            db,
+            lemma_id=lemma_id,
+            rating_int=rating,
+            response_ms=response_ms if lemma_id == primary_lemma_id else None,
+            session_id=session_id,
+            review_mode=review_mode,
+            comprehension_signal=comprehension_signal,
+            client_review_id=None,
+        )
+        # Tag the review log entry with sentence context
+        latest_log = (
+            db.query(ReviewLog)
+            .filter(ReviewLog.lemma_id == lemma_id)
+            .order_by(ReviewLog.id.desc())
+            .first()
+        )
+        if latest_log:
+            latest_log.sentence_id = sentence_id
+            latest_log.credit_type = credit_type
+
+        # Track encounters
         knowledge = (
             db.query(UserLemmaKnowledge)
             .filter(UserLemmaKnowledge.lemma_id == lemma_id)
             .first()
         )
-
-        if knowledge and knowledge.fsrs_card_json:
-            result = submit_review(
-                db,
-                lemma_id=lemma_id,
-                rating_int=rating,
-                response_ms=response_ms if lemma_id == primary_lemma_id else None,
-                session_id=session_id,
-                review_mode=review_mode,
-                comprehension_signal=comprehension_signal,
-                client_review_id=None,
-            )
-            # Tag the review log entry with sentence context
-            latest_log = (
-                db.query(ReviewLog)
-                .filter(ReviewLog.lemma_id == lemma_id)
-                .order_by(ReviewLog.id.desc())
-                .first()
-            )
-            if latest_log:
-                latest_log.sentence_id = sentence_id
-                latest_log.credit_type = credit_type
-
-            word_results.append({
-                "lemma_id": lemma_id,
-                "rating": rating,
-                "credit_type": credit_type,
-                "new_state": result["new_state"],
-                "next_due": result["next_due"],
-            })
-        else:
-            # No FSRS card: create or update encounter record
-            if not knowledge:
-                knowledge = UserLemmaKnowledge(
-                    lemma_id=lemma_id,
-                    knowledge_state="new",
-                    source="encountered",
-                    total_encounters=0,
-                )
-                db.add(knowledge)
+        if knowledge:
             knowledge.total_encounters = (knowledge.total_encounters or 0) + 1
 
-            word_results.append({
-                "lemma_id": lemma_id,
-                "rating": rating,
-                "credit_type": credit_type,
-                "new_state": "encountered",
-                "next_due": None,
-            })
+        word_results.append({
+            "lemma_id": lemma_id,
+            "rating": rating,
+            "credit_type": credit_type,
+            "new_state": result["new_state"],
+            "next_due": result["next_due"],
+        })
 
     # Log the sentence-level review
     if sentence_id is not None:
@@ -145,6 +128,7 @@ def submit_sentence_review(
         if sentence:
             sentence.last_shown_at = now
             sentence.times_shown = (sentence.times_shown or 0) + 1
+            sentence.last_comprehension = comprehension_signal
 
     db.commit()
 

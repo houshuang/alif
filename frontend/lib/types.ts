@@ -131,6 +131,8 @@ export interface LearnCandidate {
   root_id: number | null;
   forms_json: WordForms | null;
   audio_url: string | null;
+  example_ar: string | null;
+  example_en: string | null;
   score: number;
   score_breakdown: {
     frequency: number;
@@ -169,6 +171,27 @@ export interface SentenceWordMeta {
   stability: number | null;
   is_due: boolean;
   is_function_word: boolean;
+  root: string | null;
+  root_meaning: string | null;
+  root_id: number | null;
+}
+
+export interface WordLookupResult {
+  lemma_id: number;
+  lemma_ar: string;
+  gloss_en: string | null;
+  transliteration: string | null;
+  root: string | null;
+  root_meaning: string | null;
+  root_id: number | null;
+  pos: string | null;
+  root_family: {
+    lemma_id: number;
+    lemma_ar: string;
+    gloss_en: string | null;
+    pos: string | null;
+    state: string;
+  }[];
 }
 
 export interface SentenceReviewItem {

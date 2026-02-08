@@ -30,12 +30,13 @@ function posLabel(pos: string | null, forms: WordForms | null): string {
     if (forms?.gender === "m") parts[0] += " (m)";
     else if (forms?.gender === "f") parts[0] += " (f)";
   } else if (p === "verb") {
-    parts.push("verb");
     if (forms?.verb_form && forms.verb_form !== "I") {
-      parts[0] += `, Form ${forms.verb_form}`;
+      parts.push(`verb, Form ${forms.verb_form}`);
+    } else {
+      parts.push("verb");
     }
   } else if (p === "adj" || p === "adjective") {
-    parts.push("adjective");
+    parts.push("adj.");
   } else if (p) {
     parts.push(p);
   }
@@ -48,17 +49,34 @@ function FormsRow({ pos, forms }: { pos: string | null; forms: WordForms | null 
   const p = (pos || "").toLowerCase();
   const items: { label: string; value: string }[] = [];
 
-  if (p === "noun" || p === "") {
-    if (forms.plural) items.push({ label: "pl.", value: forms.plural });
-  } else if (p === "verb") {
-    if (forms.present) items.push({ label: "pres.", value: forms.present });
+  if (p === "verb") {
+    if (forms.present) items.push({ label: "present", value: forms.present });
     if (forms.masdar) items.push({ label: "masdar", value: forms.masdar });
+    if (forms.active_participle) items.push({ label: "act. part.", value: forms.active_participle });
   } else if (p === "adj" || p === "adjective") {
     if (forms.feminine) items.push({ label: "fem.", value: forms.feminine });
     if (forms.plural) items.push({ label: "pl.", value: forms.plural });
+    if (forms.elative) items.push({ label: "comp.", value: forms.elative });
+  } else {
+    if (forms.plural) items.push({ label: "pl.", value: forms.plural });
+    if (forms.feminine) items.push({ label: "fem.", value: forms.feminine });
   }
 
   if (items.length === 0) return null;
+
+  // Verbs get a mini conjugation table layout
+  if (p === "verb" && items.length > 1) {
+    return (
+      <View style={styles.formsTable}>
+        {items.map((item, i) => (
+          <View key={i} style={styles.formsTableCell}>
+            <Text style={styles.formLabel}>{item.label}</Text>
+            <Text style={styles.formValueLarge}>{item.value}</Text>
+          </View>
+        ))}
+      </View>
+    );
+  }
 
   return (
     <View style={styles.formsRow}>
@@ -347,6 +365,15 @@ export default function LearnScreen() {
             {posLabel(c.pos, c.forms_json)}
           </Text>
           <FormsRow pos={c.pos} forms={c.forms_json} />
+
+          {c.example_ar && (
+            <View style={styles.exampleSection}>
+              <Text style={styles.exampleArabic}>{c.example_ar}</Text>
+              {c.example_en && (
+                <Text style={styles.exampleEnglish}>{c.example_en}</Text>
+              )}
+            </View>
+          )}
 
           {c.root && (
             <View style={styles.rootInfo}>
@@ -780,17 +807,38 @@ const styles = StyleSheet.create({
     flexWrap: "wrap",
     justifyContent: "center",
   },
+  formsTable: {
+    flexDirection: "row",
+    gap: 2,
+    marginBottom: 12,
+    width: "100%",
+    justifyContent: "center",
+  },
+  formsTableCell: {
+    alignItems: "center",
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    backgroundColor: colors.surfaceLight,
+    borderRadius: 8,
+  },
   formItem: {
     fontSize: 18,
   },
   formLabel: {
     color: colors.textSecondary,
-    fontSize: 13,
+    fontSize: 12,
+    marginBottom: 2,
   },
   formValue: {
     color: colors.arabic,
     fontSize: 18,
     writingDirection: "rtl",
+  },
+  formValueLarge: {
+    color: colors.arabic,
+    fontSize: 20,
+    writingDirection: "rtl",
+    fontWeight: "600",
   },
   playButton: {
     width: 40,
@@ -803,6 +851,27 @@ const styles = StyleSheet.create({
   playIcon: {
     fontSize: 18,
     color: colors.accent,
+  },
+  exampleSection: {
+    backgroundColor: colors.surfaceLight,
+    borderRadius: 10,
+    padding: 12,
+    width: "100%",
+    alignItems: "center",
+    marginBottom: 12,
+  },
+  exampleArabic: {
+    fontSize: 20,
+    color: colors.arabic,
+    writingDirection: "rtl",
+    textAlign: "center",
+    lineHeight: 32,
+  },
+  exampleEnglish: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    marginTop: 4,
+    textAlign: "center",
   },
   rootInfo: {
     borderTopWidth: 1,
