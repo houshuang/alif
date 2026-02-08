@@ -1,0 +1,189 @@
+#!/usr/bin/env python3
+"""Import AVP A1 dataset (Arabic Vocabulary Profile, A1 level).
+
+Downloads vocabulary from https://lailafamiliar.github.io/A1-AVP-dataset/
+and imports into the Alif database as Lemma records (no FSRS cards — just
+available vocabulary for the learn-mode word selector to pick from).
+
+Usage:
+    python scripts/import_avp_a1.py
+    python scripts/import_avp_a1.py --dry-run
+"""
+
+import argparse
+import json
+import re
+import sys
+from pathlib import Path
+
+import httpx
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+from app.database import SessionLocal, Base, engine
+from app.models import Root, Lemma
+
+AVP_URL = "https://lailafamiliar.github.io/A1-AVP-dataset/"
+
+# Map AVP categories to our POS tags
+CATEGORY_POS_MAP = {
+    "NOUNS": "noun",
+    "ADJECTIVES": "adj",
+    "VERBS": "verb",
+    "ADVERBS": "adv",
+    "EXPRESSIONS": "expr",
+    "PARTICLES & INTERJECTIONS": "particle",
+    "DEMONSTRATIVE PRONOUNS": "pron",
+    "CONJUNCTIONS": "conj",
+    "PRONOUNS": "pron",
+    "INTERROGATIVES": "interrog",
+    "PREPOSITIONS": "prep",
+}
+
+
+def strip_diacritics(text: str) -> str:
+    diacritics = re.compile(
+        r"[\u0610-\u061A\u064B-\u065F\u0670\u06D6-\u06DC\u06DF-\u06E8\u06EA-\u06ED\u08D3-\u08FF]"
+    )
+    return diacritics.sub("", text)
+
+
+def fetch_vocab_data() -> dict[str, list[dict]]:
+    """Download the AVP page and extract the vocabData JS object."""
+    resp = httpx.get(AVP_URL, timeout=30.0)
+    resp.raise_for_status()
+    html = resp.text
+
+    # Extract the vocabData object from the script
+    match = re.search(r"const\s+vocabData\s*=\s*(\{.+?\});\s*\n", html, re.DOTALL)
+    if not match:
+        # Try alternative patterns
+        match = re.search(r"vocabData\s*=\s*(\{.+?\});\s*\n", html, re.DOTALL)
+    if not match:
+        raise RuntimeError("Could not find vocabData in the AVP page HTML")
+
+    js_obj = match.group(1)
+    # Convert JS object to valid JSON:
+    # - Add quotes around unquoted keys
+    # - Handle trailing commas
+    js_obj = re.sub(r'(\w[\w\s&]*)\s*:', lambda m: f'"{m.group(1).strip()}":' , js_obj)
+    # Remove trailing commas before ] or }
+    js_obj = re.sub(r",\s*([}\]])", r"\1", js_obj)
+
+    try:
+        return json.loads(js_obj)
+    except json.JSONDecodeError:
+        # Fallback: extract entries with regex
+        return _extract_with_regex(html)
+
+
+def _extract_with_regex(html: str) -> dict[str, list[dict]]:
+    """Fallback extraction using regex for each entry."""
+    result: dict[str, list[dict]] = {}
+    # Find category blocks
+    cat_pattern = re.compile(
+        r'"([^"]+)"\s*:\s*\[(.*?)\]', re.DOTALL
+    )
+    entry_pattern = re.compile(
+        r'\{\s*"?arabic"?\s*:\s*"([^"]+)"\s*,\s*"?english"?\s*:\s*"([^"]+)"\s*\}'
+    )
+
+    for cat_match in cat_pattern.finditer(html):
+        category = cat_match.group(1)
+        block = cat_match.group(2)
+        entries = []
+        for entry_match in entry_pattern.finditer(block):
+            entries.append({
+                "arabic": entry_match.group(1),
+                "english": entry_match.group(2),
+            })
+        if entries:
+            result[category] = entries
+
+    if not result:
+        raise RuntimeError("Failed to extract any vocabulary from AVP page")
+    return result
+
+
+def run_import(db, dry_run: bool = False) -> dict:
+    print("Downloading AVP A1 dataset...")
+    vocab_data = fetch_vocab_data()
+
+    total_entries = sum(len(v) for v in vocab_data.values())
+    print(f"Found {total_entries} entries across {len(vocab_data)} categories")
+
+    # Load existing bare forms to avoid duplicates
+    existing_bare = {lem.lemma_ar_bare for lem in db.query(Lemma).all()}
+
+    imported = 0
+    skipped_existing = 0
+    skipped_multiword = 0
+
+    for category, entries in vocab_data.items():
+        pos = CATEGORY_POS_MAP.get(category, "other")
+
+        for entry in entries:
+            arabic = entry["arabic"].strip()
+            english = entry["english"].strip()
+
+            # Clean up: remove asterisks (transitive markers)
+            arabic = arabic.replace("*", "").strip()
+
+            # Skip multi-word entries
+            if " " in arabic:
+                skipped_multiword += 1
+                continue
+
+            bare = strip_diacritics(arabic)
+
+            if bare in existing_bare:
+                skipped_existing += 1
+                continue
+
+            if dry_run:
+                print(f"  [dry-run] {arabic} ({english}) — {pos}")
+                imported += 1
+                existing_bare.add(bare)
+                continue
+
+            lemma = Lemma(
+                lemma_ar=arabic,
+                lemma_ar_bare=bare,
+                gloss_en=english,
+                pos=pos,
+                source="avp_a1",
+            )
+            db.add(lemma)
+            existing_bare.add(bare)
+            imported += 1
+
+    if not dry_run:
+        db.commit()
+
+    result = {
+        "imported": imported,
+        "skipped_existing": skipped_existing,
+        "skipped_multiword": skipped_multiword,
+        "total_in_dataset": total_entries,
+    }
+    print(f"\nImported {imported} words, skipped {skipped_existing} existing, "
+          f"skipped {skipped_multiword} multi-word")
+    return result
+
+
+def main():
+    parser = argparse.ArgumentParser(description="Import AVP A1 Arabic vocabulary")
+    parser.add_argument("--dry-run", action="store_true", help="Preview without writing to DB")
+    args = parser.parse_args()
+
+    Base.metadata.create_all(bind=engine)
+    db = SessionLocal()
+    try:
+        result = run_import(db, dry_run=args.dry_run)
+        print(json.dumps(result, indent=2))
+    finally:
+        db.close()
+
+
+if __name__ == "__main__":
+    main()

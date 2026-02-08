@@ -334,6 +334,46 @@ class TestLearnAPI:
         data = resp.json()
         assert data["count"] == 2
 
+    def test_quiz_result_endpoint(self, client, db_session):
+        lemma = _create_lemma(db_session, "كتاب", "book", freq=100)
+        _mark_known(db_session, lemma.lemma_id, state="learning")
+        db_session.commit()
+
+        # Got it → rating 3
+        resp = client.post(
+            "/api/learn/quiz-result",
+            json={"lemma_id": lemma.lemma_id, "got_it": True},
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["lemma_id"] == lemma.lemma_id
+        assert "new_state" in data
+        assert "next_due" in data
+
+    def test_quiz_result_missed(self, client, db_session):
+        lemma = _create_lemma(db_session, "بيت", "house", freq=50)
+        _mark_known(db_session, lemma.lemma_id, state="learning")
+        db_session.commit()
+
+        # Missed → rating 1
+        resp = client.post(
+            "/api/learn/quiz-result",
+            json={"lemma_id": lemma.lemma_id, "got_it": False},
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["lemma_id"] == lemma.lemma_id
+
+    def test_quiz_result_no_card(self, client, db_session):
+        lemma = _create_lemma(db_session, "قلم", "pen", freq=200)
+        db_session.commit()
+
+        resp = client.post(
+            "/api/learn/quiz-result",
+            json={"lemma_id": lemma.lemma_id, "got_it": True},
+        )
+        assert resp.status_code == 404
+
     def test_sentence_params_endpoint(self, client, db_session):
         lemma = _create_lemma(db_session, "كتاب", "book", freq=100)
         db_session.commit()

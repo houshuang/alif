@@ -212,7 +212,8 @@
 - CAMeL Lab MSA Frequency Lists (11.4M types)
 - KELLY project (CEFR-tagged Arabic)
 - Arabic Roots & Derivatives DB (142K records, 10K+ roots, CC BY-SA)
-- Kaikki.org Wiktionary (57K Arabic entries, JSONL)
+- [DONE] Kaikki.org Wiktionary (57K Arabic entries, JSONL) — import_wiktionary.py streams the 385MB JSONL, filters nouns/verbs/adj, imports top N
+- [DONE] AVP A1 dataset (~800 validated A1 Arabic words) — import_avp_a1.py scrapes from lailafamiliar.github.io
 - Arramooz dictionary (SQL/XML/TSV)
 - Tashkeela (75M diacritized words)
 - UN Parallel Corpus (20M pairs)
@@ -355,6 +356,7 @@
 - Session-level accuracy trend tracking: compare first-half vs. second-half accuracy; if second half degrades, suggest shorter sessions in settings
 
 #### New/Review Item Interleaving
+- [DONE] Inline intro candidates in review sessions: build_session() now adds up to 2 intro candidates at positions 4 and 8, gated by accuracy > 75% over last 20 reviews and minimum 4 review items
 - Never show two new word introductions back-to-back -- always interleave with 4-6 review items between new introductions
 - Start each session with 3-4 easy review items (FSRS stability > 30 days) as warm-up before any new items
 - End each session with 3-4 easy review items for positive session closure (recency effect protects motivation)
@@ -362,6 +364,8 @@
 - Maintain a 1:4 to 1:6 ratio of new to review items throughout the session
 
 #### Flashcard-First Introduction Flow
+- [DONE] Auto-generate sentences + audio on word introduction: /api/learn/introduce now triggers background generation of up to 3 sentences + TTS audio when a word is introduced
+- [DONE] Quiz results now feed FSRS: learn-mode quiz "Got it" → rating 3, "Missed" → rating 1 via /api/learn/quiz-result endpoint
 - Introduce new words initially as isolated flashcards (word + transliteration + gloss + root + audio) before embedding them in sentences -- isolated word pairs have low element interactivity (Sweller), allowing form-meaning mapping before the higher-load sentence processing task
 - First sentence review should come only after the initial flashcard introduction succeeds (rated Good or Easy)
 - Consider a two-step learning flow: step 1 = flashcard with root info, step 2 = simple sentence with strong context clues, step 3 = varied sentence contexts in subsequent reviews

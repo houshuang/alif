@@ -149,6 +149,16 @@ export async function introduceWord(
   });
 }
 
+export async function submitQuizResult(
+  lemmaId: number,
+  gotIt: boolean
+): Promise<{ lemma_id: number; new_state: string; next_due: string }> {
+  return fetchApi("/api/learn/quiz-result", {
+    method: "POST",
+    body: JSON.stringify({ lemma_id: lemmaId, got_it: gotIt }),
+  });
+}
+
 export async function getSentenceReviewSession(
   mode: ReviewMode = "reading"
 ): Promise<SentenceReviewSession> {

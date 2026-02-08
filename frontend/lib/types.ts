@@ -154,11 +154,24 @@ export interface SentenceReviewItem {
   words: SentenceWordMeta[];
 }
 
+export interface IntroCandidate {
+  lemma_id: number;
+  lemma_ar: string;
+  gloss_en: string | null;
+  pos: string | null;
+  transliteration: string | null;
+  root: string | null;
+  root_meaning: string | null;
+  root_id: number | null;
+  insert_at: number;
+}
+
 export interface SentenceReviewSession {
   session_id: string;
   items: SentenceReviewItem[];
   total_due_words: number;
   covered_due_words: number;
+  intro_candidates?: IntroCandidate[];
 }
 
 export interface SentenceReviewSubmission {

@@ -8,7 +8,7 @@ import {
   ActivityIndicator,
 } from "react-native";
 import { colors, fonts } from "../lib/theme";
-import { getNextWords, introduceWord } from "../lib/api";
+import { getNextWords, introduceWord, submitQuizResult } from "../lib/api";
 import { LearnCandidate, IntroduceResult, RootFamilyWord } from "../lib/types";
 
 type Phase = "loading" | "pick" | "intro" | "quiz" | "done";
@@ -75,9 +75,16 @@ export default function LearnScreen() {
     setQuizRevealed(true);
   }
 
-  function handleQuizAnswer(correct: boolean) {
+  async function handleQuizAnswer(correct: boolean) {
+    const current = introduced[quizIndex];
     const newResults = [...quizResults, correct];
     setQuizResults(newResults);
+
+    try {
+      await submitQuizResult(current.candidate.lemma_id, correct);
+    } catch (e) {
+      console.error("Failed to submit quiz result:", e);
+    }
 
     if (quizIndex < introduced.length - 1) {
       setQuizIndex(quizIndex + 1);

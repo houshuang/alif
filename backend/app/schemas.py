@@ -162,11 +162,24 @@ class SentenceReviewItem(BaseModel):
     words: list[SentenceWordMeta]
 
 
+class IntroCandidateOut(BaseModel):
+    lemma_id: int
+    lemma_ar: str
+    gloss_en: str | None = None
+    pos: str | None = None
+    transliteration: str | None = None
+    root: str | None = None
+    root_meaning: str | None = None
+    root_id: int | None = None
+    insert_at: int = 0
+
+
 class SentenceSessionOut(BaseModel):
     session_id: str
     items: list[SentenceReviewItem]
     total_due_words: int
     covered_due_words: int
+    intro_candidates: list[IntroCandidateOut] = []
 
 
 class SentenceReviewSubmitIn(BaseModel):

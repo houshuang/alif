@@ -14,6 +14,7 @@ import {
   submitReview,
   getSentenceReviewSession,
   submitSentenceReview,
+  introduceWord,
   BASE_URL,
 } from "../lib/api";
 import {
@@ -23,6 +24,7 @@ import {
   ComprehensionSignal,
   SentenceReviewItem,
   SentenceReviewSession,
+  IntroCandidate,
 } from "../lib/types";
 
 type ReadingCardState = "front" | "back";
@@ -65,6 +67,8 @@ export default function ReviewScreen() {
   const [results, setResults] = useState<SessionResults | null>(null);
   const [missedIndices, setMissedIndices] = useState<Set<number>>(new Set());
   const [audioPlaying, setAudioPlaying] = useState(false);
+  const [introQueue, setIntroQueue] = useState<IntroCandidate[]>([]);
+  const [showingIntro, setShowingIntro] = useState<IntroCandidate | null>(null);
   const showTime = useRef<number>(0);
   const soundRef = useRef<Audio.Sound | null>(null);
 
@@ -153,6 +157,8 @@ export default function ReviewScreen() {
     setCardState(m === "listening" ? "audio" : "front");
     setMissedIndices(new Set());
     setAudioPlaying(false);
+    setIntroQueue([]);
+    setShowingIntro(null);
     setSentenceSession(null);
     setLegacySession(null);
     await cleanupSound();
@@ -161,6 +167,9 @@ export default function ReviewScreen() {
       const ss = await getSentenceReviewSession(m);
       if (ss.items.length > 0) {
         setSentenceSession(ss);
+        if (ss.intro_candidates && ss.intro_candidates.length > 0) {
+          setIntroQueue(ss.intro_candidates);
+        }
         setLoading(false);
         return;
       }
@@ -275,12 +284,22 @@ export default function ReviewScreen() {
       noIdea: prev.noIdea + (signal === "no_idea" ? 1 : 0),
     };
 
-    if (cardIndex + 1 >= totalCards) {
+    const nextCardIndex = cardIndex + 1;
+
+    if (nextCardIndex >= totalCards) {
       setResults(next);
       setCardState(mode === "listening" ? "audio" : "front");
     } else {
       setResults(next);
-      setCardIndex(cardIndex + 1);
+
+      // Check if there's an intro candidate to show at this position
+      const pendingIntro = introQueue.find((c) => c.insert_at === nextCardIndex);
+      if (pendingIntro) {
+        setShowingIntro(pendingIntro);
+        setIntroQueue((q) => q.filter((c) => c.lemma_id !== pendingIntro.lemma_id));
+      }
+
+      setCardIndex(nextCardIndex);
       setCardState(mode === "listening" ? "audio" : "front");
       setMissedIndices(new Set());
       setAudioPlaying(false);
@@ -372,6 +391,28 @@ export default function ReviewScreen() {
   }
 
   const isListening = mode === "listening";
+
+  // Inline intro card (shown between review cards)
+  if (showingIntro) {
+    return (
+      <View style={styles.container}>
+        <ModeToggle mode={mode} onSwitch={switchMode} />
+        <ProgressBar current={cardIndex + 1} total={totalCards} mode={mode} />
+        <InlineIntroCard
+          candidate={showingIntro}
+          onLearn={async () => {
+            try {
+              await introduceWord(showingIntro.lemma_id);
+            } catch (e) {
+              console.error("Failed to introduce word:", e);
+            }
+            setShowingIntro(null);
+          }}
+          onSkip={() => setShowingIntro(null)}
+        />
+      </View>
+    );
+  }
 
   // Sentence-first flow
   if (usingSentences) {
@@ -1087,6 +1128,48 @@ function ProgressBar({
   );
 }
 
+// --- Inline Intro Card ---
+
+function InlineIntroCard({
+  candidate,
+  onLearn,
+  onSkip,
+}: {
+  candidate: IntroCandidate;
+  onLearn: () => void;
+  onSkip: () => void;
+}) {
+  return (
+    <View style={styles.card}>
+      <Text style={styles.introLabel}>New Word</Text>
+      <Text style={styles.introArabic}>{candidate.lemma_ar}</Text>
+      <Text style={styles.introEnglish}>{candidate.gloss_en}</Text>
+      {candidate.transliteration && (
+        <Text style={styles.introTranslit}>{candidate.transliteration}</Text>
+      )}
+      <View style={styles.introMeta}>
+        {candidate.pos && (
+          <Text style={styles.introPos}>{candidate.pos}</Text>
+        )}
+        {candidate.root && (
+          <Text style={styles.introRoot}>Root: {candidate.root}</Text>
+        )}
+        {candidate.root_meaning && (
+          <Text style={styles.introRootMeaning}>{candidate.root_meaning}</Text>
+        )}
+      </View>
+      <View style={styles.introButtons}>
+        <Pressable style={[styles.actionButton, styles.gotItButton]} onPress={onLearn}>
+          <Text style={styles.actionButtonText}>Learn</Text>
+        </Pressable>
+        <Pressable style={[styles.actionButton, { backgroundColor: colors.surfaceLight }]} onPress={onSkip}>
+          <Text style={[styles.actionButtonText, { color: colors.textSecondary }]}>Skip</Text>
+        </Pressable>
+      </View>
+    </View>
+  );
+}
+
 // --- Styles ---
 
 const styles = StyleSheet.create({
@@ -1401,5 +1484,54 @@ const styles = StyleSheet.create({
     fontSize: 24,
     color: colors.text,
     fontWeight: "700",
+  },
+  introLabel: {
+    fontSize: 11,
+    color: colors.accent,
+    textTransform: "uppercase",
+    letterSpacing: 1,
+    marginBottom: 12,
+    fontWeight: "700",
+  },
+  introArabic: {
+    fontSize: 40,
+    color: colors.arabic,
+    fontWeight: "700",
+    writingDirection: "rtl",
+    marginBottom: 12,
+  },
+  introEnglish: {
+    fontSize: 22,
+    color: colors.text,
+    fontWeight: "600",
+    marginBottom: 6,
+  },
+  introTranslit: {
+    fontSize: 16,
+    color: colors.textSecondary,
+    fontStyle: "italic",
+    marginBottom: 12,
+  },
+  introMeta: {
+    gap: 4,
+    alignItems: "center",
+    marginBottom: 20,
+  },
+  introPos: {
+    fontSize: 13,
+    color: colors.textSecondary,
+  },
+  introRoot: {
+    fontSize: 13,
+    color: colors.accent,
+  },
+  introRootMeaning: {
+    fontSize: 13,
+    color: colors.textSecondary,
+  },
+  introButtons: {
+    flexDirection: "row",
+    gap: 12,
+    width: "100%",
   },
 });
