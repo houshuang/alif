@@ -176,6 +176,37 @@ def build_session(
     lemmas = db.query(Lemma).filter(Lemma.lemma_id.in_(all_lemma_ids)).all() if all_lemma_ids else []
     lemma_map = {l.lemma_id: l for l in lemmas}
 
+    # For listening mode, pre-compute which words are "listening-ready":
+    # at least one positive review AND (no negatives OR last review positive)
+    listening_ready: set[int] = set()
+    if mode == "listening":
+        knowledge_map = {k.lemma_id: k for k in all_knowledge}
+        non_due_ids = all_lemma_ids - due_lemma_ids
+        if non_due_ids:
+            from sqlalchemy import func as sa_func
+            last_reviews = (
+                db.query(ReviewLog.lemma_id, ReviewLog.rating)
+                .filter(
+                    ReviewLog.lemma_id.in_(non_due_ids),
+                    ReviewLog.id.in_(
+                        db.query(sa_func.max(ReviewLog.id))
+                        .filter(ReviewLog.lemma_id.in_(non_due_ids))
+                        .group_by(ReviewLog.lemma_id)
+                    ),
+                )
+                .all()
+            )
+            last_rating_map = {r.lemma_id: r.rating for r in last_reviews}
+            for lid in non_due_ids:
+                k = knowledge_map.get(lid)
+                if not k:
+                    continue
+                if (k.times_correct or 0) < 1:
+                    continue
+                last_r = last_rating_map.get(lid)
+                if last_r is not None and last_r >= 3:
+                    listening_ready.add(lid)
+
     # Build candidates
     candidates: list[SentenceCandidate] = []
     for sent in sentences:
@@ -206,6 +237,13 @@ def build_session(
 
         if not due_covered:
             continue
+
+        # Listening mode: skip if any non-function, non-due word isn't listening-ready
+        if mode == "listening":
+            scaffold_ids = [w.lemma_id for w in word_metas
+                            if w.lemma_id and not w.is_due and not w.is_function_word]
+            if any(lid not in listening_ready for lid in scaffold_ids):
+                continue
 
         weakest = min(stability_map.get(lid, 0.0) for lid in due_covered)
         dmq = _difficulty_match_quality(weakest, scaffold_stabilities)
