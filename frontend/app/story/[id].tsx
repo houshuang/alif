@@ -205,35 +205,54 @@ export default function StoryReadScreen() {
         contentContainerStyle={styles.scrollContent}
       >
         {viewMode === "arabic" ? (
-          <Text style={styles.storyText}>
-            {sentences.map((sentenceWords, si) => (
-              <Text key={si}>
-                {si > 0 && " "}
-                {sentenceWords.map((word, wi) => {
-                  const tappable =
-                    !word.is_function_word && word.lemma_id != null;
-                  const isLookedUp = lookedUp.has(word.position);
-                  const isSelected = selectedPosition === word.position;
+          <View style={styles.storyFlow}>
+            {sentences.map((sentenceWords, si) => {
+              const elements: React.ReactNode[] = [];
+              sentenceWords.forEach((word) => {
+                const tappable =
+                  !word.is_function_word && word.lemma_id != null;
+                const isLookedUp = lookedUp.has(word.position);
+                const isSelected = selectedPosition === word.position;
 
-                  return (
-                    <Text
+                elements.push(
+                  tappable ? (
+                    <Pressable
                       key={word.position}
-                      onPress={tappable ? () => handleWordTap(word) : undefined}
+                      onPress={() => handleWordTap(word)}
                       style={[
-                        styles.storyWord,
-                        tappable && styles.tappableWord,
-                        isLookedUp && styles.lookedUpWord,
-                        isSelected && styles.selectedWord,
+                        styles.wordChip,
+                        isLookedUp && styles.lookedUpChip,
+                        isSelected && styles.selectedChip,
                       ]}
                     >
-                      {wi > 0 ? ` ${word.surface_form}` : word.surface_form}
-                    </Text>
-                  );
-                })}
-                <Text style={styles.storyWord}>.</Text>
-              </Text>
-            ))}
-          </Text>
+                      <Text
+                        style={[
+                          styles.storyWord,
+                          isLookedUp && styles.lookedUpWord,
+                          isSelected && styles.selectedWord,
+                        ]}
+                      >
+                        {word.surface_form}
+                      </Text>
+                    </Pressable>
+                  ) : (
+                    <View key={word.position} style={styles.wordChip}>
+                      <Text style={styles.storyWord}>
+                        {word.surface_form}
+                      </Text>
+                    </View>
+                  )
+                );
+              });
+              // Add period after each sentence
+              elements.push(
+                <View key={`period-${si}`} style={styles.wordChip}>
+                  <Text style={styles.storyWord}>.</Text>
+                </View>
+              );
+              return elements;
+            })}
+          </View>
         ) : (
           <Text style={styles.englishText}>
             {story.body_en || "No translation available."}
@@ -364,26 +383,34 @@ const styles = StyleSheet.create({
     padding: 20,
     paddingBottom: 40,
   },
-  storyText: {
-    fontSize: 28,
-    lineHeight: 52,
-    color: colors.arabic,
-    writingDirection: "rtl",
-    textAlign: "right",
+  storyFlow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    direction: "rtl",
+    gap: 6,
+    rowGap: 12,
+  },
+  wordChip: {
+    paddingVertical: 4,
+    paddingHorizontal: 3,
+    borderRadius: 4,
   },
   storyWord: {
+    fontSize: 28,
+    lineHeight: 36,
     color: colors.arabic,
   },
-  tappableWord: {
-    // no visual diff until tapped — keeps it clean
+  lookedUpChip: {
+    backgroundColor: colors.missed + "20",
+  },
+  selectedChip: {
+    backgroundColor: colors.missed + "35",
   },
   lookedUpWord: {
     color: colors.missed,
-    backgroundColor: colors.missed + "20",
   },
   selectedWord: {
     color: colors.missed,
-    backgroundColor: colors.missed + "35",
   },
   englishText: {
     fontSize: 20,
