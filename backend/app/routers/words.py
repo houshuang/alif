@@ -45,11 +45,9 @@ def list_words(
     limit: int = Query(50, ge=1, le=200),
     db: Session = Depends(get_db),
 ):
-    q = db.query(Lemma)
+    q = db.query(Lemma).join(UserLemmaKnowledge)
     if status:
-        q = q.join(UserLemmaKnowledge).filter(
-            UserLemmaKnowledge.knowledge_state == status
-        )
+        q = q.filter(UserLemmaKnowledge.knowledge_state == status)
     lemmas = q.offset(offset).limit(limit).all()
     results = []
     for lemma in lemmas:
