@@ -12,17 +12,24 @@ Deploy backend and/or frontend to the Hetzner production server.
 ## Frontend Only
 1. Push to main
 2. `ssh alif "cd /opt/alif && git pull && systemctl restart alif-expo"`
-3. Get new tunnel URL: `ssh alif /opt/alif/expo-url.sh`
 
 ## Full Deploy (both)
 ```bash
 ssh alif "cd /opt/alif && git pull && docker compose up -d --build && systemctl restart alif-expo"
 ```
 
+## IMPORTANT: Always display Expo URL after deploy
+After every deploy, display the stable Expo URL:
+```
+exp://alifstian.duckdns.org:8081
+http://alifstian.duckdns.org:8081
+```
+This URL is stable (no more changing tunnel URLs).
+
 ## Notes
 - Backend: http://46.225.75.29:3000 (docker 3000→8000), container `alif-backend-1`
-- Frontend: Expo dev server with tunnel, runs as systemd service `alif-expo`
-- Tunnel URL changes on restart — always check with `expo-url.sh`
+- Frontend: Expo dev server on port 8081, runs as systemd service `alif-expo`
+- Stable URL: `alifstian.duckdns.org` → 46.225.75.29 (DuckDNS, static IP)
 - SSH alias `alif` configured in ~/.ssh/config
 - `.env` at `/opt/alif/.env` on server
 - Server-side backups every 6h via cron to `/opt/alif-backups/`

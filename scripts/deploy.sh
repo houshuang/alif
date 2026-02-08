@@ -3,6 +3,7 @@ set -e
 
 SERVER="alif"
 REMOTE_DIR="/opt/alif"
+EXPO_URL="exp://alifstian.duckdns.org:8081"
 
 echo "Deploying to $SERVER..."
 ssh $SERVER "cd $REMOTE_DIR && git pull && docker compose up -d --build && systemctl restart alif-expo"
@@ -19,4 +20,6 @@ else
 fi
 
 echo ""
-ssh $SERVER "/opt/alif/expo-url.sh"
+echo "=== Expo URL (stable) ==="
+echo "  $EXPO_URL"
+echo "  http://alifstian.duckdns.org:8081"
