@@ -72,6 +72,7 @@ class ReviewLog(Base):
     comprehension_signal = Column(String(20), nullable=True)  # understood/partial/no_idea
     sentence_id = Column(Integer, ForeignKey("sentences.id"), nullable=True)
     credit_type = Column(String(20), nullable=True)  # primary/collateral
+    client_review_id = Column(String(50), nullable=True, unique=True)
 
     lemma = relationship("Lemma", back_populates="reviews")
 
@@ -120,6 +121,7 @@ class SentenceReviewLog(Base):
     comprehension = Column(String(20), nullable=False)  # understood/partial/no_idea
     response_ms = Column(Integer, nullable=True)
     review_mode = Column(String(20), default="reading")
+    client_review_id = Column(String(50), nullable=True, unique=True)
 
     sentence = relationship("Sentence")
 

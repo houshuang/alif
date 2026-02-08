@@ -59,6 +59,7 @@ class ReviewSubmitIn(BaseModel):
     review_mode: str = "reading"  # reading/listening
     comprehension_signal: Optional[str] = None  # understood/partial/no_idea
     missed_word_lemma_ids: Optional[list[int]] = None
+    client_review_id: str | None = None
 
 
 class ReviewSubmitOut(BaseModel):
@@ -190,7 +191,28 @@ class SentenceReviewSubmitIn(BaseModel):
     response_ms: int | None = None
     session_id: str | None = None
     review_mode: str = "reading"
+    client_review_id: str | None = None
 
 
 class SentenceReviewSubmitOut(BaseModel):
     word_results: list[dict]
+
+
+class BulkSyncItem(BaseModel):
+    type: str  # "sentence" or "legacy"
+    payload: dict
+    client_review_id: str
+
+
+class BulkSyncIn(BaseModel):
+    reviews: list[BulkSyncItem]
+
+
+class BulkSyncItemResult(BaseModel):
+    client_review_id: str
+    status: str  # "ok" | "duplicate" | "error"
+    error: str | None = None
+
+
+class BulkSyncOut(BaseModel):
+    results: list[BulkSyncItemResult]

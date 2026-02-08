@@ -33,6 +33,7 @@ export interface ReviewSubmission {
   review_mode: ReviewMode;
   comprehension_signal?: ComprehensionSignal;
   missed_word_lemma_ids?: number[];
+  client_review_id?: string;
 }
 
 export interface Word {
@@ -197,6 +198,7 @@ export interface SentenceReviewSubmission {
   response_ms: number;
   session_id: string;
   review_mode: ReviewMode;
+  client_review_id?: string;
 }
 
 export interface Analytics {

@@ -27,6 +27,7 @@ def submit_sentence_review(
     response_ms: Optional[int] = None,
     session_id: Optional[str] = None,
     review_mode: str = "reading",
+    client_review_id: Optional[str] = None,
 ) -> dict:
     """Submit a review for a whole sentence, distributing ratings to words.
 
@@ -36,6 +37,15 @@ def submit_sentence_review(
 
     Words without UserLemmaKnowledge get encounter-only tracking.
     """
+    if client_review_id:
+        existing = (
+            db.query(SentenceReviewLog)
+            .filter(SentenceReviewLog.client_review_id == client_review_id)
+            .first()
+        )
+        if existing:
+            return {"word_results": [], "duplicate": True}
+
     now = datetime.now(timezone.utc)
     missed_set = set(missed_lemma_ids or [])
 
@@ -78,6 +88,7 @@ def submit_sentence_review(
                 session_id=session_id,
                 review_mode=review_mode,
                 comprehension_signal=comprehension_signal,
+                client_review_id=None,
             )
             # Tag the review log entry with sentence context
             latest_log = (
@@ -126,6 +137,7 @@ def submit_sentence_review(
             comprehension=comprehension_signal,
             response_ms=response_ms,
             review_mode=review_mode,
+            client_review_id=client_review_id,
         )
         db.add(sent_log)
 

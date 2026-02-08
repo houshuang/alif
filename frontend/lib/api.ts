@@ -13,6 +13,15 @@ import {
   LearnCandidate,
   IntroduceResult,
 } from "./types";
+import { netStatus } from "./net-status";
+import {
+  cacheSessions,
+  getCachedSession,
+  markReviewed,
+  cacheData,
+  getCachedData,
+} from "./offline-store";
+import { enqueueReview, flushQueue } from "./sync-queue";
 
 export const BASE_URL =
   Constants.expoConfig?.extra?.apiUrl ?? "http://localhost:8000";
@@ -23,6 +32,10 @@ function generateSessionId(): string {
     const v = c === "x" ? r : (r & 0x3) | 0x8;
     return v.toString(16);
   });
+}
+
+export function generateUuid(): string {
+  return generateSessionId();
 }
 
 async function fetchApi<T>(path: string, options?: RequestInit): Promise<T> {
@@ -65,34 +78,44 @@ export async function getReviewSession(
 }
 
 export async function submitReview(submission: ReviewSubmission): Promise<void> {
-  await fetchApi("/api/review/submit", {
-    method: "POST",
-    body: JSON.stringify({
-      lemma_id: submission.lemma_id,
-      rating: submission.rating,
-      response_ms: submission.response_ms,
-      session_id: submission.session_id,
-      review_mode: submission.review_mode,
-      comprehension_signal: submission.comprehension_signal,
-    }),
-  });
+  const clientReviewId = submission.client_review_id || generateUuid();
+  await enqueueReview("legacy", {
+    lemma_id: submission.lemma_id,
+    rating: submission.rating,
+    response_ms: submission.response_ms,
+    session_id: submission.session_id,
+    review_mode: submission.review_mode,
+    comprehension_signal: submission.comprehension_signal,
+  }, clientReviewId);
+
+  if (netStatus.isOnline) {
+    flushQueue().catch(() => {});
+  }
 }
 
 export async function getWords(): Promise<Word[]> {
-  const raw = await fetchApi<any[]>("/api/words?limit=200");
-  return raw.map((w) => ({
-    id: w.lemma_id,
-    arabic: w.lemma_ar,
-    english: w.gloss_en || "",
-    transliteration: w.transliteration || "",
-    root: w.root,
-    pos: w.pos || "",
-    state: w.knowledge_state || "new",
-    due_date: null,
-    times_seen: w.times_seen || 0,
-    times_correct: w.times_correct || 0,
-    last_reviewed: w.last_reviewed || null,
-  }));
+  try {
+    const raw = await fetchApi<any[]>("/api/words?limit=200");
+    const words = raw.map((w) => ({
+      id: w.lemma_id,
+      arabic: w.lemma_ar,
+      english: w.gloss_en || "",
+      transliteration: w.transliteration || "",
+      root: w.root,
+      pos: w.pos || "",
+      state: w.knowledge_state || "new",
+      due_date: null,
+      times_seen: w.times_seen || 0,
+      times_correct: w.times_correct || 0,
+      last_reviewed: w.last_reviewed || null,
+    }));
+    cacheData("words", words).catch(() => {});
+    return words;
+  } catch (e) {
+    const cached = await getCachedData<Word[]>("words");
+    if (cached) return cached;
+    throw e;
+  }
 }
 
 export async function getWordDetail(id: number): Promise<WordDetail> {
@@ -122,20 +145,36 @@ export async function getWordDetail(id: number): Promise<WordDetail> {
 }
 
 export async function getStats(): Promise<Stats> {
-  const raw = await fetchApi<any>("/api/stats");
-  return {
-    total_words: raw.total_words,
-    known_words: raw.known,
-    learning_words: raw.learning,
-    new_words: raw.new,
-    due_today: raw.due_today,
-    reviews_today: raw.reviews_today,
-    streak_days: 0,
-  };
+  try {
+    const raw = await fetchApi<any>("/api/stats");
+    const stats = {
+      total_words: raw.total_words,
+      known_words: raw.known,
+      learning_words: raw.learning,
+      new_words: raw.new,
+      due_today: raw.due_today,
+      reviews_today: raw.reviews_today,
+      streak_days: 0,
+    };
+    cacheData("stats", stats).catch(() => {});
+    return stats;
+  } catch (e) {
+    const cached = await getCachedData<Stats>("stats");
+    if (cached) return cached;
+    throw e;
+  }
 }
 
 export async function getAnalytics(): Promise<Analytics> {
-  return fetchApi<Analytics>("/api/stats/analytics");
+  try {
+    const data = await fetchApi<Analytics>("/api/stats/analytics");
+    cacheData("analytics", data).catch(() => {});
+    return data;
+  } catch (e) {
+    const cached = await getCachedData<Analytics>("analytics");
+    if (cached) return cached;
+    throw e;
+  }
 }
 
 export async function getNextWords(
@@ -169,17 +208,55 @@ export async function submitQuizResult(
 export async function getSentenceReviewSession(
   mode: ReviewMode = "reading"
 ): Promise<SentenceReviewSession> {
-  const data = await fetchApi<any>(
-    `/api/review/next-sentences?limit=10&mode=${mode}`
-  );
-  return { ...data, session_id: generateSessionId() };
+  try {
+    const data = await fetchApi<any>(
+      `/api/review/next-sentences?limit=10&mode=${mode}`
+    );
+    const session = { ...data, session_id: generateSessionId() };
+    cacheSessions(mode, [session]).catch(() => {});
+    prefetchSessions(mode).catch(() => {});
+    return session;
+  } catch (e) {
+    const cached = await getCachedSession(mode);
+    if (cached) return cached;
+    throw e;
+  }
 }
 
 export async function submitSentenceReview(
   submission: SentenceReviewSubmission
-): Promise<any> {
-  return fetchApi("/api/review/submit-sentence", {
-    method: "POST",
-    body: JSON.stringify(submission),
-  });
+): Promise<{ word_results: any[] }> {
+  const clientReviewId = submission.client_review_id || generateUuid();
+
+  await markReviewed(
+    submission.session_id,
+    submission.sentence_id,
+    submission.primary_lemma_id
+  );
+
+  await enqueueReview("sentence", {
+    sentence_id: submission.sentence_id,
+    primary_lemma_id: submission.primary_lemma_id,
+    comprehension_signal: submission.comprehension_signal,
+    missed_lemma_ids: submission.missed_lemma_ids,
+    response_ms: submission.response_ms,
+    session_id: submission.session_id,
+    review_mode: submission.review_mode,
+  }, clientReviewId);
+
+  if (netStatus.isOnline) {
+    flushQueue().catch(() => {});
+  }
+
+  return { word_results: [] };
+}
+
+export async function prefetchSessions(mode: ReviewMode): Promise<void> {
+  try {
+    const data = await fetchApi<any>(
+      `/api/review/next-sentences?limit=10&mode=${mode}`
+    );
+    const session = { ...data, session_id: generateSessionId() };
+    await cacheSessions(mode, [session]);
+  } catch {}
 }

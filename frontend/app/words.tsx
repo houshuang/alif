@@ -13,11 +13,21 @@ import { colors, fonts } from "../lib/theme";
 import { getWords } from "../lib/api";
 import { Word } from "../lib/types";
 
+type FilterValue = "all" | "new" | "learning" | "known" | "reviewed";
+
+function reviewCategory(w: Word): "failed" | "passed" | "unseen" {
+  if (w.times_seen === 0) return "unseen";
+  if (w.times_correct < w.times_seen) return "failed";
+  return "passed";
+}
+
+const sortOrder = { failed: 0, passed: 1, unseen: 2 };
+
 export default function WordsScreen() {
   const [words, setWords] = useState<Word[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
-  const [filter, setFilter] = useState<"all" | "new" | "learning" | "known">("all");
+  const [filter, setFilter] = useState<FilterValue>("all");
   const router = useRouter();
 
   useFocusEffect(
@@ -40,7 +50,9 @@ export default function WordsScreen() {
 
   const filtered = useMemo(() => {
     let result = words;
-    if (filter !== "all") {
+    if (filter === "reviewed") {
+      result = result.filter((w) => w.times_seen > 0);
+    } else if (filter !== "all") {
       result = result.filter((w) => w.state === filter);
     }
     if (search.trim()) {
@@ -52,8 +64,15 @@ export default function WordsScreen() {
           w.transliteration.toLowerCase().includes(q)
       );
     }
-    return result;
+    return [...result].sort(
+      (a, b) => sortOrder[reviewCategory(a)] - sortOrder[reviewCategory(b)]
+    );
   }, [words, search, filter]);
+
+  const reviewedCount = useMemo(
+    () => words.filter((w) => w.times_seen > 0).length,
+    [words]
+  );
 
   function stateBadgeColor(state: Word["state"]): string {
     return {
@@ -64,18 +83,54 @@ export default function WordsScreen() {
   }
 
   function renderWord({ item }: { item: Word }) {
-    const accuracy =
-      item.times_seen > 0
-        ? Math.round((item.times_correct / item.times_seen) * 100)
-        : null;
+    const cat = reviewCategory(item);
+    const failed = item.times_seen - item.times_correct;
+
+    const rowBg =
+      cat === "failed"
+        ? "rgba(231, 76, 60, 0.10)"
+        : cat === "passed"
+          ? "rgba(46, 204, 113, 0.08)"
+          : colors.surface;
+
+    const borderColor =
+      cat === "failed"
+        ? colors.missed
+        : cat === "passed"
+          ? colors.good
+          : "transparent";
+
     return (
       <Pressable
-        style={styles.wordRow}
+        style={[
+          styles.wordRow,
+          {
+            backgroundColor: rowBg,
+            borderLeftWidth: 3,
+            borderLeftColor: borderColor,
+          },
+        ]}
         onPress={() => router.push(`/word/${item.id}`)}
       >
         <View style={styles.wordLeft}>
           <Text style={styles.wordArabic}>{item.arabic}</Text>
           <Text style={styles.wordEnglish}>{item.english}</Text>
+          {item.times_seen > 0 ? (
+            <Text style={styles.wordReviewStats}>
+              Seen {item.times_seen}x{" "}
+              <Text style={{ color: colors.good }}>
+                {item.times_correct} correct
+              </Text>
+              {failed > 0 && (
+                <Text style={{ color: colors.missed }}>
+                  {" "}
+                  · {failed} failed
+                </Text>
+              )}
+            </Text>
+          ) : (
+            <Text style={styles.wordReviewStats}>{item.pos}</Text>
+          )}
         </View>
         <View style={styles.wordRight}>
           <View
@@ -86,13 +141,6 @@ export default function WordsScreen() {
           >
             <Text style={styles.stateBadgeText}>{item.state}</Text>
           </View>
-          {item.times_seen > 0 ? (
-            <Text style={styles.wordStats}>
-              {item.times_seen}x · {accuracy}%
-            </Text>
-          ) : (
-            <Text style={styles.wordPos}>{item.pos}</Text>
-          )}
         </View>
       </Pressable>
     );
@@ -106,12 +154,20 @@ export default function WordsScreen() {
     );
   }
 
-  const filters: Array<"all" | "new" | "learning" | "known"> = [
+  const filters: FilterValue[] = [
     "all",
     "new",
     "learning",
     "known",
+    "reviewed",
   ];
+
+  function filterLabel(f: FilterValue): string {
+    const label = f.charAt(0).toUpperCase() + f.slice(1);
+    if (f === "all") return label;
+    if (f === "reviewed") return `${label} (${reviewedCount})`;
+    return `${label} (${words.filter((w) => w.state === f).length})`;
+  }
 
   return (
     <View style={styles.container}>
@@ -138,8 +194,7 @@ export default function WordsScreen() {
                 filter === f && styles.filterChipTextActive,
               ]}
             >
-              {f.charAt(0).toUpperCase() + f.slice(1)}
-              {f !== "all" && ` (${words.filter((w) => w.state === f).length})`}
+              {filterLabel(f)}
             </Text>
           </Pressable>
         ))}
@@ -178,6 +233,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     gap: 8,
     marginBottom: 8,
+    flexWrap: "wrap",
   },
   filterChip: {
     paddingVertical: 6,
@@ -225,6 +281,11 @@ const styles = StyleSheet.create({
     fontSize: fonts.small,
     color: colors.textSecondary,
   },
+  wordReviewStats: {
+    fontSize: fonts.caption,
+    color: colors.textSecondary,
+    marginTop: 3,
+  },
   wordRight: {
     alignItems: "flex-end",
     marginLeft: 12,
@@ -233,20 +294,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 3,
     borderRadius: 10,
-    marginBottom: 4,
   },
   stateBadgeText: {
     color: "#fff",
     fontSize: fonts.caption,
     fontWeight: "600",
-  },
-  wordPos: {
-    fontSize: fonts.caption,
-    color: colors.textSecondary,
-  },
-  wordStats: {
-    fontSize: fonts.caption,
-    color: colors.textSecondary,
   },
   emptyText: {
     color: colors.textSecondary,

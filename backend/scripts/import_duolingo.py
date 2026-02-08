@@ -197,8 +197,8 @@ def run_import(db: Session) -> dict:
         # Skip if bare form matches a name (without diacritics)
         bare_no_al = strip_al_prefix(bare)
 
-        # Already imported?
-        if bare in seen_bare:
+        # Already imported? Check both bare and al-stripped forms
+        if bare in seen_bare or bare_no_al in seen_bare:
             continue
 
         # Try to find/create root
@@ -236,6 +236,7 @@ def run_import(db: Session) -> dict:
         )
         db.add(knowledge)
         seen_bare.add(bare)
+        seen_bare.add(bare_no_al)
         imported += 1
 
     db.commit()

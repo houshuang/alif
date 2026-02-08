@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.schemas import (
+    BulkSyncIn,
     ReviewCardOut,
     ReviewSubmitIn,
     ReviewSubmitOut,
@@ -54,6 +55,7 @@ def submit(body: ReviewSubmitIn, db: Session = Depends(get_db)):
         session_id=body.session_id,
         review_mode=body.review_mode,
         comprehension_signal=body.comprehension_signal,
+        client_review_id=body.client_review_id,
     )
 
     log_interaction(
@@ -114,6 +116,7 @@ def submit_sentence(body: SentenceReviewSubmitIn, db: Session = Depends(get_db))
         response_ms=body.response_ms,
         session_id=body.session_id,
         review_mode=body.review_mode,
+        client_review_id=body.client_review_id,
     )
 
     log_interaction(
@@ -130,3 +133,44 @@ def submit_sentence(body: SentenceReviewSubmitIn, db: Session = Depends(get_db))
     )
 
     return result
+
+
+@router.post("/sync")
+def sync_reviews(body: BulkSyncIn, db: Session = Depends(get_db)):
+    results = []
+    for item in body.reviews:
+        try:
+            if item.type == "sentence":
+                payload = item.payload
+                result = submit_sentence_review(
+                    db,
+                    sentence_id=payload.get("sentence_id"),
+                    primary_lemma_id=payload["primary_lemma_id"],
+                    comprehension_signal=payload["comprehension_signal"],
+                    missed_lemma_ids=payload.get("missed_lemma_ids", []),
+                    response_ms=payload.get("response_ms"),
+                    session_id=payload.get("session_id"),
+                    review_mode=payload.get("review_mode", "reading"),
+                    client_review_id=item.client_review_id,
+                )
+                status = "duplicate" if result.get("duplicate") else "ok"
+                results.append({"client_review_id": item.client_review_id, "status": status})
+            elif item.type == "legacy":
+                payload = item.payload
+                result = submit_review(
+                    db,
+                    lemma_id=payload["lemma_id"],
+                    rating_int=payload["rating"],
+                    response_ms=payload.get("response_ms"),
+                    session_id=payload.get("session_id"),
+                    review_mode=payload.get("review_mode", "reading"),
+                    comprehension_signal=payload.get("comprehension_signal"),
+                    client_review_id=item.client_review_id,
+                )
+                status = "duplicate" if result.get("duplicate") else "ok"
+                results.append({"client_review_id": item.client_review_id, "status": status})
+            else:
+                results.append({"client_review_id": item.client_review_id, "status": "error", "error": f"Unknown type: {item.type}"})
+        except Exception as e:
+            results.append({"client_review_id": item.client_review_id, "status": "error", "error": str(e)})
+    return {"results": results}

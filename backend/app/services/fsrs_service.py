@@ -75,7 +75,30 @@ def submit_review(
     session_id: Optional[str] = None,
     review_mode: str = "reading",
     comprehension_signal: Optional[str] = None,
+    client_review_id: Optional[str] = None,
 ) -> dict:
+    if client_review_id:
+        existing = (
+            db.query(ReviewLog)
+            .filter(ReviewLog.client_review_id == client_review_id)
+            .first()
+        )
+        if existing:
+            knowledge = (
+                db.query(UserLemmaKnowledge)
+                .filter(UserLemmaKnowledge.lemma_id == lemma_id)
+                .first()
+            )
+            card_data = knowledge.fsrs_card_json if knowledge else {}
+            if isinstance(card_data, str):
+                card_data = json.loads(card_data)
+            return {
+                "lemma_id": lemma_id,
+                "new_state": knowledge.knowledge_state if knowledge else "new",
+                "next_due": card_data.get("due", ""),
+                "duplicate": True,
+            }
+
     knowledge = (
         db.query(UserLemmaKnowledge)
         .filter(UserLemmaKnowledge.lemma_id == lemma_id)
@@ -109,6 +132,7 @@ def submit_review(
         session_id=session_id,
         review_mode=review_mode,
         comprehension_signal=comprehension_signal,
+        client_review_id=client_review_id,
         fsrs_log_json={
             "rating": rating_int,
             "state": new_state,
