@@ -242,6 +242,7 @@ class StoryOut(BaseModel):
     readiness_pct: float
     unknown_count: int
     total_words: int
+    difficulty_level: str | None = None
     created_at: str
     model_config = {"from_attributes": True}
 
@@ -259,6 +260,8 @@ class StoryDetailOut(BaseModel):
     unknown_count: int
     total_words: int
     known_count: int
+    difficulty_level: str | None = None
+    completed_at: str | None = None
     created_at: str
     words: list[StoryWordMetaOut]
 
@@ -296,3 +299,39 @@ class StoryReadinessOut(BaseModel):
     readiness_pct: float
     unknown_count: int
     unknown_words: list[dict]
+
+
+# --- Chat schemas ---
+
+class AskQuestionIn(BaseModel):
+    question: str
+    context: str = ""
+    screen: str = ""
+    conversation_id: str | None = None
+
+
+class AskQuestionOut(BaseModel):
+    answer: str
+    conversation_id: str
+
+
+class ChatMessageOut(BaseModel):
+    role: str
+    content: str
+    created_at: datetime
+    model_config = {"from_attributes": True}
+
+
+class ConversationSummary(BaseModel):
+    conversation_id: str
+    screen: str
+    preview: str
+    created_at: datetime
+    message_count: int
+
+
+class ConversationDetail(BaseModel):
+    conversation_id: str
+    screen: str
+    context_summary: str | None
+    messages: list[ChatMessageOut]

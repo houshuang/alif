@@ -89,11 +89,11 @@ def test_sentence_with_words(db_session):
         position=1,
         surface_form="كلب",
         lemma_id=lemma.lemma_id,
-        is_target_word=1,
+        is_target_word=True,
     )
     db_session.add(word)
     db_session.commit()
 
     fetched = db_session.query(Sentence).first()
     assert len(fetched.words) == 1
-    assert fetched.words[0].is_target_word == 1
+    assert fetched.words[0].is_target_word is True

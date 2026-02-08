@@ -104,6 +104,14 @@ export default function Layout() {
           }}
         />
         <Tabs.Screen
+          name="chats"
+          options={{
+            title: "Chats",
+            tabBarLabel: "Chats",
+            tabBarIcon: ({ color, size }) => <Ionicons name="chatbubbles-outline" size={size} color={color} />,
+          }}
+        />
+        <Tabs.Screen
           name="stats"
           options={{
             title: "Stats",

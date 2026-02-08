@@ -12,6 +12,7 @@ import { useRouter, useFocusEffect } from "expo-router";
 import { colors, fonts } from "../lib/theme";
 import { getWords } from "../lib/api";
 import { Word } from "../lib/types";
+import AskAI from "../lib/AskAI";
 
 type FilterValue = "all" | "new" | "learning" | "known" | "reviewed";
 
@@ -26,6 +27,7 @@ const sortOrder = { failed: 0, passed: 1, unseen: 2 };
 export default function WordsScreen() {
   const [words, setWords] = useState<Word[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<FilterValue>("all");
   const router = useRouter();
@@ -41,8 +43,10 @@ export default function WordsScreen() {
     try {
       const data = await getWords();
       setWords(data);
+      setError(null);
     } catch (e) {
       console.error("Failed to load words:", e);
+      setError("Failed to load words");
     } finally {
       setLoading(false);
     }
@@ -157,6 +161,17 @@ export default function WordsScreen() {
     );
   }
 
+  if (error && words.length === 0) {
+    return (
+      <View style={styles.errorContainer}>
+        <Text style={styles.errorText}>{error}</Text>
+        <Pressable style={styles.retryButton} onPress={loadWords}>
+          <Text style={styles.retryText}>Retry</Text>
+        </Pressable>
+      </View>
+    );
+  }
+
   const filters: FilterValue[] = [
     "all",
     "new",
@@ -210,6 +225,15 @@ export default function WordsScreen() {
         ListEmptyComponent={
           <Text style={styles.emptyText}>No words found</Text>
         }
+      />
+      <AskAI
+        contextBuilder={() => {
+          const parts = [`Filter: ${filter}`, `Search: ${search || "(none)"}`];
+          const shown = filtered.slice(0, 20).map((w) => `${w.arabic} (${w.english})`).join(", ");
+          parts.push(`Visible words: ${shown}`);
+          return parts.join("\n");
+        }}
+        screen="words"
       />
     </View>
   );
@@ -314,5 +338,27 @@ const styles = StyleSheet.create({
     fontSize: fonts.body,
     textAlign: "center",
     marginTop: 40,
+  },
+  errorContainer: {
+    flex: 1,
+    backgroundColor: colors.bg,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  errorText: {
+    color: colors.textSecondary,
+    fontSize: 18,
+    marginBottom: 16,
+  },
+  retryButton: {
+    backgroundColor: colors.accent,
+    paddingVertical: 10,
+    paddingHorizontal: 24,
+    borderRadius: 10,
+  },
+  retryText: {
+    color: "#fff",
+    fontSize: 16,
+    fontWeight: "600",
   },
 });

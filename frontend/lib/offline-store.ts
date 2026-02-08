@@ -71,6 +71,9 @@ export async function invalidateSessions(): Promise<void> {
     KEYS.sessions("reading"),
     KEYS.sessions("listening"),
     KEYS.reviewed,
+    KEYS.words,
+    KEYS.stats,
+    KEYS.analytics,
   ]);
 }
 

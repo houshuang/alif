@@ -175,38 +175,71 @@ def generate_completion(
     raise AllProvidersFailed(f"All LLM providers failed: {'; '.join(errors)}")
 
 
-SENTENCE_SYSTEM_PROMPT = """\
-You are an Arabic language tutor creating MSA (Modern Standard Arabic) sentences \
-for reading practice. Create natural, meaningful sentences using specific vocabulary.
+ARABIC_STYLE_RULES = """\
+Arabic naturalness rules:
+- Mix VSO and SVO word order. VSO is more formal/classical; SVO more contemporary
+- VSO agreement: verb matches person + gender only, NOT number: ذَهَبَ الطُّلَّابُ
+- SVO agreement: verb matches person + gender + number: الطُّلَّابُ ذَهَبُوا
+- Mix nominal sentences (descriptions/states) with verbal sentences (actions/events)
+- NO copula: never insert هُوَ/هِيَ as "is" with indefinite predicates. \
+Write مُحَمَّدٌ طَبِيبٌ NOT مُحَمَّدٌ هُوَ طَبِيبٌ
+- Separator pronoun (ضمير الفصل) ONLY when both subject AND predicate are definite: \
+مُحَمَّدٌ هُوَ المُدِيرُ
+- Idafa: first noun has NO ال and NO tanween: كِتَابُ الطَّالِبِ
+- Correct i'rab: nominative ضمة, accusative فتحة, genitive كسرة. Tanween on indefinites.
+- Use connectors naturally: و (and), فَ (so/immediately), ثُمَّ (then/after delay), لَكِنَّ (but)
+- Vary sentence length — mix short and long clauses
+- Do NOT translate English syntax literally into Arabic"""
 
-Rules:
-- Write grammatically correct MSA (fusha)
-- Use only the vocabulary provided (known words + target word + common function words)
+DIFFICULTY_STYLE_GUIDE = """\
+Style by difficulty level:
+- very simple / simple: prefer SVO. Short nominal sentences. Basic connectors (و). \
+Simple tenses. No embedded clauses.
+- beginner: mix SVO and VSO. Simple idafa. Introduce فَ and ثُمَّ. One clause per sentence.
+- intermediate: more VSO. Relative clauses (الَّذِي/الَّتِي). Questions with هَلْ. \
+Negation with لَمْ/لَنْ. Idafa chains. Dialogue with قَالَ.
+- advanced: VSO default. Embedded clauses. Classical particles (إِنَّ، لَعَلَّ، كَأَنَّ). \
+Formal register approaching classical style."""
+
+SENTENCE_SYSTEM_PROMPT = f"""\
+You are an Arabic language tutor creating MSA (fusha) sentences for reading practice. \
+Write sentences a native speaker would find natural — not textbook constructions.
+
+{ARABIC_STYLE_RULES}
+
+{DIFFICULTY_STYLE_GUIDE}
+
+Vocabulary constraint:
+- Use ONLY the provided vocabulary + target word + common function words
 - Common function words you may freely use: في، من، على، إلى، و، ب، ل، هذا، هذه، \
 هو، هي، أنا، أنت، ما، لا، أن، إن، كان، ليس، هل، لم، لن، قد، الذي، التي
-- Include full diacritics (tashkeel) on all Arabic words
-- The transliteration must use ALA-LC standard with macrons for long vowels
+- Include full diacritics (tashkeel) on ALL Arabic words with correct i'rab
+- Transliteration: ALA-LC standard with macrons for long vowels
 
-Respond with JSON only: {"arabic": "...", "english": "...", "transliteration": "..."}"""
+Respond with JSON only: {{"arabic": "...", "english": "...", "transliteration": "..."}}"""
 
 
-BATCH_SENTENCE_SYSTEM_PROMPT = """\
-You are an Arabic language tutor creating MSA (Modern Standard Arabic) sentences \
-for reading practice. You generate multiple varied sentences for a target word.
+BATCH_SENTENCE_SYSTEM_PROMPT = f"""\
+You are an Arabic language tutor creating MSA (fusha) sentences for reading practice. \
+You generate multiple varied sentences for a target word. Each sentence must sound natural, \
+not like a textbook exercise.
 
-Rules:
-- Write grammatically correct MSA (fusha)
-- ONLY use words from the provided vocabulary list, the target word, and common function words
+{ARABIC_STYLE_RULES}
+
+{DIFFICULTY_STYLE_GUIDE}
+
+Vocabulary constraint:
+- Use ONLY words from the provided vocabulary, the target word, and common function words
 - Common function words you may freely use: في، من، على، إلى، و، ب، ل، ك، هذا، هذه، \
 ذلك، تلك، هو، هي، أنا، أنت، نحن، هم، ما، لا، أن، إن، كان، كانت، ليس، هل، لم، \
 لن، قد، الذي، التي، كل، بعض، هنا، هناك، الآن، جدا، فقط، أيضا، أو، ثم، لكن
 - Do NOT invent or use Arabic content words not in the vocabulary list
-- Include full diacritics (tashkeel) on ALL Arabic words
+- Include full diacritics (tashkeel) on ALL Arabic words with correct i'rab
 - Each sentence should be 4-8 words long
-- Each sentence should use a different structure/context
-- Transliteration must use ALA-LC standard with macrons for long vowels
+- Each sentence should use a DIFFERENT syntactic structure (vary VSO/SVO, nominal/verbal, question/statement)
+- Transliteration: ALA-LC standard with macrons for long vowels
 
-Respond with JSON: {"sentences": [{"arabic": "...", "english": "...", "transliteration": "..."}, ...]}"""
+Respond with JSON: {{"sentences": [{{"arabic": "...", "english": "...", "transliteration": "..."}}, ...]}}"""
 
 
 def generate_sentence(

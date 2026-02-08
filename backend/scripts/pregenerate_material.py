@@ -126,7 +126,7 @@ def generate_sentences_for_word(
                     position=m.position,
                     surface_form=m.surface_form,
                     lemma_id=m.lemma_id,
-                    is_target_word=1 if m.is_target else 0,
+                    is_target_word=m.is_target,
                 )
                 db.add(sw)
 

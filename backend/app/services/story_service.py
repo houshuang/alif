@@ -13,7 +13,12 @@ from sqlalchemy.orm import Session
 from app.models import Lemma, UserLemmaKnowledge, Story, StoryWord
 from app.services.fsrs_service import submit_review
 from app.services.interaction_logger import log_interaction
-from app.services.llm import AllProvidersFailed, generate_completion
+from app.services.llm import (
+    ARABIC_STYLE_RULES,
+    DIFFICULTY_STYLE_GUIDE,
+    AllProvidersFailed,
+    generate_completion,
+)
 from app.services.sentence_validator import (
     FUNCTION_WORDS,
     build_lemma_lookup,
@@ -28,21 +33,24 @@ from app.services.sentence_validator import (
 KNOWN_SAMPLE_SIZE = 80
 MAX_NEW_WORDS_IN_STORY = 5
 
-STORY_SYSTEM_PROMPT = """\
-You are a creative Arabic storyteller writing for language learners. Your job is to write \
-genuinely engaging mini-stories in Modern Standard Arabic (MSA/fusha) — with a real narrative \
-arc, characters, and a satisfying ending. Think micro-fiction, not practice sentences.
+STORY_SYSTEM_PROMPT = f"""\
+You are a creative Arabic storyteller writing for language learners. Write genuinely \
+engaging mini-stories in MSA (fusha) with a real narrative arc, characters, and a satisfying ending.
 
-CRITICAL: Write a COHESIVE STORY with a beginning, middle, and end. Every sentence must \
-connect to the previous one and advance the narrative. Do NOT write disconnected practice \
-sentences that happen to use the same words.
+CRITICAL: Write a COHESIVE STORY with beginning, middle, and end. Every sentence must \
+connect to the previous one and advance the narrative.
 
-Story quality guidelines:
+{ARABIC_STYLE_RULES}
+
+Story craft:
 - Give the main character a name and a situation/problem
-- Build tension or curiosity — why should the reader keep reading?
+- Build tension or curiosity
 - End with a twist, punchline, resolution, or poetic moment
-- Vary sentence structure: mix short punchy sentences with longer ones
-- Use dialogue (with قال/قالت) when it serves the story
+- Use dialogue (with قَالَ/قَالَتْ) when it serves the story
+- Use VSO for narration (ذَهَبَ الرَّجُلُ), SVO for emphasis/contrast (الرَّجُلُ ذَهَبَ وَحْدَهُ)
+- Nominal sentences for scene-setting (اللَّيْلُ طَوِيلٌ)
+
+{DIFFICULTY_STYLE_GUIDE}
 
 Vocabulary constraint:
 - Use ONLY words from the provided vocabulary list and common function words
@@ -50,11 +58,11 @@ Vocabulary constraint:
 ذلك، تلك، هو، هي، أنا، أنت، نحن، هم، ما، لا، أن، إن، كان، كانت، ليس، هل، لم، \
 لن، قد، الذي، التي، كل، بعض، هنا، هناك، الآن، جدا، فقط، أيضا، أو، ثم، لكن، يا
 - Do NOT invent or use Arabic content words not in the vocabulary list
-- Include full diacritics (tashkeel) on ALL Arabic words
+- Include full diacritics (tashkeel) on ALL Arabic words with correct i'rab
 - Separate sentences with periods
-- The transliteration must use ALA-LC standard with macrons for long vowels
+- Transliteration: ALA-LC standard with macrons for long vowels
 
-Respond with JSON only: {"title_ar": "...", "title_en": "...", "body_ar": "...", "body_en": "...", "transliteration": "..."}"""
+Respond with JSON only: {{"title_ar": "...", "title_en": "...", "body_ar": "...", "body_en": "...", "transliteration": "..."}}"""
 
 
 def _get_known_words(db: Session) -> list[dict]:
@@ -106,6 +114,24 @@ def _create_story_words(
     known = 0
     func = 0
 
+    # Batch-load all lemmas for gloss lookup (avoid N+1 queries)
+    all_lemma_ids_needed: set[int] = set()
+    for sent_idx, sentence_text in enumerate(sentences):
+        tokens = _tokenize_story(sentence_text)
+        for token in tokens:
+            bare = strip_diacritics(token)
+            bare_clean = strip_tatweel(bare)
+            bare_norm = normalize_alef(bare_clean)
+            if not _is_function_word(bare_clean):
+                lid = _lookup_lemma(bare_norm, lemma_lookup)
+                if lid:
+                    all_lemma_ids_needed.add(lid)
+
+    lemma_by_id: dict[int, Lemma] = {}
+    if all_lemma_ids_needed:
+        lemma_rows = db.query(Lemma).filter(Lemma.lemma_id.in_(all_lemma_ids_needed)).all()
+        lemma_by_id = {l.lemma_id: l for l in lemma_rows}
+
     for sent_idx, sentence_text in enumerate(sentences):
         tokens = _tokenize_story(sentence_text)
         for token in tokens:
@@ -123,7 +149,7 @@ def _create_story_words(
 
             gloss = None
             if lemma_id:
-                lemma = db.query(Lemma).filter(Lemma.lemma_id == lemma_id).first()
+                lemma = lemma_by_id.get(lemma_id)
                 if lemma:
                     gloss = lemma.gloss_en
 
@@ -134,8 +160,8 @@ def _create_story_words(
                 lemma_id=lemma_id,
                 sentence_index=sent_idx,
                 gloss_en=gloss,
-                is_known_at_creation=1 if (is_known or is_func) else 0,
-                is_function_word=1 if is_func else 0,
+                is_known_at_creation=is_known or is_func,
+                is_function_word=is_func,
             )
             db.add(sw)
             total += 1

@@ -11,6 +11,7 @@ import { useFocusEffect } from "expo-router";
 import { colors, fonts } from "../lib/theme";
 import { getAnalytics } from "../lib/api";
 import { Analytics } from "../lib/types";
+import AskAI from "../lib/AskAI";
 import { syncEvents } from "../lib/sync-events";
 
 export default function StatsScreen() {
@@ -63,6 +64,7 @@ export default function StatsScreen() {
   const { stats, pace, cefr, daily_history } = analytics;
 
   return (
+    <View style={{ flex: 1, backgroundColor: colors.bg }}>
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <Text style={styles.title}>Your Progress</Text>
 
@@ -212,6 +214,21 @@ export default function StatsScreen() {
         </View>
       )}
     </ScrollView>
+    <AskAI
+      contextBuilder={() => {
+        if (!analytics) return "";
+        const parts = [
+          `CEFR Level: ${analytics.cefr.sublevel}`,
+          `Known: ${analytics.stats.known}, Learning: ${analytics.stats.learning}, Due: ${analytics.stats.due_today}`,
+          `Reviews today: ${analytics.stats.reviews_today}`,
+          `Pace: ${analytics.pace.words_per_day_7d} words/day (7d), ${analytics.pace.reviews_per_day_7d} reviews/day (7d)`,
+          `Streak: ${analytics.pace.current_streak} days`,
+        ];
+        return parts.join("\n");
+      }}
+      screen="stats"
+    />
+    </View>
   );
 }
 

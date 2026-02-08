@@ -290,3 +290,29 @@ export interface StoryLookupResult {
   root: string | null;
   pos: string | null;
 }
+
+export interface AskAIResponse {
+  answer: string;
+  conversation_id: string;
+}
+
+export interface ChatMessageItem {
+  role: "user" | "assistant";
+  content: string;
+  created_at: string;
+}
+
+export interface ConversationSummary {
+  conversation_id: string;
+  screen: string;
+  preview: string;
+  created_at: string;
+  message_count: number;
+}
+
+export interface ConversationDetail {
+  conversation_id: string;
+  screen: string;
+  context_summary: string | null;
+  messages: ChatMessageItem[];
+}

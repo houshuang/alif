@@ -20,6 +20,7 @@ import {
   generateUuid,
 } from "../lib/api";
 import { LearnCandidate, WordForms, Analytics } from "../lib/types";
+import AskAI from "../lib/AskAI";
 
 function posLabel(pos: string | null, forms: WordForms | null): string {
   const p = (pos || "").toLowerCase();
@@ -161,6 +162,7 @@ export default function LearnScreen() {
   const [quizResults, setQuizResults] = useState<boolean[]>([]);
   const [quizSentence, setQuizSentence] = useState<QuizSentence | null>(null);
   const [quizLoading, setQuizLoading] = useState(false);
+  const [quizFeedback, setQuizFeedback] = useState<"correct" | "incorrect" | null>(null);
   const sessionId = useRef(generateUuid());
 
   useEffect(() => {
@@ -224,6 +226,7 @@ export default function LearnScreen() {
       setQuizRevealed(false);
       setQuizResults([]);
       setQuizSentence(null);
+      setQuizFeedback(null);
       setPhase("quiz");
       loadQuizSentence(0);
     }
@@ -235,6 +238,7 @@ export default function LearnScreen() {
     setQuizRevealed(false);
     setQuizResults([]);
     setQuizSentence(null);
+    setQuizFeedback(null);
     setPhase("quiz");
     loadQuizSentence(0);
   }
@@ -282,14 +286,18 @@ export default function LearnScreen() {
       });
     }
 
-    if (quizIndex < introduced.length - 1) {
-      const nextIdx = quizIndex + 1;
-      setQuizIndex(nextIdx);
-      setQuizRevealed(false);
-      loadQuizSentence(nextIdx);
-    } else {
-      setPhase("done");
-    }
+    setQuizFeedback(gotIt ? "correct" : "incorrect");
+    setTimeout(() => {
+      setQuizFeedback(null);
+      if (quizIndex < introduced.length - 1) {
+        const nextIdx = quizIndex + 1;
+        setQuizIndex(nextIdx);
+        setQuizRevealed(false);
+        loadQuizSentence(nextIdx);
+      } else {
+        setPhase("done");
+      }
+    }, 800);
   }
 
   function resetSession() {
@@ -300,6 +308,7 @@ export default function LearnScreen() {
     setQuizRevealed(false);
     setQuizResults([]);
     setQuizSentence(null);
+    setQuizFeedback(null);
     loadCandidates();
   }
 
@@ -329,6 +338,15 @@ export default function LearnScreen() {
     }
 
     const c = candidates[pickIndex];
+    const buildLearnContext = () => {
+      const parts = [`Word: ${c.lemma_ar} (${c.gloss_en})`];
+      if (c.pos) parts.push(`POS: ${c.pos}`);
+      if (c.root) parts.push(`Root: ${c.root}${c.root_meaning ? ` (${c.root_meaning})` : ""}`);
+      if (c.transliteration) parts.push(`Transliteration: ${c.transliteration}`);
+      if (c.forms_json) parts.push(`Forms: ${JSON.stringify(c.forms_json)}`);
+      if (c.example_ar) parts.push(`Example: ${c.example_ar}${c.example_en ? ` — ${c.example_en}` : ""}`);
+      return parts.join("\n");
+    };
     return (
       <View style={styles.centered}>
         <View style={styles.progressContainer}>
@@ -402,6 +420,7 @@ export default function LearnScreen() {
             <Text style={styles.suspendButtonText}>Never show this word</Text>
           </Pressable>
         </View>
+        <AskAI contextBuilder={buildLearnContext} screen="learn" />
       </View>
     );
   }
@@ -458,6 +477,14 @@ export default function LearnScreen() {
                 )}
               </>
             )}
+            {quizFeedback && (
+              <Text style={[
+                styles.feedbackText,
+                { color: quizFeedback === "correct" ? colors.good : colors.missed },
+              ]}>
+                {quizFeedback === "correct" ? "Correct!" : "Not quite"}
+              </Text>
+            )}
           </View>
 
           {!quizRevealed ? (
@@ -472,12 +499,14 @@ export default function LearnScreen() {
               <Pressable
                 style={[styles.ratingButton, styles.gotItButton]}
                 onPress={() => handleQuizAnswer(true)}
+                disabled={quizFeedback !== null}
               >
                 <Text style={styles.ratingButtonText}>Got it</Text>
               </Pressable>
               <Pressable
                 style={[styles.ratingButton, styles.missedButton]}
                 onPress={() => handleQuizAnswer(false)}
+                disabled={quizFeedback !== null}
               >
                 <Text style={styles.ratingButtonText}>Missed</Text>
               </Pressable>
@@ -518,6 +547,14 @@ export default function LearnScreen() {
               )}
             </View>
           )}
+          {quizFeedback && (
+            <Text style={[
+              styles.feedbackText,
+              { color: quizFeedback === "correct" ? colors.good : colors.missed },
+            ]}>
+              {quizFeedback === "correct" ? "Correct!" : "Not quite"}
+            </Text>
+          )}
         </View>
 
         {!quizRevealed ? (
@@ -532,12 +569,14 @@ export default function LearnScreen() {
             <Pressable
               style={[styles.ratingButton, styles.gotItButton]}
               onPress={() => handleQuizAnswer(true)}
+              disabled={quizFeedback !== null}
             >
               <Text style={styles.ratingButtonText}>Got it</Text>
             </Pressable>
             <Pressable
               style={[styles.ratingButton, styles.missedButton]}
               onPress={() => handleQuizAnswer(false)}
+              disabled={quizFeedback !== null}
             >
               <Text style={styles.ratingButtonText}>Missed</Text>
             </Pressable>
@@ -980,6 +1019,12 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     fontStyle: "italic",
     marginTop: 6,
+    textAlign: "center",
+  },
+  feedbackText: {
+    fontSize: 20,
+    fontWeight: "700",
+    marginTop: 16,
     textAlign: "center",
   },
   divider: {

@@ -257,7 +257,7 @@ class TestSentenceReviewLog:
         )
 
         db_session.refresh(sent)
-        assert sent.last_shown_at is not None
+        assert sent.last_reading_shown_at is not None
         assert sent.times_shown == 1
 
     def test_no_sentence_log_for_word_only(self, db_session):

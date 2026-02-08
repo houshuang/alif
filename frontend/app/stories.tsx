@@ -16,6 +16,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { colors, fonts } from "../lib/theme";
 import { getStories, generateStory, importStory, deleteStory } from "../lib/api";
 import { StoryListItem } from "../lib/types";
+import AskAI from "../lib/AskAI";
 
 type StoryLength = "short" | "medium" | "long";
 
@@ -410,6 +411,17 @@ export default function StoriesScreen() {
           </View>
         </View>
       </Modal>
+
+      <AskAI
+        contextBuilder={() => {
+          const items = stories.map((s) => {
+            const title = s.title_en || s.title_ar || "Untitled";
+            return `${title} (${s.readiness_pct}% ready, ${s.status})`;
+          });
+          return `Stories:\n${items.join("\n")}`;
+        }}
+        screen="stories"
+      />
     </View>
   );
 }

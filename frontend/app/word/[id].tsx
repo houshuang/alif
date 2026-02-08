@@ -11,6 +11,7 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { colors, fonts } from "../../lib/theme";
 import { getWordDetail } from "../../lib/api";
 import { WordDetail, ReviewHistoryEntry } from "../../lib/types";
+import AskAI from "../../lib/AskAI";
 
 export default function WordDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -55,7 +56,30 @@ export default function WordDetailScreen() {
       ? Math.round((word.correct_count / word.times_reviewed) * 100)
       : 0;
 
+  const w = word;
+  function buildContext(): string {
+    const parts = [
+      `Word: ${w.arabic} (${w.english})`,
+      `POS: ${w.pos}`,
+      `State: ${w.state}`,
+    ];
+    if (w.root) parts.push(`Root: ${w.root}`);
+    if (w.transliteration) parts.push(`Transliteration: ${w.transliteration}`);
+    if (w.root_family.length > 0) {
+      const family = w.root_family.map((f) => `${f.arabic} (${f.english})`).join(", ");
+      parts.push(`Root family: ${family}`);
+    }
+    if (w.review_history.length > 0) {
+      const recent = w.review_history.slice(0, 5).map((r) =>
+        `${r.rating >= 3 ? "Pass" : "Fail"}${r.review_mode ? ` (${r.review_mode})` : ""}`
+      ).join(", ");
+      parts.push(`Recent reviews: ${recent}`);
+    }
+    return parts.join("\n");
+  }
+
   return (
+    <View style={{ flex: 1, backgroundColor: colors.bg }}>
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <Text style={styles.arabicText}>{word.arabic}</Text>
       <Text style={styles.englishText}>{word.english}</Text>
@@ -137,6 +161,8 @@ export default function WordDetailScreen() {
         </View>
       )}
     </ScrollView>
+    <AskAI contextBuilder={buildContext} screen="word_detail" />
+    </View>
   );
 }
 

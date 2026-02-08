@@ -1,8 +1,11 @@
-from fastapi import APIRouter, Depends, HTTPException, Query
+import logging
+
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
+from sqlalchemy import func
 from sqlalchemy.orm import Session, joinedload
 
-from app.database import get_db
-from app.models import Lemma, Root, UserLemmaKnowledge
+from app.database import get_db, SessionLocal
+from app.models import Lemma, Root, Sentence, UserLemmaKnowledge
 from app.schemas import (
     BulkSyncIn,
     ReviewCardOut,
@@ -17,6 +20,13 @@ from app.services.listening import get_listening_candidates, process_comprehensi
 from app.services.interaction_logger import log_interaction
 from app.services.sentence_selector import build_session
 from app.services.sentence_review_service import submit_sentence_review
+from app.services.word_selector import introduce_word
+from app.routers.learn import (
+    _generate_material_for_word,
+    _generate_word_audio,
+)
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/review", tags=["review"])
 
@@ -83,14 +93,40 @@ def submit(body: ReviewSubmitIn, db: Session = Depends(get_db)):
     return result
 
 
+MIN_SENTENCES_PER_WORD = 3
+
+
 @router.get("/next-sentences", response_model=SentenceSessionOut)
 def next_sentences(
     limit: int = Query(10, ge=1, le=20),
     mode: str = Query("reading"),
+    background_tasks: BackgroundTasks = None,
     db: Session = Depends(get_db),
 ):
     """Get a sentence-based review session."""
     result = build_session(db, limit=limit, mode=mode)
+
+    # Auto-introduce intro candidates and pre-generate material
+    for cand in result.get("intro_candidates", []):
+        try:
+            intro_result = introduce_word(db, cand["lemma_id"])
+            if not intro_result.get("already_known") and background_tasks:
+                existing_count = (
+                    db.query(func.count(Sentence.id))
+                    .filter(Sentence.target_lemma_id == cand["lemma_id"])
+                    .scalar() or 0
+                )
+                if existing_count < MIN_SENTENCES_PER_WORD:
+                    needed = MIN_SENTENCES_PER_WORD - existing_count
+                    background_tasks.add_task(
+                        _generate_material_for_word, cand["lemma_id"], needed
+                    )
+                lemma = db.query(Lemma).filter(Lemma.lemma_id == cand["lemma_id"]).first()
+                if lemma and not lemma.audio_url and background_tasks:
+                    background_tasks.add_task(_generate_word_audio, cand["lemma_id"])
+            log_interaction(event="word_auto_introduced", lemma_id=cand["lemma_id"])
+        except Exception:
+            logger.exception("Failed to auto-introduce lemma %s", cand["lemma_id"])
 
     log_interaction(
         event="session_start",
@@ -100,6 +136,7 @@ def next_sentences(
         covered_due_words=result["covered_due_words"],
         sentence_count=len([i for i in result["items"] if i.get("sentence_id")]),
         fallback_count=len([i for i in result["items"] if not i.get("sentence_id")]),
+        auto_introduced=len(result.get("intro_candidates", [])),
     )
 
     return result

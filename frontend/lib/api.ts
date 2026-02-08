@@ -16,6 +16,9 @@ import {
   StoryDetail,
   StoryLookupResult,
   WordLookupResult,
+  AskAIResponse,
+  ConversationSummary,
+  ConversationDetail,
 } from "./types";
 import { netStatus } from "./net-status";
 import {
@@ -93,7 +96,7 @@ export async function submitReview(submission: ReviewSubmission): Promise<void> 
   }, clientReviewId);
 
   if (netStatus.isOnline) {
-    flushQueue().catch(() => {});
+    flushQueue().catch((e) => console.warn("sync flush failed:", e));
   }
 }
 
@@ -264,7 +267,7 @@ export async function submitSentenceReview(
   }, clientReviewId);
 
   if (netStatus.isOnline) {
-    flushQueue().catch(() => {});
+    flushQueue().catch((e) => console.warn("sync flush failed:", e));
   }
 
   return { word_results: [] };
@@ -348,4 +351,24 @@ export async function getStoryReadiness(storyId: number): Promise<{ readiness_pc
 
 export async function lookupReviewWord(lemmaId: number): Promise<WordLookupResult> {
   return fetchApi<WordLookupResult>(`/api/review/word-lookup/${lemmaId}`);
+}
+
+export async function askAI(
+  question: string,
+  context: string,
+  screen: string,
+  conversationId?: string
+): Promise<AskAIResponse> {
+  return fetchApi<AskAIResponse>("/api/chat/ask", {
+    method: "POST",
+    body: JSON.stringify({ question, context, screen, conversation_id: conversationId }),
+  });
+}
+
+export async function getChatConversations(): Promise<ConversationSummary[]> {
+  return fetchApi<ConversationSummary[]>("/api/chat/conversations");
+}
+
+export async function getChatConversation(conversationId: string): Promise<ConversationDetail> {
+  return fetchApi<ConversationDetail>(`/api/chat/conversations/${conversationId}`);
 }

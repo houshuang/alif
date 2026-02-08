@@ -363,6 +363,12 @@
 - [DONE] Sentence validator should check not just that surrounding words are "known" but that they have FSRS stability > 14 days for sentences containing new words — implemented via difficulty_match_quality scoring in greedy set cover
 - Consider using CAMeL token count (after clitic separation) rather than raw word count for sentence length targets, since Arabic agglutination makes raw word count misleading
 
+#### Comprehension-Aware Sentence Recency
+- [DONE] Sentences the user struggled with should reappear sooner: replaced fixed 7-day cooldown with comprehension-based cutoffs — "understood" sentences wait 7 days, "partial" wait 2 days, "no_idea" wait 4 hours. Uses last_comprehension column on Sentence model, checked in sentence_selector.py candidate filtering.
+
+#### All Words Get FSRS Credit in Sentence Reviews
+- [DONE] Every word seen in a sentence now gets a full FSRS card and enters the normal review process. Previously, words without existing knowledge records only got encounter tracking (total_encounters increment). Now fsrs_service.submit_review() auto-creates UserLemmaKnowledge records for unknown words, and sentence_review_service calls submit_review() for every lemma_id in the sentence (not just those with existing cards).
+
 #### Adaptive Session Pacing
 - Track rolling accuracy over the last 10 items during a session; if it drops below 75%, automatically pause new word introductions and show only easy review items until accuracy recovers above 85%
 - Track response time as a cognitive load signal: if average response time increases beyond 2x the learner's rolling average, treat it as overload even if accuracy is maintained
@@ -402,6 +408,5 @@
 - Tag generated sentences with context informativeness so the appropriate type can be selected based on word maturity
 
 #### Generation/Prediction Effect
-- Before revealing a new word's meaning, offer the learner a chance to predict it from root knowledge or morphological patterns -- even incorrect predictions enhance later recall (Bjork & Kroll, 2015) as long as the prediction is informed (the learner has some basis for guessing)
-- For words with known roots: "You know the root ك.ت.ب (writing). What might مَكْتَبَة mean?" -- then reveal
+- [DONE] Before revealing a new word's meaning, offer the learner a chance to predict it from root knowledge or morphological patterns — implemented as front-phase word lookup during sentence review: tapping an unknown word checks if it has 2+ known siblings from the same root, and if so shows root + siblings with "Can you guess?" prompt before revealing meaning. Uses GET /api/review/word-lookup/{lemma_id} endpoint with root family + knowledge state.
 - Only use prediction prompts when the learner has relevant prior knowledge (known root, known pattern, known cognate); uninformed guessing has no benefit

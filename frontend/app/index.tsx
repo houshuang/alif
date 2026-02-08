@@ -15,7 +15,6 @@ import {
   submitReview,
   getSentenceReviewSession,
   submitSentenceReview,
-  introduceWord,
   getAnalytics,
   lookupReviewWord,
   BASE_URL,
@@ -33,6 +32,7 @@ import {
 } from "../lib/types";
 import { syncEvents } from "../lib/sync-events";
 import { useNetStatus } from "../lib/net-status";
+import AskAI from "../lib/AskAI";
 
 type ReadingCardState = "front" | "back";
 type ListeningCardState = "audio" | "arabic" | "answer";
@@ -80,8 +80,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
   const [results, setResults] = useState<SessionResults | null>(null);
   const [missedIndices, setMissedIndices] = useState<Set<number>>(new Set());
   const [audioPlaying, setAudioPlaying] = useState(false);
-  const [introQueue, setIntroQueue] = useState<IntroCandidate[]>([]);
-  const [showingIntro, setShowingIntro] = useState<IntroCandidate | null>(null);
+  const [autoIntroduced, setAutoIntroduced] = useState<IntroCandidate[]>([]);
   const [lookupResult, setLookupResult] = useState<WordLookupResult | null>(null);
   const [lookupLoading, setLookupLoading] = useState(false);
   const [lookupShowMeaning, setLookupShowMeaning] = useState(false);
@@ -186,8 +185,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
     setCardState(m === "listening" ? "audio" : "front");
     setMissedIndices(new Set());
     setAudioPlaying(false);
-    setIntroQueue([]);
-    setShowingIntro(null);
+    setAutoIntroduced([]);
     setSentenceSession(null);
     setLegacySession(null);
     await cleanupSound();
@@ -197,7 +195,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
       if (ss.items.length > 0) {
         setSentenceSession(ss);
         if (ss.intro_candidates && ss.intro_candidates.length > 0) {
-          setIntroQueue(ss.intro_candidates);
+          setAutoIntroduced(ss.intro_candidates);
         }
         setLoading(false);
         return;
@@ -349,14 +347,6 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
       setCardState(mode === "listening" ? "audio" : "front");
     } else {
       setResults(next);
-
-      // Check if there's an intro candidate to show at this position
-      const pendingIntro = introQueue.find((c) => c.insert_at === nextCardIndex);
-      if (pendingIntro) {
-        setShowingIntro(pendingIntro);
-        setIntroQueue((q) => q.filter((c) => c.lemma_id !== pendingIntro.lemma_id));
-      }
-
       setCardIndex(nextCardIndex);
       setCardState(mode === "listening" ? "audio" : "front");
       setMissedIndices(new Set());
@@ -381,6 +371,36 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
     } else {
       if (cardState === "front") setCardState("back");
     }
+  }
+
+  function buildContext(): string {
+    const parts: string[] = [`Mode: ${mode}`];
+    if (usingSentences && sentenceSession) {
+      const item = sentenceSession.items[cardIndex];
+      if (item) {
+        parts.push(`Arabic: ${item.arabic_text || item.primary_lemma_ar}`);
+        parts.push(`English: ${item.english_translation || item.primary_gloss_en}`);
+        const glosses = item.words
+          .filter((w) => w.gloss_en)
+          .map((w) => `${w.surface_form} (${w.gloss_en})`)
+          .join(", ");
+        if (glosses) parts.push(`Words: ${glosses}`);
+        const missed = Array.from(missedIndices)
+          .map((i) => item.words[i]?.surface_form)
+          .filter(Boolean);
+        if (missed.length > 0) parts.push(`Missed: ${missed.join(", ")}`);
+      }
+    } else if (legacySession) {
+      const card = legacySession.cards[cardIndex];
+      if (card) {
+        parts.push(`Word: ${card.lemma_ar} (${card.gloss_en})`);
+        if (card.sentence) {
+          parts.push(`Sentence: ${card.sentence.arabic}`);
+          parts.push(`Translation: ${card.sentence.english}`);
+        }
+      }
+    }
+    return parts.join("\n");
   }
 
   // --- Render ---
@@ -410,34 +430,13 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
       <SessionComplete
         results={results}
         mode={mode}
+        autoIntroduced={autoIntroduced}
         onNewSession={() => loadSession()}
       />
     );
   }
 
   const isListening = mode === "listening";
-
-  // Inline intro card (shown between review cards)
-  if (showingIntro) {
-    return (
-      <View style={styles.container}>
-
-        <ProgressBar current={cardIndex + 1} total={totalCards} mode={mode} />
-        <InlineIntroCard
-          candidate={showingIntro}
-          onLearn={async () => {
-            try {
-              await introduceWord(showingIntro.lemma_id);
-            } catch (e) {
-              console.error("Failed to introduce word:", e);
-            }
-            setShowingIntro(null);
-          }}
-          onSkip={() => setShowingIntro(null)}
-        />
-      </View>
-    );
-  }
 
   // Sentence-first flow
   if (usingSentences) {
@@ -507,6 +506,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
             onSubmit={handleSubmit}
           />
         )}
+        <AskAI contextBuilder={buildContext} screen="review" />
       </View>
     );
   }
@@ -563,6 +563,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
           onSubmit={handleSubmit}
         />
       )}
+      <AskAI contextBuilder={buildContext} screen="review" />
     </View>
   );
 }
@@ -1306,45 +1307,6 @@ function ProgressBar({
 
 // --- Inline Intro Card ---
 
-function InlineIntroCard({
-  candidate,
-  onLearn,
-  onSkip,
-}: {
-  candidate: IntroCandidate;
-  onLearn: () => void;
-  onSkip: () => void;
-}) {
-  return (
-    <View style={styles.card}>
-      <Text style={styles.introLabel}>New Word</Text>
-      <Text style={styles.introArabic}>{candidate.lemma_ar}</Text>
-      <Text style={styles.introEnglish}>{candidate.gloss_en}</Text>
-      {candidate.transliteration && (
-        <Text style={styles.introTranslit}>{candidate.transliteration}</Text>
-      )}
-      <View style={styles.introMeta}>
-        {candidate.pos && (
-          <Text style={styles.introPos}>{candidate.pos}</Text>
-        )}
-        {candidate.root && (
-          <Text style={styles.introRoot}>Root: {candidate.root}</Text>
-        )}
-        {candidate.root_meaning && (
-          <Text style={styles.introRootMeaning}>{candidate.root_meaning}</Text>
-        )}
-      </View>
-      <View style={styles.introButtons}>
-        <Pressable style={[styles.actionButton, styles.gotItButton]} onPress={onLearn}>
-          <Text style={styles.actionButtonText}>Learn</Text>
-        </Pressable>
-        <Pressable style={[styles.actionButton, { backgroundColor: colors.surfaceLight }]} onPress={onSkip}>
-          <Text style={[styles.actionButtonText, { color: colors.textSecondary }]}>Skip</Text>
-        </Pressable>
-      </View>
-    </View>
-  );
-}
 
 // --- Sparkle Effect ---
 
@@ -1440,10 +1402,12 @@ function getMotivationalMessage(
 function SessionComplete({
   results,
   mode,
+  autoIntroduced,
   onNewSession,
 }: {
   results: SessionResults;
   mode: ReviewMode;
+  autoIntroduced: IntroCandidate[];
   onNewSession: () => void;
 }) {
   const [analytics, setAnalytics] = useState<Analytics | null>(null);
@@ -1552,6 +1516,23 @@ function SessionComplete({
             </View>
           )}
         </Animated.View>
+      )}
+
+      {/* Auto-introduced words */}
+      {autoIntroduced.length > 0 && (
+        <View style={styles.autoIntroSection}>
+          <Text style={styles.autoIntroTitle}>
+            {autoIntroduced.length === 1 ? "New word added" : `${autoIntroduced.length} new words added`}
+          </Text>
+          <View style={styles.autoIntroPills}>
+            {autoIntroduced.map((w) => (
+              <View key={w.lemma_id} style={styles.autoIntroPill}>
+                <Text style={styles.autoIntroPillAr}>{w.lemma_ar}</Text>
+                <Text style={styles.autoIntroPillEn}>{w.gloss_en}</Text>
+              </View>
+            ))}
+          </View>
+        </View>
       )}
 
       {/* Motivational message */}
@@ -1967,54 +1948,41 @@ const styles = StyleSheet.create({
     color: colors.text,
     fontWeight: "700",
   },
-  introLabel: {
-    fontSize: 11,
+  autoIntroSection: {
+    marginTop: 16,
+    alignItems: "center",
+    width: "100%",
+    maxWidth: 400,
+  },
+  autoIntroTitle: {
+    fontSize: 13,
     color: colors.accent,
+    fontWeight: "700",
     textTransform: "uppercase",
     letterSpacing: 1,
-    marginBottom: 12,
-    fontWeight: "700",
+    marginBottom: 8,
   },
-  introArabic: {
-    fontSize: 40,
-    color: colors.arabic,
-    fontWeight: "700",
-    writingDirection: "rtl",
-    marginBottom: 12,
-  },
-  introEnglish: {
-    fontSize: 22,
-    color: colors.text,
-    fontWeight: "600",
-    marginBottom: 6,
-  },
-  introTranslit: {
-    fontSize: 16,
-    color: colors.textSecondary,
-    fontStyle: "italic",
-    marginBottom: 12,
-  },
-  introMeta: {
-    gap: 4,
-    alignItems: "center",
-    marginBottom: 20,
-  },
-  introPos: {
-    fontSize: 13,
-    color: colors.textSecondary,
-  },
-  introRoot: {
-    fontSize: 13,
-    color: colors.accent,
-  },
-  introRootMeaning: {
-    fontSize: 13,
-    color: colors.textSecondary,
-  },
-  introButtons: {
+  autoIntroPills: {
     flexDirection: "row",
-    gap: 12,
-    width: "100%",
+    flexWrap: "wrap",
+    justifyContent: "center",
+    gap: 8,
+  },
+  autoIntroPill: {
+    backgroundColor: colors.surface,
+    borderRadius: 10,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    alignItems: "center",
+  },
+  autoIntroPillAr: {
+    fontSize: 18,
+    color: colors.arabic,
+    writingDirection: "rtl",
+  },
+  autoIntroPillEn: {
+    fontSize: 11,
+    color: colors.textSecondary,
   },
   tapHintFront: {
     color: colors.textSecondary,

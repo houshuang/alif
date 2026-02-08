@@ -70,8 +70,8 @@ def _active_story_lemma_ids(db: Session) -> set[int]:
         .filter(
             Story.status == "active",
             StoryWord.lemma_id.isnot(None),
-            StoryWord.is_function_word == 0,
-            StoryWord.is_known_at_creation == 0,
+            StoryWord.is_function_word == False,
+            StoryWord.is_known_at_creation == False,
         )
         .distinct()
         .all()

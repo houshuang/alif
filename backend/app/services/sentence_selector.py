@@ -152,20 +152,24 @@ def build_session(
 
     from sqlalchemy import or_
 
+    # Use mode-specific comprehension columns for recency filter
+    if mode == "listening":
+        comp_col = Sentence.last_listening_comprehension
+        shown_col = Sentence.last_listening_shown_at
+    else:
+        comp_col = Sentence.last_reading_comprehension
+        shown_col = Sentence.last_reading_shown_at
+
     sentences = (
         db.query(Sentence)
         .filter(
             Sentence.id.in_(sentence_ids_with_due),
             or_(
-                Sentence.last_shown_at.is_(None),
-                # understood: 7 day cooldown
-                (Sentence.last_comprehension == "understood") & (Sentence.last_shown_at < cutoff_understood),
-                # partial: 2 day cooldown
-                (Sentence.last_comprehension == "partial") & (Sentence.last_shown_at < cutoff_partial),
-                # no_idea: 4 hour cooldown
-                (Sentence.last_comprehension == "no_idea") & (Sentence.last_shown_at < cutoff_no_idea),
-                # legacy (no comprehension recorded): 7 day cooldown
-                (Sentence.last_comprehension.is_(None)) & (Sentence.last_shown_at < cutoff_understood),
+                shown_col.is_(None),
+                (comp_col == "understood") & (shown_col < cutoff_understood),
+                (comp_col == "partial") & (shown_col < cutoff_partial),
+                (comp_col == "no_idea") & (shown_col < cutoff_no_idea),
+                (comp_col.is_(None)) & (shown_col < cutoff_understood),
             ),
         )
         .all()
@@ -202,16 +206,15 @@ def build_session(
         non_due_ids = all_lemma_ids - due_lemma_ids
         if non_due_ids:
             from sqlalchemy import func as sa_func
+            max_ids = (
+                db.query(ReviewLog.lemma_id, sa_func.max(ReviewLog.id).label("max_id"))
+                .filter(ReviewLog.lemma_id.in_(non_due_ids))
+                .group_by(ReviewLog.lemma_id)
+                .subquery()
+            )
             last_reviews = (
                 db.query(ReviewLog.lemma_id, ReviewLog.rating)
-                .filter(
-                    ReviewLog.lemma_id.in_(non_due_ids),
-                    ReviewLog.id.in_(
-                        db.query(sa_func.max(ReviewLog.id))
-                        .filter(ReviewLog.lemma_id.in_(non_due_ids))
-                        .group_by(ReviewLog.lemma_id)
-                    ),
-                )
+                .join(max_ids, ReviewLog.id == max_ids.c.max_id)
                 .all()
             )
             last_rating_map = {r.lemma_id: r.rating for r in last_reviews}
@@ -318,11 +321,14 @@ def build_session(
     # 4. Order: easy bookends, hard in middle
     ordered = _order_session(selected, stability_map)
 
-    # Build response items + update last_shown_at
+    # Build response items + update last shown
     items: list[dict] = []
     for cand in ordered:
         sent = sentence_map[cand.sentence_id]
-        sent.last_shown_at = now
+        if mode == "listening":
+            sent.last_listening_shown_at = now
+        else:
+            sent.last_reading_shown_at = now
         sent.times_shown = (sent.times_shown or 0) + 1
 
         primary_lid = sent.target_lemma_id

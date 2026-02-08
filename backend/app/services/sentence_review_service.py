@@ -126,9 +126,13 @@ def submit_sentence_review(
 
         sentence = db.query(Sentence).filter(Sentence.id == sentence_id).first()
         if sentence:
-            sentence.last_shown_at = now
             sentence.times_shown = (sentence.times_shown or 0) + 1
-            sentence.last_comprehension = comprehension_signal
+            if review_mode == "listening":
+                sentence.last_listening_shown_at = now
+                sentence.last_listening_comprehension = comprehension_signal
+            else:
+                sentence.last_reading_shown_at = now
+                sentence.last_reading_comprehension = comprehension_signal
 
     db.commit()
 

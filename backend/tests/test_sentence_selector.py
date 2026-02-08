@@ -132,7 +132,7 @@ class TestGreedySetCover:
         sent = _seed_sentence(db_session, 1, "الكتاب", "the book",
                               target_lemma_id=1,
                               word_surfaces_and_ids=[("الكتاب", 1)])
-        sent.last_shown_at = datetime.now(timezone.utc) - timedelta(days=2)
+        sent.last_reading_shown_at = datetime.now(timezone.utc) - timedelta(days=2)
         db_session.commit()
 
         result = build_session(db_session, limit=10)

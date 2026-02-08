@@ -40,6 +40,7 @@ class Lemma(Base):
     root = relationship("Root", back_populates="lemmas")
     knowledge = relationship("UserLemmaKnowledge", back_populates="lemma", uselist=False)
     reviews = relationship("ReviewLog", back_populates="lemma")
+    story_words = relationship("StoryWord", back_populates="lemma")
 
 
 class UserLemmaKnowledge(Base):
@@ -47,7 +48,7 @@ class UserLemmaKnowledge(Base):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     lemma_id = Column(Integer, ForeignKey("lemmas.lemma_id"), unique=True, nullable=False)
-    knowledge_state = Column(String(20), default="new")  # new/learning/known/lapsed
+    knowledge_state = Column(String(20), default="new", index=True)  # new/learning/known/lapsed
     fsrs_card_json = Column(JSON)
     last_reviewed = Column(DateTime)
     introduced_at = Column(DateTime, nullable=True)
@@ -66,7 +67,7 @@ class ReviewLog(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     lemma_id = Column(Integer, ForeignKey("lemmas.lemma_id"), nullable=False)
     rating = Column(Integer, nullable=False)  # 1-4
-    reviewed_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    reviewed_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), index=True)
     response_ms = Column(Integer)
     context = Column(Text)
     session_id = Column(String(50))
@@ -91,25 +92,29 @@ class Sentence(Base):
     source = Column(String(20))  # llm/tatoeba/manual
     difficulty_score = Column(Float)
     audio_url = Column(Text)
-    target_lemma_id = Column(Integer, ForeignKey("lemmas.lemma_id"), nullable=True)
+    target_lemma_id = Column(Integer, ForeignKey("lemmas.lemma_id"), nullable=True, index=True)
 
     times_shown = Column(Integer, default=0)
     max_word_count = Column(Integer, nullable=True)
-    last_shown_at = Column(DateTime, nullable=True)
-    last_comprehension = Column(String(20), nullable=True)
+    last_reading_shown_at = Column(DateTime, nullable=True)
+    last_reading_comprehension = Column(String(20), nullable=True)
+    last_listening_shown_at = Column(DateTime, nullable=True)
+    last_listening_comprehension = Column(String(20), nullable=True)
 
     words = relationship("SentenceWord", back_populates="sentence")
+    review_logs = relationship("SentenceReviewLog", back_populates="sentence")
+    grammar_features = relationship("SentenceGrammarFeature", back_populates="sentence")
 
 
 class SentenceWord(Base):
     __tablename__ = "sentence_words"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    sentence_id = Column(Integer, ForeignKey("sentences.id"), nullable=False)
+    sentence_id = Column(Integer, ForeignKey("sentences.id"), nullable=False, index=True)
     position = Column(Integer, nullable=False)
     surface_form = Column(Text, nullable=False)
     lemma_id = Column(Integer, ForeignKey("lemmas.lemma_id"), nullable=True)
-    is_target_word = Column(Integer, default=0)  # 0/1
+    is_target_word = Column(Boolean, default=False)
     grammar_role_json = Column(JSON, nullable=True)
 
     sentence = relationship("Sentence", back_populates="words")
@@ -127,7 +132,7 @@ class SentenceReviewLog(Base):
     review_mode = Column(String(20), default="reading")
     client_review_id = Column(String(50), nullable=True, unique=True)
 
-    sentence = relationship("Sentence")
+    sentence = relationship("Sentence", back_populates="review_logs")
 
 
 class GrammarFeature(Base):
@@ -153,7 +158,7 @@ class SentenceGrammarFeature(Base):
     is_primary = Column(Boolean, default=False)
     source = Column(String(20))  # llm/rule/manual
 
-    sentence = relationship("Sentence")
+    sentence = relationship("Sentence", back_populates="grammar_features")
     feature = relationship("GrammarFeature", back_populates="sentence_features")
 
 
@@ -181,7 +186,7 @@ class Story(Base):
     body_en = Column(Text, nullable=True)
     transliteration = Column(Text, nullable=True)
     source = Column(String(20), nullable=False)  # generated/imported
-    status = Column(String(20), default="active")  # active/completed/too_difficult/skipped
+    status = Column(String(20), default="active", index=True)  # active/completed/too_difficult/skipped
     total_words = Column(Integer, default=0)
     known_count = Column(Integer, default=0)
     unknown_count = Column(Integer, default=0)
@@ -197,14 +202,26 @@ class StoryWord(Base):
     __tablename__ = "story_words"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    story_id = Column(Integer, ForeignKey("stories.id"), nullable=False)
+    story_id = Column(Integer, ForeignKey("stories.id"), nullable=False, index=True)
     position = Column(Integer, nullable=False)
     surface_form = Column(Text, nullable=False)
     lemma_id = Column(Integer, ForeignKey("lemmas.lemma_id"), nullable=True)
     sentence_index = Column(Integer, default=0)
     gloss_en = Column(Text, nullable=True)
-    is_known_at_creation = Column(Integer, default=0)  # 0/1
-    is_function_word = Column(Integer, default=0)  # 0/1
+    is_known_at_creation = Column(Boolean, default=False)
+    is_function_word = Column(Boolean, default=False)
 
     story = relationship("Story", back_populates="words")
-    lemma = relationship("Lemma")
+    lemma = relationship("Lemma", back_populates="story_words")
+
+
+class ChatMessage(Base):
+    __tablename__ = "chat_messages"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    conversation_id = Column(String(50), nullable=False, index=True)
+    screen = Column(String(50), nullable=True)
+    role = Column(String(20), nullable=False)  # user/assistant
+    content = Column(Text, nullable=False)
+    context_summary = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))

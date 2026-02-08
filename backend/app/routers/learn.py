@@ -317,7 +317,7 @@ def _generate_material_for_word(lemma_id: int, needed: int) -> None:
                     position=m.position,
                     surface_form=m.surface_form,
                     lemma_id=m.lemma_id,
-                    is_target_word=1 if m.is_target else 0,
+                    is_target_word=m.is_target,
                 )
                 db.add(sw)
 
