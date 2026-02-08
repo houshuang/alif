@@ -142,6 +142,84 @@ def quiz_result(req: QuizResultRequest, db: Session = Depends(get_db)):
     return result
 
 
+class SuspendRequest(BaseModel):
+    lemma_id: int
+
+
+@router.post("/suspend")
+def suspend_word(req: SuspendRequest, db: Session = Depends(get_db)):
+    """Suspend a word so it never appears in learn suggestions."""
+    existing = (
+        db.query(UserLemmaKnowledge)
+        .filter(UserLemmaKnowledge.lemma_id == req.lemma_id)
+        .first()
+    )
+    if existing:
+        return {"lemma_id": req.lemma_id, "already_exists": True}
+
+    lemma = db.query(Lemma).filter(Lemma.lemma_id == req.lemma_id).first()
+    if not lemma:
+        raise HTTPException(status_code=404, detail="Lemma not found")
+
+    from datetime import datetime, timezone
+    ulk = UserLemmaKnowledge(
+        lemma_id=req.lemma_id,
+        knowledge_state="suspended",
+        introduced_at=datetime.now(timezone.utc),
+        source="study",
+    )
+    db.add(ulk)
+    db.commit()
+    log_interaction(event="word_suspended", lemma_id=req.lemma_id)
+    return {"lemma_id": req.lemma_id, "state": "suspended"}
+
+
+@router.get("/sentences/{lemma_id}")
+def get_lemma_sentence(lemma_id: int, db: Session = Depends(get_db)):
+    """Get a sentence for a lemma (for quiz). Prefers sentences with audio."""
+    sentence = (
+        db.query(Sentence)
+        .filter(Sentence.target_lemma_id == lemma_id)
+        .order_by(
+            Sentence.audio_url.is_(None).asc(),  # prefer with audio
+            Sentence.id,
+        )
+        .first()
+    )
+    if not sentence:
+        return {"ready": False, "sentence": None}
+
+    words = (
+        db.query(SentenceWord)
+        .filter(SentenceWord.sentence_id == sentence.id)
+        .order_by(SentenceWord.position)
+        .all()
+    )
+
+    lemma_ids = {sw.lemma_id for sw in words if sw.lemma_id}
+    lemmas = db.query(Lemma).filter(Lemma.lemma_id.in_(lemma_ids)).all() if lemma_ids else []
+    lemma_map = {l.lemma_id: l for l in lemmas}
+
+    return {
+        "ready": True,
+        "sentence": {
+            "sentence_id": sentence.id,
+            "arabic_text": sentence.arabic_diacritized or sentence.arabic_text,
+            "english_translation": sentence.english_translation or "",
+            "transliteration": sentence.transliteration,
+            "audio_url": sentence.audio_url,
+            "words": [
+                {
+                    "lemma_id": sw.lemma_id,
+                    "surface_form": sw.surface_form,
+                    "gloss_en": lemma_map[sw.lemma_id].gloss_en if sw.lemma_id and sw.lemma_id in lemma_map else None,
+                }
+                for sw in words
+            ],
+        },
+    }
+
+
 @router.get("/sentence-params/{lemma_id}")
 def sentence_params(lemma_id: int, db: Session = Depends(get_db)):
     """Get recommended sentence generation parameters for a word based on familiarity."""

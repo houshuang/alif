@@ -1,31 +1,48 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   View,
   Text,
   Pressable,
-  ScrollView,
   StyleSheet,
   ActivityIndicator,
 } from "react-native";
 import { colors, fonts } from "../lib/theme";
-import { getNextWords, introduceWord, submitQuizResult } from "../lib/api";
-import { LearnCandidate, IntroduceResult, RootFamilyWord } from "../lib/types";
+import {
+  getNextWords,
+  introduceWord,
+  suspendWord,
+  getLemmaSentence,
+  submitSentenceReview,
+  generateUuid,
+} from "../lib/api";
+import { LearnCandidate } from "../lib/types";
 
-type Phase = "loading" | "pick" | "intro" | "quiz" | "done";
+type Phase = "loading" | "pick" | "quiz" | "done";
 
 interface IntroducedWord {
   candidate: LearnCandidate;
-  result: IntroduceResult;
+}
+
+interface QuizSentence {
+  sentence_id: number;
+  arabic_text: string;
+  english_translation: string;
+  transliteration: string | null;
+  audio_url: string | null;
+  words: { lemma_id: number | null; surface_form: string; gloss_en: string | null }[];
 }
 
 export default function LearnScreen() {
   const [phase, setPhase] = useState<Phase>("loading");
   const [candidates, setCandidates] = useState<LearnCandidate[]>([]);
+  const [pickIndex, setPickIndex] = useState(0);
   const [introduced, setIntroduced] = useState<IntroducedWord[]>([]);
-  const [currentIntroIndex, setCurrentIntroIndex] = useState(0);
   const [quizIndex, setQuizIndex] = useState(0);
   const [quizRevealed, setQuizRevealed] = useState(false);
   const [quizResults, setQuizResults] = useState<boolean[]>([]);
+  const [quizSentence, setQuizSentence] = useState<QuizSentence | null>(null);
+  const [quizLoading, setQuizLoading] = useState(false);
+  const sessionId = useRef(generateUuid());
 
   useEffect(() => {
     loadCandidates();
@@ -36,73 +53,138 @@ export default function LearnScreen() {
     try {
       const words = await getNextWords(5);
       setCandidates(words);
+      setPickIndex(0);
+      setIntroduced([]);
       setPhase("pick");
     } catch (e) {
       console.error("Failed to load candidates:", e);
+      setCandidates([]);
       setPhase("pick");
     }
   }
 
-  async function handleIntroduce(candidate: LearnCandidate) {
+  async function handleLearn() {
+    const candidate = candidates[pickIndex];
     try {
-      const result = await introduceWord(candidate.lemma_id);
-      const newIntroduced = [...introduced, { candidate, result }];
-      setIntroduced(newIntroduced);
-      setCurrentIntroIndex(newIntroduced.length - 1);
-      setPhase("intro");
+      await introduceWord(candidate.lemma_id);
+      setIntroduced((prev) => [...prev, { candidate }]);
     } catch (e) {
       console.error("Failed to introduce word:", e);
     }
+    advancePick();
   }
 
-  function handleIntroNext() {
-    if (currentIntroIndex < introduced.length - 1) {
-      setCurrentIntroIndex(currentIntroIndex + 1);
+  function handleSkip() {
+    advancePick();
+  }
+
+  async function handleSuspend() {
+    const candidate = candidates[pickIndex];
+    try {
+      await suspendWord(candidate.lemma_id);
+    } catch (e) {
+      console.error("Failed to suspend word:", e);
+    }
+    advancePick();
+  }
+
+  function advancePick() {
+    const next = pickIndex + 1;
+    if (next >= candidates.length) {
+      startQuizOrDone();
     } else {
-      setPhase("pick");
+      setPickIndex(next);
     }
   }
 
-  function startQuiz() {
+  function startQuizOrDone() {
+    if (introduced.length === 0) {
+      setPhase("done");
+    } else {
+      setQuizIndex(0);
+      setQuizRevealed(false);
+      setQuizResults([]);
+      setQuizSentence(null);
+      setPhase("quiz");
+      loadQuizSentence(0);
+    }
+  }
+
+  function startQuizEarly() {
     if (introduced.length === 0) return;
     setQuizIndex(0);
     setQuizRevealed(false);
     setQuizResults([]);
+    setQuizSentence(null);
     setPhase("quiz");
+    loadQuizSentence(0);
   }
 
-  function handleQuizReveal() {
-    setQuizRevealed(true);
+  async function loadQuizSentence(idx: number) {
+    const words = introduced;
+    if (idx >= words.length) return;
+
+    setQuizLoading(true);
+    setQuizSentence(null);
+    const lemmaId = words[idx].candidate.lemma_id;
+
+    // Poll for up to 20 seconds
+    const maxAttempts = 10;
+    for (let i = 0; i < maxAttempts; i++) {
+      try {
+        const result = await getLemmaSentence(lemmaId);
+        if (result.ready && result.sentence) {
+          setQuizSentence(result.sentence);
+          setQuizLoading(false);
+          return;
+        }
+      } catch {}
+      await new Promise((r) => setTimeout(r, 2000));
+    }
+
+    // Timeout — no sentence available, show word-only
+    setQuizLoading(false);
   }
 
-  async function handleQuizAnswer(correct: boolean) {
+  async function handleQuizAnswer(gotIt: boolean) {
     const current = introduced[quizIndex];
-    const newResults = [...quizResults, correct];
+    const newResults = [...quizResults, gotIt];
     setQuizResults(newResults);
 
-    try {
-      await submitQuizResult(current.candidate.lemma_id, correct);
-    } catch (e) {
-      console.error("Failed to submit quiz result:", e);
+    if (quizSentence) {
+      submitSentenceReview({
+        sentence_id: quizSentence.sentence_id,
+        primary_lemma_id: current.candidate.lemma_id,
+        comprehension_signal: gotIt ? "understood" : "no_idea",
+        missed_lemma_ids: gotIt ? [] : [current.candidate.lemma_id],
+        response_ms: 0,
+        session_id: sessionId.current,
+        review_mode: "quiz",
+      });
     }
 
     if (quizIndex < introduced.length - 1) {
-      setQuizIndex(quizIndex + 1);
+      const nextIdx = quizIndex + 1;
+      setQuizIndex(nextIdx);
       setQuizRevealed(false);
+      loadQuizSentence(nextIdx);
     } else {
       setPhase("done");
     }
   }
 
   function resetSession() {
+    sessionId.current = generateUuid();
     setIntroduced([]);
-    setCurrentIntroIndex(0);
+    setPickIndex(0);
     setQuizIndex(0);
     setQuizRevealed(false);
     setQuizResults([]);
+    setQuizSentence(null);
     loadCandidates();
   }
 
+  // --- Loading ---
   if (phase === "loading") {
     return (
       <View style={styles.centered}>
@@ -112,228 +194,261 @@ export default function LearnScreen() {
     );
   }
 
+  // --- Pick Phase: one word at a time ---
   if (phase === "pick") {
-    return (
-      <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-        <Text style={styles.title}>Learn New Words</Text>
-        {introduced.length > 0 && (
-          <View style={styles.progressRow}>
-            <Text style={styles.progressText}>
-              {introduced.length} word{introduced.length !== 1 ? "s" : ""} introduced
-            </Text>
-            <Pressable style={styles.quizButton} onPress={startQuiz}>
-              <Text style={styles.quizButtonText}>Quick Quiz</Text>
-            </Pressable>
-          </View>
-        )}
-        <Text style={styles.subtitle}>Tap a word to learn it</Text>
-        {candidates.map((c) => {
-          const alreadyIntroduced = introduced.some(
-            (i) => i.candidate.lemma_id === c.lemma_id
-          );
-          return (
-            <Pressable
-              key={c.lemma_id}
-              style={[
-                styles.candidateCard,
-                alreadyIntroduced && styles.candidateCardDone,
-              ]}
-              onPress={() => !alreadyIntroduced && handleIntroduce(c)}
-              disabled={alreadyIntroduced}
-            >
-              <View style={styles.candidateMain}>
-                <Text style={styles.candidateArabic}>{c.lemma_ar}</Text>
-                <Text style={styles.candidateEnglish}>{c.gloss_en}</Text>
-              </View>
-              <View style={styles.candidateMeta}>
-                {c.transliteration && (
-                  <Text style={styles.candidateTranslit}>{c.transliteration}</Text>
-                )}
-                <Text style={styles.candidatePos}>{c.pos}</Text>
-                {c.root && (
-                  <Text style={styles.candidateRoot}>
-                    Root: {c.root}
-                    {c.score_breakdown.known_siblings > 0 &&
-                      ` (${c.score_breakdown.known_siblings}/${c.score_breakdown.total_siblings} known)`}
-                  </Text>
-                )}
-              </View>
-              {alreadyIntroduced && (
-                <View style={styles.checkmark}>
-                  <Text style={styles.checkmarkText}>Learned</Text>
-                </View>
-              )}
-            </Pressable>
-          );
-        })}
-        {candidates.length === 0 && (
+    if (candidates.length === 0) {
+      return (
+        <View style={styles.centered}>
           <Text style={styles.emptyText}>
-            No new words available. Import more vocabulary or check back later.
+            No new words available right now.
           </Text>
-        )}
-      </ScrollView>
-    );
-  }
-
-  if (phase === "intro") {
-    const current = introduced[currentIntroIndex];
-    const { candidate, result } = current;
-    const hasFamily =
-      result.root_family && result.root_family.length > 1;
-
-    return (
-      <ScrollView style={styles.container} contentContainerStyle={styles.introContent}>
-        <Text style={styles.introStep}>
-          Word {currentIntroIndex + 1} of {introduced.length}
-        </Text>
-
-        {/* Word Card */}
-        <View style={styles.wordCard}>
-          <Text style={styles.wordArabic}>{candidate.lemma_ar}</Text>
-          <Text style={styles.wordEnglish}>{candidate.gloss_en}</Text>
-          {candidate.transliteration && (
-            <Text style={styles.wordTranslit}>{candidate.transliteration}</Text>
-          )}
-          <Text style={styles.wordPos}>{candidate.pos}</Text>
+          <Pressable style={styles.primaryButton} onPress={resetSession}>
+            <Text style={styles.primaryButtonText}>Refresh</Text>
+          </Pressable>
         </View>
+      );
+    }
 
-        {/* Root Info */}
-        {candidate.root && (
-          <View style={styles.rootCard}>
-            <Text style={styles.rootTitle}>Root: {candidate.root}</Text>
-            {candidate.root_meaning && (
-              <Text style={styles.rootMeaning}>
-                Core meaning: {candidate.root_meaning}
+    const c = candidates[pickIndex];
+    return (
+      <View style={styles.centered}>
+        <View style={styles.progressContainer}>
+          <Text style={styles.progressText}>
+            Word {pickIndex + 1} of {candidates.length}
+          </Text>
+          {introduced.length > 0 && (
+            <Pressable style={styles.quizEarlyButton} onPress={startQuizEarly}>
+              <Text style={styles.quizEarlyText}>
+                Quiz ({introduced.length}) →
               </Text>
-            )}
-            {hasFamily && (
-              <View style={styles.familyList}>
-                <Text style={styles.familyTitle}>Root family:</Text>
-                {result.root_family!.map((fw: RootFamilyWord) => (
-                  <View key={fw.lemma_id} style={styles.familyItem}>
-                    <Text
-                      style={[
-                        styles.familyArabic,
-                        fw.state === "known" && styles.familyKnown,
-                        fw.state === "learning" && styles.familyLearning,
-                        fw.lemma_id === candidate.lemma_id && styles.familyCurrent,
-                      ]}
-                    >
-                      {fw.lemma_ar}
-                    </Text>
-                    <Text style={styles.familyGloss}>{fw.gloss_en}</Text>
-                    {fw.state !== "unknown" && fw.lemma_id !== candidate.lemma_id && (
-                      <Text
-                        style={[
-                          styles.familyState,
-                          fw.state === "known" && { color: colors.good },
-                          fw.state === "learning" && { color: colors.stateLearning },
-                        ]}
-                      >
-                        {fw.state}
-                      </Text>
-                    )}
-                    {fw.lemma_id === candidate.lemma_id && (
-                      <Text style={[styles.familyState, { color: colors.accent }]}>
-                        new
-                      </Text>
-                    )}
-                  </View>
-                ))}
-              </View>
-            )}
-          </View>
-        )}
-
-        <Pressable style={styles.nextButton} onPress={handleIntroNext}>
-          <Text style={styles.nextButtonText}>
-            {currentIntroIndex < introduced.length - 1
-              ? "Next Word"
-              : "Done — Pick More or Quiz"}
-          </Text>
-        </Pressable>
-      </ScrollView>
-    );
-  }
-
-  if (phase === "quiz") {
-    const current = introduced[quizIndex];
-    const { candidate } = current;
-
-    return (
-      <View style={styles.container}>
-        <View style={styles.quizHeader}>
-          <Text style={styles.quizProgress}>
-            {quizIndex + 1} / {introduced.length}
-          </Text>
+            </Pressable>
+          )}
+        </View>
+        <View style={styles.progressTrack}>
+          <View
+            style={[
+              styles.progressFill,
+              { width: `${((pickIndex + 1) / candidates.length) * 100}%` },
+            ]}
+          />
         </View>
 
-        <View style={styles.quizContent}>
-          {!quizRevealed ? (
-            <>
-              <Text style={styles.quizArabic}>{candidate.lemma_ar}</Text>
-              <Text style={styles.quizHint}>What does this word mean?</Text>
-              <Pressable style={styles.revealButton} onPress={handleQuizReveal}>
-                <Text style={styles.revealButtonText}>Show Answer</Text>
-              </Pressable>
-            </>
-          ) : (
-            <>
-              <Text style={styles.quizArabic}>{candidate.lemma_ar}</Text>
-              <Text style={styles.quizAnswer}>{candidate.gloss_en}</Text>
-              {candidate.transliteration && (
-                <Text style={styles.quizTranslit}>{candidate.transliteration}</Text>
-              )}
-              <View style={styles.quizButtons}>
-                <Pressable
-                  style={[styles.quizBtn, styles.quizBtnGood]}
-                  onPress={() => handleQuizAnswer(true)}
-                >
-                  <Text style={styles.quizBtnText}>Got it</Text>
-                </Pressable>
-                <Pressable
-                  style={[styles.quizBtn, styles.quizBtnMissed]}
-                  onPress={() => handleQuizAnswer(false)}
-                >
-                  <Text style={styles.quizBtnText}>Missed</Text>
-                </Pressable>
-              </View>
-            </>
+        <View style={styles.card}>
+          <Text style={styles.wordArabic}>{c.lemma_ar}</Text>
+          <Text style={styles.wordEnglish}>{c.gloss_en}</Text>
+          {c.transliteration && (
+            <Text style={styles.wordTranslit}>{c.transliteration}</Text>
           )}
+          <Text style={styles.wordPos}>{c.pos}</Text>
+
+          {c.root && (
+            <View style={styles.rootInfo}>
+              <Text style={styles.rootText}>
+                Root: {c.root}
+                {c.root_meaning ? ` — ${c.root_meaning}` : ""}
+              </Text>
+              {c.score_breakdown.total_siblings > 0 && (
+                <Text style={styles.rootSiblings}>
+                  {c.score_breakdown.known_siblings} of{" "}
+                  {c.score_breakdown.total_siblings} root words known
+                </Text>
+              )}
+            </View>
+          )}
+        </View>
+
+        <View style={styles.actionColumn}>
+          <Pressable style={styles.primaryButton} onPress={handleLearn}>
+            <Text style={styles.primaryButtonText}>Learn</Text>
+          </Pressable>
+          <Pressable style={styles.skipButton} onPress={handleSkip}>
+            <Text style={styles.skipButtonText}>Skip</Text>
+          </Pressable>
+          <Pressable style={styles.suspendButton} onPress={handleSuspend}>
+            <Text style={styles.suspendButtonText}>Never show this word</Text>
+          </Pressable>
         </View>
       </View>
     );
   }
 
-  // phase === "done"
+  // --- Quiz Phase: sentence-based ---
+  if (phase === "quiz") {
+    const current = introduced[quizIndex];
+
+    if (quizLoading) {
+      return (
+        <View style={styles.centered}>
+          <View style={styles.progressContainer}>
+            <Text style={styles.progressText}>
+              Quiz {quizIndex + 1} of {introduced.length}
+            </Text>
+          </View>
+          <ActivityIndicator size="large" color={colors.accent} />
+          <Text style={styles.loadingText}>Preparing sentence...</Text>
+        </View>
+      );
+    }
+
+    // Word-only fallback (no sentence generated in time)
+    if (!quizSentence) {
+      return (
+        <View style={styles.centered}>
+          <View style={styles.progressContainer}>
+            <Text style={styles.progressText}>
+              Quiz {quizIndex + 1} of {introduced.length}
+            </Text>
+          </View>
+
+          <View style={styles.card}>
+            {!quizRevealed ? (
+              <>
+                <Text style={styles.quizArabic}>
+                  {current.candidate.lemma_ar}
+                </Text>
+                <Text style={styles.quizHint}>What does this word mean?</Text>
+              </>
+            ) : (
+              <>
+                <Text style={styles.quizArabic}>
+                  {current.candidate.lemma_ar}
+                </Text>
+                <View style={styles.divider} />
+                <Text style={styles.quizAnswer}>
+                  {current.candidate.gloss_en}
+                </Text>
+                {current.candidate.transliteration && (
+                  <Text style={styles.wordTranslit}>
+                    {current.candidate.transliteration}
+                  </Text>
+                )}
+              </>
+            )}
+          </View>
+
+          {!quizRevealed ? (
+            <Pressable
+              style={styles.primaryButton}
+              onPress={() => setQuizRevealed(true)}
+            >
+              <Text style={styles.primaryButtonText}>Show Answer</Text>
+            </Pressable>
+          ) : (
+            <View style={styles.ratingRow}>
+              <Pressable
+                style={[styles.ratingButton, styles.gotItButton]}
+                onPress={() => handleQuizAnswer(true)}
+              >
+                <Text style={styles.ratingButtonText}>Got it</Text>
+              </Pressable>
+              <Pressable
+                style={[styles.ratingButton, styles.missedButton]}
+                onPress={() => handleQuizAnswer(false)}
+              >
+                <Text style={styles.ratingButtonText}>Missed</Text>
+              </Pressable>
+            </View>
+          )}
+        </View>
+      );
+    }
+
+    // Sentence quiz
+    return (
+      <View style={styles.centered}>
+        <View style={styles.progressContainer}>
+          <Text style={styles.progressText}>
+            Quiz {quizIndex + 1} of {introduced.length}
+          </Text>
+        </View>
+
+        <View style={styles.card}>
+          <Text style={styles.quizTargetHint}>
+            {current.candidate.lemma_ar} — {current.candidate.gloss_en}
+          </Text>
+          <View style={styles.divider} />
+          <Text style={styles.sentenceArabic}>
+            {quizSentence.arabic_text}
+          </Text>
+
+          {quizRevealed && (
+            <View style={styles.answerSection}>
+              <View style={styles.divider} />
+              <Text style={styles.sentenceEnglish}>
+                {quizSentence.english_translation}
+              </Text>
+              {quizSentence.transliteration && (
+                <Text style={styles.sentenceTranslit}>
+                  {quizSentence.transliteration}
+                </Text>
+              )}
+            </View>
+          )}
+        </View>
+
+        {!quizRevealed ? (
+          <Pressable
+            style={styles.primaryButton}
+            onPress={() => setQuizRevealed(true)}
+          >
+            <Text style={styles.primaryButtonText}>Show Translation</Text>
+          </Pressable>
+        ) : (
+          <View style={styles.ratingRow}>
+            <Pressable
+              style={[styles.ratingButton, styles.gotItButton]}
+              onPress={() => handleQuizAnswer(true)}
+            >
+              <Text style={styles.ratingButtonText}>Got it</Text>
+            </Pressable>
+            <Pressable
+              style={[styles.ratingButton, styles.missedButton]}
+              onPress={() => handleQuizAnswer(false)}
+            >
+              <Text style={styles.ratingButtonText}>Missed</Text>
+            </Pressable>
+          </View>
+        )}
+      </View>
+    );
+  }
+
+  // --- Done Phase ---
   const correct = quizResults.filter(Boolean).length;
   return (
     <View style={styles.centered}>
       <Text style={styles.doneTitle}>Session Complete</Text>
-      <Text style={styles.doneSubtitle}>
-        {introduced.length} new word{introduced.length !== 1 ? "s" : ""} learned
-      </Text>
-      <View style={styles.doneStats}>
-        <Text style={[styles.doneStat, { color: colors.good }]}>
-          Got it: {correct}
-        </Text>
-        <Text style={[styles.doneStat, { color: colors.missed }]}>
-          Missed: {quizResults.length - correct}
-        </Text>
-      </View>
-      <Text style={styles.doneNote}>
-        These words will now appear in your review sessions with simple, short
-        sentences to help fix them in memory.
-      </Text>
-      <Pressable style={styles.nextButton} onPress={resetSession}>
-        <Text style={styles.nextButtonText}>Learn More Words</Text>
+      {introduced.length > 0 ? (
+        <>
+          <Text style={styles.doneSubtitle}>
+            {introduced.length} new word{introduced.length !== 1 ? "s" : ""}{" "}
+            learned
+          </Text>
+          {quizResults.length > 0 && (
+            <View style={styles.doneStats}>
+              <Text style={[styles.doneStat, { color: colors.good }]}>
+                Got it: {correct}
+              </Text>
+              <Text style={[styles.doneStat, { color: colors.missed }]}>
+                Missed: {quizResults.length - correct}
+              </Text>
+            </View>
+          )}
+          <Text style={styles.doneNote}>
+            These words will now appear in your review sessions.
+          </Text>
+        </>
+      ) : (
+        <Text style={styles.doneSubtitle}>No words learned this session</Text>
+      )}
+      <Pressable style={styles.primaryButton} onPress={resetSession}>
+        <Text style={styles.primaryButtonText}>Learn More Words</Text>
       </Pressable>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.bg },
   centered: {
     flex: 1,
     backgroundColor: colors.bg,
@@ -341,110 +456,70 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     padding: 20,
   },
-  content: { padding: 20, alignItems: "center" },
-  introContent: { padding: 20, alignItems: "center" },
   loadingText: {
     color: colors.textSecondary,
     fontSize: 16,
     marginTop: 12,
   },
-  title: {
-    fontSize: 24,
-    color: colors.text,
-    fontWeight: "700",
-    marginBottom: 8,
-  },
-  subtitle: {
-    fontSize: 14,
+  emptyText: {
     color: colors.textSecondary,
-    marginBottom: 16,
+    fontSize: 18,
+    textAlign: "center",
+    marginBottom: 20,
   },
-  progressRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
+
+  progressContainer: {
     width: "100%",
     maxWidth: 500,
-    marginBottom: 12,
-  },
-  progressText: {
-    fontSize: 14,
-    color: colors.accent,
-    fontWeight: "600",
-  },
-  quizButton: {
-    backgroundColor: colors.accent,
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    borderRadius: 8,
-  },
-  quizButtonText: { color: "#fff", fontWeight: "600", fontSize: 14 },
-  candidateCard: {
-    backgroundColor: colors.surface,
-    borderRadius: 14,
-    padding: 18,
-    width: "100%",
-    maxWidth: 500,
-    marginBottom: 10,
-  },
-  candidateCardDone: { opacity: 0.5 },
-  candidateMain: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
     marginBottom: 6,
   },
-  candidateArabic: {
-    fontSize: fonts.arabicMedium,
-    color: colors.arabic,
+  progressText: {
+    color: colors.textSecondary,
+    fontSize: fonts.small,
+  },
+  progressTrack: {
+    width: "100%",
+    maxWidth: 500,
+    height: 4,
+    backgroundColor: colors.surfaceLight,
+    borderRadius: 2,
+    overflow: "hidden",
+    marginBottom: 20,
+  },
+  progressFill: {
+    height: "100%",
+    backgroundColor: colors.accent,
+    borderRadius: 2,
+  },
+  quizEarlyButton: {
+    paddingVertical: 4,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    backgroundColor: colors.surfaceLight,
+  },
+  quizEarlyText: {
+    color: colors.accent,
+    fontSize: fonts.small,
     fontWeight: "600",
   },
-  candidateEnglish: {
-    fontSize: 16,
-    color: colors.text,
-  },
-  candidateMeta: { gap: 2 },
-  candidateTranslit: {
-    fontSize: 13,
-    color: colors.textSecondary,
-    fontStyle: "italic",
-  },
-  candidatePos: { fontSize: 12, color: colors.textSecondary },
-  candidateRoot: { fontSize: 12, color: colors.accent },
-  checkmark: {
-    position: "absolute",
-    top: 10,
-    right: 10,
-    backgroundColor: colors.good,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 6,
-  },
-  checkmarkText: { color: "#fff", fontSize: 11, fontWeight: "600" },
-  emptyText: {
-    color: colors.textSecondary,
-    fontSize: 16,
-    textAlign: "center",
-    marginTop: 40,
-  },
-  introStep: {
-    fontSize: 14,
-    color: colors.textSecondary,
-    marginBottom: 16,
-  },
-  wordCard: {
+
+  card: {
     backgroundColor: colors.surface,
     borderRadius: 16,
     padding: 32,
     width: "100%",
     maxWidth: 500,
     alignItems: "center",
-    marginBottom: 16,
+    marginBottom: 24,
   },
   wordArabic: {
-    fontSize: 40,
+    fontSize: 44,
     color: colors.arabic,
     fontWeight: "700",
+    writingDirection: "rtl",
     marginBottom: 12,
   },
   wordEnglish: {
@@ -452,6 +527,7 @@ const styles = StyleSheet.create({
     color: colors.text,
     fontWeight: "600",
     marginBottom: 6,
+    textAlign: "center",
   },
   wordTranslit: {
     fontSize: 16,
@@ -459,105 +535,151 @@ const styles = StyleSheet.create({
     fontStyle: "italic",
     marginBottom: 4,
   },
-  wordPos: { fontSize: 13, color: colors.textSecondary },
-  rootCard: {
-    backgroundColor: colors.surface,
-    borderRadius: 14,
-    padding: 18,
-    width: "100%",
-    maxWidth: 500,
-    marginBottom: 16,
-  },
-  rootTitle: {
-    fontSize: 16,
-    color: colors.accent,
-    fontWeight: "700",
-    marginBottom: 4,
-  },
-  rootMeaning: {
-    fontSize: 14,
-    color: colors.textSecondary,
-    marginBottom: 10,
-  },
-  familyList: { marginTop: 4 },
-  familyTitle: {
+  wordPos: {
     fontSize: 13,
     color: colors.textSecondary,
-    marginBottom: 6,
+    marginBottom: 12,
   },
-  familyItem: {
-    flexDirection: "row",
+  rootInfo: {
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+    paddingTop: 12,
+    width: "100%",
     alignItems: "center",
-    gap: 8,
-    paddingVertical: 4,
   },
-  familyArabic: {
-    fontSize: fonts.arabicList,
+  rootText: {
+    fontSize: 14,
+    color: colors.accent,
+    fontWeight: "600",
+  },
+  rootSiblings: {
+    fontSize: 13,
     color: colors.textSecondary,
+    marginTop: 4,
   },
-  familyKnown: { color: colors.good },
-  familyLearning: { color: colors.stateLearning },
-  familyCurrent: { color: colors.accent, fontWeight: "700" },
-  familyGloss: { fontSize: 13, color: colors.textSecondary, flex: 1 },
-  familyState: { fontSize: 11, color: colors.textSecondary },
-  nextButton: {
-    backgroundColor: colors.accent,
-    paddingVertical: 14,
-    paddingHorizontal: 32,
-    borderRadius: 12,
-    marginTop: 8,
-  },
-  nextButtonText: { color: "#fff", fontSize: 16, fontWeight: "600" },
-  quizHeader: { padding: 16, alignItems: "center" },
-  quizProgress: { fontSize: 14, color: colors.textSecondary },
-  quizContent: {
-    flex: 1,
+
+  actionColumn: {
+    width: "100%",
+    maxWidth: 500,
     alignItems: "center",
-    justifyContent: "center",
-    padding: 20,
+    gap: 10,
   },
+  primaryButton: {
+    backgroundColor: colors.accent,
+    paddingVertical: 16,
+    paddingHorizontal: 48,
+    borderRadius: 12,
+    width: "100%",
+    maxWidth: 500,
+  },
+  primaryButtonText: {
+    color: "#fff",
+    fontSize: 18,
+    fontWeight: "600",
+    textAlign: "center",
+  },
+  skipButton: {
+    backgroundColor: colors.surfaceLight,
+    paddingVertical: 14,
+    paddingHorizontal: 48,
+    borderRadius: 12,
+    width: "100%",
+    maxWidth: 500,
+  },
+  skipButtonText: {
+    color: colors.textSecondary,
+    fontSize: 16,
+    fontWeight: "600",
+    textAlign: "center",
+  },
+  suspendButton: {
+    paddingVertical: 8,
+  },
+  suspendButtonText: {
+    color: colors.textSecondary,
+    fontSize: 13,
+    opacity: 0.6,
+  },
+
+  // Quiz styles
   quizArabic: {
     fontSize: 44,
     color: colors.arabic,
     fontWeight: "700",
-    marginBottom: 24,
+    writingDirection: "rtl",
+    marginBottom: 16,
   },
   quizHint: {
     fontSize: 16,
     color: colors.textSecondary,
-    marginBottom: 32,
   },
-  revealButton: {
-    backgroundColor: colors.surfaceLight,
-    paddingVertical: 14,
-    paddingHorizontal: 32,
-    borderRadius: 12,
-  },
-  revealButtonText: { color: colors.text, fontSize: 16, fontWeight: "600" },
   quizAnswer: {
-    fontSize: 24,
+    fontSize: 22,
     color: colors.text,
+    fontWeight: "600",
+    textAlign: "center",
+  },
+  quizTargetHint: {
+    fontSize: 14,
+    color: colors.accent,
     fontWeight: "600",
     marginBottom: 8,
   },
-  quizTranslit: {
+  sentenceArabic: {
+    fontSize: 28,
+    color: colors.arabic,
+    writingDirection: "rtl",
+    textAlign: "center",
+    lineHeight: 46,
+  },
+  answerSection: {
+    width: "100%",
+    alignItems: "center",
+  },
+  sentenceEnglish: {
+    fontSize: 20,
+    color: colors.text,
+    fontWeight: "600",
+    textAlign: "center",
+  },
+  sentenceTranslit: {
     fontSize: 16,
     color: colors.textSecondary,
     fontStyle: "italic",
-    marginBottom: 32,
+    marginTop: 6,
+    textAlign: "center",
   },
-  quizButtons: {
+  divider: {
+    height: 1,
+    backgroundColor: colors.border,
+    width: "80%",
+    marginVertical: 16,
+  },
+  ratingRow: {
     flexDirection: "row",
-    gap: 16,
+    gap: 12,
+    width: "100%",
+    maxWidth: 500,
   },
-  quizBtn: {
-    paddingVertical: 14,
-    paddingHorizontal: 32,
+  ratingButton: {
+    flex: 1,
+    paddingVertical: 16,
     borderRadius: 12,
+    alignItems: "center",
   },
-  quizBtnGood: { backgroundColor: colors.good },
-  quizBtnMissed: { backgroundColor: colors.missed },
-  quizBtnText: { color: "#fff", fontSize: 16, fontWeight: "600" },
+  gotItButton: {
+    backgroundColor: colors.gotIt,
+  },
+  missedButton: {
+    backgroundColor: colors.missed,
+  },
+  ratingButtonText: {
+    color: "#fff",
+    fontSize: 17,
+    fontWeight: "700",
+  },
+
+  // Done styles
   doneTitle: {
     fontSize: 28,
     color: colors.text,
@@ -574,7 +696,10 @@ const styles = StyleSheet.create({
     gap: 24,
     marginBottom: 20,
   },
-  doneStat: { fontSize: 18, fontWeight: "600" },
+  doneStat: {
+    fontSize: 18,
+    fontWeight: "600",
+  },
   doneNote: {
     fontSize: 14,
     color: colors.textSecondary,

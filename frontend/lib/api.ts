@@ -12,6 +12,9 @@ import {
   Analytics,
   LearnCandidate,
   IntroduceResult,
+  StoryListItem,
+  StoryDetail,
+  StoryLookupResult,
 } from "./types";
 import { netStatus } from "./net-status";
 import {
@@ -207,6 +210,19 @@ export async function submitQuizResult(
   });
 }
 
+export async function suspendWord(lemmaId: number): Promise<{ lemma_id: number; state: string }> {
+  return fetchApi("/api/learn/suspend", {
+    method: "POST",
+    body: JSON.stringify({ lemma_id: lemmaId }),
+  });
+}
+
+export async function getLemmaSentence(
+  lemmaId: number
+): Promise<{ ready: boolean; sentence: any | null }> {
+  return fetchApi(`/api/learn/sentences/${lemmaId}`);
+}
+
 export async function getSentenceReviewSession(
   mode: ReviewMode = "reading"
 ): Promise<SentenceReviewSession> {
@@ -261,4 +277,66 @@ export async function prefetchSessions(mode: ReviewMode): Promise<void> {
     const session = { ...data, session_id: generateSessionId() };
     await cacheSessions(mode, [session]);
   } catch {}
+}
+
+export async function getStories(): Promise<StoryListItem[]> {
+  return fetchApi<StoryListItem[]>("/api/stories");
+}
+
+export async function getStoryDetail(id: number): Promise<StoryDetail> {
+  return fetchApi<StoryDetail>(`/api/stories/${id}`);
+}
+
+export async function generateStory(opts?: {
+  difficulty?: string;
+  length?: string;
+  topic?: string;
+}): Promise<StoryDetail> {
+  return fetchApi<StoryDetail>("/api/stories/generate", {
+    method: "POST",
+    body: JSON.stringify({
+      difficulty: opts?.difficulty || "beginner",
+      length: opts?.length || "medium",
+      topic: opts?.topic || null,
+    }),
+  });
+}
+
+export async function importStory(arabicText: string, title?: string): Promise<StoryDetail> {
+  return fetchApi<StoryDetail>("/api/stories/import", {
+    method: "POST",
+    body: JSON.stringify({ arabic_text: arabicText, title }),
+  });
+}
+
+export async function completeStory(storyId: number, lookedUpLemmaIds: number[]): Promise<void> {
+  await fetchApi(`/api/stories/${storyId}/complete`, {
+    method: "POST",
+    body: JSON.stringify({ looked_up_lemma_ids: lookedUpLemmaIds }),
+  });
+}
+
+export async function skipStory(storyId: number, lookedUpLemmaIds: number[]): Promise<void> {
+  await fetchApi(`/api/stories/${storyId}/skip`, {
+    method: "POST",
+    body: JSON.stringify({ looked_up_lemma_ids: lookedUpLemmaIds }),
+  });
+}
+
+export async function tooDifficultStory(storyId: number, lookedUpLemmaIds: number[]): Promise<void> {
+  await fetchApi(`/api/stories/${storyId}/too-difficult`, {
+    method: "POST",
+    body: JSON.stringify({ looked_up_lemma_ids: lookedUpLemmaIds }),
+  });
+}
+
+export async function lookupStoryWord(storyId: number, lemmaId: number, position: number): Promise<StoryLookupResult> {
+  return fetchApi<StoryLookupResult>(`/api/stories/${storyId}/lookup`, {
+    method: "POST",
+    body: JSON.stringify({ lemma_id: lemmaId, position }),
+  });
+}
+
+export async function getStoryReadiness(storyId: number): Promise<{ readiness_pct: number; unknown_count: number }> {
+  return fetchApi(`/api/stories/${storyId}/readiness`);
 }
