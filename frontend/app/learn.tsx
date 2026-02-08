@@ -80,10 +80,10 @@ function PlayButton({ audioUrl, word }: { audioUrl: string | null; word: string 
     if (playing) return;
     setPlaying(true);
     try {
-      // Use word audio if available, otherwise use TTS endpoint
+      // Use cached audio if available, otherwise generate on-the-fly via /speak
       const url = audioUrl
         ? `${BASE_URL}${audioUrl}`
-        : `${BASE_URL}/api/tts/audio/${encodeURIComponent(word)}`;
+        : `${BASE_URL}/api/tts/speak/${encodeURIComponent(word)}`;
 
       if (soundRef.current) {
         await soundRef.current.unloadAsync();

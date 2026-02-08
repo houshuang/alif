@@ -21,7 +21,7 @@ export interface ReviewSession {
   total_due: number;
 }
 
-export type ReviewMode = "reading" | "listening";
+export type ReviewMode = "reading" | "listening" | "quiz";
 export type ComprehensionSignal = "understood" | "partial" | "no_idea";
 
 export interface ReviewSubmission {

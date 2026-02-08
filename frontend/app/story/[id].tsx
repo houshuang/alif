@@ -204,7 +204,11 @@ export default function StoryReadScreen() {
                     <Pressable
                       key={word.position}
                       onPress={() => handleWordTap(word)}
-                      style={styles.wordTouchTarget}
+                      style={[
+                        styles.wordTouchTarget,
+                        isLookedUp && styles.lookedUpTarget,
+                        isSelected && styles.selectedTarget,
+                      ]}
                     >
                       <Text
                         style={[
@@ -377,14 +381,17 @@ const styles = StyleSheet.create({
   },
   lookedUpWord: {
     color: colors.missed,
-    textDecorationLine: "underline",
-    textDecorationColor: colors.missed,
   },
   selectedWord: {
     color: colors.missed,
-    textDecorationLine: "underline",
-    textDecorationColor: colors.missed,
-    fontWeight: "700",
+  },
+  lookedUpTarget: {
+    backgroundColor: colors.missed + "25",
+    borderRadius: 4,
+  },
+  selectedTarget: {
+    backgroundColor: colors.missed + "40",
+    borderRadius: 4,
   },
   englishText: {
     fontSize: 20,
