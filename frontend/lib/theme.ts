@@ -20,10 +20,16 @@ export const colors = {
   noIdea: "#e67e22",
 };
 
+export const fontFamily = {
+  arabic: "ScheherazadeNew_400Regular",
+  arabicBold: "ScheherazadeNew_700Bold",
+};
+
 export const fonts = {
-  arabicLarge: 32,
-  arabicMedium: 22,
-  arabicList: 18,
+  arabicSentence: 38,
+  arabicLarge: 36,
+  arabicMedium: 24,
+  arabicList: 20,
   body: 16,
   small: 14,
   caption: 12,

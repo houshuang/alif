@@ -8,7 +8,7 @@ import {
   ActivityIndicator,
 } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { colors, fonts } from "../../lib/theme";
+import { colors, fonts, fontFamily } from "../../lib/theme";
 import {
   getStoryDetail,
   lookupStoryWord,
@@ -469,6 +469,7 @@ const styles = StyleSheet.create({
     fontSize: fonts.arabicMedium,
     color: colors.arabic,
     writingDirection: "rtl",
+    fontFamily: fontFamily.arabic,
     fontWeight: "600",
   },
   lookupGloss: {

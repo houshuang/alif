@@ -13,7 +13,7 @@ import {
 } from "react-native";
 import { useRouter, useFocusEffect } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
-import { colors, fonts } from "../lib/theme";
+import { colors, fonts, fontFamily } from "../lib/theme";
 import { getStories, generateStory, importStory, deleteStory } from "../lib/api";
 import { StoryListItem } from "../lib/types";
 import AskAI from "../lib/AskAI";
@@ -505,6 +505,7 @@ const styles = StyleSheet.create({
     fontSize: fonts.arabicList,
     color: colors.arabic,
     writingDirection: "rtl",
+    fontFamily: fontFamily.arabic,
     textAlign: "right",
     marginTop: 4,
     opacity: 0.85,
@@ -648,6 +649,7 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     minHeight: 150,
     writingDirection: "rtl",
+    fontFamily: fontFamily.arabic,
     textAlignVertical: "top",
     marginBottom: 16,
   },

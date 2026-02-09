@@ -8,7 +8,7 @@ import {
   Animated,
 } from "react-native";
 import { Audio } from "expo-av";
-import { colors, fonts } from "../lib/theme";
+import { colors, fonts, fontFamily } from "../lib/theme";
 import {
   BASE_URL,
   getNextWords,
@@ -823,6 +823,7 @@ const styles = StyleSheet.create({
     color: colors.arabic,
     fontWeight: "700",
     writingDirection: "rtl",
+    fontFamily: fontFamily.arabic,
   },
   wordEnglish: {
     fontSize: 22,
@@ -875,11 +876,13 @@ const styles = StyleSheet.create({
     color: colors.arabic,
     fontSize: 18,
     writingDirection: "rtl",
+    fontFamily: fontFamily.arabic,
   },
   formValueLarge: {
     color: colors.arabic,
     fontSize: 20,
     writingDirection: "rtl",
+    fontFamily: fontFamily.arabic,
     fontWeight: "600",
   },
   playButton: {
@@ -906,6 +909,7 @@ const styles = StyleSheet.create({
     fontSize: 20,
     color: colors.arabic,
     writingDirection: "rtl",
+    fontFamily: fontFamily.arabic,
     textAlign: "center",
     lineHeight: 32,
   },
@@ -982,6 +986,7 @@ const styles = StyleSheet.create({
     color: colors.arabic,
     fontWeight: "700",
     writingDirection: "rtl",
+    fontFamily: fontFamily.arabic,
     marginBottom: 16,
   },
   quizHint: {
@@ -1004,6 +1009,7 @@ const styles = StyleSheet.create({
     fontSize: 28,
     color: colors.arabic,
     writingDirection: "rtl",
+    fontFamily: fontFamily.arabic,
     textAlign: "center",
     lineHeight: 46,
   },

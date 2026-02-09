@@ -9,7 +9,7 @@ import {
   ActivityIndicator,
 } from "react-native";
 import { useRouter, useFocusEffect } from "expo-router";
-import { colors, fonts } from "../lib/theme";
+import { colors, fonts, fontFamily } from "../lib/theme";
 import { getWords } from "../lib/api";
 import { Word } from "../lib/types";
 import AskAI from "../lib/AskAI";
@@ -302,6 +302,7 @@ const styles = StyleSheet.create({
     fontSize: fonts.arabicList,
     color: colors.arabic,
     writingDirection: "rtl",
+    fontFamily: fontFamily.arabic,
     marginBottom: 2,
   },
   wordEnglish: {

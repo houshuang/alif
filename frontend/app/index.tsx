@@ -7,9 +7,11 @@ import {
   ActivityIndicator,
   ScrollView,
   Animated,
+  Platform,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Audio } from "expo-av";
-import { colors, fonts } from "../lib/theme";
+import { colors, fonts, fontFamily } from "../lib/theme";
 import {
   getReviewSession,
   submitReview,
@@ -67,6 +69,7 @@ export default function ReadingScreen() {
 export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
   const mode = fixedMode;
   const online = useNetStatus();
+  const insets = useSafeAreaInsets();
   // Sentence-first session (preferred)
   const [sentenceSession, setSentenceSession] =
     useState<SentenceReviewSession | null>(null);
@@ -473,7 +476,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
 
   if (loading) {
     return (
-      <View style={styles.container}>
+      <View style={styles.centeredContainer}>
         <ActivityIndicator size="large" color={colors.accent} />
       </View>
     );
@@ -498,12 +501,14 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
 
     return (
       <View
-        style={[styles.container, isListening && styles.listeningContainer]}
+        style={[styles.container, isListening && styles.listeningContainer, { paddingTop: Math.max(insets.top, 12) }]}
       >
-
         <ProgressBar current={cardIndex + 1} total={totalCards} mode={mode} />
 
-        <View style={[styles.card, isListening && styles.listeningCard]}>
+        <ScrollView
+          contentContainerStyle={styles.sentenceArea}
+          showsVerticalScrollIndicator={false}
+        >
           {isWordOnly ? (
             <WordOnlySentenceCard
               item={item}
@@ -543,28 +548,30 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
               onDismissLookup={dismissLookup}
             />
           )}
-        </View>
+        </ScrollView>
 
-        {isListening ? (
-          <ListeningActions
-            cardState={cardState as ListeningCardState}
-            missedCount={missedIndices.size}
-            confusedCount={confusedIndices.size}
-            lastMarkedGloss={lastMarkedIndex !== null ? item.words[lastMarkedIndex]?.gloss_en ?? null : null}
-            onAdvance={advanceState}
-            onSubmit={handleSubmit}
-          />
-        ) : (
-          <ReadingActions
-            cardState={cardState as ReadingCardState}
-            hasSentence={!isWordOnly}
-            missedCount={missedIndices.size}
-            confusedCount={confusedIndices.size}
-            lastMarkedGloss={lastMarkedIndex !== null ? item.words[lastMarkedIndex]?.gloss_en ?? null : null}
-            onAdvance={advanceState}
-            onSubmit={handleSubmit}
-          />
-        )}
+        <View style={styles.bottomActions}>
+          {isListening ? (
+            <ListeningActions
+              cardState={cardState as ListeningCardState}
+              missedCount={missedIndices.size}
+              confusedCount={confusedIndices.size}
+              lastMarkedGloss={lastMarkedIndex !== null ? item.words[lastMarkedIndex]?.gloss_en ?? null : null}
+              onAdvance={advanceState}
+              onSubmit={handleSubmit}
+            />
+          ) : (
+            <ReadingActions
+              cardState={cardState as ReadingCardState}
+              hasSentence={!isWordOnly}
+              missedCount={missedIndices.size}
+              confusedCount={confusedIndices.size}
+              lastMarkedGloss={lastMarkedIndex !== null ? item.words[lastMarkedIndex]?.gloss_en ?? null : null}
+              onAdvance={advanceState}
+              onSubmit={handleSubmit}
+            />
+          )}
+        </View>
         <AskAI contextBuilder={buildContext} screen="review" />
       </View>
     );
@@ -576,11 +583,12 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
 
   return (
     <View style={[styles.container, isListening && styles.listeningContainer]}>
-
-
       <ProgressBar current={cardIndex + 1} total={totalCards} mode={mode} />
 
-      <View style={[styles.card, isListening && styles.listeningCard]}>
+      <ScrollView
+        contentContainerStyle={styles.sentenceArea}
+        showsVerticalScrollIndicator={false}
+      >
         {isListening ? (
           <LegacyListeningCard
             card={card}
@@ -604,24 +612,26 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
             cardState={cardState as ReadingCardState}
           />
         )}
-      </View>
+      </ScrollView>
 
-      {isListening ? (
-        <ListeningActions
-          cardState={cardState as ListeningCardState}
-          missedCount={missedIndices.size}
-          onAdvance={advanceState}
-          onSubmit={handleSubmit}
-        />
-      ) : (
-        <ReadingActions
-          cardState={cardState as ReadingCardState}
-          hasSentence={hasSentence}
-          missedCount={missedIndices.size}
-          onAdvance={advanceState}
-          onSubmit={handleSubmit}
-        />
-      )}
+      <View style={styles.bottomActions}>
+        {isListening ? (
+          <ListeningActions
+            cardState={cardState as ListeningCardState}
+            missedCount={missedIndices.size}
+            onAdvance={advanceState}
+            onSubmit={handleSubmit}
+          />
+        ) : (
+          <ReadingActions
+            cardState={cardState as ReadingCardState}
+            hasSentence={hasSentence}
+            missedCount={missedIndices.size}
+            onAdvance={advanceState}
+            onSubmit={handleSubmit}
+          />
+        )}
+      </View>
       <AskAI contextBuilder={buildContext} screen="review" />
     </View>
   );
@@ -1606,7 +1616,7 @@ function SessionComplete({
     colors.noIdea;
 
   return (
-    <ScrollView contentContainerStyle={styles.container}>
+    <ScrollView contentContainerStyle={styles.centeredContainer}>
       {/* Celebration header */}
       <View style={styles.celebrationHeader}>
         {showSparkles && <SparkleEffect count={sparkleCount} />}
@@ -1734,7 +1744,7 @@ function EmptyState({
   }, [online]);
 
   return (
-    <View style={styles.container}>
+    <View style={styles.centeredContainer}>
       <Text style={styles.emptyText}>
         {!online
           ? "No sessions available offline"
@@ -1772,6 +1782,13 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.bg,
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    paddingBottom: 16,
+  },
+  centeredContainer: {
+    flex: 1,
+    backgroundColor: colors.bg,
     alignItems: "center",
     justifyContent: "center",
     padding: 20,
@@ -1779,20 +1796,23 @@ const styles = StyleSheet.create({
   listeningContainer: {
     backgroundColor: colors.listeningBg,
   },
-  card: {
-    backgroundColor: colors.surface,
-    borderRadius: 16,
-    padding: 32,
+  sentenceArea: {
+    flexGrow: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingVertical: 24,
+    paddingHorizontal: 4,
+    maxWidth: 500,
+    alignSelf: "center",
+    width: "100%",
+  },
+  bottomActions: {
+    paddingTop: 12,
+    paddingBottom: 4,
     width: "100%",
     maxWidth: 500,
-    alignItems: "center",
-    marginBottom: 24,
+    alignSelf: "center",
   },
-  listeningCard: {
-    borderWidth: 1,
-    borderColor: colors.listening + "40",
-  },
-
 
   listeningAudioState: {
     alignItems: "center",
@@ -1834,11 +1854,12 @@ const styles = StyleSheet.create({
   },
 
   sentenceArabic: {
-    fontSize: 30,
+    fontSize: fonts.arabicSentence,
+    fontFamily: fontFamily.arabic,
     color: colors.arabic,
     writingDirection: "rtl",
     textAlign: "center",
-    lineHeight: 50,
+    lineHeight: 64,
   },
   missedWord: {
     color: colors.missed,
@@ -1873,12 +1894,12 @@ const styles = StyleSheet.create({
     opacity: 0.6,
   },
   wordOnlyArabic: {
-    fontSize: fonts.arabicLarge,
+    fontSize: 44,
+    fontFamily: fontFamily.arabicBold,
     color: colors.arabic,
     writingDirection: "rtl",
     textAlign: "center",
-    lineHeight: 52,
-    fontWeight: "600",
+    lineHeight: 68,
   },
   wordOnlyGloss: {
     fontSize: 22,
@@ -1988,24 +2009,26 @@ const styles = StyleSheet.create({
   progressContainer: {
     width: "100%",
     maxWidth: 500,
-    marginBottom: 20,
+    alignSelf: "center",
+    marginBottom: 4,
   },
   progressText: {
     color: colors.textSecondary,
-    fontSize: fonts.small,
-    marginBottom: 6,
+    fontSize: 12,
+    marginBottom: 4,
     textAlign: "center",
+    opacity: 0.6,
   },
   progressTrack: {
-    height: 4,
+    height: 3,
     backgroundColor: colors.surfaceLight,
-    borderRadius: 2,
+    borderRadius: 1.5,
     overflow: "hidden",
   },
   progressFill: {
     height: "100%",
     backgroundColor: colors.accent,
-    borderRadius: 2,
+    borderRadius: 1.5,
   },
   emptyText: {
     color: colors.textSecondary,
@@ -2151,7 +2174,8 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   autoIntroPillAr: {
-    fontSize: 18,
+    fontSize: 20,
+    fontFamily: fontFamily.arabic,
     color: colors.arabic,
     writingDirection: "rtl",
   },
@@ -2168,12 +2192,14 @@ const styles = StyleSheet.create({
   },
   lookupPanel: {
     width: "100%",
-    backgroundColor: colors.surfaceLight,
-    borderRadius: 12,
-    padding: 16,
-    marginTop: 16,
+    backgroundColor: colors.surface,
+    borderRadius: 16,
+    padding: 20,
+    marginTop: 20,
     alignItems: "center",
-    gap: 8,
+    gap: 10,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
   lookupRoot: {
     fontSize: 14,
@@ -2181,10 +2207,11 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
   lookupMeaning: {
-    fontSize: 18,
+    fontSize: 20,
     color: colors.text,
     fontWeight: "600",
     textAlign: "center",
+    fontFamily: fontFamily.arabic,
   },
   lookupTranslit: {
     fontSize: 14,
@@ -2221,7 +2248,8 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   lookupSiblingAr: {
-    fontSize: 16,
+    fontSize: 18,
+    fontFamily: fontFamily.arabic,
     color: colors.arabic,
     writingDirection: "rtl",
   },
@@ -2278,7 +2306,8 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   rootSiblingAr: {
-    fontSize: 15,
+    fontSize: 17,
+    fontFamily: fontFamily.arabic,
     color: colors.arabic,
     writingDirection: "rtl",
   },

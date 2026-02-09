@@ -1,14 +1,23 @@
 import { useEffect, useState } from "react";
-import { View, Text, StyleSheet, AppState } from "react-native";
+import { View, Text, StyleSheet, AppState, ActivityIndicator } from "react-native";
 import { Tabs } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { Ionicons } from "@expo/vector-icons";
+import { useFonts } from "expo-font";
+import {
+  ScheherazadeNew_400Regular,
+  ScheherazadeNew_700Bold,
+} from "@expo-google-fonts/scheherazade-new";
 import { colors } from "../lib/theme";
 import { netStatus, useNetStatus } from "../lib/net-status";
 import { flushQueue, pendingCount } from "../lib/sync-queue";
 import { syncEvents } from "../lib/sync-events";
 
 export default function Layout() {
+  const [fontsLoaded] = useFonts({
+    ScheherazadeNew_400Regular,
+    ScheherazadeNew_700Bold,
+  });
   const online = useNetStatus();
   const [pending, setPending] = useState(0);
 
@@ -43,6 +52,14 @@ export default function Layout() {
     };
   }, []);
 
+  if (!fontsLoaded) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color={colors.accent} />
+      </View>
+    );
+  }
+
   return (
     <>
       <StatusBar style="light" />
@@ -66,6 +83,7 @@ export default function Layout() {
           name="index"
           options={{
             title: "Reading",
+            headerShown: false,
             tabBarLabel: "Reading",
             tabBarIcon: ({ color, size }) => <Ionicons name="book-outline" size={size} color={color} />,
             tabBarBadge: pending > 0 ? pending : undefined,
@@ -75,6 +93,7 @@ export default function Layout() {
           name="listening"
           options={{
             title: "Listening",
+            headerShown: false,
             tabBarLabel: "Listening",
             tabBarIcon: ({ color, size }) => <Ionicons name="headset-outline" size={size} color={color} />,
           }}
@@ -139,6 +158,12 @@ export default function Layout() {
 }
 
 const styles = StyleSheet.create({
+  loadingContainer: {
+    flex: 1,
+    backgroundColor: colors.bg,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   offlineBanner: {
     backgroundColor: "#d4a017",
     paddingVertical: 6,

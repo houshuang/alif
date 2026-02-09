@@ -8,7 +8,7 @@ import {
   ActivityIndicator,
 } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { colors, fonts } from "../../lib/theme";
+import { colors, fonts, fontFamily } from "../../lib/theme";
 import { getWordDetail } from "../../lib/api";
 import { WordDetail, ReviewHistoryEntry } from "../../lib/types";
 import AskAI from "../../lib/AskAI";
@@ -197,6 +197,7 @@ const styles = StyleSheet.create({
     fontSize: 40,
     color: colors.arabic,
     writingDirection: "rtl",
+    fontFamily: fontFamily.arabic,
     textAlign: "center",
     fontWeight: "600",
     marginTop: 12,
@@ -284,6 +285,7 @@ const styles = StyleSheet.create({
     fontSize: fonts.arabicList,
     color: colors.arabic,
     writingDirection: "rtl",
+    fontFamily: fontFamily.arabic,
   },
   familyEnglish: {
     fontSize: fonts.small,
@@ -325,6 +327,7 @@ const styles = StyleSheet.create({
     fontSize: fonts.arabicList,
     color: colors.arabic,
     writingDirection: "rtl",
+    fontFamily: fontFamily.arabic,
     textAlign: "right",
     marginTop: 6,
     lineHeight: 28,
