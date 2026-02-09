@@ -17,7 +17,12 @@ singular, dual, plural_sound, plural_broken,
 masculine, feminine,
 past, present, imperative,
 form_1, form_2, form_3, form_4, form_5, form_6, form_7, form_8, form_9, form_10,
-idafa, comparative, superlative, passive, negation
+definite_article, proclitic_prepositions, attached_pronouns,
+active_participle, passive_participle, masdar, diminutive, nisba,
+idafa, comparative, superlative, passive, negation,
+standalone_prepositions, subject_pronouns, tanwin_patterns, exception, emphatic_negation, oath_formula, vocative,
+nominal_sentence, verbal_sentence, kaana_sisters, inna_sisters, relative_clauses, conditional, hal_clause,
+weak_hollow, weak_defective, weak_assimilated
 
 Only include features that are clearly present. Be conservative."""
 
@@ -45,7 +50,14 @@ def tag_sentence_grammar(arabic_text: str) -> dict[str, Any]:
         "past", "present", "imperative",
         "form_1", "form_2", "form_3", "form_4", "form_5",
         "form_6", "form_7", "form_8", "form_9", "form_10",
+        "definite_article", "proclitic_prepositions", "attached_pronouns",
+        "active_participle", "passive_participle", "masdar", "diminutive", "nisba",
         "idafa", "comparative", "superlative", "passive", "negation",
+        "standalone_prepositions", "subject_pronouns", "tanwin_patterns",
+        "exception", "emphatic_negation", "oath_formula", "vocative",
+        "nominal_sentence", "verbal_sentence", "kaana_sisters", "inna_sisters",
+        "relative_clauses", "conditional", "hal_clause",
+        "weak_hollow", "weak_defective", "weak_assimilated",
     }
     features = [f for f in features if f in valid_keys]
     if primary not in valid_keys:
@@ -86,6 +98,13 @@ def tag_lemma_grammar(
         "past", "present", "imperative",
         "form_1", "form_2", "form_3", "form_4", "form_5",
         "form_6", "form_7", "form_8", "form_9", "form_10",
+        "definite_article", "proclitic_prepositions", "attached_pronouns",
+        "active_participle", "passive_participle", "masdar", "diminutive", "nisba",
         "idafa", "comparative", "superlative", "passive", "negation",
+        "standalone_prepositions", "subject_pronouns", "tanwin_patterns",
+        "exception", "emphatic_negation", "oath_formula", "vocative",
+        "nominal_sentence", "verbal_sentence", "kaana_sisters", "inna_sisters",
+        "relative_clauses", "conditional", "hal_clause",
+        "weak_hollow", "weak_defective", "weak_assimilated",
     }
     return [f for f in result.get("features", []) if f in valid_keys]
