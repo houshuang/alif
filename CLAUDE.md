@@ -142,21 +142,21 @@ As we build features, create reusable Claude Code skills (`.claude/skills/`) for
 - `backend/app/services/sentence_selector.py` — Session assembly: greedy set cover, comprehension-aware recency (7d/2d/4h), difficulty matching, easy-bookend ordering. Returns root data per word. Includes intro candidate selection.
 - `backend/app/services/sentence_review_service.py` — Distributes FSRS credit to ALL words in sentence. Ternary ratings: missed=1, confused=2, rest=3. Stores last_comprehension on sentence. Tracks total_encounters + variant_stats_json per surface form.
 - `backend/app/services/word_selector.py` — Next-word algorithm: 40% frequency + 30% root familiarity + 20% recency bonus + 10% grammar pattern. Excludes wiktionary reference entries and variant lemmas (canonical_lemma_id set). Root family query also filters variants.
-- `backend/app/services/sentence_generator.py` — LLM generation with 3-attempt retry loop. Samples up to 50 known words for prompt. Full diacritics required.
+- `backend/app/services/sentence_generator.py` — LLM generation with 3-attempt retry loop. Samples up to 50 known words for prompt with diversity weighting. Full diacritics required. Feeds validation failures back to LLM as retry feedback.
 - `backend/app/services/sentence_validator.py` — Rule-based: tokenize → strip diacritics → strip clitics (proclitics + enclitics + taa marbuta) → match against known bare forms. 60+ function words hardcoded.
 - `backend/app/services/grammar_service.py` — 24 features, 5 tiers (cascading comfort thresholds: 10 words → 30% → 40% → 50%). Comfort score: 60% log-exposure + 40% accuracy, decayed by recency.
 - `backend/app/services/grammar_tagger.py` — LLM-based grammar feature tagging for sentences and lemmas.
 - `backend/app/services/story_service.py` — Generate (LLM micro-fiction, random genre, up to 80 known words in prompt), import, complete/skip/too_difficult (FSRS credit), lookup, readiness recalculation.
 - `backend/app/services/listening.py` — Listening confidence: min(per-word) * 0.6 + avg * 0.4. Requires times_seen ≥ 3, stability ≥ 7d.
 - `backend/app/services/tts.py` — ElevenLabs REST, eleven_multilingual_v2, Chaouki voice, speed 0.7. Learner pauses: inserts Arabic commas every 2 words. SHA256 cache in data/audio/.
-- `backend/app/services/llm.py` — LiteLLM: gemini/gemini-3-flash-preview → gpt-5.2 → claude-haiku-4-5. JSON mode, markdown fence stripping, model_override support.
+- `backend/app/services/llm.py` — LiteLLM: gemini/gemini-3-flash-preview → gpt-5.2 → claude-haiku-4-5. JSON mode, markdown fence stripping, model_override support. Batch generation supports `rejected_words` param to steer LLM away from unknown vocabulary.
 - `backend/app/services/morphology.py` — CAMeL Tools morphological analyzer. Functions: `analyze_word_camel()` (all analyses), `get_base_lemma()` (top lex), `is_variant_form()` (possessive/enclitic check), `find_matching_analysis()` (disambiguate against known lemma), `get_word_features()` (lex/root/pos/enc0/num/gen/stt). Falls back to stub if camel_tools not installed.
-- `backend/app/services/interaction_logger.py` — Append-only JSONL to `data/logs/interactions_YYYY-MM-DD.jsonl`.
+- `backend/app/services/interaction_logger.py` — Append-only JSONL to `data/logs/interactions_YYYY-MM-DD.jsonl`. Skipped when TESTING env var is set.
 
 ### Backend Other
 - `backend/app/models.py` — SQLAlchemy models: Root, Lemma (+ example_ar/en, forms_json, canonical_lemma_id), UserLemmaKnowledge (+ variant_stats_json), ReviewLog, Sentence (+ last_comprehension), SentenceWord, SentenceReviewLog, GrammarFeature, SentenceGrammarFeature, UserGrammarExposure, Story, StoryWord
 - `backend/app/schemas.py` — Pydantic models. SentenceReviewSubmitIn includes confused_lemma_ids. SentenceWordMeta includes root/root_meaning/root_id.
-- `backend/scripts/` — import_duolingo.py, import_wiktionary.py, import_avp_a1.py, benchmark_llm.py, pregenerate_material.py, generate_audio.py, generate_sentences.py, backfill_lemma_grammar.py, backfill_examples.py, backfill_forms.py, simulate_usage.py, update_material.py, merge_al_lemmas.py, merge_lemma_variants.py, cleanup_lemma_variants.py
+- `backend/scripts/` — import_duolingo.py, import_wiktionary.py, import_avp_a1.py, benchmark_llm.py, pregenerate_material.py, generate_audio.py, generate_sentences.py, backfill_lemma_grammar.py, backfill_examples.py, backfill_forms.py, simulate_usage.py, update_material.py (cron: backfill sentences + audio + pre-generate; auto-introduces collocate words on validation failure), merge_al_lemmas.py, merge_lemma_variants.py, cleanup_lemma_variants.py
 
 ### Frontend
 - `frontend/app/index.tsx` — Review screen: sentence-first + word-only fallback, reading + listening modes, front-phase word lookup with root prediction, triple-tap word marking (off → confused → missed → off), inline intro cards, session completion with analytics
@@ -262,7 +262,7 @@ Tests 3 models across 5 tasks (105 ground truth cases): diacritization, translat
 
 ## Testing
 ```bash
-cd backend && python -m pytest  # 300 tests
+cd backend && python -m pytest  # 366 tests
 ```
 All services have dedicated test files in `backend/tests/`.
 
@@ -288,7 +288,8 @@ Sentence-centric architecture with:
 - Root info displayed on sentence reveal for missed words
 - CAMeL Tools morphology: lemmatization, root extraction, variant detection (possessives, feminine forms, definite duplicates)
 - Lemma variant system: canonical_lemma_id marks variants, variant_stats_json tracks per-form accuracy, root family/learn mode filter variants out
-- Sentence diversity: weighted sampling + avoid overused words in LLM generation
+- Sentence diversity: weighted sampling + avoid overused words in LLM generation + rejected word feedback
+- Collocate auto-introduction: when sentence generation fails due to unknown collocate (e.g. يوم for الأحد), auto-introduce the collocate and retry
 - Story mode (generate/import) with tap-to-lookup reading and FSRS completion credit
 - Learn mode with 5-candidate pick → sentence quiz flow
 - Grammar feature tracking with 5-tier progression (24 features)

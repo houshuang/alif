@@ -184,6 +184,9 @@
 - [DONE] JSONL events: session_start, sentence_selected, sentence_review, tts_request, legacy_review
 - [DONE] DB tables: review_log (per-word with credit_type, sentence context), sentence_review_log (per-sentence)
 - [DONE] Fixed: /sync endpoint (offline queue) now also writes JSONL logs (was only writing to DB)
+- [DONE] Enriched logging: ai_ask logs question text, quiz_review logs comprehension_signal, sentence_review logs per-word rating map + audio_play_count + lookup_count, story complete/skip/too_difficult logs word counts + reading_time_ms, review_word_lookup logs word details + root
+- [DONE] Test data separation: interaction logger skips when TESTING env var is set (conftest.py sets it); logger tests use autouse fixture to temporarily re-enable
+- [DONE] FSRS stability floor: cards labeled "known" with stability < 1.0 get relabeled to "lapsed"
 
 ### Analytics Dashboard
 - Words learned over time (cumulative)
@@ -199,7 +202,7 @@
 - Detect if difficulty ratings are miscalibrated
 - A/B test different presentation modes (with logging data)
 - **Response time as difficulty signal**: response_ms is already captured for reading/listening reviews (stored in ReviewLog + SentenceReviewLog + JSONL logs) but never used. Possible uses: slow response → word is harder (could influence FSRS scheduling or sentence selection), decreasing response time over repeated reviews of same word = fluency/acquisition signal, analytics dashboard showing time-per-card trends. Caveat: response time is noisy (distracted vs. genuinely struggling), best as supplementary signal alongside ratings.
-- **Learn mode quiz timing gap**: `frontend/app/learn.tsx` hardcodes `response_ms: 0` for quiz reviews — should measure actual time
+- [DONE] **Learn mode quiz timing gap**: `frontend/app/learn.tsx` hardcoded `response_ms: 0` for quiz reviews — fixed with `quizStartTime` ref that measures actual elapsed ms
 
 ---
 
@@ -271,7 +274,7 @@
 - **Morphological pattern matching**: Instead of exact bare form matching, match words by root + pattern. E.g., if user knows "كتاب" (kitāb), they likely can parse "كتب" (kutub, plural) and "مكتبة" (maktaba, library). This requires root extraction from CAMeL Tools.
 - **Sentence difficulty scoring**: Beyond word-level validation, score sentences by syntactic complexity (clause depth, verb forms used, agreement patterns). Could use sentence length + unknown-word ratio as simple proxy.
 - **Multi-sentence generation**: Generate 2-3 variant sentences per target word in one LLM call to reduce API calls and provide variety.
-- **Negative examples in prompt**: Include words the LLM should NOT use (recently failed unknown words from previous attempts) to make retries more effective.
+- [DONE] **Negative examples in prompt**: Include words the LLM should NOT use (recently failed unknown words from previous attempts) to make retries more effective — implemented as `rejected_words` param in `generate_sentences_batch()`, fed back from validation failures in `update_material.py`
 
 ## Future / Speculative Ideas
 
@@ -283,7 +286,8 @@
 - Handwriting recognition: practice writing Arabic letters (contradicts reading-only focus, but useful for letter learning)
 - Grammar drills: sentence transformation exercises (passive, negation, etc.)
 - Cloze deletion: show sentence with one word blanked, user guesses from context
-- Collocations: track which words commonly appear together
+- [DONE] Collocations: reactive collocate auto-introduction — when sentence generation fails because the LLM keeps using a word not in the known vocabulary (e.g. يوم/day for الأحد/Sunday), find that word in the lemma DB and auto-introduce it, then retry generation. Limited to 2 collocates per target word. Logged as `collocate_auto_introduced` event.
+- Collocations — proactive: build explicit prerequisite graph so collocated words are learned together (e.g. يوم before day-name words). Could be auto-discovered from generation failures or manually curated.
 - Arabic-to-Arabic definitions: as level increases, use Arabic definitions instead of English
 - Morphological pattern drills: given root + pattern → predict meaning
 - Spaced reading: schedule re-reading of texts at increasing intervals
