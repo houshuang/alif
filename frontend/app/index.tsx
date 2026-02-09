@@ -1058,7 +1058,6 @@ function SentenceReadingCard({
   onWordTap: (index: number, lemmaId: number) => void;
 }) {
   const showAnswer = cardState === "back";
-  const hasGrammar = !!(item.grammar_features && item.grammar_features.length > 0);
 
   return (
     <>
@@ -1102,27 +1101,8 @@ function SentenceReadingCard({
               {item.transliteration ?? " "}
             </Text>
           </View>
-          {hasGrammar && (
-            <View style={!showAnswer && styles.hiddenBlock}>
-              <GrammarChips features={item.grammar_features!} />
-            </View>
-          )}
         </View>
     </>
-  );
-}
-
-function GrammarChips({ features }: { features: string[] }) {
-  return (
-    <View style={styles.grammarChipsRow}>
-      {features.map((f) => (
-        <View key={f} style={styles.grammarChip}>
-          <Text style={styles.grammarChipText}>
-            {f.replace(/_/g, " ")}
-          </Text>
-        </View>
-      ))}
-    </View>
   );
 }
 
@@ -1323,9 +1303,6 @@ function SentenceListeningCard({
               <Text style={styles.translitPlaceholder}>.</Text>
             )}
           </View>
-          {item.grammar_features && item.grammar_features.length > 0 && (
-            <GrammarChips features={item.grammar_features} />
-          )}
         </View>
       )}
 
@@ -2215,9 +2192,10 @@ const styles = StyleSheet.create({
   },
   sentenceArea: {
     flexGrow: 1,
-    justifyContent: "center",
+    justifyContent: "flex-start",
     alignItems: "center",
-    paddingVertical: 18,
+    paddingTop: 40,
+    paddingBottom: 18,
     paddingHorizontal: 4,
     maxWidth: 500,
     alignSelf: "center",
@@ -2344,9 +2322,6 @@ const styles = StyleSheet.create({
   },
   hiddenText: {
     color: "transparent",
-  },
-  hiddenBlock: {
-    opacity: 0,
   },
   showButton: {
     backgroundColor: colors.accent,
@@ -2784,24 +2759,6 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontSize: 17,
     fontWeight: "700",
-  },
-  grammarChipsRow: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    justifyContent: "center",
-    gap: 6,
-    marginTop: 12,
-  },
-  grammarChip: {
-    backgroundColor: colors.surfaceLight,
-    borderRadius: 10,
-    paddingVertical: 3,
-    paddingHorizontal: 8,
-  },
-  grammarChipText: {
-    fontSize: 11,
-    color: colors.textSecondary,
-    textTransform: "capitalize",
   },
   rootInfoBar: {
     marginTop: 12,
