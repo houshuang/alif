@@ -103,7 +103,7 @@ export default function StoryReadScreen() {
           const result = await lookupStoryWord(story.id, word.lemma_id, word.position);
           setSelectedWord(result);
           persistLookups(nextPositions, nextLemmaIds);
-        } catch (e) {
+        } catch {
           setSelectedWord({
             lemma_id: word.lemma_id,
             gloss_en: word.gloss_en || null,
@@ -111,6 +111,7 @@ export default function StoryReadScreen() {
             root: null,
             pos: null,
           });
+          persistLookups(nextPositions, nextLemmaIds);
         }
       } else {
         setSelectedWord({
@@ -129,46 +130,28 @@ export default function StoryReadScreen() {
   async function handleComplete() {
     if (!story || submitting) return;
     setSubmitting(true);
-    try {
-      const readingTimeMs = Date.now() - storyStartTime.current;
-      await completeStory(story.id, Array.from(lookedUpLemmaIds), readingTimeMs);
-      clearStoryLookups(story.id).catch(() => {});
-      router.back();
-    } catch (e) {
-      console.error("Failed to complete story:", e);
-    } finally {
-      setSubmitting(false);
-    }
+    const readingTimeMs = Date.now() - storyStartTime.current;
+    await completeStory(story.id, Array.from(lookedUpLemmaIds), readingTimeMs);
+    clearStoryLookups(story.id).catch(() => {});
+    router.back();
   }
 
   async function handleSkip() {
     if (!story || submitting) return;
     setSubmitting(true);
-    try {
-      const readingTimeMs = Date.now() - storyStartTime.current;
-      await skipStory(story.id, Array.from(lookedUpLemmaIds), readingTimeMs);
-      clearStoryLookups(story.id).catch(() => {});
-      router.back();
-    } catch (e) {
-      console.error("Failed to skip story:", e);
-    } finally {
-      setSubmitting(false);
-    }
+    const readingTimeMs = Date.now() - storyStartTime.current;
+    await skipStory(story.id, Array.from(lookedUpLemmaIds), readingTimeMs);
+    clearStoryLookups(story.id).catch(() => {});
+    router.back();
   }
 
   async function handleTooDifficult() {
     if (!story || submitting) return;
     setSubmitting(true);
-    try {
-      const readingTimeMs = Date.now() - storyStartTime.current;
-      await tooDifficultStory(story.id, Array.from(lookedUpLemmaIds), readingTimeMs);
-      clearStoryLookups(story.id).catch(() => {});
-      router.back();
-    } catch (e) {
-      console.error("Failed to mark story:", e);
-    } finally {
-      setSubmitting(false);
-    }
+    const readingTimeMs = Date.now() - storyStartTime.current;
+    await tooDifficultStory(story.id, Array.from(lookedUpLemmaIds), readingTimeMs);
+    clearStoryLookups(story.id).catch(() => {});
+    router.back();
   }
 
   if (loading) {

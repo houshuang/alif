@@ -272,9 +272,10 @@ def select_next_words(
     return scored[:count]
 
 
-def introduce_word(db: Session, lemma_id: int) -> dict:
+def introduce_word(db: Session, lemma_id: int, source: str = "study") -> dict:
     """Mark a word as introduced, creating FSRS card and knowledge record.
 
+    Source values: study (Learn mode), auto_intro (inline review), collocate.
     Returns the created knowledge record as dict.
     """
     lemma = db.query(Lemma).filter(Lemma.lemma_id == lemma_id).first()
@@ -306,7 +307,7 @@ def introduce_word(db: Session, lemma_id: int) -> dict:
         times_correct=0,
         total_encounters=1,
         distinct_contexts=0,
-        source="study",
+        source=source,
     )
     db.add(knowledge)
     db.commit()

@@ -22,6 +22,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from app.database import SessionLocal, Base, engine
 from app.models import Root, Lemma
+from app.services.variant_detection import detect_variants, detect_definite_variants, mark_variants
 
 AVP_URL = "https://lailafamiliar.github.io/A1-AVP-dataset/"
 
@@ -118,6 +119,7 @@ def run_import(db, dry_run: bool = False) -> dict:
     imported = 0
     skipped_existing = 0
     skipped_multiword = 0
+    new_lemmas: list[Lemma] = []
 
     for category, entries in vocab_data.items():
         pos = CATEGORY_POS_MAP.get(category, "other")
@@ -154,20 +156,37 @@ def run_import(db, dry_run: bool = False) -> dict:
                 source="avp_a1",
             )
             db.add(lemma)
+            new_lemmas.append(lemma)
             existing_bare.add(bare)
             imported += 1
 
+    # Detect and mark variants among newly imported lemmas
+    variants_marked = 0
     if not dry_run:
+        if new_lemmas:
+            db.flush()
+            new_ids = [l.lemma_id for l in new_lemmas]
+            camel_vars = detect_variants(db, lemma_ids=new_ids)
+            already = {v[0] for v in camel_vars}
+            def_vars = detect_definite_variants(db, lemma_ids=new_ids, already_variant_ids=already)
+            all_vars = camel_vars + def_vars
+            if all_vars:
+                variants_marked = mark_variants(db, all_vars)
+                for var_id, canon_id, vtype, _ in all_vars:
+                    var = db.get(Lemma,var_id)
+                    canon = db.get(Lemma,canon_id)
+                    print(f"  Variant: {var.lemma_ar_bare} → {canon.lemma_ar_bare} [{vtype}]")
         db.commit()
 
     result = {
         "imported": imported,
         "skipped_existing": skipped_existing,
         "skipped_multiword": skipped_multiword,
+        "variants_marked": variants_marked,
         "total_in_dataset": total_entries,
     }
     print(f"\nImported {imported} words, skipped {skipped_existing} existing, "
-          f"skipped {skipped_multiword} multi-word")
+          f"skipped {skipped_multiword} multi-word, marked {variants_marked} variants")
     return result
 
 

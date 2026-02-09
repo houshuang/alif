@@ -19,6 +19,7 @@ import {
   submitSentenceReview,
   getAnalytics,
   lookupReviewWord,
+  deepPrefetchSessions,
   BASE_URL,
 } from "../lib/api";
 import {
@@ -288,11 +289,34 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
         setLookupShowMeaning(true);
       }
     } catch {
-      setLookupResult(null);
-      setLookupShowMeaning(true);
+      // Build lite result from session word metadata
+      if (sentenceSession) {
+        const item = sentenceSession.items[cardIndex];
+        const word = item?.words.find((w) => w.lemma_id === lemmaId);
+        if (word) {
+          setLookupResult({
+            lemma_id: lemmaId,
+            lemma_ar: word.surface_form,
+            gloss_en: word.gloss_en,
+            transliteration: null,
+            root: word.root,
+            root_meaning: word.root_meaning,
+            root_id: word.root_id,
+            pos: null,
+            root_family: [],
+          });
+          setLookupShowMeaning(true);
+        } else {
+          setLookupResult(null);
+          setLookupShowMeaning(true);
+        }
+      } else {
+        setLookupResult(null);
+        setLookupShowMeaning(true);
+      }
     }
     setLookupLoading(false);
-  }, [toggleMissed]);
+  }, [toggleMissed, sentenceSession, cardIndex]);
 
   function handleSentenceSubmit(signal: ComprehensionSignal) {
     if (!sentenceSession) return;
@@ -450,7 +474,10 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
       if (cardState === "audio") setCardState("arabic");
       else if (cardState === "arabic") setCardState("answer");
     } else {
-      if (cardState === "front") setCardState("back");
+      if (cardState === "front") {
+        setCardState("back");
+        setLookupShowMeaning(true);
+      }
     }
   }
 
@@ -576,7 +603,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
           )}
         </ScrollView>
 
-        {!isListening && !isWordOnly && (lookupResult || lookupLoading) && (
+        {!isListening && !isWordOnly && (
           <WordLookupPanel
             result={lookupResult}
             loading={lookupLoading}
@@ -601,7 +628,6 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
               hasSentence={!isWordOnly}
               missedCount={missedIndices.size}
               confusedCount={confusedIndices.size}
-              lastMarkedGloss={lastMarkedIndex !== null ? item.words[lastMarkedIndex]?.gloss_en ?? null : null}
               onAdvance={advanceState}
               onSubmit={handleSubmit}
             />
@@ -728,7 +754,6 @@ function SentenceReadingCard({
               {item.transliteration}
             </Text>
           )}
-          <RootInfoBar words={item.words} missedIndices={missedIndices} />
         </View>
       )}
     </>
@@ -746,9 +771,14 @@ function WordLookupPanel({
   showMeaning: boolean;
   onShowMeaning: () => void;
 }) {
-  const knownSiblings = result?.root_family.filter(
-    (s) => (s.state === "known" || s.state === "learning") && s.lemma_id !== result.lemma_id
-  ) ?? [];
+  const knownSiblings = result?.root_family.filter((s) => {
+    if (s.lemma_id === result.lemma_id) return false;
+    if (s.state !== "known" && s.state !== "learning") return false;
+    const sGloss = (s.gloss_en ?? "").toLowerCase();
+    const rGloss = (result.gloss_en ?? "").toLowerCase();
+    if (sGloss && rGloss && (sGloss.includes(rGloss) || rGloss.includes(sGloss))) return false;
+    return true;
+  }) ?? [];
   const hasPredictionMode = result != null && knownSiblings.length >= 2 && !showMeaning;
 
   return (
@@ -1296,7 +1326,6 @@ function ReadingActions({
   hasSentence,
   missedCount,
   confusedCount = 0,
-  lastMarkedGloss,
   onAdvance,
   onSubmit,
 }: {
@@ -1304,7 +1333,6 @@ function ReadingActions({
   hasSentence: boolean;
   missedCount: number;
   confusedCount?: number;
-  lastMarkedGloss?: string | null;
   onAdvance: () => void;
   onSubmit: (signal: ComprehensionSignal) => void;
 }) {
@@ -1313,9 +1341,6 @@ function ReadingActions({
   if (cardState === "front") {
     return (
       <View style={styles.actionColumn}>
-        {hasSentence && totalMarked > 0 && (
-          <MarkedHint missedCount={missedCount} confusedCount={confusedCount} lastMarkedGloss={lastMarkedGloss} />
-        )}
         <View style={styles.actionRow}>
           {hasSentence && (
             <Pressable
@@ -1343,9 +1368,6 @@ function ReadingActions({
 
   return (
     <View style={styles.actionColumn}>
-      {hasSentence && totalMarked > 0 && (
-        <MarkedHint missedCount={missedCount} confusedCount={confusedCount} lastMarkedGloss={lastMarkedGloss} />
-      )}
       <View style={styles.actionRow}>
         {totalMarked > 0 ? (
           <Pressable
@@ -1586,6 +1608,7 @@ function SessionComplete({
         }).start();
       })
       .catch(() => {});
+    deepPrefetchSessions(mode).catch(() => {});
   }, []);
 
   const accuracyColor =

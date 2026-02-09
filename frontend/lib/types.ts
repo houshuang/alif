@@ -78,6 +78,8 @@ export interface Stats {
   due_today: number;
   reviews_today: number;
   streak_days: number;
+  total_reviews: number;
+  lapsed: number;
 }
 
 export interface DailyStats {
@@ -96,6 +98,8 @@ export interface LearningPace {
   total_study_days: number;
   current_streak: number;
   longest_streak: number;
+  accuracy_7d: number | null;
+  study_days_7d: number;
 }
 
 export interface CEFREstimate {
@@ -172,6 +176,7 @@ export interface SentenceWordMeta {
   stability: number | null;
   is_due: boolean;
   is_function_word: boolean;
+  knowledge_state: string;
   root: string | null;
   root_meaning: string | null;
   root_id: number | null;
@@ -250,6 +255,8 @@ export interface Analytics {
     new: number;
     due_today: number;
     reviews_today: number;
+    total_reviews: number;
+    lapsed: number;
   };
   pace: LearningPace;
   cefr: CEFREstimate;

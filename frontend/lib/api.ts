@@ -27,6 +27,14 @@ import {
   markReviewed,
   cacheData,
   getCachedData,
+  cacheStories,
+  getCachedStories,
+  cacheStoryDetail,
+  getCachedStoryDetail,
+  updateCachedStoryStatus,
+  cacheWordLookup,
+  getCachedWordLookup,
+  cacheWordLookupBatch,
 } from "./offline-store";
 import { enqueueReview, flushQueue } from "./sync-queue";
 
@@ -234,9 +242,10 @@ export async function getSentenceReviewSession(
     const data = await fetchApi<any>(
       `/api/review/next-sentences?limit=10&mode=${mode}`
     );
-    const session = { ...data, session_id: generateSessionId() };
+    const session = { ...data, session_id: data.session_id || generateSessionId() };
     cacheSessions(mode, [session]).catch(() => {});
-    prefetchSessions(mode).catch(() => {});
+    deepPrefetchSessions(mode).catch(() => {});
+    prefetchWordLookupsForSession(session).catch(() => {});
     return session;
   } catch (e) {
     const cached = await getCachedSession(mode);
@@ -281,17 +290,84 @@ export async function prefetchSessions(mode: ReviewMode): Promise<void> {
     const data = await fetchApi<any>(
       `/api/review/next-sentences?limit=10&mode=${mode}`
     );
-    const session = { ...data, session_id: generateSessionId() };
+    const session = { ...data, session_id: data.session_id || generateSessionId() };
     await cacheSessions(mode, [session]);
   } catch {}
 }
 
+export async function deepPrefetchSessions(mode: ReviewMode, count: number = 3): Promise<void> {
+  for (let i = 0; i < count; i++) {
+    try {
+      const data = await fetchApi<any>(
+        `/api/review/next-sentences?limit=10&mode=${mode}`
+      );
+      const session = { ...data, session_id: data.session_id || generateSessionId() };
+      await cacheSessions(mode, [session]);
+      prefetchWordLookupsForSession(session).catch(() => {});
+    } catch {
+      break;
+    }
+  }
+}
+
+export async function prefetchWordLookupsForSession(
+  session: SentenceReviewSession
+): Promise<void> {
+  const lemmaIds = new Set<number>();
+  for (const item of session.items) {
+    for (const word of item.words) {
+      if (word.lemma_id != null && !word.is_function_word) {
+        lemmaIds.add(word.lemma_id);
+      }
+    }
+  }
+
+  const ids = Array.from(lemmaIds);
+  const BATCH_SIZE = 5;
+  const results: Record<number, WordLookupResult> = {};
+
+  for (let i = 0; i < ids.length; i += BATCH_SIZE) {
+    const batch = ids.slice(i, i + BATCH_SIZE);
+    const promises = batch.map(async (id) => {
+      const cached = await getCachedWordLookup(id);
+      if (cached) return;
+      try {
+        const result = await fetchApi<WordLookupResult>(`/api/review/word-lookup/${id}`);
+        results[id] = result;
+      } catch {}
+    });
+    await Promise.all(promises);
+  }
+
+  if (Object.keys(results).length > 0) {
+    await cacheWordLookupBatch(results);
+  }
+}
+
+// --- Stories ---
+
 export async function getStories(): Promise<StoryListItem[]> {
-  return fetchApi<StoryListItem[]>("/api/stories");
+  try {
+    const data = await fetchApi<StoryListItem[]>("/api/stories");
+    cacheStories(data).catch(() => {});
+    return data;
+  } catch (e) {
+    const cached = await getCachedStories();
+    if (cached) return cached;
+    throw e;
+  }
 }
 
 export async function getStoryDetail(id: number): Promise<StoryDetail> {
-  return fetchApi<StoryDetail>(`/api/stories/${id}`);
+  try {
+    const data = await fetchApi<StoryDetail>(`/api/stories/${id}`);
+    cacheStoryDetail(data).catch(() => {});
+    return data;
+  } catch (e) {
+    const cached = await getCachedStoryDetail(id);
+    if (cached) return cached;
+    throw e;
+  }
 }
 
 export async function generateStory(opts?: {
@@ -317,24 +393,60 @@ export async function importStory(arabicText: string, title?: string): Promise<S
 }
 
 export async function completeStory(storyId: number, lookedUpLemmaIds: number[], readingTimeMs?: number): Promise<void> {
-  await fetchApi(`/api/stories/${storyId}/complete`, {
-    method: "POST",
-    body: JSON.stringify({ looked_up_lemma_ids: lookedUpLemmaIds, reading_time_ms: readingTimeMs }),
-  });
+  try {
+    await fetchApi(`/api/stories/${storyId}/complete`, {
+      method: "POST",
+      body: JSON.stringify({ looked_up_lemma_ids: lookedUpLemmaIds, reading_time_ms: readingTimeMs }),
+    });
+  } catch {
+    await enqueueReview("story_complete", {
+      story_id: storyId,
+      looked_up_lemma_ids: lookedUpLemmaIds,
+      reading_time_ms: readingTimeMs,
+    }, generateUuid());
+    if (netStatus.isOnline) {
+      flushQueue().catch(() => {});
+    }
+  }
+  updateCachedStoryStatus(storyId, "completed").catch(() => {});
 }
 
 export async function skipStory(storyId: number, lookedUpLemmaIds: number[], readingTimeMs?: number): Promise<void> {
-  await fetchApi(`/api/stories/${storyId}/skip`, {
-    method: "POST",
-    body: JSON.stringify({ looked_up_lemma_ids: lookedUpLemmaIds, reading_time_ms: readingTimeMs }),
-  });
+  try {
+    await fetchApi(`/api/stories/${storyId}/skip`, {
+      method: "POST",
+      body: JSON.stringify({ looked_up_lemma_ids: lookedUpLemmaIds, reading_time_ms: readingTimeMs }),
+    });
+  } catch {
+    await enqueueReview("story_skip", {
+      story_id: storyId,
+      looked_up_lemma_ids: lookedUpLemmaIds,
+      reading_time_ms: readingTimeMs,
+    }, generateUuid());
+    if (netStatus.isOnline) {
+      flushQueue().catch(() => {});
+    }
+  }
+  updateCachedStoryStatus(storyId, "skipped").catch(() => {});
 }
 
 export async function tooDifficultStory(storyId: number, lookedUpLemmaIds: number[], readingTimeMs?: number): Promise<void> {
-  await fetchApi(`/api/stories/${storyId}/too-difficult`, {
-    method: "POST",
-    body: JSON.stringify({ looked_up_lemma_ids: lookedUpLemmaIds, reading_time_ms: readingTimeMs }),
-  });
+  try {
+    await fetchApi(`/api/stories/${storyId}/too-difficult`, {
+      method: "POST",
+      body: JSON.stringify({ looked_up_lemma_ids: lookedUpLemmaIds, reading_time_ms: readingTimeMs }),
+    });
+  } catch {
+    await enqueueReview("story_too_difficult", {
+      story_id: storyId,
+      looked_up_lemma_ids: lookedUpLemmaIds,
+      reading_time_ms: readingTimeMs,
+    }, generateUuid());
+    if (netStatus.isOnline) {
+      flushQueue().catch(() => {});
+    }
+  }
+  updateCachedStoryStatus(storyId, "too_difficult").catch(() => {});
 }
 
 export async function deleteStory(storyId: number): Promise<void> {
@@ -352,9 +464,33 @@ export async function getStoryReadiness(storyId: number): Promise<{ readiness_pc
   return fetchApi(`/api/stories/${storyId}/readiness`);
 }
 
-export async function lookupReviewWord(lemmaId: number): Promise<WordLookupResult> {
-  return fetchApi<WordLookupResult>(`/api/review/word-lookup/${lemmaId}`);
+export async function prefetchStoryDetails(stories: StoryListItem[]): Promise<void> {
+  for (const story of stories) {
+    try {
+      const data = await fetchApi<StoryDetail>(`/api/stories/${story.id}`);
+      await cacheStoryDetail(data);
+    } catch {
+      break;
+    }
+  }
 }
+
+// --- Review word lookup (with cache) ---
+
+export async function lookupReviewWord(lemmaId: number): Promise<WordLookupResult> {
+  const cached = await getCachedWordLookup(lemmaId);
+  if (cached) return cached;
+  try {
+    const result = await fetchApi<WordLookupResult>(`/api/review/word-lookup/${lemmaId}`);
+    cacheWordLookup(lemmaId, result).catch(() => {});
+    return result;
+  } catch (e) {
+    if (cached) return cached;
+    throw e;
+  }
+}
+
+// --- Chat ---
 
 export async function askAI(
   question: string,

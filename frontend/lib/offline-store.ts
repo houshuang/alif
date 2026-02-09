@@ -1,5 +1,11 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import type { SentenceReviewSession, ReviewMode } from "./types";
+import type {
+  SentenceReviewSession,
+  ReviewMode,
+  StoryListItem,
+  StoryDetail,
+  WordLookupResult,
+} from "./types";
 
 const KEYS = {
   sessions: (mode: ReviewMode) => `@alif/sessions/${mode}`,
@@ -8,9 +14,12 @@ const KEYS = {
   stats: "@alif/stats",
   analytics: "@alif/analytics",
   storyLookups: (storyId: number) => `@alif/story-lookups/${storyId}`,
+  stories: "@alif/stories",
+  storyDetail: (id: number) => `@alif/story-detail/${id}`,
+  wordLookups: "@alif/word-lookups",
 };
 
-const MAX_CACHED_SESSIONS = 3;
+const MAX_CACHED_SESSIONS = 10;
 
 async function getJson<T>(key: string): Promise<T | null> {
   const raw = await AsyncStorage.getItem(key);
@@ -68,8 +77,6 @@ async function getReviewedSet(): Promise<Set<string>> {
 
 export async function invalidateSessions(): Promise<void> {
   await AsyncStorage.multiRemove([
-    KEYS.sessions("reading"),
-    KEYS.sessions("listening"),
     KEYS.reviewed,
     KEYS.words,
     KEYS.stats,
@@ -119,4 +126,61 @@ export async function getStoryLookups(
 
 export async function clearStoryLookups(storyId: number): Promise<void> {
   await AsyncStorage.removeItem(KEYS.storyLookups(storyId));
+}
+
+// --- Story list cache ---
+
+export async function cacheStories(items: StoryListItem[]): Promise<void> {
+  await setJson(KEYS.stories, items);
+}
+
+export async function getCachedStories(): Promise<StoryListItem[] | null> {
+  return getJson<StoryListItem[]>(KEYS.stories);
+}
+
+// --- Story detail cache ---
+
+export async function cacheStoryDetail(story: StoryDetail): Promise<void> {
+  await setJson(KEYS.storyDetail(story.id), story);
+}
+
+export async function getCachedStoryDetail(id: number): Promise<StoryDetail | null> {
+  return getJson<StoryDetail>(KEYS.storyDetail(id));
+}
+
+export async function updateCachedStoryStatus(id: number, status: string): Promise<void> {
+  const story = await getCachedStoryDetail(id);
+  if (story) {
+    story.status = status as StoryDetail["status"];
+    await cacheStoryDetail(story);
+  }
+  const stories = await getCachedStories();
+  if (stories) {
+    const idx = stories.findIndex((s) => s.id === id);
+    if (idx >= 0) {
+      stories[idx] = { ...stories[idx], status: status as StoryListItem["status"] };
+      await cacheStories(stories);
+    }
+  }
+}
+
+// --- Word lookup cache ---
+
+export async function cacheWordLookup(lemmaId: number, data: WordLookupResult): Promise<void> {
+  const map = (await getJson<Record<string, WordLookupResult>>(KEYS.wordLookups)) ?? {};
+  map[String(lemmaId)] = data;
+  await setJson(KEYS.wordLookups, map);
+}
+
+export async function getCachedWordLookup(lemmaId: number): Promise<WordLookupResult | null> {
+  const map = (await getJson<Record<string, WordLookupResult>>(KEYS.wordLookups)) ?? {};
+  return map[String(lemmaId)] ?? null;
+}
+
+export async function cacheWordLookupBatch(lookups: Record<number, WordLookupResult>): Promise<void> {
+  const map = (await getJson<Record<string, WordLookupResult>>(KEYS.wordLookups)) ?? {};
+  for (const [id, data] of Object.entries(lookups)) {
+    map[id] = data;
+  }
+  await setJson(KEYS.wordLookups, map);
 }

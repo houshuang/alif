@@ -187,6 +187,9 @@
 - [DONE] Enriched logging: ai_ask logs question text, quiz_review logs comprehension_signal, sentence_review logs per-word rating map + audio_play_count + lookup_count, story complete/skip/too_difficult logs word counts + reading_time_ms, review_word_lookup logs word details + root
 - [DONE] Test data separation: interaction logger skips when TESTING env var is set (conftest.py sets it); logger tests use autouse fixture to temporarily re-enable
 - [DONE] FSRS stability floor: cards labeled "known" with stability < 1.0 get relabeled to "lapsed"
+- [DONE] Session ID consistency: backend now generates full UUIDs (was 8-char truncated), frontend uses backend's session_id instead of replacing it. Reviews now correlate to session_start events in logs.
+- [DONE] Story event logging: all story log_interaction calls now use proper keyword args (story_id, surface_form, position) instead of embedding in context string
+- [DONE] ULK provenance tracking: source field on UserLemmaKnowledge distinguishes study (Learn mode), auto_intro (inline review), collocate (sentence gen), duolingo (import), encountered (collateral credit in sentence review). introduce_word() accepts source param.
 
 ### Analytics Dashboard
 - Words learned over time (cumulative)
@@ -286,8 +289,9 @@
 - Handwriting recognition: practice writing Arabic letters (contradicts reading-only focus, but useful for letter learning)
 - Grammar drills: sentence transformation exercises (passive, negation, etc.)
 - Cloze deletion: show sentence with one word blanked, user guesses from context
-- [DONE] Collocations: reactive collocate auto-introduction — when sentence generation fails because the LLM keeps using a word not in the known vocabulary (e.g. يوم/day for الأحد/Sunday), find that word in the lemma DB and auto-introduce it, then retry generation. Limited to 2 collocates per target word. Logged as `collocate_auto_introduced` event.
-- Collocations — proactive: build explicit prerequisite graph so collocated words are learned together (e.g. يوم before day-name words). Could be auto-discovered from generation failures or manually curated.
+- [REMOVED] Collocations: reactive collocate auto-introduction — was auto-introducing words during sentence generation. Removed because it flooded the user with 24 unfamiliar words in one evening (Feb 8 2026), cratering next-day comprehension to 10% understood. Word introduction should be user-driven via Learn mode only.
+- Collocations — proactive: build explicit prerequisite graph so collocated words are learned together (e.g. يوم before day-name words). Could be auto-discovered from generation failures or manually curated. Better approach than reactive auto-introduction which flooded the user.
+- Collocations — suggestion-based: when sentence generation fails due to unknown collocate, surface the collocate as a "suggested next word" in Learn mode rather than auto-introducing it. Track which target words are blocked by which collocates.
 - Arabic-to-Arabic definitions: as level increases, use Arabic definitions instead of English
 - Morphological pattern drills: given root + pattern → predict meaning
 - Spaced reading: schedule re-reading of texts at increasing intervals
@@ -384,7 +388,7 @@
 - Session-level accuracy trend tracking: compare first-half vs. second-half accuracy; if second half degrades, suggest shorter sessions in settings
 
 #### New/Review Item Interleaving
-- [DONE] Inline intro candidates in review sessions: build_session() now adds up to 2 intro candidates at positions 4 and 8, gated by accuracy > 75% over last 20 reviews and minimum 4 review items
+- [DONE] Inline intro candidates in review sessions: build_session() suggests up to 2 intro candidates at positions 4 and 8, gated by accuracy > 75% over last 20 reviews and minimum 4 review items. Reading mode only (no intros in listening). **Candidates are suggestions only** — not auto-introduced at session fetch time. User must accept via Learn mode.
 - Never show two new word introductions back-to-back -- always interleave with 4-6 review items between new introductions
 - Start each session with 3-4 easy review items (FSRS stability > 30 days) as warm-up before any new items
 - End each session with 3-4 easy review items for positive session closure (recency effect protects motivation)
@@ -433,6 +437,7 @@
 - [DONE] Root family display filters out variants (canonical_lemma_id IS NOT NULL)
 - [DONE] Learn mode word selection filters out variants
 - [DONE] Cleanup script: `scripts/cleanup_lemma_variants.py` using CAMeL Tools to detect possessives, inflected forms, definite-form duplicates
+- [DONE] DB-aware variant disambiguation: cleanup script now iterates ALL CAMeL analyses (not just top-ranked) and picks the one whose lex matches a lemma already in the DB. Eliminates false positives like سمك→سم (fish→poison) and غرفة→غرف (room→rooms) without needing a large hardcoded never-merge list (reduced from 22 entries to 2). Helper `find_best_db_match()` in morphology.py is reusable for other disambiguation tasks.
 - Variant difficulty scheduling: if a specific variant form has a high miss rate (e.g., بنتي missed >50% of encounters), prefer sentences containing that variant to strengthen recognition
 - CAMeL Tools disambiguation in context: use MLE disambiguator for sentence-level analysis rather than single-word analyzer for more accurate lemmatization
-- Import pipeline improvement: run new lemmas through CAMeL Tools during import to auto-detect and skip/merge variants before they enter the DB
+- [DONE] Import pipeline improvement: all three import scripts (duolingo, wiktionary, avp_a1) now run CAMeL Tools variant detection as a post-import pass — new lemmas are checked against all existing DB lemmas, variants get `canonical_lemma_id` set immediately. Shared logic in `app/services/variant_detection.py`.

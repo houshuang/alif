@@ -11,7 +11,6 @@ import { useFocusEffect } from "expo-router";
 import { colors, fonts } from "../lib/theme";
 import { getAnalytics } from "../lib/api";
 import { Analytics } from "../lib/types";
-import AskAI from "../lib/AskAI";
 import { syncEvents } from "../lib/sync-events";
 
 export default function StatsScreen() {
@@ -119,16 +118,30 @@ export default function StatsScreen() {
         <View style={styles.paceGrid}>
           <View style={styles.paceItem}>
             <Text style={styles.paceValue}>{pace.words_per_day_7d}</Text>
-            <Text style={styles.paceLabel}>words/day (7d)</Text>
+            <Text style={styles.paceLabel}>words/study day</Text>
           </View>
           <View style={styles.paceItem}>
             <Text style={styles.paceValue}>{pace.reviews_per_day_7d}</Text>
-            <Text style={styles.paceLabel}>reviews/day (7d)</Text>
+            <Text style={styles.paceLabel}>reviews/study day</Text>
           </View>
           <View style={styles.paceItem}>
             <Text style={styles.paceValue}>{pace.current_streak}</Text>
             <Text style={styles.paceLabel}>day streak</Text>
           </View>
+          {pace.longest_streak > pace.current_streak && (
+            <View style={styles.paceItem}>
+              <Text style={styles.paceValue}>{pace.longest_streak}</Text>
+              <Text style={styles.paceLabel}>best streak</Text>
+            </View>
+          )}
+          {pace.accuracy_7d !== null && (
+            <View style={styles.paceItem}>
+              <Text style={[styles.paceValue, {
+                color: pace.accuracy_7d >= 80 ? colors.good : pace.accuracy_7d >= 60 ? colors.accent : colors.missed,
+              }]}>{pace.accuracy_7d}%</Text>
+              <Text style={styles.paceLabel}>accuracy ({pace.study_days_7d}d)</Text>
+            </View>
+          )}
           <View style={styles.paceItem}>
             <Text style={styles.paceValue}>{pace.total_study_days}</Text>
             <Text style={styles.paceLabel}>study days</Text>
@@ -139,25 +152,29 @@ export default function StatsScreen() {
       {/* Quick Stats Grid */}
       <View style={styles.grid}>
         <StatCard
-          label="Due Today"
-          value={stats.due_today}
-          color={colors.accent}
-        />
-        <StatCard
-          label="Reviewed Today"
-          value={stats.reviews_today}
-          color={colors.good}
-        />
-        <StatCard
           label="Learning"
           value={stats.learning}
           color={colors.stateLearning}
         />
         <StatCard
-          label="New"
-          value={stats.new}
-          color={colors.stateNew}
+          label="Total Reviews"
+          value={stats.total_reviews}
+          color={colors.good}
         />
+        {stats.lapsed > 0 && (
+          <StatCard
+            label="Lapsed"
+            value={stats.lapsed}
+            color={colors.missed}
+          />
+        )}
+        {stats.new > 0 && (
+          <StatCard
+            label="New"
+            value={stats.new}
+            color={colors.stateNew}
+          />
+        )}
       </View>
 
       {/* Daily History Mini Chart */}
@@ -214,20 +231,6 @@ export default function StatsScreen() {
         </View>
       )}
     </ScrollView>
-    <AskAI
-      contextBuilder={() => {
-        if (!analytics) return "";
-        const parts = [
-          `CEFR Level: ${analytics.cefr.sublevel}`,
-          `Known: ${analytics.stats.known}, Learning: ${analytics.stats.learning}, Due: ${analytics.stats.due_today}`,
-          `Reviews today: ${analytics.stats.reviews_today}`,
-          `Pace: ${analytics.pace.words_per_day_7d} words/day (7d), ${analytics.pace.reviews_per_day_7d} reviews/day (7d)`,
-          `Streak: ${analytics.pace.current_streak} days`,
-        ];
-        return parts.join("\n");
-      }}
-      screen="stats"
-    />
     </View>
   );
 }

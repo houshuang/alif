@@ -42,7 +42,7 @@ Reviews are sentence-centric: greedy set cover selects sentences that maximize d
 4. Credit types: primary (target word) + collateral (all other words)
 5. Falls back to word-only cards when no sentences available for uncovered due words
 6. **Comprehension-aware recency**: sentences repeat based on last comprehension — understood: 7 day cooldown, partial: 2 day cooldown, no_idea: 4 hour cooldown
-7. Inline intro candidates: up to 2 new words suggested at positions 4 and 8 in session (gated by 75% accuracy over last 20 reviews)
+7. Inline intro candidates: up to 2 new words suggested at positions 4 and 8 in reading sessions (gated by 75% accuracy over last 20 reviews). **Not auto-introduced** — candidates are returned to the frontend for user to accept via Learn mode. No intro candidates in listening mode.
 
 ### Reading Mode (implemented)
 1. User sees Arabic sentence (diacritized, large RTL text)
@@ -141,7 +141,7 @@ As we build features, create reusable Claude Code skills (`.claude/skills/`) for
 - `backend/app/services/fsrs_service.py` — FSRS spaced repetition. Auto-creates UserLemmaKnowledge + Card() for unknown lemmas. submit_review handles missing records gracefully (no ValueError).
 - `backend/app/services/sentence_selector.py` — Session assembly: greedy set cover, comprehension-aware recency (7d/2d/4h), difficulty matching, easy-bookend ordering. Returns root data per word. Includes intro candidate selection.
 - `backend/app/services/sentence_review_service.py` — Distributes FSRS credit to ALL words in sentence. Ternary ratings: missed=1, confused=2, rest=3. Stores last_comprehension on sentence. Tracks total_encounters + variant_stats_json per surface form.
-- `backend/app/services/word_selector.py` — Next-word algorithm: 40% frequency + 30% root familiarity + 20% recency bonus + 10% grammar pattern. Excludes wiktionary reference entries and variant lemmas (canonical_lemma_id set). Root family query also filters variants.
+- `backend/app/services/word_selector.py` — Next-word algorithm: 40% frequency + 30% root familiarity + 20% recency bonus + 10% grammar pattern. Excludes wiktionary reference entries and variant lemmas (canonical_lemma_id set). Root family query also filters variants. `introduce_word()` accepts `source` param (study/auto_intro/collocate).
 - `backend/app/services/sentence_generator.py` — LLM generation with 3-attempt retry loop. Samples up to 50 known words for prompt with diversity weighting. Full diacritics required. Feeds validation failures back to LLM as retry feedback.
 - `backend/app/services/sentence_validator.py` — Rule-based: tokenize → strip diacritics → strip clitics (proclitics + enclitics + taa marbuta) → match against known bare forms. 60+ function words hardcoded.
 - `backend/app/services/grammar_service.py` — 24 features, 5 tiers (cascading comfort thresholds: 10 words → 30% → 40% → 50%). Comfort score: 60% log-exposure + 40% accuracy, decayed by recency.
@@ -151,12 +151,13 @@ As we build features, create reusable Claude Code skills (`.claude/skills/`) for
 - `backend/app/services/tts.py` — ElevenLabs REST, eleven_multilingual_v2, Chaouki voice, speed 0.7. Learner pauses: inserts Arabic commas every 2 words. SHA256 cache in data/audio/.
 - `backend/app/services/llm.py` — LiteLLM: gemini/gemini-3-flash-preview → gpt-5.2 → claude-haiku-4-5. JSON mode, markdown fence stripping, model_override support. Batch generation supports `rejected_words` param to steer LLM away from unknown vocabulary.
 - `backend/app/services/morphology.py` — CAMeL Tools morphological analyzer. Functions: `analyze_word_camel()` (all analyses), `get_base_lemma()` (top lex), `is_variant_form()` (possessive/enclitic check), `find_matching_analysis()` (disambiguate against known lemma), `find_best_db_match()` (iterate all analyses, return first matching a known DB bare form), `get_word_features()` (lex/root/pos/enc0/num/gen/stt). Falls back to stub if camel_tools not installed.
+- `backend/app/services/variant_detection.py` — DB-aware variant detection: `detect_variants()` (CAMeL + DB match), `detect_definite_variants()` (al-prefix), `mark_variants()`. Used by import scripts (post-import pass) and cleanup_lemma_variants.py (batch cleanup).
 - `backend/app/services/interaction_logger.py` — Append-only JSONL to `data/logs/interactions_YYYY-MM-DD.jsonl`. Skipped when TESTING env var is set.
 
 ### Backend Other
 - `backend/app/models.py` — SQLAlchemy models: Root, Lemma (+ example_ar/en, forms_json, canonical_lemma_id), UserLemmaKnowledge (+ variant_stats_json), ReviewLog, Sentence (+ last_comprehension), SentenceWord, SentenceReviewLog, GrammarFeature, SentenceGrammarFeature, UserGrammarExposure, Story, StoryWord
 - `backend/app/schemas.py` — Pydantic models. SentenceReviewSubmitIn includes confused_lemma_ids. SentenceWordMeta includes root/root_meaning/root_id.
-- `backend/scripts/` — import_duolingo.py, import_wiktionary.py, import_avp_a1.py, benchmark_llm.py, pregenerate_material.py, generate_audio.py, generate_sentences.py, backfill_lemma_grammar.py, backfill_examples.py, backfill_forms.py, simulate_usage.py, update_material.py (cron: backfill sentences + audio + pre-generate; auto-introduces collocate words on validation failure), merge_al_lemmas.py, merge_lemma_variants.py, cleanup_lemma_variants.py
+- `backend/scripts/` — import_duolingo.py, import_wiktionary.py, import_avp_a1.py, benchmark_llm.py, pregenerate_material.py, generate_audio.py, generate_sentences.py, backfill_lemma_grammar.py, backfill_examples.py, backfill_forms.py, simulate_usage.py, update_material.py (cron: backfill sentences + audio + pre-generate for upcoming candidates), merge_al_lemmas.py, merge_lemma_variants.py, cleanup_lemma_variants.py
 
 ### Frontend
 - `frontend/app/index.tsx` — Review screen: sentence-first + word-only fallback, reading + listening modes, front-phase word lookup with root prediction, triple-tap word marking (off → missed → confused → off), inline intro cards, session completion with analytics
@@ -220,7 +221,7 @@ As we build features, create reusable Claude Code skills (`.claude/skills/`) for
 ## Data Model
 - `roots` — 3/4 consonant roots with core meaning, productivity score
 - `lemmas` — Base dictionary forms with root FK, POS, gloss, frequency rank, grammar_features_json, forms_json, example_ar/en, transliteration, audio_url, canonical_lemma_id (FK to self — set when lemma is a variant of another)
-- `user_lemma_knowledge` — FSRS card state per lemma (knowledge_state: new/learning/known/lapsed, fsrs_card_json, introduced_at, times_seen, times_correct, total_encounters, source: study/import/encountered, variant_stats_json — per-variant-form seen/missed/confused counts)
+- `user_lemma_knowledge` — FSRS card state per lemma (knowledge_state: new/learning/known/lapsed, fsrs_card_json, introduced_at, times_seen, times_correct, total_encounters, source: study/auto_intro/collocate/duolingo/encountered, variant_stats_json — per-variant-form seen/missed/confused counts)
 - `review_log` — Full review history (rating 1-4, timing, mode, comprehension signal, sentence_id, credit_type: primary/collateral, client_review_id for dedup)
 - `sentences` — Generated/imported sentences with target word, last_shown_at, times_shown, **last_comprehension** (understood/partial/no_idea — drives recency filter)
 - `sentence_words` — Word-level breakdown with position, surface_form, lemma_id, is_target_word, grammar_role_json
@@ -289,7 +290,8 @@ Sentence-centric architecture with:
 - CAMeL Tools morphology: lemmatization, root extraction, variant detection (possessives, feminine forms, definite duplicates)
 - Lemma variant system: canonical_lemma_id marks variants, variant_stats_json tracks per-form accuracy, root family/learn mode filter variants out
 - Sentence diversity: weighted sampling + avoid overused words in LLM generation + rejected word feedback
-- Collocate auto-introduction: when sentence generation fails due to unknown collocate (e.g. يوم for الأحد), auto-introduce the collocate and retry
+- Word introduction is user-driven (Learn mode only) — no auto-introduction during review sessions or sentence generation
+- ULK provenance tracking: source field distinguishes study/auto_intro/collocate/duolingo/encountered
 - Story mode (generate/import) with tap-to-lookup reading and FSRS completion credit
 - Learn mode with 5-candidate pick → sentence quiz flow
 - Grammar feature tracking with 5-tier progression (24 features)

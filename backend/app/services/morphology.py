@@ -123,6 +123,38 @@ def get_word_features(word: str) -> dict:
     }
 
 
+def find_best_db_match(
+    word: str, known_bare_forms: set[str], self_bare: str | None = None
+) -> dict | None:
+    """Find the CAMeL analysis whose lex matches a known lemma in our DB.
+
+    Iterates all analyses (not just [0]) and returns the first one where
+    strip_diacritics(lex) is in known_bare_forms and is not self_bare.
+
+    Returns a dict with: lex_bare, enc0, analysis, or None if no match.
+    """
+    from app.services.sentence_validator import strip_diacritics
+
+    analyses = analyze_word_camel(word)
+    if not analyses:
+        analyses = analyze_word_camel(strip_diacritics(word))
+    if not analyses:
+        return None
+
+    for a in analyses:
+        lex = a.get("lex", "")
+        lex_bare = strip_diacritics(lex)
+        if self_bare and lex_bare == self_bare:
+            continue
+        if lex_bare in known_bare_forms:
+            return {
+                "lex_bare": lex_bare,
+                "enc0": a.get("enc0", ""),
+                "analysis": a,
+            }
+    return None
+
+
 def analyze_word(word: str) -> dict:
     """API-compatible analyze_word returning AnalyzeWordOut fields."""
     features = get_word_features(word)

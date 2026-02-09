@@ -315,7 +315,7 @@ Respond with JSON: {{"title_ar": "...", "title_en": "...", "body_ar": "full stor
 
     log_interaction(
         event="story_generated",
-        context=f"story_id:{story.id}",
+        story_id=story.id,
         total_words=total,
         known_count=known,
         readiness_pct=story.readiness_pct,
@@ -382,7 +382,7 @@ def import_story(
 
     log_interaction(
         event="story_imported",
-        context=f"story_id:{story.id}",
+        story_id=story.id,
         total_words=total,
         known_count=known,
         readiness_pct=story.readiness_pct,
@@ -503,7 +503,7 @@ def complete_story(
 
     log_interaction(
         event="story_completed",
-        context=f"story_id:{story_id}",
+        story_id=story_id,
         good_count=good_count,
         again_count=again_count,
         words_reviewed=len(reviewed_lemmas),
@@ -549,7 +549,7 @@ def skip_story(
 
     log_interaction(
         event="story_skipped",
-        context=f"story_id:{story_id}",
+        story_id=story_id,
         again_count=again_count,
         words_looked_up=len(looked_up_lemma_ids) if looked_up_lemma_ids else 0,
         reading_time_ms=reading_time_ms,
@@ -587,7 +587,7 @@ def too_difficult_story(
 
     log_interaction(
         event="story_too_difficult",
-        context=f"story_id:{story_id}",
+        story_id=story_id,
         again_count=again_count,
         words_looked_up=len(looked_up_lemma_ids) if looked_up_lemma_ids else 0,
         reading_time_ms=reading_time_ms,
@@ -606,7 +606,7 @@ def delete_story(db: Session, story_id: int) -> dict:
     db.delete(story)
     db.commit()
 
-    log_interaction(event="story_deleted", context=f"story_id:{story_id}")
+    log_interaction(event="story_deleted", story_id=story_id)
 
     return {"story_id": story_id, "deleted": True}
 
@@ -626,10 +626,21 @@ def lookup_word(
     if lemma.root:
         root_str = lemma.root.root
 
+    surface_form = None
+    story_word = (
+        db.query(StoryWord)
+        .filter(StoryWord.story_id == story_id, StoryWord.position == position)
+        .first()
+    )
+    if story_word:
+        surface_form = story_word.surface_form
+
     log_interaction(
         event="story_word_lookup",
         lemma_id=lemma_id,
-        context=f"story_id:{story_id},position:{position}",
+        story_id=story_id,
+        position=position,
+        surface_form=surface_form,
     )
 
     return {

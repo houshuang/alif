@@ -24,6 +24,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from app.database import SessionLocal, Base, engine
 from app.models import Root, Lemma
+from app.services.variant_detection import detect_variants, detect_definite_variants, mark_variants
 
 WIKTIONARY_URL = "https://kaikki.org/dictionary/Arabic/kaikki.org-dictionary-Arabic.jsonl"
 CACHE_FILE = Path(__file__).resolve().parent.parent / "data" / "wiktionary_arabic.jsonl.gz"
@@ -174,6 +175,7 @@ def run_import(db, candidates: list[dict], limit: int, dry_run: bool = False) ->
 
     imported = 0
     roots_created = 0
+    new_lemmas: list[Lemma] = []
 
     for c in to_import:
         if dry_run:
@@ -203,18 +205,35 @@ def run_import(db, candidates: list[dict], limit: int, dry_run: bool = False) ->
             source="wiktionary",
         )
         db.add(lemma)
+        new_lemmas.append(lemma)
         imported += 1
 
+    # Detect and mark variants among newly imported lemmas
+    variants_marked = 0
     if not dry_run:
+        if new_lemmas:
+            db.flush()
+            new_ids = [l.lemma_id for l in new_lemmas]
+            camel_vars = detect_variants(db, lemma_ids=new_ids)
+            already = {v[0] for v in camel_vars}
+            def_vars = detect_definite_variants(db, lemma_ids=new_ids, already_variant_ids=already)
+            all_vars = camel_vars + def_vars
+            if all_vars:
+                variants_marked = mark_variants(db, all_vars)
+                for var_id, canon_id, vtype, _ in all_vars:
+                    var = db.get(Lemma,var_id)
+                    canon = db.get(Lemma,canon_id)
+                    print(f"  Variant: {var.lemma_ar_bare} → {canon.lemma_ar_bare} [{vtype}]")
         db.commit()
 
     result = {
         "imported": imported,
         "skipped_existing": len(candidates) - len(new_candidates),
         "roots_created": roots_created,
+        "variants_marked": variants_marked,
         "limit": limit,
     }
-    print(f"\nImported {imported} words, created {roots_created} roots")
+    print(f"\nImported {imported} words, created {roots_created} roots, marked {variants_marked} variants")
     return result
 
 

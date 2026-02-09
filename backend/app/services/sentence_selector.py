@@ -23,6 +23,7 @@ from app.models import (
     UserLemmaKnowledge,
 )
 from app.services.interaction_logger import log_interaction
+from app.services.sentence_validator import FUNCTION_WORDS, strip_diacritics
 
 
 @dataclass
@@ -33,6 +34,7 @@ class WordMeta:
     stability: Optional[float]
     is_due: bool
     is_function_word: bool = False
+    knowledge_state: str = "new"
 
 
 @dataclass
@@ -106,7 +108,7 @@ def build_session(
     Returns a dict matching SentenceSessionOut schema:
     {session_id, items, total_due_words, covered_due_words}
     """
-    session_id = str(uuid.uuid4())[:8]
+    session_id = str(uuid.uuid4())
     now = datetime.now(timezone.utc)
     # Comprehension-aware recency cutoffs
     cutoff_understood = now - timedelta(days=7)
@@ -198,11 +200,12 @@ def build_session(
     lemmas = db.query(Lemma).options(joinedload(Lemma.root)).filter(Lemma.lemma_id.in_(all_lemma_ids)).all() if all_lemma_ids else []
     lemma_map = {l.lemma_id: l for l in lemmas}
 
+    knowledge_map = {k.lemma_id: k for k in all_knowledge}
+
     # For listening mode, pre-compute which words are "listening-ready":
     # at least one positive review AND (no negatives OR last review positive)
     listening_ready: set[int] = set()
     if mode == "listening":
-        knowledge_map = {k.lemma_id: k for k in all_knowledge}
         non_due_ids = all_lemma_ids - due_lemma_ids
         if non_due_ids:
             from sqlalchemy import func as sa_func
@@ -241,13 +244,21 @@ def build_session(
             stab = stability_map.get(sw.lemma_id, 0.0) if sw.lemma_id else None
             is_due = sw.lemma_id in due_lemma_ids if sw.lemma_id else False
 
+            k_state = "new"
+            if sw.lemma_id:
+                k = knowledge_map.get(sw.lemma_id)
+                if k:
+                    k_state = k.knowledge_state or "new"
+
+            bare = strip_diacritics(sw.surface_form)
             wm = WordMeta(
                 lemma_id=sw.lemma_id,
                 surface_form=sw.surface_form,
                 gloss_en=lemma.gloss_en if lemma else None,
                 stability=stab,
                 is_due=is_due,
-                is_function_word=sw.lemma_id is None,
+                is_function_word=bare in FUNCTION_WORDS,
+                knowledge_state=k_state,
             )
             word_metas.append(wm)
 
@@ -343,6 +354,7 @@ def build_session(
                 "stability": w.stability,
                 "is_due": w.is_due,
                 "is_function_word": w.is_function_word,
+                "knowledge_state": w.knowledge_state,
                 "root": root_obj.root if root_obj else None,
                 "root_meaning": root_obj.core_meaning_en if root_obj else None,
                 "root_id": root_obj.root_id if root_obj else None,
@@ -381,6 +393,12 @@ def _with_fallbacks(
         covered_ids = set()
 
     uncovered = due_lemma_ids - covered_ids
+    # Fetch knowledge states for uncovered words
+    k_states: dict[int, str] = {}
+    if uncovered:
+        for uk in db.query(UserLemmaKnowledge).filter(UserLemmaKnowledge.lemma_id.in_(uncovered)).all():
+            k_states[uk.lemma_id] = uk.knowledge_state or "new"
+
     for lid in uncovered:
         if len(items) >= limit:
             break
@@ -404,6 +422,7 @@ def _with_fallbacks(
                 "stability": stability_map.get(lid, 0.0),
                 "is_due": True,
                 "is_function_word": False,
+                "knowledge_state": k_states.get(lid, "new"),
                 "root": root_obj.root if root_obj else None,
                 "root_meaning": root_obj.core_meaning_en if root_obj else None,
                 "root_id": root_obj.root_id if root_obj else None,

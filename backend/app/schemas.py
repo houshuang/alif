@@ -98,6 +98,8 @@ class StatsOut(BaseModel):
     new: int
     due_today: int
     reviews_today: int
+    total_reviews: int = 0
+    lapsed: int = 0
 
 
 class DailyStatsPoint(BaseModel):
@@ -116,6 +118,8 @@ class LearningPaceOut(BaseModel):
     total_study_days: int
     current_streak: int
     longest_streak: int
+    accuracy_7d: Optional[float] = None
+    study_days_7d: int = 0
 
 
 class CEFREstimate(BaseModel):
@@ -148,6 +152,7 @@ class SentenceWordMeta(BaseModel):
     stability: float | None = None
     is_due: bool = False
     is_function_word: bool = False
+    knowledge_state: str = "new"
     root: str | None = None
     root_meaning: str | None = None
     root_id: int | None = None

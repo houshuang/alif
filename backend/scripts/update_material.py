@@ -32,9 +32,8 @@ from sqlalchemy.orm import Session
 
 from app.database import SessionLocal
 from app.models import Lemma, Sentence, SentenceWord, UserLemmaKnowledge
-from app.services.word_selector import introduce_word, select_next_words
+from app.services.word_selector import select_next_words
 from app.services.llm import AllProvidersFailed, generate_sentences_batch
-from app.services.interaction_logger import log_interaction
 from app.services.sentence_validator import (
     build_lemma_lookup,
     map_tokens_to_lemmas,
@@ -79,26 +78,6 @@ def get_known_words_and_lookup(db: Session) -> tuple[list[dict[str, str]], dict[
     return known_words, lemma_lookup
 
 
-MAX_AUTO_COLLOCATES = 2
-
-
-def _find_collocate_lemma(db: Session, bare_form: str) -> Lemma | None:
-    """Find a lemma matching a bare form that could be auto-introduced."""
-    from app.services.sentence_validator import normalize_alef
-
-    norm = normalize_alef(bare_form)
-    # Try direct bare form match first (most common case)
-    for search_form in [norm, "ال" + norm, norm.removeprefix("ال")]:
-        match = (
-            db.query(Lemma)
-            .filter(Lemma.lemma_ar_bare == search_form, Lemma.canonical_lemma_id.is_(None))
-            .first()
-        )
-        if match:
-            return match
-    return None
-
-
 def generate_sentences_for_word(
     db: Session,
     lemma: Lemma,
@@ -112,7 +91,6 @@ def generate_sentences_for_word(
     all_bare = set(lemma_lookup.keys())
     stored = 0
     rejected_words: list[str] = []
-    auto_introduced: list[int] = []
 
     for batch in range(3):
         if stored >= needed:
@@ -181,99 +159,6 @@ def generate_sentences_for_word(
                 db.add(sw)
 
             stored += 1
-
-    # Auto-introduce collocate words if generation failed
-    if stored < needed and rejected_words and len(auto_introduced) < MAX_AUTO_COLLOCATES:
-        for bare_word in rejected_words[:MAX_AUTO_COLLOCATES]:
-            if len(auto_introduced) >= MAX_AUTO_COLLOCATES:
-                break
-            collocate = _find_collocate_lemma(db, bare_word)
-            if not collocate:
-                continue
-            if collocate.lemma_id == lemma.lemma_id:
-                continue
-
-            try:
-                result = introduce_word(db, collocate.lemma_id)
-                if not result.get("already_known"):
-                    auto_introduced.append(collocate.lemma_id)
-                    known_words.append({"arabic": collocate.lemma_ar, "english": collocate.gloss_en or ""})
-                    new_lookup = build_lemma_lookup([collocate])
-                    lemma_lookup.update(new_lookup)
-                    all_bare = set(lemma_lookup.keys())
-                    print(f"    ⟳ Auto-introduced collocate: {collocate.lemma_ar} ({collocate.gloss_en})")
-                    log_interaction(
-                        event="collocate_auto_introduced",
-                        lemma_id=collocate.lemma_id,
-                        context=f"collocate_of:{lemma.lemma_id}",
-                    )
-            except Exception as e:
-                print(f"    ✗ Failed to introduce collocate {bare_word}: {e}")
-
-        # Retry generation with the newly introduced collocates
-        if auto_introduced:
-            rejected_words.clear()
-            for batch in range(2):
-                if stored >= needed:
-                    break
-                if delay > 0:
-                    time.sleep(delay)
-
-                try:
-                    results = generate_sentences_batch(
-                        target_word=lemma.lemma_ar,
-                        target_translation=lemma.gloss_en or "",
-                        known_words=known_words,
-                        count=min(needed - stored + 1, 3),
-                        difficulty_hint="beginner",
-                        model_override=model,
-                    )
-                except AllProvidersFailed:
-                    break
-
-                for res in results:
-                    if stored >= needed:
-                        break
-
-                    validation = validate_sentence(
-                        arabic_text=res.arabic,
-                        target_bare=target_bare,
-                        known_bare_forms=all_bare,
-                    )
-                    if not validation.valid:
-                        for issue in validation.issues:
-                            print(f"    ✗ Rejected (retry): {issue}")
-                        continue
-
-                    sent = Sentence(
-                        arabic_text=res.arabic,
-                        arabic_diacritized=res.arabic,
-                        english_translation=res.english,
-                        transliteration=res.transliteration,
-                        source="llm",
-                        target_lemma_id=lemma.lemma_id,
-                    )
-                    db.add(sent)
-                    db.flush()
-
-                    tokens = tokenize(res.arabic)
-                    mappings = map_tokens_to_lemmas(
-                        tokens=tokens,
-                        lemma_lookup=lemma_lookup,
-                        target_lemma_id=lemma.lemma_id,
-                        target_bare=target_bare,
-                    )
-                    for m in mappings:
-                        sw = SentenceWord(
-                            sentence_id=sent.id,
-                            position=m.position,
-                            surface_form=m.surface_form,
-                            lemma_id=m.lemma_id,
-                            is_target_word=m.is_target,
-                        )
-                        db.add(sw)
-
-                    stored += 1
 
     db.commit()
     return stored

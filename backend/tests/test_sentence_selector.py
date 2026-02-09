@@ -217,7 +217,7 @@ class TestWordMetadata:
 
         result = build_session(db_session, limit=10)
         assert "session_id" in result
-        assert len(result["session_id"]) == 8
+        assert len(result["session_id"]) == 36  # full UUID format
 
 
 class TestIntroCandidates:

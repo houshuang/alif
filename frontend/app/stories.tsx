@@ -14,9 +14,9 @@ import {
 import { useRouter, useFocusEffect } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { colors, fonts, fontFamily } from "../lib/theme";
-import { getStories, generateStory, importStory, deleteStory } from "../lib/api";
+import { getStories, generateStory, importStory, deleteStory, prefetchStoryDetails } from "../lib/api";
+import { netStatus } from "../lib/net-status";
 import { StoryListItem } from "../lib/types";
-import AskAI from "../lib/AskAI";
 
 type StoryLength = "short" | "medium" | "long";
 
@@ -55,6 +55,12 @@ export default function StoriesScreen() {
     try {
       const data = await getStories();
       setStories(data);
+      if (netStatus.isOnline) {
+        const active = data.filter((s) => s.status === "active");
+        if (active.length > 0) {
+          prefetchStoryDetails(active).catch(() => {});
+        }
+      }
     } catch (e) {
       console.error("Failed to load stories:", e);
     } finally {
@@ -412,16 +418,6 @@ export default function StoriesScreen() {
         </View>
       </Modal>
 
-      <AskAI
-        contextBuilder={() => {
-          const items = stories.map((s) => {
-            const title = s.title_en || s.title_ar || "Untitled";
-            return `${title} (${s.readiness_pct}% ready, ${s.status})`;
-          });
-          return `Stories:\n${items.join("\n")}`;
-        }}
-        screen="stories"
-      />
     </View>
   );
 }

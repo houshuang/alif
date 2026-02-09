@@ -12,7 +12,6 @@ import { useRouter, useFocusEffect } from "expo-router";
 import { colors, fonts, fontFamily } from "../lib/theme";
 import { getWords } from "../lib/api";
 import { Word } from "../lib/types";
-import AskAI from "../lib/AskAI";
 
 type FilterValue = "all" | "new" | "learning" | "known" | "reviewed";
 
@@ -225,15 +224,6 @@ export default function WordsScreen() {
         ListEmptyComponent={
           <Text style={styles.emptyText}>No words found</Text>
         }
-      />
-      <AskAI
-        contextBuilder={() => {
-          const parts = [`Filter: ${filter}`, `Search: ${search || "(none)"}`];
-          const shown = filtered.slice(0, 20).map((w) => `${w.arabic} (${w.english})`).join(", ");
-          parts.push(`Visible words: ${shown}`);
-          return parts.join("\n");
-        }}
-        screen="words"
       />
     </View>
   );

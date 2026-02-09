@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 
 from app.models import Root, Lemma, UserLemmaKnowledge
 from app.services.fsrs_service import create_new_card
+from app.services.variant_detection import detect_variants, detect_definite_variants, mark_variants
 
 DATA_FILE = Path(__file__).resolve().parent.parent / "app" / "data" / "duolingo_raw.json"
 
@@ -167,6 +168,7 @@ def run_import(db: Session) -> dict:
     skipped_phrases = 0
     roots_created: dict[str, Root] = {}
     seen_bare: set[str] = set()
+    new_lemma_ids: list[int] = []
 
     # Load existing roots
     for root_obj in db.query(Root).all():
@@ -243,22 +245,39 @@ def run_import(db: Session) -> dict:
             times_correct=0,
         )
         db.add(knowledge)
+        new_lemma_ids.append(lemma.lemma_id)
         seen_bare.add(canonical_bare)
         if bare != canonical_bare:
             seen_bare.add(bare)
         imported += 1
 
+    # Detect and mark variants among newly imported lemmas
+    variants_marked = 0
+    if new_lemma_ids:
+        camel_vars = detect_variants(db, lemma_ids=new_lemma_ids)
+        already = {v[0] for v in camel_vars}
+        def_vars = detect_definite_variants(db, lemma_ids=new_lemma_ids, already_variant_ids=already)
+        all_vars = camel_vars + def_vars
+        if all_vars:
+            variants_marked = mark_variants(db, all_vars)
+            for var_id, canon_id, vtype, _ in all_vars:
+                var = db.get(Lemma,var_id)
+                canon = db.get(Lemma,canon_id)
+                print(f"  Variant: {var.lemma_ar_bare} → {canon.lemma_ar_bare} [{vtype}]")
+
     db.commit()
 
     roots_found = len(roots_created)
     print(f"Imported {imported} words, skipped {skipped_names} names, "
-          f"skipped {skipped_phrases} phrases, found {roots_found} roots")
+          f"skipped {skipped_phrases} phrases, found {roots_found} roots, "
+          f"marked {variants_marked} variants")
 
     return {
         "imported": imported,
         "skipped_names": skipped_names,
         "skipped_phrases": skipped_phrases,
         "roots_found": roots_found,
+        "variants_marked": variants_marked,
     }
 
 

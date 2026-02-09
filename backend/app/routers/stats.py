@@ -43,6 +43,7 @@ def _get_basic_stats(db: Session) -> StatsOut:
     known = _count_state(db, "known")
     learning = _count_state(db, "learning")
     new_count = _count_state(db, "new")
+    lapsed = _count_state(db, "lapsed")
 
     today_start = datetime.now(timezone.utc).replace(
         hour=0, minute=0, second=0, microsecond=0
@@ -52,6 +53,7 @@ def _get_basic_stats(db: Session) -> StatsOut:
         .filter(ReviewLog.reviewed_at >= today_start)
         .scalar() or 0
     )
+    total_reviews = db.query(func.count(ReviewLog.id)).scalar() or 0
 
     due_today = learning + new_count
 
@@ -62,6 +64,8 @@ def _get_basic_stats(db: Session) -> StatsOut:
         new=new_count,
         due_today=due_today,
         reviews_today=reviews_today,
+        total_reviews=total_reviews,
+        lapsed=lapsed,
     )
 
 
@@ -175,6 +179,11 @@ def _get_pace(db: Session) -> LearningPaceOut:
     study_dates = _get_study_dates(db)
     current_streak, longest_streak = _calculate_streak(study_dates)
 
+    def _study_days_in_window(days: int) -> int:
+        cutoff = (now - timedelta(days=days)).date()
+        return sum(1 for d in study_dates
+                   if (datetime.strptime(d, "%Y-%m-%d").date() if isinstance(d, str) else d) >= cutoff)
+
     def words_learned_in(days: int) -> float:
         cutoff = now - timedelta(days=days)
         count = (
@@ -185,7 +194,8 @@ def _get_pace(db: Session) -> LearningPaceOut:
             )
             .scalar() or 0
         )
-        return round(count / max(days, 1), 1)
+        actual_days = _study_days_in_window(days)
+        return round(count / max(actual_days, 1), 1)
 
     def reviews_in(days: int) -> float:
         cutoff = now - timedelta(days=days)
@@ -194,7 +204,24 @@ def _get_pace(db: Session) -> LearningPaceOut:
             .filter(ReviewLog.reviewed_at >= cutoff)
             .scalar() or 0
         )
-        return round(count / max(days, 1), 1)
+        actual_days = _study_days_in_window(days)
+        return round(count / max(actual_days, 1), 1)
+
+    # Accuracy over last 7 days
+    cutoff_7d = now - timedelta(days=7)
+    acc_row = (
+        db.query(
+            func.count(ReviewLog.id).label("total"),
+            func.sum(case((ReviewLog.rating >= 3, 1), else_=0)).label("correct"),
+        )
+        .filter(ReviewLog.reviewed_at >= cutoff_7d)
+        .first()
+    )
+    accuracy_7d = None
+    if acc_row and acc_row.total and acc_row.total > 0:
+        accuracy_7d = round(acc_row.correct / acc_row.total * 100, 1)
+
+    study_days_7d = _study_days_in_window(7)
 
     return LearningPaceOut(
         words_per_day_7d=words_learned_in(7),
@@ -204,6 +231,8 @@ def _get_pace(db: Session) -> LearningPaceOut:
         total_study_days=len(study_dates),
         current_streak=current_streak,
         longest_streak=longest_streak,
+        accuracy_7d=accuracy_7d,
+        study_days_7d=study_days_7d,
     )
 
 
