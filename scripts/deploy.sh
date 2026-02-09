@@ -6,7 +6,7 @@ REMOTE_DIR="/opt/alif"
 EXPO_URL="exp://alifstian.duckdns.org:8081"
 
 echo "Deploying to $SERVER..."
-ssh $SERVER "cd $REMOTE_DIR && git pull && docker compose up -d --build && systemctl restart alif-expo"
+ssh $SERVER "cd $REMOTE_DIR && git pull && docker compose up -d --build && cd frontend && npm install && cd .. && systemctl restart alif-expo"
 
 echo "Waiting for startup..."
 sleep 5

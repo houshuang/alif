@@ -11,11 +11,11 @@ Deploy backend and/or frontend to the Hetzner production server.
 
 ## Frontend Only
 1. Push to main
-2. `ssh alif "cd /opt/alif && git pull && systemctl restart alif-expo"`
+2. `ssh alif "cd /opt/alif && git pull && cd frontend && npm install && systemctl restart alif-expo"`
 
 ## Full Deploy (both)
 ```bash
-ssh alif "cd /opt/alif && git pull && docker compose up -d --build && systemctl restart alif-expo"
+ssh alif "cd /opt/alif && git pull && docker compose up -d --build && cd frontend && npm install && cd .. && systemctl restart alif-expo"
 ```
 
 ## IMPORTANT: Always display Expo URL after deploy
