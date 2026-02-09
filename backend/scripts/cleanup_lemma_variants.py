@@ -42,8 +42,27 @@ _REAL_ENCLITICS = {
 # Words that should never be merged (semantically distinct despite morphological relation)
 _NEVER_MERGE = {
     ("جدا", "جد"),      # "very" is not a variant of "grandfather"
-    ("هذه", "هذا"),     # these are distinct demonstratives, both basic vocabulary
-    ("جدتك", "جدا"),    # "your grandmother" should not merge into "very"
+    ("هذه", "هذا"),     # distinct demonstratives
+    ("جدتك", "جدا"),    # "your grandmother" ≠ "very"
+    ("ابنك", "آب"),     # "your son" ≠ "to return"
+    ("ابني", "آب"),     # "my son" ≠ "to return"
+    ("غرفة", "غرف"),    # "room" and "rooms" are separate lemmas
+    ("جامعة", "جامع"),  # "university" ≠ "comprehensive"
+    ("ملكة", "ملك"),    # "queen" ≠ "angel/king" (distinct lemmas)
+    ("سمك", "سم"),      # "fish" ≠ "poison"
+    ("كلية", "أكل"),    # "college" ≠ "food"
+    ("شباك", "شب"),     # "net/window" ≠ "grow up"
+    ("قبلة", "قبل"),    # "kiss" ≠ "before"
+    ("الآن", "آن"),     # "now" is a distinct word from "time"
+    ("اليوم", "يوم"),   # "today" is a distinct word from "day"
+    ("الليلة", "ليلة"), # "tonight" is a distinct word from "night"
+    ("فلافل", "فلفل"),  # "falafel" ≠ "pepper"
+    ("درة", "در"),      # "pearl" ≠ "to stream"
+    ("حكمة", "حكم"),    # "wisdom" ≠ "to rule" (related but distinct lemmas)
+    ("ترجمة", "ترجم"),  # "translation" ≠ "to translate" (noun vs verb)
+    ("صورة", "صور"),    # "photo" ≠ "photos" (separate lemmas)
+    ("بيضة", "بيض"),    # "egg" ≠ "eggs" (separate lemmas)
+    ("علمنة", "علم"),   # "secularization" ≠ "to know"
 }
 
 
