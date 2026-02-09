@@ -287,14 +287,13 @@ export default function LearnScreen() {
 
           {c.root && (
             <View style={styles.rootInfo}>
-              <Text style={styles.rootText}>
-                Root: {c.root}
-                {c.root_meaning ? ` — ${c.root_meaning}` : ""}
-              </Text>
+              <View style={styles.rootRow}>
+                <Text style={styles.rootLetters}>{c.root}</Text>
+                {c.root_meaning && <Text style={styles.rootMeaning}>{c.root_meaning}</Text>}
+              </View>
               {c.score_breakdown.total_siblings > 0 && (
                 <Text style={styles.rootSiblings}>
-                  {c.score_breakdown.known_siblings} of{" "}
-                  {c.score_breakdown.total_siblings} root words known
+                  {c.score_breakdown.known_siblings}/{c.score_breakdown.total_siblings}
                 </Text>
               )}
             </View>
@@ -309,7 +308,7 @@ export default function LearnScreen() {
             <Text style={styles.skipButtonText}>Skip</Text>
           </Pressable>
           <Pressable style={styles.suspendButton} onPress={handleSuspend}>
-            <Text style={styles.suspendButtonText}>Never show this word</Text>
+            <Text style={styles.suspendButtonText}>Suspend</Text>
           </Pressable>
         </View>
         <AskAI contextBuilder={buildLearnContext} screen="learn" />
@@ -595,11 +594,13 @@ function LearnDoneScreen({
           {quizTotal > 0 && (
             <View style={styles.doneStats}>
               <Text style={[styles.doneStat, { color: colors.good }]}>
-                Got it: {correct}
+                {correct} correct
               </Text>
-              <Text style={[styles.doneStat, { color: colors.missed }]}>
-                Missed: {quizTotal - correct}
-              </Text>
+              {quizTotal - correct > 0 && (
+                <Text style={[styles.doneStat, { color: colors.missed }]}>
+                  {quizTotal - correct} missed
+                </Text>
+              )}
             </View>
           )}
         </>
@@ -853,15 +854,26 @@ const styles = StyleSheet.create({
     width: "100%",
     alignItems: "center",
   },
-  rootText: {
-    fontSize: 14,
+  rootRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  rootLetters: {
+    fontSize: 16,
     color: colors.accent,
     fontWeight: "600",
+    fontFamily: fontFamily.arabic,
+    writingDirection: "rtl",
   },
-  rootSiblings: {
+  rootMeaning: {
     fontSize: 13,
     color: colors.textSecondary,
-    marginTop: 4,
+  },
+  rootSiblings: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    marginTop: 2,
   },
 
   actionColumn: {

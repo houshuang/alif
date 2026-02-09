@@ -120,15 +120,11 @@ export default function WordsScreen() {
           <Text style={styles.wordEnglish}>{item.english}</Text>
           {item.times_seen > 0 ? (
             <Text style={styles.wordReviewStats}>
-              Seen {item.times_seen}x{" "}
-              <Text style={{ color: colors.good }}>
-                {item.times_correct} correct
-              </Text>
+              {item.times_seen}
+              {" · "}
+              <Text style={{ color: colors.good }}>{item.times_correct}</Text>
               {failed > 0 && (
-                <Text style={{ color: colors.missed }}>
-                  {" "}
-                  · {failed} failed
-                </Text>
+                <Text style={{ color: colors.missed }}>{" · "}{failed}</Text>
               )}
             </Text>
           ) : (
@@ -145,7 +141,7 @@ export default function WordsScreen() {
               { backgroundColor: stateBadgeColor(item.state) },
             ]}
           >
-            <Text style={styles.stateBadgeText}>{item.state}</Text>
+            <Text style={styles.stateBadgeText}>{item.state[0]}</Text>
           </View>
         </View>
       </Pressable>

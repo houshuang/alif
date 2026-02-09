@@ -79,13 +79,13 @@ export default function StatsScreen() {
       {stats.reviews_today > 0 && (
         <View style={styles.todayBanner}>
           <Text style={styles.todayText}>
-            Today: {stats.reviews_today} reviews
+            {stats.reviews_today} reviews
             {daily_history.length > 0 && daily_history[daily_history.length - 1].words_learned > 0
-              ? ` \u00B7 ${daily_history[daily_history.length - 1].words_learned} new`
+              ? ` \u00B7 +${daily_history[daily_history.length - 1].words_learned}`
               : ""}
-            {pace.current_streak >= 2 ? ` \u00B7 ${pace.current_streak} day streak` : ""}
+            {pace.current_streak >= 2 ? ` \u00B7 ${pace.current_streak}d streak` : ""}
             {daily_history.length > 0 && daily_history[daily_history.length - 1].accuracy !== null
-              ? ` \u00B7 ${daily_history[daily_history.length - 1].accuracy}% accuracy`
+              ? ` \u00B7 ${daily_history[daily_history.length - 1].accuracy}%`
               : ""}
           </Text>
         </View>
@@ -126,20 +126,20 @@ export default function StatsScreen() {
         <View style={styles.paceGrid}>
           <View style={styles.paceItem}>
             <Text style={styles.paceValue}>{pace.words_per_day_7d}</Text>
-            <Text style={styles.paceLabel}>words/study day</Text>
+            <Text style={styles.paceLabel}>words/day</Text>
           </View>
           <View style={styles.paceItem}>
             <Text style={styles.paceValue}>{pace.reviews_per_day_7d}</Text>
-            <Text style={styles.paceLabel}>reviews/study day</Text>
+            <Text style={styles.paceLabel}>reviews/day</Text>
           </View>
           <View style={styles.paceItem}>
             <Text style={styles.paceValue}>{pace.current_streak}</Text>
-            <Text style={styles.paceLabel}>day streak</Text>
+            <Text style={styles.paceLabel}>streak</Text>
           </View>
           {pace.longest_streak > pace.current_streak && (
             <View style={styles.paceItem}>
               <Text style={styles.paceValue}>{pace.longest_streak}</Text>
-              <Text style={styles.paceLabel}>best streak</Text>
+              <Text style={styles.paceLabel}>best</Text>
             </View>
           )}
           {pace.accuracy_7d !== null && (
@@ -147,12 +147,12 @@ export default function StatsScreen() {
               <Text style={[styles.paceValue, {
                 color: pace.accuracy_7d >= 80 ? colors.good : pace.accuracy_7d >= 60 ? colors.accent : colors.missed,
               }]}>{pace.accuracy_7d}%</Text>
-              <Text style={styles.paceLabel}>accuracy ({pace.study_days_7d}d)</Text>
+              <Text style={styles.paceLabel}>7d acc.</Text>
             </View>
           )}
           <View style={styles.paceItem}>
             <Text style={styles.paceValue}>{pace.total_study_days}</Text>
-            <Text style={styles.paceLabel}>study days</Text>
+            <Text style={styles.paceLabel}>total days</Text>
           </View>
         </View>
       </View>
@@ -267,7 +267,7 @@ function GrammarProgressSection({ progress }: { progress: GrammarProgress[] }) {
     <View style={styles.grammarCard}>
       <Text style={styles.sectionTitle}>Grammar</Text>
       <Text style={styles.grammarSummary}>
-        {seen.length} of {progress.length} features encountered
+        {seen.length}/{progress.length}
       </Text>
       {categories.map((cat) => {
         const features = seen.filter((g) => g.category === cat);
@@ -500,7 +500,7 @@ function StrugglingWordsSection({ words }: { words: DeepAnalytics["struggling_wo
     <View style={styles.deepCard}>
       <Text style={styles.sectionTitle}>Needs Re-introduction</Text>
       <Text style={styles.strugglingHint}>
-        {words.length} word{words.length !== 1 ? "s" : ""} seen 3+ times without success
+        {words.length} words, 3+ attempts, no success
       </Text>
       {shown.map((w) => (
         <View key={w.lemma_id} style={styles.strugglingRow}>
@@ -530,7 +530,7 @@ function RootProgressSection({ data }: { data: DeepAnalytics["root_coverage"] })
       <Text style={styles.sectionTitle}>Root Progress</Text>
       <View style={styles.rootProgressHeader}>
         <Text style={styles.rootProgressCount}>
-          {data.roots_with_known} of {data.total_roots} roots
+          {data.roots_with_known}/{data.total_roots} roots
         </Text>
         <Text style={styles.rootProgressPct}>{pct}%</Text>
       </View>

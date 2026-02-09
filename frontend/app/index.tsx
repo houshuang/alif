@@ -820,12 +820,12 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
             {card.root && (
               <View style={styles.reintroRoot}>
                 <Text style={styles.reintroRootText}>
-                  Root: {card.root}
+                  {card.root}
                   {card.root_meaning ? ` \u2014 ${card.root_meaning}` : ""}
                 </Text>
                 {card.root_family.length > 0 && (
                   <Text style={styles.reintroRootSiblings}>
-                    {knownSiblings.length} of {card.root_family.length} root words known
+                    {knownSiblings.length}/{card.root_family.length}
                   </Text>
                 )}
                 {knownSiblings.length > 0 && (
@@ -1194,7 +1194,7 @@ function RootInfoBar({
         return (
           <View key={rootId} style={styles.rootInfoEntry}>
             <Text style={styles.rootInfoText}>
-              Root: {w.root}
+              {w.root}
               {(family?.root_meaning || w.root_meaning) ? ` \u2014 ${family?.root_meaning || w.root_meaning}` : ""}
             </Text>
             {family && family.siblings.length > 0 && (
@@ -2004,7 +2004,7 @@ function SessionComplete({
           {analytics.pace.current_streak >= 2 && (
             <View style={styles.nuggetPill}>
               <Text style={styles.nuggetText}>
-                {analytics.pace.current_streak} day streak
+                {analytics.pace.current_streak}d streak
               </Text>
             </View>
           )}
@@ -2097,7 +2097,7 @@ function EmptyState({
           </Text>
           {analytics.pace.current_streak >= 2 && (
             <Text style={styles.emptyProgressDetail}>
-              {analytics.pace.current_streak} day streak
+              {analytics.pace.current_streak}d streak
             </Text>
           )}
         </View>

@@ -314,7 +314,7 @@ export default function StoryReadScreen() {
                 )}
                 {selectedWord.root ? (
                   <Text style={styles.lookupRoot}>
-                    Root: {selectedWord.root}
+                    {selectedWord.root}
                   </Text>
                 ) : (
                   <Text style={styles.lookupMetaPlaceholder}>.</Text>
