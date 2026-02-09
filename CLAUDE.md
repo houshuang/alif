@@ -24,7 +24,7 @@ npx expo start --web  # opens on localhost:8081
 - **SRS**: py-fsrs (FSRS algorithm) — `backend/app/services/fsrs_service.py`
 - **LLM**: LiteLLM for unified multi-model (Gemini 3 Flash primary, GPT-5.2 fallback, Claude Haiku tertiary). Keys: GEMINI_KEY, OPENAI_KEY, ANTHROPIC_API_KEY in `.env`
 - **TTS**: ElevenLabs REST API (not SDK). Model: `eleven_multilingual_v2`. Voice: Chaouki (MSA male). Learner pauses via Arabic comma insertion every 2 words. Key: ELEVENLABS_API_KEY in `.env`. Frontend uses expo-av for playback. Audio cached by SHA256(text|voice_id) in `backend/data/audio/`.
-- **NLP**: Rule-based clitic stripping + known-form matching in sentence_validator.py. morphology.py is a stub returning mock data. CAMeL Tools planned for Phase 2 but not yet integrated.
+- **NLP**: Rule-based clitic stripping + known-form matching in sentence_validator.py. CAMeL Tools integrated in morphology.py for lemmatization, root extraction, and variant detection (graceful fallback to stub if not installed).
 - **Migrations**: Alembic for SQLite schema migrations. Every schema change must have a migration file. Migrations run automatically on startup.
 - **Hosting**: Hetzner (46.225.75.29), direct docker-compose (no Coolify). Backend on port 3000 → container 8000. Frontend as systemd service (`alif-expo`) on port 8081. DuckDNS: `alifstian.duckdns.org`.
 - **Transliteration**: ALA-LC standard (kitāb, madrasa) with macrons for long vowels
@@ -38,7 +38,7 @@ npx expo start --web  # opens on localhost:8081
 Reviews are sentence-centric: greedy set cover selects sentences that maximize due-word coverage per session.
 1. `GET /api/review/next-sentences` assembles session via 6-stage pipeline (fetch due → candidate sentences → comprehension-aware recency filter → greedy set cover → easy/hard ordering → fallback word-only cards)
 2. **Every word in a reviewed sentence gets a full FSRS card** — including previously unseen words. No more encounter-only tracking. Words without existing FSRS cards get auto-created knowledge records.
-3. Binary ratings: understood (rating=3 for all) / partial (tap missed words, rating=1 for missed, 3 for rest) / no_idea (rating=1 for all)
+3. Ternary ratings: understood (rating=3 for all) / partial (tap to cycle: confused=rating 2 Hard, missed=rating 1 Again, rest=3) / no_idea (rating=1 for all)
 4. Credit types: primary (target word) + collateral (all other words)
 5. Falls back to word-only cards when no sentences available for uncovered due words
 6. **Comprehension-aware recency**: sentences repeat based on last comprehension — understood: 7 day cooldown, partial: 2 day cooldown, no_idea: 4 hour cooldown
@@ -49,7 +49,7 @@ Reviews are sentence-centric: greedy set cover selects sentences that maximize d
 2. **Front phase**: user can tap non-function words to look them up (calls GET /api/review/word-lookup/{lemma_id}). Tapped words auto-marked as missed.
 3. **Lookup panel**: Shows root, root meaning. If root has 2+ known siblings → prediction mode ("You know words from this root: X, Y. Can you guess the meaning?") before revealing English. Otherwise shows meaning immediately.
 4. Taps "Show Answer" to reveal: English translation, transliteration, root info for missed words
-5. **Back phase**: tap words to toggle missed state → builds missed_lemma_ids
+5. **Back phase**: triple-tap words to cycle state: off → confused (yellow, rating 2 Hard) → missed (red, rating 1 Again) → off. Builds missed_lemma_ids + confused_lemma_ids
 6. Rates: Got it (understood) / Continue (partial, if words marked) / I have no idea (no_idea)
 
 ### Listening Mode (implemented, real TTS via expo-av)
@@ -140,8 +140,8 @@ As we build features, create reusable Claude Code skills (`.claude/skills/`) for
 ### Backend Services
 - `backend/app/services/fsrs_service.py` — FSRS spaced repetition. Auto-creates UserLemmaKnowledge + Card() for unknown lemmas. submit_review handles missing records gracefully (no ValueError).
 - `backend/app/services/sentence_selector.py` — Session assembly: greedy set cover, comprehension-aware recency (7d/2d/4h), difficulty matching, easy-bookend ordering. Returns root data per word. Includes intro candidate selection.
-- `backend/app/services/sentence_review_service.py` — Distributes FSRS credit to ALL words in sentence. Stores last_comprehension on sentence. Tracks total_encounters.
-- `backend/app/services/word_selector.py` — Next-word algorithm: 40% frequency + 30% root familiarity + 20% recency bonus + 10% grammar pattern. Excludes wiktionary reference entries.
+- `backend/app/services/sentence_review_service.py` — Distributes FSRS credit to ALL words in sentence. Ternary ratings: missed=1, confused=2, rest=3. Stores last_comprehension on sentence. Tracks total_encounters + variant_stats_json per surface form.
+- `backend/app/services/word_selector.py` — Next-word algorithm: 40% frequency + 30% root familiarity + 20% recency bonus + 10% grammar pattern. Excludes wiktionary reference entries and variant lemmas (canonical_lemma_id set). Root family query also filters variants.
 - `backend/app/services/sentence_generator.py` — LLM generation with 3-attempt retry loop. Samples up to 50 known words for prompt. Full diacritics required.
 - `backend/app/services/sentence_validator.py` — Rule-based: tokenize → strip diacritics → strip clitics (proclitics + enclitics + taa marbuta) → match against known bare forms. 60+ function words hardcoded.
 - `backend/app/services/grammar_service.py` — 24 features, 5 tiers (cascading comfort thresholds: 10 words → 30% → 40% → 50%). Comfort score: 60% log-exposure + 40% accuracy, decayed by recency.
@@ -150,16 +150,16 @@ As we build features, create reusable Claude Code skills (`.claude/skills/`) for
 - `backend/app/services/listening.py` — Listening confidence: min(per-word) * 0.6 + avg * 0.4. Requires times_seen ≥ 3, stability ≥ 7d.
 - `backend/app/services/tts.py` — ElevenLabs REST, eleven_multilingual_v2, Chaouki voice, speed 0.7. Learner pauses: inserts Arabic commas every 2 words. SHA256 cache in data/audio/.
 - `backend/app/services/llm.py` — LiteLLM: gemini/gemini-3-flash-preview → gpt-5.2 → claude-haiku-4-5. JSON mode, markdown fence stripping, model_override support.
-- `backend/app/services/morphology.py` — **Stub only.** Returns mock data. CAMeL Tools not integrated.
+- `backend/app/services/morphology.py` — CAMeL Tools morphological analyzer. Functions: `analyze_word_camel()` (all analyses), `get_base_lemma()` (top lex), `is_variant_form()` (possessive/enclitic check), `find_matching_analysis()` (disambiguate against known lemma), `get_word_features()` (lex/root/pos/enc0/num/gen/stt). Falls back to stub if camel_tools not installed.
 - `backend/app/services/interaction_logger.py` — Append-only JSONL to `data/logs/interactions_YYYY-MM-DD.jsonl`.
 
 ### Backend Other
-- `backend/app/models.py` — SQLAlchemy models: Root, Lemma (+ example_ar/en, forms_json), UserLemmaKnowledge, ReviewLog, Sentence (+ last_comprehension), SentenceWord, SentenceReviewLog, GrammarFeature, SentenceGrammarFeature, UserGrammarExposure, Story, StoryWord
-- `backend/app/schemas.py` — Pydantic models. SentenceWordMeta includes root/root_meaning/root_id.
-- `backend/scripts/` — import_duolingo.py, import_wiktionary.py, import_avp_a1.py, benchmark_llm.py, pregenerate_material.py, generate_audio.py, generate_sentences.py, backfill_lemma_grammar.py, backfill_examples.py, backfill_forms.py, simulate_usage.py, update_material.py, merge_al_lemmas.py, merge_lemma_variants.py
+- `backend/app/models.py` — SQLAlchemy models: Root, Lemma (+ example_ar/en, forms_json, canonical_lemma_id), UserLemmaKnowledge (+ variant_stats_json), ReviewLog, Sentence (+ last_comprehension), SentenceWord, SentenceReviewLog, GrammarFeature, SentenceGrammarFeature, UserGrammarExposure, Story, StoryWord
+- `backend/app/schemas.py` — Pydantic models. SentenceReviewSubmitIn includes confused_lemma_ids. SentenceWordMeta includes root/root_meaning/root_id.
+- `backend/scripts/` — import_duolingo.py, import_wiktionary.py, import_avp_a1.py, benchmark_llm.py, pregenerate_material.py, generate_audio.py, generate_sentences.py, backfill_lemma_grammar.py, backfill_examples.py, backfill_forms.py, simulate_usage.py, update_material.py, merge_al_lemmas.py, merge_lemma_variants.py, cleanup_lemma_variants.py
 
 ### Frontend
-- `frontend/app/index.tsx` — Review screen: sentence-first + word-only fallback, reading + listening modes, front-phase word lookup with root prediction, inline intro cards, session completion with analytics
+- `frontend/app/index.tsx` — Review screen: sentence-first + word-only fallback, reading + listening modes, front-phase word lookup with root prediction, triple-tap word marking (off → confused → missed → off), inline intro cards, session completion with analytics
 - `frontend/app/learn.tsx` — Learn: 5-candidate pick → quiz → done. Forms display, TTS, sentence polling.
 - `frontend/app/words.tsx` — Word browser: search (AR/EN/translit), filter by state, sort by review status (failed first)
 - `frontend/app/stats.tsx` — Analytics: today banner, CEFR card, pace grid, quick stats, 14-day bar chart
@@ -169,7 +169,7 @@ As we build features, create reusable Claude Code skills (`.claude/skills/`) for
 - `frontend/lib/types.ts` — All interfaces. SentenceWordMeta has root/root_meaning/root_id. WordLookupResult for review lookup.
 - `frontend/lib/offline-store.ts` — AsyncStorage: session cache (3 per mode), reviewed tracking, data cache (words/stats/analytics)
 - `frontend/lib/sync-queue.ts` — Enqueue reviews offline, bulk flush via POST /api/review/sync, invalidates session cache on success
-- `frontend/lib/theme.ts` — Dark theme (0f0f1a bg), semantic colors, Arabic/English font sizes
+- `frontend/lib/theme.ts` — Dark theme (0f0f1a bg), semantic colors (including confused yellow #f39c12), Arabic/English font sizes
 
 ## API Endpoints
 | Method | Path | Description |
@@ -180,7 +180,7 @@ As we build features, create reusable Claude Code skills (`.claude/skills/`) for
 | GET | `/api/review/next-listening` | Listening-suitable review cards (legacy) |
 | GET | `/api/review/next-sentences?limit=10&mode=reading` | Sentence-centric review session (primary) |
 | POST | `/api/review/submit` | Submit single-word review (legacy) |
-| POST | `/api/review/submit-sentence` | Submit sentence review — all words get FSRS credit |
+| POST | `/api/review/submit-sentence` | Submit sentence review — all words get FSRS credit. Accepts confused_lemma_ids |
 | GET | `/api/review/word-lookup/{lemma_id}` | Word detail + root family for review lookup |
 | POST | `/api/review/sync` | Bulk sync offline reviews |
 | GET | `/api/learn/next-words?count=5` | Best next words to introduce |
@@ -209,8 +209,8 @@ As we build features, create reusable Claude Code skills (`.claude/skills/`) for
 | POST | `/api/stories/{id}/too-difficult` | Mark story too difficult |
 | POST | `/api/stories/{id}/lookup` | Look up word in story |
 | GET | `/api/stories/{id}/readiness` | Recalculate readiness |
-| POST | `/api/analyze/word` | Analyze word morphology (stub) |
-| POST | `/api/analyze/sentence` | Analyze sentence morphology (stub) |
+| POST | `/api/analyze/word` | Analyze word morphology (CAMeL Tools or stub fallback) |
+| POST | `/api/analyze/sentence` | Analyze sentence morphology (CAMeL Tools or stub fallback) |
 | GET | `/api/tts/speak/{text}` | Generate TTS audio (async) |
 | GET | `/api/tts/voices` | List available TTS voices |
 | POST | `/api/tts/generate` | Generate TTS audio (async) |
@@ -219,8 +219,8 @@ As we build features, create reusable Claude Code skills (`.claude/skills/`) for
 
 ## Data Model
 - `roots` — 3/4 consonant roots with core meaning, productivity score
-- `lemmas` — Base dictionary forms with root FK, POS, gloss, frequency rank, grammar_features_json, forms_json, example_ar/en, transliteration, audio_url
-- `user_lemma_knowledge` — FSRS card state per lemma (knowledge_state: new/learning/known/lapsed, fsrs_card_json, introduced_at, times_seen, times_correct, total_encounters, source: study/import/encountered)
+- `lemmas` — Base dictionary forms with root FK, POS, gloss, frequency rank, grammar_features_json, forms_json, example_ar/en, transliteration, audio_url, canonical_lemma_id (FK to self — set when lemma is a variant of another)
+- `user_lemma_knowledge` — FSRS card state per lemma (knowledge_state: new/learning/known/lapsed, fsrs_card_json, introduced_at, times_seen, times_correct, total_encounters, source: study/import/encountered, variant_stats_json — per-variant-form seen/missed/confused counts)
 - `review_log` — Full review history (rating 1-4, timing, mode, comprehension signal, sentence_id, credit_type: primary/collateral, client_review_id for dedup)
 - `sentences` — Generated/imported sentences with target word, last_shown_at, times_shown, **last_comprehension** (understood/partial/no_idea — drives recency filter)
 - `sentence_words` — Word-level breakdown with position, surface_form, lemma_id, is_target_word, grammar_role_json
@@ -240,12 +240,18 @@ As we build features, create reusable Claude Code skills (`.claude/skills/`) for
 5. Match against known bare forms set (with and without ال prefix variants)
 6. 60+ hardcoded function words treated as always-known
 
-**Planned (Phase 2 — CAMeL Tools):**
-1. Input word → CAMeL Tools `analyze_word()` → multiple analyses
-2. In sentence context → CAMeL Tools MLE disambiguator → best analysis
-3. Extract: lemma (diacritized), root, POS, morphological features
-4. Validate LLM grammar tags against morphological analysis
-5. Note: morphology.py exists but is currently a pure stub returning mock data
+**CAMeL Tools (integrated in morphology.py):**
+1. Input word → `analyze_word_camel()` → list of morphological analyses
+2. Each analysis dict: `lex` (base lemma), `root`, `pos`, `enc0` (pronominal enclitic), `num`, `gen`, `stt`
+3. `get_base_lemma()` returns top analysis lex; `is_variant_form()` checks enc0 for possessive suffixes
+4. `find_matching_analysis()` disambiguates by matching against known DB lemma bare forms
+5. Graceful fallback: if `camel-tools` not installed, all functions return stub/empty data
+6. Requires `cmake` build dep + `camel_data -i light` download (~660MB) in Docker
+7. **Variant cleanup**: `scripts/cleanup_lemma_variants.py` uses CAMeL Tools to detect possessives (بنتي→بنت), feminine forms (جميلة→جميل), and definite duplicates (الكتاب→كتاب). Sets `canonical_lemma_id` on variants. Run with `--dry-run` first, `--merge` to also transfer review data.
+
+**Planned (future):**
+1. MLE disambiguator for sentence-level analysis (currently single-word only)
+2. Validate LLM grammar tags against morphological analysis
 
 ## LLM Benchmarking
 ```bash
@@ -256,7 +262,7 @@ Tests 3 models across 5 tasks (105 ground truth cases): diacritization, translat
 
 ## Testing
 ```bash
-cd backend && python -m pytest  # 337 tests
+cd backend && python -m pytest  # 300 tests
 ```
 All services have dedicated test files in `backend/tests/`.
 
@@ -277,8 +283,12 @@ ssh alif "systemctl restart alif-expo"
 Sentence-centric architecture with:
 - Sentence-first review with greedy set cover scheduling + comprehension-aware recency
 - All words in reviewed sentences get full FSRS cards (no encounter-only tracking)
+- Ternary word marking: off → confused (yellow, FSRS Hard) → missed (red, FSRS Again) → off
 - Front-phase word lookup with root prediction (2+ known siblings triggers prediction mode)
 - Root info displayed on sentence reveal for missed words
+- CAMeL Tools morphology: lemmatization, root extraction, variant detection (possessives, feminine forms, definite duplicates)
+- Lemma variant system: canonical_lemma_id marks variants, variant_stats_json tracks per-form accuracy, root family/learn mode filter variants out
+- Sentence diversity: weighted sampling + avoid overused words in LLM generation
 - Story mode (generate/import) with tap-to-lookup reading and FSRS completion credit
 - Learn mode with 5-candidate pick → sentence quiz flow
 - Grammar feature tracking with 5-tier progression (24 features)
@@ -287,4 +297,4 @@ Sentence-centric architecture with:
 - Offline sync queue + session caching
 - Deployed to Hetzner via direct docker-compose
 
-Next: CAMeL Tools integration, grammar-aware sentence selection, adaptive session pacing
+Next: grammar-aware sentence selection, adaptive session pacing, CAMeL Tools sentence-level disambiguation
