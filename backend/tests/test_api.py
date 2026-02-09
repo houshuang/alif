@@ -87,7 +87,7 @@ def test_analyze_word(client):
     assert resp.status_code == 200
     data = resp.json()
     assert data["word"] == "كَلْب"
-    assert data["source"] == "mock"
+    assert data["source"] in ("camel", "stub")
 
 
 def test_analyze_sentence(client):

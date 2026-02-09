@@ -36,8 +36,10 @@ class Lemma(Base):
     forms_json = Column(JSON, nullable=True)
     example_ar = Column(Text, nullable=True)
     example_en = Column(Text, nullable=True)
+    canonical_lemma_id = Column(Integer, ForeignKey("lemmas.lemma_id"), nullable=True)
 
     root = relationship("Root", back_populates="lemmas")
+    canonical_lemma = relationship("Lemma", remote_side="Lemma.lemma_id", foreign_keys=[canonical_lemma_id])
     knowledge = relationship("UserLemmaKnowledge", back_populates="lemma", uselist=False)
     reviews = relationship("ReviewLog", back_populates="lemma")
     story_words = relationship("StoryWord", back_populates="lemma")
@@ -57,6 +59,7 @@ class UserLemmaKnowledge(Base):
     total_encounters = Column(Integer, default=0)
     distinct_contexts = Column(Integer, default=0)
     source = Column(String(20), default="study")  # study/import/encountered
+    variant_stats_json = Column(JSON, nullable=True)
 
     lemma = relationship("Lemma", back_populates="knowledge")
 

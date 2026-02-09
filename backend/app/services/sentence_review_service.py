@@ -9,6 +9,7 @@ from typing import Optional
 from sqlalchemy.orm import Session
 
 from app.models import (
+    Lemma,
     ReviewLog,
     Sentence,
     SentenceReviewLog,
@@ -16,6 +17,7 @@ from app.models import (
     UserLemmaKnowledge,
 )
 from app.services.fsrs_service import submit_review
+from app.services.sentence_validator import strip_diacritics
 
 
 def submit_sentence_review(
@@ -24,6 +26,7 @@ def submit_sentence_review(
     primary_lemma_id: int,
     comprehension_signal: str,
     missed_lemma_ids: list[int] | None = None,
+    confused_lemma_ids: list[int] | None = None,
     response_ms: Optional[int] = None,
     session_id: Optional[str] = None,
     review_mode: str = "reading",
@@ -32,7 +35,7 @@ def submit_sentence_review(
     """Submit a review for a whole sentence, distributing ratings to words.
 
     - "understood" -> all words get rating=3
-    - "partial" + missed_lemma_ids -> missed get rating=1, rest get rating=3
+    - "partial" + missed/confused -> missed get rating=1, confused get rating=2, rest get rating=3
     - "no_idea" -> all words get rating=1
 
     All words (including previously unseen) get full FSRS cards.
@@ -48,9 +51,11 @@ def submit_sentence_review(
 
     now = datetime.now(timezone.utc)
     missed_set = set(missed_lemma_ids or [])
+    confused_set = set(confused_lemma_ids or [])
 
     # Collect lemma_ids from sentence words, or just primary for word-only items
     lemma_ids_in_sentence: set[int] = set()
+    surface_forms_by_lemma: dict[int, list[str]] = {}
     if sentence_id is not None:
         sentence_words = (
             db.query(SentenceWord)
@@ -58,6 +63,9 @@ def submit_sentence_review(
             .all()
         )
         lemma_ids_in_sentence = {sw.lemma_id for sw in sentence_words if sw.lemma_id}
+        for sw in sentence_words:
+            if sw.lemma_id:
+                surface_forms_by_lemma.setdefault(sw.lemma_id, []).append(sw.surface_form)
     else:
         lemma_ids_in_sentence = {primary_lemma_id}
 
@@ -67,7 +75,12 @@ def submit_sentence_review(
         if comprehension_signal == "understood":
             rating = 3
         elif comprehension_signal == "partial":
-            rating = 1 if lemma_id in missed_set else 3
+            if lemma_id in missed_set:
+                rating = 1
+            elif lemma_id in confused_set:
+                rating = 2
+            else:
+                rating = 3
         else:  # no_idea
             rating = 1
 
@@ -102,6 +115,28 @@ def submit_sentence_review(
         )
         if knowledge:
             knowledge.total_encounters = (knowledge.total_encounters or 0) + 1
+
+            # Track variant form stats
+            if lemma_id in surface_forms_by_lemma:
+                lemma_obj = db.query(Lemma).filter(Lemma.lemma_id == lemma_id).first()
+                if lemma_obj:
+                    lemma_bare = lemma_obj.lemma_ar_bare or ""
+                    for surface in surface_forms_by_lemma[lemma_id]:
+                        surface_bare = strip_diacritics(surface)
+                        if surface_bare and surface_bare != lemma_bare:
+                            vstats = knowledge.variant_stats_json or {}
+                            if isinstance(vstats, str):
+                                import json
+                                vstats = json.loads(vstats)
+                            vstats = dict(vstats)
+                            entry = vstats.get(surface_bare, {"seen": 0, "missed": 0, "confused": 0})
+                            entry["seen"] = entry.get("seen", 0) + 1
+                            if rating == 1:
+                                entry["missed"] = entry.get("missed", 0) + 1
+                            elif rating == 2:
+                                entry["confused"] = entry.get("confused", 0) + 1
+                            vstats[surface_bare] = entry
+                            knowledge.variant_stats_json = vstats
 
         word_results.append({
             "lemma_id": lemma_id,

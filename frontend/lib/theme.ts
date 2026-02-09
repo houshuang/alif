@@ -7,6 +7,7 @@ export const colors = {
   arabic: "#f0f0ff",
   accent: "#4a9eff",
   targetWord: "#7cb8ff",
+  confused: "#f39c12",
   missed: "#e74c3c",
   gotIt: "#2ecc71",
   good: "#2ecc71",

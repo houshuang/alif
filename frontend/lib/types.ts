@@ -233,6 +233,7 @@ export interface SentenceReviewSubmission {
   primary_lemma_id: number;
   comprehension_signal: ComprehensionSignal;
   missed_lemma_ids: number[];
+  confused_lemma_ids?: number[];
   response_ms: number;
   session_id: string;
   review_mode: ReviewMode;

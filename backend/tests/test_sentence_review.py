@@ -151,6 +151,92 @@ class TestPartial:
         assert result["word_results"][0]["credit_type"] == "primary"
 
 
+class TestConfused:
+    def test_confused_words_get_rating_2(self, db_session):
+        _seed_word(db_session, 1, "كتاب", "book")
+        _seed_word(db_session, 2, "ولد", "boy")
+        _seed_word(db_session, 3, "قرأ", "read")
+        _seed_sentence(db_session, 1, "الولد قرأ الكتاب", "boy read book",
+                       target_lemma_id=1, word_ids=[2, 3, 1])
+        db_session.commit()
+
+        result = submit_sentence_review(
+            db_session,
+            sentence_id=1,
+            primary_lemma_id=1,
+            comprehension_signal="partial",
+            confused_lemma_ids=[2],
+            session_id="test-1",
+        )
+
+        ratings = {wr["lemma_id"]: wr["rating"] for wr in result["word_results"]}
+        assert ratings[2] == 2  # confused
+        assert ratings[1] == 3  # not confused
+        assert ratings[3] == 3  # not confused
+
+    def test_mixed_missed_and_confused(self, db_session):
+        _seed_word(db_session, 1, "كتاب", "book")
+        _seed_word(db_session, 2, "ولد", "boy")
+        _seed_word(db_session, 3, "قرأ", "read")
+        _seed_sentence(db_session, 1, "الولد قرأ الكتاب", "boy read book",
+                       target_lemma_id=1, word_ids=[2, 3, 1])
+        db_session.commit()
+
+        result = submit_sentence_review(
+            db_session,
+            sentence_id=1,
+            primary_lemma_id=1,
+            comprehension_signal="partial",
+            missed_lemma_ids=[3],
+            confused_lemma_ids=[2],
+            session_id="test-1",
+        )
+
+        ratings = {wr["lemma_id"]: wr["rating"] for wr in result["word_results"]}
+        assert ratings[3] == 1  # missed
+        assert ratings[2] == 2  # confused
+        assert ratings[1] == 3  # understood
+
+    def test_confused_ignored_on_no_idea(self, db_session):
+        _seed_word(db_session, 1, "كتاب", "book")
+        _seed_word(db_session, 2, "ولد", "boy")
+        _seed_sentence(db_session, 1, "الولد الكتاب", "the boy the book",
+                       target_lemma_id=1, word_ids=[2, 1])
+        db_session.commit()
+
+        result = submit_sentence_review(
+            db_session,
+            sentence_id=1,
+            primary_lemma_id=1,
+            comprehension_signal="no_idea",
+            confused_lemma_ids=[2],
+            session_id="test-1",
+        )
+
+        for wr in result["word_results"]:
+            assert wr["rating"] == 1
+
+    def test_confused_api_endpoint(self, client, db_session):
+        _seed_word(db_session, 1, "كتاب", "book")
+        _seed_word(db_session, 2, "ولد", "boy")
+        _seed_sentence(db_session, 1, "الولد الكتاب", "boy book",
+                       target_lemma_id=1, word_ids=[2, 1])
+        db_session.commit()
+
+        resp = client.post("/api/review/submit-sentence", json={
+            "sentence_id": 1,
+            "primary_lemma_id": 1,
+            "comprehension_signal": "partial",
+            "confused_lemma_ids": [2],
+            "session_id": "api-test",
+        })
+        assert resp.status_code == 200
+        data = resp.json()
+        ratings = {wr["lemma_id"]: wr["rating"] for wr in data["word_results"]}
+        assert ratings[2] == 2
+        assert ratings[1] == 3
+
+
 class TestNoIdea:
     def test_all_words_get_rating_1(self, db_session):
         _seed_word(db_session, 1, "كتاب", "book")
@@ -360,3 +446,88 @@ class TestAPIEndpoints:
         ratings = {wr["lemma_id"]: wr["rating"] for wr in data["word_results"]}
         assert ratings[2] == 1
         assert ratings[1] == 3
+
+
+class TestVariantStats:
+    def test_variant_surface_form_tracked(self, db_session):
+        """When surface form differs from lemma bare, variant_stats_json is updated."""
+        _seed_word(db_session, 1, "بنت", "girl")
+        sent = Sentence(
+            id=1, arabic_text="بنتي جميلة", arabic_diacritized="بنتي جميلة",
+            english_translation="my daughter is beautiful", target_lemma_id=1,
+        )
+        db_session.add(sent)
+        db_session.flush()
+        # Surface form "بنتي" differs from lemma bare "بنت"
+        sw = SentenceWord(sentence_id=1, position=0, surface_form="بنتي", lemma_id=1)
+        db_session.add(sw)
+        db_session.flush()
+        db_session.commit()
+
+        submit_sentence_review(
+            db_session, sentence_id=1, primary_lemma_id=1,
+            comprehension_signal="understood", session_id="test-variant",
+        )
+
+        knowledge = db_session.query(UserLemmaKnowledge).filter(
+            UserLemmaKnowledge.lemma_id == 1
+        ).first()
+        assert knowledge.variant_stats_json is not None
+        vstats = knowledge.variant_stats_json
+        assert "بنتي" in vstats
+        assert vstats["بنتي"]["seen"] == 1
+        assert vstats["بنتي"]["missed"] == 0
+
+    def test_variant_missed_increments(self, db_session):
+        """Missed variant form increments missed counter."""
+        _seed_word(db_session, 1, "بنت", "girl")
+        _seed_word(db_session, 2, "كبير", "big")
+        sent = Sentence(
+            id=1, arabic_text="بنتك كبيرة", arabic_diacritized="بنتك كبيرة",
+            english_translation="your daughter is big", target_lemma_id=1,
+        )
+        db_session.add(sent)
+        db_session.flush()
+        sw1 = SentenceWord(sentence_id=1, position=0, surface_form="بنتك", lemma_id=1)
+        sw2 = SentenceWord(sentence_id=1, position=1, surface_form="كبيرة", lemma_id=2)
+        db_session.add_all([sw1, sw2])
+        db_session.flush()
+        db_session.commit()
+
+        submit_sentence_review(
+            db_session, sentence_id=1, primary_lemma_id=1,
+            comprehension_signal="partial", missed_lemma_ids=[1],
+            session_id="test-variant-miss",
+        )
+
+        knowledge = db_session.query(UserLemmaKnowledge).filter(
+            UserLemmaKnowledge.lemma_id == 1
+        ).first()
+        vstats = knowledge.variant_stats_json
+        assert vstats is not None
+        assert vstats["بنتك"]["seen"] == 1
+        assert vstats["بنتك"]["missed"] == 1
+
+    def test_same_surface_as_lemma_not_tracked(self, db_session):
+        """When surface form equals lemma bare, no variant stats are recorded."""
+        _seed_word(db_session, 1, "كتاب", "book")
+        sent = Sentence(
+            id=1, arabic_text="كتاب", arabic_diacritized="كتاب",
+            english_translation="book", target_lemma_id=1,
+        )
+        db_session.add(sent)
+        db_session.flush()
+        sw = SentenceWord(sentence_id=1, position=0, surface_form="كتاب", lemma_id=1)
+        db_session.add(sw)
+        db_session.flush()
+        db_session.commit()
+
+        submit_sentence_review(
+            db_session, sentence_id=1, primary_lemma_id=1,
+            comprehension_signal="understood", session_id="test-no-variant",
+        )
+
+        knowledge = db_session.query(UserLemmaKnowledge).filter(
+            UserLemmaKnowledge.lemma_id == 1
+        ).first()
+        assert knowledge.variant_stats_json is None

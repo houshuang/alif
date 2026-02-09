@@ -79,6 +79,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
   const [loading, setLoading] = useState(true);
   const [results, setResults] = useState<SessionResults | null>(null);
   const [missedIndices, setMissedIndices] = useState<Set<number>>(new Set());
+  const [confusedIndices, setConfusedIndices] = useState<Set<number>>(new Set());
   const [lastMarkedIndex, setLastMarkedIndex] = useState<number | null>(null);
   const [audioPlaying, setAudioPlaying] = useState(false);
   const [autoIntroduced, setAutoIntroduced] = useState<IntroCandidate[]>([]);
@@ -187,6 +188,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
     setCardIndex(0);
     setCardState(m === "listening" ? "audio" : "front");
     setMissedIndices(new Set());
+    setConfusedIndices(new Set());
     setLastMarkedIndex(null);
     setAudioPlaying(false);
     setAutoIntroduced([]);
@@ -218,18 +220,42 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
   }
 
   const toggleMissed = useCallback((index: number) => {
-    setMissedIndices((prev) => {
-      const next = new Set(prev);
-      if (next.has(index)) {
-        next.delete(index);
-        setLastMarkedIndex(null);
-      } else {
+    // Triple-tap cycle: off → confused (yellow) → missed (red) → off
+    // We use refs to read current state atomically
+    const isConfused = confusedIndices.has(index);
+    const isMissed = missedIndices.has(index);
+
+    if (!isConfused && !isMissed) {
+      // off → confused (yellow)
+      setConfusedIndices((prev) => {
+        const next = new Set(prev);
         next.add(index);
-        setLastMarkedIndex(index);
-      }
-      return next;
-    });
-  }, []);
+        return next;
+      });
+      setLastMarkedIndex(index);
+    } else if (isConfused && !isMissed) {
+      // confused → missed (red)
+      setConfusedIndices((prev) => {
+        const next = new Set(prev);
+        next.delete(index);
+        return next;
+      });
+      setMissedIndices((prev) => {
+        const next = new Set(prev);
+        next.add(index);
+        return next;
+      });
+      setLastMarkedIndex(index);
+    } else {
+      // missed → off
+      setMissedIndices((prev) => {
+        const next = new Set(prev);
+        next.delete(index);
+        return next;
+      });
+      setLastMarkedIndex(null);
+    }
+  }, [confusedIndices, missedIndices]);
 
   const handleWordLookup = useCallback(async (index: number, lemmaId: number) => {
     // Auto-mark as missed
@@ -279,6 +305,14 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
       }
     }
 
+    const confusedLemmaIds: number[] = [];
+    for (const idx of confusedIndices) {
+      const word = item.words[idx];
+      if (word?.lemma_id != null) {
+        confusedLemmaIds.push(word.lemma_id);
+      }
+    }
+
     if (signal === "no_idea") {
       missedLemmaIds.push(item.primary_lemma_id);
     }
@@ -288,6 +322,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
       primary_lemma_id: item.primary_lemma_id,
       comprehension_signal: signal,
       missed_lemma_ids: missedLemmaIds,
+      confused_lemma_ids: confusedLemmaIds.length > 0 ? confusedLemmaIds : undefined,
       response_ms: responseMs,
       session_id: sentenceSession.session_id,
       review_mode: mode,
@@ -359,6 +394,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
       setCardIndex(nextCardIndex);
       setCardState(mode === "listening" ? "audio" : "front");
       setMissedIndices(new Set());
+      setConfusedIndices(new Set());
       setLastMarkedIndex(null);
       setAudioPlaying(false);
       setAudioPlayCount(0);
@@ -401,6 +437,10 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
           .map((i) => item.words[i]?.surface_form)
           .filter(Boolean);
         if (missed.length > 0) parts.push(`Missed: ${missed.join(", ")}`);
+        const confused = Array.from(confusedIndices)
+          .map((i) => item.words[i]?.surface_form)
+          .filter(Boolean);
+        if (confused.length > 0) parts.push(`Confused: ${confused.join(", ")}`);
       }
     } else if (legacySession) {
       const card = legacySession.cards[cardIndex];
@@ -483,6 +523,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
               item={item}
               cardState={cardState as ListeningCardState}
               missedIndices={missedIndices}
+              confusedIndices={confusedIndices}
               onToggleMissed={toggleMissed}
               audioPlaying={audioPlaying}
               onReplay={() => playTtsAudio()}
@@ -493,6 +534,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
               item={item}
               cardState={cardState as ReadingCardState}
               missedIndices={missedIndices}
+              confusedIndices={confusedIndices}
               onToggleMissed={toggleMissed}
               onWordLookup={handleWordLookup}
               lookupResult={lookupResult}
@@ -508,6 +550,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
           <ListeningActions
             cardState={cardState as ListeningCardState}
             missedCount={missedIndices.size}
+            confusedCount={confusedIndices.size}
             lastMarkedGloss={lastMarkedIndex !== null ? item.words[lastMarkedIndex]?.gloss_en ?? null : null}
             onAdvance={advanceState}
             onSubmit={handleSubmit}
@@ -517,6 +560,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
             cardState={cardState as ReadingCardState}
             hasSentence={!isWordOnly}
             missedCount={missedIndices.size}
+            confusedCount={confusedIndices.size}
             lastMarkedGloss={lastMarkedIndex !== null ? item.words[lastMarkedIndex]?.gloss_en ?? null : null}
             onAdvance={advanceState}
             onSubmit={handleSubmit}
@@ -591,6 +635,7 @@ function SentenceReadingCard({
   item,
   cardState,
   missedIndices,
+  confusedIndices,
   onToggleMissed,
   onWordLookup,
   lookupResult,
@@ -602,6 +647,7 @@ function SentenceReadingCard({
   item: SentenceReviewItem;
   cardState: ReadingCardState;
   missedIndices: Set<number>;
+  confusedIndices: Set<number>;
   onToggleMissed: (index: number) => void;
   onWordLookup: (index: number, lemmaId: number) => void;
   lookupResult: WordLookupResult | null;
@@ -615,6 +661,12 @@ function SentenceReadingCard({
       <Text style={styles.sentenceArabic}>
         {item.words.map((word, i) => {
           const isMissed = missedIndices.has(i);
+          const isConfused = confusedIndices.has(i);
+          const wordStyle = isMissed
+            ? styles.missedWord
+            : isConfused
+              ? styles.confusedWord
+              : undefined;
 
           if (cardState === "back") {
             return (
@@ -622,7 +674,7 @@ function SentenceReadingCard({
                 {i > 0 && " "}
                 <Text
                   onPress={() => onToggleMissed(i)}
-                  style={isMissed ? styles.missedWord : undefined}
+                  style={wordStyle}
                 >
                   {word.surface_form}
                 </Text>
@@ -637,7 +689,7 @@ function SentenceReadingCard({
               {i > 0 && " "}
               <Text
                 onPress={canTap ? () => onWordLookup(i, word.lemma_id!) : undefined}
-                style={isMissed ? styles.missedWord : undefined}
+                style={wordStyle}
               >
                 {word.surface_form}
               </Text>
@@ -891,6 +943,7 @@ function SentenceListeningCard({
   item,
   cardState,
   missedIndices,
+  confusedIndices,
   onToggleMissed,
   audioPlaying,
   onReplay,
@@ -899,6 +952,7 @@ function SentenceListeningCard({
   item: SentenceReviewItem;
   cardState: ListeningCardState;
   missedIndices: Set<number>;
+  confusedIndices: Set<number>;
   onToggleMissed: (index: number) => void;
   audioPlaying: boolean;
   onReplay: () => void;
@@ -925,13 +979,19 @@ function SentenceListeningCard({
       <Text style={styles.sentenceArabic}>
         {item.words.map((word, i) => {
           const isMissed = missedIndices.has(i);
+          const isConfused = confusedIndices.has(i);
+          const wordStyle = isMissed
+            ? styles.missedWord
+            : isConfused
+              ? styles.confusedWord
+              : undefined;
 
           return (
             <Text key={`t-${i}`}>
               {i > 0 && " "}
               <Text
                 onPress={() => onToggleMissed(i)}
-                style={isMissed ? styles.missedWord : undefined}
+                style={wordStyle}
               >
                 {word.surface_form}
               </Text>
@@ -1174,12 +1234,14 @@ function LegacyWordOnlyCard({
 function ListeningActions({
   cardState,
   missedCount,
+  confusedCount = 0,
   lastMarkedGloss,
   onAdvance,
   onSubmit,
 }: {
   cardState: ListeningCardState;
   missedCount: number;
+  confusedCount?: number;
   lastMarkedGloss?: string | null;
   onAdvance: () => void;
   onSubmit: (signal: ComprehensionSignal) => void;
@@ -1202,26 +1264,21 @@ function ListeningActions({
     );
   }
 
+  const totalMarked = missedCount + confusedCount;
+
   if (cardState === "arabic") {
     return (
       <View style={styles.actionColumn}>
-        {missedCount > 0 && (
-          <View style={styles.missedHintRow}>
-            <Text style={styles.missedHint}>
-              {missedCount} word{missedCount > 1 ? "s" : ""} marked
-            </Text>
-            {lastMarkedGloss && (
-              <Text style={styles.lastMarkedGloss}>{lastMarkedGloss}</Text>
-            )}
-          </View>
+        {totalMarked > 0 && (
+          <MarkedHint missedCount={missedCount} confusedCount={confusedCount} lastMarkedGloss={lastMarkedGloss} />
         )}
         <View style={styles.actionRow}>
           <Pressable
             style={[styles.actionButton, styles.gotItButton]}
-            onPress={() => onSubmit(missedCount > 0 ? "partial" : "understood")}
+            onPress={() => onSubmit(totalMarked > 0 ? "partial" : "understood")}
           >
             <Text style={styles.actionButtonText}>
-              {missedCount > 0 ? "Continue" : "Understood"}
+              {totalMarked > 0 ? "Continue" : "Understood"}
             </Text>
           </Pressable>
           <Pressable
@@ -1233,7 +1290,7 @@ function ListeningActions({
             </Text>
           </Pressable>
         </View>
-        {missedCount === 0 && (
+        {totalMarked === 0 && (
           <Text style={styles.tapHintListening}>
             Tap words you didn't catch, or show translation
           </Text>
@@ -1244,18 +1301,11 @@ function ListeningActions({
 
   return (
     <View style={styles.actionColumn}>
-      {missedCount > 0 && (
-        <View style={styles.missedHintRow}>
-          <Text style={styles.missedHint}>
-            {missedCount} word{missedCount > 1 ? "s" : ""} marked
-          </Text>
-          {lastMarkedGloss && (
-            <Text style={styles.lastMarkedGloss}>{lastMarkedGloss}</Text>
-          )}
-        </View>
+      {totalMarked > 0 && (
+        <MarkedHint missedCount={missedCount} confusedCount={confusedCount} lastMarkedGloss={lastMarkedGloss} />
       )}
       <View style={styles.actionRow}>
-        {missedCount > 0 ? (
+        {totalMarked > 0 ? (
           <Pressable
             style={[styles.actionButton, styles.continueButton]}
             onPress={() => onSubmit("partial")}
@@ -1271,7 +1321,7 @@ function ListeningActions({
           </Pressable>
         )}
       </View>
-      {missedCount === 0 && (
+      {totalMarked === 0 && (
         <Text style={styles.tapHint}>Tap any word you didn't catch</Text>
       )}
     </View>
@@ -1284,6 +1334,7 @@ function ReadingActions({
   cardState,
   hasSentence,
   missedCount,
+  confusedCount = 0,
   lastMarkedGloss,
   onAdvance,
   onSubmit,
@@ -1291,10 +1342,13 @@ function ReadingActions({
   cardState: ReadingCardState;
   hasSentence: boolean;
   missedCount: number;
+  confusedCount?: number;
   lastMarkedGloss?: string | null;
   onAdvance: () => void;
   onSubmit: (signal: ComprehensionSignal) => void;
 }) {
+  const totalMarked = missedCount + confusedCount;
+
   if (cardState === "front") {
     return (
       <View style={styles.actionColumn}>
@@ -1315,18 +1369,11 @@ function ReadingActions({
 
   return (
     <View style={styles.actionColumn}>
-      {hasSentence && missedCount > 0 && (
-        <View style={styles.missedHintRow}>
-          <Text style={styles.missedHint}>
-            {missedCount} word{missedCount > 1 ? "s" : ""} marked
-          </Text>
-          {lastMarkedGloss && (
-            <Text style={styles.lastMarkedGloss}>{lastMarkedGloss}</Text>
-          )}
-        </View>
+      {hasSentence && totalMarked > 0 && (
+        <MarkedHint missedCount={missedCount} confusedCount={confusedCount} lastMarkedGloss={lastMarkedGloss} />
       )}
       <View style={styles.actionRow}>
-        {missedCount > 0 ? (
+        {totalMarked > 0 ? (
           <Pressable
             style={[styles.actionButton, styles.continueButton]}
             onPress={() => onSubmit("partial")}
@@ -1357,8 +1404,34 @@ function ReadingActions({
           </Pressable>
         )}
       </View>
-      {hasSentence && missedCount === 0 && (
+      {hasSentence && totalMarked === 0 && (
         <Text style={styles.tapHint}>Tap any word you didn't know</Text>
+      )}
+    </View>
+  );
+}
+
+// --- Marked Hint ---
+
+function MarkedHint({
+  missedCount,
+  confusedCount,
+  lastMarkedGloss,
+}: {
+  missedCount: number;
+  confusedCount: number;
+  lastMarkedGloss?: string | null;
+}) {
+  const parts: string[] = [];
+  if (missedCount > 0) parts.push(`${missedCount} missed`);
+  if (confusedCount > 0) parts.push(`${confusedCount} confused`);
+  const label = parts.join(", ");
+
+  return (
+    <View style={styles.missedHintRow}>
+      <Text style={styles.missedHint}>{label}</Text>
+      {lastMarkedGloss && (
+        <Text style={styles.lastMarkedGloss}>{lastMarkedGloss}</Text>
       )}
     </View>
   );
@@ -1772,6 +1845,11 @@ const styles = StyleSheet.create({
     color: colors.missed,
     textDecorationLine: "underline",
     textDecorationColor: colors.missed,
+  },
+  confusedWord: {
+    color: colors.confused,
+    textDecorationLine: "underline",
+    textDecorationColor: colors.confused,
   },
   sentenceEnglish: {
     fontSize: 20,

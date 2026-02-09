@@ -261,6 +261,7 @@ export async function submitSentenceReview(
     primary_lemma_id: submission.primary_lemma_id,
     comprehension_signal: submission.comprehension_signal,
     missed_lemma_ids: submission.missed_lemma_ids,
+    confused_lemma_ids: submission.confused_lemma_ids,
     response_ms: submission.response_ms,
     session_id: submission.session_id,
     review_mode: submission.review_mode,

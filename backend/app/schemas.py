@@ -191,6 +191,7 @@ class SentenceReviewSubmitIn(BaseModel):
     primary_lemma_id: int
     comprehension_signal: str  # understood/partial/no_idea
     missed_lemma_ids: list[int] = []
+    confused_lemma_ids: list[int] = []
     response_ms: int | None = None
     session_id: str | None = None
     review_mode: str = "reading"

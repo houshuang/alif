@@ -153,7 +153,7 @@ def get_root_family(db: Session, root_id: int) -> list[dict]:
     """
     lemmas = (
         db.query(Lemma)
-        .filter(Lemma.root_id == root_id)
+        .filter(Lemma.root_id == root_id, Lemma.canonical_lemma_id.is_(None))
         .order_by(Lemma.frequency_rank.asc().nullslast())
         .all()
     )
@@ -200,6 +200,7 @@ def select_next_words(
         db.query(Lemma)
         .outerjoin(already_known, Lemma.lemma_id == already_known.c.lemma_id)
         .filter(already_known.c.lemma_id.is_(None))
+        .filter(Lemma.canonical_lemma_id.is_(None))
         .filter(Lemma.lemma_id.notin_(exclude) if exclude else True)
         .all()
     )

@@ -151,6 +151,7 @@ def submit_sentence(body: SentenceReviewSubmitIn, db: Session = Depends(get_db))
         primary_lemma_id=body.primary_lemma_id,
         comprehension_signal=body.comprehension_signal,
         missed_lemma_ids=body.missed_lemma_ids,
+        confused_lemma_ids=body.confused_lemma_ids,
         response_ms=body.response_ms,
         session_id=body.session_id,
         review_mode=body.review_mode,
@@ -163,6 +164,7 @@ def submit_sentence(body: SentenceReviewSubmitIn, db: Session = Depends(get_db))
         lemma_id=body.primary_lemma_id,
         comprehension_signal=body.comprehension_signal,
         missed_lemma_ids=body.missed_lemma_ids,
+        confused_lemma_ids=body.confused_lemma_ids,
         response_ms=body.response_ms,
         session_id=body.session_id,
         review_mode=body.review_mode,
@@ -199,7 +201,7 @@ def word_lookup(lemma_id: int, db: Session = Depends(get_db)):
     if root_obj:
         siblings = (
             db.query(Lemma)
-            .filter(Lemma.root_id == root_obj.root_id, Lemma.lemma_id != lemma_id)
+            .filter(Lemma.root_id == root_obj.root_id, Lemma.lemma_id != lemma_id, Lemma.canonical_lemma_id.is_(None))
             .all()
         )
         for sib in siblings:
@@ -240,6 +242,7 @@ def sync_reviews(body: BulkSyncIn, db: Session = Depends(get_db)):
                     primary_lemma_id=payload["primary_lemma_id"],
                     comprehension_signal=payload["comprehension_signal"],
                     missed_lemma_ids=payload.get("missed_lemma_ids", []),
+                    confused_lemma_ids=payload.get("confused_lemma_ids", []),
                     response_ms=payload.get("response_ms"),
                     session_id=payload.get("session_id"),
                     review_mode=payload.get("review_mode", "reading"),

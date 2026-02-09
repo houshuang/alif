@@ -412,3 +412,23 @@
 #### Generation/Prediction Effect
 - [DONE] Before revealing a new word's meaning, offer the learner a chance to predict it from root knowledge or morphological patterns — implemented as front-phase word lookup during sentence review: tapping an unknown word checks if it has 2+ known siblings from the same root, and if so shows root + siblings with "Can you guess?" prompt before revealing meaning. Uses GET /api/review/word-lookup/{lemma_id} endpoint with root family + knowledge state.
 - Only use prediction prompts when the learner has relevant prior knowledge (known root, known pattern, known cognate); uninformed guessing has no benefit
+
+### Ideas from Confused/Misread State & CAMeL Tools Integration (2026-02-09)
+
+#### Confused/Misread Review State
+- [DONE] Triple-tap word marking during review: off → confused (yellow, FSRS rating 2 Hard) → missed (red, rating 1 Again) → off cycle
+- [DONE] Backend `confused_lemma_ids` field in sentence review submission, flows through offline sync queue
+- Track confusion patterns: which words get confused with which? Could build confusion pairs for targeted review
+- Show "frequently confused" words in word detail view
+- If a word has a high confusion rate (>30% of encounters marked confused), consider generating sentences that specifically contrast it with the confusable word
+
+#### CAMeL Tools Integration
+- [DONE] Replaced morphology.py stub with real CAMeL Tools analyzer (graceful fallback to stub when not installed)
+- [DONE] Added `canonical_lemma_id` to Lemma model for variant tracking
+- [DONE] Added `variant_stats_json` to UserLemmaKnowledge — tracks per-variant-form seen/missed/confused counts
+- [DONE] Root family display filters out variants (canonical_lemma_id IS NOT NULL)
+- [DONE] Learn mode word selection filters out variants
+- [DONE] Cleanup script: `scripts/cleanup_lemma_variants.py` using CAMeL Tools to detect possessives, inflected forms, definite-form duplicates
+- Variant difficulty scheduling: if a specific variant form has a high miss rate (e.g., بنتي missed >50% of encounters), prefer sentences containing that variant to strengthen recognition
+- CAMeL Tools disambiguation in context: use MLE disambiguator for sentence-level analysis rather than single-word analyzer for more accurate lemmatization
+- Import pipeline improvement: run new lemmas through CAMeL Tools during import to auto-detect and skip/merge variants before they enter the DB
