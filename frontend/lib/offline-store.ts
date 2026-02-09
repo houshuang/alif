@@ -21,6 +21,22 @@ const KEYS = {
 
 const MAX_CACHED_SESSIONS = 10;
 
+function reviewKey(
+  mode: ReviewMode,
+  sentenceId: number | null,
+  lemmaId: number
+): string {
+  return `${mode}:${sentenceId ?? "word"}:${lemmaId}`;
+}
+
+function legacyReviewKey(
+  sessionId: string,
+  sentenceId: number | null,
+  lemmaId: number
+): string {
+  return `${sessionId}:${sentenceId}:${lemmaId}`;
+}
+
 async function getJson<T>(key: string): Promise<T | null> {
   const raw = await AsyncStorage.getItem(key);
   return raw ? JSON.parse(raw) : null;
@@ -51,7 +67,15 @@ export async function getCachedSession(
 
   for (const session of sessions) {
     const remaining = session.items.filter(
-      (item) => !reviewed.has(`${session.session_id}:${item.sentence_id}:${item.primary_lemma_id}`)
+      (item) =>
+        !reviewed.has(reviewKey(mode, item.sentence_id, item.primary_lemma_id)) &&
+        !reviewed.has(
+          legacyReviewKey(
+            session.session_id,
+            item.sentence_id,
+            item.primary_lemma_id
+          )
+        )
     );
     if (remaining.length > 0) {
       return { ...session, items: remaining };
@@ -63,10 +87,12 @@ export async function getCachedSession(
 export async function markReviewed(
   sessionId: string,
   sentenceId: number | null,
-  lemmaId: number
+  lemmaId: number,
+  mode: ReviewMode = "reading"
 ): Promise<void> {
   const reviewed = await getReviewedSet();
-  reviewed.add(`${sessionId}:${sentenceId}:${lemmaId}`);
+  reviewed.add(reviewKey(mode, sentenceId, lemmaId));
+  reviewed.add(legacyReviewKey(sessionId, sentenceId, lemmaId));
   await setJson(KEYS.reviewed, Array.from(reviewed));
 }
 
@@ -77,6 +103,9 @@ async function getReviewedSet(): Promise<Set<string>> {
 
 export async function invalidateSessions(): Promise<void> {
   await AsyncStorage.multiRemove([
+    KEYS.sessions("reading"),
+    KEYS.sessions("listening"),
+    KEYS.sessions("quiz"),
     KEYS.reviewed,
     KEYS.words,
     KEYS.stats,

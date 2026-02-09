@@ -25,14 +25,16 @@ def _make_lemma(db, i, state="known", days_ago=0):
     return lemma
 
 
-def _make_review(db, lemma_id, rating=3, days_ago=0):
+def _make_review(db, lemma_id, rating=3, days_ago=0, fsrs_state: str | None = None):
     reviewed_at = datetime.now(timezone.utc) - timedelta(days=days_ago)
+    fsrs_log_json = {"state": fsrs_state} if fsrs_state else None
     review = ReviewLog(
         lemma_id=lemma_id,
         rating=rating,
         reviewed_at=reviewed_at,
         response_ms=1500,
         session_id="test",
+        fsrs_log_json=fsrs_log_json,
     )
     db.add(review)
     return review
@@ -133,6 +135,19 @@ class TestStatsAPI:
         assert data["learning"] == 1
         assert data["new"] == 1
 
+    def test_due_today_uses_due_timestamps(self, client, db_session):
+        # Due now (known) should count.
+        _make_lemma(db_session, 1, "known", days_ago=1)
+        # Future due (learning/new) should NOT count.
+        _make_lemma(db_session, 2, "learning", days_ago=-1)
+        _make_lemma(db_session, 3, "new", days_ago=-1)
+        db_session.commit()
+
+        resp = client.get("/api/stats")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["due_today"] == 1
+
     def test_analytics_endpoint(self, client, db_session):
         lemma = _make_lemma(db_session, 1, "known")
         _make_review(db_session, lemma.lemma_id, rating=3, days_ago=0)
@@ -173,3 +188,45 @@ class TestStatsAPI:
         data = resp.json()
         assert len(data["daily_history"]) >= 1
         assert data["pace"]["reviews_per_day_7d"] > 0
+
+    def test_words_learned_uses_first_known_transition(self, client, db_session):
+        lemma = _make_lemma(db_session, 1, "known")
+        # First transition to known was 10 days ago.
+        _make_review(db_session, lemma.lemma_id, rating=3, days_ago=10, fsrs_state="known")
+        # A later known-state review should not count as a newly learned word.
+        _make_review(db_session, lemma.lemma_id, rating=3, days_ago=0, fsrs_state="known")
+        db_session.commit()
+
+        resp = client.get("/api/stats/analytics?days=30")
+        assert resp.status_code == 200
+        data = resp.json()
+        # Within last 7 days, this word should not be counted as newly learned.
+        assert data["pace"]["words_per_day_7d"] == 0.0
+
+    def test_daily_history_does_not_double_count_known_transitions(self, client, db_session):
+        lemma = _make_lemma(db_session, 1, "known")
+        _make_review(db_session, lemma.lemma_id, rating=3, days_ago=2, fsrs_state="known")
+        _make_review(db_session, lemma.lemma_id, rating=3, days_ago=0, fsrs_state="known")
+        db_session.commit()
+
+        resp = client.get("/api/stats/analytics?days=30")
+        assert resp.status_code == 200
+        data = resp.json()
+        total_learned = sum(point["words_learned"] for point in data["daily_history"])
+        assert total_learned == 1
+
+    def test_daily_history_includes_known_without_transition_in_baseline(self, client, db_session):
+        # Legacy known word with no fsrs state-transition logs.
+        _make_lemma(db_session, 1, "known")
+        # Known word with a logged transition today.
+        lemma2 = _make_lemma(db_session, 2, "known")
+        _make_review(db_session, lemma2.lemma_id, rating=3, days_ago=0, fsrs_state="known")
+        db_session.commit()
+
+        resp = client.get("/api/stats/analytics?days=30")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert len(data["daily_history"]) >= 1
+        latest = data["daily_history"][-1]
+        assert latest["words_learned"] == 1
+        assert latest["cumulative_known"] == 2

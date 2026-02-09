@@ -44,7 +44,7 @@ def ask_question(body: AskQuestionIn, db: Session = Depends(get_db)):
     # Build prompt with conversation history
     parts: list[str] = []
 
-    if body.context and not previous:
+    if body.context:
         parts.append(f"[Screen context: {body.screen}]\n{body.context}")
 
     for msg in previous:
@@ -68,7 +68,7 @@ def ask_question(body: AskQuestionIn, db: Session = Depends(get_db)):
         screen=body.screen,
         role="user",
         content=body.question,
-        context_summary=body.context if body.context and not previous else None,
+        context_summary=body.context if body.context else None,
     )
     db.add(user_msg)
 

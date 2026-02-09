@@ -33,6 +33,7 @@ export default function StoryReadScreen() {
   const [lookedUpLemmaIds, setLookedUpLemmaIds] = useState<Set<number>>(new Set());
   const [submitting, setSubmitting] = useState(false);
   const storyStartTime = useRef(Date.now());
+  const lookupRequestRef = useRef(0);
   const router = useRouter();
 
   useEffect(() => {
@@ -41,6 +42,13 @@ export default function StoryReadScreen() {
 
   async function loadStory(storyId: number) {
     setLoading(true);
+    lookupRequestRef.current += 1;
+    setSubmitting(false);
+    setSelectedWord(null);
+    setSelectedPosition(null);
+    setLookedUp(new Set());
+    setLookedUpLemmaIds(new Set());
+    storyStartTime.current = Date.now();
     try {
       const data = await getStoryDetail(storyId);
       setStory(data);
@@ -66,6 +74,7 @@ export default function StoryReadScreen() {
 
       // Toggle off if already looked up
       if (lookedUp.has(word.position)) {
+        lookupRequestRef.current += 1;
         const nextPositions = new Set(lookedUp);
         nextPositions.delete(word.position);
         setLookedUp(nextPositions);
@@ -89,6 +98,7 @@ export default function StoryReadScreen() {
         return;
       }
 
+      const requestId = ++lookupRequestRef.current;
       const nextPositions = new Set(lookedUp).add(word.position);
       const nextLemmaIds = new Set(lookedUpLemmaIds);
       if (word.lemma_id != null) {
@@ -101,9 +111,11 @@ export default function StoryReadScreen() {
       if (word.lemma_id != null) {
         try {
           const result = await lookupStoryWord(story.id, word.lemma_id, word.position);
+          if (lookupRequestRef.current !== requestId) return;
           setSelectedWord(result);
           persistLookups(nextPositions, nextLemmaIds);
         } catch {
+          if (lookupRequestRef.current !== requestId) return;
           setSelectedWord({
             lemma_id: word.lemma_id,
             gloss_en: word.gloss_en || null,
@@ -114,6 +126,7 @@ export default function StoryReadScreen() {
           persistLookups(nextPositions, nextLemmaIds);
         }
       } else {
+        if (lookupRequestRef.current !== requestId) return;
         setSelectedWord({
           lemma_id: null as any,
           gloss_en: word.gloss_en || (word.is_function_word ? "function word" : null),
@@ -124,34 +137,49 @@ export default function StoryReadScreen() {
         persistLookups(nextPositions, nextLemmaIds);
       }
     },
-    [story, lookedUp, selectedPosition]
+    [story, lookedUp, lookedUpLemmaIds, selectedPosition, id]
   );
 
   async function handleComplete() {
     if (!story || submitting) return;
     setSubmitting(true);
-    const readingTimeMs = Date.now() - storyStartTime.current;
-    await completeStory(story.id, Array.from(lookedUpLemmaIds), readingTimeMs);
-    clearStoryLookups(story.id).catch(() => {});
-    router.back();
+    try {
+      const readingTimeMs = Date.now() - storyStartTime.current;
+      await completeStory(story.id, Array.from(lookedUpLemmaIds), readingTimeMs);
+      clearStoryLookups(story.id).catch(() => {});
+      router.back();
+    } catch (e) {
+      console.error("Failed to complete story:", e);
+      setSubmitting(false);
+    }
   }
 
   async function handleSkip() {
     if (!story || submitting) return;
     setSubmitting(true);
-    const readingTimeMs = Date.now() - storyStartTime.current;
-    await skipStory(story.id, Array.from(lookedUpLemmaIds), readingTimeMs);
-    clearStoryLookups(story.id).catch(() => {});
-    router.back();
+    try {
+      const readingTimeMs = Date.now() - storyStartTime.current;
+      await skipStory(story.id, Array.from(lookedUpLemmaIds), readingTimeMs);
+      clearStoryLookups(story.id).catch(() => {});
+      router.back();
+    } catch (e) {
+      console.error("Failed to skip story:", e);
+      setSubmitting(false);
+    }
   }
 
   async function handleTooDifficult() {
     if (!story || submitting) return;
     setSubmitting(true);
-    const readingTimeMs = Date.now() - storyStartTime.current;
-    await tooDifficultStory(story.id, Array.from(lookedUpLemmaIds), readingTimeMs);
-    clearStoryLookups(story.id).catch(() => {});
-    router.back();
+    try {
+      const readingTimeMs = Date.now() - storyStartTime.current;
+      await tooDifficultStory(story.id, Array.from(lookedUpLemmaIds), readingTimeMs);
+      clearStoryLookups(story.id).catch(() => {});
+      router.back();
+    } catch (e) {
+      console.error("Failed to mark story too difficult:", e);
+      setSubmitting(false);
+    }
   }
 
   if (loading) {
@@ -252,36 +280,56 @@ export default function StoryReadScreen() {
       </ScrollView>
 
       <View style={styles.lookupPanel}>
-        {selectedWord ? (
-          <View style={styles.lookupContent}>
-            <Text style={styles.lookupArabic}>
-              {story.words.find((w) => w.position === selectedPosition)
-                ?.surface_form || ""}
-            </Text>
-            <Text style={styles.lookupGloss}>
-              {selectedWord.gloss_en || "Unknown"}
-            </Text>
-            <View style={styles.lookupMeta}>
-              {selectedWord.transliteration && (
-                <Text style={styles.lookupTranslit}>
-                  {selectedWord.transliteration}
-                </Text>
-              )}
-              {selectedWord.root && (
-                <Text style={styles.lookupRoot}>
-                  Root: {selectedWord.root}
-                </Text>
-              )}
-              {selectedWord.pos && (
-                <Text style={styles.lookupPos}>{selectedWord.pos}</Text>
-              )}
-            </View>
+        <View style={styles.lookupContent}>
+          <View style={styles.lookupArabicSlot}>
+            {selectedWord ? (
+              <Text style={styles.lookupArabic}>
+                {story.words.find((w) => w.position === selectedPosition)
+                  ?.surface_form || ""}
+              </Text>
+            ) : (
+              <Text style={styles.lookupSlotPlaceholder}>.</Text>
+            )}
           </View>
-        ) : (
-          <Text style={styles.lookupHint}>
-            Tap any word to see its translation
-          </Text>
-        )}
+          <View style={styles.lookupGlossSlot}>
+            {selectedWord ? (
+              <Text style={styles.lookupGloss}>
+                {selectedWord.gloss_en || "Unknown"}
+              </Text>
+            ) : (
+              <Text style={styles.lookupHint}>
+                Tap any word to see its translation
+              </Text>
+            )}
+          </View>
+          <View style={styles.lookupMetaSlot}>
+            {selectedWord ? (
+              <View style={styles.lookupMeta}>
+                {selectedWord.transliteration ? (
+                  <Text style={styles.lookupTranslit}>
+                    {selectedWord.transliteration}
+                  </Text>
+                ) : (
+                  <Text style={styles.lookupMetaPlaceholder}>.</Text>
+                )}
+                {selectedWord.root ? (
+                  <Text style={styles.lookupRoot}>
+                    Root: {selectedWord.root}
+                  </Text>
+                ) : (
+                  <Text style={styles.lookupMetaPlaceholder}>.</Text>
+                )}
+                {selectedWord.pos ? (
+                  <Text style={styles.lookupPos}>{selectedWord.pos}</Text>
+                ) : (
+                  <Text style={styles.lookupMetaPlaceholder}>.</Text>
+                )}
+              </View>
+            ) : (
+              <Text style={styles.lookupMetaPlaceholder}>.</Text>
+            )}
+          </View>
+        </View>
       </View>
 
       <View style={styles.bottomActions}>
@@ -292,15 +340,24 @@ export default function StoryReadScreen() {
         >
           <Text style={styles.skipBtnText}>Skip</Text>
         </Pressable>
-        {story.source === "imported" && (
-          <Pressable
-            style={[styles.bottomBtn, styles.difficultBtn]}
-            onPress={handleTooDifficult}
-            disabled={submitting}
+        <Pressable
+          style={[
+            styles.bottomBtn,
+            styles.difficultBtn,
+            story.source !== "imported" && styles.difficultBtnDisabled,
+          ]}
+          onPress={handleTooDifficult}
+          disabled={submitting || story.source !== "imported"}
+        >
+          <Text
+            style={[
+              styles.difficultBtnText,
+              story.source !== "imported" && styles.difficultBtnTextDisabled,
+            ]}
           >
-            <Text style={styles.difficultBtnText}>Too Difficult</Text>
-          </Pressable>
-        )}
+            Too Difficult
+          </Text>
+        </Pressable>
         <Pressable
           style={[styles.bottomBtn, styles.completeBtn]}
           onPress={handleComplete}
@@ -447,6 +504,25 @@ const styles = StyleSheet.create({
   },
   lookupContent: {
     alignItems: "center",
+    width: "100%",
+    justifyContent: "center",
+  },
+  lookupArabicSlot: {
+    minHeight: 36,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  lookupGlossSlot: {
+    minHeight: 28,
+    justifyContent: "center",
+    alignItems: "center",
+    marginTop: 2,
+  },
+  lookupMetaSlot: {
+    minHeight: 24,
+    justifyContent: "center",
+    alignItems: "center",
+    marginTop: 6,
   },
   lookupArabic: {
     fontSize: fonts.arabicMedium,
@@ -464,7 +540,9 @@ const styles = StyleSheet.create({
   lookupMeta: {
     flexDirection: "row",
     gap: 12,
-    marginTop: 6,
+    alignItems: "center",
+    justifyContent: "center",
+    flexWrap: "wrap",
   },
   lookupTranslit: {
     fontSize: fonts.small,
@@ -484,6 +562,16 @@ const styles = StyleSheet.create({
     fontSize: fonts.body,
     textAlign: "center",
     fontStyle: "italic",
+  },
+  lookupSlotPlaceholder: {
+    color: "transparent",
+    fontSize: fonts.arabicMedium,
+    lineHeight: 26,
+  },
+  lookupMetaPlaceholder: {
+    color: "transparent",
+    fontSize: fonts.small,
+    lineHeight: 16,
   },
   bottomActions: {
     flexDirection: "row",
@@ -511,10 +599,17 @@ const styles = StyleSheet.create({
   difficultBtn: {
     backgroundColor: colors.stateLearning + "30",
   },
+  difficultBtnDisabled: {
+    backgroundColor: colors.surfaceLight,
+  },
   difficultBtnText: {
     color: colors.stateLearning,
     fontSize: fonts.body,
     fontWeight: "600",
+  },
+  difficultBtnTextDisabled: {
+    color: colors.textSecondary,
+    opacity: 0.6,
   },
   completeBtn: {
     backgroundColor: colors.gotIt,

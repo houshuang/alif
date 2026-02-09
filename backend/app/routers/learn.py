@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import json
 
 from fastapi import APIRouter, BackgroundTasks, Depends, Query, HTTPException
 from pydantic import BaseModel
@@ -7,7 +8,15 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.database import get_db, SessionLocal
-from app.models import Lemma, Root, Sentence, SentenceWord, UserLemmaKnowledge
+from app.models import (
+    GrammarFeature,
+    Lemma,
+    Root,
+    Sentence,
+    SentenceWord,
+    UserLemmaKnowledge,
+)
+from app.services.grammar_service import seed_grammar_features
 from app.services.word_selector import (
     select_next_words,
     introduce_word,
@@ -23,6 +32,62 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/learn", tags=["learn"])
 
 MIN_SENTENCES_PER_WORD = 3
+
+
+def _coerce_grammar_keys(value: object) -> list[str]:
+    if value is None:
+        return []
+    payload = value
+    if isinstance(payload, str):
+        try:
+            payload = json.loads(payload)
+        except json.JSONDecodeError:
+            return []
+    if not isinstance(payload, list):
+        return []
+    return [v for v in payload if isinstance(v, str)]
+
+
+def _attach_grammar_details(db: Session, words: list[dict]) -> None:
+    if not words:
+        return
+
+    all_keys: set[str] = set()
+    for word in words:
+        keys = _coerce_grammar_keys(word.get("grammar_features"))
+        word["grammar_features"] = keys
+        all_keys.update(keys)
+
+    if not all_keys:
+        return
+
+    seed_grammar_features(db)
+    rows = (
+        db.query(GrammarFeature)
+        .filter(GrammarFeature.feature_key.in_(all_keys))
+        .all()
+    )
+    by_key = {r.feature_key: r for r in rows}
+
+    for word in words:
+        details: list[dict] = []
+        for key in word.get("grammar_features", []):
+            feature = by_key.get(key)
+            if feature:
+                details.append({
+                    "feature_key": key,
+                    "category": feature.category,
+                    "label_en": feature.label_en,
+                    "label_ar": feature.label_ar,
+                })
+            else:
+                details.append({
+                    "feature_key": key,
+                    "category": None,
+                    "label_en": key.replace("_", " "),
+                    "label_ar": None,
+                })
+        word["grammar_details"] = details
 
 
 class IntroduceRequest(BaseModel):
@@ -47,6 +112,7 @@ def next_words(
     """Get the next best words to introduce, ranked by the selection algorithm."""
     exclude_ids = [int(x) for x in exclude.split(",") if x.strip().isdigit()]
     words = select_next_words(db, count=count, exclude_lemma_ids=exclude_ids)
+    _attach_grammar_details(db, words)
     return {"words": words, "count": len(words)}
 
 

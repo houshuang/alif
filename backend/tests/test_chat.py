@@ -59,7 +59,7 @@ class TestAskQuestion:
         ).all()
         assert len(msgs) == 4  # 2 user + 2 assistant
 
-    def test_follow_up_does_not_store_context_summary(self, client, db_session):
+    def test_follow_up_stores_context_summary(self, client, db_session):
         with patch("app.routers.chat.generate_completion") as mock_llm:
             mock_llm.return_value = {"content": "Answer 1"}
             resp1 = client.post("/api/chat/ask", json={
@@ -85,7 +85,7 @@ class TestAskQuestion:
         ).order_by(ChatMessage.created_at.asc()).all()
 
         assert user_msgs[0].context_summary == "Some context"
-        assert user_msgs[1].context_summary is None
+        assert user_msgs[1].context_summary == "New context"
 
     def test_conversation_history_included_in_prompt(self, client, db_session):
         with patch("app.routers.chat.generate_completion") as mock_llm:
@@ -101,6 +101,7 @@ class TestAskQuestion:
             mock_llm.return_value = {"content": "Answer 2"}
             client.post("/api/chat/ask", json={
                 "question": "Give me an example",
+                "context": "Sentence: الولد يقرأ كتابًا",
                 "conversation_id": conv_id,
                 "screen": "learn",
             })
@@ -111,6 +112,7 @@ class TestAskQuestion:
             assert "What is a root?" in prompt
             assert "Answer 1" in prompt
             assert "Give me an example" in prompt
+            assert "Sentence: الولد يقرأ كتابًا" in prompt
 
 
 class TestListConversations:

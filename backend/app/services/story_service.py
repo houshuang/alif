@@ -37,6 +37,7 @@ from app.services.sentence_validator import (
 
 KNOWN_SAMPLE_SIZE = 80
 MAX_NEW_WORDS_IN_STORY = 5
+TERMINAL_STORY_STATUSES = {"completed", "skipped", "too_difficult"}
 
 STORY_SYSTEM_PROMPT = f"""\
 You are a creative Arabic storyteller writing for language learners. Write genuinely \
@@ -464,6 +465,26 @@ def complete_story(
     if not story:
         raise ValueError(f"Story {story_id} not found")
 
+    if story.status == "completed":
+        return {
+            "story_id": story_id,
+            "status": "completed",
+            "words_reviewed": 0,
+            "good_count": 0,
+            "again_count": 0,
+            "duplicate": True,
+        }
+    if story.status in TERMINAL_STORY_STATUSES:
+        return {
+            "story_id": story_id,
+            "status": story.status,
+            "words_reviewed": 0,
+            "good_count": 0,
+            "again_count": 0,
+            "duplicate": True,
+            "conflict": True,
+        }
+
     story.status = "completed"
     story.completed_at = datetime.now(timezone.utc)
 
@@ -531,6 +552,17 @@ def skip_story(
     if not story:
         raise ValueError(f"Story {story_id} not found")
 
+    if story.status == "skipped":
+        return {"story_id": story_id, "status": "skipped", "again_count": 0, "duplicate": True}
+    if story.status in TERMINAL_STORY_STATUSES:
+        return {
+            "story_id": story_id,
+            "status": story.status,
+            "again_count": 0,
+            "duplicate": True,
+            "conflict": True,
+        }
+
     story.status = "skipped"
     again_count = 0
 
@@ -568,6 +600,17 @@ def too_difficult_story(
     story = db.query(Story).filter(Story.id == story_id).first()
     if not story:
         raise ValueError(f"Story {story_id} not found")
+
+    if story.status == "too_difficult":
+        return {"story_id": story_id, "status": "too_difficult", "again_count": 0, "duplicate": True}
+    if story.status in TERMINAL_STORY_STATUSES:
+        return {
+            "story_id": story_id,
+            "status": story.status,
+            "again_count": 0,
+            "duplicate": True,
+            "conflict": True,
+        }
 
     story.status = "too_difficult"
     again_count = 0

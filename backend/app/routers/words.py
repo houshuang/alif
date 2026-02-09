@@ -2,10 +2,19 @@ import json
 import math
 from typing import Optional
 from fastapi import APIRouter, Depends, Query, HTTPException
+from sqlalchemy import case, func
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.models import Lemma, UserLemmaKnowledge, ReviewLog, Sentence
+from app.models import (
+    GrammarFeature,
+    Lemma,
+    ReviewLog,
+    Sentence,
+    SentenceWord,
+    UserLemmaKnowledge,
+)
+from app.services.grammar_service import seed_grammar_features
 from app.services.word_selector import get_root_family
 
 
@@ -36,6 +45,55 @@ def knowledge_score(fsrs_card_json, times_seen: int, times_correct: int) -> int:
     return round((0.7 * s_score + 0.3 * accuracy) * confidence * 100)
 
 router = APIRouter(prefix="/api/words", tags=["words"])
+
+
+def _coerce_grammar_keys(value: object) -> list[str]:
+    if value is None:
+        return []
+    payload = value
+    if isinstance(payload, str):
+        try:
+            payload = json.loads(payload)
+        except json.JSONDecodeError:
+            return []
+    if not isinstance(payload, list):
+        return []
+    return [v for v in payload if isinstance(v, str)]
+
+
+def _build_grammar_details(
+    db: Session,
+    grammar_keys: list[str],
+) -> list[dict]:
+    if not grammar_keys:
+        return []
+
+    seed_grammar_features(db)
+    features = (
+        db.query(GrammarFeature)
+        .filter(GrammarFeature.feature_key.in_(grammar_keys))
+        .all()
+    )
+    by_key = {f.feature_key: f for f in features}
+
+    details: list[dict] = []
+    for key in grammar_keys:
+        f = by_key.get(key)
+        if f:
+            details.append({
+                "feature_key": key,
+                "category": f.category,
+                "label_en": f.label_en,
+                "label_ar": f.label_ar,
+            })
+        else:
+            details.append({
+                "feature_key": key,
+                "category": None,
+                "label_en": key.replace("_", " "),
+                "label_ar": None,
+            })
+    return details
 
 
 @router.get("")
@@ -99,6 +157,13 @@ def get_word(lemma_id: int, db: Session = Depends(get_db)):
         .all()
     )
 
+    sentence_ids_from_reviews = [r.sentence_id for r in reviews if r.sentence_id]
+    sentence_ids = list(dict.fromkeys(sentence_ids_from_reviews))
+    sentence_map: dict[int, Sentence] = {}
+    if sentence_ids:
+        sentences = db.query(Sentence).filter(Sentence.id.in_(sentence_ids)).all()
+        sentence_map = {s.id: s for s in sentences}
+
     review_history = []
     for r in reviews:
         entry = {
@@ -110,15 +175,91 @@ def get_word(lemma_id: int, db: Session = Depends(get_db)):
             "review_mode": r.review_mode,
         }
         if r.sentence_id:
-            sent = db.query(Sentence).filter(Sentence.id == r.sentence_id).first()
+            sent = sentence_map.get(r.sentence_id)
             if sent:
                 entry["sentence_arabic"] = sent.arabic_diacritized or sent.arabic_text
                 entry["sentence_english"] = sent.english_translation
         review_history.append(entry)
 
+    # All sentence contexts this lemma appears in + per-sentence performance stats
+    sentence_words = (
+        db.query(SentenceWord)
+        .filter(SentenceWord.lemma_id == lemma_id)
+        .order_by(SentenceWord.sentence_id.asc(), SentenceWord.position.asc())
+        .all()
+    )
+    sentence_surface_map: dict[int, list[str]] = {}
+    sentence_order: list[int] = []
+    for sw in sentence_words:
+        if sw.sentence_id not in sentence_surface_map:
+            sentence_surface_map[sw.sentence_id] = []
+            sentence_order.append(sw.sentence_id)
+        sentence_surface_map[sw.sentence_id].append(sw.surface_form)
+
+    sentence_stats: list[dict] = []
+    if sentence_order:
+        stats_rows = (
+            db.query(
+                ReviewLog.sentence_id.label("sentence_id"),
+                func.count(ReviewLog.id).label("seen_count"),
+                func.sum(case((ReviewLog.rating == 1, 1), else_=0)).label("missed_count"),
+                func.sum(case((ReviewLog.rating == 2, 1), else_=0)).label("confused_count"),
+                func.sum(case((ReviewLog.rating >= 3, 1), else_=0)).label("understood_count"),
+                func.sum(case((ReviewLog.credit_type == "primary", 1), else_=0)).label("primary_count"),
+                func.sum(case((ReviewLog.credit_type == "collateral", 1), else_=0)).label("collateral_count"),
+                func.max(ReviewLog.reviewed_at).label("last_reviewed_at"),
+            )
+            .filter(
+                ReviewLog.lemma_id == lemma_id,
+                ReviewLog.sentence_id.isnot(None),
+                ReviewLog.sentence_id.in_(sentence_order),
+            )
+            .group_by(ReviewLog.sentence_id)
+            .all()
+        )
+        stats_map = {row.sentence_id: row for row in stats_rows}
+
+        sentence_rows = (
+            db.query(Sentence)
+            .filter(Sentence.id.in_(sentence_order))
+            .all()
+        )
+        sentence_by_id = {s.id: s for s in sentence_rows}
+
+        for sid in sentence_order:
+            sent = sentence_by_id.get(sid)
+            if sent is None:
+                continue
+            row = stats_map.get(sid)
+            seen_count = int(row.seen_count) if row else 0
+            missed_count = int(row.missed_count) if row and row.missed_count is not None else 0
+            confused_count = int(row.confused_count) if row and row.confused_count is not None else 0
+            understood_count = int(row.understood_count) if row and row.understood_count is not None else 0
+            primary_count = int(row.primary_count) if row and row.primary_count is not None else 0
+            collateral_count = int(row.collateral_count) if row and row.collateral_count is not None else 0
+            accuracy_pct = round((understood_count / seen_count) * 100, 1) if seen_count > 0 else None
+
+            sentence_stats.append({
+                "sentence_id": sid,
+                "surface_forms": sentence_surface_map.get(sid, []),
+                "sentence_arabic": sent.arabic_diacritized or sent.arabic_text,
+                "sentence_english": sent.english_translation,
+                "sentence_transliteration": sent.transliteration,
+                "seen_count": seen_count,
+                "missed_count": missed_count,
+                "confused_count": confused_count,
+                "understood_count": understood_count,
+                "primary_count": primary_count,
+                "collateral_count": collateral_count,
+                "accuracy_pct": accuracy_pct,
+                "last_reviewed_at": row.last_reviewed_at.isoformat() if row and row.last_reviewed_at else None,
+            })
+
     ts = k.times_seen if k else 0
     tc = k.times_correct if k else 0
     score = knowledge_score(k.fsrs_card_json if k else None, ts, tc)
+    grammar_keys = _coerce_grammar_keys(lemma.grammar_features_json)
+    grammar_details = _build_grammar_details(db, grammar_keys)
 
     return {
         "lemma_id": lemma.lemma_id,
@@ -134,6 +275,9 @@ def get_word(lemma_id: int, db: Session = Depends(get_db)):
         "times_seen": ts,
         "times_correct": tc,
         "knowledge_score": score,
+        "forms_json": lemma.forms_json,
+        "grammar_features": grammar_details,
         "root_family": root_family,
         "review_history": review_history,
+        "sentence_stats": sentence_stats,
     }

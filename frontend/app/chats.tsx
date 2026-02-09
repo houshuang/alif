@@ -12,6 +12,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { colors, fonts } from "../lib/theme";
 import { getChatConversations, getChatConversation } from "../lib/api";
 import { ConversationSummary, ChatMessageItem } from "../lib/types";
+import MarkdownMessage from "../lib/MarkdownMessage";
 
 const SCREEN_COLORS: Record<string, string> = {
   review: colors.accent,
@@ -129,14 +130,11 @@ export default function ChatsScreen() {
                   <Text style={styles.messageRole}>
                     {msg.role === "user" ? "You" : "AI"}
                   </Text>
-                  <Text
-                    style={[
-                      styles.messageText,
-                      msg.role === "user" ? styles.userText : styles.assistantText,
-                    ]}
-                  >
-                    {msg.content}
-                  </Text>
+                  {msg.role === "user" ? (
+                    <Text style={[styles.messageText, styles.userText]}>{msg.content}</Text>
+                  ) : (
+                    <MarkdownMessage content={msg.content} textColor={colors.text} />
+                  )}
                 </View>
               ))
             )}

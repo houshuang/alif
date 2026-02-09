@@ -14,6 +14,7 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { colors, fonts } from "./theme";
 import { askAI } from "./api";
+import MarkdownMessage from "./MarkdownMessage";
 
 interface ChatMessage {
   role: "user" | "assistant";
@@ -23,9 +24,14 @@ interface ChatMessage {
 interface AskAIProps {
   contextBuilder: () => string;
   screen: string;
+  buildExplainPrompt?: () => string | null;
 }
 
-export default function AskAI({ contextBuilder, screen }: AskAIProps) {
+export default function AskAI({
+  contextBuilder,
+  screen,
+  buildExplainPrompt,
+}: AskAIProps) {
   const [visible, setVisible] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [conversationId, setConversationId] = useState<string | undefined>();
@@ -51,16 +57,14 @@ export default function AskAI({ contextBuilder, screen }: AskAIProps) {
     }
   }, [messages.length]);
 
-  async function handleSend() {
-    const question = input.trim();
+  async function sendQuestion(question: string) {
     if (!question || loading) return;
 
-    setInput("");
     setMessages((prev) => [...prev, { role: "user", content: question }]);
     setLoading(true);
 
     try {
-      const context = conversationId ? "" : contextBuilder();
+      const context = contextBuilder();
       const result = await askAI(question, context, screen, conversationId);
       setConversationId(result.conversation_id);
       setMessages((prev) => [...prev, { role: "assistant", content: result.answer }]);
@@ -74,6 +78,20 @@ export default function AskAI({ contextBuilder, screen }: AskAIProps) {
     } finally {
       setLoading(false);
     }
+  }
+
+  async function handleSend() {
+    const question = input.trim();
+    if (!question || loading) return;
+    setInput("");
+    await sendQuestion(question);
+  }
+
+  async function handleExplain() {
+    if (loading || !buildExplainPrompt) return;
+    const prompt = buildExplainPrompt()?.trim();
+    if (!prompt) return;
+    await sendQuestion(prompt);
   }
 
   return (
@@ -118,14 +136,11 @@ export default function AskAI({ contextBuilder, screen }: AskAIProps) {
                     msg.role === "user" ? styles.userBubble : styles.assistantBubble,
                   ]}
                 >
-                  <Text
-                    style={[
-                      styles.messageText,
-                      msg.role === "user" ? styles.userText : styles.assistantText,
-                    ]}
-                  >
-                    {msg.content}
-                  </Text>
+                  {msg.role === "user" ? (
+                    <Text style={[styles.messageText, styles.userText]}>{msg.content}</Text>
+                  ) : (
+                    <MarkdownMessage content={msg.content} textColor={colors.text} />
+                  )}
                 </View>
               ))}
               {loading && (
@@ -134,6 +149,19 @@ export default function AskAI({ contextBuilder, screen }: AskAIProps) {
                 </View>
               )}
             </ScrollView>
+
+            {buildExplainPrompt && (
+              <View style={styles.quickActions}>
+                <Pressable
+                  style={[styles.quickActionButton, loading && styles.sendDisabled]}
+                  onPress={handleExplain}
+                  disabled={loading}
+                >
+                  <Ionicons name="sparkles-outline" size={16} color={colors.text} />
+                  <Text style={styles.quickActionText}>Explain</Text>
+                </Pressable>
+              </View>
+            )}
 
             <View style={styles.inputRow}>
               <TextInput
@@ -246,6 +274,26 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "flex-end",
     gap: 8,
+  },
+  quickActions: {
+    flexDirection: "row",
+    marginBottom: 10,
+  },
+  quickActionButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    backgroundColor: colors.surfaceLight,
+  },
+  quickActionText: {
+    color: colors.text,
+    fontSize: fonts.small,
+    fontWeight: "600",
   },
   textInput: {
     flex: 1,

@@ -345,6 +345,19 @@ class TestLearnAPI:
         assert data["count"] == 2
         assert len(data["words"]) == 2
 
+    def test_next_words_includes_grammar_details(self, client, db_session):
+        lemma = _create_lemma(db_session, "يَكْتُبُ", "he writes", freq=10)
+        lemma.grammar_features_json = ["present"]
+        db_session.commit()
+
+        resp = client.get("/api/learn/next-words?count=1")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["count"] == 1
+        word = data["words"][0]
+        assert "grammar_details" in word
+        assert any(g["feature_key"] == "present" for g in word["grammar_details"])
+
     def test_introduce_endpoint(self, client, db_session):
         lemma = _create_lemma(db_session, "كتاب", "book", freq=100)
         db_session.commit()

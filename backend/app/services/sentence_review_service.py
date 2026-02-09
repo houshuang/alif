@@ -41,13 +41,24 @@ def submit_sentence_review(
     All words (including previously unseen) get full FSRS cards.
     """
     if client_review_id:
-        existing = (
-            db.query(SentenceReviewLog)
-            .filter(SentenceReviewLog.client_review_id == client_review_id)
-            .first()
-        )
-        if existing:
-            return {"word_results": [], "duplicate": True}
+        if sentence_id is not None:
+            existing = (
+                db.query(SentenceReviewLog)
+                .filter(SentenceReviewLog.client_review_id == client_review_id)
+                .first()
+            )
+            if existing:
+                return {"word_results": [], "duplicate": True}
+        else:
+            # Word-only sentence items do not create SentenceReviewLog rows.
+            # Use the primary ReviewLog's client_review_id for idempotency.
+            existing_primary = (
+                db.query(ReviewLog)
+                .filter(ReviewLog.client_review_id == client_review_id)
+                .first()
+            )
+            if existing_primary:
+                return {"word_results": [], "duplicate": True}
 
     now = datetime.now(timezone.utc)
     missed_set = set(missed_lemma_ids or [])
@@ -94,7 +105,11 @@ def submit_sentence_review(
             session_id=session_id,
             review_mode=review_mode,
             comprehension_signal=comprehension_signal,
-            client_review_id=None,
+            client_review_id=(
+                client_review_id
+                if sentence_id is None and lemma_id == primary_lemma_id
+                else None
+            ),
         )
         # Tag the review log entry with sentence context
         latest_log = (

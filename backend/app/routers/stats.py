@@ -1,7 +1,9 @@
+import json
 from datetime import datetime, timezone, timedelta
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 from sqlalchemy import func, case
+from collections import Counter
 
 from app.database import get_db
 from app.models import Lemma, UserLemmaKnowledge, ReviewLog
@@ -38,14 +40,38 @@ def _count_state(db: Session, state: str) -> int:
     )
 
 
+def _count_due_cards(db: Session, now: datetime) -> int:
+    due = 0
+    rows = (
+        db.query(UserLemmaKnowledge.fsrs_card_json)
+        .filter(UserLemmaKnowledge.fsrs_card_json.isnot(None))
+        .all()
+    )
+    for (card_data,) in rows:
+        if not card_data:
+            continue
+        if isinstance(card_data, str):
+            card_data = json.loads(card_data)
+        due_str = card_data.get("due")
+        if not due_str:
+            continue
+        due_dt = datetime.fromisoformat(due_str)
+        if due_dt.tzinfo is None:
+            due_dt = due_dt.replace(tzinfo=timezone.utc)
+        if due_dt <= now:
+            due += 1
+    return due
+
+
 def _get_basic_stats(db: Session) -> StatsOut:
+    now = datetime.now(timezone.utc)
     total = db.query(func.count(Lemma.lemma_id)).scalar() or 0
     known = _count_state(db, "known")
     learning = _count_state(db, "learning")
     new_count = _count_state(db, "new")
     lapsed = _count_state(db, "lapsed")
 
-    today_start = datetime.now(timezone.utc).replace(
+    today_start = now.replace(
         hour=0, minute=0, second=0, microsecond=0
     )
     reviews_today = (
@@ -55,7 +81,7 @@ def _get_basic_stats(db: Session) -> StatsOut:
     )
     total_reviews = db.query(func.count(ReviewLog.id)).scalar() or 0
 
-    due_today = learning + new_count
+    due_today = _count_due_cards(db, now)
 
     return StatsOut(
         total_words=total,
@@ -69,8 +95,62 @@ def _get_basic_stats(db: Session) -> StatsOut:
     )
 
 
-def _get_daily_history(db: Session, days: int = 90) -> list[DailyStatsPoint]:
+def _extract_logged_state(fsrs_log_json: object) -> str | None:
+    if not fsrs_log_json:
+        return None
+    payload = fsrs_log_json
+    if isinstance(payload, str):
+        try:
+            payload = json.loads(payload)
+        except json.JSONDecodeError:
+            return None
+    if not isinstance(payload, dict):
+        return None
+    state = payload.get("state")
+    return state if isinstance(state, str) else None
+
+
+def _get_first_known_dates(db: Session) -> dict[int, datetime.date]:
+    """Return first date each lemma reached state='known' in review logs."""
+    rows = (
+        db.query(ReviewLog.lemma_id, ReviewLog.reviewed_at, ReviewLog.fsrs_log_json)
+        .order_by(ReviewLog.reviewed_at.asc(), ReviewLog.id.asc())
+        .all()
+    )
+    first_known_dates: dict[int, datetime.date] = {}
+    for lemma_id, reviewed_at, fsrs_log_json in rows:
+        if lemma_id in first_known_dates or reviewed_at is None:
+            continue
+        if _extract_logged_state(fsrs_log_json) != "known":
+            continue
+        first_known_dates[lemma_id] = reviewed_at.date()
+    return first_known_dates
+
+
+def _count_known_without_transition(
+    db: Session,
+    transitioned_known_ids: set[int],
+) -> int:
+    """Count currently-known lemmas that have no logged known-transition date."""
+    rows = (
+        db.query(UserLemmaKnowledge.lemma_id)
+        .filter(UserLemmaKnowledge.knowledge_state == "known")
+        .all()
+    )
+    known_ids = {lemma_id for (lemma_id,) in rows}
+    return len(known_ids - transitioned_known_ids)
+
+
+def _get_daily_history(
+    db: Session,
+    days: int = 90,
+    first_known_dates: dict[int, datetime.date] | None = None,
+) -> list[DailyStatsPoint]:
     cutoff = datetime.now(timezone.utc) - timedelta(days=days)
+    cutoff_date = cutoff.date()
+
+    if first_known_dates is None:
+        first_known_dates = _get_first_known_dates(db)
 
     rows = (
         db.query(
@@ -86,31 +166,10 @@ def _get_daily_history(db: Session, days: int = 90) -> list[DailyStatsPoint]:
         .all()
     )
 
-    # Build cumulative known count per day by checking knowledge transitions.
-    # For simplicity, we count distinct lemmas that reached "known" state
-    # on or before each day.
-    known_by_day = (
-        db.query(
-            func.date(UserLemmaKnowledge.last_reviewed).label("day"),
-            func.count(UserLemmaKnowledge.id).label("learned"),
-        )
-        .filter(
-            UserLemmaKnowledge.knowledge_state == "known",
-            UserLemmaKnowledge.last_reviewed >= cutoff,
-        )
-        .group_by(func.date(UserLemmaKnowledge.last_reviewed))
-        .all()
-    )
-    known_map = {str(r.day): r.learned for r in known_by_day}
-
-    # Total known before cutoff
-    known_before = (
-        db.query(func.count(UserLemmaKnowledge.id))
-        .filter(
-            UserLemmaKnowledge.knowledge_state == "known",
-            UserLemmaKnowledge.last_reviewed < cutoff,
-        )
-        .scalar() or 0
+    known_before = sum(1 for d in first_known_dates.values() if d < cutoff_date)
+    known_before += _count_known_without_transition(db, set(first_known_dates.keys()))
+    known_map = Counter(
+        d.isoformat() for d in first_known_dates.values() if d >= cutoff_date
     )
 
     cumulative = known_before
@@ -174,10 +233,15 @@ def _calculate_streak(study_dates: list[str]) -> tuple[int, int]:
     return current, longest
 
 
-def _get_pace(db: Session) -> LearningPaceOut:
+def _get_pace(
+    db: Session,
+    first_known_dates: dict[int, datetime.date] | None = None,
+) -> LearningPaceOut:
     now = datetime.now(timezone.utc)
     study_dates = _get_study_dates(db)
     current_streak, longest_streak = _calculate_streak(study_dates)
+    if first_known_dates is None:
+        first_known_dates = _get_first_known_dates(db)
 
     def _study_days_in_window(days: int) -> int:
         cutoff = (now - timedelta(days=days)).date()
@@ -185,15 +249,8 @@ def _get_pace(db: Session) -> LearningPaceOut:
                    if (datetime.strptime(d, "%Y-%m-%d").date() if isinstance(d, str) else d) >= cutoff)
 
     def words_learned_in(days: int) -> float:
-        cutoff = now - timedelta(days=days)
-        count = (
-            db.query(func.count(UserLemmaKnowledge.id))
-            .filter(
-                UserLemmaKnowledge.knowledge_state == "known",
-                UserLemmaKnowledge.last_reviewed >= cutoff,
-            )
-            .scalar() or 0
-        )
+        cutoff_date = (now - timedelta(days=days)).date()
+        count = sum(1 for d in first_known_dates.values() if d >= cutoff_date)
         actual_days = _study_days_in_window(days)
         return round(count / max(actual_days, 1), 1)
 
@@ -292,9 +349,10 @@ def get_analytics(
     db: Session = Depends(get_db),
 ):
     basic = _get_basic_stats(db)
-    pace = _get_pace(db)
+    first_known_dates = _get_first_known_dates(db)
+    pace = _get_pace(db, first_known_dates=first_known_dates)
     cefr = _estimate_cefr(basic.known)
-    history = _get_daily_history(db, days)
+    history = _get_daily_history(db, days, first_known_dates=first_known_dates)
 
     return AnalyticsOut(
         stats=basic,

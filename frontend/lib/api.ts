@@ -152,12 +152,34 @@ export async function getWordDetail(id: number): Promise<WordDetail> {
     frequency_rank: w.frequency_rank,
     times_reviewed: w.times_seen || 0,
     correct_count: w.times_correct || 0,
+    forms_json: w.forms_json || null,
+    grammar_features: (w.grammar_features || []).map((g: any) => ({
+      feature_key: g.feature_key,
+      category: g.category ?? null,
+      label_en: g.label_en || g.feature_key,
+      label_ar: g.label_ar ?? null,
+    })),
     root_family: (w.root_family || []).map((f: any) => ({
       id: f.id,
       arabic: f.arabic,
       english: f.english,
     })),
     review_history: (w.review_history || []),
+    sentence_stats: (w.sentence_stats || []).map((s: any) => ({
+      sentence_id: s.sentence_id,
+      surface_forms: s.surface_forms || [],
+      sentence_arabic: s.sentence_arabic || "",
+      sentence_english: s.sentence_english ?? null,
+      sentence_transliteration: s.sentence_transliteration ?? null,
+      seen_count: s.seen_count || 0,
+      missed_count: s.missed_count || 0,
+      confused_count: s.confused_count || 0,
+      understood_count: s.understood_count || 0,
+      primary_count: s.primary_count || 0,
+      collateral_count: s.collateral_count || 0,
+      accuracy_pct: s.accuracy_pct ?? null,
+      last_reviewed_at: s.last_reviewed_at ?? null,
+    })),
   };
 }
 
@@ -172,6 +194,8 @@ export async function getStats(): Promise<Stats> {
       due_today: raw.due_today,
       reviews_today: raw.reviews_today,
       streak_days: 0,
+      total_reviews: raw.total_reviews ?? 0,
+      lapsed: raw.lapsed ?? 0,
     };
     cacheData("stats", stats).catch(() => {});
     return stats;
@@ -259,12 +283,6 @@ export async function submitSentenceReview(
 ): Promise<{ word_results: any[] }> {
   const clientReviewId = submission.client_review_id || generateUuid();
 
-  await markReviewed(
-    submission.session_id,
-    submission.sentence_id,
-    submission.primary_lemma_id
-  );
-
   await enqueueReview("sentence", {
     sentence_id: submission.sentence_id,
     primary_lemma_id: submission.primary_lemma_id,
@@ -278,6 +296,13 @@ export async function submitSentenceReview(
     lookup_count: submission.lookup_count,
   }, clientReviewId);
 
+  await markReviewed(
+    submission.session_id,
+    submission.sentence_id,
+    submission.primary_lemma_id,
+    submission.review_mode
+  );
+
   if (netStatus.isOnline) {
     flushQueue().catch((e) => console.warn("sync flush failed:", e));
   }
@@ -288,7 +313,7 @@ export async function submitSentenceReview(
 export async function prefetchSessions(mode: ReviewMode): Promise<void> {
   try {
     const data = await fetchApi<any>(
-      `/api/review/next-sentences?limit=10&mode=${mode}`
+      `/api/review/next-sentences?limit=10&mode=${mode}&prefetch=true`
     );
     const session = { ...data, session_id: data.session_id || generateSessionId() };
     await cacheSessions(mode, [session]);
@@ -299,7 +324,7 @@ export async function deepPrefetchSessions(mode: ReviewMode, count: number = 3):
   for (let i = 0; i < count; i++) {
     try {
       const data = await fetchApi<any>(
-        `/api/review/next-sentences?limit=10&mode=${mode}`
+        `/api/review/next-sentences?limit=10&mode=${mode}&prefetch=true`
       );
       const session = { ...data, session_id: data.session_id || generateSessionId() };
       await cacheSessions(mode, [session]);

@@ -254,6 +254,7 @@ def select_next_words(
             "root": lemma.root.root if lemma.root else None,
             "root_meaning": lemma.root.core_meaning_en if lemma.root else None,
             "forms_json": lemma.forms_json,
+            "grammar_features": lemma.grammar_features_json or [],
             "audio_url": lemma.audio_url,
             "example_ar": lemma.example_ar,
             "example_en": lemma.example_en,

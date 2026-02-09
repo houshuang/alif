@@ -91,25 +91,27 @@ def submit(body: ReviewSubmitIn, db: Session = Depends(get_db)):
 def next_sentences(
     limit: int = Query(10, ge=1, le=20),
     mode: str = Query("reading"),
+    prefetch: bool = Query(False),
     db: Session = Depends(get_db),
 ):
     """Get a sentence-based review session."""
-    result = build_session(db, limit=limit, mode=mode)
+    result = build_session(db, limit=limit, mode=mode, log_events=not prefetch)
 
     # Listening mode is only for already-learned words — no intro candidates
     if mode == "listening":
         result["intro_candidates"] = []
 
-    log_interaction(
-        event="session_start",
-        session_id=result["session_id"],
-        review_mode=mode,
-        total_due_words=result["total_due_words"],
-        covered_due_words=result["covered_due_words"],
-        sentence_count=len([i for i in result["items"] if i.get("sentence_id")]),
-        fallback_count=len([i for i in result["items"] if not i.get("sentence_id")]),
-        intro_candidates=len(result.get("intro_candidates", [])),
-    )
+    if not prefetch:
+        log_interaction(
+            event="session_start",
+            session_id=result["session_id"],
+            review_mode=mode,
+            total_due_words=result["total_due_words"],
+            covered_due_words=result["covered_due_words"],
+            sentence_count=len([i for i in result["items"] if i.get("sentence_id")]),
+            fallback_count=len([i for i in result["items"] if not i.get("sentence_id")]),
+            intro_candidates=len(result.get("intro_candidates", [])),
+        )
 
     return result
 
@@ -228,11 +230,15 @@ def sync_reviews(body: BulkSyncIn, db: Session = Depends(get_db)):
                         lemma_id=payload["primary_lemma_id"],
                         comprehension_signal=payload["comprehension_signal"],
                         missed_lemma_ids=payload.get("missed_lemma_ids", []),
+                        confused_lemma_ids=payload.get("confused_lemma_ids", []),
                         response_ms=payload.get("response_ms"),
                         session_id=payload.get("session_id"),
                         review_mode=payload.get("review_mode", "reading"),
                         words_reviewed=len(result.get("word_results", [])),
                         collateral_count=len([w for w in result.get("word_results", []) if w.get("credit_type") == "collateral"]),
+                        word_ratings={w["lemma_id"]: w["rating"] for w in result.get("word_results", []) if "lemma_id" in w and "rating" in w},
+                        audio_play_count=payload.get("audio_play_count"),
+                        lookup_count=payload.get("lookup_count"),
                         source="sync",
                     )
                 results.append({"client_review_id": item.client_review_id, "status": status})

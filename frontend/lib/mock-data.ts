@@ -189,7 +189,9 @@ export const MOCK_REVIEW_CARDS: ReviewCard[] = [
   },
 ];
 
-export const MOCK_WORDS: Word[] = [
+const MOCK_WORDS_BASE: Array<
+  Omit<Word, "times_seen" | "times_correct" | "last_reviewed" | "knowledge_score">
+> = [
   { id: 1, arabic: "كِتَاب", english: "book", transliteration: "kitāb", root: "ك.ت.ب", pos: "noun", state: "known", due_date: null },
   { id: 2, arabic: "مَدْرَسَة", english: "school", transliteration: "madrasa", root: "د.ر.س", pos: "noun", state: "learning", due_date: "2026-02-08" },
   { id: 3, arabic: "كَتَبَ", english: "he wrote", transliteration: "kataba", root: "ك.ت.ب", pos: "verb", state: "known", due_date: null },
@@ -207,6 +209,14 @@ export const MOCK_WORDS: Word[] = [
   { id: 15, arabic: "كَبِير", english: "big", transliteration: "kabīr", root: "ك.ب.ر", pos: "adjective", state: "known", due_date: null },
 ];
 
+export const MOCK_WORDS: Word[] = MOCK_WORDS_BASE.map((w) => ({
+  ...w,
+  times_seen: w.state === "known" ? 12 : w.state === "learning" ? 6 : 0,
+  times_correct: w.state === "known" ? 10 : w.state === "learning" ? 4 : 0,
+  last_reviewed: w.state === "new" ? null : "2026-02-08T12:00:00Z",
+  knowledge_score: w.state === "known" ? 84 : w.state === "learning" ? 48 : 0,
+}));
+
 export const MOCK_WORD_DETAIL: WordDetail = {
   id: 1,
   arabic: "كِتَاب",
@@ -216,15 +226,25 @@ export const MOCK_WORD_DETAIL: WordDetail = {
   pos: "noun",
   state: "known",
   due_date: null,
+  times_seen: 12,
+  times_correct: 10,
+  last_reviewed: "2026-02-08T12:00:00Z",
+  knowledge_score: 86,
   frequency_rank: 142,
   times_reviewed: 12,
   correct_count: 10,
+  forms_json: { plural: "كُتُب" },
+  grammar_features: [
+    { feature_key: "singular", category: "number", label_en: "Singular", label_ar: "مُفْرَد" },
+  ],
   root_family: [
     { id: 3, arabic: "كَتَبَ", english: "he wrote" },
     { id: 16, arabic: "مَكْتَب", english: "office / desk" },
     { id: 17, arabic: "مَكْتَبَة", english: "library / bookstore" },
     { id: 18, arabic: "كَاتِب", english: "writer" },
   ],
+  review_history: [],
+  sentence_stats: [],
 };
 
 export const MOCK_STATS: Stats = {
@@ -235,6 +255,8 @@ export const MOCK_STATS: Stats = {
   due_today: 10,
   reviews_today: 0,
   streak_days: 3,
+  total_reviews: 1260,
+  lapsed: 4,
 };
 
 export const MOCK_LEARN_CANDIDATES: LearnCandidate[] = [
@@ -251,8 +273,10 @@ export const MOCK_LEARN_CANDIDATES: LearnCandidate[] = [
     root_id: 20,
     forms_json: { gender: "f", plural: "سَيَّارَات" },
     audio_url: null,
+    example_ar: null,
+    example_en: null,
     score: 0.82,
-    score_breakdown: { frequency: 0.35, root_familiarity: 0.3, recency_bonus: 0.0, known_siblings: 1, total_siblings: 4 },
+    score_breakdown: { frequency: 0.35, root_familiarity: 0.3, recency_bonus: 0.0, story_bonus: 0.0, known_siblings: 1, total_siblings: 4 },
   },
   {
     lemma_id: 51,
@@ -267,8 +291,10 @@ export const MOCK_LEARN_CANDIDATES: LearnCandidate[] = [
     root_id: 1,
     forms_json: { gender: "f", plural: "مَكْتَبَات" },
     audio_url: null,
+    example_ar: null,
+    example_en: null,
     score: 0.78,
-    score_breakdown: { frequency: 0.22, root_familiarity: 0.4, recency_bonus: 0.0, known_siblings: 2, total_siblings: 5 },
+    score_breakdown: { frequency: 0.22, root_familiarity: 0.4, recency_bonus: 0.0, story_bonus: 0.0, known_siblings: 2, total_siblings: 5 },
   },
   {
     lemma_id: 52,
@@ -283,8 +309,10 @@ export const MOCK_LEARN_CANDIDATES: LearnCandidate[] = [
     root_id: 21,
     forms_json: { feminine: "جَمِيلَة" },
     audio_url: null,
+    example_ar: null,
+    example_en: null,
     score: 0.71,
-    score_breakdown: { frequency: 0.30, root_familiarity: 0.0, recency_bonus: 0.0, known_siblings: 0, total_siblings: 3 },
+    score_breakdown: { frequency: 0.30, root_familiarity: 0.0, recency_bonus: 0.0, story_bonus: 0.0, known_siblings: 0, total_siblings: 3 },
   },
   {
     lemma_id: 53,
@@ -299,8 +327,10 @@ export const MOCK_LEARN_CANDIDATES: LearnCandidate[] = [
     root_id: 22,
     forms_json: { gender: "m" },
     audio_url: null,
+    example_ar: null,
+    example_en: null,
     score: 0.65,
-    score_breakdown: { frequency: 0.18, root_familiarity: 0.0, recency_bonus: 0.0, known_siblings: 0, total_siblings: 4 },
+    score_breakdown: { frequency: 0.18, root_familiarity: 0.0, recency_bonus: 0.0, story_bonus: 0.0, known_siblings: 0, total_siblings: 4 },
   },
   {
     lemma_id: 54,
@@ -315,8 +345,10 @@ export const MOCK_LEARN_CANDIDATES: LearnCandidate[] = [
     root_id: 5,
     forms_json: { gender: "m" },
     audio_url: null,
+    example_ar: null,
+    example_en: null,
     score: 0.75,
-    score_breakdown: { frequency: 0.27, root_familiarity: 0.35, recency_bonus: 0.0, known_siblings: 1, total_siblings: 6 },
+    score_breakdown: { frequency: 0.27, root_familiarity: 0.35, recency_bonus: 0.0, story_bonus: 0.0, known_siblings: 1, total_siblings: 6 },
   },
 ];
 
@@ -328,6 +360,8 @@ export const MOCK_ANALYTICS: Analytics = {
     new: 170,
     due_today: 10,
     reviews_today: 0,
+    total_reviews: 1260,
+    lapsed: 4,
   },
   pace: {
     words_per_day_7d: 3.1,
@@ -337,6 +371,8 @@ export const MOCK_ANALYTICS: Analytics = {
     total_study_days: 14,
     current_streak: 3,
     longest_streak: 7,
+    accuracy_7d: 83.4,
+    study_days_7d: 5,
   },
   cefr: {
     level: "Pre-A1",

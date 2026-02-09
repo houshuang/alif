@@ -91,6 +91,30 @@ function FormsRow({ pos, forms }: { pos: string | null; forms: WordForms | null 
   );
 }
 
+function GrammarRow({
+  details,
+}: {
+  details: { feature_key: string; label_en: string; label_ar: string | null }[] | undefined;
+}) {
+  const items = details ?? [];
+  if (items.length === 0) return null;
+  return (
+    <View style={styles.grammarSection}>
+      <Text style={styles.grammarTitle}>Grammar</Text>
+      <View style={styles.grammarChips}>
+        {items.map((g) => (
+          <View key={g.feature_key} style={styles.grammarChip}>
+            <Text style={styles.grammarChipEn}>{g.label_en}</Text>
+            {g.label_ar ? (
+              <Text style={styles.grammarChipAr}>{g.label_ar}</Text>
+            ) : null}
+          </View>
+        ))}
+      </View>
+    </View>
+  );
+}
+
 function PlayButton({ audioUrl, word }: { audioUrl: string | null; word: string }) {
   const [playing, setPlaying] = useState(false);
   const soundRef = useRef<Audio.Sound | null>(null);
@@ -347,6 +371,9 @@ export default function LearnScreen() {
       if (c.root) parts.push(`Root: ${c.root}${c.root_meaning ? ` (${c.root_meaning})` : ""}`);
       if (c.transliteration) parts.push(`Transliteration: ${c.transliteration}`);
       if (c.forms_json) parts.push(`Forms: ${JSON.stringify(c.forms_json)}`);
+      if (c.grammar_details && c.grammar_details.length > 0) {
+        parts.push(`Grammar: ${c.grammar_details.map((g) => g.label_en).join(", ")}`);
+      }
       if (c.example_ar) parts.push(`Example: ${c.example_ar}${c.example_en ? ` — ${c.example_en}` : ""}`);
       return parts.join("\n");
     };
@@ -386,6 +413,7 @@ export default function LearnScreen() {
             {posLabel(c.pos, c.forms_json)}
           </Text>
           <FormsRow pos={c.pos} forms={c.forms_json} />
+          <GrammarRow details={c.grammar_details} />
 
           {c.example_ar && (
             <View style={styles.exampleSection}>
@@ -849,6 +877,44 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     flexWrap: "wrap",
     justifyContent: "center",
+  },
+  grammarSection: {
+    marginTop: 2,
+    marginBottom: 12,
+    alignItems: "center",
+    width: "100%",
+  },
+  grammarTitle: {
+    color: colors.textSecondary,
+    fontSize: fonts.caption,
+    textTransform: "uppercase",
+    letterSpacing: 0.8,
+    marginBottom: 6,
+  },
+  grammarChips: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "center",
+    gap: 6,
+  },
+  grammarChip: {
+    backgroundColor: colors.surfaceLight,
+    borderRadius: 10,
+    paddingVertical: 4,
+    paddingHorizontal: 10,
+    alignItems: "center",
+  },
+  grammarChipEn: {
+    fontSize: fonts.caption,
+    color: colors.text,
+    fontWeight: "600",
+  },
+  grammarChipAr: {
+    fontSize: fonts.caption,
+    color: colors.textSecondary,
+    writingDirection: "rtl",
+    fontFamily: fontFamily.arabic,
+    marginTop: 1,
   },
   formsTable: {
     flexDirection: "row",

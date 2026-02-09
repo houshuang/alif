@@ -184,6 +184,36 @@ class TestSentenceReviewIdempotency:
         ).all()
         assert len(logs) == 1
 
+    def test_word_only_duplicate_is_idempotent(self, db_session):
+        _seed_word(db_session, 1, "كتاب", "book")
+        db_session.commit()
+
+        r1 = submit_sentence_review(
+            db_session,
+            sentence_id=None,
+            primary_lemma_id=1,
+            comprehension_signal="partial",
+            missed_lemma_ids=[1],
+            client_review_id="sent-word-001",
+        )
+        assert "duplicate" not in r1
+
+        r2 = submit_sentence_review(
+            db_session,
+            sentence_id=None,
+            primary_lemma_id=1,
+            comprehension_signal="partial",
+            missed_lemma_ids=[1],
+            client_review_id="sent-word-001",
+        )
+        assert r2.get("duplicate") is True
+        assert r2["word_results"] == []
+
+        logs = db_session.query(ReviewLog).filter(
+            ReviewLog.client_review_id == "sent-word-001"
+        ).all()
+        assert len(logs) == 1
+
 
 class TestBulkSyncEndpoint:
     def test_mixed_items(self, client, db_session):
@@ -260,6 +290,44 @@ class TestBulkSyncEndpoint:
         assert resp.status_code == 200
         data = resp.json()
         assert data["results"][0]["status"] == "duplicate"
+
+    def test_bulk_sync_word_only_sentence_duplicate(self, client, db_session):
+        _seed_word(db_session, 1, "كتاب", "book")
+        db_session.commit()
+
+        first = client.post("/api/review/sync", json={
+            "reviews": [
+                {
+                    "type": "sentence",
+                    "client_review_id": "sync-word-only-dup",
+                    "payload": {
+                        "sentence_id": None,
+                        "primary_lemma_id": 1,
+                        "comprehension_signal": "partial",
+                        "missed_lemma_ids": [1],
+                    },
+                },
+            ]
+        })
+        assert first.status_code == 200
+        assert first.json()["results"][0]["status"] == "ok"
+
+        second = client.post("/api/review/sync", json={
+            "reviews": [
+                {
+                    "type": "sentence",
+                    "client_review_id": "sync-word-only-dup",
+                    "payload": {
+                        "sentence_id": None,
+                        "primary_lemma_id": 1,
+                        "comprehension_signal": "partial",
+                        "missed_lemma_ids": [1],
+                    },
+                },
+            ]
+        })
+        assert second.status_code == 200
+        assert second.json()["results"][0]["status"] == "duplicate"
 
     def test_bulk_sync_unknown_type(self, client, db_session):
         resp = client.post("/api/review/sync", json={

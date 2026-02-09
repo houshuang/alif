@@ -102,6 +102,7 @@ def build_session(
     db: Session,
     limit: int = 10,
     mode: str = "reading",
+    log_events: bool = True,
 ) -> dict:
     """Assemble a sentence-based review session.
 
@@ -314,15 +315,16 @@ def build_session(
         remaining_due -= best.due_words_covered
         candidates.remove(best)
 
-        log_interaction(
-            event="sentence_selected",
-            session_id=session_id,
-            sentence_id=best.sentence_id,
-            selection_order=len(selected),
-            score=round(best.score, 3),
-            due_words_covered=len(best.due_words_covered),
-            remaining_due=len(remaining_due),
-        )
+        if log_events:
+            log_interaction(
+                event="sentence_selected",
+                session_id=session_id,
+                sentence_id=best.sentence_id,
+                selection_order=len(selected),
+                score=round(best.score, 3),
+                due_words_covered=len(best.due_words_covered),
+                remaining_due=len(remaining_due),
+            )
 
     # Track covered
     covered_ids: set[int] = set()

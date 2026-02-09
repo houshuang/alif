@@ -57,6 +57,7 @@ export default function WordDetailScreen() {
       : 0;
 
   const w = word;
+  const grammarSummary = w.grammar_features.map((g) => g.label_en).join(", ");
   function buildContext(): string {
     const parts = [
       `Word: ${w.arabic} (${w.english})`,
@@ -65,9 +66,13 @@ export default function WordDetailScreen() {
     ];
     if (w.root) parts.push(`Root: ${w.root}`);
     if (w.transliteration) parts.push(`Transliteration: ${w.transliteration}`);
+    if (grammarSummary) parts.push(`Grammar: ${grammarSummary}`);
     if (w.root_family.length > 0) {
       const family = w.root_family.map((f) => `${f.arabic} (${f.english})`).join(", ");
       parts.push(`Root family: ${family}`);
+    }
+    if (w.sentence_stats.length > 0) {
+      parts.push(`Sentence contexts: ${w.sentence_stats.length}`);
     }
     if (w.review_history.length > 0) {
       const recent = w.review_history.slice(0, 5).map((r) =>
@@ -93,6 +98,34 @@ export default function WordDetailScreen() {
           <InfoItem label="Frequency" value={`#${word.frequency_rank}`} />
         )}
       </View>
+
+      {(word.forms_json || word.grammar_features.length > 0) && (
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Grammar</Text>
+          {word.grammar_features.length > 0 && (
+            <View style={styles.grammarChips}>
+              {word.grammar_features.map((g) => (
+                <View key={g.feature_key} style={styles.grammarChip}>
+                  <Text style={styles.grammarChipEn}>{g.label_en}</Text>
+                  {g.label_ar ? (
+                    <Text style={styles.grammarChipAr}>{g.label_ar}</Text>
+                  ) : null}
+                </View>
+              ))}
+            </View>
+          )}
+          {word.forms_json && (
+            <View style={styles.formsCard}>
+              {Object.entries(word.forms_json).map(([key, value]) => (
+                <View key={key} style={styles.formRow}>
+                  <Text style={styles.formKey}>{key.replace(/_/g, " ")}</Text>
+                  <Text style={styles.formVal}>{String(value)}</Text>
+                </View>
+              ))}
+            </View>
+          )}
+        </View>
+      )}
 
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Review History</Text>
@@ -157,6 +190,38 @@ export default function WordDetailScreen() {
               <Text style={styles.familyArabic}>{f.arabic}</Text>
               <Text style={styles.familyEnglish}>{f.english}</Text>
             </Pressable>
+          ))}
+        </View>
+      )}
+
+      {word.sentence_stats.length > 0 && (
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>
+            Sentence Contexts ({word.sentence_stats.length})
+          </Text>
+          {word.sentence_stats.map((s) => (
+            <View key={s.sentence_id} style={styles.sentenceRow}>
+              <Text style={styles.reviewSentence}>{s.sentence_arabic}</Text>
+              {s.sentence_english ? (
+                <Text style={styles.reviewTranslation}>{s.sentence_english}</Text>
+              ) : null}
+              <View style={styles.sentenceStats}>
+                <Text style={styles.sentenceStat}>Seen {s.seen_count}</Text>
+                <Text style={styles.sentenceStat}>Missed {s.missed_count}</Text>
+                <Text style={styles.sentenceStat}>Confused {s.confused_count}</Text>
+                <Text style={styles.sentenceStat}>Understood {s.understood_count}</Text>
+                {s.accuracy_pct !== null ? (
+                  <Text style={styles.sentenceStat}>Accuracy {s.accuracy_pct}%</Text>
+                ) : null}
+              </View>
+              {s.last_reviewed_at ? (
+                <Text style={styles.sentenceLastReviewed}>
+                  Last reviewed {new Date(s.last_reviewed_at).toLocaleDateString()}
+                </Text>
+              ) : (
+                <Text style={styles.sentenceLastReviewed}>Not reviewed yet</Text>
+              )}
+            </View>
           ))}
         </View>
       )}
@@ -251,6 +316,53 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     marginBottom: 12,
   },
+  grammarChips: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+    marginBottom: 10,
+  },
+  grammarChip: {
+    backgroundColor: colors.surface,
+    borderRadius: 10,
+    paddingVertical: 5,
+    paddingHorizontal: 10,
+    alignItems: "center",
+  },
+  grammarChipEn: {
+    fontSize: fonts.caption,
+    color: colors.text,
+    fontWeight: "600",
+  },
+  grammarChipAr: {
+    fontSize: fonts.caption,
+    color: colors.textSecondary,
+    writingDirection: "rtl",
+    fontFamily: fontFamily.arabic,
+    marginTop: 1,
+  },
+  formsCard: {
+    backgroundColor: colors.surface,
+    borderRadius: 10,
+    padding: 12,
+    gap: 8,
+  },
+  formRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  formKey: {
+    fontSize: fonts.small,
+    color: colors.textSecondary,
+  },
+  formVal: {
+    fontSize: fonts.body,
+    color: colors.arabic,
+    fontFamily: fontFamily.arabic,
+    marginLeft: 12,
+    writingDirection: "rtl",
+  },
   statsRow: {
     flexDirection: "row",
     gap: 12,
@@ -336,6 +448,32 @@ const styles = StyleSheet.create({
     fontSize: fonts.small,
     color: colors.textSecondary,
     marginTop: 4,
+  },
+  sentenceRow: {
+    backgroundColor: colors.surface,
+    borderRadius: 10,
+    padding: 12,
+    marginBottom: 8,
+  },
+  sentenceStats: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+    marginTop: 8,
+  },
+  sentenceStat: {
+    fontSize: fonts.caption,
+    color: colors.textSecondary,
+    backgroundColor: colors.surfaceLight,
+    borderRadius: 7,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+  },
+  sentenceLastReviewed: {
+    fontSize: fonts.caption,
+    color: colors.textSecondary,
+    marginTop: 8,
+    opacity: 0.8,
   },
   errorText: {
     color: colors.textSecondary,

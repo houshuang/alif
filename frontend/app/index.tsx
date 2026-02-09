@@ -95,6 +95,8 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
   const [audioPlaying, setAudioPlaying] = useState(false);
   const [autoIntroduced, setAutoIntroduced] = useState<IntroCandidate[]>([]);
   const [lookupResult, setLookupResult] = useState<WordLookupResult | null>(null);
+  const [lookupSurfaceForm, setLookupSurfaceForm] = useState<string | null>(null);
+  const [lookupLemmaId, setLookupLemmaId] = useState<number | null>(null);
   const [lookupLoading, setLookupLoading] = useState(false);
   const [lookupShowMeaning, setLookupShowMeaning] = useState(false);
   const [audioPlayCount, setAudioPlayCount] = useState(0);
@@ -102,6 +104,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
   const [wordOutcomes, setWordOutcomes] = useState<Map<number, WordOutcome>>(new Map());
   const showTime = useRef<number>(0);
   const soundRef = useRef<Audio.Sound | null>(null);
+  const lookupRequestRef = useRef(0);
 
   const usingSentences = sentenceSession !== null && sentenceSession.items.length > 0;
   const totalCards = usingSentences
@@ -205,6 +208,14 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
     setAudioPlaying(false);
     setAutoIntroduced([]);
     setWordOutcomes(new Map());
+    lookupRequestRef.current += 1;
+    setLookupResult(null);
+    setLookupSurfaceForm(null);
+    setLookupLemmaId(null);
+    setLookupLoading(false);
+    setLookupShowMeaning(false);
+    setAudioPlayCount(0);
+    setLookupCount(0);
     setSentenceSession(null);
     setLegacySession(null);
     await cleanupSound();
@@ -270,15 +281,20 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
   }, [confusedIndices, missedIndices]);
 
   const handleWordTap = useCallback(async (index: number, lemmaId: number) => {
+    const requestId = ++lookupRequestRef.current;
+    const tappedSurface = sentenceSession?.items[cardIndex]?.words[index]?.surface_form ?? null;
     // Cycle state: off → missed → confused → off (same as back phase)
     toggleMissed(index);
     // Trigger lookup for the tapped word
     setLookupCount(prev => prev + 1);
+    setLookupSurfaceForm(tappedSurface);
+    setLookupLemmaId(lemmaId);
     setLookupLoading(true);
     setLookupShowMeaning(false);
     setLookupResult(null);
     try {
       const result = await lookupReviewWord(lemmaId);
+      if (lookupRequestRef.current !== requestId) return;
       setLookupResult(result);
       const knownSiblings = result.root_family.filter(
         (s) => (s.state === "known" || s.state === "learning") && s.lemma_id !== result.lemma_id
@@ -289,6 +305,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
         setLookupShowMeaning(true);
       }
     } catch {
+      if (lookupRequestRef.current !== requestId) return;
       // Build lite result from session word metadata
       if (sentenceSession) {
         const item = sentenceSession.items[cardIndex];
@@ -296,7 +313,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
         if (word) {
           setLookupResult({
             lemma_id: lemmaId,
-            lemma_ar: word.surface_form,
+            lemma_ar: "",
             gloss_en: word.gloss_en,
             transliteration: null,
             root: word.root,
@@ -315,7 +332,9 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
         setLookupShowMeaning(true);
       }
     }
-    setLookupLoading(false);
+      if (lookupRequestRef.current === requestId) {
+        setLookupLoading(false);
+      }
   }, [toggleMissed, sentenceSession, cardIndex]);
 
   function handleSentenceSubmit(signal: ComprehensionSignal) {
@@ -337,6 +356,17 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
       if (word?.lemma_id != null) {
         confusedLemmaIds.push(word.lemma_id);
       }
+    }
+
+    // Word-only cards use explicit "Missed" action without per-word taps.
+    // Treat partial with no marked words as a miss on the primary lemma.
+    if (
+      item.sentence_id === null &&
+      signal === "partial" &&
+      missedLemmaIds.length === 0 &&
+      confusedLemmaIds.length === 0
+    ) {
+      missedLemmaIds.push(item.primary_lemma_id);
     }
 
     if (signal === "no_idea") {
@@ -433,6 +463,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
   }
 
   function advanceAfterSubmit(signal: ComprehensionSignal) {
+    lookupRequestRef.current += 1;
     const prev = results ?? { total: 0, gotIt: 0, missed: 0, noIdea: 0 };
     const next = {
       total: prev.total + 1,
@@ -457,6 +488,8 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
       setAudioPlayCount(0);
       setLookupCount(0);
       setLookupResult(null);
+      setLookupSurfaceForm(null);
+      setLookupLemmaId(null);
       setLookupShowMeaning(false);
     }
   }
@@ -482,17 +515,47 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
   }
 
   function buildContext(): string {
-    const parts: string[] = [`Mode: ${mode}`];
+    const parts: string[] = [
+      "Screen: review",
+      `Mode: ${mode}`,
+      `Card: ${cardIndex + 1}/${totalCards}`,
+      `Phase: ${cardState}`,
+      `Online: ${online ? "yes" : "no"}`,
+    ];
     if (usingSentences && sentenceSession) {
       const item = sentenceSession.items[cardIndex];
       if (item) {
+        parts.push(`Sentence ID: ${item.sentence_id ?? "word_only"}`);
         parts.push(`Arabic: ${item.arabic_text || item.primary_lemma_ar}`);
         parts.push(`English: ${item.english_translation || item.primary_gloss_en}`);
-        const glosses = item.words
-          .filter((w) => w.gloss_en)
-          .map((w) => `${w.surface_form} (${w.gloss_en})`)
-          .join(", ");
-        if (glosses) parts.push(`Words: ${glosses}`);
+        if (item.transliteration) {
+          parts.push(`Transliteration: ${item.transliteration}`);
+        }
+        parts.push(
+          `Primary lemma: lemma_id=${item.primary_lemma_id}, lemma_ar=${item.primary_lemma_ar}, gloss=${item.primary_gloss_en}`
+        );
+
+        parts.push("Word knowledge:");
+        item.words.forEach((word, i) => {
+          const mark = missedIndices.has(i)
+            ? "missed"
+            : confusedIndices.has(i)
+              ? "did_not_recognize"
+              : "ok";
+          const info = [
+            `${i + 1}. ${word.surface_form}`,
+            `lemma_id=${word.lemma_id ?? "none"}`,
+            `gloss=${word.gloss_en ?? "unknown"}`,
+            `state=${word.knowledge_state || "new"}`,
+            `stability=${word.stability != null ? word.stability.toFixed(3) : "unknown"}`,
+            `due=${word.is_due ? "yes" : "no"}`,
+            `function_word=${word.is_function_word ? "yes" : "no"}`,
+            `root=${word.root ?? "unknown"}`,
+            `mark=${mark}`,
+          ];
+          parts.push(info.join(" | "));
+        });
+
         const missed = Array.from(missedIndices)
           .map((i) => item.words[i]?.surface_form)
           .filter(Boolean);
@@ -505,14 +568,70 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
     } else if (legacySession) {
       const card = legacySession.cards[cardIndex];
       if (card) {
-        parts.push(`Word: ${card.lemma_ar} (${card.gloss_en})`);
+        parts.push(
+          `Word: lemma_id=${card.lemma_id}, lemma_ar=${card.lemma_ar}, gloss=${card.gloss_en}`
+        );
         if (card.sentence) {
           parts.push(`Sentence: ${card.sentence.arabic}`);
           parts.push(`Translation: ${card.sentence.english}`);
         }
       }
     }
+    if (lookupSurfaceForm && lookupLemmaId !== null) {
+      parts.push(
+        `Lookup focus: surface=${lookupSurfaceForm}, lemma_id=${lookupLemmaId}`
+      );
+      if (lookupResult) {
+        parts.push(
+          `Lookup resolved lemma: lemma_ar=${lookupResult.lemma_ar || "unknown"}, gloss=${lookupResult.gloss_en || "unknown"}, root=${lookupResult.root || "unknown"}`
+        );
+      }
+    }
     return parts.join("\n");
+  }
+
+  function buildExplainPrompt(): string | null {
+    if (usingSentences && sentenceSession) {
+      const item = sentenceSession.items[cardIndex];
+      if (!item) return null;
+
+      const marked = [
+        ...Array.from(missedIndices).map((i) => ({ index: i, mark: "missed" })),
+        ...Array.from(confusedIndices).map((i) => ({
+          index: i,
+          mark: "did_not_recognize",
+        })),
+      ].sort((a, b) => a.index - b.index);
+
+      if (marked.length === 0) {
+        return [
+          "Explain this sentence briefly.",
+          "Point out any word forms that can hide the base lemma (prefixes, suffixes, inflection, or attached particles).",
+        ].join(" ");
+      }
+
+      const markedLines = marked
+        .map(({ index, mark }) => {
+          const word = item.words[index];
+          if (!word) return null;
+          return `- ${word.surface_form} (index=${index + 1}, mark=${mark}, lemma_id=${word.lemma_id ?? "none"}, gloss=${word.gloss_en ?? "unknown"}, state=${word.knowledge_state || "new"}, stability=${word.stability != null ? word.stability.toFixed(3) : "unknown"})`;
+        })
+        .filter(Boolean)
+        .join("\n");
+
+      return [
+        "Explain why I missed or did not recognize these marked words.",
+        "For each word:",
+        "1) identify the base lemma in Arabic and transliteration if possible,",
+        "2) explain how this surface form differs from the lemma (clitics/article/suffixes/inflection),",
+        "3) give one short recognition heuristic.",
+        "",
+        "Marked words:",
+        markedLines,
+      ].join("\n");
+    }
+
+    return "Explain this card and why the seen form can differ from the underlying lemma.";
   }
 
   // --- Render ---
@@ -603,12 +722,19 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
           )}
         </ScrollView>
 
-        {!isListening && !isWordOnly && (
+        {!isListening && (
           <WordLookupPanel
-            result={lookupResult}
-            loading={lookupLoading}
+            result={isWordOnly ? null : lookupResult}
+            loading={!isWordOnly && lookupLoading}
+            surfaceForm={lookupSurfaceForm}
+            lemmaId={lookupLemmaId}
             showMeaning={lookupShowMeaning}
             onShowMeaning={() => setLookupShowMeaning(true)}
+            placeholderText={
+              isWordOnly
+                ? "Word-only card"
+                : "Tap a word to inspect root and meaning"
+            }
           />
         )}
 
@@ -633,7 +759,11 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
             />
           )}
         </View>
-        <AskAI contextBuilder={buildContext} screen="review" />
+        <AskAI
+          contextBuilder={buildContext}
+          buildExplainPrompt={buildExplainPrompt}
+          screen="review"
+        />
       </View>
     );
   }
@@ -693,7 +823,11 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
           />
         )}
       </View>
-      <AskAI contextBuilder={buildContext} screen="review" />
+      <AskAI
+        contextBuilder={buildContext}
+        buildExplainPrompt={buildExplainPrompt}
+        screen="review"
+      />
     </View>
   );
 }
@@ -742,18 +876,26 @@ function SentenceReadingCard({
 
       {cardState === "back" && (
         <View style={styles.answerSection}>
-          {missedIndices.size === 0 && (
-            <Text style={styles.tapHint}>Tap any word you didn't know</Text>
-          )}
+          <View style={styles.tapHintSlot}>
+            {missedIndices.size === 0 ? (
+              <Text style={styles.tapHint}>Tap any word you didn't know</Text>
+            ) : (
+              <Text style={styles.tapHintPlaceholder}>.</Text>
+            )}
+          </View>
           <View style={styles.divider} />
           <Text style={styles.sentenceEnglish}>
             {item.english_translation}
           </Text>
-          {item.transliteration && (
-            <Text style={styles.sentenceTranslit}>
-              {item.transliteration}
-            </Text>
-          )}
+          <View style={styles.translitSlot}>
+            {item.transliteration ? (
+              <Text style={styles.sentenceTranslit}>
+                {item.transliteration}
+              </Text>
+            ) : (
+              <Text style={styles.translitPlaceholder}>.</Text>
+            )}
+          </View>
         </View>
       )}
     </>
@@ -763,13 +905,19 @@ function SentenceReadingCard({
 function WordLookupPanel({
   result,
   loading,
+  surfaceForm,
+  lemmaId,
   showMeaning,
   onShowMeaning,
+  placeholderText,
 }: {
   result: WordLookupResult | null;
   loading: boolean;
+  surfaceForm: string | null;
+  lemmaId: number | null;
   showMeaning: boolean;
   onShowMeaning: () => void;
+  placeholderText?: string;
 }) {
   const knownSiblings = result?.root_family.filter((s) => {
     if (s.lemma_id === result.lemma_id) return false;
@@ -780,6 +928,8 @@ function WordLookupPanel({
     return true;
   }) ?? [];
   const hasPredictionMode = result != null && knownSiblings.length >= 2 && !showMeaning;
+  const lemmaArabic = result?.lemma_ar?.trim() || null;
+  const lemmaDisplay = lemmaArabic ?? (lemmaId != null ? `lemma #${lemmaId}` : "unknown lemma");
 
   return (
     <View style={styles.lookupPanel}>
@@ -787,6 +937,20 @@ function WordLookupPanel({
         <ActivityIndicator size="small" color={colors.accent} />
       ) : result ? (
         <>
+          <View style={styles.lookupMapBlock}>
+            <Text style={styles.lookupMapLine}>
+              Clicked form:{" "}
+              <Text style={styles.lookupMapArabic}>
+                {surfaceForm ?? "\u2014"}
+              </Text>
+            </Text>
+            <Text style={styles.lookupMapLine}>
+              FSRS lemma:{" "}
+              <Text style={styles.lookupMapArabic}>
+                {lemmaDisplay}
+              </Text>
+            </Text>
+          </View>
           {result.root && (
             <Text style={styles.lookupRoot}>
               Root: {result.root}
@@ -804,11 +968,15 @@ function WordLookupPanel({
             </>
           ) : (
             <Text style={styles.lookupMeaning}>
-              {`${result.lemma_ar} — ${result.gloss_en ?? ""}${result.transliteration ? ` (${result.transliteration})` : ""}${result.pos ? ` · ${result.pos}` : ""}`}
+              {`${lemmaDisplay} — ${result.gloss_en ?? ""}${result.transliteration ? ` (${result.transliteration})` : ""}${result.pos ? ` · ${result.pos}` : ""}`}
             </Text>
           )}
         </>
-      ) : null}
+      ) : (
+        <Text style={styles.lookupPlaceholderText}>
+          {placeholderText ?? ""}
+        </Text>
+      )}
     </View>
   );
 }
@@ -1001,11 +1169,15 @@ function SentenceListeningCard({
           <Text style={styles.sentenceEnglish}>
             {item.english_translation}
           </Text>
-          {item.transliteration && (
-            <Text style={styles.sentenceTranslit}>
-              {item.transliteration}
-            </Text>
-          )}
+          <View style={styles.translitSlot}>
+            {item.transliteration ? (
+              <Text style={styles.sentenceTranslit}>
+                {item.transliteration}
+              </Text>
+            ) : (
+              <Text style={styles.translitPlaceholder}>.</Text>
+            )}
+          </View>
         </View>
       )}
 
@@ -1129,9 +1301,15 @@ function LegacyListeningCard({
         <View style={styles.answerSection}>
           <View style={styles.divider} />
           <Text style={styles.sentenceEnglish}>{sentence.english}</Text>
-          <Text style={styles.sentenceTranslit}>
-            {sentence.transliteration}
-          </Text>
+          <View style={styles.translitSlot}>
+            {sentence.transliteration ? (
+              <Text style={styles.sentenceTranslit}>
+                {sentence.transliteration}
+              </Text>
+            ) : (
+              <Text style={styles.translitPlaceholder}>.</Text>
+            )}
+          </View>
         </View>
       )}
 
@@ -1191,9 +1369,15 @@ function LegacySentenceCard({
         <View style={styles.answerSection}>
           <View style={styles.divider} />
           <Text style={styles.sentenceEnglish}>{sentence.english}</Text>
-          <Text style={styles.sentenceTranslit}>
-            {sentence.transliteration}
-          </Text>
+          <View style={styles.translitSlot}>
+            {sentence.transliteration ? (
+              <Text style={styles.sentenceTranslit}>
+                {sentence.transliteration}
+              </Text>
+            ) : (
+              <Text style={styles.translitPlaceholder}>.</Text>
+            )}
+          </View>
         </View>
       )}
     </>
@@ -1242,14 +1426,15 @@ function ListeningActions({
   if (cardState === "audio") {
     return (
       <View style={styles.actionRow}>
-        <Pressable style={[styles.actionButton, styles.showButton]} onPress={onAdvance}>
-          <Text style={styles.showButtonText}>Reveal Arabic</Text>
-        </Pressable>
         <Pressable
           style={[styles.actionButton, styles.noIdeaButton]}
           onPress={() => onSubmit("no_idea")}
         >
           <Text style={styles.noIdeaButtonText}>No idea</Text>
+        </Pressable>
+        <View style={styles.actionButtonSpacer} />
+        <Pressable style={[styles.actionButton, styles.showButton]} onPress={onAdvance}>
+          <Text style={styles.showButtonText}>Reveal Arabic</Text>
         </Pressable>
       </View>
     );
@@ -1260,42 +1445,65 @@ function ListeningActions({
   if (cardState === "arabic") {
     return (
       <View style={styles.actionColumn}>
-        {totalMarked > 0 && (
-          <MarkedHint missedCount={missedCount} confusedCount={confusedCount} lastMarkedGloss={lastMarkedGloss} />
-        )}
+        <View style={styles.actionHintSlot}>
+          {totalMarked > 0 ? (
+            <MarkedHint
+              missedCount={missedCount}
+              confusedCount={confusedCount}
+              lastMarkedGloss={lastMarkedGloss}
+            />
+          ) : (
+            <Text style={styles.hintTextListening}>
+              Tap words you didn't catch, or show translation
+            </Text>
+          )}
+        </View>
         <View style={styles.actionRow}>
+          <Pressable
+            style={[styles.actionButton, styles.noIdeaButton]}
+            onPress={() => onSubmit("no_idea")}
+          >
+            <Text style={styles.noIdeaButtonText}>No idea</Text>
+          </Pressable>
           <Pressable
             style={[styles.actionButton, styles.gotItButton]}
             onPress={() => onSubmit(totalMarked > 0 ? "partial" : "understood")}
           >
             <Text style={styles.actionButtonText}>
-              {totalMarked > 0 ? "Continue" : "Understood"}
+              {totalMarked > 0 ? "Continue" : "Know All"}
             </Text>
           </Pressable>
           <Pressable
-            style={[styles.actionButton, { backgroundColor: colors.surfaceLight }]}
+            style={[styles.actionButton, styles.showButton]}
             onPress={onAdvance}
           >
-            <Text style={[styles.actionButtonText, { color: colors.textSecondary }]}>
-              Translation
-            </Text>
+            <Text style={styles.showButtonText}>Show Translation</Text>
           </Pressable>
         </View>
-        {totalMarked === 0 && (
-          <Text style={styles.tapHintListening}>
-            Tap words you didn't catch, or show translation
-          </Text>
-        )}
       </View>
     );
   }
 
   return (
     <View style={styles.actionColumn}>
-      {totalMarked > 0 && (
-        <MarkedHint missedCount={missedCount} confusedCount={confusedCount} lastMarkedGloss={lastMarkedGloss} />
-      )}
+      <View style={styles.actionHintSlot}>
+        {totalMarked > 0 ? (
+          <MarkedHint
+            missedCount={missedCount}
+            confusedCount={confusedCount}
+            lastMarkedGloss={lastMarkedGloss}
+          />
+        ) : (
+          <Text style={styles.hintText}>Tap any word you didn't catch</Text>
+        )}
+      </View>
       <View style={styles.actionRow}>
+        <Pressable
+          style={[styles.actionButton, styles.noIdeaButton]}
+          onPress={() => onSubmit("no_idea")}
+        >
+          <Text style={styles.noIdeaButtonText}>No idea</Text>
+        </Pressable>
         {totalMarked > 0 ? (
           <Pressable
             style={[styles.actionButton, styles.continueButton]}
@@ -1308,13 +1516,11 @@ function ListeningActions({
             style={[styles.actionButton, styles.gotItButton]}
             onPress={() => onSubmit("understood")}
           >
-            <Text style={styles.actionButtonText}>Got it</Text>
+            <Text style={styles.actionButtonText}>Know All</Text>
           </Pressable>
         )}
+        <View style={styles.actionButtonSpacer} />
       </View>
-      {totalMarked === 0 && (
-        <Text style={styles.tapHint}>Tap any word you didn't catch</Text>
-      )}
     </View>
   );
 }
@@ -1342,47 +1548,56 @@ function ReadingActions({
     return (
       <View style={styles.actionColumn}>
         <View style={styles.actionRow}>
-          {hasSentence && (
-            <Pressable
-              style={[styles.actionButton, styles.gotItButton]}
-              onPress={() => onSubmit("understood")}
-            >
-              <Text style={styles.actionButtonText}>Understood</Text>
-            </Pressable>
-          )}
-          <Pressable style={[styles.actionButton, styles.showButton]} onPress={onAdvance}>
-            <Text style={styles.showButtonText}>Show Answer</Text>
-          </Pressable>
-          {hasSentence && (
+          {hasSentence ? (
             <Pressable
               style={[styles.actionButton, styles.noIdeaButton]}
               onPress={() => onSubmit("no_idea")}
             >
               <Text style={styles.noIdeaButtonText}>No idea</Text>
             </Pressable>
+          ) : (
+            <View style={styles.actionButtonSpacer} />
           )}
+          {hasSentence ? (
+            <Pressable
+              style={[styles.actionButton, styles.gotItButton]}
+              onPress={() => onSubmit("understood")}
+            >
+              <Text style={styles.actionButtonText}>Know All</Text>
+            </Pressable>
+          ) : null}
+          <Pressable style={[styles.actionButton, styles.showButton]} onPress={onAdvance}>
+            <Text style={styles.showButtonText}>Show Translation</Text>
+          </Pressable>
+        </View>
+        <View style={styles.actionHintSlot}>
+          <Text style={styles.hintPlaceholder}>.</Text>
         </View>
       </View>
     );
   }
 
+  let readingHint = "";
+  if (hasSentence) {
+    if (totalMarked === 0) {
+      readingHint = "Tap any word you didn't know";
+    } else if (totalMarked === 1) {
+      readingHint = "1 word marked";
+    } else {
+      readingHint = `${totalMarked} words marked`;
+    }
+  }
+
   return (
     <View style={styles.actionColumn}>
       <View style={styles.actionRow}>
-        {totalMarked > 0 ? (
-          <Pressable
-            style={[styles.actionButton, styles.continueButton]}
-            onPress={() => onSubmit("partial")}
-          >
-            <Text style={styles.actionButtonText}>Continue</Text>
-          </Pressable>
-        ) : !hasSentence ? (
+        {!hasSentence ? (
           <>
             <Pressable
               style={[styles.actionButton, styles.gotItButton]}
               onPress={() => onSubmit("understood")}
             >
-              <Text style={styles.actionButtonText}>Got it</Text>
+              <Text style={styles.actionButtonText}>Know All</Text>
             </Pressable>
             <Pressable
               style={[styles.actionButton, styles.continueButton]}
@@ -1392,17 +1607,41 @@ function ReadingActions({
             </Pressable>
           </>
         ) : (
-          <Pressable
-            style={[styles.actionButton, styles.gotItButton]}
-            onPress={() => onSubmit("understood")}
-          >
-            <Text style={styles.actionButtonText}>Got it</Text>
-          </Pressable>
+          <>
+            <Pressable
+              style={[styles.actionButton, styles.noIdeaButton]}
+              onPress={() => onSubmit("no_idea")}
+            >
+              <Text style={styles.noIdeaButtonText}>No idea</Text>
+            </Pressable>
+            {totalMarked > 0 ? (
+              <Pressable
+                style={[styles.actionButton, styles.continueButton]}
+                onPress={() => onSubmit("partial")}
+              >
+                <Text style={styles.actionButtonText}>Continue</Text>
+              </Pressable>
+            ) : (
+              <Pressable
+                style={[styles.actionButton, styles.gotItButton]}
+                onPress={() => onSubmit("understood")}
+              >
+                <Text style={styles.actionButtonText}>Know All</Text>
+              </Pressable>
+            )}
+            <View style={styles.actionButtonSpacer} />
+          </>
         )}
       </View>
-      {hasSentence && totalMarked === 0 && (
-        <Text style={styles.tapHint}>Tap any word you didn't know</Text>
-      )}
+      <View style={styles.actionHintSlot}>
+        {hasSentence ? (
+          <Text style={[styles.hintText, totalMarked > 0 && styles.hintTextMarked]}>
+            {readingHint}
+          </Text>
+        ) : (
+          <Text style={styles.hintPlaceholder}>.</Text>
+        )}
+      </View>
     </View>
   );
 }
@@ -1993,6 +2232,9 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     alignItems: "center",
   },
+  actionButtonSpacer: {
+    flex: 1,
+  },
   gotItButton: {
     backgroundColor: colors.gotIt,
   },
@@ -2004,11 +2246,49 @@ const styles = StyleSheet.create({
     fontSize: 17,
     fontWeight: "700",
   },
+  actionHintSlot: {
+    minHeight: 30,
+    justifyContent: "center",
+    alignItems: "center",
+    width: "100%",
+    marginTop: 10,
+  },
+  hintText: {
+    color: colors.textSecondary,
+    fontSize: fonts.small,
+    opacity: 0.75,
+    textAlign: "center",
+  },
+  hintTextListening: {
+    color: colors.listening,
+    fontSize: fonts.small,
+    opacity: 0.8,
+    textAlign: "center",
+  },
+  hintTextMarked: {
+    color: colors.missed,
+    opacity: 0.9,
+    fontWeight: "600",
+  },
+  hintPlaceholder: {
+    color: "transparent",
+    fontSize: fonts.small,
+    lineHeight: 16,
+  },
   tapHint: {
     color: colors.textSecondary,
     fontSize: fonts.small,
-    marginTop: 12,
     opacity: 0.7,
+    textAlign: "center",
+  },
+  tapHintSlot: {
+    minHeight: 20,
+    justifyContent: "center",
+  },
+  tapHintPlaceholder: {
+    color: "transparent",
+    fontSize: fonts.small,
+    lineHeight: 16,
   },
   tapHintListening: {
     color: colors.listening,
@@ -2019,7 +2299,6 @@ const styles = StyleSheet.create({
   },
   missedHintRow: {
     alignItems: "center",
-    marginBottom: 10,
     gap: 2,
   },
   missedHint: {
@@ -2265,11 +2544,35 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
   },
+  translitSlot: {
+    minHeight: 24,
+    justifyContent: "flex-start",
+    marginTop: 2,
+  },
+  translitPlaceholder: {
+    color: "transparent",
+    fontSize: 16,
+    lineHeight: 20,
+  },
   lookupRoot: {
     fontSize: 13,
     color: colors.accent,
     fontWeight: "600",
     textAlign: "center",
+  },
+  lookupMapBlock: {
+    alignItems: "center",
+    gap: 2,
+  },
+  lookupMapLine: {
+    color: colors.textSecondary,
+    fontSize: 12,
+    textAlign: "center",
+  },
+  lookupMapArabic: {
+    color: colors.arabic,
+    fontFamily: fontFamily.arabic,
+    writingDirection: "rtl",
   },
   lookupMeaning: {
     fontSize: 18,
@@ -2286,6 +2589,12 @@ const styles = StyleSheet.create({
     color: colors.accent,
     fontSize: 14,
     fontWeight: "600",
+  },
+  lookupPlaceholderText: {
+    color: colors.textSecondary,
+    fontSize: 14,
+    textAlign: "center",
+    opacity: 0.7,
   },
   rootInfoBar: {
     marginTop: 12,

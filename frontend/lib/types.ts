@@ -62,12 +62,38 @@ export interface ReviewHistoryEntry {
   sentence_english?: string;
 }
 
+export interface GrammarFeatureDetail {
+  feature_key: string;
+  category: string | null;
+  label_en: string;
+  label_ar: string | null;
+}
+
+export interface WordSentenceStat {
+  sentence_id: number;
+  surface_forms: string[];
+  sentence_arabic: string;
+  sentence_english: string | null;
+  sentence_transliteration: string | null;
+  seen_count: number;
+  missed_count: number;
+  confused_count: number;
+  understood_count: number;
+  primary_count: number;
+  collateral_count: number;
+  accuracy_pct: number | null;
+  last_reviewed_at: string | null;
+}
+
 export interface WordDetail extends Word {
   frequency_rank: number | null;
   times_reviewed: number;
   correct_count: number;
+  forms_json?: WordForms | null;
+  grammar_features: GrammarFeatureDetail[];
   root_family: { id: number; arabic: string; english: string }[];
   review_history: ReviewHistoryEntry[];
+  sentence_stats: WordSentenceStat[];
 }
 
 export interface Stats {
@@ -137,6 +163,8 @@ export interface LearnCandidate {
   audio_url: string | null;
   example_ar: string | null;
   example_en: string | null;
+  grammar_features?: string[];
+  grammar_details?: GrammarFeatureDetail[];
   score: number;
   score_breakdown: {
     frequency: number;
