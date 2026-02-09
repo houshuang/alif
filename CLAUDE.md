@@ -49,7 +49,7 @@ Reviews are sentence-centric: greedy set cover selects sentences that maximize d
 2. **Front phase**: user can tap non-function words to look them up (calls GET /api/review/word-lookup/{lemma_id}). Tapped words auto-marked as missed.
 3. **Lookup panel**: Shows root, root meaning. If root has 2+ known siblings → prediction mode ("You know words from this root: X, Y. Can you guess the meaning?") before revealing English. Otherwise shows meaning immediately.
 4. Taps "Show Answer" to reveal: English translation, transliteration, root info for missed words
-5. **Back phase**: triple-tap words to cycle state: off → confused (yellow, rating 2 Hard) → missed (red, rating 1 Again) → off. Builds missed_lemma_ids + confused_lemma_ids
+5. **Back phase**: triple-tap words to cycle state: off → missed (red, rating 1 Again) → confused (yellow, rating 2 Hard) → off. Builds missed_lemma_ids + confused_lemma_ids
 6. Rates: Got it (understood) / Continue (partial, if words marked) / I have no idea (no_idea)
 
 ### Listening Mode (implemented, real TTS via expo-av)
@@ -150,7 +150,7 @@ As we build features, create reusable Claude Code skills (`.claude/skills/`) for
 - `backend/app/services/listening.py` — Listening confidence: min(per-word) * 0.6 + avg * 0.4. Requires times_seen ≥ 3, stability ≥ 7d.
 - `backend/app/services/tts.py` — ElevenLabs REST, eleven_multilingual_v2, Chaouki voice, speed 0.7. Learner pauses: inserts Arabic commas every 2 words. SHA256 cache in data/audio/.
 - `backend/app/services/llm.py` — LiteLLM: gemini/gemini-3-flash-preview → gpt-5.2 → claude-haiku-4-5. JSON mode, markdown fence stripping, model_override support. Batch generation supports `rejected_words` param to steer LLM away from unknown vocabulary.
-- `backend/app/services/morphology.py` — CAMeL Tools morphological analyzer. Functions: `analyze_word_camel()` (all analyses), `get_base_lemma()` (top lex), `is_variant_form()` (possessive/enclitic check), `find_matching_analysis()` (disambiguate against known lemma), `get_word_features()` (lex/root/pos/enc0/num/gen/stt). Falls back to stub if camel_tools not installed.
+- `backend/app/services/morphology.py` — CAMeL Tools morphological analyzer. Functions: `analyze_word_camel()` (all analyses), `get_base_lemma()` (top lex), `is_variant_form()` (possessive/enclitic check), `find_matching_analysis()` (disambiguate against known lemma), `find_best_db_match()` (iterate all analyses, return first matching a known DB bare form), `get_word_features()` (lex/root/pos/enc0/num/gen/stt). Falls back to stub if camel_tools not installed.
 - `backend/app/services/interaction_logger.py` — Append-only JSONL to `data/logs/interactions_YYYY-MM-DD.jsonl`. Skipped when TESTING env var is set.
 
 ### Backend Other
@@ -159,7 +159,7 @@ As we build features, create reusable Claude Code skills (`.claude/skills/`) for
 - `backend/scripts/` — import_duolingo.py, import_wiktionary.py, import_avp_a1.py, benchmark_llm.py, pregenerate_material.py, generate_audio.py, generate_sentences.py, backfill_lemma_grammar.py, backfill_examples.py, backfill_forms.py, simulate_usage.py, update_material.py (cron: backfill sentences + audio + pre-generate; auto-introduces collocate words on validation failure), merge_al_lemmas.py, merge_lemma_variants.py, cleanup_lemma_variants.py
 
 ### Frontend
-- `frontend/app/index.tsx` — Review screen: sentence-first + word-only fallback, reading + listening modes, front-phase word lookup with root prediction, triple-tap word marking (off → confused → missed → off), inline intro cards, session completion with analytics
+- `frontend/app/index.tsx` — Review screen: sentence-first + word-only fallback, reading + listening modes, front-phase word lookup with root prediction, triple-tap word marking (off → missed → confused → off), inline intro cards, session completion with analytics
 - `frontend/app/learn.tsx` — Learn: 5-candidate pick → quiz → done. Forms display, TTS, sentence polling.
 - `frontend/app/words.tsx` — Word browser: search (AR/EN/translit), filter by state, sort by review status (failed first)
 - `frontend/app/stats.tsx` — Analytics: today banner, CEFR card, pace grid, quick stats, 14-day bar chart
@@ -247,7 +247,7 @@ As we build features, create reusable Claude Code skills (`.claude/skills/`) for
 4. `find_matching_analysis()` disambiguates by matching against known DB lemma bare forms
 5. Graceful fallback: if `camel-tools` not installed, all functions return stub/empty data
 6. Requires `cmake` build dep + `camel_data -i light` download (~660MB) in Docker
-7. **Variant cleanup**: `scripts/cleanup_lemma_variants.py` uses CAMeL Tools to detect possessives (بنتي→بنت), feminine forms (جميلة→جميل), and definite duplicates (الكتاب→كتاب). Sets `canonical_lemma_id` on variants. Run with `--dry-run` first, `--merge` to also transfer review data.
+7. **Variant cleanup**: `scripts/cleanup_lemma_variants.py` uses DB-aware CAMeL Tools disambiguation — iterates ALL analyses (not just top-ranked) and picks the one whose lex matches a lemma already in the DB. Detects possessives (بنتي→بنت), feminine forms (جميلة→جميل), and definite duplicates (الكتاب→كتاب). Sets `canonical_lemma_id` on variants. Run with `--dry-run` first, `--merge` to also transfer review data, `--verbose` for per-word analysis details.
 
 **Planned (future):**
 1. MLE disambiguator for sentence-level analysis (currently single-word only)
@@ -283,7 +283,7 @@ ssh alif "systemctl restart alif-expo"
 Sentence-centric architecture with:
 - Sentence-first review with greedy set cover scheduling + comprehension-aware recency
 - All words in reviewed sentences get full FSRS cards (no encounter-only tracking)
-- Ternary word marking: off → confused (yellow, FSRS Hard) → missed (red, FSRS Again) → off
+- Ternary word marking: off → missed (red, FSRS Again) → confused (yellow, FSRS Hard) → off
 - Front-phase word lookup with root prediction (2+ known siblings triggers prediction mode)
 - Root info displayed on sentence reveal for missed words
 - CAMeL Tools morphology: lemmatization, root extraction, variant detection (possessives, feminine forms, definite duplicates)

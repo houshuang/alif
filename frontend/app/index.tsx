@@ -220,35 +220,34 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
   }
 
   const toggleMissed = useCallback((index: number) => {
-    // Triple-tap cycle: off → confused (yellow) → missed (red) → off
-    // We use refs to read current state atomically
+    // Triple-tap cycle: off → missed (red) → confused (yellow) → off
     const isConfused = confusedIndices.has(index);
     const isMissed = missedIndices.has(index);
 
     if (!isConfused && !isMissed) {
-      // off → confused (yellow)
-      setConfusedIndices((prev) => {
+      // off → missed (red)
+      setMissedIndices((prev) => {
         const next = new Set(prev);
         next.add(index);
         return next;
       });
       setLastMarkedIndex(index);
-    } else if (isConfused && !isMissed) {
-      // confused → missed (red)
-      setConfusedIndices((prev) => {
+    } else if (isMissed && !isConfused) {
+      // missed → confused (yellow)
+      setMissedIndices((prev) => {
         const next = new Set(prev);
         next.delete(index);
         return next;
       });
-      setMissedIndices((prev) => {
+      setConfusedIndices((prev) => {
         const next = new Set(prev);
         next.add(index);
         return next;
       });
       setLastMarkedIndex(index);
     } else {
-      // missed → off
-      setMissedIndices((prev) => {
+      // confused → off
+      setConfusedIndices((prev) => {
         const next = new Set(prev);
         next.delete(index);
         return next;
