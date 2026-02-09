@@ -19,6 +19,8 @@ import {
   AskAIResponse,
   ConversationSummary,
   ConversationDetail,
+  GrammarLesson,
+  GrammarProgress,
 } from "./types";
 import { netStatus } from "./net-status";
 import {
@@ -535,4 +537,26 @@ export async function getChatConversations(): Promise<ConversationSummary[]> {
 
 export async function getChatConversation(conversationId: string): Promise<ConversationDetail> {
   return fetchApi<ConversationDetail>(`/api/chat/conversations/${conversationId}`);
+}
+
+// --- Grammar ---
+
+export async function getGrammarLesson(featureKey: string): Promise<GrammarLesson> {
+  return fetchApi<GrammarLesson>(`/api/grammar/lesson/${featureKey}`);
+}
+
+export async function introduceGrammarFeature(featureKey: string): Promise<{ feature_key: string; introduced_at: string }> {
+  return fetchApi("/api/grammar/introduce", {
+    method: "POST",
+    body: JSON.stringify({ feature_key: featureKey }),
+  });
+}
+
+export async function getConfusedGrammarFeatures(): Promise<{ features: GrammarLesson[] }> {
+  return fetchApi("/api/grammar/confused");
+}
+
+export async function getGrammarProgress(): Promise<GrammarProgress[]> {
+  const data = await fetchApi<{ progress: GrammarProgress[] }>("/api/grammar/progress");
+  return data.progress;
 }

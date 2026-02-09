@@ -9,12 +9,13 @@ import {
 } from "react-native";
 import { useFocusEffect } from "expo-router";
 import { colors, fonts } from "../lib/theme";
-import { getAnalytics } from "../lib/api";
-import { Analytics } from "../lib/types";
+import { getAnalytics, getGrammarProgress } from "../lib/api";
+import { Analytics, GrammarProgress } from "../lib/types";
 import { syncEvents } from "../lib/sync-events";
 
 export default function StatsScreen() {
   const [analytics, setAnalytics] = useState<Analytics | null>(null);
+  const [grammarProgress, setGrammarProgress] = useState<GrammarProgress[]>([]);
   const [loading, setLoading] = useState(true);
 
   useFocusEffect(
@@ -32,8 +33,12 @@ export default function StatsScreen() {
   async function loadAnalytics() {
     setLoading(true);
     try {
-      const data = await getAnalytics();
+      const [data, grammar] = await Promise.all([
+        getAnalytics(),
+        getGrammarProgress().catch(() => []),
+      ]);
       setAnalytics(data);
+      setGrammarProgress(grammar);
     } catch (e) {
       console.error("Failed to load analytics:", e);
     } finally {
@@ -230,7 +235,64 @@ export default function StatsScreen() {
           </View>
         </View>
       )}
+      {/* Grammar Progress */}
+      {grammarProgress.filter((g) => g.times_seen > 0).length > 0 && (
+        <GrammarProgressSection progress={grammarProgress} />
+      )}
     </ScrollView>
+    </View>
+  );
+}
+
+function GrammarProgressSection({ progress }: { progress: GrammarProgress[] }) {
+  const seen = progress.filter((g) => g.times_seen > 0);
+  const categories = [...new Set(seen.map((g) => g.category))];
+
+  return (
+    <View style={styles.grammarCard}>
+      <Text style={styles.sectionTitle}>Grammar</Text>
+      <Text style={styles.grammarSummary}>
+        {seen.length} of {progress.length} features encountered
+      </Text>
+      {categories.map((cat) => {
+        const features = seen.filter((g) => g.category === cat);
+        return (
+          <View key={cat} style={styles.grammarCategory}>
+            <Text style={styles.grammarCatTitle}>
+              {cat.replace(/_/g, " ")}
+            </Text>
+            {features.map((f) => (
+              <View key={f.feature_key} style={styles.grammarFeatureRow}>
+                <Text
+                  style={styles.grammarFeatureLabel}
+                  numberOfLines={1}
+                >
+                  {f.label_en}
+                </Text>
+                <View style={styles.grammarBarTrack}>
+                  <View
+                    style={[
+                      styles.grammarBarFill,
+                      {
+                        width: `${Math.min(f.comfort_score * 100, 100)}%`,
+                        backgroundColor:
+                          f.comfort_score >= 0.5
+                            ? colors.good
+                            : f.comfort_score >= 0.3
+                              ? colors.accent
+                              : colors.missed,
+                      },
+                    ]}
+                  />
+                </View>
+                <Text style={styles.grammarFeatureCount}>
+                  {f.times_seen}
+                </Text>
+              </View>
+            ))}
+          </View>
+        );
+      })}
     </View>
   );
 }
@@ -454,5 +516,57 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontSize: 16,
     fontWeight: "600",
+  },
+  grammarCard: {
+    backgroundColor: colors.surface,
+    borderRadius: 16,
+    padding: 20,
+    width: "100%",
+    maxWidth: 500,
+    marginTop: 16,
+  },
+  grammarSummary: {
+    fontSize: 13,
+    color: colors.textSecondary,
+    marginBottom: 14,
+  },
+  grammarCategory: {
+    marginBottom: 12,
+  },
+  grammarCatTitle: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: colors.textSecondary,
+    textTransform: "capitalize",
+    marginBottom: 6,
+    opacity: 0.8,
+  },
+  grammarFeatureRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 4,
+  },
+  grammarFeatureLabel: {
+    fontSize: 12,
+    color: colors.text,
+    width: 120,
+  },
+  grammarBarTrack: {
+    flex: 1,
+    height: 6,
+    backgroundColor: colors.surfaceLight,
+    borderRadius: 3,
+    overflow: "hidden",
+  },
+  grammarBarFill: {
+    height: "100%",
+    borderRadius: 3,
+  },
+  grammarFeatureCount: {
+    fontSize: 11,
+    color: colors.textSecondary,
+    width: 24,
+    textAlign: "right",
   },
 });

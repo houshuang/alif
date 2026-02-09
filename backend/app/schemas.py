@@ -169,6 +169,7 @@ class SentenceReviewItem(BaseModel):
     primary_lemma_ar: str
     primary_gloss_en: str
     words: list[SentenceWordMeta]
+    grammar_features: list[str] = []
 
 
 class IntroCandidateOut(BaseModel):
@@ -189,6 +190,8 @@ class SentenceSessionOut(BaseModel):
     total_due_words: int
     covered_due_words: int
     intro_candidates: list[IntroCandidateOut] = []
+    grammar_intro_needed: list[str] = []
+    grammar_refresher_needed: list[str] = []
 
 
 class SentenceReviewSubmitIn(BaseModel):

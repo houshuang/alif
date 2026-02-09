@@ -9,14 +9,17 @@ from typing import Optional
 from sqlalchemy.orm import Session
 
 from app.models import (
+    GrammarFeature,
     Lemma,
     ReviewLog,
     Sentence,
+    SentenceGrammarFeature,
     SentenceReviewLog,
     SentenceWord,
     UserLemmaKnowledge,
 )
 from app.services.fsrs_service import submit_review
+from app.services.grammar_service import record_grammar_exposure
 from app.services.sentence_validator import strip_diacritics
 
 
@@ -84,6 +87,9 @@ def submit_sentence_review(
 
     for lemma_id in lemma_ids_in_sentence:
         if comprehension_signal == "understood":
+            rating = 3
+        elif comprehension_signal == "grammar_confused":
+            # Words are fine — grammar structure was confusing
             rating = 3
         elif comprehension_signal == "partial":
             if lemma_id in missed_set:
@@ -184,6 +190,90 @@ def submit_sentence_review(
                 sentence.last_reading_shown_at = now
                 sentence.last_reading_comprehension = comprehension_signal
 
+    # Record grammar exposure from sentence's word lemmas
+    if sentence_id is not None:
+        _record_sentence_grammar(db, sentence_id, lemma_ids_in_sentence, comprehension_signal)
+
     db.commit()
 
     return {"word_results": word_results}
+
+
+def _record_sentence_grammar(
+    db: Session,
+    sentence_id: int,
+    lemma_ids: set[int],
+    comprehension_signal: str,
+) -> None:
+    """Derive grammar features from sentence words and record exposure."""
+    # Collect grammar features from lemma tags
+    feature_keys: set[str] = set()
+
+    # First check if sentence already has grammar features tagged
+    existing_sgf = (
+        db.query(SentenceGrammarFeature)
+        .filter(SentenceGrammarFeature.sentence_id == sentence_id)
+        .all()
+    )
+    if existing_sgf:
+        for sgf in existing_sgf:
+            if sgf.feature and sgf.feature.feature_key:
+                feature_keys.add(sgf.feature.feature_key)
+    else:
+        # Derive from lemma grammar_features_json
+        lemmas = (
+            db.query(Lemma)
+            .filter(Lemma.lemma_id.in_(lemma_ids))
+            .all()
+        )
+        for lemma in lemmas:
+            if lemma.grammar_features_json:
+                feats = lemma.grammar_features_json
+                if isinstance(feats, str):
+                    import json
+                    feats = json.loads(feats)
+                if isinstance(feats, list):
+                    feature_keys.update(feats)
+
+        # Auto-populate SentenceGrammarFeature rows for future use
+        if feature_keys:
+            known_features = {
+                f.feature_key: f.feature_id
+                for f in db.query(GrammarFeature)
+                .filter(GrammarFeature.feature_key.in_(feature_keys))
+                .all()
+            }
+            for key in feature_keys:
+                fid = known_features.get(key)
+                if fid:
+                    db.add(SentenceGrammarFeature(
+                        sentence_id=sentence_id,
+                        feature_id=fid,
+                        is_primary=False,
+                        source="derived",
+                    ))
+
+    # Record exposure: understood/partial → correct, grammar_confused/no_idea → incorrect
+    correct = comprehension_signal in ("understood", "partial")
+    for key in feature_keys:
+        record_grammar_exposure(db, key, correct=correct)
+
+    # Track grammar confusion count
+    if comprehension_signal == "grammar_confused" and feature_keys:
+        from app.models import UserGrammarExposure
+        known_features = {
+            f.feature_key: f.feature_id
+            for f in db.query(GrammarFeature)
+            .filter(GrammarFeature.feature_key.in_(feature_keys))
+            .all()
+        }
+        for key in feature_keys:
+            fid = known_features.get(key)
+            if fid:
+                exp = (
+                    db.query(UserGrammarExposure)
+                    .filter(UserGrammarExposure.feature_id == fid)
+                    .first()
+                )
+                if exp:
+                    exp.times_confused = (exp.times_confused or 0) + 1

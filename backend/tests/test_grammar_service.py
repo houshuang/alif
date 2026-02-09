@@ -14,6 +14,7 @@ from app.models import (
 from app.services.grammar_service import (
     SEED_FEATURES,
     TIER_FEATURES,
+    TIER_REQUIREMENTS,
     compute_comfort,
     seed_grammar_features,
     get_all_features,
@@ -215,6 +216,66 @@ class TestGrammarPatternScore:
 
         after = grammar_pattern_score(db_session, ["singular"])
         assert after < before
+
+
+class TestExpandedGrammarFeatures:
+    def test_all_tier_features_exist_in_seed(self, db_session):
+        seed_keys = {key for _, key, _, _, _, _ in SEED_FEATURES}
+        for tier, features in TIER_FEATURES.items():
+            for key in features:
+                assert key in seed_keys, f"Tier {tier} feature '{key}' not in SEED_FEATURES"
+
+    def test_new_categories_seeded(self, db_session):
+        seed_grammar_features(db_session)
+        features = get_all_features(db_session)
+        categories = {f["category"] for f in features}
+        assert "clitics" in categories
+        assert "noun_derivation" in categories
+        assert "sentence_structure" in categories
+
+    def test_form_change_type_populated(self, db_session):
+        seed_grammar_features(db_session)
+        features = get_all_features(db_session)
+        for f in features:
+            assert f["form_change_type"] in ("form_changing", "structural"), \
+                f"Feature {f['feature_key']} has invalid form_change_type: {f['form_change_type']}"
+
+    def test_proclitic_prepositions_exists(self, db_session):
+        seed_grammar_features(db_session)
+        features = get_all_features(db_session)
+        keys = {f["feature_key"] for f in features}
+        assert "proclitic_prepositions" in keys
+        assert "attached_pronouns" in keys
+        assert "active_participle" in keys
+
+    def test_all_tiers_have_requirements(self):
+        for tier in TIER_FEATURES:
+            assert tier in TIER_REQUIREMENTS, f"Tier {tier} missing from TIER_REQUIREMENTS"
+
+    def test_higher_tiers_unlocked_with_enough_progress(self, db_session):
+        seed_grammar_features(db_session)
+        root = Root(root="ك.ت.ب", core_meaning_en="writing")
+        db_session.add(root)
+        db_session.flush()
+        for i in range(10):
+            lemma = Lemma(
+                lemma_ar=f"w{i}", lemma_ar_bare=f"w{i}",
+                root_id=root.root_id, pos="noun", gloss_en=f"w {i}",
+            )
+            db_session.add(lemma)
+            db_session.flush()
+            db_session.add(UserLemmaKnowledge(
+                lemma_id=lemma.lemma_id, knowledge_state="learning",
+            ))
+        db_session.commit()
+
+        # Build comfort for tier 1 features
+        for key in TIER_FEATURES[1]:
+            for _ in range(20):
+                record_grammar_exposure(db_session, key, correct=True)
+
+        result = get_unlocked_features(db_session)
+        assert result["current_tier"] >= 2
 
 
 class TestGrammarAPI:

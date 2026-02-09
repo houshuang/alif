@@ -22,7 +22,7 @@ export interface ReviewSession {
 }
 
 export type ReviewMode = "reading" | "listening" | "quiz";
-export type ComprehensionSignal = "understood" | "partial" | "no_idea";
+export type ComprehensionSignal = "understood" | "partial" | "no_idea" | "grammar_confused";
 
 export interface ReviewSubmission {
   lemma_id: number;
@@ -239,6 +239,7 @@ export interface SentenceReviewItem {
   primary_lemma_ar: string;
   primary_gloss_en: string;
   words: SentenceWordMeta[];
+  grammar_features?: string[];
 }
 
 export interface IntroCandidate {
@@ -259,6 +260,36 @@ export interface SentenceReviewSession {
   total_due_words: number;
   covered_due_words: number;
   intro_candidates?: IntroCandidate[];
+  grammar_intro_needed?: string[];
+  grammar_refresher_needed?: string[];
+}
+
+export interface GrammarProgress {
+  feature_key: string;
+  category: string;
+  label_en: string;
+  times_seen: number;
+  times_correct: number;
+  comfort_score: number;
+  first_seen_at: string | null;
+  last_seen_at: string | null;
+}
+
+export interface GrammarLesson {
+  feature_key: string;
+  label_en: string;
+  label_ar: string | null;
+  category: string;
+  form_change_type: string | null;
+  explanation: string;
+  examples: { ar: string; en: string }[];
+  tip: string | null;
+  introduced_at: string | null;
+  times_seen: number;
+  times_confused: number;
+  comfort_score: number;
+  confusion_rate?: number;
+  is_refresher?: boolean;
 }
 
 export interface SentenceReviewSubmission {

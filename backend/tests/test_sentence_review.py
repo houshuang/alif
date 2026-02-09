@@ -237,6 +237,44 @@ class TestConfused:
         assert ratings[1] == 3
 
 
+class TestGrammarConfused:
+    def test_all_words_get_rating_3(self, db_session):
+        """grammar_confused means all words are fine — only grammar is the issue."""
+        _seed_word(db_session, 1, "كتاب", "book")
+        _seed_word(db_session, 2, "ولد", "boy")
+        _seed_sentence(db_session, 1, "الولد الكتاب", "the boy the book",
+                       target_lemma_id=1, word_ids=[2, 1])
+        db_session.commit()
+
+        result = submit_sentence_review(
+            db_session,
+            sentence_id=1,
+            primary_lemma_id=1,
+            comprehension_signal="grammar_confused",
+            session_id="test-gc",
+        )
+
+        assert len(result["word_results"]) == 2
+        for wr in result["word_results"]:
+            assert wr["rating"] == 3
+
+    def test_grammar_confused_api(self, client, db_session):
+        _seed_word(db_session, 1, "كتاب", "book")
+        _seed_sentence(db_session, 1, "الكتاب", "the book",
+                       target_lemma_id=1, word_ids=[1])
+        db_session.commit()
+
+        resp = client.post("/api/review/submit-sentence", json={
+            "sentence_id": 1,
+            "primary_lemma_id": 1,
+            "comprehension_signal": "grammar_confused",
+            "session_id": "api-gc",
+        })
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["word_results"][0]["rating"] == 3
+
+
 class TestNoIdea:
     def test_all_words_get_rating_1(self, db_session):
         _seed_word(db_session, 1, "كتاب", "book")

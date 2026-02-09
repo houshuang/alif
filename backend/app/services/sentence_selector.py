@@ -15,11 +15,14 @@ from sqlalchemy.orm import Session
 from sqlalchemy.orm import joinedload
 
 from app.models import (
+    GrammarFeature,
     Lemma,
     ReviewLog,
     Root,
     Sentence,
+    SentenceGrammarFeature,
     SentenceWord,
+    UserGrammarExposure,
     UserLemmaKnowledge,
 )
 from app.services.interaction_logger import log_interaction
@@ -98,6 +101,44 @@ def _difficulty_match_quality(
         return 1.0
 
 
+def _grammar_fit(
+    grammar_features: list[str],
+    grammar_exposure: dict[str, dict],
+) -> float:
+    """Compute grammar fit multiplier for a sentence.
+
+    Returns 0.8-1.1 based on how well the sentence's grammar features
+    match the user's grammar comfort level.
+    """
+    if not grammar_features:
+        return 1.0
+
+    multipliers: list[float] = []
+    for feat_key in grammar_features:
+        exp = grammar_exposure.get(feat_key)
+        if exp is None:
+            # Never seen and not introduced — slight penalty
+            multipliers.append(0.8)
+        elif exp.get("introduced") and exp.get("comfort", 0) < 0.3:
+            # Introduced but low comfort — neutral
+            multipliers.append(1.0)
+        elif exp.get("comfort", 0) >= 0.5:
+            # Comfortable — slight bonus
+            multipliers.append(1.1)
+        elif exp.get("comfort", 0) >= 0.3:
+            # Moderate comfort — neutral
+            multipliers.append(1.0)
+        else:
+            # Seen but not introduced and low comfort
+            if exp.get("introduced"):
+                multipliers.append(1.0)
+            else:
+                multipliers.append(0.8)
+
+    # Average the multipliers
+    return sum(multipliers) / len(multipliers)
+
+
 def build_session(
     db: Session,
     limit: int = 10,
@@ -114,6 +155,7 @@ def build_session(
     # Comprehension-aware recency cutoffs
     cutoff_understood = now - timedelta(days=7)
     cutoff_partial = now - timedelta(days=2)
+    cutoff_grammar_confused = now - timedelta(days=1)
     cutoff_no_idea = now - timedelta(hours=4)
 
     # 1. Fetch all due words
@@ -171,6 +213,7 @@ def build_session(
                 shown_col.is_(None),
                 (comp_col == "understood") & (shown_col < cutoff_understood),
                 (comp_col == "partial") & (shown_col < cutoff_partial),
+                (comp_col == "grammar_confused") & (shown_col < cutoff_grammar_confused),
                 (comp_col == "no_idea") & (shown_col < cutoff_no_idea),
                 (comp_col.is_(None)) & (shown_col < cutoff_understood),
             ),
@@ -202,6 +245,32 @@ def build_session(
     lemma_map = {l.lemma_id: l for l in lemmas}
 
     knowledge_map = {k.lemma_id: k for k in all_knowledge}
+
+    # Load grammar exposure for grammar_fit scoring
+    from app.services.grammar_service import compute_comfort
+    grammar_exposure_map: dict[str, dict] = {}
+    gram_exposures = (
+        db.query(UserGrammarExposure)
+        .join(GrammarFeature)
+        .all()
+    )
+    for exp in gram_exposures:
+        grammar_exposure_map[exp.feature.feature_key] = {
+            "comfort": compute_comfort(exp.times_seen, exp.times_correct, exp.last_seen_at),
+            "introduced": exp.introduced_at is not None,
+        }
+
+    # Pre-compute grammar features per sentence from SentenceGrammarFeature + lemma tags
+    sentence_grammar_cache: dict[int, list[str]] = {}
+    if sentence_map:
+        sgf_rows = (
+            db.query(SentenceGrammarFeature.sentence_id, GrammarFeature.feature_key)
+            .join(GrammarFeature)
+            .filter(SentenceGrammarFeature.sentence_id.in_(sentence_map.keys()))
+            .all()
+        )
+        for sid, fk in sgf_rows:
+            sentence_grammar_cache.setdefault(sid, []).append(fk)
 
     # For listening mode, pre-compute which words are "listening-ready":
     # at least one positive review AND (no negatives OR last review positive)
@@ -280,7 +349,25 @@ def build_session(
 
         weakest = min(stability_map.get(lid, 0.0) for lid in due_covered)
         dmq = _difficulty_match_quality(weakest, scaffold_stabilities)
-        score = (len(due_covered) ** 1.5) * dmq
+
+        # Grammar fit: derive features from cache or lemma tags
+        sent_grammar = sentence_grammar_cache.get(sent.id)
+        if sent_grammar is None:
+            feat_keys: set[str] = set()
+            for sw in sws:
+                if sw.lemma_id:
+                    lem = lemma_map.get(sw.lemma_id)
+                    if lem and lem.grammar_features_json:
+                        feats = lem.grammar_features_json
+                        if isinstance(feats, str):
+                            feats = json.loads(feats)
+                        if isinstance(feats, list):
+                            feat_keys.update(feats)
+            sent_grammar = list(feat_keys)
+            sentence_grammar_cache[sent.id] = sent_grammar
+
+        gfit = _grammar_fit(sent_grammar, grammar_exposure_map)
+        score = (len(due_covered) ** 1.5) * dmq * gfit
 
         candidates.append(SentenceCandidate(
             sentence_id=sent.id,
@@ -304,7 +391,8 @@ def build_session(
             scaffold_stabs = [w.stability for w in c.words_meta
                               if w.lemma_id and not w.is_due and w.stability is not None]
             dmq = _difficulty_match_quality(weakest, scaffold_stabs)
-            c.score = (len(overlap) ** 1.5) * dmq
+            gfit = _grammar_fit(sentence_grammar_cache.get(c.sentence_id, []), grammar_exposure_map)
+            c.score = (len(overlap) ** 1.5) * dmq * gfit
 
         candidates.sort(key=lambda c: c.score, reverse=True)
         best = candidates[0]
@@ -333,6 +421,38 @@ def build_session(
 
     # 4. Order: easy bookends, hard in middle
     ordered = _order_session(selected, stability_map)
+
+    # Load grammar features for selected sentences
+    selected_sentence_ids = {c.sentence_id for c in ordered}
+    grammar_by_sentence: dict[int, list[str]] = {}
+    if selected_sentence_ids:
+        sgf_rows = (
+            db.query(SentenceGrammarFeature, GrammarFeature.feature_key)
+            .join(GrammarFeature)
+            .filter(SentenceGrammarFeature.sentence_id.in_(selected_sentence_ids))
+            .all()
+        )
+        for sgf, feature_key in sgf_rows:
+            grammar_by_sentence.setdefault(sgf.sentence_id, []).append(feature_key)
+
+        # Also derive from lemma tags for sentences without existing grammar features
+        for sid in selected_sentence_ids:
+            if sid in grammar_by_sentence:
+                continue
+            cand = next((c for c in ordered if c.sentence_id == sid), None)
+            if cand:
+                feature_keys: set[str] = set()
+                for w in cand.words_meta:
+                    if w.lemma_id:
+                        lemma = lemma_map.get(w.lemma_id)
+                        if lemma and lemma.grammar_features_json:
+                            feats = lemma.grammar_features_json
+                            if isinstance(feats, str):
+                                feats = json.loads(feats)
+                            if isinstance(feats, list):
+                                feature_keys.update(feats)
+                if feature_keys:
+                    grammar_by_sentence[sid] = list(feature_keys)
 
     # Build response items (shown_at is set on review submission, not here)
     items: list[dict] = []
@@ -373,6 +493,7 @@ def build_session(
             "primary_lemma_ar": primary_lemma.lemma_ar if primary_lemma else "",
             "primary_gloss_en": primary_lemma.gloss_en if primary_lemma else "",
             "words": word_dicts,
+            "grammar_features": grammar_by_sentence.get(cand.sentence_id, []),
         })
 
     db.commit()
@@ -434,12 +555,27 @@ def _with_fallbacks(
 
     intro_candidates = _get_intro_candidates(db, items)
 
+    # Check for un-introduced grammar features in session sentences
+    sentence_ids_in_session = [item["sentence_id"] for item in items if item.get("sentence_id")]
+    grammar_intro_needed: list[str] = []
+    if sentence_ids_in_session:
+        from app.services.grammar_lesson_service import get_unintroduced_features_for_session
+        grammar_intro_needed = get_unintroduced_features_for_session(db, sentence_ids_in_session)
+
+    # Also check for confused features that need resurfacing
+    grammar_refresher_needed: list[str] = []
+    from app.services.grammar_lesson_service import get_confused_features
+    confused = get_confused_features(db)
+    grammar_refresher_needed = [f["feature_key"] for f in confused]
+
     return {
         "session_id": session_id,
         "items": items,
         "total_due_words": total_due,
         "covered_due_words": len(covered_ids),
         "intro_candidates": intro_candidates,
+        "grammar_intro_needed": grammar_intro_needed,
+        "grammar_refresher_needed": grammar_refresher_needed,
     }
 
 

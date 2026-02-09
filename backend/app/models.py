@@ -147,6 +147,7 @@ class GrammarFeature(Base):
     label_en = Column(Text, nullable=False)
     label_ar = Column(Text)
     sort_order = Column(Integer, default=0)
+    form_change_type = Column(String(20), nullable=True)  # form_changing / structural
 
     sentence_features = relationship("SentenceGrammarFeature", back_populates="feature")
     exposures = relationship("UserGrammarExposure", back_populates="feature")
@@ -175,6 +176,8 @@ class UserGrammarExposure(Base):
     first_seen_at = Column(DateTime, nullable=True)
     last_seen_at = Column(DateTime, nullable=True)
     comfort_score = Column(Float, default=0.0)
+    introduced_at = Column(DateTime, nullable=True)
+    times_confused = Column(Integer, default=0)
 
     feature = relationship("GrammarFeature", back_populates="exposures")
 

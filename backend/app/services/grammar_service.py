@@ -19,54 +19,92 @@ from app.models import (
 )
 
 SEED_FEATURES = [
+    # (category, key, label_en, label_ar, sort_order, form_change_type)
     # number
-    ("number", "singular", "Singular", "مُفْرَد", 1),
-    ("number", "dual", "Dual", "مُثَنَّى", 2),
-    ("number", "plural_sound", "Sound Plural", "جَمْع سَالِم", 3),
-    ("number", "plural_broken", "Broken Plural", "جَمْع تَكْسِير", 4),
+    ("number", "singular", "Singular", "مُفْرَد", 1, "form_changing"),
+    ("number", "dual", "Dual", "مُثَنَّى", 2, "form_changing"),
+    ("number", "plural_sound", "Sound Plural", "جَمْع سَالِم", 3, "form_changing"),
+    ("number", "plural_broken", "Broken Plural", "جَمْع تَكْسِير", 4, "form_changing"),
     # gender
-    ("gender", "masculine", "Masculine", "مُذَكَّر", 10),
-    ("gender", "feminine", "Feminine", "مُؤَنَّث", 11),
+    ("gender", "masculine", "Masculine", "مُذَكَّر", 10, "form_changing"),
+    ("gender", "feminine", "Feminine", "مُؤَنَّث", 11, "form_changing"),
     # verb_tense
-    ("verb_tense", "past", "Past Tense", "الماضِي", 20),
-    ("verb_tense", "present", "Present Tense", "المُضارِع", 21),
-    ("verb_tense", "imperative", "Imperative", "الأَمْر", 22),
+    ("verb_tense", "past", "Past Tense", "الماضِي", 20, "form_changing"),
+    ("verb_tense", "present", "Present Tense", "المُضارِع", 21, "form_changing"),
+    ("verb_tense", "imperative", "Imperative", "الأَمْر", 22, "form_changing"),
     # verb_form
-    ("verb_form", "form_1", "Form I", "فَعَلَ", 30),
-    ("verb_form", "form_2", "Form II", "فَعَّلَ", 31),
-    ("verb_form", "form_3", "Form III", "فاعَلَ", 32),
-    ("verb_form", "form_4", "Form IV", "أَفْعَلَ", 33),
-    ("verb_form", "form_5", "Form V", "تَفَعَّلَ", 34),
-    ("verb_form", "form_6", "Form VI", "تَفاعَلَ", 35),
-    ("verb_form", "form_7", "Form VII", "اِنْفَعَلَ", 36),
-    ("verb_form", "form_8", "Form VIII", "اِفْتَعَلَ", 37),
-    ("verb_form", "form_9", "Form IX", "اِفْعَلَّ", 38),
-    ("verb_form", "form_10", "Form X", "اِسْتَفْعَلَ", 39),
+    ("verb_form", "form_1", "Form I", "فَعَلَ", 30, "form_changing"),
+    ("verb_form", "form_2", "Form II", "فَعَّلَ", 31, "form_changing"),
+    ("verb_form", "form_3", "Form III", "فاعَلَ", 32, "form_changing"),
+    ("verb_form", "form_4", "Form IV", "أَفْعَلَ", 33, "form_changing"),
+    ("verb_form", "form_5", "Form V", "تَفَعَّلَ", 34, "form_changing"),
+    ("verb_form", "form_6", "Form VI", "تَفاعَلَ", 35, "form_changing"),
+    ("verb_form", "form_7", "Form VII", "اِنْفَعَلَ", 36, "form_changing"),
+    ("verb_form", "form_8", "Form VIII", "اِفْتَعَلَ", 37, "form_changing"),
+    ("verb_form", "form_9", "Form IX", "اِفْعَلَّ", 38, "form_changing"),
+    ("verb_form", "form_10", "Form X", "اِسْتَفْعَلَ", 39, "form_changing"),
+    # clitics
+    ("clitics", "definite_article", "Definite Article", "أَداة التَّعْرِيف", 40, "form_changing"),
+    ("clitics", "proclitic_prepositions", "Proclitic Prepositions", "حُرُوف الجَرّ المُتَّصِلة", 41, "form_changing"),
+    ("clitics", "attached_pronouns", "Attached Pronouns", "الضَّمائِر المُتَّصِلة", 42, "form_changing"),
+    # noun_derivation
+    ("noun_derivation", "active_participle", "Active Participle", "اِسْم الفاعِل", 60, "form_changing"),
+    ("noun_derivation", "passive_participle", "Passive Participle", "اِسْم المَفْعُول", 61, "form_changing"),
+    ("noun_derivation", "masdar", "Masdar (Verbal Noun)", "المَصْدَر", 62, "form_changing"),
+    ("noun_derivation", "diminutive", "Diminutive", "التَّصْغِير", 63, "form_changing"),
+    ("noun_derivation", "nisba", "Nisba Adjective", "النِّسْبة", 64, "form_changing"),
     # syntax
-    ("syntax", "idafa", "Idafa (Construct)", "إِضافَة", 50),
-    ("syntax", "comparative", "Comparative", "أَفْعَل التَّفْضِيل", 51),
-    ("syntax", "superlative", "Superlative", "الأَفْعَل", 52),
-    ("syntax", "passive", "Passive Voice", "المَبْنِيّ لِلْمَجْهُول", 53),
-    ("syntax", "negation", "Negation", "النَّفْي", 54),
+    ("syntax", "idafa", "Idafa (Construct)", "إِضافَة", 50, "structural"),
+    ("syntax", "comparative", "Comparative", "أَفْعَل التَّفْضِيل", 51, "form_changing"),
+    ("syntax", "superlative", "Superlative", "الأَفْعَل", 52, "form_changing"),
+    ("syntax", "passive", "Passive Voice", "المَبْنِيّ لِلْمَجْهُول", 53, "form_changing"),
+    ("syntax", "negation", "Negation", "النَّفْي", 54, "structural"),
+    ("syntax", "standalone_prepositions", "Standalone Prepositions", "حُرُوف الجَرّ", 55, "structural"),
+    ("syntax", "subject_pronouns", "Subject Pronouns", "الضَّمائِر المُنْفَصِلة", 56, "structural"),
+    ("syntax", "tanwin_patterns", "Tanwin Patterns", "التَّنْوِين", 57, "form_changing"),
+    ("syntax", "exception", "Exception (Illa)", "الاِسْتِثْنَاء", 58, "structural"),
+    ("syntax", "emphatic_negation", "Emphatic Negation", "النَّفْي المُؤَكَّد", 59, "structural"),
+    ("syntax", "oath_formula", "Oath Formulae", "صِيَغ القَسَم", 70, "structural"),
+    ("syntax", "vocative", "Vocative", "النِّداء", 71, "structural"),
+    # sentence_structure
+    ("sentence_structure", "nominal_sentence", "Nominal Sentence", "الجُمْلة الاِسْمِيَّة", 80, "structural"),
+    ("sentence_structure", "verbal_sentence", "Verbal Sentence (VSO)", "الجُمْلة الفِعْلِيَّة", 81, "structural"),
+    ("sentence_structure", "kaana_sisters", "Kana and Sisters", "كانَ وَأَخَوَاتُها", 82, "structural"),
+    ("sentence_structure", "inna_sisters", "Inna and Sisters", "إِنَّ وَأَخَوَاتُها", 83, "structural"),
+    ("sentence_structure", "relative_clauses", "Relative Clauses", "الأَسْماء المَوْصُولة", 84, "structural"),
+    ("sentence_structure", "conditional", "Conditional Sentences", "الجُمَل الشَّرْطِيَّة", 85, "structural"),
+    ("sentence_structure", "hal_clause", "Hal (Circumstantial)", "الحَال", 86, "structural"),
+    # weak verbs
+    ("verb_form", "weak_hollow", "Hollow Verbs", "الأَفْعال الجَوْفاء", 90, "form_changing"),
+    ("verb_form", "weak_defective", "Defective Verbs", "الأَفْعال النَّاقِصة", 91, "form_changing"),
+    ("verb_form", "weak_assimilated", "Assimilated Verbs", "الأَفْعال المِثَال", 92, "form_changing"),
 ]
 
 TIER_FEATURES: dict[int, list[str]] = {
-    0: ["singular", "masculine", "present", "form_1"],
-    1: ["feminine", "past", "idafa"],
-    2: ["plural_sound", "negation", "imperative"],
-    3: ["plural_broken", "form_2", "form_3", "passive"],
-    4: [
-        "dual", "comparative", "superlative",
-        "form_4", "form_5", "form_6", "form_7", "form_8", "form_9", "form_10",
-    ],
+    0: ["singular", "masculine", "present", "form_1", "definite_article"],
+    1: ["feminine", "past", "idafa", "standalone_prepositions", "subject_pronouns"],
+    2: ["plural_sound", "negation", "imperative", "proclitic_prepositions",
+        "attached_pronouns", "nominal_sentence"],
+    3: ["plural_broken", "form_2", "form_3", "passive", "kaana_sisters",
+        "active_participle"],
+    4: ["dual", "comparative", "superlative", "form_4", "form_5",
+        "inna_sisters", "passive_participle", "masdar", "relative_clauses"],
+    5: ["form_6", "form_7", "form_8", "weak_hollow", "weak_defective",
+        "conditional", "verbal_sentence"],
+    6: ["form_9", "form_10", "weak_assimilated", "diminutive",
+        "hal_clause", "exception"],
+    7: ["nisba", "tanwin_patterns", "emphatic_negation", "oath_formula", "vocative"],
 }
 
 TIER_REQUIREMENTS: dict[int, dict] = {
     0: {},
     1: {"min_words": 10},
     2: {"prev_tier": 1, "comfort_threshold": 0.3},
-    3: {"prev_tier": 2, "comfort_threshold": 0.4},
-    4: {"prev_tier": 3, "comfort_threshold": 0.5},
+    3: {"prev_tier": 2, "comfort_threshold": 0.35},
+    4: {"prev_tier": 3, "comfort_threshold": 0.4},
+    5: {"prev_tier": 4, "comfort_threshold": 0.45},
+    6: {"prev_tier": 5, "comfort_threshold": 0.5},
+    7: {"prev_tier": 6, "comfort_threshold": 0.5},
 }
 
 
@@ -77,7 +115,7 @@ def seed_grammar_features(db: Session) -> int:
         for f in db.query(GrammarFeature.feature_key).all()
     }
     added = 0
-    for category, key, label_en, label_ar, sort_order in SEED_FEATURES:
+    for category, key, label_en, label_ar, sort_order, form_change_type in SEED_FEATURES:
         if key in existing:
             continue
         db.add(GrammarFeature(
@@ -86,6 +124,7 @@ def seed_grammar_features(db: Session) -> int:
             label_en=label_en,
             label_ar=label_ar,
             sort_order=sort_order,
+            form_change_type=form_change_type,
         ))
         added += 1
     if added:
@@ -162,6 +201,7 @@ def get_all_features(db: Session) -> list[dict]:
             "label_en": f.label_en,
             "label_ar": f.label_ar,
             "sort_order": f.sort_order,
+            "form_change_type": f.form_change_type,
         }
         for f in features
     ]

@@ -20,6 +20,8 @@ import {
   getAnalytics,
   lookupReviewWord,
   deepPrefetchSessions,
+  getGrammarLesson,
+  introduceGrammarFeature,
   BASE_URL,
 } from "../lib/api";
 import {
@@ -32,6 +34,7 @@ import {
   IntroCandidate,
   Analytics,
   WordLookupResult,
+  GrammarLesson,
 } from "../lib/types";
 import { syncEvents } from "../lib/sync-events";
 import { useNetStatus } from "../lib/net-status";
@@ -102,6 +105,9 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
   const [audioPlayCount, setAudioPlayCount] = useState(0);
   const [lookupCount, setLookupCount] = useState(0);
   const [wordOutcomes, setWordOutcomes] = useState<Map<number, WordOutcome>>(new Map());
+  const [grammarLessons, setGrammarLessons] = useState<GrammarLesson[]>([]);
+  const [grammarLessonIndex, setGrammarLessonIndex] = useState(0);
+  const [grammarLessonsLoading, setGrammarLessonsLoading] = useState(false);
   const showTime = useRef<number>(0);
   const soundRef = useRef<Audio.Sound | null>(null);
   const lookupRequestRef = useRef(0);
@@ -208,6 +214,9 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
     setAudioPlaying(false);
     setAutoIntroduced([]);
     setWordOutcomes(new Map());
+    setGrammarLessons([]);
+    setGrammarLessonIndex(0);
+    setGrammarLessonsLoading(false);
     lookupRequestRef.current += 1;
     setLookupResult(null);
     setLookupSurfaceForm(null);
@@ -226,6 +235,27 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
         setSentenceSession(ss);
         if (ss.intro_candidates && ss.intro_candidates.length > 0) {
           setAutoIntroduced(ss.intro_candidates);
+        }
+        // Load grammar lessons (refreshers first, then intros)
+        const featureKeys: string[] = [
+          ...(ss.grammar_refresher_needed ?? []),
+          ...(ss.grammar_intro_needed ?? []),
+        ];
+        if (featureKeys.length > 0) {
+          setGrammarLessonsLoading(true);
+          const lessons: GrammarLesson[] = [];
+          for (const key of featureKeys) {
+            try {
+              const lesson = await getGrammarLesson(key);
+              if (ss.grammar_refresher_needed?.includes(key)) {
+                lesson.is_refresher = true;
+              }
+              lessons.push(lesson);
+            } catch {}
+          }
+          setGrammarLessons(lessons);
+          setGrammarLessonIndex(0);
+          setGrammarLessonsLoading(false);
         }
         setLoading(false);
         return;
@@ -467,7 +497,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
     const prev = results ?? { total: 0, gotIt: 0, missed: 0, noIdea: 0 };
     const next = {
       total: prev.total + 1,
-      gotIt: prev.gotIt + (signal === "understood" ? 1 : 0),
+      gotIt: prev.gotIt + (signal === "understood" || signal === "grammar_confused" ? 1 : 0),
       missed: prev.missed + (signal === "partial" ? 1 : 0),
       noIdea: prev.noIdea + (signal === "no_idea" ? 1 : 0),
     };
@@ -534,6 +564,9 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
         parts.push(
           `Primary lemma: lemma_id=${item.primary_lemma_id}, lemma_ar=${item.primary_lemma_ar}, gloss=${item.primary_gloss_en}`
         );
+        if (item.grammar_features && item.grammar_features.length > 0) {
+          parts.push(`Grammar features: ${item.grammar_features.join(", ")}`);
+        }
 
         parts.push("Word knowledge:");
         item.words.forEach((word, i) => {
@@ -604,6 +637,15 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
       ].sort((a, b) => a.index - b.index);
 
       if (marked.length === 0) {
+        const grammarFeats = item.grammar_features ?? [];
+        if (grammarFeats.length > 0) {
+          return [
+            "I knew all the words but couldn't parse the grammar structure.",
+            `Grammar features in this sentence: ${grammarFeats.join(", ")}.`,
+            "Explain the grammatical structure step by step.",
+            "For each grammar feature, show how it appears in this sentence and give a recognition tip.",
+          ].join("\n");
+        }
         return [
           "Explain this sentence briefly.",
           "Point out any word forms that can hide the base lemma (prefixes, suffixes, inflection, or attached particles).",
@@ -671,6 +713,32 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
   }
 
   const isListening = mode === "listening";
+
+  // Grammar lesson card shown before review cards
+  const showingGrammarLesson = grammarLessons.length > 0 && grammarLessonIndex < grammarLessons.length;
+  if (showingGrammarLesson) {
+    const lesson = grammarLessons[grammarLessonIndex];
+    return (
+      <View style={[styles.container, { paddingTop: Math.max(insets.top, 12) }]}>
+        <GrammarLessonCard
+          lesson={lesson}
+          current={grammarLessonIndex + 1}
+          total={grammarLessons.length}
+          onDismiss={async () => {
+            try {
+              await introduceGrammarFeature(lesson.feature_key);
+            } catch {}
+            if (grammarLessonIndex + 1 < grammarLessons.length) {
+              setGrammarLessonIndex(grammarLessonIndex + 1);
+            } else {
+              setGrammarLessons([]);
+              setGrammarLessonIndex(0);
+            }
+          }}
+        />
+      </View>
+    );
+  }
 
   // Sentence-first flow
   if (usingSentences) {
@@ -896,9 +964,26 @@ function SentenceReadingCard({
               <Text style={styles.translitPlaceholder}>.</Text>
             )}
           </View>
+          {item.grammar_features && item.grammar_features.length > 0 && (
+            <GrammarChips features={item.grammar_features} />
+          )}
         </View>
       )}
     </>
+  );
+}
+
+function GrammarChips({ features }: { features: string[] }) {
+  return (
+    <View style={styles.grammarChipsRow}>
+      {features.map((f) => (
+        <View key={f} style={styles.grammarChip}>
+          <Text style={styles.grammarChipText}>
+            {f.replace(/_/g, " ")}
+          </Text>
+        </View>
+      ))}
+    </View>
   );
 }
 
@@ -1178,6 +1263,9 @@ function SentenceListeningCard({
               <Text style={styles.translitPlaceholder}>.</Text>
             )}
           </View>
+          {item.grammar_features && item.grammar_features.length > 0 && (
+            <GrammarChips features={item.grammar_features} />
+          )}
         </View>
       )}
 
@@ -1494,7 +1582,12 @@ function ListeningActions({
             lastMarkedGloss={lastMarkedGloss}
           />
         ) : (
-          <Text style={styles.hintText}>Tap any word you didn't catch</Text>
+          <>
+            <Text style={styles.hintText}>Tap any word you didn't catch</Text>
+            <Pressable onPress={() => onSubmit("grammar_confused")}>
+              <Text style={styles.grammarConfusedLink}>Knew words, not grammar</Text>
+            </Pressable>
+          </>
         )}
       </View>
       <View style={styles.actionRow}>
@@ -1635,9 +1728,16 @@ function ReadingActions({
       </View>
       <View style={styles.actionHintSlot}>
         {hasSentence ? (
-          <Text style={[styles.hintText, totalMarked > 0 && styles.hintTextMarked]}>
-            {readingHint}
-          </Text>
+          <>
+            <Text style={[styles.hintText, totalMarked > 0 && styles.hintTextMarked]}>
+              {readingHint}
+            </Text>
+            {totalMarked === 0 && (
+              <Pressable onPress={() => onSubmit("grammar_confused")}>
+                <Text style={styles.grammarConfusedLink}>Knew words, not grammar</Text>
+              </Pressable>
+            )}
+          </>
         ) : (
           <Text style={styles.hintPlaceholder}>.</Text>
         )}
@@ -2049,6 +2149,77 @@ function EmptyState({
         <Text style={styles.startButtonText}>Refresh</Text>
       </Pressable>
     </View>
+  );
+}
+
+// --- Grammar Lesson Card ---
+
+function GrammarLessonCard({
+  lesson,
+  current,
+  total,
+  onDismiss,
+}: {
+  lesson: GrammarLesson;
+  current: number;
+  total: number;
+  onDismiss: () => void;
+}) {
+  return (
+    <ScrollView
+      contentContainerStyle={styles.grammarLessonContainer}
+      showsVerticalScrollIndicator={false}
+    >
+      {lesson.is_refresher && (
+        <Text style={styles.grammarRefresherBadge}>Refresher</Text>
+      )}
+
+      {total > 1 && (
+        <Text style={styles.grammarLessonProgress}>
+          {current} / {total}
+        </Text>
+      )}
+
+      <Text style={styles.grammarLessonTitle}>{lesson.label_en}</Text>
+      {lesson.label_ar && (
+        <Text style={styles.grammarLessonTitleAr}>{lesson.label_ar}</Text>
+      )}
+
+      <Text style={styles.grammarLessonCategory}>{lesson.category}</Text>
+
+      <View style={styles.grammarLessonBody}>
+        <Text style={styles.grammarLessonExplanation}>
+          {lesson.explanation}
+        </Text>
+
+        {lesson.examples.length > 0 && (
+          <View style={styles.grammarExamples}>
+            {lesson.examples.map((ex, i) => (
+              <View key={i} style={styles.grammarExampleRow}>
+                <Text style={styles.grammarExampleAr}>{ex.ar}</Text>
+                <Text style={styles.grammarExampleEn}>{ex.en}</Text>
+              </View>
+            ))}
+          </View>
+        )}
+
+        {lesson.tip && (
+          <View style={styles.grammarTipBox}>
+            <Text style={styles.grammarTipText}>{lesson.tip}</Text>
+          </View>
+        )}
+
+        {lesson.is_refresher && lesson.times_confused > 0 && (
+          <Text style={styles.grammarConfusionNote}>
+            Confused {lesson.times_confused} of {lesson.times_seen} times
+          </Text>
+        )}
+      </View>
+
+      <Pressable style={styles.grammarGotItButton} onPress={onDismiss}>
+        <Text style={styles.grammarGotItText}>Got it</Text>
+      </Pressable>
+    </ScrollView>
   );
 }
 
@@ -2595,6 +2766,140 @@ const styles = StyleSheet.create({
     fontSize: 14,
     textAlign: "center",
     opacity: 0.7,
+  },
+  grammarConfusedLink: {
+    color: colors.confused,
+    fontSize: 12,
+    marginTop: 4,
+    opacity: 0.8,
+  },
+  grammarLessonContainer: {
+    flexGrow: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 32,
+    paddingHorizontal: 20,
+    maxWidth: 500,
+    alignSelf: "center",
+    width: "100%",
+  },
+  grammarRefresherBadge: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: colors.confused,
+    textTransform: "uppercase",
+    letterSpacing: 1,
+    marginBottom: 8,
+  },
+  grammarLessonProgress: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    opacity: 0.6,
+    marginBottom: 12,
+  },
+  grammarLessonTitle: {
+    fontSize: 24,
+    fontWeight: "700",
+    color: colors.text,
+    textAlign: "center",
+    marginBottom: 4,
+  },
+  grammarLessonTitleAr: {
+    fontSize: 22,
+    fontFamily: fontFamily.arabic,
+    color: colors.arabic,
+    writingDirection: "rtl",
+    textAlign: "center",
+    marginBottom: 8,
+  },
+  grammarLessonCategory: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    textTransform: "uppercase",
+    letterSpacing: 1,
+    marginBottom: 20,
+    opacity: 0.7,
+  },
+  grammarLessonBody: {
+    width: "100%",
+    backgroundColor: colors.surface,
+    borderRadius: 12,
+    padding: 20,
+    gap: 16,
+    marginBottom: 24,
+  },
+  grammarLessonExplanation: {
+    fontSize: 16,
+    color: colors.text,
+    lineHeight: 24,
+  },
+  grammarExamples: {
+    gap: 12,
+  },
+  grammarExampleRow: {
+    alignItems: "center",
+    gap: 4,
+  },
+  grammarExampleAr: {
+    fontSize: 22,
+    fontFamily: fontFamily.arabic,
+    color: colors.arabic,
+    writingDirection: "rtl",
+    textAlign: "center",
+  },
+  grammarExampleEn: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    textAlign: "center",
+  },
+  grammarTipBox: {
+    backgroundColor: colors.surfaceLight,
+    borderRadius: 8,
+    padding: 12,
+    borderLeftWidth: 3,
+    borderLeftColor: colors.accent,
+  },
+  grammarTipText: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    lineHeight: 20,
+    fontStyle: "italic",
+  },
+  grammarConfusionNote: {
+    fontSize: 13,
+    color: colors.confused,
+    textAlign: "center",
+    opacity: 0.8,
+  },
+  grammarGotItButton: {
+    backgroundColor: colors.accent,
+    paddingVertical: 16,
+    paddingHorizontal: 48,
+    borderRadius: 12,
+    alignItems: "center",
+  },
+  grammarGotItText: {
+    color: "#fff",
+    fontSize: 17,
+    fontWeight: "700",
+  },
+  grammarChipsRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "center",
+    gap: 6,
+    marginTop: 12,
+  },
+  grammarChip: {
+    backgroundColor: colors.surfaceLight,
+    borderRadius: 10,
+    paddingVertical: 3,
+    paddingHorizontal: 8,
+  },
+  grammarChipText: {
+    fontSize: 11,
+    color: colors.textSecondary,
+    textTransform: "capitalize",
   },
   rootInfoBar: {
     marginTop: 12,
