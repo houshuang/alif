@@ -133,6 +133,26 @@ class TestPartial:
         assert ratings[1] == 3  # not missed
         assert ratings[3] == 3  # not missed
 
+    def test_function_word_lemma_is_scoreable(self, db_session):
+        _seed_word(db_session, 1, "كتاب", "book")
+        _seed_word(db_session, 2, "في", "in")
+        _seed_sentence(db_session, 1, "في الكتاب", "in the book",
+                       target_lemma_id=1, word_ids=[2, 1])
+        db_session.commit()
+
+        result = submit_sentence_review(
+            db_session,
+            sentence_id=1,
+            primary_lemma_id=1,
+            comprehension_signal="partial",
+            missed_lemma_ids=[2],
+            session_id="test-1",
+        )
+
+        ratings = {wr["lemma_id"]: wr["rating"] for wr in result["word_results"]}
+        assert ratings[2] == 1
+        assert ratings[1] == 3
+
     def test_missed_primary_gets_rating_1(self, db_session):
         _seed_word(db_session, 1, "كتاب", "book")
         _seed_sentence(db_session, 1, "الكتاب", "the book",

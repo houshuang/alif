@@ -6,10 +6,16 @@ from sqlalchemy import func, case
 from collections import Counter
 
 from app.database import get_db
-from app.models import Lemma, UserLemmaKnowledge, ReviewLog
+from app.models import (
+    Lemma, UserLemmaKnowledge, ReviewLog, Root,
+    SentenceReviewLog,
+)
 from app.schemas import (
     StatsOut, DailyStatsPoint, LearningPaceOut,
     CEFREstimate, AnalyticsOut,
+    DeepAnalyticsOut, StabilityBucket, RetentionStats,
+    StateTransitions, ComprehensionBreakdown, StrugglingWord,
+    RootCoverage, SessionDetail,
 )
 
 router = APIRouter(prefix="/api/stats", tags=["stats"])
@@ -366,3 +372,305 @@ def get_analytics(
 def get_cefr(db: Session = Depends(get_db)):
     known = _count_state(db, "known")
     return _estimate_cefr(known)
+
+
+# --- Deep Analytics ---
+
+
+STABILITY_BUCKETS = [
+    ("<1h", 0.0, 1 / 24),
+    ("1h-12h", 1 / 24, 0.5),
+    ("12h-1d", 0.5, 1.0),
+    ("1-3d", 1.0, 3.0),
+    ("3-7d", 3.0, 7.0),
+    ("7-30d", 7.0, 30.0),
+    ("30d+", 30.0, None),
+]
+
+
+def _get_stability_distribution(db: Session) -> list[StabilityBucket]:
+    rows = (
+        db.query(UserLemmaKnowledge.fsrs_card_json)
+        .filter(UserLemmaKnowledge.fsrs_card_json.isnot(None))
+        .all()
+    )
+    counts = {label: 0 for label, _, _ in STABILITY_BUCKETS}
+    for (card_data,) in rows:
+        if not card_data:
+            continue
+        if isinstance(card_data, str):
+            card_data = json.loads(card_data)
+        stability = card_data.get("stability")
+        if stability is None:
+            continue
+        stability = float(stability)
+        for label, lo, hi in STABILITY_BUCKETS:
+            if hi is None:
+                if stability >= lo:
+                    counts[label] += 1
+                    break
+            elif lo <= stability < hi:
+                counts[label] += 1
+                break
+
+    return [
+        StabilityBucket(
+            label=label, count=counts[label],
+            min_days=lo, max_days=hi,
+        )
+        for label, lo, hi in STABILITY_BUCKETS
+    ]
+
+
+def _get_retention_stats(db: Session, days: int) -> RetentionStats:
+    cutoff = datetime.now(timezone.utc) - timedelta(days=days)
+    row = (
+        db.query(
+            func.count(ReviewLog.id).label("total"),
+            func.sum(case((ReviewLog.rating >= 3, 1), else_=0)).label("correct"),
+        )
+        .filter(ReviewLog.reviewed_at >= cutoff)
+        .first()
+    )
+    total = row.total or 0
+    correct = row.correct or 0
+    pct = round(correct / total * 100, 1) if total > 0 else None
+    return RetentionStats(
+        period_days=days,
+        total_reviews=total,
+        correct_reviews=correct,
+        retention_pct=pct,
+    )
+
+
+def _get_state_transitions(db: Session, days: int) -> StateTransitions:
+    now = datetime.now(timezone.utc)
+    if days == 0:
+        cutoff = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    else:
+        cutoff = now - timedelta(days=days)
+    rows = (
+        db.query(ReviewLog.fsrs_log_json)
+        .filter(
+            ReviewLog.reviewed_at >= cutoff,
+            ReviewLog.fsrs_log_json.isnot(None),
+        )
+        .all()
+    )
+
+    transitions = StateTransitions(
+        period="today" if days == 0 else f"{days}d",
+    )
+
+    for (log_json,) in rows:
+        if not log_json:
+            continue
+        payload = log_json
+        if isinstance(payload, str):
+            try:
+                payload = json.loads(payload)
+            except json.JSONDecodeError:
+                continue
+        if not isinstance(payload, dict):
+            continue
+
+        state = payload.get("state")
+        prev_state = payload.get("prev_state")
+        if not state or not prev_state:
+            continue
+
+        # Map FSRS state names to our states
+        # FSRS states: New(0), Learning(1), Review(2), Relearning(3)
+        state_map = {"New": "new", "Learning": "learning", "Review": "known", "Relearning": "lapsed"}
+        s = state_map.get(state, state)
+        ps = state_map.get(prev_state, prev_state)
+
+        if ps == "new" and s == "learning":
+            transitions.new_to_learning += 1
+        elif ps == "learning" and s == "known":
+            transitions.learning_to_known += 1
+        elif ps in ("known", "Review") and s in ("lapsed", "Relearning"):
+            transitions.known_to_lapsed += 1
+        elif ps in ("lapsed", "Relearning") and s == "learning":
+            transitions.lapsed_to_learning += 1
+
+    return transitions
+
+
+def _get_comprehension_breakdown(db: Session, days: int) -> ComprehensionBreakdown:
+    now = datetime.now(timezone.utc)
+    if days == 0:
+        cutoff = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    else:
+        cutoff = now - timedelta(days=days)
+    rows = (
+        db.query(
+            SentenceReviewLog.comprehension,
+            func.count(SentenceReviewLog.id),
+        )
+        .filter(SentenceReviewLog.reviewed_at >= cutoff)
+        .group_by(SentenceReviewLog.comprehension)
+        .all()
+    )
+    result = ComprehensionBreakdown(period_days=days)
+    for signal, count in rows:
+        if signal == "understood":
+            result.understood = count
+        elif signal == "partial":
+            result.partial = count
+        elif signal == "no_idea":
+            result.no_idea = count
+    result.total = result.understood + result.partial + result.no_idea
+    return result
+
+
+def _get_struggling_words(db: Session) -> list[StrugglingWord]:
+    rows = (
+        db.query(
+            UserLemmaKnowledge.lemma_id,
+            Lemma.lemma_ar,
+            Lemma.gloss_en,
+            UserLemmaKnowledge.times_seen,
+            UserLemmaKnowledge.total_encounters,
+        )
+        .join(Lemma, Lemma.lemma_id == UserLemmaKnowledge.lemma_id)
+        .filter(
+            UserLemmaKnowledge.times_seen >= 3,
+            UserLemmaKnowledge.times_correct == 0,
+        )
+        .order_by(UserLemmaKnowledge.times_seen.desc())
+        .all()
+    )
+    return [
+        StrugglingWord(
+            lemma_id=r.lemma_id,
+            lemma_ar=r.lemma_ar,
+            gloss_en=r.gloss_en,
+            times_seen=r.times_seen,
+            total_encounters=r.total_encounters or 0,
+        )
+        for r in rows
+    ]
+
+
+def _get_root_coverage(db: Session) -> RootCoverage:
+    # Get all roots that have at least one non-variant lemma
+    roots = (
+        db.query(
+            Root.root_id,
+            Root.root,
+            Root.core_meaning_en,
+        )
+        .join(Lemma, Lemma.root_id == Root.root_id)
+        .filter(Lemma.canonical_lemma_id.is_(None))
+        .group_by(Root.root_id)
+        .all()
+    )
+
+    total_roots = 0
+    roots_with_known = 0
+    roots_fully_mastered = 0
+    partial_roots = []
+
+    for root in roots:
+        lemma_rows = (
+            db.query(
+                Lemma.lemma_id,
+                UserLemmaKnowledge.knowledge_state,
+            )
+            .outerjoin(UserLemmaKnowledge, UserLemmaKnowledge.lemma_id == Lemma.lemma_id)
+            .filter(
+                Lemma.root_id == root.root_id,
+                Lemma.canonical_lemma_id.is_(None),
+            )
+            .all()
+        )
+        total_in_root = len(lemma_rows)
+        if total_in_root == 0:
+            continue
+        total_roots += 1
+        known_in_root = sum(
+            1 for _, state in lemma_rows
+            if state in ("known", "learning")
+        )
+        if known_in_root > 0:
+            roots_with_known += 1
+        if known_in_root == total_in_root:
+            roots_fully_mastered += 1
+        elif known_in_root > 0:
+            partial_roots.append({
+                "root": root.root,
+                "root_meaning": root.core_meaning_en,
+                "known": known_in_root,
+                "total": total_in_root,
+            })
+
+    # Sort partial roots by completion ratio descending, take top 5
+    partial_roots.sort(key=lambda r: r["known"] / r["total"], reverse=True)
+
+    return RootCoverage(
+        total_roots=total_roots,
+        roots_with_known=roots_with_known,
+        roots_fully_mastered=roots_fully_mastered,
+        top_partial_roots=partial_roots[:5],
+    )
+
+
+def _get_recent_sessions(db: Session, limit: int = 10) -> list[SessionDetail]:
+    # Get recent unique sessions from SentenceReviewLog
+    sessions = (
+        db.query(
+            SentenceReviewLog.session_id,
+            func.min(SentenceReviewLog.reviewed_at).label("first_review"),
+            func.count(SentenceReviewLog.id).label("sentence_count"),
+            func.avg(SentenceReviewLog.response_ms).label("avg_ms"),
+        )
+        .filter(SentenceReviewLog.session_id.isnot(None))
+        .group_by(SentenceReviewLog.session_id)
+        .order_by(func.min(SentenceReviewLog.reviewed_at).desc())
+        .limit(limit)
+        .all()
+    )
+
+    results = []
+    for s in sessions:
+        # Get comprehension breakdown for this session
+        comp_rows = (
+            db.query(
+                SentenceReviewLog.comprehension,
+                func.count(SentenceReviewLog.id),
+            )
+            .filter(SentenceReviewLog.session_id == s.session_id)
+            .group_by(SentenceReviewLog.comprehension)
+            .all()
+        )
+        comp = {}
+        for signal, count in comp_rows:
+            comp[signal] = count
+
+        results.append(SessionDetail(
+            session_id=s.session_id[:8] if s.session_id else "?",
+            reviewed_at=s.first_review.isoformat() if s.first_review else "",
+            sentence_count=s.sentence_count,
+            comprehension=comp,
+            avg_response_ms=round(s.avg_ms, 0) if s.avg_ms else None,
+        ))
+
+    return results
+
+
+@router.get("/deep-analytics", response_model=DeepAnalyticsOut)
+def get_deep_analytics(db: Session = Depends(get_db)):
+    return DeepAnalyticsOut(
+        stability_distribution=_get_stability_distribution(db),
+        retention_7d=_get_retention_stats(db, 7),
+        retention_30d=_get_retention_stats(db, 30),
+        transitions_today=_get_state_transitions(db, 0),
+        transitions_7d=_get_state_transitions(db, 7),
+        transitions_30d=_get_state_transitions(db, 30),
+        comprehension_7d=_get_comprehension_breakdown(db, 7),
+        comprehension_30d=_get_comprehension_breakdown(db, 30),
+        struggling_words=_get_struggling_words(db),
+        root_coverage=_get_root_coverage(db),
+        recent_sessions=_get_recent_sessions(db),
+    )

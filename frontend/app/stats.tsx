@@ -9,13 +9,14 @@ import {
 } from "react-native";
 import { useFocusEffect } from "expo-router";
 import { colors, fonts } from "../lib/theme";
-import { getAnalytics, getGrammarProgress } from "../lib/api";
-import { Analytics, GrammarProgress } from "../lib/types";
+import { getAnalytics, getGrammarProgress, getDeepAnalytics } from "../lib/api";
+import { Analytics, GrammarProgress, DeepAnalytics } from "../lib/types";
 import { syncEvents } from "../lib/sync-events";
 
 export default function StatsScreen() {
   const [analytics, setAnalytics] = useState<Analytics | null>(null);
   const [grammarProgress, setGrammarProgress] = useState<GrammarProgress[]>([]);
+  const [deepAnalytics, setDeepAnalytics] = useState<DeepAnalytics | null>(null);
   const [loading, setLoading] = useState(true);
 
   useFocusEffect(
@@ -33,12 +34,14 @@ export default function StatsScreen() {
   async function loadAnalytics() {
     setLoading(true);
     try {
-      const [data, grammar] = await Promise.all([
+      const [data, grammar, deep] = await Promise.all([
         getAnalytics(),
         getGrammarProgress().catch(() => []),
+        getDeepAnalytics().catch(() => null),
       ]);
       setAnalytics(data);
       setGrammarProgress(grammar);
+      setDeepAnalytics(deep);
     } catch (e) {
       console.error("Failed to load analytics:", e);
     } finally {
@@ -235,6 +238,18 @@ export default function StatsScreen() {
           </View>
         </View>
       )}
+      {/* Deep Analytics */}
+      {deepAnalytics && (
+        <>
+          <VocabularyHealthSection data={deepAnalytics} />
+          <LearningVelocitySection data={deepAnalytics} />
+          <ComprehensionSection data={deepAnalytics} />
+          {deepAnalytics.struggling_words.length > 0 && (
+            <StrugglingWordsSection words={deepAnalytics.struggling_words} />
+          )}
+          <RootProgressSection data={deepAnalytics.root_coverage} />
+        </>
+      )}
       {/* Grammar Progress */}
       {grammarProgress.filter((g) => g.times_seen > 0).length > 0 && (
         <GrammarProgressSection progress={grammarProgress} />
@@ -293,6 +308,254 @@ function GrammarProgressSection({ progress }: { progress: GrammarProgress[] }) {
           </View>
         );
       })}
+    </View>
+  );
+}
+
+// --- Deep Analytics Components ---
+
+const STABILITY_COLORS: Record<string, string> = {
+  "<1h": "#e74c3c",
+  "1h-12h": "#e67e22",
+  "12h-1d": "#f39c12",
+  "1-3d": "#f1c40f",
+  "3-7d": "#2ecc71",
+  "7-30d": "#27ae60",
+  "30d+": "#1abc9c",
+};
+
+function VocabularyHealthSection({ data }: { data: DeepAnalytics }) {
+  const buckets = data.stability_distribution;
+  const total = buckets.reduce((s, b) => s + b.count, 0);
+  if (total === 0) return null;
+
+  const solid = buckets.filter(b => (b.min_days ?? 0) >= 7).reduce((s, b) => s + b.count, 0);
+  const growing = buckets.filter(b => (b.min_days ?? 0) >= 1 && (b.max_days ?? Infinity) < 7).reduce((s, b) => s + b.count, 0);
+  const fragile = buckets.filter(b => (b.max_days ?? Infinity) <= 1).reduce((s, b) => s + b.count, 0);
+
+  return (
+    <View style={styles.deepCard}>
+      <Text style={styles.sectionTitle}>Vocabulary Health</Text>
+      <View style={styles.stabilityBar}>
+        {buckets.map((b) => {
+          if (b.count === 0) return null;
+          const pct = (b.count / total) * 100;
+          return (
+            <View
+              key={b.label}
+              style={[
+                styles.stabilitySegment,
+                {
+                  width: `${Math.max(pct, 2)}%`,
+                  backgroundColor: STABILITY_COLORS[b.label] || colors.border,
+                },
+              ]}
+            />
+          );
+        })}
+      </View>
+      <View style={styles.stabilityLegend}>
+        {solid > 0 && (
+          <Text style={[styles.stabilityLabel, { color: "#27ae60" }]}>
+            {solid} solid
+          </Text>
+        )}
+        {growing > 0 && (
+          <Text style={[styles.stabilityLabel, { color: "#f1c40f" }]}>
+            {growing} growing
+          </Text>
+        )}
+        {fragile > 0 && (
+          <Text style={[styles.stabilityLabel, { color: "#e74c3c" }]}>
+            {fragile} fragile
+          </Text>
+        )}
+      </View>
+      <View style={styles.stabilityDetail}>
+        {buckets.filter(b => b.count > 0).map((b) => (
+          <View key={b.label} style={styles.stabilityDetailRow}>
+            <View style={[styles.stabilityDot, { backgroundColor: STABILITY_COLORS[b.label] }]} />
+            <Text style={styles.stabilityDetailLabel}>{b.label}</Text>
+            <Text style={styles.stabilityDetailCount}>{b.count}</Text>
+          </View>
+        ))}
+      </View>
+    </View>
+  );
+}
+
+function LearningVelocitySection({ data }: { data: DeepAnalytics }) {
+  const t = data.transitions_today;
+  const t7 = data.transitions_7d;
+  const hasToday = t.new_to_learning + t.learning_to_known + t.known_to_lapsed > 0;
+  const has7d = t7.new_to_learning + t7.learning_to_known + t7.known_to_lapsed > 0;
+
+  if (!hasToday && !has7d) return null;
+
+  return (
+    <View style={styles.deepCard}>
+      <Text style={styles.sectionTitle}>Learning Velocity</Text>
+      {hasToday && (
+        <View style={styles.velocityRow}>
+          <Text style={styles.velocityPeriod}>Today</Text>
+          <View style={styles.velocityItems}>
+            {t.learning_to_known > 0 && (
+              <Text style={[styles.velocityItem, { color: colors.good }]}>
+                +{t.learning_to_known} known
+              </Text>
+            )}
+            {t.new_to_learning > 0 && (
+              <Text style={[styles.velocityItem, { color: colors.accent }]}>
+                +{t.new_to_learning} learning
+              </Text>
+            )}
+            {t.known_to_lapsed > 0 && (
+              <Text style={[styles.velocityItem, { color: colors.missed }]}>
+                {t.known_to_lapsed} lapsed
+              </Text>
+            )}
+          </View>
+        </View>
+      )}
+      {has7d && (
+        <View style={styles.velocityRow}>
+          <Text style={styles.velocityPeriod}>7 days</Text>
+          <View style={styles.velocityItems}>
+            {t7.learning_to_known > 0 && (
+              <Text style={[styles.velocityItem, { color: colors.good }]}>
+                +{t7.learning_to_known} known
+              </Text>
+            )}
+            {t7.new_to_learning > 0 && (
+              <Text style={[styles.velocityItem, { color: colors.accent }]}>
+                +{t7.new_to_learning} learning
+              </Text>
+            )}
+            {t7.known_to_lapsed > 0 && (
+              <Text style={[styles.velocityItem, { color: colors.missed }]}>
+                {t7.known_to_lapsed} lapsed
+              </Text>
+            )}
+          </View>
+        </View>
+      )}
+      {data.retention_7d.retention_pct !== null && (
+        <View style={styles.retentionRow}>
+          <Text style={styles.retentionLabel}>7-day retention</Text>
+          <Text style={[styles.retentionValue, {
+            color: (data.retention_7d.retention_pct ?? 0) >= 80 ? colors.good
+              : (data.retention_7d.retention_pct ?? 0) >= 60 ? colors.accent
+              : colors.missed,
+          }]}>
+            {data.retention_7d.retention_pct}%
+          </Text>
+          <Text style={styles.retentionDetail}>
+            ({data.retention_7d.correct_reviews}/{data.retention_7d.total_reviews} correct)
+          </Text>
+        </View>
+      )}
+    </View>
+  );
+}
+
+function ComprehensionSection({ data }: { data: DeepAnalytics }) {
+  const c = data.comprehension_7d;
+  if (c.total === 0) return null;
+
+  const pctU = Math.round((c.understood / c.total) * 100);
+  const pctP = Math.round((c.partial / c.total) * 100);
+  const pctN = Math.round((c.no_idea / c.total) * 100);
+
+  return (
+    <View style={styles.deepCard}>
+      <Text style={styles.sectionTitle}>Comprehension (7d)</Text>
+      <View style={styles.compBar}>
+        {pctU > 0 && (
+          <View style={[styles.compSegment, { width: `${pctU}%`, backgroundColor: colors.good }]} />
+        )}
+        {pctP > 0 && (
+          <View style={[styles.compSegment, { width: `${pctP}%`, backgroundColor: colors.accent }]} />
+        )}
+        {pctN > 0 && (
+          <View style={[styles.compSegment, { width: `${pctN}%`, backgroundColor: colors.missed }]} />
+        )}
+      </View>
+      <View style={styles.compLegend}>
+        <Text style={[styles.compLabel, { color: colors.good }]}>{pctU}% understood</Text>
+        <Text style={[styles.compLabel, { color: colors.accent }]}>{pctP}% partial</Text>
+        {pctN > 0 && (
+          <Text style={[styles.compLabel, { color: colors.missed }]}>{pctN}% no idea</Text>
+        )}
+      </View>
+      <Text style={styles.compTotal}>{c.total} sentence reviews</Text>
+    </View>
+  );
+}
+
+function StrugglingWordsSection({ words }: { words: DeepAnalytics["struggling_words"] }) {
+  const [expanded, setExpanded] = useState(false);
+  const shown = expanded ? words : words.slice(0, 5);
+
+  return (
+    <View style={styles.deepCard}>
+      <Text style={styles.sectionTitle}>Needs Re-introduction</Text>
+      <Text style={styles.strugglingHint}>
+        {words.length} word{words.length !== 1 ? "s" : ""} seen 3+ times without success
+      </Text>
+      {shown.map((w) => (
+        <View key={w.lemma_id} style={styles.strugglingRow}>
+          <Text style={styles.strugglingAr}>{w.lemma_ar}</Text>
+          <Text style={styles.strugglingEn}>{w.gloss_en}</Text>
+          <Text style={styles.strugglingSeen}>{w.times_seen}x</Text>
+        </View>
+      ))}
+      {words.length > 5 && (
+        <Pressable onPress={() => setExpanded(!expanded)}>
+          <Text style={styles.showMoreText}>
+            {expanded ? "Show less" : `Show all ${words.length}`}
+          </Text>
+        </Pressable>
+      )}
+    </View>
+  );
+}
+
+function RootProgressSection({ data }: { data: DeepAnalytics["root_coverage"] }) {
+  if (data.total_roots === 0) return null;
+
+  const pct = Math.round((data.roots_with_known / data.total_roots) * 100);
+
+  return (
+    <View style={styles.deepCard}>
+      <Text style={styles.sectionTitle}>Root Progress</Text>
+      <View style={styles.rootProgressHeader}>
+        <Text style={styles.rootProgressCount}>
+          {data.roots_with_known} of {data.total_roots} roots
+        </Text>
+        <Text style={styles.rootProgressPct}>{pct}%</Text>
+      </View>
+      <View style={styles.rootProgressTrack}>
+        <View style={[styles.rootProgressFill, { width: `${pct}%` }]} />
+      </View>
+      {data.roots_fully_mastered > 0 && (
+        <Text style={styles.rootProgressDetail}>
+          {data.roots_fully_mastered} fully mastered
+        </Text>
+      )}
+      {data.top_partial_roots.length > 0 && (
+        <View style={styles.partialRoots}>
+          <Text style={styles.partialRootsTitle}>Growing roots</Text>
+          {data.top_partial_roots.slice(0, 3).map((r, i) => (
+            <View key={i} style={styles.partialRootRow}>
+              <Text style={styles.partialRootAr}>{r.root}</Text>
+              <Text style={styles.partialRootMeaning}>{r.root_meaning}</Text>
+              <Text style={styles.partialRootCount}>
+                {r.known}/{r.total}
+              </Text>
+            </View>
+          ))}
+        </View>
+      )}
     </View>
   );
 }
@@ -568,5 +831,232 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     width: 24,
     textAlign: "right",
+  },
+  // Deep analytics styles
+  deepCard: {
+    backgroundColor: colors.surface,
+    borderRadius: 16,
+    padding: 20,
+    width: "100%",
+    maxWidth: 500,
+    marginTop: 16,
+  },
+  stabilityBar: {
+    flexDirection: "row",
+    height: 20,
+    borderRadius: 10,
+    overflow: "hidden",
+    backgroundColor: colors.surfaceLight,
+    marginBottom: 8,
+  },
+  stabilitySegment: {
+    height: "100%",
+  },
+  stabilityLegend: {
+    flexDirection: "row",
+    justifyContent: "center",
+    gap: 16,
+    marginBottom: 10,
+  },
+  stabilityLabel: {
+    fontSize: 13,
+    fontWeight: "600",
+  },
+  stabilityDetail: {
+    gap: 4,
+  },
+  stabilityDetailRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  stabilityDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  stabilityDetailLabel: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    flex: 1,
+  },
+  stabilityDetailCount: {
+    fontSize: 12,
+    color: colors.text,
+    fontWeight: "600",
+  },
+  velocityRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 8,
+    gap: 12,
+  },
+  velocityPeriod: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    fontWeight: "600",
+    width: 50,
+  },
+  velocityItems: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+    flex: 1,
+  },
+  velocityItem: {
+    fontSize: 13,
+    fontWeight: "600",
+  },
+  retentionRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginTop: 6,
+    paddingTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+  },
+  retentionLabel: {
+    fontSize: 12,
+    color: colors.textSecondary,
+  },
+  retentionValue: {
+    fontSize: 18,
+    fontWeight: "700",
+  },
+  retentionDetail: {
+    fontSize: 12,
+    color: colors.textSecondary,
+  },
+  compBar: {
+    flexDirection: "row",
+    height: 16,
+    borderRadius: 8,
+    overflow: "hidden",
+    backgroundColor: colors.surfaceLight,
+    marginBottom: 8,
+  },
+  compSegment: {
+    height: "100%",
+  },
+  compLegend: {
+    flexDirection: "row",
+    justifyContent: "center",
+    gap: 12,
+    marginBottom: 4,
+  },
+  compLabel: {
+    fontSize: 12,
+    fontWeight: "600",
+  },
+  compTotal: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    textAlign: "center",
+    marginTop: 4,
+  },
+  strugglingHint: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    marginBottom: 10,
+  },
+  strugglingRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 6,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+    gap: 8,
+  },
+  strugglingAr: {
+    fontSize: 16,
+    color: colors.text,
+    fontWeight: "600",
+    width: 80,
+    textAlign: "right",
+  },
+  strugglingEn: {
+    fontSize: 13,
+    color: colors.textSecondary,
+    flex: 1,
+  },
+  strugglingSeen: {
+    fontSize: 12,
+    color: colors.missed,
+    fontWeight: "600",
+  },
+  showMoreText: {
+    fontSize: 13,
+    color: colors.accent,
+    fontWeight: "600",
+    textAlign: "center",
+    marginTop: 8,
+  },
+  rootProgressHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "baseline",
+    marginBottom: 8,
+  },
+  rootProgressCount: {
+    fontSize: 13,
+    color: colors.textSecondary,
+  },
+  rootProgressPct: {
+    fontSize: 18,
+    color: colors.accent,
+    fontWeight: "700",
+  },
+  rootProgressTrack: {
+    height: 8,
+    backgroundColor: colors.surfaceLight,
+    borderRadius: 4,
+    overflow: "hidden",
+    marginBottom: 8,
+  },
+  rootProgressFill: {
+    height: "100%",
+    backgroundColor: colors.accent,
+    borderRadius: 4,
+  },
+  rootProgressDetail: {
+    fontSize: 12,
+    color: colors.good,
+    marginBottom: 8,
+  },
+  partialRoots: {
+    marginTop: 8,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+  },
+  partialRootsTitle: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    fontWeight: "600",
+    marginBottom: 6,
+  },
+  partialRootRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 4,
+  },
+  partialRootAr: {
+    fontSize: 14,
+    color: colors.text,
+    fontWeight: "600",
+    width: 50,
+    textAlign: "right",
+  },
+  partialRootMeaning: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    flex: 1,
+  },
+  partialRootCount: {
+    fontSize: 12,
+    color: colors.accent,
+    fontWeight: "600",
   },
 });

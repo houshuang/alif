@@ -26,7 +26,12 @@ from app.models import (
     UserLemmaKnowledge,
 )
 from app.services.interaction_logger import log_interaction
-from app.services.sentence_validator import FUNCTION_WORDS, strip_diacritics
+from app.services.sentence_validator import (
+    FUNCTION_WORDS,
+    build_lemma_lookup,
+    lookup_lemma_id,
+    strip_diacritics,
+)
 
 
 @dataclass
@@ -167,21 +172,46 @@ def build_session(
 
     due_lemma_ids: set[int] = set()
     stability_map: dict[int, float] = {}
+    knowledge_by_id: dict[int, UserLemmaKnowledge] = {}
 
     for k in all_knowledge:
         stability_map[k.lemma_id] = _get_stability(k)
+        knowledge_by_id[k.lemma_id] = k
         due_dt = _get_due_dt(k)
         if due_dt and due_dt <= now:
             due_lemma_ids.add(k.lemma_id)
 
-    total_due = len(due_lemma_ids)
+    # Identify struggling words: seen 3+ times, never correct
+    struggling_ids: set[int] = set()
+    for lid in list(due_lemma_ids):
+        k = knowledge_by_id.get(lid)
+        if k and (k.times_seen or 0) >= 3 and (k.times_correct or 0) == 0:
+            struggling_ids.add(lid)
 
-    if not due_lemma_ids:
+    # Remove struggling words from sentence selection pool
+    due_lemma_ids -= struggling_ids
+
+    total_due = len(due_lemma_ids) + len(struggling_ids)
+
+    if not due_lemma_ids and not struggling_ids:
         return {
             "session_id": session_id,
             "items": [],
             "total_due_words": 0,
             "covered_due_words": 0,
+            "reintro_cards": [],
+        }
+
+    # Build reintro cards for struggling words (limit 3 per session)
+    reintro_cards = _build_reintro_cards(db, struggling_ids, limit=3) if struggling_ids else []
+
+    if not due_lemma_ids:
+        return {
+            "session_id": session_id,
+            "items": [],
+            "total_due_words": total_due,
+            "covered_due_words": 0,
+            "reintro_cards": reintro_cards,
         }
 
     # 2. Fetch candidate sentences containing at least one due word
@@ -193,7 +223,7 @@ def build_session(
 
     sentence_ids_with_due = {sw.sentence_id for sw in sentence_words}
     if not sentence_ids_with_due:
-        return _with_fallbacks(db, session_id, due_lemma_ids, stability_map, total_due, [], limit)
+        return _with_fallbacks(db, session_id, due_lemma_ids, stability_map, total_due, [], limit, reintro_cards=reintro_cards)
 
     from sqlalchemy import or_
 
@@ -222,7 +252,7 @@ def build_session(
     )
 
     if not sentences:
-        return _with_fallbacks(db, session_id, due_lemma_ids, stability_map, total_due, [], limit)
+        return _with_fallbacks(db, session_id, due_lemma_ids, stability_map, total_due, [], limit, reintro_cards=reintro_cards)
 
     sentence_map: dict[int, Sentence] = {s.id: s for s in sentences}
 
@@ -233,6 +263,21 @@ def build_session(
         .order_by(SentenceWord.sentence_id, SentenceWord.position)
         .all()
     )
+
+    # Backfill missing lemma IDs in older sentence rows, including
+    # function words that now have lemma entries.
+    words_missing_lemma = [sw for sw in all_sw if sw.lemma_id is None]
+    if words_missing_lemma:
+        lookup_lemmas = db.query(Lemma).all()
+        lemma_lookup = build_lemma_lookup(lookup_lemmas) if lookup_lemmas else {}
+        backfilled = 0
+        for sw in words_missing_lemma:
+            lemma_id = lookup_lemma_id(sw.surface_form, lemma_lookup)
+            if lemma_id is not None:
+                sw.lemma_id = lemma_id
+                backfilled += 1
+        if backfilled > 0:
+            db.flush()
 
     sw_by_sentence: dict[int, list[SentenceWord]] = {}
     for sw in all_sw:
@@ -367,7 +412,8 @@ def build_session(
             sentence_grammar_cache[sent.id] = sent_grammar
 
         gfit = _grammar_fit(sent_grammar, grammar_exposure_map)
-        score = (len(due_covered) ** 1.5) * dmq * gfit
+        diversity = 1.0 / (1.0 + (sent.times_shown or 0))
+        score = (len(due_covered) ** 1.5) * dmq * gfit * diversity
 
         candidates.append(SentenceCandidate(
             sentence_id=sent.id,
@@ -392,7 +438,8 @@ def build_session(
                               if w.lemma_id and not w.is_due and w.stability is not None]
             dmq = _difficulty_match_quality(weakest, scaffold_stabs)
             gfit = _grammar_fit(sentence_grammar_cache.get(c.sentence_id, []), grammar_exposure_map)
-            c.score = (len(overlap) ** 1.5) * dmq * gfit
+            diversity = 1.0 / (1.0 + (c.sentence.times_shown or 0))
+            c.score = (len(overlap) ** 1.5) * dmq * gfit * diversity
 
         candidates.sort(key=lambda c: c.score, reverse=True)
         best = candidates[0]
@@ -498,7 +545,74 @@ def build_session(
 
     db.commit()
 
-    return _with_fallbacks(db, session_id, due_lemma_ids, stability_map, total_due, items, limit, covered_ids)
+    return _with_fallbacks(db, session_id, due_lemma_ids, stability_map, total_due, items, limit, covered_ids, reintro_cards=reintro_cards)
+
+
+MAX_REINTRO_PER_SESSION = 3
+STRUGGLING_MIN_SEEN = 3
+
+
+def _build_reintro_cards(
+    db: Session,
+    struggling_ids: set[int],
+    limit: int = MAX_REINTRO_PER_SESSION,
+) -> list[dict]:
+    """Build rich introduction-style cards for struggling words."""
+    if not struggling_ids:
+        return []
+
+    from app.services.word_selector import get_root_family
+
+    lemmas = (
+        db.query(Lemma)
+        .options(joinedload(Lemma.root))
+        .filter(Lemma.lemma_id.in_(struggling_ids))
+        .all()
+    )
+
+    # Sort by times_seen descending (most seen but still failing = highest priority)
+    ulk_map: dict[int, UserLemmaKnowledge] = {}
+    for k in db.query(UserLemmaKnowledge).filter(
+        UserLemmaKnowledge.lemma_id.in_(struggling_ids)
+    ).all():
+        ulk_map[k.lemma_id] = k
+
+    lemmas.sort(
+        key=lambda l: (ulk_map.get(l.lemma_id) and ulk_map[l.lemma_id].times_seen) or 0,
+        reverse=True,
+    )
+
+    cards = []
+    for lemma in lemmas[:limit]:
+        k = ulk_map.get(lemma.lemma_id)
+        root_obj = lemma.root
+
+        # Get root family with knowledge states
+        family = []
+        if root_obj:
+            family = get_root_family(db, root_obj.root_id)
+
+        card = {
+            "lemma_id": lemma.lemma_id,
+            "lemma_ar": lemma.lemma_ar,
+            "gloss_en": lemma.gloss_en,
+            "pos": lemma.pos,
+            "transliteration": lemma.transliteration_ala_lc,
+            "root": root_obj.root if root_obj else None,
+            "root_meaning": root_obj.core_meaning_en if root_obj else None,
+            "root_id": root_obj.root_id if root_obj else None,
+            "forms_json": lemma.forms_json,
+            "example_ar": lemma.example_ar,
+            "example_en": lemma.example_en,
+            "audio_url": lemma.audio_url,
+            "grammar_features": lemma.grammar_features_json or [],
+            "grammar_details": [],
+            "times_seen": k.times_seen if k else 0,
+            "root_family": family,
+        }
+        cards.append(card)
+
+    return cards
 
 
 def _with_fallbacks(
@@ -510,6 +624,7 @@ def _with_fallbacks(
     items: list[dict],
     limit: int,
     covered_ids: set[int] | None = None,
+    reintro_cards: list[dict] | None = None,
 ) -> dict:
     """Add word-only fallback items for uncovered due words."""
     if covered_ids is None:
@@ -574,6 +689,7 @@ def _with_fallbacks(
         "total_due_words": total_due,
         "covered_due_words": len(covered_ids),
         "intro_candidates": intro_candidates,
+        "reintro_cards": reintro_cards or [],
         "grammar_intro_needed": grammar_intro_needed,
         "grammar_refresher_needed": grammar_refresher_needed,
     }

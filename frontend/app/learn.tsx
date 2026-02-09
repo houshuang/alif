@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   View,
   Text,
@@ -7,7 +7,6 @@ import {
   ActivityIndicator,
   Animated,
 } from "react-native";
-import { Audio } from "expo-av";
 import { colors, fonts, fontFamily } from "../lib/theme";
 import {
   BASE_URL,
@@ -20,146 +19,8 @@ import {
   generateUuid,
 } from "../lib/api";
 import { LearnCandidate, WordForms, Analytics } from "../lib/types";
+import { posLabel, FormsRow, GrammarRow, PlayButton } from "../lib/WordCardComponents";
 import AskAI from "../lib/AskAI";
-
-function posLabel(pos: string | null, forms: WordForms | null): string {
-  const p = (pos || "").toLowerCase();
-  const parts: string[] = [];
-
-  if (p === "noun") {
-    parts.push("noun");
-    if (forms?.gender === "m") parts[0] += " (m)";
-    else if (forms?.gender === "f") parts[0] += " (f)";
-  } else if (p === "verb") {
-    if (forms?.verb_form && forms.verb_form !== "I") {
-      parts.push(`verb, Form ${forms.verb_form}`);
-    } else {
-      parts.push("verb");
-    }
-  } else if (p === "adj" || p === "adjective") {
-    parts.push("adj.");
-  } else if (p) {
-    parts.push(p);
-  }
-
-  return parts.join(" ");
-}
-
-function FormsRow({ pos, forms }: { pos: string | null; forms: WordForms | null }) {
-  if (!forms) return null;
-  const p = (pos || "").toLowerCase();
-  const items: { label: string; value: string }[] = [];
-
-  if (p === "verb") {
-    if (forms.present) items.push({ label: "present", value: forms.present });
-    if (forms.masdar) items.push({ label: "masdar", value: forms.masdar });
-    if (forms.active_participle) items.push({ label: "act. part.", value: forms.active_participle });
-  } else if (p === "adj" || p === "adjective") {
-    if (forms.feminine) items.push({ label: "fem.", value: forms.feminine });
-    if (forms.plural) items.push({ label: "pl.", value: forms.plural });
-    if (forms.elative) items.push({ label: "comp.", value: forms.elative });
-  } else {
-    if (forms.plural) items.push({ label: "pl.", value: forms.plural });
-    if (forms.feminine) items.push({ label: "fem.", value: forms.feminine });
-  }
-
-  if (items.length === 0) return null;
-
-  // Verbs get a mini conjugation table layout
-  if (p === "verb" && items.length > 1) {
-    return (
-      <View style={styles.formsTable}>
-        {items.map((item, i) => (
-          <View key={i} style={styles.formsTableCell}>
-            <Text style={styles.formLabel}>{item.label}</Text>
-            <Text style={styles.formValueLarge}>{item.value}</Text>
-          </View>
-        ))}
-      </View>
-    );
-  }
-
-  return (
-    <View style={styles.formsRow}>
-      {items.map((item, i) => (
-        <Text key={i} style={styles.formItem}>
-          <Text style={styles.formLabel}>{item.label} </Text>
-          <Text style={styles.formValue}>{item.value}</Text>
-        </Text>
-      ))}
-    </View>
-  );
-}
-
-function GrammarRow({
-  details,
-}: {
-  details: { feature_key: string; label_en: string; label_ar: string | null }[] | undefined;
-}) {
-  const items = details ?? [];
-  if (items.length === 0) return null;
-  return (
-    <View style={styles.grammarSection}>
-      <Text style={styles.grammarTitle}>Grammar</Text>
-      <View style={styles.grammarChips}>
-        {items.map((g) => (
-          <View key={g.feature_key} style={styles.grammarChip}>
-            <Text style={styles.grammarChipEn}>{g.label_en}</Text>
-            {g.label_ar ? (
-              <Text style={styles.grammarChipAr}>{g.label_ar}</Text>
-            ) : null}
-          </View>
-        ))}
-      </View>
-    </View>
-  );
-}
-
-function PlayButton({ audioUrl, word }: { audioUrl: string | null; word: string }) {
-  const [playing, setPlaying] = useState(false);
-  const soundRef = useRef<Audio.Sound | null>(null);
-
-  const play = useCallback(async () => {
-    if (playing) return;
-    setPlaying(true);
-    try {
-      // Use cached audio if available, otherwise generate on-the-fly via /speak
-      const url = audioUrl
-        ? `${BASE_URL}${audioUrl}`
-        : `${BASE_URL}/api/tts/speak/${encodeURIComponent(word)}`;
-
-      if (soundRef.current) {
-        await soundRef.current.unloadAsync();
-      }
-      const { sound } = await Audio.Sound.createAsync(
-        { uri: url },
-        { shouldPlay: true }
-      );
-      soundRef.current = sound;
-      sound.setOnPlaybackStatusUpdate((status) => {
-        if (status.isLoaded && status.didJustFinish) {
-          setPlaying(false);
-        }
-      });
-    } catch {
-      setPlaying(false);
-    }
-  }, [audioUrl, word, playing]);
-
-  useEffect(() => {
-    return () => {
-      soundRef.current?.unloadAsync();
-    };
-  }, []);
-
-  return (
-    <Pressable style={styles.playButton} onPress={play} disabled={playing}>
-      <Text style={[styles.playIcon, playing && { opacity: 0.5 }]}>
-        {playing ? "\u23F8" : "\u25B6"}
-      </Text>
-    </Pressable>
-  );
-}
 
 type Phase = "loading" | "pick" | "quiz" | "done";
 

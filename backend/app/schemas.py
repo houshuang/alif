@@ -138,6 +138,73 @@ class AnalyticsOut(BaseModel):
     daily_history: list[DailyStatsPoint]
 
 
+class StabilityBucket(BaseModel):
+    label: str
+    count: int
+    min_days: float
+    max_days: float | None
+
+
+class RetentionStats(BaseModel):
+    period_days: int
+    total_reviews: int
+    correct_reviews: int
+    retention_pct: float | None
+
+
+class StateTransitions(BaseModel):
+    period: str  # "today" / "7d" / "30d"
+    new_to_learning: int = 0
+    learning_to_known: int = 0
+    known_to_lapsed: int = 0
+    lapsed_to_learning: int = 0
+
+
+class ComprehensionBreakdown(BaseModel):
+    period_days: int
+    understood: int = 0
+    partial: int = 0
+    no_idea: int = 0
+    total: int = 0
+
+
+class StrugglingWord(BaseModel):
+    lemma_id: int
+    lemma_ar: str
+    gloss_en: str | None
+    times_seen: int
+    total_encounters: int
+
+
+class RootCoverage(BaseModel):
+    total_roots: int
+    roots_with_known: int
+    roots_fully_mastered: int
+    top_partial_roots: list[dict]  # [{root, root_meaning, known, total}]
+
+
+class SessionDetail(BaseModel):
+    session_id: str
+    reviewed_at: str
+    sentence_count: int
+    comprehension: dict  # {understood: N, partial: N, no_idea: N}
+    avg_response_ms: float | None
+
+
+class DeepAnalyticsOut(BaseModel):
+    stability_distribution: list[StabilityBucket]
+    retention_7d: RetentionStats
+    retention_30d: RetentionStats
+    transitions_today: StateTransitions
+    transitions_7d: StateTransitions
+    transitions_30d: StateTransitions
+    comprehension_7d: ComprehensionBreakdown
+    comprehension_30d: ComprehensionBreakdown
+    struggling_words: list[StrugglingWord]
+    root_coverage: RootCoverage
+    recent_sessions: list[SessionDetail]
+
+
 class ImportResultOut(BaseModel):
     imported: int
     skipped_names: int
@@ -184,12 +251,39 @@ class IntroCandidateOut(BaseModel):
     insert_at: int = 0
 
 
+class ReintroCardOut(BaseModel):
+    lemma_id: int
+    lemma_ar: str
+    gloss_en: str | None = None
+    pos: str | None = None
+    transliteration: str | None = None
+    root: str | None = None
+    root_meaning: str | None = None
+    root_id: int | None = None
+    forms_json: dict | None = None
+    example_ar: str | None = None
+    example_en: str | None = None
+    audio_url: str | None = None
+    grammar_features: list[str] = []
+    grammar_details: list[dict] = []
+    times_seen: int = 0
+    root_family: list[dict] = []
+
+
+class ReintroResultIn(BaseModel):
+    lemma_id: int
+    result: str  # "remember" or "show_again"
+    session_id: str | None = None
+    client_review_id: str | None = None
+
+
 class SentenceSessionOut(BaseModel):
     session_id: str
     items: list[SentenceReviewItem]
     total_due_words: int
     covered_due_words: int
     intro_candidates: list[IntroCandidateOut] = []
+    reintro_cards: list[ReintroCardOut] = []
     grammar_intro_needed: list[str] = []
     grammar_refresher_needed: list[str] = []
 

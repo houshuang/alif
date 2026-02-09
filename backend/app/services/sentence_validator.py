@@ -231,14 +231,9 @@ def map_tokens_to_lemmas(
             result.append(TokenMapping(i, token, target_lemma_id, True, False))
             continue
 
-        # Check function word
-        if _is_function_word(bare_clean):
-            result.append(TokenMapping(i, token, None, False, True))
-            continue
-
-        # Look up lemma
+        is_function = _is_function_word(bare_clean)
         lemma_id = _lookup_lemma(bare_norm, lemma_lookup)
-        result.append(TokenMapping(i, token, lemma_id, False, False))
+        result.append(TokenMapping(i, token, lemma_id, False, is_function))
 
     return result
 
@@ -266,6 +261,14 @@ def _lookup_lemma(bare_norm: str, lemma_lookup: dict[str, int]) -> int | None:
             return lemma_lookup[norm_stem]
 
     return None
+
+
+def lookup_lemma_id(surface_form: str, lemma_lookup: dict[str, int]) -> int | None:
+    """Resolve a sentence token surface form to a lemma_id using lookup variants."""
+    bare = strip_diacritics(surface_form)
+    bare_clean = strip_tatweel(bare)
+    bare_norm = normalize_alef(bare_clean)
+    return _lookup_lemma(bare_norm, lemma_lookup)
 
 
 def build_lemma_lookup(lemmas: list) -> dict[str, int]:

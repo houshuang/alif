@@ -210,6 +210,27 @@ class TestWordMetadata:
         assert words[1]["surface_form"] == "الكتاب"
         assert words[1]["is_due"] is True
 
+    def test_backfills_function_word_lemma_when_available(self, db_session):
+        _seed_word(db_session, 1, "كتاب", "book", due_hours=-1)
+        _seed_word(db_session, 2, "في", "in", due_hours=24)
+        _seed_sentence(db_session, 1, "في الكتاب", "in the book",
+                       target_lemma_id=1,
+                       word_surfaces_and_ids=[("في", None), ("الكتاب", 1)])
+        db_session.commit()
+
+        result = build_session(db_session, limit=10)
+        words = result["items"][0]["words"]
+        assert words[0]["surface_form"] == "في"
+        assert words[0]["is_function_word"] is True
+        assert words[0]["lemma_id"] == 2
+        sw = (
+            db_session.query(SentenceWord)
+            .filter(SentenceWord.sentence_id == 1, SentenceWord.position == 0)
+            .first()
+        )
+        assert sw is not None
+        assert sw.lemma_id == 2
+
     def test_session_id_generated(self, db_session):
         _seed_word(db_session, 1, "كتاب", "book", due_hours=-1)
         _seed_sentence(db_session, 1, "الكتاب", "the book", 1, [("الكتاب", 1)])

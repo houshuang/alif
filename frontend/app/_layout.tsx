@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { View, Text, StyleSheet, AppState, ActivityIndicator } from "react-native";
 import { Tabs } from "expo-router";
 import { StatusBar } from "expo-status-bar";
@@ -10,7 +10,7 @@ import {
 } from "@expo-google-fonts/scheherazade-new";
 import { colors } from "../lib/theme";
 import { netStatus, useNetStatus } from "../lib/net-status";
-import { flushQueue, pendingCount } from "../lib/sync-queue";
+import { flushQueue } from "../lib/sync-queue";
 import { syncEvents } from "../lib/sync-events";
 
 export default function Layout() {
@@ -19,7 +19,6 @@ export default function Layout() {
     ScheherazadeNew_700Bold,
   });
   const online = useNetStatus();
-  const [pending, setPending] = useState(0);
 
   useEffect(() => {
     netStatus.start();
@@ -28,27 +27,16 @@ export default function Layout() {
       flushQueue().catch(() => {});
     });
 
-    const unsubSynced = syncEvents.on("synced", () => {
-      pendingCount().then(setPending).catch(() => {});
-    });
-
     const sub = AppState.addEventListener("change", (state) => {
       if (state === "active") {
         flushQueue().catch(() => {});
-        pendingCount().then(setPending).catch(() => {});
       }
     });
-
-    const interval = setInterval(() => {
-      pendingCount().then(setPending).catch(() => {});
-    }, 5000);
 
     return () => {
       netStatus.stop();
       unsub();
-      unsubSynced();
       sub.remove();
-      clearInterval(interval);
     };
   }, []);
 
@@ -86,7 +74,6 @@ export default function Layout() {
             headerShown: false,
             tabBarLabel: "Reading",
             tabBarIcon: ({ color, size }) => <Ionicons name="book-outline" size={size} color={color} />,
-            tabBarBadge: pending > 0 ? pending : undefined,
           }}
         />
         <Tabs.Screen
@@ -150,6 +137,13 @@ export default function Layout() {
           options={{
             href: null,
             title: "Story",
+          }}
+        />
+        <Tabs.Screen
+          name="review-lab"
+          options={{
+            href: null,
+            title: "Review Lab",
           }}
         />
       </Tabs>

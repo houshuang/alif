@@ -128,7 +128,15 @@ As we build features, create reusable Claude Code skills (`.claude/skills/`) for
 - Deploying to production
 - Any repetitive multi-step workflow
 
-### 5. Code Style
+### 6. Experiment Tracking — Document Everything
+This app is an ongoing learning experiment. Every algorithm change, data structure modification, or analysis must be documented:
+- **`research/experiment-log.md`**: Running log of all changes with date, hypothesis, expected effect, and verification plan
+- **`research/analysis-YYYY-MM-DD.md`**: Detailed analysis reports linked from the experiment log
+- When making algorithm changes, ALWAYS add an entry to experiment-log.md BEFORE implementing
+- When running production data analysis, ALWAYS save findings to a dated analysis file
+- Never delete entries — mark them as superseded if outdated
+
+### 7. Code Style
 - Python: Use type hints, pydantic models for API schemas
 - TypeScript: Strict mode, functional components
 - No unnecessary comments — only when logic isn't self-evident

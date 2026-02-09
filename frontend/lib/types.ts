@@ -219,11 +219,16 @@ export interface WordLookupResult {
   root_meaning: string | null;
   root_id: number | null;
   pos: string | null;
+  forms_json: WordForms | null;
+  example_ar: string | null;
+  example_en: string | null;
+  grammar_details: GrammarFeatureDetail[];
   root_family: {
     lemma_id: number;
     lemma_ar: string;
     gloss_en: string | null;
     pos: string | null;
+    transliteration: string | null;
     state: string;
   }[];
 }
@@ -254,12 +259,39 @@ export interface IntroCandidate {
   insert_at: number;
 }
 
+export interface ReintroCard {
+  lemma_id: number;
+  lemma_ar: string;
+  gloss_en: string | null;
+  pos: string | null;
+  transliteration: string | null;
+  root: string | null;
+  root_meaning: string | null;
+  root_id: number | null;
+  forms_json: WordForms | null;
+  example_ar: string | null;
+  example_en: string | null;
+  audio_url: string | null;
+  grammar_features: string[];
+  grammar_details: GrammarFeatureDetail[];
+  times_seen: number;
+  root_family: {
+    lemma_id: number;
+    lemma_ar: string;
+    gloss_en: string | null;
+    pos: string | null;
+    transliteration: string | null;
+    state: string;
+  }[];
+}
+
 export interface SentenceReviewSession {
   session_id: string;
   items: SentenceReviewItem[];
   total_due_words: number;
   covered_due_words: number;
   intro_candidates?: IntroCandidate[];
+  reintro_cards?: ReintroCard[];
   grammar_intro_needed?: string[];
   grammar_refresher_needed?: string[];
 }
@@ -320,6 +352,74 @@ export interface Analytics {
   pace: LearningPace;
   cefr: CEFREstimate;
   daily_history: DailyStats[];
+}
+
+// Deep Analytics types
+export interface StabilityBucket {
+  label: string;
+  count: number;
+  min_days: number;
+  max_days: number | null;
+}
+
+export interface RetentionStats {
+  period_days: number;
+  total_reviews: number;
+  correct_reviews: number;
+  retention_pct: number | null;
+}
+
+export interface StateTransitions {
+  period: string;
+  new_to_learning: number;
+  learning_to_known: number;
+  known_to_lapsed: number;
+  lapsed_to_learning: number;
+}
+
+export interface ComprehensionBreakdown {
+  period_days: number;
+  understood: number;
+  partial: number;
+  no_idea: number;
+  total: number;
+}
+
+export interface StrugglingWord {
+  lemma_id: number;
+  lemma_ar: string;
+  gloss_en: string | null;
+  times_seen: number;
+  total_encounters: number;
+}
+
+export interface RootCoverageData {
+  total_roots: number;
+  roots_with_known: number;
+  roots_fully_mastered: number;
+  top_partial_roots: { root: string; root_meaning: string | null; known: number; total: number }[];
+}
+
+export interface SessionDetail {
+  session_id: string;
+  reviewed_at: string;
+  sentence_count: number;
+  comprehension: Record<string, number>;
+  avg_response_ms: number | null;
+}
+
+export interface DeepAnalytics {
+  stability_distribution: StabilityBucket[];
+  retention_7d: RetentionStats;
+  retention_30d: RetentionStats;
+  transitions_today: StateTransitions;
+  transitions_7d: StateTransitions;
+  transitions_30d: StateTransitions;
+  comprehension_7d: ComprehensionBreakdown;
+  comprehension_30d: ComprehensionBreakdown;
+  struggling_words: StrugglingWord[];
+  root_coverage: RootCoverageData;
+  recent_sessions: SessionDetail[];
 }
 
 export interface StoryWordMeta {

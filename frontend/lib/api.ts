@@ -21,6 +21,7 @@ import {
   ConversationDetail,
   GrammarLesson,
   GrammarProgress,
+  DeepAnalytics,
 } from "./types";
 import { netStatus } from "./net-status";
 import {
@@ -343,7 +344,7 @@ export async function prefetchWordLookupsForSession(
   const lemmaIds = new Set<number>();
   for (const item of session.items) {
     for (const word of item.words) {
-      if (word.lemma_id != null && !word.is_function_word) {
+      if (word.lemma_id != null) {
         lemmaIds.add(word.lemma_id);
       }
     }
@@ -559,4 +560,25 @@ export async function getConfusedGrammarFeatures(): Promise<{ features: GrammarL
 export async function getGrammarProgress(): Promise<GrammarProgress[]> {
   const data = await fetchApi<{ progress: GrammarProgress[] }>("/api/grammar/progress");
   return data.progress;
+}
+
+export async function getDeepAnalytics(): Promise<DeepAnalytics> {
+  return fetchApi<DeepAnalytics>("/api/stats/deep-analytics");
+}
+
+export async function submitReintroResult(
+  lemmaId: number,
+  result: "remember" | "show_again",
+  sessionId?: string,
+  clientReviewId?: string,
+): Promise<{ status: string; result: string; lemma_id: number }> {
+  return fetchApi("/api/review/reintro-result", {
+    method: "POST",
+    body: JSON.stringify({
+      lemma_id: lemmaId,
+      result,
+      session_id: sessionId,
+      client_review_id: clientReviewId || generateUuid(),
+    }),
+  });
 }

@@ -565,6 +565,18 @@ class TestMapTokensToLemmas:
         assert mappings[0].lemma_id is None
         assert mappings[1].is_target is True
 
+    def test_function_word_maps_when_in_lookup(self):
+        lemmas = [
+            _FakeLemma(1, "هو"),
+            _FakeLemma(2, "يقرأ"),
+        ]
+        lookup = build_lemma_lookup(lemmas)
+        tokens = tokenize("هُوَ يَقْرَأُ")
+        mappings = map_tokens_to_lemmas(tokens, lookup, target_lemma_id=2, target_bare="يقرأ")
+        assert mappings[0].is_function_word is True
+        assert mappings[0].lemma_id == 1
+        assert mappings[1].is_target is True
+
     def test_unknown_word_gets_none(self):
         tokens = tokenize("يَقْرَأُ سَيَّارَة")
         mappings = map_tokens_to_lemmas(tokens, self.lookup, target_lemma_id=3, target_bare="يقرأ")

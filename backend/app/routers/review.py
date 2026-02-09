@@ -4,9 +4,10 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session, joinedload
 
 from app.database import get_db, SessionLocal
-from app.models import Lemma, Root, UserLemmaKnowledge
+from app.models import GrammarFeature, Lemma, Root, UserLemmaKnowledge
 from app.schemas import (
     BulkSyncIn,
+    ReintroResultIn,
     ReviewCardOut,
     ReviewSubmitIn,
     ReviewSubmitOut,
@@ -160,6 +161,41 @@ def word_lookup(lemma_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail=f"Lemma {lemma_id} not found")
 
     root_obj = lemma.root
+
+    # Parse grammar features
+    grammar_keys = []
+    if lemma.grammar_features_json:
+        raw = lemma.grammar_features_json
+        if isinstance(raw, str):
+            import json
+            try:
+                raw = json.loads(raw)
+            except Exception:
+                raw = []
+        if isinstance(raw, list):
+            grammar_keys = [k for k in raw if isinstance(k, str)]
+
+    grammar_details = []
+    if grammar_keys:
+        rows = db.query(GrammarFeature).filter(GrammarFeature.feature_key.in_(grammar_keys)).all()
+        by_key = {r.feature_key: r for r in rows}
+        for key in grammar_keys:
+            feat = by_key.get(key)
+            if feat:
+                grammar_details.append({
+                    "feature_key": key,
+                    "category": feat.category,
+                    "label_en": feat.label_en,
+                    "label_ar": feat.label_ar,
+                })
+            else:
+                grammar_details.append({
+                    "feature_key": key,
+                    "category": None,
+                    "label_en": key.replace("_", " "),
+                    "label_ar": None,
+                })
+
     result = {
         "lemma_id": lemma.lemma_id,
         "lemma_ar": lemma.lemma_ar,
@@ -169,6 +205,10 @@ def word_lookup(lemma_id: int, db: Session = Depends(get_db)):
         "root_meaning": root_obj.core_meaning_en if root_obj else None,
         "root_id": root_obj.root_id if root_obj else None,
         "pos": lemma.pos,
+        "forms_json": lemma.forms_json,
+        "example_ar": lemma.example_ar,
+        "example_en": lemma.example_en,
+        "grammar_details": grammar_details,
         "root_family": [],
     }
 
@@ -189,6 +229,7 @@ def word_lookup(lemma_id: int, db: Session = Depends(get_db)):
                 "lemma_ar": sib.lemma_ar,
                 "gloss_en": sib.gloss_en,
                 "pos": sib.pos,
+                "transliteration": sib.transliteration_ala_lc,
                 "state": sib_knowledge.knowledge_state if sib_knowledge else "new",
             })
 
@@ -271,3 +312,31 @@ def sync_reviews(body: BulkSyncIn, db: Session = Depends(get_db)):
         except Exception as e:
             results.append({"client_review_id": item.client_review_id, "status": "error", "error": str(e)})
     return {"results": results}
+
+
+@router.post("/reintro-result")
+def submit_reintro_result(
+    body: ReintroResultIn,
+    db: Session = Depends(get_db),
+):
+    """Submit result of a re-introduction card: 'remember' or 'show_again'."""
+    rating = 3 if body.result == "remember" else 1
+
+    result = submit_review(
+        db,
+        lemma_id=body.lemma_id,
+        rating_int=rating,
+        session_id=body.session_id,
+        review_mode="reintro",
+        comprehension_signal="understood" if body.result == "remember" else "no_idea",
+        client_review_id=body.client_review_id,
+    )
+
+    log_interaction(
+        event=f"reintro_{body.result}",
+        lemma_id=body.lemma_id,
+        rating=rating,
+        session_id=body.session_id,
+    )
+
+    return {"status": "ok", "result": body.result, "lemma_id": body.lemma_id}
