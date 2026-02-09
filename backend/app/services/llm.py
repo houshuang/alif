@@ -327,6 +327,7 @@ def generate_sentences_batch(
     difficulty_hint: str = "beginner",
     model_override: str = "gemini",
     avoid_words: list[str] | None = None,
+    rejected_words: list[str] | None = None,
 ) -> list[SentenceResult]:
     """Generate multiple sentences for a target word in a single LLM call.
 
@@ -341,6 +342,14 @@ def generate_sentences_batch(
         avoid_str = "، ".join(avoid_words)
         avoid_instruction = f"\nFor variety, try NOT to use these overused words (pick other vocabulary instead): {avoid_str}"
 
+    rejected_instruction = ""
+    if rejected_words:
+        rejected_str = "، ".join(rejected_words)
+        rejected_instruction = (
+            f"\nPREVIOUS ATTEMPTS FAILED because you used words NOT in the vocabulary list: {rejected_str}\n"
+            f"Do NOT use these words. Use ONLY words from the VOCABULARY list above."
+        )
+
     prompt = f"""Create {count} different natural MSA sentences for a {difficulty_hint} Arabic learner.
 
 TARGET WORD (must appear in every sentence):
@@ -352,7 +361,7 @@ VOCABULARY (you may ONLY use these Arabic content words, plus function words):
 IMPORTANT: Do NOT use any Arabic content words that are not in the list above.
 Each sentence should be 4-8 words, with a different structure or context.
 Include full diacritics on all Arabic text.
-{avoid_instruction}
+{avoid_instruction}{rejected_instruction}
 Respond with JSON: {{"sentences": [{{"arabic": "...", "english": "...", "transliteration": "..."}}, ...]}}"""
 
     result = generate_completion(

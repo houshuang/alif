@@ -90,6 +90,7 @@ def generate_sentences_for_word(
     target_bare = strip_diacritics(lemma.lemma_ar)
     all_bare = set(lemma_lookup.keys())
     stored = 0
+    rejected_words: list[str] = []
 
     for batch in range(3):
         if stored >= needed:
@@ -105,6 +106,7 @@ def generate_sentences_for_word(
                 count=min(needed - stored + 1, 3),
                 difficulty_hint="beginner",
                 model_override=model,
+                rejected_words=rejected_words if rejected_words else None,
             )
         except AllProvidersFailed as e:
             print(f"    LLM error: {e}")
@@ -120,6 +122,12 @@ def generate_sentences_for_word(
                 known_bare_forms=all_bare,
             )
             if not validation.valid:
+                for issue in validation.issues:
+                    print(f"    ✗ Rejected: {issue}")
+                for uw in validation.unknown_words:
+                    bare = strip_diacritics(uw)
+                    if bare not in rejected_words:
+                        rejected_words.append(bare)
                 continue
 
             sent = Sentence(
