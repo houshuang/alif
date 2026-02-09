@@ -63,6 +63,7 @@ _NEVER_MERGE = {
     ("صورة", "صور"),    # "photo" ≠ "photos" (separate lemmas)
     ("بيضة", "بيض"),    # "egg" ≠ "eggs" (separate lemmas)
     ("علمنة", "علم"),   # "secularization" ≠ "to know"
+    ("عربي", "عرب"),    # "Arab/Arabic" ≠ "to translate into Arabic"
 }
 
 
@@ -186,6 +187,9 @@ def find_definite_variants(db, already_variant_ids: set):
                 if base.lemma_id == lemma.lemma_id:
                     continue
                 if base.lemma_id in already_variant_ids:
+                    continue
+                pair = (bare, base.lemma_ar_bare or "")
+                if pair in _NEVER_MERGE or (pair[1], pair[0]) in _NEVER_MERGE:
                     continue
                 variants.append((lemma.lemma_id, base.lemma_id, "definite", {"stripped": without_al}))
                 break
