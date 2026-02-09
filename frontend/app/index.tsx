@@ -268,13 +268,10 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
     }
   }, [confusedIndices, missedIndices]);
 
-  const handleWordLookup = useCallback(async (index: number, lemmaId: number) => {
-    // Auto-mark as missed
-    setMissedIndices((prev) => {
-      const next = new Set(prev);
-      next.add(index);
-      return next;
-    });
+  const handleWordTap = useCallback(async (index: number, lemmaId: number) => {
+    // Cycle state: off → missed → confused → off (same as back phase)
+    toggleMissed(index);
+    // Trigger lookup for the tapped word
     setLookupCount(prev => prev + 1);
     setLookupLoading(true);
     setLookupShowMeaning(false);
@@ -282,9 +279,8 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
     try {
       const result = await lookupReviewWord(lemmaId);
       setLookupResult(result);
-      // If root has 2+ known siblings, don't show meaning yet (prediction mode)
       const knownSiblings = result.root_family.filter(
-        (s) => s.state === "known" || s.state === "learning"
+        (s) => (s.state === "known" || s.state === "learning") && s.lemma_id !== result.lemma_id
       );
       if (knownSiblings.length >= 2) {
         setLookupShowMeaning(false);
@@ -296,7 +292,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
       setLookupShowMeaning(true);
     }
     setLookupLoading(false);
-  }, []);
+  }, [toggleMissed]);
 
   function handleSentenceSubmit(signal: ComprehensionSignal) {
     if (!sentenceSession) return;
@@ -575,13 +571,12 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
               cardState={cardState as ReadingCardState}
               missedIndices={missedIndices}
               confusedIndices={confusedIndices}
-              onToggleMissed={toggleMissed}
-              onWordLookup={handleWordLookup}
+              onWordTap={handleWordTap}
             />
           )}
         </ScrollView>
 
-        {!isListening && !isWordOnly && cardState === "front" && (
+        {!isListening && !isWordOnly && (lookupResult || lookupLoading) && (
           <WordLookupPanel
             result={lookupResult}
             loading={lookupLoading}
@@ -685,15 +680,13 @@ function SentenceReadingCard({
   cardState,
   missedIndices,
   confusedIndices,
-  onToggleMissed,
-  onWordLookup,
+  onWordTap,
 }: {
   item: SentenceReviewItem;
   cardState: ReadingCardState;
   missedIndices: Set<number>;
   confusedIndices: Set<number>;
-  onToggleMissed: (index: number) => void;
-  onWordLookup: (index: number, lemmaId: number) => void;
+  onWordTap: (index: number, lemmaId: number) => void;
 }) {
   return (
     <>
@@ -706,28 +699,12 @@ function SentenceReadingCard({
             : isConfused
               ? styles.confusedWord
               : undefined;
-
-          if (cardState === "back") {
-            return (
-              <Text key={`t-${i}`}>
-                {i > 0 && " "}
-                <Text
-                  onPress={() => onToggleMissed(i)}
-                  style={wordStyle}
-                >
-                  {word.surface_form}
-                </Text>
-              </Text>
-            );
-          }
-
-          // Front phase: tap to look up (non-function words only)
           const canTap = word.lemma_id != null && !word.is_function_word;
           return (
             <Text key={`t-${i}`}>
               {i > 0 && " "}
               <Text
-                onPress={canTap ? () => onWordLookup(i, word.lemma_id!) : undefined}
+                onPress={canTap ? () => onWordTap(i, word.lemma_id!) : undefined}
                 style={wordStyle}
               >
                 {word.surface_form}
@@ -770,7 +747,7 @@ function WordLookupPanel({
   onShowMeaning: () => void;
 }) {
   const knownSiblings = result?.root_family.filter(
-    (s) => s.state === "known" || s.state === "learning"
+    (s) => (s.state === "known" || s.state === "learning") && s.lemma_id !== result.lemma_id
   ) ?? [];
   const hasPredictionMode = result != null && knownSiblings.length >= 2 && !showMeaning;
 
@@ -797,9 +774,7 @@ function WordLookupPanel({
             </>
           ) : (
             <Text style={styles.lookupMeaning}>
-              {result.lemma_ar} \u2014 {result.gloss_en}
-              {result.transliteration ? ` (${result.transliteration})` : ""}
-              {result.pos ? ` \u00b7 ${result.pos}` : ""}
+              {`${result.lemma_ar} — ${result.gloss_en ?? ""}${result.transliteration ? ` (${result.transliteration})` : ""}${result.pos ? ` · ${result.pos}` : ""}`}
             </Text>
           )}
         </>
@@ -1337,18 +1312,31 @@ function ReadingActions({
 
   if (cardState === "front") {
     return (
-      <View style={styles.actionRow}>
-        <Pressable style={[styles.actionButton, styles.showButton]} onPress={onAdvance}>
-          <Text style={styles.showButtonText}>Show Answer</Text>
-        </Pressable>
-        {hasSentence && (
-          <Pressable
-            style={[styles.actionButton, styles.noIdeaButton]}
-            onPress={() => onSubmit("no_idea")}
-          >
-            <Text style={styles.noIdeaButtonText}>I have no idea</Text>
-          </Pressable>
+      <View style={styles.actionColumn}>
+        {hasSentence && totalMarked > 0 && (
+          <MarkedHint missedCount={missedCount} confusedCount={confusedCount} lastMarkedGloss={lastMarkedGloss} />
         )}
+        <View style={styles.actionRow}>
+          {hasSentence && (
+            <Pressable
+              style={[styles.actionButton, styles.gotItButton]}
+              onPress={() => onSubmit("understood")}
+            >
+              <Text style={styles.actionButtonText}>Understood</Text>
+            </Pressable>
+          )}
+          <Pressable style={[styles.actionButton, styles.showButton]} onPress={onAdvance}>
+            <Text style={styles.showButtonText}>Show Answer</Text>
+          </Pressable>
+          {hasSentence && (
+            <Pressable
+              style={[styles.actionButton, styles.noIdeaButton]}
+              onPress={() => onSubmit("no_idea")}
+            >
+              <Text style={styles.noIdeaButtonText}>No idea</Text>
+            </Pressable>
+          )}
+        </View>
       </View>
     );
   }
