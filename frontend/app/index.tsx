@@ -47,6 +47,13 @@ interface SessionResults {
   noIdea: number;
 }
 
+interface WordOutcome {
+  arabic: string;
+  english: string | null;
+  failed: boolean;
+  prevState: string; // knowledge_state before this session
+}
+
 function stripDiacritics(s: string): string {
   return s.replace(/[\u0610-\u065f\u0670\u06D6-\u06ED]/g, "");
 }
@@ -91,6 +98,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
   const [lookupShowMeaning, setLookupShowMeaning] = useState(false);
   const [audioPlayCount, setAudioPlayCount] = useState(0);
   const [lookupCount, setLookupCount] = useState(0);
+  const [wordOutcomes, setWordOutcomes] = useState<Map<number, WordOutcome>>(new Map());
   const showTime = useRef<number>(0);
   const soundRef = useRef<Audio.Sound | null>(null);
 
@@ -195,6 +203,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
     setLastMarkedIndex(null);
     setAudioPlaying(false);
     setAutoIntroduced([]);
+    setWordOutcomes(new Map());
     setSentenceSession(null);
     setLegacySession(null);
     await cleanupSound();
@@ -289,11 +298,6 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
     setLookupLoading(false);
   }, []);
 
-  const dismissLookup = useCallback(() => {
-    setLookupResult(null);
-    setLookupShowMeaning(false);
-  }, []);
-
   function handleSentenceSubmit(signal: ComprehensionSignal) {
     if (!sentenceSession) return;
     const item = sentenceSession.items[cardIndex];
@@ -318,6 +322,37 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
     if (signal === "no_idea") {
       missedLemmaIds.push(item.primary_lemma_id);
     }
+
+    // Track per-word outcomes
+    const missedSet = new Set(missedLemmaIds);
+    const confusedSet = new Set(confusedLemmaIds);
+    setWordOutcomes(prev => {
+      const next = new Map(prev);
+      for (let i = 0; i < item.words.length; i++) {
+        const w = item.words[i];
+        if (w.is_function_word || w.lemma_id == null) continue;
+
+        let failed = false;
+        if (signal === "no_idea") {
+          failed = true;
+        } else if (signal === "partial") {
+          if (missedSet.has(w.lemma_id) || confusedSet.has(w.lemma_id)) failed = true;
+        }
+
+        const existing = next.get(w.lemma_id);
+        if (existing) {
+          if (failed) existing.failed = true;
+        } else {
+          next.set(w.lemma_id, {
+            arabic: w.surface_form,
+            english: w.gloss_en,
+            failed,
+            prevState: w.knowledge_state ?? "new",
+          });
+        }
+      }
+      return next;
+    });
 
     submitSentenceReview({
       sentence_id: item.sentence_id,
@@ -469,6 +504,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
         results={results}
         mode={mode}
         autoIntroduced={autoIntroduced}
+        wordOutcomes={wordOutcomes}
         onNewSession={() => loadSession()}
       />
     );
@@ -541,14 +577,18 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
               confusedIndices={confusedIndices}
               onToggleMissed={toggleMissed}
               onWordLookup={handleWordLookup}
-              lookupResult={lookupResult}
-              lookupLoading={lookupLoading}
-              lookupShowMeaning={lookupShowMeaning}
-              onShowMeaning={() => setLookupShowMeaning(true)}
-              onDismissLookup={dismissLookup}
             />
           )}
         </ScrollView>
+
+        {!isListening && !isWordOnly && cardState === "front" && (
+          <WordLookupPanel
+            result={lookupResult}
+            loading={lookupLoading}
+            showMeaning={lookupShowMeaning}
+            onShowMeaning={() => setLookupShowMeaning(true)}
+          />
+        )}
 
         <View style={styles.bottomActions}>
           {isListening ? (
@@ -647,11 +687,6 @@ function SentenceReadingCard({
   confusedIndices,
   onToggleMissed,
   onWordLookup,
-  lookupResult,
-  lookupLoading,
-  lookupShowMeaning,
-  onShowMeaning,
-  onDismissLookup,
 }: {
   item: SentenceReviewItem;
   cardState: ReadingCardState;
@@ -659,11 +694,6 @@ function SentenceReadingCard({
   confusedIndices: Set<number>;
   onToggleMissed: (index: number) => void;
   onWordLookup: (index: number, lemmaId: number) => void;
-  lookupResult: WordLookupResult | null;
-  lookupLoading: boolean;
-  lookupShowMeaning: boolean;
-  onShowMeaning: () => void;
-  onDismissLookup: () => void;
 }) {
   return (
     <>
@@ -707,21 +737,6 @@ function SentenceReadingCard({
         })}
       </Text>
 
-      {/* Lookup panel (front phase) */}
-      {cardState === "front" && (lookupResult || lookupLoading) && (
-        <WordLookupPanel
-          result={lookupResult}
-          loading={lookupLoading}
-          showMeaning={lookupShowMeaning}
-          onShowMeaning={onShowMeaning}
-          onDismiss={onDismissLookup}
-        />
-      )}
-
-      {cardState === "front" && !lookupResult && !lookupLoading && (
-        <Text style={styles.tapHintFront}>Tap a word to look it up</Text>
-      )}
-
       {cardState === "back" && (
         <View style={styles.answerSection}>
           {missedIndices.size === 0 && (
@@ -748,83 +763,47 @@ function WordLookupPanel({
   loading,
   showMeaning,
   onShowMeaning,
-  onDismiss,
 }: {
   result: WordLookupResult | null;
   loading: boolean;
   showMeaning: boolean;
   onShowMeaning: () => void;
-  onDismiss: () => void;
 }) {
-  if (loading) {
-    return (
-      <View style={styles.lookupPanel}>
-        <ActivityIndicator size="small" color={colors.accent} />
-      </View>
-    );
-  }
-
-  if (!result) return null;
-
-  const knownSiblings = result.root_family.filter(
+  const knownSiblings = result?.root_family.filter(
     (s) => s.state === "known" || s.state === "learning"
-  );
-  const hasPredictionMode = knownSiblings.length >= 2 && !showMeaning;
+  ) ?? [];
+  const hasPredictionMode = result != null && knownSiblings.length >= 2 && !showMeaning;
 
   return (
     <View style={styles.lookupPanel}>
-      {result.root && (
-        <Text style={styles.lookupRoot}>
-          Root: {result.root}
-          {result.root_meaning ? ` \u2014 ${result.root_meaning}` : ""}
-        </Text>
-      )}
-      {hasPredictionMode ? (
+      {loading ? (
+        <ActivityIndicator size="small" color={colors.accent} />
+      ) : result ? (
         <>
-          <Text style={styles.lookupPredictionHint}>
-            You know words from this root:
-          </Text>
-          <View style={styles.lookupSiblings}>
-            {knownSiblings.slice(0, 4).map((sib) => (
-              <View key={sib.lemma_id} style={styles.lookupSiblingPill}>
-                <Text style={styles.lookupSiblingAr}>{sib.lemma_ar}</Text>
-                <Text style={styles.lookupSiblingEn}>{sib.gloss_en}</Text>
-              </View>
-            ))}
-          </View>
-          <Text style={styles.lookupPredictionPrompt}>
-            Can you guess the meaning?
-          </Text>
-          <Pressable style={styles.lookupRevealButton} onPress={onShowMeaning}>
-            <Text style={styles.lookupRevealText}>Show meaning</Text>
-          </Pressable>
-        </>
-      ) : (
-        <>
-          <Text style={styles.lookupMeaning}>
-            {result.lemma_ar} \u2014 {result.gloss_en}
-          </Text>
-          {result.transliteration && (
-            <Text style={styles.lookupTranslit}>{result.transliteration}</Text>
+          {result.root && (
+            <Text style={styles.lookupRoot}>
+              Root: {result.root}
+              {result.root_meaning ? ` \u2014 ${result.root_meaning}` : ""}
+            </Text>
           )}
-          {result.pos && (
-            <Text style={styles.lookupPos}>{result.pos}</Text>
-          )}
-          {knownSiblings.length > 0 && (
-            <View style={styles.lookupSiblings}>
-              {knownSiblings.slice(0, 3).map((sib) => (
-                <View key={sib.lemma_id} style={styles.lookupSiblingPill}>
-                  <Text style={styles.lookupSiblingAr}>{sib.lemma_ar}</Text>
-                  <Text style={styles.lookupSiblingEn}>{sib.gloss_en}</Text>
-                </View>
-              ))}
-            </View>
+          {hasPredictionMode ? (
+            <>
+              <Text style={styles.lookupSiblingsText}>
+                You know: {knownSiblings.slice(0, 3).map((s) => `${s.lemma_ar} (${s.gloss_en})`).join(", ")}
+              </Text>
+              <Pressable onPress={onShowMeaning}>
+                <Text style={styles.lookupRevealText}>Tap to reveal</Text>
+              </Pressable>
+            </>
+          ) : (
+            <Text style={styles.lookupMeaning}>
+              {result.lemma_ar} \u2014 {result.gloss_en}
+              {result.transliteration ? ` (${result.transliteration})` : ""}
+              {result.pos ? ` \u00b7 ${result.pos}` : ""}
+            </Text>
           )}
         </>
-      )}
-      <Pressable onPress={onDismiss} style={styles.lookupDismiss}>
-        <Text style={styles.lookupDismissText}>Done</Text>
-      </Pressable>
+      ) : null}
     </View>
   );
 }
@@ -1257,17 +1236,15 @@ function ListeningActions({
 }) {
   if (cardState === "audio") {
     return (
-      <View style={styles.actionColumn}>
-        <Pressable style={styles.showButton} onPress={onAdvance}>
+      <View style={styles.actionRow}>
+        <Pressable style={[styles.actionButton, styles.showButton]} onPress={onAdvance}>
           <Text style={styles.showButtonText}>Reveal Arabic</Text>
         </Pressable>
         <Pressable
-          style={[styles.noIdeaButton, { marginTop: 12 }]}
+          style={[styles.actionButton, styles.noIdeaButton]}
           onPress={() => onSubmit("no_idea")}
         >
-          <Text style={styles.noIdeaButtonText}>
-            I didn't catch any of that
-          </Text>
+          <Text style={styles.noIdeaButtonText}>No idea</Text>
         </Pressable>
       </View>
     );
@@ -1360,13 +1337,13 @@ function ReadingActions({
 
   if (cardState === "front") {
     return (
-      <View style={styles.actionColumn}>
-        <Pressable style={styles.showButton} onPress={onAdvance}>
+      <View style={styles.actionRow}>
+        <Pressable style={[styles.actionButton, styles.showButton]} onPress={onAdvance}>
           <Text style={styles.showButtonText}>Show Answer</Text>
         </Pressable>
         {hasSentence && (
           <Pressable
-            style={[styles.noIdeaButton, { marginTop: 12 }]}
+            style={[styles.actionButton, styles.noIdeaButton]}
             onPress={() => onSubmit("no_idea")}
           >
             <Text style={styles.noIdeaButtonText}>I have no idea</Text>
@@ -1574,11 +1551,13 @@ function SessionComplete({
   results,
   mode,
   autoIntroduced,
+  wordOutcomes,
   onNewSession,
 }: {
   results: SessionResults;
   mode: ReviewMode;
   autoIntroduced: IntroCandidate[];
+  wordOutcomes: Map<number, WordOutcome>;
   onNewSession: () => void;
 }) {
   const [analytics, setAnalytics] = useState<Analytics | null>(null);
@@ -1587,6 +1566,17 @@ function SessionComplete({
   const accuracy = results.total > 0
     ? Math.round((results.gotIt / results.total) * 100)
     : 0;
+
+  // Words newly learned: got right AND weren't already "known"
+  const newlyLearned: { arabic: string; english: string | null }[] = [];
+  const notKnown: { arabic: string; english: string | null }[] = [];
+  for (const [, w] of wordOutcomes) {
+    if (w.failed) {
+      notKnown.push({ arabic: w.arabic, english: w.english });
+    } else if (w.prevState !== "known") {
+      newlyLearned.push({ arabic: w.arabic, english: w.english });
+    }
+  }
 
   const showSparkles = accuracy >= 70;
   const sparkleCount = accuracy === 100 ? 12 : 8;
@@ -1658,6 +1648,42 @@ function SessionComplete({
           </View>
         )}
       </View>
+
+      {/* Word-level outcomes */}
+      {(newlyLearned.length > 0 || notKnown.length > 0) && (
+        <View style={styles.wordOutcomeSection}>
+          {newlyLearned.length > 0 && (
+            <View style={styles.wordOutcomeBlock}>
+              <Text style={[styles.wordOutcomeTitle, { color: colors.gotIt }]}>
+                {newlyLearned.length} {newlyLearned.length === 1 ? "word" : "words"} learned
+              </Text>
+              <View style={styles.wordOutcomePills}>
+                {newlyLearned.map((w, i) => (
+                  <View key={i} style={[styles.wordOutcomePill, { borderColor: colors.gotIt + "60" }]}>
+                    <Text style={styles.wordOutcomePillAr}>{w.arabic}</Text>
+                    <Text style={styles.wordOutcomePillEn}>{w.english}</Text>
+                  </View>
+                ))}
+              </View>
+            </View>
+          )}
+          {notKnown.length > 0 && (
+            <View style={styles.wordOutcomeBlock}>
+              <Text style={[styles.wordOutcomeTitle, { color: colors.missed }]}>
+                {notKnown.length} {notKnown.length === 1 ? "word" : "words"} to review
+              </Text>
+              <View style={styles.wordOutcomePills}>
+                {notKnown.map((w, i) => (
+                  <View key={i} style={[styles.wordOutcomePill, { borderColor: colors.missed + "60" }]}>
+                    <Text style={styles.wordOutcomePillAr}>{w.arabic}</Text>
+                    <Text style={styles.wordOutcomePillEn}>{w.english}</Text>
+                  </View>
+                ))}
+              </View>
+            </View>
+          )}
+        </View>
+      )}
 
       {/* Progress nuggets (fades in when analytics loads) */}
       {analytics && (
@@ -1920,16 +1946,11 @@ const styles = StyleSheet.create({
   },
   showButton: {
     backgroundColor: colors.accent,
-    paddingVertical: 16,
-    paddingHorizontal: 48,
-    borderRadius: 12,
-    width: "100%",
-    maxWidth: 500,
   },
   showButtonText: {
     color: "#fff",
-    fontSize: 18,
-    fontWeight: "600",
+    fontSize: 17,
+    fontWeight: "700",
     textAlign: "center",
   },
 
@@ -1937,11 +1958,6 @@ const styles = StyleSheet.create({
     backgroundColor: "transparent",
     borderWidth: 1,
     borderColor: colors.noIdea + "80",
-    paddingVertical: 12,
-    paddingHorizontal: 24,
-    borderRadius: 12,
-    width: "100%",
-    maxWidth: 500,
   },
   noIdeaButtonText: {
     color: colors.noIdea,
@@ -2183,99 +2199,82 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: colors.textSecondary,
   },
-  tapHintFront: {
+  wordOutcomeSection: {
+    marginTop: 20,
+    width: "100%",
+    maxWidth: 400,
+    gap: 16,
+  },
+  wordOutcomeBlock: {
+    alignItems: "center",
+  },
+  wordOutcomeTitle: {
+    fontSize: 13,
+    fontWeight: "700",
+    textTransform: "uppercase" as const,
+    letterSpacing: 1,
+    marginBottom: 8,
+  },
+  wordOutcomePills: {
+    flexDirection: "row" as const,
+    flexWrap: "wrap" as const,
+    justifyContent: "center" as const,
+    gap: 6,
+  },
+  wordOutcomePill: {
+    backgroundColor: colors.surface,
+    borderRadius: 10,
+    paddingVertical: 4,
+    paddingHorizontal: 10,
+    alignItems: "center" as const,
+    borderWidth: 1,
+  },
+  wordOutcomePillAr: {
+    fontSize: 18,
+    fontFamily: fontFamily.arabic,
+    color: colors.arabic,
+    writingDirection: "rtl" as const,
+  },
+  wordOutcomePillEn: {
+    fontSize: 10,
     color: colors.textSecondary,
-    fontSize: fonts.small,
-    marginTop: 16,
-    opacity: 0.5,
-    fontStyle: "italic",
   },
   lookupPanel: {
     width: "100%",
+    maxWidth: 500,
+    alignSelf: "center",
+    height: 110,
     backgroundColor: colors.surface,
-    borderRadius: 16,
-    padding: 20,
-    marginTop: 20,
+    borderRadius: 12,
+    padding: 16,
+    marginVertical: 8,
+    justifyContent: "center",
     alignItems: "center",
-    gap: 10,
+    gap: 6,
     borderWidth: 1,
     borderColor: colors.border,
   },
   lookupRoot: {
-    fontSize: 14,
+    fontSize: 13,
     color: colors.accent,
     fontWeight: "600",
+    textAlign: "center",
   },
   lookupMeaning: {
-    fontSize: 20,
+    fontSize: 18,
     color: colors.text,
     fontWeight: "600",
     textAlign: "center",
-    fontFamily: fontFamily.arabic,
   },
-  lookupTranslit: {
-    fontSize: 14,
+  lookupSiblingsText: {
+    fontSize: 13,
     color: colors.textSecondary,
-    fontStyle: "italic",
-  },
-  lookupPos: {
-    fontSize: 12,
-    color: colors.textSecondary,
-  },
-  lookupPredictionHint: {
-    fontSize: 14,
-    color: colors.textSecondary,
-    fontStyle: "italic",
-  },
-  lookupPredictionPrompt: {
-    fontSize: 15,
-    color: colors.text,
-    fontWeight: "500",
-    marginTop: 4,
-  },
-  lookupSiblings: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 6,
-    justifyContent: "center",
-    marginTop: 4,
-  },
-  lookupSiblingPill: {
-    backgroundColor: colors.surface,
-    borderRadius: 8,
-    paddingVertical: 4,
-    paddingHorizontal: 10,
-    alignItems: "center",
-  },
-  lookupSiblingAr: {
-    fontSize: 18,
-    fontFamily: fontFamily.arabic,
-    color: colors.arabic,
-    writingDirection: "rtl",
-  },
-  lookupSiblingEn: {
-    fontSize: 11,
-    color: colors.textSecondary,
-  },
-  lookupRevealButton: {
-    backgroundColor: colors.accent,
-    paddingVertical: 8,
-    paddingHorizontal: 20,
-    borderRadius: 8,
-    marginTop: 4,
+    textAlign: "center",
   },
   lookupRevealText: {
-    color: "#fff",
+    color: colors.accent,
     fontSize: 14,
     fontWeight: "600",
-  },
-  lookupDismiss: {
-    paddingVertical: 6,
-    paddingHorizontal: 16,
-  },
-  lookupDismissText: {
-    color: colors.textSecondary,
-    fontSize: 13,
   },
   rootInfoBar: {
     marginTop: 12,

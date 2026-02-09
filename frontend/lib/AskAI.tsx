@@ -165,7 +165,7 @@ export default function AskAI({ contextBuilder, screen }: AskAIProps) {
 const styles = StyleSheet.create({
   fab: {
     position: "absolute",
-    bottom: 20,
+    top: 20,
     right: 20,
     width: 48,
     height: 48,
