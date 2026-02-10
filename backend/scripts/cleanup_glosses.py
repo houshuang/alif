@@ -175,23 +175,28 @@ def run_variant_detection(db, affected_bares: set[str], dry_run: bool) -> int:
         print("  variant_detection not available, skipping")
         return 0
 
-    count = 0
+    affected_lemmas = []
     for bare in affected_bares:
         lemma = db.query(Lemma).filter(Lemma.lemma_ar_bare == bare).first()
-        if not lemma:
-            continue
+        if lemma:
+            affected_lemmas.append(lemma)
 
-        variants = detect_variants(db, lemma.lemma_id)
-        definite = detect_definite_variants(db, lemma.lemma_id)
-        all_variants = variants + definite
+    if not affected_lemmas:
+        return 0
 
-        for v in all_variants:
-            canonical_id = v.get("canonical_lemma_id")
-            if canonical_id and not lemma.canonical_lemma_id:
-                print(f"  Variant: {bare} → canonical lemma_id={canonical_id}")
-                if not dry_run:
-                    lemma.canonical_lemma_id = canonical_id
-                count += 1
+    affected_ids = [l.lemma_id for l in affected_lemmas]
+    variants = detect_variants(db, affected_ids)
+    definite = detect_definite_variants(db, affected_ids)
+    all_variants = variants + definite
+
+    count = 0
+    for variant_id, canonical_id, vtype, details in all_variants:
+        lemma = db.query(Lemma).filter(Lemma.lemma_id == variant_id).first()
+        if lemma and not lemma.canonical_lemma_id:
+            print(f"  Variant: {lemma.lemma_ar_bare} → canonical lemma_id={canonical_id} [{vtype}]")
+            if not dry_run:
+                lemma.canonical_lemma_id = canonical_id
+            count += 1
 
     if not dry_run and count > 0:
         db.commit()
