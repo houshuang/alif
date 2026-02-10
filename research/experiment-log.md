@@ -61,3 +61,54 @@ First full day of real usage analyzed via SSH to production. See [analysis-2026-
 - Check `times_shown` distribution on sentences: should be more uniform if H3 is working
 - Compare stability distribution to today's baseline
 - Track how many words transition from learning → known over next week
+
+---
+
+## 2026-02-10 — Day 3 Analysis & Rich Intro Cards
+
+### Findings
+
+See [analysis-2026-02-10.md](./analysis-2026-02-10.md) for full data.
+
+**Vocabulary**: 282 words (+31%), driven by 85 textbook scanner imports. 97 words (34%) never reviewed.
+
+**Stability progress**: 10 words reached genuine 7d+ stability (from 0 at baseline). Most reviewed words still in <0.5d (40%) and 1-3d (49%) buckets. H3 partially confirmed — progress is real but slow.
+
+**Accuracy**: Bimodal split — 83 words at 80%+ accuracy (45%), 48 at 0% (26%, down from 57). Study-mode words underperform Duolingo (19% vs 70% accuracy).
+
+**Comprehension declining**: "Understood" rate dropped 44% → 24% → 22% over 3 days. Partial dominates at 69%.
+
+**Reintro cards (H1)**: 57% remembered on first attempt. Interesting "fail-then-remember" pattern: 3 words failed first reintro, succeeded 10 min later. Short-term recall improves but FSRS stability remains <0.2d for all reintro words.
+
+**Sentence diversity (H2)**: Confirmed working. 87% of sentences shown only once, max 3 shows. Pool of 1,059 with 426 never shown.
+
+**Collateral credit concern (new)**: 68% of all reviews are collateral (rating=3 for non-target words). May inflate stability for words the learner hasn't actively recalled.
+
+### Changes Made
+
+1. **Rich intro cards mid-session**: Intro candidates now shown as full cards at positions 4 and 8 during review (forms, grammar, examples, audio, root family). Learn/Skip actions — user controls what to learn. Previously only shown as tiny pills on session completion.
+2. **Removed intro gates**: Dropped 75% accuracy and 4-item minimum requirements for intro candidates. User controls via Learn/Skip buttons. Will monitor rate via interaction logs.
+3. **WordInfoCard overflow fix**: Added flexShrink, maxWidth on sibling pills, numberOfLines on gloss text.
+4. **WordInfoCard → word detail navigation**: "View details ›" link navigates to /word/[id] full detail page.
+5. **Button layout**: Back-phase buttons moved rightward — "Know All" (most common) nearest to right thumb.
+
+### New Concerns
+
+- **Collateral credit inflation**: 68% collateral at rating=3 may be artificially promoting words. Consider dampening collateral credit for partial comprehension.
+- **48 persistent zero-accuracy words**: Need leech detection — flag after N failures, offer targeted remediation.
+- **Study-mode word difficulty**: Learn mode may be selecting words that are too hard for current level.
+- **97 unseen textbook words**: About to flood review sessions — monitor scheduling balance.
+
+### Hypotheses (new)
+
+- **H4**: Removing intro gates will increase word introduction rate without overwhelming the learner, since Learn/Skip gives user control
+- **H5**: The 48 zero-accuracy words are "leeches" that need intervention beyond standard SRS scheduling
+- **H6**: Collateral credit at rating=3 is inflating stability for words the learner can't actively recall
+
+### How to Verify (next analysis)
+
+- Track intro card Learn vs Skip rates — are users engaging or always skipping?
+- Monitor daily new-word introduction rate — has it increased? Is it sustainable?
+- Check if 48 zero-accuracy words decrease with continued reintro card exposure
+- Analyze collateral-only words: do they pass when they become primary target words?
+- Compare comprehension trend — is the decline stabilizing or continuing?
