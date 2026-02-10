@@ -1,7 +1,7 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { BASE_URL } from "./api";
 import { syncEvents } from "./sync-events";
-import { invalidateSessions } from "./offline-store";
+import { invalidateSessions, updateCachedStoryStatus } from "./offline-store";
 
 const QUEUE_KEY = "@alif/sync-queue";
 const MAX_RETRY_ATTEMPTS = 8;
@@ -22,12 +22,29 @@ export interface QueueEntry {
   attempts: number;
 }
 
-async function getQueue(): Promise<QueueEntry[]> {
+let queueLock: Promise<void> = Promise.resolve();
+let flushInFlight: Promise<{ synced: number; failed: number }> | null = null;
+
+async function withQueueLock<T>(fn: () => Promise<T>): Promise<T> {
+  const previous = queueLock;
+  let release!: () => void;
+  queueLock = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  await previous;
+  try {
+    return await fn();
+  } finally {
+    release();
+  }
+}
+
+async function getQueueUnsafe(): Promise<QueueEntry[]> {
   const raw = await AsyncStorage.getItem(QUEUE_KEY);
   return raw ? JSON.parse(raw) : [];
 }
 
-async function saveQueue(queue: QueueEntry[]): Promise<void> {
+async function saveQueueUnsafe(queue: QueueEntry[]): Promise<void> {
   await AsyncStorage.setItem(QUEUE_KEY, JSON.stringify(queue));
 }
 
@@ -36,22 +53,30 @@ export async function enqueueReview(
   payload: Record<string, unknown>,
   clientReviewId: string
 ): Promise<void> {
-  const queue = await getQueue();
-  queue.push({
-    id: clientReviewId,
-    type,
-    payload,
-    client_review_id: clientReviewId,
-    created_at: new Date().toISOString(),
-    attempts: 0,
+  await withQueueLock(async () => {
+    const queue = await getQueueUnsafe();
+    queue.push({
+      id: clientReviewId,
+      type,
+      payload,
+      client_review_id: clientReviewId,
+      created_at: new Date().toISOString(),
+      attempts: 0,
+    });
+    await saveQueueUnsafe(queue);
   });
-  await saveQueue(queue);
 }
 
 const STORY_ACTION_ENDPOINTS: Record<string, string> = {
   story_complete: "complete",
   story_skip: "skip",
   story_too_difficult: "too-difficult",
+};
+
+const STORY_ACTION_STATUSES: Record<string, string> = {
+  story_complete: "completed",
+  story_skip: "skipped",
+  story_too_difficult: "too_difficult",
 };
 
 async function flushStoryEntries(
@@ -83,12 +108,13 @@ async function flushStoryEntries(
   return { synced, attempted };
 }
 
-export async function flushQueue(): Promise<{ synced: number; failed: number }> {
-  const queue = await getQueue();
+async function flushQueueInternal(): Promise<{ synced: number; failed: number }> {
+  const queue = await withQueueLock(async () => getQueueUnsafe());
   if (queue.length === 0) return { synced: 0, failed: 0 };
 
   const reviewEntries = queue.filter((e) => e.type === "sentence" || e.type === "legacy");
   const storyEntries = queue.filter((e) => e.type in STORY_ACTION_ENDPOINTS);
+  const snapshotIds = new Set(queue.map((entry) => entry.client_review_id));
 
   let totalSynced = 0;
   const removable = new Set<string>();
@@ -149,39 +175,69 @@ export async function flushQueue(): Promise<{ synced: number; failed: number }> 
   }
 
   totalSynced = removable.size;
-  const updated: QueueEntry[] = [];
-  for (const entry of queue) {
-    if (removable.has(entry.client_review_id)) {
-      continue;
-    }
+  let failed = 0;
+  await withQueueLock(async () => {
+    const currentQueue = await getQueueUnsafe();
+    const updated: QueueEntry[] = [];
+    for (const entry of currentQueue) {
+      const entryId = entry.client_review_id;
 
-    if (!attempted.has(entry.client_review_id)) {
-      updated.push(entry);
-      continue;
-    }
+      // Preserve entries added while this flush was in progress.
+      if (!snapshotIds.has(entryId)) {
+        updated.push(entry);
+        continue;
+      }
 
-    const nextAttempts = entry.attempts + 1;
-    if (nextAttempts >= MAX_RETRY_ATTEMPTS) {
-      console.warn(
-        "dropping sync queue entry after max attempts:",
-        entry.type,
-        entry.client_review_id
-      );
-      continue;
+      if (removable.has(entryId)) {
+        continue;
+      }
+
+      if (!attempted.has(entryId)) {
+        updated.push(entry);
+        continue;
+      }
+
+      const nextAttempts = entry.attempts + 1;
+      if (nextAttempts >= MAX_RETRY_ATTEMPTS) {
+        console.warn(
+          "dropping sync queue entry after max attempts:",
+          entry.type,
+          entry.client_review_id
+        );
+        continue;
+      }
+      updated.push({ ...entry, attempts: nextAttempts });
     }
-    updated.push({ ...entry, attempts: nextAttempts });
-  }
-  await saveQueue(updated);
+    failed = updated.length;
+    await saveQueueUnsafe(updated);
+  });
 
   if (totalSynced > 0) {
+    for (const entry of storyEntries) {
+      if (!removable.has(entry.client_review_id)) continue;
+      const storyId = Number(entry.payload.story_id);
+      const nextStatus = STORY_ACTION_STATUSES[entry.type];
+      if (!Number.isFinite(storyId) || !nextStatus) continue;
+      await updateCachedStoryStatus(storyId, nextStatus).catch(() => {});
+    }
     await invalidateSessions();
     syncEvents.emit("synced");
   }
 
-  return { synced: totalSynced, failed: updated.length };
+  return { synced: totalSynced, failed };
+}
+
+export async function flushQueue(): Promise<{ synced: number; failed: number }> {
+  if (flushInFlight) {
+    return flushInFlight;
+  }
+  flushInFlight = flushQueueInternal().finally(() => {
+    flushInFlight = null;
+  });
+  return flushInFlight;
 }
 
 export async function pendingCount(): Promise<number> {
-  const queue = await getQueue();
+  const queue = await withQueueLock(async () => getQueueUnsafe());
   return queue.length;
 }

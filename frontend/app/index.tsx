@@ -10,6 +10,7 @@ import {
   Platform,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useRouter } from "expo-router";
 import { Audio } from "expo-av";
 import { colors, fonts, fontFamily } from "../lib/theme";
 import {
@@ -23,6 +24,7 @@ import {
   deepPrefetchSessions,
   getGrammarLesson,
   introduceGrammarFeature,
+  introduceWord,
   BASE_URL,
 } from "../lib/api";
 import {
@@ -62,6 +64,10 @@ interface WordOutcome {
   prevState: string; // knowledge_state before this session
 }
 
+type SessionSlot =
+  | { type: "sentence"; itemIndex: number }
+  | { type: "intro"; candidateIndex: number };
+
 function stripDiacritics(s: string): string {
   return s.replace(/[\u0610-\u065f\u0670\u06D6-\u06ED]/g, "");
 }
@@ -85,6 +91,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
   const mode = fixedMode;
   const online = useNetStatus();
   const insets = useSafeAreaInsets();
+  const router = useRouter();
   // Sentence-first session (preferred)
   const [sentenceSession, setSentenceSession] =
     useState<SentenceReviewSession | null>(null);
@@ -108,20 +115,28 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
   const [lookupShowMeaning, setLookupShowMeaning] = useState(false);
   const [audioPlayCount, setAudioPlayCount] = useState(0);
   const [lookupCount, setLookupCount] = useState(0);
+  const [submittingReview, setSubmittingReview] = useState(false);
   const [wordOutcomes, setWordOutcomes] = useState<Map<number, WordOutcome>>(new Map());
   const [reintroCards, setReintroCards] = useState<ReintroCard[]>([]);
   const [reintroIndex, setReintroIndex] = useState(0);
   const [grammarLessons, setGrammarLessons] = useState<GrammarLesson[]>([]);
   const [grammarLessonIndex, setGrammarLessonIndex] = useState(0);
   const [grammarLessonsLoading, setGrammarLessonsLoading] = useState(false);
+  const [sessionSlots, setSessionSlots] = useState<SessionSlot[]>([]);
+  const [introducedLemmaIds, setIntroducedLemmaIds] = useState<Set<number>>(new Set());
   const showTime = useRef<number>(0);
   const soundRef = useRef<Audio.Sound | null>(null);
   const lookupRequestRef = useRef(0);
 
   const usingSentences = sentenceSession !== null && sentenceSession.items.length > 0;
   const totalCards = usingSentences
-    ? sentenceSession!.items.length
+    ? (sessionSlots.length > 0 ? sessionSlots.length : sentenceSession!.items.length)
     : legacySession?.cards.length ?? 0;
+  const currentSlot: SessionSlot | null = usingSentences && sessionSlots.length > 0
+    ? sessionSlots[cardIndex] ?? null
+    : null;
+  const isIntroSlot = currentSlot?.type === "intro";
+  const sentenceItemIndex = currentSlot?.type === "sentence" ? currentSlot.itemIndex : cardIndex;
 
   useEffect(() => {
     Audio.setAudioModeAsync({
@@ -173,8 +188,8 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
     setAudioPlayCount(prev => prev + 1);
     await cleanupSound();
 
-    const currentItem = usingSentences
-      ? sentenceSession!.items[cardIndex]
+    const currentItem = usingSentences && !isIntroSlot
+      ? sentenceSession!.items[sentenceItemIndex]
       : null;
     const arabicText = currentItem?.arabic_text
       ?? legacySession?.cards[cardIndex]?.sentence?.arabic
@@ -219,6 +234,8 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
     setAudioPlaying(false);
     setAutoIntroduced([]);
     setWordOutcomes(new Map());
+    setSessionSlots([]);
+    setIntroducedLemmaIds(new Set());
     setReintroCards([]);
     setReintroIndex(0);
     setGrammarLessons([]);
@@ -233,6 +250,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
     setLookupShowMeaning(false);
     setAudioPlayCount(0);
     setLookupCount(0);
+    setSubmittingReview(false);
     setSentenceSession(null);
     setLegacySession(null);
     await cleanupSound();
@@ -241,9 +259,19 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
       const ss = await getSentenceReviewSession(m);
       if (ss.items.length > 0) {
         setSentenceSession(ss);
-        if (ss.intro_candidates && ss.intro_candidates.length > 0) {
+        // Build session slots: interleave sentence items and intro candidates
+        const slots: SessionSlot[] = ss.items.map((_, i) => ({
+          type: "sentence" as const,
+          itemIndex: i,
+        }));
+        if (ss.intro_candidates && ss.intro_candidates.length > 0 && m === "reading") {
           setAutoIntroduced(ss.intro_candidates);
+          for (let ci = ss.intro_candidates.length - 1; ci >= 0; ci--) {
+            const insertPos = Math.min(ss.intro_candidates[ci].insert_at, slots.length);
+            slots.splice(insertPos, 0, { type: "intro" as const, candidateIndex: ci });
+          }
         }
+        setSessionSlots(slots);
         if (ss.reintro_cards && ss.reintro_cards.length > 0) {
           setReintroCards(ss.reintro_cards);
           setReintroIndex(0);
@@ -344,7 +372,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
     }
 
     const requestId = ++lookupRequestRef.current;
-    const tappedSurface = sentenceSession?.items[cardIndex]?.words[index]?.surface_form ?? null;
+    const tappedSurface = sentenceSession?.items[sentenceItemIndex]?.words[index]?.surface_form ?? null;
 
     setLookupCount((prev) => prev + 1);
     setLookupSurfaceForm(tappedSurface);
@@ -365,7 +393,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
     } catch {
       if (lookupRequestRef.current !== requestId) return;
       if (sentenceSession) {
-        const item = sentenceSession.items[cardIndex];
+        const item = sentenceSession.items[sentenceItemIndex];
         const word = item?.words.find((w) => w.lemma_id === lemmaId);
         if (word) {
           setLookupResult({
@@ -397,9 +425,9 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
     }
   }, [toggleMissed, sentenceSession, cardIndex, confusedIndices, missedIndices]);
 
-  function handleSentenceSubmit(signal: ComprehensionSignal) {
+  async function handleSentenceSubmit(signal: ComprehensionSignal) {
     if (!sentenceSession) return;
-    const item = sentenceSession.items[cardIndex];
+    const item = sentenceSession.items[sentenceItemIndex];
     const responseMs = Date.now() - showTime.current;
 
     const missedLemmaIds: number[] = [];
@@ -464,23 +492,27 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
       return next;
     });
 
-    submitSentenceReview({
-      sentence_id: item.sentence_id,
-      primary_lemma_id: item.primary_lemma_id,
-      comprehension_signal: signal,
-      missed_lemma_ids: missedLemmaIds,
-      confused_lemma_ids: confusedLemmaIds.length > 0 ? confusedLemmaIds : undefined,
-      response_ms: responseMs,
-      session_id: sentenceSession.session_id,
-      review_mode: mode,
-      audio_play_count: audioPlayCount > 0 ? audioPlayCount : undefined,
-      lookup_count: lookupCount > 0 ? lookupCount : undefined,
-    });
+    try {
+      await submitSentenceReview({
+        sentence_id: item.sentence_id,
+        primary_lemma_id: item.primary_lemma_id,
+        comprehension_signal: signal,
+        missed_lemma_ids: missedLemmaIds,
+        confused_lemma_ids: confusedLemmaIds.length > 0 ? confusedLemmaIds : undefined,
+        response_ms: responseMs,
+        session_id: sentenceSession.session_id,
+        review_mode: mode,
+        audio_play_count: audioPlayCount > 0 ? audioPlayCount : undefined,
+        lookup_count: lookupCount > 0 ? lookupCount : undefined,
+      });
+    } catch (e) {
+      console.warn("sentence submit failed:", e);
+    }
 
     advanceAfterSubmit(signal);
   }
 
-  function handleLegacySubmit(signal: ComprehensionSignal) {
+  async function handleLegacySubmit(signal: ComprehensionSignal) {
     if (!legacySession) return;
     const card = legacySession.cards[cardIndex];
     const responseMs = Date.now() - showTime.current;
@@ -509,15 +541,19 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
 
     const rating: 1 | 3 = targetMissed ? 1 : 3;
 
-    submitReview({
-      lemma_id: card.lemma_id,
-      rating,
-      response_ms: responseMs,
-      session_id: legacySession.session_id,
-      missed_words: missedWords,
-      review_mode: mode,
-      comprehension_signal: signal,
-    });
+    try {
+      await submitReview({
+        lemma_id: card.lemma_id,
+        rating,
+        response_ms: responseMs,
+        session_id: legacySession.session_id,
+        missed_words: missedWords,
+        review_mode: mode,
+        comprehension_signal: signal,
+      });
+    } catch (e) {
+      console.warn("legacy submit failed:", e);
+    }
 
     advanceAfterSubmit(signal);
   }
@@ -554,11 +590,17 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
     }
   }
 
-  function handleSubmit(signal: ComprehensionSignal) {
-    if (usingSentences) {
-      handleSentenceSubmit(signal);
-    } else {
-      handleLegacySubmit(signal);
+  async function handleSubmit(signal: ComprehensionSignal) {
+    if (submittingReview) return;
+    setSubmittingReview(true);
+    try {
+      if (usingSentences) {
+        await handleSentenceSubmit(signal);
+      } else {
+        await handleLegacySubmit(signal);
+      }
+    } finally {
+      setSubmittingReview(false);
     }
   }
 
@@ -583,7 +625,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
       `Online: ${online ? "yes" : "no"}`,
     ];
     if (usingSentences && sentenceSession) {
-      const item = sentenceSession.items[cardIndex];
+      const item = isIntroSlot ? null : sentenceSession.items[sentenceItemIndex];
       if (item) {
         parts.push(`Sentence ID: ${item.sentence_id ?? "word_only"}`);
         parts.push(`Arabic: ${item.arabic_text || item.primary_lemma_ar}`);
@@ -655,7 +697,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
 
   function buildExplainPrompt(): string | null {
     if (usingSentences && sentenceSession) {
-      const item = sentenceSession.items[cardIndex];
+      const item = isIntroSlot ? null : sentenceSession.items[sentenceItemIndex];
       if (!item) return null;
 
       const marked = [
@@ -718,6 +760,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
         results={results}
         mode={mode}
         autoIntroduced={autoIntroduced}
+        introducedLemmaIds={introducedLemmaIds}
         wordOutcomes={wordOutcomes}
         onNewSession={() => loadSession()}
       />
@@ -888,9 +931,101 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
     );
   }
 
+  // Intro card mid-session
+  if (usingSentences && isIntroSlot) {
+    const candidate = autoIntroduced[currentSlot!.type === "intro" ? currentSlot!.candidateIndex : 0];
+    const knownSiblings = candidate.root_family?.filter(
+      (s) => (s.state === "known" || s.state === "learning") && s.lemma_id !== candidate.lemma_id
+    ) ?? [];
+
+    async function handleIntroLearn() {
+      try {
+        await introduceWord(candidate.lemma_id);
+        setIntroducedLemmaIds(prev => new Set([...prev, candidate.lemma_id]));
+      } catch {}
+      advanceAfterSubmit("understood");
+    }
+
+    return (
+      <View style={[styles.container, { paddingTop: Math.max(insets.top, 12) }]}>
+        <ProgressBar current={cardIndex + 1} total={totalCards} mode={mode} />
+        <ScrollView
+          contentContainerStyle={styles.reintroScrollContent}
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={styles.reintroCard}>
+            <Text style={[styles.reintroLabel, { color: colors.accent }]}>New word</Text>
+            <View style={styles.reintroWordHeader}>
+              <Text style={styles.reintroArabic}>{candidate.lemma_ar}</Text>
+              <PlayButton audioUrl={candidate.audio_url} word={candidate.lemma_ar} />
+            </View>
+            <Text style={styles.reintroEnglish}>{candidate.gloss_en}</Text>
+            {candidate.transliteration && (
+              <Text style={styles.reintroTranslit}>{candidate.transliteration}</Text>
+            )}
+            {candidate.pos && (
+              <Text style={styles.reintroPos}>
+                {posLabel(candidate.pos, candidate.forms_json)}
+              </Text>
+            )}
+            <FormsRow pos={candidate.pos} forms={candidate.forms_json} />
+            <GrammarRow details={candidate.grammar_details} />
+
+            {candidate.example_ar && (
+              <View style={styles.reintroExample}>
+                <Text style={styles.reintroExampleAr}>{candidate.example_ar}</Text>
+                {candidate.example_en && (
+                  <Text style={styles.reintroExampleEn}>{candidate.example_en}</Text>
+                )}
+              </View>
+            )}
+
+            {candidate.root && (
+              <View style={styles.reintroRoot}>
+                <Text style={styles.reintroRootText}>
+                  {candidate.root}
+                  {candidate.root_meaning ? ` \u2014 ${candidate.root_meaning}` : ""}
+                </Text>
+                {candidate.root_family.length > 0 && (
+                  <Text style={styles.reintroRootSiblings}>
+                    {knownSiblings.length}/{candidate.root_family.length}
+                  </Text>
+                )}
+                {knownSiblings.length > 0 && (
+                  <View style={styles.reintroSiblingList}>
+                    {knownSiblings.slice(0, 4).map((sib) => (
+                      <Text key={sib.lemma_id} style={styles.reintroSiblingItem}>
+                        {sib.lemma_ar} {sib.gloss_en ? `\u2014 ${sib.gloss_en}` : ""}
+                      </Text>
+                    ))}
+                  </View>
+                )}
+              </View>
+            )}
+          </View>
+        </ScrollView>
+
+        <View style={styles.reintroActions}>
+          <Pressable
+            style={styles.reintroShowAgainBtn}
+            onPress={() => advanceAfterSubmit("understood")}
+          >
+            <Text style={styles.reintroShowAgainText}>Skip</Text>
+          </Pressable>
+          <Pressable
+            style={styles.reintroRememberBtn}
+            onPress={handleIntroLearn}
+          >
+            <Text style={styles.reintroRememberText}>Learn</Text>
+          </Pressable>
+        </View>
+      </View>
+    );
+  }
+
   // Sentence-first flow
   if (usingSentences) {
-    const item = sentenceSession!.items[cardIndex];
+    const item = sentenceSession!.items[sentenceItemIndex];
     const isWordOnly = item.sentence_id === null;
 
     return (
@@ -947,6 +1082,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
             showMeaning={lookupShowMeaning}
             onShowMeaning={() => setLookupShowMeaning(true)}
             reserveSpace={false}
+            onNavigateToDetail={(id) => router.push(`/word/${id}`)}
           />
         )}
 
@@ -957,6 +1093,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
               hasMarked={missedIndices.size + confusedIndices.size > 0}
               onAdvance={advanceState}
               onSubmit={handleSubmit}
+              submitting={submittingReview}
             />
           ) : (
             <ReadingActions
@@ -965,6 +1102,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
               hasMarked={missedIndices.size + confusedIndices.size > 0}
               onAdvance={advanceState}
               onSubmit={handleSubmit}
+              submitting={submittingReview}
             />
           )}
         </View>
@@ -1021,6 +1159,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
             hasMarked={missedIndices.size > 0}
             onAdvance={advanceState}
             onSubmit={handleSubmit}
+            submitting={submittingReview}
           />
         ) : (
           <ReadingActions
@@ -1029,6 +1168,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
             hasMarked={missedIndices.size > 0}
             onAdvance={advanceState}
             onSubmit={handleSubmit}
+            submitting={submittingReview}
           />
         )}
       </View>
@@ -1539,23 +1679,30 @@ function ListeningActions({
   hasMarked,
   onAdvance,
   onSubmit,
+  submitting,
 }: {
   cardState: ListeningCardState;
   hasMarked: boolean;
   onAdvance: () => void;
-  onSubmit: (signal: ComprehensionSignal) => void;
+  onSubmit: (signal: ComprehensionSignal) => Promise<void>;
+  submitting: boolean;
 }) {
   if (cardState === "audio") {
     return (
       <View style={styles.actionRow}>
         <Pressable
-          style={[styles.actionButton, styles.noIdeaButton]}
-          onPress={() => onSubmit("no_idea")}
+          style={[styles.actionButton, styles.noIdeaButton, submitting && styles.actionButtonDisabled]}
+          onPress={() => void onSubmit("no_idea")}
+          disabled={submitting}
         >
           <Text style={styles.noIdeaButtonText}>No idea</Text>
         </Pressable>
         <View style={styles.actionButtonSpacer} />
-        <Pressable style={[styles.actionButton, styles.showButton]} onPress={onAdvance}>
+        <Pressable
+          style={[styles.actionButton, styles.showButton, submitting && styles.actionButtonDisabled]}
+          onPress={onAdvance}
+          disabled={submitting}
+        >
           <Text style={styles.showButtonText}>Reveal Arabic</Text>
         </Pressable>
       </View>
@@ -1566,22 +1713,29 @@ function ListeningActions({
     return (
       <View style={styles.actionRow}>
         <Pressable
-          style={[styles.actionButton, styles.noIdeaButton]}
-          onPress={() => onSubmit("no_idea")}
+          style={[styles.actionButton, styles.noIdeaButton, submitting && styles.actionButtonDisabled]}
+          onPress={() => void onSubmit("no_idea")}
+          disabled={submitting}
         >
           <Text style={styles.noIdeaButtonText}>No idea</Text>
         </Pressable>
         <Pressable
-          style={[styles.actionButton, hasMarked ? styles.continueButton : styles.gotItButton]}
-          onPress={() => onSubmit(hasMarked ? "partial" : "understood")}
+          style={[
+            styles.actionButton,
+            hasMarked ? styles.continueButton : styles.gotItButton,
+            submitting && styles.actionButtonDisabled,
+          ]}
+          onPress={() => void onSubmit(hasMarked ? "partial" : "understood")}
+          disabled={submitting}
         >
           <Text style={styles.actionButtonText}>
             {hasMarked ? "Continue" : "Know All"}
           </Text>
         </Pressable>
         <Pressable
-          style={[styles.actionButton, styles.showButton]}
+          style={[styles.actionButton, styles.showButton, submitting && styles.actionButtonDisabled]}
           onPress={onAdvance}
+          disabled={submitting}
         >
           <Text style={styles.showButtonText}>Show Translation</Text>
         </Pressable>
@@ -1591,21 +1745,27 @@ function ListeningActions({
 
   return (
     <View style={styles.actionRow}>
+      <View style={styles.actionButtonSpacer} />
       <Pressable
-        style={[styles.actionButton, styles.noIdeaButton]}
-        onPress={() => onSubmit("no_idea")}
+        style={[styles.actionButton, styles.noIdeaButton, submitting && styles.actionButtonDisabled]}
+        onPress={() => void onSubmit("no_idea")}
+        disabled={submitting}
       >
         <Text style={styles.noIdeaButtonText}>No idea</Text>
       </Pressable>
       <Pressable
-        style={[styles.actionButton, hasMarked ? styles.continueButton : styles.gotItButton]}
-        onPress={() => onSubmit(hasMarked ? "partial" : "understood")}
+        style={[
+          styles.actionButton,
+          hasMarked ? styles.continueButton : styles.gotItButton,
+          submitting && styles.actionButtonDisabled,
+        ]}
+        onPress={() => void onSubmit(hasMarked ? "partial" : "understood")}
+        disabled={submitting}
       >
         <Text style={styles.actionButtonText}>
           {hasMarked ? "Continue" : "Know All"}
         </Text>
       </Pressable>
-      <View style={styles.actionButtonSpacer} />
     </View>
   );
 }
@@ -1618,20 +1778,23 @@ function ReadingActions({
   hasMarked,
   onAdvance,
   onSubmit,
+  submitting,
 }: {
   cardState: ReadingCardState;
   hasSentence: boolean;
   hasMarked: boolean;
   onAdvance: () => void;
-  onSubmit: (signal: ComprehensionSignal) => void;
+  onSubmit: (signal: ComprehensionSignal) => Promise<void>;
+  submitting: boolean;
 }) {
   if (cardState === "front") {
     return (
       <View style={styles.actionRow}>
         {hasSentence ? (
           <Pressable
-            style={[styles.actionButton, styles.noIdeaButton]}
-            onPress={() => onSubmit("no_idea")}
+            style={[styles.actionButton, styles.noIdeaButton, submitting && styles.actionButtonDisabled]}
+            onPress={() => void onSubmit("no_idea")}
+            disabled={submitting}
           >
             <Text style={styles.noIdeaButtonText}>No idea</Text>
           </Pressable>
@@ -1640,13 +1803,18 @@ function ReadingActions({
         )}
         {hasSentence ? (
           <Pressable
-            style={[styles.actionButton, styles.gotItButton]}
-            onPress={() => onSubmit("understood")}
+            style={[styles.actionButton, styles.gotItButton, submitting && styles.actionButtonDisabled]}
+            onPress={() => void onSubmit("understood")}
+            disabled={submitting}
           >
             <Text style={styles.actionButtonText}>Know All</Text>
           </Pressable>
         ) : null}
-        <Pressable style={[styles.actionButton, styles.showButton]} onPress={onAdvance}>
+        <Pressable
+          style={[styles.actionButton, styles.showButton, submitting && styles.actionButtonDisabled]}
+          onPress={onAdvance}
+          disabled={submitting}
+        >
           <Text style={styles.showButtonText}>Show Translation</Text>
         </Pressable>
       </View>
@@ -1658,35 +1826,43 @@ function ReadingActions({
       {!hasSentence ? (
         <>
           <Pressable
-            style={[styles.actionButton, styles.gotItButton]}
-            onPress={() => onSubmit("understood")}
+            style={[styles.actionButton, styles.gotItButton, submitting && styles.actionButtonDisabled]}
+            onPress={() => void onSubmit("understood")}
+            disabled={submitting}
           >
             <Text style={styles.actionButtonText}>Know All</Text>
           </Pressable>
           <Pressable
-            style={[styles.actionButton, styles.continueButton]}
-            onPress={() => onSubmit("partial")}
+            style={[styles.actionButton, styles.continueButton, submitting && styles.actionButtonDisabled]}
+            onPress={() => void onSubmit("partial")}
+            disabled={submitting}
           >
             <Text style={styles.actionButtonText}>Missed</Text>
           </Pressable>
         </>
       ) : (
         <>
+          <View style={styles.actionButtonSpacer} />
           <Pressable
-            style={[styles.actionButton, styles.noIdeaButton]}
-            onPress={() => onSubmit("no_idea")}
+            style={[styles.actionButton, styles.noIdeaButton, submitting && styles.actionButtonDisabled]}
+            onPress={() => void onSubmit("no_idea")}
+            disabled={submitting}
           >
             <Text style={styles.noIdeaButtonText}>No idea</Text>
           </Pressable>
           <Pressable
-            style={[styles.actionButton, hasMarked ? styles.continueButton : styles.gotItButton]}
-            onPress={() => onSubmit(hasMarked ? "partial" : "understood")}
+            style={[
+              styles.actionButton,
+              hasMarked ? styles.continueButton : styles.gotItButton,
+              submitting && styles.actionButtonDisabled,
+            ]}
+            onPress={() => void onSubmit(hasMarked ? "partial" : "understood")}
+            disabled={submitting}
           >
             <Text style={styles.actionButtonText}>
               {hasMarked ? "Continue" : "Know All"}
             </Text>
           </Pressable>
-          <View style={styles.actionButtonSpacer} />
         </>
       )}
     </View>
@@ -1821,12 +1997,14 @@ function SessionComplete({
   results,
   mode,
   autoIntroduced,
+  introducedLemmaIds,
   wordOutcomes,
   onNewSession,
 }: {
   results: SessionResults;
   mode: ReviewMode;
   autoIntroduced: IntroCandidate[];
+  introducedLemmaIds: Set<number>;
   wordOutcomes: Map<number, WordOutcome>;
   onNewSession: () => void;
 }) {
@@ -2001,13 +2179,13 @@ function SessionComplete({
       )}
 
       {/* Auto-introduced words */}
-      {autoIntroduced.length > 0 && (
+      {introducedLemmaIds.size > 0 && (
         <View style={styles.autoIntroSection}>
           <Text style={styles.autoIntroTitle}>
-            {autoIntroduced.length === 1 ? "New word added" : `${autoIntroduced.length} new words added`}
+            {introducedLemmaIds.size === 1 ? "New word learned" : `${introducedLemmaIds.size} new words learned`}
           </Text>
           <View style={styles.autoIntroPills}>
-            {autoIntroduced.map((w) => (
+            {autoIntroduced.filter((w) => introducedLemmaIds.has(w.lemma_id)).map((w) => (
               <View key={w.lemma_id} style={styles.autoIntroPill}>
                 <Text style={styles.autoIntroPillAr}>{w.lemma_ar}</Text>
                 <Text style={styles.autoIntroPillEn}>{w.gloss_en}</Text>
@@ -2357,6 +2535,9 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     alignItems: "center",
     justifyContent: "center",
+  },
+  actionButtonDisabled: {
+    opacity: 0.5,
   },
   actionButtonSpacer: {
     flex: 1,

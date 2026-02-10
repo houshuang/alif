@@ -6,6 +6,7 @@ from unittest.mock import patch
 import pytest
 
 from app.models import Lemma, Root, ReviewLog, Story, StoryWord, UserLemmaKnowledge
+import app.services.story_service as story_service_module
 from app.services.fsrs_service import create_new_card
 from app.services.story_service import (
     complete_story,
@@ -200,6 +201,40 @@ class TestCompleteStory:
         assert result.get("conflict") is True
         assert result["status"] == "skipped"
         assert logs_after_complete_attempt == logs_after_skip
+
+    def test_complete_retry_after_midway_failure_resumes_without_duplicate_reviews(self, db_session, monkeypatch):
+        _seed_words(db_session)
+        story = import_story(db_session, arabic_text="الولد في البيت")
+
+        real_submit_review = story_service_module.submit_review
+        calls = {"count": 0}
+
+        def flaky_submit_review(*args, **kwargs):
+            calls["count"] += 1
+            if calls["count"] == 2:
+                raise RuntimeError("simulated mid-story failure")
+            return real_submit_review(*args, **kwargs)
+
+        monkeypatch.setattr(story_service_module, "submit_review", flaky_submit_review)
+        with pytest.raises(RuntimeError):
+            complete_story(db_session, story.id, looked_up_lemma_ids=[])
+
+        db_session.refresh(story)
+        assert story.status == "active"
+
+        monkeypatch.setattr(story_service_module, "submit_review", real_submit_review)
+        result = complete_story(db_session, story.id, looked_up_lemma_ids=[])
+        assert result["status"] == "completed"
+
+        db_session.refresh(story)
+        assert story.status == "completed"
+
+        review_log_count = (
+            db_session.query(ReviewLog)
+            .filter(ReviewLog.client_review_id.like(f"story:{story.id}:complete:%"))
+            .count()
+        )
+        assert review_log_count == result["words_reviewed"]
 
 
 class TestSkipStory:

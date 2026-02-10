@@ -717,8 +717,6 @@ def _order_session(
 
 
 MAX_INTRO_PER_SESSION = 2
-MIN_ACCURACY_FOR_INTRO = 0.75
-MIN_ITEMS_FOR_INTRO = 4
 
 
 def _get_intro_candidates(
@@ -727,26 +725,13 @@ def _get_intro_candidates(
 ) -> list[dict]:
     """Suggest new words to introduce during a review session.
 
-    Only suggests if user has enough review items and decent recent accuracy.
     Returns up to MAX_INTRO_PER_SESSION candidates with insertion positions.
+    User controls acceptance via Learn/Skip buttons on the card.
     """
-    if len(items) < MIN_ITEMS_FOR_INTRO:
+    if len(items) == 0:
         return []
 
-    # Check recent accuracy (last 20 reviews)
-    recent_reviews = (
-        db.query(ReviewLog)
-        .order_by(ReviewLog.id.desc())
-        .limit(20)
-        .all()
-    )
-    if len(recent_reviews) >= 5:
-        correct = sum(1 for r in recent_reviews if r.rating >= 3)
-        accuracy = correct / len(recent_reviews)
-        if accuracy < MIN_ACCURACY_FOR_INTRO:
-            return []
-
-    from app.services.word_selector import select_next_words
+    from app.services.word_selector import select_next_words, get_root_family
 
     candidates = select_next_words(db, count=MAX_INTRO_PER_SESSION)
     if not candidates:
@@ -758,6 +743,7 @@ def _get_intro_candidates(
     for i, cand in enumerate(candidates[:MAX_INTRO_PER_SESSION]):
         pos = insert_positions[i] if i < len(insert_positions) else len(items) - 1
         pos = min(pos, len(items))
+        root_family = get_root_family(db, cand["root_id"]) if cand.get("root_id") else []
         result.append({
             "lemma_id": cand["lemma_id"],
             "lemma_ar": cand["lemma_ar"],
@@ -768,6 +754,13 @@ def _get_intro_candidates(
             "root_meaning": cand.get("root_meaning"),
             "root_id": cand.get("root_id"),
             "insert_at": pos,
+            "forms_json": cand.get("forms_json"),
+            "example_ar": cand.get("example_ar"),
+            "example_en": cand.get("example_en"),
+            "audio_url": cand.get("audio_url"),
+            "grammar_features": cand.get("grammar_features", []),
+            "grammar_details": [],
+            "root_family": root_family,
         })
 
     return result

@@ -128,11 +128,16 @@ def submit_sentence_review(
             review_mode=review_mode,
             comprehension_signal=comprehension_signal,
             client_review_id=(
-                client_review_id
-                if sentence_id is None and lemma_id == primary_lemma_id
-                else None
+                f"{client_review_id}:{lemma_id}"
+                if client_review_id and sentence_id is not None
+                else (
+                    client_review_id
+                    if sentence_id is None and lemma_id == primary_lemma_id
+                    else None
+                )
             ),
         )
+        is_duplicate = bool(result.get("duplicate"))
         # Tag the review log entry with sentence context
         latest_log = (
             db.query(ReviewLog)
@@ -140,7 +145,7 @@ def submit_sentence_review(
             .order_by(ReviewLog.id.desc())
             .first()
         )
-        if latest_log:
+        if latest_log and not is_duplicate:
             latest_log.sentence_id = sentence_id
             latest_log.credit_type = credit_type
 
@@ -150,7 +155,7 @@ def submit_sentence_review(
             .filter(UserLemmaKnowledge.lemma_id == lemma_id)
             .first()
         )
-        if knowledge:
+        if knowledge and not is_duplicate:
             knowledge.total_encounters = (knowledge.total_encounters or 0) + 1
 
             # Track variant form stats
@@ -175,13 +180,14 @@ def submit_sentence_review(
                             vstats[surface_bare] = entry
                             knowledge.variant_stats_json = vstats
 
-        word_results.append({
-            "lemma_id": lemma_id,
-            "rating": rating,
-            "credit_type": credit_type,
-            "new_state": result["new_state"],
-            "next_due": result["next_due"],
-        })
+        if not is_duplicate:
+            word_results.append({
+                "lemma_id": lemma_id,
+                "rating": rating,
+                "credit_type": credit_type,
+                "new_state": result["new_state"],
+                "next_due": result["next_due"],
+            })
 
     # Log the sentence-level review
     if sentence_id is not None:

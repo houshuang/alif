@@ -43,7 +43,7 @@ export interface Word {
   transliteration: string;
   root: string | null;
   pos: string;
-  state: "new" | "learning" | "known";
+  state: "new" | "learning" | "known" | "lapsed" | "suspended";
   due_date: string | null;
   times_seen: number;
   times_correct: number;
@@ -258,6 +258,20 @@ export interface IntroCandidate {
   root_meaning: string | null;
   root_id: number | null;
   insert_at: number;
+  forms_json: WordForms | null;
+  example_ar: string | null;
+  example_en: string | null;
+  audio_url: string | null;
+  grammar_features: string[];
+  grammar_details: GrammarFeatureDetail[];
+  root_family: {
+    lemma_id: number;
+    lemma_ar: string;
+    gloss_en: string | null;
+    pos: string | null;
+    transliteration: string | null;
+    state: string;
+  }[];
 }
 
 export interface ReintroCard {

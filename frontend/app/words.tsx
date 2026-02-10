@@ -13,7 +13,14 @@ import { colors, fonts, fontFamily } from "../lib/theme";
 import { getWords } from "../lib/api";
 import { Word } from "../lib/types";
 
-type FilterValue = "all" | "new" | "learning" | "known" | "reviewed";
+type FilterValue =
+  | "all"
+  | "new"
+  | "learning"
+  | "known"
+  | "lapsed"
+  | "suspended"
+  | "reviewed";
 
 function reviewCategory(w: Word): "failed" | "passed" | "unseen" {
   if (w.times_seen === 0) return "unseen";
@@ -82,6 +89,8 @@ export default function WordsScreen() {
       new: colors.stateNew,
       learning: colors.stateLearning,
       known: colors.stateKnown,
+      lapsed: colors.missed,
+      suspended: colors.textSecondary,
     }[state];
   }
 
@@ -172,6 +181,8 @@ export default function WordsScreen() {
     "new",
     "learning",
     "known",
+    "lapsed",
+    "suspended",
     "reviewed",
   ];
 

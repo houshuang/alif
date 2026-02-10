@@ -312,6 +312,7 @@ def sync_reviews(body: BulkSyncIn, db: Session = Depends(get_db)):
             else:
                 results.append({"client_review_id": item.client_review_id, "status": "error", "error": f"Unknown type: {item.type}"})
         except Exception as e:
+            db.rollback()
             results.append({"client_review_id": item.client_review_id, "status": "error", "error": str(e)})
     return {"results": results}
 

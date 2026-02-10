@@ -422,14 +422,48 @@ export async function importStory(arabicText: string, title?: string): Promise<S
   });
 }
 
-export async function completeStory(storyId: number, lookedUpLemmaIds: number[], readingTimeMs?: number): Promise<void> {
+function isLikelyNetworkError(error: unknown): boolean {
+  if (!(error instanceof Error)) return false;
+  const msg = error.message.toLowerCase();
+  return (
+    msg.includes("network request failed") ||
+    msg.includes("failed to fetch") ||
+    msg.includes("network error") ||
+    msg.includes("request timed out")
+  );
+}
+
+type StoryAction = "complete" | "skip" | "too-difficult";
+type StoryQueueType = "story_complete" | "story_skip" | "story_too_difficult";
+
+async function postStoryAction(
+  storyId: number,
+  action: StoryAction,
+  queueType: StoryQueueType,
+  lookedUpLemmaIds: number[],
+  readingTimeMs?: number
+): Promise<"synced" | "queued"> {
+  const body = {
+    looked_up_lemma_ids: lookedUpLemmaIds,
+    reading_time_ms: readingTimeMs,
+  };
+
   try {
-    await fetchApi(`/api/stories/${storyId}/complete`, {
+    const res = await fetch(`${BASE_URL}/api/stories/${storyId}/${action}`, {
       method: "POST",
-      body: JSON.stringify({ looked_up_lemma_ids: lookedUpLemmaIds, reading_time_ms: readingTimeMs }),
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
     });
-  } catch {
-    await enqueueReview("story_complete", {
+    if (res.ok || res.status === 409) {
+      return "synced";
+    }
+    const text = await res.text().catch(() => "Unknown error");
+    throw new Error(`API error ${res.status}: ${text}`);
+  } catch (e) {
+    if (!isLikelyNetworkError(e)) {
+      throw e;
+    }
+    await enqueueReview(queueType, {
       story_id: storyId,
       looked_up_lemma_ids: lookedUpLemmaIds,
       reading_time_ms: readingTimeMs,
@@ -437,46 +471,47 @@ export async function completeStory(storyId: number, lookedUpLemmaIds: number[],
     if (netStatus.isOnline) {
       flushQueue().catch(() => {});
     }
+    return "queued";
   }
-  updateCachedStoryStatus(storyId, "completed").catch(() => {});
+}
+
+export async function completeStory(storyId: number, lookedUpLemmaIds: number[], readingTimeMs?: number): Promise<void> {
+  const result = await postStoryAction(
+    storyId,
+    "complete",
+    "story_complete",
+    lookedUpLemmaIds,
+    readingTimeMs
+  );
+  if (result === "synced") {
+    updateCachedStoryStatus(storyId, "completed").catch(() => {});
+  }
 }
 
 export async function skipStory(storyId: number, lookedUpLemmaIds: number[], readingTimeMs?: number): Promise<void> {
-  try {
-    await fetchApi(`/api/stories/${storyId}/skip`, {
-      method: "POST",
-      body: JSON.stringify({ looked_up_lemma_ids: lookedUpLemmaIds, reading_time_ms: readingTimeMs }),
-    });
-  } catch {
-    await enqueueReview("story_skip", {
-      story_id: storyId,
-      looked_up_lemma_ids: lookedUpLemmaIds,
-      reading_time_ms: readingTimeMs,
-    }, generateUuid());
-    if (netStatus.isOnline) {
-      flushQueue().catch(() => {});
-    }
+  const result = await postStoryAction(
+    storyId,
+    "skip",
+    "story_skip",
+    lookedUpLemmaIds,
+    readingTimeMs
+  );
+  if (result === "synced") {
+    updateCachedStoryStatus(storyId, "skipped").catch(() => {});
   }
-  updateCachedStoryStatus(storyId, "skipped").catch(() => {});
 }
 
 export async function tooDifficultStory(storyId: number, lookedUpLemmaIds: number[], readingTimeMs?: number): Promise<void> {
-  try {
-    await fetchApi(`/api/stories/${storyId}/too-difficult`, {
-      method: "POST",
-      body: JSON.stringify({ looked_up_lemma_ids: lookedUpLemmaIds, reading_time_ms: readingTimeMs }),
-    });
-  } catch {
-    await enqueueReview("story_too_difficult", {
-      story_id: storyId,
-      looked_up_lemma_ids: lookedUpLemmaIds,
-      reading_time_ms: readingTimeMs,
-    }, generateUuid());
-    if (netStatus.isOnline) {
-      flushQueue().catch(() => {});
-    }
+  const result = await postStoryAction(
+    storyId,
+    "too-difficult",
+    "story_too_difficult",
+    lookedUpLemmaIds,
+    readingTimeMs
+  );
+  if (result === "synced") {
+    updateCachedStoryStatus(storyId, "too_difficult").catch(() => {});
   }
-  updateCachedStoryStatus(storyId, "too_difficult").catch(() => {});
 }
 
 export async function deleteStory(storyId: number): Promise<void> {

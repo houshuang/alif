@@ -12,6 +12,7 @@ interface WordInfoCardProps {
   showMeaning: boolean;
   onShowMeaning: () => void;
   reserveSpace?: boolean;
+  onNavigateToDetail?: (lemmaId: number) => void;
 }
 
 function stemWord(w: string): string {
@@ -50,6 +51,7 @@ export default function WordInfoCard({
   showMeaning,
   onShowMeaning,
   reserveSpace = true,
+  onNavigateToDetail,
 }: WordInfoCardProps) {
   const knownSiblings = result?.root_family.filter((s) => {
     if (s.lemma_id === result.lemma_id) return false;
@@ -79,7 +81,7 @@ export default function WordInfoCard({
           onReveal={onShowMeaning}
         />
       ) : (
-        <RevealedView result={result} siblings={knownSiblings} />
+        <RevealedView result={result} siblings={knownSiblings} onNavigateToDetail={onNavigateToDetail} />
       )}
     </View>
   );
@@ -111,7 +113,7 @@ function RootGateView({
         {siblings.slice(0, 4).map((s) => (
           <View key={s.lemma_id} style={styles.siblingPill}>
             <Text style={styles.siblingAr}>{s.lemma_ar}</Text>
-            <Text style={styles.siblingEn}>{s.gloss_en ?? "?"}</Text>
+            <Text style={styles.siblingEn} numberOfLines={1}>{s.gloss_en ?? "?"}</Text>
           </View>
         ))}
       </View>
@@ -142,9 +144,11 @@ function buildFormsText(forms: WordForms, pos: string | null): string | null {
 function RevealedView({
   result,
   siblings,
+  onNavigateToDetail,
 }: {
   result: WordLookupResult | null;
   siblings: WordLookupResult["root_family"];
+  onNavigateToDetail?: (lemmaId: number) => void;
 }) {
   if (!result) return null;
 
@@ -206,7 +210,7 @@ function RevealedView({
               <Text style={[styles.siblingAr, s.state === "new" && styles.siblingArDim]}>
                 {s.lemma_ar}
               </Text>
-              <Text style={styles.siblingEn}>{s.gloss_en ?? "?"}</Text>
+              <Text style={styles.siblingEn} numberOfLines={1}>{s.gloss_en ?? "?"}</Text>
             </View>
           ))}
         </View>
@@ -218,6 +222,16 @@ function RevealedView({
           <Text style={styles.exampleAr}>{result.example_ar}</Text>
           <Text style={styles.exampleEn}>{result.example_en}</Text>
         </View>
+      )}
+
+      {onNavigateToDetail && (
+        <Pressable
+          onPress={() => onNavigateToDetail(result.lemma_id)}
+          hitSlop={8}
+          style={styles.detailLink}
+        >
+          <Text style={styles.detailLinkText}>View details ›</Text>
+        </Pressable>
       )}
     </View>
   );
@@ -267,6 +281,7 @@ const styles = StyleSheet.create({
     color: colors.text,
     fontSize: 18,
     fontWeight: "700",
+    flexShrink: 1,
   },
   lemmaAr: {
     color: colors.arabic,
@@ -274,11 +289,13 @@ const styles = StyleSheet.create({
     fontFamily: fontFamily.arabic,
     writingDirection: "rtl",
     lineHeight: 28,
+    flexShrink: 1,
   },
   translitText: {
     color: colors.textSecondary,
     fontSize: 13,
     fontStyle: "italic",
+    flexShrink: 1,
   },
   posPill: {
     backgroundColor: colors.surfaceLight,
@@ -343,6 +360,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     flexDirection: "row",
     gap: 5,
+    maxWidth: "48%",
   },
   siblingPillNew: {
     opacity: 0.45,
@@ -363,6 +381,7 @@ const styles = StyleSheet.create({
   siblingEn: {
     fontSize: 10,
     color: colors.textSecondary,
+    flexShrink: 1,
   },
 
   /* Example sentence */
@@ -401,6 +420,17 @@ const styles = StyleSheet.create({
   revealText: {
     color: colors.accent,
     fontSize: 13,
+    fontWeight: "600",
+  },
+
+  /* Detail navigation link */
+  detailLink: {
+    alignSelf: "flex-end",
+    paddingTop: 2,
+  },
+  detailLinkText: {
+    color: colors.accent,
+    fontSize: 12,
     fontWeight: "600",
   },
 });

@@ -485,9 +485,6 @@ def complete_story(
             "conflict": True,
         }
 
-    story.status = "completed"
-    story.completed_at = datetime.now(timezone.utc)
-
     looked_up_set = set(looked_up_lemma_ids)
     reviewed_lemmas: set[int] = set()
     good_count = 0
@@ -512,14 +509,18 @@ def complete_story(
             rating = 3
             good_count += 1
 
+        # Deterministic ID keeps retries idempotent per story+lemma.
         submit_review(
             db,
             lemma_id=sw.lemma_id,
             rating_int=rating,
             review_mode="reading",
             comprehension_signal="story_complete",
+            client_review_id=f"story:{story_id}:complete:{sw.lemma_id}",
         )
 
+    story.status = "completed"
+    story.completed_at = datetime.now(timezone.utc)
     db.commit()
 
     log_interaction(
@@ -563,9 +564,7 @@ def skip_story(
             "conflict": True,
         }
 
-    story.status = "skipped"
     again_count = 0
-
     if looked_up_lemma_ids:
         for lid in set(looked_up_lemma_ids):
             ulk = (
@@ -574,9 +573,16 @@ def skip_story(
                 .first()
             )
             if ulk:
-                submit_review(db, lemma_id=lid, rating_int=1, review_mode="reading")
+                submit_review(
+                    db,
+                    lemma_id=lid,
+                    rating_int=1,
+                    review_mode="reading",
+                    client_review_id=f"story:{story_id}:skip:{lid}",
+                )
                 again_count += 1
 
+    story.status = "skipped"
     db.commit()
 
     log_interaction(
@@ -587,7 +593,11 @@ def skip_story(
         reading_time_ms=reading_time_ms,
     )
 
-    return {"story_id": story_id, "status": "skipped", "again_count": again_count}
+    return {
+        "story_id": story_id,
+        "status": "skipped",
+        "again_count": again_count,
+    }
 
 
 def too_difficult_story(
@@ -612,9 +622,7 @@ def too_difficult_story(
             "conflict": True,
         }
 
-    story.status = "too_difficult"
     again_count = 0
-
     if looked_up_lemma_ids:
         for lid in set(looked_up_lemma_ids):
             ulk = (
@@ -623,9 +631,16 @@ def too_difficult_story(
                 .first()
             )
             if ulk:
-                submit_review(db, lemma_id=lid, rating_int=1, review_mode="reading")
+                submit_review(
+                    db,
+                    lemma_id=lid,
+                    rating_int=1,
+                    review_mode="reading",
+                    client_review_id=f"story:{story_id}:too_difficult:{lid}",
+                )
                 again_count += 1
 
+    story.status = "too_difficult"
     db.commit()
 
     log_interaction(
@@ -636,7 +651,11 @@ def too_difficult_story(
         reading_time_ms=reading_time_ms,
     )
 
-    return {"story_id": story_id, "status": "too_difficult", "again_count": again_count}
+    return {
+        "story_id": story_id,
+        "status": "too_difficult",
+        "again_count": again_count,
+    }
 
 
 def delete_story(db: Session, story_id: int) -> dict:

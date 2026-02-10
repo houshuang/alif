@@ -1,7 +1,7 @@
 #!/bin/bash
 # Backup Alif database from Hetzner to local machine
 # Retention: daily for 7 days, weekly for 4 weeks, monthly forever
-# Run via cron: 0 */6 * * * /Users/stian/src/alif/scripts/backup.sh
+# Run via cron: 0 9 * * * /Users/stian/src/alif/scripts/backup.sh
 
 set -e
 

@@ -249,6 +249,13 @@ class IntroCandidateOut(BaseModel):
     root_meaning: str | None = None
     root_id: int | None = None
     insert_at: int = 0
+    forms_json: dict | None = None
+    example_ar: str | None = None
+    example_en: str | None = None
+    audio_url: str | None = None
+    grammar_features: list[str] = []
+    grammar_details: list[dict] = []
+    root_family: list[dict] = []
 
 
 class ReintroCardOut(BaseModel):

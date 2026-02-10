@@ -6,8 +6,10 @@ import pytest
 
 from app.models import (
     Lemma, UserLemmaKnowledge, Sentence, SentenceWord,
-    ReviewLog, SentenceReviewLog,
+    ReviewLog, SentenceReviewLog, Story,
 )
+import app.services.sentence_review_service as sentence_review_service
+import app.services.story_service as story_service_module
 from app.services.fsrs_service import create_new_card, submit_review
 from app.services.sentence_review_service import submit_sentence_review
 
@@ -214,6 +216,59 @@ class TestSentenceReviewIdempotency:
         ).all()
         assert len(logs) == 1
 
+    def test_sentence_retry_resumes_without_duplicate_word_credit(self, db_session, monkeypatch):
+        _seed_word(db_session, 1, "كتاب", "book")
+        _seed_word(db_session, 2, "ولد", "boy")
+        _seed_sentence(db_session, 1, "الولد الكتاب", "the boy the book",
+                       target_lemma_id=1, word_ids=[2, 1])
+        db_session.commit()
+
+        real_submit_review = sentence_review_service.submit_review
+        calls = {"count": 0}
+
+        def flaky_submit_review(*args, **kwargs):
+            calls["count"] += 1
+            if calls["count"] == 2:
+                raise RuntimeError("simulated mid-sentence failure")
+            return real_submit_review(*args, **kwargs)
+
+        monkeypatch.setattr(sentence_review_service, "submit_review", flaky_submit_review)
+        with pytest.raises(RuntimeError):
+            submit_sentence_review(
+                db_session,
+                sentence_id=1,
+                primary_lemma_id=1,
+                comprehension_signal="understood",
+                client_review_id="sent-retry-001",
+            )
+
+        monkeypatch.setattr(sentence_review_service, "submit_review", real_submit_review)
+        resumed = submit_sentence_review(
+            db_session,
+            sentence_id=1,
+            primary_lemma_id=1,
+            comprehension_signal="understood",
+            client_review_id="sent-retry-001",
+        )
+        assert len(resumed["word_results"]) == 1
+        assert resumed["word_results"][0]["lemma_id"] in {1, 2}
+
+        assert (
+            db_session.query(ReviewLog)
+            .filter(ReviewLog.client_review_id == "sent-retry-001:1")
+            .count()
+        ) == 1
+        assert (
+            db_session.query(ReviewLog)
+            .filter(ReviewLog.client_review_id == "sent-retry-001:2")
+            .count()
+        ) == 1
+        assert (
+            db_session.query(SentenceReviewLog)
+            .filter(SentenceReviewLog.client_review_id == "sent-retry-001")
+            .count()
+        ) == 1
+
 
 class TestBulkSyncEndpoint:
     def test_mixed_items(self, client, db_session):
@@ -343,3 +398,183 @@ class TestBulkSyncEndpoint:
         data = resp.json()
         assert data["results"][0]["status"] == "error"
         assert "Unknown type" in data["results"][0]["error"]
+
+    def test_offline_replay_duplicate_and_story_retry_recovery(self, client, db_session, monkeypatch):
+        _seed_word(db_session, 1, "كتاب", "book")
+        _seed_word(db_session, 2, "ولد", "boy")
+        _seed_word(db_session, 3, "بيت", "house")
+        _seed_sentence(db_session, 1, "الولد الكتاب", "the boy the book",
+                       target_lemma_id=1, word_ids=[2, 1])
+        db_session.commit()
+
+        story_one = client.post("/api/stories/import", json={
+            "arabic_text": "الولد في البيت",
+            "title": "Manual Story",
+        })
+        assert story_one.status_code == 200
+        story_one_id = story_one.json()["id"]
+
+        story_retry = client.post("/api/stories/import", json={
+            "arabic_text": "الولد في البيت",
+            "title": "Retry Story",
+        })
+        assert story_retry.status_code == 200
+        story_retry_id = story_retry.json()["id"]
+
+        queued = [
+            {
+                "type": "sentence",
+                "client_review_id": "manual-sync-sentence-1",
+                "payload": {
+                    "sentence_id": 1,
+                    "primary_lemma_id": 1,
+                    "comprehension_signal": "understood",
+                    "session_id": "offline-session-1",
+                    "review_mode": "reading",
+                },
+            },
+            {
+                "type": "legacy",
+                "client_review_id": "manual-sync-legacy-1",
+                "payload": {
+                    "lemma_id": 2,
+                    "rating": 3,
+                    "session_id": "offline-session-1",
+                },
+            },
+        ]
+
+        first_sync = client.post("/api/review/sync", json={"reviews": queued})
+        assert first_sync.status_code == 200
+        assert [r["status"] for r in first_sync.json()["results"]] == ["ok", "ok"]
+
+        replay_sync = client.post("/api/review/sync", json={"reviews": queued})
+        assert replay_sync.status_code == 200
+        assert [r["status"] for r in replay_sync.json()["results"]] == ["duplicate", "duplicate"]
+
+        assert (
+            db_session.query(SentenceReviewLog)
+            .filter(SentenceReviewLog.client_review_id == "manual-sync-sentence-1")
+            .count()
+        ) == 1
+        assert (
+            db_session.query(ReviewLog)
+            .filter(ReviewLog.client_review_id == "manual-sync-sentence-1:1")
+            .count()
+        ) == 1
+        assert (
+            db_session.query(ReviewLog)
+            .filter(ReviewLog.client_review_id == "manual-sync-sentence-1:2")
+            .count()
+        ) == 1
+        assert (
+            db_session.query(ReviewLog)
+            .filter(ReviewLog.client_review_id == "manual-sync-legacy-1")
+            .count()
+        ) == 1
+
+        mixed_sync = client.post("/api/review/sync", json={
+            "reviews": [
+                {
+                    "type": "legacy",
+                    "client_review_id": "mixed-good-1",
+                    "payload": {"lemma_id": 1, "rating": 3},
+                },
+                {
+                    "type": "legacy",
+                    "client_review_id": "mixed-bad-1",
+                    "payload": {"rating": 3},
+                },
+                {
+                    "type": "legacy",
+                    "client_review_id": "mixed-good-2",
+                    "payload": {"lemma_id": 3, "rating": 3},
+                },
+            ]
+        })
+        assert mixed_sync.status_code == 200
+        mixed_results = mixed_sync.json()["results"]
+        assert [r["status"] for r in mixed_results] == ["ok", "error", "ok"]
+        assert "lemma_id" in mixed_results[1]["error"]
+
+        assert (
+            db_session.query(ReviewLog)
+            .filter(ReviewLog.client_review_id == "mixed-good-1")
+            .count()
+        ) == 1
+        assert (
+            db_session.query(ReviewLog)
+            .filter(ReviewLog.client_review_id == "mixed-good-2")
+            .count()
+        ) == 1
+        assert (
+            db_session.query(ReviewLog)
+            .filter(ReviewLog.client_review_id == "mixed-bad-1")
+            .count()
+        ) == 0
+
+        complete_first = client.post(f"/api/stories/{story_one_id}/complete", json={
+            "looked_up_lemma_ids": [2],
+            "reading_time_ms": 14500,
+        })
+        assert complete_first.status_code == 200
+        first_payload = complete_first.json()
+        assert first_payload["status"] == "completed"
+        assert first_payload["words_reviewed"] == 2
+        assert first_payload["good_count"] == 1
+        assert first_payload["again_count"] == 1
+
+        complete_replay = client.post(f"/api/stories/{story_one_id}/complete", json={
+            "looked_up_lemma_ids": [2],
+            "reading_time_ms": 14500,
+        })
+        assert complete_replay.status_code == 200
+        replay_payload = complete_replay.json()
+        assert replay_payload["duplicate"] is True
+        assert replay_payload["words_reviewed"] == 0
+
+        assert (
+            db_session.query(ReviewLog)
+            .filter(ReviewLog.client_review_id.like(f"story:{story_one_id}:complete:%"))
+            .count()
+        ) == 2
+
+        real_submit_review = story_service_module.submit_review
+        calls = {"count": 0}
+
+        def flaky_submit_review(*args, **kwargs):
+            calls["count"] += 1
+            if calls["count"] == 2:
+                raise RuntimeError("simulated mid-story failure")
+            return real_submit_review(*args, **kwargs)
+
+        monkeypatch.setattr(story_service_module, "submit_review", flaky_submit_review)
+        with pytest.raises(RuntimeError):
+            client.post(f"/api/stories/{story_retry_id}/complete", json={
+                "looked_up_lemma_ids": [2],
+                "reading_time_ms": 9000,
+            })
+
+        monkeypatch.setattr(story_service_module, "submit_review", real_submit_review)
+        retry_story = db_session.query(Story).filter(Story.id == story_retry_id).first()
+        assert retry_story is not None
+        assert retry_story.status == "active"
+
+        retry_success = client.post(f"/api/stories/{story_retry_id}/complete", json={
+            "looked_up_lemma_ids": [2],
+            "reading_time_ms": 9100,
+        })
+        assert retry_success.status_code == 200
+        retry_payload = retry_success.json()
+        assert retry_payload["status"] == "completed"
+        assert retry_payload["words_reviewed"] == 2
+        assert retry_payload["good_count"] == 1
+        assert retry_payload["again_count"] == 1
+
+        assert (
+            db_session.query(ReviewLog)
+            .filter(ReviewLog.client_review_id.like(f"story:{story_retry_id}:complete:%"))
+            .count()
+        ) == 2
+        db_session.refresh(retry_story)
+        assert retry_story.status == "completed"
