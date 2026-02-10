@@ -161,9 +161,10 @@ This app is an ongoing learning experiment. Every algorithm change, data structu
 - `backend/app/services/morphology.py` — CAMeL Tools morphological analyzer. Functions: `analyze_word_camel()` (all analyses), `get_base_lemma()` (top lex), `is_variant_form()` (possessive/enclitic check), `find_matching_analysis()` (disambiguate against known lemma), `find_best_db_match()` (iterate all analyses, return first matching a known DB bare form), `get_word_features()` (lex/root/pos/enc0/num/gen/stt). Falls back to stub if camel_tools not installed.
 - `backend/app/services/variant_detection.py` — DB-aware variant detection: `detect_variants()` (CAMeL + DB match), `detect_definite_variants()` (al-prefix), `mark_variants()`. Used by import scripts (post-import pass) and cleanup_lemma_variants.py (batch cleanup).
 - `backend/app/services/interaction_logger.py` — Append-only JSONL to `data/logs/interactions_YYYY-MM-DD.jsonl`. Skipped when TESTING env var is set.
+- `backend/app/services/ocr_service.py` — Gemini Vision OCR: `extract_text_from_image()` (full text extraction for story import), `extract_words_from_image()` (vocabulary extraction from textbook pages), `process_textbook_page()` (background task: OCR + match/import words + update PageUpload record).
 
 ### Backend Other
-- `backend/app/models.py` — SQLAlchemy models: Root, Lemma (+ example_ar/en, forms_json, canonical_lemma_id), UserLemmaKnowledge (+ variant_stats_json), ReviewLog, Sentence (+ last_comprehension), SentenceWord, SentenceReviewLog, GrammarFeature, SentenceGrammarFeature, UserGrammarExposure, Story, StoryWord
+- `backend/app/models.py` — SQLAlchemy models: Root, Lemma (+ example_ar/en, forms_json, canonical_lemma_id), UserLemmaKnowledge (+ variant_stats_json), ReviewLog, Sentence (+ last_comprehension), SentenceWord, SentenceReviewLog, GrammarFeature, SentenceGrammarFeature, UserGrammarExposure, Story, StoryWord, PageUpload (batch_id, status, extracted_words_json, new_words, existing_words)
 - `backend/app/schemas.py` — Pydantic models. SentenceReviewSubmitIn includes confused_lemma_ids. SentenceWordMeta includes root/root_meaning/root_id.
 - `backend/scripts/` — import_duolingo.py, import_wiktionary.py, import_avp_a1.py, benchmark_llm.py, pregenerate_material.py, generate_audio.py, generate_sentences.py, backfill_lemma_grammar.py, backfill_examples.py, backfill_forms.py, simulate_usage.py, update_material.py (cron: backfill sentences + audio + pre-generate for upcoming candidates), merge_al_lemmas.py, merge_lemma_variants.py, cleanup_lemma_variants.py
 
@@ -173,7 +174,8 @@ This app is an ongoing learning experiment. Every algorithm change, data structu
 - `frontend/app/words.tsx` — Word browser: search (AR/EN/translit), filter by state, sort by review status (failed first)
 - `frontend/app/stats.tsx` — Analytics: today banner, CEFR card, pace grid, quick stats, 14-day bar chart
 - `frontend/app/story/[id].tsx` — Story reader: word-by-word Arabic with tap-to-lookup (AsyncStorage persisted), AR/EN tabs, complete/skip/too-difficult
-- `frontend/app/stories.tsx` — Story list: generate modal (length + topic), import modal (title + text)
+- `frontend/app/stories.tsx` — Story list: generate modal (length + topic), import modal (title + text + image OCR)
+- `frontend/app/scanner.tsx` — Textbook page scanner: camera/gallery upload, batch processing with polling, upload history with expandable results (new/existing words)
 - `frontend/lib/api.ts` — API client with configurable BASE_URL. Includes lookupReviewWord().
 - `frontend/lib/types.ts` — All interfaces. SentenceWordMeta has root/root_meaning/root_id. WordLookupResult for review lookup.
 - `frontend/lib/offline-store.ts` — AsyncStorage: session cache (3 per mode), reviewed tracking, data cache (words/stats/analytics)
@@ -225,6 +227,10 @@ This app is an ongoing learning experiment. Every algorithm change, data structu
 | POST | `/api/tts/generate` | Generate TTS audio (async) |
 | POST | `/api/tts/generate-for-sentence` | Generate sentence TTS with slow mode |
 | GET | `/api/tts/audio/{cache_key}.mp3` | Serve cached audio file |
+| POST | `/api/ocr/scan-pages` | Upload textbook page images for OCR word extraction (multipart, background processing) |
+| GET | `/api/ocr/batch/{batch_id}` | Get batch upload status with per-page results |
+| GET | `/api/ocr/uploads` | List recent upload batches with results |
+| POST | `/api/ocr/extract-text` | Extract Arabic text from image for story import (synchronous) |
 
 ## Data Model
 - `roots` — 3/4 consonant roots with core meaning, productivity score
@@ -239,6 +245,7 @@ This app is an ongoing learning experiment. Every algorithm change, data structu
 - `user_grammar_exposure` — Per-feature tracking (times_seen, times_correct, comfort_score, first/last_seen_at)
 - `stories` — Generated/imported stories (title_ar/en, body_ar/en, transliteration, status, readiness_pct, difficulty_level)
 - `story_words` — Per-token breakdown (position, surface_form, lemma_id, sentence_index, gloss_en, is_known_at_creation, is_function_word)
+- `page_uploads` — Textbook page OCR tracking (batch_id, filename, status: pending/processing/completed/failed, extracted_words_json, new_words, existing_words, error_message)
 
 ## NLP Pipeline
 **Current (rule-based in sentence_validator.py):**

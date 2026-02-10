@@ -110,6 +110,14 @@ export default function Layout() {
           }}
         />
         <Tabs.Screen
+          name="scanner"
+          options={{
+            title: "Scanner",
+            tabBarLabel: "Scanner",
+            tabBarIcon: ({ color, size }) => <Ionicons name="scan-outline" size={size} color={color} />,
+          }}
+        />
+        <Tabs.Screen
           name="chats"
           options={{
             title: "Chats",

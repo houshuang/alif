@@ -441,3 +441,16 @@
 - Variant difficulty scheduling: if a specific variant form has a high miss rate (e.g., بنتي missed >50% of encounters), prefer sentences containing that variant to strengthen recognition
 - CAMeL Tools disambiguation in context: use MLE disambiguator for sentence-level analysis rather than single-word analyzer for more accurate lemmatization
 - [DONE] Import pipeline improvement: all three import scripts (duolingo, wiktionary, avp_a1) now run CAMeL Tools variant detection as a post-import pass — new lemmas are checked against all existing DB lemmas, variants get `canonical_lemma_id` set immediately. Shared logic in `app/services/variant_detection.py`.
+
+### OCR / Textbook Scanner (2026-02-09)
+- [DONE] Gemini Vision OCR for Arabic text extraction from images
+- [DONE] Textbook page scanning: upload photos of textbook pages, extract vocabulary words, import new lemmas, mark existing as seen with encounter count increment
+- [DONE] Batch upload support: multiple pages at once with immediate response and background processing
+- [DONE] Upload history view: list of batch uploads with per-page results (new/existing word counts), expandable to see individual words
+- [DONE] Story OCR import: upload image of Arabic text in story import modal, extract text via Gemini Vision, populate text field for standard story import flow
+- Post-OCR variant detection: after importing new lemmas from textbook scans, run CAMeL Tools variant detection to catch possessives/inflected forms
+- OCR confidence scoring: have Gemini rate its confidence per word, flag low-confidence extractions for user review
+- Textbook progress tracking: track which textbook/chapter pages have been scanned, show coverage progress
+- OCR for handwritten Arabic: test Gemini Vision on handwritten notes (likely lower accuracy but worth exploring)
+- Scan-to-story pipeline: detect whether a scanned page is vocabulary (extract words) or continuous text (extract as story) automatically
+- Multi-page story scanning: scan multiple pages and stitch the extracted text together as one story

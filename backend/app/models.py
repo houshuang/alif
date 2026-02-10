@@ -221,6 +221,21 @@ class StoryWord(Base):
     lemma = relationship("Lemma", back_populates="story_words")
 
 
+class PageUpload(Base):
+    __tablename__ = "page_uploads"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    batch_id = Column(String(50), nullable=False, index=True)
+    filename = Column(Text, nullable=True)
+    status = Column(String(20), default="pending", index=True)  # pending/processing/completed/failed
+    extracted_words_json = Column(JSON, nullable=True)
+    new_words = Column(Integer, default=0)
+    existing_words = Column(Integer, default=0)
+    error_message = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    completed_at = Column(DateTime, nullable=True)
+
+
 class ChatMessage(Base):
     __tablename__ = "chat_messages"
 

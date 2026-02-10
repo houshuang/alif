@@ -10,11 +10,13 @@ import {
   Modal,
   Alert,
   Platform,
+  Image,
 } from "react-native";
 import { useRouter, useFocusEffect } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
+import * as ImagePicker from "expo-image-picker";
 import { colors, fonts, fontFamily } from "../lib/theme";
-import { getStories, generateStory, importStory, deleteStory, prefetchStoryDetails } from "../lib/api";
+import { getStories, generateStory, importStory, deleteStory, prefetchStoryDetails, extractTextFromImage } from "../lib/api";
 import { netStatus } from "../lib/net-status";
 import { StoryListItem } from "../lib/types";
 
@@ -41,6 +43,8 @@ export default function StoriesScreen() {
   const [importText, setImportText] = useState("");
   const [importTitle, setImportTitle] = useState("");
   const [importing, setImporting] = useState(false);
+  const [importImageUri, setImportImageUri] = useState<string | null>(null);
+  const [extractingText, setExtractingText] = useState(false);
 
   const router = useRouter();
 
@@ -97,11 +101,56 @@ export default function StoriesScreen() {
       setShowImport(false);
       setImportText("");
       setImportTitle("");
+      setImportImageUri(null);
       router.push(`/story/${story.id}`);
     } catch (e) {
       console.error("Failed to import story:", e);
     } finally {
       setImporting(false);
+    }
+  }
+
+  async function handleImportImage() {
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ["images"],
+      quality: 0.8,
+    });
+    if (result.canceled || result.assets.length === 0) return;
+
+    const uri = result.assets[0].uri;
+    setImportImageUri(uri);
+    setExtractingText(true);
+
+    try {
+      const text = await extractTextFromImage(uri);
+      setImportText(text);
+    } catch (e) {
+      console.error("OCR extraction failed:", e);
+      setImportImageUri(null);
+    } finally {
+      setExtractingText(false);
+    }
+  }
+
+  async function handleImportCamera() {
+    const { status } = await ImagePicker.requestCameraPermissionsAsync();
+    if (status !== "granted") return;
+
+    const result = await ImagePicker.launchCameraAsync({ quality: 0.8 });
+    if (result.canceled || result.assets.length === 0) return;
+
+    const uri = result.assets[0].uri;
+    setImportImageUri(uri);
+    setExtractingText(true);
+
+    try {
+      const text = await extractTextFromImage(uri);
+      setImportText(text);
+    } catch (e) {
+      console.error("OCR extraction failed:", e);
+      setImportImageUri(null);
+    } finally {
+      setExtractingText(false);
     }
   }
 
@@ -371,11 +420,50 @@ export default function StoriesScreen() {
         visible={showImport}
         animationType="slide"
         transparent
-        onRequestClose={() => setShowImport(false)}
+        onRequestClose={() => { setShowImport(false); setImportImageUri(null); }}
       >
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <Text style={styles.modalTitle}>Import Arabic Text</Text>
+
+            <View style={styles.importSourceRow}>
+              <Pressable
+                style={styles.importSourceBtn}
+                onPress={handleImportCamera}
+                disabled={extractingText}
+              >
+                <Ionicons name="camera-outline" size={18} color={colors.accent} />
+                <Text style={styles.importSourceText}>Camera</Text>
+              </Pressable>
+              <Pressable
+                style={styles.importSourceBtn}
+                onPress={handleImportImage}
+                disabled={extractingText}
+              >
+                <Ionicons name="image-outline" size={18} color={colors.listening} />
+                <Text style={styles.importSourceText}>Photo</Text>
+              </Pressable>
+            </View>
+
+            {extractingText && (
+              <View style={styles.extractingBanner}>
+                <ActivityIndicator size="small" color={colors.accent} />
+                <Text style={styles.extractingText}>Extracting Arabic text...</Text>
+              </View>
+            )}
+
+            {importImageUri && !extractingText && (
+              <View style={styles.importImagePreview}>
+                <Image source={{ uri: importImageUri }} style={styles.importPreviewImg} />
+                <Pressable
+                  style={styles.importImageRemove}
+                  onPress={() => { setImportImageUri(null); setImportText(""); }}
+                >
+                  <Ionicons name="close-circle" size={20} color={colors.missed} />
+                </Pressable>
+              </View>
+            )}
+
             <TextInput
               style={styles.topicInput}
               placeholder="Title (optional)"
@@ -385,7 +473,7 @@ export default function StoriesScreen() {
             />
             <TextInput
               style={styles.importTextInput}
-              placeholder="Paste Arabic text here..."
+              placeholder="Paste Arabic text here or use camera/photo above..."
               placeholderTextColor={colors.textSecondary}
               value={importText}
               onChangeText={setImportText}
@@ -395,17 +483,17 @@ export default function StoriesScreen() {
             <View style={styles.modalActions}>
               <Pressable
                 style={styles.modalCancel}
-                onPress={() => setShowImport(false)}
+                onPress={() => { setShowImport(false); setImportImageUri(null); }}
               >
                 <Text style={styles.modalCancelText}>Cancel</Text>
               </Pressable>
               <Pressable
                 style={[
                   styles.modalSubmit,
-                  (!importText.trim() || importing) && styles.modalSubmitDisabled,
+                  (!importText.trim() || importing || extractingText) && styles.modalSubmitDisabled,
                 ]}
                 onPress={handleImport}
-                disabled={!importText.trim() || importing}
+                disabled={!importText.trim() || importing || extractingText}
               >
                 {importing ? (
                   <ActivityIndicator size="small" color="#fff" />
@@ -682,5 +770,60 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontSize: fonts.body,
     fontWeight: "600",
+  },
+  importSourceRow: {
+    flexDirection: "row",
+    gap: 10,
+    marginBottom: 12,
+  },
+  importSourceBtn: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    paddingVertical: 10,
+    borderRadius: 10,
+    backgroundColor: colors.surfaceLight,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  importSourceText: {
+    fontSize: fonts.small,
+    color: colors.text,
+    fontWeight: "600",
+  },
+  extractingBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: colors.accent + "15",
+    borderRadius: 8,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    marginBottom: 12,
+  },
+  extractingText: {
+    fontSize: fonts.small,
+    color: colors.accent,
+    fontWeight: "500",
+  },
+  importImagePreview: {
+    alignItems: "center",
+    marginBottom: 12,
+    position: "relative" as const,
+  },
+  importPreviewImg: {
+    width: 80,
+    height: 100,
+    borderRadius: 8,
+    backgroundColor: colors.surfaceLight,
+  },
+  importImageRemove: {
+    position: "absolute" as const,
+    top: -6,
+    right: "35%" as any,
+    backgroundColor: colors.bg,
+    borderRadius: 10,
   },
 });

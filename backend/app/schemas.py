@@ -441,3 +441,30 @@ class ConversationDetail(BaseModel):
     screen: str
     context_summary: str | None
     messages: list[ChatMessageOut]
+
+
+# --- OCR / Textbook Scanner schemas ---
+
+class PageUploadOut(BaseModel):
+    id: int
+    batch_id: str
+    filename: str | None = None
+    status: str
+    new_words: int
+    existing_words: int
+    error_message: str | None = None
+    created_at: str
+    completed_at: str | None = None
+    extracted_words: list[dict] = []
+    model_config = {"from_attributes": True}
+
+
+class BatchUploadOut(BaseModel):
+    batch_id: str
+    pages: list[PageUploadOut]
+    total_new: int
+    total_existing: int
+
+
+class OCRStoryImportOut(BaseModel):
+    extracted_text: str

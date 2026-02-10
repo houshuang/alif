@@ -22,6 +22,8 @@ import {
   GrammarLesson,
   GrammarProgress,
   DeepAnalytics,
+  BatchUploadResult,
+  BatchSummary,
 } from "./types";
 import { netStatus } from "./net-status";
 import {
@@ -581,4 +583,53 @@ export async function submitReintroResult(
       client_review_id: clientReviewId || generateUuid(),
     }),
   });
+}
+
+// --- OCR / Textbook Scanner ---
+
+export async function scanTextbookPages(imageUris: string[]): Promise<BatchUploadResult> {
+  const formData = new FormData();
+  for (const uri of imageUris) {
+    const filename = uri.split("/").pop() || "page.jpg";
+    const match = /\.(\w+)$/.exec(filename);
+    const type = match ? `image/${match[1]}` : "image/jpeg";
+    formData.append("files", { uri, name: filename, type } as any);
+  }
+
+  const res = await fetch(`${BASE_URL}/api/ocr/scan-pages`, {
+    method: "POST",
+    body: formData,
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => "Unknown error");
+    throw new Error(`API error ${res.status}: ${text}`);
+  }
+  return res.json();
+}
+
+export async function getBatchStatus(batchId: string): Promise<BatchUploadResult> {
+  return fetchApi<BatchUploadResult>(`/api/ocr/batch/${batchId}`);
+}
+
+export async function getUploadHistory(): Promise<{ batches: BatchSummary[] }> {
+  return fetchApi(`/api/ocr/uploads`);
+}
+
+export async function extractTextFromImage(imageUri: string): Promise<string> {
+  const formData = new FormData();
+  const filename = imageUri.split("/").pop() || "image.jpg";
+  const match = /\.(\w+)$/.exec(filename);
+  const type = match ? `image/${match[1]}` : "image/jpeg";
+  formData.append("file", { uri: imageUri, name: filename, type } as any);
+
+  const res = await fetch(`${BASE_URL}/api/ocr/extract-text`, {
+    method: "POST",
+    body: formData,
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => "Unknown error");
+    throw new Error(`API error ${res.status}: ${text}`);
+  }
+  const data = await res.json();
+  return data.extracted_text;
 }

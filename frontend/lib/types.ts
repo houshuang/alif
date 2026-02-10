@@ -485,3 +485,46 @@ export interface ConversationDetail {
   context_summary: string | null;
   messages: ChatMessageItem[];
 }
+
+// --- OCR / Textbook Scanner types ---
+
+export interface ExtractedWord {
+  arabic: string;
+  arabic_bare: string;
+  english: string | null;
+  status: "new" | "existing" | "existing_new_card";
+  lemma_id: number;
+  knowledge_state: string;
+  root?: string | null;
+  pos?: string | null;
+}
+
+export interface PageUploadResult {
+  id: number;
+  batch_id: string;
+  filename: string | null;
+  status: "pending" | "processing" | "completed" | "failed";
+  new_words: number;
+  existing_words: number;
+  error_message: string | null;
+  created_at: string;
+  completed_at: string | null;
+  extracted_words: ExtractedWord[];
+}
+
+export interface BatchUploadResult {
+  batch_id: string;
+  pages: PageUploadResult[];
+  total_new: number;
+  total_existing: number;
+}
+
+export interface BatchSummary {
+  batch_id: string;
+  page_count: number;
+  status: "processing" | "completed" | "failed";
+  total_new: number;
+  total_existing: number;
+  created_at: string;
+  pages: PageUploadResult[];
+}
