@@ -94,10 +94,11 @@ See [analysis-2026-02-10.md](./analysis-2026-02-10.md) for full data.
 
 ### New Concerns
 
-- **48 persistent zero-accuracy words**: Need leech detection — flag after N failures, offer targeted remediation.
-- **Study-mode word difficulty**: Learn mode may be selecting words that are too hard for current level.
-- **97 unseen textbook words**: About to flood review sessions — monitor scheduling balance.
 - **Declining "understood" rate**: 44% → 22% over 3 days — monitor if this stabilizes or indicates difficulty creep.
+
+### Bug Fix: Textbook Scanner FSRS Credit
+
+Textbook scanner (`process_textbook_page`) was creating ULK records and incrementing `total_encounters` but NOT submitting FSRS reviews. This meant scanned words had `times_seen=0` and `times_correct=0` — appearing as "never reviewed" despite the user having physically seen them in the textbook. Fixed by calling `submit_review(rating=3, review_mode="textbook_scan")` for every word (new, existing with ULK, existing without ULK). Scanned words now get proper FSRS scheduling (~1 day first interval) and appear as reviewed.
 
 ### Hypotheses (new)
 
