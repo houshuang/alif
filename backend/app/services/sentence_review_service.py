@@ -20,7 +20,7 @@ from app.models import (
 )
 from app.services.fsrs_service import submit_review
 from app.services.grammar_service import record_grammar_exposure
-from app.services.sentence_validator import strip_diacritics
+from app.services.sentence_validator import strip_diacritics, _is_function_word
 
 
 def submit_sentence_review(
@@ -83,9 +83,25 @@ def submit_sentence_review(
     else:
         lemma_ids_in_sentence = {primary_lemma_id}
 
+    # Build set of function word lemma_ids to skip for FSRS credit
+    function_word_lemma_ids: set[int] = set()
+    if lemma_ids_in_sentence:
+        lemma_objs = (
+            db.query(Lemma)
+            .filter(Lemma.lemma_id.in_(lemma_ids_in_sentence))
+            .all()
+        )
+        for lo in lemma_objs:
+            if lo.lemma_ar_bare and _is_function_word(lo.lemma_ar_bare):
+                function_word_lemma_ids.add(lo.lemma_id)
+
     word_results = []
 
     for lemma_id in lemma_ids_in_sentence:
+        # Skip FSRS credit for function words — they keep lemma_id in
+        # SentenceWord for lookups but don't get spaced repetition cards
+        if lemma_id in function_word_lemma_ids:
+            continue
         if comprehension_signal == "understood":
             rating = 3
         elif comprehension_signal == "grammar_confused":

@@ -598,3 +598,63 @@ class TestMapTokensToLemmas:
         mappings = map_tokens_to_lemmas(tokens, lookup, target_lemma_id=99, target_bare="xxx")
         # مدرستها → مدرسة via taa marbuta + suffix stripping
         assert mappings[0].lemma_id == 10
+
+    def test_kanat_maps_to_kana_not_anta(self):
+        """كانت should map to كان's lemma_id, NOT أنت via false clitic stripping."""
+        lemmas = [
+            _FakeLemma(1, "كان"),
+            _FakeLemma(2, "انت"),
+            _FakeLemma(3, "كتاب"),
+        ]
+        lookup = build_lemma_lookup(lemmas)
+        tokens = tokenize("كَانَتْ الكِتَابَ")
+        mappings = map_tokens_to_lemmas(tokens, lookup, target_lemma_id=3, target_bare="كتاب")
+        # كانت is a function word, should resolve to كان (id=1) via FUNCTION_WORD_FORMS
+        assert mappings[0].is_function_word is True
+        assert mappings[0].lemma_id == 1  # كان, NOT 2 (أنت)
+
+    def test_function_word_no_clitic_stripping(self):
+        """Function words should use direct-only lookup, not clitic stripping."""
+        lemmas = [
+            _FakeLemma(1, "ليس"),
+            _FakeLemma(2, "كتاب"),
+        ]
+        lookup = build_lemma_lookup(lemmas)
+        tokens = tokenize("لَيْسَتْ الكِتَابَ")
+        mappings = map_tokens_to_lemmas(tokens, lookup, target_lemma_id=2, target_bare="كتاب")
+        # ليست should resolve to ليس (id=1), not be clitic-stripped
+        assert mappings[0].is_function_word is True
+        assert mappings[0].lemma_id == 1
+
+
+class TestFunctionWordForms:
+    """Test FUNCTION_WORD_FORMS dict and _is_function_word with conjugated forms."""
+
+    def test_kanat_is_function_word(self):
+        from app.services.sentence_validator import _is_function_word
+        assert _is_function_word("كانت") is True
+
+    def test_kanat_diacritized_is_function_word(self):
+        from app.services.sentence_validator import _is_function_word
+        assert _is_function_word("كَانَتْ") is True
+
+    def test_laysat_is_function_word(self):
+        from app.services.sentence_validator import _is_function_word
+        assert _is_function_word("ليست") is True
+
+    def test_yakun_is_function_word(self):
+        from app.services.sentence_validator import _is_function_word
+        assert _is_function_word("يكون") is True
+
+    def test_kanoo_is_function_word(self):
+        from app.services.sentence_validator import _is_function_word
+        assert _is_function_word("كانوا") is True
+
+    def test_build_lookup_includes_function_word_forms(self):
+        """FUNCTION_WORD_FORMS should be indexed in build_lemma_lookup."""
+        lemmas = [_FakeLemma(1, "كان")]
+        lookup = build_lemma_lookup(lemmas)
+        # كانت should map to كان's lemma_id
+        assert lookup.get("كانت") == 1
+        assert lookup.get("كانوا") == 1
+        assert lookup.get("يكون") == 1

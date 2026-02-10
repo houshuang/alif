@@ -223,6 +223,7 @@ export interface WordLookupResult {
   example_ar: string | null;
   example_en: string | null;
   grammar_details: GrammarFeatureDetail[];
+  is_function_word?: boolean;
   root_family: {
     lemma_id: number;
     lemma_ar: string;

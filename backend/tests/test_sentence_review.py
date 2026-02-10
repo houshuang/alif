@@ -133,7 +133,8 @@ class TestPartial:
         assert ratings[1] == 3  # not missed
         assert ratings[3] == 3  # not missed
 
-    def test_function_word_lemma_is_scoreable(self, db_session):
+    def test_function_word_lemma_skipped_for_credit(self, db_session):
+        """Function words in a sentence do NOT get FSRS credit."""
         _seed_word(db_session, 1, "كتاب", "book")
         _seed_word(db_session, 2, "في", "in")
         _seed_sentence(db_session, 1, "في الكتاب", "in the book",
@@ -149,8 +150,10 @@ class TestPartial:
             session_id="test-1",
         )
 
+        rated_ids = {wr["lemma_id"] for wr in result["word_results"]}
+        assert 2 not in rated_ids  # function word skipped
+        assert 1 in rated_ids  # content word rated
         ratings = {wr["lemma_id"]: wr["rating"] for wr in result["word_results"]}
-        assert ratings[2] == 1
         assert ratings[1] == 3
 
     def test_missed_primary_gets_rating_1(self, db_session):

@@ -177,6 +177,11 @@ function RevealedView({
             <Text style={styles.posText}>{posLabel}</Text>
           </View>
         )}
+        {result.is_function_word && (
+          <View style={styles.functionWordPill}>
+            <Text style={styles.functionWordText}>function word</Text>
+          </View>
+        )}
       </View>
 
       {/* Root info */}
@@ -286,6 +291,18 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: "600",
     textTransform: "lowercase",
+  },
+  functionWordPill: {
+    backgroundColor: "rgba(100, 100, 140, 0.25)",
+    borderRadius: 6,
+    paddingHorizontal: 5,
+    paddingVertical: 1,
+  },
+  functionWordText: {
+    color: colors.textSecondary,
+    fontSize: 10,
+    fontWeight: "600",
+    fontStyle: "italic",
   },
 
   /* Forms */

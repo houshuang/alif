@@ -84,6 +84,27 @@ def normalize_arabic(text: str) -> str:
     return text
 
 
+# Pre-computed normalized set for fast lookup (must be after normalize_alef def)
+_FUNCTION_WORDS_NORMALIZED: set[str] = {normalize_alef(fw) for fw in FUNCTION_WORDS}
+
+# Conjugated function word forms → base lemma bare form.
+# Prevents false clitic analysis (e.g. كانت → ك+انت) by providing
+# a direct match path before clitic stripping is attempted.
+FUNCTION_WORD_FORMS: dict[str, str] = {
+    # كان conjugations
+    "كانت": "كان", "كانوا": "كان", "كنت": "كان", "كنا": "كان",
+    "يكون": "كان", "تكون": "كان", "يكونون": "كان", "نكون": "كان",
+    "اكون": "كان", "كانا": "كان", "كنتم": "كان",
+    # ليس conjugations
+    "ليست": "ليس", "ليسوا": "ليس", "لست": "ليس", "لسنا": "ليس",
+    "ليسا": "ليس",
+    # يوجد/توجد
+    "توجد": "يوجد", "وجد": "يوجد",
+    # كان passive
+    "يكن": "كان",
+}
+
+
 def tokenize(text: str) -> list[str]:
     """Tokenize Arabic text into words.
 
@@ -163,14 +184,17 @@ def _strip_clitics(bare_form: str) -> list[str]:
 
 
 def _is_function_word(bare_form: str) -> bool:
-    """Check if a bare form is a known function word."""
-    normalized = normalize_alef(bare_form)
-    if normalized in FUNCTION_WORDS:
+    """Check if a bare form is a known function word.
+
+    Strips diacritics first so diacritized input (e.g. كَانَتْ) is handled.
+    Also checks FUNCTION_WORD_FORMS for conjugated forms.
+    """
+    stripped = strip_diacritics(bare_form)
+    normalized = normalize_alef(stripped)
+    if normalized in _FUNCTION_WORDS_NORMALIZED:
         return True
-    # Also check with alef normalization applied to the function words set
-    for fw in FUNCTION_WORDS:
-        if normalize_alef(fw) == normalized:
-            return True
+    if normalized in FUNCTION_WORD_FORMS:
+        return True
     return False
 
 
@@ -232,10 +256,30 @@ def map_tokens_to_lemmas(
             continue
 
         is_function = _is_function_word(bare_clean)
-        lemma_id = _lookup_lemma(bare_norm, lemma_lookup)
+        if is_function:
+            # Direct-only lookup for function words — no clitic stripping.
+            # This prevents false analysis like كانت → ك+انت → أنت.
+            lemma_id = _lookup_lemma_direct(bare_norm, lemma_lookup)
+        else:
+            lemma_id = _lookup_lemma(bare_norm, lemma_lookup)
         result.append(TokenMapping(i, token, lemma_id, False, is_function))
 
     return result
+
+
+def _lookup_lemma_direct(bare_norm: str, lemma_lookup: dict[str, int]) -> int | None:
+    """Find a lemma_id using direct match and al-prefix only — no clitic stripping."""
+    if bare_norm in lemma_lookup:
+        return lemma_lookup[bare_norm]
+    if bare_norm.startswith("ال") and len(bare_norm) > 2:
+        without_al = bare_norm[2:]
+        if without_al in lemma_lookup:
+            return lemma_lookup[without_al]
+    else:
+        with_al = "ال" + bare_norm
+        if with_al in lemma_lookup:
+            return lemma_lookup[with_al]
+    return None
 
 
 def _lookup_lemma(bare_norm: str, lemma_lookup: dict[str, int]) -> int | None:
@@ -276,16 +320,22 @@ def build_lemma_lookup(lemmas: list) -> dict[str, int]:
 
     Includes both with and without al-prefix for each lemma,
     plus inflected forms from forms_json (plurals, feminines, verb
-    conjugations, etc.).
+    conjugations, etc.), plus FUNCTION_WORD_FORMS conjugation mappings.
+
     Args:
         lemmas: List of Lemma model objects with lemma_ar_bare and lemma_id.
     """
     lookup: dict[str, int] = {}
+    # Index for mapping function word form bases to lemma_ids
+    bare_to_id: dict[str, int] = {}
+
     for lem in lemmas:
         bare_norm = normalize_alef(lem.lemma_ar_bare)
         lookup[bare_norm] = lem.lemma_id
+        bare_to_id[bare_norm] = lem.lemma_id
         if bare_norm.startswith("ال") and len(bare_norm) > 2:
             lookup[bare_norm[2:]] = lem.lemma_id
+            bare_to_id[bare_norm[2:]] = lem.lemma_id
         elif not bare_norm.startswith("ال"):
             lookup["ال" + bare_norm] = lem.lemma_id
 
@@ -301,6 +351,16 @@ def build_lemma_lookup(lemmas: list) -> dict[str, int]:
                     al_form = "ال" + form_bare
                     if not form_bare.startswith("ال") and al_form not in lookup:
                         lookup[al_form] = lem.lemma_id
+
+    # Add FUNCTION_WORD_FORMS: map conjugated forms to their base lemma_id
+    for form, base in FUNCTION_WORD_FORMS.items():
+        form_norm = normalize_alef(form)
+        if form_norm not in lookup:
+            base_norm = normalize_alef(base)
+            base_id = bare_to_id.get(base_norm)
+            if base_id is not None:
+                lookup[form_norm] = base_id
+
     return lookup
 
 

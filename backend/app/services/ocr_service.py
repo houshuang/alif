@@ -3,6 +3,11 @@
 Used for two features:
 1. Textbook page scanning: extract words, import new lemmas, mark existing as seen
 2. Story image import: extract full Arabic text from an image
+
+Pipeline for textbook scanning (3-step):
+  Step 1 — OCR only: extract Arabic words from image (Gemini Vision)
+  Step 2 — Morphology: CAMeL Tools for root/base lemma
+  Step 3 — Translation: LLM translates Arabic words to English (no image)
 """
 
 import base64
@@ -14,7 +19,7 @@ from datetime import datetime, timezone
 from sqlalchemy.orm import Session
 
 from app.config import settings
-from app.models import Lemma, Root, UserLemmaKnowledge, PageUpload
+from app.models import Lemma, Root, Sentence, UserLemmaKnowledge, PageUpload
 from app.services.fsrs_service import create_new_card
 from app.services.interaction_logger import log_interaction
 from app.services.sentence_validator import (
@@ -27,6 +32,8 @@ from app.services.sentence_validator import (
 )
 
 logger = logging.getLogger(__name__)
+
+MIN_SENTENCES_PER_WORD = 3
 
 
 def _call_gemini_vision(image_bytes: bytes, prompt: str, system_prompt: str = "") -> dict:
@@ -100,6 +107,57 @@ def _call_gemini_vision(image_bytes: bytes, prompt: str, system_prompt: str = ""
         raise
 
 
+def _call_llm_text(prompt: str, system_prompt: str = "") -> dict:
+    """Call LLM with text-only prompt. Returns parsed JSON."""
+    import litellm
+    import time
+
+    api_key = settings.gemini_key
+    if not api_key:
+        raise ValueError("GEMINI_KEY not configured")
+
+    messages = []
+    if system_prompt:
+        messages.append({"role": "system", "content": system_prompt})
+    messages.append({"role": "user", "content": prompt})
+
+    start = time.time()
+    try:
+        response = litellm.completion(
+            model="gemini/gemini-3-flash-preview",
+            messages=messages,
+            temperature=0.1,
+            timeout=60,
+            api_key=api_key,
+            response_format={"type": "json_object"},
+        )
+        elapsed = time.time() - start
+        content = response.choices[0].message.content.strip()
+        if content.startswith("```"):
+            content = re.sub(r"^```(?:json)?\s*", "", content)
+            content = re.sub(r"\s*```$", "", content)
+
+        log_dir = settings.log_dir
+        log_dir.mkdir(parents=True, exist_ok=True)
+        log_file = log_dir / f"llm_calls_{datetime.now():%Y-%m-%d}.jsonl"
+        entry = {
+            "ts": datetime.now().isoformat(),
+            "event": "llm_call",
+            "model": "gemini/gemini-3-flash-preview",
+            "task": "ocr_translate",
+            "success": True,
+            "response_time_s": round(elapsed, 2),
+        }
+        with open(log_file, "a") as f:
+            f.write(json.dumps(entry) + "\n")
+
+        return json.loads(content)
+    except Exception as e:
+        elapsed = time.time() - start
+        logger.error(f"LLM text call failed after {elapsed:.1f}s: {e}")
+        raise
+
+
 def extract_text_from_image(image_bytes: bytes) -> str:
     """Extract Arabic text from an image using Gemini Vision.
 
@@ -124,39 +182,176 @@ def extract_text_from_image(image_bytes: bytes) -> str:
     return result.get("arabic_text", "")
 
 
-def extract_words_from_image(image_bytes: bytes) -> list[dict]:
-    """Extract individual Arabic words/vocabulary from a textbook page image.
+def _step1_extract_words(image_bytes: bytes) -> list[str]:
+    """Step 1: OCR only — extract Arabic words from image.
 
-    Returns a list of word entries with arabic, english (if visible), and pos.
-    Uses Gemini to understand textbook layout and extract vocabulary items.
+    Simple prompt that only asks for Arabic words, no translation or analysis.
     """
     result = _call_gemini_vision(
         image_bytes,
         prompt=(
             "This is a page from an Arabic language textbook. "
-            "Extract ALL Arabic vocabulary words you can see on this page. "
-            "For each word, extract:\n"
-            "- arabic: the Arabic word (with diacritics if shown)\n"
-            "- arabic_bare: the word without diacritics\n"
-            "- english: the English translation if shown next to it, or null\n"
-            "- pos: part of speech if identifiable (noun/verb/adj/adv/prep/particle), or null\n"
-            "- root: the Arabic root if identifiable (in dotted form like ك.ت.ب), or null\n\n"
-            "Include ALL content words you see — vocabulary lists, words in example sentences, "
-            "words in exercises. Skip function words (في، من، على، إلى، و، ب، ل، هذا، هذه، etc). "
-            "Skip proper nouns and names.\n\n"
-            'Respond with JSON: {"words": [{"arabic": "...", "arabic_bare": "...", "english": "...", "pos": "...", "root": "..."}]}'
+            "Extract ALL Arabic vocabulary words visible on this page. "
+            "Return ONLY the Arabic words as a list. "
+            "Include words from vocabulary lists, example sentences, and exercises. "
+            "Skip proper nouns, names, and page numbers. "
+            "Include diacritics if they are visible on the word.\n\n"
+            'Respond with JSON: {"words": ["word1", "word2", ...]}'
         ),
         system_prompt=(
-            "You are an Arabic textbook vocabulary extractor. "
-            "Accurately identify and extract vocabulary from textbook pages. "
-            "Be thorough — extract every content word visible on the page. "
-            "Respond with JSON only."
+            "You are an Arabic OCR system. Extract Arabic words from textbook pages. "
+            "Return only Arabic words, nothing else. Respond with JSON only."
         ),
     )
     words = result.get("words", [])
     if not isinstance(words, list):
         return []
-    return [w for w in words if isinstance(w, dict) and w.get("arabic")]
+    return [w.strip() for w in words if isinstance(w, str) and w.strip()]
+
+
+def _step2_morphology(words: list[str]) -> list[dict]:
+    """Step 2: Use CAMeL Tools for morphological analysis of each word.
+
+    Returns list of dicts with: arabic, bare, root, base_lemma, pos.
+    Falls back to basic normalization if CAMeL Tools unavailable.
+    """
+    from app.services.morphology import (
+        CAMEL_AVAILABLE,
+        analyze_word_camel,
+        get_base_lemma,
+    )
+
+    results = []
+    for word in words:
+        bare = normalize_alef(strip_tatweel(strip_diacritics(word)))
+
+        if _is_function_word(bare):
+            continue
+
+        entry = {
+            "arabic": word,
+            "bare": bare,
+            "root": None,
+            "base_lemma": bare,
+            "pos": None,
+        }
+
+        if CAMEL_AVAILABLE:
+            analyses = analyze_word_camel(word)
+            if analyses:
+                top = analyses[0]
+                entry["root"] = top.get("root")
+                entry["pos"] = top.get("pos")
+                lex = top.get("lex")
+                if lex:
+                    entry["base_lemma"] = normalize_alef(strip_diacritics(lex))
+
+        results.append(entry)
+    return results
+
+
+def _step3_translate(word_entries: list[dict]) -> list[dict]:
+    """Step 3: Use LLM to translate Arabic words to English.
+
+    Sends a text-only prompt (no image) with the Arabic words for clean context.
+    Returns the word entries with english and pos fields populated.
+    """
+    if not word_entries:
+        return word_entries
+
+    # Batch in groups of 30
+    batch_size = 30
+    all_results = []
+
+    for i in range(0, len(word_entries), batch_size):
+        batch = word_entries[i:i + batch_size]
+        word_list = [
+            {"arabic": e["arabic"], "bare": e["bare"], "pos": e.get("pos")}
+            for e in batch
+        ]
+
+        prompt = (
+            "Translate these Arabic words to English. For each word, provide:\n"
+            "- english: a concise English gloss (1-3 words, e.g. 'book', 'to write', 'beautiful')\n"
+            "- pos: part of speech (noun/verb/adj/adv/prep/particle)\n\n"
+            "Words:\n"
+            + json.dumps(word_list, ensure_ascii=False)
+            + "\n\n"
+            'Respond with JSON: {"translations": [{"bare": "...", "english": "...", "pos": "..."}]}'
+        )
+
+        try:
+            result = _call_llm_text(
+                prompt,
+                system_prompt=(
+                    "You are an Arabic-English translator. "
+                    "Provide concise, accurate English glosses for Arabic vocabulary words. "
+                    "Respond with JSON only."
+                ),
+            )
+            translations = result.get("translations", [])
+            if isinstance(translations, list):
+                trans_by_bare = {
+                    t.get("bare", ""): t
+                    for t in translations
+                    if isinstance(t, dict)
+                }
+                for entry in batch:
+                    t = trans_by_bare.get(entry["bare"], {})
+                    entry["english"] = t.get("english")
+                    if t.get("pos") and not entry.get("pos"):
+                        entry["pos"] = t["pos"]
+            all_results.extend(batch)
+        except Exception:
+            logger.warning("Translation step failed for batch, using entries without English")
+            all_results.extend(batch)
+
+    return all_results
+
+
+def extract_words_from_image(image_bytes: bytes) -> list[dict]:
+    """Extract individual Arabic words/vocabulary from a textbook page image.
+
+    Uses the 3-step pipeline:
+    1. OCR only (Gemini Vision) — extract Arabic words
+    2. Morphology (CAMeL Tools) — root, base lemma, POS
+    3. Translation (LLM text) — English glosses
+
+    Returns list of dicts with: arabic, bare (as arabic_bare), english, pos, root.
+    """
+    # Step 1: OCR
+    raw_words = _step1_extract_words(image_bytes)
+    if not raw_words:
+        return []
+
+    # Step 2: Morphology
+    analyzed = _step2_morphology(raw_words)
+
+    # Step 3: Translation
+    translated = _step3_translate(analyzed)
+
+    # Normalize output format to match what process_textbook_page expects
+    results = []
+    seen_bares: set[str] = set()
+    for entry in translated:
+        bare = entry.get("bare", "")
+        if not bare or bare in seen_bares:
+            continue
+        seen_bares.add(bare)
+
+        root_str = entry.get("root")
+        if root_str:
+            root_str = ".".join(root_str) if "." not in root_str and len(root_str) <= 4 else root_str
+
+        results.append({
+            "arabic": entry.get("arabic", ""),
+            "arabic_bare": bare,
+            "english": entry.get("english"),
+            "pos": entry.get("pos"),
+            "root": root_str,
+        })
+
+    return results
 
 
 def process_textbook_page(
@@ -167,12 +362,13 @@ def process_textbook_page(
     """Process a single textbook page image: OCR, match words, import new ones.
 
     This runs as a background task. Updates the PageUpload record with results.
+    Triggers sentence generation for newly imported words.
     """
     try:
         upload.status = "processing"
         db.commit()
 
-        # Extract words from image
+        # Extract words from image (3-step pipeline)
         extracted = extract_words_from_image(image_bytes)
         if not extracted:
             upload.status = "completed"
@@ -199,6 +395,7 @@ def process_textbook_page(
         results = []
         new_count = 0
         existing_count = 0
+        new_lemma_ids: list[int] = []
 
         seen_bares: set[str] = set()  # dedup within this page
 
@@ -243,7 +440,7 @@ def process_textbook_page(
                         "knowledge_state": ulk.knowledge_state,
                     })
                 else:
-                    # Lemma exists but no knowledge record — create one as "encountered"
+                    # Lemma exists but no knowledge record — create one
                     new_ulk = UserLemmaKnowledge(
                         lemma_id=lemma_id,
                         knowledge_state="learning",
@@ -314,6 +511,7 @@ def process_textbook_page(
                 bare_to_lemma[bare] = new_lemma
 
                 new_count += 1
+                new_lemma_ids.append(new_lemma.lemma_id)
                 results.append({
                     "arabic": arabic,
                     "arabic_bare": bare,
@@ -341,8 +539,31 @@ def process_textbook_page(
             total_extracted=len(extracted),
         )
 
+        # Trigger sentence generation for new words
+        _schedule_material_generation(db, new_lemma_ids)
+
     except Exception as e:
         logger.exception(f"Failed to process textbook page upload {upload.id}: {e}")
         upload.status = "failed"
         upload.error_message = str(e)[:500]
         db.commit()
+
+
+def _schedule_material_generation(db: Session, lemma_ids: list[int]) -> None:
+    """Schedule sentence + audio generation for newly imported words."""
+    from sqlalchemy import func
+
+    from app.services.material_generator import generate_material_for_word
+
+    for lemma_id in lemma_ids:
+        existing_count = (
+            db.query(func.count(Sentence.id))
+            .filter(Sentence.target_lemma_id == lemma_id)
+            .scalar() or 0
+        )
+        if existing_count < MIN_SENTENCES_PER_WORD:
+            needed = MIN_SENTENCES_PER_WORD - existing_count
+            try:
+                generate_material_for_word(lemma_id, needed)
+            except Exception:
+                logger.warning(f"Material generation failed for OCR word {lemma_id}")

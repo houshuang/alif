@@ -20,6 +20,7 @@ from app.services.listening import get_listening_candidates, process_comprehensi
 from app.services.interaction_logger import log_interaction
 from app.services.sentence_selector import build_session
 from app.services.sentence_review_service import submit_sentence_review
+from app.services.sentence_validator import _is_function_word
 
 logger = logging.getLogger(__name__)
 
@@ -209,6 +210,7 @@ def word_lookup(lemma_id: int, db: Session = Depends(get_db)):
         "example_ar": lemma.example_ar,
         "example_en": lemma.example_en,
         "grammar_details": grammar_details,
+        "is_function_word": _is_function_word(lemma.lemma_ar_bare) if lemma.lemma_ar_bare else False,
         "root_family": [],
     }
 

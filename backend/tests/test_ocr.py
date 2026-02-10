@@ -80,37 +80,44 @@ class TestOCRService:
         assert "القِرَاءَةَ" in result
         mock_vision.assert_called_once()
 
-    @patch("app.services.ocr_service._call_gemini_vision")
-    def test_extract_words_from_image(self, mock_vision):
+    @patch("app.services.ocr_service._step3_translate")
+    @patch("app.services.ocr_service._step2_morphology")
+    @patch("app.services.ocr_service._step1_extract_words")
+    def test_extract_words_from_image(self, mock_step1, mock_step2, mock_step3):
         from app.services.ocr_service import extract_words_from_image
 
-        mock_vision.return_value = {
-            "words": [
-                {"arabic": "كِتَاب", "arabic_bare": "كتاب", "english": "book", "pos": "noun", "root": "ك.ت.ب"},
-                {"arabic": "جَمِيل", "arabic_bare": "جميل", "english": "beautiful", "pos": "adj", "root": "ج.م.ل"},
-                {"arabic": "قَلَم", "arabic_bare": "قلم", "english": "pen", "pos": "noun", "root": "ق.ل.م"},
-            ]
-        }
+        mock_step1.return_value = ["كِتَاب", "جَمِيل", "قَلَم"]
+        mock_step2.return_value = [
+            {"arabic": "كِتَاب", "bare": "كتاب", "root": "ك.ت.ب", "pos": "noun"},
+            {"arabic": "جَمِيل", "bare": "جميل", "root": "ج.م.ل", "pos": "adj"},
+            {"arabic": "قَلَم", "bare": "قلم", "root": "ق.ل.م", "pos": "noun"},
+        ]
+        mock_step3.return_value = [
+            {"arabic": "كِتَاب", "bare": "كتاب", "root": "ك.ت.ب", "pos": "noun", "english": "book"},
+            {"arabic": "جَمِيل", "bare": "جميل", "root": "ج.م.ل", "pos": "adj", "english": "beautiful"},
+            {"arabic": "قَلَم", "bare": "قلم", "root": "ق.ل.م", "pos": "noun", "english": "pen"},
+        ]
 
         result = extract_words_from_image(b"fake_image_data")
         assert len(result) == 3
         assert result[0]["arabic"] == "كِتَاب"
         assert result[1]["english"] == "beautiful"
 
-    @patch("app.services.ocr_service._call_gemini_vision")
-    def test_extract_words_empty_result(self, mock_vision):
+    @patch("app.services.ocr_service._step1_extract_words")
+    def test_extract_words_empty_result(self, mock_step1):
         from app.services.ocr_service import extract_words_from_image
 
-        mock_vision.return_value = {"words": []}
+        mock_step1.return_value = []
         result = extract_words_from_image(b"fake_image_data")
         assert result == []
 
     @patch("app.services.ocr_service._call_gemini_vision")
     def test_extract_words_malformed_result(self, mock_vision):
-        from app.services.ocr_service import extract_words_from_image
+        """Step 1 returns empty when vision returns bad data."""
+        from app.services.ocr_service import _step1_extract_words
 
         mock_vision.return_value = {"words": "not a list"}
-        result = extract_words_from_image(b"fake_image_data")
+        result = _step1_extract_words(b"fake_image_data")
         assert result == []
 
 
@@ -374,7 +381,7 @@ class TestOCREndpoints:
         data = response.json()
         assert data["batches"] == []
 
-    @patch("app.services.ocr_service.extract_text_from_image")
+    @patch("app.routers.ocr.extract_text_from_image")
     def test_extract_text_endpoint(self, mock_extract, client):
         """Test the extract-text endpoint for story import."""
         import io
@@ -391,7 +398,7 @@ class TestOCREndpoints:
         data = response.json()
         assert data["extracted_text"] == "هَذَا نَصٌّ عَرَبِيٌّ."
 
-    @patch("app.services.ocr_service.extract_text_from_image")
+    @patch("app.routers.ocr.extract_text_from_image")
     def test_extract_text_empty_result(self, mock_extract, client):
         """Test extract-text returns 422 when no text found."""
         import io
