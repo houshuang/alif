@@ -34,6 +34,52 @@ from app.services.sentence_validator import (
 logger = logging.getLogger(__name__)
 
 MIN_SENTENCES_PER_WORD = 3
+MAX_GLOSS_LENGTH = 50
+
+# Common patterns indicating a wiktionary-style definition rather than a concise gloss
+_VERBOSE_PATTERNS = [
+    "verbal noun of",
+    "active participle of",
+    "passive participle of",
+    "feminine singular of",
+    "feminine equivalent of",
+    "plural of",
+    "alternative form of",
+    "alternative spelling of",
+    "singulative of",
+    "elative degree of",
+    "Judeo-Arabic spelling of",
+]
+
+
+def validate_gloss(gloss: str | None) -> str | None:
+    """Validate and clean an English gloss. Returns cleaned gloss or None if invalid."""
+    if not gloss:
+        return None
+    gloss = gloss.strip()
+    if not gloss:
+        return None
+
+    # Reject if it looks like a verbose dictionary definition
+    lower = gloss.lower()
+    for pattern in _VERBOSE_PATTERNS:
+        if lower.startswith(pattern):
+            return None
+
+    # Truncate at first semicolon (often separates primary from secondary meanings)
+    if ";" in gloss and len(gloss) > MAX_GLOSS_LENGTH:
+        gloss = gloss.split(";")[0].strip()
+
+    # If still too long, truncate at last comma before limit
+    if len(gloss) > MAX_GLOSS_LENGTH:
+        truncated = gloss[:MAX_GLOSS_LENGTH]
+        last_comma = truncated.rfind(",")
+        if last_comma > 10:
+            gloss = truncated[:last_comma].strip()
+        else:
+            gloss = truncated.strip()
+
+    return gloss or None
 
 
 def _call_gemini_vision(image_bytes: bytes, prompt: str, system_prompt: str = "") -> dict:
@@ -298,7 +344,8 @@ def _step3_translate(word_entries: list[dict]) -> list[dict]:
                 }
                 for entry in batch:
                     t = trans_by_bare.get(entry["bare"], {})
-                    entry["english"] = t.get("english")
+                    raw_gloss = t.get("english")
+                    entry["english"] = validate_gloss(raw_gloss) or raw_gloss
                     if t.get("pos") and not entry.get("pos"):
                         entry["pos"] = t["pos"]
             all_results.extend(batch)

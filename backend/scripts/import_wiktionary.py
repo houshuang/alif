@@ -24,6 +24,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from app.database import SessionLocal, Base, engine
 from app.models import Root, Lemma
+from app.services.ocr_service import validate_gloss
 from app.services.variant_detection import detect_variants, detect_definite_variants, mark_variants
 
 WIKTIONARY_URL = "https://kaikki.org/dictionary/Arabic/kaikki.org-dictionary-Arabic.jsonl"
@@ -93,13 +94,15 @@ def extract_root(entry: dict) -> str | None:
 
 
 def extract_gloss(entry: dict) -> str | None:
-    """Get the first English gloss from senses."""
+    """Get the first English gloss from senses, validated for conciseness."""
     for sense in entry.get("senses", []):
         glosses = sense.get("glosses", [])
         for g in glosses:
-            # Skip glosses that are just grammar notes
             if g and not g.startswith("(") and len(g) < 200:
-                return g
+                cleaned = validate_gloss(g)
+                if cleaned:
+                    return cleaned
+                # Fall through to next gloss if this one was verbose
     return None
 
 
