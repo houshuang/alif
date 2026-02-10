@@ -39,7 +39,7 @@ Reviews are sentence-centric: greedy set cover selects sentences that maximize d
 1. `GET /api/review/next-sentences` assembles session via 6-stage pipeline (fetch due → candidate sentences → comprehension-aware recency filter → greedy set cover → easy/hard ordering → fallback word-only cards)
 2. **Every word in a reviewed sentence gets a full FSRS card** — including previously unseen words. No more encounter-only tracking. Words without existing FSRS cards get auto-created knowledge records.
 3. Ternary ratings: understood (rating=3 for all) / partial (tap to cycle: confused=rating 2 Hard, missed=rating 1 Again, rest=3) / no_idea (rating=1 for all)
-4. Credit types: primary (target word) + collateral (all other words)
+4. **All words reviewed equally**: every word in the sentence gets an FSRS review based on the user's marking. The scheduling reason for selecting the sentence is irrelevant — unmarked words get rating=3, just like completing a story or scanning a textbook page. The `credit_type` field (primary/collateral) in review_log is purely metadata tracking which word triggered sentence selection; it does NOT affect ratings.
 5. Falls back to word-only cards when no sentences available for uncovered due words
 6. **Comprehension-aware recency**: sentences repeat based on last comprehension — understood: 7 day cooldown, partial: 2 day cooldown, no_idea: 4 hour cooldown
 7. Inline intro candidates: up to 2 new words suggested at positions 4 and 8 in reading sessions (gated by 75% accuracy over last 20 reviews). **Not auto-introduced** — candidates are returned to the frontend for user to accept via Learn mode. No intro candidates in listening mode.
@@ -148,7 +148,7 @@ This app is an ongoing learning experiment. Every algorithm change, data structu
 ### Backend Services
 - `backend/app/services/fsrs_service.py` — FSRS spaced repetition. Auto-creates UserLemmaKnowledge + Card() for unknown lemmas. submit_review handles missing records gracefully (no ValueError).
 - `backend/app/services/sentence_selector.py` — Session assembly: greedy set cover, comprehension-aware recency (7d/2d/4h), difficulty matching, easy-bookend ordering. Returns root data per word. Includes intro candidate selection.
-- `backend/app/services/sentence_review_service.py` — Distributes FSRS credit to ALL words in sentence. Ternary ratings: missed=1, confused=2, rest=3. Stores last_comprehension on sentence. Tracks total_encounters + variant_stats_json per surface form.
+- `backend/app/services/sentence_review_service.py` — Reviews ALL words in a sentence equally via FSRS. Ternary ratings: missed=1, confused=2, rest=3. The `credit_type` field (primary/collateral) is metadata only — all words receive identical FSRS treatment based on user marking. Stores last_comprehension on sentence. Tracks total_encounters + variant_stats_json per surface form.
 - `backend/app/services/word_selector.py` — Next-word algorithm: 40% frequency + 30% root familiarity + 20% recency bonus + 10% grammar pattern. Excludes wiktionary reference entries and variant lemmas (canonical_lemma_id set). Root family query also filters variants. `introduce_word()` accepts `source` param (study/auto_intro/collocate).
 - `backend/app/services/sentence_generator.py` — LLM generation with 3-attempt retry loop. Samples up to 50 known words for prompt with diversity weighting. Full diacritics required. Feeds validation failures back to LLM as retry feedback.
 - `backend/app/services/sentence_validator.py` — Rule-based: tokenize → strip diacritics → strip clitics (proclitics + enclitics + taa marbuta) → match against known bare forms. 60+ function words hardcoded.
@@ -236,7 +236,7 @@ This app is an ongoing learning experiment. Every algorithm change, data structu
 - `roots` — 3/4 consonant roots with core meaning, productivity score
 - `lemmas` — Base dictionary forms with root FK, POS, gloss, frequency rank, grammar_features_json, forms_json, example_ar/en, transliteration, audio_url, canonical_lemma_id (FK to self — set when lemma is a variant of another)
 - `user_lemma_knowledge` — FSRS card state per lemma (knowledge_state: new/learning/known/lapsed, fsrs_card_json, introduced_at, times_seen, times_correct, total_encounters, source: study/auto_intro/collocate/duolingo/encountered, variant_stats_json — per-variant-form seen/missed/confused counts)
-- `review_log` — Full review history (rating 1-4, timing, mode, comprehension signal, sentence_id, credit_type: primary/collateral, client_review_id for dedup)
+- `review_log` — Full review history (rating 1-4, timing, mode, comprehension signal, sentence_id, credit_type: primary/collateral as metadata only — does not affect FSRS ratings, client_review_id for dedup)
 - `sentences` — Generated/imported sentences with target word, last_shown_at, times_shown, **last_comprehension** (understood/partial/no_idea — drives recency filter)
 - `sentence_words` — Word-level breakdown with position, surface_form, lemma_id, is_target_word, grammar_role_json
 - `sentence_review_log` — Per-sentence review tracking (comprehension, timing, session, client_review_id)

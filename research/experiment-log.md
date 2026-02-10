@@ -82,7 +82,7 @@ See [analysis-2026-02-10.md](./analysis-2026-02-10.md) for full data.
 
 **Sentence diversity (H2)**: Confirmed working. 87% of sentences shown only once, max 3 shows. Pool of 1,059 with 426 never shown.
 
-**Collateral credit concern (new)**: 68% of all reviews are collateral (rating=3 for non-target words). May inflate stability for words the learner hasn't actively recalled.
+**~~Collateral credit concern~~ (retracted)**: 68% of reviews tagged "collateral" — this was flagged as a concern but is actually working as designed. Reading a sentence reviews ALL words equally. If the user doesn't mark a word, they're confirming they know it. The scheduling reason for showing the sentence is irrelevant to the validity of the comprehension signal. Same principle as story completion or textbook scanning.
 
 ### Changes Made
 
@@ -94,21 +94,23 @@ See [analysis-2026-02-10.md](./analysis-2026-02-10.md) for full data.
 
 ### New Concerns
 
-- **Collateral credit inflation**: 68% collateral at rating=3 may be artificially promoting words. Consider dampening collateral credit for partial comprehension.
 - **48 persistent zero-accuracy words**: Need leech detection — flag after N failures, offer targeted remediation.
 - **Study-mode word difficulty**: Learn mode may be selecting words that are too hard for current level.
 - **97 unseen textbook words**: About to flood review sessions — monitor scheduling balance.
+- **Declining "understood" rate**: 44% → 22% over 3 days — monitor if this stabilizes or indicates difficulty creep.
 
 ### Hypotheses (new)
 
 - **H4**: Removing intro gates will increase word introduction rate without overwhelming the learner, since Learn/Skip gives user control
 - **H5**: The 48 zero-accuracy words are "leeches" that need intervention beyond standard SRS scheduling
-- **H6**: Collateral credit at rating=3 is inflating stability for words the learner can't actively recall
+
+### Retracted
+
+- **~~H6~~**: "Collateral credit inflation" — retracted. All words in a sentence are genuinely reviewed by the learner. Unmarked words represent real comprehension, not passive inflation. The credit_type field is metadata only.
 
 ### How to Verify (next analysis)
 
 - Track intro card Learn vs Skip rates — are users engaging or always skipping?
 - Monitor daily new-word introduction rate — has it increased? Is it sustainable?
 - Check if 48 zero-accuracy words decrease with continued reintro card exposure
-- Analyze collateral-only words: do they pass when they become primary target words?
 - Compare comprehension trend — is the decline stabilizing or continuing?
