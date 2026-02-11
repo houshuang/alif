@@ -84,26 +84,44 @@ export default function WordDetailScreen() {
     return parts.join("\n");
   }
 
+  const infoParts = [
+    word.root,
+    word.pos,
+    word.state,
+    word.frequency_rank ? `#${word.frequency_rank.toLocaleString()}` : null,
+    word.cefr_level,
+  ].filter(Boolean) as string[];
+
+  // Filter redundant forms (gender shown as grammar chip)
+  const displayForms = word.forms_json
+    ? Object.entries(word.forms_json).filter(([key]) => key !== "gender")
+    : [];
+
   return (
     <View style={{ flex: 1, backgroundColor: colors.bg }}>
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      <Text style={styles.arabicText}>{word.arabic}</Text>
-      <Text style={styles.englishText}>{word.english}</Text>
-      <Text style={styles.translitText}>{word.transliteration}</Text>
-
-      <View style={styles.infoGrid}>
-        <InfoItem label="Root" value={word.root ?? "—"} />
-        <InfoItem label="POS" value={word.pos} />
-        <InfoItem label="State" value={word.state} />
-        {word.frequency_rank && (
-          <InfoItem label="Frequency" value={`#${word.frequency_rank.toLocaleString()}`} />
-        )}
-        {word.cefr_level && (
-          <InfoItem label="CEFR" value={word.cefr_level} color={getCefrColor(word.cefr_level)} />
-        )}
+      <View style={styles.headerRow}>
+        <Text style={styles.arabicText}>{word.arabic}</Text>
+        <Text style={styles.englishText}>{word.english}</Text>
       </View>
+      {word.transliteration ? (
+        <Text style={styles.translitText}>{word.transliteration}</Text>
+      ) : null}
 
-      {(word.forms_json || word.grammar_features.length > 0) && (
+      <Text style={styles.infoLine}>
+        {infoParts.map((part, i) => (
+          <Text key={i}>
+            {i > 0 ? " · " : ""}
+            {part === word.cefr_level ? (
+              <Text style={{ color: getCefrColor(word.cefr_level!) }}>{part}</Text>
+            ) : (
+              part
+            )}
+          </Text>
+        ))}
+      </Text>
+
+      {(displayForms.length > 0 || word.grammar_features.length > 0) && (
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Grammar</Text>
           {word.grammar_features.length > 0 && (
@@ -118,12 +136,12 @@ export default function WordDetailScreen() {
               ))}
             </View>
           )}
-          {word.forms_json && (
-            <View style={styles.formsCard}>
-              {Object.entries(word.forms_json).map(([key, value]) => (
-                <View key={key} style={styles.formRow}>
-                  <Text style={styles.formKey}>{key.replace(/_/g, " ")}</Text>
+          {displayForms.length > 0 && (
+            <View style={styles.formsRow}>
+              {displayForms.map(([key, value]) => (
+                <View key={key} style={styles.formChip}>
                   <Text style={styles.formVal}>{String(value)}</Text>
+                  <Text style={styles.formKey}>{key.replace(/_/g, " ")}</Text>
                 </View>
               ))}
             </View>
@@ -241,15 +259,6 @@ export default function WordDetailScreen() {
   );
 }
 
-function InfoItem({ label, value, color }: { label: string; value: string; color?: string }) {
-  return (
-    <View style={styles.infoItem}>
-      <Text style={styles.infoLabel}>{label}</Text>
-      <Text style={[styles.infoValue, color ? { color } : undefined]}>{value}</Text>
-    </View>
-  );
-}
-
 function StatBox({ label, value }: { label: string; value: number | string }) {
   return (
     <View style={styles.statBox}>
@@ -268,75 +277,58 @@ const styles = StyleSheet.create({
     padding: 16,
     alignItems: "center",
   },
+  headerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    marginTop: 4,
+  },
   arabicText: {
-    fontSize: 40,
+    fontSize: 52,
     color: colors.arabic,
     writingDirection: "rtl",
     fontFamily: fontFamily.arabic,
-    textAlign: "center",
     fontWeight: "600",
-    marginTop: 8,
-    lineHeight: 60,
+    lineHeight: 72,
   },
   englishText: {
-    fontSize: 24,
-    color: colors.text,
+    fontSize: 16,
+    color: colors.textSecondary,
     fontWeight: "600",
-    marginTop: 8,
   },
   translitText: {
-    fontSize: 18,
+    fontSize: 14,
     color: colors.textSecondary,
     fontStyle: "italic",
-    marginTop: 4,
+    marginTop: 2,
   },
-  infoGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 12,
-    marginTop: 16,
-    justifyContent: "center",
-  },
-  infoItem: {
-    backgroundColor: colors.surface,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 10,
-    minWidth: 80,
-    alignItems: "center",
-  },
-  infoLabel: {
-    fontSize: fonts.caption,
+  infoLine: {
+    fontSize: 14,
     color: colors.textSecondary,
-    marginBottom: 2,
-  },
-  infoValue: {
-    fontSize: fonts.body,
-    color: colors.text,
-    fontWeight: "600",
+    marginTop: 8,
   },
   section: {
     width: "100%",
     maxWidth: 500,
-    marginTop: 20,
+    marginTop: 16,
   },
   sectionTitle: {
-    fontSize: 18,
+    fontSize: 16,
     color: colors.text,
     fontWeight: "600",
-    marginBottom: 8,
+    marginBottom: 6,
   },
   grammarChips: {
     flexDirection: "row",
     flexWrap: "wrap",
-    gap: 8,
-    marginBottom: 10,
+    gap: 6,
+    marginBottom: 8,
   },
   grammarChip: {
     backgroundColor: colors.surface,
-    borderRadius: 10,
-    paddingVertical: 5,
-    paddingHorizontal: 10,
+    borderRadius: 8,
+    paddingVertical: 4,
+    paddingHorizontal: 8,
     alignItems: "center",
   },
   grammarChipEn: {
@@ -351,60 +343,62 @@ const styles = StyleSheet.create({
     fontFamily: fontFamily.arabic,
     marginTop: 1,
   },
-  formsCard: {
-    backgroundColor: colors.surface,
-    borderRadius: 10,
-    padding: 12,
+  formsRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
     gap: 8,
   },
-  formRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
+  formChip: {
+    backgroundColor: colors.surface,
+    borderRadius: 10,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
     alignItems: "center",
   },
   formKey: {
-    fontSize: fonts.small,
+    fontSize: fonts.caption,
     color: colors.textSecondary,
+    marginTop: 2,
   },
   formVal: {
-    fontSize: fonts.body,
+    fontSize: 24,
     color: colors.arabic,
     fontFamily: fontFamily.arabic,
-    marginLeft: 12,
     writingDirection: "rtl",
+    lineHeight: 34,
   },
   statsRow: {
     flexDirection: "row",
-    gap: 12,
+    gap: 8,
   },
   statBox: {
     flex: 1,
     backgroundColor: colors.surface,
-    borderRadius: 10,
-    padding: 10,
+    borderRadius: 8,
+    padding: 8,
     alignItems: "center",
   },
   statValue: {
-    fontSize: 20,
+    fontSize: 18,
     color: colors.text,
     fontWeight: "700",
   },
   statLabel: {
-    fontSize: fonts.caption,
+    fontSize: 11,
     color: colors.textSecondary,
-    marginTop: 4,
+    marginTop: 2,
   },
   familyRow: {
     backgroundColor: colors.surface,
-    borderRadius: 10,
-    padding: 12,
-    marginBottom: 8,
+    borderRadius: 8,
+    padding: 10,
+    marginBottom: 6,
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
   },
   familyArabic: {
-    fontSize: fonts.arabicList,
+    fontSize: fonts.arabicMedium,
     color: colors.arabic,
     writingDirection: "rtl",
     fontFamily: fontFamily.arabic,
@@ -416,32 +410,32 @@ const styles = StyleSheet.create({
   },
   reviewRow: {
     backgroundColor: colors.surface,
-    borderRadius: 10,
-    padding: 12,
-    marginBottom: 8,
+    borderRadius: 8,
+    padding: 10,
+    marginBottom: 6,
   },
   reviewHeader: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
+    gap: 6,
     marginBottom: 4,
   },
   ratingBadge: {
-    paddingHorizontal: 8,
+    paddingHorizontal: 6,
     paddingVertical: 2,
-    borderRadius: 8,
+    borderRadius: 6,
   },
   ratingBadgeText: {
     color: "#fff",
-    fontSize: fonts.caption,
+    fontSize: 11,
     fontWeight: "600",
   },
   reviewMeta: {
-    fontSize: fonts.caption,
+    fontSize: 11,
     color: colors.textSecondary,
   },
   reviewDate: {
-    fontSize: fonts.caption,
+    fontSize: 11,
     color: colors.textSecondary,
     marginLeft: "auto",
   },
@@ -451,38 +445,38 @@ const styles = StyleSheet.create({
     writingDirection: "rtl",
     fontFamily: fontFamily.arabic,
     textAlign: "right",
-    marginTop: 6,
+    marginTop: 4,
     lineHeight: 28,
   },
   reviewTranslation: {
     fontSize: fonts.small,
     color: colors.textSecondary,
-    marginTop: 4,
+    marginTop: 3,
   },
   sentenceRow: {
     backgroundColor: colors.surface,
-    borderRadius: 10,
-    padding: 12,
-    marginBottom: 8,
+    borderRadius: 8,
+    padding: 10,
+    marginBottom: 6,
   },
   sentenceStats: {
     flexDirection: "row",
     flexWrap: "wrap",
-    gap: 8,
-    marginTop: 8,
+    gap: 6,
+    marginTop: 6,
   },
   sentenceStat: {
-    fontSize: fonts.caption,
+    fontSize: 11,
     color: colors.textSecondary,
     backgroundColor: colors.surfaceLight,
-    borderRadius: 7,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
+    borderRadius: 6,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
   },
   sentenceLastReviewed: {
-    fontSize: fonts.caption,
+    fontSize: 11,
     color: colors.textSecondary,
-    marginTop: 8,
+    marginTop: 6,
     opacity: 0.8,
   },
   errorText: {

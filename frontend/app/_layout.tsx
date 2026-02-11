@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { View, Text, StyleSheet, AppState, ActivityIndicator } from "react-native";
+import { View, Text, Pressable, StyleSheet, AppState, ActivityIndicator } from "react-native";
 import { Tabs } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { Ionicons } from "@expo/vector-icons";
@@ -140,10 +140,15 @@ export default function Layout() {
         />
         <Tabs.Screen
           name="word/[id]"
-          options={{
+          options={({ navigation }) => ({
             href: null,
             title: "Word Detail",
-          }}
+            headerLeft: () => (
+              <Pressable onPress={() => navigation.goBack()} style={{ paddingLeft: 12 }}>
+                <Ionicons name="chevron-back" size={24} color={colors.text} />
+              </Pressable>
+            ),
+          })}
         />
         <Tabs.Screen
           name="story/[id]"
