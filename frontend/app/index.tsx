@@ -1263,23 +1263,6 @@ function SentenceReadingCard({
               {item.transliteration ?? " "}
             </Text>
           </View>
-          {showAnswer && (missedIndices.size > 0 || confusedIndices.size > 0) && (
-            <View style={styles.missedWordSummary}>
-              {item.words.map((word, i) => {
-                const isMissed = missedIndices.has(i);
-                const isConfused = confusedIndices.has(i);
-                if (!isMissed && !isConfused) return null;
-                const tags = (word.grammar_tags || []).join(" ");
-                return (
-                  <View key={i} style={[styles.missedWordRow, isConfused && styles.confusedWordRow]}>
-                    <Text style={styles.missedWordAr}>{word.surface_form}</Text>
-                    <Text style={styles.missedWordGloss}>{word.gloss_en ?? "?"}</Text>
-                    {tags ? <Text style={styles.missedWordTags}>{tags}</Text> : null}
-                  </View>
-                );
-              })}
-            </View>
-          )}
         </View>
     </>
   );
