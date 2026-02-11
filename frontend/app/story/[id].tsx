@@ -468,8 +468,9 @@ const styles = StyleSheet.create({
   },
   storyWord: {
     fontSize: 28,
-    lineHeight: 36,
+    lineHeight: 44,
     color: colors.arabic,
+    fontFamily: fontFamily.arabic,
   },
   newWordDot: {
     width: 4,
