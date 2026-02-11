@@ -158,11 +158,11 @@ function RevealedView({
   const hasExample = !!(result.example_ar && result.example_en);
   const formsText = result.forms_json ? buildFormsText(result.forms_json, result.pos) : null;
 
-  // All root family members, known first
+  // All root family members except self, known first
   const stateOrder: Record<string, number> = { known: 0, learning: 1, new: 2 };
-  const sortedFamily = [...result.root_family].sort(
-    (a, b) => (stateOrder[a.state] ?? 2) - (stateOrder[b.state] ?? 2)
-  );
+  const sortedFamily = result.root_family
+    .filter((s) => s.lemma_id !== result.lemma_id)
+    .sort((a, b) => (stateOrder[a.state] ?? 2) - (stateOrder[b.state] ?? 2));
 
   return (
     <View style={styles.revealedWrap}>
