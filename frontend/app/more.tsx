@@ -6,11 +6,13 @@ import {
   StyleSheet,
   ScrollView,
   ActivityIndicator,
+  Alert,
 } from "react-native";
 import { useRouter, useFocusEffect } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { colors, fonts } from "../lib/theme";
 import { getActivity, ActivityEntry } from "../lib/api";
+import { invalidateSessions } from "../lib/offline-store";
 
 function relativeTime(dateStr: string): string {
   const now = Date.now();
@@ -77,6 +79,16 @@ export default function MoreScreen() {
         icon="chatbubbles-outline"
         label="Chat History"
         onPress={() => router.push("/chats")}
+      />
+
+      <NavRow
+        icon="trash-outline"
+        label="Clear Cache"
+        onPress={() => {
+          invalidateSessions().then(() => {
+            Alert.alert("Cache cleared", "Session and word data cache cleared. Pull to refresh.");
+          });
+        }}
       />
 
       <Text style={styles.sectionHeader}>Progress</Text>

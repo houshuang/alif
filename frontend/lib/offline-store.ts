@@ -110,6 +110,7 @@ export async function invalidateSessions(): Promise<void> {
     KEYS.words,
     KEYS.stats,
     KEYS.analytics,
+    KEYS.wordLookups,
   ]);
 }
 
