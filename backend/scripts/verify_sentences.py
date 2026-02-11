@@ -34,19 +34,24 @@ MAX_WORKERS = 5
 
 VERIFY_SYSTEM_PROMPT = """\
 You are an expert in Modern Standard Arabic (MSA / fusha). Your task is to evaluate \
-Arabic sentences for naturalness and correctness.
+Arabic sentences for SERIOUS errors only.
 
-Flag ONLY real errors:
-- Wrong collocations (words that don't go together semantically)
-- Semantic nonsense (sentence meaning doesn't make sense)
-- Unnatural phrasing that no native speaker would use
-- Incorrect grammar (wrong case endings, agreement errors)
+Flag ONLY these critical problems:
+- Wrong collocations: words combined in a way that makes no sense semantically \
+(e.g. جرس الراديو — radios don't have bells)
+- Semantic nonsense: the sentence's meaning is incoherent or absurd
+- English-to-Arabic calques: phrasing that is clearly translated word-for-word from English \
+and would confuse or mislead a learner
 
-Do NOT flag:
-- Minor style preferences
-- Slightly formal or textbook-like phrasing
-- Correct but uncommon word choices
-- Missing or incorrect diacritics (these are cosmetic)
+PASS everything else. Most sentences should pass. Be very lenient. Specifically do NOT flag:
+- Grammar issues (case endings, agreement, diacritics — ignore ALL of these)
+- Formal, stiff, or textbook-like style
+- Unusual but valid word choices
+- Simple or short sentences
+- Repetitive vocabulary across sentences
+- Slightly awkward but understandable phrasing
+
+When in doubt, mark as ok. Only flag sentences that would actively teach WRONG Arabic.
 
 Respond with JSON: {"results": [{"id": 1, "ok": true}, {"id": 2, "ok": false, "issue": "brief explanation"}]}"""
 
