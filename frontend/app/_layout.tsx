@@ -120,7 +120,6 @@ export default function Layout() {
         <Tabs.Screen
           name="scanner"
           options={{
-            href: null,
             title: "Scanner",
             tabBarButton: () => null,
           }}
@@ -128,7 +127,6 @@ export default function Layout() {
         <Tabs.Screen
           name="chats"
           options={{
-            href: null,
             title: "Chats",
             tabBarButton: () => null,
           }}
@@ -136,7 +134,6 @@ export default function Layout() {
         <Tabs.Screen
           name="stats"
           options={{
-            href: null,
             title: "Stats",
             tabBarButton: () => null,
           }}
@@ -144,7 +141,6 @@ export default function Layout() {
         <Tabs.Screen
           name="word/[id]"
           options={{
-            href: null,
             title: "Word Detail",
             tabBarButton: () => null,
           }}
@@ -152,7 +148,6 @@ export default function Layout() {
         <Tabs.Screen
           name="story/[id]"
           options={{
-            href: null,
             title: "Story",
             tabBarButton: () => null,
           }}
@@ -160,7 +155,6 @@ export default function Layout() {
         <Tabs.Screen
           name="review-lab"
           options={{
-            href: null,
             title: "Review Lab",
             tabBarButton: () => null,
           }}
