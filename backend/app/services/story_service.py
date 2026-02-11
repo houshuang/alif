@@ -32,7 +32,7 @@ from app.services.sentence_validator import (
     strip_tatweel,
     tokenize,
     _is_function_word,
-    _lookup_lemma,
+    lookup_lemma,
 )
 
 KNOWN_SAMPLE_SIZE = 80
@@ -129,7 +129,7 @@ def _create_story_words(
             bare_clean = strip_tatweel(bare)
             bare_norm = normalize_alef(bare_clean)
             if not _is_function_word(bare_clean):
-                lid = _lookup_lemma(bare_norm, lemma_lookup)
+                lid = lookup_lemma(bare_norm, lemma_lookup)
                 if lid:
                     all_lemma_ids_needed.add(lid)
 
@@ -146,7 +146,7 @@ def _create_story_words(
             bare_norm = normalize_alef(bare_clean)
 
             is_func = _is_function_word(bare_clean)
-            lemma_id = None if is_func else _lookup_lemma(bare_norm, lemma_lookup)
+            lemma_id = None if is_func else lookup_lemma(bare_norm, lemma_lookup)
 
             is_known = False
             if lemma_id:

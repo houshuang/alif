@@ -25,6 +25,12 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from app.database import SessionLocal, Base, engine
 from app.models import Root, Lemma
 from app.services.ocr_service import validate_gloss
+from app.services.sentence_validator import (
+    strip_diacritics as _sv_strip_diacritics,
+    normalize_alef,
+    build_lemma_lookup,
+    resolve_existing_lemma,
+)
 from app.services.variant_detection import detect_variants, detect_definite_variants, mark_variants
 
 WIKTIONARY_URL = "https://kaikki.org/dictionary/Arabic/kaikki.org-dictionary-Arabic.jsonl"
@@ -49,10 +55,7 @@ POS_MAP = {
 
 
 def strip_diacritics(text: str) -> str:
-    diacritics = re.compile(
-        r"[\u0610-\u061A\u064B-\u065F\u0670\u06D6-\u06DC\u06DF-\u06E8\u06EA-\u06ED\u08D3-\u08FF]"
-    )
-    return diacritics.sub("", text)
+    return _sv_strip_diacritics(text)
 
 
 def download_wiktionary(cache_path: Path) -> None:
@@ -164,12 +167,18 @@ def parse_entries(cache_path: Path) -> list[dict]:
 
 
 def run_import(db, candidates: list[dict], limit: int, dry_run: bool = False) -> dict:
-    # Load existing bare forms
-    existing_bare = {lem.lemma_ar_bare for lem in db.query(Lemma).all()}
+    # Build clitic-aware lemma lookup from all existing lemmas
+    all_lemmas = db.query(Lemma).all()
+    existing_bare = {normalize_alef(lem.lemma_ar_bare) for lem in all_lemmas}
+    lemma_lookup = build_lemma_lookup(all_lemmas)
     existing_roots = {r.root: r for r in db.query(Root).all()}
 
-    # Filter out already-existing words
-    new_candidates = [c for c in candidates if c["bare"] not in existing_bare]
+    # Filter out already-existing words (exact bare match + clitic-aware lookup)
+    new_candidates = [
+        c for c in candidates
+        if normalize_alef(c["bare"]) not in existing_bare
+        and not resolve_existing_lemma(c["bare"], lemma_lookup)
+    ]
     print(f"After filtering existing: {len(new_candidates)} new candidates (from {len(candidates)})")
 
     # Take top N (the JSONL is roughly ordered by frequency/importance)

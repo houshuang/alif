@@ -1,8 +1,8 @@
 import json
 
 from app.models import Root, Lemma, UserLemmaKnowledge
+from app.services.sentence_validator import strip_diacritics
 from scripts.import_duolingo import (
-    strip_diacritics,
     is_multi_word,
     load_lexemes,
     run_import,

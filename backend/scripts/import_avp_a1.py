@@ -22,6 +22,12 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from app.database import SessionLocal, Base, engine
 from app.models import Root, Lemma
+from app.services.sentence_validator import (
+    strip_diacritics as _sv_strip_diacritics,
+    normalize_alef,
+    build_lemma_lookup,
+    resolve_existing_lemma,
+)
 from app.services.variant_detection import detect_variants, detect_definite_variants, mark_variants
 
 AVP_URL = "https://lailafamiliar.github.io/A1-AVP-dataset/"
@@ -43,10 +49,7 @@ CATEGORY_POS_MAP = {
 
 
 def strip_diacritics(text: str) -> str:
-    diacritics = re.compile(
-        r"[\u0610-\u061A\u064B-\u065F\u0670\u06D6-\u06DC\u06DF-\u06E8\u06EA-\u06ED\u08D3-\u08FF]"
-    )
-    return diacritics.sub("", text)
+    return _sv_strip_diacritics(text)
 
 
 def fetch_vocab_data() -> dict[str, list[dict]]:
@@ -113,8 +116,10 @@ def run_import(db, dry_run: bool = False) -> dict:
     total_entries = sum(len(v) for v in vocab_data.values())
     print(f"Found {total_entries} entries across {len(vocab_data)} categories")
 
-    # Load existing bare forms to avoid duplicates
-    existing_bare = {lem.lemma_ar_bare for lem in db.query(Lemma).all()}
+    # Build clitic-aware lemma lookup from all existing lemmas
+    all_lemmas = db.query(Lemma).all()
+    existing_bare = {normalize_alef(lem.lemma_ar_bare) for lem in all_lemmas}
+    lemma_lookup = build_lemma_lookup(all_lemmas)
 
     imported = 0
     skipped_existing = 0
@@ -139,15 +144,16 @@ def run_import(db, dry_run: bool = False) -> dict:
                 continue
 
             bare = strip_diacritics(arabic)
+            bare_norm = normalize_alef(bare)
 
-            if bare in existing_bare:
+            if bare_norm in existing_bare or resolve_existing_lemma(bare, lemma_lookup):
                 skipped_existing += 1
                 continue
 
             if dry_run:
                 print(f"  [dry-run] {arabic} ({english}) — {pos}")
                 imported += 1
-                existing_bare.add(bare)
+                existing_bare.add(bare_norm)
                 continue
 
             lemma = Lemma(
@@ -159,7 +165,8 @@ def run_import(db, dry_run: bool = False) -> dict:
             )
             db.add(lemma)
             new_lemmas.append(lemma)
-            existing_bare.add(bare)
+            existing_bare.add(bare_norm)
+            lemma_lookup[bare_norm] = lemma.lemma_id
             imported += 1
 
     # Detect and mark variants among newly imported lemmas

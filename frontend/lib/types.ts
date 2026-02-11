@@ -212,6 +212,7 @@ export interface SentenceWordMeta {
   root_id: number | null;
   frequency_rank: number | null;
   cefr_level: string | null;
+  grammar_tags?: string[];
 }
 
 export interface WordLookupResult {

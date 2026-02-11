@@ -253,8 +253,8 @@ function InfoItem({ label, value, color }: { label: string; value: string; color
 function StatBox({ label, value }: { label: string; value: number | string }) {
   return (
     <View style={styles.statBox}>
-      <Text style={styles.statValue}>{value}</Text>
-      <Text style={styles.statLabel}>{label}</Text>
+      <Text style={styles.statValue} numberOfLines={1} adjustsFontSizeToFit>{value}</Text>
+      <Text style={styles.statLabel} numberOfLines={1} adjustsFontSizeToFit>{label}</Text>
     </View>
   );
 }
@@ -265,7 +265,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.bg,
   },
   content: {
-    padding: 20,
+    padding: 16,
     alignItems: "center",
   },
   arabicText: {
@@ -275,7 +275,7 @@ const styles = StyleSheet.create({
     fontFamily: fontFamily.arabic,
     textAlign: "center",
     fontWeight: "600",
-    marginTop: 12,
+    marginTop: 8,
     lineHeight: 60,
   },
   englishText: {
@@ -294,7 +294,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     flexWrap: "wrap",
     gap: 12,
-    marginTop: 24,
+    marginTop: 16,
     justifyContent: "center",
   },
   infoItem: {
@@ -318,13 +318,13 @@ const styles = StyleSheet.create({
   section: {
     width: "100%",
     maxWidth: 500,
-    marginTop: 28,
+    marginTop: 20,
   },
   sectionTitle: {
     fontSize: 18,
     color: colors.text,
     fontWeight: "600",
-    marginBottom: 12,
+    marginBottom: 8,
   },
   grammarChips: {
     flexDirection: "row",
@@ -381,11 +381,11 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.surface,
     borderRadius: 10,
-    padding: 14,
+    padding: 10,
     alignItems: "center",
   },
   statValue: {
-    fontSize: 22,
+    fontSize: 20,
     color: colors.text,
     fontWeight: "700",
   },

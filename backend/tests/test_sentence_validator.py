@@ -13,9 +13,11 @@ from app.services.sentence_validator import (
     _strip_clitics,
     build_lemma_lookup,
     compute_bare_form,
+    lookup_lemma,
     map_tokens_to_lemmas,
     normalize_alef,
     normalize_arabic,
+    resolve_existing_lemma,
     sanitize_arabic_word,
     strip_diacritics,
     tokenize,
@@ -761,3 +763,81 @@ class TestComputeBareForm:
 
     def test_with_tatweel(self):
         assert compute_bare_form("كـتـاب") == "كتاب"
+
+
+class TestLookupLemma:
+    """Test the public lookup_lemma function with clitic stripping."""
+
+    def setup_method(self):
+        self.lemmas = [
+            _FakeLemma(1, "كتاب"),
+            _FakeLemma(2, "غرفة"),
+            _FakeLemma(3, "بيت"),
+            _FakeLemma(4, "احب"),  # hamza-stripped form
+        ]
+        self.lookup = build_lemma_lookup(self.lemmas)
+
+    def test_direct_match(self):
+        assert lookup_lemma("كتاب", self.lookup) == 1
+
+    def test_al_prefix(self):
+        assert lookup_lemma("الكتاب", self.lookup) == 1
+
+    def test_possessive_suffix_ha(self):
+        # كتابها (her book) → كتاب via ها enclitic
+        assert lookup_lemma("كتابها", self.lookup) == 1
+
+    def test_possessive_hum(self):
+        # كتابهم (their book) → كتاب via هم enclitic
+        assert lookup_lemma("كتابهم", self.lookup) == 1
+
+    def test_possessive_ka(self):
+        # كتابك (your book) → كتاب via ك enclitic
+        assert lookup_lemma("كتابك", self.lookup) == 1
+
+    def test_waw_prefix(self):
+        assert lookup_lemma("وكتاب", self.lookup) == 1
+
+    def test_ba_prefix(self):
+        assert lookup_lemma("بالكتاب", self.lookup) == 1
+
+    def test_taa_marbuta_possessive(self):
+        # غرفتها (her room) → غرفة (room) — taa marbuta ة→ت + ها suffix
+        assert lookup_lemma("غرفتها", self.lookup) == 2
+
+    def test_no_match(self):
+        assert lookup_lemma("سيارة", self.lookup) is None
+
+    def test_hamza_normalized_match(self):
+        # أحب should match احب via hamza normalization in build_lemma_lookup
+        assert lookup_lemma(normalize_alef("أحب"), self.lookup) == 4
+
+    def test_short_stem_no_false_match(self):
+        # Clitic stripping of short stems should not produce false matches
+        # "سم" (poison) should not match anything from over-stripping
+        assert lookup_lemma("سم", self.lookup) is None
+
+
+class TestResolveExistingLemma:
+    """Test resolve_existing_lemma used by import scripts."""
+
+    def setup_method(self):
+        self.lemmas = [
+            _FakeLemma(1, "كتاب"),
+            _FakeLemma(2, "ستارة"),
+        ]
+        self.lookup = build_lemma_lookup(self.lemmas)
+
+    def test_direct_match(self):
+        assert resolve_existing_lemma("كتاب", self.lookup) == 1
+
+    def test_waw_prefix_dedup(self):
+        # وستارة should resolve to ستارة
+        assert resolve_existing_lemma("وستارة", self.lookup) == 2
+
+    def test_possessive_dedup(self):
+        # كتابها (her book) should resolve to كتاب
+        assert resolve_existing_lemma("كتابها", self.lookup) == 1
+
+    def test_new_word_returns_none(self):
+        assert resolve_existing_lemma("سيارة", self.lookup) is None

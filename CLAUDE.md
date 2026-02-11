@@ -151,15 +151,15 @@ This app is an ongoing learning experiment. Every algorithm change, data structu
 - `backend/app/services/sentence_review_service.py` — Reviews ALL words in a sentence equally via FSRS. Ternary ratings: missed=1, confused=2, rest=3. The `credit_type` field (primary/collateral) is metadata only — all words receive identical FSRS treatment based on user marking. Stores last_comprehension on sentence. Tracks total_encounters + variant_stats_json per surface form.
 - `backend/app/services/word_selector.py` — Next-word algorithm: 40% frequency + 30% root familiarity + 20% recency bonus + 10% grammar pattern. Excludes wiktionary reference entries and variant lemmas (canonical_lemma_id set). Root family query also filters variants. `introduce_word()` accepts `source` param (study/auto_intro/collocate).
 - `backend/app/services/sentence_generator.py` — LLM generation with 3-attempt retry loop. Samples up to 50 known words for prompt with diversity weighting. Full diacritics required. Feeds validation failures back to LLM as retry feedback.
-- `backend/app/services/sentence_validator.py` — Rule-based: tokenize → strip diacritics → strip clitics (proclitics + enclitics + taa marbuta) → match against known bare forms. 60+ function words hardcoded.
+- `backend/app/services/sentence_validator.py` — Rule-based: tokenize → strip diacritics → strip clitics (proclitics + enclitics + taa marbuta) → match against known bare forms. 60+ function words hardcoded. Public API: `lookup_lemma()` (clitic-aware), `resolve_existing_lemma()` (for import dedup), `build_lemma_lookup()` (indexes forms_json + al-variants).
 - `backend/app/services/grammar_service.py` — 24 features, 5 tiers (cascading comfort thresholds: 10 words → 30% → 40% → 50%). Comfort score: 60% log-exposure + 40% accuracy, decayed by recency.
 - `backend/app/services/grammar_tagger.py` — LLM-based grammar feature tagging for sentences and lemmas.
 - `backend/app/services/story_service.py` — Generate (LLM micro-fiction, random genre, up to 80 known words in prompt), import, complete/skip/too_difficult (FSRS credit), lookup, readiness recalculation.
 - `backend/app/services/listening.py` — Listening confidence: min(per-word) * 0.6 + avg * 0.4. Requires times_seen ≥ 3, stability ≥ 7d.
 - `backend/app/services/tts.py` — ElevenLabs REST, eleven_multilingual_v2, Chaouki voice, speed 0.7. Learner pauses: inserts Arabic commas every 2 words. SHA256 cache in data/audio/.
 - `backend/app/services/llm.py` — LiteLLM: gemini/gemini-3-flash-preview → gpt-5.2 → claude-haiku-4-5. JSON mode, markdown fence stripping, model_override support. Batch generation supports `rejected_words` param to steer LLM away from unknown vocabulary.
-- `backend/app/services/morphology.py` — CAMeL Tools morphological analyzer. Functions: `analyze_word_camel()` (all analyses), `get_base_lemma()` (top lex), `is_variant_form()` (possessive/enclitic check), `find_matching_analysis()` (disambiguate against known lemma), `find_best_db_match()` (iterate all analyses, return first matching a known DB bare form), `get_word_features()` (lex/root/pos/enc0/num/gen/stt). Falls back to stub if camel_tools not installed.
-- `backend/app/services/variant_detection.py` — DB-aware variant detection: `detect_variants()` (CAMeL + DB match), `detect_definite_variants()` (al-prefix), `mark_variants()`. Used by ALL import paths (Duolingo, Wiktionary, AVP, OCR) as post-import pass, and cleanup_lemma_variants.py (batch cleanup).
+- `backend/app/services/morphology.py` — CAMeL Tools morphological analyzer. Functions: `analyze_word_camel()` (all analyses), `get_base_lemma()` (top lex), `get_best_lemma_mle()` (MLE disambiguator, probability-weighted), `is_variant_form()` (possessive/enclitic check, hamza-aware), `find_matching_analysis()` (disambiguate against known lemma, hamza-aware), `find_best_db_match()` (iterate all analyses, return first matching a known DB bare form, hamza-aware), `get_word_features()` (lex/root/pos/enc0/num/gen/stt). Falls back to stub if camel_tools not installed.
+- `backend/app/services/variant_detection.py` — DB-aware variant detection: `detect_variants()` (CAMeL + DB match, hamza-normalized), `detect_definite_variants()` (al-prefix, hamza-normalized), `mark_variants()`. Used by ALL import paths (Duolingo, Wiktionary, AVP, OCR) as post-import pass, and cleanup_lemma_variants.py (batch cleanup).
 - `backend/app/services/interaction_logger.py` — Append-only JSONL to `data/logs/interactions_YYYY-MM-DD.jsonl`. Skipped when TESTING env var is set.
 - `backend/app/services/ocr_service.py` — Gemini Vision OCR: `extract_text_from_image()` (full text extraction for story import), `extract_words_from_image()` (3-step pipeline: OCR → CAMeL morphology → LLM translation, returns base_lemma from morphological analysis), `process_textbook_page()` (background task: OCR + match/import words + post-import variant detection). Uses base_lemma from Step 2 for DB lookup (falls back to bare form). Runs detect_variants + detect_definite_variants after import.
 - `backend/app/services/flag_evaluator.py` — Background LLM evaluation for flagged content. Uses GPT-5.2 (model_override="openai") to evaluate word glosses, sentence Arabic/English/transliteration. Auto-fixes high-confidence corrections, retires unfixable sentences. Writes to ActivityLog.
@@ -170,7 +170,7 @@ This app is an ongoing learning experiment. Every algorithm change, data structu
 ### Backend Other
 - `backend/app/models.py` — SQLAlchemy models: Root, Lemma (+ example_ar/en, forms_json, canonical_lemma_id), UserLemmaKnowledge (+ variant_stats_json), ReviewLog, Sentence (+ last_comprehension), SentenceWord, SentenceReviewLog, GrammarFeature, SentenceGrammarFeature, UserGrammarExposure, Story, StoryWord, PageUpload (batch_id, status, extracted_words_json, new_words, existing_words)
 - `backend/app/schemas.py` — Pydantic models. SentenceReviewSubmitIn includes confused_lemma_ids. SentenceWordMeta includes root/root_meaning/root_id.
-- `backend/scripts/` — import_duolingo.py, import_wiktionary.py, import_avp_a1.py, benchmark_llm.py, pregenerate_material.py, generate_audio.py, generate_sentences.py, backfill_lemma_grammar.py, backfill_examples.py, backfill_forms.py, backfill_forms_llm.py, backfill_frequency.py (CAMeL MSA frequency + Kelly CEFR), backfill_roots.py, backfill_root_meanings.py, simulate_usage.py, update_material.py (cron: backfill sentences + audio + pre-generate for upcoming candidates), merge_al_lemmas.py, merge_lemma_variants.py, cleanup_lemma_variants.py, cleanup_glosses.py, cleanup_lemma_text.py, identify_leeches.py (find high-review low-accuracy words, optional --suspend), retire_sentences.py (remove low-quality/overused sentences), log_activity.py (CLI tool for manual ActivityLog entries), db_analysis.py, analyze_word_distribution.py, tts_comparison.py
+- `backend/scripts/` — import_duolingo.py, import_wiktionary.py, import_avp_a1.py (all use clitic-aware dedup via `resolve_existing_lemma()`), benchmark_llm.py, pregenerate_material.py, generate_audio.py, generate_sentences.py, backfill_lemma_grammar.py, backfill_examples.py, backfill_forms.py, backfill_forms_llm.py, backfill_frequency.py (CAMeL MSA frequency + Kelly CEFR), backfill_roots.py, backfill_root_meanings.py, simulate_usage.py, update_material.py (cron: backfill sentences + audio + pre-generate for upcoming candidates), merge_al_lemmas.py, merge_lemma_variants.py, cleanup_lemma_variants.py, cleanup_glosses.py, cleanup_lemma_text.py, identify_leeches.py (find high-review low-accuracy words, optional --suspend), retire_sentences.py (remove low-quality/overused sentences), normalize_and_dedup.py (3-pass production cleanup: variant detection + clitic dedup + forms_json enrichment), log_activity.py (CLI tool for manual ActivityLog entries), db_analysis.py, analyze_word_distribution.py, tts_comparison.py
 
 ### Frontend
 - `frontend/app/index.tsx` — Review screen: sentence-first + word-only fallback, reading + listening modes, front-phase word lookup with root prediction, triple-tap word marking (off → missed → confused → off), inline intro cards, session completion with analytics
@@ -286,11 +286,12 @@ This app is an ongoing learning experiment. Every algorithm change, data structu
 **CAMeL Tools (integrated in morphology.py):**
 1. Input word → `analyze_word_camel()` → list of morphological analyses
 2. Each analysis dict: `lex` (base lemma), `root`, `pos`, `enc0` (pronominal enclitic), `num`, `gen`, `stt`
-3. `get_base_lemma()` returns top analysis lex; `is_variant_form()` checks enc0 for possessive suffixes
-4. `find_matching_analysis()` disambiguates by matching against known DB lemma bare forms
-5. Graceful fallback: if `camel-tools` not installed, all functions return stub/empty data
-6. Requires `cmake` build dep + `camel_data -i light` download (~660MB) in Docker
-7. **Variant cleanup**: `scripts/cleanup_lemma_variants.py` uses DB-aware CAMeL Tools disambiguation — iterates ALL analyses (not just top-ranked) and picks the one whose lex matches a lemma already in the DB. Detects possessives (بنتي→بنت), feminine forms (جميلة→جميل), and definite duplicates (الكتاب→كتاب). Sets `canonical_lemma_id` on variants. Run with `--dry-run` first, `--merge` to also transfer review data, `--verbose` for per-word analysis details.
+3. `get_base_lemma()` returns top analysis lex; `get_best_lemma_mle()` uses MLE disambiguator for probability-weighted analysis (reduces false positives)
+4. `is_variant_form()` and `find_matching_analysis()` use hamza normalization (`normalize_alef`) at comparison time — hamza preserved in storage, normalized only for matching
+5. `find_best_db_match()` iterates ALL analyses, matches against known DB lemma bare forms with hamza normalization
+6. Graceful fallback: if `camel-tools` not installed, all functions return stub/empty data. MLE falls back to raw analyzer if model unavailable.
+7. Requires `cmake` build dep + `camel_data -i light` download (~660MB) in Docker
+8. **Variant cleanup**: `scripts/cleanup_lemma_variants.py` uses DB-aware CAMeL Tools disambiguation. `scripts/normalize_and_dedup.py` does 3-pass cleanup: variant detection + clitic-aware dedup + forms_json enrichment.
 
 **Function Words:**
 - Function words (pronouns, prepositions, conjunctions, demonstratives, copular verbs like كان/ليس) are:
@@ -315,7 +316,7 @@ Tests 3 models across 5 tasks (105 ground truth cases): diacritization, translat
 
 ## Testing
 ```bash
-cd backend && python -m pytest  # 537 tests
+cd backend && python -m pytest  # 552 tests
 ```
 All services have dedicated test files in `backend/tests/`.
 

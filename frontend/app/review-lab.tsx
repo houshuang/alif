@@ -7,11 +7,11 @@ import { WordLookupResult, SentenceWordMeta } from "../lib/types";
 /* ── Mock data ─────────────────────────────────────────────── */
 
 const mockWords: SentenceWordMeta[] = [
-  { lemma_id: 101, surface_form: "\u0630\u064E\u0647\u064E\u0628\u064E", gloss_en: "went", stability: 12, is_due: true, is_function_word: false, knowledge_state: "known", root: "\u0630 \u0647 \u0628", root_meaning: "going/gold", root_id: 5, frequency_rank: 180, cefr_level: "A1" },
-  { lemma_id: 102, surface_form: "\u0627\u0644\u0648\u064E\u0644\u064E\u062F\u064F", gloss_en: "the boy", stability: 8, is_due: false, is_function_word: false, knowledge_state: "learning", root: "\u0648 \u0644 \u062F", root_meaning: "birth/child", root_id: 6, frequency_rank: 420, cefr_level: "A1" },
-  { lemma_id: null, surface_form: "\u0625\u0650\u0644\u064E\u0649", gloss_en: "to", stability: null, is_due: false, is_function_word: true, knowledge_state: "known", root: null, root_meaning: null, root_id: null, frequency_rank: null, cefr_level: null },
-  { lemma_id: 103, surface_form: "\u0627\u0644\u0645\u064E\u062F\u0652\u0631\u064E\u0633\u064E\u0629\u0650", gloss_en: "the school", stability: 3.2, is_due: true, is_function_word: false, knowledge_state: "learning", root: "\u062F \u0631 \u0633", root_meaning: "study/learn", root_id: 7, frequency_rank: 850, cefr_level: "A2" },
-  { lemma_id: 104, surface_form: "\u0627\u0644\u0643\u064E\u0628\u0650\u064A\u0631\u064E\u0629\u0650", gloss_en: "the big (f)", stability: 15, is_due: false, is_function_word: false, knowledge_state: "known", root: "\u0643 \u0628 \u0631", root_meaning: "greatness/size", root_id: 8, frequency_rank: 310, cefr_level: "A1" },
+  { lemma_id: 101, surface_form: "\u0630\u064E\u0647\u064E\u0628\u064E", gloss_en: "went", stability: 12, is_due: true, is_function_word: false, knowledge_state: "known", root: "\u0630 \u0647 \u0628", root_meaning: "going/gold", root_id: 5, frequency_rank: 180, cefr_level: "A1", grammar_tags: ["past", "I"] },
+  { lemma_id: 102, surface_form: "\u0627\u0644\u0648\u064E\u0644\u064E\u062F\u064F", gloss_en: "the boy", stability: 8, is_due: false, is_function_word: false, knowledge_state: "learning", root: "\u0648 \u0644 \u062F", root_meaning: "birth/child", root_id: 6, frequency_rank: 420, cefr_level: "A1", grammar_tags: ["sg.", "m."] },
+  { lemma_id: null, surface_form: "\u0625\u0650\u0644\u064E\u0649", gloss_en: "to", stability: null, is_due: false, is_function_word: true, knowledge_state: "known", root: null, root_meaning: null, root_id: null, frequency_rank: null, cefr_level: null, grammar_tags: [] },
+  { lemma_id: 103, surface_form: "\u0627\u0644\u0645\u064E\u062F\u0652\u0631\u064E\u0633\u064E\u0629\u0650", gloss_en: "the school", stability: 3.2, is_due: true, is_function_word: false, knowledge_state: "learning", root: "\u062F \u0631 \u0633", root_meaning: "study/learn", root_id: 7, frequency_rank: 850, cefr_level: "A2", grammar_tags: ["sg.", "f."] },
+  { lemma_id: 104, surface_form: "\u0627\u0644\u0643\u064E\u0628\u0650\u064A\u0631\u064E\u0629\u0650", gloss_en: "the big (f)", stability: 15, is_due: false, is_function_word: false, knowledge_state: "known", root: "\u0643 \u0628 \u0631", root_meaning: "greatness/size", root_id: 8, frequency_rank: 310, cefr_level: "A1", grammar_tags: ["sg.", "f."] },
 ];
 
 const mockLookups: Record<number, WordLookupResult> = {

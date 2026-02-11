@@ -1263,6 +1263,23 @@ function SentenceReadingCard({
               {item.transliteration ?? " "}
             </Text>
           </View>
+          {showAnswer && (missedIndices.size > 0 || confusedIndices.size > 0) && (
+            <View style={styles.missedWordSummary}>
+              {item.words.map((word, i) => {
+                const isMissed = missedIndices.has(i);
+                const isConfused = confusedIndices.has(i);
+                if (!isMissed && !isConfused) return null;
+                const tags = (word.grammar_tags || []).join(" ");
+                return (
+                  <View key={i} style={[styles.missedWordRow, isConfused && styles.confusedWordRow]}>
+                    <Text style={styles.missedWordAr}>{word.surface_form}</Text>
+                    <Text style={styles.missedWordGloss}>{word.gloss_en ?? "?"}</Text>
+                    {tags ? <Text style={styles.missedWordTags}>{tags}</Text> : null}
+                  </View>
+                );
+              })}
+            </View>
+          )}
         </View>
     </>
   );
@@ -2510,6 +2527,42 @@ const styles = StyleSheet.create({
   answerSectionStable: {
     minHeight: 150,
     justifyContent: "flex-start",
+  },
+  missedWordSummary: {
+    width: "100%",
+    marginTop: 12,
+    gap: 6,
+  },
+  missedWordRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(231, 76, 60, 0.1)",
+    borderLeftWidth: 3,
+    borderLeftColor: colors.missed,
+    borderRadius: 6,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    gap: 8,
+  },
+  confusedWordRow: {
+    backgroundColor: "rgba(243, 156, 18, 0.1)",
+    borderLeftColor: colors.confused,
+  },
+  missedWordAr: {
+    fontSize: 18,
+    color: colors.arabic,
+    fontFamily: fontFamily.arabic,
+    writingDirection: "rtl",
+  },
+  missedWordGloss: {
+    fontSize: 14,
+    color: colors.text,
+    flex: 1,
+  },
+  missedWordTags: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    fontStyle: "italic",
   },
   answerSectionHidden: {
     opacity: 0,

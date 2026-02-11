@@ -4,6 +4,34 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-02-11 — Harden All Ingestion Paths + Hamza-Aware Variant Detection
+
+### Change
+1. **Hamza normalization at lookup time**: `normalize_alef()` now applied consistently in `morphology.py` (`is_variant_form`, `find_matching_analysis`, `find_best_db_match`) and `variant_detection.py` (`detect_variants`, `detect_definite_variants`). Hamza preserved in storage, normalized only at comparison time — standard Arabic NLP practice.
+2. **MLE disambiguator integration**: Added CAMeL Tools `MLEDisambiguator` to `morphology.py`. New `get_best_lemma_mle()` function uses corpus-probability-weighted analysis for better base lemma extraction (reduces false positives like سمك→سم). OCR pipeline now uses MLE in `_step2_morphology()`.
+3. **Public lookup API**: Renamed `_lookup_lemma` → `lookup_lemma` and `_lookup_lemma_direct` → `lookup_lemma_direct` in `sentence_validator.py`. Added `resolve_existing_lemma()` helper for import scripts.
+4. **Clitic-aware import dedup**: All three import scripts (Duolingo, Wiktionary, AVP A1) now use `build_lemma_lookup()` + `resolve_existing_lemma()` instead of flat bare-form set checks. This catches و-prefixed (وكتاب→كتاب), ال-prefixed, and pronoun-suffixed forms (كتابها→كتاب) at import time.
+5. **Unified `strip_diacritics`**: Import scripts now delegate to `sentence_validator.strip_diacritics()` instead of maintaining local copies.
+6. **Production cleanup script**: New `scripts/normalize_and_dedup.py` with 3 passes: re-run variant detection with hamza-aware code, clitic-aware dedup via `lookup_lemma()`, and `forms_json` enrichment for all known variants.
+
+### Design Principles
+- **Clitics** (كتابي، وكتاب، بالكتاب): strip silently, no separate tracking — syntactic, not learning-relevant
+- **Morphological variants** (كتاب/كتب, أسود/سوداء): ONE lemma, but track per-form comprehension via existing `variant_stats_json` on ULK
+- **Hamza**: Real consonant, preserved in `lemma_ar_bare` storage. Normalized only at lookup/comparison time. Standard Arabic NLP practice confirmed by AraToken paper research.
+
+### Expected Effect
+- Future imports catch ~90% of variant forms before creating duplicate lemmas
+- MLE disambiguator improves morphological analysis accuracy (fewer false positive merges)
+- Production cleanup should consolidate remaining ~300 rare variant lemmas
+
+### Verification
+- 552 backend tests pass (15 new tests for lookup_lemma, resolve_existing_lemma)
+- Run `normalize_and_dedup.py --dry-run` on production to preview
+- Run `normalize_and_dedup.py --merge` to apply
+- Re-run rare word analysis — expect significant reduction in active rare words
+
+---
+
 ## 2026-02-11 — Fix Variant Lemma Imports in OCR Pipeline
 
 ### Change

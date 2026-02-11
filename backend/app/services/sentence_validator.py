@@ -319,15 +319,15 @@ def map_tokens_to_lemmas(
         if is_function:
             # Direct-only lookup for function words — no clitic stripping.
             # This prevents false analysis like كانت → ك+انت → أنت.
-            lemma_id = _lookup_lemma_direct(bare_norm, lemma_lookup)
+            lemma_id = lookup_lemma_direct(bare_norm, lemma_lookup)
         else:
-            lemma_id = _lookup_lemma(bare_norm, lemma_lookup)
+            lemma_id = lookup_lemma(bare_norm, lemma_lookup)
         result.append(TokenMapping(i, token, lemma_id, False, is_function))
 
     return result
 
 
-def _lookup_lemma_direct(bare_norm: str, lemma_lookup: dict[str, int]) -> int | None:
+def lookup_lemma_direct(bare_norm: str, lemma_lookup: dict[str, int]) -> int | None:
     """Find a lemma_id using direct match and al-prefix only — no clitic stripping."""
     if bare_norm in lemma_lookup:
         return lemma_lookup[bare_norm]
@@ -342,7 +342,7 @@ def _lookup_lemma_direct(bare_norm: str, lemma_lookup: dict[str, int]) -> int | 
     return None
 
 
-def _lookup_lemma(bare_norm: str, lemma_lookup: dict[str, int]) -> int | None:
+def lookup_lemma(bare_norm: str, lemma_lookup: dict[str, int]) -> int | None:
     """Find a lemma_id for a normalized bare form, trying variants and clitic stripping."""
     # Direct match
     if bare_norm in lemma_lookup:
@@ -372,7 +372,7 @@ def lookup_lemma_id(surface_form: str, lemma_lookup: dict[str, int]) -> int | No
     bare = strip_diacritics(surface_form)
     bare_clean = strip_tatweel(bare)
     bare_norm = normalize_alef(bare_clean)
-    return _lookup_lemma(bare_norm, lemma_lookup)
+    return lookup_lemma(bare_norm, lemma_lookup)
 
 
 def build_lemma_lookup(lemmas: list) -> dict[str, int]:
@@ -422,6 +422,20 @@ def build_lemma_lookup(lemmas: list) -> dict[str, int]:
                 lookup[form_norm] = base_id
 
     return lookup
+
+
+def resolve_existing_lemma(
+    bare: str, lemma_lookup: dict[str, int]
+) -> int | None:
+    """Check if a bare form matches an existing lemma via clitic-aware lookup.
+
+    Used by import scripts to avoid creating duplicate lemmas for clitic forms
+    (وكتاب, كتابي, بالكتاب) or al-prefixed forms (الكتاب).
+
+    Returns the matched lemma_id, or None if no match found.
+    """
+    bare_norm = normalize_alef(bare)
+    return lookup_lemma(bare_norm, lemma_lookup)
 
 
 def validate_sentence(

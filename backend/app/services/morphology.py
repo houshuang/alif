@@ -12,12 +12,16 @@ logger = logging.getLogger(__name__)
 try:
     from camel_tools.morphology.database import MorphologyDB
     from camel_tools.morphology.analyzer import Analyzer
+    from camel_tools.disambig.mle import MLEDisambiguator
 
     _db = None
     _analyzer = None
+    _disambiguator = None
     CAMEL_AVAILABLE = True
+    MLE_AVAILABLE = True
 except ImportError:
     CAMEL_AVAILABLE = False
+    MLE_AVAILABLE = False
     logger.info("camel_tools not installed, morphology analysis will use stubs")
 
 
@@ -28,6 +32,20 @@ def _get_analyzer():
         _db = MorphologyDB.builtin_db()
         _analyzer = Analyzer(_db, backoff="ADD_PROP")
     return _analyzer
+
+
+def _get_disambiguator():
+    """Lazy-load the CAMeL Tools MLE disambiguator singleton."""
+    global _disambiguator
+    if not MLE_AVAILABLE:
+        return None
+    if _disambiguator is None:
+        try:
+            _disambiguator = MLEDisambiguator.pretrained()
+        except Exception:
+            logger.warning("MLE disambiguator model not available, falling back to analyzer")
+            return None
+    return _disambiguator
 
 
 def analyze_word_camel(word: str) -> list[dict]:
@@ -53,6 +71,39 @@ def get_base_lemma(word: str) -> str | None:
     return None
 
 
+def get_best_lemma_mle(word: str) -> dict | None:
+    """Get the most likely base lemma using MLE disambiguation.
+
+    Returns dict with lex, root, pos from the MLE-selected analysis,
+    or falls back to top analyzer result. Returns None if CAMeL unavailable.
+    """
+    disambig = _get_disambiguator()
+    if disambig:
+        try:
+            results = disambig.disambiguate([word])
+            if results and results[0].analyses:
+                top = results[0].analyses[0].analysis
+                return {
+                    "lex": top.get("lex"),
+                    "root": top.get("root"),
+                    "pos": top.get("pos"),
+                    "enc0": top.get("enc0", ""),
+                }
+        except Exception:
+            logger.debug("MLE disambiguation failed for %s, falling back", word)
+
+    analyses = analyze_word_camel(word)
+    if analyses:
+        top = analyses[0]
+        return {
+            "lex": top.get("lex"),
+            "root": top.get("root"),
+            "pos": top.get("pos"),
+            "enc0": top.get("enc0", ""),
+        }
+    return None
+
+
 def is_variant_form(word: str, base_lemma_bare: str) -> bool:
     """Check if word is an inflected variant of base_lemma (possessive, etc.).
 
@@ -60,14 +111,15 @@ def is_variant_form(word: str, base_lemma_bare: str) -> bool:
     - The lex (base lemma) matches the expected base form (after stripping diacritics)
     - The word has a pronominal enclitic (enc0) or other variant marker
     """
-    from app.services.sentence_validator import strip_diacritics
+    from app.services.sentence_validator import normalize_alef, strip_diacritics
 
     analyses = analyze_word_camel(word)
+    base_norm = normalize_alef(base_lemma_bare)
     for a in analyses:
         lex = a.get("lex", "")
         enc0 = a.get("enc0", "")
-        lex_bare = strip_diacritics(lex)
-        if lex_bare == base_lemma_bare and enc0 and enc0 != "0":
+        lex_bare = normalize_alef(strip_diacritics(lex))
+        if lex_bare == base_norm and enc0 and enc0 != "0":
             return True
     return False
 
@@ -80,12 +132,13 @@ def find_matching_analysis(
     Useful when disambiguation is needed: we check all analyses and pick
     the one that matches what we know from our DB.
     """
-    from app.services.sentence_validator import strip_diacritics
+    from app.services.sentence_validator import normalize_alef, strip_diacritics
 
     analyses = analyze_word_camel(word)
+    target = normalize_alef(known_lemma_bare)
     for a in analyses:
         lex = a.get("lex", "")
-        if strip_diacritics(lex) == known_lemma_bare:
+        if normalize_alef(strip_diacritics(lex)) == target:
             return a
     return None
 
@@ -130,10 +183,11 @@ def find_best_db_match(
 
     Iterates all analyses (not just [0]) and returns the first one where
     strip_diacritics(lex) is in known_bare_forms and is not self_bare.
+    Hamza is normalized at comparison time so أحب matches احب.
 
     Returns a dict with: lex_bare, enc0, analysis, or None if no match.
     """
-    from app.services.sentence_validator import strip_diacritics
+    from app.services.sentence_validator import normalize_alef, strip_diacritics
 
     analyses = analyze_word_camel(word)
     if not analyses:
@@ -141,12 +195,14 @@ def find_best_db_match(
     if not analyses:
         return None
 
+    self_norm = normalize_alef(self_bare) if self_bare else None
     for a in analyses:
         lex = a.get("lex", "")
         lex_bare = strip_diacritics(lex)
-        if self_bare and lex_bare == self_bare:
+        lex_norm = normalize_alef(lex_bare)
+        if self_norm and lex_norm == self_norm:
             continue
-        if lex_bare in known_bare_forms:
+        if lex_norm in known_bare_forms:
             return {
                 "lex_bare": lex_bare,
                 "enc0": a.get("enc0", ""),

@@ -56,6 +56,26 @@ class SentenceCandidate:
     score: float = 0.0
 
 
+_GRAMMAR_ABBREV = {
+    "singular": "sg.", "dual": "du.", "plural_sound": "pl.", "plural_broken": "pl.",
+    "masculine": "m.", "feminine": "f.",
+    "past": "past", "present": "pres.", "imperative": "impr.",
+    "form_1": "I", "form_2": "II", "form_3": "III", "form_4": "IV",
+    "form_5": "V", "form_6": "VI", "form_7": "VII", "form_8": "VIII",
+    "form_9": "IX", "form_10": "X",
+    "definite_article": "def.", "attached_pronouns": "+pron",
+    "proclitic_prepositions": "+prep",
+}
+
+
+def _compact_grammar_tags(features_json) -> list[str]:
+    """Convert grammar feature keys to compact display abbreviations."""
+    feats = parse_json_column(features_json, default=[])
+    if not isinstance(feats, list):
+        return []
+    return [_GRAMMAR_ABBREV[f] for f in feats if f in _GRAMMAR_ABBREV]
+
+
 def _get_stability(knowledge: Optional[UserLemmaKnowledge]) -> float:
     if not knowledge or not knowledge.fsrs_card_json:
         return 0.0
@@ -563,6 +583,7 @@ def build_session(
                 "root_id": root_obj.root_id if root_obj else None,
                 "frequency_rank": lemma.frequency_rank if lemma else None,
                 "cefr_level": lemma.cefr_level if lemma else None,
+                "grammar_tags": _compact_grammar_tags(lemma.grammar_features_json) if lemma else [],
             })
 
         items.append({

@@ -30,7 +30,7 @@ from app.services.sentence_validator import (
     strip_diacritics,
     strip_tatweel,
     _is_function_word,
-    _lookup_lemma,
+    lookup_lemma,
 )
 
 logger = logging.getLogger(__name__)
@@ -283,7 +283,7 @@ def _step2_morphology(words: list[str]) -> list[dict]:
     from app.services.morphology import (
         CAMEL_AVAILABLE,
         analyze_word_camel,
-        get_base_lemma,
+        get_best_lemma_mle,
     )
 
     results = []
@@ -302,14 +302,22 @@ def _step2_morphology(words: list[str]) -> list[dict]:
         }
 
         if CAMEL_AVAILABLE:
-            analyses = analyze_word_camel(word)
-            if analyses:
-                top = analyses[0]
-                entry["root"] = top.get("root")
-                entry["pos"] = top.get("pos")
-                lex = top.get("lex")
+            mle_result = get_best_lemma_mle(word)
+            if mle_result:
+                entry["root"] = mle_result.get("root")
+                entry["pos"] = mle_result.get("pos")
+                lex = mle_result.get("lex")
                 if lex:
                     entry["base_lemma"] = normalize_alef(strip_diacritics(lex))
+            else:
+                analyses = analyze_word_camel(word)
+                if analyses:
+                    top = analyses[0]
+                    entry["root"] = top.get("root")
+                    entry["pos"] = top.get("pos")
+                    lex = top.get("lex")
+                    if lex:
+                        entry["base_lemma"] = normalize_alef(strip_diacritics(lex))
 
         results.append(entry)
     return results
@@ -504,9 +512,9 @@ def process_textbook_page(
             # Try to find existing lemma — try base_lemma first, then bare
             lemma_id = None
             if base_lemma_bare and base_lemma_bare != bare:
-                lemma_id = _lookup_lemma(base_lemma_bare, lemma_lookup)
+                lemma_id = lookup_lemma(base_lemma_bare, lemma_lookup)
             if not lemma_id:
-                lemma_id = _lookup_lemma(bare, lemma_lookup)
+                lemma_id = lookup_lemma(bare, lemma_lookup)
 
             if lemma_id:
                 # Existing word — increment encounter count

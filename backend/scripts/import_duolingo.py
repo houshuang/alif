@@ -10,6 +10,12 @@ from sqlalchemy.orm import Session
 
 from app.models import Root, Lemma, UserLemmaKnowledge
 from app.services.fsrs_service import create_new_card
+from app.services.sentence_validator import (
+    strip_diacritics as _sv_strip_diacritics,
+    normalize_alef,
+    build_lemma_lookup,
+    resolve_existing_lemma,
+)
 from app.services.variant_detection import detect_variants, detect_definite_variants, mark_variants
 
 DATA_FILE = Path(__file__).resolve().parent.parent / "app" / "data" / "duolingo_raw.json"
@@ -106,11 +112,7 @@ KNOWN_ROOTS = {
 
 def strip_diacritics(text: str) -> str:
     """Remove Arabic diacritical marks from text."""
-    # Arabic diacritics Unicode range
-    diacritics = re.compile(
-        "[\u0610-\u061A\u064B-\u065F\u0670\u06D6-\u06DC\u06DF-\u06E8\u06EA-\u06ED\u08D3-\u08FF]"
-    )
-    return diacritics.sub("", text)
+    return _sv_strip_diacritics(text)
 
 
 def strip_al_prefix(bare: str) -> str:
@@ -166,6 +168,7 @@ def run_import(db: Session) -> dict:
     imported = 0
     skipped_names = 0
     skipped_phrases = 0
+    skipped_existing = 0
     roots_created: dict[str, Root] = {}
     seen_bare: set[str] = set()
     new_lemma_ids: list[int] = []
@@ -174,9 +177,11 @@ def run_import(db: Session) -> dict:
     for root_obj in db.query(Root).all():
         roots_created[root_obj.root] = root_obj
 
-    # Load existing lemmas (bare forms) to avoid duplicates
-    for lemma_obj in db.query(Lemma).all():
-        seen_bare.add(lemma_obj.lemma_ar_bare)
+    # Build clitic-aware lemma lookup from all existing lemmas
+    all_lemmas = db.query(Lemma).all()
+    lemma_lookup = build_lemma_lookup(all_lemmas)
+    for lemma_obj in all_lemmas:
+        seen_bare.add(normalize_alef(lemma_obj.lemma_ar_bare))
 
     for lex in lexemes:
         text = lex["text"]
@@ -201,8 +206,12 @@ def run_import(db: Session) -> dict:
         # Skip if bare form matches a name (without diacritics)
         bare_no_al = strip_al_prefix(bare)
 
-        # Already imported? Check both bare and al-stripped forms
-        if bare in seen_bare or bare_no_al in seen_bare:
+        # Already imported? Check both exact bare and clitic-aware lookup
+        bare_norm = normalize_alef(bare)
+        if bare_norm in seen_bare or normalize_alef(bare_no_al) in seen_bare:
+            continue
+        if resolve_existing_lemma(bare, lemma_lookup):
+            skipped_existing += 1
             continue
 
         # Use al-stripped form as the canonical bare form
@@ -248,9 +257,11 @@ def run_import(db: Session) -> dict:
         )
         db.add(knowledge)
         new_lemma_ids.append(lemma.lemma_id)
-        seen_bare.add(canonical_bare)
+        canonical_norm = normalize_alef(canonical_bare)
+        seen_bare.add(canonical_norm)
+        lemma_lookup[canonical_norm] = lemma.lemma_id
         if bare != canonical_bare:
-            seen_bare.add(bare)
+            seen_bare.add(normalize_alef(bare))
         imported += 1
 
     # Detect and mark variants among newly imported lemmas
@@ -271,13 +282,14 @@ def run_import(db: Session) -> dict:
 
     roots_found = len(roots_created)
     print(f"Imported {imported} words, skipped {skipped_names} names, "
-          f"skipped {skipped_phrases} phrases, found {roots_found} roots, "
-          f"marked {variants_marked} variants")
+          f"skipped {skipped_phrases} phrases, skipped {skipped_existing} existing (clitic match), "
+          f"found {roots_found} roots, marked {variants_marked} variants")
 
     return {
         "imported": imported,
         "skipped_names": skipped_names,
         "skipped_phrases": skipped_phrases,
+        "skipped_existing": skipped_existing,
         "roots_found": roots_found,
         "variants_marked": variants_marked,
     }

@@ -454,7 +454,7 @@
 - [DONE] Cleanup script: `scripts/cleanup_lemma_variants.py` using CAMeL Tools to detect possessives, inflected forms, definite-form duplicates
 - [DONE] DB-aware variant disambiguation: cleanup script now iterates ALL CAMeL analyses (not just top-ranked) and picks the one whose lex matches a lemma already in the DB. Eliminates false positives like سمك→سم (fish→poison) and غرفة→غرف (room→rooms) without needing a large hardcoded never-merge list (reduced from 22 entries to 2). Helper `find_best_db_match()` in morphology.py is reusable for other disambiguation tasks.
 - Variant difficulty scheduling: if a specific variant form has a high miss rate (e.g., بنتي missed >50% of encounters), prefer sentences containing that variant to strengthen recognition
-- CAMeL Tools disambiguation in context: use MLE disambiguator for sentence-level analysis rather than single-word analyzer for more accurate lemmatization
+- [DONE] CAMeL Tools MLE disambiguator integrated: `get_best_lemma_mle()` in morphology.py, used by OCR pipeline. Single-word MLE for now; sentence-level disambiguation (passing full sentence context) is a future enhancement
 - [DONE] Import pipeline improvement: all three import scripts (duolingo, wiktionary, avp_a1) now run CAMeL Tools variant detection as a post-import pass — new lemmas are checked against all existing DB lemmas, variants get `canonical_lemma_id` set immediately. Shared logic in `app/services/variant_detection.py`.
 
 ### OCR / Textbook Scanner (2026-02-09)

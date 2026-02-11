@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 
 from app.models import Lemma
 from app.services.morphology import find_best_db_match, CAMEL_AVAILABLE
+from app.services.sentence_validator import normalize_alef
 
 
 _NEVER_MERGE = {
@@ -62,8 +63,8 @@ def detect_variants(
     all_lemmas = db.query(Lemma).filter(Lemma.canonical_lemma_id.is_(None)).all()
     bare_to_lemma: dict[str, list] = {}
     for l in all_lemmas:
-        bare = l.lemma_ar_bare or ""
-        bare_to_lemma.setdefault(bare, []).append(l)
+        bare_norm = normalize_alef(l.lemma_ar_bare or "")
+        bare_to_lemma.setdefault(bare_norm, []).append(l)
 
     known_bare_forms = set(bare_to_lemma.keys())
 
@@ -93,7 +94,7 @@ def detect_variants(
         enc0 = match["enc0"]
         analysis = match["analysis"]
 
-        candidates = bare_to_lemma.get(lex_bare, [])
+        candidates = bare_to_lemma.get(normalize_alef(lex_bare), [])
         base = None
         for c in candidates:
             if c.lemma_id == lemma.lemma_id:
@@ -149,8 +150,8 @@ def detect_definite_variants(
     all_lemmas = db.query(Lemma).filter(Lemma.canonical_lemma_id.is_(None)).all()
     bare_to_lemma: dict[str, list] = {}
     for l in all_lemmas:
-        bare = l.lemma_ar_bare or ""
-        bare_to_lemma.setdefault(bare, []).append(l)
+        bare_norm = normalize_alef(l.lemma_ar_bare or "")
+        bare_to_lemma.setdefault(bare_norm, []).append(l)
 
     if lemma_ids is not None:
         id_set = set(lemma_ids)
@@ -168,8 +169,9 @@ def detect_definite_variants(
         if not bare.startswith("ال"):
             continue
         without_al = bare[2:]
-        if without_al in bare_to_lemma:
-            for base in bare_to_lemma[without_al]:
+        without_al_norm = normalize_alef(without_al)
+        if without_al_norm in bare_to_lemma:
+            for base in bare_to_lemma[without_al_norm]:
                 if base.lemma_id == lemma.lemma_id:
                     continue
                 if base.lemma_id in already:
