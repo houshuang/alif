@@ -134,8 +134,12 @@ def cleanup(dry_run=True, verbose=False):
 
     for lemma in all_lemmas:
         cleaned, warnings = sanitize_arabic_word(lemma.lemma_ar)
-        if not warnings:
+        # Check if text changed even without warnings (punctuation stripping)
+        if not warnings and cleaned == lemma.lemma_ar:
             continue
+        # Punctuation was stripped but no structural warnings
+        if not warnings and cleaned != lemma.lemma_ar:
+            warnings = ["punct_stripped"]
 
         action: dict = {
             "lemma_id": lemma.lemma_id,
