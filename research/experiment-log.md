@@ -4,6 +4,24 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-02-11 — Review UI Polish
+
+### Changes
+- **Removed redundant missed word summary**: After revealing the answer, the card showed a separate list of missed/confused words below the transliteration. Redundant since the words are already highlighted red/yellow in the sentence text itself.
+- **Fixed root meaning text overflow**: Long root meanings (e.g. "related to cities, civilization, urbanization, settling, being refined") overflowed the word info card. Added `flexShrink: 1` to `rootMeaning` style.
+- **Fixed self-reference in root family**: The revealed word info card showed the looked-up word as its own root sibling (e.g. أيضا appearing in its own root family list). Added `lemma_id` filter to `sortedFamily` in `RevealedView`.
+- **Added Clear Cache button**: More screen now has a "Clear Cache" button that flushes all cached sessions, word lookups, and stats from AsyncStorage. Also added word lookups to `invalidateSessions()`.
+- **Pre-deploy checks in deploy.sh**: Layout lint (detects href+tabBarButton conflict) and TypeScript validation before pushing to server. Post-deploy Expo bundle check.
+
+### Files
+- `frontend/app/index.tsx` — removed missedWordSummary block
+- `frontend/lib/review/WordInfoCard.tsx` — flexShrink on rootMeaning, filter self from sortedFamily
+- `frontend/app/more.tsx` — Clear Cache button
+- `frontend/lib/offline-store.ts` — wordLookups in invalidation
+- `scripts/deploy.sh` — pre-deploy checks
+
+---
+
 ## 2026-02-11 — Garbage Root Cleanup + Root Validation Guard
 
 ### Problem

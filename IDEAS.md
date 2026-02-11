@@ -147,6 +147,9 @@
 - Four-button rating: Again / Hard / Good / Easy
 - Progress indicator: cards remaining, streak, session stats
 - Night mode for comfortable reading
+- [DONE] Removed redundant missed word summary below transliteration — words already highlighted red/yellow in sentence
+- [DONE] Root family in word info card filters out self (no longer shows looked-up word as its own sibling)
+- [DONE] Root meaning text wraps properly (flexShrink) instead of overflowing card
 
 ### Word Detail View
 - Show: Arabic (diacritized), English gloss, root, POS
@@ -232,6 +235,7 @@
 - Background sync when online: upload logs, download new content
 - Service worker for web PWA caching
 - Expo offline-first with AsyncStorage or expo-sqlite
+- [DONE] Clear Cache button in More screen: flushes sessions, word lookups, stats, analytics from AsyncStorage
 
 ### Deployment
 - Backend: Hetzner CAX11 ARM + Coolify (~$4/mo), git-push deploys
