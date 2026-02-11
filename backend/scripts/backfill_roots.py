@@ -17,7 +17,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from app.database import SessionLocal
 from app.models import Lemma, Root
-from app.services.morphology import is_valid_root
+from app.services.morphology import is_valid_root, backfill_root_meanings
 
 
 BATCH_SIZE = 20
@@ -169,6 +169,10 @@ def backfill(dry_run=False, limit=500):
         db.rollback()
         print(f"\nDry run: would update {total_done} lemmas, create {roots_created} new roots")
     else:
+        if roots_created > 0:
+            meanings_filled = backfill_root_meanings(db)
+            db.commit()
+            print(f"Backfilled {meanings_filled} root meanings")
         print(f"\nUpdated {total_done} lemmas with roots, created {roots_created} new roots")
 
     db.close()

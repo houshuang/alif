@@ -22,6 +22,52 @@ def is_valid_root(root_str: str) -> bool:
         return False
     return all(_ARABIC_LETTER_RE.match(p) for p in parts)
 
+
+def backfill_root_meanings(db) -> int:
+    """Fill in missing core_meaning_en for roots using LLM. Returns count filled."""
+    from app.models import Root, Lemma
+    from app.services.llm import generate_completion
+    import json
+
+    missing = db.query(Root).filter(
+        (Root.core_meaning_en == None) | (Root.core_meaning_en == "")
+    ).all()
+    if not missing:
+        return 0
+
+    filled = 0
+    batch_size = 20
+    for i in range(0, len(missing), batch_size):
+        batch = missing[i:i + batch_size]
+        items = []
+        for r in batch:
+            sample = db.query(Lemma).filter(Lemma.root_id == r.root_id).first()
+            items.append({
+                "root": r.root,
+                "sample_word": sample.lemma_ar_bare if sample else "",
+                "sample_gloss": sample.gloss_en if sample else "",
+            })
+
+        result = generate_completion(
+            prompt=f"For each Arabic root, provide a brief English meaning (5-10 words) describing the core semantic field.\n\nRoots:\n{json.dumps(items, ensure_ascii=False)}\n\nReturn a JSON array: [{{\"root\": \"...\", \"meaning\": \"...\"}}]",
+            system_prompt="You are an Arabic morphology expert. Return valid JSON only.",
+            json_mode=True,
+            temperature=0.0,
+        )
+
+        results = result if isinstance(result, list) else result.get("roots", result.get("results", []))
+        rmap = {r["root"]: r["meaning"] for r in results if isinstance(r, dict) and "meaning" in r}
+
+        for r in batch:
+            meaning = rmap.get(r.root)
+            if meaning:
+                r.core_meaning_en = meaning
+                filled += 1
+
+    db.flush()
+    return filled
+
+
 try:
     from camel_tools.morphology.database import MorphologyDB
     from camel_tools.morphology.analyzer import Analyzer

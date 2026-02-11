@@ -54,7 +54,7 @@ _VERBOSE_PATTERNS = [
 ]
 
 
-from app.services.morphology import is_valid_root as _is_valid_root
+from app.services.morphology import is_valid_root as _is_valid_root, backfill_root_meanings
 
 
 def validate_gloss(gloss: str | None) -> str | None:
@@ -586,7 +586,7 @@ def process_textbook_page(
                     if existing_root:
                         root_id = existing_root.root_id
                     else:
-                        new_root = Root(root=root_str, core_meaning_en=english or "")
+                        new_root = Root(root=root_str, core_meaning_en="")
                         db.add(new_root)
                         db.flush()
                         root_id = new_root.root_id
@@ -683,6 +683,10 @@ def process_textbook_page(
             total_extracted=len(extracted),
             variants_detected=variants_detected,
         )
+
+        # Backfill root meanings for any newly created roots
+        backfill_root_meanings(db)
+        db.commit()
 
         # Trigger sentence generation for new words (skip variants)
         gen_ids = [lid for lid in new_lemma_ids if lid not in variant_ids]

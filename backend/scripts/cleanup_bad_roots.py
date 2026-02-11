@@ -17,7 +17,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from app.database import SessionLocal
 from app.models import Lemma, Root, UserLemmaKnowledge, ReviewLog, SentenceWord, StoryWord
 from app.services.llm import generate_completion
-from app.services.morphology import is_valid_root
+from app.services.morphology import is_valid_root, backfill_root_meanings
 
 
 def find_bad_roots(db):
@@ -198,8 +198,11 @@ def main():
                 if remaining == 0:
                     db.delete(root)
                     orphaned += 1
+            meanings_filled = backfill_root_meanings(db)
             db.commit()
             print(f"\nDeleted {orphaned} orphaned bad roots")
+            if meanings_filled:
+                print(f"Backfilled {meanings_filled} root meanings")
 
         print(f"\nDone. Fixed: {fixed}, Variants found: {variants_found}")
         if args.dry_run:

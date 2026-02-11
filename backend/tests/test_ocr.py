@@ -121,11 +121,12 @@ class TestOCRService:
         assert result == []
 
 
+@patch("app.services.ocr_service.backfill_root_meanings", return_value=0)
 class TestProcessTextbookPage:
     """Tests for the textbook page processing logic."""
 
     @patch("app.services.ocr_service.extract_words_from_image")
-    def test_process_finds_existing_words(self, mock_extract, db_session):
+    def test_process_finds_existing_words(self, mock_extract, mock_backfill, db_session):
         from app.services.ocr_service import process_textbook_page
 
         lemma_ids = _seed_words(db_session)
@@ -153,7 +154,7 @@ class TestProcessTextbookPage:
         assert ulk.total_encounters == 6  # was 5, now 6
 
     @patch("app.services.ocr_service.extract_words_from_image")
-    def test_process_imports_new_words(self, mock_extract, db_session):
+    def test_process_imports_new_words(self, mock_extract, mock_backfill, db_session):
         from app.services.ocr_service import process_textbook_page
 
         _seed_words(db_session)
@@ -192,7 +193,7 @@ class TestProcessTextbookPage:
         assert ulk.source == "textbook_scan"
 
     @patch("app.services.ocr_service.extract_words_from_image")
-    def test_process_mixed_new_and_existing(self, mock_extract, db_session):
+    def test_process_mixed_new_and_existing(self, mock_extract, mock_backfill, db_session):
         from app.services.ocr_service import process_textbook_page
 
         _seed_words(db_session)
@@ -214,7 +215,7 @@ class TestProcessTextbookPage:
         assert upload.new_words == 2  # جميل + قلم
 
     @patch("app.services.ocr_service.extract_words_from_image")
-    def test_process_deduplicates_within_page(self, mock_extract, db_session):
+    def test_process_deduplicates_within_page(self, mock_extract, mock_backfill, db_session):
         from app.services.ocr_service import process_textbook_page
 
         _seed_words(db_session)
@@ -233,7 +234,7 @@ class TestProcessTextbookPage:
         assert upload.new_words == 1  # Only one, not two
 
     @patch("app.services.ocr_service.extract_words_from_image")
-    def test_process_skips_function_words(self, mock_extract, db_session):
+    def test_process_skips_function_words(self, mock_extract, mock_backfill, db_session):
         from app.services.ocr_service import process_textbook_page
 
         upload = PageUpload(batch_id="testfunc", filename="page5.jpg", status="pending")
@@ -252,7 +253,7 @@ class TestProcessTextbookPage:
         assert upload.existing_words == 0
 
     @patch("app.services.ocr_service.extract_words_from_image")
-    def test_process_handles_empty_extraction(self, mock_extract, db_session):
+    def test_process_handles_empty_extraction(self, mock_extract, mock_backfill, db_session):
         from app.services.ocr_service import process_textbook_page
 
         upload = PageUpload(batch_id="testempty", filename="blank.jpg", status="pending")
@@ -268,7 +269,7 @@ class TestProcessTextbookPage:
         assert upload.existing_words == 0
 
     @patch("app.services.ocr_service.extract_words_from_image")
-    def test_process_handles_failure(self, mock_extract, db_session):
+    def test_process_handles_failure(self, mock_extract, mock_backfill, db_session):
         from app.services.ocr_service import process_textbook_page
 
         upload = PageUpload(batch_id="testfail", filename="bad.jpg", status="pending")
@@ -283,7 +284,7 @@ class TestProcessTextbookPage:
         assert "Gemini API error" in upload.error_message
 
     @patch("app.services.ocr_service.extract_words_from_image")
-    def test_process_creates_ulk_for_existing_lemma_without_knowledge(self, mock_extract, db_session):
+    def test_process_creates_ulk_for_existing_lemma_without_knowledge(self, mock_extract, mock_backfill, db_session):
         """When a lemma exists but has no ULK record, process should create one."""
         from app.services.ocr_service import process_textbook_page
 
@@ -312,11 +313,12 @@ class TestProcessTextbookPage:
         assert ulk.knowledge_state == "learning"
 
 
+@patch("app.services.ocr_service.backfill_root_meanings", return_value=0)
 class TestBaseLemmaHandling:
     """Tests for base_lemma-aware import in OCR pipeline."""
 
     @patch("app.services.ocr_service.extract_words_from_image")
-    def test_process_uses_base_lemma_for_lookup(self, mock_extract, db_session):
+    def test_process_uses_base_lemma_for_lookup(self, mock_extract, mock_backfill, db_session):
         """When base_lemma matches an existing lemma, should find it (not create new)."""
         from app.services.ocr_service import process_textbook_page
 
@@ -359,7 +361,7 @@ class TestBaseLemmaHandling:
         assert ulk.total_encounters == 4  # was 3, now 4
 
     @patch("app.services.ocr_service.extract_words_from_image")
-    def test_process_imports_base_form_not_conjugated(self, mock_extract, db_session):
+    def test_process_imports_base_form_not_conjugated(self, mock_extract, mock_backfill, db_session):
         """When creating a new word with base_lemma, should use base form for lemma_ar_bare."""
         from app.services.ocr_service import process_textbook_page
 
@@ -382,7 +384,7 @@ class TestBaseLemmaHandling:
         assert new_lemma.lemma_ar_bare == "بدا"  # base form, not تبداون
 
     @patch("app.services.ocr_service.extract_words_from_image")
-    def test_process_deduplicates_on_base_lemma(self, mock_extract, db_session):
+    def test_process_deduplicates_on_base_lemma(self, mock_extract, mock_backfill, db_session):
         """Two conjugated forms with the same base_lemma should produce one import."""
         from app.services.ocr_service import process_textbook_page
 
@@ -408,7 +410,7 @@ class TestBaseLemmaHandling:
         assert upload.new_words == 1  # only one, not two
 
     @patch("app.services.ocr_service.extract_words_from_image")
-    def test_process_falls_back_to_bare_when_no_base_lemma(self, mock_extract, db_session):
+    def test_process_falls_back_to_bare_when_no_base_lemma(self, mock_extract, mock_backfill, db_session):
         """When base_lemma is None, should behave as before (use bare)."""
         from app.services.ocr_service import process_textbook_page
 
@@ -431,7 +433,7 @@ class TestBaseLemmaHandling:
     @patch("app.services.ocr_service._step3_translate")
     @patch("app.services.ocr_service._step2_morphology")
     @patch("app.services.ocr_service._step1_extract_words")
-    def test_extract_words_passes_base_lemma(self, mock_step1, mock_step2, mock_step3):
+    def test_extract_words_passes_base_lemma(self, mock_step1, mock_step2, mock_step3, mock_backfill):
         """extract_words_from_image should include base_lemma in output."""
         from app.services.ocr_service import extract_words_from_image
 
@@ -453,7 +455,7 @@ class TestBaseLemmaHandling:
     @patch("app.services.ocr_service._step3_translate")
     @patch("app.services.ocr_service._step2_morphology")
     @patch("app.services.ocr_service._step1_extract_words")
-    def test_extract_words_deduplicates_on_base_lemma(self, mock_step1, mock_step2, mock_step3):
+    def test_extract_words_deduplicates_on_base_lemma(self, mock_step1, mock_step2, mock_step3, mock_backfill):
         """Two conjugated forms with the same base_lemma should produce one output."""
         from app.services.ocr_service import extract_words_from_image
 
