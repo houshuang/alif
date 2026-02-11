@@ -4,6 +4,41 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-02-11 — Design Pass: Stories & Words Screens
+
+### Problem
+Stories list and words list screens looked dated compared to the recently polished review, learn, and word detail screens. Specific issues:
+- **Stories**: Small Arabic titles (20px with 0.85 opacity), cramped card layout, centered modals (not bottom-sheet), bare trash icon for delete, thin progress bars, text-only badges, small action buttons
+- **Words**: No search icon, wrapping filter chips (messy on mobile), small Arabic text (20px), single-letter state badges ("K" instead of "Known"), no clear button on search
+
+### Changes
+**Stories screen** (`frontend/app/stories.tsx`):
+- Arabic titles: 20px → 24px with proper Scheherazade font, removed opacity reduction, added lineHeight 34
+- Cards: padding 16→18, borderRadius 12→14, restructured with cardHeader/cardTitleArea/cardFooter layout
+- Modals: centered → bottom-sheet style (justifyContent flex-end, top-rounded corners 20px), added close X button in header, tap-outside-to-dismiss via overlay pressable
+- Delete button: bare trash icon → circular surfaceLight button with close icon (28x28)
+- Badges: added inline icons (sparkles for generated, clipboard for imported), added status badges for non-active stories
+- Progress bar: 4px → 5px
+- Action buttons: paddingVertical 12→14, borderRadius 10→12, gap 10→12
+- Empty state: larger icon (48→56), better text hierarchy
+- Generating state: replaced ActivityIndicator with sparkles icon
+
+**Words screen** (`frontend/app/words.tsx`):
+- Search: wrapped in container with Ionicons search icon + clear (close-circle) button
+- Filters: wrapping View → horizontal ScrollView (no more line-wrapping on mobile)
+- Arabic text: 20px → 24px (`arabicMedium`) with lineHeight 36
+- English gloss: 14px secondary → 15px with medium weight (more readable)
+- State badges: single letter on solid color → full word ("Known", "Learning") on tinted background (color + "20" alpha)
+- POS shown in accent color as distinct metadata element
+- Word rows: padding 14→16, borderRadius 10→12
+- Added proper empty state with icon + contextual hint text
+- Added error state with warning icon
+
+### Expected Effect
+Visual consistency across all main screens. No behavioral or algorithmic changes.
+
+---
+
 ## 2026-02-11 — Review UI Polish
 
 ### Changes

@@ -182,6 +182,8 @@
 - [DONE] Sort by review status: failed words first (red tint + border), then passed (green), then unseen
 - [DONE] Show review stats per word: "Seen 3x · 2 correct · 1 failed" with colored counts
 - [DONE] "Reviewed" filter chip, knowledge score display, refresh on tab focus
+- [DONE] Search icon + clear button, horizontally scrollable filter chips, full state names in badges
+- Shared design system: extract common card/button/badge styles into theme.ts or shared components to prevent screens drifting apart visually
 
 ### Text Reader View
 - Display Arabic text with word-level tap interactions
@@ -376,6 +378,7 @@
 - [DONE] Story reading UI: full-screen Arabic with word-level tapping, fixed translation panel, Arabic/English tab toggle
 - [DONE] Story completion: complete (FSRS credit for all words), skip (no effect), too difficult (mark for later)
 - [DONE] Story list with readiness indicators (green/yellow/red), generate + import buttons
+- [DONE] Story list design polish: bottom-sheet modals, larger Arabic titles (24px), icon badges, refined card layout
 - Graded text mode supporting 95-98% vocabulary coverage for extensive reading
 - Narrow reading: offer multiple texts on the same topic to recycle vocabulary
 - Story series with recurring characters/themes for context building
