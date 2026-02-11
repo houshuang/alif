@@ -187,7 +187,7 @@ def run_import(db: Session) -> dict:
         # Sanitize: strip punctuation, reject multi-word
         from app.services.sentence_validator import sanitize_arabic_word
         text, san_warnings = sanitize_arabic_word(text)
-        if not text or "multi_word" in san_warnings:
+        if not text or "multi_word" in san_warnings or "too_short" in san_warnings:
             skipped_phrases += 1
             continue
 

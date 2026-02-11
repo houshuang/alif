@@ -52,8 +52,8 @@ def generate_material_for_word(lemma_id: int, needed: int) -> None:
 
         lemma_lookup = build_lemma_lookup(all_lemmas)
         # Defensive: clean target word in case DB has dirty data
-        clean_target, _ = sanitize_arabic_word(lemma.lemma_ar)
-        if not clean_target or " " in clean_target:
+        clean_target, san_warnings = sanitize_arabic_word(lemma.lemma_ar)
+        if not clean_target or " " in clean_target or "too_short" in san_warnings:
             logger.warning(
                 f"Skipping generation for uncleanable lemma {lemma_id}: {lemma.lemma_ar!r}"
             )

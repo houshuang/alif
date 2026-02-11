@@ -132,13 +132,10 @@ def parse_entries(cache_path: Path) -> list[dict]:
             # Sanitize: strip punctuation, reject multi-word
             from app.services.sentence_validator import sanitize_arabic_word
             word, san_warnings = sanitize_arabic_word(word)
-            if not word or "multi_word" in san_warnings:
+            if not word or "multi_word" in san_warnings or "too_short" in san_warnings:
                 continue
 
-            # Skip very short words (likely particles)
             bare = strip_diacritics(word)
-            if len(bare) < 2:
-                continue
 
             # Deduplicate by bare form
             if bare in seen_bare:

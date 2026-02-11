@@ -129,6 +129,13 @@ def sanitize_arabic_word(text: str) -> tuple[str, list[str]]:
     if not cleaned:
         return "", ["empty_after_clean"]
 
+    # Reject single-character bare forms — typically abbreviations
+    # (ج for plural, ص for page, م for year, etc.) not real vocabulary
+    bare = normalize_arabic(cleaned)
+    if len(bare) < 2:
+        warnings.append("too_short")
+        return cleaned, warnings
+
     return cleaned, warnings
 
 

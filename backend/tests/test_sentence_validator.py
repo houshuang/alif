@@ -733,6 +733,24 @@ class TestSanitizeArabicWord:
         assert result == "كتاب"
         assert warnings == []
 
+    def test_single_char_abbreviation(self):
+        """Single-character bare forms are abbreviations (ج=plural, ص=page)."""
+        result, warnings = sanitize_arabic_word("ج")
+        assert result == "ج"
+        assert "too_short" in warnings
+
+    def test_single_char_with_diacritics(self):
+        """Even with diacritics, single bare-char words are abbreviations."""
+        result, warnings = sanitize_arabic_word("جٌ")
+        assert result == "جٌ"
+        assert "too_short" in warnings
+
+    def test_two_char_word_ok(self):
+        """Two-character words are valid (e.g. من, في, هو)."""
+        result, warnings = sanitize_arabic_word("مِن")
+        assert result == "مِن"
+        assert "too_short" not in warnings
+
 
 class TestComputeBareForm:
     def test_basic(self):

@@ -230,10 +230,17 @@ def step_backfill_sentences(db: Session, dry_run: bool, model: str, delay: float
 # ── Step B: Generate audio for review-eligible sentences ─────────────
 
 def get_audio_eligible_sentences(db: Session) -> list[Sentence]:
-    """A sentence is audio-eligible if every word in it has been reviewed correctly ≥1 time."""
+    """A sentence is audio-eligible when it's approaching listening readiness.
+
+    To be conservative with TTS costs, we only generate audio for sentences
+    where every word has stability >= 3 days and times_seen >= 3 — meaning
+    the user knows the words well enough that listening practice is near.
+    """
+    import json as _json
+
     sentences = (
         db.query(Sentence)
-        .filter(Sentence.audio_url.is_(None))
+        .filter(Sentence.audio_url.is_(None), Sentence.is_active == True)  # noqa: E712
         .all()
     )
 
@@ -243,7 +250,7 @@ def get_audio_eligible_sentences(db: Session) -> list[Sentence]:
         if not words:
             continue
 
-        all_reviewed = True
+        ready = True
         for sw in words:
             if sw.lemma_id is None:
                 continue
@@ -252,11 +259,22 @@ def get_audio_eligible_sentences(db: Session) -> list[Sentence]:
                 .filter(UserLemmaKnowledge.lemma_id == sw.lemma_id)
                 .first()
             )
-            if not ulk or ulk.times_correct < 1:
-                all_reviewed = False
+            if not ulk or (ulk.times_seen or 0) < 3:
+                ready = False
+                break
+            # Check FSRS stability >= 3 days
+            if ulk.fsrs_card_json:
+                card = ulk.fsrs_card_json
+                if isinstance(card, str):
+                    card = _json.loads(card)
+                if card.get("stability", 0) < 3.0:
+                    ready = False
+                    break
+            else:
+                ready = False
                 break
 
-        if all_reviewed:
+        if ready:
             eligible.append(sent)
 
     return eligible

@@ -263,7 +263,7 @@ def _step1_extract_words(image_bytes: bytes) -> list[str]:
     cleaned = []
     for w in raw:
         sanitized, warnings = sanitize_arabic_word(w)
-        if sanitized and "multi_word" not in warnings:
+        if sanitized and "multi_word" not in warnings and "too_short" not in warnings:
             cleaned.append(sanitized)
     return cleaned
 
@@ -466,7 +466,7 @@ def process_textbook_page(
 
             # Sanitize: strip punctuation, reject multi-word
             arabic, san_warnings = sanitize_arabic_word(arabic)
-            if not arabic or "multi_word" in san_warnings:
+            if not arabic or "multi_word" in san_warnings or "too_short" in san_warnings:
                 continue
 
             # Compute bare form
