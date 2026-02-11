@@ -16,10 +16,33 @@ import { getWords, getFunctionWords, getProperNames, ProperName } from "../lib/a
 import { Word } from "../lib/types";
 
 type CategoryTab = "vocab" | "function" | "names";
-type StateFilter = "all" | "learning" | "known" | "new" | "lapsed" | "suspended";
+type SmartFilter = "all" | "leeches" | "struggling" | "recent" | "solid" | "learning" | "known" | "new" | "lapsed";
 
-const STATE_FILTERS: { key: StateFilter; label: string }[] = [
+function isLeech(w: Word): boolean {
+  return w.times_seen >= 6 && w.times_correct / w.times_seen < 0.5;
+}
+
+function isStruggling(w: Word): boolean {
+  const ratings = w.last_ratings || [];
+  if (ratings.length < 3) return false;
+  const recent = ratings.slice(-4);
+  return recent.filter((r) => r < 3).length >= 2;
+}
+
+function isRecent(w: Word): boolean {
+  return w.state === "learning" && w.times_seen <= 4;
+}
+
+function isSolid(w: Word): boolean {
+  return w.knowledge_score >= 70;
+}
+
+const SMART_FILTERS: { key: SmartFilter; label: string; icon?: string }[] = [
   { key: "all", label: "All" },
+  { key: "leeches", label: "Leeches" },
+  { key: "struggling", label: "Struggling" },
+  { key: "recent", label: "Recent" },
+  { key: "solid", label: "Solid" },
   { key: "learning", label: "Learning" },
   { key: "known", label: "Known" },
   { key: "new", label: "New" },
@@ -44,7 +67,7 @@ export default function WordsScreen() {
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState<CategoryTab>("vocab");
-  const [stateFilter, setStateFilter] = useState<StateFilter>("all");
+  const [stateFilter, setStateFilter] = useState<SmartFilter>("all");
   const router = useRouter();
   const { width } = useWindowDimensions();
   const numColumns = width > 500 ? 3 : 2;
@@ -77,7 +100,13 @@ export default function WordsScreen() {
 
   const counts = useMemo(() => {
     const c: Record<string, number> = { all: words.length };
-    for (const w of words) c[w.state] = (c[w.state] || 0) + 1;
+    for (const w of words) {
+      c[w.state] = (c[w.state] || 0) + 1;
+      if (isLeech(w)) c.leeches = (c.leeches || 0) + 1;
+      if (isStruggling(w)) c.struggling = (c.struggling || 0) + 1;
+      if (isRecent(w)) c.recent = (c.recent || 0) + 1;
+      if (isSolid(w)) c.solid = (c.solid || 0) + 1;
+    }
     return c;
   }, [words]);
 
@@ -85,7 +114,23 @@ export default function WordsScreen() {
     const source = category === "function" ? funcWords : words;
     let result = source;
     if (category === "vocab" && stateFilter !== "all") {
-      result = result.filter((w) => w.state === stateFilter);
+      const smartFilters: Record<string, (w: Word) => boolean> = {
+        leeches: isLeech,
+        struggling: isStruggling,
+        recent: isRecent,
+        solid: isSolid,
+      };
+      const filterFn = smartFilters[stateFilter];
+      if (filterFn) {
+        result = result.filter(filterFn);
+        if (stateFilter === "leeches") {
+          result.sort((a, b) => (a.times_correct / (a.times_seen || 1)) - (b.times_correct / (b.times_seen || 1)));
+        } else if (stateFilter === "solid") {
+          result.sort((a, b) => b.knowledge_score - a.knowledge_score);
+        }
+      } else {
+        result = result.filter((w) => w.state === stateFilter);
+      }
     }
     if (search.trim()) {
       const q = search.trim().toLowerCase();
@@ -254,10 +299,10 @@ export default function WordsScreen() {
         ))}
       </View>
 
-      {/* State filters (vocab tab only) */}
+      {/* Smart filters (vocab tab only) */}
       {category === "vocab" && (
         <View style={styles.filterRow}>
-          {STATE_FILTERS.map((f) => {
+          {SMART_FILTERS.map((f) => {
             const count = counts[f.key] || 0;
             if (f.key !== "all" && count === 0) return null;
             const active = stateFilter === f.key;
