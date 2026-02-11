@@ -133,6 +133,33 @@ export default function WordDetailScreen() {
         ))}
       </Text>
 
+      {word.source_info && (
+        <Pressable
+          style={styles.provenanceBadge}
+          onPress={word.source_info.story_id ? () => router.push(`/story/${word.source_info!.story_id}`) : undefined}
+        >
+          <Ionicons
+            name={word.source_info.type === "story_import" ? "book-outline" : word.source_info.type === "textbook_scan" ? "scan-outline" : "download-outline"}
+            size={13}
+            color={colors.textSecondary}
+          />
+          <Text style={styles.provenanceText}>
+            {word.source_info.type === "story_import" && word.source_info.story_title
+              ? `From story: ${word.source_info.story_title}`
+              : word.source_info.type === "textbook_scan"
+                ? "From textbook scan"
+                : word.source_info.type === "duolingo"
+                  ? "From Duolingo import"
+                  : word.source_info.type === "wiktionary"
+                    ? "From Wiktionary"
+                    : `Source: ${word.source_info.type}`}
+          </Text>
+          {word.source_info.story_id && (
+            <Ionicons name="chevron-forward" size={13} color={colors.textSecondary} />
+          )}
+        </Pressable>
+      )}
+
       {(displayForms.length > 0 || word.grammar_features.length > 0) && (
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Grammar</Text>
@@ -318,6 +345,21 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: colors.textSecondary,
     marginTop: 8,
+  },
+  provenanceBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginTop: 10,
+    backgroundColor: colors.surfaceLight,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    alignSelf: "flex-start",
+  },
+  provenanceText: {
+    fontSize: 13,
+    color: colors.textSecondary,
   },
   section: {
     width: "100%",

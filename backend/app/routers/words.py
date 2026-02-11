@@ -12,6 +12,7 @@ from app.models import (
     ReviewLog,
     Sentence,
     SentenceWord,
+    Story,
     UserLemmaKnowledge,
 )
 from app.services.fsrs_service import create_new_card
@@ -264,6 +265,16 @@ def get_word(lemma_id: int, db: Session = Depends(get_db)):
     grammar_keys = _coerce_grammar_keys(lemma.grammar_features_json)
     grammar_details = _build_grammar_details(db, grammar_keys)
 
+    # Build provenance info
+    source_info = None
+    if lemma.source:
+        source_info = {"type": lemma.source}
+        if lemma.source == "story_import" and lemma.source_story_id:
+            story = db.query(Story).filter(Story.id == lemma.source_story_id).first()
+            if story:
+                source_info["story_id"] = story.id
+                source_info["story_title"] = story.title_en or story.title_ar or "Untitled"
+
     return {
         "lemma_id": lemma.lemma_id,
         "lemma_ar": lemma.lemma_ar,
@@ -284,6 +295,7 @@ def get_word(lemma_id: int, db: Session = Depends(get_db)):
         "root_family": root_family,
         "review_history": review_history,
         "sentence_stats": sentence_stats,
+        "source_info": source_info,
     }
 
 

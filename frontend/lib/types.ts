@@ -87,6 +87,12 @@ export interface WordSentenceStat {
   last_reviewed_at: string | null;
 }
 
+export interface SourceInfo {
+  type: string;
+  story_id?: number;
+  story_title?: string;
+}
+
 export interface WordDetail extends Word {
   times_reviewed: number;
   correct_count: number;
@@ -95,6 +101,7 @@ export interface WordDetail extends Word {
   root_family: { id: number; arabic: string; english: string }[];
   review_history: ReviewHistoryEntry[];
   sentence_stats: WordSentenceStat[];
+  source_info?: SourceInfo | null;
 }
 
 export interface Stats {

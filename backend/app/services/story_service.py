@@ -10,7 +10,9 @@ from datetime import datetime, timezone
 
 from sqlalchemy.orm import Session
 
-from app.models import Lemma, UserLemmaKnowledge, Story, StoryWord
+import logging
+
+from app.models import Lemma, Root, UserLemmaKnowledge, Story, StoryWord
 from app.services.fsrs_service import submit_review
 from app.services.interaction_logger import log_interaction
 from app.services.llm import (
@@ -34,7 +36,9 @@ from app.services.sentence_validator import (
     _is_function_word,
     lookup_lemma,
 )
-from app.services.morphology import find_best_db_match
+from app.services.morphology import find_best_db_match, get_word_features, is_valid_root
+
+logger = logging.getLogger(__name__)
 
 KNOWN_SAMPLE_SIZE = 80
 MAX_NEW_WORDS_IN_STORY = 5
@@ -197,6 +201,198 @@ def _create_story_words(
     return total, known, func
 
 
+def _import_unknown_words(
+    db: Session,
+    story: Story,
+    lemma_lookup: dict[str, int],
+) -> list[int]:
+    """Create Lemma entries for unknown words in a story.
+
+    For words with lemma_id=None (excluding function words), uses CAMeL morphology
+    + LLM batch translation to create proper Lemma (+ Root) entries.
+    Does NOT create ULK — words become Learn mode candidates via story_bonus.
+
+    Returns list of newly created lemma_ids.
+    """
+    # Collect unknown surface forms
+    unknown_words: list[StoryWord] = []
+    seen_bares: set[str] = set()
+    for sw in story.words:
+        if sw.lemma_id is not None or sw.is_function_word:
+            continue
+        bare = normalize_alef(strip_diacritics(sw.surface_form))
+        if bare in seen_bares or len(bare) < 2:
+            continue
+        seen_bares.add(bare)
+        unknown_words.append(sw)
+
+    if not unknown_words:
+        return []
+
+    # Step 1: CAMeL morphological analysis for each unknown word
+    word_analyses: list[dict] = []
+    for sw in unknown_words:
+        features = get_word_features(sw.surface_form)
+        lex_bare = strip_diacritics(features.get("lex", sw.surface_form))
+        lex_norm = normalize_alef(lex_bare)
+        # Check if the base lemma from CAMeL already exists in DB
+        existing_id = lemma_lookup.get(lex_norm)
+        if existing_id:
+            # CAMeL resolved it to a known lemma — update StoryWord
+            sw.lemma_id = existing_id
+            lemma = db.query(Lemma).filter(Lemma.lemma_id == existing_id).first()
+            if lemma:
+                sw.gloss_en = lemma.gloss_en
+            continue
+        word_analyses.append({
+            "story_word": sw,
+            "surface": sw.surface_form,
+            "lex": features.get("lex", sw.surface_form),
+            "lex_bare": lex_bare,
+            "lex_norm": lex_norm,
+            "root": features.get("root"),
+            "pos": features.get("pos", "UNK"),
+        })
+
+    if not word_analyses:
+        db.flush()
+        return []
+
+    # Step 2: LLM batch translation
+    gloss_map: dict[str, dict] = {}
+    try:
+        words_list = "، ".join(a["surface"] for a in word_analyses)
+        context = ""
+        if story.body_en:
+            context = f"\n\nEnglish translation for context:\n{story.body_en[:500]}"
+
+        result = generate_completion(
+            prompt=f"""Given these Arabic words from a story, provide their English translation and part of speech.
+
+Arabic story excerpt:
+{story.body_ar[:500]}
+{context}
+
+Words to translate: {words_list}
+
+Respond with JSON array: [{{"arabic": "...", "english": "short English gloss", "pos": "noun/verb/adj/adv/prep/conj"}}]""",
+            system_prompt="You translate Arabic words to English. Give concise, dictionary-style glosses (1-3 words). Respond with JSON only.",
+            json_mode=True,
+        )
+
+        # Result may be a list or a dict with a list inside
+        items = result if isinstance(result, list) else result.get("words", result.get("translations", []))
+        if isinstance(items, list):
+            for item in items:
+                arabic = item.get("arabic", "")
+                bare = normalize_alef(strip_diacritics(arabic))
+                gloss_map[bare] = {
+                    "english": item.get("english", ""),
+                    "pos": item.get("pos"),
+                }
+    except (AllProvidersFailed, Exception) as e:
+        logger.warning("LLM translation failed for story %d unknown words: %s", story.id, e)
+
+    # Step 3: Create Root + Lemma entries
+    new_lemma_ids: list[int] = []
+    for analysis in word_analyses:
+        lex_norm = analysis["lex_norm"]
+        lex_bare = analysis["lex_bare"]
+        sw = analysis["story_word"]
+
+        # Get gloss from LLM (fall back to empty)
+        surface_bare = normalize_alef(strip_diacritics(sw.surface_form))
+        gloss_data = gloss_map.get(surface_bare, gloss_map.get(lex_norm, {}))
+        english = gloss_data.get("english", "")
+        pos = gloss_data.get("pos") or analysis["pos"]
+        if pos == "UNK":
+            pos = None
+
+        # Find or create root
+        root_id = None
+        root_str = analysis.get("root")
+        if root_str and is_valid_root(root_str):
+            existing_root = db.query(Root).filter(Root.root == root_str).first()
+            if existing_root:
+                root_id = existing_root.root_id
+            else:
+                new_root = Root(root=root_str, core_meaning_en="")
+                db.add(new_root)
+                db.flush()
+                root_id = new_root.root_id
+
+        # Dedup check: another word in this batch may have created the same lemma
+        if lex_norm in lemma_lookup:
+            existing_id = lemma_lookup[lex_norm]
+            sw.lemma_id = existing_id
+            lemma = db.query(Lemma).filter(Lemma.lemma_id == existing_id).first()
+            if lemma:
+                sw.gloss_en = lemma.gloss_en
+            continue
+
+        new_lemma = Lemma(
+            lemma_ar=analysis["lex"],
+            lemma_ar_bare=lex_bare,
+            root_id=root_id,
+            pos=pos,
+            gloss_en=english,
+            source="story_import",
+            source_story_id=story.id,
+        )
+        db.add(new_lemma)
+        db.flush()
+
+        # Update lookup for dedup within batch
+        lemma_lookup[lex_norm] = new_lemma.lemma_id
+        if lex_norm != surface_bare:
+            lemma_lookup[surface_bare] = new_lemma.lemma_id
+
+        # Update all StoryWords with matching bare form
+        for other_sw in story.words:
+            if other_sw.lemma_id is not None:
+                continue
+            other_bare = normalize_alef(strip_diacritics(other_sw.surface_form))
+            if other_bare == surface_bare or other_bare == lex_norm:
+                other_sw.lemma_id = new_lemma.lemma_id
+                other_sw.gloss_en = english
+
+        new_lemma_ids.append(new_lemma.lemma_id)
+
+    db.flush()
+
+    # Step 4: Run variant detection on new lemmas
+    if new_lemma_ids:
+        try:
+            from app.services.variant_detection import (
+                detect_variants_llm,
+                detect_definite_variants,
+            )
+            detect_definite_variants(db, lemma_ids=new_lemma_ids)
+            detect_variants_llm(db, lemma_ids=new_lemma_ids)
+        except Exception as e:
+            logger.warning("Variant detection failed for story %d: %s", story.id, e)
+
+    return new_lemma_ids
+
+
+def _recalculate_story_counts(db: Session, story: Story) -> None:
+    """Recalculate total_words, known_count, unknown_count, readiness_pct from StoryWords."""
+    knowledge_map = _build_knowledge_map(db)
+    total = 0
+    known = 0
+    func = 0
+    for sw in story.words:
+        total += 1
+        if sw.is_function_word:
+            func += 1
+        elif sw.lemma_id and knowledge_map.get(sw.lemma_id) in ("learning", "known"):
+            known += 1
+    story.total_words = total
+    story.known_count = known
+    story.unknown_count = total - known - func
+    story.readiness_pct = round((known + func) / total * 100, 1) if total > 0 else 0
+
+
 def _build_knowledge_map(db: Session) -> dict[int, str]:
     """Build lemma_id -> knowledge_state map."""
     rows = db.query(UserLemmaKnowledge).all()
@@ -323,10 +519,11 @@ Respond with JSON: {{"title_ar": "...", "title_en": "...", "body_ar": "full stor
         db, story, body_ar, lemma_lookup, knowledge_map
     )
 
-    story.total_words = total
-    story.known_count = known
-    story.unknown_count = total - known - func
-    story.readiness_pct = round((known + func) / total * 100, 1) if total > 0 else 0
+    # Import unknown words (creates Lemma entries, no ULK)
+    new_ids = _import_unknown_words(db, story, lemma_lookup)
+
+    # Recalculate readiness now that unknown words have lemma_ids
+    _recalculate_story_counts(db, story)
 
     db.commit()
     db.refresh(story)
@@ -334,9 +531,10 @@ Respond with JSON: {{"title_ar": "...", "title_en": "...", "body_ar": "full stor
     log_interaction(
         event="story_generated",
         story_id=story.id,
-        total_words=total,
-        known_count=known,
+        total_words=story.total_words,
+        known_count=story.known_count,
         readiness_pct=story.readiness_pct,
+        new_words_imported=len(new_ids),
     )
 
     return story
@@ -390,10 +588,11 @@ def import_story(
         db, story, arabic_text, lemma_lookup, knowledge_map
     )
 
-    story.total_words = total
-    story.known_count = known
-    story.unknown_count = total - known - func
-    story.readiness_pct = round((known + func) / total * 100, 1) if total > 0 else 0
+    # Import unknown words (creates Lemma entries, no ULK)
+    new_ids = _import_unknown_words(db, story, lemma_lookup)
+
+    # Recalculate readiness now that unknown words have lemma_ids
+    _recalculate_story_counts(db, story)
 
     db.commit()
     db.refresh(story)
@@ -401,9 +600,10 @@ def import_story(
     log_interaction(
         event="story_imported",
         story_id=story.id,
-        total_words=total,
-        known_count=known,
+        total_words=story.total_words,
+        known_count=story.known_count,
         readiness_pct=story.readiness_pct,
+        new_words_imported=len(new_ids),
     )
 
     return story
@@ -508,14 +708,7 @@ def complete_story(
     again_count = 0
 
     for sw in story.words:
-        if not sw.lemma_id or sw.lemma_id in reviewed_lemmas:
-            continue
-        ulk = (
-            db.query(UserLemmaKnowledge)
-            .filter(UserLemmaKnowledge.lemma_id == sw.lemma_id)
-            .first()
-        )
-        if not ulk:
+        if not sw.lemma_id or sw.is_function_word or sw.lemma_id in reviewed_lemmas:
             continue
 
         reviewed_lemmas.add(sw.lemma_id)
@@ -526,7 +719,7 @@ def complete_story(
             rating = 3
             good_count += 1
 
-        # Deterministic ID keeps retries idempotent per story+lemma.
+        # submit_review auto-creates ULK if needed (source="encountered")
         submit_review(
             db,
             lemma_id=sw.lemma_id,
@@ -584,20 +777,14 @@ def skip_story(
     again_count = 0
     if looked_up_lemma_ids:
         for lid in set(looked_up_lemma_ids):
-            ulk = (
-                db.query(UserLemmaKnowledge)
-                .filter(UserLemmaKnowledge.lemma_id == lid)
-                .first()
+            submit_review(
+                db,
+                lemma_id=lid,
+                rating_int=1,
+                review_mode="reading",
+                client_review_id=f"story:{story_id}:skip:{lid}",
             )
-            if ulk:
-                submit_review(
-                    db,
-                    lemma_id=lid,
-                    rating_int=1,
-                    review_mode="reading",
-                    client_review_id=f"story:{story_id}:skip:{lid}",
-                )
-                again_count += 1
+            again_count += 1
 
     story.status = "skipped"
     db.commit()
@@ -642,20 +829,14 @@ def too_difficult_story(
     again_count = 0
     if looked_up_lemma_ids:
         for lid in set(looked_up_lemma_ids):
-            ulk = (
-                db.query(UserLemmaKnowledge)
-                .filter(UserLemmaKnowledge.lemma_id == lid)
-                .first()
+            submit_review(
+                db,
+                lemma_id=lid,
+                rating_int=1,
+                review_mode="reading",
+                client_review_id=f"story:{story_id}:too_difficult:{lid}",
             )
-            if ulk:
-                submit_review(
-                    db,
-                    lemma_id=lid,
-                    rating_int=1,
-                    review_mode="reading",
-                    client_review_id=f"story:{story_id}:too_difficult:{lid}",
-                )
-                again_count += 1
+            again_count += 1
 
     story.status = "too_difficult"
     db.commit()

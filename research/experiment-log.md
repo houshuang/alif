@@ -4,6 +4,26 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-02-11: Complete Story Import → Learn → Read Pipeline
+
+**Problem**: The story import pipeline was fundamentally incomplete. Three breaks prevented the intended flow (import story → discover unknown words → learn them → read the story):
+1. `complete_story()` skipped words without ULK records — no FSRS credit for newly encountered words
+2. Story import silently dropped unknown words (`lemma_id=None`) instead of creating Lemma entries
+3. No word provenance tracking — users couldn't see where a word came from
+
+**Changes**:
+- **Auto-create ULK on completion**: Removed `if not ulk: continue` guards from `complete_story()`, `skip_story()`, `too_difficult_story()`. `submit_review()` already auto-creates ULK records.
+- **Unknown word import pipeline**: New `_import_unknown_words()` function in story_service.py. For words with no lemma match after morphological fallback: CAMeL analysis → LLM batch translation → creates Root + Lemma entries with `source="story_import"` and `source_story_id`. NO ULK created — words become Learn mode candidates via existing `story_bonus` scoring.
+- **`source_story_id` on Lemma model**: New FK column links lemmas to their source story. New alembic migration.
+- **Word provenance on detail screen**: Backend returns `source_info` (type + story_id + story_title). Frontend shows "From story: [title]" badge with tap-to-navigate.
+- **Readiness recalculation**: `_recalculate_story_counts()` runs after unknown word import so readiness_pct is accurate.
+
+**Expected effect**: The full loop now works: import a story → all content words get Lemma entries → unknown words appear in Learn mode (with `story_bonus = 1.0` priority) → user learns them → story readiness increases → user reads and completes the story → all words get FSRS credit.
+
+**Verification**: Import a story with unknown words. Check that: (1) words show proper glosses when tapped, (2) unknown words appear in Learn mode candidates, (3) completing the story gives FSRS credit to all words including previously-unseen ones, (4) word detail shows "From story: [title]" badge.
+
+---
+
 ## 2026-02-11: Morphological Fallback for Story Word Lookup + Reader UI Declutter
 
 **Problem 1**: Conjugated forms like قالت (she said) show "not in vocabulary" in story reader. The `lookup_lemma()` function uses clitic stripping + forms_json matching, but verb conjugation suffixes (ت feminine, وا plural, etc.) are neither clitics nor indexed in forms_json.

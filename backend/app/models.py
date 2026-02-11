@@ -38,9 +38,11 @@ class Lemma(Base):
     example_ar = Column(Text, nullable=True)
     example_en = Column(Text, nullable=True)
     canonical_lemma_id = Column(Integer, ForeignKey("lemmas.lemma_id"), nullable=True)
+    source_story_id = Column(Integer, ForeignKey("stories.id"), nullable=True)
 
     root = relationship("Root", back_populates="lemmas")
     canonical_lemma = relationship("Lemma", remote_side="Lemma.lemma_id", foreign_keys=[canonical_lemma_id])
+    source_story = relationship("Story", foreign_keys=[source_story_id])
     knowledge = relationship("UserLemmaKnowledge", back_populates="lemma", uselist=False)
     reviews = relationship("ReviewLog", back_populates="lemma")
     story_words = relationship("StoryWord", back_populates="lemma")

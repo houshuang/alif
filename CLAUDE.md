@@ -68,9 +68,9 @@ Reviews are sentence-centric: greedy set cover selects sentences that maximize d
 
 ### Story Mode (implemented)
 1. **Generate**: LLM generates micro-fiction (2-12 sentences) using known vocabulary, random genre
-2. **Import**: Paste any Arabic text, analyzes known/unknown, calculates readiness
-3. **Reader**: Word-by-word Arabic with tap-to-lookup (shows gloss, transliteration, root, POS). Arabic/English tab toggle.
-4. **Completion flow**: Complete (FSRS credit: rating=3 for un-looked-up words, rating=1 for looked-up), Skip (only rates looked-up words), Too Difficult (same as skip)
+2. **Import**: Paste any Arabic text → morphological analysis + LLM batch translation creates Lemma entries for unknown words (`source="story_import"`, `source_story_id` set). Unknown words become Learn mode candidates with `story_bonus` priority. No ULK created — Learn mode handles introduction.
+3. **Reader**: Word-by-word Arabic with tap-to-lookup (shows gloss, transliteration, root, POS). Arabic/English tab toggle. Actions at end of scroll (not fixed bottom bar).
+4. **Completion flow**: Complete (FSRS credit for ALL words including previously-unseen: rating=3 for un-looked-up, rating=1 for looked-up — `submit_review` auto-creates ULK), Skip (only rates looked-up words), Too Difficult (same as skip)
 5. **List view**: Cards with readiness indicators (green ≤3 unknown, orange, red), generate + import modals
 
 ## Critical Rules for All Agents
@@ -258,7 +258,7 @@ This app is an ongoing learning experiment. Every algorithm change, data structu
 
 ## Data Model
 - `roots` — 3/4 consonant roots with core meaning, productivity score
-- `lemmas` — Base dictionary forms with root FK, POS, gloss, frequency_rank (from CAMeL MSA corpus), cefr_level (A1–C2 from Kelly Project), grammar_features_json, forms_json, example_ar/en, transliteration, audio_url, canonical_lemma_id (FK to self — set when lemma is a variant of another)
+- `lemmas` — Base dictionary forms with root FK, POS, gloss, frequency_rank (from CAMeL MSA corpus), cefr_level (A1–C2 from Kelly Project), grammar_features_json, forms_json, example_ar/en, transliteration, audio_url, canonical_lemma_id (FK to self — set when lemma is a variant of another), source_story_id (FK to stories — set when word was imported from a story)
 - `user_lemma_knowledge` — FSRS card state per lemma (knowledge_state: new/learning/known/lapsed, fsrs_card_json, introduced_at, times_seen, times_correct, total_encounters, source: study/auto_intro/collocate/duolingo/encountered, variant_stats_json — per-variant-form seen/missed/confused counts)
 - `review_log` — Full review history (rating 1-4, timing, mode, comprehension signal, sentence_id, credit_type: primary/collateral as metadata only — does not affect FSRS ratings, client_review_id for dedup)
 - `sentences` — Generated/imported sentences with target word, last_shown_at, times_shown, **last_comprehension** (understood/partial/no_idea — drives recency filter)

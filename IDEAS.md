@@ -381,6 +381,9 @@
 - [DONE] Story list design polish: bottom-sheet modals, larger Arabic titles (24px), icon badges, refined card layout
 - [DONE] Story reader declutter: moved Complete/Skip/Too Hard from fixed bottom bar to end of scroll content, maximizing reading space
 - [DONE] Morphological fallback for story word lookup: CAMeL Tools analysis resolves conjugated forms (قالت→قال) that clitic stripping misses
+- [DONE] Story import creates Lemma entries for unknown words (CAMeL + LLM translation). No ULK — words become Learn mode candidates with story_bonus priority. Completes the import → learn → read pipeline.
+- [DONE] Story completion auto-creates ULK: all words get FSRS credit, not just words with existing knowledge records
+- [DONE] Word provenance: word detail screen shows "From story: [title]" / "From textbook scan" badge with tap-to-navigate
 - Expand forms_json to include all verb conjugation paradigms (past 3fs, past 3mp, present, etc.) — would make lookup faster than morphological analysis at import time
 - Graded text mode supporting 95-98% vocabulary coverage for extensive reading
 - Narrow reading: offer multiple texts on the same topic to recycle vocabulary
