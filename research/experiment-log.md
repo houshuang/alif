@@ -161,3 +161,52 @@ See [analysis-2026-02-11.md](./analysis-2026-02-11.md) for full baseline metrics
 - Check scaffold freshness distribution across sessions — should shift upward
 - Monitor comprehension rates — fresher contexts should help or at least not hurt
 - Count newly generated sentences and verify they pass the diversity check
+
+---
+
+## 2026-02-11 — Arabic Text Sanitization
+
+### Problem
+
+Running `update_material.py` after the diversity overhaul revealed that almost all recently imported words (from textbook OCR) had dirty `lemma_ar` values that caused 100% sentence generation failure:
+
+- **Trailing punctuation**: `النَّرْوِيج؟`, `سنة.`, `مرحباً!`, `نعم،` — validator can't match tokens with punctuation
+- **Slash-separated**: `الصَّفُّ/السَّنَةُ` — not a valid single token
+- **Multi-word phrases**: `الْمَدْرَسة الثّانَوِيّة`, `روضة الأطفال` — never matches as single token
+- **Full sentences as lemmas**: OCR extracted entire textbook sentences as vocabulary entries (e.g., `هَلْ عِنْدَكَ كَلْب؟`)
+
+Out of ~20 words needing sentences, only 2 sentences were generated (for كثير, the only clean entry).
+
+### Changes Made
+
+1. **`sanitize_arabic_word()` function** (`sentence_validator.py`): Strips leading/trailing punctuation (Arabic + Latin), handles slash-separated (takes first), detects multi-word (takes first word + warns). Does NOT strip diacritics. Also added `compute_bare_form()` helper.
+
+2. **DB cleanup script** (`scripts/cleanup_lemma_text.py`): Scans all lemmas, applies sanitization. Categories: punctuation fix (update in place), slash fix, multi-word delete (with merge into existing if first word matches), dedup merge (after cleanup, two lemmas match same bare form).
+
+3. **Hardened all injection points**:
+   - OCR prompt (`ocr_service.py`): Added instructions to not include punctuation, multi-word phrases, or slash-separated alternatives
+   - OCR extraction (`_step1_extract_words`): Runs `sanitize_arabic_word()` on each extracted word, rejects multi-word
+   - OCR lemma creation (`process_textbook_page`): Sanitizes before `Lemma()` creation
+   - `import_duolingo.py`: Replaced `is_multi_word()` with `sanitize_arabic_word()`
+   - `import_wiktionary.py`: Replaced manual `" " in word` check
+   - `import_avp_a1.py`: Replaced manual asterisk removal + multi-word check
+
+4. **Defensive check in `material_generator.py`**: Sanitizes `lemma.lemma_ar` before computing `target_bare` for sentence generation, skips uncleanable entries.
+
+5. **Tests**: 17 new tests in `test_sentence_validator.py` (TestSanitizeArabicWord: 14 tests, TestComputeBareForm: 3 tests).
+
+### Cleanup Results (production)
+
+- **1983 lemmas scanned**
+- Fixed punctuation: 38
+- Fixed slash-separated: 2
+- Deleted multi-word/empty: 82
+- Merged duplicates: 108
+- **Total changes: 230** (11.6% of all lemmas were dirty)
+
+LLM verification confirmed all 230 changes were safe to apply.
+
+### Hypotheses
+
+- **H11**: Cleaned lemmas will now generate sentences successfully via `update_material.py`
+- **H12**: Future OCR imports will produce clean single-word entries with sanitization at both prompt and code levels
