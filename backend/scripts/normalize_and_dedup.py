@@ -166,43 +166,45 @@ def main():
             if var and var.canonical_lemma_id is None:
                 new_variants.append((var_id, canon_id, vtype, details))
 
-        print(f"Found {len(new_variants)} new variants to mark")
+        print(f"Found {len(new_variants)} new variants (REVIEW NEEDED — not auto-applied)")
+        print("Many 'possessive' detections are false positives (taa marbuta feminines).")
+        print("Use cleanup_lemma_variants.py --verbose for manual review.")
         for var_id, canon_id, vtype, details in new_variants:
             var = db.get(Lemma, var_id)
             canon = db.get(Lemma, canon_id)
             print(f"  {var.lemma_ar_bare} ({var.gloss_en}) → {canon.lemma_ar_bare} ({canon.gloss_en}) [{vtype}]")
-            if do_merge:
-                merge_into(db, var_id, canon_id, dry_run)
-            elif not dry_run:
-                var.canonical_lemma_id = canon_id
-            total_changes += 1
     else:
         print("CAMeL Tools not available, skipping morphological variant detection")
 
-    # === PASS 2: Form-aware dedup via lookup_lemma ===
+    # === PASS 2: Definite article dedup (conservative) ===
     print()
     print("=" * 60)
-    print("PASS 2: CLITIC-AWARE DEDUP")
+    print("PASS 2: AL-PREFIX DEDUP")
     print("=" * 60)
 
-    # Build lookup from canonical lemmas only
+    # Only merge exact al-prefix duplicates (الكتاب→كتاب)
+    # NOT hamza variants — those can be different words (سأل≠سال, أب≠آب)
     canonical_lemmas = (
         db.query(Lemma)
         .filter(Lemma.canonical_lemma_id.is_(None))
         .all()
     )
-    lemma_lookup = build_lemma_lookup(canonical_lemmas)
+    bare_to_ids: dict[str, list[int]] = {}
+    for lem in canonical_lemmas:
+        bare = lem.lemma_ar_bare or ""
+        bare_to_ids.setdefault(bare, []).append(lem.lemma_id)
 
-    # Check all canonical lemmas against each other
     dedup_pairs = []
     for lemma in canonical_lemmas:
         bare = lemma.lemma_ar_bare or ""
-        bare_norm = normalize_alef(bare)
-
-        # Try clitic-aware lookup — if it resolves to a *different* lemma, it's a dup
-        matched_id = resolve_existing_lemma(bare, lemma_lookup)
-        if matched_id and matched_id != lemma.lemma_id:
-            dedup_pairs.append((lemma.lemma_id, matched_id))
+        # Only check al-prefix: الكتاب should merge into كتاب
+        if bare.startswith("ال") and len(bare) > 2:
+            without_al = bare[2:]
+            if without_al in bare_to_ids:
+                for target_id in bare_to_ids[without_al]:
+                    if target_id != lemma.lemma_id:
+                        dedup_pairs.append((lemma.lemma_id, target_id))
+                        break
 
     # Deduplicate: only merge once per pair, prefer keeping the one with more reviews
     seen = set()
