@@ -7,8 +7,11 @@ import pytest
 from app.models import Lemma, ReviewLog, UserLemmaKnowledge, Sentence, SentenceWord
 from app.services.fsrs_service import create_new_card
 from app.services.sentence_selector import (
+    FRESHNESS_BASELINE,
+    WordMeta,
     _difficulty_match_quality,
     _get_intro_candidates,
+    _scaffold_freshness,
     build_session,
 )
 
@@ -89,6 +92,105 @@ class TestDifficultyMatchQuality:
 
     def test_strong_word_any_scaffold(self):
         assert _difficulty_match_quality(10.0, [1.0, 2.0]) == 1.0
+
+
+class TestScaffoldFreshness:
+    def _make_ulk(self, times_seen=0):
+        ulk = UserLemmaKnowledge(
+            lemma_id=1,
+            knowledge_state="known",
+            times_seen=times_seen,
+            times_correct=times_seen,
+        )
+        return ulk
+
+    def test_no_scaffold_returns_one(self):
+        # All words are due or function words
+        words = [
+            WordMeta(lemma_id=1, surface_form="كتاب", gloss_en="book",
+                     stability=1.0, is_due=True),
+            WordMeta(lemma_id=None, surface_form="في", gloss_en=None,
+                     stability=None, is_due=False, is_function_word=True),
+        ]
+        assert _scaffold_freshness(words, {}) == 1.0
+
+    def test_low_exposure_no_penalty(self):
+        words = [
+            WordMeta(lemma_id=1, surface_form="كتاب", gloss_en="book",
+                     stability=1.0, is_due=True),
+            WordMeta(lemma_id=2, surface_form="ولد", gloss_en="boy",
+                     stability=5.0, is_due=False),
+        ]
+        knowledge_map = {2: self._make_ulk(times_seen=3)}
+        assert _scaffold_freshness(words, knowledge_map) == 1.0
+
+    def test_high_exposure_penalized(self):
+        words = [
+            WordMeta(lemma_id=1, surface_form="كتاب", gloss_en="book",
+                     stability=1.0, is_due=True),
+            WordMeta(lemma_id=2, surface_form="جميلة", gloss_en="beautiful",
+                     stability=30.0, is_due=False),
+        ]
+        knowledge_map = {2: self._make_ulk(times_seen=16)}
+        result = _scaffold_freshness(words, knowledge_map)
+        assert result < 1.0
+        # 8/16 = 0.5 (single scaffold word, geo mean = 0.5)
+        assert abs(result - 0.5) < 0.01
+
+    def test_extreme_exposure_floored(self):
+        words = [
+            WordMeta(lemma_id=1, surface_form="كتاب", gloss_en="book",
+                     stability=1.0, is_due=True),
+            WordMeta(lemma_id=2, surface_form="جميلة", gloss_en="beautiful",
+                     stability=30.0, is_due=False),
+            WordMeta(lemma_id=3, surface_form="كبيرة", gloss_en="big",
+                     stability=30.0, is_due=False),
+        ]
+        # Both seen 200+ times → penalty per word = 8/200 = 0.04
+        # geo mean of 0.04, 0.04 = 0.04, floored to 0.3
+        knowledge_map = {
+            2: self._make_ulk(times_seen=200),
+            3: self._make_ulk(times_seen=200),
+        }
+        result = _scaffold_freshness(words, knowledge_map)
+        assert result == 0.3
+
+    def test_function_words_excluded(self):
+        words = [
+            WordMeta(lemma_id=1, surface_form="كتاب", gloss_en="book",
+                     stability=1.0, is_due=True),
+            WordMeta(lemma_id=2, surface_form="في", gloss_en="in",
+                     stability=30.0, is_due=False, is_function_word=True),
+        ]
+        knowledge_map = {2: self._make_ulk(times_seen=100)}
+        # Function word excluded → no scaffold → 1.0
+        assert _scaffold_freshness(words, knowledge_map) == 1.0
+
+    def test_fresh_scaffold_beats_overexposed(self, db_session):
+        """Integration: sentence with fresh scaffolds should score higher."""
+        # Due word
+        _seed_word(db_session, 1, "كتاب", "book", due_hours=-1)
+        # Fresh scaffold word (seen 2 times)
+        _seed_word(db_session, 2, "ولد", "boy", due_hours=24, stability=5.0)
+        db_session.query(UserLemmaKnowledge).filter_by(lemma_id=2).update({"times_seen": 2})
+        # Overexposed scaffold word (seen 50 times)
+        _seed_word(db_session, 3, "جميلة", "beautiful", due_hours=24, stability=30.0)
+        db_session.query(UserLemmaKnowledge).filter_by(lemma_id=3).update({"times_seen": 50})
+
+        # Sentence A: fresh scaffold
+        _seed_sentence(db_session, 1, "الكتاب والولد", "the book and boy",
+                       target_lemma_id=1,
+                       word_surfaces_and_ids=[("الكتاب", 1), ("والولد", 2)])
+        # Sentence B: overexposed scaffold
+        _seed_sentence(db_session, 2, "الكتاب جميلة", "the book beautiful",
+                       target_lemma_id=1,
+                       word_surfaces_and_ids=[("الكتاب", 1), ("جميلة", 3)])
+        db_session.commit()
+
+        result = build_session(db_session, limit=1)
+        assert len(result["items"]) == 1
+        # Fresh scaffold sentence should be selected first
+        assert result["items"][0]["sentence_id"] == 1
 
 
 class TestGreedySetCover:

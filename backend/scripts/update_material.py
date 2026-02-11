@@ -34,6 +34,12 @@ from app.database import SessionLocal
 from app.models import Lemma, Sentence, SentenceWord, UserLemmaKnowledge
 from app.services.word_selector import select_next_words
 from app.services.llm import AllProvidersFailed, generate_sentences_batch
+from app.services.sentence_generator import (
+    get_content_word_counts,
+    get_avoid_words,
+    sample_known_words_weighted,
+    KNOWN_SAMPLE_SIZE,
+)
 from app.services.sentence_validator import (
     build_lemma_lookup,
     map_tokens_to_lemmas,
@@ -56,7 +62,10 @@ MIN_SENTENCES = 3
 def get_existing_counts(db: Session) -> dict[int, int]:
     rows = (
         db.query(Sentence.target_lemma_id, func.count(Sentence.id))
-        .filter(Sentence.target_lemma_id.isnot(None))
+        .filter(
+            Sentence.target_lemma_id.isnot(None),
+            Sentence.is_active == True,  # noqa: E712
+        )
         .group_by(Sentence.target_lemma_id)
         .all()
     )
@@ -86,6 +95,7 @@ def generate_sentences_for_word(
     needed: int,
     model: str = "gemini",
     delay: float = 1.0,
+    avoid_words: list[str] | None = None,
 ) -> int:
     target_bare = strip_diacritics(lemma.lemma_ar)
     all_bare = set(lemma_lookup.keys())
@@ -107,6 +117,7 @@ def generate_sentences_for_word(
                 difficulty_hint="beginner",
                 model_override=model,
                 rejected_words=rejected_words if rejected_words else None,
+                avoid_words=avoid_words,
             )
         except AllProvidersFailed as e:
             print(f"    LLM error: {e}")
@@ -182,6 +193,10 @@ def step_backfill_sentences(db: Session, dry_run: bool, model: str, delay: float
     existing_counts = get_existing_counts(db)
     known_words, lemma_lookup = get_known_words_and_lookup(db)
 
+    # Diversity params — weight sampling and avoid overused words
+    content_word_counts = get_content_word_counts(db)
+    avoid_words = get_avoid_words(content_word_counts, known_words)
+
     total = 0
     for lemma in introduced:
         existing = existing_counts.get(lemma.lemma_id, 0)
@@ -189,14 +204,21 @@ def step_backfill_sentences(db: Session, dry_run: bool, model: str, delay: float
         if needed <= 0:
             continue
 
+        # Sample known words with diversity weighting per target
+        word_sample = sample_known_words_weighted(
+            known_words, content_word_counts, KNOWN_SAMPLE_SIZE,
+            target_lemma_id=lemma.lemma_id,
+        )
+
         print(f"  {lemma.lemma_ar} ({lemma.gloss_en}) — have {existing}, need {needed}")
         if dry_run:
             print(f"    [dry-run] Would generate {needed} sentences")
             total += needed
         else:
             stored = generate_sentences_for_word(
-                db, lemma, known_words, lemma_lookup,
+                db, lemma, word_sample, lemma_lookup,
                 needed=needed, model=model, delay=delay,
+                avoid_words=avoid_words,
             )
             total += stored
             print(f"    Generated {stored} sentences")

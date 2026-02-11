@@ -13,8 +13,11 @@ import pytest
 
 from app.services.llm import SentenceResult, generate_sentences_batch
 from app.services.sentence_generator import (
+    ALWAYS_AVOID_NAMES,
+    DIVERSITY_SENTENCE_THRESHOLD,
     GeneratedSentence,
     GenerationError,
+    _check_scaffold_diversity,
     generate_validated_sentence,
     get_avoid_words,
     sample_known_words_weighted,
@@ -92,7 +95,7 @@ def test_retry_on_invalid_then_succeed(mock_gen):
 
 @patch("app.services.sentence_generator.generate_sentence")
 def test_all_retries_fail(mock_gen):
-    """All 3 attempts produce invalid sentences → GenerationError."""
+    """All attempts produce invalid sentences → GenerationError."""
     bad = SentenceResult(
         arabic="الوَلَدُ يَأْكُلُ الطَّعَامَ اللَّذِيذَ",
         english="The boy eats delicious food",
@@ -107,7 +110,8 @@ def test_all_retries_fail(mock_gen):
             known_words=KNOWN_WORDS,
         )
 
-    assert mock_gen.call_count == 3
+    from app.services.sentence_generator import MAX_RETRIES
+    assert mock_gen.call_count == MAX_RETRIES
 
 
 @patch("app.services.sentence_generator.generate_sentence")
@@ -400,13 +404,15 @@ class TestGetAvoidWords:
         assert result[1] == "كلمة1"
 
     def test_caps_at_max_avoid_words(self):
-        """Should return at most MAX_AVOID_WORDS items."""
-        counts = {i: 2 for i in range(50)}
-        for i in range(20):
-            counts[i] = 100  # 20 words over threshold
+        """Should return at most MAX_AVOID_WORDS items (plus always-avoid names)."""
+        # 80 words at count 2, 25 words at count 100 → median = 2, threshold = 4
+        counts = {i: 2 for i in range(80)}
+        for i in range(25):
+            counts[i] = 100  # 25 words over threshold
         result = get_avoid_words(counts, KNOWN_WORDS_WITH_IDS)
         assert result is not None
-        assert len(result) <= 10
+        # MAX_AVOID_WORDS is 20, caps at 20 (no names in test data)
+        assert len(result) == 20
 
     def test_only_returns_words_in_known_list(self):
         """Avoid words must be in the known_words list."""
@@ -510,3 +516,95 @@ def test_no_avoid_words_when_none(mock_completion):
 
     prompt = mock_completion.call_args.kwargs.get("prompt") or mock_completion.call_args.args[0]
     assert "overused" not in prompt.lower()
+
+
+class TestAlwaysAvoidNames:
+    def test_names_included_even_below_threshold(self):
+        """Proper names from ALWAYS_AVOID_NAMES should always be in the avoid list."""
+        known = [
+            {"arabic": "مُحَمَّد", "english": "Mohamed", "lemma_id": 1},
+            {"arabic": "كِتَاب", "english": "book", "lemma_id": 2},
+        ]
+        # Low counts — nothing over threshold
+        counts = {1: 1, 2: 1}
+        result = get_avoid_words(counts, known)
+        # Names should be included despite low counts
+        assert result is not None
+        assert "مُحَمَّد" in result
+
+    def test_names_not_duplicated(self):
+        """If a name is already in the avoid list (over threshold), don't add twice."""
+        known = [
+            {"arabic": "مُحَمَّد", "english": "Mohamed", "lemma_id": 1},
+            {"arabic": "كِتَاب", "english": "book", "lemma_id": 2},
+        ]
+        counts = {1: 1000, 2: 1}  # محمد way over threshold
+        result = get_avoid_words(counts, known)
+        assert result is not None
+        assert result.count("مُحَمَّد") == 1
+
+
+class TestCheckScaffoldDiversity:
+    def test_fresh_sentence_passes(self):
+        """Sentence with no overexposed words should pass."""
+        lemma_lookup = {"كتاب": 1, "ولد": 2}
+        counts = {1: 2, 2: 3}  # both below threshold
+        passes, overused = _check_scaffold_diversity(
+            "الوَلَدُ قَرَأَ الكِتَابَ", "كتاب", counts, lemma_lookup,
+        )
+        assert passes
+        assert len(overused) == 0
+
+    def test_overexposed_sentence_rejected(self):
+        """Sentence with multiple overexposed scaffold words should be rejected."""
+        lemma_lookup = {"كتاب": 1, "جميلة": 2, "كبيرة": 3}
+        counts = {
+            1: 1,  # target — ignored
+            2: DIVERSITY_SENTENCE_THRESHOLD + 10,
+            3: DIVERSITY_SENTENCE_THRESHOLD + 5,
+        }
+        # Use bare forms (no ال prefix, no و conjunction)
+        passes, overused = _check_scaffold_diversity(
+            "كِتَابٌ جَمِيلَةٌ كَبِيرَةٌ", "كتاب", counts, lemma_lookup,
+        )
+        assert not passes
+        assert len(overused) == 2
+
+    def test_single_overexposed_word_allowed(self):
+        """One overexposed scaffold word is tolerated."""
+        lemma_lookup = {"كتاب": 1, "جميلة": 2, "ولد": 3}
+        counts = {
+            2: DIVERSITY_SENTENCE_THRESHOLD + 10,
+            3: 2,
+        }
+        passes, overused = _check_scaffold_diversity(
+            "كِتَابٌ جَمِيلَةٌ ولد", "كتاب", counts, lemma_lookup,
+        )
+        assert passes
+        assert len(overused) == 1
+
+    def test_function_words_excluded(self):
+        """Function words should not count toward overexposure."""
+        lemma_lookup = {"كتاب": 1, "في": 2}
+        counts = {2: 1000}  # في is a function word, should be ignored
+        passes, overused = _check_scaffold_diversity(
+            "في كِتَابٍ", "كتاب", counts, lemma_lookup,
+        )
+        assert passes
+        assert len(overused) == 0
+
+
+class TestStarterDiversity:
+    def test_system_prompt_discourages_hal(self):
+        """System prompt should discourage defaulting to هَلْ."""
+        from app.services.llm import SENTENCE_SYSTEM_PROMPT, BATCH_SENTENCE_SYSTEM_PROMPT
+        assert "هَلْ" in SENTENCE_SYSTEM_PROMPT
+        assert "Do NOT default" in SENTENCE_SYSTEM_PROMPT
+        assert "هَلْ" in BATCH_SENTENCE_SYSTEM_PROMPT
+        assert "Do NOT default" in BATCH_SENTENCE_SYSTEM_PROMPT
+
+    def test_system_prompt_discourages_muhammad(self):
+        """System prompt should discourage always using مُحَمَّد."""
+        from app.services.llm import SENTENCE_SYSTEM_PROMPT, BATCH_SENTENCE_SYSTEM_PROMPT
+        assert "مُحَمَّد" in SENTENCE_SYSTEM_PROMPT
+        assert "مُحَمَّد" in BATCH_SENTENCE_SYSTEM_PROMPT

@@ -23,15 +23,19 @@ from app.services.llm import (
     generate_sentence,
 )
 from app.services.sentence_validator import (
+    FUNCTION_WORDS,
     ValidationResult,
     strip_diacritics,
+    tokenize,
     validate_sentence,
 )
 
-MAX_RETRIES = 3
+MAX_RETRIES = 5
 KNOWN_SAMPLE_SIZE = 50
-MAX_AVOID_WORDS = 10
+MAX_AVOID_WORDS = 20
 MIN_WEIGHT = 0.05
+DIVERSITY_SENTENCE_THRESHOLD = 15  # scaffold words in this many+ sentences trigger rejection
+ALWAYS_AVOID_NAMES = {"محمد", "احمد", "فاطمة", "علي"}
 
 
 def get_content_word_counts(db: Session) -> dict[int, int]:
@@ -114,6 +118,13 @@ def get_avoid_words(
     over_represented.sort(key=lambda x: x[1], reverse=True)
 
     result = [lid_to_arabic[lid] for lid, _ in over_represented[:MAX_AVOID_WORDS]]
+
+    # Always include common proper names to avoid overuse
+    for w in known_words:
+        bare = strip_diacritics(w["arabic"])
+        if bare in ALWAYS_AVOID_NAMES and w["arabic"] not in result:
+            result.append(w["arabic"])
+
     return result or None
 
 
@@ -155,6 +166,31 @@ def _log_generation(
         f.write(json.dumps(entry, ensure_ascii=False) + "\n")
 
 
+def _check_scaffold_diversity(
+    arabic_text: str,
+    target_bare: str,
+    content_word_counts: dict[int, int],
+    lemma_lookup: dict[str, int],
+) -> tuple[bool, list[str]]:
+    """Check if a sentence's scaffold words are diverse enough.
+
+    Returns (passes, list_of_overused_words_to_avoid).
+    Rejects sentences with more than 1 scaffold word appearing in
+    DIVERSITY_SENTENCE_THRESHOLD+ existing sentences.
+    """
+    tokens = tokenize(arabic_text)
+    overused: list[str] = []
+    for tok in tokens:
+        bare = strip_diacritics(tok)
+        if bare == target_bare or bare in FUNCTION_WORDS:
+            continue
+        lid = lemma_lookup.get(bare)
+        count = content_word_counts.get(lid, 0) if lid else 0
+        if count >= DIVERSITY_SENTENCE_THRESHOLD:
+            overused.append(tok)
+    return len(overused) <= 1, overused
+
+
 def generate_validated_sentence(
     target_arabic: str,
     target_translation: str,
@@ -163,6 +199,7 @@ def generate_validated_sentence(
     max_words: int | None = None,
     content_word_counts: dict[int, int] | None = None,
     target_lemma_id: int | None = None,
+    lemma_lookup: dict[str, int] | None = None,
 ) -> GeneratedSentence:
     """Generate and validate a sentence with retry loop.
 
@@ -230,6 +267,20 @@ def generate_validated_sentence(
         )
 
         if validation.valid:
+            # Post-validation diversity check
+            if content_word_counts and lemma_lookup:
+                diverse, overused = _check_scaffold_diversity(
+                    result.arabic, target_bare, content_word_counts, lemma_lookup,
+                )
+                if not diverse:
+                    overused_str = "، ".join(overused)
+                    retry_feedback = (
+                        f"For diversity, avoid using: {overused_str} "
+                        "— they already appear in too many sentences. "
+                        "Use different vocabulary."
+                    )
+                    continue
+
             return GeneratedSentence(
                 arabic=result.arabic,
                 english=result.english,

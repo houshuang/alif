@@ -115,3 +115,49 @@ Textbook scanner (`process_textbook_page`) was creating ULK records and incremen
 - Monitor daily new-word introduction rate — has it increased? Is it sustainable?
 - Check if 48 zero-accuracy words decrease with continued reintro card exposure
 - Compare comprehension trend — is the decline stabilizing or continuing?
+
+---
+
+## 2026-02-11 — Sentence Diversity Overhaul
+
+### Problem
+
+DB analysis revealed severe diversity issues in the 2,075-sentence corpus, accumulated during early learning when vocabulary was ~10-50 words:
+
+- **هل dominance**: 30% of all sentences start with هل (614 sentences)
+- **محمد overuse**: Single proper noun in 16% of sentences (329)
+- **Overexposed scaffolds**: Known words like جميلة (204 sentences), جديد (85), مدرسة (83) dominate as scaffold words but are fully learned
+- **Tight sentence length**: All 3-7 words (avg 5.0), no variation
+- **No retirement**: Once generated, sentences live forever
+- **update_material.py gap**: Backfill (Step A) generated sentences without diversity params — no avoid list, no weighted sampling
+
+See [analysis-2026-02-11.md](./analysis-2026-02-11.md) for full baseline metrics.
+
+### Changes Made
+
+1. **Scaffold freshness penalty** (`sentence_selector.py`): New `_scaffold_freshness()` multiplier in scoring. For each scaffold word, penalty = min(1.0, 8 / times_seen). Geometric mean, floored at 0.3. Effect: sentences with over-reviewed known words score lower.
+
+2. **Starter diversity in LLM prompts** (`llm.py`): Added instructions to both system prompts: "Do NOT default to هَلْ questions", "Use different subjects — do NOT always use مُحَمَّد", "Vary starters". Removed "Questions with هَلْ" from difficulty guide.
+
+3. **Stronger avoid list** (`sentence_generator.py`): MAX_AVOID_WORDS 10→20. Added ALWAYS_AVOID_NAMES (محمد, احمد, فاطمة, علي) — always in avoid list.
+
+4. **Post-generation diversity rejection** (`sentence_generator.py`): After validation passes, _check_scaffold_diversity() rejects sentences with 2+ scaffold words appearing in 15+ existing sentences. Rejected words fed back to LLM on retry. MAX_RETRIES 3→5.
+
+5. **update_material.py diversity fix**: Backfill now computes content_word_counts, avoid_words, and uses sample_known_words_weighted() — matching pregenerate_material.py.
+
+6. **Sentence retirement** (`models.py`, `sentence_selector.py`, `retire_sentences.py`): Added is_active column. Selector filters inactive sentences. New script retires overexposed sentences (overexposure index < 0.3) and هل-starters when alternatives exist, keeping ≥3 active per target word. Backfill counts filter by is_active.
+
+### Hypotheses
+
+- **H7**: Scaffold freshness penalty will shift sessions toward sentences with fresher vocabulary contexts, reducing the feeling of repetitiveness
+- **H8**: Starter diversity instructions + post-generation rejection will reduce هل dominance from 30% to <10% in newly generated sentences
+- **H9**: Retiring overexposed sentences and regenerating will create a more balanced corpus within 1-2 update_material.py cycles
+- **H10**: محمد usage will drop significantly with ALWAYS_AVOID_NAMES enforcement
+
+### How to Verify (in 3-5 days)
+
+- Compare sentence starter distribution (% هل, % هذا) — should decrease
+- Compare محمد sentence count — should plateau (no new sentences with محمد)
+- Check scaffold freshness distribution across sessions — should shift upward
+- Monitor comprehension rates — fresher contexts should help or at least not hurt
+- Count newly generated sentences and verify they pass the diversity check

@@ -144,6 +144,40 @@ def _grammar_fit(
     return sum(multipliers) / len(multipliers)
 
 
+FRESHNESS_BASELINE = 8  # reviews at which penalty starts
+
+
+def _scaffold_freshness(
+    words_meta: list[WordMeta],
+    knowledge_map: dict[int, "UserLemmaKnowledge"],
+) -> float:
+    """Penalize sentences whose scaffold words are over-reviewed.
+
+    For each non-due, non-function scaffold word, compute
+    penalty = min(1.0, FRESHNESS_BASELINE / max(times_seen, 1)).
+    Aggregate via geometric mean, floored at 0.3.
+
+    Effect: scaffold word seen 8× → 1.0 (no penalty),
+    16× → 0.5, 80× → 0.1 (floored to 0.3 at sentence level).
+    """
+    scaffold = [
+        w for w in words_meta
+        if w.lemma_id and not w.is_due and not w.is_function_word
+    ]
+    if not scaffold:
+        return 1.0
+
+    product = 1.0
+    for w in scaffold:
+        k = knowledge_map.get(w.lemma_id)
+        times_seen = (k.times_seen or 0) if k else 0
+        penalty = min(1.0, FRESHNESS_BASELINE / max(times_seen, 1))
+        product *= penalty
+
+    geo_mean = product ** (1.0 / len(scaffold))
+    return max(0.3, geo_mean)
+
+
 def build_session(
     db: Session,
     limit: int = 10,
@@ -239,6 +273,7 @@ def build_session(
         db.query(Sentence)
         .filter(
             Sentence.id.in_(sentence_ids_with_due),
+            Sentence.is_active == True,  # noqa: E712
             or_(
                 shown_col.is_(None),
                 (comp_col == "understood") & (shown_col < cutoff_understood),
@@ -413,7 +448,8 @@ def build_session(
 
         gfit = _grammar_fit(sent_grammar, grammar_exposure_map)
         diversity = 1.0 / (1.0 + (sent.times_shown or 0))
-        score = (len(due_covered) ** 1.5) * dmq * gfit * diversity
+        freshness = _scaffold_freshness(word_metas, knowledge_map)
+        score = (len(due_covered) ** 1.5) * dmq * gfit * diversity * freshness
 
         candidates.append(SentenceCandidate(
             sentence_id=sent.id,
@@ -439,7 +475,8 @@ def build_session(
             dmq = _difficulty_match_quality(weakest, scaffold_stabs)
             gfit = _grammar_fit(sentence_grammar_cache.get(c.sentence_id, []), grammar_exposure_map)
             diversity = 1.0 / (1.0 + (c.sentence.times_shown or 0))
-            c.score = (len(overlap) ** 1.5) * dmq * gfit * diversity
+            freshness = _scaffold_freshness(c.words_meta, knowledge_map)
+            c.score = (len(overlap) ** 1.5) * dmq * gfit * diversity * freshness
 
         candidates.sort(key=lambda c: c.score, reverse=True)
         best = candidates[0]

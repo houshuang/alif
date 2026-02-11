@@ -57,7 +57,10 @@ from app.services.tts import (
 def get_existing_counts(db) -> dict[int, int]:
     rows = (
         db.query(Sentence.target_lemma_id, func.count(Sentence.id))
-        .filter(Sentence.target_lemma_id.isnot(None))
+        .filter(
+            Sentence.target_lemma_id.isnot(None),
+            Sentence.is_active == True,  # noqa: E712
+        )
         .group_by(Sentence.target_lemma_id)
         .all()
     )

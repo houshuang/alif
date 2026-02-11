@@ -196,7 +196,7 @@ Style by difficulty level:
 - very simple / simple: prefer SVO. Short nominal sentences. Basic connectors (و). \
 Simple tenses. No embedded clauses.
 - beginner: mix SVO and VSO. Simple idafa. Introduce فَ and ثُمَّ. One clause per sentence.
-- intermediate: more VSO. Relative clauses (الَّذِي/الَّتِي). Questions with هَلْ. \
+- intermediate: more VSO. Relative clauses (الَّذِي/الَّتِي). \
 Negation with لَمْ/لَنْ. Idafa chains. Dialogue with قَالَ.
 - advanced: VSO default. Embedded clauses. Classical particles (إِنَّ، لَعَلَّ، كَأَنَّ). \
 Formal register approaching classical style."""
@@ -216,6 +216,11 @@ Vocabulary constraint:
 - Include full diacritics (tashkeel) on ALL Arabic words with correct i'rab
 - Include Arabic punctuation: use ؟ for questions, . for statements, ، between clauses
 - Transliteration: ALA-LC standard with macrons for long vowels
+
+Sentence structure variety:
+- Do NOT default to هَلْ questions — only use هَلْ when the target word specifically requires a question
+- Vary starters: verbal (verb-first), nominal (noun/adjective), prepositional (فِي، مِنَ), time expressions
+- Use different subjects — do NOT always use مُحَمَّد. Use varied names and pronouns.
 
 Respond with JSON only: {{"arabic": "...", "english": "...", "transliteration": "..."}}"""
 
@@ -240,6 +245,12 @@ Vocabulary constraint:
 - Each sentence should be 4-8 words long
 - Each sentence should use a DIFFERENT syntactic structure (vary VSO/SVO, nominal/verbal, question/statement)
 - Transliteration: ALA-LC standard with macrons for long vowels
+
+Sentence structure variety:
+- Do NOT default to هَلْ questions — only use هَلْ when the target word specifically requires a question
+- Vary starters across sentences: verbal (verb-first), nominal (noun/adjective), prepositional, time expressions
+- Use different subjects — do NOT always use مُحَمَّد. Use varied names and pronouns.
+- Never start more than one sentence in a batch with the same word.
 
 Respond with JSON: {{"sentences": [{{"arabic": "...", "english": "...", "transliteration": "..."}}, ...]}}"""
 

@@ -454,3 +454,17 @@
 - OCR for handwritten Arabic: test Gemini Vision on handwritten notes (likely lower accuracy but worth exploring)
 - Scan-to-story pipeline: detect whether a scanned page is vocabulary (extract words) or continuous text (extract as story) automatically
 - Multi-page story scanning: scan multiple pages and stitch the extracted text together as one story
+
+### Sentence Diversity & Corpus Quality (2026-02-11)
+- [DONE] Scaffold freshness penalty: penalize sentences whose scaffold words are over-reviewed
+- [DONE] Post-generation diversity rejection: deterministic rejection of sentences with overexposed scaffold words
+- [DONE] Sentence retirement: soft-delete old low-diversity sentences via is_active flag
+- [DONE] Starter diversity in LLM prompts: discourage هل-default and محمد overuse
+- [DONE] ALWAYS_AVOID_NAMES: proper nouns always in avoid list
+- Automatic periodic rebalancing: integrate retire_sentences logic into update_material.py as Step 0
+- Sentence quality scoring dashboard: show diversity metrics on analytics page
+- Corpus diversity entropy: track Shannon entropy of word distribution across sentences over time
+- Sentence length progression: as vocabulary grows, generate longer sentences (currently capped at 4-12 by word age)
+- Context variety scoring: measure how many different sentence patterns each word appears in (not just count)
+- Word pair co-occurrence tracking: detect word pairs that always appear together (e.g., كتاب+جميل) and actively break them apart
+- LLM fine-tuning: collect rejected sentences as negative examples, use for prompt engineering or RLHF on sentence generation
