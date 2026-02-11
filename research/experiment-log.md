@@ -4,6 +4,22 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-02-11: Switch Sentence Generation to GPT-5.2
+
+**Problem**: Gemini Flash produces unnatural Arabic sentences. Example: `جرس الراديو في غرفة الصالون` ("the bell of the radio in the room of the living room") — uses wrong collocation (جرس with radio) and unnatural hybrid phrasing (غرفة الصالون). For a language learning app, incorrect collocations teach wrong usage.
+
+**Change**: Switch all sentence generation from Gemini 3 Flash to GPT-5.2 (model_override="openai"). Gemini stays as primary for non-sentence tasks (variant detection, grammar tagging, etc).
+
+**Files changed**: llm.py (defaults), sentence_generator.py, generate_sentences.py, pregenerate_material.py, update_material.py, analyze_word_distribution.py
+
+**Verification**: Added `verify_sentences.py` — sends all existing LLM sentences to GPT-5.2 in parallel batches of 20 for naturalness evaluation. Retires (soft-deletes) flagged sentences. The existing `update_material.py` cron regenerates replacements with GPT-5.2.
+
+**Expected effect**: Higher quality Arabic sentences, fewer semantic errors and unnatural collocations. Cost increase negligible at current scale.
+
+**Verification plan**: Run verify_sentences.py --dry-run first to assess scope, then live run + regenerate via update_material.py.
+
+---
+
 ## 2026-02-11: Proper Noun Handling in Story Import
 
 **Problem**: Story imports create Lemma entries for all unknown words, including proper nouns (personal names like زهير, place names like دراج). These clutter Learn mode with non-vocabulary items.

@@ -94,7 +94,7 @@ def generate_sentences_for_word(
     known_words: list[dict[str, str]],
     lemma_lookup: dict[str, int],
     needed: int,
-    model: str = "gemini",
+    model: str = "openai",
     delay: float = 1.0,
     avoid_words: list[str] | None = None,
 ) -> int:
@@ -391,7 +391,7 @@ async def main():
     parser.add_argument("--skip-audio", action="store_true", help="Skip TTS audio generation")
     parser.add_argument("--limit", type=int, default=0, help="Max audio generations (0=unlimited)")
     parser.add_argument("--candidates", type=int, default=10, help="Number of upcoming candidates (default: 10)")
-    parser.add_argument("--model", default="gemini", help="LLM model (default: gemini)")
+    parser.add_argument("--model", default="openai", help="LLM model (default: openai)")
     parser.add_argument("--delay", type=float, default=1.0, help="Seconds between LLM calls")
     args = parser.parse_args()
 

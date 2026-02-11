@@ -1,8 +1,7 @@
 """LLM service using LiteLLM with multi-model fallback.
 
-Primary: Gemini Flash (fast, cheap)
-Fallback: GPT (reliable)
-Tertiary: Claude Haiku (quality)
+Sentence generation: GPT-5.2 (best Arabic quality)
+General tasks: Gemini Flash (fast, cheap) → GPT-5.2 fallback → Claude Haiku tertiary
 """
 
 import json
@@ -263,6 +262,7 @@ def generate_sentence(
     retry_feedback: str | None = None,
     max_words: int | None = None,
     avoid_words: list[str] | None = None,
+    model_override: str = "openai",
 ) -> SentenceResult:
     """Generate a single Arabic sentence featuring the target word.
 
@@ -321,6 +321,7 @@ Include full diacritics on all Arabic text.
         system_prompt=SENTENCE_SYSTEM_PROMPT,
         json_mode=True,
         temperature=0.8,
+        model_override=model_override,
     )
 
     return SentenceResult(
@@ -336,7 +337,7 @@ def generate_sentences_batch(
     known_words: list[dict[str, str]],
     count: int = 3,
     difficulty_hint: str = "beginner",
-    model_override: str = "gemini",
+    model_override: str = "openai",
     avoid_words: list[str] | None = None,
     rejected_words: list[str] | None = None,
 ) -> list[SentenceResult]:

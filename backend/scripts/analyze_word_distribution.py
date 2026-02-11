@@ -144,7 +144,7 @@ def regenerate_worst_offenders(
     scored_sentences: list[tuple[int, float, int]],
     content_word_counts: dict[int, int],
     lemma_names: dict[int, tuple[str, str]],
-    model: str = "gemini",
+    model: str = "openai",
     dry_run: bool = False,
     max_regen: int = 50,
 ) -> None:
@@ -283,7 +283,7 @@ def main():
     parser.add_argument("--regenerate", action="store_true", help="Replace worst-offender sentences")
     parser.add_argument("--dry-run", action="store_true", help="Show what would be done without changing DB")
     parser.add_argument("--max-regen", type=int, default=50, help="Max sentences to regenerate (default: 50)")
-    parser.add_argument("--model", default="gemini", help="LLM model for regeneration (default: gemini)")
+    parser.add_argument("--model", default="openai", help="LLM model for regeneration (default: openai)")
     args = parser.parse_args()
 
     db = SessionLocal()

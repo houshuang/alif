@@ -11,6 +11,8 @@ import {
   Alert,
   Platform,
   Image,
+  KeyboardAvoidingView,
+  ScrollView,
 } from "react-native";
 import { useRouter, useFocusEffect } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -439,7 +441,10 @@ export default function StoriesScreen() {
         transparent
         onRequestClose={() => { setShowImport(false); setImportImageUri(null); }}
       >
-        <View style={styles.modalOverlay}>
+        <KeyboardAvoidingView
+          style={styles.modalOverlay}
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+        >
           <Pressable style={styles.modalOverlayTouch} onPress={() => { setShowImport(false); setImportImageUri(null); }} />
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
@@ -449,84 +454,86 @@ export default function StoriesScreen() {
               </Pressable>
             </View>
 
-            <View style={styles.importSourceRow}>
-              <Pressable
-                style={styles.importSourceBtn}
-                onPress={handleImportCamera}
-                disabled={extractingText}
-              >
-                <Ionicons name="camera-outline" size={20} color={colors.accent} />
-                <Text style={styles.importSourceText}>Camera</Text>
-              </Pressable>
-              <Pressable
-                style={styles.importSourceBtn}
-                onPress={handleImportImage}
-                disabled={extractingText}
-              >
-                <Ionicons name="image-outline" size={20} color={colors.listening} />
-                <Text style={styles.importSourceText}>Photo</Text>
-              </Pressable>
-            </View>
-
-            {extractingText && (
-              <View style={styles.extractingBanner}>
-                <ActivityIndicator size="small" color={colors.accent} />
-                <Text style={styles.extractingText}>Extracting Arabic text...</Text>
-              </View>
-            )}
-
-            {importImageUri && !extractingText && (
-              <View style={styles.importImagePreview}>
-                <Image source={{ uri: importImageUri }} style={styles.importPreviewImg} />
+            <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+              <View style={styles.importSourceRow}>
                 <Pressable
-                  style={styles.importImageRemove}
-                  onPress={() => { setImportImageUri(null); setImportText(""); }}
+                  style={styles.importSourceBtn}
+                  onPress={handleImportCamera}
+                  disabled={extractingText}
                 >
-                  <Ionicons name="close-circle" size={20} color={colors.missed} />
+                  <Ionicons name="camera-outline" size={20} color={colors.accent} />
+                  <Text style={styles.importSourceText}>Camera</Text>
+                </Pressable>
+                <Pressable
+                  style={styles.importSourceBtn}
+                  onPress={handleImportImage}
+                  disabled={extractingText}
+                >
+                  <Ionicons name="image-outline" size={20} color={colors.listening} />
+                  <Text style={styles.importSourceText}>Photo</Text>
                 </Pressable>
               </View>
-            )}
 
-            <TextInput
-              style={styles.topicInput}
-              placeholder="Title (optional)"
-              placeholderTextColor={colors.textSecondary}
-              value={importTitle}
-              onChangeText={setImportTitle}
-            />
-            <TextInput
-              style={styles.importTextInput}
-              placeholder="Paste Arabic text here or use camera/photo above..."
-              placeholderTextColor={colors.textSecondary}
-              value={importText}
-              onChangeText={setImportText}
-              multiline
-              textAlign="right"
-            />
-            <View style={styles.modalActions}>
-              <Pressable
-                style={styles.modalCancel}
-                onPress={() => { setShowImport(false); setImportImageUri(null); }}
-              >
-                <Text style={styles.modalCancelText}>Cancel</Text>
-              </Pressable>
-              <Pressable
-                style={[
-                  styles.modalSubmit,
-                  (!importText.trim() || importing || extractingText) && styles.modalSubmitDisabled,
-                ]}
-                onPress={handleImport}
-                disabled={!importText.trim() || importing || extractingText}
-              >
-                {importing ? (
-                  <ActivityIndicator size="small" color="#fff" />
-                ) : (
-                  <Text style={styles.modalSubmitText}>Analyze</Text>
-                )}
-              </Pressable>
-            </View>
+              {extractingText && (
+                <View style={styles.extractingBanner}>
+                  <ActivityIndicator size="small" color={colors.accent} />
+                  <Text style={styles.extractingText}>Extracting Arabic text...</Text>
+                </View>
+              )}
+
+              {importImageUri && !extractingText && (
+                <View style={styles.importImagePreview}>
+                  <Image source={{ uri: importImageUri }} style={styles.importPreviewImg} />
+                  <Pressable
+                    style={styles.importImageRemove}
+                    onPress={() => { setImportImageUri(null); setImportText(""); }}
+                  >
+                    <Ionicons name="close-circle" size={20} color={colors.missed} />
+                  </Pressable>
+                </View>
+              )}
+
+              <TextInput
+                style={styles.topicInput}
+                placeholder="Title (optional)"
+                placeholderTextColor={colors.textSecondary}
+                value={importTitle}
+                onChangeText={setImportTitle}
+              />
+              <TextInput
+                style={styles.importTextInput}
+                placeholder="Paste Arabic text here or use camera/photo above..."
+                placeholderTextColor={colors.textSecondary}
+                value={importText}
+                onChangeText={setImportText}
+                multiline
+                textAlign="right"
+              />
+              <View style={styles.modalActions}>
+                <Pressable
+                  style={styles.modalCancel}
+                  onPress={() => { setShowImport(false); setImportImageUri(null); }}
+                >
+                  <Text style={styles.modalCancelText}>Cancel</Text>
+                </Pressable>
+                <Pressable
+                  style={[
+                    styles.modalSubmit,
+                    (!importText.trim() || importing || extractingText) && styles.modalSubmitDisabled,
+                  ]}
+                  onPress={handleImport}
+                  disabled={!importText.trim() || importing || extractingText}
+                >
+                  {importing ? (
+                    <ActivityIndicator size="small" color="#fff" />
+                  ) : (
+                    <Text style={styles.modalSubmitText}>Analyze</Text>
+                  )}
+                </Pressable>
+              </View>
+            </ScrollView>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
 
     </View>
