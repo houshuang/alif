@@ -54,6 +54,19 @@ _VERBOSE_PATTERNS = [
 ]
 
 
+_ARABIC_LETTER_RE = re.compile(r'^[\u0621-\u064a]$')
+
+
+def _is_valid_root(root_str: str) -> bool:
+    """Reject garbage roots: must be Arabic dot-separated radicals (3-4 letters)."""
+    if not root_str:
+        return False
+    parts = root_str.split(".")
+    if len(parts) not in (3, 4):
+        return False
+    return all(_ARABIC_LETTER_RE.match(p) for p in parts)
+
+
 def validate_gloss(gloss: str | None) -> str | None:
     """Validate and clean an English gloss. Returns cleaned gloss or None if invalid."""
     if not gloss:
@@ -576,9 +589,9 @@ def process_textbook_page(
                 pos = word_data.get("pos")
                 root_str = word_data.get("root")
 
-                # Find or create root
+                # Find or create root (with validation)
                 root_id = None
-                if root_str:
+                if root_str and _is_valid_root(root_str):
                     existing_root = db.query(Root).filter(Root.root == root_str).first()
                     if existing_root:
                         root_id = existing_root.root_id
