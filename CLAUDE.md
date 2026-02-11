@@ -51,6 +51,7 @@ Reviews are sentence-centric: greedy set cover selects sentences that maximize d
 4. Taps "Show Answer" to reveal: English translation, transliteration, root info for missed words
 5. **Back phase**: triple-tap words to cycle state: off → missed (red, rating 1 Again) → confused (yellow, rating 2 Hard) → off. Builds missed_lemma_ids + confused_lemma_ids
 6. Rates: Got it (understood) / Continue (partial, if words marked) / I have no idea (no_idea)
+7. **Back/Undo**: after submitting, can go back to previous card — undoes the review (restores pre-review FSRS state via backend undo endpoint), removes from sync queue if not yet flushed, restores word markings
 
 ### Listening Mode (implemented, real TTS via expo-av)
 1. Audio plays via ElevenLabs TTS (speed 0.7x, multilingual_v2 model)
@@ -146,9 +147,9 @@ This app is an ongoing learning experiment. Every algorithm change, data structu
 ## Key Files
 
 ### Backend Services
-- `backend/app/services/fsrs_service.py` — FSRS spaced repetition. Auto-creates UserLemmaKnowledge + Card() for unknown lemmas. submit_review handles missing records gracefully (no ValueError).
+- `backend/app/services/fsrs_service.py` — FSRS spaced repetition. Auto-creates UserLemmaKnowledge + Card() for unknown lemmas. submit_review handles missing records gracefully (no ValueError). Snapshots pre-review state (card, times_seen, times_correct, knowledge_state) in fsrs_log_json for undo support.
 - `backend/app/services/sentence_selector.py` — Session assembly: greedy set cover, comprehension-aware recency (7d/2d/4h), difficulty matching, easy-bookend ordering. Returns root data per word. Includes intro candidate selection.
-- `backend/app/services/sentence_review_service.py` — Reviews ALL words in a sentence equally via FSRS. Ternary ratings: missed=1, confused=2, rest=3. The `credit_type` field (primary/collateral) is metadata only — all words receive identical FSRS treatment based on user marking. Stores last_comprehension on sentence. Tracks total_encounters + variant_stats_json per surface form.
+- `backend/app/services/sentence_review_service.py` — Reviews ALL words in a sentence equally via FSRS. Ternary ratings: missed=1, confused=2, rest=3. The `credit_type` field (primary/collateral) is metadata only — all words receive identical FSRS treatment based on user marking. Stores last_comprehension on sentence. Tracks total_encounters + variant_stats_json per surface form. `undo_sentence_review()` restores pre-review FSRS state from fsrs_log_json snapshots, deletes ReviewLog + SentenceReviewLog entries, resets sentence metadata.
 - `backend/app/services/word_selector.py` — Next-word algorithm: 40% frequency + 30% root familiarity + 20% recency bonus + 10% grammar pattern. Excludes wiktionary reference entries and variant lemmas (canonical_lemma_id set). Root family query also filters variants. `introduce_word()` accepts `source` param (study/auto_intro/collocate).
 - `backend/app/services/sentence_generator.py` — LLM generation with 3-attempt retry loop. Samples up to 50 known words for prompt with diversity weighting. Full diacritics required. Feeds validation failures back to LLM as retry feedback.
 - `backend/app/services/sentence_validator.py` — Rule-based: tokenize → strip diacritics → strip clitics (proclitics + enclitics + taa marbuta) → match against known bare forms. 60+ function words hardcoded. Public API: `lookup_lemma()` (clitic-aware), `resolve_existing_lemma()` (for import dedup), `build_lemma_lookup()` (indexes forms_json + al-variants).
@@ -170,12 +171,12 @@ This app is an ongoing learning experiment. Every algorithm change, data structu
 ### Backend Other
 - `backend/app/models.py` — SQLAlchemy models: Root, Lemma (+ example_ar/en, forms_json, canonical_lemma_id), UserLemmaKnowledge (+ variant_stats_json), ReviewLog, Sentence (+ last_comprehension), SentenceWord, SentenceReviewLog, GrammarFeature, SentenceGrammarFeature, UserGrammarExposure, Story, StoryWord, PageUpload (batch_id, status, extracted_words_json, new_words, existing_words)
 - `backend/app/schemas.py` — Pydantic models. SentenceReviewSubmitIn includes confused_lemma_ids. SentenceWordMeta includes root/root_meaning/root_id.
-- `backend/scripts/` — import_duolingo.py, import_wiktionary.py, import_avp_a1.py (all use clitic-aware dedup via `resolve_existing_lemma()`), benchmark_llm.py, pregenerate_material.py, generate_audio.py, generate_sentences.py, backfill_lemma_grammar.py, backfill_examples.py, backfill_forms.py, backfill_forms_llm.py, backfill_frequency.py (CAMeL MSA frequency + Kelly CEFR), backfill_roots.py, backfill_root_meanings.py, simulate_usage.py, update_material.py (cron: backfill sentences + audio + pre-generate for upcoming candidates), merge_al_lemmas.py, merge_lemma_variants.py, cleanup_lemma_variants.py, cleanup_glosses.py, cleanup_lemma_text.py, identify_leeches.py (find high-review low-accuracy words, optional --suspend), retire_sentences.py (remove low-quality/overused sentences), verify_sentences.py (GPT-5.2 batch verification of Arabic naturalness, parallel execution), normalize_and_dedup.py (3-pass production cleanup: LLM-confirmed variant detection + al-prefix dedup + forms_json enrichment), log_activity.py (CLI tool for manual ActivityLog entries), backfill_story_words.py (resolve null lemma_ids via morphology + LLM import), backfill_story_proper_nouns.py (convert proper nouns to function words), db_analysis.py, analyze_word_distribution.py, tts_comparison.py, test_llm_variants.py (benchmark LLM variant detection against ground truth)
+- `backend/scripts/` — import_duolingo.py, import_wiktionary.py, import_avp_a1.py (all use clitic-aware dedup via `resolve_existing_lemma()`), benchmark_llm.py, pregenerate_material.py, generate_audio.py, generate_sentences.py, backfill_lemma_grammar.py, backfill_examples.py, backfill_forms.py, backfill_forms_llm.py, backfill_frequency.py (CAMeL MSA frequency + Kelly CEFR), backfill_roots.py, backfill_root_meanings.py, simulate_usage.py, update_material.py (cron: backfill sentences + audio by FSRS due-date priority, pipeline capped at 200 active sentences, MIN_SENTENCES=2), merge_al_lemmas.py, merge_lemma_variants.py, cleanup_lemma_variants.py, cleanup_glosses.py, cleanup_lemma_text.py, identify_leeches.py (find high-review low-accuracy words, optional --suspend), retire_sentences.py (remove low-quality/overused sentences), verify_sentences.py (GPT-5.2 batch verification of Arabic naturalness, parallel execution), normalize_and_dedup.py (3-pass production cleanup: LLM-confirmed variant detection + al-prefix dedup + forms_json enrichment), log_activity.py (CLI tool for manual ActivityLog entries), backfill_story_words.py (resolve null lemma_ids via morphology + LLM import), backfill_story_proper_nouns.py (convert proper nouns to function words), db_analysis.py, analyze_word_distribution.py, tts_comparison.py, test_llm_variants.py (benchmark LLM variant detection against ground truth)
 
 ### Frontend
-- `frontend/app/index.tsx` — Review screen: sentence-first + word-only fallback, reading + listening modes, front-phase word lookup with root prediction, triple-tap word marking (off → missed → confused → off), inline intro cards, session completion with analytics
+- `frontend/app/index.tsx` — Review screen: sentence-first + word-only fallback, reading + listening modes, front-phase word lookup with root prediction, triple-tap word marking (off → missed → confused → off), back/undo (restores previous card + undoes FSRS review), inline intro cards, session completion with analytics
 - `frontend/app/learn.tsx` — Learn: 5-candidate pick → quiz → done. Forms display, TTS, sentence polling.
-- `frontend/app/words.tsx` — Word browser: search (AR/EN/translit), filter by state, sort by review status (failed first)
+- `frontend/app/words.tsx` — Word browser: two-column grid with category tabs (Vocabulary/Function/Names), smart filter chips (Leeches/Struggling/Recent/Solid/Next Up + state filters), review sparklines, search (AR/EN/translit). Next Up tab shows learn algorithm candidates with score breakdown.
 - `frontend/app/stats.tsx` — Analytics: today banner, CEFR card, pace grid, quick stats, 14-day bar chart
 - `frontend/app/story/[id].tsx` — Story reader: word-by-word Arabic with tap-to-lookup (AsyncStorage persisted), AR/EN tabs, complete/skip/too-difficult
 - `frontend/app/stories.tsx` — Story list: generate modal (length + topic), import modal (title + text + image OCR)
@@ -187,10 +188,10 @@ This app is an ongoing learning experiment. Every algorithm change, data structu
 - `frontend/lib/review/ActionMenu.tsx` — Generic "⋯" action menu. Bottom sheet with: Ask AI, Suspend word, Flag content. Used across all card screens.
 - `frontend/lib/review/WordInfoCard.tsx` — Detailed word info panel for review screens (forms, root family, grammar)
 - `frontend/lib/AskAI.tsx` — AI chat component for asking questions about Arabic content
-- `frontend/lib/api.ts` — API client with configurable BASE_URL. Typed response interfaces. Includes lookupReviewWord().
+- `frontend/lib/api.ts` — API client with configurable BASE_URL. Typed response interfaces. Includes lookupReviewWord(), undoSentenceReview() (queue removal + unmark + backend undo).
 - `frontend/lib/types.ts` — All interfaces. SentenceWordMeta has root/root_meaning/root_id. WordLookupResult for review lookup.
-- `frontend/lib/offline-store.ts` — AsyncStorage: session cache (3 per mode), reviewed tracking, data cache (words/stats/analytics)
-- `frontend/lib/sync-queue.ts` — Enqueue reviews offline, bulk flush via POST /api/review/sync, invalidates session cache on success
+- `frontend/lib/offline-store.ts` — AsyncStorage: session cache (3 per mode), reviewed tracking (+ unmarkReviewed for undo), data cache (words/stats/analytics)
+- `frontend/lib/sync-queue.ts` — Enqueue reviews offline, bulk flush via POST /api/review/sync, invalidates session cache on success. removeFromQueue() for undo support.
 - `frontend/lib/theme.ts` — Dark theme (0f0f1a bg), semantic colors (including confused yellow #f39c12), Arabic/English font sizes
 
 ## API Endpoints
@@ -203,6 +204,7 @@ This app is an ongoing learning experiment. Every algorithm change, data structu
 | GET | `/api/review/next-sentences?limit=10&mode=reading` | Sentence-centric review session (primary) |
 | POST | `/api/review/submit` | Submit single-word review (legacy) |
 | POST | `/api/review/submit-sentence` | Submit sentence review — all words get FSRS credit. Accepts confused_lemma_ids |
+| POST | `/api/review/undo-sentence` | Undo a sentence review — restores pre-review FSRS state, deletes logs |
 | GET | `/api/review/word-lookup/{lemma_id}` | Word detail + root family for review lookup |
 | POST | `/api/review/sync` | Bulk sync offline reviews |
 | GET | `/api/learn/next-words?count=5` | Best next words to introduce |
@@ -260,7 +262,7 @@ This app is an ongoing learning experiment. Every algorithm change, data structu
 - `roots` — 3/4 consonant roots with core meaning, productivity score
 - `lemmas` — Base dictionary forms with root FK, POS, gloss, frequency_rank (from CAMeL MSA corpus), cefr_level (A1–C2 from Kelly Project), grammar_features_json, forms_json, example_ar/en, transliteration, audio_url, canonical_lemma_id (FK to self — set when lemma is a variant of another), source_story_id (FK to stories — set when word was imported from a story)
 - `user_lemma_knowledge` — FSRS card state per lemma (knowledge_state: new/learning/known/lapsed, fsrs_card_json, introduced_at, times_seen, times_correct, total_encounters, source: study/auto_intro/collocate/duolingo/encountered, variant_stats_json — per-variant-form seen/missed/confused counts)
-- `review_log` — Full review history (rating 1-4, timing, mode, comprehension signal, sentence_id, credit_type: primary/collateral as metadata only — does not affect FSRS ratings, client_review_id for dedup)
+- `review_log` — Full review history (rating 1-4, timing, mode, comprehension signal, sentence_id, credit_type: primary/collateral as metadata only — does not affect FSRS ratings, client_review_id for dedup, fsrs_log_json contains pre-review state snapshots for undo: pre_card, pre_times_seen, pre_times_correct, pre_knowledge_state)
 - `sentences` — Generated/imported sentences with target word, last_shown_at, times_shown, **last_comprehension** (understood/partial/no_idea — drives recency filter)
 - `sentence_words` — Word-level breakdown with position, surface_form, lemma_id, is_target_word, grammar_role_json
 - `sentence_review_log` — Per-sentence review tracking (comprehension, timing, session, client_review_id)
@@ -317,7 +319,7 @@ Tests 3 models across 5 tasks (105 ground truth cases): diacritization, translat
 
 ## Testing
 ```bash
-cd backend && python -m pytest  # 559 tests
+cd backend && python -m pytest  # 564 tests
 ```
 All services have dedicated test files in `backend/tests/`.
 
@@ -360,6 +362,9 @@ Sentence-centric architecture with:
 - Chat/AskAI: contextual AI questions about Arabic content, conversation history
 - Deep analytics: difficulty tiers, grammar progress, learning velocity
 - Word detail screen: forms, grammar features, root family, review history, sentence stats
+- Back/undo in review: go back to previous card, undo submitted review (restores FSRS state from pre-review snapshots)
+- Sentence pipeline: due-date priority generation, capped at 200 active sentences, MIN_SENTENCES=2
+- Word list: two-column grid, category tabs (Vocabulary/Function/Names), smart filters (Leeches/Struggling/Recent/Solid/Next Up), review sparklines
 - Offline sync queue + session caching
 - Deployed to Hetzner via direct docker-compose
 

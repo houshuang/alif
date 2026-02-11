@@ -12,11 +12,11 @@ import {
 import { useRouter, useFocusEffect } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { colors, fonts, fontFamily } from "../lib/theme";
-import { getWords, getFunctionWords, getProperNames, ProperName } from "../lib/api";
-import { Word } from "../lib/types";
+import { getWords, getFunctionWords, getProperNames, getNextWords, ProperName } from "../lib/api";
+import { Word, LearnCandidate } from "../lib/types";
 
 type CategoryTab = "vocab" | "function" | "names";
-type SmartFilter = "all" | "leeches" | "struggling" | "recent" | "solid" | "learning" | "known" | "new" | "lapsed";
+type SmartFilter = "all" | "leeches" | "struggling" | "recent" | "solid" | "next_up" | "learning" | "known" | "new" | "lapsed";
 
 function isLeech(w: Word): boolean {
   return w.times_seen >= 6 && w.times_correct / w.times_seen < 0.5;
@@ -37,12 +37,13 @@ function isSolid(w: Word): boolean {
   return w.knowledge_score >= 70;
 }
 
-const SMART_FILTERS: { key: SmartFilter; label: string; icon?: string }[] = [
+const SMART_FILTERS: { key: SmartFilter; label: string }[] = [
   { key: "all", label: "All" },
   { key: "leeches", label: "Leeches" },
   { key: "struggling", label: "Struggling" },
   { key: "recent", label: "Recent" },
   { key: "solid", label: "Solid" },
+  { key: "next_up", label: "Next Up" },
   { key: "learning", label: "Learning" },
   { key: "known", label: "Known" },
   { key: "new", label: "New" },
@@ -63,6 +64,7 @@ export default function WordsScreen() {
   const [words, setWords] = useState<Word[]>([]);
   const [funcWords, setFuncWords] = useState<Word[]>([]);
   const [names, setNames] = useState<ProperName[]>([]);
+  const [nextUp, setNextUp] = useState<LearnCandidate[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
@@ -81,14 +83,16 @@ export default function WordsScreen() {
   async function loadAll() {
     setLoading(true);
     try {
-      const [w, fw, n] = await Promise.all([
+      const [w, fw, n, nu] = await Promise.all([
         getWords(),
         getFunctionWords().catch(() => []),
         getProperNames().catch(() => []),
+        getNextWords(20).catch(() => []),
       ]);
       setWords(w);
       setFuncWords(fw);
       setNames(n);
+      setNextUp(nu);
       setError(null);
     } catch (e) {
       console.error("Failed to load words:", e);
@@ -99,7 +103,7 @@ export default function WordsScreen() {
   }
 
   const counts = useMemo(() => {
-    const c: Record<string, number> = { all: words.length };
+    const c: Record<string, number> = { all: words.length, next_up: nextUp.length };
     for (const w of words) {
       c[w.state] = (c[w.state] || 0) + 1;
       if (isLeech(w)) c.leeches = (c.leeches || 0) + 1;
@@ -108,7 +112,7 @@ export default function WordsScreen() {
       if (isSolid(w)) c.solid = (c.solid || 0) + 1;
     }
     return c;
-  }, [words]);
+  }, [words, nextUp]);
 
   const filtered = useMemo(() => {
     const source = category === "function" ? funcWords : words;
@@ -202,6 +206,44 @@ export default function WordsScreen() {
           </View>
           <Text style={styles.cardArabic} numberOfLines={1}>
             {item.arabic}
+          </Text>
+        </View>
+      </Pressable>
+    );
+  }
+
+  function renderCandidate({ item }: { item: LearnCandidate }) {
+    return (
+      <Pressable
+        style={styles.card}
+        onPress={() => router.push(`/word/${item.lemma_id}`)}
+      >
+        <View style={styles.cardRow}>
+          <View style={styles.cardLeft}>
+            <Text style={styles.cardEnglish} numberOfLines={2}>
+              {item.gloss_en}
+            </Text>
+            <View style={styles.cardMeta}>
+              {item.pos ? <Text style={styles.metaText}>{item.pos}</Text> : null}
+              {item.root ? <Text style={styles.metaRoot}>{item.root}</Text> : null}
+              {item.frequency_rank ? <Text style={styles.metaText}>#{item.frequency_rank}</Text> : null}
+              {item.cefr_level ? <Text style={styles.metaText}>{item.cefr_level}</Text> : null}
+            </View>
+            <View style={styles.sparkline}>
+              <View style={[styles.candidateScoreBadge]}>
+                <Text style={styles.candidateScoreText}>
+                  {Math.round(item.score * 100)}
+                </Text>
+              </View>
+              {item.score_breakdown.known_siblings > 0 && (
+                <Text style={styles.metaText}>
+                  {item.score_breakdown.known_siblings}/{item.score_breakdown.total_siblings} root
+                </Text>
+              )}
+            </View>
+          </View>
+          <Text style={styles.cardArabic} numberOfLines={1}>
+            {item.lemma_ar}
           </Text>
         </View>
       </Pressable>
@@ -338,6 +380,22 @@ export default function WordsScreen() {
             <View style={styles.emptyContainer}>
               <Text style={styles.emptyText}>No names found</Text>
               <Text style={styles.emptyHint}>Import a story to discover names</Text>
+            </View>
+          }
+        />
+      ) : stateFilter === "next_up" ? (
+        <FlatList
+          key={`candidates-${numColumns}`}
+          data={nextUp}
+          keyExtractor={(item) => String(item.lemma_id)}
+          renderItem={renderCandidate}
+          numColumns={numColumns}
+          columnWrapperStyle={styles.gridRow}
+          contentContainerStyle={styles.grid}
+          ListEmptyComponent={
+            <View style={styles.emptyContainer}>
+              <Text style={styles.emptyText}>No candidates</Text>
+              <Text style={styles.emptyHint}>All words have been introduced</Text>
             </View>
           }
         />
@@ -537,6 +595,17 @@ const styles = StyleSheet.create({
     width: 5,
     height: 5,
     borderRadius: 3,
+  },
+  candidateScoreBadge: {
+    backgroundColor: colors.accent + "25",
+    paddingHorizontal: 5,
+    paddingVertical: 1,
+    borderRadius: 4,
+  },
+  candidateScoreText: {
+    fontSize: 9,
+    fontWeight: "600",
+    color: colors.accent,
   },
   nameTypeBadge: {
     paddingHorizontal: 5,

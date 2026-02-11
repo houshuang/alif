@@ -150,6 +150,7 @@
 - [DONE] Removed redundant missed word summary below transliteration — words already highlighted red/yellow in sentence
 - [DONE] Root family in word info card filters out self (no longer shows looked-up word as its own sibling)
 - [DONE] Root meaning text wraps properly (flexShrink) instead of overflowing card
+- [DONE] Back/undo in review: go back to previous card after submitting, undo the review (restores pre-review FSRS state from snapshots in fsrs_log_json). Handles both sync queue (not yet flushed) and backend (already flushed) cases. Idempotent.
 
 ### Word Detail View
 - Show: Arabic (diacritized), English gloss, root, POS
@@ -183,6 +184,10 @@
 - [DONE] Show review stats per word: "Seen 3x · 2 correct · 1 failed" with colored counts
 - [DONE] "Reviewed" filter chip, knowledge score display, refresh on tab focus
 - [DONE] Search icon + clear button, horizontally scrollable filter chips, full state names in badges
+- [DONE] Two-column compact grid layout with review sparklines on word cards
+- [DONE] Category tabs: Vocabulary / Function / Names (with proper noun rendering)
+- [DONE] Smart filter tabs: Leeches (high review, low accuracy), Struggling (recent failures), Recent (newly learning), Solid (high score), Next Up (learn algorithm candidates)
+- [DONE] Next Up tab: shows learn algorithm's top 20 candidates with score breakdown (frequency, root familiarity, known siblings)
 - Shared design system: extract common card/button/badge styles into theme.ts or shared components to prevent screens drifting apart visually
 
 ### Text Reader View
@@ -495,6 +500,7 @@
 - [DONE] Sentence retirement: soft-delete old low-diversity sentences via is_active flag
 - [DONE] Starter diversity in LLM prompts: discourage هل-default and محمد overuse
 - [DONE] ALWAYS_AVOID_NAMES: proper nouns always in avoid list
+- [DONE] Sentence pipeline cap: due-date priority generation (most urgent first), capped at 200 active sentences, MIN_SENTENCES reduced from 3 to 2. Avoids wasteful generation for words the user won't review soon.
 - Automatic periodic rebalancing: integrate retire_sentences logic into update_material.py as Step 0
 - Sentence quality scoring dashboard: show diversity metrics on analytics page
 - Corpus diversity entropy: track Shannon entropy of word distribution across sentences over time

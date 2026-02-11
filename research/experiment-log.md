@@ -4,6 +4,54 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-02-11: Review Undo / Back Navigation
+
+**Problem**: During sentence review, if the user taps "Got it" by mistake, there's no way to go back and correct the rating. Reviews must be submitted immediately per-card (user often leaves mid-session), so deferring to session end isn't an option.
+
+**Change**: Added undo support — submit immediately as before, but allow going back by undoing the submitted review:
+1. `fsrs_service.submit_review()` now snapshots pre-review state (card, times_seen, times_correct, knowledge_state) in `fsrs_log_json`
+2. New `undo_sentence_review()` in sentence_review_service.py: finds ReviewLog entries by client_review_id prefix, restores pre-review FSRS state, deletes logs, resets sentence metadata
+3. New endpoint `POST /api/review/undo-sentence` with idempotent behavior
+4. Frontend: `removeFromQueue()` in sync-queue.ts, `unmarkReviewed()` in offline-store.ts, `undoSentenceReview()` in api.ts
+
+**Tests**: 5 new tests in test_sentence_review.py: undo restores FSRS state, deletes review logs, restores sentence metadata, idempotent when not found, API endpoint integration.
+
+**Expected effect**: Users can correct mistaken ratings without restarting the session or having incorrect FSRS data.
+
+---
+
+## 2026-02-11: Sentence Pipeline Cap + Due-Date Priority
+
+**Problem**: Generating 3 sentences per word for all 592 words is wasteful — user can't review more than ~200 sentences in 6 hours. Many generated sentences sit idle while more urgently needed ones don't exist.
+
+**Change**: Modified `update_material.py`:
+- `MIN_SENTENCES` reduced from 3 to 2
+- Added `TARGET_PIPELINE_SENTENCES = 200` cap
+- New `get_words_by_due_date()` sorts words by FSRS due date (most urgent first)
+- Step A generates sentences by due-date priority with budget cap
+- Step C also respects pipeline capacity
+
+**Expected effect**: Prioritizes sentence generation for words the user will actually review soon. Reduces wasted API calls and generation time.
+
+---
+
+## 2026-02-11: Word List Smart Filters + Next Up Tab
+
+**Problem**: Word list was a flat searchable list with state filters only. Hard to find specific word categories (leeches, struggling words, recently learned).
+
+**Change**: Added smart filter tabs to word browser:
+- **Leeches**: words with 6+ reviews and <50% accuracy (sorted worst first)
+- **Struggling**: 2+ failures in last 4 ratings
+- **Recent**: learning state with 4 or fewer reviews
+- **Solid**: knowledge score ≥ 70% (sorted best first)
+- **Next Up**: shows learn algorithm's top 20 candidates with score breakdown (frequency, root familiarity, siblings known)
+
+Also added category tabs (Vocabulary/Function/Names), review sparklines on word cards, two-column grid layout.
+
+**Expected effect**: Better visibility into learning progress and word health. Next Up tab surfaces the algorithm's candidate ranking for transparency.
+
+---
+
 ## 2026-02-11: Switch Sentence Generation to GPT-5.2
 
 **Problem**: Gemini Flash produces unnatural Arabic sentences. Example: `جرس الراديو في غرفة الصالون` ("the bell of the radio in the room of the living room") — uses wrong collocation (جرس with radio) and unnatural hybrid phrasing (غرفة الصالون). For a language learning app, incorrect collocations teach wrong usage.
