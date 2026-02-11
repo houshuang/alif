@@ -30,6 +30,7 @@ import {
   cacheSessions,
   getCachedSession,
   markReviewed,
+  unmarkReviewed,
   cacheData,
   getCachedData,
   cacheStories,
@@ -41,7 +42,7 @@ import {
   getCachedWordLookup,
   cacheWordLookupBatch,
 } from "./offline-store";
-import { enqueueReview, flushQueue } from "./sync-queue";
+import { enqueueReview, flushQueue, removeFromQueue } from "./sync-queue";
 
 export const BASE_URL =
   Constants.expoConfig?.extra?.apiUrl ?? "http://localhost:8000";
@@ -416,9 +417,10 @@ export async function getSentenceReviewSession(
 }
 
 export async function submitSentenceReview(
-  submission: SentenceReviewSubmission
-): Promise<{ word_results: WordReviewResult[] }> {
-  const clientReviewId = submission.client_review_id || generateUuid();
+  submission: SentenceReviewSubmission,
+  explicitClientReviewId?: string
+): Promise<{ word_results: WordReviewResult[]; clientReviewId: string }> {
+  const clientReviewId = explicitClientReviewId || submission.client_review_id || generateUuid();
 
   await enqueueReview("sentence", {
     sentence_id: submission.sentence_id,
@@ -444,7 +446,31 @@ export async function submitSentenceReview(
     flushQueue().catch((e) => console.warn("sync flush failed:", e));
   }
 
-  return { word_results: [] };
+  return { word_results: [], clientReviewId };
+}
+
+export async function undoSentenceReview(
+  clientReviewId: string,
+  sessionId: string,
+  sentenceId: number | null,
+  primaryLemmaId: number,
+  mode: ReviewMode = "reading"
+): Promise<void> {
+  // Remove from local queue if not yet flushed
+  await removeFromQueue(clientReviewId);
+
+  // Unmark as reviewed so card can reappear
+  await unmarkReviewed(sessionId, sentenceId, primaryLemmaId, mode);
+
+  // Call backend undo (idempotent — no-op if review wasn't flushed yet)
+  try {
+    await fetchApi("/api/review/undo-sentence", {
+      method: "POST",
+      body: JSON.stringify({ client_review_id: clientReviewId }),
+    });
+  } catch (e) {
+    console.warn("undo-sentence backend call failed:", e);
+  }
 }
 
 export async function prefetchSessions(mode: ReviewMode): Promise<void> {

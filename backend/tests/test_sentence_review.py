@@ -9,7 +9,7 @@ from app.models import (
     ReviewLog, SentenceReviewLog,
 )
 from app.services.fsrs_service import create_new_card
-from app.services.sentence_review_service import submit_sentence_review
+from app.services.sentence_review_service import submit_sentence_review, undo_sentence_review
 
 
 def _make_card(stability_days=30.0, due_offset_hours=-1):
@@ -592,3 +592,133 @@ class TestVariantStats:
             UserLemmaKnowledge.lemma_id == 1
         ).first()
         assert knowledge.variant_stats_json is None
+
+
+class TestUndoSentenceReview:
+    def test_undo_restores_fsrs_state(self, db_session):
+        """Undo should restore pre-review FSRS card state."""
+        _seed_word(db_session, 1, "كتاب", "book")
+        _seed_word(db_session, 2, "ولد", "boy")
+        _seed_sentence(db_session, 1, "الولد الكتاب", "boy book",
+                       target_lemma_id=1, word_ids=[2, 1])
+        db_session.commit()
+
+        # Record pre-review state
+        k1_before = db_session.query(UserLemmaKnowledge).filter(
+            UserLemmaKnowledge.lemma_id == 1).first()
+        ts1_before = k1_before.times_seen
+        tc1_before = k1_before.times_correct
+        state1_before = k1_before.knowledge_state
+
+        # Submit review
+        submit_sentence_review(
+            db_session,
+            sentence_id=1,
+            primary_lemma_id=1,
+            comprehension_signal="understood",
+            client_review_id="undo-test-1",
+        )
+
+        # Verify review was applied
+        db_session.expire_all()
+        k1_after = db_session.query(UserLemmaKnowledge).filter(
+            UserLemmaKnowledge.lemma_id == 1).first()
+        assert k1_after.times_seen == ts1_before + 1
+
+        # Undo
+        result = undo_sentence_review(db_session, "undo-test-1")
+        assert result["undone"] is True
+        assert result["reviews_removed"] == 2
+
+        # Verify state restored
+        db_session.expire_all()
+        k1_restored = db_session.query(UserLemmaKnowledge).filter(
+            UserLemmaKnowledge.lemma_id == 1).first()
+        assert k1_restored.times_seen == ts1_before
+        assert k1_restored.times_correct == tc1_before
+        assert k1_restored.knowledge_state == state1_before
+
+    def test_undo_deletes_review_logs(self, db_session):
+        """Undo should delete ReviewLog and SentenceReviewLog entries."""
+        _seed_word(db_session, 1, "كتاب", "book")
+        _seed_sentence(db_session, 1, "الكتاب", "the book",
+                       target_lemma_id=1, word_ids=[1])
+        db_session.commit()
+
+        submit_sentence_review(
+            db_session,
+            sentence_id=1,
+            primary_lemma_id=1,
+            comprehension_signal="understood",
+            client_review_id="undo-test-2",
+        )
+
+        # Verify logs exist
+        assert db_session.query(ReviewLog).count() == 1
+        assert db_session.query(SentenceReviewLog).count() == 1
+
+        # Undo
+        undo_sentence_review(db_session, "undo-test-2")
+
+        # Verify logs deleted
+        assert db_session.query(ReviewLog).count() == 0
+        assert db_session.query(SentenceReviewLog).count() == 0
+
+    def test_undo_restores_sentence_metadata(self, db_session):
+        """Undo should decrement times_shown and clear comprehension."""
+        _seed_word(db_session, 1, "كتاب", "book")
+        sent = _seed_sentence(db_session, 1, "الكتاب", "the book",
+                              target_lemma_id=1, word_ids=[1])
+        db_session.commit()
+
+        submit_sentence_review(
+            db_session,
+            sentence_id=1,
+            primary_lemma_id=1,
+            comprehension_signal="understood",
+            client_review_id="undo-test-3",
+        )
+
+        db_session.refresh(sent)
+        assert sent.times_shown == 1
+        assert sent.last_reading_comprehension == "understood"
+
+        undo_sentence_review(db_session, "undo-test-3")
+
+        db_session.refresh(sent)
+        assert sent.times_shown == 0
+        assert sent.last_reading_comprehension is None
+
+    def test_undo_idempotent_when_not_found(self, db_session):
+        """Undo with unknown client_review_id should return undone=False."""
+        result = undo_sentence_review(db_session, "nonexistent-id")
+        assert result["undone"] is False
+        assert result["reviews_removed"] == 0
+
+    def test_undo_endpoint(self, client, db_session):
+        """Test the API endpoint for undo."""
+        _seed_word(db_session, 1, "كتاب", "book")
+        _seed_sentence(db_session, 1, "الكتاب", "the book",
+                       target_lemma_id=1, word_ids=[1])
+        db_session.commit()
+
+        # Submit via API
+        client.post("/api/review/submit-sentence", json={
+            "sentence_id": 1,
+            "primary_lemma_id": 1,
+            "comprehension_signal": "understood",
+            "session_id": "undo-api-test",
+            "review_mode": "reading",
+            "client_review_id": "undo-api-1",
+        })
+
+        # Undo via API
+        resp = client.post("/api/review/undo-sentence", json={
+            "client_review_id": "undo-api-1",
+        })
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["undone"] is True
+
+        # Verify ReviewLog cleaned up
+        assert db_session.query(ReviewLog).count() == 0

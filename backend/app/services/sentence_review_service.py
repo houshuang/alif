@@ -18,7 +18,7 @@ from app.models import (
     SentenceWord,
     UserLemmaKnowledge,
 )
-from app.services.fsrs_service import parse_json_column, submit_review
+from app.services.fsrs_service import STATE_MAP, parse_json_column, submit_review
 from app.services.grammar_service import record_grammar_exposure
 from app.services.sentence_validator import strip_diacritics, _is_function_word
 
@@ -317,3 +317,70 @@ def _record_sentence_grammar(
                 )
                 if exp:
                     exp.times_confused = (exp.times_confused or 0) + 1
+
+
+def undo_sentence_review(
+    db: Session,
+    client_review_id: str,
+) -> dict:
+    """Undo a previously submitted sentence review.
+
+    Finds ReviewLog entries by client_review_id prefix pattern ({base_id}:{lemma_id}),
+    restores pre-review FSRS card state from fsrs_log_json snapshots, and deletes
+    the log entries.
+    """
+    # Sentence reviews use composite client_review_ids: {base_id}:{lemma_id}
+    review_logs = (
+        db.query(ReviewLog)
+        .filter(ReviewLog.client_review_id.like(f"{client_review_id}:%"))
+        .all()
+    )
+
+    if not review_logs:
+        return {"undone": False, "reviews_removed": 0}
+
+    # Restore pre-review FSRS state for each word
+    for log in review_logs:
+        fsrs_data = parse_json_column(log.fsrs_log_json)
+        pre_card = fsrs_data.get("pre_card") if fsrs_data else None
+        pre_times_seen = fsrs_data.get("pre_times_seen") if fsrs_data else None
+        pre_times_correct = fsrs_data.get("pre_times_correct") if fsrs_data else None
+        pre_knowledge_state = fsrs_data.get("pre_knowledge_state") if fsrs_data else None
+
+        ulk = (
+            db.query(UserLemmaKnowledge)
+            .filter(UserLemmaKnowledge.lemma_id == log.lemma_id)
+            .first()
+        )
+        if ulk:
+            if pre_card is not None:
+                ulk.fsrs_card_json = pre_card
+            if pre_times_seen is not None:
+                ulk.times_seen = pre_times_seen
+            if pre_times_correct is not None:
+                ulk.times_correct = pre_times_correct
+            if pre_knowledge_state is not None:
+                ulk.knowledge_state = pre_knowledge_state
+
+        db.delete(log)
+
+    # Delete the sentence-level review log
+    sent_log = (
+        db.query(SentenceReviewLog)
+        .filter(SentenceReviewLog.client_review_id == client_review_id)
+        .first()
+    )
+    if sent_log:
+        sentence = db.query(Sentence).filter(Sentence.id == sent_log.sentence_id).first()
+        if sentence:
+            sentence.times_shown = max(0, (sentence.times_shown or 1) - 1)
+            if sent_log.review_mode == "listening":
+                sentence.last_listening_comprehension = None
+                sentence.last_listening_shown_at = None
+            else:
+                sentence.last_reading_comprehension = None
+                sentence.last_reading_shown_at = None
+        db.delete(sent_log)
+
+    db.commit()
+    return {"undone": True, "reviews_removed": len(review_logs)}

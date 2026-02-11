@@ -153,6 +153,12 @@ def submit_review(
     card = Card() if not card_data else Card.from_dict(card_data)
     fsrs_rating = RATING_MAP[rating_int]
 
+    # Snapshot pre-review state for undo support
+    old_card_dict = card.to_dict() if card_data else None
+    old_times_seen = knowledge.times_seen or 0
+    old_times_correct = knowledge.times_correct or 0
+    old_knowledge_state = knowledge.knowledge_state
+
     now = datetime.now(timezone.utc)
     new_card, review_log_entry = scheduler.review_card(card, fsrs_rating, now)
 
@@ -164,9 +170,9 @@ def submit_review(
     knowledge.fsrs_card_json = card_dict
     knowledge.knowledge_state = new_state
     knowledge.last_reviewed = now
-    knowledge.times_seen = (knowledge.times_seen or 0) + 1
+    knowledge.times_seen = old_times_seen + 1
     if rating_int >= 3:
-        knowledge.times_correct = (knowledge.times_correct or 0) + 1
+        knowledge.times_correct = old_times_correct + 1
 
     log_entry = ReviewLog(
         lemma_id=lemma_id,
@@ -181,6 +187,10 @@ def submit_review(
             "rating": rating_int,
             "state": new_state,
             "scheduled_days": new_card.to_dict().get("scheduled_days"),
+            "pre_card": old_card_dict,
+            "pre_times_seen": old_times_seen,
+            "pre_times_correct": old_times_correct,
+            "pre_knowledge_state": old_knowledge_state,
         },
     )
     db.add(log_entry)

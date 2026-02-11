@@ -19,7 +19,7 @@ from app.services.fsrs_service import get_due_cards, submit_review
 from app.services.listening import get_listening_candidates, process_comprehension_signal
 from app.services.interaction_logger import log_interaction
 from app.services.sentence_selector import build_session
-from app.services.sentence_review_service import submit_sentence_review
+from app.services.sentence_review_service import submit_sentence_review, undo_sentence_review
 from app.services.sentence_validator import _is_function_word
 
 logger = logging.getLogger(__name__)
@@ -345,3 +345,25 @@ def submit_reintro_result(
     )
 
     return {"status": "ok", "result": body.result, "lemma_id": body.lemma_id}
+
+
+@router.post("/undo-sentence")
+def undo_sentence(
+    body: dict,
+    db: Session = Depends(get_db),
+):
+    """Undo a previously submitted sentence review, restoring pre-review FSRS state."""
+    client_review_id = body.get("client_review_id")
+    if not client_review_id:
+        raise HTTPException(400, "client_review_id required")
+
+    result = undo_sentence_review(db, client_review_id)
+
+    if result["undone"]:
+        log_interaction(
+            event="review_undone",
+            client_review_id=client_review_id,
+            reviews_removed=result["reviews_removed"],
+        )
+
+    return result

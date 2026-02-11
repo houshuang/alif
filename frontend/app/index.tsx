@@ -12,12 +12,14 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { Audio } from "expo-av";
+import { Ionicons } from "@expo/vector-icons";
 import { colors, fonts, fontFamily } from "../lib/theme";
 import {
   getReviewSession,
   submitReview,
   getSentenceReviewSession,
   submitSentenceReview,
+  undoSentenceReview,
   submitReintroResult,
   getAnalytics,
   lookupReviewWord,
@@ -25,6 +27,7 @@ import {
   getGrammarLesson,
   introduceGrammarFeature,
   introduceWord,
+  generateUuid,
   BASE_URL,
 } from "../lib/api";
 import {
@@ -67,6 +70,15 @@ interface WordOutcome {
 type SessionSlot =
   | { type: "sentence"; itemIndex: number }
   | { type: "intro"; candidateIndex: number };
+
+interface CardSnapshot {
+  missedIndices: Set<number>;
+  confusedIndices: Set<number>;
+  signal: ComprehensionSignal;
+  sentenceId: number | null;
+  primaryLemmaId: number;
+  wordOutcomesBefore: Map<number, WordOutcome>;
+}
 
 function stripDiacritics(s: string): string {
   return s.replace(/[\u0610-\u065f\u0670\u06D6-\u06ED]/g, "");
@@ -124,6 +136,9 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
   const [grammarLessonsLoading, setGrammarLessonsLoading] = useState(false);
   const [sessionSlots, setSessionSlots] = useState<SessionSlot[]>([]);
   const [introducedLemmaIds, setIntroducedLemmaIds] = useState<Set<number>>(new Set());
+  const [cardReviewIds, setCardReviewIds] = useState<(string | null)[]>([]);
+  const [cardSnapshots, setCardSnapshots] = useState<CardSnapshot[]>([]);
+  const [undoing, setUndoing] = useState(false);
   const showTime = useRef<number>(0);
   const soundRef = useRef<Audio.Sound | null>(null);
   const lookupRequestRef = useRef(0);
@@ -236,6 +251,9 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
     setWordOutcomes(new Map());
     setSessionSlots([]);
     setIntroducedLemmaIds(new Set());
+    setCardReviewIds([]);
+    setCardSnapshots([]);
+    setUndoing(false);
     setReintroCards([]);
     setReintroIndex(0);
     setGrammarLessons([]);
@@ -463,6 +481,16 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
       missedLemmaIds.push(item.primary_lemma_id);
     }
 
+    // Save snapshot for undo before updating wordOutcomes
+    const snapshot: CardSnapshot = {
+      missedIndices: new Set(missedIndices),
+      confusedIndices: new Set(confusedIndices),
+      signal,
+      sentenceId: item.sentence_id,
+      primaryLemmaId: item.primary_lemma_id,
+      wordOutcomesBefore: new Map(wordOutcomes),
+    };
+
     // Track per-word outcomes
     const missedSet = new Set(missedLemmaIds);
     const confusedSet = new Set(confusedLemmaIds);
@@ -494,6 +522,8 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
       return next;
     });
 
+    const clientReviewId = generateUuid();
+
     try {
       await submitSentenceReview({
         sentence_id: item.sentence_id,
@@ -506,13 +536,108 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
         review_mode: mode,
         audio_play_count: audioPlayCount > 0 ? audioPlayCount : undefined,
         lookup_count: lookupCount > 0 ? lookupCount : undefined,
-      });
+      }, clientReviewId);
     } catch (e) {
       console.warn("sentence submit failed:", e);
     }
 
+    // Save review ID and snapshot for undo
+    setCardReviewIds(prev => {
+      const next = [...prev];
+      next[cardIndex] = clientReviewId;
+      return next;
+    });
+    setCardSnapshots(prev => {
+      const next = [...prev];
+      next[cardIndex] = snapshot;
+      return next;
+    });
+
     advanceAfterSubmit(signal);
   }
+
+  async function handleGoBack() {
+    if (!sentenceSession || undoing) return;
+
+    // Find the previous sentence slot (skip intro slots)
+    let targetIndex = cardIndex - 1;
+    while (targetIndex >= 0) {
+      const slot = sessionSlots.length > 0 ? sessionSlots[targetIndex] : null;
+      if (!slot || slot.type === "sentence") break;
+      targetIndex--;
+    }
+    if (targetIndex < 0) return;
+
+    const reviewId = cardReviewIds[targetIndex];
+    const snapshot = cardSnapshots[targetIndex];
+    if (!reviewId || !snapshot) return;
+
+    setUndoing(true);
+    try {
+      await undoSentenceReview(
+        reviewId,
+        sentenceSession.session_id,
+        snapshot.sentenceId,
+        snapshot.primaryLemmaId,
+        mode
+      );
+    } catch (e) {
+      console.warn("undo failed:", e);
+    }
+    setUndoing(false);
+
+    // Restore card state
+    setCardIndex(targetIndex);
+    setMissedIndices(snapshot.missedIndices);
+    setConfusedIndices(snapshot.confusedIndices);
+    setCardState(mode === "listening" ? "answer" : "back");
+    setWordOutcomes(snapshot.wordOutcomesBefore);
+
+    // Decrement results counter
+    setResults(prev => {
+      if (!prev) return prev;
+      return {
+        total: prev.total - 1,
+        gotIt: prev.gotIt - (snapshot.signal === "understood" || snapshot.signal === "grammar_confused" ? 1 : 0),
+        missed: prev.missed - (snapshot.signal === "partial" ? 1 : 0),
+        noIdea: prev.noIdea - (snapshot.signal === "no_idea" ? 1 : 0),
+      };
+    });
+
+    // Clear the saved review for this card
+    setCardReviewIds(prev => {
+      const next = [...prev];
+      next[targetIndex] = null;
+      return next;
+    });
+    setCardSnapshots(prev => {
+      const next = [...prev];
+      delete next[targetIndex];
+      return next;
+    });
+
+    // Reset lookup state
+    lookupRequestRef.current += 1;
+    setLookupResult(null);
+    setLookupSurfaceForm(null);
+    setLookupLemmaId(null);
+    setFocusedWordMark(null);
+    setLookupShowMeaning(false);
+    setAudioPlayCount(0);
+    setLookupCount(0);
+  }
+
+  // Can go back if there's a previous sentence slot with a saved review
+  const canGoBack = useMemo(() => {
+    if (!usingSentences || cardIndex === 0) return false;
+    for (let i = cardIndex - 1; i >= 0; i--) {
+      const slot = sessionSlots.length > 0 ? sessionSlots[i] : null;
+      if (!slot || slot.type === "sentence") {
+        return !!cardReviewIds[i];
+      }
+    }
+    return false;
+  }, [usingSentences, cardIndex, sessionSlots, cardReviewIds]);
 
   async function handleLegacySubmit(signal: ComprehensionSignal) {
     if (!legacySession) return;
@@ -1048,7 +1173,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
       <View
         style={[styles.container, isListening && styles.listeningContainer, { paddingTop: Math.max(insets.top, 12) }]}
       >
-        <ProgressBar current={cardIndex + 1} total={totalCards} mode={mode} />
+        <ProgressBar current={cardIndex + 1} total={totalCards} mode={mode} onBack={canGoBack ? handleGoBack : null} />
 
         <ScrollView
           contentContainerStyle={styles.sentenceArea}
@@ -1897,18 +2022,30 @@ function ProgressBar({
   current,
   total,
   mode,
+  onBack,
 }: {
   current: number;
   total: number;
   mode: ReviewMode;
+  onBack?: (() => void) | null;
 }) {
   const pct = (current / total) * 100;
   const barColor = mode === "listening" ? colors.listening : colors.accent;
   return (
     <View style={styles.progressContainer}>
-      <Text style={styles.progressText}>
-        Card {current} of {total}
-      </Text>
+      <View style={styles.progressHeader}>
+        {onBack ? (
+          <Pressable onPress={onBack} hitSlop={12} style={styles.backButton}>
+            <Ionicons name="chevron-back" size={18} color={colors.textSecondary} />
+          </Pressable>
+        ) : (
+          <View style={styles.backButtonPlaceholder} />
+        )}
+        <Text style={styles.progressText}>
+          Card {current} of {total}
+        </Text>
+        <View style={styles.backButtonPlaceholder} />
+      </View>
       <View style={styles.progressTrack}>
         <View
           style={[
@@ -2625,10 +2762,24 @@ const styles = StyleSheet.create({
     alignSelf: "center",
     marginBottom: 4,
   },
+  progressHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 4,
+  },
+  backButton: {
+    width: 28,
+    height: 28,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  backButtonPlaceholder: {
+    width: 28,
+  },
   progressText: {
     color: colors.textSecondary,
     fontSize: 12,
-    marginBottom: 4,
     textAlign: "center",
     opacity: 0.6,
   },

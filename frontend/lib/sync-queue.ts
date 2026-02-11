@@ -67,6 +67,22 @@ export async function enqueueReview(
   });
 }
 
+export async function removeFromQueue(
+  clientReviewId: string
+): Promise<boolean> {
+  let found = false;
+  await withQueueLock(async () => {
+    const queue = await getQueueUnsafe();
+    const idx = queue.findIndex((e) => e.client_review_id === clientReviewId);
+    if (idx >= 0) {
+      queue.splice(idx, 1);
+      await saveQueueUnsafe(queue);
+      found = true;
+    }
+  });
+  return found;
+}
+
 const STORY_ACTION_ENDPOINTS: Record<string, string> = {
   story_complete: "complete",
   story_skip: "skip",

@@ -101,6 +101,18 @@ async function getReviewedSet(): Promise<Set<string>> {
   return new Set(arr);
 }
 
+export async function unmarkReviewed(
+  sessionId: string,
+  sentenceId: number | null,
+  lemmaId: number,
+  mode: ReviewMode = "reading"
+): Promise<void> {
+  const reviewed = await getReviewedSet();
+  reviewed.delete(reviewKey(mode, sentenceId, lemmaId));
+  reviewed.delete(legacyReviewKey(sessionId, sentenceId, lemmaId));
+  await setJson(KEYS.reviewed, Array.from(reviewed));
+}
+
 export async function invalidateSessions(): Promise<void> {
   await AsyncStorage.multiRemove([
     KEYS.sessions("reading"),
