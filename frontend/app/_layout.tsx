@@ -140,15 +140,10 @@ export default function Layout() {
         />
         <Tabs.Screen
           name="word/[id]"
-          options={({ navigation }) => ({
+          options={{
             href: null,
             title: "Word Detail",
-            headerLeft: () => (
-              <Pressable onPress={() => navigation.goBack()} style={{ paddingLeft: 12 }}>
-                <Ionicons name="chevron-back" size={24} color={colors.text} />
-              </Pressable>
-            ),
-          })}
+          }}
         />
         <Tabs.Screen
           name="story/[id]"

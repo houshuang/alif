@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useLayoutEffect } from "react";
 import {
   View,
   Text,
@@ -7,7 +7,8 @@ import {
   StyleSheet,
   ActivityIndicator,
 } from "react-native";
-import { useLocalSearchParams, useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter, useNavigation } from "expo-router";
+import { Ionicons } from "@expo/vector-icons";
 import { colors, fonts, fontFamily } from "../../lib/theme";
 import { getWordDetail } from "../../lib/api";
 import { WordDetail, ReviewHistoryEntry } from "../../lib/types";
@@ -19,6 +20,17 @@ export default function WordDetailScreen() {
   const [word, setWord] = useState<WordDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const router = useRouter();
+  const navigation = useNavigation();
+
+  useLayoutEffect(() => {
+    navigation.setOptions({
+      headerLeft: () => (
+        <Pressable onPress={() => router.back()} style={{ paddingLeft: 12 }}>
+          <Ionicons name="chevron-back" size={24} color={colors.text} />
+        </Pressable>
+      ),
+    });
+  }, [navigation, router]);
 
   useEffect(() => {
     if (id) loadWord(Number(id));
