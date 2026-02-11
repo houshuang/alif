@@ -8,6 +8,7 @@ import {
   ActivityIndicator,
 } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
+import { Ionicons } from "@expo/vector-icons";
 import { colors, fonts, fontFamily } from "../../lib/theme";
 import {
   getStoryDetail,
@@ -72,7 +73,6 @@ export default function StoryReadScreen() {
     async (word: StoryWordMeta) => {
       if (!story) return;
 
-      // Toggle off if already looked up
       if (lookedUp.has(word.position)) {
         lookupRequestRef.current += 1;
         const nextPositions = new Set(lookedUp);
@@ -198,35 +198,36 @@ export default function StoryReadScreen() {
     );
   }
 
+  const lookupCount = lookedUp.size;
+  const totalWords = story.words.filter((w) => !w.is_function_word).length;
+
   return (
     <View style={styles.container}>
-      <View style={styles.tabBar}>
-        <Pressable
-          style={[styles.tab, viewMode === "arabic" && styles.tabActive]}
-          onPress={() => setViewMode("arabic")}
-        >
-          <Text
-            style={[
-              styles.tabText,
-              viewMode === "arabic" && styles.tabTextActive,
-            ]}
+      {/* Toggle + stats bar */}
+      <View style={styles.headerBar}>
+        <View style={styles.toggleContainer}>
+          <Pressable
+            style={[styles.toggleBtn, viewMode === "arabic" && styles.toggleBtnActive]}
+            onPress={() => setViewMode("arabic")}
           >
-            Arabic
-          </Text>
-        </Pressable>
-        <Pressable
-          style={[styles.tab, viewMode === "english" && styles.tabActive]}
-          onPress={() => setViewMode("english")}
-        >
-          <Text
-            style={[
-              styles.tabText,
-              viewMode === "english" && styles.tabTextActive,
-            ]}
+            <Text style={[styles.toggleText, viewMode === "arabic" && styles.toggleTextActive]}>
+              Arabic
+            </Text>
+          </Pressable>
+          <Pressable
+            style={[styles.toggleBtn, viewMode === "english" && styles.toggleBtnActive]}
+            onPress={() => setViewMode("english")}
           >
-            English
+            <Text style={[styles.toggleText, viewMode === "english" && styles.toggleTextActive]}>
+              English
+            </Text>
+          </Pressable>
+        </View>
+        {lookupCount > 0 && (
+          <Text style={styles.lookupCountBadge}>
+            {lookupCount} looked up
           </Text>
-        </Pressable>
+        )}
       </View>
 
       <ScrollView
@@ -279,59 +280,47 @@ export default function StoryReadScreen() {
         )}
       </ScrollView>
 
-      <View style={styles.lookupPanel}>
-        <View style={styles.lookupContent}>
-          <View style={styles.lookupArabicSlot}>
-            {selectedWord ? (
+      {/* Lookup panel */}
+      <View style={[styles.lookupPanel, selectedWord && styles.lookupPanelActive]}>
+        {selectedWord ? (
+          <View style={styles.lookupContent}>
+            <View style={styles.lookupMain}>
               <Text style={styles.lookupArabic}>
                 {story.words.find((w) => w.position === selectedPosition)
                   ?.surface_form || ""}
               </Text>
-            ) : (
-              <Text style={styles.lookupSlotPlaceholder}>.</Text>
-            )}
-          </View>
-          <View style={styles.lookupGlossSlot}>
-            {selectedWord ? (
+              <View style={styles.lookupDivider} />
               <Text style={styles.lookupGloss}>
                 {selectedWord.gloss_en || "Unknown"}
               </Text>
-            ) : (
-              <Text style={styles.lookupHint}>
-                Tap any word to see its translation
-              </Text>
-            )}
+            </View>
+            <View style={styles.lookupMeta}>
+              {selectedWord.transliteration ? (
+                <Text style={styles.lookupTranslit}>
+                  {selectedWord.transliteration}
+                </Text>
+              ) : null}
+              {selectedWord.root ? (
+                <View style={styles.lookupRootBadge}>
+                  <Text style={styles.lookupRootText}>{selectedWord.root}</Text>
+                </View>
+              ) : null}
+              {selectedWord.pos ? (
+                <Text style={styles.lookupPos}>{selectedWord.pos}</Text>
+              ) : null}
+            </View>
           </View>
-          <View style={styles.lookupMetaSlot}>
-            {selectedWord ? (
-              <View style={styles.lookupMeta}>
-                {selectedWord.transliteration ? (
-                  <Text style={styles.lookupTranslit}>
-                    {selectedWord.transliteration}
-                  </Text>
-                ) : (
-                  <Text style={styles.lookupMetaPlaceholder}>.</Text>
-                )}
-                {selectedWord.root ? (
-                  <Text style={styles.lookupRoot}>
-                    {selectedWord.root}
-                  </Text>
-                ) : (
-                  <Text style={styles.lookupMetaPlaceholder}>.</Text>
-                )}
-                {selectedWord.pos ? (
-                  <Text style={styles.lookupPos}>{selectedWord.pos}</Text>
-                ) : (
-                  <Text style={styles.lookupMetaPlaceholder}>.</Text>
-                )}
-              </View>
-            ) : (
-              <Text style={styles.lookupMetaPlaceholder}>.</Text>
-            )}
+        ) : (
+          <View style={styles.lookupEmpty}>
+            <Ionicons name="hand-left-outline" size={16} color={colors.textSecondary} style={{ opacity: 0.5, marginRight: 8 }} />
+            <Text style={styles.lookupHint}>
+              Tap any word to look it up
+            </Text>
           </View>
-        </View>
+        )}
       </View>
 
+      {/* Bottom actions */}
       <View style={styles.bottomActions}>
         <Pressable
           style={[styles.bottomBtn, styles.skipBtn]}
@@ -340,24 +329,15 @@ export default function StoryReadScreen() {
         >
           <Text style={styles.skipBtnText}>Skip</Text>
         </Pressable>
-        <Pressable
-          style={[
-            styles.bottomBtn,
-            styles.difficultBtn,
-            story.source !== "imported" && styles.difficultBtnDisabled,
-          ]}
-          onPress={handleTooDifficult}
-          disabled={submitting || story.source !== "imported"}
-        >
-          <Text
-            style={[
-              styles.difficultBtnText,
-              story.source !== "imported" && styles.difficultBtnTextDisabled,
-            ]}
+        {story.source === "imported" && (
+          <Pressable
+            style={[styles.bottomBtn, styles.difficultBtn]}
+            onPress={handleTooDifficult}
+            disabled={submitting}
           >
-            Too Difficult
-          </Text>
-        </Pressable>
+            <Text style={styles.difficultBtnText}>Too Hard</Text>
+          </Pressable>
+        )}
         <Pressable
           style={[styles.bottomBtn, styles.completeBtn]}
           onPress={handleComplete}
@@ -366,7 +346,10 @@ export default function StoryReadScreen() {
           {submitting ? (
             <ActivityIndicator size="small" color="#fff" />
           ) : (
-            <Text style={styles.completeBtnText}>Complete</Text>
+            <>
+              <Ionicons name="checkmark" size={18} color="#fff" />
+              <Text style={styles.completeBtnText}>Complete</Text>
+            </>
           )}
         </Pressable>
       </View>
@@ -420,29 +403,47 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     fontSize: 18,
   },
-  tabBar: {
+
+  // Header bar with toggle + stats
+  headerBar: {
     flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 16,
+    paddingVertical: 10,
     backgroundColor: colors.surface,
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
   },
-  tab: {
-    flex: 1,
-    paddingVertical: 12,
-    alignItems: "center",
+  toggleContainer: {
+    flexDirection: "row",
+    backgroundColor: colors.surfaceLight,
+    borderRadius: 10,
+    padding: 3,
   },
-  tabActive: {
-    borderBottomWidth: 2,
-    borderBottomColor: colors.accent,
+  toggleBtn: {
+    paddingVertical: 7,
+    paddingHorizontal: 20,
+    borderRadius: 8,
   },
-  tabText: {
-    fontSize: fonts.body,
+  toggleBtnActive: {
+    backgroundColor: colors.accent,
+  },
+  toggleText: {
+    fontSize: fonts.small,
     color: colors.textSecondary,
     fontWeight: "600",
   },
-  tabTextActive: {
-    color: colors.accent,
+  toggleTextActive: {
+    color: "#fff",
   },
+  lookupCountBadge: {
+    fontSize: fonts.caption,
+    color: colors.missed,
+    fontWeight: "600",
+  },
+
+  // Scroll area
   scrollArea: {
     flex: 1,
   },
@@ -455,37 +456,40 @@ const styles = StyleSheet.create({
     flexWrap: "wrap",
     alignItems: "flex-start",
     gap: 6,
-    rowGap: 14,
+    rowGap: 10,
   },
   lineBreak: {
     width: "100%",
-    height: 12,
+    height: 16,
   },
+
+  // Word chips
   wordChip: {
-    paddingVertical: 6,
-    paddingHorizontal: 4,
-    borderRadius: 4,
+    paddingVertical: 4,
+    paddingHorizontal: 6,
+    borderRadius: 6,
   },
   storyWord: {
-    fontSize: 28,
-    lineHeight: 44,
+    fontSize: 30,
+    lineHeight: 46,
     color: colors.arabic,
     fontFamily: fontFamily.arabic,
   },
   newWordDot: {
-    width: 4,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: colors.textSecondary,
+    width: 5,
+    height: 5,
+    borderRadius: 3,
+    backgroundColor: colors.accent,
     alignSelf: "center",
-    opacity: 0.4,
-    marginTop: 2,
+    opacity: 0.6,
+    marginTop: 1,
   },
   lookedUpChip: {
-    backgroundColor: colors.missed + "20",
+    backgroundColor: colors.missed + "15",
+    borderRadius: 6,
   },
   selectedChip: {
-    backgroundColor: colors.missed + "35",
+    backgroundColor: colors.missed + "28",
   },
   lookedUpWord: {
     color: colors.missed,
@@ -493,43 +497,45 @@ const styles = StyleSheet.create({
   selectedWord: {
     color: colors.missed,
   },
+
+  // English view
   englishText: {
-    fontSize: 20,
+    fontSize: 18,
     color: colors.text,
-    lineHeight: 32,
+    lineHeight: 30,
   },
+
+  // Lookup panel
   lookupPanel: {
-    height: 120,
+    minHeight: 60,
     backgroundColor: colors.surface,
     borderTopWidth: 1,
     borderTopColor: colors.border,
     justifyContent: "center",
     paddingHorizontal: 20,
+    paddingVertical: 12,
+  },
+  lookupPanelActive: {
+    minHeight: 80,
   },
   lookupContent: {
     alignItems: "center",
     width: "100%",
-    justifyContent: "center",
   },
-  lookupArabicSlot: {
-    minHeight: 36,
-    justifyContent: "center",
+  lookupMain: {
+    flexDirection: "row",
     alignItems: "center",
+    justifyContent: "center",
+    gap: 12,
+    marginBottom: 6,
   },
-  lookupGlossSlot: {
-    minHeight: 28,
-    justifyContent: "center",
-    alignItems: "center",
-    marginTop: 2,
-  },
-  lookupMetaSlot: {
-    minHeight: 24,
-    justifyContent: "center",
-    alignItems: "center",
-    marginTop: 6,
+  lookupDivider: {
+    width: 1,
+    height: 24,
+    backgroundColor: colors.border,
   },
   lookupArabic: {
-    fontSize: fonts.arabicMedium,
+    fontSize: 26,
     color: colors.arabic,
     writingDirection: "rtl",
     fontFamily: fontFamily.arabic,
@@ -539,7 +545,6 @@ const styles = StyleSheet.create({
     fontSize: 18,
     color: colors.text,
     fontWeight: "600",
-    marginTop: 4,
   },
   lookupMeta: {
     flexDirection: "row",
@@ -553,74 +558,75 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     fontStyle: "italic",
   },
-  lookupRoot: {
+  lookupRootBadge: {
+    backgroundColor: colors.accent + "20",
+    borderRadius: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+  },
+  lookupRootText: {
     fontSize: fonts.small,
     color: colors.accent,
+    fontWeight: "600",
+    fontFamily: fontFamily.arabic,
   },
   lookupPos: {
     fontSize: fonts.small,
     color: colors.textSecondary,
   },
+  lookupEmpty: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+  },
   lookupHint: {
     color: colors.textSecondary,
-    fontSize: fonts.body,
-    textAlign: "center",
-    fontStyle: "italic",
-  },
-  lookupSlotPlaceholder: {
-    color: "transparent",
-    fontSize: fonts.arabicMedium,
-    lineHeight: 26,
-  },
-  lookupMetaPlaceholder: {
-    color: "transparent",
     fontSize: fonts.small,
-    lineHeight: 16,
   },
+
+  // Bottom actions
   bottomActions: {
     flexDirection: "row",
     gap: 10,
-    padding: 12,
-    paddingBottom: 24,
+    paddingHorizontal: 16,
+    paddingTop: 10,
+    paddingBottom: 28,
     backgroundColor: colors.surface,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
   },
   bottomBtn: {
     flex: 1,
     paddingVertical: 14,
-    borderRadius: 10,
+    borderRadius: 12,
     alignItems: "center",
+    flexDirection: "row",
+    justifyContent: "center",
+    gap: 6,
   },
   skipBtn: {
     backgroundColor: colors.surfaceLight,
+    flex: 0.7,
   },
   skipBtnText: {
     color: colors.textSecondary,
-    fontSize: fonts.body,
+    fontSize: 15,
     fontWeight: "600",
   },
   difficultBtn: {
-    backgroundColor: colors.stateLearning + "30",
-  },
-  difficultBtnDisabled: {
-    backgroundColor: colors.surfaceLight,
+    backgroundColor: colors.stateLearning + "20",
+    flex: 0.8,
   },
   difficultBtnText: {
     color: colors.stateLearning,
-    fontSize: fonts.body,
+    fontSize: 15,
     fontWeight: "600",
-  },
-  difficultBtnTextDisabled: {
-    color: colors.textSecondary,
-    opacity: 0.6,
   },
   completeBtn: {
     backgroundColor: colors.gotIt,
+    flex: 1.2,
   },
   completeBtnText: {
     color: "#fff",
-    fontSize: fonts.body,
+    fontSize: 16,
     fontWeight: "700",
   },
 });
