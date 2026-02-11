@@ -22,6 +22,22 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-02-11 — Auto-Backfill Root Meanings
+
+### Problem
+35 of 937 roots had empty `core_meaning_en` — mostly from OCR imports and the cleanup script creating new Root records without meanings. All import paths (`import_wiktionary.py`, `backfill_roots.py`, `cleanup_bad_roots.py`) created roots with no meaning. `ocr_service.py` used the word's English gloss as the root meaning, which is incorrect (a word gloss like "beautiful" is not the same as a root meaning like "related to beauty, completeness").
+
+### Fix
+- Added `backfill_root_meanings(db)` to `morphology.py` — batches empty roots, sends to LLM for semantic field descriptions, fills `core_meaning_en`
+- Called automatically from all import paths after new roots are created: OCR pipeline, Wiktionary import, backfill_roots, cleanup_bad_roots
+- Backfilled all 35 missing meanings in production
+
+### Verification
+- `SELECT count(*) FROM roots WHERE core_meaning_en IS NULL OR core_meaning_en = ''` → 0
+- 559 backend tests pass (OCR tests mock `backfill_root_meanings`)
+
+---
+
 ## 2026-02-11 — Garbage Root Cleanup + Root Validation Guard
 
 ### Problem
