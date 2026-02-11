@@ -239,19 +239,25 @@ def _step1_extract_words(image_bytes: bytes) -> list[str]:
         image_bytes,
         prompt=(
             "This is a page from an Arabic language textbook. "
-            "Extract ALL Arabic vocabulary words visible on this page. "
-            "Return ONLY individual Arabic words as a list. "
-            "Include words from vocabulary lists, example sentences, and exercises. "
-            "Skip proper nouns, names, and page numbers. "
-            "Do NOT include punctuation marks with the words (no periods, question marks, commas). "
-            "Do NOT include multi-word phrases — extract each word separately. "
-            "Do NOT include slash-separated alternatives — pick the first word only. "
-            "Include diacritics if they are visible on the word.\n\n"
+            "Extract Arabic vocabulary words visible on this page.\n\n"
+            "IMPORTANT — return DICTIONARY BASE FORMS, not conjugated or inflected forms:\n"
+            "- Remove possessive suffixes: كتابك → كتاب, بيتي → بيت, سيارتها → سيارة\n"
+            "- Remove verb conjugation: يكتبون → كتب, تذهبين → ذهب, يدرسون → درس\n"
+            "- Remove dual/plural suffixes: معلمون → معلم, طالبات → طالبة\n"
+            "- Keep the definite article ال if the word is listed that way\n\n"
+            "Other rules:\n"
+            "- Return ONLY individual Arabic words as a list\n"
+            "- Skip proper nouns, names, and page numbers\n"
+            "- Do NOT include punctuation marks with the words\n"
+            "- Do NOT include multi-word phrases — extract each word separately\n"
+            "- Do NOT include slash-separated alternatives — pick the first word only\n"
+            "- Include diacritics if they are visible on the word\n\n"
             'Respond with JSON: {"words": ["word1", "word2", ...]}'
         ),
         system_prompt=(
-            "You are an Arabic OCR system. Extract Arabic words from textbook pages. "
-            "Return only Arabic words, nothing else. Respond with JSON only."
+            "You are an Arabic OCR system specialized in textbook vocabulary extraction. "
+            "Always return dictionary base forms, not inflected/conjugated forms. "
+            "Respond with JSON only."
         ),
     )
     words = result.get("words", [])
@@ -325,7 +331,7 @@ def _step3_translate(word_entries: list[dict]) -> list[dict]:
     for i in range(0, len(word_entries), batch_size):
         batch = word_entries[i:i + batch_size]
         word_list = [
-            {"arabic": e["arabic"], "bare": e["bare"], "pos": e.get("pos")}
+            {"arabic": e["arabic"], "bare": e.get("base_lemma") or e["bare"], "pos": e.get("pos")}
             for e in batch
         ]
 
@@ -356,7 +362,10 @@ def _step3_translate(word_entries: list[dict]) -> list[dict]:
                     if isinstance(t, dict)
                 }
                 for entry in batch:
-                    t = trans_by_bare.get(entry["bare"], {})
+                    lookup_key = entry.get("base_lemma") or entry["bare"]
+                    t = trans_by_bare.get(lookup_key, {})
+                    if not t:
+                        t = trans_by_bare.get(entry["bare"], {})
                     raw_gloss = t.get("english")
                     entry["english"] = validate_gloss(raw_gloss) or raw_gloss
                     if t.get("pos") and not entry.get("pos"):
@@ -377,7 +386,8 @@ def extract_words_from_image(image_bytes: bytes) -> list[dict]:
     2. Morphology (CAMeL Tools) — root, base lemma, POS
     3. Translation (LLM text) — English glosses
 
-    Returns list of dicts with: arabic, bare (as arabic_bare), english, pos, root.
+    Returns list of dicts with: arabic, arabic_bare, english, pos, root, base_lemma.
+    base_lemma is set when CAMeL Tools identifies a different base form (e.g. كراج from كراجك).
     """
     # Step 1: OCR
     raw_words = _step1_extract_words(image_bytes)
@@ -391,13 +401,16 @@ def extract_words_from_image(image_bytes: bytes) -> list[dict]:
     translated = _step3_translate(analyzed)
 
     # Normalize output format to match what process_textbook_page expects
+    # Dedup on base_lemma (not bare) so conjugated forms sharing a base are merged
     results = []
-    seen_bares: set[str] = set()
+    seen_keys: set[str] = set()
     for entry in translated:
         bare = entry.get("bare", "")
-        if not bare or bare in seen_bares:
+        base_lemma = entry.get("base_lemma", bare)
+        dedup_key = base_lemma or bare
+        if not dedup_key or dedup_key in seen_keys:
             continue
-        seen_bares.add(bare)
+        seen_keys.add(dedup_key)
 
         root_str = entry.get("root")
         if root_str:
@@ -409,6 +422,7 @@ def extract_words_from_image(image_bytes: bytes) -> list[dict]:
             "english": entry.get("english"),
             "pos": entry.get("pos"),
             "root": root_str,
+            "base_lemma": base_lemma if base_lemma != bare else None,
         })
 
     return results
@@ -469,20 +483,30 @@ def process_textbook_page(
             if not arabic or "multi_word" in san_warnings or "too_short" in san_warnings:
                 continue
 
-            # Compute bare form
+            # Compute bare form and get base_lemma from morphological analysis
             bare = compute_bare_form(arabic)
+            base_lemma_bare = word_data.get("base_lemma")  # from Step 2 morphology
 
-            # Skip function words
+            # Skip function words (check both bare and base_lemma)
             if _is_function_word(bare):
                 continue
-
-            # Skip if already processed in this batch
-            if bare in seen_bares:
+            if base_lemma_bare and _is_function_word(base_lemma_bare):
                 continue
-            seen_bares.add(bare)
 
-            # Try to find existing lemma
-            lemma_id = _lookup_lemma(bare, lemma_lookup)
+            # Dedup: use base_lemma if available, fall back to bare
+            dedup_key = base_lemma_bare or bare
+            if dedup_key in seen_bares:
+                continue
+            seen_bares.add(dedup_key)
+            if base_lemma_bare and bare != base_lemma_bare:
+                seen_bares.add(bare)
+
+            # Try to find existing lemma — try base_lemma first, then bare
+            lemma_id = None
+            if base_lemma_bare and base_lemma_bare != bare:
+                lemma_id = _lookup_lemma(base_lemma_bare, lemma_lookup)
+            if not lemma_id:
+                lemma_id = _lookup_lemma(bare, lemma_lookup)
 
             if lemma_id:
                 # Existing word — increment encounter count
@@ -538,6 +562,8 @@ def process_textbook_page(
                     })
             else:
                 # New word — create lemma + knowledge record
+                # Use base_lemma for the canonical bare form if available
+                import_bare = base_lemma_bare if base_lemma_bare else bare
                 english = word_data.get("english")
                 pos = word_data.get("pos")
                 root_str = word_data.get("root")
@@ -556,7 +582,7 @@ def process_textbook_page(
 
                 new_lemma = Lemma(
                     lemma_ar=arabic,
-                    lemma_ar_bare=bare,
+                    lemma_ar_bare=import_bare,
                     root_id=root_id,
                     pos=pos,
                     gloss_en=english,
@@ -583,19 +609,21 @@ def process_textbook_page(
                 )
 
                 # Update lookup for subsequent words in same batch
-                lemma_lookup[bare] = new_lemma.lemma_id
-                if bare.startswith("ال") and len(bare) > 2:
-                    lemma_lookup[bare[2:]] = new_lemma.lemma_id
+                lemma_lookup[import_bare] = new_lemma.lemma_id
+                if import_bare != bare:
+                    lemma_lookup[bare] = new_lemma.lemma_id
+                if import_bare.startswith("ال") and len(import_bare) > 2:
+                    lemma_lookup[import_bare[2:]] = new_lemma.lemma_id
                 else:
-                    lemma_lookup["ال" + bare] = new_lemma.lemma_id
+                    lemma_lookup["ال" + import_bare] = new_lemma.lemma_id
                 knowledge_map[new_lemma.lemma_id] = new_ulk
-                bare_to_lemma[bare] = new_lemma
+                bare_to_lemma[import_bare] = new_lemma
 
                 new_count += 1
                 new_lemma_ids.append(new_lemma.lemma_id)
                 results.append({
                     "arabic": arabic,
-                    "arabic_bare": bare,
+                    "arabic_bare": import_bare,
                     "english": english,
                     "status": "new",
                     "lemma_id": new_lemma.lemma_id,
@@ -612,16 +640,42 @@ def process_textbook_page(
         upload.completed_at = datetime.now(timezone.utc)
         db.commit()
 
+        # Detect and mark variants among newly imported lemmas
+        variants_detected = 0
+        variant_ids: set[int] = set()
+        if new_lemma_ids:
+            from app.services.variant_detection import (
+                detect_variants,
+                detect_definite_variants,
+                mark_variants,
+            )
+            camel_vars = detect_variants(db, lemma_ids=new_lemma_ids)
+            already = {v[0] for v in camel_vars}
+            def_vars = detect_definite_variants(
+                db, lemma_ids=new_lemma_ids, already_variant_ids=already
+            )
+            all_vars = camel_vars + def_vars
+            if all_vars:
+                variants_detected = mark_variants(db, all_vars)
+                variant_ids = {v[0] for v in all_vars}
+                db.commit()
+                logger.info(
+                    f"OCR variant detection: marked {variants_detected} variants "
+                    f"among {len(new_lemma_ids)} new words"
+                )
+
         log_interaction(
             event="textbook_page_processed",
             upload_id=upload.id,
             new_words=new_count,
             existing_words=existing_count,
             total_extracted=len(extracted),
+            variants_detected=variants_detected,
         )
 
-        # Trigger sentence generation for new words
-        _schedule_material_generation(db, new_lemma_ids)
+        # Trigger sentence generation for new words (skip variants)
+        gen_ids = [lid for lid in new_lemma_ids if lid not in variant_ids]
+        _schedule_material_generation(db, gen_ids)
 
     except Exception as e:
         logger.exception(f"Failed to process textbook page upload {upload.id}: {e}")

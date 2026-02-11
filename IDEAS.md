@@ -463,7 +463,11 @@
 - [DONE] Batch upload support: multiple pages at once with immediate response and background processing
 - [DONE] Upload history view: list of batch uploads with per-page results (new/existing word counts), expandable to see individual words
 - [DONE] Story OCR import: upload image of Arabic text in story import modal, extract text via Gemini Vision, populate text field for standard story import flow
-- Post-OCR variant detection: after importing new lemmas from textbook scans, run CAMeL Tools variant detection to catch possessives/inflected forms
+- [DONE] Post-OCR variant detection: after importing new lemmas from textbook scans, run CAMeL Tools variant detection to catch possessives/inflected forms
+- [DONE] OCR base_lemma fix: use CAMeL Tools base_lemma from Step 2 morphology for DB lookup (was being computed but ignored, causing conjugated forms to be imported as separate lemmas)
+- [DONE] OCR prompt hardening: Step 1 now explicitly requests dictionary base forms, not conjugated/possessive forms
+- [DONE] Leech identification script: `scripts/identify_leeches.py` finds high-review low-accuracy words with optional auto-suspend
+- Leech auto-detection in FSRS: automatically flag words after N consecutive failures (beyond the current struggling-word re-intro cards)
 - OCR confidence scoring: have Gemini rate its confidence per word, flag low-confidence extractions for user review
 - Textbook progress tracking: track which textbook/chapter pages have been scanned, show coverage progress
 - OCR for handwritten Arabic: test Gemini Vision on handwritten notes (likely lower accuracy but worth exploring)

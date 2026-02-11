@@ -4,6 +4,38 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-02-11 — Fix Variant Lemma Imports in OCR Pipeline
+
+### Change
+1. **Root cause identified**: The OCR pipeline (`ocr_service.py`) correctly computes `base_lemma` via CAMeL Tools morphology (e.g., "كراج" from "كراجك") but `process_textbook_page()` ignores it, using only the conjugated bare form for DB lookup. 54% of active words (368/676) had frequency rank 5000+ — mostly possessive/conjugated variants from textbook dialogues imported as separate lemmas.
+2. **OCR prompt hardened**: Step 1 now explicitly requests dictionary base forms, not conjugated/possessive forms. Includes examples (كتابك → كتاب, يكتبون → كتب).
+3. **base_lemma passthrough**: `extract_words_from_image()` now passes `base_lemma` from Step 2 morphology through to `process_textbook_page()`. Dedup uses base_lemma instead of bare form.
+4. **Lookup priority**: `process_textbook_page()` tries base_lemma for DB lookup first, falls back to bare. When creating new lemmas, uses base_lemma for `lemma_ar_bare`.
+5. **Post-import variant detection**: Added the same `detect_variants()` + `detect_definite_variants()` + `mark_variants()` pattern that all other import scripts (Duolingo, Wiktionary, AVP) already had. OCR was the only path missing this.
+6. **Leech identification script**: `scripts/identify_leeches.py` queries for words with high review count but low accuracy. Supports `--suspend`, `--dry-run`, `--source`, `--threshold`.
+
+### Hypothesis
+Importing base forms instead of conjugated forms will eliminate the variant proliferation problem. The three-layer defense (improved prompt + base_lemma lookup + post-import variant detection) provides redundancy. Leech detection helps identify words consuming review time without progressing.
+
+### Expected Effect
+- Future textbook scans import ~50% fewer new lemmas (variants mapped to existing base forms)
+- No more possessive forms (كراجك, جاكيتك) appearing as separate FSRS cards
+- Production cleanup (variant merge + leech suspension) will consolidate ~100+ variant lemmas
+
+### Verification
+- 500 backend tests pass (6 new OCR tests for base_lemma handling)
+- Run `cleanup_lemma_variants.py --merge` on production to consolidate existing variants
+- Run `identify_leeches.py` on production to review unproductive words
+- Test a real textbook page scan post-deploy to verify base form import
+
+---
+
+## 2026-02-11 — Word Frequency + CEFR Level Integration
+
+(See previous entry — CAMeL MSA frequency backfill + CEFR level display across frontend)
+
+---
+
 ## 2026-02-11 — Word Management: Suspend, Flag, Action Menu, Tab Consolidation
 
 ### Change

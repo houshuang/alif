@@ -312,6 +312,167 @@ class TestProcessTextbookPage:
         assert ulk.knowledge_state == "learning"
 
 
+class TestBaseLemmaHandling:
+    """Tests for base_lemma-aware import in OCR pipeline."""
+
+    @patch("app.services.ocr_service.extract_words_from_image")
+    def test_process_uses_base_lemma_for_lookup(self, mock_extract, db_session):
+        """When base_lemma matches an existing lemma, should find it (not create new)."""
+        from app.services.ocr_service import process_textbook_page
+
+        # Seed كراج (garage) as existing
+        root = Root(root="ك.ر.ج", core_meaning_en="garage")
+        db_session.add(root)
+        db_session.flush()
+        lemma = Lemma(
+            lemma_ar="كِرَاج", lemma_ar_bare="كراج", root_id=root.root_id,
+            pos="noun", gloss_en="garage", source="duolingo",
+        )
+        db_session.add(lemma)
+        db_session.flush()
+        ulk = UserLemmaKnowledge(
+            lemma_id=lemma.lemma_id, knowledge_state="learning",
+            fsrs_card_json=create_new_card(), source="duolingo", total_encounters=3,
+        )
+        db_session.add(ulk)
+        db_session.commit()
+
+        upload = PageUpload(batch_id="test_bl1", filename="p.jpg", status="pending")
+        db_session.add(upload)
+        db_session.commit()
+
+        # OCR extracts كراجك (your garage) but base_lemma is كراج
+        mock_extract.return_value = [{
+            "arabic": "كِرَاجَك", "arabic_bare": "كراجك",
+            "english": "your garage", "pos": "noun", "root": "ك.ر.ج",
+            "base_lemma": "كراج",
+        }]
+
+        process_textbook_page(db_session, upload, b"fake")
+
+        assert upload.status == "completed"
+        assert upload.existing_words == 1
+        assert upload.new_words == 0
+
+        # Should have matched existing lemma via base_lemma
+        ulk = db_session.query(UserLemmaKnowledge).filter_by(lemma_id=lemma.lemma_id).first()
+        assert ulk.total_encounters == 4  # was 3, now 4
+
+    @patch("app.services.ocr_service.extract_words_from_image")
+    def test_process_imports_base_form_not_conjugated(self, mock_extract, db_session):
+        """When creating a new word with base_lemma, should use base form for lemma_ar_bare."""
+        from app.services.ocr_service import process_textbook_page
+
+        upload = PageUpload(batch_id="test_bl2", filename="p.jpg", status="pending")
+        db_session.add(upload)
+        db_session.commit()
+
+        mock_extract.return_value = [{
+            "arabic": "تَبْدَأُونَ", "arabic_bare": "تبداون",
+            "english": "to start", "pos": "verb", "root": "ب.د.أ",
+            "base_lemma": "بدا",
+        }]
+
+        process_textbook_page(db_session, upload, b"fake")
+
+        assert upload.new_words == 1
+
+        # Lemma should be stored with base form, not conjugated
+        new_lemma = db_session.query(Lemma).filter_by(source="textbook_scan").first()
+        assert new_lemma.lemma_ar_bare == "بدا"  # base form, not تبداون
+
+    @patch("app.services.ocr_service.extract_words_from_image")
+    def test_process_deduplicates_on_base_lemma(self, mock_extract, db_session):
+        """Two conjugated forms with the same base_lemma should produce one import."""
+        from app.services.ocr_service import process_textbook_page
+
+        upload = PageUpload(batch_id="test_bl3", filename="p.jpg", status="pending")
+        db_session.add(upload)
+        db_session.commit()
+
+        mock_extract.return_value = [
+            {
+                "arabic": "كِتَابَك", "arabic_bare": "كتابك",
+                "english": "your book", "pos": "noun", "root": "ك.ت.ب",
+                "base_lemma": "كتاب",
+            },
+            {
+                "arabic": "كِتَابِي", "arabic_bare": "كتابي",
+                "english": "my book", "pos": "noun", "root": "ك.ت.ب",
+                "base_lemma": "كتاب",
+            },
+        ]
+
+        process_textbook_page(db_session, upload, b"fake")
+
+        assert upload.new_words == 1  # only one, not two
+
+    @patch("app.services.ocr_service.extract_words_from_image")
+    def test_process_falls_back_to_bare_when_no_base_lemma(self, mock_extract, db_session):
+        """When base_lemma is None, should behave as before (use bare)."""
+        from app.services.ocr_service import process_textbook_page
+
+        upload = PageUpload(batch_id="test_bl4", filename="p.jpg", status="pending")
+        db_session.add(upload)
+        db_session.commit()
+
+        mock_extract.return_value = [{
+            "arabic": "قَلَم", "arabic_bare": "قلم",
+            "english": "pen", "pos": "noun", "root": "ق.ل.م",
+            "base_lemma": None,
+        }]
+
+        process_textbook_page(db_session, upload, b"fake")
+
+        assert upload.new_words == 1
+        new_lemma = db_session.query(Lemma).filter_by(source="textbook_scan").first()
+        assert new_lemma.lemma_ar_bare == "قلم"
+
+    @patch("app.services.ocr_service._step3_translate")
+    @patch("app.services.ocr_service._step2_morphology")
+    @patch("app.services.ocr_service._step1_extract_words")
+    def test_extract_words_passes_base_lemma(self, mock_step1, mock_step2, mock_step3):
+        """extract_words_from_image should include base_lemma in output."""
+        from app.services.ocr_service import extract_words_from_image
+
+        mock_step1.return_value = ["كِرَاجَك"]
+        mock_step2.return_value = [
+            {"arabic": "كِرَاجَك", "bare": "كراجك", "base_lemma": "كراج",
+             "root": "ك.ر.ج", "pos": "noun"},
+        ]
+        mock_step3.return_value = [
+            {"arabic": "كِرَاجَك", "bare": "كراجك", "base_lemma": "كراج",
+             "root": "ك.ر.ج", "pos": "noun", "english": "garage"},
+        ]
+
+        result = extract_words_from_image(b"fake")
+        assert len(result) == 1
+        assert result[0]["base_lemma"] == "كراج"
+        assert result[0]["arabic_bare"] == "كراجك"
+
+    @patch("app.services.ocr_service._step3_translate")
+    @patch("app.services.ocr_service._step2_morphology")
+    @patch("app.services.ocr_service._step1_extract_words")
+    def test_extract_words_deduplicates_on_base_lemma(self, mock_step1, mock_step2, mock_step3):
+        """Two conjugated forms with the same base_lemma should produce one output."""
+        from app.services.ocr_service import extract_words_from_image
+
+        mock_step1.return_value = ["كِتَابَك", "كِتَابِي"]
+        mock_step2.return_value = [
+            {"arabic": "كِتَابَك", "bare": "كتابك", "base_lemma": "كتاب",
+             "root": "ك.ت.ب", "pos": "noun"},
+            {"arabic": "كِتَابِي", "bare": "كتابي", "base_lemma": "كتاب",
+             "root": "ك.ت.ب", "pos": "noun"},
+        ]
+        mock_step3.return_value = [
+            {"arabic": "كِتَابَك", "bare": "كتابك", "base_lemma": "كتاب",
+             "root": "ك.ت.ب", "pos": "noun", "english": "book"},
+        ]
+
+        result = extract_words_from_image(b"fake")
+        assert len(result) == 1
+
+
 class TestOCREndpoints:
     """Tests for the OCR API endpoints."""
 

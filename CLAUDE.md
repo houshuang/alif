@@ -159,15 +159,15 @@ This app is an ongoing learning experiment. Every algorithm change, data structu
 - `backend/app/services/tts.py` — ElevenLabs REST, eleven_multilingual_v2, Chaouki voice, speed 0.7. Learner pauses: inserts Arabic commas every 2 words. SHA256 cache in data/audio/.
 - `backend/app/services/llm.py` — LiteLLM: gemini/gemini-3-flash-preview → gpt-5.2 → claude-haiku-4-5. JSON mode, markdown fence stripping, model_override support. Batch generation supports `rejected_words` param to steer LLM away from unknown vocabulary.
 - `backend/app/services/morphology.py` — CAMeL Tools morphological analyzer. Functions: `analyze_word_camel()` (all analyses), `get_base_lemma()` (top lex), `is_variant_form()` (possessive/enclitic check), `find_matching_analysis()` (disambiguate against known lemma), `find_best_db_match()` (iterate all analyses, return first matching a known DB bare form), `get_word_features()` (lex/root/pos/enc0/num/gen/stt). Falls back to stub if camel_tools not installed.
-- `backend/app/services/variant_detection.py` — DB-aware variant detection: `detect_variants()` (CAMeL + DB match), `detect_definite_variants()` (al-prefix), `mark_variants()`. Used by import scripts (post-import pass) and cleanup_lemma_variants.py (batch cleanup).
+- `backend/app/services/variant_detection.py` — DB-aware variant detection: `detect_variants()` (CAMeL + DB match), `detect_definite_variants()` (al-prefix), `mark_variants()`. Used by ALL import paths (Duolingo, Wiktionary, AVP, OCR) as post-import pass, and cleanup_lemma_variants.py (batch cleanup).
 - `backend/app/services/interaction_logger.py` — Append-only JSONL to `data/logs/interactions_YYYY-MM-DD.jsonl`. Skipped when TESTING env var is set.
-- `backend/app/services/ocr_service.py` — Gemini Vision OCR: `extract_text_from_image()` (full text extraction for story import), `extract_words_from_image()` (vocabulary extraction from textbook pages), `process_textbook_page()` (background task: OCR + match/import words + update PageUpload record).
+- `backend/app/services/ocr_service.py` — Gemini Vision OCR: `extract_text_from_image()` (full text extraction for story import), `extract_words_from_image()` (3-step pipeline: OCR → CAMeL morphology → LLM translation, returns base_lemma from morphological analysis), `process_textbook_page()` (background task: OCR + match/import words + post-import variant detection). Uses base_lemma from Step 2 for DB lookup (falls back to bare form). Runs detect_variants + detect_definite_variants after import.
 - `backend/app/services/flag_evaluator.py` — Background LLM evaluation for flagged content. Uses GPT-5.2 (model_override="openai") to evaluate word glosses, sentence Arabic/English/transliteration. Auto-fixes high-confidence corrections, retires unfixable sentences. Writes to ActivityLog.
 
 ### Backend Other
 - `backend/app/models.py` — SQLAlchemy models: Root, Lemma (+ example_ar/en, forms_json, canonical_lemma_id), UserLemmaKnowledge (+ variant_stats_json), ReviewLog, Sentence (+ last_comprehension), SentenceWord, SentenceReviewLog, GrammarFeature, SentenceGrammarFeature, UserGrammarExposure, Story, StoryWord, PageUpload (batch_id, status, extracted_words_json, new_words, existing_words)
 - `backend/app/schemas.py` — Pydantic models. SentenceReviewSubmitIn includes confused_lemma_ids. SentenceWordMeta includes root/root_meaning/root_id.
-- `backend/scripts/` — import_duolingo.py, import_wiktionary.py, import_avp_a1.py, benchmark_llm.py, pregenerate_material.py, generate_audio.py, generate_sentences.py, backfill_lemma_grammar.py, backfill_examples.py, backfill_forms.py, backfill_frequency.py (CAMeL MSA frequency + Kelly CEFR), simulate_usage.py, update_material.py (cron: backfill sentences + audio + pre-generate for upcoming candidates), merge_al_lemmas.py, merge_lemma_variants.py, cleanup_lemma_variants.py
+- `backend/scripts/` — import_duolingo.py, import_wiktionary.py, import_avp_a1.py, benchmark_llm.py, pregenerate_material.py, generate_audio.py, generate_sentences.py, backfill_lemma_grammar.py, backfill_examples.py, backfill_forms.py, backfill_frequency.py (CAMeL MSA frequency + Kelly CEFR), simulate_usage.py, update_material.py (cron: backfill sentences + audio + pre-generate for upcoming candidates), merge_al_lemmas.py, merge_lemma_variants.py, cleanup_lemma_variants.py, identify_leeches.py (find high-review low-accuracy words, optional --suspend)
 
 ### Frontend
 - `frontend/app/index.tsx` — Review screen: sentence-first + word-only fallback, reading + listening modes, front-phase word lookup with root prediction, triple-tap word marking (off → missed → confused → off), inline intro cards, session completion with analytics
@@ -298,7 +298,7 @@ Tests 3 models across 5 tasks (105 ground truth cases): diacritization, translat
 
 ## Testing
 ```bash
-cd backend && python -m pytest  # 494 tests
+cd backend && python -m pytest  # 500 tests
 ```
 All services have dedicated test files in `backend/tests/`.
 
