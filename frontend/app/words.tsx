@@ -103,17 +103,28 @@ export default function WordsScreen() {
         style={styles.card}
         onPress={() => router.push(`/word/${item.id}`)}
       >
-        <Text style={styles.cardArabic} numberOfLines={1}>
-          {item.arabic}
-        </Text>
+        <View style={styles.cardTop}>
+          <View style={[styles.stateDot, { backgroundColor: sc }]} />
+          <Text style={styles.cardArabic} numberOfLines={1}>
+            {item.arabic}
+          </Text>
+        </View>
         <Text style={styles.cardEnglish} numberOfLines={1}>
           {item.english}
         </Text>
-        <View style={styles.cardFooter}>
+        <View style={styles.cardMeta}>
+          {item.root ? (
+            <Text style={styles.metaRoot}>{item.root}</Text>
+          ) : null}
           {item.pos ? (
-            <Text style={styles.cardPos}>{item.pos}</Text>
-          ) : <View />}
-          <View style={[styles.stateDot, { backgroundColor: sc }]} />
+            <Text style={styles.metaText}>{item.pos}</Text>
+          ) : null}
+          {item.knowledge_score > 0 ? (
+            <Text style={styles.metaScore}>{item.knowledge_score}</Text>
+          ) : null}
+          {item.frequency_rank ? (
+            <Text style={styles.metaText}>#{item.frequency_rank}</Text>
+          ) : null}
         </View>
       </Pressable>
     );
@@ -283,48 +294,65 @@ const styles = StyleSheet.create({
     paddingBottom: 24,
   },
   gridRow: {
-    gap: 8,
-    marginBottom: 8,
+    gap: 6,
+    marginBottom: 6,
   },
 
   // Card
   card: {
     flex: 1,
     backgroundColor: colors.surface,
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    paddingTop: 10,
-    paddingBottom: 8,
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingTop: 6,
+    paddingBottom: 5,
+  },
+  cardTop: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  stateDot: {
+    width: 5,
+    height: 5,
+    borderRadius: 3,
   },
   cardArabic: {
-    fontSize: 22,
+    flex: 1,
+    fontSize: 20,
     color: colors.arabic,
     fontFamily: fontFamily.arabic,
     writingDirection: "rtl",
     textAlign: "right",
-    lineHeight: 32,
+    lineHeight: 28,
   },
   cardEnglish: {
-    fontSize: 13,
+    fontSize: 12,
     color: colors.textSecondary,
-    marginTop: 2,
-    marginBottom: 6,
+    marginBottom: 3,
+    numberOfLines: 1,
   },
-  cardFooter: {
+  cardMeta: {
     flexDirection: "row",
-    justifyContent: "space-between",
     alignItems: "center",
+    gap: 6,
+    flexWrap: "wrap",
   },
-  cardPos: {
+  metaRoot: {
     fontSize: 10,
     color: colors.accent,
-    fontWeight: "600",
+    fontFamily: fontFamily.arabic,
+    opacity: 0.8,
+  },
+  metaText: {
+    fontSize: 9,
+    color: colors.textSecondary,
     opacity: 0.7,
   },
-  stateDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
+  metaScore: {
+    fontSize: 9,
+    color: colors.accent,
+    fontWeight: "700",
   },
 
   // Empty / error
