@@ -355,6 +355,7 @@ const styles = StyleSheet.create({
   rootMeaning: {
     color: colors.textSecondary,
     fontSize: 12,
+    flexShrink: 1,
   },
 
   /* Root family siblings */
