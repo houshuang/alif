@@ -276,3 +276,14 @@ class ActivityLog(Base):
     summary = Column(Text, nullable=False)
     detail_json = Column(JSON, nullable=True)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+
+class VariantDecision(Base):
+    __tablename__ = "variant_decisions"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    word_bare = Column(Text, nullable=False, index=True)
+    base_bare = Column(Text, nullable=False, index=True)
+    is_variant = Column(Boolean, nullable=False)
+    reason = Column(Text, nullable=True)
+    decided_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))

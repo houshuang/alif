@@ -36,7 +36,7 @@ from app.services.sentence_validator import (
     resolve_existing_lemma,
 )
 from app.services.variant_detection import (
-    detect_variants,
+    detect_variants_llm,
     detect_definite_variants,
     mark_variants,
 )
@@ -149,16 +149,16 @@ def main():
     db = SessionLocal()
     total_changes = 0
 
-    # === PASS 1: Re-run variant detection with hamza-aware code ===
+    # === PASS 1: LLM-confirmed variant detection ===
     print("=" * 60)
-    print("PASS 1: VARIANT DETECTION (hamza-aware)")
+    print("PASS 1: VARIANT DETECTION (CAMeL + LLM confirmation)")
     print("=" * 60)
 
     if CAMEL_AVAILABLE:
-        camel_variants = detect_variants(db, verbose=False)
-        already_ids = {v[0] for v in camel_variants}
+        llm_variants = detect_variants_llm(db, verbose=True)
+        already_ids = {v[0] for v in llm_variants}
         def_variants = detect_definite_variants(db, already_variant_ids=already_ids)
-        all_variants = camel_variants + def_variants
+        all_variants = llm_variants + def_variants
 
         new_variants = []
         for var_id, canon_id, vtype, details in all_variants:
@@ -166,13 +166,25 @@ def main():
             if var and var.canonical_lemma_id is None:
                 new_variants.append((var_id, canon_id, vtype, details))
 
-        print(f"Found {len(new_variants)} new variants (REVIEW NEEDED — not auto-applied)")
-        print("Many 'possessive' detections are false positives (taa marbuta feminines).")
-        print("Use cleanup_lemma_variants.py --verbose for manual review.")
+        print(f"\nFound {len(new_variants)} LLM-confirmed new variants")
         for var_id, canon_id, vtype, details in new_variants:
             var = db.get(Lemma, var_id)
             canon = db.get(Lemma, canon_id)
-            print(f"  {var.lemma_ar_bare} ({var.gloss_en}) → {canon.lemma_ar_bare} ({canon.gloss_en}) [{vtype}]")
+            reason = details.get("llm_reason", "")
+            print(f"  {var.lemma_ar_bare} ({var.gloss_en}) → {canon.lemma_ar_bare} ({canon.gloss_en}) [{vtype}] {reason}")
+
+        if new_variants and do_merge:
+            print(f"\nApplying {len(new_variants)} variant merges...")
+            for var_id, canon_id, vtype, details in new_variants:
+                var = db.get(Lemma, var_id)
+                canon = db.get(Lemma, canon_id)
+                print(f"  Merging {var.lemma_ar_bare} → {canon.lemma_ar_bare}")
+                merge_into(db, var_id, canon_id, dry_run)
+            total_changes += len(new_variants)
+        elif new_variants and not do_merge and not dry_run:
+            variants_marked = mark_variants(db, new_variants)
+            total_changes += variants_marked
+            print(f"Marked {variants_marked} variants (use --merge to also move reviews/sentences)")
     else:
         print("CAMeL Tools not available, skipping morphological variant detection")
 

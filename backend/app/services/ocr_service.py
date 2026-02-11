@@ -653,11 +653,11 @@ def process_textbook_page(
         variant_ids: set[int] = set()
         if new_lemma_ids:
             from app.services.variant_detection import (
-                detect_variants,
+                detect_variants_llm,
                 detect_definite_variants,
                 mark_variants,
             )
-            camel_vars = detect_variants(db, lemma_ids=new_lemma_ids)
+            camel_vars = detect_variants_llm(db, lemma_ids=new_lemma_ids)
             already = {v[0] for v in camel_vars}
             def_vars = detect_definite_variants(
                 db, lemma_ids=new_lemma_ids, already_variant_ids=already

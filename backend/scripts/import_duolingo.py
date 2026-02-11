@@ -16,7 +16,7 @@ from app.services.sentence_validator import (
     build_lemma_lookup,
     resolve_existing_lemma,
 )
-from app.services.variant_detection import detect_variants, detect_definite_variants, mark_variants
+from app.services.variant_detection import detect_variants_llm, detect_definite_variants, mark_variants
 
 DATA_FILE = Path(__file__).resolve().parent.parent / "app" / "data" / "duolingo_raw.json"
 
@@ -267,7 +267,7 @@ def run_import(db: Session) -> dict:
     # Detect and mark variants among newly imported lemmas
     variants_marked = 0
     if new_lemma_ids:
-        camel_vars = detect_variants(db, lemma_ids=new_lemma_ids)
+        camel_vars = detect_variants_llm(db, lemma_ids=new_lemma_ids)
         already = {v[0] for v in camel_vars}
         def_vars = detect_definite_variants(db, lemma_ids=new_lemma_ids, already_variant_ids=already)
         all_vars = camel_vars + def_vars

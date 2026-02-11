@@ -1,5 +1,7 @@
 """Tests for variant_detection service."""
 
+from unittest.mock import patch
+
 import pytest
 
 from app.models import Lemma
@@ -8,6 +10,8 @@ from app.services.variant_detection import (
     mark_variants,
     _gloss_overlap,
     _has_enclitic,
+    _build_llm_batch_prompt,
+    evaluate_variants_llm,
 )
 
 
@@ -109,3 +113,112 @@ class TestMarkVariants:
 
         count = mark_variants(db_session, [(2, 1, "definite", {})])
         assert count == 0
+
+
+class TestBuildLlmBatchPrompt:
+    def test_prompt_contains_candidates(self):
+        candidates = [
+            {"id": 0, "word_ar": "غرفة", "word_gloss": "room", "word_pos": "noun",
+             "base_ar": "غرف", "base_gloss": "rooms", "base_pos": "noun"},
+            {"id": 1, "word_ar": "سعيدة", "word_gloss": "happy (f.)", "word_pos": "adj",
+             "base_ar": "سعيد", "base_gloss": "happy", "base_pos": "adj"},
+        ]
+        prompt = _build_llm_batch_prompt(candidates)
+        assert "غرفة" in prompt
+        assert "سعيدة" in prompt
+        assert '"room"' in prompt
+        assert "is_variant" in prompt
+
+    def test_empty_candidates(self):
+        prompt = _build_llm_batch_prompt([])
+        assert "results" in prompt
+
+
+class TestEvaluateVariantsLlm:
+    def test_returns_empty_for_no_candidates(self):
+        results = evaluate_variants_llm([])
+        assert results == []
+
+    def test_parses_llm_response(self):
+        mock_response = {
+            "results": [
+                {"id": 0, "is_variant": False, "reason": "distinct noun"},
+                {"id": 1, "is_variant": True, "reason": "feminine adjective"},
+            ]
+        }
+        with patch("app.services.llm.generate_completion",
+                    return_value=mock_response) as mock_llm:
+            candidates = [
+                {"id": 0, "word_ar": "غرفة", "word_gloss": "room", "word_pos": "noun",
+                 "base_ar": "غرف", "base_gloss": "rooms", "base_pos": "noun"},
+                {"id": 1, "word_ar": "سعيدة", "word_gloss": "happy (f.)", "word_pos": "adj",
+                 "base_ar": "سعيد", "base_gloss": "happy", "base_pos": "adj"},
+            ]
+            results = evaluate_variants_llm(candidates)
+
+        assert len(results) == 2
+        assert results[0]["is_variant"] is False
+        assert results[1]["is_variant"] is True
+        mock_llm.assert_called_once()
+
+    def test_handles_malformed_llm_response(self):
+        with patch("app.services.llm.generate_completion",
+                    return_value={"results": "not a list"}):
+            results = evaluate_variants_llm([
+                {"id": 0, "word_ar": "test", "word_gloss": "test", "word_pos": "noun",
+                 "base_ar": "base", "base_gloss": "base", "base_pos": "noun"},
+            ])
+        assert results == []
+
+    def test_handles_missing_fields(self):
+        mock_response = {
+            "results": [
+                {"id": 0},  # missing is_variant and reason
+            ]
+        }
+        with patch("app.services.llm.generate_completion",
+                    return_value=mock_response):
+            results = evaluate_variants_llm([
+                {"id": 0, "word_ar": "test", "word_gloss": "test", "word_pos": "noun",
+                 "base_ar": "base", "base_gloss": "base", "base_pos": "noun"},
+            ])
+        assert len(results) == 1
+        assert results[0]["is_variant"] is False
+        assert results[0]["reason"] == ""
+
+    def test_cache_saves_and_reuses(self, db_session):
+        """Decisions are cached in variant_decisions table."""
+        from app.models import VariantDecision
+
+        mock_response = {
+            "results": [
+                {"id": 0, "is_variant": True, "reason": "feminine adjective"},
+            ]
+        }
+        candidates = [
+            {"id": 0, "word_ar": "سعيدة", "word_gloss": "happy (f.)", "word_pos": "adj",
+             "base_ar": "سعيد", "base_gloss": "happy", "base_pos": "adj"},
+        ]
+
+        # First call: LLM is called, result cached
+        with patch("app.services.llm.generate_completion",
+                    return_value=mock_response) as mock_llm:
+            results = evaluate_variants_llm(candidates, db=db_session)
+        assert mock_llm.call_count == 1
+        assert len(results) == 1
+        assert results[0]["is_variant"] is True
+        db_session.commit()
+
+        # Verify cache entry exists
+        cached = db_session.query(VariantDecision).all()
+        assert len(cached) == 1
+        assert cached[0].word_bare == "سعيدة"
+        assert cached[0].is_variant is True
+
+        # Second call: cache hit, no LLM call
+        with patch("app.services.llm.generate_completion") as mock_llm2:
+            results2 = evaluate_variants_llm(candidates, db=db_session)
+        mock_llm2.assert_not_called()
+        assert len(results2) == 1
+        assert results2[0]["is_variant"] is True
+        assert "(cached)" in results2[0]["reason"]

@@ -31,7 +31,7 @@ from app.services.sentence_validator import (
     build_lemma_lookup,
     resolve_existing_lemma,
 )
-from app.services.variant_detection import detect_variants, detect_definite_variants, mark_variants
+from app.services.variant_detection import detect_variants_llm, detect_definite_variants, mark_variants
 
 WIKTIONARY_URL = "https://kaikki.org/dictionary/Arabic/kaikki.org-dictionary-Arabic.jsonl"
 CACHE_FILE = Path(__file__).resolve().parent.parent / "data" / "wiktionary_arabic.jsonl.gz"
@@ -225,7 +225,7 @@ def run_import(db, candidates: list[dict], limit: int, dry_run: bool = False) ->
         if new_lemmas:
             db.flush()
             new_ids = [l.lemma_id for l in new_lemmas]
-            camel_vars = detect_variants(db, lemma_ids=new_ids)
+            camel_vars = detect_variants_llm(db, lemma_ids=new_ids)
             already = {v[0] for v in camel_vars}
             def_vars = detect_definite_variants(db, lemma_ids=new_ids, already_variant_ids=already)
             all_vars = camel_vars + def_vars

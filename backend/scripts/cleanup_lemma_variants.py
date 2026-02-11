@@ -37,7 +37,7 @@ from app.models import (
 from app.services.activity_log import log_activity
 from app.services.morphology import CAMEL_AVAILABLE
 from app.services.variant_detection import (
-    detect_variants,
+    detect_variants_llm,
     detect_definite_variants,
     mark_variants,
 )
@@ -130,10 +130,10 @@ def main():
 
     db = SessionLocal()
 
-    # Step 1: CAMeL Tools analysis (DB-aware disambiguation)
-    print("=== CAMeL Tools VARIANT DETECTION (DB-aware) ===")
-    camel_variants = detect_variants(db, verbose=verbose)
-    print(f"\nFound {len(camel_variants)} variants via CAMeL Tools:")
+    # Step 1: CAMeL + LLM variant detection
+    print("=== VARIANT DETECTION (CAMeL + LLM confirmation) ===")
+    camel_variants = detect_variants_llm(db, verbose=verbose)
+    print(f"\nFound {len(camel_variants)} LLM-confirmed variants:")
     for var_id, canon_id, vtype, details in camel_variants:
         var = db.get(Lemma, var_id)
         canon = db.get(Lemma, canon_id)

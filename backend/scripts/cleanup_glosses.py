@@ -170,7 +170,7 @@ def cleanup_loanword_roots(db, loanword_bares: set[str], dry_run: bool) -> int:
 def run_variant_detection(db, affected_bares: set[str], dry_run: bool) -> int:
     """Run variant detection on affected lemmas."""
     try:
-        from app.services.variant_detection import detect_variants, detect_definite_variants
+        from app.services.variant_detection import detect_variants_llm, detect_definite_variants
     except ImportError:
         print("  variant_detection not available, skipping")
         return 0
@@ -185,7 +185,7 @@ def run_variant_detection(db, affected_bares: set[str], dry_run: bool) -> int:
         return 0
 
     affected_ids = [l.lemma_id for l in affected_lemmas]
-    variants = detect_variants(db, affected_ids)
+    variants = detect_variants_llm(db, affected_ids)
     definite = detect_definite_variants(db, affected_ids)
     all_variants = variants + definite
 
