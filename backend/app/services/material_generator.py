@@ -126,7 +126,9 @@ def generate_material_for_word(lemma_id: int, needed: int) -> None:
         db.commit()
         logger.info(f"Generated {stored} sentences for lemma {lemma_id}")
 
-        _generate_audio_for_lemma(db, lemma_id)
+        # Audio generation disabled — existing backlog is sufficient.
+        # Re-enable when ElevenLabs credits are plentiful.
+        # _generate_audio_for_lemma(db, lemma_id)
 
     except Exception:
         logger.exception(f"Error generating material for lemma {lemma_id}")

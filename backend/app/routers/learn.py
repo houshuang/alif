@@ -147,10 +147,8 @@ def introduce(
             )
             result["sentences_generating"] = needed
 
-        # Generate word-level TTS audio if not cached
-        lemma = db.query(Lemma).filter(Lemma.lemma_id == req.lemma_id).first()
-        if lemma and not lemma.audio_url:
-            background_tasks.add_task(generate_word_audio, req.lemma_id)
+        # Word-level TTS audio generation disabled — saving ElevenLabs credits.
+        # Re-enable when credits are plentiful.
 
     return result
 

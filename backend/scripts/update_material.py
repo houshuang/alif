@@ -280,8 +280,25 @@ def get_audio_eligible_sentences(db: Session) -> list[Sentence]:
     return eligible
 
 
+MIN_AUDIO_BACKLOG = 30
+
+
 async def step_generate_audio(db: Session, dry_run: bool, limit: int) -> int:
     print("\n═══ Step B: Generate audio for review-eligible sentences ═══")
+
+    # Check existing audio backlog — only generate if below minimum
+    existing_audio = (
+        db.query(Sentence)
+        .filter(Sentence.audio_url.isnot(None), Sentence.is_active == True)  # noqa: E712
+        .count()
+    )
+    print(f"  Current audio backlog: {existing_audio} sentences")
+    if existing_audio >= MIN_AUDIO_BACKLOG:
+        print(f"  Backlog sufficient (>= {MIN_AUDIO_BACKLOG}), skipping audio generation.")
+        return 0
+
+    needed = MIN_AUDIO_BACKLOG - existing_audio
+    print(f"  Need {needed} more sentences with audio")
 
     eligible = get_audio_eligible_sentences(db)
     if not eligible:
@@ -289,6 +306,8 @@ async def step_generate_audio(db: Session, dry_run: bool, limit: int) -> int:
         return 0
 
     print(f"  Found {len(eligible)} eligible sentences without audio")
+    # Cap at what we actually need to reach the backlog minimum
+    eligible = eligible[:needed]
     if limit > 0:
         eligible = eligible[:limit]
         print(f"  Limited to {limit}")

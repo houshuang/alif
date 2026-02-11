@@ -208,5 +208,36 @@ LLM verification confirmed all 230 changes were safe to apply.
 
 ### Hypotheses
 
-- **H11**: Cleaned lemmas will now generate sentences successfully via `update_material.py`
+- **H11**: Cleaned lemmas will now generate sentences successfully via `update_material.py` — **confirmed**, 133 sentences generated
 - **H12**: Future OCR imports will produce clean single-word entries with sanitization at both prompt and code levels
+
+---
+
+## 2026-02-11 — Abbreviation Filter & Conservative TTS Audio
+
+### Problem: Abbreviations
+
+DB contained 6 single-character lemmas that are abbreviations or clitics, not real vocabulary:
+- وَ (and), رَ (see), ج (plural marker), ٥ (digit 5), ـهُ (him/his suffix), ـي (my suffix)
+- These entered via Duolingo import, OCR textbook scan, and the cleanup script's first-word extraction
+- `ج` was trying (and failing) to generate sentences — can never match as a token
+
+### Problem: TTS Audio Cost
+
+`update_material.py` Step B was finding **1,249 sentences** eligible for audio generation (criterion: `times_correct >= 1` for all words). This is far too aggressive — most of these sentences won't be used in listening mode for weeks. Listening mode requires `times_seen >= 3` and `stability >= 7d`.
+
+### Changes Made
+
+1. **Abbreviation filter in `sanitize_arabic_word()`** (`sentence_validator.py`): After all cleaning, computes bare form. If `len(bare) < 2`, adds `"too_short"` warning. All callers (OCR, Duolingo, Wiktionary, AVP imports, material_generator) now check for this warning.
+
+2. **Conservative audio eligibility** (`update_material.py`): Changed `get_audio_eligible_sentences()` from `times_correct >= 1` to `times_seen >= 3 AND stability >= 3.0 days`. Audio is only generated when words are approaching listening readiness. Reduces eligible from 1,249 → 0 currently (early learning phase), growing naturally as words mature. Also filters inactive sentences.
+
+3. **Deleted 6 abbreviation lemmas** from production DB (all had 0-2 reviews from auto-credit).
+
+4. **3 new tests**: single_char_abbreviation, single_char_with_diacritics, two_char_word_ok.
+
+### Audio Coverage
+
+- 406 active sentences already have audio (solid listening backlog)
+- 1,773 without audio will get it as word stability builds up
+- No wasted ElevenLabs credits on sentences that can't be used yet
