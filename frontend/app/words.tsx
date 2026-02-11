@@ -7,8 +7,10 @@ import {
   Pressable,
   StyleSheet,
   ActivityIndicator,
+  ScrollView,
 } from "react-native";
 import { useRouter, useFocusEffect } from "expo-router";
+import { Ionicons } from "@expo/vector-icons";
 import { colors, fonts, fontFamily } from "../lib/theme";
 import { getWords } from "../lib/api";
 import { Word } from "../lib/types";
@@ -30,6 +32,14 @@ function reviewCategory(w: Word): "failed" | "passed" | "unseen" {
 }
 
 const sortOrder = { failed: 0, passed: 1, unseen: 2 };
+
+const STATE_LABELS: Record<string, string> = {
+  new: "New",
+  learning: "Learning",
+  known: "Known",
+  lapsed: "Lapsed",
+  suspended: "Suspended",
+};
 
 export default function WordsScreen() {
   const [words, setWords] = useState<Word[]>([]);
@@ -98,12 +108,13 @@ export default function WordsScreen() {
   function renderWord({ item }: { item: Word }) {
     const cat = reviewCategory(item);
     const failed = item.times_seen - item.times_correct;
+    const badgeColor = stateBadgeColor(item.state);
 
     const rowBg =
       cat === "failed"
-        ? "rgba(231, 76, 60, 0.10)"
+        ? "rgba(231, 76, 60, 0.08)"
         : cat === "passed"
-          ? "rgba(46, 204, 113, 0.08)"
+          ? "rgba(46, 204, 113, 0.06)"
           : colors.surface;
 
     const borderColor =
@@ -127,36 +138,36 @@ export default function WordsScreen() {
       >
         <View style={styles.wordLeft}>
           <Text style={styles.wordArabic}>{item.arabic}</Text>
-          <Text style={styles.wordEnglish}>{item.english}</Text>
-          {item.times_seen > 0 ? (
-            <Text style={styles.wordReviewStats}>
-              {item.times_seen}
-              {" · "}
-              <Text style={{ color: colors.good }}>{item.times_correct}</Text>
-              {failed > 0 && (
-                <Text style={{ color: colors.missed }}>{" · "}{failed}</Text>
-              )}
-            </Text>
-          ) : (
-            <Text style={styles.wordReviewStats}>{item.pos}</Text>
-          )}
+          <Text style={styles.wordEnglish} numberOfLines={1}>{item.english}</Text>
+          <View style={styles.wordMeta}>
+            {item.pos ? (
+              <Text style={styles.wordPos}>{item.pos}</Text>
+            ) : null}
+            {item.times_seen > 0 ? (
+              <Text style={styles.wordReviewStats}>
+                {item.times_seen} reviews
+                {" · "}
+                <Text style={{ color: colors.good }}>{item.times_correct} ok</Text>
+                {failed > 0 && (
+                  <Text style={{ color: colors.missed }}> · {failed} missed</Text>
+                )}
+              </Text>
+            ) : null}
+          </View>
         </View>
         <View style={styles.wordRight}>
           {item.cefr_level && (
-            <View style={{ backgroundColor: getCefrColor(item.cefr_level), borderRadius: 3, paddingHorizontal: 4, paddingVertical: 1, marginRight: 4 }}>
-              <Text style={{ color: "#fff", fontSize: 10, fontWeight: "700" }}>{item.cefr_level}</Text>
+            <View style={[styles.cefrBadge, { backgroundColor: getCefrColor(item.cefr_level) }]}>
+              <Text style={styles.cefrText}>{item.cefr_level}</Text>
             </View>
           )}
           {item.knowledge_score > 0 && (
             <Text style={styles.scoreText}>{item.knowledge_score}</Text>
           )}
-          <View
-            style={[
-              styles.stateBadge,
-              { backgroundColor: stateBadgeColor(item.state) },
-            ]}
-          >
-            <Text style={styles.stateBadgeText}>{item.state[0]}</Text>
+          <View style={[styles.stateBadge, { backgroundColor: badgeColor + "20" }]}>
+            <Text style={[styles.stateBadgeText, { color: badgeColor }]}>
+              {STATE_LABELS[item.state] || item.state}
+            </Text>
           </View>
         </View>
       </Pressable>
@@ -165,7 +176,7 @@ export default function WordsScreen() {
 
   if (loading) {
     return (
-      <View style={styles.container}>
+      <View style={styles.centered}>
         <ActivityIndicator size="large" color={colors.accent} />
       </View>
     );
@@ -173,7 +184,8 @@ export default function WordsScreen() {
 
   if (error && words.length === 0) {
     return (
-      <View style={styles.errorContainer}>
+      <View style={styles.centered}>
+        <Ionicons name="warning-outline" size={48} color={colors.textSecondary} style={{ opacity: 0.5, marginBottom: 16 }} />
         <Text style={styles.errorText}>{error}</Text>
         <Pressable style={styles.retryButton} onPress={loadWords}>
           <Text style={styles.retryText}>Retry</Text>
@@ -194,21 +206,33 @@ export default function WordsScreen() {
 
   function filterLabel(f: FilterValue): string {
     const label = f.charAt(0).toUpperCase() + f.slice(1);
-    if (f === "all") return label;
-    if (f === "reviewed") return `${label} (${reviewedCount})`;
+    if (f === "all") return `All (${words.length})`;
+    if (f === "reviewed") return `Reviewed (${reviewedCount})`;
     return `${label} (${words.filter((w) => w.state === f).length})`;
   }
 
   return (
     <View style={styles.container}>
-      <TextInput
-        style={styles.searchInput}
-        placeholder="Search Arabic, English, or transliteration..."
-        placeholderTextColor={colors.textSecondary}
-        value={search}
-        onChangeText={setSearch}
-      />
-      <View style={styles.filterRow}>
+      <View style={styles.searchContainer}>
+        <Ionicons name="search" size={18} color={colors.textSecondary} style={styles.searchIcon} />
+        <TextInput
+          style={styles.searchInput}
+          placeholder="Search Arabic, English, or transliteration..."
+          placeholderTextColor={colors.textSecondary}
+          value={search}
+          onChangeText={setSearch}
+        />
+        {search.length > 0 && (
+          <Pressable onPress={() => setSearch("")} hitSlop={8}>
+            <Ionicons name="close-circle" size={18} color={colors.textSecondary} />
+          </Pressable>
+        )}
+      </View>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.filterRow}
+      >
         {filters.map((f) => (
           <Pressable
             key={f}
@@ -228,14 +252,25 @@ export default function WordsScreen() {
             </Text>
           </Pressable>
         ))}
-      </View>
+      </ScrollView>
       <FlatList
         data={filtered}
         keyExtractor={(item) => String(item.id)}
         renderItem={renderWord}
         contentContainerStyle={styles.list}
         ListEmptyComponent={
-          <Text style={styles.emptyText}>No words found</Text>
+          <View style={styles.emptyContainer}>
+            <Ionicons
+              name="library-outline"
+              size={48}
+              color={colors.textSecondary}
+              style={{ opacity: 0.4, marginBottom: 12 }}
+            />
+            <Text style={styles.emptyText}>No words found</Text>
+            <Text style={styles.emptyHint}>
+              {search ? "Try a different search term" : "Import words to get started"}
+            </Text>
+          </View>
         }
       />
     </View>
@@ -247,28 +282,44 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.bg,
   },
-  searchInput: {
+  centered: {
+    flex: 1,
+    backgroundColor: colors.bg,
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 20,
+  },
+  searchContainer: {
+    flexDirection: "row",
+    alignItems: "center",
     backgroundColor: colors.surface,
-    color: colors.text,
-    fontSize: fonts.body,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    margin: 12,
-    borderRadius: 10,
+    borderRadius: 12,
     borderWidth: 1,
     borderColor: colors.border,
+    marginHorizontal: 16,
+    marginTop: 12,
+    marginBottom: 10,
+    paddingHorizontal: 14,
+  },
+  searchIcon: {
+    marginRight: 10,
+  },
+  searchInput: {
+    flex: 1,
+    color: colors.text,
+    fontSize: fonts.body,
+    paddingVertical: 13,
   },
   filterRow: {
-    flexDirection: "row",
-    paddingHorizontal: 12,
+    paddingHorizontal: 16,
     gap: 8,
-    marginBottom: 8,
-    flexWrap: "wrap",
+    marginBottom: 10,
+    paddingRight: 24,
   },
   filterChip: {
-    paddingVertical: 6,
+    paddingVertical: 7,
     paddingHorizontal: 14,
-    borderRadius: 16,
+    borderRadius: 20,
     backgroundColor: colors.surface,
     borderWidth: 1,
     borderColor: colors.border,
@@ -280,19 +331,20 @@ const styles = StyleSheet.create({
   filterChipText: {
     color: colors.textSecondary,
     fontSize: fonts.small,
+    fontWeight: "500",
   },
   filterChipTextActive: {
     color: "#fff",
     fontWeight: "600",
   },
   list: {
-    paddingHorizontal: 12,
-    paddingBottom: 20,
+    paddingHorizontal: 16,
+    paddingBottom: 24,
   },
   wordRow: {
     backgroundColor: colors.surface,
-    borderRadius: 10,
-    padding: 14,
+    borderRadius: 12,
+    padding: 16,
     marginBottom: 8,
     flexDirection: "row",
     justifyContent: "space-between",
@@ -300,32 +352,54 @@ const styles = StyleSheet.create({
   },
   wordLeft: {
     flex: 1,
+    marginRight: 12,
   },
   wordArabic: {
-    fontSize: fonts.arabicList,
+    fontSize: fonts.arabicMedium,
     color: colors.arabic,
     writingDirection: "rtl",
     fontFamily: fontFamily.arabic,
+    lineHeight: 36,
     marginBottom: 2,
   },
   wordEnglish: {
-    fontSize: fonts.small,
-    color: colors.textSecondary,
+    fontSize: 15,
+    color: colors.text,
+    fontWeight: "500",
+    marginBottom: 4,
+  },
+  wordMeta: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  wordPos: {
+    fontSize: fonts.caption,
+    color: colors.accent,
+    fontWeight: "600",
   },
   wordReviewStats: {
     fontSize: fonts.caption,
     color: colors.textSecondary,
-    marginTop: 3,
   },
   wordRight: {
     alignItems: "flex-end",
-    marginLeft: 12,
+    gap: 6,
+  },
+  cefrBadge: {
+    borderRadius: 4,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+  },
+  cefrText: {
+    color: "#fff",
+    fontSize: 11,
+    fontWeight: "700",
   },
   scoreText: {
-    fontSize: 20,
+    fontSize: 22,
     fontWeight: "700",
     color: colors.accent,
-    marginBottom: 4,
   },
   stateBadge: {
     paddingHorizontal: 10,
@@ -333,21 +407,24 @@ const styles = StyleSheet.create({
     borderRadius: 10,
   },
   stateBadgeText: {
-    color: "#fff",
-    fontSize: fonts.caption,
+    fontSize: 11,
     fontWeight: "600",
   },
-  emptyText: {
-    color: colors.textSecondary,
-    fontSize: fonts.body,
-    textAlign: "center",
-    marginTop: 40,
-  },
-  errorContainer: {
-    flex: 1,
-    backgroundColor: colors.bg,
+  emptyContainer: {
     alignItems: "center",
-    justifyContent: "center",
+    marginTop: 60,
+    paddingHorizontal: 40,
+  },
+  emptyText: {
+    color: colors.text,
+    fontSize: 18,
+    fontWeight: "600",
+    marginBottom: 6,
+  },
+  emptyHint: {
+    color: colors.textSecondary,
+    fontSize: fonts.small,
+    textAlign: "center",
   },
   errorText: {
     color: colors.textSecondary,
@@ -356,9 +433,9 @@ const styles = StyleSheet.create({
   },
   retryButton: {
     backgroundColor: colors.accent,
-    paddingVertical: 10,
-    paddingHorizontal: 24,
-    borderRadius: 10,
+    paddingVertical: 12,
+    paddingHorizontal: 32,
+    borderRadius: 12,
   },
   retryText: {
     color: "#fff",

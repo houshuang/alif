@@ -181,15 +181,6 @@ export default function StoriesScreen() {
     return colors.missed;
   }
 
-  function statusIcon(status: StoryListItem["status"]): string {
-    return {
-      active: "ellipse-outline",
-      completed: "checkmark-circle",
-      too_difficult: "alert-circle-outline",
-      skipped: "arrow-forward-circle-outline",
-    }[status] as string;
-  }
-
   function statusLabel(status: StoryListItem["status"]): string {
     return {
       active: "Active",
@@ -211,82 +202,97 @@ export default function StoriesScreen() {
 
     const pctWidth = Math.min(100, Math.max(4, item.readiness_pct));
 
+    const statusBadgeColor = isComplete
+      ? colors.gotIt
+      : item.status === "too_difficult"
+        ? colors.missed
+        : item.status === "skipped"
+          ? colors.textSecondary
+          : colors.accent;
+
     return (
-      <View style={styles.storyCard}>
-        <Pressable onPress={() => router.push(`/story/${item.id}`)}>
-          <View style={styles.cardTop}>
-            <View style={styles.cardTitleRow}>
-              <Ionicons
-                name={statusIcon(item.status) as any}
-                size={18}
-                color={ready}
-                style={{ marginRight: 8 }}
-              />
-              <Text style={styles.storyTitle} numberOfLines={1}>
-                {title}
-              </Text>
-            </View>
+      <Pressable
+        style={styles.storyCard}
+        onPress={() => router.push(`/story/${item.id}`)}
+      >
+        <View style={styles.cardHeader}>
+          <View style={styles.cardTitleArea}>
+            <Text style={styles.storyTitle} numberOfLines={2}>
+              {title}
+            </Text>
             {item.title_ar && (
               <Text style={styles.storyTitleAr} numberOfLines={1}>
                 {item.title_ar}
               </Text>
             )}
           </View>
+          <Pressable
+            onPress={() => handleDelete(item)}
+            hitSlop={12}
+            style={styles.deleteBtn}
+          >
+            <Ionicons name="close" size={16} color={colors.textSecondary} />
+          </Pressable>
+        </View>
 
-          <View style={styles.progressBar}>
+        <View style={styles.progressBar}>
+          <View
+            style={[
+              styles.progressFill,
+              { width: `${pctWidth}%`, backgroundColor: ready },
+            ]}
+          />
+        </View>
+
+        <View style={styles.cardFooter}>
+          <View style={styles.cardBadges}>
             <View
               style={[
-                styles.progressFill,
-                { width: `${pctWidth}%`, backgroundColor: ready },
+                styles.badge,
+                {
+                  backgroundColor:
+                    item.source === "generated"
+                      ? colors.accent + "18"
+                      : colors.listening + "18",
+                },
               ]}
-            />
-          </View>
-
-          <View style={styles.cardBottom}>
-            <View style={styles.cardBadges}>
-              <View
+            >
+              <Ionicons
+                name={item.source === "generated" ? "sparkles" : "clipboard"}
+                size={10}
+                color={item.source === "generated" ? colors.accent : colors.listening}
+                style={{ marginRight: 4 }}
+              />
+              <Text
                 style={[
-                  styles.badge,
+                  styles.badgeText,
                   {
-                    backgroundColor:
+                    color:
                       item.source === "generated"
-                        ? colors.accent + "20"
-                        : colors.listening + "20",
+                        ? colors.accent
+                        : colors.listening,
                   },
                 ]}
               >
-                <Text
-                  style={[
-                    styles.badgeText,
-                    {
-                      color:
-                        item.source === "generated"
-                          ? colors.accent
-                          : colors.listening,
-                    },
-                  ]}
-                >
-                  {item.source === "generated" ? "Generated" : "Imported"}
-                </Text>
-              </View>
-              <Text style={styles.wordCount}>
-                {item.total_words} words
+                {item.source === "generated" ? "Generated" : "Imported"}
               </Text>
             </View>
-            <Text style={[styles.readinessLabel, { color: ready }]}>
-              {readyText}
+            {item.status !== "active" && (
+              <View style={[styles.badge, { backgroundColor: statusBadgeColor + "18" }]}>
+                <Text style={[styles.badgeText, { color: statusBadgeColor }]}>
+                  {statusLabel(item.status)}
+                </Text>
+              </View>
+            )}
+            <Text style={styles.wordCount}>
+              {item.total_words} words
             </Text>
           </View>
-        </Pressable>
-
-        <Pressable
-          onPress={() => handleDelete(item)}
-          hitSlop={8}
-          style={styles.deleteBtn}
-        >
-          <Ionicons name="trash-outline" size={16} color={colors.textSecondary} />
-        </Pressable>
-      </View>
+          <Text style={[styles.readinessLabel, { color: ready }]}>
+            {readyText}
+          </Text>
+        </View>
+      </Pressable>
     );
   }
 
@@ -301,7 +307,12 @@ export default function StoriesScreen() {
   if (generating) {
     return (
       <View style={styles.centered}>
-        <ActivityIndicator size="large" color={colors.accent} />
+        <Ionicons
+          name="sparkles"
+          size={32}
+          color={colors.accent}
+          style={{ marginBottom: 16, opacity: 0.8 }}
+        />
         <Text style={styles.generatingText}>Generating story...</Text>
         <Text style={styles.generatingHint}>This may take a few seconds</Text>
       </View>
@@ -336,13 +347,13 @@ export default function StoriesScreen() {
           <View style={styles.emptyContainer}>
             <Ionicons
               name="book-outline"
-              size={48}
+              size={56}
               color={colors.textSecondary}
-              style={{ marginBottom: 12, opacity: 0.5 }}
+              style={{ marginBottom: 16, opacity: 0.4 }}
             />
             <Text style={styles.emptyText}>No stories yet</Text>
             <Text style={styles.emptyHint}>
-              Generate a story from your vocabulary or import Arabic text
+              Generate a story from your vocabulary{"\n"}or import Arabic text
             </Text>
           </View>
         }
@@ -356,8 +367,14 @@ export default function StoriesScreen() {
         onRequestClose={() => setShowGenerate(false)}
       >
         <View style={styles.modalOverlay}>
+          <Pressable style={styles.modalOverlayTouch} onPress={() => setShowGenerate(false)} />
           <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Generate Story</Text>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Generate Story</Text>
+              <Pressable onPress={() => setShowGenerate(false)} hitSlop={8}>
+                <Ionicons name="close" size={22} color={colors.textSecondary} />
+              </Pressable>
+            </View>
 
             <Text style={styles.fieldLabel}>Length</Text>
             <View style={styles.lengthRow}>
@@ -423,8 +440,14 @@ export default function StoriesScreen() {
         onRequestClose={() => { setShowImport(false); setImportImageUri(null); }}
       >
         <View style={styles.modalOverlay}>
+          <Pressable style={styles.modalOverlayTouch} onPress={() => { setShowImport(false); setImportImageUri(null); }} />
           <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Import Arabic Text</Text>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Import Arabic Text</Text>
+              <Pressable onPress={() => { setShowImport(false); setImportImageUri(null); }} hitSlop={8}>
+                <Ionicons name="close" size={22} color={colors.textSecondary} />
+              </Pressable>
+            </View>
 
             <View style={styles.importSourceRow}>
               <Pressable
@@ -432,7 +455,7 @@ export default function StoriesScreen() {
                 onPress={handleImportCamera}
                 disabled={extractingText}
               >
-                <Ionicons name="camera-outline" size={18} color={colors.accent} />
+                <Ionicons name="camera-outline" size={20} color={colors.accent} />
                 <Text style={styles.importSourceText}>Camera</Text>
               </Pressable>
               <Pressable
@@ -440,7 +463,7 @@ export default function StoriesScreen() {
                 onPress={handleImportImage}
                 disabled={extractingText}
               >
-                <Ionicons name="image-outline" size={18} color={colors.listening} />
+                <Ionicons name="image-outline" size={20} color={colors.listening} />
                 <Text style={styles.importSourceText}>Photo</Text>
               </Pressable>
             </View>
@@ -520,12 +543,12 @@ const styles = StyleSheet.create({
     backgroundColor: colors.bg,
     alignItems: "center",
     justifyContent: "center",
+    padding: 20,
   },
   generatingText: {
     color: colors.text,
     fontSize: 18,
     fontWeight: "600",
-    marginTop: 20,
   },
   generatingHint: {
     color: colors.textSecondary,
@@ -534,18 +557,19 @@ const styles = StyleSheet.create({
   },
   actionBar: {
     flexDirection: "row",
-    gap: 10,
-    padding: 12,
+    gap: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
   },
   actionBtn: {
     flex: 1,
     backgroundColor: colors.accent,
-    paddingVertical: 12,
-    borderRadius: 10,
+    paddingVertical: 14,
+    borderRadius: 12,
     alignItems: "center",
     flexDirection: "row",
     justifyContent: "center",
-    gap: 6,
+    gap: 8,
   },
   importBtn: {
     backgroundColor: colors.listening,
@@ -556,56 +580,61 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
   list: {
-    paddingHorizontal: 12,
-    paddingBottom: 20,
+    paddingHorizontal: 16,
+    paddingBottom: 24,
   },
   storyCard: {
     backgroundColor: colors.surface,
-    borderRadius: 12,
-    padding: 16,
+    borderRadius: 14,
+    padding: 18,
     marginBottom: 10,
-    position: "relative" as const,
+  },
+  cardHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    marginBottom: 12,
+  },
+  cardTitleArea: {
+    flex: 1,
+    marginRight: 12,
   },
   deleteBtn: {
-    position: "absolute" as const,
-    top: 14,
-    right: 14,
-    padding: 6,
-  },
-  cardTop: {
-    marginBottom: 10,
-  },
-  cardTitleRow: {
-    flexDirection: "row",
+    padding: 4,
+    borderRadius: 12,
+    backgroundColor: colors.surfaceLight,
+    width: 28,
+    height: 28,
     alignItems: "center",
+    justifyContent: "center",
   },
   storyTitle: {
-    fontSize: 16,
+    fontSize: 17,
     color: colors.text,
     fontWeight: "600",
-    flex: 1,
+    lineHeight: 22,
   },
   storyTitleAr: {
-    fontSize: fonts.arabicList,
+    fontSize: fonts.arabicMedium,
     color: colors.arabic,
     writingDirection: "rtl",
     fontFamily: fontFamily.arabic,
     textAlign: "right",
-    marginTop: 4,
-    opacity: 0.85,
+    marginTop: 6,
+    lineHeight: 34,
   },
   progressBar: {
-    height: 4,
+    height: 5,
     backgroundColor: colors.surfaceLight,
-    borderRadius: 2,
+    borderRadius: 3,
     overflow: "hidden",
-    marginBottom: 10,
+    marginBottom: 12,
   },
   progressFill: {
     height: "100%",
-    borderRadius: 2,
+    borderRadius: 3,
   },
-  cardBottom: {
+  cardFooter: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
@@ -614,10 +643,13 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
+    flex: 1,
   },
   badge: {
+    flexDirection: "row",
+    alignItems: "center",
     paddingHorizontal: 8,
-    paddingVertical: 2,
+    paddingVertical: 3,
     borderRadius: 8,
   },
   badgeText: {
@@ -631,44 +663,53 @@ const styles = StyleSheet.create({
   readinessLabel: {
     fontSize: 13,
     fontWeight: "600",
+    marginLeft: 8,
   },
   emptyContainer: {
     alignItems: "center",
-    marginTop: 60,
+    marginTop: 80,
     paddingHorizontal: 40,
   },
   emptyText: {
     color: colors.text,
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: "600",
-    marginBottom: 6,
+    marginBottom: 8,
   },
   emptyHint: {
     color: colors.textSecondary,
-    fontSize: fonts.small,
+    fontSize: fonts.body,
     textAlign: "center",
-    lineHeight: 20,
+    lineHeight: 22,
   },
   modalOverlay: {
     flex: 1,
     backgroundColor: "rgba(0,0,0,0.7)",
-    justifyContent: "center",
-    padding: 20,
+    justifyContent: "flex-end",
+  },
+  modalOverlayTouch: {
+    flex: 1,
   },
   modalContent: {
     backgroundColor: colors.surface,
-    borderRadius: 16,
-    padding: 20,
-    maxHeight: "80%",
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    padding: 24,
+    maxHeight: "85%",
+  },
+  modalHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 20,
   },
   modalTitle: {
     fontSize: 20,
     color: colors.text,
-    fontWeight: "600",
-    marginBottom: 16,
+    fontWeight: "700",
   },
   fieldLabel: {
-    fontSize: fonts.small,
+    fontSize: fonts.caption,
     color: colors.textSecondary,
     fontWeight: "600",
     marginBottom: 8,
@@ -677,15 +718,15 @@ const styles = StyleSheet.create({
   },
   lengthRow: {
     flexDirection: "row",
-    gap: 8,
-    marginBottom: 16,
+    gap: 10,
+    marginBottom: 20,
   },
   lengthOption: {
     flex: 1,
     backgroundColor: colors.surfaceLight,
-    borderRadius: 10,
-    paddingVertical: 10,
-    paddingHorizontal: 8,
+    borderRadius: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 10,
     alignItems: "center",
     borderWidth: 2,
     borderColor: "transparent",
@@ -705,7 +746,7 @@ const styles = StyleSheet.create({
   lengthDesc: {
     fontSize: 11,
     color: colors.textSecondary,
-    marginTop: 2,
+    marginTop: 3,
   },
   lengthDescActive: {
     color: colors.accent,
@@ -716,8 +757,8 @@ const styles = StyleSheet.create({
     color: colors.text,
     fontSize: fonts.body,
     paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderRadius: 10,
+    paddingVertical: 12,
+    borderRadius: 12,
     borderWidth: 1,
     borderColor: colors.border,
     marginBottom: 16,
@@ -727,8 +768,8 @@ const styles = StyleSheet.create({
     color: colors.arabic,
     fontSize: fonts.arabicList,
     paddingHorizontal: 14,
-    paddingVertical: 12,
-    borderRadius: 10,
+    paddingVertical: 14,
+    borderRadius: 12,
     borderWidth: 1,
     borderColor: colors.border,
     minHeight: 150,
@@ -736,6 +777,7 @@ const styles = StyleSheet.create({
     fontFamily: fontFamily.arabic,
     textAlignVertical: "top",
     marginBottom: 16,
+    lineHeight: 30,
   },
   modalActions: {
     flexDirection: "row",
@@ -743,8 +785,8 @@ const styles = StyleSheet.create({
   },
   modalCancel: {
     flex: 1,
-    paddingVertical: 12,
-    borderRadius: 10,
+    paddingVertical: 14,
+    borderRadius: 12,
     alignItems: "center",
     backgroundColor: colors.surfaceLight,
   },
@@ -755,8 +797,8 @@ const styles = StyleSheet.create({
   },
   modalSubmit: {
     flex: 1,
-    paddingVertical: 12,
-    borderRadius: 10,
+    paddingVertical: 14,
+    borderRadius: 12,
     alignItems: "center",
     backgroundColor: colors.accent,
     flexDirection: "row",
@@ -773,17 +815,17 @@ const styles = StyleSheet.create({
   },
   importSourceRow: {
     flexDirection: "row",
-    gap: 10,
-    marginBottom: 12,
+    gap: 12,
+    marginBottom: 16,
   },
   importSourceBtn: {
     flex: 1,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    gap: 6,
-    paddingVertical: 10,
-    borderRadius: 10,
+    gap: 8,
+    paddingVertical: 12,
+    borderRadius: 12,
     backgroundColor: colors.surfaceLight,
     borderWidth: 1,
     borderColor: colors.border,
@@ -796,12 +838,12 @@ const styles = StyleSheet.create({
   extractingBanner: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
+    gap: 10,
     backgroundColor: colors.accent + "15",
-    borderRadius: 8,
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    marginBottom: 12,
+    borderRadius: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    marginBottom: 16,
   },
   extractingText: {
     fontSize: fonts.small,
@@ -810,13 +852,13 @@ const styles = StyleSheet.create({
   },
   importImagePreview: {
     alignItems: "center",
-    marginBottom: 12,
+    marginBottom: 16,
     position: "relative" as const,
   },
   importPreviewImg: {
     width: 80,
     height: 100,
-    borderRadius: 8,
+    borderRadius: 10,
     backgroundColor: colors.surfaceLight,
   },
   importImageRemove: {
