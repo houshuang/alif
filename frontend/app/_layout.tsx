@@ -120,43 +120,43 @@ export default function Layout() {
         <Tabs.Screen
           name="scanner"
           options={{
+            href: null,
             title: "Scanner",
-            tabBarButton: () => null,
           }}
         />
         <Tabs.Screen
           name="chats"
           options={{
+            href: null,
             title: "Chats",
-            tabBarButton: () => null,
           }}
         />
         <Tabs.Screen
           name="stats"
           options={{
+            href: null,
             title: "Stats",
-            tabBarButton: () => null,
           }}
         />
         <Tabs.Screen
           name="word/[id]"
           options={{
+            href: null,
             title: "Word Detail",
-            tabBarButton: () => null,
           }}
         />
         <Tabs.Screen
           name="story/[id]"
           options={{
+            href: null,
             title: "Story",
-            tabBarButton: () => null,
           }}
         />
         <Tabs.Screen
           name="review-lab"
           options={{
+            href: null,
             title: "Review Lab",
-            tabBarButton: () => null,
           }}
         />
       </Tabs>

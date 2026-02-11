@@ -7,11 +7,11 @@ EXPO_URL="exp://alifstian.duckdns.org:8081"
 
 echo "=== Pre-deploy checks ==="
 
-# Check for known Expo Router incompatibilities (href + tabBarButton crashes)
+# Check for known Expo Router incompatibilities
+# href + tabBarButton on same screen crashes Expo Router
 if python3 -c "
 import re
 text = open('frontend/app/_layout.tsx').read()
-# Find options blocks that contain both href and tabBarButton
 blocks = re.findall(r'options=\{\{(.*?)\}\}', text, re.DOTALL)
 bad = [b for b in blocks if 'href' in b and 'tabBarButton' in b]
 exit(1 if bad else 0)
