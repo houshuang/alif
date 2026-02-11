@@ -27,6 +27,7 @@ os.environ.setdefault("ALIF_SKIP_MIGRATIONS", "1")
 
 from app.database import SessionLocal
 from app.models import Lemma, Root
+from app.services.activity_log import log_activity
 
 DATA_DIR = Path(__file__).resolve().parent.parent / "data"
 
@@ -297,6 +298,21 @@ def main():
         print(f"  Frequency: {freq_matched}/{len(lemmas)} matched ({freq_matched/len(lemmas)*100:.0f}%), {freq_updated} updated")
         print(f"  CEFR:      {cefr_matched}/{len(lemmas)} matched ({cefr_matched/len(lemmas)*100:.0f}%), {cefr_updated} updated")
         print(f"  Roots:     {root_updated}/{len(roots)} productivity scores updated")
+
+        if not args.dry_run and (freq_updated + cefr_updated > 0):
+            log_activity(
+                db,
+                event_type="frequency_backfill_completed",
+                summary=f"Backfilled frequency for {freq_updated} and CEFR for {cefr_updated} lemmas",
+                detail={
+                    "freq_matched": freq_matched,
+                    "freq_updated": freq_updated,
+                    "cefr_matched": cefr_matched,
+                    "cefr_updated": cefr_updated,
+                    "root_updated": root_updated,
+                    "total_lemmas": len(lemmas),
+                },
+            )
 
         # Show some examples
         if freq_matched > 0:

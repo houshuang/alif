@@ -13,6 +13,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from app.database import SessionLocal
 from app.models import Lemma
+from app.services.activity_log import log_activity
 from app.services.grammar_tagger import tag_lemma_grammar
 
 
@@ -45,6 +46,14 @@ def main():
                 print(f"  ERROR: {e}")
                 continue
 
+        tagged = sum(1 for l in lemmas if l.grammar_features_json is not None)
+        if not args.dry_run and tagged > 0:
+            log_activity(
+                db,
+                event_type="grammar_backfill_completed",
+                summary=f"Backfilled grammar features for {tagged} lemmas",
+                detail={"lemmas_processed": len(lemmas), "lemmas_tagged": tagged},
+            )
         print("Done." if not args.dry_run else "Dry run complete, no changes saved.")
     finally:
         db.close()

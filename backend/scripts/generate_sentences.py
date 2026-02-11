@@ -23,6 +23,7 @@ from sqlalchemy import func
 
 from app.database import SessionLocal
 from app.models import Lemma, Sentence, SentenceWord, UserLemmaKnowledge
+from app.services.activity_log import log_activity
 from app.services.llm import (
     AllProvidersFailed,
     generate_sentences_batch,
@@ -279,6 +280,19 @@ def main():
         print(f"  Stored: {total_stored}")
         print(f"  Failed validation: {total_failed}")
         print(f"  Skipped (already have enough): {total_skipped}")
+
+        if not args.dry_run and total_stored > 0:
+            log_activity(
+                db,
+                event_type="sentences_generated",
+                summary=f"Generated {total_stored} sentences for {len(targets) - total_skipped} words in {elapsed:.0f}s",
+                detail={
+                    "stored": total_stored,
+                    "failed": total_failed,
+                    "skipped": total_skipped,
+                    "elapsed_seconds": round(elapsed, 1),
+                },
+            )
 
     finally:
         db.close()

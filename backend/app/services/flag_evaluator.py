@@ -9,7 +9,8 @@ from datetime import datetime, timezone
 from sqlalchemy.orm import Session
 
 from app.database import SessionLocal
-from app.models import ActivityLog, ContentFlag, Lemma, Sentence
+from app.models import ContentFlag, Lemma, Sentence
+from app.services.activity_log import log_activity
 from app.services.llm import generate_completion, LLMError
 
 
@@ -220,9 +221,4 @@ Respond with JSON:
 
 
 def _log_activity(db: Session, event_type: str, summary: str, detail: dict | None = None) -> None:
-    entry = ActivityLog(
-        event_type=event_type,
-        summary=summary,
-        detail_json=detail,
-    )
-    db.add(entry)
+    log_activity(db, event_type, summary, detail, commit=False)

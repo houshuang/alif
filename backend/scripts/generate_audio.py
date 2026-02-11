@@ -23,6 +23,7 @@ load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 
 from app.database import SessionLocal
 from app.models import Sentence
+from app.services.activity_log import log_activity
 from app.services.tts import (
     DEFAULT_VOICE_ID,
     TTSError,
@@ -183,6 +184,20 @@ async def main():
         print(f"  Skipped (cached): {s['skipped']}")
         print(f"  Errors: {s['errors']}")
         print(f"  DB audio_url updated: {updated}")
+
+        if s["generated"] > 0:
+            log_activity(
+                db,
+                event_type="audio_generated",
+                summary=f"Generated {s['generated']} audio files ({s['skipped']} cached, {s['errors']} errors) in {elapsed:.0f}s",
+                detail={
+                    "generated": s["generated"],
+                    "skipped": s["skipped"],
+                    "errors": s["errors"],
+                    "db_updated": updated,
+                    "elapsed_seconds": round(elapsed, 1),
+                },
+            )
     finally:
         db.close()
 

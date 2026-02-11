@@ -28,6 +28,7 @@ from sqlalchemy.orm import Session
 
 from app.database import SessionLocal
 from app.models import Lemma, Sentence, SentenceWord, UserLemmaKnowledge
+from app.services.activity_log import log_activity
 from app.services.sentence_validator import FUNCTION_WORDS, strip_diacritics
 
 FRESHNESS_BASELINE = 8  # matches sentence_selector.py
@@ -180,6 +181,18 @@ def main():
                 sent.is_active = False
             db.commit()
             print(f"\nRetired {len(final_retire)} sentences.")
+
+            log_activity(
+                db,
+                event_type="sentences_retired",
+                summary=f"Retired {len(final_retire)} overexposed sentences (threshold {args.threshold})",
+                detail={
+                    "retired": len(final_retire),
+                    "total_active": stats["total"],
+                    "threshold": args.threshold,
+                    "hal_starters": stats["hal_retired"],
+                },
+            )
         elif args.dry_run:
             print(f"\nDry run complete. Use without --dry-run to apply.")
 

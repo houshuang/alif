@@ -32,6 +32,7 @@ from sqlalchemy.orm import Session
 
 from app.database import SessionLocal
 from app.models import Lemma, Sentence, SentenceWord, UserLemmaKnowledge
+from app.services.activity_log import log_activity
 from app.services.word_selector import select_next_words
 from app.services.llm import AllProvidersFailed, generate_sentences_batch
 from app.services.sentence_generator import (
@@ -416,6 +417,19 @@ async def main():
         print(f"  Step A sentences: {sent_a}")
         print(f"  Step B audio:     {audio_b}")
         print(f"  Step C sentences: {sent_c}")
+
+        if not args.dry_run and (sent_a + audio_b + sent_c > 0):
+            log_activity(
+                db,
+                event_type="material_updated",
+                summary=f"Generated {sent_a} backfill + {sent_c} pre-gen sentences, {audio_b} audio files in {elapsed:.0f}s",
+                detail={
+                    "step_a_sentences": sent_a,
+                    "step_b_audio": audio_b,
+                    "step_c_sentences": sent_c,
+                    "elapsed_seconds": round(elapsed, 1),
+                },
+            )
     finally:
         db.close()
 

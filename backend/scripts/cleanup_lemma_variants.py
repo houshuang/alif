@@ -34,6 +34,7 @@ from app.models import (
     Sentence,
     StoryWord,
 )
+from app.services.activity_log import log_activity
 from app.services.morphology import CAMEL_AVAILABLE
 from app.services.variant_detection import (
     detect_variants,
@@ -174,6 +175,20 @@ def main():
     if not dry_run:
         db.commit()
         print(f"\nCommitted changes.")
+
+        if all_variants:
+            log_activity(
+                db,
+                event_type="variant_cleanup_completed",
+                summary=f"Detected {len(all_variants)} variants, marked {marked} (merge={do_merge})",
+                detail={
+                    "variants_detected": len(all_variants),
+                    "variants_marked": marked,
+                    "camel_variants": len(camel_variants),
+                    "definite_variants": len(def_variants),
+                    "merge": do_merge,
+                },
+            )
     else:
         db.rollback()
         print(f"\nDry run complete.")

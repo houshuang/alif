@@ -30,7 +30,14 @@ function relativeTime(dateStr: string): string {
 const EVENT_ICONS: Record<string, { name: keyof typeof Ionicons.glyphMap; color: string }> = {
   flag_resolved: { name: "flag", color: colors.stateKnown },
   sentences_generated: { name: "document-text-outline", color: colors.accent },
-  backfill_completed: { name: "hammer-outline", color: colors.stateLearning },
+  material_updated: { name: "sync-outline", color: colors.accent },
+  audio_generated: { name: "volume-high-outline", color: colors.accent },
+  sentences_retired: { name: "trash-outline", color: colors.textSecondary },
+  frequency_backfill_completed: { name: "trending-up-outline", color: colors.stateLearning },
+  grammar_backfill_completed: { name: "school-outline", color: colors.stateLearning },
+  examples_backfill_completed: { name: "bulb-outline", color: colors.stateLearning },
+  variant_cleanup_completed: { name: "git-merge-outline", color: colors.stateLearning },
+  manual_action: { name: "construct-outline", color: colors.stateLearning },
   word_suspended: { name: "pause-circle-outline", color: colors.textSecondary },
   word_unsuspended: { name: "play-circle-outline", color: colors.stateKnown },
 };

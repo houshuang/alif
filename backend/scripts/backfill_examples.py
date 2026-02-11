@@ -13,6 +13,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from app.database import SessionLocal
 from app.models import Lemma
+from app.services.activity_log import log_activity
 
 
 BATCH_SIZE = 10
@@ -104,6 +105,13 @@ def backfill(dry_run=False, limit=50):
         print(f"\nDry run: would update {total_done} lemmas")
     else:
         print(f"\nUpdated {total_done} lemmas with examples")
+        if total_done > 0:
+            log_activity(
+                db,
+                event_type="examples_backfill_completed",
+                summary=f"Backfilled examples for {total_done} lemmas",
+                detail={"lemmas_updated": total_done},
+            )
 
     db.close()
 
