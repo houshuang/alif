@@ -193,11 +193,12 @@ This app is an ongoing learning experiment. Every algorithm change, data structu
 - `frontend/lib/offline-store.ts` — AsyncStorage: session cache (3 per mode), reviewed tracking (+ unmarkReviewed for undo), data cache (words/stats/analytics)
 - `frontend/lib/sync-queue.ts` — Enqueue reviews offline, bulk flush via POST /api/review/sync, invalidates session cache on success. removeFromQueue() for undo support.
 - `frontend/lib/theme.ts` — Dark theme (0f0f1a bg), semantic colors (including confused yellow #f39c12), Arabic/English font sizes
+- `frontend/lib/__tests__/` — Jest tests: sync-queue (enqueue/remove/pending), offline-store (mark/unmark/cache/invalidate), smart-filters (leech/struggling/recent/solid logic), api (sentence review, undo, word lookup, stories, learn mode, flagging, offline fallback)
 
 ## API Endpoints
 | Method | Path | Description |
 |--------|------|-------------|
-| GET | `/api/words?limit=50&status=learning` | List words with knowledge state |
+| GET | `/api/words?limit=50&status=learning&category=function` | List words with knowledge state. category: function\|names. Returns last_ratings (last 8 review ratings for sparkline) and knowledge_score. |
 | GET | `/api/words/{id}` | Word detail with review stats + root family + review history |
 | GET | `/api/review/next?limit=10` | Due review cards (legacy word-only) |
 | GET | `/api/review/next-listening` | Listening-suitable review cards (legacy) |
@@ -261,7 +262,7 @@ This app is an ongoing learning experiment. Every algorithm change, data structu
 ## Data Model
 - `roots` — 3/4 consonant roots with core meaning, productivity score
 - `lemmas` — Base dictionary forms with root FK, POS, gloss, frequency_rank (from CAMeL MSA corpus), cefr_level (A1–C2 from Kelly Project), grammar_features_json, forms_json, example_ar/en, transliteration, audio_url, canonical_lemma_id (FK to self — set when lemma is a variant of another), source_story_id (FK to stories — set when word was imported from a story)
-- `user_lemma_knowledge` — FSRS card state per lemma (knowledge_state: new/learning/known/lapsed, fsrs_card_json, introduced_at, times_seen, times_correct, total_encounters, source: study/auto_intro/collocate/duolingo/encountered, variant_stats_json — per-variant-form seen/missed/confused counts)
+- `user_lemma_knowledge` — FSRS card state per lemma (knowledge_state: new/learning/known/lapsed/suspended, fsrs_card_json, introduced_at, times_seen, times_correct, total_encounters, source: study/auto_intro/collocate/duolingo/encountered, variant_stats_json — per-variant-form seen/missed/confused counts)
 - `review_log` — Full review history (rating 1-4, timing, mode, comprehension signal, sentence_id, credit_type: primary/collateral as metadata only — does not affect FSRS ratings, client_review_id for dedup, fsrs_log_json contains pre-review state snapshots for undo: pre_card, pre_times_seen, pre_times_correct, pre_knowledge_state)
 - `sentences` — Generated/imported sentences with target word, last_shown_at, times_shown, **last_comprehension** (understood/partial/no_idea — drives recency filter)
 - `sentence_words` — Word-level breakdown with position, surface_form, lemma_id, is_target_word, grammar_role_json
@@ -320,8 +321,10 @@ Tests 3 models across 5 tasks (105 ground truth cases): diacritization, translat
 ## Testing
 ```bash
 cd backend && python -m pytest  # 564 tests
+cd frontend && npm test         # 73 tests
 ```
-All services have dedicated test files in `backend/tests/`.
+Backend: all services have dedicated test files in `backend/tests/`.
+Frontend: Jest + ts-jest in `frontend/lib/__tests__/`. Tests cover sync queue (enqueue/remove/pending), offline store (mark/unmark reviewed, session cache, invalidation), smart filter logic (leech/struggling/recent/solid detection), and API interactions (sentence review submit/undo, word lookup with caching, story operations, learn mode, content flagging, offline fallback). Mocks in `__mocks__/` for AsyncStorage, expo-constants, netinfo.
 
 ## Deployment
 ```bash

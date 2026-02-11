@@ -6,7 +6,9 @@
     "start": "expo start",
     "android": "expo start --android",
     "ios": "expo start --ios",
-    "web": "expo start --web"
+    "web": "expo start --web",
+    "test": "jest --watchman=false",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@expo-google-fonts/scheherazade-new": "^0.4.2",
@@ -31,7 +33,10 @@
     "react-native-web": "^0.21.0"
   },
   "devDependencies": {
+    "@types/jest": "^30.0.0",
     "@types/react": "~19.1.0",
+    "jest": "^30.2.0",
+    "ts-jest": "^29.4.6",
     "typescript": "~5.9.2"
   },
   "private": true

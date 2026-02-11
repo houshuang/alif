@@ -69,6 +69,7 @@ interface RawWord {
   knowledge_score: number;
   frequency_rank: number | null;
   cefr_level: string | null;
+  last_ratings?: number[];
 }
 
 interface RawWordDetail extends RawWord {

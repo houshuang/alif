@@ -4,6 +4,22 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-02-11: Frontend Test Infrastructure
+
+**Problem**: No frontend tests existed at all — only backend had pytest coverage (564 tests). Frontend logic in sync-queue, offline-store, smart-filters, and the API client layer was untested.
+
+**Change**: Set up Jest + ts-jest for the frontend with mocks for AsyncStorage, expo-constants, and netinfo. Created 4 test suites (73 tests total):
+- `sync-queue.test.ts` (7 tests): enqueue/remove/pending count, dedup, offline queueing
+- `offline-store.test.ts` (14 tests): mark/unmark reviewed, session cache, invalidation, story lookups, word lookup cache
+- `smart-filters.test.ts` (24 tests): isLeech, isStruggling, isRecent, isSolid with boundary cases and combinations
+- `api.test.ts` (28 tests): sentence review submit/undo flow, word lookup with caching, story operations (list/detail/complete/skip/import), learn mode (next words/introduce/quiz), content flagging, offline fallback for words/sessions/stats
+
+**Files**: `frontend/jest.config.js`, `frontend/lib/__tests__/__mocks__/` (async-storage, expo-constants, netinfo), `frontend/lib/__tests__/*.test.ts`
+
+**Expected effect**: Catch regressions in frontend logic during refactors. API test suite validates request payloads, response mapping, caching behavior, and offline fallback — the most complex frontend logic paths.
+
+---
+
 ## 2026-02-11: Review Undo / Back Navigation
 
 **Problem**: During sentence review, if the user taps "Got it" by mistake, there's no way to go back and correct the rating. Reviews must be submitted immediately per-card (user often leaves mid-session), so deferring to session end isn't an option.

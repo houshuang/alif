@@ -236,6 +236,16 @@
 
 ## Technical Ideas
 
+### Frontend Testing
+- [DONE] Jest + ts-jest test infrastructure with mocks for AsyncStorage, expo-constants, netinfo
+- [DONE] Sync queue tests (enqueue/remove/pending/dedup)
+- [DONE] Offline store tests (mark/unmark reviewed, session cache, invalidation, story lookups)
+- [DONE] Smart filter logic tests (leech/struggling/recent/solid detection with boundary cases)
+- [DONE] API interaction tests (sentence review submit/undo, word lookup caching, story ops, learn mode, flagging, offline fallback)
+- Component-level tests with React Testing Library (render review cards, word list, story reader in various states)
+- Snapshot tests for key UI states (empty, loading, error, populated)
+- E2E tests with Detox or Maestro for critical user flows (review session, learn flow, story import)
+
 ### Offline Architecture
 - All review data in IndexedDB (web) / SQLite (mobile)
 - Pre-sync: download next N days of review cards + sentences + audio
