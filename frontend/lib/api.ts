@@ -217,6 +217,7 @@ export async function getWords(): Promise<Word[]> {
       knowledge_score: w.knowledge_score || 0,
       frequency_rank: w.frequency_rank ?? null,
       cefr_level: w.cefr_level ?? null,
+      last_ratings: w.last_ratings || [],
     }));
     cacheData("words", words).catch(() => {});
     return words as Word[];

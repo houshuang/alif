@@ -51,6 +51,7 @@ export interface Word {
   knowledge_score: number;
   frequency_rank: number | null;
   cefr_level: string | null;
+  last_ratings?: number[];
 }
 
 export interface ReviewHistoryEntry {

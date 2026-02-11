@@ -110,6 +110,26 @@ def list_words(
     if status:
         q = q.filter(UserLemmaKnowledge.knowledge_state == status)
     lemmas = q.offset(offset).limit(limit).all()
+
+    # Batch-fetch last 8 ratings per word
+    lemma_ids = [l.lemma_id for l in lemmas]
+    last_ratings_map: dict[int, list[int]] = {lid: [] for lid in lemma_ids}
+    if lemma_ids:
+        reviews = (
+            db.query(ReviewLog.lemma_id, ReviewLog.rating)
+            .filter(ReviewLog.lemma_id.in_(lemma_ids))
+            .order_by(ReviewLog.lemma_id, ReviewLog.reviewed_at.desc())
+            .all()
+        )
+        # Group and keep last 8 per lemma (oldest first for sparkline)
+        from collections import defaultdict
+        per_lemma: dict[int, list[int]] = defaultdict(list)
+        for lid, rating in reviews:
+            if len(per_lemma[lid]) < 8:
+                per_lemma[lid].append(rating)
+        for lid, ratings in per_lemma.items():
+            last_ratings_map[lid] = list(reversed(ratings))
+
     results = []
     for lemma in lemmas:
         k = lemma.knowledge
@@ -134,6 +154,7 @@ def list_words(
             "times_correct": times_correct,
             "last_reviewed": k.last_reviewed.isoformat() if k and k.last_reviewed else None,
             "knowledge_score": score,
+            "last_ratings": last_ratings_map.get(lemma.lemma_id, []),
         })
     return results
 

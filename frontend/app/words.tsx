@@ -97,34 +97,54 @@ export default function WordsScreen() {
 
   function renderWord({ item }: { item: Word }) {
     const sc = stateColor(item.state);
+    const ratings = item.last_ratings || [];
 
     return (
       <Pressable
         style={styles.card}
         onPress={() => router.push(`/word/${item.id}`)}
       >
-        <View style={styles.cardTop}>
-          <View style={[styles.stateDot, { backgroundColor: sc }]} />
+        <View style={styles.cardRow}>
+          {/* Left: metadata stack */}
+          <View style={styles.cardLeft}>
+            <Text style={styles.cardEnglish} numberOfLines={2}>
+              {item.english}
+            </Text>
+            <View style={styles.cardMeta}>
+              {item.pos ? <Text style={styles.metaText}>{item.pos}</Text> : null}
+              {item.root ? <Text style={styles.metaRoot}>{item.root}</Text> : null}
+              {item.frequency_rank ? <Text style={styles.metaText}>#{item.frequency_rank}</Text> : null}
+            </View>
+            {ratings.length > 0 && (
+              <View style={styles.sparkline}>
+                {ratings.map((r, i) => {
+                  const size = 3 + (i / Math.max(ratings.length - 1, 1)) * 3;
+                  const c = r >= 3 ? colors.stateKnown : r === 2 ? colors.confused : colors.missed;
+                  return (
+                    <View
+                      key={i}
+                      style={{
+                        width: size,
+                        height: size,
+                        borderRadius: size / 2,
+                        backgroundColor: c,
+                      }}
+                    />
+                  );
+                })}
+                <View style={[styles.stateDot, { backgroundColor: sc, marginLeft: 2 }]} />
+              </View>
+            )}
+            {ratings.length === 0 && (
+              <View style={styles.sparkline}>
+                <View style={[styles.stateDot, { backgroundColor: sc }]} />
+              </View>
+            )}
+          </View>
+          {/* Right: Arabic */}
           <Text style={styles.cardArabic} numberOfLines={1}>
             {item.arabic}
           </Text>
-        </View>
-        <Text style={styles.cardEnglish} numberOfLines={1}>
-          {item.english}
-        </Text>
-        <View style={styles.cardMeta}>
-          {item.root ? (
-            <Text style={styles.metaRoot}>{item.root}</Text>
-          ) : null}
-          {item.pos ? (
-            <Text style={styles.metaText}>{item.pos}</Text>
-          ) : null}
-          {item.knowledge_score > 0 ? (
-            <Text style={styles.metaScore}>{item.knowledge_score}</Text>
-          ) : null}
-          {item.frequency_rank ? (
-            <Text style={styles.metaText}>#{item.frequency_rank}</Text>
-          ) : null}
         </View>
       </Pressable>
     );
@@ -304,42 +324,36 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
     borderRadius: 8,
     paddingHorizontal: 10,
-    paddingTop: 6,
-    paddingBottom: 5,
+    paddingVertical: 8,
   },
-  cardTop: {
+  cardRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 6,
   },
-  stateDot: {
-    width: 5,
-    height: 5,
-    borderRadius: 3,
+  cardLeft: {
+    flex: 1,
+    marginRight: 8,
+    gap: 2,
   },
   cardArabic: {
-    flex: 1,
-    fontSize: 20,
+    fontSize: 26,
     color: colors.arabic,
     fontFamily: fontFamily.arabic,
     writingDirection: "rtl",
-    textAlign: "right",
-    lineHeight: 28,
+    lineHeight: 36,
   },
   cardEnglish: {
     fontSize: 12,
-    color: colors.textSecondary,
-    marginBottom: 3,
-    numberOfLines: 1,
+    color: colors.text,
+    lineHeight: 16,
   },
   cardMeta: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 6,
-    flexWrap: "wrap",
+    gap: 5,
   },
   metaRoot: {
-    fontSize: 10,
+    fontSize: 11,
     color: colors.accent,
     fontFamily: fontFamily.arabic,
     opacity: 0.8,
@@ -347,12 +361,18 @@ const styles = StyleSheet.create({
   metaText: {
     fontSize: 9,
     color: colors.textSecondary,
-    opacity: 0.7,
+    opacity: 0.6,
   },
-  metaScore: {
-    fontSize: 9,
-    color: colors.accent,
-    fontWeight: "700",
+  sparkline: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 2,
+    marginTop: 1,
+  },
+  stateDot: {
+    width: 5,
+    height: 5,
+    borderRadius: 3,
   },
 
   // Empty / error
