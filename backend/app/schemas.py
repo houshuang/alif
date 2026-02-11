@@ -345,6 +345,7 @@ class StoryWordMetaOut(BaseModel):
     gloss_en: str | None = None
     is_known: bool = False
     is_function_word: bool = False
+    name_type: str | None = None
     sentence_index: int = 0
 
 

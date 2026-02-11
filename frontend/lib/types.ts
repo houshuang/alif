@@ -458,6 +458,7 @@ export interface StoryWordMeta {
   gloss_en: string | null;
   is_known: boolean;
   is_function_word: boolean;
+  name_type: "personal" | "place" | null;
   sentence_index: number;
 }
 

@@ -267,7 +267,7 @@ def _import_unknown_words(
             context = f"\n\nEnglish translation for context:\n{story.body_en[:500]}"
 
         result = generate_completion(
-            prompt=f"""Given these Arabic words from a story, provide their English translation and part of speech.
+            prompt=f"""Given these Arabic words from a story, provide their English translation, part of speech, and whether the word is a proper name.
 
 Arabic story excerpt:
 {story.body_ar[:500]}
@@ -275,8 +275,10 @@ Arabic story excerpt:
 
 Words to translate: {words_list}
 
-Respond with JSON array: [{{"arabic": "...", "english": "short English gloss", "pos": "noun/verb/adj/adv/prep/conj"}}]""",
-            system_prompt="You translate Arabic words to English. Give concise, dictionary-style glosses (1-3 words). Respond with JSON only.",
+Respond with JSON array: [{{"arabic": "...", "english": "short English gloss", "pos": "noun/verb/adj/adv/prep/conj", "name_type": null or "personal" or "place"}}]
+
+Set name_type to "personal" for personal names (people, characters), "place" for place names (cities, countries, landmarks), or null for regular vocabulary words.""",
+            system_prompt="You translate Arabic words to English. Give concise, dictionary-style glosses (1-3 words). For proper names, provide the transliterated name as the gloss. Respond with JSON only.",
             json_mode=True,
         )
 
@@ -289,11 +291,12 @@ Respond with JSON array: [{{"arabic": "...", "english": "short English gloss", "
                 gloss_map[bare] = {
                     "english": item.get("english", ""),
                     "pos": item.get("pos"),
+                    "name_type": item.get("name_type"),
                 }
     except (AllProvidersFailed, Exception) as e:
         logger.warning("LLM translation failed for story %d unknown words: %s", story.id, e)
 
-    # Step 3: Create Root + Lemma entries
+    # Step 3: Create Root + Lemma entries (skip proper nouns)
     new_lemma_ids: list[int] = []
     for analysis in word_analyses:
         lex_norm = analysis["lex_norm"]
@@ -305,8 +308,25 @@ Respond with JSON array: [{{"arabic": "...", "english": "short English gloss", "
         gloss_data = gloss_map.get(surface_bare, gloss_map.get(lex_norm, {}))
         english = gloss_data.get("english", "")
         pos = gloss_data.get("pos") or analysis["pos"]
+        name_type = gloss_data.get("name_type")
         if pos == "UNK":
             pos = None
+
+        # Proper nouns: mark as function word, no Lemma entry
+        if name_type in ("personal", "place"):
+            sw.is_function_word = True
+            sw.name_type = name_type
+            sw.gloss_en = english
+            # Also tag any duplicate surface forms in the story
+            for other_sw in story.words:
+                if other_sw.id == sw.id:
+                    continue
+                other_bare = normalize_alef(strip_diacritics(other_sw.surface_form))
+                if other_bare == surface_bare and other_sw.lemma_id is None:
+                    other_sw.is_function_word = True
+                    other_sw.name_type = name_type
+                    other_sw.gloss_en = english
+            continue
 
         # Find or create root
         root_id = None
@@ -650,6 +670,7 @@ def get_story_detail(db: Session, story_id: int) -> dict:
             "gloss_en": sw.gloss_en,
             "is_known": is_known or bool(sw.is_function_word),
             "is_function_word": bool(sw.is_function_word),
+            "name_type": sw.name_type,
             "sentence_index": sw.sentence_index or 0,
         })
 

@@ -127,12 +127,19 @@ export default function StoryReadScreen() {
         }
       } else {
         if (lookupRequestRef.current !== requestId) return;
+        const posLabel = word.name_type === "personal"
+          ? "personal name"
+          : word.name_type === "place"
+          ? "place name"
+          : word.is_function_word
+          ? "function word"
+          : "not in vocabulary";
         setSelectedWord({
           lemma_id: null as any,
-          gloss_en: word.gloss_en || (word.is_function_word ? "function word" : null),
+          gloss_en: word.gloss_en || (word.is_function_word ? posLabel : null),
           transliteration: null,
           root: null,
-          pos: word.is_function_word ? "function word" : "not in vocabulary",
+          pos: posLabel,
         });
         persistLookups(nextPositions, nextLemmaIds);
       }

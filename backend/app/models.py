@@ -220,6 +220,7 @@ class StoryWord(Base):
     gloss_en = Column(Text, nullable=True)
     is_known_at_creation = Column(Boolean, default=False)
     is_function_word = Column(Boolean, default=False)
+    name_type = Column(String(20), nullable=True)  # "personal" or "place" for proper nouns
 
     story = relationship("Story", back_populates="words")
     lemma = relationship("Lemma", back_populates="story_words")
