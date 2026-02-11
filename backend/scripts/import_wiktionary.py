@@ -129,8 +129,10 @@ def parse_entries(cache_path: Path) -> list[dict]:
             if pos not in WANTED_POS:
                 continue
 
-            # Skip multi-word
-            if " " in word.strip():
+            # Sanitize: strip punctuation, reject multi-word
+            from app.services.sentence_validator import sanitize_arabic_word
+            word, san_warnings = sanitize_arabic_word(word)
+            if not word or "multi_word" in san_warnings:
                 continue
 
             # Skip very short words (likely particles)

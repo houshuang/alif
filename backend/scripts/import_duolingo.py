@@ -184,8 +184,10 @@ def run_import(db: Session) -> dict:
         audio_url = lex.get("audioURL")
         gloss = translations[0] if translations else ""
 
-        # Skip multi-word phrases
-        if is_multi_word(text):
+        # Sanitize: strip punctuation, reject multi-word
+        from app.services.sentence_validator import sanitize_arabic_word
+        text, san_warnings = sanitize_arabic_word(text)
+        if not text or "multi_word" in san_warnings:
             skipped_phrases += 1
             continue
 

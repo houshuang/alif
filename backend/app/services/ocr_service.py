@@ -24,7 +24,9 @@ from app.services.fsrs_service import create_new_card, submit_review
 from app.services.interaction_logger import log_interaction
 from app.services.sentence_validator import (
     build_lemma_lookup,
+    compute_bare_form,
     normalize_alef,
+    sanitize_arabic_word,
     strip_diacritics,
     strip_tatweel,
     _is_function_word,
@@ -238,9 +240,12 @@ def _step1_extract_words(image_bytes: bytes) -> list[str]:
         prompt=(
             "This is a page from an Arabic language textbook. "
             "Extract ALL Arabic vocabulary words visible on this page. "
-            "Return ONLY the Arabic words as a list. "
+            "Return ONLY individual Arabic words as a list. "
             "Include words from vocabulary lists, example sentences, and exercises. "
             "Skip proper nouns, names, and page numbers. "
+            "Do NOT include punctuation marks with the words (no periods, question marks, commas). "
+            "Do NOT include multi-word phrases — extract each word separately. "
+            "Do NOT include slash-separated alternatives — pick the first word only. "
             "Include diacritics if they are visible on the word.\n\n"
             'Respond with JSON: {"words": ["word1", "word2", ...]}'
         ),
@@ -252,7 +257,15 @@ def _step1_extract_words(image_bytes: bytes) -> list[str]:
     words = result.get("words", [])
     if not isinstance(words, list):
         return []
-    return [w.strip() for w in words if isinstance(w, str) and w.strip()]
+    from app.services.sentence_validator import sanitize_arabic_word
+
+    raw = [w.strip() for w in words if isinstance(w, str) and w.strip()]
+    cleaned = []
+    for w in raw:
+        sanitized, warnings = sanitize_arabic_word(w)
+        if sanitized and "multi_word" not in warnings:
+            cleaned.append(sanitized)
+    return cleaned
 
 
 def _step2_morphology(words: list[str]) -> list[dict]:
@@ -451,12 +464,13 @@ def process_textbook_page(
             if not arabic:
                 continue
 
+            # Sanitize: strip punctuation, reject multi-word
+            arabic, san_warnings = sanitize_arabic_word(arabic)
+            if not arabic or "multi_word" in san_warnings:
+                continue
+
             # Compute bare form
-            bare = word_data.get("arabic_bare", "").strip()
-            if not bare:
-                bare = strip_diacritics(arabic)
-            bare = strip_tatweel(bare)
-            bare = normalize_alef(bare)
+            bare = compute_bare_form(arabic)
 
             # Skip function words
             if _is_function_word(bare):

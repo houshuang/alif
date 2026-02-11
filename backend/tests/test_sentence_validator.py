@@ -12,9 +12,11 @@ from app.services.sentence_validator import (
     ValidationResult,
     _strip_clitics,
     build_lemma_lookup,
+    compute_bare_form,
     map_tokens_to_lemmas,
     normalize_alef,
     normalize_arabic,
+    sanitize_arabic_word,
     strip_diacritics,
     tokenize,
     validate_sentence,
@@ -658,3 +660,86 @@ class TestFunctionWordForms:
         assert lookup.get("كانت") == 1
         assert lookup.get("كانوا") == 1
         assert lookup.get("يكون") == 1
+
+
+class TestSanitizeArabicWord:
+    def test_clean_word_unchanged(self):
+        result, warnings = sanitize_arabic_word("كِتَاب")
+        assert result == "كِتَاب"
+        assert warnings == []
+
+    def test_trailing_question_mark(self):
+        result, warnings = sanitize_arabic_word("النَّرْوِيج؟")
+        assert result == "النَّرْوِيج"
+        assert warnings == []
+
+    def test_trailing_period(self):
+        result, warnings = sanitize_arabic_word("سنة.")
+        assert result == "سنة"
+        assert warnings == []
+
+    def test_trailing_exclamation(self):
+        result, warnings = sanitize_arabic_word("مرحباً!")
+        assert result == "مرحباً"
+        assert warnings == []
+
+    def test_trailing_arabic_comma(self):
+        result, warnings = sanitize_arabic_word("نعم،")
+        assert result == "نعم"
+        assert warnings == []
+
+    def test_parentheses_stripped(self):
+        result, warnings = sanitize_arabic_word("(كتاب)")
+        assert result == "كتاب"
+        assert warnings == []
+
+    def test_slash_separated(self):
+        result, warnings = sanitize_arabic_word("الصَّفُّ/السَّنَةُ")
+        assert result == "الصَّفُّ"
+        assert "slash_split" in warnings
+
+    def test_multi_word_phrase(self):
+        result, warnings = sanitize_arabic_word("الْمَدْرَسة الثّانَوِيّة")
+        assert result == "الْمَدْرَسة"
+        assert "multi_word" in warnings
+
+    def test_multi_word_with_trailing_punct(self):
+        result, warnings = sanitize_arabic_word("روضة الأطفال.")
+        assert result == "روضة"
+        assert "multi_word" in warnings
+
+    def test_empty_string(self):
+        result, warnings = sanitize_arabic_word("")
+        assert result == ""
+        assert "empty" in warnings
+
+    def test_only_punctuation(self):
+        result, warnings = sanitize_arabic_word("؟!")
+        assert result == ""
+        assert "empty_after_clean" in warnings
+
+    def test_diacritics_preserved(self):
+        result, warnings = sanitize_arabic_word("كِتَابٌ!")
+        assert result == "كِتَابٌ"
+        assert warnings == []
+
+    def test_whitespace_only(self):
+        result, warnings = sanitize_arabic_word("   ")
+        assert result == ""
+        assert "empty" in warnings
+
+    def test_multiple_trailing_punctuation(self):
+        result, warnings = sanitize_arabic_word("كتاب...")
+        assert result == "كتاب"
+        assert warnings == []
+
+
+class TestComputeBareForm:
+    def test_basic(self):
+        assert compute_bare_form("كِتَاب") == "كتاب"
+
+    def test_with_alef_variants(self):
+        assert compute_bare_form("أَكَلَ") == "اكل"
+
+    def test_with_tatweel(self):
+        assert compute_bare_form("كـتـاب") == "كتاب"

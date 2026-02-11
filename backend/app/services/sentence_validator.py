@@ -84,6 +84,59 @@ def normalize_arabic(text: str) -> str:
     return text
 
 
+# Punctuation pattern for stripping from word boundaries (leading/trailing).
+_WORD_BOUNDARY_PUNCT = re.compile(
+    r"^[،؟؛«»\u060C\u061B\u061F.,:;!?\"'\-\(\)\[\]{}…/\s]+"
+    r"|[،؟؛«»\u060C\u061B\u061F.,:;!?\"'\-\(\)\[\]{}…/\s]+$"
+)
+
+
+def sanitize_arabic_word(text: str) -> tuple[str, list[str]]:
+    """Strip punctuation from an Arabic word. Returns (cleaned, warnings).
+
+    Handles: trailing/leading punctuation, slash-separated alternatives
+    (takes first), multi-word phrases (takes first word, warns).
+    Does NOT strip diacritics — that's strip_diacritics()'s job.
+    """
+    warnings: list[str] = []
+
+    if not text or not text.strip():
+        return "", ["empty"]
+
+    cleaned = _WORD_BOUNDARY_PUNCT.sub("", text)
+
+    if not cleaned:
+        return "", ["empty_after_clean"]
+
+    # Handle slash-separated alternatives: take the first
+    if "/" in cleaned:
+        parts = [p.strip() for p in cleaned.split("/") if p.strip()]
+        if len(parts) >= 2:
+            warnings.append("slash_split")
+            cleaned = parts[0]
+            # Re-strip punctuation from the chosen part
+            cleaned = _WORD_BOUNDARY_PUNCT.sub("", cleaned)
+
+    # After cleanup, check for multi-word (spaces)
+    if " " in cleaned.strip():
+        warnings.append("multi_word")
+        words = cleaned.strip().split()
+        cleaned = words[0]
+        cleaned = _WORD_BOUNDARY_PUNCT.sub("", cleaned)
+
+    cleaned = cleaned.strip()
+
+    if not cleaned:
+        return "", ["empty_after_clean"]
+
+    return cleaned, warnings
+
+
+def compute_bare_form(lemma_ar: str) -> str:
+    """Compute the bare (undiacritized, normalized) form for a lemma."""
+    return normalize_arabic(lemma_ar)
+
+
 # Pre-computed normalized set for fast lookup (must be after normalize_alef def)
 _FUNCTION_WORDS_NORMALIZED: set[str] = {normalize_alef(fw) for fw in FUNCTION_WORDS}
 

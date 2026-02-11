@@ -44,13 +44,21 @@ def generate_material_for_word(lemma_id: int, needed: int) -> None:
         from app.services.sentence_validator import (
             build_lemma_lookup,
             map_tokens_to_lemmas,
+            sanitize_arabic_word,
             strip_diacritics,
             tokenize,
             validate_sentence,
         )
 
         lemma_lookup = build_lemma_lookup(all_lemmas)
-        target_bare = strip_diacritics(lemma.lemma_ar)
+        # Defensive: clean target word in case DB has dirty data
+        clean_target, _ = sanitize_arabic_word(lemma.lemma_ar)
+        if not clean_target or " " in clean_target:
+            logger.warning(
+                f"Skipping generation for uncleanable lemma {lemma_id}: {lemma.lemma_ar!r}"
+            )
+            return
+        target_bare = strip_diacritics(clean_target)
         all_bare_forms = set(lemma_lookup.keys())
 
         content_word_counts = get_content_word_counts(db)
@@ -61,7 +69,7 @@ def generate_material_for_word(lemma_id: int, needed: int) -> None:
 
         try:
             results = generate_sentences_batch(
-                target_word=lemma.lemma_ar,
+                target_word=clean_target,
                 target_translation=lemma.gloss_en or "",
                 known_words=sample,
                 count=needed + 1,
