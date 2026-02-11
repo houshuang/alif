@@ -12,7 +12,7 @@ import {
   BASE_URL,
   getNextWords,
   introduceWord,
-  suspendWord,
+  neverShowWord,
   getLemmaSentence,
   submitSentenceReview,
   getAnalytics,
@@ -89,7 +89,7 @@ export default function LearnScreen() {
   async function handleSuspend() {
     const candidate = candidates[pickIndex];
     try {
-      await suspendWord(candidate.lemma_id);
+      await neverShowWord(candidate.lemma_id);
     } catch (e) {
       console.error("Failed to suspend word:", e);
     }

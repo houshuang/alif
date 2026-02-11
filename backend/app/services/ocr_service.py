@@ -372,7 +372,7 @@ def _step3_translate(word_entries: list[dict]) -> list[dict]:
                         entry["pos"] = t["pos"]
             all_results.extend(batch)
         except Exception:
-            logger.warning("Translation step failed for batch, using entries without English")
+            logger.exception("Translation step failed for batch, using entries without English")
             all_results.extend(batch)
 
     return all_results
@@ -701,4 +701,4 @@ def _schedule_material_generation(db: Session, lemma_ids: list[int]) -> None:
             try:
                 generate_material_for_word(lemma_id, needed)
             except Exception:
-                logger.warning(f"Material generation failed for OCR word {lemma_id}")
+                logger.exception("Material generation failed for OCR word %d", lemma_id)

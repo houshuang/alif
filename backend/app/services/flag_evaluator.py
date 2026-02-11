@@ -4,7 +4,10 @@ Uses GPT-5.2 (not Flash) for quality evaluation. Auto-fixes high-confidence
 corrections, retires unfixable sentences.
 """
 
+import logging
 from datetime import datetime, timezone
+
+logger = logging.getLogger(__name__)
 
 from sqlalchemy.orm import Session
 
@@ -32,6 +35,7 @@ def evaluate_flag(flag_id: int) -> None:
 
         db.commit()
     except Exception as e:
+        logger.exception("Flag evaluation failed for flag_id=%s", flag_id)
         db.rollback()
         flag = db.query(ContentFlag).filter(ContentFlag.id == flag_id).first()
         if flag:

@@ -46,6 +46,92 @@ import { enqueueReview, flushQueue } from "./sync-queue";
 export const BASE_URL =
   Constants.expoConfig?.extra?.apiUrl ?? "http://localhost:8000";
 
+interface RawReviewCard {
+  lemma_id: number;
+  lemma_ar: string;
+  lemma_ar_bare: string;
+  gloss_en: string;
+  knowledge_state: string;
+}
+
+interface RawWord {
+  lemma_id: number;
+  lemma_ar: string;
+  gloss_en: string;
+  transliteration: string;
+  root: string | null;
+  pos: string;
+  knowledge_state: string;
+  times_seen: number;
+  times_correct: number;
+  last_reviewed: string | null;
+  knowledge_score: number;
+  frequency_rank: number | null;
+  cefr_level: string | null;
+}
+
+interface RawWordDetail extends RawWord {
+  forms_json: Record<string, string[]> | null;
+  grammar_features: { feature_key: string; category?: string; label_en?: string; label_ar?: string }[];
+  root_family: { id: number; arabic: string; english: string }[];
+  review_history: {
+    rating: number;
+    reviewed_at: string | null;
+    response_ms?: number | null;
+    credit_type?: string | null;
+    comprehension_signal?: string | null;
+    review_mode?: string | null;
+    sentence_arabic?: string;
+    sentence_english?: string;
+  }[];
+  sentence_stats: {
+    sentence_id: number;
+    surface_forms: string[];
+    sentence_arabic: string;
+    sentence_english?: string;
+    sentence_transliteration?: string;
+    seen_count: number;
+    missed_count: number;
+    confused_count: number;
+    understood_count: number;
+    primary_count: number;
+    collateral_count: number;
+    accuracy_pct?: number;
+    last_reviewed_at?: string;
+  }[];
+}
+
+interface RawStats {
+  total_words: number;
+  known: number;
+  learning: number;
+  new: number;
+  due_today: number;
+  reviews_today: number;
+  total_reviews?: number;
+  lapsed?: number;
+}
+
+interface WordReviewResult {
+  lemma_id: number;
+  rating: number;
+  credit_type: string;
+  new_state: string;
+  next_due: string;
+}
+
+interface SentencePollResult {
+  ready: boolean;
+  sentence: {
+    sentence_id: number;
+    arabic_text: string;
+    english_translation: string;
+    transliteration: string | null;
+    audio_url: string | null;
+    words: { lemma_id: number | null; surface_form: string; gloss_en: string | null }[];
+  } | null;
+}
+
 function generateSessionId(): string {
   return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (c) => {
     const r = (Math.random() * 16) | 0;
@@ -78,7 +164,7 @@ export async function getReviewSession(
 ): Promise<ReviewSession> {
   const endpoint =
     mode === "listening" ? "/api/review/next-listening" : "/api/review/next";
-  const raw = await fetchApi<any[]>(endpoint);
+  const raw = await fetchApi<RawReviewCard[]>(endpoint);
 
   const cards: ReviewCard[] = raw.map((c) => ({
     lemma_id: c.lemma_id,
@@ -115,7 +201,7 @@ export async function submitReview(submission: ReviewSubmission): Promise<void> 
 
 export async function getWords(): Promise<Word[]> {
   try {
-    const raw = await fetchApi<any[]>("/api/words?limit=200");
+    const raw = await fetchApi<RawWord[]>("/api/words?limit=200");
     const words = raw.map((w) => ({
       id: w.lemma_id,
       arabic: w.lemma_ar,
@@ -123,7 +209,7 @@ export async function getWords(): Promise<Word[]> {
       transliteration: w.transliteration || "",
       root: w.root,
       pos: w.pos || "",
-      state: w.knowledge_state || "new",
+      state: (w.knowledge_state || "new") as Word["state"],
       due_date: null,
       times_seen: w.times_seen || 0,
       times_correct: w.times_correct || 0,
@@ -133,7 +219,7 @@ export async function getWords(): Promise<Word[]> {
       cefr_level: w.cefr_level ?? null,
     }));
     cacheData("words", words).catch(() => {});
-    return words;
+    return words as Word[];
   } catch (e) {
     const cached = await getCachedData<Word[]>("words");
     if (cached) return cached;
@@ -142,7 +228,7 @@ export async function getWords(): Promise<Word[]> {
 }
 
 export async function getWordDetail(id: number): Promise<WordDetail> {
-  const w = await fetchApi<any>(`/api/words/${id}`);
+  const w = await fetchApi<RawWordDetail>(`/api/words/${id}`);
   return {
     id: w.lemma_id,
     arabic: w.lemma_ar,
@@ -150,7 +236,7 @@ export async function getWordDetail(id: number): Promise<WordDetail> {
     transliteration: w.transliteration || "",
     root: w.root,
     pos: w.pos || "",
-    state: w.knowledge_state || "new",
+    state: (w.knowledge_state || "new") as Word["state"],
     due_date: null,
     times_seen: w.times_seen || 0,
     times_correct: w.times_correct || 0,
@@ -161,19 +247,28 @@ export async function getWordDetail(id: number): Promise<WordDetail> {
     times_reviewed: w.times_seen || 0,
     correct_count: w.times_correct || 0,
     forms_json: w.forms_json || null,
-    grammar_features: (w.grammar_features || []).map((g: any) => ({
+    grammar_features: (w.grammar_features || []).map((g) => ({
       feature_key: g.feature_key,
       category: g.category ?? null,
       label_en: g.label_en || g.feature_key,
       label_ar: g.label_ar ?? null,
     })),
-    root_family: (w.root_family || []).map((f: any) => ({
+    root_family: (w.root_family || []).map((f) => ({
       id: f.id,
       arabic: f.arabic,
       english: f.english,
     })),
-    review_history: (w.review_history || []),
-    sentence_stats: (w.sentence_stats || []).map((s: any) => ({
+    review_history: (w.review_history || []).map((h) => ({
+      rating: h.rating,
+      reviewed_at: h.reviewed_at,
+      response_ms: h.response_ms ?? null,
+      credit_type: h.credit_type ?? null,
+      comprehension_signal: h.comprehension_signal ?? null,
+      review_mode: h.review_mode ?? null,
+      sentence_arabic: h.sentence_arabic,
+      sentence_english: h.sentence_english,
+    })),
+    sentence_stats: (w.sentence_stats || []).map((s) => ({
       sentence_id: s.sentence_id,
       surface_forms: s.surface_forms || [],
       sentence_arabic: s.sentence_arabic || "",
@@ -193,7 +288,7 @@ export async function getWordDetail(id: number): Promise<WordDetail> {
 
 export async function getStats(): Promise<Stats> {
   try {
-    const raw = await fetchApi<any>("/api/stats");
+    const raw = await fetchApi<RawStats>("/api/stats");
     const stats = {
       total_words: raw.total_words,
       known_words: raw.known,
@@ -254,7 +349,7 @@ export async function submitQuizResult(
   });
 }
 
-export async function suspendWord(lemmaId: number): Promise<{ lemma_id: number; state: string }> {
+export async function neverShowWord(lemmaId: number): Promise<{ lemma_id: number; state: string }> {
   return fetchApi("/api/learn/suspend", {
     method: "POST",
     body: JSON.stringify({ lemma_id: lemmaId }),
@@ -263,7 +358,7 @@ export async function suspendWord(lemmaId: number): Promise<{ lemma_id: number; 
 
 export async function getLemmaSentence(
   lemmaId: number
-): Promise<{ ready: boolean; sentence: any | null }> {
+): Promise<SentencePollResult> {
   return fetchApi(`/api/learn/sentences/${lemmaId}`);
 }
 
@@ -271,7 +366,7 @@ export async function getSentenceReviewSession(
   mode: ReviewMode = "reading"
 ): Promise<SentenceReviewSession> {
   try {
-    const data = await fetchApi<any>(
+    const data = await fetchApi<SentenceReviewSession>(
       `/api/review/next-sentences?limit=10&mode=${mode}`
     );
     const session = { ...data, session_id: data.session_id || generateSessionId() };
@@ -288,7 +383,7 @@ export async function getSentenceReviewSession(
 
 export async function submitSentenceReview(
   submission: SentenceReviewSubmission
-): Promise<{ word_results: any[] }> {
+): Promise<{ word_results: WordReviewResult[] }> {
   const clientReviewId = submission.client_review_id || generateUuid();
 
   await enqueueReview("sentence", {
@@ -320,7 +415,7 @@ export async function submitSentenceReview(
 
 export async function prefetchSessions(mode: ReviewMode): Promise<void> {
   try {
-    const data = await fetchApi<any>(
+    const data = await fetchApi<SentenceReviewSession>(
       `/api/review/next-sentences?limit=10&mode=${mode}&prefetch=true`
     );
     const session = { ...data, session_id: data.session_id || generateSessionId() };
@@ -331,7 +426,7 @@ export async function prefetchSessions(mode: ReviewMode): Promise<void> {
 export async function deepPrefetchSessions(mode: ReviewMode, count: number = 3): Promise<void> {
   for (let i = 0; i < count; i++) {
     try {
-      const data = await fetchApi<any>(
+      const data = await fetchApi<SentenceReviewSession>(
         `/api/review/next-sentences?limit=10&mode=${mode}&prefetch=true`
       );
       const session = { ...data, session_id: data.session_id || generateSessionId() };

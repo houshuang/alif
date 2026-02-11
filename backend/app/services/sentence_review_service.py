@@ -18,7 +18,7 @@ from app.models import (
     SentenceWord,
     UserLemmaKnowledge,
 )
-from app.services.fsrs_service import submit_review
+from app.services.fsrs_service import parse_json_column, submit_review
 from app.services.grammar_service import record_grammar_exposure
 from app.services.sentence_validator import strip_diacritics, _is_function_word
 
@@ -83,30 +83,32 @@ def submit_sentence_review(
     else:
         lemma_ids_in_sentence = {primary_lemma_id}
 
-    # Build set of function word lemma_ids to skip for FSRS credit
+    # Batch-fetch lemmas and ULK records to avoid N+1 queries in the loop
+    lemma_map: dict[int, Lemma] = {}
+    knowledge_map: dict[int, UserLemmaKnowledge] = {}
     function_word_lemma_ids: set[int] = set()
+    suspended_lemma_ids: set[int] = set()
+
     if lemma_ids_in_sentence:
         lemma_objs = (
             db.query(Lemma)
             .filter(Lemma.lemma_id.in_(lemma_ids_in_sentence))
             .all()
         )
+        lemma_map = {lo.lemma_id: lo for lo in lemma_objs}
         for lo in lemma_objs:
             if lo.lemma_ar_bare and _is_function_word(lo.lemma_ar_bare):
                 function_word_lemma_ids.add(lo.lemma_id)
 
-    # Build set of suspended lemma_ids to skip for FSRS credit
-    suspended_lemma_ids: set[int] = set()
-    if lemma_ids_in_sentence:
-        suspended_ulks = (
-            db.query(UserLemmaKnowledge.lemma_id)
-            .filter(
-                UserLemmaKnowledge.lemma_id.in_(lemma_ids_in_sentence),
-                UserLemmaKnowledge.knowledge_state == "suspended",
-            )
+        ulk_objs = (
+            db.query(UserLemmaKnowledge)
+            .filter(UserLemmaKnowledge.lemma_id.in_(lemma_ids_in_sentence))
             .all()
         )
-        suspended_lemma_ids = {u.lemma_id for u in suspended_ulks}
+        for ulk in ulk_objs:
+            knowledge_map[ulk.lemma_id] = ulk
+            if ulk.knowledge_state == "suspended":
+                suspended_lemma_ids.add(ulk.lemma_id)
 
     word_results = []
 
@@ -164,27 +166,28 @@ def submit_sentence_review(
             latest_log.sentence_id = sentence_id
             latest_log.credit_type = credit_type
 
-        # Track encounters
-        knowledge = (
-            db.query(UserLemmaKnowledge)
-            .filter(UserLemmaKnowledge.lemma_id == lemma_id)
-            .first()
-        )
+        # Track encounters (use pre-fetched map, fallback for newly created ULKs)
+        knowledge = knowledge_map.get(lemma_id)
+        if not knowledge:
+            knowledge = (
+                db.query(UserLemmaKnowledge)
+                .filter(UserLemmaKnowledge.lemma_id == lemma_id)
+                .first()
+            )
+            if knowledge:
+                knowledge_map[lemma_id] = knowledge
         if knowledge and not is_duplicate:
             knowledge.total_encounters = (knowledge.total_encounters or 0) + 1
 
             # Track variant form stats
             if lemma_id in surface_forms_by_lemma:
-                lemma_obj = db.query(Lemma).filter(Lemma.lemma_id == lemma_id).first()
+                lemma_obj = lemma_map.get(lemma_id)
                 if lemma_obj:
                     lemma_bare = lemma_obj.lemma_ar_bare or ""
                     for surface in surface_forms_by_lemma[lemma_id]:
                         surface_bare = strip_diacritics(surface)
                         if surface_bare and surface_bare != lemma_bare:
-                            vstats = knowledge.variant_stats_json or {}
-                            if isinstance(vstats, str):
-                                import json
-                                vstats = json.loads(vstats)
+                            vstats = parse_json_column(knowledge.variant_stats_json)
                             vstats = dict(vstats)
                             entry = vstats.get(surface_bare, {"seen": 0, "missed": 0, "confused": 0})
                             entry["seen"] = entry.get("seen", 0) + 1

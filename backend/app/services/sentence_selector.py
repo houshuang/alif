@@ -14,6 +14,8 @@ from sqlalchemy.orm import Session
 
 from sqlalchemy.orm import joinedload
 
+from app.services.fsrs_service import parse_json_column
+
 from app.models import (
     GrammarFeature,
     Lemma,
@@ -57,18 +59,14 @@ class SentenceCandidate:
 def _get_stability(knowledge: Optional[UserLemmaKnowledge]) -> float:
     if not knowledge or not knowledge.fsrs_card_json:
         return 0.0
-    card_data = knowledge.fsrs_card_json
-    if isinstance(card_data, str):
-        card_data = json.loads(card_data)
+    card_data = parse_json_column(knowledge.fsrs_card_json)
     return card_data.get("stability") or 0.0
 
 
 def _get_due_dt(knowledge: UserLemmaKnowledge) -> Optional[datetime]:
-    card_data = knowledge.fsrs_card_json
+    card_data = parse_json_column(knowledge.fsrs_card_json)
     if not card_data:
         return None
-    if isinstance(card_data, str):
-        card_data = json.loads(card_data)
     due_str = card_data.get("due")
     if not due_str:
         return None
@@ -441,9 +439,7 @@ def build_session(
                 if sw.lemma_id:
                     lem = lemma_map.get(sw.lemma_id)
                     if lem and lem.grammar_features_json:
-                        feats = lem.grammar_features_json
-                        if isinstance(feats, str):
-                            feats = json.loads(feats)
+                        feats = parse_json_column(lem.grammar_features_json, default=[])
                         if isinstance(feats, list):
                             feat_keys.update(feats)
             sent_grammar = list(feat_keys)
@@ -533,9 +529,7 @@ def build_session(
                     if w.lemma_id:
                         lemma = lemma_map.get(w.lemma_id)
                         if lemma and lemma.grammar_features_json:
-                            feats = lemma.grammar_features_json
-                            if isinstance(feats, str):
-                                feats = json.loads(feats)
+                            feats = parse_json_column(lemma.grammar_features_json, default=[])
                             if isinstance(feats, list):
                                 feature_keys.update(feats)
                 if feature_keys:

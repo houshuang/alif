@@ -1,4 +1,5 @@
 import json
+import logging
 from datetime import datetime, timezone
 from typing import Optional
 
@@ -7,8 +8,24 @@ from sqlalchemy.orm import Session
 
 from app.models import Lemma, UserLemmaKnowledge, ReviewLog
 
+logger = logging.getLogger(__name__)
 
 scheduler = Scheduler()
+
+
+def parse_json_column(data, default=None):
+    """Safely parse a JSON column that may be dict, list, str, None, or corrupted."""
+    if default is None:
+        default = {}
+    if data is None:
+        return default
+    if isinstance(data, (dict, list)):
+        return data
+    try:
+        return json.loads(data)
+    except (json.JSONDecodeError, TypeError):
+        logger.warning("Corrupted JSON column data, returning default")
+        return default
 
 STATE_MAP = {
     State.Learning: "learning",
@@ -63,9 +80,7 @@ def get_due_cards(db: Session, limit: int = 10) -> list[dict]:
 
     due_items = []
     for k in knowledges:
-        card_data = k.fsrs_card_json
-        if isinstance(card_data, str):
-            card_data = json.loads(card_data)
+        card_data = parse_json_column(k.fsrs_card_json)
         due_str = card_data.get("due")
         if due_str:
             due_dt = datetime.fromisoformat(due_str)
@@ -112,9 +127,7 @@ def submit_review(
                 .filter(UserLemmaKnowledge.lemma_id == lemma_id)
                 .first()
             )
-            card_data = knowledge.fsrs_card_json if knowledge else {}
-            if isinstance(card_data, str):
-                card_data = json.loads(card_data)
+            card_data = parse_json_column(knowledge.fsrs_card_json if knowledge else None)
             return {
                 "lemma_id": lemma_id,
                 "new_state": knowledge.knowledge_state if knowledge else "new",
@@ -136,13 +149,8 @@ def submit_review(
         )
         db.add(knowledge)
 
-    card_data = knowledge.fsrs_card_json
-    if card_data is None:
-        card = Card()
-    elif isinstance(card_data, str):
-        card = Card.from_dict(json.loads(card_data))
-    else:
-        card = Card.from_dict(card_data)
+    card_data = parse_json_column(knowledge.fsrs_card_json)
+    card = Card() if not card_data else Card.from_dict(card_data)
     fsrs_rating = RATING_MAP[rating_int]
 
     now = datetime.now(timezone.utc)
