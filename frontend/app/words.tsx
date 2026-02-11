@@ -7,14 +7,13 @@ import {
   Pressable,
   StyleSheet,
   ActivityIndicator,
-  ScrollView,
+  useWindowDimensions,
 } from "react-native";
 import { useRouter, useFocusEffect } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { colors, fonts, fontFamily } from "../lib/theme";
 import { getWords } from "../lib/api";
 import { Word } from "../lib/types";
-import { getCefrColor } from "../lib/frequency";
 
 type FilterValue =
   | "all"
@@ -22,24 +21,26 @@ type FilterValue =
   | "learning"
   | "known"
   | "lapsed"
-  | "suspended"
-  | "reviewed";
+  | "suspended";
 
-function reviewCategory(w: Word): "failed" | "passed" | "unseen" {
-  if (w.times_seen === 0) return "unseen";
-  if (w.times_correct < w.times_seen) return "failed";
-  return "passed";
+const FILTERS: { key: FilterValue; label: string }[] = [
+  { key: "all", label: "All" },
+  { key: "learning", label: "Learning" },
+  { key: "known", label: "Known" },
+  { key: "new", label: "New" },
+  { key: "lapsed", label: "Lapsed" },
+  { key: "suspended", label: "Suspended" },
+];
+
+function stateColor(state: Word["state"]): string {
+  return {
+    new: colors.textSecondary,
+    learning: colors.stateLearning,
+    known: colors.stateKnown,
+    lapsed: colors.missed,
+    suspended: colors.textSecondary,
+  }[state];
 }
-
-const sortOrder = { failed: 0, passed: 1, unseen: 2 };
-
-const STATE_LABELS: Record<string, string> = {
-  new: "New",
-  learning: "Learning",
-  known: "Known",
-  lapsed: "Lapsed",
-  suspended: "Suspended",
-};
 
 export default function WordsScreen() {
   const [words, setWords] = useState<Word[]>([]);
@@ -48,6 +49,8 @@ export default function WordsScreen() {
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<FilterValue>("all");
   const router = useRouter();
+  const { width } = useWindowDimensions();
+  const numColumns = width > 500 ? 3 : 2;
 
   useFocusEffect(
     useCallback(() => {
@@ -69,11 +72,15 @@ export default function WordsScreen() {
     }
   }
 
+  const counts = useMemo(() => {
+    const c: Record<string, number> = { all: words.length };
+    for (const w of words) c[w.state] = (c[w.state] || 0) + 1;
+    return c;
+  }, [words]);
+
   const filtered = useMemo(() => {
     let result = words;
-    if (filter === "reviewed") {
-      result = result.filter((w) => w.times_seen > 0);
-    } else if (filter !== "all") {
+    if (filter !== "all") {
       result = result.filter((w) => w.state === filter);
     }
     if (search.trim()) {
@@ -85,90 +92,28 @@ export default function WordsScreen() {
           w.transliteration.toLowerCase().includes(q)
       );
     }
-    return [...result].sort(
-      (a, b) => sortOrder[reviewCategory(a)] - sortOrder[reviewCategory(b)]
-    );
+    return result;
   }, [words, search, filter]);
 
-  const reviewedCount = useMemo(
-    () => words.filter((w) => w.times_seen > 0).length,
-    [words]
-  );
-
-  function stateBadgeColor(state: Word["state"]): string {
-    return {
-      new: colors.stateNew,
-      learning: colors.stateLearning,
-      known: colors.stateKnown,
-      lapsed: colors.missed,
-      suspended: colors.textSecondary,
-    }[state];
-  }
-
   function renderWord({ item }: { item: Word }) {
-    const cat = reviewCategory(item);
-    const failed = item.times_seen - item.times_correct;
-    const badgeColor = stateBadgeColor(item.state);
-
-    const rowBg =
-      cat === "failed"
-        ? "rgba(231, 76, 60, 0.08)"
-        : cat === "passed"
-          ? "rgba(46, 204, 113, 0.06)"
-          : colors.surface;
-
-    const borderColor =
-      cat === "failed"
-        ? colors.missed
-        : cat === "passed"
-          ? colors.good
-          : "transparent";
+    const sc = stateColor(item.state);
 
     return (
       <Pressable
-        style={[
-          styles.wordRow,
-          {
-            backgroundColor: rowBg,
-            borderLeftWidth: 3,
-            borderLeftColor: borderColor,
-          },
-        ]}
+        style={styles.card}
         onPress={() => router.push(`/word/${item.id}`)}
       >
-        <View style={styles.wordLeft}>
-          <Text style={styles.wordArabic}>{item.arabic}</Text>
-          <Text style={styles.wordEnglish} numberOfLines={1}>{item.english}</Text>
-          <View style={styles.wordMeta}>
-            {item.pos ? (
-              <Text style={styles.wordPos}>{item.pos}</Text>
-            ) : null}
-            {item.times_seen > 0 ? (
-              <Text style={styles.wordReviewStats}>
-                {item.times_seen} reviews
-                {" · "}
-                <Text style={{ color: colors.good }}>{item.times_correct} ok</Text>
-                {failed > 0 && (
-                  <Text style={{ color: colors.missed }}> · {failed} missed</Text>
-                )}
-              </Text>
-            ) : null}
-          </View>
-        </View>
-        <View style={styles.wordRight}>
-          {item.cefr_level && (
-            <View style={[styles.cefrBadge, { backgroundColor: getCefrColor(item.cefr_level) }]}>
-              <Text style={styles.cefrText}>{item.cefr_level}</Text>
-            </View>
-          )}
-          {item.knowledge_score > 0 && (
-            <Text style={styles.scoreText}>{item.knowledge_score}</Text>
-          )}
-          <View style={[styles.stateBadge, { backgroundColor: badgeColor + "20" }]}>
-            <Text style={[styles.stateBadgeText, { color: badgeColor }]}>
-              {STATE_LABELS[item.state] || item.state}
-            </Text>
-          </View>
+        <Text style={styles.cardArabic} numberOfLines={1}>
+          {item.arabic}
+        </Text>
+        <Text style={styles.cardEnglish} numberOfLines={1}>
+          {item.english}
+        </Text>
+        <View style={styles.cardFooter}>
+          {item.pos ? (
+            <Text style={styles.cardPos}>{item.pos}</Text>
+          ) : <View />}
+          <View style={[styles.stateDot, { backgroundColor: sc }]} />
         </View>
       </Pressable>
     );
@@ -185,7 +130,6 @@ export default function WordsScreen() {
   if (error && words.length === 0) {
     return (
       <View style={styles.centered}>
-        <Ionicons name="warning-outline" size={48} color={colors.textSecondary} style={{ opacity: 0.5, marginBottom: 16 }} />
         <Text style={styles.errorText}>{error}</Text>
         <Pressable style={styles.retryButton} onPress={loadWords}>
           <Text style={styles.retryText}>Retry</Text>
@@ -194,70 +138,57 @@ export default function WordsScreen() {
     );
   }
 
-  const filters: FilterValue[] = [
-    "all",
-    "new",
-    "learning",
-    "known",
-    "lapsed",
-    "suspended",
-    "reviewed",
-  ];
-
-  function filterLabel(f: FilterValue): string {
-    const label = f.charAt(0).toUpperCase() + f.slice(1);
-    if (f === "all") return `All (${words.length})`;
-    if (f === "reviewed") return `Reviewed (${reviewedCount})`;
-    return `${label} (${words.filter((w) => w.state === f).length})`;
-  }
-
   return (
     <View style={styles.container}>
+      {/* Search */}
       <View style={styles.searchContainer}>
-        <Ionicons name="search" size={18} color={colors.textSecondary} style={styles.searchIcon} />
+        <Ionicons name="search" size={16} color={colors.textSecondary} style={{ marginRight: 8 }} />
         <TextInput
           style={styles.searchInput}
-          placeholder="Search Arabic, English, or transliteration..."
+          placeholder="Search..."
           placeholderTextColor={colors.textSecondary}
           value={search}
           onChangeText={setSearch}
         />
         {search.length > 0 && (
           <Pressable onPress={() => setSearch("")} hitSlop={8}>
-            <Ionicons name="close-circle" size={18} color={colors.textSecondary} />
+            <Ionicons name="close-circle" size={16} color={colors.textSecondary} />
           </Pressable>
         )}
       </View>
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.filterRow}
-      >
-        {filters.map((f) => (
-          <Pressable
-            key={f}
-            style={[
-              styles.filterChip,
-              filter === f && styles.filterChipActive,
-            ]}
-            onPress={() => setFilter(f)}
-          >
-            <Text
-              style={[
-                styles.filterChipText,
-                filter === f && styles.filterChipTextActive,
-              ]}
+
+      {/* Filter row */}
+      <View style={styles.filterRow}>
+        {FILTERS.map((f) => {
+          const count = counts[f.key] || 0;
+          if (f.key !== "all" && count === 0) return null;
+          const active = filter === f.key;
+          return (
+            <Pressable
+              key={f.key}
+              style={[styles.filterChip, active && styles.filterChipActive]}
+              onPress={() => setFilter(f.key)}
             >
-              {filterLabel(f)}
-            </Text>
-          </Pressable>
-        ))}
-      </ScrollView>
+              <Text style={[styles.filterText, active && styles.filterTextActive]}>
+                {f.label}
+              </Text>
+              <Text style={[styles.filterCount, active && styles.filterCountActive]}>
+                {count}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </View>
+
+      {/* Grid */}
       <FlatList
+        key={numColumns}
         data={filtered}
         keyExtractor={(item) => String(item.id)}
         renderItem={renderWord}
-        contentContainerStyle={styles.list}
+        numColumns={numColumns}
+        columnWrapperStyle={styles.gridRow}
+        contentContainerStyle={styles.grid}
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
             <Ionicons
@@ -268,7 +199,7 @@ export default function WordsScreen() {
             />
             <Text style={styles.emptyText}>No words found</Text>
             <Text style={styles.emptyHint}>
-              {search ? "Try a different search term" : "Import words to get started"}
+              {search ? "Try a different search" : "Import words to get started"}
             </Text>
           </View>
         }
@@ -289,127 +220,114 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     padding: 20,
   },
+
+  // Search
   searchContainer: {
     flexDirection: "row",
     alignItems: "center",
     backgroundColor: colors.surface,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: colors.border,
-    marginHorizontal: 16,
-    marginTop: 12,
-    marginBottom: 10,
-    paddingHorizontal: 14,
-  },
-  searchIcon: {
-    marginRight: 10,
+    borderRadius: 10,
+    marginHorizontal: 12,
+    marginTop: 10,
+    marginBottom: 8,
+    paddingHorizontal: 12,
+    height: 40,
   },
   searchInput: {
     flex: 1,
     color: colors.text,
-    fontSize: fonts.body,
-    paddingVertical: 13,
+    fontSize: fonts.small,
+    paddingVertical: 0,
   },
+
+  // Filters
   filterRow: {
-    paddingHorizontal: 16,
-    gap: 8,
-    marginBottom: 10,
-    paddingRight: 24,
+    flexDirection: "row",
+    flexWrap: "wrap",
+    paddingHorizontal: 12,
+    gap: 6,
+    marginBottom: 8,
   },
   filterChip: {
-    paddingVertical: 7,
-    paddingHorizontal: 14,
-    borderRadius: 20,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingVertical: 5,
+    paddingHorizontal: 10,
+    borderRadius: 14,
     backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
   },
   filterChipActive: {
     backgroundColor: colors.accent,
-    borderColor: colors.accent,
   },
-  filterChipText: {
+  filterText: {
     color: colors.textSecondary,
-    fontSize: fonts.small,
-    fontWeight: "500",
-  },
-  filterChipTextActive: {
-    color: "#fff",
+    fontSize: 12,
     fontWeight: "600",
   },
-  list: {
-    paddingHorizontal: 16,
+  filterTextActive: {
+    color: "#fff",
+  },
+  filterCount: {
+    color: colors.textSecondary,
+    fontSize: 11,
+    opacity: 0.7,
+  },
+  filterCountActive: {
+    color: "rgba(255,255,255,0.7)",
+  },
+
+  // Grid
+  grid: {
+    paddingHorizontal: 12,
     paddingBottom: 24,
   },
-  wordRow: {
-    backgroundColor: colors.surface,
-    borderRadius: 12,
-    padding: 16,
+  gridRow: {
+    gap: 8,
     marginBottom: 8,
+  },
+
+  // Card
+  card: {
+    flex: 1,
+    backgroundColor: colors.surface,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingTop: 10,
+    paddingBottom: 8,
+  },
+  cardArabic: {
+    fontSize: 22,
+    color: colors.arabic,
+    fontFamily: fontFamily.arabic,
+    writingDirection: "rtl",
+    textAlign: "right",
+    lineHeight: 32,
+  },
+  cardEnglish: {
+    fontSize: 13,
+    color: colors.textSecondary,
+    marginTop: 2,
+    marginBottom: 6,
+  },
+  cardFooter: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
   },
-  wordLeft: {
-    flex: 1,
-    marginRight: 12,
-  },
-  wordArabic: {
-    fontSize: fonts.arabicMedium,
-    color: colors.arabic,
-    writingDirection: "rtl",
-    fontFamily: fontFamily.arabic,
-    lineHeight: 36,
-    marginBottom: 2,
-  },
-  wordEnglish: {
-    fontSize: 15,
-    color: colors.text,
-    fontWeight: "500",
-    marginBottom: 4,
-  },
-  wordMeta: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-  },
-  wordPos: {
-    fontSize: fonts.caption,
+  cardPos: {
+    fontSize: 10,
     color: colors.accent,
     fontWeight: "600",
+    opacity: 0.7,
   },
-  wordReviewStats: {
-    fontSize: fonts.caption,
-    color: colors.textSecondary,
+  stateDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
   },
-  wordRight: {
-    alignItems: "flex-end",
-    gap: 6,
-  },
-  cefrBadge: {
-    borderRadius: 4,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-  },
-  cefrText: {
-    color: "#fff",
-    fontSize: 11,
-    fontWeight: "700",
-  },
-  scoreText: {
-    fontSize: 22,
-    fontWeight: "700",
-    color: colors.accent,
-  },
-  stateBadge: {
-    paddingHorizontal: 10,
-    paddingVertical: 3,
-    borderRadius: 10,
-  },
-  stateBadgeText: {
-    fontSize: 11,
-    fontWeight: "600",
-  },
+
+  // Empty / error
   emptyContainer: {
     alignItems: "center",
     marginTop: 60,
