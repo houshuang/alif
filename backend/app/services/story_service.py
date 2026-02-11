@@ -34,6 +34,7 @@ from app.services.sentence_validator import (
     _is_function_word,
     lookup_lemma,
 )
+from app.services.morphology import find_best_db_match
 
 KNOWN_SAMPLE_SIZE = 80
 MAX_NEW_WORDS_IN_STORY = 5
@@ -120,8 +121,14 @@ def _create_story_words(
     known = 0
     func = 0
 
+    # Build set of known bare forms for morphological fallback
+    known_bare_forms: set[str] = set()
+    for lem in db.query(Lemma).all():
+        known_bare_forms.add(normalize_alef(lem.lemma_ar_bare))
+
     # Batch-load all lemmas for gloss lookup (avoid N+1 queries)
     all_lemma_ids_needed: set[int] = set()
+    morph_cache: dict[str, int | None] = {}
     for sent_idx, sentence_text in enumerate(sentences):
         tokens = _tokenize_story(sentence_text)
         for token in tokens:
@@ -130,6 +137,14 @@ def _create_story_words(
             bare_norm = normalize_alef(bare_clean)
             if not _is_function_word(bare_clean):
                 lid = lookup_lemma(bare_norm, lemma_lookup)
+                if not lid and bare_norm not in morph_cache:
+                    match = find_best_db_match(bare_clean, known_bare_forms)
+                    if match:
+                        lex_norm = normalize_alef(match["lex_bare"])
+                        lid = lemma_lookup.get(lex_norm)
+                    morph_cache[bare_norm] = lid
+                elif not lid:
+                    lid = morph_cache.get(bare_norm)
                 if lid:
                     all_lemma_ids_needed.add(lid)
 
@@ -147,6 +162,8 @@ def _create_story_words(
 
             is_func = _is_function_word(bare_clean)
             lemma_id = None if is_func else lookup_lemma(bare_norm, lemma_lookup)
+            if not lemma_id and not is_func:
+                lemma_id = morph_cache.get(bare_norm)
 
             is_known = False
             if lemma_id:

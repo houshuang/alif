@@ -379,6 +379,9 @@
 - [DONE] Story completion: complete (FSRS credit for all words), skip (no effect), too difficult (mark for later)
 - [DONE] Story list with readiness indicators (green/yellow/red), generate + import buttons
 - [DONE] Story list design polish: bottom-sheet modals, larger Arabic titles (24px), icon badges, refined card layout
+- [DONE] Story reader declutter: moved Complete/Skip/Too Hard from fixed bottom bar to end of scroll content, maximizing reading space
+- [DONE] Morphological fallback for story word lookup: CAMeL Tools analysis resolves conjugated forms (قالت→قال) that clitic stripping misses
+- Expand forms_json to include all verb conjugation paradigms (past 3fs, past 3mp, present, etc.) — would make lookup faster than morphological analysis at import time
 - Graded text mode supporting 95-98% vocabulary coverage for extensive reading
 - Narrow reading: offer multiple texts on the same topic to recycle vocabulary
 - Story series with recurring characters/themes for context building

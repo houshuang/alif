@@ -4,6 +4,22 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-02-11: Morphological Fallback for Story Word Lookup + Reader UI Declutter
+
+**Problem 1**: Conjugated forms like قالت (she said) show "not in vocabulary" in story reader. The `lookup_lemma()` function uses clitic stripping + forms_json matching, but verb conjugation suffixes (ت feminine, وا plural, etc.) are neither clitics nor indexed in forms_json.
+
+**Change**: Added CAMeL Tools morphological fallback in `_create_story_words()`. When `lookup_lemma()` fails, `find_best_db_match()` runs all CAMeL analyses and matches against known DB lemma bare forms. Results cached per bare_norm to avoid re-analyzing the same form.
+
+**Expected effect**: Conjugated verbs, broken plurals, and other inflected forms now resolve to their base lemma during story import/generation. Previously unresolved words gain lemma_id, enabling proper lookup with gloss, root, and transliteration.
+
+**Problem 2**: Fixed bottom bar with Complete/Skip/Too Hard buttons consumed ~80px of screen space permanently, making reading feel cramped.
+
+**Change**: Moved action buttons from fixed bottom bar to end of scroll content. Complete is a full-width green button; Skip and Too Hard are text-only secondary links below it. The lookup panel remains as the only fixed element at the bottom.
+
+**Verification**: Import a story containing conjugated verbs (قالت, ذهبوا, يقرأ). Tap each word — should now show proper gloss and root instead of "not in vocabulary". Scroll to bottom to see action buttons.
+
+---
+
 ## 2026-02-11 — Design Pass: Stories & Words Screens
 
 ### Problem

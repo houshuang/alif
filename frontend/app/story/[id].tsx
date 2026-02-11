@@ -278,6 +278,42 @@ export default function StoryReadScreen() {
             {story.body_en || "No translation available."}
           </Text>
         )}
+
+        {/* Actions at end of scroll */}
+        <View style={styles.inlineActions}>
+          <Pressable
+            style={[styles.inlineBtn, styles.completeBtn]}
+            onPress={handleComplete}
+            disabled={submitting}
+          >
+            {submitting ? (
+              <ActivityIndicator size="small" color="#fff" />
+            ) : (
+              <>
+                <Ionicons name="checkmark" size={18} color="#fff" />
+                <Text style={styles.completeBtnText}>Complete</Text>
+              </>
+            )}
+          </Pressable>
+          <View style={styles.secondaryActions}>
+            <Pressable
+              style={[styles.secondaryBtn]}
+              onPress={handleSkip}
+              disabled={submitting}
+            >
+              <Text style={styles.secondaryBtnText}>Skip</Text>
+            </Pressable>
+            {story.source === "imported" && (
+              <Pressable
+                style={[styles.secondaryBtn]}
+                onPress={handleTooDifficult}
+                disabled={submitting}
+              >
+                <Text style={[styles.secondaryBtnText, { color: colors.stateLearning }]}>Too Hard</Text>
+              </Pressable>
+            )}
+          </View>
+        </View>
       </ScrollView>
 
       {/* Lookup panel */}
@@ -318,40 +354,6 @@ export default function StoryReadScreen() {
             </Text>
           </View>
         )}
-      </View>
-
-      {/* Bottom actions */}
-      <View style={styles.bottomActions}>
-        <Pressable
-          style={[styles.bottomBtn, styles.skipBtn]}
-          onPress={handleSkip}
-          disabled={submitting}
-        >
-          <Text style={styles.skipBtnText}>Skip</Text>
-        </Pressable>
-        {story.source === "imported" && (
-          <Pressable
-            style={[styles.bottomBtn, styles.difficultBtn]}
-            onPress={handleTooDifficult}
-            disabled={submitting}
-          >
-            <Text style={styles.difficultBtnText}>Too Hard</Text>
-          </Pressable>
-        )}
-        <Pressable
-          style={[styles.bottomBtn, styles.completeBtn]}
-          onPress={handleComplete}
-          disabled={submitting}
-        >
-          {submitting ? (
-            <ActivityIndicator size="small" color="#fff" />
-          ) : (
-            <>
-              <Ionicons name="checkmark" size={18} color="#fff" />
-              <Text style={styles.completeBtnText}>Complete</Text>
-            </>
-          )}
-        </Pressable>
       </View>
       <ActionMenu
         focusedLemmaId={selectedWord?.lemma_id ?? null}
@@ -584,49 +586,43 @@ const styles = StyleSheet.create({
     fontSize: fonts.small,
   },
 
-  // Bottom actions
-  bottomActions: {
-    flexDirection: "row",
-    gap: 10,
-    paddingHorizontal: 16,
-    paddingTop: 10,
-    paddingBottom: 28,
-    backgroundColor: colors.surface,
+  // Inline actions (at end of scroll)
+  inlineActions: {
+    marginTop: 40,
+    marginBottom: 20,
+    alignItems: "center",
+    gap: 16,
   },
-  bottomBtn: {
-    flex: 1,
+  inlineBtn: {
     paddingVertical: 14,
+    paddingHorizontal: 32,
     borderRadius: 12,
     alignItems: "center",
     flexDirection: "row",
     justifyContent: "center",
     gap: 6,
-  },
-  skipBtn: {
-    backgroundColor: colors.surfaceLight,
-    flex: 0.7,
-  },
-  skipBtnText: {
-    color: colors.textSecondary,
-    fontSize: 15,
-    fontWeight: "600",
-  },
-  difficultBtn: {
-    backgroundColor: colors.stateLearning + "20",
-    flex: 0.8,
-  },
-  difficultBtnText: {
-    color: colors.stateLearning,
-    fontSize: 15,
-    fontWeight: "600",
+    alignSelf: "stretch",
   },
   completeBtn: {
     backgroundColor: colors.gotIt,
-    flex: 1.2,
   },
   completeBtnText: {
     color: "#fff",
     fontSize: 16,
     fontWeight: "700",
+  },
+  secondaryActions: {
+    flexDirection: "row",
+    gap: 24,
+    justifyContent: "center",
+  },
+  secondaryBtn: {
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+  },
+  secondaryBtnText: {
+    color: colors.textSecondary,
+    fontSize: 15,
+    fontWeight: "600",
   },
 });
