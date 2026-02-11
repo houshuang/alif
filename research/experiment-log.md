@@ -39,6 +39,23 @@ Visual consistency across all main screens. No behavioral or algorithmic changes
 
 ---
 
+## 2026-02-11 — Story Reader Redesign
+
+### Changes
+Full design pass on `frontend/app/story/[id].tsx`:
+- **Tab bar → pill toggle**: Replaced full-width underline tabs with compact pill-shaped Arabic/English toggle (surfaceLight bg, accent active state)
+- **Word text**: 28px → 30px with Scheherazade font (was missing `fontFamily.arabic`), lineHeight 36→46
+- **New word dots**: gray → accent blue, slightly larger (4→5px)
+- **Lookup panel**: Redesigned from stacked slots to horizontal layout — Arabic and English side-by-side with vertical divider. Root shown in accent-tinted badge instead of plain text. Compact empty state (60px) expands when word selected (80px)
+- **Bottom actions**: Complete button gets checkmark icon + flex 1.2 (most visual weight). Skip flex 0.7 (smallest). "Too Hard" hidden entirely for generated stories (was shown disabled). All buttons borderRadius 12
+- **Sentence breaks**: 12px → 16px for clearer paragraph separation
+- **Lookup count**: Shows "N looked up" badge in header bar when words have been tapped
+
+### Files
+- `frontend/app/story/[id].tsx` — full redesign
+
+---
+
 ## 2026-02-11 — Review UI Polish
 
 ### Changes
