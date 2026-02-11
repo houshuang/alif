@@ -159,9 +159,9 @@ This app is an ongoing learning experiment. Every algorithm change, data structu
 - `backend/app/services/tts.py` — ElevenLabs REST, eleven_multilingual_v2, Chaouki voice, speed 0.7. Learner pauses: inserts Arabic commas every 2 words. SHA256 cache in data/audio/.
 - `backend/app/services/llm.py` — LiteLLM: gemini/gemini-3-flash-preview → gpt-5.2 → claude-haiku-4-5. JSON mode, markdown fence stripping, model_override support. Batch generation supports `rejected_words` param to steer LLM away from unknown vocabulary.
 - `backend/app/services/morphology.py` — CAMeL Tools morphological analyzer. Functions: `analyze_word_camel()` (all analyses), `get_base_lemma()` (top lex), `get_best_lemma_mle()` (MLE disambiguator, probability-weighted), `is_variant_form()` (possessive/enclitic check, hamza-aware), `find_matching_analysis()` (disambiguate against known lemma, hamza-aware), `find_best_db_match()` (iterate all analyses, return first matching a known DB bare form, hamza-aware), `get_word_features()` (lex/root/pos/enc0/num/gen/stt). Falls back to stub if camel_tools not installed.
-- `backend/app/services/variant_detection.py` — DB-aware variant detection: `detect_variants()` (CAMeL + DB match, hamza-normalized), `detect_definite_variants()` (al-prefix, hamza-normalized), `mark_variants()`. Used by ALL import paths (Duolingo, Wiktionary, AVP, OCR) as post-import pass, and cleanup_lemma_variants.py (batch cleanup).
+- `backend/app/services/variant_detection.py` — Two-phase variant detection: `detect_variants_llm()` (CAMeL candidates → Gemini Flash confirmation, with VariantDecision cache), `detect_definite_variants()` (al-prefix, hamza-normalized, 100% precision), `mark_variants()`. LLM confirmation eliminated the 34% true positive rate problem. Used by ALL import paths (Duolingo, Wiktionary, AVP, OCR) as post-import pass. Graceful fallback if LLM unavailable.
 - `backend/app/services/interaction_logger.py` — Append-only JSONL to `data/logs/interactions_YYYY-MM-DD.jsonl`. Skipped when TESTING env var is set.
-- `backend/app/services/ocr_service.py` — Gemini Vision OCR: `extract_text_from_image()` (full text extraction for story import), `extract_words_from_image()` (3-step pipeline: OCR → CAMeL morphology → LLM translation, returns base_lemma from morphological analysis), `process_textbook_page()` (background task: OCR + match/import words + post-import variant detection). Uses base_lemma from Step 2 for DB lookup (falls back to bare form). Runs detect_variants + detect_definite_variants after import.
+- `backend/app/services/ocr_service.py` — Gemini Vision OCR: `extract_text_from_image()` (full text extraction for story import), `extract_words_from_image()` (3-step pipeline: OCR → CAMeL morphology → LLM translation, returns base_lemma from morphological analysis), `process_textbook_page()` (background task: OCR + match/import words + post-import LLM-confirmed variant detection). Uses base_lemma from Step 2 for DB lookup (falls back to bare form). Runs detect_variants_llm + detect_definite_variants after import.
 - `backend/app/services/flag_evaluator.py` — Background LLM evaluation for flagged content. Uses GPT-5.2 (model_override="openai") to evaluate word glosses, sentence Arabic/English/transliteration. Auto-fixes high-confidence corrections, retires unfixable sentences. Writes to ActivityLog.
 - `backend/app/services/activity_log.py` — Shared helper `log_activity(db, event_type, summary, detail, commit)` for writing ActivityLog entries from any service or script.
 - `backend/app/services/grammar_lesson_service.py` — LLM-generated grammar lessons for specific features. Caches lessons in DB.
@@ -272,6 +272,7 @@ This app is an ongoing learning experiment. Every algorithm change, data structu
 - `page_uploads` — Textbook page OCR tracking (batch_id, filename, status: pending/processing/completed/failed, extracted_words_json, new_words, existing_words, error_message)
 - `content_flags` — Flagged content for LLM re-evaluation (content_type, lemma_id/sentence_id, status: pending/reviewing/fixed/dismissed, original_value, corrected_value, resolution_note)
 - `activity_log` — System activity entries (event_type, summary, detail_json) — tracks flag resolutions, batch job results
+- `variant_decisions` — LLM variant decision cache (word_bare, base_bare, is_variant, reason, decided_at) — prevents re-querying known pairs
 - `chat_messages` — AI chat conversations (conversation_id, screen context, role: user/assistant, content, context_summary)
 
 ## NLP Pipeline
@@ -316,7 +317,7 @@ Tests 3 models across 5 tasks (105 ground truth cases): diacritization, translat
 
 ## Testing
 ```bash
-cd backend && python -m pytest  # 552 tests
+cd backend && python -m pytest  # 559 tests
 ```
 All services have dedicated test files in `backend/tests/`.
 

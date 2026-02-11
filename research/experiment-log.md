@@ -4,6 +4,40 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-02-11 — LLM-Confirmed Variant Detection (replaces CAMeL-only)
+
+### Change
+The CAMeL-only `detect_variants()` had a 34% true positive rate — too many false positives from taa marbuta feminines misidentified as possessives (غرفة→غرف, جامعة→جامع). Replaced with a two-phase approach:
+
+1. **Phase 1 (CAMeL)**: Generate candidate pairs using existing morphological analysis + DB matching
+2. **Phase 2 (LLM)**: Gemini Flash confirms or rejects each candidate with semantic understanding
+
+New functions in `variant_detection.py`:
+- `evaluate_variants_llm()` — sends candidate pairs to LLM in batches of 15, with DB cache
+- `detect_variants_llm()` — full pipeline: CAMeL candidates → LLM confirmation
+- `VariantDecision` model + migration for caching LLM decisions
+
+All import scripts (Duolingo, Wiktionary, AVP, OCR) and cleanup tools now use `detect_variants_llm()`. Graceful fallback: LLM failure skips confirmation (imports don't break).
+
+### Data Quality Fixes
+- عمل: POS noun→verb (was preventing verb conjugation matching)
+- خال: gloss "empty, void"→"maternal uncle" (was preventing خالة match)
+
+### Results
+- **Spec test**: 21/21 correct (100%) — 10 false positives correctly rejected, 11 true positives confirmed
+- **Production run**: 135 CAMeL candidates → 77 LLM-confirmed → all 77 merged with review data migration
+- **Cost**: ~$0.001 for full DB scan (9 batches × Gemini Flash)
+- Correctly rejected: nisba adjectives (مصري/مصر), different-meaning taa marbuta (جامعة/جامع), unrelated words (سمك/سم, بنك/بن), masdars (كتابة/كتاب)
+- Correctly confirmed: possessives (اسمي/اسم), feminines (صديقة/صديق), conjugations (نعمل/عمل), plurals (غرفة/غرف)
+- Cache table prevents re-querying known pairs on future runs
+
+### Verification
+- 559 backend tests pass (7 new tests for LLM variant detection + cache)
+- Production: 77 variant merges applied, 73 forms_json enriched
+- `scripts/test_llm_variants.py` — reusable benchmark with ground truth
+
+---
+
 ## 2026-02-11 — Harden All Ingestion Paths + Hamza-Aware Variant Detection
 
 ### Change
@@ -29,6 +63,12 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 - Run `normalize_and_dedup.py --dry-run` on production to preview
 - Run `normalize_and_dedup.py --merge` to apply
 - Re-run rare word analysis — expect significant reduction in active rare words
+
+### Results (production run)
+- 12 al-prefix duplicates safely merged (الكتاب→كتاب type)
+- 97 forms_json entries enriched on existing variant lemmas
+- 146 CAMeL-detected variants reported but NOT auto-applied — 34% true positive rate (see `research/variant-detection-spec.md` for detailed analysis)
+- Key insight: CAMeL misinterprets taa marbuta feminines as possessives (غرفة→غرف+ة), producing false merges. An LLM-based approach may be needed for the remaining ~50 genuine variants.
 
 ---
 
