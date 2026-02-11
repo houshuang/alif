@@ -1767,7 +1767,6 @@ function ListeningActions({
 
   return (
     <View style={styles.actionRow}>
-      <View style={styles.actionButtonSpacer} />
       <Pressable
         style={[styles.actionButton, styles.noIdeaButton, submitting && styles.actionButtonDisabled]}
         onPress={() => void onSubmit("no_idea")}
@@ -1788,6 +1787,7 @@ function ListeningActions({
           {hasMarked ? "Continue" : "Know All"}
         </Text>
       </Pressable>
+      <View style={styles.actionButtonSpacer} />
     </View>
   );
 }
@@ -1864,7 +1864,6 @@ function ReadingActions({
         </>
       ) : (
         <>
-          <View style={styles.actionButtonSpacer} />
           <Pressable
             style={[styles.actionButton, styles.noIdeaButton, submitting && styles.actionButtonDisabled]}
             onPress={() => void onSubmit("no_idea")}
@@ -1885,6 +1884,7 @@ function ReadingActions({
               {hasMarked ? "Continue" : "Know All"}
             </Text>
           </Pressable>
+          <View style={styles.actionButtonSpacer} />
         </>
       )}
     </View>
