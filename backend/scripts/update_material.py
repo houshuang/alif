@@ -57,7 +57,8 @@ from app.services.tts import (
     get_cached_path,
 )
 
-MIN_SENTENCES = 3
+MIN_SENTENCES = 2
+TARGET_PIPELINE_SENTENCES = 200  # generate enough for ~1 review session
 
 
 def get_existing_counts(db: Session) -> dict[int, int]:
@@ -71,6 +72,39 @@ def get_existing_counts(db: Session) -> dict[int, int]:
         .all()
     )
     return {lid: cnt for lid, cnt in rows}
+
+
+def get_words_by_due_date(db: Session) -> list[tuple[int, str]]:
+    """Return lemma_ids sorted by FSRS due date (most urgent first).
+
+    Returns list of (lemma_id, due_iso_string) for all non-suspended words.
+    """
+    from datetime import datetime, timezone
+
+    knowledges = (
+        db.query(UserLemmaKnowledge)
+        .filter(
+            UserLemmaKnowledge.fsrs_card_json.isnot(None),
+            UserLemmaKnowledge.knowledge_state != "suspended",
+        )
+        .all()
+    )
+
+    items: list[tuple[int, datetime]] = []
+    for k in knowledges:
+        card = k.fsrs_card_json if isinstance(k.fsrs_card_json, dict) else __import__("json").loads(k.fsrs_card_json)
+        due_str = card.get("due", "")
+        if due_str:
+            try:
+                due_dt = datetime.fromisoformat(due_str.replace("Z", "+00:00"))
+                if due_dt.tzinfo is None:
+                    due_dt = due_dt.replace(tzinfo=timezone.utc)
+                items.append((k.lemma_id, due_dt))
+            except (ValueError, TypeError):
+                pass
+
+    items.sort(key=lambda x: x[1])
+    return [(lid, dt.isoformat()) for lid, dt in items]
 
 
 def get_known_words_and_lookup(db: Session) -> tuple[list[dict[str, str]], dict[str, int]]:
@@ -176,44 +210,61 @@ def generate_sentences_for_word(
     return stored
 
 
-# ── Step A: Backfill sentences for introduced words ──────────────────
+# ── Step A: Backfill sentences for words, prioritized by due date ────
 
-def step_backfill_sentences(db: Session, dry_run: bool, model: str, delay: float) -> int:
-    print("\n═══ Step A: Backfill sentences for introduced words ═══")
+def step_backfill_sentences(
+    db: Session, dry_run: bool, model: str, delay: float,
+    max_sentences: int = TARGET_PIPELINE_SENTENCES,
+) -> int:
+    print("\n═══ Step A: Backfill sentences (due-date priority) ═══")
 
-    introduced = (
-        db.query(Lemma)
-        .join(UserLemmaKnowledge)
-        .filter(UserLemmaKnowledge.fsrs_card_json.isnot(None))
-        .all()
-    )
-    if not introduced:
+    # Get words sorted by due date (most urgent first)
+    due_order = get_words_by_due_date(db)
+    if not due_order:
         print("  No introduced words found.")
         return 0
 
     existing_counts = get_existing_counts(db)
-    known_words, lemma_lookup = get_known_words_and_lookup(db)
+    total_active = sum(existing_counts.values())
+    print(f"  Total active sentences: {total_active}")
+    print(f"  Pipeline target: {max_sentences}")
 
-    # Diversity params — weight sampling and avoid overused words
+    if total_active >= max_sentences:
+        print(f"  Pipeline full ({total_active} >= {max_sentences}), skipping.")
+        return 0
+
+    budget = max_sentences - total_active
+    print(f"  Budget: {budget} sentences to generate")
+    print(f"  Words ordered by due date: {len(due_order)} total")
+
+    known_words, lemma_lookup = get_known_words_and_lookup(db)
     content_word_counts = get_content_word_counts(db)
     avoid_words = get_avoid_words(content_word_counts, known_words)
 
     total = 0
-    for lemma in introduced:
-        existing = existing_counts.get(lemma.lemma_id, 0)
+    words_processed = 0
+    for lemma_id, due_str in due_order:
+        if total >= budget:
+            break
+
+        existing = existing_counts.get(lemma_id, 0)
         needed = MIN_SENTENCES - existing
         if needed <= 0:
             continue
 
-        # Sample known words with diversity weighting per target
+        needed = min(needed, budget - total)
+        lemma = db.query(Lemma).filter(Lemma.lemma_id == lemma_id).first()
+        if not lemma:
+            continue
+
         word_sample = sample_known_words_weighted(
             known_words, content_word_counts, KNOWN_SAMPLE_SIZE,
             target_lemma_id=lemma.lemma_id,
         )
 
-        print(f"  {lemma.lemma_ar} ({lemma.gloss_en}) — have {existing}, need {needed}")
+        words_processed += 1
+        print(f"  {lemma.lemma_ar} ({lemma.gloss_en}) — have {existing}, need {needed}, due {due_str[:10]}")
         if dry_run:
-            print(f"    [dry-run] Would generate {needed} sentences")
             total += needed
         else:
             stored = generate_sentences_for_word(
@@ -222,9 +273,10 @@ def step_backfill_sentences(db: Session, dry_run: bool, model: str, delay: float
                 avoid_words=avoid_words,
             )
             total += stored
-            print(f"    Generated {stored} sentences")
+            if stored:
+                print(f"    Generated {stored} sentences")
 
-    print(f"  → Total sentences: {total}")
+    print(f"  → Generated {total} sentences for {words_processed} words")
     return total
 
 
@@ -346,6 +398,13 @@ async def step_generate_audio(db: Session, dry_run: bool, limit: int) -> int:
 def step_pregenerate_candidates(db: Session, dry_run: bool, count: int, model: str, delay: float) -> int:
     print("\n═══ Step C: Pre-generate sentences for upcoming candidates ═══")
 
+    # Check pipeline capacity first
+    existing_counts = get_existing_counts(db)
+    total_active = sum(existing_counts.values())
+    if total_active >= TARGET_PIPELINE_SENTENCES:
+        print(f"  Pipeline full ({total_active} >= {TARGET_PIPELINE_SENTENCES}), skipping.")
+        return 0
+
     candidates = select_next_words(db, count=count)
     if not candidates:
         print("  No candidates available.")
@@ -353,21 +412,23 @@ def step_pregenerate_candidates(db: Session, dry_run: bool, count: int, model: s
 
     print(f"  Found {len(candidates)} upcoming candidates")
 
-    existing_counts = get_existing_counts(db)
     known_words, lemma_lookup = get_known_words_and_lookup(db)
+    budget = TARGET_PIPELINE_SENTENCES - total_active
 
     total = 0
     for i, cand in enumerate(candidates):
+        if total >= budget:
+            break
         lid = cand["lemma_id"]
         existing = existing_counts.get(lid, 0)
         needed = MIN_SENTENCES - existing
         if needed <= 0:
             continue
 
+        needed = min(needed, budget - total)
         print(f"  [{i+1}/{len(candidates)}] {cand['lemma_ar']} ({cand['gloss_en']}) — "
               f"have {existing}, need {needed}")
         if dry_run:
-            print(f"    [dry-run] Would generate {needed} sentences")
             total += needed
         else:
             lemma = db.query(Lemma).filter(Lemma.lemma_id == lid).first()
@@ -377,7 +438,8 @@ def step_pregenerate_candidates(db: Session, dry_run: bool, count: int, model: s
                     needed=needed, model=model, delay=delay,
                 )
                 total += stored
-                print(f"    Generated {stored} sentences")
+                if stored:
+                    print(f"    Generated {stored} sentences")
 
     print(f"  → Total sentences: {total}")
     return total
@@ -391,6 +453,8 @@ async def main():
     parser.add_argument("--skip-audio", action="store_true", help="Skip TTS audio generation")
     parser.add_argument("--limit", type=int, default=0, help="Max audio generations (0=unlimited)")
     parser.add_argument("--candidates", type=int, default=10, help="Number of upcoming candidates (default: 10)")
+    parser.add_argument("--max-sentences", type=int, default=TARGET_PIPELINE_SENTENCES,
+                        help=f"Max total active sentences in pipeline (default: {TARGET_PIPELINE_SENTENCES})")
     parser.add_argument("--model", default="openai", help="LLM model (default: openai)")
     parser.add_argument("--delay", type=float, default=1.0, help="Seconds between LLM calls")
     args = parser.parse_args()
@@ -401,7 +465,7 @@ async def main():
 
     db = SessionLocal()
     try:
-        sent_a = step_backfill_sentences(db, args.dry_run, args.model, args.delay)
+        sent_a = step_backfill_sentences(db, args.dry_run, args.model, args.delay, args.max_sentences)
 
         if not args.skip_audio:
             audio_b = await step_generate_audio(db, args.dry_run, args.limit)
