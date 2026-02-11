@@ -12,24 +12,18 @@ import {
 import { useRouter, useFocusEffect } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { colors, fonts, fontFamily } from "../lib/theme";
-import { getWords } from "../lib/api";
+import { getWords, getFunctionWords, getProperNames, ProperName } from "../lib/api";
 import { Word } from "../lib/types";
 
-type FilterValue =
-  | "all"
-  | "new"
-  | "learning"
-  | "known"
-  | "lapsed"
-  | "suspended";
+type CategoryTab = "vocab" | "function" | "names";
+type StateFilter = "all" | "learning" | "known" | "new" | "lapsed" | "suspended";
 
-const FILTERS: { key: FilterValue; label: string }[] = [
+const STATE_FILTERS: { key: StateFilter; label: string }[] = [
   { key: "all", label: "All" },
   { key: "learning", label: "Learning" },
   { key: "known", label: "Known" },
   { key: "new", label: "New" },
   { key: "lapsed", label: "Lapsed" },
-  { key: "suspended", label: "Suspended" },
 ];
 
 function stateColor(state: Word["state"]): string {
@@ -44,25 +38,34 @@ function stateColor(state: Word["state"]): string {
 
 export default function WordsScreen() {
   const [words, setWords] = useState<Word[]>([]);
+  const [funcWords, setFuncWords] = useState<Word[]>([]);
+  const [names, setNames] = useState<ProperName[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
-  const [filter, setFilter] = useState<FilterValue>("all");
+  const [category, setCategory] = useState<CategoryTab>("vocab");
+  const [stateFilter, setStateFilter] = useState<StateFilter>("all");
   const router = useRouter();
   const { width } = useWindowDimensions();
   const numColumns = width > 500 ? 3 : 2;
 
   useFocusEffect(
     useCallback(() => {
-      loadWords();
+      loadAll();
     }, [])
   );
 
-  async function loadWords() {
+  async function loadAll() {
     setLoading(true);
     try {
-      const data = await getWords();
-      setWords(data);
+      const [w, fw, n] = await Promise.all([
+        getWords(),
+        getFunctionWords().catch(() => []),
+        getProperNames().catch(() => []),
+      ]);
+      setWords(w);
+      setFuncWords(fw);
+      setNames(n);
       setError(null);
     } catch (e) {
       console.error("Failed to load words:", e);
@@ -79,9 +82,10 @@ export default function WordsScreen() {
   }, [words]);
 
   const filtered = useMemo(() => {
-    let result = words;
-    if (filter !== "all") {
-      result = result.filter((w) => w.state === filter);
+    const source = category === "function" ? funcWords : words;
+    let result = source;
+    if (category === "vocab" && stateFilter !== "all") {
+      result = result.filter((w) => w.state === stateFilter);
     }
     if (search.trim()) {
       const q = search.trim().toLowerCase();
@@ -93,7 +97,18 @@ export default function WordsScreen() {
       );
     }
     return result;
-  }, [words, search, filter]);
+  }, [words, funcWords, search, category, stateFilter]);
+
+  const filteredNames = useMemo(() => {
+    if (!search.trim()) return names;
+    const q = search.trim().toLowerCase();
+    return names.filter(
+      (n) =>
+        n.surface_form.includes(q) ||
+        n.gloss_en.toLowerCase().includes(q) ||
+        (n.story_title || "").toLowerCase().includes(q)
+    );
+  }, [names, search]);
 
   function renderWord({ item }: { item: Word }) {
     const sc = stateColor(item.state);
@@ -105,7 +120,6 @@ export default function WordsScreen() {
         onPress={() => router.push(`/word/${item.id}`)}
       >
         <View style={styles.cardRow}>
-          {/* Left: metadata stack */}
           <View style={styles.cardLeft}>
             <Text style={styles.cardEnglish} numberOfLines={2}>
               {item.english}
@@ -141,9 +155,39 @@ export default function WordsScreen() {
               </View>
             )}
           </View>
-          {/* Right: Arabic */}
           <Text style={styles.cardArabic} numberOfLines={1}>
             {item.arabic}
+          </Text>
+        </View>
+      </Pressable>
+    );
+  }
+
+  function renderName({ item }: { item: ProperName }) {
+    const typeColor = item.name_type === "personal" ? colors.accent : colors.listening;
+    return (
+      <Pressable
+        style={styles.card}
+        onPress={item.story_id ? () => router.push(`/story/${item.story_id}`) : undefined}
+      >
+        <View style={styles.cardRow}>
+          <View style={styles.cardLeft}>
+            <Text style={styles.cardEnglish} numberOfLines={1}>
+              {item.gloss_en}
+            </Text>
+            <View style={styles.cardMeta}>
+              <View style={[styles.nameTypeBadge, { backgroundColor: typeColor + "20" }]}>
+                <Text style={[styles.nameTypeText, { color: typeColor }]}>
+                  {item.name_type === "personal" ? "person" : "place"}
+                </Text>
+              </View>
+              {item.story_title && (
+                <Text style={styles.metaText} numberOfLines={1}>{item.story_title}</Text>
+              )}
+            </View>
+          </View>
+          <Text style={styles.cardArabic} numberOfLines={1}>
+            {item.surface_form}
           </Text>
         </View>
       </Pressable>
@@ -162,7 +206,7 @@ export default function WordsScreen() {
     return (
       <View style={styles.centered}>
         <Text style={styles.errorText}>{error}</Text>
-        <Pressable style={styles.retryButton} onPress={loadWords}>
+        <Pressable style={styles.retryButton} onPress={loadAll}>
           <Text style={styles.retryText}>Retry</Text>
         </Pressable>
       </View>
@@ -188,53 +232,89 @@ export default function WordsScreen() {
         )}
       </View>
 
-      {/* Filter row */}
-      <View style={styles.filterRow}>
-        {FILTERS.map((f) => {
-          const count = counts[f.key] || 0;
-          if (f.key !== "all" && count === 0) return null;
-          const active = filter === f.key;
-          return (
-            <Pressable
-              key={f.key}
-              style={[styles.filterChip, active && styles.filterChipActive]}
-              onPress={() => setFilter(f.key)}
-            >
-              <Text style={[styles.filterText, active && styles.filterTextActive]}>
-                {f.label}
-              </Text>
-              <Text style={[styles.filterCount, active && styles.filterCountActive]}>
-                {count}
-              </Text>
-            </Pressable>
-          );
-        })}
+      {/* Category tabs */}
+      <View style={styles.categoryRow}>
+        {([
+          { key: "vocab" as CategoryTab, label: "Vocabulary", count: words.length },
+          { key: "function" as CategoryTab, label: "Function", count: funcWords.length },
+          { key: "names" as CategoryTab, label: "Names", count: names.length },
+        ]).map((tab) => (
+          <Pressable
+            key={tab.key}
+            style={[styles.categoryTab, category === tab.key && styles.categoryTabActive]}
+            onPress={() => { setCategory(tab.key); setStateFilter("all"); }}
+          >
+            <Text style={[styles.categoryText, category === tab.key && styles.categoryTextActive]}>
+              {tab.label}
+            </Text>
+            <Text style={[styles.categoryCount, category === tab.key && styles.categoryCountActive]}>
+              {tab.count}
+            </Text>
+          </Pressable>
+        ))}
       </View>
 
+      {/* State filters (vocab tab only) */}
+      {category === "vocab" && (
+        <View style={styles.filterRow}>
+          {STATE_FILTERS.map((f) => {
+            const count = counts[f.key] || 0;
+            if (f.key !== "all" && count === 0) return null;
+            const active = stateFilter === f.key;
+            return (
+              <Pressable
+                key={f.key}
+                style={[styles.filterChip, active && styles.filterChipActive]}
+                onPress={() => setStateFilter(f.key)}
+              >
+                <Text style={[styles.filterText, active && styles.filterTextActive]}>
+                  {f.label}
+                </Text>
+                <Text style={[styles.filterCount, active && styles.filterCountActive]}>
+                  {count}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
+      )}
+
       {/* Grid */}
-      <FlatList
-        key={numColumns}
-        data={filtered}
-        keyExtractor={(item) => String(item.id)}
-        renderItem={renderWord}
-        numColumns={numColumns}
-        columnWrapperStyle={styles.gridRow}
-        contentContainerStyle={styles.grid}
-        ListEmptyComponent={
-          <View style={styles.emptyContainer}>
-            <Ionicons
-              name="library-outline"
-              size={48}
-              color={colors.textSecondary}
-              style={{ opacity: 0.4, marginBottom: 12 }}
-            />
-            <Text style={styles.emptyText}>No words found</Text>
-            <Text style={styles.emptyHint}>
-              {search ? "Try a different search" : "Import words to get started"}
-            </Text>
-          </View>
-        }
-      />
+      {category === "names" ? (
+        <FlatList
+          key={`names-${numColumns}`}
+          data={filteredNames}
+          keyExtractor={(item, i) => `${item.surface_form}-${i}`}
+          renderItem={renderName}
+          numColumns={numColumns}
+          columnWrapperStyle={styles.gridRow}
+          contentContainerStyle={styles.grid}
+          ListEmptyComponent={
+            <View style={styles.emptyContainer}>
+              <Text style={styles.emptyText}>No names found</Text>
+              <Text style={styles.emptyHint}>Import a story to discover names</Text>
+            </View>
+          }
+        />
+      ) : (
+        <FlatList
+          key={`words-${numColumns}-${category}`}
+          data={filtered}
+          keyExtractor={(item) => String(item.id)}
+          renderItem={renderWord}
+          numColumns={numColumns}
+          columnWrapperStyle={styles.gridRow}
+          contentContainerStyle={styles.grid}
+          ListEmptyComponent={
+            <View style={styles.emptyContainer}>
+              <Text style={styles.emptyText}>No words found</Text>
+              <Text style={styles.emptyHint}>
+                {search ? "Try a different search" : "Import words to get started"}
+              </Text>
+            </View>
+          }
+        />
+      )}
     </View>
   );
 }
@@ -271,41 +351,80 @@ const styles = StyleSheet.create({
     paddingVertical: 0,
   },
 
-  // Filters
+  // Category tabs
+  categoryRow: {
+    flexDirection: "row",
+    marginHorizontal: 12,
+    marginBottom: 6,
+    backgroundColor: colors.surface,
+    borderRadius: 10,
+    padding: 3,
+  },
+  categoryTab: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 4,
+    paddingVertical: 7,
+    borderRadius: 8,
+  },
+  categoryTabActive: {
+    backgroundColor: colors.accent,
+  },
+  categoryText: {
+    fontSize: 13,
+    color: colors.textSecondary,
+    fontWeight: "600",
+  },
+  categoryTextActive: {
+    color: "#fff",
+  },
+  categoryCount: {
+    fontSize: 11,
+    color: colors.textSecondary,
+    opacity: 0.6,
+  },
+  categoryCountActive: {
+    color: "rgba(255,255,255,0.7)",
+  },
+
+  // State filters
   filterRow: {
     flexDirection: "row",
     flexWrap: "wrap",
     paddingHorizontal: 12,
     gap: 6,
-    marginBottom: 8,
+    marginBottom: 6,
   },
   filterChip: {
     flexDirection: "row",
     alignItems: "center",
     gap: 4,
-    paddingVertical: 5,
-    paddingHorizontal: 10,
-    borderRadius: 14,
+    paddingVertical: 4,
+    paddingHorizontal: 9,
+    borderRadius: 12,
     backgroundColor: colors.surface,
   },
   filterChipActive: {
-    backgroundColor: colors.accent,
+    backgroundColor: colors.accent + "30",
   },
   filterText: {
     color: colors.textSecondary,
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: "600",
   },
   filterTextActive: {
-    color: "#fff",
+    color: colors.accent,
   },
   filterCount: {
     color: colors.textSecondary,
-    fontSize: 11,
-    opacity: 0.7,
+    fontSize: 10,
+    opacity: 0.6,
   },
   filterCountActive: {
-    color: "rgba(255,255,255,0.7)",
+    color: colors.accent,
+    opacity: 0.8,
   },
 
   // Grid
@@ -373,6 +492,15 @@ const styles = StyleSheet.create({
     width: 5,
     height: 5,
     borderRadius: 3,
+  },
+  nameTypeBadge: {
+    paddingHorizontal: 5,
+    paddingVertical: 1,
+    borderRadius: 4,
+  },
+  nameTypeText: {
+    fontSize: 9,
+    fontWeight: "600",
   },
 
   // Empty / error

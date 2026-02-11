@@ -228,6 +228,39 @@ export async function getWords(): Promise<Word[]> {
   }
 }
 
+export async function getFunctionWords(): Promise<Word[]> {
+  const raw = await fetchApi<RawWord[]>("/api/words?limit=200&category=function");
+  return raw.map((w) => ({
+    id: w.lemma_id,
+    arabic: w.lemma_ar,
+    english: w.gloss_en || "",
+    transliteration: w.transliteration || "",
+    root: w.root,
+    pos: w.pos || "",
+    state: (w.knowledge_state || "new") as Word["state"],
+    due_date: null,
+    times_seen: w.times_seen || 0,
+    times_correct: w.times_correct || 0,
+    last_reviewed: w.last_reviewed || null,
+    knowledge_score: w.knowledge_score || 0,
+    frequency_rank: w.frequency_rank ?? null,
+    cefr_level: w.cefr_level ?? null,
+    last_ratings: w.last_ratings || [],
+  }));
+}
+
+export interface ProperName {
+  surface_form: string;
+  gloss_en: string;
+  name_type: "personal" | "place";
+  story_id: number;
+  story_title: string | null;
+}
+
+export async function getProperNames(): Promise<ProperName[]> {
+  return fetchApi<ProperName[]>("/api/words?category=names");
+}
+
 export async function getWordDetail(id: number): Promise<WordDetail> {
   const w = await fetchApi<RawWordDetail>(`/api/words/${id}`);
   return {

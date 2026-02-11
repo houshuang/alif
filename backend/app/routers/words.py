@@ -13,6 +13,7 @@ from app.models import (
     Sentence,
     SentenceWord,
     Story,
+    StoryWord,
     UserLemmaKnowledge,
 )
 from app.services.fsrs_service import create_new_card
@@ -102,14 +103,26 @@ def _build_grammar_details(
 @router.get("")
 def list_words(
     status: Optional[str] = Query(None, description="Filter by knowledge state"),
+    category: Optional[str] = Query(None, description="function|names — special categories"),
     offset: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=200),
     db: Session = Depends(get_db),
 ):
+    from app.services.sentence_validator import FUNCTION_WORDS
+
+    # Special category: proper names from stories
+    if category == "names":
+        return _list_proper_names(db)
+
     q = db.query(Lemma).join(UserLemmaKnowledge)
     if status:
         q = q.filter(UserLemmaKnowledge.knowledge_state == status)
     lemmas = q.offset(offset).limit(limit).all()
+
+    if category == "function":
+        lemmas = [l for l in lemmas if l.lemma_ar_bare in FUNCTION_WORDS]
+    else:
+        lemmas = [l for l in lemmas if l.lemma_ar_bare not in FUNCTION_WORDS]
 
     # Batch-fetch last 8 ratings per word
     lemma_ids = [l.lemma_id for l in lemmas]
@@ -157,6 +170,30 @@ def list_words(
             "last_ratings": last_ratings_map.get(lemma.lemma_id, []),
         })
     return results
+
+
+def _list_proper_names(db: Session) -> list[dict]:
+    """Return proper names from stories (personal + place names)."""
+    names = (
+        db.query(StoryWord)
+        .filter(StoryWord.name_type.isnot(None))
+        .all()
+    )
+    # Dedup by surface bare form, group stories
+    from app.services.sentence_validator import strip_diacritics, normalize_alef
+    seen: dict[str, dict] = {}
+    for sw in names:
+        bare = normalize_alef(strip_diacritics(sw.surface_form))
+        if bare not in seen:
+            story = db.query(Story).filter(Story.id == sw.story_id).first()
+            seen[bare] = {
+                "surface_form": sw.surface_form,
+                "gloss_en": sw.gloss_en or bare,
+                "name_type": sw.name_type,
+                "story_id": sw.story_id,
+                "story_title": (story.title_en or story.title_ar or "Untitled") if story else None,
+            }
+    return list(seen.values())
 
 
 @router.get("/{lemma_id}")
