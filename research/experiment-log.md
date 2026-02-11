@@ -4,6 +4,20 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-02-11: Proper Noun Handling in Story Import
+
+**Problem**: Story imports create Lemma entries for all unknown words, including proper nouns (personal names like زهير, place names like دراج). These clutter Learn mode with non-vocabulary items.
+
+**Change**: Updated `_import_unknown_words()` to detect proper nouns via LLM (new `name_type` field in prompt response). Proper nouns get `is_function_word=True` and `name_type="personal"/"place"` on StoryWord instead of creating Lemma entries. They remain tappable in the story reader and show "personal name" or "place name" in the lookup panel.
+
+**Data model**: Added `name_type` column (nullable String) to StoryWord model. New alembic migration.
+
+**Backfill**: Converted 6 existing proper nouns (2 personal, 4 place) and 1 misclassified function word (إذا) from the pre-existing story imports. Deleted their orphaned Lemma entries.
+
+**Expected effect**: Learn mode only surfaces real vocabulary words from stories. Story readiness calculation excludes proper nouns (treated like function words). Story reader shows appropriate labels when tapping names.
+
+---
+
 ## 2026-02-11: Complete Story Import → Learn → Read Pipeline
 
 **Problem**: The story import pipeline was fundamentally incomplete. Three breaks prevented the intended flow (import story → discover unknown words → learn them → read the story):
