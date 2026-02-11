@@ -11,7 +11,8 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { colors, fonts, fontFamily } from "../../lib/theme";
 import { getWordDetail } from "../../lib/api";
 import { WordDetail, ReviewHistoryEntry } from "../../lib/types";
-import AskAI from "../../lib/AskAI";
+import { getCefrColor } from "../../lib/frequency";
+import ActionMenu from "../../lib/review/ActionMenu";
 
 export default function WordDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -95,7 +96,10 @@ export default function WordDetailScreen() {
         <InfoItem label="POS" value={word.pos} />
         <InfoItem label="State" value={word.state} />
         {word.frequency_rank && (
-          <InfoItem label="Frequency" value={`#${word.frequency_rank}`} />
+          <InfoItem label="Frequency" value={`#${word.frequency_rank.toLocaleString()}`} />
+        )}
+        {word.cefr_level && (
+          <InfoItem label="CEFR" value={word.cefr_level} color={getCefrColor(word.cefr_level)} />
         )}
       </View>
 
@@ -226,16 +230,22 @@ export default function WordDetailScreen() {
         </View>
       )}
     </ScrollView>
-    <AskAI contextBuilder={buildContext} screen="word_detail" />
+    <ActionMenu
+      focusedLemmaId={word.id}
+      focusedLemmaAr={word.arabic}
+      sentenceId={null}
+      askAIContextBuilder={buildContext}
+      askAIScreen="word_detail"
+    />
     </View>
   );
 }
 
-function InfoItem({ label, value }: { label: string; value: string }) {
+function InfoItem({ label, value, color }: { label: string; value: string; color?: string }) {
   return (
     <View style={styles.infoItem}>
       <Text style={styles.infoLabel}>{label}</Text>
-      <Text style={styles.infoValue}>{value}</Text>
+      <Text style={[styles.infoValue, color ? { color } : undefined]}>{value}</Text>
     </View>
   );
 }

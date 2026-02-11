@@ -28,6 +28,7 @@ class Lemma(Base):
     pos = Column(String(20))
     gloss_en = Column(Text)
     frequency_rank = Column(Integer)
+    cefr_level = Column(String(2))
     source = Column(String(50))
     transliteration_ala_lc = Column(Text)
     audio_url = Column(Text)
@@ -246,4 +247,32 @@ class ChatMessage(Base):
     role = Column(String(20), nullable=False)  # user/assistant
     content = Column(Text, nullable=False)
     context_summary = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+
+class ContentFlag(Base):
+    __tablename__ = "content_flags"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    content_type = Column(String(30), nullable=False, index=True)  # word_gloss, sentence_arabic, sentence_english, sentence_transliteration
+    lemma_id = Column(Integer, ForeignKey("lemmas.lemma_id"), nullable=True)
+    sentence_id = Column(Integer, ForeignKey("sentences.id"), nullable=True)
+    status = Column(String(20), default="pending", index=True)  # pending/reviewing/fixed/dismissed
+    original_value = Column(Text, nullable=True)
+    corrected_value = Column(Text, nullable=True)
+    resolution_note = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    resolved_at = Column(DateTime, nullable=True)
+
+    lemma = relationship("Lemma")
+    sentence = relationship("Sentence")
+
+
+class ActivityLog(Base):
+    __tablename__ = "activity_log"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    event_type = Column(String(50), nullable=False, index=True)  # flag_resolved, sentences_generated, backfill_completed, etc.
+    summary = Column(Text, nullable=False)
+    detail_json = Column(JSON, nullable=True)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))

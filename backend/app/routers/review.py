@@ -211,6 +211,8 @@ def word_lookup(lemma_id: int, db: Session = Depends(get_db)):
         "example_en": lemma.example_en,
         "grammar_details": grammar_details,
         "is_function_word": _is_function_word(lemma.lemma_ar_bare) if lemma.lemma_ar_bare else False,
+        "frequency_rank": lemma.frequency_rank,
+        "cefr_level": lemma.cefr_level,
         "root_family": [],
     }
 

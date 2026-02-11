@@ -1,6 +1,7 @@
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native";
 import { colors, fontFamily } from "../theme";
 import { WordLookupResult, WordForms } from "../types";
+import { getFrequencyBand, getCefrColor } from "../frequency";
 
 export type FocusWordMark = "missed" | "did_not_recognize";
 
@@ -185,6 +186,16 @@ function RevealedView({
           <View style={styles.functionWordPill}>
             <Text style={styles.functionWordText}>function word</Text>
           </View>
+        )}
+        {result.cefr_level && (
+          <View style={[styles.posPill, { backgroundColor: getCefrColor(result.cefr_level) }]}>
+            <Text style={[styles.posText, { color: "#fff", fontWeight: "700" }]}>{result.cefr_level}</Text>
+          </View>
+        )}
+        {result.frequency_rank != null && (
+          <Text style={{ color: getFrequencyBand(result.frequency_rank).color, fontSize: 10 }}>
+            #{result.frequency_rank.toLocaleString()}
+          </Text>
         )}
       </View>
 

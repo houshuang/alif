@@ -289,6 +289,14 @@ def introduce_word(db: Session, lemma_id: int, source: str = "study") -> dict:
         .first()
     )
     if existing:
+        if existing.knowledge_state == "suspended":
+            from app.services.fsrs_service import reactivate_if_suspended
+            reactivate_if_suspended(db, lemma_id, source)
+            return {
+                "lemma_id": lemma_id,
+                "state": "learning",
+                "reactivated": True,
+            }
         return {
             "lemma_id": lemma_id,
             "state": existing.knowledge_state,

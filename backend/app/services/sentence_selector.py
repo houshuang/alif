@@ -197,10 +197,13 @@ def build_session(
     cutoff_grammar_confused = now - timedelta(days=1)
     cutoff_no_idea = now - timedelta(hours=4)
 
-    # 1. Fetch all due words
+    # 1. Fetch all due words (exclude suspended)
     all_knowledge = (
         db.query(UserLemmaKnowledge)
-        .filter(UserLemmaKnowledge.fsrs_card_json.isnot(None))
+        .filter(
+            UserLemmaKnowledge.fsrs_card_json.isnot(None),
+            UserLemmaKnowledge.knowledge_state != "suspended",
+        )
         .all()
     )
 
@@ -564,6 +567,8 @@ def build_session(
                 "root": root_obj.root if root_obj else None,
                 "root_meaning": root_obj.core_meaning_en if root_obj else None,
                 "root_id": root_obj.root_id if root_obj else None,
+                "frequency_rank": lemma.frequency_rank if lemma else None,
+                "cefr_level": lemma.cefr_level if lemma else None,
             })
 
         items.append({

@@ -18,6 +18,12 @@ export const colors = {
   listening: "#9b59b6",
   listeningBg: "#1a1028",
   noIdea: "#e67e22",
+  cefrA1: "#2ecc71",
+  cefrA2: "#27ae60",
+  cefrB1: "#4a9eff",
+  cefrB2: "#e67e22",
+  cefrC1: "#e74c3c",
+  cefrC2: "#9b59b6",
 };
 
 export const fontFamily = {

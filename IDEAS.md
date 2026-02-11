@@ -155,6 +155,21 @@
 - Example sentences using this word
 - Audio pronunciation
 - Frequency rank / difficulty level
+- [DONE] Suspend/reactivate + flag translation actions (via ActionMenu)
+
+### Action Menu
+- [DONE] Generic "⋯" action menu replacing AskAI FAB across all screens (review, learn, story, word detail)
+- [DONE] Consolidates: Ask AI, Suspend word, Flag content (translation/Arabic/transliteration)
+- Future: add "Never show this sentence again" action to retire specific sentences from review
+- Future: "Report pronunciation" to flag TTS audio quality issues
+- Future: "Add personal note" per word/sentence for custom mnemonics
+
+### Content Quality
+- [DONE] Flag system: user flags suspicious content → background LLM (GPT-5.2) evaluates and auto-fixes
+- [DONE] Activity log: tracks flag resolutions, batch job results, backfills
+- Future: periodic quality sweep — run all glosses through LLM evaluation proactively
+- Future: track which import source produces the most flags → surface data quality insights
+- Future: crowd-source corrections if multi-user (far future)
 
 ### Word List Browser
 - Filter by: knowledge state, POS, root, frequency, source

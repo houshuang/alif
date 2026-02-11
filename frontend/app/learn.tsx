@@ -20,7 +20,8 @@ import {
 } from "../lib/api";
 import { LearnCandidate, WordForms, Analytics } from "../lib/types";
 import { posLabel, FormsRow, GrammarRow, PlayButton } from "../lib/WordCardComponents";
-import AskAI from "../lib/AskAI";
+import { getFrequencyBand, getCefrColor } from "../lib/frequency";
+import ActionMenu from "../lib/review/ActionMenu";
 
 type Phase = "loading" | "pick" | "quiz" | "done";
 
@@ -270,9 +271,21 @@ export default function LearnScreen() {
           {c.transliteration && (
             <Text style={styles.wordTranslit}>{c.transliteration}</Text>
           )}
-          <Text style={styles.wordPos}>
-            {posLabel(c.pos, c.forms_json)}
-          </Text>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginTop: 2 }}>
+            <Text style={styles.wordPos}>
+              {posLabel(c.pos, c.forms_json)}
+            </Text>
+            {c.cefr_level && (
+              <View style={{ backgroundColor: getCefrColor(c.cefr_level), borderRadius: 4, paddingHorizontal: 6, paddingVertical: 1 }}>
+                <Text style={{ color: "#fff", fontSize: 11, fontWeight: "700" }}>{c.cefr_level}</Text>
+              </View>
+            )}
+            {c.frequency_rank != null && (
+              <Text style={{ color: getFrequencyBand(c.frequency_rank).color, fontSize: 12 }}>
+                #{c.frequency_rank.toLocaleString()}
+              </Text>
+            )}
+          </View>
           <FormsRow pos={c.pos} forms={c.forms_json} />
           <GrammarRow details={c.grammar_details} />
 
@@ -311,7 +324,13 @@ export default function LearnScreen() {
             <Text style={styles.suspendButtonText}>Suspend</Text>
           </Pressable>
         </View>
-        <AskAI contextBuilder={buildLearnContext} screen="learn" />
+        <ActionMenu
+          focusedLemmaId={c.lemma_id}
+          focusedLemmaAr={c.lemma_ar}
+          sentenceId={null}
+          askAIContextBuilder={buildLearnContext}
+          askAIScreen="learn"
+        />
       </View>
     );
   }

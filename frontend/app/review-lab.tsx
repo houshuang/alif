@@ -7,11 +7,11 @@ import { WordLookupResult, SentenceWordMeta } from "../lib/types";
 /* ── Mock data ─────────────────────────────────────────────── */
 
 const mockWords: SentenceWordMeta[] = [
-  { lemma_id: 101, surface_form: "\u0630\u064E\u0647\u064E\u0628\u064E", gloss_en: "went", stability: 12, is_due: true, is_function_word: false, knowledge_state: "known", root: "\u0630 \u0647 \u0628", root_meaning: "going/gold", root_id: 5 },
-  { lemma_id: 102, surface_form: "\u0627\u0644\u0648\u064E\u0644\u064E\u062F\u064F", gloss_en: "the boy", stability: 8, is_due: false, is_function_word: false, knowledge_state: "learning", root: "\u0648 \u0644 \u062F", root_meaning: "birth/child", root_id: 6 },
-  { lemma_id: null, surface_form: "\u0625\u0650\u0644\u064E\u0649", gloss_en: "to", stability: null, is_due: false, is_function_word: true, knowledge_state: "known", root: null, root_meaning: null, root_id: null },
-  { lemma_id: 103, surface_form: "\u0627\u0644\u0645\u064E\u062F\u0652\u0631\u064E\u0633\u064E\u0629\u0650", gloss_en: "the school", stability: 3.2, is_due: true, is_function_word: false, knowledge_state: "learning", root: "\u062F \u0631 \u0633", root_meaning: "study/learn", root_id: 7 },
-  { lemma_id: 104, surface_form: "\u0627\u0644\u0643\u064E\u0628\u0650\u064A\u0631\u064E\u0629\u0650", gloss_en: "the big (f)", stability: 15, is_due: false, is_function_word: false, knowledge_state: "known", root: "\u0643 \u0628 \u0631", root_meaning: "greatness/size", root_id: 8 },
+  { lemma_id: 101, surface_form: "\u0630\u064E\u0647\u064E\u0628\u064E", gloss_en: "went", stability: 12, is_due: true, is_function_word: false, knowledge_state: "known", root: "\u0630 \u0647 \u0628", root_meaning: "going/gold", root_id: 5, frequency_rank: 180, cefr_level: "A1" },
+  { lemma_id: 102, surface_form: "\u0627\u0644\u0648\u064E\u0644\u064E\u062F\u064F", gloss_en: "the boy", stability: 8, is_due: false, is_function_word: false, knowledge_state: "learning", root: "\u0648 \u0644 \u062F", root_meaning: "birth/child", root_id: 6, frequency_rank: 420, cefr_level: "A1" },
+  { lemma_id: null, surface_form: "\u0625\u0650\u0644\u064E\u0649", gloss_en: "to", stability: null, is_due: false, is_function_word: true, knowledge_state: "known", root: null, root_meaning: null, root_id: null, frequency_rank: null, cefr_level: null },
+  { lemma_id: 103, surface_form: "\u0627\u0644\u0645\u064E\u062F\u0652\u0631\u064E\u0633\u064E\u0629\u0650", gloss_en: "the school", stability: 3.2, is_due: true, is_function_word: false, knowledge_state: "learning", root: "\u062F \u0631 \u0633", root_meaning: "study/learn", root_id: 7, frequency_rank: 850, cefr_level: "A2" },
+  { lemma_id: 104, surface_form: "\u0627\u0644\u0643\u064E\u0628\u0650\u064A\u0631\u064E\u0629\u0650", gloss_en: "the big (f)", stability: 15, is_due: false, is_function_word: false, knowledge_state: "known", root: "\u0643 \u0628 \u0631", root_meaning: "greatness/size", root_id: 8, frequency_rank: 310, cefr_level: "A1" },
 ];
 
 const mockLookups: Record<number, WordLookupResult> = {
@@ -28,6 +28,8 @@ const mockLookups: Record<number, WordLookupResult> = {
     example_ar: "\u0630\u064E\u0647\u064E\u0628\u064E \u0623\u064E\u062D\u0652\u0645\u064E\u062F\u064F \u0625\u0650\u0644\u064E\u0649 \u0627\u0644\u0633\u0651\u064F\u0648\u0642\u0650",
     example_en: "Ahmed went to the market",
     grammar_details: [],
+    frequency_rank: 180,
+    cefr_level: "A1",
     root_family: [
       { lemma_id: 101, lemma_ar: "\u0630\u064E\u0647\u064E\u0628\u064E", gloss_en: "to go", pos: "verb", transliteration: "dhahaba", state: "known" },
       { lemma_id: 201, lemma_ar: "\u0630\u064E\u0647\u064E\u0628", gloss_en: "gold", pos: "noun", transliteration: "dhahab", state: "known" },
@@ -47,6 +49,8 @@ const mockLookups: Record<number, WordLookupResult> = {
     example_ar: null,
     example_en: null,
     grammar_details: [],
+    frequency_rank: 420,
+    cefr_level: "A1",
     root_family: [
       { lemma_id: 102, lemma_ar: "\u0648\u064E\u0644\u064E\u062F", gloss_en: "boy", pos: "noun", transliteration: "walad", state: "learning" },
       { lemma_id: 203, lemma_ar: "\u0648\u064E\u0627\u0644\u0650\u062F", gloss_en: "father", pos: "noun", transliteration: "w\u0101lid", state: "known" },
@@ -67,6 +71,8 @@ const mockLookups: Record<number, WordLookupResult> = {
     example_ar: null,
     example_en: null,
     grammar_details: [],
+    frequency_rank: 850,
+    cefr_level: "A2",
     root_family: [
       { lemma_id: 103, lemma_ar: "\u0645\u064E\u062F\u0652\u0631\u064E\u0633\u064E\u0629", gloss_en: "school", pos: "noun", transliteration: "madrasa", state: "learning" },
       { lemma_id: 206, lemma_ar: "\u062F\u064E\u0631\u064E\u0633\u064E", gloss_en: "to study", pos: "verb", transliteration: "darasa", state: "known" },
@@ -87,6 +93,8 @@ const mockLookups: Record<number, WordLookupResult> = {
     example_ar: null,
     example_en: null,
     grammar_details: [],
+    frequency_rank: 310,
+    cefr_level: "A1",
     root_family: [
       { lemma_id: 104, lemma_ar: "\u0643\u064E\u0628\u0650\u064A\u0631", gloss_en: "big", pos: "adj", transliteration: "kab\u012br", state: "known" },
       { lemma_id: 209, lemma_ar: "\u0623\u064E\u0643\u0652\u0628\u064E\u0631", gloss_en: "bigger/biggest", pos: "adj", transliteration: "akbar", state: "known" },
@@ -134,7 +142,7 @@ const CARD_PRESETS: CardPresetConfig[] = [
     markState: "missed",
     loading: false,
     showMeaning: true,
-    result: { lemma_id: 3302, lemma_ar: "", gloss_en: "with", transliteration: null, root: null, root_meaning: null, root_id: null, pos: "prep", forms_json: null, example_ar: null, example_en: null, grammar_details: [], root_family: [] },
+    result: { lemma_id: 3302, lemma_ar: "", gloss_en: "with", transliteration: null, root: null, root_meaning: null, root_id: null, pos: "prep", forms_json: null, example_ar: null, example_en: null, grammar_details: [], frequency_rank: null, cefr_level: null, root_family: [] },
   },
   {
     id: "loading",

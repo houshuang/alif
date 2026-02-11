@@ -18,6 +18,7 @@ class LemmaOut(BaseModel):
     pos: Optional[str] = None
     gloss_en: Optional[str] = None
     frequency_rank: Optional[int] = None
+    cefr_level: Optional[str] = None
     source: Optional[str] = None
     transliteration_ala_lc: Optional[str] = None
     audio_url: Optional[str] = None
@@ -223,6 +224,8 @@ class SentenceWordMeta(BaseModel):
     root: str | None = None
     root_meaning: str | None = None
     root_id: int | None = None
+    frequency_rank: int | None = None
+    cefr_level: str | None = None
 
 
 class SentenceReviewItem(BaseModel):

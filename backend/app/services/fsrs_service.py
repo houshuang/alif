@@ -29,12 +29,35 @@ def create_new_card() -> dict:
     return card.to_dict()
 
 
+def reactivate_if_suspended(db: Session, lemma_id: int, source: str) -> bool:
+    """Reactivate a suspended word with a fresh FSRS card. Returns True if reactivated."""
+    from app.services.interaction_logger import log_interaction
+
+    ulk = (
+        db.query(UserLemmaKnowledge)
+        .filter(UserLemmaKnowledge.lemma_id == lemma_id)
+        .first()
+    )
+    if ulk and ulk.knowledge_state == "suspended":
+        ulk.knowledge_state = "learning"
+        ulk.fsrs_card_json = create_new_card()
+        ulk.source = source
+        ulk.introduced_at = datetime.now(timezone.utc)
+        db.commit()
+        log_interaction(event="word_auto_reactivated", lemma_id=lemma_id, context=f"source:{source}")
+        return True
+    return False
+
+
 def get_due_cards(db: Session, limit: int = 10) -> list[dict]:
     now = datetime.now(timezone.utc)
     knowledges = (
         db.query(UserLemmaKnowledge)
         .join(Lemma)
-        .filter(UserLemmaKnowledge.fsrs_card_json.isnot(None))
+        .filter(
+            UserLemmaKnowledge.fsrs_card_json.isnot(None),
+            UserLemmaKnowledge.knowledge_state != "suspended",
+        )
         .all()
     )
 

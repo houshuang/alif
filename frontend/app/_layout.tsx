@@ -88,8 +88,8 @@ export default function Layout() {
         <Tabs.Screen
           name="learn"
           options={{
-            title: "Learn",
-            tabBarLabel: "Learn",
+            title: "New Words",
+            tabBarLabel: "New Words",
             tabBarIcon: ({ color, size }) => <Ionicons name="add-circle-outline" size={size} color={color} />,
           }}
         />
@@ -110,27 +110,32 @@ export default function Layout() {
           }}
         />
         <Tabs.Screen
+          name="more"
+          options={{
+            title: "More",
+            tabBarLabel: "More",
+            tabBarIcon: ({ color, size }) => <Ionicons name="ellipsis-horizontal-outline" size={size} color={color} />,
+          }}
+        />
+        <Tabs.Screen
           name="scanner"
           options={{
+            href: null,
             title: "Scanner",
-            tabBarLabel: "Scanner",
-            tabBarIcon: ({ color, size }) => <Ionicons name="scan-outline" size={size} color={color} />,
           }}
         />
         <Tabs.Screen
           name="chats"
           options={{
+            href: null,
             title: "Chats",
-            tabBarLabel: "Chats",
-            tabBarIcon: ({ color, size }) => <Ionicons name="chatbubbles-outline" size={size} color={color} />,
           }}
         />
         <Tabs.Screen
           name="stats"
           options={{
+            href: null,
             title: "Stats",
-            tabBarLabel: "Stats",
-            tabBarIcon: ({ color, size }) => <Ionicons name="bar-chart-outline" size={size} color={color} />,
           }}
         />
         <Tabs.Screen

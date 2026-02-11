@@ -25,14 +25,18 @@ interface AskAIProps {
   contextBuilder: () => string;
   screen: string;
   buildExplainPrompt?: () => string | null;
+  autoOpen?: boolean;
+  onClose?: () => void;
 }
 
 export default function AskAI({
   contextBuilder,
   screen,
   buildExplainPrompt,
+  autoOpen,
+  onClose,
 }: AskAIProps) {
-  const [visible, setVisible] = useState(false);
+  const [visible, setVisible] = useState(!!autoOpen);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [conversationId, setConversationId] = useState<string | undefined>();
   const [input, setInput] = useState("");
@@ -49,6 +53,7 @@ export default function AskAI({
 
   function handleClose() {
     setVisible(false);
+    onClose?.();
   }
 
   useEffect(() => {
@@ -96,9 +101,11 @@ export default function AskAI({
 
   return (
     <>
-      <Pressable style={styles.fab} onPress={handleOpen}>
-        <Ionicons name="chatbubble-ellipses-outline" size={24} color="#fff" />
-      </Pressable>
+      {!autoOpen && (
+        <Pressable style={styles.fab} onPress={handleOpen}>
+          <Ionicons name="chatbubble-ellipses-outline" size={24} color="#fff" />
+        </Pressable>
+      )}
 
       <Modal
         visible={visible}

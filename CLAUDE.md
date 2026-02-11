@@ -162,11 +162,12 @@ This app is an ongoing learning experiment. Every algorithm change, data structu
 - `backend/app/services/variant_detection.py` — DB-aware variant detection: `detect_variants()` (CAMeL + DB match), `detect_definite_variants()` (al-prefix), `mark_variants()`. Used by import scripts (post-import pass) and cleanup_lemma_variants.py (batch cleanup).
 - `backend/app/services/interaction_logger.py` — Append-only JSONL to `data/logs/interactions_YYYY-MM-DD.jsonl`. Skipped when TESTING env var is set.
 - `backend/app/services/ocr_service.py` — Gemini Vision OCR: `extract_text_from_image()` (full text extraction for story import), `extract_words_from_image()` (vocabulary extraction from textbook pages), `process_textbook_page()` (background task: OCR + match/import words + update PageUpload record).
+- `backend/app/services/flag_evaluator.py` — Background LLM evaluation for flagged content. Uses GPT-5.2 (model_override="openai") to evaluate word glosses, sentence Arabic/English/transliteration. Auto-fixes high-confidence corrections, retires unfixable sentences. Writes to ActivityLog.
 
 ### Backend Other
 - `backend/app/models.py` — SQLAlchemy models: Root, Lemma (+ example_ar/en, forms_json, canonical_lemma_id), UserLemmaKnowledge (+ variant_stats_json), ReviewLog, Sentence (+ last_comprehension), SentenceWord, SentenceReviewLog, GrammarFeature, SentenceGrammarFeature, UserGrammarExposure, Story, StoryWord, PageUpload (batch_id, status, extracted_words_json, new_words, existing_words)
 - `backend/app/schemas.py` — Pydantic models. SentenceReviewSubmitIn includes confused_lemma_ids. SentenceWordMeta includes root/root_meaning/root_id.
-- `backend/scripts/` — import_duolingo.py, import_wiktionary.py, import_avp_a1.py, benchmark_llm.py, pregenerate_material.py, generate_audio.py, generate_sentences.py, backfill_lemma_grammar.py, backfill_examples.py, backfill_forms.py, simulate_usage.py, update_material.py (cron: backfill sentences + audio + pre-generate for upcoming candidates), merge_al_lemmas.py, merge_lemma_variants.py, cleanup_lemma_variants.py
+- `backend/scripts/` — import_duolingo.py, import_wiktionary.py, import_avp_a1.py, benchmark_llm.py, pregenerate_material.py, generate_audio.py, generate_sentences.py, backfill_lemma_grammar.py, backfill_examples.py, backfill_forms.py, backfill_frequency.py (CAMeL MSA frequency + Kelly CEFR), simulate_usage.py, update_material.py (cron: backfill sentences + audio + pre-generate for upcoming candidates), merge_al_lemmas.py, merge_lemma_variants.py, cleanup_lemma_variants.py
 
 ### Frontend
 - `frontend/app/index.tsx` — Review screen: sentence-first + word-only fallback, reading + listening modes, front-phase word lookup with root prediction, triple-tap word marking (off → missed → confused → off), inline intro cards, session completion with analytics
@@ -176,6 +177,8 @@ This app is an ongoing learning experiment. Every algorithm change, data structu
 - `frontend/app/story/[id].tsx` — Story reader: word-by-word Arabic with tap-to-lookup (AsyncStorage persisted), AR/EN tabs, complete/skip/too-difficult
 - `frontend/app/stories.tsx` — Story list: generate modal (length + topic), import modal (title + text + image OCR)
 - `frontend/app/scanner.tsx` — Textbook page scanner: camera/gallery upload, batch processing with polling, upload history with expandable results (new/existing words)
+- `frontend/app/more.tsx` — Consolidated "More" tab: navigation to Scanner, Chats, Stats + inline Activity Log section
+- `frontend/lib/review/ActionMenu.tsx` — Generic "⋯" action menu replacing AskAI FAB. Bottom sheet with: Ask AI, Suspend word, Flag content. Used across all card screens.
 - `frontend/lib/api.ts` — API client with configurable BASE_URL. Includes lookupReviewWord().
 - `frontend/lib/types.ts` — All interfaces. SentenceWordMeta has root/root_meaning/root_id. WordLookupResult for review lookup.
 - `frontend/lib/offline-store.ts` — AsyncStorage: session cache (3 per mode), reviewed tracking, data cache (words/stats/analytics)
@@ -231,10 +234,15 @@ This app is an ongoing learning experiment. Every algorithm change, data structu
 | GET | `/api/ocr/batch/{batch_id}` | Get batch upload status with per-page results |
 | GET | `/api/ocr/uploads` | List recent upload batches with results |
 | POST | `/api/ocr/extract-text` | Extract Arabic text from image for story import (synchronous) |
+| POST | `/api/words/{lemma_id}/suspend` | Suspend a word (stops appearing in reviews) |
+| POST | `/api/words/{lemma_id}/unsuspend` | Reactivate a suspended word with fresh FSRS card |
+| POST | `/api/flags` | Flag content for LLM re-evaluation (word_gloss, sentence_arabic/english/transliteration) |
+| GET | `/api/flags` | List content flags (optional ?status= filter) |
+| GET | `/api/activity` | Recent activity log entries (flag resolutions, job runs) |
 
 ## Data Model
 - `roots` — 3/4 consonant roots with core meaning, productivity score
-- `lemmas` — Base dictionary forms with root FK, POS, gloss, frequency rank, grammar_features_json, forms_json, example_ar/en, transliteration, audio_url, canonical_lemma_id (FK to self — set when lemma is a variant of another)
+- `lemmas` — Base dictionary forms with root FK, POS, gloss, frequency_rank (from CAMeL MSA corpus), cefr_level (A1–C2 from Kelly Project), grammar_features_json, forms_json, example_ar/en, transliteration, audio_url, canonical_lemma_id (FK to self — set when lemma is a variant of another)
 - `user_lemma_knowledge` — FSRS card state per lemma (knowledge_state: new/learning/known/lapsed, fsrs_card_json, introduced_at, times_seen, times_correct, total_encounters, source: study/auto_intro/collocate/duolingo/encountered, variant_stats_json — per-variant-form seen/missed/confused counts)
 - `review_log` — Full review history (rating 1-4, timing, mode, comprehension signal, sentence_id, credit_type: primary/collateral as metadata only — does not affect FSRS ratings, client_review_id for dedup)
 - `sentences` — Generated/imported sentences with target word, last_shown_at, times_shown, **last_comprehension** (understood/partial/no_idea — drives recency filter)
@@ -246,6 +254,8 @@ This app is an ongoing learning experiment. Every algorithm change, data structu
 - `stories` — Generated/imported stories (title_ar/en, body_ar/en, transliteration, status, readiness_pct, difficulty_level)
 - `story_words` — Per-token breakdown (position, surface_form, lemma_id, sentence_index, gloss_en, is_known_at_creation, is_function_word)
 - `page_uploads` — Textbook page OCR tracking (batch_id, filename, status: pending/processing/completed/failed, extracted_words_json, new_words, existing_words, error_message)
+- `content_flags` — Flagged content for LLM re-evaluation (content_type, lemma_id/sentence_id, status: pending/reviewing/fixed/dismissed, original_value, corrected_value, resolution_note)
+- `activity_log` — System activity entries (event_type, summary, detail_json) — tracks flag resolutions, batch job results
 
 ## NLP Pipeline
 **Current (rule-based in sentence_validator.py):**
@@ -288,7 +298,7 @@ Tests 3 models across 5 tasks (105 ground truth cases): diacritization, translat
 
 ## Testing
 ```bash
-cd backend && python -m pytest  # 366 tests
+cd backend && python -m pytest  # 494 tests
 ```
 All services have dedicated test files in `backend/tests/`.
 
@@ -322,6 +332,7 @@ Sentence-centric architecture with:
 - Grammar feature tracking with 5-tier progression (24 features)
 - LLM: Gemini 3 Flash / GPT-5.2 / Claude Haiku with model_override
 - TTS: ElevenLabs eleven_multilingual_v2 with learner pauses
+- Word frequency data (CAMeL MSA corpus, 12.6B tokens) + CEFR levels (Kelly Project, 9K lemmas) — displayed in Learn mode, word browser, word detail, review lookup
 - Offline sync queue + session caching
 - Deployed to Hetzner via direct docker-compose
 

@@ -12,6 +12,7 @@ import { useRouter, useFocusEffect } from "expo-router";
 import { colors, fonts, fontFamily } from "../lib/theme";
 import { getWords } from "../lib/api";
 import { Word } from "../lib/types";
+import { getCefrColor } from "../lib/frequency";
 
 type FilterValue =
   | "all"
@@ -141,6 +142,11 @@ export default function WordsScreen() {
           )}
         </View>
         <View style={styles.wordRight}>
+          {item.cefr_level && (
+            <View style={{ backgroundColor: getCefrColor(item.cefr_level), borderRadius: 3, paddingHorizontal: 4, paddingVertical: 1, marginRight: 4 }}>
+              <Text style={{ color: "#fff", fontSize: 10, fontWeight: "700" }}>{item.cefr_level}</Text>
+            </View>
+          )}
           {item.knowledge_score > 0 && (
             <Text style={styles.scoreText}>{item.knowledge_score}</Text>
           )}

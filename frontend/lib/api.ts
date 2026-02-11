@@ -129,6 +129,8 @@ export async function getWords(): Promise<Word[]> {
       times_correct: w.times_correct || 0,
       last_reviewed: w.last_reviewed || null,
       knowledge_score: w.knowledge_score || 0,
+      frequency_rank: w.frequency_rank ?? null,
+      cefr_level: w.cefr_level ?? null,
     }));
     cacheData("words", words).catch(() => {});
     return words;
@@ -154,7 +156,8 @@ export async function getWordDetail(id: number): Promise<WordDetail> {
     times_correct: w.times_correct || 0,
     last_reviewed: w.last_reviewed || null,
     knowledge_score: w.knowledge_score || 0,
-    frequency_rank: w.frequency_rank,
+    frequency_rank: w.frequency_rank ?? null,
+    cefr_level: w.cefr_level ?? null,
     times_reviewed: w.times_seen || 0,
     correct_count: w.times_correct || 0,
     forms_json: w.forms_json || null,
@@ -667,4 +670,46 @@ export async function extractTextFromImage(imageUri: string): Promise<string> {
   }
   const data = await res.json();
   return data.extracted_text;
+}
+
+// --- Word management ---
+
+export async function suspendWord(lemmaId: number): Promise<{ lemma_id: number; state: string }> {
+  return fetchApi(`/api/words/${lemmaId}/suspend`, { method: "POST" });
+}
+
+export async function unsuspendWord(lemmaId: number): Promise<{ lemma_id: number; state: string }> {
+  return fetchApi(`/api/words/${lemmaId}/unsuspend`, { method: "POST" });
+}
+
+// --- Content flags ---
+
+export async function flagContent(data: {
+  content_type: string;
+  lemma_id?: number;
+  sentence_id?: number;
+}): Promise<{ flag_id: number; status: string }> {
+  return fetchApi("/api/flags", {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+}
+
+export async function getFlags(status?: string): Promise<any[]> {
+  const params = status ? `?status=${status}` : "";
+  return fetchApi(`/api/flags${params}`);
+}
+
+// --- Activity log ---
+
+export interface ActivityEntry {
+  id: number;
+  event_type: string;
+  summary: string;
+  detail_json: any;
+  created_at: string;
+}
+
+export async function getActivity(limit: number = 20): Promise<ActivityEntry[]> {
+  return fetchApi<ActivityEntry[]>(`/api/activity?limit=${limit}`);
 }

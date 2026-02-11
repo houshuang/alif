@@ -49,6 +49,8 @@ export interface Word {
   times_correct: number;
   last_reviewed: string | null;
   knowledge_score: number;
+  frequency_rank: number | null;
+  cefr_level: string | null;
 }
 
 export interface ReviewHistoryEntry {
@@ -86,7 +88,6 @@ export interface WordSentenceStat {
 }
 
 export interface WordDetail extends Word {
-  frequency_rank: number | null;
   times_reviewed: number;
   correct_count: number;
   forms_json?: WordForms | null;
@@ -156,6 +157,7 @@ export interface LearnCandidate {
   pos: string;
   transliteration: string | null;
   frequency_rank: number | null;
+  cefr_level: string | null;
   root: string | null;
   root_meaning: string | null;
   root_id: number | null;
@@ -208,6 +210,8 @@ export interface SentenceWordMeta {
   root: string | null;
   root_meaning: string | null;
   root_id: number | null;
+  frequency_rank: number | null;
+  cefr_level: string | null;
 }
 
 export interface WordLookupResult {
@@ -224,6 +228,8 @@ export interface WordLookupResult {
   example_en: string | null;
   grammar_details: GrammarFeatureDetail[];
   is_function_word?: boolean;
+  frequency_rank: number | null;
+  cefr_level: string | null;
   root_family: {
     lemma_id: number;
     lemma_ar: string;

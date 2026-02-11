@@ -14,7 +14,9 @@ from app.models import (
     SentenceWord,
     UserLemmaKnowledge,
 )
+from app.services.fsrs_service import create_new_card
 from app.services.grammar_service import seed_grammar_features
+from app.services.interaction_logger import log_interaction
 from app.services.word_selector import get_root_family
 
 
@@ -125,6 +127,7 @@ def list_words(
             "root": lemma.root.root if lemma.root else None,
             "knowledge_state": k.knowledge_state if k else "new",
             "frequency_rank": lemma.frequency_rank,
+            "cefr_level": lemma.cefr_level,
             "audio_url": lemma.audio_url,
             "times_seen": times_seen,
             "times_correct": times_correct,
@@ -271,6 +274,7 @@ def get_word(lemma_id: int, db: Session = Depends(get_db)):
         "root": lemma.root.root if lemma.root else None,
         "knowledge_state": k.knowledge_state if k else "new",
         "frequency_rank": lemma.frequency_rank,
+        "cefr_level": lemma.cefr_level,
         "audio_url": lemma.audio_url,
         "times_seen": ts,
         "times_correct": tc,
@@ -281,3 +285,57 @@ def get_word(lemma_id: int, db: Session = Depends(get_db)):
         "review_history": review_history,
         "sentence_stats": sentence_stats,
     }
+
+
+@router.post("/{lemma_id}/suspend")
+def suspend_word(lemma_id: int, db: Session = Depends(get_db)):
+    """Suspend a word — stops appearing in reviews."""
+    lemma = db.query(Lemma).filter(Lemma.lemma_id == lemma_id).first()
+    if not lemma:
+        raise HTTPException(404, "Word not found")
+
+    existing = (
+        db.query(UserLemmaKnowledge)
+        .filter(UserLemmaKnowledge.lemma_id == lemma_id)
+        .first()
+    )
+
+    if existing:
+        previous_state = existing.knowledge_state
+        if previous_state == "suspended":
+            return {"lemma_id": lemma_id, "state": "suspended", "already_suspended": True}
+        existing.knowledge_state = "suspended"
+        db.commit()
+    else:
+        previous_state = None
+        ulk = UserLemmaKnowledge(
+            lemma_id=lemma_id,
+            knowledge_state="suspended",
+            source="study",
+        )
+        db.add(ulk)
+        db.commit()
+
+    log_interaction(event="word_suspended", lemma_id=lemma_id, previous_state=previous_state)
+    return {"lemma_id": lemma_id, "state": "suspended", "previous_state": previous_state}
+
+
+@router.post("/{lemma_id}/unsuspend")
+def unsuspend_word(lemma_id: int, db: Session = Depends(get_db)):
+    """Reactivate a suspended word with a fresh FSRS card."""
+    ulk = (
+        db.query(UserLemmaKnowledge)
+        .filter(UserLemmaKnowledge.lemma_id == lemma_id)
+        .first()
+    )
+    if not ulk:
+        raise HTTPException(404, "No knowledge record for this word")
+    if ulk.knowledge_state != "suspended":
+        return {"lemma_id": lemma_id, "state": ulk.knowledge_state, "was_suspended": False}
+
+    ulk.knowledge_state = "learning"
+    ulk.fsrs_card_json = create_new_card()
+    db.commit()
+
+    log_interaction(event="word_unsuspended", lemma_id=lemma_id)
+    return {"lemma_id": lemma_id, "state": "learning", "was_suspended": True}

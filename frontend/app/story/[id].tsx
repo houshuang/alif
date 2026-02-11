@@ -17,7 +17,7 @@ import {
   tooDifficultStory,
 } from "../../lib/api";
 import { StoryDetail, StoryWordMeta, StoryLookupResult } from "../../lib/types";
-import AskAI from "../../lib/AskAI";
+import ActionMenu from "../../lib/review/ActionMenu";
 import { saveStoryLookups, getStoryLookups, clearStoryLookups } from "../../lib/offline-store";
 
 type ViewMode = "arabic" | "english";
@@ -370,8 +370,11 @@ export default function StoryReadScreen() {
           )}
         </Pressable>
       </View>
-      <AskAI
-        contextBuilder={() => {
+      <ActionMenu
+        focusedLemmaId={selectedWord?.lemma_id ?? null}
+        focusedLemmaAr={selectedPosition !== null ? (story?.words.find((w) => w.position === selectedPosition)?.surface_form ?? null) : null}
+        sentenceId={null}
+        askAIContextBuilder={() => {
           if (!story) return "";
           const parts = [`Story: ${story.title_en || story.title_ar || "Untitled"}`];
           const bodyPreview = story.body_ar.length > 500 ? story.body_ar.slice(0, 500) + "..." : story.body_ar;
@@ -381,7 +384,7 @@ export default function StoryReadScreen() {
           if (looked.length > 0) parts.push(`Words looked up: ${looked.length}`);
           return parts.join("\n");
         }}
-        screen="story"
+        askAIScreen="story"
       />
     </View>
   );

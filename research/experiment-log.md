@@ -4,6 +4,53 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-02-11 — Word Management: Suspend, Flag, Action Menu, Tab Consolidation
+
+### Change
+1. **Bug fix**: Suspended words were not filtered from sentence_selector.py or fsrs_service.py — they still appeared in review sessions. Fixed by adding `knowledge_state != "suspended"` filters.
+2. **Suspend from anywhere**: New `POST /api/words/{id}/suspend` and `/unsuspend` endpoints (previously suspend only worked in Learn mode). Auto-reactivation when suspended words are re-encountered via OCR, imports, or learn mode.
+3. **Content flag system**: New `ContentFlag` model + `POST /api/flags` endpoint. Flagged content gets background LLM evaluation (GPT-5.2) for auto-correction of wrong glosses, unnatural sentences, etc. Uses `ActivityLog` to track all flag resolutions.
+4. **ActionMenu component**: Replaced AskAI floating button with generic "⋯" menu across all screens (review, learn, story, word detail). Menu includes: Ask AI, Suspend word, Flag translation, Flag sentence.
+5. **Tab consolidation**: Reduced from 8 tabs to 6 — Scanner, Chats, Stats moved into new "More" tab with activity log section. Learn renamed to "New Words".
+
+### Hypothesis
+Making word suspension and content flagging accessible from the review flow (instead of only Learn mode) reduces friction when encountering problematic words. LLM-powered flag evaluation auto-corrects quality issues that would otherwise persist. Fewer tabs improves mobile navigation.
+
+### Expected Effect
+- Suspended words immediately stop appearing in review — less frustration with too-difficult words
+- Flagged wrong translations get corrected within seconds (async background task)
+- Tab bar is more navigable on mobile (6 tabs fits comfortably)
+
+### Verification
+- 494 backend tests pass (22 new tests for suspend/unsuspend/flags/activity)
+- Manual: suspend a word → verify it doesn't appear in next review session
+- Manual: flag a translation → verify background evaluation auto-corrects
+- Deploy and verify on mobile
+
+---
+
+## 2026-02-11 — Word Frequency + CEFR Level Integration
+
+### Change
+Added `cefr_level` column to Lemma model. Created backfill script (`scripts/backfill_frequency.py`) that downloads CAMeL MSA Frequency Lists (11.4M surface forms from 12.6B tokens) and Kelly Project Arabic (9K lemmas with CEFR A1–C2 levels). Matches against existing lemma bare forms. Also computes Root.productivity_score from child lemma frequencies.
+
+### Hypothesis
+Showing frequency rank and CEFR level alongside words in Learn mode, word browser, word detail, and review lookup helps the learner gauge word importance. This is purely informational — does not change FSRS scheduling or review priority. The existing frequency_rank field was already wired into Learn mode's word selection algorithm (40% weight) but was always NULL.
+
+### Expected Effect
+- All or most existing lemmas get a frequency rank from CAMeL data
+- ~30-50% of lemmas match the 9K-word Kelly list for CEFR levels
+- Learner sees colored CEFR badges (A1 green → C2 purple) and frequency ranks in the UI
+- Word selection in Learn mode becomes more accurate (currently all words score 0.3 fallback)
+
+### Verification
+1. Run `python scripts/backfill_frequency.py --dry-run` to see match rates
+2. Run without `--dry-run` to populate data
+3. Check word list API: `GET /api/words?limit=5` should show frequency_rank and cefr_level
+4. Check UI: Learn mode cards, word browser, word detail page should show CEFR badges
+
+---
+
 ## 2026-02-09 — Initial Production Analysis & Baseline
 
 ### Findings

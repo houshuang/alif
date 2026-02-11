@@ -43,7 +43,7 @@ import {
 import { posLabel, FormsRow, GrammarRow, PlayButton } from "../lib/WordCardComponents";
 import { syncEvents } from "../lib/sync-events";
 import { useNetStatus } from "../lib/net-status";
-import AskAI from "../lib/AskAI";
+import ActionMenu from "../lib/review/ActionMenu";
 import WordInfoCard, { FocusWordMark } from "../lib/review/WordInfoCard";
 
 type ReadingCardState = "front" | "back";
@@ -407,6 +407,8 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
             pos: null,
             forms_json: null,
             example_ar: null,
+            frequency_rank: word.frequency_rank ?? null,
+            cefr_level: word.cefr_level ?? null,
             example_en: null,
             grammar_details: [],
             root_family: [],
@@ -927,6 +929,13 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
             <Text style={styles.reintroShowAgainText}>Show again</Text>
           </Pressable>
         </View>
+        <ActionMenu
+          focusedLemmaId={card.lemma_id}
+          focusedLemmaAr={card.lemma_ar}
+          sentenceId={null}
+          askAIContextBuilder={buildContext}
+          askAIScreen="review"
+        />
       </View>
     );
   }
@@ -1019,6 +1028,13 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
             <Text style={styles.reintroRememberText}>Learn</Text>
           </Pressable>
         </View>
+        <ActionMenu
+          focusedLemmaId={candidate.lemma_id}
+          focusedLemmaAr={candidate.lemma_ar}
+          sentenceId={null}
+          askAIContextBuilder={buildContext}
+          askAIScreen="review"
+        />
       </View>
     );
   }
@@ -1106,10 +1122,13 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
             />
           )}
         </View>
-        <AskAI
-          contextBuilder={buildContext}
-          buildExplainPrompt={buildExplainPrompt}
-          screen="review"
+        <ActionMenu
+          focusedLemmaId={lookupLemmaId}
+          focusedLemmaAr={lookupResult?.lemma_ar ?? null}
+          sentenceId={item.sentence_id}
+          askAIContextBuilder={buildContext}
+          askAIScreen="review"
+          askAIExplainPrompt={buildExplainPrompt}
         />
       </View>
     );
@@ -1172,10 +1191,13 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
           />
         )}
       </View>
-      <AskAI
-        contextBuilder={buildContext}
-        buildExplainPrompt={buildExplainPrompt}
-        screen="review"
+      <ActionMenu
+        focusedLemmaId={null}
+        focusedLemmaAr={null}
+        sentenceId={null}
+        askAIContextBuilder={buildContext}
+        askAIScreen="review"
+        askAIExplainPrompt={buildExplainPrompt}
       />
     </View>
   );

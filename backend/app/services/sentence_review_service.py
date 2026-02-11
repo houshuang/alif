@@ -95,12 +95,27 @@ def submit_sentence_review(
             if lo.lemma_ar_bare and _is_function_word(lo.lemma_ar_bare):
                 function_word_lemma_ids.add(lo.lemma_id)
 
+    # Build set of suspended lemma_ids to skip for FSRS credit
+    suspended_lemma_ids: set[int] = set()
+    if lemma_ids_in_sentence:
+        suspended_ulks = (
+            db.query(UserLemmaKnowledge.lemma_id)
+            .filter(
+                UserLemmaKnowledge.lemma_id.in_(lemma_ids_in_sentence),
+                UserLemmaKnowledge.knowledge_state == "suspended",
+            )
+            .all()
+        )
+        suspended_lemma_ids = {u.lemma_id for u in suspended_ulks}
+
     word_results = []
 
     for lemma_id in lemma_ids_in_sentence:
         # Skip FSRS credit for function words — they keep lemma_id in
         # SentenceWord for lookups but don't get spaced repetition cards
         if lemma_id in function_word_lemma_ids:
+            continue
+        if lemma_id in suspended_lemma_ids:
             continue
         if comprehension_signal == "understood":
             rating = 3
