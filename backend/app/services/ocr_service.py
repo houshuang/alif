@@ -54,17 +54,7 @@ _VERBOSE_PATTERNS = [
 ]
 
 
-_ARABIC_LETTER_RE = re.compile(r'^[\u0621-\u064a]$')
-
-
-def _is_valid_root(root_str: str) -> bool:
-    """Reject garbage roots: must be Arabic dot-separated radicals (3-4 letters)."""
-    if not root_str:
-        return False
-    parts = root_str.split(".")
-    if len(parts) not in (3, 4):
-        return False
-    return all(_ARABIC_LETTER_RE.match(p) for p in parts)
+from app.services.morphology import is_valid_root as _is_valid_root
 
 
 def validate_gloss(gloss: str | None) -> str | None:

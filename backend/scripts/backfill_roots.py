@@ -17,6 +17,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from app.database import SessionLocal
 from app.models import Lemma, Root
+from app.services.morphology import is_valid_root
 
 
 BATCH_SIZE = 20
@@ -135,7 +136,7 @@ def backfill(dry_run=False, limit=500):
                 continue
 
             root_str = normalize_root(raw_root)
-            if not root_str:
+            if not root_str or not is_valid_root(root_str):
                 print(f"  {lid} {lemma.lemma_ar_bare}: invalid root '{raw_root}'")
                 continue
 

@@ -4,6 +4,31 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-02-11 — Garbage Root Cleanup + Root Validation Guard
+
+### Problem
+OCR textbook imports created 55 garbage roots with invalid formats: `#` placeholders, Latin letters (`O`, `FOREIGN`, `DIGIT`), 2-letter roots, etc. Root "O" (meaning "Norway") had 44 unrelated lemmas including عَلِيّ, أَيْضاً, أَنْتِ. All 133 affected lemmas were mis-tagged as `noun_prop`. Root cause: no validation on root strings before creating Root entries in `ocr_service.py`.
+
+### Fix
+1. **Cleanup script** (`scripts/cleanup_bad_roots.py`): LLM-assisted batch classification of 133 affected lemmas — correct root, POS, and base lemma detection. Found 38 variants and linked via `canonical_lemma_id`. Remaining 29 (foreign loanwords, country names, digits, function word fragments) had `root_id` set to NULL.
+2. **Root validation guard**: Shared `is_valid_root()` in `morphology.py` — requires 3-4 dot-separated Arabic radicals (Unicode range \u0621-\u064a). Applied to all import paths: `ocr_service.py`, `import_wiktionary.py`, `backfill_roots.py`. `import_duolingo.py` uses hardcoded dict (safe by construction).
+3. **POS fixes**: 14 lemmas corrected (country names → `noun_prop`, nationality adjectives → `adj`, function words → `pron`/`prep`, loanwords → `noun`).
+
+### Results
+- 55 garbage roots deleted (all of them)
+- 104 lemmas reassigned to correct Arabic roots
+- 38 variants identified and linked
+- 29 rootless lemmas (loanwords/digits) properly nulled
+- 14 POS corrections
+- Zero bad roots remain in production DB
+
+### Verification
+- `is_valid_root()` rejects `O`, `DIGIT`, `#.ل.ه`, `ل.#.#`, `FOREIGN`, `N.T.W.S`
+- `is_valid_root()` accepts `ك.ت.ب`, `ع.ل.م`, `ز.ل.ز.ل`
+- 559 backend tests pass
+
+---
+
 ## 2026-02-11 — LLM-Confirmed Variant Detection (replaces CAMeL-only)
 
 ### Change

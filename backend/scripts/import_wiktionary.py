@@ -24,6 +24,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from app.database import SessionLocal, Base, engine
 from app.models import Root, Lemma
+from app.services.morphology import is_valid_root
 from app.services.ocr_service import validate_gloss
 from app.services.sentence_validator import (
     strip_diacritics as _sv_strip_diacritics,
@@ -196,7 +197,7 @@ def run_import(db, candidates: list[dict], limit: int, dry_run: bool = False) ->
 
         # Handle root
         root_id = None
-        if c["root"]:
+        if c["root"] and is_valid_root(c["root"]):
             if c["root"] in existing_roots:
                 root_id = existing_roots[c["root"]].root_id
             else:

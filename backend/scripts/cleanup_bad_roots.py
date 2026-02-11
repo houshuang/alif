@@ -8,7 +8,6 @@ Usage:
 """
 
 import json
-import re
 import sys
 import os
 import time
@@ -18,17 +17,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from app.database import SessionLocal
 from app.models import Lemma, Root, UserLemmaKnowledge, ReviewLog, SentenceWord, StoryWord
 from app.services.llm import generate_completion
-
-_ARABIC_LETTER_RE = re.compile(r'^[\u0621-\u064a]$')
-
-
-def is_valid_root(root_str: str) -> bool:
-    if not root_str:
-        return False
-    parts = root_str.split(".")
-    if len(parts) not in (3, 4):
-        return False
-    return all(_ARABIC_LETTER_RE.match(p) for p in parts)
+from app.services.morphology import is_valid_root
 
 
 def find_bad_roots(db):

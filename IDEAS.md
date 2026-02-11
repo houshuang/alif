@@ -468,6 +468,7 @@
 - [DONE] OCR prompt hardening: Step 1 now explicitly requests dictionary base forms, not conjugated/possessive forms
 - [DONE] Leech identification script: `scripts/identify_leeches.py` finds high-review low-accuracy words with optional auto-suspend
 - Leech auto-detection in FSRS: automatically flag words after N consecutive failures (beyond the current struggling-word re-intro cards)
+- [DONE] Root validation guard: shared `is_valid_root()` in morphology.py rejects garbage roots (Latin letters, `#` placeholders, wrong length). Applied to all import paths (OCR, Wiktionary, backfill_roots). Cleanup script fixed 133 affected lemmas from prior OCR imports.
 - OCR confidence scoring: have Gemini rate its confidence per word, flag low-confidence extractions for user review
 - Textbook progress tracking: track which textbook/chapter pages have been scanned, show coverage progress
 - OCR for handwritten Arabic: test Gemini Vision on handwritten notes (likely lower accuracy but worth exploring)

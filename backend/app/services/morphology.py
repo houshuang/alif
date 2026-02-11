@@ -6,8 +6,21 @@ Falls back to stub behavior if CAMeL Tools is not installed.
 """
 
 import logging
+import re
 
 logger = logging.getLogger(__name__)
+
+_ARABIC_LETTER_RE = re.compile(r'^[\u0621-\u064a]$')
+
+
+def is_valid_root(root_str: str) -> bool:
+    """Check if a root string is valid Arabic (3-4 dot-separated Arabic radicals)."""
+    if not root_str:
+        return False
+    parts = root_str.split(".")
+    if len(parts) not in (3, 4):
+        return False
+    return all(_ARABIC_LETTER_RE.match(p) for p in parts)
 
 try:
     from camel_tools.morphology.database import MorphologyDB
