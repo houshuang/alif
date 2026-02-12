@@ -4,6 +4,12 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-02-12: py-fsrs v6 Pin
+
+**Change**: Pinned `fsrs>=6.0.0` (was `>=4.0.0` which already resolved to v6.3.0 in production). Cleaned up dead `scheduled_days` reference in fsrs_service.py review log — v6 cards don't have this field, replaced with `stability`. Verified 0 v4 card dicts remain in DB (all 53 active FSRS cards are v6 format). FSRS-6's w17-w19 parameters provide native same-day review support, which works well with our Leitner acquisition → FSRS graduation pipeline.
+
+---
+
 ## 2026-02-12: Story Suspend/Reactivate + ActionMenu Refactor
 
 **Change**: Added story suspend/reactivate toggle. `POST /api/stories/{id}/suspend` toggles between active↔suspended. Suspended stories show dimmed in list with "Suspended" badge, pause/play button on each card. ActionMenu moved from bottom to header bar in story reader, now supports `extraActions` prop for screen-specific actions (suspend story is the first).
