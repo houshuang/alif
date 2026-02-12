@@ -1790,11 +1790,17 @@ function ReadingActions({
           <Text style={styles.noIdeaButtonText}>No idea</Text>
         </Pressable>
         <Pressable
-          style={[styles.actionButton, styles.gotItButton, submitting && styles.actionButtonDisabled]}
-          onPress={() => void onSubmit("understood")}
+          style={[
+            styles.actionButton,
+            hasMarked ? styles.continueButton : styles.gotItButton,
+            submitting && styles.actionButtonDisabled,
+          ]}
+          onPress={() => void onSubmit(hasMarked ? "partial" : "understood")}
           disabled={submitting}
         >
-          <Text style={styles.actionButtonText}>Know All</Text>
+          <Text style={styles.actionButtonText}>
+            {hasMarked ? "Continue" : "Know All"}
+          </Text>
         </Pressable>
         <Pressable
           style={[styles.actionButton, styles.showButton, submitting && styles.actionButtonDisabled]}
