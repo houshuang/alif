@@ -147,7 +147,7 @@ def submit_review(
         fsrs_log_json={
             "rating": rating_int,
             "state": new_state,
-            "scheduled_days": new_card.to_dict().get("scheduled_days"),
+            "stability": card_dict.get("stability"),
             "pre_card": old_card_dict,
             "pre_times_seen": old_times_seen,
             "pre_times_correct": old_times_correct,

@@ -21,7 +21,7 @@ npx expo start --web  # opens on localhost:8081
 ## Architecture
 - **Backend**: Python 3.11+ / FastAPI / SQLite (single user, no auth) — `backend/`
 - **Frontend**: Expo (React Native) with web + iOS mode — `frontend/`
-- **SRS**: py-fsrs (FSRS algorithm) — `backend/app/services/fsrs_service.py`
+- **SRS**: py-fsrs v6 (FSRS-6 algorithm with same-day review support via w17-w19) — `backend/app/services/fsrs_service.py`
 - **LLM**: LiteLLM for unified multi-model. Sentence generation: GPT-5.2 (best Arabic quality). General tasks: Gemini 3 Flash primary → GPT-5.2 fallback → Claude Haiku tertiary. Keys: GEMINI_KEY, OPENAI_KEY, ANTHROPIC_API_KEY in `.env`
 - **TTS**: ElevenLabs REST API (not SDK). Model: `eleven_multilingual_v2`. Voice: Chaouki (MSA male). Learner pauses via Arabic comma insertion every 2 words. Key: ELEVENLABS_API_KEY in `.env`. Frontend uses expo-av for playback. Audio cached by SHA256(text|voice_id) in `backend/data/audio/`.
 - **NLP**: Rule-based clitic stripping + known-form matching in sentence_validator.py. CAMeL Tools integrated in morphology.py for lemmatization, root extraction, and variant detection (graceful fallback to stub if not installed).
@@ -271,4 +271,4 @@ ssh alif "systemctl restart alif-expo"
 # Web: http://alifstian.duckdns.org:8081
 ```
 
-Next: py-fsrs v4→v6 upgrade, more story imports, listening mode improvements
+Next: more story imports, listening mode improvements
