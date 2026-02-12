@@ -150,6 +150,7 @@ This app is an ongoing learning experiment. Every algorithm change, data structu
 - `acquisition_service.py` — Leitner 3-box (4h→1d→3d). Graduation: box 3 + rating≥3 + times_seen≥5 + accuracy≥60%. `start_acquisition()` accepts `due_immediately=True` for auto-introduced words to appear in current session.
 - `cohort_service.py` — Focus cohort: MAX_COHORT_SIZE=25. Acquiring words always included, rest filled by lowest-stability due words.
 - `leech_service.py` — Auto-manage failing words. Detection: times_seen≥8 AND accuracy<40%. 14-day reintro to acquisition box 1.
+- `topic_service.py` — Topical learning cycles. 20 domains, MAX_TOPIC_BATCH=15, MIN_TOPIC_WORDS=5. Auto-advance when exhausted/depleted.
 - `import_quality.py` — LLM batch filter for word imports. Rejects transliterations, abbreviations, letter names, partial words. Used by OCR, story import, and Duolingo paths.
 
 All services in `backend/app/services/`.
@@ -157,6 +158,7 @@ All services in `backend/app/services/`.
 ### Backend Other
 - `backend/app/models.py` — SQLAlchemy models (see Data Model below)
 - `backend/app/schemas.py` — Pydantic request/response models
+- `backend/app/routers/settings.py` — Settings router: topic management endpoints
 - `backend/scripts/` — Import, backfill, cleanup, analysis scripts. See `docs/scripts-catalog.md`. Most-used: update_material.py (cron), import_duolingo.py, retire_sentences.py, normalize_and_dedup.py, log_activity.py (CLI), reset_ocr_cards.py (OCR→encountered), reset_to_learning_baseline.py (reset words without genuine learning signal to encountered, preserves review history), backfill_etymology.py (LLM etymology), backfill_themes.py (thematic domains), cleanup_review_pool.py (reset under-learned→acquiring, suspend variant ULKs with stat merge, suspend junk, retire bad sentences, run variant detection on uncovered words)
 
 ### Frontend
@@ -184,6 +186,7 @@ All services in `backend/app/services/`.
 - `lib/WordCardComponents.tsx` — Reusable word display (posLabel, FormsRow, GrammarRow, PlayButton)
 - `lib/AskAI.tsx` — AI chat modal (used in ActionMenu)
 - `lib/MarkdownMessage.tsx` — Markdown renderer for chat/AI responses
+- `lib/topic-labels.ts` — Human-readable labels + icons for 20 thematic domains
 - `lib/mock-data.ts` — Mock words, stats, learn candidates for testing
 - `lib/__tests__/` — Jest tests for sync, store, smart-filters, API, typechecks
 - `app/review-lab.tsx` — Hidden route for testing review UI variants
@@ -210,6 +213,9 @@ Full list: `docs/api-reference.md` or `backend/app/routers/`
 | POST | `/api/stories/{id}/complete` | Complete story |
 | GET | `/api/stats/analytics` | Full analytics |
 | POST | `/api/ocr/scan-pages` | Upload textbook pages for OCR |
+| GET | `/api/settings/topic` | Current topic + progress |
+| PUT | `/api/settings/topic` | Manual topic override |
+| GET | `/api/settings/topics` | All domains with available/learned counts |
 
 ## Data Model
 - `roots` — 3/4 consonant roots: core_meaning, productivity_score
@@ -229,6 +235,7 @@ Full list: `docs/api-reference.md` or `backend/app/routers/`
 - `activity_log` — System events: event_type, summary, detail_json
 - `variant_decisions` — LLM variant cache: word_bare, base_bare, is_variant, reason
 - `chat_messages` — AI conversations: conversation_id, role, content
+- `learner_settings` — Singleton row: active_topic, topic_started_at, words_introduced_in_topic, topic_history_json
 
 ## NLP Pipeline
 See `docs/nlp-pipeline.md` for full details.

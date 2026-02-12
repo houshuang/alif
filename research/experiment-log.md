@@ -4,6 +4,27 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-02-12: Topical Learning Cycles
+
+**Problem**: Word introduction via Learn mode pulled from all 20 thematic domains at once, mixing unrelated vocabulary (e.g., food + politics + nature in the same session). Research on semantic clustering (Tinkham 1993/97) shows mixing unrelated domains increases cognitive interference and slows acquisition.
+
+**Changes**:
+1. **LearnerSettings model** (`models.py`): Singleton row tracking `active_topic`, `topic_started_at`, `words_introduced_in_topic`, `topic_history_json`. Alembic migration added.
+2. **topic_service.py**: Core logic for topical learning cycles. 20 thematic domains, `MAX_TOPIC_BATCH=15` words per topic, `MIN_TOPIC_WORDS=5` minimum available before auto-advancing. `get_or_create_settings()`, `get_current_topic()`, `advance_topic()`, `get_all_topics()`. Auto-selects topic with most available (encountered, non-variant, non-suspended) words.
+3. **word_selector.py**: `select_next_words()` now filters candidates by active topic domain. Falls back to unfiltered selection if topic filtering yields too few candidates.
+4. **Settings API** (`routers/settings.py`): Three endpoints — `GET /api/settings/topic` (current topic + progress), `PUT /api/settings/topic` (manual override), `GET /api/settings/topics` (all domains with available/learned counts).
+5. **Frontend**: Topic display on Learn screen showing current domain + progress. `topic-labels.ts` maps 20 domain keys to human-readable labels + icons.
+
+**Data**: All 1610 lemmas already tagged with `thematic_domain` via `backfill_themes.py`. Auto-selected "nature" (215 available words) as first topic on initial deploy.
+
+**Files**: `models.py`, `topic_service.py`, `word_selector.py`, `routers/settings.py`, `schemas.py`, `frontend/lib/topic-labels.ts`, `frontend/app/learn.tsx`, `frontend/lib/api.ts`
+
+**Expected effect**: Words introduced in thematically coherent batches. Learner builds domain-specific vocabulary clusters before moving on. Auto-advance prevents getting stuck on depleted topics.
+
+**Verification**: Deployed to production. First topic "nature" auto-selected. `GET /api/settings/topics` returns all 20 domains with counts.
+
+---
+
 ## 2026-02-12: Learning Phase Redesign — Auto-Intro, Aggressive Repetition, Smaller Cohort
 
 **Problem**: After the initial algorithm redesign (Phases 1-4), the session builder still relied on user-driven word introduction via Learn mode and only repeated acquiring words twice per session. With 40-word cohorts and only 2 exposures, new words weren't getting enough concentrated practice. Additionally, many words had FSRS cards despite never being genuinely learned (times_seen < 5 or accuracy < 60%).

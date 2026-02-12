@@ -583,10 +583,11 @@ After importing ~100 textbook pages via OCR, 411 words entered the system with a
 - Pre-warm sentence cache: after cleanup, generate sentences for all active words in background (not during session building).
 
 #### Topical Learning Cycles (Phase 4)
-- Group words by thematic domain (food, family, school, etc.) and cycle through topics
-- Each cycle focuses on one domain: introduce 5-8 words, drill until consolidated, move to next
-- Prevents mixing too many unrelated words (cognitive interference)
-- Uses existing `thematic_domain` on lemmas from `backfill_themes.py`
+- [DONE] Group words by thematic domain (food, family, school, etc.) and cycle through topics
+- [DONE] Each cycle focuses on one domain: introduce up to 15 words (MAX_TOPIC_BATCH), auto-advance when exhausted/depleted (MIN_TOPIC_WORDS=5)
+- [DONE] Prevents mixing too many unrelated words (cognitive interference)
+- [DONE] Uses existing `thematic_domain` on lemmas from `backfill_themes.py` — 20 domains, all 1610 lemmas tagged
+- [DONE] LearnerSettings singleton table, topic_service.py, domain filtering in word_selector, settings API + frontend topic display
 - Could auto-select next topic based on story readiness or user preference
 
 #### Story Difficulty Display + Suspend/Activate (Phase 5)
