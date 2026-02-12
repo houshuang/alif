@@ -172,7 +172,7 @@ function RevealedView({
 
   return (
     <View style={styles.revealedWrap}>
-      {/* Combined: meaning + lemma + transliteration + POS */}
+      {/* Combined: meaning + lemma + POS */}
       <View style={styles.headRow}>
         {result.gloss_en && (
           <Text style={styles.glossText}>{result.gloss_en}</Text>
