@@ -1133,6 +1133,10 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
       <View style={[styles.container, { paddingTop: Math.max(insets.top, 12) }]}>
         <View style={styles.progressContainer}>
           <View style={styles.progressHeader}>
+            <View style={styles.backButtonPlaceholder} />
+            <Text style={styles.progressText}>
+              Re-learning {reintroIndex + 1} of {reintroCards.length}
+            </Text>
             <ActionMenu
               focusedLemmaId={card.lemma_id}
               focusedLemmaAr={card.lemma_ar}
@@ -1140,10 +1144,6 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
               askAIContextBuilder={buildContext}
               askAIScreen="review"
             />
-            <Text style={styles.progressText}>
-              Re-learning {reintroIndex + 1} of {reintroCards.length}
-            </Text>
-            <View style={styles.backButtonPlaceholder} />
           </View>
         </View>
         <ScrollView
@@ -1271,7 +1271,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
           current={cardIndex + 1}
           total={totalCards}
           mode={mode}
-          left={
+          right={
             <ActionMenu
               focusedLemmaId={candidate.lemma_id}
               focusedLemmaAr={candidate.lemma_ar}
@@ -1373,7 +1373,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
           current={cardIndex + 1}
           total={totalCards}
           mode={mode}
-          left={
+          right={
             <ActionMenu
               focusedLemmaId={lookupLemmaId}
               focusedLemmaAr={lookupResult?.lemma_ar ?? null}
@@ -1474,7 +1474,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
         current={cardIndex + 1}
         total={totalCards}
         mode={mode}
-        left={
+        right={
           <ActionMenu
             focusedLemmaId={null}
             focusedLemmaAr={null}
@@ -2233,14 +2233,14 @@ function ProgressBar({
   current,
   total,
   mode,
-  left,
+  right,
   isRecap,
   onWrapUp,
 }: {
   current: number;
   total: number;
   mode: ReviewMode;
-  left?: React.ReactNode;
+  right?: React.ReactNode;
   isRecap?: boolean;
   onWrapUp?: (() => void) | null;
 }) {
@@ -2249,7 +2249,7 @@ function ProgressBar({
   return (
     <View style={styles.progressContainer}>
       <View style={styles.progressHeader}>
-        {left ?? <View style={styles.backButtonPlaceholder} />}
+        <View style={styles.backButtonPlaceholder} />
         <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
           {isRecap && (
             <View style={styles.recapBadge}>
@@ -2260,13 +2260,14 @@ function ProgressBar({
             Card {current} of {total}
           </Text>
         </View>
-        {onWrapUp ? (
-          <Pressable onPress={onWrapUp} hitSlop={8} style={styles.wrapUpButton}>
-            <Text style={styles.wrapUpButtonText}>Wrap Up</Text>
-          </Pressable>
-        ) : (
-          <View style={styles.backButtonPlaceholder} />
-        )}
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+          {onWrapUp && (
+            <Pressable onPress={onWrapUp} hitSlop={8} style={styles.wrapUpButton}>
+              <Text style={styles.wrapUpButtonText}>Wrap Up</Text>
+            </Pressable>
+          )}
+          {right}
+        </View>
       </View>
       <View style={styles.progressTrack}>
         <View
