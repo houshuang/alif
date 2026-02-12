@@ -965,8 +965,9 @@ def _generate_on_demand(
     still_uncovered = set(uncovered_ids)
     generated_count = 0
 
-    # Phase 1: Multi-target generation when 2+ words uncovered
-    if len(still_uncovered) >= 2 and generated_count < cap:
+    # --- Phase 1: Multi-target generation (parallel across groups) ---
+    multi_groups = []
+    if len(still_uncovered) >= 2:
         word_dicts_for_grouping = []
         for lid in still_uncovered:
             lem = target_map.get(lid)
@@ -977,23 +978,50 @@ def _generate_on_demand(
                     "gloss_en": lem.gloss_en or "",
                     "root_id": lem.root_id,
                 })
+        multi_groups = group_words_for_multi_target(word_dicts_for_grouping)
 
-        groups = group_words_for_multi_target(word_dicts_for_grouping)
-        for group in groups:
-            if generated_count >= cap:
-                break
-            try:
-                multi_results = generate_validated_sentences_multi_target(
-                    target_words=group,
-                    known_words=known_words,
-                    count=len(group),
-                    difficulty_hint="beginner",
-                    max_words=12,
-                )
-            except Exception:
-                logger.warning("Multi-target generation failed, falling back to single")
-                break
+    # Run all multi-target groups in parallel
+    from concurrent.futures import ThreadPoolExecutor, as_completed
 
+    def _gen_multi(group):
+        try:
+            return group, generate_validated_sentences_multi_target(
+                target_words=group,
+                known_words=known_words,
+                count=len(group),
+                difficulty_hint="beginner",
+                max_words=12,
+            )
+        except Exception as e:
+            logger.warning(f"Multi-target generation failed: {e}")
+            return group, []
+
+    def _gen_single(lid, lem):
+        try:
+            return lid, generate_validated_sentence(
+                target_arabic=lem.lemma_ar,
+                target_translation=lem.gloss_en or "",
+                known_words=known_words,
+                difficulty_hint="beginner",
+                max_words=10,
+            )
+        except GenerationError:
+            logger.warning(f"On-demand generation failed for lemma {lid}")
+            return lid, None
+        except Exception:
+            logger.exception(f"Unexpected error in on-demand generation for lemma {lid}")
+            return lid, None
+
+    # Submit all LLM calls in parallel (multi-target groups + single-target words)
+    with ThreadPoolExecutor(max_workers=8) as executor:
+        multi_futures = {}
+        for group in multi_groups[:cap]:
+            fut = executor.submit(_gen_multi, group)
+            multi_futures[fut] = group
+
+        # Collect multi-target results first to know which words are still uncovered
+        for fut in as_completed(multi_futures):
+            group, multi_results = fut.result()
             target_bares = {strip_diacritics(tw["lemma_ar"]): tw["lemma_id"] for tw in group}
             for mres in multi_results:
                 if generated_count >= cap:
@@ -1003,7 +1031,6 @@ def _generate_on_demand(
                 if not sent:
                     continue
 
-                # Build item dict for the session response
                 primary_lemma = target_map.get(mres.primary_target_lemma_id)
                 sws = db.query(SentenceWord).filter(SentenceWord.sentence_id == sent.id).order_by(SentenceWord.position).all()
                 word_dicts = []
@@ -1049,101 +1076,95 @@ def _generate_on_demand(
                 for found_lid in mres.target_lemma_ids:
                     still_uncovered.discard(found_lid)
 
-    # Phase 2: Single-target fallback for remaining uncovered words
-    for lid in list(still_uncovered):
-        if generated_count >= cap:
-            break
+        # Phase 2: Single-target for remaining uncovered words (all in parallel)
+        single_futures = {}
+        for lid in list(still_uncovered):
+            if generated_count + len(single_futures) >= cap:
+                break
+            lemma = target_map.get(lid)
+            if not lemma:
+                continue
+            fut = executor.submit(_gen_single, lid, lemma)
+            single_futures[fut] = lid
 
-        lemma = target_map.get(lid)
-        if not lemma:
-            continue
+        for fut in as_completed(single_futures):
+            lid, result = fut.result()
+            if result is None or generated_count >= cap:
+                continue
 
-        try:
-            result = generate_validated_sentence(
-                target_arabic=lemma.lemma_ar,
-                target_translation=lemma.gloss_en or "",
-                known_words=known_words,
-                difficulty_hint="beginner",
-                max_words=10,
+            lemma = target_map.get(lid)
+            if not lemma:
+                continue
+
+            sent = Sentence(
+                arabic_text=result.arabic,
+                arabic_diacritized=result.arabic,
+                english_translation=result.english,
+                transliteration=result.transliteration,
+                source="llm",
+                target_lemma_id=lid,
             )
-        except GenerationError:
-            logger.warning(f"On-demand generation failed for lemma {lid}")
-            continue
-        except Exception:
-            logger.exception(f"Unexpected error in on-demand generation for lemma {lid}")
-            continue
+            db.add(sent)
+            db.flush()
 
-        # Store sentence in DB
-        sent = Sentence(
-            arabic_text=result.arabic,
-            arabic_diacritized=result.arabic,
-            english_translation=result.english,
-            transliteration=result.transliteration,
-            source="llm",
-            target_lemma_id=lid,
-        )
-        db.add(sent)
-        db.flush()
-
-        tokens = tokenize(result.arabic)
-        mappings = map_tokens_to_lemmas(
-            tokens=tokens,
-            lemma_lookup=lemma_lookup,
-            target_lemma_id=lid,
-            target_bare=strip_diacritics(lemma.lemma_ar),
-        )
-        word_dicts = []
-        for m in mappings:
-            sw = SentenceWord(
-                sentence_id=sent.id,
-                position=m.position,
-                surface_form=m.surface_form,
-                lemma_id=m.lemma_id,
-                is_target_word=m.is_target,
+            tokens = tokenize(result.arabic)
+            mappings = map_tokens_to_lemmas(
+                tokens=tokens,
+                lemma_lookup=lemma_lookup,
+                target_lemma_id=lid,
+                target_bare=strip_diacritics(lemma.lemma_ar),
             )
-            db.add(sw)
+            word_dicts = []
+            for m in mappings:
+                sw = SentenceWord(
+                    sentence_id=sent.id,
+                    position=m.position,
+                    surface_form=m.surface_form,
+                    lemma_id=m.lemma_id,
+                    is_target_word=m.is_target,
+                )
+                db.add(sw)
 
-            mapped_lemma = lemma_map.get(m.lemma_id) or target_map.get(m.lemma_id)
-            root_obj = mapped_lemma.root if mapped_lemma and hasattr(mapped_lemma, 'root') else None
-            bare = strip_diacritics(m.surface_form)
+                mapped_lemma = lemma_map.get(m.lemma_id) or target_map.get(m.lemma_id)
+                root_obj = mapped_lemma.root if mapped_lemma and hasattr(mapped_lemma, 'root') else None
+                bare = strip_diacritics(m.surface_form)
 
-            k_state = "new"
-            if m.lemma_id:
-                ulk = ulk_by_lemma.get(m.lemma_id)
-                if ulk:
-                    k_state = ulk.knowledge_state or "new"
+                k_state = "new"
+                if m.lemma_id:
+                    ulk = ulk_by_lemma.get(m.lemma_id)
+                    if ulk:
+                        k_state = ulk.knowledge_state or "new"
 
-            word_dicts.append({
-                "lemma_id": m.lemma_id,
-                "surface_form": m.surface_form,
-                "gloss_en": mapped_lemma.gloss_en if mapped_lemma else FUNCTION_WORD_GLOSSES.get(bare),
-                "stability": stability_map.get(m.lemma_id, 0.0) if m.lemma_id else None,
-                "is_due": m.lemma_id in uncovered_ids if m.lemma_id else False,
-                "is_function_word": bare in FUNCTION_WORDS,
-                "knowledge_state": k_state,
-                "root": root_obj.root if root_obj else None,
-                "root_meaning": root_obj.core_meaning_en if root_obj else None,
-                "root_id": root_obj.root_id if root_obj else None,
-                "frequency_rank": mapped_lemma.frequency_rank if mapped_lemma else None,
-                "cefr_level": mapped_lemma.cefr_level if mapped_lemma else None,
-                "grammar_tags": [],
+                word_dicts.append({
+                    "lemma_id": m.lemma_id,
+                    "surface_form": m.surface_form,
+                    "gloss_en": mapped_lemma.gloss_en if mapped_lemma else FUNCTION_WORD_GLOSSES.get(bare),
+                    "stability": stability_map.get(m.lemma_id, 0.0) if m.lemma_id else None,
+                    "is_due": m.lemma_id in uncovered_ids if m.lemma_id else False,
+                    "is_function_word": bare in FUNCTION_WORDS,
+                    "knowledge_state": k_state,
+                    "root": root_obj.root if root_obj else None,
+                    "root_meaning": root_obj.core_meaning_en if root_obj else None,
+                    "root_id": root_obj.root_id if root_obj else None,
+                    "frequency_rank": mapped_lemma.frequency_rank if mapped_lemma else None,
+                    "cefr_level": mapped_lemma.cefr_level if mapped_lemma else None,
+                    "grammar_tags": [],
+                })
+
+            items.append({
+                "sentence_id": sent.id,
+                "arabic_text": sent.arabic_text,
+                "arabic_diacritized": sent.arabic_diacritized,
+                "english_translation": sent.english_translation or "",
+                "transliteration": sent.transliteration,
+                "audio_url": None,
+                "primary_lemma_id": lid,
+                "primary_lemma_ar": lemma.lemma_ar,
+                "primary_gloss_en": lemma.gloss_en or "",
+                "words": word_dicts,
+                "grammar_features": [],
             })
-
-        root_obj = lemma.root
-        items.append({
-            "sentence_id": sent.id,
-            "arabic_text": sent.arabic_text,
-            "arabic_diacritized": sent.arabic_diacritized,
-            "english_translation": sent.english_translation or "",
-            "transliteration": sent.transliteration,
-            "audio_url": None,
-            "primary_lemma_id": lid,
-            "primary_lemma_ar": lemma.lemma_ar,
-            "primary_gloss_en": lemma.gloss_en or "",
-            "words": word_dicts,
-            "grammar_features": [],
-        })
-        generated_count += 1
+            generated_count += 1
 
     if generated_count > 0:
         db.flush()
