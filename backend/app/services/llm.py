@@ -195,13 +195,39 @@ Write مُحَمَّدٌ طَبِيبٌ NOT مُحَمَّدٌ هُوَ طَبِ
 - Correct i'rab: nominative ضمة, accusative فتحة, genitive كسرة. Tanween on indefinites.
 - Use connectors naturally: و (and), فَ (so/immediately), ثُمَّ (then/after delay), لَكِنَّ (but)
 - Vary sentence length — mix short and long clauses
-- Do NOT translate English syntax literally into Arabic"""
+- Do NOT translate English syntax literally into Arabic
+
+Sentence completeness — CRITICAL:
+- NEVER start a nominal sentence with an indefinite noun (نكرة). Use definite or verb-first:
+  ✓ الوَلَدُ يَلْعَبُ (The boy plays) — definite subject
+  ✓ يَلْعَبُ وَلَدٌ فِي الحَدِيقَةِ (A boy plays in the park) — verb-first OK with indefinite
+  ✓ هُنَاكَ وَلَدٌ فِي الحَدِيقَةِ (There is a boy in the park) — existential OK
+  ✗ وَلَدٌ يَلْعَبُ (A boy plays) — bare indefinite start, sounds like a caption
+  ✗ مَطْبَخٌ وَاسِعٌ وَنَافِذَةٌ هُنَا (A kitchen and a window here) — catalog fragment
+- Every sentence must express a complete thought — an action, state, or relation. \
+Avoid catalog-style adjective stacking or noun lists.
+
+Redundant pronouns — CRITICAL:
+- In VSO order, the verb conjugation already encodes the subject. Do NOT add a pronoun:
+  ✓ ذَهَبَتْ إِلَى المَدْرَسَةِ (She went to school)
+  ✗ ذَهَبَتْ هِيَ إِلَى المَدْرَسَةِ (She went she to school — redundant)
+  ✗ تَسْكُنُ هِيَ بِجَانِبِ (She lives she next to — redundant)
+- Use explicit pronouns only for emphasis/contrast: ذَهَبَ هُوَ وَلَمْ تَذْهَبْ هِيَ
+
+Semantic coherence in compound sentences:
+- When joining clauses with و/ثُمَّ/لَكِنَّ, they MUST be logically related:
+  ✓ فِي الكُوَيْتِ مَطَرٌ فَأَخَذْتُ مِظَلَّةً (In Kuwait rain, so I took an umbrella)
+  ✗ فِي الكُوَيْتِ مَطَرٌ وَالبَاصُ بَعِيدٌ (In Kuwait rain, and the bus is far — unrelated)
+- Do NOT combine unrelated facts into one sentence"""
 
 DIFFICULTY_STYLE_GUIDE = """\
 Style by difficulty level:
 - very simple / simple: prefer SVO. Short nominal sentences. Basic connectors (و). \
-Simple tenses. No embedded clauses.
-- beginner: mix SVO and VSO. Simple idafa. Introduce فَ and ثُمَّ. One clause per sentence.
+Simple tenses. No embedded clauses. Only modern everyday vocabulary.
+- beginner: mix SVO and VSO. Simple idafa. Introduce فَ and ثُمَّ. One clause per sentence. \
+Do NOT use classical/archaic particles (لَعَلَّ، كَأَنَّ، إِذَا، لَوْلَا، حَيْثُ). \
+Do NOT use overly formal register (يا سادة، أيها). \
+Keep language modern and conversational.
 - intermediate: more VSO. Relative clauses (الَّذِي/الَّتِي). \
 Negation with لَمْ/لَنْ. Idafa chains. Dialogue with قَالَ.
 - advanced: VSO default. Embedded clauses. Classical particles (إِنَّ، لَعَلَّ، كَأَنَّ). \
@@ -225,8 +251,9 @@ Vocabulary constraint:
 
 Sentence structure variety:
 - Do NOT default to هَلْ questions — only use هَلْ when the target word specifically requires a question
-- Vary starters: verbal (verb-first), nominal (noun/adjective), prepositional (فِي، مِنَ), time expressions
-- Use different subjects — do NOT always use مُحَمَّد. Use varied names and pronouns.
+- Vary starters: verbal (verb-first), nominal (definite noun/adjective), prepositional (فِي، مِنَ), time expressions
+- Prefer pronouns (أنا، هو، هي، نحن) and generic definite nouns (المعلم، الولد، الفتاة) as subjects
+- Use proper names sparingly — avoid محمد/أحمد/فاطمة/علي unless they are in the vocabulary list
 
 Respond with JSON only: {{"arabic": "...", "english": "...", "transliteration": "..."}}"""
 
@@ -254,8 +281,9 @@ Vocabulary constraint:
 
 Sentence structure variety:
 - Do NOT default to هَلْ questions — only use هَلْ when the target word specifically requires a question
-- Vary starters across sentences: verbal (verb-first), nominal (noun/adjective), prepositional, time expressions
-- Use different subjects — do NOT always use مُحَمَّد. Use varied names and pronouns.
+- Vary starters across sentences: verbal (verb-first), nominal (definite noun/adjective), prepositional, time expressions
+- Prefer pronouns (أنا، هو، هي، نحن) and generic definite nouns (المعلم، الولد، الفتاة) as subjects
+- Use proper names sparingly — avoid محمد/أحمد/فاطمة/علي unless they are in the vocabulary list
 - Never start more than one sentence in a batch with the same word.
 
 Respond with JSON: {{"sentences": [{{"arabic": "...", "english": "...", "transliteration": "..."}}, ...]}}"""
@@ -323,7 +351,7 @@ Include full diacritics on all Arabic text.
         prompt=prompt,
         system_prompt=SENTENCE_SYSTEM_PROMPT,
         json_mode=True,
-        temperature=0.8,
+        temperature=0.5,
         model_override=model_override,
     )
 
@@ -442,8 +470,9 @@ Vocabulary constraint:
 
 Sentence structure variety:
 - Do NOT default to هَلْ questions — only use هَلْ when the target word specifically requires a question
-- Vary starters across sentences: verbal (verb-first), nominal (noun/adjective), prepositional, time expressions
-- Use different subjects — do NOT always use مُحَمَّد. Use varied names and pronouns.
+- Vary starters across sentences: verbal (verb-first), nominal (definite noun/adjective), prepositional, time expressions
+- Prefer pronouns (أنا، هو، هي، نحن) and generic definite nouns (المعلم، الولد، الفتاة) as subjects
+- Use proper names sparingly — avoid محمد/أحمد/فاطمة/علي unless they are in the vocabulary list
 - Never start more than one sentence in a batch with the same word.
 
 For each sentence, list which target words appear in it.
