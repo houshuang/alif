@@ -1322,6 +1322,11 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
             askAIScreen="review"
             askAIExplainPrompt={buildExplainPrompt}
             onBack={canGoBack ? handleGoBack : null}
+            extraActions={[{
+              icon: "refresh-outline",
+              label: "Refresh session",
+              onPress: () => loadSession(),
+            }]}
           />
         }
         isRecap={recapCount > 0 && cardIndex < recapCount}
