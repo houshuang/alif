@@ -255,7 +255,7 @@
 - [DONE] Clear Cache button in More screen: flushes sessions, word lookups, stats, analytics from AsyncStorage
 
 ### Deployment
-- Backend: Hetzner CAX11 ARM + Coolify (~$4/mo), git-push deploys
+- [DONE] Backend: Hetzner Helsinki, direct docker-compose (Coolify removed — too complex for single-user app)
 - Fly.io as alternative (~$7-8/mo with persistent volume for SQLite)
 - Pre-process everything server-side, client only needs processed data
 - Consider edge functions for simple lookups

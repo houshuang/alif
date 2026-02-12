@@ -27,6 +27,8 @@ All scripts in `backend/scripts/`. Run from `backend/` directory.
 - `backfill_etymology.py` — LLM etymology data generation for lemmas.
 
 ## Cleanup & Maintenance
+- `cleanup_bad_roots.py` — LLM-assisted bad root classification and cleanup (POS fixes, variant linking).
+- `reset_ocr_cards.py` — Reset inflated OCR-imported FSRS cards to "encountered". Supports --dry-run.
 - `retire_sentences.py` — Remove low-quality/overused sentences.
 - `verify_sentences.py` — GPT-5.2 batch verification of Arabic naturalness, parallel execution.
 - `normalize_and_dedup.py` — 3-pass production cleanup: LLM-confirmed variant detection + al-prefix dedup + forms_json enrichment.
@@ -47,4 +49,3 @@ All scripts in `backend/scripts/`. Run from `backend/` directory.
 
 ## Utilities
 - `log_activity.py` — CLI tool for manual ActivityLog entries.
-- `seed_test_data.py` — Populate DB with known test words for reproducible testing.

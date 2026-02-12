@@ -9,8 +9,8 @@ A personal Arabic (MSA/fusha) learning app focused exclusively on reading and li
 cd backend
 cp .env.example .env  # add API keys
 pip install -e ".[dev]"
-python scripts/import_duolingo.py  # import 196 words
-uvicorn app.main:app --port 8000
+python3 scripts/import_duolingo.py  # import 196 words
+python3 -m uvicorn app.main:app --port 8000
 
 # Frontend
 cd frontend
@@ -91,8 +91,8 @@ Everything built must be trivially testable by Claude Code:
 - Include screenshot-friendly test states (e.g., `/test/review-card` route showing a card in each state)
 
 **Integration:**
-- `scripts/smoke_test.sh` — starts backend, hits key endpoints, verifies responses
-- `scripts/seed_test_data.py` — populates DB with known test words for reproducible testing
+- Test key endpoints manually with `curl http://localhost:8000/api/stats`
+- Use mock data in `frontend/lib/mock-data.ts` for reproducible frontend testing
 
 ### 4. Skills — Generate and Update
 As we build features, create reusable Claude Code skills (`.claude/skills/`) for common operations:
@@ -104,7 +104,7 @@ As we build features, create reusable Claude Code skills (`.claude/skills/`) for
 - Deploying to production
 - Any repetitive multi-step workflow
 
-### 6. Experiment Tracking — Document Everything
+### 5. Experiment Tracking — Document Everything
 This app is an ongoing learning experiment. Every algorithm change, data structure modification, or analysis must be documented:
 - **`research/experiment-log.md`**: Running log of all changes with date, hypothesis, expected effect, and verification plan
 - **`research/analysis-YYYY-MM-DD.md`**: Detailed analysis reports linked from the experiment log
@@ -112,7 +112,7 @@ This app is an ongoing learning experiment. Every algorithm change, data structu
 - When running production data analysis, ALWAYS save findings to a dated analysis file
 - Never delete entries — mark them as superseded if outdated
 
-### 7. Code Style
+### 6. Code Style
 - Python: Use type hints, pydantic models for API schemas
 - TypeScript: Strict mode, functional components
 - No unnecessary comments — only when logic isn't self-evident
@@ -167,12 +167,20 @@ All services in `backend/app/services/`.
 - `app/listening.tsx` — Dedicated listening mode
 - `lib/review/ActionMenu.tsx` — "⋯" menu: Ask AI, Suspend, Flag
 - `lib/review/WordInfoCard.tsx` — Word info panel for review
-- `lib/api.ts` — API client: wrap-up/recap endpoints, etymology/acquisition_box mappers
-- `lib/types.ts` — TypeScript interfaces: EtymologyData, WrapUpCard, RecapItem, acquiring/encountered states
-- `lib/offline-store.ts` — AsyncStorage: session cache, reviewed tracking, lastSessionWords for recap
+- `lib/api.ts` — API client with typed interfaces for all endpoints
+- `lib/types.ts` — TypeScript interfaces
+- `lib/offline-store.ts` — AsyncStorage session cache + reviewed tracking
 - `lib/sync-queue.ts` — Offline review queue, bulk sync
-- `lib/theme.ts` — Dark theme, semantic colors (stateAcquiring blue, stateEncountered gray)
-- `lib/__tests__/` — Jest tests for sync, store, filters, API
+- `lib/theme.ts` — Dark theme, semantic colors
+- `lib/net-status.ts` — Network status singleton + useNetStatus hook
+- `lib/sync-events.ts` — Event emitter for sync notifications
+- `lib/frequency.ts` — Frequency band + CEFR color utilities
+- `lib/WordCardComponents.tsx` — Reusable word display (posLabel, FormsRow, GrammarRow, PlayButton)
+- `lib/AskAI.tsx` — AI chat modal (used in ActionMenu)
+- `lib/MarkdownMessage.tsx` — Markdown renderer for chat/AI responses
+- `lib/mock-data.ts` — Mock review cards, words, stats for testing
+- `lib/__tests__/` — Jest tests for sync, store, smart-filters, API, typechecks
+- `app/review-lab.tsx` — Hidden route for testing review UI variants
 
 All frontend in `frontend/`.
 
@@ -202,7 +210,7 @@ Full list: `docs/api-reference.md` or `backend/app/routers/`
 - `lemmas` — Dictionary forms: root FK, pos, gloss, frequency_rank, cefr_level, grammar_features_json, forms_json, example_ar/en, transliteration, audio_url, canonical_lemma_id (variant FK), source_story_id, thematic_domain, etymology_json
 - `user_lemma_knowledge` — Per-lemma SRS state: knowledge_state (encountered/acquiring/new/learning/known/lapsed/suspended), fsrs_card_json, times_seen, times_correct, total_encounters, source, variant_stats_json, acquisition_box (1/2/3), acquisition_next_due, graduated_at, leech_suspended_at
 - `review_log` — Review history: rating 1-4, mode, sentence_id, credit_type (metadata only), is_acquisition, fsrs_log_json (pre-review snapshots for undo)
-- `sentences` — Generated/imported: target word, last_shown_at, times_shown, last_comprehension
+- `sentences` — Generated/imported: target_lemma_id, times_shown, last_reading_shown_at/last_listening_shown_at, last_reading_comprehension/last_listening_comprehension, is_active, max_word_count
 - `sentence_words` — Word breakdown: position, surface_form, lemma_id, is_target_word, grammar_role_json
 - `sentence_review_log` — Per-sentence review: comprehension, timing, session_id
 - `grammar_features` — 24 features across 5 categories
@@ -224,14 +232,14 @@ See `docs/nlp-pipeline.md` for full details.
 
 ## LLM Benchmarking
 ```bash
-cd backend && python scripts/benchmark_llm.py --task all
+cd backend && python3 scripts/benchmark_llm.py --task all
 # Or specific: --task diacritization --models gemini,anthropic
 ```
 
 ## Testing
 ```bash
-cd backend && python -m pytest  # 620 tests
-cd frontend && npm test         # 74 tests
+cd backend && python3 -m pytest
+cd frontend && npm test
 ```
 Backend: all services have dedicated test files in `backend/tests/`.
 Frontend: Jest + ts-jest in `frontend/lib/__tests__/`.
@@ -249,4 +257,4 @@ ssh alif "systemctl restart alif-expo"
 # Web: http://alifstian.duckdns.org:8081
 ```
 
-Next: py-fsrs v4→v6 upgrade (same-day review), Leitner interval tuning from real data, grammar-aware sentence selection
+Next: frontend implementation of acquisition/cohort/leech system, wrap-up/recap UI, etymology display, py-fsrs v4→v6 upgrade

@@ -7,17 +7,27 @@ Run standard data quality checks on the production database.
 ssh alif "docker exec alif-backend-1 python3 -c \"
 from app.database import SessionLocal
 from app.models import *
+from app.services.sentence_validator import FUNCTION_WORDS
 from sqlalchemy import func
 import json
 
 db = SessionLocal()
+
+# Build set of function word lemma_ids
+fw_bare_set = {w for w in FUNCTION_WORDS}
+fw_lemma_ids = set(
+    l.lemma_id for l in db.query(Lemma).all()
+    if l.lemma_ar_bare in fw_bare_set
+)
 
 # 1. Lemmas without any sentences
 lemma_ids_with_sentences = set(
     r[0] for r in db.query(SentenceWord.lemma_id).distinct().all() if r[0]
 )
 no_sentence = []
-for l in db.query(Lemma).filter(Lemma.is_function_word == False, Lemma.canonical_lemma_id == None).all():
+for l in db.query(Lemma).filter(Lemma.canonical_lemma_id == None).all():
+    if l.lemma_id in fw_lemma_ids:
+        continue
     if l.lemma_id not in lemma_ids_with_sentences:
         ulk = db.query(UserLemmaKnowledge).filter(UserLemmaKnowledge.lemma_id == l.lemma_id).first()
         if ulk and ulk.knowledge_state not in ('encountered', 'suspended'):
@@ -27,15 +37,17 @@ for w in no_sentence[:20]:
     print(f'  {w}')
 
 # 2. Lemmas without roots
-no_root = db.query(Lemma).filter(Lemma.root_id == None, Lemma.is_function_word == False).count()
-print(f'\n=== Lemmas without roots: {no_root} ===')
+no_root = db.query(Lemma).filter(Lemma.root_id == None).all()
+no_root_content = [l for l in no_root if l.lemma_id not in fw_lemma_ids]
+print(f'\n=== Lemmas without roots: {len(no_root_content)} ===')
 
 # 3. Roots without meanings
-no_meaning = db.query(Root).filter((Root.core_meaning == None) | (Root.core_meaning == '')).count()
+no_meaning = db.query(Root).filter((Root.core_meaning_en == None) | (Root.core_meaning_en == '')).count()
 print(f'=== Roots without core_meaning: {no_meaning} ===')
 
 # 4. Lemmas without frequency data
-no_freq = db.query(Lemma).filter(Lemma.frequency_rank == None, Lemma.is_function_word == False).count()
+no_freq_all = db.query(Lemma).filter(Lemma.frequency_rank == None).all()
+no_freq = len([l for l in no_freq_all if l.lemma_id not in fw_lemma_ids])
 print(f'=== Lemmas without frequency_rank: {no_freq} ===')
 
 # 5. Potential al-prefix duplicates
@@ -44,7 +56,7 @@ lemmas = db.query(Lemma).filter(Lemma.canonical_lemma_id == None).all()
 al_dupes = []
 bare_set = {}
 for l in lemmas:
-    bare = l.bare_form or ''
+    bare = l.lemma_ar_bare or ''
     if bare.startswith('ال'):
         base = bare[2:]
         if base in bare_set:
@@ -67,7 +79,7 @@ overused = db.query(Sentence).filter(Sentence.times_shown > 10).count()
 print(f'=== Sentences shown >10 times: {overused} ===')
 
 # 8. Active sentence count
-active = db.query(Sentence).filter(Sentence.retired_at == None).count()
+active = db.query(Sentence).filter(Sentence.is_active == True).count()
 print(f'=== Active sentences: {active} (cap: 200) ===')
 
 db.close()
