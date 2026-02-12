@@ -363,6 +363,12 @@ def build_session(
     lemmas = db.query(Lemma).options(joinedload(Lemma.root)).filter(Lemma.lemma_id.in_(all_lemma_ids)).all() if all_lemma_ids else []
     lemma_map = {l.lemma_id: l for l in lemmas}
 
+    # Build variant→canonical map so sentences with variant forms cover canonical due words
+    variant_to_canonical: dict[int, int] = {}
+    for l in lemmas:
+        if l.canonical_lemma_id:
+            variant_to_canonical[l.lemma_id] = l.canonical_lemma_id
+
     knowledge_map = {k.lemma_id: k for k in all_knowledge}
 
     # Load grammar exposure for grammar_fit scoring
@@ -430,18 +436,20 @@ def build_session(
 
         for sw in sws:
             lemma = lemma_map.get(sw.lemma_id) if sw.lemma_id else None
-            stab = stability_map.get(sw.lemma_id, 0.0) if sw.lemma_id else None
-            is_due = sw.lemma_id in due_lemma_ids if sw.lemma_id else False
+            # Resolve variant→canonical for scheduling purposes
+            effective_id = variant_to_canonical.get(sw.lemma_id, sw.lemma_id) if sw.lemma_id else None
+            stab = stability_map.get(effective_id, 0.0) if effective_id else None
+            is_due = effective_id in due_lemma_ids if effective_id else False
 
             k_state = "new"
-            if sw.lemma_id:
-                k = knowledge_map.get(sw.lemma_id)
+            if effective_id:
+                k = knowledge_map.get(effective_id)
                 if k:
                     k_state = k.knowledge_state or "new"
 
             bare = strip_diacritics(sw.surface_form)
             wm = WordMeta(
-                lemma_id=sw.lemma_id,
+                lemma_id=effective_id,
                 surface_form=sw.surface_form,
                 gloss_en=lemma.gloss_en if lemma else None,
                 stability=stab,
@@ -451,9 +459,9 @@ def build_session(
             )
             word_metas.append(wm)
 
-            if sw.lemma_id and is_due:
-                due_covered.add(sw.lemma_id)
-            elif sw.lemma_id and stab is not None:
+            if effective_id and is_due:
+                due_covered.add(effective_id)
+            elif effective_id and stab is not None:
                 scaffold_stabilities.append(stab)
 
         if not due_covered:

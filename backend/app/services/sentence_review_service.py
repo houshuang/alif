@@ -89,6 +89,9 @@ def submit_sentence_review(
     function_word_lemma_ids: set[int] = set()
     suspended_lemma_ids: set[int] = set()
 
+    # Build variant→canonical mapping so reviews credit the base lemma
+    variant_to_canonical: dict[int, int] = {}
+
     if lemma_ids_in_sentence:
         lemma_objs = (
             db.query(Lemma)
@@ -99,10 +102,25 @@ def submit_sentence_review(
         for lo in lemma_objs:
             if lo.lemma_ar_bare and _is_function_word(lo.lemma_ar_bare):
                 function_word_lemma_ids.add(lo.lemma_id)
+            if lo.canonical_lemma_id:
+                variant_to_canonical[lo.lemma_id] = lo.canonical_lemma_id
 
+        # Also fetch canonical lemmas that may not be in the sentence directly
+        canonical_ids_needed = set(variant_to_canonical.values()) - lemma_ids_in_sentence
+        if canonical_ids_needed:
+            canonical_lemma_objs = (
+                db.query(Lemma)
+                .filter(Lemma.lemma_id.in_(canonical_ids_needed))
+                .all()
+            )
+            for lo in canonical_lemma_objs:
+                lemma_map[lo.lemma_id] = lo
+
+        # Fetch ULK for both sentence lemma_ids and their canonical targets
+        all_ulk_ids = lemma_ids_in_sentence | set(variant_to_canonical.values())
         ulk_objs = (
             db.query(UserLemmaKnowledge)
-            .filter(UserLemmaKnowledge.lemma_id.in_(lemma_ids_in_sentence))
+            .filter(UserLemmaKnowledge.lemma_id.in_(all_ulk_ids))
             .all()
         )
         for ulk in ulk_objs:
@@ -121,49 +139,63 @@ def submit_sentence_review(
 
     word_results = []
 
+    # Track which effective_lemma_ids we've already processed (dedup after redirect)
+    processed_effective_ids: set[int] = set()
+
     for lemma_id in lemma_ids_in_sentence:
         # Skip FSRS credit for function words — they keep lemma_id in
         # SentenceWord for lookups but don't get spaced repetition cards
         if lemma_id in function_word_lemma_ids:
             continue
-        if lemma_id in suspended_lemma_ids:
+
+        # Resolve variant→canonical: credit goes to the base lemma
+        effective_lemma_id = variant_to_canonical.get(lemma_id, lemma_id)
+
+        # Skip if canonical is suspended (or the variant itself)
+        if lemma_id in suspended_lemma_ids or effective_lemma_id in suspended_lemma_ids:
             continue
         # Skip encountered words — they need to be introduced first
-        if lemma_id in encountered_lemma_ids:
+        if effective_lemma_id in encountered_lemma_ids:
             continue
+        # After redirect, multiple variant lemma_ids may map to the same canonical
+        if effective_lemma_id in processed_effective_ids:
+            continue
+        processed_effective_ids.add(effective_lemma_id)
+
         if comprehension_signal == "understood":
             rating = 3
         elif comprehension_signal == "grammar_confused":
             # Words are fine — grammar structure was confusing
             rating = 3
         elif comprehension_signal == "partial":
-            if lemma_id in missed_set:
+            # Check both original and effective for missed/confused signals
+            if lemma_id in missed_set or effective_lemma_id in missed_set:
                 rating = 1
-            elif lemma_id in confused_set:
+            elif lemma_id in confused_set or effective_lemma_id in confused_set:
                 rating = 2
             else:
                 rating = 3
         else:  # no_idea
             rating = 1
 
-        credit_type = "primary" if lemma_id == primary_lemma_id else "collateral"
+        credit_type = "primary" if lemma_id == primary_lemma_id or effective_lemma_id == primary_lemma_id else "collateral"
 
         review_client_id = (
-            f"{client_review_id}:{lemma_id}"
+            f"{client_review_id}:{effective_lemma_id}"
             if client_review_id and sentence_id is not None
             else (
                 client_review_id
-                if sentence_id is None and lemma_id == primary_lemma_id
+                if sentence_id is None and effective_lemma_id == primary_lemma_id
                 else None
             )
         )
 
         # Route acquiring words through acquisition service
-        if lemma_id in acquiring_lemma_ids:
+        if effective_lemma_id in acquiring_lemma_ids:
             from app.services.acquisition_service import submit_acquisition_review
             result = submit_acquisition_review(
                 db,
-                lemma_id=lemma_id,
+                lemma_id=effective_lemma_id,
                 rating_int=rating,
                 response_ms=response_ms if lemma_id == primary_lemma_id else None,
                 session_id=session_id,
@@ -174,7 +206,7 @@ def submit_sentence_review(
         else:
             result = submit_review(
                 db,
-                lemma_id=lemma_id,
+                lemma_id=effective_lemma_id,
                 rating_int=rating,
                 response_ms=response_ms if lemma_id == primary_lemma_id else None,
                 session_id=session_id,
@@ -186,7 +218,7 @@ def submit_sentence_review(
         # Tag the review log entry with sentence context
         latest_log = (
             db.query(ReviewLog)
-            .filter(ReviewLog.lemma_id == lemma_id)
+            .filter(ReviewLog.lemma_id == effective_lemma_id)
             .order_by(ReviewLog.id.desc())
             .first()
         )
@@ -194,41 +226,40 @@ def submit_sentence_review(
             latest_log.sentence_id = sentence_id
             latest_log.credit_type = credit_type
 
-        # Track encounters (use pre-fetched map, fallback for newly created ULKs)
-        knowledge = knowledge_map.get(lemma_id)
+        # Track encounters on the canonical ULK
+        knowledge = knowledge_map.get(effective_lemma_id)
         if not knowledge:
             knowledge = (
                 db.query(UserLemmaKnowledge)
-                .filter(UserLemmaKnowledge.lemma_id == lemma_id)
+                .filter(UserLemmaKnowledge.lemma_id == effective_lemma_id)
                 .first()
             )
             if knowledge:
-                knowledge_map[lemma_id] = knowledge
+                knowledge_map[effective_lemma_id] = knowledge
         if knowledge and not is_duplicate:
             knowledge.total_encounters = (knowledge.total_encounters or 0) + 1
 
-            # Track variant form stats
-            if lemma_id in surface_forms_by_lemma:
-                lemma_obj = lemma_map.get(lemma_id)
-                if lemma_obj:
-                    lemma_bare = lemma_obj.lemma_ar_bare or ""
-                    for surface in surface_forms_by_lemma[lemma_id]:
-                        surface_bare = strip_diacritics(surface)
-                        if surface_bare and surface_bare != lemma_bare:
-                            vstats = parse_json_column(knowledge.variant_stats_json)
-                            vstats = dict(vstats)
-                            entry = vstats.get(surface_bare, {"seen": 0, "missed": 0, "confused": 0})
-                            entry["seen"] = entry.get("seen", 0) + 1
-                            if rating == 1:
-                                entry["missed"] = entry.get("missed", 0) + 1
-                            elif rating == 2:
-                                entry["confused"] = entry.get("confused", 0) + 1
-                            vstats[surface_bare] = entry
-                            knowledge.variant_stats_json = vstats
+            # Track variant form stats on the canonical ULK
+            surfaces = surface_forms_by_lemma.get(lemma_id, [])
+            canonical_lemma_obj = lemma_map.get(effective_lemma_id)
+            canonical_bare = canonical_lemma_obj.lemma_ar_bare if canonical_lemma_obj else ""
+            for surface in surfaces:
+                surface_bare = strip_diacritics(surface)
+                if surface_bare and surface_bare != canonical_bare:
+                    vstats = parse_json_column(knowledge.variant_stats_json)
+                    vstats = dict(vstats)
+                    entry = vstats.get(surface_bare, {"seen": 0, "missed": 0, "confused": 0})
+                    entry["seen"] = entry.get("seen", 0) + 1
+                    if rating == 1:
+                        entry["missed"] = entry.get("missed", 0) + 1
+                    elif rating == 2:
+                        entry["confused"] = entry.get("confused", 0) + 1
+                    vstats[surface_bare] = entry
+                    knowledge.variant_stats_json = vstats
 
         if not is_duplicate:
             word_results.append({
-                "lemma_id": lemma_id,
+                "lemma_id": effective_lemma_id,
                 "rating": rating,
                 "credit_type": credit_type,
                 "new_state": result["new_state"],

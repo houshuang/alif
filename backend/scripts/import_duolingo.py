@@ -278,12 +278,39 @@ def run_import(db: Session) -> dict:
                 canon = db.get(Lemma,canon_id)
                 print(f"  Variant: {var.lemma_ar_bare} → {canon.lemma_ar_bare} [{vtype}]")
 
+    # Quality gate: suspend any junk among newly imported words
+    junk_suspended = 0
+    if new_lemma_ids:
+        try:
+            from app.services.import_quality import filter_useful_lemmas
+            new_lemma_objs = db.query(Lemma).filter(Lemma.lemma_id.in_(new_lemma_ids)).all()
+            lemma_dicts = [
+                {"arabic": l.lemma_ar_bare, "english": l.gloss_en or ""}
+                for l in new_lemma_objs
+            ]
+            useful, rejected = filter_useful_lemmas(lemma_dicts)
+            if rejected:
+                rejected_bares = {r["arabic"] for r in rejected}
+                for l in new_lemma_objs:
+                    if l.lemma_ar_bare in rejected_bares:
+                        ulk = db.query(UserLemmaKnowledge).filter(
+                            UserLemmaKnowledge.lemma_id == l.lemma_id
+                        ).first()
+                        if ulk:
+                            ulk.knowledge_state = "suspended"
+                            junk_suspended += 1
+                print(f"  Quality gate suspended {junk_suspended} junk words: "
+                      f"{', '.join(r['arabic'] for r in rejected)}")
+        except Exception as e:
+            print(f"  Quality gate failed (words imported without filter): {e}")
+
     db.commit()
 
     roots_found = len(roots_created)
     print(f"Imported {imported} words, skipped {skipped_names} names, "
           f"skipped {skipped_phrases} phrases, skipped {skipped_existing} existing (clitic match), "
-          f"found {roots_found} roots, marked {variants_marked} variants")
+          f"found {roots_found} roots, marked {variants_marked} variants, "
+          f"quality gate suspended {junk_suspended}")
 
     return {
         "imported": imported,

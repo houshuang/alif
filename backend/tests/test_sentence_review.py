@@ -722,3 +722,171 @@ class TestUndoSentenceReview:
 
         # Verify ReviewLog cleaned up
         assert db_session.query(ReviewLog).count() == 0
+
+
+class TestVariantRedirect:
+    """Reviews of variant words should credit the canonical lemma."""
+
+    def test_variant_credits_canonical(self, db_session):
+        """When a sentence contains a variant, review credit goes to canonical."""
+        # Create canonical lemma with ULK
+        canonical = Lemma(lemma_id=100, lemma_ar="كِتَاب", lemma_ar_bare="كتاب",
+                         pos="noun", gloss_en="book")
+        db_session.add(canonical)
+        db_session.flush()
+        canonical_ulk = UserLemmaKnowledge(
+            lemma_id=100, knowledge_state="learning",
+            fsrs_card_json=_make_card(), times_seen=5, times_correct=3, source="study",
+        )
+        db_session.add(canonical_ulk)
+
+        # Create variant lemma pointing to canonical (NO ULK needed)
+        variant = Lemma(lemma_id=101, lemma_ar="الكِتَاب", lemma_ar_bare="الكتاب",
+                       pos="noun", gloss_en="the book", canonical_lemma_id=100)
+        db_session.add(variant)
+
+        # Create sentence with the variant form
+        sent = Sentence(id=50, arabic_text="الكتاب جميل", arabic_diacritized="الكتاب جميل",
+                       english_translation="the book is beautiful", target_lemma_id=101)
+        db_session.add(sent)
+        db_session.flush()
+        sw = SentenceWord(sentence_id=50, position=0, surface_form="الكتاب", lemma_id=101)
+        db_session.add(sw)
+        db_session.commit()
+
+        result = submit_sentence_review(
+            db_session, sentence_id=50, primary_lemma_id=101,
+            comprehension_signal="understood", session_id="test-variant",
+        )
+
+        # Credit should go to canonical (100), not variant (101)
+        assert len(result["word_results"]) == 1
+        assert result["word_results"][0]["lemma_id"] == 100
+
+        # Canonical ULK should be updated
+        db_session.refresh(canonical_ulk)
+        assert canonical_ulk.times_seen == 6  # was 5
+        assert canonical_ulk.times_correct == 4  # was 3
+
+        # Review log should reference canonical
+        log = db_session.query(ReviewLog).filter(ReviewLog.lemma_id == 100).first()
+        assert log is not None
+
+    def test_variant_tracks_surface_form_stats(self, db_session):
+        """Variant surface forms tracked in variant_stats_json on canonical ULK."""
+        canonical = Lemma(lemma_id=200, lemma_ar="كِتَاب", lemma_ar_bare="كتاب",
+                         pos="noun", gloss_en="book")
+        db_session.add(canonical)
+        db_session.flush()
+        canonical_ulk = UserLemmaKnowledge(
+            lemma_id=200, knowledge_state="learning",
+            fsrs_card_json=_make_card(), times_seen=3, times_correct=2, source="study",
+        )
+        db_session.add(canonical_ulk)
+
+        variant = Lemma(lemma_id=201, lemma_ar="الكِتَاب", lemma_ar_bare="الكتاب",
+                       pos="noun", gloss_en="the book", canonical_lemma_id=200)
+        db_session.add(variant)
+
+        sent = Sentence(id=60, arabic_text="الكتاب", arabic_diacritized="الكتاب",
+                       english_translation="the book", target_lemma_id=201)
+        db_session.add(sent)
+        db_session.flush()
+        sw = SentenceWord(sentence_id=60, position=0, surface_form="الكِتَاب", lemma_id=201)
+        db_session.add(sw)
+        db_session.commit()
+
+        submit_sentence_review(
+            db_session, sentence_id=60, primary_lemma_id=201,
+            comprehension_signal="understood", session_id="test-vstats",
+        )
+
+        db_session.refresh(canonical_ulk)
+        vstats = canonical_ulk.variant_stats_json
+        assert isinstance(vstats, dict)
+        assert "الكتاب" in vstats
+        assert vstats["الكتاب"]["seen"] >= 1
+
+    def test_suspended_variant_skipped(self, db_session):
+        """If variant ULK is suspended, it should be skipped entirely."""
+        canonical = Lemma(lemma_id=300, lemma_ar="كِتَاب", lemma_ar_bare="كتاب",
+                         pos="noun", gloss_en="book")
+        db_session.add(canonical)
+        db_session.flush()
+        canonical_ulk = UserLemmaKnowledge(
+            lemma_id=300, knowledge_state="learning",
+            fsrs_card_json=_make_card(), times_seen=5, times_correct=3, source="study",
+        )
+        db_session.add(canonical_ulk)
+
+        variant = Lemma(lemma_id=301, lemma_ar="الكِتَاب", lemma_ar_bare="الكتاب",
+                       pos="noun", gloss_en="the book", canonical_lemma_id=300)
+        db_session.add(variant)
+        db_session.flush()
+        # Variant ULK is suspended
+        variant_ulk = UserLemmaKnowledge(
+            lemma_id=301, knowledge_state="suspended",
+            times_seen=1, times_correct=0, source="study",
+        )
+        db_session.add(variant_ulk)
+
+        sent = Sentence(id=70, arabic_text="الكتاب", arabic_diacritized="الكتاب",
+                       english_translation="the book", target_lemma_id=301)
+        db_session.add(sent)
+        db_session.flush()
+        sw = SentenceWord(sentence_id=70, position=0, surface_form="الكتاب", lemma_id=301)
+        db_session.add(sw)
+        db_session.commit()
+
+        result = submit_sentence_review(
+            db_session, sentence_id=70, primary_lemma_id=301,
+            comprehension_signal="understood", session_id="test-susp",
+        )
+
+        # Suspended variant should be skipped — canonical still gets credit
+        # (variant is suspended, but canonical is not)
+        # Actually, the current logic skips if the variant lemma_id is in suspended_lemma_ids.
+        # The canonical is NOT suspended, so credit should still go through.
+        # Let's check: the variant's ULK is suspended, so lemma_id 301 is in suspended_lemma_ids.
+        # The code checks: if lemma_id in suspended_lemma_ids or effective_lemma_id in suspended_lemma_ids
+        # lemma_id=301 IS suspended, so it's skipped.
+        # This is correct — we don't want to credit the canonical when the specific variant form is suspended.
+        assert len(result["word_results"]) == 0
+
+    def test_dedup_multiple_variants_same_canonical(self, db_session):
+        """Two variants of the same canonical in a sentence should only credit once."""
+        canonical = Lemma(lemma_id=400, lemma_ar="كِتَاب", lemma_ar_bare="كتاب",
+                         pos="noun", gloss_en="book")
+        db_session.add(canonical)
+        db_session.flush()
+        canonical_ulk = UserLemmaKnowledge(
+            lemma_id=400, knowledge_state="learning",
+            fsrs_card_json=_make_card(), times_seen=5, times_correct=3, source="study",
+        )
+        db_session.add(canonical_ulk)
+
+        variant1 = Lemma(lemma_id=401, lemma_ar="الكِتَاب", lemma_ar_bare="الكتاب",
+                        pos="noun", gloss_en="the book", canonical_lemma_id=400)
+        db_session.add(variant1)
+        variant2 = Lemma(lemma_id=402, lemma_ar="كِتَابي", lemma_ar_bare="كتابي",
+                        pos="noun", gloss_en="my book", canonical_lemma_id=400)
+        db_session.add(variant2)
+
+        sent = Sentence(id=80, arabic_text="الكتاب كتابي", arabic_diacritized="الكتاب كتابي",
+                       english_translation="the book is my book", target_lemma_id=401)
+        db_session.add(sent)
+        db_session.flush()
+        SentenceWord(sentence_id=80, position=0, surface_form="الكتاب", lemma_id=401)
+        sw1 = SentenceWord(sentence_id=80, position=0, surface_form="الكتاب", lemma_id=401)
+        sw2 = SentenceWord(sentence_id=80, position=1, surface_form="كتابي", lemma_id=402)
+        db_session.add_all([sw1, sw2])
+        db_session.commit()
+
+        result = submit_sentence_review(
+            db_session, sentence_id=80, primary_lemma_id=401,
+            comprehension_signal="understood", session_id="test-dedup",
+        )
+
+        # Should credit canonical only once, not twice
+        assert len(result["word_results"]) == 1
+        assert result["word_results"][0]["lemma_id"] == 400

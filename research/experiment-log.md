@@ -4,6 +4,29 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-02-12: Variant→Canonical Review Credit + Comprehensive Data Cleanup
+
+**Problem**: After 6+ rounds of data cleanup (garbage roots, text sanitization, abbreviations, LLM variant detection, al-prefix dedup, OCR reset), one structural gap remained: variant detection correctly sets `canonical_lemma_id` on variant lemmas, but the system never acts on it. Each variant still had its own independent ULK/FSRS card, and sentence reviews credited the variant rather than the canonical lemma. Additionally, the LLM-based junk check was incorrectly flagging legitimate variant forms (possessives, conjugated verbs) as junk — it was rediscovering what variant detection had already found.
+
+**Root cause**: Variant detection was a tagging system (sets canonical_lemma_id) but review credit, session scheduling, and cleanup all operated on individual lemma_ids without resolving variants.
+
+**Changes**:
+1. **Review credit redirect** (`sentence_review_service.py`): When a sentence contains a variant word, FSRS credit now goes to the canonical lemma. Variant surface forms tracked in `variant_stats_json` on canonical's ULK. Dedup prevents crediting the same canonical twice in one sentence.
+2. **Variant resolution in session building** (`sentence_selector.py`): Sentences containing variant forms now correctly cover canonical due words in the greedy set cover algorithm.
+3. **Deterministic variant ULK cleanup** (`cleanup_review_pool.py`): Replaced LLM junk check (step 3b) with: (a) suspend all variant ULKs, merging stats into canonical; (b) hardcode-suspend 4 true junk words (سي, واي, رود, توب). Also added step 3e: run variant detection on textbook_scan/story_import words that missed it.
+4. **Fixed story_service variant detection**: Was calling `detect_variants_llm()` and `detect_definite_variants()` without `mark_variants()` — variants detected but never marked.
+5. **Quality gate on all import paths**: Added to story import (in `_import_unknown_words()`) and Duolingo import (post-import suspension). OCR already had it.
+
+**Design principle**: The canonical lemma is the unit of FSRS scheduling. Variant forms are tracked for diagnostics only, never get independent FSRS cards.
+
+**Files**: `sentence_review_service.py`, `sentence_selector.py`, `cleanup_review_pool.py`, `story_service.py`, `import_duolingo.py`, `test_sentence_review.py`
+
+**Expected effect**: After running cleanup: variant ULKs suspended with stats merged to canonical, review sessions correctly schedule canonical lemmas covering variant sentence forms, no more independent review of possessive/conjugated forms.
+
+**Verification**: 629 tests pass (4 new variant redirect tests). Deploy + dry-run cleanup script on production to verify counts before applying.
+
+---
+
 ## 2026-02-12: Fix Broken Review Pipeline — Comprehensibility Gate + Data Cleanup
 
 **Problem**: After deploying the algorithm redesign, review sessions were broken:

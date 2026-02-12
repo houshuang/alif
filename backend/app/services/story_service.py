@@ -296,6 +296,26 @@ Set name_type to "personal" for personal names (people, characters), "place" for
     except (AllProvidersFailed, Exception) as e:
         logger.warning("LLM translation failed for story %d unknown words: %s", story.id, e)
 
+    # Step 2b: Quality gate — filter out junk (transliterations, abbreviations)
+    if word_analyses and gloss_map:
+        try:
+            from app.services.import_quality import filter_useful_lemmas
+            lemma_dicts = [
+                {"arabic": a["lex_bare"], "english": gloss_map.get(
+                    normalize_alef(strip_diacritics(a["story_word"].surface_form)), {}
+                ).get("english", "")}
+                for a in word_analyses
+            ]
+            useful, rejected = filter_useful_lemmas(lemma_dicts)
+            if rejected:
+                rejected_bares = {r["arabic"] for r in rejected}
+                word_analyses = [a for a in word_analyses if a["lex_bare"] not in rejected_bares]
+                logger.info("Story %d: quality gate rejected %d words: %s",
+                           story.id, len(rejected),
+                           ", ".join(r["arabic"] for r in rejected[:5]))
+        except Exception as e:
+            logger.warning("Quality gate failed for story %d: %s", story.id, e)
+
     # Step 3: Create Root + Lemma entries (skip proper nouns)
     new_lemma_ids: list[int] = []
     for analysis in word_analyses:
@@ -386,9 +406,14 @@ Set name_type to "personal" for personal names (people, characters), "place" for
             from app.services.variant_detection import (
                 detect_variants_llm,
                 detect_definite_variants,
+                mark_variants,
             )
-            detect_definite_variants(db, lemma_ids=new_lemma_ids)
-            detect_variants_llm(db, lemma_ids=new_lemma_ids)
+            camel_vars = detect_variants_llm(db, lemma_ids=new_lemma_ids)
+            already = {v[0] for v in camel_vars}
+            def_vars = detect_definite_variants(db, lemma_ids=new_lemma_ids, already_variant_ids=already)
+            all_vars = camel_vars + def_vars
+            if all_vars:
+                mark_variants(db, all_vars)
         except Exception as e:
             logger.warning("Variant detection failed for story %d: %s", story.id, e)
 

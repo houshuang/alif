@@ -50,8 +50,9 @@ See `docs/review-modes.md` for full UX flows.
 - **al-prefix is NOT a separate lemma** — الكلب and كلب are the same lemma. All import paths must dedup al-prefix forms. Distinct lemmas only for genuinely different words (e.g. الآن "now" vs آن "time").
 - **Be conservative with ElevenLabs TTS** — costs real money. Only generate audio for sentences that will actually be shown (due-date priority). Don't blanket-generate for all sentences.
 - **Sentence pipeline cap**: MAX 200 active sentences, MIN_SENTENCES=2 per word. Generation prioritized by FSRS due date via `update_material.py`.
-- **All import paths must run variant detection** — Duolingo, Wiktionary, AVP, OCR, story import all run `detect_variants_llm()` + `detect_definite_variants()` post-import.
-- **All import paths must run quality gate** — `import_quality.filter_useful_lemmas()` filters out junk (transliterations, abbreviations, letter names) before importing. Integrated in OCR pipeline.
+- **Canonical lemma is the unit of scheduling** — variant forms (possessives, conjugations, al-prefix) tracked for diagnostics via `variant_stats_json` but never get independent FSRS cards. Reviews of variant words redirect credit to canonical lemma.
+- **All import paths must run variant detection** — Duolingo, Wiktionary, AVP, OCR, story import all run `detect_variants_llm()` + `detect_definite_variants()` + `mark_variants()` post-import.
+- **All import paths must run quality gate** — `import_quality.filter_useful_lemmas()` filters out junk (transliterations, abbreviations, letter names) before importing. Integrated in OCR, story import, and Duolingo paths.
 
 ## Critical Rules for All Agents
 
@@ -127,8 +128,8 @@ This app is an ongoing learning experiment. Every algorithm change, data structu
 
 ### Backend Services
 - `fsrs_service.py` — FSRS spaced repetition. Auto-creates ULK + Card for unknown lemmas. Snapshots pre-review state in fsrs_log_json for undo.
-- `sentence_selector.py` — Session assembly: greedy set cover, comprehension-aware recency (7d/2d/4h), difficulty matching, easy-bookend ordering. Focus cohort filtering (MAX_COHORT_SIZE=40). Acquisition-due words with pseudo-stability mapping. Comprehensibility gate (≥70% known content words). On-demand sentence generation for uncovered words (MAX_ON_DEMAND=3). No word-only fallbacks.
-- `sentence_review_service.py` — Reviews ALL words equally. Routes acquiring→acquisition, skips encountered. credit_type is metadata only. Post-review leech check for words rated ≤2. Undo restores pre-review state from snapshots.
+- `sentence_selector.py` — Session assembly: greedy set cover, comprehension-aware recency (7d/2d/4h), difficulty matching, easy-bookend ordering. Focus cohort filtering (MAX_COHORT_SIZE=40). Acquisition-due words with pseudo-stability mapping. Comprehensibility gate (≥70% known content words). On-demand sentence generation for uncovered words (MAX_ON_DEMAND=3). No word-only fallbacks. **Variant→canonical resolution**: sentences with variant forms correctly cover canonical due words.
+- `sentence_review_service.py` — Reviews ALL words equally. Routes acquiring→acquisition, skips encountered. **Variant→canonical redirect**: reviews of variant words credit the canonical lemma, with surface forms tracked in variant_stats_json. credit_type is metadata only. Post-review leech check for words rated ≤2. Undo restores pre-review state from snapshots.
 - `word_selector.py` — Next-word algorithm: 40% freq + 30% root + 20% recency + 10% grammar + encountered/story bonus. Root-sibling interference guard. Excludes wiktionary refs and variant lemmas. introduce_word() calls start_acquisition().
 - `sentence_generator.py` — LLM generation with 3-attempt retry loop, diversity weighting, full diacritics. Feeds validation failures back as retry feedback.
 - `sentence_validator.py` — Rule-based: tokenize → strip diacritics → strip clitics → match known forms. 60+ function words. Public API: lookup_lemma(), resolve_existing_lemma(), build_lemma_lookup().
@@ -156,7 +157,7 @@ All services in `backend/app/services/`.
 ### Backend Other
 - `backend/app/models.py` — SQLAlchemy models (see Data Model below)
 - `backend/app/schemas.py` — Pydantic request/response models
-- `backend/scripts/` — Import, backfill, cleanup, analysis scripts. See `docs/scripts-catalog.md`. Most-used: update_material.py (cron), import_duolingo.py, retire_sentences.py, normalize_and_dedup.py, log_activity.py (CLI), reset_ocr_cards.py (OCR→encountered), backfill_etymology.py (LLM etymology), backfill_themes.py (thematic domains), cleanup_review_pool.py (reset under-learned→acquiring, suspend junk, retire bad sentences)
+- `backend/scripts/` — Import, backfill, cleanup, analysis scripts. See `docs/scripts-catalog.md`. Most-used: update_material.py (cron), import_duolingo.py, retire_sentences.py, normalize_and_dedup.py, log_activity.py (CLI), reset_ocr_cards.py (OCR→encountered), backfill_etymology.py (LLM etymology), backfill_themes.py (thematic domains), cleanup_review_pool.py (reset under-learned→acquiring, suspend variant ULKs with stat merge, suspend junk, retire bad sentences, run variant detection on uncovered words)
 
 ### Frontend
 - `app/index.tsx` — Review screen: sentence-first + word-only fallback, reading + listening, word lookup, word marking, back/undo, wrap-up mini-quiz (acquiring + missed words), next-session recap, session word tracking, story source badges on intro cards

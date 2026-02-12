@@ -572,6 +572,12 @@ After importing ~100 textbook pages via OCR, 411 words entered the system with a
 - [DONE] No word-only fallback cards: due words without sentences get on-demand generation or are skipped.
 - [DONE] On-demand sentence generation: MAX_ON_DEMAND_PER_SESSION=3 synchronous LLM calls during session building. Uses current vocabulary, not stale pool.
 - [DONE] Import quality gate: `import_quality.py` — LLM batch filter for junk words on import paths.
+- [DONE] Variant→canonical review credit redirect: sentence reviews now credit the canonical lemma, not the variant. Variant forms tracked in variant_stats_json on canonical's ULK for diagnostics.
+- [DONE] Deterministic variant ULK cleanup: suspend variant ULK records, merge stats into canonical. Replaces LLM-based junk detection which was incorrectly re-discovering variants.
+- [DONE] Quality gate on all import paths: OCR, story import, Duolingo. Wiktionary/AVP skipped (no ULK created).
+- [DONE] Fixed story_service variant detection: was calling detect functions without mark_variants().
+- [DONE] Variant resolution in sentence_selector: sentences containing variant forms correctly cover canonical due words.
+- Variant-aware statistics display: show aggregated stats across all variant forms on the word detail page. "You've seen this word as: كتاب (5x), الكتاب (3x), كتابي (1x)"
 - Adaptive comprehensibility threshold: start at 70%, increase to 80% as vocabulary grows. Early learners need more i+1, advanced need less scaffolding.
 - Sentence regeneration trigger: when cleanup retires many sentences, auto-regenerate for words below MIN_SENTENCES=2.
 - Pre-warm sentence cache: after cleanup, generate sentences for all active words in background (not during session building).

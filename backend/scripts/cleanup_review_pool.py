@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
-"""Clean up the review pool after algorithm redesign deployment.
+"""Clean up the review pool — comprehensive data quality pass.
 
 Actions:
   3a. Move under-learned words back to acquiring (times_correct < 3)
-  3b. Suspend junk words via LLM quality check
+  3b. Suspend variant ULK records (merge stats into canonical)
+  3b2. Suspend known junk words (hardcoded transliterations)
   3c. Retire incomprehensible sentences (< 50% content words known)
   3d. Log regeneration candidates (words with < 2 active sentences)
+  3e. Run variant detection on uncovered words (textbook_scan, story_import)
 
 Usage:
     python scripts/cleanup_review_pool.py --dry-run     # preview changes
@@ -30,7 +32,11 @@ from sqlalchemy import func as sa_func
 from app.database import SessionLocal
 from app.models import Lemma, Sentence, SentenceWord, UserLemmaKnowledge
 from app.services.activity_log import log_activity
+from app.services.fsrs_service import parse_json_column
 from app.services.sentence_validator import FUNCTION_WORDS, strip_diacritics
+
+# Known transliteration junk — not real Arabic vocabulary
+JUNK_BARE_FORMS = {"سي", "واي", "رود", "توب"}
 
 
 def reset_under_learned(db, dry_run: bool) -> dict:
@@ -50,6 +56,9 @@ def reset_under_learned(db, dry_run: bool) -> dict:
 
     reset_words = []
     for ulk, lemma in candidates:
+        # Skip variants — they'll be handled by suspend_variant_ulks
+        if lemma.canonical_lemma_id is not None:
+            continue
         reset_words.append({
             "lemma_id": lemma.lemma_id,
             "arabic": lemma.lemma_ar_bare,
@@ -71,69 +80,127 @@ def reset_under_learned(db, dry_run: bool) -> dict:
     return {"count": len(reset_words), "words": reset_words}
 
 
-def suspend_junk_words(db, dry_run: bool) -> dict:
-    """Suspend junk words via LLM quality check."""
-    from app.services.llm import generate_completion, AllProvidersFailed
-
-    active_ulks = (
-        db.query(UserLemmaKnowledge, Lemma)
-        .join(Lemma, Lemma.lemma_id == UserLemmaKnowledge.lemma_id)
-        .filter(
-            UserLemmaKnowledge.knowledge_state.notin_(["suspended", "encountered"]),
-        )
+def suspend_variant_ulks(db, dry_run: bool) -> dict:
+    """Suspend ULK records for variant lemmas, merging stats into canonical."""
+    variant_lemmas = (
+        db.query(Lemma)
+        .filter(Lemma.canonical_lemma_id.isnot(None))
         .all()
     )
 
-    if not active_ulks:
-        return {"count": 0, "words": []}
+    if not variant_lemmas:
+        return {"count": 0, "words": [], "canonicals_created": 0}
 
-    lemma_list = [
-        {"id": lemma.lemma_id, "arabic": lemma.lemma_ar_bare, "english": lemma.gloss_en or ""}
-        for _, lemma in active_ulks
-    ]
+    suspended = []
+    canonicals_created = 0
 
-    # Batch through LLM in groups of 50
-    all_junk_ids: set[int] = set()
-    batch_size = 50
-    for i in range(0, len(lemma_list), batch_size):
-        batch = lemma_list[i:i + batch_size]
-        word_list = "\n".join(
-            f"  {w['id']}: {w['arabic']} ({w['english']})" for w in batch
+    for vlem in variant_lemmas:
+        variant_ulk = (
+            db.query(UserLemmaKnowledge)
+            .filter(UserLemmaKnowledge.lemma_id == vlem.lemma_id)
+            .first()
         )
-
-        prompt = f"""Given these Arabic lemmas, identify which are NOT useful standalone words for an early MSA learner.
-
-Flag these types:
-- Transliterations of English/foreign words (e.g. سي = "c", واي = "wi")
-- Abbreviations or letter names
-- Partial words or fragments
-- Proper nouns (except countries, major cities, or important cultural terms)
-
-Words:
-{word_list}
-
-Return JSON: {{"junk_ids": [list of id numbers that should be removed]}}
-Only flag words you are confident are junk. When in doubt, keep the word."""
-
-        try:
-            result = generate_completion(prompt, json_mode=True, temperature=0.1)
-            junk_ids = result.get("junk_ids", [])
-            all_junk_ids.update(int(x) for x in junk_ids)
-        except (AllProvidersFailed, Exception) as e:
-            print(f"  LLM batch {i//batch_size + 1} failed: {e}")
+        if not variant_ulk:
+            continue
+        if variant_ulk.knowledge_state in ("suspended", "encountered"):
             continue
 
-    suspended_words = []
-    for ulk, lemma in active_ulks:
-        if lemma.lemma_id in all_junk_ids:
-            suspended_words.append({
-                "lemma_id": lemma.lemma_id,
-                "arabic": lemma.lemma_ar_bare,
-                "english": lemma.gloss_en,
-                "old_state": ulk.knowledge_state,
-            })
+        # Get or create canonical ULK
+        canonical_ulk = (
+            db.query(UserLemmaKnowledge)
+            .filter(UserLemmaKnowledge.lemma_id == vlem.canonical_lemma_id)
+            .first()
+        )
+
+        canonical_lemma = (
+            db.query(Lemma)
+            .filter(Lemma.lemma_id == vlem.canonical_lemma_id)
+            .first()
+        )
+
+        if not canonical_ulk:
             if not dry_run:
-                ulk.knowledge_state = "suspended"
+                canonical_ulk = UserLemmaKnowledge(
+                    lemma_id=vlem.canonical_lemma_id,
+                    knowledge_state="encountered",
+                    source=variant_ulk.source or "variant_merge",
+                    times_seen=0,
+                    times_correct=0,
+                    total_encounters=0,
+                )
+                db.add(canonical_ulk)
+                db.flush()
+            canonicals_created += 1
+
+        suspended.append({
+            "lemma_id": vlem.lemma_id,
+            "arabic": vlem.lemma_ar_bare,
+            "english": vlem.gloss_en,
+            "old_state": variant_ulk.knowledge_state,
+            "canonical_id": vlem.canonical_lemma_id,
+            "canonical_arabic": canonical_lemma.lemma_ar_bare if canonical_lemma else "?",
+            "times_seen": variant_ulk.times_seen,
+            "times_correct": variant_ulk.times_correct,
+        })
+
+        if not dry_run and canonical_ulk:
+            # Merge review stats into canonical
+            canonical_ulk.times_seen = (canonical_ulk.times_seen or 0) + (variant_ulk.times_seen or 0)
+            canonical_ulk.times_correct = (canonical_ulk.times_correct or 0) + (variant_ulk.times_correct or 0)
+            canonical_ulk.total_encounters = (canonical_ulk.total_encounters or 0) + (variant_ulk.total_encounters or 0)
+
+            # Merge variant_stats_json: add the variant form as a tracked variant
+            vstats = parse_json_column(canonical_ulk.variant_stats_json)
+            vstats = dict(vstats)
+            variant_bare = vlem.lemma_ar_bare or ""
+            if variant_bare:
+                existing = vstats.get(variant_bare, {"seen": 0, "missed": 0, "confused": 0})
+                existing["seen"] = existing.get("seen", 0) + (variant_ulk.times_seen or 0)
+                missed = (variant_ulk.times_seen or 0) - (variant_ulk.times_correct or 0)
+                existing["missed"] = existing.get("missed", 0) + max(0, missed)
+                vstats[variant_bare] = existing
+                canonical_ulk.variant_stats_json = vstats
+
+            # Suspend the variant ULK
+            variant_ulk.knowledge_state = "suspended"
+            variant_ulk.fsrs_card_json = None
+
+    if not dry_run and suspended:
+        db.flush()
+
+    return {"count": len(suspended), "words": suspended, "canonicals_created": canonicals_created}
+
+
+def suspend_junk_words(db, dry_run: bool) -> dict:
+    """Suspend known junk words (transliterations, abbreviations)."""
+    suspended_words = []
+
+    for bare_form in JUNK_BARE_FORMS:
+        lemma = (
+            db.query(Lemma)
+            .filter(Lemma.lemma_ar_bare == bare_form)
+            .first()
+        )
+        if not lemma:
+            continue
+
+        ulk = (
+            db.query(UserLemmaKnowledge)
+            .filter(UserLemmaKnowledge.lemma_id == lemma.lemma_id)
+            .first()
+        )
+        if not ulk or ulk.knowledge_state == "suspended":
+            continue
+
+        suspended_words.append({
+            "lemma_id": lemma.lemma_id,
+            "arabic": lemma.lemma_ar_bare,
+            "english": lemma.gloss_en,
+            "old_state": ulk.knowledge_state,
+        })
+
+        if not dry_run:
+            ulk.knowledge_state = "suspended"
 
     if not dry_run and suspended_words:
         db.flush()
@@ -227,8 +294,44 @@ def find_regeneration_candidates(db) -> dict:
     return {"count": len(candidates), "words": candidates}
 
 
+def run_variant_detection_on_uncovered(db, dry_run: bool) -> dict:
+    """Run variant detection on words that missed it (textbook_scan, story_import)."""
+    uncovered = (
+        db.query(Lemma)
+        .filter(
+            Lemma.canonical_lemma_id.is_(None),
+            Lemma.source.in_(["textbook_scan", "story_import", "story"]),
+        )
+        .all()
+    )
+
+    lemma_ids = [l.lemma_id for l in uncovered]
+    if not lemma_ids:
+        return {"count": 0, "variants_found": 0}
+
+    if dry_run:
+        return {"count": len(lemma_ids), "variants_found": 0, "note": "would run detection on these"}
+
+    from app.services.variant_detection import (
+        detect_variants_llm,
+        detect_definite_variants,
+        mark_variants,
+    )
+
+    camel_vars = detect_variants_llm(db, lemma_ids=lemma_ids)
+    already = {v[0] for v in camel_vars}
+    def_vars = detect_definite_variants(db, lemma_ids=lemma_ids, already_variant_ids=already)
+    all_vars = camel_vars + def_vars
+    variants_marked = 0
+    if all_vars:
+        variants_marked = mark_variants(db, all_vars)
+    db.flush()
+
+    return {"count": len(lemma_ids), "variants_found": variants_marked}
+
+
 def main():
-    parser = argparse.ArgumentParser(description="Clean up review pool after algorithm redesign")
+    parser = argparse.ArgumentParser(description="Clean up review pool — comprehensive data quality pass")
     parser.add_argument("--dry-run", action="store_true", help="Preview only, don't modify")
     args = parser.parse_args()
 
@@ -236,6 +339,12 @@ def main():
     prefix = "DRY RUN — " if args.dry_run else ""
 
     try:
+        # 3e: Run variant detection on uncovered words (BEFORE variant ULK cleanup)
+        print(f"\n{prefix}Step 3e: Run variant detection on uncovered words")
+        print("=" * 60)
+        detect_result = run_variant_detection_on_uncovered(db, args.dry_run)
+        print(f"Words checked: {detect_result['count']}, new variants found: {detect_result['variants_found']}")
+
         # 3a: Reset under-learned words
         print(f"\n{prefix}Step 3a: Reset under-learned words to acquiring")
         print("=" * 60)
@@ -247,8 +356,20 @@ def main():
         if len(reset_result["words"]) > 30:
             print(f"  ... and {len(reset_result['words']) - 30} more")
 
-        # 3b: Suspend junk words
-        print(f"\n{prefix}Step 3b: Suspend junk words (LLM quality check)")
+        # 3b: Suspend variant ULK records (merge stats into canonical)
+        print(f"\n{prefix}Step 3b: Suspend variant ULK records")
+        print("=" * 60)
+        variant_result = suspend_variant_ulks(db, args.dry_run)
+        print(f"Variant ULKs to suspend: {variant_result['count']} "
+              f"(canonicals created: {variant_result['canonicals_created']})")
+        for w in variant_result["words"][:30]:
+            print(f"  {w['arabic']:<15} → {w['canonical_arabic']:<15} "
+                  f"state={w['old_state']} seen={w['times_seen']} correct={w['times_correct']}")
+        if len(variant_result["words"]) > 30:
+            print(f"  ... and {len(variant_result['words']) - 30} more")
+
+        # 3b2: Suspend known junk words
+        print(f"\n{prefix}Step 3b2: Suspend junk words (hardcoded)")
         print("=" * 60)
         junk_result = suspend_junk_words(db, args.dry_run)
         print(f"Junk words to suspend: {junk_result['count']}")
@@ -285,15 +406,20 @@ def main():
                 event_type="manual_action",
                 summary=(
                     f"Review pool cleanup: {reset_result['count']} words→acquiring, "
+                    f"{variant_result['count']} variant ULKs suspended, "
                     f"{junk_result['count']} junk suspended, "
                     f"{retire_result['count']} sentences retired, "
                     f"{regen_result['count']} words need regeneration"
                 ),
                 detail={
                     "reset_count": reset_result["count"],
+                    "variant_suspended": variant_result["count"],
+                    "canonicals_created": variant_result["canonicals_created"],
                     "junk_count": junk_result["count"],
                     "retired_sentences": retire_result["count"],
                     "regen_needed": regen_result["count"],
+                    "variant_detection_checked": detect_result["count"],
+                    "variant_detection_found": detect_result["variants_found"],
                 },
             )
             print(f"\nChanges applied and logged to ActivityLog.")

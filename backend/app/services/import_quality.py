@@ -42,17 +42,22 @@ def filter_useful_lemmas(
 
         prompt = f"""Given these Arabic lemmas being imported into a vocabulary learning app, identify which are NOT useful standalone words for an early MSA learner.
 
-Flag these types:
+ONLY flag these specific types:
 - Transliterations of English/foreign words (e.g. سي = "c", واي = "wi", توب = "top")
 - Abbreviations or single letter names
-- Partial words or fragments
-- Proper nouns (except countries, major cities, or important cultural terms)
+- Partial words or meaningless fragments
+
+Do NOT flag:
+- Possessive forms (عندي, بيتي, أمي etc.) — these are useful vocabulary
+- Conjugated verbs (تحب, يسكن etc.) — these are useful
+- Proper nouns of people, countries, cities — keep these
+- Any real Arabic word even if unusual
 
 Words:
 {word_list}
 
 Return JSON: {{"junk_indices": [list of index numbers that should be removed]}}
-Only flag words you are confident are junk. When in doubt, keep the word."""
+Be very conservative. Only flag words you are 100% confident are transliterations, abbreviations, or fragments."""
 
         try:
             result = generate_completion(prompt, json_mode=True, temperature=0.1)
