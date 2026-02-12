@@ -417,14 +417,41 @@ def build_session(
 
     total_due = len(due_lemma_ids) + len(struggling_ids)
 
+    # Fallback: if nothing is due, pull in "almost due" FSRS words
+    # (closest to their due date) so the learner always has something to review.
     if not due_lemma_ids and not struggling_ids:
-        return {
-            "session_id": session_id,
-            "items": [],
-            "total_due_words": 0,
-            "covered_due_words": 0,
-            "reintro_cards": [],
-        }
+        import logging
+        logger = logging.getLogger(__name__)
+        almost_due: list[tuple[int, datetime]] = []
+        for k in all_knowledge:
+            if k.knowledge_state in ("known", "learning", "lapsed") and k.fsrs_card_json:
+                due_dt = _get_due_dt(k)
+                if due_dt:
+                    almost_due.append((k.lemma_id, due_dt))
+            elif k.knowledge_state == "acquiring" and k.acquisition_next_due:
+                acq_due = k.acquisition_next_due
+                if acq_due.tzinfo is None:
+                    acq_due = acq_due.replace(tzinfo=timezone.utc)
+                almost_due.append((k.lemma_id, acq_due))
+        almost_due.sort(key=lambda x: x[1])
+        # Take the closest-to-due words (up to limit)
+        preview_ids = [lid for lid, _ in almost_due[:limit]]
+        if preview_ids:
+            due_lemma_ids = set(preview_ids) & cohort
+            for lid in due_lemma_ids:
+                if lid not in stability_map:
+                    k = knowledge_by_id.get(lid)
+                    if k:
+                        stability_map[lid] = _get_stability(k) if k.fsrs_card_json else 0.1
+            logger.info(f"No due words — previewing {len(due_lemma_ids)} almost-due words")
+        if not due_lemma_ids:
+            return {
+                "session_id": session_id,
+                "items": [],
+                "total_due_words": 0,
+                "covered_due_words": 0,
+                "reintro_cards": [],
+            }
 
     # Build reintro cards for struggling words (limit 3 per session)
     reintro_cards = _build_reintro_cards(db, struggling_ids, limit=3) if struggling_ids else []
