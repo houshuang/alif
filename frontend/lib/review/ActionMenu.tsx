@@ -109,8 +109,8 @@ export default function ActionMenu({
   }
 
   return (
-    <>
-      <Pressable style={styles.trigger} onPress={handleOpenMenu} hitSlop={8}>
+    <View style={styles.trigger}>
+      <Pressable onPress={handleOpenMenu} hitSlop={8} style={styles.triggerInner}>
         <Ionicons name="ellipsis-horizontal" size={18} color={colors.textSecondary} />
       </Pressable>
 
@@ -203,7 +203,7 @@ export default function ActionMenu({
           <Text style={styles.toastText}>{toast.message}</Text>
         </Animated.View>
       )}
-    </>
+    </View>
   );
 }
 
@@ -258,6 +258,10 @@ function AskAIModal({
 
 const styles = StyleSheet.create({
   trigger: {
+    width: 28,
+    height: 28,
+  },
+  triggerInner: {
     width: 28,
     height: 28,
     alignItems: "center",
