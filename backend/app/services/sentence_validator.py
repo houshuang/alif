@@ -495,6 +495,119 @@ def resolve_existing_lemma(
     return lookup_lemma(bare_norm, lemma_lookup)
 
 
+@dataclass
+class MultiTargetValidationResult:
+    valid: bool
+    targets_found: dict[str, bool]
+    target_count: int
+    unknown_words: list[str] = field(default_factory=list)
+    known_words: list[str] = field(default_factory=list)
+    function_words: list[str] = field(default_factory=list)
+    issues: list[str] = field(default_factory=list)
+
+
+def validate_sentence_multi_target(
+    arabic_text: str,
+    target_bares: dict[str, int],
+    known_bare_forms: set[str],
+) -> MultiTargetValidationResult:
+    """Validate that a sentence uses known words and contains target words.
+
+    Args:
+        arabic_text: The Arabic sentence (may include diacritics).
+        target_bares: Dict mapping bare form -> lemma_id for each target word.
+        known_bare_forms: Set of bare forms the user knows.
+
+    Returns:
+        MultiTargetValidationResult. Valid = at least 1 target found AND no unknown words.
+    """
+    tokens = tokenize(arabic_text)
+    if not tokens:
+        return MultiTargetValidationResult(
+            valid=False, targets_found={}, target_count=0,
+            issues=["Empty sentence"],
+        )
+
+    known_normalized = {normalize_alef(w) for w in known_bare_forms}
+
+    # Build expanded target forms for each target (with/without al-prefix)
+    target_form_map: dict[str, str] = {}  # normalized_form -> original_bare
+    for bare in target_bares:
+        norm = normalize_alef(bare)
+        target_form_map[norm] = bare
+        if not norm.startswith("ال"):
+            target_form_map["ال" + norm] = bare
+        if norm.startswith("ال") and len(norm) > 2:
+            target_form_map[norm[2:]] = bare
+
+    targets_found: dict[str, bool] = {bare: False for bare in target_bares}
+    unknown_words: list[str] = []
+    known_words: list[str] = []
+    function_words: list[str] = []
+
+    for token in tokens:
+        bare = strip_diacritics(token)
+        bare_clean = strip_tatweel(bare)
+        bare_normalized = normalize_alef(bare_clean)
+
+        # Check if it's a target word
+        matched_target = target_form_map.get(bare_normalized)
+        if not matched_target:
+            for stem in _strip_clitics(bare_normalized):
+                matched_target = target_form_map.get(normalize_alef(stem))
+                if matched_target:
+                    break
+
+        if matched_target:
+            targets_found[matched_target] = True
+            continue
+
+        if _is_function_word(bare_clean):
+            function_words.append(token)
+            continue
+
+        # Known word check (same logic as validate_sentence)
+        is_known = False
+        forms_to_check = [bare_normalized]
+        if bare_normalized.startswith("ال") and len(bare_normalized) > 2:
+            forms_to_check.append(bare_normalized[2:])
+        if not bare_normalized.startswith("ال"):
+            forms_to_check.append("ال" + bare_normalized)
+        for form in forms_to_check:
+            if form in known_normalized:
+                is_known = True
+                break
+        if not is_known:
+            for stem in _strip_clitics(bare_normalized):
+                if normalize_alef(stem) in known_normalized:
+                    is_known = True
+                    break
+
+        if is_known:
+            known_words.append(token)
+        else:
+            unknown_words.append(token)
+
+    target_count = sum(1 for found in targets_found.values() if found)
+    issues: list[str] = []
+    if target_count == 0:
+        issues.append("No target words found in sentence")
+    if unknown_words:
+        issues.append(f"Unknown words: {', '.join(unknown_words)}")
+
+    valid = target_count >= 1 and len(unknown_words) == 0
+
+    return MultiTargetValidationResult(
+        valid=valid,
+        targets_found=targets_found,
+        target_count=target_count,
+        unknown_words=unknown_words,
+        known_words=known_words,
+        function_words=function_words,
+        issues=issues,
+    )
+
+
 def validate_sentence(
     arabic_text: str,
     target_bare: str,
