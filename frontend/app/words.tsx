@@ -91,7 +91,7 @@ export default function WordsScreen() {
         getWords(),
         getFunctionWords().catch(() => []),
         getProperNames().catch(() => []),
-        getNextWords(20).catch(() => []),
+        getNextWords(20).then((d) => d.words).catch(() => []),
       ]);
       setWords(w);
       setFuncWords(fw);

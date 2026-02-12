@@ -210,6 +210,7 @@ def select_next_words(
     db: Session,
     count: int = DEFAULT_BATCH_SIZE,
     exclude_lemma_ids: Optional[list[int]] = None,
+    domain: Optional[str] = None,
 ) -> list[dict]:
     """Select the best words to introduce next.
 
@@ -246,6 +247,13 @@ def select_next_words(
 
     if not candidates:
         return []
+
+    # Topic-aware filtering: prefer words from the active domain
+    if domain:
+        domain_candidates = [c for c in candidates if c.thematic_domain == domain]
+        if domain_candidates:
+            candidates = domain_candidates
+        # else: fall back to all candidates
 
     # Root-sibling interference guard: skip words whose root siblings failed in last 7d
     recently_failed_roots = _get_recently_failed_roots(db)
@@ -357,6 +365,8 @@ def introduce_word(
         if existing.knowledge_state == "encountered":
             # Transition encountered → acquiring
             ulk = start_acquisition(db, lemma_id, source=source, due_immediately=due_immediately)
+            from app.services.topic_service import record_introduction
+            record_introduction(db)
             db.commit()
             root_family = []
             if lemma.root_id:
@@ -380,6 +390,8 @@ def introduce_word(
 
     # New word — start acquisition
     ulk = start_acquisition(db, lemma_id, source=source, due_immediately=due_immediately)
+    from app.services.topic_service import record_introduction
+    record_introduction(db)
     db.commit()
 
     root_family = []

@@ -24,6 +24,8 @@ import {
   WrapUpCard,
   RecapItem,
   EtymologyData,
+  TopicSettings,
+  TopicInfo,
 } from "./types";
 import { netStatus } from "./net-status";
 import {
@@ -319,11 +321,11 @@ export async function getAnalytics(): Promise<Analytics> {
 
 export async function getNextWords(
   count: number = 3
-): Promise<LearnCandidate[]> {
-  const data = await fetchApi<{ words: LearnCandidate[] }>(
+): Promise<{ words: LearnCandidate[]; active_topic: string | null }> {
+  const data = await fetchApi<{ words: LearnCandidate[]; active_topic: string | null }>(
     `/api/learn/next-words?count=${count}`
   );
-  return data.words;
+  return data;
 }
 
 export async function introduceWord(
@@ -855,4 +857,21 @@ export interface ActivityEntry {
 
 export async function getActivity(limit: number = 20): Promise<ActivityEntry[]> {
   return fetchApi<ActivityEntry[]>(`/api/activity?limit=${limit}`);
+}
+
+// --- Topic / Settings ---
+
+export async function getTopicSettings(): Promise<TopicSettings> {
+  return fetchApi<TopicSettings>("/api/settings/topic");
+}
+
+export async function setActiveTopic(domain: string): Promise<TopicSettings> {
+  return fetchApi<TopicSettings>("/api/settings/topic", {
+    method: "PUT",
+    body: JSON.stringify({ domain }),
+  });
+}
+
+export async function getAvailableTopics(): Promise<TopicInfo[]> {
+  return fetchApi<TopicInfo[]>("/api/settings/topics");
 }

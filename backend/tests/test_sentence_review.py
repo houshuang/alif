@@ -890,3 +890,47 @@ class TestVariantRedirect:
         # Should credit canonical only once, not twice
         assert len(result["word_results"]) == 1
         assert result["word_results"][0]["lemma_id"] == 400
+
+
+class TestRecapEndpoint:
+    def test_recap_returns_words(self, client, db_session):
+        """Recap items must include words array with surface_form, gloss_en, etc."""
+        _seed_word(db_session, 1, "كتاب", "book", with_card=False)
+        # Create acquiring ULK
+        ulk = UserLemmaKnowledge(
+            lemma_id=1,
+            knowledge_state="acquiring",
+            introduced_at=datetime.now(timezone.utc) - timedelta(hours=4),
+            times_seen=1,
+            source="study",
+        )
+        db_session.add(ulk)
+        _seed_sentence(db_session, 1, "الكتاب جميل", "the book is beautiful",
+                       target_lemma_id=1, word_ids=[1])
+        db_session.commit()
+
+        resp = client.post("/api/review/recap", json={
+            "last_session_lemma_ids": [1],
+        })
+        assert resp.status_code == 200
+        data = resp.json()
+        assert len(data["items"]) == 1
+
+        item = data["items"][0]
+        assert "words" in item, "recap items must include 'words'"
+        assert len(item["words"]) == 1
+        assert item["words"][0]["surface_form"] == "word_0"
+        assert item["words"][0]["gloss_en"] == "book"
+        assert "primary_lemma_id" in item
+        assert item["primary_lemma_id"] == 1
+
+    def test_recap_empty_when_no_acquiring(self, client, db_session):
+        """Recap returns empty when no words are still acquiring."""
+        _seed_word(db_session, 1, "كتاب", "book")  # learning, not acquiring
+        db_session.commit()
+
+        resp = client.post("/api/review/recap", json={
+            "last_session_lemma_ids": [1],
+        })
+        assert resp.status_code == 200
+        assert resp.json()["items"] == []

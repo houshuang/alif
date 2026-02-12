@@ -568,3 +568,20 @@ export interface BatchSummary {
   created_at: string;
   pages: PageUploadResult[];
 }
+
+// --- Topic / Settings types ---
+
+export interface TopicSettings {
+  active_topic: string | null;
+  topic_started_at: string | null;
+  words_introduced_in_topic: number;
+  max_topic_batch: number;
+}
+
+export interface TopicInfo {
+  domain: string;
+  label: string;
+  available_words: number;
+  learned_words: number;
+  eligible: boolean;
+}

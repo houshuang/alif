@@ -569,11 +569,11 @@ describe("getNextWords", () => {
       })
     );
 
-    const candidates = await getNextWords(5);
-    expect(candidates).toHaveLength(1);
-    expect(candidates[0].score).toBe(0.82);
-    expect(candidates[0].score_breakdown.known_siblings).toBe(2);
-    expect(candidates[0].frequency_rank).toBe(85);
+    const result = await getNextWords(5);
+    expect(result.words).toHaveLength(1);
+    expect(result.words[0].score).toBe(0.82);
+    expect(result.words[0].score_breakdown.known_siblings).toBe(2);
+    expect(result.words[0].frequency_rank).toBe(85);
   });
 });
 

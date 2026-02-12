@@ -110,10 +110,13 @@ def next_words(
     db: Session = Depends(get_db),
 ):
     """Get the next best words to introduce, ranked by the selection algorithm."""
+    from app.services.topic_service import ensure_active_topic
     exclude_ids = [int(x) for x in exclude.split(",") if x.strip().isdigit()]
-    words = select_next_words(db, count=count, exclude_lemma_ids=exclude_ids)
+    active_topic = ensure_active_topic(db)
+    words = select_next_words(db, count=count, exclude_lemma_ids=exclude_ids, domain=active_topic)
     _attach_grammar_details(db, words)
-    return {"words": words, "count": len(words)}
+    db.commit()
+    return {"words": words, "count": len(words), "active_topic": active_topic}
 
 
 @router.post("/introduce")

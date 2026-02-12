@@ -22,6 +22,7 @@ import { LearnCandidate, WordForms, Analytics } from "../lib/types";
 import { posLabel, FormsRow, GrammarRow, PlayButton } from "../lib/WordCardComponents";
 import { getFrequencyBand, getCefrColor } from "../lib/frequency";
 import ActionMenu from "../lib/review/ActionMenu";
+import { TOPIC_LABELS } from "../lib/topic-labels";
 
 type Phase = "loading" | "pick" | "quiz" | "done";
 
@@ -41,6 +42,7 @@ interface QuizSentence {
 export default function LearnScreen() {
   const [phase, setPhase] = useState<Phase>("loading");
   const [candidates, setCandidates] = useState<LearnCandidate[]>([]);
+  const [activeTopic, setActiveTopic] = useState<string | null>(null);
   const [pickIndex, setPickIndex] = useState(0);
   const [introduced, setIntroduced] = useState<IntroducedWord[]>([]);
   const [quizIndex, setQuizIndex] = useState(0);
@@ -59,8 +61,9 @@ export default function LearnScreen() {
   async function loadCandidates() {
     setPhase("loading");
     try {
-      const words = await getNextWords(5);
-      setCandidates(words);
+      const data = await getNextWords(5);
+      setCandidates(data.words);
+      setActiveTopic(data.active_topic);
       setPickIndex(0);
       setIntroduced([]);
       setPhase("pick");
@@ -226,6 +229,7 @@ export default function LearnScreen() {
       );
     }
 
+    const topicLabel = activeTopic ? (TOPIC_LABELS[activeTopic] || activeTopic) : null;
     const c = candidates[pickIndex];
     const buildLearnContext = () => {
       const parts = [`Word: ${c.lemma_ar} (${c.gloss_en})`];
@@ -241,6 +245,11 @@ export default function LearnScreen() {
     };
     return (
       <View style={styles.centered}>
+        {topicLabel && (
+          <View style={styles.topicBadge}>
+            <Text style={styles.topicBadgeText}>{topicLabel}</Text>
+          </View>
+        )}
         <View style={styles.progressContainer}>
           <Text style={styles.progressText}>
             Word {pickIndex + 1} of {candidates.length}
@@ -685,6 +694,18 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
 
+  topicBadge: {
+    backgroundColor: colors.surfaceLight,
+    paddingHorizontal: 14,
+    paddingVertical: 5,
+    borderRadius: 12,
+    marginBottom: 12,
+  },
+  topicBadgeText: {
+    color: colors.accent,
+    fontSize: 13,
+    fontWeight: "600",
+  },
   progressContainer: {
     width: "100%",
     maxWidth: 500,

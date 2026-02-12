@@ -300,3 +300,13 @@ class VariantDecision(Base):
     is_variant = Column(Boolean, nullable=False)
     reason = Column(Text, nullable=True)
     decided_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+
+class LearnerSettings(Base):
+    __tablename__ = "learner_settings"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    active_topic = Column(String(30), nullable=True)
+    topic_started_at = Column(DateTime, nullable=True)
+    words_introduced_in_topic = Column(Integer, default=0)
+    topic_history_json = Column(JSON, nullable=True)

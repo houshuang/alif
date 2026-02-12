@@ -7,11 +7,20 @@ import {
   ScrollView,
   ActivityIndicator,
   Alert,
+  Modal,
 } from "react-native";
 import { useRouter, useFocusEffect } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { colors, fonts } from "../lib/theme";
-import { getActivity, ActivityEntry } from "../lib/api";
+import {
+  getActivity,
+  ActivityEntry,
+  getTopicSettings,
+  getAvailableTopics,
+  setActiveTopic,
+} from "../lib/api";
+import { TopicSettings, TopicInfo } from "../lib/types";
+import { TOPIC_LABELS } from "../lib/topic-labels";
 import { invalidateSessions } from "../lib/offline-store";
 
 function relativeTime(dateStr: string): string {
@@ -48,10 +57,15 @@ export default function MoreScreen() {
   const router = useRouter();
   const [activity, setActivity] = useState<ActivityEntry[]>([]);
   const [loadingActivity, setLoadingActivity] = useState(false);
+  const [topicSettings, setTopicSettings] = useState<TopicSettings | null>(null);
+  const [topicPickerVisible, setTopicPickerVisible] = useState(false);
+  const [availableTopics, setAvailableTopics] = useState<TopicInfo[]>([]);
+  const [loadingTopics, setLoadingTopics] = useState(false);
 
   useFocusEffect(
     useCallback(() => {
       loadActivity();
+      loadTopicSettings();
     }, []),
   );
 
@@ -64,6 +78,38 @@ export default function MoreScreen() {
       console.warn("Failed to load activity:", e);
     } finally {
       setLoadingActivity(false);
+    }
+  }
+
+  async function loadTopicSettings() {
+    try {
+      const data = await getTopicSettings();
+      setTopicSettings(data);
+    } catch (e) {
+      console.warn("Failed to load topic settings:", e);
+    }
+  }
+
+  async function openTopicPicker() {
+    setTopicPickerVisible(true);
+    setLoadingTopics(true);
+    try {
+      const data = await getAvailableTopics();
+      setAvailableTopics(data);
+    } catch (e) {
+      console.warn("Failed to load topics:", e);
+    } finally {
+      setLoadingTopics(false);
+    }
+  }
+
+  async function handleSetTopic(domain: string) {
+    try {
+      await setActiveTopic(domain);
+      setTopicPickerVisible(false);
+      await loadTopicSettings();
+    } catch (e) {
+      Alert.alert("Error", "Failed to change topic");
     }
   }
 
@@ -90,6 +136,75 @@ export default function MoreScreen() {
           });
         }}
       />
+
+      <Text style={styles.sectionHeader}>Learning Topic</Text>
+      <Pressable style={styles.topicRow} onPress={openTopicPicker}>
+        <View style={styles.topicRowLeft}>
+          <Ionicons name="bookmark-outline" size={22} color={colors.accent} />
+          <View>
+            <Text style={styles.topicName}>
+              {topicSettings?.active_topic
+                ? TOPIC_LABELS[topicSettings.active_topic] || topicSettings.active_topic
+                : "No topic selected"}
+            </Text>
+            {topicSettings?.active_topic && (
+              <Text style={styles.topicProgress}>
+                {topicSettings.words_introduced_in_topic}/{topicSettings.max_topic_batch} words introduced
+              </Text>
+            )}
+          </View>
+        </View>
+        <Ionicons name="chevron-forward" size={18} color={colors.textSecondary} />
+      </Pressable>
+
+      <Modal
+        visible={topicPickerVisible}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => setTopicPickerVisible(false)}
+      >
+        <View style={styles.modalContainer}>
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>Choose Topic</Text>
+            <Pressable onPress={() => setTopicPickerVisible(false)}>
+              <Ionicons name="close" size={24} color={colors.text} />
+            </Pressable>
+          </View>
+          {loadingTopics ? (
+            <ActivityIndicator size="large" color={colors.accent} style={{ marginTop: 40 }} />
+          ) : (
+            <ScrollView style={styles.modalScroll}>
+              {availableTopics.map((t) => {
+                const isActive = topicSettings?.active_topic === t.domain;
+                return (
+                  <Pressable
+                    key={t.domain}
+                    style={[styles.topicItem, isActive && styles.topicItemActive]}
+                    onPress={() => !isActive && t.eligible && handleSetTopic(t.domain)}
+                    disabled={isActive || !t.eligible}
+                  >
+                    <View style={{ flex: 1 }}>
+                      <Text style={[
+                        styles.topicItemName,
+                        !t.eligible && styles.topicItemDisabled,
+                      ]}>
+                        {t.label}
+                        {isActive ? "  (current)" : ""}
+                      </Text>
+                      <Text style={styles.topicItemStats}>
+                        {t.available_words} available, {t.learned_words} learned
+                      </Text>
+                    </View>
+                    {!t.eligible && !isActive && (
+                      <Text style={styles.topicItemIneligible}>too few</Text>
+                    )}
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
+          )}
+        </View>
+      </Modal>
 
       <Text style={styles.sectionHeader}>Progress</Text>
       <NavRow
@@ -228,5 +343,81 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     fontSize: 12,
     marginTop: 2,
+  },
+  topicRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: 14,
+    paddingHorizontal: 20,
+    backgroundColor: colors.surface,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.border,
+  },
+  topicRowLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 14,
+  },
+  topicName: {
+    color: colors.text,
+    fontSize: fonts.body,
+    fontWeight: "600",
+  },
+  topicProgress: {
+    color: colors.textSecondary,
+    fontSize: 12,
+    marginTop: 2,
+  },
+  modalContainer: {
+    flex: 1,
+    backgroundColor: colors.bg,
+  },
+  modalHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.border,
+  },
+  modalTitle: {
+    color: colors.text,
+    fontSize: 20,
+    fontWeight: "700",
+  },
+  modalScroll: {
+    flex: 1,
+  },
+  topicItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 14,
+    paddingHorizontal: 20,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.border,
+  },
+  topicItemActive: {
+    backgroundColor: colors.accent + "15",
+  },
+  topicItemName: {
+    color: colors.text,
+    fontSize: fonts.body,
+    fontWeight: "500",
+  },
+  topicItemDisabled: {
+    color: colors.textSecondary,
+    opacity: 0.5,
+  },
+  topicItemStats: {
+    color: colors.textSecondary,
+    fontSize: 12,
+    marginTop: 2,
+  },
+  topicItemIneligible: {
+    color: colors.textSecondary,
+    fontSize: 12,
+    fontStyle: "italic",
   },
 });

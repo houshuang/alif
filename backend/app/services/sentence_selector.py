@@ -242,8 +242,10 @@ def _auto_introduce_words(
 
     from app.services.word_selector import select_next_words, introduce_word
     from app.services.material_generator import generate_material_for_word
+    from app.services.topic_service import ensure_active_topic
 
-    candidates = select_next_words(db, count=slots)
+    active_topic = ensure_active_topic(db)
+    candidates = select_next_words(db, count=slots, domain=active_topic)
     if not candidates:
         return []
 

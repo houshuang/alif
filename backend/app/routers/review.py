@@ -21,7 +21,7 @@ from app.services.listening import get_listening_candidates
 from app.services.interaction_logger import log_interaction
 from app.services.sentence_selector import build_session
 from app.services.sentence_review_service import submit_sentence_review, undo_sentence_review
-from app.services.sentence_validator import _is_function_word
+from app.services.sentence_validator import _is_function_word, FUNCTION_WORDS, FUNCTION_WORD_GLOSSES, strip_diacritics
 
 logger = logging.getLogger(__name__)
 
@@ -390,15 +390,66 @@ def get_recap_items(body: RecapIn, db: Session = Depends(get_db)):
         .all()
     )
 
+    # Build word metadata for each sentence
+    all_sw = (
+        db.query(SentenceWord)
+        .filter(SentenceWord.sentence_id.in_([s.id for s in sentences]))
+        .order_by(SentenceWord.position)
+        .all()
+    )
+    sw_by_sent: dict[int, list] = {}
+    lemma_ids_needed = set()
+    for sw in all_sw:
+        sw_by_sent.setdefault(sw.sentence_id, []).append(sw)
+        if sw.lemma_id:
+            lemma_ids_needed.add(sw.lemma_id)
+
+    lemma_map = {}
+    if lemma_ids_needed:
+        lemmas = db.query(Lemma).options(joinedload(Lemma.root)).filter(Lemma.lemma_id.in_(lemma_ids_needed)).all()
+        lemma_map = {l.lemma_id: l for l in lemmas}
+
     # Build session items (reuse build_session item format)
     items = []
     for sent in sentences:
+        word_dicts = []
+        for sw in sw_by_sent.get(sent.id, []):
+            lemma = lemma_map.get(sw.lemma_id) if sw.lemma_id else None
+            root_obj = lemma.root if lemma else None
+            bare = strip_diacritics(sw.surface_form)
+            is_func = bare in FUNCTION_WORDS
+            gloss = lemma.gloss_en if lemma else FUNCTION_WORD_GLOSSES.get(bare)
+            word_dicts.append({
+                "lemma_id": sw.lemma_id,
+                "surface_form": sw.surface_form,
+                "gloss_en": gloss,
+                "is_function_word": is_func,
+                "root": root_obj.root if root_obj else None,
+                "root_meaning": root_obj.core_meaning_en if root_obj else None,
+                "root_id": root_obj.root_id if root_obj else None,
+            })
+
+        # Determine primary lemma from acquiring words in this sentence
+        primary_lid = None
+        for sw in sw_by_sent.get(sent.id, []):
+            if sw.lemma_id in acquiring_ids:
+                primary_lid = sw.lemma_id
+                break
+        if primary_lid is None and word_dicts:
+            primary_lid = word_dicts[0].get("lemma_id")
+
+        primary_lemma = lemma_map.get(primary_lid) if primary_lid else None
+
         items.append({
             "sentence_id": sent.id,
             "arabic_text": sent.arabic_diacritized or sent.arabic_text,
             "english_translation": sent.english_translation,
             "transliteration": sent.transliteration,
             "audio_url": sent.audio_url,
+            "primary_lemma_id": primary_lid or 0,
+            "primary_lemma_ar": primary_lemma.lemma_ar if primary_lemma else "",
+            "primary_gloss_en": primary_lemma.gloss_en if primary_lemma else "",
+            "words": word_dicts,
             "is_recap": True,
         })
 
