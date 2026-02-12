@@ -532,6 +532,10 @@
 - Context variety scoring: measure how many different sentence patterns each word appears in (not just count)
 - Word pair co-occurrence tracking: detect word pairs that always appear together (e.g., كتاب+جميل) and actively break them apart
 - LLM fine-tuning: collect rejected sentences as negative examples, use for prompt engineering or RLHF on sentence generation
+- [DONE] Gemini Flash quality review gate: post-generation naturalness + translation accuracy check. Catches awkward, nonsensical, or mistranslated sentences before they reach users. Fails open (if Gemini unavailable, sentence passes). Integrated into both single-target and multi-target generation paths.
+- [DONE] Prompt overhaul: added explicit rules for indefinite noun starters, redundant pronouns, semantic coherence in compound sentences, beginner-level archaic word exclusion. Lowered temperature from 0.8 to 0.5. Reduced failure rate from 57% to ~10%.
+- [DONE] Parallel on-demand generation: ThreadPoolExecutor(max_workers=8) for concurrent LLM calls during session building
+- [DONE] Bulk sentence quality audit: `review_existing_sentences.py` script reviews all active sentences with Gemini Flash, retires failures
 
 ### Learning Algorithm Overhaul — Acquisition Phase & Focus Cohorts (2026-02-12)
 
