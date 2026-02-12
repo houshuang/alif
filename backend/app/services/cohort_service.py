@@ -44,7 +44,7 @@ def get_focus_cohort(db: Session) -> set[int]:
                 if due_dt.tzinfo is None:
                     due_dt = due_dt.replace(tzinfo=timezone.utc)
                 if due_dt <= now:
-                    stability = card_data.get("stability", 0.0)
+                    stability = card_data.get("stability") or 0.0
                     fsrs_candidates.append((k.lemma_id, stability))
 
     # Fill remaining slots with lowest-stability FSRS words
