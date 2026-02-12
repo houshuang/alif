@@ -216,8 +216,8 @@ Redundant pronouns — CRITICAL:
 
 Semantic coherence in compound sentences:
 - When joining clauses with و/ثُمَّ/لَكِنَّ, they MUST be logically related:
-  ✓ فِي الكُوَيْتِ مَطَرٌ فَأَخَذْتُ مِظَلَّةً (In Kuwait rain, so I took an umbrella)
-  ✗ فِي الكُوَيْتِ مَطَرٌ وَالبَاصُ بَعِيدٌ (In Kuwait rain, and the bus is far — unrelated)
+  ✓ فِي الكُوَيْتِ مَطَرٌ فَأَخَذْتُ مِظَلَّةً (In Kuwait it is raining, so I took an umbrella)
+  ✗ فِي الكُوَيْتِ مَطَرٌ وَالبَاصُ بَعِيدٌ (In Kuwait it is raining, and the bus is far — unrelated)
 - Do NOT combine unrelated facts into one sentence"""
 
 DIFFICULTY_STYLE_GUIDE = """\
