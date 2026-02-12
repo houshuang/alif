@@ -84,15 +84,28 @@ def get_words_by_due_date(db: Session) -> list[tuple[int, str]]:
     knowledges = (
         db.query(UserLemmaKnowledge)
         .filter(
-            UserLemmaKnowledge.fsrs_card_json.isnot(None),
-            UserLemmaKnowledge.knowledge_state != "suspended",
+            UserLemmaKnowledge.knowledge_state.notin_(["suspended", "encountered"]),
         )
         .all()
     )
 
     items: list[tuple[int, datetime]] = []
     for k in knowledges:
-        card = k.fsrs_card_json if isinstance(k.fsrs_card_json, dict) else __import__("json").loads(k.fsrs_card_json)
+        # Acquiring words use acquisition_next_due
+        if k.knowledge_state == "acquiring":
+            if k.acquisition_next_due:
+                due_dt = k.acquisition_next_due
+                if due_dt.tzinfo is None:
+                    due_dt = due_dt.replace(tzinfo=timezone.utc)
+                items.append((k.lemma_id, due_dt))
+            continue
+
+        if not k.fsrs_card_json:
+            continue
+        try:
+            card = k.fsrs_card_json if isinstance(k.fsrs_card_json, dict) else __import__("json").loads(k.fsrs_card_json)
+        except (TypeError, ValueError):
+            continue
         due_str = card.get("due", "")
         if due_str:
             try:
