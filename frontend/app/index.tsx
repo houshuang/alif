@@ -12,7 +12,6 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { Audio } from "expo-av";
-import { Ionicons } from "@expo/vector-icons";
 import { colors, fonts, fontFamily } from "../lib/theme";
 import {
   getReviewSession,
@@ -1133,9 +1132,19 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
     return (
       <View style={[styles.container, { paddingTop: Math.max(insets.top, 12) }]}>
         <View style={styles.progressContainer}>
-          <Text style={styles.progressText}>
-            Re-learning {reintroIndex + 1} of {reintroCards.length}
-          </Text>
+          <View style={styles.progressHeader}>
+            <ActionMenu
+              focusedLemmaId={card.lemma_id}
+              focusedLemmaAr={card.lemma_ar}
+              sentenceId={null}
+              askAIContextBuilder={buildContext}
+              askAIScreen="review"
+            />
+            <Text style={styles.progressText}>
+              Re-learning {reintroIndex + 1} of {reintroCards.length}
+            </Text>
+            <View style={styles.backButtonPlaceholder} />
+          </View>
         </View>
         <ScrollView
           contentContainerStyle={styles.reintroScrollContent}
@@ -1237,13 +1246,6 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
             <Text style={styles.reintroShowAgainText}>Show again</Text>
           </Pressable>
         </View>
-        <ActionMenu
-          focusedLemmaId={card.lemma_id}
-          focusedLemmaAr={card.lemma_ar}
-          sentenceId={null}
-          askAIContextBuilder={buildContext}
-          askAIScreen="review"
-        />
       </View>
     );
   }
@@ -1265,7 +1267,20 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
 
     return (
       <View style={[styles.container, { paddingTop: Math.max(insets.top, 12) }]}>
-        <ProgressBar current={cardIndex + 1} total={totalCards} mode={mode} />
+        <ProgressBar
+          current={cardIndex + 1}
+          total={totalCards}
+          mode={mode}
+          left={
+            <ActionMenu
+              focusedLemmaId={candidate.lemma_id}
+              focusedLemmaAr={candidate.lemma_ar}
+              sentenceId={null}
+              askAIContextBuilder={buildContext}
+              askAIScreen="review"
+            />
+          }
+        />
         <ScrollView
           contentContainerStyle={styles.reintroScrollContent}
           showsVerticalScrollIndicator={false}
@@ -1341,13 +1356,6 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
             <Text style={styles.reintroRememberText}>Learn</Text>
           </Pressable>
         </View>
-        <ActionMenu
-          focusedLemmaId={candidate.lemma_id}
-          focusedLemmaAr={candidate.lemma_ar}
-          sentenceId={null}
-          askAIContextBuilder={buildContext}
-          askAIScreen="review"
-        />
       </View>
     );
   }
@@ -1365,7 +1373,17 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
           current={cardIndex + 1}
           total={totalCards}
           mode={mode}
-          onBack={canGoBack ? handleGoBack : null}
+          left={
+            <ActionMenu
+              focusedLemmaId={lookupLemmaId}
+              focusedLemmaAr={lookupResult?.lemma_ar ?? null}
+              sentenceId={item.sentence_id}
+              askAIContextBuilder={buildContext}
+              askAIScreen="review"
+              askAIExplainPrompt={buildExplainPrompt}
+              onBack={canGoBack ? handleGoBack : null}
+            />
+          }
           isRecap={recapCount > 0 && cardIndex < recapCount}
           onWrapUp={(results?.total ?? 0) >= 2 ? handleWrapUp : null}
         />
@@ -1442,14 +1460,6 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
             />
           )}
         </View>
-        <ActionMenu
-          focusedLemmaId={lookupLemmaId}
-          focusedLemmaAr={lookupResult?.lemma_ar ?? null}
-          sentenceId={item.sentence_id}
-          askAIContextBuilder={buildContext}
-          askAIScreen="review"
-          askAIExplainPrompt={buildExplainPrompt}
-        />
       </View>
     );
   }
@@ -1460,7 +1470,21 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
 
   return (
     <View style={[styles.container, isListening && styles.listeningContainer]}>
-      <ProgressBar current={cardIndex + 1} total={totalCards} mode={mode} />
+      <ProgressBar
+        current={cardIndex + 1}
+        total={totalCards}
+        mode={mode}
+        left={
+          <ActionMenu
+            focusedLemmaId={null}
+            focusedLemmaAr={null}
+            sentenceId={null}
+            askAIContextBuilder={buildContext}
+            askAIScreen="review"
+            askAIExplainPrompt={buildExplainPrompt}
+          />
+        }
+      />
 
       <ScrollView
         contentContainerStyle={styles.sentenceArea}
@@ -1511,14 +1535,6 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
           />
         )}
       </View>
-      <ActionMenu
-        focusedLemmaId={null}
-        focusedLemmaAr={null}
-        sentenceId={null}
-        askAIContextBuilder={buildContext}
-        askAIScreen="review"
-        askAIExplainPrompt={buildExplainPrompt}
-      />
     </View>
   );
 }
@@ -2217,14 +2233,14 @@ function ProgressBar({
   current,
   total,
   mode,
-  onBack,
+  left,
   isRecap,
   onWrapUp,
 }: {
   current: number;
   total: number;
   mode: ReviewMode;
-  onBack?: (() => void) | null;
+  left?: React.ReactNode;
   isRecap?: boolean;
   onWrapUp?: (() => void) | null;
 }) {
@@ -2233,13 +2249,7 @@ function ProgressBar({
   return (
     <View style={styles.progressContainer}>
       <View style={styles.progressHeader}>
-        {onBack ? (
-          <Pressable onPress={onBack} hitSlop={12} style={styles.backButton}>
-            <Ionicons name="chevron-back" size={18} color={colors.textSecondary} />
-          </Pressable>
-        ) : (
-          <View style={styles.backButtonPlaceholder} />
-        )}
+        {left ?? <View style={styles.backButtonPlaceholder} />}
         <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
           {isRecap && (
             <View style={styles.recapBadge}>
@@ -2979,12 +2989,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     marginBottom: 4,
-  },
-  backButton: {
-    width: 28,
-    height: 28,
-    alignItems: "center",
-    justifyContent: "center",
   },
   backButtonPlaceholder: {
     width: 28,

@@ -20,6 +20,7 @@ interface ActionMenuProps {
   askAIScreen: string;
   askAIExplainPrompt?: () => string | null;
   onWordSuspended?: (lemmaId: number) => void;
+  onBack?: (() => void) | null;
 }
 
 type ToastState = { message: string; key: number } | null;
@@ -32,6 +33,7 @@ export default function ActionMenu({
   askAIScreen,
   askAIExplainPrompt,
   onWordSuspended,
+  onBack,
 }: ActionMenuProps) {
   const [menuVisible, setMenuVisible] = useState(false);
   const [askAIVisible, setAskAIVisible] = useState(false);
@@ -101,10 +103,15 @@ export default function ActionMenu({
     }
   }
 
+  function handleBack() {
+    setMenuVisible(false);
+    onBack?.();
+  }
+
   return (
     <>
-      <Pressable style={styles.fab} onPress={handleOpenMenu}>
-        <Ionicons name="ellipsis-vertical" size={22} color="#fff" />
+      <Pressable style={styles.trigger} onPress={handleOpenMenu} hitSlop={8}>
+        <Ionicons name="ellipsis-horizontal" size={18} color={colors.textSecondary} />
       </Pressable>
 
       <Modal
@@ -116,6 +123,14 @@ export default function ActionMenu({
         <Pressable style={styles.backdrop} onPress={() => setMenuVisible(false)}>
           <View style={styles.sheet} onStartShouldSetResponder={() => true}>
             <View style={styles.handle} />
+
+            {onBack && (
+              <MenuItem
+                icon="arrow-back-outline"
+                label="Back"
+                onPress={handleBack}
+              />
+            )}
 
             <MenuItem
               icon="chatbubble-ellipses-outline"
@@ -242,23 +257,11 @@ function AskAIModal({
 }
 
 const styles = StyleSheet.create({
-  fab: {
-    position: "absolute",
-    top: 20,
-    right: 20,
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: colors.surface,
+  trigger: {
+    width: 28,
+    height: 28,
     alignItems: "center",
     justifyContent: "center",
-    borderWidth: 1,
-    borderColor: colors.border,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 5,
   },
   backdrop: {
     flex: 1,
