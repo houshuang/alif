@@ -154,8 +154,8 @@ All services in `backend/app/services/`.
 - `backend/scripts/` — Import, backfill, cleanup, analysis scripts. See `docs/scripts-catalog.md`. Most-used: update_material.py (cron), import_duolingo.py, retire_sentences.py, normalize_and_dedup.py, log_activity.py (CLI), reset_ocr_cards.py (OCR→encountered), backfill_etymology.py (LLM etymology), backfill_themes.py (thematic domains)
 
 ### Frontend
-- `app/index.tsx` — Review screen: sentence-first + word-only fallback, reading + listening, word lookup, word marking, back/undo, wrap-up mini-quiz (acquiring words), next-session recap, session word tracking
-- `app/learn.tsx` — Learn mode: 5-candidate pick → quiz → done. Etymology display on pick cards.
+- `app/index.tsx` — Review screen: sentence-first + word-only fallback, reading + listening, word lookup, word marking, back/undo, wrap-up mini-quiz (acquiring + missed words), next-session recap, session word tracking, story source badges on intro cards
+- `app/learn.tsx` — Learn mode: 5-candidate pick → quiz → done. Etymology display on pick cards. Story source badge for story words.
 - `app/words.tsx` — Word browser: grid, category tabs (Vocab/Function/Names), smart filters (Leeches/Struggling/Recent/Solid/Next Up/Acquiring/Encountered), sparklines, search
 - `app/stats.tsx` — Analytics dashboard with acquiring/encountered stat cards
 - `app/story/[id].tsx` — Story reader with tap-to-lookup
@@ -194,7 +194,7 @@ Full list: `docs/api-reference.md` or `backend/app/routers/`
 | POST | `/api/review/undo-sentence` | Undo sentence review |
 | GET | `/api/review/word-lookup/{lemma_id}` | Word detail for review lookup |
 | POST | `/api/review/sync` | Bulk sync offline reviews |
-| POST | `/api/review/wrap-up` | Wrap-up mini-quiz for acquiring words |
+| POST | `/api/review/wrap-up` | Wrap-up mini-quiz for acquiring + missed words |
 | POST | `/api/review/recap` | Next-session recap for acquisition words |
 | GET | `/api/learn/next-words?count=5` | Best next words to introduce |
 | POST | `/api/learn/introduce` | Introduce word (starts acquisition + triggers sentence gen) |
@@ -257,4 +257,4 @@ ssh alif "systemctl restart alif-expo"
 # Web: http://alifstian.duckdns.org:8081
 ```
 
-Next: frontend implementation of acquisition/cohort/leech system, wrap-up/recap UI, etymology display, py-fsrs v4→v6 upgrade
+Next: py-fsrs v4→v6 upgrade, more story imports, listening mode improvements

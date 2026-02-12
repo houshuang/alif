@@ -4,6 +4,26 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-02-12: Wrap-up Quiz Fix + Story Context on Learn Cards
+
+**Problem**: Three issues found during first real testing of the redesigned algorithm:
+1. Wrap-up quiz only showed "acquiring" words — when user had no acquiring words, wrapping up a session showed no quiz at all, even though they missed several words
+2. Learn mode was recommending obscure classical Arabic vocabulary (دِمْنَة "ruin remains", نواشر "veins of forearm") from imported stories (Kalila wa Dimna, classical poetry), drowning out high-frequency common words
+3. Learn cards and review intro cards showed no context about WHY a word was recommended
+
+**Change**:
+1. Wrap-up endpoint now accepts `missed_lemma_ids` in addition to `seen_lemma_ids` — returns cards for both acquiring AND missed words. Frontend sends failed word IDs from `wordOutcomes` tracking. Cards marked `is_acquiring` to distinguish types.
+2. Marked stories 3 and 4 (classical Arabic) as `too_difficult` to stop them from polluting word selection
+3. Word selector now returns `story_title` for words from active stories. Both Learn mode and review intro cards show "From: Story Title" badge when applicable.
+
+**Files**: `review.py`, `schemas.py`, `sentence_selector.py`, `word_selector.py`, `index.tsx`, `learn.tsx`, `api.ts`, `types.ts`
+
+**Expected effect**: Users will now get a word-level quiz when wrapping up a session with missed words, reinforcing the ones they struggled with. Story words show their source for motivation.
+
+**Verification**: After deploy, wrap-up POST with `missed_lemma_ids` returns cards. Learn endpoint shows `story_title` for story words. All 620+74 tests pass.
+
+---
+
 ## 2026-02-11: Frontend Test Infrastructure
 
 **Problem**: No frontend tests existed at all — only backend had pytest coverage (564 tests). Frontend logic in sync-queue, offline-store, smart-filters, and the API client layer was untested.
