@@ -265,7 +265,7 @@ class TestSentenceDifficultyParams:
         db_session.commit()
 
         params = get_sentence_difficulty_params(db_session, lemma.lemma_id)
-        assert params["max_words"] == 4
+        assert params["max_words"] == 7
         assert params["use_only_top_known"] is True
 
     def test_just_introduced(self, db_session):
@@ -282,8 +282,8 @@ class TestSentenceDifficultyParams:
         db_session.commit()
 
         params = get_sentence_difficulty_params(db_session, lemma.lemma_id)
-        assert params["max_words"] == 4
-        assert "very simple" in params["difficulty_hint"]
+        assert params["max_words"] == 7
+        assert "simple" in params["difficulty_hint"]
 
     def test_same_day(self, db_session):
         lemma = _create_lemma(db_session, "كتاب", "book", freq=100)
@@ -299,7 +299,7 @@ class TestSentenceDifficultyParams:
         db_session.commit()
 
         params = get_sentence_difficulty_params(db_session, lemma.lemma_id)
-        assert params["max_words"] == 6
+        assert params["max_words"] == 9
 
     def test_first_week(self, db_session):
         lemma = _create_lemma(db_session, "كتاب", "book", freq=100)
@@ -315,7 +315,7 @@ class TestSentenceDifficultyParams:
         db_session.commit()
 
         params = get_sentence_difficulty_params(db_session, lemma.lemma_id)
-        assert params["max_words"] == 8
+        assert params["max_words"] == 11
 
     def test_well_known(self, db_session):
         lemma = _create_lemma(db_session, "كتاب", "book", freq=100)
@@ -331,7 +331,7 @@ class TestSentenceDifficultyParams:
         db_session.commit()
 
         params = get_sentence_difficulty_params(db_session, lemma.lemma_id)
-        assert params["max_words"] == 12
+        assert params["max_words"] == 14
 
 
 class TestLearnAPI:

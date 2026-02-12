@@ -38,10 +38,10 @@ from app.services.sentence_validator import (
 
 # Acquisition repetition: each acquiring word should appear this many times in a session
 MIN_ACQUISITION_EXPOSURES = 4
-MAX_ACQUISITION_EXTRA_SLOTS = 8  # max extra cards beyond session limit for repetitions
-MAX_AUTO_INTRO_PER_SESSION = 3  # new words auto-introduced per session
+MAX_ACQUISITION_EXTRA_SLOTS = 15  # max extra cards beyond session limit for repetitions
+MAX_AUTO_INTRO_PER_SESSION = 10  # new words auto-introduced per session
 AUTO_INTRO_ACCURACY_FLOOR = 0.70  # pause introduction if recent accuracy below this
-MAX_ACQUIRING_WORDS = 8  # don't auto-introduce if already this many acquiring
+MAX_ACQUIRING_WORDS = 30  # don't auto-introduce if already this many acquiring
 
 
 @dataclass
@@ -261,7 +261,7 @@ def _auto_introduce_words(
 
             # Trigger sentence generation for this word (uses its own DB session)
             try:
-                generate_material_for_word(lid, needed=3)
+                generate_material_for_word(lid, needed=2)
             except Exception:
                 logger.warning(f"Material generation failed for auto-intro {lid}")
         except Exception:
@@ -855,7 +855,7 @@ def _build_reintro_cards(
     return cards
 
 
-MAX_ON_DEMAND_PER_SESSION = 5
+MAX_ON_DEMAND_PER_SESSION = 10
 
 
 def _generate_on_demand(

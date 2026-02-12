@@ -287,11 +287,6 @@ def generate_sentence(
         word_count_range = f"3-{max_words}"
 
     length_instruction = f"The sentence should be natural and meaningful, {word_count_range} words long."
-    if max_words and max_words <= 5:
-        length_instruction = (
-            f"The sentence MUST be very short: {word_count_range} words only. "
-            "Keep it as simple as possible to minimize cognitive load."
-        )
 
     avoid_instruction = ""
     if avoid_words:

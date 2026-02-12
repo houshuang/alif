@@ -369,8 +369,10 @@ export async function getSentenceReviewSession(
     );
     const session = { ...data, session_id: data.session_id || generateSessionId() };
     cacheSessions(mode, [session]).catch(() => {});
-    deepPrefetchSessions(mode).catch(() => {});
-    prefetchWordLookupsForSession(session).catch(() => {});
+    // Sequential prefetch to avoid SQLite locking from parallel requests
+    deepPrefetchSessions(mode).then(() =>
+      prefetchWordLookupsForSession(session).catch(() => {})
+    ).catch(() => {});
     return session;
   } catch (e) {
     const cached = await getCachedSession(mode);
@@ -446,15 +448,17 @@ export async function prefetchSessions(mode: ReviewMode): Promise<void> {
   } catch {}
 }
 
-export async function deepPrefetchSessions(mode: ReviewMode, count: number = 3): Promise<void> {
+export async function deepPrefetchSessions(mode: ReviewMode, count: number = 2): Promise<void> {
   for (let i = 0; i < count; i++) {
     try {
+      // Delay between prefetch requests to avoid SQLite locking
+      if (i > 0) await new Promise(r => setTimeout(r, 500));
       const data = await fetchApi<SentenceReviewSession>(
         `/api/review/next-sentences?limit=10&mode=${mode}&prefetch=true`
       );
       const session = { ...data, session_id: data.session_id || generateSessionId() };
       await cacheSessions(mode, [session]);
-      prefetchWordLookupsForSession(session).catch(() => {});
+      await prefetchWordLookupsForSession(session);
     } catch {
       break;
     }

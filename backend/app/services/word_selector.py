@@ -425,10 +425,10 @@ def get_sentence_difficulty_params(db: Session, lemma_id: int) -> dict:
 
     if not knowledge or not knowledge.introduced_at:
         return {
-            "max_words": 4,
-            "difficulty_hint": "very simple",
+            "max_words": 7,
+            "difficulty_hint": "simple",
             "use_only_top_known": True,
-            "description": "Brand new word — shortest, simplest sentence",
+            "description": "Brand new word — short, simple sentence",
         }
 
     times_seen = knowledge.times_seen or 0
@@ -441,34 +441,34 @@ def get_sentence_difficulty_params(db: Session, lemma_id: int) -> dict:
     # Stage 1: First session (< 2 hours, seen < 3 times)
     if hours_since < 2 and times_seen < 3:
         return {
-            "max_words": 4,
-            "difficulty_hint": "very simple",
+            "max_words": 7,
+            "difficulty_hint": "simple",
             "use_only_top_known": True,
-            "description": "Initial reinforcement — very short, very simple",
+            "description": "Initial reinforcement — short and simple",
         }
 
     # Stage 2: Same day (< 24 hours, seen < 6 times)
     if hours_since < 24 and times_seen < 6:
         return {
-            "max_words": 6,
+            "max_words": 9,
             "difficulty_hint": "simple",
             "use_only_top_known": True,
-            "description": "Same-day reinforcement — short and simple",
+            "description": "Same-day reinforcement — moderate length",
         }
 
     # Stage 3: First week (< 168 hours, seen < 10 times)
     if hours_since < 168 and times_seen < 10:
         return {
-            "max_words": 8,
+            "max_words": 11,
             "difficulty_hint": "beginner",
             "use_only_top_known": False,
-            "description": "Early consolidation — moderate length",
+            "description": "Early consolidation — longer sentences",
         }
 
     # Stage 4: Established (> 1 week, seen 10+ times)
     return {
-        "max_words": 12,
+        "max_words": 14,
         "difficulty_hint": "intermediate",
         "use_only_top_known": False,
-        "description": "Well-known — normal sentences",
+        "description": "Well-known — full natural sentences",
     }

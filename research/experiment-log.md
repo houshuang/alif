@@ -4,6 +4,26 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-02-12: Phase 5 — Uncap the Learning Pipeline
+
+**Problem**: Algorithm redesign works correctly but is strangled by conservative caps. With 492 encountered words idle, 8 acquiring, and only 3 words introduced per session, sessions are 3-4 cards and the user runs out of material in seconds. Sentences are 3-4 word fragments due to hardcoded "beginner" difficulty. Words like جار (box 3, 14 reviews, 79% accuracy) can't graduate because graduation only fires on rating≥3. SQLite locking from parallel deep prefetch causes 500 errors.
+
+**Changes**:
+1. **Blow open caps**: MAX_ACQUIRING_WORDS 8→30, MAX_AUTO_INTRO_PER_SESSION 3→10, MAX_ACQUISITION_EXTRA_SLOTS 8→15, MAX_COHORT_SIZE 25→100
+2. **Raise sentence complexity**: Brand new max_words 4→7, same-day 6→9, first week 8→11, established 12→14. Removed "MUST be very short" LLM branch for max_words≤5.
+3. **JIT-first sentence strategy**: Keep MIN_SENTENCES=2 as warm cache, raised MAX_ON_DEMAND_PER_SESSION 5→10 for JIT generation with current vocabulary. TARGET_PIPELINE_SENTENCES 200→300. Pre-generated sentences go stale as vocabulary grows; JIT sentences use current known words for better calibration.
+4. **Dynamic difficulty**: material_generator.py and update_material.py now call `get_sentence_difficulty_params()` instead of hardcoded "beginner".
+5. **Fix graduation bug**: Graduation now fires regardless of current review's rating — checks cumulative stats (box≥3 + times_seen≥5 + accuracy≥60%) after every review.
+6. **Fix SQLite locking**: deepPrefetchSessions count 3→2 with 500ms delays, word lookup prefetch sequential after deep prefetch (not parallel).
+
+**Files**: sentence_selector.py, cohort_service.py, word_selector.py, llm.py, material_generator.py, acquisition_service.py, update_material.py, frontend/lib/api.ts
+
+**Expected effect**: Sessions grow from 3-4 cards to 10-15+. Sentences are 5-10 words (not 3-4 fragments). 30+ words can be in acquisition simultaneously. Words with strong cumulative stats graduate faster. No more 500 errors from prefetch.
+
+**Verification**: All backend tests pass (642). All frontend tests pass (74). Deploy + run `update_material.py --max-sentences 800` to backfill sentences.
+
+---
+
 ## 2026-02-12: Topical Learning Cycles
 
 **Problem**: Word introduction via Learn mode pulled from all 20 thematic domains at once, mixing unrelated vocabulary (e.g., food + politics + nature in the same session). Research on semantic clustering (Tinkham 1993/97) shows mixing unrelated domains increases cognitive interference and slows acquisition.

@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 from app.models import UserLemmaKnowledge
 from app.services.fsrs_service import parse_json_column
 
-MAX_COHORT_SIZE = 25
+MAX_COHORT_SIZE = 100
 
 
 def get_focus_cohort(db: Session) -> set[int]:

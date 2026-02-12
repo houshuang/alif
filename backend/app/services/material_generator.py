@@ -12,10 +12,11 @@ from app.models import Lemma, Sentence, SentenceWord, UserLemmaKnowledge
 logger = logging.getLogger(__name__)
 
 
-def generate_material_for_word(lemma_id: int, needed: int) -> None:
+def generate_material_for_word(lemma_id: int, needed: int = 2) -> None:
     """Background task: generate sentences + audio for a word.
 
     Opens its own DB session so it can run in a background thread.
+    Uses dynamic difficulty based on the word's familiarity level.
     """
     db = SessionLocal()
     try:
@@ -49,6 +50,7 @@ def generate_material_for_word(lemma_id: int, needed: int) -> None:
             tokenize,
             validate_sentence,
         )
+        from app.services.word_selector import get_sentence_difficulty_params
 
         lemma_lookup = build_lemma_lookup(all_lemmas)
         # Defensive: clean target word in case DB has dirty data
@@ -67,13 +69,17 @@ def generate_material_for_word(lemma_id: int, needed: int) -> None:
         )
         avoid_words = get_avoid_words(content_word_counts, known_words)
 
+        # Dynamic difficulty based on word familiarity
+        diff_params = get_sentence_difficulty_params(db, lemma_id)
+        difficulty_hint = diff_params["difficulty_hint"]
+
         try:
             results = generate_sentences_batch(
                 target_word=clean_target,
                 target_translation=lemma.gloss_en or "",
                 known_words=sample,
-                count=needed + 1,
-                difficulty_hint="beginner",
+                count=needed + 2,
+                difficulty_hint=difficulty_hint,
                 avoid_words=avoid_words,
             )
         except AllProvidersFailed:

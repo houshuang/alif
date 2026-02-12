@@ -4,7 +4,7 @@
 Designed to run as a cron job every 6 hours inside the Docker container.
 
 Steps:
-  A) Backfill sentences for introduced words (< 3 sentences each)
+  A) Backfill sentences for introduced words (< 2 sentences each)
   B) Generate audio for review-eligible sentences (all words reviewed ≥1 time)
   C) Pre-generate sentences for top upcoming word candidates (no audio)
 
@@ -33,7 +33,7 @@ from sqlalchemy.orm import Session
 from app.database import SessionLocal
 from app.models import Lemma, Sentence, SentenceWord, UserLemmaKnowledge
 from app.services.activity_log import log_activity
-from app.services.word_selector import select_next_words
+from app.services.word_selector import select_next_words, get_sentence_difficulty_params
 from app.services.llm import AllProvidersFailed, generate_sentences_batch
 from app.services.sentence_generator import (
     get_content_word_counts,
@@ -58,7 +58,7 @@ from app.services.tts import (
 )
 
 MIN_SENTENCES = 2
-TARGET_PIPELINE_SENTENCES = 200  # generate enough for ~1 review session
+TARGET_PIPELINE_SENTENCES = 300  # warm cache — JIT generation fills gaps with current vocabulary
 
 
 def get_existing_counts(db: Session) -> dict[int, int]:
@@ -131,11 +131,17 @@ def generate_sentences_for_word(
     model: str = "openai",
     delay: float = 1.0,
     avoid_words: list[str] | None = None,
+    difficulty_hint: str | None = None,
 ) -> int:
     target_bare = strip_diacritics(lemma.lemma_ar)
     all_bare = set(lemma_lookup.keys())
     stored = 0
     rejected_words: list[str] = []
+
+    # Use dynamic difficulty based on word familiarity if not explicitly provided
+    if difficulty_hint is None:
+        diff_params = get_sentence_difficulty_params(db, lemma.lemma_id)
+        difficulty_hint = diff_params["difficulty_hint"]
 
     for batch in range(3):
         if stored >= needed:
@@ -148,8 +154,8 @@ def generate_sentences_for_word(
                 target_word=lemma.lemma_ar,
                 target_translation=lemma.gloss_en or "",
                 known_words=known_words,
-                count=min(needed - stored + 1, 3),
-                difficulty_hint="beginner",
+                count=min(needed - stored + 2, 4),
+                difficulty_hint=difficulty_hint,
                 model_override=model,
                 rejected_words=rejected_words if rejected_words else None,
                 avoid_words=avoid_words,

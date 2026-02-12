@@ -5,7 +5,7 @@ Words go through three acquisition boxes before graduating to FSRS:
   Box 2: 1-day interval
   Box 3: 3-day interval
 
-Graduation requires: box 3 + rating >= 3 + times_seen >= 5 + accuracy >= 60%
+Graduation requires: box >= 3 + times_seen >= 5 + accuracy >= 60% (regardless of current rating)
 """
 
 import logging
@@ -153,17 +153,9 @@ def submit_acquisition_review(
     if rating_int >= 3:
         # Good/Easy: advance box
         if old_box >= 3:
-            # Check graduation criteria
-            new_times_seen = ulk.times_seen
-            new_times_correct = ulk.times_correct
-            accuracy = new_times_correct / new_times_seen if new_times_seen > 0 else 0
-
-            if new_times_seen >= GRADUATION_MIN_REVIEWS and accuracy >= GRADUATION_MIN_ACCURACY:
-                graduated = True
-            else:
-                # Stay in box 3, schedule next review
-                ulk.acquisition_box = 3
-                ulk.acquisition_next_due = now + BOX_INTERVALS[3]
+            # Stay in box 3, schedule next review (graduation checked below)
+            ulk.acquisition_box = 3
+            ulk.acquisition_next_due = now + BOX_INTERVALS[3]
         else:
             new_box = old_box + 1
             ulk.acquisition_box = new_box
@@ -176,6 +168,15 @@ def submit_acquisition_review(
         # Again: reset to box 1
         ulk.acquisition_box = 1
         ulk.acquisition_next_due = now + BOX_INTERVALS[1]
+
+    # Check graduation regardless of this review's rating
+    # A word in box 3 with strong cumulative stats should graduate even after a weaker review
+    if not graduated and ulk.acquisition_box >= 3:
+        new_times_seen = ulk.times_seen
+        new_times_correct = ulk.times_correct
+        accuracy = new_times_correct / new_times_seen if new_times_seen > 0 else 0
+        if new_times_seen >= GRADUATION_MIN_REVIEWS and accuracy >= GRADUATION_MIN_ACCURACY:
+            graduated = True
 
     if graduated:
         _graduate(ulk, now)
