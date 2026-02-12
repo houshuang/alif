@@ -38,7 +38,7 @@ See `docs/review-modes.md` for full UX flows.
 - **Reading Mode**: front-phase word lookup with root prediction, triple-tap marking (off→missed→confused→off), back/undo
 - **Listening Mode**: ElevenLabs TTS, reveal Arabic → reveal English, listening-ready filter (times_seen≥3, stability≥7d)
 - **Learn Mode**: 5-candidate pick → sentence quiz → done. Selection: 40% freq + 30% root + 20% recency + 10% grammar
-- **Story Mode**: generate/import, tap-to-lookup reader, complete/skip/too-difficult
+- **Story Mode**: generate/import, tap-to-lookup reader, complete/suspend
 
 ## Design Principles
 - **Word introduction is automatic** — `build_session()` auto-introduces up to 10 encountered words per session (MAX_AUTO_INTRO_PER_SESSION=10) when acquiring count is below MAX_ACQUIRING_WORDS=30 and session accuracy >= 70%. Learn mode is also available for manual introduction. OCR/story import creates "encountered" state (no FSRS card), not introduced.
@@ -135,7 +135,7 @@ This app is an ongoing learning experiment. Every algorithm change, data structu
 - `sentence_validator.py` — Rule-based: tokenize → strip diacritics → strip clitics → match known forms. 60+ function words. Public API: lookup_lemma(), resolve_existing_lemma(), build_lemma_lookup().
 - `grammar_service.py` — 24 features, 5 tiers. Comfort score: 60% log-exposure + 40% accuracy, decayed by recency.
 - `grammar_tagger.py` — LLM-based grammar feature tagging.
-- `story_service.py` — Generate/import stories. Completion creates "encountered" ULK (no FSRS card); only real FSRS review for words with active cards. Suspend/reactivate toggle via `suspend_story()`.
+- `story_service.py` — Generate/import stories. Completion creates "encountered" ULK (no FSRS card); only real FSRS review for words with active cards. Suspend/reactivate toggle via `suspend_story()`. Story statuses: active, completed, suspended (skip/too_difficult removed).
 - `listening.py` — Listening confidence: min(per-word) * 0.6 + avg * 0.4. Requires times_seen ≥ 3, stability ≥ 7d.
 - `tts.py` — ElevenLabs REST, eleven_multilingual_v2, Chaouki voice, speed 0.7. Learner pauses. SHA256 cache.
 - `llm.py` — LiteLLM: GPT-5.2 for sentence gen, Gemini 3 Flash general, Claude Haiku tertiary. JSON mode, markdown fence stripping, model_override.
@@ -167,7 +167,7 @@ All services in `backend/app/services/`.
 - `app/words.tsx` — Word browser: grid, category tabs (Vocab/Function/Names), smart filters (Leeches/Struggling/Recent/Solid/Next Up/Acquiring/Encountered), sparklines (variable-width gaps show inter-review timing), search
 - `app/stats.tsx` — Analytics dashboard with acquiring/encountered stat cards
 - `app/story/[id].tsx` — Story reader with tap-to-lookup, ActionMenu in header bar (Ask AI, suspend story)
-- `app/stories.tsx` — Story list with generate + import, suspend/reactivate toggle per story
+- `app/stories.tsx` — Story list with generate + import, grouped sections (Active/Suspended), suspend all, suspend/reactivate toggle per story
 - `app/scanner.tsx` — Textbook page OCR scanner
 - `app/more.tsx` — More tab: Scanner, Chats, Stats, Activity Log
 - `app/word/[id].tsx` — Word detail: forms, grammar, root family, review history, sentence stats, etymology section, acquisition badge
@@ -229,7 +229,7 @@ Full list: `docs/api-reference.md` or `backend/app/routers/`
 - `grammar_features` — 24 features across 5 categories
 - `sentence_grammar_features` — Sentence ↔ grammar junction
 - `user_grammar_exposure` — Per-feature: times_seen, times_correct, comfort_score
-- `stories` — title_ar/en, body_ar/en, transliteration, status (active/completed/too_difficult/skipped/suspended), readiness_pct, difficulty_level
+- `stories` — title_ar/en, body_ar/en, transliteration, status (active/completed/suspended), readiness_pct, difficulty_level
 - `story_words` — Per-token: position, surface_form, lemma_id, gloss_en, is_function_word, name_type
 - `page_uploads` — OCR tracking: batch_id, status, extracted_words_json, new_words, existing_words
 - `content_flags` — Flagged content: content_type, status (pending/reviewing/fixed/dismissed)
