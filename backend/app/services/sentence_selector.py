@@ -294,11 +294,13 @@ def build_session(
     cutoff_grammar_confused = now - timedelta(days=1)
     cutoff_no_idea = now - timedelta(hours=4)
 
-    # 1. Fetch all due words (exclude suspended and encountered)
+    # 1. Fetch all word knowledge (exclude only suspended)
+    # Encountered words are included so the comprehensibility gate can
+    # treat them as passive vocabulary (seen but not yet formally studied).
     all_knowledge = (
         db.query(UserLemmaKnowledge)
         .filter(
-            UserLemmaKnowledge.knowledge_state.notin_(["suspended", "encountered"]),
+            UserLemmaKnowledge.knowledge_state != "suspended",
         )
         .all()
     )
@@ -310,7 +312,9 @@ def build_session(
     for k in all_knowledge:
         knowledge_by_id[k.lemma_id] = k
 
-        if k.knowledge_state == "acquiring":
+        if k.knowledge_state == "encountered":
+            continue  # passive vocab — not due, not scheduled
+        elif k.knowledge_state == "acquiring":
             # Acquisition words use box-based pseudo-stability for difficulty matching
             box = k.acquisition_box or 1
             pseudo_stability = {1: 0.1, 2: 0.5, 3: 2.0}.get(box, 0.1)
@@ -352,6 +356,7 @@ def build_session(
             )
             if ulk:
                 knowledge_by_id[lid] = ulk
+                all_knowledge.append(ulk)  # ensure comprehensibility gate sees them
         # Refresh cohort to include newly acquiring words
         cohort = get_focus_cohort(db)
         due_lemma_ids &= cohort
@@ -570,10 +575,11 @@ def build_session(
             continue
 
         # Comprehensibility gate: skip sentences where <70% of content words are known
+        # "encountered" counts as passive vocabulary — learner has seen the word
         total_content = sum(1 for w in word_metas if not w.is_function_word and w.lemma_id)
         known_content = sum(
             1 for w in word_metas if not w.is_function_word and w.lemma_id
-            and w.knowledge_state in ("known", "learning", "lapsed", "acquiring")
+            and w.knowledge_state in ("known", "learning", "lapsed", "acquiring", "encountered")
         )
         if total_content > 0 and known_content / total_content < 0.7:
             continue
