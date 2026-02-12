@@ -159,7 +159,7 @@ All services in `backend/app/services/`.
 - `backend/app/models.py` — SQLAlchemy models (see Data Model below)
 - `backend/app/schemas.py` — Pydantic request/response models
 - `backend/app/routers/settings.py` — Settings router: topic management endpoints
-- `backend/scripts/` — Import, backfill, cleanup, analysis scripts. See `docs/scripts-catalog.md`. Most-used: update_material.py (cron), import_duolingo.py, retire_sentences.py, normalize_and_dedup.py, log_activity.py (CLI), reset_ocr_cards.py (OCR→encountered), reset_to_learning_baseline.py (reset words without genuine learning signal to encountered, preserves review history), backfill_etymology.py (LLM etymology), backfill_themes.py (thematic domains), cleanup_review_pool.py (reset under-learned→acquiring, suspend variant ULKs with stat merge, suspend junk, retire bad sentences, run variant detection on uncovered words)
+- `backend/scripts/` — Import, backfill, cleanup, analysis scripts. See `docs/scripts-catalog.md`. Most-used: update_material.py (cron, includes SAMER backfill as Step D), import_duolingo.py, retire_sentences.py, normalize_and_dedup.py, log_activity.py (CLI), reset_ocr_cards.py (OCR→encountered), reset_to_learning_baseline.py (reset words without genuine learning signal to encountered, preserves review history), backfill_etymology.py (LLM etymology), backfill_themes.py (thematic domains), backfill_samer.py (SAMER readability L1-L5→CEFR, TSV at backend/data/samer.tsv on server only), cleanup_review_pool.py (reset under-learned→acquiring, suspend variant ULKs with stat merge, suspend junk, retire bad sentences, run variant detection on uncovered words)
 
 ### Frontend
 - `app/index.tsx` — Review screen: sentence-only (no word-only fallback), reading + listening, word lookup, word marking, back/undo, wrap-up mini-quiz (acquiring + missed words), next-session recap, session word tracking, story source badges on intro cards
@@ -257,6 +257,19 @@ cd frontend && npm test
 ```
 Backend: all services have dedicated test files in `backend/tests/`.
 Frontend: Jest + ts-jest in `frontend/lib/__tests__/`.
+
+### Simulation Framework
+End-to-end simulation of multi-day learning journeys using real services against a DB copy:
+```bash
+# Pull latest backup, then simulate 30 days as a beginner
+./scripts/backup.sh
+python3 scripts/simulate_sessions.py --days 30 --profile beginner
+python3 scripts/simulate_sessions.py --days 60 --profile strong --csv /tmp/sim.csv
+```
+Profiles: `beginner` (55% comprehension), `strong` (85%), `casual` (70%), `intensive` (75%).
+Drives: `build_session()` → `submit_sentence_review()` → acquisition/FSRS → leech detection.
+Code: `backend/app/simulation/` (db_setup, student, runner, reporter).
+Tests: `backend/tests/test_simulation.py` (synthetic data, no backup needed).
 
 ## Deployment
 ```bash

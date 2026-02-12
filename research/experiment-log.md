@@ -4,6 +4,36 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-02-12: SAMER Readability Lexicon Integration
+
+**Change**: Backfilled `cefr_level` on 1,365/1,610 lemmas from SAMER v2 readability lexicon (40K MSA lemmas, L1-L5 human-annotated difficulty, mapped to CEFR A1-C1). Added auto-backfill step (Step D) in `update_material.py` cron so new lemmas get levels automatically.
+
+**Motivation**: `cefr_level` was sparsely populated. SAMER provides human-judged difficulty independent of frequency — e.g., قَد (very frequent but L3/B1 because it's grammatically complex). Enables better sentence difficulty scoring and word introduction ordering.
+
+**Distribution**: L1/A1=678, L2/A2=186, L3/B1=171, L4/B2=163, L5/C1=167. 245 unmatched (mostly plural/inflected forms stored as lemmas).
+
+**Also investigated**: BAREC corpus (69K sentences, 19 readability levels) as a sentence source. Only ~50% diacritized, low levels are junk (headers/fragments), many are context-dependent excerpts. Not practical as drop-in replacement for LLM generation. ~3,700 usable diacritized sentences. Filed findings in IDEAS.md.
+
+**Files**: `scripts/backfill_samer.py`, `scripts/update_material.py` (Step D), `backend/data/samer.tsv` (server only, not in git — license: non-commercial, no redistribution).
+
+---
+
+## 2026-02-12: Multi-Session Simulation Framework
+
+**Change**: Added end-to-end simulation framework (`backend/app/simulation/`) that drives real services (sentence selector, review service, acquisition Leitner, FSRS, auto-introduction, cohort, leech detection) over multiple simulated days against a copy of the production database. Uses `freezegun` for time control.
+
+**Motivation**: Need to observe how the algorithms interact over time — do words graduate from acquisition? Does auto-introduction pace well? Do review loads spike? Do leeches accumulate? The existing `simulate_usage.py` only tests raw FSRS in isolation.
+
+**Profiles**: beginner (55% comprehension), strong (85%), casual (70%), intensive (75%). Each defines session frequency, size, and word-level comprehension probability based on knowledge state.
+
+**Usage**: `python3 scripts/simulate_sessions.py --days 30 --profile beginner`
+
+**Verification**: Run pytest `tests/test_simulation.py` (6 tests, synthetic data). Run CLI against latest backup for real-data validation.
+
+**Files**: `app/simulation/{__init__,db_setup,student,runner,reporter}.py`, `scripts/simulate_sessions.py`, `tests/test_simulation.py`
+
+---
+
 ## 2026-02-12: py-fsrs v6 Pin
 
 **Change**: Pinned `fsrs>=6.0.0` (was `>=4.0.0` which already resolved to v6.3.0 in production). Cleaned up dead `scheduled_days` reference in fsrs_service.py review log — v6 cards don't have this field, replaced with `stability`. Verified 0 v4 card dicts remain in DB (all 53 active FSRS cards are v6 format). FSRS-6's w17-w19 parameters provide native same-day review support, which works well with our Leitner acquisition → FSRS graduation pipeline.

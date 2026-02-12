@@ -57,8 +57,8 @@
 - News articles segmented into sentences
 
 ### Difficulty Assessment
-- SAMER lexicon: 40K lemmas with 5-level readability scale
-- BAREC: 19-level sentence difficulty
+- [DONE] SAMER lexicon: 40K lemmas with 5-level readability scale — backfilled to cefr_level (1365/1610 matched), auto-runs in update_material.py cron. TSV at backend/data/samer.tsv on server (not in git, license: non-commercial/no redistribution).
+- BAREC: 19-level sentence difficulty — investigated as sentence source, but only ~50% diacritized and many are context-dependent excerpts. Not a drop-in replacement for LLM generation. ~3,700 fully diacritized usable sentences at levels 5-10 in 5-14w range.
 - Word frequency rank as proxy for difficulty
 - Sentence difficulty = function of (unknown words, grammar complexity, length)
 
@@ -223,6 +223,14 @@
 - Retention curves
 - Root coverage: % of top-N roots mastered
 - Predicted vocabulary size
+
+### Simulation-Driven Analysis
+- [DONE] Multi-day simulation framework: drives real services against DB copy, profiles (beginner/strong/casual/intensive), freezegun time control
+- Run simulations after algorithm changes to predict impact before deploying
+- Compare simulation outcomes across profiles to find "sweet spot" parameters
+- Use simulation CSV output to generate matplotlib charts (review load curves, state transition Sankey diagrams)
+- Add "adversarial" profiles: always-wrong student, always-skip student, binge-then-vanish student
+- Simulate specific scenarios: "what if we lower MAX_ACQUIRING_WORDS from 30 to 20?"
 
 ### Algorithm Optimization
 - Use logged data to tune FSRS parameters per-user
@@ -654,7 +662,7 @@ After importing ~100 textbook pages via OCR, 411 words entered the system with a
 - The 500 most productive roots cover 80% of daily vocabulary -- prioritize these
 
 #### OSMAN Readability Integration
-- Integrate OSMAN (El-Haj & Rayson 2016) readability scoring for generated/imported sentences
+- Available via `pip install textstat` → `textstat.osman(text)`. Low effort but limited value for short sentences (5-14 words) — primarily measures word-level complexity (syllable count, Faseeh markers, long words), which we already control via max_words and LLM difficulty hints.
 - OSMAN is Arabic-specific, accounts for syllable types, works with/without diacritics, validated on 73K parallel sentences
 - Combined difficulty = OSMAN score + unknown word density + morphological density
 - Open source: github.com/drelhaj/OsmanReadability
@@ -706,8 +714,10 @@ After importing ~100 textbook pages via OCR, 411 words entered the system with a
 - Weight these factors in sentence selection algorithm
 - Research: morphological density impacts reading comprehension independently of vocabulary coverage
 
-#### 19-Level Readability Corpus
-- Recent Arabic readability research (2024) defines 19 fine-grained readability levels (kindergarten to postgraduate)
-- Curated corpus: 10,631 segments, 113,651 words
-- Could be used to calibrate sentence difficulty scoring
-- BERT-based models available for automatic readability assessment
+#### 19-Level Readability Corpus (BAREC)
+- BAREC (ACL 2025): 69K sentences, 19 readability levels, CC-BY-SA. Pilot study (2024, 10.6K segments) evolved into this.
+- Investigated 2026-02-12: 28.8K sentences in 5-14w target range, but only ~50% diacritized (density 0.176 vs 0.8 for full). Levels 1-3 are mostly junk (headers, fragments). Usable diacritized subset: ~3,700 sentences at levels 5-10.
+- Sources: Emarati curriculum, Hindawi literature, Majed magazine, Wikipedia, religious texts.
+- Not practical as drop-in sentence source (needs diacritization + has context-dependent excerpts), but useful for difficulty calibration.
+- BERT-based models available for automatic readability assessment (87.5% QWK from BAREC shared task 2025)
+- HuggingFace: CAMeL-Lab/BAREC-Shared-Task-2025-sent
