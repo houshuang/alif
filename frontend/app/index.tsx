@@ -381,7 +381,39 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
     }
   }, [confusedIndices, missedIndices]);
 
-  const handleWordTap = useCallback(async (index: number, lemmaId: number) => {
+  const handleWordTap = useCallback(async (index: number, lemmaId: number | null) => {
+    const word = sentenceSession?.items[sentenceItemIndex]?.words[index];
+    const isFunctionWord = word?.is_function_word ?? false;
+
+    // Function words: show gloss only, no marking or API call
+    if (!lemmaId || isFunctionWord) {
+      lookupRequestRef.current += 1;
+      setLookupSurfaceForm(word?.surface_form ?? null);
+      setLookupLemmaId(null);
+      setFocusedWordMark(null);
+      setLookupLoading(false);
+      setLookupShowMeaning(true);
+      setLookupResult({
+        lemma_id: lemmaId ?? 0,
+        lemma_ar: "",
+        gloss_en: word?.gloss_en ?? null,
+        transliteration: null,
+        root: null,
+        root_meaning: null,
+        root_id: null,
+        pos: null,
+        forms_json: null,
+        example_ar: null,
+        frequency_rank: null,
+        cefr_level: null,
+        example_en: null,
+        grammar_details: [],
+        root_family: [],
+        is_function_word: true,
+      });
+      return;
+    }
+
     const isConfused = confusedIndices.has(index);
     const isMissed = missedIndices.has(index);
     const nextMark: FocusWordMark | null = !isConfused && !isMissed
@@ -406,7 +438,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
     }
 
     const requestId = ++lookupRequestRef.current;
-    const tappedSurface = sentenceSession?.items[sentenceItemIndex]?.words[index]?.surface_form ?? null;
+    const tappedSurface = word?.surface_form ?? null;
 
     setLookupCount((prev) => prev + 1);
     setLookupSurfaceForm(tappedSurface);
@@ -426,30 +458,24 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
       setLookupShowMeaning(knownSiblings.length < 1);
     } catch {
       if (lookupRequestRef.current !== requestId) return;
-      if (sentenceSession) {
-        const item = sentenceSession.items[sentenceItemIndex];
-        const word = item?.words.find((w) => w.lemma_id === lemmaId);
-        if (word) {
-          setLookupResult({
-            lemma_id: lemmaId,
-            lemma_ar: "",
-            gloss_en: word.gloss_en,
-            transliteration: null,
-            root: word.root,
-            root_meaning: word.root_meaning,
-            root_id: word.root_id,
-            pos: null,
-            forms_json: null,
-            example_ar: null,
-            frequency_rank: word.frequency_rank ?? null,
-            cefr_level: word.cefr_level ?? null,
-            example_en: null,
-            grammar_details: [],
-            root_family: [],
-          });
-        } else {
-          setLookupResult(null);
-        }
+      if (word) {
+        setLookupResult({
+          lemma_id: lemmaId,
+          lemma_ar: "",
+          gloss_en: word.gloss_en,
+          transliteration: null,
+          root: word.root,
+          root_meaning: word.root_meaning,
+          root_id: word.root_id,
+          pos: null,
+          forms_json: null,
+          example_ar: null,
+          frequency_rank: word.frequency_rank ?? null,
+          cefr_level: word.cefr_level ?? null,
+          example_en: null,
+          grammar_details: [],
+          root_family: [],
+        });
       } else {
         setLookupResult(null);
       }
@@ -1379,7 +1405,7 @@ function SentenceReadingCard({
   cardState: ReadingCardState;
   missedIndices: Set<number>;
   confusedIndices: Set<number>;
-  onWordTap: (index: number, lemmaId: number) => void;
+  onWordTap: (index: number, lemmaId: number | null) => void;
 }) {
   const showAnswer = cardState === "back";
 
@@ -1394,12 +1420,12 @@ function SentenceReadingCard({
             : isConfused
               ? styles.confusedWord
               : undefined;
-          const canTap = word.lemma_id != null;
+          const canTap = word.lemma_id != null || word.gloss_en != null;
           return (
             <Text key={`t-${i}`}>
               {i > 0 && " "}
               <Text
-                onPress={canTap ? () => onWordTap(i, word.lemma_id!) : undefined}
+                onPress={canTap ? () => onWordTap(i, word.lemma_id ?? null) : undefined}
                 style={wordStyle}
               >
                 {word.surface_form}

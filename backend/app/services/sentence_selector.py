@@ -30,6 +30,7 @@ from app.models import (
 from app.services.interaction_logger import log_interaction
 from app.services.sentence_validator import (
     FUNCTION_WORDS,
+    FUNCTION_WORD_GLOSSES,
     build_lemma_lookup,
     lookup_lemma_id,
     strip_diacritics,
@@ -555,13 +556,15 @@ def build_session(
                     k_state = k.knowledge_state or "new"
 
             bare = strip_diacritics(sw.surface_form)
+            is_func = bare in FUNCTION_WORDS
+            gloss = lemma.gloss_en if lemma else FUNCTION_WORD_GLOSSES.get(bare)
             wm = WordMeta(
                 lemma_id=effective_id,
                 surface_form=sw.surface_form,
-                gloss_en=lemma.gloss_en if lemma else None,
+                gloss_en=gloss,
                 stability=stab,
                 is_due=is_due,
-                is_function_word=bare in FUNCTION_WORDS,
+                is_function_word=is_func,
                 knowledge_state=k_state,
             )
             word_metas.append(wm)
@@ -977,7 +980,7 @@ def _generate_on_demand(
             word_dicts.append({
                 "lemma_id": m.lemma_id,
                 "surface_form": m.surface_form,
-                "gloss_en": mapped_lemma.gloss_en if mapped_lemma else None,
+                "gloss_en": mapped_lemma.gloss_en if mapped_lemma else FUNCTION_WORD_GLOSSES.get(bare),
                 "stability": stability_map.get(m.lemma_id, 0.0) if m.lemma_id else None,
                 "is_due": m.lemma_id in uncovered_ids if m.lemma_id else False,
                 "is_function_word": bare in FUNCTION_WORDS,

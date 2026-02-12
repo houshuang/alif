@@ -62,6 +62,57 @@ FUNCTION_WORDS: set[str] = {
     "يوجد", "توجد",
 }
 
+# Glosses for function words so they're tappable in review even without a lemma entry
+FUNCTION_WORD_GLOSSES: dict[str, str] = {
+    # Prepositions
+    "في": "in", "من": "from", "على": "on/upon", "الى": "to", "إلى": "to",
+    "عن": "about/from", "مع": "with", "بين": "between", "حتى": "until/even",
+    "منذ": "since", "خلال": "during", "عند": "at/with", "نحو": "toward",
+    "فوق": "above", "تحت": "under", "امام": "in front of", "أمام": "in front of",
+    "وراء": "behind", "بعد": "after", "قبل": "before", "حول": "around", "دون": "without",
+    # Single-letter
+    "ب": "with/by", "ل": "for/to", "ك": "like/as", "و": "and", "ف": "so/then",
+    # Conjunctions
+    "او": "or", "أو": "or", "ان": "that", "أن": "that", "إن": "indeed",
+    "لكن": "but", "ثم": "then", "بل": "rather",
+    # Pronouns
+    "انا": "I", "أنا": "I", "انت": "you (m)", "أنت": "you (m)",
+    "انتم": "you (pl)", "أنتم": "you (pl)", "هو": "he", "هي": "she",
+    "هم": "they (m)", "هن": "they (f)", "نحن": "we", "انتما": "you (dual)", "هما": "they (dual)",
+    # Demonstratives
+    "هذا": "this (m)", "هذه": "this (f)", "ذلك": "that (m)", "تلك": "that (f)",
+    "هؤلاء": "these", "اولئك": "those", "أولئك": "those",
+    # Relative pronouns
+    "الذي": "who/which (m)", "التي": "who/which (f)", "الذين": "who/which (pl)",
+    "اللذان": "who/which (dual m)", "اللتان": "who/which (dual f)", "اللواتي": "who/which (f pl)",
+    # Question words
+    "ما": "what", "ماذا": "what", "لماذا": "why", "كيف": "how",
+    "اين": "where", "أين": "where", "متى": "when", "هل": "? (yes/no)",
+    "كم": "how many", "اي": "which", "أي": "which",
+    # Negation
+    "لا": "no/not", "لم": "did not", "لن": "will not", "ليس": "is not", "ليست": "is not (f)",
+    # Auxiliary / modal
+    "كان": "was/were", "كانت": "was (f)", "يكون": "to be", "تكون": "to be (f)",
+    "قد": "may/already", "سوف": "will", "سـ": "will",
+    # Adverbs/particles
+    "ايضا": "also", "أيضا": "also", "جدا": "very", "فقط": "only",
+    "كل": "every/all", "بعض": "some", "كلما": "whenever",
+    "هنا": "here", "هناك": "there", "الان": "now", "الآن": "now",
+    "لذلك": "therefore", "هكذا": "thus", "معا": "together",
+    # Conditional/temporal
+    "اذا": "if", "إذا": "if", "لو": "if (hypothetical)", "عندما": "when",
+    "بينما": "while", "حيث": "where", "كما": "as/like",
+    "لان": "because", "لأن": "because", "كي": "in order to", "لكي": "in order to",
+    "حين": "when", "حينما": "when",
+    # Emphasis / structure
+    "لقد": "indeed (past)", "اما": "as for", "أما": "as for",
+    "الا": "except", "إلا": "except", "اذن": "then/so", "إذن": "then/so",
+    "انه": "indeed he", "إنه": "indeed he", "انها": "indeed she", "إنها": "indeed she",
+    "مثل": "like", "غير": "other than",
+    # Grammatical verbs
+    "يوجد": "there is", "توجد": "there is (f)",
+}
+
 
 def strip_diacritics(text: str) -> str:
     """Remove Arabic diacritical marks (tashkeel) from text."""
