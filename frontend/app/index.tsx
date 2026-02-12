@@ -3041,7 +3041,7 @@ const styles = StyleSheet.create({
   actionMenuRow: {
     flexDirection: "row",
     justifyContent: "flex-end",
-    marginTop: 2,
+    marginTop: 8,
   },
   emptyText: {
     color: colors.textSecondary,
