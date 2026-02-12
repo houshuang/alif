@@ -36,7 +36,7 @@ def _format_upload(upload: PageUpload) -> dict:
     }
 
 
-def _process_page_background(upload_id: int, image_bytes: bytes) -> None:
+def _process_page_background(upload_id: int, image_bytes: bytes, start_acquiring: bool = False) -> None:
     """Background task wrapper — creates its own DB session."""
     db = SessionLocal()
     try:
@@ -44,7 +44,7 @@ def _process_page_background(upload_id: int, image_bytes: bytes) -> None:
         if not upload:
             logger.error(f"PageUpload {upload_id} not found for background processing")
             return
-        process_textbook_page(db, upload, image_bytes)
+        process_textbook_page(db, upload, image_bytes, start_acquiring=start_acquiring)
     except Exception:
         logger.exception(f"Background processing failed for upload {upload_id}")
     finally:
@@ -55,6 +55,7 @@ def _process_page_background(upload_id: int, image_bytes: bytes) -> None:
 async def scan_textbook_pages(
     background_tasks: BackgroundTasks,
     files: list[UploadFile] = File(...),
+    start_acquiring: bool = Query(default=False),
     db: Session = Depends(get_db),
 ):
     """Upload one or more textbook page images for OCR word extraction.
@@ -88,7 +89,7 @@ async def scan_textbook_pages(
         db.flush()
 
         uploads.append(upload)
-        background_tasks.add_task(_process_page_background, upload.id, image_bytes)
+        background_tasks.add_task(_process_page_background, upload.id, image_bytes, start_acquiring)
 
     db.commit()
 

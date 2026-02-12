@@ -1,6 +1,6 @@
 """Leech auto-management — detect and handle chronically failing words.
 
-A word is a leech if: times_seen >= 8 AND accuracy < 40%.
+A word is a leech if: times_seen >= 5 AND accuracy < 50%.
 Leeches are auto-suspended and scheduled for reintroduction after 14 days.
 """
 
@@ -15,8 +15,8 @@ from app.services.interaction_logger import log_interaction
 
 logger = logging.getLogger(__name__)
 
-LEECH_MIN_REVIEWS = 8
-LEECH_MAX_ACCURACY = 0.40
+LEECH_MIN_REVIEWS = 5
+LEECH_MAX_ACCURACY = 0.50
 REINTRO_DELAY = timedelta(days=14)
 
 

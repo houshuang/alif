@@ -8,8 +8,10 @@ from app.models import Lemma, ReviewLog, UserLemmaKnowledge, Sentence, SentenceW
 from app.services.fsrs_service import create_new_card
 from app.services.sentence_selector import (
     FRESHNESS_BASELINE,
+    MAX_AUTO_INTRO_PER_SESSION,
     WordMeta,
     _difficulty_match_quality,
+    _intro_slots_for_accuracy,
     _scaffold_freshness,
     build_session,
 )
@@ -513,3 +515,31 @@ class TestWithinSessionRepetition:
         # Should get both sentences (repetition for acquiring word)
         sentence_ids = [i["sentence_id"] for i in result["items"] if i.get("sentence_id")]
         assert len(sentence_ids) >= 2
+
+
+class TestAdaptiveIntroRate:
+    def test_below_70_returns_zero(self):
+        assert _intro_slots_for_accuracy(0.0) == 0
+        assert _intro_slots_for_accuracy(0.50) == 0
+        assert _intro_slots_for_accuracy(0.69) == 0
+
+    def test_boundary_at_70(self):
+        assert _intro_slots_for_accuracy(0.70) == 4
+
+    def test_70_to_85_returns_four(self):
+        assert _intro_slots_for_accuracy(0.75) == 4
+        assert _intro_slots_for_accuracy(0.84) == 4
+
+    def test_boundary_at_85(self):
+        assert _intro_slots_for_accuracy(0.85) == 7
+
+    def test_85_to_92_returns_seven(self):
+        assert _intro_slots_for_accuracy(0.88) == 7
+        assert _intro_slots_for_accuracy(0.91) == 7
+
+    def test_boundary_at_92(self):
+        assert _intro_slots_for_accuracy(0.92) == MAX_AUTO_INTRO_PER_SESSION
+
+    def test_above_92_returns_max(self):
+        assert _intro_slots_for_accuracy(0.95) == MAX_AUTO_INTRO_PER_SESSION
+        assert _intro_slots_for_accuracy(1.0) == MAX_AUTO_INTRO_PER_SESSION

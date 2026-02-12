@@ -319,8 +319,8 @@ class TestNoIdea:
 
 
 class TestEncounterOnly:
-    def test_word_without_card_gets_fsrs_card(self, db_session):
-        """Words without FSRS cards get full FSRS cards when seen in a sentence."""
+    def test_word_without_card_starts_acquisition(self, db_session):
+        """Words without ULK records start acquisition (not straight to FSRS)."""
         _seed_word(db_session, 1, "كتاب", "book")
         _seed_word(db_session, 2, "ولد", "boy", with_card=False)
         _seed_sentence(db_session, 1, "الولد الكتاب", "boy book",
@@ -334,13 +334,11 @@ class TestEncounterOnly:
             comprehension_signal="understood",
         )
 
-        # All words now get FSRS cards, no more "encountered" state
         word2_result = [wr for wr in result["word_results"] if wr["lemma_id"] == 2]
         assert len(word2_result) == 1
-        assert word2_result[0]["new_state"] in ("learning", "known")
-        assert word2_result[0]["next_due"] is not None
+        assert word2_result[0]["new_state"] == "acquiring"
 
-    def test_unknown_word_creates_knowledge_record(self, db_session):
+    def test_unknown_word_creates_acquiring_record(self, db_session):
         _seed_word(db_session, 1, "كتاب", "book")
         # lemma_id=2 exists but has no knowledge record
         lemma2 = Lemma(lemma_id=2, lemma_ar="ولد", lemma_ar_bare="ولد",
@@ -361,9 +359,10 @@ class TestEncounterOnly:
             UserLemmaKnowledge.lemma_id == 2
         ).first()
         assert k is not None
-        assert k.source == "encountered"
-        assert k.total_encounters == 1
-        assert k.fsrs_card_json is not None
+        assert k.source == "collateral"
+        assert k.knowledge_state == "acquiring"
+        assert k.acquisition_box == 2  # started box 1, rating=3 advanced to box 2
+        assert k.fsrs_card_json is None
 
 
 class TestSentenceReviewLog:

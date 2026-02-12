@@ -41,7 +41,8 @@ def submit_sentence_review(
     - "partial" + missed/confused -> missed get rating=1, confused get rating=2, rest get rating=3
     - "no_idea" -> all words get rating=1
 
-    All words (including previously unseen) get full FSRS cards.
+    Previously unseen words are routed through acquisition (Leitner box 1)
+    rather than getting FSRS cards directly.
     """
     if client_review_id:
         if sentence_id is not None:
@@ -189,6 +190,18 @@ def submit_sentence_review(
                 else None
             )
         )
+
+        # Auto-introduce unknown words into acquisition instead of straight to FSRS
+        if effective_lemma_id not in knowledge_map:
+            from app.services.acquisition_service import start_acquisition, submit_acquisition_review as _sar
+            new_ulk = start_acquisition(
+                db,
+                lemma_id=effective_lemma_id,
+                source="collateral",
+                due_immediately=False,
+            )
+            knowledge_map[effective_lemma_id] = new_ulk
+            acquiring_lemma_ids.add(effective_lemma_id)
 
         # Route acquiring words through acquisition service
         if effective_lemma_id in acquiring_lemma_ids:

@@ -443,6 +443,7 @@ def process_textbook_page(
     db: Session,
     upload: PageUpload,
     image_bytes: bytes,
+    start_acquiring: bool = False,
 ) -> None:
     """Process a single textbook page image: OCR, match words, import new ones.
 
@@ -546,16 +547,25 @@ def process_textbook_page(
                         "knowledge_state": ulk.knowledge_state,
                     })
                 else:
-                    # Lemma exists but no knowledge record — create encountered record (no FSRS card)
-                    new_ulk = UserLemmaKnowledge(
-                        lemma_id=lemma_id,
-                        knowledge_state="encountered",
-                        fsrs_card_json=None,
-                        source="textbook_scan",
-                        total_encounters=1,
-                    )
-                    db.add(new_ulk)
-                    db.flush()
+                    # Lemma exists but no knowledge record
+                    if start_acquiring:
+                        from app.services.acquisition_service import start_acquisition
+                        new_ulk = start_acquisition(
+                            db,
+                            lemma_id=lemma_id,
+                            source="textbook_scan",
+                            due_immediately=True,
+                        )
+                    else:
+                        new_ulk = UserLemmaKnowledge(
+                            lemma_id=lemma_id,
+                            knowledge_state="encountered",
+                            fsrs_card_json=None,
+                            source="textbook_scan",
+                            total_encounters=1,
+                        )
+                        db.add(new_ulk)
+                        db.flush()
                     knowledge_map[lemma_id] = new_ulk
                     existing_count += 1
                     results.append({
@@ -564,7 +574,7 @@ def process_textbook_page(
                         "english": lemma.gloss_en if lemma else word_data.get("english"),
                         "status": "existing_new_card",
                         "lemma_id": lemma_id,
-                        "knowledge_state": "encountered",
+                        "knowledge_state": new_ulk.knowledge_state,
                     })
             else:
                 # New word — create lemma + knowledge record
@@ -597,15 +607,24 @@ def process_textbook_page(
                 db.add(new_lemma)
                 db.flush()
 
-                new_ulk = UserLemmaKnowledge(
-                    lemma_id=new_lemma.lemma_id,
-                    knowledge_state="encountered",
-                    fsrs_card_json=None,
-                    source="textbook_scan",
-                    total_encounters=1,
-                )
-                db.add(new_ulk)
-                db.flush()
+                if start_acquiring:
+                    from app.services.acquisition_service import start_acquisition
+                    new_ulk = start_acquisition(
+                        db,
+                        lemma_id=new_lemma.lemma_id,
+                        source="textbook_scan",
+                        due_immediately=True,
+                    )
+                else:
+                    new_ulk = UserLemmaKnowledge(
+                        lemma_id=new_lemma.lemma_id,
+                        knowledge_state="encountered",
+                        fsrs_card_json=None,
+                        source="textbook_scan",
+                        total_encounters=1,
+                    )
+                    db.add(new_ulk)
+                    db.flush()
 
                 # Update lookup for subsequent words in same batch
                 lemma_lookup[import_bare] = new_lemma.lemma_id
@@ -626,7 +645,7 @@ def process_textbook_page(
                     "english": english,
                     "status": "new",
                     "lemma_id": new_lemma.lemma_id,
-                    "knowledge_state": "encountered",
+                    "knowledge_state": new_ulk.knowledge_state,
                     "root": root_str,
                     "pos": pos,
                 })
@@ -657,6 +676,16 @@ def process_textbook_page(
             if all_vars:
                 variants_detected = mark_variants(db, all_vars)
                 variant_ids = {v[0] for v in all_vars}
+                # Reset any variant ULKs that were started as acquiring
+                if start_acquiring and variant_ids:
+                    for vid in variant_ids:
+                        vulk = knowledge_map.get(vid)
+                        if vulk and vulk.knowledge_state == "acquiring":
+                            vulk.knowledge_state = "encountered"
+                            vulk.acquisition_box = None
+                            vulk.acquisition_next_due = None
+                            vulk.acquisition_started_at = None
+                            vulk.introduced_at = None
                 db.commit()
                 logger.info(
                     f"OCR variant detection: marked {variants_detected} variants "

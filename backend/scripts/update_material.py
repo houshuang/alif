@@ -38,6 +38,8 @@ from app.services.llm import AllProvidersFailed, generate_sentences_batch
 from app.services.sentence_generator import (
     get_content_word_counts,
     get_avoid_words,
+    group_words_for_multi_target,
+    generate_validated_sentences_multi_target,
     sample_known_words_weighted,
     KNOWN_SAMPLE_SIZE,
 )
@@ -265,12 +267,76 @@ def step_backfill_sentences(
     content_word_counts = get_content_word_counts(db)
     avoid_words = get_avoid_words(content_word_counts, known_words)
 
+    # Collect words needing sentences
+    words_needing: list[dict] = []
+    for lemma_id, due_str in due_order:
+        existing = existing_counts.get(lemma_id, 0)
+        needed = MIN_SENTENCES - existing
+        if needed <= 0:
+            continue
+        lemma = db.query(Lemma).filter(Lemma.lemma_id == lemma_id).first()
+        if not lemma:
+            continue
+        words_needing.append({
+            "lemma_id": lemma_id,
+            "lemma_ar": lemma.lemma_ar,
+            "gloss_en": lemma.gloss_en or "",
+            "root_id": lemma.root_id,
+            "due_str": due_str,
+            "existing": existing,
+            "needed": min(needed, budget),
+        })
+
     total = 0
     words_processed = 0
-    for lemma_id, due_str in due_order:
+    covered_by_multi: set[int] = set()
+
+    # Phase 1: Multi-target generation for groups of 2-4 words
+    if not dry_run and len(words_needing) >= 2:
+        from app.services.material_generator import store_multi_target_sentence
+        groups = group_words_for_multi_target(words_needing)
+        for group in groups:
+            if total >= budget:
+                break
+            print(f"  Multi-target group: {', '.join(w['lemma_ar'] for w in group)}")
+            try:
+                multi_results = generate_validated_sentences_multi_target(
+                    target_words=group,
+                    known_words=known_words,
+                    existing_sentence_counts=existing_counts,
+                    count=len(group),
+                    difficulty_hint="beginner",
+                    content_word_counts=content_word_counts,
+                    avoid_words=avoid_words,
+                )
+            except Exception as e:
+                print(f"    Multi-target failed: {e}")
+                continue
+
+            target_bares = {strip_diacritics(tw["lemma_ar"]): tw["lemma_id"] for tw in group}
+            for mres in multi_results:
+                if total >= budget:
+                    break
+                sent = store_multi_target_sentence(db, mres, lemma_lookup, target_bares)
+                if sent:
+                    total += 1
+                    words_processed += 1
+                    for lid in mres.target_lemma_ids:
+                        covered_by_multi.add(lid)
+                        existing_counts[lid] = existing_counts.get(lid, 0) + 1
+                    print(f"    ✓ Multi-target sentence covering {len(mres.target_lemma_ids)} words")
+
+            if delay > 0:
+                time.sleep(delay)
+
+        db.commit()
+
+    # Phase 2: Single-target for remaining words
+    for w in words_needing:
         if total >= budget:
             break
 
+        lemma_id = w["lemma_id"]
         existing = existing_counts.get(lemma_id, 0)
         needed = MIN_SENTENCES - existing
         if needed <= 0:
@@ -287,7 +353,7 @@ def step_backfill_sentences(
         )
 
         words_processed += 1
-        print(f"  {lemma.lemma_ar} ({lemma.gloss_en}) — have {existing}, need {needed}, due {due_str[:10]}")
+        print(f"  {lemma.lemma_ar} ({lemma.gloss_en}) — have {existing}, need {needed}, due {w['due_str'][:10]}")
         if dry_run:
             total += needed
         else:
