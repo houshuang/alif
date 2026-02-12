@@ -42,6 +42,25 @@ MAX_ACQUISITION_EXTRA_SLOTS = 15  # max extra cards beyond session limit for rep
 MAX_AUTO_INTRO_PER_SESSION = 10  # new words auto-introduced per session
 AUTO_INTRO_ACCURACY_FLOOR = 0.70  # pause introduction if recent accuracy below this
 MAX_ACQUIRING_WORDS = 30  # don't auto-introduce if already this many acquiring
+MAX_BOX1_WORDS = 8  # don't auto-introduce if this many acquiring words still in box 1
+
+
+def _intro_slots_for_accuracy(accuracy: float) -> int:
+    """Return how many words to auto-introduce based on recent session accuracy.
+
+    Replaces the binary pause/continue logic with a graduated ramp:
+    - <70%: 0 (struggling, don't add new words)
+    - 70-85%: 4 (doing okay, slow introduction)
+    - 85-92%: 7 (doing well, moderate introduction)
+    - >=92%: MAX_AUTO_INTRO_PER_SESSION (cruising, full speed)
+    """
+    if accuracy < 0.70:
+        return 0
+    if accuracy < 0.85:
+        return 4
+    if accuracy < 0.92:
+        return 7
+    return MAX_AUTO_INTRO_PER_SESSION
 
 
 @dataclass
@@ -221,7 +240,22 @@ def _auto_introduce_words(
     if acquiring_count >= MAX_ACQUIRING_WORDS:
         return []
 
-    # Check recent accuracy — pause introduction if struggling
+    # Box 1 capacity check: don't dump new words if box 1 is already full
+    box1_count = (
+        db.query(UserLemmaKnowledge)
+        .filter(
+            UserLemmaKnowledge.knowledge_state == "acquiring",
+            UserLemmaKnowledge.acquisition_box == 1,
+        )
+        .count()
+    )
+    if box1_count >= MAX_BOX1_WORDS:
+        logger.info(
+            f"Auto-intro paused: {box1_count} words in box 1 (max {MAX_BOX1_WORDS})"
+        )
+        return []
+
+    # Adaptive introduction rate based on recent accuracy
     recent_reviews = (
         db.query(ReviewLog)
         .filter(ReviewLog.reviewed_at >= now - timedelta(days=2))
@@ -230,13 +264,18 @@ def _auto_introduce_words(
     if len(recent_reviews) >= 10:
         correct = sum(1 for r in recent_reviews if r.rating >= 3)
         accuracy = correct / len(recent_reviews)
-        if accuracy < AUTO_INTRO_ACCURACY_FLOOR:
+        accuracy_slots = _intro_slots_for_accuracy(accuracy)
+        if accuracy_slots == 0:
             logger.info(
                 f"Auto-intro paused: recent accuracy {accuracy:.0%} < {AUTO_INTRO_ACCURACY_FLOOR:.0%}"
             )
             return []
+    else:
+        accuracy = None
+        accuracy_slots = 4  # conservative default with insufficient data
 
-    slots = min(MAX_AUTO_INTRO_PER_SESSION, MAX_ACQUIRING_WORDS - acquiring_count)
+    box1_available = MAX_BOX1_WORDS - box1_count
+    slots = min(accuracy_slots, MAX_ACQUIRING_WORDS - acquiring_count, box1_available)
     if slots <= 0:
         return []
 
@@ -273,6 +312,8 @@ def _auto_introduce_words(
             event="auto_introduce",
             count=len(introduced_ids),
             lemma_ids=introduced_ids,
+            accuracy=round(accuracy, 3) if accuracy is not None else None,
+            accuracy_slots=accuracy_slots,
         )
 
     return introduced_ids
@@ -866,11 +907,17 @@ def _generate_on_demand(
 ) -> list[dict]:
     """Generate sentences on-demand for due words with no comprehensible sentences.
 
-    Calls LLM synchronously (capped at MAX_ON_DEMAND_PER_SESSION) to avoid
-    showing word-only fallback cards.
+    When 2+ words are uncovered, tries multi-target generation first (grouping
+    up to 4 words per sentence). Falls back to single-target for remaining.
     """
     import logging
-    from app.services.sentence_generator import generate_validated_sentence, GenerationError
+    from app.services.sentence_generator import (
+        generate_validated_sentence,
+        generate_validated_sentences_multi_target,
+        group_words_for_multi_target,
+        GenerationError,
+    )
+    from app.services.material_generator import store_multi_target_sentence
     from app.services.sentence_validator import (
         build_lemma_lookup,
         map_tokens_to_lemmas,
@@ -912,8 +959,98 @@ def _generate_on_demand(
     )
     target_map = {lem.lemma_id: lem for lem in target_lemmas}
 
+    # Build ULK lookup for knowledge_state
+    ulk_by_lemma: dict[int, UserLemmaKnowledge] = {k.lemma_id: k for k in known_ulks}
+
+    still_uncovered = set(uncovered_ids)
     generated_count = 0
-    for lid in list(uncovered_ids):
+
+    # Phase 1: Multi-target generation when 2+ words uncovered
+    if len(still_uncovered) >= 2 and generated_count < cap:
+        word_dicts_for_grouping = []
+        for lid in still_uncovered:
+            lem = target_map.get(lid)
+            if lem:
+                word_dicts_for_grouping.append({
+                    "lemma_id": lid,
+                    "lemma_ar": lem.lemma_ar,
+                    "gloss_en": lem.gloss_en or "",
+                    "root_id": lem.root_id,
+                })
+
+        groups = group_words_for_multi_target(word_dicts_for_grouping)
+        for group in groups:
+            if generated_count >= cap:
+                break
+            try:
+                multi_results = generate_validated_sentences_multi_target(
+                    target_words=group,
+                    known_words=known_words,
+                    count=len(group),
+                    difficulty_hint="beginner",
+                    max_words=12,
+                )
+            except Exception:
+                logger.warning("Multi-target generation failed, falling back to single")
+                break
+
+            target_bares = {strip_diacritics(tw["lemma_ar"]): tw["lemma_id"] for tw in group}
+            for mres in multi_results:
+                if generated_count >= cap:
+                    break
+
+                sent = store_multi_target_sentence(db, mres, lemma_lookup, target_bares)
+                if not sent:
+                    continue
+
+                # Build item dict for the session response
+                primary_lemma = target_map.get(mres.primary_target_lemma_id)
+                sws = db.query(SentenceWord).filter(SentenceWord.sentence_id == sent.id).order_by(SentenceWord.position).all()
+                word_dicts = []
+                for sw in sws:
+                    mapped_lemma = lemma_map.get(sw.lemma_id) or target_map.get(sw.lemma_id)
+                    root_obj = mapped_lemma.root if mapped_lemma and hasattr(mapped_lemma, 'root') else None
+                    bare = strip_diacritics(sw.surface_form)
+                    k_state = "new"
+                    ulk = ulk_by_lemma.get(sw.lemma_id)
+                    if ulk:
+                        k_state = ulk.knowledge_state or "new"
+
+                    word_dicts.append({
+                        "lemma_id": sw.lemma_id,
+                        "surface_form": sw.surface_form,
+                        "gloss_en": mapped_lemma.gloss_en if mapped_lemma else FUNCTION_WORD_GLOSSES.get(bare),
+                        "stability": stability_map.get(sw.lemma_id, 0.0) if sw.lemma_id else None,
+                        "is_due": sw.lemma_id in uncovered_ids if sw.lemma_id else False,
+                        "is_function_word": bare in FUNCTION_WORDS,
+                        "knowledge_state": k_state,
+                        "root": root_obj.root if root_obj else None,
+                        "root_meaning": root_obj.core_meaning_en if root_obj else None,
+                        "root_id": root_obj.root_id if root_obj else None,
+                        "frequency_rank": mapped_lemma.frequency_rank if mapped_lemma else None,
+                        "cefr_level": mapped_lemma.cefr_level if mapped_lemma else None,
+                        "grammar_tags": [],
+                    })
+
+                items.append({
+                    "sentence_id": sent.id,
+                    "arabic_text": sent.arabic_text,
+                    "arabic_diacritized": sent.arabic_diacritized,
+                    "english_translation": sent.english_translation or "",
+                    "transliteration": sent.transliteration,
+                    "audio_url": None,
+                    "primary_lemma_id": mres.primary_target_lemma_id,
+                    "primary_lemma_ar": primary_lemma.lemma_ar if primary_lemma else "",
+                    "primary_gloss_en": primary_lemma.gloss_en if primary_lemma else "",
+                    "words": word_dicts,
+                    "grammar_features": [],
+                })
+                generated_count += 1
+                for found_lid in mres.target_lemma_ids:
+                    still_uncovered.discard(found_lid)
+
+    # Phase 2: Single-target fallback for remaining uncovered words
+    for lid in list(still_uncovered):
         if generated_count >= cap:
             break
 
@@ -971,13 +1108,10 @@ def _generate_on_demand(
             bare = strip_diacritics(m.surface_form)
 
             k_state = "new"
-            k_obj = None
             if m.lemma_id:
-                for k in known_ulks:
-                    if k.lemma_id == m.lemma_id:
-                        k_state = k.knowledge_state or "new"
-                        k_obj = k
-                        break
+                ulk = ulk_by_lemma.get(m.lemma_id)
+                if ulk:
+                    k_state = ulk.knowledge_state or "new"
 
             word_dicts.append({
                 "lemma_id": m.lemma_id,

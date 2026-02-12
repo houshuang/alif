@@ -4,6 +4,70 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-02-12: Box 1 Capacity Cap for Auto-Introduction
+
+**Change**: Added `MAX_BOX1_WORDS=8` constraint to `_auto_introduce_words()`. Auto-introduction now checks how many acquiring words are in Leitner box 1 (the most review-intensive stage) and refuses to introduce more if box 1 is at capacity. The final slot count is `min(accuracy_band, MAX_ACQUIRING_WORDS - acquiring_count, MAX_BOX1_WORDS - box1_count)`.
+
+**Problem**: On 2026-02-12, two `build_session()` calls fired within 51 seconds (at 18:23 and 18:24), each introducing 10 words (the per-session max). This dumped 20 new words into box 1 simultaneously. When they all became due 4 hours later, the session ballooned to 25 cards. 5 of the 27 auto-introduced words were never reviewed at all (times_seen=0).
+
+**Hypothesis**: The per-session cap (MAX_AUTO_INTRO_PER_SESSION=10) is insufficient because multiple rapid `build_session()` calls bypass it. A capacity-based constraint on box 1 occupancy is self-regulating: study more → words progress to box 2/3 → box 1 frees up → more introductions allowed. Skip a day → box 1 stays full → no new words until catch-up.
+
+**Verification**: Monitor `auto_introduce` interaction log events. Box 1 count should stay ≤8. Sessions should stay within normal 10-15 card range. No more 25-card avalanche sessions.
+
+**Files**: `app/services/sentence_selector.py`, `docs/scheduling-system.md`
+
+---
+
+## 2026-02-12: Route Collateral & OCR Words Through Acquisition
+
+**Change**: Two paths that bypassed the Leitner acquisition phase now route through it:
+1. **Collateral credit**: When a word with no ULK appears in a reviewed sentence, it now starts acquisition (box 1, source="collateral", due_immediately=False) instead of getting a direct FSRS card with knowledge_state="learning".
+2. **OCR import toggle**: `POST /api/ocr/scan-pages?start_acquiring=true` starts scanned words in acquisition immediately (box 1, due_immediately=True). Default remains "encountered" for backward compatibility. Frontend scanner has a "Start learning immediately" toggle (default on).
+
+**Hypothesis**: Words need the structured 4h→1d→3d Leitner ramp to build durable memory. Skipping straight to FSRS gives inflated stability that leads to premature long intervals and eventual lapsing. Scanning a textbook page = the user just read those words, so they should be scheduled for follow-up instead of sitting in a queue.
+
+**Verification**: Monitor new "collateral" source ULKs — they should have acquisition_box set and no fsrs_card_json. OCR with toggle on should show words in "acquiring" state. Check that variant detection post-OCR correctly resets variant ULKs.
+
+**Files**: `app/services/sentence_review_service.py`, `app/services/ocr_service.py`, `app/routers/ocr.py`, `frontend/lib/api.ts`, `frontend/app/scanner.tsx`
+
+---
+
+## 2026-02-12: Adaptive Auto-Introduction Rate
+
+**Change**: Replaced binary pause/continue auto-introduction logic with graduated accuracy-based ramp. `_intro_slots_for_accuracy()` maps 2-day accuracy to slot count: <70%→0 (pause), 70-85%→4 (normal), 85-92%→7 (increased), ≥92%→10 (max). Default 4 slots when <10 reviews (was 10).
+
+**Hypothesis**: Strong learners (>92% accuracy) were being throttled at the same rate as struggling learners. Graduated ramp should increase vocabulary growth for proficient learners without overwhelming those who are struggling.
+
+**Verification**: Monitor `auto_introduce` interaction log events which now include `accuracy` and `accuracy_slots` fields. Compare intro rates across accuracy bands over 2 weeks.
+
+**Files**: `app/services/sentence_selector.py`, `tests/test_sentence_selector.py`
+
+---
+
+## 2026-02-12: Multi-Target Sentence Generation
+
+**Change**: Added ability to generate sentences targeting SETS of 2-4 words simultaneously. Words grouped via `group_words_for_multi_target()` (avoids same-root pairs). Each sentence must contain ≥2 target words. Used in both on-demand (session building) and cron (update_material.py) paths. Falls back to single-target on failure.
+
+**Hypothesis**: Multi-target sentences provide natural cross-reinforcement, reduce LLM calls (1 call for 4 words vs 4 calls), and produce more varied sentence structures.
+
+**Verification**: Compare LLM call counts in `update_material.py` logs before/after. Check that multi-target sentences pass validation at a reasonable rate (>50%). Monitor session builder on-demand generation latency.
+
+**Files**: `app/services/llm.py`, `app/services/sentence_validator.py`, `app/services/sentence_generator.py`, `app/services/material_generator.py`, `app/services/sentence_selector.py`, `scripts/update_material.py`
+
+---
+
+## 2026-02-12: Tighter Leech Detection Thresholds
+
+**Change**: `LEECH_MIN_REVIEWS` 8→5, `LEECH_MAX_ACCURACY` 0.40→0.50. Leeches now caught after 5 reviews at <50% accuracy (was 8 at <40%).
+
+**Hypothesis**: Original thresholds were too loose — words had to fail 8+ times at <40% before suspension. Earlier detection (5 reviews, <50%) saves review time and gets struggling words into the 14-day rest + reintroduction cycle sooner.
+
+**Verification**: Monitor `leech_suspended` activity log events. Expect more leeches detected in the first week post-change, then stabilizing. Check that the tighter threshold doesn't over-suspend words that would have recovered.
+
+**Files**: `app/services/leech_service.py`
+
+---
+
 ## 2026-02-12: Diacritics + ALA-LC Transliteration Backfill
 
 **Change**: Added deterministic Arabic→ALA-LC transliteration service (`transliteration.py`) and backfilled diacritics + transliterations for all lemmas. 1,022 bare lemmas were diacritized via LLM (Gemini Flash). 97% of ULK words now have diacritics, 90% have transliteration. Transliteration now shows on word info cards during review.
