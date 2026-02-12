@@ -531,12 +531,12 @@ After importing ~100 textbook pages via OCR, 411 words entered the system with a
 - Research: "fewer than 6 spaced encounters → fewer than 30% recall after a week"
 
 #### Focus Cohort System
-- [DONE] MAX_COHORT_SIZE=40. Acquiring words always included, remaining filled by lowest-stability FSRS due words. Implemented in `cohort_service.py`, integrated into `sentence_selector.py build_session()`.
+- [DONE] MAX_COHORT_SIZE=25 (reduced from 40). Acquiring words always included, remaining filled by lowest-stability FSRS due words. Implemented in `cohort_service.py`, integrated into `sentence_selector.py build_session()`.
 - Prevents the "spread too thin" problem where 586 words compete for ~100 reviews/day
 - User said: "have a group of cards that we've consolidated... and then start adding more cards so that the group grows"
 
 #### Session-Level Word Repetition
-- [DONE] Within-session repetition: acquisition words get additional sentences at expanding positions (N, N+3). Cap: 2 repeats per word.
+- [DONE] Within-session repetition: acquisition words get MIN_ACQUISITION_EXPOSURES=4 sentences each via multi-pass expanding intervals. Session expands up to MAX_ACQUISITION_EXTRA_SLOTS=8 extra cards.
 - [DONE] Next-session recap endpoint: `POST /api/review/recap` returns sentence-level cards for last session's acquiring words (<24h ago). Frontend not yet implemented.
 - [DONE] Wrap-up mini-quiz: `POST /api/review/wrap-up` returns word-level recall cards. Frontend not yet implemented.
 
@@ -581,6 +581,30 @@ After importing ~100 textbook pages via OCR, 411 words entered the system with a
 - Adaptive comprehensibility threshold: start at 70%, increase to 80% as vocabulary grows. Early learners need more i+1, advanced need less scaffolding.
 - Sentence regeneration trigger: when cleanup retires many sentences, auto-regenerate for words below MIN_SENTENCES=2.
 - Pre-warm sentence cache: after cleanup, generate sentences for all active words in background (not during session building).
+
+#### Topical Learning Cycles (Phase 4)
+- Group words by thematic domain (food, family, school, etc.) and cycle through topics
+- Each cycle focuses on one domain: introduce 5-8 words, drill until consolidated, move to next
+- Prevents mixing too many unrelated words (cognitive interference)
+- Uses existing `thematic_domain` on lemmas from `backfill_themes.py`
+- Could auto-select next topic based on story readiness or user preference
+
+#### Story Difficulty Display + Suspend/Activate (Phase 5)
+- Show estimated difficulty level on story list cards
+- Allow suspend/reactivate of stories (currently only complete/skip/too-difficult)
+- Story difficulty auto-selection: pick stories where readiness is 85-95%
+- Link to story from word detail page when word was encountered in a story but missed
+
+#### Themed Sentence Generation (Phase 6)
+- Generate sentences targeting a SET of 3-5 thematically related words rather than individual targets
+- "Create 10 sentences about food. Each must include at least 2 of these 5 focus words: X, Y, Z, W, V"
+- Natural cross-reinforcement — seeing word A in context with thematically related word B helps both
+- More efficient than single-target generation (fewer LLM calls, more diverse sentences)
+
+#### Story Link on Word Detail When Missed
+- When a word was encountered in a story and later missed in review, show a link back to the story on the word detail page
+- Helps learner reconnect with the original context where they first saw the word
+- Uses existing `source_story_id` on Lemma model
 
 #### A/B Testing Framework (Single-Subject)
 - Research says: n-of-1 trials need ~400 observations per condition, 4-5 crossover periods, linear regression with AR(1) covariance

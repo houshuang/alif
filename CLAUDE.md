@@ -41,11 +41,11 @@ See `docs/review-modes.md` for full UX flows.
 - **Story Mode**: generate/import, tap-to-lookup reader, complete/skip/too-difficult
 
 ## Design Principles
-- **Word introduction is user-driven only** — Learn mode only. No auto-introduction during review sessions, sentence generation, or story completion. OCR/story import creates "encountered" state (no FSRS card), not introduced.
+- **Word introduction is automatic** — `build_session()` auto-introduces 2-3 encountered words per session (MAX_AUTO_INTRO_PER_SESSION=3) when acquiring count is below MAX_ACQUIRING_WORDS=8 and session accuracy >= 70%. Learn mode is also available for manual introduction. OCR/story import creates "encountered" state (no FSRS card), not introduced.
 - **No concept of "due"** — the app picks the most relevant cards for the next session. Don't use "due" in UI text or stats. Use "ready for review" or similar.
 - **No bare word cards in review** — review sessions ONLY show sentences. If a due word has no comprehensible sentence, generate one on-demand or skip the word. Never show a word-only fallback card.
 - **Comprehensibility gate** — sentences must have ≥70% known content words (excluding function words) to be shown in review. Incomprehensible sentences are skipped.
-- **On-demand sentence generation** — when a due word has no comprehensible sentence, generate 1-2 synchronously during session building (max 3/session). Uses current vocabulary, not stale pre-generated pool.
+- **On-demand sentence generation** — when a due word has no comprehensible sentence, generate 1-2 synchronously during session building (max 5/session). Uses current vocabulary, not stale pre-generated pool.
 - **Tapped words are always marked missed** — front-phase tapping auto-marks as missed (rating≤2). Never give rating 3 to a word the user looked up.
 - **al-prefix is NOT a separate lemma** — الكلب and كلب are the same lemma. All import paths must dedup al-prefix forms. Distinct lemmas only for genuinely different words (e.g. الآن "now" vs آن "time").
 - **Be conservative with ElevenLabs TTS** — costs real money. Only generate audio for sentences that will actually be shown (due-date priority). Don't blanket-generate for all sentences.
@@ -128,9 +128,9 @@ This app is an ongoing learning experiment. Every algorithm change, data structu
 
 ### Backend Services
 - `fsrs_service.py` — FSRS spaced repetition. Auto-creates ULK + Card for unknown lemmas. Snapshots pre-review state in fsrs_log_json for undo.
-- `sentence_selector.py` — Session assembly: greedy set cover, comprehension-aware recency (7d/2d/4h), difficulty matching, easy-bookend ordering. Focus cohort filtering (MAX_COHORT_SIZE=40). Acquisition-due words with pseudo-stability mapping. Comprehensibility gate (≥70% known content words). On-demand sentence generation for uncovered words (MAX_ON_DEMAND=3). No word-only fallbacks. **Variant→canonical resolution**: sentences with variant forms correctly cover canonical due words.
+- `sentence_selector.py` — Session assembly: greedy set cover, comprehension-aware recency (7d/2d/4h), difficulty matching, easy-bookend ordering. Focus cohort filtering (MAX_COHORT_SIZE=25). Auto-introduction of encountered words (MAX_AUTO_INTRO_PER_SESSION=3, AUTO_INTRO_ACCURACY_FLOOR=0.70, MAX_ACQUIRING_WORDS=8). Aggressive within-session repetition for acquiring words (MIN_ACQUISITION_EXPOSURES=4, multi-pass expanding intervals, MAX_ACQUISITION_EXTRA_SLOTS=8). Comprehensibility gate (≥70% known content words, encountered counted as passive vocab). On-demand sentence generation for uncovered words (MAX_ON_DEMAND=5). No word-only fallbacks. **Variant→canonical resolution**: sentences with variant forms correctly cover canonical due words.
 - `sentence_review_service.py` — Reviews ALL words equally. Routes acquiring→acquisition, skips encountered. **Variant→canonical redirect**: reviews of variant words credit the canonical lemma, with surface forms tracked in variant_stats_json. credit_type is metadata only. Post-review leech check for words rated ≤2. Undo restores pre-review state from snapshots.
-- `word_selector.py` — Next-word algorithm: 40% freq + 30% root + 20% recency + 10% grammar + encountered/story bonus. Root-sibling interference guard. Excludes wiktionary refs and variant lemmas. introduce_word() calls start_acquisition().
+- `word_selector.py` — Next-word algorithm: 40% freq + 30% root + 20% recency + 10% grammar + encountered/story bonus. Root-sibling interference guard. Excludes wiktionary refs and variant lemmas. introduce_word() calls start_acquisition(), accepts `due_immediately` param for auto-introduction during sessions.
 - `sentence_generator.py` — LLM generation with 3-attempt retry loop, diversity weighting, full diacritics. Feeds validation failures back as retry feedback.
 - `sentence_validator.py` — Rule-based: tokenize → strip diacritics → strip clitics → match known forms. 60+ function words. Public API: lookup_lemma(), resolve_existing_lemma(), build_lemma_lookup().
 - `grammar_service.py` — 24 features, 5 tiers. Comfort score: 60% log-exposure + 40% accuracy, decayed by recency.
@@ -147,8 +147,8 @@ This app is an ongoing learning experiment. Every algorithm change, data structu
 - `activity_log.py` — Shared helper for writing ActivityLog entries.
 - `grammar_lesson_service.py` — LLM-generated grammar lessons, cached in DB.
 - `material_generator.py` — Orchestrates sentence + audio generation for a word.
-- `acquisition_service.py` — Leitner 3-box (4h→1d→3d). Graduation: box 3 + rating≥3 + times_seen≥5 + accuracy≥60%.
-- `cohort_service.py` — Focus cohort: MAX_COHORT_SIZE=40. Acquiring words always included, rest filled by lowest-stability due words.
+- `acquisition_service.py` — Leitner 3-box (4h→1d→3d). Graduation: box 3 + rating≥3 + times_seen≥5 + accuracy≥60%. `start_acquisition()` accepts `due_immediately=True` for auto-introduced words to appear in current session.
+- `cohort_service.py` — Focus cohort: MAX_COHORT_SIZE=25. Acquiring words always included, rest filled by lowest-stability due words.
 - `leech_service.py` — Auto-manage failing words. Detection: times_seen≥8 AND accuracy<40%. 14-day reintro to acquisition box 1.
 - `import_quality.py` — LLM batch filter for word imports. Rejects transliterations, abbreviations, letter names, partial words. Used by OCR, story import, and Duolingo paths.
 
@@ -157,7 +157,7 @@ All services in `backend/app/services/`.
 ### Backend Other
 - `backend/app/models.py` — SQLAlchemy models (see Data Model below)
 - `backend/app/schemas.py` — Pydantic request/response models
-- `backend/scripts/` — Import, backfill, cleanup, analysis scripts. See `docs/scripts-catalog.md`. Most-used: update_material.py (cron), import_duolingo.py, retire_sentences.py, normalize_and_dedup.py, log_activity.py (CLI), reset_ocr_cards.py (OCR→encountered), backfill_etymology.py (LLM etymology), backfill_themes.py (thematic domains), cleanup_review_pool.py (reset under-learned→acquiring, suspend variant ULKs with stat merge, suspend junk, retire bad sentences, run variant detection on uncovered words)
+- `backend/scripts/` — Import, backfill, cleanup, analysis scripts. See `docs/scripts-catalog.md`. Most-used: update_material.py (cron), import_duolingo.py, retire_sentences.py, normalize_and_dedup.py, log_activity.py (CLI), reset_ocr_cards.py (OCR→encountered), reset_to_learning_baseline.py (reset words without genuine learning signal to encountered, preserves review history), backfill_etymology.py (LLM etymology), backfill_themes.py (thematic domains), cleanup_review_pool.py (reset under-learned→acquiring, suspend variant ULKs with stat merge, suspend junk, retire bad sentences, run variant detection on uncovered words)
 
 ### Frontend
 - `app/index.tsx` — Review screen: sentence-only (no word-only fallback), reading + listening, word lookup, word marking, back/undo, wrap-up mini-quiz (acquiring + missed words), next-session recap, session word tracking, story source badges on intro cards

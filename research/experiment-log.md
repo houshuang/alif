@@ -4,6 +4,30 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-02-12: Learning Phase Redesign — Auto-Intro, Aggressive Repetition, Smaller Cohort
+
+**Problem**: After the initial algorithm redesign (Phases 1-4), the session builder still relied on user-driven word introduction via Learn mode and only repeated acquiring words twice per session. With 40-word cohorts and only 2 exposures, new words weren't getting enough concentrated practice. Additionally, many words had FSRS cards despite never being genuinely learned (times_seen < 5 or accuracy < 60%).
+
+**Changes**:
+
+1. **Data reset** (`reset_to_learning_baseline.py`): New script resets words without genuine learning signal (times_seen >= 5 AND accuracy >= 60% as the keep threshold) back to "encountered" state. Preserves all review history. Production run: 50 words kept as FSRS, 102 reset to encountered.
+
+2. **Auto-introduction in build_session()**: Removed `_get_intro_candidates()` and `MAX_INTRO_PER_SESSION = 2` (the old inline intro card system). Added `_auto_introduce_words()` which auto-introduces 2-3 encountered words per session when acquiring count < MAX_ACQUIRING_WORDS=8 and recent accuracy >= AUTO_INTRO_ACCURACY_FLOOR=0.70. `introduce_word()` now accepts `due_immediately` param, threaded through to `start_acquisition(due_immediately=True)` so auto-introduced words get `acquisition_next_due=now` and appear in the current session.
+
+3. **Aggressive within-session repetition**: Changed from max 2 exposures to MIN_ACQUISITION_EXPOSURES=4 per acquiring word. Multi-pass loop with expanding intervals. Session size expands up to MAX_ACQUISITION_EXTRA_SLOTS=8 extra cards. MAX_ON_DEMAND_PER_SESSION increased from 3 to 5.
+
+4. **Cohort reduction**: MAX_COHORT_SIZE reduced from 40 to 25. Tighter focus = more repetitions per word per session.
+
+5. **Comprehensibility gate fix**: Gate now counts "encountered" words as passive vocabulary (user has seen them even if not formally studying). `all_knowledge` query includes encountered words.
+
+**Files**: `sentence_selector.py`, `word_selector.py`, `acquisition_service.py`, `cohort_service.py`, `reset_to_learning_baseline.py`
+
+**Production verification**: After deploy, session returned 18 items. 11 of 14 due words covered (3 had no comprehensible sentences — on-demand generation filled some). Acquiring words appeared 4x each across the session. Auto-introduction working (encountered words picked up when acquiring count is low).
+
+**Next steps**: Topical learning cycles (Phase 4 from redesign plan), story improvements (Phase 5), themed sentence generation (Phase 6).
+
+---
+
 ## 2026-02-12: Legacy Word-Level Review Code Removal
 
 **Problem**: The codebase still contained legacy word-only review infrastructure from before the sentence-first redesign. This included backend endpoints (`/api/review/next`, `/api/review/submit`), the `get_due_cards()` service function, frontend components (`WordOnlySentenceCard`, `LegacyListeningCard`, `LegacySentenceCard`, `LegacyWordOnlyCard`), legacy TypeScript types (`ReviewCard`, `ReviewSession`, `ReviewSubmission`), and a `"legacy"` sync queue type. Despite the design principle "no bare word cards in review," the frontend still had a fallback path that would show word-only cards when sentence sessions failed to load.
