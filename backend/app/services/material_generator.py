@@ -81,6 +81,7 @@ def generate_material_for_word(lemma_id: int, needed: int = 2) -> None:
                 count=needed + 2,
                 difficulty_hint=difficulty_hint,
                 avoid_words=avoid_words,
+                max_words=diff_params["max_words"],
             )
         except AllProvidersFailed:
             logger.warning(f"LLM unavailable for sentence generation (lemma {lemma_id})")

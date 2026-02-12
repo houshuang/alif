@@ -241,7 +241,7 @@ Vocabulary constraint:
 - Do NOT invent or use Arabic content words not in the vocabulary list
 - Include full diacritics (tashkeel) on ALL Arabic words with correct i'rab
 - Include Arabic punctuation: use ؟ for questions, . for statements, ، between clauses
-- Each sentence should be 4-8 words long
+- Match the word count range specified in the user prompt
 - Each sentence should use a DIFFERENT syntactic structure (vary VSO/SVO, nominal/verbal, question/statement)
 - Transliteration: ALA-LC standard with macrons for long vowels
 
@@ -335,6 +335,7 @@ def generate_sentences_batch(
     model_override: str = "openai",
     avoid_words: list[str] | None = None,
     rejected_words: list[str] | None = None,
+    max_words: int | None = None,
 ) -> list[SentenceResult]:
     """Generate multiple sentences for a target word in a single LLM call.
 
@@ -357,6 +358,7 @@ def generate_sentences_batch(
             f"Do NOT use these words. Use ONLY words from the VOCABULARY list above."
         )
 
+    word_range = f"4-{max_words}" if max_words else "5-10"
     prompt = f"""Create {count} different natural MSA sentences for a {difficulty_hint} Arabic learner.
 
 TARGET WORD (must appear in every sentence):
@@ -366,7 +368,7 @@ VOCABULARY (you may ONLY use these Arabic content words, plus function words):
 {known_list}
 
 IMPORTANT: Do NOT use any Arabic content words that are not in the list above.
-Each sentence should be 4-8 words, with a different structure or context.
+Each sentence should be {word_range} words, with a different structure or context.
 Include full diacritics on all Arabic text.
 {avoid_instruction}{rejected_instruction}
 Respond with JSON: {{"sentences": [{{"arabic": "...", "english": "...", "transliteration": "..."}}, ...]}}"""

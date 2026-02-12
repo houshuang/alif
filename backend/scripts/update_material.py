@@ -145,6 +145,7 @@ def generate_sentences_for_word(
     delay: float = 1.0,
     avoid_words: list[str] | None = None,
     difficulty_hint: str | None = None,
+    max_words: int | None = None,
 ) -> int:
     target_bare = strip_diacritics(lemma.lemma_ar)
     all_bare = set(lemma_lookup.keys())
@@ -152,9 +153,12 @@ def generate_sentences_for_word(
     rejected_words: list[str] = []
 
     # Use dynamic difficulty based on word familiarity if not explicitly provided
-    if difficulty_hint is None:
+    if difficulty_hint is None or max_words is None:
         diff_params = get_sentence_difficulty_params(db, lemma.lemma_id)
-        difficulty_hint = diff_params["difficulty_hint"]
+        if difficulty_hint is None:
+            difficulty_hint = diff_params["difficulty_hint"]
+        if max_words is None:
+            max_words = diff_params["max_words"]
 
     for batch in range(3):
         if stored >= needed:
@@ -172,6 +176,7 @@ def generate_sentences_for_word(
                 model_override=model,
                 rejected_words=rejected_words if rejected_words else None,
                 avoid_words=avoid_words,
+                max_words=max_words,
             )
         except AllProvidersFailed as e:
             print(f"    LLM error: {e}")
