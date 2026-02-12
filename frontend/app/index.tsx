@@ -1132,11 +1132,10 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
     return (
       <View style={[styles.container, { paddingTop: Math.max(insets.top, 12) }]}>
         <View style={styles.progressContainer}>
-          <View style={styles.progressHeader}>
-            <View style={styles.backButtonPlaceholder} />
-            <Text style={styles.progressText}>
-              Re-learning {reintroIndex + 1} of {reintroCards.length}
-            </Text>
+          <Text style={styles.progressText}>
+            Re-learning {reintroIndex + 1} of {reintroCards.length}
+          </Text>
+          <View style={styles.actionMenuRow}>
             <ActionMenu
               focusedLemmaId={card.lemma_id}
               focusedLemmaAr={card.lemma_ar}
@@ -1271,7 +1270,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
           current={cardIndex + 1}
           total={totalCards}
           mode={mode}
-          right={
+          actionMenu={
             <ActionMenu
               focusedLemmaId={candidate.lemma_id}
               focusedLemmaAr={candidate.lemma_ar}
@@ -1373,7 +1372,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
           current={cardIndex + 1}
           total={totalCards}
           mode={mode}
-          right={
+          actionMenu={
             <ActionMenu
               focusedLemmaId={lookupLemmaId}
               focusedLemmaAr={lookupResult?.lemma_ar ?? null}
@@ -1474,7 +1473,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
         current={cardIndex + 1}
         total={totalCards}
         mode={mode}
-        right={
+        actionMenu={
           <ActionMenu
             focusedLemmaId={null}
             focusedLemmaAr={null}
@@ -2233,14 +2232,14 @@ function ProgressBar({
   current,
   total,
   mode,
-  right,
+  actionMenu,
   isRecap,
   onWrapUp,
 }: {
   current: number;
   total: number;
   mode: ReviewMode;
-  right?: React.ReactNode;
+  actionMenu?: React.ReactNode;
   isRecap?: boolean;
   onWrapUp?: (() => void) | null;
 }) {
@@ -2260,14 +2259,13 @@ function ProgressBar({
             Card {current} of {total}
           </Text>
         </View>
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-          {onWrapUp && (
-            <Pressable onPress={onWrapUp} hitSlop={8} style={styles.wrapUpButton}>
-              <Text style={styles.wrapUpButtonText}>Wrap Up</Text>
-            </Pressable>
-          )}
-          {right}
-        </View>
+        {onWrapUp ? (
+          <Pressable onPress={onWrapUp} hitSlop={8} style={styles.wrapUpButton}>
+            <Text style={styles.wrapUpButtonText}>Wrap Up</Text>
+          </Pressable>
+        ) : (
+          <View style={styles.backButtonPlaceholder} />
+        )}
       </View>
       <View style={styles.progressTrack}>
         <View
@@ -2277,6 +2275,11 @@ function ProgressBar({
           ]}
         />
       </View>
+      {actionMenu && (
+        <View style={styles.actionMenuRow}>
+          {actionMenu}
+        </View>
+      )}
     </View>
   );
 }
@@ -3034,6 +3037,11 @@ const styles = StyleSheet.create({
     height: "100%",
     backgroundColor: colors.accent,
     borderRadius: 1.5,
+  },
+  actionMenuRow: {
+    flexDirection: "row",
+    justifyContent: "flex-end",
+    marginTop: 2,
   },
   emptyText: {
     color: colors.textSecondary,
