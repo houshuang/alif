@@ -14,9 +14,9 @@ Reviews are sentence-centric: greedy set cover selects sentences that maximize d
 1. User sees Arabic sentence (diacritized, large RTL text)
 2. **Front phase**: user can tap non-function words to look them up (calls GET /api/review/word-lookup/{lemma_id}). Tapped words auto-marked as missed.
 3. **Lookup panel**: Shows root, root meaning. If root has 2+ known siblings → prediction mode ("You know words from this root: X, Y. Can you guess the meaning?") before revealing English. Otherwise shows meaning immediately.
-4. Taps "Show Answer" to reveal: English translation, transliteration, root info for missed words
+4. **Front-phase actions**: "Know All" (understood) / "No idea" (no_idea) / "Show Translation" (reveal back). If any word tapped, "Know All" changes to "Continue" (partial).
 5. **Back phase**: triple-tap words to cycle state: off → missed (red, rating 1 Again) → confused (yellow, rating 2 Hard) → off. Builds missed_lemma_ids + confused_lemma_ids
-6. Rates: Got it (understood) / Continue (partial, if words marked) / I have no idea (no_idea)
+6. **Back-phase actions**: "Know All" (understood) / "Continue" (partial, if words marked) / "No idea" (no_idea)
 7. **Back/Undo**: after submitting, can go back to previous card — undoes the review (restores pre-review FSRS state via backend undo endpoint), removes from sync queue if not yet flushed, restores word markings
 
 ## Listening Mode (real TTS via expo-av)
