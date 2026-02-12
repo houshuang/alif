@@ -271,6 +271,10 @@ words are "unknown."
                       Reset to Box 1
 
      Hard (rating=2): Stay in current box, reschedule with same interval
+     Exception: words with 0% accuracy use shorter retries:
+       - Rating 2 + never correct: retry in 10 minutes
+       - Rating 1 + never correct: retry in 5 minutes
+       Normal intervals resume after first correct answer.
 ```
 
 ### Constants
@@ -1249,6 +1253,8 @@ Used in two paths:
 - **On-demand** (`_generate_on_demand()` in `sentence_selector.py`): groups uncovered
   words and tries multi-target first, falls back to single-target. All LLM calls run
   in parallel via `ThreadPoolExecutor(max_workers=8)` — DB storage remains sequential.
+  Validation accepts encountered words (passive vocab) so GPT isn't rejected for using
+  common words the learner has seen.
 - **Cron** (`step_backfill_sentences()` in `update_material.py`): groups words needing
   sentences, multi-target first, single-target for leftovers.
 
