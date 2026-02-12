@@ -16,9 +16,10 @@ import {
   completeStory,
   skipStory,
   tooDifficultStory,
+  suspendStory,
 } from "../../lib/api";
 import { StoryDetail, StoryWordMeta, StoryLookupResult } from "../../lib/types";
-import ActionMenu from "../../lib/review/ActionMenu";
+import ActionMenu, { ExtraAction } from "../../lib/review/ActionMenu";
 import { saveStoryLookups, getStoryLookups, clearStoryLookups } from "../../lib/offline-store";
 
 type ViewMode = "arabic" | "english";
@@ -189,6 +190,18 @@ export default function StoryReadScreen() {
     }
   }
 
+  async function handleSuspend() {
+    if (!story || submitting) return;
+    setSubmitting(true);
+    try {
+      await suspendStory(story.id);
+      router.back();
+    } catch (e) {
+      console.error("Failed to suspend story:", e);
+      setSubmitting(false);
+    }
+  }
+
   if (loading) {
     return (
       <View style={styles.centered}>
@@ -208,9 +221,17 @@ export default function StoryReadScreen() {
   const lookupCount = lookedUp.size;
   const totalWords = story.words.filter((w) => !w.is_function_word).length;
 
+  const storyExtraActions: ExtraAction[] = [
+    {
+      icon: "pause-circle-outline",
+      label: "Suspend Story",
+      onPress: handleSuspend,
+    },
+  ];
+
   return (
     <View style={styles.container}>
-      {/* Toggle + stats bar */}
+      {/* Toggle + stats bar + action menu */}
       <View style={styles.headerBar}>
         <View style={styles.toggleContainer}>
           <Pressable
@@ -230,11 +251,30 @@ export default function StoryReadScreen() {
             </Text>
           </Pressable>
         </View>
-        {lookupCount > 0 && (
-          <Text style={styles.lookupCountBadge}>
-            {lookupCount} looked up
-          </Text>
-        )}
+        <View style={styles.headerRight}>
+          {lookupCount > 0 && (
+            <Text style={styles.lookupCountBadge}>
+              {lookupCount} looked up
+            </Text>
+          )}
+          <ActionMenu
+            focusedLemmaId={selectedWord?.lemma_id ?? null}
+            focusedLemmaAr={selectedPosition !== null ? (story?.words.find((w) => w.position === selectedPosition)?.surface_form ?? null) : null}
+            sentenceId={null}
+            askAIContextBuilder={() => {
+              if (!story) return "";
+              const parts = [`Story: ${story.title_en || story.title_ar || "Untitled"}`];
+              const bodyPreview = story.body_ar.length > 500 ? story.body_ar.slice(0, 500) + "..." : story.body_ar;
+              parts.push(`Arabic: ${bodyPreview}`);
+              if (story.body_en) parts.push(`English: ${story.body_en}`);
+              const looked = Array.from(lookedUpLemmaIds);
+              if (looked.length > 0) parts.push(`Words looked up: ${looked.length}`);
+              return parts.join("\n");
+            }}
+            askAIScreen="story"
+            extraActions={storyExtraActions}
+          />
+        </View>
       </View>
 
       <ScrollView
@@ -362,22 +402,6 @@ export default function StoryReadScreen() {
           </View>
         )}
       </View>
-      <ActionMenu
-        focusedLemmaId={selectedWord?.lemma_id ?? null}
-        focusedLemmaAr={selectedPosition !== null ? (story?.words.find((w) => w.position === selectedPosition)?.surface_form ?? null) : null}
-        sentenceId={null}
-        askAIContextBuilder={() => {
-          if (!story) return "";
-          const parts = [`Story: ${story.title_en || story.title_ar || "Untitled"}`];
-          const bodyPreview = story.body_ar.length > 500 ? story.body_ar.slice(0, 500) + "..." : story.body_ar;
-          parts.push(`Arabic: ${bodyPreview}`);
-          if (story.body_en) parts.push(`English: ${story.body_en}`);
-          const looked = Array.from(lookedUpLemmaIds);
-          if (looked.length > 0) parts.push(`Words looked up: ${looked.length}`);
-          return parts.join("\n");
-        }}
-        askAIScreen="story"
-      />
     </View>
   );
 }
@@ -445,6 +469,11 @@ const styles = StyleSheet.create({
   },
   toggleTextActive: {
     color: "#fff",
+  },
+  headerRight: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
   },
   lookupCountBadge: {
     fontSize: fonts.caption,

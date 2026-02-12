@@ -510,11 +510,11 @@
 - [DONE] Sentence retirement: soft-delete old low-diversity sentences via is_active flag
 - [DONE] Starter diversity in LLM prompts: discourage هل-default and محمد overuse
 - [DONE] ALWAYS_AVOID_NAMES: proper nouns always in avoid list
-- [DONE] Sentence pipeline cap: due-date priority generation (most urgent first), capped at 200 active sentences, MIN_SENTENCES reduced from 3 to 2. Avoids wasteful generation for words the user won't review soon.
+- [DONE] Sentence pipeline cap: due-date priority generation (most urgent first), TARGET_PIPELINE_SENTENCES=300, MIN_SENTENCES=2 per word. JIT-first strategy: MAX_ON_DEMAND=10/session generates with current vocabulary for better calibration. Pre-generated pool is warm cache, not primary source.
 - Automatic periodic rebalancing: integrate retire_sentences logic into update_material.py as Step 0
 - Sentence quality scoring dashboard: show diversity metrics on analytics page
 - Corpus diversity entropy: track Shannon entropy of word distribution across sentences over time
-- Sentence length progression: as vocabulary grows, generate longer sentences (currently capped at 4-12 by word age)
+- [DONE] Sentence length progression: dynamic difficulty via `get_sentence_difficulty_params()` — brand new 5-7 words, same-day 6-9, first week 8-11, established 11-14. Floor raised to min 5 words. material_generator + update_material use dynamic params instead of hardcoded "beginner".
 - Context variety scoring: measure how many different sentence patterns each word appears in (not just count)
 - Word pair co-occurrence tracking: detect word pairs that always appear together (e.g., كتاب+جميل) and actively break them apart
 - LLM fine-tuning: collect rejected sentences as negative examples, use for prompt engineering or RLHF on sentence generation
@@ -525,18 +525,18 @@
 After importing ~100 textbook pages via OCR, 411 words entered the system with automatic rating=3 (Good). FSRS treated these as genuinely known (all 586 active words now show 30+ day stability), but actual review accuracy cratered to 25-46% on subsequent days. The system is spreading reviews across 586 words when the user barely recognizes most of them. 63% of active words have been seen only 0-2 times — well below the 8-12 meaningful encounters research says are needed for stable memory.
 
 #### Acquisition Phase (Pre-FSRS Learning Steps)
-- [DONE] Leitner 3-box acquisition system: Box 1 (4h), Box 2 (1d), Box 3 (3d). Words enter acquisition on introduction. Graduate after box 3 + rating≥3 + times_seen≥5 + accuracy≥60%. Implemented in `acquisition_service.py`.
+- [DONE] Leitner 3-box acquisition system: Box 1 (4h), Box 2 (1d), Box 3 (3d). Words enter acquisition on introduction. Graduate after box≥3 + times_seen≥5 + accuracy≥60% (fires regardless of current review's rating). Implemented in `acquisition_service.py`.
 - [DONE] Within-session repetition: acquisition words appearing only once get additional sentences. Implemented in `sentence_selector.py`.
 - Research: FSRS S₀(Good) = 2.4 days, but a single "Good" for a textbook scan is NOT the same as genuine recall
 - Research: "fewer than 6 spaced encounters → fewer than 30% recall after a week"
 
 #### Focus Cohort System
-- [DONE] MAX_COHORT_SIZE=25 (reduced from 40). Acquiring words always included, remaining filled by lowest-stability FSRS due words. Implemented in `cohort_service.py`, integrated into `sentence_selector.py build_session()`.
+- [DONE] MAX_COHORT_SIZE=100. Acquiring words always included, remaining filled by lowest-stability FSRS due words. Implemented in `cohort_service.py`, integrated into `sentence_selector.py build_session()`.
 - Prevents the "spread too thin" problem where 586 words compete for ~100 reviews/day
 - User said: "have a group of cards that we've consolidated... and then start adding more cards so that the group grows"
 
 #### Session-Level Word Repetition
-- [DONE] Within-session repetition: acquisition words get MIN_ACQUISITION_EXPOSURES=4 sentences each via multi-pass expanding intervals. Session expands up to MAX_ACQUISITION_EXTRA_SLOTS=8 extra cards.
+- [DONE] Within-session repetition: acquisition words get MIN_ACQUISITION_EXPOSURES=4 sentences each via multi-pass expanding intervals. Session expands up to MAX_ACQUISITION_EXTRA_SLOTS=15 extra cards.
 - [DONE] Next-session recap endpoint: `POST /api/review/recap` returns sentence-level cards for last session's acquiring words (<24h ago). Frontend not yet implemented.
 - [DONE] Wrap-up mini-quiz: `POST /api/review/wrap-up` returns word-level recall cards. Frontend not yet implemented.
 
@@ -570,7 +570,7 @@ After importing ~100 textbook pages via OCR, 411 words entered the system with a
 #### Comprehensibility Gate & On-Demand Generation (2026-02-12)
 - [DONE] Comprehensibility gate in sentence_selector: skip sentences where <70% of content words are known/learning/acquiring. Prevents showing unreadable sentences.
 - [DONE] No word-only fallback cards: due words without sentences get on-demand generation or are skipped.
-- [DONE] On-demand sentence generation: MAX_ON_DEMAND_PER_SESSION=3 synchronous LLM calls during session building. Uses current vocabulary, not stale pool.
+- [DONE] On-demand sentence generation: MAX_ON_DEMAND_PER_SESSION=10 synchronous LLM calls during session building. Uses current vocabulary for fresher, better-calibrated sentences than pre-generated pool.
 - [DONE] Import quality gate: `import_quality.py` — LLM batch filter for junk words on import paths.
 - [DONE] Variant→canonical review credit redirect: sentence reviews now credit the canonical lemma, not the variant. Variant forms tracked in variant_stats_json on canonical's ULK for diagnostics.
 - [DONE] Deterministic variant ULK cleanup: suspend variant ULK records, merge stats into canonical. Replaces LLM-based junk detection which was incorrectly re-discovering variants.
@@ -592,7 +592,7 @@ After importing ~100 textbook pages via OCR, 411 words entered the system with a
 
 #### Story Difficulty Display + Suspend/Activate (Phase 5)
 - Show estimated difficulty level on story list cards
-- Allow suspend/reactivate of stories (currently only complete/skip/too-difficult)
+- [DONE] Allow suspend/reactivate of stories: toggle via pause/play button on story cards, also available in story reader. Suspended stories appear dimmed with "Suspended" badge. POST /api/stories/{id}/suspend toggles between active↔suspended.
 - Story difficulty auto-selection: pick stories where readiness is 85-95%
 - Link to story from word detail page when word was encountered in a story but missed
 
@@ -617,10 +617,8 @@ After importing ~100 textbook pages via OCR, 411 words entered the system with a
 - Caveat: interference between groups (seeing word from group A might help group B word from same root)
 
 #### Sparkline Enhancement: Show Inter-Review Gaps
-- Current sparkline shows last 8 ratings (pass/fail) but not timing
+- [DONE] Backend returns `last_review_gaps` (hours between consecutive reviews). Frontend sparkline uses variable gap widths: <1h→1px, same-day→2px, 1-3d→4px, 3-7d→6px, >7d→9px. Clustered dots = cramming, spread dots = real spacing.
 - User said: "it doesn't say anything about the gap between attempts"
-- Knowing a word after 5 minutes vs. knowing it after 3 days are very different signals
-- Options: variable-width sparkline (wider bars = longer gap), time annotation on hover, color intensity by gap
 
 #### Response Time as Signal
 - Already capturing response_ms in ReviewLog — never used for scheduling

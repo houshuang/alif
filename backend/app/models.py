@@ -206,7 +206,7 @@ class Story(Base):
     body_en = Column(Text, nullable=True)
     transliteration = Column(Text, nullable=True)
     source = Column(String(20), nullable=False)  # generated/imported
-    status = Column(String(20), default="active", index=True)  # active/completed/too_difficult/skipped
+    status = Column(String(20), default="active", index=True)  # active/completed/too_difficult/skipped/suspended
     total_words = Column(Integer, default=0)
     known_count = Column(Integer, default=0)
     unknown_count = Column(Integer, default=0)

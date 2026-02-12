@@ -12,6 +12,12 @@ import { colors, fonts } from "../theme";
 import { suspendWord, flagContent } from "../api";
 import AskAI from "../AskAI";
 
+export interface ExtraAction {
+  icon: keyof typeof Ionicons.glyphMap;
+  label: string;
+  onPress: () => void;
+}
+
 interface ActionMenuProps {
   focusedLemmaId: number | null;
   focusedLemmaAr: string | null;
@@ -21,6 +27,7 @@ interface ActionMenuProps {
   askAIExplainPrompt?: () => string | null;
   onWordSuspended?: (lemmaId: number) => void;
   onBack?: (() => void) | null;
+  extraActions?: ExtraAction[];
 }
 
 type ToastState = { message: string; key: number } | null;
@@ -34,6 +41,7 @@ export default function ActionMenu({
   askAIExplainPrompt,
   onWordSuspended,
   onBack,
+  extraActions,
 }: ActionMenuProps) {
   const [menuVisible, setMenuVisible] = useState(false);
   const [askAIVisible, setAskAIVisible] = useState(false);
@@ -185,6 +193,15 @@ export default function ActionMenu({
                 )}
               </>
             )}
+
+            {extraActions?.map((action, i) => (
+              <MenuItem
+                key={i}
+                icon={action.icon}
+                label={action.label}
+                onPress={() => { setMenuVisible(false); action.onPress(); }}
+              />
+            ))}
           </View>
         </Pressable>
       </Modal>

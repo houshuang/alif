@@ -4,6 +4,18 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-02-12: Sparkline Inter-Review Gaps
+
+**Problem**: Word list sparklines show last 8 ratings as pass/fail dots but give no information about timing between reviews. Knowing a word after 5 minutes vs. knowing it after 3 days is very different — the current display conflates these.
+
+**Change**: Backend now returns `last_review_gaps` (hours between consecutive reviews) alongside `last_ratings`. Frontend sparkline uses variable gap widths between dots on a log scale: <1h = 1px, same-day = 2px, 1-3d = 4px, 3-7d = 6px, >7d = 9px. Wider visual gaps = longer time between reviews.
+
+**Expected effect**: At a glance, tightly clustered dots indicate cramming/same-session reviews, while spread-out dots indicate spaced practice with real retention. Helps identify words reviewed only in quick succession vs. genuinely spaced.
+
+**Verification**: Check word list in app — words with spaced reviews should show visibly wider gaps than words reviewed multiple times in one session.
+
+---
+
 ## 2026-02-12: Phase 5 — Uncap the Learning Pipeline
 
 **Problem**: Algorithm redesign works correctly but is strangled by conservative caps. With 492 encountered words idle, 8 acquiring, and only 3 words introduced per session, sessions are 3-4 cards and the user runs out of material in seconds. Sentences are 3-4 word fragments due to hardcoded "beginner" difficulty. Words like جار (box 3, 14 reviews, 79% accuracy) can't graduate because graduation only fires on rating≥3. SQLite locking from parallel deep prefetch causes 500 errors.
@@ -20,7 +32,7 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 **Expected effect**: Sessions grow from 3-4 cards to 10-15+. Sentences are 5-10 words (not 3-4 fragments). 30+ words can be in acquisition simultaneously. Words with strong cumulative stats graduate faster. No more 500 errors from prefetch.
 
-**Verification**: All backend tests pass (642). All frontend tests pass (74). Deploy + run `update_material.py --max-sentences 800` to backfill sentences.
+**Verification**: All backend tests pass (642). All frontend tests pass (74). Deploy + run `update_material.py --max-sentences 300` to backfill sentences. Post-deploy: retired short sentences (≤4 words), regenerated with dynamic difficulty. Final avg 5.1 words/sentence.
 
 ---
 

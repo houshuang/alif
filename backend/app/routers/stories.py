@@ -24,6 +24,7 @@ from app.services.story_service import (
     lookup_word,
     recalculate_readiness,
     skip_story,
+    suspend_story,
     too_difficult_story,
 )
 
@@ -107,6 +108,14 @@ def too_difficult_story_endpoint(
 ):
     try:
         return too_difficult_story(db, story_id, body.looked_up_lemma_ids, reading_time_ms=body.reading_time_ms)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+
+@router.post("/{story_id}/suspend")
+def suspend_story_endpoint(story_id: int, db: Session = Depends(get_db)):
+    try:
+        return suspend_story(db, story_id)
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
 

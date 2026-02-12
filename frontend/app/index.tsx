@@ -945,13 +945,13 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
           showsVerticalScrollIndicator={false}
         >
           <Text style={styles.wordOnlyArabic}>{wc.lemma_ar}</Text>
+          {wc.transliteration && (
+            <Text style={styles.sentenceTranslit}>{wc.transliteration}</Text>
+          )}
           {wrapUpRevealed && (
             <>
               <View style={styles.divider} />
               <Text style={styles.wordOnlyGloss}>{wc.gloss_en || ""}</Text>
-              {wc.transliteration && (
-                <Text style={styles.sentenceTranslit}>{wc.transliteration}</Text>
-              )}
               {wc.root && (
                 <Text style={[styles.sentenceTranslit, { marginTop: 4 }]}>
                   Root: {wc.root}{wc.root_meaning ? ` \u2014 ${wc.root_meaning}` : ""}

@@ -17,6 +17,7 @@ export interface Word {
   frequency_rank: number | null;
   cefr_level: string | null;
   last_ratings?: number[];
+  last_review_gaps?: (number | null)[];
 }
 
 export interface ReviewHistoryEntry {
@@ -477,7 +478,7 @@ export interface StoryListItem {
   title_ar: string | null;
   title_en: string | null;
   source: "generated" | "imported";
-  status: "active" | "completed" | "too_difficult" | "skipped";
+  status: "active" | "completed" | "too_difficult" | "skipped" | "suspended";
   readiness_pct: number;
   unknown_count: number;
   total_words: number;

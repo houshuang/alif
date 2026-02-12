@@ -128,14 +128,14 @@ This app is an ongoing learning experiment. Every algorithm change, data structu
 
 ### Backend Services
 - `fsrs_service.py` — FSRS spaced repetition. Auto-creates ULK + Card for unknown lemmas. Snapshots pre-review state in fsrs_log_json for undo.
-- `sentence_selector.py` — Session assembly: greedy set cover, comprehension-aware recency (7d/2d/4h), difficulty matching, easy-bookend ordering. Focus cohort filtering (MAX_COHORT_SIZE=100). Auto-introduction of encountered words (MAX_AUTO_INTRO_PER_SESSION=10, AUTO_INTRO_ACCURACY_FLOOR=0.70, MAX_ACQUIRING_WORDS=30). Aggressive within-session repetition for acquiring words (MIN_ACQUISITION_EXPOSURES=4, multi-pass expanding intervals, MAX_ACQUISITION_EXTRA_SLOTS=15). Comprehensibility gate (≥70% known content words, encountered counted as passive vocab). On-demand sentence generation for uncovered words (MAX_ON_DEMAND=5). No word-only fallbacks. **Variant→canonical resolution**: sentences with variant forms correctly cover canonical due words.
+- `sentence_selector.py` — Session assembly: greedy set cover, comprehension-aware recency (7d/2d/4h), difficulty matching, easy-bookend ordering. Focus cohort filtering (MAX_COHORT_SIZE=100). Auto-introduction of encountered words (MAX_AUTO_INTRO_PER_SESSION=10, AUTO_INTRO_ACCURACY_FLOOR=0.70, MAX_ACQUIRING_WORDS=30). Aggressive within-session repetition for acquiring words (MIN_ACQUISITION_EXPOSURES=4, multi-pass expanding intervals, MAX_ACQUISITION_EXTRA_SLOTS=15). Comprehensibility gate (≥70% known content words, encountered counted as passive vocab). On-demand sentence generation for uncovered words (MAX_ON_DEMAND=10). No word-only fallbacks. **Variant→canonical resolution**: sentences with variant forms correctly cover canonical due words.
 - `sentence_review_service.py` — Reviews ALL words equally. Routes acquiring→acquisition, skips encountered. **Variant→canonical redirect**: reviews of variant words credit the canonical lemma, with surface forms tracked in variant_stats_json. credit_type is metadata only. Post-review leech check for words rated ≤2. Undo restores pre-review state from snapshots.
 - `word_selector.py` — Next-word algorithm: 40% freq + 30% root + 20% recency + 10% grammar + encountered/story bonus. Root-sibling interference guard. Excludes wiktionary refs and variant lemmas. introduce_word() calls start_acquisition(), accepts `due_immediately` param for auto-introduction during sessions.
 - `sentence_generator.py` — LLM generation with 3-attempt retry loop, diversity weighting, full diacritics. Feeds validation failures back as retry feedback.
 - `sentence_validator.py` — Rule-based: tokenize → strip diacritics → strip clitics → match known forms. 60+ function words. Public API: lookup_lemma(), resolve_existing_lemma(), build_lemma_lookup().
 - `grammar_service.py` — 24 features, 5 tiers. Comfort score: 60% log-exposure + 40% accuracy, decayed by recency.
 - `grammar_tagger.py` — LLM-based grammar feature tagging.
-- `story_service.py` — Generate/import stories. Completion creates "encountered" ULK (no FSRS card); only real FSRS review for words with active cards.
+- `story_service.py` — Generate/import stories. Completion creates "encountered" ULK (no FSRS card); only real FSRS review for words with active cards. Suspend/reactivate toggle via `suspend_story()`.
 - `listening.py` — Listening confidence: min(per-word) * 0.6 + avg * 0.4. Requires times_seen ≥ 3, stability ≥ 7d.
 - `tts.py` — ElevenLabs REST, eleven_multilingual_v2, Chaouki voice, speed 0.7. Learner pauses. SHA256 cache.
 - `llm.py` — LiteLLM: GPT-5.2 for sentence gen, Gemini 3 Flash general, Claude Haiku tertiary. JSON mode, markdown fence stripping, model_override.
@@ -164,7 +164,7 @@ All services in `backend/app/services/`.
 ### Frontend
 - `app/index.tsx` — Review screen: sentence-only (no word-only fallback), reading + listening, word lookup, word marking, back/undo, wrap-up mini-quiz (acquiring + missed words), next-session recap, session word tracking, story source badges on intro cards
 - `app/learn.tsx` — Learn mode: 5-candidate pick → quiz → done. Etymology display on pick cards. Story source badge for story words.
-- `app/words.tsx` — Word browser: grid, category tabs (Vocab/Function/Names), smart filters (Leeches/Struggling/Recent/Solid/Next Up/Acquiring/Encountered), sparklines, search
+- `app/words.tsx` — Word browser: grid, category tabs (Vocab/Function/Names), smart filters (Leeches/Struggling/Recent/Solid/Next Up/Acquiring/Encountered), sparklines (variable-width gaps show inter-review timing), search
 - `app/stats.tsx` — Analytics dashboard with acquiring/encountered stat cards
 - `app/story/[id].tsx` — Story reader with tap-to-lookup
 - `app/stories.tsx` — Story list with generate + import
@@ -207,7 +207,7 @@ Full list: `docs/api-reference.md` or `backend/app/routers/`
 | POST | `/api/review/recap` | Next-session recap for acquisition words |
 | GET | `/api/learn/next-words?count=5` | Best next words to introduce |
 | POST | `/api/learn/introduce` | Introduce word (starts acquisition + triggers sentence gen) |
-| GET | `/api/words?limit=50&status=learning` | List words with knowledge state |
+| GET | `/api/words?limit=50&status=learning` | List words with knowledge state, last_ratings + last_review_gaps |
 | GET | `/api/stories` | List stories |
 | POST | `/api/stories/import` | Import Arabic text as story |
 | POST | `/api/stories/{id}/complete` | Complete story |

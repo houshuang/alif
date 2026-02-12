@@ -79,6 +79,7 @@ export default function WordInfoCard({
           siblings={knownSiblings}
           root={result?.root ?? null}
           rootMeaning={result?.root_meaning ?? null}
+          transliteration={result?.transliteration ?? null}
           onReveal={onShowMeaning}
         />
       ) : (
@@ -92,15 +93,20 @@ function RootGateView({
   siblings,
   root,
   rootMeaning,
+  transliteration,
   onReveal,
 }: {
   siblings: WordLookupResult["root_family"];
   root: string | null;
   rootMeaning: string | null;
+  transliteration: string | null;
   onReveal: () => void;
 }) {
   return (
     <View style={styles.gateWrap}>
+      {transliteration && (
+        <Text style={styles.translitText}>{transliteration}</Text>
+      )}
       {root && (
         <View style={styles.rootLine}>
           <Text style={styles.rootLetters}>{root}</Text>

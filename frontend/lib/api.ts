@@ -64,6 +64,7 @@ interface RawWord {
   frequency_rank: number | null;
   cefr_level: string | null;
   last_ratings?: number[];
+  last_review_gaps?: (number | null)[];
 }
 
 interface RawWordDetail extends RawWord {
@@ -178,6 +179,7 @@ export async function getWords(): Promise<Word[]> {
       frequency_rank: w.frequency_rank ?? null,
       cefr_level: w.cefr_level ?? null,
       last_ratings: w.last_ratings || [],
+      last_review_gaps: w.last_review_gaps || [],
     }));
     cacheData("words", words).catch(() => {});
     return words as Word[];
@@ -206,6 +208,7 @@ export async function getFunctionWords(): Promise<Word[]> {
     frequency_rank: w.frequency_rank ?? null,
     cefr_level: w.cefr_level ?? null,
     last_ratings: w.last_ratings || [],
+    last_review_gaps: w.last_review_gaps || [],
   }));
 }
 
@@ -668,6 +671,10 @@ export async function tooDifficultStory(storyId: number, lookedUpLemmaIds: numbe
 
 export async function deleteStory(storyId: number): Promise<void> {
   await fetchApi(`/api/stories/${storyId}`, { method: "DELETE" });
+}
+
+export async function suspendStory(storyId: number): Promise<{ story_id: number; status: string }> {
+  return fetchApi(`/api/stories/${storyId}/suspend`, { method: "POST" });
 }
 
 export async function lookupStoryWord(storyId: number, lemmaId: number, position: number): Promise<StoryLookupResult> {

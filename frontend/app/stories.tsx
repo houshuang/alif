@@ -18,7 +18,7 @@ import { useRouter, useFocusEffect } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
 import { colors, fonts, fontFamily } from "../lib/theme";
-import { getStories, generateStory, importStory, deleteStory, prefetchStoryDetails, extractTextFromImage } from "../lib/api";
+import { getStories, generateStory, importStory, deleteStory, suspendStory, prefetchStoryDetails, extractTextFromImage } from "../lib/api";
 import { netStatus } from "../lib/net-status";
 import { StoryListItem } from "../lib/types";
 
@@ -175,6 +175,19 @@ export default function StoriesScreen() {
     }
   }
 
+  async function handleSuspend(item: StoryListItem) {
+    try {
+      const result = await suspendStory(item.id);
+      setStories((prev) =>
+        prev.map((s) =>
+          s.id === item.id ? { ...s, status: result.status as StoryListItem["status"] } : s
+        )
+      );
+    } catch (e) {
+      console.error("Failed to toggle story suspension:", e);
+    }
+  }
+
   function readinessColor(item: StoryListItem): string {
     if (item.status === "completed") return colors.gotIt;
     if (item.readiness_pct >= 90 || item.unknown_count <= 10)
@@ -184,12 +197,13 @@ export default function StoriesScreen() {
   }
 
   function statusLabel(status: StoryListItem["status"]): string {
-    return {
+    return ({
       active: "Active",
       completed: "Completed",
       too_difficult: "Too Difficult",
       skipped: "Skipped",
-    }[status];
+      suspended: "Suspended",
+    } as Record<string, string>)[status] ?? status;
   }
 
   function renderStory({ item }: { item: StoryListItem }) {
@@ -210,11 +224,15 @@ export default function StoriesScreen() {
         ? colors.missed
         : item.status === "skipped"
           ? colors.textSecondary
-          : colors.accent;
+          : item.status === "suspended"
+            ? colors.stateLearning
+            : colors.accent;
+
+    const isSuspended = item.status === "suspended";
 
     return (
       <Pressable
-        style={styles.storyCard}
+        style={[styles.storyCard, isSuspended && { opacity: 0.55 }]}
         onPress={() => router.push(`/story/${item.id}`)}
       >
         <View style={styles.cardHeader}>
@@ -228,13 +246,26 @@ export default function StoriesScreen() {
               </Text>
             )}
           </View>
-          <Pressable
-            onPress={() => handleDelete(item)}
-            hitSlop={12}
-            style={styles.deleteBtn}
-          >
-            <Ionicons name="close" size={16} color={colors.textSecondary} />
-          </Pressable>
+          <View style={{ flexDirection: "row", gap: 6 }}>
+            <Pressable
+              onPress={() => handleSuspend(item)}
+              hitSlop={8}
+              style={styles.deleteBtn}
+            >
+              <Ionicons
+                name={item.status === "suspended" ? "play" : "pause"}
+                size={14}
+                color={item.status === "suspended" ? colors.gotIt : colors.textSecondary}
+              />
+            </Pressable>
+            <Pressable
+              onPress={() => handleDelete(item)}
+              hitSlop={8}
+              style={styles.deleteBtn}
+            >
+              <Ionicons name="close" size={16} color={colors.textSecondary} />
+            </Pressable>
+          </View>
         </View>
 
         <View style={styles.progressBar}>

@@ -166,6 +166,7 @@ export default function WordsScreen() {
   function renderWord({ item }: { item: Word }) {
     const sc = stateColor(item.state);
     const ratings = item.last_ratings || [];
+    const gaps = item.last_review_gaps || [];
 
     return (
       <Pressable
@@ -187,6 +188,14 @@ export default function WordsScreen() {
                 {ratings.map((r, i) => {
                   const size = 3 + (i / Math.max(ratings.length - 1, 1)) * 3;
                   const c = r >= 3 ? colors.stateKnown : r === 2 ? colors.confused : colors.missed;
+                  const gapHours = gaps[i];
+                  const ml = i === 0 ? 0
+                    : gapHours == null ? 2
+                    : gapHours < 1 ? 1
+                    : gapHours < 24 ? 2
+                    : gapHours < 72 ? 4
+                    : gapHours < 168 ? 6
+                    : 9;
                   return (
                     <View
                       key={i}
@@ -195,6 +204,7 @@ export default function WordsScreen() {
                         height: size,
                         borderRadius: size / 2,
                         backgroundColor: c,
+                        marginLeft: ml,
                       }}
                     />
                   );
@@ -592,7 +602,6 @@ const styles = StyleSheet.create({
   sparkline: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 2,
     marginTop: 1,
   },
   stateDot: {

@@ -124,24 +124,35 @@ def list_words(
     else:
         lemmas = [l for l in lemmas if l.lemma_ar_bare not in FUNCTION_WORDS]
 
-    # Batch-fetch last 8 ratings per word
+    # Batch-fetch last 8 ratings + timestamps per word
     lemma_ids = [l.lemma_id for l in lemmas]
     last_ratings_map: dict[int, list[int]] = {lid: [] for lid in lemma_ids}
+    last_gaps_map: dict[int, list[float | None]] = {lid: [] for lid in lemma_ids}
     if lemma_ids:
         reviews = (
-            db.query(ReviewLog.lemma_id, ReviewLog.rating)
+            db.query(ReviewLog.lemma_id, ReviewLog.rating, ReviewLog.reviewed_at)
             .filter(ReviewLog.lemma_id.in_(lemma_ids))
             .order_by(ReviewLog.lemma_id, ReviewLog.reviewed_at.desc())
             .all()
         )
-        # Group and keep last 8 per lemma (oldest first for sparkline)
         from collections import defaultdict
-        per_lemma: dict[int, list[int]] = defaultdict(list)
-        for lid, rating in reviews:
+        per_lemma: dict[int, list[tuple]] = defaultdict(list)
+        for lid, rating, reviewed_at in reviews:
             if len(per_lemma[lid]) < 8:
-                per_lemma[lid].append(rating)
-        for lid, ratings in per_lemma.items():
-            last_ratings_map[lid] = list(reversed(ratings))
+                per_lemma[lid].append((rating, reviewed_at))
+        for lid, entries in per_lemma.items():
+            entries.reverse()  # oldest first
+            last_ratings_map[lid] = [r for r, _ in entries]
+            gaps: list[float | None] = [None]  # first entry has no gap
+            for i in range(1, len(entries)):
+                prev_t = entries[i - 1][1]
+                curr_t = entries[i][1]
+                if prev_t and curr_t:
+                    delta_hours = (curr_t - prev_t).total_seconds() / 3600
+                    gaps.append(round(delta_hours, 1))
+                else:
+                    gaps.append(None)
+            last_gaps_map[lid] = gaps
 
     results = []
     for lemma in lemmas:
@@ -168,6 +179,7 @@ def list_words(
             "last_reviewed": k.last_reviewed.isoformat() if k and k.last_reviewed else None,
             "knowledge_score": score,
             "last_ratings": last_ratings_map.get(lemma.lemma_id, []),
+            "last_review_gaps": last_gaps_map.get(lemma.lemma_id, []),
         })
     return results
 
