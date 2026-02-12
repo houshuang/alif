@@ -19,18 +19,23 @@ from app.config import settings
 from app.models import SentenceWord
 from app.services.llm import (
     AllProvidersFailed,
+    MultiTargetSentenceResult,
     SentenceResult,
     generate_sentence,
+    generate_sentences_multi_target,
+    review_sentences_quality,
 )
 from app.services.sentence_validator import (
     FUNCTION_WORDS,
+    MultiTargetValidationResult,
     ValidationResult,
     strip_diacritics,
     tokenize,
     validate_sentence,
+    validate_sentence_multi_target,
 )
 
-MAX_RETRIES = 5
+MAX_RETRIES = 7
 KNOWN_SAMPLE_SIZE = 50
 MAX_AVOID_WORDS = 20
 MIN_WEIGHT = 0.05
@@ -281,6 +286,21 @@ def generate_validated_sentence(
                     )
                     continue
 
+            # Gemini quality review
+            reviews = review_sentences_quality(
+                [{"arabic": result.arabic, "english": result.english}]
+            )
+            if reviews and (not reviews[0].natural or not reviews[0].translation_correct):
+                retry_feedback = (
+                    f"Quality review rejected: {reviews[0].reason}. "
+                    "Generate a more natural, meaningful sentence."
+                )
+                _log_generation(
+                    settings.log_dir, target_arabic, attempt, result, validation,
+                    error=f"quality_review_failed: {reviews[0].reason}",
+                )
+                continue
+
             return GeneratedSentence(
                 arabic=result.arabic,
                 english=result.english,
@@ -302,3 +322,175 @@ def generate_validated_sentence(
         f"Failed to generate valid sentence after {MAX_RETRIES} attempts "
         f"for '{target_arabic}'. Last issues: {retry_feedback}"
     )
+
+
+class MultiTargetGeneratedSentence(BaseModel):
+    arabic: str
+    english: str
+    transliteration: str
+    target_lemma_ids: list[int]
+    primary_target_lemma_id: int
+    target_bares_found: dict[str, bool]
+    attempts: int
+
+
+def group_words_for_multi_target(
+    word_lemmas: list[dict],
+    max_group_size: int = 4,
+    min_group_size: int = 2,
+) -> list[list[dict]]:
+    """Group words into sets for multi-target sentence generation.
+
+    Avoids putting words with the same root in the same group (would
+    produce confusing sentences). Each dict must have at least:
+    {"lemma_id": int, "lemma_ar": str, "gloss_en": str, "root_id": int|None}
+
+    Returns list of groups, each a list of word dicts.
+    """
+    if len(word_lemmas) < min_group_size:
+        return []
+
+    remaining = list(word_lemmas)
+    random.shuffle(remaining)
+    groups: list[list[dict]] = []
+
+    while len(remaining) >= min_group_size:
+        group: list[dict] = []
+        group_root_ids: set[int | None] = set()
+        skipped: list[dict] = []
+
+        for word in remaining:
+            if len(group) >= max_group_size:
+                skipped.append(word)
+                continue
+            root_id = word.get("root_id")
+            if root_id is not None and root_id in group_root_ids:
+                skipped.append(word)
+                continue
+            group.append(word)
+            if root_id is not None:
+                group_root_ids.add(root_id)
+
+        if len(group) >= min_group_size:
+            groups.append(group)
+        remaining = skipped
+
+    return groups
+
+
+MULTI_TARGET_MAX_RETRIES = 3
+
+
+def generate_validated_sentences_multi_target(
+    target_words: list[dict],
+    known_words: list[dict[str, str]],
+    existing_sentence_counts: dict[int, int] | None = None,
+    count: int = 4,
+    difficulty_hint: str = "beginner",
+    max_words: int | None = None,
+    content_word_counts: dict[int, int] | None = None,
+    avoid_words: list[str] | None = None,
+) -> list[MultiTargetGeneratedSentence]:
+    """Generate and validate sentences targeting multiple words.
+
+    Args:
+        target_words: List of dicts with lemma_id, lemma_ar, gloss_en.
+        known_words: Full known vocabulary for prompt + validation.
+        existing_sentence_counts: {lemma_id: count} to determine primary target.
+        count: Number of sentences to generate.
+        difficulty_hint: Difficulty level.
+        max_words: Max word count per sentence.
+        content_word_counts: For diversity weighting.
+        avoid_words: Words to avoid.
+
+    Returns:
+        List of validated MultiTargetGeneratedSentence objects.
+    """
+    # Build target bare forms -> lemma_id mapping
+    target_bares: dict[str, int] = {}
+    for tw in target_words:
+        bare = strip_diacritics(tw["lemma_ar"])
+        target_bares[bare] = tw["lemma_id"]
+
+    known_bare = {strip_diacritics(w["arabic"]) for w in known_words}
+    # Include target bares in known set for validation
+    all_bare = known_bare | set(target_bares.keys())
+
+    # Build LLM target list
+    llm_targets = [
+        {"arabic": tw["lemma_ar"], "english": tw.get("gloss_en", "")}
+        for tw in target_words
+    ]
+
+    # Sample known words for prompt
+    if content_word_counts is not None:
+        sample = sample_known_words_weighted(
+            known_words, content_word_counts, KNOWN_SAMPLE_SIZE
+        )
+    else:
+        sample = (
+            random.sample(known_words, KNOWN_SAMPLE_SIZE)
+            if len(known_words) > KNOWN_SAMPLE_SIZE
+            else known_words
+        )
+
+    valid_sentences: list[MultiTargetGeneratedSentence] = []
+    counts = existing_sentence_counts or {}
+
+    for attempt in range(1, MULTI_TARGET_MAX_RETRIES + 1):
+        try:
+            results = generate_sentences_multi_target(
+                target_words=llm_targets,
+                known_words=sample,
+                count=count,
+                difficulty_hint=difficulty_hint,
+                avoid_words=avoid_words,
+                max_words=max_words,
+            )
+        except AllProvidersFailed:
+            break
+
+        for res in results:
+            validation = validate_sentence_multi_target(
+                arabic_text=res.arabic,
+                target_bares=target_bares,
+                known_bare_forms=all_bare,
+            )
+            if not validation.valid:
+                continue
+
+            # Determine which target lemma_ids were found
+            found_ids = [
+                target_bares[bare]
+                for bare, found in validation.targets_found.items()
+                if found
+            ]
+            if not found_ids:
+                continue
+
+            # Primary target = the one with fewest existing sentences
+            primary = min(found_ids, key=lambda lid: counts.get(lid, 0))
+
+            valid_sentences.append(MultiTargetGeneratedSentence(
+                arabic=res.arabic,
+                english=res.english,
+                transliteration=res.transliteration,
+                target_lemma_ids=found_ids,
+                primary_target_lemma_id=primary,
+                target_bares_found=validation.targets_found,
+                attempts=attempt,
+            ))
+
+        if valid_sentences:
+            break
+
+    # Batch quality review
+    if valid_sentences:
+        to_review = [{"arabic": s.arabic, "english": s.english} for s in valid_sentences]
+        reviews = review_sentences_quality(to_review)
+        valid_sentences = [
+            s for s, r in zip(valid_sentences, reviews)
+            if r.natural and r.translation_correct
+        ]
+
+    return valid_sentences

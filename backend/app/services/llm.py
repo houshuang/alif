@@ -34,6 +34,13 @@ class SentenceResult(BaseModel):
     transliteration: str
 
 
+class MultiTargetSentenceResult(BaseModel):
+    arabic: str
+    english: str
+    transliteration: str
+    target_words_used: list[str]
+
+
 MODELS = [
     {
         "name": "gemini",
@@ -410,3 +417,200 @@ Respond with JSON: {{"sentences": [{{"arabic": "...", "english": "...", "transli
             ))
 
     return sentences
+
+
+MULTI_TARGET_SYSTEM_PROMPT = f"""\
+You are an Arabic language tutor creating MSA (fusha) sentences for reading practice. \
+Each sentence must include AT LEAST 2 of the specified target words. \
+Write sentences a native speaker would find natural — not textbook constructions.
+
+{ARABIC_STYLE_RULES}
+
+{DIFFICULTY_STYLE_GUIDE}
+
+Vocabulary constraint:
+- Use ONLY words from the provided vocabulary, the target words, and common function words
+- Common function words you may freely use: في، من، على، إلى، و، ب، ل، ك، هذا، هذه، \
+ذلك، تلك، هو، هي، أنا، أنت، نحن، هم، ما، لا، أن، إن، كان، كانت، ليس، هل، لم، \
+لن، قد، الذي، التي، كل، بعض، هنا، هناك، الآن، جدا، فقط، أيضا، أو، ثم، لكن
+- Do NOT invent or use Arabic content words not in the vocabulary list
+- Include full diacritics (tashkeel) on ALL Arabic words with correct i'rab
+- Include Arabic punctuation: use ؟ for questions, . for statements، ، between clauses
+- Each sentence should use a DIFFERENT syntactic structure (vary VSO/SVO, nominal/verbal, question/statement)
+- Transliteration: ALA-LC standard with macrons for long vowels
+- Vary which target word combinations you use across sentences
+
+Sentence structure variety:
+- Do NOT default to هَلْ questions — only use هَلْ when the target word specifically requires a question
+- Vary starters across sentences: verbal (verb-first), nominal (noun/adjective), prepositional, time expressions
+- Use different subjects — do NOT always use مُحَمَّد. Use varied names and pronouns.
+- Never start more than one sentence in a batch with the same word.
+
+For each sentence, list which target words appear in it.
+
+Respond with JSON: {{"sentences": [{{"arabic": "...", "english": "...", "transliteration": "...", "target_words_used": ["word1", "word2"]}}, ...]}}"""
+
+
+def generate_sentences_multi_target(
+    target_words: list[dict[str, str]],
+    known_words: list[dict[str, str]],
+    count: int = 4,
+    difficulty_hint: str = "beginner",
+    model_override: str = "openai",
+    avoid_words: list[str] | None = None,
+    max_words: int | None = None,
+) -> list[MultiTargetSentenceResult]:
+    """Generate sentences that each include 2+ target words from the given set.
+
+    Args:
+        target_words: List of {"arabic": ..., "english": ...} for target words.
+        known_words: List of {"arabic": ..., "english": ...} for known vocab.
+        count: Number of sentences to generate.
+        difficulty_hint: Difficulty level.
+        model_override: LLM model to use.
+        avoid_words: Words to avoid for diversity.
+        max_words: Max word count per sentence.
+
+    Returns:
+        List of MultiTargetSentenceResult objects.
+    """
+    known_list = "\n".join(
+        f"- {w['arabic']} ({w['english']})" for w in known_words
+    )
+    target_list = "\n".join(
+        f"- {w['arabic']} ({w['english']})" for w in target_words
+    )
+
+    avoid_instruction = ""
+    if avoid_words:
+        avoid_str = "، ".join(avoid_words)
+        avoid_instruction = f"\nFor variety, try NOT to use these overused words (pick other vocabulary instead): {avoid_str}"
+
+    if max_words:
+        min_words = max(5, max_words - 3)
+        word_range = f"{min_words}-{max_words}"
+    else:
+        word_range = "6-12"
+
+    prompt = f"""Create {count} different natural MSA sentences for a {difficulty_hint} Arabic learner.
+
+TARGET WORDS (each sentence MUST include at least 2 of these):
+{target_list}
+
+VOCABULARY (you may ONLY use these Arabic content words, plus the target words, plus function words):
+{known_list}
+
+IMPORTANT: Do NOT use any Arabic content words that are not in the lists above.
+Each sentence MUST naturally include at least 2 of the target words.
+Vary which target word combinations you use across sentences.
+Each sentence should be {word_range} words, with a different structure or context.
+Include full diacritics on all Arabic text.
+{avoid_instruction}
+Respond with JSON: {{"sentences": [{{"arabic": "...", "english": "...", "transliteration": "...", "target_words_used": ["word1", "word2"]}}, ...]}}"""
+
+    result = generate_completion(
+        prompt=prompt,
+        system_prompt=MULTI_TARGET_SYSTEM_PROMPT,
+        json_mode=True,
+        temperature=0.5,
+        model_override=model_override,
+    )
+
+    sentences: list[MultiTargetSentenceResult] = []
+    if isinstance(result, list):
+        raw_list = result
+    elif isinstance(result, dict):
+        raw_list = result.get("sentences", [])
+    else:
+        return sentences
+    if not isinstance(raw_list, list):
+        return sentences
+
+    for item in raw_list[:count]:
+        if not isinstance(item, dict):
+            continue
+        arabic = item.get("arabic", "").strip()
+        english = item.get("english", "").strip()
+        transliteration = item.get("transliteration", "").strip()
+        target_words_used = item.get("target_words_used", [])
+        if not isinstance(target_words_used, list):
+            target_words_used = []
+        if arabic and english:
+            sentences.append(MultiTargetSentenceResult(
+                arabic=arabic,
+                english=english,
+                transliteration=transliteration,
+                target_words_used=target_words_used,
+            ))
+
+    return sentences
+
+
+# --- Sentence Quality Review (Gemini Flash) ---
+
+class SentenceReviewResult(BaseModel):
+    natural: bool
+    translation_correct: bool
+    reason: str
+
+
+def review_sentences_quality(
+    sentences: list[dict[str, str]],
+) -> list[SentenceReviewResult]:
+    """Review sentences for naturalness and translation accuracy using Gemini Flash.
+
+    Args:
+        sentences: List of {"arabic": "...", "english": "..."} dicts.
+
+    Returns:
+        List of SentenceReviewResult, one per input sentence.
+        On LLM failure, returns all-pass results (fail open).
+    """
+    if not sentences:
+        return []
+
+    prompt = """Review each Arabic sentence for a language learning app. For each:
+1. Is the Arabic natural and meaningful (would a native speaker say this)?
+2. Is the English translation accurate?
+
+Respond with JSON array:
+[{"id": 1, "natural": true/false, "translation_correct": true/false, "reason": "..."}]
+
+Sentences:
+"""
+    for i, s in enumerate(sentences, 1):
+        prompt += f'{i}. Arabic: {s["arabic"]}\n   English: {s["english"]}\n\n'
+
+    try:
+        result = generate_completion(
+            prompt=prompt,
+            system_prompt=(
+                "You are an expert Arabic linguist. Be strict: reject sentences "
+                "that sound awkward, unnatural, or nonsensical even if grammatically "
+                "correct. A good sentence should be something a native speaker might "
+                "actually say or write."
+            ),
+            json_mode=True,
+            temperature=0.0,
+            model_override="gemini",
+        )
+    except (AllProvidersFailed, LLMError):
+        return [SentenceReviewResult(natural=True, translation_correct=True, reason="review skipped") for _ in sentences]
+
+    # Parse — result may be a list directly or {"reviews": [...]}
+    items = result if isinstance(result, list) else result.get("reviews", result.get("sentences", []))
+    if not isinstance(items, list):
+        return [SentenceReviewResult(natural=True, translation_correct=True, reason="parse error") for _ in sentences]
+
+    reviews: list[SentenceReviewResult] = []
+    for i in range(len(sentences)):
+        if i < len(items) and isinstance(items[i], dict):
+            item = items[i]
+            reviews.append(SentenceReviewResult(
+                natural=bool(item.get("natural", True)),
+                translation_correct=bool(item.get("translation_correct", True)),
+                reason=str(item.get("reason", "")),
+            ))
+        else:
+            reviews.append(SentenceReviewResult(natural=True, translation_correct=True, reason="missing"))
+    return reviews
