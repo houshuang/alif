@@ -30,7 +30,7 @@ def backfill(dry_run=False, limit=2000):
         db.query(Lemma)
         .filter(
             (Lemma.transliteration_ala_lc.is_(None)) | (Lemma.transliteration_ala_lc == ""),
-            Lemma.canonical_lemma_id.is_(None),
+            # Include variants — they appear in word lookups and need transliteration
         )
         .order_by(Lemma.frequency_rank.asc().nullslast())
         .limit(limit)
@@ -45,10 +45,18 @@ def backfill(dry_run=False, limit=2000):
     total_done = 0
     total_skipped = 0
 
+    import re
+    diacritic_re = re.compile(r"[\u064B-\u065F\u0670]")
+
     for lemma in missing:
         source = lemma.lemma_ar or ""
         if not source.strip():
             print(f"  {lemma.lemma_id}: no Arabic text, skipping")
+            total_skipped += 1
+            continue
+
+        # Skip undiacritized words — they produce garbage transliterations
+        if not diacritic_re.search(source):
             total_skipped += 1
             continue
 
