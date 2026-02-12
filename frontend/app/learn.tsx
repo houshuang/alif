@@ -311,6 +311,12 @@ export default function LearnScreen() {
               )}
             </View>
           )}
+          {c.etymology_json?.derivation && (
+            <Text style={styles.etymologyLine}>
+              {c.etymology_json.pattern ? `${c.etymology_json.pattern}: ` : ""}
+              {c.etymology_json.derivation}
+            </Text>
+          )}
         </View>
 
         <View style={styles.actionColumn}>
@@ -893,6 +899,12 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: colors.textSecondary,
     marginTop: 2,
+  },
+  etymologyLine: {
+    fontSize: 13,
+    color: colors.textSecondary,
+    fontStyle: "italic",
+    marginTop: 6,
   },
 
   actionColumn: {

@@ -20,7 +20,7 @@ from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.models import Lemma, Root, Sentence, UserLemmaKnowledge, PageUpload
-from app.services.fsrs_service import create_new_card, submit_review
+
 from app.services.interaction_logger import log_interaction
 from app.services.sentence_validator import (
     build_lemma_lookup,
@@ -526,13 +526,6 @@ def process_textbook_page(
 
                 if ulk:
                     ulk.total_encounters = (ulk.total_encounters or 0) + 1
-                    submit_review(
-                        db,
-                        lemma_id=lemma_id,
-                        rating_int=3,
-                        review_mode="textbook_scan",
-                    )
-                    ulk = knowledge_map.get(lemma_id)
                     existing_count += 1
                     results.append({
                         "arabic": lemma.lemma_ar if lemma else arabic,
@@ -540,28 +533,20 @@ def process_textbook_page(
                         "english": lemma.gloss_en if lemma else word_data.get("english"),
                         "status": "existing",
                         "lemma_id": lemma_id,
-                        "knowledge_state": ulk.knowledge_state if ulk else "learning",
+                        "knowledge_state": ulk.knowledge_state,
                     })
                 else:
-                    # Lemma exists but no knowledge record — create one
+                    # Lemma exists but no knowledge record — create encountered record (no FSRS card)
                     new_ulk = UserLemmaKnowledge(
                         lemma_id=lemma_id,
-                        knowledge_state="learning",
-                        fsrs_card_json=create_new_card(),
-                        introduced_at=datetime.now(timezone.utc),
+                        knowledge_state="encountered",
+                        fsrs_card_json=None,
                         source="textbook_scan",
                         total_encounters=1,
                     )
                     db.add(new_ulk)
                     db.flush()
                     knowledge_map[lemma_id] = new_ulk
-                    submit_review(
-                        db,
-                        lemma_id=lemma_id,
-                        rating_int=3,
-                        review_mode="textbook_scan",
-                    )
-                    new_ulk = knowledge_map.get(lemma_id)
                     existing_count += 1
                     results.append({
                         "arabic": lemma.lemma_ar if lemma else arabic,
@@ -569,7 +554,7 @@ def process_textbook_page(
                         "english": lemma.gloss_en if lemma else word_data.get("english"),
                         "status": "existing_new_card",
                         "lemma_id": lemma_id,
-                        "knowledge_state": new_ulk.knowledge_state if new_ulk else "learning",
+                        "knowledge_state": "encountered",
                     })
             else:
                 # New word — create lemma + knowledge record
@@ -604,20 +589,13 @@ def process_textbook_page(
 
                 new_ulk = UserLemmaKnowledge(
                     lemma_id=new_lemma.lemma_id,
-                    knowledge_state="learning",
-                    fsrs_card_json=create_new_card(),
-                    introduced_at=datetime.now(timezone.utc),
+                    knowledge_state="encountered",
+                    fsrs_card_json=None,
                     source="textbook_scan",
                     total_encounters=1,
                 )
                 db.add(new_ulk)
                 db.flush()
-                submit_review(
-                    db,
-                    lemma_id=new_lemma.lemma_id,
-                    rating_int=3,
-                    review_mode="textbook_scan",
-                )
 
                 # Update lookup for subsequent words in same batch
                 lemma_lookup[import_bare] = new_lemma.lemma_id
@@ -638,7 +616,7 @@ def process_textbook_page(
                     "english": english,
                     "status": "new",
                     "lemma_id": new_lemma.lemma_id,
-                    "knowledge_state": "learning",
+                    "knowledge_state": "encountered",
                     "root": root_str,
                     "pos": pos,
                 })

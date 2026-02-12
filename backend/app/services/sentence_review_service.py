@@ -110,6 +110,15 @@ def submit_sentence_review(
             if ulk.knowledge_state == "suspended":
                 suspended_lemma_ids.add(ulk.lemma_id)
 
+    # Identify acquiring words to route through acquisition service
+    acquiring_lemma_ids: set[int] = set()
+    encountered_lemma_ids: set[int] = set()
+    for lid, ulk in knowledge_map.items():
+        if ulk.knowledge_state == "acquiring":
+            acquiring_lemma_ids.add(lid)
+        elif ulk.knowledge_state == "encountered":
+            encountered_lemma_ids.add(lid)
+
     word_results = []
 
     for lemma_id in lemma_ids_in_sentence:
@@ -118,6 +127,9 @@ def submit_sentence_review(
         if lemma_id in function_word_lemma_ids:
             continue
         if lemma_id in suspended_lemma_ids:
+            continue
+        # Skip encountered words — they need to be introduced first
+        if lemma_id in encountered_lemma_ids:
             continue
         if comprehension_signal == "understood":
             rating = 3
@@ -136,24 +148,40 @@ def submit_sentence_review(
 
         credit_type = "primary" if lemma_id == primary_lemma_id else "collateral"
 
-        result = submit_review(
-            db,
-            lemma_id=lemma_id,
-            rating_int=rating,
-            response_ms=response_ms if lemma_id == primary_lemma_id else None,
-            session_id=session_id,
-            review_mode=review_mode,
-            comprehension_signal=comprehension_signal,
-            client_review_id=(
-                f"{client_review_id}:{lemma_id}"
-                if client_review_id and sentence_id is not None
-                else (
-                    client_review_id
-                    if sentence_id is None and lemma_id == primary_lemma_id
-                    else None
-                )
-            ),
+        review_client_id = (
+            f"{client_review_id}:{lemma_id}"
+            if client_review_id and sentence_id is not None
+            else (
+                client_review_id
+                if sentence_id is None and lemma_id == primary_lemma_id
+                else None
+            )
         )
+
+        # Route acquiring words through acquisition service
+        if lemma_id in acquiring_lemma_ids:
+            from app.services.acquisition_service import submit_acquisition_review
+            result = submit_acquisition_review(
+                db,
+                lemma_id=lemma_id,
+                rating_int=rating,
+                response_ms=response_ms if lemma_id == primary_lemma_id else None,
+                session_id=session_id,
+                review_mode=review_mode,
+                comprehension_signal=comprehension_signal,
+                client_review_id=review_client_id,
+            )
+        else:
+            result = submit_review(
+                db,
+                lemma_id=lemma_id,
+                rating_int=rating,
+                response_ms=response_ms if lemma_id == primary_lemma_id else None,
+                session_id=session_id,
+                review_mode=review_mode,
+                comprehension_signal=comprehension_signal,
+                client_review_id=review_client_id,
+            )
         is_duplicate = bool(result.get("duplicate"))
         # Tag the review log entry with sentence context
         latest_log = (
@@ -206,6 +234,12 @@ def submit_sentence_review(
                 "new_state": result["new_state"],
                 "next_due": result["next_due"],
             })
+
+    # Post-review leech check for words that got bad ratings
+    from app.services.leech_service import check_single_word_leech
+    for wr in word_results:
+        if wr["rating"] <= 2:
+            check_single_word_leech(db, wr["lemma_id"])
 
     # Log the sentence-level review
     if sentence_id is not None:

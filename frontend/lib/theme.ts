@@ -14,6 +14,8 @@ export const colors = {
   stateNew: "#8888a0",
   stateLearning: "#e67e22",
   stateKnown: "#2ecc71",
+  stateAcquiring: "#3498db",
+  stateEncountered: "#636380",
   border: "#2a2a45",
   listening: "#9b59b6",
   listeningBg: "#1a1028",

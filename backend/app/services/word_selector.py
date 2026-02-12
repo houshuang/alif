@@ -19,7 +19,6 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func
 
 from app.models import Root, Lemma, UserLemmaKnowledge, ReviewLog, Sentence, StoryWord, Story
-from app.services.fsrs_service import create_new_card
 from app.services.grammar_service import grammar_pattern_score
 
 
@@ -60,6 +59,31 @@ def _is_noise_lemma(lemma) -> bool:
     if bare and _NON_ARABIC_RE.search(bare):
         return True
     return False
+
+
+def _get_recently_failed_roots(db: Session) -> set[int]:
+    """Get root_ids that have a sibling which failed (rating=1) in the last 7 days."""
+    cutoff = datetime.now(timezone.utc) - timedelta(days=7)
+    failed_lemma_ids = (
+        db.query(ReviewLog.lemma_id)
+        .filter(
+            ReviewLog.rating == 1,
+            ReviewLog.reviewed_at >= cutoff,
+        )
+        .distinct()
+        .all()
+    )
+    if not failed_lemma_ids:
+        return set()
+
+    failed_ids = {r[0] for r in failed_lemma_ids}
+    roots = (
+        db.query(Lemma.root_id)
+        .filter(Lemma.lemma_id.in_(failed_ids), Lemma.root_id.isnot(None))
+        .distinct()
+        .all()
+    )
+    return {r[0] for r in roots}
 
 
 def _active_story_lemma_ids(db: Session) -> set[int]:
@@ -111,7 +135,7 @@ def _root_familiarity_score(
         .join(Lemma)
         .filter(
             Lemma.root_id == root_id,
-            UserLemmaKnowledge.knowledge_state.in_(["known", "learning"]),
+            UserLemmaKnowledge.knowledge_state.in_(["known", "learning", "acquiring", "lapsed"]),
         )
         .scalar() or 0
     )
@@ -190,18 +214,28 @@ def select_next_words(
     """
     exclude = set(exclude_lemma_ids or [])
 
-    # Get all lemmas that don't have knowledge records (never introduced)
-    already_known = (
-        db.query(UserLemmaKnowledge.lemma_id)
-        .subquery()
+    # Get lemma_ids that are already introduced (have FSRS cards or are acquiring/learning/known)
+    # Exclude encountered-only — those ARE candidates
+    introduced_ids = set()
+    encountered_ids = set()
+    encountered_query = (
+        db.query(UserLemmaKnowledge.lemma_id, UserLemmaKnowledge.knowledge_state)
+        .all()
     )
+    for lid, state in encountered_query:
+        if state == "encountered":
+            encountered_ids.add(lid)
+        else:
+            introduced_ids.add(lid)
 
+    # Candidates: no ULK at all, OR ULK with knowledge_state="encountered"
     candidates = (
         db.query(Lemma)
-        .outerjoin(already_known, Lemma.lemma_id == already_known.c.lemma_id)
-        .filter(already_known.c.lemma_id.is_(None))
-        .filter(Lemma.canonical_lemma_id.is_(None))
-        .filter(Lemma.lemma_id.notin_(exclude) if exclude else True)
+        .filter(
+            Lemma.canonical_lemma_id.is_(None),
+            Lemma.lemma_id.notin_(introduced_ids) if introduced_ids else True,
+            Lemma.lemma_id.notin_(exclude) if exclude else True,
+        )
         .all()
     )
 
@@ -209,6 +243,14 @@ def select_next_words(
 
     if not candidates:
         return []
+
+    # Root-sibling interference guard: skip words whose root siblings failed in last 7d
+    recently_failed_roots = _get_recently_failed_roots(db)
+    if recently_failed_roots:
+        candidates = [
+            c for c in candidates
+            if c.root_id not in recently_failed_roots or c.lemma_id in encountered_ids
+        ]
 
     story_lemmas = _active_story_lemma_ids(db)
 
@@ -234,12 +276,16 @@ def select_next_words(
         # so they always rank above non-story words
         story_bonus = 1.0 if lemma.lemma_id in story_lemmas else 0.0
 
+        # Encountered words (seen in textbook/story but not yet introduced) get a bonus
+        encountered_bonus = 0.5 if lemma.lemma_id in encountered_ids else 0.0
+
         total_score = (
             freq_score * 0.4
             + root_score * 0.3
             + recency_bonus * 0.2
             + pattern_score * 0.1
             + story_bonus
+            + encountered_bonus
         )
 
         scored.append({
@@ -258,12 +304,14 @@ def select_next_words(
             "audio_url": lemma.audio_url,
             "example_ar": lemma.example_ar,
             "example_en": lemma.example_en,
+            "etymology_json": lemma.etymology_json,
             "score": round(total_score, 3),
             "score_breakdown": {
                 "frequency": round(freq_score, 3),
                 "root_familiarity": round(root_score, 3),
                 "recency_bonus": round(recency_bonus, 3),
                 "story_bonus": round(story_bonus, 3),
+                "encountered_bonus": round(encountered_bonus, 3),
                 "known_siblings": known_siblings,
                 "total_siblings": total_siblings,
             },
@@ -274,11 +322,13 @@ def select_next_words(
 
 
 def introduce_word(db: Session, lemma_id: int, source: str = "study") -> dict:
-    """Mark a word as introduced, creating FSRS card and knowledge record.
+    """Mark a word as introduced, starting acquisition (Leitner 3-box).
 
     Source values: study (Learn mode), auto_intro (inline review), collocate.
     Returns the created knowledge record as dict.
     """
+    from app.services.acquisition_service import start_acquisition
+
     lemma = db.query(Lemma).filter(Lemma.lemma_id == lemma_id).first()
     if not lemma:
         raise ValueError(f"Lemma {lemma_id} not found")
@@ -297,28 +347,32 @@ def introduce_word(db: Session, lemma_id: int, source: str = "study") -> dict:
                 "state": "learning",
                 "reactivated": True,
             }
+        if existing.knowledge_state == "encountered":
+            # Transition encountered → acquiring
+            ulk = start_acquisition(db, lemma_id, source=source)
+            db.commit()
+            root_family = []
+            if lemma.root_id:
+                root_family = get_root_family(db, lemma.root_id)
+            return {
+                "lemma_id": lemma_id,
+                "lemma_ar": lemma.lemma_ar,
+                "gloss_en": lemma.gloss_en,
+                "state": "acquiring",
+                "already_known": False,
+                "introduced_at": ulk.introduced_at.isoformat() if ulk.introduced_at else None,
+                "root": lemma.root.root if lemma.root else None,
+                "root_meaning": lemma.root.core_meaning_en if lemma.root else None,
+                "root_family": root_family,
+            }
         return {
             "lemma_id": lemma_id,
             "state": existing.knowledge_state,
             "already_known": True,
         }
 
-    now = datetime.now(timezone.utc)
-    card_data = create_new_card()
-
-    knowledge = UserLemmaKnowledge(
-        lemma_id=lemma_id,
-        knowledge_state="learning",
-        fsrs_card_json=card_data,
-        introduced_at=now,
-        last_reviewed=now,
-        times_seen=1,
-        times_correct=0,
-        total_encounters=1,
-        distinct_contexts=0,
-        source=source,
-    )
-    db.add(knowledge)
+    # New word — start acquisition
+    ulk = start_acquisition(db, lemma_id, source=source)
     db.commit()
 
     root_family = []
@@ -329,9 +383,9 @@ def introduce_word(db: Session, lemma_id: int, source: str = "study") -> dict:
         "lemma_id": lemma_id,
         "lemma_ar": lemma.lemma_ar,
         "gloss_en": lemma.gloss_en,
-        "state": "learning",
+        "state": "acquiring",
         "already_known": False,
-        "introduced_at": now.isoformat(),
+        "introduced_at": ulk.introduced_at.isoformat() if ulk.introduced_at else None,
         "root": lemma.root.root if lemma.root else None,
         "root_meaning": lemma.root.core_meaning_en if lemma.root else None,
         "root_family": root_family,

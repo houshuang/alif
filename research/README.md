@@ -1,8 +1,44 @@
-# Arabic Learning App — Research Summary
+# Alif — Research Index
 
-Research conducted 2026-02-08. Five detailed reports are linked below.
+## Algorithm Redesign (2026-02-12) — START HERE
 
-## Reports
+After OCR import of ~100 textbook pages caused accuracy to crash from 78% to 25%, a comprehensive research effort was conducted to redesign the learning algorithm. **Read these files in this order:**
+
+| # | File | What It Contains |
+|---|------|-----------------|
+| 1 | [learner-profile-2026-02-12.md](learner-profile-2026-02-12.md) | **User interview**: goals, motivations, learning style, trust breakers, constraints. The "why" behind all design decisions. |
+| 2 | [learning-algorithm-redesign-2026-02-12.md](learning-algorithm-redesign-2026-02-12.md) | **Original plan**: production data diagnosis, initial literature review, proposed algorithm changes (8 sections), implementation phases (7 phases), deep research questions. |
+| 3 | [deep-research-compilation-2026-02-12.md](deep-research-compilation-2026-02-12.md) | **Deep research compilation** (8 parallel agents): FSRS-6 internals, cognitive science, Arabic-specific learning, session design, sentence-centric SRS, leech management, N-of-1 experimental design, codebase change points. Includes synthesized algorithm proposal and master reference list. |
+| 4 | [experiment-log.md](experiment-log.md) | **Running experiment log**: entry for 2026-02-12 has root cause analysis, hypotheses H13-H16, and deep research summary. |
+
+### Key Decisions Already Made (from user interview)
+- **Sentences always** — never isolated word flashcards
+- **Full automation** — algorithm decides everything, user just engages honestly
+- **Reading focus only** — listening is deferred
+- **North star metric**: genuinely known words growing week over week (not FSRS-inflated)
+- **Motivational engine**: Story import → targeted practice → fluent reading ("the magic moment")
+- **Variable sessions**: 3-30 cards, must front-load highest-impact items
+
+### Proposed Three-Phase Word Lifecycle
+```
+ENCOUNTERED → ACQUIRING (Leitner 3-box: 4h→1d→3d) → FSRS-6 scheduling
+```
+
+### Top Research Findings Informing Design
+1. FSRS has no native acquisition phase — all commercial apps add one
+2. 8-12 meaningful encounters needed for stable vocabulary
+3. Sleep consolidation mandatory — first review must be next day
+4. Semantic clustering (root siblings together) IMPEDES learning
+5. 85% session accuracy optimizes both learning and motivation
+6. 3 within-session retrievals is the sweet spot
+7. Self-assessment unreliable — word-tapping is the critical corrective
+8. Failed retrieval ("no_idea") has genuine learning value
+
+---
+
+## Earlier Research (2026-02-08)
+
+Initial technology research conducted before app development.
 
 | File | Contents |
 |------|----------|
@@ -11,6 +47,18 @@ Research conducted 2026-02-08. Five detailed reports are linked below.
 | [arabic-apis-services.md](arabic-apis-services.md) | Free APIs for morphology, diacritization, TTS, translation, NLP |
 | [arabic-diacritization.md](arabic-diacritization.md) | Tashkeel tools, deep learning models, accuracy benchmarks |
 | [arabic-learning-architecture.md](arabic-learning-architecture.md) | Architecture patterns, data models, LLM+tools pipeline, roadmap |
+
+## Analysis Reports
+
+| File | Contents |
+|------|----------|
+| [analysis-2026-02-09.md](analysis-2026-02-09.md) | Early learning data analysis |
+| [analysis-2026-02-10.md](analysis-2026-02-10.md) | OCR import analysis |
+| [analysis-2026-02-11.md](analysis-2026-02-11.md) | Post-OCR accuracy analysis |
+| [vocabulary-acquisition-research.md](vocabulary-acquisition-research.md) | General vocabulary acquisition research |
+| [cognitive-load-language-learning.md](cognitive-load-language-learning.md) | Cognitive load in language learning |
+| [algorithm-implications.md](algorithm-implications.md) | Earlier algorithm design notes |
+| [variant-detection-spec.md](variant-detection-spec.md) | LLM-confirmed variant detection specification |
 
 ---
 

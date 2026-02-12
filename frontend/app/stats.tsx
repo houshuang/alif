@@ -159,6 +159,13 @@ export default function StatsScreen() {
 
       {/* Quick Stats Grid */}
       <View style={styles.grid}>
+        {stats.acquiring > 0 && (
+          <StatCard
+            label="Acquiring"
+            value={stats.acquiring}
+            color={colors.stateAcquiring}
+          />
+        )}
         <StatCard
           label="Learning"
           value={stats.learning}
@@ -174,6 +181,13 @@ export default function StatsScreen() {
             label="Lapsed"
             value={stats.lapsed}
             color={colors.missed}
+          />
+        )}
+        {stats.encountered > 0 && (
+          <StatCard
+            label="Encountered"
+            value={stats.encountered}
+            color={colors.stateEncountered}
           />
         )}
         {stats.new > 0 && (

@@ -189,8 +189,9 @@ class TestProcessTextbookPage:
             UserLemmaKnowledge.lemma_id == new_lemma.lemma_id
         ).first()
         assert ulk is not None
-        assert ulk.knowledge_state == "learning"
+        assert ulk.knowledge_state == "encountered"
         assert ulk.source == "textbook_scan"
+        assert ulk.fsrs_card_json is None
 
     @patch("app.services.ocr_service.extract_words_from_image")
     def test_process_mixed_new_and_existing(self, mock_extract, mock_backfill, db_session):
@@ -310,7 +311,8 @@ class TestProcessTextbookPage:
         ).first()
         assert ulk is not None
         assert ulk.source == "textbook_scan"
-        assert ulk.knowledge_state == "learning"
+        assert ulk.knowledge_state == "encountered"
+        assert ulk.fsrs_card_json is None
 
 
 @patch("app.services.ocr_service.backfill_root_meanings", return_value=0)

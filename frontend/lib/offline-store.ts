@@ -17,6 +17,7 @@ const KEYS = {
   stories: "@alif/stories",
   storyDetail: (id: number) => `@alif/story-detail/${id}`,
   wordLookups: "@alif/word-lookups",
+  lastSessionWords: "@alif/last-session-words",
 };
 
 const MAX_CACHED_SESSIONS = 10;
@@ -225,4 +226,26 @@ export async function cacheWordLookupBatch(lookups: Record<number, WordLookupRes
     map[id] = data;
   }
   await setJson(KEYS.wordLookups, map);
+}
+
+// --- Last session words (for recap) ---
+
+interface LastSessionWordEntry {
+  lemma_id: number;
+  rating: number;
+  reviewed_at: string;
+}
+
+export async function saveLastSessionWord(lemmaId: number, rating: number): Promise<void> {
+  const entries = (await getJson<LastSessionWordEntry[]>(KEYS.lastSessionWords)) ?? [];
+  entries.push({ lemma_id: lemmaId, rating, reviewed_at: new Date().toISOString() });
+  await setJson(KEYS.lastSessionWords, entries);
+}
+
+export async function getLastSessionWords(): Promise<LastSessionWordEntry[]> {
+  return (await getJson<LastSessionWordEntry[]>(KEYS.lastSessionWords)) ?? [];
+}
+
+export async function clearLastSessionWords(): Promise<void> {
+  await AsyncStorage.removeItem(KEYS.lastSessionWords);
 }

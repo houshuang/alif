@@ -24,6 +24,9 @@ import {
   DeepAnalytics,
   BatchUploadResult,
   BatchSummary,
+  WrapUpCard,
+  RecapItem,
+  EtymologyData,
 } from "./types";
 import { netStatus } from "./net-status";
 import {
@@ -76,6 +79,8 @@ interface RawWordDetail extends RawWord {
   forms_json: Record<string, string[]> | null;
   grammar_features: { feature_key: string; category?: string; label_en?: string; label_ar?: string }[];
   root_family: { id: number; arabic: string; english: string }[];
+  etymology_json?: EtymologyData | null;
+  acquisition_box?: number | null;
   review_history: {
     rating: number;
     reviewed_at: string | null;
@@ -112,6 +117,8 @@ interface RawStats {
   reviews_today: number;
   total_reviews?: number;
   lapsed?: number;
+  acquiring?: number;
+  encountered?: number;
 }
 
 interface WordReviewResult {
@@ -319,6 +326,8 @@ export async function getWordDetail(id: number): Promise<WordDetail> {
       accuracy_pct: s.accuracy_pct ?? null,
       last_reviewed_at: s.last_reviewed_at ?? null,
     })),
+    etymology_json: w.etymology_json ?? null,
+    acquisition_box: w.acquisition_box ?? null,
   };
 }
 
@@ -335,6 +344,8 @@ export async function getStats(): Promise<Stats> {
       streak_days: 0,
       total_reviews: raw.total_reviews ?? 0,
       lapsed: raw.lapsed ?? 0,
+      acquiring: raw.acquiring ?? 0,
+      encountered: raw.encountered ?? 0,
     };
     cacheData("stats", stats).catch(() => {});
     return stats;
@@ -531,6 +542,28 @@ export async function prefetchWordLookupsForSession(
   if (Object.keys(results).length > 0) {
     await cacheWordLookupBatch(results);
   }
+}
+
+// --- Wrap-up & Recap ---
+
+export async function getWrapUpCards(
+  seenLemmaIds: number[],
+  sessionId?: string
+): Promise<WrapUpCard[]> {
+  const data = await fetchApi<{ cards: WrapUpCard[] }>("/api/review/wrap-up", {
+    method: "POST",
+    body: JSON.stringify({ seen_lemma_ids: seenLemmaIds, session_id: sessionId }),
+  });
+  return data.cards;
+}
+
+export async function getRecapItems(
+  lastSessionLemmaIds: number[]
+): Promise<{ items: RecapItem[]; recap_word_count: number }> {
+  return fetchApi("/api/review/recap", {
+    method: "POST",
+    body: JSON.stringify({ last_session_lemma_ids: lastSessionLemmaIds }),
+  });
 }
 
 // --- Stories ---

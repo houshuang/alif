@@ -518,3 +518,157 @@
 - Context variety scoring: measure how many different sentence patterns each word appears in (not just count)
 - Word pair co-occurrence tracking: detect word pairs that always appear together (e.g., كتاب+جميل) and actively break them apart
 - LLM fine-tuning: collect rejected sentences as negative examples, use for prompt engineering or RLHF on sentence generation
+
+### Learning Algorithm Overhaul — Acquisition Phase & Focus Cohorts (2026-02-12)
+
+#### Problem Statement
+After importing ~100 textbook pages via OCR, 411 words entered the system with automatic rating=3 (Good). FSRS treated these as genuinely known (all 586 active words now show 30+ day stability), but actual review accuracy cratered to 25-46% on subsequent days. The system is spreading reviews across 586 words when the user barely recognizes most of them. 63% of active words have been seen only 0-2 times — well below the 8-12 meaningful encounters research says are needed for stable memory.
+
+#### Acquisition Phase (Pre-FSRS Learning Steps)
+- [DONE] Leitner 3-box acquisition system: Box 1 (4h), Box 2 (1d), Box 3 (3d). Words enter acquisition on introduction. Graduate after box 3 + rating≥3 + times_seen≥5 + accuracy≥60%. Implemented in `acquisition_service.py`.
+- [DONE] Within-session repetition: acquisition words appearing only once get additional sentences. Implemented in `sentence_selector.py`.
+- Research: FSRS S₀(Good) = 2.4 days, but a single "Good" for a textbook scan is NOT the same as genuine recall
+- Research: "fewer than 6 spaced encounters → fewer than 30% recall after a week"
+
+#### Focus Cohort System
+- [DONE] MAX_COHORT_SIZE=40. Acquiring words always included, remaining filled by lowest-stability FSRS due words. Implemented in `cohort_service.py`, integrated into `sentence_selector.py build_session()`.
+- Prevents the "spread too thin" problem where 586 words compete for ~100 reviews/day
+- User said: "have a group of cards that we've consolidated... and then start adding more cards so that the group grows"
+
+#### Session-Level Word Repetition
+- [DONE] Within-session repetition: acquisition words get additional sentences at expanding positions (N, N+3). Cap: 2 repeats per word.
+- [DONE] Next-session recap endpoint: `POST /api/review/recap` returns sentence-level cards for last session's acquiring words (<24h ago). Frontend not yet implemented.
+- [DONE] Wrap-up mini-quiz: `POST /api/review/wrap-up` returns word-level recall cards. Frontend not yet implemented.
+
+#### Sentence Generation for Word Sets (Batch-Aware)
+- Generate sentences targeting a SET of 3-5 focus words rather than individual target words
+- "Create 10 sentences. Each must include at least 2 of these 5 focus words: X, Y, Z, W, V"
+- This creates natural cross-reinforcement — seeing word A in a sentence with word B helps both
+- More efficient than single-target generation (fewer LLM calls, more diverse sentences)
+- The concept of "primary target word" becomes less important — what matters is the set of words the session is focusing on
+
+#### OCR Import Options
+- [DONE] **Import as encountered** (now the default): No FSRS card. ULK with knowledge_state="encountered" created. Words appear in Learn mode candidates with encountered_bonus=0.5.
+- [DEFERRED] **Import as learned today**: Was the old behavior (FSRS card with Good rating). Removed because it inflated stability.
+- [DEFERRED] **Import as learned N days ago**: FSRS card with backdated introduction. May add as option later.
+- **Just track vocabulary**: Lemma entry only, no ULK at all. Purely for vocabulary tracking / readiness calculation. User decides later whether to learn.
+
+#### Leech Auto-Management
+- [DONE] Auto-suspend: times_seen≥8 AND accuracy<40% → suspend with `leech_suspended_at`. Implemented in `leech_service.py`.
+- [DONE] Auto-reintroduce after 14 days: reset to acquisition box 1.
+- [DONE] Post-review single-word leech check: runs after every review with rating≤2.
+- [DONE] Root-sibling interference guard: don't introduce words whose root siblings failed in last 7d.
+- Track leech cycles: if a word is suspended and reintroduced 3+ times, flag for manual review
+- User said: "at that time I might have more hooks in my brain to connect it to, and it might stick better"
+
+#### FSRS State Correction for OCR-Imported Words
+- [DONE] `reset_ocr_cards.py`: Resets inflated FSRS cards from textbook_scan imports. 0 real reviews → reset to "encountered"; 1-2 with <50% accuracy → reset; 3+ → replay through FSRS. Supports --dry-run.
+- [DONE] OCR import now creates ULK with knowledge_state="encountered" (no FSRS card, no submit_review). Words become Learn mode candidates.
+- [DONE] Story completion creates "encountered" ULK for unknown words instead of FSRS cards.
+
+#### A/B Testing Framework (Single-Subject)
+- Research says: n-of-1 trials need ~400 observations per condition, 4-5 crossover periods, linear regression with AR(1) covariance
+- With ~100-200 reviews/day, need 2-4 weeks per experiment
+- Design: assign words randomly to condition A/B at introduction. Track recall at days 1, 3, 7, 14.
+- First experiment idea: "Acquisition phase with 3x in-session repetition" (A) vs "standard FSRS scheduling" (B)
+- Track: accuracy at day 1, day 3, day 7, day 14. If A shows >15% better retention at day 7, adopt.
+- Implementation: add `experiment_group` field to ULK, log experiment assignment in interaction logs
+- Caveat: interference between groups (seeing word from group A might help group B word from same root)
+
+#### Sparkline Enhancement: Show Inter-Review Gaps
+- Current sparkline shows last 8 ratings (pass/fail) but not timing
+- User said: "it doesn't say anything about the gap between attempts"
+- Knowing a word after 5 minutes vs. knowing it after 3 days are very different signals
+- Options: variable-width sparkline (wider bars = longer gap), time annotation on hover, color intensity by gap
+
+#### Response Time as Signal
+- Already capturing response_ms in ReviewLog — never used for scheduling
+- Slow response on a "correct" answer may indicate fragile knowledge
+- Decreasing response time across reviews = fluency signal
+- Could use as secondary input to FSRS difficulty parameter or to decide acquisition graduation
+
+#### Session Design for Variable Practice Time
+- User has unpredictable practice time (5 min to 2 hours)
+- Sessions should be designed as "micro-completable units" — every 2-3 cards is a meaningful chunk
+- Front-load the most important reviews (acquisition words, lapsed words)
+- If user only does 2 cards, they should be the 2 most valuable cards possible
+- Longer sessions can include more review/consolidation items and new word introductions
+
+### Ideas from Arabic Learning Research Deep Dive (2026-02-12)
+
+#### Coverage-Based Progress Tracking
+- Show user their estimated text coverage % based on Masrai & Milton (2016) curves: 1K lemmas = 79%, 5K = 89%, 9K = 95%
+- This is more meaningful than raw word count ("you can read 89% of any Arabic text" vs "you know 5,000 words")
+- Track separately for different registers (news, literary, religious) if frequency data supports it
+
+#### AVP A1 Curriculum Integration
+- Import Arabic Vocabulary Profile A1 list (1,750 items, expert-validated by 71 teachers) as reference curriculum
+- Cross-reference against current word list to identify A1 gaps
+- Show A1 completion percentage as a milestone metric
+- AVP uses multi-dialectal cross-checking which helps select vocabulary that transfers across dialects
+
+#### Root-Aware FSRS Stability Boost
+- Research: learners rely on roots in 87.5% of encounters with unknown words
+- When a new word shares a root with 2+ known words, boost initial FSRS stability by ~30%
+- Root familiarity at 30-60% coverage is the sweet spot for introducing new root family members
+- Research: root awareness accounts for substantial variance in reading outcomes (Cambridge study)
+- The 500 most productive roots cover 80% of daily vocabulary -- prioritize these
+
+#### OSMAN Readability Integration
+- Integrate OSMAN (El-Haj & Rayson 2016) readability scoring for generated/imported sentences
+- OSMAN is Arabic-specific, accounts for syllable types, works with/without diacritics, validated on 73K parallel sentences
+- Combined difficulty = OSMAN score + unknown word density + morphological density
+- Open source: github.com/drelhaj/OsmanReadability
+
+#### Pre-Listening Vocabulary Flash
+- Research (Elkhafaifi 2005): prelistening activities significantly improve listening comprehension
+- Question preview > vocabulary preview > nothing (all significantly different)
+- Before playing audio, show 2-3 key vocabulary words from the sentence as a preview
+- Also: repeated listening is effective -- encourage replay before revealing text
+
+#### Verb Form Progression Gating
+- Form I accounts for ~60-70% of all verb usage in MSA
+- Recommended learning order: Form I -> II, IV -> V, VIII -> X, III -> VI, VII -> IX
+- Gate derived form introduction on Form I mastery (70%+ accuracy on Form I reviews)
+- Form IX is effectively optional (colors/defects only, <0.5% of usage)
+- Track verb form distribution in user's vocabulary as an analytics metric
+
+#### English Loanwords in Arabic as Easy Wins
+- Modern Arabic has many recognizable loanwords: computer, internet, television, film, democracy
+- These are immediately recognizable through script and can accelerate early learning
+- Flag these in the UI with a "loanword" badge to boost learner confidence
+- Low priority for Arabic->English direction cognates (script barrier + semantic drift make them less useful)
+
+#### Diacritics Strategy Validation
+- Midhwah (2020, Modern Language Journal): VT groups outperformed UVT across ALL proficiency levels
+- Abu-Rabia: diacritics improve comprehension for native speakers of all ages and skill levels
+- No evidence that early diacritics hinder later reading of unvowelized text
+- Current "always show diacritics" approach is strongly research-validated
+- Future: optional "reading challenge" mode without diacritics as a separate exercise (not default)
+
+#### Narrow Reading for Vocabulary Recycling
+- Research supports "narrow reading" (multiple texts on same topic) for vocabulary consolidation
+- Arabic MSA-to-dialect overlap: Levantine 63%, Gulf 55-60%, Egyptian 50-55%, Moroccan 33-40%
+- Topic-based story generation would naturally recycle domain vocabulary
+- Could track vocabulary "domain coverage" (e.g., 85% of food vocabulary, 40% of politics)
+
+#### Listening Anxiety Mitigation
+- Elkhafaifi (2005): listening anxiety and FL learning anxiety are separate but related, both correlate negatively with achievement
+- Listening practice should be low-stakes and scaffolded
+- Slow speech mode (0.7x) + learner pauses aligns with research
+- Consider a "listening confidence" metric visible to user to track progress and reduce anxiety
+
+#### Arabic-Specific Sentence Difficulty Model
+- Beyond unknown word count, Arabic sentence difficulty depends on:
+  - Morphological density (how many clitics/affixes per word)
+  - Root familiarity of unknown words (known root = easier)
+  - Verb form complexity (Form I easier than Form X)
+  - Sentence length (eye-tracking shows fixation per content word)
+- Weight these factors in sentence selection algorithm
+- Research: morphological density impacts reading comprehension independently of vocabulary coverage
+
+#### 19-Level Readability Corpus
+- Recent Arabic readability research (2024) defines 19 fine-grained readability levels (kindergarten to postgraduate)
+- Curated corpus: 10,631 segments, 113,651 words
+- Could be used to calibrate sentence difficulty scoring
+- BERT-based models available for automatic readability assessment

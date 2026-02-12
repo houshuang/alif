@@ -11,7 +11,7 @@ import { useLocalSearchParams, useRouter, useNavigation } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { colors, fonts, fontFamily } from "../../lib/theme";
 import { getWordDetail } from "../../lib/api";
-import { WordDetail, ReviewHistoryEntry } from "../../lib/types";
+import { WordDetail, ReviewHistoryEntry, EtymologyData } from "../../lib/types";
 import { getCefrColor } from "../../lib/frequency";
 import ActionMenu from "../../lib/review/ActionMenu";
 
@@ -96,10 +96,14 @@ export default function WordDetailScreen() {
     return parts.join("\n");
   }
 
+  const stateLabel = word.state === "acquiring" && word.acquisition_box
+    ? `Acquiring (Box ${word.acquisition_box})`
+    : word.state;
+
   const infoParts = [
     word.root,
     word.pos,
-    word.state,
+    stateLabel,
     word.frequency_rank ? `#${word.frequency_rank.toLocaleString()}` : null,
     word.cefr_level,
   ].filter(Boolean) as string[];
@@ -126,6 +130,10 @@ export default function WordDetailScreen() {
             {i > 0 ? " · " : ""}
             {part === word.cefr_level ? (
               <Text style={{ color: getCefrColor(word.cefr_level!) }}>{part}</Text>
+            ) : part === stateLabel && word.state === "acquiring" ? (
+              <Text style={{ color: colors.stateAcquiring }}>{part}</Text>
+            ) : part === stateLabel && word.state === "encountered" ? (
+              <Text style={{ color: colors.stateEncountered }}>{part}</Text>
             ) : (
               part
             )}
@@ -185,6 +193,50 @@ export default function WordDetailScreen() {
               ))}
             </View>
           )}
+        </View>
+      )}
+
+      {word.etymology_json && (
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Etymology</Text>
+          <View style={styles.etymologyCard}>
+            {word.etymology_json.derivation && (
+              <Text style={styles.etymologyDerivation}>{word.etymology_json.derivation}</Text>
+            )}
+            {word.etymology_json.pattern && (
+              <View style={styles.etymologyRow}>
+                <Text style={styles.etymologyLabel}>Pattern</Text>
+                <Text style={styles.etymologyValue}>
+                  {word.etymology_json.pattern}
+                  {word.etymology_json.pattern_meaning ? ` — ${word.etymology_json.pattern_meaning}` : ""}
+                </Text>
+              </View>
+            )}
+            {word.etymology_json.root_meaning && (
+              <View style={styles.etymologyRow}>
+                <Text style={styles.etymologyLabel}>Root meaning</Text>
+                <Text style={styles.etymologyValue}>{word.etymology_json.root_meaning}</Text>
+              </View>
+            )}
+            {word.etymology_json.semantic_field && (
+              <View style={styles.etymologyRow}>
+                <Text style={styles.etymologyLabel}>Semantic field</Text>
+                <Text style={styles.etymologyValue}>{word.etymology_json.semantic_field}</Text>
+              </View>
+            )}
+            {word.etymology_json.related_loanwords && word.etymology_json.related_loanwords.length > 0 && (
+              <View style={styles.etymologyRow}>
+                <Text style={styles.etymologyLabel}>Loanwords</Text>
+                <Text style={styles.etymologyValue}>{word.etymology_json.related_loanwords.join(", ")}</Text>
+              </View>
+            )}
+            {word.etymology_json.cultural_note && (
+              <View style={styles.etymologyRow}>
+                <Text style={styles.etymologyLabel}>Note</Text>
+                <Text style={styles.etymologyValue}>{word.etymology_json.cultural_note}</Text>
+              </View>
+            )}
+          </View>
         </View>
       )}
 
@@ -532,6 +584,32 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     marginTop: 6,
     opacity: 0.8,
+  },
+  etymologyCard: {
+    backgroundColor: colors.surface,
+    borderRadius: 8,
+    padding: 12,
+  },
+  etymologyDerivation: {
+    fontSize: 15,
+    color: colors.text,
+    fontWeight: "600",
+    marginBottom: 8,
+  },
+  etymologyRow: {
+    flexDirection: "row",
+    marginTop: 4,
+  },
+  etymologyLabel: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    width: 95,
+    fontWeight: "600",
+  },
+  etymologyValue: {
+    fontSize: 13,
+    color: colors.text,
+    flex: 1,
   },
   errorText: {
     color: colors.textSecondary,

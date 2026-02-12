@@ -27,6 +27,8 @@ import {
   getGrammarLesson,
   introduceGrammarFeature,
   introduceWord,
+  getWrapUpCards,
+  getRecapItems,
   generateUuid,
   BASE_URL,
 } from "../lib/api";
@@ -42,8 +44,11 @@ import {
   Analytics,
   WordLookupResult,
   GrammarLesson,
+  WrapUpCard,
+  RecapItem,
 } from "../lib/types";
 import { posLabel, FormsRow, GrammarRow, PlayButton } from "../lib/WordCardComponents";
+import { saveLastSessionWord, getLastSessionWords, clearLastSessionWords } from "../lib/offline-store";
 import { syncEvents } from "../lib/sync-events";
 import { useNetStatus } from "../lib/net-status";
 import ActionMenu from "../lib/review/ActionMenu";
@@ -139,6 +144,12 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
   const [cardReviewIds, setCardReviewIds] = useState<(string | null)[]>([]);
   const [cardSnapshots, setCardSnapshots] = useState<CardSnapshot[]>([]);
   const [undoing, setUndoing] = useState(false);
+  const [wrapUpCards, setWrapUpCards] = useState<WrapUpCard[]>([]);
+  const [wrapUpIndex, setWrapUpIndex] = useState(0);
+  const [wrapUpRevealed, setWrapUpRevealed] = useState(false);
+  const [inWrapUp, setInWrapUp] = useState(false);
+  const [recapCount, setRecapCount] = useState(0);
+  const [seenLemmaIds, setSeenLemmaIds] = useState<Set<number>>(new Set());
   const showTime = useRef<number>(0);
   const soundRef = useRef<Audio.Sound | null>(null);
   const lookupRequestRef = useRef(0);
@@ -254,6 +265,12 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
     setCardReviewIds([]);
     setCardSnapshots([]);
     setUndoing(false);
+    setWrapUpCards([]);
+    setWrapUpIndex(0);
+    setWrapUpRevealed(false);
+    setInWrapUp(false);
+    setRecapCount(0);
+    setSeenLemmaIds(new Set());
     setReintroCards([]);
     setReintroIndex(0);
     setGrammarLessons([]);
@@ -273,8 +290,38 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
     setLegacySession(null);
     await cleanupSound();
 
+    // Check for recap items from last session
+    let recapItems: RecapItem[] = [];
+    try {
+      const lastWords = await getLastSessionWords();
+      const cutoff = Date.now() - 24 * 60 * 60 * 1000;
+      const recent = lastWords.filter(w => new Date(w.reviewed_at).getTime() > cutoff);
+      if (recent.length > 0) {
+        const recapData = await getRecapItems(recent.map(w => w.lemma_id));
+        recapItems = recapData.items || [];
+      }
+    } catch {}
+    await clearLastSessionWords();
+
     try {
       const ss = await getSentenceReviewSession(m);
+      // Prepend recap items to session
+      if (recapItems.length > 0) {
+        const recapAsSentenceItems = recapItems.map(r => ({
+          sentence_id: r.sentence_id,
+          arabic_text: r.arabic_text,
+          arabic_diacritized: null,
+          english_translation: r.english_translation,
+          transliteration: r.transliteration,
+          audio_url: r.audio_url,
+          primary_lemma_id: r.primary_lemma_id,
+          primary_lemma_ar: "",
+          primary_gloss_en: "",
+          words: r.words,
+        }));
+        ss.items = [...recapAsSentenceItems, ...ss.items];
+        setRecapCount(recapItems.length);
+      }
       if (ss.items.length > 0) {
         setSentenceSession(ss);
         // Build session slots: interleave sentence items and intro candidates
@@ -541,6 +588,19 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
       console.warn("sentence submit failed:", e);
     }
 
+    // Track seen lemma IDs for wrap-up
+    setSeenLemmaIds(prev => {
+      const next = new Set(prev);
+      for (const w of item.words) {
+        if (w.lemma_id != null) next.add(w.lemma_id);
+      }
+      return next;
+    });
+
+    // Track session words for next-session recap
+    const rating = signal === "understood" ? 3 : signal === "no_idea" ? 1 : 2;
+    saveLastSessionWord(item.primary_lemma_id, rating).catch(() => {});
+
     // Save review ID and snapshot for undo
     setCardReviewIds(prev => {
       const next = [...prev];
@@ -731,6 +791,57 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
     }
   }
 
+  async function handleWrapUp() {
+    if (seenLemmaIds.size === 0) return;
+    try {
+      const cards = await getWrapUpCards(
+        Array.from(seenLemmaIds),
+        sentenceSession?.session_id
+      );
+      if (cards.length > 0) {
+        setWrapUpCards(cards);
+        setWrapUpIndex(0);
+        setWrapUpRevealed(false);
+        setInWrapUp(true);
+      } else {
+        // No acquisition words to quiz — just end session
+        setResults(prev => prev ?? { total: 0, gotIt: 0, missed: 0, noIdea: 0 });
+        const r = results ?? { total: 0, gotIt: 0, missed: 0, noIdea: 0 };
+        setResults({ ...r, total: totalCards });
+      }
+    } catch {
+      const r = results ?? { total: 0, gotIt: 0, missed: 0, noIdea: 0 };
+      setResults({ ...r, total: totalCards });
+    }
+  }
+
+  async function handleWrapUpAnswer(gotIt: boolean) {
+    const card = wrapUpCards[wrapUpIndex];
+    // Submit as acquisition review
+    try {
+      await submitSentenceReview({
+        sentence_id: null,
+        primary_lemma_id: card.lemma_id,
+        comprehension_signal: gotIt ? "understood" : "no_idea",
+        missed_lemma_ids: gotIt ? [] : [card.lemma_id],
+        response_ms: Date.now() - showTime.current,
+        session_id: sentenceSession?.session_id ?? generateUuid(),
+        review_mode: "quiz",
+      });
+    } catch {}
+
+    if (wrapUpIndex < wrapUpCards.length - 1) {
+      setWrapUpIndex(wrapUpIndex + 1);
+      setWrapUpRevealed(false);
+      showTime.current = Date.now();
+    } else {
+      // Done — show session results
+      setInWrapUp(false);
+      const r = results ?? { total: 0, gotIt: 0, missed: 0, noIdea: 0 };
+      setResults({ ...r, total: totalCards });
+    }
+  }
+
   function advanceState() {
     if (mode === "listening") {
       if (cardState === "audio") setCardState("arabic");
@@ -877,7 +988,73 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
 
   // --- Render ---
 
-  const isSessionDone = !!(results && totalCards > 0 && results.total >= totalCards);
+  const isSessionDone = !!(results && !inWrapUp && totalCards > 0 && results.total >= totalCards);
+
+  // Wrap-up quiz flow
+  if (inWrapUp && wrapUpCards.length > 0) {
+    const wc = wrapUpCards[wrapUpIndex];
+    return (
+      <View style={[styles.container, { paddingTop: Math.max(insets.top, 12) }]}>
+        <View style={styles.progressContainer}>
+          <Text style={styles.progressText}>
+            Wrap-up {wrapUpIndex + 1}/{wrapUpCards.length}
+          </Text>
+        </View>
+        <ScrollView
+          contentContainerStyle={styles.sentenceArea}
+          showsVerticalScrollIndicator={false}
+        >
+          <Text style={styles.wordOnlyArabic}>{wc.lemma_ar}</Text>
+          {wrapUpRevealed && (
+            <>
+              <View style={styles.divider} />
+              <Text style={styles.wordOnlyGloss}>{wc.gloss_en || ""}</Text>
+              {wc.transliteration && (
+                <Text style={styles.sentenceTranslit}>{wc.transliteration}</Text>
+              )}
+              {wc.root && (
+                <Text style={[styles.sentenceTranslit, { marginTop: 4 }]}>
+                  Root: {wc.root}{wc.root_meaning ? ` \u2014 ${wc.root_meaning}` : ""}
+                </Text>
+              )}
+              {wc.etymology_json?.derivation && (
+                <Text style={[styles.sentenceTranslit, { fontStyle: "italic", marginTop: 4 }]}>
+                  {wc.etymology_json.derivation}
+                </Text>
+              )}
+            </>
+          )}
+        </ScrollView>
+        <View style={styles.bottomActions}>
+          {!wrapUpRevealed ? (
+            <View style={styles.actionRow}>
+              <Pressable
+                style={[styles.actionButton, styles.showButton]}
+                onPress={() => { setWrapUpRevealed(true); showTime.current = Date.now(); }}
+              >
+                <Text style={styles.showButtonText}>Show Answer</Text>
+              </Pressable>
+            </View>
+          ) : (
+            <View style={styles.actionRow}>
+              <Pressable
+                style={[styles.actionButton, styles.gotItButton]}
+                onPress={() => handleWrapUpAnswer(true)}
+              >
+                <Text style={styles.actionButtonText}>Got it</Text>
+              </Pressable>
+              <Pressable
+                style={[styles.actionButton, styles.continueButton]}
+                onPress={() => handleWrapUpAnswer(false)}
+              >
+                <Text style={styles.actionButtonText}>Missed</Text>
+              </Pressable>
+            </View>
+          )}
+        </View>
+      </View>
+    );
+  }
 
   // Session complete takes priority over loading — prevents flash-and-disappear
   // when background sync triggers a reload
@@ -1173,7 +1350,14 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
       <View
         style={[styles.container, isListening && styles.listeningContainer, { paddingTop: Math.max(insets.top, 12) }]}
       >
-        <ProgressBar current={cardIndex + 1} total={totalCards} mode={mode} onBack={canGoBack ? handleGoBack : null} />
+        <ProgressBar
+          current={cardIndex + 1}
+          total={totalCards}
+          mode={mode}
+          onBack={canGoBack ? handleGoBack : null}
+          isRecap={recapCount > 0 && cardIndex < recapCount}
+          onWrapUp={(results?.total ?? 0) >= 2 ? handleWrapUp : null}
+        />
 
         <ScrollView
           contentContainerStyle={styles.sentenceArea}
@@ -2023,11 +2207,15 @@ function ProgressBar({
   total,
   mode,
   onBack,
+  isRecap,
+  onWrapUp,
 }: {
   current: number;
   total: number;
   mode: ReviewMode;
   onBack?: (() => void) | null;
+  isRecap?: boolean;
+  onWrapUp?: (() => void) | null;
 }) {
   const pct = (current / total) * 100;
   const barColor = mode === "listening" ? colors.listening : colors.accent;
@@ -2041,10 +2229,23 @@ function ProgressBar({
         ) : (
           <View style={styles.backButtonPlaceholder} />
         )}
-        <Text style={styles.progressText}>
-          Card {current} of {total}
-        </Text>
-        <View style={styles.backButtonPlaceholder} />
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+          {isRecap && (
+            <View style={styles.recapBadge}>
+              <Text style={styles.recapBadgeText}>Recap</Text>
+            </View>
+          )}
+          <Text style={styles.progressText}>
+            Card {current} of {total}
+          </Text>
+        </View>
+        {onWrapUp ? (
+          <Pressable onPress={onWrapUp} hitSlop={8} style={styles.wrapUpButton}>
+            <Text style={styles.wrapUpButtonText}>Wrap Up</Text>
+          </Pressable>
+        ) : (
+          <View style={styles.backButtonPlaceholder} />
+        )}
       </View>
       <View style={styles.progressTrack}>
         <View
@@ -2782,6 +2983,30 @@ const styles = StyleSheet.create({
     fontSize: 12,
     textAlign: "center",
     opacity: 0.6,
+  },
+  recapBadge: {
+    backgroundColor: colors.accent + "30",
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 8,
+  },
+  recapBadgeText: {
+    color: colors.accent,
+    fontSize: 10,
+    fontWeight: "700",
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+  },
+  wrapUpButton: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 8,
+    backgroundColor: colors.surfaceLight,
+  },
+  wrapUpButtonText: {
+    color: colors.textSecondary,
+    fontSize: 11,
+    fontWeight: "600",
   },
   progressTrack: {
     height: 3,

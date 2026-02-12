@@ -14,6 +14,10 @@ from app.schemas import (
     SentenceSessionOut,
     SentenceReviewSubmitIn,
     SentenceReviewSubmitOut,
+    WrapUpIn,
+    WrapUpOut,
+    WrapUpCardOut,
+    RecapIn,
 )
 from app.services.fsrs_service import get_due_cards, submit_review
 from app.services.listening import get_listening_candidates, process_comprehension_signal
@@ -345,6 +349,113 @@ def submit_reintro_result(
     )
 
     return {"status": "ok", "result": body.result, "lemma_id": body.lemma_id}
+
+
+@router.post("/wrap-up", response_model=WrapUpOut)
+def wrap_up_quiz(body: WrapUpIn, db: Session = Depends(get_db)):
+    """Get word-level recall cards for acquisition words seen in current session."""
+    if not body.seen_lemma_ids:
+        return {"cards": []}
+
+    # Filter to acquiring words only
+    ulks = (
+        db.query(UserLemmaKnowledge)
+        .filter(
+            UserLemmaKnowledge.lemma_id.in_(body.seen_lemma_ids),
+            UserLemmaKnowledge.knowledge_state == "acquiring",
+        )
+        .all()
+    )
+    acquiring_ids = {u.lemma_id for u in ulks}
+
+    if not acquiring_ids:
+        return {"cards": []}
+
+    lemmas = (
+        db.query(Lemma)
+        .filter(Lemma.lemma_id.in_(acquiring_ids))
+        .all()
+    )
+
+    cards = []
+    for lemma in lemmas:
+        root_obj = lemma.root
+        cards.append(WrapUpCardOut(
+            lemma_id=lemma.lemma_id,
+            lemma_ar=lemma.lemma_ar,
+            lemma_ar_bare=lemma.lemma_ar_bare,
+            gloss_en=lemma.gloss_en,
+            transliteration=lemma.transliteration_ala_lc,
+            pos=lemma.pos,
+            forms_json=lemma.forms_json,
+            root=root_obj.root if root_obj else None,
+            root_meaning=root_obj.core_meaning_en if root_obj else None,
+            etymology_json=lemma.etymology_json,
+            is_acquiring=True,
+        ))
+
+    log_interaction(
+        event="wrap_up_quiz",
+        session_id=body.session_id,
+        card_count=len(cards),
+    )
+
+    return {"cards": cards}
+
+
+@router.post("/recap")
+def get_recap_items(body: RecapIn, db: Session = Depends(get_db)):
+    """Get sentence-level recap cards for acquisition words from last session."""
+    from app.models import Sentence, SentenceWord
+
+    if not body.last_session_lemma_ids:
+        return {"items": []}
+
+    # Filter to still-acquiring words
+    ulks = (
+        db.query(UserLemmaKnowledge)
+        .filter(
+            UserLemmaKnowledge.lemma_id.in_(body.last_session_lemma_ids),
+            UserLemmaKnowledge.knowledge_state == "acquiring",
+        )
+        .all()
+    )
+    acquiring_ids = {u.lemma_id for u in ulks}
+
+    if not acquiring_ids:
+        return {"items": []}
+
+    # Find sentences for these words (prefer different ones from last session)
+    sentence_words = (
+        db.query(SentenceWord)
+        .filter(SentenceWord.lemma_id.in_(acquiring_ids))
+        .all()
+    )
+    sentence_ids = {sw.sentence_id for sw in sentence_words}
+
+    if not sentence_ids:
+        return {"items": []}
+
+    sentences = (
+        db.query(Sentence)
+        .filter(Sentence.id.in_(sentence_ids), Sentence.is_active == True)
+        .limit(3)
+        .all()
+    )
+
+    # Build session items (reuse build_session item format)
+    items = []
+    for sent in sentences:
+        items.append({
+            "sentence_id": sent.id,
+            "arabic_text": sent.arabic_diacritized or sent.arabic_text,
+            "english_translation": sent.english_translation,
+            "transliteration": sent.transliteration,
+            "audio_url": sent.audio_url,
+            "is_recap": True,
+        })
+
+    return {"items": items, "recap_word_count": len(acquiring_ids)}
 
 
 @router.post("/undo-sentence")

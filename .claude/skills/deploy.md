@@ -14,8 +14,9 @@ Deploy backend and/or frontend to the Hetzner production server.
 2. `ssh alif "cd /opt/alif && git pull && cd frontend && npm install && systemctl restart alif-expo"`
 
 ## Full Deploy (both)
+**IMPORTANT**: Always include `npm install` — new frontend dependencies are NOT automatically picked up on the server. This has caused repeated deploy failures.
 ```bash
-ssh alif "cd /opt/alif && git pull && docker compose up -d --build && cd frontend && npm install && cd .. && systemctl restart alif-expo"
+ssh alif "cd /opt/alif && git pull && docker compose up -d --build && cd frontend && npm install && systemctl restart alif-expo"
 ```
 
 ## IMPORTANT: Always display Expo URL after deploy
@@ -25,6 +26,13 @@ exp://alifstian.duckdns.org:8081
 http://alifstian.duckdns.org:8081
 ```
 This URL is stable (no more changing tunnel URLs).
+
+## Post-Deploy Checklist
+After every deploy, also do:
+1. Update CLAUDE.md if you changed: data model, services, endpoints, scripts, architecture
+2. Update `research/experiment-log.md` if you changed: algorithms, data sources, scheduling
+3. Update IDEAS.md with any new ideas from the session
+4. Do NOT wait to be asked — this is a critical step
 
 ## Notes
 - Backend: http://46.225.75.29:3000 (docker 3000→8000), container `alif-backend-1`

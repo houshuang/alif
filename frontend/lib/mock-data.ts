@@ -258,6 +258,8 @@ export const MOCK_STATS: Stats = {
   streak_days: 3,
   total_reviews: 1260,
   lapsed: 4,
+  acquiring: 0,
+  encountered: 0,
 };
 
 export const MOCK_LEARN_CANDIDATES: LearnCandidate[] = [
@@ -278,7 +280,7 @@ export const MOCK_LEARN_CANDIDATES: LearnCandidate[] = [
     example_ar: null,
     example_en: null,
     score: 0.82,
-    score_breakdown: { frequency: 0.35, root_familiarity: 0.3, recency_bonus: 0.0, story_bonus: 0.0, known_siblings: 1, total_siblings: 4 },
+    score_breakdown: { frequency: 0.35, root_familiarity: 0.3, recency_bonus: 0.0, story_bonus: 0.0, encountered_bonus: 0.0, known_siblings: 1, total_siblings: 4 },
   },
   {
     lemma_id: 51,
@@ -297,7 +299,7 @@ export const MOCK_LEARN_CANDIDATES: LearnCandidate[] = [
     example_ar: null,
     example_en: null,
     score: 0.78,
-    score_breakdown: { frequency: 0.22, root_familiarity: 0.4, recency_bonus: 0.0, story_bonus: 0.0, known_siblings: 2, total_siblings: 5 },
+    score_breakdown: { frequency: 0.22, root_familiarity: 0.4, recency_bonus: 0.0, story_bonus: 0.0, encountered_bonus: 0.0, known_siblings: 2, total_siblings: 5 },
   },
   {
     lemma_id: 52,
@@ -316,7 +318,7 @@ export const MOCK_LEARN_CANDIDATES: LearnCandidate[] = [
     example_ar: null,
     example_en: null,
     score: 0.71,
-    score_breakdown: { frequency: 0.30, root_familiarity: 0.0, recency_bonus: 0.0, story_bonus: 0.0, known_siblings: 0, total_siblings: 3 },
+    score_breakdown: { frequency: 0.30, root_familiarity: 0.0, recency_bonus: 0.0, story_bonus: 0.0, encountered_bonus: 0.0, known_siblings: 0, total_siblings: 3 },
   },
   {
     lemma_id: 53,
@@ -335,7 +337,7 @@ export const MOCK_LEARN_CANDIDATES: LearnCandidate[] = [
     example_ar: null,
     example_en: null,
     score: 0.65,
-    score_breakdown: { frequency: 0.18, root_familiarity: 0.0, recency_bonus: 0.0, story_bonus: 0.0, known_siblings: 0, total_siblings: 4 },
+    score_breakdown: { frequency: 0.18, root_familiarity: 0.0, recency_bonus: 0.0, story_bonus: 0.0, encountered_bonus: 0.0, known_siblings: 0, total_siblings: 4 },
   },
   {
     lemma_id: 54,
@@ -354,7 +356,7 @@ export const MOCK_LEARN_CANDIDATES: LearnCandidate[] = [
     example_ar: null,
     example_en: null,
     score: 0.75,
-    score_breakdown: { frequency: 0.27, root_familiarity: 0.35, recency_bonus: 0.0, story_bonus: 0.0, known_siblings: 1, total_siblings: 6 },
+    score_breakdown: { frequency: 0.27, root_familiarity: 0.35, recency_bonus: 0.0, story_bonus: 0.0, encountered_bonus: 0.0, known_siblings: 1, total_siblings: 6 },
   },
 ];
 
@@ -368,6 +370,8 @@ export const MOCK_ANALYTICS: Analytics = {
     reviews_today: 0,
     total_reviews: 1260,
     lapsed: 4,
+    acquiring: 0,
+    encountered: 0,
   },
   pace: {
     words_per_day_7d: 3.1,

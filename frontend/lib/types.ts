@@ -43,7 +43,7 @@ export interface Word {
   transliteration: string;
   root: string | null;
   pos: string;
-  state: "new" | "learning" | "known" | "lapsed" | "suspended";
+  state: "new" | "learning" | "known" | "lapsed" | "suspended" | "acquiring" | "encountered";
   due_date: string | null;
   times_seen: number;
   times_correct: number;
@@ -103,6 +103,8 @@ export interface WordDetail extends Word {
   review_history: ReviewHistoryEntry[];
   sentence_stats: WordSentenceStat[];
   source_info?: SourceInfo | null;
+  etymology_json?: EtymologyData | null;
+  acquisition_box?: number | null;
 }
 
 export interface Stats {
@@ -115,6 +117,8 @@ export interface Stats {
   streak_days: number;
   total_reviews: number;
   lapsed: number;
+  acquiring: number;
+  encountered: number;
 }
 
 export interface DailyStats {
@@ -144,6 +148,40 @@ export interface CEFREstimate {
   next_level: string | null;
   words_to_next: number | null;
   reading_coverage_pct: number;
+}
+
+export interface EtymologyData {
+  root_meaning: string | null;
+  pattern: string | null;
+  pattern_meaning: string | null;
+  derivation: string | null;
+  semantic_field: string | null;
+  related_loanwords: string[];
+  cultural_note: string | null;
+}
+
+export interface WrapUpCard {
+  lemma_id: number;
+  lemma_ar: string;
+  lemma_ar_bare: string;
+  gloss_en: string | null;
+  transliteration: string | null;
+  pos: string | null;
+  forms_json: WordForms | null;
+  root: string | null;
+  root_meaning: string | null;
+  etymology_json: EtymologyData | null;
+}
+
+export interface RecapItem {
+  sentence_id: number;
+  arabic_text: string;
+  english_translation: string;
+  transliteration: string | null;
+  audio_url: string | null;
+  primary_lemma_id: number;
+  words: SentenceWordMeta[];
+  is_recap: boolean;
 }
 
 export interface WordForms {
@@ -176,11 +214,13 @@ export interface LearnCandidate {
   grammar_features?: string[];
   grammar_details?: GrammarFeatureDetail[];
   score: number;
+  etymology_json?: EtymologyData | null;
   score_breakdown: {
     frequency: number;
     root_familiarity: number;
     recency_bonus: number;
     story_bonus: number;
+    encountered_bonus: number;
     known_siblings: number;
     total_siblings: number;
   };
@@ -378,6 +418,8 @@ export interface Analytics {
     reviews_today: number;
     total_reviews: number;
     lapsed: number;
+    acquiring: number;
+    encountered: number;
   };
   pace: LearningPace;
   cefr: CEFREstimate;

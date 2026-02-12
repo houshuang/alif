@@ -727,12 +727,47 @@ def complete_story(
     reviewed_lemmas: set[int] = set()
     good_count = 0
     again_count = 0
+    encountered_count = 0
+
+    # Pre-fetch all ULK records for story words
+    story_lemma_ids = {sw.lemma_id for sw in story.words if sw.lemma_id and not sw.is_function_word}
+    ulk_map = {}
+    if story_lemma_ids:
+        ulks = db.query(UserLemmaKnowledge).filter(
+            UserLemmaKnowledge.lemma_id.in_(story_lemma_ids)
+        ).all()
+        ulk_map = {u.lemma_id: u for u in ulks}
 
     for sw in story.words:
         if not sw.lemma_id or sw.is_function_word or sw.lemma_id in reviewed_lemmas:
             continue
 
         reviewed_lemmas.add(sw.lemma_id)
+        ulk = ulk_map.get(sw.lemma_id)
+
+        if not ulk:
+            # No existing knowledge — create encountered record (no FSRS card)
+            new_ulk = UserLemmaKnowledge(
+                lemma_id=sw.lemma_id,
+                knowledge_state="encountered",
+                fsrs_card_json=None,
+                source="encountered",
+                total_encounters=1,
+            )
+            db.add(new_ulk)
+            encountered_count += 1
+            continue
+
+        if ulk.knowledge_state == "encountered":
+            # Already encountered but no FSRS card — just increment encounters
+            ulk.total_encounters = (ulk.total_encounters or 0) + 1
+            encountered_count += 1
+            continue
+
+        if ulk.knowledge_state == "suspended":
+            continue
+
+        # Has active FSRS card — submit real review
         if sw.lemma_id in looked_up_set:
             rating = 1
             again_count += 1
@@ -740,7 +775,6 @@ def complete_story(
             rating = 3
             good_count += 1
 
-        # submit_review auto-creates ULK if needed (source="encountered")
         submit_review(
             db,
             lemma_id=sw.lemma_id,

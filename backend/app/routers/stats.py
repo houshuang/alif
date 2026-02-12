@@ -89,6 +89,9 @@ def _get_basic_stats(db: Session) -> StatsOut:
 
     due_today = _count_due_cards(db, now)
 
+    acquiring = _count_state(db, "acquiring")
+    encountered = _count_state(db, "encountered")
+
     return StatsOut(
         total_words=total,
         known=known,
@@ -98,6 +101,8 @@ def _get_basic_stats(db: Session) -> StatsOut:
         reviews_today=reviews_today,
         total_reviews=total_reviews,
         lapsed=lapsed,
+        acquiring=acquiring,
+        encountered=encountered,
     )
 
 

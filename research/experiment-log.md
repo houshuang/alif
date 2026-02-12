@@ -629,3 +629,143 @@ DB contained 6 single-character lemmas that are abbreviations or clitics, not re
 - 406 active sentences already have audio (solid listening backlog)
 - 1,773 without audio will get it as word stability builds up
 - No wasted ElevenLabs credits on sentences that can't be used yet
+
+---
+
+## 2026-02-12 — Post-OCR Learning Crisis: Data Analysis & Algorithm Redesign
+
+### Findings
+
+Full production database analysis after 100+ textbook pages imported via OCR on Feb 10.
+
+**Vocabulary state**: 592 ULK records. Sources: textbook_scan 411 (69%), duolingo 149 (25%), study 32 (5%). knowledge_state: learning 307, known 261, lapsed 18, suspended 6.
+
+**Critical finding — false FSRS stability**: ALL 586 active words show 30+ day FSRS stability. The textbook scan submitted `rating=3` (Good) for every word, setting initial stability to ~2.3 days. Subsequent sentence reviews where these words appeared unmarked compounded Good ratings, pushing stability to 30+ days. But the user doesn't actually know most of these words.
+
+**Accuracy crash**: Pre-OCR accuracy was 63-78%. Post-OCR: Feb 11 = 45.8%, Feb 12 = 25.0%. The system thinks words are known; the user can't recognize them.
+
+**Weak signal dominance**: 367 of 586 active words (63%) have been seen 0-2 times. 214 words seen exactly once. Research says 8-12 meaningful encounters needed for stable memory; <6 encounters → <30% recall after a week.
+
+**Session patterns**: Highly variable — 3 to 35 cards. Many incomplete sessions (3-4 cards). Inter-review gaps within sessions are 0-6 minutes; between sessions 12-48 hours. Confirms user's description of unpredictable practice time.
+
+**Leeches**: 20 words with 3+ failures. Top: الحائط (5 fails/6 reviews), صِفة (5/6, suspended), جُمَل (5/8).
+
+**OCR import scale**: Single batch on Feb 10: 37 pages, 459 new words, 692 existing word matches.
+
+### Root Cause Analysis
+
+Three compounding problems identified:
+
+1. **False FSRS state from OCR imports**: Textbook scan gave automatic Good (3) rating → FSRS interprets as "known" → schedules review in 2+ days → when word appears in sentence review and isn't individually marked, gets another Good → stability compounds. All 586 words now at 30+ days stability despite user not recognizing ~300 of them.
+
+2. **No acquisition phase**: FSRS handles long-term retention of established memories. No mechanism for initial acquisition (Anki uses "learning steps" for this). Words go directly from first encounter → FSRS scheduling — too aggressive for genuinely new vocabulary.
+
+3. **Pool too wide**: 586 active words competing for ~50-100 reviews/day. Each word reviewed roughly once every 6-12 days. Research: need 8-12 concentrated encounters, not 1 per week.
+
+### Research Summary (web research conducted)
+
+- **Encounters needed**: 8-12 meaningful encounters for stable representation (Uchihara et al. 2019 meta-analysis). <6 → <30% recall. 10+ → 80%+ recall. 20-30 for long-term embedding.
+- **FSRS initial stability**: S₀(Again)=0.2d, S₀(Hard)=1.3d, S₀(Good)=2.3d, S₀(Easy)=8.3d. Single Good from textbook scan ≠ genuine recall.
+- **Retrieval vs recognition**: Active recall 150% better than passive re-exposure (Conti 2025). Sentence-based recognition requires more encounters than production.
+- **Desirable difficulties** (Bjork): Varying contexts, interleaving, within-session spacing all enhance learning.
+- **N-of-1 experiments**: ~400 observations per condition needed. At 100-200 reviews/day, 2-4 weeks per experiment. Crossover design with AR(1) covariance.
+
+### Proposed Changes (not yet implemented)
+
+1. **Data fix**: Reset FSRS cards for textbook_scan words with ≤3 real reviews. Set stability to 0.5d, state to "learning".
+2. **Acquisition phase**: Pre-FSRS stage for words with <5 reviews or <50% accuracy. Appear 2-3x per session. Graduate after 5+ reviews at 60%+ accuracy.
+3. **Focus cohort**: Rolling set of ~30-50 words. New words enter only as existing ones graduate. Prevents spreading too thin.
+4. **Session-level repetition**: Select sentences that repeat acquisition words 2-3x within a 10-card session.
+5. **OCR import options**: "Track only" (no FSRS card), "studied today" (current), "studied N days ago" (backdated).
+6. **Batch sentence generation**: Generate for word sets instead of individual targets.
+
+### Hypotheses
+
+- **H13**: Resetting textbook_scan FSRS cards will immediately improve session accuracy (from 25% → 50%+) by allowing the system to correctly identify which words the user actually knows.
+- **H14**: An acquisition phase requiring 5+ reviews before FSRS graduation will produce higher day-7 retention than direct FSRS scheduling for new words.
+- **H15**: Focus cohort of 30-50 words will lead to faster individual word consolidation (more words reaching stability >7 days per week) despite reviewing fewer total words.
+- **H16**: Within-session repetition (same word in 2-3 sentences per session) will improve next-day recall by >20% compared to single exposure.
+
+### How to Verify
+
+- H13: Compare session accuracy before/after the FSRS reset (immediate)
+- H14: A/B test with `experiment_group` on ULK, track day-7 accuracy (3-4 weeks)
+- H15: Compare words reaching stability >7d per week before/after cohort system (2 weeks)
+- H16: Compare next-day recall for words seen 1x vs 2-3x within session (2 weeks)
+
+### Deep Research (8-agent swarm, same day)
+
+Comprehensive deep research conducted via 8 parallel agents covering: FSRS-6 internals, cognitive science of memory, Arabic-specific learning, session design, sentence-centric SRS, leech management, N-of-1 experimental design, and full codebase analysis.
+
+Key findings that refine the above proposals:
+- **py-fsrs 6.x** has native same-day review support (w17-w19) — upgrade from v4.x
+- **Leitner-like acquisition phase** (3-box: 4h→1d→3d) is simpler and better-justified than custom logic
+- **Semantic clustering impedes learning** (Tinkham 1993/97) — never introduce root siblings simultaneously
+- **85% accuracy target** maximizes both learning rate and motivation (Wilson 2019)
+- **Failed retrieval enhances learning** (Kornell 2009) — "no_idea" ratings have genuine value
+- **Self-assessment unreliable** — word-tapping is critical corrective signal
+- **N-of-1 feasible**: 80-100 words/condition, Bayesian Beta-Binomial, 3-4 weeks to detect 10pp differences
+
+Full compilation: `research/deep-research-compilation-2026-02-12.md`
+Original plan: `research/learning-algorithm-redesign-2026-02-12.md`
+
+---
+
+## 2026-02-12 — Learning Algorithm Redesign: Implementation (Phases 1-4)
+
+### What Was Implemented
+
+Full backend implementation of the 4-phase learning algorithm redesign.
+
+#### Phase 1: Emergency Data Fix + OCR Reform
+- **reset_ocr_cards.py**: Script to reset inflated FSRS cards from textbook_scan imports. 0 real reviews → reset to "encountered"; 1-2 with <50% accuracy → reset; 3+ → replay through FSRS. Supports --dry-run.
+- **OCR import reform**: Removed all three `submit_review(rating_int=3)` calls from `ocr_service.py`. Textbook scans now create ULK with `knowledge_state="encountered"` and no FSRS card.
+- **Story completion reform**: `complete_story()` creates "encountered" ULK for unknown words. Only submits real FSRS review for words with active cards.
+- **Encountered as Learn candidates**: `select_next_words()` includes encountered words with `encountered_bonus=0.5`.
+
+#### Phase 2: Acquisition System
+- **Schema migration**: New columns on ULK (acquisition_box, acquisition_next_due, acquisition_started_at, graduated_at, leech_suspended_at), Lemma (thematic_domain, etymology_json), ReviewLog (is_acquisition). Index on (acquisition_box, acquisition_next_due).
+- **acquisition_service.py**: Leitner 3-box (4h→1d→3d). `start_acquisition()`, `submit_acquisition_review()` (box advance/reset/graduation), `_graduate()` (creates FSRS card with initial Good review).
+- **introduce_word() reform**: Now calls `start_acquisition()` instead of creating FSRS card directly. Handles encountered→acquiring transition.
+- **sentence_review_service.py**: Routes acquiring words to `submit_acquisition_review()`. Skips encountered words. Post-review leech check.
+- **sentence_selector.py**: Includes acquisition-due words with pseudo-stability (box 1→0.1, box 2→0.5, box 3→2.0). Focus cohort filtering. Within-session repetition for acquisition words.
+- **Wrap-up quiz**: `POST /api/review/wrap-up` returns word-level recall cards for acquiring words.
+- **Next-session recap**: `POST /api/review/recap` returns sentence-level cards for last session's acquiring words.
+- **Thematic domains**: `backfill_themes.py` tags lemmas with 20 thematic categories via LLM.
+- **Etymology enrichment**: `backfill_etymology.py` generates structured etymology (root meaning, pattern, derivation, loanwords, cultural notes) via LLM. Tested: output quality is excellent (verified with 8 representative words).
+
+#### Phase 3: Focus Cohort
+- **cohort_service.py**: MAX_COHORT_SIZE=40. Acquiring words always included, remaining filled by lowest-stability FSRS due words.
+- Integrated into `build_session()` — due_lemma_ids filtered through cohort.
+
+#### Phase 4: Leech Auto-Management
+- **leech_service.py**: Detection (times_seen≥8, accuracy<40%), batch suspend, 14-day reintroduction to acquisition box 1, post-review single-word check.
+- Root-sibling interference guard in `word_selector.py`.
+
+### Test Coverage
+- 620 backend tests (up from 564), all passing
+- New test files: test_acquisition.py (24 tests), test_cohort.py, test_leech_service.py (22 tests)
+- Updated: test_ocr.py, test_word_selector.py (assertions updated for new behavior)
+
+### Hypotheses
+
+- **H13** (confirmed by design): OCR imports no longer inflate FSRS stability — `reset_ocr_cards.py` ready to fix existing data
+- **H14**: Leitner 3-box acquisition (5+ reviews, 60%+ accuracy before FSRS) will produce higher day-7 retention than direct FSRS scheduling for new words
+- **H15**: Focus cohort of 40 words will produce ~2.5 reviews/word/day instead of once/6-days
+- **H16**: Within-session repetition will improve next-day recall by >20%
+- **H17**: Wrap-up quiz (immediate word-level recall) + next-session recap (delayed sentence-level recall) will strengthen acquisition encoding
+- **H18**: Etymology display (root meaning + pattern formula + loanwords) provides memory hooks that reduce time-to-graduation
+
+### Not Yet Implemented
+- Frontend changes (acquiring state display, wrap-up UI, recap UI, cohort indicator, etymology display)
+- Thematic sentence generation (grouping target words by theme for batch generation)
+- py-fsrs v6 upgrade (same-day review support)
+- A/B testing framework
+
+### How to Verify (after deploy)
+1. Run `reset_ocr_cards.py --dry-run` to preview OCR data fix
+2. Run `reset_ocr_cards.py` to apply fix, check session accuracy improvement
+3. Introduce a word via Learn mode → verify it enters acquisition box 1 (not FSRS)
+4. Review acquiring word → verify box advancement (rating≥3) or reset (rating=1)
+5. Check focus cohort: `GET /api/review/next-sentences` should only return words in cohort
+6. Monitor genuinely known words growing week over week (north star metric)

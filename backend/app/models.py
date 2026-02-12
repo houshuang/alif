@@ -39,6 +39,8 @@ class Lemma(Base):
     example_en = Column(Text, nullable=True)
     canonical_lemma_id = Column(Integer, ForeignKey("lemmas.lemma_id"), nullable=True)
     source_story_id = Column(Integer, ForeignKey("stories.id"), nullable=True)
+    thematic_domain = Column(String(30), nullable=True)
+    etymology_json = Column(JSON, nullable=True)
 
     root = relationship("Root", back_populates="lemmas")
     canonical_lemma = relationship("Lemma", remote_side="Lemma.lemma_id", foreign_keys=[canonical_lemma_id])
@@ -53,7 +55,7 @@ class UserLemmaKnowledge(Base):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     lemma_id = Column(Integer, ForeignKey("lemmas.lemma_id"), unique=True, nullable=False)
-    knowledge_state = Column(String(20), default="new", index=True)  # new/learning/known/lapsed
+    knowledge_state = Column(String(20), default="new", index=True)  # new/encountered/acquiring/learning/known/lapsed/suspended
     fsrs_card_json = Column(JSON)
     last_reviewed = Column(DateTime)
     introduced_at = Column(DateTime, nullable=True)
@@ -61,8 +63,15 @@ class UserLemmaKnowledge(Base):
     times_correct = Column(Integer, default=0)
     total_encounters = Column(Integer, default=0)
     distinct_contexts = Column(Integer, default=0)
-    source = Column(String(20), default="study")  # study/import/encountered
+    source = Column(String(20), default="study")  # study/import/encountered/textbook_scan
     variant_stats_json = Column(JSON, nullable=True)
+
+    # Acquisition (Leitner 3-box) fields
+    acquisition_box = Column(Integer, nullable=True)  # 1/2/3, NULL = not acquiring
+    acquisition_next_due = Column(DateTime, nullable=True)
+    acquisition_started_at = Column(DateTime, nullable=True)
+    graduated_at = Column(DateTime, nullable=True)
+    leech_suspended_at = Column(DateTime, nullable=True)
 
     lemma = relationship("Lemma", back_populates="knowledge")
 
@@ -83,6 +92,7 @@ class ReviewLog(Base):
     sentence_id = Column(Integer, ForeignKey("sentences.id"), nullable=True)
     credit_type = Column(String(20), nullable=True)  # primary/collateral
     client_review_id = Column(String(50), nullable=True, unique=True)
+    is_acquisition = Column(Boolean, default=False, server_default="0")
 
     lemma = relationship("Lemma", back_populates="reviews")
 

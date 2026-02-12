@@ -215,12 +215,11 @@ def build_session(
     cutoff_grammar_confused = now - timedelta(days=1)
     cutoff_no_idea = now - timedelta(hours=4)
 
-    # 1. Fetch all due words (exclude suspended)
+    # 1. Fetch all due words (exclude suspended and encountered)
     all_knowledge = (
         db.query(UserLemmaKnowledge)
         .filter(
-            UserLemmaKnowledge.fsrs_card_json.isnot(None),
-            UserLemmaKnowledge.knowledge_state != "suspended",
+            UserLemmaKnowledge.knowledge_state.notin_(["suspended", "encountered"]),
         )
         .all()
     )
@@ -230,11 +229,26 @@ def build_session(
     knowledge_by_id: dict[int, UserLemmaKnowledge] = {}
 
     for k in all_knowledge:
-        stability_map[k.lemma_id] = _get_stability(k)
         knowledge_by_id[k.lemma_id] = k
-        due_dt = _get_due_dt(k)
-        if due_dt and due_dt <= now:
-            due_lemma_ids.add(k.lemma_id)
+
+        if k.knowledge_state == "acquiring":
+            # Acquisition words use box-based pseudo-stability for difficulty matching
+            box = k.acquisition_box or 1
+            pseudo_stability = {1: 0.1, 2: 0.5, 3: 2.0}.get(box, 0.1)
+            stability_map[k.lemma_id] = pseudo_stability
+            # Check if acquisition review is due
+            if k.acquisition_next_due and k.acquisition_next_due <= now:
+                due_lemma_ids.add(k.lemma_id)
+        elif k.fsrs_card_json:
+            stability_map[k.lemma_id] = _get_stability(k)
+            due_dt = _get_due_dt(k)
+            if due_dt and due_dt <= now:
+                due_lemma_ids.add(k.lemma_id)
+
+    # Filter through focus cohort — only review words in the active cohort
+    from app.services.cohort_service import get_focus_cohort
+    cohort = get_focus_cohort(db)
+    due_lemma_ids &= cohort
 
     # Identify struggling words: seen 3+ times, never correct
     struggling_ids: set[int] = set()
@@ -521,6 +535,32 @@ def build_session(
     covered_ids: set[int] = set()
     for c in selected:
         covered_ids |= c.due_words_covered
+
+    # 3b. Within-session repetition for acquisition words
+    # Find acquisition words that appear only once, add extra sentences for them
+    acquiring_word_counts: dict[int, int] = {}
+    for c in selected:
+        for w in c.words_meta:
+            if w.lemma_id and w.lemma_id in due_lemma_ids:
+                k = knowledge_by_id.get(w.lemma_id)
+                if k and k.knowledge_state == "acquiring":
+                    acquiring_word_counts[w.lemma_id] = acquiring_word_counts.get(w.lemma_id, 0) + 1
+
+    # For acquisition words appearing only once, find additional sentences
+    selected_ids = {c.sentence_id for c in selected}
+    for acq_lid, count in acquiring_word_counts.items():
+        if count >= 2 or len(selected) >= limit:
+            break
+        # Find another sentence for this word
+        extra = None
+        for c in candidates:
+            if c.sentence_id not in selected_ids and acq_lid in {w.lemma_id for w in c.words_meta}:
+                extra = c
+                break
+        if extra:
+            selected.append(extra)
+            selected_ids.add(extra.sentence_id)
+            candidates.remove(extra)
 
     # 4. Order: easy bookends, hard in middle
     ordered = _order_session(selected, stability_map)

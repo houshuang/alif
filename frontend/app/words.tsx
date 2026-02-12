@@ -16,7 +16,7 @@ import { getWords, getFunctionWords, getProperNames, getNextWords, ProperName } 
 import { Word, LearnCandidate } from "../lib/types";
 
 type CategoryTab = "vocab" | "function" | "names";
-type SmartFilter = "all" | "leeches" | "struggling" | "recent" | "solid" | "next_up" | "learning" | "known" | "new" | "lapsed";
+type SmartFilter = "all" | "leeches" | "struggling" | "recent" | "solid" | "next_up" | "learning" | "known" | "new" | "lapsed" | "acquiring" | "encountered";
 
 function isLeech(w: Word): boolean {
   return w.times_seen >= 6 && w.times_correct / w.times_seen < 0.5;
@@ -39,6 +39,7 @@ function isSolid(w: Word): boolean {
 
 const SMART_FILTERS: { key: SmartFilter; label: string }[] = [
   { key: "all", label: "All" },
+  { key: "acquiring", label: "Acquiring" },
   { key: "leeches", label: "Leeches" },
   { key: "struggling", label: "Struggling" },
   { key: "recent", label: "Recent" },
@@ -48,16 +49,19 @@ const SMART_FILTERS: { key: SmartFilter; label: string }[] = [
   { key: "known", label: "Known" },
   { key: "new", label: "New" },
   { key: "lapsed", label: "Lapsed" },
+  { key: "encountered", label: "Encountered" },
 ];
 
 function stateColor(state: Word["state"]): string {
-  return {
+  return ({
     new: colors.textSecondary,
     learning: colors.stateLearning,
     known: colors.stateKnown,
     lapsed: colors.missed,
     suspended: colors.textSecondary,
-  }[state];
+    acquiring: colors.stateAcquiring,
+    encountered: colors.stateEncountered,
+  } as Record<string, string>)[state] ?? colors.textSecondary;
 }
 
 export default function WordsScreen() {

@@ -101,6 +101,8 @@ class StatsOut(BaseModel):
     reviews_today: int
     total_reviews: int = 0
     lapsed: int = 0
+    acquiring: int = 0
+    encountered: int = 0
 
 
 class DailyStatsPoint(BaseModel):
@@ -334,6 +336,35 @@ class BulkSyncItemResult(BaseModel):
 
 class BulkSyncOut(BaseModel):
     results: list[BulkSyncItemResult]
+
+
+# --- Wrap-up and Recap schemas ---
+
+class WrapUpIn(BaseModel):
+    seen_lemma_ids: list[int]
+    session_id: str | None = None
+
+
+class WrapUpCardOut(BaseModel):
+    lemma_id: int
+    lemma_ar: str
+    lemma_ar_bare: str
+    gloss_en: str | None = None
+    transliteration: str | None = None
+    pos: str | None = None
+    forms_json: dict | list | None = None
+    root: str | None = None
+    root_meaning: str | None = None
+    etymology_json: dict | None = None
+    is_acquiring: bool = False
+
+
+class WrapUpOut(BaseModel):
+    cards: list[WrapUpCardOut]
+
+
+class RecapIn(BaseModel):
+    last_session_lemma_ids: list[int]
 
 
 # --- Story schemas ---

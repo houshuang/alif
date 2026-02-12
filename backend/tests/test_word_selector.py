@@ -208,7 +208,7 @@ class TestIntroduceWord:
         db_session.commit()
 
         result = introduce_word(db_session, lemma.lemma_id)
-        assert result["state"] == "learning"
+        assert result["state"] == "acquiring"
         assert result["already_known"] is False
         assert result["lemma_ar"] == "كتاب"
 
@@ -218,7 +218,8 @@ class TestIntroduceWord:
             .first()
         )
         assert knowledge is not None
-        assert knowledge.knowledge_state == "learning"
+        assert knowledge.knowledge_state == "acquiring"
+        assert knowledge.acquisition_box == 1
         assert knowledge.introduced_at is not None
 
     def test_already_known(self, db_session):
@@ -368,7 +369,7 @@ class TestLearnAPI:
         )
         assert resp.status_code == 200
         data = resp.json()
-        assert data["state"] == "learning"
+        assert data["state"] == "acquiring"
         assert data["already_known"] is False
 
     def test_introduce_batch_endpoint(self, client, db_session):
