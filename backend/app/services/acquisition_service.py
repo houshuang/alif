@@ -34,12 +34,16 @@ def start_acquisition(
     db: Session,
     lemma_id: int,
     source: str = "study",
+    due_immediately: bool = False,
 ) -> UserLemmaKnowledge:
     """Start the acquisition process for a word.
 
     Creates or transitions ULK to acquiring state with box 1.
+    If due_immediately=True, word is due right now (for auto-intro in current session).
+    Otherwise, first review is due after BOX_INTERVALS[1] (4 hours).
     """
     now = datetime.now(timezone.utc)
+    next_due = now if due_immediately else now + BOX_INTERVALS[1]
 
     ulk = (
         db.query(UserLemmaKnowledge)
@@ -51,7 +55,7 @@ def start_acquisition(
         # Transition existing record (e.g. from "encountered")
         ulk.knowledge_state = "acquiring"
         ulk.acquisition_box = 1
-        ulk.acquisition_next_due = now + BOX_INTERVALS[1]
+        ulk.acquisition_next_due = next_due
         ulk.acquisition_started_at = now
         ulk.introduced_at = now
         ulk.source = source
@@ -61,7 +65,7 @@ def start_acquisition(
             lemma_id=lemma_id,
             knowledge_state="acquiring",
             acquisition_box=1,
-            acquisition_next_due=now + BOX_INTERVALS[1],
+            acquisition_next_due=next_due,
             acquisition_started_at=now,
             introduced_at=now,
             source=source,

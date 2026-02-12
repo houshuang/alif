@@ -325,10 +325,13 @@ def select_next_words(
     return scored[:count]
 
 
-def introduce_word(db: Session, lemma_id: int, source: str = "study") -> dict:
+def introduce_word(
+    db: Session, lemma_id: int, source: str = "study", due_immediately: bool = False,
+) -> dict:
     """Mark a word as introduced, starting acquisition (Leitner 3-box).
 
     Source values: study (Learn mode), auto_intro (inline review), collocate.
+    If due_immediately=True, word is due right now (for auto-intro in current session).
     Returns the created knowledge record as dict.
     """
     from app.services.acquisition_service import start_acquisition
@@ -353,7 +356,7 @@ def introduce_word(db: Session, lemma_id: int, source: str = "study") -> dict:
             }
         if existing.knowledge_state == "encountered":
             # Transition encountered → acquiring
-            ulk = start_acquisition(db, lemma_id, source=source)
+            ulk = start_acquisition(db, lemma_id, source=source, due_immediately=due_immediately)
             db.commit()
             root_family = []
             if lemma.root_id:
@@ -376,7 +379,7 @@ def introduce_word(db: Session, lemma_id: int, source: str = "study") -> dict:
         }
 
     # New word — start acquisition
-    ulk = start_acquisition(db, lemma_id, source=source)
+    ulk = start_acquisition(db, lemma_id, source=source, due_immediately=due_immediately)
     db.commit()
 
     root_family = []

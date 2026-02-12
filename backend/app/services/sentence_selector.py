@@ -250,7 +250,7 @@ def _auto_introduce_words(
     for cand in candidates[:slots]:
         lid = cand["lemma_id"]
         try:
-            result = introduce_word(db, lid, source="auto_intro")
+            result = introduce_word(db, lid, source="auto_intro", due_immediately=True)
             if result.get("already_known"):
                 continue
             introduced_ids.append(lid)
