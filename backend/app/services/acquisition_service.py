@@ -161,13 +161,21 @@ def submit_acquisition_review(
             ulk.acquisition_box = new_box
             ulk.acquisition_next_due = now + BOX_INTERVALS[new_box]
     elif rating_int == 2:
-        # Hard: stay in same box, reset interval
+        # Hard: stay in same box, but use shorter interval if never correct
+        if (ulk.times_correct or 0) == 0:
+            # Never gotten it right — show again soon (10 minutes)
+            ulk.acquisition_next_due = now + timedelta(minutes=10)
+        else:
+            ulk.acquisition_next_due = now + BOX_INTERVALS[old_box]
         ulk.acquisition_box = old_box
-        ulk.acquisition_next_due = now + BOX_INTERVALS[old_box]
     else:
-        # Again: reset to box 1
+        # Again: reset to box 1 with short interval
         ulk.acquisition_box = 1
-        ulk.acquisition_next_due = now + BOX_INTERVALS[1]
+        if (ulk.times_correct or 0) == 0:
+            # Never gotten it right — show again very soon (5 minutes)
+            ulk.acquisition_next_due = now + timedelta(minutes=5)
+        else:
+            ulk.acquisition_next_due = now + BOX_INTERVALS[1]
 
     # Check graduation regardless of this review's rating
     # A word in box 3 with strong cumulative stats should graduate even after a weaker review
