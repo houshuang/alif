@@ -205,17 +205,19 @@ def generate_validated_sentence(
     content_word_counts: dict[int, int] | None = None,
     target_lemma_id: int | None = None,
     lemma_lookup: dict[str, int] | None = None,
+    validation_words: list[dict[str, str]] | None = None,
 ) -> GeneratedSentence:
     """Generate and validate a sentence with retry loop.
 
     Args:
         target_arabic: Arabic word with diacritics (e.g. "كِتَاب").
         target_translation: English translation.
-        known_words: Full list of user's known words as
-                     [{"arabic": "...", "english": "..."}].
+        known_words: Words shown to GPT as allowed vocabulary.
         difficulty_hint: Difficulty level for prompt.
         content_word_counts: Per-lemma sentence counts for diversity weighting.
         target_lemma_id: Lemma ID of the target word (excluded from sampling).
+        validation_words: Broader set of acceptable words for validation
+                         (e.g. includes encountered). If None, uses known_words.
 
     Returns:
         GeneratedSentence with validated sentence data.
@@ -238,7 +240,9 @@ def generate_validated_sentence(
         avoid_words = None
 
     # Build the known bare forms set for validation
-    known_bare = {strip_diacritics(w["arabic"]) for w in known_words}
+    # Use validation_words (broader, includes encountered) if provided
+    validate_from = validation_words if validation_words is not None else known_words
+    known_bare = {strip_diacritics(w["arabic"]) for w in validate_from}
 
     target_bare = strip_diacritics(target_arabic)
 
@@ -390,18 +394,21 @@ def generate_validated_sentences_multi_target(
     max_words: int | None = None,
     content_word_counts: dict[int, int] | None = None,
     avoid_words: list[str] | None = None,
+    validation_words: list[dict[str, str]] | None = None,
 ) -> list[MultiTargetGeneratedSentence]:
     """Generate and validate sentences targeting multiple words.
 
     Args:
         target_words: List of dicts with lemma_id, lemma_ar, gloss_en.
-        known_words: Full known vocabulary for prompt + validation.
+        known_words: Words shown to GPT as allowed vocabulary.
         existing_sentence_counts: {lemma_id: count} to determine primary target.
         count: Number of sentences to generate.
         difficulty_hint: Difficulty level.
         max_words: Max word count per sentence.
         content_word_counts: For diversity weighting.
         avoid_words: Words to avoid.
+        validation_words: Broader set for validation (e.g. includes encountered).
+                         If None, uses known_words.
 
     Returns:
         List of validated MultiTargetGeneratedSentence objects.
@@ -412,7 +419,8 @@ def generate_validated_sentences_multi_target(
         bare = strip_diacritics(tw["lemma_ar"])
         target_bares[bare] = tw["lemma_id"]
 
-    known_bare = {strip_diacritics(w["arabic"]) for w in known_words}
+    validate_from = validation_words if validation_words is not None else known_words
+    known_bare = {strip_diacritics(w["arabic"]) for w in validate_from}
     # Include target bares in known set for validation
     all_bare = known_bare | set(target_bares.keys())
 

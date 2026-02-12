@@ -24,15 +24,27 @@ def generate_material_for_word(lemma_id: int, needed: int = 2) -> None:
         if not lemma:
             return
 
+        # GPT prompt words: known/learning/lapsed/acquiring (active vocabulary)
+        # Validation words: also include encountered (passive vocabulary)
+        active_lemmas = (
+            db.query(Lemma)
+            .join(UserLemmaKnowledge)
+            .filter(UserLemmaKnowledge.knowledge_state.in_(
+                ["known", "learning", "lapsed", "acquiring"]
+            ))
+            .all()
+        )
         all_lemmas = (
             db.query(Lemma)
             .join(UserLemmaKnowledge)
-            .filter(UserLemmaKnowledge.fsrs_card_json.isnot(None))
+            .filter(UserLemmaKnowledge.knowledge_state.in_(
+                ["known", "learning", "lapsed", "acquiring", "encountered"]
+            ))
             .all()
         )
         known_words = [
             {"arabic": lem.lemma_ar, "english": lem.gloss_en or "", "lemma_id": lem.lemma_id}
-            for lem in all_lemmas
+            for lem in active_lemmas
         ]
 
         from app.services.llm import generate_sentences_batch, AllProvidersFailed

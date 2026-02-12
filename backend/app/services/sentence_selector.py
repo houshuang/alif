@@ -929,27 +929,38 @@ def _generate_on_demand(
     cap = min(max_items, MAX_ON_DEMAND_PER_SESSION)
     items: list[dict] = []
 
-    # Build known words list from current ULK (only genuinely known/learning/acquiring)
-    known_ulks = (
+    # Build known words list from current ULK
+    # Active words (prompt for GPT): known/learning/lapsed/acquiring
+    # Encountered words: included in validator so GPT isn't rejected for using them,
+    # but NOT in the GPT prompt (avoids overwhelming the learner).
+    # The comprehensibility gate (≥70% known content) already limits difficulty.
+    all_ulks = (
         db.query(UserLemmaKnowledge)
         .filter(UserLemmaKnowledge.knowledge_state.in_(
-            ["known", "learning", "lapsed", "acquiring"]
+            ["known", "learning", "lapsed", "acquiring", "encountered"]
         ))
         .all()
     )
+    known_ulks = [u for u in all_ulks if u.knowledge_state != "encountered"]
+    all_lemma_ids = {k.lemma_id for k in all_ulks}
     known_lemma_ids = {k.lemma_id for k in known_ulks}
-    known_lemmas = (
+    all_lemmas = (
         db.query(Lemma)
-        .filter(Lemma.lemma_id.in_(known_lemma_ids))
+        .filter(Lemma.lemma_id.in_(all_lemma_ids))
         .all()
-    ) if known_lemma_ids else []
+    ) if all_lemma_ids else []
 
+    # GPT prompt gets only active words; validator gets all (including encountered)
     known_words = [
         {"arabic": lem.lemma_ar, "english": lem.gloss_en or "", "lemma_id": lem.lemma_id}
-        for lem in known_lemmas
+        for lem in all_lemmas if lem.lemma_id in known_lemma_ids
     ]
-    lemma_lookup = build_lemma_lookup(known_lemmas) if known_lemmas else {}
-    lemma_map = {lem.lemma_id: lem for lem in known_lemmas}
+    all_words_for_validation = [
+        {"arabic": lem.lemma_ar, "english": lem.gloss_en or "", "lemma_id": lem.lemma_id}
+        for lem in all_lemmas
+    ]
+    lemma_lookup = build_lemma_lookup(all_lemmas) if all_lemmas else {}
+    lemma_map = {lem.lemma_id: lem for lem in all_lemmas}
 
     # Also load target lemmas that may not be in known set
     target_lemmas = (
@@ -991,6 +1002,7 @@ def _generate_on_demand(
                 count=len(group),
                 difficulty_hint="beginner",
                 max_words=12,
+                validation_words=all_words_for_validation,
             )
         except Exception as e:
             logger.warning(f"Multi-target generation failed: {e}")
@@ -1004,6 +1016,7 @@ def _generate_on_demand(
                 known_words=known_words,
                 difficulty_hint="beginner",
                 max_words=10,
+                validation_words=all_words_for_validation,
             )
         except GenerationError:
             logger.warning(f"On-demand generation failed for lemma {lid}")
