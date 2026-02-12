@@ -282,9 +282,10 @@ def generate_sentence(
         f"- {w['arabic']} ({w['english']})" for w in known_words
     )
 
-    word_count_range = "5-12"
+    word_count_range = "6-12"
     if max_words:
-        word_count_range = f"3-{max_words}"
+        min_words = max(5, max_words - 3)
+        word_count_range = f"{min_words}-{max_words}"
 
     length_instruction = f"The sentence should be natural and meaningful, {word_count_range} words long."
 
@@ -358,7 +359,11 @@ def generate_sentences_batch(
             f"Do NOT use these words. Use ONLY words from the VOCABULARY list above."
         )
 
-    word_range = f"4-{max_words}" if max_words else "5-10"
+    if max_words:
+        min_words = max(5, max_words - 3)
+        word_range = f"{min_words}-{max_words}"
+    else:
+        word_range = "6-10"
     prompt = f"""Create {count} different natural MSA sentences for a {difficulty_hint} Arabic learner.
 
 TARGET WORD (must appear in every sentence):
