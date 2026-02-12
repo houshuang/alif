@@ -471,6 +471,46 @@ def step_pregenerate_candidates(db: Session, dry_run: bool, count: int, model: s
 
 # ── Main ─────────────────────────────────────────────────────────────
 
+def step_backfill_samer(db: Session, dry_run: bool) -> int:
+    """Fill cefr_level from SAMER lexicon for any lemmas missing it."""
+    samer_path = Path(__file__).resolve().parent.parent / "data" / "samer.tsv"
+    if not samer_path.exists():
+        return 0
+
+    missing = db.query(Lemma).filter(
+        Lemma.cefr_level.is_(None),
+        Lemma.canonical_lemma_id.is_(None),
+    ).all()
+    if not missing:
+        return 0
+
+    print(f"\n═══ Step D: SAMER readability backfill ═══")
+    from scripts.backfill_samer import load_samer, lookup_samer, SAMER_TO_CEFR
+    samer = load_samer(str(samer_path))
+
+    import re
+    diac_re = re.compile(r'[\u0610-\u061A\u064B-\u065F\u0670\u06D6-\u06DC\u06DF-\u06E4\u06E7\u06E8\u06EA-\u06ED]')
+    def normalize(t):
+        t = diac_re.sub('', t).replace('\u0640', '')
+        return re.sub(r'[أإآٱ]', 'ا', t)
+
+    updated = 0
+    for lemma in missing:
+        bare = lemma.lemma_ar_bare
+        if not bare:
+            continue
+        level = lookup_samer(samer, normalize(bare))
+        if level is not None:
+            if not dry_run:
+                lemma.cefr_level = SAMER_TO_CEFR[level]
+            updated += 1
+
+    if not dry_run and updated > 0:
+        db.commit()
+    print(f"  Filled cefr_level for {updated}/{len(missing)} lemmas")
+    return updated
+
+
 async def main():
     parser = argparse.ArgumentParser(description="Unified material update workflow")
     parser.add_argument("--dry-run", action="store_true", help="Preview without changes")
@@ -499,12 +539,15 @@ async def main():
 
         sent_c = step_pregenerate_candidates(db, args.dry_run, args.candidates, args.model, args.delay)
 
+        samer_d = step_backfill_samer(db, args.dry_run)
+
         elapsed = time.time() - start
         print(f"\n{'─' * 60}")
         print(f"Done in {elapsed:.1f}s")
         print(f"  Step A sentences: {sent_a}")
         print(f"  Step B audio:     {audio_b}")
         print(f"  Step C sentences: {sent_c}")
+        print(f"  Step D SAMER:     {samer_d}")
 
         if not args.dry_run and (sent_a + audio_b + sent_c > 0):
             log_activity(
@@ -515,6 +558,7 @@ async def main():
                     "step_a_sentences": sent_a,
                     "step_b_audio": audio_b,
                     "step_c_sentences": sent_c,
+                    "step_d_samer": samer_d,
                     "elapsed_seconds": round(elapsed, 1),
                 },
             )
