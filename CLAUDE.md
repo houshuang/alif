@@ -43,11 +43,15 @@ See `docs/review-modes.md` for full UX flows.
 ## Design Principles
 - **Word introduction is user-driven only** — Learn mode only. No auto-introduction during review sessions, sentence generation, or story completion. OCR/story import creates "encountered" state (no FSRS card), not introduced.
 - **No concept of "due"** — the app picks the most relevant cards for the next session. Don't use "due" in UI text or stats. Use "ready for review" or similar.
+- **No bare word cards in review** — review sessions ONLY show sentences. If a due word has no comprehensible sentence, generate one on-demand or skip the word. Never show a word-only fallback card.
+- **Comprehensibility gate** — sentences must have ≥70% known content words (excluding function words) to be shown in review. Incomprehensible sentences are skipped.
+- **On-demand sentence generation** — when a due word has no comprehensible sentence, generate 1-2 synchronously during session building (max 3/session). Uses current vocabulary, not stale pre-generated pool.
 - **Tapped words are always marked missed** — front-phase tapping auto-marks as missed (rating≤2). Never give rating 3 to a word the user looked up.
 - **al-prefix is NOT a separate lemma** — الكلب and كلب are the same lemma. All import paths must dedup al-prefix forms. Distinct lemmas only for genuinely different words (e.g. الآن "now" vs آن "time").
 - **Be conservative with ElevenLabs TTS** — costs real money. Only generate audio for sentences that will actually be shown (due-date priority). Don't blanket-generate for all sentences.
 - **Sentence pipeline cap**: MAX 200 active sentences, MIN_SENTENCES=2 per word. Generation prioritized by FSRS due date via `update_material.py`.
 - **All import paths must run variant detection** — Duolingo, Wiktionary, AVP, OCR, story import all run `detect_variants_llm()` + `detect_definite_variants()` post-import.
+- **All import paths must run quality gate** — `import_quality.filter_useful_lemmas()` filters out junk (transliterations, abbreviations, letter names) before importing. Integrated in OCR pipeline.
 
 ## Critical Rules for All Agents
 
@@ -123,7 +127,7 @@ This app is an ongoing learning experiment. Every algorithm change, data structu
 
 ### Backend Services
 - `fsrs_service.py` — FSRS spaced repetition. Auto-creates ULK + Card for unknown lemmas. Snapshots pre-review state in fsrs_log_json for undo.
-- `sentence_selector.py` — Session assembly: greedy set cover, comprehension-aware recency (7d/2d/4h), difficulty matching, easy-bookend ordering. Focus cohort filtering (MAX_COHORT_SIZE=40). Acquisition-due words included with pseudo-stability mapping.
+- `sentence_selector.py` — Session assembly: greedy set cover, comprehension-aware recency (7d/2d/4h), difficulty matching, easy-bookend ordering. Focus cohort filtering (MAX_COHORT_SIZE=40). Acquisition-due words with pseudo-stability mapping. Comprehensibility gate (≥70% known content words). On-demand sentence generation for uncovered words (MAX_ON_DEMAND=3). No word-only fallbacks.
 - `sentence_review_service.py` — Reviews ALL words equally. Routes acquiring→acquisition, skips encountered. credit_type is metadata only. Post-review leech check for words rated ≤2. Undo restores pre-review state from snapshots.
 - `word_selector.py` — Next-word algorithm: 40% freq + 30% root + 20% recency + 10% grammar + encountered/story bonus. Root-sibling interference guard. Excludes wiktionary refs and variant lemmas. introduce_word() calls start_acquisition().
 - `sentence_generator.py` — LLM generation with 3-attempt retry loop, diversity weighting, full diacritics. Feeds validation failures back as retry feedback.
@@ -145,13 +149,14 @@ This app is an ongoing learning experiment. Every algorithm change, data structu
 - `acquisition_service.py` — Leitner 3-box (4h→1d→3d). Graduation: box 3 + rating≥3 + times_seen≥5 + accuracy≥60%.
 - `cohort_service.py` — Focus cohort: MAX_COHORT_SIZE=40. Acquiring words always included, rest filled by lowest-stability due words.
 - `leech_service.py` — Auto-manage failing words. Detection: times_seen≥8 AND accuracy<40%. 14-day reintro to acquisition box 1.
+- `import_quality.py` — LLM batch filter for word imports. Rejects transliterations, abbreviations, letter names, partial words. Used by OCR pipeline.
 
 All services in `backend/app/services/`.
 
 ### Backend Other
 - `backend/app/models.py` — SQLAlchemy models (see Data Model below)
 - `backend/app/schemas.py` — Pydantic request/response models
-- `backend/scripts/` — Import, backfill, cleanup, analysis scripts. See `docs/scripts-catalog.md`. Most-used: update_material.py (cron), import_duolingo.py, retire_sentences.py, normalize_and_dedup.py, log_activity.py (CLI), reset_ocr_cards.py (OCR→encountered), backfill_etymology.py (LLM etymology), backfill_themes.py (thematic domains)
+- `backend/scripts/` — Import, backfill, cleanup, analysis scripts. See `docs/scripts-catalog.md`. Most-used: update_material.py (cron), import_duolingo.py, retire_sentences.py, normalize_and_dedup.py, log_activity.py (CLI), reset_ocr_cards.py (OCR→encountered), backfill_etymology.py (LLM etymology), backfill_themes.py (thematic domains), cleanup_review_pool.py (reset under-learned→acquiring, suspend junk, retire bad sentences)
 
 ### Frontend
 - `app/index.tsx` — Review screen: sentence-first + word-only fallback, reading + listening, word lookup, word marking, back/undo, wrap-up mini-quiz (acquiring + missed words), next-session recap, session word tracking, story source badges on intro cards

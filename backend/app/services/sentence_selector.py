@@ -236,9 +236,13 @@ def build_session(
             box = k.acquisition_box or 1
             pseudo_stability = {1: 0.1, 2: 0.5, 3: 2.0}.get(box, 0.1)
             stability_map[k.lemma_id] = pseudo_stability
-            # Check if acquisition review is due
-            if k.acquisition_next_due and k.acquisition_next_due <= now:
-                due_lemma_ids.add(k.lemma_id)
+            # Check if acquisition review is due (naive→aware conversion for SQLite)
+            if k.acquisition_next_due:
+                acq_due = k.acquisition_next_due
+                if acq_due.tzinfo is None:
+                    acq_due = acq_due.replace(tzinfo=timezone.utc)
+                if acq_due <= now:
+                    due_lemma_ids.add(k.lemma_id)
         elif k.fsrs_card_json:
             stability_map[k.lemma_id] = _get_stability(k)
             due_dt = _get_due_dt(k)
@@ -455,6 +459,15 @@ def build_session(
         if not due_covered:
             continue
 
+        # Comprehensibility gate: skip sentences where <70% of content words are known
+        total_content = sum(1 for w in word_metas if not w.is_function_word and w.lemma_id)
+        known_content = sum(
+            1 for w in word_metas if not w.is_function_word and w.lemma_id
+            and w.knowledge_state in ("known", "learning", "lapsed", "acquiring")
+        )
+        if total_content > 0 and known_content / total_content < 0.7:
+            continue
+
         # Listening mode: skip if any non-function, non-due word isn't listening-ready
         if mode == "listening":
             scaffold_ids = [w.lemma_id for w in word_metas
@@ -549,8 +562,10 @@ def build_session(
     # For acquisition words appearing only once, find additional sentences
     selected_ids = {c.sentence_id for c in selected}
     for acq_lid, count in acquiring_word_counts.items():
-        if count >= 2 or len(selected) >= limit:
+        if len(selected) >= limit:
             break
+        if count >= 2:
+            continue
         # Find another sentence for this word
         extra = None
         for c in candidates:
@@ -712,6 +727,168 @@ def _build_reintro_cards(
     return cards
 
 
+MAX_ON_DEMAND_PER_SESSION = 3
+
+
+def _generate_on_demand(
+    db: Session,
+    uncovered_ids: set[int],
+    stability_map: dict[int, float],
+    max_items: int,
+) -> list[dict]:
+    """Generate sentences on-demand for due words with no comprehensible sentences.
+
+    Calls LLM synchronously (capped at MAX_ON_DEMAND_PER_SESSION) to avoid
+    showing word-only fallback cards.
+    """
+    import logging
+    from app.services.sentence_generator import generate_validated_sentence, GenerationError
+    from app.services.sentence_validator import (
+        build_lemma_lookup,
+        map_tokens_to_lemmas,
+        strip_diacritics,
+        tokenize,
+    )
+
+    logger = logging.getLogger(__name__)
+    cap = min(max_items, MAX_ON_DEMAND_PER_SESSION)
+    items: list[dict] = []
+
+    # Build known words list from current ULK (only genuinely known/learning/acquiring)
+    known_ulks = (
+        db.query(UserLemmaKnowledge)
+        .filter(UserLemmaKnowledge.knowledge_state.in_(
+            ["known", "learning", "lapsed", "acquiring"]
+        ))
+        .all()
+    )
+    known_lemma_ids = {k.lemma_id for k in known_ulks}
+    known_lemmas = (
+        db.query(Lemma)
+        .filter(Lemma.lemma_id.in_(known_lemma_ids))
+        .all()
+    ) if known_lemma_ids else []
+
+    known_words = [
+        {"arabic": lem.lemma_ar, "english": lem.gloss_en or "", "lemma_id": lem.lemma_id}
+        for lem in known_lemmas
+    ]
+    lemma_lookup = build_lemma_lookup(known_lemmas) if known_lemmas else {}
+    lemma_map = {lem.lemma_id: lem for lem in known_lemmas}
+
+    # Also load target lemmas that may not be in known set
+    target_lemmas = (
+        db.query(Lemma).options(joinedload(Lemma.root))
+        .filter(Lemma.lemma_id.in_(uncovered_ids))
+        .all()
+    )
+    target_map = {lem.lemma_id: lem for lem in target_lemmas}
+
+    generated_count = 0
+    for lid in list(uncovered_ids):
+        if generated_count >= cap:
+            break
+
+        lemma = target_map.get(lid)
+        if not lemma:
+            continue
+
+        try:
+            result = generate_validated_sentence(
+                target_arabic=lemma.lemma_ar,
+                target_translation=lemma.gloss_en or "",
+                known_words=known_words,
+                difficulty_hint="beginner",
+                max_words=10,
+            )
+        except GenerationError:
+            logger.warning(f"On-demand generation failed for lemma {lid}")
+            continue
+        except Exception:
+            logger.exception(f"Unexpected error in on-demand generation for lemma {lid}")
+            continue
+
+        # Store sentence in DB
+        sent = Sentence(
+            arabic_text=result.arabic,
+            arabic_diacritized=result.arabic,
+            english_translation=result.english,
+            transliteration=result.transliteration,
+            source="llm",
+            target_lemma_id=lid,
+        )
+        db.add(sent)
+        db.flush()
+
+        tokens = tokenize(result.arabic)
+        mappings = map_tokens_to_lemmas(
+            tokens=tokens,
+            lemma_lookup=lemma_lookup,
+            target_lemma_id=lid,
+            target_bare=strip_diacritics(lemma.lemma_ar),
+        )
+        word_dicts = []
+        for m in mappings:
+            sw = SentenceWord(
+                sentence_id=sent.id,
+                position=m.position,
+                surface_form=m.surface_form,
+                lemma_id=m.lemma_id,
+                is_target_word=m.is_target,
+            )
+            db.add(sw)
+
+            mapped_lemma = lemma_map.get(m.lemma_id) or target_map.get(m.lemma_id)
+            root_obj = mapped_lemma.root if mapped_lemma and hasattr(mapped_lemma, 'root') else None
+            bare = strip_diacritics(m.surface_form)
+
+            k_state = "new"
+            k_obj = None
+            if m.lemma_id:
+                for k in known_ulks:
+                    if k.lemma_id == m.lemma_id:
+                        k_state = k.knowledge_state or "new"
+                        k_obj = k
+                        break
+
+            word_dicts.append({
+                "lemma_id": m.lemma_id,
+                "surface_form": m.surface_form,
+                "gloss_en": mapped_lemma.gloss_en if mapped_lemma else None,
+                "stability": stability_map.get(m.lemma_id, 0.0) if m.lemma_id else None,
+                "is_due": m.lemma_id in uncovered_ids if m.lemma_id else False,
+                "is_function_word": bare in FUNCTION_WORDS,
+                "knowledge_state": k_state,
+                "root": root_obj.root if root_obj else None,
+                "root_meaning": root_obj.core_meaning_en if root_obj else None,
+                "root_id": root_obj.root_id if root_obj else None,
+                "frequency_rank": mapped_lemma.frequency_rank if mapped_lemma else None,
+                "cefr_level": mapped_lemma.cefr_level if mapped_lemma else None,
+                "grammar_tags": [],
+            })
+
+        root_obj = lemma.root
+        items.append({
+            "sentence_id": sent.id,
+            "arabic_text": sent.arabic_text,
+            "arabic_diacritized": sent.arabic_diacritized,
+            "english_translation": sent.english_translation or "",
+            "transliteration": sent.transliteration,
+            "audio_url": None,
+            "primary_lemma_id": lid,
+            "primary_lemma_ar": lemma.lemma_ar,
+            "primary_gloss_en": lemma.gloss_en or "",
+            "words": word_dicts,
+            "grammar_features": [],
+        })
+        generated_count += 1
+
+    if generated_count > 0:
+        db.flush()
+
+    return items
+
+
 def _with_fallbacks(
     db: Session,
     session_id: str,
@@ -723,47 +900,16 @@ def _with_fallbacks(
     covered_ids: set[int] | None = None,
     reintro_cards: list[dict] | None = None,
 ) -> dict:
-    """Add word-only fallback items for uncovered due words."""
+    """Generate on-demand sentences for uncovered due words."""
     if covered_ids is None:
         covered_ids = set()
 
     uncovered = due_lemma_ids - covered_ids
-    # Fetch knowledge states for uncovered words
-    k_states: dict[int, str] = {}
-    if uncovered:
-        for uk in db.query(UserLemmaKnowledge).filter(UserLemmaKnowledge.lemma_id.in_(uncovered)).all():
-            k_states[uk.lemma_id] = uk.knowledge_state or "new"
-
-    for lid in uncovered:
-        if len(items) >= limit:
-            break
-        lemma = db.query(Lemma).options(joinedload(Lemma.root)).filter(Lemma.lemma_id == lid).first()
-        if lemma is None:
-            continue
-        root_obj = lemma.root
-        items.append({
-            "sentence_id": None,
-            "arabic_text": lemma.lemma_ar,
-            "arabic_diacritized": lemma.lemma_ar,
-            "english_translation": lemma.gloss_en or "",
-            "transliteration": lemma.transliteration_ala_lc,
-            "primary_lemma_id": lid,
-            "primary_lemma_ar": lemma.lemma_ar,
-            "primary_gloss_en": lemma.gloss_en or "",
-            "words": [{
-                "lemma_id": lid,
-                "surface_form": lemma.lemma_ar,
-                "gloss_en": lemma.gloss_en,
-                "stability": stability_map.get(lid, 0.0),
-                "is_due": True,
-                "is_function_word": False,
-                "knowledge_state": k_states.get(lid, "new"),
-                "root": root_obj.root if root_obj else None,
-                "root_meaning": root_obj.core_meaning_en if root_obj else None,
-                "root_id": root_obj.root_id if root_obj else None,
-            }],
-        })
-        covered_ids.add(lid)
+    if uncovered and len(items) < limit:
+        generated_items = _generate_on_demand(db, uncovered, stability_map, limit - len(items))
+        items.extend(generated_items)
+        for item in generated_items:
+            covered_ids.add(item["primary_lemma_id"])
 
     intro_candidates = _get_intro_candidates(db, items)
 

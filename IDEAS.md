@@ -565,6 +565,16 @@ After importing ~100 textbook pages via OCR, 411 words entered the system with a
 - [DONE] `reset_ocr_cards.py`: Resets inflated FSRS cards from textbook_scan imports. 0 real reviews → reset to "encountered"; 1-2 with <50% accuracy → reset; 3+ → replay through FSRS. Supports --dry-run.
 - [DONE] OCR import now creates ULK with knowledge_state="encountered" (no FSRS card, no submit_review). Words become Learn mode candidates.
 - [DONE] Story completion creates "encountered" ULK for unknown words instead of FSRS cards.
+- [DONE] `cleanup_review_pool.py`: Broader reset — ALL words with times_correct < 3 moved back to acquiring. Suspends junk via LLM. Retires incomprehensible sentences (<50% known).
+
+#### Comprehensibility Gate & On-Demand Generation (2026-02-12)
+- [DONE] Comprehensibility gate in sentence_selector: skip sentences where <70% of content words are known/learning/acquiring. Prevents showing unreadable sentences.
+- [DONE] No word-only fallback cards: due words without sentences get on-demand generation or are skipped.
+- [DONE] On-demand sentence generation: MAX_ON_DEMAND_PER_SESSION=3 synchronous LLM calls during session building. Uses current vocabulary, not stale pool.
+- [DONE] Import quality gate: `import_quality.py` — LLM batch filter for junk words on import paths.
+- Adaptive comprehensibility threshold: start at 70%, increase to 80% as vocabulary grows. Early learners need more i+1, advanced need less scaffolding.
+- Sentence regeneration trigger: when cleanup retires many sentences, auto-regenerate for words below MIN_SENTENCES=2.
+- Pre-warm sentence cache: after cleanup, generate sentences for all active words in background (not during session building).
 
 #### A/B Testing Framework (Single-Subject)
 - Research says: n-of-1 trials need ~400 observations per condition, 4-5 crossover periods, linear regression with AR(1) covariance

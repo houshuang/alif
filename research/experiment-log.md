@@ -4,6 +4,36 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-02-12: Fix Broken Review Pipeline — Comprehensibility Gate + Data Cleanup
+
+**Problem**: After deploying the algorithm redesign, review sessions were broken:
+- 54% of words per sentence were unknown — sentences unreadable
+- Only 17% of active sentences >75% comprehensible
+- 34+ words in review pool had NEVER been rated ≥ 3 (never truly learned)
+- Junk words (سي "c", واي "wi") from OCR imports
+- Timezone bug crashing API when acquiring words exist
+- No comprehensibility gate in sentence selector
+- Word-only fallback cards shown instead of sentences
+
+**Root cause**: OCR reset only handled `textbook_scan` words. Duolingo words given FSRS cards on import without learning were left in pool. Sentences generated with inflated known-word pool.
+
+**Changes**:
+1. **Timezone fix**: `sentence_selector.py:240` — naive→aware datetime conversion for acquiring word due dates
+2. **Comprehensibility gate**: Skip sentences where <70% of content words are known/learning/acquiring. Added 25+ missing function words (إذا, لأن, مثل, غير, عندما, etc.)
+3. **Removed word-only fallback cards**: Due words without comprehensible sentences get skipped (or on-demand generated), never shown as bare word cards
+4. **On-demand sentence generation**: When a due word has no sentence, generates 1-2 synchronously using current vocabulary (max 3/session)
+5. **Within-session repetition fix**: `break` → `continue` bug fix — acquisition words now properly get 2+ sentences per session
+6. **Data cleanup script**: `scripts/cleanup_review_pool.py` — resets under-learned words (times_correct < 3) to acquiring, suspends junk via LLM, retires incomprehensible sentences
+7. **Import quality gate**: `services/import_quality.py` — LLM batch filter for all import paths, integrated into OCR
+
+**Files**: `sentence_selector.py`, `sentence_validator.py`, `ocr_service.py`, `import_quality.py`, `cleanup_review_pool.py`, `test_sentence_selector.py`
+
+**Expected effect**: Review sessions should now contain only readable sentences with ≥70% known words. Under-learned words go through proper acquisition. Junk words suspended. On-demand generation fills gaps.
+
+**Verification**: 625 tests pass. Deploy + run cleanup script on production. Verify via `curl /api/review/next-sentences`.
+
+---
+
 ## 2026-02-12: Wrap-up Quiz Fix + Story Context on Learn Cards
 
 **Problem**: Three issues found during first real testing of the redesigned algorithm:

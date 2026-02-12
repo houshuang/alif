@@ -464,6 +464,16 @@ def process_textbook_page(
             db.commit()
             return
 
+        # Quality gate: filter out junk words
+        from app.services.import_quality import filter_useful_lemmas
+        useful, rejected = filter_useful_lemmas([
+            {"arabic": w.get("arabic_bare", ""), "english": w.get("english", "")}
+            for w in extracted
+        ])
+        if rejected:
+            rejected_bares = {r["arabic"] for r in rejected}
+            extracted = [w for w in extracted if w.get("arabic_bare", "") not in rejected_bares]
+
         # Build lookup for existing lemmas
         all_lemmas = db.query(Lemma).all()
         lemma_lookup = build_lemma_lookup(all_lemmas)

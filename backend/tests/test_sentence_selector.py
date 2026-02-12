@@ -238,9 +238,10 @@ class TestGreedySetCover:
         db_session.commit()
 
         result = build_session(db_session, limit=10)
-        # Sentence skipped (shown 2 days ago < 7 day cooldown), falls back to word-only
-        assert len(result["items"]) == 1
-        assert result["items"][0]["sentence_id"] is None
+        # Sentence skipped (shown 2 days ago < 7 day cooldown)
+        # No word-only fallback — word just gets skipped (or on-demand gen attempted)
+        # In test mode with no LLM, uncovered words are simply skipped
+        assert result["total_due_words"] == 1
 
     def test_no_due_words_returns_empty(self, db_session):
         _seed_word(db_session, 1, "كتاب", "book", due_hours=24)
@@ -250,21 +251,18 @@ class TestGreedySetCover:
         assert result["items"] == []
         assert result["total_due_words"] == 0
 
-    def test_fallback_word_only_items(self, db_session):
+    def test_no_word_only_fallback(self, db_session):
+        """Words without sentences get skipped, not shown as bare word cards."""
         _seed_word(db_session, 1, "كتاب", "book", due_hours=-1)
-        # No sentences exist
+        # No sentences exist — on-demand generation will be attempted
+        # but will fail in tests (no LLM), so word gets skipped
         db_session.commit()
 
         result = build_session(db_session, limit=10)
         assert result["total_due_words"] == 1
-        assert result["covered_due_words"] == 1
-        assert len(result["items"]) == 1
-        item = result["items"][0]
-        assert item["sentence_id"] is None
-        assert item["primary_lemma_id"] == 1
-        assert item["arabic_text"] == "كتاب"
-        assert len(item["words"]) == 1
-        assert item["words"][0]["is_due"] is True
+        # No word-only items should appear
+        word_only = [i for i in result["items"] if i.get("sentence_id") is None]
+        assert len(word_only) == 0
 
 
 class TestSessionOrdering:
@@ -415,3 +413,148 @@ class TestIntroCandidates:
 
         result = build_session(db_session, limit=10)
         assert result["intro_candidates"] == []
+
+
+class TestComprehensibilityGate:
+    def test_skips_incomprehensible_sentences(self, db_session):
+        """Sentences with <70% known content words should be skipped."""
+        # Due word
+        _seed_word(db_session, 1, "كتاب", "book", due_hours=-1)
+        # Unknown words (no ULK records — they'll have knowledge_state="new")
+        for i in range(2, 6):
+            lemma = Lemma(
+                lemma_id=i, lemma_ar=f"unknown{i}", lemma_ar_bare=f"unknown{i}",
+                pos="noun", gloss_en=f"unk{i}",
+            )
+            db_session.add(lemma)
+        db_session.flush()
+
+        # Sentence: 1 known + 4 unknown = 20% comprehensible → should be skipped
+        _seed_sentence(db_session, 1, "كتاب unknown2 unknown3 unknown4 unknown5",
+                       "book unk2 unk3 unk4 unk5",
+                       target_lemma_id=1,
+                       word_surfaces_and_ids=[
+                           ("كتاب", 1), ("unknown2", 2), ("unknown3", 3),
+                           ("unknown4", 4), ("unknown5", 5),
+                       ])
+        db_session.commit()
+
+        result = build_session(db_session, limit=10)
+        # Sentence skipped due to comprehensibility gate
+        sentence_items = [i for i in result["items"] if i.get("sentence_id") == 1]
+        assert len(sentence_items) == 0
+
+    def test_keeps_comprehensible_sentences(self, db_session):
+        """Sentences with >=70% known content words should be kept."""
+        # 3 known words
+        for i in range(1, 4):
+            _seed_word(db_session, i, f"known{i}", f"meaning{i}",
+                       due_hours=-1 if i == 1 else 24)
+        # 1 unknown
+        lemma = Lemma(lemma_id=4, lemma_ar="unknown4", lemma_ar_bare="unknown4",
+                      pos="noun", gloss_en="unk4")
+        db_session.add(lemma)
+        db_session.flush()
+
+        # 3 known + 1 unknown = 75% comprehensible → should pass
+        _seed_sentence(db_session, 1, "known1 known2 known3 unknown4",
+                       "m1 m2 m3 unk4",
+                       target_lemma_id=1,
+                       word_surfaces_and_ids=[
+                           ("known1", 1), ("known2", 2), ("known3", 3), ("unknown4", 4),
+                       ])
+        db_session.commit()
+
+        result = build_session(db_session, limit=10)
+        assert result["covered_due_words"] >= 1
+        sentence_items = [i for i in result["items"] if i.get("sentence_id") == 1]
+        assert len(sentence_items) == 1
+
+    def test_function_words_excluded_from_comprehensibility(self, db_session):
+        """Function words shouldn't count against comprehensibility."""
+        _seed_word(db_session, 1, "كتاب", "book", due_hours=-1)
+        db_session.flush()
+
+        # Sentence with 1 known content word + 2 function words (في, من)
+        # Only 1 content word, and it's known → 100% comprehensible
+        _seed_sentence(db_session, 1, "في كتاب من", "in book from",
+                       target_lemma_id=1,
+                       word_surfaces_and_ids=[("في", None), ("كتاب", 1), ("من", None)])
+        db_session.commit()
+
+        result = build_session(db_session, limit=10)
+        sentence_items = [i for i in result["items"] if i.get("sentence_id") == 1]
+        assert len(sentence_items) == 1
+
+
+class TestTimezoneHandling:
+    def test_acquiring_word_with_naive_datetime(self, db_session):
+        """Acquiring words with naive datetimes in DB shouldn't crash."""
+        lemma = Lemma(
+            lemma_id=1, lemma_ar="كتاب", lemma_ar_bare="كتاب",
+            pos="noun", gloss_en="book",
+        )
+        db_session.add(lemma)
+        db_session.flush()
+
+        # Simulate naive datetime from SQLite (no timezone info)
+        naive_due = datetime(2020, 1, 1, 0, 0, 0)  # well in the past
+        ulk = UserLemmaKnowledge(
+            lemma_id=1,
+            knowledge_state="acquiring",
+            acquisition_box=1,
+            acquisition_next_due=naive_due,
+            fsrs_card_json=None,
+            times_seen=1,
+            times_correct=0,
+            source="study",
+        )
+        db_session.add(ulk)
+
+        # Create a sentence for this word
+        _seed_sentence(db_session, 1, "الكتاب", "the book", 1, [("الكتاب", 1)])
+        db_session.commit()
+
+        # Should not crash (was previously crashing with TypeError)
+        result = build_session(db_session, limit=10)
+        assert result["total_due_words"] >= 1
+
+
+class TestWithinSessionRepetition:
+    def test_acquisition_word_gets_extra_sentence(self, db_session):
+        """Acquisition words appearing once should get a second sentence added."""
+        lemma = Lemma(
+            lemma_id=1, lemma_ar="كتاب", lemma_ar_bare="كتاب",
+            pos="noun", gloss_en="book",
+        )
+        db_session.add(lemma)
+        db_session.flush()
+
+        # Known scaffold word
+        _seed_word(db_session, 2, "ولد", "boy", due_hours=24)
+
+        # Acquiring word due now
+        naive_due = datetime(2020, 1, 1, 0, 0, 0)
+        ulk = UserLemmaKnowledge(
+            lemma_id=1,
+            knowledge_state="acquiring",
+            acquisition_box=1,
+            acquisition_next_due=naive_due,
+            fsrs_card_json=None,
+            times_seen=1,
+            times_correct=0,
+            source="study",
+        )
+        db_session.add(ulk)
+
+        # Two sentences containing the acquiring word
+        _seed_sentence(db_session, 1, "الكتاب ولد", "book boy", 1,
+                       [("الكتاب", 1), ("ولد", 2)])
+        _seed_sentence(db_session, 2, "ولد الكتاب", "boy book", 1,
+                       [("ولد", 2), ("الكتاب", 1)])
+        db_session.commit()
+
+        result = build_session(db_session, limit=10)
+        # Should get both sentences (repetition for acquiring word)
+        sentence_ids = [i["sentence_id"] for i in result["items"] if i.get("sentence_id")]
+        assert len(sentence_ids) >= 2
