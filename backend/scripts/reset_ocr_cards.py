@@ -219,7 +219,11 @@ def _replay_reviews(
 
     for review in real_reviews:
         rating = RATING_MAP[review.rating]
-        card, _ = scheduler.review_card(card, rating, review.reviewed_at)
+        reviewed_at = review.reviewed_at
+        if reviewed_at and reviewed_at.tzinfo is None:
+            from datetime import timezone
+            reviewed_at = reviewed_at.replace(tzinfo=timezone.utc)
+        card, _ = scheduler.review_card(card, rating, reviewed_at)
         times_seen += 1
         if review.rating >= 3:
             times_correct += 1
