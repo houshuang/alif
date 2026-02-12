@@ -143,6 +143,95 @@ def generate_material_for_word(lemma_id: int, needed: int = 2) -> None:
         db.close()
 
 
+def store_multi_target_sentence(
+    db,
+    result,
+    lemma_lookup: dict[str, int],
+    target_bares: dict[str, int],
+) -> Sentence | None:
+    """Store a multi-target generated sentence with SentenceWord rows.
+
+    Args:
+        db: SQLAlchemy session.
+        result: MultiTargetGeneratedSentence with arabic, english, etc.
+        lemma_lookup: Bare form -> lemma_id lookup.
+        target_bares: Dict of bare_form -> lemma_id for all target words.
+
+    Returns:
+        The stored Sentence object, or None if storage failed.
+    """
+    from app.services.sentence_validator import (
+        map_tokens_to_lemmas,
+        strip_diacritics,
+        tokenize,
+        normalize_alef,
+        _strip_clitics,
+    )
+
+    sent = Sentence(
+        arabic_text=result.arabic,
+        arabic_diacritized=result.arabic,
+        english_translation=result.english,
+        transliteration=result.transliteration,
+        source="llm",
+        target_lemma_id=result.primary_target_lemma_id,
+    )
+    db.add(sent)
+    db.flush()
+
+    # Build expanded target forms for matching
+    target_normalized: dict[str, int] = {}
+    for bare, lid in target_bares.items():
+        norm = normalize_alef(bare)
+        target_normalized[norm] = lid
+        if not norm.startswith("ال"):
+            target_normalized["ال" + norm] = lid
+        if norm.startswith("ال") and len(norm) > 2:
+            target_normalized[norm[2:]] = lid
+
+    tokens = tokenize(result.arabic)
+    # Use map_tokens_to_lemmas with primary target for base mapping
+    primary_bare = None
+    for bare, lid in target_bares.items():
+        if lid == result.primary_target_lemma_id:
+            primary_bare = bare
+            break
+    if not primary_bare:
+        primary_bare = next(iter(target_bares.keys()), "")
+
+    mappings = map_tokens_to_lemmas(
+        tokens=tokens,
+        lemma_lookup=lemma_lookup,
+        target_lemma_id=result.primary_target_lemma_id,
+        target_bare=primary_bare,
+    )
+
+    for m in mappings:
+        # Check if this token matches any of the other targets
+        is_target = m.is_target
+        if not is_target:
+            bare = strip_diacritics(m.surface_form)
+            bare_norm = normalize_alef(bare.replace("\u0640", ""))
+            if bare_norm in target_normalized:
+                is_target = True
+            else:
+                for stem in _strip_clitics(bare_norm):
+                    if normalize_alef(stem) in target_normalized:
+                        is_target = True
+                        break
+
+        sw = SentenceWord(
+            sentence_id=sent.id,
+            position=m.position,
+            surface_form=m.surface_form,
+            lemma_id=m.lemma_id,
+            is_target_word=is_target,
+        )
+        db.add(sw)
+
+    return sent
+
+
 def generate_word_audio(lemma_id: int) -> None:
     """Background task: generate TTS audio for the word itself."""
     from app.services.tts import (
