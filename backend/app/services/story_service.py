@@ -948,13 +948,6 @@ def suspend_story(db: Session, story_id: int) -> dict:
         log_interaction(event="story_reactivated", story_id=story_id)
         return {"story_id": story_id, "status": "active"}
 
-    if story.status in TERMINAL_STORY_STATUSES:
-        return {
-            "story_id": story_id,
-            "status": story.status,
-            "conflict": True,
-        }
-
     story.status = "suspended"
     db.commit()
     log_interaction(event="story_suspended", story_id=story_id)

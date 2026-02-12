@@ -2,7 +2,7 @@ import { useState, useCallback } from "react";
 import {
   View,
   Text,
-  FlatList,
+  SectionList,
   TextInput,
   Pressable,
   StyleSheet,
@@ -188,6 +188,28 @@ export default function StoriesScreen() {
     }
   }
 
+  async function handleSuspendAll() {
+    const toSuspend = stories.filter((s) => s.status !== "suspended");
+    if (toSuspend.length === 0) return;
+    const confirmed = Platform.OS === "web"
+      ? window.confirm(`Suspend all ${toSuspend.length} stories?`)
+      : await new Promise<boolean>((resolve) =>
+          Alert.alert("Suspend All", `Suspend all ${toSuspend.length} stories?`, [
+            { text: "Cancel", style: "cancel", onPress: () => resolve(false) },
+            { text: "Suspend All", onPress: () => resolve(true) },
+          ])
+        );
+    if (!confirmed) return;
+    for (const s of toSuspend) {
+      try {
+        await suspendStory(s.id);
+      } catch (e) {
+        console.error("Failed to suspend story:", s.id, e);
+      }
+    }
+    setStories((prev) => prev.map((s) => ({ ...s, status: "suspended" as const })));
+  }
+
   function readinessColor(item: StoryListItem): string {
     if (item.status === "completed") return colors.gotIt;
     if (item.readiness_pct >= 90 || item.unknown_count <= 10)
@@ -196,14 +218,22 @@ export default function StoriesScreen() {
     return colors.missed;
   }
 
-  function statusLabel(status: StoryListItem["status"]): string {
-    return ({
-      active: "Active",
-      completed: "Completed",
-      too_difficult: "Too Difficult",
-      skipped: "Skipped",
-      suspended: "Suspended",
-    } as Record<string, string>)[status] ?? status;
+  type SectionKey = "active" | "archived" | "suspended";
+
+  function buildSections(): { key: SectionKey; title: string; data: StoryListItem[] }[] {
+    const active: StoryListItem[] = [];
+    const archived: StoryListItem[] = [];
+    const suspended: StoryListItem[] = [];
+    for (const s of stories) {
+      if (s.status === "suspended") suspended.push(s);
+      else if (s.status === "completed" || s.status === "too_difficult" || s.status === "skipped") archived.push(s);
+      else active.push(s);
+    }
+    const sections: { key: SectionKey; title: string; data: StoryListItem[] }[] = [];
+    if (active.length > 0) sections.push({ key: "active", title: "Active", data: active });
+    if (archived.length > 0) sections.push({ key: "archived", title: "Archived", data: archived });
+    if (suspended.length > 0) sections.push({ key: "suspended", title: "Suspended", data: suspended });
+    return sections;
   }
 
   function renderStory({ item }: { item: StoryListItem }) {
@@ -214,20 +244,9 @@ export default function StoriesScreen() {
       ? "Completed"
       : item.unknown_count <= 3
         ? "Ready to read!"
-        : `${item.unknown_count} unknown words`;
+        : `${item.unknown_count} unknown`;
 
     const pctWidth = Math.min(100, Math.max(4, item.readiness_pct));
-
-    const statusBadgeColor = isComplete
-      ? colors.gotIt
-      : item.status === "too_difficult"
-        ? colors.missed
-        : item.status === "skipped"
-          ? colors.textSecondary
-          : item.status === "suspended"
-            ? colors.stateLearning
-            : colors.accent;
-
     const isSuspended = item.status === "suspended";
 
     return (
@@ -237,7 +256,7 @@ export default function StoriesScreen() {
       >
         <View style={styles.cardHeader}>
           <View style={styles.cardTitleArea}>
-            <Text style={styles.storyTitle} numberOfLines={2}>
+            <Text style={styles.storyTitle} numberOfLines={1}>
               {title}
             </Text>
             {item.title_ar && (
@@ -248,20 +267,20 @@ export default function StoriesScreen() {
           </View>
           <View style={{ flexDirection: "row", gap: 6 }}>
             <Pressable
-              onPress={() => handleSuspend(item)}
+              onPress={(e) => { e.stopPropagation(); handleSuspend(item); }}
               hitSlop={8}
-              style={styles.deleteBtn}
+              style={styles.iconBtn}
             >
               <Ionicons
-                name={item.status === "suspended" ? "play" : "pause"}
+                name={isSuspended ? "play" : "pause"}
                 size={14}
-                color={item.status === "suspended" ? colors.gotIt : colors.textSecondary}
+                color={isSuspended ? colors.gotIt : colors.textSecondary}
               />
             </Pressable>
             <Pressable
-              onPress={() => handleDelete(item)}
+              onPress={(e) => { e.stopPropagation(); handleDelete(item); }}
               hitSlop={8}
-              style={styles.deleteBtn}
+              style={styles.iconBtn}
             >
               <Ionicons name="close" size={16} color={colors.textSecondary} />
             </Pressable>
@@ -278,56 +297,58 @@ export default function StoriesScreen() {
         </View>
 
         <View style={styles.cardFooter}>
-          <View style={styles.cardBadges}>
-            <View
+          <Text style={styles.cardStats}>
+            <Text>{item.total_words} words</Text>
+            <Text>{" · "}</Text>
+            <Text style={{ color: ready }}>{readyText}</Text>
+          </Text>
+          <View
+            style={[
+              styles.sourceBadge,
+              {
+                backgroundColor:
+                  item.source === "generated"
+                    ? colors.accent + "18"
+                    : colors.listening + "18",
+              },
+            ]}
+          >
+            <Text
               style={[
-                styles.badge,
+                styles.badgeText,
                 {
-                  backgroundColor:
+                  color:
                     item.source === "generated"
-                      ? colors.accent + "18"
-                      : colors.listening + "18",
+                      ? colors.accent
+                      : colors.listening,
                 },
               ]}
             >
-              <Ionicons
-                name={item.source === "generated" ? "sparkles" : "clipboard"}
-                size={10}
-                color={item.source === "generated" ? colors.accent : colors.listening}
-                style={{ marginRight: 4 }}
-              />
-              <Text
-                style={[
-                  styles.badgeText,
-                  {
-                    color:
-                      item.source === "generated"
-                        ? colors.accent
-                        : colors.listening,
-                  },
-                ]}
-              >
-                {item.source === "generated" ? "Generated" : "Imported"}
-              </Text>
-            </View>
-            {item.status !== "active" && (
-              <View style={[styles.badge, { backgroundColor: statusBadgeColor + "18" }]}>
-                <Text style={[styles.badgeText, { color: statusBadgeColor }]}>
-                  {statusLabel(item.status)}
-                </Text>
-              </View>
-            )}
-            <Text style={styles.wordCount}>
-              {item.total_words} words
+              {item.source === "generated" ? "Gen" : "Imp"}
             </Text>
           </View>
-          <Text style={[styles.readinessLabel, { color: ready }]}>
-            {readyText}
-          </Text>
         </View>
       </Pressable>
     );
   }
+
+  function renderSectionHeader({ section }: { section: { key: SectionKey; title: string; data: StoryListItem[] } }) {
+    return (
+      <View style={styles.sectionHeader}>
+        <Text style={styles.sectionTitle}>
+          {section.title}
+          <Text style={styles.sectionCount}> ({section.data.length})</Text>
+        </Text>
+        {section.key === "active" && stories.filter((s) => s.status !== "suspended").length > 1 && (
+          <Pressable onPress={handleSuspendAll} hitSlop={8}>
+            <Text style={styles.suspendAllText}>Suspend All</Text>
+          </Pressable>
+        )}
+      </View>
+    );
+  }
+
+  const sections = buildSections();
 
   if (loading) {
     return (
@@ -371,11 +392,13 @@ export default function StoriesScreen() {
         </Pressable>
       </View>
 
-      <FlatList
-        data={stories}
+      <SectionList
+        sections={sections}
         keyExtractor={(item) => String(item.id)}
         renderItem={renderStory}
+        renderSectionHeader={renderSectionHeader}
         contentContainerStyle={styles.list}
+        stickySectionHeadersEnabled={false}
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
             <Ionicons
@@ -621,23 +644,45 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingBottom: 24,
   },
+  sectionHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginTop: 8,
+    marginBottom: 10,
+  },
+  sectionTitle: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: colors.textSecondary,
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+  },
+  sectionCount: {
+    fontWeight: "400",
+  },
+  suspendAllText: {
+    fontSize: 13,
+    color: colors.missed,
+    fontWeight: "600",
+  },
   storyCard: {
     backgroundColor: colors.surface,
     borderRadius: 14,
-    padding: 18,
-    marginBottom: 10,
+    padding: 16,
+    marginBottom: 8,
   },
   cardHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "flex-start",
-    marginBottom: 12,
+    marginBottom: 10,
   },
   cardTitleArea: {
     flex: 1,
     marginRight: 12,
   },
-  deleteBtn: {
+  iconBtn: {
     padding: 4,
     borderRadius: 12,
     backgroundColor: colors.surfaceLight,
@@ -647,10 +692,10 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   storyTitle: {
-    fontSize: 17,
+    fontSize: 16,
     color: colors.text,
     fontWeight: "600",
-    lineHeight: 22,
+    lineHeight: 20,
   },
   storyTitleAr: {
     fontSize: fonts.arabicMedium,
@@ -658,50 +703,37 @@ const styles = StyleSheet.create({
     writingDirection: "rtl",
     fontFamily: fontFamily.arabic,
     textAlign: "right",
-    marginTop: 6,
-    lineHeight: 34,
+    marginTop: 4,
+    lineHeight: 30,
   },
   progressBar: {
-    height: 5,
+    height: 4,
     backgroundColor: colors.surfaceLight,
-    borderRadius: 3,
+    borderRadius: 2,
     overflow: "hidden",
-    marginBottom: 12,
+    marginBottom: 10,
   },
   progressFill: {
     height: "100%",
-    borderRadius: 3,
+    borderRadius: 2,
   },
   cardFooter: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
   },
-  cardBadges: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    flex: 1,
-  },
-  badge: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 8,
-  },
-  badgeText: {
-    fontSize: 11,
-    fontWeight: "600",
-  },
-  wordCount: {
+  cardStats: {
     fontSize: 12,
     color: colors.textSecondary,
   },
-  readinessLabel: {
-    fontSize: 13,
+  sourceBadge: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  badgeText: {
+    fontSize: 10,
     fontWeight: "600",
-    marginLeft: 8,
   },
   emptyContainer: {
     alignItems: "center",
