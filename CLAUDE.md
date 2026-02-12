@@ -150,7 +150,7 @@ This app is an ongoing learning experiment. Every algorithm change, data structu
 - `acquisition_service.py` — Leitner 3-box (4h→1d→3d). Graduation: box 3 + rating≥3 + times_seen≥5 + accuracy≥60%.
 - `cohort_service.py` — Focus cohort: MAX_COHORT_SIZE=40. Acquiring words always included, rest filled by lowest-stability due words.
 - `leech_service.py` — Auto-manage failing words. Detection: times_seen≥8 AND accuracy<40%. 14-day reintro to acquisition box 1.
-- `import_quality.py` — LLM batch filter for word imports. Rejects transliterations, abbreviations, letter names, partial words. Used by OCR pipeline.
+- `import_quality.py` — LLM batch filter for word imports. Rejects transliterations, abbreviations, letter names, partial words. Used by OCR, story import, and Duolingo paths.
 
 All services in `backend/app/services/`.
 
@@ -160,7 +160,7 @@ All services in `backend/app/services/`.
 - `backend/scripts/` — Import, backfill, cleanup, analysis scripts. See `docs/scripts-catalog.md`. Most-used: update_material.py (cron), import_duolingo.py, retire_sentences.py, normalize_and_dedup.py, log_activity.py (CLI), reset_ocr_cards.py (OCR→encountered), backfill_etymology.py (LLM etymology), backfill_themes.py (thematic domains), cleanup_review_pool.py (reset under-learned→acquiring, suspend variant ULKs with stat merge, suspend junk, retire bad sentences, run variant detection on uncovered words)
 
 ### Frontend
-- `app/index.tsx` — Review screen: sentence-first + word-only fallback, reading + listening, word lookup, word marking, back/undo, wrap-up mini-quiz (acquiring + missed words), next-session recap, session word tracking, story source badges on intro cards
+- `app/index.tsx` — Review screen: sentence-only (no word-only fallback), reading + listening, word lookup, word marking, back/undo, wrap-up mini-quiz (acquiring + missed words), next-session recap, session word tracking, story source badges on intro cards
 - `app/learn.tsx` — Learn mode: 5-candidate pick → quiz → done. Etymology display on pick cards. Story source badge for story words.
 - `app/words.tsx` — Word browser: grid, category tabs (Vocab/Function/Names), smart filters (Leeches/Struggling/Recent/Solid/Next Up/Acquiring/Encountered), sparklines, search
 - `app/stats.tsx` — Analytics dashboard with acquiring/encountered stat cards
@@ -184,7 +184,7 @@ All services in `backend/app/services/`.
 - `lib/WordCardComponents.tsx` — Reusable word display (posLabel, FormsRow, GrammarRow, PlayButton)
 - `lib/AskAI.tsx` — AI chat modal (used in ActionMenu)
 - `lib/MarkdownMessage.tsx` — Markdown renderer for chat/AI responses
-- `lib/mock-data.ts` — Mock review cards, words, stats for testing
+- `lib/mock-data.ts` — Mock words, stats, learn candidates for testing
 - `lib/__tests__/` — Jest tests for sync, store, smart-filters, API, typechecks
 - `app/review-lab.tsx` — Hidden route for testing review UI variants
 

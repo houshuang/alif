@@ -4,6 +4,21 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-02-12: Legacy Word-Level Review Code Removal
+
+**Problem**: The codebase still contained legacy word-only review infrastructure from before the sentence-first redesign. This included backend endpoints (`/api/review/next`, `/api/review/submit`), the `get_due_cards()` service function, frontend components (`WordOnlySentenceCard`, `LegacyListeningCard`, `LegacySentenceCard`, `LegacyWordOnlyCard`), legacy TypeScript types (`ReviewCard`, `ReviewSession`, `ReviewSubmission`), and a `"legacy"` sync queue type. Despite the design principle "no bare word cards in review," the frontend still had a fallback path that would show word-only cards when sentence sessions failed to load.
+
+**Changes**:
+1. **Backend**: Removed `/api/review/next` endpoint, `/api/review/submit` endpoint, legacy sync handler in `/api/review/sync`, `get_due_cards()` from fsrs_service.py, `ReviewCardOut`/`ReviewSubmitIn`/`ReviewSubmitOut` schemas
+2. **Frontend**: Removed all legacy card components, `legacySession` state, `handleLegacySubmit()`, `usingSentences` branching variable, legacy types and API functions, `MOCK_REVIEW_CARDS` (~190 lines), `"legacy"` from sync queue types
+3. **Tests**: Removed 6 legacy tests across 4 test files, updated idempotency tests to remove legacy sync items
+
+**Scope**: ~1100 lines deleted across 14 files. Sentences are now the only review path — no fallback, no branching, no legacy code.
+
+**Verification**: 623 backend tests pass, 74 frontend tests pass, TypeScript compiles clean. Deployed to production.
+
+---
+
 ## 2026-02-12: Variant→Canonical Review Credit + Comprehensive Data Cleanup
 
 **Problem**: After 6+ rounds of data cleanup (garbage roots, text sanitization, abbreviations, LLM variant detection, al-prefix dedup, OCR reset), one structural gap remained: variant detection correctly sets `canonical_lemma_id` on variant lemmas, but the system never acts on it. Each variant still had its own independent ULK/FSRS card, and sentence reviews credited the variant rather than the canonical lemma. Additionally, the LLM-based junk check was incorrectly flagging legitimate variant forms (possessives, conjugated verbs) as junk — it was rediscovering what variant detection had already found.
