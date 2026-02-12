@@ -4,6 +4,31 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-02-12: Gemini Flash Quality Review Gate + Prompt Overhaul
+
+**Change**: Two-part fix for 57% sentence quality failure rate.
+
+1. **Quality review gate**: Added `review_sentences_quality()` using Gemini Flash 3 as post-generation reviewer. After GPT-5.2 generates a sentence and it passes rule-based validation, Gemini Flash reviews for naturalness and translation accuracy. Rejected sentences feed back into the retry loop with specific feedback. Fails open (if Gemini unavailable, sentence passes). Applied to both single-target and multi-target paths.
+
+2. **Prompt overhaul**: Fixed the root causes of bad generation:
+   - Added explicit rules against indefinite noun (nakira) sentence starters — the most common failure
+   - Added rules against redundant subject pronouns after verbs (تَسْكُنُ هِيَ)
+   - Added semantic coherence requirement for compound sentences (no unrelated clause joining)
+   - Added fragment/catalog-style rejection guidance
+   - Added beginner-specific archaic/formal word exclusion (no لَعَلَّ، كَأَنَّ، يا سادة at beginner level)
+   - Lowered single-target temperature from 0.8 → 0.5 (matches batch)
+   - Changed subject preference: pronouns and generic definite nouns over proper names
+
+3. **Bulk cleanup**: Reviewed all 210 active sentences with Gemini Flash, retired ~151 that failed quality review (gender mismatches, nonsensical combinations, archaic words, fragments, unnatural constructions).
+
+**Why**: 57% of existing sentences were flagged as unnatural by Gemini Flash. GPT-5.2 was generating grammatically passable but semantically weird sentences due to missing naturalness rules in the prompt. Temperature 0.8 was too creative for constrained generation.
+
+**Expected effect**: New sentences should be significantly more natural. Quality review gate catches remaining bad ones before they reach the user. Sentence pool temporarily reduced to ~61 active, will be rebuilt by update_material.py cron with the improved pipeline.
+
+**Verify**: Monitor sentence_gen logs for retry rates. Run `review_existing_sentences.py --dry-run` after next material generation batch to check new failure rate (target: <15%).
+
+---
+
 ## 2026-02-12: Box 1 Capacity Cap for Auto-Introduction
 
 **Change**: Added `MAX_BOX1_WORDS=8` constraint to `_auto_introduce_words()`. Auto-introduction now checks how many acquiring words are in Leitner box 1 (the most review-intensive stage) and refuses to introduce more if box 1 is at capacity. The final slot count is `min(accuracy_band, MAX_ACQUIRING_WORDS - acquiring_count, MAX_BOX1_WORDS - box1_count)`.

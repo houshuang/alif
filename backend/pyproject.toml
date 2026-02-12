@@ -21,6 +21,7 @@ dependencies = [
 dev = [
     "pytest>=8.0.0",
     "pytest-asyncio>=0.23.0",
+    "freezegun>=1.2.0",
 ]
 
 [build-system]

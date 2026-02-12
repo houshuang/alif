@@ -752,7 +752,7 @@ export async function submitReintroResult(
 
 // --- OCR / Textbook Scanner ---
 
-export async function scanTextbookPages(imageUris: string[]): Promise<BatchUploadResult> {
+export async function scanTextbookPages(imageUris: string[], startAcquiring: boolean = false): Promise<BatchUploadResult> {
   const formData = new FormData();
   for (const uri of imageUris) {
     const filename = uri.split("/").pop() || "page.jpg";
@@ -761,7 +761,10 @@ export async function scanTextbookPages(imageUris: string[]): Promise<BatchUploa
     formData.append("files", { uri, name: filename, type } as any);
   }
 
-  const res = await fetch(`${BASE_URL}/api/ocr/scan-pages`, {
+  const url = startAcquiring
+    ? `${BASE_URL}/api/ocr/scan-pages?start_acquiring=true`
+    : `${BASE_URL}/api/ocr/scan-pages`;
+  const res = await fetch(url, {
     method: "POST",
     body: formData,
   });

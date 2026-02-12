@@ -9,6 +9,7 @@ import {
   Image,
   ScrollView,
   Platform,
+  Switch,
 } from "react-native";
 import { useFocusEffect } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -36,6 +37,7 @@ export default function ScannerScreen() {
   const [history, setHistory] = useState<BatchSummary[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [expandedBatch, setExpandedBatch] = useState<string | null>(null);
+  const [startAcquiring, setStartAcquiring] = useState(true);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useFocusEffect(
@@ -105,7 +107,7 @@ export default function ScannerScreen() {
     setUploading(true);
 
     try {
-      const batch = await scanTextbookPages(selectedImages);
+      const batch = await scanTextbookPages(selectedImages, startAcquiring);
       setCurrentBatch(batch);
       setSelectedImages([]);
       setViewMode("history");
@@ -215,6 +217,21 @@ export default function ScannerScreen() {
                 </View>
               ))}
             </ScrollView>
+
+            <View style={styles.toggleRow}>
+              <Text style={styles.toggleLabel}>Start learning immediately</Text>
+              <Switch
+                value={startAcquiring}
+                onValueChange={setStartAcquiring}
+                trackColor={{ false: "#555", true: colors.accent + "80" }}
+                thumbColor={startAcquiring ? colors.accent : "#999"}
+              />
+            </View>
+            <Text style={styles.toggleHint}>
+              {startAcquiring
+                ? "Words will be scheduled for review right away"
+                : "Words will be saved for later introduction"}
+            </Text>
 
             <Pressable
               style={[
@@ -612,6 +629,25 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     textAlign: "center",
     marginTop: 4,
+  },
+  toggleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginTop: 12,
+    paddingHorizontal: 4,
+  },
+  toggleLabel: {
+    color: colors.textPrimary,
+    fontSize: fonts.body,
+    fontWeight: "600",
+  },
+  toggleHint: {
+    color: colors.textSecondary,
+    fontSize: fonts.caption,
+    paddingHorizontal: 4,
+    marginTop: 4,
+    marginBottom: 8,
   },
   uploadBtn: {
     backgroundColor: colors.gotIt,

@@ -15,6 +15,12 @@
 - [DONE] Knowledge score (0-100) per word: 70% FSRS stability (log-scaled, measures memory durability) + 30% accuracy, scaled by confidence ramp (diminishing returns on review count). Stability dominates because it only grows through successful spaced repetition.
 - [DONE] Al- prefix deduplication: "الكلب" and "كلب" are the same lemma. Import strips ال before dedup check. Merged 14 duplicates in existing data.
 
+### Focus Cohort Size Analysis
+- Current MAX_COHORT_SIZE=100. Research recommends 30-50 for 2-3 reviews/word/day. Need data to decide.
+- Write a script that queries production DB: count of FSRS-due words per day over last 2 weeks, cohort utilization (how many due words are outside the cohort), average reviews per word per day.
+- If typical due count is <50, reducing cohort has no practical effect. If >50, smaller cohort prioritizes fragile words more aggressively.
+- Decision deferred until data analysis completed.
+
 ### Spaced Repetition
 - Use FSRS algorithm (py-fsrs), superior to SM-2
 - Reading-focused: user sees Arabic → tries to comprehend → reveals translation → rates
