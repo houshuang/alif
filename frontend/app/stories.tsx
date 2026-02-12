@@ -218,20 +218,17 @@ export default function StoriesScreen() {
     return colors.missed;
   }
 
-  type SectionKey = "active" | "archived" | "suspended";
+  type SectionKey = "active" | "suspended";
 
   function buildSections(): { key: SectionKey; title: string; data: StoryListItem[] }[] {
     const active: StoryListItem[] = [];
-    const archived: StoryListItem[] = [];
     const suspended: StoryListItem[] = [];
     for (const s of stories) {
       if (s.status === "suspended") suspended.push(s);
-      else if (s.status === "completed" || s.status === "too_difficult" || s.status === "skipped") archived.push(s);
       else active.push(s);
     }
     const sections: { key: SectionKey; title: string; data: StoryListItem[] }[] = [];
     if (active.length > 0) sections.push({ key: "active", title: "Active", data: active });
-    if (archived.length > 0) sections.push({ key: "archived", title: "Archived", data: archived });
     if (suspended.length > 0) sections.push({ key: "suspended", title: "Suspended", data: suspended });
     return sections;
   }

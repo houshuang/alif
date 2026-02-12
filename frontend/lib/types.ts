@@ -478,7 +478,7 @@ export interface StoryListItem {
   title_ar: string | null;
   title_en: string | null;
   source: "generated" | "imported";
-  status: "active" | "completed" | "too_difficult" | "skipped" | "suspended";
+  status: "active" | "completed" | "suspended";
   readiness_pct: number;
   unknown_count: number;
   total_words: number;

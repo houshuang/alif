@@ -23,7 +23,6 @@ import {
   getStories,
   getStoryDetail,
   completeStory,
-  skipStory,
   lookupStoryWord,
   importStory,
   getNextWords,
@@ -477,17 +476,6 @@ describe("story actions", () => {
     const body = JSON.parse(opts.body);
     expect(body.looked_up_lemma_ids).toEqual([42, 43]);
     expect(body.reading_time_ms).toBe(5000);
-  });
-
-  it("skipStory sends POST to skip endpoint", async () => {
-    mockFetch.mockReturnValueOnce(
-      mockJsonResponse({ status: "skipped" })
-    );
-
-    await skipStory(1, [42]);
-
-    const [url] = mockFetch.mock.calls[0];
-    expect(url).toBe(`${BASE_URL}/api/stories/1/skip`);
   });
 
   it("lookupStoryWord sends word position and lemma", async () => {

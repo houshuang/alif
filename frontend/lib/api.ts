@@ -588,13 +588,10 @@ function isLikelyNetworkError(error: unknown): boolean {
   );
 }
 
-type StoryAction = "complete" | "skip" | "too-difficult";
-type StoryQueueType = "story_complete" | "story_skip" | "story_too_difficult";
-
 async function postStoryAction(
   storyId: number,
-  action: StoryAction,
-  queueType: StoryQueueType,
+  action: string,
+  queueType: "story_complete",
   lookedUpLemmaIds: number[],
   readingTimeMs?: number
 ): Promise<"synced" | "queued"> {
@@ -640,32 +637,6 @@ export async function completeStory(storyId: number, lookedUpLemmaIds: number[],
   );
   if (result === "synced") {
     updateCachedStoryStatus(storyId, "completed").catch(() => {});
-  }
-}
-
-export async function skipStory(storyId: number, lookedUpLemmaIds: number[], readingTimeMs?: number): Promise<void> {
-  const result = await postStoryAction(
-    storyId,
-    "skip",
-    "story_skip",
-    lookedUpLemmaIds,
-    readingTimeMs
-  );
-  if (result === "synced") {
-    updateCachedStoryStatus(storyId, "skipped").catch(() => {});
-  }
-}
-
-export async function tooDifficultStory(storyId: number, lookedUpLemmaIds: number[], readingTimeMs?: number): Promise<void> {
-  const result = await postStoryAction(
-    storyId,
-    "too-difficult",
-    "story_too_difficult",
-    lookedUpLemmaIds,
-    readingTimeMs
-  );
-  if (result === "synced") {
-    updateCachedStoryStatus(storyId, "too_difficult").catch(() => {});
   }
 }
 

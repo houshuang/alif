@@ -23,9 +23,7 @@ from app.services.story_service import (
     import_story,
     lookup_word,
     recalculate_readiness,
-    skip_story,
     suspend_story,
-    too_difficult_story,
 )
 
 router = APIRouter(prefix="/api/stories", tags=["stories"])
@@ -84,30 +82,6 @@ def complete_story_endpoint(
 ):
     try:
         return complete_story(db, story_id, body.looked_up_lemma_ids, reading_time_ms=body.reading_time_ms)
-    except ValueError as e:
-        raise HTTPException(status_code=404, detail=str(e))
-
-
-@router.post("/{story_id}/skip")
-def skip_story_endpoint(
-    story_id: int,
-    body: StoryCompleteIn,
-    db: Session = Depends(get_db),
-):
-    try:
-        return skip_story(db, story_id, body.looked_up_lemma_ids, reading_time_ms=body.reading_time_ms)
-    except ValueError as e:
-        raise HTTPException(status_code=404, detail=str(e))
-
-
-@router.post("/{story_id}/too-difficult")
-def too_difficult_story_endpoint(
-    story_id: int,
-    body: StoryCompleteIn,
-    db: Session = Depends(get_db),
-):
-    try:
-        return too_difficult_story(db, story_id, body.looked_up_lemma_ids, reading_time_ms=body.reading_time_ms)
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
 

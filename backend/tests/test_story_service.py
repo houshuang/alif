@@ -16,8 +16,6 @@ from app.services.story_service import (
     import_story,
     lookup_word,
     recalculate_readiness,
-    skip_story,
-    too_difficult_story,
 )
 
 
@@ -188,20 +186,6 @@ class TestCompleteStory:
         assert second.get("duplicate") is True
         assert logs_after_second == logs_after_first
 
-    def test_complete_after_skip_is_noop(self, db_session):
-        _seed_words(db_session)
-        story = import_story(db_session, arabic_text="الولد في البيت")
-        skip_story(db_session, story.id, looked_up_lemma_ids=[])
-        logs_after_skip = db_session.query(ReviewLog).count()
-
-        result = complete_story(db_session, story.id, looked_up_lemma_ids=[])
-        logs_after_complete_attempt = db_session.query(ReviewLog).count()
-
-        assert result.get("duplicate") is True
-        assert result.get("conflict") is True
-        assert result["status"] == "skipped"
-        assert logs_after_complete_attempt == logs_after_skip
-
     def test_complete_retry_after_midway_failure_resumes_without_duplicate_reviews(self, db_session, monkeypatch):
         _seed_words(db_session)
         story = import_story(db_session, arabic_text="الولد في البيت")
@@ -235,74 +219,6 @@ class TestCompleteStory:
             .count()
         )
         assert review_log_count == result["words_reviewed"]
-
-
-class TestSkipStory:
-    def test_skip_marks_status(self, db_session):
-        _seed_words(db_session)
-        story = import_story(db_session, arabic_text="الولد")
-        result = skip_story(db_session, story.id)
-        assert result["status"] == "skipped"
-        db_session.refresh(story)
-        assert story.status == "skipped"
-
-    def test_skip_with_looked_up(self, db_session):
-        lemmas = _seed_words(db_session)
-        story = import_story(db_session, arabic_text="الولد")
-        result = skip_story(db_session, story.id, looked_up_lemma_ids=[lemmas[2].lemma_id])
-        assert result["again_count"] >= 1
-
-    def test_skip_is_idempotent(self, db_session):
-        lemmas = _seed_words(db_session)
-        story = import_story(db_session, arabic_text="الولد")
-        looked_up = [lemmas[2].lemma_id]
-
-        first = skip_story(db_session, story.id, looked_up_lemma_ids=looked_up)
-        logs_after_first = db_session.query(ReviewLog).count()
-
-        second = skip_story(db_session, story.id, looked_up_lemma_ids=looked_up)
-        logs_after_second = db_session.query(ReviewLog).count()
-
-        assert first["status"] == "skipped"
-        assert second.get("duplicate") is True
-        assert logs_after_second == logs_after_first
-
-    def test_skip_after_complete_is_noop(self, db_session):
-        _seed_words(db_session)
-        story = import_story(db_session, arabic_text="الولد")
-        complete_story(db_session, story.id, looked_up_lemma_ids=[])
-        logs_after_complete = db_session.query(ReviewLog).count()
-
-        result = skip_story(db_session, story.id, looked_up_lemma_ids=[])
-        logs_after_skip_attempt = db_session.query(ReviewLog).count()
-
-        assert result.get("duplicate") is True
-        assert result.get("conflict") is True
-        assert result["status"] == "completed"
-        assert logs_after_skip_attempt == logs_after_complete
-
-
-class TestTooDifficult:
-    def test_too_difficult_marks_status(self, db_session):
-        _seed_words(db_session)
-        story = import_story(db_session, arabic_text="الولد")
-        result = too_difficult_story(db_session, story.id)
-        assert result["status"] == "too_difficult"
-
-    def test_too_difficult_is_idempotent(self, db_session):
-        lemmas = _seed_words(db_session)
-        story = import_story(db_session, arabic_text="الولد")
-        looked_up = [lemmas[2].lemma_id]
-
-        first = too_difficult_story(db_session, story.id, looked_up_lemma_ids=looked_up)
-        logs_after_first = db_session.query(ReviewLog).count()
-
-        second = too_difficult_story(db_session, story.id, looked_up_lemma_ids=looked_up)
-        logs_after_second = db_session.query(ReviewLog).count()
-
-        assert first["status"] == "too_difficult"
-        assert second.get("duplicate") is True
-        assert logs_after_second == logs_after_first
 
 
 class TestLookupWord:
@@ -362,14 +278,6 @@ class TestStoryAPI:
         _seed_words(db_session)
         story = import_story(db_session, arabic_text="الولد في البيت")
         resp = client.post(f"/api/stories/{story.id}/complete", json={
-            "looked_up_lemma_ids": [],
-        })
-        assert resp.status_code == 200
-
-    def test_skip_story(self, client, db_session):
-        _seed_words(db_session)
-        story = import_story(db_session, arabic_text="الولد")
-        resp = client.post(f"/api/stories/{story.id}/skip", json={
             "looked_up_lemma_ids": [],
         })
         assert resp.status_code == 200

@@ -8,9 +8,7 @@ const MAX_RETRY_ATTEMPTS = 8;
 
 export type QueueEntryType =
   | "sentence"
-  | "story_complete"
-  | "story_skip"
-  | "story_too_difficult";
+  | "story_complete";
 
 export interface QueueEntry {
   id: string;
@@ -84,14 +82,10 @@ export async function removeFromQueue(
 
 const STORY_ACTION_ENDPOINTS: Record<string, string> = {
   story_complete: "complete",
-  story_skip: "skip",
-  story_too_difficult: "too-difficult",
 };
 
 const STORY_ACTION_STATUSES: Record<string, string> = {
   story_complete: "completed",
-  story_skip: "skipped",
-  story_too_difficult: "too_difficult",
 };
 
 async function flushStoryEntries(

@@ -42,7 +42,7 @@ logger = logging.getLogger(__name__)
 
 KNOWN_SAMPLE_SIZE = 80
 MAX_NEW_WORDS_IN_STORY = 5
-TERMINAL_STORY_STATUSES = {"completed", "skipped", "too_difficult"}
+TERMINAL_STORY_STATUSES = {"completed"}
 
 STORY_SYSTEM_PROMPT = f"""\
 You are a creative Arabic storyteller writing for language learners. Write genuinely \
@@ -828,110 +828,6 @@ def complete_story(
         "status": "completed",
         "words_reviewed": len(reviewed_lemmas),
         "good_count": good_count,
-        "again_count": again_count,
-    }
-
-
-def skip_story(
-    db: Session,
-    story_id: int,
-    looked_up_lemma_ids: list[int] | None = None,
-    reading_time_ms: int | None = None,
-) -> dict:
-    """Mark story as skipped. Submit rating=1 for looked-up words only."""
-    story = db.query(Story).filter(Story.id == story_id).first()
-    if not story:
-        raise ValueError(f"Story {story_id} not found")
-
-    if story.status == "skipped":
-        return {"story_id": story_id, "status": "skipped", "again_count": 0, "duplicate": True}
-    if story.status in TERMINAL_STORY_STATUSES:
-        return {
-            "story_id": story_id,
-            "status": story.status,
-            "again_count": 0,
-            "duplicate": True,
-            "conflict": True,
-        }
-
-    again_count = 0
-    if looked_up_lemma_ids:
-        for lid in set(looked_up_lemma_ids):
-            submit_review(
-                db,
-                lemma_id=lid,
-                rating_int=1,
-                review_mode="reading",
-                client_review_id=f"story:{story_id}:skip:{lid}",
-            )
-            again_count += 1
-
-    story.status = "skipped"
-    db.commit()
-
-    log_interaction(
-        event="story_skipped",
-        story_id=story_id,
-        again_count=again_count,
-        words_looked_up=len(looked_up_lemma_ids) if looked_up_lemma_ids else 0,
-        reading_time_ms=reading_time_ms,
-    )
-
-    return {
-        "story_id": story_id,
-        "status": "skipped",
-        "again_count": again_count,
-    }
-
-
-def too_difficult_story(
-    db: Session,
-    story_id: int,
-    looked_up_lemma_ids: list[int] | None = None,
-    reading_time_ms: int | None = None,
-) -> dict:
-    """Mark story as too_difficult. Submit rating=1 for looked-up words only."""
-    story = db.query(Story).filter(Story.id == story_id).first()
-    if not story:
-        raise ValueError(f"Story {story_id} not found")
-
-    if story.status == "too_difficult":
-        return {"story_id": story_id, "status": "too_difficult", "again_count": 0, "duplicate": True}
-    if story.status in TERMINAL_STORY_STATUSES:
-        return {
-            "story_id": story_id,
-            "status": story.status,
-            "again_count": 0,
-            "duplicate": True,
-            "conflict": True,
-        }
-
-    again_count = 0
-    if looked_up_lemma_ids:
-        for lid in set(looked_up_lemma_ids):
-            submit_review(
-                db,
-                lemma_id=lid,
-                rating_int=1,
-                review_mode="reading",
-                client_review_id=f"story:{story_id}:too_difficult:{lid}",
-            )
-            again_count += 1
-
-    story.status = "too_difficult"
-    db.commit()
-
-    log_interaction(
-        event="story_too_difficult",
-        story_id=story_id,
-        again_count=again_count,
-        words_looked_up=len(looked_up_lemma_ids) if looked_up_lemma_ids else 0,
-        reading_time_ms=reading_time_ms,
-    )
-
-    return {
-        "story_id": story_id,
-        "status": "too_difficult",
         "again_count": again_count,
     }
 

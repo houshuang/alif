@@ -14,8 +14,6 @@ import {
   getStoryDetail,
   lookupStoryWord,
   completeStory,
-  skipStory,
-  tooDifficultStory,
   suspendStory,
 } from "../../lib/api";
 import { StoryDetail, StoryWordMeta, StoryLookupResult } from "../../lib/types";
@@ -158,34 +156,6 @@ export default function StoryReadScreen() {
       router.back();
     } catch (e) {
       console.error("Failed to complete story:", e);
-      setSubmitting(false);
-    }
-  }
-
-  async function handleSkip() {
-    if (!story || submitting) return;
-    setSubmitting(true);
-    try {
-      const readingTimeMs = Date.now() - storyStartTime.current;
-      await skipStory(story.id, Array.from(lookedUpLemmaIds), readingTimeMs);
-      clearStoryLookups(story.id).catch(() => {});
-      router.back();
-    } catch (e) {
-      console.error("Failed to skip story:", e);
-      setSubmitting(false);
-    }
-  }
-
-  async function handleTooDifficult() {
-    if (!story || submitting) return;
-    setSubmitting(true);
-    try {
-      const readingTimeMs = Date.now() - storyStartTime.current;
-      await tooDifficultStory(story.id, Array.from(lookedUpLemmaIds), readingTimeMs);
-      clearStoryLookups(story.id).catch(() => {});
-      router.back();
-    } catch (e) {
-      console.error("Failed to mark story too difficult:", e);
       setSubmitting(false);
     }
   }
@@ -342,24 +312,14 @@ export default function StoryReadScreen() {
               </>
             )}
           </Pressable>
-          <View style={styles.secondaryActions}>
-            <Pressable
-              style={[styles.secondaryBtn]}
-              onPress={handleSkip}
-              disabled={submitting}
-            >
-              <Text style={styles.secondaryBtnText}>Skip</Text>
-            </Pressable>
-            {story.source === "imported" && (
-              <Pressable
-                style={[styles.secondaryBtn]}
-                onPress={handleTooDifficult}
-                disabled={submitting}
-              >
-                <Text style={[styles.secondaryBtnText, { color: colors.stateLearning }]}>Too Hard</Text>
-              </Pressable>
-            )}
-          </View>
+          <Pressable
+            style={[styles.secondaryBtn]}
+            onPress={handleSuspend}
+            disabled={submitting}
+          >
+            <Ionicons name="pause" size={14} color={colors.textSecondary} style={{ marginRight: 4 }} />
+            <Text style={styles.secondaryBtnText}>Suspend</Text>
+          </Pressable>
         </View>
       </ScrollView>
 
@@ -647,12 +607,9 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "700",
   },
-  secondaryActions: {
-    flexDirection: "row",
-    gap: 24,
-    justifyContent: "center",
-  },
   secondaryBtn: {
+    flexDirection: "row",
+    alignItems: "center",
     paddingVertical: 8,
     paddingHorizontal: 16,
   },
