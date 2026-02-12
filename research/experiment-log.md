@@ -23,7 +23,7 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 **Expected effect**: After running cleanup: variant ULKs suspended with stats merged to canonical, review sessions correctly schedule canonical lemmas covering variant sentence forms, no more independent review of possessive/conjugated forms.
 
-**Verification**: 629 tests pass (4 new variant redirect tests). Deploy + dry-run cleanup script on production to verify counts before applying.
+**Verification**: 629 tests pass (4 new variant redirect tests). Deployed and ran cleanup on production: 92 words reset to acquiring, 39 variant ULKs suspended (stats merged to canonical, 2 canonical ULKs created), 4 junk words suspended, 106 incomprehensible sentences retired, 126 words need sentence regeneration. ActivityLog entry written.
 
 ---
 
