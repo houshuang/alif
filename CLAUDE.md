@@ -166,14 +166,14 @@ All services in `backend/app/services/`.
 - `app/learn.tsx` — Learn mode: 5-candidate pick → quiz → done. Etymology display on pick cards. Story source badge for story words.
 - `app/words.tsx` — Word browser: grid, category tabs (Vocab/Function/Names), smart filters (Leeches/Struggling/Recent/Solid/Next Up/Acquiring/Encountered), sparklines (variable-width gaps show inter-review timing), search
 - `app/stats.tsx` — Analytics dashboard with acquiring/encountered stat cards
-- `app/story/[id].tsx` — Story reader with tap-to-lookup
-- `app/stories.tsx` — Story list with generate + import
+- `app/story/[id].tsx` — Story reader with tap-to-lookup, ActionMenu in header bar (Ask AI, suspend story)
+- `app/stories.tsx` — Story list with generate + import, suspend/reactivate toggle per story
 - `app/scanner.tsx` — Textbook page OCR scanner
 - `app/more.tsx` — More tab: Scanner, Chats, Stats, Activity Log
 - `app/word/[id].tsx` — Word detail: forms, grammar, root family, review history, sentence stats, etymology section, acquisition badge
 - `app/chats.tsx` — AI chat conversations
 - `app/listening.tsx` — Dedicated listening mode
-- `lib/review/ActionMenu.tsx` — "⋯" menu: Ask AI, Suspend, Flag
+- `lib/review/ActionMenu.tsx` — "⋯" menu: Ask AI, Suspend, Flag. Supports `extraActions` prop for screen-specific actions (e.g., story suspend).
 - `lib/review/WordInfoCard.tsx` — Word info panel for review
 - `lib/api.ts` — API client with typed interfaces for all endpoints
 - `lib/types.ts` — TypeScript interfaces
@@ -211,6 +211,7 @@ Full list: `docs/api-reference.md` or `backend/app/routers/`
 | GET | `/api/stories` | List stories |
 | POST | `/api/stories/import` | Import Arabic text as story |
 | POST | `/api/stories/{id}/complete` | Complete story |
+| POST | `/api/stories/{id}/suspend` | Toggle story suspend/reactivate |
 | GET | `/api/stats/analytics` | Full analytics |
 | POST | `/api/ocr/scan-pages` | Upload textbook pages for OCR |
 | GET | `/api/settings/topic` | Current topic + progress |
@@ -228,7 +229,7 @@ Full list: `docs/api-reference.md` or `backend/app/routers/`
 - `grammar_features` — 24 features across 5 categories
 - `sentence_grammar_features` — Sentence ↔ grammar junction
 - `user_grammar_exposure` — Per-feature: times_seen, times_correct, comfort_score
-- `stories` — title_ar/en, body_ar/en, transliteration, status, readiness_pct, difficulty_level
+- `stories` — title_ar/en, body_ar/en, transliteration, status (active/completed/too_difficult/skipped/suspended), readiness_pct, difficulty_level
 - `story_words` — Per-token: position, surface_form, lemma_id, gloss_en, is_function_word, name_type
 - `page_uploads` — OCR tracking: batch_id, status, extracted_words_json, new_words, existing_words
 - `content_flags` — Flagged content: content_type, status (pending/reviewing/fixed/dismissed)

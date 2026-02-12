@@ -4,6 +4,14 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-02-12: Story Suspend/Reactivate + ActionMenu Refactor
+
+**Change**: Added story suspend/reactivate toggle. `POST /api/stories/{id}/suspend` toggles between active↔suspended. Suspended stories show dimmed in list with "Suspended" badge, pause/play button on each card. ActionMenu moved from bottom to header bar in story reader, now supports `extraActions` prop for screen-specific actions (suspend story is the first).
+
+**Files**: `story_service.py`, `routers/stories.py`, `models.py`, `stories.tsx`, `story/[id].tsx`, `ActionMenu.tsx`, `api.ts`, `types.ts`
+
+---
+
 ## 2026-02-12: Sparkline Inter-Review Gaps
 
 **Problem**: Word list sparklines show last 8 ratings as pass/fail dots but give no information about timing between reviews. Knowing a word after 5 minutes vs. knowing it after 3 days is very different — the current display conflates these.
