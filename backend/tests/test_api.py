@@ -182,29 +182,6 @@ def test_get_word_not_found(client):
     assert resp.status_code == 404
 
 
-def test_review_next(client, db_session):
-    _seed_word(db_session)
-    resp = client.get("/api/review/next")
-    assert resp.status_code == 200
-    data = resp.json()
-    assert len(data) >= 1
-    assert data[0]["lemma_ar"] == "كَلْب"
-
-
-def test_review_submit(client, db_session):
-    lemma = _seed_word(db_session)
-    resp = client.post("/api/review/submit", json={
-        "lemma_id": lemma.lemma_id,
-        "rating": 3,
-        "response_ms": 1500,
-        "session_id": "test-session",
-    })
-    assert resp.status_code == 200
-    data = resp.json()
-    assert data["lemma_id"] == lemma.lemma_id
-    assert "next_due" in data
-
-
 def test_analyze_word(client):
     resp = client.post("/api/analyze/word", json={"word": "كَلْب"})
     assert resp.status_code == 200

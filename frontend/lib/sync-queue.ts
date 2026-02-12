@@ -8,7 +8,6 @@ const MAX_RETRY_ATTEMPTS = 8;
 
 export type QueueEntryType =
   | "sentence"
-  | "legacy"
   | "story_complete"
   | "story_skip"
   | "story_too_difficult";
@@ -128,7 +127,7 @@ async function flushQueueInternal(): Promise<{ synced: number; failed: number }>
   const queue = await withQueueLock(async () => getQueueUnsafe());
   if (queue.length === 0) return { synced: 0, failed: 0 };
 
-  const reviewEntries = queue.filter((e) => e.type === "sentence" || e.type === "legacy");
+  const reviewEntries = queue.filter((e) => e.type === "sentence");
   const storyEntries = queue.filter((e) => e.type in STORY_ACTION_ENDPOINTS);
   const snapshotIds = new Set(queue.map((entry) => entry.client_review_id));
 

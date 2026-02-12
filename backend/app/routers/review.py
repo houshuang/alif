@@ -8,9 +8,6 @@ from app.models import GrammarFeature, Lemma, Root, UserLemmaKnowledge
 from app.schemas import (
     BulkSyncIn,
     ReintroResultIn,
-    ReviewCardOut,
-    ReviewSubmitIn,
-    ReviewSubmitOut,
     SentenceSessionOut,
     SentenceReviewSubmitIn,
     SentenceReviewSubmitOut,
@@ -19,8 +16,8 @@ from app.schemas import (
     WrapUpCardOut,
     RecapIn,
 )
-from app.services.fsrs_service import get_due_cards, submit_review
-from app.services.listening import get_listening_candidates, process_comprehension_signal
+from app.services.fsrs_service import submit_review
+from app.services.listening import get_listening_candidates
 from app.services.interaction_logger import log_interaction
 from app.services.sentence_selector import build_session
 from app.services.sentence_review_service import submit_sentence_review, undo_sentence_review
@@ -29,14 +26,6 @@ from app.services.sentence_validator import _is_function_word
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/review", tags=["review"])
-
-
-@router.get("/next", response_model=list[ReviewCardOut])
-def next_cards(
-    limit: int = Query(10, ge=1, le=50),
-    db: Session = Depends(get_db),
-):
-    return get_due_cards(db, limit)
 
 
 @router.get("/next-listening")
@@ -54,43 +43,6 @@ def next_listening_cards(
     return get_listening_candidates(
         db, limit=limit, max_word_count=max_words, min_confidence=min_confidence
     )
-
-
-@router.post("/submit", response_model=ReviewSubmitOut)
-def submit(body: ReviewSubmitIn, db: Session = Depends(get_db)):
-    result = submit_review(
-        db,
-        lemma_id=body.lemma_id,
-        rating_int=body.rating,
-        response_ms=body.response_ms,
-        session_id=body.session_id,
-        review_mode=body.review_mode,
-        comprehension_signal=body.comprehension_signal,
-        client_review_id=body.client_review_id,
-    )
-
-    log_interaction(
-        event="review",
-        lemma_id=body.lemma_id,
-        rating=body.rating,
-        response_ms=body.response_ms,
-        session_id=body.session_id,
-        review_mode=body.review_mode,
-        comprehension_signal=body.comprehension_signal,
-    )
-
-    # Process additional comprehension signals (missed words in listening, etc.)
-    if body.comprehension_signal and body.missed_word_lemma_ids:
-        process_comprehension_signal(
-            db,
-            session_id=body.session_id,
-            review_mode=body.review_mode,
-            comprehension_signal=body.comprehension_signal,
-            target_lemma_id=body.lemma_id,
-            missed_word_lemma_ids=body.missed_word_lemma_ids,
-        )
-
-    return result
 
 
 @router.get("/next-sentences", response_model=SentenceSessionOut)
@@ -288,30 +240,6 @@ def sync_reviews(body: BulkSyncIn, db: Session = Depends(get_db)):
                         word_ratings={w["lemma_id"]: w["rating"] for w in result.get("word_results", []) if "lemma_id" in w and "rating" in w},
                         audio_play_count=payload.get("audio_play_count"),
                         lookup_count=payload.get("lookup_count"),
-                        source="sync",
-                    )
-                results.append({"client_review_id": item.client_review_id, "status": status})
-            elif item.type == "legacy":
-                payload = item.payload
-                result = submit_review(
-                    db,
-                    lemma_id=payload["lemma_id"],
-                    rating_int=payload["rating"],
-                    response_ms=payload.get("response_ms"),
-                    session_id=payload.get("session_id"),
-                    review_mode=payload.get("review_mode", "reading"),
-                    comprehension_signal=payload.get("comprehension_signal"),
-                    client_review_id=item.client_review_id,
-                )
-                status = "duplicate" if result.get("duplicate") else "ok"
-                if status != "duplicate":
-                    log_interaction(
-                        event="legacy_review",
-                        lemma_id=payload["lemma_id"],
-                        rating=payload["rating"],
-                        response_ms=payload.get("response_ms"),
-                        session_id=payload.get("session_id"),
-                        review_mode=payload.get("review_mode", "reading"),
                         source="sync",
                     )
                 results.append({"client_review_id": item.client_review_id, "status": status})

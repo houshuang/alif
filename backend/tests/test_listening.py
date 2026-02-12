@@ -262,34 +262,6 @@ class TestComprehensionSignals:
 # --- API endpoint tests ---
 
 class TestReviewEndpoints:
-    def test_submit_with_review_mode(self, client, db_session):
-        _seed_word(db_session, 1, "كتاب", "book", stability=1.0, due_hours=-1)
-        db_session.commit()
-
-        resp = client.post("/api/review/submit", json={
-            "lemma_id": 1,
-            "rating": 3,
-            "review_mode": "listening",
-            "comprehension_signal": "understood",
-        })
-        assert resp.status_code == 200
-
-        log = db_session.query(ReviewLog).filter(ReviewLog.lemma_id == 1).first()
-        assert log.review_mode == "listening"
-        assert log.comprehension_signal == "understood"
-
-    def test_submit_reading_no_idea(self, client, db_session):
-        _seed_word(db_session, 1, "كتاب", "book", stability=1.0, due_hours=-1)
-        db_session.commit()
-
-        resp = client.post("/api/review/submit", json={
-            "lemma_id": 1,
-            "rating": 1,
-            "review_mode": "reading",
-            "comprehension_signal": "no_idea",
-        })
-        assert resp.status_code == 200
-
     def test_next_listening_endpoint(self, client, db_session):
         _seed_word(db_session, 1, "كتاب", "book", stability=30.0, times_seen=15, due_hours=-1)
         _seed_word(db_session, 2, "ولد", "boy", stability=30.0, times_seen=15, due_hours=-1)

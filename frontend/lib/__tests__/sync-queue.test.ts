@@ -79,7 +79,7 @@ describe("pendingCount", () => {
 
   it("returns correct count", async () => {
     await enqueueReview("sentence", {}, "r-1");
-    await enqueueReview("legacy", {}, "r-2");
+    await enqueueReview("sentence", {}, "r-2");
     await enqueueReview("sentence", {}, "r-3");
 
     expect(await pendingCount()).toBe(3);

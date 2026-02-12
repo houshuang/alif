@@ -290,22 +290,12 @@ class TestBulkSyncEndpoint:
                         "session_id": "sync-sess",
                     },
                 },
-                {
-                    "type": "legacy",
-                    "client_review_id": "sync-l1",
-                    "payload": {
-                        "lemma_id": 2,
-                        "rating": 3,
-                        "session_id": "sync-sess",
-                    },
-                },
             ]
         })
         assert resp.status_code == 200
         data = resp.json()
-        assert len(data["results"]) == 2
+        assert len(data["results"]) == 1
         assert data["results"][0]["status"] == "ok"
-        assert data["results"][1]["status"] == "ok"
 
     def test_bulk_sync_handles_duplicates(self, client, db_session):
         _seed_word(db_session, 1, "كتاب", "book")
@@ -433,24 +423,15 @@ class TestBulkSyncEndpoint:
                     "review_mode": "reading",
                 },
             },
-            {
-                "type": "legacy",
-                "client_review_id": "manual-sync-legacy-1",
-                "payload": {
-                    "lemma_id": 2,
-                    "rating": 3,
-                    "session_id": "offline-session-1",
-                },
-            },
         ]
 
         first_sync = client.post("/api/review/sync", json={"reviews": queued})
         assert first_sync.status_code == 200
-        assert [r["status"] for r in first_sync.json()["results"]] == ["ok", "ok"]
+        assert [r["status"] for r in first_sync.json()["results"]] == ["ok"]
 
         replay_sync = client.post("/api/review/sync", json={"reviews": queued})
         assert replay_sync.status_code == 200
-        assert [r["status"] for r in replay_sync.json()["results"]] == ["duplicate", "duplicate"]
+        assert [r["status"] for r in replay_sync.json()["results"]] == ["duplicate"]
 
         assert (
             db_session.query(SentenceReviewLog)
@@ -467,51 +448,6 @@ class TestBulkSyncEndpoint:
             .filter(ReviewLog.client_review_id == "manual-sync-sentence-1:2")
             .count()
         ) == 1
-        assert (
-            db_session.query(ReviewLog)
-            .filter(ReviewLog.client_review_id == "manual-sync-legacy-1")
-            .count()
-        ) == 1
-
-        mixed_sync = client.post("/api/review/sync", json={
-            "reviews": [
-                {
-                    "type": "legacy",
-                    "client_review_id": "mixed-good-1",
-                    "payload": {"lemma_id": 1, "rating": 3},
-                },
-                {
-                    "type": "legacy",
-                    "client_review_id": "mixed-bad-1",
-                    "payload": {"rating": 3},
-                },
-                {
-                    "type": "legacy",
-                    "client_review_id": "mixed-good-2",
-                    "payload": {"lemma_id": 3, "rating": 3},
-                },
-            ]
-        })
-        assert mixed_sync.status_code == 200
-        mixed_results = mixed_sync.json()["results"]
-        assert [r["status"] for r in mixed_results] == ["ok", "error", "ok"]
-        assert "lemma_id" in mixed_results[1]["error"]
-
-        assert (
-            db_session.query(ReviewLog)
-            .filter(ReviewLog.client_review_id == "mixed-good-1")
-            .count()
-        ) == 1
-        assert (
-            db_session.query(ReviewLog)
-            .filter(ReviewLog.client_review_id == "mixed-good-2")
-            .count()
-        ) == 1
-        assert (
-            db_session.query(ReviewLog)
-            .filter(ReviewLog.client_review_id == "mixed-bad-1")
-            .count()
-        ) == 0
 
         complete_first = client.post(f"/api/stories/{story_one_id}/complete", json={
             "looked_up_lemma_ids": [2],

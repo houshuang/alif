@@ -3,7 +3,6 @@ from fsrs import Card
 from app.models import Lemma, UserLemmaKnowledge
 from app.services.fsrs_service import (
     create_new_card,
-    get_due_cards,
     submit_review,
 )
 
@@ -21,26 +20,6 @@ def test_card_roundtrip():
     restored = Card.from_dict(data)
     assert restored.state == card.state
     assert restored.due == card.due
-
-
-def test_get_due_cards(db_session):
-    lemma = Lemma(lemma_ar="كَلْب", lemma_ar_bare="كلب", gloss_en="dog")
-    db_session.add(lemma)
-    db_session.flush()
-
-    knowledge = UserLemmaKnowledge(
-        lemma_id=lemma.lemma_id,
-        knowledge_state="learning",
-        fsrs_card_json=create_new_card(),
-        source="duolingo",
-    )
-    db_session.add(knowledge)
-    db_session.commit()
-
-    due = get_due_cards(db_session, limit=10)
-    assert len(due) == 1
-    assert due[0]["lemma_ar"] == "كَلْب"
-    assert due[0]["gloss_en"] == "dog"
 
 
 def test_submit_review_good(db_session):

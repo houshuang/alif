@@ -14,8 +14,6 @@ import { useRouter } from "expo-router";
 import { Audio } from "expo-av";
 import { colors, fonts, fontFamily } from "../lib/theme";
 import {
-  getReviewSession,
-  submitReview,
   getSentenceReviewSession,
   submitSentenceReview,
   undoSentenceReview,
@@ -32,8 +30,6 @@ import {
   BASE_URL,
 } from "../lib/api";
 import {
-  ReviewCard,
-  ReviewSession,
   ReviewMode,
   ComprehensionSignal,
   SentenceReviewItem,
@@ -89,16 +85,6 @@ function stripDiacritics(s: string): string {
 }
 
 
-function isTargetWordIndex(word: string, bareWord: string): boolean {
-  const wordBare = stripDiacritics(word);
-  const alPrefix = "\u0627\u0644";
-  return (
-    wordBare === bareWord ||
-    wordBare === alPrefix + bareWord ||
-    stripDiacritics(word.replace(/^وَ?ال/, alPrefix)) === alPrefix + bareWord
-  );
-}
-
 export default function ReadingScreen() {
   return <ReviewScreen fixedMode="reading" />;
 }
@@ -108,13 +94,8 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
   const online = useNetStatus();
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  // Sentence-first session (preferred)
   const [sentenceSession, setSentenceSession] =
     useState<SentenceReviewSession | null>(null);
-  // Legacy word-only fallback
-  const [legacySession, setLegacySession] = useState<ReviewSession | null>(
-    null
-  );
   const [cardIndex, setCardIndex] = useState(0);
   const [cardState, setCardState] = useState<CardState>("front");
   const [loading, setLoading] = useState(true);
@@ -153,11 +134,10 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
   const soundRef = useRef<Audio.Sound | null>(null);
   const lookupRequestRef = useRef(0);
 
-  const usingSentences = sentenceSession !== null && sentenceSession.items.length > 0;
-  const totalCards = usingSentences
-    ? (sessionSlots.length > 0 ? sessionSlots.length : sentenceSession!.items.length)
-    : legacySession?.cards.length ?? 0;
-  const currentSlot: SessionSlot | null = usingSentences && sessionSlots.length > 0
+  const totalCards = sentenceSession
+    ? (sessionSlots.length > 0 ? sessionSlots.length : sentenceSession.items.length)
+    : 0;
+  const currentSlot: SessionSlot | null = sentenceSession && sessionSlots.length > 0
     ? sessionSlots[cardIndex] ?? null
     : null;
   const isIntroSlot = currentSlot?.type === "intro";
@@ -213,12 +193,10 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
     setAudioPlayCount(prev => prev + 1);
     await cleanupSound();
 
-    const currentItem = usingSentences && !isIntroSlot
-      ? sentenceSession!.items[sentenceItemIndex]
+    const currentItem = !isIntroSlot
+      ? sentenceSession?.items[sentenceItemIndex] ?? null
       : null;
-    const arabicText = currentItem?.arabic_text
-      ?? legacySession?.cards[cardIndex]?.sentence?.arabic
-      ?? legacySession?.cards[cardIndex]?.lemma_ar;
+    const arabicText = currentItem?.arabic_text;
 
     if (!arabicText) {
       setAudioPlaying(false);
@@ -286,7 +264,6 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
     setLookupCount(0);
     setSubmittingReview(false);
     setSentenceSession(null);
-    setLegacySession(null);
     await cleanupSound();
 
     // Check for recap items from last session
@@ -364,17 +341,10 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
         setLoading(false);
         return;
       }
-    } catch {}
-
-    // Fallback to legacy word-only session
-    try {
-      const s = await getReviewSession(m);
-      setLegacySession(s);
     } catch (e) {
       console.error("Failed to load review session:", e);
-    } finally {
-      setLoading(false);
     }
+    setLoading(false);
   }
 
   const toggleMissed = useCallback((index: number) => {
@@ -688,7 +658,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
 
   // Can go back if there's a previous sentence slot with a saved review
   const canGoBack = useMemo(() => {
-    if (!usingSentences || cardIndex === 0) return false;
+    if (!sentenceSession || cardIndex === 0) return false;
     for (let i = cardIndex - 1; i >= 0; i--) {
       const slot = sessionSlots.length > 0 ? sessionSlots[i] : null;
       if (!slot || slot.type === "sentence") {
@@ -696,53 +666,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
       }
     }
     return false;
-  }, [usingSentences, cardIndex, sessionSlots, cardReviewIds]);
-
-  async function handleLegacySubmit(signal: ComprehensionSignal) {
-    if (!legacySession) return;
-    const card = legacySession.cards[cardIndex];
-    const responseMs = Date.now() - showTime.current;
-
-    const missedWords: string[] = [];
-    let targetMissed = false;
-
-    if (signal !== "understood" && card.sentence) {
-      const words = card.sentence.arabic.split(/\s+/);
-      for (const idx of missedIndices) {
-        const w = words[idx];
-        if (w) {
-          missedWords.push(stripDiacritics(w));
-          if (isTargetWordIndex(w, card.lemma_ar_bare)) {
-            targetMissed = true;
-          }
-        }
-      }
-    }
-
-    if (signal === "no_idea") {
-      targetMissed = true;
-    } else if (signal !== "understood" && !card.sentence) {
-      targetMissed = true;
-    }
-
-    const rating: 1 | 3 = targetMissed ? 1 : 3;
-
-    try {
-      await submitReview({
-        lemma_id: card.lemma_id,
-        rating,
-        response_ms: responseMs,
-        session_id: legacySession.session_id,
-        missed_words: missedWords,
-        review_mode: mode,
-        comprehension_signal: signal,
-      });
-    } catch (e) {
-      console.warn("legacy submit failed:", e);
-    }
-
-    advanceAfterSubmit(signal);
-  }
+  }, [sentenceSession, cardIndex, sessionSlots, cardReviewIds]);
 
   function advanceAfterSubmit(signal: ComprehensionSignal) {
     lookupRequestRef.current += 1;
@@ -780,11 +704,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
     if (submittingReview) return;
     setSubmittingReview(true);
     try {
-      if (usingSentences) {
-        await handleSentenceSubmit(signal);
-      } else {
-        await handleLegacySubmit(signal);
-      }
+      await handleSentenceSubmit(signal);
     } finally {
       setSubmittingReview(false);
     }
@@ -867,7 +787,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
       `Phase: ${cardState}`,
       `Online: ${online ? "yes" : "no"}`,
     ];
-    if (usingSentences && sentenceSession) {
+    if (sentenceSession) {
       const item = isIntroSlot ? null : sentenceSession.items[sentenceItemIndex];
       if (item) {
         parts.push(`Sentence ID: ${item.sentence_id ?? "word_only"}`);
@@ -913,17 +833,6 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
           .filter(Boolean);
         if (confused.length > 0) parts.push(`Confused: ${confused.join(", ")}`);
       }
-    } else if (legacySession) {
-      const card = legacySession.cards[cardIndex];
-      if (card) {
-        parts.push(
-          `Word: lemma_id=${card.lemma_id}, lemma_ar=${card.lemma_ar}, gloss=${card.gloss_en}`
-        );
-        if (card.sentence) {
-          parts.push(`Sentence: ${card.sentence.arabic}`);
-          parts.push(`Translation: ${card.sentence.english}`);
-        }
-      }
     }
     if (lookupSurfaceForm && lookupLemmaId !== null) {
       parts.push(
@@ -939,7 +848,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
   }
 
   function buildExplainPrompt(): string | null {
-    if (usingSentences && sentenceSession) {
+    if (sentenceSession) {
       const item = isIntroSlot ? null : sentenceSession.items[sentenceItemIndex];
       if (!item) return null;
 
@@ -1250,7 +1159,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
   }
 
   // Intro card mid-session
-  if (usingSentences && isIntroSlot) {
+  if (sentenceSession && isIntroSlot) {
     const candidate = autoIntroduced[currentSlot!.type === "intro" ? currentSlot!.candidateIndex : 0];
     const knownSiblings = candidate.root_family?.filter(
       (s) => (s.state === "known" || s.state === "learning") && s.lemma_id !== candidate.lemma_id
@@ -1359,130 +1268,38 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
     );
   }
 
-  // Sentence-first flow
-  if (usingSentences) {
-    const item = sentenceSession!.items[sentenceItemIndex];
-    const isWordOnly = item.sentence_id === null;
-
+  if (!sentenceSession) {
     return (
-      <View
-        style={[styles.container, isListening && styles.listeningContainer, { paddingTop: Math.max(insets.top, 12) }]}
-      >
-        <ProgressBar
-          current={cardIndex + 1}
-          total={totalCards}
-          mode={mode}
-          actionMenu={
-            <ActionMenu
-              focusedLemmaId={lookupLemmaId}
-              focusedLemmaAr={lookupResult?.lemma_ar ?? null}
-              sentenceId={item.sentence_id}
-              askAIContextBuilder={buildContext}
-              askAIScreen="review"
-              askAIExplainPrompt={buildExplainPrompt}
-              onBack={canGoBack ? handleGoBack : null}
-            />
-          }
-          isRecap={recapCount > 0 && cardIndex < recapCount}
-          onWrapUp={(results?.total ?? 0) >= 2 ? handleWrapUp : null}
-        />
-
-        <ScrollView
-          contentContainerStyle={styles.sentenceArea}
-          showsVerticalScrollIndicator={false}
-        >
-          {isWordOnly ? (
-            <WordOnlySentenceCard
-              item={item}
-              cardState={
-                isListening
-                  ? (cardState as ListeningCardState)
-                  : (cardState as ReadingCardState)
-              }
-              isListening={isListening}
-              audioPlaying={audioPlaying}
-              onReplay={() => playTtsAudio()}
-              onReplaySlow={() => playTtsAudio(true)}
-            />
-          ) : isListening ? (
-            <SentenceListeningCard
-              item={item}
-              cardState={cardState as ListeningCardState}
-              missedIndices={missedIndices}
-              confusedIndices={confusedIndices}
-              onToggleMissed={toggleMissed}
-              audioPlaying={audioPlaying}
-              onReplay={() => playTtsAudio()}
-              onReplaySlow={() => playTtsAudio(true)}
-            />
-          ) : (
-            <SentenceReadingCard
-              item={item}
-              cardState={cardState as ReadingCardState}
-              missedIndices={missedIndices}
-              confusedIndices={confusedIndices}
-              onWordTap={handleWordTap}
-            />
-          )}
-        </ScrollView>
-
-        {!isListening && (
-          <WordInfoCard
-            result={isWordOnly ? null : lookupResult}
-            loading={!isWordOnly && lookupLoading}
-            surfaceForm={lookupSurfaceForm}
-            markState={focusedWordMark}
-            showMeaning={lookupShowMeaning}
-            onShowMeaning={() => setLookupShowMeaning(true)}
-            reserveSpace={false}
-            onNavigateToDetail={(id) => router.push(`/word/${id}`)}
-          />
-        )}
-
-        <View style={styles.bottomActions}>
-          {isListening ? (
-            <ListeningActions
-              cardState={cardState as ListeningCardState}
-              hasMarked={missedIndices.size + confusedIndices.size > 0}
-              onAdvance={advanceState}
-              onSubmit={handleSubmit}
-              submitting={submittingReview}
-            />
-          ) : (
-            <ReadingActions
-              cardState={cardState as ReadingCardState}
-              hasSentence={!isWordOnly}
-              hasMarked={missedIndices.size + confusedIndices.size > 0}
-              onAdvance={advanceState}
-              onSubmit={handleSubmit}
-              submitting={submittingReview}
-            />
-          )}
-        </View>
+      <View style={[styles.container, { paddingTop: Math.max(insets.top, 12) }]}>
+        <Text style={styles.emptyTitle}>No sentences available</Text>
+        <Text style={styles.emptySubtitle}>Try introducing more words in Learn mode</Text>
       </View>
     );
   }
 
-  // Legacy word-only fallback
-  const card = legacySession!.cards[cardIndex];
-  const hasSentence = card.sentence !== null;
+  const item = sentenceSession.items[sentenceItemIndex];
 
   return (
-    <View style={[styles.container, isListening && styles.listeningContainer]}>
+    <View
+      style={[styles.container, isListening && styles.listeningContainer, { paddingTop: Math.max(insets.top, 12) }]}
+    >
       <ProgressBar
         current={cardIndex + 1}
         total={totalCards}
         mode={mode}
         actionMenu={
           <ActionMenu
-            focusedLemmaId={null}
-            focusedLemmaAr={null}
-            sentenceId={null}
+            focusedLemmaId={lookupLemmaId}
+            focusedLemmaAr={lookupResult?.lemma_ar ?? null}
+            sentenceId={item.sentence_id}
             askAIContextBuilder={buildContext}
             askAIScreen="review"
             askAIExplainPrompt={buildExplainPrompt}
+            onBack={canGoBack ? handleGoBack : null}
           />
         }
+        isRecap={recapCount > 0 && cardIndex < recapCount}
+        onWrapUp={(results?.total ?? 0) >= 2 ? handleWrapUp : null}
       />
 
       <ScrollView
@@ -1490,35 +1307,45 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
         showsVerticalScrollIndicator={false}
       >
         {isListening ? (
-          <LegacyListeningCard
-            card={card}
+          <SentenceListeningCard
+            item={item}
             cardState={cardState as ListeningCardState}
             missedIndices={missedIndices}
+            confusedIndices={confusedIndices}
             onToggleMissed={toggleMissed}
             audioPlaying={audioPlaying}
             onReplay={() => playTtsAudio()}
             onReplaySlow={() => playTtsAudio(true)}
           />
-        ) : hasSentence ? (
-          <LegacySentenceCard
-            card={card}
+        ) : (
+          <SentenceReadingCard
+            item={item}
             cardState={cardState as ReadingCardState}
             missedIndices={missedIndices}
-            onToggleMissed={toggleMissed}
-          />
-        ) : (
-          <LegacyWordOnlyCard
-            card={card}
-            cardState={cardState as ReadingCardState}
+            confusedIndices={confusedIndices}
+            onWordTap={handleWordTap}
           />
         )}
       </ScrollView>
+
+      {!isListening && (
+        <WordInfoCard
+          result={lookupResult}
+          loading={lookupLoading}
+          surfaceForm={lookupSurfaceForm}
+          markState={focusedWordMark}
+          showMeaning={lookupShowMeaning}
+          onShowMeaning={() => setLookupShowMeaning(true)}
+          reserveSpace={false}
+          onNavigateToDetail={(id) => router.push(`/word/${id}`)}
+        />
+      )}
 
       <View style={styles.bottomActions}>
         {isListening ? (
           <ListeningActions
             cardState={cardState as ListeningCardState}
-            hasMarked={missedIndices.size > 0}
+            hasMarked={missedIndices.size + confusedIndices.size > 0}
             onAdvance={advanceState}
             onSubmit={handleSubmit}
             submitting={submittingReview}
@@ -1526,8 +1353,8 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
         ) : (
           <ReadingActions
             cardState={cardState as ReadingCardState}
-            hasSentence={hasSentence}
-            hasMarked={missedIndices.size > 0}
+            hasSentence={true}
+            hasMarked={missedIndices.size + confusedIndices.size > 0}
             onAdvance={advanceState}
             onSubmit={handleSubmit}
             submitting={submittingReview}
@@ -1812,223 +1639,6 @@ function SentenceListeningCard({
   );
 }
 
-function WordOnlySentenceCard({
-  item,
-  cardState,
-  isListening,
-  audioPlaying,
-  onReplay,
-  onReplaySlow,
-}: {
-  item: SentenceReviewItem;
-  cardState: CardState;
-  isListening: boolean;
-  audioPlaying: boolean;
-  onReplay: () => void;
-  onReplaySlow: () => void;
-}) {
-  if (isListening && cardState === "audio") {
-    return (
-      <View style={styles.listeningAudioState}>
-        <Text style={styles.listeningIcon}>
-          {audioPlaying ? "\u{1F50A}" : "\u{1F442}"}
-        </Text>
-        <Text style={styles.listeningHint}>
-          {audioPlaying ? "Listening..." : "Audio finished \u2014 tap to reveal"}
-        </Text>
-        <AudioControls audioPlaying={audioPlaying} onReplay={onReplay} onReplaySlow={onReplaySlow} />
-      </View>
-    );
-  }
-
-  const showBack =
-    cardState === "back" || cardState === "answer";
-  const showArabic = !isListening || cardState !== "audio";
-
-  return (
-    <>
-      <Text style={styles.wordOnlyIndicator}>word only</Text>
-      {showArabic && (
-        <Text style={styles.wordOnlyArabic}>{item.primary_lemma_ar}</Text>
-      )}
-      {showBack && (
-        <View style={styles.answerSection}>
-          <View style={styles.divider} />
-          <Text style={styles.wordOnlyGloss}>{item.primary_gloss_en}</Text>
-        </View>
-      )}
-    </>
-  );
-}
-
-// --- Legacy Cards (old word-centric flow) ---
-
-function LegacyListeningCard({
-  card,
-  cardState,
-  missedIndices,
-  onToggleMissed,
-  audioPlaying,
-  onReplay,
-  onReplaySlow,
-}: {
-  card: ReviewCard;
-  cardState: ListeningCardState;
-  missedIndices: Set<number>;
-  onToggleMissed: (index: number) => void;
-  audioPlaying: boolean;
-  onReplay: () => void;
-  onReplaySlow: () => void;
-}) {
-  const sentence = card.sentence!;
-
-  if (cardState === "audio") {
-    return (
-      <View style={styles.listeningAudioState}>
-        <Text style={styles.listeningIcon}>
-          {audioPlaying ? "\u{1F50A}" : "\u{1F442}"}
-        </Text>
-        <Text style={styles.listeningHint}>
-          {audioPlaying ? "Listening..." : "Audio finished \u2014 tap to reveal"}
-        </Text>
-        <AudioControls audioPlaying={audioPlaying} onReplay={onReplay} onReplaySlow={onReplaySlow} />
-      </View>
-    );
-  }
-
-  const words = sentence.arabic.split(/\s+/);
-  const showAnswer = cardState === "answer";
-
-  return (
-    <>
-      <Text style={styles.sentenceArabic}>
-        {words.map((word, i) => {
-          const isMissed = missedIndices.has(i);
-
-          return (
-            <Text key={`t-${i}`}>
-              {i > 0 && " "}
-              <Text
-                onPress={() => onToggleMissed(i)}
-                style={isMissed ? styles.missedWord : undefined}
-              >
-                {word}
-              </Text>
-            </Text>
-          );
-        })}
-      </Text>
-
-      {showAnswer && (
-        <View style={styles.answerSection}>
-          <View style={styles.divider} />
-          <Text style={styles.sentenceEnglish}>{sentence.english}</Text>
-          <View style={styles.translitSlot}>
-            {sentence.transliteration ? (
-              <Text style={styles.sentenceTranslit}>
-                {sentence.transliteration}
-              </Text>
-            ) : (
-              <Text style={styles.translitPlaceholder}>.</Text>
-            )}
-          </View>
-        </View>
-      )}
-
-      {cardState === "arabic" && (
-        <Text style={styles.tapHintListening}>
-          Tap words you didn't catch, then tap below to reveal answer
-        </Text>
-      )}
-    </>
-  );
-}
-
-function LegacySentenceCard({
-  card,
-  cardState,
-  missedIndices,
-  onToggleMissed,
-}: {
-  card: ReviewCard;
-  cardState: ReadingCardState;
-  missedIndices: Set<number>;
-  onToggleMissed: (index: number) => void;
-}) {
-  const sentence = card.sentence!;
-  const words = sentence.arabic.split(/\s+/);
-  const showAnswer = cardState === "back";
-
-  return (
-    <>
-      <Text style={styles.sentenceArabic}>
-        {words.map((word, i) => {
-          const isMissed = showAnswer && missedIndices.has(i);
-
-          if (showAnswer) {
-            return (
-              <Text key={`t-${i}`}>
-                {i > 0 && " "}
-                <Text
-                  onPress={() => onToggleMissed(i)}
-                  style={isMissed ? styles.missedWord : undefined}
-                >
-                  {word}
-                </Text>
-              </Text>
-            );
-          }
-
-          return (
-            <Text key={`t-${i}`}>
-              {i > 0 && " "}
-              <Text>{word}</Text>
-            </Text>
-          );
-        })}
-      </Text>
-
-      <View
-        style={[
-          styles.answerSection,
-          styles.answerSectionStable,
-          !showAnswer && styles.answerSectionHidden,
-        ]}
-      >
-          <View style={styles.divider} />
-          <Text style={styles.sentenceEnglish}>{showAnswer ? sentence.english : " "}</Text>
-          <View style={styles.translitSlot}>
-            <Text style={[styles.sentenceTranslit, !showAnswer && styles.hiddenText]}>
-              {sentence.transliteration ?? " "}
-            </Text>
-          </View>
-        </View>
-    </>
-  );
-}
-
-function LegacyWordOnlyCard({
-  card,
-  cardState,
-}: {
-  card: ReviewCard;
-  cardState: ReadingCardState;
-}) {
-  return (
-    <>
-      <Text style={styles.wordOnlyIndicator}>word only</Text>
-      <Text style={styles.wordOnlyArabic}>{card.lemma_ar}</Text>
-
-      {cardState === "back" && (
-        <View style={styles.answerSection}>
-          <View style={styles.divider} />
-          <Text style={styles.wordOnlyGloss}>{card.gloss_en}</Text>
-        </View>
-      )}
-    </>
-  );
-}
-
 // --- Listening Actions ---
 
 function ListeningActions({
@@ -2131,14 +1741,13 @@ function ListeningActions({
 
 function ReadingActions({
   cardState,
-  hasSentence,
   hasMarked,
   onAdvance,
   onSubmit,
   submitting,
 }: {
   cardState: ReadingCardState;
-  hasSentence: boolean;
+  hasSentence?: boolean;
   hasMarked: boolean;
   onAdvance: () => void;
   onSubmit: (signal: ComprehensionSignal) => Promise<void>;
@@ -2147,26 +1756,20 @@ function ReadingActions({
   if (cardState === "front") {
     return (
       <View style={styles.actionRow}>
-        {hasSentence ? (
-          <Pressable
-            style={[styles.actionButton, styles.noIdeaButton, submitting && styles.actionButtonDisabled]}
-            onPress={() => void onSubmit("no_idea")}
-            disabled={submitting}
-          >
-            <Text style={styles.noIdeaButtonText}>No idea</Text>
-          </Pressable>
-        ) : (
-          <View style={styles.actionButtonSpacer} />
-        )}
-        {hasSentence ? (
-          <Pressable
-            style={[styles.actionButton, styles.gotItButton, submitting && styles.actionButtonDisabled]}
-            onPress={() => void onSubmit("understood")}
-            disabled={submitting}
-          >
-            <Text style={styles.actionButtonText}>Know All</Text>
-          </Pressable>
-        ) : null}
+        <Pressable
+          style={[styles.actionButton, styles.noIdeaButton, submitting && styles.actionButtonDisabled]}
+          onPress={() => void onSubmit("no_idea")}
+          disabled={submitting}
+        >
+          <Text style={styles.noIdeaButtonText}>No idea</Text>
+        </Pressable>
+        <Pressable
+          style={[styles.actionButton, styles.gotItButton, submitting && styles.actionButtonDisabled]}
+          onPress={() => void onSubmit("understood")}
+          disabled={submitting}
+        >
+          <Text style={styles.actionButtonText}>Know All</Text>
+        </Pressable>
         <Pressable
           style={[styles.actionButton, styles.showButton, submitting && styles.actionButtonDisabled]}
           onPress={onAdvance}
@@ -2180,48 +1783,27 @@ function ReadingActions({
 
   return (
     <View style={styles.actionRow}>
-      {!hasSentence ? (
-        <>
-          <Pressable
-            style={[styles.actionButton, styles.gotItButton, submitting && styles.actionButtonDisabled]}
-            onPress={() => void onSubmit("understood")}
-            disabled={submitting}
-          >
-            <Text style={styles.actionButtonText}>Know All</Text>
-          </Pressable>
-          <Pressable
-            style={[styles.actionButton, styles.continueButton, submitting && styles.actionButtonDisabled]}
-            onPress={() => void onSubmit("partial")}
-            disabled={submitting}
-          >
-            <Text style={styles.actionButtonText}>Missed</Text>
-          </Pressable>
-        </>
-      ) : (
-        <>
-          <Pressable
-            style={[styles.actionButton, styles.noIdeaButton, submitting && styles.actionButtonDisabled]}
-            onPress={() => void onSubmit("no_idea")}
-            disabled={submitting}
-          >
-            <Text style={styles.noIdeaButtonText}>No idea</Text>
-          </Pressable>
-          <Pressable
-            style={[
-              styles.actionButton,
-              hasMarked ? styles.continueButton : styles.gotItButton,
-              submitting && styles.actionButtonDisabled,
-            ]}
-            onPress={() => void onSubmit(hasMarked ? "partial" : "understood")}
-            disabled={submitting}
-          >
-            <Text style={styles.actionButtonText}>
-              {hasMarked ? "Continue" : "Know All"}
-            </Text>
-          </Pressable>
-          <View style={styles.actionButtonSpacer} />
-        </>
-      )}
+      <Pressable
+        style={[styles.actionButton, styles.noIdeaButton, submitting && styles.actionButtonDisabled]}
+        onPress={() => void onSubmit("no_idea")}
+        disabled={submitting}
+      >
+        <Text style={styles.noIdeaButtonText}>No idea</Text>
+      </Pressable>
+      <Pressable
+        style={[
+          styles.actionButton,
+          hasMarked ? styles.continueButton : styles.gotItButton,
+          submitting && styles.actionButtonDisabled,
+        ]}
+        onPress={() => void onSubmit(hasMarked ? "partial" : "understood")}
+        disabled={submitting}
+      >
+        <Text style={styles.actionButtonText}>
+          {hasMarked ? "Continue" : "Know All"}
+        </Text>
+      </Pressable>
+      <View style={styles.actionButtonSpacer} />
     </View>
   );
 }
@@ -2738,6 +2320,18 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     padding: 20,
   },
+  emptyTitle: {
+    fontSize: 20,
+    color: colors.text,
+    textAlign: "center" as const,
+    marginTop: 40,
+  },
+  emptySubtitle: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    textAlign: "center" as const,
+    marginTop: 8,
+  },
   sessionCompleteScroll: {
     flex: 1,
     backgroundColor: colors.bg,
@@ -2843,14 +2437,6 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
 
-  wordOnlyIndicator: {
-    fontSize: 11,
-    color: colors.textSecondary,
-    textTransform: "uppercase",
-    letterSpacing: 1,
-    marginBottom: 12,
-    opacity: 0.6,
-  },
   wordOnlyArabic: {
     fontSize: 44,
     fontFamily: fontFamily.arabicBold,

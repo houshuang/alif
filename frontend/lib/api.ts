@@ -1,9 +1,6 @@
 import Constants from "expo-constants";
 import {
-  ReviewSession,
-  ReviewSubmission,
   ReviewMode,
-  ReviewCard,
   SentenceReviewSession,
   SentenceReviewSubmission,
   Word,
@@ -49,14 +46,6 @@ import { enqueueReview, flushQueue, removeFromQueue } from "./sync-queue";
 
 export const BASE_URL =
   Constants.expoConfig?.extra?.apiUrl ?? "http://localhost:8000";
-
-interface RawReviewCard {
-  lemma_id: number;
-  lemma_ar: string;
-  lemma_ar_bare: string;
-  gloss_en: string;
-  knowledge_state: string;
-}
 
 interface RawWord {
   lemma_id: number;
@@ -166,46 +155,6 @@ async function fetchApi<T>(path: string, options?: RequestInit): Promise<T> {
     throw new Error(`API error ${res.status}: ${text}`);
   }
   return res.json();
-}
-
-export async function getReviewSession(
-  mode: ReviewMode = "reading"
-): Promise<ReviewSession> {
-  const endpoint =
-    mode === "listening" ? "/api/review/next-listening" : "/api/review/next";
-  const raw = await fetchApi<RawReviewCard[]>(endpoint);
-
-  const cards: ReviewCard[] = raw.map((c) => ({
-    lemma_id: c.lemma_id,
-    lemma_ar: c.lemma_ar,
-    lemma_ar_bare: c.lemma_ar_bare,
-    gloss_en: c.gloss_en || "",
-    root: null,
-    pos: c.knowledge_state || "",
-    sentence: null,
-  }));
-
-  return {
-    cards,
-    session_id: generateSessionId(),
-    total_due: cards.length,
-  };
-}
-
-export async function submitReview(submission: ReviewSubmission): Promise<void> {
-  const clientReviewId = submission.client_review_id || generateUuid();
-  await enqueueReview("legacy", {
-    lemma_id: submission.lemma_id,
-    rating: submission.rating,
-    response_ms: submission.response_ms,
-    session_id: submission.session_id,
-    review_mode: submission.review_mode,
-    comprehension_signal: submission.comprehension_signal,
-  }, clientReviewId);
-
-  if (netStatus.isOnline) {
-    flushQueue().catch((e) => console.warn("sync flush failed:", e));
-  }
 }
 
 export async function getWords(): Promise<Word[]> {

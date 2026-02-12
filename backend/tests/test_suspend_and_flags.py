@@ -151,34 +151,6 @@ def test_reactivate_no_ulk(db_session):
 
 # --- Suspended Word Filtering Tests ---
 
-def test_suspended_words_excluded_from_due(db_session):
-    """Suspended words should not appear in get_due_cards."""
-    from app.services.fsrs_service import get_due_cards
-
-    lemma = _seed_word(db_session, state="learning")
-    # Make it due by setting due in past
-    ulk = db_session.query(UserLemmaKnowledge).filter_by(lemma_id=lemma.lemma_id).first()
-    card_data = ulk.fsrs_card_json
-    if isinstance(card_data, str):
-        import json
-        card_data = json.loads(card_data)
-    card_data["due"] = "2020-01-01T00:00:00+00:00"
-    ulk.fsrs_card_json = card_data
-    db_session.commit()
-
-    # Should be due
-    due = get_due_cards(db_session)
-    assert any(d["lemma_id"] == lemma.lemma_id for d in due)
-
-    # Suspend it
-    ulk.knowledge_state = "suspended"
-    db_session.commit()
-
-    # Should NOT be due anymore
-    due = get_due_cards(db_session)
-    assert not any(d["lemma_id"] == lemma.lemma_id for d in due)
-
-
 def test_suspended_word_skipped_in_sentence_review(client, db_session):
     """Suspended words should not get FSRS credit when reviewing a sentence."""
     lemma = _seed_word(db_session, state="suspended")

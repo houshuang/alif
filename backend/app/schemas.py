@@ -42,33 +42,6 @@ class KnowledgeOut(BaseModel):
     model_config = {"from_attributes": True}
 
 
-class ReviewCardOut(BaseModel):
-    lemma_id: int
-    lemma_ar: str
-    lemma_ar_bare: str
-    gloss_en: Optional[str] = None
-    audio_url: Optional[str] = None
-    knowledge_state: str
-    due: Optional[str] = None
-
-
-class ReviewSubmitIn(BaseModel):
-    lemma_id: int
-    rating: int  # 1=Again, 2=Hard, 3=Good, 4=Easy
-    response_ms: Optional[int] = None
-    session_id: Optional[str] = None
-    review_mode: str = "reading"  # reading/listening
-    comprehension_signal: Optional[str] = None  # understood/partial/no_idea
-    missed_word_lemma_ids: Optional[list[int]] = None
-    client_review_id: str | None = None
-
-
-class ReviewSubmitOut(BaseModel):
-    lemma_id: int
-    new_state: str
-    next_due: str
-
-
 class AnalyzeWordIn(BaseModel):
     word: str
 
@@ -320,7 +293,7 @@ class SentenceReviewSubmitOut(BaseModel):
 
 
 class BulkSyncItem(BaseModel):
-    type: str  # "sentence" or "legacy"
+    type: str  # "sentence"
     payload: dict
     client_review_id: str
 

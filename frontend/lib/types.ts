@@ -1,40 +1,5 @@
-export interface SentenceData {
-  id: number;
-  arabic: string;
-  english: string;
-  transliteration: string;
-}
-
-export interface ReviewCard {
-  lemma_id: number;
-  lemma_ar: string;
-  lemma_ar_bare: string;
-  gloss_en: string;
-  root: string | null;
-  pos: string;
-  sentence: SentenceData | null;
-}
-
-export interface ReviewSession {
-  cards: ReviewCard[];
-  session_id: string;
-  total_due: number;
-}
-
 export type ReviewMode = "reading" | "listening" | "quiz";
 export type ComprehensionSignal = "understood" | "partial" | "no_idea" | "grammar_confused";
-
-export interface ReviewSubmission {
-  lemma_id: number;
-  rating: 1 | 3;
-  response_ms: number;
-  session_id: string;
-  missed_words: string[];
-  review_mode: ReviewMode;
-  comprehension_signal?: ComprehensionSignal;
-  missed_word_lemma_ids?: number[];
-  client_review_id?: string;
-}
 
 export interface Word {
   id: number;

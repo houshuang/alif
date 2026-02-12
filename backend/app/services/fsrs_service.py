@@ -66,45 +66,6 @@ def reactivate_if_suspended(db: Session, lemma_id: int, source: str) -> bool:
     return False
 
 
-def get_due_cards(db: Session, limit: int = 10) -> list[dict]:
-    now = datetime.now(timezone.utc)
-    knowledges = (
-        db.query(UserLemmaKnowledge)
-        .join(Lemma)
-        .filter(
-            UserLemmaKnowledge.fsrs_card_json.isnot(None),
-            UserLemmaKnowledge.knowledge_state != "suspended",
-        )
-        .all()
-    )
-
-    due_items = []
-    for k in knowledges:
-        card_data = parse_json_column(k.fsrs_card_json)
-        due_str = card_data.get("due")
-        if due_str:
-            due_dt = datetime.fromisoformat(due_str)
-            if due_dt.tzinfo is None:
-                due_dt = due_dt.replace(tzinfo=timezone.utc)
-            if due_dt <= now:
-                due_items.append((k, due_dt))
-
-    due_items.sort(key=lambda x: x[1])
-    results = []
-    for k, due_dt in due_items[:limit]:
-        lemma = k.lemma
-        results.append({
-            "lemma_id": lemma.lemma_id,
-            "lemma_ar": lemma.lemma_ar,
-            "lemma_ar_bare": lemma.lemma_ar_bare,
-            "gloss_en": lemma.gloss_en,
-            "audio_url": lemma.audio_url,
-            "knowledge_state": k.knowledge_state,
-            "due": due_dt.isoformat(),
-        })
-    return results
-
-
 def submit_review(
     db: Session,
     lemma_id: int,
