@@ -18,6 +18,9 @@ npm install
 npx expo start --web  # opens on localhost:8081
 ```
 
+## Scheduling System
+See `docs/scheduling-system.md` for the complete reference: word lifecycle, session building algorithm, FSRS/acquisition phases, all constants, and divergence analysis.
+
 ## Architecture
 - **Backend**: Python 3.11+ / FastAPI / SQLite (single user, no auth) — `backend/`
 - **Frontend**: Expo (React Native) with web + iOS mode — `frontend/`
@@ -111,9 +114,11 @@ As we build features, create reusable Claude Code skills (`.claude/skills/`) for
 
 ### 5. Experiment Tracking — Document Everything
 This app is an ongoing learning experiment. Every algorithm change, data structure modification, or analysis must be documented:
+- **`docs/scheduling-system.md`**: Complete reference for the scheduling pipeline — word lifecycle, session building, FSRS/acquisition phases, all constants, and divergence analysis. **Update this whenever changing scheduling logic, constants, or adding new entry points.**
 - **`research/experiment-log.md`**: Running log of all changes with date, hypothesis, expected effect, and verification plan
 - **`research/analysis-YYYY-MM-DD.md`**: Detailed analysis reports linked from the experiment log
 - When making algorithm changes, ALWAYS add an entry to experiment-log.md BEFORE implementing
+- When making scheduling changes, ALWAYS update docs/scheduling-system.md AFTER implementing
 - When running production data analysis, ALWAYS save findings to a dated analysis file
 - Never delete entries — mark them as superseded if outdated
 
@@ -140,6 +145,7 @@ This app is an ongoing learning experiment. Every algorithm change, data structu
 - `tts.py` — ElevenLabs REST, eleven_multilingual_v2, Chaouki voice, speed 0.7. Learner pauses. SHA256 cache.
 - `llm.py` — LiteLLM: GPT-5.2 for sentence gen, Gemini 3 Flash general, Claude Haiku tertiary. JSON mode, markdown fence stripping, model_override.
 - `morphology.py` — CAMeL Tools analyzer. Hamza normalized at comparison time only (preserved in storage). Falls back to stub if not installed.
+- `transliteration.py` — Deterministic Arabic→ALA-LC romanization from diacritized text. Handles long vowels, shadda, hamza carriers, alif madda/wasla, sun letter assimilation, tāʾ marbūṭa, nisba ending. `transliterate_lemma()` for dictionary form (strips tanwīn + case vowels).
 - `variant_detection.py` — Two-phase: CAMeL candidates → Gemini Flash LLM confirmation with VariantDecision cache. Used by ALL import paths. Graceful fallback if LLM unavailable.
 - `interaction_logger.py` — Append-only JSONL. Skipped when TESTING env var set.
 - `ocr_service.py` — Gemini Vision OCR: text extraction, word extraction (OCR→morphology→LLM translation), textbook page processing. Creates "encountered" ULK. Runs variant detection after import.

@@ -4,6 +4,18 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-02-12: Diacritics + ALA-LC Transliteration Backfill
+
+**Change**: Added deterministic Arabic→ALA-LC transliteration service (`transliteration.py`) and backfilled diacritics + transliterations for all lemmas. 1,022 bare lemmas were diacritized via LLM (Gemini Flash). 97% of ULK words now have diacritics, 90% have transliteration. Transliteration now shows on word info cards during review.
+
+**Motivation**: Word lookup cards during review showed no transliteration because `transliteration_ala_lc` was NULL for all 1,610 words. Root cause: many lemmas (from OCR, Duolingo, frequency lists) were stored without diacritics. The transliterator is deterministic and works perfectly on diacritized input — the real fix was diacritizing the source data.
+
+**Approach**: Rule-based transliterator cross-checked against MTG/ArabicTransliterator and CAMeL-Lab/Arabic_ALA-LC_Romanization. Handles: long vowels, shadda/gemination, hamza carriers (initial=silent, medial/final=ʾ), alif madda (initial=ā, medial=ʾā), alif wasla, sun letter assimilation after al-, tāʾ marbūṭa, alif maqsura, nisba ending (ِيّ→ī), dagger alef. No LLM needed for transliteration — only for diacritization of bare words.
+
+**Files**: `app/services/transliteration.py`, `scripts/backfill_diacritics.py`, `scripts/backfill_transliteration.py`, `frontend/lib/review/WordInfoCard.tsx`
+
+---
+
 ## 2026-02-12: SAMER Readability Lexicon Integration
 
 **Change**: Backfilled `cefr_level` on 1,365/1,610 lemmas from SAMER v2 readability lexicon (40K MSA lemmas, L1-L5 human-annotated difficulty, mapped to CEFR A1-C1). Added auto-backfill step (Step D) in `update_material.py` cron so new lemmas get levels automatically.

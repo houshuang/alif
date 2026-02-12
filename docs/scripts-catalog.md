@@ -25,6 +25,9 @@ All scripts in `backend/scripts/`. Run from `backend/` directory.
 - `backfill_story_proper_nouns.py` — Convert proper nouns to function words.
 - `backfill_themes.py` — LLM thematic domain tagging for lemmas.
 - `backfill_etymology.py` — LLM etymology data generation for lemmas.
+- `backfill_diacritics.py` — LLM tashkīl (diacritization) for bare lemmas + auto-transliteration.
+- `backfill_transliteration.py` — Deterministic ALA-LC transliteration from diacritized lemma_ar. No LLM.
+- `backfill_samer.py` — SAMER readability L1-L5→CEFR mapping.
 
 ## Cleanup & Maintenance
 - `cleanup_bad_roots.py` — LLM-assisted bad root classification and cleanup (POS fixes, variant linking).
@@ -45,7 +48,8 @@ All scripts in `backend/scripts/`. Run from `backend/` directory.
 - `benchmark_llm.py` — Test 3 models across 5 tasks (105 ground truth cases).
 - `test_llm_variants.py` — Benchmark LLM variant detection against ground truth.
 - `tts_comparison.py` — Compare TTS voices/settings.
-- `simulate_usage.py` — Simulate usage patterns.
+- `simulate_usage.py` — Simulate raw FSRS usage patterns (no DB, pure library).
+- `simulate_sessions.py` — End-to-end multi-day simulation using real services against a DB copy. Profiles: beginner/strong/casual/intensive. Uses freezegun for time control. Output: console table + optional CSV.
 
 ## Utilities
 - `log_activity.py` — CLI tool for manual ActivityLog entries.
