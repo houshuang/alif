@@ -32,5 +32,11 @@ node_modules/
 .DS_Store
 Thumbs.db
 
+# Large data files
+backend/data/MSA_freq_lists.tsv
+
+# Test artifacts
+backend/pytest-of-*/
+
 # Alembic
 alembic/versions/__pycache__/
