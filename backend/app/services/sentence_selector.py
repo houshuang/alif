@@ -35,6 +35,13 @@ from app.services.sentence_validator import (
     strip_diacritics,
 )
 
+# Acquisition repetition: each acquiring word should appear this many times in a session
+MIN_ACQUISITION_EXPOSURES = 4
+MAX_ACQUISITION_EXTRA_SLOTS = 8  # max extra cards beyond session limit for repetitions
+MAX_AUTO_INTRO_PER_SESSION = 3  # new words auto-introduced per session
+AUTO_INTRO_ACCURACY_FLOOR = 0.70  # pause introduction if recent accuracy below this
+MAX_ACQUIRING_WORDS = 8  # don't auto-introduce if already this many acquiring
+
 
 @dataclass
 class WordMeta:
@@ -196,6 +203,78 @@ def _scaffold_freshness(
     return max(0.3, geo_mean)
 
 
+def _auto_introduce_words(
+    db: Session,
+    acquiring_count: int,
+    knowledge_by_id: dict[int, UserLemmaKnowledge],
+    now: datetime,
+) -> list[int]:
+    """Auto-introduce new words into the session if acquiring count is low.
+
+    Picks highest-frequency encountered words and starts acquisition.
+    Returns list of newly introduced lemma_ids.
+    """
+    import logging
+    logger = logging.getLogger(__name__)
+
+    if acquiring_count >= MAX_ACQUIRING_WORDS:
+        return []
+
+    # Check recent accuracy — pause introduction if struggling
+    recent_reviews = (
+        db.query(ReviewLog)
+        .filter(ReviewLog.reviewed_at >= now - timedelta(days=2))
+        .all()
+    )
+    if len(recent_reviews) >= 10:
+        correct = sum(1 for r in recent_reviews if r.rating >= 3)
+        accuracy = correct / len(recent_reviews)
+        if accuracy < AUTO_INTRO_ACCURACY_FLOOR:
+            logger.info(
+                f"Auto-intro paused: recent accuracy {accuracy:.0%} < {AUTO_INTRO_ACCURACY_FLOOR:.0%}"
+            )
+            return []
+
+    slots = min(MAX_AUTO_INTRO_PER_SESSION, MAX_ACQUIRING_WORDS - acquiring_count)
+    if slots <= 0:
+        return []
+
+    from app.services.word_selector import select_next_words, introduce_word
+    from app.services.material_generator import generate_material_for_word
+
+    candidates = select_next_words(db, count=slots)
+    if not candidates:
+        return []
+
+    introduced_ids: list[int] = []
+    for cand in candidates[:slots]:
+        lid = cand["lemma_id"]
+        try:
+            result = introduce_word(db, lid, source="auto_intro")
+            if result.get("already_known"):
+                continue
+            introduced_ids.append(lid)
+            logger.info(f"Auto-introduced word {lid}: {cand.get('lemma_ar', '?')}")
+
+            # Trigger sentence generation for this word (uses its own DB session)
+            try:
+                generate_material_for_word(lid, needed=3)
+            except Exception:
+                logger.warning(f"Material generation failed for auto-intro {lid}")
+        except Exception:
+            logger.warning(f"Failed to auto-introduce word {lid}")
+
+    if introduced_ids:
+        from app.services.interaction_logger import log_interaction
+        log_interaction(
+            event="auto_introduce",
+            count=len(introduced_ids),
+            lemma_ids=introduced_ids,
+        )
+
+    return introduced_ids
+
+
 def build_session(
     db: Session,
     limit: int = 10,
@@ -253,6 +332,29 @@ def build_session(
     from app.services.cohort_service import get_focus_cohort
     cohort = get_focus_cohort(db)
     due_lemma_ids &= cohort
+
+    # Auto-introduce new words if acquiring count is low
+    acquiring_count = sum(
+        1 for k in all_knowledge if k.knowledge_state == "acquiring"
+    )
+    auto_introduced_ids = _auto_introduce_words(
+        db, acquiring_count, knowledge_by_id, now
+    )
+    if auto_introduced_ids:
+        # Add newly introduced words to due set and tracking structures
+        for lid in auto_introduced_ids:
+            due_lemma_ids.add(lid)
+            stability_map[lid] = 0.1  # pseudo-stability for box 1
+            ulk = (
+                db.query(UserLemmaKnowledge)
+                .filter(UserLemmaKnowledge.lemma_id == lid)
+                .first()
+            )
+            if ulk:
+                knowledge_by_id[lid] = ulk
+        # Refresh cohort to include newly acquiring words
+        cohort = get_focus_cohort(db)
+        due_lemma_ids &= cohort
 
     # Identify struggling words: seen 3+ times, never correct
     struggling_ids: set[int] = set()
@@ -558,7 +660,7 @@ def build_session(
         covered_ids |= c.due_words_covered
 
     # 3b. Within-session repetition for acquisition words
-    # Find acquisition words that appear only once, add extra sentences for them
+    # Target MIN_ACQUISITION_EXPOSURES (3-4) per acquiring word
     acquiring_word_counts: dict[int, int] = {}
     for c in selected:
         for w in c.words_meta:
@@ -567,23 +669,30 @@ def build_session(
                 if k and k.knowledge_state == "acquiring":
                     acquiring_word_counts[w.lemma_id] = acquiring_word_counts.get(w.lemma_id, 0) + 1
 
-    # For acquisition words appearing only once, find additional sentences
+    # Allow session to grow beyond limit to fit acquisition repetitions
+    acq_extra_slots = sum(
+        max(0, MIN_ACQUISITION_EXPOSURES - count)
+        for count in acquiring_word_counts.values()
+    )
+    effective_limit = limit + min(acq_extra_slots, MAX_ACQUISITION_EXTRA_SLOTS)
+
     selected_ids = {c.sentence_id for c in selected}
-    for acq_lid, count in acquiring_word_counts.items():
-        if len(selected) >= limit:
-            break
-        if count >= 2:
-            continue
-        # Find another sentence for this word
-        extra = None
-        for c in candidates:
-            if c.sentence_id not in selected_ids and acq_lid in {w.lemma_id for w in c.words_meta}:
-                extra = c
+    for target_count in range(2, MIN_ACQUISITION_EXPOSURES + 1):
+        for acq_lid, count in list(acquiring_word_counts.items()):
+            if len(selected) >= effective_limit:
                 break
-        if extra:
-            selected.append(extra)
-            selected_ids.add(extra.sentence_id)
-            candidates.remove(extra)
+            if count >= target_count:
+                continue
+            extra = None
+            for c in candidates:
+                if c.sentence_id not in selected_ids and acq_lid in {w.lemma_id for w in c.words_meta}:
+                    extra = c
+                    break
+            if extra:
+                selected.append(extra)
+                selected_ids.add(extra.sentence_id)
+                candidates.remove(extra)
+                acquiring_word_counts[acq_lid] = count + 1
 
     # 4. Order: easy bookends, hard in middle
     ordered = _order_session(selected, stability_map)
@@ -735,7 +844,7 @@ def _build_reintro_cards(
     return cards
 
 
-MAX_ON_DEMAND_PER_SESSION = 3
+MAX_ON_DEMAND_PER_SESSION = 5
 
 
 def _generate_on_demand(
@@ -919,8 +1028,6 @@ def _with_fallbacks(
         for item in generated_items:
             covered_ids.add(item["primary_lemma_id"])
 
-    intro_candidates = _get_intro_candidates(db, items)
-
     # Check for un-introduced grammar features in session sentences
     sentence_ids_in_session = [item["sentence_id"] for item in items if item.get("sentence_id")]
     grammar_intro_needed: list[str] = []
@@ -939,7 +1046,7 @@ def _with_fallbacks(
         "items": items,
         "total_due_words": total_due,
         "covered_due_words": len(covered_ids),
-        "intro_candidates": intro_candidates,
+        "intro_candidates": [],  # deprecated: auto-introduction via sentences now
         "reintro_cards": reintro_cards or [],
         "grammar_intro_needed": grammar_intro_needed,
         "grammar_refresher_needed": grammar_refresher_needed,
@@ -967,52 +1074,3 @@ def _order_session(
     return start + middle + end
 
 
-MAX_INTRO_PER_SESSION = 2
-
-
-def _get_intro_candidates(
-    db: Session,
-    items: list[dict],
-) -> list[dict]:
-    """Suggest new words to introduce during a review session.
-
-    Returns up to MAX_INTRO_PER_SESSION candidates with insertion positions.
-    User controls acceptance via Learn/Skip buttons on the card.
-    """
-    if len(items) == 0:
-        return []
-
-    from app.services.word_selector import select_next_words, get_root_family
-
-    candidates = select_next_words(db, count=MAX_INTRO_PER_SESSION)
-    if not candidates:
-        return []
-
-    result = []
-    # Insert at positions 4 and 8 (0-indexed: after 3rd and 7th review items)
-    insert_positions = [3, 7]
-    for i, cand in enumerate(candidates[:MAX_INTRO_PER_SESSION]):
-        pos = insert_positions[i] if i < len(insert_positions) else len(items) - 1
-        pos = min(pos, len(items))
-        root_family = get_root_family(db, cand["root_id"]) if cand.get("root_id") else []
-        result.append({
-            "lemma_id": cand["lemma_id"],
-            "lemma_ar": cand["lemma_ar"],
-            "gloss_en": cand["gloss_en"],
-            "pos": cand.get("pos"),
-            "transliteration": cand.get("transliteration"),
-            "root": cand.get("root"),
-            "root_meaning": cand.get("root_meaning"),
-            "root_id": cand.get("root_id"),
-            "insert_at": pos,
-            "forms_json": cand.get("forms_json"),
-            "example_ar": cand.get("example_ar"),
-            "example_en": cand.get("example_en"),
-            "audio_url": cand.get("audio_url"),
-            "grammar_features": cand.get("grammar_features", []),
-            "grammar_details": [],
-            "root_family": root_family,
-            "story_title": cand.get("story_title"),
-        })
-
-    return result

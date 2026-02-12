@@ -10,7 +10,6 @@ from app.services.sentence_selector import (
     FRESHNESS_BASELINE,
     WordMeta,
     _difficulty_match_quality,
-    _get_intro_candidates,
     _scaffold_freshness,
     build_session,
 )
@@ -341,65 +340,21 @@ class TestWordMetadata:
         assert len(result["session_id"]) == 36  # full UUID format
 
 
-class TestIntroCandidates:
+class TestAutoIntroduction:
     def test_returns_intro_candidates_key(self, db_session):
         _seed_word(db_session, 1, "كتاب", "book", due_hours=-1)
         _seed_sentence(db_session, 1, "الكتاب", "the book", 1, [("الكتاب", 1)])
         db_session.commit()
 
         result = build_session(db_session, limit=10)
+        # intro_candidates still returned for backward compat (always empty now)
         assert "intro_candidates" in result
-
-    def test_no_intros_with_few_items(self, db_session):
-        """Don't suggest intros if session has fewer than MIN_ITEMS_FOR_INTRO items."""
-        _seed_word(db_session, 1, "كتاب", "book", due_hours=-1)
-        _seed_sentence(db_session, 1, "الكتاب", "the book", 1, [("الكتاب", 1)])
-        db_session.commit()
-
-        result = build_session(db_session, limit=10)
-        # Only 1 item, below threshold
         assert result["intro_candidates"] == []
 
-    def test_intros_when_enough_items_and_candidates(self, db_session):
-        """Suggests intros when session has enough items and there are unlearned words."""
-        # Create 5 due words with sentences
-        for i in range(1, 6):
-            _seed_word(db_session, i, f"word{i}", f"meaning{i}", due_hours=-1)
-            _seed_sentence(db_session, i, f"word{i}", f"meaning{i}", i,
-                          [(f"word{i}", i)])
-
-        # Create unlearned candidate words (no UserLemmaKnowledge)
-        for i in range(10, 13):
-            lemma = Lemma(lemma_id=i, lemma_ar=f"new{i}", lemma_ar_bare=f"new{i}",
-                         pos="noun", gloss_en=f"newmeaning{i}", frequency_rank=i)
-            db_session.add(lemma)
-
-        # Add some review history with good accuracy
-        now = datetime.now(timezone.utc)
-        for j in range(10):
-            db_session.add(ReviewLog(
-                lemma_id=1, rating=3, reviewed_at=now,
-                review_mode="reading",
-            ))
-
-        db_session.commit()
-
-        result = build_session(db_session, limit=10)
-        assert len(result["items"]) >= 4
-        # Should have intro candidates
-        assert len(result["intro_candidates"]) <= 2
-
-    def test_no_intros_with_low_accuracy(self, db_session):
-        """Don't suggest intros if recent accuracy is below threshold."""
-        for i in range(1, 6):
-            _seed_word(db_session, i, f"word{i}", f"meaning{i}", due_hours=-1)
-            _seed_sentence(db_session, i, f"word{i}", f"meaning{i}", i,
-                          [(f"word{i}", i)])
-
-        # Create unlearned candidate
-        lemma = Lemma(lemma_id=10, lemma_ar="new10", lemma_ar_bare="new10",
-                     pos="noun", gloss_en="newmeaning", frequency_rank=10)
-        db_session.add(lemma)
+    def test_no_auto_intro_with_low_accuracy(self, db_session):
+        """Don't auto-introduce if recent accuracy is below threshold."""
+        _seed_word(db_session, 1, "كتاب", "book", due_hours=-1)
+        _seed_sentence(db_session, 1, "الكتاب", "the book", 1, [("الكتاب", 1)])
 
         # Add review history with low accuracy (all rating=1)
         now = datetime.now(timezone.utc)
@@ -408,10 +363,10 @@ class TestIntroCandidates:
                 lemma_id=1, rating=1, reviewed_at=now,
                 review_mode="reading",
             ))
-
         db_session.commit()
 
         result = build_session(db_session, limit=10)
+        # Should not introduce new words when accuracy is low
         assert result["intro_candidates"] == []
 
 
