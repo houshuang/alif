@@ -858,6 +858,7 @@ def _get_intro_candidates(
             "grammar_features": cand.get("grammar_features", []),
             "grammar_details": [],
             "root_family": root_family,
+            "story_title": cand.get("story_title"),
         })
 
     return result

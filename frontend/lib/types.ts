@@ -215,6 +215,7 @@ export interface LearnCandidate {
   grammar_details?: GrammarFeatureDetail[];
   score: number;
   etymology_json?: EtymologyData | null;
+  story_title?: string | null;
   score_breakdown: {
     frequency: number;
     root_familiarity: number;
@@ -319,6 +320,7 @@ export interface IntroCandidate {
   audio_url: string | null;
   grammar_features: string[];
   grammar_details: GrammarFeatureDetail[];
+  story_title?: string | null;
   root_family: {
     lemma_id: number;
     lemma_ar: string;

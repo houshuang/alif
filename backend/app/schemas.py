@@ -261,6 +261,7 @@ class IntroCandidateOut(BaseModel):
     grammar_features: list[str] = []
     grammar_details: list[dict] = []
     root_family: list[dict] = []
+    story_title: str | None = None
 
 
 class ReintroCardOut(BaseModel):
@@ -342,6 +343,7 @@ class BulkSyncOut(BaseModel):
 
 class WrapUpIn(BaseModel):
     seen_lemma_ids: list[int]
+    missed_lemma_ids: list[int] = []
     session_id: str | None = None
 
 

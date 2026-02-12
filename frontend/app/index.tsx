@@ -793,9 +793,15 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
 
   async function handleWrapUp() {
     if (seenLemmaIds.size === 0) return;
+    // Collect lemma IDs of words the user missed (failed=true in wordOutcomes)
+    const missedIds: number[] = [];
+    for (const [lemmaId, outcome] of wordOutcomes) {
+      if (outcome.failed) missedIds.push(lemmaId);
+    }
     try {
       const cards = await getWrapUpCards(
         Array.from(seenLemmaIds),
+        missedIds,
         sentenceSession?.session_id
       );
       if (cards.length > 0) {
@@ -804,7 +810,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
         setWrapUpRevealed(false);
         setInWrapUp(true);
       } else {
-        // No acquisition words to quiz — just end session
+        // No words to quiz — just end session
         setResults(prev => prev ?? { total: 0, gotIt: 0, missed: 0, noIdea: 0 });
         const r = results ?? { total: 0, gotIt: 0, missed: 0, noIdea: 0 };
         setResults({ ...r, total: totalCards });
@@ -1266,6 +1272,11 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
         >
           <View style={styles.reintroCard}>
             <Text style={[styles.reintroLabel, { color: colors.accent }]}>New word</Text>
+            {candidate.story_title && (
+              <View style={styles.storySourceBadge}>
+                <Text style={styles.storySourceText}>From: {candidate.story_title}</Text>
+              </View>
+            )}
             <View style={styles.reintroWordHeader}>
               <Text style={styles.reintroArabic}>{candidate.lemma_ar}</Text>
               <PlayButton audioUrl={candidate.audio_url} word={candidate.lemma_ar} />
@@ -3439,6 +3450,18 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     textTransform: "uppercase",
     letterSpacing: 0.5,
+  },
+  storySourceBadge: {
+    backgroundColor: colors.accent + "20",
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 8,
+    marginBottom: 8,
+  },
+  storySourceText: {
+    color: colors.accent,
+    fontSize: 12,
+    fontWeight: "600",
   },
   reintroWordHeader: {
     flexDirection: "row",

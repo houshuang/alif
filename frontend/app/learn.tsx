@@ -263,6 +263,11 @@ export default function LearnScreen() {
         </View>
 
         <View style={styles.card}>
+          {c.story_title && (
+            <View style={styles.storyBadge}>
+              <Text style={styles.storyBadgeText}>From: {c.story_title}</Text>
+            </View>
+          )}
           <View style={styles.wordHeader}>
             <Text style={styles.wordArabic}>{c.lemma_ar}</Text>
             <PlayButton audioUrl={c.audio_url} word={c.lemma_ar} />
@@ -718,6 +723,18 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
 
+  storyBadge: {
+    backgroundColor: colors.accent + "20",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+    marginBottom: 12,
+  },
+  storyBadgeText: {
+    color: colors.accent,
+    fontSize: 13,
+    fontWeight: "600",
+  },
   card: {
     backgroundColor: colors.surface,
     borderRadius: 16,

@@ -86,10 +86,10 @@ def _get_recently_failed_roots(db: Session) -> set[int]:
     return {r[0] for r in roots}
 
 
-def _active_story_lemma_ids(db: Session) -> set[int]:
-    """Get lemma_ids of unknown words in active stories."""
+def _active_story_lemma_ids(db: Session) -> dict[int, str]:
+    """Get lemma_ids of unknown words in active stories → story title."""
     rows = (
-        db.query(StoryWord.lemma_id)
+        db.query(StoryWord.lemma_id, Story.title_en, Story.title_ar)
         .join(Story, StoryWord.story_id == Story.id)
         .filter(
             Story.status == "active",
@@ -97,10 +97,13 @@ def _active_story_lemma_ids(db: Session) -> set[int]:
             StoryWord.is_function_word == False,
             StoryWord.is_known_at_creation == False,
         )
-        .distinct()
         .all()
     )
-    return {r[0] for r in rows}
+    result: dict[int, str] = {}
+    for lemma_id, title_en, title_ar in rows:
+        if lemma_id not in result:
+            result[lemma_id] = title_en or title_ar or "Story"
+    return result
 
 
 def _frequency_score(frequency_rank: Optional[int], max_rank: int = 50000) -> float:
@@ -305,6 +308,7 @@ def select_next_words(
             "example_ar": lemma.example_ar,
             "example_en": lemma.example_en,
             "etymology_json": lemma.etymology_json,
+            "story_title": story_lemmas.get(lemma.lemma_id),
             "score": round(total_score, 3),
             "score_breakdown": {
                 "frequency": round(freq_score, 3),

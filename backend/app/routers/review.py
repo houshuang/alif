@@ -353,32 +353,49 @@ def submit_reintro_result(
 
 @router.post("/wrap-up", response_model=WrapUpOut)
 def wrap_up_quiz(body: WrapUpIn, db: Session = Depends(get_db)):
-    """Get word-level recall cards for acquisition words seen in current session."""
-    if not body.seen_lemma_ids:
+    """Get word-level recall cards for acquiring and missed words in current session."""
+    if not body.seen_lemma_ids and not body.missed_lemma_ids:
         return {"cards": []}
 
-    # Filter to acquiring words only
-    ulks = (
-        db.query(UserLemmaKnowledge)
-        .filter(
-            UserLemmaKnowledge.lemma_id.in_(body.seen_lemma_ids),
-            UserLemmaKnowledge.knowledge_state == "acquiring",
+    # Acquiring words seen in session
+    acquiring_ids: set[int] = set()
+    if body.seen_lemma_ids:
+        ulks = (
+            db.query(UserLemmaKnowledge)
+            .filter(
+                UserLemmaKnowledge.lemma_id.in_(body.seen_lemma_ids),
+                UserLemmaKnowledge.knowledge_state == "acquiring",
+            )
+            .all()
         )
-        .all()
-    )
-    acquiring_ids = {u.lemma_id for u in ulks}
+        acquiring_ids = {u.lemma_id for u in ulks}
 
-    if not acquiring_ids:
+    # Missed words (non-function, with active FSRS cards)
+    missed_ids: set[int] = set()
+    if body.missed_lemma_ids:
+        missed_ulks = (
+            db.query(UserLemmaKnowledge)
+            .filter(
+                UserLemmaKnowledge.lemma_id.in_(body.missed_lemma_ids),
+                UserLemmaKnowledge.knowledge_state.in_(["learning", "known", "lapsed", "acquiring"]),
+            )
+            .all()
+        )
+        missed_ids = {u.lemma_id for u in missed_ulks} - acquiring_ids
+
+    all_ids = acquiring_ids | missed_ids
+    if not all_ids:
         return {"cards": []}
 
     lemmas = (
         db.query(Lemma)
-        .filter(Lemma.lemma_id.in_(acquiring_ids))
+        .filter(Lemma.lemma_id.in_(all_ids))
         .all()
     )
 
     cards = []
-    for lemma in lemmas:
+    # Acquiring words first, then missed
+    for lemma in sorted(lemmas, key=lambda l: (l.lemma_id not in acquiring_ids, l.lemma_id)):
         root_obj = lemma.root
         cards.append(WrapUpCardOut(
             lemma_id=lemma.lemma_id,
@@ -391,13 +408,15 @@ def wrap_up_quiz(body: WrapUpIn, db: Session = Depends(get_db)):
             root=root_obj.root if root_obj else None,
             root_meaning=root_obj.core_meaning_en if root_obj else None,
             etymology_json=lemma.etymology_json,
-            is_acquiring=True,
+            is_acquiring=lemma.lemma_id in acquiring_ids,
         ))
 
     log_interaction(
         event="wrap_up_quiz",
         session_id=body.session_id,
         card_count=len(cards),
+        acquiring_count=len(acquiring_ids),
+        missed_count=len(missed_ids),
     )
 
     return {"cards": cards}
