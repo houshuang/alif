@@ -45,6 +45,7 @@ All scripts in `backend/scripts/`. Run from `backend/` directory.
 ## Analysis & Testing
 - `db_analysis.py` — Database analysis and statistics.
 - `analyze_word_distribution.py` — Word distribution analysis.
+- `analyze_progress.py` — Comprehensive learning progress report: knowledge states, acquisition pipeline, graduations, sessions, comprehension, struggling words, yesterday vs today. Supports `--days N`.
 - `benchmark_llm.py` — Test 3 models across 5 tasks (105 ground truth cases).
 - `test_llm_variants.py` — Benchmark LLM variant detection against ground truth.
 - `tts_comparison.py` — Compare TTS voices/settings.
