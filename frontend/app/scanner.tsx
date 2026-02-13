@@ -638,7 +638,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 4,
   },
   toggleLabel: {
-    color: colors.textPrimary,
+    color: colors.text,
     fontSize: fonts.body,
     fontWeight: "600",
   },

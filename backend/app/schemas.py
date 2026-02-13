@@ -107,11 +107,20 @@ class CEFREstimate(BaseModel):
     reading_coverage_pct: float
 
 
+class GraduatedWord(BaseModel):
+    lemma_id: int
+    lemma_ar: str
+    gloss_en: str | None
+
+
 class AnalyticsOut(BaseModel):
     stats: StatsOut
     pace: LearningPaceOut
     cefr: CEFREstimate
     daily_history: list[DailyStatsPoint]
+    comprehension_today: Optional["ComprehensionBreakdown"] = None
+    graduated_today: list[GraduatedWord] = []
+    calibration_signal: str = "not_enough_data"
 
 
 class StabilityBucket(BaseModel):
@@ -167,6 +176,32 @@ class SessionDetail(BaseModel):
     avg_response_ms: float | None
 
 
+class AcquisitionWord(BaseModel):
+    lemma_id: int
+    lemma_ar: str
+    gloss_en: str | None
+    acquisition_box: int
+    times_seen: int
+    times_correct: int
+
+
+class RecentGraduation(BaseModel):
+    lemma_id: int
+    lemma_ar: str
+    gloss_en: str | None
+    graduated_at: str
+
+
+class AcquisitionPipeline(BaseModel):
+    box_1: list[AcquisitionWord]
+    box_2: list[AcquisitionWord]
+    box_3: list[AcquisitionWord]
+    box_1_count: int
+    box_2_count: int
+    box_3_count: int
+    recent_graduations: list[RecentGraduation]
+
+
 class DeepAnalyticsOut(BaseModel):
     stability_distribution: list[StabilityBucket]
     retention_7d: RetentionStats
@@ -179,6 +214,7 @@ class DeepAnalyticsOut(BaseModel):
     struggling_words: list[StrugglingWord]
     root_coverage: RootCoverage
     recent_sessions: list[SessionDetail]
+    acquisition_pipeline: Optional[AcquisitionPipeline] = None
 
 
 class ImportResultOut(BaseModel):
@@ -331,6 +367,7 @@ class WrapUpCardOut(BaseModel):
     root: str | None = None
     root_meaning: str | None = None
     etymology_json: dict | None = None
+    memory_hooks_json: dict | None = None
     is_acquiring: bool = False
 
 

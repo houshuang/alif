@@ -147,6 +147,7 @@ This app is an ongoing learning experiment. Every algorithm change, data structu
 - `morphology.py` — CAMeL Tools analyzer. Hamza normalized at comparison time only (preserved in storage). Falls back to stub if not installed.
 - `transliteration.py` — Deterministic Arabic→ALA-LC romanization from diacritized text. Handles long vowels, shadda, hamza carriers, alif madda/wasla, sun letter assimilation, tāʾ marbūṭa, nisba ending. `transliterate_lemma()` for dictionary form (strips tanwīn + case vowels).
 - `variant_detection.py` — Two-phase: CAMeL candidates → Gemini Flash LLM confirmation with VariantDecision cache. Used by ALL import paths. Graceful fallback if LLM unavailable.
+- `memory_hooks.py` — LLM-generated memory aids (mnemonic, cognates, collocations, usage context, fun fact). JIT generation on word introduction via background task. Idempotent. Targets all 11 learner languages for cognate search.
 - `interaction_logger.py` — Append-only JSONL. Skipped when TESTING env var set.
 - `ocr_service.py` — Gemini Vision OCR: text extraction, word extraction (OCR→morphology→LLM translation), textbook page processing. `start_acquiring` toggle: when true, words start acquisition immediately (box 1, due_immediately); when false, creates "encountered" ULK. Runs variant detection after import (resets variant ULKs from acquiring→encountered).
 - `flag_evaluator.py` — Background LLM evaluation of flagged content. Auto-fixes or retires. Writes to ActivityLog.
@@ -165,17 +166,17 @@ All services in `backend/app/services/`.
 - `backend/app/models.py` — SQLAlchemy models (see Data Model below)
 - `backend/app/schemas.py` — Pydantic request/response models
 - `backend/app/routers/settings.py` — Settings router: topic management endpoints
-- `backend/scripts/` — Import, backfill, cleanup, analysis scripts. See `docs/scripts-catalog.md`. Most-used: update_material.py (cron, includes SAMER backfill as Step D), import_duolingo.py, retire_sentences.py, normalize_and_dedup.py, log_activity.py (CLI), reset_ocr_cards.py (OCR→encountered), reset_to_learning_baseline.py (reset words without genuine learning signal to encountered, preserves review history), backfill_etymology.py (LLM etymology), backfill_themes.py (thematic domains), backfill_samer.py (SAMER readability L1-L5→CEFR, TSV at backend/data/samer.tsv on server only), cleanup_review_pool.py (reset under-learned→acquiring, suspend variant ULKs with stat merge, suspend junk, retire bad sentences, run variant detection on uncovered words), review_existing_sentences.py (Gemini Flash quality audit of all active sentences, --dry-run supported)
+- `backend/scripts/` — Import, backfill, cleanup, analysis scripts. See `docs/scripts-catalog.md`. Most-used: update_material.py (cron, includes SAMER backfill as Step D), import_duolingo.py, retire_sentences.py, normalize_and_dedup.py, log_activity.py (CLI), reset_ocr_cards.py (OCR→encountered), reset_to_learning_baseline.py (reset words without genuine learning signal to encountered, preserves review history), backfill_etymology.py (LLM etymology), backfill_memory_hooks.py (LLM memory hooks for currently learning words), backfill_themes.py (thematic domains), backfill_samer.py (SAMER readability L1-L5→CEFR, TSV at backend/data/samer.tsv on server only), cleanup_review_pool.py (reset under-learned→acquiring, suspend variant ULKs with stat merge, suspend junk, retire bad sentences, run variant detection on uncovered words), review_existing_sentences.py (Gemini Flash quality audit of all active sentences, --dry-run supported), analyze_progress.py (comprehensive progress analysis: knowledge states, acquisition pipeline, sessions, comprehension, --days N)
 
 ### Frontend
 - `app/index.tsx` — Review screen: sentence-only (no word-only fallback), reading + listening, word lookup, word marking, back/undo, wrap-up mini-quiz (acquiring + missed words), next-session recap, session word tracking, story source badges on intro cards
 - `app/learn.tsx` — Learn mode: 5-candidate pick → quiz → done. Etymology display on pick cards. Story source badge for story words.
 - `app/words.tsx` — Word browser: grid, category tabs (Vocab/Function/Names), smart filters (Leeches/Struggling/Recent/Solid/Next Up/Acquiring/Encountered), sparklines (variable-width gaps show inter-review timing), search
-- `app/stats.tsx` — Analytics dashboard with acquiring/encountered stat cards
+- `app/stats.tsx` — Analytics dashboard: TodayHeroCard (comprehension bar, graduated pills, calibration), AcquisitionPipelineCard (Leitner box 1/2/3 words), SessionHistoryCard (recent sessions with mini comprehension bars), CEFR level, learning pace, quick stats, daily history, deep analytics
 - `app/story/[id].tsx` — Story reader with tap-to-lookup, ActionMenu in header bar (Ask AI, suspend story)
 - `app/stories.tsx` — Story list with generate + import, grouped sections (Active/Suspended), suspend all, suspend/reactivate toggle per story
 - `app/scanner.tsx` — Textbook page OCR scanner
-- `app/more.tsx` — More tab: Scanner, Chats, Stats, Activity Log
+- `app/more.tsx` — More tab: Scanner, Chats, New Words, Activity Log
 - `app/word/[id].tsx` — Word detail: forms, grammar, root family, review history, sentence stats, etymology section, acquisition badge
 - `app/chats.tsx` — AI chat conversations
 - `app/listening.tsx` — Dedicated listening mode
@@ -228,7 +229,7 @@ Full list: `docs/api-reference.md` or `backend/app/routers/`
 
 ## Data Model
 - `roots` — 3/4 consonant roots: core_meaning, productivity_score
-- `lemmas` — Dictionary forms: root FK, pos, gloss, frequency_rank, cefr_level, grammar_features_json, forms_json, example_ar/en, transliteration, audio_url, canonical_lemma_id (variant FK), source_story_id, thematic_domain, etymology_json
+- `lemmas` — Dictionary forms: root FK, pos, gloss, frequency_rank, cefr_level, grammar_features_json, forms_json, example_ar/en, transliteration, audio_url, canonical_lemma_id (variant FK), source_story_id, thematic_domain, etymology_json, memory_hooks_json
 - `user_lemma_knowledge` — Per-lemma SRS state: knowledge_state (encountered/acquiring/new/learning/known/lapsed/suspended), fsrs_card_json, times_seen, times_correct, total_encounters, source, variant_stats_json, acquisition_box (1/2/3), acquisition_next_due, graduated_at, leech_suspended_at
 - `review_log` — Review history: rating 1-4, mode, sentence_id, credit_type (metadata only), is_acquisition, fsrs_log_json (pre-review snapshots for undo)
 - `sentences` — Generated/imported: target_lemma_id, times_shown, last_reading_shown_at/last_listening_shown_at, last_reading_comprehension/last_listening_comprehension, is_active, max_word_count, created_at

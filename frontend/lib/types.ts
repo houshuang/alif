@@ -70,6 +70,7 @@ export interface WordDetail extends Word {
   sentence_stats: WordSentenceStat[];
   source_info?: SourceInfo | null;
   etymology_json?: EtymologyData | null;
+  memory_hooks_json?: MemoryHooksData | null;
   acquisition_box?: number | null;
 }
 
@@ -126,6 +127,14 @@ export interface EtymologyData {
   cultural_note: string | null;
 }
 
+export interface MemoryHooksData {
+  mnemonic: string | null;
+  cognates: { lang: string; word: string; note: string }[] | null;
+  collocations: { ar: string; en: string }[] | null;
+  usage_context: string | null;
+  fun_fact: string | null;
+}
+
 export interface WrapUpCard {
   lemma_id: number;
   lemma_ar: string;
@@ -137,6 +146,7 @@ export interface WrapUpCard {
   root: string | null;
   root_meaning: string | null;
   etymology_json: EtymologyData | null;
+  memory_hooks_json?: MemoryHooksData | null;
 }
 
 export interface RecapItem {
@@ -181,6 +191,7 @@ export interface LearnCandidate {
   grammar_details?: GrammarFeatureDetail[];
   score: number;
   etymology_json?: EtymologyData | null;
+  memory_hooks_json?: MemoryHooksData | null;
   story_title?: string | null;
   score_breakdown: {
     frequency: number;
@@ -246,6 +257,7 @@ export interface WordLookupResult {
   is_function_word?: boolean;
   frequency_rank: number | null;
   cefr_level: string | null;
+  memory_hooks_json?: MemoryHooksData | null;
   root_family: {
     lemma_id: number;
     lemma_ar: string;
@@ -392,6 +404,15 @@ export interface Analytics {
   pace: LearningPace;
   cefr: CEFREstimate;
   daily_history: DailyStats[];
+  comprehension_today?: ComprehensionBreakdown;
+  graduated_today?: GraduatedWord[];
+  calibration_signal?: string;
+}
+
+export interface GraduatedWord {
+  lemma_id: number;
+  lemma_ar: string;
+  gloss_en: string | null;
 }
 
 // Deep Analytics types
@@ -448,6 +469,32 @@ export interface SessionDetail {
   avg_response_ms: number | null;
 }
 
+export interface AcquisitionWord {
+  lemma_id: number;
+  lemma_ar: string;
+  gloss_en: string | null;
+  acquisition_box: number;
+  times_seen: number;
+  times_correct: number;
+}
+
+export interface RecentGraduation {
+  lemma_id: number;
+  lemma_ar: string;
+  gloss_en: string | null;
+  graduated_at: string;
+}
+
+export interface AcquisitionPipeline {
+  box_1: AcquisitionWord[];
+  box_2: AcquisitionWord[];
+  box_3: AcquisitionWord[];
+  box_1_count: number;
+  box_2_count: number;
+  box_3_count: number;
+  recent_graduations: RecentGraduation[];
+}
+
 export interface DeepAnalytics {
   stability_distribution: StabilityBucket[];
   retention_7d: RetentionStats;
@@ -460,6 +507,7 @@ export interface DeepAnalytics {
   struggling_words: StrugglingWord[];
   root_coverage: RootCoverageData;
   recent_sessions: SessionDetail[];
+  acquisition_pipeline?: AcquisitionPipeline;
 }
 
 export interface StoryWordMeta {

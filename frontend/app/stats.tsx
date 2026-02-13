@@ -10,7 +10,7 @@ import {
 import { useFocusEffect } from "expo-router";
 import { colors, fonts } from "../lib/theme";
 import { getAnalytics, getGrammarProgress, getDeepAnalytics } from "../lib/api";
-import { Analytics, GrammarProgress, DeepAnalytics } from "../lib/types";
+import { Analytics, GrammarProgress, DeepAnalytics, AcquisitionPipeline, ComprehensionBreakdown, GraduatedWord } from "../lib/types";
 import { syncEvents } from "../lib/sync-events";
 
 export default function StatsScreen() {
@@ -75,20 +75,23 @@ export default function StatsScreen() {
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <Text style={styles.title}>Your Progress</Text>
 
-      {/* Today Banner */}
-      {stats.reviews_today > 0 && (
-        <View style={styles.todayBanner}>
-          <Text style={styles.todayText}>
-            {stats.reviews_today} reviews
-            {daily_history.length > 0 && daily_history[daily_history.length - 1].words_learned > 0
-              ? ` \u00B7 +${daily_history[daily_history.length - 1].words_learned}`
-              : ""}
-            {pace.current_streak >= 2 ? ` \u00B7 ${pace.current_streak}d streak` : ""}
-            {daily_history.length > 0 && daily_history[daily_history.length - 1].accuracy !== null
-              ? ` \u00B7 ${daily_history[daily_history.length - 1].accuracy}%`
-              : ""}
-          </Text>
-        </View>
+      {/* Today Hero Card */}
+      <TodayHeroCard
+        comprehension={analytics.comprehension_today}
+        graduated={analytics.graduated_today}
+        calibration={analytics.calibration_signal}
+        reviewsToday={stats.reviews_today}
+        streak={pace.current_streak}
+      />
+
+      {/* Acquisition Pipeline */}
+      {deepAnalytics?.acquisition_pipeline && (
+        <AcquisitionPipelineCard pipeline={deepAnalytics.acquisition_pipeline} />
+      )}
+
+      {/* Session History */}
+      {deepAnalytics && deepAnalytics.recent_sessions.length > 0 && (
+        <SessionHistoryCard sessions={deepAnalytics.recent_sessions} />
       )}
 
       {/* CEFR Level Card */}
@@ -574,6 +577,214 @@ function RootProgressSection({ data }: { data: DeepAnalytics["root_coverage"] })
   );
 }
 
+// --- New Progression Components ---
+
+function TodayHeroCard({
+  comprehension,
+  graduated,
+  calibration,
+  reviewsToday,
+  streak,
+}: {
+  comprehension?: ComprehensionBreakdown;
+  graduated?: GraduatedWord[];
+  calibration?: string;
+  reviewsToday: number;
+  streak: number;
+}) {
+  if (reviewsToday === 0) return null;
+
+  const total = comprehension?.total || 0;
+  const understood = comprehension?.understood || 0;
+  const partial = comprehension?.partial || 0;
+  const noIdea = comprehension?.no_idea || 0;
+
+  const calibLabel = {
+    well_calibrated: "Well calibrated",
+    too_easy: "Sentences may be too easy",
+    too_hard: "Sentences may be too hard",
+    not_enough_data: "Keep going...",
+  }[calibration || "not_enough_data"] || "Keep going...";
+
+  const calibColor = {
+    well_calibrated: colors.good,
+    too_easy: colors.accent,
+    too_hard: colors.missed,
+    not_enough_data: colors.textSecondary,
+  }[calibration || "not_enough_data"] || colors.textSecondary;
+
+  return (
+    <View style={styles.heroCard}>
+      <View style={styles.heroTop}>
+        <View>
+          <Text style={styles.heroSentenceCount}>{total} sentences</Text>
+          {streak >= 2 && (
+            <Text style={styles.heroStreak}>{streak}d streak</Text>
+          )}
+        </View>
+        <Text style={[styles.heroCalibrLabel, { color: calibColor }]}>
+          {calibLabel}
+        </Text>
+      </View>
+
+      {total > 0 && (
+        <>
+          <View style={styles.heroCompBar}>
+            {understood > 0 && (
+              <View style={[styles.heroCompSeg, { flex: understood, backgroundColor: colors.good }]} />
+            )}
+            {partial > 0 && (
+              <View style={[styles.heroCompSeg, { flex: partial, backgroundColor: colors.accent }]} />
+            )}
+            {noIdea > 0 && (
+              <View style={[styles.heroCompSeg, { flex: noIdea, backgroundColor: colors.missed }]} />
+            )}
+          </View>
+          <View style={styles.heroCompLegend}>
+            <Text style={[styles.heroCompLabel, { color: colors.good }]}>
+              {understood} understood
+            </Text>
+            <Text style={[styles.heroCompLabel, { color: colors.accent }]}>
+              {partial} partial
+            </Text>
+            {noIdea > 0 && (
+              <Text style={[styles.heroCompLabel, { color: colors.missed }]}>
+                {noIdea} no idea
+              </Text>
+            )}
+          </View>
+        </>
+      )}
+
+      {graduated && graduated.length > 0 && (
+        <View style={styles.heroGrads}>
+          <Text style={styles.heroGradsLabel}>Graduated today:</Text>
+          <View style={styles.heroGradPills}>
+            {graduated.map((w) => (
+              <View key={w.lemma_id} style={styles.heroGradPill}>
+                <Text style={styles.heroGradAr}>{w.lemma_ar}</Text>
+              </View>
+            ))}
+          </View>
+        </View>
+      )}
+    </View>
+  );
+}
+
+function AcquisitionPipelineCard({ pipeline }: { pipeline: AcquisitionPipeline }) {
+  const total = pipeline.box_1_count + pipeline.box_2_count + pipeline.box_3_count;
+  const [expanded, setExpanded] = useState(false);
+
+  if (total === 0 && pipeline.recent_graduations.length === 0) return null;
+
+  const renderBox = (label: string, words: typeof pipeline.box_1, count: number) => (
+    <View style={styles.pipeBox}>
+      <View style={styles.pipeBoxHeader}>
+        <Text style={styles.pipeBoxLabel}>{label}</Text>
+        <Text style={styles.pipeBoxCount}>{count}</Text>
+      </View>
+      {(expanded ? words : words.slice(0, 3)).map((w) => {
+        const acc = w.times_seen > 0 ? Math.round(w.times_correct / w.times_seen * 100) : 0;
+        return (
+          <View key={w.lemma_id} style={styles.pipeWord}>
+            <Text style={styles.pipeWordAr} numberOfLines={1}>{w.lemma_ar}</Text>
+            <Text style={styles.pipeWordAcc}>{acc}%</Text>
+          </View>
+        );
+      })}
+      {!expanded && words.length > 3 && (
+        <Text style={styles.pipeMore}>+{words.length - 3}</Text>
+      )}
+    </View>
+  );
+
+  return (
+    <View style={styles.deepCard}>
+      <Pressable
+        style={styles.pipeTitleRow}
+        onPress={() => setExpanded(!expanded)}
+      >
+        <Text style={styles.sectionTitle}>Acquisition Pipeline</Text>
+        <Text style={styles.pipeTotal}>{total} words</Text>
+      </Pressable>
+      <View style={styles.pipeBoxes}>
+        {renderBox("Box 1\n4h", pipeline.box_1, pipeline.box_1_count)}
+        <Text style={styles.pipeArrow}>{"\u2192"}</Text>
+        {renderBox("Box 2\n1d", pipeline.box_2, pipeline.box_2_count)}
+        <Text style={styles.pipeArrow}>{"\u2192"}</Text>
+        {renderBox("Box 3\n3d", pipeline.box_3, pipeline.box_3_count)}
+      </View>
+      {pipeline.recent_graduations.length > 0 && (
+        <View style={styles.pipeGrads}>
+          <Text style={styles.pipeGradsTitle}>Recently graduated</Text>
+          {pipeline.recent_graduations.slice(0, expanded ? 15 : 5).map((g) => (
+            <View key={g.lemma_id} style={styles.pipeGradRow}>
+              <Text style={styles.pipeGradAr}>{g.lemma_ar}</Text>
+              <Text style={styles.pipeGradEn} numberOfLines={1}>{g.gloss_en}</Text>
+              <Text style={styles.pipeGradTime}>{_relTime(g.graduated_at)}</Text>
+            </View>
+          ))}
+        </View>
+      )}
+    </View>
+  );
+}
+
+function SessionHistoryCard({ sessions }: { sessions: DeepAnalytics["recent_sessions"] }) {
+  const shown = sessions.slice(0, 7);
+
+  return (
+    <View style={styles.deepCard}>
+      <Text style={styles.sectionTitle}>Recent Sessions</Text>
+      {shown.map((s) => {
+        const total = Object.values(s.comprehension).reduce((a, b) => a + b, 0);
+        const understood = s.comprehension.understood || 0;
+        const partial = s.comprehension.partial || 0;
+        const noIdea = s.comprehension.no_idea || 0;
+        const avgSec = s.avg_response_ms ? (s.avg_response_ms / 1000).toFixed(0) : null;
+
+        return (
+          <View key={s.session_id} style={styles.sessRow}>
+            <Text style={styles.sessTime}>{_relTime(s.reviewed_at)}</Text>
+            <Text style={styles.sessCount}>{s.sentence_count}</Text>
+            {total > 0 && (
+              <View style={styles.sessMiniBar}>
+                {understood > 0 && (
+                  <View style={[styles.sessMiniSeg, { flex: understood, backgroundColor: colors.good }]} />
+                )}
+                {partial > 0 && (
+                  <View style={[styles.sessMiniSeg, { flex: partial, backgroundColor: colors.accent }]} />
+                )}
+                {noIdea > 0 && (
+                  <View style={[styles.sessMiniSeg, { flex: noIdea, backgroundColor: colors.missed }]} />
+                )}
+              </View>
+            )}
+            {avgSec && <Text style={styles.sessAvg}>{avgSec}s</Text>}
+          </View>
+        );
+      })}
+    </View>
+  );
+}
+
+function _relTime(iso: string): string {
+  const now = Date.now();
+  const then = new Date(iso).getTime();
+  if (isNaN(then)) return iso;
+  const diffMs = now - then;
+  const mins = Math.floor(diffMs / 60000);
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins}m ago`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  if (days === 1) return "yesterday";
+  if (days < 7) return `${days}d ago`;
+  return new Date(iso).toLocaleDateString();
+}
+
 function StatCard({
   label,
   value,
@@ -612,20 +823,218 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     marginBottom: 20,
   },
-  todayBanner: {
-    backgroundColor: colors.surfaceLight,
-    borderRadius: 10,
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    marginBottom: 16,
+  heroCard: {
+    backgroundColor: colors.surface,
+    borderRadius: 16,
+    padding: 20,
     width: "100%",
     maxWidth: 500,
+    marginBottom: 16,
   },
-  todayText: {
-    color: colors.textSecondary,
+  heroTop: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    marginBottom: 12,
+  },
+  heroSentenceCount: {
+    fontSize: 18,
+    color: colors.text,
+    fontWeight: "700",
+  },
+  heroStreak: {
     fontSize: 13,
+    color: colors.accent,
     fontWeight: "600",
+    marginTop: 2,
+  },
+  heroCalibrLabel: {
+    fontSize: 12,
+    fontWeight: "600",
+  },
+  heroCompBar: {
+    flexDirection: "row",
+    height: 20,
+    borderRadius: 10,
+    overflow: "hidden",
+    backgroundColor: colors.surfaceLight,
+    marginBottom: 8,
+  },
+  heroCompSeg: {
+    height: "100%",
+  },
+  heroCompLegend: {
+    flexDirection: "row",
+    justifyContent: "center",
+    gap: 12,
+    marginBottom: 4,
+  },
+  heroCompLabel: {
+    fontSize: 12,
+    fontWeight: "600",
+  },
+  heroGrads: {
+    marginTop: 10,
+    paddingTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+  },
+  heroGradsLabel: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    marginBottom: 6,
+  },
+  heroGradPills: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 6,
+  },
+  heroGradPill: {
+    backgroundColor: colors.good + "20",
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+  },
+  heroGradAr: {
+    fontSize: 14,
+    color: colors.good,
+    fontWeight: "600",
+  },
+  pipeTitleRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  pipeTotal: {
+    fontSize: 13,
+    color: colors.textSecondary,
+    fontWeight: "600",
+  },
+  pipeBoxes: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 4,
+    marginTop: 8,
+  },
+  pipeBox: {
+    flex: 1,
+    backgroundColor: colors.surfaceLight,
+    borderRadius: 10,
+    padding: 10,
+  },
+  pipeBoxHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 8,
+  },
+  pipeBoxLabel: {
+    fontSize: 11,
+    color: colors.textSecondary,
+    fontWeight: "600",
+  },
+  pipeBoxCount: {
+    fontSize: 16,
+    color: colors.text,
+    fontWeight: "700",
+  },
+  pipeWord: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingVertical: 3,
+  },
+  pipeWordAr: {
+    fontSize: 14,
+    color: colors.text,
+    flex: 1,
+  },
+  pipeWordAcc: {
+    fontSize: 11,
+    color: colors.textSecondary,
+    marginLeft: 4,
+  },
+  pipeMore: {
+    fontSize: 11,
+    color: colors.accent,
+    marginTop: 4,
     textAlign: "center",
+  },
+  pipeArrow: {
+    fontSize: 16,
+    color: colors.textSecondary,
+    marginTop: 30,
+  },
+  pipeGrads: {
+    marginTop: 12,
+    paddingTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+  },
+  pipeGradsTitle: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    fontWeight: "600",
+    marginBottom: 6,
+  },
+  pipeGradRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingVertical: 4,
+  },
+  pipeGradAr: {
+    fontSize: 14,
+    color: colors.text,
+    fontWeight: "600",
+    width: 70,
+    textAlign: "right",
+  },
+  pipeGradEn: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    flex: 1,
+  },
+  pipeGradTime: {
+    fontSize: 11,
+    color: colors.textSecondary,
+  },
+  sessRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  sessTime: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    width: 70,
+  },
+  sessCount: {
+    fontSize: 13,
+    color: colors.text,
+    fontWeight: "600",
+    width: 24,
+    textAlign: "center",
+  },
+  sessMiniBar: {
+    flex: 1,
+    flexDirection: "row",
+    height: 8,
+    borderRadius: 4,
+    overflow: "hidden",
+    backgroundColor: colors.surfaceLight,
+  },
+  sessMiniSeg: {
+    height: "100%",
+  },
+  sessAvg: {
+    fontSize: 11,
+    color: colors.textSecondary,
+    width: 28,
+    textAlign: "right",
   },
   sectionTitle: {
     fontSize: 18,

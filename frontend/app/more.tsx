@@ -128,6 +128,11 @@ export default function MoreScreen() {
       />
 
       <NavRow
+        icon="add-circle-outline"
+        label="New Words"
+        onPress={() => router.push("/learn")}
+      />
+      <NavRow
         icon="trash-outline"
         label="Clear Cache"
         onPress={() => {
@@ -205,13 +210,6 @@ export default function MoreScreen() {
           )}
         </View>
       </Modal>
-
-      <Text style={styles.sectionHeader}>Progress</Text>
-      <NavRow
-        icon="bar-chart-outline"
-        label="Statistics"
-        onPress={() => router.push("/stats")}
-      />
 
       <Text style={styles.sectionHeader}>Activity</Text>
       {loadingActivity ? (

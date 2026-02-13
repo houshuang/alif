@@ -12,10 +12,11 @@ from app.models import (
 )
 from app.schemas import (
     StatsOut, DailyStatsPoint, LearningPaceOut,
-    CEFREstimate, AnalyticsOut,
+    CEFREstimate, AnalyticsOut, GraduatedWord,
     DeepAnalyticsOut, StabilityBucket, RetentionStats,
     StateTransitions, ComprehensionBreakdown, StrugglingWord,
     RootCoverage, SessionDetail,
+    AcquisitionWord, RecentGraduation, AcquisitionPipeline,
 )
 
 router = APIRouter(prefix="/api/stats", tags=["stats"])
@@ -365,11 +366,18 @@ def get_analytics(
     cefr = _estimate_cefr(basic.known)
     history = _get_daily_history(db, days, first_known_dates=first_known_dates)
 
+    comp_today = _get_comprehension_breakdown(db, 0)
+    graduated_today = _get_graduated_today(db)
+    calibration = _compute_calibration_signal(comp_today)
+
     return AnalyticsOut(
         stats=basic,
         pace=pace,
         cefr=cefr,
         daily_history=history,
+        comprehension_today=comp_today,
+        graduated_today=graduated_today,
+        calibration_signal=calibration,
     )
 
 
@@ -664,6 +672,100 @@ def _get_recent_sessions(db: Session, limit: int = 10) -> list[SessionDetail]:
     return results
 
 
+def _get_graduated_today(db: Session) -> list[GraduatedWord]:
+    now = datetime.now(timezone.utc)
+    today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    rows = (
+        db.query(UserLemmaKnowledge.lemma_id, Lemma.lemma_ar, Lemma.gloss_en)
+        .join(Lemma, Lemma.lemma_id == UserLemmaKnowledge.lemma_id)
+        .filter(UserLemmaKnowledge.graduated_at >= today_start)
+        .order_by(UserLemmaKnowledge.graduated_at.desc())
+        .all()
+    )
+    return [
+        GraduatedWord(lemma_id=r.lemma_id, lemma_ar=r.lemma_ar, gloss_en=r.gloss_en)
+        for r in rows
+    ]
+
+
+def _compute_calibration_signal(comp: ComprehensionBreakdown) -> str:
+    if comp.total < 5:
+        return "not_enough_data"
+    if comp.no_idea / comp.total > 0.3:
+        return "too_hard"
+    if comp.understood / comp.total > 0.9:
+        return "too_easy"
+    return "well_calibrated"
+
+
+def _get_acquisition_pipeline(db: Session) -> AcquisitionPipeline:
+    now = datetime.now(timezone.utc)
+    rows = (
+        db.query(
+            UserLemmaKnowledge.lemma_id,
+            Lemma.lemma_ar,
+            Lemma.gloss_en,
+            UserLemmaKnowledge.acquisition_box,
+            UserLemmaKnowledge.times_seen,
+            UserLemmaKnowledge.times_correct,
+        )
+        .join(Lemma, Lemma.lemma_id == UserLemmaKnowledge.lemma_id)
+        .filter(UserLemmaKnowledge.knowledge_state == "acquiring")
+        .order_by(UserLemmaKnowledge.acquisition_box, Lemma.lemma_ar)
+        .all()
+    )
+
+    boxes: dict[int, list[AcquisitionWord]] = {1: [], 2: [], 3: []}
+    for r in rows:
+        box = r.acquisition_box or 1
+        if box not in boxes:
+            box = 1
+        boxes[box].append(AcquisitionWord(
+            lemma_id=r.lemma_id,
+            lemma_ar=r.lemma_ar,
+            gloss_en=r.gloss_en,
+            acquisition_box=box,
+            times_seen=r.times_seen or 0,
+            times_correct=r.times_correct or 0,
+        ))
+
+    cutoff_7d = now - timedelta(days=7)
+    grad_rows = (
+        db.query(
+            UserLemmaKnowledge.lemma_id,
+            Lemma.lemma_ar,
+            Lemma.gloss_en,
+            UserLemmaKnowledge.graduated_at,
+        )
+        .join(Lemma, Lemma.lemma_id == UserLemmaKnowledge.lemma_id)
+        .filter(
+            UserLemmaKnowledge.graduated_at >= cutoff_7d,
+            UserLemmaKnowledge.graduated_at.isnot(None),
+        )
+        .order_by(UserLemmaKnowledge.graduated_at.desc())
+        .limit(15)
+        .all()
+    )
+
+    return AcquisitionPipeline(
+        box_1=boxes[1],
+        box_2=boxes[2],
+        box_3=boxes[3],
+        box_1_count=len(boxes[1]),
+        box_2_count=len(boxes[2]),
+        box_3_count=len(boxes[3]),
+        recent_graduations=[
+            RecentGraduation(
+                lemma_id=r.lemma_id,
+                lemma_ar=r.lemma_ar,
+                gloss_en=r.gloss_en,
+                graduated_at=r.graduated_at.isoformat() if r.graduated_at else "",
+            )
+            for r in grad_rows
+        ],
+    )
+
+
 @router.get("/deep-analytics", response_model=DeepAnalyticsOut)
 def get_deep_analytics(db: Session = Depends(get_db)):
     return DeepAnalyticsOut(
@@ -678,4 +780,5 @@ def get_deep_analytics(db: Session = Depends(get_db)):
         struggling_words=_get_struggling_words(db),
         root_coverage=_get_root_coverage(db),
         recent_sessions=_get_recent_sessions(db),
+        acquisition_pipeline=_get_acquisition_pipeline(db),
     )

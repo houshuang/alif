@@ -4,6 +4,49 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-02-13: Progress Visibility & Stats Screen Overhaul
+
+**Change**: Four-part improvement to learning progress visibility.
+
+1. **analyze_progress.py script**: Created comprehensive server-side analysis script replacing inline Python in Claude skill. Covers knowledge states, acquisition pipeline, graduations, session breakdown, comprehension by word count, rating distributions, response times, struggling words, and yesterday vs today comparison. Supports `--days N` flag.
+
+2. **Stats screen: 3 new components**:
+   - **TodayHeroCard**: Replaces the old "today" banner. Shows sentence count, comprehension bar (understood/partial/no_idea), calibration signal, graduated word pills, streak.
+   - **AcquisitionPipelineCard**: Three-column Leitner box view (Box 1 → Box 2 → Box 3) showing words with accuracy, expandable, recent graduations.
+   - **SessionHistoryCard**: Renders existing `recent_sessions` data (was computed but never shown). Last 7 sessions with mini comprehension bars.
+
+3. **Tab bar swap**: Stats promoted to main tab bar (was hidden), New Words moved to More menu.
+
+4. **Data fix**: Reset أساتِذة (teachers) from "known" to "acquiring" — inconsistent state (no FSRS card, 33% accuracy, never graduated).
+
+**Backend extensions**: Added `comprehension_today`, `graduated_today`, `calibration_signal` to `AnalyticsOut`. Added `acquisition_pipeline` to `DeepAnalyticsOut`. New schemas: `GraduatedWord`, `AcquisitionWord`, `RecentGraduation`, `AcquisitionPipeline`.
+
+**Why**: Post-pipeline-overhaul analysis showed healthy data (93% rating-3 on FSRS, zero "no_idea") but user couldn't see daily progression. Acquisition pipeline (words moving through Leitner boxes toward graduation) was invisible.
+
+**Expected effect**: User sees at a glance how today went, which words are progressing, and how recent sessions compared.
+
+**Verify**: Stats screen renders new components. `analyze_progress.py` outputs comprehensive data. Tab bar has Stats instead of New Words.
+
+**Files**: `stats.py`, `schemas.py`, `stats.tsx`, `_layout.tsx`, `more.tsx`, `types.ts`, `analyze_progress.py`, `analyze-learning.md`
+
+---
+
+## 2026-02-13: Memory Hooks — Mnemonics, Cognates, Collocations
+
+**Change**: New `memory_hooks_json` field on Lemma with LLM-generated memory aids: mnemonic (sound-based imagery), cognates (across 11 learner languages), collocations (diacritized Arabic phrases), usage context, and fun facts. JIT generation as a background task when words are introduced via Learn mode. Seed backfill script for currently learning words.
+
+**Why**: The word detail card shows factual etymology but lacks creative memory aids. Research shows bizarre imagery, sound-alikes, emotional connections, and cross-lingual cognates dramatically improve retention. The learner speaks English, Norwegian, Hindi, German, French, Italian, Spanish, Greek, Latin, Indonesian, and some Russian — an unusually rich base for cognate connections (especially Hindi/Indonesian from Islamic influence, Spanish from 800 years of Moorish rule).
+
+**Schema**: `{mnemonic, cognates: [{lang, word, note}], collocations: [{ar, en}], usage_context, fun_fact}` — all fields nullable. Function words get null.
+
+**Files**: `memory_hooks.py` (service), `backfill_memory_hooks.py` (seed script), migration `r8j3k4l5m901`, models.py, learn.py (JIT trigger), words.py/review.py/schemas.py (API responses), word/[id].tsx (full UI section), WordInfoCard.tsx (mnemonic line), learn.tsx/index.tsx (mnemonic on cards).
+
+**Expected effect**: Richer word detail with creative memory aids. Cognate connections leverage polyglot background. JIT generation means no wasted LLM calls on unused words.
+
+**Verify**: Deploy, run `backfill_memory_hooks.py --limit=100` for existing words. Check word detail page shows Memory Hooks section. Introduce a new word via Learn mode → verify hooks generated in background.
+
+---
+
 ## 2026-02-13: Cross-Model Quality Review + Sentence Retirement & Regeneration
 
 **Change**: Three-part improvement to sentence quality management.
