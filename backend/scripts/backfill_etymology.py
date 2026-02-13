@@ -77,7 +77,8 @@ def validate_etymology(etym):
     """Check that the etymology dict has the expected structure."""
     if not isinstance(etym, dict):
         return False
-    if not etym.get("root_meaning") or not etym.get("pattern") or not etym.get("derivation"):
+    # Must have derivation at minimum (both native words and loanwords)
+    if not etym.get("derivation"):
         return False
     return True
 
