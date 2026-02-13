@@ -181,6 +181,7 @@ All services in `backend/app/services/`.
 - `app/listening.tsx` — Dedicated listening mode
 - `lib/review/ActionMenu.tsx` — "⋯" menu: Ask AI, Suspend, Flag. Supports `extraActions` prop for screen-specific actions (e.g., story suspend).
 - `lib/review/WordInfoCard.tsx` — Word info panel for review
+- `lib/review/SentenceInfoModal.tsx` — Debug modal: sentence ID, source, review history, per-word FSRS difficulty/stability
 - `lib/api.ts` — API client with typed interfaces for all endpoints
 - `lib/types.ts` — TypeScript interfaces
 - `lib/offline-store.ts` — AsyncStorage session cache + reviewed tracking
@@ -219,6 +220,7 @@ Full list: `docs/api-reference.md` or `backend/app/routers/`
 | POST | `/api/stories/{id}/complete` | Complete story |
 | POST | `/api/stories/{id}/suspend` | Toggle story suspend/reactivate |
 | GET | `/api/stats/analytics` | Full analytics |
+| GET | `/api/sentences/{id}/info` | Sentence debug info: metadata, review history, per-word FSRS difficulty |
 | POST | `/api/ocr/scan-pages` | Upload textbook pages for OCR |
 | GET | `/api/settings/topic` | Current topic + progress |
 | PUT | `/api/settings/topic` | Manual topic override |
@@ -229,7 +231,7 @@ Full list: `docs/api-reference.md` or `backend/app/routers/`
 - `lemmas` — Dictionary forms: root FK, pos, gloss, frequency_rank, cefr_level, grammar_features_json, forms_json, example_ar/en, transliteration, audio_url, canonical_lemma_id (variant FK), source_story_id, thematic_domain, etymology_json
 - `user_lemma_knowledge` — Per-lemma SRS state: knowledge_state (encountered/acquiring/new/learning/known/lapsed/suspended), fsrs_card_json, times_seen, times_correct, total_encounters, source, variant_stats_json, acquisition_box (1/2/3), acquisition_next_due, graduated_at, leech_suspended_at
 - `review_log` — Review history: rating 1-4, mode, sentence_id, credit_type (metadata only), is_acquisition, fsrs_log_json (pre-review snapshots for undo)
-- `sentences` — Generated/imported: target_lemma_id, times_shown, last_reading_shown_at/last_listening_shown_at, last_reading_comprehension/last_listening_comprehension, is_active, max_word_count
+- `sentences` — Generated/imported: target_lemma_id, times_shown, last_reading_shown_at/last_listening_shown_at, last_reading_comprehension/last_listening_comprehension, is_active, max_word_count, created_at
 - `sentence_words` — Word breakdown: position, surface_form, lemma_id, is_target_word, grammar_role_json
 - `sentence_review_log` — Per-sentence review: comprehension, timing, session_id
 - `grammar_features` — 24 features across 5 categories

@@ -1143,6 +1143,7 @@ def _generate_on_demand(
                 transliteration=result.transliteration,
                 source="llm",
                 target_lemma_id=lid,
+                created_at=datetime.now(timezone.utc),
             )
             db.add(sent)
             db.flush()

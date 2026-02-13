@@ -117,6 +117,7 @@ class Sentence(Base):
     last_listening_shown_at = Column(DateTime, nullable=True)
     last_listening_comprehension = Column(String(20), nullable=True)
     is_active = Column(Boolean, default=True, server_default="1")
+    created_at = Column(DateTime, nullable=True)
 
     words = relationship("SentenceWord", back_populates="sentence")
     review_logs = relationship("SentenceReviewLog", back_populates="sentence")

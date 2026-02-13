@@ -15,6 +15,7 @@ import argparse
 import statistics
 import sys
 import time
+from datetime import datetime, timezone
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
@@ -244,6 +245,7 @@ def regenerate_worst_offenders(
                 transliteration=res.transliteration,
                 source="llm",
                 target_lemma_id=target_lid,
+                created_at=datetime.now(timezone.utc),
             )
             db.add(sent)
             db.flush()

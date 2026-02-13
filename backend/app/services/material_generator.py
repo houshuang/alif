@@ -5,6 +5,7 @@ Used by both learn.py (word introduction) and ocr_service.py (post-import).
 
 import asyncio
 import logging
+from datetime import datetime, timezone
 
 from app.database import SessionLocal
 from app.models import Lemma, Sentence, SentenceWord, UserLemmaKnowledge
@@ -119,6 +120,7 @@ def generate_material_for_word(lemma_id: int, needed: int = 2) -> None:
                 transliteration=res.transliteration,
                 source="llm",
                 target_lemma_id=lemma.lemma_id,
+                created_at=datetime.now(timezone.utc),
             )
             db.add(sent)
             db.flush()
@@ -187,6 +189,7 @@ def store_multi_target_sentence(
         transliteration=result.transliteration,
         source="llm",
         target_lemma_id=result.primary_target_lemma_id,
+        created_at=datetime.now(timezone.utc),
     )
     db.add(sent)
     db.flush()

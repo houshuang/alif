@@ -47,6 +47,7 @@ import { saveLastSessionWord, getLastSessionWords, clearLastSessionWords } from 
 import { syncEvents } from "../lib/sync-events";
 import { useNetStatus } from "../lib/net-status";
 import ActionMenu from "../lib/review/ActionMenu";
+import SentenceInfoModal from "../lib/review/SentenceInfoModal";
 import WordInfoCard, { FocusWordMark } from "../lib/review/WordInfoCard";
 
 type ReadingCardState = "front" | "back";
@@ -130,6 +131,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
   const [inWrapUp, setInWrapUp] = useState(false);
   const [recapCount, setRecapCount] = useState(0);
   const [seenLemmaIds, setSeenLemmaIds] = useState<Set<number>>(new Set());
+  const [sentenceInfoVisible, setSentenceInfoVisible] = useState(false);
   const showTime = useRef<number>(0);
   const soundRef = useRef<Audio.Sound | null>(null);
   const lookupRequestRef = useRef(0);
@@ -1333,11 +1335,18 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
             askAIScreen="review"
             askAIExplainPrompt={buildExplainPrompt}
             onBack={canGoBack ? handleGoBack : null}
-            extraActions={[{
-              icon: "refresh-outline",
-              label: "Refresh session",
-              onPress: () => loadSession(),
-            }]}
+            extraActions={[
+              ...(item.sentence_id ? [{
+                icon: "information-circle-outline" as const,
+                label: "Sentence info",
+                onPress: () => setSentenceInfoVisible(true),
+              }] : []),
+              {
+                icon: "refresh-outline" as const,
+                label: "Refresh session",
+                onPress: () => loadSession(),
+              },
+            ]}
           />
         }
         isRecap={recapCount > 0 && cardIndex < recapCount}
@@ -1403,6 +1412,14 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
           />
         )}
       </View>
+
+      {item.sentence_id != null && (
+        <SentenceInfoModal
+          sentenceId={item.sentence_id}
+          visible={sentenceInfoVisible}
+          onClose={() => setSentenceInfoVisible(false)}
+        />
+      )}
     </View>
   );
 }

@@ -17,6 +17,7 @@ import argparse
 import asyncio
 import sys
 import time
+from datetime import datetime, timezone
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
@@ -120,6 +121,7 @@ def generate_sentences_for_word(
                 transliteration=res.transliteration,
                 source="llm",
                 target_lemma_id=lemma.lemma_id,
+                created_at=datetime.now(timezone.utc),
             )
             db.add(sent)
             db.flush()

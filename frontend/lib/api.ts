@@ -802,6 +802,49 @@ export async function extractTextFromImage(imageUri: string): Promise<string> {
   return data.extracted_text;
 }
 
+// --- Sentence info ---
+
+export interface SentenceInfoWord {
+  position: number;
+  surface_form: string;
+  lemma_id: number | null;
+  gloss_en: string | null;
+  is_target_word: boolean;
+  knowledge_state: string | null;
+  times_seen: number;
+  times_correct: number;
+  fsrs_difficulty: number | null;
+  fsrs_stability: number | null;
+  acquisition_box: number | null;
+}
+
+export interface SentenceInfoReview {
+  reviewed_at: string | null;
+  comprehension: string;
+  review_mode: string | null;
+  response_ms: number | null;
+}
+
+export interface SentenceInfo {
+  sentence_id: number;
+  created_at: string | null;
+  source: string | null;
+  difficulty_score: number | null;
+  is_active: boolean;
+  times_shown: number;
+  target_lemma_id: number | null;
+  last_reading_shown_at: string | null;
+  last_reading_comprehension: string | null;
+  last_listening_shown_at: string | null;
+  last_listening_comprehension: string | null;
+  reviews: SentenceInfoReview[];
+  words: SentenceInfoWord[];
+}
+
+export async function getSentenceInfo(sentenceId: number): Promise<SentenceInfo> {
+  return fetchApi<SentenceInfo>(`/api/sentences/${sentenceId}/info`);
+}
+
 // --- Word management ---
 
 export async function suspendWord(lemmaId: number): Promise<{ lemma_id: number; state: string }> {

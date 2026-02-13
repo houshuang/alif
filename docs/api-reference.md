@@ -73,6 +73,7 @@ Full endpoint list. See `backend/app/routers/` for implementation.
 |--------|------|-------------|
 | POST | `/api/sentences/generate` | Generate sentence for a target word |
 | POST | `/api/sentences/validate` | Validate sentence against known vocabulary |
+| GET | `/api/sentences/{id}/info` | Sentence debug info: metadata, review history, per-word FSRS difficulty |
 | POST | `/api/analyze/word` | Analyze word morphology (CAMeL Tools or stub fallback) |
 | POST | `/api/analyze/sentence` | Analyze sentence morphology (CAMeL Tools or stub fallback) |
 
