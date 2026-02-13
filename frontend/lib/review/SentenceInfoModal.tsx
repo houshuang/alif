@@ -106,9 +106,10 @@ export default function SentenceInfoModal({ sentenceId, visible, onClose }: Prop
                 <View style={styles.wordTable}>
                   <View style={styles.wordHeaderRow}>
                     <Text style={[styles.wordCell, styles.wordCellAr, styles.headerText]}>Word</Text>
+                    <Text style={[styles.wordCell, styles.wordCellGloss, styles.headerText]}>English</Text>
                     <Text style={[styles.wordCell, styles.wordCellState, styles.headerText]}>State</Text>
-                    <Text style={[styles.wordCell, styles.wordCellNum, styles.headerText]}>D</Text>
-                    <Text style={[styles.wordCell, styles.wordCellNum, styles.headerText]}>S</Text>
+                    <Text style={[styles.wordCell, styles.wordCellNum, styles.headerText]}>Diff</Text>
+                    <Text style={[styles.wordCell, styles.wordCellNum, styles.headerText]}>Stab</Text>
                     <Text style={[styles.wordCell, styles.wordCellNum, styles.headerText]}>Acc</Text>
                   </View>
                   {info.words.map((w, i) => {
@@ -127,6 +128,9 @@ export default function SentenceInfoModal({ sentenceId, visible, onClose }: Prop
                       >
                         <Text style={[styles.wordCell, styles.wordCellAr]} numberOfLines={1}>
                           {w.surface_form}
+                        </Text>
+                        <Text style={[styles.wordCell, styles.wordCellGloss]} numberOfLines={1}>
+                          {w.gloss_en || ""}
                         </Text>
                         <Text
                           style={[
@@ -284,13 +288,17 @@ const styles = StyleSheet.create({
     fontSize: fonts.caption,
   },
   wordCellAr: {
-    flex: 2,
+    flex: 1.5,
+  },
+  wordCellGloss: {
+    flex: 1.5,
+    color: colors.textSecondary,
   },
   wordCellState: {
-    flex: 1.2,
+    flex: 1,
   },
   wordCellNum: {
-    flex: 0.8,
+    flex: 0.7,
     textAlign: "right",
   },
   reviewRow: {
