@@ -142,7 +142,7 @@ export default function SentenceInfoModal({ sentenceId, visible, onClose }: Prop
                           {stateLabel}
                         </Text>
                         <Text style={[styles.wordCell, styles.wordCellNum]}>
-                          {w.fsrs_difficulty != null ? w.fsrs_difficulty.toFixed(1) : "--"}
+                          {w.fsrs_difficulty != null ? `${Math.round(w.fsrs_difficulty * 10)}%` : "--"}
                         </Text>
                         <Text style={[styles.wordCell, styles.wordCellNum]}>
                           {stabilityLabel(w.fsrs_stability)}
