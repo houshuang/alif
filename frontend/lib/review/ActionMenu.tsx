@@ -25,6 +25,7 @@ interface ActionMenuProps {
   askAIContextBuilder: () => string;
   askAIScreen: string;
   askAIExplainPrompt?: () => string | null;
+  askAIExplainSentencePrompt?: () => string | null;
   onWordSuspended?: (lemmaId: number) => void;
   onBack?: (() => void) | null;
   extraActions?: ExtraAction[];
@@ -39,6 +40,7 @@ export default function ActionMenu({
   askAIContextBuilder,
   askAIScreen,
   askAIExplainPrompt,
+  askAIExplainSentencePrompt,
   onWordSuspended,
   onBack,
   extraActions,
@@ -211,6 +213,7 @@ export default function ActionMenu({
           contextBuilder={askAIContextBuilder}
           screen={askAIScreen}
           buildExplainPrompt={askAIExplainPrompt}
+          buildExplainSentencePrompt={askAIExplainSentencePrompt}
           onClose={() => setAskAIVisible(false)}
         />
       )}
@@ -254,19 +257,21 @@ function AskAIModal({
   contextBuilder,
   screen,
   buildExplainPrompt,
+  buildExplainSentencePrompt,
   onClose,
 }: {
   contextBuilder: () => string;
   screen: string;
   buildExplainPrompt?: () => string | null;
+  buildExplainSentencePrompt?: () => string | null;
   onClose: () => void;
 }) {
-  // Render AskAI in a hidden mode, immediately trigger its modal
   return (
     <AskAI
       contextBuilder={contextBuilder}
       screen={screen}
       buildExplainPrompt={buildExplainPrompt}
+      buildExplainSentencePrompt={buildExplainSentencePrompt}
       autoOpen
       onClose={onClose}
     />

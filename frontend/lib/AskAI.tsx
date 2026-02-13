@@ -25,6 +25,7 @@ interface AskAIProps {
   contextBuilder: () => string;
   screen: string;
   buildExplainPrompt?: () => string | null;
+  buildExplainSentencePrompt?: () => string | null;
   autoOpen?: boolean;
   onClose?: () => void;
 }
@@ -33,6 +34,7 @@ export default function AskAI({
   contextBuilder,
   screen,
   buildExplainPrompt,
+  buildExplainSentencePrompt,
   autoOpen,
   onClose,
 }: AskAIProps) {
@@ -99,6 +101,13 @@ export default function AskAI({
     await sendQuestion(prompt);
   }
 
+  async function handleExplainSentence() {
+    if (loading || !buildExplainSentencePrompt) return;
+    const prompt = buildExplainSentencePrompt()?.trim();
+    if (!prompt) return;
+    await sendQuestion(prompt);
+  }
+
   return (
     <>
       {!autoOpen && (
@@ -157,16 +166,28 @@ export default function AskAI({
               )}
             </ScrollView>
 
-            {buildExplainPrompt && (
+            {(buildExplainPrompt || buildExplainSentencePrompt) && (
               <View style={styles.quickActions}>
-                <Pressable
-                  style={[styles.quickActionButton, loading && styles.sendDisabled]}
-                  onPress={handleExplain}
-                  disabled={loading}
-                >
-                  <Ionicons name="sparkles-outline" size={16} color={colors.text} />
-                  <Text style={styles.quickActionText}>Explain</Text>
-                </Pressable>
+                {buildExplainPrompt && (
+                  <Pressable
+                    style={[styles.quickActionButton, loading && styles.sendDisabled]}
+                    onPress={handleExplain}
+                    disabled={loading}
+                  >
+                    <Ionicons name="sparkles-outline" size={16} color={colors.text} />
+                    <Text style={styles.quickActionText}>Explain marked</Text>
+                  </Pressable>
+                )}
+                {buildExplainSentencePrompt && (
+                  <Pressable
+                    style={[styles.quickActionButton, loading && styles.sendDisabled]}
+                    onPress={handleExplainSentence}
+                    disabled={loading}
+                  >
+                    <Ionicons name="reader-outline" size={16} color={colors.text} />
+                    <Text style={styles.quickActionText}>Explain full</Text>
+                  </Pressable>
+                )}
               </View>
             )}
 
@@ -284,6 +305,8 @@ const styles = StyleSheet.create({
   },
   quickActions: {
     flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
     marginBottom: 10,
   },
   quickActionButton: {

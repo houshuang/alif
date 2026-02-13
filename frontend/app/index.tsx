@@ -111,6 +111,9 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
   const [focusedWordMark, setFocusedWordMark] = useState<FocusWordMark | null>(null);
   const [lookupLoading, setLookupLoading] = useState(false);
   const [lookupShowMeaning, setLookupShowMeaning] = useState(false);
+  const [tappedOrder, setTappedOrder] = useState<number[]>([]);
+  const [tappedCursor, setTappedCursor] = useState(-1);
+  const tappedCacheRef = useRef<Map<number, { surfaceForm: string; lemmaId: number | null; result: WordLookupResult | null; markState: FocusWordMark; showMeaning: boolean }>>(new Map());
   const [audioPlayCount, setAudioPlayCount] = useState(0);
   const [lookupCount, setLookupCount] = useState(0);
   const [submittingReview, setSubmittingReview] = useState(false);
@@ -236,6 +239,9 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
     setCardState(m === "listening" ? "audio" : "front");
     setMissedIndices(new Set());
     setConfusedIndices(new Set());
+    setTappedOrder([]);
+    setTappedCursor(-1);
+    tappedCacheRef.current = new Map();
     setAudioPlaying(false);
     setAutoIntroduced([]);
     setWordOutcomes(new Map());
@@ -383,6 +389,74 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
     }
   }, [confusedIndices, missedIndices]);
 
+  type TappedEntry = { surfaceForm: string; lemmaId: number | null; result: WordLookupResult | null; markState: FocusWordMark; showMeaning: boolean };
+
+  const applyTappedEntry = useCallback((entry: TappedEntry) => {
+    setLookupSurfaceForm(entry.surfaceForm);
+    setLookupLemmaId(entry.lemmaId);
+    setFocusedWordMark(entry.markState);
+    setLookupResult(entry.result);
+    setLookupShowMeaning(entry.showMeaning);
+    setLookupLoading(false);
+  }, []);
+
+  const handleLookupPrev = useCallback(() => {
+    setTappedCursor(prev => {
+      const newIdx = prev - 1;
+      if (newIdx < 0) return prev;
+      const wordIdx = tappedOrder[newIdx];
+      const entry = tappedCacheRef.current.get(wordIdx);
+      if (entry) applyTappedEntry(entry);
+      return newIdx;
+    });
+  }, [tappedOrder, applyTappedEntry]);
+
+  const handleLookupNext = useCallback(() => {
+    setTappedCursor(prev => {
+      const newIdx = prev + 1;
+      if (newIdx >= tappedOrder.length) return prev;
+      const wordIdx = tappedOrder[newIdx];
+      const entry = tappedCacheRef.current.get(wordIdx);
+      if (entry) applyTappedEntry(entry);
+      return newIdx;
+    });
+  }, [tappedOrder, applyTappedEntry]);
+
+  const addToTappedHistory = useCallback((wordIndex: number, entry: TappedEntry) => {
+    tappedCacheRef.current.set(wordIndex, entry);
+    setTappedOrder(prev => {
+      if (prev.includes(wordIndex)) {
+        setTappedCursor(prev.indexOf(wordIndex));
+        return prev;
+      }
+      const next = [...prev, wordIndex];
+      setTappedCursor(next.length - 1);
+      return next;
+    });
+  }, []);
+
+  const removeFromTappedHistory = useCallback((wordIndex: number) => {
+    tappedCacheRef.current.delete(wordIndex);
+    setTappedOrder(prev => {
+      const next = prev.filter(i => i !== wordIndex);
+      if (next.length === 0) {
+        setTappedCursor(-1);
+        setLookupResult(null);
+        setLookupSurfaceForm(null);
+        setLookupLemmaId(null);
+        setFocusedWordMark(null);
+        setLookupShowMeaning(false);
+      } else {
+        const oldPos = prev.indexOf(wordIndex);
+        const newCursor = Math.min(oldPos, next.length - 1);
+        setTappedCursor(newCursor);
+        const fallbackEntry = tappedCacheRef.current.get(next[newCursor]);
+        if (fallbackEntry) applyTappedEntry(fallbackEntry);
+      }
+      return next;
+    });
+  }, [applyTappedEntry]);
+
   const handleWordTap = useCallback(async (index: number, lemmaId: number | null) => {
     const word = sentenceSession?.items[sentenceItemIndex]?.words[index];
     const isFunctionWord = word?.is_function_word ?? false;
@@ -398,15 +472,17 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
         setFocusedWordMark(null);
         setLookupLoading(false);
         setLookupShowMeaning(false);
+        removeFromTappedHistory(index);
         return;
       }
       lookupRequestRef.current += 1;
-      setLookupSurfaceForm(word?.surface_form ?? null);
+      const fnSurface = word?.surface_form ?? null;
+      setLookupSurfaceForm(fnSurface);
       setLookupLemmaId(null);
       setFocusedWordMark("missed");
       setLookupLoading(false);
       setLookupShowMeaning(true);
-      setLookupResult({
+      const fnResult: WordLookupResult = {
         lemma_id: lemmaId ?? 0,
         lemma_ar: "",
         gloss_en: word?.gloss_en ?? null,
@@ -423,7 +499,9 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
         grammar_details: [],
         root_family: [],
         is_function_word: !lemmaId || isFunctionWord,
-      });
+      };
+      setLookupResult(fnResult);
+      addToTappedHistory(index, { surfaceForm: fnSurface ?? "", lemmaId: null, result: fnResult, markState: "missed", showMeaning: true });
       return;
     }
 
@@ -438,15 +516,11 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
     // Cycle state: off → missed → confused → off
     toggleMissed(index);
 
-    // If tap clears this word, hide the info card.
+    // If tap clears this word, hide the info card or show previous.
     if (nextMark === null) {
       lookupRequestRef.current += 1;
-      setLookupResult(null);
-      setLookupSurfaceForm(null);
-      setLookupLemmaId(null);
-      setFocusedWordMark(null);
       setLookupLoading(false);
-      setLookupShowMeaning(false);
+      removeFromTappedHistory(index);
       return;
     }
 
@@ -461,6 +535,17 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
     setLookupShowMeaning(false);
     setLookupResult(null);
 
+    // Update cursor to this word (add to order if new)
+    setTappedOrder(prev => {
+      if (prev.includes(index)) {
+        setTappedCursor(prev.indexOf(index));
+        return prev;
+      }
+      const next = [...prev, index];
+      setTappedCursor(next.length - 1);
+      return next;
+    });
+
     try {
       const result = await lookupReviewWord(lemmaId);
       if (lookupRequestRef.current !== requestId) return;
@@ -468,11 +553,14 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
       const knownSiblings = result.root_family.filter(
         (s) => (s.state === "known" || s.state === "learning") && s.lemma_id !== result.lemma_id
       );
-      setLookupShowMeaning(knownSiblings.length < 1);
+      const showMeaning = knownSiblings.length < 1;
+      setLookupShowMeaning(showMeaning);
+      addToTappedHistory(index, { surfaceForm: tappedSurface ?? "", lemmaId, result, markState: nextMark, showMeaning });
     } catch {
       if (lookupRequestRef.current !== requestId) return;
+      let fallbackResult: WordLookupResult | null = null;
       if (word) {
-        setLookupResult({
+        fallbackResult = {
           lemma_id: lemmaId,
           lemma_ar: "",
           gloss_en: word.gloss_en,
@@ -488,17 +576,19 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
           example_en: null,
           grammar_details: [],
           root_family: [],
-        });
+        };
+        setLookupResult(fallbackResult);
       } else {
         setLookupResult(null);
       }
       setLookupShowMeaning(true);
+      addToTappedHistory(index, { surfaceForm: tappedSurface ?? "", lemmaId, result: fallbackResult, markState: nextMark, showMeaning: true });
     }
 
     if (lookupRequestRef.current === requestId) {
       setLookupLoading(false);
     }
-  }, [toggleMissed, sentenceSession, cardIndex, confusedIndices, missedIndices, lookupSurfaceForm, focusedWordMark]);
+  }, [toggleMissed, sentenceSession, cardIndex, confusedIndices, missedIndices, lookupSurfaceForm, focusedWordMark, addToTappedHistory, removeFromTappedHistory]);
 
   async function handleSentenceSubmit(signal: ComprehensionSignal) {
     if (!sentenceSession) return;
@@ -658,6 +748,14 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
     setCardIndex(targetIndex);
     setMissedIndices(snapshot.missedIndices);
     setConfusedIndices(snapshot.confusedIndices);
+    setTappedOrder([]);
+    setTappedCursor(-1);
+    tappedCacheRef.current = new Map();
+    setLookupResult(null);
+    setLookupSurfaceForm(null);
+    setLookupLemmaId(null);
+    setFocusedWordMark(null);
+    setLookupShowMeaning(false);
     setCardState(mode === "listening" ? "answer" : "back");
     setWordOutcomes(snapshot.wordOutcomesBefore);
 
@@ -728,6 +826,9 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
       setCardState(mode === "listening" ? "audio" : "front");
       setMissedIndices(new Set());
       setConfusedIndices(new Set());
+      setTappedOrder([]);
+      setTappedCursor(-1);
+      tappedCacheRef.current = new Map();
       setAudioPlaying(false);
       setAudioPlayCount(0);
       setLookupCount(0);
@@ -899,21 +1000,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
         })),
       ].sort((a, b) => a.index - b.index);
 
-      if (marked.length === 0) {
-        const grammarFeats = item.grammar_features ?? [];
-        if (grammarFeats.length > 0) {
-          return [
-            "I knew all the words but couldn't parse the grammar structure.",
-            `Grammar features in this sentence: ${grammarFeats.join(", ")}.`,
-            "Explain the grammatical structure step by step.",
-            "For each grammar feature, show how it appears in this sentence and give a recognition tip.",
-          ].join("\n");
-        }
-        return [
-          "Explain this sentence briefly.",
-          "Point out any word forms that can hide the base lemma (prefixes, suffixes, inflection, or attached particles).",
-        ].join(" ");
-      }
+      if (marked.length === 0) return null;
 
       const markedLines = marked
         .map(({ index, mark }) => {
@@ -937,6 +1024,36 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
     }
 
     return "Explain this card and why the seen form can differ from the underlying lemma.";
+  }
+
+  function buildExplainSentencePrompt(): string | null {
+    if (!sentenceSession) return null;
+    const item = isIntroSlot ? null : sentenceSession.items[sentenceItemIndex];
+    if (!item) return null;
+
+    const wordLines = item.words.map((w, i) => {
+      const known = w.knowledge_state === "known" || w.knowledge_state === "learning";
+      const status = w.is_function_word ? "function_word" : (known ? "known" : "unknown/new");
+      const parts = [`${i + 1}. ${w.surface_form} — ${status}`];
+      if (w.gloss_en) parts.push(`gloss: "${w.gloss_en}"`);
+      if (w.root) parts.push(`root: ${w.root}`);
+      if (w.grammar_tags?.length) parts.push(`grammar: ${w.grammar_tags.join(", ")}`);
+      return parts.join(", ");
+    }).join("\n");
+
+    return [
+      "Explain this Arabic sentence word by word.",
+      "For each word:",
+      "1) Give the base lemma (Arabic + transliteration)",
+      "2) Explain what prefixes, suffixes, or clitics are attached and what they mean",
+      "3) Identify the grammar pattern (verb form, case ending, إضافة, حال, etc.)",
+      "4) Briefly note how it fits into the overall sentence structure",
+      "",
+      "Then give a one-line summary of the full sentence's grammatical structure.",
+      "",
+      "Words (my knowledge level indicated):",
+      wordLines,
+    ].join("\n");
   }
 
   // --- Render ---
@@ -1334,6 +1451,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
             askAIContextBuilder={buildContext}
             askAIScreen="review"
             askAIExplainPrompt={buildExplainPrompt}
+            askAIExplainSentencePrompt={buildExplainSentencePrompt}
             onBack={canGoBack ? handleGoBack : null}
             extraActions={[
               ...(item.sentence_id ? [{
@@ -1386,9 +1504,20 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
           surfaceForm={lookupSurfaceForm}
           markState={focusedWordMark}
           showMeaning={lookupShowMeaning}
-          onShowMeaning={() => setLookupShowMeaning(true)}
+          onShowMeaning={() => {
+            setLookupShowMeaning(true);
+            if (tappedCursor >= 0 && tappedCursor < tappedOrder.length) {
+              const idx = tappedOrder[tappedCursor];
+              const cached = tappedCacheRef.current.get(idx);
+              if (cached) tappedCacheRef.current.set(idx, { ...cached, showMeaning: true });
+            }
+          }}
           reserveSpace={false}
           onNavigateToDetail={(id) => router.push(`/word/${id}`)}
+          onPrev={handleLookupPrev}
+          onNext={handleLookupNext}
+          hasPrev={tappedCursor > 0}
+          hasNext={tappedCursor < tappedOrder.length - 1}
         />
       )}
 

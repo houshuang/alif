@@ -14,6 +14,10 @@ interface WordInfoCardProps {
   onShowMeaning: () => void;
   reserveSpace?: boolean;
   onNavigateToDetail?: (lemmaId: number) => void;
+  onPrev?: () => void;
+  onNext?: () => void;
+  hasPrev?: boolean;
+  hasNext?: boolean;
 }
 
 function stemWord(w: string): string {
@@ -53,6 +57,10 @@ export default function WordInfoCard({
   onShowMeaning,
   reserveSpace = true,
   onNavigateToDetail,
+  onPrev,
+  onNext,
+  hasPrev = false,
+  hasNext = false,
 }: WordInfoCardProps) {
   const knownSiblings = result?.root_family.filter((s) => {
     if (s.lemma_id === result.lemma_id) return false;
@@ -63,6 +71,7 @@ export default function WordInfoCard({
 
   const needsReveal = result != null && knownSiblings.length >= 1 && !showMeaning;
   const hasFocus = !!surfaceForm && markState !== null;
+  const showNav = hasPrev || hasNext;
 
   if (!hasFocus && !loading) {
     return reserveSpace ? <View style={styles.spacer} /> : null;
@@ -70,6 +79,26 @@ export default function WordInfoCard({
 
   return (
     <View style={styles.card}>
+      {showNav && (
+        <View style={styles.navRow}>
+          <Pressable
+            onPress={onPrev}
+            disabled={!hasPrev}
+            hitSlop={8}
+            style={[styles.navBtn, !hasPrev && styles.navBtnDisabled]}
+          >
+            <Text style={[styles.navIcon, !hasPrev && styles.navIconDisabled]}>‹</Text>
+          </Pressable>
+          <Pressable
+            onPress={onNext}
+            disabled={!hasNext}
+            hitSlop={8}
+            style={[styles.navBtn, !hasNext && styles.navBtnDisabled]}
+          >
+            <Text style={[styles.navIcon, !hasNext && styles.navIconDisabled]}>›</Text>
+          </Pressable>
+        </View>
+      )}
       {loading ? (
         <View style={styles.loadingWrap}>
           <ActivityIndicator size="small" color={colors.accent} />
@@ -439,6 +468,37 @@ const styles = StyleSheet.create({
     color: colors.accent,
     fontSize: 13,
     fontWeight: "600",
+  },
+
+  /* Back/forward nav arrows */
+  navRow: {
+    position: "absolute",
+    top: 6,
+    right: 6,
+    flexDirection: "row",
+    gap: 2,
+    zIndex: 1,
+  },
+  navBtn: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: colors.surfaceLight,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  navBtnDisabled: {
+    opacity: 0.3,
+  },
+  navIcon: {
+    color: colors.textSecondary,
+    fontSize: 16,
+    fontWeight: "700",
+    lineHeight: 20,
+    marginTop: -1,
+  },
+  navIconDisabled: {
+    color: colors.textSecondary,
   },
 
   /* Detail navigation link */

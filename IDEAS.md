@@ -602,7 +602,8 @@
 - Chain-of-thought sentence construction: guide LLM through explicit steps (pick scenario → choose pattern → select words → construct sentence)
 - [DONE] Prompt overhaul: added explicit rules for indefinite noun starters, redundant pronouns, semantic coherence in compound sentences, beginner-level archaic word exclusion. Lowered temperature from 0.8 to 0.5. Reduced failure rate from 57% to ~10%.
 - [DONE] Parallel on-demand generation: ThreadPoolExecutor(max_workers=8) for concurrent LLM calls during session building
-- [DONE] Bulk sentence quality audit: `review_existing_sentences.py` script reviews all active sentences with Gemini Flash, retires failures
+- [DONE] Bulk sentence quality audit: `review_existing_sentences.py` script reviews all active sentences, retires failures. Supports --dry-run.
+- [DONE] Cross-model quality review: switched quality gate from Gemini Flash self-review to Claude Haiku cross-model review. Self-review has blind spots (same model makes same mistakes). Benchmarked 3 models: Gemini 16%, Haiku strict 40%, Haiku relaxed 12.5%, GPT-5.2 97% (broken). Relaxed prompt focuses on grammar/translation errors, not scenario realism — avoids over-rejecting pedagogically valid sentences.
 
 ### Learning Algorithm Overhaul — Acquisition Phase & Focus Cohorts (2026-02-12)
 

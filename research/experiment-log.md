@@ -4,6 +4,31 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-02-13: Cross-Model Quality Review + Sentence Retirement & Regeneration
+
+**Change**: Three-part improvement to sentence quality management.
+
+1. **Sentence retirement (quality audit)**: Ran Gemini Flash quality audit on all 207 active sentences. 99 failed (48%) — gender mismatches, nonsensical clauses, word salad. All GPT-5.2 artifacts. Retired immediately. Further manual review of translations caught 9 more problematic sentences (wrong verbs, bad prepositions, nonsensical meaning). Final active count: 176.
+
+2. **Regeneration with new pipeline**: After deploying the pipeline overhaul (Gemini Flash generation, KNOWN_SAMPLE_SIZE=500, POS-grouped vocab, fail-closed gate), ran `update_material.py`. Generated 77 new sentences in 4.5 minutes. Coverage went from 75 words → 103 words covered.
+
+3. **Cross-model quality reviewer**: Benchmarked 3 models as quality reviewers against all 176 active sentences:
+   - Gemini Flash (self-review): 28/176 (16%) — reasonable but misses own generation blind spots
+   - Claude Haiku (strict prompt): 71/176 (40%) — catches more but over-flags benign sentences
+   - GPT-5.2: 170/176 (97%) — broken, returns malformed JSON with "missing" for all reasons
+
+   Switched quality gate from Gemini Flash self-review to **Claude Haiku with relaxed prompt** (12.5% flag rate). Relaxed prompt focuses on grammar errors, translation accuracy, and coherence — does NOT reject sentences for unusual scenarios or textbook-style simplicity. Cross-model review catches blind spots that self-review misses (e.g., Gemini doesn't catch gender agreement errors in its own output).
+
+**Why**: GPT-5.2 sentences were systematically bad (48% failure rate). Self-review (Gemini reviewing Gemini) has inherent blind spots — the same model makes the same mistakes consistently. Cross-model review (Gemini generates → Haiku reviews) catches different error classes.
+
+**Expected effect**: Higher baseline sentence quality. Cross-model review catches translation mismatches and grammar errors that self-review misses. Relaxed prompt avoids over-rejecting pedagogically valid simple sentences.
+
+**Verify**: Monitor quality gate rejection rate in `update_material.py` logs. Target: 10-15% rejection rate (was 16% Gemini self-review, now 12.5% Haiku cross-review). Run periodic `review_existing_sentences.py` audits.
+
+**Files**: `llm.py` (review_sentences_quality model_override + prompt), `review_existing_sentences.py` (audit tool)
+
+---
+
 ## 2026-02-13: Sentence Pipeline Overhaul
 
 **Change**: Seven-part overhaul based on benchmarking 213 sentences across 3 models × 6 strategies. Full investigation reports in `research/sentence-investigation-2026-02-13/`.

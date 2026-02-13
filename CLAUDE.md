@@ -180,7 +180,7 @@ All services in `backend/app/services/`.
 - `app/chats.tsx` — AI chat conversations
 - `app/listening.tsx` — Dedicated listening mode
 - `lib/review/ActionMenu.tsx` — "⋯" menu: Ask AI, Suspend, Flag. Supports `extraActions` prop for screen-specific actions (e.g., story suspend).
-- `lib/review/WordInfoCard.tsx` — Word info panel for review
+- `lib/review/WordInfoCard.tsx` — Word info panel for review. Prev/next arrows navigate tapped word history.
 - `lib/review/SentenceInfoModal.tsx` — Debug modal: sentence ID, source, review history, per-word FSRS difficulty/stability
 - `lib/api.ts` — API client with typed interfaces for all endpoints
 - `lib/types.ts` — TypeScript interfaces
@@ -191,7 +191,7 @@ All services in `backend/app/services/`.
 - `lib/sync-events.ts` — Event emitter for sync notifications
 - `lib/frequency.ts` — Frequency band + CEFR color utilities
 - `lib/WordCardComponents.tsx` — Reusable word display (posLabel, FormsRow, GrammarRow, PlayButton)
-- `lib/AskAI.tsx` — AI chat modal (used in ActionMenu)
+- `lib/AskAI.tsx` — AI chat modal (used in ActionMenu). Quick actions: "Explain marked" (only when words tapped, explains missed/confused words), "Explain full" (word-by-word sentence breakdown with grammar patterns)
 - `lib/MarkdownMessage.tsx` — Markdown renderer for chat/AI responses
 - `lib/topic-labels.ts` — Human-readable labels + icons for 20 thematic domains
 - `lib/mock-data.ts` — Mock words, stats, learn candidates for testing
