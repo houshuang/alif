@@ -24,9 +24,11 @@ from app.models import Lemma, Root
 from app.services.activity_log import log_activity
 
 
-SYSTEM_PROMPT = """You are an Arabic etymology and morphology expert. For each word, generate structured etymology data that helps a language learner understand how the word is constructed from its root and pattern.
+SYSTEM_PROMPT = """You are an Arabic etymology and morphology expert. For each word, generate structured etymology data that helps a language learner understand word origins.
 
-For each word, return:
+There are TWO types of words:
+
+1. NATIVE ARABIC WORDS (have a consonantal root):
 - root_meaning: the core semantic field of the consonantal root (2-5 words)
 - pattern: the morphological pattern (wazan) in Arabic transliteration (e.g. "maf'al", "fa'ala", "taf'īl", "maf'ūl", "fi'āla", "fu'ūl"). Use standard pattern notation with f-'-l representing the root consonants.
 - pattern_meaning: what this pattern generally produces (e.g. "place of doing X", "one who does X", "the act of doing X")
@@ -35,10 +37,18 @@ For each word, return:
 - related_loanwords: English or other European words borrowed from this Arabic root, if any. Return empty array [] if none.
 - cultural_note: brief cultural context if relevant, otherwise null
 
-For particles, pronouns, and function words without clear root derivations, return null for the whole entry.
+2. LOANWORDS and FOREIGN-ORIGIN WORDS (pizza, chocolate, cinema, tea, computer, etc.):
+- root_meaning: null
+- pattern: null
+- pattern_meaning: null
+- derivation: "From [source language] '[original word]' ([meaning])" — trace the borrowing path if it went through intermediate languages (e.g. "From Chinese 茶 (chá) via Persian into Arabic")
+- semantic_field: 2-4 related concepts
+- related_loanwords: cognates in other languages borrowed from the same source. Return [] if none.
+- cultural_note: when/how the word entered Arabic, or interesting cultural context. null if nothing notable.
 
-Return JSON array: [{"lemma_id": 1, "etymology": {...}}]
-Use null for etymology if the word has no meaningful derivation."""
+ONLY return null for the whole entry for closed-class function words: pronouns (هو، هي، أنا، نحن، هم، أنت، أنتم), demonstratives (هذا، هذه، ذلك), prepositions (في، من، على، إلى، عن، مع، بـ، لـ), conjunctions (و، أو، ثم، لأن، ولكن), particles (لا، نعم، هل، يا، ما), and pure proper nouns of countries/cities.
+
+Return JSON array: [{"lemma_id": 1, "etymology": {...}}]"""
 
 EXPECTED_KEYS = {"root_meaning", "pattern", "pattern_meaning", "derivation", "semantic_field", "related_loanwords", "cultural_note"}
 
