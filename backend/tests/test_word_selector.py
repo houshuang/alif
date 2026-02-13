@@ -1,7 +1,7 @@
 from datetime import datetime, timezone, timedelta
 import pytest
 
-from app.models import Root, Lemma, UserLemmaKnowledge
+from app.models import Root, Lemma, UserLemmaKnowledge, GrammarFeature, UserGrammarExposure
 from app.services.word_selector import (
     select_next_words,
     introduce_word,
@@ -9,8 +9,13 @@ from app.services.word_selector import (
     get_sentence_difficulty_params,
     _frequency_score,
     _root_familiarity_score,
+    _root_familiarity_score_batch,
+    _days_since_introduced,
+    _days_since_introduced_batch,
+    _grammar_pattern_score_batch,
     _is_noise_lemma,
 )
+from app.services.grammar_service import grammar_pattern_score
 
 
 def _create_root(db, root_text, meaning="test"):
@@ -434,3 +439,193 @@ class TestLearnAPI:
         data = resp.json()
         assert "max_words" in data
         assert "difficulty_hint" in data
+
+
+def _create_grammar_feature(db, key, category="test"):
+    feat = GrammarFeature(
+        feature_key=key, label_en=key, label_ar=key,
+        category=category, sort_order=1, form_change_type="structural",
+    )
+    db.add(feat)
+    db.flush()
+    return feat
+
+
+def _create_grammar_exposure(db, feature_id, times_seen=5, times_correct=3):
+    exp = UserGrammarExposure(
+        feature_id=feature_id,
+        times_seen=times_seen,
+        times_correct=times_correct,
+        last_seen_at=datetime.now(timezone.utc),
+    )
+    db.add(exp)
+    db.flush()
+    return exp
+
+
+class TestBatchScoringMatchesPerItem:
+    """Verify batch helpers produce the same results as per-item DB functions."""
+
+    def test_root_familiarity_matches(self, db_session):
+        from sqlalchemy import func as sa_func
+        root1 = _create_root(db_session, "ك.ت.ب", "writing")
+        root2 = _create_root(db_session, "د.ر.س", "studying")
+        root3 = _create_root(db_session, "ع.ل.م", "knowledge")
+
+        l1 = _create_lemma(db_session, "كتاب", "book", root1)
+        l2 = _create_lemma(db_session, "مكتبة", "library", root1)
+        l3 = _create_lemma(db_session, "كاتب", "writer", root1)
+        _mark_known(db_session, l1.lemma_id)
+
+        l4 = _create_lemma(db_session, "درس", "lesson", root2)
+        l5 = _create_lemma(db_session, "مدرسة", "school", root2)
+
+        l6 = _create_lemma(db_session, "عالم", "scholar", root3)
+        l7 = _create_lemma(db_session, "علم", "knowledge", root3)
+        _mark_known(db_session, l6.lemma_id)
+        _mark_known(db_session, l7.lemma_id)
+        db_session.commit()
+
+        root_ids = {root1.root_id, root2.root_id, root3.root_id}
+
+        root_total_counts = dict(
+            db_session.query(Lemma.root_id, sa_func.count(Lemma.lemma_id))
+            .filter(Lemma.root_id.in_(root_ids))
+            .group_by(Lemma.root_id)
+            .all()
+        )
+        root_known_counts = dict(
+            db_session.query(Lemma.root_id, sa_func.count(UserLemmaKnowledge.id))
+            .join(UserLemmaKnowledge, UserLemmaKnowledge.lemma_id == Lemma.lemma_id)
+            .filter(
+                Lemma.root_id.in_(root_ids),
+                UserLemmaKnowledge.knowledge_state.in_(["known", "learning", "acquiring", "lapsed"]),
+            )
+            .group_by(Lemma.root_id)
+            .all()
+        )
+
+        for rid in root_ids:
+            per_item = _root_familiarity_score(db_session, rid)
+            batch = _root_familiarity_score_batch(rid, root_total_counts, root_known_counts)
+            assert abs(per_item[0] - batch[0]) < 1e-9, f"root {rid}: {per_item} vs {batch}"
+            assert per_item[1] == batch[1]
+            assert per_item[2] == batch[2]
+
+    def test_days_since_introduced_matches(self, db_session):
+        from sqlalchemy import func as sa_func
+        root = _create_root(db_session, "ك.ت.ب", "writing")
+        l1 = _create_lemma(db_session, "كتاب", "book", root)
+        _mark_known(db_session, l1.lemma_id)
+        db_session.commit()
+
+        root_ids = {root.root_id}
+        root_latest_intro = dict(
+            db_session.query(Lemma.root_id, sa_func.max(UserLemmaKnowledge.introduced_at))
+            .join(UserLemmaKnowledge, UserLemmaKnowledge.lemma_id == Lemma.lemma_id)
+            .filter(Lemma.root_id.in_(root_ids))
+            .group_by(Lemma.root_id)
+            .all()
+        )
+
+        now = datetime.now(timezone.utc)
+        per_item = _days_since_introduced(db_session, root.root_id)
+        batch = _days_since_introduced_batch(root.root_id, root_latest_intro, now)
+        assert abs(per_item - batch) < 0.01  # within ~15 minutes tolerance
+
+    def test_grammar_score_matches(self, db_session):
+        feat1 = _create_grammar_feature(db_session, "present", "verb_tense")
+        feat2 = _create_grammar_feature(db_session, "past", "verb_tense")
+        _create_grammar_exposure(db_session, feat1.feature_id, times_seen=10, times_correct=7)
+        db_session.commit()
+
+        features = ["present", "past"]
+
+        per_item = grammar_pattern_score(db_session, features)
+
+        from app.services.grammar_service import get_unlocked_features
+        unlocked_info = get_unlocked_features(db_session)
+        unlocked_set = set(unlocked_info["unlocked_features"])
+
+        rows = (
+            db_session.query(GrammarFeature.feature_key, UserGrammarExposure)
+            .join(UserGrammarExposure, UserGrammarExposure.feature_id == GrammarFeature.feature_id)
+            .filter(GrammarFeature.feature_key.in_(features))
+            .all()
+        )
+        exposure_map = {key: exp for key, exp in rows}
+
+        batch = _grammar_pattern_score_batch(features, unlocked_set, exposure_map)
+        assert abs(per_item - batch) < 1e-9
+
+
+class TestBatchScoringEdgeCases:
+    """Test batch helpers with None/missing values."""
+
+    def test_no_root(self):
+        score, known, total = _root_familiarity_score_batch(None, {}, {})
+        assert score == 0.0
+        assert known == 0
+        assert total == 0
+
+    def test_days_since_no_root(self):
+        now = datetime.now(timezone.utc)
+        days = _days_since_introduced_batch(None, {}, now)
+        assert days == 999.0
+
+    def test_days_since_unknown_root(self):
+        now = datetime.now(timezone.utc)
+        days = _days_since_introduced_batch(42, {}, now)
+        assert days == 999.0
+
+    def test_grammar_no_features(self):
+        score = _grammar_pattern_score_batch(None, set(), {})
+        assert score == 0.1
+
+    def test_grammar_empty_list(self):
+        score = _grammar_pattern_score_batch([], set(), {})
+        assert score == 0.1
+
+    def test_grammar_no_unlocked(self):
+        score = _grammar_pattern_score_batch(["present"], set(), {})
+        assert score == 0.1
+
+    def test_grammar_unlocked_no_exposure(self):
+        score = _grammar_pattern_score_batch(["present"], {"present"}, {})
+        assert score == 1.0
+
+
+class TestBatchQueryCount:
+    """Verify batch queries reduce total query count."""
+
+    def test_query_count_scales_flat(self, db_session):
+        from tests.conftest import count_queries
+
+        # Arabic words so they pass the noise filter
+        arabic_words = [
+            "كتاب", "مكتبة", "كاتب", "درس", "مدرسة",
+            "عالم", "علم", "بيت", "قلم", "سيارة",
+            "ولد", "بنت", "رجل", "مرأة", "طفل",
+            "شمس", "قمر", "ماء", "نار", "هواء",
+            "يوم", "ليل", "صباح", "مساء", "وقت",
+        ]
+
+        roots = []
+        for i in range(5):
+            r = _create_root(db_session, f"ر.{i}.ت", f"meaning_{i}")
+            roots.append(r)
+
+        for i in range(25):
+            root = roots[i % len(roots)]
+            l = _create_lemma(db_session, arabic_words[i], f"gloss_{i}", root, freq=100 + i)
+            if i < 5:
+                _mark_known(db_session, l.lemma_id)
+        db_session.commit()
+
+        with count_queries(db_session) as counter:
+            result = select_next_words(db_session, count=5)
+
+        # With 20 candidates, old code would run 3-4 queries each = 60-80.
+        # Batch code should be well under 20 total queries.
+        assert counter["count"] < 20, f"Expected <20 queries, got {counter['count']}"
+        assert len(result) == 5

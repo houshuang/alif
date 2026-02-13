@@ -235,7 +235,8 @@ class TestProcessTextbookPage:
         assert upload.new_words == 1  # Only one, not two
 
     @patch("app.services.ocr_service.extract_words_from_image")
-    def test_process_skips_function_words(self, mock_extract, mock_backfill, db_session):
+    def test_process_imports_former_function_words(self, mock_extract, mock_backfill, db_session):
+        """All words are now learnable — في and من get imported."""
         from app.services.ocr_service import process_textbook_page
 
         upload = PageUpload(batch_id="testfunc", filename="page5.jpg", status="pending")
@@ -250,8 +251,8 @@ class TestProcessTextbookPage:
         process_textbook_page(db_session, upload, b"fake_image")
 
         assert upload.status == "completed"
-        assert upload.new_words == 0
-        assert upload.existing_words == 0
+        # في and من are no longer skipped — they're importable words
+        assert upload.new_words + upload.existing_words == 2
 
     @patch("app.services.ocr_service.extract_words_from_image")
     def test_process_handles_empty_extraction(self, mock_extract, mock_backfill, db_session):

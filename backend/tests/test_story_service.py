@@ -203,6 +203,9 @@ class TestCompleteStory:
         with pytest.raises(RuntimeError):
             complete_story(db_session, story.id, looked_up_lemma_ids=[])
 
+        # Rollback the failed transaction so flushed-but-uncommitted data is discarded
+        db_session.rollback()
+
         db_session.refresh(story)
         assert story.status == "active"
 
@@ -218,7 +221,9 @@ class TestCompleteStory:
             .filter(ReviewLog.client_review_id.like(f"story:{story.id}:complete:%"))
             .count()
         )
-        assert review_log_count == result["words_reviewed"]
+        # words_reviewed includes encountered words (no ReviewLog), so compare
+        # against good_count + again_count which tracks actual FSRS reviews
+        assert review_log_count == result["good_count"] + result["again_count"]
 
 
 class TestLookupWord:

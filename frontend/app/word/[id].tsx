@@ -11,7 +11,7 @@ import { useLocalSearchParams, useRouter, useNavigation } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { colors, fonts, fontFamily } from "../../lib/theme";
 import { getWordDetail } from "../../lib/api";
-import { WordDetail, ReviewHistoryEntry, EtymologyData } from "../../lib/types";
+import { WordDetail, ReviewHistoryEntry, EtymologyData, MemoryHooksData } from "../../lib/types";
 import { getCefrColor } from "../../lib/frequency";
 import ActionMenu from "../../lib/review/ActionMenu";
 
@@ -234,6 +234,67 @@ export default function WordDetailScreen() {
               <View style={styles.etymologyRow}>
                 <Text style={styles.etymologyLabel}>Note</Text>
                 <Text style={styles.etymologyValue}>{word.etymology_json.cultural_note}</Text>
+              </View>
+            )}
+          </View>
+        </View>
+      )}
+
+      {word.memory_hooks_json && word.memory_hooks_json.mnemonic && (
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Memory Hooks</Text>
+          <View style={styles.etymologyCard}>
+            <View style={styles.mnemonicRow}>
+              <Ionicons name="bulb-outline" size={16} color={colors.accent} style={{ marginTop: 2 }} />
+              <Text style={styles.mnemonicText}>
+                {word.memory_hooks_json.mnemonic}
+              </Text>
+            </View>
+
+            {word.memory_hooks_json.cognates && word.memory_hooks_json.cognates.length > 0 && (
+              <View style={styles.hooksSubsection}>
+                <Text style={styles.etymologyLabel}>Cognates</Text>
+                {word.memory_hooks_json.cognates.map((c, i) => (
+                  <View key={i} style={styles.cognateRow}>
+                    <View style={styles.cognateLangPill}>
+                      <Text style={styles.cognateLangText}>{c.lang}</Text>
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.cognateWord}>{c.word}</Text>
+                      {c.note ? <Text style={styles.cognateNote}>{c.note}</Text> : null}
+                    </View>
+                  </View>
+                ))}
+              </View>
+            )}
+
+            {word.memory_hooks_json.collocations && word.memory_hooks_json.collocations.length > 0 && (
+              <View style={styles.hooksSubsection}>
+                <Text style={styles.etymologyLabel}>Common phrases</Text>
+                {word.memory_hooks_json.collocations.map((c, i) => (
+                  <View key={i} style={styles.collocationRow}>
+                    <Text style={styles.collocationAr}>{c.ar}</Text>
+                    <Text style={styles.collocationEn}>{c.en}</Text>
+                  </View>
+                ))}
+              </View>
+            )}
+
+            {word.memory_hooks_json.usage_context && (
+              <View style={styles.hooksSubsection}>
+                <Text style={styles.etymologyLabel}>Where you'll see it</Text>
+                <Text style={styles.etymologyValue}>
+                  {word.memory_hooks_json.usage_context}
+                </Text>
+              </View>
+            )}
+
+            {word.memory_hooks_json.fun_fact && (
+              <View style={styles.hooksSubsection}>
+                <Text style={styles.etymologyLabel}>Did you know?</Text>
+                <Text style={[styles.etymologyValue, { fontStyle: "italic" }]}>
+                  {word.memory_hooks_json.fun_fact}
+                </Text>
               </View>
             )}
           </View>
@@ -610,6 +671,68 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: colors.text,
     flex: 1,
+  },
+  mnemonicRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 8,
+    marginBottom: 4,
+  },
+  mnemonicText: {
+    fontSize: 15,
+    color: colors.text,
+    fontWeight: "500",
+    flex: 1,
+    lineHeight: 22,
+  },
+  hooksSubsection: {
+    marginTop: 8,
+    paddingTop: 8,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: colors.border,
+  },
+  cognateRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 8,
+    marginTop: 4,
+  },
+  cognateLangPill: {
+    backgroundColor: colors.border,
+    borderRadius: 4,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    minWidth: 32,
+    alignItems: "center",
+  },
+  cognateLangText: {
+    fontSize: 11,
+    color: colors.textSecondary,
+    fontWeight: "600",
+  },
+  cognateWord: {
+    fontSize: 13,
+    color: colors.text,
+  },
+  cognateNote: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    fontStyle: "italic",
+  },
+  collocationRow: {
+    marginTop: 4,
+  },
+  collocationAr: {
+    fontSize: 18,
+    color: colors.arabic,
+    fontFamily: fontFamily.arabic,
+    writingDirection: "rtl",
+    lineHeight: 26,
+  },
+  collocationEn: {
+    fontSize: 13,
+    color: colors.textSecondary,
+    marginTop: 1,
   },
   errorText: {
     color: colors.textSecondary,

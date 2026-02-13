@@ -422,7 +422,8 @@ Set name_type to "personal" for personal names (people, characters), "place" for
 
 def _recalculate_story_counts(db: Session, story: Story) -> None:
     """Recalculate total_words, known_count, unknown_count, readiness_pct from StoryWords."""
-    knowledge_map = _build_knowledge_map(db)
+    story_lemma_ids = {sw.lemma_id for sw in story.words if sw.lemma_id}
+    knowledge_map = _build_knowledge_map(db, lemma_ids=story_lemma_ids or None)
     total = 0
     known = 0
     func = 0
@@ -438,9 +439,12 @@ def _recalculate_story_counts(db: Session, story: Story) -> None:
     story.readiness_pct = round((known + func) / total * 100, 1) if total > 0 else 0
 
 
-def _build_knowledge_map(db: Session) -> dict[int, str]:
+def _build_knowledge_map(db: Session, lemma_ids: set[int] | None = None) -> dict[int, str]:
     """Build lemma_id -> knowledge_state map."""
-    rows = db.query(UserLemmaKnowledge).all()
+    q = db.query(UserLemmaKnowledge)
+    if lemma_ids is not None:
+        q = q.filter(UserLemmaKnowledge.lemma_id.in_(lemma_ids))
+    rows = q.all()
     return {r.lemma_id: r.knowledge_state for r in rows}
 
 
@@ -679,7 +683,8 @@ def get_story_detail(db: Session, story_id: int) -> dict:
     if not story:
         raise ValueError(f"Story {story_id} not found")
 
-    knowledge_map = _build_knowledge_map(db)
+    story_lemma_ids = {sw.lemma_id for sw in story.words if sw.lemma_id}
+    knowledge_map = _build_knowledge_map(db, lemma_ids=story_lemma_ids or None)
 
     words = []
     for sw in story.words:
@@ -807,6 +812,7 @@ def complete_story(
             review_mode="reading",
             comprehension_signal="story_complete",
             client_review_id=f"story:{story_id}:complete:{sw.lemma_id}",
+            commit=False,
         )
 
     story.status = "completed"
@@ -913,7 +919,8 @@ def recalculate_readiness(db: Session, story_id: int) -> dict:
     if not story:
         raise ValueError(f"Story {story_id} not found")
 
-    knowledge_map = _build_knowledge_map(db)
+    story_lemma_ids = {sw.lemma_id for sw in story.words if sw.lemma_id}
+    knowledge_map = _build_knowledge_map(db, lemma_ids=story_lemma_ids or None)
 
     total = 0
     known = 0

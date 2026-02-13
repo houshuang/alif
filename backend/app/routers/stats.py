@@ -48,26 +48,16 @@ def _count_state(db: Session, state: str) -> int:
 
 
 def _count_due_cards(db: Session, now: datetime) -> int:
-    due = 0
-    rows = (
-        db.query(UserLemmaKnowledge.fsrs_card_json)
-        .filter(UserLemmaKnowledge.fsrs_card_json.isnot(None))
-        .all()
+    now_str = now.isoformat()
+    result = (
+        db.query(func.count(UserLemmaKnowledge.id))
+        .filter(
+            UserLemmaKnowledge.fsrs_card_json.isnot(None),
+            func.json_extract(UserLemmaKnowledge.fsrs_card_json, '$.due') <= now_str,
+        )
+        .scalar() or 0
     )
-    for (card_data,) in rows:
-        if not card_data:
-            continue
-        if isinstance(card_data, str):
-            card_data = json.loads(card_data)
-        due_str = card_data.get("due")
-        if not due_str:
-            continue
-        due_dt = datetime.fromisoformat(due_str)
-        if due_dt.tzinfo is None:
-            due_dt = due_dt.replace(tzinfo=timezone.utc)
-        if due_dt <= now:
-            due += 1
-    return due
+    return result
 
 
 def _get_basic_stats(db: Session) -> StatsOut:
@@ -107,36 +97,26 @@ def _get_basic_stats(db: Session) -> StatsOut:
     )
 
 
-def _extract_logged_state(fsrs_log_json: object) -> str | None:
-    if not fsrs_log_json:
-        return None
-    payload = fsrs_log_json
-    if isinstance(payload, str):
-        try:
-            payload = json.loads(payload)
-        except json.JSONDecodeError:
-            return None
-    if not isinstance(payload, dict):
-        return None
-    state = payload.get("state")
-    return state if isinstance(state, str) else None
-
 
 def _get_first_known_dates(db: Session) -> dict[int, datetime.date]:
     """Return first date each lemma reached state='known' in review logs."""
     rows = (
-        db.query(ReviewLog.lemma_id, ReviewLog.reviewed_at, ReviewLog.fsrs_log_json)
-        .order_by(ReviewLog.reviewed_at.asc(), ReviewLog.id.asc())
+        db.query(
+            ReviewLog.lemma_id,
+            func.min(ReviewLog.reviewed_at).label("first_known_at"),
+        )
+        .filter(
+            ReviewLog.fsrs_log_json.isnot(None),
+            func.json_extract(ReviewLog.fsrs_log_json, '$.state') == 'known',
+        )
+        .group_by(ReviewLog.lemma_id)
         .all()
     )
-    first_known_dates: dict[int, datetime.date] = {}
-    for lemma_id, reviewed_at, fsrs_log_json in rows:
-        if lemma_id in first_known_dates or reviewed_at is None:
-            continue
-        if _extract_logged_state(fsrs_log_json) != "known":
-            continue
-        first_known_dates[lemma_id] = reviewed_at.date()
-    return first_known_dates
+    return {
+        lemma_id: first_known_at.date()
+        for lemma_id, first_known_at in rows
+        if first_known_at is not None
+    }
 
 
 def _count_known_without_transition(
@@ -567,14 +547,21 @@ def _get_struggling_words(db: Session) -> list[StrugglingWord]:
 
 
 def _get_root_coverage(db: Session) -> RootCoverage:
-    # Get all roots that have at least one non-variant lemma
-    roots = (
+    rows = (
         db.query(
             Root.root_id,
             Root.root,
             Root.core_meaning_en,
+            func.count(Lemma.lemma_id).label("total_lemmas"),
+            func.sum(
+                case(
+                    (UserLemmaKnowledge.knowledge_state.in_(["known", "learning"]), 1),
+                    else_=0,
+                )
+            ).label("known_lemmas"),
         )
         .join(Lemma, Lemma.root_id == Root.root_id)
+        .outerjoin(UserLemmaKnowledge, UserLemmaKnowledge.lemma_id == Lemma.lemma_id)
         .filter(Lemma.canonical_lemma_id.is_(None))
         .group_by(Root.root_id)
         .all()
@@ -585,40 +572,23 @@ def _get_root_coverage(db: Session) -> RootCoverage:
     roots_fully_mastered = 0
     partial_roots = []
 
-    for root in roots:
-        lemma_rows = (
-            db.query(
-                Lemma.lemma_id,
-                UserLemmaKnowledge.knowledge_state,
-            )
-            .outerjoin(UserLemmaKnowledge, UserLemmaKnowledge.lemma_id == Lemma.lemma_id)
-            .filter(
-                Lemma.root_id == root.root_id,
-                Lemma.canonical_lemma_id.is_(None),
-            )
-            .all()
-        )
-        total_in_root = len(lemma_rows)
-        if total_in_root == 0:
+    for root_id, root_text, meaning, total, known in rows:
+        if total == 0:
             continue
         total_roots += 1
-        known_in_root = sum(
-            1 for _, state in lemma_rows
-            if state in ("known", "learning")
-        )
-        if known_in_root > 0:
+        known = known or 0
+        if known > 0:
             roots_with_known += 1
-        if known_in_root == total_in_root:
+        if known >= total:
             roots_fully_mastered += 1
-        elif known_in_root > 0:
+        elif known > 0:
             partial_roots.append({
-                "root": root.root,
-                "root_meaning": root.core_meaning_en,
-                "known": known_in_root,
-                "total": total_in_root,
+                "root": root_text,
+                "root_meaning": meaning,
+                "known": known,
+                "total": total,
             })
 
-    # Sort partial roots by completion ratio descending, take top 5
     partial_roots.sort(key=lambda r: r["known"] / r["total"], reverse=True)
 
     return RootCoverage(
@@ -630,7 +600,6 @@ def _get_root_coverage(db: Session) -> RootCoverage:
 
 
 def _get_recent_sessions(db: Session, limit: int = 10) -> list[SessionDetail]:
-    # Get recent unique sessions from SentenceReviewLog
     sessions = (
         db.query(
             SentenceReviewLog.session_id,
@@ -645,27 +614,33 @@ def _get_recent_sessions(db: Session, limit: int = 10) -> list[SessionDetail]:
         .all()
     )
 
+    if not sessions:
+        return []
+
+    session_ids = [s.session_id for s in sessions]
+
+    comp_rows = (
+        db.query(
+            SentenceReviewLog.session_id,
+            SentenceReviewLog.comprehension,
+            func.count(SentenceReviewLog.id),
+        )
+        .filter(SentenceReviewLog.session_id.in_(session_ids))
+        .group_by(SentenceReviewLog.session_id, SentenceReviewLog.comprehension)
+        .all()
+    )
+
+    comp_map: dict[str, dict[str, int]] = {}
+    for session_id, signal, count in comp_rows:
+        comp_map.setdefault(session_id, {})[signal] = count
+
     results = []
     for s in sessions:
-        # Get comprehension breakdown for this session
-        comp_rows = (
-            db.query(
-                SentenceReviewLog.comprehension,
-                func.count(SentenceReviewLog.id),
-            )
-            .filter(SentenceReviewLog.session_id == s.session_id)
-            .group_by(SentenceReviewLog.comprehension)
-            .all()
-        )
-        comp = {}
-        for signal, count in comp_rows:
-            comp[signal] = count
-
         results.append(SessionDetail(
             session_id=s.session_id[:8] if s.session_id else "?",
             reviewed_at=s.first_review.isoformat() if s.first_review else "",
             sentence_count=s.sentence_count,
-            comprehension=comp,
+            comprehension=comp_map.get(s.session_id, {}),
             avg_response_ms=round(s.avg_ms, 0) if s.avg_ms else None,
         ))
 

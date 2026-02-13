@@ -286,6 +286,7 @@ def record_grammar_exposure(
     db: Session,
     feature_key: str,
     correct: bool,
+    commit: bool = True,
 ) -> None:
     """Record that the user saw a grammar feature during review."""
     feature = (
@@ -322,7 +323,10 @@ def record_grammar_exposure(
         )
         db.add(exposure)
 
-    db.commit()
+    if commit:
+        db.commit()
+    else:
+        db.flush()
 
 
 def grammar_pattern_score(db: Session, lemma_grammar_features: Optional[list[str]]) -> float:

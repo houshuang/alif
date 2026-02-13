@@ -8,8 +8,11 @@ from app.models import (
     Lemma, UserLemmaKnowledge, Sentence, SentenceWord,
     ReviewLog, SentenceReviewLog,
 )
-from app.services.fsrs_service import create_new_card
+from app.models import GrammarFeature, SentenceGrammarFeature
+from app.services.fsrs_service import create_new_card, submit_review
+from app.services.grammar_service import record_grammar_exposure
 from app.services.sentence_review_service import submit_sentence_review, undo_sentence_review
+from tests.conftest import count_commits
 
 
 def _make_card(stability_days=30.0, due_offset_hours=-1):
@@ -133,8 +136,8 @@ class TestPartial:
         assert ratings[1] == 3  # not missed
         assert ratings[3] == 3  # not missed
 
-    def test_function_word_lemma_skipped_for_credit(self, db_session):
-        """Function words in a sentence do NOT get FSRS credit."""
+    def test_all_words_get_credit(self, db_session):
+        """All words (including في) now get FSRS credit."""
         _seed_word(db_session, 1, "كتاب", "book")
         _seed_word(db_session, 2, "في", "in")
         _seed_sentence(db_session, 1, "في الكتاب", "in the book",
@@ -151,8 +154,8 @@ class TestPartial:
         )
 
         rated_ids = {wr["lemma_id"] for wr in result["word_results"]}
-        assert 2 not in rated_ids  # function word skipped
-        assert 1 in rated_ids  # content word rated
+        assert 2 in rated_ids  # في now gets credit
+        assert 1 in rated_ids
         ratings = {wr["lemma_id"]: wr["rating"] for wr in result["word_results"]}
         assert ratings[1] == 3
 
@@ -933,3 +936,152 @@ class TestRecapEndpoint:
         })
         assert resp.status_code == 200
         assert resp.json()["items"] == []
+
+
+class TestSingleCommitTransaction:
+    """Verify that sentence review consolidates into a single db.commit()."""
+
+    def test_single_commit_for_full_sentence_review(self, db_session):
+        """A sentence with multiple words + grammar features should fire exactly 1 commit."""
+        _seed_word(db_session, 1, "كتاب", "book")
+        _seed_word(db_session, 2, "ولد", "boy")
+        _seed_word(db_session, 3, "قرأ", "read")
+
+        # Add a grammar feature and tag the sentence with it
+        gf = GrammarFeature(
+            feature_id=1, category="verb_tense", feature_key="past",
+            label_en="Past Tense", label_ar="الماضي", sort_order=20,
+        )
+        db_session.add(gf)
+        _seed_sentence(db_session, 1, "الولد قرأ الكتاب", "boy read book",
+                       target_lemma_id=1, word_ids=[2, 3, 1])
+        db_session.flush()
+        sgf = SentenceGrammarFeature(
+            sentence_id=1, feature_id=1, is_primary=False, source="derived",
+        )
+        db_session.add(sgf)
+        db_session.commit()
+
+        with count_commits(db_session) as counter:
+            submit_sentence_review(
+                db_session,
+                sentence_id=1,
+                primary_lemma_id=1,
+                comprehension_signal="understood",
+                session_id="commit-test",
+            )
+
+        assert counter["count"] == 1
+
+    def test_atomicity_failure_mid_review_rolls_back(self, db_session):
+        """If submit_review raises mid-loop, no ReviewLog or ULK changes persist."""
+        _seed_word(db_session, 1, "كتاب", "book")
+        _seed_word(db_session, 2, "ولد", "boy")
+        _seed_sentence(db_session, 1, "الولد الكتاب", "boy book",
+                       target_lemma_id=1, word_ids=[2, 1])
+        db_session.commit()
+
+        original_ts_1 = db_session.query(UserLemmaKnowledge).filter(
+            UserLemmaKnowledge.lemma_id == 1).first().times_seen
+        original_ts_2 = db_session.query(UserLemmaKnowledge).filter(
+            UserLemmaKnowledge.lemma_id == 2).first().times_seen
+
+        # Monkeypatch submit_review to fail on the second word
+        call_count = {"n": 0}
+        original_submit = submit_review.__wrapped__ if hasattr(submit_review, '__wrapped__') else None
+
+        from app.services import sentence_review_service
+        _real_submit = sentence_review_service.submit_review
+
+        def _exploding_submit(db, lemma_id, **kwargs):
+            call_count["n"] += 1
+            if call_count["n"] >= 2:
+                raise RuntimeError("Simulated failure")
+            return _real_submit(db, lemma_id=lemma_id, **kwargs)
+
+        sentence_review_service.submit_review = _exploding_submit
+        try:
+            with pytest.raises(RuntimeError, match="Simulated failure"):
+                submit_sentence_review(
+                    db_session,
+                    sentence_id=1,
+                    primary_lemma_id=1,
+                    comprehension_signal="understood",
+                    session_id="atomicity-test",
+                )
+            db_session.rollback()
+        finally:
+            sentence_review_service.submit_review = _real_submit
+
+        # No ReviewLog entries should persist
+        assert db_session.query(ReviewLog).count() == 0
+        # ULK unchanged
+        ts_1 = db_session.query(UserLemmaKnowledge).filter(
+            UserLemmaKnowledge.lemma_id == 1).first().times_seen
+        ts_2 = db_session.query(UserLemmaKnowledge).filter(
+            UserLemmaKnowledge.lemma_id == 2).first().times_seen
+        assert ts_1 == original_ts_1
+        assert ts_2 == original_ts_2
+
+    def test_standalone_submit_review_still_commits(self, db_session):
+        """Calling submit_review() directly (default commit=True) persists state."""
+        _seed_word(db_session, 1, "كتاب", "book")
+        db_session.commit()
+
+        submit_review(
+            db_session, lemma_id=1, rating_int=3,
+            review_mode="reading", session_id="standalone",
+        )
+
+        # Data should be persisted
+        log = db_session.query(ReviewLog).filter(ReviewLog.lemma_id == 1).first()
+        assert log is not None
+        ulk = db_session.query(UserLemmaKnowledge).filter(
+            UserLemmaKnowledge.lemma_id == 1).first()
+        assert ulk.times_seen == 6  # was 5 from _seed_word
+
+    def test_standalone_grammar_exposure_still_commits(self, db_session):
+        """Calling record_grammar_exposure() directly persists state."""
+        gf = GrammarFeature(
+            feature_id=1, category="verb_tense", feature_key="past",
+            label_en="Past Tense", label_ar="الماضي", sort_order=20,
+        )
+        db_session.add(gf)
+        db_session.commit()
+
+        record_grammar_exposure(db_session, "past", correct=True)
+
+        from app.models import UserGrammarExposure
+        exp = db_session.query(UserGrammarExposure).filter(
+            UserGrammarExposure.feature_id == 1).first()
+        assert exp is not None
+        assert exp.times_seen == 1
+
+    def test_story_complete_single_commit(self, db_session):
+        """complete_story() with multiple FSRS words should fire exactly 1 commit."""
+        from app.models import Story, StoryWord
+
+        # Create 3 words with FSRS cards
+        _seed_word(db_session, 1, "كتاب", "book")
+        _seed_word(db_session, 2, "ولد", "boy")
+        _seed_word(db_session, 3, "قرأ", "read")
+
+        story = Story(
+            id=1, title_ar="test", body_ar="الولد قرأ الكتاب",
+            source="imported", status="active",
+        )
+        db_session.add(story)
+        db_session.flush()
+        for i, lid in enumerate([2, 3, 1]):
+            sw = StoryWord(
+                story_id=1, position=i, surface_form=f"w{i}",
+                lemma_id=lid, is_function_word=False,
+            )
+            db_session.add(sw)
+        db_session.commit()
+
+        from app.services.story_service import complete_story
+        with count_commits(db_session) as counter:
+            complete_story(db_session, story_id=1, looked_up_lemma_ids=[])
+
+        assert counter["count"] == 1

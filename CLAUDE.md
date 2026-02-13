@@ -47,7 +47,7 @@ See `docs/review-modes.md` for full UX flows.
 - **Word introduction is automatic** — `build_session()` auto-introduces encountered words per session when: (1) acquiring count < MAX_ACQUIRING_WORDS=30, (2) box 1 count < MAX_BOX1_WORDS=8, (3) session accuracy >= 70%. Slots = min(accuracy_band, 30-acquiring, 8-box1). The box 1 cap prevents review avalanches from multiple rapid build_session() calls. Learn mode is also available for manual introduction. OCR/story import creates "encountered" state (no FSRS card), not introduced.
 - **No concept of "due"** — the app picks the most relevant cards for the next session. Don't use "due" in UI text or stats. Use "ready for review" or similar.
 - **No bare word cards in review** — review sessions ONLY show sentences. If a due word has no comprehensible sentence, generate one on-demand or skip the word. Never show a word-only fallback card.
-- **Comprehensibility gate** — sentences must have ≥70% known content words (excluding function words) to be shown in review. Incomprehensible sentences are skipped.
+- **Comprehensibility gate** — sentences must have ≥70% known content words to be shown in review. Incomprehensible sentences are skipped. All words are learnable (no function word exclusions).
 - **On-demand sentence generation** — when a due word has no comprehensible sentence, generate 1-2 synchronously during session building (max 10/session). Uses current vocabulary for fresher, better-calibrated sentences than pre-generated ones.
 - **Tapped words are always marked missed** — front-phase tapping auto-marks as missed (rating≤2). Never give rating 3 to a word the user looked up.
 - **al-prefix is NOT a separate lemma** — الكلب and كلب are the same lemma. All import paths must dedup al-prefix forms. Distinct lemmas only for genuinely different words (e.g. الآن "now" vs آن "time").
@@ -137,7 +137,7 @@ This app is an ongoing learning experiment. Every algorithm change, data structu
 - `sentence_review_service.py` — Reviews ALL words equally. Routes acquiring→acquisition, skips encountered. **Collateral credit**: unknown words auto-introduced into acquisition (source="collateral") instead of straight to FSRS. **Variant→canonical redirect**: reviews of variant words credit the canonical lemma, with surface forms tracked in variant_stats_json. credit_type is metadata only. Post-review leech check for words rated ≤2. Undo restores pre-review state from snapshots.
 - `word_selector.py` — Next-word algorithm: 40% freq + 30% root + 20% recency + 10% grammar + encountered/story bonus. Root-sibling interference guard. Excludes wiktionary refs and variant lemmas. introduce_word() calls start_acquisition(), accepts `due_immediately` param for auto-introduction during sessions.
 - `sentence_generator.py` — LLM generation with 7-attempt retry loop, diversity weighting, full diacritics. Feeds validation failures back as retry feedback. Post-validation Gemini Flash quality review gate (naturalness + translation accuracy). Multi-target generation: `generate_validated_sentences_multi_target()` + `group_words_for_multi_target()` for generating sentences covering 2-4 target words simultaneously.
-- `sentence_validator.py` — Rule-based: tokenize → strip diacritics → strip clitics → match known forms. 60+ function words. Public API: lookup_lemma(), resolve_existing_lemma(), build_lemma_lookup(). `validate_sentence_multi_target()` for multi-word validation.
+- `sentence_validator.py` — Rule-based: tokenize → strip diacritics → strip clitics → match known forms. No function word exclusions (all words learnable). FUNCTION_WORD_GLOSSES kept as fallback glosses, FUNCTION_WORD_FORMS kept for clitic analysis prevention. Public API: lookup_lemma(), resolve_existing_lemma(), build_lemma_lookup(). `validate_sentence_multi_target()` for multi-word validation.
 - `grammar_service.py` — 24 features, 5 tiers. Comfort score: 60% log-exposure + 40% accuracy, decayed by recency.
 - `grammar_tagger.py` — LLM-based grammar feature tagging.
 - `story_service.py` — Generate/import stories. Completion creates "encountered" ULK (no FSRS card); only real FSRS review for words with active cards. Suspend/reactivate toggle via `suspend_story()`. Story statuses: active, completed, suspended (skip/too_difficult removed).
@@ -194,6 +194,7 @@ All services in `backend/app/services/`.
 - `lib/WordCardComponents.tsx` — Reusable word display (posLabel, FormsRow, GrammarRow, PlayButton)
 - `lib/AskAI.tsx` — AI chat modal (used in ActionMenu). Quick actions: "Explain marked" (only when words tapped, explains missed/confused words), "Explain full" (word-by-word sentence breakdown with grammar patterns)
 - `lib/MarkdownMessage.tsx` — Markdown renderer for chat/AI responses
+- `lib/grammar-particles.ts` — Rich grammar info for 12 core Arabic particles (في، من، على, etc.), displayed via GrammarParticleView in WordInfoCard
 - `lib/topic-labels.ts` — Human-readable labels + icons for 20 thematic domains
 - `lib/mock-data.ts` — Mock words, stats, learn candidates for testing
 - `lib/__tests__/` — Jest tests for sync, store, smart-filters, API, typechecks
@@ -249,9 +250,9 @@ Full list: `docs/api-reference.md` or `backend/app/routers/`
 
 ## NLP Pipeline
 See `docs/nlp-pipeline.md` for full details.
-- **Rule-based** (sentence_validator.py): tokenize → strip diacritics → strip clitics → match known forms. 60+ function words hardcoded.
+- **Rule-based** (sentence_validator.py): tokenize → strip diacritics → strip clitics → match known forms. All words are learnable (no function word exclusions). FUNCTION_WORD_FORMS dict prevents false clitic analysis (e.g. كانت → ك+انت).
 - **CAMeL Tools** (morphology.py): lemmatization, root extraction, MLE disambiguator. Hamza normalized at comparison only. Graceful stub fallback.
-- **Function words**: tappable in review but NOT given FSRS cards. Clitic stripping NOT applied to function words.
+- **Grammar particles**: Frontend `grammar-particles.ts` provides rich grammar info (meaning, examples, grammar notes) for 12 core particles (في، من، على، إلى، عن، مع، ب، ل، ك، و، ف، ال) displayed in WordInfoCard when tapped during review.
 
 ## LLM Benchmarking
 ```bash

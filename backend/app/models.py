@@ -41,6 +41,7 @@ class Lemma(Base):
     source_story_id = Column(Integer, ForeignKey("stories.id"), nullable=True)
     thematic_domain = Column(String(30), nullable=True)
     etymology_json = Column(JSON, nullable=True)
+    memory_hooks_json = Column(JSON, nullable=True)
 
     root = relationship("Root", back_populates="lemmas")
     canonical_lemma = relationship("Lemma", remote_side="Lemma.lemma_id", foreign_keys=[canonical_lemma_id])

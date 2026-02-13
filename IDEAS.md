@@ -51,7 +51,7 @@
 ### LLM + Deterministic Validation
 - Generate-then-validate pattern: LLM generates sentence → CAMeL Tools lemmatizes every word → check against known-word DB → verify exactly 1 unknown word
 - Retry loop with feedback to LLM (max 3 attempts)
-- Function words (في، من، على، و، ال) treated as always-known
+- [DONE] All words are now learnable — no function word exclusions. Particles, prepositions etc. get full FSRS tracking.
 - Sentence templates for quick generation: "the X is Y", "I went to the X"
 - Pre-generate and cache validated sentences for offline use
 
@@ -181,7 +181,8 @@
 - [DONE] Sentence info debug modal: shows sentence ID, source, difficulty score, times shown, review history, and per-word FSRS difficulty/stability/accuracy. Accessible from "..." menu during review.
 - Future: add "Never show this sentence again" action to retire specific sentences from review
 - Future: "Report pronunciation" to flag TTS audio quality issues
-- Future: "Add personal note" per word/sentence for custom mnemonics
+- [DONE] LLM-generated memory hooks per word: mnemonic, cognates (11 languages), collocations, usage context, fun fact. JIT on introduction. `memory_hooks_json` on Lemma. Personal notes still future.
+- Future: "Add personal note" per word/sentence for custom mnemonics (in addition to LLM-generated hooks)
 
 ### Content Quality
 - [DONE] Flag system: user flags suspicious content → background LLM (GPT-5.2) evaluates and auto-fixes
@@ -399,10 +400,10 @@
 - Mini conjugation tables available on tap for any verb in context
 
 #### Function Word Bootstrap
-- Pre-load ~200 essential function words (particles, prepositions, conjunctions, demonstratives, pronouns)
-- Teach function words in Phase 1 before any content words
-- Exclude function words from "unknown word" count in sentence validation
-- Function words should be marked in data model with is_function_word flag
+- [DONE] **All words are now learnable**: FUNCTION_WORDS set emptied — prepositions, pronouns, conjunctions, demonstratives all get full FSRS tracking. No words excluded from sentence generation or review credit. FUNCTION_WORD_FORMS kept for clitic analysis prevention, FUNCTION_WORD_GLOSSES kept as fallback.
+- [DONE] **Grammar particle info**: 12 core particles (في، من، على، إلى، عن، مع، ب، ل، ك، و، ف، ال) have rich grammar info (meaning, examples, grammar notes) shown in WordInfoCard via `grammar-particles.ts`.
+- [REJECTED] Exclude function words from "unknown word" count — all words should be treated equally. The learner wants to track their knowledge of all words including particles.
+- [REJECTED] Pre-load as Phase 1 — automated introduction handles this naturally via frequency-based ordering.
 
 #### Writing System Features
 - Hamzat al-wasl vs al-qat' visual distinction in reading mode (gray out hamzat al-wasl to show it's elided)

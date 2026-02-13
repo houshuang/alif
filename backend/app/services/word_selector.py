@@ -10,6 +10,7 @@ Also handles word introduction: creating FSRS cards, tracking root familiarity,
 and scheduling initial reinforcement.
 """
 
+import json as _json
 import math
 import re
 from datetime import datetime, timezone, timedelta
@@ -206,6 +207,66 @@ def get_root_family(db: Session, root_id: int) -> list[dict]:
     return result
 
 
+def _root_familiarity_score_batch(
+    root_id: Optional[int],
+    root_total_counts: dict[int, int],
+    root_known_counts: dict[int, int],
+) -> tuple[float, int, int]:
+    """Batch version of _root_familiarity_score using pre-fetched counts."""
+    if root_id is None:
+        return 0.0, 0, 0
+    total = root_total_counts.get(root_id, 0)
+    if total <= 1:
+        return 0.0, 0, total
+    known = root_known_counts.get(root_id, 0)
+    if known == 0:
+        return 0.0, 0, total
+    if known >= total:
+        return 0.1, known, total
+    ratio = known / total
+    return ratio * (1.0 - ratio) * 4.0, known, total
+
+
+def _days_since_introduced_batch(
+    root_id: Optional[int],
+    root_latest_intro: dict[int, Optional[datetime]],
+    now: datetime,
+) -> float:
+    """Batch version of _days_since_introduced using pre-fetched dates."""
+    if root_id is None:
+        return 999.0
+    latest = root_latest_intro.get(root_id)
+    if latest is None:
+        return 999.0
+    if latest.tzinfo is None:
+        latest = latest.replace(tzinfo=timezone.utc)
+    return (now - latest).total_seconds() / 86400
+
+
+def _grammar_pattern_score_batch(
+    grammar_features: Optional[list[str]],
+    unlocked_set: set[str],
+    exposure_map: dict,
+) -> float:
+    """Batch version of grammar_pattern_score using pre-fetched data."""
+    if not grammar_features:
+        return 0.1
+    from app.services.grammar_service import compute_comfort
+    scores = []
+    for key in grammar_features:
+        if key not in unlocked_set:
+            continue
+        exp = exposure_map.get(key)
+        if exp is None:
+            scores.append(1.0)
+        else:
+            comfort = compute_comfort(exp.times_seen, exp.times_correct, exp.last_seen_at)
+            scores.append(max(1.0 - comfort, 0.1))
+    if not scores:
+        return 0.1
+    return sum(scores) / len(scores)
+
+
 def select_next_words(
     db: Session,
     count: int = DEFAULT_BATCH_SIZE,
@@ -265,13 +326,74 @@ def select_next_words(
 
     story_lemmas = _active_story_lemma_ids(db)
 
+    # --- Batch pre-fetch for scoring ---
+    root_ids = {c.root_id for c in candidates if c.root_id}
+
+    # Root familiarity: total lemma count per root
+    root_total_counts = dict(
+        db.query(Lemma.root_id, func.count(Lemma.lemma_id))
+        .filter(Lemma.root_id.in_(root_ids))
+        .group_by(Lemma.root_id)
+        .all()
+    ) if root_ids else {}
+
+    # Root familiarity: known lemma count per root
+    root_known_counts = dict(
+        db.query(Lemma.root_id, func.count(UserLemmaKnowledge.id))
+        .join(UserLemmaKnowledge, UserLemmaKnowledge.lemma_id == Lemma.lemma_id)
+        .filter(
+            Lemma.root_id.in_(root_ids),
+            UserLemmaKnowledge.knowledge_state.in_(["known", "learning", "acquiring", "lapsed"]),
+        )
+        .group_by(Lemma.root_id)
+        .all()
+    ) if root_ids else {}
+
+    # Recency: latest introduction date per root
+    root_latest_intro = dict(
+        db.query(Lemma.root_id, func.max(UserLemmaKnowledge.introduced_at))
+        .join(UserLemmaKnowledge, UserLemmaKnowledge.lemma_id == Lemma.lemma_id)
+        .filter(Lemma.root_id.in_(root_ids))
+        .group_by(Lemma.root_id)
+        .all()
+    ) if root_ids else {}
+
+    now = datetime.now(timezone.utc)
+
+    # Grammar: get unlocked features once and batch-fetch exposure records
+    from app.services.grammar_service import get_unlocked_features, compute_comfort
+    from app.models import GrammarFeature, UserGrammarExposure
+
+    unlocked_info = get_unlocked_features(db)
+    unlocked_set = set(unlocked_info["unlocked_features"])
+
+    all_grammar_keys: set[str] = set()
+    for c in candidates:
+        if c.grammar_features_json:
+            feats = c.grammar_features_json
+            if isinstance(feats, str):
+                feats = _json.loads(feats)
+            if isinstance(feats, list):
+                all_grammar_keys.update(feats)
+
+    exposure_map: dict[str, UserGrammarExposure] = {}
+    if all_grammar_keys:
+        rows = (
+            db.query(GrammarFeature.feature_key, UserGrammarExposure)
+            .join(UserGrammarExposure, UserGrammarExposure.feature_id == GrammarFeature.feature_id)
+            .filter(GrammarFeature.feature_key.in_(all_grammar_keys))
+            .all()
+        )
+        for key, exp in rows:
+            exposure_map[key] = exp
+
     scored = []
     for lemma in candidates:
         freq_score = _frequency_score(lemma.frequency_rank)
-        root_score, known_siblings, total_siblings = _root_familiarity_score(
-            db, lemma.root_id
+        root_score, known_siblings, total_siblings = _root_familiarity_score_batch(
+            lemma.root_id, root_total_counts, root_known_counts
         )
-        days = _days_since_introduced(db, lemma.root_id)
+        days = _days_since_introduced_batch(lemma.root_id, root_latest_intro, now)
 
         # Slight boost for root family words introduced recently (1-3 days ago)
         # to cluster root family learning, but not on the same day
@@ -279,8 +401,11 @@ def select_next_words(
         if 1.0 <= days <= 3.0 and root_score > 0:
             recency_bonus = 0.2
 
-        pattern_score = grammar_pattern_score(
-            db, lemma.grammar_features_json
+        feats = lemma.grammar_features_json
+        if isinstance(feats, str):
+            feats = _json.loads(feats)
+        pattern_score = _grammar_pattern_score_batch(
+            feats, unlocked_set, exposure_map
         )
 
         # Words in active stories get a flat boost on top of normal scoring
@@ -316,6 +441,7 @@ def select_next_words(
             "example_ar": lemma.example_ar,
             "example_en": lemma.example_en,
             "etymology_json": lemma.etymology_json,
+            "memory_hooks_json": lemma.memory_hooks_json,
             "story_title": story_lemmas.get(lemma.lemma_id),
             "score": round(total_score, 3),
             "score_breakdown": {

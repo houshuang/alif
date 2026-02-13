@@ -4,6 +4,52 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-02-13: All Words Learnable — Function Word Exclusions Removed
+
+**Change**: Emptied FUNCTION_WORDS set so all words (prepositions, pronouns, conjunctions, demonstratives) are now fully learnable with FSRS tracking. Added rich grammar particle info for 12 core particles in frontend.
+
+**What changed**:
+1. `FUNCTION_WORDS = set()` — `_is_function_word()` always returns False
+2. All words now count for comprehensibility gate, get FSRS review credit, appear in sentence generation vocabulary
+3. FUNCTION_WORD_GLOSSES kept as fallback glosses for words without lemma entries
+4. FUNCTION_WORD_FORMS kept for clitic analysis prevention (e.g. كانت → كان, not ك+انت)
+5. Frontend `grammar-particles.ts`: 12 core particles (في، من، على، إلى، عن، مع، ب، ل، ك، و، ف، ال) show rich grammar info (meaning, category, examples, grammar notes) in WordInfoCard
+6. Fixed code inconsistency: all `bare in FUNCTION_WORDS` → `_is_function_word(bare)` across routers and services
+
+**Why**: User couldn't track learning of words like يوجد (there is), كان (was), هو (he). Tapping them showed only a single-word gloss with no detail, no conjugation info, no FSRS scheduling. The distinction between "function word" and "content word" was artificial for a learner — all words need to be tracked.
+
+**Expected effect**: All ~100 formerly-excluded words become eligible for FSRS scheduling, appear in review sessions, and get tracked. Particles show richer grammar info when tapped. No change for words already being tracked.
+
+**Risk**: More words competing for review slots. Mitigated by existing focus cohort (MAX_COHORT_SIZE=100) and adaptive introduction gating.
+
+**Verify**: `python3 -m pytest tests/` passes (656 tests). Frontend type-checks clean. Words like في, هو, كان now appear in word browser and get review credit.
+
+**Files**: `sentence_validator.py`, `sentence_selector.py`, `review.py`, `words.py`, `grammar-particles.ts`, `WordInfoCard.tsx`, plus 4 test files
+
+---
+
+## 2026-02-13: Backend Data Fetching Optimization
+
+**Change**: Four-batch backend performance optimization — no API contract changes.
+
+1. **Review commit storm → single transaction**: Added `commit: bool = True` parameter to `submit_review()`, `submit_acquisition_review()`, and `record_grammar_exposure()`. `submit_sentence_review()` passes `commit=False` to all sub-calls, doing one commit at the end. Reduces 8-9 SQLite fsyncs to 1 per sentence review. Same for `complete_story()`.
+
+2. **Word selector batch queries**: `select_next_words()` pre-fetches root familiarity (total/known counts per root), latest intro dates, and grammar exposure in 4-5 bulk queries. Scoring loop uses dict lookups instead of per-candidate DB calls. Reduces ~1500-2000 queries to <20 for 500 candidates.
+
+3. **Stats SQL rewrites**: `_count_due_cards()` uses `json_extract()` in SQL instead of loading all FSRS JSON into Python. `_get_first_known_dates()` uses `GROUP BY + MIN()` with `json_extract` filter. `_get_root_coverage()` uses single JOIN + GROUP BY instead of N+1 per root. `_get_recent_sessions()` batches comprehension query.
+
+4. **Minor N+1 fixes**: Word lookup sibling ULK batch-loaded. Proper names story lookups batch-loaded. Function word filtering over-fetches to ensure correct count. `_build_knowledge_map()` accepts optional `lemma_ids` param.
+
+**Why**: While nothing was broken (single-user SQLite), the commit storms and query fan-outs wasted I/O unnecessarily. Clean internal optimization.
+
+**Expected effect**: Faster review submission, faster word selection, faster stats page. No user-visible behavior change.
+
+**Verify**: `python3 -m pytest` — 662 tests pass. New tests verify commit counts, query counts, and score parity between batch and per-item paths.
+
+**Files**: `fsrs_service.py`, `acquisition_service.py`, `grammar_service.py`, `sentence_review_service.py`, `story_service.py`, `word_selector.py`, `stats.py`, `review.py` (router), `words.py` (router)
+
+---
+
 ## 2026-02-13: Progress Visibility & Stats Screen Overhaul
 
 **Change**: Four-part improvement to learning progress visibility.

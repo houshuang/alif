@@ -215,6 +215,7 @@ def submit_sentence_review(
                 review_mode=review_mode,
                 comprehension_signal=comprehension_signal,
                 client_review_id=review_client_id,
+                commit=False,
             )
         else:
             result = submit_review(
@@ -226,6 +227,7 @@ def submit_sentence_review(
                 review_mode=review_mode,
                 comprehension_signal=comprehension_signal,
                 client_review_id=review_client_id,
+                commit=False,
             )
         is_duplicate = bool(result.get("duplicate"))
         # Tag the review log entry with sentence context
@@ -310,7 +312,7 @@ def submit_sentence_review(
 
     # Record grammar exposure from sentence's word lemmas
     if sentence_id is not None:
-        _record_sentence_grammar(db, sentence_id, lemma_ids_in_sentence, comprehension_signal)
+        _record_sentence_grammar(db, sentence_id, lemma_ids_in_sentence, comprehension_signal, commit=False)
 
     db.commit()
 
@@ -322,6 +324,7 @@ def _record_sentence_grammar(
     sentence_id: int,
     lemma_ids: set[int],
     comprehension_signal: str,
+    commit: bool = True,
 ) -> None:
     """Derive grammar features from sentence words and record exposure."""
     # Collect grammar features from lemma tags
@@ -374,7 +377,7 @@ def _record_sentence_grammar(
     # Record exposure: understood/partial → correct, grammar_confused/no_idea → incorrect
     correct = comprehension_signal in ("understood", "partial")
     for key in feature_keys:
-        record_grammar_exposure(db, key, correct=correct)
+        record_grammar_exposure(db, key, correct=correct, commit=commit)
 
     # Track grammar confusion count
     if comprehension_signal == "grammar_confused" and feature_keys:

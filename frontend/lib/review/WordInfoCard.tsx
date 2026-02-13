@@ -1,7 +1,9 @@
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import { colors, fontFamily } from "../theme";
 import { WordLookupResult, WordForms } from "../types";
 import { getFrequencyBand, getCefrColor } from "../frequency";
+import { getGrammarParticleInfo, GrammarParticleInfo } from "../grammar-particles";
 
 export type FocusWordMark = "missed" | "did_not_recognize";
 
@@ -73,6 +75,9 @@ export default function WordInfoCard({
   const hasFocus = !!surfaceForm && markState !== null;
   const showNav = hasPrev || hasNext;
 
+  // Check if this is a grammar particle
+  const particleInfo = surfaceForm ? getGrammarParticleInfo(surfaceForm) : null;
+
   if (!hasFocus && !loading) {
     return reserveSpace ? <View style={styles.spacer} /> : null;
   }
@@ -103,6 +108,8 @@ export default function WordInfoCard({
         <View style={styles.loadingWrap}>
           <ActivityIndicator size="small" color={colors.accent} />
         </View>
+      ) : particleInfo ? (
+        <GrammarParticleView info={particleInfo} />
       ) : needsReveal ? (
         <RootGateView
           siblings={knownSiblings}
@@ -158,6 +165,29 @@ function RootGateView({
         <Text style={styles.revealText}>Show meaning</Text>
       </Pressable>
     </View>
+  );
+}
+
+function GrammarParticleView({ info }: { info: GrammarParticleInfo }) {
+  return (
+    <ScrollView style={{ maxHeight: 200 }} showsVerticalScrollIndicator={false}>
+      <View style={styles.particleHeader}>
+        <Text style={styles.particleArabic}>{info.ar}</Text>
+        <Text style={styles.particleTranslit}>{info.transliteration}</Text>
+        <View style={styles.particleCategoryPill}>
+          <Text style={styles.particleCategoryText}>{info.category}</Text>
+        </View>
+      </View>
+      <Text style={styles.particleMeaning}>{info.meaning}</Text>
+      <Text style={styles.particleDesc}>{info.description}</Text>
+      {info.examples.map((ex, i) => (
+        <View key={i} style={styles.particleExample}>
+          <Text style={styles.particleExAr}>{ex.ar}</Text>
+          <Text style={styles.particleExEn}>{ex.en}</Text>
+        </View>
+      ))}
+      <Text style={styles.particleGrammar}>{info.grammar_note}</Text>
+    </ScrollView>
   );
 }
 
@@ -217,11 +247,6 @@ function RevealedView({
             <Text style={styles.posText}>{posLabel}</Text>
           </View>
         )}
-        {result.is_function_word && (
-          <View style={styles.functionWordPill}>
-            <Text style={styles.functionWordText}>function word</Text>
-          </View>
-        )}
         {result.cefr_level && (
           <View style={[styles.posPill, { backgroundColor: getCefrColor(result.cefr_level) }]}>
             <Text style={[styles.posText, { color: "#fff", fontWeight: "700" }]}>{result.cefr_level}</Text>
@@ -259,6 +284,16 @@ function RevealedView({
               <Text style={styles.siblingEn} numberOfLines={1}>{s.gloss_en ?? "?"}</Text>
             </View>
           ))}
+        </View>
+      )}
+
+      {/* Mnemonic */}
+      {result.memory_hooks_json?.mnemonic && (
+        <View style={styles.mnemonicLine}>
+          <Ionicons name="bulb-outline" size={12} color={colors.textSecondary} />
+          <Text style={styles.mnemonicSmall} numberOfLines={2}>
+            {result.memory_hooks_json.mnemonic}
+          </Text>
         </View>
       )}
 
@@ -355,17 +390,69 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     textTransform: "lowercase",
   },
-  functionWordPill: {
-    backgroundColor: "rgba(100, 100, 140, 0.25)",
-    borderRadius: 6,
-    paddingHorizontal: 5,
-    paddingVertical: 1,
+  /* Grammar particle info */
+  particleHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 4,
   },
-  functionWordText: {
+  particleArabic: {
+    fontFamily: fontFamily.arabic,
+    fontSize: 22,
+    color: colors.text,
+  },
+  particleTranslit: {
+    color: colors.textSecondary,
+    fontSize: 13,
+    fontStyle: "italic",
+  },
+  particleCategoryPill: {
+    backgroundColor: "rgba(100, 140, 180, 0.25)",
+    borderRadius: 6,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+  },
+  particleCategoryText: {
     color: colors.textSecondary,
     fontSize: 10,
     fontWeight: "600",
+  },
+  particleMeaning: {
+    color: colors.text,
+    fontSize: 14,
+    fontWeight: "600",
+    marginBottom: 4,
+  },
+  particleDesc: {
+    color: colors.textSecondary,
+    fontSize: 12,
+    lineHeight: 17,
+    marginBottom: 6,
+  },
+  particleExample: {
+    flexDirection: "row",
+    gap: 8,
+    marginBottom: 3,
+    paddingLeft: 8,
+  },
+  particleExAr: {
+    fontFamily: fontFamily.arabic,
+    fontSize: 14,
+    color: colors.text,
+  },
+  particleExEn: {
+    color: colors.textSecondary,
+    fontSize: 12,
     fontStyle: "italic",
+    flex: 1,
+  },
+  particleGrammar: {
+    color: colors.accent,
+    fontSize: 11,
+    fontStyle: "italic",
+    marginTop: 4,
+    lineHeight: 16,
   },
 
   /* Forms */
@@ -499,6 +586,21 @@ const styles = StyleSheet.create({
   },
   navIconDisabled: {
     color: colors.textSecondary,
+  },
+
+  /* Mnemonic */
+  mnemonicLine: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 4,
+    paddingTop: 4,
+  },
+  mnemonicSmall: {
+    color: colors.textSecondary,
+    fontSize: 12,
+    fontStyle: "italic",
+    flex: 1,
+    lineHeight: 16,
   },
 
   /* Detail navigation link */

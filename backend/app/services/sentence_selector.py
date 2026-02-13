@@ -31,6 +31,7 @@ from app.services.interaction_logger import log_interaction
 from app.services.sentence_validator import (
     FUNCTION_WORDS,
     FUNCTION_WORD_GLOSSES,
+    _is_function_word,
     build_lemma_lookup,
     lookup_lemma_id,
     strip_diacritics,
@@ -626,7 +627,7 @@ def build_session(
                     k_state = k.knowledge_state or "new"
 
             bare = strip_diacritics(sw.surface_form)
-            is_func = bare in FUNCTION_WORDS
+            is_func = _is_function_word(bare)
             gloss = lemma.gloss_en if lemma else FUNCTION_WORD_GLOSSES.get(bare)
             wm = WordMeta(
                 lemma_id=effective_id,
@@ -1091,7 +1092,7 @@ def _generate_on_demand(
                         "gloss_en": mapped_lemma.gloss_en if mapped_lemma else FUNCTION_WORD_GLOSSES.get(bare),
                         "stability": stability_map.get(sw.lemma_id, 0.0) if sw.lemma_id else None,
                         "is_due": sw.lemma_id in uncovered_ids if sw.lemma_id else False,
-                        "is_function_word": bare in FUNCTION_WORDS,
+                        "is_function_word": _is_function_word(bare),
                         "knowledge_state": k_state,
                         "root": root_obj.root if root_obj else None,
                         "root_meaning": root_obj.core_meaning_en if root_obj else None,
@@ -1184,7 +1185,7 @@ def _generate_on_demand(
                     "gloss_en": mapped_lemma.gloss_en if mapped_lemma else FUNCTION_WORD_GLOSSES.get(bare),
                     "stability": stability_map.get(m.lemma_id, 0.0) if m.lemma_id else None,
                     "is_due": m.lemma_id in uncovered_ids if m.lemma_id else False,
-                    "is_function_word": bare in FUNCTION_WORDS,
+                    "is_function_word": _is_function_word(bare),
                     "knowledge_state": k_state,
                     "root": root_obj.root if root_obj else None,
                     "root_meaning": root_obj.core_meaning_en if root_obj else None,

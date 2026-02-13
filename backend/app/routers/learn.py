@@ -17,6 +17,7 @@ from app.models import (
 )
 from app.services.grammar_service import seed_grammar_features
 from app.services.material_generator import generate_material_for_word, generate_word_audio
+from app.services.memory_hooks import generate_memory_hooks
 from app.services.word_selector import (
     select_next_words,
     introduce_word,
@@ -152,6 +153,9 @@ def introduce(
 
         # Word-level TTS audio generation disabled — saving ElevenLabs credits.
         # Re-enable when credits are plentiful.
+
+        # Generate memory hooks (mnemonic, cognates, collocations)
+        background_tasks.add_task(generate_memory_hooks, req.lemma_id)
 
     return result
 

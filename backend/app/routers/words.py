@@ -108,7 +108,7 @@ def list_words(
     limit: int = Query(50, ge=1, le=200),
     db: Session = Depends(get_db),
 ):
-    from app.services.sentence_validator import FUNCTION_WORDS
+    from app.services.sentence_validator import _is_function_word
 
     # Special category: proper names from stories
     if category == "names":
@@ -117,12 +117,15 @@ def list_words(
     q = db.query(Lemma).join(UserLemmaKnowledge)
     if status:
         q = q.filter(UserLemmaKnowledge.knowledge_state == status)
-    lemmas = q.offset(offset).limit(limit).all()
+
+    # Over-fetch when category filtering happens in Python to ensure enough results
+    fetch_limit = limit * 3 if category in ("function", None) else limit
+    lemmas = q.offset(offset).limit(fetch_limit).all()
 
     if category == "function":
-        lemmas = [l for l in lemmas if l.lemma_ar_bare in FUNCTION_WORDS]
+        lemmas = [l for l in lemmas if l.lemma_ar_bare and _is_function_word(l.lemma_ar_bare)][:limit]
     else:
-        lemmas = [l for l in lemmas if l.lemma_ar_bare not in FUNCTION_WORDS]
+        lemmas = [l for l in lemmas if not l.lemma_ar_bare or not _is_function_word(l.lemma_ar_bare)][:limit]
 
     # Batch-fetch last 8 ratings + timestamps per word
     lemma_ids = [l.lemma_id for l in lemmas]
@@ -191,13 +194,21 @@ def _list_proper_names(db: Session) -> list[dict]:
         .filter(StoryWord.name_type.isnot(None))
         .all()
     )
+
+    # Batch-load all stories referenced by names
+    story_ids = {sw.story_id for sw in names if sw.story_id}
+    story_map = {}
+    if story_ids:
+        stories = db.query(Story).filter(Story.id.in_(story_ids)).all()
+        story_map = {s.id: s for s in stories}
+
     # Dedup by surface bare form, group stories
     from app.services.sentence_validator import strip_diacritics, normalize_alef
     seen: dict[str, dict] = {}
     for sw in names:
         bare = normalize_alef(strip_diacritics(sw.surface_form))
         if bare not in seen:
-            story = db.query(Story).filter(Story.id == sw.story_id).first()
+            story = story_map.get(sw.story_id)
             seen[bare] = {
                 "surface_form": sw.surface_form,
                 "gloss_en": sw.gloss_en or bare,
@@ -367,6 +378,7 @@ def get_word(lemma_id: int, db: Session = Depends(get_db)):
         "sentence_stats": sentence_stats,
         "source_info": source_info,
         "etymology_json": lemma.etymology_json,
+        "memory_hooks_json": lemma.memory_hooks_json,
         "acquisition_box": k.acquisition_box if k else None,
     }
 

@@ -38,6 +38,13 @@ KNOWN_WORDS = [
     {"arabic": "مَدْرَسَة", "english": "school"},
     {"arabic": "كَبِير", "english": "big"},
     {"arabic": "صَغِير", "english": "small"},
+    # Common words that were formerly auto-excluded as "function words"
+    {"arabic": "هَلْ", "english": "? (yes/no)"},
+    {"arabic": "في", "english": "in"},
+    {"arabic": "مِن", "english": "from"},
+    {"arabic": "مَع", "english": "with"},
+    {"arabic": "هُوَ", "english": "he"},
+    {"arabic": "أَو", "english": "or"},
 ]
 
 
@@ -147,8 +154,8 @@ def test_target_word_missing_triggers_retry(mock_gen, _mock_review):
 
 @patch("app.services.sentence_generator.review_sentences_quality", return_value=_QUALITY_PASS)
 @patch("app.services.sentence_generator.generate_sentence")
-def test_function_words_in_sentence_are_ok(mock_gen, _mock_review):
-    """Sentence with many function words should validate."""
+def test_common_words_in_sentence_are_ok(mock_gen, _mock_review):
+    """Sentence with common words (formerly function words) should validate when known."""
     mock_gen.return_value = SentenceResult(
         arabic="هَلْ الوَلَدُ فِي البَيْتِ مَعَ التُّفَّاحَةِ",
         english="Is the boy in the house with the apple?",
@@ -162,7 +169,6 @@ def test_function_words_in_sentence_are_ok(mock_gen, _mock_review):
     )
 
     assert result.attempts == 1
-    assert len(result.validation["function_words"]) >= 2
 
 
 @patch("app.services.sentence_generator.review_sentences_quality", return_value=_QUALITY_PASS)
@@ -593,15 +599,16 @@ class TestCheckScaffoldDiversity:
         assert passes
         assert len(overused) == 1
 
-    def test_function_words_excluded(self):
-        """Function words should not count toward overexposure."""
+    def test_all_words_count_for_diversity(self):
+        """All words (including formerly excluded function words) count toward overexposure."""
         lemma_lookup = {"كتاب": 1, "في": 2}
-        counts = {2: 1000}  # في is a function word, should be ignored
+        counts = {2: 1000}  # في is overused
         passes, overused = _check_scaffold_diversity(
             "في كِتَابٍ", "كتاب", counts, lemma_lookup,
         )
-        assert passes
-        assert len(overused) == 0
+        assert passes  # still passes (only 1 overused word)
+        assert len(overused) == 1
+        assert "في" in overused[0]
 
 
 class TestStarterDiversity:

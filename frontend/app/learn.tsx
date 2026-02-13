@@ -331,6 +331,11 @@ export default function LearnScreen() {
               {c.etymology_json.derivation}
             </Text>
           )}
+          {c.memory_hooks_json?.mnemonic && (
+            <Text style={styles.etymologyLine}>
+              {c.memory_hooks_json.mnemonic}
+            </Text>
+          )}
         </View>
 
         <View style={styles.actionColumn}>

@@ -8,8 +8,10 @@ import pytest
 
 from app.services.sentence_validator import (
     FUNCTION_WORDS,
+    FUNCTION_WORD_GLOSSES,
     TokenMapping,
     ValidationResult,
+    _is_function_word,
     _strip_clitics,
     build_lemma_lookup,
     compute_bare_form,
@@ -93,15 +95,14 @@ class TestValidateSentence:
         assert result.target_found is True
         assert len(result.unknown_words) == 0
 
-    def test_valid_with_function_words(self):
+    def test_valid_with_common_words(self):
         """Sentence: الكتاب في البيت (The book is in the house)
-        Target: بيت (house), Known: كتاب (book)
-        Function words: في, ال
+        Target: بيت (house), Known: كتاب, في (formerly function words are now regular)
         """
         result = validate_sentence(
             arabic_text="الكِتَابُ فِي البَيْتِ",
             target_bare="بيت",
-            known_bare_forms={"كتاب"},
+            known_bare_forms={"كتاب", "في"},
         )
         assert result.valid is True
         assert result.target_found is True
@@ -163,28 +164,26 @@ class TestValidateSentence:
         result = validate_sentence(
             arabic_text="ذَهَبَ الوَلَدُ إِلَى المَدْرَسَةِ",
             target_bare="مدرسة",
-            known_bare_forms={"ذهب", "ولد"},
+            known_bare_forms={"ذهب", "ولد", "الى"},
         )
         assert result.valid is True
         assert result.target_found is True
 
-    def test_function_words_not_counted(self):
-        """Function words (في، من، على، etc.) don't count as unknown."""
+    def test_all_words_now_learnable(self):
+        """All words are learnable — no automatic function word exclusion."""
         result = validate_sentence(
             arabic_text="هُوَ فِي البَيْتِ مِنَ الصَّبَاحِ",
             target_bare="صباح",
-            known_bare_forms={"بيت"},
+            known_bare_forms={"بيت", "هو", "في", "من"},
         )
         assert result.valid is True
-        # هو, في, من are all function words
-        assert len(result.function_words) >= 2
 
-    def test_multiple_function_words(self):
-        """Sentence full of function words + known + target."""
+    def test_sentence_with_common_particles(self):
+        """Sentence with prepositions + known + target all counted."""
         result = validate_sentence(
             arabic_text="هَلْ هُوَ فِي البَيْتِ أَوْ فِي المَكْتَبَةِ",
             target_bare="مكتبة",
-            known_bare_forms={"بيت"},
+            known_bare_forms={"بيت", "هل", "هو", "في", "او"},
         )
         assert result.valid is True
 
@@ -193,12 +192,11 @@ class TestValidateSentence:
         result = validate_sentence(
             arabic_text="الوَلَدُ فِي البَيْتِ",
             target_bare="بيت",
-            known_bare_forms={"ولد"},
+            known_bare_forms={"ولد", "في"},
         )
         assert len(result.classifications) == 3
         categories = {c.category for c in result.classifications}
         assert "known" in categories
-        assert "function_word" in categories
         assert "target_word" in categories
 
     def test_alef_normalization_in_matching(self):
@@ -219,19 +217,19 @@ class TestValidateSentence:
         result = validate_sentence(
             arabic_text="أَنَا أُحِبُّ القَهْوَةَ",
             target_bare="قهوة",
-            known_bare_forms={"احب"},
+            known_bare_forms={"احب", "انا"},
         )
         assert result.valid is True
 
     def test_longer_sentence(self):
         """'الطالب يقرأ الكتاب في المكتبة كل يوم'
         (The student reads the book in the library every day)
-        Target: مكتبة, Known: طالب, يقرأ, كتاب, يوم
+        Target: مكتبة, Known: طالب, يقرأ, كتاب, يوم, في, كل
         """
         result = validate_sentence(
             arabic_text="الطَّالِبُ يَقْرَأُ الكِتَابَ فِي المَكْتَبَةِ كُلَّ يَوْمٍ",
             target_bare="مكتبة",
-            known_bare_forms={"طالب", "يقرأ", "كتاب", "يوم"},
+            known_bare_forms={"طالب", "يقرأ", "كتاب", "يوم", "في", "كل"},
         )
         assert result.valid is True
         assert result.target_found is True
@@ -239,36 +237,22 @@ class TestValidateSentence:
 
 
 class TestFunctionWordsCompleteness:
-    """Verify the function word list covers essential Arabic particles."""
+    """Verify FUNCTION_WORDS is now empty — all words are learnable."""
 
-    def test_prepositions_covered(self):
-        prepositions = ["في", "من", "على", "الى", "عن", "مع", "بين", "حتى"]
-        for p in prepositions:
-            assert p in FUNCTION_WORDS or normalize_alef(p) in {
-                normalize_alef(fw) for fw in FUNCTION_WORDS
-            }, f"Missing preposition: {p}"
+    def test_function_words_empty(self):
+        assert len(FUNCTION_WORDS) == 0, "FUNCTION_WORDS should be empty"
 
-    def test_pronouns_covered(self):
-        pronouns = ["هو", "هي", "هم", "نحن"]
-        for p in pronouns:
-            assert p in FUNCTION_WORDS, f"Missing pronoun: {p}"
+    def test_is_function_word_always_false(self):
+        """_is_function_word always returns False now."""
+        for word in ["في", "من", "هو", "كان", "يوجد"]:
+            assert not _is_function_word(word)
 
-    def test_demonstratives_covered(self):
-        demos = ["هذا", "هذه", "ذلك", "تلك"]
-        for d in demos:
-            assert d in FUNCTION_WORDS, f"Missing demonstrative: {d}"
+    def test_glosses_still_available(self):
+        """FUNCTION_WORD_GLOSSES still provides fallback glosses."""
+        assert FUNCTION_WORD_GLOSSES.get("في") == "in"
+        assert FUNCTION_WORD_GLOSSES.get("هو") == "he"
+        assert FUNCTION_WORD_GLOSSES.get("يوجد") == "there is"
 
-    def test_negation_covered(self):
-        neg = ["لا", "لم", "لن", "ليس"]
-        for n in neg:
-            assert n in FUNCTION_WORDS, f"Missing negation: {n}"
-
-    def test_question_words_covered(self):
-        questions = ["هل", "ما", "ماذا", "كيف", "اين", "متى"]
-        for q in questions:
-            assert q in FUNCTION_WORDS or normalize_alef(q) in {
-                normalize_alef(fw) for fw in FUNCTION_WORDS
-            }, f"Missing question word: {q}"
 
 
 class TestStripClitics:
@@ -417,7 +401,7 @@ class TestCliticIntegration:
         result = validate_sentence(
             arabic_text="الطَّالِبُ يَقْرَأُ الكِتَابَ فِي المَكْتَبَةِ كُلَّ يَوْمٍ",
             target_bare="مكتبة",
-            known_bare_forms={"طالب", "يقرأ", "كتاب", "يوم"},
+            known_bare_forms={"طالب", "يقرأ", "كتاب", "يوم", "في", "كل"},
         )
         assert result.valid is True
 
@@ -562,14 +546,16 @@ class TestMapTokensToLemmas:
         assert mappings[2].lemma_id == 2
         assert mappings[2].is_target is True
 
-    def test_function_word_gets_none(self):
+    def test_word_not_in_lookup_gets_none(self):
+        """هو is not in self.lookup, so it gets lemma_id=None (no longer special-cased as function word)."""
         tokens = tokenize("هُوَ يَقْرَأُ")
         mappings = map_tokens_to_lemmas(tokens, self.lookup, target_lemma_id=3, target_bare="يقرأ")
-        assert mappings[0].is_function_word is True
+        assert mappings[0].is_function_word is False
         assert mappings[0].lemma_id is None
         assert mappings[1].is_target is True
 
-    def test_function_word_maps_when_in_lookup(self):
+    def test_word_maps_when_in_lookup(self):
+        """هو is in lookup, so it gets a lemma_id."""
         lemmas = [
             _FakeLemma(1, "هو"),
             _FakeLemma(2, "يقرأ"),
@@ -577,7 +563,7 @@ class TestMapTokensToLemmas:
         lookup = build_lemma_lookup(lemmas)
         tokens = tokenize("هُوَ يَقْرَأُ")
         mappings = map_tokens_to_lemmas(tokens, lookup, target_lemma_id=2, target_bare="يقرأ")
-        assert mappings[0].is_function_word is True
+        assert mappings[0].is_function_word is False
         assert mappings[0].lemma_id == 1
         assert mappings[1].is_target is True
 
@@ -613,12 +599,12 @@ class TestMapTokensToLemmas:
         lookup = build_lemma_lookup(lemmas)
         tokens = tokenize("كَانَتْ الكِتَابَ")
         mappings = map_tokens_to_lemmas(tokens, lookup, target_lemma_id=3, target_bare="كتاب")
-        # كانت is a function word, should resolve to كان (id=1) via FUNCTION_WORD_FORMS
-        assert mappings[0].is_function_word is True
+        # كانت resolves to كان (id=1) via FUNCTION_WORD_FORMS (prevents false clitic stripping)
+        assert mappings[0].is_function_word is False  # no longer classified as function word
         assert mappings[0].lemma_id == 1  # كان, NOT 2 (أنت)
 
-    def test_function_word_no_clitic_stripping(self):
-        """Function words should use direct-only lookup, not clitic stripping."""
+    def test_word_form_no_clitic_stripping(self):
+        """Words in FUNCTION_WORD_FORMS should use direct-only lookup, not clitic stripping."""
         lemmas = [
             _FakeLemma(1, "ليس"),
             _FakeLemma(2, "كتاب"),
@@ -627,38 +613,24 @@ class TestMapTokensToLemmas:
         tokens = tokenize("لَيْسَتْ الكِتَابَ")
         mappings = map_tokens_to_lemmas(tokens, lookup, target_lemma_id=2, target_bare="كتاب")
         # ليست should resolve to ليس (id=1), not be clitic-stripped
-        assert mappings[0].is_function_word is True
+        assert mappings[0].is_function_word is False  # no longer classified as function word
         assert mappings[0].lemma_id == 1
 
 
 class TestFunctionWordForms:
-    """Test FUNCTION_WORD_FORMS dict and _is_function_word with conjugated forms."""
+    """Test FUNCTION_WORD_FORMS dict still prevents false clitic analysis."""
 
-    def test_kanat_is_function_word(self):
+    def test_is_function_word_always_false(self):
+        """_is_function_word always returns False (FUNCTION_WORDS is empty)."""
         from app.services.sentence_validator import _is_function_word
-        assert _is_function_word("كانت") is True
-
-    def test_kanat_diacritized_is_function_word(self):
-        from app.services.sentence_validator import _is_function_word
-        assert _is_function_word("كَانَتْ") is True
-
-    def test_laysat_is_function_word(self):
-        from app.services.sentence_validator import _is_function_word
-        assert _is_function_word("ليست") is True
-
-    def test_yakun_is_function_word(self):
-        from app.services.sentence_validator import _is_function_word
-        assert _is_function_word("يكون") is True
-
-    def test_kanoo_is_function_word(self):
-        from app.services.sentence_validator import _is_function_word
-        assert _is_function_word("كانوا") is True
+        for word in ["كانت", "كَانَتْ", "ليست", "يكون", "كانوا"]:
+            assert _is_function_word(word) is False
 
     def test_build_lookup_includes_function_word_forms(self):
-        """FUNCTION_WORD_FORMS should be indexed in build_lemma_lookup."""
+        """FUNCTION_WORD_FORMS should still be indexed in build_lemma_lookup for clitic prevention."""
         lemmas = [_FakeLemma(1, "كان")]
         lookup = build_lemma_lookup(lemmas)
-        # كانت should map to كان's lemma_id
+        # كانت should map to كان's lemma_id (prevents false ك+انت clitic split)
         assert lookup.get("كانت") == 1
         assert lookup.get("كانوا") == 1
         assert lookup.get("يكون") == 1

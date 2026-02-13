@@ -24,6 +24,7 @@ import {
   WrapUpCard,
   RecapItem,
   EtymologyData,
+  MemoryHooksData,
   TopicSettings,
   TopicInfo,
 } from "./types";
@@ -72,6 +73,7 @@ interface RawWordDetail extends RawWord {
   grammar_features: { feature_key: string; category?: string; label_en?: string; label_ar?: string }[];
   root_family: { id: number; arabic: string; english: string }[];
   etymology_json?: EtymologyData | null;
+  memory_hooks_json?: MemoryHooksData | null;
   acquisition_box?: number | null;
   review_history: {
     rating: number;
@@ -281,6 +283,7 @@ export async function getWordDetail(id: number): Promise<WordDetail> {
       last_reviewed_at: s.last_reviewed_at ?? null,
     })),
     etymology_json: w.etymology_json ?? null,
+    memory_hooks_json: w.memory_hooks_json ?? null,
     acquisition_box: w.acquisition_box ?? null,
   };
 }

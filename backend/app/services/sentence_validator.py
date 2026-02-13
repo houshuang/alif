@@ -21,48 +21,14 @@ ARABIC_PUNCTUATION = re.compile(
     r"[،؟؛«»\u060C\u061B\u061F.,:;!?\"'\-\(\)\[\]{}…]"
 )
 
-# Common Arabic function words (particles, pronouns, demonstratives,
-# prepositions, conjunctions, negation, question words, auxiliary verbs).
-# Stored as bare (undiacritized) forms.
-FUNCTION_WORDS: set[str] = {
-    # Prepositions
-    "في", "من", "على", "الى", "إلى", "عن", "مع", "بين", "حتى",
-    "منذ", "خلال", "عند", "نحو", "فوق", "تحت", "امام", "أمام",
-    "وراء", "بعد", "قبل", "حول", "دون",
-    # Single-letter prepositions/conjunctions (often attached but can appear alone)
-    "ب", "ل", "ك", "و", "ف",
-    # Conjunctions
-    "او", "أو", "ان", "أن", "إن", "لكن", "ثم", "بل",
-    # Definite article (standalone, rare but possible after tokenization)
-    "ال",
-    # Pronouns
-    "انا", "أنا", "انت", "أنت", "انتم", "أنتم", "هو", "هي",
-    "هم", "هن", "نحن", "انتما", "هما",
-    # Demonstratives
-    "هذا", "هذه", "ذلك", "تلك", "هؤلاء", "اولئك", "أولئك",
-    # Relative pronouns
-    "الذي", "التي", "الذين", "اللذان", "اللتان", "اللواتي",
-    # Question words
-    "ما", "ماذا", "من", "لماذا", "كيف", "اين", "أين", "متى",
-    "هل", "كم", "اي", "أي",
-    # Negation
-    "لا", "لم", "لن", "ما", "ليس", "ليست",
-    # Auxiliary / modal
-    "كان", "كانت", "يكون", "تكون", "قد", "سوف", "سـ",
-    # Very common adverbs/particles
-    "ايضا", "أيضا", "جدا", "فقط", "كل", "بعض", "كلما",
-    "هنا", "هناك", "الان", "الآن", "لذلك", "هكذا", "معا",
-    # Conditional/temporal conjunctions
-    "اذا", "إذا", "لو", "عندما", "بينما", "حيث", "كما",
-    "لان", "لأن", "كي", "لكي", "حين", "حينما",
-    # Emphasis / structure particles
-    "لقد", "اما", "أما", "الا", "إلا", "اذن", "إذن",
-    "انه", "إنه", "انها", "إنها", "مثل", "غير",
-    # Common verbs that are essentially grammatical
-    "يوجد", "توجد",
-}
+# Formerly held ~100 function words excluded from FSRS. Now empty:
+# ALL words are learnable and get FSRS scheduling. The frontend shows
+# richer grammar info for particles (في، من، etc.) via grammar-particles.ts.
+# The set and _is_function_word() are kept for backward compatibility.
+FUNCTION_WORDS: set[str] = set()
 
-# Glosses for function words so they're tappable in review even without a lemma entry
+# Fallback glosses for common words that may lack lemma entries.
+# Used during sentence validation to provide gloss_en even without a DB lemma.
 FUNCTION_WORD_GLOSSES: dict[str, str] = {
     # Prepositions
     "في": "in", "من": "from", "على": "on/upon", "الى": "to", "إلى": "to",
@@ -301,18 +267,16 @@ def _strip_clitics(bare_form: str) -> list[str]:
 
 
 def _is_function_word(bare_form: str) -> bool:
-    """Check if a bare form is a known function word.
+    """Check if a bare form is a grammar particle (excluded from FSRS).
 
-    Strips diacritics first so diacritized input (e.g. كَانَتْ) is handled.
-    Also checks FUNCTION_WORD_FORMS for conjugated forms.
+    With FUNCTION_WORDS now empty, always returns False — all words are learnable.
+    Kept for backward compatibility with callers.
     """
+    if not FUNCTION_WORDS:
+        return False
     stripped = strip_diacritics(bare_form)
     normalized = normalize_alef(stripped)
-    if normalized in _FUNCTION_WORDS_NORMALIZED:
-        return True
-    if normalized in FUNCTION_WORD_FORMS:
-        return True
-    return False
+    return normalized in _FUNCTION_WORDS_NORMALIZED
 
 
 def _bare_forms_match(word_bare: str, candidate_bare: str) -> bool:

@@ -89,6 +89,7 @@ def submit_acquisition_review(
     review_mode: str = "reading",
     comprehension_signal: Optional[str] = None,
     client_review_id: Optional[str] = None,
+    commit: bool = True,
 ) -> dict:
     """Submit a review for a word in the acquisition phase.
 
@@ -134,6 +135,7 @@ def submit_acquisition_review(
             response_ms=response_ms, session_id=session_id,
             review_mode=review_mode, comprehension_signal=comprehension_signal,
             client_review_id=client_review_id,
+            commit=commit,
         )
 
     old_box = ulk.acquisition_box or 1
@@ -212,7 +214,10 @@ def submit_acquisition_review(
         },
     )
     db.add(log_entry)
-    db.commit()
+    if commit:
+        db.commit()
+    else:
+        db.flush()
 
     next_due = ""
     if ulk.acquisition_next_due:

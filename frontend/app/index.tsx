@@ -1092,6 +1092,11 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
                   {wc.etymology_json.derivation}
                 </Text>
               )}
+              {wc.memory_hooks_json?.mnemonic && (
+                <Text style={[styles.sentenceTranslit, { fontStyle: "italic", marginTop: 2 }]}>
+                  {wc.memory_hooks_json.mnemonic}
+                </Text>
+              )}
             </>
           )}
         </ScrollView>

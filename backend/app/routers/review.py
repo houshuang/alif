@@ -169,6 +169,7 @@ def word_lookup(lemma_id: int, db: Session = Depends(get_db)):
         "is_function_word": _is_function_word(lemma.lemma_ar_bare) if lemma.lemma_ar_bare else False,
         "frequency_rank": lemma.frequency_rank,
         "cefr_level": lemma.cefr_level,
+        "memory_hooks_json": lemma.memory_hooks_json,
         "root_family": [],
     }
 
@@ -178,12 +179,18 @@ def word_lookup(lemma_id: int, db: Session = Depends(get_db)):
             .filter(Lemma.root_id == root_obj.root_id, Lemma.lemma_id != lemma_id, Lemma.canonical_lemma_id.is_(None))
             .all()
         )
-        for sib in siblings:
-            sib_knowledge = (
+        sibling_ids = [sib.lemma_id for sib in siblings]
+        sibling_ulk_map = {}
+        if sibling_ids:
+            sibling_ulks = (
                 db.query(UserLemmaKnowledge)
-                .filter(UserLemmaKnowledge.lemma_id == sib.lemma_id)
-                .first()
+                .filter(UserLemmaKnowledge.lemma_id.in_(sibling_ids))
+                .all()
             )
+            sibling_ulk_map = {u.lemma_id: u for u in sibling_ulks}
+
+        for sib in siblings:
+            sib_knowledge = sibling_ulk_map.get(sib.lemma_id)
             result["root_family"].append({
                 "lemma_id": sib.lemma_id,
                 "lemma_ar": sib.lemma_ar,
@@ -336,6 +343,7 @@ def wrap_up_quiz(body: WrapUpIn, db: Session = Depends(get_db)):
             root=root_obj.root if root_obj else None,
             root_meaning=root_obj.core_meaning_en if root_obj else None,
             etymology_json=lemma.etymology_json,
+            memory_hooks_json=lemma.memory_hooks_json,
             is_acquiring=lemma.lemma_id in acquiring_ids,
         ))
 
@@ -417,7 +425,7 @@ def get_recap_items(body: RecapIn, db: Session = Depends(get_db)):
             lemma = lemma_map.get(sw.lemma_id) if sw.lemma_id else None
             root_obj = lemma.root if lemma else None
             bare = strip_diacritics(sw.surface_form)
-            is_func = bare in FUNCTION_WORDS
+            is_func = _is_function_word(bare)
             gloss = lemma.gloss_en if lemma else FUNCTION_WORD_GLOSSES.get(bare)
             word_dicts.append({
                 "lemma_id": sw.lemma_id,

@@ -13,6 +13,12 @@ from app.models import (
     SentenceReviewLog,
     UserLemmaKnowledge,
 )
+from app.routers.stats import (
+    _count_due_cards,
+    _get_first_known_dates,
+    _get_root_coverage,
+    _get_recent_sessions,
+)
 from app.services.fsrs_service import create_new_card
 
 
@@ -180,3 +186,143 @@ class TestDeepAnalyticsEndpoint:
         assert len(sessions) == 1
         assert sessions[0]["session_id"] == "sess-1"
         assert sessions[0]["sentence_count"] == 3
+
+
+class TestCountDueCardsSQL:
+    def test_counts_only_past_due(self, db_session):
+        now = datetime.now(timezone.utc)
+        # 3 due in the past
+        _seed_word(db_session, 1, "كتاب", "book", due_hours=-2)
+        _seed_word(db_session, 2, "قلم", "pen", due_hours=-10)
+        _seed_word(db_session, 3, "بيت", "house", due_hours=-1)
+        # 2 due in the future
+        _seed_word(db_session, 4, "باب", "door", due_hours=5)
+        _seed_word(db_session, 5, "نور", "light", due_hours=24)
+        db_session.commit()
+
+        count = _count_due_cards(db_session, now)
+        assert count == 3
+
+    def test_no_cards_returns_zero(self, db_session):
+        now = datetime.now(timezone.utc)
+        assert _count_due_cards(db_session, now) == 0
+
+
+class TestGetFirstKnownDatesSQL:
+    def test_returns_first_known_date(self, db_session):
+        _seed_word(db_session, 1, "كتاب", "book")
+        now = datetime.now(timezone.utc)
+        # First known transition 10 days ago
+        db_session.add(ReviewLog(
+            lemma_id=1, rating=3, reviewed_at=now - timedelta(days=10),
+            fsrs_log_json={"state": "known"},
+        ))
+        # Later known review 2 days ago (should not override)
+        db_session.add(ReviewLog(
+            lemma_id=1, rating=3, reviewed_at=now - timedelta(days=2),
+            fsrs_log_json={"state": "known"},
+        ))
+        db_session.commit()
+
+        result = _get_first_known_dates(db_session)
+        assert 1 in result
+        assert result[1] == (now - timedelta(days=10)).date()
+
+    def test_ignores_non_known_states(self, db_session):
+        _seed_word(db_session, 1, "كتاب", "book")
+        now = datetime.now(timezone.utc)
+        db_session.add(ReviewLog(
+            lemma_id=1, rating=2, reviewed_at=now - timedelta(days=5),
+            fsrs_log_json={"state": "learning"},
+        ))
+        db_session.commit()
+
+        result = _get_first_known_dates(db_session)
+        assert 1 not in result
+
+    def test_multiple_lemmas(self, db_session):
+        _seed_word(db_session, 1, "كتاب", "book")
+        _seed_word(db_session, 2, "قلم", "pen")
+        now = datetime.now(timezone.utc)
+        db_session.add(ReviewLog(
+            lemma_id=1, rating=3, reviewed_at=now - timedelta(days=7),
+            fsrs_log_json={"state": "known"},
+        ))
+        db_session.add(ReviewLog(
+            lemma_id=2, rating=3, reviewed_at=now - timedelta(days=3),
+            fsrs_log_json={"state": "known"},
+        ))
+        db_session.commit()
+
+        result = _get_first_known_dates(db_session)
+        assert len(result) == 2
+        assert result[1] == (now - timedelta(days=7)).date()
+        assert result[2] == (now - timedelta(days=3)).date()
+
+
+class TestGetRootCoverageSingleQuery:
+    def test_mixed_coverage(self, db_session):
+        r1 = Root(root="كتب", core_meaning_en="writing")
+        r2 = Root(root="قرأ", core_meaning_en="reading")
+        r3 = Root(root="علم", core_meaning_en="knowledge")
+        db_session.add_all([r1, r2, r3])
+        db_session.flush()
+
+        # r1: fully mastered (2/2 known)
+        _seed_word(db_session, 1, "كتاب", "book", state="known", root_id=r1.root_id)
+        _seed_word(db_session, 2, "كاتب", "writer", state="known", root_id=r1.root_id)
+        # r2: partial (1/2 known)
+        _seed_word(db_session, 3, "قارئ", "reader", state="learning", root_id=r2.root_id)
+        _seed_word(db_session, 4, "قراءة", "reading", state="new", root_id=r2.root_id)
+        # r3: no known (0/1)
+        _seed_word(db_session, 5, "عالم", "world", state="new", root_id=r3.root_id)
+        db_session.commit()
+
+        rc = _get_root_coverage(db_session)
+        assert rc.total_roots == 3
+        assert rc.roots_with_known == 2  # r1 + r2
+        assert rc.roots_fully_mastered == 1  # r1 only
+        assert len(rc.top_partial_roots) == 1  # r2 is partial
+
+
+class TestGetRecentSessionsBatched:
+    def test_multiple_sessions(self, db_session):
+        for i in range(5):
+            db_session.add(Sentence(
+                id=i + 1, arabic_text=f"test {i}", english_translation=f"test {i}",
+                target_lemma_id=1,
+            ))
+        db_session.flush()
+
+        now = datetime.now(timezone.utc)
+        # Session A: 2 understood, 1 partial
+        for i, signal in enumerate(["understood", "understood", "partial"]):
+            db_session.add(SentenceReviewLog(
+                sentence_id=i + 1, comprehension=signal,
+                session_id="sess-A", reviewed_at=now - timedelta(hours=2, minutes=i),
+                response_ms=1500,
+            ))
+        # Session B: 1 no_idea, 1 understood
+        for i, signal in enumerate(["no_idea", "understood"]):
+            db_session.add(SentenceReviewLog(
+                sentence_id=i + 4, comprehension=signal,
+                session_id="sess-B", reviewed_at=now - timedelta(hours=1, minutes=i),
+                response_ms=2000,
+            ))
+        db_session.commit()
+
+        sessions = _get_recent_sessions(db_session, limit=10)
+        assert len(sessions) == 2
+        # Most recent first
+        assert sessions[0].session_id == "sess-B"
+        assert sessions[0].sentence_count == 2
+        assert sessions[0].comprehension.get("no_idea") == 1
+        assert sessions[0].comprehension.get("understood") == 1
+
+        assert sessions[1].session_id == "sess-A"
+        assert sessions[1].sentence_count == 3
+        assert sessions[1].comprehension.get("understood") == 2
+        assert sessions[1].comprehension.get("partial") == 1
+
+    def test_empty_returns_empty(self, db_session):
+        assert _get_recent_sessions(db_session) == []

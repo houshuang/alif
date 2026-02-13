@@ -75,6 +75,7 @@ def submit_review(
     review_mode: str = "reading",
     comprehension_signal: Optional[str] = None,
     client_review_id: Optional[str] = None,
+    commit: bool = True,
 ) -> dict:
     if client_review_id:
         existing = (
@@ -155,7 +156,10 @@ def submit_review(
         },
     )
     db.add(log_entry)
-    db.commit()
+    if commit:
+        db.commit()
+    else:
+        db.flush()
 
     return {
         "lemma_id": lemma_id,
