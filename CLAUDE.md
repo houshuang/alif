@@ -44,7 +44,7 @@ See `docs/review-modes.md` for full UX flows.
 - **Story Mode**: generate/import, tap-to-lookup reader, complete/suspend
 
 ## Design Principles
-- **Word introduction is automatic** — `build_session()` auto-introduces encountered words per session when: (1) acquiring count < MAX_ACQUIRING_WORDS=30, (2) box 1 count < MAX_BOX1_WORDS=8, (3) session accuracy >= 70%. Slots = min(accuracy_band, 30-acquiring, 8-box1). The box 1 cap prevents review avalanches from multiple rapid build_session() calls. Learn mode is also available for manual introduction. OCR/story import creates "encountered" state (no FSRS card), not introduced.
+- **Word introduction is automatic** — `build_session()` auto-introduces encountered words per session when: (1) acquiring count < MAX_ACQUIRING_WORDS=30, (2) box 1 count < MAX_BOX1_WORDS=8, (3) session accuracy >= 70%. Slots = min(accuracy_band, 30-acquiring, 8-box1). The box 1 cap prevents review avalanches from multiple rapid build_session() calls. **Fill phase**: when session is undersized after main assembly, a second auto-introduce pass runs with relaxed caps (acquiring≤50, box1≤15) + on-demand sentence generation to keep sessions full during continuous learning. Learn mode is also available for manual introduction. OCR/story import creates "encountered" state (no FSRS card), not introduced.
 - **No concept of "due"** — the app picks the most relevant cards for the next session. Don't use "due" in UI text or stats. Use "ready for review" or similar.
 - **No bare word cards in review** — review sessions ONLY show sentences. If a due word has no comprehensible sentence, generate one on-demand or skip the word. Never show a word-only fallback card.
 - **Comprehensibility gate** — sentences must have ≥70% known content words to be shown in review. Incomprehensible sentences are skipped. All words are learnable (no function word exclusions).
@@ -185,7 +185,7 @@ All services in `backend/app/services/`.
 - `lib/review/SentenceInfoModal.tsx` — Debug modal: sentence ID, source, review history, per-word FSRS difficulty/stability
 - `lib/api.ts` — API client with typed interfaces for all endpoints
 - `lib/types.ts` — TypeScript interfaces
-- `lib/offline-store.ts` — AsyncStorage session cache + reviewed tracking
+- `lib/offline-store.ts` — AsyncStorage session cache (30-min staleness TTL) + reviewed tracking
 - `lib/sync-queue.ts` — Offline review queue, bulk sync
 - `lib/theme.ts` — Dark theme, semantic colors
 - `lib/net-status.ts` — Network status singleton + useNetStatus hook

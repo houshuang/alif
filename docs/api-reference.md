@@ -24,6 +24,7 @@ Full endpoint list. See `backend/app/routers/` for implementation.
 | POST | `/api/review/reintro-result` | Submit re-introduction quiz result |
 | POST | `/api/review/wrap-up` | Wrap-up mini-quiz: word-level recall cards for acquiring words seen in current micro-session |
 | POST | `/api/review/recap` | Next-session recap: sentence-level cards for acquisition words from previous session (<24h) |
+| POST | `/api/review/warm-sentences` | Pre-generate sentences for likely next session words (background, returns 202) |
 
 ## Learn
 | Method | Path | Description |

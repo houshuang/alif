@@ -856,8 +856,13 @@ Two paths for sentence availability:
    per word. Pool cap: ~300 active sentences.
 
 2. **On-demand (JIT)**: During `build_session()`, if a due word has no comprehensible
-   sentence, generate one synchronously. Up to `MAX_ON_DEMAND_PER_SESSION=10`. Uses
-   current vocabulary for better-calibrated scaffolding than pre-generated pool.
+   sentence, generate one synchronously. Uses current vocabulary for better-calibrated
+   scaffolding than pre-generated pool. Both the main phase and fill phase can generate
+   on-demand, bounded by remaining session capacity.
+
+3. **Pre-warming**: `POST /api/review/warm-sentences` (triggered by frontend at 3 cards
+   remaining) pre-generates sentences for focus cohort gaps and likely introductions
+   in the background. Sentences persist in DB for reuse by future `build_session()` calls.
 
 **Philosophy**: JIT is the primary strategy; pre-generated pool is a warm cache to
 avoid latency. On-demand sentences use the learner's current vocabulary state, making
@@ -1167,7 +1172,7 @@ are invalidated after use or after a configurable timeout.
 | `MAX_BOX1_WORDS` | 8 | Don't auto-intro if this many words in Leitner box 1 (normal phase) |
 | `MAX_BOX1_WORDS_FILL` | 15 | Extended box 1 cap during fill phase |
 | `FRESHNESS_BASELINE` | 8 | Reviews before scaffold freshness penalty kicks in |
-| `MAX_ON_DEMAND_PER_SESSION` | 10 | Cap for JIT sentence generation |
+| `MAX_ON_DEMAND_PER_SESSION` | 10 | Reference constant (callers control actual cap via remaining session capacity) |
 | `MAX_REINTRO_PER_SESSION` | 3 | Struggling word reintro card limit |
 | `STRUGGLING_MIN_SEEN` | 3 | Threshold for struggling classification |
 
