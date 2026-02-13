@@ -35,24 +35,42 @@ For proper nouns: return null for the entire entry.
 Return JSON: {"mnemonic": "...", "cognates": [...], "collocations": [...], "usage_context": "...", "fun_fact": "..."}"""
 
 
+def _normalize_collocations(collocations):
+    """Normalize collocations to [{ar, en}] format. Accepts strings or dicts."""
+    if not isinstance(collocations, list):
+        return None
+    result = []
+    for c in collocations:
+        if isinstance(c, dict) and "ar" in c and "en" in c:
+            result.append(c)
+        elif isinstance(c, str) and c.strip():
+            result.append({"ar": c.strip(), "en": ""})
+    return result if result else []
+
+
 def validate_hooks(hooks: dict) -> bool:
-    """Check that the hooks dict has valid structure."""
+    """Check that the hooks dict has valid structure. Auto-normalizes collocations."""
     if not isinstance(hooks, dict):
         return False
     if not hooks.get("mnemonic") or not isinstance(hooks["mnemonic"], str):
         return False
+    # Normalize collocations in-place
     if "collocations" in hooks and hooks["collocations"] is not None:
-        if not isinstance(hooks["collocations"], list):
+        hooks["collocations"] = _normalize_collocations(hooks["collocations"])
+        if hooks["collocations"] is None:
             return False
-        for c in hooks["collocations"]:
-            if not isinstance(c, dict) or "ar" not in c or "en" not in c:
-                return False
     if "cognates" in hooks and hooks["cognates"] is not None:
         if not isinstance(hooks["cognates"], list):
             return False
+        normalized = []
         for c in hooks["cognates"]:
-            if not isinstance(c, dict) or "lang" not in c or "word" not in c:
-                return False
+            if isinstance(c, dict) and ("lang" in c or "language" in c) and "word" in c:
+                if "language" in c and "lang" not in c:
+                    c["lang"] = c.pop("language")
+                normalized.append(c)
+            elif isinstance(c, str):
+                normalized.append({"lang": "?", "word": c, "note": ""})
+        hooks["cognates"] = normalized
     return True
 
 
