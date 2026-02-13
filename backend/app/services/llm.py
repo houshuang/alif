@@ -615,8 +615,18 @@ def review_sentences_quality(
         return []
 
     prompt = """Review each Arabic sentence for a language learning app. For each:
-1. Is the Arabic natural and meaningful (would a native speaker say this)?
+1. Is the Arabic grammatically correct and comprehensible?
 2. Is the English translation accurate?
+
+Only reject sentences with:
+- Grammar errors (wrong gender agreement, incorrect verb forms, broken syntax)
+- Translation errors (English doesn't match Arabic meaning, singular/plural mismatch)
+- Nonsensical or incomprehensible meaning (word salad, contradictory clauses)
+
+Do NOT reject sentences just because:
+- The scenario is unusual (a boy putting a book in a kitchen is fine)
+- The style is simple or textbook-like (these are for language learners)
+- Word choices are slightly informal or formal
 
 Respond with JSON array:
 [{"id": 1, "natural": true/false, "translation_correct": true/false, "reason": "..."}]
@@ -630,14 +640,14 @@ Sentences:
         result = generate_completion(
             prompt=prompt,
             system_prompt=(
-                "You are an expert Arabic linguist. Be strict: reject sentences "
-                "that sound awkward, unnatural, or nonsensical even if grammatically "
-                "correct. A good sentence should be something a native speaker might "
-                "actually say or write."
+                "You are an expert Arabic linguist reviewing sentences for a "
+                "language learning app. Focus on grammar correctness and translation "
+                "accuracy. Accept simple or textbook-style sentences — they are "
+                "appropriate for learners. Only reject sentences with clear errors."
             ),
             json_mode=True,
             temperature=0.0,
-            model_override="gemini",
+            model_override="anthropic",
         )
     except (AllProvidersFailed, LLMError):
         return [SentenceReviewResult(natural=False, translation_correct=False, reason="quality review unavailable") for _ in sentences]
