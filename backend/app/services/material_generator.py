@@ -44,7 +44,7 @@ def generate_material_for_word(lemma_id: int, needed: int = 2) -> None:
             .all()
         )
         known_words = [
-            {"arabic": lem.lemma_ar, "english": lem.gloss_en or "", "lemma_id": lem.lemma_id}
+            {"arabic": lem.lemma_ar, "english": lem.gloss_en or "", "lemma_id": lem.lemma_id, "pos": lem.pos or ""}
             for lem in active_lemmas
         ]
 

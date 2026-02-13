@@ -40,7 +40,7 @@ from app.services.morphology import find_best_db_match, get_word_features, is_va
 
 logger = logging.getLogger(__name__)
 
-KNOWN_SAMPLE_SIZE = 80
+KNOWN_SAMPLE_SIZE = 500
 MAX_NEW_WORDS_IN_STORY = 5
 TERMINAL_STORY_STATUSES = {"completed"}
 

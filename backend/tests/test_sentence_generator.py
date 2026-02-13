@@ -11,7 +11,7 @@ from unittest.mock import patch
 
 import pytest
 
-from app.services.llm import SentenceResult, generate_sentences_batch
+from app.services.llm import SentenceResult, SentenceReviewResult, generate_sentences_batch
 from app.services.sentence_generator import (
     ALWAYS_AVOID_NAMES,
     DIVERSITY_SENTENCE_THRESHOLD,
@@ -22,6 +22,9 @@ from app.services.sentence_generator import (
     get_avoid_words,
     sample_known_words_weighted,
 )
+
+# Helper: mock quality review to always pass (no API key in tests)
+_QUALITY_PASS = [SentenceReviewResult(natural=True, translation_correct=True, reason="test")]
 
 
 KNOWN_WORDS = [
@@ -38,8 +41,9 @@ KNOWN_WORDS = [
 ]
 
 
+@patch("app.services.sentence_generator.review_sentences_quality", return_value=_QUALITY_PASS)
 @patch("app.services.sentence_generator.generate_sentence")
-def test_valid_on_first_attempt(mock_gen):
+def test_valid_on_first_attempt(mock_gen, _mock_review):
     """LLM returns a valid sentence on the first try."""
     mock_gen.return_value = SentenceResult(
         arabic="الوَلَدُ يَأْكُلُ التُّفَّاحَةَ",
@@ -62,8 +66,9 @@ def test_valid_on_first_attempt(mock_gen):
     mock_gen.assert_called_once()
 
 
+@patch("app.services.sentence_generator.review_sentences_quality", return_value=_QUALITY_PASS)
 @patch("app.services.sentence_generator.generate_sentence")
-def test_retry_on_invalid_then_succeed(mock_gen):
+def test_retry_on_invalid_then_succeed(mock_gen, _mock_review):
     """First attempt invalid (extra unknown word), second attempt valid."""
     # First call: sentence with unknown word "جميلة" (beautiful)
     invalid = SentenceResult(
@@ -114,8 +119,9 @@ def test_all_retries_fail(mock_gen):
     assert mock_gen.call_count == MAX_RETRIES
 
 
+@patch("app.services.sentence_generator.review_sentences_quality", return_value=_QUALITY_PASS)
 @patch("app.services.sentence_generator.generate_sentence")
-def test_target_word_missing_triggers_retry(mock_gen):
+def test_target_word_missing_triggers_retry(mock_gen, _mock_review):
     """LLM forgets the target word → retry."""
     no_target = SentenceResult(
         arabic="الوَلَدُ يَأْكُلُ",
@@ -139,8 +145,9 @@ def test_target_word_missing_triggers_retry(mock_gen):
     assert result.validation["target_found"] is True
 
 
+@patch("app.services.sentence_generator.review_sentences_quality", return_value=_QUALITY_PASS)
 @patch("app.services.sentence_generator.generate_sentence")
-def test_function_words_in_sentence_are_ok(mock_gen):
+def test_function_words_in_sentence_are_ok(mock_gen, _mock_review):
     """Sentence with many function words should validate."""
     mock_gen.return_value = SentenceResult(
         arabic="هَلْ الوَلَدُ فِي البَيْتِ مَعَ التُّفَّاحَةِ",
@@ -158,8 +165,9 @@ def test_function_words_in_sentence_are_ok(mock_gen):
     assert len(result.validation["function_words"]) >= 2
 
 
+@patch("app.services.sentence_generator.review_sentences_quality", return_value=_QUALITY_PASS)
 @patch("app.services.sentence_generator.generate_sentence")
-def test_transliteration_included(mock_gen):
+def test_transliteration_included(mock_gen, _mock_review):
     """Result should include transliteration from LLM."""
     mock_gen.return_value = SentenceResult(
         arabic="الكِتَابُ فِي البَيْتِ",
@@ -176,9 +184,10 @@ def test_transliteration_included(mock_gen):
     assert result.transliteration == "al-kitābu fī al-bayti"
 
 
+@patch("app.services.sentence_generator.review_sentences_quality", return_value=_QUALITY_PASS)
 @patch("app.services.sentence_generator.generate_sentence")
-def test_known_words_sampling(mock_gen):
-    """When known_words > 50, only a sample is sent to LLM."""
+def test_known_words_sampling(mock_gen, _mock_review):
+    """When known_words > 500, only a sample is sent to LLM."""
     mock_gen.return_value = SentenceResult(
         arabic="الوَلَدُ يَأْكُلُ التُّفَّاحَةَ",
         english="The boy eats the apple",
@@ -187,7 +196,7 @@ def test_known_words_sampling(mock_gen):
 
     big_known = [
         {"arabic": f"كلمة{i}", "english": f"word{i}"}
-        for i in range(200)
+        for i in range(600)
     ]
     # Add the words we need for validation
     big_known.extend(KNOWN_WORDS)
@@ -198,10 +207,10 @@ def test_known_words_sampling(mock_gen):
         known_words=big_known,
     )
 
-    # Should have called generate_sentence with <= 50 known words
+    # Should have called generate_sentence with <= 500 known words
     call_kwargs = mock_gen.call_args
     sent_known = call_kwargs.kwargs.get("known_words") or call_kwargs.args[2]
-    assert len(sent_known) <= 50
+    assert len(sent_known) <= 500
 
 
 # --- Tests for batch generation ---
@@ -428,8 +437,9 @@ class TestGetAvoidWords:
                 assert word != "?"  # shouldn't include unknown lemma
 
 
+@patch("app.services.sentence_generator.review_sentences_quality", return_value=_QUALITY_PASS)
 @patch("app.services.sentence_generator.generate_sentence")
-def test_weighted_sampling_used_when_counts_provided(mock_gen):
+def test_weighted_sampling_used_when_counts_provided(mock_gen, _mock_review):
     """When content_word_counts is passed, weighted sampling is used."""
     mock_gen.return_value = SentenceResult(
         arabic="الوَلَدُ يَأْكُلُ التُّفَّاحَةَ",
@@ -439,7 +449,7 @@ def test_weighted_sampling_used_when_counts_provided(mock_gen):
 
     big_known = [
         {"arabic": f"كلمة{i}", "english": f"word{i}", "lemma_id": i}
-        for i in range(200)
+        for i in range(600)
     ]
     big_known.extend(
         {**w, "lemma_id": 1000 + i} for i, w in enumerate(KNOWN_WORDS)
@@ -454,7 +464,7 @@ def test_weighted_sampling_used_when_counts_provided(mock_gen):
     )
 
     sent_known = mock_gen.call_args.kwargs.get("known_words") or mock_gen.call_args.args[2]
-    assert len(sent_known) <= 50
+    assert len(sent_known) <= 500
 
 
 @patch("app.services.llm.generate_completion")

@@ -979,11 +979,11 @@ def _generate_on_demand(
 
     # GPT prompt gets only active words; validator gets all (including encountered)
     known_words = [
-        {"arabic": lem.lemma_ar, "english": lem.gloss_en or "", "lemma_id": lem.lemma_id}
+        {"arabic": lem.lemma_ar, "english": lem.gloss_en or "", "lemma_id": lem.lemma_id, "pos": lem.pos or ""}
         for lem in all_lemmas if lem.lemma_id in known_lemma_ids
     ]
     all_words_for_validation = [
-        {"arabic": lem.lemma_ar, "english": lem.gloss_en or "", "lemma_id": lem.lemma_id}
+        {"arabic": lem.lemma_ar, "english": lem.gloss_en or "", "lemma_id": lem.lemma_id, "pos": lem.pos or ""}
         for lem in all_lemmas
     ]
     lemma_lookup = build_lemma_lookup(all_lemmas) if all_lemmas else {}
@@ -1030,6 +1030,7 @@ def _generate_on_demand(
                 difficulty_hint="beginner",
                 max_words=12,
                 validation_words=all_words_for_validation,
+                lemma_lookup=lemma_lookup,
             )
         except Exception as e:
             logger.warning(f"Multi-target generation failed: {e}")
@@ -1044,6 +1045,7 @@ def _generate_on_demand(
                 difficulty_hint="beginner",
                 max_words=10,
                 validation_words=all_words_for_validation,
+                lemma_lookup=lemma_lookup,
             )
         except GenerationError:
             logger.warning(f"On-demand generation failed for lemma {lid}")

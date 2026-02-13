@@ -4,6 +4,34 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-02-13: Sentence Pipeline Overhaul
+
+**Change**: Seven-part overhaul based on benchmarking 213 sentences across 3 models × 6 strategies. Full investigation reports in `research/sentence-investigation-2026-02-13/`.
+
+1. **KNOWN_SAMPLE_SIZE 50 → 500**: The #1 source of validation failures. GPT-5.2 compliance jumped 57% → 88% with full vocab in testing. 50 was a holdover from early development. At ~500 words, full vocab fits well within any model's context window (~3,500 tokens).
+
+2. **Quality gate fail-closed**: Previously, if Gemini Flash was unavailable for quality review, sentences passed automatically (fail-open). Bad sentences reached users when Gemini was down. Now rejects on LLM failure — better to skip a sentence than show a bad one.
+
+3. **Switch generation model: GPT-5.2 → Gemini Flash**: GPT-5.2 scored 4.63/5 quality and produced all 5 "word salad" sentences in benchmarking. Gemini Flash scored 4.89/5, 84% compliance, cheapest, fastest. Switched all generation defaults (generate_sentence, generate_sentences_batch, generate_sentences_multi_target, update_material.py).
+
+4. **POS-grouped vocabulary in prompts**: Organizing known words by part of speech (NOUNS/VERBS/ADJECTIVES/OTHER) scored 5.0/5 quality and 87% compliance in benchmarking. Helps LLM select appropriate words for syntactic positions. Added `format_known_words_by_pos()` helper, added `pos` field to known_words dicts in all code paths.
+
+5. **Fix validator: inflected forms in known_bare_forms**: `validate_sentence()` was building `known_bare_forms` from base lemma forms only (e.g., `واسع`), but generated sentences use inflected forms (e.g., `واسعة` feminine). Meanwhile `build_lemma_lookup()` already indexes inflected forms from `forms_json`. Fix: use `set(lemma_lookup.keys())` for `known_bare_forms` when available.
+
+6. **Fix validator: function words after clitic stripping**: After stripping `و` from `ولكنه`, the stem `لكن` was checked only against `known_normalized` — but `لكن` is a function word (not in the known words set). Added `_is_function_word()` check after clitic stripping in both `validate_sentence()` and `validate_sentence_multi_target()`.
+
+7. **Documentation updates**: Updated CLAUDE.md, experiment-log.md, IDEAS.md.
+
+**Why**: Investigation showed the sentence pipeline had systematic quality issues traceable to model choice (GPT-5.2 worst quality), vocabulary visibility (KNOWN_SAMPLE_SIZE=50), fail-open quality gate, and two validator false-positive bugs.
+
+**Expected effect**: Higher sentence quality (Gemini Flash > GPT-5.2), fewer validation failures (full vocab + inflected forms + function word fix), no bad sentences slipping through when quality gate LLM is unavailable.
+
+**Verify**: Run `update_material.py` after deploy. Monitor sentence_gen logs for retry rates and quality review rejection rates. Expected: <10% validation failure rate (was ~40%).
+
+**Files**: `llm.py`, `sentence_generator.py`, `sentence_validator.py`, `material_generator.py`, `sentence_selector.py`, `update_material.py`, `story_service.py`
+
+---
+
 ## 2026-02-12: Gemini Flash Quality Review Gate + Prompt Overhaul
 
 **Change**: Two-part fix for 57% sentence quality failure rate.

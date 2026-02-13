@@ -131,7 +131,7 @@ def get_known_words_and_lookup(db: Session) -> tuple[list[dict[str, str]], dict[
         .all()
     )
     known_words = [
-        {"arabic": lem.lemma_ar, "english": lem.gloss_en or ""}
+        {"arabic": lem.lemma_ar, "english": lem.gloss_en or "", "pos": lem.pos or ""}
         for lem in all_lemmas
     ]
     lemma_lookup = build_lemma_lookup(all_lemmas)
@@ -144,7 +144,7 @@ def generate_sentences_for_word(
     known_words: list[dict[str, str]],
     lemma_lookup: dict[str, int],
     needed: int,
-    model: str = "openai",
+    model: str = "gemini",
     delay: float = 1.0,
     avoid_words: list[str] | None = None,
     difficulty_hint: str | None = None,
@@ -310,6 +310,7 @@ def step_backfill_sentences(
                     difficulty_hint="beginner",
                     content_word_counts=content_word_counts,
                     avoid_words=avoid_words,
+                    lemma_lookup=lemma_lookup,
                 )
             except Exception as e:
                 print(f"    Multi-target failed: {e}")
@@ -587,7 +588,7 @@ async def main():
     parser.add_argument("--candidates", type=int, default=10, help="Number of upcoming candidates (default: 10)")
     parser.add_argument("--max-sentences", type=int, default=TARGET_PIPELINE_SENTENCES,
                         help=f"Max total active sentences in pipeline (default: {TARGET_PIPELINE_SENTENCES})")
-    parser.add_argument("--model", default="openai", help="LLM model (default: openai)")
+    parser.add_argument("--model", default="gemini", help="LLM model (default: gemini)")
     parser.add_argument("--delay", type=float, default=1.0, help="Seconds between LLM calls")
     args = parser.parse_args()
 

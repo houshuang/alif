@@ -541,7 +541,65 @@
 - Context variety scoring: measure how many different sentence patterns each word appears in (not just count)
 - Word pair co-occurrence tracking: detect word pairs that always appear together (e.g., كتاب+جميل) and actively break them apart
 - LLM fine-tuning: collect rejected sentences as negative examples, use for prompt engineering or RLHF on sentence generation
-- [DONE] Gemini Flash quality review gate: post-generation naturalness + translation accuracy check. Catches awkward, nonsensical, or mistranslated sentences before they reach users. Fails open (if Gemini unavailable, sentence passes). Integrated into both single-target and multi-target generation paths.
+- [DONE] Gemini Flash quality review gate: post-generation naturalness + translation accuracy check. Catches awkward, nonsensical, or mistranslated sentences before they reach users. Fail-closed since 2026-02-13 (rejects on Gemini unavailability). Integrated into both single-target and multi-target generation paths.
+
+### Sentence Generation Pipeline Overhaul (2026-02-13)
+
+#### Corpus-Based Sentence Sources
+- Import Tatoeba Arabic-English pairs (~12.5K, CC-BY 2.0) as a sentence source — real human-written sentences matched against learner vocabulary
+- Import BAREC graded sentences (69K, 19 readability levels, HuggingFace) — needs LLM diacritization + translation but provides difficulty-graded material
+- FSI/DLI Arabic courses (public domain, US government) — structured learning content with English translations, thousands of sentences
+- Hindawi E-Book Corpus (81.5M words, CC-BY 4.0) — children's literature subset for simpler material
+- Efficient vocabulary matching: for any sentence source, classify tokens as known/function/unknown, apply ≥70% comprehensibility gate
+
+#### Dormant Sentence Pool
+- Don't discard LLM-generated sentences that fail vocabulary matching — store with `is_active=False` and periodically re-evaluate as vocabulary grows
+- Same for corpus sentences: import ALL matching sentences at import time, mark dormant ones that don't yet meet comprehensibility gate
+- As vocabulary grows, run a background job to "unlock" dormant sentences (flip is_active when ≥70% comprehensibility is reached)
+- Track unlock rate: how many sentences become available per 100 new words learned?
+
+#### Two-Pass "Generate Then Constrain" Strategy
+- Research (SRS-Stories, EMNLP 2025) shows two-phase approach beats single-pass vocabulary-constrained generation
+- Pass 1: Generate natural sentence with target word, NO vocabulary constraint
+- Pass 2: Identify unknown words, ask LLM to rewrite replacing ONLY those words with known alternatives
+- Preserves natural sentence structure from Pass 1 while achieving vocabulary compliance
+- This is the single highest-impact change backed by academic evidence
+
+#### OCR Textbook Sentence Extraction
+- Modify OCR prompt to extract full sentences alongside individual words from textbook pages
+- Textbook sentences are pedagogically designed to reuse vocabulary — high-quality bootstrap material
+- Sentences need cleanup/diacritization after extraction but are inherently better calibrated than LLM-generated ones
+- Could detect whether a scanned page is vocabulary (extract words) or exercise text (extract sentences) automatically
+
+#### Story-to-Sentences Pipeline
+- Generate LLM stories from word sets, then chop into individual review sentences
+- Stories provide narrative coherence that isolated sentences lack (ref: networkedthought.substack.com "The Language Learning Holy Grail")
+- Each story sentence becomes an independent review item while sharing a narrative thread
+- Caveat: Storyfier (UIST 2023) found learners using generated stories performed worse at vocabulary recall — engaging plots may encourage reading for plot rather than deep word processing. Sentence-level review may be superior.
+
+#### Vocabulary in LLM Prompts
+- [DONE] Fix KNOWN_SAMPLE_SIZE mismatch: increased from 50 → 500. GPT-5.2 compliance jumped 57% → 88% with full vocab in benchmarking. See `research/sentence-investigation-2026-02-13/`.
+- [DONE] POS-grouped vocabulary: organize known words by part of speech (NOUNS/VERBS/ADJECTIVES/OTHER). Scored 5.0/5 quality and 87% compliance in benchmarking. Implemented as `format_known_words_by_pos()` in llm.py.
+- Scenario-based prompting: use existing `thematic_domain` data to add context hints ("at school", "at a restaurant") which naturally constrain vocabulary
+
+#### Sentence Template Fallback
+- Build ~30 Arabic syntactic templates (VSO, SVO, nominal) for deterministic sentence construction
+- Use as fallback when LLM generation fails 3+ times for a word
+- Templates like: `{SUBJ} {VERB} {OBJ} في {LOC}` filled from known vocabulary by POS
+- 100% vocabulary compliance but lower naturalness — safety net, not primary approach
+- Now that POS-grouped vocabulary is implemented, templates could leverage POS tags for slot filling
+- Investigation report: `research/sentence-investigation-2026-02-13/recommendations.md`
+
+#### Morphological Vocabulary Expansion
+- Use CAMeL Tools Generator to expand known lemmas into all valid inflected forms before passing to LLM
+- If learner knows root k-t-b, expand to: كتب، يكتب، كتاب، كتب، مكتبة، كاتب
+- Dramatically increases usable vocabulary for the LLM while staying within "known" territory
+- Already have `forms_json` on lemmas — this data is ready to use
+
+#### Quality Gate Improvements
+- [DONE] Change quality gate from fail-open to fail-closed (reject on Gemini unavailability instead of auto-pass) — implemented 2026-02-13
+- Separate generation from translation: let LLM focus entirely on Arabic writing quality, translate in a cheap parallel Gemini Flash call
+- Chain-of-thought sentence construction: guide LLM through explicit steps (pick scenario → choose pattern → select words → construct sentence)
 - [DONE] Prompt overhaul: added explicit rules for indefinite noun starters, redundant pronouns, semantic coherence in compound sentences, beginner-level archaic word exclusion. Lowered temperature from 0.8 to 0.5. Reduced failure rate from 57% to ~10%.
 - [DONE] Parallel on-demand generation: ThreadPoolExecutor(max_workers=8) for concurrent LLM calls during session building
 - [DONE] Bulk sentence quality audit: `review_existing_sentences.py` script reviews all active sentences with Gemini Flash, retires failures
@@ -732,6 +790,14 @@ After importing ~100 textbook pages via OCR, 411 words entered the system with a
   - Sentence length (eye-tracking shows fixation per content word)
 - Weight these factors in sentence selection algorithm
 - Research: morphological density impacts reading comprehension independently of vocabulary coverage
+
+#### INN University Arabic Heritage Language Research
+- Jonas Yassin Iversen (Professor) and Lana Amro (PhD candidate) at INN Hamar research Arabic heritage language education in Scandinavia
+- Key finding: Norwegian supplementary (weekend school) model leads Arabic students to **hide their language learning from peers**, while Swedish mainstream integration fosters pride — relevant to Alif as a private self-directed tool
+- Translanguaging (using L1+L2 together) validated as productive pedagogy in digital Arabic education — supports our English glosses + transliteration approach
+- Amro's PhD specifically studies digital Arabic language learning with translanguaging
+- DIALOGUES Erasmus+ project (2025–2027) on languages, literacies, and learning in a digital age
+- **Full writeup**: [`research/inn-arabic-heritage-language.md`](research/inn-arabic-heritage-language.md)
 
 #### 19-Level Readability Corpus (BAREC)
 - BAREC (ACL 2025): 69K sentences, 19 readability levels, CC-BY-SA. Pilot study (2024, 10.6K segments) evolved into this.

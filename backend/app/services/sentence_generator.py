@@ -36,7 +36,7 @@ from app.services.sentence_validator import (
 )
 
 MAX_RETRIES = 7
-KNOWN_SAMPLE_SIZE = 50
+KNOWN_SAMPLE_SIZE = 500
 MAX_AVOID_WORDS = 20
 MIN_WEIGHT = 0.05
 DIVERSITY_SENTENCE_THRESHOLD = 15  # scaffold words in this many+ sentences trigger rejection
@@ -240,9 +240,13 @@ def generate_validated_sentence(
         avoid_words = None
 
     # Build the known bare forms set for validation
-    # Use validation_words (broader, includes encountered) if provided
-    validate_from = validation_words if validation_words is not None else known_words
-    known_bare = {strip_diacritics(w["arabic"]) for w in validate_from}
+    # Use lemma_lookup keys (includes inflected forms from forms_json) if available,
+    # otherwise fall back to validation_words
+    if lemma_lookup:
+        known_bare = set(lemma_lookup.keys())
+    else:
+        validate_from = validation_words if validation_words is not None else known_words
+        known_bare = {strip_diacritics(w["arabic"]) for w in validate_from}
 
     target_bare = strip_diacritics(target_arabic)
 
@@ -395,6 +399,7 @@ def generate_validated_sentences_multi_target(
     content_word_counts: dict[int, int] | None = None,
     avoid_words: list[str] | None = None,
     validation_words: list[dict[str, str]] | None = None,
+    lemma_lookup: dict[str, int] | None = None,
 ) -> list[MultiTargetGeneratedSentence]:
     """Generate and validate sentences targeting multiple words.
 
@@ -419,9 +424,12 @@ def generate_validated_sentences_multi_target(
         bare = strip_diacritics(tw["lemma_ar"])
         target_bares[bare] = tw["lemma_id"]
 
-    validate_from = validation_words if validation_words is not None else known_words
-    known_bare = {strip_diacritics(w["arabic"]) for w in validate_from}
     # Include target bares in known set for validation
+    if lemma_lookup:
+        known_bare = set(lemma_lookup.keys())
+    else:
+        validate_from = validation_words if validation_words is not None else known_words
+        known_bare = {strip_diacritics(w["arabic"]) for w in validate_from}
     all_bare = known_bare | set(target_bares.keys())
 
     # Build LLM target list

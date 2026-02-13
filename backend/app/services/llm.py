@@ -1,7 +1,8 @@
 """LLM service using LiteLLM with multi-model fallback.
 
-Sentence generation: GPT-5.2 (best Arabic quality)
+Sentence generation: Gemini Flash (best quality/compliance/cost balance)
 General tasks: Gemini Flash (fast, cheap) → GPT-5.2 fallback → Claude Haiku tertiary
+Quality gate: Gemini Flash, fail-closed (rejects on LLM failure)
 """
 
 import json
@@ -181,6 +182,27 @@ def generate_completion(
     raise AllProvidersFailed(f"All LLM providers failed: {'; '.join(errors)}")
 
 
+def format_known_words_by_pos(known_words: list[dict]) -> str:
+    """Format known words grouped by part of speech for clearer LLM prompts."""
+    groups: dict[str, list[str]] = {"NOUNS": [], "VERBS": [], "ADJECTIVES": [], "OTHER": []}
+    for w in known_words:
+        pos = (w.get("pos") or "").lower()
+        entry = f"{w['arabic']} ({w['english']})"
+        if pos in ("noun", "noun_prop"):
+            groups["NOUNS"].append(entry)
+        elif pos == "verb":
+            groups["VERBS"].append(entry)
+        elif pos in ("adj", "adj_comp"):
+            groups["ADJECTIVES"].append(entry)
+        else:
+            groups["OTHER"].append(entry)
+    lines = []
+    for label, words in groups.items():
+        if words:
+            lines.append(f"{label}: {', '.join(words)}")
+    return "\n".join(lines) if lines else "\n".join(f"- {w['arabic']} ({w['english']})" for w in known_words)
+
+
 ARABIC_STYLE_RULES = """\
 Arabic naturalness rules:
 - Mix VSO and SVO word order. VSO is more formal/classical; SVO more contemporary
@@ -297,7 +319,7 @@ def generate_sentence(
     retry_feedback: str | None = None,
     max_words: int | None = None,
     avoid_words: list[str] | None = None,
-    model_override: str = "openai",
+    model_override: str = "gemini",
 ) -> SentenceResult:
     """Generate a single Arabic sentence featuring the target word.
 
@@ -313,9 +335,7 @@ def generate_sentence(
     Returns:
         SentenceResult with arabic, english, transliteration.
     """
-    known_list = "\n".join(
-        f"- {w['arabic']} ({w['english']})" for w in known_words
-    )
+    known_list = format_known_words_by_pos(known_words)
 
     word_count_range = "6-12"
     if max_words:
@@ -368,7 +388,7 @@ def generate_sentences_batch(
     known_words: list[dict[str, str]],
     count: int = 3,
     difficulty_hint: str = "beginner",
-    model_override: str = "openai",
+    model_override: str = "gemini",
     avoid_words: list[str] | None = None,
     rejected_words: list[str] | None = None,
     max_words: int | None = None,
@@ -377,9 +397,7 @@ def generate_sentences_batch(
 
     Returns up to `count` SentenceResult objects (may be fewer if parsing fails).
     """
-    known_list = "\n".join(
-        f"- {w['arabic']} ({w['english']})" for w in known_words
-    )
+    known_list = format_known_words_by_pos(known_words)
 
     avoid_instruction = ""
     if avoid_words:
@@ -485,7 +503,7 @@ def generate_sentences_multi_target(
     known_words: list[dict[str, str]],
     count: int = 4,
     difficulty_hint: str = "beginner",
-    model_override: str = "openai",
+    model_override: str = "gemini",
     avoid_words: list[str] | None = None,
     max_words: int | None = None,
 ) -> list[MultiTargetSentenceResult]:
@@ -503,9 +521,7 @@ def generate_sentences_multi_target(
     Returns:
         List of MultiTargetSentenceResult objects.
     """
-    known_list = "\n".join(
-        f"- {w['arabic']} ({w['english']})" for w in known_words
-    )
+    known_list = format_known_words_by_pos(known_words)
     target_list = "\n".join(
         f"- {w['arabic']} ({w['english']})" for w in target_words
     )
@@ -593,7 +609,7 @@ def review_sentences_quality(
 
     Returns:
         List of SentenceReviewResult, one per input sentence.
-        On LLM failure, returns all-pass results (fail open).
+        On LLM failure, returns all-fail results (fail closed).
     """
     if not sentences:
         return []
@@ -624,12 +640,12 @@ Sentences:
             model_override="gemini",
         )
     except (AllProvidersFailed, LLMError):
-        return [SentenceReviewResult(natural=True, translation_correct=True, reason="review skipped") for _ in sentences]
+        return [SentenceReviewResult(natural=False, translation_correct=False, reason="quality review unavailable") for _ in sentences]
 
     # Parse — result may be a list directly or {"reviews": [...]}
     items = result if isinstance(result, list) else result.get("reviews", result.get("sentences", []))
     if not isinstance(items, list):
-        return [SentenceReviewResult(natural=True, translation_correct=True, reason="parse error") for _ in sentences]
+        return [SentenceReviewResult(natural=False, translation_correct=False, reason="quality review parse error") for _ in sentences]
 
     reviews: list[SentenceReviewResult] = []
     for i in range(len(sentences)):
@@ -641,5 +657,5 @@ Sentences:
                 reason=str(item.get("reason", "")),
             ))
         else:
-            reviews.append(SentenceReviewResult(natural=True, translation_correct=True, reason="missing"))
+            reviews.append(SentenceReviewResult(natural=False, translation_correct=False, reason="quality review incomplete"))
     return reviews

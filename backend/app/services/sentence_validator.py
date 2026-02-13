@@ -579,7 +579,8 @@ def validate_sentence_multi_target(
                 break
         if not is_known:
             for stem in _strip_clitics(bare_normalized):
-                if normalize_alef(stem) in known_normalized:
+                stem_norm = normalize_alef(stem)
+                if stem_norm in known_normalized or _is_function_word(stem_norm):
                     is_known = True
                     break
 
@@ -693,7 +694,8 @@ def validate_sentence(
         # Try clitic stripping if direct match failed
         if not is_known:
             for stem in _strip_clitics(bare_normalized):
-                if normalize_alef(stem) in known_normalized:
+                stem_norm = normalize_alef(stem)
+                if stem_norm in known_normalized or _is_function_word(stem_norm):
                     is_known = True
                     break
 
