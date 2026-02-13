@@ -43,7 +43,9 @@ MAX_ACQUISITION_EXTRA_SLOTS = 15  # max extra cards beyond session limit for rep
 MAX_AUTO_INTRO_PER_SESSION = 10  # new words auto-introduced per session
 AUTO_INTRO_ACCURACY_FLOOR = 0.70  # pause introduction if recent accuracy below this
 MAX_ACQUIRING_WORDS = 30  # don't auto-introduce if already this many acquiring
+MAX_ACQUIRING_CEILING = 50  # extended cap when filling an undersized session
 MAX_BOX1_WORDS = 8  # don't auto-introduce if this many acquiring words still in box 1
+MAX_BOX1_WORDS_FILL = 15  # extended box 1 cap for fill phase
 
 
 def _intro_slots_for_accuracy(accuracy: float) -> int:
@@ -229,19 +231,26 @@ def _auto_introduce_words(
     acquiring_count: int,
     knowledge_by_id: dict[int, UserLemmaKnowledge],
     now: datetime,
+    has_due_words: bool = True,
+    skip_material_gen: bool = False,
 ) -> list[int]:
     """Auto-introduce new words into the session if acquiring count is low.
 
     Picks highest-frequency encountered words and starts acquisition.
     Returns list of newly introduced lemma_ids.
+
+    When has_due_words=False (fill phase), uses relaxed caps to allow
+    continuous learning when the user has reviewed everything due.
     """
     import logging
     logger = logging.getLogger(__name__)
 
-    if acquiring_count >= MAX_ACQUIRING_WORDS:
+    effective_acquiring_max = MAX_ACQUIRING_WORDS if has_due_words else MAX_ACQUIRING_CEILING
+    if acquiring_count >= effective_acquiring_max:
         return []
 
     # Box 1 capacity check: don't dump new words if box 1 is already full
+    effective_box1_cap = MAX_BOX1_WORDS if has_due_words else MAX_BOX1_WORDS_FILL
     box1_count = (
         db.query(UserLemmaKnowledge)
         .filter(
@@ -250,9 +259,9 @@ def _auto_introduce_words(
         )
         .count()
     )
-    if box1_count >= MAX_BOX1_WORDS:
+    if box1_count >= effective_box1_cap:
         logger.info(
-            f"Auto-intro paused: {box1_count} words in box 1 (max {MAX_BOX1_WORDS})"
+            f"Auto-intro paused: {box1_count} words in box 1 (max {effective_box1_cap})"
         )
         return []
 
@@ -275,8 +284,8 @@ def _auto_introduce_words(
         accuracy = None
         accuracy_slots = 4  # conservative default with insufficient data
 
-    box1_available = MAX_BOX1_WORDS - box1_count
-    slots = min(accuracy_slots, MAX_ACQUIRING_WORDS - acquiring_count, box1_available)
+    box1_available = effective_box1_cap - box1_count
+    slots = min(accuracy_slots, effective_acquiring_max - acquiring_count, box1_available)
     if slots <= 0:
         return []
 
@@ -299,11 +308,11 @@ def _auto_introduce_words(
             introduced_ids.append(lid)
             logger.info(f"Auto-introduced word {lid}: {cand.get('lemma_ar', '?')}")
 
-            # Trigger sentence generation for this word (uses its own DB session)
-            try:
-                generate_material_for_word(lid, needed=2)
-            except Exception:
-                logger.warning(f"Material generation failed for auto-intro {lid}")
+            if not skip_material_gen:
+                try:
+                    generate_material_for_word(lid, needed=2)
+                except Exception:
+                    logger.warning(f"Material generation failed for auto-intro {lid}")
         except Exception:
             logger.warning(f"Failed to auto-introduce word {lid}")
 
@@ -315,6 +324,7 @@ def _auto_introduce_words(
             lemma_ids=introduced_ids,
             accuracy=round(accuracy, 3) if accuracy is not None else None,
             accuracy_slots=accuracy_slots,
+            phase="fill" if not has_due_words else "normal",
         )
 
     return introduced_ids
@@ -386,8 +396,10 @@ def build_session(
     acquiring_count = sum(
         1 for k in all_knowledge if k.knowledge_state == "acquiring"
     )
+    had_due_words = len(due_lemma_ids) > 0
     auto_introduced_ids = _auto_introduce_words(
-        db, acquiring_count, knowledge_by_id, now
+        db, acquiring_count, knowledge_by_id, now,
+        has_due_words=had_due_words,
     )
     if auto_introduced_ids:
         # Add newly introduced words to due set and tracking structures
@@ -435,8 +447,8 @@ def build_session(
                     acq_due = acq_due.replace(tzinfo=timezone.utc)
                 almost_due.append((k.lemma_id, acq_due))
         almost_due.sort(key=lambda x: x[1])
-        # Take the closest-to-due words (up to limit)
-        preview_ids = [lid for lid, _ in almost_due[:limit]]
+        # Take extra candidates before cohort filtering (cohort may exclude many)
+        preview_ids = [lid for lid, _ in almost_due[:limit * 3]]
         if preview_ids:
             due_lemma_ids = set(preview_ids) & cohort
             for lid in due_lemma_ids:
@@ -475,7 +487,7 @@ def build_session(
 
     sentence_ids_with_due = {sw.sentence_id for sw in sentence_words}
     if not sentence_ids_with_due:
-        return _with_fallbacks(db, session_id, due_lemma_ids, stability_map, total_due, [], limit, reintro_cards=reintro_cards)
+        return _with_fallbacks(db, session_id, due_lemma_ids, stability_map, total_due, [], limit, reintro_cards=reintro_cards, knowledge_by_id=knowledge_by_id, all_knowledge=all_knowledge)
 
     from sqlalchemy import or_
 
@@ -505,7 +517,7 @@ def build_session(
     )
 
     if not sentences:
-        return _with_fallbacks(db, session_id, due_lemma_ids, stability_map, total_due, [], limit, reintro_cards=reintro_cards)
+        return _with_fallbacks(db, session_id, due_lemma_ids, stability_map, total_due, [], limit, reintro_cards=reintro_cards, knowledge_by_id=knowledge_by_id, all_knowledge=all_knowledge)
 
     sentence_map: dict[int, Sentence] = {s.id: s for s in sentences}
 
@@ -854,7 +866,7 @@ def build_session(
 
     db.commit()
 
-    return _with_fallbacks(db, session_id, due_lemma_ids, stability_map, total_due, items, limit, covered_ids, reintro_cards=reintro_cards)
+    return _with_fallbacks(db, session_id, due_lemma_ids, stability_map, total_due, items, limit, covered_ids, reintro_cards=reintro_cards, knowledge_by_id=knowledge_by_id, all_knowledge=all_knowledge)
 
 
 MAX_REINTRO_PER_SESSION = 3
@@ -954,7 +966,7 @@ def _generate_on_demand(
     )
 
     logger = logging.getLogger(__name__)
-    cap = min(max_items, MAX_ON_DEMAND_PER_SESSION)
+    cap = max_items  # caller controls the cap
     items: list[dict] = []
 
     # Build known words list from current ULK
@@ -1226,17 +1238,60 @@ def _with_fallbacks(
     limit: int,
     covered_ids: set[int] | None = None,
     reintro_cards: list[dict] | None = None,
+    knowledge_by_id: dict[int, UserLemmaKnowledge] | None = None,
+    all_knowledge: list | None = None,
 ) -> dict:
-    """Generate on-demand sentences for uncovered due words."""
+    """Generate on-demand sentences for uncovered due words, then fill if undersized."""
+    import logging
+    logger = logging.getLogger(__name__)
+
     if covered_ids is None:
         covered_ids = set()
+    if knowledge_by_id is None:
+        knowledge_by_id = {}
 
+    # Phase 1: On-demand generation for uncovered due words
     uncovered = due_lemma_ids - covered_ids
     if uncovered and len(items) < limit:
         generated_items = _generate_on_demand(db, uncovered, stability_map, limit - len(items))
         items.extend(generated_items)
         for item in generated_items:
             covered_ids.add(item["primary_lemma_id"])
+
+    # Phase 2: Fill phase — if session is still undersized, introduce more words
+    if len(items) < limit:
+        now = datetime.now(timezone.utc)
+        current_acquiring = (
+            db.query(UserLemmaKnowledge)
+            .filter(UserLemmaKnowledge.knowledge_state == "acquiring")
+            .count()
+        )
+        fill_ids = _auto_introduce_words(
+            db, current_acquiring, knowledge_by_id, now,
+            has_due_words=False,
+            skip_material_gen=True,
+        )
+        if fill_ids:
+            logger.info(f"Fill phase: introduced {len(fill_ids)} new words to fill session")
+            for lid in fill_ids:
+                stability_map[lid] = 0.1
+                ulk = (
+                    db.query(UserLemmaKnowledge)
+                    .filter(UserLemmaKnowledge.lemma_id == lid)
+                    .first()
+                )
+                if ulk:
+                    knowledge_by_id[lid] = ulk
+
+            fill_due = set(fill_ids)
+            remaining_cap = limit - len(items)
+            if remaining_cap > 0:
+                fill_items = _generate_on_demand(
+                    db, fill_due, stability_map, remaining_cap
+                )
+                items.extend(fill_items)
+                for fi in fill_items:
+                    covered_ids.add(fi["primary_lemma_id"])
 
     # Check for un-introduced grammar features in session sentences
     sentence_ids_in_session = [item["sentence_id"] for item in items if item.get("sentence_id")]

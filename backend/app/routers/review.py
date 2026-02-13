@@ -1,6 +1,6 @@
 import logging
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
 from sqlalchemy.orm import Session, joinedload
 
 from app.database import get_db, SessionLocal
@@ -72,6 +72,19 @@ def next_sentences(
         )
 
     return result
+
+
+@router.post("/warm-sentences", status_code=202)
+def warm_sentences(background_tasks: BackgroundTasks):
+    """Pre-generate sentences for words likely in the next session.
+
+    Called by the frontend near the end of a session so the next session
+    builds faster (sentences already in DB, no on-demand generation needed).
+    Returns 202 immediately; generation runs in background.
+    """
+    from app.services.material_generator import warm_sentence_cache
+    background_tasks.add_task(warm_sentence_cache)
+    return {"status": "warming"}
 
 
 @router.post("/submit-sentence", response_model=SentenceReviewSubmitOut)

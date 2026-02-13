@@ -369,20 +369,25 @@ export async function getLemmaSentence(
 export async function getSentenceReviewSession(
   mode: ReviewMode = "reading"
 ): Promise<SentenceReviewSession> {
+  // Try prefetched cache first for instant load
+  const cached = await getCachedSession(mode);
+  if (cached && cached.items.length > 0) {
+    // Refill cache in background
+    deepPrefetchSessions(mode).catch(() => {});
+    return cached;
+  }
+
   try {
     const data = await fetchApi<SentenceReviewSession>(
       `/api/review/next-sentences?limit=10&mode=${mode}`
     );
     const session = { ...data, session_id: data.session_id || generateSessionId() };
     cacheSessions(mode, [session]).catch(() => {});
-    // Sequential prefetch to avoid SQLite locking from parallel requests
     deepPrefetchSessions(mode).then(() =>
       prefetchWordLookupsForSession(session).catch(() => {})
     ).catch(() => {});
     return session;
   } catch (e) {
-    const cached = await getCachedSession(mode);
-    if (cached) return cached;
     throw e;
   }
 }
@@ -451,6 +456,12 @@ export async function prefetchSessions(mode: ReviewMode): Promise<void> {
     );
     const session = { ...data, session_id: data.session_id || generateSessionId() };
     await cacheSessions(mode, [session]);
+  } catch {}
+}
+
+export async function warmSentences(): Promise<void> {
+  try {
+    await fetchApi("/api/review/warm-sentences", { method: "POST" });
   } catch {}
 }
 

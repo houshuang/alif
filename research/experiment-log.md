@@ -4,6 +4,50 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-02-13: Sentence Pre-Generation + Session Cache Staleness
+
+**Change**: Added `POST /api/review/warm-sentences` background endpoint and 30-minute session cache staleness TTL.
+
+**What changed**:
+1. `material_generator.py` — new `warm_sentence_cache()` background task: identifies focus cohort words + likely auto-introductions with < 2 active sentences, generates for up to 15 words
+2. `review.py` — new `POST /api/review/warm-sentences` endpoint (returns 202, runs background)
+3. `offline-store.ts` — sessions now stored with `cached_at` timestamp; `getCachedSession()` skips entries older than 30 minutes
+4. `index.tsx` — 3-card trigger now calls `warmSentences()` in addition to `prefetchSessions()`
+5. `api.ts` — new `warmSentences()` API function
+
+**Why**: Separates expensive sentence generation (persistent, can be done ahead of time) from session assembly (cheap, must be fresh). If user does back-to-back sessions, cached session loads instantly. If user waits >30 min, stale cache is discarded and session rebuilds fresh — but pre-generated sentences are already in DB so build is fast.
+
+**Expected effect**: Faster session transitions. No wasted LLM tokens (sentences persist regardless). Stale sessions no longer served after 30-minute break.
+
+**Verify**: Backend tests pass (662). Frontend tests pass (73). TypeScript clean. Deploy and test: do 2 sessions back-to-back (instant), wait 31 min, pull new session (rebuilds fresh, should be fast).
+
+**Files**: `material_generator.py`, `review.py`, `offline-store.ts`, `index.tsx`, `api.ts`
+
+---
+
+## 2026-02-13: Session Fill Phase — Continuous Learning When Due Words Exhausted
+
+**Change**: Added a fill phase to `build_session()` that introduces more words when the session would otherwise be undersized. Uses relaxed caps (acquiring≤50 vs 30, box1≤15 vs 8) and on-demand sentence generation.
+
+**What changed**:
+1. `_auto_introduce_words()` now accepts `has_due_words` and `skip_material_gen` params for fill-phase behavior
+2. `_with_fallbacks()` runs a fill phase when `len(items) < limit`: re-calls auto-introduce with relaxed caps, generates sentences on-demand
+3. New constants: `MAX_ACQUIRING_CEILING=50`, `MAX_BOX1_WORDS_FILL=15`
+4. Removed internal double-cap in `_generate_on_demand()` (callers already pass appropriate limits)
+5. Almost-due fallback now takes 3x candidates before cohort filtering
+
+**Why**: After 2-3 sessions, words advance through Leitner boxes (not due for 4h/1d/3d). With the box 1 cap at 8, auto-intro stopped and sessions shrank to ~5 almost-due catch-up cards despite hundreds of encountered words waiting. User expects continuous learning limited only by their performance.
+
+**Expected effect**: Sessions stay full (≈10 cards) even when all previously-reviewed words are ahead of schedule. New words flow in continuously as long as the user performs well. Tomorrow's sessions may be larger (more box 2 words coming due), but the cohort + session limit caps prevent overload.
+
+**Risk**: More acquiring words in flight (up to 50). Mitigated by: cohort still caps review pool at 100, session limit still 10, accuracy check still gates introduction rate. User explicitly wants more aggressive learning.
+
+**Verify**: `python3 -m pytest` passes (662 tests). Do 3-4 sessions consecutively — session should never shrink below limit while encountered words exist.
+
+**Files**: `sentence_selector.py`, `docs/scheduling-system.md`, `CLAUDE.md`
+
+---
+
 ## 2026-02-13: All Words Learnable — Function Word Exclusions Removed
 
 **Change**: Emptied FUNCTION_WORDS set so all words (prepositions, pronouns, conjunctions, demonstratives) are now fully learnable with FSRS tracking. Added rich grammar particle info for 12 core particles in frontend.

@@ -21,6 +21,8 @@ import {
   getAnalytics,
   lookupReviewWord,
   deepPrefetchSessions,
+  prefetchSessions,
+  warmSentences,
   getGrammarLesson,
   introduceGrammarFeature,
   introduceWord,
@@ -138,6 +140,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
   const showTime = useRef<number>(0);
   const soundRef = useRef<Audio.Sound | null>(null);
   const lookupRequestRef = useRef(0);
+  const prefetchTriggered = useRef(false);
 
   const totalCards = sentenceSession
     ? (sessionSlots.length > 0 ? sessionSlots.length : sentenceSession.items.length)
@@ -174,6 +177,15 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
       cleanupSound();
     };
   }, [cardState, cardIndex, loading, totalCards]);
+
+  // Prefetch next session + warm sentence cache when nearing end
+  useEffect(() => {
+    if (totalCards > 0 && cardIndex >= totalCards - 3 && !prefetchTriggered.current) {
+      prefetchTriggered.current = true;
+      warmSentences().catch(() => {});
+      prefetchSessions(mode).catch(() => {});
+    }
+  }, [cardIndex, totalCards, mode]);
 
   // Reload session when sync completes and user is between sessions
   useEffect(() => {
@@ -262,6 +274,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
     setGrammarLessonIndex(0);
     setGrammarLessonsLoading(false);
     lookupRequestRef.current += 1;
+    prefetchTriggered.current = false;
     setLookupResult(null);
     setLookupSurfaceForm(null);
     setLookupLemmaId(null);

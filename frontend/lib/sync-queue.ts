@@ -1,7 +1,7 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { BASE_URL } from "./api";
 import { syncEvents } from "./sync-events";
-import { invalidateSessions, updateCachedStoryStatus } from "./offline-store";
+import { invalidateDataCaches, updateCachedStoryStatus } from "./offline-store";
 
 const QUEUE_KEY = "@alif/sync-queue";
 const MAX_RETRY_ATTEMPTS = 8;
@@ -229,7 +229,7 @@ async function flushQueueInternal(): Promise<{ synced: number; failed: number }>
       if (!Number.isFinite(storyId) || !nextStatus) continue;
       await updateCachedStoryStatus(storyId, nextStatus).catch(() => {});
     }
-    await invalidateSessions();
+    await invalidateDataCaches();
     syncEvents.emit("synced");
   }
 

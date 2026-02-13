@@ -287,6 +287,77 @@ def generate_word_audio(lemma_id: int) -> None:
         db.close()
 
 
+MIN_SENTENCES_PER_WORD = 2
+
+
+def warm_sentence_cache() -> dict:
+    """Background task: pre-generate sentences for words likely in the next session.
+
+    Identifies focus cohort words + likely auto-introductions that have fewer
+    than MIN_SENTENCES_PER_WORD active sentences, then generates for them.
+    Opens its own DB session. Returns stats dict for logging.
+    """
+    from app.services.cohort_service import get_focus_cohort
+    from app.services.word_selector import select_next_words
+    from app.services.topic_service import ensure_active_topic
+    from sqlalchemy import func
+
+    db = SessionLocal()
+    stats = {"cohort_gaps": 0, "intro_gaps": 0, "generated": 0}
+    try:
+        # 1. Focus cohort words with < 2 active sentences
+        cohort = get_focus_cohort(db)
+        if cohort:
+            sentence_counts = dict(
+                db.query(Sentence.target_lemma_id, func.count(Sentence.id))
+                .filter(
+                    Sentence.target_lemma_id.in_(cohort),
+                    Sentence.is_active == True,
+                )
+                .group_by(Sentence.target_lemma_id)
+                .all()
+            )
+            gaps = [lid for lid in cohort if sentence_counts.get(lid, 0) < MIN_SENTENCES_PER_WORD]
+            stats["cohort_gaps"] = len(gaps)
+
+            for lid in gaps[:10]:
+                try:
+                    generate_material_for_word(lid, needed=MIN_SENTENCES_PER_WORD)
+                    stats["generated"] += 1
+                except Exception:
+                    logger.warning(f"Warm cache: failed for cohort word {lid}")
+
+        # 2. Likely auto-introduction candidates (top frequency encountered words)
+        active_topic = ensure_active_topic(db)
+        candidates = select_next_words(db, count=5, domain=active_topic)
+        intro_gaps = []
+        for cand in candidates:
+            lid = cand["lemma_id"]
+            count = (
+                db.query(func.count(Sentence.id))
+                .filter(Sentence.target_lemma_id == lid, Sentence.is_active == True)
+                .scalar() or 0
+            )
+            if count < MIN_SENTENCES_PER_WORD:
+                intro_gaps.append(lid)
+
+        stats["intro_gaps"] = len(intro_gaps)
+        for lid in intro_gaps[:5]:
+            try:
+                generate_material_for_word(lid, needed=MIN_SENTENCES_PER_WORD)
+                stats["generated"] += 1
+            except Exception:
+                logger.warning(f"Warm cache: failed for intro candidate {lid}")
+
+        logger.info(f"Warm cache complete: {stats}")
+        return stats
+    except Exception:
+        logger.exception("Error in warm_sentence_cache")
+        return stats
+    finally:
+        db.close()
+
+
 def _generate_audio_for_lemma(db, lemma_id: int) -> None:
     """Generate TTS audio for sentences of a word."""
     from app.services.tts import (

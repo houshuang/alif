@@ -21,6 +21,12 @@ const KEYS = {
 };
 
 const MAX_CACHED_SESSIONS = 10;
+const SESSION_STALENESS_MS = 30 * 60 * 1000; // 30 minutes
+
+interface CachedSessionEntry {
+  session: SentenceReviewSession;
+  cached_at: number; // Date.now() timestamp
+}
 
 function reviewKey(
   mode: ReviewMode,
@@ -52,10 +58,13 @@ export async function cacheSessions(
   sessions: SentenceReviewSession[]
 ): Promise<void> {
   const key = KEYS.sessions(mode);
-  const existing = (await getJson<SentenceReviewSession[]>(key)) ?? [];
-  const existingIds = new Set(existing.map((s) => s.session_id));
-  const newSessions = sessions.filter((s) => !existingIds.has(s.session_id));
-  const combined = [...existing, ...newSessions].slice(-MAX_CACHED_SESSIONS);
+  const existing = (await getJson<CachedSessionEntry[]>(key)) ?? [];
+  const existingIds = new Set(existing.map((e) => e.session.session_id));
+  const now = Date.now();
+  const newEntries: CachedSessionEntry[] = sessions
+    .filter((s) => !existingIds.has(s.session_id))
+    .map((s) => ({ session: s, cached_at: now }));
+  const combined = [...existing, ...newEntries].slice(-MAX_CACHED_SESSIONS);
   await setJson(key, combined);
 }
 
@@ -63,10 +72,24 @@ export async function getCachedSession(
   mode: ReviewMode
 ): Promise<SentenceReviewSession | null> {
   const key = KEYS.sessions(mode);
-  const sessions = (await getJson<SentenceReviewSession[]>(key)) ?? [];
+  const raw = (await getJson<CachedSessionEntry[] | SentenceReviewSession[]>(key)) ?? [];
   const reviewed = await getReviewedSet();
+  const now = Date.now();
 
-  for (const session of sessions) {
+  // Normalize: support both old format (plain sessions) and new (with cached_at)
+  const entries: CachedSessionEntry[] = raw.map((item: any) =>
+    item.session
+      ? (item as CachedSessionEntry)
+      : { session: item as SentenceReviewSession, cached_at: 0 }
+  );
+
+  for (const entry of entries) {
+    // Skip stale sessions (> 30 min old)
+    if (entry.cached_at > 0 && now - entry.cached_at > SESSION_STALENESS_MS) {
+      continue;
+    }
+
+    const session = entry.session;
     const remaining = session.items.filter(
       (item) =>
         !reviewed.has(reviewKey(mode, item.sentence_id, item.primary_lemma_id)) &&
@@ -124,6 +147,14 @@ export async function invalidateSessions(): Promise<void> {
     KEYS.stats,
     KEYS.analytics,
     KEYS.wordLookups,
+  ]);
+}
+
+export async function invalidateDataCaches(): Promise<void> {
+  await AsyncStorage.multiRemove([
+    KEYS.words,
+    KEYS.stats,
+    KEYS.analytics,
   ]);
 }
 

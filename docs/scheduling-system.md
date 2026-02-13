@@ -6,7 +6,7 @@
 > topics, grammar, listening) interact. It also identifies where the current
 > implementation diverges from the research and stated intentions.
 >
-> **Last updated**: 2026-02-12
+> **Last updated**: 2026-02-13
 > **Canonical location**: `docs/scheduling-system.md`
 > **Keep this document up to date with every algorithm change.**
 
@@ -572,16 +572,29 @@ build_session(db, limit=10, mode="reading")
 │ STAGE 9: On-Demand Generation (if needed)    │
 │                                              │
 │ If uncovered due words remain:               │
-│   For each (up to MAX_ON_DEMAND=10):         │
-│     Generate sentence via LLM                │
-│     Using current vocabulary as scaffold     │
-│     Store in DB for future reuse             │
-│     Add to session items                     │
+│   Generate sentences via LLM (parallelized)  │
+│   Using current vocabulary as scaffold       │
+│   Store in DB for future reuse               │
+│   Add to session items                       │
 └──────────────────┬──────────────────────────┘
                    │
                    ▼
 ┌─────────────────────────────────────────────┐
-│ STAGE 10: Build Response                     │
+│ STAGE 10: Fill Phase (if undersized)         │
+│                                              │
+│ If len(items) < limit:                       │
+│   Auto-introduce MORE words with relaxed     │
+│   caps (acquiring≤50, box1≤15) since the     │
+│   user clearly wants to keep learning.       │
+│   Skip pre-generation (on-demand handles it) │
+│   Generate on-demand sentences for fill words│
+│   Ensures sessions stay full when the user   │
+│   has reviewed everything due.               │
+└──────────────────┬──────────────────────────┘
+                   │
+                   ▼
+┌─────────────────────────────────────────────┐
+│ STAGE 11: Build Response                     │
 │                                              │
 │ For each selected sentence:                  │
 │   • primary_lemma_id (target or first due)   │
@@ -594,6 +607,22 @@ build_session(db, limit=10, mode="reading")
 │ Also: intro_candidates for Learn mode        │
 └─────────────────────────────────────────────┘
 ```
+
+### Sentence Pre-Warming
+
+When the frontend is 3 cards from the end of a session, it fires two parallel requests:
+
+1. **`POST /api/review/warm-sentences`** (returns 202): Background task pre-generates
+   sentences for focus cohort words and likely auto-introduction candidates that have
+   < 2 active sentences. Sentences persist in DB regardless of whether the prefetched
+   session is used.
+
+2. **`GET /api/review/next-sentences?prefetch=true`**: Builds a full session and caches
+   it in AsyncStorage for instant load on the next session request.
+
+**Staleness**: Cached sessions expire after 30 minutes. If the user returns after a break,
+the stale cache is discarded and `build_session()` runs fresh — but pre-generated sentences
+from the warm-up are already in DB, so on-demand generation is rarely needed.
 
 ### Scoring Deep Dive
 
@@ -1133,8 +1162,10 @@ are invalidated after use or after a configurable timeout.
 | `MAX_AUTO_INTRO_PER_SESSION` | 10 | Ceiling for auto-intro (reached at ≥92% accuracy) |
 | `AUTO_INTRO_ACCURACY_FLOOR` | 0.70 | Pause auto-intro if accuracy below this |
 | Adaptive intro bands | 0→4→7→10 | Slots at <70%/70-85%/85-92%/≥92% accuracy |
-| `MAX_ACQUIRING_WORDS` | 30 | Don't auto-intro if this many words already acquiring |
-| `MAX_BOX1_WORDS` | 8 | Don't auto-intro if this many words in Leitner box 1 |
+| `MAX_ACQUIRING_WORDS` | 30 | Don't auto-intro if this many words already acquiring (normal phase) |
+| `MAX_ACQUIRING_CEILING` | 50 | Extended acquiring cap during fill phase |
+| `MAX_BOX1_WORDS` | 8 | Don't auto-intro if this many words in Leitner box 1 (normal phase) |
+| `MAX_BOX1_WORDS_FILL` | 15 | Extended box 1 cap during fill phase |
 | `FRESHNESS_BASELINE` | 8 | Reviews before scaffold freshness penalty kicks in |
 | `MAX_ON_DEMAND_PER_SESSION` | 10 | Cap for JIT sentence generation |
 | `MAX_REINTRO_PER_SESSION` | 3 | Struggling word reintro card limit |
