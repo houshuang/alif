@@ -55,6 +55,14 @@
 - Sentence templates for quick generation: "the X is Y", "I went to the X"
 - Pre-generate and cache validated sentences for offline use
 
+### Per-Word Contextual Translations
+- Currently the LLM returns only sentence-level data (arabic, english, transliteration). Per-word glosses come from the Lemma table or hardcoded `FUNCTION_WORD_GLOSSES`. Words without either have no gloss.
+- **Idea**: Ask the LLM to return per-word contextual translations during generation. Solves missing glosses AND adds learning value (context-specific meanings for polysemous words like عين = eye vs spring).
+- Requires `gloss_en` column on `SentenceWord` (currently only `StoryWord` has one), modified LLM prompt, and matching logic between LLM word keys and tokenized surface forms.
+- Interim option: lemma-based backfill (covers ~95% of words without LLM changes, no contextual value).
+- **Full writeup**: [`research/per-word-contextual-translations.md`](research/per-word-contextual-translations.md)
+- **Timing**: Revisit during sentence generation redesign.
+
 ### Sentence Sources
 - LLM-generated sentences with vocabulary constraints
 - Tatoeba corpus (8.5M Arabic-English pairs, CC BY 2.0)
@@ -170,6 +178,7 @@
 ### Action Menu
 - [DONE] Generic "⋯" action menu replacing AskAI FAB across all screens (review, learn, story, word detail)
 - [DONE] Consolidates: Ask AI, Suspend word, Flag content (translation/Arabic/transliteration)
+- [DONE] Sentence info debug modal: shows sentence ID, source, difficulty score, times shown, review history, and per-word FSRS difficulty/stability/accuracy. Accessible from "..." menu during review.
 - Future: add "Never show this sentence again" action to retire specific sentences from review
 - Future: "Report pronunciation" to flag TTS audio quality issues
 - Future: "Add personal note" per word/sentence for custom mnemonics
