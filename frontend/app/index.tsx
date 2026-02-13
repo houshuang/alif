@@ -385,12 +385,23 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
     const word = sentenceSession?.items[sentenceItemIndex]?.words[index];
     const isFunctionWord = word?.is_function_word ?? false;
 
-    // Function words: show gloss only, no marking or API call
+    // Function words / words without lemma: show gloss only, no marking or API call
     if (!lemmaId || isFunctionWord) {
+      // Toggle off if re-tapping same word
+      if (lookupSurfaceForm === (word?.surface_form ?? null) && focusedWordMark !== null) {
+        lookupRequestRef.current += 1;
+        setLookupResult(null);
+        setLookupSurfaceForm(null);
+        setLookupLemmaId(null);
+        setFocusedWordMark(null);
+        setLookupLoading(false);
+        setLookupShowMeaning(false);
+        return;
+      }
       lookupRequestRef.current += 1;
       setLookupSurfaceForm(word?.surface_form ?? null);
       setLookupLemmaId(null);
-      setFocusedWordMark(null);
+      setFocusedWordMark("missed");
       setLookupLoading(false);
       setLookupShowMeaning(true);
       setLookupResult({
@@ -409,7 +420,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
         example_en: null,
         grammar_details: [],
         root_family: [],
-        is_function_word: true,
+        is_function_word: !lemmaId || isFunctionWord,
       });
       return;
     }
@@ -485,7 +496,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
     if (lookupRequestRef.current === requestId) {
       setLookupLoading(false);
     }
-  }, [toggleMissed, sentenceSession, cardIndex, confusedIndices, missedIndices]);
+  }, [toggleMissed, sentenceSession, cardIndex, confusedIndices, missedIndices, lookupSurfaceForm, focusedWordMark]);
 
   async function handleSentenceSubmit(signal: ComprehensionSignal) {
     if (!sentenceSession) return;
@@ -1425,12 +1436,11 @@ function SentenceReadingCard({
             : isConfused
               ? styles.confusedWord
               : undefined;
-          const canTap = word.lemma_id != null || word.gloss_en != null;
           return (
             <Text key={`t-${i}`}>
               {i > 0 && " "}
               <Text
-                onPress={canTap ? () => onWordTap(i, word.lemma_id ?? null) : undefined}
+                onPress={() => onWordTap(i, word.lemma_id ?? null)}
                 style={wordStyle}
               >
                 {word.surface_form}
