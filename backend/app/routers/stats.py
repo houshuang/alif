@@ -285,7 +285,7 @@ def _get_pace(
     )
 
 
-def _estimate_cefr(known_count: int) -> CEFREstimate:
+def _estimate_cefr(known_count: int, acquiring_known: int = 0) -> CEFREstimate:
     level = "Pre-A1"
     sublevel = "Pre-A1"
 
@@ -324,6 +324,7 @@ def _estimate_cefr(known_count: int) -> CEFREstimate:
         level=level.rstrip("+"),
         sublevel=sublevel,
         known_words=known_count,
+        acquiring_known=acquiring_known,
         next_level=next_level,
         words_to_next=words_to_next,
         reading_coverage_pct=round(coverage, 1),
@@ -343,7 +344,15 @@ def get_analytics(
     basic = _get_basic_stats(db)
     first_known_dates = _get_first_known_dates(db)
     pace = _get_pace(db, first_known_dates=first_known_dates)
-    cefr = _estimate_cefr(basic.known)
+    acquiring_recognized = (
+        db.query(func.count(UserLemmaKnowledge.id))
+        .filter(
+            UserLemmaKnowledge.knowledge_state == "acquiring",
+            UserLemmaKnowledge.times_correct >= 1,
+        )
+        .scalar() or 0
+    )
+    cefr = _estimate_cefr(basic.known, acquiring_known=acquiring_recognized)
     history = _get_daily_history(db, days, first_known_dates=first_known_dates)
 
     comp_today = _get_comprehension_breakdown(db, 0)
@@ -364,7 +373,15 @@ def get_analytics(
 @router.get("/cefr", response_model=CEFREstimate)
 def get_cefr(db: Session = Depends(get_db)):
     known = _count_state(db, "known")
-    return _estimate_cefr(known)
+    acq_known = (
+        db.query(func.count(UserLemmaKnowledge.id))
+        .filter(
+            UserLemmaKnowledge.knowledge_state == "acquiring",
+            UserLemmaKnowledge.times_correct >= 1,
+        )
+        .scalar() or 0
+    )
+    return _estimate_cefr(known, acquiring_known=acq_known)
 
 
 # --- Deep Analytics ---

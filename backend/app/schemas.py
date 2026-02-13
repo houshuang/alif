@@ -102,6 +102,7 @@ class CEFREstimate(BaseModel):
     level: str
     sublevel: str
     known_words: int
+    acquiring_known: int = 0
     next_level: Optional[str] = None
     words_to_next: Optional[int] = None
     reading_coverage_pct: float

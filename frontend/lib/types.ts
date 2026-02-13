@@ -112,6 +112,7 @@ export interface CEFREstimate {
   level: string;
   sublevel: string;
   known_words: number;
+  acquiring_known: number;
   next_level: string | null;
   words_to_next: number | null;
   reading_coverage_pct: number;

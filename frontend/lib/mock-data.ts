@@ -199,6 +199,7 @@ export const MOCK_ANALYTICS: Analytics = {
     level: "Pre-A1",
     sublevel: "Pre-A1",
     known_words: 45,
+    acquiring_known: 12,
     next_level: "A1",
     words_to_next: 255,
     reading_coverage_pct: 4.5,

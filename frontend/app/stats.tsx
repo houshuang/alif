@@ -101,6 +101,7 @@ export default function StatsScreen() {
         <View style={styles.cefrMeta}>
           <Text style={styles.cefrDetail}>
             {cefr.known_words} words known
+            {cefr.acquiring_known > 0 && ` + ${cefr.acquiring_known} acquiring`}
           </Text>
           {cefr.next_level && (
             <Text style={styles.cefrDetail}>
@@ -108,19 +109,34 @@ export default function StatsScreen() {
             </Text>
           )}
         </View>
-        <View style={styles.coverageBar}>
-          <View style={styles.coverageTrack}>
-            <View
-              style={[
-                styles.coverageFill,
-                { width: `${Math.min(cefr.reading_coverage_pct, 100)}%` },
-              ]}
-            />
-          </View>
-          <Text style={styles.coverageLabel}>
-            {cefr.reading_coverage_pct}% text coverage
-          </Text>
-        </View>
+        {cefr.next_level && cefr.words_to_next != null && (() => {
+          const threshold = cefr.known_words + cefr.words_to_next;
+          const knownPct = Math.min((cefr.known_words / threshold) * 100, 100);
+          const acqPct = Math.min((cefr.acquiring_known / threshold) * 100, 100 - knownPct);
+          return (
+            <View style={styles.coverageBar}>
+              <View style={styles.coverageTrack}>
+                <View
+                  style={[
+                    styles.coverageFill,
+                    { width: `${knownPct}%` },
+                  ]}
+                />
+                {acqPct > 0 && (
+                  <View
+                    style={[
+                      styles.coverageFillAcquiring,
+                      { width: `${acqPct}%` },
+                    ]}
+                  />
+                )}
+              </View>
+              <Text style={styles.coverageLabel}>
+                {cefr.known_words}{cefr.acquiring_known > 0 ? ` + ${cefr.acquiring_known}` : ""} / {threshold} to {cefr.next_level}
+              </Text>
+            </View>
+          );
+        })()}
       </View>
 
       {/* Pace Card */}
@@ -1081,11 +1097,16 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surfaceLight,
     borderRadius: 4,
     overflow: "hidden",
+    flexDirection: "row",
   },
   coverageFill: {
     height: "100%",
     backgroundColor: colors.accent,
-    borderRadius: 4,
+  },
+  coverageFillAcquiring: {
+    height: "100%",
+    backgroundColor: colors.stateAcquiring,
+    opacity: 0.5,
   },
   coverageLabel: {
     fontSize: 12,
