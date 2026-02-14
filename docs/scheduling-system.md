@@ -1374,12 +1374,12 @@ Frontend has basic integration but the wrap-up flow is not prominent or polished
 
 **Gap**: Feature exists but may not be reaching users effectively.
 
-### 19.5 ~~Next-Session Recap~~ — RESOLVED
+### 19.5 ~~Next-Session Recap~~ — REMOVED (2026-02-14)
 
-**Implemented**: Frontend calls `getRecapItems()` at session start (`index.tsx:269-299`).
-Fetches last session's words from AsyncStorage, filters to within 24h, calls
-`POST /api/review/recap`, and prepends recap sentence cards to the new session.
-Recap cards display a "Recap" badge. Sleep consolidation check is active.
+**Removed**: The recap mechanism was redundant with within-session repetition
+(MIN_ACQUISITION_EXPOSURES=4) and bypassed the sentence recency filter, causing
+the same sentences to reappear immediately across sessions. The backend endpoint
+`POST /api/review/recap` still exists but is no longer called by the frontend.
 
 ### 19.6 ~~Forced Day-1 Review~~ — Substantially Addressed
 

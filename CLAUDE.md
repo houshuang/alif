@@ -172,7 +172,7 @@ All services in `backend/app/services/`.
 - `backend/scripts/` — Import, backfill, cleanup, analysis scripts. See `docs/scripts-catalog.md`. Most-used: update_material.py (cron, includes SAMER backfill as Step D), import_duolingo.py, retire_sentences.py, normalize_and_dedup.py, log_activity.py (CLI), reset_ocr_cards.py (OCR→encountered), reset_to_learning_baseline.py (reset words without genuine learning signal to encountered, preserves review history), backfill_etymology.py (LLM etymology), backfill_memory_hooks.py (LLM memory hooks for currently learning words), backfill_themes.py (thematic domains), backfill_samer.py (SAMER readability L1-L5→CEFR, TSV at backend/data/samer.tsv on server only), cleanup_review_pool.py (reset under-learned→acquiring, suspend variant ULKs with stat merge, suspend junk, retire bad sentences, run variant detection on uncovered words), review_existing_sentences.py (Gemini Flash quality audit of all active sentences, --dry-run supported), analyze_progress.py (comprehensive progress analysis: knowledge states, acquisition pipeline, sessions, comprehension, --days N), generate_story_claude.py (local story generation via `claude -p` with vocabulary compliance validation and retry loop, free with Max plan), benchmark_stories.py (model × strategy benchmarking for story generation), test_book_import_e2e.py (download Archive.org children's book + run full import pipeline, --download-only/--images-dir/--max-pages)
 
 ### Frontend
-- `app/index.tsx` — Review screen: sentence-only (no word-only fallback), reading + listening, word lookup, word marking, back/undo, wrap-up mini-quiz (acquiring + missed words), next-session recap, session word tracking, story source badges on intro cards
+- `app/index.tsx` — Review screen: sentence-only (no word-only fallback), reading + listening, word lookup, word marking, back/undo, wrap-up mini-quiz (acquiring + missed words), session word tracking, story source badges on intro cards
 - `app/learn.tsx` — Learn mode: 5-candidate pick → quiz → done. Etymology display on pick cards. Story source badge for story words.
 - `app/words.tsx` — Word browser: grid, category tabs (Vocab/Function/Names), smart filters (Leeches/Struggling/Recent/Solid/Next Up/Acquiring/Encountered), sparklines (variable-width gaps show inter-review timing), search
 - `app/stats.tsx` — Analytics dashboard: TodayHeroCard (comprehension bar, graduated pills, calibration), AcquisitionPipelineCard (Leitner box 1/2/3 words), SessionHistoryCard (recent sessions with mini comprehension bars), CEFR level, learning pace, quick stats, daily history, deep analytics
@@ -218,7 +218,7 @@ Full list: `docs/api-reference.md` or `backend/app/routers/`
 | POST | `/api/review/warm-sentences` | Pre-generate sentences for likely next session (background, 202) |
 | POST | `/api/review/sync` | Bulk sync offline reviews |
 | POST | `/api/review/wrap-up` | Wrap-up mini-quiz for acquiring + missed words |
-| POST | `/api/review/recap` | Next-session recap for acquisition words |
+| POST | `/api/review/recap` | (Deprecated) Next-session recap — removed from frontend, redundant with within-session repetition |
 | GET | `/api/learn/next-words?count=5` | Best next words to introduce |
 | POST | `/api/learn/introduce` | Introduce word (starts acquisition + triggers sentence gen) |
 | GET | `/api/words?limit=50&status=learning` | List words with knowledge state, last_ratings + last_review_gaps |

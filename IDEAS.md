@@ -658,7 +658,7 @@ After importing ~100 textbook pages via OCR, 411 words entered the system with a
 
 #### Session-Level Word Repetition
 - [DONE] Within-session repetition: acquisition words get MIN_ACQUISITION_EXPOSURES=4 sentences each via multi-pass expanding intervals. Session expands up to MAX_ACQUISITION_EXTRA_SLOTS=15 extra cards.
-- [DONE] Next-session recap endpoint: `POST /api/review/recap` returns sentence-level cards for last session's acquiring words (<24h ago). Frontend not yet implemented.
+- [REMOVED] Next-session recap: was redundant with within-session repetition (MIN_ACQUISITION_EXPOSURES=4) and bypassed sentence recency filter, causing same-sentence catch-up. Backend endpoint still exists but frontend no longer calls it.
 - [DONE] Wrap-up mini-quiz: `POST /api/review/wrap-up` returns word-level recall cards. Frontend not yet implemented.
 
 #### Sentence Generation for Word Sets (Batch-Aware)
