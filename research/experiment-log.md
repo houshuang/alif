@@ -89,20 +89,87 @@ Day 5+: W1-W10 graduate (3d in box 3 + 2 calendar days). 10 slots open.
 Steady state: ~8-10 graduations/day, ~8-10 introductions/day.
 ```
 
+### Hypotheses
+
+**H1: No more same-session graduations.** Before this change, words could graduate in 9 minutes via within-session box jumping. With due-date gating, the minimum graduation time is ~1.5 days (box 1→2 in-session, wait 1d for box 2→3, wait 3d for graduation, spanning ≥2 calendar days). **Success metric**: Zero graduations where `graduated_at - first_review_at < 24 hours`.
+
+**H2: Immediate lapse rate drops from 10.5% to <5%.** Words that genuinely consolidate over days should retain better than words that crammed through in one session. **Success metric**: Of words graduated after Feb 14, <5% have their first post-graduation review rated 1 (Again).
+
+**H3: Pipeline stays full — no "ran out of words" sessions.** With MAX_ACQUIRING raised to 40 and MAX_BOX1 raised to 12, the system should keep introducing new words even as graduation slows down. **Success metric**: No sessions with <5 cards when there are encountered words available. Sessions should average ≥8 cards.
+
+**H4: Box distribution shifts toward 2/3.** Previously most words were in box 1 or already graduated. Now we should see a healthy spread across boxes. **Success metric**: At any given time, box 2 + box 3 words > box 1 words (after the first 2 days of the new system).
+
+**H5: Leech reintroductions use graduated timing.** First-time leeches should reintroduce after 3 days (not 14). No leech should reintroduce before its cooldown period. **Success metric**: Any reintroduced leech with leech_count=1 waited ≥3d; leech_count=2 waited ≥7d.
+
 ### Verify (2026-02-17)
 
-1. Run `analyze_progress.py` — check:
-   - No same-day graduations (minimum ~1.5 days from introduction)
-   - Lapse rate within 24h of graduation
-   - Box distribution (expect more words in box 2/3 than before)
-2. Check leech reintroductions:
-   ```sql
-   SELECT l.lemma_ar, ulk.leech_count, ulk.leech_suspended_at, ulk.knowledge_state
-   FROM user_lemma_knowledge ulk JOIN lemmas l ON l.lemma_id = ulk.lemma_id
-   WHERE ulk.leech_count > 0
-   ```
-3. Check new word introduction rate: are sessions still feeling fresh?
-4. Check if MAX_ACQUIRING_WORDS=40 is sufficient or needs further adjustment
+Run these checks 3 days after deploy:
+
+**1. Graduation timing** — confirm no same-day graduations:
+```sql
+-- Words graduated after Feb 14 deploy: check time from first review to graduation
+SELECT l.lemma_ar, ulk.graduated_at,
+       (SELECT MIN(rl.created_at) FROM review_log rl WHERE rl.lemma_id = ulk.lemma_id) as first_review,
+       ROUND(julianday(ulk.graduated_at) - julianday(
+           (SELECT MIN(rl.created_at) FROM review_log rl WHERE rl.lemma_id = ulk.lemma_id)
+       ), 1) as days_to_graduate
+FROM user_lemma_knowledge ulk
+JOIN lemmas l ON l.lemma_id = ulk.lemma_id
+WHERE ulk.graduated_at > '2026-02-14'
+ORDER BY days_to_graduate;
+-- EXPECT: all days_to_graduate >= 1.5
+```
+
+**2. Post-graduation lapse rate**:
+```sql
+-- First review after graduation for recently graduated words
+SELECT l.lemma_ar, ulk.graduated_at, rl.rating, rl.created_at as first_post_grad_review
+FROM user_lemma_knowledge ulk
+JOIN lemmas l ON l.lemma_id = ulk.lemma_id
+JOIN review_log rl ON rl.lemma_id = ulk.lemma_id AND rl.created_at > ulk.graduated_at
+WHERE ulk.graduated_at > '2026-02-14'
+AND rl.created_at = (SELECT MIN(r2.created_at) FROM review_log r2 WHERE r2.lemma_id = ulk.lemma_id AND r2.created_at > ulk.graduated_at)
+ORDER BY rl.rating;
+-- EXPECT: <5% with rating=1 (was 10.5% before)
+```
+
+**3. Acquisition box distribution**:
+```sql
+SELECT acquisition_box, COUNT(*) as count
+FROM user_lemma_knowledge
+WHERE knowledge_state = 'acquiring'
+GROUP BY acquisition_box ORDER BY acquisition_box;
+-- EXPECT: box 2 + box 3 > box 1 (after 2 days)
+```
+
+**4. Session sizes** — confirm sessions stay full:
+```bash
+python3 scripts/analyze_progress.py --days 3
+# Check "Sessions" section: average cards per session should be ≥8
+# Check "Acquisition" section: words should be flowing through pipeline
+```
+
+**5. Leech reintroductions and cooldowns**:
+```sql
+SELECT l.lemma_ar, ulk.leech_count, ulk.leech_suspended_at, ulk.knowledge_state, ulk.source
+FROM user_lemma_knowledge ulk JOIN lemmas l ON l.lemma_id = ulk.lemma_id
+WHERE ulk.leech_count > 0
+ORDER BY ulk.leech_count DESC, ulk.knowledge_state;
+-- Check: any source='leech_reintro' words respected their cooldown period
+-- Check: leech_count increments correctly on re-suspension
+```
+
+**6. New word introduction rate**:
+```sql
+SELECT DATE(created_at) as day, COUNT(*) as introduced
+FROM user_lemma_knowledge
+WHERE knowledge_state IN ('acquiring', 'learning', 'known')
+AND created_at > '2026-02-14'
+GROUP BY DATE(created_at);
+-- EXPECT: 8-15 new words/day (not 0, not >20)
+```
+
+**7. User feel check**: Does the user report sessions feeling stale or overwhelming? Are there too many repeat cards from not-yet-due acquisition words getting exposure credit without advancing?
 
 ### Files changed
 
