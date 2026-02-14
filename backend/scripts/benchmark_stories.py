@@ -53,7 +53,7 @@ litellm.set_verbose = False
 
 BENCHMARK_MODELS = {
     "gemini": {
-        "model": "gemini/gemini-2.5-flash-preview",
+        "model": "gemini/gemini-3-flash-preview",
         "key_env": "GEMINI_KEY",
     },
     "openai": {
@@ -590,16 +590,12 @@ def analyze_compliance(
 
 def judge_story(story: dict, generator_model: str) -> dict:
     """Evaluate story quality using cross-model LLM judge."""
-    # Cross-model: Gemini judges non-Gemini, Haiku judges Gemini
-    if generator_model == "gemini":
-        judge_model = "sonnet"  # Use sonnet to judge gemini
-        if not get_api_key("sonnet"):
-            judge_model = "openai"
-    else:
-        judge_model = "gemini"
-
-    if not get_api_key(judge_model):
-        return {"error": f"No API key for judge model {judge_model}"}
+    # Cross-model judging: never let a model judge its own output
+    judge_order = ["gemini", "sonnet", "openai"]
+    # Remove the generator model from candidates
+    candidates = [m for m in judge_order if m != generator_model and get_api_key(m)]
+    if not candidates:
+        return {"error": "No judge model available"}
 
     prompt = JUDGE_PROMPT_TEMPLATE.format(
         title_ar=story.get("title_ar", ""),
@@ -608,9 +604,17 @@ def judge_story(story: dict, generator_model: str) -> dict:
         body_en=story.get("body_en", ""),
     )
 
-    result, usage = call_llm(judge_model, JUDGE_SYSTEM, prompt, temperature=0.0, timeout=60)
+    # Try each judge candidate until one works
+    result = None
+    judge_model = candidates[0]
+    for candidate in candidates:
+        result, usage = call_llm(candidate, JUDGE_SYSTEM, prompt, temperature=0.0, timeout=60)
+        if result:
+            judge_model = candidate
+            break
+
     if not result:
-        return {"error": usage.get("error", "judge failed")}
+        return {"error": usage.get("error", "all judges failed")}
 
     dims = ["narrative_arc", "interestingness", "naturalness", "coherence",
             "grammar", "diacritics", "translation"]
