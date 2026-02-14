@@ -62,6 +62,13 @@ MODELS = [
         "key_setting": "anthropic_api_key",
         "key_settings": ["anthropic_api_key", "anthropic_key"],
     },
+    {
+        "name": "opus",
+        "model": "claude-opus-4-6",
+        "key_env": "ANTHROPIC_API_KEY",
+        "key_setting": "anthropic_api_key",
+        "key_settings": ["anthropic_api_key", "anthropic_key"],
+    },
 ]
 
 

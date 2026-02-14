@@ -431,13 +431,24 @@
 - Story difficulty auto-selection: pick stories where readiness is 85-95% for optimal learning
 - Story audio: TTS for full story, sentence-by-sentence playback with highlighting
 - Story sharing: export stories as formatted PDF with glossary of unknown words
-- **[BENCHMARK 2026-02-14]** Switch story generation from GPT-5.2 to Claude Opus — benchmark showed Opus produces 4.3 composite (vs 2.6 OpenAI) at 93% compliance on best attempts. Cost $0.15/story, acceptable for 2-3 stories/week.
+- [DONE] **Switch story generation to Claude Opus** — benchmark showed Opus produces 4.3 composite (vs 2.6 OpenAI). Implemented with retry loop and compliance validation. `model_override="opus"` in story_service.py.
 - Cross-model two-pass story pipeline: Sonnet generates freely (best narrative quality), Gemini Flash rewrites for vocabulary compliance — not yet tested but promising given that Sonnet scored 4.75 composite (highest) but only 33% compliance
-- Story retry loop: port sentence generator's 7-attempt retry loop to stories, feeding back unknown words as feedback
+- [DONE] **Story retry loop** — MAX_STORY_RETRIES=3, feeds back unknown words as correction prompt. Compliance threshold 70%.
 - Story quality gate: add Gemini Flash review (grammar + translation accuracy) like sentences have
 - Expand forms_json with verb conjugation paradigms — the compliance validator misses known words in conjugated forms (يوم, رأى, قالت, صغير flagged as unknown despite being in vocabulary). Fixing this would improve reported compliance by ~10-15%.
 - Recurring character universe for stories: pre-define characters (سمير، ليلى، عمر) with traits. Models produce more coherent stories with established characters.
-- Story-aware vocabulary constraint: include acquiring words (box 1-3) in story vocabulary — currently excluded from `_get_known_words()`
+- [DONE] **Include acquiring words in story vocabulary** — `_get_known_words()` now includes knowledge_state='acquiring'. Acquiring words highlighted as reinforcement targets in prompt.
+
+#### Claude Code CLI as Free LLM API (2026-02-14)
+- [DONE] **`claude -p` wrapper** (`claude_code.py`): `--tools ""` + `--json-schema` + `--no-session-persistence` for reliable structured output via Max plan
+- [DONE] **Story generation via `claude -p`** (`scripts/generate_story_claude.py`): local/free story generation with compliance validation and retry
+- Use `claude -p` for **batch etymology generation** — Opus may produce richer etymologies than Gemini Flash, free with Max plan
+- Use `claude -p` for **grammar lesson generation** — currently uses Gemini, Opus might produce more pedagogically sound lessons
+- Use `claude -p` for **sentence quality auditing** — review all active sentences with Opus (free), may catch issues Haiku misses
+- Use `claude -p` for **story-to-sentences pipeline** — generate a story, then chop into review sentences, all with Opus quality
+- Use `claude -p` with `--model sonnet` for **high-volume tasks** where Opus quality isn't needed but free access matters (e.g. batch translations)
+- Consider **Claude Code SDK** (`@anthropic-ai/claude-code`) for Node.js integration if CLI subprocess overhead becomes an issue
+- Install `claude` on Hetzner server via `claude setup-token` for server-side free generation without API costs
 
 ### Ideas from Cognitive Load Theory Research (2026-02-08)
 
@@ -533,7 +544,23 @@
 - Textbook progress tracking: track which textbook/chapter pages have been scanned, show coverage progress
 - OCR for handwritten Arabic: test Gemini Vision on handwritten notes (likely lower accuracy but worth exploring)
 - Scan-to-story pipeline: detect whether a scanned page is vocabulary (extract words) or continuous text (extract as story) automatically
-- Multi-page story scanning: scan multiple pages and stitch the extracted text together as one story
+- [DONE] Multi-page story scanning: scan multiple pages and stitch the extracted text together as one story — implemented as book import pipeline with parallel OCR + sentence extraction
+
+### Book Import / Children's Book OCR (2026-02-14)
+- [DONE] Multi-page OCR pipeline: photograph cover + content pages → parallel Gemini Vision OCR → LLM cleanup/diacritize/segment → LLM translate → Story + Sentences
+- [DONE] Cover metadata extraction: Gemini Vision extracts title, author, series, level from cover/title page photo
+- [DONE] Book sentences captured as `source="book"` with `story_id` FK, used in review when comprehensible (≥70% known gate)
+- [DONE] 1.3x source_bonus in sentence scoring: book sentences preferred over LLM-generated when both cover same due words
+- [DONE] Natural learning progression: initially LLM sentences fill gaps → as vocabulary grows, book sentences become comprehensible and replace LLM
+- Page ordering UI: drag-to-reorder page thumbnails before import (currently insertion-order only)
+- Progress polling: for longer books (30+ pages), switch from sync to async import with SSE/polling progress updates
+- Book library view: separate section in stories list for imported books with page count, sentence count, cover thumbnail
+- Re-OCR individual pages: if a page had poor OCR quality, allow re-scanning just that page
+- Book series tracking: if multiple books from same series imported, group them and track series progress
+- Readability level estimation: use book metadata + vocabulary analysis to estimate CEFR/SAMER level
+- Pre-reading vocabulary prep: before starting a book, show a "prep session" of the most critical unknown words
+- Book sentence audio: generate TTS for book sentences to enable listening practice with authentic book content
+- Archive.org integration: browse/download Arabic children's books directly from Archive.org (Karim Series, Simplified Reading Series, etc.)
 
 ### Sentence Diversity & Corpus Quality (2026-02-11)
 - [DONE] Scaffold freshness penalty: penalize sentences whose scaffold words are over-reviewed

@@ -25,7 +25,8 @@ See `docs/scheduling-system.md` for the complete reference: word lifecycle, sess
 - **Backend**: Python 3.11+ / FastAPI / SQLite (single user, no auth) — `backend/`
 - **Frontend**: Expo (React Native) with web + iOS mode — `frontend/`
 - **SRS**: py-fsrs v6 (FSRS-6 algorithm with same-day review support via w17-w19) — `backend/app/services/fsrs_service.py`
-- **LLM**: LiteLLM for unified multi-model. Sentence generation: Gemini Flash (best quality/compliance/cost). Quality gate: Claude Haiku cross-model review, fail-closed (relaxed prompt: grammar/translation errors only, not scenario realism). General tasks: Gemini 3 Flash primary → GPT-5.2 fallback → Claude Haiku tertiary. Keys: GEMINI_KEY, OPENAI_KEY, ANTHROPIC_API_KEY in `.env`
+- **LLM**: LiteLLM for unified multi-model. Sentence generation: Gemini Flash (best quality/compliance/cost). Story generation: Claude Opus (best quality+compliance, $0.15/story, retry loop with compliance feedback). Quality gate: Claude Haiku cross-model review, fail-closed (relaxed prompt: grammar/translation errors only, not scenario realism). General tasks: Gemini 3 Flash primary → GPT-5.2 fallback → Claude Haiku tertiary. Keys: GEMINI_KEY, OPENAI_KEY, ANTHROPIC_API_KEY in `.env`
+- **Claude Code CLI**: Optional `claude -p` wrapper for free Opus access via Max plan. `claude_code.py` service provides `generate_structured()` with `--tools ""` (no tool access) + `--json-schema` for reliable structured output. Used by `scripts/generate_story_claude.py` for local/free story generation.
 - **TTS**: ElevenLabs REST API (not SDK). Model: `eleven_multilingual_v2`. Voice: Chaouki (MSA male). Learner pauses via Arabic comma insertion every 2 words. Key: ELEVENLABS_API_KEY in `.env`. Frontend uses expo-av for playback. Audio cached by SHA256(text|voice_id) in `backend/data/audio/`.
 - **NLP**: Rule-based clitic stripping + known-form matching in sentence_validator.py. CAMeL Tools integrated in morphology.py for lemmatization, root extraction, and variant detection (graceful fallback to stub if not installed).
 - **Migrations**: Alembic for SQLite schema migrations. Every schema change must have a migration file. Migrations run automatically on startup.
@@ -140,16 +141,18 @@ This app is an ongoing learning experiment. Every algorithm change, data structu
 - `sentence_validator.py` — Rule-based: tokenize → strip diacritics → strip clitics → match known forms. No function word exclusions (all words learnable). FUNCTION_WORD_GLOSSES kept as fallback glosses, FUNCTION_WORD_FORMS kept for clitic analysis prevention. Public API: lookup_lemma(), resolve_existing_lemma(), build_lemma_lookup(). `validate_sentence_multi_target()` for multi-word validation.
 - `grammar_service.py` — 24 features, 5 tiers. Comfort score: 60% log-exposure + 40% accuracy, decayed by recency.
 - `grammar_tagger.py` — LLM-based grammar feature tagging.
-- `story_service.py` — Generate/import stories. Completion creates "encountered" ULK (no FSRS card); only real FSRS review for words with active cards. Suspend/reactivate toggle via `suspend_story()`. Story statuses: active, completed, suspended (skip/too_difficult removed).
+- `story_service.py` — Generate/import stories. Generation uses Claude Opus with retry loop (MAX_STORY_RETRIES=3, STORY_COMPLIANCE_THRESHOLD=70%). `_get_known_words()` includes acquiring words for larger vocabulary pool. POS-grouped vocab in prompts. Acquiring words highlighted as reinforcement targets. Completion creates "encountered" ULK (no FSRS card); only real FSRS review for words with active cards. Suspend/reactivate toggle via `suspend_story()`. Story statuses: active, completed, suspended.
+- `claude_code.py` — Optional Claude Code CLI (`claude -p`) wrapper for structured generation via Max plan. `is_available()` checks if CLI exists. `generate_structured()` calls `claude -p --tools "" --json-schema` for reliable, tool-free output. Callers should fall back to litellm when unavailable.
 - `listening.py` — Listening confidence: min(per-word) * 0.6 + avg * 0.4. Requires times_seen ≥ 3, stability ≥ 7d.
 - `tts.py` — ElevenLabs REST, eleven_multilingual_v2, Chaouki voice, speed 0.7. Learner pauses. SHA256 cache.
-- `llm.py` — LiteLLM: Gemini Flash for sentence gen, Gemini 3 Flash general, Claude Haiku tertiary. JSON mode, markdown fence stripping, model_override. `format_known_words_by_pos()` for POS-grouped vocabulary in prompts. `generate_sentences_multi_target()` for multi-word sentence generation. `review_sentences_quality()` — Claude Haiku cross-model quality gate (grammar + translation accuracy, fail-closed, relaxed prompt).
+- `llm.py` — LiteLLM: Gemini Flash for sentence gen, Claude Opus for story gen, Gemini 3 Flash general, Claude Haiku tertiary. MODELS list: gemini, openai, anthropic (Haiku), opus. JSON mode, markdown fence stripping, model_override. `format_known_words_by_pos()` for POS-grouped vocabulary in prompts. `generate_sentences_multi_target()` for multi-word sentence generation. `review_sentences_quality()` — Claude Haiku cross-model quality gate (grammar + translation accuracy, fail-closed, relaxed prompt).
 - `morphology.py` — CAMeL Tools analyzer. Hamza normalized at comparison time only (preserved in storage). Falls back to stub if not installed.
 - `transliteration.py` — Deterministic Arabic→ALA-LC romanization from diacritized text. Handles long vowels, shadda, hamza carriers, alif madda/wasla, sun letter assimilation, tāʾ marbūṭa, nisba ending. `transliterate_lemma()` for dictionary form (strips tanwīn + case vowels).
 - `variant_detection.py` — Two-phase: CAMeL candidates → Gemini Flash LLM confirmation with VariantDecision cache. Used by ALL import paths. Graceful fallback if LLM unavailable.
 - `memory_hooks.py` — LLM-generated memory aids (mnemonic, cognates, collocations, usage context, fun fact). JIT generation on word introduction via background task. Idempotent. Targets all 11 learner languages for cognate search.
 - `interaction_logger.py` — Append-only JSONL. Skipped when TESTING env var set.
 - `ocr_service.py` — Gemini Vision OCR: text extraction, word extraction (OCR→morphology→LLM translation), textbook page processing. `start_acquiring` toggle: when true, words start acquisition immediately (box 1, due_immediately); when false, creates "encountered" ULK. Runs variant detection after import (resets variant ULKs from acquiring→encountered).
+- `book_import_service.py` — Book import pipeline: multi-page OCR → LLM cleanup/diacritics/segmentation → LLM translation → story creation (reuses story_service) → sentence extraction (Sentence + SentenceWord records with source="book"). Cover metadata extraction via Gemini Vision. Book sentences get 1.3x preference in session builder scoring. Words prioritized via existing story_bonus.
 - `flag_evaluator.py` — Background LLM evaluation of flagged content. Auto-fixes or retires. Writes to ActivityLog.
 - `activity_log.py` — Shared helper for writing ActivityLog entries.
 - `grammar_lesson_service.py` — LLM-generated grammar lessons, cached in DB.
@@ -166,7 +169,7 @@ All services in `backend/app/services/`.
 - `backend/app/models.py` — SQLAlchemy models (see Data Model below)
 - `backend/app/schemas.py` — Pydantic request/response models
 - `backend/app/routers/settings.py` — Settings router: topic management endpoints
-- `backend/scripts/` — Import, backfill, cleanup, analysis scripts. See `docs/scripts-catalog.md`. Most-used: update_material.py (cron, includes SAMER backfill as Step D), import_duolingo.py, retire_sentences.py, normalize_and_dedup.py, log_activity.py (CLI), reset_ocr_cards.py (OCR→encountered), reset_to_learning_baseline.py (reset words without genuine learning signal to encountered, preserves review history), backfill_etymology.py (LLM etymology), backfill_memory_hooks.py (LLM memory hooks for currently learning words), backfill_themes.py (thematic domains), backfill_samer.py (SAMER readability L1-L5→CEFR, TSV at backend/data/samer.tsv on server only), cleanup_review_pool.py (reset under-learned→acquiring, suspend variant ULKs with stat merge, suspend junk, retire bad sentences, run variant detection on uncovered words), review_existing_sentences.py (Gemini Flash quality audit of all active sentences, --dry-run supported), analyze_progress.py (comprehensive progress analysis: knowledge states, acquisition pipeline, sessions, comprehension, --days N)
+- `backend/scripts/` — Import, backfill, cleanup, analysis scripts. See `docs/scripts-catalog.md`. Most-used: update_material.py (cron, includes SAMER backfill as Step D), import_duolingo.py, retire_sentences.py, normalize_and_dedup.py, log_activity.py (CLI), reset_ocr_cards.py (OCR→encountered), reset_to_learning_baseline.py (reset words without genuine learning signal to encountered, preserves review history), backfill_etymology.py (LLM etymology), backfill_memory_hooks.py (LLM memory hooks for currently learning words), backfill_themes.py (thematic domains), backfill_samer.py (SAMER readability L1-L5→CEFR, TSV at backend/data/samer.tsv on server only), cleanup_review_pool.py (reset under-learned→acquiring, suspend variant ULKs with stat merge, suspend junk, retire bad sentences, run variant detection on uncovered words), review_existing_sentences.py (Gemini Flash quality audit of all active sentences, --dry-run supported), analyze_progress.py (comprehensive progress analysis: knowledge states, acquisition pipeline, sessions, comprehension, --days N), generate_story_claude.py (local story generation via `claude -p` with vocabulary compliance validation and retry loop, free with Max plan), benchmark_stories.py (model × strategy benchmarking for story generation)
 
 ### Frontend
 - `app/index.tsx` — Review screen: sentence-only (no word-only fallback), reading + listening, word lookup, word marking, back/undo, wrap-up mini-quiz (acquiring + missed words), next-session recap, session word tracking, story source badges on intro cards
@@ -176,6 +179,7 @@ All services in `backend/app/services/`.
 - `app/story/[id].tsx` — Story reader with tap-to-lookup, ActionMenu in header bar (Ask AI, suspend story)
 - `app/stories.tsx` — Story list with generate + import, grouped sections (Active/Suspended), suspend all, suspend/reactivate toggle per story
 - `app/scanner.tsx` — Textbook page OCR scanner
+- `app/book-import.tsx` — Book import: photograph cover + content pages → reading goal with sentence extraction
 - `app/more.tsx` — More tab: Scanner, Chats, New Words, Activity Log
 - `app/word/[id].tsx` — Word detail: forms, grammar, root family, review history, sentence stats, etymology section, acquisition badge
 - `app/chats.tsx` — AI chat conversations
@@ -225,6 +229,7 @@ Full list: `docs/api-reference.md` or `backend/app/routers/`
 | GET | `/api/stats/analytics` | Full analytics |
 | GET | `/api/sentences/{id}/info` | Sentence debug info: metadata, review history, per-word FSRS difficulty |
 | POST | `/api/ocr/scan-pages` | Upload textbook pages for OCR |
+| POST | `/api/books/import` | Import book from page photos (cover + pages → story + sentences) |
 | GET | `/api/settings/topic` | Current topic + progress |
 | PUT | `/api/settings/topic` | Manual topic override |
 | GET | `/api/settings/topics` | All domains with available/learned counts |
@@ -234,13 +239,13 @@ Full list: `docs/api-reference.md` or `backend/app/routers/`
 - `lemmas` — Dictionary forms: root FK, pos, gloss, frequency_rank, cefr_level, grammar_features_json, forms_json, example_ar/en, transliteration, audio_url, canonical_lemma_id (variant FK), source_story_id, thematic_domain, etymology_json, memory_hooks_json
 - `user_lemma_knowledge` — Per-lemma SRS state: knowledge_state (encountered/acquiring/new/learning/known/lapsed/suspended), fsrs_card_json, times_seen, times_correct, total_encounters, source, variant_stats_json, acquisition_box (1/2/3), acquisition_next_due, graduated_at, leech_suspended_at, leech_count
 - `review_log` — Review history: rating 1-4, mode, sentence_id, credit_type (metadata only), is_acquisition, fsrs_log_json (pre-review snapshots for undo)
-- `sentences` — Generated/imported: target_lemma_id, times_shown, last_reading_shown_at/last_listening_shown_at, last_reading_comprehension/last_listening_comprehension, is_active, max_word_count, created_at
+- `sentences` — Generated/imported: target_lemma_id, story_id (FK to stories, for book-extracted sentences), source (llm/book/tatoeba/manual), times_shown, last_reading_shown_at/last_listening_shown_at, last_reading_comprehension/last_listening_comprehension, is_active, max_word_count, created_at
 - `sentence_words` — Word breakdown: position, surface_form, lemma_id, is_target_word, grammar_role_json
 - `sentence_review_log` — Per-sentence review: comprehension, timing, session_id
 - `grammar_features` — 24 features across 5 categories
 - `sentence_grammar_features` — Sentence ↔ grammar junction
 - `user_grammar_exposure` — Per-feature: times_seen, times_correct, comfort_score
-- `stories` — title_ar/en, body_ar/en, transliteration, status (active/completed/suspended), readiness_pct, difficulty_level
+- `stories` — title_ar/en, body_ar/en, transliteration, source (generated/imported/book_ocr), status (active/completed/suspended), readiness_pct, difficulty_level, page_count (for book imports)
 - `story_words` — Per-token: position, surface_form, lemma_id, gloss_en, is_function_word, name_type
 - `page_uploads` — OCR tracking: batch_id, status, extracted_words_json, new_words, existing_words
 - `content_flags` — Flagged content: content_type, status (pending/reviewing/fixed/dismissed)

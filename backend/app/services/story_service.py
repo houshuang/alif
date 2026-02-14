@@ -42,6 +42,8 @@ logger = logging.getLogger(__name__)
 
 KNOWN_SAMPLE_SIZE = 500
 MAX_NEW_WORDS_IN_STORY = 5
+MAX_STORY_RETRIES = 3
+STORY_COMPLIANCE_THRESHOLD = 70.0
 TERMINAL_STORY_STATUSES = {"completed"}
 
 STORY_SYSTEM_PROMPT = f"""\
@@ -77,11 +79,16 @@ Respond with JSON only: {{"title_ar": "...", "title_en": "...", "body_ar": "..."
 
 
 def _get_known_words(db: Session) -> list[dict]:
-    """Fetch all known/learning words with their lemma info."""
+    """Fetch all known/learning/acquiring words with their lemma info.
+
+    Includes acquiring words (Leitner box 1-3) — these are being actively
+    learned and should be available for story vocabulary.
+    """
     rows = (
         db.query(Lemma, UserLemmaKnowledge)
         .join(UserLemmaKnowledge, Lemma.lemma_id == UserLemmaKnowledge.lemma_id)
-        .filter(UserLemmaKnowledge.knowledge_state.in_(["learning", "known"]))
+        .filter(UserLemmaKnowledge.knowledge_state.in_(["learning", "known", "acquiring"]))
+        .filter(Lemma.canonical_lemma_id.is_(None))
         .all()
     )
     return [
@@ -90,8 +97,10 @@ def _get_known_words(db: Session) -> list[dict]:
             "arabic": lemma.lemma_ar,
             "arabic_bare": lemma.lemma_ar_bare,
             "english": lemma.gloss_en or "",
+            "pos": lemma.pos or "",
+            "state": ulk.knowledge_state,
         }
-        for lemma, _ulk in rows
+        for lemma, ulk in rows
     ]
 
 
@@ -450,6 +459,48 @@ def _build_knowledge_map(db: Session, lemma_ids: set[int] | None = None) -> dict
 
 LENGTH_SENTENCES = {"short": (2, 4), "medium": (4, 7), "long": (7, 12)}
 
+STORY_GENRES = [
+    "a funny story with a punchline at the end",
+    "a mystery — something is not what it seems",
+    "a heartwarming story about an unexpected friendship",
+    "a story with an ironic twist ending",
+    "a short adventure with a moment of danger",
+    "a story where someone learns a surprising lesson",
+    "a story with a philosophical observation about daily life",
+    "a story where a misunderstanding leads to an unexpected outcome",
+]
+
+
+def _check_story_compliance(
+    body_ar: str,
+    lemma_lookup: dict[str, int],
+) -> tuple[float, list[str]]:
+    """Check vocabulary compliance of generated story text.
+
+    Returns (compliance_pct, list_of_unknown_bare_forms).
+    """
+    from app.services.sentence_validator import FUNCTION_WORD_GLOSSES as FWG
+    from app.services.sentence_validator import FUNCTION_WORD_FORMS as FWF
+
+    func_bares = {normalize_alef(fw) for fw in FWG} | {normalize_alef(fw) for fw in FWF}
+    tokens = tokenize(body_ar)
+    content_total = 0
+    content_known = 0
+    unknown_list = []
+
+    for token in tokens:
+        bare = normalize_alef(strip_tatweel(strip_diacritics(token)))
+        if bare in func_bares:
+            continue
+        content_total += 1
+        if lookup_lemma(bare, lemma_lookup):
+            content_known += 1
+        elif bare not in unknown_list:
+            unknown_list.append(bare)
+
+    pct = round(content_known / content_total * 100, 1) if content_total > 0 else 0
+    return pct, unknown_list
+
 
 def generate_story(
     db: Session,
@@ -458,10 +509,10 @@ def generate_story(
     length: str = "medium",
     topic: str | None = None,
 ) -> Story:
-    """Generate a story using LLM from the user's known vocabulary."""
+    """Generate a story using Opus with retry loop for vocabulary compliance."""
     known_words = _get_known_words(db)
     if not known_words:
-        raise ValueError("No known/learning words found. Learn some words first.")
+        raise ValueError("No known/learning/acquiring words found. Learn some words first.")
 
     # Diversity: weighted sampling to avoid over-represented words
     content_word_counts = get_content_word_counts(db)
@@ -470,85 +521,97 @@ def generate_story(
     )
     avoid_words = get_avoid_words(content_word_counts, known_words)
 
-    vocab_list = "\n".join(
-        f"- {w['arabic']} ({w['english']})" for w in sample
-    )
+    # Format vocabulary grouped by POS for better prompting
+    from app.services.llm import format_known_words_by_pos
+    vocab_list = format_known_words_by_pos(sample)
 
-    # Pick up to MAX_NEW_WORDS_IN_STORY unknown words to weave into the story
-    known_ids = {w["lemma_id"] for w in known_words}
-    unknown_lemmas = (
-        db.query(Lemma)
-        .filter(Lemma.lemma_id.notin_(known_ids) if known_ids else True)
-        .filter(Lemma.frequency_rank.isnot(None))
-        .order_by(Lemma.frequency_rank.asc())
-        .limit(MAX_NEW_WORDS_IN_STORY * 3)
-        .all()
-    )
-    new_words = random.sample(
-        unknown_lemmas,
-        min(MAX_NEW_WORDS_IN_STORY, len(unknown_lemmas)),
-    ) if unknown_lemmas else []
-
-    new_words_section = ""
-    if new_words:
-        new_words_list = "\n".join(
-            f"- {w.lemma_ar} ({w.gloss_en or ''})" for w in new_words
-        )
-        new_words_section = f"""
-NEW VOCABULARY (weave these new words into the story — the reader will learn them from context):
-{new_words_list}
+    # Highlight acquiring words for reinforcement
+    acquiring = [w for w in known_words if w.get("state") == "acquiring"]
+    acquiring_section = ""
+    if acquiring:
+        acq_list = ", ".join(f"{w['arabic']} ({w['english']})" for w in acquiring[:15])
+        acquiring_section = f"""
+REINFORCEMENT WORDS (the reader is currently learning these — try to feature them prominently):
+{acq_list}
 """
 
     lo, hi = LENGTH_SENTENCES.get(length, LENGTH_SENTENCES["medium"])
     topic_line = f"\nTOPIC/THEME: Write the story about or inspired by: {topic}" if topic else ""
+    genre = random.choice(STORY_GENRES)
 
-    # Pick a random genre to keep stories varied
-    genres = [
-        "a funny story with a punchline at the end",
-        "a mystery — something is not what it seems",
-        "a heartwarming story about an unexpected friendship",
-        "a story with an ironic twist ending",
-        "a short adventure with a moment of danger",
-        "a story where someone learns a surprising lesson",
-    ]
-    genre = random.choice(genres)
+    # Build lemma lookup for compliance checking (uses all lemmas for form matching)
+    all_lemmas = _get_all_lemmas(db)
+    compliance_lookup = build_lemma_lookup(all_lemmas)
 
-    prompt = f"""Write a cohesive mini-story ({lo}-{hi} sentences) for a {difficulty} Arabic learner.
+    best_result = None
+    best_compliance = 0
+
+    for attempt in range(MAX_STORY_RETRIES):
+        retry_section = ""
+        if attempt > 0 and best_result:
+            _, unknown = _check_story_compliance(best_result.get("body_ar", ""), compliance_lookup)
+            if unknown:
+                retry_section = f"""
+IMPORTANT CORRECTION: Your previous attempt used words NOT in the vocabulary list.
+These words are NOT allowed: {', '.join(unknown[:20])}
+Replace them with synonyms from the vocabulary list, or restructure sentences to avoid them.
+"""
+
+        prompt = f"""{retry_section}Write a cohesive mini-story ({lo}-{hi} sentences) for a {difficulty} Arabic learner.
 
 GENRE: {genre}
 {topic_line}
-KNOWN VOCABULARY (the reader already knows these words):
+{acquiring_section}
+KNOWN VOCABULARY grouped by part of speech (use ONLY these plus function words):
 {vocab_list}
-{new_words_section}
-IMPORTANT RULES:
-- Use ONLY words from the known vocabulary, new vocabulary, and common function words
-- Try to use ALL of the new vocabulary words naturally in the story
-- Make new words understandable from context
-- Write a REAL STORY with a narrative arc: setup → tension/development → resolution/punchline
-- Give the main character a name. Make the reader care about what happens
-- Every sentence must connect to the next — no disconnected practice sentences!
+
+RULES:
+- Use ONLY words from the vocabulary list above (any conjugated form is fine)
+- Write a REAL STORY with narrative arc: setup → development → resolution/punchline
+- Give the main character a name
 - Include full diacritics (tashkeel) on ALL Arabic words
-- The title should hint at the story without spoiling it
-{f"- For variety, try NOT to use these overused words (pick other vocabulary instead): {'، '.join(avoid_words)}" if avoid_words else ""}
+- Make it genuinely interesting — an adult should enjoy reading it
+- Every sentence must connect to the next
+{f"- For variety, try NOT to use these overused words: {'، '.join(avoid_words)}" if avoid_words else ""}
 Respond with JSON: {{"title_ar": "...", "title_en": "...", "body_ar": "full story in Arabic with diacritics", "body_en": "English translation", "transliteration": "ALA-LC transliteration"}}"""
 
-    try:
-        result = generate_completion(
-            prompt=prompt,
-            system_prompt=STORY_SYSTEM_PROMPT,
-            json_mode=True,
-            temperature=0.9,
-            model_override="openai",
+        try:
+            result = generate_completion(
+                prompt=prompt,
+                system_prompt=STORY_SYSTEM_PROMPT,
+                json_mode=True,
+                temperature=0.9,
+                model_override="opus",
+                timeout=90,
+            )
+        except AllProvidersFailed as e:
+            logger.warning("Story generation attempt %d failed: %s", attempt + 1, e)
+            continue
+
+        body_ar = result.get("body_ar", "")
+        if not body_ar:
+            continue
+
+        compliance_pct, unknown = _check_story_compliance(body_ar, compliance_lookup)
+        logger.info(
+            "Story attempt %d: compliance=%.1f%% unknown=%d words",
+            attempt + 1, compliance_pct, len(unknown),
         )
-    except AllProvidersFailed as e:
-        raise ValueError(f"LLM providers unavailable: {e}") from e
 
+        if compliance_pct > best_compliance:
+            best_compliance = compliance_pct
+            best_result = result
+
+        if compliance_pct >= STORY_COMPLIANCE_THRESHOLD:
+            break
+
+    if not best_result or not best_result.get("body_ar"):
+        raise ValueError("Failed to generate story after all attempts")
+
+    result = best_result
     body_ar = result.get("body_ar", "")
-    if not body_ar:
-        raise ValueError("LLM returned empty story")
 
-    all_lemmas = _get_all_lemmas(db)
-    lemma_lookup = build_lemma_lookup(all_lemmas)
+    lemma_lookup = compliance_lookup
     knowledge_map = _build_knowledge_map(db)
 
     story = Story(
@@ -660,7 +723,23 @@ def import_story(
 
 def get_stories(db: Session) -> list[dict]:
     """Return all stories ordered by created_at desc."""
+    from app.models import Sentence
+
     stories = db.query(Story).order_by(Story.created_at.desc()).all()
+
+    # Batch-load sentence counts for book stories
+    book_ids = [s.id for s in stories if s.source == "book_ocr"]
+    sentence_counts: dict[int, int] = {}
+    if book_ids:
+        from sqlalchemy import func
+        rows = (
+            db.query(Sentence.story_id, func.count(Sentence.id))
+            .filter(Sentence.story_id.in_(book_ids))
+            .group_by(Sentence.story_id)
+            .all()
+        )
+        sentence_counts = {r[0]: r[1] for r in rows}
+
     return [
         {
             "id": s.id,
@@ -671,6 +750,8 @@ def get_stories(db: Session) -> list[dict]:
             "readiness_pct": s.readiness_pct or 0,
             "unknown_count": s.unknown_count or 0,
             "total_words": s.total_words or 0,
+            "page_count": s.page_count,
+            "sentence_count": sentence_counts.get(s.id) if s.source == "book_ocr" else None,
             "created_at": s.created_at.isoformat() if s.created_at else "",
         }
         for s in stories
@@ -704,6 +785,12 @@ def get_story_detail(db: Session, story_id: int) -> dict:
             "sentence_index": sw.sentence_index or 0,
         })
 
+    # Sentence count for book imports
+    sentence_count = None
+    if story.source == "book_ocr":
+        from app.models import Sentence
+        sentence_count = db.query(Sentence).filter(Sentence.story_id == story.id).count()
+
     return {
         "id": story.id,
         "title_ar": story.title_ar,
@@ -717,6 +804,8 @@ def get_story_detail(db: Session, story_id: int) -> dict:
         "unknown_count": story.unknown_count or 0,
         "total_words": story.total_words or 0,
         "known_count": story.known_count or 0,
+        "page_count": story.page_count,
+        "sentence_count": sentence_count,
         "created_at": story.created_at.isoformat() if story.created_at else "",
         "words": words,
     }

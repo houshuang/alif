@@ -4,6 +4,74 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-02-14: Book Import — OCR Pipeline for Children's Books
+
+### What
+Full pipeline to photograph a children's book (cover + content pages), OCR all pages, extract sentences with diacritics, and import as a "reading goal" story. Book sentences are captured and used in review sessions when they become comprehensible.
+
+### Changes
+1. **Data model**: Added `story_id` FK to Sentence (links book sentences to source story), `page_count` to Story. New migration.
+2. **`book_import_service.py`**: Core pipeline — cover metadata extraction (Gemini Vision), parallel multi-page OCR (ThreadPoolExecutor), LLM cleanup + diacritization + segmentation, separate LLM translation, deterministic transliteration, story creation (reuses story_service helpers), sentence + SentenceWord record creation.
+3. **`books.py` router**: `POST /api/books/import` — multipart upload (first image = cover, rest = pages), returns StoryDetailOut.
+4. **`sentence_selector.py`**: 1.3x `source_bonus` for book sentences in both initial scoring and set cover re-scoring.
+5. **Frontend**: `book-import.tsx` (cover photo + content pages + title input + import button with phase-based loading), stories list updated with "Book" button and book source badges.
+6. **Tests**: 11 new tests covering cover extraction, cleanup, translation, sentence creation, full pipeline, title override, source bonus.
+
+### How It Works
+- User photographs cover (metadata extraction) + all content pages → parallel OCR → LLM cleanup/diacritize/segment → LLM translate → create Story + StoryWords + Sentences + SentenceWords
+- Book sentences start `is_active=True` but the comprehensibility gate (≥70% known) filters them during session building
+- Initially most book sentences fail the gate → LLM sentences fill the gap via on-demand generation
+- As user learns more book words → more book sentences become comprehensible → gradual transition from LLM to real book sentences
+- Words from the book get `story_bonus` in word_selector (existing behavior for story words), so they're prioritized for auto-introduction
+
+### Expected Effect
+- User can photograph a library book and have the system train them toward reading it
+- Real book sentences appear in review when comprehensible, providing authentic context
+- Readiness percentage shows progress toward being able to read the physical book
+- Book sentence preference (1.3x) means the system naturally transitions to real book content as vocabulary grows
+
+### Verification
+- Unit tests: all 11 pass (mocked OCR + LLM calls)
+- Integration: download a children's book from Archive.org (Karim Series), run through pipeline, verify OCR quality + sentence extraction + readiness %
+- Session builder: verify book sentences appear when comprehensible and LLM fills gaps when not
+- Frontend: verify import flow, story list badges, and reader work for book_ocr stories
+
+---
+
+## 2026-02-14: Story Generation — Opus Integration + Claude Code CLI Wrapper
+
+### What
+Implemented benchmark findings: switched story generation from GPT-5.2 to Claude Opus with retry loop, fixed `_get_known_words()` to include acquiring words, created reusable `claude -p` CLI wrapper.
+
+### Changes
+1. **`story_service.py`**: `_get_known_words()` now includes `acquiring` state (was only learning+known). Excludes variants. Returns POS info. Generation uses `model_override="opus"` with retry loop (MAX_STORY_RETRIES=3, STORY_COMPLIANCE_THRESHOLD=70%). POS-grouped vocabulary. Acquiring words highlighted as reinforcement targets.
+2. **`llm.py`**: Added "opus" to MODELS list (claude-opus-4-6, uses ANTHROPIC_API_KEY).
+3. **`claude_code.py`**: New service — reusable `claude -p` wrapper with `--tools ""` (no tool access) + `--json-schema` for structured output. `is_available()` + `generate_structured()`. Designed for reuse in future tasks.
+4. **`scripts/generate_story_claude.py`**: Standalone script for local story generation via `claude -p` (free with Max plan). Loads vocabulary from DB, validates compliance, retries with feedback.
+
+### Claude Code CLI Pattern
+Key flags for reliable, predictable `claude -p` usage:
+- `--tools ""` — disables ALL tools (no file reads, bash, web search)
+- `--json-schema {...}` — enforces structured output (clean JSON, no markdown fences)
+- `--no-session-persistence` — no saved sessions
+- `--system-prompt "..."` — custom system prompt, no project context
+- `--model opus` — uses Opus via Max plan subscription
+
+Tested 4/4 story generations successful. Opus hits 78-89% compliance on first attempt (many "unknown" words are actually conjugated forms — real compliance ~87-95%). Sonnet needs retries more often (59-79%). Average generation time ~42s.
+
+### Expected Effect
+- Story quality improves dramatically (Opus 3.73 composite vs GPT-5.2 2.63)
+- Acquiring words now available in story vocabulary (was excluded, bug)
+- Retry loop catches vocabulary violations before storing
+- Cost: $0.15-0.45/story via API, free via Max plan CLI
+
+### Verification
+- `scripts/generate_story_claude.py --db path --dry-run` to verify prompts
+- Generate a story via API and check readiness_pct
+- Backend tests pass (172 passed, 2 pre-existing failures unrelated)
+
+---
+
 ## 2026-02-14: Story Generation Model Benchmark
 
 ### What
