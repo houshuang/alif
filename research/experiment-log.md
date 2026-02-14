@@ -4,6 +4,88 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-02-14: Acquisition Due-Date Gating + Leech Graduated Cooldown
+
+**REASSESS DATE: 2026-02-17** (3 days after deploy)
+
+### Changes
+
+**1. Due-date gating for box advancement (acquisition_service.py)**
+- Box 1→2: always allowed (within-session encoding phase)
+- Box 2→3: only when `acquisition_next_due <= now` (enforce 1-day inter-session spacing)
+- Box 3→graduation: only when due (enforce 3-day spacing)
+- Graduation additionally requires reviews on ≥2 distinct UTC calendar days
+- Within-session reviews of not-yet-due words still count for `times_seen`/`times_correct` (exposure credit) but don't advance the box or reset the timer
+- New constant: `GRADUATION_MIN_CALENDAR_DAYS = 2`
+
+**2. Increased pipeline capacity (sentence_selector.py)**
+- `MAX_ACQUIRING_WORDS`: 30 → 40 (more headroom for slower graduation)
+- `MAX_BOX1_WORDS`: 8 → 12 (box 1 clears fast via within-session advancement)
+
+**3. Graduated leech cooldown (leech_service.py)**
+- New `leech_count` column on ULK (migration `t0l5m6n7o123`)
+- Cooldown: 3d (1st suspension) → 7d (2nd) → 14d (3rd+)
+- Stats preserved on reintroduction (not zeroed) — word must genuinely improve
+- Fresh sentences generated on reintro
+- Memory hooks ensured on reintro (generated if missing)
+- Reintro cards include `memory_hooks` and `etymology` fields
+
+### Why
+
+48-hour data analysis (2026-02-14) revealed:
+- **Critical bug**: Words graduating in 9 minutes via within-session box jumping. قَرِيب graduated with 5 reviews in 9 min. 10.5% of graduated words immediately lapsed.
+- **Binary leech handling**: 14-day flat suspension → cold restart with zeroed stats. حصان graduated in 30 min then leech-suspended 3 hours later. Same treatment regardless of history.
+- **Morning review-only sessions**: Box 1 cap (8) filling in first session, blocking all auto-introduction in subsequent sessions.
+
+### Expected effects
+
+| Metric | Before | Expected After |
+|--------|--------|---------------|
+| Graduation speed | 9 min – 15h | Minimum ~1.5 days (1→2 in-session, 2→3 after 1d, 3→grad after 3d + 2 calendar days) |
+| Immediate lapse rate | 10.5% | <3% (genuine consolidation before FSRS) |
+| Words in acquisition pipeline | Max 30 | Max 40, flowing ~8-10 graduations/day at steady state |
+| Leech reintro | 14d flat, zeroed stats | 3d→7d→14d graduated, stats preserved, memory hooks shown |
+| Morning session variety | Only review after first session | 12 box 1 slots instead of 8 |
+
+### Pipeline throughput model (2 sessions/day)
+
+```
+Day 1 AM: Introduce W1-W10, advance to box 2 in-session. Box 1 empty.
+Day 1 PM: Introduce W11-W20. W1-W10 in box 2 (not due yet).
+Day 2 AM: Introduce W21-W30. W1-W10 due from box 2 → box 3.
+Day 2 PM: Introduce W31-W40. W11-W20 → box 3. Cap hit (40 acquiring).
+Day 3: W21-W30 → box 3. Waiting for graduations.
+Day 5+: W1-W10 graduate (3d in box 3 + 2 calendar days). 10 slots open.
+Steady state: ~8-10 graduations/day, ~8-10 introductions/day.
+```
+
+### Verify (2026-02-17)
+
+1. Run `analyze_progress.py` — check:
+   - No same-day graduations (minimum ~1.5 days from introduction)
+   - Lapse rate within 24h of graduation
+   - Box distribution (expect more words in box 2/3 than before)
+2. Check leech reintroductions:
+   ```sql
+   SELECT l.lemma_ar, ulk.leech_count, ulk.leech_suspended_at, ulk.knowledge_state
+   FROM user_lemma_knowledge ulk JOIN lemmas l ON l.lemma_id = ulk.lemma_id
+   WHERE ulk.leech_count > 0
+   ```
+3. Check new word introduction rate: are sessions still feeling fresh?
+4. Check if MAX_ACQUIRING_WORDS=40 is sufficient or needs further adjustment
+
+### Files changed
+
+- `backend/app/models.py` — added `leech_count` column
+- `backend/alembic/versions/t0l5m6n7o123_add_leech_count.py` — migration
+- `backend/app/services/acquisition_service.py` — due-date gating, calendar day check
+- `backend/app/services/leech_service.py` — graduated cooldown, preserved stats, memory hooks
+- `backend/app/services/sentence_selector.py` — raised caps, added memory_hooks/etymology to reintro cards
+- `backend/tests/test_acquisition.py` — updated for new behavior, added `test_box2_no_advance_when_not_due` and `test_no_graduation_single_calendar_day`
+- `backend/tests/test_leech_service.py` — updated for graduated cooldowns, added `test_leech_count_incremented_on_suspension`, `test_reintroduction_second_time_needs_7_days`, `test_reintroduction_third_time_needs_14_days`
+
+---
+
 ## 2026-02-13: Sentence Pre-Generation + Session Cache Staleness
 
 **Change**: Added `POST /api/review/warm-sentences` background endpoint and 30-minute session cache staleness TTL.

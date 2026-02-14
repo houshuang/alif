@@ -73,6 +73,7 @@ class UserLemmaKnowledge(Base):
     acquisition_started_at = Column(DateTime, nullable=True)
     graduated_at = Column(DateTime, nullable=True)
     leech_suspended_at = Column(DateTime, nullable=True)
+    leech_count = Column(Integer, default=0, server_default="0")
 
     lemma = relationship("Lemma", back_populates="knowledge")
 

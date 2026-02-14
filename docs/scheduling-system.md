@@ -6,7 +6,7 @@
 > topics, grammar, listening) interact. It also identifies where the current
 > implementation diverges from the research and stated intentions.
 >
-> **Last updated**: 2026-02-13
+> **Last updated**: 2026-02-14
 > **Canonical location**: `docs/scheduling-system.md`
 > **Keep this document up to date with every algorithm change.**
 
@@ -119,7 +119,7 @@ reading vocabulary growing steadily.
                               └──────────────────────────────────┘
                                         │              │
                                    Leech detected   Leech reintro
-                                   (seen≥8,acc<40%)  (after 14d)
+                                   (seen≥5,acc<50%)  (3d/7d/14d)
                                         │              │
                                         ▼              │
                               ┌──────────────┐         │
@@ -261,16 +261,26 @@ words are "unknown."
            ┌─── Correct (rating≥3) ───┐
            │                           │
      ┌─────▼─────┐              ┌─────▼─────┐              ┌──────▼─────┐
-     │  BOX 1    │   Correct    │  BOX 2    │   Correct    │  BOX 3    │
+     │  BOX 1    │  Correct     │  BOX 2    │  Correct     │  BOX 3    │
      │  4 hours  │─────────────>│  1 day    │─────────────>│  3 days   │
-     │           │              │           │              │           │
+     │ (encoding)│  (always OK) │(consolid.)│(only if due) │(retention)│
      └─────▲─────┘              └─────┬─────┘              └─────┬─────┘
            │                          │                          │
            │      Fail (rating=1)     │      Fail (rating=1)     │
            └──────────────────────────┘──────────────────────────┘
                       Reset to Box 1
 
-     Hard (rating=2): Stay in current box, reschedule with same interval
+     Box advancement rules (2026-02-14):
+       Box 1→2: ALWAYS allowed (within-session encoding phase)
+       Box 2→3: ONLY when acquisition_next_due <= now (enforce inter-session spacing)
+       Graduation: ONLY when due + reviews span ≥2 UTC calendar days
+
+     Within-session reviews of not-yet-due words:
+       - Still count for times_seen / times_correct (exposure credit)
+       - Do NOT advance the box or reset the timer
+
+     Hard (rating=2): Stay in current box, reschedule if due
+     Fail (rating=1): ALWAYS reset to box 1 (regardless of due status)
      Exception: words with 0% accuracy use shorter retries:
        - Rating 2 + never correct: retry in 10 minutes
        - Rating 1 + never correct: retry in 5 minutes
@@ -283,6 +293,7 @@ words are "unknown."
 BOX_INTERVALS = {1: 4h, 2: 1d, 3: 3d}
 GRADUATION_MIN_REVIEWS = 5
 GRADUATION_MIN_ACCURACY = 0.60
+GRADUATION_MIN_CALENDAR_DAYS = 2
 ```
 
 ### Graduation Criteria
@@ -291,10 +302,23 @@ A word graduates from acquisition to FSRS when **all** conditions are met:
 1. `acquisition_box >= 3`
 2. `times_seen >= 5`
 3. Cumulative accuracy (`times_correct / times_seen`) >= 60%
+4. `acquisition_next_due <= now` (word must be due for review)
+5. Reviews span at least 2 distinct UTC calendar days (sleep consolidation)
 
 **Important**: Graduation fires regardless of the current review's rating. If a word
 is in box 3 with 5 reviews and 65% accuracy, it graduates even if the current review
 is rated "Again". This was a deliberate fix — see experiment-log.md.
+
+### Why Two Phases (Encoding vs Consolidation)
+
+Box 1 is the "encoding" phase — initial exposure and within-session repetition. Research
+shows that massed practice (multiple exposures in a short window) is effective for initial
+encoding. Box 1→2 advancement is therefore unrestricted.
+
+Boxes 2-3 are the "consolidation" phase — inter-session spacing with sleep cycles. The
+1-day and 3-day intervals enforce real memory consolidation. These must be due before
+advancement. This two-phase approach was added 2026-02-14 after data showed words
+graduating in 9 minutes via within-session box jumping (10.5% immediate lapse rate).
 
 ### On Graduation
 
@@ -496,10 +520,10 @@ build_session(db, limit=10, mode="reading")
 │ STAGE 3: Auto-Introduce (if room)            │
 │                                              │
 │ Guards (all must pass):                      │
-│   1. acquiring_count < 30                    │
-│   2. box_1_count < MAX_BOX1_WORDS (8)        │
+│   1. acquiring_count < 40                    │
+│   2. box_1_count < MAX_BOX1_WORDS (12)       │
 │   3. recent accuracy ≥ 70%                   │
-│ Slots = min(accuracy_band, 30-acq, 8-box1)  │
+│ Slots = min(accuracy_band, 40-acq, 12-box1) │
 │ Select top frequency encountered words       │
 │ start_acquisition(due_immediately=True)      │
 │ Add to due_lemma_ids                         │
@@ -907,15 +931,34 @@ The leech check runs after every review where the rating ≤ 2.
 Normal word → Leech detected → Auto-suspended
     │                               │
     │                         leech_suspended_at set
+    │                         leech_count incremented
     │                               │
-    │                         14 days pass...
+    │                         Graduated cooldown:
+    │                           1st: 3 days
+    │                           2nd: 7 days
+    │                           3rd+: 14 days
     │                               │
     │                         Auto-reintroduced
     │                         → acquisition box 1
-    │                         (fresh start)
+    │                         Stats PRESERVED (not zeroed)
+    │                         Fresh sentences generated
+    │                         Memory hooks ensured
+    │                               │
+    │                         Reintro card shows:
+    │                           etymology, mnemonic,
+    │                           cognates, root family
     │                               │
     └───────────────────────────────┘
 ```
+
+**Key design decisions (2026-02-14)**:
+- Stats are preserved on reintroduction. Since leech detection uses cumulative accuracy
+  (`times_seen ≥ 5 AND accuracy < 50%`), the word must genuinely improve its accuracy to
+  escape leech status. Zeroing stats would let a word escape by getting 3/5 correct, which
+  is below the 60% graduation threshold anyway.
+- Fresh sentences are generated because the old sentences clearly didn't work for this word.
+- Memory hooks (mnemonic, cognates, usage context) are ensured — if they don't exist,
+  they're generated via LLM on reintroduction.
 
 ### Root-Sibling Interference Guard
 
@@ -1167,9 +1210,9 @@ are invalidated after use or after a configurable timeout.
 | `MAX_AUTO_INTRO_PER_SESSION` | 10 | Ceiling for auto-intro (reached at ≥92% accuracy) |
 | `AUTO_INTRO_ACCURACY_FLOOR` | 0.70 | Pause auto-intro if accuracy below this |
 | Adaptive intro bands | 0→4→7→10 | Slots at <70%/70-85%/85-92%/≥92% accuracy |
-| `MAX_ACQUIRING_WORDS` | 30 | Don't auto-intro if this many words already acquiring (normal phase) |
+| `MAX_ACQUIRING_WORDS` | 40 | Don't auto-intro if this many words already acquiring (normal phase). Raised from 30 on 2026-02-14 for slower graduation pipeline. |
 | `MAX_ACQUIRING_CEILING` | 50 | Extended acquiring cap during fill phase |
-| `MAX_BOX1_WORDS` | 8 | Don't auto-intro if this many words in Leitner box 1 (normal phase) |
+| `MAX_BOX1_WORDS` | 12 | Don't auto-intro if this many words in Leitner box 1 (normal phase). Raised from 8 on 2026-02-14. |
 | `MAX_BOX1_WORDS_FILL` | 15 | Extended box 1 cap during fill phase |
 | `FRESHNESS_BASELINE` | 8 | Reviews before scaffold freshness penalty kicks in |
 | `MAX_ON_DEMAND_PER_SESSION` | 10 | Reference constant (callers control actual cap via remaining session capacity) |
@@ -1195,6 +1238,7 @@ are invalidated after use or after a configurable timeout.
 | `BOX_INTERVALS[3]` | 3 days | Box 3 review interval |
 | `GRADUATION_MIN_REVIEWS` | 5 | Min reviews before graduation |
 | `GRADUATION_MIN_ACCURACY` | 0.60 | Min accuracy for graduation |
+| `GRADUATION_MIN_CALENDAR_DAYS` | 2 | Reviews must span this many UTC calendar days |
 
 ### Cohort (`cohort_service.py`)
 
@@ -1207,8 +1251,10 @@ are invalidated after use or after a configurable timeout.
 | Constant | Value | Purpose |
 |----------|-------|---------|
 | Detection threshold | times_seen≥5, accuracy<50% | When to suspend |
-| Reintroduction delay | 14 days | Time before auto-reintro |
-| Reintro target | Acquisition box 1 | Fresh start after suspension |
+| Reintro delay (1st) | 3 days | First leech suspension |
+| Reintro delay (2nd) | 7 days | Second suspension |
+| Reintro delay (3rd+) | 14 days | Third and subsequent suspensions |
+| Reintro target | Acquisition box 1 | Stats preserved, fresh sentences |
 
 ### Topic (`topic_service.py`)
 
@@ -1318,17 +1364,17 @@ Fetches last session's words from AsyncStorage, filters to within 24h, calls
 `POST /api/review/recap`, and prepends recap sentence cards to the new session.
 Recap cards display a "Recap" badge. Sleep consolidation check is active.
 
-### 19.6 Forced Day-1 Review — Partially Implemented
+### 19.6 ~~Forced Day-1 Review~~ — Substantially Addressed
 
 **Research says**: Words need review within 24 hours (after one sleep cycle) for
 consolidation. "Forced day-1 review regardless of box position."
 
-**Current implementation**: Acquisition box 1 has a 4-hour interval, so the word
-*will* come up for review within 4h. But there's no explicit "must appear in
-tomorrow's first session" constraint. If the user doesn't open the app within the
-4-hour window, the review just waits.
+**Current implementation** (2026-02-14): Two-phase acquisition:
+- Box 1→2 advances within-session (same-day encoding). Word gets 4 exposures immediately.
+- Box 2→3 requires `acquisition_next_due` (1-day interval enforced). Forces next-day review.
+- Graduation requires reviews on ≥2 UTC calendar days. Guarantees at least one overnight gap.
 
-**Gap**: Soft guarantee via box timing, not a hard constraint.
+**Remaining gap**: If user doesn't open the app for 2+ days, the review just waits. No push notification. But the interval enforcement ensures words can't skip the day-1 review through rapid in-session advancement.
 
 ### 19.7 Root-Aware FSRS Stability Boost — Not Implemented
 

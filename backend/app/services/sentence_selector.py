@@ -42,9 +42,9 @@ MIN_ACQUISITION_EXPOSURES = 4
 MAX_ACQUISITION_EXTRA_SLOTS = 15  # max extra cards beyond session limit for repetitions
 MAX_AUTO_INTRO_PER_SESSION = 10  # new words auto-introduced per session
 AUTO_INTRO_ACCURACY_FLOOR = 0.70  # pause introduction if recent accuracy below this
-MAX_ACQUIRING_WORDS = 30  # don't auto-introduce if already this many acquiring
+MAX_ACQUIRING_WORDS = 40  # don't auto-introduce if already this many acquiring (raised from 30, 2026-02-14)
 MAX_ACQUIRING_CEILING = 50  # extended cap when filling an undersized session
-MAX_BOX1_WORDS = 8  # don't auto-introduce if this many acquiring words still in box 1
+MAX_BOX1_WORDS = 12  # don't auto-introduce if this many acquiring words still in box 1 (raised from 8, 2026-02-14)
 MAX_BOX1_WORDS_FILL = 15  # extended box 1 cap for fill phase
 
 
@@ -930,6 +930,8 @@ def _build_reintro_cards(
             "grammar_details": [],
             "times_seen": k.times_seen if k else 0,
             "root_family": family,
+            "memory_hooks": lemma.memory_hooks_json,
+            "etymology": lemma.etymology_json,
         }
         cards.append(card)
 

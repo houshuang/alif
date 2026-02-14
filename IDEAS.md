@@ -246,7 +246,7 @@
 - Compare simulation outcomes across profiles to find "sweet spot" parameters
 - Use simulation CSV output to generate matplotlib charts (review load curves, state transition Sankey diagrams)
 - Add "adversarial" profiles: always-wrong student, always-skip student, binge-then-vanish student
-- Simulate specific scenarios: "what if we lower MAX_ACQUIRING_WORDS from 30 to 20?"
+- Simulate specific scenarios: e.g., vary MAX_ACQUIRING_WORDS (now 40), test different graduation thresholds
 
 ### Algorithm Optimization
 - Use logged data to tune FSRS parameters per-user
@@ -612,7 +612,7 @@
 After importing ~100 textbook pages via OCR, 411 words entered the system with automatic rating=3 (Good). FSRS treated these as genuinely known (all 586 active words now show 30+ day stability), but actual review accuracy cratered to 25-46% on subsequent days. The system is spreading reviews across 586 words when the user barely recognizes most of them. 63% of active words have been seen only 0-2 times — well below the 8-12 meaningful encounters research says are needed for stable memory.
 
 #### Acquisition Phase (Pre-FSRS Learning Steps)
-- [DONE] Leitner 3-box acquisition system: Box 1 (4h), Box 2 (1d), Box 3 (3d). Words enter acquisition on introduction. Graduate after box≥3 + times_seen≥5 + accuracy≥60% (fires regardless of current review's rating). Implemented in `acquisition_service.py`.
+- [DONE] Leitner 3-box acquisition system: Box 1 (4h), Box 2 (1d), Box 3 (3d). Two-phase advancement: box 1→2 always allowed (encoding), box 2+ gated on `acquisition_next_due` (consolidation). Graduate after box≥3 + times_seen≥5 + accuracy≥60% + reviews span ≥2 calendar days (GRADUATION_MIN_CALENDAR_DAYS=2). Implemented in `acquisition_service.py`.
 - [DONE] Within-session repetition: acquisition words appearing only once get additional sentences. Implemented in `sentence_selector.py`.
 - Research: FSRS S₀(Good) = 2.4 days, but a single "Good" for a textbook scan is NOT the same as genuine recall
 - Research: "fewer than 6 spaced encounters → fewer than 30% recall after a week"
@@ -641,11 +641,12 @@ After importing ~100 textbook pages via OCR, 411 words entered the system with a
 - **Just track vocabulary**: Lemma entry only, no ULK at all. Purely for vocabulary tracking / readiness calculation. User decides later whether to learn.
 
 #### Leech Auto-Management
-- [DONE] Auto-suspend: times_seen≥8 AND accuracy<40% → suspend with `leech_suspended_at`. Implemented in `leech_service.py`.
-- [DONE] Auto-reintroduce after 14 days: reset to acquisition box 1.
+- [DONE] Auto-suspend: times_seen≥5 AND accuracy<50% → suspend with `leech_suspended_at`. Implemented in `leech_service.py`.
+- [DONE] Graduated reintroduction cooldowns: 3d (1st), 7d (2nd), 14d (3rd+) based on `leech_count`. Stats preserved on reintro (cumulative accuracy must genuinely improve). Fresh sentences + memory hooks generated.
 - [DONE] Post-review single-word leech check: runs after every review with rating≤2.
 - [DONE] Root-sibling interference guard: don't introduce words whose root siblings failed in last 7d.
-- Track leech cycles: if a word is suspended and reintroduced 3+ times, flag for manual review
+- [DONE] `leech_count` tracking: incremented on each suspension, drives graduated cooldown delays.
+- Track leech cycles: if a word is suspended and reintroduced 3+ times, flag for manual review (leech_count data now available)
 - User said: "at that time I might have more hooks in my brain to connect it to, and it might stick better"
 
 #### FSRS State Correction for OCR-Imported Words

@@ -4,7 +4,8 @@ from app.models import Lemma, UserLemmaKnowledge
 from app.services.leech_service import (
     LEECH_MAX_ACCURACY,
     LEECH_MIN_REVIEWS,
-    REINTRO_DELAY,
+    REINTRO_DELAYS,
+    _get_reintro_delay,
     check_and_manage_leeches,
     check_leech_reintroductions,
     check_single_word_leech,
@@ -197,14 +198,16 @@ def test_detect_multiple_leeches(db_session):
 # --- check_leech_reintroductions ---
 
 
-def test_reintroduction_after_delay(db_session):
+def test_reintroduction_after_delay_first_time(db_session):
+    """First leech (leech_count=1) reintroduces after 3 days, preserves stats."""
     lemma = _create_lemma(db_session)
     now = datetime.now(timezone.utc)
 
     db_session.add(UserLemmaKnowledge(
         lemma_id=lemma.lemma_id,
         knowledge_state="suspended",
-        leech_suspended_at=now - REINTRO_DELAY - timedelta(hours=1),
+        leech_suspended_at=now - timedelta(days=3, hours=1),
+        leech_count=1,
         times_seen=10,
         times_correct=2,
     ))
@@ -217,19 +220,75 @@ def test_reintroduction_after_delay(db_session):
     assert ulk.knowledge_state == "acquiring"
     assert ulk.acquisition_box == 1
     assert ulk.leech_suspended_at is None
-    assert ulk.times_seen == 0  # reset
-    assert ulk.times_correct == 0  # reset
+    assert ulk.times_seen == 10  # preserved, not zeroed
+    assert ulk.times_correct == 2  # preserved, not zeroed
     assert ulk.source == "leech_reintro"
 
 
-def test_no_reintroduction_too_soon(db_session):
+def test_reintroduction_second_time_needs_7_days(db_session):
+    """Second leech (leech_count=2) needs 7 days."""
+    lemma = _create_lemma(db_session)
+    now = datetime.now(timezone.utc)
+
+    # After 4 days — too soon for second suspension
+    db_session.add(UserLemmaKnowledge(
+        lemma_id=lemma.lemma_id,
+        knowledge_state="suspended",
+        leech_suspended_at=now - timedelta(days=4),
+        leech_count=2,
+        times_seen=15,
+        times_correct=5,
+    ))
+    db_session.commit()
+
+    reintroduced = check_leech_reintroductions(db_session)
+    assert reintroduced == []
+
+    # After 7+ days — ready
+    ulk = db_session.query(UserLemmaKnowledge).filter_by(lemma_id=lemma.lemma_id).first()
+    ulk.leech_suspended_at = now - timedelta(days=7, hours=1)
+    db_session.commit()
+
+    reintroduced = check_leech_reintroductions(db_session)
+    assert lemma.lemma_id in reintroduced
+
+
+def test_reintroduction_third_time_needs_14_days(db_session):
+    """Third+ leech (leech_count=3) needs 14 days."""
     lemma = _create_lemma(db_session)
     now = datetime.now(timezone.utc)
 
     db_session.add(UserLemmaKnowledge(
         lemma_id=lemma.lemma_id,
         knowledge_state="suspended",
-        leech_suspended_at=now - timedelta(days=7),  # only 7 days, need 14
+        leech_suspended_at=now - timedelta(days=10),
+        leech_count=3,
+        times_seen=20,
+        times_correct=6,
+    ))
+    db_session.commit()
+
+    reintroduced = check_leech_reintroductions(db_session)
+    assert reintroduced == []  # only 10 days, need 14
+
+    ulk = db_session.query(UserLemmaKnowledge).filter_by(lemma_id=lemma.lemma_id).first()
+    ulk.leech_suspended_at = now - timedelta(days=14, hours=1)
+    db_session.commit()
+
+    reintroduced = check_leech_reintroductions(db_session)
+    assert lemma.lemma_id in reintroduced
+
+
+def test_no_reintroduction_too_soon(db_session):
+    """First leech suspended 2 days ago (need 3 days)."""
+    lemma = _create_lemma(db_session)
+    now = datetime.now(timezone.utc)
+
+    db_session.add(UserLemmaKnowledge(
+        lemma_id=lemma.lemma_id,
+        knowledge_state="suspended",
+        leech_suspended_at=now - timedelta(days=2),
+        leech_count=1,
         times_seen=10,
         times_correct=2,
     ))
@@ -260,13 +319,15 @@ def test_no_reintroduction_manual_suspend(db_session):
 
 
 def test_reintroduction_exactly_at_delay(db_session):
+    """First leech reintroduces at exactly 3 days."""
     lemma = _create_lemma(db_session)
     now = datetime.now(timezone.utc)
 
     db_session.add(UserLemmaKnowledge(
         lemma_id=lemma.lemma_id,
         knowledge_state="suspended",
-        leech_suspended_at=now - REINTRO_DELAY,  # exactly 14 days
+        leech_suspended_at=now - timedelta(days=3),  # exactly 3 days for first
+        leech_count=1,
         times_seen=10,
         times_correct=2,
     ))
@@ -274,6 +335,36 @@ def test_reintroduction_exactly_at_delay(db_session):
 
     reintroduced = check_leech_reintroductions(db_session)
     assert lemma.lemma_id in reintroduced
+
+
+def test_leech_count_incremented_on_suspension(db_session):
+    """leech_count is incremented each time a word is leech-suspended."""
+    lemma = _create_lemma(db_session)
+    db_session.add(UserLemmaKnowledge(
+        lemma_id=lemma.lemma_id,
+        knowledge_state="learning",
+        times_seen=10,
+        times_correct=2,
+        leech_count=0,
+    ))
+    db_session.commit()
+
+    suspended = check_and_manage_leeches(db_session)
+    assert lemma.lemma_id in suspended
+
+    ulk = db_session.query(UserLemmaKnowledge).filter_by(lemma_id=lemma.lemma_id).first()
+    assert ulk.leech_count == 1
+
+    # Simulate reintroduction and re-leeching
+    ulk.knowledge_state = "learning"
+    ulk.leech_suspended_at = None
+    db_session.commit()
+
+    suspended = check_and_manage_leeches(db_session)
+    assert lemma.lemma_id in suspended
+
+    ulk = db_session.query(UserLemmaKnowledge).filter_by(lemma_id=lemma.lemma_id).first()
+    assert ulk.leech_count == 2
 
 
 # --- check_single_word_leech ---

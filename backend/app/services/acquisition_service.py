@@ -1,11 +1,17 @@
 """Acquisition system — Leitner 3-box for newly introduced words.
 
 Words go through three acquisition boxes before graduating to FSRS:
-  Box 1: 4-hour interval
-  Box 2: 1-day interval
-  Box 3: 3-day interval
+  Box 1: 4-hour interval (within-session advancement allowed)
+  Box 2: 1-day interval (must be due before advancing)
+  Box 3: 3-day interval (must be due before graduating)
 
-Graduation requires: box >= 3 + times_seen >= 5 + accuracy >= 60% (regardless of current rating)
+Box 1→2 is "encoding" — allowed within a single session for initial repetition.
+Box 2→3 and 3→graduation enforce real inter-session spacing (sleep consolidation).
+
+Graduation requires: box >= 3 + times_seen >= 5 + accuracy >= 60%
+  + reviews on at least 2 distinct UTC calendar days
+
+2026-02-14: Added due-date gating for box 2+ and calendar-day graduation check.
 """
 
 import logging
@@ -28,6 +34,27 @@ BOX_INTERVALS = {
 
 GRADUATION_MIN_REVIEWS = 5
 GRADUATION_MIN_ACCURACY = 0.60
+GRADUATION_MIN_CALENDAR_DAYS = 2
+
+
+def _reviews_span_calendar_days(db: Session, lemma_id: int, min_days: int) -> bool:
+    """Check if acquisition reviews for a word span at least N distinct UTC calendar days."""
+    reviews = (
+        db.query(ReviewLog.reviewed_at)
+        .filter(
+            ReviewLog.lemma_id == lemma_id,
+            ReviewLog.is_acquisition == True,  # noqa: E712
+        )
+        .all()
+    )
+    dates = set()
+    for (reviewed_at,) in reviews:
+        if reviewed_at:
+            dt = reviewed_at
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=timezone.utc)
+            dates.add(dt.date())
+    return len(dates) >= min_days
 
 
 def start_acquisition(
@@ -150,43 +177,61 @@ def submit_acquisition_review(
     ulk.last_reviewed = now
     ulk.total_encounters = (ulk.total_encounters or 0) + 1
 
+    # Determine if word is actually due (for gating box 2+ advancement)
+    is_due = True
+    if ulk.acquisition_next_due:
+        acq_due = ulk.acquisition_next_due
+        if acq_due.tzinfo is None:
+            acq_due = acq_due.replace(tzinfo=timezone.utc)
+        is_due = acq_due <= now
+
     # Box advancement logic
+    # Box 1→2: always allowed (encoding phase, within-session repetition)
+    # Box 2→3 and graduation: only when due (enforce inter-session spacing)
     graduated = False
     if rating_int >= 3:
-        # Good/Easy: advance box
-        if old_box >= 3:
-            # Stay in box 3, schedule next review (graduation checked below)
+        if old_box == 1:
+            # Box 1→2: always advance (encoding → consolidation handoff)
+            ulk.acquisition_box = 2
+            ulk.acquisition_next_due = now + BOX_INTERVALS[2]
+        elif old_box == 2 and is_due:
+            # Box 2→3: only when due (1-day interval honored)
+            ulk.acquisition_box = 3
+            ulk.acquisition_next_due = now + BOX_INTERVALS[3]
+        elif old_box >= 3 and is_due:
+            # Box 3: stay, reschedule (graduation checked below)
             ulk.acquisition_box = 3
             ulk.acquisition_next_due = now + BOX_INTERVALS[3]
         else:
-            new_box = old_box + 1
-            ulk.acquisition_box = new_box
-            ulk.acquisition_next_due = now + BOX_INTERVALS[new_box]
+            # Not due yet — record the review but don't advance box or reset timer
+            # This gives within-session exposure credit without bypassing spacing
+            pass
     elif rating_int == 2:
-        # Hard: stay in same box, but use shorter interval if never correct
-        if (ulk.times_correct or 0) == 0:
-            # Never gotten it right — show again soon (10 minutes)
-            ulk.acquisition_next_due = now + timedelta(minutes=10)
-        else:
-            ulk.acquisition_next_due = now + BOX_INTERVALS[old_box]
+        # Hard: stay in same box
+        if is_due:
+            if (ulk.times_correct or 0) == 0:
+                ulk.acquisition_next_due = now + timedelta(minutes=10)
+            else:
+                ulk.acquisition_next_due = now + BOX_INTERVALS[old_box]
+        # If not due, don't reset the timer
         ulk.acquisition_box = old_box
     else:
-        # Again: reset to box 1 with short interval
+        # Again: reset to box 1 (regardless of due status — failure resets)
         ulk.acquisition_box = 1
         if (ulk.times_correct or 0) == 0:
-            # Never gotten it right — show again very soon (5 minutes)
             ulk.acquisition_next_due = now + timedelta(minutes=5)
         else:
             ulk.acquisition_next_due = now + BOX_INTERVALS[1]
 
-    # Check graduation regardless of this review's rating
-    # A word in box 3 with strong cumulative stats should graduate even after a weaker review
-    if not graduated and ulk.acquisition_box >= 3:
+    # Check graduation: box >= 3 + stats + calendar day spread
+    if not graduated and ulk.acquisition_box >= 3 and is_due:
         new_times_seen = ulk.times_seen
         new_times_correct = ulk.times_correct
         accuracy = new_times_correct / new_times_seen if new_times_seen > 0 else 0
         if new_times_seen >= GRADUATION_MIN_REVIEWS and accuracy >= GRADUATION_MIN_ACCURACY:
-            graduated = True
+            # Check reviews span at least 2 distinct UTC calendar days
+            if _reviews_span_calendar_days(db, ulk.lemma_id, GRADUATION_MIN_CALENDAR_DAYS):
+                graduated = True
 
     if graduated:
         _graduate(ulk, now)
