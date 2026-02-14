@@ -259,7 +259,12 @@ See `docs/nlp-pipeline.md` for full details.
 ```bash
 cd backend && python3 scripts/benchmark_llm.py --task all
 # Or specific: --task diacritization --models gemini,anthropic
+
+# Story generation benchmark (models × strategies)
+python3 scripts/benchmark_stories.py --db /app/data/alif.db --models gemini,opus,sonnet --strategies A,B,C,D --count 2
 ```
+
+**Story benchmark findings (2026-02-14)**: Opus best quality+compliance (4.3 composite, 93% compliance), GPT-5.2 worst quality. Sonnet highest narrative but ignores vocab constraints. See `research/story-benchmark-2026-02-14/`.
 
 ## Testing
 ```bash
