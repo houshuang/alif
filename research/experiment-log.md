@@ -4,6 +4,35 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-02-14: Demand-Driven Auto-Introduction — Remove Acquiring Pipeline Caps
+
+### What
+Replaced fixed acquiring-count caps (MAX_ACQUIRING_WORDS=40, MAX_ACQUIRING_CEILING=50, MAX_BOX1_WORDS=12) with demand-driven logic: introduce words when the session is undersized, with no global cap on how many words can be in acquisition.
+
+### Why
+With 52 acquiring words (exceeding the 40 cap), 419 encountered words waiting, and 90 known words with high stability (not due), sessions were running dry (1-3 cards). The caps were the bottleneck — most of the 52 acquiring words were in box 2/3 waiting for their interval, not competing for session space. The user was getting repetitive catch-up cards from the "almost-due" fallback instead of new content.
+
+### Changes
+1. **`sentence_selector.py`**: `_auto_introduce_words()` now takes `slots_needed` (session limit minus due words) instead of `acquiring_count`. Removed `MAX_ACQUIRING_WORDS`, `MAX_ACQUIRING_CEILING`, `MAX_BOX1_WORDS`, `MAX_BOX1_WORDS_FILL`. Per-call cap (MAX_AUTO_INTRO_PER_SESSION=10) and accuracy throttle still apply.
+2. **`cohort_service.py`**: `MAX_COHORT_SIZE` raised from 100 → 200 to accommodate more acquiring words.
+3. **`docs/scheduling-system.md`**: Updated session building diagram, constants table, cohort section, divergences section.
+
+### Expected Effect
+- Sessions always fill to the requested limit (no more empty/tiny sessions)
+- New words introduced whenever there's room, regardless of pipeline size
+- Accuracy throttle still prevents overwhelming a struggling learner
+- Acquiring pipeline grows organically, words graduate and flow out naturally
+
+### Verification
+```sql
+-- After a few sessions, check acquiring count is growing
+SELECT knowledge_state, COUNT(*) FROM user_lemma_knowledge GROUP BY knowledge_state;
+-- Sessions should be full size
+SELECT session_id, COUNT(*) FROM sentence_review_log GROUP BY session_id ORDER BY MIN(reviewed_at) DESC LIMIT 5;
+```
+
+---
+
 ## 2026-02-14: Book Import — OCR Pipeline for Children's Books
 
 ### What

@@ -168,8 +168,9 @@ learn, and each enters acquisition immediately.
 **Code**: `sentence_selector.py:_auto_introduce_words()`
 
 **Gating conditions**:
-- Current acquiring count < `MAX_ACQUIRING_WORDS` (30)
+- Session has room (due words < session limit) — no global cap on acquiring count
 - Recent accuracy ≥ `AUTO_INTRO_ACCURACY_FLOOR` (70%) over last 10+ reviews
+- Per-call cap: `MAX_AUTO_INTRO_PER_SESSION` (10)
 - Selects highest-frequency encountered words
 
 ### 3.3 OCR / Textbook Scan
@@ -444,10 +445,10 @@ reviewed roughly once per 5-6 days. Research shows this is insufficient — word
 ### How It Works
 
 ```
-MAX_COHORT_SIZE = 100
+MAX_COHORT_SIZE = 200
 
 ┌────────────────────────────────────────────┐
-│            FOCUS COHORT (≤100)             │
+│            FOCUS COHORT (≤200)             │
 │                                            │
 │  ┌──────────────────────────────────────┐  │
 │  │ ALL acquiring words (always included)│  │
@@ -517,13 +518,15 @@ build_session(db, limit=10, mode="reading")
                    │
                    ▼
 ┌─────────────────────────────────────────────┐
-│ STAGE 3: Auto-Introduce (if room)            │
+│ STAGE 3: Auto-Introduce (if session needs)   │
 │                                              │
-│ Guards (all must pass):                      │
-│   1. acquiring_count < 40                    │
-│   2. box_1_count < MAX_BOX1_WORDS (12)       │
-│   3. recent accuracy ≥ 70%                   │
-│ Slots = min(accuracy_band, 40-acq, 12-box1) │
+│ slots_needed = limit - len(due_lemma_ids)    │
+│ Guards:                                      │
+│   1. slots_needed > 0 (session undersized)   │
+│   2. recent accuracy ≥ 70%                   │
+│ Slots = min(accuracy_band, slots_needed, 10) │
+│ No global cap on acquiring count —           │
+│ session limit is the natural throttle.       │
 │ Select top frequency encountered words       │
 │ start_acquisition(due_immediately=True)      │
 │ Add to due_lemma_ids                         │
@@ -557,6 +560,7 @@ build_session(db, limit=10, mode="reading")
 │                                              │
 │   Score = covered^1.5 × DMQ × gfit          │
 │           × diversity × freshness            │
+│           × source_bonus                     │
 └──────────────────┬──────────────────────────┘
                    │
                    ▼
@@ -607,9 +611,10 @@ build_session(db, limit=10, mode="reading")
 │ STAGE 10: Fill Phase (if undersized)         │
 │                                              │
 │ If len(items) < limit:                       │
-│   Auto-introduce MORE words with relaxed     │
-│   caps (acquiring≤50, box1≤15) since the     │
-│   user clearly wants to keep learning.       │
+│   Auto-introduce MORE words (same demand-    │
+│   driven logic: slots = limit - items).      │
+│   No global acquiring cap — session limit    │
+│   is the natural throttle.                   │
 │   Skip pre-generation (on-demand handles it) │
 │   Generate on-demand sentences for fill words│
 │   Ensures sessions stay full when the user   │
@@ -705,6 +710,22 @@ For each grammar feature in the sentence:
     If high comfort: 1.1
 Aggregate via mean → multiplier 0.8–1.1
 ```
+
+#### Source Bonus (Book Sentences)
+
+Sentences extracted from imported books get a 30% scoring preference over LLM-generated
+sentences. When both a book sentence and an LLM sentence cover the same due word(s), the
+book sentence is more likely to be selected:
+
+```
+source_bonus = 1.3 if sentence.source == "book" else 1.0
+```
+
+This bonus is applied in both the initial candidate scoring and the set cover re-scoring.
+The comprehensibility gate (≥70% known) still filters incomprehensible book sentences —
+early on, most book sentences fail the gate and LLM sentences fill the gap. As the user
+learns more book vocabulary, book sentences gradually become comprehensible and replace
+LLM-generated ones naturally.
 
 ### Variant Resolution
 
@@ -1207,13 +1228,9 @@ are invalidated after use or after a configurable timeout.
 |----------|-------|---------|
 | `MIN_ACQUISITION_EXPOSURES` | 4 | Min times an acquiring word should appear per session |
 | `MAX_ACQUISITION_EXTRA_SLOTS` | 15 | Max extra cards for acquisition repetition |
-| `MAX_AUTO_INTRO_PER_SESSION` | 10 | Ceiling for auto-intro (reached at ≥92% accuracy) |
+| `MAX_AUTO_INTRO_PER_SESSION` | 10 | Per-call cap on auto-intro words |
 | `AUTO_INTRO_ACCURACY_FLOOR` | 0.70 | Pause auto-intro if accuracy below this |
 | Adaptive intro bands | 0→4→7→10 | Slots at <70%/70-85%/85-92%/≥92% accuracy |
-| `MAX_ACQUIRING_WORDS` | 40 | Don't auto-intro if this many words already acquiring (normal phase). Raised from 30 on 2026-02-14 for slower graduation pipeline. |
-| `MAX_ACQUIRING_CEILING` | 50 | Extended acquiring cap during fill phase |
-| `MAX_BOX1_WORDS` | 12 | Don't auto-intro if this many words in Leitner box 1 (normal phase). Raised from 8 on 2026-02-14. |
-| `MAX_BOX1_WORDS_FILL` | 15 | Extended box 1 cap during fill phase |
 | `FRESHNESS_BASELINE` | 8 | Reviews before scaffold freshness penalty kicks in |
 | `MAX_ON_DEMAND_PER_SESSION` | 10 | Reference constant (callers control actual cap via remaining session capacity) |
 | `MAX_REINTRO_PER_SESSION` | 3 | Struggling word reintro card limit |
@@ -1244,7 +1261,7 @@ are invalidated after use or after a configurable timeout.
 
 | Constant | Value | Purpose |
 |----------|-------|---------|
-| `MAX_COHORT_SIZE` | 100 | Max words in active review pool |
+| `MAX_COHORT_SIZE` | 200 | Max words in active review pool |
 
 ### Leech (`leech_service.py`)
 
@@ -1455,13 +1472,12 @@ Matches the "5+ lapses OR <50% accuracy" specification.
 **Original plan said**: Initially 30-50, then adjusted to 25-40 in subsequent
 experiments.
 
-**Current implementation**: `MAX_COHORT_SIZE = 100`. This was expanded to handle the
-case where many words were graduating from acquisition and needed FSRS review slots.
+**Current implementation**: `MAX_COHORT_SIZE = 200`. Expanded on 2026-02-14 to
+accommodate the demand-driven auto-introduction model (no global acquiring cap).
 
-**Status**: Deferred. Need to analyze actual due-word counts vs cohort utilization
-before deciding on a target size. If typical due count is <50, reducing the cohort
-has no practical effect. If >50, a smaller cohort would prioritize fragile words
-more aggressively. See IDEAS.md for analysis plan.
+**Status**: Resolved. The cohort just ensures only the most relevant words are reviewed
+each session. With demand-driven introduction, more words flow through acquisition,
+so the cohort needs to be large enough to hold them all.
 
 ### 19.14 credit_type Discrepancy — Documented as Metadata, Originally Planned as Signal
 

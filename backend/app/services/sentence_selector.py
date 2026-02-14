@@ -40,12 +40,8 @@ from app.services.sentence_validator import (
 # Acquisition repetition: each acquiring word should appear this many times in a session
 MIN_ACQUISITION_EXPOSURES = 4
 MAX_ACQUISITION_EXTRA_SLOTS = 15  # max extra cards beyond session limit for repetitions
-MAX_AUTO_INTRO_PER_SESSION = 10  # new words auto-introduced per session
+MAX_AUTO_INTRO_PER_SESSION = 10  # cap new words per single auto-intro call
 AUTO_INTRO_ACCURACY_FLOOR = 0.70  # pause introduction if recent accuracy below this
-MAX_ACQUIRING_WORDS = 40  # don't auto-introduce if already this many acquiring (raised from 30, 2026-02-14)
-MAX_ACQUIRING_CEILING = 50  # extended cap when filling an undersized session
-MAX_BOX1_WORDS = 12  # don't auto-introduce if this many acquiring words still in box 1 (raised from 8, 2026-02-14)
-MAX_BOX1_WORDS_FILL = 15  # extended box 1 cap for fill phase
 
 
 def _intro_slots_for_accuracy(accuracy: float) -> int:
@@ -228,41 +224,24 @@ def _scaffold_freshness(
 
 def _auto_introduce_words(
     db: Session,
-    acquiring_count: int,
+    slots_needed: int,
     knowledge_by_id: dict[int, UserLemmaKnowledge],
     now: datetime,
-    has_due_words: bool = True,
     skip_material_gen: bool = False,
 ) -> list[int]:
-    """Auto-introduce new words into the session if acquiring count is low.
+    """Auto-introduce new words to fill an undersized session.
 
-    Picks highest-frequency encountered words and starts acquisition.
-    Returns list of newly introduced lemma_ids.
+    The only throttle is: how many more words does the session need?
+    No global cap on acquiring count — if words aren't due yet, they're
+    not competing for session space. The session limit is the natural cap.
 
-    When has_due_words=False (fill phase), uses relaxed caps to allow
-    continuous learning when the user has reviewed everything due.
+    Accuracy-based throttle still applies: if the learner is struggling,
+    slow down introduction rate.
     """
     import logging
     logger = logging.getLogger(__name__)
 
-    effective_acquiring_max = MAX_ACQUIRING_WORDS if has_due_words else MAX_ACQUIRING_CEILING
-    if acquiring_count >= effective_acquiring_max:
-        return []
-
-    # Box 1 capacity check: don't dump new words if box 1 is already full
-    effective_box1_cap = MAX_BOX1_WORDS if has_due_words else MAX_BOX1_WORDS_FILL
-    box1_count = (
-        db.query(UserLemmaKnowledge)
-        .filter(
-            UserLemmaKnowledge.knowledge_state == "acquiring",
-            UserLemmaKnowledge.acquisition_box == 1,
-        )
-        .count()
-    )
-    if box1_count >= effective_box1_cap:
-        logger.info(
-            f"Auto-intro paused: {box1_count} words in box 1 (max {effective_box1_cap})"
-        )
+    if slots_needed <= 0:
         return []
 
     # Adaptive introduction rate based on recent accuracy
@@ -284,8 +263,7 @@ def _auto_introduce_words(
         accuracy = None
         accuracy_slots = 4  # conservative default with insufficient data
 
-    box1_available = effective_box1_cap - box1_count
-    slots = min(accuracy_slots, effective_acquiring_max - acquiring_count, box1_available)
+    slots = min(accuracy_slots, slots_needed, MAX_AUTO_INTRO_PER_SESSION)
     if slots <= 0:
         return []
 
@@ -324,7 +302,7 @@ def _auto_introduce_words(
             lemma_ids=introduced_ids,
             accuracy=round(accuracy, 3) if accuracy is not None else None,
             accuracy_slots=accuracy_slots,
-            phase="fill" if not has_due_words else "normal",
+            slots_needed=slots_needed,
         )
 
     return introduced_ids
@@ -392,14 +370,10 @@ def build_session(
     cohort = get_focus_cohort(db)
     due_lemma_ids &= cohort
 
-    # Auto-introduce new words if acquiring count is low
-    acquiring_count = sum(
-        1 for k in all_knowledge if k.knowledge_state == "acquiring"
-    )
-    had_due_words = len(due_lemma_ids) > 0
+    # Auto-introduce new words if session would be undersized
+    slots_needed = max(0, limit - len(due_lemma_ids))
     auto_introduced_ids = _auto_introduce_words(
-        db, acquiring_count, knowledge_by_id, now,
-        has_due_words=had_due_words,
+        db, slots_needed, knowledge_by_id, now,
     )
     if auto_introduced_ids:
         # Add newly introduced words to due set and tracking structures
@@ -697,7 +671,8 @@ def build_session(
         gfit = _grammar_fit(sent_grammar, grammar_exposure_map)
         diversity = 1.0 / (1.0 + (sent.times_shown or 0))
         freshness = _scaffold_freshness(word_metas, knowledge_map)
-        score = (len(due_covered) ** 1.5) * dmq * gfit * diversity * freshness
+        source_bonus = 1.3 if sent.source == "book" else 1.0
+        score = (len(due_covered) ** 1.5) * dmq * gfit * diversity * freshness * source_bonus
 
         candidates.append(SentenceCandidate(
             sentence_id=sent.id,
@@ -724,7 +699,8 @@ def build_session(
             gfit = _grammar_fit(sentence_grammar_cache.get(c.sentence_id, []), grammar_exposure_map)
             diversity = 1.0 / (1.0 + (c.sentence.times_shown or 0))
             freshness = _scaffold_freshness(c.words_meta, knowledge_map)
-            c.score = (len(overlap) ** 1.5) * dmq * gfit * diversity * freshness
+            source_bonus = 1.3 if c.sentence.source == "book" else 1.0
+            c.score = (len(overlap) ** 1.5) * dmq * gfit * diversity * freshness * source_bonus
 
         candidates.sort(key=lambda c: c.score, reverse=True)
         best = candidates[0]
@@ -1263,14 +1239,8 @@ def _with_fallbacks(
     # Phase 2: Fill phase — if session is still undersized, introduce more words
     if len(items) < limit:
         now = datetime.now(timezone.utc)
-        current_acquiring = (
-            db.query(UserLemmaKnowledge)
-            .filter(UserLemmaKnowledge.knowledge_state == "acquiring")
-            .count()
-        )
         fill_ids = _auto_introduce_words(
-            db, current_acquiring, knowledge_by_id, now,
-            has_due_words=False,
+            db, limit - len(items), knowledge_by_id, now,
             skip_material_gen=True,
         )
         if fill_ids:
