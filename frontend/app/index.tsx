@@ -27,7 +27,6 @@ import {
   introduceGrammarFeature,
   introduceWord,
   getWrapUpCards,
-  getRecapItems,
   generateUuid,
   BASE_URL,
 } from "../lib/api";
@@ -42,10 +41,8 @@ import {
   WordLookupResult,
   GrammarLesson,
   WrapUpCard,
-  RecapItem,
 } from "../lib/types";
 import { posLabel, FormsRow, GrammarRow, PlayButton } from "../lib/WordCardComponents";
-import { saveLastSessionWord, getLastSessionWords, clearLastSessionWords } from "../lib/offline-store";
 import { syncEvents } from "../lib/sync-events";
 import { useNetStatus } from "../lib/net-status";
 import ActionMenu from "../lib/review/ActionMenu";
@@ -134,7 +131,6 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
   const [wrapUpIndex, setWrapUpIndex] = useState(0);
   const [wrapUpRevealed, setWrapUpRevealed] = useState(false);
   const [inWrapUp, setInWrapUp] = useState(false);
-  const [recapCount, setRecapCount] = useState(0);
   const [seenLemmaIds, setSeenLemmaIds] = useState<Set<number>>(new Set());
   const [sentenceInfoVisible, setSentenceInfoVisible] = useState(false);
   const showTime = useRef<number>(0);
@@ -266,7 +262,6 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
     setWrapUpIndex(0);
     setWrapUpRevealed(false);
     setInWrapUp(false);
-    setRecapCount(0);
     setSeenLemmaIds(new Set());
     setReintroCards([]);
     setReintroIndex(0);
@@ -287,38 +282,8 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
     setSentenceSession(null);
     await cleanupSound();
 
-    // Check for recap items from last session
-    let recapItems: RecapItem[] = [];
-    try {
-      const lastWords = await getLastSessionWords();
-      const cutoff = Date.now() - 24 * 60 * 60 * 1000;
-      const recent = lastWords.filter(w => new Date(w.reviewed_at).getTime() > cutoff);
-      if (recent.length > 0) {
-        const recapData = await getRecapItems(recent.map(w => w.lemma_id));
-        recapItems = recapData.items || [];
-      }
-    } catch {}
-    await clearLastSessionWords();
-
     try {
       const ss = await getSentenceReviewSession(m);
-      // Prepend recap items to session
-      if (recapItems.length > 0) {
-        const recapAsSentenceItems = recapItems.map(r => ({
-          sentence_id: r.sentence_id,
-          arabic_text: r.arabic_text,
-          arabic_diacritized: null,
-          english_translation: r.english_translation,
-          transliteration: r.transliteration,
-          audio_url: r.audio_url,
-          primary_lemma_id: r.primary_lemma_id,
-          primary_lemma_ar: "",
-          primary_gloss_en: "",
-          words: r.words,
-        }));
-        ss.items = [...recapAsSentenceItems, ...ss.items];
-        setRecapCount(recapItems.length);
-      }
       if (ss.items.length > 0) {
         setSentenceSession(ss);
         // Build session slots: interleave sentence items and intro candidates
@@ -708,9 +673,6 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
       return next;
     });
 
-    // Track session words for next-session recap
-    const rating = signal === "understood" ? 3 : signal === "no_idea" ? 1 : 2;
-    saveLastSessionWord(item.primary_lemma_id, rating).catch(() => {});
 
     // Save review ID and snapshot for undo
     setCardReviewIds(prev => {
@@ -1485,7 +1447,6 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
             ]}
           />
         }
-        isRecap={recapCount > 0 && cardIndex < recapCount}
         onWrapUp={(results?.total ?? 0) >= 2 ? handleWrapUp : null}
       />
 
@@ -2026,14 +1987,12 @@ function ProgressBar({
   total,
   mode,
   actionMenu,
-  isRecap,
   onWrapUp,
 }: {
   current: number;
   total: number;
   mode: ReviewMode;
   actionMenu?: React.ReactNode;
-  isRecap?: boolean;
   onWrapUp?: (() => void) | null;
 }) {
   const pct = (current / total) * 100;
@@ -2043,11 +2002,6 @@ function ProgressBar({
       <View style={styles.progressHeader}>
         <View style={styles.backButtonPlaceholder} />
         <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-          {isRecap && (
-            <View style={styles.recapBadge}>
-              <Text style={styles.recapBadgeText}>Recap</Text>
-            </View>
-          )}
           <Text style={styles.progressText}>
             Card {current} of {total}
           </Text>
@@ -2799,19 +2753,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     textAlign: "center",
     opacity: 0.6,
-  },
-  recapBadge: {
-    backgroundColor: colors.accent + "30",
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 8,
-  },
-  recapBadgeText: {
-    color: colors.accent,
-    fontSize: 10,
-    fontWeight: "700",
-    textTransform: "uppercase",
-    letterSpacing: 0.5,
   },
   wrapUpButton: {
     paddingHorizontal: 10,
