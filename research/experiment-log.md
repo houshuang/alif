@@ -4,6 +4,36 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-02-14: Story Generation Model Benchmark
+
+### What
+Benchmarked 4 LLM models × 4 prompting strategies × 2 stories = 32 stories for Arabic story generation quality. See `research/story-benchmark-2026-02-14/` for full data.
+
+### Models Tested
+- Gemini 3 Flash (current sentence gen model)
+- GPT-5.2 (current story gen model)
+- Claude Opus 4.6 (first test)
+- Claude Sonnet 4.5 (first test)
+
+### Key Findings
+1. **Opus is the best story model**: composite 3.73, compliance 74%, best single story hit 93% compliance + 4.3 composite
+2. **Sonnet has highest narrative quality** (3.90 composite) but worst compliance (57%) — ignores vocabulary constraints
+3. **GPT-5.2 produces lowest quality stories** (2.63 composite) despite best compliance (82%) — confirms "word salad" finding from sentence benchmark
+4. **Two-pass (generate→rewrite) has worst compliance** (54%) — the vocabulary rewrite pass doesn't work well with same model
+5. **Baseline prompting strategy wins** — expanded structures and POS-grouped vocab didn't help for stories
+6. **Compliance validator overly strict** — many "unknown" words are conjugated forms of known vocabulary (يوم، رأى، قالت flagged as unknown)
+
+### Recommendations
+- Switch story `model_override` from `"openai"` to Opus
+- Add retry loop feeding back unknown words
+- Fix `_get_known_words()` to include acquiring words
+- Expand forms_json coverage for verb conjugations
+
+### Verification
+Full benchmark report and all 32 stories in `research/story-benchmark-2026-02-14/`.
+
+---
+
 ## 2026-02-14: Acquisition Due-Date Gating + Leech Graduated Cooldown
 
 **REASSESS DATE: 2026-02-17** (3 days after deploy)

@@ -431,6 +431,13 @@
 - Story difficulty auto-selection: pick stories where readiness is 85-95% for optimal learning
 - Story audio: TTS for full story, sentence-by-sentence playback with highlighting
 - Story sharing: export stories as formatted PDF with glossary of unknown words
+- **[BENCHMARK 2026-02-14]** Switch story generation from GPT-5.2 to Claude Opus — benchmark showed Opus produces 4.3 composite (vs 2.6 OpenAI) at 93% compliance on best attempts. Cost $0.15/story, acceptable for 2-3 stories/week.
+- Cross-model two-pass story pipeline: Sonnet generates freely (best narrative quality), Gemini Flash rewrites for vocabulary compliance — not yet tested but promising given that Sonnet scored 4.75 composite (highest) but only 33% compliance
+- Story retry loop: port sentence generator's 7-attempt retry loop to stories, feeding back unknown words as feedback
+- Story quality gate: add Gemini Flash review (grammar + translation accuracy) like sentences have
+- Expand forms_json with verb conjugation paradigms — the compliance validator misses known words in conjugated forms (يوم, رأى, قالت, صغير flagged as unknown despite being in vocabulary). Fixing this would improve reported compliance by ~10-15%.
+- Recurring character universe for stories: pre-define characters (سمير، ليلى، عمر) with traits. Models produce more coherent stories with established characters.
+- Story-aware vocabulary constraint: include acquiring words (box 1-3) in story vocabulary — currently excluded from `_get_known_words()`
 
 ### Ideas from Cognitive Load Theory Research (2026-02-08)
 
