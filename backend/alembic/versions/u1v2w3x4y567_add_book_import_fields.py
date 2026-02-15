@@ -17,7 +17,10 @@ depends_on = None
 def upgrade() -> None:
     with op.batch_alter_table("sentences") as batch_op:
         batch_op.add_column(
-            sa.Column("story_id", sa.Integer(), sa.ForeignKey("stories.id"), nullable=True)
+            sa.Column("story_id", sa.Integer(), nullable=True)
+        )
+        batch_op.create_foreign_key(
+            "fk_sentences_story_id", "stories", ["story_id"], ["id"]
         )
         batch_op.create_index("ix_sentences_story_id", ["story_id"])
 
