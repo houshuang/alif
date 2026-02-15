@@ -353,10 +353,22 @@ function GrammarProgressSection({ progress }: { progress: GrammarProgress[] }) {
 
   return (
     <View style={styles.grammarCard}>
-      <Text style={styles.sectionTitle}>Grammar</Text>
+      <Text style={styles.sectionTitle}>Grammar Exposure</Text>
       <Text style={styles.grammarSummary}>
-        {seen.length}/{progress.length}
+        {seen.length} of {progress.length} patterns encountered
       </Text>
+      <View style={styles.grammarLegend}>
+        <Text style={styles.grammarLegendItem}>
+          <Text style={{ color: colors.missed }}>■</Text> new
+        </Text>
+        <Text style={styles.grammarLegendItem}>
+          <Text style={{ color: colors.accent }}>■</Text> familiar
+        </Text>
+        <Text style={styles.grammarLegendItem}>
+          <Text style={{ color: colors.good }}>■</Text> comfortable
+        </Text>
+        <Text style={styles.grammarLegendItem}>seen ×</Text>
+      </View>
       {categories.map((cat) => {
         const features = seen.filter((g) => g.category === cat);
         return (
@@ -389,7 +401,7 @@ function GrammarProgressSection({ progress }: { progress: GrammarProgress[] }) {
                   />
                 </View>
                 <Text style={styles.grammarFeatureCount}>
-                  {f.times_seen}
+                  {f.times_seen}×
                 </Text>
               </View>
             ))}
@@ -1297,7 +1309,16 @@ const styles = StyleSheet.create({
   grammarSummary: {
     fontSize: 13,
     color: colors.textSecondary,
+    marginBottom: 8,
+  },
+  grammarLegend: {
+    flexDirection: "row",
+    gap: 12,
     marginBottom: 14,
+  },
+  grammarLegendItem: {
+    fontSize: 11,
+    color: colors.textSecondary,
   },
   grammarCategory: {
     marginBottom: 12,
