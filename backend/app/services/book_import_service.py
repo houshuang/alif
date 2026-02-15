@@ -20,10 +20,12 @@ from sqlalchemy.orm import Session
 from app.models import Lemma, Sentence, SentenceWord, Story, UserLemmaKnowledge
 from app.services.interaction_logger import log_interaction
 from app.services.llm import AllProvidersFailed, generate_completion
+from app.services.morphology import get_word_features
 from app.services.ocr_service import _call_gemini_vision, extract_text_from_image
 from app.services.sentence_validator import (
     build_lemma_lookup,
     map_tokens_to_lemmas,
+    normalize_alef,
     strip_diacritics,
     tokenize,
 )
@@ -201,16 +203,51 @@ def _pick_primary_target(
     return ranked[0].lemma_id if ranked else lemma_ids[0]
 
 
+def _resolve_unmapped_via_camel(
+    mappings: list,
+    lemma_lookup: dict[str, int],
+    db: Session,
+) -> dict[int, int | None]:
+    """Try to resolve unmapped tokens via CAMeL morphological analysis.
+
+    Returns dict of {position: lemma_id} for tokens that were resolved.
+    """
+    resolved = {}
+    for m in mappings:
+        if m.lemma_id is not None:
+            continue
+        features = get_word_features(m.surface_form)
+        lex = features.get("lex", m.surface_form)
+        lex_bare = strip_diacritics(lex)
+        lex_norm = normalize_alef(lex_bare)
+        existing_id = lemma_lookup.get(lex_norm)
+        if not existing_id:
+            # Try without al-prefix
+            if lex_norm.startswith("ال") and len(lex_norm) > 2:
+                existing_id = lemma_lookup.get(lex_norm[2:])
+            elif not lex_norm.startswith("ال"):
+                existing_id = lemma_lookup.get("ال" + lex_norm)
+        if existing_id:
+            resolved[m.position] = existing_id
+    return resolved
+
+
 def create_book_sentences(
     db: Session,
     story: Story,
     extracted_sentences: list[dict],
 ) -> list[Sentence]:
-    """Create Sentence + SentenceWord records from extracted book sentences."""
+    """Create Sentence + SentenceWord records from extracted book sentences.
+
+    For unmapped tokens, uses CAMeL morphology to resolve to existing lemmas.
+    Sentences with still-unmapped words are skipped (those words should have been
+    created by _import_unknown_words already).
+    """
     all_lemmas = _get_all_lemmas(db)
     lemma_lookup = build_lemma_lookup(all_lemmas)
 
     created = []
+    skipped = 0
     for sent_data in extracted_sentences:
         arabic = sent_data.get("arabic", "")
         english = sent_data.get("english", "")
@@ -227,9 +264,17 @@ def create_book_sentences(
             target_bare="",
         )
 
-        unmapped = [m.surface_form for m in mappings if m.lemma_id is None]
-        if unmapped:
-            logger.warning(f"Skipping book sentence with unmapped words: {unmapped}")
+        # Resolve unmapped tokens via CAMeL morphology
+        if any(m.lemma_id is None for m in mappings):
+            camel_resolved = _resolve_unmapped_via_camel(mappings, lemma_lookup, db)
+            for m in mappings:
+                if m.lemma_id is None and m.position in camel_resolved:
+                    m.lemma_id = camel_resolved[m.position]
+
+        still_unmapped = [m.surface_form for m in mappings if m.lemma_id is None]
+        if still_unmapped:
+            logger.info(f"Skipping book sentence with {len(still_unmapped)} unmapped words: {still_unmapped[:5]}")
+            skipped += 1
             continue
 
         target_lid = _pick_primary_target(mappings, db)
@@ -261,6 +306,8 @@ def create_book_sentences(
 
         created.append(sent)
 
+    if skipped:
+        logger.warning(f"Skipped {skipped}/{len(extracted_sentences)} book sentences due to unmapped words")
     return created
 
 
