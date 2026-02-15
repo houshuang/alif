@@ -8,7 +8,7 @@ from collections import Counter
 from app.database import get_db
 from app.models import (
     Lemma, UserLemmaKnowledge, ReviewLog, Root,
-    SentenceReviewLog,
+    SentenceReviewLog, Sentence,
 )
 from app.schemas import (
     StatsOut, DailyStatsPoint, LearningPaceOut,
@@ -331,6 +331,60 @@ def _estimate_cefr(known_count: int, acquiring_known: int = 0) -> CEFREstimate:
     )
 
 
+def _add_cefr_predictions(
+    cefr: CEFREstimate,
+    pace: LearningPaceOut,
+    graduated_today_count: int,
+) -> CEFREstimate:
+    if cefr.words_to_next is None or cefr.words_to_next <= 0:
+        return cefr
+
+    if pace.words_per_day_7d > 0 and pace.study_days_7d > 0:
+        study_frequency = pace.study_days_7d / 7.0
+        effective_daily_rate = pace.words_per_day_7d * study_frequency
+        if effective_daily_rate > 0:
+            cefr.days_to_next_weekly_pace = round(
+                cefr.words_to_next / effective_daily_rate
+            )
+
+    if graduated_today_count > 0:
+        study_frequency = pace.study_days_7d / 7.0 if pace.study_days_7d > 0 else 1 / 7
+        effective_daily_rate = graduated_today_count * max(study_frequency, 1 / 7)
+        cefr.days_to_next_today_pace = round(
+            cefr.words_to_next / effective_daily_rate
+        )
+
+    return cefr
+
+
+def _get_words_reviewed_count(db: Session, days: int | None = None) -> int:
+    """Sum of word counts across all reviewed sentences in the period."""
+    q = (
+        db.query(func.coalesce(func.sum(Sentence.max_word_count), 0))
+        .join(SentenceReviewLog, SentenceReviewLog.sentence_id == Sentence.id)
+    )
+    if days is not None:
+        cutoff = datetime.now(timezone.utc) - timedelta(days=days)
+        q = q.filter(SentenceReviewLog.reviewed_at >= cutoff)
+    return q.scalar() or 0
+
+
+def _get_unique_words_recognized(db: Session, days_start: int, days_end: int) -> int:
+    """Count distinct lemmas with rating >= 3 in the window [days_end ago, days_start ago)."""
+    now = datetime.now(timezone.utc)
+    cutoff_recent = now - timedelta(days=days_start)
+    cutoff_old = now - timedelta(days=days_end)
+    return (
+        db.query(func.count(func.distinct(ReviewLog.lemma_id)))
+        .filter(
+            ReviewLog.reviewed_at >= cutoff_old,
+            ReviewLog.reviewed_at < cutoff_recent,
+            ReviewLog.rating >= 3,
+        )
+        .scalar() or 0
+    )
+
+
 @router.get("", response_model=StatsOut)
 def get_stats(db: Session = Depends(get_db)):
     return _get_basic_stats(db)
@@ -359,6 +413,13 @@ def get_analytics(
     graduated_today = _get_graduated_today(db)
     calibration = _compute_calibration_signal(comp_today)
 
+    _add_cefr_predictions(cefr, pace, len(graduated_today))
+
+    words_reviewed_7d = _get_words_reviewed_count(db, days=7)
+    words_reviewed_all = _get_words_reviewed_count(db)
+    unique_recognized_7d = _get_unique_words_recognized(db, 0, 7)
+    unique_recognized_prior_7d = _get_unique_words_recognized(db, 7, 14)
+
     return AnalyticsOut(
         stats=basic,
         pace=pace,
@@ -367,6 +428,10 @@ def get_analytics(
         comprehension_today=comp_today,
         graduated_today=graduated_today,
         calibration_signal=calibration,
+        total_words_reviewed_7d=words_reviewed_7d,
+        total_words_reviewed_alltime=words_reviewed_all,
+        unique_words_recognized_7d=unique_recognized_7d,
+        unique_words_recognized_prior_7d=unique_recognized_prior_7d,
     )
 
 

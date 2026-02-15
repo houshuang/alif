@@ -63,7 +63,26 @@ def import_story_endpoint(
 
 @router.get("", response_model=list[StoryOut])
 def list_stories(db: Session = Depends(get_db)):
-    return get_stories(db)
+    from app.routers.stats import _get_first_known_dates, _get_pace
+
+    stories = get_stories(db)
+
+    first_known = _get_first_known_dates(db)
+    pace = _get_pace(db, first_known_dates=first_known)
+
+    if pace.words_per_day_7d > 0 and pace.study_days_7d > 0:
+        study_frequency = pace.study_days_7d / 7.0
+        effective_daily_rate = pace.words_per_day_7d * study_frequency
+        if effective_daily_rate > 0:
+            for s in stories:
+                unknown = s.get("unknown_count", 0) if isinstance(s, dict) else getattr(s, "unknown_count", 0)
+                status = s.get("status", "") if isinstance(s, dict) else getattr(s, "status", "")
+                if status == "active" and unknown > 3:
+                    days_est = round(unknown / effective_daily_rate)
+                    if isinstance(s, dict):
+                        s["estimated_days_to_ready"] = days_est
+
+    return stories
 
 
 @router.get("/{story_id}", response_model=StoryDetailOut)

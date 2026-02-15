@@ -116,6 +116,8 @@ export interface CEFREstimate {
   next_level: string | null;
   words_to_next: number | null;
   reading_coverage_pct: number;
+  days_to_next_weekly_pace?: number | null;
+  days_to_next_today_pace?: number | null;
 }
 
 export interface EtymologyData {
@@ -408,6 +410,10 @@ export interface Analytics {
   comprehension_today?: ComprehensionBreakdown;
   graduated_today?: GraduatedWord[];
   calibration_signal?: string;
+  total_words_reviewed_7d?: number;
+  total_words_reviewed_alltime?: number;
+  unique_words_recognized_7d?: number;
+  unique_words_recognized_prior_7d?: number;
 }
 
 export interface GraduatedWord {
@@ -534,6 +540,7 @@ export interface StoryListItem {
   page_count?: number | null;
   sentence_count?: number | null;
   created_at: string;
+  estimated_days_to_ready?: number | null;
 }
 
 export interface StoryDetail extends StoryListItem {

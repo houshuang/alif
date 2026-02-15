@@ -106,6 +106,8 @@ class CEFREstimate(BaseModel):
     next_level: Optional[str] = None
     words_to_next: Optional[int] = None
     reading_coverage_pct: float
+    days_to_next_weekly_pace: Optional[int] = None
+    days_to_next_today_pace: Optional[int] = None
 
 
 class GraduatedWord(BaseModel):
@@ -122,6 +124,10 @@ class AnalyticsOut(BaseModel):
     comprehension_today: Optional["ComprehensionBreakdown"] = None
     graduated_today: list[GraduatedWord] = []
     calibration_signal: str = "not_enough_data"
+    total_words_reviewed_7d: int = 0
+    total_words_reviewed_alltime: int = 0
+    unique_words_recognized_7d: int = 0
+    unique_words_recognized_prior_7d: int = 0
 
 
 class StabilityBucket(BaseModel):
@@ -406,6 +412,7 @@ class StoryOut(BaseModel):
     page_count: int | None = None
     sentence_count: int | None = None
     created_at: str
+    estimated_days_to_ready: int | None = None
     model_config = {"from_attributes": True}
 
 

@@ -4,6 +4,94 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-02-15: Enriched Analytics — Predictions & Progress Insights
+
+### What
+Added four new analytics features to make progress more visceral and motivating:
+1. **CEFR arrival prediction**: "~X days at this week's pace" on the CEFR card
+2. **Book pages equivalent**: total words reviewed as book pages (200 words/page)
+3. **Unique words recognized**: distinct lemmas correctly recalled this week, with delta vs. prior week
+4. **Story completion prediction**: "~Xd until ready" per active story
+
+### Changes
+- `backend/app/schemas.py`: Added optional fields to CEFREstimate, AnalyticsOut, StoryOut
+- `backend/app/routers/stats.py`: `_add_cefr_predictions()`, `_get_words_reviewed_count()`, `_get_unique_words_recognized()`
+- `backend/app/routers/stories.py`: Pace-based prediction in `list_stories()`
+- `frontend/app/stats.tsx`: CEFR prediction lines, pace items (pages, words read, recognized)
+- `frontend/app/stories.tsx`: "~Xd until ready" on story cards
+
+### Why
+Stats showed "207 words to A1" but no timeline — no way to feel the pace. Stories showed unknown counts but no ETA. These are intrinsic motivation signals, not gamification.
+
+### Expected Effect
+- More visceral sense of progress (predictions make abstract counts feel real)
+- Story completion predictions help prioritize which stories to focus on
+- Weekly recognition count rewards diverse review
+
+### Verification
+- All backend tests pass (678/678)
+- All frontend tests pass (73/73)
+- Deploy and verify on stats + stories screens
+
+---
+
+## 2026-02-15: Claude Code Validator-in-the-Loop — Agentic Sentence Generation
+
+### What
+Expanded Claude Code CLI integration from simple API replacement to **tool-enabled agentic sessions**. Instead of the external 7-retry loop (generate → validate externally → feed errors as text → retry), Claude now reads the vocabulary file, generates sentences, runs the validator script itself, and self-corrects — all within one `claude -p` session.
+
+### Changes
+- `claude_code.py`: Added `generate_with_tools()` (Read/Bash tools, `--dangerously-skip-permissions`, `--add-dir`, `--max-budget-usd`) and `dump_vocabulary_for_claude()` (full vocab export to TSV)
+- `scripts/validate_sentence_cli.py`: Thin CLI wrapper around `validate_sentence()` for Claude to call via Bash tool
+- `scripts/generate_sentences_claude.py`: Batch sentence generation with validator-in-the-loop. Batches 5 words per session, generates 2 sentences each.
+- `scripts/audit_sentences_claude.py`: Quality audit — Claude reads all active sentences + vocabulary, reviews each with vocabulary context, outputs retire/fix/ok report
+
+### Why
+- Full vocabulary in file (not 500-word sample in prompt) = better compliance
+- Self-validation loop = fewer external retries, more precise error correction
+- Free with Max plan (Opus quality at $0 cost)
+- Vocabulary-aware quality audit (Haiku API only sees Arabic+English, no vocab context)
+
+### Expected Effect
+- Higher first-attempt validation pass rate (fewer retries)
+- Higher sentence quality (Opus vs Gemini Flash)
+- Better quality auditing (vocabulary-aware, can generate replacements)
+
+### Verification
+- Tested locally: 3 words × 2 sentences with Haiku (57s) and Opus (56s), all sentences validated successfully
+- 181/182 tests pass (1 pre-existing failure unrelated)
+- Next: install Claude CLI on server, integrate with update_material.py cron
+
+---
+
+## 2026-02-15: Background Session Refresh — Seamless Stale Session Swap
+
+### What
+Added in-session staleness detection: when the app resumes after a 15+ minute gap since the last review, a fresh session is fetched in the background and seamlessly swapped in on the next card advance. No loading screen — the user reviews their current card and the next card is from the fresh session.
+
+### Why
+Production data analysis (3 days, 45 sessions) showed:
+- 48% of sessions abandoned mid-review
+- 9 stale resumptions (>30 min gap) with average -22% comprehension drop
+- Worst case: 5-hour gap, comprehension 75% → 17%
+- The existing 30-minute cache staleness TTL only applied when *loading* sessions from cache. Once a session was in React state, it was never re-evaluated — users could resume stale cards indefinitely.
+
+### Changes
+1. **`frontend/lib/api.ts`**: Added `fetchFreshSession()` — bypasses cache, fetches directly from API.
+2. **`frontend/app/index.tsx`**: Added `lastReviewedAt` ref (updated on every card advance), `pendingRefreshRef` (holds fresh session), `AppState` listener (triggers background fetch on 15+ min gap), `applyFreshSession()` (seamless session swap), and check in `advanceAfterSubmit()` to swap pending refresh.
+
+### Expected Effect
+- Stale sessions eliminated: users always get algorithmically optimized cards after any significant gap
+- Zero loading latency: background fetch runs while user reviews current card
+- Graceful degradation: if fetch fails (offline), existing cards continue normally
+- No impact on short pauses (<15 min): normal review flow unaffected
+
+### Verification
+- Monitor session patterns in interaction logs for reduced stale resumptions
+- Compare comprehension before/after gaps in upcoming data
+
+---
+
 ## 2026-02-14: Demand-Driven Auto-Introduction — Remove Acquiring Pipeline Caps
 
 ### What

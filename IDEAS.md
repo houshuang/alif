@@ -239,6 +239,10 @@
 - Retention curves
 - Root coverage: % of top-N roots mastered
 - Predicted vocabulary size
+- [DONE] CEFR arrival prediction: "~X days at this week's pace" on the CEFR card (weekly + today's pace extrapolation)
+- [DONE] Book pages equivalent: total words reviewed / 200 = pages read this week
+- [DONE] Unique words recognized: distinct lemmas with correct ratings this week, with delta vs. prior week
+- [DONE] Story completion prediction: "~Xd until ready" per active story based on word graduation rate
 
 ### Simulation-Driven Analysis
 - [DONE] Multi-day simulation framework: drives real services against DB copy, profiles (beginner/strong/casual/intensive), freezegun time control
@@ -442,9 +446,11 @@
 #### Claude Code CLI as Free LLM API (2026-02-14)
 - [DONE] **`claude -p` wrapper** (`claude_code.py`): `--tools ""` + `--json-schema` + `--no-session-persistence` for reliable structured output via Max plan
 - [DONE] **Story generation via `claude -p`** (`scripts/generate_story_claude.py`): local/free story generation with compliance validation and retry
+- [DONE] **Validator-in-the-loop sentence generation** (`scripts/generate_sentences_claude.py`): Claude reads vocab file, generates sentences, runs `validate_sentence_cli.py` to self-validate, and self-corrects — all in one session. Uses `generate_with_tools()` with `--tools "Read,Bash"`.
+- [DONE] **Batch sentence quality audit** (`scripts/audit_sentences_claude.py`): Claude reads active sentences + vocabulary, reviews each for grammar/translation/compliance, runs validator, and outputs retire/fix/ok report.
+- [DONE] **Tool-enabled sessions** (`generate_with_tools()` in `claude_code.py`): `--tools "Read,Bash"` + `--dangerously-skip-permissions` + `--add-dir` for multi-turn agentic sessions with file reading and script execution.
 - Use `claude -p` for **batch etymology generation** — Opus may produce richer etymologies than Gemini Flash, free with Max plan
 - Use `claude -p` for **grammar lesson generation** — currently uses Gemini, Opus might produce more pedagogically sound lessons
-- Use `claude -p` for **sentence quality auditing** — review all active sentences with Opus (free), may catch issues Haiku misses
 - Use `claude -p` for **story-to-sentences pipeline** — generate a story, then chop into review sentences, all with Opus quality
 - Use `claude -p` with `--model sonnet` for **high-volume tasks** where Opus quality isn't needed but free access matters (e.g. batch translations)
 - Consider **Claude Code SDK** (`@anthropic-ai/claude-code`) for Node.js integration if CLI subprocess overhead becomes an issue
@@ -754,6 +760,9 @@ After importing ~100 textbook pages via OCR, 411 words entered the system with a
 - Front-load the most important reviews (acquisition words, lapsed words)
 - If user only does 2 cards, they should be the 2 most valuable cards possible
 - Longer sessions can include more review/consolidation items and new word introductions
+- [DONE] **Background session refresh**: when app resumes after 15+ min gap, fetches fresh session in background and seamlessly swaps remaining cards on next advance. Data showed 48% abandonment rate and -22% comprehension on stale resumptions.
+- Reduce staleness threshold further? Data analysis (2026-02-15) showed 15 min catches all problematic cases, but could experiment with 10 min if stale sessions remain an issue
+- Consider adaptive session sizes based on user's typical completion patterns (~9.4 reviews per session average) — smaller sessions (8-10) may have higher completion rates than current 15-20
 
 ### Ideas from Arabic Learning Research Deep Dive (2026-02-12)
 

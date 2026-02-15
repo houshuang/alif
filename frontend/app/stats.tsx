@@ -108,6 +108,27 @@ export default function StatsScreen() {
               {cefr.words_to_next} words to {cefr.next_level}
             </Text>
           )}
+          {cefr.days_to_next_weekly_pace != null && cefr.days_to_next_weekly_pace > 0 && (
+            <Text style={styles.cefrPrediction}>
+              ~{cefr.days_to_next_weekly_pace > 365
+                ? `${Math.round(cefr.days_to_next_weekly_pace / 30)} months`
+                : cefr.days_to_next_weekly_pace > 60
+                  ? `${Math.round(cefr.days_to_next_weekly_pace / 7)} weeks`
+                  : `${cefr.days_to_next_weekly_pace} days`
+              } at this week's pace
+            </Text>
+          )}
+          {cefr.days_to_next_today_pace != null && cefr.days_to_next_today_pace > 0 &&
+           cefr.days_to_next_today_pace !== cefr.days_to_next_weekly_pace && (
+            <Text style={styles.cefrPrediction}>
+              ~{cefr.days_to_next_today_pace > 365
+                ? `${Math.round(cefr.days_to_next_today_pace / 30)} months`
+                : cefr.days_to_next_today_pace > 60
+                  ? `${Math.round(cefr.days_to_next_today_pace / 7)} weeks`
+                  : `${cefr.days_to_next_today_pace} days`
+              } at today's pace
+            </Text>
+          )}
         </View>
         {cefr.next_level && cefr.words_to_next != null && (() => {
           const threshold = cefr.known_words + cefr.words_to_next;
@@ -173,6 +194,40 @@ export default function StatsScreen() {
             <Text style={styles.paceValue}>{pace.total_study_days}</Text>
             <Text style={styles.paceLabel}>total days</Text>
           </View>
+          {(analytics.total_words_reviewed_7d ?? 0) > 0 && (
+            <View style={styles.paceItem}>
+              <Text style={styles.paceValue}>
+                {((analytics.total_words_reviewed_7d ?? 0) / 200).toFixed(1)}
+              </Text>
+              <Text style={styles.paceLabel}>pages this week</Text>
+            </View>
+          )}
+          {(analytics.total_words_reviewed_alltime ?? 0) > 0 && (
+            <View style={styles.paceItem}>
+              <Text style={styles.paceValue}>
+                {(analytics.total_words_reviewed_alltime ?? 0).toLocaleString()}
+              </Text>
+              <Text style={styles.paceLabel}>words read</Text>
+            </View>
+          )}
+          {(analytics.unique_words_recognized_7d ?? 0) > 0 && (() => {
+            const current = analytics.unique_words_recognized_7d ?? 0;
+            const prior = analytics.unique_words_recognized_prior_7d ?? 0;
+            const delta = current - prior;
+            return (
+              <View style={styles.paceItem}>
+                <Text style={styles.paceValue}>{current}</Text>
+                <Text style={styles.paceLabel}>
+                  recognized
+                  {delta !== 0 && prior > 0 && (
+                    <Text style={{ color: delta > 0 ? colors.good : colors.missed }}>
+                      {" "}{delta > 0 ? "+" : ""}{delta}
+                    </Text>
+                  )}
+                </Text>
+              </View>
+            );
+          })()}
         </View>
       </View>
 
@@ -1087,6 +1142,11 @@ const styles = StyleSheet.create({
   cefrDetail: {
     fontSize: 13,
     color: colors.textSecondary,
+  },
+  cefrPrediction: {
+    fontSize: 12,
+    color: colors.accent,
+    marginTop: 4,
   },
   coverageBar: {
     width: "100%",

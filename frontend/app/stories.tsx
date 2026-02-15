@@ -48,6 +48,8 @@ export default function StoriesScreen() {
   const [importImageUri, setImportImageUri] = useState<string | null>(null);
   const [extractingText, setExtractingText] = useState(false);
 
+  const [completedExpanded, setCompletedExpanded] = useState(false);
+
   const router = useRouter();
 
   useFocusEffect(
@@ -294,11 +296,22 @@ export default function StoriesScreen() {
         </View>
 
         <View style={styles.cardFooter}>
-          <Text style={styles.cardStats}>
-            <Text>{item.total_words} words</Text>
-            <Text>{" · "}</Text>
-            <Text style={{ color: ready }}>{readyText}</Text>
-          </Text>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.cardStats}>
+              <Text>{item.total_words} words</Text>
+              <Text>{" · "}</Text>
+              <Text style={{ color: ready }}>{readyText}</Text>
+            </Text>
+            {item.estimated_days_to_ready != null && item.estimated_days_to_ready > 0 &&
+             item.status === "active" && item.unknown_count > 3 && (
+              <Text style={styles.predictionText}>
+                ~{item.estimated_days_to_ready > 60
+                  ? `${Math.round(item.estimated_days_to_ready / 7)}w`
+                  : `${item.estimated_days_to_ready}d`
+                } until ready
+              </Text>
+            )}
+          </View>
           <View
             style={[
               styles.sourceBadge,
@@ -738,6 +751,12 @@ const styles = StyleSheet.create({
   cardStats: {
     fontSize: 12,
     color: colors.textSecondary,
+  },
+  predictionText: {
+    fontSize: 11,
+    color: colors.textSecondary,
+    marginTop: 2,
+    opacity: 0.7,
   },
   sourceBadge: {
     paddingHorizontal: 6,
