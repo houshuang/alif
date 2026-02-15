@@ -78,6 +78,7 @@ def cleanup_and_segment(raw_text: str, max_retries: int = 2) -> list[dict]:
     """
     for attempt in range(max_retries + 1):
         try:
+            logger.info(f"cleanup_and_segment: raw_text length={len(raw_text)}, first 200 chars: {raw_text[:200]!r}")
             result = generate_completion(
                 prompt=(
                     "Below is OCR-extracted Arabic text from a children's book. "
@@ -103,10 +104,12 @@ def cleanup_and_segment(raw_text: str, max_retries: int = 2) -> list[dict]:
                 temperature=0.2,
                 timeout=120,
             )
+            logger.info(f"cleanup_and_segment: LLM result type={type(result).__name__}, keys={list(result.keys()) if isinstance(result, dict) else 'N/A'}, result={str(result)[:500]!r}")
             sentences = result.get("sentences", [])
             if not sentences and isinstance(result, list):
                 sentences = result
             filtered = [s for s in sentences if isinstance(s, dict) and s.get("arabic")]
+            logger.info(f"cleanup_and_segment: {len(sentences)} raw sentences, {len(filtered)} after filtering")
             if filtered:
                 return filtered
             if attempt < max_retries:
