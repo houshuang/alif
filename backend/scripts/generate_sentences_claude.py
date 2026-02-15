@@ -225,6 +225,7 @@ def store_sentences(db_path: str, results: list[dict], word_map: dict[str, dict]
     """Store generated sentences with SentenceWord records in the database."""
     from app.services.sentence_validator import (
         map_tokens_to_lemmas,
+        normalize_alef,
         tokenize,
     )
 
@@ -235,10 +236,15 @@ def store_sentences(db_path: str, results: list[dict], word_map: dict[str, dict]
     lookup_path = os.path.join(WORK_DIR, "vocab_lookup.tsv")
     lemma_lookup = _load_lookup_tsv(lookup_path)
 
+    # Build normalized word_map for hamza-resilient matching
+    norm_word_map: dict[str, dict] = {}
+    for bare, info in word_map.items():
+        norm_word_map[normalize_alef(bare)] = info
+
     stored = 0
     for item in results:
         target_bare = item.get("target_word", "")
-        word_info = word_map.get(target_bare)
+        word_info = norm_word_map.get(normalize_alef(target_bare))
         if not word_info:
             print(f"  WARNING: Unknown target word '{target_bare}', skipping")
             continue
