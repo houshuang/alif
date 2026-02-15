@@ -8,7 +8,7 @@ from collections import Counter
 from app.database import get_db
 from app.models import (
     Lemma, UserLemmaKnowledge, ReviewLog, Root,
-    SentenceReviewLog, Sentence,
+    SentenceReviewLog, SentenceWord,
 )
 from app.schemas import (
     StatsOut, DailyStatsPoint, LearningPaceOut,
@@ -359,9 +359,17 @@ def _add_cefr_predictions(
 
 def _get_words_reviewed_count(db: Session, days: int | None = None) -> int:
     """Sum of word counts across all reviewed sentences in the period."""
-    q = (
-        db.query(func.coalesce(func.sum(Sentence.max_word_count), 0))
-        .join(SentenceReviewLog, SentenceReviewLog.sentence_id == Sentence.id)
+    word_counts = (
+        db.query(
+            SentenceWord.sentence_id,
+            func.count(SentenceWord.id).label("wc"),
+        )
+        .group_by(SentenceWord.sentence_id)
+        .subquery()
+    )
+    q = db.query(func.coalesce(func.sum(word_counts.c.wc), 0)).join(
+        SentenceReviewLog,
+        SentenceReviewLog.sentence_id == word_counts.c.sentence_id,
     )
     if days is not None:
         cutoff = datetime.now(timezone.utc) - timedelta(days=days)
