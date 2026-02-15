@@ -1,4 +1,5 @@
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { useRef, useCallback } from "react";
+import { ActivityIndicator, Animated, PanResponder, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { colors, fontFamily } from "../theme";
 import { WordLookupResult, WordForms } from "../types";
@@ -78,29 +79,64 @@ export default function WordInfoCard({
   // Check if this is a grammar particle
   const particleInfo = surfaceForm ? getGrammarParticleInfo(surfaceForm) : null;
 
+  const translateX = useRef(new Animated.Value(0)).current;
+  const SWIPE_THRESHOLD = 50;
+
+  const navRef = useRef({ hasPrev, hasNext, onPrev, onNext });
+  navRef.current = { hasPrev, hasNext, onPrev, onNext };
+
+  const panResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => false,
+      onMoveShouldSetPanResponder: (_, gestureState) => {
+        return Math.abs(gestureState.dx) > 10 && Math.abs(gestureState.dx) > Math.abs(gestureState.dy * 1.5);
+      },
+      onPanResponderMove: (_, gestureState) => {
+        translateX.setValue(gestureState.dx);
+      },
+      onPanResponderRelease: (_, gestureState) => {
+        const { hasPrev: hp, hasNext: hn, onPrev: op, onNext: on } = navRef.current;
+        if (gestureState.dx > SWIPE_THRESHOLD && hp) {
+          op?.();
+        } else if (gestureState.dx < -SWIPE_THRESHOLD && hn) {
+          on?.();
+        }
+        Animated.spring(translateX, {
+          toValue: 0,
+          useNativeDriver: true,
+          tension: 120,
+          friction: 8,
+        }).start();
+      },
+    })
+  ).current;
+
   if (!hasFocus && !loading) {
     return reserveSpace ? <View style={styles.spacer} /> : null;
   }
 
   return (
-    <View style={styles.card}>
+    <Animated.View
+      style={[styles.card, { transform: [{ translateX }] }]}
+      {...(showNav ? panResponder.panHandlers : {})}
+    >
       {showNav && (
         <View style={styles.navRow}>
           <Pressable
             onPress={onPrev}
             disabled={!hasPrev}
-            hitSlop={8}
+            hitSlop={12}
             style={[styles.navBtn, !hasPrev && styles.navBtnDisabled]}
           >
-            <Text style={[styles.navIcon, !hasPrev && styles.navIconDisabled]}>‹</Text>
+            <Ionicons name="chevron-back" size={16} color={hasPrev ? colors.textSecondary : colors.border} />
           </Pressable>
           <Pressable
             onPress={onNext}
             disabled={!hasNext}
-            hitSlop={8}
+            hitSlop={12}
             style={[styles.navBtn, !hasNext && styles.navBtnDisabled]}
           >
-            <Text style={[styles.navIcon, !hasNext && styles.navIconDisabled]}>›</Text>
+            <Ionicons name="chevron-forward" size={16} color={hasNext ? colors.textSecondary : colors.border} />
           </Pressable>
         </View>
       )}
@@ -121,7 +157,7 @@ export default function WordInfoCard({
       ) : (
         <RevealedView result={result} siblings={knownSiblings} onNavigateToDetail={onNavigateToDetail} />
       )}
-    </View>
+    </Animated.View>
   );
 }
 
@@ -563,29 +599,19 @@ const styles = StyleSheet.create({
     top: 6,
     right: 6,
     flexDirection: "row",
-    gap: 2,
+    gap: 4,
     zIndex: 1,
   },
   navBtn: {
-    width: 22,
-    height: 22,
-    borderRadius: 11,
+    width: 34,
+    height: 34,
+    borderRadius: 17,
     backgroundColor: colors.surfaceLight,
     alignItems: "center",
     justifyContent: "center",
   },
   navBtnDisabled: {
     opacity: 0.3,
-  },
-  navIcon: {
-    color: colors.textSecondary,
-    fontSize: 16,
-    fontWeight: "700",
-    lineHeight: 20,
-    marginTop: -1,
-  },
-  navIconDisabled: {
-    color: colors.textSecondary,
   },
 
   /* Mnemonic */
