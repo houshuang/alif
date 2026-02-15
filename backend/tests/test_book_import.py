@@ -189,9 +189,11 @@ class TestImportBookEndToEnd:
     def test_full_pipeline(
         self, mock_translate, mock_cleanup, mock_ocr, mock_cover, db_session
     ):
-        # Setup: create some known words
+        # Setup: create some known words + function words needed for sentence mapping
         l1 = _create_lemma(db_session, "ذَهَبَ", "ذهب", "go", "verb", 50, "ذ.ه.ب")
         l2 = _create_lemma(db_session, "وَلَد", "ولد", "boy", "noun", 80, "و.ل.د")
+        _create_lemma(db_session, "إِلَى", "الى", "to", "particle", 1, "ا.ل.ي")
+        _create_lemma(db_session, "حَدِيقَة", "حديقة", "garden", "noun", 200, "ح.د.ق")
         _make_known(db_session, l1)
         _make_known(db_session, l2)
         db_session.commit()

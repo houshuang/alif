@@ -56,6 +56,7 @@ def generate_material_for_word(lemma_id: int, needed: int = 2) -> None:
             KNOWN_SAMPLE_SIZE,
         )
         from app.services.sentence_validator import (
+            build_comprehensive_lemma_lookup,
             build_lemma_lookup,
             map_tokens_to_lemmas,
             sanitize_arabic_word,
@@ -66,6 +67,7 @@ def generate_material_for_word(lemma_id: int, needed: int = 2) -> None:
         from app.services.word_selector import get_sentence_difficulty_params
 
         lemma_lookup = build_lemma_lookup(all_lemmas)
+        mapping_lookup = build_comprehensive_lemma_lookup(db)
         # Defensive: clean target word in case DB has dirty data
         clean_target, san_warnings = sanitize_arabic_word(lemma.lemma_ar)
         if not clean_target or " " in clean_target or "too_short" in san_warnings:
@@ -128,10 +130,16 @@ def generate_material_for_word(lemma_id: int, needed: int = 2) -> None:
             tokens = tokenize(res.arabic)
             mappings = map_tokens_to_lemmas(
                 tokens=tokens,
-                lemma_lookup=lemma_lookup,
+                lemma_lookup=mapping_lookup,
                 target_lemma_id=lemma.lemma_id,
                 target_bare=target_bare,
             )
+            unmapped = [m.surface_form for m in mappings if m.lemma_id is None]
+            if unmapped:
+                logger.warning(f"Skipping sentence with unmapped words: {unmapped}")
+                db.delete(sent)
+                continue
+
             for m in mappings:
                 sw = SentenceWord(
                     sentence_id=sent.id,
@@ -220,6 +228,12 @@ def store_multi_target_sentence(
         target_lemma_id=result.primary_target_lemma_id,
         target_bare=primary_bare,
     )
+
+    unmapped = [m.surface_form for m in mappings if m.lemma_id is None]
+    if unmapped:
+        logger.warning(f"Skipping multi-target sentence with unmapped words: {unmapped}")
+        db.delete(sent)
+        return None
 
     for m in mappings:
         # Check if this token matches any of the other targets

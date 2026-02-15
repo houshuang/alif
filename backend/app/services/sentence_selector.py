@@ -937,6 +937,7 @@ def _generate_on_demand(
     )
     from app.services.material_generator import store_multi_target_sentence
     from app.services.sentence_validator import (
+        build_comprehensive_lemma_lookup,
         build_lemma_lookup,
         map_tokens_to_lemmas,
         strip_diacritics,
@@ -978,6 +979,7 @@ def _generate_on_demand(
         for lem in all_lemmas
     ]
     lemma_lookup = build_lemma_lookup(all_lemmas) if all_lemmas else {}
+    mapping_lookup = build_comprehensive_lemma_lookup(db)
     lemma_map = {lem.lemma_id: lem for lem in all_lemmas}
 
     # Also load target lemmas that may not be in known set
@@ -1060,7 +1062,7 @@ def _generate_on_demand(
                 if generated_count >= cap:
                     break
 
-                sent = store_multi_target_sentence(db, mres, lemma_lookup, target_bares)
+                sent = store_multi_target_sentence(db, mres, mapping_lookup, target_bares)
                 if not sent:
                     continue
 
@@ -1144,10 +1146,16 @@ def _generate_on_demand(
             tokens = tokenize(result.arabic)
             mappings = map_tokens_to_lemmas(
                 tokens=tokens,
-                lemma_lookup=lemma_lookup,
+                lemma_lookup=mapping_lookup,
                 target_lemma_id=lid,
                 target_bare=strip_diacritics(lemma.lemma_ar),
             )
+            unmapped = [m.surface_form for m in mappings if m.lemma_id is None]
+            if unmapped:
+                logger.warning(f"Skipping on-demand sentence with unmapped words: {unmapped}")
+                db.delete(sent)
+                continue
+
             word_dicts = []
             for m in mappings:
                 sw = SentenceWord(

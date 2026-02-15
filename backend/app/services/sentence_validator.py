@@ -445,6 +445,20 @@ def build_lemma_lookup(lemmas: list) -> dict[str, int]:
     return lookup
 
 
+def build_comprehensive_lemma_lookup(db) -> dict[str, int]:
+    """Build lookup from ALL lemmas for sentence_word mapping.
+
+    Unlike build_lemma_lookup() called with filtered lemmas, this includes
+    every non-variant lemma in the database — function words, encountered
+    words, etc. Used when creating SentenceWord records so every token
+    can be mapped to a lemma_id.
+    """
+    from app.models import Lemma
+
+    all_lemmas = db.query(Lemma).filter(Lemma.canonical_lemma_id.is_(None)).all()
+    return build_lemma_lookup(all_lemmas)
+
+
 def resolve_existing_lemma(
     bare: str, lemma_lookup: dict[str, int]
 ) -> int | None:

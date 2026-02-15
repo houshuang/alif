@@ -221,6 +221,48 @@ def _load_lookup_tsv(tsv_path: str) -> dict[str, int]:
     return lookup
 
 
+def _build_comprehensive_lookup(db_path: str) -> dict[str, int]:
+    """Build lookup from ALL lemmas in the DB for sentence_word mapping."""
+    from app.services.sentence_validator import normalize_alef, strip_diacritics
+
+    conn = sqlite3.connect(db_path)
+    conn.row_factory = sqlite3.Row
+    rows = conn.execute("""
+        SELECT lemma_id, lemma_ar_bare, forms_json
+        FROM lemmas WHERE canonical_lemma_id IS NULL
+    """).fetchall()
+    conn.close()
+
+    lookup: dict[str, int] = {}
+    for row in rows:
+        bare_norm = normalize_alef(row["lemma_ar_bare"])
+        lookup[bare_norm] = row["lemma_id"]
+        if bare_norm.startswith("ال") and len(bare_norm) > 2:
+            lookup[bare_norm[2:]] = row["lemma_id"]
+        elif not bare_norm.startswith("ال"):
+            lookup["ال" + bare_norm] = row["lemma_id"]
+
+        forms_raw = row["forms_json"]
+        if forms_raw:
+            try:
+                forms = json.loads(forms_raw) if isinstance(forms_raw, str) else forms_raw
+            except (json.JSONDecodeError, TypeError):
+                forms = {}
+            if isinstance(forms, dict):
+                for key, form_val in forms.items():
+                    if key in ("plural", "present", "masdar", "active_participle",
+                               "feminine", "elative") or key.startswith("variant_"):
+                        if form_val and isinstance(form_val, str):
+                            form_bare = normalize_alef(strip_diacritics(form_val))
+                            if form_bare not in lookup:
+                                lookup[form_bare] = row["lemma_id"]
+                            al_form = "ال" + form_bare
+                            if not form_bare.startswith("ال") and al_form not in lookup:
+                                lookup[al_form] = row["lemma_id"]
+
+    return lookup
+
+
 def store_sentences(db_path: str, results: list[dict], word_map: dict[str, dict]):
     """Store generated sentences with SentenceWord records in the database."""
     from app.services.sentence_validator import (
@@ -232,9 +274,8 @@ def store_sentences(db_path: str, results: list[dict], word_map: dict[str, dict]
     conn = sqlite3.connect(db_path)
     conn.row_factory = sqlite3.Row
 
-    # Load lemma lookup from already-dumped TSV
-    lookup_path = os.path.join(WORK_DIR, "vocab_lookup.tsv")
-    lemma_lookup = _load_lookup_tsv(lookup_path)
+    # Build comprehensive lookup from ALL lemmas (not just learned vocab TSV)
+    lemma_lookup = _build_comprehensive_lookup(db_path)
 
     # Build normalized word_map for hamza-resilient matching
     norm_word_map: dict[str, dict] = {}
@@ -275,6 +316,12 @@ def store_sentences(db_path: str, results: list[dict], word_map: dict[str, dict]
                 target_lemma_id=word_info["lemma_id"],
                 target_bare=target_bare,
             )
+            unmapped = [m.surface_form for m in mappings if m.lemma_id is None]
+            if unmapped:
+                print(f"  WARNING: Skipping sentence with unmapped words: {unmapped}")
+                conn.execute("DELETE FROM sentences WHERE id = ?", (sentence_id,))
+                continue
+
             for m in mappings:
                 conn.execute("""
                     INSERT INTO sentence_words (

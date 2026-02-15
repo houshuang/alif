@@ -227,6 +227,11 @@ def create_book_sentences(
             target_bare="",
         )
 
+        unmapped = [m.surface_form for m in mappings if m.lemma_id is None]
+        if unmapped:
+            logger.warning(f"Skipping book sentence with unmapped words: {unmapped}")
+            continue
+
         target_lid = _pick_primary_target(mappings, db)
 
         sent = Sentence(
