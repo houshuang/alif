@@ -148,8 +148,8 @@ def find_words_needing_sentences(db_path: str, limit: int, per_word: int) -> lis
         WHERE ulk.knowledge_state IN ('learning', 'known', 'acquiring', 'lapsed')
           AND l.canonical_lemma_id IS NULL
         ORDER BY
-            CASE WHEN ulk.knowledge_state = 'acquiring' THEN 0 ELSE 1 END,
-            active_count ASC
+            active_count ASC,
+            CASE WHEN ulk.knowledge_state = 'acquiring' THEN 0 ELSE 1 END
         LIMIT ?
     """, (limit * 3,)).fetchall()  # fetch more, then filter
 

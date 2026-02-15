@@ -315,16 +315,16 @@ def dump_vocabulary_for_claude(
             except (json.JSONDecodeError, TypeError):
                 forms = {}
             if isinstance(forms, dict):
-                for key in ("plural", "present", "masdar", "active_participle",
-                            "feminine", "elative"):
-                    form_val = forms.get(key)
-                    if form_val and isinstance(form_val, str):
-                        form_bare = normalize_alef(strip_diacritics(form_val))
-                        if form_bare not in lookup:
-                            lookup[form_bare] = row["lemma_id"]
-                        al_form = "ال" + form_bare
-                        if not form_bare.startswith("ال") and al_form not in lookup:
-                            lookup[al_form] = row["lemma_id"]
+                for key, form_val in forms.items():
+                    if key in ("plural", "present", "masdar", "active_participle",
+                               "feminine", "elative") or key.startswith("variant_"):
+                        if form_val and isinstance(form_val, str):
+                            form_bare = normalize_alef(strip_diacritics(form_val))
+                            if form_bare not in lookup:
+                                lookup[form_bare] = row["lemma_id"]
+                            al_form = "ال" + form_bare
+                            if not form_bare.startswith("ال") and al_form not in lookup:
+                                lookup[al_form] = row["lemma_id"]
 
     # Add FUNCTION_WORD_FORMS
     from app.services.sentence_validator import FUNCTION_WORD_FORMS
