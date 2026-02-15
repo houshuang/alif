@@ -1136,7 +1136,9 @@ const styles = StyleSheet.create({
   },
   cefrMeta: {
     flexDirection: "row",
-    gap: 16,
+    flexWrap: "wrap",
+    gap: 6,
+    columnGap: 16,
     marginTop: 12,
   },
   cefrDetail: {
@@ -1146,7 +1148,7 @@ const styles = StyleSheet.create({
   cefrPrediction: {
     fontSize: 12,
     color: colors.accent,
-    marginTop: 4,
+    flexBasis: "100%",
   },
   coverageBar: {
     width: "100%",
