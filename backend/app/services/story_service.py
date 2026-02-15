@@ -721,24 +721,82 @@ def import_story(
     return story
 
 
-def get_stories(db: Session) -> list[dict]:
-    """Return all stories ordered by created_at desc."""
+def _get_book_stats(db: Session, book_ids: list[int]) -> dict:
+    """Batch-load sentence counts, sentences seen, and page readiness for book stories."""
+    from sqlalchemy import func
     from app.models import Sentence
 
+    if not book_ids:
+        return {}
+
+    # Sentence counts and seen counts
+    from sqlalchemy import case
+    rows = (
+        db.query(
+            Sentence.story_id,
+            func.count(Sentence.id),
+            func.sum(case((Sentence.times_shown > 0, 1), else_=0)),
+        )
+        .filter(Sentence.story_id.in_(book_ids))
+        .group_by(Sentence.story_id)
+        .all()
+    )
+    sent_stats = {r[0]: {"total": r[1], "seen": int(r[2] or 0)} for r in rows}
+
+    # Page readiness: get unique lemmas per page per story
+    page_words = (
+        db.query(StoryWord.story_id, StoryWord.page_number, StoryWord.lemma_id)
+        .filter(
+            StoryWord.story_id.in_(book_ids),
+            StoryWord.page_number.isnot(None),
+            StoryWord.is_function_word == False,
+            StoryWord.lemma_id.isnot(None),
+        )
+        .all()
+    )
+
+    # Collect unique lemma_ids per (story, page)
+    from collections import defaultdict
+    page_lemmas: dict[int, dict[int, set[int]]] = defaultdict(lambda: defaultdict(set))
+    all_lemma_ids: set[int] = set()
+    for sid, page, lid in page_words:
+        page_lemmas[sid][page].add(lid)
+        all_lemma_ids.add(lid)
+
+    # Batch knowledge lookup
+    knowledge_map = _build_knowledge_map(db, lemma_ids=all_lemma_ids if all_lemma_ids else None)
+
+    # Build page readiness per story
+    page_readiness: dict[int, list[dict]] = {}
+    for sid in book_ids:
+        if sid not in page_lemmas:
+            continue
+        pages = []
+        for page_num in sorted(page_lemmas[sid].keys()):
+            lemmas = page_lemmas[sid][page_num]
+            # "new" = words that weren't known at import time (we count all non-function words)
+            learned = sum(1 for lid in lemmas if knowledge_map.get(lid) in ("learning", "known", "acquiring"))
+            pages.append({
+                "page": page_num,
+                "new_words": len(lemmas),
+                "learned_words": learned,
+                "unlocked": learned == len(lemmas),
+            })
+        page_readiness[sid] = pages
+
+    return {sid: {
+        "sentence_count": sent_stats.get(sid, {}).get("total"),
+        "sentences_seen": sent_stats.get(sid, {}).get("seen"),
+        "page_readiness": page_readiness.get(sid),
+    } for sid in book_ids}
+
+
+def get_stories(db: Session) -> list[dict]:
+    """Return all stories ordered by created_at desc."""
     stories = db.query(Story).order_by(Story.created_at.desc()).all()
 
-    # Batch-load sentence counts for book stories
     book_ids = [s.id for s in stories if s.source == "book_ocr"]
-    sentence_counts: dict[int, int] = {}
-    if book_ids:
-        from sqlalchemy import func
-        rows = (
-            db.query(Sentence.story_id, func.count(Sentence.id))
-            .filter(Sentence.story_id.in_(book_ids))
-            .group_by(Sentence.story_id)
-            .all()
-        )
-        sentence_counts = {r[0]: r[1] for r in rows}
+    book_stats = _get_book_stats(db, book_ids)
 
     return [
         {
@@ -751,7 +809,7 @@ def get_stories(db: Session) -> list[dict]:
             "unknown_count": s.unknown_count or 0,
             "total_words": s.total_words or 0,
             "page_count": s.page_count,
-            "sentence_count": sentence_counts.get(s.id) if s.source == "book_ocr" else None,
+            **(book_stats.get(s.id, {}) if s.source == "book_ocr" else {}),
             "created_at": s.created_at.isoformat() if s.created_at else "",
         }
         for s in stories
@@ -785,11 +843,11 @@ def get_story_detail(db: Session, story_id: int) -> dict:
             "sentence_index": sw.sentence_index or 0,
         })
 
-    # Sentence count for book imports
-    sentence_count = None
+    # Book-specific stats
+    book_extra = {}
     if story.source == "book_ocr":
-        from app.models import Sentence
-        sentence_count = db.query(Sentence).filter(Sentence.story_id == story.id).count()
+        stats = _get_book_stats(db, [story.id])
+        book_extra = stats.get(story.id, {})
 
     return {
         "id": story.id,
@@ -805,7 +863,7 @@ def get_story_detail(db: Session, story_id: int) -> dict:
         "total_words": story.total_words or 0,
         "known_count": story.known_count or 0,
         "page_count": story.page_count,
-        "sentence_count": sentence_count,
+        **book_extra,
         "created_at": story.created_at.isoformat() if story.created_at else "",
         "words": words,
     }

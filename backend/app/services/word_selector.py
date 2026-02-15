@@ -107,6 +107,32 @@ def _active_story_lemma_ids(db: Session) -> dict[int, str]:
     return result
 
 
+def _book_page_bonus(db: Session) -> dict[int, float]:
+    """Get lemma_id → page bonus for words in active book stories.
+
+    Earlier pages get higher bonus: page 1 → 1.0, page 2 → 0.8, page 3 → 0.6, etc.
+    Minimum bonus is 0.2.
+    """
+    rows = (
+        db.query(StoryWord.lemma_id, StoryWord.page_number)
+        .join(Story, StoryWord.story_id == Story.id)
+        .filter(
+            Story.status == "active",
+            Story.source == "book_ocr",
+            StoryWord.lemma_id.isnot(None),
+            StoryWord.page_number.isnot(None),
+            StoryWord.is_function_word == False,
+        )
+        .all()
+    )
+    result: dict[int, float] = {}
+    for lemma_id, page in rows:
+        bonus = max(0.2, 1.0 - (page - 1) * 0.2)
+        if lemma_id not in result or bonus > result[lemma_id]:
+            result[lemma_id] = bonus
+    return result
+
+
 def _frequency_score(frequency_rank: Optional[int], max_rank: int = 50000) -> float:
     """Higher score for lower (more frequent) rank. Log scale."""
     if frequency_rank is None or frequency_rank <= 0:
@@ -325,6 +351,7 @@ def select_next_words(
         ]
 
     story_lemmas = _active_story_lemma_ids(db)
+    book_page_bonuses = _book_page_bonus(db)
 
     # --- Batch pre-fetch for scoring ---
     root_ids = {c.root_id for c in candidates if c.root_id}
@@ -412,6 +439,9 @@ def select_next_words(
         # so they always rank above non-story words
         story_bonus = 1.0 if lemma.lemma_id in story_lemmas else 0.0
 
+        # Book page bonus: earlier pages score higher (1.0 → 0.2 by page)
+        page_bonus = book_page_bonuses.get(lemma.lemma_id, 0.0)
+
         # Encountered words (seen in textbook/story but not yet introduced) get a bonus
         encountered_bonus = 0.5 if lemma.lemma_id in encountered_ids else 0.0
 
@@ -421,6 +451,7 @@ def select_next_words(
             + recency_bonus * 0.2
             + pattern_score * 0.1
             + story_bonus
+            + page_bonus
             + encountered_bonus
         )
 

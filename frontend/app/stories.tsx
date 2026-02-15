@@ -289,21 +289,69 @@ export default function StoriesScreen() {
           </View>
         </View>
 
-        <View style={styles.progressBar}>
-          <View
-            style={[
-              styles.progressFill,
-              { width: `${pctWidth}%`, backgroundColor: ready },
-            ]}
-          />
-        </View>
+        {item.page_readiness && item.page_readiness.length > 0 ? (
+          <View style={styles.pageRow}>
+            {item.page_readiness.map((p) => {
+              const remaining = p.new_words - p.learned_words;
+              return (
+                <View
+                  key={p.page}
+                  style={[
+                    styles.pagePill,
+                    {
+                      backgroundColor: p.unlocked
+                        ? colors.gotIt + "25"
+                        : remaining <= 3
+                          ? colors.stateLearning + "25"
+                          : colors.surfaceLight,
+                    },
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.pagePillText,
+                      {
+                        color: p.unlocked
+                          ? colors.gotIt
+                          : remaining <= 3
+                            ? colors.stateLearning
+                            : colors.textSecondary,
+                      },
+                    ]}
+                  >
+                    {p.unlocked ? `p${p.page} ✓` : `p${p.page}: ${remaining}`}
+                  </Text>
+                </View>
+              );
+            })}
+          </View>
+        ) : (
+          <View style={styles.progressBar}>
+            <View
+              style={[
+                styles.progressFill,
+                { width: `${pctWidth}%`, backgroundColor: ready },
+              ]}
+            />
+          </View>
+        )}
 
         <View style={styles.cardFooter}>
           <View style={{ flex: 1 }}>
             <Text style={styles.cardStats}>
-              <Text>{item.total_words} words</Text>
-              <Text>{" · "}</Text>
-              <Text style={{ color: ready }}>{readyText}</Text>
+              {item.source === "book_ocr" && item.sentences_seen != null && item.sentence_count ? (
+                <>
+                  <Text>{item.sentences_seen}/{item.sentence_count} sentences seen</Text>
+                  <Text>{" · "}</Text>
+                  <Text style={{ color: ready }}>{readyText}</Text>
+                </>
+              ) : (
+                <>
+                  <Text>{item.total_words} words</Text>
+                  <Text>{" · "}</Text>
+                  <Text style={{ color: ready }}>{readyText}</Text>
+                </>
+              )}
             </Text>
             {item.estimated_days_to_ready != null && item.estimated_days_to_ready > 0 &&
              item.status === "active" && item.unknown_count > 3 && (
@@ -709,6 +757,21 @@ const styles = StyleSheet.create({
   suspendAllText: {
     fontSize: 13,
     color: colors.missed,
+    fontWeight: "600",
+  },
+  pageRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 6,
+    marginBottom: 10,
+  },
+  pagePill: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+  },
+  pagePillText: {
+    fontSize: 11,
     fontWeight: "600",
   },
   storyCard: {

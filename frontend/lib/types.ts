@@ -528,6 +528,13 @@ export interface StoryWordMeta {
   sentence_index: number;
 }
 
+export interface PageReadiness {
+  page: number;
+  new_words: number;
+  learned_words: number;
+  unlocked: boolean;
+}
+
 export interface StoryListItem {
   id: number;
   title_ar: string | null;
@@ -539,6 +546,8 @@ export interface StoryListItem {
   total_words: number;
   page_count?: number | null;
   sentence_count?: number | null;
+  sentences_seen?: number | null;
+  page_readiness?: PageReadiness[] | null;
   created_at: string;
   estimated_days_to_ready?: number | null;
 }

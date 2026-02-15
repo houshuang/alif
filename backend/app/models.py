@@ -121,6 +121,7 @@ class Sentence(Base):
     last_listening_comprehension = Column(String(20), nullable=True)
     is_active = Column(Boolean, default=True, server_default="1")
     created_at = Column(DateTime, nullable=True)
+    page_number = Column(Integer, nullable=True)
 
     story = relationship("Story", foreign_keys=[story_id])
     words = relationship("SentenceWord", back_populates="sentence")
@@ -237,6 +238,7 @@ class StoryWord(Base):
     is_known_at_creation = Column(Boolean, default=False)
     is_function_word = Column(Boolean, default=False)
     name_type = Column(String(20), nullable=True)  # "personal" or "place" for proper nouns
+    page_number = Column(Integer, nullable=True)
 
     story = relationship("Story", back_populates="words")
     lemma = relationship("Lemma", back_populates="story_words")

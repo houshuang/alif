@@ -290,6 +290,7 @@ def create_book_sentences(
             is_active=True,
             created_at=datetime.now(timezone.utc),
             max_word_count=len(tokens),
+            page_number=sent_data.get("page_number"),
         )
         db.add(sent)
         db.flush()
@@ -340,17 +341,27 @@ def import_book(
     # Step 2: OCR all content pages in parallel
     logger.info(f"OCR-ing {len(page_images)} pages...")
     page_texts = ocr_pages_parallel(page_images)
-    raw_text = "\n\n".join(t for t in page_texts if t.strip())
 
-    if not raw_text.strip():
+    if not any(t.strip() for t in page_texts):
         raise ValueError("No text extracted from any page")
 
-    logger.info(f"Extracted {len(raw_text)} chars from {len(page_images)} pages")
+    logger.info(f"Extracted text from {len(page_images)} pages")
 
-    # Step 3: LLM cleanup + diacritics + segmentation
-    logger.info("Cleaning up and segmenting text...")
-    sentences = cleanup_and_segment(raw_text)
-    logger.info(f"Extracted {len(sentences)} sentences")
+    # Step 3: LLM cleanup + diacritics + segmentation — per page
+    logger.info("Cleaning up and segmenting text per page...")
+    all_sentences: list[dict] = []
+    for page_idx, page_text in enumerate(page_texts):
+        if not page_text.strip():
+            continue
+        page_num = page_idx + 1
+        page_sents = cleanup_and_segment(page_text)
+        for s in page_sents:
+            s["page_number"] = page_num
+        all_sentences.extend(page_sents)
+        logger.info(f"Page {page_num}: {len(page_sents)} sentences")
+
+    sentences = all_sentences
+    logger.info(f"Extracted {len(sentences)} total sentences")
 
     if not sentences:
         raise ValueError("No sentences could be extracted from the text")
@@ -362,15 +373,19 @@ def import_book(
     # Step 5: Deterministic transliteration
     sentences = _add_transliterations(sentences)
 
-    # Build cleaned body from sentences for story creation
-    cleaned_body = " ".join(s["arabic"] for s in sentences)
+    # Build cleaned body — join with "." so _create_story_words splits correctly
+    cleaned_body = ". ".join(s["arabic"] for s in sentences)
+
+    # Build sentence_index → page_number mapping
+    sent_page_map: dict[int, int] = {}
+    for i, s in enumerate(sentences):
+        sent_page_map[i] = s.get("page_number", 1)
 
     # Step 6: Create story via existing story_service logic
     all_lemmas = _get_all_lemmas(db)
     lemma_lookup = build_lemma_lookup(all_lemmas)
     knowledge_map = _build_knowledge_map(db)
 
-    # Generate English body from sentence translations
     body_en = " ".join(s.get("english", "") for s in sentences)
 
     story = Story(
@@ -390,6 +405,12 @@ def import_book(
     total, known, func = _create_story_words(
         db, story, cleaned_body, lemma_lookup, knowledge_map
     )
+
+    # Tag StoryWords with page_number based on sentence_index → page mapping
+    for sw in story.words:
+        page = sent_page_map.get(sw.sentence_index)
+        if page is not None:
+            sw.page_number = page
 
     # Import unknown words (creates Lemma entries, no ULK)
     new_ids = _import_unknown_words(db, story, lemma_lookup)

@@ -399,6 +399,13 @@ class StoryWordMetaOut(BaseModel):
     sentence_index: int = 0
 
 
+class PageReadiness(BaseModel):
+    page: int
+    new_words: int
+    learned_words: int
+    unlocked: bool
+
+
 class StoryOut(BaseModel):
     id: int
     title_ar: str | None = None
@@ -411,6 +418,8 @@ class StoryOut(BaseModel):
     difficulty_level: str | None = None
     page_count: int | None = None
     sentence_count: int | None = None
+    sentences_seen: int | None = None
+    page_readiness: list[PageReadiness] | None = None
     created_at: str
     estimated_days_to_ready: int | None = None
     model_config = {"from_attributes": True}
@@ -432,6 +441,8 @@ class StoryDetailOut(BaseModel):
     difficulty_level: str | None = None
     page_count: int | None = None
     sentence_count: int | None = None
+    sentences_seen: int | None = None
+    page_readiness: list[PageReadiness] | None = None
     completed_at: str | None = None
     created_at: str
     words: list[StoryWordMetaOut]
