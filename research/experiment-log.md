@@ -4,6 +4,65 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-02-15: Page-Level Tracking for Book Imports
+
+### What
+Book import now preserves page boundaries: each page is OCR'd and cleaned individually, and both Sentence and StoryWord records are tagged with their source page number. This enables per-page readiness tracking, page-based word prioritization, and sentence coverage metrics.
+
+### Changes
+- **Models**: Added `page_number` column to `Sentence` and `StoryWord` (migration `ad1ca8ace671`)
+- **book_import_service.py**: Process each page through `cleanup_and_segment()` individually instead of merging all text. Tag sentences and story words with page numbers.
+- **story_service.py**: New `_get_book_stats()` computes per-page readiness (new_words, learned_words, unlocked), sentence_count, and sentences_seen for book stories. Added to both list and detail endpoints.
+- **word_selector.py**: `_book_page_bonus()` gives earlier pages higher priority (page 1 → +1.0, page 2 → +0.8, etc.)
+- **Frontend**: Page readiness pills on book story cards showing per-page progress
+
+### Expected Effect
+Words from earlier book pages get introduced first, allowing page-by-page reading progression. Users can track when each page is "unlocked" (all words at least acquiring).
+
+### Verification
+- API returns `page_readiness` array with per-page word counts
+- Story card shows page pills with remaining word counts
+- Word selector ranks page-1 words above page-10 words for same story
+
+---
+
+## 2026-02-15: Ensure Every SentenceWord Has a lemma_id
+
+### What
+Fixed NULL `lemma_id` values in `sentence_words` table and hardened all 5 sentence storage paths to reject sentences with any unmapped word. Three root causes addressed:
+
+1. **`variant_*` forms_json keys not expanded in lookups**: `build_lemma_lookup()` only iterated specific keys (plural, present, etc.) but `forms_json` had `variant_ذكية`, `variant_طالبة` etc. Fixed by iterating all keys.
+2. **Function words without Lemma DB entries**: ~80 words in `FUNCTION_WORD_GLOSSES` (لم, لكن, ما, جدا, بعد, etc.) had glosses but no Lemma row. Created 45 new Lemma entries via `backfill_function_word_lemmas.py`.
+3. **No rejection guard**: sentences with unmapped words were stored anyway. Added NULL guard in all 5 storage paths.
+
+Additionally, sentence_word mapping now uses `build_comprehensive_lemma_lookup()` (ALL lemmas) instead of learned-only lookup. Sentence validation still uses restricted lookup.
+
+### Changes
+- `sentence_validator.py`: Expanded `build_lemma_lookup()` to include `variant_*` keys; added `build_comprehensive_lemma_lookup()`
+- `material_generator.py`: Uses comprehensive lookup for mapping; NULL guard in `generate_material_for_word()` and `store_multi_target_sentence()`
+- `sentence_selector.py`: Uses comprehensive lookup for on-demand mapping; NULL guard in `_generate_on_demand()`
+- `book_import_service.py`: NULL guard in `create_book_sentences()`
+- `generate_sentences_claude.py`: Replaced TSV-based lookup with DB-based comprehensive lookup; NULL guard; fixed query ordering (prioritize `active_count ASC`)
+- `claude_code.py`: Same `variant_*` expansion fix in `dump_vocabulary_for_claude()`
+- `scripts/backfill_function_word_lemmas.py`: New — creates Lemma rows for function words
+- `scripts/fix_null_lemma_ids.py`: New — re-maps existing NULLs, retires unfixable sentences
+
+### Why
+Sentence 3364 had تَطِيرُ with `lemma_id=NULL`, causing word tap/lookup to fail in the frontend. Investigation found 49 sentence_words with NULL lemma_id. This is a data integrity issue — every word in a displayed sentence must be tappable.
+
+### Production Results
+- 45 function word lemmas created
+- 32 NULLs fixed by variant_* expansion (deployed first)
+- 11 more fixed by function word lemma creation + comprehensive lookup
+- 6 sentences retired (genuinely unknown vocabulary: تطير/fly, يأكل/eat, نزور/visit)
+- Final state: 0 NULL lemma_ids in active sentences
+
+### Verification
+- All 679 backend tests pass
+- Production query: `SELECT COUNT(*) FROM sentence_words sw JOIN sentences s ON s.id=sw.sentence_id WHERE sw.lemma_id IS NULL AND s.is_active=1` → 0
+
+---
+
 ## 2026-02-15: Enriched Analytics — Predictions & Progress Insights
 
 ### What
