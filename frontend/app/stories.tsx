@@ -220,18 +220,21 @@ export default function StoriesScreen() {
     return colors.missed;
   }
 
-  type SectionKey = "active" | "suspended";
+  type SectionKey = "active" | "suspended" | "completed";
 
   function buildSections(): { key: SectionKey; title: string; data: StoryListItem[] }[] {
     const active: StoryListItem[] = [];
     const suspended: StoryListItem[] = [];
+    const completed: StoryListItem[] = [];
     for (const s of stories) {
-      if (s.status === "suspended") suspended.push(s);
+      if (s.status === "completed") completed.push(s);
+      else if (s.status === "suspended") suspended.push(s);
       else active.push(s);
     }
     const sections: { key: SectionKey; title: string; data: StoryListItem[] }[] = [];
     if (active.length > 0) sections.push({ key: "active", title: "Active", data: active });
     if (suspended.length > 0) sections.push({ key: "suspended", title: "Suspended", data: suspended });
+    if (completed.length > 0) sections.push({ key: "completed", title: "Completed", data: completedExpanded ? completed : [] });
     return sections;
   }
 
@@ -349,18 +352,34 @@ export default function StoriesScreen() {
   }
 
   function renderSectionHeader({ section }: { section: { key: SectionKey; title: string; data: StoryListItem[] } }) {
+    const isCompleted = section.key === "completed";
+    const completedCount = isCompleted ? stories.filter((s) => s.status === "completed").length : 0;
+
     return (
-      <View style={styles.sectionHeader}>
-        <Text style={styles.sectionTitle}>
-          {section.title}
-          <Text style={styles.sectionCount}> ({section.data.length})</Text>
-        </Text>
-        {section.key === "active" && stories.filter((s) => s.status !== "suspended").length > 1 && (
+      <Pressable
+        style={styles.sectionHeader}
+        onPress={isCompleted ? () => setCompletedExpanded((v) => !v) : undefined}
+        disabled={!isCompleted}
+      >
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+          {isCompleted && (
+            <Ionicons
+              name={completedExpanded ? "chevron-down" : "chevron-forward"}
+              size={14}
+              color={colors.textSecondary}
+            />
+          )}
+          <Text style={styles.sectionTitle}>
+            {section.title}
+            <Text style={styles.sectionCount}> ({isCompleted ? completedCount : section.data.length})</Text>
+          </Text>
+        </View>
+        {section.key === "active" && stories.filter((s) => s.status === "active").length > 1 && (
           <Pressable onPress={handleSuspendAll} hitSlop={8}>
             <Text style={styles.suspendAllText}>Suspend All</Text>
           </Pressable>
         )}
-      </View>
+      </Pressable>
     );
   }
 
