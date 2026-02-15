@@ -576,6 +576,7 @@
 - [DONE] ALWAYS_AVOID_NAMES: proper nouns always in avoid list
 - [DONE] Sentence pipeline cap: due-date priority generation (most urgent first), TARGET_PIPELINE_SENTENCES=300, MIN_SENTENCES=2 per word. JIT-first strategy: MAX_ON_DEMAND=10/session generates with current vocabulary for better calibration. Pre-generated pool is warm cache, not primary source.
 - Automatic periodic rebalancing: integrate retire_sentences logic into update_material.py as Step 0
+- [DONE] Vocabulary-diverse generation: prompt marks "CURRENTLY LEARNING" words, instructs Claude to use acquiring words as supporting vocabulary and vary usage across sentences. Stale sentence rotation via `rotate_stale_sentences.py`.
 - Sentence quality scoring dashboard: show diversity metrics on analytics page
 - Corpus diversity entropy: track Shannon entropy of word distribution across sentences over time
 - [DONE] Sentence length progression: dynamic difficulty via `get_sentence_difficulty_params()` — brand new 5-7 words, same-day 6-9, first week 8-11, established 11-14. Floor raised to min 5 words. material_generator + update_material use dynamic params instead of hardcoded "beginner".

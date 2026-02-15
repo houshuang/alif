@@ -52,15 +52,46 @@ Expanded Claude Code CLI integration from simple API replacement to **tool-enabl
 - Free with Max plan (Opus quality at $0 cost)
 - Vocabulary-aware quality audit (Haiku API only sees Arabic+English, no vocab context)
 
-### Expected Effect
-- Higher first-attempt validation pass rate (fewer retries)
-- Higher sentence quality (Opus vs Gemini Flash)
-- Better quality auditing (vocabulary-aware, can generate replacements)
-
 ### Verification
 - Tested locally: 3 words × 2 sentences with Haiku (57s) and Opus (56s), all sentences validated successfully
 - 181/182 tests pass (1 pre-existing failure unrelated)
 - Next: install Claude CLI on server, integrate with update_material.py cron
+
+---
+
+## 2026-02-15: Vocabulary Diversity in Sentence Generation + Stale Sentence Rotation
+
+### What
+Two improvements to sentence quality:
+1. **Doubled batch size** (5→10 words/session) to halve startup overhead (~30s amortized over more work)
+2. **Diversity-aware generation**: vocab dump now marks "CURRENTLY LEARNING" words; prompt explicitly instructs Claude to use acquiring words as supporting vocabulary and vary word usage across sentences
+3. **Stale sentence rotation**: new `rotate_stale_sentences.py` identifies sentences where all scaffold words are fully known (no cross-training value) and retires them for regeneration with vocabulary-diverse replacements
+4. **Fixed store_sentences**: column name bug (`english_text`→`english_translation`) and added SentenceWord record creation
+
+### Changes
+- `claude_code.py`: Timeout 180→240s; `dump_vocabulary_for_claude()` now includes `knowledge_state` and writes "CURRENTLY LEARNING" section
+- `generate_sentences_claude.py`: `WORDS_PER_SESSION` 5→10; system prompt adds VOCABULARY DIVERSITY section; `store_sentences()` fixed column name + creates SentenceWord records
+- `scripts/rotate_stale_sentences.py`: New script — scores sentences by diversity (% scaffold words in acquiring/learning state), retires stale ones while keeping min_active per target
+
+### Why
+Production analysis showed:
+- 448 active sentences, only 38% meet 70% comprehensibility gate
+- في appears in 48% of all sentences; top common words heavily overused
+- 138 sentences have zero acquiring words in scaffold (stale)
+- ~30s startup overhead per Claude Code session → doubling batch size halves total runtime
+- `store_sentences()` had wrong column name and didn't create SentenceWord records (sentences wouldn't appear in session building)
+
+### Expected Effect
+- Sentences reinforce multiple words per review (not just the target)
+- Vocabulary exposure spread more evenly instead of concentrating on early-learned words
+- ~50% faster batch generation (10 words/session vs 5)
+- More efficient review sessions overall
+
+### Verification
+- All 184 tests pass (1 pre-existing failure)
+- Vocab dump confirmed "CURRENTLY LEARNING" section present
+- Rotation dry-run on production: 109 retirable sentences with min_active=1, 26 with min_active=2
+- Tokenization + SentenceWord mapping tested locally
 
 ---
 
