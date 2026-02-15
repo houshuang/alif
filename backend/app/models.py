@@ -107,7 +107,8 @@ class Sentence(Base):
     arabic_diacritized = Column(Text)
     english_translation = Column(Text)
     transliteration = Column(Text)
-    source = Column(String(20))  # llm/tatoeba/manual
+    source = Column(String(20))  # llm/tatoeba/manual/book
+    story_id = Column(Integer, ForeignKey("stories.id"), nullable=True, index=True)
     difficulty_score = Column(Float)
     audio_url = Column(Text)
     target_lemma_id = Column(Integer, ForeignKey("lemmas.lemma_id"), nullable=True, index=True)
@@ -121,6 +122,7 @@ class Sentence(Base):
     is_active = Column(Boolean, default=True, server_default="1")
     created_at = Column(DateTime, nullable=True)
 
+    story = relationship("Story", foreign_keys=[story_id])
     words = relationship("SentenceWord", back_populates="sentence")
     review_logs = relationship("SentenceReviewLog", back_populates="sentence")
     grammar_features = relationship("SentenceGrammarFeature", back_populates="sentence")
@@ -208,8 +210,9 @@ class Story(Base):
     body_ar = Column(Text, nullable=False)
     body_en = Column(Text, nullable=True)
     transliteration = Column(Text, nullable=True)
-    source = Column(String(20), nullable=False)  # generated/imported
+    source = Column(String(20), nullable=False)  # generated/imported/book_ocr
     status = Column(String(20), default="active", index=True)  # active/completed/too_difficult/skipped/suspended
+    page_count = Column(Integer, nullable=True)
     total_words = Column(Integer, default=0)
     known_count = Column(Integer, default=0)
     unknown_count = Column(Integer, default=0)

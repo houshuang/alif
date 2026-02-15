@@ -591,6 +591,34 @@ export async function importStory(arabicText: string, title?: string): Promise<S
   });
 }
 
+export async function importBook(
+  imageUris: string[],
+  title?: string
+): Promise<StoryDetail> {
+  const formData = new FormData();
+  for (const uri of imageUris) {
+    const filename = uri.split("/").pop() || "page.jpg";
+    const match = /\.(\w+)$/.exec(filename);
+    const type = match ? `image/${match[1]}` : "image/jpeg";
+    formData.append("files", { uri, name: filename, type } as any);
+  }
+
+  let url = `${BASE_URL}/api/books/import`;
+  if (title) {
+    url += `?title=${encodeURIComponent(title)}`;
+  }
+
+  const res = await fetch(url, {
+    method: "POST",
+    body: formData,
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => "Unknown error");
+    throw new Error(`API error ${res.status}: ${text}`);
+  }
+  return res.json();
+}
+
 function isLikelyNetworkError(error: unknown): boolean {
   if (!(error instanceof Error)) return false;
   const msg = error.message.toLowerCase();

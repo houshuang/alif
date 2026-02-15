@@ -526,11 +526,13 @@ export interface StoryListItem {
   id: number;
   title_ar: string | null;
   title_en: string | null;
-  source: "generated" | "imported";
+  source: "generated" | "imported" | "book_ocr";
   status: "active" | "completed" | "suspended";
   readiness_pct: number;
   unknown_count: number;
   total_words: number;
+  page_count?: number | null;
+  sentence_count?: number | null;
   created_at: string;
 }
 

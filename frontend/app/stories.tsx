@@ -317,11 +317,17 @@ export default function StoriesScreen() {
                   color:
                     item.source === "generated"
                       ? colors.accent
-                      : colors.listening,
+                      : item.source === "book_ocr"
+                        ? colors.gotIt
+                        : colors.listening,
                 },
               ]}
             >
-              {item.source === "generated" ? "Gen" : "Imp"}
+              {item.source === "generated"
+                ? "Gen"
+                : item.source === "book_ocr"
+                  ? "Book"
+                  : "Imp"}
             </Text>
           </View>
         </View>
@@ -386,6 +392,13 @@ export default function StoriesScreen() {
         >
           <Ionicons name="clipboard-outline" size={18} color="#fff" />
           <Text style={styles.actionBtnText}>Import</Text>
+        </Pressable>
+        <Pressable
+          style={[styles.actionBtn, styles.bookBtn]}
+          onPress={() => router.push("/book-import")}
+        >
+          <Ionicons name="book-outline" size={18} color="#fff" />
+          <Text style={styles.actionBtnText}>Book</Text>
         </Pressable>
       </View>
 
@@ -631,6 +644,9 @@ const styles = StyleSheet.create({
   },
   importBtn: {
     backgroundColor: colors.listening,
+  },
+  bookBtn: {
+    backgroundColor: colors.gotIt,
   },
   actionBtnText: {
     color: "#fff",

@@ -403,6 +403,8 @@ class StoryOut(BaseModel):
     unknown_count: int
     total_words: int
     difficulty_level: str | None = None
+    page_count: int | None = None
+    sentence_count: int | None = None
     created_at: str
     model_config = {"from_attributes": True}
 
@@ -421,6 +423,8 @@ class StoryDetailOut(BaseModel):
     total_words: int
     known_count: int
     difficulty_level: str | None = None
+    page_count: int | None = None
+    sentence_count: int | None = None
     completed_at: str | None = None
     created_at: str
     words: list[StoryWordMetaOut]
