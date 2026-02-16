@@ -61,7 +61,7 @@ def generate_material_for_word(lemma_id: int, needed: int = 2) -> None:
             map_tokens_to_lemmas,
             sanitize_arabic_word,
             strip_diacritics,
-            tokenize,
+            tokenize_display,
             validate_sentence,
         )
         from app.services.word_selector import get_sentence_difficulty_params
@@ -127,7 +127,7 @@ def generate_material_for_word(lemma_id: int, needed: int = 2) -> None:
             db.add(sent)
             db.flush()
 
-            tokens = tokenize(res.arabic)
+            tokens = tokenize_display(res.arabic)
             mappings = map_tokens_to_lemmas(
                 tokens=tokens,
                 lemma_lookup=mapping_lookup,
@@ -185,7 +185,8 @@ def store_multi_target_sentence(
     from app.services.sentence_validator import (
         map_tokens_to_lemmas,
         strip_diacritics,
-        tokenize,
+        strip_punctuation,
+        tokenize_display,
         normalize_alef,
         _strip_clitics,
     )
@@ -212,7 +213,7 @@ def store_multi_target_sentence(
         if norm.startswith("ال") and len(norm) > 2:
             target_normalized[norm[2:]] = lid
 
-    tokens = tokenize(result.arabic)
+    tokens = tokenize_display(result.arabic)
     # Use map_tokens_to_lemmas with primary target for base mapping
     primary_bare = None
     for bare, lid in target_bares.items():
@@ -239,7 +240,7 @@ def store_multi_target_sentence(
         # Check if this token matches any of the other targets
         is_target = m.is_target
         if not is_target:
-            bare = strip_diacritics(m.surface_form)
+            bare = strip_punctuation(strip_diacritics(m.surface_form))
             bare_norm = normalize_alef(bare.replace("\u0640", ""))
             if bare_norm in target_normalized:
                 is_target = True

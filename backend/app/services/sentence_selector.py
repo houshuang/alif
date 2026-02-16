@@ -944,7 +944,7 @@ def _generate_on_demand(
         build_lemma_lookup,
         map_tokens_to_lemmas,
         strip_diacritics,
-        tokenize,
+        tokenize_display,
     )
 
     logger = logging.getLogger(__name__)
@@ -1146,7 +1146,7 @@ def _generate_on_demand(
             db.add(sent)
             db.flush()
 
-            tokens = tokenize(result.arabic)
+            tokens = tokenize_display(result.arabic)
             mappings = map_tokens_to_lemmas(
                 tokens=tokens,
                 lemma_lookup=mapping_lookup,

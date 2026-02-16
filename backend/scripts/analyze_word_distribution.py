@@ -34,7 +34,7 @@ from app.services.sentence_validator import (
     build_lemma_lookup,
     map_tokens_to_lemmas,
     strip_diacritics,
-    tokenize,
+    tokenize_display,
     validate_sentence,
 )
 from app.services.llm import AllProvidersFailed, generate_sentences_batch
@@ -250,7 +250,7 @@ def regenerate_worst_offenders(
             db.add(sent)
             db.flush()
 
-            tokens = tokenize(res.arabic)
+            tokens = tokenize_display(res.arabic)
             mappings = map_tokens_to_lemmas(
                 tokens=tokens,
                 lemma_lookup=lemma_lookup,

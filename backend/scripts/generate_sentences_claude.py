@@ -268,7 +268,7 @@ def store_sentences(db_path: str, results: list[dict], word_map: dict[str, dict]
     from app.services.sentence_validator import (
         map_tokens_to_lemmas,
         normalize_alef,
-        tokenize,
+        tokenize_display,
     )
 
     conn = sqlite3.connect(db_path)
@@ -309,7 +309,7 @@ def store_sentences(db_path: str, results: list[dict], word_map: dict[str, dict]
             sentence_id = cursor.lastrowid
 
             # Create SentenceWord records
-            tokens = tokenize(arabic)
+            tokens = tokenize_display(arabic)
             mappings = map_tokens_to_lemmas(
                 tokens=tokens,
                 lemma_lookup=lemma_lookup,

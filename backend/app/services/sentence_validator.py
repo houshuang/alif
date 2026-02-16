@@ -80,6 +80,11 @@ FUNCTION_WORD_GLOSSES: dict[str, str] = {
 }
 
 
+def strip_punctuation(text: str) -> str:
+    """Remove Arabic and Latin punctuation from text."""
+    return ARABIC_PUNCTUATION.sub("", text)
+
+
 def strip_diacritics(text: str) -> str:
     """Remove Arabic diacritical marks (tashkeel) from text."""
     return ARABIC_DIACRITICS.sub("", text)
@@ -199,6 +204,22 @@ def tokenize(text: str) -> list[str]:
     return [t.strip() for t in tokens if t.strip()]
 
 
+def tokenize_display(text: str) -> list[str]:
+    """Tokenize Arabic text preserving punctuation attached to words.
+
+    Used for creating SentenceWord records where surface_form should
+    preserve original punctuation (question marks, periods, commas).
+    Filters out pure-punctuation tokens.
+    """
+    result = []
+    for t in text.split():
+        if not t.strip():
+            continue
+        if strip_punctuation(t).strip():
+            result.append(t)
+    return result
+
+
 @dataclass
 class WordClassification:
     original: str
@@ -302,7 +323,9 @@ def map_tokens_to_lemmas(
     """Map tokenized sentence words to lemma IDs.
 
     Args:
-        tokens: Tokenized Arabic words (from tokenize()).
+        tokens: Tokenized Arabic words (from tokenize() or tokenize_display()).
+                May include attached punctuation which is stripped for matching
+                but preserved in surface_form.
         lemma_lookup: Dict of {normalized_bare_form: lemma_id} including
                       al-prefix variants.
         target_lemma_id: The lemma_id of the target word.
@@ -321,7 +344,9 @@ def map_tokens_to_lemmas(
     result: list[TokenMapping] = []
     for i, token in enumerate(tokens):
         bare = strip_diacritics(token)
-        bare_clean = strip_tatweel(bare)
+        bare_clean = strip_punctuation(strip_tatweel(bare))
+        if not bare_clean:
+            continue
         bare_norm = normalize_alef(bare_clean)
 
         # Check target

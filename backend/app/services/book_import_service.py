@@ -27,7 +27,7 @@ from app.services.sentence_validator import (
     map_tokens_to_lemmas,
     normalize_alef,
     strip_diacritics,
-    tokenize,
+    tokenize_display,
 )
 from app.services.story_service import (
     _create_story_words,
@@ -310,7 +310,7 @@ def create_book_sentences(
         english = sent_data.get("english", "")
         transliteration = sent_data.get("transliteration", "")
 
-        tokens = tokenize(arabic)
+        tokens = tokenize_display(arabic)
         if len(tokens) < 2:
             continue
 

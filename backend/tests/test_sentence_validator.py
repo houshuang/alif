@@ -23,6 +23,7 @@ from app.services.sentence_validator import (
     sanitize_arabic_word,
     strip_diacritics,
     tokenize,
+    tokenize_display,
     validate_sentence,
 )
 
@@ -615,6 +616,50 @@ class TestMapTokensToLemmas:
         # ليست should resolve to ليس (id=1), not be clitic-stripped
         assert mappings[0].is_function_word is False  # no longer classified as function word
         assert mappings[0].lemma_id == 1
+
+
+    def test_punctuation_preserved_in_surface_form(self):
+        """Punctuation should be preserved in surface_form when using tokenize_display."""
+        tokens = tokenize_display("هَلْ يَقْرَأُ الكِتَابَ؟")
+        assert tokens[-1].endswith("؟")
+        mappings = map_tokens_to_lemmas(tokens, self.lookup, target_lemma_id=2, target_bare="كتاب")
+        assert len(mappings) == 3
+        # Last word should preserve question mark in surface_form
+        assert mappings[2].surface_form.endswith("؟")
+        assert mappings[2].is_target is True
+        assert mappings[2].lemma_id == 2
+
+    def test_comma_preserved_in_surface_form(self):
+        """Arabic comma should be preserved in surface_form."""
+        tokens = tokenize_display("الوَلَدُ يَقْرَأُ، وَالكِتَابُ جَمِيلٌ.")
+        mappings = map_tokens_to_lemmas(tokens, self.lookup, target_lemma_id=2, target_bare="كتاب")
+        # يقرأ، should keep the comma
+        read_mapping = [m for m in mappings if m.lemma_id == 3][0]
+        assert "،" in read_mapping.surface_form
+
+
+class TestTokenizeDisplay:
+    def test_preserves_question_mark(self):
+        tokens = tokenize_display("هَلْ ذَهَبْتَ؟")
+        assert tokens == ["هَلْ", "ذَهَبْتَ؟"]
+
+    def test_preserves_period(self):
+        tokens = tokenize_display("هَذَا كِتَابٌ.")
+        assert tokens == ["هَذَا", "كِتَابٌ."]
+
+    def test_preserves_arabic_comma(self):
+        tokens = tokenize_display("كِتَابٌ، وَقَلَمٌ")
+        assert tokens == ["كِتَابٌ،", "وَقَلَمٌ"]
+
+    def test_filters_pure_punctuation(self):
+        tokens = tokenize_display("كِتَابٌ ، وَقَلَمٌ")
+        # Standalone comma should be filtered out
+        assert len(tokens) == 2
+        assert "،" not in tokens
+
+    def test_matches_tokenize_for_clean_text(self):
+        text = "الوَلَدُ يَقْرَأُ الكِتَابَ"
+        assert tokenize_display(text) == tokenize(text)
 
 
 class TestFunctionWordForms:

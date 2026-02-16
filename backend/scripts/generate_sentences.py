@@ -40,7 +40,7 @@ from app.services.sentence_validator import (
     build_lemma_lookup,
     map_tokens_to_lemmas,
     strip_diacritics,
-    tokenize,
+    tokenize_display,
     validate_sentence,
 )
 
@@ -98,7 +98,7 @@ def store_sentence(
     db.flush()
 
     # Tokenize and map to lemmas
-    tokens = tokenize(gen_result.arabic)
+    tokens = tokenize_display(gen_result.arabic)
     mappings = map_tokens_to_lemmas(
         tokens=tokens,
         lemma_lookup=lemma_lookup,
