@@ -6,7 +6,7 @@
 > topics, grammar, listening) interact. It also identifies where the current
 > implementation diverges from the research and stated intentions.
 >
-> **Last updated**: 2026-02-14
+> **Last updated**: 2026-02-15
 > **Canonical location**: `docs/scheduling-system.md`
 > **Keep this document up to date with every algorithm change.**
 
@@ -197,21 +197,42 @@ Unknown words in stories become Learn mode candidates with a `story_bonus` of 1.
 (the strongest boost). Proper nouns are detected and marked as function words with
 `name_type` instead of creating learning entries.
 
-### 3.5 Duolingo Import
+### 3.5 Book Import (Children's Books)
+
+**Path**: `POST /api/books/import` → per-page OCR → per-page LLM cleanup/diacritics/segmentation → LLM translation → story + sentence creation
+**Initial state**: New lemma created with `source="story_import"`, no ULK
+**Code**: `book_import_service.py`
+
+Pipeline processes each page individually (not merged), preserving page boundaries:
+1. Cover metadata extraction via Gemini Vision
+2. Parallel per-page OCR → per-page `cleanup_and_segment()` (each sentence tagged with `page_number`)
+3. LLM translation of all sentences
+4. Story creation (reuses `story_service` helpers) with StoryWords tagged by page
+5. Sentence + SentenceWord creation with `source="book"`, `page_number` set
+
+**Page-level readiness**: API returns `page_readiness` array with per-page `new_words`, `learned_words`, and `unlocked` status. A page is unlocked when all its content words are at least acquiring.
+
+**Page-based word priority**: Words from earlier pages get a higher learning priority bonus in `word_selector.py`: page 1 → +1.0, page 2 → +0.8, etc. (min 0.2). Stacks with `story_bonus`.
+
+**Sentence tracking**: `sentences_seen` / `sentence_count` returned in API for book stories. Book sentences get 1.3x scoring preference in session builder.
+
+**Image persistence**: Uploaded images saved to `data/book-uploads/<timestamp>/` for retry on failure.
+
+### 3.6 Duolingo Import
 
 **Path**: `python3 scripts/import_duolingo.py`
 **Initial state**: Depends on import configuration. Originally created FSRS cards;
 now should create `encountered` ULK.
 **Source**: `"duolingo"`
 
-### 3.6 Story Completion (Collateral Credit)
+### 3.7 Story Completion (Collateral Credit)
 
 **Path**: User completes a story → `POST /api/stories/{id}/complete`
 **Effect on unknown words**: Creates `encountered` ULK (no FSRS card)
 **Effect on known words**: Real FSRS review submitted (rating=3)
 **Code**: `story_service.py:complete_story()`
 
-### 3.7 Sentence Review (Collateral Credit)
+### 3.8 Sentence Review (Collateral Credit)
 
 **Path**: Word appears in a reviewed sentence but has no existing ULK
 **Effect**: Word auto-introduced into acquisition (Leitner box 1, `due_immediately=False`)
@@ -649,9 +670,27 @@ When the frontend is 3 cards from the end of a session, it fires two parallel re
 2. **`GET /api/review/next-sentences?prefetch=true`**: Builds a full session and caches
    it in AsyncStorage for instant load on the next session request.
 
-**Staleness**: Cached sessions expire after 30 minutes. If the user returns after a break,
-the stale cache is discarded and `build_session()` runs fresh — but pre-generated sentences
-from the warm-up are already in DB, so on-demand generation is rarely needed.
+**Staleness — Two Levels**:
+
+1. **Cache-level staleness (30 min)**: Cached sessions in AsyncStorage expire after 30 minutes.
+   If the user starts a new session after a break, `getCachedSession()` skips stale entries
+   and `build_session()` runs fresh.
+
+2. **In-session staleness (15 min)**: Once a session is loaded into React state, the cache
+   staleness check no longer applies. If the user puts the phone down mid-session and returns
+   after 15+ minutes, an `AppState` listener detects the gap (comparing `Date.now()` to
+   `lastReviewedAt`) and triggers `fetchFreshSession()` in the background. The user continues
+   reviewing the current card uninterrupted. On the next card advance (`advanceAfterSubmit`),
+   the fresh session is seamlessly swapped in via `applyFreshSession()` — no loading screen,
+   the progress bar resets and the first card of the fresh session appears immediately.
+
+   **Data justification (2026-02-15 analysis)**: 48% of sessions were abandoned mid-review.
+   9 stale resumptions (>30 min gap) showed an average -22% comprehension drop. The 15-minute
+   threshold catches all problematic cases while avoiding false positives (76% of normal
+   inter-card gaps are <1 minute).
+
+Pre-generated sentences from the warm-up are already in DB, so on-demand generation is
+rarely needed for fresh sessions.
 
 ### Scoring Deep Dive
 
@@ -1148,6 +1187,7 @@ total_score = frequency × 0.4
             + recency_bonus × 0.2
             + grammar_pattern × 0.1
             + story_bonus        (flat +1.0)
+            + book_page_bonus    (1.0 for page 1, −0.2 per page, min 0.2)
             + encountered_bonus  (flat +0.5)
 ```
 
@@ -1215,8 +1255,12 @@ Deduplication is handled server-side via `client_review_id`.
 ### Session Caching
 
 The frontend pre-fetches and caches review sessions per mode in AsyncStorage
-(`lib/offline-store.ts`). Each mode (reading, listening) has its own cache. Sessions
-are invalidated after use or after a configurable timeout.
+(`lib/offline-store.ts`). Each mode (reading, listening) has its own cache.
+
+**Cache staleness**: Sessions older than 30 minutes are skipped when loading from cache.
+**In-session staleness**: If the user resumes the app after 15+ minutes of inactivity
+(since last review), a background fetch runs and the fresh session seamlessly replaces
+remaining cards on the next card advance. See Section 8 "Sentence Pre-Warming" for details.
 
 ---
 
@@ -1235,6 +1279,13 @@ are invalidated after use or after a configurable timeout.
 | `MAX_ON_DEMAND_PER_SESSION` | 10 | Reference constant (callers control actual cap via remaining session capacity) |
 | `MAX_REINTRO_PER_SESSION` | 3 | Struggling word reintro card limit |
 | `STRUGGLING_MIN_SEEN` | 3 | Threshold for struggling classification |
+
+### Frontend Session Staleness (`app/index.tsx`, `lib/offline-store.ts`)
+
+| Constant | Value | Purpose |
+|----------|-------|---------|
+| `SESSION_STALENESS_MS` | 30 min | Cache-level: skip cached sessions older than this |
+| `STALE_IN_SESSION_MS` | 15 min | In-session: trigger background refresh after this gap since last review |
 
 ### Comprehension-Aware Recency Cutoffs
 

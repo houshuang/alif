@@ -11,6 +11,7 @@ import {
   IntroduceResult,
   StoryListItem,
   StoryDetail,
+  BookPageDetail,
   StoryLookupResult,
   WordLookupResult,
   AskAIResponse,
@@ -366,6 +367,18 @@ export async function getLemmaSentence(
   return fetchApi(`/api/learn/sentences/${lemmaId}`);
 }
 
+export async function fetchFreshSession(
+  mode: ReviewMode = "reading"
+): Promise<SentenceReviewSession> {
+  const data = await fetchApi<SentenceReviewSession>(
+    `/api/review/next-sentences?limit=10&mode=${mode}`
+  );
+  const session = { ...data, session_id: data.session_id || generateSessionId() };
+  cacheSessions(mode, [session]).catch(() => {});
+  prefetchWordLookupsForSession(session).catch(() => {});
+  return session;
+}
+
 export async function getSentenceReviewSession(
   mode: ReviewMode = "reading"
 ): Promise<SentenceReviewSession> {
@@ -567,6 +580,10 @@ export async function getStoryDetail(id: number): Promise<StoryDetail> {
     if (cached) return cached;
     throw e;
   }
+}
+
+export async function getBookPageDetail(storyId: number, page: number): Promise<BookPageDetail> {
+  return fetchApi<BookPageDetail>(`/api/stories/${storyId}/pages/${page}`);
 }
 
 export async function generateStory(opts?: {

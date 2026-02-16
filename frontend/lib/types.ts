@@ -560,6 +560,31 @@ export interface StoryDetail extends StoryListItem {
   words: StoryWordMeta[];
 }
 
+export interface BookPageWord {
+  lemma_id: number;
+  arabic: string;
+  gloss_en: string | null;
+  transliteration: string | null;
+  knowledge_state: string | null;
+  is_new: boolean;
+}
+
+export interface BookPageSentence {
+  id: number;
+  arabic_diacritized: string;
+  english_translation: string | null;
+  seen: boolean;
+}
+
+export interface BookPageDetail {
+  story_id: number;
+  page_number: number;
+  story_title_en: string | null;
+  known_count: number;
+  words: BookPageWord[];
+  sentences: BookPageSentence[];
+}
+
 export interface StoryLookupResult {
   lemma_id: number;
   gloss_en: string | null;

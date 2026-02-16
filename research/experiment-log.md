@@ -4,6 +4,36 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-02-14: Michel Thomas Audio Course Import Pipeline (Blocked)
+
+### What
+Built infrastructure to import audio language courses into Alif via speech-to-text transcription. First target: Michel Thomas Egyptian Arabic Foundation (8 CDs, 118 tracks, ~8h audio).
+
+### Pipeline
+1. Soniox STT transcription (16.2% WER for Arabic, native EN↔AR code-switching)
+2. Extract Arabic segments from token stream (per-token language ID)
+3. LLM classification: Egyptian vs MSA, add diacritics, translate
+4. Import: words as "learning" (skip Leitner → FSRS with Rating.Good), sentences (3+ Arabic words) as Sentence records
+
+### Files Created
+- `backend/app/services/soniox_service.py` — Soniox REST API wrapper
+- `backend/scripts/import_michel_thomas.py` — 5-phase pipeline with `--phase` resumability
+- `backend/app/config.py` — added `soniox_api_key`
+
+### Status
+**Blocked**: Need a valid Soniox API key from console.soniox.com. Cost: ~$0.10/CD, ~$0.80 total.
+
+### When Unblocked
+```bash
+cd backend
+SONIOX_API_KEY=xxx python3 scripts/import_michel_thomas.py \
+    --audio-dir /tmp/claude/michel_thomas/audio/Arabic\ Foundation\ CD1/ \
+    --soniox-key xxx
+```
+Audio already extracted to `/tmp/claude/michel_thomas/audio/` (all 8 CDs).
+
+---
+
 ## 2026-02-15: Page-Level Tracking for Book Imports
 
 ### What
@@ -11,18 +41,19 @@ Book import now preserves page boundaries: each page is OCR'd and cleaned indivi
 
 ### Changes
 - **Models**: Added `page_number` column to `Sentence` and `StoryWord` (migration `ad1ca8ace671`)
-- **book_import_service.py**: Process each page through `cleanup_and_segment()` individually instead of merging all text. Tag sentences and story words with page numbers.
-- **story_service.py**: New `_get_book_stats()` computes per-page readiness (new_words, learned_words, unlocked), sentence_count, and sentences_seen for book stories. Added to both list and detail endpoints.
+- **book_import_service.py**: Process each page through `cleanup_and_segment()` individually instead of merging all text. Tag sentences and story words with page numbers. StoryWord surface→lemma fallback resolves more unmapped tokens. Sentences with remaining unmapped tokens are kept (not skipped).
+- **story_service.py**: New `_get_book_stats()` computes per-page readiness (new_words, learned_words, unlocked), sentence_count, and sentences_seen for book stories. New `get_book_page_detail()` returns per-page words (new vs existing, with status) and sentences (with seen indicator). Added to both list and detail endpoints.
 - **word_selector.py**: `_book_page_bonus()` gives earlier pages higher priority (page 1 → +1.0, page 2 → +0.8, etc.)
-- **Frontend**: Page readiness pills on book story cards showing per-page progress
+- **Frontend**: Clickable page readiness pills on book story cards. New `book-page.tsx` screen shows per-page word list and sentence list. `GET /api/stories/{id}/pages/{page}` endpoint.
 
 ### Expected Effect
-Words from earlier book pages get introduced first, allowing page-by-page reading progression. Users can track when each page is "unlocked" (all words at least acquiring).
+Words from earlier book pages get introduced first, allowing page-by-page reading progression. Users can track when each page is "unlocked" (all words at least acquiring). Clicking a page pill shows exactly which words are new/known and which sentences have been reviewed.
 
 ### Verification
 - API returns `page_readiness` array with per-page word counts
 - Story card shows page pills with remaining word counts
 - Word selector ranks page-1 words above page-10 words for same story
+- Clicking a page pill navigates to detail with word list + sentences
 
 ---
 

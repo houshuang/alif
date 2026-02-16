@@ -294,8 +294,12 @@ export default function StoriesScreen() {
             {item.page_readiness.map((p) => {
               const remaining = p.new_words - p.learned_words;
               return (
-                <View
+                <Pressable
                   key={p.page}
+                  onPress={(e) => {
+                    e.stopPropagation();
+                    router.push(`/book-page?storyId=${item.id}&page=${p.page}`);
+                  }}
                   style={[
                     styles.pagePill,
                     {
@@ -321,7 +325,7 @@ export default function StoriesScreen() {
                   >
                     {p.unlocked ? `p${p.page} ✓` : `p${p.page}: ${remaining}`}
                   </Text>
-                </View>
+                </Pressable>
               );
             })}
           </View>

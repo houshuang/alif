@@ -160,6 +160,13 @@ export default function Layout() {
           }}
         />
         <Tabs.Screen
+          name="book-page"
+          options={{
+            href: null,
+            title: "Book Page",
+          }}
+        />
+        <Tabs.Screen
           name="review-lab"
           options={{
             href: null,

@@ -87,7 +87,12 @@ def validate_gloss(gloss: str | None) -> str | None:
     return gloss or None
 
 
-def _call_gemini_vision(image_bytes: bytes, prompt: str, system_prompt: str = "") -> dict:
+def _call_gemini_vision(
+    image_bytes: bytes,
+    prompt: str,
+    system_prompt: str = "",
+    model_override: str | None = None,
+) -> dict:
     """Call Gemini Vision API with an image and prompt.
 
     Uses litellm for the API call with base64-encoded image.
@@ -100,6 +105,7 @@ def _call_gemini_vision(image_bytes: bytes, prompt: str, system_prompt: str = ""
     if not api_key:
         raise ValueError("GEMINI_KEY not configured")
 
+    model = model_override or "gemini/gemini-3-flash-preview"
     b64 = base64.b64encode(image_bytes).decode("utf-8")
 
     messages = []
@@ -120,7 +126,7 @@ def _call_gemini_vision(image_bytes: bytes, prompt: str, system_prompt: str = ""
     start = time.time()
     try:
         response = litellm.completion(
-            model="gemini/gemini-3-flash-preview",
+            model=model,
             messages=messages,
             temperature=0.1,
             timeout=120,
@@ -142,7 +148,7 @@ def _call_gemini_vision(image_bytes: bytes, prompt: str, system_prompt: str = ""
         entry = {
             "ts": datetime.now().isoformat(),
             "event": "llm_call",
-            "model": "gemini/gemini-3-flash-preview",
+            "model": model,
             "task": "ocr",
             "success": True,
             "response_time_s": round(elapsed, 2),

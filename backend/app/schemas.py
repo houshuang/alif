@@ -406,6 +406,31 @@ class PageReadiness(BaseModel):
     unlocked: bool
 
 
+class BookPageWordOut(BaseModel):
+    lemma_id: int
+    arabic: str
+    gloss_en: str | None = None
+    transliteration: str | None = None
+    knowledge_state: str | None = None
+    is_new: bool = False
+
+
+class BookPageSentenceOut(BaseModel):
+    id: int
+    arabic_diacritized: str
+    english_translation: str | None = None
+    seen: bool = False
+
+
+class BookPageDetailOut(BaseModel):
+    story_id: int
+    page_number: int
+    story_title_en: str | None = None
+    known_count: int = 0
+    words: list[BookPageWordOut] = []
+    sentences: list[BookPageSentenceOut] = []
+
+
 class StoryOut(BaseModel):
     id: int
     title_ar: str | None = None

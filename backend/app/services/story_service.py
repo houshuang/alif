@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 
 import logging
 
-from app.models import Lemma, Root, UserLemmaKnowledge, Story, StoryWord
+from app.models import Lemma, Root, Sentence, UserLemmaKnowledge, Story, StoryWord
 from app.services.fsrs_service import submit_review
 from app.services.interaction_logger import log_interaction
 from app.services.llm import (
@@ -724,7 +724,6 @@ def import_story(
 def _get_book_stats(db: Session, book_ids: list[int]) -> dict:
     """Batch-load sentence counts, sentences seen, and page readiness for book stories."""
     from sqlalchemy import func
-    from app.models import Sentence
 
     if not book_ids:
         return {}
@@ -789,6 +788,90 @@ def _get_book_stats(db: Session, book_ids: list[int]) -> dict:
         "sentences_seen": sent_stats.get(sid, {}).get("seen"),
         "page_readiness": page_readiness.get(sid),
     } for sid in book_ids}
+
+
+def get_book_page_detail(db: Session, story_id: int, page_number: int) -> dict:
+    """Get detailed word and sentence info for a single page of a book story."""
+    story = db.query(Story).filter(Story.id == story_id).first()
+    if not story:
+        raise ValueError(f"Story {story_id} not found")
+    if story.source != "book_ocr":
+        raise ValueError(f"Story {story_id} is not a book import")
+
+    # Words on this page (unique lemmas, non-function)
+    page_words = (
+        db.query(StoryWord)
+        .filter(
+            StoryWord.story_id == story_id,
+            StoryWord.page_number == page_number,
+            StoryWord.is_function_word == False,
+            StoryWord.lemma_id.isnot(None),
+        )
+        .all()
+    )
+
+    seen_lemmas: set[int] = set()
+    unique_words: list[StoryWord] = []
+    for sw in page_words:
+        if sw.lemma_id not in seen_lemmas:
+            seen_lemmas.add(sw.lemma_id)
+            unique_words.append(sw)
+
+    # Batch fetch lemma + ULK info
+    lemma_ids = list(seen_lemmas)
+    lemmas_by_id: dict[int, Lemma] = {}
+    if lemma_ids:
+        for lem in db.query(Lemma).filter(Lemma.lemma_id.in_(lemma_ids)).all():
+            lemmas_by_id[lem.lemma_id] = lem
+
+    knowledge_map = _build_knowledge_map(db, lemma_ids=seen_lemmas if seen_lemmas else None)
+
+    known_count = 0
+    words_out = []
+    for sw in unique_words:
+        lem = lemmas_by_id.get(sw.lemma_id)
+        state = knowledge_map.get(sw.lemma_id)
+        is_new = bool(lem and lem.source_story_id == story_id)
+        if not is_new and state:
+            known_count += 1
+        words_out.append({
+            "lemma_id": sw.lemma_id,
+            "arabic": lem.arabic_bare if lem else sw.surface_form,
+            "gloss_en": sw.gloss_en or (lem.gloss_en if lem else None),
+            "transliteration": lem.transliteration if lem else None,
+            "knowledge_state": state,
+            "is_new": is_new,
+        })
+
+    # Sentences on this page
+    page_sentences = (
+        db.query(Sentence)
+        .filter(
+            Sentence.story_id == story_id,
+            Sentence.page_number == page_number,
+        )
+        .order_by(Sentence.id)
+        .all()
+    )
+
+    sentences_out = [
+        {
+            "id": s.id,
+            "arabic_diacritized": s.arabic_diacritized or s.arabic_text,
+            "english_translation": s.english_translation,
+            "seen": (s.times_shown or 0) > 0,
+        }
+        for s in page_sentences
+    ]
+
+    return {
+        "story_id": story_id,
+        "page_number": page_number,
+        "story_title_en": story.title_en,
+        "known_count": known_count,
+        "words": words_out,
+        "sentences": sentences_out,
+    }
 
 
 def get_stories(db: Session) -> list[dict]:

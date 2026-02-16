@@ -423,6 +423,7 @@
 - [DONE] Story list with readiness indicators (green/yellow/red), generate + import buttons
 - [DONE] Story list design polish: bottom-sheet modals, larger Arabic titles (24px), icon badges, refined card layout
 - [DONE] Story reader declutter: moved Complete/Skip/Too Hard from fixed bottom bar to end of scroll content, maximizing reading space
+- [DONE] Completed stories archival: completed stories shown in collapsed group at bottom of stories list, expandable on tap with chevron indicator. Keeps active/suspended stories prominent.
 - [DONE] Morphological fallback for story word lookup: CAMeL Tools analysis resolves conjugated forms (قالت→قال) that clitic stripping misses
 - [DONE] Story import creates Lemma entries for unknown words (CAMeL + LLM translation). No ULK — words become Learn mode candidates with story_bonus priority. Completes the import → learn → read pipeline.
 - [DONE] Story completion auto-creates ULK: all words get FSRS credit, not just words with existing knowledge records
@@ -558,6 +559,12 @@
 - [DONE] Book sentences captured as `source="book"` with `story_id` FK, used in review when comprehensible (≥70% known gate)
 - [DONE] 1.3x source_bonus in sentence scoring: book sentences preferred over LLM-generated when both cover same due words
 - [DONE] Natural learning progression: initially LLM sentences fill gaps → as vocabulary grows, book sentences become comprehensible and replace LLM
+- [DONE] Per-page tracking: `page_number` column on Sentence and StoryWord models. Each page processed individually through cleanup_and_segment (not merged). Enables per-page readiness and word prioritization.
+- [DONE] Page-based word prioritization: `_book_page_bonus()` in word_selector.py — earlier pages get higher learning priority (page 1 → +1.0, decaying by 0.2 per page, min 0.2). Integrates with existing scoring formula.
+- [DONE] Per-page readiness UI: `_get_book_stats()` in story_service returns page readiness (unique new lemmas per page, how many learned). Frontend shows colored pills per page ("p1 ✓", "p2: 3") on book story cards.
+- [DONE] Sentences seen/total tracking: book stories show how many of their sentences have appeared in review sessions.
+- [DONE] CAMeL morphology resolution for unmapped words: `_resolve_unmapped_via_camel()` resolves conjugated verb forms (e.g. ذَهَبَتْ→ذهب) to existing lemmas during sentence creation.
+- [DONE] Image persistence: uploaded book page images saved to `data/book-uploads/<timestamp>/` for retry on failed imports.
 - Page ordering UI: drag-to-reorder page thumbnails before import (currently insertion-order only)
 - Progress polling: for longer books (30+ pages), switch from sync to async import with SSE/polling progress updates
 - Book library view: separate section in stories list for imported books with page count, sentence count, cover thumbnail
@@ -567,6 +574,7 @@
 - Pre-reading vocabulary prep: before starting a book, show a "prep session" of the most critical unknown words
 - Book sentence audio: generate TTS for book sentences to enable listening practice with authentic book content
 - Archive.org integration: browse/download Arabic children's books directly from Archive.org (Karim Series, Simplified Reading Series, etc.)
+- [DONE] Stop skipping sentences with unmapped words: sentences with unmapped tokens are now kept (was: dropped entirely). Added StoryWord surface→lemma fallback lookup after CAMeL resolution. Remaining unmapped tokens get `lemma_id=None` in SentenceWord — sentence still usable for reviewing mapped words.
 
 ### Sentence Diversity & Corpus Quality (2026-02-11)
 - [DONE] Scaffold freshness penalty: penalize sentences whose scaffold words are over-reviewed
@@ -845,6 +853,19 @@ After importing ~100 textbook pages via OCR, 411 words entered the system with a
 - Amro's PhD specifically studies digital Arabic language learning with translanguaging
 - DIALOGUES Erasmus+ project (2025–2027) on languages, literacies, and learning in a digital age
 - **Full writeup**: [`research/inn-arabic-heritage-language.md`](research/inn-arabic-heritage-language.md)
+
+#### Audio Course Import via Soniox Transcription (2026-02-14)
+- Michel Thomas Egyptian Arabic Foundation (8 CDs, 118 tracks, ~8h) available as MP3
+- **Pipeline**: Soniox STT (16.2% WER Arabic, native code-switching EN↔AR) → extract Arabic segments → LLM classify Egyptian vs MSA → import words + sentences
+- **Code ready**: `soniox_service.py` (REST API wrapper), `scripts/import_michel_thomas.py` (5-phase pipeline: transcribe → extract → classify → import → verify)
+- **Blocked on**: valid Soniox API key. Get one at console.soniox.com. Cost: ~$0.10 for CD1, ~$0.80 for all 8 CDs.
+- **Egyptian Arabic overlap**: ~60-70% of beginner vocabulary shared with MSA. LLM classification filters Egyptian-only words (عايز, دلوقتي). MSA equivalents provided for bridgeable words.
+- **Words imported as "learning"**: user already learned these through audio course, skip Leitner → straight to FSRS with Rating.Good
+- **Reusable pattern**: same pipeline works for any language course audio (Pimsleur, Assimil, etc.)
+- Could extend to Pimsleur Arabic, Assimil Arabic, or any other audio course with mixed L1+L2 instruction
+- Could build a generic "audio course importer" UI: upload audio files → transcribe → review extracted vocabulary → import
+- Speaker diarization could isolate teacher (authoritative Arabic) vs student (possibly incorrect) for quality filtering
+- Word-level timestamps from Soniox enable future feature: link each imported word/sentence back to exact audio timestamp for replay
 
 #### 19-Level Readability Corpus (BAREC)
 - BAREC (ACL 2025): 69K sentences, 19 readability levels, CC-BY-SA. Pilot study (2024, 10.6K segments) evolved into this.

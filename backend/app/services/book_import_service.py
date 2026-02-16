@@ -65,10 +65,65 @@ def extract_cover_metadata(cover_image: bytes) -> dict:
         return {}
 
 
+def _enhance_image(image_bytes: bytes) -> bytes:
+    """Auto-enhance dark/low-contrast images for better OCR."""
+    from PIL import Image, ImageEnhance, ImageStat
+    import io
+
+    img = Image.open(io.BytesIO(image_bytes))
+    if img.mode != "RGB":
+        img = img.convert("RGB")
+
+    stat = ImageStat.Stat(img)
+    mean_brightness = sum(stat.mean[:3]) / 3
+
+    if mean_brightness < 120:
+        brightness_factor = min(1.8, 140 / max(mean_brightness, 1))
+        img = ImageEnhance.Brightness(img).enhance(brightness_factor)
+        img = ImageEnhance.Contrast(img).enhance(1.3)
+        logger.info(f"Enhanced dark image (brightness {mean_brightness:.0f} → factor {brightness_factor:.1f})")
+
+    buf = io.BytesIO()
+    img.save(buf, format="JPEG", quality=90)
+    return buf.getvalue()
+
+
+def _ocr_page_with_retry(image_bytes: bytes) -> str:
+    """OCR a single page with enhancement and retry on failure."""
+    enhanced = _enhance_image(image_bytes)
+    text = extract_text_from_image(enhanced)
+    if text.strip():
+        return text
+
+    # Retry with thinking model for difficult pages
+    logger.info("Flash returned empty, retrying with thinking model...")
+    try:
+        result = _call_gemini_vision(
+            enhanced,
+            prompt=(
+                "This is a page from a children's Arabic book. The image may be dark or low quality. "
+                "Extract ALL Arabic text from this image carefully. "
+                "Preserve the original text exactly as written. "
+                "Preserve paragraph breaks with newlines. "
+                "Do NOT translate. Do NOT add diacritics that aren't in the original. "
+                'Respond with JSON: {"arabic_text": "the extracted Arabic text"}'
+            ),
+            system_prompt="You are an Arabic OCR system. Extract Arabic text accurately from images. Respond with JSON only.",
+            model_override="gemini/gemini-2.5-flash-preview",
+        )
+        text = result.get("arabic_text", "")
+        if text.strip():
+            logger.info("Thinking model succeeded")
+        return text
+    except Exception as e:
+        logger.warning(f"Thinking model retry failed: {e}")
+        return ""
+
+
 def ocr_pages_parallel(page_images: list[bytes], max_workers: int = 4) -> list[str]:
     """OCR each page in parallel, return list of per-page Arabic text."""
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
-        results = list(executor.map(extract_text_from_image, page_images))
+        results = list(executor.map(_ocr_page_with_retry, page_images))
     return results
 
 
@@ -236,18 +291,18 @@ def create_book_sentences(
     db: Session,
     story: Story,
     extracted_sentences: list[dict],
+    story_word_lookup: dict[str, int] | None = None,
 ) -> list[Sentence]:
     """Create Sentence + SentenceWord records from extracted book sentences.
 
-    For unmapped tokens, uses CAMeL morphology to resolve to existing lemmas.
-    Sentences with still-unmapped words are skipped (those words should have been
-    created by _import_unknown_words already).
+    For unmapped tokens, uses CAMeL morphology to resolve to existing lemmas,
+    then falls back to story_word_lookup (surface→lemma from StoryWords).
+    Tokens that still can't be mapped get lemma_id=None in SentenceWord.
     """
     all_lemmas = _get_all_lemmas(db)
     lemma_lookup = build_lemma_lookup(all_lemmas)
 
     created = []
-    skipped = 0
     for sent_data in extracted_sentences:
         arabic = sent_data.get("arabic", "")
         english = sent_data.get("english", "")
@@ -271,11 +326,17 @@ def create_book_sentences(
                 if m.lemma_id is None and m.position in camel_resolved:
                     m.lemma_id = camel_resolved[m.position]
 
+        # Fallback: use StoryWord surface→lemma mappings
+        if story_word_lookup and any(m.lemma_id is None for m in mappings):
+            for m in mappings:
+                if m.lemma_id is None:
+                    bare = normalize_alef(strip_diacritics(m.surface_form))
+                    if bare in story_word_lookup:
+                        m.lemma_id = story_word_lookup[bare]
+
         still_unmapped = [m.surface_form for m in mappings if m.lemma_id is None]
         if still_unmapped:
-            logger.info(f"Skipping book sentence with {len(still_unmapped)} unmapped words: {still_unmapped[:5]}")
-            skipped += 1
-            continue
+            logger.info(f"Book sentence has {len(still_unmapped)} unmapped words (kept): {still_unmapped[:5]}")
 
         target_lid = _pick_primary_target(mappings, db)
 
@@ -307,8 +368,6 @@ def create_book_sentences(
 
         created.append(sent)
 
-    if skipped:
-        logger.warning(f"Skipped {skipped}/{len(extracted_sentences)} book sentences due to unmapped words")
     return created
 
 
@@ -418,9 +477,16 @@ def import_book(
     # Recalculate readiness
     _recalculate_story_counts(db, story)
 
+    # Build surface→lemma fallback from StoryWords (which _import_unknown_words resolved)
+    story_word_lookup: dict[str, int] = {}
+    for sw in story.words:
+        if sw.lemma_id is not None:
+            bare = normalize_alef(strip_diacritics(sw.surface_form))
+            story_word_lookup[bare] = sw.lemma_id
+
     # Step 7: Create Sentence + SentenceWord records
     logger.info("Creating sentence records...")
-    created_sentences = create_book_sentences(db, story, sentences)
+    created_sentences = create_book_sentences(db, story, sentences, story_word_lookup)
     logger.info(f"Created {len(created_sentences)} sentence records")
 
     db.commit()

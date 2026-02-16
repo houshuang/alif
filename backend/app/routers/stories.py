@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.schemas import (
+    BookPageDetailOut,
     StoryCompleteIn,
     StoryDetailOut,
     StoryGenerateIn,
@@ -18,6 +19,7 @@ from app.services.story_service import (
     complete_story,
     delete_story,
     generate_story,
+    get_book_page_detail,
     get_stories,
     get_story_detail,
     import_story,
@@ -83,6 +85,14 @@ def list_stories(db: Session = Depends(get_db)):
                         s["estimated_days_to_ready"] = days_est
 
     return stories
+
+
+@router.get("/{story_id}/pages/{page_number}", response_model=BookPageDetailOut)
+def get_page_detail(story_id: int, page_number: int, db: Session = Depends(get_db)):
+    try:
+        return get_book_page_detail(db, story_id, page_number)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
 
 
 @router.get("/{story_id}", response_model=StoryDetailOut)
