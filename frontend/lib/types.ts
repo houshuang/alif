@@ -558,6 +558,8 @@ export interface StoryListItem {
   sentence_count?: number | null;
   sentences_seen?: number | null;
   page_readiness?: PageReadiness[] | null;
+  new_total?: number;
+  new_learning?: number;
   created_at: string;
   estimated_days_to_ready?: number | null;
 }

@@ -242,18 +242,12 @@ export default function StoriesScreen() {
     const title = item.title_en || item.title_ar || "Untitled Story";
     const ready = readinessColor(item);
     const isComplete = item.status === "completed";
-    const learningCount = item.page_readiness
-      ? item.page_readiness.reduce((s, p) => s + p.learned_words, 0)
-      : 0;
-    const totalPageWords = item.page_readiness
-      ? item.page_readiness.reduce((s, p) => s + p.new_words, 0)
-      : 0;
     const readyText = isComplete
       ? "Completed"
       : item.unknown_count <= 3
         ? "Ready to read!"
-        : learningCount > 0
-          ? `${learningCount}/${totalPageWords} words learning`
+        : item.new_learning && item.new_total
+          ? `${item.new_learning}/${item.new_total} new words learning`
           : `${item.unknown_count} unknown`;
 
     const pctWidth = Math.min(100, Math.max(4, item.readiness_pct));

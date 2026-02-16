@@ -777,31 +777,83 @@ def _get_book_stats(db: Session, book_ids: list[int]) -> dict:
         page_lemmas[sid][page].add(lid)
         all_lemma_ids.add(lid)
 
-    # Batch knowledge lookup
+    # Batch knowledge + acquisition timing lookup
     knowledge_map = _build_knowledge_map(db, lemma_ids=all_lemma_ids if all_lemma_ids else None)
+    acq_started: dict[int, datetime] = {}
+    if all_lemma_ids:
+        acq_rows = (
+            db.query(UserLemmaKnowledge.lemma_id, UserLemmaKnowledge.acquisition_started_at)
+            .filter(
+                UserLemmaKnowledge.lemma_id.in_(all_lemma_ids),
+                UserLemmaKnowledge.acquisition_started_at.isnot(None),
+            )
+            .all()
+        )
+        acq_started = {r.lemma_id: r.acquisition_started_at for r in acq_rows}
+
+    # Map story_id -> created_at for distinguishing pre-existing vs new
+    story_created: dict[int, datetime] = {}
+    for s in db.query(Story).filter(Story.id.in_(book_ids)).all():
+        if s.created_at:
+            story_created[s.id] = s.created_at
 
     # Build page readiness per story
     page_readiness: dict[int, list[dict]] = {}
     for sid in book_ids:
         if sid not in page_lemmas:
             continue
+        import_time = story_created.get(sid)
         pages = []
         for page_num in sorted(page_lemmas[sid].keys()):
             lemmas = page_lemmas[sid][page_num]
-            # "new" = words that weren't known at import time (we count all non-function words)
-            learned = sum(1 for lid in lemmas if knowledge_map.get(lid) in ("learning", "known", "acquiring"))
+            # Words not yet in learning flow (need to start)
+            not_started = 0
+            started_after_import = 0
+            for lid in lemmas:
+                state = knowledge_map.get(lid)
+                if state in _ACTIVELY_LEARNING_STATES:
+                    # Was this word already learning before the book was imported?
+                    started_at = acq_started.get(lid)
+                    if import_time and started_at and started_at >= import_time:
+                        started_after_import += 1
+                else:
+                    not_started += 1
             pages.append({
                 "page": page_num,
-                "new_words": len(lemmas),
-                "learned_words": learned,
-                "unlocked": learned == len(lemmas),
+                "new_words": not_started + started_after_import,
+                "learned_words": started_after_import,
+                "unlocked": not_started == 0,
             })
         page_readiness[sid] = pages
+
+    # Deduplicated story-level counts (words that were new at import)
+    story_word_stats: dict[int, dict] = {}
+    for sid in book_ids:
+        if sid not in page_lemmas:
+            continue
+        import_time = story_created.get(sid)
+        all_story_lemmas = set()
+        for page_lids in page_lemmas[sid].values():
+            all_story_lemmas.update(page_lids)
+        new_total = 0
+        new_learning = 0
+        for lid in all_story_lemmas:
+            state = knowledge_map.get(lid)
+            if state in _ACTIVELY_LEARNING_STATES:
+                started_at = acq_started.get(lid)
+                if import_time and started_at and started_at >= import_time:
+                    new_total += 1
+                    new_learning += 1
+                # else: already known before import, don't count
+            else:
+                new_total += 1  # not started yet
+        story_word_stats[sid] = {"new_total": new_total, "new_learning": new_learning}
 
     return {sid: {
         "sentence_count": sent_stats.get(sid, {}).get("total"),
         "sentences_seen": sent_stats.get(sid, {}).get("seen"),
         "page_readiness": page_readiness.get(sid),
+        **(story_word_stats.get(sid, {})),
     } for sid in book_ids}
 
 
