@@ -4,6 +4,21 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-02-16: Fix Book Page Detail + Story Readiness Includes Acquiring Words
+
+### What
+Two bugs in the book import story feature:
+1. **Book page detail 500 error**: `get_book_page_detail()` referenced `lem.arabic_bare` and `lem.transliteration` — neither exist on the Lemma model. Correct attributes: `lemma_ar_bare` and `transliteration_ala_lc`.
+2. **Story readiness excluded acquiring words**: `_recalculate_story_counts()` and `get_story_detail()` only counted `learning`/`known` as "known" words. After the algorithm redesign where all words go through acquiring first, this meant the majority of actively-learned words weren't reflected in story readiness.
+
+### Changes
+- `story_service.py`: Added `_ACTIVELY_LEARNING_STATES = {"acquiring", "learning", "known", "lapsed"}` — used in `_recalculate_story_counts()`, `get_story_detail()`, and `get_book_page_detail()`. Fixed attribute names for page detail.
+
+### Production Impact
+After recalculation, story 6 ("Rosie in the Haunted House") went from 10.1% → 23.1% readiness. Other stories shifted to reflect current vocabulary state (some down due to OCR card resets moving words from known→encountered).
+
+---
+
 ## 2026-02-16: Word Category Classification (proper_name / onomatopoeia)
 
 ### What
