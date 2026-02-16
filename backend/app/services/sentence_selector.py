@@ -652,14 +652,22 @@ def build_session(
         if not due_covered:
             continue
 
-        # Comprehensibility gate: skip sentences where <70% of content words are known
-        # "encountered" counts as passive vocabulary — learner has seen the word
-        total_content = sum(1 for w in word_metas if not w.is_function_word and w.lemma_id)
-        known_content = sum(
-            1 for w in word_metas if not w.is_function_word and w.lemma_id
-            and w.knowledge_state in ("known", "learning", "lapsed", "acquiring", "encountered")
+        # Comprehensibility gate: skip sentences where <60% of scaffold words are known
+        # Only checks non-due words (target words are expected to be challenging).
+        # "encountered" counts as passive vocabulary — learner has seen the word.
+        # "acquiring" only counts if past box 1 (stability >= 0.5 = reviewed at least once);
+        # prevents book sentences where all words were imported simultaneously from appearing
+        # before the learner has reviewed most of the vocabulary.
+        scaffold = [w for w in word_metas if not w.is_function_word and w.lemma_id and not w.is_due]
+        total_scaffold = len(scaffold)
+        known_scaffold = sum(
+            1 for w in scaffold
+            if (
+                w.knowledge_state in ("known", "learning", "lapsed", "encountered")
+                or (w.knowledge_state == "acquiring" and (w.stability or 0) >= 0.5)
+            )
         )
-        if total_content > 0 and known_content / total_content < 0.7:
+        if total_scaffold > 0 and known_scaffold / total_scaffold < 0.6:
             continue
 
         # Listening mode: skip if any non-function, non-due word isn't listening-ready

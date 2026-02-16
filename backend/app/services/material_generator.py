@@ -308,6 +308,7 @@ MIN_SENTENCES_PER_WORD = 2
 def warm_sentence_cache() -> dict:
     """Background task: pre-generate sentences for words likely in the next session.
 
+    Uses multi-target generation to efficiently cover multiple words per sentence.
     Identifies focus cohort words + likely auto-introductions that have fewer
     than MIN_SENTENCES_PER_WORD active sentences, then generates for them.
     Opens its own DB session. Returns stats dict for logging.
@@ -315,10 +316,20 @@ def warm_sentence_cache() -> dict:
     from app.services.cohort_service import get_focus_cohort
     from app.services.word_selector import select_next_words
     from app.services.topic_service import ensure_active_topic
+    from app.services.sentence_generator import (
+        group_words_for_multi_target,
+        generate_validated_sentences_multi_target,
+    )
+    from app.services.sentence_validator import (
+        build_lemma_lookup,
+        build_comprehensive_lemma_lookup,
+        strip_diacritics,
+    )
     from sqlalchemy import func
+    from sqlalchemy.orm import joinedload
 
     db = SessionLocal()
-    stats = {"cohort_gaps": 0, "intro_gaps": 0, "generated": 0}
+    stats = {"cohort_gaps": 0, "intro_gaps": 0, "generated": 0, "multi_target": 0}
     try:
         # Check pipeline cap before pre-generating
         total_active = (
@@ -330,6 +341,9 @@ def warm_sentence_cache() -> dict:
         if total_active >= PIPELINE_CAP + 10:
             logger.info(f"Warm cache: pipeline over cap ({total_active} >= {PIPELINE_CAP + 10}), skipping")
             return stats
+
+        # Collect all words needing sentences
+        gap_word_ids: list[int] = []
 
         # 1. Focus cohort words with < 2 active sentences
         cohort = get_focus_cohort(db)
@@ -345,35 +359,100 @@ def warm_sentence_cache() -> dict:
             )
             gaps = [lid for lid in cohort if sentence_counts.get(lid, 0) < MIN_SENTENCES_PER_WORD]
             stats["cohort_gaps"] = len(gaps)
+            gap_word_ids.extend(gaps[:10])
 
-            for lid in gaps[:10]:
-                try:
-                    generate_material_for_word(lid, needed=MIN_SENTENCES_PER_WORD)
-                    stats["generated"] += 1
-                except Exception:
-                    logger.warning(f"Warm cache: failed for cohort word {lid}")
-
-        # 2. Likely auto-introduction candidates (top frequency encountered words)
+        # 2. Likely auto-introduction candidates
         active_topic = ensure_active_topic(db)
         candidates = select_next_words(db, count=5, domain=active_topic)
-        intro_gaps = []
         for cand in candidates:
             lid = cand["lemma_id"]
+            if lid in gap_word_ids:
+                continue
             count = (
                 db.query(func.count(Sentence.id))
                 .filter(Sentence.target_lemma_id == lid, Sentence.is_active == True)
                 .scalar() or 0
             )
             if count < MIN_SENTENCES_PER_WORD:
-                intro_gaps.append(lid)
+                gap_word_ids.append(lid)
+                stats["intro_gaps"] = stats.get("intro_gaps", 0) + 1
 
-        stats["intro_gaps"] = len(intro_gaps)
-        for lid in intro_gaps[:5]:
+        if not gap_word_ids:
+            logger.info(f"Warm cache: no gaps found")
+            return stats
+
+        # Load lemmas for gap words
+        gap_lemmas = (
+            db.query(Lemma).options(joinedload(Lemma.root))
+            .filter(Lemma.lemma_id.in_(gap_word_ids))
+            .all()
+        )
+        lemma_by_id = {l.lemma_id: l for l in gap_lemmas}
+
+        # Build word dicts for multi-target grouping
+        word_dicts = []
+        for lid in gap_word_ids:
+            lem = lemma_by_id.get(lid)
+            if lem:
+                word_dicts.append({
+                    "lemma_id": lid,
+                    "lemma_ar": lem.lemma_ar,
+                    "gloss_en": lem.gloss_en or "",
+                    "root_id": lem.root_id,
+                })
+
+        # Build known words for LLM prompt
+        active_lemmas = (
+            db.query(Lemma)
+            .join(UserLemmaKnowledge)
+            .filter(UserLemmaKnowledge.knowledge_state.in_(
+                ["acquiring", "learning", "known", "lapsed"]
+            ))
+            .all()
+        )
+        known_words = [
+            {"arabic": l.lemma_ar, "english": l.gloss_en or "", "lemma_id": l.lemma_id, "pos": l.pos or ""}
+            for l in active_lemmas
+        ]
+        lemma_lookup = build_lemma_lookup(active_lemmas)
+        mapping_lookup = build_comprehensive_lemma_lookup(db)
+
+        # Multi-target generation
+        groups = group_words_for_multi_target(word_dicts)
+        for group in groups:
+            try:
+                results = generate_validated_sentences_multi_target(
+                    target_words=group,
+                    known_words=known_words,
+                    count=len(group),
+                    difficulty_hint="beginner",
+                    max_words=12,
+                    lemma_lookup=lemma_lookup,
+                )
+                target_bares = {strip_diacritics(tw["lemma_ar"]): tw["lemma_id"] for tw in group}
+                for mres in results:
+                    sent = store_multi_target_sentence(db, mres, mapping_lookup, target_bares)
+                    if sent:
+                        stats["generated"] += 1
+                        stats["multi_target"] += 1
+                db.commit()
+            except Exception:
+                logger.warning(f"Warm cache: multi-target failed for group")
+                db.rollback()
+
+        # Single-target fallback for any remaining ungrouped words
+        covered = set()
+        for group in groups:
+            for w in group:
+                covered.add(w["lemma_id"])
+        remaining = [lid for lid in gap_word_ids if lid not in covered]
+
+        for lid in remaining:
             try:
                 generate_material_for_word(lid, needed=MIN_SENTENCES_PER_WORD)
                 stats["generated"] += 1
             except Exception:
-                logger.warning(f"Warm cache: failed for intro candidate {lid}")
+                logger.warning(f"Warm cache: failed for word {lid}")
 
         logger.info(f"Warm cache complete: {stats}")
         return stats
