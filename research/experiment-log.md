@@ -4,6 +4,24 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-02-16: Learning Progress Analysis
+
+### Findings
+Comprehensive data analysis of Feb 10-16 learning sessions. Key findings:
+
+1. **FSRS stability is working correctly.** Initial concern about 44 words with stability <3d was investigated. Two patterns found: (a) post-lapse recovery — words that failed a review (rating 1) had stability crash from ~4d to ~0.7d and are slowly recovering, which is correct FSRS behavior; (b) over-reviewed scaffold words — stable words (16d) get daily reviews as scaffold in other words' sentences, R≈0.99 so no growth, but harmless. Both patterns will self-correct.
+
+2. **Sentence utilization**: 41% never shown (229/560). Mostly pre-generated for words not yet due in sessions. Expected to improve as more words enter review rotation.
+
+3. **Acquisition pipeline healthy**: 5 box 1, 47 box 2, 32 box 3. Graduation avg 0.6 days. 55 words graduated total.
+
+4. **Accuracy improving**: 63% (Feb 9) → 93% (Feb 16), largely driven by tier system changes prioritizing book/OCR words over random wiktionary.
+
+### Action
+No code changes needed. Both concerns deferred for re-evaluation late Feb when system has more history. Noted in IDEAS.md.
+
+---
+
 ## 2026-02-16: Fix Wrong Word on Tap + Variant Detection Robustness
 
 ### What
