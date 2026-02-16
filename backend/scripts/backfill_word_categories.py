@@ -95,7 +95,7 @@ def main():
                 summary=f"Backfilled word_category: {phase1_count} from StoryWord, "
                         f"{phase2_counts.get('proper_name', 0)} names + "
                         f"{phase2_counts.get('onomatopoeia', 0)} sounds from LLM",
-                detail_json={
+                detail={
                     "phase1_count": phase1_count,
                     "phase2_counts": phase2_counts,
                 },
