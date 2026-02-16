@@ -282,12 +282,27 @@ def _auto_introduce_words(
     introduced_ids: list[int] = []
     for cand in candidates[:slots]:
         lid = cand["lemma_id"]
+        tier = cand.get("score_breakdown", {}).get("priority_tier", "")
+        if tier.startswith("book_p"):
+            intro_source = "book"
+        elif tier == "active_story":
+            intro_source = "story_import"
+        elif tier in ("textbook_scan", "duolingo"):
+            intro_source = tier
+        else:
+            intro_source = "auto_intro"
+        story_id = cand.get("story_id")
         try:
-            result = introduce_word(db, lid, source="auto_intro", due_immediately=True)
+            result = introduce_word(db, lid, source=intro_source, due_immediately=True)
             if result.get("already_known"):
                 continue
+            if story_id:
+                lemma = db.query(Lemma).filter(Lemma.lemma_id == lid).first()
+                if lemma and not lemma.source_story_id:
+                    lemma.source_story_id = story_id
+                    db.commit()
             introduced_ids.append(lid)
-            logger.info(f"Auto-introduced word {lid}: {cand.get('lemma_ar', '?')}")
+            logger.info(f"Auto-introduced word {lid}: {cand.get('lemma_ar', '?')} source={intro_source}")
 
             if not skip_material_gen:
                 try:

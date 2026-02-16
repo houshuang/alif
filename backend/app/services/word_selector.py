@@ -102,10 +102,10 @@ def _get_recently_failed_roots(db: Session) -> set[int]:
     return {r[0] for r in roots}
 
 
-def _active_story_lemma_ids(db: Session) -> dict[int, str]:
-    """Get lemma_ids of unknown words in active stories → story title."""
+def _active_story_lemma_ids(db: Session) -> dict[int, dict]:
+    """Get lemma_ids of unknown words in active stories → {title, story_id}."""
     rows = (
-        db.query(StoryWord.lemma_id, Story.title_en, Story.title_ar)
+        db.query(StoryWord.lemma_id, Story.id, Story.title_en, Story.title_ar)
         .join(Story, StoryWord.story_id == Story.id)
         .filter(
             Story.status == "active",
@@ -115,17 +115,20 @@ def _active_story_lemma_ids(db: Session) -> dict[int, str]:
         )
         .all()
     )
-    result: dict[int, str] = {}
-    for lemma_id, title_en, title_ar in rows:
+    result: dict[int, dict] = {}
+    for lemma_id, story_id, title_en, title_ar in rows:
         if lemma_id not in result:
-            result[lemma_id] = title_en or title_ar or "Story"
+            result[lemma_id] = {
+                "title": title_en or title_ar or "Story",
+                "story_id": story_id,
+            }
     return result
 
 
-def _book_page_numbers(db: Session) -> dict[int, int]:
-    """Get lemma_id → earliest page number for words in active book stories."""
+def _book_page_numbers(db: Session) -> dict[int, dict]:
+    """Get lemma_id → {page, story_id} for words in active book stories."""
     rows = (
-        db.query(StoryWord.lemma_id, StoryWord.page_number)
+        db.query(StoryWord.lemma_id, StoryWord.page_number, Story.id)
         .join(Story, StoryWord.story_id == Story.id)
         .filter(
             Story.status == "active",
@@ -136,10 +139,10 @@ def _book_page_numbers(db: Session) -> dict[int, int]:
         )
         .all()
     )
-    result: dict[int, int] = {}
-    for lemma_id, page in rows:
-        if lemma_id not in result or page < result[lemma_id]:
-            result[lemma_id] = page
+    result: dict[int, dict] = {}
+    for lemma_id, page, story_id in rows:
+        if lemma_id not in result or page < result[lemma_id]["page"]:
+            result[lemma_id] = {"page": page, "story_id": story_id}
     return result
 
 
@@ -475,7 +478,7 @@ def select_next_words(
 
         # --- Priority bonus: strict tier system ---
         if lemma.lemma_id in book_pages:
-            page = book_pages[lemma.lemma_id]
+            page = book_pages[lemma.lemma_id]["page"]
             priority_bonus = _TIER_BOOK_BASE - page * _TIER_BOOK_PAGE_STEP
             priority_tier = f"book_p{page}"
         elif lemma.lemma_id in story_lemmas:
@@ -529,7 +532,12 @@ def select_next_words(
             "etymology_json": lemma.etymology_json,
             "memory_hooks_json": lemma.memory_hooks_json,
             "word_category": lemma.word_category,
-            "story_title": story_lemmas.get(lemma.lemma_id),
+            "story_title": (story_lemmas[lemma.lemma_id]["title"] if lemma.lemma_id in story_lemmas else None),
+            "story_id": (
+                book_pages[lemma.lemma_id]["story_id"] if lemma.lemma_id in book_pages
+                else story_lemmas[lemma.lemma_id]["story_id"] if lemma.lemma_id in story_lemmas
+                else None
+            ),
             "score": round(total_score, 3),
             "score_breakdown": {
                 "frequency": round(freq_score, 3),
