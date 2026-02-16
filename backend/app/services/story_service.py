@@ -893,14 +893,42 @@ def get_book_page_detail(db: Session, story_id: int, page_number: int) -> dict:
 
     knowledge_map = _build_knowledge_map(db, lemma_ids=seen_lemmas if seen_lemmas else None)
 
-    known_count = 0
+    # Fetch acquisition timing to distinguish pre-existing vs new
+    acq_started: dict[int, datetime] = {}
+    if seen_lemmas:
+        acq_rows = (
+            db.query(UserLemmaKnowledge.lemma_id, UserLemmaKnowledge.acquisition_started_at)
+            .filter(
+                UserLemmaKnowledge.lemma_id.in_(seen_lemmas),
+                UserLemmaKnowledge.acquisition_started_at.isnot(None),
+            )
+            .all()
+        )
+        acq_started = {r.lemma_id: r.acquisition_started_at for r in acq_rows}
+
+    import_time = story.created_at
+    known_at_import = 0
+    new_not_started = 0
+    new_learning = 0
     words_out = []
     for sw in unique_words:
         lem = lemmas_by_id.get(sw.lemma_id)
         state = knowledge_map.get(sw.lemma_id)
-        is_new = bool(lem and lem.source_story_id == story_id)
-        if not is_new and state in _ACTIVELY_LEARNING_STATES:
-            known_count += 1
+        # Was this word already actively learning before the book was imported?
+        started_at = acq_started.get(sw.lemma_id)
+        was_known_before = (
+            state in _ACTIVELY_LEARNING_STATES
+            and started_at is not None
+            and import_time is not None
+            and started_at < import_time
+        )
+        is_new = not was_known_before
+        if was_known_before:
+            known_at_import += 1
+        elif state in _ACTIVELY_LEARNING_STATES:
+            new_learning += 1
+        else:
+            new_not_started += 1
         words_out.append({
             "lemma_id": sw.lemma_id,
             "arabic": lem.lemma_ar_bare if lem else sw.surface_form,
@@ -935,7 +963,9 @@ def get_book_page_detail(db: Session, story_id: int, page_number: int) -> dict:
         "story_id": story_id,
         "page_number": page_number,
         "story_title_en": story.title_en,
-        "known_count": known_count,
+        "known_count": known_at_import,
+        "new_not_started": new_not_started,
+        "new_learning": new_learning,
         "words": words_out,
         "sentences": sentences_out,
     }

@@ -593,6 +593,8 @@ export interface BookPageDetail {
   page_number: number;
   story_title_en: string | null;
   known_count: number;
+  new_not_started: number;
+  new_learning: number;
   words: BookPageWord[];
   sentences: BookPageSentence[];
 }

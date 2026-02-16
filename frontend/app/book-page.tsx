@@ -43,7 +43,7 @@ export default function BookPageScreen() {
   useLayoutEffect(() => {
     navigation.setOptions({
       headerLeft: () => (
-        <Pressable onPress={() => router.back()} style={{ paddingLeft: 12 }}>
+        <Pressable onPress={() => router.push("/stories")} style={{ paddingLeft: 12 }}>
           <Ionicons name="chevron-back" size={24} color={colors.text} />
         </Pressable>
       ),
@@ -79,7 +79,12 @@ export default function BookPageScreen() {
     );
   }
 
-  const newWords = data.words.filter((w) => w.is_new);
+  const newNotStarted = data.words.filter(
+    (w) => w.is_new && !["acquiring", "learning", "known", "lapsed"].includes(w.knowledge_state || "")
+  );
+  const newLearning = data.words.filter(
+    (w) => w.is_new && ["acquiring", "learning", "known", "lapsed"].includes(w.knowledge_state || "")
+  );
   const existingWords = data.words.filter((w) => !w.is_new);
   const seenCount = data.sentences.filter((s) => s.seen).length;
 
@@ -91,27 +96,38 @@ export default function BookPageScreen() {
 
       <View style={styles.statsRow}>
         <View style={styles.statBox}>
-          <Text style={styles.statValue}>{data.known_count}</Text>
-          <Text style={styles.statLabel}>Already known</Text>
+          <Text style={styles.statValue}>{data.new_not_started}</Text>
+          <Text style={styles.statLabel}>Not started</Text>
         </View>
         <View style={styles.statBox}>
-          <Text style={styles.statValue}>{newWords.length}</Text>
-          <Text style={styles.statLabel}>New words</Text>
-        </View>
-        <View style={styles.statBox}>
-          <Text style={styles.statValue}>
-            {seenCount}/{data.sentences.length}
+          <Text style={[styles.statValue, data.new_learning > 0 && { color: colors.stateLearning }]}>
+            {data.new_learning}
           </Text>
-          <Text style={styles.statLabel}>Sentences seen</Text>
+          <Text style={styles.statLabel}>Learning</Text>
+        </View>
+        <View style={styles.statBox}>
+          <Text style={styles.statValue}>{data.known_count}</Text>
+          <Text style={styles.statLabel}>Known at import</Text>
         </View>
       </View>
 
-      {newWords.length > 0 && (
+      {newLearning.length > 0 && (
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>
-            New Words ({newWords.length})
+            Learning ({newLearning.length})
           </Text>
-          {newWords.map((w) => (
+          {newLearning.map((w) => (
+            <WordRow key={w.lemma_id} word={w} onPress={() => router.push(`/word/${w.lemma_id}`)} />
+          ))}
+        </View>
+      )}
+
+      {newNotStarted.length > 0 && (
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>
+            Not Started ({newNotStarted.length})
+          </Text>
+          {newNotStarted.map((w) => (
             <WordRow key={w.lemma_id} word={w} onPress={() => router.push(`/word/${w.lemma_id}`)} />
           ))}
         </View>
