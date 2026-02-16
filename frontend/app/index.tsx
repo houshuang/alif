@@ -13,6 +13,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { Audio } from "expo-av";
+import { Ionicons } from "@expo/vector-icons";
 import { colors, fonts, fontFamily } from "../lib/theme";
 import {
   getSentenceReviewSession,
