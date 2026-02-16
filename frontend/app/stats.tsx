@@ -10,7 +10,7 @@ import {
 import { useFocusEffect } from "expo-router";
 import { colors, fonts } from "../lib/theme";
 import { getAnalytics, getGrammarProgress, getDeepAnalytics } from "../lib/api";
-import { Analytics, GrammarProgress, DeepAnalytics, AcquisitionPipeline, ComprehensionBreakdown, GraduatedWord } from "../lib/types";
+import { Analytics, GrammarProgress, DeepAnalytics, AcquisitionPipeline, ComprehensionBreakdown, GraduatedWord, IntroducedBySource } from "../lib/types";
 import { syncEvents } from "../lib/sync-events";
 
 export default function StatsScreen() {
@@ -79,6 +79,7 @@ export default function StatsScreen() {
       <TodayHeroCard
         comprehension={analytics.comprehension_today}
         graduated={analytics.graduated_today}
+        introduced={analytics.introduced_today}
         calibration={analytics.calibration_signal}
         reviewsToday={stats.reviews_today}
         streak={pace.current_streak}
@@ -665,12 +666,14 @@ function RootProgressSection({ data }: { data: DeepAnalytics["root_coverage"] })
 function TodayHeroCard({
   comprehension,
   graduated,
+  introduced,
   calibration,
   reviewsToday,
   streak,
 }: {
   comprehension?: ComprehensionBreakdown;
   graduated?: GraduatedWord[];
+  introduced?: IntroducedBySource[];
   calibration?: string;
   reviewsToday: number;
   streak: number;
@@ -751,6 +754,26 @@ function TodayHeroCard({
           </View>
         </View>
       )}
+
+      {introduced && introduced.length > 0 && (() => {
+        const total = introduced.reduce((s, i) => s + i.count, 0);
+        return (
+          <View style={styles.heroGrads}>
+            <Text style={styles.heroGradsLabel}>
+              {total} new {total === 1 ? "word" : "words"} started:
+            </Text>
+            <View style={styles.heroGradPills}>
+              {introduced.map((i) => (
+                <View key={i.source} style={styles.heroIntroPill}>
+                  <Text style={styles.heroIntroText}>
+                    {i.source} {i.count}
+                  </Text>
+                </View>
+              ))}
+            </View>
+          </View>
+        );
+      })()}
     </View>
   );
 }
@@ -981,6 +1004,17 @@ const styles = StyleSheet.create({
   heroGradAr: {
     fontSize: 14,
     color: colors.good,
+    fontWeight: "600",
+  },
+  heroIntroPill: {
+    backgroundColor: colors.accent + "20",
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+  },
+  heroIntroText: {
+    fontSize: 12,
+    color: colors.accent,
     fontWeight: "600",
   },
   pipeTitleRow: {

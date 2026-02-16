@@ -12,7 +12,7 @@ from app.models import (
 )
 from app.schemas import (
     StatsOut, DailyStatsPoint, LearningPaceOut,
-    CEFREstimate, AnalyticsOut, GraduatedWord,
+    CEFREstimate, AnalyticsOut, GraduatedWord, IntroducedBySource,
     DeepAnalyticsOut, StabilityBucket, RetentionStats,
     StateTransitions, ComprehensionBreakdown, StrugglingWord,
     RootCoverage, SessionDetail,
@@ -419,6 +419,7 @@ def get_analytics(
 
     comp_today = _get_comprehension_breakdown(db, 0)
     graduated_today = _get_graduated_today(db)
+    introduced_today = _get_introduced_today(db)
     calibration = _compute_calibration_signal(comp_today)
 
     _add_cefr_predictions(cefr, pace, len(graduated_today))
@@ -435,6 +436,7 @@ def get_analytics(
         daily_history=history,
         comprehension_today=comp_today,
         graduated_today=graduated_today,
+        introduced_today=introduced_today,
         calibration_signal=calibration,
         total_words_reviewed_7d=words_reviewed_7d,
         total_words_reviewed_alltime=words_reviewed_all,
@@ -750,6 +752,40 @@ def _get_graduated_today(db: Session) -> list[GraduatedWord]:
     return [
         GraduatedWord(lemma_id=r.lemma_id, lemma_ar=r.lemma_ar, gloss_en=r.gloss_en)
         for r in rows
+    ]
+
+
+_SOURCE_LABELS = {
+    "study": "Learn",
+    "duolingo": "Duolingo",
+    "textbook_scan": "OCR",
+    "story_import": "Story",
+    "auto_intro": "Auto",
+    "collateral": "Review",
+    "leech_reintro": "Reintro",
+}
+
+
+def _get_introduced_today(db: Session) -> list[IntroducedBySource]:
+    today_start = datetime.now(timezone.utc).replace(
+        hour=0, minute=0, second=0, microsecond=0
+    )
+    rows = (
+        db.query(
+            UserLemmaKnowledge.source,
+            func.count(UserLemmaKnowledge.id),
+        )
+        .filter(UserLemmaKnowledge.acquisition_started_at >= today_start)
+        .group_by(UserLemmaKnowledge.source)
+        .all()
+    )
+    return [
+        IntroducedBySource(
+            source=_SOURCE_LABELS.get(src or "study", src or "study"),
+            count=cnt,
+        )
+        for src, cnt in rows
+        if cnt > 0
     ]
 
 

@@ -413,6 +413,7 @@ export interface Analytics {
   daily_history: DailyStats[];
   comprehension_today?: ComprehensionBreakdown;
   graduated_today?: GraduatedWord[];
+  introduced_today?: IntroducedBySource[];
   calibration_signal?: string;
   total_words_reviewed_7d?: number;
   total_words_reviewed_alltime?: number;
@@ -424,6 +425,11 @@ export interface GraduatedWord {
   lemma_id: number;
   lemma_ar: string;
   gloss_en: string | null;
+}
+
+export interface IntroducedBySource {
+  source: string;
+  count: number;
 }
 
 // Deep Analytics types

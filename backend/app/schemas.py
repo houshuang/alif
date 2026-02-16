@@ -116,6 +116,11 @@ class GraduatedWord(BaseModel):
     gloss_en: str | None
 
 
+class IntroducedBySource(BaseModel):
+    source: str
+    count: int
+
+
 class AnalyticsOut(BaseModel):
     stats: StatsOut
     pace: LearningPaceOut
@@ -123,6 +128,7 @@ class AnalyticsOut(BaseModel):
     daily_history: list[DailyStatsPoint]
     comprehension_today: Optional["ComprehensionBreakdown"] = None
     graduated_today: list[GraduatedWord] = []
+    introduced_today: list[IntroducedBySource] = []
     calibration_signal: str = "not_enough_data"
     total_words_reviewed_7d: int = 0
     total_words_reviewed_alltime: int = 0
