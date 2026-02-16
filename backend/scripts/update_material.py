@@ -63,6 +63,7 @@ from app.services.tts import (
 MIN_SENTENCES = 2  # per-word target for backfill generation
 MIN_SENTENCES_CAP_ENFORCEMENT = 1  # per-word floor during cap enforcement (JIT handles gaps)
 TARGET_PIPELINE_SENTENCES = 300  # hard cap — JIT generation fills gaps with current vocabulary
+CAP_HEADROOM = 30  # retire this many below cap to leave room for multi-target backfill
 
 
 def get_existing_counts(db: Session) -> dict[int, int]:
@@ -266,11 +267,12 @@ def step_enforce_cap(db: Session, dry_run: bool, max_sentences: int = TARGET_PIP
     print(f"\n═══ Step 0: Enforce sentence cap ═══")
     print(f"  Active sentences: {total_active} (cap: {max_sentences})")
 
-    if total_active <= max_sentences:
-        print(f"  Under cap, nothing to retire.")
+    retire_target = max_sentences - CAP_HEADROOM
+    if total_active <= retire_target:
+        print(f"  Under retire target ({retire_target}), nothing to retire.")
         return 0
 
-    excess = total_active - max_sentences
+    excess = total_active - retire_target
     print(f"  Over cap by {excess} — identifying sentences to retire")
 
     # Load all active sentences with their diversity scores

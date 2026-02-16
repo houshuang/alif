@@ -327,8 +327,8 @@ def warm_sentence_cache() -> dict:
             .scalar() or 0
         )
         PIPELINE_CAP = 300
-        if total_active >= PIPELINE_CAP:
-            logger.info(f"Warm cache: pipeline full ({total_active} >= {PIPELINE_CAP}), skipping")
+        if total_active >= PIPELINE_CAP + 10:
+            logger.info(f"Warm cache: pipeline over cap ({total_active} >= {PIPELINE_CAP + 10}), skipping")
             return stats
 
         # 1. Focus cohort words with < 2 active sentences
