@@ -110,8 +110,9 @@ def _active_story_lemma_ids(db: Session) -> dict[int, str]:
 def _book_page_bonus(db: Session) -> dict[int, float]:
     """Get lemma_id → page bonus for words in active book stories.
 
-    Earlier pages get higher bonus: page 1 → 1.0, page 2 → 0.8, page 3 → 0.6, etc.
-    Minimum bonus is 0.2.
+    Earlier pages get much higher bonus to ensure page 1 words are introduced
+    first (goal: read page 1 as soon as possible).
+    Page 1 → 1.5, page 2 → 1.0, page 3 → 0.6, page 4 → 0.3, page 5+ → 0.1.
     """
     rows = (
         db.query(StoryWord.lemma_id, StoryWord.page_number)
@@ -127,7 +128,7 @@ def _book_page_bonus(db: Session) -> dict[int, float]:
     )
     result: dict[int, float] = {}
     for lemma_id, page in rows:
-        bonus = max(0.2, 1.0 - (page - 1) * 0.2)
+        bonus = max(0.1, 1.5 - (page - 1) * 0.5)
         if lemma_id not in result or bonus > result[lemma_id]:
             result[lemma_id] = bonus
     return result

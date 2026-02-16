@@ -433,6 +433,8 @@ class BookPageDetailOut(BaseModel):
     page_number: int
     story_title_en: str | None = None
     known_count: int = 0
+    new_not_started: int = 0
+    new_learning: int = 0
     words: list[BookPageWordOut] = []
     sentences: list[BookPageSentenceOut] = []
 
@@ -451,6 +453,8 @@ class StoryOut(BaseModel):
     sentence_count: int | None = None
     sentences_seen: int | None = None
     page_readiness: list[PageReadiness] | None = None
+    new_total: int | None = None
+    new_learning: int | None = None
     created_at: str
     estimated_days_to_ready: int | None = None
     model_config = {"from_attributes": True}

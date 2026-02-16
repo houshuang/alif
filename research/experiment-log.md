@@ -4,6 +4,34 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-02-16: Book Progress Tracking + Page Prioritization
+
+### What
+Three improvements to the book import experience:
+1. **False positive "new word" detection**: Words like في (reviewed 44 times over weeks) were misclassified as "new from book" because `acquisition_started_at` was reset by the OCR reset script. Changed detection to use `review_log` first-review date — the authoritative record of when a word was first studied. Resilient to maintenance script resets.
+2. **Introduced today by source**: Stats dashboard now shows daily word introductions broken down by source (Book, OCR, Auto, Learn, etc.). Fixed `start_acquisition()` to preserve meaningful sources instead of overwriting to "auto_intro".
+3. **Page prioritization**: Increased book page bonus spread from page 1→1.0 to page 1→1.5 (page 2→1.0, page 3→0.6, page 4→0.3, page 5+→0.1) so page 1 words are strongly preferred for auto-introduction.
+
+### Changes
+- `story_service.py`: `_get_book_stats()` and `get_book_page_detail()` now use `MIN(review_log.reviewed_at)` instead of `acquisition_started_at` to detect pre-existing knowledge
+- `word_selector.py`: `_book_page_bonus()` steeper page decay (0.5/page vs 0.2/page), higher ceiling (1.5 vs 1.0)
+- `schemas.py`: Added `new_total`/`new_learning` to `StoryOut`, `new_not_started`/`new_learning` to `BookPageDetailOut`, `IntroducedBySource` schema
+- `acquisition_service.py`: Preserve meaningful ULK.source in `start_acquisition()`
+- `book_import_service.py`: Create "encountered" ULK with source="book" after import
+- `stats.py`: `_get_introduced_today()` query + source labels
+- Frontend: story list shows `X/Y new words learning`, page pills show `learned/total`, stats shows introduced today by source
+
+### Hypothesis
+Users can track book import progress accurately. Page 1 words will be prioritized for introduction, enabling sequential page reading. False "new word" counts eliminated.
+
+### Verification
+- Check stats page shows introduced-today pills
+- Check story list shows learning progress (not "183 unknown" for book with progress)
+- في classified as "known at import" on book page detail, not "learning"
+- Page 1 words scored higher than page 2+ words in `select_next_words()`
+
+---
+
 ## 2026-02-16: Fix Book Page Detail + Story Readiness Includes Acquiring Words
 
 ### What

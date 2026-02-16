@@ -779,23 +779,36 @@ def _get_book_stats(db: Session, book_ids: list[int]) -> dict:
 
     # Batch knowledge + acquisition timing lookup
     knowledge_map = _build_knowledge_map(db, lemma_ids=all_lemma_ids if all_lemma_ids else None)
-    acq_started: dict[int, datetime] = {}
+
+    # Earliest review date per lemma — the true indicator of whether a word
+    # was being studied before the book was imported (acquisition_started_at
+    # can be reset by scripts like reset_ocr_cards.py)
+    from app.models import ReviewLog
+    first_review: dict[int, datetime] = {}
     if all_lemma_ids:
-        acq_rows = (
-            db.query(UserLemmaKnowledge.lemma_id, UserLemmaKnowledge.acquisition_started_at)
-            .filter(
-                UserLemmaKnowledge.lemma_id.in_(all_lemma_ids),
-                UserLemmaKnowledge.acquisition_started_at.isnot(None),
-            )
+        from sqlalchemy import func as sa_func
+        first_rev_rows = (
+            db.query(ReviewLog.lemma_id, sa_func.min(ReviewLog.reviewed_at))
+            .filter(ReviewLog.lemma_id.in_(all_lemma_ids))
+            .group_by(ReviewLog.lemma_id)
             .all()
         )
-        acq_started = {r.lemma_id: r.acquisition_started_at for r in acq_rows}
+        first_review = {r[0]: r[1] for r in first_rev_rows}
 
     # Map story_id -> created_at for distinguishing pre-existing vs new
     story_created: dict[int, datetime] = {}
     for s in db.query(Story).filter(Story.id.in_(book_ids)).all():
         if s.created_at:
             story_created[s.id] = s.created_at
+
+    def _was_known_before_import(lid: int, import_time: datetime | None) -> bool:
+        """Check if a word was already being studied before the book was imported."""
+        if not import_time:
+            return False
+        fr = first_review.get(lid)
+        if fr and fr < import_time:
+            return True
+        return False
 
     # Build page readiness per story
     page_readiness: dict[int, list[dict]] = {}
@@ -806,16 +819,14 @@ def _get_book_stats(db: Session, book_ids: list[int]) -> dict:
         pages = []
         for page_num in sorted(page_lemmas[sid].keys()):
             lemmas = page_lemmas[sid][page_num]
-            # Words not yet in learning flow (need to start)
             not_started = 0
             started_after_import = 0
             for lid in lemmas:
+                if _was_known_before_import(lid, import_time):
+                    continue  # pre-existing knowledge, skip
                 state = knowledge_map.get(lid)
                 if state in _ACTIVELY_LEARNING_STATES:
-                    # Was this word already learning before the book was imported?
-                    started_at = acq_started.get(lid)
-                    if import_time and started_at and started_at >= import_time:
-                        started_after_import += 1
+                    started_after_import += 1
                 else:
                     not_started += 1
             pages.append({
@@ -838,13 +849,12 @@ def _get_book_stats(db: Session, book_ids: list[int]) -> dict:
         new_total = 0
         new_learning = 0
         for lid in all_story_lemmas:
+            if _was_known_before_import(lid, import_time):
+                continue  # pre-existing knowledge
             state = knowledge_map.get(lid)
             if state in _ACTIVELY_LEARNING_STATES:
-                started_at = acq_started.get(lid)
-                if import_time and started_at and started_at >= import_time:
-                    new_total += 1
-                    new_learning += 1
-                # else: already known before import, don't count
+                new_total += 1
+                new_learning += 1
             else:
                 new_total += 1  # not started yet
         story_word_stats[sid] = {"new_total": new_total, "new_learning": new_learning}
@@ -893,18 +903,19 @@ def get_book_page_detail(db: Session, story_id: int, page_number: int) -> dict:
 
     knowledge_map = _build_knowledge_map(db, lemma_ids=seen_lemmas if seen_lemmas else None)
 
-    # Fetch acquisition timing to distinguish pre-existing vs new
-    acq_started: dict[int, datetime] = {}
+    # Earliest review date per lemma — true indicator of pre-existing knowledge
+    # (acquisition_started_at can be reset by maintenance scripts)
+    from app.models import ReviewLog
+    first_review: dict[int, datetime] = {}
     if seen_lemmas:
-        acq_rows = (
-            db.query(UserLemmaKnowledge.lemma_id, UserLemmaKnowledge.acquisition_started_at)
-            .filter(
-                UserLemmaKnowledge.lemma_id.in_(seen_lemmas),
-                UserLemmaKnowledge.acquisition_started_at.isnot(None),
-            )
+        from sqlalchemy import func as sa_func
+        first_rev_rows = (
+            db.query(ReviewLog.lemma_id, sa_func.min(ReviewLog.reviewed_at))
+            .filter(ReviewLog.lemma_id.in_(seen_lemmas))
+            .group_by(ReviewLog.lemma_id)
             .all()
         )
-        acq_started = {r.lemma_id: r.acquisition_started_at for r in acq_rows}
+        first_review = {r[0]: r[1] for r in first_rev_rows}
 
     import_time = story.created_at
     known_at_import = 0
@@ -914,13 +925,12 @@ def get_book_page_detail(db: Session, story_id: int, page_number: int) -> dict:
     for sw in unique_words:
         lem = lemmas_by_id.get(sw.lemma_id)
         state = knowledge_map.get(sw.lemma_id)
-        # Was this word already actively learning before the book was imported?
-        started_at = acq_started.get(sw.lemma_id)
+        # Was this word already being studied before the book was imported?
+        fr = first_review.get(sw.lemma_id)
         was_known_before = (
-            state in _ACTIVELY_LEARNING_STATES
-            and started_at is not None
+            fr is not None
             and import_time is not None
-            and started_at < import_time
+            and fr < import_time
         )
         is_new = not was_known_before
         if was_known_before:
