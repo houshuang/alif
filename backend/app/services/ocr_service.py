@@ -129,7 +129,7 @@ def _call_gemini_vision(
             model=model,
             messages=messages,
             temperature=0.1,
-            timeout=120,
+            timeout=300,
             api_key=api_key,
             response_format={"type": "json_object"},
         )
