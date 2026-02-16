@@ -334,7 +334,7 @@ def _estimate_cefr(known_count: int, acquiring_known: int = 0) -> CEFREstimate:
 def _add_cefr_predictions(
     cefr: CEFREstimate,
     pace: LearningPaceOut,
-    graduated_today_count: int,
+    graduated_24h_count: int,
 ) -> CEFREstimate:
     if cefr.words_to_next is None or cefr.words_to_next <= 0:
         return cefr
@@ -347,11 +347,9 @@ def _add_cefr_predictions(
                 cefr.words_to_next / effective_daily_rate
             )
 
-    if graduated_today_count > 0:
-        study_frequency = pace.study_days_7d / 7.0 if pace.study_days_7d > 0 else 1 / 7
-        effective_daily_rate = graduated_today_count * max(study_frequency, 1 / 7)
+    if graduated_24h_count > 0:
         cefr.days_to_next_today_pace = round(
-            cefr.words_to_next / effective_daily_rate
+            cefr.words_to_next / graduated_24h_count
         )
 
     return cefr
@@ -422,7 +420,8 @@ def get_analytics(
     introduced_today = _get_introduced_today(db)
     calibration = _compute_calibration_signal(comp_today)
 
-    _add_cefr_predictions(cefr, pace, len(graduated_today))
+    graduated_24h = _get_graduated_count_24h(db)
+    _add_cefr_predictions(cefr, pace, graduated_24h)
 
     words_reviewed_7d = _get_words_reviewed_count(db, days=7)
     words_reviewed_all = _get_words_reviewed_count(db)
@@ -753,6 +752,15 @@ def _get_graduated_today(db: Session) -> list[GraduatedWord]:
         GraduatedWord(lemma_id=r.lemma_id, lemma_ar=r.lemma_ar, gloss_en=r.gloss_en)
         for r in rows
     ]
+
+
+def _get_graduated_count_24h(db: Session) -> int:
+    cutoff = datetime.now(timezone.utc) - timedelta(hours=24)
+    return (
+        db.query(func.count(UserLemmaKnowledge.id))
+        .filter(UserLemmaKnowledge.graduated_at >= cutoff)
+        .scalar()
+    ) or 0
 
 
 _SOURCE_LABELS = {

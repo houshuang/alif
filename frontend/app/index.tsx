@@ -8,6 +8,7 @@ import {
   ScrollView,
   Animated,
   Platform,
+  AppState,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
@@ -15,6 +16,7 @@ import { Audio } from "expo-av";
 import { colors, fonts, fontFamily } from "../lib/theme";
 import {
   getSentenceReviewSession,
+  fetchFreshSession,
   submitSentenceReview,
   undoSentenceReview,
   submitReintroResult,
@@ -137,6 +139,10 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
   const soundRef = useRef<Audio.Sound | null>(null);
   const lookupRequestRef = useRef(0);
   const prefetchTriggered = useRef(false);
+  const lastReviewedAt = useRef<number>(0);
+  const pendingRefreshRef = useRef<SentenceReviewSession | null>(null);
+  const refreshingRef = useRef(false);
+  const hasActiveSessionRef = useRef(false);
 
   const totalCards = sentenceSession
     ? (sessionSlots.length > 0 ? sessionSlots.length : sentenceSession.items.length)
@@ -192,6 +198,38 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
     });
   }, [totalCards]);
 
+  // Track whether we have an active (in-progress) session
+  useEffect(() => {
+    hasActiveSessionRef.current = sentenceSession !== null && results === null;
+  }, [sentenceSession, results]);
+
+  // Background refresh: when app resumes after 15+ min gap, fetch fresh session
+  const STALE_IN_SESSION_MS = 15 * 60 * 1000;
+  useEffect(() => {
+    const sub = AppState.addEventListener("change", async (nextState) => {
+      if (
+        nextState === "active" &&
+        lastReviewedAt.current > 0 &&
+        hasActiveSessionRef.current &&
+        !refreshingRef.current &&
+        !pendingRefreshRef.current
+      ) {
+        const gap = Date.now() - lastReviewedAt.current;
+        if (gap > STALE_IN_SESSION_MS) {
+          refreshingRef.current = true;
+          try {
+            const fresh = await fetchFreshSession(mode);
+            if (fresh.items.length > 0) {
+              pendingRefreshRef.current = fresh;
+            }
+          } catch {}
+          refreshingRef.current = false;
+        }
+      }
+    });
+    return () => sub.remove();
+  }, [mode]);
+
   async function cleanupSound() {
     if (soundRef.current) {
       try {
@@ -241,6 +279,8 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
 
   async function loadSession(newMode?: ReviewMode) {
     const m = newMode ?? mode;
+    pendingRefreshRef.current = null;
+    lastReviewedAt.current = 0;
     setLoading(true);
     setResults(null);
     setCardIndex(0);
@@ -780,7 +820,77 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
     return false;
   }, [sentenceSession, cardIndex, sessionSlots, cardReviewIds]);
 
+  function applyFreshSession(fresh: SentenceReviewSession) {
+    setSentenceSession(fresh);
+    const slots: SessionSlot[] = fresh.items.map((_, i) => ({
+      type: "sentence" as const,
+      itemIndex: i,
+    }));
+    if (fresh.intro_candidates && fresh.intro_candidates.length > 0 && mode === "reading") {
+      setAutoIntroduced(fresh.intro_candidates);
+      for (let ci = fresh.intro_candidates.length - 1; ci >= 0; ci--) {
+        const insertPos = Math.min(fresh.intro_candidates[ci].insert_at, slots.length);
+        slots.splice(insertPos, 0, { type: "intro" as const, candidateIndex: ci });
+      }
+    } else {
+      setAutoIntroduced([]);
+    }
+    setSessionSlots(slots);
+    setCardIndex(0);
+    setCardState(mode === "listening" ? "audio" : "front");
+    setResults(null);
+    setMissedIndices(new Set());
+    setConfusedIndices(new Set());
+    setTappedOrder([]);
+    setTappedCursor(-1);
+    tappedCacheRef.current = new Map();
+    setAudioPlaying(false);
+    setAudioPlayCount(0);
+    setLookupCount(0);
+    setLookupResult(null);
+    setLookupSurfaceForm(null);
+    setLookupLemmaId(null);
+    setFocusedWordMark(null);
+    setLookupShowMeaning(false);
+    setWordOutcomes(new Map());
+    setSeenLemmaIds(new Set());
+    setCardReviewIds([]);
+    setCardSnapshots([]);
+    setUndoing(false);
+    prefetchTriggered.current = false;
+    if (fresh.reintro_cards && fresh.reintro_cards.length > 0) {
+      setReintroCards(fresh.reintro_cards);
+      setReintroIndex(0);
+    } else {
+      setReintroCards([]);
+    }
+    const featureKeys: string[] = [
+      ...(fresh.grammar_refresher_needed ?? []),
+      ...(fresh.grammar_intro_needed ?? []),
+    ];
+    if (featureKeys.length > 0) {
+      (async () => {
+        const lessons: GrammarLesson[] = [];
+        for (const key of featureKeys) {
+          try {
+            const lesson = await getGrammarLesson(key);
+            if (fresh.grammar_refresher_needed?.includes(key)) {
+              lesson.is_refresher = true;
+            }
+            lessons.push(lesson);
+          } catch {}
+        }
+        setGrammarLessons(lessons);
+        setGrammarLessonIndex(0);
+      })();
+    } else {
+      setGrammarLessons([]);
+      setGrammarLessonIndex(0);
+    }
+  }
+
   function advanceAfterSubmit(signal: ComprehensionSignal) {
+    lastReviewedAt.current = Date.now();
     lookupRequestRef.current += 1;
     const prev = results ?? { total: 0, gotIt: 0, missed: 0, noIdea: 0 };
     const next = {
@@ -791,6 +901,14 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
     };
 
     const nextCardIndex = cardIndex + 1;
+
+    // Swap in background-refreshed session if available
+    const pendingRefresh = pendingRefreshRef.current;
+    if (pendingRefresh) {
+      pendingRefreshRef.current = null;
+      applyFreshSession(pendingRefresh);
+      return;
+    }
 
     if (nextCardIndex >= totalCards) {
       setResults(next);
@@ -1423,6 +1541,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
         current={cardIndex + 1}
         total={totalCards}
         mode={mode}
+        onBack={canGoBack ? handleGoBack : null}
         actionMenu={
           <ActionMenu
             focusedLemmaId={lookupLemmaId}
@@ -1432,7 +1551,6 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
             askAIScreen="review"
             askAIExplainPrompt={buildExplainPrompt}
             askAIExplainSentencePrompt={buildExplainSentencePrompt}
-            onBack={canGoBack ? handleGoBack : null}
             extraActions={[
               ...(item.sentence_id ? [{
                 icon: "information-circle-outline" as const,
@@ -1988,19 +2106,27 @@ function ProgressBar({
   mode,
   actionMenu,
   onWrapUp,
+  onBack,
 }: {
   current: number;
   total: number;
   mode: ReviewMode;
   actionMenu?: React.ReactNode;
   onWrapUp?: (() => void) | null;
+  onBack?: (() => void) | null;
 }) {
   const pct = (current / total) * 100;
   const barColor = mode === "listening" ? colors.listening : colors.accent;
   return (
     <View style={styles.progressContainer}>
       <View style={styles.progressHeader}>
-        <View style={styles.backButtonPlaceholder} />
+        {onBack ? (
+          <Pressable onPress={onBack} hitSlop={12} style={styles.backButton}>
+            <Ionicons name="chevron-back" size={20} color={colors.textSecondary} />
+          </Pressable>
+        ) : (
+          <View style={styles.backButtonPlaceholder} />
+        )}
         <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
           <Text style={styles.progressText}>
             Card {current} of {total}
@@ -2746,7 +2872,14 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   backButtonPlaceholder: {
-    width: 28,
+    width: 36,
+  },
+  backButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: "center",
+    justifyContent: "center",
   },
   progressText: {
     color: colors.textSecondary,
