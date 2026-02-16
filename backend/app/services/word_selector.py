@@ -35,8 +35,8 @@ DEFAULT_BATCH_SIZE = 3
 # --- Source-based priority tiers ---
 # Higher tiers ALWAYS beat lower tiers. Within-tier scoring (max ~1.5)
 # can never bridge the gap between tiers.
-_TIER_BOOK_BASE = 100.0       # Active book words: 100 - page * 0.5
-_TIER_BOOK_PAGE_STEP = 0.5    # Deterministic page ordering, any page count
+_TIER_BOOK_BASE = 200.0       # Active book words: 200 - page * 2.0
+_TIER_BOOK_PAGE_STEP = 2.0    # >1.5 gap ensures strict page ordering
 _TIER_STORY = 10.0            # Active imported stories (non-book)
 _SOURCE_TIER_BONUS = {
     "textbook_scan": 8.0,     # OCR — user's textbook
