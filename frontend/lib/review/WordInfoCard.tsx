@@ -89,8 +89,13 @@ export default function WordInfoCard({
     PanResponder.create({
       onStartShouldSetPanResponder: () => false,
       onMoveShouldSetPanResponder: (_, gestureState) => {
-        return Math.abs(gestureState.dx) > 10 && Math.abs(gestureState.dx) > Math.abs(gestureState.dy * 1.5);
+        return Math.abs(gestureState.dx) > 15 && Math.abs(gestureState.dx) > Math.abs(gestureState.dy * 2);
       },
+      onMoveShouldSetPanResponderCapture: (_, gestureState) => {
+        // Capture horizontal swipes so ScrollView doesn't steal them
+        return Math.abs(gestureState.dx) > 20 && Math.abs(gestureState.dx) > Math.abs(gestureState.dy * 3);
+      },
+      onPanResponderTerminationRequest: () => false,
       onPanResponderMove: (_, gestureState) => {
         translateX.setValue(gestureState.dx);
       },
@@ -125,18 +130,18 @@ export default function WordInfoCard({
           <Pressable
             onPress={onPrev}
             disabled={!hasPrev}
-            hitSlop={12}
+            hitSlop={16}
             style={[styles.navBtn, !hasPrev && styles.navBtnDisabled]}
           >
-            <Ionicons name="chevron-back" size={16} color={hasPrev ? colors.textSecondary : colors.border} />
+            <Ionicons name="chevron-back" size={18} color={hasPrev ? colors.textSecondary : colors.border} />
           </Pressable>
           <Pressable
             onPress={onNext}
             disabled={!hasNext}
-            hitSlop={12}
+            hitSlop={16}
             style={[styles.navBtn, !hasNext && styles.navBtnDisabled]}
           >
-            <Ionicons name="chevron-forward" size={16} color={hasNext ? colors.textSecondary : colors.border} />
+            <Ionicons name="chevron-forward" size={18} color={hasNext ? colors.textSecondary : colors.border} />
           </Pressable>
         </View>
       )}
@@ -281,6 +286,13 @@ function RevealedView({
         {posLabel && (
           <View style={styles.posPill}>
             <Text style={styles.posText}>{posLabel}</Text>
+          </View>
+        )}
+        {result.word_category && (
+          <View style={[styles.posPill, { backgroundColor: "rgba(243, 156, 18, 0.2)" }]}>
+            <Text style={[styles.posText, { color: colors.confused }]}>
+              {result.word_category === "proper_name" ? "Name" : "Sound"}
+            </Text>
           </View>
         )}
         {result.cefr_level && (
@@ -603,9 +615,9 @@ const styles = StyleSheet.create({
     zIndex: 1,
   },
   navBtn: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     backgroundColor: colors.surfaceLight,
     alignItems: "center",
     justifyContent: "center",

@@ -130,7 +130,7 @@
 ## Duolingo Import
 - 302 lexemes exported with diacritics and audio URLs
 - Many inflected forms (كَلْبِك، كَلْبَك، كَلْبي from كَلْب)
-- Includes proper nouns, country/city names to filter
+- [DONE] Includes proper nouns, country/city names to filter — handled by `word_category` classification (proper_name/onomatopoeia) with deprioritized scheduling
 - Audio URLs from Duolingo CDN — could potentially cache these
 - Import as "learning" state, not "known" — verify through review cycle
 
@@ -547,6 +547,7 @@
 - Leech auto-detection in FSRS: automatically flag words after N consecutive failures (beyond the current struggling-word re-intro cards)
 - [DONE] Root validation guard: shared `is_valid_root()` in morphology.py rejects garbage roots (Latin letters, `#` placeholders, wrong length). Applied to all import paths (OCR, Wiktionary, backfill_roots). Cleanup script fixed 133 affected lemmas from prior OCR imports.
 - [DONE] Auto-backfill root meanings: `backfill_root_meanings()` in morphology.py uses LLM to fill empty `core_meaning_en` on roots. Called automatically from all import paths after new root creation.
+- [DONE] Dark image auto-enhancement: Pillow brightness/contrast boost for images with mean brightness < 120. Empty OCR results retry with `gemini-2.5-flash-preview` thinking model. Recovered 3 previously empty pages on test book.
 - OCR confidence scoring: have Gemini rate its confidence per word, flag low-confidence extractions for user review
 - Textbook progress tracking: track which textbook/chapter pages have been scanned, show coverage progress
 - OCR for handwritten Arabic: test Gemini Vision on handwritten notes (likely lower accuracy but worth exploring)

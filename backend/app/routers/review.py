@@ -183,6 +183,7 @@ def word_lookup(lemma_id: int, db: Session = Depends(get_db)):
         "frequency_rank": lemma.frequency_rank,
         "cefr_level": lemma.cefr_level,
         "memory_hooks_json": lemma.memory_hooks_json,
+        "word_category": lemma.word_category,
         "root_family": [],
     }
 

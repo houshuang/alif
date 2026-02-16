@@ -28,6 +28,7 @@ import {
   MemoryHooksData,
   TopicSettings,
   TopicInfo,
+  WordCategory,
 } from "./types";
 import { netStatus } from "./net-status";
 import {
@@ -75,6 +76,7 @@ interface RawWordDetail extends RawWord {
   root_family: { id: number; arabic: string; english: string }[];
   etymology_json?: EtymologyData | null;
   memory_hooks_json?: MemoryHooksData | null;
+  word_category?: string | null;
   acquisition_box?: number | null;
   review_history: {
     rating: number;
@@ -283,6 +285,7 @@ export async function getWordDetail(id: number): Promise<WordDetail> {
       accuracy_pct: s.accuracy_pct ?? null,
       last_reviewed_at: s.last_reviewed_at ?? null,
     })),
+    word_category: (w.word_category as WordCategory) ?? null,
     etymology_json: w.etymology_json ?? null,
     memory_hooks_json: w.memory_hooks_json ?? null,
     acquisition_box: w.acquisition_box ?? null,

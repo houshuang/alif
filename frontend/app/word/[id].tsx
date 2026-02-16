@@ -168,6 +168,19 @@ export default function WordDetailScreen() {
         </Pressable>
       )}
 
+      {word.word_category && (
+        <View style={styles.categoryBadge}>
+          <Ionicons
+            name={word.word_category === "proper_name" ? "person-outline" : "volume-medium-outline"}
+            size={13}
+            color={colors.confused}
+          />
+          <Text style={styles.categoryText}>
+            {word.word_category === "proper_name" ? "Proper name" : "Sound / onomatopoeia"}
+          </Text>
+        </View>
+      )}
+
       {(displayForms.length > 0 || word.grammar_features.length > 0) && (
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Grammar</Text>
@@ -473,6 +486,21 @@ const styles = StyleSheet.create({
   provenanceText: {
     fontSize: 13,
     color: colors.textSecondary,
+  },
+  categoryBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginTop: 6,
+    backgroundColor: "rgba(255, 170, 0, 0.12)",
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    alignSelf: "flex-start",
+  },
+  categoryText: {
+    fontSize: 13,
+    color: colors.confused,
   },
   section: {
     width: "100%",

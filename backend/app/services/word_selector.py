@@ -445,6 +445,12 @@ def select_next_words(
         # Encountered words (seen in textbook/story but not yet introduced) get a bonus
         encountered_bonus = 0.5 if lemma.lemma_id in encountered_ids else 0.0
 
+        # Proper names and onomatopoeia are strongly deprioritized
+        category_penalty = {
+            "proper_name": -0.8,
+            "onomatopoeia": -1.0,
+        }.get(lemma.word_category or "", 0.0)
+
         total_score = (
             freq_score * 0.4
             + root_score * 0.3
@@ -453,6 +459,7 @@ def select_next_words(
             + story_bonus
             + page_bonus
             + encountered_bonus
+            + category_penalty
         )
 
         scored.append({
@@ -473,6 +480,7 @@ def select_next_words(
             "example_en": lemma.example_en,
             "etymology_json": lemma.etymology_json,
             "memory_hooks_json": lemma.memory_hooks_json,
+            "word_category": lemma.word_category,
             "story_title": story_lemmas.get(lemma.lemma_id),
             "score": round(total_score, 3),
             "score_breakdown": {
@@ -481,6 +489,7 @@ def select_next_words(
                 "recency_bonus": round(recency_bonus, 3),
                 "story_bonus": round(story_bonus, 3),
                 "encountered_bonus": round(encountered_bonus, 3),
+                "category_penalty": round(category_penalty, 3),
                 "known_siblings": known_siblings,
                 "total_siblings": total_siblings,
             },

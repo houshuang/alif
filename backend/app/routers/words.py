@@ -377,6 +377,7 @@ def get_word(lemma_id: int, db: Session = Depends(get_db)):
         "review_history": review_history,
         "sentence_stats": sentence_stats,
         "source_info": source_info,
+        "word_category": lemma.word_category,
         "etymology_json": lemma.etymology_json,
         "memory_hooks_json": lemma.memory_hooks_json,
         "acquisition_box": k.acquisition_box if k else None,

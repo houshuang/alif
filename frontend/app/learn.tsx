@@ -299,6 +299,13 @@ export default function LearnScreen() {
                 #{c.frequency_rank.toLocaleString()}
               </Text>
             )}
+            {c.word_category && (
+              <View style={{ backgroundColor: "rgba(243, 156, 18, 0.2)", borderRadius: 4, paddingHorizontal: 6, paddingVertical: 1 }}>
+                <Text style={{ color: "#f39c12", fontSize: 11, fontWeight: "600" }}>
+                  {c.word_category === "proper_name" ? "Name" : "Sound"}
+                </Text>
+              </View>
+            )}
           </View>
           <FormsRow pos={c.pos} forms={c.forms_json} />
           <GrammarRow details={c.grammar_details} />

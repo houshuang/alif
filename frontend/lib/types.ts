@@ -1,5 +1,6 @@
 export type ReviewMode = "reading" | "listening" | "quiz";
 export type ComprehensionSignal = "understood" | "partial" | "no_idea" | "grammar_confused";
+export type WordCategory = "proper_name" | "onomatopoeia";
 
 export interface Word {
   id: number;
@@ -69,6 +70,7 @@ export interface WordDetail extends Word {
   review_history: ReviewHistoryEntry[];
   sentence_stats: WordSentenceStat[];
   source_info?: SourceInfo | null;
+  word_category?: WordCategory | null;
   etymology_json?: EtymologyData | null;
   memory_hooks_json?: MemoryHooksData | null;
   acquisition_box?: number | null;
@@ -192,6 +194,7 @@ export interface LearnCandidate {
   example_en: string | null;
   grammar_features?: string[];
   grammar_details?: GrammarFeatureDetail[];
+  word_category?: WordCategory | null;
   score: number;
   etymology_json?: EtymologyData | null;
   memory_hooks_json?: MemoryHooksData | null;
@@ -261,6 +264,7 @@ export interface WordLookupResult {
   frequency_rank: number | null;
   cefr_level: string | null;
   memory_hooks_json?: MemoryHooksData | null;
+  word_category?: WordCategory | null;
   root_family: {
     lemma_id: number;
     lemma_ar: string;

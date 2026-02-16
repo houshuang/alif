@@ -172,6 +172,7 @@ learn, and each enters acquisition immediately.
 - Recent accuracy ≥ `AUTO_INTRO_ACCURACY_FLOOR` (70%) over last 10+ reviews
 - Per-call cap: `MAX_AUTO_INTRO_PER_SESSION` (10)
 - Selects highest-frequency encountered words
+- **Never picks `proper_name` or `onomatopoeia` words** — these must be introduced manually via Learn mode
 
 ### 3.3 OCR / Textbook Scan
 
@@ -1189,6 +1190,7 @@ total_score = frequency × 0.4
             + story_bonus        (flat +1.0)
             + book_page_bonus    (1.0 for page 1, −0.2 per page, min 0.2)
             + encountered_bonus  (flat +0.5)
+            + category_penalty   (proper_name: −0.8, onomatopoeia: −1.0)
 ```
 
 #### Frequency Score (40%)

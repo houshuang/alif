@@ -4,6 +4,29 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-02-16: Word Category Classification (proper_name / onomatopoeia)
+
+### What
+Added `word_category` field to Lemma model to distinguish proper names (أسامة) and onomatopoeia (ماو) from standard vocabulary. Triggered by children's book import introducing "mau" (meow) as real vocab and "usama" as a lion synonym alongside "asad".
+
+### Changes
+- `import_quality.py`: new `classify_lemmas()` that categorizes each word (standard/proper_name/onomatopoeia/junk) instead of just pass/fail
+- `word_selector.py`: scoring penalty for names (-0.8) and sounds (-1.0)
+- `sentence_selector.py`: auto-introduction never picks proper_name or onomatopoeia
+- Import paths (story_service, ocr_service) now set `word_category` on Lemma and prefix name glosses with "(name)"
+- Frontend shows category badges on word detail, review WordInfoCard, and Learn mode cards
+
+### Hypothesis
+Proper names and sounds won't be auto-introduced, preventing confusion. When encountered via stories/OCR, they're clearly labeled. Users can still manually learn them via Learn mode if desired.
+
+### Verification
+- Run `backfill_word_categories.py` on production to classify existing words
+- Verify "mau" and "usama" get proper categories
+- Confirm auto-introduction skips categorized words
+- Check UI badges appear on word detail and review screens
+
+---
+
 ## 2026-02-14: Michel Thomas Audio Course Import Pipeline (Blocked)
 
 ### What
@@ -34,26 +57,29 @@ Audio already extracted to `/tmp/claude/michel_thomas/audio/` (all 8 CDs).
 
 ---
 
-## 2026-02-15: Page-Level Tracking for Book Imports
+## 2026-02-15: Page-Level Tracking + OCR Enhancement for Book Imports
 
 ### What
-Book import now preserves page boundaries: each page is OCR'd and cleaned individually, and both Sentence and StoryWord records are tagged with their source page number. This enables per-page readiness tracking, page-based word prioritization, and sentence coverage metrics.
+Book import now preserves page boundaries and handles dark/low-quality images. Each page is OCR'd and cleaned individually, both Sentence and StoryWord records are tagged with their source page number, and a per-page detail screen shows word/sentence status.
 
 ### Changes
 - **Models**: Added `page_number` column to `Sentence` and `StoryWord` (migration `ad1ca8ace671`)
-- **book_import_service.py**: Process each page through `cleanup_and_segment()` individually instead of merging all text. Tag sentences and story words with page numbers. StoryWord surface→lemma fallback resolves more unmapped tokens. Sentences with remaining unmapped tokens are kept (not skipped).
-- **story_service.py**: New `_get_book_stats()` computes per-page readiness (new_words, learned_words, unlocked), sentence_count, and sentences_seen for book stories. New `get_book_page_detail()` returns per-page words (new vs existing, with status) and sentences (with seen indicator). Added to both list and detail endpoints.
-- **word_selector.py**: `_book_page_bonus()` gives earlier pages higher priority (page 1 → +1.0, page 2 → +0.8, etc.)
-- **Frontend**: Clickable page readiness pills on book story cards. New `book-page.tsx` screen shows per-page word list and sentence list. `GET /api/stories/{id}/pages/{page}` endpoint.
+- **book_import_service.py**: Process each page through `cleanup_and_segment()` individually. Tag sentences and story words with page numbers. StoryWord surface→lemma fallback resolves more unmapped tokens. Sentences with remaining unmapped tokens are kept (not skipped). Dark image auto-enhancement via Pillow (brightness/contrast when mean < 120). Empty OCR results retry with `gemini-2.5-flash-preview` thinking model.
+- **ocr_service.py**: `_call_gemini_vision()` accepts `model_override` param. Timeout increased 120s → 300s.
+- **story_service.py**: New `_get_book_stats()` computes per-page readiness. New `get_book_page_detail()` returns per-page words (new vs existing, with status) and sentences (with seen indicator).
+- **word_selector.py**: `_book_page_bonus()` gives earlier pages higher priority (page 1 → +1.0, decaying by 0.2/page)
+- **Frontend**: Clickable page readiness pills → new `book-page.tsx` detail screen with word list + sentence list. `GET /api/stories/{id}/pages/{page}` endpoint.
+- **Pillow** added as dependency for image preprocessing.
 
-### Expected Effect
-Words from earlier book pages get introduced first, allowing page-by-page reading progression. Users can track when each page is "unlocked" (all words at least acquiring). Clicking a page pill shows exactly which words are new/known and which sentences have been reviewed.
+### Results
+Reprocessed "Rosie in the Haunted House" (20 pages): 27 sentences across 12 pages (up from 24/11 without enhancement). Pages 2, 3, 5 recovered by brightness enhancement.
 
 ### Verification
 - API returns `page_readiness` array with per-page word counts
 - Story card shows page pills with remaining word counts
 - Word selector ranks page-1 words above page-10 words for same story
 - Clicking a page pill navigates to detail with word list + sentences
+- Dark images auto-enhanced, empty pages retried with thinking model
 
 ---
 

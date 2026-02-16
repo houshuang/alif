@@ -272,7 +272,10 @@ def _auto_introduce_words(
     from app.services.topic_service import ensure_active_topic
 
     active_topic = ensure_active_topic(db)
-    candidates = select_next_words(db, count=slots, domain=active_topic)
+    # Request extra candidates since we filter out names/sounds
+    candidates = select_next_words(db, count=slots + 5, domain=active_topic)
+    # Never auto-introduce names or onomatopoeia — user must pick those manually
+    candidates = [c for c in candidates if c.get("word_category") not in ("proper_name", "onomatopoeia")]
     if not candidates:
         return []
 

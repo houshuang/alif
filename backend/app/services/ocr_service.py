@@ -471,12 +471,17 @@ def process_textbook_page(
             db.commit()
             return
 
-        # Quality gate: filter out junk words
-        from app.services.import_quality import filter_useful_lemmas
-        useful, rejected = filter_useful_lemmas([
+        # Quality gate: filter out junk + classify (names, sounds)
+        from app.services.import_quality import classify_lemmas
+        useful, rejected = classify_lemmas([
             {"arabic": w.get("arabic_bare", ""), "english": w.get("english", "")}
             for w in extracted
         ])
+        _category_by_bare: dict[str, str] = {}
+        for u in useful:
+            cat = u.get("word_category", "standard")
+            if cat in ("proper_name", "onomatopoeia"):
+                _category_by_bare[u["arabic"]] = cat
         if rejected:
             rejected_bares = {r["arabic"] for r in rejected}
             extracted = [w for w in extracted if w.get("arabic_bare", "") not in rejected_bares]
@@ -602,13 +607,19 @@ def process_textbook_page(
                         db.flush()
                         root_id = new_root.root_id
 
+                word_cat = _category_by_bare.get(import_bare)
+                lemma_gloss = english
+                if word_cat == "proper_name" and english and not english.startswith("(name)"):
+                    lemma_gloss = f"(name) {english}"
+
                 new_lemma = Lemma(
                     lemma_ar=arabic,
                     lemma_ar_bare=import_bare,
                     root_id=root_id,
                     pos=pos,
-                    gloss_en=english,
+                    gloss_en=lemma_gloss,
                     source="textbook_scan",
+                    word_category=word_cat,
                 )
                 db.add(new_lemma)
                 db.flush()

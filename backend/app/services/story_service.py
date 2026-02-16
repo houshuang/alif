@@ -305,17 +305,22 @@ Set name_type to "personal" for personal names (people, characters), "place" for
     except (AllProvidersFailed, Exception) as e:
         logger.warning("LLM translation failed for story %d unknown words: %s", story.id, e)
 
-    # Step 2b: Quality gate — filter out junk (transliterations, abbreviations)
+    # Step 2b: Quality gate — filter out junk + classify (names, sounds)
+    _category_by_bare: dict[str, str] = {}
     if word_analyses and gloss_map:
         try:
-            from app.services.import_quality import filter_useful_lemmas
+            from app.services.import_quality import classify_lemmas
             lemma_dicts = [
                 {"arabic": a["lex_bare"], "english": gloss_map.get(
                     normalize_alef(strip_diacritics(a["story_word"].surface_form)), {}
                 ).get("english", "")}
                 for a in word_analyses
             ]
-            useful, rejected = filter_useful_lemmas(lemma_dicts)
+            useful, rejected = classify_lemmas(lemma_dicts)
+            # Build category lookup by bare form
+            _category_by_bare: dict[str, str] = {}
+            for u in useful:
+                _category_by_bare[u["arabic"]] = u.get("word_category", "standard")
             if rejected:
                 rejected_bares = {r["arabic"] for r in rejected}
                 word_analyses = [a for a in word_analyses if a["lex_bare"] not in rejected_bares]
@@ -379,14 +384,21 @@ Set name_type to "personal" for personal names (people, characters), "place" for
                 sw.gloss_en = lemma.gloss_en
             continue
 
+        word_cat = _category_by_bare.get(lex_bare)
+        # Prefix gloss for proper names so it's clear during review
+        lemma_gloss = english
+        if word_cat == "proper_name" and english and not english.startswith("(name)"):
+            lemma_gloss = f"(name) {english}"
+
         new_lemma = Lemma(
             lemma_ar=analysis["lex"],
             lemma_ar_bare=lex_bare,
             root_id=root_id,
             pos=pos,
-            gloss_en=english,
+            gloss_en=lemma_gloss,
             source="story_import",
             source_story_id=story.id,
+            word_category=word_cat if word_cat in ("proper_name", "onomatopoeia") else None,
         )
         db.add(new_lemma)
         db.flush()
@@ -429,6 +441,9 @@ Set name_type to "personal" for personal names (people, characters), "place" for
     return new_lemma_ids
 
 
+_ACTIVELY_LEARNING_STATES = {"acquiring", "learning", "known", "lapsed"}
+
+
 def _recalculate_story_counts(db: Session, story: Story) -> None:
     """Recalculate total_words, known_count, unknown_count, readiness_pct from StoryWords."""
     story_lemma_ids = {sw.lemma_id for sw in story.words if sw.lemma_id}
@@ -440,7 +455,7 @@ def _recalculate_story_counts(db: Session, story: Story) -> None:
         total += 1
         if sw.is_function_word:
             func += 1
-        elif sw.lemma_id and knowledge_map.get(sw.lemma_id) in ("learning", "known"):
+        elif sw.lemma_id and knowledge_map.get(sw.lemma_id) in _ACTIVELY_LEARNING_STATES:
             known += 1
     story.total_words = total
     story.known_count = known
@@ -832,11 +847,11 @@ def get_book_page_detail(db: Session, story_id: int, page_number: int) -> dict:
         lem = lemmas_by_id.get(sw.lemma_id)
         state = knowledge_map.get(sw.lemma_id)
         is_new = bool(lem and lem.source_story_id == story_id)
-        if not is_new and state:
+        if not is_new and state in _ACTIVELY_LEARNING_STATES:
             known_count += 1
         words_out.append({
             "lemma_id": sw.lemma_id,
-            "arabic": lem.arabic_bare if lem else sw.surface_form,
+            "arabic": lem.lemma_ar_bare if lem else sw.surface_form,
             "gloss_en": sw.gloss_en or (lem.gloss_en if lem else None),
             "transliteration": lem.transliteration if lem else None,
             "knowledge_state": state,
@@ -913,7 +928,7 @@ def get_story_detail(db: Session, story_id: int) -> dict:
         is_known = False
         if sw.lemma_id:
             state = knowledge_map.get(sw.lemma_id)
-            is_known = state in ("learning", "known")
+            is_known = state in _ACTIVELY_LEARNING_STATES
 
         words.append({
             "position": sw.position,
