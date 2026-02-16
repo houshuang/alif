@@ -65,14 +65,20 @@ def extract_cover_metadata(cover_image: bytes) -> dict:
         return {}
 
 
-def _enhance_image(image_bytes: bytes) -> bytes:
-    """Auto-enhance dark/low-contrast images for better OCR."""
+def _enhance_image(image_bytes: bytes, max_dim: int = 2048) -> bytes:
+    """Auto-enhance dark/low-contrast images and downscale for faster OCR."""
     from PIL import Image, ImageEnhance, ImageStat
     import io
 
     img = Image.open(io.BytesIO(image_bytes))
     if img.mode != "RGB":
         img = img.convert("RGB")
+
+    # Downscale large images (Gemini doesn't need >2048px for text OCR)
+    w, h = img.size
+    if max(w, h) > max_dim:
+        scale = max_dim / max(w, h)
+        img = img.resize((int(w * scale), int(h * scale)), Image.LANCZOS)
 
     stat = ImageStat.Stat(img)
     mean_brightness = sum(stat.mean[:3]) / 3
@@ -84,7 +90,7 @@ def _enhance_image(image_bytes: bytes) -> bytes:
         logger.info(f"Enhanced dark image (brightness {mean_brightness:.0f} → factor {brightness_factor:.1f})")
 
     buf = io.BytesIO()
-    img.save(buf, format="JPEG", quality=90)
+    img.save(buf, format="JPEG", quality=85)
     return buf.getvalue()
 
 
