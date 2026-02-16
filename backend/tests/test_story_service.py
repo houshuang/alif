@@ -62,7 +62,7 @@ def _seed_words(db):
 class TestImportStory:
     def test_import_basic(self, db_session):
         lemmas = _seed_words(db_session)
-        story = import_story(db_session, arabic_text="الولد في البيت", title="Test")
+        story, _ = import_story(db_session, arabic_text="الولد في البيت", title="Test")
         assert story.source == "imported"
         assert story.status == "active"
         assert story.total_words > 0
@@ -70,24 +70,24 @@ class TestImportStory:
 
     def test_import_counts_known_words(self, db_session):
         _seed_words(db_session)
-        story = import_story(db_session, arabic_text="الولد كبير")
+        story, _ = import_story(db_session, arabic_text="الولد كبير")
         assert story.known_count >= 1
 
     def test_import_identifies_unknown_words(self, db_session):
         _seed_words(db_session)
-        story = import_story(db_session, arabic_text="الرجل في البيت")
+        story, _ = import_story(db_session, arabic_text="الرجل في البيت")
         assert story.unknown_count >= 1
 
     def test_import_creates_story_words(self, db_session):
         _seed_words(db_session)
-        story = import_story(db_session, arabic_text="الولد يكتب الكتاب")
+        story, _ = import_story(db_session, arabic_text="الولد يكتب الكتاب")
         words = db_session.query(StoryWord).filter(StoryWord.story_id == story.id).all()
         assert len(words) > 0
         assert all(w.position >= 0 for w in words)
 
     def test_import_readiness_pct(self, db_session):
         _seed_words(db_session)
-        story = import_story(db_session, arabic_text="في البيت")
+        story, _ = import_story(db_session, arabic_text="في البيت")
         assert story.readiness_pct > 0
 
 
@@ -102,7 +102,7 @@ class TestGenerateStory:
             "body_en": "The boy is at home. The book is big.",
             "transliteration": "al-walad fī al-bayt. al-kitāb kabīr.",
         }
-        story = generate_story(db_session, difficulty="beginner", max_sentences=4)
+        story, _ = generate_story(db_session, difficulty="beginner", max_sentences=4)
         assert story.source == "generated"
         assert story.title_en == "The Story"
         assert story.body_ar == "الولد في البيت. الكتاب كبير."
@@ -137,7 +137,7 @@ class TestGetStories:
 class TestGetStoryDetail:
     def test_detail_includes_words(self, db_session):
         _seed_words(db_session)
-        story = import_story(db_session, arabic_text="الولد كبير")
+        story, _ = import_story(db_session, arabic_text="الولد كبير")
         detail = get_story_detail(db_session, story.id)
         assert "words" in detail
         assert len(detail["words"]) > 0
@@ -151,7 +151,7 @@ class TestGetStoryDetail:
 class TestCompleteStory:
     def test_complete_marks_status(self, db_session):
         _seed_words(db_session)
-        story = import_story(db_session, arabic_text="الولد في البيت")
+        story, _ = import_story(db_session, arabic_text="الولد في البيت")
         result = complete_story(db_session, story.id, looked_up_lemma_ids=[])
         assert result["status"] == "completed"
         db_session.refresh(story)
@@ -160,21 +160,21 @@ class TestCompleteStory:
 
     def test_complete_reviews_words(self, db_session):
         lemmas = _seed_words(db_session)
-        story = import_story(db_session, arabic_text="الولد في البيت")
+        story, _ = import_story(db_session, arabic_text="الولد في البيت")
         result = complete_story(db_session, story.id, looked_up_lemma_ids=[])
         assert result["words_reviewed"] >= 1
         assert result["good_count"] >= 1
 
     def test_complete_with_looked_up_words(self, db_session):
         lemmas = _seed_words(db_session)
-        story = import_story(db_session, arabic_text="الولد في البيت")
+        story, _ = import_story(db_session, arabic_text="الولد في البيت")
         wid = lemmas[2].lemma_id  # ولد
         result = complete_story(db_session, story.id, looked_up_lemma_ids=[wid])
         assert result["again_count"] >= 1
 
     def test_complete_is_idempotent(self, db_session):
         _seed_words(db_session)
-        story = import_story(db_session, arabic_text="الولد في البيت")
+        story, _ = import_story(db_session, arabic_text="الولد في البيت")
 
         first = complete_story(db_session, story.id, looked_up_lemma_ids=[])
         logs_after_first = db_session.query(ReviewLog).count()
@@ -188,7 +188,7 @@ class TestCompleteStory:
 
     def test_complete_retry_after_midway_failure_resumes_without_duplicate_reviews(self, db_session, monkeypatch):
         _seed_words(db_session)
-        story = import_story(db_session, arabic_text="الولد في البيت")
+        story, _ = import_story(db_session, arabic_text="الولد في البيت")
 
         real_submit_review = story_service_module.submit_review
         calls = {"count": 0}
@@ -229,7 +229,7 @@ class TestCompleteStory:
 class TestLookupWord:
     def test_lookup_returns_details(self, db_session):
         lemmas = _seed_words(db_session)
-        story = import_story(db_session, arabic_text="الولد في البيت")
+        story, _ = import_story(db_session, arabic_text="الولد في البيت")
         result = lookup_word(db_session, story.id, lemmas[2].lemma_id, 0)
         assert result["gloss_en"] == "boy"
         assert result["lemma_id"] == lemmas[2].lemma_id
@@ -242,7 +242,7 @@ class TestLookupWord:
 class TestRecalculateReadiness:
     def test_recalculate(self, db_session):
         _seed_words(db_session)
-        story = import_story(db_session, arabic_text="الولد في البيت")
+        story, _ = import_story(db_session, arabic_text="الولد في البيت")
         result = recalculate_readiness(db_session, story.id)
         assert "readiness_pct" in result
         assert "unknown_count" in result
@@ -272,7 +272,7 @@ class TestStoryAPI:
 
     def test_get_story_detail(self, client, db_session):
         _seed_words(db_session)
-        story = import_story(db_session, arabic_text="الولد كبير")
+        story, _ = import_story(db_session, arabic_text="الولد كبير")
         resp = client.get(f"/api/stories/{story.id}")
         assert resp.status_code == 200
         data = resp.json()
@@ -281,7 +281,7 @@ class TestStoryAPI:
 
     def test_complete_story(self, client, db_session):
         _seed_words(db_session)
-        story = import_story(db_session, arabic_text="الولد في البيت")
+        story, _ = import_story(db_session, arabic_text="الولد في البيت")
         resp = client.post(f"/api/stories/{story.id}/complete", json={
             "looked_up_lemma_ids": [],
         })
@@ -289,7 +289,7 @@ class TestStoryAPI:
 
     def test_lookup_word(self, client, db_session):
         lemmas = _seed_words(db_session)
-        story = import_story(db_session, arabic_text="الولد في البيت")
+        story, _ = import_story(db_session, arabic_text="الولد في البيت")
         resp = client.post(f"/api/stories/{story.id}/lookup", json={
             "lemma_id": lemmas[2].lemma_id,
             "position": 0,
@@ -299,7 +299,7 @@ class TestStoryAPI:
 
     def test_readiness(self, client, db_session):
         _seed_words(db_session)
-        story = import_story(db_session, arabic_text="الولد في البيت")
+        story, _ = import_story(db_session, arabic_text="الولد في البيت")
         resp = client.get(f"/api/stories/{story.id}/readiness")
         assert resp.status_code == 200
         assert "readiness_pct" in resp.json()

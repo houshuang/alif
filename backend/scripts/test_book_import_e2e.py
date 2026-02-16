@@ -122,7 +122,7 @@ def run_import_pipeline(image_paths: list[Path]) -> None:
         logger.info("=" * 60)
 
         t0 = time.time()
-        story = import_book(
+        story, new_lemma_ids = import_book(
             db=db,
             cover_image=cover_bytes,
             page_images=page_bytes_list,

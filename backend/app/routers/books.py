@@ -4,7 +4,7 @@ import logging
 from datetime import datetime
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
+from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, Query, UploadFile
 from sqlalchemy.orm import Session
 
 from app.database import get_db
@@ -32,6 +32,7 @@ def _save_uploads(images: list[bytes]) -> Path:
 
 @router.post("/import", response_model=StoryDetailOut)
 async def import_book_endpoint(
+    background_tasks: BackgroundTasks,
     files: list[UploadFile] = File(...),
     title: str | None = Query(default=None),
     db: Session = Depends(get_db),
@@ -65,7 +66,7 @@ async def import_book_endpoint(
     page_images = images[1:]
 
     try:
-        story = import_book(
+        story, new_lemma_ids = import_book(
             db=db,
             cover_image=cover_image,
             page_images=page_images,
@@ -73,5 +74,9 @@ async def import_book_endpoint(
         )
     except ValueError as e:
         raise HTTPException(status_code=422, detail=str(e))
+
+    if new_lemma_ids:
+        from app.services.lemma_enrichment import enrich_lemmas_batch
+        background_tasks.add_task(enrich_lemmas_batch, new_lemma_ids)
 
     return get_story_detail(db, story.id)

@@ -1,6 +1,6 @@
 """Story generation, import, and reading API endpoints."""
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.database import get_db
@@ -34,10 +34,11 @@ router = APIRouter(prefix="/api/stories", tags=["stories"])
 @router.post("/generate", response_model=StoryDetailOut)
 def generate_story_endpoint(
     body: StoryGenerateIn,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
 ):
     try:
-        story = generate_story(
+        story, new_lemma_ids = generate_story(
             db,
             difficulty=body.difficulty,
             max_sentences=body.max_sentences,
@@ -47,18 +48,27 @@ def generate_story_endpoint(
     except ValueError as e:
         raise HTTPException(status_code=422, detail=str(e))
 
+    if new_lemma_ids:
+        from app.services.lemma_enrichment import enrich_lemmas_batch
+        background_tasks.add_task(enrich_lemmas_batch, new_lemma_ids)
+
     return get_story_detail(db, story.id)
 
 
 @router.post("/import", response_model=StoryDetailOut)
 def import_story_endpoint(
     body: StoryImportIn,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
 ):
     try:
-        story = import_story(db, arabic_text=body.arabic_text, title=body.title)
+        story, new_lemma_ids = import_story(db, arabic_text=body.arabic_text, title=body.title)
     except ValueError as e:
         raise HTTPException(status_code=422, detail=str(e))
+
+    if new_lemma_ids:
+        from app.services.lemma_enrichment import enrich_lemmas_batch
+        background_tasks.add_task(enrich_lemmas_batch, new_lemma_ids)
 
     return get_story_detail(db, story.id)
 

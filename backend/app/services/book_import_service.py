@@ -378,7 +378,7 @@ def import_book(
     cover_image: bytes | None,
     page_images: list[bytes],
     title_override: str | None = None,
-) -> Story:
+) -> tuple[Story, list[int]]:
     """Full book import pipeline.
 
     Args:
@@ -388,7 +388,7 @@ def import_book(
         title_override: Optional title override (skips cover extraction).
 
     Returns:
-        The created Story object.
+        (story, new_lemma_ids) — the created Story and IDs of newly created Lemmas.
     """
     # Step 1: Cover metadata
     metadata = {}
@@ -528,4 +528,4 @@ def import_book(
         metadata=metadata,
     )
 
-    return story
+    return story, new_ids

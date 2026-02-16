@@ -267,27 +267,29 @@ def _import_unknown_words(
         db.flush()
         return []
 
-    # Step 2: LLM batch translation
+    # Step 2: LLM batch translation — use lex (base form) not surface form
     gloss_map: dict[str, dict] = {}
     try:
-        words_list = "، ".join(a["surface"] for a in word_analyses)
-        context = ""
-        if story.body_en:
-            context = f"\n\nEnglish translation for context:\n{story.body_en[:500]}"
+        # Build word list from CAMeL lex forms for better dictionary glosses
+        words_for_llm = []
+        for a in word_analyses:
+            words_for_llm.append(f"{a['lex']} ({a['surface']})" if a['lex'] != a['surface'] else a['surface'])
+        words_list = "، ".join(words_for_llm)
 
         result = generate_completion(
-            prompt=f"""Given these Arabic words from a story, provide their English translation, part of speech, and whether the word is a proper name.
+            prompt=f"""Given these Arabic words (base/dictionary forms), provide dictionary-form English glosses, part of speech, and whether the word is a proper name.
 
-Arabic story excerpt:
-{story.body_ar[:500]}
-{context}
+Words: {words_list}
 
-Words to translate: {words_list}
+IMPORTANT: Give dictionary-form glosses, NOT conjugated translations:
+- Verbs: use infinitive ("to write", "to wake up"), NOT ("she wrote", "he woke up")
+- Nouns: use bare singular ("book", "school"), NOT ("his books", "the schools")
+- Adjectives: use base form ("big", "beautiful"), NOT ("bigger", "the big one")
 
-Respond with JSON array: [{{"arabic": "...", "english": "short English gloss", "pos": "noun/verb/adj/adv/prep/conj", "name_type": null or "personal" or "place"}}]
+Respond with JSON array: [{{"arabic": "the base form word", "english": "dictionary gloss", "pos": "noun/verb/adj/adv/prep/conj", "name_type": null or "personal" or "place"}}]
 
 Set name_type to "personal" for personal names (people, characters), "place" for place names (cities, countries, landmarks), or null for regular vocabulary words.""",
-            system_prompt="You translate Arabic words to English. Give concise, dictionary-style glosses (1-3 words). For proper names, provide the transliterated name as the gloss. Respond with JSON only.",
+            system_prompt="You translate Arabic words to English. Give concise, dictionary-form glosses (1-3 words). For verbs use infinitive ('to X'). For proper names, provide the transliterated name. Respond with JSON only.",
             json_mode=True,
         )
 
@@ -390,12 +392,23 @@ Set name_type to "personal" for personal names (people, characters), "place" for
         if word_cat == "proper_name" and english and not english.startswith("(name)"):
             lemma_gloss = f"(name) {english}"
 
+        # Generate transliteration inline (deterministic, instant)
+        from app.services.transliteration import transliterate_lemma
+        translit = None
+        lex_form = analysis["lex"]
+        if lex_form and any("\u0610" <= c <= "\u065f" or "\u0670" <= c <= "\u0670" for c in lex_form):
+            try:
+                translit = transliterate_lemma(lex_form)
+            except Exception:
+                pass
+
         new_lemma = Lemma(
-            lemma_ar=analysis["lex"],
+            lemma_ar=lex_form,
             lemma_ar_bare=lex_bare,
             root_id=root_id,
             pos=pos,
             gloss_en=lemma_gloss,
+            transliteration_ala_lc=translit,
             source="story_import",
             source_story_id=story.id,
             word_category=word_cat if word_cat in ("proper_name", "onomatopoeia") else None,
@@ -523,8 +536,11 @@ def generate_story(
     max_sentences: int = 6,
     length: str = "medium",
     topic: str | None = None,
-) -> Story:
-    """Generate a story using Opus with retry loop for vocabulary compliance."""
+) -> tuple["Story", list[int]]:
+    """Generate a story using Opus with retry loop for vocabulary compliance.
+
+    Returns (story, new_lemma_ids).
+    """
     known_words = _get_known_words(db)
     if not known_words:
         raise ValueError("No known/learning/acquiring words found. Learn some words first.")
@@ -664,7 +680,7 @@ Respond with JSON: {{"title_ar": "...", "title_en": "...", "body_ar": "full stor
         new_words_imported=len(new_ids),
     )
 
-    return story
+    return story, new_ids
 
 
 def _generate_title(arabic_text: str) -> dict:
@@ -688,8 +704,11 @@ def import_story(
     db: Session,
     arabic_text: str,
     title: str | None = None,
-) -> Story:
-    """Import an Arabic text and analyze its readiness."""
+) -> tuple["Story", list[int]]:
+    """Import an Arabic text and analyze its readiness.
+
+    Returns (story, new_lemma_ids) — new_lemma_ids are Lemma IDs created during import.
+    """
     all_lemmas = _get_all_lemmas(db)
     lemma_lookup = build_lemma_lookup(all_lemmas)
     knowledge_map = _build_knowledge_map(db)
@@ -733,7 +752,7 @@ def import_story(
         new_words_imported=len(new_ids),
     )
 
-    return story
+    return story, new_ids
 
 
 def _get_book_stats(db: Session, book_ids: list[int]) -> dict:

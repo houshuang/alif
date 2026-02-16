@@ -4,6 +4,31 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-02-16: Book Import Word Enrichment
+
+### Changes
+- **Fixed conjugated glosses**: LLM prompt in `_import_unknown_words()` now uses CAMeL lex (base form) instead of surface form, removes story context bias, explicitly requests dictionary-form glosses ("to wake up" not "she woke up")
+- **Inline transliteration**: New Lemma records get ALA-LC transliteration set immediately during import (deterministic, instant)
+- **Background enrichment service**: New `lemma_enrichment.py` with `enrich_lemmas_batch()` that populates forms_json, etymology_json, memory_hooks_json for newly created lemmas
+- **Wired into import endpoints**: books.py, stories.py schedule enrichment as background task after import
+- **Cron catch-all**: update_material.py Step E enriches up to 20 unenriched lemmas per 6h run
+- **Retroactive fix script**: `fix_book_glosses.py` re-generates dictionary glosses and runs full enrichment for existing book-imported words
+
+### Rationale
+Book-imported words were created with minimal data (just Arabic form + contextual gloss), missing forms, etymology, memory hooks, and transliteration. The LLM prompt included story context that biased toward conjugated translations ("she woke up") rather than dictionary glosses ("to wake up").
+
+### Expected Effect
+- Word cards for book-imported words now show proper forms, etymology, memory aids
+- Future imports automatically get full enrichment via background task
+- Cron catches any words that slip through
+
+### Verification
+- Run `fix_book_glosses.py --dry-run` to preview, then run for real
+- Import a new book and verify words get enrichment within minutes
+- Check word detail page for forms, etymology, transliteration
+
+---
+
 ## 2026-02-16: Sentence Pipeline Cap Enforcement
 
 ### Changes

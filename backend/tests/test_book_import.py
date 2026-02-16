@@ -216,7 +216,7 @@ class TestImportBookEndToEnd:
 
         from app.services.book_import_service import import_book
 
-        story = import_book(
+        story, _ = import_book(
             db=db_session,
             cover_image=b"cover_data",
             page_images=[b"page1_data"],
@@ -251,7 +251,7 @@ class TestImportBookEndToEnd:
 
         from app.services.book_import_service import import_book
 
-        story = import_book(
+        story, _ = import_book(
             db=db_session,
             cover_image=b"cover",
             page_images=[b"page1"],

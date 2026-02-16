@@ -264,6 +264,13 @@
 
 ## Technical Ideas
 
+### Import Enrichment Pipeline
+- [DONE] Automatic enrichment (forms, etymology, memory hooks, transliteration) after book/story import via background task
+- [DONE] Cron catch-all for unenriched lemmas (update_material.py Step E)
+- [DONE] Dictionary-form gloss prompt (no more contextual "she woke up" glosses)
+- Frequency rank lookup during import (would need CAMeL frequency data bundled or accessible)
+- CEFR level estimation during import (currently only via SAMER backfill)
+
 ### Frontend Testing
 - [DONE] Jest + ts-jest test infrastructure with mocks for AsyncStorage, expo-constants, netinfo
 - [DONE] Sync queue tests (enqueue/remove/pending/dedup)

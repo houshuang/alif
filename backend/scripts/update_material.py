@@ -726,6 +726,27 @@ async def main():
 
         samer_d = step_backfill_samer(db, args.dry_run)
 
+        # Step E: Enrich ALL lemmas missing forms/etymology/transliteration
+        enrich_e = 0
+        print("\n═══ Step E: Enrich unenriched lemmas ═══")
+        unenriched = (
+            db.query(Lemma.lemma_id)
+            .filter(
+                Lemma.canonical_lemma_id.is_(None),
+                (Lemma.forms_json.is_(None) | Lemma.etymology_json.is_(None)),
+            )
+            .all()
+        )
+        unenriched_ids = [r[0] for r in unenriched]
+        if unenriched_ids:
+            print(f"  Found {len(unenriched_ids)} lemmas to enrich")
+            if not args.dry_run:
+                from app.services.lemma_enrichment import enrich_lemmas_batch
+                result = enrich_lemmas_batch(unenriched_ids)
+                enrich_e = result.get("forms", 0) + result.get("etymology", 0)
+        else:
+            print("  All lemmas enriched")
+
         elapsed = time.time() - start
         print(f"\n{'─' * 60}")
         print(f"Done in {elapsed:.1f}s")
@@ -734,18 +755,20 @@ async def main():
         print(f"  Step B audio:     {audio_b}")
         print(f"  Step C sentences: {sent_c}")
         print(f"  Step D SAMER:     {samer_d}")
+        print(f"  Step E enriched:  {enrich_e}")
 
-        if not args.dry_run and (retired_0 + sent_a + audio_b + sent_c > 0):
+        if not args.dry_run and (retired_0 + sent_a + audio_b + sent_c + enrich_e > 0):
             log_activity(
                 db,
                 event_type="material_updated",
-                summary=f"Retired {retired_0}, generated {sent_a}+{sent_c} sentences, {audio_b} audio in {elapsed:.0f}s",
+                summary=f"Retired {retired_0}, generated {sent_a}+{sent_c} sentences, {audio_b} audio, enriched {enrich_e} in {elapsed:.0f}s",
                 detail={
                     "step_0_retired": retired_0,
                     "step_a_sentences": sent_a,
                     "step_b_audio": audio_b,
                     "step_c_sentences": sent_c,
                     "step_d_samer": samer_d,
+                    "step_e_enriched": enrich_e,
                     "elapsed_seconds": round(elapsed, 1),
                 },
             )
