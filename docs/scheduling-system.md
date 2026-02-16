@@ -213,7 +213,7 @@ Pipeline processes each page individually (not merged), preserving page boundari
 
 **Page-level readiness**: API returns `page_readiness` array with per-page `new_words`, `learned_words`, and `unlocked` status. A page is unlocked when all its content words are at least acquiring.
 
-**Page-based word priority**: Active book words get priority tier 1 in `word_selector.py` with deterministic page ordering: bonus = `100.0 - page * 0.5`. Page 1 words always introduced before page 2, etc. This is the highest priority tier — all book words rank above any other source.
+**Page-based word priority**: Active book words get priority tier 1 in `word_selector.py` with deterministic page ordering: bonus = `200.0 - page * 2.0`. Page 1 words always introduced before page 2, etc. The 2.0 step guarantees strict page ordering (within-page scoring max ~1.5 can never bridge the gap). This is the highest priority tier — all book words rank above any other source.
 
 **Sentence tracking**: `sentences_seen` / `sentence_count` returned in API for book stories. Book sentences get 1.3x scoring preference in session builder.
 
@@ -1193,7 +1193,7 @@ total_score = frequency × 0.4
             + category_penalty   (proper_name: −0.8, onomatopoeia: −1.0)
 
 Priority tiers (higher ALWAYS beats lower, freq/root/grammar are tiebreakers within):
-  Tier 1: Active book words  — 100.0 − page × 0.5 (deterministic page order)
+  Tier 1: Active book words  — 200.0 − page × 2.0 (deterministic page order)
   Tier 2: Active stories     — +10.0
   Tier 3: OCR textbook_scan  — +8.0
   Tier 4: Duolingo           — +6.0
