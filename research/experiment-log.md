@@ -4,6 +4,29 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-02-16: Fix Wrong Word on Tap + Variant Detection Robustness
+
+### What
+Fixed bug where tapping a word during review showed wrong word details (e.g. شرطيّ "policeman" showed as شرط "stipulate"). Root cause: false variant detection + display code using canonical lemma_id instead of original.
+
+### Changes
+1. **Display fix**: `sentence_selector.py` — `WordMeta.lemma_id` now uses original `sw.lemma_id` for display/lookup, while `effective_id` (variant→canonical) is only used for scheduling (due checks, stability, knowledge state).
+2. **Root validation**: `variant_detection.py` — added `root_id` check in `detect_variants()` that rejects candidate pairs with different roots. Prevents worst class of false variants (كلية→أكل, أميرة→مار, شباك→شب).
+3. **Production audit**: Re-evaluated all 191 existing variant mappings via LLM, cleared false variants and stale cache entries.
+
+### Why
+CAMeL morphological analysis generates noisy candidates — iterates all analyses for a word and picks any whose stripped `lex` matches a DB lemma. Combined with diacritics/clitic stripping, words from different roots could be matched. The LLM confirmation step catches most false positives but isn't perfect, and some import scripts bypassed it.
+
+### Expected Effect
+No more wrong-word-on-tap. Three-layer defense: root check (cheapest), LLM confirmation (existing), display fix (defense-in-depth).
+
+### Verification
+- All 690 tests pass
+- Tap words in review → correct details shown
+- Production audit clears false variants
+
+---
+
 ## 2026-02-16: Strict Source-Based Priority Tiers
 
 ### What

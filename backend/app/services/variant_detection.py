@@ -124,6 +124,12 @@ def detect_variants(
                 print(f"  SKIP {lemma_bare} ({lemma.gloss_en}): lex={lex_bare} but no suitable base")
             continue
 
+        # Reject if both lemmas have roots and they differ — prevents cross-root false variants
+        if lemma.root_id and base.root_id and lemma.root_id != base.root_id:
+            if verbose:
+                print(f"  SKIP {lemma_bare} ({lemma.gloss_en}) → {base.lemma_ar_bare} ({base.gloss_en}): different roots")
+            continue
+
         pair = (lemma_bare, base.lemma_ar_bare)
         if pair in _NEVER_MERGE or (pair[1], pair[0]) in _NEVER_MERGE:
             if verbose:

@@ -619,7 +619,7 @@ def build_session(
             is_func = _is_function_word(bare)
             gloss = lemma.gloss_en if lemma else FUNCTION_WORD_GLOSSES.get(bare)
             wm = WordMeta(
-                lemma_id=effective_id,
+                lemma_id=sw.lemma_id,  # original lemma for display/lookup (effective_id used only for scheduling)
                 surface_form=sw.surface_form,
                 gloss_en=gloss,
                 stability=stab,
