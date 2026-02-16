@@ -801,12 +801,38 @@ def _get_book_stats(db: Session, book_ids: list[int]) -> dict:
         if s.created_at:
             story_created[s.id] = s.created_at
 
-    def _was_known_before_import(lid: int, import_time: datetime | None) -> bool:
-        """Check if a word was already being studied before the book was imported."""
+    # total_encounters per lemma — fallback for words whose review_log was cleared
+    enc_counts: dict[int, int] = {}
+    if all_lemma_ids:
+        enc_rows = (
+            db.query(UserLemmaKnowledge.lemma_id, UserLemmaKnowledge.total_encounters)
+            .filter(UserLemmaKnowledge.lemma_id.in_(all_lemma_ids))
+            .all()
+        )
+        enc_counts = {r[0]: r[1] or 0 for r in enc_rows}
+
+    # Lemma source_story_id to identify words NOT created by this book
+    lemma_story_ids: dict[int, int | None] = {}
+    if all_lemma_ids:
+        ls_rows = db.query(Lemma.lemma_id, Lemma.source_story_id).filter(
+            Lemma.lemma_id.in_(all_lemma_ids)
+        ).all()
+        lemma_story_ids = {r[0]: r[1] for r in ls_rows}
+
+    def _was_known_before_import(lid: int, sid: int, import_time: datetime | None) -> bool:
+        """Check if a word was already being studied before the book was imported.
+
+        Uses review_log first-review date as primary signal. Falls back to
+        total_encounters for words whose review history was cleared by
+        maintenance scripts (e.g. reset_ocr_cards.py).
+        """
         if not import_time:
             return False
         fr = first_review.get(lid)
         if fr and fr < import_time:
+            return True
+        # Fallback: word existed before this book AND has many encounters
+        if lemma_story_ids.get(lid) != sid and enc_counts.get(lid, 0) >= 5:
             return True
         return False
 
@@ -822,7 +848,7 @@ def _get_book_stats(db: Session, book_ids: list[int]) -> dict:
             not_started = 0
             started_after_import = 0
             for lid in lemmas:
-                if _was_known_before_import(lid, import_time):
+                if _was_known_before_import(lid, sid, import_time):
                     continue  # pre-existing knowledge, skip
                 state = knowledge_map.get(lid)
                 if state in _ACTIVELY_LEARNING_STATES:
@@ -849,7 +875,7 @@ def _get_book_stats(db: Session, book_ids: list[int]) -> dict:
         new_total = 0
         new_learning = 0
         for lid in all_story_lemmas:
-            if _was_known_before_import(lid, import_time):
+            if _was_known_before_import(lid, sid, import_time):
                 continue  # pre-existing knowledge
             state = knowledge_map.get(lid)
             if state in _ACTIVELY_LEARNING_STATES:
@@ -917,6 +943,16 @@ def get_book_page_detail(db: Session, story_id: int, page_number: int) -> dict:
         )
         first_review = {r[0]: r[1] for r in first_rev_rows}
 
+    # total_encounters + lemma source fallback (for words with cleared review history)
+    enc_counts: dict[int, int] = {}
+    if seen_lemmas:
+        enc_rows = (
+            db.query(UserLemmaKnowledge.lemma_id, UserLemmaKnowledge.total_encounters)
+            .filter(UserLemmaKnowledge.lemma_id.in_(seen_lemmas))
+            .all()
+        )
+        enc_counts = {r[0]: r[1] or 0 for r in enc_rows}
+
     import_time = story.created_at
     known_at_import = 0
     new_not_started = 0
@@ -932,6 +968,10 @@ def get_book_page_detail(db: Session, story_id: int, page_number: int) -> dict:
             and import_time is not None
             and fr < import_time
         )
+        # Fallback: word not created by this book AND encountered many times
+        if not was_known_before and lem and lem.source_story_id != story_id:
+            if enc_counts.get(sw.lemma_id, 0) >= 5:
+                was_known_before = True
         is_new = not was_known_before
         if was_known_before:
             known_at_import += 1
