@@ -759,6 +759,7 @@ _SOURCE_LABELS = {
     "study": "Learn",
     "duolingo": "Duolingo",
     "textbook_scan": "OCR",
+    "book": "Book",
     "story_import": "Story",
     "auto_intro": "Auto",
     "collateral": "Review",

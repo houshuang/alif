@@ -85,7 +85,10 @@ def start_acquisition(
         ulk.acquisition_next_due = next_due
         ulk.acquisition_started_at = now
         ulk.introduced_at = now
-        ulk.source = source
+        # Preserve original source if meaningful (book, duolingo, textbook_scan, etc.)
+        _GENERIC_SOURCES = {"study", "encountered"}
+        if not ulk.source or ulk.source in _GENERIC_SOURCES:
+            ulk.source = source
         ulk.fsrs_card_json = None  # No FSRS card during acquisition
     else:
         ulk = UserLemmaKnowledge(

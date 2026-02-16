@@ -476,6 +476,28 @@ def import_book(
     # Import unknown words (creates Lemma entries, no ULK)
     new_ids = _import_unknown_words(db, story, lemma_lookup)
 
+    # Create encountered ULK records for book words that don't have one yet
+    book_lemma_ids = {sw.lemma_id for sw in story.words if sw.lemma_id and not sw.is_function_word}
+    existing_ulk_ids = set()
+    if book_lemma_ids:
+        existing_ulk_ids = {
+            r[0] for r in db.query(UserLemmaKnowledge.lemma_id)
+            .filter(UserLemmaKnowledge.lemma_id.in_(book_lemma_ids))
+            .all()
+        }
+    encountered_count = 0
+    for lid in book_lemma_ids - existing_ulk_ids:
+        db.add(UserLemmaKnowledge(
+            lemma_id=lid,
+            knowledge_state="encountered",
+            source="book",
+            total_encounters=1,
+        ))
+        encountered_count += 1
+    if encountered_count:
+        db.flush()
+        logger.info(f"Created {encountered_count} encountered ULK records (source=book)")
+
     # Recalculate readiness
     _recalculate_story_counts(db, story)
 

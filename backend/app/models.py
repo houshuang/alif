@@ -65,7 +65,7 @@ class UserLemmaKnowledge(Base):
     times_correct = Column(Integer, default=0)
     total_encounters = Column(Integer, default=0)
     distinct_contexts = Column(Integer, default=0)
-    source = Column(String(20), default="study")  # study/duolingo/encountered/textbook_scan/story_import/auto_intro/collocate
+    source = Column(String(20), default="study")  # study/duolingo/encountered/textbook_scan/story_import/book/auto_intro/collateral/leech_reintro
     variant_stats_json = Column(JSON, nullable=True)
 
     # Acquisition (Leitner 3-box) fields
