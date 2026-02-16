@@ -853,7 +853,7 @@ def get_book_page_detail(db: Session, story_id: int, page_number: int) -> dict:
             "lemma_id": sw.lemma_id,
             "arabic": lem.lemma_ar_bare if lem else sw.surface_form,
             "gloss_en": sw.gloss_en or (lem.gloss_en if lem else None),
-            "transliteration": lem.transliteration if lem else None,
+            "transliteration": lem.transliteration_ala_lc if lem else None,
             "knowledge_state": state,
             "is_new": is_new,
         })
