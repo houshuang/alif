@@ -4,6 +4,35 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-02-16: Sentence Pipeline Cap Enforcement
+
+### Changes
+- **Hard 300-sentence cap**: `update_material.py` Step 0 retires excess sentences by priority (never-shown stale → shown stale → oldest), keeping min 1 per word
+- **Rotation in cron**: `rotate_stale_sentences.py` runs before `update_material.py` every 6h for diversity-based retirement
+- **Warm cache cap check**: `warm_sentence_cache()` skips pre-generation when at/above 300
+
+### Before/After
+- Before: 560 active sentences, 229 (41%) never shown. Cap was soft (only prevented cron generation, not warm cache)
+- After: 300 active, 90 (30%) never shown, 0 words with zero sentences, 231 words with exactly 1 sentence
+
+### Rationale
+- 41% never-shown sentences = wasted pre-generation. Pre-generated sentences use stale vocabulary.
+- JIT on-demand generation (during session building) produces better sentences with current vocabulary
+- Multi-target sentences cover 2-4 words each, reducing per-word sentence need
+- Min 1 per word for cap enforcement (not 2) — JIT handles gaps when the one sentence isn't comprehensible
+
+### Expected Effect
+- Fresh, more diverse sentences with current vocabulary
+- ~100-150 new sentences generated in first week via JIT + cron backfill (Gemini Flash, negligible cost)
+- Steady-state churn: rotation retires stale → Step 0 enforces cap → Step A backfills fresh
+
+### Verification
+- Monitor sentence count stays near 300: `SELECT count(*) FROM sentences WHERE is_active=1`
+- Check never-shown % drops over time
+- Watch for JIT generation spikes in session logs (should taper after first week)
+
+---
+
 ## 2026-02-16: Learning Progress Analysis
 
 ### Findings

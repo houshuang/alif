@@ -60,8 +60,9 @@ from app.services.tts import (
     get_cached_path,
 )
 
-MIN_SENTENCES = 2
-TARGET_PIPELINE_SENTENCES = 300  # warm cache — JIT generation fills gaps with current vocabulary
+MIN_SENTENCES = 2  # per-word target for backfill generation
+MIN_SENTENCES_CAP_ENFORCEMENT = 1  # per-word floor during cap enforcement (JIT handles gaps)
+TARGET_PIPELINE_SENTENCES = 300  # hard cap — JIT generation fills gaps with current vocabulary
 
 
 def get_existing_counts(db: Session) -> dict[int, int]:
@@ -236,6 +237,117 @@ def generate_sentences_for_word(
 
     db.commit()
     return stored
+
+
+# ── Step 0: Enforce sentence cap by retiring excess ──────────────────
+
+def step_enforce_cap(db: Session, dry_run: bool, max_sentences: int = TARGET_PIPELINE_SENTENCES) -> int:
+    """Retire excess sentences when over the pipeline cap.
+
+    Retirement priority:
+      1. Never-shown sentences (times_shown=0) — stale first (no acquiring scaffold)
+      2. Shown stale sentences (no acquiring/learning scaffold words)
+      3. Oldest by last_reading_shown_at as final tiebreaker
+    Always keeps at least MIN_SENTENCES active per target word.
+    """
+    import json
+
+    existing_counts = get_existing_counts(db)
+    total_active = sum(existing_counts.values())
+
+    # Also count sentences with no target_lemma_id
+    orphan_count = (
+        db.query(func.count(Sentence.id))
+        .filter(Sentence.is_active == True, Sentence.target_lemma_id.is_(None))
+        .scalar() or 0
+    )
+    total_active += orphan_count
+
+    print(f"\n═══ Step 0: Enforce sentence cap ═══")
+    print(f"  Active sentences: {total_active} (cap: {max_sentences})")
+
+    if total_active <= max_sentences:
+        print(f"  Under cap, nothing to retire.")
+        return 0
+
+    excess = total_active - max_sentences
+    print(f"  Over cap by {excess} — identifying sentences to retire")
+
+    # Load all active sentences with their diversity scores
+    sentences = db.query(Sentence).filter(Sentence.is_active == True).all()
+    all_sw = db.query(SentenceWord).filter(
+        SentenceWord.sentence_id.in_([s.id for s in sentences])
+    ).all()
+    all_ulk = db.query(UserLemmaKnowledge).all()
+
+    knowledge_map = {k.lemma_id: k for k in all_ulk}
+    sw_by_sentence: dict[int, list] = {}
+    for sw in all_sw:
+        sw_by_sentence.setdefault(sw.sentence_id, []).append(sw)
+
+    # Score and sort for retirement
+    candidates: list[tuple[Sentence, int]] = []  # (sentence, priority)
+    for sent in sentences:
+        sws = sw_by_sentence.get(sent.id, [])
+        scaffold_lemmas: set[int] = set()
+        acquiring_count = 0
+        for sw in sws:
+            if not sw.lemma_id or sw.is_target_word:
+                continue
+            if sw.lemma_id in scaffold_lemmas:
+                continue
+            scaffold_lemmas.add(sw.lemma_id)
+            ulk = knowledge_map.get(sw.lemma_id)
+            if ulk and ulk.knowledge_state in ("acquiring", "learning", "lapsed"):
+                acquiring_count += 1
+
+        never_shown = (sent.times_shown or 0) == 0
+        is_stale = acquiring_count == 0 and len(scaffold_lemmas) >= 2
+
+        # Priority: lower = retire first
+        # 0 = never-shown + stale, 1 = never-shown, 2 = shown + stale, 3 = shown
+        if never_shown and is_stale:
+            priority = 0
+        elif never_shown:
+            priority = 1
+        elif is_stale:
+            priority = 2
+        else:
+            priority = 3
+
+        candidates.append((sent, priority))
+
+    # Sort by priority (lowest first), then oldest
+    candidates.sort(key=lambda x: (x[1], x[0].last_reading_shown_at or datetime.min))
+
+    # Enforce min-active per target
+    retire_count_per_target: dict[int | None, int] = {}
+    retired = 0
+    for sent, _ in candidates:
+        if retired >= excess:
+            break
+        target_id = sent.target_lemma_id
+        already_retiring = retire_count_per_target.get(target_id, 0)
+        active = existing_counts.get(target_id, 0) if target_id else orphan_count
+        if active - already_retiring <= MIN_SENTENCES_CAP_ENFORCEMENT:
+            continue
+
+        if not dry_run:
+            sent.is_active = False
+        retired += 1
+        retire_count_per_target[target_id] = already_retiring + 1
+
+    if not dry_run and retired > 0:
+        db.commit()
+        log_activity(
+            db,
+            event_type="sentences_retired",
+            summary=f"Cap enforcement: retired {retired} sentences (cap={max_sentences})",
+            detail={"retired": retired, "was_active": total_active, "cap": max_sentences},
+        )
+
+    print(f"  → Retired {retired} sentences (target was {excess})")
+    return retired
 
 
 # ── Step A: Backfill sentences for words, prioritized by due date ────
@@ -598,6 +710,8 @@ async def main():
 
     db = SessionLocal()
     try:
+        retired_0 = step_enforce_cap(db, args.dry_run, args.max_sentences)
+
         sent_a = step_backfill_sentences(db, args.dry_run, args.model, args.delay, args.max_sentences)
 
         if not args.skip_audio:
@@ -613,17 +727,19 @@ async def main():
         elapsed = time.time() - start
         print(f"\n{'─' * 60}")
         print(f"Done in {elapsed:.1f}s")
+        print(f"  Step 0 retired:   {retired_0}")
         print(f"  Step A sentences: {sent_a}")
         print(f"  Step B audio:     {audio_b}")
         print(f"  Step C sentences: {sent_c}")
         print(f"  Step D SAMER:     {samer_d}")
 
-        if not args.dry_run and (sent_a + audio_b + sent_c > 0):
+        if not args.dry_run and (retired_0 + sent_a + audio_b + sent_c > 0):
             log_activity(
                 db,
                 event_type="material_updated",
-                summary=f"Generated {sent_a} backfill + {sent_c} pre-gen sentences, {audio_b} audio files in {elapsed:.0f}s",
+                summary=f"Retired {retired_0}, generated {sent_a}+{sent_c} sentences, {audio_b} audio in {elapsed:.0f}s",
                 detail={
+                    "step_0_retired": retired_0,
                     "step_a_sentences": sent_a,
                     "step_b_audio": audio_b,
                     "step_c_sentences": sent_c,

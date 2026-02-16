@@ -319,6 +319,17 @@ def warm_sentence_cache() -> dict:
     db = SessionLocal()
     stats = {"cohort_gaps": 0, "intro_gaps": 0, "generated": 0}
     try:
+        # Check pipeline cap before pre-generating
+        total_active = (
+            db.query(func.count(Sentence.id))
+            .filter(Sentence.is_active == True)
+            .scalar() or 0
+        )
+        PIPELINE_CAP = 300
+        if total_active >= PIPELINE_CAP:
+            logger.info(f"Warm cache: pipeline full ({total_active} >= {PIPELINE_CAP}), skipping")
+            return stats
+
         # 1. Focus cohort words with < 2 active sentences
         cohort = get_focus_cohort(db)
         if cohort:
