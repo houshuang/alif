@@ -242,11 +242,19 @@ export default function StoriesScreen() {
     const title = item.title_en || item.title_ar || "Untitled Story";
     const ready = readinessColor(item);
     const isComplete = item.status === "completed";
+    const learningCount = item.page_readiness
+      ? item.page_readiness.reduce((s, p) => s + p.learned_words, 0)
+      : 0;
+    const totalPageWords = item.page_readiness
+      ? item.page_readiness.reduce((s, p) => s + p.new_words, 0)
+      : 0;
     const readyText = isComplete
       ? "Completed"
       : item.unknown_count <= 3
         ? "Ready to read!"
-        : `${item.unknown_count} unknown`;
+        : learningCount > 0
+          ? `${learningCount}/${totalPageWords} words learning`
+          : `${item.unknown_count} unknown`;
 
     const pctWidth = Math.min(100, Math.max(4, item.readiness_pct));
     const isSuspended = item.status === "suspended";
@@ -292,7 +300,6 @@ export default function StoriesScreen() {
         {item.page_readiness && item.page_readiness.length > 0 ? (
           <View style={styles.pageRow}>
             {item.page_readiness.map((p) => {
-              const remaining = p.new_words - p.learned_words;
               return (
                 <Pressable
                   key={p.page}
@@ -305,7 +312,7 @@ export default function StoriesScreen() {
                     {
                       backgroundColor: p.unlocked
                         ? colors.gotIt + "25"
-                        : remaining <= 3
+                        : p.learned_words > 0
                           ? colors.stateLearning + "25"
                           : colors.surfaceLight,
                     },
@@ -317,13 +324,15 @@ export default function StoriesScreen() {
                       {
                         color: p.unlocked
                           ? colors.gotIt
-                          : remaining <= 3
+                          : p.learned_words > 0
                             ? colors.stateLearning
                             : colors.textSecondary,
                       },
                     ]}
                   >
-                    {p.unlocked ? `p${p.page} ✓` : `p${p.page}: ${remaining}`}
+                    {p.unlocked
+                      ? `p${p.page} ✓`
+                      : `p${p.page} ${p.learned_words}/${p.new_words}`}
                   </Text>
                 </Pressable>
               );

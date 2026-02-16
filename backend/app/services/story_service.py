@@ -893,27 +893,6 @@ def get_stories(db: Session) -> list[dict]:
     """Return all stories ordered by created_at desc."""
     stories = db.query(Story).order_by(Story.created_at.desc()).all()
 
-    # Refresh readiness for active stories (knowledge states change between loads)
-    active_stories = [s for s in stories if s.status == "active" and s.words]
-    if active_stories:
-        all_lemma_ids: set[int] = set()
-        for s in active_stories:
-            all_lemma_ids.update(sw.lemma_id for sw in s.words if sw.lemma_id)
-        knowledge_map = _build_knowledge_map(db, lemma_ids=all_lemma_ids or None)
-        for s in active_stories:
-            total = 0
-            known = 0
-            func = 0
-            for sw in s.words:
-                total += 1
-                if sw.is_function_word:
-                    func += 1
-                elif sw.lemma_id and knowledge_map.get(sw.lemma_id) in _ACTIVELY_LEARNING_STATES:
-                    known += 1
-            if total > 0:
-                s.unknown_count = total - known - func
-                s.readiness_pct = round((known + func) / total * 100, 1)
-
     book_ids = [s.id for s in stories if s.source == "book_ocr"]
     book_stats = _get_book_stats(db, book_ids)
 
