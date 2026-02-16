@@ -566,6 +566,8 @@
 - [DONE] Sentences seen/total tracking: book stories show how many of their sentences have appeared in review sessions.
 - [DONE] CAMeL morphology resolution for unmapped words: `_resolve_unmapped_via_camel()` resolves conjugated verb forms (e.g. ذَهَبَتْ→ذهب) to existing lemmas during sentence creation.
 - [DONE] Image persistence: uploaded book page images saved to `data/book-uploads/<timestamp>/` for retry on failed imports.
+- [DONE] Book page detail screen: clickable page pills navigate to `/book-page?storyId=X&page=N` showing already-known word count, new words list (arabic, transliteration, english, status pill), and sentences with seen/unseen indicators. Words tappable → word detail page.
+- [DONE] StoryWord surface→lemma fallback lookup: after `_import_unknown_words` creates lemmas, `create_book_sentences` uses StoryWord mappings to resolve conjugated/affixed forms that CAMeL misses. Sentences with remaining unmapped tokens kept (not skipped).
 - Page ordering UI: drag-to-reorder page thumbnails before import (currently insertion-order only)
 - Progress polling: for longer books (30+ pages), switch from sync to async import with SSE/polling progress updates
 - Book library view: separate section in stories list for imported books with page count, sentence count, cover thumbnail
@@ -714,7 +716,8 @@ After importing ~100 textbook pages via OCR, 411 words entered the system with a
 - [DONE] Deterministic variant ULK cleanup: suspend variant ULK records, merge stats into canonical. Replaces LLM-based junk detection which was incorrectly re-discovering variants.
 - [DONE] Quality gate on all import paths: OCR, story import, Duolingo. Wiktionary/AVP skipped (no ULK created).
 - [DONE] Fixed story_service variant detection: was calling detect functions without mark_variants().
-- [DONE] Variant resolution in sentence_selector: sentences containing variant forms correctly cover canonical due words.
+- [DONE] Variant resolution in sentence_selector: sentences containing variant forms correctly cover canonical due words. Display uses original lemma_id (not canonical) so tapping always shows correct word.
+- [DONE] Root validation guard in variant detection: rejects candidate pairs with different root_id before LLM. Prevents worst false variants (كلية→أكل, أميرة→مار, شباك→شب). Audited 191 existing variants, cleared 28 false ones.
 - Variant-aware statistics display: show aggregated stats across all variant forms on the word detail page. "You've seen this word as: كتاب (5x), الكتاب (3x), كتابي (1x)"
 - Adaptive comprehensibility threshold: start at 70%, increase to 80% as vocabulary grows. Early learners need more i+1, advanced need less scaffolding.
 - Sentence regeneration trigger: when cleanup retires many sentences, auto-regenerate for words below MIN_SENTENCES=2.

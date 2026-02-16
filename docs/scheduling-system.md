@@ -770,17 +770,24 @@ LLM-generated ones naturally.
 ### Variant Resolution
 
 Sentences may contain variant forms (e.g., كتابي "my book" is a variant of كتاب
-"book"). The session builder resolves variants to their canonical lemma:
+"book"). The session builder resolves variants to their canonical lemma for
+**scheduling** purposes only:
 
 ```
 Sentence contains word with lemma_id=42 (variant)
 Lemma 42 has canonical_lemma_id=17 (canonical)
-If lemma_id=17 is in due_lemma_ids:
-    This sentence covers the canonical word
+effective_id = 17 (used for: due checking, stability, knowledge_state)
+WordMeta.lemma_id = 42 (original — used for: display, word-lookup on tap)
 ```
 
 This ensures sentences with variant surface forms correctly satisfy the scheduling
-requirements of their canonical lemma.
+requirements of their canonical lemma, while tapping a word always shows the
+correct word details (not the canonical form).
+
+**Variant detection has three layers of protection:**
+1. Root check — rejects candidate pairs with different `root_id` (cheapest, catches worst errors)
+2. LLM confirmation — Gemini Flash evaluates same-root candidates (handles subtler cases)
+3. Display fix — `WordMeta.lemma_id` uses original lemma regardless (defense-in-depth)
 
 ---
 
