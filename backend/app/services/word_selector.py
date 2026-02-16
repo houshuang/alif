@@ -336,9 +336,16 @@ def select_next_words(
     if not candidates:
         return []
 
-    # Topic-aware filtering: prefer words from the active domain
+    story_lemmas = _active_story_lemma_ids(db)
+
+    # Topic-aware filtering: prefer words from the active domain,
+    # but always include words from active stories (book reading goal
+    # takes priority over topic rotation)
     if domain:
-        domain_candidates = [c for c in candidates if c.thematic_domain == domain]
+        domain_candidates = [
+            c for c in candidates
+            if c.thematic_domain == domain or c.lemma_id in story_lemmas
+        ]
         if domain_candidates:
             candidates = domain_candidates
         # else: fall back to all candidates
@@ -350,8 +357,6 @@ def select_next_words(
             c for c in candidates
             if c.root_id not in recently_failed_roots or c.lemma_id in encountered_ids
         ]
-
-    story_lemmas = _active_story_lemma_ids(db)
     book_page_bonuses = _book_page_bonus(db)
 
     # --- Batch pre-fetch for scoring ---
