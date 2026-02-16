@@ -104,7 +104,7 @@ export default function WordDetailScreen() {
     word.root,
     word.pos,
     stateLabel,
-    word.frequency_rank ? `#${word.frequency_rank.toLocaleString()}` : null,
+    word.frequency_rank ? `#${word.frequency_rank}` : null,
     word.cefr_level,
   ].filter(Boolean) as string[];
 
@@ -147,7 +147,7 @@ export default function WordDetailScreen() {
           onPress={word.source_info.story_id ? () => router.push(`/story/${word.source_info!.story_id}`) : undefined}
         >
           <Ionicons
-            name={word.source_info.type === "story_import" ? "book-outline" : word.source_info.type === "textbook_scan" ? "scan-outline" : "download-outline"}
+            name={word.source_info.type === "story_import" ? "book-outline" : word.source_info.type === "textbook_scan" ? "scan-outline" : word.source_info.type === "avp_a1" ? "school-outline" : "download-outline"}
             size={13}
             color={colors.textSecondary}
           />
@@ -157,10 +157,12 @@ export default function WordDetailScreen() {
               : word.source_info.type === "textbook_scan"
                 ? "From textbook scan"
                 : word.source_info.type === "duolingo"
-                  ? "From Duolingo import"
-                  : word.source_info.type === "wiktionary"
-                    ? "From Wiktionary"
-                    : `Source: ${word.source_info.type}`}
+                  ? "From Duolingo"
+                  : word.source_info.type === "avp_a1"
+                    ? "From AVP A1"
+                    : word.source_info.type === "wiktionary"
+                      ? "From Wiktionary"
+                      : `Source: ${word.source_info.type}`}
           </Text>
           {word.source_info.story_id && (
             <Ionicons name="chevron-forward" size={13} color={colors.textSecondary} />

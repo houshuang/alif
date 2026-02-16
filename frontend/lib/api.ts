@@ -76,6 +76,7 @@ interface RawWordDetail extends RawWord {
   root_family: { id: number; arabic: string; english: string }[];
   etymology_json?: EtymologyData | null;
   memory_hooks_json?: MemoryHooksData | null;
+  source_info?: { type: string; story_id?: number; story_title?: string } | null;
   word_category?: string | null;
   acquisition_box?: number | null;
   review_history: {
@@ -285,6 +286,7 @@ export async function getWordDetail(id: number): Promise<WordDetail> {
       accuracy_pct: s.accuracy_pct ?? null,
       last_reviewed_at: s.last_reviewed_at ?? null,
     })),
+    source_info: w.source_info ?? null,
     word_category: (w.word_category as WordCategory) ?? null,
     etymology_json: w.etymology_json ?? null,
     memory_hooks_json: w.memory_hooks_json ?? null,
