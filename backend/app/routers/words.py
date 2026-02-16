@@ -384,6 +384,30 @@ def get_word(lemma_id: int, db: Session = Depends(get_db)):
     }
 
 
+@router.post("/{lemma_id}/postpone")
+def postpone_word(lemma_id: int, db: Session = Depends(get_db)):
+    """Postpone a word — remove from Leitner/FSRS, back to encountered pool."""
+    ulk = (
+        db.query(UserLemmaKnowledge)
+        .filter(UserLemmaKnowledge.lemma_id == lemma_id)
+        .first()
+    )
+    if not ulk:
+        raise HTTPException(404, "No knowledge record for this word")
+    if ulk.knowledge_state == "encountered":
+        return {"lemma_id": lemma_id, "state": "encountered", "already_postponed": True}
+
+    previous_state = ulk.knowledge_state
+    ulk.knowledge_state = "encountered"
+    ulk.acquisition_box = None
+    ulk.acquisition_next_due = None
+    ulk.fsrs_card_json = None
+    db.commit()
+
+    log_interaction(event="word_postponed", lemma_id=lemma_id, previous_state=previous_state)
+    return {"lemma_id": lemma_id, "state": "encountered", "previous_state": previous_state}
+
+
 @router.post("/{lemma_id}/suspend")
 def suspend_word(lemma_id: int, db: Session = Depends(get_db)):
     """Suspend a word — stops appearing in reviews."""

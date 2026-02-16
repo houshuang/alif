@@ -317,8 +317,10 @@ def select_next_words(
 
     # Get lemma_ids that are already introduced (have FSRS cards or are acquiring/learning/known)
     # Exclude encountered-only — those ARE candidates
+    # Track suspended separately — they can be re-admitted by high-priority sources
     introduced_ids = set()
     encountered_ids = set()
+    suspended_ids = set()
     encountered_query = (
         db.query(UserLemmaKnowledge.lemma_id, UserLemmaKnowledge.knowledge_state)
         .all()
@@ -326,15 +328,19 @@ def select_next_words(
     for lid, state in encountered_query:
         if state == "encountered":
             encountered_ids.add(lid)
+        elif state == "suspended":
+            suspended_ids.add(lid)
         else:
             introduced_ids.add(lid)
 
     # Candidates: no ULK at all, OR ULK with knowledge_state="encountered"
+    # Suspended words are excluded here but re-admitted below if in high-priority sources
+    exclude_ids = introduced_ids | suspended_ids
     candidates = (
         db.query(Lemma)
         .filter(
             Lemma.canonical_lemma_id.is_(None),
-            Lemma.lemma_id.notin_(introduced_ids) if introduced_ids else True,
+            Lemma.lemma_id.notin_(exclude_ids) if exclude_ids else True,
             Lemma.lemma_id.notin_(exclude) if exclude else True,
         )
         .all()
@@ -347,6 +353,35 @@ def select_next_words(
 
     story_lemmas = _active_story_lemma_ids(db)
     book_pages = _book_page_numbers(db)
+
+    # Re-admit suspended words if they're in active books/stories or from OCR/textbook
+    if suspended_ids:
+        readmit_ids = set()
+        for sid in suspended_ids:
+            if sid in book_pages or sid in story_lemmas:
+                readmit_ids.add(sid)
+        # Also check textbook_scan source
+        if suspended_ids - readmit_ids:
+            ocr_suspended = (
+                db.query(Lemma)
+                .filter(
+                    Lemma.lemma_id.in_(suspended_ids - readmit_ids),
+                    Lemma.source == "textbook_scan",
+                    Lemma.canonical_lemma_id.is_(None),
+                )
+                .all()
+            )
+            for lem in ocr_suspended:
+                readmit_ids.add(lem.lemma_id)
+        if readmit_ids:
+            readmitted = (
+                db.query(Lemma)
+                .filter(Lemma.lemma_id.in_(readmit_ids))
+                .all()
+            )
+            candidates.extend([c for c in readmitted if not _is_noise_lemma(c)])
+            # Treat readmitted suspended words like encountered for bonus purposes
+            encountered_ids.update(readmit_ids)
 
     # Root-sibling interference guard: skip words whose root siblings failed in last 7d
     recently_failed_roots = _get_recently_failed_roots(db)

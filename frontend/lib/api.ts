@@ -911,6 +911,10 @@ export async function getSentenceInfo(sentenceId: number): Promise<SentenceInfo>
 
 // --- Word management ---
 
+export async function postponeWord(lemmaId: number): Promise<{ lemma_id: number; state: string }> {
+  return fetchApi(`/api/words/${lemmaId}/postpone`, { method: "POST" });
+}
+
 export async function suspendWord(lemmaId: number): Promise<{ lemma_id: number; state: string }> {
   return fetchApi(`/api/words/${lemmaId}/suspend`, { method: "POST" });
 }

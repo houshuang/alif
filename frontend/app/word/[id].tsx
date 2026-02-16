@@ -10,7 +10,7 @@ import {
 import { useLocalSearchParams, useRouter, useNavigation } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { colors, fonts, fontFamily } from "../../lib/theme";
-import { getWordDetail } from "../../lib/api";
+import { getWordDetail, postponeWord, suspendWord, unsuspendWord } from "../../lib/api";
 import { WordDetail, ReviewHistoryEntry, EtymologyData, MemoryHooksData } from "../../lib/types";
 import { getCefrColor } from "../../lib/frequency";
 import ActionMenu from "../../lib/review/ActionMenu";
@@ -180,6 +180,49 @@ export default function WordDetailScreen() {
           <Text style={styles.categoryText}>
             {word.word_category === "proper_name" ? "Proper name" : "Sound / onomatopoeia"}
           </Text>
+        </View>
+      )}
+
+      {/* Action buttons: Postpone / Suspend / Unsuspend */}
+      {word.state !== "new" && (
+        <View style={styles.actionRow}>
+          {word.state === "suspended" ? (
+            <Pressable
+              style={[styles.actionBtn, styles.actionBtnAccent]}
+              onPress={async () => {
+                await unsuspendWord(word.id);
+                loadWord(word.id);
+              }}
+            >
+              <Ionicons name="play-outline" size={16} color={colors.accent} />
+              <Text style={[styles.actionBtnText, { color: colors.accent }]}>Unsuspend</Text>
+            </Pressable>
+          ) : (
+            <>
+              {(word.state === "acquiring" || word.state === "learning" || word.state === "known" || word.state === "lapsed") && (
+                <Pressable
+                  style={styles.actionBtn}
+                  onPress={async () => {
+                    await postponeWord(word.id);
+                    loadWord(word.id);
+                  }}
+                >
+                  <Ionicons name="time-outline" size={16} color={colors.textSecondary} />
+                  <Text style={styles.actionBtnText}>Postpone</Text>
+                </Pressable>
+              )}
+              <Pressable
+                style={styles.actionBtn}
+                onPress={async () => {
+                  await suspendWord(word.id);
+                  loadWord(word.id);
+                }}
+              >
+                <Ionicons name="pause-outline" size={16} color={colors.missed} />
+                <Text style={[styles.actionBtnText, { color: colors.missed }]}>Suspend</Text>
+              </Pressable>
+            </>
+          )}
         </View>
       )}
 
@@ -503,6 +546,29 @@ const styles = StyleSheet.create({
   categoryText: {
     fontSize: 13,
     color: colors.confused,
+  },
+  actionRow: {
+    flexDirection: "row",
+    gap: 10,
+    marginTop: 14,
+    alignSelf: "flex-start",
+  },
+  actionBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    backgroundColor: colors.surface,
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    borderRadius: 8,
+  },
+  actionBtnAccent: {
+    backgroundColor: colors.accent + "18",
+  },
+  actionBtnText: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    fontWeight: "500",
   },
   section: {
     width: "100%",
