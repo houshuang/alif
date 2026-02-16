@@ -194,8 +194,8 @@ detected post-import are reset from acquiring back to encountered.
 **On story completion**: `encountered` ULK created
 **Code**: `story_service.py:import_story()`, `complete_story()`
 
-Unknown words in stories become Learn mode candidates with a `story_bonus` of 1.0
-(the strongest boost). Proper nouns are detected and marked as function words with
+Unknown words in active stories get priority tier 2 (+10.0 bonus) in the word
+selector. Proper nouns are detected and marked as function words with
 `name_type` instead of creating learning entries.
 
 ### 3.5 Book Import (Children's Books)
@@ -213,7 +213,7 @@ Pipeline processes each page individually (not merged), preserving page boundari
 
 **Page-level readiness**: API returns `page_readiness` array with per-page `new_words`, `learned_words`, and `unlocked` status. A page is unlocked when all its content words are at least acquiring.
 
-**Page-based word priority**: Words from earlier pages get a higher learning priority bonus in `word_selector.py`: page 1 → +1.0, page 2 → +0.8, etc. (min 0.2). Stacks with `story_bonus`.
+**Page-based word priority**: Active book words get priority tier 1 in `word_selector.py` with deterministic page ordering: bonus = `100.0 - page * 0.5`. Page 1 words always introduced before page 2, etc. This is the highest priority tier — all book words rank above any other source.
 
 **Sentence tracking**: `sentences_seen` / `sentence_count` returned in API for book stories. Book sentences get 1.3x scoring preference in session builder.
 
@@ -1056,9 +1056,9 @@ Topic cycle:
 
 ### Integration with Word Selection
 
-When a topic is active, `select_next_words()` filters candidates to that
-`thematic_domain`. If no domain candidates are available, it falls back to the general
-pool.
+Topic acts as a **tiebreaker within OCR and Duolingo tiers only** (+0.3 bonus for
+matching domain). Higher-priority tiers (books, stories) and lower tiers (wiktionary)
+ignore the topic system entirely. Wiktionary words are ordered strictly by frequency.
 
 ---
 
@@ -1169,7 +1169,7 @@ Import text
 When the user completes a story:
 - Unknown words → `encountered` ULK (no FSRS card)
 - Words with active FSRS cards → real review submitted (rating=3)
-- Words become Learn mode candidates with `story_bonus=1.0`
+- Words become Learn mode candidates with priority tier 2 (+10.0)
 
 ---
 
@@ -1180,17 +1180,25 @@ When the user completes a story:
 
 ### Selection Algorithm
 
-Each candidate word is scored across four dimensions plus bonuses:
+Each candidate word is scored with a strict priority tier system plus tiebreakers:
 
 ```
 total_score = frequency × 0.4
             + root_familiarity × 0.3
             + recency_bonus × 0.2
             + grammar_pattern × 0.1
-            + story_bonus        (flat +1.0)
-            + book_page_bonus    (1.0 for page 1, −0.2 per page, min 0.2)
+            + priority_bonus     (strict tier: book→story→OCR→duolingo→AVP→wiktionary)
+            + topic_bonus        (+0.3 for OCR/Duolingo matching active topic)
             + encountered_bonus  (flat +0.5)
             + category_penalty   (proper_name: −0.8, onomatopoeia: −1.0)
+
+Priority tiers (higher ALWAYS beats lower, freq/root/grammar are tiebreakers within):
+  Tier 1: Active book words  — 100.0 − page × 0.5 (deterministic page order)
+  Tier 2: Active stories     — +10.0
+  Tier 3: OCR textbook_scan  — +8.0
+  Tier 4: Duolingo           — +6.0
+  Tier 5: AVP A1             — +4.0
+  Tier 6: Wiktionary/other   — +0.0 (strictly by frequency)
 ```
 
 #### Frequency Score (40%)

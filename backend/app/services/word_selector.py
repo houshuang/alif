@@ -32,6 +32,21 @@ AVOID_SAME_SESSION = {
 MAX_NEW_PER_SESSION = 5
 DEFAULT_BATCH_SIZE = 3
 
+# --- Source-based priority tiers ---
+# Higher tiers ALWAYS beat lower tiers. Within-tier scoring (max ~1.5)
+# can never bridge the gap between tiers.
+_TIER_BOOK_BASE = 100.0       # Active book words: 100 - page * 0.5
+_TIER_BOOK_PAGE_STEP = 0.5    # Deterministic page ordering, any page count
+_TIER_STORY = 10.0            # Active imported stories (non-book)
+_SOURCE_TIER_BONUS = {
+    "textbook_scan": 8.0,     # OCR — user's textbook
+    "duolingo": 6.0,          # Curated beginner curriculum
+    "avp_a1": 4.0,            # Expert-validated A1 vocab
+    # wiktionary, story_import, others: 0.0 (strictly by frequency)
+}
+_TOPIC_BONUS_SOURCES = {"textbook_scan", "duolingo"}
+_TOPIC_BONUS = 0.3            # Small tiebreaker within OCR/Duolingo
+
 # Gloss prefixes that indicate Wiktionary reference entries, not real words
 _SKIP_GLOSS_PREFIXES = (
     "alternative form of",
@@ -107,13 +122,8 @@ def _active_story_lemma_ids(db: Session) -> dict[int, str]:
     return result
 
 
-def _book_page_bonus(db: Session) -> dict[int, float]:
-    """Get lemma_id → page bonus for words in active book stories.
-
-    Earlier pages get much higher bonus to ensure page 1 words are introduced
-    first (goal: read page 1 as soon as possible).
-    Page 1 → 1.5, page 2 → 1.0, page 3 → 0.6, page 4 → 0.3, page 5+ → 0.1.
-    """
+def _book_page_numbers(db: Session) -> dict[int, int]:
+    """Get lemma_id → earliest page number for words in active book stories."""
     rows = (
         db.query(StoryWord.lemma_id, StoryWord.page_number)
         .join(Story, StoryWord.story_id == Story.id)
@@ -126,11 +136,10 @@ def _book_page_bonus(db: Session) -> dict[int, float]:
         )
         .all()
     )
-    result: dict[int, float] = {}
+    result: dict[int, int] = {}
     for lemma_id, page in rows:
-        bonus = max(0.1, 1.5 - (page - 1) * 0.5)
-        if lemma_id not in result or bonus > result[lemma_id]:
-            result[lemma_id] = bonus
+        if lemma_id not in result or page < result[lemma_id]:
+            result[lemma_id] = page
     return result
 
 
@@ -337,18 +346,7 @@ def select_next_words(
         return []
 
     story_lemmas = _active_story_lemma_ids(db)
-
-    # Topic-aware filtering: prefer words from the active domain,
-    # but always include words from active stories (book reading goal
-    # takes priority over topic rotation)
-    if domain:
-        domain_candidates = [
-            c for c in candidates
-            if c.thematic_domain == domain or c.lemma_id in story_lemmas
-        ]
-        if domain_candidates:
-            candidates = domain_candidates
-        # else: fall back to all candidates
+    book_pages = _book_page_numbers(db)
 
     # Root-sibling interference guard: skip words whose root siblings failed in last 7d
     recently_failed_roots = _get_recently_failed_roots(db)
@@ -357,7 +355,6 @@ def select_next_words(
             c for c in candidates
             if c.root_id not in recently_failed_roots or c.lemma_id in encountered_ids
         ]
-    book_page_bonuses = _book_page_bonus(db)
 
     # --- Batch pre-fetch for scoring ---
     root_ids = {c.root_id for c in candidates if c.root_id}
@@ -441,12 +438,22 @@ def select_next_words(
             feats, unlocked_set, exposure_map
         )
 
-        # Words in active stories get a flat boost on top of normal scoring
-        # so they always rank above non-story words
-        story_bonus = 1.0 if lemma.lemma_id in story_lemmas else 0.0
+        # --- Priority bonus: strict tier system ---
+        if lemma.lemma_id in book_pages:
+            page = book_pages[lemma.lemma_id]
+            priority_bonus = _TIER_BOOK_BASE - page * _TIER_BOOK_PAGE_STEP
+            priority_tier = f"book_p{page}"
+        elif lemma.lemma_id in story_lemmas:
+            priority_bonus = _TIER_STORY
+            priority_tier = "active_story"
+        else:
+            priority_bonus = _SOURCE_TIER_BONUS.get(lemma.source, 0.0)
+            priority_tier = lemma.source or "other"
 
-        # Book page bonus: earlier pages score higher (1.0 → 0.2 by page)
-        page_bonus = book_page_bonuses.get(lemma.lemma_id, 0.0)
+        # Topic as tiebreaker within OCR/Duolingo only
+        topic_bonus = 0.0
+        if domain and lemma.source in _TOPIC_BONUS_SOURCES and lemma.thematic_domain == domain:
+            topic_bonus = _TOPIC_BONUS
 
         # Encountered words (seen in textbook/story but not yet introduced) get a bonus
         encountered_bonus = 0.5 if lemma.lemma_id in encountered_ids else 0.0
@@ -462,8 +469,8 @@ def select_next_words(
             + root_score * 0.3
             + recency_bonus * 0.2
             + pattern_score * 0.1
-            + story_bonus
-            + page_bonus
+            + priority_bonus
+            + topic_bonus
             + encountered_bonus
             + category_penalty
         )
@@ -493,7 +500,9 @@ def select_next_words(
                 "frequency": round(freq_score, 3),
                 "root_familiarity": round(root_score, 3),
                 "recency_bonus": round(recency_bonus, 3),
-                "story_bonus": round(story_bonus, 3),
+                "priority_bonus": round(priority_bonus, 3),
+                "priority_tier": priority_tier,
+                "topic_bonus": round(topic_bonus, 3),
                 "encountered_bonus": round(encountered_bonus, 3),
                 "category_penalty": round(category_penalty, 3),
                 "known_siblings": known_siblings,

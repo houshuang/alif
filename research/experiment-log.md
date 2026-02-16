@@ -4,6 +4,32 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-02-16: Strict Source-Based Priority Tiers
+
+### What
+Replaced the flat scoring system with strict source-based priority tiers. Higher tiers ALWAYS beat lower tiers — frequency/root/grammar only serve as tiebreakers within each tier. Previously, the topic system ("nature") was causing wiktionary words (صيد, صقر) to be introduced over OCR and book words.
+
+### Changes
+- `word_selector.py`: New tier system replacing `story_bonus` + `page_bonus`:
+  - Tier 1: Active book words (`100.0 - page * 0.5`, deterministic page ordering)
+  - Tier 2: Active imported stories (+10.0)
+  - Tier 3: OCR textbook_scan (+8.0)
+  - Tier 4: Duolingo (+6.0)
+  - Tier 5: AVP A1 (+4.0)
+  - Tier 6: Wiktionary/other (+0.0, strictly by frequency)
+- Removed topic filtering entirely. Topic now only adds +0.3 tiebreaker within OCR/Duolingo tiers.
+- Backfill: reset low-priority box-1 acquiring words (wiktionary etc.) to encountered.
+
+### Hypothesis
+Word introduction now follows a predictable priority: book page 1 → page 2 → ... → stories → OCR → Duolingo → AVP → wiktionary. No more random wiktionary words appearing in sessions while book/OCR words wait.
+
+### Verification
+- `select_next_words(db, count=30)`: top words should be book p1, then p2, then OCR
+- Auto-introduction in sessions should produce book/OCR words, never wiktionary
+- Topic "nature" should not cause صيد/صقر to be introduced
+
+---
+
 ## 2026-02-16: Book Progress Tracking + Page Prioritization
 
 ### What
