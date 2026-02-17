@@ -30,6 +30,7 @@ from app.services.sentence_validator import (
     FUNCTION_WORDS,
     build_lemma_lookup,
     normalize_alef,
+    resolve_existing_lemma,
     strip_diacritics,
     strip_tatweel,
     tokenize,
@@ -377,9 +378,11 @@ Set name_type to "personal" for personal names (people, characters), "place" for
                 db.flush()
                 root_id = new_root.root_id
 
-        # Dedup check: another word in this batch may have created the same lemma
-        if lex_norm in lemma_lookup:
-            existing_id = lemma_lookup[lex_norm]
+        # Dedup check: direct match or clitic-aware resolve
+        existing_id = lemma_lookup.get(lex_norm)
+        if existing_id is None:
+            existing_id = resolve_existing_lemma(lex_bare, lemma_lookup)
+        if existing_id is not None:
             sw.lemma_id = existing_id
             lemma = db.query(Lemma).filter(Lemma.lemma_id == existing_id).first()
             if lemma:
