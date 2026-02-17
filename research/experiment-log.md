@@ -36,6 +36,9 @@ Step E in `update_material.py` was missing `memory_hooks_json` in its unenriched
 ### Follow-up: Data Cleanup Results (A1-A5)
 Cleanup script applied A1-A5 on production: 7 glosses fixed, 6 particles created, 11 conjugated-form verbs fixed, 4 possessive-form lemmas fixed, 51 al-prefix lemmas fixed. 179 آن mismatches fixed via targeted re-mapping. A6 (batch re-map all sentence_words) deferred pending collision handling verification.
 
+### Follow-up: Duplicate Lemma Merge
+Found 13 collision groups where two canonical lemmas normalize to the same bare form. 8 were true duplicates (same word, different diacritization — mostly from textbook_scan import predating hamza-aware dedup). 5 are legitimately different words (أب/آب, سأل/سال, أمام/إمام, etc.). Merged 8 pairs: 129 sentence_words remapped, 5 ULK records merged/moved. Added `resolve_existing_lemma()` fallback in story_service.py import to prevent future duplicates.
+
 ---
 
 ## 2026-02-16: Comprehensibility Gate Tightening + Pipeline Cap Headroom + Warm Cache Multi-Target
