@@ -12,6 +12,8 @@ services:
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-${ANTHROPIC_KEY:-}}
       - DATABASE_URL=${DATABASE_URL:-sqlite:////app/data/alif.db}
       - CORS_ORIGINS=${CORS_ORIGINS:-}
+      - VERIFY_MAPPINGS_LLM=${VERIFY_MAPPINGS_LLM:-0}
+      - SONIOX_API_KEY=${SONIOX_API_KEY:-}
     restart: unless-stopped
 
 volumes:
