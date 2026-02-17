@@ -25,7 +25,7 @@ npx expo start --web  # opens on localhost:8081
 - **LLM**: LiteLLM multi-model. Sentence gen: Gemini Flash. Story gen: Claude Opus (retry loop). Quality gate: Claude Haiku (fail-closed). General: Gemini 3 Flash → GPT-5.2 → Claude Haiku. Keys: GEMINI_KEY, OPENAI_KEY, ANTHROPIC_API_KEY in `.env`
 - **Claude Code CLI**: Optional `claude -p` wrapper for free Opus via Max plan. `generate_structured()` (single-turn) and `generate_with_tools()` (multi-turn agentic). See `docs/backend-services.md`.
 - **TTS**: ElevenLabs REST, `eleven_multilingual_v2`, Chaouki voice, learner pauses. Key: ELEVENLABS_API_KEY. Audio cached by SHA256 in `backend/data/audio/`.
-- **NLP**: Rule-based clitic stripping + known-form matching + CAMeL disambiguation fallback. CAMeL Tools for lemmatization/root extraction (graceful fallback). Extended forms_json indexing (past_3fs, past_3p, imperative, passive_participle). Optional LLM mapping verification (`verify_mappings_llm` setting). See `docs/nlp-pipeline.md`.
+- **NLP**: Rule-based clitic stripping + known-form matching + CAMeL disambiguation fallback. `LemmaLookupDict` tracks collisions (hamza-sensitive resolution). Extended forms_json indexing (past_3fs, past_3p, imperative, passive_participle). Optional LLM mapping verification (env `VERIFY_MAPPINGS_LLM=1`, default off). See `docs/nlp-pipeline.md`.
 - **Migrations**: Alembic for SQLite. Every schema change needs a migration. Auto-runs on startup.
 - **Hosting**: Hetzner (46.225.75.29), docker-compose. Backend port 3000→8000. Frontend systemd (`alif-expo`) port 8081. DuckDNS: `alifstian.duckdns.org`.
 - **Offline**: AsyncStorage sync queue, 30-min session staleness TTL, background session refresh (15-min gap detection).
