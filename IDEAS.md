@@ -604,7 +604,7 @@
 - [DONE] Gemini Flash quality review gate: post-generation naturalness + translation accuracy check. Catches awkward, nonsensical, or mistranslated sentences before they reach users. Fail-closed since 2026-02-13 (rejects on Gemini unavailability). Integrated into both single-target and multi-target generation paths.
 - [DONE] LLM word-lemma mapping verification: `verify_word_mappings_llm()` in sentence_validator.py sends word→lemma pairs to Gemini Flash for correctness check. Enabled via `VERIFY_MAPPINGS_LLM=1`. Sentences with flagged mappings are skipped. **TODO (late Feb 2026)**: monitor skip rate in logs — search for "LLM flagged mapping issues" in backend logs. If >20% of generated sentences are being skipped, the check may be too aggressive and needs tuning.
 - [DONE] CAMeL disambiguation in mapping pipeline: `lookup_lemma()` uses `_camel_disambiguate()` (via `find_best_db_match()`) when clitic stripping is ambiguous or as last resort. Al-prefix length guard prevents false matches on short stems.
-- Lookup dict collision handling (B5): `build_lemma_lookup()` silently overwrites when two lemmas collide on the same bare form (e.g. أب/آب after hamza normalization). Need to log warnings and/or keep both entries with CAMeL disambiguation at lookup time. This blocked the full batch re-map (A6) from the 2026-02-17 cleanup.
+- [DONE] Lookup dict collision handling (B5): `LemmaLookupDict` tracks collisions, `lookup_lemma()` uses hamza-sensitive matching + CAMeL fallback to disambiguate. A6 batch re-map can now be safely attempted.
 
 ### Sentence Generation Pipeline Overhaul (2026-02-13)
 

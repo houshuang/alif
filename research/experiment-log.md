@@ -27,6 +27,15 @@ Audit (`research/lemma-mapping-audit-2026-02-17.md`) found systematic mapping fa
 - Check sentence validation pass rate before/after on sample sentences
 - Monitor NULL lemma_id rate in new sentence_words
 
+### Follow-up: Lookup Collision Handling (B5)
+`build_lemma_lookup()` now uses `LemmaLookupDict` (dict subclass) that tracks when two lemmas normalize to the same key (e.g., أب "father" and آب "August" both → اب). First entry wins; collisions logged. `lookup_lemma()` accepts optional `original_bare` parameter and uses hamza-sensitive matching + CAMeL fallback to disambiguate collisions at lookup time. 6 new tests added. This was needed before safe batch re-mapping (A6) could be attempted.
+
+### Follow-up: Enrichment Cron Fix
+Step E in `update_material.py` was missing `memory_hooks_json` in its unenriched filter — only forms_json and etymology_json were checked. Fixed to include all three. Backfilled 51 active words missing hooks (26 skipped as function words). Active word hook coverage went from ~64% to 87%.
+
+### Follow-up: Data Cleanup Results (A1-A5)
+Cleanup script applied A1-A5 on production: 7 glosses fixed, 6 particles created, 11 conjugated-form verbs fixed, 4 possessive-form lemmas fixed, 51 al-prefix lemmas fixed. 179 آن mismatches fixed via targeted re-mapping. A6 (batch re-map all sentence_words) deferred pending collision handling verification.
+
 ---
 
 ## 2026-02-16: Comprehensibility Gate Tightening + Pipeline Cap Headroom + Warm Cache Multi-Target
