@@ -726,14 +726,18 @@ async def main():
 
         samer_d = step_backfill_samer(db, args.dry_run)
 
-        # Step E: Enrich ALL lemmas missing forms/etymology/transliteration
+        # Step E: Enrich ALL lemmas missing forms/etymology/hooks/transliteration
         enrich_e = 0
         print("\n═══ Step E: Enrich unenriched lemmas ═══")
         unenriched = (
             db.query(Lemma.lemma_id)
             .filter(
                 Lemma.canonical_lemma_id.is_(None),
-                (Lemma.forms_json.is_(None) | Lemma.etymology_json.is_(None)),
+                (
+                    Lemma.forms_json.is_(None)
+                    | Lemma.etymology_json.is_(None)
+                    | Lemma.memory_hooks_json.is_(None)
+                ),
             )
             .all()
         )
