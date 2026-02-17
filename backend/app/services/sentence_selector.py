@@ -1265,10 +1265,13 @@ def _with_fallbacks(
     # Phase 1: On-demand generation for uncovered due words
     uncovered = due_lemma_ids - covered_ids
     if uncovered and len(items) < limit:
-        generated_items = _generate_on_demand(db, uncovered, stability_map, limit - len(items))
-        items.extend(generated_items)
-        for item in generated_items:
-            covered_ids.add(item["primary_lemma_id"])
+        try:
+            generated_items = _generate_on_demand(db, uncovered, stability_map, limit - len(items))
+            items.extend(generated_items)
+            for item in generated_items:
+                covered_ids.add(item["primary_lemma_id"])
+        except Exception:
+            logger.exception("On-demand generation failed, continuing with existing sentences")
 
     # Phase 2: Fill phase — if session is still undersized, introduce more words
     if len(items) < limit:
@@ -1292,12 +1295,15 @@ def _with_fallbacks(
             fill_due = set(fill_ids)
             remaining_cap = limit - len(items)
             if remaining_cap > 0:
-                fill_items = _generate_on_demand(
-                    db, fill_due, stability_map, remaining_cap
-                )
-                items.extend(fill_items)
-                for fi in fill_items:
-                    covered_ids.add(fi["primary_lemma_id"])
+                try:
+                    fill_items = _generate_on_demand(
+                        db, fill_due, stability_map, remaining_cap
+                    )
+                    items.extend(fill_items)
+                    for fi in fill_items:
+                        covered_ids.add(fi["primary_lemma_id"])
+                except Exception:
+                    logger.exception("Fill-phase on-demand generation failed, continuing")
 
     # Check for un-introduced grammar features in session sentences
     sentence_ids_in_session = [item["sentence_id"] for item in items if item.get("sentence_id")]
