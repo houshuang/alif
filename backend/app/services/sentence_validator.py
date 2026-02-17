@@ -8,9 +8,12 @@ MVP approach: simple whitespace tokenization + diacritic stripping +
 string matching. Will be replaced by CAMeL Tools lemmatization later.
 """
 
+import logging as _logging
 import re
 import unicodedata
 from dataclasses import dataclass, field
+
+_validator_logger = _logging.getLogger(__name__)
 
 ARABIC_DIACRITICS = re.compile(
     "[\u0610-\u061A\u064B-\u065F\u0670\u06D6-\u06DC"
@@ -367,7 +370,9 @@ def map_tokens_to_lemmas(
             # This prevents false analysis like كانت → ك+انت → أنت.
             lemma_id = lookup_lemma_direct(bare_norm, lemma_lookup)
         else:
-            lemma_id = lookup_lemma(bare_norm, lemma_lookup)
+            lemma_id = lookup_lemma(
+                bare_norm, lemma_lookup, original_bare=bare_clean,
+            )
         result.append(TokenMapping(i, token, lemma_id, False, is_function))
 
     return result
@@ -388,10 +393,56 @@ def lookup_lemma_direct(bare_norm: str, lemma_lookup: dict[str, int]) -> int | N
     return None
 
 
-def lookup_lemma(bare_norm: str, lemma_lookup: dict[str, int]) -> int | None:
-    """Find a lemma_id for a normalized bare form, trying variants and clitic stripping."""
+def _resolve_collision(
+    original_bare: str, candidates: list[tuple[int, str]]
+) -> int | None:
+    """Resolve a lemma collision using hamza-sensitive match, then CAMeL."""
+    # Exact hamza-sensitive match (e.g., آب matches آب but not أب)
+    for lid, cand_bare in candidates:
+        if cand_bare == original_bare:
+            return lid
+
+    # Try CAMeL analysis
+    try:
+        from app.services.morphology import find_best_db_match
+
+        cand_bares = {strip_diacritics(bare) for _, bare in candidates}
+        match = find_best_db_match(original_bare, cand_bares)
+        if match:
+            matched_bare = match["lex_bare"]
+            for lid, cand_bare in candidates:
+                if strip_diacritics(cand_bare) == matched_bare:
+                    return lid
+    except Exception:
+        pass
+
+    return None
+
+
+def lookup_lemma(
+    bare_norm: str,
+    lemma_lookup: dict[str, int],
+    original_bare: str | None = None,
+) -> int | None:
+    """Find a lemma_id for a normalized bare form, trying variants and clitic stripping.
+
+    Args:
+        bare_norm: Alef-normalized bare form.
+        lemma_lookup: Dict from build_lemma_lookup().
+        original_bare: Pre-normalization bare form (preserves hamza/madda).
+            Used for collision disambiguation.
+    """
     # Direct match
     if bare_norm in lemma_lookup:
+        # If collision exists and we have original form, disambiguate
+        if (original_bare
+                and hasattr(lemma_lookup, "collisions")
+                and bare_norm in lemma_lookup.collisions):
+            resolved = _resolve_collision(
+                original_bare, lemma_lookup.collisions[bare_norm]
+            )
+            if resolved is not None:
+                return resolved
         return lemma_lookup[bare_norm]
 
     # With/without al-prefix
@@ -417,25 +468,32 @@ def lookup_lemma(bare_norm: str, lemma_lookup: dict[str, int]) -> int | None:
         return candidates[0]
     if len(candidates) > 1:
         # Multiple clitic interpretations — try CAMeL to disambiguate
-        camel_id = _camel_disambiguate(bare_norm, lemma_lookup)
+        camel_id = _camel_disambiguate(
+            original_bare or bare_norm, lemma_lookup
+        )
         if camel_id is not None:
             return camel_id
         return candidates[0]  # fallback to first match
 
     # No clitic match — try CAMeL as last resort for unmapped words
-    camel_id = _camel_disambiguate(bare_norm, lemma_lookup)
+    camel_id = _camel_disambiguate(original_bare or bare_norm, lemma_lookup)
     if camel_id is not None:
         return camel_id
 
     return None
 
 
-def _camel_disambiguate(bare_norm: str, lemma_lookup: dict[str, int]) -> int | None:
-    """Use CAMeL morphological analysis to find the best lemma match."""
+def _camel_disambiguate(word: str, lemma_lookup: dict[str, int]) -> int | None:
+    """Use CAMeL morphological analysis to find the best lemma match.
+
+    Args:
+        word: Arabic word (pre-normalization preferred for better accuracy).
+        lemma_lookup: Normalized bare form → lemma_id dict.
+    """
     try:
         from app.services.morphology import find_best_db_match
         known_bare_forms = set(lemma_lookup.keys())
-        match = find_best_db_match(bare_norm, known_bare_forms)
+        match = find_best_db_match(word, known_bare_forms)
         if match:
             lex_norm = normalize_alef(match["lex_bare"])
             return lemma_lookup.get(lex_norm)
@@ -452,6 +510,35 @@ def lookup_lemma_id(surface_form: str, lemma_lookup: dict[str, int]) -> int | No
     return lookup_lemma(bare_norm, lemma_lookup)
 
 
+class LemmaLookupDict(dict):
+    """Dict subclass that tracks collisions for lemma lookups.
+
+    When two different lemmas normalize to the same key (e.g., أب and آب
+    both normalize to اب), the first one wins and the collision is recorded
+    for hamza-sensitive or CAMeL-based disambiguation at lookup time.
+    """
+
+    def __init__(self):
+        super().__init__()
+        # normalized_key → [(lemma_id, pre_normalized_bare), ...]
+        self.collisions: dict[str, list[tuple[int, str]]] = {}
+        self._first_bare: dict[str, str] = {}
+
+    def set_if_new(self, key: str, lemma_id: int, original_bare: str = "") -> None:
+        """Set key→lemma_id without overwriting. Track collisions."""
+        bare = original_bare or key
+        if key in self:
+            if self[key] != lemma_id:
+                if key not in self.collisions:
+                    first_bare = self._first_bare.get(key, key)
+                    self.collisions[key] = [(self[key], first_bare)]
+                if lemma_id not in [lid for lid, _ in self.collisions[key]]:
+                    self.collisions[key].append((lemma_id, bare))
+        else:
+            self[key] = lemma_id
+            self._first_bare[key] = bare
+
+
 def build_lemma_lookup(lemmas: list) -> dict[str, int]:
     """Build a normalized bare form → lemma_id lookup dict.
 
@@ -459,22 +546,26 @@ def build_lemma_lookup(lemmas: list) -> dict[str, int]:
     plus inflected forms from forms_json (plurals, feminines, verb
     conjugations, etc.), plus FUNCTION_WORD_FORMS conjugation mappings.
 
+    Tracks collisions: when two lemmas normalize to the same key,
+    first one wins and the collision is logged. Use the collisions
+    attribute on the returned dict for disambiguation.
+
     Args:
         lemmas: List of Lemma model objects with lemma_ar_bare and lemma_id.
     """
-    lookup: dict[str, int] = {}
-    # Index for mapping function word form bases to lemma_ids
+    lookup = LemmaLookupDict()
     bare_to_id: dict[str, int] = {}
 
     for lem in lemmas:
         bare_norm = normalize_alef(lem.lemma_ar_bare)
-        lookup[bare_norm] = lem.lemma_id
-        bare_to_id[bare_norm] = lem.lemma_id
+        lookup.set_if_new(bare_norm, lem.lemma_id, lem.lemma_ar_bare)
+        bare_to_id.setdefault(bare_norm, lem.lemma_id)
         if bare_norm.startswith("ال") and len(bare_norm) > 2:
-            lookup[bare_norm[2:]] = lem.lemma_id
-            bare_to_id[bare_norm[2:]] = lem.lemma_id
+            without_al = bare_norm[2:]
+            lookup.set_if_new(without_al, lem.lemma_id, lem.lemma_ar_bare)
+            bare_to_id.setdefault(without_al, lem.lemma_id)
         elif not bare_norm.startswith("ال"):
-            lookup["ال" + bare_norm] = lem.lemma_id
+            lookup.set_if_new("ال" + bare_norm, lem.lemma_id, lem.lemma_ar_bare)
 
         forms = getattr(lem, "forms_json", None)
         if forms and isinstance(forms, dict):
@@ -484,11 +575,9 @@ def build_lemma_lookup(lemmas: list) -> dict[str, int]:
                            "imperative", "passive_participle") or key.startswith("variant_"):
                     if form_val and isinstance(form_val, str):
                         form_bare = normalize_alef(strip_diacritics(form_val))
-                        if form_bare not in lookup:
-                            lookup[form_bare] = lem.lemma_id
-                        al_form = "ال" + form_bare
-                        if not form_bare.startswith("ال") and al_form not in lookup:
-                            lookup[al_form] = lem.lemma_id
+                        lookup.set_if_new(form_bare, lem.lemma_id, form_val)
+                        if not form_bare.startswith("ال"):
+                            lookup.set_if_new("ال" + form_bare, lem.lemma_id, form_val)
 
     # Add FUNCTION_WORD_FORMS: map conjugated forms to their base lemma_id
     for form, base in FUNCTION_WORD_FORMS.items():
@@ -498,6 +587,14 @@ def build_lemma_lookup(lemmas: list) -> dict[str, int]:
             base_id = bare_to_id.get(base_norm)
             if base_id is not None:
                 lookup[form_norm] = base_id
+
+    if lookup.collisions:
+        _validator_logger.info(
+            f"Lemma lookup: {len(lookup.collisions)} collision(s) on normalized forms"
+        )
+        for key, entries in lookup.collisions.items():
+            ids_str = ", ".join(f"#{lid} ({bare})" for lid, bare in entries)
+            _validator_logger.debug(f"  Collision on '{key}': {ids_str}")
 
     return lookup
 
@@ -514,11 +611,6 @@ def build_comprehensive_lemma_lookup(db) -> dict[str, int]:
 
     all_lemmas = db.query(Lemma).filter(Lemma.canonical_lemma_id.is_(None)).all()
     return build_lemma_lookup(all_lemmas)
-
-
-import logging as _logging
-
-_validator_logger = _logging.getLogger(__name__)
 
 
 def verify_word_mappings_llm(
@@ -586,7 +678,7 @@ def resolve_existing_lemma(
     Returns the matched lemma_id, or None if no match found.
     """
     bare_norm = normalize_alef(bare)
-    return lookup_lemma(bare_norm, lemma_lookup)
+    return lookup_lemma(bare_norm, lemma_lookup, original_bare=bare)
 
 
 @dataclass

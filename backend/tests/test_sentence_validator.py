@@ -858,3 +858,65 @@ class TestResolveExistingLemma:
 
     def test_new_word_returns_none(self):
         assert resolve_existing_lemma("سيارة", self.lookup) is None
+
+
+class TestLookupCollisions:
+    """Test collision tracking and resolution in build_lemma_lookup."""
+
+    def test_collision_tracked(self):
+        """Two lemmas normalizing to same form should be tracked."""
+        lemmas = [
+            _FakeLemma(1, "أب"),   # father — normalizes to اب
+            _FakeLemma(2, "آب"),   # August — normalizes to اب
+        ]
+        lookup = build_lemma_lookup(lemmas)
+        assert "اب" in lookup.collisions
+        collision_ids = [lid for lid, _ in lookup.collisions["اب"]]
+        assert 1 in collision_ids
+        assert 2 in collision_ids
+
+    def test_first_entry_wins(self):
+        """First lemma should win in the lookup dict."""
+        lemmas = [
+            _FakeLemma(1, "أب"),
+            _FakeLemma(2, "آب"),
+        ]
+        lookup = build_lemma_lookup(lemmas)
+        assert lookup["اب"] == 1
+
+    def test_collision_resolved_by_original_bare(self):
+        """lookup_lemma should disambiguate using pre-normalized form."""
+        lemmas = [
+            _FakeLemma(1, "أب"),
+            _FakeLemma(2, "آب"),
+        ]
+        lookup = build_lemma_lookup(lemmas)
+        # With original_bare="آب", should resolve to lemma 2
+        assert lookup_lemma("اب", lookup, original_bare="آب") == 2
+        # With original_bare="أب", should resolve to lemma 1
+        assert lookup_lemma("اب", lookup, original_bare="أب") == 1
+
+    def test_no_collision_for_same_lemma(self):
+        """Same lemma_id on same key should not create a collision."""
+        lemmas = [_FakeLemma(1, "كتاب")]
+        lookup = build_lemma_lookup(lemmas)
+        assert not lookup.collisions
+
+    def test_no_collision_different_keys(self):
+        """Different normalized keys should not collide."""
+        lemmas = [
+            _FakeLemma(1, "كتاب"),
+            _FakeLemma(2, "بيت"),
+        ]
+        lookup = build_lemma_lookup(lemmas)
+        assert not lookup.collisions
+
+    def test_forms_collision_tracked(self):
+        """Collision from forms_json should also be tracked."""
+        lemmas = [
+            _FakeLemma(1, "كتب", forms_json={"plural": "كُتُب"}),
+            _FakeLemma(2, "كتب"),  # same bare as lemma 1's plural would be same
+        ]
+        lookup = build_lemma_lookup(lemmas)
+        # Both have the same bare "كتب" — collision tracked
+        assert "كتب" in lookup.collisions
