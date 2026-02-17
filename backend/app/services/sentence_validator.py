@@ -381,7 +381,7 @@ def lookup_lemma_direct(bare_norm: str, lemma_lookup: dict[str, int]) -> int | N
         without_al = bare_norm[2:]
         if without_al in lemma_lookup:
             return lemma_lookup[without_al]
-    else:
+    elif len(bare_norm) >= 3:
         with_al = "ال" + bare_norm
         if with_al in lemma_lookup:
             return lemma_lookup[with_al]
@@ -399,17 +399,48 @@ def lookup_lemma(bare_norm: str, lemma_lookup: dict[str, int]) -> int | None:
         without_al = bare_norm[2:]
         if without_al in lemma_lookup:
             return lemma_lookup[without_al]
-    else:
+    elif len(bare_norm) >= 3:
+        # Don't add ال to 2-char words — causes false matches
+        # e.g. أن (ان) + ال → الان → الآن (now)
         with_al = "ال" + bare_norm
         if with_al in lemma_lookup:
             return lemma_lookup[with_al]
 
-    # Clitic stripping
+    # Clitic stripping — collect all candidates, prefer CAMeL disambiguation
+    candidates = []
     for stem in _strip_clitics(bare_norm):
         norm_stem = normalize_alef(stem)
         if norm_stem in lemma_lookup:
-            return lemma_lookup[norm_stem]
+            candidates.append(lemma_lookup[norm_stem])
 
+    if len(candidates) == 1:
+        return candidates[0]
+    if len(candidates) > 1:
+        # Multiple clitic interpretations — try CAMeL to disambiguate
+        camel_id = _camel_disambiguate(bare_norm, lemma_lookup)
+        if camel_id is not None:
+            return camel_id
+        return candidates[0]  # fallback to first match
+
+    # No clitic match — try CAMeL as last resort for unmapped words
+    camel_id = _camel_disambiguate(bare_norm, lemma_lookup)
+    if camel_id is not None:
+        return camel_id
+
+    return None
+
+
+def _camel_disambiguate(bare_norm: str, lemma_lookup: dict[str, int]) -> int | None:
+    """Use CAMeL morphological analysis to find the best lemma match."""
+    try:
+        from app.services.morphology import find_best_db_match
+        known_bare_forms = set(lemma_lookup.keys())
+        match = find_best_db_match(bare_norm, known_bare_forms)
+        if match:
+            lex_norm = normalize_alef(match["lex_bare"])
+            return lemma_lookup.get(lex_norm)
+    except Exception:
+        pass
     return None
 
 
@@ -449,7 +480,8 @@ def build_lemma_lookup(lemmas: list) -> dict[str, int]:
         if forms and isinstance(forms, dict):
             for key, form_val in forms.items():
                 if key in ("plural", "present", "masdar", "active_participle",
-                           "feminine", "elative") or key.startswith("variant_"):
+                           "feminine", "elative", "past_3fs", "past_3p",
+                           "imperative", "passive_participle") or key.startswith("variant_"):
                     if form_val and isinstance(form_val, str):
                         form_bare = normalize_alef(strip_diacritics(form_val))
                         if form_bare not in lookup:
@@ -482,6 +514,65 @@ def build_comprehensive_lemma_lookup(db) -> dict[str, int]:
 
     all_lemmas = db.query(Lemma).filter(Lemma.canonical_lemma_id.is_(None)).all()
     return build_lemma_lookup(all_lemmas)
+
+
+import logging as _logging
+
+_validator_logger = _logging.getLogger(__name__)
+
+
+def verify_word_mappings_llm(
+    arabic_text: str,
+    english_text: str,
+    mappings: list[TokenMapping],
+    lemma_map: dict[int, object],
+) -> list[int]:
+    """Ask LLM to verify word-lemma mappings make sense in context.
+
+    Returns list of positions where the mapping looks wrong.
+    Uses Gemini Flash for lowest cost (~$0.001 per call).
+    """
+    from app.services.llm import generate_completion, AllProvidersFailed
+
+    word_lines = []
+    for m in mappings:
+        lemma = lemma_map.get(m.lemma_id)
+        if lemma and hasattr(lemma, "gloss_en"):
+            gloss = lemma.gloss_en or "?"
+            lar = lemma.lemma_ar or "?"
+        else:
+            continue
+        word_lines.append(f"  {m.position}: {m.surface_form} → {lar} ({gloss})")
+
+    if not word_lines:
+        return []
+
+    prompt = f"""Arabic sentence: {arabic_text}
+English translation: {english_text}
+
+Word-to-lemma mappings:
+{chr(10).join(word_lines)}
+
+For each word, does the mapped lemma and its English definition match how the word is used in this sentence?
+
+Return JSON: {{"wrong": [list of position numbers where the mapping is incorrect]}}
+If all mappings are correct, return {{"wrong": []}}"""
+
+    try:
+        result = generate_completion(
+            prompt=prompt,
+            system_prompt="You are an Arabic morphology expert. Check word-lemma mappings for correctness.",
+            json_mode=True,
+            temperature=0.0,
+            model_override="gemini",
+        )
+        wrong = result.get("wrong", [])
+        if isinstance(wrong, list):
+            return [int(p) for p in wrong if isinstance(p, (int, float))]
+    except (AllProvidersFailed, Exception) as e:
+        _validator_logger.warning(f"LLM mapping verification failed: {e}")
+
+    return []
 
 
 def resolve_existing_lemma(

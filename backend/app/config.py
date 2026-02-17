@@ -12,6 +12,8 @@ class Settings(BaseSettings):
     anthropic_api_key: str = ""
     anthropic_key: str = ""
     elevenlabs_api_key: str = ""
+    soniox_api_key: str = ""
+    verify_mappings_llm: bool = False
     log_dir: Path = BASE_DIR / "data" / "logs"
 
     model_config = {"env_file": [BASE_DIR / ".env", BASE_DIR.parent / ".env"], "extra": "ignore"}

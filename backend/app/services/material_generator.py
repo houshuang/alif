@@ -140,6 +140,24 @@ def generate_material_for_word(lemma_id: int, needed: int = 2) -> None:
                 db.delete(sent)
                 continue
 
+            # Optional LLM verification of word-lemma mappings
+            from app.config import settings as _settings
+            if _settings.verify_mappings_llm:
+                from app.services.sentence_validator import verify_word_mappings_llm
+                lemma_map_for_verify = {l.lemma_id: l for l in db.query(Lemma).filter(
+                    Lemma.lemma_id.in_([m.lemma_id for m in mappings if m.lemma_id])
+                ).all()}
+                wrong_positions = verify_word_mappings_llm(
+                    res.arabic, res.english, mappings, lemma_map_for_verify,
+                )
+                if wrong_positions:
+                    logger.warning(
+                        f"LLM flagged mapping issues at positions {wrong_positions} "
+                        f"in sentence for lemma {lemma_id}, skipping"
+                    )
+                    db.delete(sent)
+                    continue
+
             for m in mappings:
                 sw = SentenceWord(
                     sentence_id=sent.id,

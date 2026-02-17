@@ -20,8 +20,12 @@ return its key morphological forms as JSON.
 
 For verbs, return:
 - "present": the present/imperfect 3rd person masculine singular (e.g. يَكْتُبُ)
+- "past_3fs": past tense 3rd person feminine singular (e.g. كَتَبَتْ)
+- "past_3p": past tense 3rd person plural (e.g. كَتَبُوا)
 - "masdar": the verbal noun (e.g. كِتَابَة)
 - "active_participle": the active participle (e.g. كَاتِب)
+- "passive_participle": the passive participle (e.g. مَكْتُوب)
+- "imperative": the imperative 2nd person masculine singular (e.g. اُكْتُبْ)
 - "verb_form": the verb form number as Roman numeral (I, II, III, IV, V, VI, VII, VIII, IX, X)
 
 For nouns, return:
@@ -37,8 +41,9 @@ Always include full diacritics on Arabic text. Only include fields you are confi
 Return empty object {} if the word doesn't have meaningful forms (particles, pronouns, etc.)."""
 
 FORMS_VALID_KEYS = {
-    "gender", "plural", "present", "masdar", "active_participle",
-    "verb_form", "feminine", "elative",
+    "gender", "plural", "present", "past_3fs", "past_3p",
+    "masdar", "active_participle", "passive_participle",
+    "imperative", "verb_form", "feminine", "elative",
 }
 
 ETYMOLOGY_SYSTEM_PROMPT = """You are an Arabic etymology and morphology expert. For each word, generate structured etymology data that helps a language learner understand word origins.

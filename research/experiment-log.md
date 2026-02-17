@@ -4,6 +4,31 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-02-17: Lemma Mapping Improvements — CAMeL Disambiguation + Extended Forms + Cleanup Script
+
+### Changes
+1. **CAMeL disambiguation in lookup_lemma()** (`sentence_validator.py`): When clitic stripping produces an ambiguous match, `_camel_disambiguate()` calls `find_best_db_match()` from morphology.py to select the best DB lemma. Also used as last-resort fallback when no rule-based match is found. Minimum-length guard prevents al-prefix being added to stems < 3 chars.
+2. **Extended forms_json indexing** (`sentence_validator.py`): `build_lemma_lookup()` now indexes `past_3fs`, `past_3p`, `imperative`, `passive_participle` from forms_json, improving conjugated form recognition.
+3. **Extended enrichment forms** (`lemma_enrichment.py`): `FORMS_SYSTEM_PROMPT` and `FORMS_VALID_KEYS` expanded to generate the four new form keys during lemma enrichment.
+4. **Optional LLM mapping verification** (`sentence_validator.py` + `material_generator.py`): New `verify_word_mappings_llm()` function. Gated by `settings.verify_mappings_llm` (default off) in config.py.
+5. **Batch cleanup script** (`scripts/cleanup_lemma_mappings.py`): Fixes wrong glosses, missing particles, conjugated-form lemmas, possessive-form lemmas, al-prefix lemmas, and batch re-maps using CAMeL + LLM.
+
+### Rationale
+Audit (`research/lemma-mapping-audit-2026-02-17.md`) found systematic mapping failures: conjugated forms not recognized (past_3fs, past_3p, imperatives), ambiguous clitic-stripped forms resolving to wrong lemma, and short stems getting spurious al-prefix matches. These caused NULL lemma_ids in sentence_words and incorrect vocabulary tracking.
+
+### Expected Effect
+- Fewer NULL lemma_id sentence_words from new sentence generation
+- Better recognition of feminine/plural past tense, imperatives, and passive participles
+- CAMeL fallback catches words that rule-based stripping misses
+- Cleanup script fixes existing data quality issues in production DB
+
+### Verification
+- Run cleanup script with `--dry-run` first to preview changes
+- Check sentence validation pass rate before/after on sample sentences
+- Monitor NULL lemma_id rate in new sentence_words
+
+---
+
 ## 2026-02-16: Comprehensibility Gate Tightening + Pipeline Cap Headroom + Warm Cache Multi-Target
 
 ### Changes
