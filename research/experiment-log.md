@@ -4,6 +4,33 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-02-16: Comprehensibility Gate Tightening + Pipeline Cap Headroom + Warm Cache Multi-Target
+
+### Changes
+1. **Comprehensibility gate tightened** (`sentence_selector.py`): Changed from counting all content words (70% threshold) to counting only **scaffold words** (non-due, non-function, 60% threshold). Acquiring words with stability < 0.5 (box 1, freshly introduced) no longer count as "known". This prevents book-imported sentences from appearing when most words were batch-imported simultaneously and haven't been reviewed yet.
+
+2. **Pipeline cap headroom** (`update_material.py`): Added `CAP_HEADROOM = 30`. Step 0 now retires down to 270 (not 300), ensuring Step A always has budget for multi-target backfill generation. Previously, Step 0 retiring to exactly 300 + Step A's `>= 300` check = zero budget = no backfill ever ran.
+
+3. **Warm cache upgraded to multi-target** (`material_generator.py`): `warm_sentence_cache()` now uses `group_words_for_multi_target()` + `generate_validated_sentences_multi_target()` for efficient 2-4 words/sentence generation. Falls back to single-target for ungrouped words. Allows up to `PIPELINE_CAP + 10` (310) before skipping.
+
+### Rationale
+- Book import creates many "acquiring" words simultaneously. Old gate treated all acquiring as known → book sentences appeared 100% comprehensible when learner had never reviewed any of the words.
+- Pipeline was stuck: cron retired to cap, backfill saw `>= cap`, generated nothing. All generation fell to on-demand single-target during API requests.
+- Warm cache was using single-target generation, missing the efficiency of multi-target.
+
+### Expected Effect
+- Book sentences gradually appear as learner reviews vocabulary (box 2+ words count as known)
+- Pipeline maintains ~270-300 active sentences with regular multi-target backfill every 6h
+- Warm cache generates 2-4x more efficiently via multi-target batching
+- Fewer on-demand single-target generations needed during API requests
+
+### Verification
+- Book sentence sid=3459 (Rosie): 50% known scaffold → correctly filtered (was 100% before)
+- Pipeline: Step 0 retired 30 → Step A generated 30 (25 multi-target, 5 single-target)
+- All 35 backend tests pass
+
+---
+
 ## 2026-02-16: Book Import Word Enrichment
 
 ### Changes

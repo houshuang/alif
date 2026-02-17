@@ -6,7 +6,7 @@
 > topics, grammar, listening) interact. It also identifies where the current
 > implementation diverges from the research and stated intentions.
 >
-> **Last updated**: 2026-02-15
+> **Last updated**: 2026-02-16
 > **Canonical location**: `docs/scheduling-system.md`
 > **Keep this document up to date with every algorithm change.**
 
@@ -664,9 +664,10 @@ build_session(db, limit=10, mode="reading")
 When the frontend is 3 cards from the end of a session, it fires two parallel requests:
 
 1. **`POST /api/review/warm-sentences`** (returns 202): Background task pre-generates
-   sentences for focus cohort words and likely auto-introduction candidates that have
-   < 2 active sentences. Sentences persist in DB regardless of whether the prefetched
-   session is used.
+   sentences using **multi-target generation** (groups of 2-4 words per sentence) for
+   focus cohort gaps and likely auto-introduction candidates that have < 2 active sentences.
+   Falls back to single-target for ungrouped words. Sentences persist in DB regardless of
+   whether the prefetched session is used.
 
 2. **`GET /api/review/next-sentences?prefetch=true`**: Builds a full session and caches
    it in AsyncStorage for instant load on the next session request.
@@ -697,16 +698,28 @@ rarely needed for fresh sessions.
 
 #### Comprehensibility Gate
 
-For each sentence, count content words (non-function-words) and check how many are
-in a "known" state (known, learning, lapsed, acquiring, or encountered):
+For each sentence, count **scaffold words** (non-due, non-function content words) and
+check how many are in a "known" state:
 
 ```
-comprehensibility = known_content_words / total_content_words
-if comprehensibility < 0.70: SKIP this sentence
+scaffold = [w for w in content_words if not w.is_due and not w.is_function_word]
+known = count where:
+  - state in (known, learning, lapsed, encountered), OR
+  - state == acquiring AND stability >= 0.5 (i.e. past box 1)
+comprehensibility = known / len(scaffold)
+if comprehensibility < 0.60: SKIP this sentence
 ```
 
-**Encountered words count as passive vocab** — they're not "learned" but the user has
-seen them and has some recognition.
+Key design choices:
+- **Scaffold-only**: Due words (being reviewed this session) are excluded from the check —
+  they're expected to be challenging.
+- **Box-1 acquiring excluded**: Words freshly introduced (box 1, stability 0.1) don't
+  count as "known". This prevents book-imported sentences from appearing when all their
+  words were batch-imported simultaneously and haven't been reviewed yet.
+- **Encountered counts as passive vocab** — they're not "learned" but the user has seen
+  them and has some recognition.
+- **60% threshold** (lowered from 70%) — the scaffold-only denominator is smaller, so 60%
+  provides equivalent filtering without over-rejecting short sentences.
 
 #### Difficulty Match Quality (DMQ)
 
@@ -762,9 +775,10 @@ source_bonus = 1.3 if sentence.source == "book" else 1.0
 ```
 
 This bonus is applied in both the initial candidate scoring and the set cover re-scoring.
-The comprehensibility gate (≥70% known) still filters incomprehensible book sentences —
-early on, most book sentences fail the gate and LLM sentences fill the gap. As the user
-learns more book vocabulary, book sentences gradually become comprehensible and replace
+The comprehensibility gate (≥60% known scaffold) still filters incomprehensible book sentences —
+early on, most book sentences fail the gate (especially when most words are box-1 acquiring,
+which don't count as known) and LLM sentences fill the gap. As the user reviews book vocabulary
+and words advance to box 2+, book sentences gradually become comprehensible and replace
 LLM-generated ones naturally.
 
 ### Variant Resolution
@@ -944,8 +958,9 @@ calls, denser review material, natural cross-reinforcement between words.
 Two paths for sentence availability:
 
 1. **Pre-generated (warm cache)**: `scripts/update_material.py` runs on cron,
-   generating sentences for words prioritized by FSRS due date. Target: `MIN_SENTENCES=2`
-   per word. Pool cap: ~300 active sentences.
+   generating multi-target sentences for words prioritized by FSRS due date. Target:
+   `MIN_SENTENCES=2` per word. Pool cap: 300 active sentences with `CAP_HEADROOM=30`
+   (retires down to 270 so backfill always has budget for multi-target generation).
 
 2. **On-demand (JIT)**: During `build_session()`, if a due word has no comprehensible
    sentence, generate one synchronously. Uses current vocabulary for better-calibrated
@@ -974,11 +989,19 @@ Rule-based validation pipeline:
 4. Match against known forms (lemma_ar_bare + forms_json entries)
 5. 60+ hardcoded function words treated as always-known
 
-### Retirement
+### Pipeline Cap & Retirement
+
+**Cap enforcement** (`update_material.py` Step 0): Hard cap of 300 active sentences.
+Step 0 retires down to `300 - CAP_HEADROOM` (270) to leave budget for multi-target
+backfill in Step A. Retirement priority: never-shown stale → shown stale → oldest,
+always keeping at least 1 sentence per word.
+
+**Warm cache** (`warm_sentence_cache()`) allows up to `PIPELINE_CAP + 10` (310) before
+skipping, to avoid blocking pre-warming when slightly over cap.
 
 Old, low-diversity sentences are retired via `is_active=False`. The retirement script
-(`scripts/retire_sentences.py`) deactivates sentences with overexposed scaffold words
-or low comprehension history.
+(`scripts/rotate_stale_sentences.py`) deactivates sentences with overexposed scaffold
+words (all scaffold words fully known, no cross-training value).
 
 ---
 
@@ -1296,6 +1319,8 @@ remaining cards on the next card advance. See Section 8 "Sentence Pre-Warming" f
 | `MAX_ON_DEMAND_PER_SESSION` | 10 | Reference constant (callers control actual cap via remaining session capacity) |
 | `MAX_REINTRO_PER_SESSION` | 3 | Struggling word reintro card limit |
 | `STRUGGLING_MIN_SEEN` | 3 | Threshold for struggling classification |
+| Comprehensibility threshold | 60% | Min known scaffold words to show sentence |
+| Acquiring box-1 excluded | stability < 0.5 | Box-1 words don't count as "known" scaffold |
 
 ### Frontend Session Staleness (`app/index.tsx`, `lib/offline-store.ts`)
 
@@ -1364,6 +1389,15 @@ remaining cards on the next card advance. See Section 8 "Sentence Pre-Warming" f
 | S₀(Again) | 0.212d | Initial stability for "Again" |
 | S₀(Good) | 2.307d | Initial stability for "Good" |
 | Stability floor | 1.0d | Below this, "known" → "lapsed" |
+
+### Sentence Pipeline (`update_material.py`, `material_generator.py`)
+
+| Constant | Value | Purpose |
+|----------|-------|---------|
+| `PIPELINE_CAP` | 300 | Max active sentences |
+| `CAP_HEADROOM` | 30 | Step 0 retires to cap minus this (→270) |
+| `MIN_SENTENCES_PER_WORD` | 2 | Target sentences per word for backfill |
+| Warm cache cap | 310 | `PIPELINE_CAP + 10` — warm cache allowed slightly over |
 
 ---
 
