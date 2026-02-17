@@ -498,6 +498,25 @@ def import_book(
         db.flush()
         logger.info(f"Created {encountered_count} encountered ULK records (source=book)")
 
+    # Update Lemma.source and source_story_id for pre-existing lemmas now in the book.
+    # Book wins over lower-priority sources (wiktionary, avp_a1, story_import, etc.)
+    _BOOK_OVERRIDES = {None, "wiktionary", "avp_a1", "story_import", "auto_intro"}
+    source_updated = 0
+    if book_lemma_ids:
+        for lemma in db.query(Lemma).filter(Lemma.lemma_id.in_(book_lemma_ids)).all():
+            changed = False
+            if lemma.source in _BOOK_OVERRIDES:
+                lemma.source = "book"
+                changed = True
+            if not lemma.source_story_id:
+                lemma.source_story_id = story.id
+                changed = True
+            if changed:
+                source_updated += 1
+    if source_updated:
+        db.flush()
+        logger.info(f"Updated {source_updated} lemmas: source→book, source_story_id→{story.id}")
+
     # Recalculate readiness
     _recalculate_story_counts(db, story)
 
