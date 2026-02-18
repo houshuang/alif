@@ -87,6 +87,10 @@ function stripDiacritics(s: string): string {
 }
 
 
+// Track grammar features already introduced this app session to avoid
+// showing them again from stale prefetched sessions
+const introducedGrammarKeys = new Set<string>();
+
 export default function ReadingScreen() {
   return <ReviewScreen fixedMode="reading" />;
 }
@@ -343,10 +347,11 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
           setReintroIndex(0);
         }
         // Load grammar lessons (refreshers first, then intros)
+        // Filter out features already introduced this app session (stale prefetch)
         const featureKeys: string[] = [
           ...(ss.grammar_refresher_needed ?? []),
           ...(ss.grammar_intro_needed ?? []),
-        ];
+        ].filter(k => !introducedGrammarKeys.has(k));
         if (featureKeys.length > 0) {
           setGrammarLessonsLoading(true);
           const lessons: GrammarLesson[] = [];
@@ -1269,6 +1274,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
           current={grammarLessonIndex + 1}
           total={grammarLessons.length}
           onDismiss={async () => {
+            introducedGrammarKeys.add(lesson.feature_key);
             try {
               await introduceGrammarFeature(lesson.feature_key);
             } catch {}

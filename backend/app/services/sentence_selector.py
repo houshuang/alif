@@ -1284,36 +1284,36 @@ def _with_fallbacks(
 
     # Phase 2: Fill phase — if session is still undersized, introduce more words
     if len(items) < limit:
-        now = datetime.now(timezone.utc)
-        fill_ids = _auto_introduce_words(
-            db, limit - len(items), knowledge_by_id, now,
-            skip_material_gen=True,
-        )
-        if fill_ids:
-            logger.info(f"Fill phase: introduced {len(fill_ids)} new words to fill session")
-            for lid in fill_ids:
-                stability_map[lid] = 0.1
-                ulk = (
-                    db.query(UserLemmaKnowledge)
-                    .filter(UserLemmaKnowledge.lemma_id == lid)
-                    .first()
-                )
-                if ulk:
-                    knowledge_by_id[lid] = ulk
+        try:
+            now = datetime.now(timezone.utc)
+            fill_ids = _auto_introduce_words(
+                db, limit - len(items), knowledge_by_id, now,
+                skip_material_gen=True,
+            )
+            if fill_ids:
+                logger.info(f"Fill phase: introduced {len(fill_ids)} new words to fill session")
+                for lid in fill_ids:
+                    stability_map[lid] = 0.1
+                    ulk = (
+                        db.query(UserLemmaKnowledge)
+                        .filter(UserLemmaKnowledge.lemma_id == lid)
+                        .first()
+                    )
+                    if ulk:
+                        knowledge_by_id[lid] = ulk
 
-            fill_due = set(fill_ids)
-            remaining_cap = limit - len(items)
-            if remaining_cap > 0:
-                try:
+                fill_due = set(fill_ids)
+                remaining_cap = limit - len(items)
+                if remaining_cap > 0:
                     fill_items = _generate_on_demand(
                         db, fill_due, stability_map, remaining_cap
                     )
                     items.extend(fill_items)
                     for fi in fill_items:
                         covered_ids.add(fi["primary_lemma_id"])
-                except Exception:
-                    logger.exception("Fill-phase on-demand generation failed, continuing")
-                    db.rollback()
+        except Exception:
+            logger.exception("Fill phase failed, continuing with existing items")
+            db.rollback()
 
     # Check for un-introduced grammar features in session sentences
     sentence_ids_in_session = [item["sentence_id"] for item in items if item.get("sentence_id")]
