@@ -280,7 +280,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
     }
   }
 
-  async function loadSession(newMode?: ReviewMode) {
+  async function loadSession(newMode?: ReviewMode, skipCache?: boolean) {
     const m = newMode ?? mode;
     pendingRefreshRef.current = null;
     lastReviewedAt.current = 0;
@@ -326,7 +326,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
     await cleanupSound();
 
     try {
-      const ss = await getSentenceReviewSession(m);
+      const ss = skipCache ? await fetchFreshSession(m) : await getSentenceReviewSession(m);
       if (ss.items.length > 0) {
         setSentenceSession(ss);
         // Build session slots: interleave sentence items and intro candidates
@@ -1256,7 +1256,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
       <EmptyState
         online={online}
         mode={mode}
-        onRefresh={() => loadSession()}
+        onRefresh={() => loadSession(undefined, true)}
       />
     );
   }
@@ -1565,7 +1565,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
               {
                 icon: "refresh-outline" as const,
                 label: "Refresh session",
-                onPress: () => loadSession(),
+                onPress: () => loadSession(undefined, true),
               },
             ]}
           />
