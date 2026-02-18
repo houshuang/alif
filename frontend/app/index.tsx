@@ -23,7 +23,6 @@ import {
   submitReintroResult,
   getAnalytics,
   lookupReviewWord,
-  deepPrefetchSessions,
   prefetchSessions,
   warmSentences,
   getGrammarLesson,
@@ -181,12 +180,11 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
     };
   }, [cardState, cardIndex, loading, totalCards]);
 
-  // Prefetch next session + warm sentence cache when nearing end
+  // Warm sentence cache when nearing end of session
   useEffect(() => {
     if (totalCards > 0 && cardIndex >= totalCards - 3 && !prefetchTriggered.current) {
       prefetchTriggered.current = true;
       warmSentences().catch(() => {});
-      prefetchSessions(mode).catch(() => {});
     }
   }, [cardIndex, totalCards, mode]);
 
@@ -2305,7 +2303,7 @@ function SessionComplete({
         }).start();
       })
       .catch(() => {});
-    deepPrefetchSessions(mode).catch(() => {});
+    prefetchSessions(mode).catch(() => {});
   }, []);
 
   const accuracyColor =

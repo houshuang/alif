@@ -390,24 +390,16 @@ export async function getSentenceReviewSession(
   // Try prefetched cache first for instant load
   const cached = await getCachedSession(mode);
   if (cached && cached.items.length > 0) {
-    // Refill cache in background
-    deepPrefetchSessions(mode).catch(() => {});
     return cached;
   }
 
-  try {
-    const data = await fetchApi<SentenceReviewSession>(
-      `/api/review/next-sentences?limit=10&mode=${mode}`
-    );
-    const session = { ...data, session_id: data.session_id || generateSessionId() };
-    cacheSessions(mode, [session]).catch(() => {});
-    deepPrefetchSessions(mode).then(() =>
-      prefetchWordLookupsForSession(session).catch(() => {})
-    ).catch(() => {});
-    return session;
-  } catch (e) {
-    throw e;
-  }
+  const data = await fetchApi<SentenceReviewSession>(
+    `/api/review/next-sentences?limit=10&mode=${mode}`
+  );
+  const session = { ...data, session_id: data.session_id || generateSessionId() };
+  cacheSessions(mode, [session]).catch(() => {});
+  prefetchWordLookupsForSession(session).catch(() => {});
+  return session;
 }
 
 export async function submitSentenceReview(
