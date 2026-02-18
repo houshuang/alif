@@ -524,6 +524,8 @@ export interface InsightsData {
   unique_sentences_reviewed: number;
   total_sentence_reviews: number;
   forgetting_forecast: { skip_1d: number; skip_3d: number; skip_7d: number };
+  record_intro_day: { date: string; count: number } | null;
+  record_graduation_day: { date: string; count: number } | null;
 }
 
 export interface DeepAnalytics {

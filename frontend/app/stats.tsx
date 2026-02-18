@@ -460,6 +460,12 @@ function InsightsCard({ insights }: { insights: InsightsData }) {
     const r = insights.dark_horse_root;
     tiles.push({ big: r.root, label: "untapped root", context: `${r.known}/${r.total} known · ${r.meaning || ""}` });
   }
+  if (insights.record_intro_day) {
+    tiles.push({ big: `${insights.record_intro_day.count}`, label: "record intros/day", context: insights.record_intro_day.date });
+  }
+  if (insights.record_graduation_day) {
+    tiles.push({ big: `${insights.record_graduation_day.count}`, label: "record grads/day", context: insights.record_graduation_day.date });
+  }
   if (insights.total_sentence_reviews > 0) {
     tiles.push({ big: `${insights.total_sentence_reviews}`, label: "total reviews", context: `${insights.unique_sentences_reviewed} unique sentences` });
   }

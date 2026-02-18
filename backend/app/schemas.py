@@ -227,6 +227,8 @@ class InsightsOut(BaseModel):
     unique_sentences_reviewed: int = 0
     total_sentence_reviews: int = 0
     forgetting_forecast: dict = {}  # {skip_1d: N, skip_3d: N, skip_7d: N}
+    record_intro_day: dict | None = None  # {date, count}
+    record_graduation_day: dict | None = None  # {date, count}
 
 
 class DeepAnalyticsOut(BaseModel):

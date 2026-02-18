@@ -1066,6 +1066,37 @@ def _get_insights(db: Session) -> InsightsOut:
         )
         forecast[label] = count
 
+    # 7. Record days: most words introduced / graduated in a single day
+    record_intro = None
+    intro_row = (
+        db.query(
+            func.date(UserLemmaKnowledge.entered_acquiring_at).label("day"),
+            func.count(UserLemmaKnowledge.id).label("cnt"),
+        )
+        .filter(UserLemmaKnowledge.entered_acquiring_at.isnot(None))
+        .group_by(func.date(UserLemmaKnowledge.entered_acquiring_at))
+        .order_by(func.count(UserLemmaKnowledge.id).desc())
+        .limit(1)
+        .first()
+    )
+    if intro_row and intro_row.cnt > 0:
+        record_intro = {"date": str(intro_row.day), "count": intro_row.cnt}
+
+    record_grad = None
+    grad_row = (
+        db.query(
+            func.date(UserLemmaKnowledge.graduated_at).label("day"),
+            func.count(UserLemmaKnowledge.id).label("cnt"),
+        )
+        .filter(UserLemmaKnowledge.graduated_at.isnot(None))
+        .group_by(func.date(UserLemmaKnowledge.graduated_at))
+        .order_by(func.count(UserLemmaKnowledge.id).desc())
+        .limit(1)
+        .first()
+    )
+    if grad_row and grad_row.cnt > 0:
+        record_grad = {"date": str(grad_row.day), "count": grad_row.cnt}
+
     return InsightsOut(
         avg_encounters_to_graduation=avg_encounters,
         graduation_rate_pct=grad_rate,
@@ -1074,6 +1105,8 @@ def _get_insights(db: Session) -> InsightsOut:
         unique_sentences_reviewed=unique_sent,
         total_sentence_reviews=total_sent_reviews,
         forgetting_forecast=forecast,
+        record_intro_day=record_intro,
+        record_graduation_day=record_grad,
     )
 
 
