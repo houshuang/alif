@@ -550,12 +550,17 @@ def build_lemma_lookup(lemmas: list) -> dict[str, int]:
     first one wins and the collision is logged. Use the collisions
     attribute on the returned dict for disambiguation.
 
+    Two-pass construction ensures direct lemma bare forms always take
+    priority over derived forms from forms_json (e.g. حول "around"
+    wins over حَوْل masdar of حال "to change").
+
     Args:
         lemmas: List of Lemma model objects with lemma_ar_bare and lemma_id.
     """
     lookup = LemmaLookupDict()
     bare_to_id: dict[str, int] = {}
 
+    # Pass 1: Register all lemma bare forms (highest priority)
     for lem in lemmas:
         bare_norm = normalize_alef(lem.lemma_ar_bare)
         lookup.set_if_new(bare_norm, lem.lemma_id, lem.lemma_ar_bare)
@@ -567,6 +572,8 @@ def build_lemma_lookup(lemmas: list) -> dict[str, int]:
         elif not bare_norm.startswith("ال"):
             lookup.set_if_new("ال" + bare_norm, lem.lemma_id, lem.lemma_ar_bare)
 
+    # Pass 2: Register derived forms from forms_json (lower priority)
+    for lem in lemmas:
         forms = getattr(lem, "forms_json", None)
         if forms and isinstance(forms, dict):
             for key, form_val in forms.items():

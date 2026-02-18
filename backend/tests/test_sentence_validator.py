@@ -502,6 +502,20 @@ class TestBuildLemmaLookupInflectedForms:
         lookup = build_lemma_lookup(lemmas)
         assert lookup["كتب"] == 1  # base form, not overwritten
 
+    def test_bare_form_wins_over_masdar_regardless_of_order(self):
+        """Direct bare form lemma must win over a forms_json derived form.
+
+        Regression test: حول "around" (lemma #2033) was being mapped to
+        حال "to change" (lemma #890) because حَوْل is the masdar of حال
+        and was registered first when #890 was iterated before #2033.
+        """
+        lemmas = [
+            _FakeLemma(890, "حال", forms_json={"masdar": "حَوْل", "present": "يَحُولُ"}),
+            _FakeLemma(2033, "حول"),
+        ]
+        lookup = build_lemma_lookup(lemmas)
+        assert lookup["حول"] == 2033  # bare form wins over masdar
+
     def test_none_forms_json(self):
         lemmas = [_FakeLemma(1, "بيت", forms_json=None)]
         lookup = build_lemma_lookup(lemmas)
