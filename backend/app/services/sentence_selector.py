@@ -340,7 +340,7 @@ def build_session(
     session_id = str(uuid.uuid4())
     now = datetime.now(timezone.utc)
     # Comprehension-aware recency cutoffs
-    cutoff_understood = now - timedelta(days=7)
+    cutoff_understood = now - timedelta(days=4)
     cutoff_partial = now - timedelta(days=2)
     cutoff_grammar_confused = now - timedelta(days=1)
     cutoff_no_idea = now - timedelta(hours=4)
@@ -753,6 +753,9 @@ def build_session(
     for c in selected:
         covered_ids |= c.due_words_covered
 
+    # Track pre-repetition count so on-demand generation uses the right budget
+    base_item_count = len(selected)
+
     # 3b. Within-session repetition for acquisition words
     # Target MIN_ACQUISITION_EXPOSURES (3-4) per acquiring word
     acquiring_word_counts: dict[int, int] = {}
@@ -868,7 +871,7 @@ def build_session(
 
     db.commit()
 
-    return _with_fallbacks(db, session_id, due_lemma_ids, stability_map, total_due, items, limit, covered_ids, reintro_cards=reintro_cards, knowledge_by_id=knowledge_by_id, all_knowledge=all_knowledge)
+    return _with_fallbacks(db, session_id, due_lemma_ids, stability_map, total_due, items, limit, covered_ids, reintro_cards=reintro_cards, knowledge_by_id=knowledge_by_id, all_knowledge=all_knowledge, base_item_count=base_item_count)
 
 
 MAX_REINTRO_PER_SESSION = 3
@@ -1252,6 +1255,7 @@ def _with_fallbacks(
     reintro_cards: list[dict] | None = None,
     knowledge_by_id: dict[int, UserLemmaKnowledge] | None = None,
     all_knowledge: list | None = None,
+    base_item_count: int | None = None,
 ) -> dict:
     """Generate on-demand sentences for uncovered due words, then fill if undersized."""
     import logging
@@ -1263,10 +1267,14 @@ def _with_fallbacks(
         knowledge_by_id = {}
 
     # Phase 1: On-demand generation for uncovered due words
+    # Use base_item_count (pre-acquisition-repetition) for budget so that
+    # acquisition repetition doesn't block on-demand generation for uncovered words
     uncovered = due_lemma_ids - covered_ids
-    if uncovered and len(items) < limit:
+    budget_basis = base_item_count if base_item_count is not None else len(items)
+    on_demand_budget = max(0, limit - budget_basis)
+    if uncovered and on_demand_budget > 0:
         try:
-            generated_items = _generate_on_demand(db, uncovered, stability_map, limit - len(items))
+            generated_items = _generate_on_demand(db, uncovered, stability_map, on_demand_budget)
             items.extend(generated_items)
             for item in generated_items:
                 covered_ids.add(item["primary_lemma_id"])

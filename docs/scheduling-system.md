@@ -561,11 +561,11 @@ build_session(db, limit=10, mode="reading")
 │ Find active sentences containing ≥1 due word │
 │ Apply comprehension-aware recency filters:   │
 │   • Never shown: always eligible             │
-│   • understood: 7-day cooldown               │
+│   • understood: 4-day cooldown               │
 │   • partial: 2-day cooldown                  │
 │   • grammar_confused: 1-day cooldown         │
 │   • no_idea: 4-hour cooldown                 │
-│   • no record: 7-day cooldown               │
+│   • no record: 4-day cooldown               │
 └──────────────────┬──────────────────────────┘
                    │
                    ▼
@@ -1333,11 +1333,11 @@ remaining cards on the next card advance. See Section 8 "Sentence Pre-Warming" f
 
 | Last Comprehension | Cooldown |
 |-------------------|----------|
-| `understood` | 7 days |
+| `understood` | 4 days |
 | `partial` | 2 days |
 | `grammar_confused` | 1 day |
 | `no_idea` | 4 hours |
-| No record | 7 days |
+| No record | 4 days |
 
 ### Acquisition (`acquisition_service.py`)
 
