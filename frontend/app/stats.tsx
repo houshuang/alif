@@ -108,8 +108,7 @@ export default function StatsScreen() {
         )}
         <View style={styles.cefrMeta}>
           <Text style={styles.cefrDetail}>
-            {cefr.known_words} words known
-            {cefr.acquiring_known > 0 && ` + ${cefr.acquiring_known} acquiring`}
+            {cefr.known_words} known{cefr.acquiring_known > 0 ? ` + ${cefr.acquiring_known} acquiring` : ""}
           </Text>
           {cefr.next_level && (
             <Text style={styles.cefrDetail}>
@@ -190,13 +189,7 @@ export default function StatsScreen() {
                   <View
                     style={[
                       styles.bar,
-                      {
-                        height,
-                        backgroundColor:
-                          day.accuracy && day.accuracy >= 80
-                            ? colors.good
-                            : colors.accent,
-                      },
+                      { height, backgroundColor: colors.accent },
                     ]}
                   />
                   {learnedH > 0 && (
@@ -371,7 +364,7 @@ function WordLifecycleFunnel({
   const active = known + learning + acquiring;
   const stages = [
     { label: "Seen", count: encountered, color: colors.stateEncountered },
-    { label: "Acquiring", count: acquiring, color: colors.stateAcquiring },
+    { label: "Acq.", count: acquiring, color: colors.stateAcquiring },
     { label: "Learning", count: learning, color: colors.stateLearning },
     { label: "Known", count: known, color: colors.stateKnown },
   ].filter((s) => s.count > 0);
@@ -424,7 +417,8 @@ function KnownWordsGrowth({
     if (day.date >= monthStr) monthDelta += day.words_learned;
   }
 
-  const latest = history.length > 0 ? history[history.length - 1].cumulative_known : known;
+  // Use current state count, not cumulative (which never decreases even when words lapse)
+  const latest = known;
 
   return (
     <View style={styles.growthCard}>
