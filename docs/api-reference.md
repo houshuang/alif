@@ -6,7 +6,7 @@ Full endpoint list. See `backend/app/routers/` for implementation.
 | Method | Path | Description |
 |--------|------|-------------|
 | GET | `/api/words?limit=50&status=learning&category=function&sort=most_seen` | List words with knowledge state. category: function\|names. sort=most_seen orders by times_seen descending. Returns last_ratings (last 8 review ratings for sparkline) and knowledge_score. |
-| GET | `/api/words/{id}` | Word detail with review stats + root family + review history |
+| GET | `/api/words/{id}` | Word detail with review stats + root family + review history. Returns `source_info` based on `ulk.source` (how the word was introduced to learning: book/story_import/duolingo/textbook_scan) with fallback to `lemma.source` (lexical data origin: wiktionary/avp_a1/etc) for generic ULK sources. |
 | POST | `/api/words/{lemma_id}/suspend` | Suspend a word (stops appearing in reviews) |
 | POST | `/api/words/{lemma_id}/unsuspend` | Reactivate a suspended word with fresh FSRS card |
 
