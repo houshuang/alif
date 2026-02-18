@@ -4,6 +4,32 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-02-18: Lemma Lookup Two-Pass Fix + LLM Mapping Verification
+
+### Changes
+1. **Two-pass `build_lemma_lookup()`** (`sentence_validator.py`): Pass 1 registers all lemma bare forms, Pass 2 registers forms_json derived forms. Direct bare forms always take priority. Previously, forms_json entries could shadow other lemmas' bare forms depending on iteration order.
+2. **Improved LLM verification prompt** (`sentence_validator.py`): Rewritten to reduce false positives — explicitly allows morphological derivations (conjugations, plurals, possessives) and only flags genuine semantic mismatches. Reduced false positive rate from ~16% to 0%.
+3. **LLM verification now active** (`VERIFY_MAPPINGS_LLM=1` was already in .env): Sentences with any flagged bad mapping are discarded and regenerated.
+
+### Bug Found
+User reported حَوْلَ ("around") showing as حَال ("to change") in sentence popup. Root cause: lemma #890 (حال) had `masdar: حَوْل` in forms_json, which was registered in the lookup before lemma #2033 (حول, "around") — first-one-wins. 171 total shadow cases found across the DB.
+
+### Data Fixes
+- 4 sentence_words: حَوْلَ remapped from #890 (حال) → #2033 (حول)
+- 3 sentence_words: عالم remapped from #722 (عَلِمَ) → #723 (عَالَم)
+
+### Audit Results (50 recent sentences)
+- Pre-fix LLM verification: 28% flagged (many false positives from old prompt)
+- Post-fix + improved prompt: 10% flagged, 0% false positives
+- Remaining flags are genuine homographs (كَتَبَ/كُتُب, أَكَلَ/أَكْل, بِأَنَّ/بَانَ) that need contextual disambiguation
+
+### Expected Effects
+- No more wrong lemma popups from forms_json shadows
+- ~10% of newly generated sentences will be discarded for homograph mapping issues and regenerated
+- Pipeline throughput effectively unchanged (100+ sentences/day, plenty of headroom)
+
+---
+
 ## 2026-02-18: Leitner System Review Enhancements
 
 ### Changes

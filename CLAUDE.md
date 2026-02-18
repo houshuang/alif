@@ -19,13 +19,13 @@ npx expo start --web  # opens on localhost:8081
 ```
 
 ## Architecture
-- **Backend**: Python 3.11+ / FastAPI / SQLite (single user, no auth, WAL mode, 5s busy_timeout) — `backend/`
+- **Backend**: Python 3.11+ / FastAPI / SQLite (single user, no auth, WAL mode, 15s busy_timeout) — `backend/`
 - **Frontend**: Expo (React Native) with web + iOS mode — `frontend/`
 - **SRS**: py-fsrs v6 (FSRS-6 with same-day review support) — `backend/app/services/fsrs_service.py`
 - **LLM**: LiteLLM multi-model. Sentence gen: Gemini Flash. Story gen: Claude Opus (retry loop). Quality gate: Claude Haiku (fail-closed). General: Gemini 3 Flash → GPT-5.2 → Claude Haiku. Keys: GEMINI_KEY, OPENAI_KEY, ANTHROPIC_API_KEY in `.env`
 - **Claude Code CLI**: Optional `claude -p` wrapper for free Opus via Max plan. `generate_structured()` (single-turn) and `generate_with_tools()` (multi-turn agentic). See `docs/backend-services.md`.
 - **TTS**: ElevenLabs REST, `eleven_multilingual_v2`, Chaouki voice, learner pauses. Key: ELEVENLABS_API_KEY. Audio cached by SHA256 in `backend/data/audio/`.
-- **NLP**: Rule-based clitic stripping + known-form matching + CAMeL disambiguation fallback. `LemmaLookupDict` tracks collisions (hamza-sensitive resolution). Extended forms_json indexing (past_3fs, past_3p, imperative, passive_participle). Optional LLM mapping verification (env `VERIFY_MAPPINGS_LLM=1`, default off). See `docs/nlp-pipeline.md`.
+- **NLP**: Rule-based clitic stripping + known-form matching + CAMeL disambiguation fallback. `LemmaLookupDict` tracks collisions (hamza-sensitive resolution). Two-pass lookup: bare forms first, forms_json second (prevents derived forms shadowing direct lemmas). Extended forms_json indexing (past_3fs, past_3p, imperative, passive_participle). LLM mapping verification active in production (`VERIFY_MAPPINGS_LLM=1`) — Gemini Flash checks sentence_word mappings for homograph errors, discards sentences with bad mappings. See `docs/nlp-pipeline.md`.
 - **Migrations**: Alembic for SQLite. Every schema change needs a migration. Auto-runs on startup.
 - **Hosting**: Hetzner (46.225.75.29), docker-compose. Backend port 3000→8000. Frontend systemd (`alif-expo`) port 8081. DuckDNS: `alifstian.duckdns.org`.
 - **Offline**: AsyncStorage sync queue, 30-min session staleness TTL, background session refresh (15-min gap detection).
@@ -125,5 +125,14 @@ ssh alif "systemctl restart alif-expo"
 # exp://alifstian.duckdns.org:8081
 # Web: http://alifstian.duckdns.org:8081
 ```
+
+## Server Operations — MUST READ
+See `.claude/skills/server-ops.md` for full details. Summary of hard-won rules:
+
+1. **ALL `ssh` commands require `dangerouslyDisableSandbox: true`** — SSH is always blocked by local sandbox. Never try without it.
+2. **NEVER write inline Python in `docker exec python3 -c`** — Triple-nested quoting fails ~50% of the time. For any Python > 2 lines, write to `/tmp/claude/script.py`, then `scp` + `docker cp` + run.
+3. **Read `backend/app/models.py` BEFORE writing DB queries** — Don't guess table/column names. They've caused repeated failures (e.g., `lemma` vs `lemmas`, `query()` vs `get()`).
+4. **Check `backend/scripts/` before writing ad-hoc queries** — Existing scripts cover most analytics and maintenance tasks.
+5. **One deploy per session** — Get code right locally (tests pass), then deploy once. Multiple deploys waste time and risk inconsistent state.
 
 Next: more story imports, listening mode improvements
