@@ -4,7 +4,11 @@ Generates memory hooks (mnemonics, cognates, collocations, usage context, fun fa
 for words in acquiring/learning/known state that don't have hooks yet.
 
 Usage:
-    cd backend && python3 scripts/backfill_memory_hooks.py [--dry-run] [--batch-size=10] [--limit=100]
+    cd backend && python3 scripts/backfill_memory_hooks.py [--dry-run] [--batch-size=10] [--limit=100] [--force] [--box1-only]
+
+Options:
+    --force       Clear existing memory_hooks_json before regenerating (allows re-generation)
+    --box1-only   Only regenerate hooks for words currently in acquisition box 1
 """
 
 import json
@@ -51,26 +55,34 @@ Return JSON array: [{{"lemma_id": 1, "hooks": {{"mnemonic": "...", "cognates": [
 Use null for hooks if the word is a particle/pronoun/function word."""
 
 
-def backfill(dry_run=False, batch_size=10, limit=100):
+def backfill(dry_run=False, batch_size=10, limit=100, force=False, box1_only=False):
     from app.services.llm import generate_completion, AllProvidersFailed
 
     db = SessionLocal()
 
-    # Only words currently being learned (acquiring/learning/known) that lack hooks
-    missing = (
+    base_q = (
         db.query(Lemma)
         .join(UserLemmaKnowledge)
         .filter(
-            Lemma.memory_hooks_json.is_(None),
             Lemma.canonical_lemma_id.is_(None),
             UserLemmaKnowledge.knowledge_state.in_(["acquiring", "learning", "known", "lapsed"]),
         )
+    )
+    if box1_only:
+        base_q = base_q.filter(UserLemmaKnowledge.acquisition_box == 1)
+    if not force:
+        base_q = base_q.filter(Lemma.memory_hooks_json.is_(None))
+
+    missing = (
+        base_q
         .order_by(Lemma.frequency_rank.asc().nullslast())
         .limit(limit)
         .all()
     )
 
-    print(f"Found {len(missing)} learning words without memory hooks (limit={limit})")
+    mode_desc = "box-1 words" if box1_only else "learning words"
+    hook_desc = "(re-generating existing)" if force else "without memory hooks"
+    print(f"Found {len(missing)} {mode_desc} {hook_desc} (limit={limit})")
     if not missing:
         db.close()
         return
@@ -137,7 +149,8 @@ def backfill(dry_run=False, batch_size=10, limit=100):
 
             mnemonic_preview = hooks.get("mnemonic", "")[:60]
             cognate_count = len(hooks.get("cognates", []) or [])
-            print(f"  {lid} {lemma.lemma_ar_bare}: {mnemonic_preview}... ({cognate_count} cognates)")
+            action = "regenerated" if force and lemma.memory_hooks_json else "generated"
+            print(f"  {lid} {lemma.lemma_ar_bare}: [{action}] {mnemonic_preview}... ({cognate_count} cognates)")
             if not dry_run:
                 lemma.memory_hooks_json = hooks
             total_done += 1
@@ -165,6 +178,8 @@ def backfill(dry_run=False, batch_size=10, limit=100):
 
 if __name__ == "__main__":
     dry_run = "--dry-run" in sys.argv
+    force = "--force" in sys.argv
+    box1_only = "--box1-only" in sys.argv
     batch_size = 10
     limit = 100
     for arg in sys.argv:
@@ -172,4 +187,4 @@ if __name__ == "__main__":
             batch_size = int(arg.split("=")[1])
         elif arg.startswith("--limit="):
             limit = int(arg.split("=")[1])
-    backfill(dry_run=dry_run, batch_size=batch_size, limit=limit)
+    backfill(dry_run=dry_run, batch_size=batch_size, limit=limit, force=force, box1_only=box1_only)

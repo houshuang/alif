@@ -84,6 +84,7 @@ def start_acquisition(
         ulk.acquisition_box = 1
         ulk.acquisition_next_due = next_due
         ulk.acquisition_started_at = now
+        ulk.entered_acquiring_at = now
         ulk.introduced_at = now
         # Preserve original source if meaningful (book, duolingo, textbook_scan, etc.)
         _GENERIC_SOURCES = {"study", "encountered"}
@@ -97,6 +98,7 @@ def start_acquisition(
             acquisition_box=1,
             acquisition_next_due=next_due,
             acquisition_started_at=now,
+            entered_acquiring_at=now,
             introduced_at=now,
             source=source,
             fsrs_card_json=None,

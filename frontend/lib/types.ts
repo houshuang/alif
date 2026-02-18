@@ -509,7 +509,11 @@ export interface AcquisitionPipeline {
   box_1_count: number;
   box_2_count: number;
   box_3_count: number;
+  box_1_due: number;
+  box_2_due: number;
+  box_3_due: number;
   recent_graduations: RecentGraduation[];
+  flow_history: Array<{ date: string; entered: number; graduated: number }>;
 }
 
 export interface DeepAnalytics {

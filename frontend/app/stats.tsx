@@ -8,14 +8,13 @@ import {
   Pressable,
 } from "react-native";
 import { useFocusEffect } from "expo-router";
-import { colors, fonts } from "../lib/theme";
-import { getAnalytics, getGrammarProgress, getDeepAnalytics } from "../lib/api";
-import { Analytics, GrammarProgress, DeepAnalytics, AcquisitionPipeline, ComprehensionBreakdown, GraduatedWord, IntroducedBySource } from "../lib/types";
+import { colors, fonts, fontFamily } from "../lib/theme";
+import { getAnalytics, getDeepAnalytics } from "../lib/api";
+import { Analytics, DeepAnalytics, AcquisitionPipeline, ComprehensionBreakdown, GraduatedWord, IntroducedBySource } from "../lib/types";
 import { syncEvents } from "../lib/sync-events";
 
 export default function StatsScreen() {
   const [analytics, setAnalytics] = useState<Analytics | null>(null);
-  const [grammarProgress, setGrammarProgress] = useState<GrammarProgress[]>([]);
   const [deepAnalytics, setDeepAnalytics] = useState<DeepAnalytics | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -34,13 +33,11 @@ export default function StatsScreen() {
   async function loadAnalytics() {
     setLoading(true);
     try {
-      const [data, grammar, deep] = await Promise.all([
+      const [data, deep] = await Promise.all([
         getAnalytics(),
-        getGrammarProgress().catch(() => []),
         getDeepAnalytics().catch(() => null),
       ]);
       setAnalytics(data);
-      setGrammarProgress(grammar);
       setDeepAnalytics(deep);
     } catch (e) {
       console.error("Failed to load analytics:", e);
@@ -82,6 +79,7 @@ export default function StatsScreen() {
         introduced={analytics.introduced_today}
         calibration={analytics.calibration_signal}
         reviewsToday={stats.reviews_today}
+        dueToday={stats.due_today}
         streak={pace.current_streak}
       />
 
@@ -339,76 +337,7 @@ export default function StatsScreen() {
           <RootProgressSection data={deepAnalytics.root_coverage} />
         </>
       )}
-      {/* Grammar Progress */}
-      {grammarProgress.filter((g) => g.times_seen > 0).length > 0 && (
-        <GrammarProgressSection progress={grammarProgress} />
-      )}
     </ScrollView>
-    </View>
-  );
-}
-
-function GrammarProgressSection({ progress }: { progress: GrammarProgress[] }) {
-  const seen = progress.filter((g) => g.times_seen > 0);
-  const categories = [...new Set(seen.map((g) => g.category))];
-
-  return (
-    <View style={styles.grammarCard}>
-      <Text style={styles.sectionTitle}>Grammar Exposure</Text>
-      <Text style={styles.grammarSummary}>
-        {seen.length} of {progress.length} patterns encountered
-      </Text>
-      <View style={styles.grammarLegend}>
-        <Text style={styles.grammarLegendItem}>
-          <Text style={{ color: colors.missed }}>■</Text> new
-        </Text>
-        <Text style={styles.grammarLegendItem}>
-          <Text style={{ color: colors.accent }}>■</Text> familiar
-        </Text>
-        <Text style={styles.grammarLegendItem}>
-          <Text style={{ color: colors.good }}>■</Text> comfortable
-        </Text>
-        <Text style={styles.grammarLegendItem}>seen ×</Text>
-      </View>
-      {categories.map((cat) => {
-        const features = seen.filter((g) => g.category === cat);
-        return (
-          <View key={cat} style={styles.grammarCategory}>
-            <Text style={styles.grammarCatTitle}>
-              {cat.replace(/_/g, " ")}
-            </Text>
-            {features.map((f) => (
-              <View key={f.feature_key} style={styles.grammarFeatureRow}>
-                <Text
-                  style={styles.grammarFeatureLabel}
-                  numberOfLines={1}
-                >
-                  {f.label_en}
-                </Text>
-                <View style={styles.grammarBarTrack}>
-                  <View
-                    style={[
-                      styles.grammarBarFill,
-                      {
-                        width: `${Math.min(f.comfort_score * 100, 100)}%`,
-                        backgroundColor:
-                          f.comfort_score >= 0.5
-                            ? colors.good
-                            : f.comfort_score >= 0.3
-                              ? colors.accent
-                              : colors.missed,
-                      },
-                    ]}
-                  />
-                </View>
-                <Text style={styles.grammarFeatureCount}>
-                  {f.times_seen}×
-                </Text>
-              </View>
-            ))}
-          </View>
-        );
-      })}
     </View>
   );
 }
@@ -669,6 +598,7 @@ function TodayHeroCard({
   introduced,
   calibration,
   reviewsToday,
+  dueToday,
   streak,
 }: {
   comprehension?: ComprehensionBreakdown;
@@ -676,6 +606,7 @@ function TodayHeroCard({
   introduced?: IntroducedBySource[];
   calibration?: string;
   reviewsToday: number;
+  dueToday: number;
   streak: number;
 }) {
   if (reviewsToday === 0) return null;
@@ -712,6 +643,25 @@ function TodayHeroCard({
           {calibLabel}
         </Text>
       </View>
+
+      {/* Due cards status */}
+      {(dueToday > 0 || reviewsToday > 0) && (
+        <View style={styles.heroStatus}>
+          {dueToday === 0 ? (
+            <Text style={[styles.heroStatusText, { color: colors.good }]}>
+              All caught up
+            </Text>
+          ) : reviewsToday >= dueToday ? (
+            <Text style={[styles.heroStatusText, { color: colors.good }]}>
+              {reviewsToday} reviews · caught up
+            </Text>
+          ) : (
+            <Text style={[styles.heroStatusText, { color: colors.accent }]}>
+              {reviewsToday} reviews · {dueToday - reviewsToday} still waiting
+            </Text>
+          )}
+        </View>
+      )}
 
       {total > 0 && (
         <>
@@ -784,11 +734,23 @@ function AcquisitionPipelineCard({ pipeline }: { pipeline: AcquisitionPipeline }
 
   if (total === 0 && pipeline.recent_graduations.length === 0) return null;
 
-  const renderBox = (label: string, words: typeof pipeline.box_1, count: number) => (
+  const renderBox = (
+    label: string,
+    words: typeof pipeline.box_1,
+    count: number,
+    due: number,
+  ) => (
     <View style={styles.pipeBox}>
       <View style={styles.pipeBoxHeader}>
         <Text style={styles.pipeBoxLabel}>{label}</Text>
-        <Text style={styles.pipeBoxCount}>{count}</Text>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+          {due > 0 && (
+            <View style={styles.pipeDueBadge}>
+              <Text style={styles.pipeDueText}>{due}</Text>
+            </View>
+          )}
+          <Text style={styles.pipeBoxCount}>{count}</Text>
+        </View>
       </View>
       {(expanded ? words : words.slice(0, 3)).map((w) => {
         const acc = w.times_seen > 0 ? Math.round(w.times_correct / w.times_seen * 100) : 0;
@@ -805,6 +767,12 @@ function AcquisitionPipelineCard({ pipeline }: { pipeline: AcquisitionPipeline }
     </View>
   );
 
+  // Flow chart
+  const hasFlow = pipeline.flow_history && pipeline.flow_history.some(d => d.entered > 0 || d.graduated > 0);
+  const maxFlow = hasFlow
+    ? Math.max(...pipeline.flow_history.map(d => Math.max(d.entered, d.graduated)), 1)
+    : 1;
+
   return (
     <View style={styles.deepCard}>
       <Pressable
@@ -815,12 +783,47 @@ function AcquisitionPipelineCard({ pipeline }: { pipeline: AcquisitionPipeline }
         <Text style={styles.pipeTotal}>{total} words</Text>
       </Pressable>
       <View style={styles.pipeBoxes}>
-        {renderBox("Box 1\n4h", pipeline.box_1, pipeline.box_1_count)}
+        {renderBox("Box 1\n4h", pipeline.box_1, pipeline.box_1_count, pipeline.box_1_due ?? 0)}
         <Text style={styles.pipeArrow}>{"\u2192"}</Text>
-        {renderBox("Box 2\n1d", pipeline.box_2, pipeline.box_2_count)}
+        {renderBox("Box 2\n1d", pipeline.box_2, pipeline.box_2_count, pipeline.box_2_due ?? 0)}
         <Text style={styles.pipeArrow}>{"\u2192"}</Text>
-        {renderBox("Box 3\n3d", pipeline.box_3, pipeline.box_3_count)}
+        {renderBox("Box 3\n3d", pipeline.box_3, pipeline.box_3_count, pipeline.box_3_due ?? 0)}
       </View>
+
+      {hasFlow && (
+        <View style={styles.pipeFlowChart}>
+          <Text style={styles.pipeFlowTitle}>7-day flow</Text>
+          <View style={styles.pipeFlowBars}>
+            {pipeline.flow_history.map((d, i) => {
+              const enteredH = (d.entered / maxFlow) * 48;
+              const gradH = (d.graduated / maxFlow) * 48;
+              return (
+                <View key={i} style={styles.pipeFlowCol}>
+                  <View style={styles.pipeFlowBarGroup}>
+                    {d.entered > 0 && (
+                      <View style={[styles.pipeFlowBar, { height: Math.max(enteredH, 3), backgroundColor: colors.accent }]} />
+                    )}
+                    {d.graduated > 0 && (
+                      <View style={[styles.pipeFlowBar, { height: Math.max(gradH, 3), backgroundColor: colors.good }]} />
+                    )}
+                    {d.entered === 0 && d.graduated === 0 && (
+                      <View style={[styles.pipeFlowBar, { height: 3, backgroundColor: colors.border }]} />
+                    )}
+                  </View>
+                  <Text style={styles.pipeFlowLabel}>{d.date}</Text>
+                </View>
+              );
+            })}
+          </View>
+          <View style={styles.pipeFlowLegend}>
+            <View style={[styles.pipeFlowDot, { backgroundColor: colors.accent }]} />
+            <Text style={styles.pipeFlowLegendText}>entered</Text>
+            <View style={[styles.pipeFlowDot, { backgroundColor: colors.good }]} />
+            <Text style={styles.pipeFlowLegendText}>graduated</Text>
+          </View>
+        </View>
+      )}
+
       {pipeline.recent_graduations.length > 0 && (
         <View style={styles.pipeGrads}>
           <Text style={styles.pipeGradsTitle}>Recently graduated</Text>
@@ -1115,6 +1118,87 @@ const styles = StyleSheet.create({
   pipeGradTime: {
     fontSize: 11,
     color: colors.textSecondary,
+  },
+  heroStatus: {
+    marginTop: 6,
+    marginBottom: 4,
+  },
+  heroStatusText: {
+    fontSize: 13,
+    fontFamily: fontFamily.mono,
+  },
+  pipeDueBadge: {
+    backgroundColor: colors.accent,
+    borderRadius: 8,
+    paddingHorizontal: 5,
+    paddingVertical: 1,
+    minWidth: 18,
+    alignItems: "center",
+  },
+  pipeDueText: {
+    color: colors.bg,
+    fontSize: 10,
+    fontFamily: fontFamily.mono,
+    fontWeight: "700",
+  },
+  pipeFlowChart: {
+    marginTop: 12,
+    paddingTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+  },
+  pipeFlowTitle: {
+    fontSize: 11,
+    color: colors.textSecondary,
+    fontFamily: fontFamily.mono,
+    marginBottom: 6,
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+  },
+  pipeFlowBars: {
+    flexDirection: "row",
+    alignItems: "flex-end",
+    height: 56,
+    gap: 3,
+  },
+  pipeFlowCol: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "flex-end",
+    height: 56,
+  },
+  pipeFlowBarGroup: {
+    flexDirection: "row",
+    alignItems: "flex-end",
+    gap: 2,
+    justifyContent: "center",
+  },
+  pipeFlowBar: {
+    width: 5,
+    borderRadius: 2,
+  },
+  pipeFlowLabel: {
+    fontSize: 9,
+    color: colors.textSecondary,
+    fontFamily: fontFamily.mono,
+    marginTop: 2,
+  },
+  pipeFlowLegend: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    marginTop: 6,
+  },
+  pipeFlowDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  pipeFlowLegendText: {
+    fontSize: 11,
+    color: colors.textSecondary,
+    fontFamily: fontFamily.mono,
+    marginRight: 8,
   },
   sessRow: {
     flexDirection: "row",

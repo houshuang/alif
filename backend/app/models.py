@@ -73,6 +73,7 @@ class UserLemmaKnowledge(Base):
     acquisition_next_due = Column(DateTime, nullable=True)
     acquisition_started_at = Column(DateTime, nullable=True)
     graduated_at = Column(DateTime, nullable=True)
+    entered_acquiring_at = Column(DateTime, nullable=True)
     leech_suspended_at = Column(DateTime, nullable=True)
     leech_count = Column(Integer, default=0, server_default="0")
 

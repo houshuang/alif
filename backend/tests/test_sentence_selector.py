@@ -135,8 +135,8 @@ class TestScaffoldFreshness:
         knowledge_map = {2: self._make_ulk(times_seen=16)}
         result = _scaffold_freshness(words, knowledge_map)
         assert result < 1.0
-        # 8/16 = 0.5 (single scaffold word, geo mean = 0.5)
-        assert abs(result - 0.5) < 0.01
+        # 5/16 = 0.3125 (single scaffold word, geo mean = 0.3125)
+        assert abs(result - 0.3125) < 0.01
 
     def test_extreme_exposure_floored(self):
         words = [
@@ -147,14 +147,14 @@ class TestScaffoldFreshness:
             WordMeta(lemma_id=3, surface_form="كبيرة", gloss_en="big",
                      stability=30.0, is_due=False),
         ]
-        # Both seen 200+ times → penalty per word = 8/200 = 0.04
-        # geo mean of 0.04, 0.04 = 0.04, floored to 0.3
+        # Both seen 200+ times → penalty per word = 5/200 = 0.025
+        # geo mean of 0.025, 0.025 = 0.025, floored to 0.1
         knowledge_map = {
             2: self._make_ulk(times_seen=200),
             3: self._make_ulk(times_seen=200),
         }
         result = _scaffold_freshness(words, knowledge_map)
-        assert result == 0.3
+        assert result == 0.1
 
     def test_function_words_excluded(self):
         words = [

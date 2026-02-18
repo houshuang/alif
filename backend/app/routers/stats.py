@@ -49,7 +49,7 @@ def _count_state(db: Session, state: str) -> int:
 
 def _count_due_cards(db: Session, now: datetime) -> int:
     now_str = now.isoformat()
-    result = (
+    fsrs_due = (
         db.query(func.count(UserLemmaKnowledge.id))
         .filter(
             UserLemmaKnowledge.fsrs_card_json.isnot(None),
@@ -57,7 +57,16 @@ def _count_due_cards(db: Session, now: datetime) -> int:
         )
         .scalar() or 0
     )
-    return result
+    acquiring_due = (
+        db.query(func.count(UserLemmaKnowledge.id))
+        .filter(
+            UserLemmaKnowledge.knowledge_state == "acquiring",
+            UserLemmaKnowledge.acquisition_next_due.isnot(None),
+            UserLemmaKnowledge.acquisition_next_due <= now,
+        )
+        .scalar() or 0
+    )
+    return fsrs_due + acquiring_due
 
 
 def _get_basic_stats(db: Session) -> StatsOut:
@@ -818,6 +827,7 @@ def _get_acquisition_pipeline(db: Session) -> AcquisitionPipeline:
             UserLemmaKnowledge.acquisition_box,
             UserLemmaKnowledge.times_seen,
             UserLemmaKnowledge.times_correct,
+            UserLemmaKnowledge.acquisition_next_due,
         )
         .join(Lemma, Lemma.lemma_id == UserLemmaKnowledge.lemma_id)
         .filter(UserLemmaKnowledge.knowledge_state == "acquiring")
@@ -826,6 +836,7 @@ def _get_acquisition_pipeline(db: Session) -> AcquisitionPipeline:
     )
 
     boxes: dict[int, list[AcquisitionWord]] = {1: [], 2: [], 3: []}
+    due_per_box: dict[int, int] = {1: 0, 2: 0, 3: 0}
     for r in rows:
         box = r.acquisition_box or 1
         if box not in boxes:
@@ -838,6 +849,13 @@ def _get_acquisition_pipeline(db: Session) -> AcquisitionPipeline:
             times_seen=r.times_seen or 0,
             times_correct=r.times_correct or 0,
         ))
+        # Count due words per box
+        if r.acquisition_next_due:
+            acq_due = r.acquisition_next_due
+            if acq_due.tzinfo is None:
+                acq_due = acq_due.replace(tzinfo=timezone.utc)
+            if acq_due <= now:
+                due_per_box[box] += 1
 
     cutoff_7d = now - timedelta(days=7)
     grad_rows = (
@@ -857,6 +875,61 @@ def _get_acquisition_pipeline(db: Session) -> AcquisitionPipeline:
         .all()
     )
 
+    # Build flow history: entries and graduations per day for last 7 days
+    flow_days = []
+    for i in range(6, -1, -1):
+        day_start = (now - timedelta(days=i)).replace(
+            hour=0, minute=0, second=0, microsecond=0
+        )
+        day_str = day_start.strftime("%m-%d")
+        flow_days.append({"date": day_str, "entered": 0, "graduated": 0})
+
+    # Count entries per day (using entered_acquiring_at)
+    try:
+        entry_rows = (
+            db.query(
+                func.date(UserLemmaKnowledge.entered_acquiring_at).label("day"),
+                func.count(UserLemmaKnowledge.id).label("cnt"),
+            )
+            .filter(
+                UserLemmaKnowledge.entered_acquiring_at >= cutoff_7d,
+                UserLemmaKnowledge.entered_acquiring_at.isnot(None),
+            )
+            .group_by(func.date(UserLemmaKnowledge.entered_acquiring_at))
+            .all()
+        )
+        entries_by_day = {str(r.day): r.cnt for r in entry_rows}
+    except Exception:
+        entries_by_day = {}
+
+    # Count graduations per day
+    try:
+        grad_day_rows = (
+            db.query(
+                func.date(UserLemmaKnowledge.graduated_at).label("day"),
+                func.count(UserLemmaKnowledge.id).label("cnt"),
+            )
+            .filter(
+                UserLemmaKnowledge.graduated_at >= cutoff_7d,
+                UserLemmaKnowledge.graduated_at.isnot(None),
+            )
+            .group_by(func.date(UserLemmaKnowledge.graduated_at))
+            .all()
+        )
+        grads_by_day = {str(r.day): r.cnt for r in grad_day_rows}
+    except Exception:
+        grads_by_day = {}
+
+    # Fill flow_days with actual counts
+    for i in range(6, -1, -1):
+        day_dt = (now - timedelta(days=i)).replace(
+            hour=0, minute=0, second=0, microsecond=0
+        )
+        day_key = day_dt.strftime("%Y-%m-%d")
+        idx = 6 - i
+        flow_days[idx]["entered"] = entries_by_day.get(day_key, 0)
+        flow_days[idx]["graduated"] = grads_by_day.get(day_key, 0)
+
     return AcquisitionPipeline(
         box_1=boxes[1],
         box_2=boxes[2],
@@ -864,6 +937,9 @@ def _get_acquisition_pipeline(db: Session) -> AcquisitionPipeline:
         box_1_count=len(boxes[1]),
         box_2_count=len(boxes[2]),
         box_3_count=len(boxes[3]),
+        box_1_due=due_per_box[1],
+        box_2_due=due_per_box[2],
+        box_3_due=due_per_box[3],
         recent_graduations=[
             RecentGraduation(
                 lemma_id=r.lemma_id,
@@ -873,6 +949,7 @@ def _get_acquisition_pipeline(db: Session) -> AcquisitionPipeline:
             )
             for r in grad_rows
         ],
+        flow_history=flow_days,
     )
 
 

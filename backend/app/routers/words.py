@@ -104,6 +104,7 @@ def _build_grammar_details(
 def list_words(
     status: Optional[str] = Query(None, description="Filter by knowledge state"),
     category: Optional[str] = Query(None, description="function|names — special categories"),
+    sort: Optional[str] = Query(None, description="Sort order: most_seen"),
     offset: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=200),
     db: Session = Depends(get_db),
@@ -117,6 +118,8 @@ def list_words(
     q = db.query(Lemma).join(UserLemmaKnowledge)
     if status:
         q = q.filter(UserLemmaKnowledge.knowledge_state == status)
+    if sort == "most_seen":
+        q = q.order_by(UserLemmaKnowledge.times_seen.desc())
 
     # Over-fetch when category filtering happens in Python to ensure enough results
     fetch_limit = limit * 3 if category in ("function", None) else limit

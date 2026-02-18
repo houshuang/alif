@@ -4,6 +4,49 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-02-18: Leitner System Review Enhancements
+
+### Changes
+1. **Scaffold freshness tuning** (`sentence_selector.py`): `FRESHNESS_BASELINE` 8→5 (penalty kicks in sooner) and floor 0.3→0.1 (allows much stronger suppression of over-used words). Before: jameel at 200 reviews → 30% sentence score. After: → 10%.
+2. **`entered_acquiring_at` field** (`models.py` + migration `v2c3d4e5f678`): Tracks when each word entered the acquisition pipeline, enabling flow visualization.
+3. **Pipeline due counts**: `_count_due_cards()` now includes acquiring words (`acquisition_next_due <= now`) in the `due_today` total, giving a true picture of cards waiting.
+4. **Memory hooks model upgrade**: Now uses Claude Haiku (via `model_override="anthropic"`) instead of the default Gemini Flash fallback chain. Prompt strengthened: explicit "SOUND FIRST" keyword-method instruction, Swedish/Danish added to language list, cognate shortcuts for direct borrowings, bad-example anti-patterns.
+5. **Backfill script**: New `--force` and `--box1-only` flags for targeted re-generation of box-1 words' memory hooks.
+
+### Rationale
+User reported: (1) jameel (beautiful) appearing too often in sentences; (2) memory hooks quality inconsistent; (3) no visibility into acquisition pipeline flow or whether daily review quota was met.
+
+### Expected Effects
+- Sentences with heavily over-reviewed scaffold words appear ~3× less often
+- Memory hooks for new words are more consistently sound-based and culturally grounded
+- Stats screen shows caught-up/behind status and 7-day pipeline flow chart
+
+### Verification
+- `FRESHNESS_BASELINE` test: `test_extreme_exposure_floored` → result == 0.1
+- Run `backfill_memory_hooks.py --dry-run --box1-only` — should find box-1 words
+- Stats page: top card shows "all caught up" or "N still waiting"; pipeline card shows flow chart and per-box due badges
+
+---
+
+## 2026-02-17: SQLite Busy Timeout Increase + On-Demand Generation Resilience
+
+### Changes
+1. **busy_timeout 5s → 15s** (`database.py`): Concurrent requests (prefetch `next-sentences` + rapid `reintro-result` POSTs) caused "database is locked" errors that crashed on-demand sentence generation with 500s. Individual writes are ms-fast, so 15s is more than enough wait time.
+2. **Graceful degradation** (`sentence_selector.py`): Both `_generate_on_demand` calls in `_with_fallbacks` wrapped in try/except. If generation fails, session builder returns existing sentences instead of crashing.
+
+### Rationale
+Production logs showed 6 "database is locked" errors in 24h. The pattern: frontend sends prefetch requests while simultaneously submitting review results. Both need the SQLite write lock. On-demand generation was the victim — one `next-sentences` call returned 500, and lemma 139 failed to get a sentence generated.
+
+### Expected Effect
+- Zero "database is locked" 500 errors under normal concurrent use
+- On-demand generation failures degrade gracefully (shorter session, not a crash)
+
+### Verification
+- Monitor `docker logs alif-backend-1 | grep "database is locked"` — should be zero
+- Monitor 500 errors on `/api/review/next-sentences`
+
+---
+
 ## 2026-02-17: Lemma Mapping Improvements — CAMeL Disambiguation + Extended Forms + Cleanup Script
 
 ### Changes

@@ -188,7 +188,7 @@ def _grammar_fit(
     return sum(multipliers) / len(multipliers)
 
 
-FRESHNESS_BASELINE = 8  # reviews at which penalty starts
+FRESHNESS_BASELINE = 5  # reviews at which penalty starts
 
 
 def _scaffold_freshness(
@@ -201,8 +201,8 @@ def _scaffold_freshness(
     penalty = min(1.0, FRESHNESS_BASELINE / max(times_seen, 1)).
     Aggregate via geometric mean, floored at 0.3.
 
-    Effect: scaffold word seen 8× → 1.0 (no penalty),
-    16× → 0.5, 80× → 0.1 (floored to 0.3 at sentence level).
+    Effect: scaffold word seen 5× → 1.0 (no penalty),
+    10× → 0.5, 50× → 0.1 (floored to 0.1 at sentence level).
     """
     scaffold = [
         w for w in words_meta
@@ -219,7 +219,7 @@ def _scaffold_freshness(
         product *= penalty
 
     geo_mean = product ** (1.0 / len(scaffold))
-    return max(0.3, geo_mean)
+    return max(0.1, geo_mean)
 
 
 def _auto_introduce_words(

@@ -212,7 +212,11 @@ class AcquisitionPipeline(BaseModel):
     box_1_count: int
     box_2_count: int
     box_3_count: int
+    box_1_due: int = 0
+    box_2_due: int = 0
+    box_3_due: int = 0
     recent_graduations: list[RecentGraduation]
+    flow_history: list[dict] = []  # [{date, entered, graduated}] last 7 days
 
 
 class DeepAnalyticsOut(BaseModel):

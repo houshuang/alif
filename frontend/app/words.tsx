@@ -16,7 +16,7 @@ import { getWords, getFunctionWords, getProperNames, getNextWords, ProperName } 
 import { Word, LearnCandidate } from "../lib/types";
 
 type CategoryTab = "vocab" | "function" | "names";
-type SmartFilter = "all" | "leeches" | "struggling" | "recent" | "solid" | "next_up" | "learning" | "known" | "new" | "lapsed" | "acquiring" | "encountered";
+type SmartFilter = "all" | "leeches" | "struggling" | "recent" | "solid" | "next_up" | "learning" | "known" | "new" | "lapsed" | "acquiring" | "encountered" | "most_seen";
 
 function isLeech(w: Word): boolean {
   return w.times_seen >= 6 && w.times_correct / w.times_seen < 0.5;
@@ -50,6 +50,7 @@ const SMART_FILTERS: { key: SmartFilter; label: string }[] = [
   { key: "new", label: "New" },
   { key: "lapsed", label: "Lapsed" },
   { key: "encountered", label: "Encountered" },
+  { key: "most_seen", label: "Most seen" },
 ];
 
 function stateColor(state: Word["state"]): string {
@@ -136,6 +137,8 @@ export default function WordsScreen() {
         } else if (stateFilter === "solid") {
           result.sort((a, b) => b.knowledge_score - a.knowledge_score);
         }
+      } else if (stateFilter === "most_seen") {
+        result = [...result].sort((a, b) => b.times_seen - a.times_seen);
       } else {
         result = result.filter((w) => w.state === stateFilter);
       }
@@ -182,6 +185,7 @@ export default function WordsScreen() {
               {item.pos ? <Text style={styles.metaText}>{item.pos}</Text> : null}
               {item.root ? <Text style={styles.metaRoot}>{item.root}</Text> : null}
               {item.frequency_rank ? <Text style={styles.metaText}>#{item.frequency_rank}</Text> : null}
+              {stateFilter === "most_seen" && item.times_seen > 0 ? <Text style={styles.metaText}>{item.times_seen}×</Text> : null}
             </View>
             {ratings.length > 0 && (
               <View style={styles.sparkline}>
