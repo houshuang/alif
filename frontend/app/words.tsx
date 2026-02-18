@@ -108,7 +108,7 @@ export default function WordsScreen() {
   }
 
   const counts = useMemo(() => {
-    const c: Record<string, number> = { all: words.length, next_up: nextUp.length };
+    const c: Record<string, number> = { all: words.length, next_up: nextUp.length, most_seen: words.length };
     for (const w of words) {
       c[w.state] = (c[w.state] || 0) + 1;
       if (isLeech(w)) c.leeches = (c.leeches || 0) + 1;
