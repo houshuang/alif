@@ -1280,6 +1280,7 @@ def _with_fallbacks(
                 covered_ids.add(item["primary_lemma_id"])
         except Exception:
             logger.exception("On-demand generation failed, continuing with existing sentences")
+            db.rollback()
 
     # Phase 2: Fill phase — if session is still undersized, introduce more words
     if len(items) < limit:
@@ -1312,6 +1313,7 @@ def _with_fallbacks(
                         covered_ids.add(fi["primary_lemma_id"])
                 except Exception:
                     logger.exception("Fill-phase on-demand generation failed, continuing")
+                    db.rollback()
 
     # Check for un-introduced grammar features in session sentences
     sentence_ids_in_session = [item["sentence_id"] for item in items if item.get("sentence_id")]
