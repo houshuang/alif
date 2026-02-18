@@ -16,8 +16,10 @@ Two compounding issues:
 
 ### Changes
 1. **Reduced to 1 prefetch per session cycle**: Single `prefetchSessions()` call on session-complete screen only. Removed prefetches from `getSentenceReviewSession` (both cache hit and miss paths) and near-end-of-session. The prefetch does full generation so cached sessions have complete data.
-2. **Added `db.rollback()` after on-demand generation failures** in both Phase 1 and fill-phase of `_with_fallbacks()`. Prevents cascading PendingRollbackError.
-3. **Removed `deepPrefetchSessions`** from index.tsx imports (no longer called).
+2. **Added `db.rollback()` after on-demand generation failures** in Phase 1 of `_with_fallbacks()`. Prevents cascading PendingRollbackError.
+3. **Wrapped entire fill phase in try/except with `db.rollback()`**: `_auto_introduce_words` could hit UNIQUE constraint when concurrent requests introduced the same word. This cascaded into PendingRollbackError that crashed the grammar feature check, producing 500 errors.
+4. **Fixed grammar card duplication**: Prefetched sessions built before the user dismissed a grammar card would re-show the same feature. Added module-level `introducedGrammarKeys` Set in the frontend that tracks dismissed features and filters them from cached sessions.
+5. **Removed `deepPrefetchSessions`** from index.tsx imports (no longer called).
 
 ### Session Flow (after fix)
 1. Session complete → 1 prefetch fires (full build_session with on-demand gen) → cached in AsyncStorage
@@ -25,7 +27,8 @@ Two compounding issues:
 3. Cache miss (first launch, network failure) → fresh `build_session` call with on-demand gen
 
 ### Expected Effects
-- No more single-card sessions from DB lock cascading
+- No more single-card sessions from DB lock cascading or UNIQUE constraint crashes
+- No more repeated grammar cards across sessions
 - Reduced server load (1 vs 7 requests per session)
 - Slight delay possible on very first session (no cache), but all subsequent sessions instant
 
