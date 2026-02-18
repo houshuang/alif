@@ -4,6 +4,33 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-02-18: Fix Prefetch Storm Causing Single-Card Sessions
+
+### Problem
+Sessions producing only 1 card despite many due words. Occurred intermittently, especially during active review.
+
+### Root Cause
+Two compounding issues:
+1. **7 prefetch requests per session cycle**: `deepPrefetchSessions` (2 requests) fired from `getSentenceReviewSession` cache hit, cache miss, and session-complete screen. Plus `prefetchSessions` near end of session. All called `build_session()` with on-demand generation (DB writes).
+2. **No rollback after DB lock failure**: When concurrent writes hit SQLite's write lock (even with 15s busy_timeout), `db.flush()` raised `OperationalError`. The `try/except` in `_with_fallbacks` caught it, but the SQLAlchemy session was left in `PendingRollbackError` state. All subsequent queries (fill phase, auto-intro) crashed, returning whatever items existed before the failure (often 1 card).
+
+### Changes
+1. **Reduced to 1 prefetch per session cycle**: Single `prefetchSessions()` call on session-complete screen only. Removed prefetches from `getSentenceReviewSession` (both cache hit and miss paths) and near-end-of-session. The prefetch does full generation so cached sessions have complete data.
+2. **Added `db.rollback()` after on-demand generation failures** in both Phase 1 and fill-phase of `_with_fallbacks()`. Prevents cascading PendingRollbackError.
+3. **Removed `deepPrefetchSessions`** from index.tsx imports (no longer called).
+
+### Session Flow (after fix)
+1. Session complete → 1 prefetch fires (full build_session with on-demand gen) → cached in AsyncStorage
+2. User taps "Next Session" → cached session returned instantly, no server call
+3. Cache miss (first launch, network failure) → fresh `build_session` call with on-demand gen
+
+### Expected Effects
+- No more single-card sessions from DB lock cascading
+- Reduced server load (1 vs 7 requests per session)
+- Slight delay possible on very first session (no cache), but all subsequent sessions instant
+
+---
+
 ## 2026-02-18: Fix Shrinking Session Sizes (Cooldown + On-Demand Gate)
 
 ### Problem

@@ -6,7 +6,7 @@
 > topics, grammar, listening) interact. It also identifies where the current
 > implementation diverges from the research and stated intentions.
 >
-> **Last updated**: 2026-02-16
+> **Last updated**: 2026-02-18
 > **Canonical location**: `docs/scheduling-system.md`
 > **Keep this document up to date with every algorithm change.**
 
@@ -661,16 +661,22 @@ build_session(db, limit=10, mode="reading")
 
 ### Sentence Pre-Warming
 
-When the frontend is 3 cards from the end of a session, it fires two parallel requests:
+The frontend prefetches one session ahead to provide instant session transitions:
 
-1. **`POST /api/review/warm-sentences`** (returns 202): Background task pre-generates
-   sentences using **multi-target generation** (groups of 2-4 words per sentence) for
-   focus cohort gaps and likely auto-introduction candidates that have < 2 active sentences.
-   Falls back to single-target for ungrouped words. Sentences persist in DB regardless of
-   whether the prefetched session is used.
+1. **Near end of session (3 cards left)**: `POST /api/review/warm-sentences` (returns 202)
+   pre-generates sentences in the background using multi-target generation for focus cohort
+   gaps and likely auto-introduction candidates with < 2 active sentences.
 
-2. **`GET /api/review/next-sentences?prefetch=true`**: Builds a full session and caches
-   it in AsyncStorage for instant load on the next session request.
+2. **Session-complete screen**: A single `GET /api/review/next-sentences?prefetch=true`
+   builds a full session (including on-demand generation and auto-introduction) and caches
+   it in AsyncStorage. When the user taps "Next Session", the cached session loads instantly
+   with no server call. This is the only prefetch — one per session cycle.
+
+**Why only one prefetch**: Previously 7 prefetch requests fired per session cycle (from
+session start, near-end, session-complete, and next-session-start). Each triggered on-demand
+generation (DB writes). Concurrent SQLite writes caused "database is locked" errors that
+cascaded into PendingRollbackError, producing single-card sessions. Reduced to 1 prefetch
+at session-complete to eliminate write contention. (Fix: 2026-02-18)
 
 **Staleness — Two Levels**:
 
