@@ -4,6 +4,41 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-02-18: Fix Shrinking Session Sizes (Cooldown + On-Demand Gate)
+
+### Problem
+Sessions shrank from 10-14 cards to 2-5 cards over 2 days. User noticed progressively fewer cards per session, especially when reviewing multiple sessions within a few hours.
+
+### Diagnosis
+1. **16/32 due words had zero sentences passing the recency filter.** The "understood" cooldown (7d) combined with only 1-3 active sentences per word meant once shown and rated, words had no eligible sentences left for the rest of the week.
+2. **On-demand generation was gated incorrectly.** `_with_fallbacks()` checked `len(items) < limit`, but items included acquisition repetition extras (up to +15). With 8 set-cover items + 4 acquisition reps = 12 items > limit(10), on-demand generation for uncovered words was skipped entirely.
+3. **Pipeline over cap** at 322/300, blocking warm-cache pre-generation (warm cache skips at 310).
+
+### Data Snapshot (pre-fix)
+- 48/67 candidate sentences failed recency, 19 passed
+- Recency failures: 26 understood (7d cooldown), 22 partial (2d cooldown)
+- Recent sessions: 4, 5, 5, 2, 3, 7 cards (today)
+- 2-day accuracy: 91.6% (auto-intro would grant 7 slots, but no room)
+
+### Changes
+1. **Reduced "understood" cooldown: 7d → 4d** (`sentence_selector.py` line 343). Still provides meaningful spacing, frees up sentences shown 4+ days ago.
+2. **Fixed on-demand generation gate** (`sentence_selector.py`): Track `base_item_count` (pre-acquisition-repetition) and use it for on-demand budget in `_with_fallbacks()`. Acquisition repetition no longer blocks on-demand generation for uncovered words.
+3. **Ran sentence rotation + backfill**: Pipeline back to 300 (was 322). 12 new multi-target sentences generated.
+
+### Expected Effects
+- Sessions should consistently produce 10+ items
+- Due words without pre-existing sentences get on-demand coverage
+- Sentence pool stays healthier with shorter cooldown recycling
+
+### What to Check (Feb 20-22)
+- **Session sizes**: Should be consistently 8-12+ items. Check via: `ssh alif "docker exec alif-backend-1 python3 -c \"from app.database import SessionLocal; from app.models import SentenceReviewLog; from sqlalchemy import func; db=SessionLocal(); print(db.query(SentenceReviewLog.session_id, func.count()).filter(SentenceReviewLog.reviewed_at >= '2026-02-18').group_by(SentenceReviewLog.session_id).all())\""`
+- **On-demand generation**: Check interaction logs for `on_demand_generated` events. If zero, the gate fix may not be reaching production usage.
+- **Pipeline cap**: Should stay ≤300. If creeping up again, the 6h cron (rotate + update_material) may need tuning.
+- **Sentence variety**: With 4d cooldown, sentences cycle back faster. Watch for user fatigue from seeing the same sentences too often. If so, increase MIN_SENTENCES_PER_WORD from 2 to 3.
+- **Accuracy**: Verify 2-day accuracy stays >85%. If the shorter cooldown causes over-reviewing easy sentences, accuracy could inflate artificially.
+
+---
+
 ## 2026-02-18: Lemma Lookup Two-Pass Fix + LLM Mapping Verification
 
 ### Changes

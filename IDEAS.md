@@ -473,7 +473,7 @@
 - Consider using CAMeL token count (after clitic separation) rather than raw word count for sentence length targets, since Arabic agglutination makes raw word count misleading
 
 #### Comprehension-Aware Sentence Recency
-- [DONE] Sentences the user struggled with should reappear sooner: replaced fixed 7-day cooldown with comprehension-based cutoffs — "understood" sentences wait 7 days, "partial" wait 2 days, "no_idea" wait 4 hours. Uses last_comprehension column on Sentence model, checked in sentence_selector.py candidate filtering.
+- [DONE] Sentences the user struggled with should reappear sooner: replaced fixed 7-day cooldown with comprehension-based cutoffs — "understood" sentences wait 4 days (was 7d, reduced 2026-02-18 due to sentence pool depletion), "partial" wait 2 days, "no_idea" wait 4 hours. Uses last_comprehension column on Sentence model, checked in sentence_selector.py candidate filtering.
 
 #### All Words Get FSRS Credit in Sentence Reviews
 - [DONE] Every word seen in a sentence now gets a full FSRS card and enters the normal review process. Previously, words without existing knowledge records only got encounter tracking (total_encounters increment). Now fsrs_service.submit_review() auto-creates UserLemmaKnowledge records for unknown words, and sentence_review_service calls submit_review() for every lemma_id in the sentence (not just those with existing cards).
