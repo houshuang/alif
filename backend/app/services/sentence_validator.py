@@ -652,15 +652,30 @@ English translation: {english_text}
 Word-to-lemma mappings:
 {chr(10).join(word_lines)}
 
-For each word, does the mapped lemma and its English definition match how the word is used in this sentence?
+ONLY flag a mapping as wrong if the lemma is a COMPLETELY DIFFERENT WORD than what appears in the sentence. Specifically:
 
-Return JSON: {{"wrong": [list of position numbers where the mapping is incorrect]}}
-If all mappings are correct, return {{"wrong": []}}"""
+Flag as WRONG:
+- The word in context has a totally different meaning from the lemma's English gloss (e.g. حَوْلَ "around" mapped to حَالَ "to change" — different words despite shared root)
+- A verb form mapped to an unrelated noun, or vice versa, when the bare forms happen to look the same (e.g. كَتَبَ "he wrote" mapped to كُتُب "books")
+- A clitic combination misidentified as a single word (e.g. بِأَنَّ "with that" mapped to بَانَ "to separate")
+
+Do NOT flag (these are CORRECT):
+- A conjugated verb mapped to its dictionary/past-tense form (e.g. يَكْتُبُ mapped to كَتَبَ)
+- A plural mapped to its singular lemma or vice versa (e.g. رِجَال mapped to رَجُل or رِجَال)
+- A feminine form mapped to its masculine lemma (e.g. مُعَلِّمَة mapped to مُعَلِّم)
+- A noun with possessive suffix mapped to the base noun (e.g. أُمِّي mapped to أُمّ)
+- A word with a preposition prefix mapped to the base word (e.g. بِالعَرَبِيَّة mapped to عَرَبِيّ)
+- A masdar mapped to its verb or vice versa, when semantically related (e.g. قِرَاءة mapped to قَرَأَ)
+- A word mapped to a lemma whose gloss is a close synonym or semantic relative
+
+Return JSON: {{"wrong": [list of position numbers where the mapping is WRONG]}}
+If all mappings are acceptable, return {{"wrong": []}}
+When in doubt, do NOT flag — only flag clear semantic mismatches."""
 
     try:
         result = generate_completion(
             prompt=prompt,
-            system_prompt="You are an Arabic morphology expert. Check word-lemma mappings for correctness.",
+            system_prompt="You are an Arabic morphology expert reviewing word-lemma mappings. Be conservative — only flag clear errors.",
             json_mode=True,
             temperature=0.0,
             model_override="gemini",
