@@ -519,13 +519,10 @@ export interface AcquisitionPipeline {
 export interface InsightsData {
   avg_encounters_to_graduation: number | null;
   graduation_rate_pct: number | null;
-  total_reading_time_ms: number;
-  strongest_word: { lemma_ar: string; gloss_en: string | null; stability_days: number } | null;
-  most_encountered_word: { lemma_ar: string; gloss_en: string | null; total_encounters: number } | null;
-  avg_stability_days: number | null;
   best_weekday: { day_name: string; accuracy_pct: number; review_count: number } | null;
   dark_horse_root: { root: string; meaning: string | null; known: number; total: number } | null;
   unique_sentences_reviewed: number;
+  total_sentence_reviews: number;
   forgetting_forecast: { skip_1d: number; skip_3d: number; skip_7d: number };
 }
 

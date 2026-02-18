@@ -10,7 +10,7 @@ import {
 import { useFocusEffect } from "expo-router";
 import { colors } from "../lib/theme";
 import { getAnalytics, getDeepAnalytics } from "../lib/api";
-import { Analytics, DeepAnalytics, AcquisitionPipeline, ComprehensionBreakdown, GraduatedWord, IntroducedBySource, InsightsData, StateTransitions } from "../lib/types";
+import type { Analytics, DeepAnalytics, AcquisitionPipeline, ComprehensionBreakdown, GraduatedWord, IntroducedBySource, InsightsData, StateTransitions } from "../lib/types";
 import { syncEvents } from "../lib/sync-events";
 
 export default function StatsScreen() {
@@ -223,7 +223,7 @@ export default function StatsScreen() {
               </View>
               <View style={{ flexDirection: "row", alignItems: "center", gap: 3 }}>
                 <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: colors.stateKnown }} />
-                <Text style={styles.legendText}>learned</Text>
+                <Text style={styles.legendText}>new known</Text>
               </View>
             </View>
           </View>
@@ -236,11 +236,11 @@ export default function StatsScreen() {
         <View style={styles.paceGrid}>
           <View style={styles.paceItem}>
             <Text style={styles.paceValue}>{pace.words_per_day_7d}</Text>
-            <Text style={styles.paceLabel}>words/day (7d)</Text>
+            <Text style={styles.paceLabel}>new known/day (7d)</Text>
           </View>
           <View style={styles.paceItem}>
             <Text style={styles.paceValue}>{pace.words_per_day_30d}</Text>
-            <Text style={styles.paceLabel}>words/day (30d)</Text>
+            <Text style={styles.paceLabel}>new known/day (30d)</Text>
           </View>
           <View style={styles.paceItem}>
             <Text style={styles.paceValue}>{pace.reviews_per_day_7d}</Text>
@@ -370,7 +370,7 @@ function WordLifecycleFunnel({
 }) {
   const active = known + learning + acquiring;
   const stages = [
-    { label: "Encountered", count: encountered, color: colors.stateEncountered },
+    { label: "Seen", count: encountered, color: colors.stateEncountered },
     { label: "Acquiring", count: acquiring, color: colors.stateAcquiring },
     { label: "Learning", count: learning, color: colors.stateLearning },
     { label: "Known", count: known, color: colors.stateKnown },
@@ -430,6 +430,7 @@ function KnownWordsGrowth({
     <View style={styles.growthCard}>
       <Text style={styles.growthNumber}>{latest}</Text>
       <Text style={styles.growthLabel}>known words</Text>
+      <Text style={styles.growthSubtitle}>FSRS stability {"\u2265"} 21 days</Text>
       <View style={styles.growthDeltas}>
         {weekDelta > 0 && (
           <View style={styles.growthDelta}>
@@ -453,25 +454,10 @@ function InsightsCard({ insights }: { insights: InsightsData }) {
 
   if (insights.avg_encounters_to_graduation != null) {
     const cmp = insights.avg_encounters_to_graduation <= 12 ? "efficient" : "above avg";
-    tiles.push({ big: `~${insights.avg_encounters_to_graduation}`, label: "encounters to graduate", context: `Research says 8-12 · ${cmp}` });
+    tiles.push({ big: `~${insights.avg_encounters_to_graduation}`, label: "reviews to graduate", context: `Research says 8-12 · ${cmp}` });
   }
   if (insights.graduation_rate_pct != null) {
-    tiles.push({ big: `${insights.graduation_rate_pct}%`, label: "graduation rate", context: insights.graduation_rate_pct >= 70 ? "healthy pipeline" : "some words stalling" });
-  }
-  if (insights.total_reading_time_ms > 60000) {
-    const mins = Math.floor(insights.total_reading_time_ms / 60000);
-    const hrs = Math.floor(mins / 60);
-    const remainMins = mins % 60;
-    tiles.push({ big: hrs > 0 ? `${hrs}h ${remainMins}m` : `${mins}m`, label: "Arabic reading time" });
-  }
-  if (insights.strongest_word) {
-    tiles.push({ big: insights.strongest_word.lemma_ar, label: "strongest memory", context: `${insights.strongest_word.stability_days}d stability · ${insights.strongest_word.gloss_en}` });
-  }
-  if (insights.most_encountered_word) {
-    tiles.push({ big: insights.most_encountered_word.lemma_ar, label: "most encountered", context: `${insights.most_encountered_word.total_encounters} sentences · ${insights.most_encountered_word.gloss_en}` });
-  }
-  if (insights.avg_stability_days != null) {
-    tiles.push({ big: `${insights.avg_stability_days}d`, label: "avg memory half-life" });
+    tiles.push({ big: `${insights.graduation_rate_pct}%`, label: "graduated", context: `${100 - insights.graduation_rate_pct}% still acquiring` });
   }
   if (insights.best_weekday) {
     tiles.push({ big: insights.best_weekday.day_name.slice(0, 3), label: "best day", context: `${insights.best_weekday.accuracy_pct}% accuracy` });
@@ -480,8 +466,8 @@ function InsightsCard({ insights }: { insights: InsightsData }) {
     const r = insights.dark_horse_root;
     tiles.push({ big: r.root, label: "untapped root", context: `${r.known}/${r.total} known · ${r.meaning || ""}` });
   }
-  if (insights.unique_sentences_reviewed > 0) {
-    tiles.push({ big: `${insights.unique_sentences_reviewed}`, label: "unique sentences read" });
+  if (insights.total_sentence_reviews > 0) {
+    tiles.push({ big: `${insights.total_sentence_reviews}`, label: "total reviews", context: `${insights.unique_sentences_reviewed} unique sentences` });
   }
   const fc = insights.forgetting_forecast;
   if (fc && fc.skip_7d > 0) {
@@ -1004,6 +990,7 @@ const styles = StyleSheet.create({
   growthCard: { backgroundColor: colors.surface, borderRadius: 16, padding: 24, width: "100%", maxWidth: 500, alignItems: "center", marginBottom: 16 },
   growthNumber: { fontSize: 48, fontWeight: "800", color: colors.good },
   growthLabel: { fontSize: 14, color: colors.textSecondary, textTransform: "uppercase", letterSpacing: 1, marginTop: 2 },
+  growthSubtitle: { fontSize: 11, color: colors.textSecondary, opacity: 0.6, marginTop: 2 },
   growthDeltas: { flexDirection: "row", gap: 16, marginTop: 12 },
   growthDelta: { alignItems: "center", backgroundColor: colors.good + "15", borderRadius: 10, paddingHorizontal: 14, paddingVertical: 6 },
   growthDeltaText: { fontSize: 18, fontWeight: "700" },

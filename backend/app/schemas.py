@@ -222,13 +222,10 @@ class AcquisitionPipeline(BaseModel):
 class InsightsOut(BaseModel):
     avg_encounters_to_graduation: float | None = None
     graduation_rate_pct: float | None = None
-    total_reading_time_ms: int = 0
-    strongest_word: dict | None = None  # {lemma_ar, gloss_en, stability_days}
-    most_encountered_word: dict | None = None  # {lemma_ar, gloss_en, total_encounters}
-    avg_stability_days: float | None = None
     best_weekday: dict | None = None  # {day_name, accuracy_pct, review_count}
     dark_horse_root: dict | None = None  # {root, meaning, known, total}
     unique_sentences_reviewed: int = 0
+    total_sentence_reviews: int = 0
     forgetting_forecast: dict = {}  # {skip_1d: N, skip_3d: N, skip_7d: N}
 
 
