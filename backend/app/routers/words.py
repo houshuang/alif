@@ -349,11 +349,16 @@ def get_word(lemma_id: int, db: Session = Depends(get_db)):
     grammar_keys = _coerce_grammar_keys(lemma.grammar_features_json)
     grammar_details = _build_grammar_details(db, grammar_keys)
 
-    # Build provenance info
+    # Build provenance info.
+    # Prefer ulk.source (how this word was introduced to learning: book/story_import/duolingo/textbook_scan)
+    # over lemma.source (where the dictionary data came from: wiktionary/avp_a1/etc).
+    _GENERIC_ULK_SOURCES = {None, "study", "encountered", "auto_intro", "collateral", "leech_reintro"}
+    ulk_source = k.source if k else None
+    display_source = ulk_source if ulk_source not in _GENERIC_ULK_SOURCES else lemma.source
     source_info = None
-    if lemma.source:
-        source_info = {"type": lemma.source}
-        if lemma.source == "story_import" and lemma.source_story_id:
+    if display_source:
+        source_info = {"type": display_source}
+        if lemma.source_story_id:
             story = db.query(Story).filter(Story.id == lemma.source_story_id).first()
             if story:
                 source_info["story_id"] = story.id
