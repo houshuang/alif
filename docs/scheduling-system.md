@@ -747,10 +747,10 @@ Penalizes sentences whose scaffold words have been over-reviewed (prevents the s
 ```
 For each scaffold word:
     freshness = min(1.0, FRESHNESS_BASELINE / times_seen)
-    where FRESHNESS_BASELINE = 8
+    where FRESHNESS_BASELINE = 5
 
 Overall = geometric_mean(per_word_freshness)
-Floor at 0.3
+Floor at 0.1
 ```
 
 #### Grammar Fit
@@ -1315,7 +1315,7 @@ remaining cards on the next card advance. See Section 8 "Sentence Pre-Warming" f
 | `MAX_AUTO_INTRO_PER_SESSION` | 10 | Per-call cap on auto-intro words |
 | `AUTO_INTRO_ACCURACY_FLOOR` | 0.70 | Pause auto-intro if accuracy below this |
 | Adaptive intro bands | 0→4→7→10 | Slots at <70%/70-85%/85-92%/≥92% accuracy |
-| `FRESHNESS_BASELINE` | 8 | Reviews before scaffold freshness penalty kicks in |
+| `FRESHNESS_BASELINE` | 5 | Reviews before scaffold freshness penalty kicks in (floor 0.1) |
 | `MAX_ON_DEMAND_PER_SESSION` | 10 | Reference constant (callers control actual cap via remaining session capacity) |
 | `MAX_REINTRO_PER_SESSION` | 3 | Struggling word reintro card limit |
 | `STRUGGLING_MIN_SEEN` | 3 | Threshold for struggling classification |

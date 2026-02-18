@@ -35,7 +35,7 @@ All scripts in `backend/scripts/`. Run from `backend/` directory.
 - `backfill_story_proper_nouns.py` — Convert proper nouns to function words.
 - `backfill_themes.py` — LLM thematic domain tagging for lemmas.
 - `backfill_etymology.py` — LLM etymology data generation for lemmas.
-- `backfill_memory_hooks.py` — LLM memory hooks for currently learning words.
+- `backfill_memory_hooks.py` — LLM memory hooks for currently learning words. Flags: `--force` (re-generate existing hooks), `--box1-only` (only Leitner box-1 words), `--batch-size=N`, `--limit=N`, `--dry-run`.
 - `backfill_diacritics.py` — LLM tashkīl (diacritization) for bare lemmas + auto-transliteration.
 - `backfill_transliteration.py` — Deterministic ALA-LC transliteration from diacritized lemma_ar. No LLM.
 - `backfill_samer.py` — SAMER readability L1-L5→CEFR mapping. TSV at backend/data/samer.tsv on server only.
