@@ -50,10 +50,22 @@ def next_sentences(
     limit: int = Query(10, ge=1, le=20),
     mode: str = Query("reading"),
     prefetch: bool = Query(False),
+    background_tasks: BackgroundTasks = BackgroundTasks(),
     db: Session = Depends(get_db),
 ):
-    """Get a sentence-based review session."""
-    result = build_session(db, limit=limit, mode=mode, log_events=not prefetch)
+    """Get a sentence-based review session.
+
+    Non-prefetch requests skip on-demand LLM generation for fast response
+    (~0.5s instead of ~30s). A background warm task runs after to generate
+    sentences for uncovered words so the next session is ready.
+    """
+    # Prefetch calls do full generation (they run in background anyway).
+    # Direct user requests skip on-demand gen for fast load.
+    result = build_session(
+        db, limit=limit, mode=mode,
+        log_events=not prefetch,
+        skip_on_demand=not prefetch,
+    )
 
     # Listening mode is only for already-learned words — no intro candidates
     if mode == "listening":
@@ -70,6 +82,9 @@ def next_sentences(
             fallback_count=len([i for i in result["items"] if not i.get("sentence_id")]),
             intro_candidates=len(result.get("intro_candidates", [])),
         )
+        # Trigger background generation so next session has more sentences
+        from app.services.material_generator import warm_sentence_cache
+        background_tasks.add_task(warm_sentence_cache)
 
     return result
 

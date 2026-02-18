@@ -331,6 +331,7 @@ def build_session(
     limit: int = 10,
     mode: str = "reading",
     log_events: bool = True,
+    skip_on_demand: bool = False,
 ) -> dict:
     """Assemble a sentence-based review session.
 
@@ -479,7 +480,7 @@ def build_session(
 
     sentence_ids_with_due = {sw.sentence_id for sw in sentence_words}
     if not sentence_ids_with_due:
-        return _with_fallbacks(db, session_id, due_lemma_ids, stability_map, total_due, [], limit, reintro_cards=reintro_cards, knowledge_by_id=knowledge_by_id, all_knowledge=all_knowledge)
+        return _with_fallbacks(db, session_id, due_lemma_ids, stability_map, total_due, [], limit, reintro_cards=reintro_cards, knowledge_by_id=knowledge_by_id, all_knowledge=all_knowledge, skip_on_demand=skip_on_demand)
 
     from sqlalchemy import or_
 
@@ -509,7 +510,7 @@ def build_session(
     )
 
     if not sentences:
-        return _with_fallbacks(db, session_id, due_lemma_ids, stability_map, total_due, [], limit, reintro_cards=reintro_cards, knowledge_by_id=knowledge_by_id, all_knowledge=all_knowledge)
+        return _with_fallbacks(db, session_id, due_lemma_ids, stability_map, total_due, [], limit, reintro_cards=reintro_cards, knowledge_by_id=knowledge_by_id, all_knowledge=all_knowledge, skip_on_demand=skip_on_demand)
 
     sentence_map: dict[int, Sentence] = {s.id: s for s in sentences}
 
@@ -871,7 +872,7 @@ def build_session(
 
     db.commit()
 
-    return _with_fallbacks(db, session_id, due_lemma_ids, stability_map, total_due, items, limit, covered_ids, reintro_cards=reintro_cards, knowledge_by_id=knowledge_by_id, all_knowledge=all_knowledge, base_item_count=base_item_count)
+    return _with_fallbacks(db, session_id, due_lemma_ids, stability_map, total_due, items, limit, covered_ids, reintro_cards=reintro_cards, knowledge_by_id=knowledge_by_id, all_knowledge=all_knowledge, base_item_count=base_item_count, skip_on_demand=skip_on_demand)
 
 
 MAX_REINTRO_PER_SESSION = 3
@@ -1256,8 +1257,13 @@ def _with_fallbacks(
     knowledge_by_id: dict[int, UserLemmaKnowledge] | None = None,
     all_knowledge: list | None = None,
     base_item_count: int | None = None,
+    skip_on_demand: bool = False,
 ) -> dict:
-    """Generate on-demand sentences for uncovered due words, then fill if undersized."""
+    """Generate on-demand sentences for uncovered due words, then fill if undersized.
+
+    When skip_on_demand=True, skips LLM generation (used for fast synchronous
+    session loads — generation runs in background instead).
+    """
     import logging
     logger = logging.getLogger(__name__)
 
@@ -1266,54 +1272,59 @@ def _with_fallbacks(
     if knowledge_by_id is None:
         knowledge_by_id = {}
 
-    # Phase 1: On-demand generation for uncovered due words
-    # Use base_item_count (pre-acquisition-repetition) for budget so that
-    # acquisition repetition doesn't block on-demand generation for uncovered words
-    uncovered = due_lemma_ids - covered_ids
-    budget_basis = base_item_count if base_item_count is not None else len(items)
-    on_demand_budget = max(0, limit - budget_basis)
-    if uncovered and on_demand_budget > 0:
-        try:
-            generated_items = _generate_on_demand(db, uncovered, stability_map, on_demand_budget)
-            items.extend(generated_items)
-            for item in generated_items:
-                covered_ids.add(item["primary_lemma_id"])
-        except Exception:
-            logger.exception("On-demand generation failed, continuing with existing sentences")
-            db.rollback()
+    if not skip_on_demand:
+        # Phase 1: On-demand generation for uncovered due words
+        # Use base_item_count (pre-acquisition-repetition) for budget so that
+        # acquisition repetition doesn't block on-demand generation for uncovered words
+        uncovered = due_lemma_ids - covered_ids
+        budget_basis = base_item_count if base_item_count is not None else len(items)
+        on_demand_budget = max(0, limit - budget_basis)
+        if uncovered and on_demand_budget > 0:
+            try:
+                generated_items = _generate_on_demand(db, uncovered, stability_map, on_demand_budget)
+                items.extend(generated_items)
+                for item in generated_items:
+                    covered_ids.add(item["primary_lemma_id"])
+            except Exception:
+                logger.exception("On-demand generation failed, continuing with existing sentences")
+                db.rollback()
 
-    # Phase 2: Fill phase — if session is still undersized, introduce more words
-    if len(items) < limit:
-        try:
-            now = datetime.now(timezone.utc)
-            fill_ids = _auto_introduce_words(
-                db, limit - len(items), knowledge_by_id, now,
-                skip_material_gen=True,
-            )
-            if fill_ids:
-                logger.info(f"Fill phase: introduced {len(fill_ids)} new words to fill session")
-                for lid in fill_ids:
-                    stability_map[lid] = 0.1
-                    ulk = (
-                        db.query(UserLemmaKnowledge)
-                        .filter(UserLemmaKnowledge.lemma_id == lid)
-                        .first()
-                    )
-                    if ulk:
-                        knowledge_by_id[lid] = ulk
+        # Phase 2: Fill phase — if session is still undersized, introduce more words
+        if len(items) < limit:
+            try:
+                now = datetime.now(timezone.utc)
+                fill_ids = _auto_introduce_words(
+                    db, limit - len(items), knowledge_by_id, now,
+                    skip_material_gen=True,
+                )
+                if fill_ids:
+                    logger.info(f"Fill phase: introduced {len(fill_ids)} new words to fill session")
+                    for lid in fill_ids:
+                        stability_map[lid] = 0.1
+                        ulk = (
+                            db.query(UserLemmaKnowledge)
+                            .filter(UserLemmaKnowledge.lemma_id == lid)
+                            .first()
+                        )
+                        if ulk:
+                            knowledge_by_id[lid] = ulk
 
-                fill_due = set(fill_ids)
-                remaining_cap = limit - len(items)
-                if remaining_cap > 0:
-                    fill_items = _generate_on_demand(
-                        db, fill_due, stability_map, remaining_cap
-                    )
-                    items.extend(fill_items)
-                    for fi in fill_items:
-                        covered_ids.add(fi["primary_lemma_id"])
-        except Exception:
-            logger.exception("Fill phase failed, continuing with existing items")
-            db.rollback()
+                    fill_due = set(fill_ids)
+                    remaining_cap = limit - len(items)
+                    if remaining_cap > 0:
+                        fill_items = _generate_on_demand(
+                            db, fill_due, stability_map, remaining_cap
+                        )
+                        items.extend(fill_items)
+                        for fi in fill_items:
+                            covered_ids.add(fi["primary_lemma_id"])
+            except Exception:
+                logger.exception("Fill phase failed, continuing with existing items")
+                db.rollback()
+    else:
+        uncovered = due_lemma_ids - covered_ids
+        if uncovered:
+            logger.info(f"Skipping on-demand generation for {len(uncovered)} uncovered words (fast mode)")
 
     # Check for un-introduced grammar features in session sentences
     sentence_ids_in_session = [item["sentence_id"] for item in items if item.get("sentence_id")]

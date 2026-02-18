@@ -321,6 +321,68 @@ def generate_word_audio(lemma_id: int) -> None:
 
 
 MIN_SENTENCES_PER_WORD = 2
+PIPELINE_CAP = 300
+
+
+def rotate_stale_sentences(db, min_shown: int = 1, min_active: int = 2) -> int:
+    """Retire stale sentences where all scaffold words are fully known.
+
+    Returns the number of sentences retired.
+    """
+    from scripts.rotate_stale_sentences import compute_diversity_score
+
+    sentences = db.query(Sentence).filter(Sentence.is_active == True).all()  # noqa: E712
+    all_sw = db.query(SentenceWord).all()
+    all_ulk = db.query(UserLemmaKnowledge).all()
+
+    knowledge_map = {k.lemma_id: k for k in all_ulk}
+    sw_by_sentence: dict[int, list] = {}
+    for sw in all_sw:
+        sw_by_sentence.setdefault(sw.sentence_id, []).append(sw)
+
+    active_per_target: dict[int | None, int] = {}
+    for s in sentences:
+        active_per_target[s.target_lemma_id] = active_per_target.get(s.target_lemma_id, 0) + 1
+
+    stale: list[tuple] = []
+    for sent in sentences:
+        sws = sw_by_sentence.get(sent.id, [])
+        if not sws:
+            continue
+        scores = compute_diversity_score(sws, knowledge_map)
+        is_stale = (
+            scores["acquiring_count"] == 0
+            and scores["scaffold_count"] >= 2
+            and (sent.times_shown or 0) >= min_shown
+        )
+        if is_stale:
+            stale.append((sent, scores))
+
+    stale.sort(key=lambda x: (x[1]["diversity_score"], -x[1]["scaffold_count"]))
+
+    retire_per_target: dict[int | None, int] = {}
+    retired = 0
+    for sent, scores in stale:
+        target_id = sent.target_lemma_id
+        already_retiring = retire_per_target.get(target_id, 0)
+        active = active_per_target.get(target_id, 0)
+        if active - already_retiring > min_active:
+            sent.is_active = False
+            retire_per_target[target_id] = already_retiring + 1
+            retired += 1
+
+    if retired:
+        db.commit()
+        logger.info(f"Rotated {retired} stale sentences")
+        from app.services.activity_log import log_activity
+        log_activity(
+            db,
+            event_type="sentences_retired",
+            summary=f"Rotated {retired} stale sentences (background warm cache)",
+            detail={"retired": retired, "total_active": len(sentences)},
+        )
+
+    return retired
 
 
 def warm_sentence_cache() -> dict:
@@ -329,6 +391,7 @@ def warm_sentence_cache() -> dict:
     Uses multi-target generation to efficiently cover multiple words per sentence.
     Identifies focus cohort words + likely auto-introductions that have fewer
     than MIN_SENTENCES_PER_WORD active sentences, then generates for them.
+    Rotates stale sentences first to stay within the pipeline cap.
     Opens its own DB session. Returns stats dict for logging.
     """
     from app.services.cohort_service import get_focus_cohort
@@ -347,17 +410,21 @@ def warm_sentence_cache() -> dict:
     from sqlalchemy.orm import joinedload
 
     db = SessionLocal()
-    stats = {"cohort_gaps": 0, "intro_gaps": 0, "generated": 0, "multi_target": 0}
+    stats = {"cohort_gaps": 0, "intro_gaps": 0, "generated": 0, "multi_target": 0, "rotated": 0}
     try:
-        # Check pipeline cap before pre-generating
+        # Check pipeline cap — rotate stale sentences first to make room
         total_active = (
             db.query(func.count(Sentence.id))
             .filter(Sentence.is_active == True)
             .scalar() or 0
         )
-        PIPELINE_CAP = 300
+        if total_active >= PIPELINE_CAP:
+            rotated = rotate_stale_sentences(db)
+            stats["rotated"] = rotated
+            total_active -= rotated
+
         if total_active >= PIPELINE_CAP + 10:
-            logger.info(f"Warm cache: pipeline over cap ({total_active} >= {PIPELINE_CAP + 10}), skipping")
+            logger.info(f"Warm cache: still over cap after rotation ({total_active} >= {PIPELINE_CAP + 10}), skipping")
             return stats
 
         # Collect all words needing sentences

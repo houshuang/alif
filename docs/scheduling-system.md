@@ -48,8 +48,8 @@ reading vocabulary growing steadily.
 ### Core Principles
 
 1. **Sentences always** — Never show bare word flashcards in review. Every review
-   card is a sentence. If a due word has no comprehensible sentence, generate one
-   on-demand or skip the word.
+   card is a sentence. If a due word has no comprehensible sentence, skip the word
+   (background generation will create sentences for next session).
 
 2. **Full automation** — The algorithm decides everything: which words to review,
    when to introduce new words, when to suspend leeches, when to reintroduce them.
@@ -672,6 +672,17 @@ The frontend prefetches one session ahead to provide instant session transitions
    it in AsyncStorage. When the user taps "Next Session", the cached session loads instantly
    with no server call. This is the only prefetch — one per session cycle.
 
+3. **Background warm after session load**: Every non-prefetch session load triggers
+   `warm_sentence_cache()` as a FastAPI background task. This rotates stale sentences
+   (freeing pipeline cap space) and generates new sentences for gap words, so the next
+   session has more pre-built material. (Added: 2026-02-18)
+
+**Fast session loads**: Non-prefetch session requests skip on-demand LLM generation
+(`skip_on_demand=True`) for fast response (~0.5s instead of ~30s). Sessions may have
+fewer items (e.g., 9 instead of 10) but load instantly. Background warming fills gaps
+for subsequent sessions. Prefetch requests still do full generation since they already
+run in the background. (Fix: 2026-02-18)
+
 **Why only one prefetch**: Previously 7 prefetch requests fired per session cycle (from
 session start, near-end, session-complete, and next-session-start). Each triggered on-demand
 generation (DB writes). Concurrent SQLite writes caused "database is locked" errors that
@@ -968,10 +979,11 @@ Two paths for sentence availability:
    `MIN_SENTENCES=2` per word. Pool cap: 300 active sentences with `CAP_HEADROOM=30`
    (retires down to 270 so backfill always has budget for multi-target generation).
 
-2. **On-demand (JIT)**: During `build_session()`, if a due word has no comprehensible
-   sentence, generate one synchronously. Uses current vocabulary for better-calibrated
-   scaffolding than pre-generated pool. Both the main phase and fill phase can generate
-   on-demand, bounded by remaining session capacity.
+2. **On-demand (JIT)**: During `build_session()` with `skip_on_demand=False` (prefetch
+   requests only), if a due word has no comprehensible sentence, generate one synchronously.
+   Direct user requests use `skip_on_demand=True` for fast load (~0.5s); uncovered words
+   get sentences via background warming instead. Both the main phase and fill phase can
+   generate on-demand when enabled, bounded by remaining session capacity.
 
 3. **Pre-warming**: `POST /api/review/warm-sentences` (triggered by frontend at 3 cards
    remaining) pre-generates sentences for focus cohort gaps and likely introductions
@@ -1002,8 +1014,9 @@ Step 0 retires down to `300 - CAP_HEADROOM` (270) to leave budget for multi-targ
 backfill in Step A. Retirement priority: never-shown stale → shown stale → oldest,
 always keeping at least 1 sentence per word.
 
-**Warm cache** (`warm_sentence_cache()`) allows up to `PIPELINE_CAP + 10` (310) before
-skipping, to avoid blocking pre-warming when slightly over cap.
+**Warm cache** (`warm_sentence_cache()`) now rotates stale sentences before checking
+the cap, so it can free space even when over the limit. After rotation, it allows up to
+`PIPELINE_CAP + 10` (310) before skipping generation.
 
 Old, low-diversity sentences are retired via `is_active=False`. The retirement script
 (`scripts/rotate_stale_sentences.py`) deactivates sentences with overexposed scaffold

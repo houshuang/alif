@@ -1129,26 +1129,26 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
     if (!item) return null;
 
     const wordLines = item.words.map((w, i) => {
-      const known = w.knowledge_state === "known" || w.knowledge_state === "learning";
-      const status = w.is_function_word ? "function_word" : (known ? "known" : "unknown/new");
-      const parts = [`${i + 1}. ${w.surface_form} — ${status}`];
-      if (w.gloss_en) parts.push(`gloss: "${w.gloss_en}"`);
+      let status = w.knowledge_state || "new";
+      if (w.is_function_word) status = "function_word";
+      const parts = [`${i + 1}. ${w.surface_form} (${status})`];
+      if (w.gloss_en) parts.push(`"${w.gloss_en}"`);
       if (w.root) parts.push(`root: ${w.root}`);
-      if (w.grammar_tags?.length) parts.push(`grammar: ${w.grammar_tags.join(", ")}`);
-      return parts.join(", ");
+      return parts.join(" — ");
     }).join("\n");
 
     return [
-      "Explain this Arabic sentence word by word.",
-      "For each word:",
-      "1) Give the base lemma (Arabic + transliteration)",
-      "2) Explain what prefixes, suffixes, or clitics are attached and what they mean",
-      "3) Identify the grammar pattern (verb form, case ending, إضافة, حال, etc.)",
-      "4) Briefly note how it fits into the overall sentence structure",
+      "I can see this Arabic sentence with its English translation and the individual word glosses, but I can't figure out how they fit together. Explain how the Arabic produces the English meaning.",
       "",
-      "Then give a one-line summary of the full sentence's grammatical structure.",
+      "Focus on:",
+      "- The parts that are confusing: why does this combination of words mean this?",
+      "- Hidden grammar: clitics, case markers, verb forms, إضافة, or word order that change the meaning",
+      "- Anything that can't be understood from just knowing the individual words",
       "",
-      "Words (my knowledge level indicated):",
+      "Skip words that are obvious. Spend more time on the tricky parts.",
+      "Keep it short and practical — I want to understand this sentence, not get a grammar lecture.",
+      "",
+      "Words:",
       wordLines,
     ].join("\n");
   }
