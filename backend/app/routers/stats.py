@@ -421,7 +421,7 @@ def get_analytics(
         )
         .scalar() or 0
     )
-    cefr = _estimate_cefr(basic.known, acquiring_known=acquiring_recognized)
+    cefr = _estimate_cefr(basic.known + basic.learning, acquiring_known=acquiring_recognized)
     history = _get_daily_history(db, days, first_known_dates=first_known_dates)
 
     comp_today = _get_comprehension_breakdown(db, 0)
@@ -455,7 +455,7 @@ def get_analytics(
 
 @router.get("/cefr", response_model=CEFREstimate)
 def get_cefr(db: Session = Depends(get_db)):
-    known = _count_state(db, "known")
+    known = _count_state(db, "known") + _count_state(db, "learning")
     acq_known = (
         db.query(func.count(UserLemmaKnowledge.id))
         .filter(

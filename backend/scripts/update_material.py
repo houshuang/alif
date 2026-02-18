@@ -7,6 +7,7 @@ Steps:
   A) Backfill sentences for introduced words (< 2 sentences each)
   B) Generate audio for review-eligible sentences (all words reviewed ≥1 time)
   C) Pre-generate sentences for top upcoming word candidates (no audio)
+  F) Reintroduce leeches past their cooldown period
 
 Usage:
     python scripts/update_material.py                  # full run
@@ -751,6 +752,20 @@ async def main():
         else:
             print("  All lemmas enriched")
 
+        # Step F: Reintroduce leeches past cooldown
+        leech_f = 0
+        print("\n═══ Step F: Leech reintroductions ═══")
+        if not args.dry_run:
+            from app.services.leech_service import check_leech_reintroductions
+            reintroduced = check_leech_reintroductions(db)
+            leech_f = len(reintroduced)
+            if leech_f:
+                print(f"  Reintroduced {leech_f} leeches: {reintroduced}")
+            else:
+                print("  No leeches ready for reintroduction")
+        else:
+            print("  Skipped (dry run)")
+
         elapsed = time.time() - start
         print(f"\n{'─' * 60}")
         print(f"Done in {elapsed:.1f}s")
@@ -760,12 +775,13 @@ async def main():
         print(f"  Step C sentences: {sent_c}")
         print(f"  Step D SAMER:     {samer_d}")
         print(f"  Step E enriched:  {enrich_e}")
+        print(f"  Step F leeches:   {leech_f}")
 
-        if not args.dry_run and (retired_0 + sent_a + audio_b + sent_c + enrich_e > 0):
+        if not args.dry_run and (retired_0 + sent_a + audio_b + sent_c + enrich_e + leech_f > 0):
             log_activity(
                 db,
                 event_type="material_updated",
-                summary=f"Retired {retired_0}, generated {sent_a}+{sent_c} sentences, {audio_b} audio, enriched {enrich_e} in {elapsed:.0f}s",
+                summary=f"Retired {retired_0}, generated {sent_a}+{sent_c} sentences, {audio_b} audio, enriched {enrich_e}, reintro {leech_f} leeches in {elapsed:.0f}s",
                 detail={
                     "step_0_retired": retired_0,
                     "step_a_sentences": sent_a,
@@ -773,6 +789,7 @@ async def main():
                     "step_c_sentences": sent_c,
                     "step_d_samer": samer_d,
                     "step_e_enriched": enrich_e,
+                    "step_f_leeches": leech_f,
                     "elapsed_seconds": round(elapsed, 1),
                 },
             )
