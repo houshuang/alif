@@ -17,6 +17,7 @@ from app.schemas import (
     StateTransitions, ComprehensionBreakdown, StrugglingWord,
     RootCoverage, SessionDetail,
     AcquisitionWord, RecentGraduation, AcquisitionPipeline,
+    InsightsOut,
 )
 
 router = APIRouter(prefix="/api/stats", tags=["stats"])
@@ -953,6 +954,179 @@ def _get_acquisition_pipeline(db: Session) -> AcquisitionPipeline:
     )
 
 
+def _get_insights(db: Session) -> InsightsOut:
+    # 1. Average encounters to graduation
+    avg_enc = (
+        db.query(func.avg(UserLemmaKnowledge.times_seen))
+        .filter(UserLemmaKnowledge.graduated_at.isnot(None))
+        .scalar()
+    )
+    avg_encounters = round(float(avg_enc), 1) if avg_enc else None
+
+    # 2. Graduation rate
+    entered_count = (
+        db.query(func.count(UserLemmaKnowledge.id))
+        .filter(UserLemmaKnowledge.entered_acquiring_at.isnot(None))
+        .scalar() or 0
+    )
+    graduated_count = (
+        db.query(func.count(UserLemmaKnowledge.id))
+        .filter(UserLemmaKnowledge.graduated_at.isnot(None))
+        .scalar() or 0
+    )
+    grad_rate = round(graduated_count / entered_count * 100, 1) if entered_count > 0 else None
+
+    # 3. Total reading time
+    total_time = (
+        db.query(func.coalesce(func.sum(SentenceReviewLog.response_ms), 0))
+        .scalar() or 0
+    )
+
+    # 4. Strongest word (highest FSRS stability)
+    strongest = None
+    strong_rows = (
+        db.query(
+            Lemma.lemma_ar, Lemma.gloss_en,
+            func.json_extract(UserLemmaKnowledge.fsrs_card_json, '$.stability').label('stab'),
+        )
+        .join(Lemma, Lemma.lemma_id == UserLemmaKnowledge.lemma_id)
+        .filter(UserLemmaKnowledge.fsrs_card_json.isnot(None))
+        .order_by(func.json_extract(UserLemmaKnowledge.fsrs_card_json, '$.stability').desc())
+        .limit(1)
+        .all()
+    )
+    if strong_rows:
+        r = strong_rows[0]
+        if r.stab is not None:
+            strongest = {
+                "lemma_ar": r.lemma_ar,
+                "gloss_en": r.gloss_en,
+                "stability_days": round(float(r.stab), 1),
+            }
+
+    # 5. Most encountered word
+    most_enc = None
+    enc_rows = (
+        db.query(
+            Lemma.lemma_ar, Lemma.gloss_en,
+            UserLemmaKnowledge.total_encounters,
+        )
+        .join(Lemma, Lemma.lemma_id == UserLemmaKnowledge.lemma_id)
+        .filter(UserLemmaKnowledge.total_encounters > 0)
+        .order_by(UserLemmaKnowledge.total_encounters.desc())
+        .limit(1)
+        .all()
+    )
+    if enc_rows:
+        r = enc_rows[0]
+        most_enc = {
+            "lemma_ar": r.lemma_ar,
+            "gloss_en": r.gloss_en,
+            "total_encounters": r.total_encounters,
+        }
+
+    # 6. Average stability
+    avg_stab = (
+        db.query(func.avg(
+            func.json_extract(UserLemmaKnowledge.fsrs_card_json, '$.stability')
+        ))
+        .filter(
+            UserLemmaKnowledge.fsrs_card_json.isnot(None),
+            UserLemmaKnowledge.knowledge_state.in_(["known", "learning"]),
+        )
+        .scalar()
+    )
+    avg_stability = round(float(avg_stab), 1) if avg_stab else None
+
+    # 7. Best weekday
+    best_day = None
+    day_rows = (
+        db.query(
+            func.strftime('%w', ReviewLog.reviewed_at).label('dow'),
+            func.count(ReviewLog.id).label('total'),
+            func.sum(case((ReviewLog.rating >= 3, 1), else_=0)).label('correct'),
+        )
+        .group_by(func.strftime('%w', ReviewLog.reviewed_at))
+        .having(func.count(ReviewLog.id) >= 5)
+        .all()
+    )
+    if day_rows:
+        day_names = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]
+        best = max(day_rows, key=lambda r: (r.correct or 0) / max(r.total, 1))
+        acc = round((best.correct or 0) / max(best.total, 1) * 100, 1)
+        best_day = {
+            "day_name": day_names[int(best.dow)],
+            "accuracy_pct": acc,
+            "review_count": best.total,
+        }
+
+    # 8. Dark horse root
+    dark_horse = None
+    root_rows = (
+        db.query(
+            Root.root, Root.core_meaning_en,
+            func.count(Lemma.lemma_id).label("total"),
+            func.sum(
+                case(
+                    (UserLemmaKnowledge.knowledge_state.in_(["known", "learning"]), 1),
+                    else_=0,
+                )
+            ).label("known"),
+        )
+        .join(Lemma, Lemma.root_id == Root.root_id)
+        .outerjoin(UserLemmaKnowledge, UserLemmaKnowledge.lemma_id == Lemma.lemma_id)
+        .filter(Lemma.canonical_lemma_id.is_(None))
+        .group_by(Root.root_id)
+        .having(func.count(Lemma.lemma_id) >= 3)
+        .all()
+    )
+    if root_rows:
+        partial = [r for r in root_rows if 0 < (r.known or 0) < r.total]
+        if partial:
+            best_root = max(partial, key=lambda r: r.total - (r.known or 0))
+            dark_horse = {
+                "root": best_root.root,
+                "meaning": best_root.core_meaning_en,
+                "known": best_root.known or 0,
+                "total": best_root.total,
+            }
+
+    # 9. Unique sentences reviewed
+    unique_sent = (
+        db.query(func.count(func.distinct(SentenceReviewLog.sentence_id)))
+        .scalar() or 0
+    )
+
+    # 10. Forgetting forecast
+    now = datetime.now(timezone.utc)
+    forecast = {}
+    for label, skip_days in [("skip_1d", 1), ("skip_3d", 3), ("skip_7d", 7)]:
+        cutoff = (now + timedelta(days=skip_days)).isoformat()
+        count = (
+            db.query(func.count(UserLemmaKnowledge.id))
+            .filter(
+                UserLemmaKnowledge.fsrs_card_json.isnot(None),
+                UserLemmaKnowledge.knowledge_state.in_(["known", "learning"]),
+                func.json_extract(UserLemmaKnowledge.fsrs_card_json, '$.due') <= cutoff,
+            )
+            .scalar() or 0
+        )
+        forecast[label] = count
+
+    return InsightsOut(
+        avg_encounters_to_graduation=avg_encounters,
+        graduation_rate_pct=grad_rate,
+        total_reading_time_ms=total_time,
+        strongest_word=strongest,
+        most_encountered_word=most_enc,
+        avg_stability_days=avg_stability,
+        best_weekday=best_day,
+        dark_horse_root=dark_horse,
+        unique_sentences_reviewed=unique_sent,
+        forgetting_forecast=forecast,
+    )
+
+
 @router.get("/deep-analytics", response_model=DeepAnalyticsOut)
 def get_deep_analytics(db: Session = Depends(get_db)):
     return DeepAnalyticsOut(
@@ -968,4 +1142,5 @@ def get_deep_analytics(db: Session = Depends(get_db)):
         root_coverage=_get_root_coverage(db),
         recent_sessions=_get_recent_sessions(db),
         acquisition_pipeline=_get_acquisition_pipeline(db),
+        insights=_get_insights(db),
     )

@@ -233,11 +233,11 @@
 - [DONE] ULK provenance tracking: source field on UserLemmaKnowledge distinguishes study (Learn mode), auto_intro (inline review), collocate (sentence gen), duolingo (import), encountered (collateral credit in sentence review). introduce_word() accepts source param.
 
 ### Analytics Dashboard
-- Words learned over time (cumulative)
+- [DONE] Words learned over time (cumulative) — KnownWordsGrowth component shows cumulative_known with week/month deltas
 - Review accuracy by category (POS, frequency band, root family)
-- Time per review card
-- Retention curves
-- Root coverage: % of top-N roots mastered
+- [DONE] Time per review card — InsightsCard shows total reading time
+- [DONE] Retention curves — RetentionSection shows 7d + 30d retention side-by-side
+- [DONE] Root coverage: % of top-N roots mastered — Root Progress section in Deep Dive
 - Predicted vocabulary size
 - [DONE] CEFR arrival prediction: "~X days at this week's pace" on the CEFR card (weekly + today's pace extrapolation)
 - [DONE] Book pages equivalent: total words reviewed / 200 = pages read this week

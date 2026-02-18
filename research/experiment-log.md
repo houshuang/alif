@@ -2126,10 +2126,43 @@ Full backend implementation of the 4-phase learning algorithm redesign.
 - **H18**: Etymology display (root meaning + pattern formula + loanwords) provides memory hooks that reduce time-to-graduation
 
 ### Not Yet Implemented
-- Frontend changes (acquiring state display, wrap-up UI, recap UI, cohort indicator, etymology display)
 - Thematic sentence generation (grouping target words by theme for batch generation)
-- py-fsrs v6 upgrade (same-day review support)
 - A/B testing framework
+
+---
+
+## 2026-02-18: Stats Panel Redesign
+
+### Change
+Complete reorganization of `frontend/app/stats.tsx` from 13 flat cards into 5 grouped sections: Today, Vocabulary, Progress, Sessions, Deep Dive.
+
+### New Components
+- **SectionHeader**: Styled section dividers
+- **WordLifecycleFunnel**: Horizontal pipeline showing Encountered→Acquiring→Learning→Known with counts
+- **KnownWordsGrowth**: Large cumulative_known number with week/month deltas from daily_history
+- **InsightsCard**: 10 derived stats in 2-column grid (encounters-to-graduation, graduation rate, reading time, strongest word, most encountered, avg stability, best weekday, dark horse root, unique sentences, forgetting forecast)
+- **TransitionsSection**: 7d + 30d state transitions side-by-side
+- **RetentionSection**: 7d + 30d retention side-by-side
+
+### Backend Addition
+- `InsightsOut` schema added to `schemas.py`
+- `_get_insights(db)` function added to `routers/stats.py` — 10 SQL queries computing derived stats from existing data
+- Included in `DeepAnalyticsOut` response (no new endpoint needed)
+
+### Data Surfaced (already served by backend, newly displayed)
+1. `cefr.reading_coverage_pct` — estimated % of Arabic text readable
+2. `daily_history[].cumulative_known` — cumulative known words over time
+3. `pace.words_per_day_30d` / `pace.reviews_per_day_30d` — 30-day pace values
+4. `deepAnalytics.comprehension_30d` — 30-day comprehension breakdown
+5. `deepAnalytics.transitions_30d` — 30-day state transitions
+
+### Removed
+- Quick Stats Grid (replaced by WordLifecycleFunnel)
+- LearningVelocitySection (split: today transitions → TodayHeroCard, 7d/30d → TransitionsSection)
+
+### Hypothesis
+- **H19**: Grouped sections with meaningful hierarchy will reduce cognitive load and increase stats screen engagement
+- **H20**: Surfacing hidden data (reading coverage, 30d trends, insights) will provide better self-assessment
 
 ### How to Verify (after deploy)
 1. Run `reset_ocr_cards.py --dry-run` to preview OCR data fix
