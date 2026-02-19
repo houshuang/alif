@@ -27,6 +27,7 @@ from app.services.sentence_generator import (
     sample_known_words_weighted,
 )
 from app.services.sentence_validator import (
+    ARABIC_PUNCTUATION,
     FUNCTION_WORDS,
     build_lemma_lookup,
     normalize_alef,
@@ -112,8 +113,28 @@ def _get_all_lemmas(db: Session) -> list:
 
 
 def _tokenize_story(text: str) -> list[str]:
-    """Tokenize story text, preserving sentence boundaries via index tracking."""
+    """Tokenize story text, stripping punctuation (for lookup/compliance)."""
     return tokenize(text)
+
+
+def _tokenize_story_display(text: str) -> list[tuple[str, str]]:
+    """Tokenize story text preserving punctuation on surface forms.
+
+    Same approach as tokenize_display() used for sentence review.
+    Returns list of (display_form, clean_form) tuples.
+    display_form keeps punctuation attached. clean_form is bare for lookup.
+    """
+    results = []
+    for raw_token in text.split():
+        if not raw_token.strip():
+            continue
+        clean = strip_diacritics(raw_token)
+        clean = strip_tatweel(clean)
+        clean = ARABIC_PUNCTUATION.sub("", clean)
+        if not clean.strip():
+            continue
+        results.append((raw_token, clean))
+    return results
 
 
 def _create_story_words(
@@ -125,9 +146,11 @@ def _create_story_words(
 ) -> tuple[int, int, int]:
     """Create StoryWord records for each token in the story.
 
+    Surface forms preserve original punctuation (commas, periods, guillemets)
+    so the reader can display them naturally.
+
     Returns (total_words, known_count, function_word_count).
     """
-    # Split on periods and newlines to preserve poem/verse formatting
     import re
     raw_parts = re.split(r"[.\n]", body_ar)
     sentences = [s.strip() for s in raw_parts if s.strip()]
@@ -145,15 +168,12 @@ def _create_story_words(
     all_lemma_ids_needed: set[int] = set()
     morph_cache: dict[str, int | None] = {}
     for sent_idx, sentence_text in enumerate(sentences):
-        tokens = _tokenize_story(sentence_text)
-        for token in tokens:
-            bare = strip_diacritics(token)
-            bare_clean = strip_tatweel(bare)
-            bare_norm = normalize_alef(bare_clean)
-            if not _is_function_word(bare_clean):
+        for display_form, clean_form in _tokenize_story_display(sentence_text):
+            bare_norm = normalize_alef(clean_form)
+            if not _is_function_word(clean_form):
                 lid = lookup_lemma(bare_norm, lemma_lookup)
                 if not lid and bare_norm not in morph_cache:
-                    match = find_best_db_match(bare_clean, known_bare_forms)
+                    match = find_best_db_match(clean_form, known_bare_forms)
                     if match:
                         lex_norm = normalize_alef(match["lex_bare"])
                         lid = lemma_lookup.get(lex_norm)
@@ -169,13 +189,10 @@ def _create_story_words(
         lemma_by_id = {l.lemma_id: l for l in lemma_rows}
 
     for sent_idx, sentence_text in enumerate(sentences):
-        tokens = _tokenize_story(sentence_text)
-        for token in tokens:
-            bare = strip_diacritics(token)
-            bare_clean = strip_tatweel(bare)
-            bare_norm = normalize_alef(bare_clean)
+        for display_form, clean_form in _tokenize_story_display(sentence_text):
+            bare_norm = normalize_alef(clean_form)
 
-            is_func = _is_function_word(bare_clean)
+            is_func = _is_function_word(clean_form)
             lemma_id = None if is_func else lookup_lemma(bare_norm, lemma_lookup)
             if not lemma_id and not is_func:
                 lemma_id = morph_cache.get(bare_norm)
@@ -201,7 +218,7 @@ def _create_story_words(
             sw = StoryWord(
                 story_id=story.id,
                 position=position,
-                surface_form=token,
+                surface_form=display_form,
                 lemma_id=lemma_id,
                 sentence_index=sent_idx,
                 gloss_en=gloss,

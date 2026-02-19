@@ -292,7 +292,9 @@ export default function StoryReadScreen() {
           </View>
         ) : (
           <Text style={styles.englishText}>
-            {story.body_en || "No translation available."}
+            {(story.body_en || "No translation available.")
+              .split(/(?<=\.)\s+/)
+              .join("\n\n")}
           </Text>
         )}
 
