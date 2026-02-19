@@ -28,6 +28,7 @@ from app.services.sentence_validator import (
     normalize_alef,
     strip_diacritics,
     tokenize_display,
+    verify_word_mappings_llm,
 )
 from app.services.story_service import (
     _create_story_words,
@@ -341,6 +342,27 @@ def create_book_sentences(
         still_unmapped = [m.surface_form for m in mappings if m.lemma_id is None]
         if still_unmapped:
             logger.info(f"Book sentence has {len(still_unmapped)} unmapped words (kept): {still_unmapped[:5]}")
+
+        # LLM verification of word-lemma mappings — null out bad ones
+        from app.config import settings as _settings
+        mapped = [m for m in mappings if m.lemma_id is not None]
+        if _settings.verify_mappings_llm and mapped:
+            lemma_map_for_verify = {
+                l.lemma_id: l for l in db.query(Lemma).filter(
+                    Lemma.lemma_id.in_([m.lemma_id for m in mapped])
+                ).all()
+            }
+            wrong_positions = verify_word_mappings_llm(
+                arabic, english, mapped, lemma_map_for_verify,
+            )
+            if wrong_positions:
+                for m in mappings:
+                    if m.position in wrong_positions:
+                        logger.warning(
+                            f"LLM flagged bad mapping: {m.surface_form} → "
+                            f"lemma {m.lemma_id}, nulling out"
+                        )
+                        m.lemma_id = None
 
         target_lid = _pick_primary_target(mappings, db)
 

@@ -255,6 +255,24 @@ def store_multi_target_sentence(
         db.delete(sent)
         return None
 
+    # LLM verification of word-lemma mappings
+    from app.config import settings as _settings
+    if _settings.verify_mappings_llm:
+        from app.services.sentence_validator import verify_word_mappings_llm
+        lemma_map_for_verify = {l.lemma_id: l for l in db.query(Lemma).filter(
+            Lemma.lemma_id.in_([m.lemma_id for m in mappings if m.lemma_id])
+        ).all()}
+        wrong_positions = verify_word_mappings_llm(
+            result.arabic, result.english, mappings, lemma_map_for_verify,
+        )
+        if wrong_positions:
+            logger.warning(
+                f"LLM flagged mapping issues at positions {wrong_positions} "
+                f"in multi-target sentence, discarding"
+            )
+            db.delete(sent)
+            return None
+
     for m in mappings:
         # Check if this token matches any of the other targets
         is_target = m.is_target

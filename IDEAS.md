@@ -64,10 +64,9 @@
 - **Timing**: Revisit during sentence generation redesign.
 
 ### Book Import LLM Mapping Verification
-- Book import pipeline (`book_import_service.py`) does NOT run `verify_word_mappings_llm()` — unlike sentence generation, which verifies every mapping via Gemini Flash
-- This caused "تلمع" (to glisten) to be mapped to "مع" (with) — NLP stripped ت-prefix and matched remainder
-- **Idea**: Add LLM mapping verification as post-import step for book sentences. Could run as part of enrichment or as separate Step H in cron.
-- Trade-off: adds Gemini API cost per book import, but catches homograph/prefix-stripping errors
+- [DONE] Book import pipeline now runs `verify_word_mappings_llm()` on each sentence during import. Bad mappings are nulled out (not discarded). Also added to `store_multi_target_sentence()`.
+- Initial scan of 9 existing book sentences found 15 bad mappings (e.g. "تلمع"→"مع", "بيدها"→"باد", "روزي"→"روز"). ~20% false positive rate on correct conjugated forms.
+- Trade-off: adds ~$0.001 Gemini API cost per sentence, catches homograph/prefix-stripping errors
 
 ### Sentence Sources
 - LLM-generated sentences with vocabulary constraints

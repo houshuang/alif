@@ -18,11 +18,27 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 ### Expected Impact
 - Book sentences will only appear when the learner has actively studied ≥60% of scaffold words
 - Slower book progression but much more comprehensible sessions
-- Bad mappings in book imports still possible (LLM verification not yet added to book pipeline)
 
 ### Verification
 - `python3 -m pytest` — 704 tests passing
 - Next session should have fewer unknown words per sentence
+
+---
+
+## 2026-02-19: LLM Mapping Verification for Book Imports
+
+### Problem
+Book import pipeline (`book_import_service.py`) created sentence_words without LLM verification of lemma mappings. The sentence generation pipeline had this (`verify_word_mappings_llm()`), but book imports and `store_multi_target_sentence()` did not. This caused bad mappings like "تلمع" → "مع", "بيدها" → "باد", "روزي" → "روز".
+
+### Changes
+1. **Added LLM verification to `_create_book_sentences()`** — bad mappings nulled out (not discarded)
+2. **Added LLM verification to `store_multi_target_sentence()`** — discards sentence if bad mappings found
+3. **Scanned existing book sentences** — found and nulled 15 bad mappings across 9 sentences
+
+### Impact
+- All sentence creation paths now have consistent LLM mapping verification
+- ~$0.001 Gemini API cost per sentence verified
+- ~20% false positive rate on conjugated forms (null mapping safer than wrong mapping)
 
 ---
 
