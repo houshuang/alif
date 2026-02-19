@@ -29,7 +29,7 @@ For each word, generate:
 
 2. cognates: Words in the learner's OTHER languages that come from this Arabic root or share origin. Arabic has lent EXTENSIVELY to: Hindi/Urdu (hundreds of direct borrowings), Indonesian/Malay (hundreds of direct borrowings, e.g. kitab, masjid, waktu), Spanish (800 years Moorish rule — azul, algodón, alcohol), and lesser extent French, Italian, English. Also check for Arabic loanwords in Indonesian specifically (very common). If the word IS a direct borrowing in any language, mark it prominently — this is MORE useful than a mnemonic. Format: [{"lang": "Hindi", "word": "किताब (kitāb)", "note": "direct borrowing — you already know this!"}]. Return [] if no cognates exist.
 
-3. collocations: 2-3 common Arabic phrases using this word. Full diacritics on Arabic. Natural English translations. Pick phrases the learner would actually encounter in reading.
+3. collocations: 2-3 common Arabic phrases using this word. Format: [{"ar": "Arabic with full diacritics ONLY", "en": "English translation ONLY"}]. Do NOT include transliteration in either field. Keep ar pure Arabic, en pure English.
 
 4. usage_context: 1-2 sentences about where you'd encounter this word. Be specific ("in news headlines about politics", "on restaurant menus") not generic.
 

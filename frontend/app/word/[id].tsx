@@ -339,12 +339,33 @@ export default function WordDetailScreen() {
             {word.memory_hooks_json.collocations && word.memory_hooks_json.collocations.length > 0 && (
               <View style={styles.hooksSubsection}>
                 <Text style={styles.etymologyLabel}>Common phrases</Text>
-                {word.memory_hooks_json.collocations.map((c, i) => (
-                  <View key={i} style={styles.collocationRow}>
-                    <Text style={styles.collocationAr}>{c.ar}</Text>
-                    <Text style={styles.collocationEn}>{c.en}</Text>
-                  </View>
-                ))}
+                {word.memory_hooks_json.collocations.map((c, i) => {
+                  // Parse mixed ar field: strip transliteration in parens and trailing "— English"
+                  let arText = c.ar || "";
+                  let enText = c.en || "";
+                  if (!enText && arText) {
+                    // Extract English from mixed field: "Arabic (translit) — English"
+                    const dashMatch = arText.match(/\s*[—–-]\s*(?![\u0600-\u06FF])(.+)$/);
+                    if (dashMatch) {
+                      enText = dashMatch[1].trim();
+                      arText = arText.slice(0, dashMatch.index).trim();
+                    }
+                    // Strip parenthetical transliteration/English from Arabic
+                    const parenMatch = arText.match(/\s*\(([^)]+)\)\s*/);
+                    if (parenMatch) {
+                      if (!enText) enText = parenMatch[1].trim();
+                      arText = arText.replace(parenMatch[0], " ").trim();
+                    }
+                  }
+                  // Strip any remaining transliteration from ar field
+                  arText = arText.replace(/\([^)]*\)/g, "").trim();
+                  return (
+                    <View key={i} style={styles.collocationRow}>
+                      <Text style={styles.collocationAr}>{arText}</Text>
+                      {enText ? <Text style={styles.collocationEn}>{enText}</Text> : null}
+                    </View>
+                  );
+                })}
               </View>
             )}
 
