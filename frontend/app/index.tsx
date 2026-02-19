@@ -1138,15 +1138,17 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
     }).join("\n");
 
     return [
-      "I can see this Arabic sentence with its English translation and the individual word glosses, but I can't figure out how they fit together. Explain how the Arabic produces the English meaning.",
+      "Explain how this Arabic sentence works as a whole — how the words combine to produce the meaning, and why the English translation captures it that way.",
       "",
       "Focus on:",
-      "- The parts that are confusing: why does this combination of words mean this?",
-      "- Hidden grammar: clitics, case markers, verb forms, إضافة, or word order that change the meaning",
-      "- Anything that can't be understood from just knowing the individual words",
+      "- The overall meaning and feel: what is this sentence really saying?",
+      "- Why it's translated this way — are there nuances, idioms, or cultural context?",
+      "- Alternative translations that would also work, and what shades of meaning they'd carry",
+      "- Alternative ways a native speaker might express the same idea",
+      "- Any structural patterns worth noticing (word order, verb form choices, إضافة) — but only when they affect meaning",
       "",
-      "Skip words that are obvious. Spend more time on the tricky parts.",
-      "Keep it short and practical — I want to understand this sentence, not get a grammar lecture.",
+      "Don't list every particle or explain obvious words. I can see the glosses already.",
+      "Give me a feel for how Arabic expresses this thought, not a word-by-word breakdown.",
       "",
       "Words:",
       wordLines,
