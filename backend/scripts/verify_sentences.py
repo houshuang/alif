@@ -108,7 +108,7 @@ def main():
     parser = argparse.ArgumentParser(description="Verify Arabic sentence naturalness")
     parser.add_argument("--dry-run", action="store_true", help="Report only, don't retire")
     parser.add_argument("--workers", type=int, default=MAX_WORKERS, help=f"Parallel workers (default: {MAX_WORKERS})")
-    parser.add_argument("--model", default="openai", help="LLM model for verification (default: openai)")
+    parser.add_argument("--model", default="gemini", help="LLM model for verification (default: gemini)")
     args = parser.parse_args()
 
     db = SessionLocal()

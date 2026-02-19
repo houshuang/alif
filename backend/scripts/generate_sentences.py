@@ -9,7 +9,7 @@ Usage:
     python scripts/generate_sentences.py --target-count 2   # generate 2 per word
     python scripts/generate_sentences.py --word-id 42       # single word only
     python scripts/generate_sentences.py --dry-run           # validate but don't write to DB
-    python scripts/generate_sentences.py --model openai      # use a specific model
+    python scripts/generate_sentences.py --model gemini      # use a specific model
 """
 
 import argparse
@@ -126,7 +126,7 @@ def generate_for_word(
     lemma_lookup: dict[str, int],
     needed: int,
     dry_run: bool = False,
-    model: str = "openai",
+    model: str = "gemini",
     delay: float = 0,
     avoid_words: list[str] | None = None,
 ) -> tuple[int, int]:
@@ -177,7 +177,7 @@ def main():
     parser.add_argument("--target-count", type=int, default=3, help="Sentences per word (default: 3)")
     parser.add_argument("--word-id", type=int, help="Generate for a single lemma_id only")
     parser.add_argument("--dry-run", action="store_true", help="Validate without writing to DB")
-    parser.add_argument("--model", default="openai", help="LLM model: gemini/openai/anthropic (default: openai)")
+    parser.add_argument("--model", default="gemini", help="LLM model: gemini/openai/anthropic (default: gemini)")
     parser.add_argument("--delay", type=float, default=0, help="Seconds to wait between LLM calls (for rate limiting)")
     args = parser.parse_args()
 

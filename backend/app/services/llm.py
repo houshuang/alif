@@ -1,13 +1,18 @@
 """LLM service using LiteLLM with multi-model fallback.
 
-Sentence generation: Gemini Flash (best quality/compliance/cost balance)
+Sentence generation: Gemini Flash (on-demand, fast) or Claude CLI (background, free)
 General tasks: Gemini Flash (fast, cheap) → GPT-5.2 fallback → Claude Haiku tertiary
-Quality gate: Gemini Flash, fail-closed (rejects on LLM failure)
+Quality gate: Claude Haiku API, fail-closed (rejects on LLM failure)
+
+Claude CLI models (claude_sonnet, claude_haiku) use `claude -p` from the Max plan (free).
+They require the `claude` CLI to be installed and authenticated (`claude setup-token`).
 """
 
 import json
 import os
 import re
+import shutil
+import subprocess
 import time
 from datetime import datetime
 from pathlib import Path
@@ -108,6 +113,84 @@ def _log_call(
         f.write(json.dumps(entry) + "\n")
 
 
+def _claude_cli_available() -> bool:
+    """Check if claude CLI is installed and authenticated."""
+    return shutil.which("claude") is not None
+
+
+def _generate_via_claude_cli(
+    prompt: str,
+    system_prompt: str,
+    model: str,
+    json_mode: bool = True,
+    timeout: int = 120,
+    task_type: str | None = None,
+) -> dict[str, Any]:
+    """Generate completion via Claude CLI (`claude -p`). Free with Max plan.
+
+    Uses --output-format json for structured responses.
+    """
+    if not _claude_cli_available():
+        raise LLMError("claude CLI not available — install with: npm install -g @anthropic-ai/claude-code")
+
+    cmd = [
+        "claude", "-p",
+        "--tools", "",
+        "--output-format", "json",
+        "--model", model,
+        "--no-session-persistence",
+    ]
+    if system_prompt:
+        cmd.extend(["--system-prompt", system_prompt])
+
+    start = time.time()
+    try:
+        proc = subprocess.run(
+            cmd,
+            input=prompt,
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+        )
+    except subprocess.TimeoutExpired:
+        elapsed = time.time() - start
+        _log_call(settings.log_dir, f"claude_cli/{model}", False, elapsed,
+                  error=f"timeout after {timeout}s", prompt_length=len(prompt), task_type=task_type)
+        raise LLMError(f"claude CLI timed out after {timeout}s")
+
+    elapsed = time.time() - start
+
+    if proc.returncode != 0:
+        _log_call(settings.log_dir, f"claude_cli/{model}", False, elapsed,
+                  error=proc.stderr[:200], prompt_length=len(prompt), task_type=task_type)
+        raise LLMError(f"claude CLI exited {proc.returncode}: {proc.stderr[:200]}")
+
+    try:
+        response = json.loads(proc.stdout)
+    except json.JSONDecodeError:
+        _log_call(settings.log_dir, f"claude_cli/{model}", False, elapsed,
+                  error="invalid JSON response", prompt_length=len(prompt), task_type=task_type)
+        raise LLMError(f"claude CLI returned invalid JSON: {proc.stdout[:200]}")
+
+    if response.get("is_error"):
+        _log_call(settings.log_dir, f"claude_cli/{model}", False, elapsed,
+                  error=response.get("result", "unknown"), prompt_length=len(prompt), task_type=task_type)
+        raise LLMError(f"claude CLI error: {response.get('result', 'unknown')}")
+
+    _log_call(settings.log_dir, f"claude_cli/{model}", True, elapsed,
+              prompt_length=len(prompt), task_type=task_type)
+
+    content = response.get("result", "")
+
+    if json_mode:
+        text = content.strip()
+        if text.startswith("```"):
+            text = re.sub(r"^```(?:json)?\s*", "", text)
+            text = re.sub(r"\s*```$", "", text)
+        return json.loads(text)
+    return {"content": content}
+
+
 def generate_completion(
     prompt: str,
     system_prompt: str = "",
@@ -131,6 +214,21 @@ def generate_completion(
     if system_prompt:
         messages.append({"role": "system", "content": system_prompt})
     messages.append({"role": "user", "content": prompt})
+
+    # Claude CLI models — shell out to `claude -p` (free via Max plan)
+    CLAUDE_CLI_MODELS = {
+        "claude_sonnet": "sonnet",
+        "claude_haiku": "haiku",
+    }
+    if model_override and model_override in CLAUDE_CLI_MODELS:
+        return _generate_via_claude_cli(
+            prompt=prompt,
+            system_prompt=system_prompt,
+            model=CLAUDE_CLI_MODELS[model_override],
+            json_mode=json_mode,
+            timeout=timeout,
+            task_type=task_type,
+        )
 
     if model_override:
         models_to_try = [m for m in MODELS if m["name"] == model_override]
@@ -665,7 +763,7 @@ Sentences:
             ),
             json_mode=True,
             temperature=0.0,
-            model_override="anthropic",
+            model_override="claude_haiku",
             task_type="quality_review",
         )
     except (AllProvidersFailed, LLMError):

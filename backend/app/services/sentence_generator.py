@@ -206,6 +206,7 @@ def generate_validated_sentence(
     target_lemma_id: int | None = None,
     lemma_lookup: dict[str, int] | None = None,
     validation_words: list[dict[str, str]] | None = None,
+    model_override: str = "gemini",
 ) -> GeneratedSentence:
     """Generate and validate a sentence with retry loop.
 
@@ -262,6 +263,7 @@ def generate_validated_sentence(
                 retry_feedback=retry_feedback,
                 max_words=max_words,
                 avoid_words=avoid_words,
+                model_override=model_override,
             )
         except AllProvidersFailed as e:
             _log_generation(
@@ -400,6 +402,7 @@ def generate_validated_sentences_multi_target(
     avoid_words: list[str] | None = None,
     validation_words: list[dict[str, str]] | None = None,
     lemma_lookup: dict[str, int] | None = None,
+    model_override: str = "gemini",
 ) -> list[MultiTargetGeneratedSentence]:
     """Generate and validate sentences targeting multiple words.
 
@@ -462,6 +465,7 @@ def generate_validated_sentences_multi_target(
                 difficulty_hint=difficulty_hint,
                 avoid_words=avoid_words,
                 max_words=max_words,
+                model_override=model_override,
             )
         except AllProvidersFailed:
             break

@@ -121,7 +121,7 @@ Return null (not a JSON object) if the word is a particle/pronoun/function word.
                 system_prompt=SYSTEM_PROMPT,
                 json_mode=True,
                 temperature=0.7,
-                model_override="anthropic",
+                model_override="claude_haiku",
                 task_type="memory_hooks",
             )
         except AllProvidersFailed as e:

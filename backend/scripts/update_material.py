@@ -426,6 +426,7 @@ def step_backfill_sentences(
                     content_word_counts=content_word_counts,
                     avoid_words=avoid_words,
                     lemma_lookup=lemma_lookup,
+                    model_override=model,
                 )
             except Exception as e:
                 print(f"    Multi-target failed: {e}")
@@ -703,7 +704,7 @@ async def main():
     parser.add_argument("--candidates", type=int, default=10, help="Number of upcoming candidates (default: 10)")
     parser.add_argument("--max-sentences", type=int, default=TARGET_PIPELINE_SENTENCES,
                         help=f"Max total active sentences in pipeline (default: {TARGET_PIPELINE_SENTENCES})")
-    parser.add_argument("--model", default="gemini", help="LLM model (default: gemini)")
+    parser.add_argument("--model", default="claude_sonnet", help="LLM model for sentence gen (default: claude_sonnet)")
     parser.add_argument("--delay", type=float, default=1.0, help="Seconds between LLM calls")
     args = parser.parse_args()
 

@@ -34,10 +34,42 @@ No visibility into which LLM tasks consume the most API budget. Also discovered 
 - 230 OCR vision calls not included in cost estimate (image token pricing)
 - `update_material.py` cron had been crashing since Feb 17 — fixed and deployed
 
-### Next Steps (Phase 2)
-- Benchmark Claude Sonnet/Haiku vs Gemini Flash for sentence gen, forms, quality gate
-- Prototype agentic enrichment agent (one Claude Code session replacing 4 scripts)
-- Change script defaults from `--model openai` to `--model gemini`
+### Phase 2: Benchmark Results (same day)
+
+**Quick wins done**: 4 scripts changed `--model openai` → `gemini`. Audit script pricing fixed.
+
+**Benchmark** (`scripts/benchmark_claude_code.py`): Compared Gemini Flash, Sonnet CLI, Haiku CLI across 4 tasks.
+
+| Task | Winner | Rationale |
+|------|--------|-----------|
+| Sentence gen | Gemini (keep) | 2.8s/word vs 32s. Sonnet 87% vs 73% pass rate, but difference is mostly validator false negatives (conjugated forms not in forms_json) |
+| Quality gate | Haiku API (keep) | 90% approval, good balance. CLI Haiku unexpectedly strict at 60% |
+| Forms | Gemini (keep) | All models 100% match. Gemini 5-10x faster |
+| Memory hooks | **Sonnet CLI (switch)** | Better mnemonics + more cognates. Low volume task. |
+
+**Key insight**: The biggest quality improvement isn't model switching — it's expanding `forms_json` with more conjugation patterns to reduce validator false negatives. Both Gemini and Sonnet produce natural Arabic; the validator rejects valid sentences because it doesn't recognize conjugated forms.
+
+**Sonnet batch mode**: Sending multiple words in one CLI call cuts per-word time from 32s → 16s (50% reduction), but quality matched Gemini instead of exceeding it. Prompt tuning needed.
+
+### Phase 3: Claude CLI Integration (same day, continued session)
+
+**Goal**: Actually switch background LLM work to Claude CLI (free) — the whole point of the investigation.
+
+**Changes**:
+1. **`llm.py`**: Added `_generate_via_claude_cli()` — shells out to `claude -p --output-format json`. New model overrides: `claude_sonnet`, `claude_haiku` dispatched via `CLAUDE_CLI_MODELS` dict. Handles JSON parsing, markdown fence stripping, timeout, logging.
+2. **Sentence gen (cron)**: `update_material.py --model` default changed from `gemini` to `claude_sonnet`. Threaded `model_override` through `step_backfill_sentences()` → `generate_validated_sentences_multi_target()`.
+3. **Quality gate**: `review_sentences_quality()` switched from `anthropic` (paid Haiku API) to `claude_haiku` (free CLI).
+4. **Enrichment**: `lemma_enrichment.py` forms + etymology both switched to `claude_haiku`.
+5. **Memory hooks**: `memory_hooks.py` switched from `anthropic` to `claude_haiku`.
+6. **On-demand paths kept on Gemini**: `generate_material_for_word()` defaults to `"gemini"`, `warm_sentence_cache()` defaults to `"gemini"` — both are user-facing/latency-sensitive.
+7. **Claude CLI on server**: Authenticated via `claude setup-token` with Max plan.
+
+**Architecture**: Two-tier model strategy. Background/cron → Claude CLI (free, ~15-30s). On-demand → Gemini Flash (fast, ~1-2s, paid).
+
+### Remaining Future Work
+- Expand forms_json validator (reduce false negatives for all models)
+- Switch stories to Opus CLI (already proven via `generate_story_claude.py`)
+- Agentic enrichment prototype (one session for forms+etymology+hooks)
 
 ---
 

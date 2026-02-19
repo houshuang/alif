@@ -23,22 +23,21 @@ import sys
 from datetime import datetime, timedelta
 from pathlib import Path
 
-# Approximate pricing per 1M input tokens (USD)
+# Pricing per 1M tokens (USD) — Gemini 3 Flash, NOT old 2.0 Flash
 INPUT_PRICING = {
-    "gemini/gemini-3-flash-preview": 0.075,
+    "gemini/gemini-3-flash-preview": 0.50,
     "gpt-5.2": 2.50,
     "claude-haiku-4-5": 0.80,
     "claude-opus-4-6": 15.0,
     "claude-sonnet-4-5-20250929": 3.0,
 }
 
-# Output pricing is typically higher; use multiplier for estimation
-OUTPUT_MULTIPLIER = {
-    "gemini/gemini-3-flash-preview": 4.0,  # $0.30/$0.075
-    "gpt-5.2": 4.0,
-    "claude-haiku-4-5": 5.0,  # $4.0/$0.80
-    "claude-opus-4-6": 5.0,  # $75/$15
-    "claude-sonnet-4-5-20250929": 5.0,
+OUTPUT_PRICING = {
+    "gemini/gemini-3-flash-preview": 3.00,
+    "gpt-5.2": 10.00,
+    "claude-haiku-4-5": 4.00,
+    "claude-opus-4-6": 75.0,
+    "claude-sonnet-4-5-20250929": 15.0,
 }
 
 CHARS_PER_TOKEN = 4  # rough estimate for mixed Arabic/English
@@ -105,11 +104,11 @@ def infer_task_type(entry: dict) -> str:
 def estimate_cost(model: str, prompt_chars: int) -> float:
     """Estimate total cost (input + output) for a single call."""
     tokens = prompt_chars / CHARS_PER_TOKEN
-    price_per_m = INPUT_PRICING.get(model, 0.10)
-    output_mult = OUTPUT_MULTIPLIER.get(model, 3.0)
-    input_cost = tokens * price_per_m / 1_000_000
-    # Assume output is ~50% of input tokens on average
-    output_cost = (tokens * 0.5) * (price_per_m * output_mult) / 1_000_000
+    in_price = INPUT_PRICING.get(model, 0.50)
+    out_price = OUTPUT_PRICING.get(model, 3.00)
+    input_cost = tokens * in_price / 1_000_000
+    # Output is typically 10-20% of input tokens for this app (large vocab prompts, small JSON responses)
+    output_cost = (tokens * 0.15) * out_price / 1_000_000
     return input_cost + output_cost
 
 

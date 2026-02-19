@@ -13,7 +13,7 @@ from app.models import Lemma, Sentence, SentenceWord, UserLemmaKnowledge
 logger = logging.getLogger(__name__)
 
 
-def generate_material_for_word(lemma_id: int, needed: int = 2) -> None:
+def generate_material_for_word(lemma_id: int, needed: int = 2, model_override: str = "gemini") -> None:
     """Background task: generate sentences + audio for a word.
 
     Opens its own DB session so it can run in a background thread.
@@ -97,6 +97,7 @@ def generate_material_for_word(lemma_id: int, needed: int = 2) -> None:
                 difficulty_hint=difficulty_hint,
                 avoid_words=avoid_words,
                 max_words=diff_params["max_words"],
+                model_override=model_override,
             )
         except AllProvidersFailed:
             logger.warning(f"LLM unavailable for sentence generation (lemma {lemma_id})")
@@ -385,7 +386,7 @@ def rotate_stale_sentences(db, min_shown: int = 1, min_active: int = 2) -> int:
     return retired
 
 
-def warm_sentence_cache() -> dict:
+def warm_sentence_cache(llm_model: str = "gemini") -> dict:
     """Background task: pre-generate sentences for words likely in the next session.
 
     Uses multi-target generation to efficiently cover multiple words per sentence.
@@ -393,6 +394,10 @@ def warm_sentence_cache() -> dict:
     than MIN_SENTENCES_PER_WORD active sentences, then generates for them.
     Rotates stale sentences first to stay within the pipeline cap.
     Opens its own DB session. Returns stats dict for logging.
+
+    Args:
+        llm_model: Model override for sentence generation. Use "claude_sonnet"
+                   for free generation via Claude CLI, "gemini" for fast API calls.
     """
     from app.services.cohort_service import get_focus_cohort
     from app.services.word_selector import select_next_words
@@ -513,6 +518,7 @@ def warm_sentence_cache() -> dict:
                     difficulty_hint="beginner",
                     max_words=12,
                     lemma_lookup=lemma_lookup,
+                    model_override=llm_model,
                 )
                 target_bares = {strip_diacritics(tw["lemma_ar"]): tw["lemma_id"] for tw in group}
                 for mres in results:
@@ -534,7 +540,7 @@ def warm_sentence_cache() -> dict:
 
         for lid in remaining:
             try:
-                generate_material_for_word(lid, needed=MIN_SENTENCES_PER_WORD)
+                generate_material_for_word(lid, needed=MIN_SENTENCES_PER_WORD, model_override=llm_model)
                 stats["generated"] += 1
             except Exception:
                 logger.warning(f"Warm cache: failed for word {lid}")

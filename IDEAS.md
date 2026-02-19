@@ -463,9 +463,14 @@
 - Use `claude -p` with `--model sonnet` for **high-volume tasks** where Opus quality isn't needed but free access matters (e.g. batch translations)
 - Consider **Claude Code SDK** (`@anthropic-ai/claude-code`) for Node.js integration if CLI subprocess overhead becomes an issue
 - Install `claude` on Hetzner server via `claude setup-token` for server-side free generation without API costs
-- **Replace GPT-5.2 flag evaluation with Claude Code** — flag_evaluator.py uses GPT-5.2 (model_override="openai") which costs 68% of total LLM budget ($6.46/12 days) despite only 11% of calls. Claude Haiku via CLI would be free.
+- **Replace GPT-5.2 flag evaluation with Gemini** — only 9 flags total, GPT-5.2 is overkill. Change `flag_evaluator.py` model_override from "openai" to "gemini".
 - **Agentic enrichment agent** — single Claude Code session that reads DB, identifies words missing forms/etymology/hooks, generates ALL enrichment in one pass, validates, returns structured batch. Replaces 4 separate scripts.
 - **LLM task_type dashboard** — now that all calls are tagged with task_type, build a lightweight dashboard or cron report showing daily costs by task type
+- [DONE] **Benchmark script** (`scripts/benchmark_claude_code.py`): Compares Gemini Flash, Sonnet CLI, Haiku CLI across sentence gen, quality gate, forms, hooks. Supports batched multi-word mode.
+- **Switch memory hooks to Sonnet CLI** — benchmark showed Sonnet produces better mnemonics + more cognates. Low volume (once per word), quality matters most.
+- **Expand forms_json for validator accuracy** — benchmark revealed most "failed" sentences are actually good Arabic; the validator rejects them because conjugated forms (past_1s, present_3fs, passive) aren't in forms_json. Adding more conjugation patterns would boost pass rates for ALL models equally. This is a bigger quality win than switching models.
+- **Investigate Haiku CLI quality gate divergence** — Haiku CLI approved only 60% of known-good sentences vs Haiku API 90%. Likely a `--json-schema` vs `response_format` prompt formatting difference. If fixed, Haiku CLI could replace Haiku API (free).
+- **Sonnet batch mode tuning** — sending multiple words per CLI call cuts time 50% (32s→16s per word) but quality dropped. Prompt engineering to maintain per-word quality in batch mode could make Sonnet viable for sentence gen at scale.
 
 ### Ideas from Cognitive Load Theory Research (2026-02-08)
 
