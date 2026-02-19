@@ -49,21 +49,30 @@ MAX_CORRECTION_ROUNDS = 3
 TERMINAL_STORY_STATUSES = {"completed"}
 
 STORY_SYSTEM_PROMPT = f"""\
-You are a creative Arabic storyteller writing for language learners. Write genuinely \
-engaging mini-stories in MSA (fusha) with a real narrative arc, characters, and a satisfying ending.
+You are a brilliant Arabic storyteller — think Borges writing flash fiction with a \
+limited palette. Your constraint (a small vocabulary) is your creative challenge. \
+Write in MSA (fusha) with a real narrative arc that surprises and delights.
 
 CRITICAL: Write a COHESIVE STORY with beginning, middle, and end. Every sentence must \
 connect to the previous one and advance the narrative.
 
 {ARABIC_STYLE_RULES}
 
-Story craft:
-- Give the main character a name and a situation/problem
-- Build tension or curiosity
-- End with a twist, punchline, resolution, or poetic moment
-- Use dialogue (with قَالَ/قَالَتْ) when it serves the story
-- Use VSO for narration (ذَهَبَ الرَّجُلُ), SVO for emphasis/contrast (الرَّجُلُ ذَهَبَ وَحْدَهُ)
+Story craft — the story MUST have at least one of these qualities:
+- HUMOR: a situation that escalates absurdly, a misunderstanding, irony, a deadpan punchline
+- SUSPENSE: withhold key information, reveal it at the end, make the reader curious
+- TWIST: the ending reframes everything — the reader sees the story differently
+- POETRY: a moment of beauty, a metaphor that lands, a bittersweet observation
+- WARMTH: an unexpected connection between characters, a small kindness that matters
+
+Craft techniques:
+- Give the main character a name and a specific situation (not generic)
+- Use concrete details — a white horse, a broken door, a cold morning — not abstractions
+- Dialogue brings characters alive (use قَالَ/قَالَتْ sparingly but effectively)
+- The last sentence matters most — land the ending
+- VSO for narration (ذَهَبَ الرَّجُلُ), SVO for emphasis/contrast (الرَّجُلُ ذَهَبَ وَحْدَهُ)
 - Nominal sentences for scene-setting (اللَّيْلُ طَوِيلٌ)
+- Avoid clichés: no "and they lived happily", no "the moral is...", no "one day there was a man"
 
 {DIFFICULTY_STYLE_GUIDE}
 
@@ -533,14 +542,20 @@ def _build_knowledge_map(db: Session, lemma_ids: set[int] | None = None) -> dict
 LENGTH_SENTENCES = {"short": (2, 4), "medium": (4, 7), "long": (7, 12)}
 
 STORY_GENRES = [
-    "a funny story with a punchline at the end",
-    "a mystery — something is not what it seems",
-    "a heartwarming story about an unexpected friendship",
-    "a story with an ironic twist ending",
-    "a short adventure with a moment of danger",
-    "a story where someone learns a surprising lesson",
-    "a story with a philosophical observation about daily life",
-    "a story where a misunderstanding leads to an unexpected outcome",
+    "a funny story with a deadpan punchline — the humor sneaks up on the reader",
+    "a mystery — something strange is happening, and the last sentence explains everything",
+    "a heartwarming story about an unexpected connection between two people",
+    "a story with a twist ending that reframes every sentence before it",
+    "a mini-adventure with a moment of real tension and a clever resolution",
+    "a story where someone discovers something surprising about themselves",
+    "a quiet, poetic observation — a small moment that reveals something true about life",
+    "a comedy of errors — a misunderstanding that spirals into absurdity",
+    "a story told from an unusual perspective (an animal, an object, a child)",
+    "a ghost story or eerie atmosphere — something is not quite right",
+    "a story about revenge, forgiveness, or an old grudge between neighbors",
+    "a fable-like story with talking animals that has a sly, non-obvious point",
+    "a story set in a market, café, or school where something unexpected disrupts the routine",
+    "a bittersweet story — the ending is happy and sad at the same time",
 ]
 
 
@@ -632,22 +647,22 @@ REINFORCEMENT WORDS (the reader is currently learning these — try to feature t
     lemma_lookup = build_lemma_lookup(all_lemmas)
 
     # Step 1: Generate the story
-    prompt = f"""Write a cohesive mini-story ({lo}-{hi} sentences) for a {difficulty} Arabic learner.
+    prompt = f"""Write a {lo}-{hi} sentence mini-story in Arabic for a language learner.
 
 GENRE: {genre}
 {topic_line}
 {acquiring_section}
-KNOWN VOCABULARY grouped by part of speech (use ONLY these plus function words):
+KNOWN VOCABULARY grouped by part of speech (use ONLY these plus function words — any conjugated form is fine):
 {vocab_list}
 
-RULES:
-- Use ONLY words from the vocabulary list above (any conjugated form is fine)
-- Write a REAL STORY with narrative arc: setup → development → resolution/punchline
-- Give the main character a name
-- Include full diacritics (tashkeel) on ALL Arabic words
-- Make it genuinely interesting — an adult should enjoy reading it
-- Every sentence must connect to the next
-{f"- For variety, try NOT to use these overused words: {'، '.join(avoid_words)}" if avoid_words else ""}
+CONSTRAINTS:
+- Use ONLY words from the vocabulary list above and common function words
+- Include full diacritics (tashkeel) on ALL Arabic words with correct i'rab
+- The limited vocabulary is your creative constraint, not an excuse for a boring story
+{f"- For variety, avoid these overused words: {'، '.join(avoid_words)}" if avoid_words else ""}
+
+QUALITY BAR: Would an adult enjoy reading this? Would they smile, feel curious, or be surprised? If not, try harder. A five-sentence story with a great ending beats a long boring one.
+
 Respond with JSON: {{"title_ar": "...", "title_en": "...", "body_ar": "full story in Arabic with diacritics", "body_en": "English translation", "transliteration": "ALA-LC transliteration"}}"""
 
     try:
