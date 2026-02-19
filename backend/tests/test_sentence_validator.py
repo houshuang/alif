@@ -238,15 +238,15 @@ class TestValidateSentence:
 
 
 class TestFunctionWordsCompleteness:
-    """Verify FUNCTION_WORDS is now empty — all words are learnable."""
+    """Verify FUNCTION_WORDS is populated from FUNCTION_WORD_GLOSSES."""
 
-    def test_function_words_empty(self):
-        assert len(FUNCTION_WORDS) == 0, "FUNCTION_WORDS should be empty"
+    def test_function_words_populated(self):
+        assert len(FUNCTION_WORDS) > 0, "FUNCTION_WORDS should be populated"
 
-    def test_is_function_word_always_false(self):
-        """_is_function_word always returns False now."""
+    def test_is_function_word_detects_particles(self):
+        """_is_function_word returns True for known function words."""
         for word in ["في", "من", "هو", "كان", "يوجد"]:
-            assert not _is_function_word(word)
+            assert _is_function_word(word), f"{word} should be a function word"
 
     def test_glosses_still_available(self):
         """FUNCTION_WORD_GLOSSES still provides fallback glosses."""
@@ -562,15 +562,15 @@ class TestMapTokensToLemmas:
         assert mappings[2].is_target is True
 
     def test_word_not_in_lookup_gets_none(self):
-        """هو is not in self.lookup, so it gets lemma_id=None (no longer special-cased as function word)."""
+        """هو is not in self.lookup, so it gets lemma_id=None but is detected as function word."""
         tokens = tokenize("هُوَ يَقْرَأُ")
         mappings = map_tokens_to_lemmas(tokens, self.lookup, target_lemma_id=3, target_bare="يقرأ")
-        assert mappings[0].is_function_word is False
+        assert mappings[0].is_function_word is True
         assert mappings[0].lemma_id is None
         assert mappings[1].is_target is True
 
     def test_word_maps_when_in_lookup(self):
-        """هو is in lookup, so it gets a lemma_id."""
+        """هو is in lookup, so it gets a lemma_id. Also detected as function word."""
         lemmas = [
             _FakeLemma(1, "هو"),
             _FakeLemma(2, "يقرأ"),
@@ -578,7 +578,7 @@ class TestMapTokensToLemmas:
         lookup = build_lemma_lookup(lemmas)
         tokens = tokenize("هُوَ يَقْرَأُ")
         mappings = map_tokens_to_lemmas(tokens, lookup, target_lemma_id=2, target_bare="يقرأ")
-        assert mappings[0].is_function_word is False
+        assert mappings[0].is_function_word is True
         assert mappings[0].lemma_id == 1
         assert mappings[1].is_target is True
 
@@ -615,7 +615,7 @@ class TestMapTokensToLemmas:
         tokens = tokenize("كَانَتْ الكِتَابَ")
         mappings = map_tokens_to_lemmas(tokens, lookup, target_lemma_id=3, target_bare="كتاب")
         # كانت resolves to كان (id=1) via FUNCTION_WORD_FORMS (prevents false clitic stripping)
-        assert mappings[0].is_function_word is False  # no longer classified as function word
+        assert mappings[0].is_function_word is True  # كانت is in FUNCTION_WORD_GLOSSES
         assert mappings[0].lemma_id == 1  # كان, NOT 2 (أنت)
 
     def test_word_form_no_clitic_stripping(self):
@@ -628,7 +628,7 @@ class TestMapTokensToLemmas:
         tokens = tokenize("لَيْسَتْ الكِتَابَ")
         mappings = map_tokens_to_lemmas(tokens, lookup, target_lemma_id=2, target_bare="كتاب")
         # ليست should resolve to ليس (id=1), not be clitic-stripped
-        assert mappings[0].is_function_word is False  # no longer classified as function word
+        assert mappings[0].is_function_word is True  # ليست is in FUNCTION_WORD_GLOSSES
         assert mappings[0].lemma_id == 1
 
 
@@ -679,11 +679,14 @@ class TestTokenizeDisplay:
 class TestFunctionWordForms:
     """Test FUNCTION_WORD_FORMS dict still prevents false clitic analysis."""
 
-    def test_is_function_word_always_false(self):
-        """_is_function_word always returns False (FUNCTION_WORDS is empty)."""
+    def test_is_function_word_detects_conjugated_forms(self):
+        """_is_function_word returns True for conjugated forms in FUNCTION_WORD_GLOSSES."""
         from app.services.sentence_validator import _is_function_word
-        for word in ["كانت", "كَانَتْ", "ليست", "يكون", "كانوا"]:
-            assert _is_function_word(word) is False
+        # Forms that are in FUNCTION_WORD_GLOSSES
+        for word in ["كانت", "كَانَتْ", "ليست", "يكون"]:
+            assert _is_function_word(word) is True, f"{word} should be a function word"
+        # "كانوا" is in FUNCTION_WORD_FORMS but not in FUNCTION_WORD_GLOSSES
+        assert _is_function_word("كانوا") is False
 
     def test_build_lookup_includes_function_word_forms(self):
         """FUNCTION_WORD_FORMS should still be indexed in build_lemma_lookup for clitic prevention."""

@@ -307,7 +307,7 @@ class TestWordMetadata:
         words = result["items"][0]["words"]
         assert len(words) == 2
         assert words[0]["surface_form"] == "في"
-        assert words[0]["is_function_word"] is False
+        assert words[0]["is_function_word"] is True
         assert words[1]["surface_form"] == "الكتاب"
         assert words[1]["is_due"] is True
 
@@ -322,7 +322,7 @@ class TestWordMetadata:
         result = build_session(db_session, limit=10)
         words = result["items"][0]["words"]
         assert words[0]["surface_form"] == "في"
-        assert words[0]["is_function_word"] is False
+        assert words[0]["is_function_word"] is True
         assert words[0]["lemma_id"] == 2
         sw = (
             db_session.query(SentenceWord)

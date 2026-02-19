@@ -599,16 +599,15 @@ class TestCheckScaffoldDiversity:
         assert passes
         assert len(overused) == 1
 
-    def test_all_words_count_for_diversity(self):
-        """All words (including formerly excluded function words) count toward overexposure."""
+    def test_function_words_excluded_from_diversity(self):
+        """Function words like في are skipped in scaffold diversity checks."""
         lemma_lookup = {"كتاب": 1, "في": 2}
-        counts = {2: 1000}  # في is overused
+        counts = {2: 1000}  # في is overused but it's a function word
         passes, overused = _check_scaffold_diversity(
             "في كِتَابٍ", "كتاب", counts, lemma_lookup,
         )
-        assert passes  # still passes (only 1 overused word)
-        assert len(overused) == 1
-        assert "في" in overused[0]
+        assert passes
+        assert len(overused) == 0  # في skipped as function word
 
 
 class TestStarterDiversity:

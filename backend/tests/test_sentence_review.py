@@ -137,7 +137,7 @@ class TestPartial:
         assert ratings[3] == 3  # not missed
 
     def test_all_words_get_credit(self, db_session):
-        """All words (including في) now get FSRS credit."""
+        """Function words like في are skipped for FSRS credit."""
         _seed_word(db_session, 1, "كتاب", "book")
         _seed_word(db_session, 2, "في", "in")
         _seed_sentence(db_session, 1, "في الكتاب", "in the book",
@@ -154,7 +154,7 @@ class TestPartial:
         )
 
         rated_ids = {wr["lemma_id"] for wr in result["word_results"]}
-        assert 2 in rated_ids  # في now gets credit
+        assert 2 not in rated_ids  # في is a function word, skipped
         assert 1 in rated_ids
         ratings = {wr["lemma_id"]: wr["rating"] for wr in result["word_results"]}
         assert ratings[1] == 3

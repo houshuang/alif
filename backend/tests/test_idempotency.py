@@ -456,8 +456,8 @@ class TestBulkSyncEndpoint:
         assert complete_first.status_code == 200
         first_payload = complete_first.json()
         assert first_payload["status"] == "completed"
-        # 3 words: ولد (looked up=again), بيت (good), في (encountered, no FSRS)
-        assert first_payload["words_reviewed"] == 3
+        # 2 words: ولد (looked up=again), بيت (good). في is a function word, not counted.
+        assert first_payload["words_reviewed"] == 2
         assert first_payload["good_count"] == 1
         assert first_payload["again_count"] == 1
 
@@ -504,7 +504,7 @@ class TestBulkSyncEndpoint:
         assert retry_success.status_code == 200
         retry_payload = retry_success.json()
         assert retry_payload["status"] == "completed"
-        assert retry_payload["words_reviewed"] == 3
+        assert retry_payload["words_reviewed"] == 2
         assert retry_payload["good_count"] == 1
         assert retry_payload["again_count"] == 1
 

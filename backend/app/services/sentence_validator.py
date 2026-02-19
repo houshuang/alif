@@ -24,14 +24,16 @@ ARABIC_PUNCTUATION = re.compile(
     r"[،؟؛«»\u060C\u061B\u061F.,:;!?\"'\-\(\)\[\]{}…]"
 )
 
-# Formerly held ~100 function words excluded from FSRS. Now empty:
-# ALL words are learnable and get FSRS scheduling. The frontend shows
-# richer grammar info for particles (في، من، etc.) via grammar-particles.ts.
-# The set and _is_function_word() are kept for backward compatibility.
+# Function words are excluded from story/book "to learn" counts and from
+# book page word introduction. They CAN still be learned through normal
+# sentence review (they get FSRS scheduling when encountered in sentences),
+# but they don't count as "new vocabulary" in book progress tracking.
+# Populated from FUNCTION_WORD_GLOSSES below at module load time.
 FUNCTION_WORDS: set[str] = set()
 
 # Fallback glosses for common words that may lack lemma entries.
 # Used during sentence validation to provide gloss_en even without a DB lemma.
+# Also the source of truth for which words are considered function words.
 FUNCTION_WORD_GLOSSES: dict[str, str] = {
     # Prepositions
     "في": "in", "من": "from", "على": "on/upon", "الى": "to", "إلى": "to",
@@ -81,6 +83,9 @@ FUNCTION_WORD_GLOSSES: dict[str, str] = {
     # Grammatical verbs
     "يوجد": "there is", "توجد": "there is (f)",
 }
+
+# Populate FUNCTION_WORDS from the glosses dict
+FUNCTION_WORDS.update(FUNCTION_WORD_GLOSSES.keys())
 
 
 def strip_punctuation(text: str) -> str:
@@ -291,10 +296,11 @@ def _strip_clitics(bare_form: str) -> list[str]:
 
 
 def _is_function_word(bare_form: str) -> bool:
-    """Check if a bare form is a grammar particle (excluded from FSRS).
+    """Check if a bare form is a grammar particle.
 
-    With FUNCTION_WORDS now empty, always returns False — all words are learnable.
-    Kept for backward compatibility with callers.
+    Function words are excluded from story/book "to learn" counts and from
+    book page word introduction priority. They can still be learned through
+    normal sentence review when encountered as scaffold words.
     """
     if not FUNCTION_WORDS:
         return False

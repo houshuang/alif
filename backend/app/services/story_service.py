@@ -179,6 +179,13 @@ def _create_story_words(
             if not lemma_id and not is_func:
                 lemma_id = morph_cache.get(bare_norm)
 
+            # Also check the resolved lemma's bare form (catches cliticized
+            # surface forms like بِهِ whose lemma بِ is a function word)
+            if lemma_id and not is_func:
+                lemma = lemma_by_id.get(lemma_id)
+                if lemma and _is_function_word(lemma.lemma_ar_bare):
+                    is_func = True
+
             is_known = False
             if lemma_id:
                 state = knowledge_map.get(lemma_id)
