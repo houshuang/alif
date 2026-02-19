@@ -20,11 +20,14 @@ Two root causes: (1) auto-intro only fires when session is undersized, which nev
 
 4. **Diversity score logging** (`sentence_selector.py`): `compute_sentence_diversity_score()` logs `diversity_score`, `scaffold_uniqueness`, `scaffold_freshness` per sentence_selected event.
 
+5. **Pipeline cap 300→600** (`material_generator.py`, `update_material.py`): 270 active words but most had only 1 sentence — 300 cap was blocking generation of needed second sentences. 21 words had zero active sentences. Ideal is 2 per word = 540 minimum.
+
 ### Expected Effect
 - 2+ new words introduced per session even with full due queue
 - Much less repetition of scaffold words across sentences in a session
 - New sentences generated with better vocabulary diversity
 - Monitoring via diversity_score metrics in interaction logs
+- ~230 additional sentences generated to fill gaps (most words had only 1 sentence)
 
 ### Verify
 - Check interaction logs for `auto_introduce` events (should appear now!)
