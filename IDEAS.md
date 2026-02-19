@@ -51,7 +51,7 @@
 ### LLM + Deterministic Validation
 - Generate-then-validate pattern: LLM generates sentence → CAMeL Tools lemmatizes every word → check against known-word DB → verify exactly 1 unknown word
 - Retry loop with feedback to LLM (max 3 attempts)
-- [DONE] All words are now learnable — no function word exclusions. Particles, prepositions etc. get full FSRS tracking.
+- [DONE] [REVERSED] Function words restored — ~80 particles/prepositions/pronouns excluded from story "to learn" counts and book page introduction. They still get FSRS tracking when encountered as scaffold words in sentences.
 - Sentence templates for quick generation: "the X is Y", "I went to the X"
 - Pre-generate and cache validated sentences for offline use
 
@@ -62,6 +62,12 @@
 - Interim option: lemma-based backfill (covers ~95% of words without LLM changes, no contextual value).
 - **Full writeup**: [`research/per-word-contextual-translations.md`](research/per-word-contextual-translations.md)
 - **Timing**: Revisit during sentence generation redesign.
+
+### Book Import LLM Mapping Verification
+- Book import pipeline (`book_import_service.py`) does NOT run `verify_word_mappings_llm()` — unlike sentence generation, which verifies every mapping via Gemini Flash
+- This caused "تلمع" (to glisten) to be mapped to "مع" (with) — NLP stripped ت-prefix and matched remainder
+- **Idea**: Add LLM mapping verification as post-import step for book sentences. Could run as part of enrichment or as separate Step H in cron.
+- Trade-off: adds Gemini API cost per book import, but catches homograph/prefix-stripping errors
 
 ### Sentence Sources
 - LLM-generated sentences with vocabulary constraints

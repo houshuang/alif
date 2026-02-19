@@ -655,16 +655,14 @@ def build_session(
 
         # Comprehensibility gate: skip sentences where <60% of scaffold words are known
         # Only checks non-due words (target words are expected to be challenging).
-        # "encountered" counts as passive vocabulary — learner has seen the word.
-        # "acquiring" only counts if past box 1 (stability >= 0.5 = reviewed at least once);
-        # prevents book sentences where all words were imported simultaneously from appearing
-        # before the learner has reviewed most of the vocabulary.
+        # "encountered" does NOT count — the learner has only seen the word, never studied it.
+        # "acquiring" only counts if past box 1 (stability >= 0.5 = reviewed at least once).
         scaffold = [w for w in word_metas if not w.is_function_word and w.lemma_id and not w.is_due]
         total_scaffold = len(scaffold)
         known_scaffold = sum(
             1 for w in scaffold
             if (
-                w.knowledge_state in ("known", "learning", "lapsed", "encountered")
+                w.knowledge_state in ("known", "learning", "lapsed")
                 or (w.knowledge_state == "acquiring" and (w.stability or 0) >= 0.5)
             )
         )

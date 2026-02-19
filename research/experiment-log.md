@@ -4,6 +4,28 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-02-19: Tighten Comprehensibility Gate & Fix Book Lemma Mapping
+
+### Problem
+1. Book sentences shown in sessions had too many unknown words (5-7 per sentence). The comprehensibility gate (≥60% known scaffold) was passing these because `encountered` words counted as "known" — but the learner had only *seen* them, never studied them.
+2. Sentence 3477 ("وأسنان مدببة تلمع") had "تَلْمَعُ" (to glisten) incorrectly mapped to lemma "مَعَ" (with). NLP stripped the ت-prefix, matched remaining لمع to مع. No lemma for لَمَعَ existed in DB.
+3. Book import pipeline does NOT run LLM mapping verification (`verify_word_mappings_llm()`), unlike the sentence generation pipeline.
+
+### Changes
+1. **Excluded `encountered` from comprehensibility gate** — only `known`, `learning`, `lapsed`, and `acquiring` (box≥2) count as known scaffold. Encountered words are no longer passive vocab in the gate.
+2. **Created lemma 2191** (لَمَعَ, "to glisten, to gleam") and remapped sentence_word in sentence 3477.
+
+### Expected Impact
+- Book sentences will only appear when the learner has actively studied ≥60% of scaffold words
+- Slower book progression but much more comprehensible sessions
+- Bad mappings in book imports still possible (LLM verification not yet added to book pipeline)
+
+### Verification
+- `python3 -m pytest` — 704 tests passing
+- Next session should have fewer unknown words per sentence
+
+---
+
 ## 2026-02-19: Function Word Restoration & Book Word Count Dedup
 
 ### Problem

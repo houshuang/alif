@@ -1346,6 +1346,7 @@ remaining cards on the next card advance. See Section 8 "Sentence Pre-Warming" f
 | `STRUGGLING_MIN_SEEN` | 3 | Threshold for struggling classification |
 | Comprehensibility threshold | 60% | Min known scaffold words to show sentence |
 | Acquiring box-1 excluded | stability < 0.5 | Box-1 words don't count as "known" scaffold |
+| Encountered excluded | — | Merely seen words don't count as "known" scaffold |
 
 ### Frontend Session Staleness (`app/index.tsx`, `lib/offline-store.ts`)
 
