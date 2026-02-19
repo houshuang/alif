@@ -767,6 +767,43 @@ async def main():
         else:
             print("  Skipped (dry run)")
 
+        # Step G: Ensure all active book words have ULK records
+        book_ulk_g = 0
+        print("\n═══ Step G: Book ULK consistency ═══")
+        if not args.dry_run:
+            from app.models import Story, StoryWord, UserLemmaKnowledge as ULK
+            active_books = db.query(Story).filter(
+                Story.source == "book_ocr", Story.status == "active"
+            ).all()
+            for book in active_books:
+                book_lids = {
+                    sw.lemma_id for sw in book.words
+                    if sw.lemma_id and not sw.is_function_word
+                }
+                if not book_lids:
+                    continue
+                existing = {
+                    r[0] for r in db.query(ULK.lemma_id)
+                    .filter(ULK.lemma_id.in_(book_lids)).all()
+                }
+                missing = book_lids - existing
+                for lid in missing:
+                    db.add(ULK(
+                        lemma_id=lid,
+                        knowledge_state="encountered",
+                        source="book",
+                        total_encounters=1,
+                    ))
+                    book_ulk_g += 1
+                if missing:
+                    db.commit()
+            if book_ulk_g:
+                print(f"  Created {book_ulk_g} missing ULK records for book words")
+            else:
+                print("  All book words have ULK records")
+        else:
+            print("  Skipped (dry run)")
+
         elapsed = time.time() - start
         print(f"\n{'─' * 60}")
         print(f"Done in {elapsed:.1f}s")
@@ -777,12 +814,13 @@ async def main():
         print(f"  Step D SAMER:     {samer_d}")
         print(f"  Step E enriched:  {enrich_e}")
         print(f"  Step F leeches:   {leech_f}")
+        print(f"  Step G book ULK:  {book_ulk_g}")
 
-        if not args.dry_run and (retired_0 + sent_a + audio_b + sent_c + enrich_e + leech_f > 0):
+        if not args.dry_run and (retired_0 + sent_a + audio_b + sent_c + enrich_e + leech_f + book_ulk_g > 0):
             log_activity(
                 db,
                 event_type="material_updated",
-                summary=f"Retired {retired_0}, generated {sent_a}+{sent_c} sentences, {audio_b} audio, enriched {enrich_e}, reintro {leech_f} leeches in {elapsed:.0f}s",
+                summary=f"Retired {retired_0}, generated {sent_a}+{sent_c} sentences, {audio_b} audio, enriched {enrich_e}, reintro {leech_f} leeches, {book_ulk_g} book ULK in {elapsed:.0f}s",
                 detail={
                     "step_0_retired": retired_0,
                     "step_a_sentences": sent_a,
@@ -791,6 +829,7 @@ async def main():
                     "step_d_samer": samer_d,
                     "step_e_enriched": enrich_e,
                     "step_f_leeches": leech_f,
+                    "step_g_book_ulk": book_ulk_g,
                     "elapsed_seconds": round(elapsed, 1),
                 },
             )
