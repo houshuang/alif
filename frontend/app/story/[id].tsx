@@ -12,12 +12,13 @@ import { Ionicons } from "@expo/vector-icons";
 import { colors, fonts, fontFamily } from "../../lib/theme";
 import {
   getStoryDetail,
-  lookupStoryWord,
+  lookupReviewWord,
   completeStory,
   suspendStory,
 } from "../../lib/api";
-import { StoryDetail, StoryWordMeta, StoryLookupResult } from "../../lib/types";
+import { StoryDetail, StoryWordMeta, WordLookupResult } from "../../lib/types";
 import ActionMenu, { ExtraAction } from "../../lib/review/ActionMenu";
+import WordInfoCard from "../../lib/review/WordInfoCard";
 import { saveStoryLookups, getStoryLookups, clearStoryLookups } from "../../lib/offline-store";
 
 type ViewMode = "arabic" | "english";
@@ -27,8 +28,11 @@ export default function StoryReadScreen() {
   const [story, setStory] = useState<StoryDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState<ViewMode>("arabic");
-  const [selectedWord, setSelectedWord] = useState<StoryLookupResult | null>(null);
+  const [selectedWord, setSelectedWord] = useState<WordLookupResult | null>(null);
+  const [selectedSurface, setSelectedSurface] = useState<string | null>(null);
   const [selectedPosition, setSelectedPosition] = useState<number | null>(null);
+  const [cardLoading, setCardLoading] = useState(false);
+  const [showCard, setShowCard] = useState(false);
   const [lookedUp, setLookedUp] = useState<Set<number>>(new Set());
   const [lookedUpLemmaIds, setLookedUpLemmaIds] = useState<Set<number>>(new Set());
   const [submitting, setSubmitting] = useState(false);
@@ -45,7 +49,10 @@ export default function StoryReadScreen() {
     lookupRequestRef.current += 1;
     setSubmitting(false);
     setSelectedWord(null);
+    setSelectedSurface(null);
     setSelectedPosition(null);
+    setShowCard(false);
+    setCardLoading(false);
     setLookedUp(new Set());
     setLookedUpLemmaIds(new Set());
     storyStartTime.current = Date.now();
@@ -72,32 +79,14 @@ export default function StoryReadScreen() {
     async (word: StoryWordMeta) => {
       if (!story) return;
 
-      if (lookedUp.has(word.position)) {
-        lookupRequestRef.current += 1;
-        const nextPositions = new Set(lookedUp);
-        nextPositions.delete(word.position);
-        setLookedUp(nextPositions);
-
-        const nextLemmaIds = new Set(lookedUpLemmaIds);
-        if (word.lemma_id != null) {
-          const otherPositionsWithSameLemma = story.words.some(
-            (w) => w.lemma_id === word.lemma_id && w.position !== word.position && nextPositions.has(w.position)
-          );
-          if (!otherPositionsWithSameLemma) {
-            nextLemmaIds.delete(word.lemma_id);
-            setLookedUpLemmaIds(nextLemmaIds);
-          }
-        }
-        persistLookups(nextPositions, nextLemmaIds);
-
-        if (selectedPosition === word.position) {
-          setSelectedWord(null);
-          setSelectedPosition(null);
-        }
+      // Tapping an already-selected word: dismiss card but keep highlight
+      if (selectedPosition === word.position && showCard) {
+        setShowCard(false);
+        setSelectedPosition(null);
         return;
       }
 
-      const requestId = ++lookupRequestRef.current;
+      // Mark as looked up (highlight persists)
       const nextPositions = new Set(lookedUp).add(word.position);
       const nextLemmaIds = new Set(lookedUpLemmaIds);
       if (word.lemma_id != null) {
@@ -106,44 +95,32 @@ export default function StoryReadScreen() {
       setSelectedPosition(word.position);
       setLookedUp(nextPositions);
       setLookedUpLemmaIds(nextLemmaIds);
+      setSelectedSurface(word.surface_form);
+      persistLookups(nextPositions, nextLemmaIds);
 
       if (word.lemma_id != null) {
+        const requestId = ++lookupRequestRef.current;
+        setCardLoading(true);
+        setShowCard(true);
+        setSelectedWord(null);
         try {
-          const result = await lookupStoryWord(story.id, word.lemma_id, word.position);
+          const result = await lookupReviewWord(word.lemma_id);
           if (lookupRequestRef.current !== requestId) return;
           setSelectedWord(result);
-          persistLookups(nextPositions, nextLemmaIds);
         } catch {
           if (lookupRequestRef.current !== requestId) return;
-          setSelectedWord({
-            lemma_id: word.lemma_id,
-            gloss_en: word.gloss_en || null,
-            transliteration: null,
-            root: null,
-            pos: null,
-          });
-          persistLookups(nextPositions, nextLemmaIds);
+          setSelectedWord(null);
+          setShowCard(false);
+        } finally {
+          setCardLoading(false);
         }
       } else {
-        if (lookupRequestRef.current !== requestId) return;
-        const posLabel = word.name_type === "personal"
-          ? "personal name"
-          : word.name_type === "place"
-          ? "place name"
-          : word.is_function_word
-          ? "function word"
-          : "not in vocabulary";
-        setSelectedWord({
-          lemma_id: null as any,
-          gloss_en: word.gloss_en || (word.is_function_word ? posLabel : null),
-          transliteration: null,
-          root: null,
-          pos: posLabel,
-        });
-        persistLookups(nextPositions, nextLemmaIds);
+        // Function word or unknown — no card
+        setShowCard(false);
+        setSelectedWord(null);
       }
     },
-    [story, lookedUp, lookedUpLemmaIds, selectedPosition, id]
+    [story, lookedUp, lookedUpLemmaIds, selectedPosition, showCard, id]
   );
 
   async function handleComplete() {
@@ -228,8 +205,8 @@ export default function StoryReadScreen() {
             </Text>
           )}
           <ActionMenu
-            focusedLemmaId={selectedWord?.lemma_id ?? null}
-            focusedLemmaAr={selectedPosition !== null ? (story?.words.find((w) => w.position === selectedPosition)?.surface_form ?? null) : null}
+            focusedLemmaId={showCard && selectedWord ? selectedWord.lemma_id : null}
+            focusedLemmaAr={showCard ? selectedSurface : null}
             sentenceId={null}
             askAIContextBuilder={() => {
               if (!story) return "";
@@ -325,45 +302,24 @@ export default function StoryReadScreen() {
         </View>
       </ScrollView>
 
-      {/* Lookup panel */}
-      <View style={[styles.lookupPanel, selectedWord && styles.lookupPanelActive]}>
-        {selectedWord ? (
-          <View style={styles.lookupContent}>
-            <View style={styles.lookupMain}>
-              <Text style={styles.lookupArabic}>
-                {story.words.find((w) => w.position === selectedPosition)
-                  ?.surface_form || ""}
-              </Text>
-              <View style={styles.lookupDivider} />
-              <Text style={styles.lookupGloss}>
-                {selectedWord.gloss_en || "Unknown"}
-              </Text>
-            </View>
-            <View style={styles.lookupMeta}>
-              {selectedWord.transliteration ? (
-                <Text style={styles.lookupTranslit}>
-                  {selectedWord.transliteration}
-                </Text>
-              ) : null}
-              {selectedWord.root ? (
-                <View style={styles.lookupRootBadge}>
-                  <Text style={styles.lookupRootText}>{selectedWord.root}</Text>
-                </View>
-              ) : null}
-              {selectedWord.pos ? (
-                <Text style={styles.lookupPos}>{selectedWord.pos}</Text>
-              ) : null}
-            </View>
-          </View>
-        ) : (
-          <View style={styles.lookupEmpty}>
-            <Ionicons name="hand-left-outline" size={16} color={colors.textSecondary} style={{ opacity: 0.5, marginRight: 8 }} />
-            <Text style={styles.lookupHint}>
-              Tap any word to look it up
-            </Text>
-          </View>
-        )}
-      </View>
+      {/* Word info card */}
+      {showCard && (
+        <View style={styles.cardContainer}>
+          <Pressable style={styles.dismissBtn} onPress={() => { setShowCard(false); setSelectedPosition(null); }} hitSlop={12}>
+            <Ionicons name="close" size={18} color={colors.textSecondary} />
+          </Pressable>
+          <WordInfoCard
+            loading={cardLoading}
+            surfaceForm={selectedSurface}
+            markState="missed"
+            result={selectedWord}
+            showMeaning={true}
+            onShowMeaning={() => {}}
+            reserveSpace={false}
+            onNavigateToDetail={(lemmaId) => router.push(`/word/${lemmaId}`)}
+          />
+        </View>
+      )}
     </View>
   );
 }
@@ -505,83 +461,26 @@ const styles = StyleSheet.create({
     lineHeight: 30,
   },
 
-  // Lookup panel
-  lookupPanel: {
-    minHeight: 60,
-    backgroundColor: colors.surface,
+  // Word info card
+  cardContainer: {
     borderTopWidth: 1,
     borderTopColor: colors.border,
-    justifyContent: "center",
-    paddingHorizontal: 20,
-    paddingVertical: 12,
+    backgroundColor: colors.bg,
+    paddingHorizontal: 12,
+    paddingTop: 4,
+    paddingBottom: 8,
   },
-  lookupPanelActive: {
-    minHeight: 80,
-  },
-  lookupContent: {
-    alignItems: "center",
-    width: "100%",
-  },
-  lookupMain: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 12,
-    marginBottom: 6,
-  },
-  lookupDivider: {
-    width: 1,
-    height: 24,
-    backgroundColor: colors.border,
-  },
-  lookupArabic: {
-    fontSize: 26,
-    color: colors.arabic,
-    writingDirection: "rtl",
-    fontFamily: fontFamily.arabic,
-    fontWeight: "600",
-  },
-  lookupGloss: {
-    fontSize: 18,
-    color: colors.text,
-    fontWeight: "600",
-  },
-  lookupMeta: {
-    flexDirection: "row",
-    gap: 12,
+  dismissBtn: {
+    position: "absolute",
+    top: 8,
+    right: 8,
+    zIndex: 10,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: colors.surfaceLight,
     alignItems: "center",
     justifyContent: "center",
-    flexWrap: "wrap",
-  },
-  lookupTranslit: {
-    fontSize: fonts.small,
-    color: colors.textSecondary,
-    fontStyle: "italic",
-  },
-  lookupRootBadge: {
-    backgroundColor: colors.accent + "20",
-    borderRadius: 6,
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-  },
-  lookupRootText: {
-    fontSize: fonts.small,
-    color: colors.accent,
-    fontWeight: "600",
-    fontFamily: fontFamily.arabic,
-  },
-  lookupPos: {
-    fontSize: fonts.small,
-    color: colors.textSecondary,
-  },
-  lookupEmpty: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  lookupHint: {
-    color: colors.textSecondary,
-    fontSize: fonts.small,
   },
 
   // Inline actions (at end of scroll)
