@@ -469,22 +469,35 @@ _ACTIVELY_LEARNING_STATES = {"acquiring", "learning", "known", "lapsed"}
 
 
 def _recalculate_story_counts(db: Session, story: Story) -> None:
-    """Recalculate total_words, known_count, unknown_count, readiness_pct from StoryWords."""
+    """Recalculate total_words, known_count, unknown_count, readiness_pct from StoryWords.
+
+    Counts are deduplicated by lemma_id — each unique lemma is counted once.
+    Function words and words without a lemma_id are excluded entirely.
+    """
     story_lemma_ids = {sw.lemma_id for sw in story.words if sw.lemma_id}
     knowledge_map = _build_knowledge_map(db, lemma_ids=story_lemma_ids or None)
+    seen_lemmas: set[int] = set()
+    seen_func: set[int | str] = set()  # track func words by lemma_id or surface
     total = 0
     known = 0
     func = 0
     for sw in story.words:
-        total += 1
         if sw.is_function_word:
-            func += 1
-        elif sw.lemma_id and knowledge_map.get(sw.lemma_id) in _ACTIVELY_LEARNING_STATES:
+            key = sw.lemma_id or sw.surface_form
+            if key not in seen_func:
+                seen_func.add(key)
+                func += 1
+            continue
+        if not sw.lemma_id or sw.lemma_id in seen_lemmas:
+            continue
+        seen_lemmas.add(sw.lemma_id)
+        total += 1
+        if knowledge_map.get(sw.lemma_id) in _ACTIVELY_LEARNING_STATES:
             known += 1
     story.total_words = total
     story.known_count = known
-    story.unknown_count = total - known - func
-    story.readiness_pct = round((known + func) / total * 100, 1) if total > 0 else 0
+    story.unknown_count = total - known
+    story.readiness_pct = round((known + func) / (total + func) * 100, 1) if (total + func) > 0 else 0
 
 
 def _build_knowledge_map(db: Session, lemma_ids: set[int] | None = None) -> dict[int, str]:
