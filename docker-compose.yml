@@ -5,6 +5,12 @@ services:
       - "3000:8000"
     volumes:
       - backend-data:/app/data
+      # Claude CLI for free LLM via Max plan (host → container bind mounts)
+      - /usr/bin/node:/usr/bin/node:ro
+      - /usr/bin/claude:/usr/bin/claude:ro
+      - /usr/lib/node_modules/@anthropic-ai:/usr/lib/node_modules/@anthropic-ai:ro
+      - /root/.claude.json:/root/.claude.json:ro
+      - /root/.claude:/root/.claude:rw
     environment:
       - GEMINI_KEY=${GEMINI_KEY}
       - OPENAI_KEY=${OPENAI_KEY}

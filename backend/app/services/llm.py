@@ -216,19 +216,24 @@ def generate_completion(
     messages.append({"role": "user", "content": prompt})
 
     # Claude CLI models — shell out to `claude -p` (free via Max plan)
+    # Falls back to default API chain if CLI unavailable (e.g. inside Docker)
     CLAUDE_CLI_MODELS = {
         "claude_sonnet": "sonnet",
         "claude_haiku": "haiku",
     }
     if model_override and model_override in CLAUDE_CLI_MODELS:
-        return _generate_via_claude_cli(
-            prompt=prompt,
-            system_prompt=system_prompt,
-            model=CLAUDE_CLI_MODELS[model_override],
-            json_mode=json_mode,
-            timeout=timeout,
-            task_type=task_type,
-        )
+        try:
+            return _generate_via_claude_cli(
+                prompt=prompt,
+                system_prompt=system_prompt,
+                model=CLAUDE_CLI_MODELS[model_override],
+                json_mode=json_mode,
+                timeout=timeout,
+                task_type=task_type,
+            )
+        except LLMError:
+            # CLI unavailable — fall through to default API chain
+            model_override = None
 
     if model_override:
         models_to_try = [m for m in MODELS if m["name"] == model_override]
