@@ -6,7 +6,7 @@
 > topics, grammar, listening) interact. It also identifies where the current
 > implementation diverges from the research and stated intentions.
 >
-> **Last updated**: 2026-02-18
+> **Last updated**: 2026-02-19
 > **Canonical location**: `docs/scheduling-system.md`
 > **Keep this document up to date with every algorithm change.**
 
@@ -195,13 +195,16 @@ detected post-import are reset from acquiring back to encountered.
 **Code**: `story_service.py:import_story()`, `complete_story()`
 
 Unknown words in active stories get priority tier 2 (+10.0 bonus) in the word
-selector. Proper nouns are detected and marked as function words with
-`name_type` instead of creating learning entries.
+selector. Proper nouns are detected and marked with `name_type` instead of
+creating learning entries. Function words (~80 particles/prepositions/pronouns
+from `FUNCTION_WORD_GLOSSES`) are also excluded from story word counts and
+book page introduction — detection checks both surface form and resolved
+lemma bare form (catches cliticized forms like بِهِ → بِ).
 
 ### 3.5 Book Import (Children's Books)
 
 **Path**: `POST /api/books/import` → per-page OCR → per-page LLM cleanup/diacritics/segmentation → LLM translation → story + sentence creation
-**Initial state**: New lemma created with `source="story_import"`, no ULK
+**Initial state**: New lemma created with `source="story_import"`, ULK created as "encountered" (source="book")
 **Code**: `book_import_service.py`
 
 Pipeline processes each page individually (not merged), preserving page boundaries:
@@ -210,6 +213,8 @@ Pipeline processes each page individually (not merged), preserving page boundari
 3. LLM translation of all sentences
 4. Story creation (reuses `story_service` helpers) with StoryWords tagged by page
 5. Sentence + SentenceWord creation with `source="book"`, `page_number` set
+6. "Encountered" ULK records created for all book lemmas without existing ULK
+7. Safety net: cron Step G ensures no book words are missing ULK records
 
 **Page-level readiness**: API returns `page_readiness` array with per-page `new_words`, `learned_words`, and `unlocked` status. A page is unlocked when all its content words are at least acquiring.
 
@@ -893,7 +898,7 @@ User submits: {sentence_id, comprehension_signal, missed_lemma_ids, confused_lem
 
 ### All Words Get Equal Credit
 
-This is a deliberate design choice, backed by research: **every non-function word in
+This is a deliberate design choice, backed by research: **every non-function-word in
 a reviewed sentence gets a full review**, regardless of why the sentence was selected.
 The `credit_type` field (`"primary"` or `"collateral"`) is metadata only — it tracks
 which word caused the sentence to be selected, but both receive identical FSRS
@@ -1005,7 +1010,7 @@ Rule-based validation pipeline:
    - Enclitics: ه، ها، هم، هن، هما، كم، كن، ك، نا، ني
    - Taa marbuta: ة → ت
 4. Match against known forms (lemma_ar_bare + forms_json entries)
-5. 60+ hardcoded function words treated as always-known
+5. ~80 function words (from `FUNCTION_WORD_GLOSSES`) treated as always-known
 
 ### Pipeline Cap & Retirement
 
@@ -1209,8 +1214,9 @@ Import text
     │   └── source="story_import", source_story_id set
     ├── Run variant detection (detect_variants_llm + mark_variants)
     ├── Run import quality gate (filter_useful_lemmas)
-    ├── Detect proper nouns → mark as function words with name_type
-    └── Calculate readiness_pct for the story
+    ├── Detect proper nouns → mark with name_type
+    ├── Create "encountered" ULK for all book lemmas without ULK
+    └── Calculate readiness_pct for the story (deduped by lemma)
 ```
 
 ### Completion Flow

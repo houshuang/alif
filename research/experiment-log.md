@@ -4,6 +4,35 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-02-19: Function Word Restoration & Book Word Count Dedup
+
+### Problem
+Book page 1 showed 1 remaining word (`بِهِ` → lemma `بِ`, a preposition) that would never be introduced. Additionally, 43 book words across pages 3-20 had lemma_ids but no UserLemmaKnowledge records, making them invisible to the word selector. Story word counts were also inflated (counting every token, not unique lemmas).
+
+### Root Cause
+1. `FUNCTION_WORDS` set was intentionally emptied months ago ("all words are learnable"), so `_is_function_word()` always returned False. Function words like بِ, في, من were counted as "words to learn" in books.
+2. Book import created lemmas but some ULK records were missing (likely from an older code version).
+3. `_recalculate_story_counts()` counted every token, not unique lemmas.
+
+### Changes
+1. **Populated `FUNCTION_WORDS`** from `FUNCTION_WORD_GLOSSES` keys (~80 particles, prepositions, pronouns, conjunctions)
+2. **Added lemma-level function word detection** in `_create_story_words()` — checks resolved lemma bare form too (catches cliticized forms like بِهِ → بِ)
+3. **Deduped `_recalculate_story_counts()`** — counts unique lemmas, not tokens
+4. **Created 41 missing ULK records** as "encountered" for book words
+5. **Added cron Step G** (book ULK consistency) — safety net that creates missing ULK every 6h
+
+### Impact
+- Book "Rosie": total 238→123 unique lemmas, unknown 54→48
+- Function words excluded from: book to-learn counts, page word introduction, FSRS review credit, scaffold diversity checks
+- 94 StoryWords marked as function words across all stories
+- Word selector can now see all book words and will introduce them in strict page order
+
+### Verification
+- `python3 -m pytest` — 704 tests passing
+- Check book page status: all pages should have 0 `no_ulk` content words
+
+---
+
 ## 2026-02-19: LLM Usage Audit & Task-Type Logging
 
 ### Problem
