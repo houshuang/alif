@@ -153,12 +153,19 @@ def generate_sentences_for_word(
     difficulty_hint: str | None = None,
     max_words: int | None = None,
 ) -> int:
+    """Generate sentences for a word using generate-then-write pattern.
+
+    LLM generation happens without holding the DB lock. Only the final
+    write phase holds the DB briefly (milliseconds).
+    """
     target_bare = strip_diacritics(lemma.lemma_ar)
+    lemma_ar = lemma.lemma_ar
+    gloss_en = lemma.gloss_en or ""
+    target_lemma_id = lemma.lemma_id
     all_bare = set(lemma_lookup.keys())
-    stored = 0
     rejected_words: list[str] = []
 
-    # Use dynamic difficulty based on word familiarity if not explicitly provided
+    # Read difficulty params before releasing DB
     if difficulty_hint is None or max_words is None:
         diff_params = get_sentence_difficulty_params(db, lemma.lemma_id)
         if difficulty_hint is None:
@@ -166,18 +173,20 @@ def generate_sentences_for_word(
         if max_words is None:
             max_words = diff_params["max_words"]
 
+    # ── LLM generation phase (no DB writes) ──
+    valid_sentences: list[dict] = []
     for batch in range(3):
-        if stored >= needed:
+        if len(valid_sentences) >= needed:
             break
         if batch > 0 and delay > 0:
             time.sleep(delay)
 
         try:
             results = generate_sentences_batch(
-                target_word=lemma.lemma_ar,
-                target_translation=lemma.gloss_en or "",
+                target_word=lemma_ar,
+                target_translation=gloss_en,
                 known_words=known_words,
-                count=min(needed - stored + 2, 4),
+                count=min(needed - len(valid_sentences) + 2, 4),
                 difficulty_hint=difficulty_hint,
                 model_override=model,
                 rejected_words=rejected_words if rejected_words else None,
@@ -189,7 +198,7 @@ def generate_sentences_for_word(
             break
 
         for res in results:
-            if stored >= needed:
+            if len(valid_sentences) >= needed:
                 break
 
             validation = validate_sentence(
@@ -206,36 +215,46 @@ def generate_sentences_for_word(
                         rejected_words.append(bare)
                 continue
 
-            sent = Sentence(
-                arabic_text=res.arabic,
-                arabic_diacritized=res.arabic,
-                english_translation=res.english,
-                transliteration=res.transliteration,
-                source="llm",
-                target_lemma_id=lemma.lemma_id,
-                created_at=datetime.now(timezone.utc),
-            )
-            db.add(sent)
-            db.flush()
-
             tokens = tokenize_display(res.arabic)
             mappings = map_tokens_to_lemmas(
                 tokens=tokens,
                 lemma_lookup=lemma_lookup,
-                target_lemma_id=lemma.lemma_id,
+                target_lemma_id=target_lemma_id,
                 target_bare=target_bare,
             )
-            for m in mappings:
-                sw = SentenceWord(
-                    sentence_id=sent.id,
-                    position=m.position,
-                    surface_form=m.surface_form,
-                    lemma_id=m.lemma_id,
-                    is_target_word=m.is_target,
-                )
-                db.add(sw)
 
-            stored += 1
+            valid_sentences.append({
+                "arabic": res.arabic,
+                "english": res.english,
+                "transliteration": res.transliteration,
+                "mappings": mappings,
+            })
+
+    # ── DB write phase (milliseconds) ──
+    stored = 0
+    for vs in valid_sentences:
+        sent = Sentence(
+            arabic_text=vs["arabic"],
+            arabic_diacritized=vs["arabic"],
+            english_translation=vs["english"],
+            transliteration=vs["transliteration"],
+            source="llm",
+            target_lemma_id=target_lemma_id,
+            created_at=datetime.now(timezone.utc),
+        )
+        db.add(sent)
+        db.flush()
+
+        for m in vs["mappings"]:
+            sw = SentenceWord(
+                sentence_id=sent.id,
+                position=m.position,
+                surface_form=m.surface_form,
+                lemma_id=m.lemma_id,
+                is_target_word=m.is_target,
+            )
+            db.add(sw)
+        stored += 1
 
     db.commit()
     return stored
@@ -409,11 +428,15 @@ def step_backfill_sentences(
     covered_by_multi: set[int] = set()
 
     # Phase 1: Multi-target generation for groups of 2-4 words
+    # Generate-then-write: LLM calls happen first, DB writes batched after
     if not dry_run and len(words_needing) >= 2:
         from app.services.material_generator import store_multi_target_sentence
         groups = group_words_for_multi_target(words_needing)
+
+        # Generate all multi-target sentences (no DB writes during LLM calls)
+        all_multi_results: list[tuple[list, dict[str, int]]] = []
         for group in groups:
-            if total >= budget:
+            if total + sum(len(r) for r, _ in all_multi_results) >= budget:
                 break
             print(f"  Multi-target group: {', '.join(w['lemma_ar'] for w in group)}")
             try:
@@ -428,11 +451,17 @@ def step_backfill_sentences(
                     lemma_lookup=lemma_lookup,
                     model_override=model,
                 )
+                target_bares = {strip_diacritics(tw["lemma_ar"]): tw["lemma_id"] for tw in group}
+                all_multi_results.append((multi_results, target_bares))
             except Exception as e:
                 print(f"    Multi-target failed: {e}")
                 continue
 
-            target_bares = {strip_diacritics(tw["lemma_ar"]): tw["lemma_id"] for tw in group}
+            if delay > 0:
+                time.sleep(delay)
+
+        # Write all multi-target results to DB (fast)
+        for multi_results, target_bares in all_multi_results:
             for mres in multi_results:
                 if total >= budget:
                     break
@@ -445,10 +474,8 @@ def step_backfill_sentences(
                         existing_counts[lid] = existing_counts.get(lid, 0) + 1
                     print(f"    ✓ Multi-target sentence covering {len(mres.target_lemma_ids)} words")
 
-            if delay > 0:
-                time.sleep(delay)
-
-        db.commit()
+        if all_multi_results:
+            db.commit()
 
     # Phase 2: Single-target for remaining words
     for w in words_needing:

@@ -16,17 +16,42 @@ logger = logging.getLogger(__name__)
 def generate_material_for_word(lemma_id: int, needed: int = 2, model_override: str = "gemini") -> None:
     """Background task: generate sentences + audio for a word.
 
-    Opens its own DB session so it can run in a background thread.
-    Uses dynamic difficulty based on the word's familiarity level.
+    Uses a generate-then-write pattern to avoid holding the DB lock during
+    LLM calls (which can take 15-30s via Claude CLI). Three phases:
+    1. DB read: load all needed data, close DB
+    2. LLM generation + validation: no DB lock held
+    3. DB write: open fresh session, write results, close (milliseconds)
     """
+    from app.services.llm import generate_sentences_batch, AllProvidersFailed
+    from app.services.sentence_generator import (
+        get_content_word_counts,
+        get_avoid_words,
+        sample_known_words_weighted,
+        KNOWN_SAMPLE_SIZE,
+    )
+    from app.services.sentence_validator import (
+        build_comprehensive_lemma_lookup,
+        build_lemma_lookup,
+        map_tokens_to_lemmas,
+        sanitize_arabic_word,
+        strip_diacritics,
+        tokenize_display,
+        validate_sentence,
+    )
+    from app.services.word_selector import get_sentence_difficulty_params
+    from app.config import settings as _settings
+
+    # ── Phase 1: DB read ──
     db = SessionLocal()
     try:
         lemma = db.query(Lemma).filter(Lemma.lemma_id == lemma_id).first()
         if not lemma:
             return
+        # Snapshot lemma data for use after DB close
+        lemma_ar = lemma.lemma_ar
+        gloss_en = lemma.gloss_en or ""
+        target_lemma_id = lemma.lemma_id
 
-        # GPT prompt words: known/learning/lapsed/acquiring (active vocabulary)
-        # Validation words: also include encountered (passive vocabulary)
         active_lemmas = (
             db.query(Lemma)
             .join(UserLemmaKnowledge)
@@ -48,118 +73,114 @@ def generate_material_for_word(lemma_id: int, needed: int = 2, model_override: s
             for lem in active_lemmas
         ]
 
-        from app.services.llm import generate_sentences_batch, AllProvidersFailed
-        from app.services.sentence_generator import (
-            get_content_word_counts,
-            get_avoid_words,
-            sample_known_words_weighted,
-            KNOWN_SAMPLE_SIZE,
-        )
-        from app.services.sentence_validator import (
-            build_comprehensive_lemma_lookup,
-            build_lemma_lookup,
-            map_tokens_to_lemmas,
-            sanitize_arabic_word,
-            strip_diacritics,
-            tokenize_display,
-            validate_sentence,
-        )
-        from app.services.word_selector import get_sentence_difficulty_params
-
         lemma_lookup = build_lemma_lookup(all_lemmas)
         mapping_lookup = build_comprehensive_lemma_lookup(db)
-        # Defensive: clean target word in case DB has dirty data
-        clean_target, san_warnings = sanitize_arabic_word(lemma.lemma_ar)
-        if not clean_target or " " in clean_target or "too_short" in san_warnings:
-            logger.warning(
-                f"Skipping generation for uncleanable lemma {lemma_id}: {lemma.lemma_ar!r}"
-            )
-            return
-        target_bare = strip_diacritics(clean_target)
-        all_bare_forms = set(lemma_lookup.keys())
+
+        # Build lemma map for LLM verification (all lemmas by id)
+        all_lemma_by_id = {l.lemma_id: l for l in db.query(Lemma).all()}
 
         content_word_counts = get_content_word_counts(db)
         sample = sample_known_words_weighted(
             known_words, content_word_counts, KNOWN_SAMPLE_SIZE, target_lemma_id=lemma_id
         )
         avoid_words = get_avoid_words(content_word_counts, known_words)
-
-        # Dynamic difficulty based on word familiarity
         diff_params = get_sentence_difficulty_params(db, lemma_id)
-        difficulty_hint = diff_params["difficulty_hint"]
+    finally:
+        db.close()
 
-        try:
-            results = generate_sentences_batch(
-                target_word=clean_target,
-                target_translation=lemma.gloss_en or "",
-                known_words=sample,
-                count=needed + 2,
-                difficulty_hint=difficulty_hint,
-                avoid_words=avoid_words,
-                max_words=diff_params["max_words"],
-                model_override=model_override,
+    # ── Phase 2: LLM generation + validation (no DB lock) ──
+    clean_target, san_warnings = sanitize_arabic_word(lemma_ar)
+    if not clean_target or " " in clean_target or "too_short" in san_warnings:
+        logger.warning(f"Skipping generation for uncleanable lemma {lemma_id}: {lemma_ar!r}")
+        return
+    target_bare = strip_diacritics(clean_target)
+    all_bare_forms = set(lemma_lookup.keys())
+
+    try:
+        results = generate_sentences_batch(
+            target_word=clean_target,
+            target_translation=gloss_en,
+            known_words=sample,
+            count=needed + 2,
+            difficulty_hint=diff_params["difficulty_hint"],
+            avoid_words=avoid_words,
+            max_words=diff_params["max_words"],
+            model_override=model_override,
+        )
+    except AllProvidersFailed:
+        logger.warning(f"LLM unavailable for sentence generation (lemma {lemma_id})")
+        return
+
+    # Validate and prepare sentences in memory
+    valid_sentences: list[dict] = []
+    for res in results:
+        if len(valid_sentences) >= needed:
+            break
+
+        validation = validate_sentence(
+            arabic_text=res.arabic,
+            target_bare=target_bare,
+            known_bare_forms=all_bare_forms,
+        )
+        if not validation.valid:
+            continue
+
+        tokens = tokenize_display(res.arabic)
+        mappings = map_tokens_to_lemmas(
+            tokens=tokens,
+            lemma_lookup=mapping_lookup,
+            target_lemma_id=target_lemma_id,
+            target_bare=target_bare,
+        )
+        unmapped = [m.surface_form for m in mappings if m.lemma_id is None]
+        if unmapped:
+            logger.warning(f"Skipping sentence with unmapped words: {unmapped}")
+            continue
+
+        if _settings.verify_mappings_llm:
+            from app.services.sentence_validator import verify_word_mappings_llm
+            lemma_map_for_verify = {
+                m.lemma_id: all_lemma_by_id[m.lemma_id]
+                for m in mappings if m.lemma_id and m.lemma_id in all_lemma_by_id
+            }
+            wrong_positions = verify_word_mappings_llm(
+                res.arabic, res.english, mappings, lemma_map_for_verify,
             )
-        except AllProvidersFailed:
-            logger.warning(f"LLM unavailable for sentence generation (lemma {lemma_id})")
-            return
-
-        stored = 0
-        for res in results:
-            if stored >= needed:
-                break
-
-            validation = validate_sentence(
-                arabic_text=res.arabic,
-                target_bare=target_bare,
-                known_bare_forms=all_bare_forms,
-            )
-            if not validation.valid:
+            if wrong_positions:
+                logger.warning(
+                    f"LLM flagged mapping issues at positions {wrong_positions} "
+                    f"in sentence for lemma {lemma_id}, discarding"
+                )
                 continue
 
+        valid_sentences.append({
+            "arabic": res.arabic,
+            "english": res.english,
+            "transliteration": res.transliteration,
+            "mappings": mappings,
+        })
+
+    if not valid_sentences:
+        return
+
+    # ── Phase 3: DB write (milliseconds) ──
+    db = SessionLocal()
+    try:
+        stored = 0
+        for vs in valid_sentences:
             sent = Sentence(
-                arabic_text=res.arabic,
-                arabic_diacritized=res.arabic,
-                english_translation=res.english,
-                transliteration=res.transliteration,
+                arabic_text=vs["arabic"],
+                arabic_diacritized=vs["arabic"],
+                english_translation=vs["english"],
+                transliteration=vs["transliteration"],
                 source="llm",
-                target_lemma_id=lemma.lemma_id,
+                target_lemma_id=target_lemma_id,
                 created_at=datetime.now(timezone.utc),
             )
             db.add(sent)
             db.flush()
 
-            tokens = tokenize_display(res.arabic)
-            mappings = map_tokens_to_lemmas(
-                tokens=tokens,
-                lemma_lookup=mapping_lookup,
-                target_lemma_id=lemma.lemma_id,
-                target_bare=target_bare,
-            )
-            unmapped = [m.surface_form for m in mappings if m.lemma_id is None]
-            if unmapped:
-                logger.warning(f"Skipping sentence with unmapped words: {unmapped}")
-                db.delete(sent)
-                continue
-
-            # LLM verification of word-lemma mappings
-            from app.config import settings as _settings
-            if _settings.verify_mappings_llm:
-                from app.services.sentence_validator import verify_word_mappings_llm
-                lemma_map_for_verify = {l.lemma_id: l for l in db.query(Lemma).filter(
-                    Lemma.lemma_id.in_([m.lemma_id for m in mappings if m.lemma_id])
-                ).all()}
-                wrong_positions = verify_word_mappings_llm(
-                    res.arabic, res.english, mappings, lemma_map_for_verify,
-                )
-                if wrong_positions:
-                    logger.warning(
-                        f"LLM flagged mapping issues at positions {wrong_positions} "
-                        f"in sentence for lemma {lemma_id}, discarding"
-                    )
-                    db.delete(sent)
-                    continue
-
-            for m in mappings:
+            for m in vs["mappings"]:
                 sw = SentenceWord(
                     sentence_id=sent.id,
                     position=m.position,
@@ -168,18 +189,13 @@ def generate_material_for_word(lemma_id: int, needed: int = 2, model_override: s
                     is_target_word=m.is_target,
                 )
                 db.add(sw)
-
             stored += 1
 
         db.commit()
         logger.info(f"Generated {stored} sentences for lemma {lemma_id}")
-
-        # Audio generation disabled — existing backlog is sufficient.
-        # Re-enable when ElevenLabs credits are plentiful.
-        # _generate_audio_for_lemma(db, lemma_id)
-
     except Exception:
-        logger.exception(f"Error generating material for lemma {lemma_id}")
+        logger.exception(f"Error writing sentences for lemma {lemma_id}")
+        db.rollback()
     finally:
         db.close()
 
@@ -407,11 +423,11 @@ def rotate_stale_sentences(db, min_shown: int = 1, min_active: int = 2) -> int:
 def warm_sentence_cache(llm_model: str = "gemini") -> dict:
     """Background task: pre-generate sentences for words likely in the next session.
 
-    Uses multi-target generation to efficiently cover multiple words per sentence.
-    Identifies focus cohort words + likely auto-introductions that have fewer
-    than MIN_SENTENCES_PER_WORD active sentences, then generates for them.
-    Rotates stale sentences first to stay within the pipeline cap.
-    Opens its own DB session. Returns stats dict for logging.
+    Uses a generate-then-write pattern to avoid holding the DB lock during
+    LLM calls (which can take 15-30s via Claude CLI). Three phases:
+    1. DB read: identify gap words, build lookups, close DB
+    2. LLM generation: generate sentences (no DB lock held)
+    3. DB write: store results (milliseconds)
 
     Args:
         llm_model: Model override for sentence generation. Use "claude_sonnet"
@@ -432,8 +448,10 @@ def warm_sentence_cache(llm_model: str = "gemini") -> dict:
     from sqlalchemy import func
     from sqlalchemy.orm import joinedload
 
-    db = SessionLocal()
     stats = {"cohort_gaps": 0, "intro_gaps": 0, "generated": 0, "multi_target": 0, "rotated": 0}
+
+    # ── Phase 1: DB read ──
+    db = SessionLocal()
     try:
         # Check pipeline cap — rotate stale sentences first to make room
         total_active = (
@@ -524,52 +542,65 @@ def warm_sentence_cache(llm_model: str = "gemini") -> dict:
         ]
         lemma_lookup = build_lemma_lookup(active_lemmas)
         mapping_lookup = build_comprehensive_lemma_lookup(db)
+    except Exception:
+        logger.exception("Error in warm_sentence_cache (read phase)")
+        return stats
+    finally:
+        db.close()
 
-        # Multi-target generation
-        groups = group_words_for_multi_target(word_dicts)
-        for group in groups:
-            try:
-                results = generate_validated_sentences_multi_target(
-                    target_words=group,
-                    known_words=known_words,
-                    count=len(group),
-                    difficulty_hint="beginner",
-                    max_words=12,
-                    lemma_lookup=lemma_lookup,
-                    model_override=llm_model,
-                )
-                target_bares = {strip_diacritics(tw["lemma_ar"]): tw["lemma_id"] for tw in group}
+    # ── Phase 2: LLM generation (no DB lock) ──
+    groups = group_words_for_multi_target(word_dicts)
+    all_results: list[tuple[list[dict], dict[str, int]]] = []  # (results, target_bares) per group
+
+    for group in groups:
+        try:
+            results = generate_validated_sentences_multi_target(
+                target_words=group,
+                known_words=known_words,
+                count=len(group),
+                difficulty_hint="beginner",
+                max_words=12,
+                lemma_lookup=lemma_lookup,
+                model_override=llm_model,
+            )
+            target_bares = {strip_diacritics(tw["lemma_ar"]): tw["lemma_id"] for tw in group}
+            all_results.append((results, target_bares))
+        except Exception:
+            logger.warning(f"Warm cache: multi-target failed for group")
+
+    # Single-target fallback for any remaining ungrouped words
+    covered = set()
+    for group in groups:
+        for w in group:
+            covered.add(w["lemma_id"])
+    remaining = [lid for lid in gap_word_ids if lid not in covered]
+
+    for lid in remaining:
+        try:
+            generate_material_for_word(lid, needed=MIN_SENTENCES_PER_WORD, model_override=llm_model)
+            stats["generated"] += 1
+        except Exception:
+            logger.warning(f"Warm cache: failed for word {lid}")
+
+    # ── Phase 3: DB write (milliseconds) ──
+    if all_results:
+        db = SessionLocal()
+        try:
+            for results, target_bares in all_results:
                 for mres in results:
                     sent = store_multi_target_sentence(db, mres, mapping_lookup, target_bares)
                     if sent:
                         stats["generated"] += 1
                         stats["multi_target"] += 1
-                db.commit()
-            except Exception:
-                logger.warning(f"Warm cache: multi-target failed for group")
-                db.rollback()
+            db.commit()
+        except Exception:
+            logger.warning("Warm cache: failed to write multi-target sentences")
+            db.rollback()
+        finally:
+            db.close()
 
-        # Single-target fallback for any remaining ungrouped words
-        covered = set()
-        for group in groups:
-            for w in group:
-                covered.add(w["lemma_id"])
-        remaining = [lid for lid in gap_word_ids if lid not in covered]
-
-        for lid in remaining:
-            try:
-                generate_material_for_word(lid, needed=MIN_SENTENCES_PER_WORD, model_override=llm_model)
-                stats["generated"] += 1
-            except Exception:
-                logger.warning(f"Warm cache: failed for word {lid}")
-
-        logger.info(f"Warm cache complete: {stats}")
-        return stats
-    except Exception:
-        logger.exception("Error in warm_sentence_cache")
-        return stats
-    finally:
-        db.close()
+    logger.info(f"Warm cache complete: {stats}")
+    return stats
 
 
 def _generate_audio_for_lemma(db, lemma_id: int) -> None:

@@ -22,6 +22,8 @@ Two root causes: (1) auto-intro only fires when session is undersized, which nev
 
 5. **Pipeline cap 300→600** (`material_generator.py`, `update_material.py`): 270 active words but most had only 1 sentence — 300 cap was blocking generation of needed second sentences. 21 words had zero active sentences. Ideal is 2 per word = 540 minimum.
 
+6. **Generate-then-write DB pattern** (`material_generator.py`, `update_material.py`): Refactored `generate_material_for_word()`, `warm_sentence_cache()`, `generate_sentences_for_word()`, and `step_backfill_sentences()` to close DB before LLM calls and reopen briefly for writes. Previously, Claude CLI calls (15-30s) held the DB session open, exceeding the 15s busy_timeout and causing "database is locked" errors that blocked user sessions and reviews.
+
 ### Expected Effect
 - 2+ new words introduced per session even with full due queue
 - Much less repetition of scaffold words across sentences in a session
