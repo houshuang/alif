@@ -28,6 +28,7 @@ from app.services.sentence_generator import (
 )
 from app.services.sentence_validator import (
     ARABIC_PUNCTUATION,
+    FUNCTION_WORD_GLOSSES,
     FUNCTION_WORDS,
     build_lemma_lookup,
     normalize_alef,
@@ -214,6 +215,8 @@ def _create_story_words(
                 lemma = lemma_by_id.get(lemma_id)
                 if lemma:
                     gloss = lemma.gloss_en
+            elif is_func:
+                gloss = FUNCTION_WORD_GLOSSES.get(bare_norm) or FUNCTION_WORD_GLOSSES.get(clean_form)
 
             sw = StoryWord(
                 story_id=story.id,

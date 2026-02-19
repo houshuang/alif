@@ -33,6 +33,7 @@ export default function StoryReadScreen() {
   const [selectedPosition, setSelectedPosition] = useState<number | null>(null);
   const [cardLoading, setCardLoading] = useState(false);
   const [showCard, setShowCard] = useState(false);
+  const [funcGloss, setFuncGloss] = useState<{ surface: string; gloss: string | null; label: string | null } | null>(null);
   const [lookedUp, setLookedUp] = useState<Set<number>>(new Set());
   const [lookedUpLemmaIds, setLookedUpLemmaIds] = useState<Set<number>>(new Set());
   const [submitting, setSubmitting] = useState(false);
@@ -53,6 +54,7 @@ export default function StoryReadScreen() {
     setSelectedPosition(null);
     setShowCard(false);
     setCardLoading(false);
+    setFuncGloss(null);
     setLookedUp(new Set());
     setLookedUpLemmaIds(new Set());
     storyStartTime.current = Date.now();
@@ -79,14 +81,32 @@ export default function StoryReadScreen() {
     async (word: StoryWordMeta) => {
       if (!story) return;
 
-      // Tapping an already-selected word: dismiss card but keep highlight
-      if (selectedPosition === word.position && showCard) {
-        setShowCard(false);
-        setSelectedPosition(null);
+      // Tapping an already-highlighted word: unselect (remove highlight + close card)
+      if (lookedUp.has(word.position)) {
+        const nextPositions = new Set(lookedUp);
+        nextPositions.delete(word.position);
+        setLookedUp(nextPositions);
+
+        const nextLemmaIds = new Set(lookedUpLemmaIds);
+        if (word.lemma_id != null) {
+          const otherWithSameLemma = story.words.some(
+            (w) => w.lemma_id === word.lemma_id && w.position !== word.position && nextPositions.has(w.position)
+          );
+          if (!otherWithSameLemma) nextLemmaIds.delete(word.lemma_id);
+        }
+        setLookedUpLemmaIds(nextLemmaIds);
+        persistLookups(nextPositions, nextLemmaIds);
+
+        if (selectedPosition === word.position) {
+          setShowCard(false);
+          setSelectedPosition(null);
+          setSelectedWord(null);
+          setFuncGloss(null);
+        }
         return;
       }
 
-      // Mark as looked up (highlight persists)
+      // New word tap: highlight + show card
       const nextPositions = new Set(lookedUp).add(word.position);
       const nextLemmaIds = new Set(lookedUpLemmaIds);
       if (word.lemma_id != null) {
@@ -103,6 +123,7 @@ export default function StoryReadScreen() {
         setCardLoading(true);
         setShowCard(true);
         setSelectedWord(null);
+        setFuncGloss(null);
         try {
           const result = await lookupReviewWord(word.lemma_id);
           if (lookupRequestRef.current !== requestId) return;
@@ -115,12 +136,25 @@ export default function StoryReadScreen() {
           setCardLoading(false);
         }
       } else {
-        // Function word or unknown — no card
-        setShowCard(false);
+        // Function word, name, or unknown — show inline gloss
         setSelectedWord(null);
+        setCardLoading(false);
+        const label = word.name_type === "personal"
+          ? "personal name"
+          : word.name_type === "place"
+          ? "place name"
+          : word.is_function_word
+          ? "function word"
+          : null;
+        setFuncGloss({
+          surface: word.surface_form,
+          gloss: word.gloss_en || null,
+          label,
+        });
+        setShowCard(true);
       }
     },
-    [story, lookedUp, lookedUpLemmaIds, selectedPosition, showCard, id]
+    [story, lookedUp, lookedUpLemmaIds, selectedPosition, id]
   );
 
   async function handleComplete() {
@@ -305,19 +339,27 @@ export default function StoryReadScreen() {
       {/* Word info card */}
       {showCard && (
         <View style={styles.cardContainer}>
-          <Pressable style={styles.dismissBtn} onPress={() => { setShowCard(false); setSelectedPosition(null); }} hitSlop={12}>
+          <Pressable style={styles.dismissBtn} onPress={() => { setShowCard(false); setSelectedPosition(null); setFuncGloss(null); }} hitSlop={12}>
             <Ionicons name="close" size={18} color={colors.textSecondary} />
           </Pressable>
-          <WordInfoCard
-            loading={cardLoading}
-            surfaceForm={selectedSurface}
-            markState="missed"
-            result={selectedWord}
-            showMeaning={true}
-            onShowMeaning={() => {}}
-            reserveSpace={false}
-            onNavigateToDetail={(lemmaId) => router.push(`/word/${lemmaId}`)}
-          />
+          {funcGloss ? (
+            <View style={styles.funcGlossCard}>
+              <Text style={styles.funcGlossArabic}>{funcGloss.surface}</Text>
+              {funcGloss.gloss && <Text style={styles.funcGlossEn}>{funcGloss.gloss}</Text>}
+              {funcGloss.label && <Text style={styles.funcGlossLabel}>{funcGloss.label}</Text>}
+            </View>
+          ) : (
+            <WordInfoCard
+              loading={cardLoading}
+              surfaceForm={selectedSurface}
+              markState="missed"
+              result={selectedWord}
+              showMeaning={true}
+              onShowMeaning={() => {}}
+              reserveSpace={false}
+              onNavigateToDetail={(lemmaId) => router.push(`/word/${lemmaId}`)}
+            />
+          )}
         </View>
       )}
     </View>
@@ -481,6 +523,28 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surfaceLight,
     alignItems: "center",
     justifyContent: "center",
+  },
+  funcGlossCard: {
+    alignItems: "center",
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    gap: 4,
+  },
+  funcGlossArabic: {
+    fontSize: 24,
+    fontFamily: fontFamily.arabic,
+    color: colors.arabic,
+    writingDirection: "rtl",
+  },
+  funcGlossEn: {
+    fontSize: 16,
+    color: colors.text,
+    fontWeight: "600",
+  },
+  funcGlossLabel: {
+    fontSize: 11,
+    color: colors.textSecondary,
+    fontStyle: "italic",
   },
 
   // Inline actions (at end of scroll)
