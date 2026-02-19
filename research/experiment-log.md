@@ -14,18 +14,30 @@ No visibility into which LLM tasks consume the most API budget. Also discovered 
 2. **task_type logging**: Added `task_type` parameter to `_log_call()` and `generate_completion()` in `llm.py`. Tagged all 18 callers across 10 service files.
 3. **Audit script**: New `scripts/audit_llm_usage.py` — parses call logs, estimates costs, infers task types for untagged entries.
 
-### Key Findings (Feb 8-19 server data)
-- 15,686 LLM calls over 12 days ($9.49 estimated, $0.79/day)
-- **Flag evaluation (GPT-5.2): 68% of cost** ($6.46) despite only 11% of calls
-- Gemini Flash: 12,901 calls, 96% success, $2.36 — bulk of work
-- Haiku quality review: 876 calls, $0.65 — well-priced
-- Enrichment (<500 char prompts): 6,263 calls, only $0.08 — very cheap
-- GPT-5.2 is 30x more expensive per-call than Gemini Flash
+### Key Findings (Feb 8-19 server data, 15,686 calls)
 
-### Next Steps
+**Corrected cost estimates** (Gemini 3 Flash: $0.50/M input, $3.00/M output):
+
+| Model | Calls | Est. Cost | Main Use |
+|-------|-------|-----------|----------|
+| Gemini Flash | 12,388 ok / 513 fail | $10-15 | Sentence gen, enrichment, quality |
+| GPT-5.2 | 1,791 ok | $3-5 | One-time scripts (Feb 11-12 redesign) |
+| Haiku (API) | 963 ok / 31 fail | $0.34 | Quality review gate |
+| **Total** | **15,142 ok** | **~$14-20** | |
+
+- **Gemini Flash is ~75% of cost**, not GPT-5.2 as initially thought
+- GPT-5.2 calls were from one-time scripts (`verify_sentences.py`, `generate_sentences.py`) run during Feb 11-12 redesign — they default to `--model openai`
+- Flag evaluation itself: only 9 flags total, ~18 GPT-5.2 calls (negligible)
+- **Ongoing daily cost** (excluding one-time scripts): ~$1-1.50/day for Gemini Flash
+- Enrichment calls (forms, etymology, etc.) are high-volume (6,263) but cheap (<$0.10 total)
+- Sentence gen + quality review are the main ongoing cost drivers
+- 230 OCR vision calls not included in cost estimate (image token pricing)
+- `update_material.py` cron had been crashing since Feb 17 — fixed and deployed
+
+### Next Steps (Phase 2)
 - Benchmark Claude Sonnet/Haiku vs Gemini Flash for sentence gen, forms, quality gate
 - Prototype agentic enrichment agent (one Claude Code session replacing 4 scripts)
-- Consider replacing GPT-5.2 flag evaluation with Claude Code CLI (free)
+- Change script defaults from `--model openai` to `--model gemini`
 
 ---
 
