@@ -7,7 +7,7 @@ import {
   StyleSheet,
   ActivityIndicator,
 } from "react-native";
-import { useLocalSearchParams, useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter, useNavigation } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { colors, fonts, fontFamily } from "../../lib/theme";
 import {
@@ -40,6 +40,17 @@ export default function StoryReadScreen() {
   const storyStartTime = useRef(Date.now());
   const lookupRequestRef = useRef(0);
   const router = useRouter();
+  const navigation = useNavigation();
+
+  useEffect(() => {
+    navigation.setOptions({
+      headerLeft: () => (
+        <Pressable onPress={() => router.replace("/stories")} style={{ paddingLeft: 12 }}>
+          <Ionicons name="arrow-back" size={24} color={colors.text} />
+        </Pressable>
+      ),
+    });
+  }, [navigation, router]);
 
   useEffect(() => {
     if (id) loadStory(Number(id));
@@ -164,7 +175,7 @@ export default function StoryReadScreen() {
       const readingTimeMs = Date.now() - storyStartTime.current;
       await completeStory(story.id, Array.from(lookedUpLemmaIds), readingTimeMs);
       clearStoryLookups(story.id).catch(() => {});
-      router.back();
+      router.replace("/stories");
     } catch (e) {
       console.error("Failed to complete story:", e);
       setSubmitting(false);
@@ -176,7 +187,7 @@ export default function StoryReadScreen() {
     setSubmitting(true);
     try {
       await suspendStory(story.id);
-      router.back();
+      router.replace("/stories");
     } catch (e) {
       console.error("Failed to suspend story:", e);
       setSubmitting(false);
