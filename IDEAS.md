@@ -462,12 +462,12 @@
 - Use `claude -p` for **story-to-sentences pipeline** — generate a story, then chop into review sentences, all with Opus quality
 - Use `claude -p` with `--model sonnet` for **high-volume tasks** where Opus quality isn't needed but free access matters (e.g. batch translations)
 - Consider **Claude Code SDK** (`@anthropic-ai/claude-code`) for Node.js integration if CLI subprocess overhead becomes an issue
-- Install `claude` on Hetzner server via `claude setup-token` for server-side free generation without API costs
+- [DONE] Install `claude` on Hetzner server via `claude setup-token` for server-side free generation without API costs — authenticated with Max plan, bind-mounted into Docker container via docker-compose.yml
 - **Replace GPT-5.2 flag evaluation with Gemini** — only 9 flags total, GPT-5.2 is overkill. Change `flag_evaluator.py` model_override from "openai" to "gemini".
 - **Agentic enrichment agent** — single Claude Code session that reads DB, identifies words missing forms/etymology/hooks, generates ALL enrichment in one pass, validates, returns structured batch. Replaces 4 separate scripts.
 - **LLM task_type dashboard** — now that all calls are tagged with task_type, build a lightweight dashboard or cron report showing daily costs by task type
 - [DONE] **Benchmark script** (`scripts/benchmark_claude_code.py`): Compares Gemini Flash, Sonnet CLI, Haiku CLI across sentence gen, quality gate, forms, hooks. Supports batched multi-word mode.
-- **Switch memory hooks to Sonnet CLI** — benchmark showed Sonnet produces better mnemonics + more cognates. Low volume (once per word), quality matters most.
+- [DONE] **Switch memory hooks to Claude CLI** — switched from Haiku API (paid) to Haiku CLI (free). Benchmark showed Sonnet has slightly better quality but Haiku is sufficient for this task.
 - **Expand forms_json for validator accuracy** — benchmark revealed most "failed" sentences are actually good Arabic; the validator rejects them because conjugated forms (past_1s, present_3fs, passive) aren't in forms_json. Adding more conjugation patterns would boost pass rates for ALL models equally. This is a bigger quality win than switching models.
 - **Investigate Haiku CLI quality gate divergence** — Haiku CLI approved only 60% of known-good sentences vs Haiku API 90%. Likely a `--json-schema` vs `response_format` prompt formatting difference. If fixed, Haiku CLI could replace Haiku API (free).
 - **Sonnet batch mode tuning** — sending multiple words per CLI call cuts time 50% (32s→16s per word) but quality dropped. Prompt engineering to maintain per-word quality in batch mode could make Sonnet viable for sentence gen at scale.
@@ -674,7 +674,7 @@
 - [DONE] Prompt overhaul: added explicit rules for indefinite noun starters, redundant pronouns, semantic coherence in compound sentences, beginner-level archaic word exclusion. Lowered temperature from 0.8 to 0.5. Reduced failure rate from 57% to ~10%.
 - [DONE] Parallel on-demand generation: ThreadPoolExecutor(max_workers=8) for concurrent LLM calls during session building
 - [DONE] Bulk sentence quality audit: `review_existing_sentences.py` script reviews all active sentences, retires failures. Supports --dry-run.
-- [DONE] Cross-model quality review: switched quality gate from Gemini Flash self-review to Claude Haiku cross-model review. Self-review has blind spots (same model makes same mistakes). Benchmarked 3 models: Gemini 16%, Haiku strict 40%, Haiku relaxed 12.5%, GPT-5.2 97% (broken). Relaxed prompt focuses on grammar/translation errors, not scenario realism — avoids over-rejecting pedagogically valid sentences.
+- [DONE] Cross-model quality review: switched quality gate from Gemini Flash self-review to Claude Haiku cross-model review. Self-review has blind spots (same model makes same mistakes). Benchmarked 3 models: Gemini 16%, Haiku strict 40%, Haiku relaxed 12.5%, GPT-5.2 97% (broken). Relaxed prompt focuses on grammar/translation errors, not scenario realism — avoids over-rejecting pedagogically valid sentences. Now uses Claude Haiku CLI (free via Max plan) instead of Haiku API (paid).
 
 ### Learning Algorithm Overhaul — Acquisition Phase & Focus Cohorts (2026-02-12)
 
