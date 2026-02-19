@@ -42,9 +42,8 @@ from app.services.morphology import find_best_db_match, get_word_features, is_va
 logger = logging.getLogger(__name__)
 
 KNOWN_SAMPLE_SIZE = 500
-MAX_NEW_WORDS_IN_STORY = 5
-MAX_STORY_RETRIES = 3
-STORY_COMPLIANCE_THRESHOLD = 70.0
+MAX_STORY_ATTEMPTS = 1
+MAX_CORRECTION_ROUNDS = 3
 TERMINAL_STORY_STATUSES = {"completed"}
 
 STORY_SYSTEM_PROMPT = f"""\
@@ -80,10 +79,11 @@ Respond with JSON only: {{"title_ar": "...", "title_en": "...", "body_ar": "..."
 
 
 def _get_known_words(db: Session) -> list[dict]:
-    """Fetch all known/learning/acquiring words with their lemma info.
+    """Fetch words eligible for story vocabulary.
 
-    Includes acquiring words (Leitner box 1-3) — these are being actively
-    learned and should be available for story vocabulary.
+    Includes learning/known words and acquiring words in Leitner box 2+.
+    Box 1 words are too fresh — they've only been seen once and shouldn't
+    appear in stories yet.
     """
     rows = (
         db.query(Lemma, UserLemmaKnowledge)
@@ -102,6 +102,7 @@ def _get_known_words(db: Session) -> list[dict]:
             "state": ulk.knowledge_state,
         }
         for lemma, ulk in rows
+        if ulk.knowledge_state != "acquiring" or (ulk.acquisition_box or 0) >= 2
     ]
 
 
@@ -526,8 +527,12 @@ STORY_GENRES = [
 def _check_story_compliance(
     body_ar: str,
     lemma_lookup: dict[str, int],
+    known_lemma_ids: set[int] | None = None,
 ) -> tuple[float, list[str]]:
     """Check vocabulary compliance of generated story text.
+
+    If known_lemma_ids is provided, a word is only "known" if it resolves to
+    a lemma in that set. Otherwise falls back to any lemma in DB.
 
     Returns (compliance_pct, list_of_unknown_bare_forms).
     """
@@ -545,7 +550,8 @@ def _check_story_compliance(
         if bare in func_bares:
             continue
         content_total += 1
-        if lookup_lemma(bare, lemma_lookup):
+        lemma_id = lookup_lemma(bare, lemma_lookup)
+        if lemma_id and (known_lemma_ids is None or lemma_id in known_lemma_ids):
             content_known += 1
         elif bare not in unknown_list:
             unknown_list.append(bare)
@@ -561,13 +567,18 @@ def generate_story(
     length: str = "medium",
     topic: str | None = None,
 ) -> tuple["Story", list[int]]:
-    """Generate a story using Opus with retry loop for vocabulary compliance.
+    """Generate a story using Opus with self-correction for 100% vocabulary compliance.
+
+    Strategy: generate once, then iteratively correct unknown words rather than
+    regenerating the entire story from scratch.
 
     Returns (story, new_lemma_ids).
     """
     known_words = _get_known_words(db)
     if not known_words:
         raise ValueError("No known/learning/acquiring words found. Learn some words first.")
+
+    known_lemma_ids = {w["lemma_id"] for w in known_words}
 
     # Diversity: weighted sampling to avoid over-represented words
     content_word_counts = get_content_word_counts(db)
@@ -579,6 +590,8 @@ def generate_story(
     # Format vocabulary grouped by POS for better prompting
     from app.services.llm import format_known_words_by_pos
     vocab_list = format_known_words_by_pos(sample)
+    # Full vocab list for correction rounds (LLM needs max options for replacements)
+    full_vocab_list = format_known_words_by_pos(known_words)
 
     # Highlight acquiring words for reinforcement
     acquiring = [w for w in known_words if w.get("state") == "acquiring"]
@@ -596,23 +609,10 @@ REINFORCEMENT WORDS (the reader is currently learning these — try to feature t
 
     # Build lemma lookup for compliance checking (uses all lemmas for form matching)
     all_lemmas = _get_all_lemmas(db)
-    compliance_lookup = build_lemma_lookup(all_lemmas)
+    lemma_lookup = build_lemma_lookup(all_lemmas)
 
-    best_result = None
-    best_compliance = 0
-
-    for attempt in range(MAX_STORY_RETRIES):
-        retry_section = ""
-        if attempt > 0 and best_result:
-            _, unknown = _check_story_compliance(best_result.get("body_ar", ""), compliance_lookup)
-            if unknown:
-                retry_section = f"""
-IMPORTANT CORRECTION: Your previous attempt used words NOT in the vocabulary list.
-These words are NOT allowed: {', '.join(unknown[:20])}
-Replace them with synonyms from the vocabulary list, or restructure sentences to avoid them.
-"""
-
-        prompt = f"""{retry_section}Write a cohesive mini-story ({lo}-{hi} sentences) for a {difficulty} Arabic learner.
+    # Step 1: Generate the story
+    prompt = f"""Write a cohesive mini-story ({lo}-{hi} sentences) for a {difficulty} Arabic learner.
 
 GENRE: {genre}
 {topic_line}
@@ -630,44 +630,82 @@ RULES:
 {f"- For variety, try NOT to use these overused words: {'، '.join(avoid_words)}" if avoid_words else ""}
 Respond with JSON: {{"title_ar": "...", "title_en": "...", "body_ar": "full story in Arabic with diacritics", "body_en": "English translation", "transliteration": "ALA-LC transliteration"}}"""
 
-        try:
-            result = generate_completion(
-                prompt=prompt,
-                system_prompt=STORY_SYSTEM_PROMPT,
-                json_mode=True,
-                temperature=0.9,
-                model_override="opus",
-                timeout=90,
-                task_type="story_gen",
-            )
-        except AllProvidersFailed as e:
-            logger.warning("Story generation attempt %d failed: %s", attempt + 1, e)
-            continue
+    try:
+        result = generate_completion(
+            prompt=prompt,
+            system_prompt=STORY_SYSTEM_PROMPT,
+            json_mode=True,
+            temperature=0.9,
+            model_override="opus",
+            timeout=90,
+            task_type="story_gen",
+        )
+    except AllProvidersFailed as e:
+        raise ValueError(f"Story generation failed: {e}")
 
-        body_ar = result.get("body_ar", "")
-        if not body_ar:
-            continue
+    body_ar = result.get("body_ar", "")
+    if not body_ar:
+        raise ValueError("Story generation returned empty body")
 
-        compliance_pct, unknown = _check_story_compliance(body_ar, compliance_lookup)
+    # Step 2: Self-correction loop — ask LLM to fix unknown words in place
+    for correction_round in range(MAX_CORRECTION_ROUNDS):
+        compliance_pct, unknown = _check_story_compliance(
+            body_ar, lemma_lookup, known_lemma_ids
+        )
         logger.info(
-            "Story attempt %d: compliance=%.1f%% unknown=%d words",
-            attempt + 1, compliance_pct, len(unknown),
+            "Story compliance round %d: %.1f%% (%d unknown words: %s)",
+            correction_round, compliance_pct, len(unknown),
+            ", ".join(unknown[:10]),
         )
 
-        if compliance_pct > best_compliance:
-            best_compliance = compliance_pct
-            best_result = result
-
-        if compliance_pct >= STORY_COMPLIANCE_THRESHOLD:
+        if not unknown:
             break
 
-    if not best_result or not best_result.get("body_ar"):
-        raise ValueError("Failed to generate story after all attempts")
+        # Ask LLM to replace only the unknown words
+        correction_prompt = f"""The following Arabic story uses words the reader doesn't know yet.
 
-    result = best_result
-    body_ar = result.get("body_ar", "")
+STORY:
+{body_ar}
 
-    lemma_lookup = compliance_lookup
+ENGLISH:
+{result.get("body_en", "")}
+
+UNKNOWN WORDS (the reader does NOT know these): {', '.join(unknown)}
+
+FULL KNOWN VOCABULARY (use ONLY these plus function words — any conjugated form is fine):
+{full_vocab_list}
+
+TASK: Rewrite the story replacing ONLY the unknown words with synonyms or rephrased constructions using known vocabulary. Keep the story structure, diacritics, and meaning as close to the original as possible.
+
+Respond with JSON: {{"title_ar": "...", "title_en": "...", "body_ar": "corrected story", "body_en": "updated English translation", "transliteration": "ALA-LC transliteration"}}"""
+
+        try:
+            corrected = generate_completion(
+                prompt=correction_prompt,
+                system_prompt=STORY_SYSTEM_PROMPT,
+                json_mode=True,
+                temperature=0.3,
+                model_override="opus",
+                timeout=90,
+                task_type="story_correction",
+            )
+        except AllProvidersFailed as e:
+            logger.warning("Story correction round %d failed: %s", correction_round + 1, e)
+            break
+
+        if corrected.get("body_ar"):
+            result = corrected
+            body_ar = corrected["body_ar"]
+
+    # Final compliance check
+    final_pct, final_unknown = _check_story_compliance(
+        body_ar, lemma_lookup, known_lemma_ids
+    )
+    logger.info(
+        "Story final compliance: %.1f%% (%d unknown)",
+        final_pct, len(final_unknown),
+    )
+
     knowledge_map = _build_knowledge_map(db)
 
     story = Story(
@@ -687,10 +725,9 @@ Respond with JSON: {{"title_ar": "...", "title_en": "...", "body_ar": "full stor
         db, story, body_ar, lemma_lookup, knowledge_map
     )
 
-    # Import unknown words (creates Lemma entries, no ULK)
+    # Safety net: import any remaining unknown words as lemmas (no ULK)
     new_ids = _import_unknown_words(db, story, lemma_lookup)
 
-    # Recalculate readiness now that unknown words have lemma_ids
     _recalculate_story_counts(db, story)
 
     db.commit()
@@ -703,6 +740,8 @@ Respond with JSON: {{"title_ar": "...", "title_en": "...", "body_ar": "full stor
         known_count=story.known_count,
         readiness_pct=story.readiness_pct,
         new_words_imported=len(new_ids),
+        correction_rounds=min(correction_round + 1, MAX_CORRECTION_ROUNDS) if unknown else 0,
+        final_compliance_pct=final_pct,
     )
 
     return story, new_ids

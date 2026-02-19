@@ -4,6 +4,30 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-02-19: Story Generation — Zero Unknown Words + Self-Correction
+
+### Problem
+Generated stories allowed up to 5 unknown words (MAX_NEW_WORDS_IN_STORY=5) and accepted 70% vocabulary compliance (STORY_COMPLIANCE_THRESHOLD=70%). Stories also included Leitner box 1 words (seen once, not yet reinforced) in the vocabulary pool. This meant stories could contain words the learner barely recognized.
+
+The retry loop was also wasteful — on compliance failure, it regenerated the entire story from scratch instead of fixing just the offending words.
+
+### Changes
+1. **`_get_known_words()` excludes box 1**: Only acquiring words in Leitner box 2+ (plus learning/known) are eligible for story vocabulary. Box 1 words are too fresh.
+2. **100% compliance required**: Zero unknown words allowed. Compliance checked against the known-words set (not just "exists in DB").
+3. **Self-correction loop replaces retry-from-scratch**: Generate once, then iteratively ask the LLM to replace unknown words (up to 3 correction rounds). Correction prompt gets the full vocabulary list (not the 500-word sample) for maximum replacement options. Lower temperature (0.3) for corrections vs generation (0.9).
+4. **Removed `MAX_NEW_WORDS_IN_STORY` and `STORY_COMPLIANCE_THRESHOLD` constants**.
+
+### Expected Effect
+- Stories are fully comprehensible — every content word is one the learner knows
+- Self-correction is more token-efficient than regeneration (only the offending words change)
+- Correction prompt sees full vocab, not just the generation sample, so has more options
+
+### Verification
+- Generate a story, verify `readiness_pct` is ~100% for known words
+- Check logs for correction rounds (should converge in 1-2 rounds typically)
+
+---
+
 ## 2026-02-19: Tighten Comprehensibility Gate & Fix Book Lemma Mapping
 
 ### Problem
