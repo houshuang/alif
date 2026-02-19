@@ -37,9 +37,9 @@ from app.services.sentence_validator import (
 
 MAX_RETRIES = 7
 KNOWN_SAMPLE_SIZE = 500
-MAX_AVOID_WORDS = 20
+MAX_AVOID_WORDS = 30
 MIN_WEIGHT = 0.05
-DIVERSITY_SENTENCE_THRESHOLD = 15  # scaffold words in this many+ sentences trigger rejection
+DIVERSITY_SENTENCE_THRESHOLD = 10  # scaffold words in this many+ sentences trigger rejection
 ALWAYS_AVOID_NAMES = {"محمد", "احمد", "فاطمة", "علي"}
 
 
@@ -107,7 +107,7 @@ def get_avoid_words(
 
     counts = sorted(content_word_counts.values())
     median = statistics.median(counts)
-    threshold = max(median * 2, 3)
+    threshold = max(median * 1.5, 3)
 
     lid_to_arabic: dict[int, str] = {}
     for w in known_words:

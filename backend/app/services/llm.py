@@ -465,7 +465,7 @@ def generate_sentence(
     avoid_instruction = ""
     if avoid_words:
         avoid_str = "، ".join(avoid_words)
-        avoid_instruction = f"\nFor variety, try NOT to use these overused words (pick other vocabulary instead): {avoid_str}\n"
+        avoid_instruction = f"\nDo NOT use these overused words — using them will cause rejection: {avoid_str}\nChoose different vocabulary instead.\n"
 
     prompt = f"""Create a natural MSA sentence for a {difficulty_hint} Arabic learner.
 
@@ -521,7 +521,7 @@ def generate_sentences_batch(
     avoid_instruction = ""
     if avoid_words:
         avoid_str = "، ".join(avoid_words)
-        avoid_instruction = f"\nFor variety, try NOT to use these overused words (pick other vocabulary instead): {avoid_str}"
+        avoid_instruction = f"\nDo NOT use these overused words — using them will cause rejection: {avoid_str}\nChoose different vocabulary instead."
 
     rejected_instruction = ""
     if rejected_words:
@@ -649,7 +649,7 @@ def generate_sentences_multi_target(
     avoid_instruction = ""
     if avoid_words:
         avoid_str = "، ".join(avoid_words)
-        avoid_instruction = f"\nFor variety, try NOT to use these overused words (pick other vocabulary instead): {avoid_str}"
+        avoid_instruction = f"\nDo NOT use these overused words — using them will cause rejection: {avoid_str}\nChoose different vocabulary instead."
 
     if max_words:
         min_words = max(5, max_words - 3)

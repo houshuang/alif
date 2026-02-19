@@ -407,7 +407,7 @@ class TestGetAvoidWords:
 
     def test_returns_over_represented_words(self):
         """Words above 2x median should be returned."""
-        # Median will be 2, threshold = max(4, 3) = 4
+        # Median will be 2, threshold = max(3, 3) = 3
         counts = {i: 2 for i in range(50)}
         counts[0] = 20  # way over threshold
         counts[1] = 10
@@ -420,14 +420,14 @@ class TestGetAvoidWords:
 
     def test_caps_at_max_avoid_words(self):
         """Should return at most MAX_AVOID_WORDS items (plus always-avoid names)."""
-        # 80 words at count 2, 25 words at count 100 → median = 2, threshold = 4
+        # 80 words at count 2, 35 words at count 100 → median = 2, threshold = 3
         counts = {i: 2 for i in range(80)}
-        for i in range(25):
-            counts[i] = 100  # 25 words over threshold
+        for i in range(35):
+            counts[i] = 100  # 35 words over threshold
         result = get_avoid_words(counts, KNOWN_WORDS_WITH_IDS)
         assert result is not None
-        # MAX_AVOID_WORDS is 20, caps at 20 (no names in test data)
-        assert len(result) == 20
+        # MAX_AVOID_WORDS is 30, caps at 30 (no names in test data)
+        assert len(result) == 30
 
     def test_only_returns_words_in_known_list(self):
         """Avoid words must be in the known_words list."""

@@ -9,10 +9,12 @@ from app.services.fsrs_service import create_new_card
 from app.services.sentence_selector import (
     FRESHNESS_BASELINE,
     MAX_AUTO_INTRO_PER_SESSION,
+    SESSION_SCAFFOLD_DECAY,
     WordMeta,
     _difficulty_match_quality,
     _intro_slots_for_accuracy,
     _scaffold_freshness,
+    compute_sentence_diversity_score,
     build_session,
 )
 
@@ -543,3 +545,91 @@ class TestAdaptiveIntroRate:
     def test_above_92_returns_max(self):
         assert _intro_slots_for_accuracy(0.95) == MAX_AUTO_INTRO_PER_SESSION
         assert _intro_slots_for_accuracy(1.0) == MAX_AUTO_INTRO_PER_SESSION
+
+
+class TestSessionScaffoldDiversity:
+    def _make_ulk(self, times_seen=5):
+        return UserLemmaKnowledge(times_seen=times_seen, times_correct=4)
+
+    def test_no_session_counts_gives_perfect_score(self):
+        words = [WordMeta(lemma_id=1, surface_form="x", gloss_en="x",
+                          stability=10.0, is_due=False, is_function_word=False)]
+        result = compute_sentence_diversity_score(words, {1: self._make_ulk()}, None)
+        assert result["scaffold_uniqueness"] == 1.0
+
+    def test_reused_scaffold_reduces_uniqueness(self):
+        words = [
+            WordMeta(lemma_id=1, surface_form="a", gloss_en="a",
+                     stability=10.0, is_due=False, is_function_word=False),
+            WordMeta(lemma_id=2, surface_form="b", gloss_en="b",
+                     stability=10.0, is_due=False, is_function_word=False),
+        ]
+        km = {1: self._make_ulk(), 2: self._make_ulk()}
+        # lemma 1 already used 3 times in session, lemma 2 is fresh
+        counts = {1: 3, 2: 0}
+        result = compute_sentence_diversity_score(words, km, counts)
+        assert result["scaffold_uniqueness"] == 0.5  # 1 of 2 is low-reuse
+
+    def test_session_scaffold_decay_math(self):
+        """Verify the decay factor produces expected values."""
+        assert SESSION_SCAFFOLD_DECAY ** 0 == 1.0
+        assert SESSION_SCAFFOLD_DECAY ** 1 == 0.5
+        assert abs(SESSION_SCAFFOLD_DECAY ** 2 - 0.25) < 0.01
+        assert abs(SESSION_SCAFFOLD_DECAY ** 3 - 0.125) < 0.01
+
+    def test_due_words_not_counted_as_scaffold(self):
+        words = [
+            WordMeta(lemma_id=1, surface_form="a", gloss_en="a",
+                     stability=0.5, is_due=True, is_function_word=False),
+            WordMeta(lemma_id=2, surface_form="b", gloss_en="b",
+                     stability=10.0, is_due=False, is_function_word=False),
+        ]
+        km = {2: self._make_ulk()}
+        counts = {1: 5}  # due word reused, but shouldn't affect scaffold score
+        result = compute_sentence_diversity_score(words, km, counts)
+        assert result["scaffold_uniqueness"] == 1.0  # only lemma 2 is scaffold, it's fresh
+
+
+class TestAutoIntroReserve:
+    def test_reserve_fraction_computes_slots(self):
+        """INTRO_RESERVE_FRACTION should produce slots even when due > limit."""
+        from app.services.sentence_selector import INTRO_RESERVE_FRACTION
+        limit = 10
+        due_count = 60  # way more than limit
+
+        # Old logic: max(0, limit - due_count) = 0
+        old_slots = max(0, limit - due_count)
+        assert old_slots == 0
+
+        # New logic: reserved fraction always gives at least 1
+        reserved = max(1, int(limit * INTRO_RESERVE_FRACTION))
+        assert reserved == 2  # 10 * 0.2 = 2
+
+    def test_accuracy_intro_slots_with_high_accuracy(self, db_session):
+        """With 93%+ accuracy, _get_accuracy_intro_slots returns MAX."""
+        from app.services.sentence_selector import _get_accuracy_intro_slots
+        now = datetime.now(timezone.utc)
+        # Seed 20 reviews, all correct
+        for j in range(20):
+            db_session.add(ReviewLog(
+                lemma_id=1, rating=3,
+                reviewed_at=(now - timedelta(hours=j)).replace(tzinfo=None),
+            ))
+        db_session.commit()
+        slots = _get_accuracy_intro_slots(db_session, now)
+        assert slots == MAX_AUTO_INTRO_PER_SESSION  # 100% accuracy → max slots
+
+    def test_accuracy_intro_slots_with_low_accuracy(self, db_session):
+        """With <70% accuracy, _get_accuracy_intro_slots returns 0."""
+        from app.services.sentence_selector import _get_accuracy_intro_slots
+        now = datetime.now(timezone.utc)
+        # Seed 20 reviews, mostly wrong
+        for j in range(20):
+            rating = 3 if j < 5 else 1  # 25% accuracy
+            db_session.add(ReviewLog(
+                lemma_id=1, rating=rating,
+                reviewed_at=(now - timedelta(hours=j)).replace(tzinfo=None),
+            ))
+        db_session.commit()
+        slots = _get_accuracy_intro_slots(db_session, now)
+        assert slots == 0

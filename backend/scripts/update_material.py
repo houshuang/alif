@@ -622,6 +622,8 @@ def step_pregenerate_candidates(db: Session, dry_run: bool, count: int, model: s
     print(f"  Found {len(candidates)} upcoming candidates")
 
     known_words, lemma_lookup = get_known_words_and_lookup(db)
+    content_word_counts = get_content_word_counts(db)
+    avoid_words = get_avoid_words(content_word_counts, known_words)
     budget = TARGET_PIPELINE_SENTENCES - total_active
 
     total = 0
@@ -645,6 +647,7 @@ def step_pregenerate_candidates(db: Session, dry_run: bool, count: int, model: s
                 stored = generate_sentences_for_word(
                     db, lemma, known_words, lemma_lookup,
                     needed=needed, model=model, delay=delay,
+                    avoid_words=avoid_words,
                 )
                 total += stored
                 if stored:

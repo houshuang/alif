@@ -42,6 +42,8 @@ MIN_ACQUISITION_EXPOSURES = 4
 MAX_ACQUISITION_EXTRA_SLOTS = 15  # max extra cards beyond session limit for repetitions
 MAX_AUTO_INTRO_PER_SESSION = 10  # cap new words per single auto-intro call
 AUTO_INTRO_ACCURACY_FLOOR = 0.70  # pause introduction if recent accuracy below this
+INTRO_RESERVE_FRACTION = 0.2  # fraction of session slots reserved for new word introductions
+SESSION_SCAFFOLD_DECAY = 0.5  # per-appearance decay for scaffold words already in session
 
 
 def _intro_slots_for_accuracy(accuracy: float) -> int:
@@ -60,6 +62,20 @@ def _intro_slots_for_accuracy(accuracy: float) -> int:
     if accuracy < 0.92:
         return 7
     return MAX_AUTO_INTRO_PER_SESSION
+
+
+def _get_accuracy_intro_slots(db: Session, now: datetime) -> int:
+    """Compute how many intro slots the learner's accuracy allows."""
+    recent_reviews = (
+        db.query(ReviewLog)
+        .filter(ReviewLog.reviewed_at >= (now - timedelta(days=2)).replace(tzinfo=None))
+        .all()
+    )
+    if len(recent_reviews) >= 10:
+        correct = sum(1 for r in recent_reviews if r.rating >= 3)
+        accuracy = correct / len(recent_reviews)
+        return _intro_slots_for_accuracy(accuracy)
+    return 4  # conservative default with insufficient data
 
 
 @dataclass
@@ -220,6 +236,39 @@ def _scaffold_freshness(
 
     geo_mean = product ** (1.0 / len(scaffold))
     return max(0.1, geo_mean)
+
+
+def compute_sentence_diversity_score(
+    words_meta: list[WordMeta],
+    knowledge_map: dict[int, UserLemmaKnowledge],
+    session_scaffold_counts: dict[int, int] | None = None,
+) -> dict:
+    """Compute per-sentence diversity metrics for logging."""
+    scaffold = [
+        w for w in words_meta
+        if w.lemma_id and not w.is_due and not w.is_function_word
+    ]
+    unique_scaffold_count = len({w.lemma_id for w in scaffold})
+
+    freshness = _scaffold_freshness(words_meta, knowledge_map)
+
+    if session_scaffold_counts and scaffold:
+        low_reuse = sum(
+            1 for w in scaffold
+            if session_scaffold_counts.get(w.lemma_id, 0) <= 1
+        )
+        scaffold_uniqueness = low_reuse / len(scaffold)
+    else:
+        scaffold_uniqueness = 1.0
+
+    diversity_score = (freshness * scaffold_uniqueness) ** 0.5
+
+    return {
+        "diversity_score": round(diversity_score, 3),
+        "scaffold_uniqueness": round(scaffold_uniqueness, 3),
+        "scaffold_freshness": round(freshness, 3),
+        "unique_scaffold_count": unique_scaffold_count,
+    }
 
 
 def _auto_introduce_words(
@@ -389,10 +438,18 @@ def build_session(
     cohort = get_focus_cohort(db)
     due_lemma_ids &= cohort
 
-    # Auto-introduce new words if session would be undersized
-    slots_needed = max(0, limit - len(due_lemma_ids))
+    # Auto-introduce new words: reserve slots even when due queue is full
+    # This ensures vocabulary growth doesn't stall when reviews pile up.
+    accuracy_slots = _get_accuracy_intro_slots(db, now)
+    if accuracy_slots > 0:
+        reserved_intro = max(1, int(limit * INTRO_RESERVE_FRACTION))
+        intro_slots = min(accuracy_slots, reserved_intro)
+    else:
+        intro_slots = 0
+    undersized_slots = max(0, limit - len(due_lemma_ids))
+    slots_for_intro = max(intro_slots, undersized_slots)
     auto_introduced_ids = _auto_introduce_words(
-        db, slots_needed, knowledge_by_id, now,
+        db, slots_for_intro, knowledge_by_id, now,
     )
     if auto_introduced_ids:
         # Add newly introduced words to due set and tracking structures
@@ -707,9 +764,10 @@ def build_session(
             score=score,
         ))
 
-    # 3. Greedy set cover
+    # 3. Greedy set cover with within-session scaffold diversity
     selected: list[SentenceCandidate] = []
     remaining_due = set(due_lemma_ids)
+    session_scaffold_counts: dict[int, int] = {}
 
     while remaining_due and len(selected) < limit and candidates:
         for c in candidates:
@@ -725,7 +783,17 @@ def build_session(
             diversity = 1.0 / (1.0 + (c.sentence.times_shown or 0))
             freshness = _scaffold_freshness(c.words_meta, knowledge_map)
             source_bonus = 1.3 if c.sentence.source == "book" else 1.0
-            c.score = (len(overlap) ** 1.5) * dmq * gfit * diversity * freshness * source_bonus
+
+            # Within-session scaffold diversity: penalize reuse of scaffold words
+            scaffold_ids = [w.lemma_id for w in c.words_meta
+                            if w.lemma_id and not w.is_due and not w.is_function_word]
+            if scaffold_ids and session_scaffold_counts:
+                max_session_count = max(session_scaffold_counts.get(lid, 0) for lid in scaffold_ids)
+                session_diversity = SESSION_SCAFFOLD_DECAY ** max_session_count
+            else:
+                session_diversity = 1.0
+
+            c.score = (len(overlap) ** 1.5) * dmq * gfit * diversity * freshness * source_bonus * session_diversity
 
         candidates.sort(key=lambda c: c.score, reverse=True)
         best = candidates[0]
@@ -736,7 +804,15 @@ def build_session(
         remaining_due -= best.due_words_covered
         candidates.remove(best)
 
+        # Track scaffold words used in this session for diversity
+        for w in best.words_meta:
+            if w.lemma_id and not w.is_due and not w.is_function_word:
+                session_scaffold_counts[w.lemma_id] = session_scaffold_counts.get(w.lemma_id, 0) + 1
+
         if log_events:
+            div_metrics = compute_sentence_diversity_score(
+                best.words_meta, knowledge_map, session_scaffold_counts
+            )
             log_interaction(
                 event="sentence_selected",
                 session_id=session_id,
@@ -745,6 +821,7 @@ def build_session(
                 score=round(best.score, 3),
                 due_words_covered=len(best.due_words_covered),
                 remaining_due=len(remaining_due),
+                **div_metrics,
             )
 
     # Track covered

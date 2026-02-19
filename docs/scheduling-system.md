@@ -168,9 +168,10 @@ learn, and each enters acquisition immediately.
 **Code**: `sentence_selector.py:_auto_introduce_words()`
 
 **Gating conditions**:
-- Session has room (due words < session limit) — no global cap on acquiring count
+- **Reserved slots**: `INTRO_RESERVE_FRACTION` (20%) of session slots reserved for introductions, even when due queue exceeds limit. With limit=10, at least 2 slots always available.
 - Recent accuracy ≥ `AUTO_INTRO_ACCURACY_FLOOR` (70%) over last 10+ reviews
 - Per-call cap: `MAX_AUTO_INTRO_PER_SESSION` (10)
+- Also fires when session is undersized (due words < limit) — backward-compatible path
 - Selects highest-frequency encountered words
 - **Never picks `proper_name` or `onomatopoeia` words** — these must be introduced manually via Learn mode
 
@@ -803,6 +804,28 @@ which don't count as known) and LLM sentences fill the gap. As the user reviews 
 and words advance to box 2+, book sentences gradually become comprehensible and replace
 LLM-generated ones naturally.
 
+#### Within-Session Scaffold Diversity
+
+During greedy set cover, tracks which scaffold words have already been selected. Applies
+exponential decay to penalize reuse:
+
+```
+session_diversity = SESSION_SCAFFOLD_DECAY ^ max_prior_appearances
+where SESSION_SCAFFOLD_DECAY = 0.5
+
+1st use → 1.0x, 2nd → 0.5x, 3rd → 0.25x, 4th → 0.125x
+```
+
+This prevents the same high-frequency scaffold words (e.g., طالب, أستاذ, جميل) from
+appearing in every sentence of a session. The decay is exponential but never reaches zero,
+so a sentence covering many due words can still win over a more diverse single-word sentence.
+
+#### Combined Scoring Formula
+
+```
+score = (due_coverage ^ 1.5) × dmq × gfit × diversity × freshness × source_bonus × session_diversity
+```
+
 ### Variant Resolution
 
 Sentences may contain variant forms (e.g., كتابي "my book" is a variant of كتاب
@@ -1338,8 +1361,10 @@ remaining cards on the next card advance. See Section 8 "Sentence Pre-Warming" f
 | `MIN_ACQUISITION_EXPOSURES` | 4 | Min times an acquiring word should appear per session |
 | `MAX_ACQUISITION_EXTRA_SLOTS` | 15 | Max extra cards for acquisition repetition |
 | `MAX_AUTO_INTRO_PER_SESSION` | 10 | Per-call cap on auto-intro words |
+| `INTRO_RESERVE_FRACTION` | 0.2 | Fraction of session slots reserved for new words |
 | `AUTO_INTRO_ACCURACY_FLOOR` | 0.70 | Pause auto-intro if accuracy below this |
 | Adaptive intro bands | 0→4→7→10 | Slots at <70%/70-85%/85-92%/≥92% accuracy |
+| `SESSION_SCAFFOLD_DECAY` | 0.5 | Per-appearance multiplier for scaffold words already in session |
 | `FRESHNESS_BASELINE` | 5 | Reviews before scaffold freshness penalty kicks in (floor 0.1) |
 | `MAX_ON_DEMAND_PER_SESSION` | 10 | Reference constant (callers control actual cap via remaining session capacity) |
 | `MAX_REINTRO_PER_SESSION` | 3 | Struggling word reintro card limit |

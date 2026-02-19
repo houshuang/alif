@@ -4,6 +4,35 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-02-19: Session Diversity & Continuous Word Introduction
+
+### Problem
+Analysis of today's sessions revealed: only 2 words introduced all day (both collateral) despite 93.9% accuracy. Same scaffold words dominated every session: طالب (31/304 sentences), أستاذ (26), لون (24), جميل (24). Known word جميلة reviewed 8 times in one day. Auto-intro never fired because `slots_needed = max(0, limit - due_count)` was always 0 with 60+ due words.
+
+Two root causes: (1) auto-intro only fires when session is undersized, which never happens when enough words are due; (2) no within-session scaffold diversity tracking, so greedy set cover picks sentences with the same high-frequency scaffold words every time.
+
+### Changes
+1. **Reserved intro slots** (`sentence_selector.py`): `INTRO_RESERVE_FRACTION = 0.2` — always reserves 20% of session (2 of 10 slots) for new word introductions when accuracy allows, independent of due count. New `_get_accuracy_intro_slots()` helper. Backward-compat: still fires when undersized too.
+
+2. **Within-session scaffold diversity** (`sentence_selector.py`): `SESSION_SCAFFOLD_DECAY = 0.5` — tracks scaffold words selected in current session. Each reuse multiplies score by 0.5 (1st→1.0x, 2nd→0.5x, 3rd→0.25x). Prevents same words (طالب, أستاذ) from appearing in every sentence.
+
+3. **Tighter generation diversity** (`sentence_generator.py`): `DIVERSITY_SENTENCE_THRESHOLD` 15→10, `MAX_AVOID_WORDS` 20→30, threshold `median*2`→`median*1.5`. Stronger LLM avoid instruction: "Do NOT use — will cause rejection" (was "try NOT to use"). Step C in `update_material.py` now passes avoid_words (was missing).
+
+4. **Diversity score logging** (`sentence_selector.py`): `compute_sentence_diversity_score()` logs `diversity_score`, `scaffold_uniqueness`, `scaffold_freshness` per sentence_selected event.
+
+### Expected Effect
+- 2+ new words introduced per session even with full due queue
+- Much less repetition of scaffold words across sentences in a session
+- New sentences generated with better vocabulary diversity
+- Monitoring via diversity_score metrics in interaction logs
+
+### Verify
+- Check interaction logs for `auto_introduce` events (should appear now!)
+- Check `sentence_selected` events for diversity_score values
+- Compare scaffold word distribution in next day's sessions vs today's baseline
+
+---
+
 ## 2026-02-19: Story Generation — Zero Unknown Words + Self-Correction
 
 ### Problem
