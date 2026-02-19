@@ -528,7 +528,7 @@ def get_audio_eligible_sentences(db: Session) -> list[Sentence]:
                 card = ulk.fsrs_card_json
                 if isinstance(card, str):
                     card = _json.loads(card)
-                if card.get("stability", 0) < 3.0:
+                if (card.get("stability") or 0) < 3.0:
                     ready = False
                     break
             else:

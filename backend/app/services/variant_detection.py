@@ -365,6 +365,7 @@ def evaluate_variants_llm(
             json_mode=True,
             temperature=0.1,
             model_override=model_override,
+            task_type="variant_detection",
         )
     except Exception as e:
         logger.warning("LLM variant detection failed, skipping: %s", e)

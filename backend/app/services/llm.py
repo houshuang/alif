@@ -88,6 +88,7 @@ def _log_call(
     response_time: float,
     error: str | None = None,
     prompt_length: int = 0,
+    task_type: str | None = None,
 ) -> None:
     """Append a log entry for the LLM call."""
     log_dir.mkdir(parents=True, exist_ok=True)
@@ -101,6 +102,8 @@ def _log_call(
         "error": error,
         "prompt_length": prompt_length,
     }
+    if task_type:
+        entry["task_type"] = task_type
     with open(log_file, "a") as f:
         f.write(json.dumps(entry) + "\n")
 
@@ -112,6 +115,7 @@ def generate_completion(
     temperature: float = 0.7,
     timeout: int = 60,
     model_override: str | None = None,
+    task_type: str | None = None,
 ) -> dict[str, Any]:
     """Call LLM with automatic fallback across providers.
 
@@ -120,6 +124,8 @@ def generate_completion(
 
     When model_override is provided (e.g. "gemini", "openai", "anthropic"),
     only that specific model is tried — no fallback to others.
+
+    task_type: optional label for analytics (e.g. "sentence_gen", "quality_review").
     """
     messages = []
     if system_prompt:
@@ -162,6 +168,7 @@ def generate_completion(
                 True,
                 elapsed,
                 prompt_length=len(prompt),
+                task_type=task_type,
             )
 
             if json_mode:
@@ -184,6 +191,7 @@ def generate_completion(
                 elapsed,
                 error=str(e),
                 prompt_length=len(prompt),
+                task_type=task_type,
             )
 
     raise AllProvidersFailed(f"All LLM providers failed: {'; '.join(errors)}")
@@ -380,6 +388,7 @@ Include full diacritics on all Arabic text.
         json_mode=True,
         temperature=0.5,
         model_override=model_override,
+        task_type="sentence_gen",
     )
 
     return SentenceResult(
@@ -444,6 +453,7 @@ Respond with JSON: {{"sentences": [{{"arabic": "...", "english": "...", "transli
         json_mode=True,
         temperature=0.5,
         model_override=model_override,
+        task_type="sentence_gen_batch",
     )
 
     sentences: list[SentenceResult] = []
@@ -566,6 +576,7 @@ Respond with JSON: {{"sentences": [{{"arabic": "...", "english": "...", "transli
         json_mode=True,
         temperature=0.5,
         model_override=model_override,
+        task_type="sentence_gen_multi",
     )
 
     sentences: list[MultiTargetSentenceResult] = []
@@ -655,6 +666,7 @@ Sentences:
             json_mode=True,
             temperature=0.0,
             model_override="anthropic",
+            task_type="quality_review",
         )
     except (AllProvidersFailed, LLMError):
         return [SentenceReviewResult(natural=False, translation_correct=False, reason="quality review unavailable") for _ in sentences]

@@ -75,7 +75,7 @@ Respond with JSON:
 {{"correct": true/false, "suggested_gloss": "better translation if incorrect", "confidence": 0.0-1.0, "explanation": "brief reason"}}"""
 
     try:
-        result = generate_completion(prompt, model_override="openai", temperature=0.3)
+        result = generate_completion(prompt, model_override="openai", temperature=0.3, task_type="flag_evaluation")
     except LLMError:
         flag.status = "dismissed"
         flag.resolution_note = "LLM evaluation failed"
@@ -168,7 +168,7 @@ Respond with JSON:
 {{"correct": true/false, "suggested": "corrected transliteration if incorrect", "confidence": 0.0-1.0, "explanation": "brief reason"}}"""
 
     try:
-        result = generate_completion(prompt, model_override="openai", temperature=0.3)
+        result = generate_completion(prompt, model_override="openai", temperature=0.3, task_type="flag_evaluation")
     except LLMError:
         flag.status = "dismissed"
         flag.resolution_note = "LLM evaluation failed"

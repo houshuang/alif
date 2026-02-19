@@ -59,6 +59,7 @@ def ask_question(body: AskQuestionIn, db: Session = Depends(get_db)):
         system_prompt=CHAT_SYSTEM_PROMPT,
         json_mode=False,
         temperature=0.7,
+        task_type="chat",
     )
     answer = result["content"]
 

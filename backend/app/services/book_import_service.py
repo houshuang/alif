@@ -162,6 +162,7 @@ def cleanup_and_segment(raw_text: str, max_retries: int = 2) -> list[dict]:
                 model_override="gemini",
                 temperature=0.2,
                 timeout=120,
+                task_type="book_import",
             )
             logger.info(f"cleanup_and_segment: LLM result type={type(result).__name__}, keys={list(result.keys()) if isinstance(result, dict) else 'N/A'}, result={str(result)[:500]!r}")
             sentences = result.get("sentences", [])
@@ -211,6 +212,7 @@ def translate_sentences(sentences: list[dict]) -> list[dict]:
             model_override="gemini",
             temperature=0.2,
             timeout=120,
+            task_type="book_import",
         )
         translations = result.get("translations", [])
 

@@ -463,6 +463,9 @@
 - Use `claude -p` with `--model sonnet` for **high-volume tasks** where Opus quality isn't needed but free access matters (e.g. batch translations)
 - Consider **Claude Code SDK** (`@anthropic-ai/claude-code`) for Node.js integration if CLI subprocess overhead becomes an issue
 - Install `claude` on Hetzner server via `claude setup-token` for server-side free generation without API costs
+- **Replace GPT-5.2 flag evaluation with Claude Code** — flag_evaluator.py uses GPT-5.2 (model_override="openai") which costs 68% of total LLM budget ($6.46/12 days) despite only 11% of calls. Claude Haiku via CLI would be free.
+- **Agentic enrichment agent** — single Claude Code session that reads DB, identifies words missing forms/etymology/hooks, generates ALL enrichment in one pass, validates, returns structured batch. Replaces 4 separate scripts.
+- **LLM task_type dashboard** — now that all calls are tagged with task_type, build a lightweight dashboard or cron report showing daily costs by task type
 
 ### Ideas from Cognitive Load Theory Research (2026-02-08)
 

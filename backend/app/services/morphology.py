@@ -53,6 +53,7 @@ def backfill_root_meanings(db) -> int:
             system_prompt="You are an Arabic morphology expert. Return valid JSON only.",
             json_mode=True,
             temperature=0.0,
+            task_type="morphology",
         )
 
         results = result if isinstance(result, list) else result.get("roots", result.get("results", []))

@@ -4,6 +4,31 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-02-19: LLM Usage Audit & Task-Type Logging
+
+### Problem
+No visibility into which LLM tasks consume the most API budget. Also discovered `update_material.py` cron crashing since Feb 17 18:30 due to `None` stability in `fsrs_card_json`.
+
+### Changes
+1. **Bug fix**: `update_material.py:531` — `card.get("stability", 0)` → `(card.get("stability") or 0)` to handle `None` values
+2. **task_type logging**: Added `task_type` parameter to `_log_call()` and `generate_completion()` in `llm.py`. Tagged all 18 callers across 10 service files.
+3. **Audit script**: New `scripts/audit_llm_usage.py` — parses call logs, estimates costs, infers task types for untagged entries.
+
+### Key Findings (Feb 8-19 server data)
+- 15,686 LLM calls over 12 days ($9.49 estimated, $0.79/day)
+- **Flag evaluation (GPT-5.2): 68% of cost** ($6.46) despite only 11% of calls
+- Gemini Flash: 12,901 calls, 96% success, $2.36 — bulk of work
+- Haiku quality review: 876 calls, $0.65 — well-priced
+- Enrichment (<500 char prompts): 6,263 calls, only $0.08 — very cheap
+- GPT-5.2 is 30x more expensive per-call than Gemini Flash
+
+### Next Steps
+- Benchmark Claude Sonnet/Haiku vs Gemini Flash for sentence gen, forms, quality gate
+- Prototype agentic enrichment agent (one Claude Code session replacing 4 scripts)
+- Consider replacing GPT-5.2 flag evaluation with Claude Code CLI (free)
+
+---
+
 ## 2026-02-18: Fix Prefetch Storm Causing Single-Card Sessions
 
 ### Problem

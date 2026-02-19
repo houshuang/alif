@@ -122,6 +122,7 @@ Return null (not a JSON object) if the word is a particle/pronoun/function word.
                 json_mode=True,
                 temperature=0.7,
                 model_override="anthropic",
+                task_type="memory_hooks",
             )
         except AllProvidersFailed as e:
             logger.warning(f"Memory hooks LLM failed for lemma {lemma_id}: {e}")

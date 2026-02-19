@@ -89,6 +89,7 @@ def _generate_forms(lemma: Lemma) -> dict | None:
             system_prompt=FORMS_SYSTEM_PROMPT,
             json_mode=True,
             temperature=0.1,
+            task_type="enrichment_forms",
         )
     except AllProvidersFailed:
         return None
@@ -129,6 +130,7 @@ Use null for etymology if the word has no meaningful root derivation (particles,
             system_prompt=ETYMOLOGY_SYSTEM_PROMPT,
             json_mode=True,
             temperature=0.3,
+            task_type="enrichment_etymology",
         )
     except AllProvidersFailed:
         return {}

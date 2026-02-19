@@ -292,6 +292,7 @@ Respond with JSON array: [{{"arabic": "the base form word", "english": "dictiona
 Set name_type to "personal" for personal names (people, characters), "place" for place names (cities, countries, landmarks), or null for regular vocabulary words.""",
             system_prompt="You translate Arabic words to English. Give concise, dictionary-form glosses (1-3 words). For verbs use infinitive ('to X'). For proper names, provide the transliterated name. Respond with JSON only.",
             json_mode=True,
+            task_type="story_word_import",
         )
 
         # Result may be a list or a dict with a list inside
@@ -617,6 +618,7 @@ Respond with JSON: {{"title_ar": "...", "title_en": "...", "body_ar": "full stor
                 temperature=0.9,
                 model_override="opus",
                 timeout=90,
+                task_type="story_gen",
             )
         except AllProvidersFailed as e:
             logger.warning("Story generation attempt %d failed: %s", attempt + 1, e)
@@ -694,6 +696,7 @@ def _generate_title(arabic_text: str) -> dict:
             prompt=f"Give this Arabic text a short, evocative title (3-6 words) in both Arabic and English.\n\nText:\n{snippet}\n\nRespond with JSON: {{\"title_ar\": \"...\", \"title_en\": \"...\"}}",
             system_prompt="You generate short titles for Arabic texts. Include diacritics on the Arabic title. Respond with JSON only.",
             json_mode=True,
+            task_type="story_title",
         )
         return {
             "title_ar": result.get("title_ar") or None,

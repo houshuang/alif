@@ -63,6 +63,7 @@ All scripts in `backend/scripts/`. Run from `backend/` directory.
 - `db_analysis.py` — Database analysis and statistics.
 - `analyze_word_distribution.py` — Word distribution analysis.
 - `analyze_progress.py` — Comprehensive learning progress report: knowledge states, acquisition pipeline, graduations, sessions, comprehension, struggling words. Supports `--days N`.
+- `audit_llm_usage.py` — Audit LLM API costs/volume from call logs. Parses llm_calls_*.jsonl, infers task types, estimates costs by model. Supports `--log-dir`, `--days N`.
 - `benchmark_llm.py` — Test 3 models across 5 tasks (105 ground truth cases).
 - `benchmark_stories.py` — Model × strategy benchmarking for story generation (--models gemini,opus,sonnet --strategies A,B,C,D).
 - `test_llm_variants.py` — Benchmark LLM variant detection against ground truth.

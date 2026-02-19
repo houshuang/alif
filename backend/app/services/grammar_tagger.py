@@ -39,6 +39,7 @@ def tag_sentence_grammar(arabic_text: str) -> dict[str, Any]:
         system_prompt=GRAMMAR_TAG_SYSTEM_PROMPT,
         json_mode=True,
         temperature=0.2,
+        task_type="grammar_tag",
     )
 
     features = result.get("features", [])
@@ -90,6 +91,7 @@ def tag_lemma_grammar(
         system_prompt=GRAMMAR_TAG_SYSTEM_PROMPT,
         json_mode=True,
         temperature=0.2,
+        task_type="grammar_tag",
     )
 
     valid_keys = {

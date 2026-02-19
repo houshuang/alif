@@ -679,6 +679,7 @@ When in doubt, do NOT flag — only flag clear semantic mismatches."""
             json_mode=True,
             temperature=0.0,
             model_override="gemini",
+            task_type="mapping_verification",
         )
         wrong = result.get("wrong", [])
         if isinstance(wrong, list):
