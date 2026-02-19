@@ -47,6 +47,7 @@ KNOWN_SAMPLE_SIZE = 500
 MAX_STORY_ATTEMPTS = 1
 MAX_CORRECTION_ROUNDS = 3
 TERMINAL_STORY_STATUSES = {"completed"}
+HIDDEN_STORY_STATUSES = {"deleted"}
 
 STORY_SYSTEM_PROMPT = f"""\
 You are a brilliant Arabic storyteller — think Borges writing flash fiction with a \
@@ -1141,8 +1142,13 @@ def get_book_page_detail(db: Session, story_id: int, page_number: int) -> dict:
 
 
 def get_stories(db: Session) -> list[dict]:
-    """Return all stories ordered by created_at desc."""
-    stories = db.query(Story).order_by(Story.created_at.desc()).all()
+    """Return all non-deleted stories ordered by created_at desc."""
+    stories = (
+        db.query(Story)
+        .filter(Story.status.notin_(HIDDEN_STORY_STATUSES))
+        .order_by(Story.created_at.desc())
+        .all()
+    )
 
     book_ids = [s.id for s in stories if s.source == "book_ocr"]
     book_stats = _get_book_stats(db, book_ids)
@@ -1168,7 +1174,7 @@ def get_stories(db: Session) -> list[dict]:
 def get_story_detail(db: Session, story_id: int) -> dict:
     """Get story with all words and current knowledge state."""
     story = db.query(Story).filter(Story.id == story_id).first()
-    if not story:
+    if not story or story.status == "deleted":
         raise ValueError(f"Story {story_id} not found")
 
     story_lemma_ids = {sw.lemma_id for sw in story.words if sw.lemma_id}
@@ -1353,13 +1359,12 @@ def suspend_story(db: Session, story_id: int) -> dict:
 
 
 def delete_story(db: Session, story_id: int) -> dict:
-    """Permanently delete a story and its words."""
+    """Soft-delete a story (set status to 'deleted')."""
     story = db.query(Story).filter(Story.id == story_id).first()
     if not story:
         raise ValueError(f"Story {story_id} not found")
 
-    db.query(StoryWord).filter(StoryWord.story_id == story_id).delete()
-    db.delete(story)
+    story.status = "deleted"
     db.commit()
 
     log_interaction(event="story_deleted", story_id=story_id)

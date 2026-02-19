@@ -19,6 +19,7 @@ import { Ionicons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
 import { colors, fonts, fontFamily } from "../lib/theme";
 import { getStories, generateStory, importStory, deleteStory, suspendStory, prefetchStoryDetails, extractTextFromImage } from "../lib/api";
+import { clearStoryLookups } from "../lib/offline-store";
 import { netStatus } from "../lib/net-status";
 import { StoryListItem } from "../lib/types";
 
@@ -171,6 +172,7 @@ export default function StoriesScreen() {
     if (!confirmed) return;
     try {
       await deleteStory(item.id);
+      clearStoryLookups(item.id).catch(() => {});
       setStories((prev) => prev.filter((s) => s.id !== item.id));
     } catch (e) {
       console.error("Failed to delete story:", e);
