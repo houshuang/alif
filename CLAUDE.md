@@ -60,7 +60,7 @@ npx expo start --web  # opens on localhost:8081
 - **Tapped words are always marked missed** — front-phase tapping auto-marks as missed (rating≤2).
 - **al-prefix is NOT a separate lemma** — الكلب and كلب are the same lemma. All import paths dedup.
 - **Be conservative with ElevenLabs TTS** — costs real money. Only generate for sentences that will be shown.
-- **Sentence pipeline cap**: 300 active sentences. Cron runs `rotate_stale_sentences.py` then `update_material.py` every 6h.
+- **Sentence pipeline cap**: 600 active sentences. Cron runs `rotate_stale_sentences.py` then `update_material.py` every 6h.
 - **Canonical lemma is the unit of scheduling** — variant forms tracked via `variant_stats_json` but never get independent FSRS cards.
 - **All import paths must run variant detection** — `detect_variants_llm()` + `detect_definite_variants()` + `mark_variants()` post-import.
 - **All import paths must run quality gate** — `import_quality.classify_lemmas()` filters junk, classifies standard/proper_name/onomatopoeia.

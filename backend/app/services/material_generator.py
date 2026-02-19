@@ -340,7 +340,7 @@ def generate_word_audio(lemma_id: int) -> None:
 
 
 MIN_SENTENCES_PER_WORD = 2
-PIPELINE_CAP = 300
+PIPELINE_CAP = 600
 
 
 def rotate_stale_sentences(db, min_shown: int = 1, min_active: int = 2) -> int:

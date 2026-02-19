@@ -63,7 +63,7 @@ from app.services.tts import (
 
 MIN_SENTENCES = 2  # per-word target for backfill generation
 MIN_SENTENCES_CAP_ENFORCEMENT = 1  # per-word floor during cap enforcement (JIT handles gaps)
-TARGET_PIPELINE_SENTENCES = 300  # hard cap — JIT generation fills gaps with current vocabulary
+TARGET_PIPELINE_SENTENCES = 600  # hard cap — JIT generation fills gaps with current vocabulary
 CAP_HEADROOM = 30  # retire this many below cap to leave room for multi-target backfill
 
 

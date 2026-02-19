@@ -1004,7 +1004,7 @@ Two paths for sentence availability:
 
 1. **Pre-generated (warm cache)**: `scripts/update_material.py` runs on cron,
    generating multi-target sentences for words prioritized by FSRS due date. Target:
-   `MIN_SENTENCES=2` per word. Pool cap: 300 active sentences with `CAP_HEADROOM=30`
+   `MIN_SENTENCES=2` per word. Pool cap: 600 active sentences with `CAP_HEADROOM=30`
    (retires down to 270 so backfill always has budget for multi-target generation).
 
 2. **On-demand (JIT)**: During `build_session()` with `skip_on_demand=False` (prefetch
@@ -1037,7 +1037,7 @@ Rule-based validation pipeline:
 
 ### Pipeline Cap & Retirement
 
-**Cap enforcement** (`update_material.py` Step 0): Hard cap of 300 active sentences.
+**Cap enforcement** (`update_material.py` Step 0): Hard cap of 600 active sentences.
 Step 0 retires down to `300 - CAP_HEADROOM` (270) to leave budget for multi-target
 backfill in Step A. Retirement priority: never-shown stale → shown stale → oldest,
 always keeping at least 1 sentence per word.
@@ -1445,7 +1445,7 @@ remaining cards on the next card advance. See Section 8 "Sentence Pre-Warming" f
 
 | Constant | Value | Purpose |
 |----------|-------|---------|
-| `PIPELINE_CAP` | 300 | Max active sentences |
+| `PIPELINE_CAP` | 600 | Max active sentences |
 | `CAP_HEADROOM` | 30 | Step 0 retires to cap minus this (→270) |
 | `MIN_SENTENCES_PER_WORD` | 2 | Target sentences per word for backfill |
 | Warm cache cap | 310 | `PIPELINE_CAP + 10` — warm cache allowed slightly over |
