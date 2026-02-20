@@ -1021,6 +1021,7 @@ def build_session(
                 "score": round(cand.score, 2),
                 "word_reason": word_reason,
                 "components": cand.score_components,
+                "due_lemma_ids": sorted(cand.due_words_covered),
             },
         })
 

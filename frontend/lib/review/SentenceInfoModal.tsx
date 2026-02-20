@@ -174,13 +174,14 @@ export default function SentenceInfoModal({ sentenceId, visible, onClose, select
                         ? `acq ${w.acquisition_box}`
                         : w.knowledge_state.slice(0, 4)
                       : "--";
+                    const isDue = w.lemma_id != null && (selectionInfo?.due_lemma_ids?.includes(w.lemma_id) ?? false);
                     return (
                       <View
                         key={i}
-                        style={[styles.wordRow, w.is_target_word && styles.targetWordRow]}
+                        style={[styles.wordRow, isDue && styles.dueWordRow, w.is_target_word && !isDue && styles.targetWordRow]}
                       >
                         <Text style={[styles.wordCell, styles.wordCellAr]} numberOfLines={1}>
-                          {w.surface_form}
+                          {isDue ? "* " : ""}{w.surface_form}
                         </Text>
                         <Text style={[styles.wordCell, styles.wordCellGloss]} numberOfLines={1}>
                           {w.gloss_en || ""}
@@ -335,6 +336,9 @@ const styles = StyleSheet.create({
   },
   targetWordRow: {
     backgroundColor: "rgba(74, 158, 255, 0.08)",
+  },
+  dueWordRow: {
+    backgroundColor: "rgba(255, 193, 7, 0.12)",
   },
   wordCell: {
     color: colors.text,

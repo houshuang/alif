@@ -281,6 +281,7 @@ export interface SelectionInfo {
   score?: number;
   word_reason: string;
   components?: Record<string, number | boolean>;
+  due_lemma_ids?: number[];
 }
 
 export interface SentenceReviewItem {
