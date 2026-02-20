@@ -50,3 +50,35 @@ def update_topic(req: SetTopicIn, db: Session = Depends(get_db)):
 def list_topics(db: Session = Depends(get_db)):
     """List all available topics with word counts."""
     return get_available_topics(db)
+
+
+class TashkeelSettingsIn(BaseModel):
+    mode: str
+    stability_threshold: float = 30.0
+
+
+@router.get("/tashkeel")
+def get_tashkeel_settings(db: Session = Depends(get_db)):
+    """Get tashkeel (diacritics) fading settings."""
+    settings = get_settings(db)
+    return {
+        "mode": settings.tashkeel_mode or "always",
+        "stability_threshold": settings.tashkeel_stability_threshold or 30.0,
+    }
+
+
+@router.put("/tashkeel")
+def update_tashkeel_settings(req: TashkeelSettingsIn, db: Session = Depends(get_db)):
+    """Update tashkeel fading settings."""
+    if req.mode not in ("always", "fade", "never"):
+        raise HTTPException(status_code=400, detail="mode must be always, fade, or never")
+    if req.stability_threshold < 1.0 or req.stability_threshold > 365.0:
+        raise HTTPException(status_code=400, detail="stability_threshold must be between 1 and 365 days")
+    settings = get_settings(db)
+    settings.tashkeel_mode = req.mode
+    settings.tashkeel_stability_threshold = req.stability_threshold
+    db.commit()
+    return {
+        "mode": settings.tashkeel_mode,
+        "stability_threshold": settings.tashkeel_stability_threshold,
+    }

@@ -18,6 +18,9 @@ import {
   getTopicSettings,
   getAvailableTopics,
   setActiveTopic,
+  getTashkeelSettings,
+  updateTashkeelSettings,
+  TashkeelSettings,
 } from "../lib/api";
 import { TopicSettings, TopicInfo } from "../lib/types";
 import { TOPIC_LABELS } from "../lib/topic-labels";
@@ -61,11 +64,13 @@ export default function MoreScreen() {
   const [topicPickerVisible, setTopicPickerVisible] = useState(false);
   const [availableTopics, setAvailableTopics] = useState<TopicInfo[]>([]);
   const [loadingTopics, setLoadingTopics] = useState(false);
+  const [tashkeelSettings, setTashkeelSettings] = useState<TashkeelSettings | null>(null);
 
   useFocusEffect(
     useCallback(() => {
       loadActivity();
       loadTopicSettings();
+      loadTashkeelSettings();
     }, []),
   );
 
@@ -87,6 +92,25 @@ export default function MoreScreen() {
       setTopicSettings(data);
     } catch (e) {
       console.warn("Failed to load topic settings:", e);
+    }
+  }
+
+  async function loadTashkeelSettings() {
+    try {
+      const data = await getTashkeelSettings();
+      setTashkeelSettings(data);
+    } catch (e) {
+      console.warn("Failed to load tashkeel settings:", e);
+    }
+  }
+
+  async function handleTashkeelMode(mode: "always" | "fade" | "never") {
+    const threshold = tashkeelSettings?.stability_threshold ?? 30;
+    try {
+      const data = await updateTashkeelSettings(mode, threshold);
+      setTashkeelSettings(data);
+    } catch (e) {
+      Alert.alert("Error", "Failed to update tashkeel settings");
     }
   }
 
@@ -210,6 +234,35 @@ export default function MoreScreen() {
           )}
         </View>
       </Modal>
+
+      <Text style={styles.sectionHeader}>Diacritics</Text>
+      <View style={styles.tashkeelRow}>
+        <View style={styles.tashkeelLabel}>
+          <Ionicons name="text-outline" size={22} color={colors.accent} />
+          <Text style={styles.navRowLabel}>Tashkeel</Text>
+        </View>
+        <View style={styles.segmentedControl}>
+          {(["always", "fade", "never"] as const).map((mode) => {
+            const isActive = (tashkeelSettings?.mode ?? "always") === mode;
+            return (
+              <Pressable
+                key={mode}
+                style={[styles.segment, isActive && styles.segmentActive]}
+                onPress={() => handleTashkeelMode(mode)}
+              >
+                <Text style={[styles.segmentText, isActive && styles.segmentTextActive]}>
+                  {mode === "always" ? "Always" : mode === "fade" ? "Fade" : "Never"}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
+      </View>
+      {tashkeelSettings?.mode === "fade" && (
+        <Text style={styles.tashkeelHint}>
+          Hides diacritics for words with {tashkeelSettings.stability_threshold}+ day stability
+        </Text>
+      )}
 
       <Text style={styles.sectionHeader}>Activity</Text>
       {loadingActivity ? (
@@ -416,6 +469,51 @@ const styles = StyleSheet.create({
   topicItemIneligible: {
     color: colors.textSecondary,
     fontSize: 12,
+    fontStyle: "italic",
+  },
+  tashkeelRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    backgroundColor: colors.surface,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.border,
+  },
+  tashkeelLabel: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 14,
+  },
+  segmentedControl: {
+    flexDirection: "row",
+    borderRadius: 8,
+    overflow: "hidden",
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  segment: {
+    paddingVertical: 6,
+    paddingHorizontal: 14,
+    backgroundColor: colors.surface,
+  },
+  segmentActive: {
+    backgroundColor: colors.accent,
+  },
+  segmentText: {
+    color: colors.textSecondary,
+    fontSize: 13,
+    fontWeight: "500",
+  },
+  segmentTextActive: {
+    color: "#fff",
+  },
+  tashkeelHint: {
+    color: colors.textSecondary,
+    fontSize: 12,
+    paddingHorizontal: 20,
+    paddingVertical: 8,
     fontStyle: "italic",
   },
 });

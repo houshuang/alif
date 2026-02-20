@@ -65,6 +65,8 @@ npx expo start --web  # opens on localhost:8081
 - **All import paths must run variant detection** — `detect_variants_llm()` + `detect_definite_variants()` + `mark_variants()` post-import.
 - **All import paths must run quality gate** — `import_quality.classify_lemmas()` filters junk, classifies standard/proper_name/onomatopoeia.
 - **Every sentence_word must have a lemma_id** — all 5 storage paths reject unmapped words. Exception: book_import keeps sentences with `lemma_id=None`. Mapping uses `build_comprehensive_lemma_lookup()`.
+- **Tashkeel fading is backend-driven** — `show_tashkeel` boolean per word in API response. Backend knows both the setting (mode + threshold) and word stability. Three modes: always (default), fade (hide diacritics for words with stability ≥ threshold), never. Applies only to review sessions — story reader always shows full tashkeel.
+- **Root-aware stability boost** — words graduating from acquisition with 2+ known root siblings get `Rating.Easy` (~3.6x stability boost). `ROOT_SIBLING_THRESHOLD=2` in `acquisition_service.py`.
 
 ## Critical Rules for All Agents
 
@@ -113,7 +115,7 @@ End-to-end simulation of multi-day learning journeys:
 ```bash
 python3 scripts/simulate_sessions.py --days 30 --profile beginner
 ```
-Profiles: `beginner` (55%), `strong` (85%), `casual` (70%), `intensive` (75%). Code: `backend/app/simulation/`.
+Profiles: `beginner` (55%), `strong` (85%), `casual` (70%), `intensive` (75%), `calibrated` (80%, from production data). Code: `backend/app/simulation/`.
 
 ## Deployment
 ```bash

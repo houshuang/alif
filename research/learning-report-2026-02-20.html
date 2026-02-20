@@ -1,0 +1,1493 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Alif Learning Report — 2026-02-20</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+<style>
+  :root {
+    --bg: #1a1a2e;
+    --surface: #16213e;
+    --text: #e0e0e0;
+    --text-dim: #8892a0;
+    --accent: #0f3460;
+    --highlight: #e94560;
+    --highlight-dim: rgba(233, 69, 96, 0.15);
+    --success: #4ade80;
+    --warning: #fbbf24;
+    --info: #60a5fa;
+    --border: rgba(255,255,255,0.06);
+    --radius: 12px;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+    line-height: 1.6;
+    padding: 0;
+  }
+
+  .header {
+    background: linear-gradient(135deg, var(--accent) 0%, #0a1628 100%);
+    padding: 48px 24px 40px;
+    text-align: center;
+    border-bottom: 2px solid var(--highlight);
+  }
+
+  .header h1 {
+    font-size: 2.2rem;
+    font-weight: 700;
+    margin-bottom: 4px;
+    letter-spacing: -0.02em;
+  }
+
+  .header .arabic-title {
+    font-size: 1.6rem;
+    color: var(--highlight);
+    margin-bottom: 12px;
+    font-weight: 300;
+  }
+
+  .header .subtitle {
+    color: var(--text-dim);
+    font-size: 1rem;
+  }
+
+  .hero-stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 16px;
+    max-width: 900px;
+    margin: -28px auto 0;
+    padding: 0 24px;
+    position: relative;
+    z-index: 1;
+  }
+
+  .hero-stat {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 20px 16px;
+    text-align: center;
+  }
+
+  .hero-stat .value {
+    font-size: 2rem;
+    font-weight: 700;
+    color: var(--highlight);
+    line-height: 1.1;
+  }
+
+  .hero-stat .label {
+    font-size: 0.8rem;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-top: 4px;
+  }
+
+  .container {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 32px 24px;
+  }
+
+  .section {
+    margin-bottom: 40px;
+  }
+
+  .section-title {
+    font-size: 1.4rem;
+    font-weight: 600;
+    margin-bottom: 20px;
+    padding-bottom: 8px;
+    border-bottom: 2px solid var(--highlight);
+    display: inline-block;
+  }
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 24px;
+    margin-bottom: 20px;
+  }
+
+  .card-title {
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    margin-bottom: 16px;
+  }
+
+  .grid-2 {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+  }
+
+  .grid-3 {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 20px;
+  }
+
+  @media (max-width: 768px) {
+    .grid-2, .grid-3 { grid-template-columns: 1fr; }
+    .hero-stats { grid-template-columns: repeat(2, 1fr); }
+    .header h1 { font-size: 1.6rem; }
+    .header .arabic-title { font-size: 1.2rem; }
+  }
+
+  .chart-container {
+    position: relative;
+    width: 100%;
+    max-height: 340px;
+  }
+
+  .stat-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .stat-row:last-child { border-bottom: none; }
+
+  .stat-row .stat-label {
+    color: var(--text-dim);
+    font-size: 0.9rem;
+  }
+
+  .stat-row .stat-value {
+    font-weight: 600;
+    font-size: 1rem;
+  }
+
+  .stat-row .stat-value.highlight { color: var(--highlight); }
+  .stat-row .stat-value.success { color: var(--success); }
+  .stat-row .stat-value.warning { color: var(--warning); }
+  .stat-row .stat-value.info { color: var(--info); }
+
+  /* Progress bars for milestones */
+  .milestone {
+    margin-bottom: 18px;
+  }
+
+  .milestone-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: 6px;
+  }
+
+  .milestone-name {
+    font-size: 0.95rem;
+    font-weight: 500;
+  }
+
+  .milestone-detail {
+    font-size: 0.8rem;
+    color: var(--text-dim);
+  }
+
+  .milestone-bar {
+    height: 10px;
+    background: rgba(255,255,255,0.06);
+    border-radius: 5px;
+    overflow: hidden;
+    position: relative;
+  }
+
+  .milestone-fill {
+    height: 100%;
+    border-radius: 5px;
+    transition: width 0.6s ease;
+  }
+
+  .milestone-fill.achieved {
+    background: linear-gradient(90deg, var(--success), #22d3ee);
+  }
+
+  .milestone-fill.in-progress {
+    background: linear-gradient(90deg, var(--highlight), #f472b6);
+  }
+
+  .milestone-eta {
+    font-size: 0.78rem;
+    color: var(--text-dim);
+    margin-top: 4px;
+  }
+
+  .badge {
+    display: inline-block;
+    padding: 3px 10px;
+    border-radius: 20px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+
+  .badge-success { background: rgba(74, 222, 128, 0.15); color: var(--success); }
+  .badge-warning { background: rgba(251, 191, 36, 0.15); color: var(--warning); }
+  .badge-info { background: rgba(96, 165, 250, 0.15); color: var(--info); }
+  .badge-highlight { background: var(--highlight-dim); color: var(--highlight); }
+
+  .insight-box {
+    background: var(--highlight-dim);
+    border-left: 3px solid var(--highlight);
+    border-radius: 0 var(--radius) var(--radius) 0;
+    padding: 16px 20px;
+    margin: 16px 0;
+    font-size: 0.9rem;
+    line-height: 1.7;
+  }
+
+  .insight-box strong {
+    color: var(--highlight);
+  }
+
+  .reference-box {
+    background: rgba(96, 165, 250, 0.08);
+    border-left: 3px solid var(--info);
+    border-radius: 0 var(--radius) var(--radius) 0;
+    padding: 16px 20px;
+    margin: 16px 0;
+    font-size: 0.85rem;
+    line-height: 1.7;
+    color: var(--text-dim);
+  }
+
+  .reference-box strong { color: var(--info); }
+
+  .freq-gap-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.88rem;
+  }
+
+  .freq-gap-table th {
+    text-align: left;
+    padding: 8px 12px;
+    color: var(--text-dim);
+    border-bottom: 1px solid var(--border);
+    font-weight: 500;
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+
+  .freq-gap-table td {
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .freq-gap-table .arabic {
+    font-size: 1.1rem;
+    direction: rtl;
+    font-weight: 500;
+  }
+
+  .freq-gap-table .rank {
+    color: var(--highlight);
+    font-weight: 600;
+  }
+
+  .footer {
+    text-align: center;
+    padding: 32px 24px;
+    color: var(--text-dim);
+    font-size: 0.82rem;
+    border-top: 1px solid var(--border);
+    margin-top: 20px;
+  }
+
+  .cefr-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--highlight-dim);
+    border: 1px solid var(--highlight);
+    border-radius: 8px;
+    padding: 8px 16px;
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: var(--highlight);
+  }
+
+  .disclaimer {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 14px 18px;
+    font-size: 0.82rem;
+    color: var(--text-dim);
+    margin-top: 12px;
+    font-style: italic;
+  }
+
+  .two-col-stats {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+  }
+
+  @media (max-width: 600px) {
+    .two-col-stats { grid-template-columns: 1fr; }
+  }
+
+  .mini-stat {
+    background: rgba(255,255,255,0.02);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px 16px;
+    text-align: center;
+  }
+
+  .mini-stat .ms-value {
+    font-size: 1.5rem;
+    font-weight: 700;
+    line-height: 1.1;
+  }
+
+  .mini-stat .ms-label {
+    font-size: 0.75rem;
+    color: var(--text-dim);
+    margin-top: 2px;
+  }
+
+  .leech-note {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 14px;
+    background: rgba(251, 191, 36, 0.08);
+    border-radius: 8px;
+    font-size: 0.85rem;
+    margin-top: 12px;
+    color: var(--warning);
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="arabic-title">ألف</div>
+  <h1>Learning Analysis Report</h1>
+  <div class="subtitle">13 days of study &middot; February 8 &ndash; 20, 2026</div>
+</div>
+
+<div class="hero-stats">
+  <div class="hero-stat">
+    <div class="value">209</div>
+    <div class="label">Known Words</div>
+  </div>
+  <div class="hero-stat">
+    <div class="value">13</div>
+    <div class="label">Day Streak</div>
+  </div>
+  <div class="hero-stat">
+    <div class="value">93.3%</div>
+    <div class="label">FSRS Retention</div>
+  </div>
+  <div class="hero-stat">
+    <div class="value">5,688</div>
+    <div class="label">Total Reviews</div>
+  </div>
+  <div class="hero-stat">
+    <div class="value">~11/d</div>
+    <div class="label">Graduation Rate</div>
+  </div>
+</div>
+
+<div class="container">
+
+  <!-- Section 1: Current Status -->
+  <div class="section">
+    <div class="section-title">1. Current Status</div>
+
+    <div class="grid-2">
+      <div class="card">
+        <div class="card-title">Vocabulary Breakdown</div>
+        <div class="chart-container">
+          <canvas id="vocabChart"></canvas>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Overview</div>
+
+        <div style="text-align: center; margin-bottom: 20px;">
+          <div class="cefr-badge">CEFR: Early A1</div>
+          <div style="font-size: 0.82rem; color: var(--text-dim); margin-top: 6px;">~209 known words</div>
+        </div>
+
+        <div class="stat-row">
+          <span class="stat-label">Total vocabulary</span>
+          <span class="stat-value">725 lemmas</span>
+        </div>
+        <div class="stat-row">
+          <span class="stat-label">Active (known + learning + acquiring)</span>
+          <span class="stat-value highlight">294</span>
+        </div>
+        <div class="stat-row">
+          <span class="stat-label">Encountered (not yet studying)</span>
+          <span class="stat-value" style="color: var(--text-dim);">402</span>
+        </div>
+        <div class="stat-row">
+          <span class="stat-label">Lapsed</span>
+          <span class="stat-value warning">10 (4.8%)</span>
+        </div>
+        <div class="stat-row">
+          <span class="stat-label">Suspended</span>
+          <span class="stat-value" style="color: var(--text-dim);">19</span>
+        </div>
+        <div class="stat-row">
+          <span class="stat-label">Study days</span>
+          <span class="stat-value success">13 consecutive</span>
+        </div>
+        <div class="stat-row">
+          <span class="stat-label">Sessions per day (mean)</span>
+          <span class="stat-value">13.6</span>
+        </div>
+
+        <div class="insight-box">
+          <strong>402 encountered words</strong> are waiting in the pipeline. At the current auto-introduction rate, this represents months of material already available without needing new imports.
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Vocabulary Sources</div>
+      <div class="chart-container">
+        <canvas id="sourceChart"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <!-- Section 2: Learning Rate -->
+  <div class="section">
+    <div class="section-title">2. Learning Rate</div>
+
+    <div class="grid-2">
+      <div class="card">
+        <div class="card-title">Weekly Graduations</div>
+        <div class="chart-container">
+          <canvas id="gradChart"></canvas>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Acquisition Metrics</div>
+
+        <div class="two-col-stats">
+          <div class="mini-stat">
+            <div class="ms-value highlight">143</div>
+            <div class="ms-label">Total Graduations</div>
+          </div>
+          <div class="mini-stat">
+            <div class="ms-value success">~11/day</div>
+            <div class="ms-label">Graduation Rate</div>
+          </div>
+          <div class="mini-stat">
+            <div class="ms-value info">4.1 days</div>
+            <div class="ms-label">Median Time to Graduate</div>
+          </div>
+          <div class="mini-stat">
+            <div class="ms-value info">7 reviews</div>
+            <div class="ms-label">Median Reviews to Graduate</div>
+          </div>
+        </div>
+
+        <div class="stat-row" style="margin-top: 16px;">
+          <span class="stat-label">Mean time to graduate</span>
+          <span class="stat-value">3.8 days (90.5h)</span>
+        </div>
+        <div class="stat-row">
+          <span class="stat-label">Mean reviews to graduate</span>
+          <span class="stat-value">13.8</span>
+        </div>
+        <div class="stat-row">
+          <span class="stat-label">P25 / P50 / P75 duration</span>
+          <span class="stat-value" style="font-size: 0.85rem;">55.7h / 98.8h / 103.9h</span>
+        </div>
+
+        <div class="reference-box">
+          <strong>Research benchmark:</strong> Uchihara (2019) suggests 8&ndash;12 encounters for stable vocabulary acquisition. Current median of 7 reviews is on the low end &mdash; worth monitoring lapse rates as these words mature.
+          <br><br>
+          <strong>Rate comparison:</strong> A sustainable benchmark is ~7 new words/day (Uchihara 2019). Actual rate of ~11/day is 57% above benchmark &mdash; ambitious but supported by strong retention so far.
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Daily Graduations</div>
+      <div class="chart-container">
+        <canvas id="dailyGradChart"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <!-- Section 3: Retention -->
+  <div class="section">
+    <div class="section-title">3. Retention</div>
+
+    <div class="grid-2">
+      <div class="card">
+        <div class="card-title">Weekly Retention Trend</div>
+        <div class="chart-container">
+          <canvas id="retentionChart"></canvas>
+        </div>
+        <div class="insight-box" style="margin-top: 16px;">
+          <strong>Dramatic improvement:</strong> Retention climbed from 78.3% to 97.5% over three weeks. The algorithm is dialing in rapidly, and the learner is building strong recall habits.
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Retention Breakdown</div>
+
+        <div class="stat-row">
+          <span class="stat-label">Overall accuracy</span>
+          <span class="stat-value highlight">89.8%</span>
+        </div>
+        <div class="stat-row">
+          <span class="stat-label">FSRS reviews (graduated words)</span>
+          <span class="stat-value success">93.3% (3,487 / 3,736)</span>
+        </div>
+        <div class="stat-row">
+          <span class="stat-label">Acquisition reviews (boxes 1-3)</span>
+          <span class="stat-value info">83.0%</span>
+        </div>
+        <div class="stat-row">
+          <span class="stat-label">Lapsed words</span>
+          <span class="stat-value warning">10 / 209 known (4.8%)</span>
+        </div>
+
+        <div class="card-title" style="margin-top: 24px;">FSRS Stability Distribution</div>
+        <div class="chart-container" style="max-height: 220px;">
+          <canvas id="stabilityChart"></canvas>
+        </div>
+      </div>
+    </div>
+
+    <div class="grid-2">
+      <div class="card">
+        <div class="card-title">Accuracy by Review Mode</div>
+        <div class="chart-container">
+          <canvas id="modeChart"></canvas>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">FSRS Difficulty Distribution</div>
+        <div class="chart-container">
+          <canvas id="difficultyChart"></canvas>
+        </div>
+        <div class="leech-note">
+          20% of words (42) have "very hard" difficulty (>7) &mdash; potential leeches to watch.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Section 4: Projections -->
+  <div class="section">
+    <div class="section-title">4. Projections</div>
+
+    <div class="card">
+      <div class="card-title">90-Day Simulation &mdash; Casual Profile (3.5 study days/week)</div>
+      <div class="chart-container" style="max-height: 400px;">
+        <canvas id="projectionChart"></canvas>
+      </div>
+      <div class="disclaimer">
+        Simulation data is based on a "casual" learner profile (3.5 study days per week, ~70% accuracy). Projections are estimates, not guarantees. Actual progress depends on consistency, material difficulty, and session length.
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Cumulative Learning Velocity</div>
+      <div class="chart-container">
+        <canvas id="velocityChart"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <!-- Section 5: Reading Milestones -->
+  <div class="section">
+    <div class="section-title">5. Reading Milestones</div>
+
+    <div class="card">
+      <div class="milestone">
+        <div class="milestone-header">
+          <span class="milestone-name">Children's Book <span style="font-size:0.8rem; color: var(--text-dim);">(Small Wonders Level 1)</span></span>
+          <span class="badge badge-success">ACHIEVED</span>
+        </div>
+        <div class="milestone-bar">
+          <div class="milestone-fill achieved" style="width: 100%;"></div>
+        </div>
+        <div class="milestone-eta">150 words &mdash; 209/150 (139%)</div>
+      </div>
+
+      <div class="milestone">
+        <div class="milestone-header">
+          <span class="milestone-name">Graded Reader <span style="font-size:0.8rem; color: var(--text-dim);">(Sahlawayhi Level 1-3)</span></span>
+          <span class="milestone-detail">209 / 400</span>
+        </div>
+        <div class="milestone-bar">
+          <div class="milestone-fill in-progress" style="width: 52%;"></div>
+        </div>
+        <div class="milestone-eta">~17 days at current rate (~11 graduations/day)</div>
+      </div>
+
+      <div class="milestone">
+        <div class="milestone-header">
+          <span class="milestone-name">A1 Complete</span>
+          <span class="milestone-detail">209 / 500</span>
+        </div>
+        <div class="milestone-bar">
+          <div class="milestone-fill in-progress" style="width: 42%;"></div>
+        </div>
+        <div class="milestone-eta">~26 days at current rate</div>
+      </div>
+
+      <div class="milestone">
+        <div class="milestone-header">
+          <span class="milestone-name">A2</span>
+          <span class="milestone-detail">209 / 1,200</span>
+        </div>
+        <div class="milestone-bar">
+          <div class="milestone-fill in-progress" style="width: 17%;"></div>
+        </div>
+        <div class="milestone-eta">~90 days at current rate</div>
+      </div>
+
+      <div class="milestone">
+        <div class="milestone-header">
+          <span class="milestone-name">B1</span>
+          <span class="milestone-detail">209 / 2,000</span>
+        </div>
+        <div class="milestone-bar">
+          <div class="milestone-fill in-progress" style="width: 10%;"></div>
+        </div>
+        <div class="milestone-eta">~163 days at current rate</div>
+      </div>
+
+      <div class="reference-box" style="margin-top: 20px;">
+        <strong>Context:</strong> Masrai &amp; Milton (2016) estimate ~9,000 lemmas for 95% Arabic text coverage. Current focus is the high-frequency core &mdash; the first 500 words cover a disproportionate share of everyday text.
+      </div>
+    </div>
+  </div>
+
+  <!-- Section 6: Scheduling Observations -->
+  <div class="section">
+    <div class="section-title">6. Scheduling Observations</div>
+
+    <div class="grid-2">
+      <div class="card">
+        <div class="card-title">Session Patterns</div>
+        <div class="stat-row">
+          <span class="stat-label">Total sessions</span>
+          <span class="stat-value">184</span>
+        </div>
+        <div class="stat-row">
+          <span class="stat-label">Session size (median / mean)</span>
+          <span class="stat-value">5 / 6.8 sentences</span>
+        </div>
+        <div class="stat-row">
+          <span class="stat-label">Sessions per day (mean)</span>
+          <span class="stat-value">14.2</span>
+        </div>
+
+        <div class="card-title" style="margin-top: 20px;">Session Size Distribution</div>
+        <div class="chart-container" style="max-height: 200px;">
+          <canvas id="sessionSizeChart"></canvas>
+        </div>
+
+        <div class="insight-box" style="margin-top: 12px;">
+          <strong>Short, frequent sessions</strong> (median 5 sentences, 14.2 sessions/day) enable same-day acquisition box advancement via the 4h interval system. This micro-session pattern is highly effective.
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Comprehension Distribution</div>
+        <div class="chart-container" style="max-height: 240px;">
+          <canvas id="comprehensionChart"></canvas>
+        </div>
+
+        <div class="stat-row" style="margin-top: 16px;">
+          <span class="stat-label">Understood</span>
+          <span class="stat-value success">53.6% (667)</span>
+        </div>
+        <div class="stat-row">
+          <span class="stat-label">Partial</span>
+          <span class="stat-value warning">46.1% (574)</span>
+        </div>
+        <div class="stat-row">
+          <span class="stat-label">No idea</span>
+          <span class="stat-value" style="color: var(--text-dim);">0.3% (4)</span>
+        </div>
+
+        <div class="insight-box" style="margin-top: 12px;">
+          ~54/46 understood/partial split is a healthy learning zone. Near-zero "no idea" ratings mean the comprehensibility gate is working correctly.
+        </div>
+      </div>
+    </div>
+
+    <div class="grid-2">
+      <div class="card">
+        <div class="card-title">Frequency Coverage</div>
+        <div class="chart-container">
+          <canvas id="freqChart"></canvas>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Top Frequency Gaps</div>
+        <p style="font-size: 0.82rem; color: var(--text-dim); margin-bottom: 12px;">
+          High-frequency words not yet in the active vocabulary:
+        </p>
+        <table class="freq-gap-table">
+          <thead>
+            <tr>
+              <th>Rank</th>
+              <th>Word</th>
+              <th>Meaning</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="rank">#10</td>
+              <td class="arabic">أَوْ</td>
+              <td>or</td>
+              <td><span class="badge badge-highlight">not seen</span></td>
+            </tr>
+            <tr>
+              <td class="rank">#16</td>
+              <td class="arabic">اللّٰهُ</td>
+              <td>God</td>
+              <td><span class="badge badge-info">encountered</span></td>
+            </tr>
+            <tr>
+              <td class="rank">#20</td>
+              <td class="arabic">بَعْد</td>
+              <td>after</td>
+              <td><span class="badge badge-highlight">not seen</span></td>
+            </tr>
+            <tr>
+              <td class="rank">#23</td>
+              <td class="arabic">بَيْن</td>
+              <td>between</td>
+              <td><span class="badge badge-highlight">not seen</span></td>
+            </tr>
+            <tr>
+              <td class="rank">#24</td>
+              <td class="arabic">كانَ</td>
+              <td>to be</td>
+              <td><span class="badge badge-warning">lapsed</span></td>
+            </tr>
+            <tr>
+              <td class="rank">#30</td>
+              <td class="arabic">اَلْيَوْمَ</td>
+              <td>today</td>
+              <td><span class="badge badge-info">encountered</span></td>
+            </tr>
+            <tr>
+              <td class="rank">#34</td>
+              <td class="arabic">أَيّ</td>
+              <td>any / which?</td>
+              <td><span class="badge badge-highlight">not seen</span></td>
+            </tr>
+            <tr>
+              <td class="rank">#37</td>
+              <td class="arabic">قَبْل</td>
+              <td>before</td>
+              <td><span class="badge badge-highlight">not seen</span></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Research Benchmarks</div>
+      <div class="two-col-stats" style="grid-template-columns: 1fr 1fr 1fr;">
+        <div class="mini-stat">
+          <div class="ms-value" style="color: var(--success); font-size: 1.1rem;">FSRS-6</div>
+          <div class="ms-label">99.6% superior to SM-2<br>(Ye et al.)</div>
+        </div>
+        <div class="mini-stat">
+          <div class="ms-value" style="color: var(--info); font-size: 1.1rem;">85%</div>
+          <div class="ms-label">Optimal training accuracy<br>(Wilson et al. 2019)</div>
+        </div>
+        <div class="mini-stat">
+          <div class="ms-value" style="color: var(--warning); font-size: 1.1rem;">89.8%</div>
+          <div class="ms-label">Our overall accuracy<br>(slightly above optimal)</div>
+        </div>
+      </div>
+      <div class="reference-box" style="margin-top: 16px;">
+        <strong>Wilson et al. (2019)</strong> found ~85% is the optimal training accuracy for long-term retention ("the 85% rule"). Our 89.8% is slightly above this, suggesting room to <em>increase</em> the introduction rate or difficulty. The algorithm could push harder.
+        <br><br>
+        <strong>FSRS-6</strong> (Ye et al.) achieves 99.6% weighted superiority over SM-2 in predicting memory states. The steep retention improvement (78% &rarr; 97.5%) shows the algorithm adapting quickly to this learner's patterns.
+      </div>
+    </div>
+  </div>
+
+  <!-- Section 7: Tashkeel Readiness -->
+  <div class="section">
+    <div class="section-title">7. Tashkeel Readiness</div>
+
+    <div class="card">
+      <div class="grid-2">
+        <div>
+          <div class="card-title">Stability for Diacritics Removal</div>
+          <div class="stat-row">
+            <span class="stat-label">Words with stability >= 30d</span>
+            <span class="stat-value warning">11 (5.7%)</span>
+          </div>
+          <div class="stat-row">
+            <span class="stat-label">Median stability</span>
+            <span class="stat-value">7.3 days</span>
+          </div>
+          <div class="stat-row">
+            <span class="stat-label">Mean stability</span>
+            <span class="stat-value">10.0 days</span>
+          </div>
+
+          <div class="insight-box" style="margin-top: 16px;">
+            <strong>Recommendation:</strong> Start tashkeel (diacritics) fading when ~50+ words exceed 30-day stability. At the current pace, this is estimated in 2&ndash;3 weeks. The feature is ready and opt-in &mdash; no hurry.
+          </div>
+        </div>
+        <div>
+          <div class="card-title">Stability Buckets (Review Words)</div>
+          <div class="chart-container" style="max-height: 240px;">
+            <canvas id="tashkeelChart"></canvas>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<div class="footer">
+  Generated 2026-02-20 &middot; Alif Learning Analysis &middot; 13 days of study &middot; 5,688 reviews
+</div>
+
+<script>
+// -- Chart defaults --
+Chart.defaults.color = '#8892a0';
+Chart.defaults.borderColor = 'rgba(255,255,255,0.06)';
+Chart.defaults.font.family = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
+
+const COLORS = {
+  highlight: '#e94560',
+  highlightDim: 'rgba(233, 69, 96, 0.3)',
+  success: '#4ade80',
+  successDim: 'rgba(74, 222, 128, 0.3)',
+  warning: '#fbbf24',
+  warningDim: 'rgba(251, 191, 36, 0.3)',
+  info: '#60a5fa',
+  infoDim: 'rgba(96, 165, 250, 0.3)',
+  purple: '#a78bfa',
+  purpleDim: 'rgba(167, 139, 250, 0.3)',
+  cyan: '#22d3ee',
+  cyanDim: 'rgba(34, 211, 238, 0.3)',
+  dim: '#4a5568',
+  surface: '#16213e',
+};
+
+// -- 1. Vocabulary Breakdown --
+new Chart(document.getElementById('vocabChart'), {
+  type: 'bar',
+  data: {
+    labels: ['Known', 'Acquiring', 'Learning', 'Encountered', 'Lapsed', 'Suspended'],
+    datasets: [{
+      data: [209, 76, 9, 402, 10, 19],
+      backgroundColor: [
+        COLORS.success,
+        COLORS.info,
+        COLORS.purple,
+        COLORS.dim,
+        COLORS.warning,
+        'rgba(255,255,255,0.1)',
+      ],
+      borderRadius: 6,
+      borderSkipped: false,
+    }]
+  },
+  options: {
+    responsive: true,
+    maintainAspectRatio: true,
+    plugins: {
+      legend: { display: false },
+      tooltip: {
+        callbacks: {
+          label: ctx => `${ctx.parsed.y} words`
+        }
+      }
+    },
+    scales: {
+      y: { beginAtZero: true, grid: { color: 'rgba(255,255,255,0.04)' } },
+      x: { grid: { display: false } }
+    }
+  }
+});
+
+// -- Source chart --
+new Chart(document.getElementById('sourceChart'), {
+  type: 'bar',
+  data: {
+    labels: ['Auto Intro', 'Book', 'Duolingo', 'Collateral', 'Textbook Scan', 'Study', 'Leech Reintro'],
+    datasets: [
+      {
+        label: 'Known',
+        data: [89, 53, 42, 12, 6, 5, 2],
+        backgroundColor: COLORS.success,
+        borderRadius: 4,
+      },
+      {
+        label: 'Acquiring',
+        data: [6, 55, 0, 8, 0, 0, 7],
+        backgroundColor: COLORS.info,
+        borderRadius: 4,
+      },
+      {
+        label: 'Learning',
+        data: [1, 7, 0, 1, 0, 0, 0],
+        backgroundColor: COLORS.purple,
+        borderRadius: 4,
+      }
+    ]
+  },
+  options: {
+    responsive: true,
+    maintainAspectRatio: true,
+    plugins: {
+      legend: { position: 'top', labels: { boxWidth: 12, padding: 16 } },
+    },
+    scales: {
+      x: { stacked: true, grid: { display: false } },
+      y: { stacked: true, beginAtZero: true, grid: { color: 'rgba(255,255,255,0.04)' } }
+    }
+  }
+});
+
+// -- 2. Weekly Graduations --
+new Chart(document.getElementById('gradChart'), {
+  type: 'bar',
+  data: {
+    labels: ['W06 (Feb 2-8)', 'W07 (Feb 9-15)', 'W08 (Feb 16-20)'],
+    datasets: [{
+      label: 'Graduated',
+      data: [0, 51, 92],
+      backgroundColor: [COLORS.dim, COLORS.infoDim, COLORS.highlightDim],
+      borderColor: [COLORS.dim, COLORS.info, COLORS.highlight],
+      borderWidth: 2,
+      borderRadius: 6,
+      borderSkipped: false,
+    }]
+  },
+  options: {
+    responsive: true,
+    maintainAspectRatio: true,
+    plugins: { legend: { display: false } },
+    scales: {
+      y: { beginAtZero: true, grid: { color: 'rgba(255,255,255,0.04)' } },
+      x: { grid: { display: false } }
+    }
+  }
+});
+
+// -- Daily Graduations --
+new Chart(document.getElementById('dailyGradChart'), {
+  type: 'bar',
+  data: {
+    labels: ['Feb 12', 'Feb 13', 'Feb 14', 'Feb 15', 'Feb 16', 'Feb 17', 'Feb 18', 'Feb 19', 'Feb 20'],
+    datasets: [{
+      label: 'Graduations',
+      data: [8, 26, 12, 5, 19, 19, 17, 4, 33],
+      backgroundColor: COLORS.highlightDim,
+      borderColor: COLORS.highlight,
+      borderWidth: 1.5,
+      borderRadius: 4,
+      borderSkipped: false,
+    }]
+  },
+  options: {
+    responsive: true,
+    maintainAspectRatio: true,
+    plugins: { legend: { display: false } },
+    scales: {
+      y: { beginAtZero: true, grid: { color: 'rgba(255,255,255,0.04)' }, title: { display: true, text: 'Words graduated', color: '#8892a0' } },
+      x: { grid: { display: false } }
+    }
+  }
+});
+
+// -- 3. Weekly Retention Trend --
+new Chart(document.getElementById('retentionChart'), {
+  type: 'line',
+  data: {
+    labels: ['W06', 'W07', 'W08'],
+    datasets: [{
+      label: 'FSRS Retention %',
+      data: [78.3, 90.0, 97.5],
+      borderColor: COLORS.success,
+      backgroundColor: COLORS.successDim,
+      fill: true,
+      tension: 0.3,
+      pointRadius: 6,
+      pointBackgroundColor: COLORS.success,
+      pointBorderColor: '#16213e',
+      pointBorderWidth: 2,
+    }]
+  },
+  options: {
+    responsive: true,
+    maintainAspectRatio: true,
+    plugins: { legend: { display: false } },
+    scales: {
+      y: {
+        min: 70, max: 100,
+        grid: { color: 'rgba(255,255,255,0.04)' },
+        ticks: { callback: v => v + '%' }
+      },
+      x: { grid: { display: false } }
+    }
+  }
+});
+
+// -- Stability Histogram --
+new Chart(document.getElementById('stabilityChart'), {
+  type: 'bar',
+  data: {
+    labels: ['< 1 day', '1-7 days', '7-30 days', '30-90 days', '90+ days'],
+    datasets: [{
+      data: [18, 82, 100, 11, 0],
+      backgroundColor: [COLORS.highlight, COLORS.warning, COLORS.info, COLORS.success, COLORS.purple],
+      borderRadius: 4,
+      borderSkipped: false,
+    }]
+  },
+  options: {
+    responsive: true,
+    maintainAspectRatio: true,
+    indexAxis: 'y',
+    plugins: { legend: { display: false } },
+    scales: {
+      x: { beginAtZero: true, grid: { color: 'rgba(255,255,255,0.04)' } },
+      y: { grid: { display: false } }
+    }
+  }
+});
+
+// -- Accuracy by Mode --
+const modes = {
+  reading: { correct: 4770, missed: 491, partial: 47 },
+  listening: { correct: 41, missed: 16, partial: 0 },
+  quiz: { correct: 23, missed: 3, partial: 0 },
+  reintro: { correct: 26, missed: 24, partial: 0 },
+  textbook_scan: { correct: 247, missed: 0, partial: 0 },
+};
+const modeLabels = Object.keys(modes).map(m => m.charAt(0).toUpperCase() + m.slice(1).replace('_', ' '));
+const modeCorrect = Object.values(modes).map(m => m.correct);
+const modeMissed = Object.values(modes).map(m => m.missed);
+const modePartial = Object.values(modes).map(m => m.partial);
+
+new Chart(document.getElementById('modeChart'), {
+  type: 'bar',
+  data: {
+    labels: modeLabels,
+    datasets: [
+      { label: 'Correct', data: modeCorrect, backgroundColor: COLORS.success, borderRadius: 4 },
+      { label: 'Partial', data: modePartial, backgroundColor: COLORS.warning, borderRadius: 4 },
+      { label: 'Missed', data: modeMissed, backgroundColor: COLORS.highlight, borderRadius: 4 },
+    ]
+  },
+  options: {
+    responsive: true,
+    maintainAspectRatio: true,
+    plugins: { legend: { position: 'top', labels: { boxWidth: 12, padding: 12 } } },
+    scales: {
+      x: { stacked: true, grid: { display: false } },
+      y: { stacked: true, beginAtZero: true, grid: { color: 'rgba(255,255,255,0.04)' } }
+    }
+  }
+});
+
+// -- Difficulty Distribution --
+new Chart(document.getElementById('difficultyChart'), {
+  type: 'doughnut',
+  data: {
+    labels: ['Easy (<3)', 'Medium (3-5)', 'Hard (5-7)', 'Very Hard (7+)'],
+    datasets: [{
+      data: [154, 4, 11, 42],
+      backgroundColor: [COLORS.success, COLORS.info, COLORS.warning, COLORS.highlight],
+      borderColor: COLORS.surface,
+      borderWidth: 3,
+    }]
+  },
+  options: {
+    responsive: true,
+    maintainAspectRatio: true,
+    cutout: '55%',
+    plugins: {
+      legend: { position: 'bottom', labels: { boxWidth: 12, padding: 12 } },
+    }
+  }
+});
+
+// -- Session Size Distribution --
+new Chart(document.getElementById('sessionSizeChart'), {
+  type: 'bar',
+  data: {
+    labels: ['1-5', '6-10', '11-15', '16-20', '21-30'],
+    datasets: [{
+      data: [101, 47, 22, 6, 8],
+      backgroundColor: COLORS.infoDim,
+      borderColor: COLORS.info,
+      borderWidth: 1.5,
+      borderRadius: 4,
+      borderSkipped: false,
+    }]
+  },
+  options: {
+    responsive: true,
+    maintainAspectRatio: true,
+    plugins: { legend: { display: false } },
+    scales: {
+      y: { beginAtZero: true, grid: { color: 'rgba(255,255,255,0.04)' }, title: { display: true, text: 'Sessions', color: '#8892a0' } },
+      x: { grid: { display: false }, title: { display: true, text: 'Sentences per session', color: '#8892a0' } }
+    }
+  }
+});
+
+// -- Comprehension Donut --
+new Chart(document.getElementById('comprehensionChart'), {
+  type: 'doughnut',
+  data: {
+    labels: ['Understood', 'Partial', 'No Idea'],
+    datasets: [{
+      data: [667, 574, 4],
+      backgroundColor: [COLORS.success, COLORS.warning, COLORS.highlight],
+      borderColor: COLORS.surface,
+      borderWidth: 3,
+    }]
+  },
+  options: {
+    responsive: true,
+    maintainAspectRatio: true,
+    cutout: '55%',
+    plugins: {
+      legend: { display: false },
+      tooltip: {
+        callbacks: {
+          label: ctx => {
+            const total = 667 + 574 + 4;
+            const pct = ((ctx.parsed / total) * 100).toFixed(1);
+            return `${ctx.label}: ${ctx.parsed} (${pct}%)`;
+          }
+        }
+      }
+    }
+  }
+});
+
+// -- Frequency Coverage --
+new Chart(document.getElementById('freqChart'), {
+  type: 'bar',
+  data: {
+    labels: ['Top 100', 'Top 500', 'Top 1000', 'Top 2000'],
+    datasets: [
+      {
+        label: 'Known',
+        data: [49.0, 28.6, 24.0, 21.3],
+        backgroundColor: COLORS.success,
+        borderRadius: 4,
+      },
+      {
+        label: 'Active (incl. acquiring)',
+        data: [51.0 - 49.0, 32.6 - 28.6, 27.3 - 24.0, 24.6 - 21.3],
+        backgroundColor: COLORS.infoDim,
+        borderRadius: 4,
+      },
+      {
+        label: 'Not covered',
+        data: [100 - 51.0, 100 - 32.6, 100 - 27.3, 100 - 24.6],
+        backgroundColor: 'rgba(255,255,255,0.05)',
+        borderRadius: 4,
+      }
+    ]
+  },
+  options: {
+    responsive: true,
+    maintainAspectRatio: true,
+    plugins: {
+      legend: { position: 'top', labels: { boxWidth: 12, padding: 12 } },
+      tooltip: { callbacks: { label: ctx => `${ctx.dataset.label}: ${ctx.parsed.y.toFixed(1)}%` } }
+    },
+    scales: {
+      x: { stacked: true, grid: { display: false } },
+      y: { stacked: true, max: 100, grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { callback: v => v + '%' } }
+    }
+  }
+});
+
+// -- 4. Projection Chart (from simulation CSV data) --
+const simData = [
+  {day:1, date:'2026-03-01', known:173},
+  {day:2, date:'2026-03-02', known:179},
+  {day:3, date:'2026-03-03', known:179},
+  {day:4, date:'2026-03-04', known:179},
+  {day:5, date:'2026-03-05', known:184},
+  {day:6, date:'2026-03-06', known:191},
+  {day:7, date:'2026-03-07', known:193},
+  {day:8, date:'2026-03-08', known:201},
+  {day:9, date:'2026-03-09', known:201},
+  {day:10, date:'2026-03-10', known:201},
+  {day:11, date:'2026-03-11', known:201},
+  {day:12, date:'2026-03-12', known:201},
+  {day:13, date:'2026-03-13', known:201},
+  {day:14, date:'2026-03-14', known:201},
+  {day:15, date:'2026-03-15', known:203},
+  {day:16, date:'2026-03-16', known:207},
+  {day:17, date:'2026-03-17', known:207},
+  {day:18, date:'2026-03-18', known:207},
+  {day:19, date:'2026-03-19', known:207},
+  {day:20, date:'2026-03-20', known:207},
+  {day:21, date:'2026-03-21', known:207},
+  {day:22, date:'2026-03-22', known:207},
+  {day:23, date:'2026-03-23', known:207},
+  {day:24, date:'2026-03-24', known:211},
+  {day:25, date:'2026-03-25', known:213},
+  {day:26, date:'2026-03-26', known:213},
+  {day:27, date:'2026-03-27', known:216},
+  {day:28, date:'2026-03-28', known:216},
+  {day:29, date:'2026-03-29', known:215},
+  {day:30, date:'2026-03-30', known:219},
+  {day:31, date:'2026-03-31', known:219},
+  {day:32, date:'2026-04-01', known:219},
+  {day:33, date:'2026-04-02', known:222},
+  {day:34, date:'2026-04-03', known:222},
+  {day:35, date:'2026-04-04', known:222},
+  {day:36, date:'2026-04-05', known:222},
+  {day:37, date:'2026-04-06', known:222},
+  {day:38, date:'2026-04-07', known:222},
+  {day:39, date:'2026-04-08', known:222},
+  {day:40, date:'2026-04-09', known:225},
+  {day:41, date:'2026-04-10', known:225},
+  {day:42, date:'2026-04-11', known:226},
+  {day:43, date:'2026-04-12', known:225},
+  {day:44, date:'2026-04-13', known:225},
+  {day:45, date:'2026-04-14', known:230},
+  {day:46, date:'2026-04-15', known:233},
+  {day:47, date:'2026-04-16', known:233},
+  {day:48, date:'2026-04-17', known:234},
+  {day:49, date:'2026-04-18', known:234},
+  {day:50, date:'2026-04-19', known:233},
+  {day:51, date:'2026-04-20', known:233},
+  {day:52, date:'2026-04-21', known:233},
+  {day:53, date:'2026-04-22', known:235},
+  {day:54, date:'2026-04-23', known:237},
+  {day:55, date:'2026-04-24', known:237},
+  {day:56, date:'2026-04-25', known:240},
+  {day:57, date:'2026-04-26', known:239},
+  {day:58, date:'2026-04-27', known:241},
+  {day:59, date:'2026-04-28', known:241},
+  {day:60, date:'2026-04-29', known:241},
+  {day:61, date:'2026-04-30', known:242},
+  {day:62, date:'2026-05-01', known:246},
+  {day:63, date:'2026-05-02', known:248},
+  {day:64, date:'2026-05-03', known:248},
+  {day:65, date:'2026-05-04', known:248},
+  {day:66, date:'2026-05-05', known:248},
+  {day:67, date:'2026-05-06', known:248},
+  {day:68, date:'2026-05-07', known:248},
+  {day:69, date:'2026-05-08', known:247},
+  {day:70, date:'2026-05-09', known:247},
+  {day:71, date:'2026-05-10', known:247},
+  {day:72, date:'2026-05-11', known:247},
+  {day:73, date:'2026-05-12', known:247},
+  {day:74, date:'2026-05-13', known:250},
+  {day:75, date:'2026-05-14', known:250},
+  {day:76, date:'2026-05-15', known:250},
+  {day:77, date:'2026-05-16', known:251},
+  {day:78, date:'2026-05-17', known:251},
+  {day:79, date:'2026-05-18', known:252},
+  {day:80, date:'2026-05-19', known:253},
+  {day:81, date:'2026-05-20', known:253},
+  {day:82, date:'2026-05-21', known:254},
+  {day:83, date:'2026-05-22', known:254},
+  {day:84, date:'2026-05-23', known:254},
+  {day:85, date:'2026-05-24', known:254},
+  {day:86, date:'2026-05-25', known:254},
+  {day:87, date:'2026-05-26', known:257},
+  {day:88, date:'2026-05-27', known:257},
+  {day:89, date:'2026-05-28', known:256},
+  {day:90, date:'2026-05-29', known:256},
+];
+
+// Build milestone annotation data
+const milestones = [
+  { value: 150, label: "Children's book", color: COLORS.success },
+  { value: 400, label: 'Graded reader', color: COLORS.info },
+  { value: 500, label: 'A1 complete', color: COLORS.purple },
+];
+
+// Prepend actual production data point
+const projLabels = ['Now (Feb 20)', ...simData.map(d => {
+  const m = d.date.slice(5,7);
+  const dy = d.date.slice(8,10);
+  const months = ['','Jan','Feb','Mar','Apr','May'];
+  return months[parseInt(m)] + ' ' + parseInt(dy);
+})];
+const projValues = [209, ...simData.map(d => d.known)];
+
+// Use every 5th label to avoid overcrowding
+const projCtx = document.getElementById('projectionChart');
+new Chart(projCtx, {
+  type: 'line',
+  data: {
+    labels: projLabels,
+    datasets: [{
+      label: 'Known Words (casual sim)',
+      data: projValues,
+      borderColor: COLORS.highlight,
+      backgroundColor: COLORS.highlightDim,
+      fill: true,
+      tension: 0.2,
+      pointRadius: 0,
+      pointHitRadius: 10,
+      borderWidth: 2.5,
+    }]
+  },
+  options: {
+    responsive: true,
+    maintainAspectRatio: true,
+    plugins: {
+      legend: { display: false },
+      tooltip: {
+        callbacks: {
+          label: ctx => `${ctx.parsed.y} known words`
+        }
+      },
+      annotation: undefined // we'll draw milestones manually
+    },
+    scales: {
+      y: {
+        min: 140,
+        max: 520,
+        grid: { color: 'rgba(255,255,255,0.04)' },
+        title: { display: true, text: 'Known words', color: '#8892a0' }
+      },
+      x: {
+        grid: { display: false },
+        ticks: {
+          maxTicksLimit: 12,
+          maxRotation: 45,
+        }
+      }
+    }
+  },
+  plugins: [{
+    id: 'milestoneLines',
+    afterDraw(chart) {
+      const ctx = chart.ctx;
+      const yAxis = chart.scales.y;
+      const chartArea = chart.chartArea;
+
+      milestones.forEach(m => {
+        if (m.value < yAxis.min || m.value > yAxis.max) return;
+        const y = yAxis.getPixelForValue(m.value);
+        ctx.save();
+        ctx.strokeStyle = m.color;
+        ctx.lineWidth = 1;
+        ctx.setLineDash([6, 4]);
+        ctx.beginPath();
+        ctx.moveTo(chartArea.left, y);
+        ctx.lineTo(chartArea.right, y);
+        ctx.stroke();
+
+        ctx.fillStyle = m.color;
+        ctx.font = '11px -apple-system, sans-serif';
+        ctx.textAlign = 'right';
+        ctx.fillText(m.label + ' (' + m.value + ')', chartArea.right - 4, y - 5);
+        ctx.restore();
+      });
+    }
+  }]
+});
+
+// -- Velocity Chart --
+new Chart(document.getElementById('velocityChart'), {
+  type: 'bar',
+  data: {
+    labels: ['W06 (Feb 2-8)', 'W07 (Feb 9-15)', 'W08 (Feb 16-20)'],
+    datasets: [
+      {
+        label: 'Introduced',
+        data: [12, 121, 147],
+        backgroundColor: COLORS.infoDim,
+        borderColor: COLORS.info,
+        borderWidth: 1.5,
+        borderRadius: 4,
+      },
+      {
+        label: 'Graduated',
+        data: [0, 51, 92],
+        backgroundColor: COLORS.highlightDim,
+        borderColor: COLORS.highlight,
+        borderWidth: 1.5,
+        borderRadius: 4,
+      }
+    ]
+  },
+  options: {
+    responsive: true,
+    maintainAspectRatio: true,
+    plugins: {
+      legend: { position: 'top', labels: { boxWidth: 12, padding: 16 } },
+    },
+    scales: {
+      y: { beginAtZero: true, grid: { color: 'rgba(255,255,255,0.04)' } },
+      x: { grid: { display: false } }
+    }
+  }
+});
+
+// -- 7. Tashkeel Stability --
+new Chart(document.getElementById('tashkeelChart'), {
+  type: 'bar',
+  data: {
+    labels: ['< 1 day', '1-7 days', '7-30 days', '30-90 days'],
+    datasets: [{
+      data: [1, 81, 100, 11],
+      backgroundColor: [COLORS.highlight, COLORS.warning, COLORS.info, COLORS.success],
+      borderRadius: 4,
+      borderSkipped: false,
+    }]
+  },
+  options: {
+    responsive: true,
+    maintainAspectRatio: true,
+    indexAxis: 'y',
+    plugins: { legend: { display: false } },
+    scales: {
+      x: { beginAtZero: true, grid: { color: 'rgba(255,255,255,0.04)' } },
+      y: { grid: { display: false } }
+    }
+  }
+});
+</script>
+
+</body>
+</html>

@@ -20,7 +20,7 @@ from typing import Optional
 
 from sqlalchemy.orm import Session
 
-from app.models import Lemma, ReviewLog, UserLemmaKnowledge
+from app.models import Lemma, ReviewLog, Root, UserLemmaKnowledge
 from app.services.fsrs_service import create_new_card, parse_json_column, STATE_MAP
 from app.services.interaction_logger import log_interaction
 
@@ -35,6 +35,7 @@ BOX_INTERVALS = {
 GRADUATION_MIN_REVIEWS = 5
 GRADUATION_MIN_ACCURACY = 0.60
 GRADUATION_MIN_CALENDAR_DAYS = 2
+ROOT_SIBLING_THRESHOLD = 2  # known root siblings needed for Easy graduation boost
 
 
 def _reviews_span_calendar_days(db: Session, lemma_id: int, min_days: int) -> bool:
@@ -240,7 +241,7 @@ def submit_acquisition_review(
                 graduated = True
 
     if graduated:
-        _graduate(ulk, now)
+        _graduate(ulk, now, db=db)
 
     # Log review
     log_entry = ReviewLog(
@@ -286,7 +287,24 @@ def submit_acquisition_review(
     }
 
 
-def _graduate(ulk: UserLemmaKnowledge, now: datetime) -> None:
+def _count_known_root_siblings(db: Session, lemma_id: int) -> int:
+    """Count how many known words share the same root as the given lemma."""
+    lemma = db.query(Lemma).filter(Lemma.lemma_id == lemma_id).first()
+    if not lemma or not lemma.root_id:
+        return 0
+    return (
+        db.query(UserLemmaKnowledge.lemma_id)
+        .join(Lemma, Lemma.lemma_id == UserLemmaKnowledge.lemma_id)
+        .filter(
+            Lemma.root_id == lemma.root_id,
+            Lemma.lemma_id != lemma_id,
+            UserLemmaKnowledge.knowledge_state == "known",
+        )
+        .count()
+    )
+
+
+def _graduate(ulk: UserLemmaKnowledge, now: datetime, db: Session | None = None) -> None:
     """Graduate a word from acquisition to FSRS."""
     from fsrs import Scheduler, Card, Rating
 
@@ -295,10 +313,17 @@ def _graduate(ulk: UserLemmaKnowledge, now: datetime) -> None:
     ulk.acquisition_next_due = None
     ulk.graduated_at = now
 
-    # Create FSRS card with initial Good review to set baseline stability
+    rating = Rating.Good
+    root_boost = False
+    if db is not None:
+        known_siblings = _count_known_root_siblings(db, ulk.lemma_id)
+        if known_siblings >= ROOT_SIBLING_THRESHOLD:
+            rating = Rating.Easy
+            root_boost = True
+
     scheduler = Scheduler()
     card = Card()
-    new_card, _ = scheduler.review_card(card, Rating.Good, now)
+    new_card, _ = scheduler.review_card(card, rating, now)
     ulk.fsrs_card_json = new_card.to_dict()
 
     log_interaction(
@@ -306,6 +331,7 @@ def _graduate(ulk: UserLemmaKnowledge, now: datetime) -> None:
         lemma_id=ulk.lemma_id,
         times_seen=ulk.times_seen,
         times_correct=ulk.times_correct,
+        root_boost=root_boost,
     )
 
 

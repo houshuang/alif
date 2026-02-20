@@ -1391,9 +1391,9 @@ remaining cards on the next card advance. See Section 8 "Sentence Pre-Warming" f
 | Last Comprehension | Cooldown |
 |-------------------|----------|
 | `understood` | 4 days |
-| `partial` | 2 days |
-| `grammar_confused` | 1 day |
-| `no_idea` | 4 hours |
+| `partial` | 4 hours |
+| `grammar_confused` | 2 hours |
+| `no_idea` | 30 minutes |
 | No record | 4 days |
 
 ### Acquisition (`acquisition_service.py`)
@@ -1406,6 +1406,15 @@ remaining cards on the next card advance. See Section 8 "Sentence Pre-Warming" f
 | `GRADUATION_MIN_REVIEWS` | 5 | Min reviews before graduation |
 | `GRADUATION_MIN_ACCURACY` | 0.60 | Min accuracy for graduation |
 | `GRADUATION_MIN_CALENDAR_DAYS` | 2 | Reviews must span this many UTC calendar days |
+| `ROOT_SIBLING_THRESHOLD` | 2 | Known root siblings needed for Easy graduation boost |
+
+### Tashkeel Fading (`sentence_selector.py`, `settings.py`)
+
+| Setting | Default | Purpose |
+|---------|---------|---------|
+| `tashkeel_mode` | `"always"` | always / fade / never |
+| `tashkeel_stability_threshold` | 30.0 days | Stability cutoff for fading in "fade" mode |
+| API | `GET/PUT /api/settings/tashkeel` | Read/update settings |
 
 ### Cohort (`cohort_service.py`)
 
@@ -1445,6 +1454,7 @@ remaining cards on the next card advance. See Section 8 "Sentence Pre-Warming" f
 |-----------|-------|---------|
 | S₀(Again) | 0.212d | Initial stability for "Again" |
 | S₀(Good) | 2.307d | Initial stability for "Good" |
+| S₀(Easy) | ~8.3d | Initial stability for "Easy" (root-boost graduation) |
 | Stability floor | 1.0d | Below this, "known" → "lapsed" |
 
 ### Sentence Pipeline (`update_material.py`, `material_generator.py`)
@@ -1552,20 +1562,19 @@ consolidation. "Forced day-1 review regardless of box position."
 
 **Remaining gap**: If user doesn't open the app for 2+ days, the review just waits. No push notification. But the interval enforcement ensures words can't skip the day-1 review through rapid in-session advancement.
 
-### 19.7 Root-Aware FSRS Stability Boost — Not Implemented
+### 19.7 ~~Root-Aware FSRS Stability Boost~~ — RESOLVED
 
-**Research says**: When a new word shares a root with 2+ known words, boost initial
-FSRS stability by ~30%. Root awareness accounts for substantial variance in reading
-outcomes.
+**Implemented** (2026-02-20): When a word graduates from acquisition, `_graduate()` in
+`acquisition_service.py` checks for known root siblings via `_count_known_root_siblings()`.
+If 2+ siblings have `knowledge_state="known"`, the word graduates with `Rating.Easy`
+(S₀ ≈ 8.3d) instead of the default `Rating.Good` (S₀ ≈ 2.3d) — a ~3.6x stability boost.
 
-**Original plan said**: Root-sibling bootstrapping.
+Root familiarity still affects word selection (30% weight in learn mode). Now it also
+accelerates FSRS scheduling for words with established root families.
 
-**Current implementation**: Root familiarity affects *word selection* (30% weight in
-learn mode), but after a word graduates from acquisition, its initial FSRS stability
-is always S₀(Good) = 2.3 days regardless of root knowledge.
-
-**Gap**: Root knowledge influences which words are introduced but not how fast they
-advance through FSRS.
+| Constant | Value | Location |
+|----------|-------|----------|
+| `ROOT_SIBLING_THRESHOLD` | 2 | `acquisition_service.py` |
 
 ### 19.8 Response Time as Difficulty Signal — Not Used
 
@@ -1605,15 +1614,21 @@ informativeness.
 
 **Gap**: Missing a principled approach to context-dependent sentence selection.
 
-### 19.11 Expertise Reversal — Not Implemented
+### 19.11 ~~Expertise Reversal (Tashkeel Fading)~~ — PARTIALLY RESOLVED
 
-**Research says**: As the learner advances, reduce scaffolding. Offer transliteration
-as tap-to-reveal. Reduce diacritization on well-known words.
+**Implemented** (2026-02-20): Per-word diacritics fading based on FSRS stability.
+`LearnerSettings` has `tashkeel_mode` (always/fade/never) and
+`tashkeel_stability_threshold` (default 30.0 days). In `sentence_selector.py`,
+each word's `show_tashkeel` is computed:
+- `mode="always"`: all words show diacritics (default, zero behavior change)
+- `mode="fade"`: words with FSRS stability ≥ threshold show without diacritics
+- `mode="never"`: no words show diacritics
 
-**Current implementation**: All Arabic text is always fully diacritized. Transliteration
-is always shown on reveal. No adaptation to proficiency level.
+Frontend (`index.tsx`) conditionally calls `stripDiacritics()` based on `show_tashkeel`.
+Settings UI in `more.tsx` with segmented control + threshold display.
 
-**Gap**: Acceptable for a beginner but should evolve as vocabulary grows.
+**Remaining gap**: Transliteration is still always shown on reveal. No adaptation of
+transliteration display to proficiency level.
 
 ### 19.12 ~~Leech Detection Threshold~~ — RESOLVED
 

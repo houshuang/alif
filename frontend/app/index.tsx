@@ -1129,28 +1129,26 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
     if (!item) return null;
 
     const wordLines = item.words.map((w, i) => {
-      let status = w.knowledge_state || "new";
-      if (w.is_function_word) status = "function_word";
-      const parts = [`${i + 1}. ${w.surface_form} (${status})`];
-      if (w.gloss_en) parts.push(`"${w.gloss_en}"`);
+      const known = w.knowledge_state === "known" || w.knowledge_state === "learning";
+      const status = w.is_function_word ? "function_word" : (known ? "known" : "unknown/new");
+      const parts = [`${i + 1}. ${w.surface_form} — ${status}`];
+      if (w.gloss_en) parts.push(`gloss: "${w.gloss_en}"`);
       if (w.root) parts.push(`root: ${w.root}`);
-      return parts.join(" — ");
+      if (w.grammar_tags?.length) parts.push(`grammar: ${w.grammar_tags.join(", ")}`);
+      return parts.join(", ");
     }).join("\n");
 
     return [
-      "Explain how this Arabic sentence works as a whole — how the words combine to produce the meaning, and why the English translation captures it that way.",
+      "Explain this Arabic sentence word by word.",
+      "For each word:",
+      "1) Give the base lemma (Arabic + transliteration)",
+      "2) Explain what prefixes, suffixes, or clitics are attached and what they mean",
+      "3) Identify the grammar pattern (verb form, case ending, إضافة, حال, etc.)",
+      "4) Briefly note how it fits into the overall sentence structure",
       "",
-      "Focus on:",
-      "- The overall meaning and feel: what is this sentence really saying?",
-      "- Why it's translated this way — are there nuances, idioms, or cultural context?",
-      "- Alternative translations that would also work, and what shades of meaning they'd carry",
-      "- Alternative ways a native speaker might express the same idea",
-      "- Any structural patterns worth noticing (word order, verb form choices, إضافة) — but only when they affect meaning",
+      "Then give a one-line summary of the full sentence's grammatical structure.",
       "",
-      "Don't list every particle or explain obvious words. I can see the glosses already.",
-      "Give me a feel for how Arabic expresses this thought, not a word-by-word breakdown.",
-      "",
-      "Words:",
+      "Words (my knowledge level indicated):",
       wordLines,
     ].join("\n");
   }
@@ -1651,7 +1649,6 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
           sentenceId={item.sentence_id}
           visible={sentenceInfoVisible}
           onClose={() => setSentenceInfoVisible(false)}
-          selectionInfo={item.selection_info}
         />
       )}
     </View>
@@ -1694,7 +1691,7 @@ function SentenceReadingCard({
                 onPress={() => onWordTap(i, word.lemma_id ?? null)}
                 style={wordStyle}
               >
-                {word.surface_form}
+                {word.show_tashkeel === false ? stripDiacritics(word.surface_form) : word.surface_form}
               </Text>
             </Text>
           );
@@ -1895,7 +1892,7 @@ function SentenceListeningCard({
                 onPress={() => onToggleMissed(i)}
                 style={wordStyle}
               >
-                {word.surface_form}
+                {word.show_tashkeel === false ? stripDiacritics(word.surface_form) : word.surface_form}
               </Text>
             </Text>
           );

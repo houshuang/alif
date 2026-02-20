@@ -2,6 +2,15 @@ export type ReviewMode = "reading" | "listening" | "quiz";
 export type ComprehensionSignal = "understood" | "partial" | "no_idea" | "grammar_confused";
 export type WordCategory = "proper_name" | "onomatopoeia";
 
+export interface SelectionInfo {
+  reason: string;
+  word_reason?: string;
+  score?: number | null;
+  order?: number | null;
+  components?: Record<string, number | boolean> | null;
+  due_lemma_ids?: number[];
+}
+
 export interface Word {
   id: number;
   arabic: string;
@@ -245,6 +254,7 @@ export interface SentenceWordMeta {
   frequency_rank: number | null;
   cefr_level: string | null;
   grammar_tags?: string[];
+  show_tashkeel?: boolean;
 }
 
 export interface WordLookupResult {
@@ -275,15 +285,6 @@ export interface WordLookupResult {
   }[];
 }
 
-export interface SelectionInfo {
-  reason: string;
-  order?: number;
-  score?: number;
-  word_reason: string;
-  components?: Record<string, number | boolean>;
-  due_lemma_ids?: number[];
-}
-
 export interface SentenceReviewItem {
   sentence_id: number | null;
   arabic_text: string;
@@ -296,7 +297,6 @@ export interface SentenceReviewItem {
   primary_gloss_en: string;
   words: SentenceWordMeta[];
   grammar_features?: string[];
-  selection_info?: SelectionInfo | null;
 }
 
 export interface IntroCandidate {
@@ -529,13 +529,17 @@ export interface AcquisitionPipeline {
 export interface InsightsData {
   avg_encounters_to_graduation: number | null;
   graduation_rate_pct: number | null;
+  total_reading_time_ms: number;
+  strongest_word: { lemma_ar: string; gloss_en: string | null; stability_days: number } | null;
+  most_encountered_word: { lemma_ar: string; gloss_en: string | null; total_encounters: number } | null;
+  avg_stability_days: number | null;
   best_weekday: { day_name: string; accuracy_pct: number; review_count: number } | null;
   dark_horse_root: { root: string; meaning: string | null; known: number; total: number } | null;
   unique_sentences_reviewed: number;
   total_sentence_reviews: number;
+  record_intro_day: { count: number; date: string } | null;
+  record_graduation_day: { count: number; date: string } | null;
   forgetting_forecast: { skip_1d: number; skip_3d: number; skip_7d: number };
-  record_intro_day: { date: string; count: number } | null;
-  record_graduation_day: { date: string; count: number } | null;
 }
 
 export interface DeepAnalytics {

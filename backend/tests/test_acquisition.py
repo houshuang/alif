@@ -1,11 +1,13 @@
 from datetime import datetime, timedelta, timezone
 
-from app.models import Lemma, ReviewLog, UserLemmaKnowledge
+from app.models import Lemma, ReviewLog, Root, UserLemmaKnowledge
 from app.services.acquisition_service import (
     BOX_INTERVALS,
     GRADUATION_MIN_ACCURACY,
     GRADUATION_MIN_CALENDAR_DAYS,
     GRADUATION_MIN_REVIEWS,
+    ROOT_SIBLING_THRESHOLD,
+    _count_known_root_siblings,
     get_acquisition_due,
     get_acquisition_stats,
     start_acquisition,
@@ -580,3 +582,136 @@ def test_box_intervals_are_correct(db_session):
     due = _strip_tz(ulk.acquisition_next_due)
     assert due >= before + timedelta(days=3) - timedelta(seconds=5)
     assert due <= before + timedelta(days=3) + timedelta(seconds=5)
+
+
+# --- Root-aware stability boost tests ---
+
+
+def _create_root_family(db, root_str="ك.ت.ب", words=None):
+    """Create a root with multiple lemmas sharing it."""
+    root = Root(root=root_str)
+    db.add(root)
+    db.flush()
+    if words is None:
+        words = [("كتاب", "book"), ("كاتب", "writer"), ("مكتبة", "library")]
+    lemmas = []
+    for ar, en in words:
+        lemma = Lemma(lemma_ar=ar, lemma_ar_bare=ar, gloss_en=en, pos="noun", root_id=root.root_id)
+        db.add(lemma)
+        db.flush()
+        lemmas.append(lemma)
+    return root, lemmas
+
+
+def test_count_known_root_siblings(db_session):
+    """Count known siblings sharing the same root."""
+    root, lemmas = _create_root_family(db_session)
+    # Mark first two as known
+    for lemma in lemmas[:2]:
+        ulk = UserLemmaKnowledge(
+            lemma_id=lemma.lemma_id,
+            knowledge_state="known",
+            times_seen=10,
+            times_correct=9,
+        )
+        db_session.add(ulk)
+    db_session.flush()
+
+    # Third lemma should see 2 known siblings
+    count = _count_known_root_siblings(db_session, lemmas[2].lemma_id)
+    assert count == 2
+
+
+def test_count_known_root_siblings_no_root(db_session):
+    """Returns 0 for lemmas without a root."""
+    lemma = _create_lemma(db_session, arabic="هو", english="he")
+    assert _count_known_root_siblings(db_session, lemma.lemma_id) == 0
+
+
+def _graduate_word(db_session, lemma_id):
+    """Helper: advance a word through all acquisition boxes until graduation."""
+    from datetime import date
+
+    start_acquisition(db_session, lemma_id)
+    # box 1 -> 2
+    submit_acquisition_review(db_session, lemma_id, rating_int=3)
+    # box 2 -> 3 (must be due)
+    _make_due(db_session, lemma_id)
+    submit_acquisition_review(db_session, lemma_id, rating_int=3)
+    # Add reviews on 2 calendar days
+    today = date.today()
+    yesterday = today - timedelta(days=1)
+    _add_review_on_date(db_session, lemma_id, yesterday)
+    _add_review_on_date(db_session, lemma_id, today)
+    # Reach GRADUATION_MIN_REVIEWS (already have 2 box advances)
+    for _ in range(GRADUATION_MIN_REVIEWS - 2):
+        _make_due(db_session, lemma_id)
+        submit_acquisition_review(db_session, lemma_id, rating_int=3)
+
+
+def test_root_boost_graduation_easy_rating(db_session):
+    """Words with 2+ known root siblings get Rating.Easy (higher initial stability)."""
+    from fsrs import Scheduler, Card, Rating
+
+    root, lemmas = _create_root_family(db_session)
+    target_lemma = lemmas[2]  # "library"
+
+    # Mark 2 siblings as known
+    for lemma in lemmas[:2]:
+        ulk = UserLemmaKnowledge(
+            lemma_id=lemma.lemma_id,
+            knowledge_state="known",
+            times_seen=10,
+            times_correct=9,
+        )
+        db_session.add(ulk)
+    db_session.flush()
+
+    # Graduate the target word (goes through full box progression)
+    _graduate_word(db_session, target_lemma.lemma_id)
+
+    ulk = db_session.query(UserLemmaKnowledge).filter_by(lemma_id=target_lemma.lemma_id).first()
+    assert ulk.knowledge_state == "learning"
+
+    # Easy rating produces higher initial stability than Good
+    scheduler = Scheduler()
+    now = datetime.now(timezone.utc)
+    card_good, _ = scheduler.review_card(Card(), Rating.Good, now)
+    card_easy, _ = scheduler.review_card(Card(), Rating.Easy, now)
+    assert card_easy.stability > card_good.stability
+
+    # Graduated card should have Easy-level stability
+    import json
+    fsrs_data = json.loads(ulk.fsrs_card_json) if isinstance(ulk.fsrs_card_json, str) else ulk.fsrs_card_json
+    assert fsrs_data["stability"] >= card_easy.stability * 0.95
+
+
+def test_no_root_boost_without_siblings(db_session):
+    """Words without enough known siblings get normal Rating.Good."""
+    from fsrs import Scheduler, Card, Rating
+
+    root, lemmas = _create_root_family(db_session)
+    target_lemma = lemmas[2]
+
+    # Only 1 sibling known (below threshold of 2)
+    ulk_sibling = UserLemmaKnowledge(
+        lemma_id=lemmas[0].lemma_id,
+        knowledge_state="known",
+        times_seen=10,
+        times_correct=9,
+    )
+    db_session.add(ulk_sibling)
+    db_session.flush()
+
+    _graduate_word(db_session, target_lemma.lemma_id)
+
+    ulk = db_session.query(UserLemmaKnowledge).filter_by(lemma_id=target_lemma.lemma_id).first()
+    assert ulk.knowledge_state == "learning"
+
+    scheduler = Scheduler()
+    card_good, _ = scheduler.review_card(Card(), Rating.Good, datetime.now(timezone.utc))
+
+    import json
+    fsrs_data = json.loads(ulk.fsrs_card_json) if isinstance(ulk.fsrs_card_json, str) else ulk.fsrs_card_json
+    assert fsrs_data["stability"] >= card_good.stability * 0.95
+    assert fsrs_data["stability"] <= card_good.stability * 1.05

@@ -71,7 +71,8 @@ All scripts in `backend/scripts/`. Run from `backend/` directory.
 - `test_book_import_e2e.py` — Download Archive.org children's book + run full import pipeline, --download-only/--images-dir/--max-pages.
 - `tts_comparison.py` — Compare TTS voices/settings.
 - `simulate_usage.py` — Simulate raw FSRS usage patterns (no DB, pure library).
-- `simulate_sessions.py` — End-to-end multi-day simulation using real services against a DB copy. Profiles: beginner/strong/casual/intensive. Uses freezegun for time control. Output: console table + optional CSV.
+- `simulate_sessions.py` — End-to-end multi-day simulation using real services against a DB copy. Profiles: beginner/strong/casual/intensive/calibrated. Uses freezegun for time control. Output: console table + optional CSV.
+- `learning_analysis.py` — Comprehensive production learning metrics: vocabulary states, graduation rates, retention, FSRS stability, session patterns, frequency coverage, tashkeel readiness. Raw sqlite3, outputs JSON to stdout + console summary to stderr.
 
 ## Utilities
 - `log_activity.py` — CLI tool for manual ActivityLog entries.

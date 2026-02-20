@@ -320,3 +320,5 @@ class LearnerSettings(Base):
     topic_started_at = Column(DateTime, nullable=True)
     words_introduced_in_topic = Column(Integer, default=0)
     topic_history_json = Column(JSON, nullable=True)
+    tashkeel_mode = Column(String(10), default="always", server_default="always")  # always/fade/never
+    tashkeel_stability_threshold = Column(Float, default=30.0, server_default="30.0")  # days

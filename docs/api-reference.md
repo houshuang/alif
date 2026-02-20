@@ -95,6 +95,12 @@ Full endpoint list. See `backend/app/routers/` for implementation.
 | GET | `/api/ocr/uploads` | List recent upload batches with results |
 | POST | `/api/ocr/extract-text` | Extract Arabic text from image for story import (synchronous) |
 
+## Settings
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/api/settings/tashkeel` | Get tashkeel (diacritics) fading settings: `{mode, stability_threshold}` |
+| PUT | `/api/settings/tashkeel` | Update tashkeel settings. mode: always/fade/never. stability_threshold: 1.0-365.0 |
+
 ## Other
 | Method | Path | Description |
 |--------|------|-------------|

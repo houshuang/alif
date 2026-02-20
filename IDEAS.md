@@ -51,7 +51,7 @@
 ### LLM + Deterministic Validation
 - Generate-then-validate pattern: LLM generates sentence → CAMeL Tools lemmatizes every word → check against known-word DB → verify exactly 1 unknown word
 - Retry loop with feedback to LLM (max 3 attempts)
-- [DONE] [REVERSED] Function words restored — ~80 particles/prepositions/pronouns excluded from story "to learn" counts and book page introduction. They still get FSRS tracking when encountered as scaffold words in sentences.
+- [DONE] All words are now learnable — no function word exclusions. Particles, prepositions etc. get full FSRS tracking.
 - Sentence templates for quick generation: "the X is Y", "I went to the X"
 - Pre-generate and cache validated sentences for offline use
 
@@ -62,11 +62,6 @@
 - Interim option: lemma-based backfill (covers ~95% of words without LLM changes, no contextual value).
 - **Full writeup**: [`research/per-word-contextual-translations.md`](research/per-word-contextual-translations.md)
 - **Timing**: Revisit during sentence generation redesign.
-
-### Book Import LLM Mapping Verification
-- [DONE] Book import pipeline now runs `verify_word_mappings_llm()` on each sentence during import. Bad mappings are nulled out (not discarded). Also added to `store_multi_target_sentence()`.
-- Initial scan of 9 existing book sentences found 15 bad mappings (e.g. "تلمع"→"مع", "بيدها"→"باد", "روزي"→"روز"). ~20% false positive rate on correct conjugated forms.
-- Trade-off: adds ~$0.001 Gemini API cost per sentence, catches homograph/prefix-stripping errors
 
 ### Sentence Sources
 - LLM-generated sentences with vocabulary constraints
@@ -238,11 +233,11 @@
 - [DONE] ULK provenance tracking: source field on UserLemmaKnowledge distinguishes study (Learn mode), auto_intro (inline review), collocate (sentence gen), duolingo (import), encountered (collateral credit in sentence review). introduce_word() accepts source param.
 
 ### Analytics Dashboard
-- [DONE] Words learned over time (cumulative) — KnownWordsGrowth component shows cumulative_known with week/month deltas
+- Words learned over time (cumulative)
 - Review accuracy by category (POS, frequency band, root family)
-- [DONE] Time per review card — InsightsCard shows total reading time
-- [DONE] Retention curves — RetentionSection shows 7d + 30d retention side-by-side
-- [DONE] Root coverage: % of top-N roots mastered — Root Progress section in Deep Dive
+- Time per review card
+- Retention curves
+- Root coverage: % of top-N roots mastered
 - Predicted vocabulary size
 - [DONE] CEFR arrival prediction: "~X days at this week's pace" on the CEFR card (weekly + today's pace extrapolation)
 - [DONE] Book pages equivalent: total words reviewed / 200 = pages read this week
@@ -467,15 +462,7 @@
 - Use `claude -p` for **story-to-sentences pipeline** — generate a story, then chop into review sentences, all with Opus quality
 - Use `claude -p` with `--model sonnet` for **high-volume tasks** where Opus quality isn't needed but free access matters (e.g. batch translations)
 - Consider **Claude Code SDK** (`@anthropic-ai/claude-code`) for Node.js integration if CLI subprocess overhead becomes an issue
-- [DONE] Install `claude` on Hetzner server via `claude setup-token` for server-side free generation without API costs — authenticated with Max plan, bind-mounted into Docker container via docker-compose.yml
-- **Replace GPT-5.2 flag evaluation with Gemini** — only 9 flags total, GPT-5.2 is overkill. Change `flag_evaluator.py` model_override from "openai" to "gemini".
-- **Agentic enrichment agent** — single Claude Code session that reads DB, identifies words missing forms/etymology/hooks, generates ALL enrichment in one pass, validates, returns structured batch. Replaces 4 separate scripts.
-- **LLM task_type dashboard** — now that all calls are tagged with task_type, build a lightweight dashboard or cron report showing daily costs by task type
-- [DONE] **Benchmark script** (`scripts/benchmark_claude_code.py`): Compares Gemini Flash, Sonnet CLI, Haiku CLI across sentence gen, quality gate, forms, hooks. Supports batched multi-word mode.
-- [DONE] **Switch memory hooks to Claude CLI** — switched from Haiku API (paid) to Haiku CLI (free). Benchmark showed Sonnet has slightly better quality but Haiku is sufficient for this task.
-- **Expand forms_json for validator accuracy** — benchmark revealed most "failed" sentences are actually good Arabic; the validator rejects them because conjugated forms (past_1s, present_3fs, passive) aren't in forms_json. Adding more conjugation patterns would boost pass rates for ALL models equally. This is a bigger quality win than switching models.
-- **Investigate Haiku CLI quality gate divergence** — Haiku CLI approved only 60% of known-good sentences vs Haiku API 90%. Likely a `--json-schema` vs `response_format` prompt formatting difference. If fixed, Haiku CLI could replace Haiku API (free).
-- **Sonnet batch mode tuning** — sending multiple words per CLI call cuts time 50% (32s→16s per word) but quality dropped. Prompt engineering to maintain per-word quality in batch mode could make Sonnet viable for sentence gen at scale.
+- Install `claude` on Hetzner server via `claude setup-token` for server-side free generation without API costs
 
 ### Ideas from Cognitive Load Theory Research (2026-02-08)
 
@@ -679,7 +666,7 @@
 - [DONE] Prompt overhaul: added explicit rules for indefinite noun starters, redundant pronouns, semantic coherence in compound sentences, beginner-level archaic word exclusion. Lowered temperature from 0.8 to 0.5. Reduced failure rate from 57% to ~10%.
 - [DONE] Parallel on-demand generation: ThreadPoolExecutor(max_workers=8) for concurrent LLM calls during session building
 - [DONE] Bulk sentence quality audit: `review_existing_sentences.py` script reviews all active sentences, retires failures. Supports --dry-run.
-- [DONE] Cross-model quality review: switched quality gate from Gemini Flash self-review to Claude Haiku cross-model review. Self-review has blind spots (same model makes same mistakes). Benchmarked 3 models: Gemini 16%, Haiku strict 40%, Haiku relaxed 12.5%, GPT-5.2 97% (broken). Relaxed prompt focuses on grammar/translation errors, not scenario realism — avoids over-rejecting pedagogically valid sentences. Now uses Claude Haiku CLI (free via Max plan) instead of Haiku API (paid).
+- [DONE] Cross-model quality review: switched quality gate from Gemini Flash self-review to Claude Haiku cross-model review. Self-review has blind spots (same model makes same mistakes). Benchmarked 3 models: Gemini 16%, Haiku strict 40%, Haiku relaxed 12.5%, GPT-5.2 97% (broken). Relaxed prompt focuses on grammar/translation errors, not scenario realism — avoids over-rejecting pedagogically valid sentences.
 
 ### Learning Algorithm Overhaul — Acquisition Phase & Focus Cohorts (2026-02-12)
 

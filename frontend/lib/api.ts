@@ -963,3 +963,22 @@ export async function setActiveTopic(domain: string): Promise<TopicSettings> {
 export async function getAvailableTopics(): Promise<TopicInfo[]> {
   return fetchApi<TopicInfo[]>("/api/settings/topics");
 }
+
+export interface TashkeelSettings {
+  mode: "always" | "fade" | "never";
+  stability_threshold: number;
+}
+
+export async function getTashkeelSettings(): Promise<TashkeelSettings> {
+  return fetchApi<TashkeelSettings>("/api/settings/tashkeel");
+}
+
+export async function updateTashkeelSettings(
+  mode: string,
+  stability_threshold: number
+): Promise<TashkeelSettings> {
+  return fetchApi<TashkeelSettings>("/api/settings/tashkeel", {
+    method: "PUT",
+    body: JSON.stringify({ mode, stability_threshold }),
+  });
+}

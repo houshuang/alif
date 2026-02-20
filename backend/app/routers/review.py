@@ -64,7 +64,6 @@ def next_sentences(
     result = build_session(
         db, limit=limit, mode=mode,
         log_events=not prefetch,
-        skip_on_demand=not prefetch,
     )
 
     # Listening mode is only for already-learned words — no intro candidates
