@@ -4,6 +4,22 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-02-20: Fix Function Words Stuck in Acquisition
+
+### Problem
+Function words (في, جدّاً, كلّ, هذا, etc.) were entering acquisition via `select_next_words()` which had no function word filter. Once in acquisition, the review loop's `continue` at `sentence_review_service.py:149` skipped them from all review processing — including `submit_acquisition_review()` — so their `times_seen` never incremented and they could never graduate. في was stuck in box 2 despite being seen 148 times.
+
+### Fix
+1. Added `_is_function_word()` filter to `select_next_words()` candidates (primary)
+2. Added same filter to `_auto_introduce_words()` (belt-and-suspenders)
+3. Data fix: graduated 16 acquiring + 7 encountered function words to "known"
+
+### Impact
+- 16 fewer acquiring words competing for session slots
+- ~80 function words now correctly excluded from introduction candidates
+
+---
+
 ## 2026-02-20: Selection Reasoning Transparency
 
 ### Change
