@@ -6,7 +6,7 @@
 > topics, grammar, listening) interact. It also identifies where the current
 > implementation diverges from the research and stated intentions.
 >
-> **Last updated**: 2026-02-19
+> **Last updated**: 2026-02-20
 > **Canonical location**: `docs/scheduling-system.md`
 > **Keep this document up to date with every algorithm change.**
 
@@ -663,6 +663,8 @@ build_session(db, limit=10, mode="reading")
 │   • grammar features                         │
 │   • audio_url                                │
 │   • is_intro flag for auto-introduced words  │
+│   • selection_info: reason, score, order,    │
+│     word_reason, score component breakdown   │
 │                                              │
 │ Also: reintro_cards for struggling words      │
 │ Also: intro_candidates for Learn mode        │

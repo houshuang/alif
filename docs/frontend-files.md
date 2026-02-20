@@ -21,7 +21,7 @@ All frontend in `frontend/`.
 ## Components (lib/)
 - `lib/review/ActionMenu.tsx` — "⋯" menu: Ask AI, Suspend, Flag. Supports `extraActions` prop for screen-specific actions (e.g., story suspend).
 - `lib/review/WordInfoCard.tsx` — Word info panel for review. Prev/next arrows navigate tapped word history.
-- `lib/review/SentenceInfoModal.tsx` — Debug modal: sentence ID, source, review history, per-word FSRS difficulty/stability
+- `lib/review/SentenceInfoModal.tsx` — Debug modal: sentence ID, source, review history, per-word FSRS difficulty/stability. **Selection reasoning**: when opened from review, shows why the sentence was chosen (scheduled review / acquisition repeat / on-demand / auto-intro fill), primary word state, selection score + pick order, and per-factor score breakdown
 - `lib/AskAI.tsx` — AI chat modal (used in ActionMenu). Quick actions: "Explain marked" (only when words tapped, explains missed/confused words), "Explain full" (word-by-word sentence breakdown with grammar patterns)
 - `lib/MarkdownMessage.tsx` — Markdown renderer for chat/AI responses
 - `lib/WordCardComponents.tsx` — Reusable word display (posLabel, FormsRow, GrammarRow, PlayButton)

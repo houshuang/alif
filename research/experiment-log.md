@@ -4,6 +4,23 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-02-20: Selection Reasoning Transparency
+
+### Change
+Each `SentenceReviewItem` now includes a `selection_info` dict exposing why the sentence was chosen for the session. The `SentenceInfoModal` (opened by tapping sentence info during review) displays this at the top of the modal.
+
+### Fields
+- `reason`: greedy_cover | acquisition_repeat | on_demand | fill_intro
+- `score`: final weighted score from greedy set cover
+- `order`: pick order (1st, 2nd, 3rd...)
+- `word_reason`: human-readable primary word state (e.g. "Learning (stability 2d)", "Acquiring (box 2)")
+- `components`: per-factor breakdown (due_coverage, difficulty_match, grammar_fit, diversity, freshness, source_bonus, session_diversity, rescue)
+
+### Purpose
+Debugging and understanding the session builder's decisions. No algorithm change — purely observational.
+
+---
+
 ## 2026-02-20: Recency Filter Relaxation & Rescue Pass
 
 ### Problem

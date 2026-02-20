@@ -15,7 +15,7 @@ Full endpoint list. See `backend/app/routers/` for implementation.
 |--------|------|-------------|
 | GET | `/api/review/next?limit=10` | Due review cards (legacy word-only) |
 | GET | `/api/review/next-listening` | Listening-suitable review cards (legacy) |
-| GET | `/api/review/next-sentences?limit=10&mode=reading` | Sentence-centric review session (primary) |
+| GET | `/api/review/next-sentences?limit=10&mode=reading` | Sentence-centric review session (primary). Each item includes `selection_info` with reason, score, word_reason, and score component breakdown |
 | POST | `/api/review/submit` | Submit single-word review (legacy) |
 | POST | `/api/review/submit-sentence` | Submit sentence review — all words get FSRS credit. Accepts confused_lemma_ids |
 | POST | `/api/review/undo-sentence` | Undo a sentence review — restores pre-review FSRS state, deletes logs |
