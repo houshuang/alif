@@ -351,6 +351,9 @@ def select_next_words(
 
     candidates = [c for c in candidates if not _is_noise_lemma(c)]
 
+    from app.services.sentence_validator import _is_function_word
+    candidates = [c for c in candidates if not (c.lemma_ar_bare and _is_function_word(c.lemma_ar_bare))]
+
     if not candidates:
         return []
 

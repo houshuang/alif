@@ -326,8 +326,10 @@ def _auto_introduce_words(
     active_topic = ensure_active_topic(db)
     # Request extra candidates since we filter out names/sounds
     candidates = select_next_words(db, count=slots + 5, domain=active_topic)
-    # Never auto-introduce names or onomatopoeia — user must pick those manually
+    # Never auto-introduce names, onomatopoeia, or function words
+    from app.services.sentence_validator import _is_function_word
     candidates = [c for c in candidates if c.get("word_category") not in ("proper_name", "onomatopoeia")]
+    candidates = [c for c in candidates if not _is_function_word(c.get("lemma_ar_bare", ""))]
     if not candidates:
         return []
 
