@@ -112,48 +112,63 @@ The 20% "very hard" words (42 words) are potential leeches — worth monitoring.
 
 ## 6. Frequency Coverage
 
-| Top N Words | In Corpus | Known | Coverage |
-|-------------|-----------|-------|----------|
-| 100 | 51 | 25 | 49% |
-| 500 | 175 | 50 | 29% |
-| 1,000 | 271 | 65 | 24% |
-| 2,000 | 403 | 86 | 21% |
+| Top N Words | In Corpus | Active | Known | Function Words |
+|-------------|-----------|--------|-------|----------------|
+| 100 | 51 | 26 | 25 | 29 |
+| 500 | 175 | 57 | 50 | 44 |
+| 1,000 | 271 | 74 | 65 | 46 |
+| 2,000 | 403 | 99 | 86 | 49 |
 
-### Top Frequency Gaps
+Note: ~29 of the top 100 are function words (prepositions, pronouns, conjunctions) which are excluded from the learning pipeline by design.
+
+### Top Frequency Gaps (excluding function words)
 | Word | Gloss | Rank | Status |
 |------|-------|------|--------|
-| أَوْ | or | 10 | not imported |
 | اللّٰهُ | God | 16 | encountered |
-| بَعْد | after | 20 | not imported |
-| بَيْن | between | 23 | not imported |
-| كانَ | to be | 24 | lapsed |
-| قَبْل | before | 37 | not imported |
+| اَلْيَوْمَ | today | 30 | encountered |
+| رَئِيسٌ | chief, leader | 45 | not imported |
+| أَكْثَر | more | 63 | not imported |
+| يَوْم | day | 68 | not imported |
+| مِصْرُ | Egypt | 76 | encountered |
+| أخْبار | news | 80 | not imported |
+| أَفْضَل | best | 86 | encountered |
 
-These high-frequency gaps should be addressed by the topic-based introduction system.
+"Encountered" words should naturally enter acquisition via auto-intro. "Not imported" words need to enter via topic introduction.
 
 ---
 
-## 7. Simulation Projections
+## 7. Projections (based on actual data)
 
-### Casual Profile (3.5 study days/week, 1-3 sessions/day)
-- **Day 30**: 219 known (+46 from baseline 173)
-- **Day 60**: 248 known
-- **Day 90**: 256 known
-- Growth slows significantly with casual study — only ~1 word/study day
+**Actual study patterns**: 7.0 study days/week (100% consistency over 13 days), 13 sessions/study day median.
 
-### Calibrated Profile (7 days/week, 8-18 sessions/day — matches production)
-- **Day 30**: ~190 known (simulation showed review avalanche — too many due words)
-- Warning: review load > 180 words/day is unsustainable
+### Scenario 1: Current pace (11 grads/study day, linear)
+| Milestone | Remaining | Days |
+|-----------|-----------|------|
+| Graded reader (400) | 182 | ~17 |
+| A1 (500) | 282 | ~26 |
+| A2 (1,200) | 982 | ~89 |
+| B1 (2,000) | 1,782 | ~162 |
+| B2 (4,000) | 3,782 | ~344 |
 
-### Intensive Profile (7 days/week, 3-7 sessions/day)
-- **Day 30**: similar review avalanche pattern
-- Both intensive profiles hit the review ceiling where daily due count exceeds session capacity
+### Scenario 2: Recent 7-day trend (15.6 grads/study day)
+| Milestone | Remaining | Days |
+|-----------|-----------|------|
+| Graded reader (400) | 182 | ~12 |
+| A1 (500) | 282 | ~18 |
+| A2 (1,200) | 982 | ~63 |
+| B1 (2,000) | 1,782 | ~114 |
+| B2 (4,000) | 3,782 | ~243 |
 
-### Simulation Insights
-1. **Review avalanche** is the dominant constraint — beyond day 15-20, more words = more daily reviews
-2. The casual profile avoids avalanche but learns slowly
-3. **Optimal pace**: the calibrated profile's 8-18 sessions/day is actually close to optimal for the current algorithm; the bottleneck is review load management, not session count
-4. **Key optimization**: the root-aware stability boost should reduce review load for well-connected words
+### Scenario 3: With deceleration (rate drops ~15% per 500 new words)
+| Milestone | Days | Rate by then |
+|-----------|------|-------------|
+| Graded reader (400) | ~17 | 11.0/day |
+| A1 (500) | ~26 | 9.3/day |
+| A2 (1,200) | ~117 | 6.8/day |
+| B1 (2,000) | ~247 | 4.9/day |
+| B2 (4,000) | ~869 | 2.5/day |
+
+The deceleration scenario is likely most realistic — as high-frequency/easy words are exhausted, the graduation rate will naturally slow. The root-aware stability boost should partially offset this for Arabic.
 
 ---
 
@@ -199,17 +214,18 @@ These high-frequency gaps should be addressed by the topic-based introduction sy
 
 ## 10. Milestone Projections
 
-At current graduation rate (~11 words/day, 7 study days/week):
+At current graduation rate (~11 words/day, 7 study days/week, 218 known+learning):
 
-| Milestone | Words Needed | Current | Remaining | Est. Days |
-|-----------|-------------|---------|-----------|-----------|
-| Children's book | 150 | 209 | **ACHIEVED** | — |
-| Graded reader (L1-3) | 400 | 209 | 191 | ~17 |
-| A1 complete | 500 | 209 | 291 | ~26 |
-| A2 | 1,200 | 209 | 991 | ~90 |
-| B1 | 2,000 | 209 | 1,791 | ~163 |
+| Milestone | Target | Current | Remaining | Linear | Deceleration |
+|-----------|--------|---------|-----------|--------|-------------|
+| Children's book | 150 | 218 | **ACHIEVED** | — | — |
+| Graded reader (L1-3) | 400 | 218 | 182 | ~17d | ~17d |
+| A1 complete | 500 | 218 | 282 | ~26d | ~26d |
+| A2 | 1,200 | 218 | 982 | ~89d | ~117d |
+| B1 | 2,000 | 218 | 1,782 | ~162d | ~247d |
+| B2 | 4,000 | 218 | 3,782 | ~344d | ~869d |
 
-Note: These are linear projections. Actual progress depends on study consistency, review load management, and natural deceleration as words become less frequent.
+Linear projections assume sustained 11 grads/day. Deceleration model assumes rate drops ~15% per 500 new words as easy/frequent words are exhausted.
 
 ---
 

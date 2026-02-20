@@ -22,6 +22,35 @@ from statistics import mean, median
 
 
 # ---------------------------------------------------------------------------
+# Function words (bare forms) — excluded from frequency gap analysis
+# Mirrors FUNCTION_WORD_GLOSSES in sentence_validator.py
+# ---------------------------------------------------------------------------
+
+FUNCTION_WORDS_BARE = {
+    "في", "من", "على", "الى", "إلى", "عن", "مع", "بين", "حتى",
+    "منذ", "خلال", "عند", "نحو", "فوق", "تحت", "امام", "أمام",
+    "وراء", "بعد", "قبل", "حول", "دون",
+    "ب", "ل", "ك", "و", "ف",
+    "او", "أو", "ان", "أن", "إن", "لكن", "ثم", "بل",
+    "انا", "أنا", "انت", "أنت", "انتم", "أنتم", "هو", "هي",
+    "هم", "هن", "نحن", "انتما", "هما",
+    "هذا", "هذه", "ذلك", "تلك", "هؤلاء", "اولئك", "أولئك",
+    "الذي", "التي", "الذين", "اللذان", "اللتان", "اللواتي",
+    "ما", "ماذا", "لماذا", "كيف", "اين", "أين", "متى", "هل",
+    "كم", "اي", "أي",
+    "لا", "لم", "لن", "ليس", "ليست",
+    "كان", "كانت", "يكون", "تكون", "قد", "سوف",
+    "ايضا", "أيضا", "جدا", "فقط", "كل", "بعض", "كلما",
+    "هنا", "هناك", "الان", "الآن", "لذلك", "هكذا", "معا",
+    "اذا", "إذا", "لو", "عندما", "بينما", "حيث", "كما",
+    "لان", "لأن", "كي", "لكي", "حين", "حينما",
+    "لقد", "اما", "أما", "الا", "إلا", "اذن", "إذن",
+    "انه", "إنه", "انها", "إنها", "مثل", "غير",
+    "يوجد", "توجد",
+}
+
+
+# ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
 
@@ -681,19 +710,22 @@ def analyze_frequency_coverage(conn):
             "known_pct": round(known_in_thr / total_in_thr * 100, 1) if total_in_thr else 0,
         }
 
-    # Top frequency gaps: high-frequency words not in active states
+    # Top frequency gaps: high-frequency words not in active states (excluding function words)
     gaps = []
     for r in rows:
         lemma_id, lemma_ar, lemma_bare, gloss, rank, state = r
-        if state not in active_states:
-            gaps.append({
-                "lemma_id": lemma_id,
-                "lemma_ar": lemma_ar,
-                "gloss_en": gloss or "",
-                "frequency_rank": rank,
-                "state": state or "none",
-            })
-        if len(gaps) >= 10:
+        if state in active_states:
+            continue
+        if lemma_bare in FUNCTION_WORDS_BARE:
+            continue
+        gaps.append({
+            "lemma_id": lemma_id,
+            "lemma_ar": lemma_ar,
+            "gloss_en": gloss or "",
+            "frequency_rank": rank,
+            "state": state or "none",
+        })
+        if len(gaps) >= 15:
             break
 
     # Console
@@ -704,7 +736,7 @@ def analyze_frequency_coverage(conn):
         c = coverage[thr]
         eprint(f"  Top {thr:<10d} {c['total_in_corpus']:>10d} {c['active_count']:>8d} {c['known_count']:>8d} {c['active_pct']:>8.1f}% {c['known_pct']:>8.1f}%")
 
-    subsection("Top 10 frequency gaps (highest-freq unknown words)")
+    subsection("Top 15 frequency gaps (excluding function words)")
     for g in gaps:
         eprint(f"  #{g['frequency_rank']:<5d} {g['lemma_ar']:<15s} {g['gloss_en']:<25s} ({g['state']})")
 

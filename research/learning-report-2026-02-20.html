@@ -603,12 +603,12 @@
     <div class="section-title">4. Projections</div>
 
     <div class="card">
-      <div class="card-title">90-Day Simulation &mdash; Casual Profile (3.5 study days/week)</div>
+      <div class="card-title">90-Day Projection &mdash; Based on Actual Pace (7 study days/week, 11&ndash;15.6 grads/day)</div>
       <div class="chart-container" style="max-height: 400px;">
         <canvas id="projectionChart"></canvas>
       </div>
       <div class="disclaimer">
-        Simulation data is based on a "casual" learner profile (3.5 study days per week, ~70% accuracy). Projections are estimates, not guarantees. Actual progress depends on consistency, material difficulty, and session length.
+        Three scenarios based on production data: <strong>Linear</strong> (current 11 grads/study day sustained), <strong>Recent trend</strong> (last 7 days: 15.6/day), and <strong>With deceleration</strong> (rate drops ~15% per 500 new words as easy words thin out). All assume 7 study days/week (actual consistency: 100%).
       </div>
     </div>
 
@@ -633,51 +633,62 @@
         <div class="milestone-bar">
           <div class="milestone-fill achieved" style="width: 100%;"></div>
         </div>
-        <div class="milestone-eta">150 words &mdash; 209/150 (139%)</div>
+        <div class="milestone-eta">150 words &mdash; 218/150 (145%)</div>
       </div>
 
       <div class="milestone">
         <div class="milestone-header">
           <span class="milestone-name">Graded Reader <span style="font-size:0.8rem; color: var(--text-dim);">(Sahlawayhi Level 1-3)</span></span>
-          <span class="milestone-detail">209 / 400</span>
+          <span class="milestone-detail">218 / 400</span>
         </div>
         <div class="milestone-bar">
-          <div class="milestone-fill in-progress" style="width: 52%;"></div>
+          <div class="milestone-fill in-progress" style="width: 55%;"></div>
         </div>
-        <div class="milestone-eta">~17 days at current rate (~11 graduations/day)</div>
+        <div class="milestone-eta">~17 days at current rate &bull; ~12 days at recent trend</div>
       </div>
 
       <div class="milestone">
         <div class="milestone-header">
           <span class="milestone-name">A1 Complete</span>
-          <span class="milestone-detail">209 / 500</span>
+          <span class="milestone-detail">218 / 500</span>
         </div>
         <div class="milestone-bar">
-          <div class="milestone-fill in-progress" style="width: 42%;"></div>
+          <div class="milestone-fill in-progress" style="width: 44%;"></div>
         </div>
-        <div class="milestone-eta">~26 days at current rate</div>
+        <div class="milestone-eta">~26 days at current rate &bull; ~18 days at recent trend</div>
       </div>
 
       <div class="milestone">
         <div class="milestone-header">
           <span class="milestone-name">A2</span>
-          <span class="milestone-detail">209 / 1,200</span>
+          <span class="milestone-detail">218 / 1,200</span>
         </div>
         <div class="milestone-bar">
-          <div class="milestone-fill in-progress" style="width: 17%;"></div>
+          <div class="milestone-fill in-progress" style="width: 18%;"></div>
         </div>
-        <div class="milestone-eta">~90 days at current rate</div>
+        <div class="milestone-eta">~89 days linear &bull; ~117 days with deceleration</div>
       </div>
 
       <div class="milestone">
         <div class="milestone-header">
           <span class="milestone-name">B1</span>
-          <span class="milestone-detail">209 / 2,000</span>
+          <span class="milestone-detail">218 / 2,000</span>
         </div>
         <div class="milestone-bar">
-          <div class="milestone-fill in-progress" style="width: 10%;"></div>
+          <div class="milestone-fill in-progress" style="width: 11%;"></div>
         </div>
-        <div class="milestone-eta">~163 days at current rate</div>
+        <div class="milestone-eta">~162 days linear &bull; ~247 days with deceleration</div>
+      </div>
+
+      <div class="milestone">
+        <div class="milestone-header">
+          <span class="milestone-name">B2</span>
+          <span class="milestone-detail">218 / 4,000</span>
+        </div>
+        <div class="milestone-bar">
+          <div class="milestone-fill in-progress" style="width: 5%;"></div>
+        </div>
+        <div class="milestone-eta">~344 days linear &bull; ~869 days with deceleration</div>
       </div>
 
       <div class="reference-box" style="margin-top: 20px;">
@@ -752,7 +763,7 @@
       <div class="card">
         <div class="card-title">Top Frequency Gaps</div>
         <p style="font-size: 0.82rem; color: var(--text-dim); margin-bottom: 12px;">
-          High-frequency words not yet in the active vocabulary:
+          High-frequency content words not yet in the active vocabulary (function words excluded):
         </p>
         <table class="freq-gap-table">
           <thead>
@@ -765,34 +776,10 @@
           </thead>
           <tbody>
             <tr>
-              <td class="rank">#10</td>
-              <td class="arabic">أَوْ</td>
-              <td>or</td>
-              <td><span class="badge badge-highlight">not seen</span></td>
-            </tr>
-            <tr>
               <td class="rank">#16</td>
               <td class="arabic">اللّٰهُ</td>
               <td>God</td>
               <td><span class="badge badge-info">encountered</span></td>
-            </tr>
-            <tr>
-              <td class="rank">#20</td>
-              <td class="arabic">بَعْد</td>
-              <td>after</td>
-              <td><span class="badge badge-highlight">not seen</span></td>
-            </tr>
-            <tr>
-              <td class="rank">#23</td>
-              <td class="arabic">بَيْن</td>
-              <td>between</td>
-              <td><span class="badge badge-highlight">not seen</span></td>
-            </tr>
-            <tr>
-              <td class="rank">#24</td>
-              <td class="arabic">كانَ</td>
-              <td>to be</td>
-              <td><span class="badge badge-warning">lapsed</span></td>
             </tr>
             <tr>
               <td class="rank">#30</td>
@@ -801,16 +788,40 @@
               <td><span class="badge badge-info">encountered</span></td>
             </tr>
             <tr>
-              <td class="rank">#34</td>
-              <td class="arabic">أَيّ</td>
-              <td>any / which?</td>
-              <td><span class="badge badge-highlight">not seen</span></td>
+              <td class="rank">#45</td>
+              <td class="arabic">رَئِيسٌ</td>
+              <td>chief, leader</td>
+              <td><span class="badge badge-highlight">not imported</span></td>
             </tr>
             <tr>
-              <td class="rank">#37</td>
-              <td class="arabic">قَبْل</td>
-              <td>before</td>
-              <td><span class="badge badge-highlight">not seen</span></td>
+              <td class="rank">#63</td>
+              <td class="arabic">أَكْثَر</td>
+              <td>more</td>
+              <td><span class="badge badge-highlight">not imported</span></td>
+            </tr>
+            <tr>
+              <td class="rank">#68</td>
+              <td class="arabic">يَوْم</td>
+              <td>day</td>
+              <td><span class="badge badge-highlight">not imported</span></td>
+            </tr>
+            <tr>
+              <td class="rank">#76</td>
+              <td class="arabic">مِصْرُ</td>
+              <td>Egypt</td>
+              <td><span class="badge badge-info">encountered</span></td>
+            </tr>
+            <tr>
+              <td class="rank">#80</td>
+              <td class="arabic">أخْبار</td>
+              <td>news</td>
+              <td><span class="badge badge-highlight">not imported</span></td>
+            </tr>
+            <tr>
+              <td class="rank">#86</td>
+              <td class="arabic">أَفْضَل</td>
+              <td>best</td>
+              <td><span class="badge badge-info">encountered</span></td>
             </tr>
           </tbody>
         </table>
@@ -1243,156 +1254,112 @@ new Chart(document.getElementById('freqChart'), {
 });
 
 // -- 4. Projection Chart (from simulation CSV data) --
-const simData = [
-  {day:1, date:'2026-03-01', known:173},
-  {day:2, date:'2026-03-02', known:179},
-  {day:3, date:'2026-03-03', known:179},
-  {day:4, date:'2026-03-04', known:179},
-  {day:5, date:'2026-03-05', known:184},
-  {day:6, date:'2026-03-06', known:191},
-  {day:7, date:'2026-03-07', known:193},
-  {day:8, date:'2026-03-08', known:201},
-  {day:9, date:'2026-03-09', known:201},
-  {day:10, date:'2026-03-10', known:201},
-  {day:11, date:'2026-03-11', known:201},
-  {day:12, date:'2026-03-12', known:201},
-  {day:13, date:'2026-03-13', known:201},
-  {day:14, date:'2026-03-14', known:201},
-  {day:15, date:'2026-03-15', known:203},
-  {day:16, date:'2026-03-16', known:207},
-  {day:17, date:'2026-03-17', known:207},
-  {day:18, date:'2026-03-18', known:207},
-  {day:19, date:'2026-03-19', known:207},
-  {day:20, date:'2026-03-20', known:207},
-  {day:21, date:'2026-03-21', known:207},
-  {day:22, date:'2026-03-22', known:207},
-  {day:23, date:'2026-03-23', known:207},
-  {day:24, date:'2026-03-24', known:211},
-  {day:25, date:'2026-03-25', known:213},
-  {day:26, date:'2026-03-26', known:213},
-  {day:27, date:'2026-03-27', known:216},
-  {day:28, date:'2026-03-28', known:216},
-  {day:29, date:'2026-03-29', known:215},
-  {day:30, date:'2026-03-30', known:219},
-  {day:31, date:'2026-03-31', known:219},
-  {day:32, date:'2026-04-01', known:219},
-  {day:33, date:'2026-04-02', known:222},
-  {day:34, date:'2026-04-03', known:222},
-  {day:35, date:'2026-04-04', known:222},
-  {day:36, date:'2026-04-05', known:222},
-  {day:37, date:'2026-04-06', known:222},
-  {day:38, date:'2026-04-07', known:222},
-  {day:39, date:'2026-04-08', known:222},
-  {day:40, date:'2026-04-09', known:225},
-  {day:41, date:'2026-04-10', known:225},
-  {day:42, date:'2026-04-11', known:226},
-  {day:43, date:'2026-04-12', known:225},
-  {day:44, date:'2026-04-13', known:225},
-  {day:45, date:'2026-04-14', known:230},
-  {day:46, date:'2026-04-15', known:233},
-  {day:47, date:'2026-04-16', known:233},
-  {day:48, date:'2026-04-17', known:234},
-  {day:49, date:'2026-04-18', known:234},
-  {day:50, date:'2026-04-19', known:233},
-  {day:51, date:'2026-04-20', known:233},
-  {day:52, date:'2026-04-21', known:233},
-  {day:53, date:'2026-04-22', known:235},
-  {day:54, date:'2026-04-23', known:237},
-  {day:55, date:'2026-04-24', known:237},
-  {day:56, date:'2026-04-25', known:240},
-  {day:57, date:'2026-04-26', known:239},
-  {day:58, date:'2026-04-27', known:241},
-  {day:59, date:'2026-04-28', known:241},
-  {day:60, date:'2026-04-29', known:241},
-  {day:61, date:'2026-04-30', known:242},
-  {day:62, date:'2026-05-01', known:246},
-  {day:63, date:'2026-05-02', known:248},
-  {day:64, date:'2026-05-03', known:248},
-  {day:65, date:'2026-05-04', known:248},
-  {day:66, date:'2026-05-05', known:248},
-  {day:67, date:'2026-05-06', known:248},
-  {day:68, date:'2026-05-07', known:248},
-  {day:69, date:'2026-05-08', known:247},
-  {day:70, date:'2026-05-09', known:247},
-  {day:71, date:'2026-05-10', known:247},
-  {day:72, date:'2026-05-11', known:247},
-  {day:73, date:'2026-05-12', known:247},
-  {day:74, date:'2026-05-13', known:250},
-  {day:75, date:'2026-05-14', known:250},
-  {day:76, date:'2026-05-15', known:250},
-  {day:77, date:'2026-05-16', known:251},
-  {day:78, date:'2026-05-17', known:251},
-  {day:79, date:'2026-05-18', known:252},
-  {day:80, date:'2026-05-19', known:253},
-  {day:81, date:'2026-05-20', known:253},
-  {day:82, date:'2026-05-21', known:254},
-  {day:83, date:'2026-05-22', known:254},
-  {day:84, date:'2026-05-23', known:254},
-  {day:85, date:'2026-05-24', known:254},
-  {day:86, date:'2026-05-25', known:254},
-  {day:87, date:'2026-05-26', known:257},
-  {day:88, date:'2026-05-27', known:257},
-  {day:89, date:'2026-05-28', known:256},
-  {day:90, date:'2026-05-29', known:256},
-];
+// Generate 90-day projection data from actual learning rate
+const BASE = 218; // known+learning as of Feb 20
+const RATE_LINEAR = 11.0; // overall grads/study day
+const RATE_RECENT = 15.6; // last 7 days grads/study day
+const STUDY_DAYS_PER_WEEK = 7.0;
 
-// Build milestone annotation data
+function buildProjection(base, dailyRate, days, decelPer500) {
+  const pts = [base];
+  let rate = dailyRate;
+  let current = base;
+  for (let d = 1; d <= days; d++) {
+    current += rate;
+    if (decelPer500 && Math.floor(current / 500) > Math.floor((current - rate) / 500)) {
+      rate *= (1 - decelPer500);
+    }
+    pts.push(Math.round(current));
+  }
+  return pts;
+}
+
+const linearProj = buildProjection(BASE, RATE_LINEAR, 90, 0);
+const recentProj = buildProjection(BASE, RATE_RECENT, 90, 0);
+const decelProj = buildProjection(BASE, RATE_LINEAR, 90, 0.15);
+
+const projLabels = Array.from({length: 91}, (_, i) => {
+  if (i === 0) return 'Now';
+  const d = new Date(2026, 1, 20); // Feb 20
+  d.setDate(d.getDate() + i);
+  const months = ['Jan','Feb','Mar','Apr','May','Jun'];
+  return i % 7 === 0 ? months[d.getMonth()] + ' ' + d.getDate() : '';
+});
+
 const milestones = [
-  { value: 150, label: "Children's book", color: COLORS.success },
   { value: 400, label: 'Graded reader', color: COLORS.info },
   { value: 500, label: 'A1 complete', color: COLORS.purple },
+  { value: 1200, label: 'A2', color: COLORS.warning },
 ];
 
-// Prepend actual production data point
-const projLabels = ['Now (Feb 20)', ...simData.map(d => {
-  const m = d.date.slice(5,7);
-  const dy = d.date.slice(8,10);
-  const months = ['','Jan','Feb','Mar','Apr','May'];
-  return months[parseInt(m)] + ' ' + parseInt(dy);
-})];
-const projValues = [209, ...simData.map(d => d.known)];
-
-// Use every 5th label to avoid overcrowding
 const projCtx = document.getElementById('projectionChart');
 new Chart(projCtx, {
   type: 'line',
   data: {
     labels: projLabels,
-    datasets: [{
-      label: 'Known Words (casual sim)',
-      data: projValues,
-      borderColor: COLORS.highlight,
-      backgroundColor: COLORS.highlightDim,
-      fill: true,
-      tension: 0.2,
-      pointRadius: 0,
-      pointHitRadius: 10,
-      borderWidth: 2.5,
-    }]
+    datasets: [
+      {
+        label: 'Recent trend (15.6/day)',
+        data: recentProj,
+        borderColor: COLORS.success,
+        backgroundColor: 'rgba(74, 222, 128, 0.08)',
+        fill: false,
+        tension: 0.1,
+        pointRadius: 0,
+        pointHitRadius: 10,
+        borderWidth: 2,
+        borderDash: [6, 3],
+      },
+      {
+        label: 'Current pace (11/day)',
+        data: linearProj,
+        borderColor: COLORS.highlight,
+        backgroundColor: COLORS.highlightDim,
+        fill: true,
+        tension: 0.1,
+        pointRadius: 0,
+        pointHitRadius: 10,
+        borderWidth: 2.5,
+      },
+      {
+        label: 'With deceleration',
+        data: decelProj,
+        borderColor: COLORS.warning,
+        backgroundColor: 'rgba(251, 191, 36, 0.08)',
+        fill: false,
+        tension: 0.1,
+        pointRadius: 0,
+        pointHitRadius: 10,
+        borderWidth: 2,
+        borderDash: [4, 4],
+      },
+    ]
   },
   options: {
     responsive: true,
     maintainAspectRatio: true,
     plugins: {
-      legend: { display: false },
+      legend: { position: 'top', labels: { boxWidth: 12, padding: 16, color: '#8892a0' } },
       tooltip: {
+        mode: 'index',
+        intersect: false,
         callbacks: {
-          label: ctx => `${ctx.parsed.y} known words`
+          title: (items) => items[0].dataIndex === 0 ? 'Feb 20 (now)' : `Day ${items[0].dataIndex}`,
+          label: ctx => `${ctx.dataset.label}: ${ctx.parsed.y} words`
         }
       },
-      annotation: undefined // we'll draw milestones manually
     },
     scales: {
       y: {
-        min: 140,
-        max: 520,
+        min: 200,
+        max: 1400,
         grid: { color: 'rgba(255,255,255,0.04)' },
         title: { display: true, text: 'Known words', color: '#8892a0' }
       },
       x: {
         grid: { display: false },
         ticks: {
-          maxTicksLimit: 12,
+          maxTicksLimit: 14,
           maxRotation: 45,
         }
       }
