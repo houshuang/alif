@@ -4,6 +4,29 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-02-20: Recency Filter Relaxation & Rescue Pass
+
+### Problem
+Sessions varied wildly: 7 cards one session, 25 the next. Production diagnostics revealed:
+- 13 of 52 due words (25%) had ALL their sentences blocked by the recency filter
+- The recency cutoffs were too aggressive for failed sentences: `partial` waited 2 days, `grammar_confused` 1 day, `no_idea` 4 hours — even though the learner would benefit from retrying the same sentence sooner
+- Words with only "understood" sentences were dropped entirely even when due
+- `MAX_ACQUISITION_EXTRA_SLOTS=15` inflated sessions with many acquiring words to 25 cards
+
+### Changes
+1. **Relaxed non-understood recency cutoffs**: `partial` 2d→4h, `grammar_confused` 1d→2h, `no_idea` 4h→30min. Rationale: if you failed a sentence, seeing it again quickly lets you get a positive review, then ideally see the same word in a different sentence next time.
+2. **Rescue pass for recency-blocked words**: After the main sentence query, any due word with zero fresh sentences gets its stale sentences fetched without recency filter. These participate in the greedy set cover with a 0.3× score penalty (fresh sentences always preferred, but stale beats dropping the word).
+### Expected Effect
+- More consistent session sizes (fewer 5-card sessions where words were blocked)
+- Failed sentences re-shown quickly for positive reinforcement
+- No words dropped from session just because their sentences were all understood recently
+
+### Verify
+- Compare session sizes over next 2 days (should see less 5-7 range)
+- Check `sentence_selected` events for rescue sentences (shown_at within last 4 days)
+
+---
+
 ## 2026-02-19: Session Diversity & Continuous Word Introduction
 
 ### Problem

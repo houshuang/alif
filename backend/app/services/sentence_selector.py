@@ -390,10 +390,12 @@ def build_session(
     session_id = str(uuid.uuid4())
     now = datetime.now(timezone.utc)
     # Comprehension-aware recency cutoffs
+    # Failed sentences can be re-shown quickly so learner gets a positive review,
+    # then ideally sees the same word in a different sentence next time.
     cutoff_understood = now - timedelta(days=4)
-    cutoff_partial = now - timedelta(days=2)
-    cutoff_grammar_confused = now - timedelta(days=1)
-    cutoff_no_idea = now - timedelta(hours=4)
+    cutoff_partial = now - timedelta(hours=4)
+    cutoff_grammar_confused = now - timedelta(hours=2)
+    cutoff_no_idea = now - timedelta(minutes=30)
 
     # 1. Fetch all word knowledge (exclude only suspended)
     # Encountered words are included so the comprehensibility gate can
@@ -565,6 +567,37 @@ def build_session(
         )
         .all()
     )
+
+    # Rescue pass: for due words whose sentences ALL failed recency (e.g. all
+    # "understood" within 4 days), fetch those sentences anyway so the word isn't
+    # dropped from the session entirely. They'll get a score penalty below.
+    fresh_sent_ids = {s.id for s in sentences}
+    words_with_fresh = {
+        sw.lemma_id for sw in sentence_words
+        if sw.sentence_id in fresh_sent_ids and sw.lemma_id in due_lemma_ids
+    }
+    words_needing_rescue = due_lemma_ids - words_with_fresh
+    rescue_sentence_ids: set[int] = set()
+
+    if words_needing_rescue:
+        rescue_sw_rows = [
+            sw for sw in sentence_words
+            if sw.lemma_id in words_needing_rescue
+            and sw.sentence_id not in fresh_sent_ids
+        ]
+        potential_rescue_ids = {sw.sentence_id for sw in rescue_sw_rows}
+        if potential_rescue_ids:
+            rescue_sents = (
+                db.query(Sentence)
+                .filter(
+                    Sentence.id.in_(potential_rescue_ids),
+                    Sentence.is_active == True,  # noqa: E712
+                )
+                .all()
+            )
+            if rescue_sents:
+                rescue_sentence_ids = {s.id for s in rescue_sents}
+                sentences.extend(rescue_sents)
 
     if not sentences:
         return _with_fallbacks(db, session_id, due_lemma_ids, stability_map, total_due, [], limit, reintro_cards=reintro_cards, knowledge_by_id=knowledge_by_id, all_knowledge=all_knowledge, skip_on_demand=skip_on_demand)
@@ -754,7 +787,10 @@ def build_session(
         diversity = 1.0 / (1.0 + (sent.times_shown or 0))
         freshness = _scaffold_freshness(word_metas, knowledge_map)
         source_bonus = 1.3 if sent.source == "book" else 1.0
-        score = (len(due_covered) ** 1.5) * dmq * gfit * diversity * freshness * source_bonus
+        # Rescue sentences (recently shown but only option for a due word) get a
+        # penalty so fresh sentences are preferred, but they still participate.
+        rescue_penalty = 0.3 if sent.id in rescue_sentence_ids else 1.0
+        score = (len(due_covered) ** 1.5) * dmq * gfit * diversity * freshness * source_bonus * rescue_penalty
 
         candidates.append(SentenceCandidate(
             sentence_id=sent.id,
@@ -793,7 +829,8 @@ def build_session(
             else:
                 session_diversity = 1.0
 
-            c.score = (len(overlap) ** 1.5) * dmq * gfit * diversity * freshness * source_bonus * session_diversity
+            rescue_penalty = 0.3 if c.sentence_id in rescue_sentence_ids else 1.0
+            c.score = (len(overlap) ** 1.5) * dmq * gfit * diversity * freshness * source_bonus * session_diversity * rescue_penalty
 
         candidates.sort(key=lambda c: c.score, reverse=True)
         best = candidates[0]

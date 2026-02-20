@@ -568,10 +568,13 @@ build_session(db, limit=10, mode="reading")
 │ Apply comprehension-aware recency filters:   │
 │   • Never shown: always eligible             │
 │   • understood: 4-day cooldown               │
-│   • partial: 2-day cooldown                  │
-│   • grammar_confused: 1-day cooldown         │
-│   • no_idea: 4-hour cooldown                 │
+│   • partial: 4-hour cooldown                 │
+│   • grammar_confused: 2-hour cooldown        │
+│   • no_idea: 30-min cooldown                 │
 │   • no record: 4-day cooldown               │
+│                                              │
+│ Rescue pass: due words with zero fresh       │
+│ sentences get stale ones (0.3× penalty)      │
 └──────────────────┬──────────────────────────┘
                    │
                    ▼
@@ -585,10 +588,11 @@ build_session(db, limit=10, mode="reading")
 │   4. Grammar fit (0.8-1.1)                   │
 │   5. Diversity (1/(1+times_shown))           │
 │   6. Scaffold freshness                      │
+│   7. Rescue penalty (0.3 if stale rescue)    │
 │                                              │
 │   Score = covered^1.5 × DMQ × gfit          │
 │           × diversity × freshness            │
-│           × source_bonus                     │
+│           × source_bonus × rescue_penalty    │
 └──────────────────┬──────────────────────────┘
                    │
                    ▼
