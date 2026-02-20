@@ -187,7 +187,12 @@ def _generate_via_claude_cli(
         if text.startswith("```"):
             text = re.sub(r"^```(?:json)?\s*", "", text)
             text = re.sub(r"\s*```$", "", text)
-        return json.loads(text)
+        try:
+            return json.loads(text)
+        except json.JSONDecodeError:
+            # Claude CLI sometimes appends extra data — try to extract first JSON object/array
+            decoder = json.JSONDecoder()
+            return decoder.raw_decode(text)[0]
     return {"content": content}
 
 
