@@ -281,6 +281,7 @@ class SentenceReviewItem(BaseModel):
     primary_gloss_en: str
     words: list[SentenceWordMeta]
     grammar_features: list[str] = []
+    selection_info: dict | None = None
 
 
 class IntroCandidateOut(BaseModel):

@@ -10,11 +10,13 @@ import {
 } from "react-native";
 import { colors, fonts } from "../theme";
 import { getSentenceInfo, SentenceInfo } from "../api";
+import type { SelectionInfo } from "../types";
 
 interface Props {
   sentenceId: number;
   visible: boolean;
   onClose: () => void;
+  selectionInfo?: SelectionInfo | null;
 }
 
 function formatDate(iso: string | null): string {
@@ -52,7 +54,24 @@ function stateColor(state: string | null): string {
   }
 }
 
-export default function SentenceInfoModal({ sentenceId, visible, onClose }: Props) {
+const REASON_LABELS: Record<string, string> = {
+  greedy_cover: "Scheduled review",
+  acquisition_repeat: "Acquisition repetition",
+  on_demand: "Generated on-demand",
+  fill_intro: "Auto-introduced",
+};
+
+const COMPONENT_LABELS: Record<string, string> = {
+  due_coverage: "Due words",
+  difficulty_match: "Difficulty match",
+  grammar_fit: "Grammar fit",
+  diversity: "Sentence diversity",
+  freshness: "Scaffold freshness",
+  source_bonus: "Book bonus",
+  session_diversity: "Session diversity",
+};
+
+export default function SentenceInfoModal({ sentenceId, visible, onClose, selectionInfo }: Props) {
   const [info, setInfo] = useState<SentenceInfo | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -80,6 +99,40 @@ export default function SentenceInfoModal({ sentenceId, visible, onClose }: Prop
             ) : info ? (
               <>
                 <Text style={styles.heading}>Sentence #{info.sentence_id}</Text>
+
+                {selectionInfo && (
+                  <View style={styles.selectionSection}>
+                    <Text style={styles.selectionReason}>
+                      {REASON_LABELS[selectionInfo.reason] || selectionInfo.reason}
+                    </Text>
+                    <Text style={styles.selectionDetail}>{selectionInfo.word_reason}</Text>
+                    {selectionInfo.score != null && (
+                      <Text style={styles.selectionScore}>
+                        Score: {selectionInfo.score}
+                        {selectionInfo.order ? ` · Pick #${selectionInfo.order}` : ""}
+                      </Text>
+                    )}
+                    {selectionInfo.components && (
+                      <View style={styles.componentList}>
+                        {Object.entries(selectionInfo.components)
+                          .filter(([k, v]) => k !== "rescue" && typeof v === "number" && v !== 1.0)
+                          .map(([k, v]) => (
+                            <View key={k} style={styles.componentRow}>
+                              <Text style={styles.componentLabel}>
+                                {COMPONENT_LABELS[k] || k}
+                              </Text>
+                              <Text style={styles.componentValue}>
+                                {typeof v === "number" ? v.toFixed(2) : String(v)}
+                              </Text>
+                            </View>
+                          ))}
+                        {selectionInfo.components.rescue === true && (
+                          <Text style={styles.rescueTag}>Rescue (recently shown)</Text>
+                        )}
+                      </View>
+                    )}
+                  </View>
+                )}
 
                 <View style={styles.metaRow}>
                   <MetaItem label="Source" value={info.source || "?"} />
@@ -337,6 +390,52 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     fontSize: fonts.caption,
     marginTop: 4,
+  },
+  selectionSection: {
+    backgroundColor: "rgba(74, 158, 255, 0.06)",
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 12,
+    borderLeftWidth: 3,
+    borderLeftColor: colors.accent,
+  },
+  selectionReason: {
+    color: colors.accent,
+    fontSize: fonts.small,
+    fontWeight: "700",
+  },
+  selectionDetail: {
+    color: colors.text,
+    fontSize: fonts.caption,
+    marginTop: 2,
+  },
+  selectionScore: {
+    color: colors.textSecondary,
+    fontSize: fonts.caption,
+    marginTop: 4,
+  },
+  componentList: {
+    marginTop: 8,
+    gap: 2,
+  },
+  componentRow: {
+    flexDirection: "row" as const,
+    justifyContent: "space-between" as const,
+  },
+  componentLabel: {
+    color: colors.textSecondary,
+    fontSize: fonts.caption,
+  },
+  componentValue: {
+    color: colors.text,
+    fontSize: fonts.caption,
+    fontWeight: "500" as const,
+  },
+  rescueTag: {
+    color: colors.missed,
+    fontSize: fonts.caption,
+    fontStyle: "italic" as const,
+    marginTop: 2,
   },
   error: {
     color: colors.missed,

@@ -275,6 +275,14 @@ export interface WordLookupResult {
   }[];
 }
 
+export interface SelectionInfo {
+  reason: string;
+  order?: number;
+  score?: number;
+  word_reason: string;
+  components?: Record<string, number | boolean>;
+}
+
 export interface SentenceReviewItem {
   sentence_id: number | null;
   arabic_text: string;
@@ -287,6 +295,7 @@ export interface SentenceReviewItem {
   primary_gloss_en: string;
   words: SentenceWordMeta[];
   grammar_features?: string[];
+  selection_info?: SelectionInfo | null;
 }
 
 export interface IntroCandidate {

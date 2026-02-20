@@ -96,6 +96,9 @@ class SentenceCandidate:
     words_meta: list[WordMeta] = field(default_factory=list)
     due_words_covered: set[int] = field(default_factory=set)
     score: float = 0.0
+    score_components: dict = field(default_factory=dict)
+    selection_reason: str = ""
+    selection_order: int = 0
 
 
 _GRAMMAR_ABBREV = {
@@ -831,6 +834,16 @@ def build_session(
 
             rescue_penalty = 0.3 if c.sentence_id in rescue_sentence_ids else 1.0
             c.score = (len(overlap) ** 1.5) * dmq * gfit * diversity * freshness * source_bonus * session_diversity * rescue_penalty
+            c.score_components = {
+                "due_coverage": len(overlap),
+                "difficulty_match": round(dmq, 2),
+                "grammar_fit": round(gfit, 2),
+                "diversity": round(diversity, 2),
+                "freshness": round(freshness, 2),
+                "source_bonus": source_bonus,
+                "session_diversity": round(session_diversity, 2),
+                "rescue": rescue_penalty < 1.0,
+            }
 
         candidates.sort(key=lambda c: c.score, reverse=True)
         best = candidates[0]
@@ -838,6 +851,8 @@ def build_session(
             break
 
         selected.append(best)
+        best.selection_reason = "greedy_cover"
+        best.selection_order = len(selected)
         remaining_due -= best.due_words_covered
         candidates.remove(best)
 
@@ -899,6 +914,7 @@ def build_session(
                     extra = c
                     break
             if extra:
+                extra.selection_reason = "acquisition_repeat"
                 selected.append(extra)
                 selected_ids.add(extra.sentence_id)
                 candidates.remove(extra)
@@ -968,6 +984,25 @@ def build_session(
                 "grammar_tags": _compact_grammar_tags(lemma.grammar_features_json) if lemma else [],
             })
 
+        # Build selection_info for this item
+        k = knowledge_by_id.get(primary_lid)
+        if k and k.knowledge_state == "acquiring":
+            word_reason = f"Acquiring (box {k.acquisition_box})"
+        elif k:
+            stab = stability_map.get(primary_lid)
+            if stab is not None:
+                if stab < 1:
+                    stab_label = f"{max(1, round(stab * 24))}h"
+                elif stab < 30:
+                    stab_label = f"{round(stab)}d"
+                else:
+                    stab_label = f"{stab / 30:.1f}mo"
+                word_reason = f"{k.knowledge_state.title()} (stability {stab_label})"
+            else:
+                word_reason = k.knowledge_state.title()
+        else:
+            word_reason = "New"
+
         items.append({
             "sentence_id": cand.sentence_id,
             "arabic_text": sent.arabic_text,
@@ -980,6 +1015,13 @@ def build_session(
             "primary_gloss_en": primary_lemma.gloss_en if primary_lemma else "",
             "words": word_dicts,
             "grammar_features": grammar_by_sentence.get(cand.sentence_id, []),
+            "selection_info": {
+                "reason": cand.selection_reason,
+                "order": cand.selection_order,
+                "score": round(cand.score, 2),
+                "word_reason": word_reason,
+                "components": cand.score_components,
+            },
         })
 
     db.commit()
@@ -1248,6 +1290,10 @@ def _generate_on_demand(
                     "primary_gloss_en": primary_lemma.gloss_en if primary_lemma else "",
                     "words": word_dicts,
                     "grammar_features": [],
+                    "selection_info": {
+                        "reason": "on_demand",
+                        "word_reason": "Generated on-demand (no existing sentence)",
+                    },
                 })
                 generated_count += 1
                 for found_lid in mres.target_lemma_ids:
@@ -1347,6 +1393,10 @@ def _generate_on_demand(
                 "primary_gloss_en": lemma.gloss_en or "",
                 "words": word_dicts,
                 "grammar_features": [],
+                "selection_info": {
+                    "reason": "on_demand",
+                    "word_reason": "Generated on-demand (no existing sentence)",
+                },
             })
             generated_count += 1
 
@@ -1427,6 +1477,10 @@ def _with_fallbacks(
                         fill_items = _generate_on_demand(
                             db, fill_due, stability_map, remaining_cap
                         )
+                        for fi in fill_items:
+                            if fi.get("selection_info"):
+                                fi["selection_info"]["reason"] = "fill_intro"
+                                fi["selection_info"]["word_reason"] = "Auto-introduced to fill session"
                         items.extend(fill_items)
                         for fi in fill_items:
                             covered_ids.add(fi["primary_lemma_id"])

@@ -1651,6 +1651,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
           sentenceId={item.sentence_id}
           visible={sentenceInfoVisible}
           onClose={() => setSentenceInfoVisible(false)}
+          selectionInfo={item.selection_info}
         />
       )}
     </View>
