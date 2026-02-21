@@ -25,12 +25,26 @@ Research shows morphological awareness is the #1 predictor of Arabic reading com
 - Foundation for pattern-aware word selection (future: prefer pattern diversity when introducing root siblings)
 - Foundation for pattern explorer screen and pattern-family reviews
 
+### Backfill Results
+- Phase 1 (etymology extraction): 1248 lemmas, no LLM cost
+- Phase 2 (LLM classification): 244 lemmas
+- **Total: 1492 / 1789 canonical lemmas (83%)** have wazn data
+- Remaining 297: 209 rootless (loanwords/particles), 88 no recognizable pattern
+
 ### Verification
 - `SELECT wazn, COUNT(*) FROM lemmas WHERE wazn IS NOT NULL GROUP BY wazn` — verify backfill coverage
 - Learn mode: introduce a word, verify no quiz step, verify pattern decomposition shows
 - Review: miss a word, verify no root gate, verify info shows immediately with pattern line
 - Backend: `python3 -m pytest` — 717 tests pass
 - Frontend: `npx tsc --noEmit` — clean
+
+### Follow-up Check (~2026-02-24)
+- Are pattern decomposition lines showing up during learn and review? Do they feel helpful?
+- Is removing the root gate OK? Does always-show-meaning feel better or worse?
+- Is removing the quiz from Learn mode fine? Are acquisition reviews picking up the slack?
+- Are root sibling introductions still spaced well (1-3 day clustering)?
+- Check graduation rates — did removing the quiz change acquisition speed?
+- Run `scripts/learning_analysis.py` to compare metrics before/after
 
 ---
 
