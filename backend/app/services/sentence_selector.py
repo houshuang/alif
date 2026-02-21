@@ -17,8 +17,8 @@ from app.services.fsrs_service import parse_json_column
 
 from app.models import (
     GrammarFeature,
-    Lemma,
     LearnerSettings,
+    Lemma,
     ReviewLog,
     Root,
     Sentence,
@@ -42,6 +42,8 @@ MIN_ACQUISITION_EXPOSURES = 4
 MAX_ACQUISITION_EXTRA_SLOTS = 15  # max extra cards beyond session limit for repetitions
 MAX_AUTO_INTRO_PER_SESSION = 10  # cap new words per single auto-intro call
 AUTO_INTRO_ACCURACY_FLOOR = 0.70  # pause introduction if recent accuracy below this
+INTRO_RESERVE_FRACTION = 0.2  # fraction of session slots reserved for new word introductions
+SESSION_SCAFFOLD_DECAY = 0.5  # per-appearance decay for scaffold words already in session
 
 
 def _intro_slots_for_accuracy(accuracy: float) -> int:
@@ -62,6 +64,20 @@ def _intro_slots_for_accuracy(accuracy: float) -> int:
     return MAX_AUTO_INTRO_PER_SESSION
 
 
+def _get_accuracy_intro_slots(db: Session, now: datetime) -> int:
+    """Compute how many intro slots the learner's accuracy allows."""
+    recent_reviews = (
+        db.query(ReviewLog)
+        .filter(ReviewLog.reviewed_at >= (now - timedelta(days=2)).replace(tzinfo=None))
+        .all()
+    )
+    if len(recent_reviews) >= 10:
+        correct = sum(1 for r in recent_reviews if r.rating >= 3)
+        accuracy = correct / len(recent_reviews)
+        return _intro_slots_for_accuracy(accuracy)
+    return 4  # conservative default with insufficient data
+
+
 @dataclass
 class WordMeta:
     lemma_id: Optional[int]
@@ -80,6 +96,9 @@ class SentenceCandidate:
     words_meta: list[WordMeta] = field(default_factory=list)
     due_words_covered: set[int] = field(default_factory=set)
     score: float = 0.0
+    score_components: dict = field(default_factory=dict)
+    selection_reason: str = ""
+    selection_order: int = 0
 
 
 _GRAMMAR_ABBREV = {
@@ -222,6 +241,39 @@ def _scaffold_freshness(
     return max(0.1, geo_mean)
 
 
+def compute_sentence_diversity_score(
+    words_meta: list[WordMeta],
+    knowledge_map: dict[int, UserLemmaKnowledge],
+    session_scaffold_counts: dict[int, int] | None = None,
+) -> dict:
+    """Compute per-sentence diversity metrics for logging."""
+    scaffold = [
+        w for w in words_meta
+        if w.lemma_id and not w.is_due and not w.is_function_word
+    ]
+    unique_scaffold_count = len({w.lemma_id for w in scaffold})
+
+    freshness = _scaffold_freshness(words_meta, knowledge_map)
+
+    if session_scaffold_counts and scaffold:
+        low_reuse = sum(
+            1 for w in scaffold
+            if session_scaffold_counts.get(w.lemma_id, 0) <= 1
+        )
+        scaffold_uniqueness = low_reuse / len(scaffold)
+    else:
+        scaffold_uniqueness = 1.0
+
+    diversity_score = (freshness * scaffold_uniqueness) ** 0.5
+
+    return {
+        "diversity_score": round(diversity_score, 3),
+        "scaffold_uniqueness": round(scaffold_uniqueness, 3),
+        "scaffold_freshness": round(freshness, 3),
+        "unique_scaffold_count": unique_scaffold_count,
+    }
+
+
 def _auto_introduce_words(
     db: Session,
     slots_needed: int,
@@ -274,8 +326,10 @@ def _auto_introduce_words(
     active_topic = ensure_active_topic(db)
     # Request extra candidates since we filter out names/sounds
     candidates = select_next_words(db, count=slots + 5, domain=active_topic)
-    # Never auto-introduce names or onomatopoeia — user must pick those manually
+    # Never auto-introduce names, onomatopoeia, or function words
+    from app.services.sentence_validator import _is_function_word
     candidates = [c for c in candidates if c.get("word_category") not in ("proper_name", "onomatopoeia")]
+    candidates = [c for c in candidates if not _is_function_word(c.get("lemma_ar_bare", ""))]
     if not candidates:
         return []
 
@@ -331,6 +385,7 @@ def build_session(
     limit: int = 10,
     mode: str = "reading",
     log_events: bool = True,
+    skip_on_demand: bool = False,
 ) -> dict:
     """Assemble a sentence-based review session.
 
@@ -346,10 +401,12 @@ def build_session(
     tashkeel_threshold = (tashkeel_settings.tashkeel_stability_threshold if tashkeel_settings else None) or 30.0
 
     # Comprehension-aware recency cutoffs
+    # Failed sentences can be re-shown quickly so learner gets a positive review,
+    # then ideally sees the same word in a different sentence next time.
     cutoff_understood = now - timedelta(days=4)
-    cutoff_partial = now - timedelta(days=2)
-    cutoff_grammar_confused = now - timedelta(days=1)
-    cutoff_no_idea = now - timedelta(hours=4)
+    cutoff_partial = now - timedelta(hours=4)
+    cutoff_grammar_confused = now - timedelta(hours=2)
+    cutoff_no_idea = now - timedelta(minutes=30)
 
     # 1. Fetch all word knowledge (exclude only suspended)
     # Encountered words are included so the comprehensibility gate can
@@ -394,10 +451,18 @@ def build_session(
     cohort = get_focus_cohort(db)
     due_lemma_ids &= cohort
 
-    # Auto-introduce new words if session would be undersized
-    slots_needed = max(0, limit - len(due_lemma_ids))
+    # Auto-introduce new words: reserve slots even when due queue is full
+    # This ensures vocabulary growth doesn't stall when reviews pile up.
+    accuracy_slots = _get_accuracy_intro_slots(db, now)
+    if accuracy_slots > 0:
+        reserved_intro = max(1, int(limit * INTRO_RESERVE_FRACTION))
+        intro_slots = min(accuracy_slots, reserved_intro)
+    else:
+        intro_slots = 0
+    undersized_slots = max(0, limit - len(due_lemma_ids))
+    slots_for_intro = max(intro_slots, undersized_slots)
     auto_introduced_ids = _auto_introduce_words(
-        db, slots_needed, knowledge_by_id, now,
+        db, slots_for_intro, knowledge_by_id, now,
     )
     if auto_introduced_ids:
         # Add newly introduced words to due set and tracking structures
@@ -485,7 +550,7 @@ def build_session(
 
     sentence_ids_with_due = {sw.sentence_id for sw in sentence_words}
     if not sentence_ids_with_due:
-        return _with_fallbacks(db, session_id, due_lemma_ids, stability_map, total_due, [], limit, reintro_cards=reintro_cards, knowledge_by_id=knowledge_by_id, all_knowledge=all_knowledge)
+        return _with_fallbacks(db, session_id, due_lemma_ids, stability_map, total_due, [], limit, reintro_cards=reintro_cards, knowledge_by_id=knowledge_by_id, all_knowledge=all_knowledge, skip_on_demand=skip_on_demand)
 
     from sqlalchemy import or_
 
@@ -514,8 +579,39 @@ def build_session(
         .all()
     )
 
+    # Rescue pass: for due words whose sentences ALL failed recency (e.g. all
+    # "understood" within 4 days), fetch those sentences anyway so the word isn't
+    # dropped from the session entirely. They'll get a score penalty below.
+    fresh_sent_ids = {s.id for s in sentences}
+    words_with_fresh = {
+        sw.lemma_id for sw in sentence_words
+        if sw.sentence_id in fresh_sent_ids and sw.lemma_id in due_lemma_ids
+    }
+    words_needing_rescue = due_lemma_ids - words_with_fresh
+    rescue_sentence_ids: set[int] = set()
+
+    if words_needing_rescue:
+        rescue_sw_rows = [
+            sw for sw in sentence_words
+            if sw.lemma_id in words_needing_rescue
+            and sw.sentence_id not in fresh_sent_ids
+        ]
+        potential_rescue_ids = {sw.sentence_id for sw in rescue_sw_rows}
+        if potential_rescue_ids:
+            rescue_sents = (
+                db.query(Sentence)
+                .filter(
+                    Sentence.id.in_(potential_rescue_ids),
+                    Sentence.is_active == True,  # noqa: E712
+                )
+                .all()
+            )
+            if rescue_sents:
+                rescue_sentence_ids = {s.id for s in rescue_sents}
+                sentences.extend(rescue_sents)
+
     if not sentences:
-        return _with_fallbacks(db, session_id, due_lemma_ids, stability_map, total_due, [], limit, reintro_cards=reintro_cards, knowledge_by_id=knowledge_by_id, all_knowledge=all_knowledge)
+        return _with_fallbacks(db, session_id, due_lemma_ids, stability_map, total_due, [], limit, reintro_cards=reintro_cards, knowledge_by_id=knowledge_by_id, all_knowledge=all_knowledge, skip_on_demand=skip_on_demand)
 
     sentence_map: dict[int, Sentence] = {s.id: s for s in sentences}
 
@@ -668,8 +764,8 @@ def build_session(
 
         # Comprehensibility gate: skip sentences where <60% of scaffold words are known.
         # Scaffold = non-function, non-due words (including unmapped words with lemma_id=None).
-        # "encountered" does NOT count — these are passively imported words the learner
-        # hasn't studied. "acquiring" only counts if past box 1 (stability >= 0.5).
+        # "encountered" does NOT count — the learner has only seen the word, never studied it.
+        # "acquiring" only counts if past box 1 (stability >= 0.5 = reviewed at least once).
         scaffold = [w for w in word_metas if not w.is_function_word and not w.is_due]
         total_scaffold = len(scaffold)
         known_scaffold = sum(
@@ -710,7 +806,10 @@ def build_session(
         diversity = 1.0 / (1.0 + (sent.times_shown or 0))
         freshness = _scaffold_freshness(word_metas, knowledge_map)
         source_bonus = 1.3 if sent.source == "book" else 1.0
-        score = (len(due_covered) ** 1.5) * dmq * gfit * diversity * freshness * source_bonus
+        # Rescue sentences (recently shown but only option for a due word) get a
+        # penalty so fresh sentences are preferred, but they still participate.
+        rescue_penalty = 0.3 if sent.id in rescue_sentence_ids else 1.0
+        score = (len(due_covered) ** 1.5) * dmq * gfit * diversity * freshness * source_bonus * rescue_penalty
 
         candidates.append(SentenceCandidate(
             sentence_id=sent.id,
@@ -720,9 +819,10 @@ def build_session(
             score=score,
         ))
 
-    # 3. Greedy set cover
+    # 3. Greedy set cover with within-session scaffold diversity
     selected: list[SentenceCandidate] = []
     remaining_due = set(due_lemma_ids)
+    session_scaffold_counts: dict[int, int] = {}
 
     while remaining_due and len(selected) < limit and candidates:
         for c in candidates:
@@ -738,7 +838,28 @@ def build_session(
             diversity = 1.0 / (1.0 + (c.sentence.times_shown or 0))
             freshness = _scaffold_freshness(c.words_meta, knowledge_map)
             source_bonus = 1.3 if c.sentence.source == "book" else 1.0
-            c.score = (len(overlap) ** 1.5) * dmq * gfit * diversity * freshness * source_bonus
+
+            # Within-session scaffold diversity: penalize reuse of scaffold words
+            scaffold_ids = [w.lemma_id for w in c.words_meta
+                            if w.lemma_id and not w.is_due and not w.is_function_word]
+            if scaffold_ids and session_scaffold_counts:
+                max_session_count = max(session_scaffold_counts.get(lid, 0) for lid in scaffold_ids)
+                session_diversity = SESSION_SCAFFOLD_DECAY ** max_session_count
+            else:
+                session_diversity = 1.0
+
+            rescue_penalty = 0.3 if c.sentence_id in rescue_sentence_ids else 1.0
+            c.score = (len(overlap) ** 1.5) * dmq * gfit * diversity * freshness * source_bonus * session_diversity * rescue_penalty
+            c.score_components = {
+                "due_coverage": len(overlap),
+                "difficulty_match": round(dmq, 2),
+                "grammar_fit": round(gfit, 2),
+                "diversity": round(diversity, 2),
+                "freshness": round(freshness, 2),
+                "source_bonus": source_bonus,
+                "session_diversity": round(session_diversity, 2),
+                "rescue": rescue_penalty < 1.0,
+            }
 
         candidates.sort(key=lambda c: c.score, reverse=True)
         best = candidates[0]
@@ -746,10 +867,20 @@ def build_session(
             break
 
         selected.append(best)
+        best.selection_reason = "greedy_cover"
+        best.selection_order = len(selected)
         remaining_due -= best.due_words_covered
         candidates.remove(best)
 
+        # Track scaffold words used in this session for diversity
+        for w in best.words_meta:
+            if w.lemma_id and not w.is_due and not w.is_function_word:
+                session_scaffold_counts[w.lemma_id] = session_scaffold_counts.get(w.lemma_id, 0) + 1
+
         if log_events:
+            div_metrics = compute_sentence_diversity_score(
+                best.words_meta, knowledge_map, session_scaffold_counts
+            )
             log_interaction(
                 event="sentence_selected",
                 session_id=session_id,
@@ -758,6 +889,7 @@ def build_session(
                 score=round(best.score, 3),
                 due_words_covered=len(best.due_words_covered),
                 remaining_due=len(remaining_due),
+                **div_metrics,
             )
 
     # Track covered
@@ -798,6 +930,7 @@ def build_session(
                     extra = c
                     break
             if extra:
+                extra.selection_reason = "acquisition_repeat"
                 selected.append(extra)
                 selected_ids.add(extra.sentence_id)
                 candidates.remove(extra)
@@ -879,6 +1012,25 @@ def build_session(
                 "show_tashkeel": word_show_tashkeel,
             })
 
+        # Build selection_info for this item
+        k = knowledge_by_id.get(primary_lid)
+        if k and k.knowledge_state == "acquiring":
+            word_reason = f"Acquiring (box {k.acquisition_box})"
+        elif k:
+            stab = stability_map.get(primary_lid)
+            if stab is not None:
+                if stab < 1:
+                    stab_label = f"{max(1, round(stab * 24))}h"
+                elif stab < 30:
+                    stab_label = f"{round(stab)}d"
+                else:
+                    stab_label = f"{stab / 30:.1f}mo"
+                word_reason = f"{k.knowledge_state.title()} (stability {stab_label})"
+            else:
+                word_reason = k.knowledge_state.title()
+        else:
+            word_reason = "New"
+
         items.append({
             "sentence_id": cand.sentence_id,
             "arabic_text": sent.arabic_text,
@@ -891,11 +1043,19 @@ def build_session(
             "primary_gloss_en": primary_lemma.gloss_en if primary_lemma else "",
             "words": word_dicts,
             "grammar_features": grammar_by_sentence.get(cand.sentence_id, []),
+            "selection_info": {
+                "reason": cand.selection_reason,
+                "order": cand.selection_order,
+                "score": round(cand.score, 2),
+                "word_reason": word_reason,
+                "components": cand.score_components,
+                "due_lemma_ids": sorted(cand.due_words_covered),
+            },
         })
 
     db.commit()
 
-    return _with_fallbacks(db, session_id, due_lemma_ids, stability_map, total_due, items, limit, covered_ids, reintro_cards=reintro_cards, knowledge_by_id=knowledge_by_id, all_knowledge=all_knowledge, base_item_count=base_item_count)
+    return _with_fallbacks(db, session_id, due_lemma_ids, stability_map, total_due, items, limit, covered_ids, reintro_cards=reintro_cards, knowledge_by_id=knowledge_by_id, all_knowledge=all_knowledge, base_item_count=base_item_count, skip_on_demand=skip_on_demand)
 
 
 MAX_REINTRO_PER_SESSION = 3
@@ -1159,6 +1319,10 @@ def _generate_on_demand(
                     "primary_gloss_en": primary_lemma.gloss_en if primary_lemma else "",
                     "words": word_dicts,
                     "grammar_features": [],
+                    "selection_info": {
+                        "reason": "on_demand",
+                        "word_reason": "Generated on-demand (no existing sentence)",
+                    },
                 })
                 generated_count += 1
                 for found_lid in mres.target_lemma_ids:
@@ -1258,6 +1422,10 @@ def _generate_on_demand(
                 "primary_gloss_en": lemma.gloss_en or "",
                 "words": word_dicts,
                 "grammar_features": [],
+                "selection_info": {
+                    "reason": "on_demand",
+                    "word_reason": "Generated on-demand (no existing sentence)",
+                },
             })
             generated_count += 1
 
@@ -1280,8 +1448,13 @@ def _with_fallbacks(
     knowledge_by_id: dict[int, UserLemmaKnowledge] | None = None,
     all_knowledge: list | None = None,
     base_item_count: int | None = None,
+    skip_on_demand: bool = False,
 ) -> dict:
-    """Generate on-demand sentences for uncovered due words, then fill if undersized."""
+    """Generate on-demand sentences for uncovered due words, then fill if undersized.
+
+    When skip_on_demand=True, skips LLM generation (used for fast synchronous
+    session loads — generation runs in background instead).
+    """
     import logging
     logger = logging.getLogger(__name__)
 
@@ -1290,54 +1463,63 @@ def _with_fallbacks(
     if knowledge_by_id is None:
         knowledge_by_id = {}
 
-    # Phase 1: On-demand generation for uncovered due words
-    # Use base_item_count (pre-acquisition-repetition) for budget so that
-    # acquisition repetition doesn't block on-demand generation for uncovered words
-    uncovered = due_lemma_ids - covered_ids
-    budget_basis = base_item_count if base_item_count is not None else len(items)
-    on_demand_budget = max(0, limit - budget_basis)
-    if uncovered and on_demand_budget > 0:
-        try:
-            generated_items = _generate_on_demand(db, uncovered, stability_map, on_demand_budget)
-            items.extend(generated_items)
-            for item in generated_items:
-                covered_ids.add(item["primary_lemma_id"])
-        except Exception:
-            logger.exception("On-demand generation failed, continuing with existing sentences")
-            db.rollback()
+    if not skip_on_demand:
+        # Phase 1: On-demand generation for uncovered due words
+        # Use base_item_count (pre-acquisition-repetition) for budget so that
+        # acquisition repetition doesn't block on-demand generation for uncovered words
+        uncovered = due_lemma_ids - covered_ids
+        budget_basis = base_item_count if base_item_count is not None else len(items)
+        on_demand_budget = max(0, limit - budget_basis)
+        if uncovered and on_demand_budget > 0:
+            try:
+                generated_items = _generate_on_demand(db, uncovered, stability_map, on_demand_budget)
+                items.extend(generated_items)
+                for item in generated_items:
+                    covered_ids.add(item["primary_lemma_id"])
+            except Exception:
+                logger.exception("On-demand generation failed, continuing with existing sentences")
+                db.rollback()
 
-    # Phase 2: Fill phase — if session is still undersized, introduce more words
-    if len(items) < limit:
-        try:
-            now = datetime.now(timezone.utc)
-            fill_ids = _auto_introduce_words(
-                db, limit - len(items), knowledge_by_id, now,
-                skip_material_gen=True,
-            )
-            if fill_ids:
-                logger.info(f"Fill phase: introduced {len(fill_ids)} new words to fill session")
-                for lid in fill_ids:
-                    stability_map[lid] = 0.1
-                    ulk = (
-                        db.query(UserLemmaKnowledge)
-                        .filter(UserLemmaKnowledge.lemma_id == lid)
-                        .first()
-                    )
-                    if ulk:
-                        knowledge_by_id[lid] = ulk
+        # Phase 2: Fill phase — if session is still undersized, introduce more words
+        if len(items) < limit:
+            try:
+                now = datetime.now(timezone.utc)
+                fill_ids = _auto_introduce_words(
+                    db, limit - len(items), knowledge_by_id, now,
+                    skip_material_gen=True,
+                )
+                if fill_ids:
+                    logger.info(f"Fill phase: introduced {len(fill_ids)} new words to fill session")
+                    for lid in fill_ids:
+                        stability_map[lid] = 0.1
+                        ulk = (
+                            db.query(UserLemmaKnowledge)
+                            .filter(UserLemmaKnowledge.lemma_id == lid)
+                            .first()
+                        )
+                        if ulk:
+                            knowledge_by_id[lid] = ulk
 
-                fill_due = set(fill_ids)
-                remaining_cap = limit - len(items)
-                if remaining_cap > 0:
-                    fill_items = _generate_on_demand(
-                        db, fill_due, stability_map, remaining_cap
-                    )
-                    items.extend(fill_items)
-                    for fi in fill_items:
-                        covered_ids.add(fi["primary_lemma_id"])
-        except Exception:
-            logger.exception("Fill phase failed, continuing with existing items")
-            db.rollback()
+                    fill_due = set(fill_ids)
+                    remaining_cap = limit - len(items)
+                    if remaining_cap > 0:
+                        fill_items = _generate_on_demand(
+                            db, fill_due, stability_map, remaining_cap
+                        )
+                        for fi in fill_items:
+                            if fi.get("selection_info"):
+                                fi["selection_info"]["reason"] = "fill_intro"
+                                fi["selection_info"]["word_reason"] = "Auto-introduced to fill session"
+                        items.extend(fill_items)
+                        for fi in fill_items:
+                            covered_ids.add(fi["primary_lemma_id"])
+            except Exception:
+                logger.exception("Fill phase failed, continuing with existing items")
+                db.rollback()
+    else:
+        uncovered = due_lemma_ids - covered_ids
+        if uncovered:
+            logger.info(f"Skipping on-demand generation for {len(uncovered)} uncovered words (fast mode)")
 
     # Check for un-introduced grammar features in session sentences
     sentence_ids_in_session = [item["sentence_id"] for item in items if item.get("sentence_id")]

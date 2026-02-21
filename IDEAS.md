@@ -65,10 +65,24 @@
 
 ### Sentence Sources
 - LLM-generated sentences with vocabulary constraints
-- Tatoeba corpus (8.5M Arabic-English pairs, CC BY 2.0)
-- BAREC corpus (69K sentences across 19 readability levels)
+- Tatoeba corpus (~67K Arabic sentences with translations, CC BY 2.0)
+- BAREC corpus (69K sentences across 19 readability levels, on Hugging Face)
 - Quran (Tanzil corpus) — gold-standard diacritized text
 - News articles segmented into sentences
+- **Corpus-first pipeline** — search corpus for sentences matching target word + comprehensibility threshold, fall back to LLM only when no corpus match found. Instant, free, deterministic. See `research/arabic-sentence-corpora-2026-02-21.md`
+- **Tier 1 corpora for immediate integration**: Tatoeba (67K, translated), BAREC (69K, graded), AMARA/TED (educational, translated)
+- **Tier 2 for processing**: WikiMatrix (millions of Arabic-English pairs, filter by margin score >1.06), Hindawi E-Book Corpus (81.5M words, fiction/children's), OSIAN (37M MSA news sentences)
+- **Tashkeela** (75M fully diacritized words, 99% classical) — useful for tashkeel model training, small MSA portion extractable
+- **SAMER readability lexicon** — 40K lemmas with 5-level difficulty could map to our lemma difficulty estimates
+- **Leveled Reading Corpus** (UAE K-12 textbooks + fiction, graded by grade level) — gold standard if accessible (NYU Abu Dhabi)
+- **CCMatrix/CCAligned** (billions of web-mined parallel sentences) — needs aggressive quality filtering but enormous volume
+- **OpenSubtitles** (conversational Arabic, parallel translations) — needs dialect filtering for MSA-only use
+- **Hybrid approach validated by research**: GenAI sentences preferred by learners in 66% of pairwise comparisons, but corpus sentences are free/instant. Optimal: corpus for bulk, LLM for gaps.
+- **Corpus selection architecture** (feasibility confirmed, see `research/corpus-vs-llm-feasibility-2026-02-21.md`): inverted index by lemma_id → comprehensibility filter → scoring → LLM fallback. Pre-process: diacritize (Fine-Tashkeel, 2.5% WER, free), lemmatize (existing pipeline), translate (Claude CLI batch, free). Promotes corpus sentences into existing Sentence table — zero changes to session_service.py.
+- **Phased corpus rollout**: Phase 1 at ~500 lemmas (BAREC+Tatoeba, 2-3 days), Phase 2 at ~1,000 (add Hindawi+WikiMatrix, 500K+ sentences), Phase 3 at ~2,000 or multi-user (1M+ sentences, 80% corpus hit rate). Multi-user cost: <$15/mo for 100 users vs $60-600 LLM-only.
+- **Auto-diacritization pipeline**: Fine-Tashkeel (HuggingFace, open source, ~2.5% WER) for bulk corpus processing. Most errors are case endings (least critical for learners). Alif's tashkeel fading hides diacritics on known words anyway.
+- **SAMER readability integration**: 40K-lemma readability lexicon (5 levels) could replace/supplement heuristic difficulty scoring. Map SAMER levels → Alif lemmas for per-word difficulty.
+- **Corpus-sourced vocabulary growth**: When corpus import encounters unmapped words, create Lemma entries in "encountered" state. Corpus becomes a vocabulary discovery source, not just a sentence source.
 
 ### Difficulty Assessment
 - [DONE] SAMER lexicon: 40K lemmas with 5-level readability scale — backfilled to cefr_level (1365/1610 matched), auto-runs in update_material.py cron. TSV at backend/data/samer.tsv on server (not in git, license: non-commercial/no redistribution).

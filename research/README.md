@@ -48,6 +48,13 @@ Initial technology research conducted before app development.
 | [arabic-diacritization.md](arabic-diacritization.md) | Tashkeel tools, deep learning models, accuracy benchmarks |
 | [arabic-learning-architecture.md](arabic-learning-architecture.md) | Architecture patterns, data models, LLM+tools pipeline, roadmap |
 
+## Corpus & Sentence Research
+
+| File | Contents |
+|------|----------|
+| [corpus-vs-llm-feasibility-2026-02-21.md](corpus-vs-llm-feasibility-2026-02-21.md) | **Feasibility analysis**: corpus selection vs LLM generation. Architecture, cost projections, vocabulary growth hit rates, phased implementation plan. The strategic decision doc. |
+| [arabic-sentence-corpora-2026-02-21.md](arabic-sentence-corpora-2026-02-21.md) | Survey of 17 Arabic corpora for sentence mining: sizes, licenses, diacritics, translations, integration recommendations |
+
 ## Analysis Reports
 
 | File | Contents |

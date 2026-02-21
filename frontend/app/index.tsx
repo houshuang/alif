@@ -1139,16 +1139,19 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
     }).join("\n");
 
     return [
-      "Explain this Arabic sentence word by word.",
-      "For each word:",
-      "1) Give the base lemma (Arabic + transliteration)",
-      "2) Explain what prefixes, suffixes, or clitics are attached and what they mean",
-      "3) Identify the grammar pattern (verb form, case ending, إضافة, حال, etc.)",
-      "4) Briefly note how it fits into the overall sentence structure",
+      "Explain how this Arabic sentence works as a whole — how the words combine to produce the meaning, and why the English translation captures it that way.",
       "",
-      "Then give a one-line summary of the full sentence's grammatical structure.",
+      "Focus on:",
+      "- The overall meaning and feel: what is this sentence really saying?",
+      "- Why it's translated this way — are there nuances, idioms, or cultural context?",
+      "- Alternative translations that would also work, and what shades of meaning they'd carry",
+      "- Alternative ways a native speaker might express the same idea",
+      "- Any structural patterns worth noticing (word order, verb form choices, إضافة) — but only when they affect meaning",
       "",
-      "Words (my knowledge level indicated):",
+      "Don't list every particle or explain obvious words. I can see the glosses already.",
+      "Give me a feel for how Arabic expresses this thought, not a word-by-word breakdown.",
+      "",
+      "Words:",
       wordLines,
     ].join("\n");
   }
@@ -1649,6 +1652,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
           sentenceId={item.sentence_id}
           visible={sentenceInfoVisible}
           onClose={() => setSentenceInfoVisible(false)}
+          selectionInfo={item.selection_info}
         />
       )}
     </View>
