@@ -4,7 +4,7 @@ All frontend in `frontend/`.
 
 ## Screens (app/)
 - `app/index.tsx` — Review screen: sentence-only (no word-only fallback), reading + listening, word lookup, word marking, back/undo, wrap-up mini-quiz (acquiring + missed words), session word tracking, story source badges on intro cards
-- `app/learn.tsx` — Learn mode: 5-candidate pick → quiz → done. Etymology display on pick cards. Story source badge for story words.
+- `app/learn.tsx` — Learn mode: 5-candidate pick → done (no quiz). Shows pattern decomposition (wazn + root), etymology, and mnemonic in highlighted info boxes. Story source badge for story words.
 - `app/words.tsx` — Word browser: grid, category tabs (Vocab/Function/Names), smart filters (Leeches/Struggling/Recent/Solid/Next Up/Acquiring/Encountered), sparklines (variable-width gaps show inter-review timing), search
 - `app/stats.tsx` — Analytics dashboard organized into 5 sections: **Today** (hero card with comprehension bar, graduated pills, new words by source, calibration, today's transitions), **Vocabulary** (word lifecycle funnel: encountered→acquiring→learning→known with counts, reading coverage %, CEFR level + arrival predictions, acquisition pipeline with Leitner boxes), **Progress** (known words growth with week/month deltas, 14-day activity chart with words_learned overlay, learning pace 7d+30d, transitions 7d+30d, retention 7d+30d, comprehension 7d+30d side-by-side), **Sessions** (recent sessions with mini comprehension bars), **Deep Dive** (vocabulary health/stability distribution, struggling words, root progress, insights card with 10 derived stats)
 - `app/story/[id].tsx` — Story reader with tap-to-lookup, WordInfoCard for lookups, ActionMenu in header bar (Ask AI, suspend story). All navigation (back, complete, suspend) goes to `/stories` via `router.replace`.
@@ -20,7 +20,7 @@ All frontend in `frontend/`.
 
 ## Components (lib/)
 - `lib/review/ActionMenu.tsx` — "⋯" menu: Ask AI, Suspend, Flag. Supports `extraActions` prop for screen-specific actions (e.g., story suspend).
-- `lib/review/WordInfoCard.tsx` — Word info panel for review. Prev/next arrows navigate tapped word history.
+- `lib/review/WordInfoCard.tsx` — Word info panel for review. Always shows full info (no root gate). Pattern decomposition line (wazn + root). Only known/learning root siblings shown. Prev/next arrows navigate tapped word history.
 - `lib/review/SentenceInfoModal.tsx` — Debug modal: sentence ID, source, review history, per-word FSRS difficulty/stability. **Selection reasoning**: when opened from review, shows why the sentence was chosen (scheduled review / acquisition repeat / on-demand / auto-intro fill), primary word state, selection score + pick order, and per-factor score breakdown
 - `lib/AskAI.tsx` — AI chat modal (used in ActionMenu). Quick actions: "Explain marked" (only when words tapped, explains missed/confused words), "Explain full" (word-by-word sentence breakdown with grammar patterns)
 - `lib/MarkdownMessage.tsx` — Markdown renderer for chat/AI responses

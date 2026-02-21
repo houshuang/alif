@@ -46,7 +46,7 @@ npx expo start --web  # opens on localhost:8081
 - **Sentence-First Review**: greedy set cover, ternary ratings, all words get equal FSRS credit
 - **Reading Mode**: front-phase word lookup, triple-tap marking, back/undo
 - **Listening Mode**: ElevenLabs TTS, reveal Arabic → reveal English
-- **Learn Mode**: 5-candidate pick → sentence quiz → done
+- **Learn Mode**: 5-candidate pick → done (shows pattern decomposition, etymology, mnemonic)
 - **Story Mode**: generate/import, tap-to-lookup reader, complete/suspend
 
 ## Design Principles
@@ -67,6 +67,7 @@ npx expo start --web  # opens on localhost:8081
 - **Every sentence_word must have a lemma_id** — all 5 storage paths reject unmapped words. Exception: book_import keeps sentences with `lemma_id=None`. Mapping uses `build_comprehensive_lemma_lookup()`.
 - **Tashkeel fading is backend-driven** — `show_tashkeel` boolean per word in API response. Backend knows both the setting (mode + threshold) and word stability. Three modes: always (default), fade (hide diacritics for words with stability ≥ threshold), never. Applies only to review sessions — story reader always shows full tashkeel.
 - **Root-aware stability boost** — words graduating from acquisition with 2+ known root siblings get `Rating.Easy` (~3.6x stability boost). `ROOT_SIBLING_THRESHOLD=2` in `acquisition_service.py`.
+- **Morphological patterns (wazn)** — `Lemma.wazn` stores normalized pattern (e.g. "fa'il", "maf'ul", "form_2"), `Lemma.wazn_meaning` stores human description. Displayed in learn cards, word info cards, and word detail. Pattern family (other words with same wazn) returned in word detail endpoint. API: `/api/patterns` lists patterns, `/api/patterns/{wazn}` lists words, `/api/patterns/roots/{root_id}/tree` shows root derivation tree. Backfill: `scripts/backfill_wazn.py`.
 
 ## Critical Rules for All Agents
 

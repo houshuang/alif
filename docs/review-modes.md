@@ -27,11 +27,10 @@ Reviews are sentence-centric: greedy set cover selects sentences that maximize d
 5. Listening-ready filter: non-due words must have times_seen ≥ 3 AND FSRS stability ≥ 7 days
 
 ## Learn Mode
-1. **Pick phase**: Shows 5 candidate words one at a time — Arabic, English, transliteration, POS, verb/noun/adj forms table, example sentence, root + sibling count, TTS play button
+1. **Pick phase**: Shows 5 candidate words one at a time — Arabic, English, transliteration, POS, verb/noun/adj forms table, pattern decomposition (wazn + root), etymology, mnemonic, root sibling count, TTS play button
 2. Actions per word: Learn (introduces, starts acquisition), Skip, Never show (suspend)
 3. Selection algorithm: 40% frequency + 30% root familiarity (peaks at 30-60% of root known) + 20% recency bonus (sibling introduced 1-3 days ago) + 10% grammar pattern coverage + encountered bonus (0.5 for words seen in textbook/story)
-4. **Quiz phase**: After introducing words, polls for generated sentences (20s timeout). Sentence quiz or word-only fallback. Got it → rating 3, Missed → rating 1.
-5. **Done phase**: Shows count introduced, quiz accuracy, CEFR level
+4. **Done phase**: Shows count introduced, CEFR level. No quiz — words get proper reviews through sentence-first review.
 
 ## Story Mode
 1. **Generate**: LLM generates micro-fiction (2-12 sentences) using known vocabulary, random genre

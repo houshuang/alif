@@ -31,9 +31,9 @@
 
 ### Root-Based Learning
 - Learning KTB root → Maktaba, Maktab, Kataba etc. are highly productive
-- Identify morphological patterns (e.g., how to form "place of doing X" = maf3al)
+- [DONE] Identify morphological patterns (e.g., how to form "place of doing X" = maf3al) — wazn column on Lemma, pattern decomposition in learn/review cards, /api/patterns endpoints
 - Verb form patterns (Form I-X) as learning accelerators
-- Group kitchen appliances, professions, etc. by pattern
+- Group kitchen appliances, professions, etc. by pattern — partially done (wazn column enables grouping)
 - Root family exploration UI: show all known/unknown words from a root
 - Prioritize roots by "productivity" (number of common derivatives)
 
@@ -371,7 +371,7 @@
 ### Ideas from Arabic Linguistic Challenges Research (2026-02-08)
 
 #### Root Explorer UI
-- Root Explorer as a first-class feature: tap any root to see a tree/map of all derivatives organized by pattern type (agent nouns, place nouns, verb forms, etc.)
+- [PARTIAL] Root Explorer as a first-class feature: tap any root to see a tree/map of all derivatives organized by pattern type (agent nouns, place nouns, verb forms, etc.) — backend API done (`/api/patterns/roots/{root_id}/tree`), frontend explorer screen TODO
 - Color-code words in reader view by root family (subtle background tint) to build unconscious root awareness
 - "Root discovery" celebrations: when user learns 3rd word from a new root, show root family and how many more words they can now partially understand
 - Root productivity ranking: prioritize teaching high-productivity roots (most common derivatives) first

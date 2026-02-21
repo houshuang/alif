@@ -76,12 +76,15 @@ export interface WordDetail extends Word {
   forms_json?: WordForms | null;
   grammar_features: GrammarFeatureDetail[];
   root_family: { id: number; arabic: string; english: string }[];
+  pattern_family?: PatternFamilyItem[];
   review_history: ReviewHistoryEntry[];
   sentence_stats: WordSentenceStat[];
   source_info?: SourceInfo | null;
   word_category?: WordCategory | null;
   etymology_json?: EtymologyData | null;
   memory_hooks_json?: MemoryHooksData | null;
+  wazn?: string | null;
+  wazn_meaning?: string | null;
   acquisition_box?: number | null;
 }
 
@@ -131,6 +134,14 @@ export interface CEFREstimate {
   days_to_next_today_pace?: number | null;
 }
 
+export interface PatternFamilyItem {
+  lemma_id: number;
+  lemma_ar: string;
+  gloss_en: string | null;
+  pos: string | null;
+  knowledge_state: string | null;
+}
+
 export interface EtymologyData {
   root_meaning: string | null;
   pattern: string | null;
@@ -161,6 +172,8 @@ export interface WrapUpCard {
   root_meaning: string | null;
   etymology_json: EtymologyData | null;
   memory_hooks_json?: MemoryHooksData | null;
+  wazn?: string | null;
+  wazn_meaning?: string | null;
 }
 
 export interface RecapItem {
@@ -204,6 +217,8 @@ export interface LearnCandidate {
   grammar_features?: string[];
   grammar_details?: GrammarFeatureDetail[];
   word_category?: WordCategory | null;
+  wazn?: string | null;
+  wazn_meaning?: string | null;
   score: number;
   etymology_json?: EtymologyData | null;
   memory_hooks_json?: MemoryHooksData | null;
@@ -275,6 +290,8 @@ export interface WordLookupResult {
   cefr_level: string | null;
   memory_hooks_json?: MemoryHooksData | null;
   word_category?: WordCategory | null;
+  wazn?: string | null;
+  wazn_meaning?: string | null;
   root_family: {
     lemma_id: number;
     lemma_ar: string;

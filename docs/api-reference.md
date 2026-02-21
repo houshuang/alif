@@ -33,9 +33,9 @@ Full endpoint list. See `backend/app/routers/` for implementation.
 | POST | `/api/learn/introduce` | Introduce word (create FSRS card + trigger sentence generation) |
 | POST | `/api/learn/introduce-batch` | Batch introduce |
 | GET | `/api/learn/root-family/{root_id}` | Words from a root with knowledge state |
-| POST | `/api/learn/quiz-result` | Submit learn-mode quiz result |
+| POST | `/api/learn/quiz-result` | Submit learn-mode quiz result (unused — quiz removed from UI) |
 | POST | `/api/learn/suspend` | Suspend a word (never show again) |
-| GET | `/api/learn/sentences/{lemma_id}` | Poll for generated sentence (ready/not ready) |
+| GET | `/api/learn/sentences/{lemma_id}` | Poll for generated sentence (unused — quiz removed from UI) |
 | GET | `/api/learn/sentence-params/{lemma_id}` | Max words + difficulty hint for sentence generation |
 
 ## Grammar
@@ -94,6 +94,13 @@ Full endpoint list. See `backend/app/routers/` for implementation.
 | GET | `/api/ocr/batch/{batch_id}` | Get batch upload status with per-page results |
 | GET | `/api/ocr/uploads` | List recent upload batches with results |
 | POST | `/api/ocr/extract-text` | Extract Arabic text from image for story import (synchronous) |
+
+## Patterns
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/api/patterns` | List all wazn patterns with word counts, known counts, coverage % |
+| GET | `/api/patterns/{wazn}` | All words with a specific pattern, ordered by frequency |
+| GET | `/api/patterns/roots/{root_id}/tree` | Full derivation tree for a root, grouped by pattern |
 
 ## Settings
 | Method | Path | Description |

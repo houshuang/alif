@@ -285,6 +285,14 @@ class SentenceReviewItem(BaseModel):
     grammar_features: list[str] = []
 
 
+class PatternFamilyItem(BaseModel):
+    lemma_id: int
+    lemma_ar: str
+    gloss_en: str | None = None
+    pos: str | None = None
+    knowledge_state: str | None = None
+
+
 class IntroCandidateOut(BaseModel):
     lemma_id: int
     lemma_ar: str
@@ -303,6 +311,8 @@ class IntroCandidateOut(BaseModel):
     grammar_details: list[dict] = []
     root_family: list[dict] = []
     story_title: str | None = None
+    wazn: str | None = None
+    wazn_meaning: str | None = None
 
 
 class ReintroCardOut(BaseModel):
@@ -401,6 +411,8 @@ class WrapUpCardOut(BaseModel):
     etymology_json: dict | None = None
     memory_hooks_json: dict | None = None
     is_acquiring: bool = False
+    wazn: str | None = None
+    wazn_meaning: str | None = None
 
 
 class WrapUpOut(BaseModel):

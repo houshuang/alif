@@ -535,6 +535,8 @@ def select_next_words(
             "etymology_json": lemma.etymology_json,
             "memory_hooks_json": lemma.memory_hooks_json,
             "word_category": lemma.word_category,
+            "wazn": lemma.wazn,
+            "wazn_meaning": lemma.wazn_meaning,
             "story_title": (story_lemmas[lemma.lemma_id]["title"] if lemma.lemma_id in story_lemmas else None),
             "story_id": (
                 book_pages[lemma.lemma_id]["story_id"] if lemma.lemma_id in book_pages

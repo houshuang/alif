@@ -237,6 +237,29 @@ def get_word(lemma_id: int, db: Session = Depends(get_db)):
             if w["lemma_id"] != lemma.lemma_id
         ]
 
+    pattern_family = []
+    if lemma.wazn:
+        siblings = (
+            db.query(Lemma)
+            .outerjoin(UserLemmaKnowledge)
+            .filter(
+                Lemma.wazn == lemma.wazn,
+                Lemma.lemma_id != lemma.lemma_id,
+                Lemma.canonical_lemma_id.is_(None),
+            )
+            .limit(10)
+            .all()
+        )
+        for sib in siblings:
+            sib_k = sib.knowledge
+            pattern_family.append({
+                "lemma_id": sib.lemma_id,
+                "lemma_ar": sib.lemma_ar,
+                "gloss_en": sib.gloss_en,
+                "pos": sib.pos,
+                "knowledge_state": sib_k.knowledge_state if sib_k else None,
+            })
+
     reviews = (
         db.query(ReviewLog)
         .filter(ReviewLog.lemma_id == lemma_id)
@@ -388,6 +411,9 @@ def get_word(lemma_id: int, db: Session = Depends(get_db)):
         "word_category": lemma.word_category,
         "etymology_json": lemma.etymology_json,
         "memory_hooks_json": lemma.memory_hooks_json,
+        "wazn": lemma.wazn,
+        "wazn_meaning": lemma.wazn_meaning,
+        "pattern_family": pattern_family,
         "acquisition_box": k.acquisition_box if k else None,
     }
 

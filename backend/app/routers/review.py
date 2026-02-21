@@ -198,6 +198,8 @@ def word_lookup(lemma_id: int, db: Session = Depends(get_db)):
         "cefr_level": lemma.cefr_level,
         "memory_hooks_json": lemma.memory_hooks_json,
         "word_category": lemma.word_category,
+        "wazn": lemma.wazn,
+        "wazn_meaning": lemma.wazn_meaning,
         "root_family": [],
     }
 
@@ -372,6 +374,8 @@ def wrap_up_quiz(body: WrapUpIn, db: Session = Depends(get_db)):
             root_meaning=root_obj.core_meaning_en if root_obj else None,
             etymology_json=lemma.etymology_json,
             memory_hooks_json=lemma.memory_hooks_json,
+            wazn=lemma.wazn,
+            wazn_meaning=lemma.wazn_meaning,
             is_acquiring=lemma.lemma_id in acquiring_ids,
         ))
 

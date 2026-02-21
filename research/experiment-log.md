@@ -4,6 +4,36 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-02-21: Morphological Patterns (Wazn) Foundation + Card Redesign
+
+### What Changed
+1. **Structured wazn data on Lemma model**: Added `wazn` (indexed VARCHAR(30)) and `wazn_meaning` (TEXT) columns. Normalized pattern names (fa'il, maf'ul, form_1-form_10, etc.). Alembic migration `x4e5f6g7h890`.
+
+2. **New API endpoints**: `/api/patterns` (list all patterns with coverage stats), `/api/patterns/{wazn}` (words by pattern), `/api/patterns/roots/{root_id}/tree` (root derivation tree grouped by pattern). Pattern family added to word detail endpoint.
+
+3. **Learn card redesign**: Removed quiz phase entirely (was: pick → quiz → done, now: pick → done). Removed example sentence section. Added pattern decomposition display (`fa'il — doer/agent`, `fa'il + ك.ت.ب (writing)`). Made etymology and mnemonic more prominent (styled info boxes instead of small italic text).
+
+4. **WordInfoCard redesign**: Removed RootGateView (was: show root siblings first, require tap to reveal meaning). Now always shows full info immediately. Removed example sentence section. Removed dimmed/unknown root siblings (only known/learning shown). Added pattern decomposition line.
+
+5. **Backfill script**: `scripts/backfill_wazn.py` — Phase 1 extracts from existing etymology_json.pattern (no LLM), Phase 2 uses LLM for remaining root-bearing lemmas.
+
+### Why
+Research shows morphological awareness is the #1 predictor of Arabic reading comprehension. Root+pattern decomposition (e.g., مَكْتَبة = مَفْعَلة place + ك.ت.ب writing) builds vocabulary transfer. The quiz phase in Learn mode added friction without reinforcing the right thing — words get proper acquisition reviews through sentence-first review. The root gate similarly delayed useful information without clear learning benefit.
+
+### Expected Effects
+- Pattern decomposition visible during word introduction and review lookup
+- Foundation for pattern-aware word selection (future: prefer pattern diversity when introducing root siblings)
+- Foundation for pattern explorer screen and pattern-family reviews
+
+### Verification
+- `SELECT wazn, COUNT(*) FROM lemmas WHERE wazn IS NOT NULL GROUP BY wazn` — verify backfill coverage
+- Learn mode: introduce a word, verify no quiz step, verify pattern decomposition shows
+- Review: miss a word, verify no root gate, verify info shows immediately with pattern line
+- Backend: `python3 -m pytest` — 717 tests pass
+- Frontend: `npx tsc --noEmit` — clean
+
+---
+
 ## 2026-02-18: Fix Prefetch Storm Causing Single-Card Sessions
 
 ### Problem

@@ -1,8 +1,8 @@
-import { useRef, useCallback } from "react";
+import { useRef } from "react";
 import { ActivityIndicator, Animated, PanResponder, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { colors, fontFamily } from "../theme";
-import { WordLookupResult, WordForms } from "../types";
+import { WordLookupResult } from "../types";
 import { getFrequencyBand, getCefrColor } from "../frequency";
 import { getGrammarParticleInfo, GrammarParticleInfo } from "../grammar-particles";
 
@@ -13,8 +13,8 @@ interface WordInfoCardProps {
   surfaceForm: string | null;
   markState: FocusWordMark | null;
   result: WordLookupResult | null;
-  showMeaning: boolean;
-  onShowMeaning: () => void;
+  showMeaning?: boolean;
+  onShowMeaning?: () => void;
   reserveSpace?: boolean;
   onNavigateToDetail?: (lemmaId: number) => void;
   onPrev?: () => void;
@@ -65,14 +65,6 @@ export default function WordInfoCard({
   hasPrev = false,
   hasNext = false,
 }: WordInfoCardProps) {
-  const knownSiblings = result?.root_family.filter((s) => {
-    if (s.lemma_id === result.lemma_id) return false;
-    if (s.state !== "known" && s.state !== "learning") return false;
-    if (glossesOverlap(s.gloss_en, result.gloss_en)) return false;
-    return true;
-  }) ?? [];
-
-  const needsReveal = result != null && knownSiblings.length >= 1 && !showMeaning;
   const hasFocus = !!surfaceForm && markState !== null;
   const showNav = hasPrev || hasNext;
 
@@ -151,63 +143,13 @@ export default function WordInfoCard({
         </View>
       ) : particleInfo ? (
         <GrammarParticleView info={particleInfo} />
-      ) : needsReveal ? (
-        <RootGateView
-          siblings={knownSiblings}
-          root={result?.root ?? null}
-          rootMeaning={result?.root_meaning ?? null}
-          transliteration={result?.transliteration ?? null}
-          onReveal={onShowMeaning}
-        />
       ) : (
-        <RevealedView result={result} siblings={knownSiblings} onNavigateToDetail={onNavigateToDetail} />
+        <RevealedView result={result} onNavigateToDetail={onNavigateToDetail} />
       )}
     </Animated.View>
   );
 }
 
-function RootGateView({
-  siblings,
-  root,
-  rootMeaning,
-  transliteration,
-  onReveal,
-}: {
-  siblings: WordLookupResult["root_family"];
-  root: string | null;
-  rootMeaning: string | null;
-  transliteration: string | null;
-  onReveal: () => void;
-}) {
-  return (
-    <View style={styles.gateWrap}>
-      {transliteration && (
-        <Text style={styles.translitText}>{transliteration}</Text>
-      )}
-      {root && (
-        <View style={styles.rootLine}>
-          <Text style={styles.rootLetters}>{root}</Text>
-          {rootMeaning && <Text style={styles.rootMeaning}>{rootMeaning}</Text>}
-        </View>
-      )}
-
-      <Text style={styles.gatePrompt}>You know words from this root:</Text>
-
-      <View style={styles.siblingRow}>
-        {siblings.slice(0, 4).map((s) => (
-          <View key={s.lemma_id} style={styles.siblingPill}>
-            <Text style={styles.siblingAr}>{s.lemma_ar}</Text>
-            <Text style={styles.siblingEn} numberOfLines={1}>{s.gloss_en ?? "?"}</Text>
-          </View>
-        ))}
-      </View>
-
-      <Pressable onPress={onReveal} hitSlop={8} style={styles.revealButton}>
-        <Text style={styles.revealText}>Show meaning</Text>
-      </Pressable>
-    </View>
-  );
-}
 
 function GrammarParticleView({ info }: { info: GrammarParticleInfo }) {
   return (
@@ -232,43 +174,26 @@ function GrammarParticleView({ info }: { info: GrammarParticleInfo }) {
   );
 }
 
-function buildFormsText(forms: WordForms, pos: string | null): string | null {
-  const parts: string[] = [];
-  if (pos === "verb") {
-    if (forms.present) parts.push(forms.present);
-    if (forms.masdar) parts.push(forms.masdar);
-  } else if (pos === "noun") {
-    if (forms.plural) parts.push(`pl. ${forms.plural}`);
-    if (forms.gender) parts.push(forms.gender);
-  } else if (pos === "adj") {
-    if (forms.feminine) parts.push(`f. ${forms.feminine}`);
-    if (forms.plural) parts.push(`pl. ${forms.plural}`);
-    if (forms.elative) parts.push(`elat. ${forms.elative}`);
-  }
-  return parts.length > 0 ? parts.join(" \u00b7 ") : null;
-}
 
 function RevealedView({
   result,
-  siblings,
   onNavigateToDetail,
 }: {
   result: WordLookupResult | null;
-  siblings: WordLookupResult["root_family"];
   onNavigateToDetail?: (lemmaId: number) => void;
 }) {
   if (!result) return null;
 
   const lemmaAr = result.lemma_ar?.trim() || null;
   const posLabel = result.pos ? result.pos.replace(/_/g, " ") : null;
-  const hasExample = !!(result.example_ar && result.example_en);
-  const formsText = result.forms_json ? buildFormsText(result.forms_json, result.pos) : null;
 
-  // All root family members except self, known first
-  const stateOrder: Record<string, number> = { known: 0, learning: 1, new: 2 };
-  const sortedFamily = result.root_family
-    .filter((s) => s.lemma_id !== result.lemma_id)
-    .sort((a, b) => (stateOrder[a.state] ?? 2) - (stateOrder[b.state] ?? 2));
+  // Known/learning siblings only, deduplicate by gloss overlap
+  const knownSiblings = result.root_family.filter((s) => {
+    if (s.lemma_id === result.lemma_id) return false;
+    if (s.state !== "known" && s.state !== "learning") return false;
+    if (glossesOverlap(s.gloss_en, result.gloss_en)) return false;
+    return true;
+  });
 
   return (
     <View style={styles.revealedWrap}>
@@ -307,28 +232,36 @@ function RevealedView({
         )}
       </View>
 
-      {/* Root info */}
-      {result.root && (
+      {/* Pattern decomposition */}
+      {result.wazn && (
+        <View style={styles.patternLine}>
+          <Text style={styles.patternText}>
+            {result.wazn}
+            {result.wazn_meaning ? ` — ${result.wazn_meaning}` : ""}
+          </Text>
+          {result.root && (
+            <Text style={styles.patternDecomp}>
+              {result.wazn} + {result.root}
+              {result.root_meaning ? ` (${result.root_meaning})` : ""}
+            </Text>
+          )}
+        </View>
+      )}
+
+      {/* Root info (when no pattern already shows it) */}
+      {!result.wazn && result.root && (
         <View style={styles.rootLine}>
           <Text style={styles.rootLetters}>{result.root}</Text>
           {result.root_meaning && <Text style={styles.rootMeaning}>{result.root_meaning}</Text>}
         </View>
       )}
 
-      {/* Root family — all siblings, styled by state */}
-      {sortedFamily.length > 0 && (
+      {/* Known root siblings */}
+      {knownSiblings.length > 0 && (
         <View style={styles.siblingRow}>
-          {sortedFamily.slice(0, 5).map((s) => (
-            <View
-              key={s.lemma_id}
-              style={[
-                styles.siblingPill,
-                s.state === "new" && styles.siblingPillNew,
-              ]}
-            >
-              <Text style={[styles.siblingAr, s.state === "new" && styles.siblingArDim]}>
-                {s.lemma_ar}
-              </Text>
+          {knownSiblings.slice(0, 5).map((s) => (
+            <View key={s.lemma_id} style={styles.siblingPill}>
+              <Text style={styles.siblingAr}>{s.lemma_ar}</Text>
               <Text style={styles.siblingEn} numberOfLines={1}>{s.gloss_en ?? "?"}</Text>
             </View>
           ))}
@@ -342,14 +275,6 @@ function RevealedView({
           <Text style={styles.mnemonicSmall} numberOfLines={2}>
             {result.memory_hooks_json.mnemonic}
           </Text>
-        </View>
-      )}
-
-      {/* Example sentence */}
-      {hasExample && (
-        <View style={styles.exampleWrap}>
-          <Text style={styles.exampleAr}>{result.example_ar}</Text>
-          <Text style={styles.exampleEn}>{result.example_en}</Text>
         </View>
       )}
 
@@ -503,12 +428,6 @@ const styles = StyleSheet.create({
     lineHeight: 16,
   },
 
-  /* Forms */
-  formsText: {
-    color: colors.textSecondary,
-    fontSize: 12,
-  },
-
   /* Root */
   rootLine: {
     flexDirection: "row",
@@ -544,12 +463,6 @@ const styles = StyleSheet.create({
     gap: 5,
     maxWidth: "48%",
   },
-  siblingPillNew: {
-    opacity: 0.45,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderStyle: "dashed",
-  },
   siblingAr: {
     fontSize: 16,
     fontFamily: fontFamily.arabic,
@@ -557,52 +470,26 @@ const styles = StyleSheet.create({
     writingDirection: "rtl",
     lineHeight: 22,
   },
-  siblingArDim: {
-    color: colors.textSecondary,
-  },
   siblingEn: {
     fontSize: 10,
     color: colors.textSecondary,
     flexShrink: 1,
   },
 
-  /* Example sentence */
-  exampleWrap: {
-    paddingTop: 4,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: colors.border,
-    gap: 1,
+  /* Pattern decomposition */
+  patternLine: {
+    gap: 2,
   },
-  exampleAr: {
-    color: colors.arabic,
-    fontFamily: fontFamily.arabic,
-    fontSize: 16,
-    writingDirection: "rtl",
-    lineHeight: 24,
-    opacity: 0.85,
-  },
-  exampleEn: {
-    color: colors.textSecondary,
-    fontSize: 11,
-    lineHeight: 15,
-  },
-
-  /* Root gate (prediction mode) */
-  gateWrap: {
-    gap: 6,
-    alignItems: "flex-start",
-  },
-  gatePrompt: {
-    color: colors.textSecondary,
-    fontSize: 13,
-  },
-  revealButton: {
-    alignSelf: "flex-start",
-  },
-  revealText: {
+  patternText: {
     color: colors.accent,
     fontSize: 13,
     fontWeight: "600",
+  },
+  patternDecomp: {
+    color: colors.textSecondary,
+    fontSize: 12,
+    fontFamily: fontFamily.arabic,
+    writingDirection: "rtl",
   },
 
   /* Back/forward nav arrows */
