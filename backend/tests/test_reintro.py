@@ -190,15 +190,17 @@ class TestContextDiversity:
         """When two sentences cover the same due word, prefer the less-shown one."""
         _seed_word(db_session, 1, "كتاب", "book",
                    stability=0.1, due_hours=-1, times_seen=5, times_correct=3)
+        _seed_word(db_session, 2, "كبير", "big", due_hours=24)
+        _seed_word(db_session, 3, "جديد", "new", due_hours=24)
 
         # Sentence shown many times
         _seed_sentence(db_session, 1, "هذا كتاب كبير", "this is a big book", 1,
-                       [("هذا", None), ("كتاب", 1), ("كبير", None)],
+                       [("هذا", None), ("كتاب", 1), ("كبير", 2)],
                        times_shown=10)
 
         # Sentence never shown
         _seed_sentence(db_session, 2, "كتاب جديد", "a new book", 1,
-                       [("كتاب", 1), ("جديد", None)],
+                       [("كتاب", 1), ("جديد", 3)],
                        times_shown=0)
 
         db_session.commit()
@@ -213,9 +215,10 @@ class TestContextDiversity:
         """A highly-shown sentence should still be selected if it's the only option."""
         _seed_word(db_session, 1, "كتاب", "book",
                    stability=0.1, due_hours=-1, times_seen=5, times_correct=3)
+        _seed_word(db_session, 2, "هذا", "this", due_hours=24)
 
         _seed_sentence(db_session, 1, "هذا كتاب", "this is a book", 1,
-                       [("هذا", None), ("كتاب", 1)],
+                       [("هذا", 2), ("كتاب", 1)],
                        times_shown=50)
 
         db_session.commit()

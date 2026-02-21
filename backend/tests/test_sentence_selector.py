@@ -198,9 +198,10 @@ class TestGreedySetCover:
     def test_single_sentence_covers_word(self, db_session):
         _seed_word(db_session, 1, "كتاب", "book", due_hours=-1)
         _seed_word(db_session, 2, "ولد", "boy", due_hours=24)
+        _seed_word(db_session, 3, "قرأ", "read", due_hours=24)
         _seed_sentence(db_session, 1, "الولد قرأ الكتاب", "The boy read the book",
                        target_lemma_id=1,
-                       word_surfaces_and_ids=[("الولد", 2), ("قرأ", None), ("الكتاب", 1)])
+                       word_surfaces_and_ids=[("الولد", 2), ("قرأ", 3), ("الكتاب", 1)])
         db_session.commit()
 
         result = build_session(db_session, limit=10)
@@ -374,7 +375,7 @@ class TestAutoIntroduction:
 
 class TestComprehensibilityGate:
     def test_skips_incomprehensible_sentences(self, db_session):
-        """Sentences with <70% known content words should be skipped."""
+        """Sentences with <60% known content words should be skipped."""
         # Due word
         _seed_word(db_session, 1, "كتاب", "book", due_hours=-1)
         # Unknown words (no ULK records — they'll have knowledge_state="new")
@@ -402,7 +403,7 @@ class TestComprehensibilityGate:
         assert len(sentence_items) == 0
 
     def test_keeps_comprehensible_sentences(self, db_session):
-        """Sentences with >=70% known content words should be kept."""
+        """Sentences with >=60% known content words should be kept."""
         # 3 known words
         for i in range(1, 4):
             _seed_word(db_session, i, f"known{i}", f"meaning{i}",

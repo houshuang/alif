@@ -10,9 +10,8 @@ from datetime import datetime, timedelta, timezone
 from dataclasses import dataclass, field
 from typing import Optional
 
-from sqlalchemy.orm import Session
-
-from sqlalchemy.orm import joinedload
+from sqlalchemy.exc import OperationalError
+from sqlalchemy.orm import Session, joinedload
 
 from app.services.fsrs_service import parse_json_column
 
@@ -530,6 +529,7 @@ def build_session(
 
     # Backfill missing lemma IDs in older sentence rows, including
     # function words that now have lemma entries.
+    # Uses SAVEPOINT so a DB lock doesn't crash the whole session build.
     words_missing_lemma = [sw for sw in all_sw if sw.lemma_id is None]
     if words_missing_lemma:
         lookup_lemmas = db.query(Lemma).all()
@@ -541,7 +541,14 @@ def build_session(
                 sw.lemma_id = lemma_id
                 backfilled += 1
         if backfilled > 0:
-            db.flush()
+            import logging
+            _log = logging.getLogger(__name__)
+            try:
+                with db.begin_nested():
+                    db.flush()
+                _log.info(f"Backfilled {backfilled} lemma IDs")
+            except OperationalError:
+                _log.warning(f"DB lock during lemma backfill, deferring ({backfilled} words)")
 
     sw_by_sentence: dict[int, list[SentenceWord]] = {}
     for sw in all_sw:
@@ -659,18 +666,16 @@ def build_session(
         if not due_covered:
             continue
 
-        # Comprehensibility gate: skip sentences where <60% of scaffold words are known
-        # Only checks non-due words (target words are expected to be challenging).
-        # "encountered" counts as passive vocabulary — learner has seen the word.
-        # "acquiring" only counts if past box 1 (stability >= 0.5 = reviewed at least once);
-        # prevents book sentences where all words were imported simultaneously from appearing
-        # before the learner has reviewed most of the vocabulary.
-        scaffold = [w for w in word_metas if not w.is_function_word and w.lemma_id and not w.is_due]
+        # Comprehensibility gate: skip sentences where <60% of scaffold words are known.
+        # Scaffold = non-function, non-due words (including unmapped words with lemma_id=None).
+        # "encountered" does NOT count — these are passively imported words the learner
+        # hasn't studied. "acquiring" only counts if past box 1 (stability >= 0.5).
+        scaffold = [w for w in word_metas if not w.is_function_word and not w.is_due]
         total_scaffold = len(scaffold)
         known_scaffold = sum(
             1 for w in scaffold
             if (
-                w.knowledge_state in ("known", "learning", "lapsed", "encountered")
+                w.knowledge_state in ("known", "learning", "lapsed")
                 or (w.knowledge_state == "acquiring" and (w.stability or 0) >= 0.5)
             )
         )
@@ -1000,7 +1005,7 @@ def _generate_on_demand(
     # Active words (prompt for GPT): known/learning/lapsed/acquiring
     # Encountered words: included in validator so GPT isn't rejected for using them,
     # but NOT in the GPT prompt (avoids overwhelming the learner).
-    # The comprehensibility gate (≥70% known content) already limits difficulty.
+    # The comprehensibility gate (≥60% known content) already limits difficulty.
     all_ulks = (
         db.query(UserLemmaKnowledge)
         .filter(UserLemmaKnowledge.knowledge_state.in_(

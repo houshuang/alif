@@ -264,7 +264,7 @@ pipeline (Leitner 3-box) rather than getting FSRS cards directly. The 4-hour del
 │ • No acquisition box                                             │
 │ • total_encounters may be incremented                            │
 │ • Contributes to story readiness calculations                    │
-│ • Counts as "passive vocab" for comprehensibility gate           │
+│ • Does NOT count as known for comprehensibility gate             │
 │ • Appears in Learn mode candidates with encountered_bonus=0.5    │
 │ • Appears in auto-intro pool (highest frequency first)           │
 │                                                                  │
@@ -272,11 +272,11 @@ pipeline (Leitner 3-box) rather than getting FSRS cards directly. The 4-hour del
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-**Key detail**: Encountered words count as "passive vocabulary" for the
-comprehensibility gate in sentence selection. A sentence containing an encountered
-word won't have that word counted against the 70% known-word threshold. This prevents
-the chicken-and-egg problem where no sentences are comprehensible because too many
-words are "unknown."
+**Key detail**: Encountered words do **not** count as known for the comprehensibility
+gate. They are passively imported words the learner hasn't studied yet. This means
+sentences with many encountered words will be filtered out until the learner has
+actually studied enough of the vocabulary. On-demand sentence generation handles
+the bootstrap case by creating sentences using only active vocabulary.
 
 ---
 
@@ -733,11 +733,14 @@ check how many are in a "known" state:
 ```
 scaffold = [w for w in content_words if not w.is_due and not w.is_function_word]
 known = count where:
-  - state in (known, learning, lapsed, encountered), OR
+  - state in (known, learning, lapsed), OR
   - state == acquiring AND stability >= 0.5 (i.e. past box 1)
 comprehensibility = known / len(scaffold)
 if comprehensibility < 0.60: SKIP this sentence
 ```
+
+Words with `lemma_id=None` (unmapped) are included in the scaffold as unknown — they
+count against the threshold rather than being silently excluded.
 
 Key design choices:
 - **Scaffold-only**: Due words (being reviewed this session) are excluded from the check —
@@ -745,8 +748,8 @@ Key design choices:
 - **Box-1 acquiring excluded**: Words freshly introduced (box 1, stability 0.1) don't
   count as "known". This prevents book-imported sentences from appearing when all their
   words were batch-imported simultaneously and haven't been reviewed yet.
-- **Encountered counts as passive vocab** — they're not "learned" but the user has seen
-  them and has some recognition.
+- **Encountered does NOT count**: Passively imported words (OCR, book, story) that haven't
+  been studied are treated as unknown. On-demand generation handles bootstrap.
 - **60% threshold** (lowered from 70%) — the scaffold-only denominator is smaller, so 60%
   provides equivalent filtering without over-rejecting short sentences.
 

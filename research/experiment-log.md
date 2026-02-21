@@ -4,6 +4,25 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-02-21: Comprehensibility Gate Tightening + DB Lock Resilience
+
+### What Changed
+1. **Encountered words no longer count as known scaffold**: Previously, OCR/book-imported words that were never studied counted as "passive vocabulary" in the comprehensibility gate. This let through sentences full of words the learner had never studied. Now only actively studied words (known/learning/lapsed, or acquiring past box 1) count.
+
+2. **Unmapped words count as unknown**: Words with `lemma_id=None` were silently excluded from the scaffold calculation, inflating the comprehensibility score. Now they're included as unknown scaffold — a sentence with 5 unmapped words and 2 known words correctly scores 2/7=29% instead of 2/2=100%.
+
+3. **DB lock resilience**: The lemma_id backfill `db.flush()` during session building now uses a SAVEPOINT. If a concurrent cron task holds the write lock, only the backfill is skipped — the session still loads instead of returning a 500 error.
+
+### Why
+User was served "وأسنان مدببة تلمع، ومخالب حادة تخدش، وأفواه ضخمة تزمجر" — a sentence with ~8 unknown words. Also hit a `database is locked` 500 error during session loading.
+
+### Expected Impact
+- Significantly fewer incomprehensible sentences in review sessions
+- More on-demand generation (since fewer pre-generated sentences will pass the tighter gate)
+- No more session-loading 500 errors from DB lock contention
+
+---
+
 ## 2026-02-21: Morphological Patterns (Wazn) Foundation + Card Redesign
 
 ### What Changed
