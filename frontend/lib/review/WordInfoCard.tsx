@@ -51,6 +51,45 @@ function glossesOverlap(a: string | null | undefined, b: string | null | undefin
   return false;
 }
 
+const DIACRITICS_RE = /[\u0610-\u061A\u064B-\u065F\u0670\u06D6-\u06DC\u06DF-\u06E4\u06E7-\u06E8\u06EA-\u06ED]/g;
+function stripArabicDiacritics(text: string): string {
+  return text.replace(DIACRITICS_RE, "");
+}
+function bareForm(text: string): string {
+  let s = stripArabicDiacritics(text).replace(/\u0640/g, ""); // strip tatweel
+  if (s.startsWith("\u0627\u0644")) s = s.slice(2); // strip al-prefix
+  return s;
+}
+
+const FORM_LABELS: Record<string, string> = {
+  plural: "plural",
+  feminine: "fem.",
+  elative: "comparative",
+  present: "present",
+  masdar: "verbal noun",
+  active_participle: "active part.",
+  passive_participle: "passive part.",
+  imperative: "imperative",
+  past_3fs: "past fem.",
+  past_3p: "past pl.",
+};
+
+function getFormLabel(
+  surfaceForm: string | null,
+  lemmaAr: string | null,
+  forms: import("../types").WordForms | null,
+): string | null {
+  if (!surfaceForm || !lemmaAr || !forms) return null;
+  const surfBare = bareForm(surfaceForm);
+  const lemmaBare = bareForm(lemmaAr);
+  if (surfBare === lemmaBare) return null; // same as lemma, no label needed
+  for (const [key, value] of Object.entries(forms)) {
+    if (!value || typeof value !== "string") continue;
+    if (bareForm(value) === surfBare) return FORM_LABELS[key] ?? key;
+  }
+  return null;
+}
+
 export default function WordInfoCard({
   loading,
   surfaceForm,
@@ -144,7 +183,7 @@ export default function WordInfoCard({
       ) : particleInfo ? (
         <GrammarParticleView info={particleInfo} />
       ) : (
-        <RevealedView result={result} onNavigateToDetail={onNavigateToDetail} />
+        <RevealedView result={result} surfaceForm={surfaceForm} onNavigateToDetail={onNavigateToDetail} />
       )}
     </Animated.View>
   );
@@ -177,15 +216,18 @@ function GrammarParticleView({ info }: { info: GrammarParticleInfo }) {
 
 function RevealedView({
   result,
+  surfaceForm,
   onNavigateToDetail,
 }: {
   result: WordLookupResult | null;
+  surfaceForm?: string | null;
   onNavigateToDetail?: (lemmaId: number) => void;
 }) {
   if (!result) return null;
 
   const lemmaAr = result.lemma_ar?.trim() || null;
   const posLabel = result.pos ? result.pos.replace(/_/g, " ") : null;
+  const formLabel = getFormLabel(surfaceForm ?? null, lemmaAr, result.forms_json ?? null);
 
   // Known/learning siblings only, deduplicate by gloss overlap
   const knownSiblings = result.root_family.filter((s) => {
@@ -211,6 +253,11 @@ function RevealedView({
         {posLabel && (
           <View style={styles.posPill}>
             <Text style={styles.posText}>{posLabel}</Text>
+          </View>
+        )}
+        {formLabel && (
+          <View style={styles.formPill}>
+            <Text style={styles.formPillText}>{formLabel}</Text>
           </View>
         )}
         {result.word_category && (
@@ -362,6 +409,17 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: "600",
     textTransform: "lowercase",
+  },
+  formPill: {
+    backgroundColor: "rgba(243, 156, 18, 0.15)",
+    borderRadius: 6,
+    paddingHorizontal: 5,
+    paddingVertical: 1,
+  },
+  formPillText: {
+    color: "#e5a117",
+    fontSize: 10,
+    fontWeight: "600",
   },
   /* Grammar particle info */
   particleHeader: {
