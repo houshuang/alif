@@ -90,9 +90,30 @@ Create reusable Claude Code skills (`.claude/skills/`) for common operations.
 ### 5. Experiment Tracking — Document Everything
 - `docs/scheduling-system.md`: Update on ANY scheduling change
 - `research/experiment-log.md`: Add entry BEFORE algorithm changes
+- `research/experiment-log.md` is **append-only** — NEVER delete existing entries. New entries go at the top (after the header).
+- `research/research-hub.html`: Update when adding new research documents (add doc-row entry in appropriate category section)
+- `research/README.md`: Update when adding new research documents
 - `research/analysis-YYYY-MM-DD.md`: Save analysis findings
 
-### 6. Code Style
+### 6. Git Diff Discipline — Prevent Silent Reverts
+**CRITICAL**: Before every commit, run `git diff --stat HEAD` and review what changed. Watch for:
+- **Append-only files shrinking** (`experiment-log.md`, `IDEAS.md`) — this means entries were deleted. NEVER acceptable.
+- **Large service files with net deletions** — if `sentence_selector.py` or similar core files show significant line removals, verify those removals are intentional, not regressions.
+- **Schema files losing fields** — if `schemas.py` or `types.ts` show removed fields, verify the backend doesn't still compute them.
+- **When replacing/rewriting a file**, always diff the old version against the new one to check nothing was lost: `git diff HEAD -- path/to/file`
+- **Bundled commits are dangerous** — if a commit touches >5 files across different features, split it or review each file's diff individually.
+
+### 7. Branch Workflow for Non-Trivial Changes
+For changes that touch core algorithm files (`sentence_selector.py`, `session_builder`, `fsrs_service.py`, `acquisition_service.py`) or modify >3 files:
+1. Create a branch: `git checkout -b sh/<feature-name>`
+2. Make changes and commit on the branch
+3. Create a PR: `gh pr create --title "..." --body "..."`
+4. Let the user review before merging
+5. Only merge after user approval
+
+Direct commits to `main` are OK for: documentation-only changes, single-file bug fixes, test additions, and changes the user explicitly asked to deploy immediately.
+
+### 8. Code Style
 - Python: type hints, pydantic models for API schemas
 - TypeScript: strict mode, functional components
 - No test plans or checklists in PR descriptions

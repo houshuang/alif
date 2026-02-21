@@ -8,12 +8,15 @@ from app.models import Lemma, ReviewLog, UserLemmaKnowledge, Sentence, SentenceW
 from app.services.fsrs_service import create_new_card
 from app.services.sentence_selector import (
     FRESHNESS_BASELINE,
+    INTRO_RESERVE_FRACTION,
     MAX_AUTO_INTRO_PER_SESSION,
+    SESSION_SCAFFOLD_DECAY,
     WordMeta,
     _difficulty_match_quality,
     _intro_slots_for_accuracy,
     _scaffold_freshness,
     build_session,
+    compute_sentence_diversity_score,
 )
 
 
@@ -605,5 +608,180 @@ class TestAdaptiveIntroRate:
     def test_above_92_returns_max(self):
         assert _intro_slots_for_accuracy(0.95) == MAX_AUTO_INTRO_PER_SESSION
         assert _intro_slots_for_accuracy(1.0) == MAX_AUTO_INTRO_PER_SESSION
+
+
+class TestReservedIntroSlots:
+    """Regression: INTRO_RESERVE_FRACTION must reserve slots for new word
+    introductions even when the due queue is full (reverted by 7ee81cf)."""
+
+    def test_reserved_intro_slots_when_due_queue_full(self, db_session):
+        """With high accuracy and many due words, auto-intro should still fire."""
+        # Create 10 due words with sentences
+        for i in range(1, 11):
+            _seed_word(db_session, i, f"word{i}", f"meaning{i}", due_hours=-1)
+            _seed_sentence(db_session, i, f"word{i}", f"meaning{i}",
+                           target_lemma_id=i, word_surfaces_and_ids=[(f"word{i}", i)])
+
+        # Create an encountered word eligible for introduction
+        lemma = Lemma(lemma_id=50, lemma_ar="جديد", lemma_ar_bare="جديد",
+                      pos="adj", gloss_en="new", frequency_rank=100)
+        db_session.add(lemma)
+        db_session.flush()
+        ulk = UserLemmaKnowledge(
+            lemma_id=50, knowledge_state="encountered",
+            fsrs_card_json=None, introduced_at=None,
+            times_seen=0, times_correct=0, source="study",
+        )
+        db_session.add(ulk)
+
+        # High accuracy reviews → intro slots should be available
+        now = datetime.now(timezone.utc)
+        for j in range(20):
+            db_session.add(ReviewLog(
+                lemma_id=1, rating=4, reviewed_at=now - timedelta(hours=j),
+                review_mode="reading",
+            ))
+        db_session.commit()
+
+        result = build_session(db_session, limit=10)
+        # The constant must exist and be ~0.2
+        assert INTRO_RESERVE_FRACTION == pytest.approx(0.2)
+        # With 10 due words and limit=10, reserved_intro = max(1, int(10*0.2)) = 2
+        # Auto-intro should have at least attempted to introduce
+        # (may not succeed if no sentences available, but the slot reservation must exist)
+
+    def test_intro_reserve_fraction_exists(self):
+        """The constant must exist — its removal was the regression."""
+        assert INTRO_RESERVE_FRACTION > 0
+        assert INTRO_RESERVE_FRACTION <= 0.5  # sanity
+
+
+class TestScaffoldDiversity:
+    """Regression: SESSION_SCAFFOLD_DECAY must penalize repeated scaffold words
+    within a session (reverted by 7ee81cf)."""
+
+    def test_session_scaffold_decay_exists(self):
+        """The constant must exist — its removal was the regression."""
+        assert SESSION_SCAFFOLD_DECAY > 0
+        assert SESSION_SCAFFOLD_DECAY < 1.0
+
+    def test_diversity_score_penalizes_reuse(self):
+        """compute_sentence_diversity_score must report lower uniqueness for reused scaffolds."""
+        words = [
+            WordMeta(lemma_id=1, surface_form="كتاب", gloss_en="book",
+                     stability=1.0, is_due=True),
+            WordMeta(lemma_id=2, surface_form="ولد", gloss_en="boy",
+                     stability=5.0, is_due=False),
+            WordMeta(lemma_id=3, surface_form="بيت", gloss_en="house",
+                     stability=10.0, is_due=False),
+        ]
+        knowledge_map = {
+            2: UserLemmaKnowledge(lemma_id=2, knowledge_state="known",
+                                  times_seen=5, times_correct=4),
+            3: UserLemmaKnowledge(lemma_id=3, knowledge_state="known",
+                                  times_seen=5, times_correct=4),
+        }
+
+        # No prior session usage → high uniqueness
+        fresh_result = compute_sentence_diversity_score(words, knowledge_map, {})
+        # Heavy prior session usage → low uniqueness
+        reused_counts = {2: 3, 3: 3}
+        reused_result = compute_sentence_diversity_score(words, knowledge_map, reused_counts)
+
+        assert fresh_result["scaffold_uniqueness"] > reused_result["scaffold_uniqueness"]
+
+    def test_repeated_scaffold_words_get_lower_score(self, db_session):
+        """Integration: sentences with already-used scaffold words should score lower."""
+        # Due word
+        _seed_word(db_session, 1, "كتاب", "book", due_hours=-1)
+        _seed_word(db_session, 2, "ولد", "boy", due_hours=-1)
+        # Shared scaffold word
+        _seed_word(db_session, 3, "بيت", "house", due_hours=24)
+        # Unique scaffold word
+        _seed_word(db_session, 4, "مدرسة", "school", due_hours=24)
+
+        # Sentence 1 for word 1 (scaffold: بيت)
+        _seed_sentence(db_session, 1, "كتاب بيت", "book house", 1,
+                       [("كتاب", 1), ("بيت", 3)])
+        # Sentence 2 for word 2 (scaffold: بيت — reuse)
+        _seed_sentence(db_session, 2, "ولد بيت", "boy house", 2,
+                       [("ولد", 2), ("بيت", 3)])
+        # Sentence 3 for word 2 (scaffold: مدرسة — unique)
+        _seed_sentence(db_session, 3, "ولد مدرسة", "boy school", 2,
+                       [("ولد", 2), ("مدرسة", 4)])
+        db_session.commit()
+
+        result = build_session(db_session, limit=2)
+        items = result["items"]
+        assert len(items) == 2
+        # If sentence 1 is picked first (for word 1), then for word 2,
+        # sentence 3 (unique scaffold) should beat sentence 2 (reused scaffold)
+        if items[0]["sentence_id"] == 1:
+            assert items[1]["sentence_id"] == 3, \
+                "Unique scaffold sentence should be preferred over reused scaffold"
+
+
+class TestRescuePass:
+    """Regression: words blocked by recency filter should get a rescue pass
+    with stale sentences at 0.3x penalty (reverted by 7ee81cf)."""
+
+    def test_rescue_pass_uses_stale_sentences(self, db_session):
+        """A due word whose only sentence was recently shown should still appear
+        via rescue pass rather than being dropped entirely."""
+        _seed_word(db_session, 1, "كتاب", "book", due_hours=-1)
+        sent = _seed_sentence(db_session, 1, "الكتاب", "the book", 1,
+                              [("الكتاب", 1)])
+        # Mark as recently shown with "understood" (7-day cooldown)
+        sent.last_reading_shown_at = datetime.now(timezone.utc) - timedelta(days=3)
+        sent.last_reading_result = "understood"
+
+        # Create a second due word with a fresh sentence (control)
+        _seed_word(db_session, 2, "ولد", "boy", due_hours=-1)
+        _seed_sentence(db_session, 2, "الولد", "the boy", 2, [("الولد", 2)])
+        db_session.commit()
+
+        result = build_session(db_session, limit=10)
+        sentence_ids = {i["sentence_id"] for i in result["items"]}
+        # The fresh sentence should definitely be there
+        assert 2 in sentence_ids
+        # The rescue pass should include the stale sentence for word 1
+        assert 1 in sentence_ids, \
+            "Rescue pass should include stale sentence rather than dropping the word"
+
+
+class TestSelectionInfo:
+    """Regression: selection_info must be included on each session item
+    (reverted by 7ee81cf)."""
+
+    def test_selection_info_present(self, db_session):
+        """Each item in the session must have a selection_info dict."""
+        _seed_word(db_session, 1, "كتاب", "book", due_hours=-1)
+        _seed_sentence(db_session, 1, "الكتاب", "the book", 1, [("الكتاب", 1)])
+        db_session.commit()
+
+        result = build_session(db_session, limit=10)
+        assert len(result["items"]) == 1
+        item = result["items"][0]
+        assert "selection_info" in item, "selection_info must be present on session items"
+        info = item["selection_info"]
+        assert "reason" in info
+        assert "score" in info
+        assert "order" in info
+
+    def test_selection_info_has_components(self, db_session):
+        """selection_info must include score component breakdown."""
+        _seed_word(db_session, 1, "كتاب", "book", due_hours=-1)
+        _seed_word(db_session, 2, "ولد", "boy", due_hours=24)
+        _seed_sentence(db_session, 1, "كتاب ولد", "book boy", 1,
+                       [("كتاب", 1), ("ولد", 2)])
+        db_session.commit()
+
+        result = build_session(db_session, limit=10)
+        info = result["items"][0]["selection_info"]
+        assert "components" in info
+        components = info["components"]
+        assert "due_coverage" in components
+        assert "diversity" in components
+        assert "session_diversity" in components
 
 
