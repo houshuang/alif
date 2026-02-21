@@ -26,17 +26,22 @@ from app.services.activity_log import log_activity
 
 # Normalized wazn values — map common variants to canonical forms
 WAZN_NORMALIZE = {
-    # Active participle
+    # Active participle (fa'il / fā'il)
     "fa'il": "fa'il",
     "faa'il": "fa'il",
     "fā'il": "fa'il",
+    "al-fā'il": "fa'il",
+    "fā'ila": "fa'ila",
+    "fa'ila": "fa'ila",
     # Passive participle
     "maf'ul": "maf'ul",
     "maf'ūl": "maf'ul",
     "maf'uul": "maf'ul",
+    "maf'ūla": "maf'ul",
     # Place/time noun
     "maf'al": "maf'al",
     "maf'ala": "maf'ala",
+    "maf'il": "maf'il",
     # Instrument noun
     "mif'al": "mif'al",
     "mif'ala": "mif'ala",
@@ -44,69 +49,132 @@ WAZN_NORMALIZE = {
     # Verbal noun patterns
     "fi'ala": "fi'ala",
     "fi'āla": "fi'ala",
+    "fi'al": "fi'al",
+    "fi'āl": "fi'al",
+    "fi'la": "fi'la",
     "fu'ul": "fu'ul",
     "fu'ūl": "fu'ul",
     "fa'l": "fa'l",
     "fi'l": "fi'l",
     "fu'l": "fu'l",
     "fa'al": "fa'al",
+    "fa'la": "fa'la",
     "fa'ala": "fa'ala",
+    "fa'ula": "fa'ula",
+    "fu'la": "fu'la",
+    "fu'al": "fu'al",
+    "fu'āl": "fu'al",
     "taf'il": "taf'il",
     "taf'īl": "taf'il",
+    "tafa''ul": "tafa''ul",
+    "taf'alu": "taf'il",
     # Intensive/profession
     "fa''al": "fa''al",
+    "fa''āl": "fa''al",
     "fa'il": "fa'il",
     "fa'iil": "fa'iil",
     "fa'īl": "fa'iil",
+    "fa'īla": "fa'iil",
+    "fa'āl": "fa'al",
+    # Adjective/state patterns
+    "fa'lān": "fa'lan",
+    "fa'lan": "fa'lan",
+    "fa'lī": "nisba",
+    "fa'alī": "nisba",
+    "fi'lī": "nisba",
+    "fu'lī": "nisba",
     # Broken plurals
     "af'al": "af'al",
+    "af'āl": "af'al",
     "af'ila": "af'ila",
     "fu'ala": "fu'ala",
+    "fu'alā'": "fu'ala'",
     "fu'alaa'": "fu'ala'",
-    "fi'al": "fi'al",
-    # Verb forms
+    "fu'ūla": "fu'ul",
+    # Verb form I
     "fa'ala": "form_1",
     "if'al": "form_1",
+    "fa'alla": "form_1",
+    # Verb form II
     "fa''ala": "form_2",
-    "taf'il": "taf'il",
+    "mufa''al": "mufa''al",
+    "mufa''il": "mufa''il",
+    # Verb form III
     "faa'ala": "form_3",
+    "fā'ala": "form_3",
     "fa'ala (form III)": "form_3",
+    "mufā'il": "mufa'il",
     "mufaa'ala": "mufaa'ala",
+    "mufā'ala": "mufaa'ala",
+    # Verb form IV
     "af'ala": "form_4",
-    "if'aal": "if'aal",
+    "if'āl": "if'al",
+    "if'aal": "if'al",
+    "muf'il": "muf'il",
+    # Verb form V
     "tafa''ala": "form_5",
     "tafa'ala": "form_5",
+    # Verb form VI
     "tafaa'ala": "form_6",
+    "tafā'ala": "form_6",
+    # Verb form VII
     "infa'ala": "form_7",
+    # Verb form VIII
     "ifta'ala": "form_8",
+    "iftaa'ala": "form_8",
+    "mufta'il": "mufta'il",
+    "ifti'āl": "ifti'al",
+    # Verb form IX
     "if'alla": "form_9",
+    # Verb form X
     "istaf'ala": "form_10",
+    "istif'āl": "istif'al",
     # Nisba/relational
     "fa'li": "nisba",
     "fa'liyy": "nisba",
     # Diminutive
     "fu'ayl": "fu'ayl",
+    "fu'ayla": "fu'ayl",
     # Elative
     "af'al (elative)": "af'al",
+    # Other common patterns
+    "fa'āla": "fa'ala",
+    "fā'ūl": "fa'ul",
+    "fa'ūl": "fa'ul",
+    "fu''āl": "fu''al",
+    "fu'lān": "fu'lan",
+    "fa'": "fa'",
+    "fu'": "fu'",
 }
 
 # Wazn meanings for common patterns
 WAZN_MEANINGS = {
     "fa'il": "doer/agent (active participle)",
+    "fa'ila": "feminine active participle",
     "maf'ul": "object/patient (passive participle)",
     "maf'al": "place/time of action",
     "maf'ala": "place of action",
+    "maf'il": "place/time of action",
     "mif'al": "instrument/tool",
     "mif'ala": "instrument/tool",
     "fa'iil": "intensive adjective",
     "fu'ul": "verbal noun (plural-like)",
     "fi'ala": "verbal noun (profession/craft)",
+    "fi'al": "verbal noun / broken plural",
+    "fi'la": "manner/single instance",
     "fa'l": "verbal noun (action)",
     "fi'l": "verbal noun",
     "fu'l": "verbal noun",
-    "fa'al": "verbal noun",
+    "fa'al": "verbal noun / state",
+    "fa'la": "single instance of action",
+    "fa'ula": "quality/state verb pattern",
+    "fu'la": "small unit / single instance",
+    "fu'al": "broken plural",
     "taf'il": "verbal noun of form II (causative/intensive)",
+    "tafa''ul": "verbal noun of form V",
     "fa''al": "intensive/habitual doer",
+    "fa'al": "quality/characteristic",
+    "fa'lan": "state/condition adjective",
     "af'al": "elative/comparative",
     "fu'ala'": "broken plural",
     "fu'ayl": "diminutive",
@@ -121,8 +189,20 @@ WAZN_MEANINGS = {
     "form_8": "reflexive (form VIII)",
     "form_9": "colors/defects (form IX)",
     "form_10": "requestive/estimative (form X)",
-    "if'aal": "verbal noun of form IV",
+    "mufa''al": "passive participle of form II",
+    "mufa''il": "active participle of form II",
+    "mufa'il": "active participle of form III",
+    "muf'il": "active participle of form IV",
+    "mufta'il": "active participle of form VIII",
     "mufaa'ala": "verbal noun of form III",
+    "if'al": "verbal noun of form IV",
+    "ifti'al": "verbal noun of form VIII",
+    "istif'al": "verbal noun of form X",
+    "fa'ul": "quality adjective",
+    "fu''al": "intensive plural",
+    "fu'lan": "adjective of fullness",
+    "fa'": "root noun",
+    "fu'": "root noun",
 }
 
 
