@@ -103,13 +103,18 @@ Create reusable Claude Code skills (`.claude/skills/`) for common operations.
 - **When replacing/rewriting a file**, always diff the old version against the new one to check nothing was lost: `git diff HEAD -- path/to/file`
 - **Bundled commits are dangerous** — if a commit touches >5 files across different features, split it or review each file's diff individually.
 
-### 7. Branch Workflow for Non-Trivial Changes
+### 7. Branch Workflow for Non-Trivial Changes — Self-Review Gate
 For changes that touch core algorithm files (`sentence_selector.py`, `session_builder`, `fsrs_service.py`, `acquisition_service.py`) or modify >3 files:
 1. Create a branch: `git checkout -b sh/<feature-name>`
 2. Make changes and commit on the branch
 3. Create a PR: `gh pr create --title "..." --body "..."`
-4. Let the user review before merging
-5. Only merge after user approval
+4. **Self-review the PR diff** before merging — look at every file's diff on GitHub (`gh pr diff`) and verify:
+   - No unintended deletions in append-only files
+   - No features silently removed from large files
+   - No schema fields lost that the backend still computes
+   - Net line counts make sense (a "feature addition" shouldn't have large net deletions)
+5. If the self-review passes, merge the PR: `gh pr merge --squash`
+6. If issues found, fix on the branch, push, and re-review
 
 Direct commits to `main` are OK for: documentation-only changes, single-file bug fixes, test additions, and changes the user explicitly asked to deploy immediately.
 
