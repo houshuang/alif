@@ -444,6 +444,67 @@ class TestComprehensibilityGate:
         sentence_items = [i for i in result["items"] if i.get("sentence_id") == 1]
         assert len(sentence_items) == 1
 
+    def test_encountered_words_do_not_count_as_known_scaffold(self, db_session):
+        """Regression: encountered (passively imported, never studied) must NOT
+        count as known scaffold. They were accidentally re-added in 7ee81cf."""
+        _seed_word(db_session, 1, "كتاب", "book", due_hours=-1)
+        # 1 known scaffold word
+        _seed_word(db_session, 5, "بيت", "house", due_hours=24)
+        # 3 encountered words — imported via OCR/book but never studied (no FSRS card)
+        for i, (ar, en) in enumerate([("أسنان", "teeth"), ("مخالب", "claws"), ("ضخمة", "huge")], start=2):
+            lemma = Lemma(lemma_id=i, lemma_ar=ar, lemma_ar_bare=ar, pos="noun", gloss_en=en)
+            db_session.add(lemma)
+            db_session.flush()
+            ulk = UserLemmaKnowledge(
+                lemma_id=i, knowledge_state="encountered",
+                fsrs_card_json=None, introduced_at=None,
+                times_seen=0, times_correct=0, source="book",
+            )
+            db_session.add(ulk)
+
+        # Low accuracy review logs → blocks auto-intro of encountered words
+        now = datetime.now(timezone.utc)
+        for j in range(10):
+            db_session.add(ReviewLog(
+                lemma_id=1, rating=1, reviewed_at=now, review_mode="reading",
+            ))
+        db_session.flush()
+
+        # Sentence: 1 due target + 1 known scaffold + 3 encountered scaffold
+        # With encountered-as-known: 4/4 = 100% → PASS (wrong)
+        # Without encountered:       1/4 = 25%  → SKIP (correct)
+        _seed_sentence(db_session, 1, "كتاب بيت أسنان مخالب ضخمة",
+                       "book house teeth claws huge",
+                       target_lemma_id=1,
+                       word_surfaces_and_ids=[
+                           ("كتاب", 1), ("بيت", 5), ("أسنان", 2), ("مخالب", 3), ("ضخمة", 4),
+                       ])
+        db_session.commit()
+
+        result = build_session(db_session, limit=10)
+        sentence_items = [i for i in result["items"] if i.get("sentence_id") == 1]
+        assert len(sentence_items) == 0, "Encountered words must not count as known scaffold"
+
+    def test_unmapped_words_count_as_unknown_scaffold(self, db_session):
+        """Words with lemma_id=None must count as unknown, not be excluded."""
+        _seed_word(db_session, 1, "كتاب", "book", due_hours=-1)
+        _seed_word(db_session, 2, "بيت", "house", due_hours=24)
+        db_session.flush()
+
+        # Sentence: 1 due + 1 known scaffold + 2 unmapped (lemma_id=None)
+        # Gate should see 1/3 = 33% → SKIP (not 1/1 = 100%)
+        _seed_sentence(db_session, 1, "كتاب بيت unknown1 unknown2",
+                       "book house unk1 unk2",
+                       target_lemma_id=1,
+                       word_surfaces_and_ids=[
+                           ("كتاب", 1), ("بيت", 2), ("unknown1", None), ("unknown2", None),
+                       ])
+        db_session.commit()
+
+        result = build_session(db_session, limit=10)
+        sentence_items = [i for i in result["items"] if i.get("sentence_id") == 1]
+        assert len(sentence_items) == 0, "Unmapped words must count as unknown scaffold"
+
 
 class TestTimezoneHandling:
     def test_acquiring_word_with_naive_datetime(self, db_session):
