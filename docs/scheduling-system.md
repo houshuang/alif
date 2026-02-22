@@ -6,7 +6,7 @@
 > topics, grammar, listening) interact. It also identifies where the current
 > implementation diverges from the research and stated intentions.
 >
-> **Last updated**: 2026-02-20
+> **Last updated**: 2026-02-22
 > **Canonical location**: `docs/scheduling-system.md`
 > **Keep this document up to date with every algorithm change.**
 
@@ -1104,8 +1104,10 @@ Normal word → Leech detected → Auto-suspended
   escape leech status. Zeroing stats would let a word escape by getting 3/5 correct, which
   is below the 60% graduation threshold anyway.
 - Fresh sentences are generated because the old sentences clearly didn't work for this word.
-- Memory hooks (mnemonic, cognates, usage context) are ensured — if they don't exist,
-  they're generated via LLM on reintroduction.
+- Memory hooks (mnemonic, cognates, usage context) are generated on first failure
+  (rating ≤ 2), not on word introduction. For leeches being reintroduced, hooks
+  likely already exist from previous failures. If the existing mnemonic didn't prevent
+  lapsing, it gets regenerated with the premium overgenerate-and-rank method.
 
 ### Root-Sibling Interference Guard
 

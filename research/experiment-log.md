@@ -77,18 +77,24 @@ Single-shot mnemonic generation works well for most words, but words that lapse 
 Lee et al. (EMNLP 2024): Overgenerate-and-rank outperforms single-shot for mnemonic generation. Generating 3+ candidates and self-evaluating on explicit criteria produces more effective mnemonics.
 
 ### Changes
-- Added `PREMIUM_SYSTEM_PROMPT` to `memory_hooks.py` — generates 3 candidate mnemonics with different keywords, self-evaluates each on 3 criteria (sound match, interaction, meaning extraction; 1-5 scale), picks the best
-- Added `regenerate_memory_hooks_premium(lemma_id)` — uses Claude Sonnet (stronger model), always overwrites existing hooks, feeds old failed mnemonic as negative example
-- Wired automatic triggers in two places:
-  1. `fsrs_service.py`: fresh lapse (transition to "lapsed" from non-lapsed) → premium regeneration via background thread
-  2. `acquisition_service.py`: box demotion from 2+ → 1 (failed review after consolidation) → premium regeneration via background thread
+- **All generation now uses overgenerate-and-rank** with Claude Sonnet — generates 3 candidates, self-evaluates each on 3 criteria (sound match, interaction, meaning extraction; 1-5 scale), picks best. Both `generate_memory_hooks()` and `regenerate_memory_hooks_premium()` use this approach.
+- **Hooks generated on first failure, not on introduction** — many words are already known and never need a mnemonic. Removed generation from `learn.py` (introduction) and `lemma_enrichment.py` (batch enrichment). Saves processing for words that don't need it.
+- **Three trigger points** (all via background thread):
+  1. First failure (rating ≤ 2) with no hooks → `generate_memory_hooks()` (overgenerate-and-rank, Sonnet)
+  2. FSRS lapse (fresh transition to "lapsed") with existing hooks → `regenerate_memory_hooks_premium()` (feeds old mnemonic as negative example)
+  3. Acquisition box demotion (2+ → 1) with existing hooks → same premium regeneration
 - `_build_word_info()` helper extracted to share between standard and premium functions
 
 ### Output format
 Premium function strips `candidates`/`best_index` metadata before storing — same JSON schema as standard hooks. No frontend changes needed.
 
 ### Verification
-722 tests pass. Premium regeneration runs in daemon threads so it doesn't block review responses.
+722 tests pass. All generation runs in daemon threads so it doesn't block review responses.
+
+### Early results (production data, 2026-02-22)
+- Lapse rate: 1.6% (56/3490 FSRS reviews)
+- Graduation survival: 93% stay known, only 2% lapse
+- Median time in acquisition: 4.1 days
 
 ---
 

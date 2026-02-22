@@ -35,7 +35,7 @@ All scripts in `backend/scripts/`. Run from `backend/` directory.
 - `backfill_story_proper_nouns.py` — Convert proper nouns to function words.
 - `backfill_themes.py` — LLM thematic domain tagging for lemmas.
 - `backfill_etymology.py` — LLM etymology data generation for lemmas.
-- `backfill_memory_hooks.py` — LLM memory hooks for currently learning words. Flags: `--force` (re-generate existing hooks), `--box1-only` (only Leitner box-1 words), `--batch-size=N`, `--limit=N`, `--dry-run`.
+- `backfill_memory_hooks.py` — LLM memory hooks for currently learning words. Uses overgenerate-and-rank with Claude Sonnet (3 candidates per word, self-evaluated, best picked). Flags: `--force` (re-generate existing hooks), `--box1-only` (only Leitner box-1 words), `--batch-size=N`, `--limit=N`, `--dry-run`.
 - `backfill_diacritics.py` — LLM tashkīl (diacritization) for bare lemmas + auto-transliteration.
 - `backfill_transliteration.py` — Deterministic ALA-LC transliteration from diacritized lemma_ar. No LLM.
 - `backfill_samer.py` — SAMER readability L1-L5→CEFR mapping. TSV at backend/data/samer.tsv on server only.
@@ -59,6 +59,7 @@ All scripts in `backend/scripts/`. Run from `backend/` directory.
 - `fix_null_lemma_ids.py` — Re-maps NULL lemma_id sentence_words using comprehensive lookup, retires unfixable sentences.
 - `fix_book_glosses.py` — Fix conjugated glosses on book/story-imported lemmas + run full enrichment, --dry-run --limit.
 - `cleanup_lemma_mappings.py` — Batch cleanup of lemma data quality issues: wrong glosses, missing particles, conjugated-form lemmas, possessive-form lemmas, al-prefix lemmas, batch re-map via CAMeL + LLM.
+- `investigate_mapping_flags.py` — Investigate word_mapping flags: shows sentence text, current word→lemma mappings. `--all` shows all statuses, `--fix` re-evaluates and applies corrections via LLM.
 
 ## Analysis & Testing
 - `db_analysis.py` — Database analysis and statistics.
