@@ -33,8 +33,9 @@ from app.services.sentence_validator import (
     FUNCTION_WORD_GLOSSES,
     _is_function_word,
     build_lemma_lookup,
-    lookup_lemma_id,
+    normalize_alef,
     strip_diacritics,
+    strip_tatweel,
 )
 
 # Acquisition repetition: each acquiring word should appear this many times in a session
@@ -624,6 +625,7 @@ def build_session(
 
     # Backfill missing lemma IDs in older sentence rows, including
     # function words that now have lemma entries.
+    # Uses fast dict lookup only (no CAMeL) to avoid 4s+ disambiguation cost.
     # Uses SAVEPOINT so a DB lock doesn't crash the whole session build.
     words_missing_lemma = [sw for sw in all_sw if sw.lemma_id is None]
     if words_missing_lemma:
@@ -631,7 +633,9 @@ def build_session(
         lemma_lookup = build_lemma_lookup(lookup_lemmas) if lookup_lemmas else {}
         backfilled = 0
         for sw in words_missing_lemma:
-            lemma_id = lookup_lemma_id(sw.surface_form, lemma_lookup)
+            bare = strip_diacritics(sw.surface_form)
+            bare_norm = normalize_alef(strip_tatweel(bare))
+            lemma_id = lemma_lookup.get(bare_norm)
             if lemma_id is not None:
                 sw.lemma_id = lemma_id
                 backfilled += 1
