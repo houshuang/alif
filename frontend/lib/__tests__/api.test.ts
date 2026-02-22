@@ -351,7 +351,8 @@ describe("getSentenceReviewSession", () => {
   });
 
   it("falls back to cache when API fails", async () => {
-    // Pre-cache a session
+    // Pre-cache a session (getSentenceReviewSession checks cache first,
+    // so with valid cached data the API is never called)
     const cached = {
       session_id: "cached-sess",
       items: [
@@ -363,10 +364,9 @@ describe("getSentenceReviewSession", () => {
     };
     store["@alif/sessions/reading"] = JSON.stringify([cached]);
 
-    mockFetch.mockReturnValueOnce(Promise.reject(new Error("Network error")));
-
     const session = await getSentenceReviewSession("reading");
     expect(session.session_id).toBe("cached-sess");
+    expect(mockFetch).not.toHaveBeenCalled();
   });
 });
 
