@@ -169,6 +169,7 @@ learn, and each enters acquisition immediately.
 
 **Gating conditions**:
 - **Reserved slots**: `INTRO_RESERVE_FRACTION` (20%) of session slots reserved for introductions, even when due queue exceeds limit. With limit=10, at least 2 slots always available.
+- **Pipeline backlog gate**: Reserved intro slots suppressed when acquiring pipeline > `PIPELINE_BACKLOG_THRESHOLD` (40). Undersized-session fill still works (when due < limit). Resumes automatically when pipeline drains below threshold.
 - Recent accuracy ≥ `AUTO_INTRO_ACCURACY_FLOOR` (70%) over last 10+ reviews
 - Per-call cap: `MAX_AUTO_INTRO_PER_SESSION` (10)
 - Also fires when session is undersized (due words < limit) — backward-compatible path
@@ -1374,6 +1375,7 @@ remaining cards on the next card advance. See Section 8 "Sentence Pre-Warming" f
 | `MAX_AUTO_INTRO_PER_SESSION` | 10 | Per-call cap on auto-intro words |
 | `INTRO_RESERVE_FRACTION` | 0.2 | Fraction of session slots reserved for new words |
 | `AUTO_INTRO_ACCURACY_FLOOR` | 0.70 | Pause auto-intro if accuracy below this |
+| `PIPELINE_BACKLOG_THRESHOLD` | 40 | Suppress reserved intro slots when acquiring count exceeds this |
 | Adaptive intro bands | 0→4→7→10 | Slots at <70%/70-85%/85-92%/≥92% accuracy |
 | `SESSION_SCAFFOLD_DECAY` | 0.5 | Per-appearance multiplier for scaffold words already in session |
 | `FRESHNESS_BASELINE` | 5 | Reviews before scaffold freshness penalty kicks in (floor 0.1) |

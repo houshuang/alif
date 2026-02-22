@@ -4,6 +4,22 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-02-22: Pipeline Backlog Threshold for Auto-Introduction
+
+### Problem
+After heavy OCR/book imports, the acquiring pipeline grew from 4 → 178 words in 2 weeks. The system kept reserving 20% of session slots for new introductions even with 124+ cards due, compounding the backlog.
+
+### Analysis
+Replayed 14 days of history. All 248 introductions go through `_auto_introduce_words()` — `book`, `textbook_scan`, etc. are just source labels. With a >20 threshold, 233 of 248 intros would have been blocked, saving 26.7% of reviews (1,707/6,393). With >40 threshold, the pipeline stays in the 22-43 range instead of reaching 178.
+
+### Fix
+Added `PIPELINE_BACKLOG_THRESHOLD = 40` constant. When acquiring pipeline count exceeds this, reserved intro slots are suppressed (set to 0). Undersized-session fill still works — if due queue < session limit, intros still happen to fill the gap. Resumes automatically when pipeline drains below threshold.
+
+### Expected impact
+Pipeline stabilizes around 40 max instead of growing unbounded during import-heavy periods. Once backlog clears, normal intro cadence resumes.
+
+---
+
 ## 2026-02-22: Session Build Performance Fix (18s → 1.2s)
 
 ### Problem

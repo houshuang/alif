@@ -44,6 +44,7 @@ MAX_ACQUISITION_EXTRA_SLOTS = 15  # max extra cards beyond session limit for rep
 MAX_AUTO_INTRO_PER_SESSION = 10  # cap new words per single auto-intro call
 AUTO_INTRO_ACCURACY_FLOOR = 0.70  # pause introduction if recent accuracy below this
 INTRO_RESERVE_FRACTION = 0.2  # fraction of session slots reserved for new word introductions
+PIPELINE_BACKLOG_THRESHOLD = 40  # suppress reserved intros when acquiring pipeline exceeds this
 SESSION_SCAFFOLD_DECAY = 0.5  # per-appearance decay for scaffold words already in session
 
 
@@ -393,6 +394,8 @@ def build_session(
     Returns a dict matching SentenceSessionOut schema:
     {session_id, items, total_due_words, covered_due_words}
     """
+    import logging
+    logger = logging.getLogger(__name__)
     session_id = str(uuid.uuid4())
     now = datetime.now(timezone.utc)
 
@@ -453,12 +456,22 @@ def build_session(
 
     # Auto-introduce new words: reserve slots even when due queue is full
     # This ensures vocabulary growth doesn't stall when reviews pile up.
+    # But suppress reserved intro slots when the acquiring pipeline is overloaded —
+    # still fill undersized sessions (when due < limit).
     accuracy_slots = _get_accuracy_intro_slots(db, now)
-    if accuracy_slots > 0:
+    acquiring_count = sum(
+        1 for k in all_knowledge if k.knowledge_state == "acquiring"
+    )
+    if accuracy_slots > 0 and acquiring_count <= PIPELINE_BACKLOG_THRESHOLD:
         reserved_intro = max(1, int(limit * INTRO_RESERVE_FRACTION))
         intro_slots = min(accuracy_slots, reserved_intro)
     else:
         intro_slots = 0
+        if acquiring_count > PIPELINE_BACKLOG_THRESHOLD:
+            logger.info(
+                f"Auto-intro reserved slots suppressed: {acquiring_count} acquiring "
+                f"> {PIPELINE_BACKLOG_THRESHOLD} threshold"
+            )
     undersized_slots = max(0, limit - len(due_lemma_ids))
     slots_for_intro = max(intro_slots, undersized_slots)
     auto_introduced_ids = _auto_introduce_words(

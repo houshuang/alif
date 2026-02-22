@@ -50,7 +50,7 @@ npx expo start --web  # opens on localhost:8081
 - **Story Mode**: generate/import, tap-to-lookup reader, complete/suspend
 
 ## Design Principles
-- **Word introduction is automatic** — `build_session()` reserves `INTRO_RESERVE_FRACTION` (20%) of session slots for new words, even when due queue exceeds limit. Accuracy-based rate: <70%→0, 70-85%→4, 85-92%→7, ≥92%→10 slots. Per-call cap: MAX_AUTO_INTRO_PER_SESSION=10. Fill phase runs a second pass if still undersized. OCR/story import creates "encountered" state only.
+- **Word introduction is automatic** — `build_session()` reserves `INTRO_RESERVE_FRACTION` (20%) of session slots for new words, even when due queue exceeds limit. Accuracy-based rate: <70%→0, 70-85%→4, 85-92%→7, ≥92%→10 slots. Per-call cap: MAX_AUTO_INTRO_PER_SESSION=10. **Pipeline backlog gate**: reserved intro slots suppressed when acquiring count > `PIPELINE_BACKLOG_THRESHOLD` (40); undersized-session fill still works. Fill phase runs a second pass if still undersized. OCR/story import creates "encountered" state only.
 - **No concept of "due"** — the app picks the most relevant cards. Don't use "due" in UI text. Use "ready for review".
 - **No bare word cards in review** — ONLY sentences. Generate on-demand or skip if no comprehensible sentence.
 - **Comprehensibility gate** — ≥60% known scaffold words required. Acquiring box-1 excluded, encountered excluded (only actively studied words count).
