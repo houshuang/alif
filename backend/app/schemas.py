@@ -71,6 +71,8 @@ class StatsOut(BaseModel):
     learning: int
     new: int
     due_today: int
+    fsrs_due: int = 0
+    acquisition_due: int = 0
     reviews_today: int
     total_reviews: int = 0
     lapsed: int = 0

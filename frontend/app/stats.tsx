@@ -82,6 +82,8 @@ export default function StatsScreen() {
         calibration={analytics.calibration_signal}
         reviewsToday={stats.reviews_today}
         dueToday={stats.due_today}
+        fsrsDue={stats.fsrs_due || 0}
+        acquisitionDue={stats.acquisition_due || 0}
         streak={pace.current_streak}
         transitionsToday={deepAnalytics?.transitions_today}
       />
@@ -710,12 +712,12 @@ function RootProgressSection({ data }: { data: DeepAnalytics["root_coverage"] })
 // --- Existing Components ---
 
 function TodayHeroCard({
-  comprehension, graduated, introduced, calibration, reviewsToday, dueToday, streak, transitionsToday,
+  comprehension, graduated, introduced, calibration, reviewsToday, dueToday, fsrsDue, acquisitionDue, streak, transitionsToday,
 }: {
   comprehension?: ComprehensionBreakdown; graduated?: GraduatedWord[]; introduced?: IntroducedBySource[];
-  calibration?: string; reviewsToday: number; dueToday: number; streak: number; transitionsToday?: StateTransitions;
+  calibration?: string; reviewsToday: number; dueToday: number; fsrsDue: number; acquisitionDue: number; streak: number; transitionsToday?: StateTransitions;
 }) {
-  if (reviewsToday === 0) return null;
+  if (reviewsToday === 0 && dueToday === 0) return null;
 
   const total = comprehension?.total || 0;
   const understood = comprehension?.understood || 0;
@@ -731,23 +733,30 @@ function TodayHeroCard({
     <View style={styles.heroCard}>
       <View style={styles.heroTop}>
         <View>
-          <Text style={styles.heroSentenceCount}>{total} sentences</Text>
+          {total > 0 && <Text style={styles.heroSentenceCount}>{total} sentences</Text>}
           {streak >= 2 && <Text style={styles.heroStreak}>{streak}d streak</Text>}
         </View>
         <Text style={[styles.heroCalibrLabel, { color: calibColor }]}>{calibLabel}</Text>
       </View>
 
-      {(dueToday > 0 || reviewsToday > 0) && (
-        <View style={styles.heroStatus}>
-          {dueToday === 0 ? (
-            <Text style={[styles.heroStatusText, { color: colors.good }]}>All caught up</Text>
-          ) : reviewsToday >= dueToday ? (
-            <Text style={[styles.heroStatusText, { color: colors.good }]}>{reviewsToday} reviews · caught up</Text>
-          ) : (
-            <Text style={[styles.heroStatusText, { color: colors.accent }]}>{reviewsToday} reviews · {dueToday - reviewsToday} still waiting</Text>
-          )}
-        </View>
-      )}
+      <View style={styles.heroStatus}>
+        {dueToday === 0 ? (
+          <Text style={[styles.heroStatusText, { color: colors.good }]}>
+            {reviewsToday > 0 ? `${reviewsToday} reviews · ` : ""}all caught up
+          </Text>
+        ) : (
+          <View>
+            <Text style={[styles.heroStatusText, { color: colors.accent }]}>
+              {reviewsToday > 0 ? `${reviewsToday} reviews · ` : ""}{dueToday} ready for review
+            </Text>
+            {(fsrsDue > 0 && acquisitionDue > 0) && (
+              <Text style={[styles.heroStatusDetail, { color: colors.textSecondary }]}>
+                {acquisitionDue} acquiring · {fsrsDue} review
+              </Text>
+            )}
+          </View>
+        )}
+      </View>
 
       {total > 0 && (
         <>
@@ -966,6 +975,7 @@ const styles = StyleSheet.create({
   heroIntroText: { fontSize: 12, color: colors.accent, fontWeight: "600" },
   heroStatus: { marginTop: 6, marginBottom: 4 },
   heroStatusText: { fontSize: 13 },
+  heroStatusDetail: { fontSize: 11, marginTop: 2 },
 
   // Word Lifecycle Funnel
   funnelCard: { backgroundColor: colors.surface, borderRadius: 16, padding: 20, width: "100%", maxWidth: 500, marginBottom: 16 },

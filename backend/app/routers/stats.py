@@ -48,7 +48,8 @@ def _count_state(db: Session, state: str) -> int:
     )
 
 
-def _count_due_cards(db: Session, now: datetime) -> int:
+def _count_due_cards(db: Session, now: datetime) -> tuple[int, int, int]:
+    """Return (total_due, fsrs_due, acquisition_due)."""
     now_str = now.isoformat()
     fsrs_due = (
         db.query(func.count(UserLemmaKnowledge.id))
@@ -67,7 +68,7 @@ def _count_due_cards(db: Session, now: datetime) -> int:
         )
         .scalar() or 0
     )
-    return fsrs_due + acquiring_due
+    return fsrs_due + acquiring_due, fsrs_due, acquiring_due
 
 
 def _get_basic_stats(db: Session) -> StatsOut:
@@ -88,7 +89,7 @@ def _get_basic_stats(db: Session) -> StatsOut:
     )
     total_reviews = db.query(func.count(ReviewLog.id)).scalar() or 0
 
-    due_today = _count_due_cards(db, now)
+    due_today, fsrs_due, acquisition_due = _count_due_cards(db, now)
 
     acquiring = _count_state(db, "acquiring")
     encountered = _count_state(db, "encountered")
@@ -99,6 +100,8 @@ def _get_basic_stats(db: Session) -> StatsOut:
         learning=learning,
         new=new_count,
         due_today=due_today,
+        fsrs_due=fsrs_due,
+        acquisition_due=acquisition_due,
         reviews_today=reviews_today,
         total_reviews=total_reviews,
         lapsed=lapsed,

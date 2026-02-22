@@ -200,12 +200,15 @@ class TestCountDueCardsSQL:
         _seed_word(db_session, 5, "نور", "light", due_hours=24)
         db_session.commit()
 
-        count = _count_due_cards(db_session, now)
-        assert count == 3
+        total, fsrs_due, acq_due = _count_due_cards(db_session, now)
+        assert total == 3
+        assert fsrs_due == 3
+        assert acq_due == 0
 
     def test_no_cards_returns_zero(self, db_session):
         now = datetime.now(timezone.utc)
-        assert _count_due_cards(db_session, now) == 0
+        total, fsrs_due, acq_due = _count_due_cards(db_session, now)
+        assert total == 0
 
 
 class TestGetFirstKnownDatesSQL:

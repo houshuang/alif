@@ -94,6 +94,8 @@ export interface Stats {
   learning_words: number;
   new_words: number;
   due_today: number;
+  fsrs_due: number;
+  acquisition_due: number;
   reviews_today: number;
   streak_days: number;
   total_reviews: number;
@@ -419,6 +421,8 @@ export interface Analytics {
     learning: number;
     new: number;
     due_today: number;
+    fsrs_due: number;
+    acquisition_due: number;
     reviews_today: number;
     total_reviews: number;
     lapsed: number;
