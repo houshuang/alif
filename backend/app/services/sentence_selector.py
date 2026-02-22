@@ -407,7 +407,9 @@ def build_session(
     # Comprehension-aware recency cutoffs
     # Failed sentences can be re-shown quickly so learner gets a positive review,
     # then ideally sees the same word in a different sentence next time.
-    cutoff_understood = now - timedelta(days=4)
+    # "understood" uses 1-day window (was 4d, but high-volume learners exhaust the
+    # 610-sentence pool within 4 days, causing undersized sessions).
+    cutoff_understood = now - timedelta(days=1)
     cutoff_partial = now - timedelta(hours=4)
     cutoff_no_idea = now - timedelta(minutes=30)
 

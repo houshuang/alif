@@ -4,6 +4,25 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-02-22: Sentence Recency Window Reduced from 4 Days to 1 Day
+
+### Problem
+User getting sessions of 3-4 cards despite 68+ due words. Investigation showed 70% of the 610 active sentences had been shown within the 4-day recency window, leaving only 181 available. With 10-25 sessions/day consuming ~160 distinct sentences, the pool was exhausted faster than generation could replenish it.
+
+### Analysis
+- 86 of 140 candidate sentences for due words blocked by recency
+- 14 due words had zero active sentences
+- After recency + comprehensibility filtering, only enough sentences for ~12 cards
+- Root cause: 4-day window designed for lower volume; at current pace the entire pool cycles in ~4 days
+
+### Fix
+Reduced `cutoff_understood` from 4 days to 1 day. Sentences marked "understood" can be re-shown after 24h. "partial" (4h) and "no_idea" (30min) unchanged. Sentence diversity scoring (`times_shown` penalty) still prefers less-shown sentences.
+
+### Expected impact
+Available pool roughly triples (from 181 to ~440). Sessions should consistently fill to limit.
+
+---
+
 ## 2026-02-22: Function Words Excluded from Scheduling
 
 ### Problem

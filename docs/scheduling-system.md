@@ -1398,10 +1398,10 @@ remaining cards on the next card advance. See Section 8 "Sentence Pre-Warming" f
 
 | Last Comprehension | Cooldown |
 |-------------------|----------|
-| `understood` | 4 days |
+| `understood` | 1 day |
 | `partial` | 4 hours |
 | `no_idea` | 30 minutes |
-| No record | 4 days |
+| No record | 1 day |
 
 ### Acquisition (`acquisition_service.py`)
 
