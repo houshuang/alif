@@ -783,7 +783,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
       if (!prev) return prev;
       return {
         total: prev.total - 1,
-        gotIt: prev.gotIt - (snapshot.signal === "understood" || snapshot.signal === "grammar_confused" ? 1 : 0),
+        gotIt: prev.gotIt - (snapshot.signal === "understood" ? 1 : 0),
         missed: prev.missed - (snapshot.signal === "partial" ? 1 : 0),
         noIdea: prev.noIdea - (snapshot.signal === "no_idea" ? 1 : 0),
       };
@@ -899,7 +899,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
     const prev = results ?? { total: 0, gotIt: 0, missed: 0, noIdea: 0 };
     const next = {
       total: prev.total + 1,
-      gotIt: prev.gotIt + (signal === "understood" || signal === "grammar_confused" ? 1 : 0),
+      gotIt: prev.gotIt + (signal === "understood" ? 1 : 0),
       missed: prev.missed + (signal === "partial" ? 1 : 0),
       noIdea: prev.noIdea + (signal === "no_idea" ? 1 : 0),
     };
@@ -1720,94 +1720,6 @@ function SentenceReadingCard({
           </View>
         </View>
     </>
-  );
-}
-
-interface RootFamilyData {
-  root: string;
-  root_meaning: string | null;
-  siblings: { lemma_ar: string; gloss_en: string; state: string }[];
-}
-
-function RootInfoBar({
-  words,
-  missedIndices,
-}: {
-  words: SentenceReviewItem["words"];
-  missedIndices: Set<number>;
-}) {
-  const [familyData, setFamilyData] = useState<Record<number, RootFamilyData>>({});
-
-  const missedWithRoots = Array.from(missedIndices)
-    .map((i) => words[i])
-    .filter((w) => w && w.root_id);
-
-  // Deduplicate by root_id
-  const uniqueRoots = new Map<number, typeof missedWithRoots[0]>();
-  for (const w of missedWithRoots) {
-    if (!uniqueRoots.has(w.root_id!)) uniqueRoots.set(w.root_id!, w);
-  }
-
-  const rootIds = Array.from(uniqueRoots.keys());
-  const rootIdsKey = rootIds.sort().join(",");
-
-  useEffect(() => {
-    if (rootIds.length === 0) return;
-    let cancelled = false;
-    for (const rootId of rootIds) {
-      if (familyData[rootId]) continue;
-      fetch(`${BASE_URL}/api/learn/root-family/${rootId}`)
-        .then((r) => r.json())
-        .then((data) => {
-          if (cancelled) return;
-          const knownSiblings = (data.words || []).filter(
-            (w: any) => w.state === "known" || w.state === "learning"
-          );
-          const rootWord = uniqueRoots.get(rootId);
-          setFamilyData((prev) => ({
-            ...prev,
-            [rootId]: {
-              root: data.root || rootWord?.root || "",
-              root_meaning: data.root_meaning || rootWord?.root_meaning || null,
-              siblings: knownSiblings.map((s: any) => ({
-                lemma_ar: s.lemma_ar,
-                gloss_en: s.gloss_en,
-                state: s.state,
-              })),
-            },
-          }));
-        })
-        .catch(() => {});
-    }
-    return () => { cancelled = true; };
-  }, [rootIdsKey]);
-
-  if (uniqueRoots.size === 0) return null;
-
-  return (
-    <View style={styles.rootInfoBar}>
-      {Array.from(uniqueRoots.entries()).map(([rootId, w]) => {
-        const family = familyData[rootId];
-        return (
-          <View key={rootId} style={styles.rootInfoEntry}>
-            <Text style={styles.rootInfoText}>
-              {w.root}
-              {(family?.root_meaning || w.root_meaning) ? ` \u2014 ${family?.root_meaning || w.root_meaning}` : ""}
-            </Text>
-            {family && family.siblings.length > 0 && (
-              <View style={styles.rootSiblings}>
-                {family.siblings.slice(0, 4).map((sib, i) => (
-                  <View key={i} style={styles.rootSiblingPill}>
-                    <Text style={styles.rootSiblingAr}>{sib.lemma_ar}</Text>
-                    <Text style={styles.rootSiblingEn}>{sib.gloss_en}</Text>
-                  </View>
-                ))}
-              </View>
-            )}
-          </View>
-        );
-      })}
-    </View>
   );
 }
 
@@ -3279,45 +3191,6 @@ const styles = StyleSheet.create({
     fontSize: 17,
     fontWeight: "700",
   },
-  rootInfoBar: {
-    marginTop: 12,
-    gap: 12,
-    alignItems: "center",
-    width: "100%",
-  },
-  rootInfoEntry: {
-    alignItems: "center",
-    gap: 6,
-  },
-  rootInfoText: {
-    fontSize: 13,
-    color: colors.accent,
-    fontWeight: "600",
-  },
-  rootSiblings: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 6,
-    justifyContent: "center",
-  },
-  rootSiblingPill: {
-    backgroundColor: colors.surfaceLight,
-    borderRadius: 8,
-    paddingVertical: 3,
-    paddingHorizontal: 8,
-    alignItems: "center",
-  },
-  rootSiblingAr: {
-    fontSize: 17,
-    fontFamily: fontFamily.arabic,
-    color: colors.arabic,
-    writingDirection: "rtl",
-  },
-  rootSiblingEn: {
-    fontSize: 11,
-    color: colors.textSecondary,
-  },
-
   // Re-introduction card styles
   reintroScrollContent: {
     flexGrow: 1,
