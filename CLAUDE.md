@@ -54,7 +54,7 @@ npx expo start --web  # opens on localhost:8081
 - **No concept of "due"** — the app picks the most relevant cards. Don't use "due" in UI text. Use "ready for review".
 - **No bare word cards in review** — ONLY sentences. Generate on-demand or skip if no comprehensible sentence.
 - **Comprehensibility gate** — ≥60% known scaffold words required. Acquiring box-1 excluded, encountered excluded (only actively studied words count).
-- **Function words** — ~80 particles/prepositions/pronouns/conjunctions (populated from `FUNCTION_WORD_GLOSSES` in `sentence_validator.py`). Excluded from story/book "to learn" counts, book page word introduction, FSRS review credit, and scaffold diversity checks. They still appear in sentences and get glosses. Detection checks both surface form AND resolved lemma bare form (catches cliticized forms like بِهِ → بِ).
+- **Function words** — ~80 particles/prepositions/pronouns/conjunctions (populated from `FUNCTION_WORD_GLOSSES` in `sentence_validator.py`). Excluded from story/book "to learn" counts, book page word introduction, FSRS review credit, scheduling/due counts, and scaffold diversity checks. They still appear in sentences and get glosses. Detection checks both surface form AND resolved lemma bare form (catches cliticized forms like بِهِ → بِ).
 - **Story word counts are deduped** — `total_words`, `known_count`, `unknown_count` count unique lemmas, not tokens. Each lemma counted once even if it appears multiple times in the story.
 - **On-demand sentence generation** — max 10/session, uses current vocabulary for fresher sentences.
 - **Tapped words are always marked missed** — front-phase tapping auto-marks as missed (rating≤2).

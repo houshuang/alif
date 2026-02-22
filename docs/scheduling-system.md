@@ -530,6 +530,7 @@ build_session(db, limit=10, mode="reading")
 │ STAGE 1: Classify All Words                  │
 │                                              │
 │ Load all non-suspended ULK records           │
+│ Skip function words (never scheduled)        │
 │ For each word, determine:                    │
 │   • Is it acquiring? Check acquisition_due   │
 │   • Is it FSRS due? Check card.due           │

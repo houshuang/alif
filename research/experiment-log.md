@@ -4,6 +4,24 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-02-22: Function Words Excluded from Scheduling
+
+### Problem
+42 function words (نَحْنُ, مِن, إِلَى, مَع, etc.) had legacy FSRS cards from before the function word credit exclusion was added to `submit_sentence_review`. Cards were frozen at ~2.3d stability (never updated), coming due every 2-3 days. This inflated the due count by ~16 at any time and caused the sentence selector to pick sentences for function word "targets" that didn't need review.
+
+### Analysis
+Efficiency audit showed 76% of all reviews were collateral credit. While collateral is inherent to sentence-based review, 16 zombie function word cards were distorting sentence selection — e.g., sentence #3162 showed "Due words: 3.00" but all 3 were function words (نَحْنُ, مَعَ, الآنَ) with 100% accuracy.
+
+### Fix
+1. `build_session()`: Skip function words when building `due_lemma_ids` set — they never become scheduling targets
+2. `_count_due_cards()` in stats: Exclude function words from due count
+3. Data cleanup: Nulled `fsrs_card_json` on all 42 function word ULK records
+
+### Expected impact
+~16 fewer phantom due cards. Sentence selection targets real content words only.
+
+---
+
 ## 2026-02-22: Pipeline Backlog Threshold for Auto-Introduction
 
 ### Problem
