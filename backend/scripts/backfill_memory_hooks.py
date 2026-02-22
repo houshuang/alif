@@ -46,7 +46,7 @@ def build_prompt(lemmas_with_roots):
             f"- lemma_id={lemma.lemma_id}, word={lemma.lemma_ar}, bare={lemma.lemma_ar_bare}{translit}{pos_hint}{gloss}{root_info}{root_meaning}{etymology_hint}"
         )
     word_list = "\n".join(lines)
-    return f"""Generate memory hooks for each Arabic word:
+    return f"""Generate memory hooks for each Arabic word. For each mnemonic, internally follow the 4-step process (keyword candidates → pick best → interactive scene → verify meaning is extractable), but only output the final mnemonic text.
 
 {word_list}
 
