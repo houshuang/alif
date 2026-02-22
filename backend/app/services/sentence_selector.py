@@ -462,6 +462,7 @@ def build_session(
     slots_for_intro = max(intro_slots, undersized_slots)
     auto_introduced_ids = _auto_introduce_words(
         db, slots_for_intro, knowledge_by_id, now,
+        skip_material_gen=skip_on_demand,
     )
     if auto_introduced_ids:
         # Add newly introduced words to due set and tracking structures
