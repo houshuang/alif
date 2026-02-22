@@ -223,22 +223,12 @@ def enrich_lemmas_batch(lemma_ids: list[int]) -> dict:
                     logger.warning(f"Etymology batch failed for lemmas {[l.lemma_id for l in batch]}")
                     db.rollback()
 
-        # ── Step 4: Memory hooks (reuse existing service) ──
-        from app.services.memory_hooks import generate_memory_hooks
-
-        for lemma in lemmas:
-            if lemma.memory_hooks_json:
-                continue
-            try:
-                generate_memory_hooks(lemma.lemma_id)
-                summary["memory_hooks"] += 1
-                time.sleep(0.3)
-            except Exception:
-                logger.warning(f"Memory hooks failed for lemma {lemma.lemma_id}")
+        # Memory hooks are no longer generated upfront — they're generated on
+        # first failure (rating <= 2) to avoid wasting processing on already-known words.
 
         logger.info(
             f"Enrichment complete: {summary['forms']} forms, {summary['etymology']} etymology, "
-            f"{summary['transliteration']} transliteration, {summary['memory_hooks']} memory hooks "
+            f"{summary['transliteration']} transliteration "
             f"(of {summary['total']} lemmas)"
         )
 

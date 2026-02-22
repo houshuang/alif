@@ -161,16 +161,21 @@ def submit_review(
     else:
         db.flush()
 
-    # Trigger premium mnemonic regeneration on fresh lapse
-    if new_state == "lapsed" and old_knowledge_state != "lapsed":
+    # Generate/regenerate mnemonic on failure
+    if rating_int <= 2:
         import threading
-        from app.services.memory_hooks import regenerate_memory_hooks_premium
-        threading.Thread(
-            target=regenerate_memory_hooks_premium,
-            args=(lemma_id,),
-            daemon=True,
-        ).start()
-        logger.info(f"Triggered premium mnemonic regeneration for lapsed lemma {lemma_id}")
+        lemma = db.query(Lemma).filter(Lemma.lemma_id == lemma_id).first()
+        has_hooks = lemma and lemma.memory_hooks_json
+        if not has_hooks:
+            # First failure without hooks — generate via overgenerate-and-rank
+            from app.services.memory_hooks import generate_memory_hooks
+            threading.Thread(target=generate_memory_hooks, args=(lemma_id,), daemon=True).start()
+            logger.info(f"Triggered mnemonic generation for failed lemma {lemma_id}")
+        elif new_state == "lapsed" and old_knowledge_state != "lapsed":
+            # Has hooks but lapsed — regenerate with old mnemonic as negative example
+            from app.services.memory_hooks import regenerate_memory_hooks_premium
+            threading.Thread(target=regenerate_memory_hooks_premium, args=(lemma_id,), daemon=True).start()
+            logger.info(f"Triggered premium mnemonic regeneration for lapsed lemma {lemma_id}")
 
     return {
         "lemma_id": lemma_id,

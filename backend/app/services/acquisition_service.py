@@ -229,15 +229,18 @@ def submit_acquisition_review(
             ulk.acquisition_next_due = now + timedelta(minutes=5)
         else:
             ulk.acquisition_next_due = now + BOX_INTERVALS[1]
-        # Trigger premium mnemonic regeneration when demoted from box 2+
-        if old_box >= 2:
-            import threading
+        # Generate/regenerate mnemonic on failure
+        import threading
+        lemma = db.query(Lemma).filter(Lemma.lemma_id == lemma_id).first()
+        has_hooks = lemma and lemma.memory_hooks_json
+        if not has_hooks:
+            from app.services.memory_hooks import generate_memory_hooks
+            threading.Thread(target=generate_memory_hooks, args=(lemma_id,), daemon=True).start()
+            logger.info(f"Triggered mnemonic generation for failed acquiring lemma {lemma_id}")
+        elif old_box >= 2:
+            # Had hooks but still failed from box 2+ — regenerate with negative example
             from app.services.memory_hooks import regenerate_memory_hooks_premium
-            threading.Thread(
-                target=regenerate_memory_hooks_premium,
-                args=(lemma_id,),
-                daemon=True,
-            ).start()
+            threading.Thread(target=regenerate_memory_hooks_premium, args=(lemma_id,), daemon=True).start()
             logger.info(f"Triggered premium mnemonic regeneration for demoted lemma {lemma_id} (box {old_box}→1)")
 
     # Check graduation: box >= 3 + stats + calendar day spread
