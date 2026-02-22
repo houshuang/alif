@@ -18,7 +18,6 @@ import {
   ConversationSummary,
   ConversationDetail,
   GrammarLesson,
-  GrammarProgress,
   DeepAnalytics,
   BatchUploadResult,
   BatchSummary,
@@ -774,15 +773,6 @@ export async function introduceGrammarFeature(featureKey: string): Promise<{ fea
     method: "POST",
     body: JSON.stringify({ feature_key: featureKey }),
   });
-}
-
-export async function getConfusedGrammarFeatures(): Promise<{ features: GrammarLesson[] }> {
-  return fetchApi("/api/grammar/confused");
-}
-
-export async function getGrammarProgress(): Promise<GrammarProgress[]> {
-  const data = await fetchApi<{ progress: GrammarProgress[] }>("/api/grammar/progress");
-  return data.progress;
 }
 
 export async function getDeepAnalytics(): Promise<DeepAnalytics> {

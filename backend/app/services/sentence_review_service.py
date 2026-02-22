@@ -165,9 +165,6 @@ def submit_sentence_review(
 
         if comprehension_signal == "understood":
             rating = 3
-        elif comprehension_signal == "grammar_confused":
-            # Words are fine — grammar structure was confusing
-            rating = 3
         elif comprehension_signal == "partial":
             # Check both original and effective for missed/confused signals
             if lemma_id in missed_set or effective_lemma_id in missed_set:
@@ -374,30 +371,10 @@ def _record_sentence_grammar(
                         source="derived",
                     ))
 
-    # Record exposure: understood/partial → correct, grammar_confused/no_idea → incorrect
+    # Record exposure: understood/partial → correct, no_idea → incorrect
     correct = comprehension_signal in ("understood", "partial")
     for key in feature_keys:
         record_grammar_exposure(db, key, correct=correct, commit=commit)
-
-    # Track grammar confusion count
-    if comprehension_signal == "grammar_confused" and feature_keys:
-        from app.models import UserGrammarExposure
-        known_features = {
-            f.feature_key: f.feature_id
-            for f in db.query(GrammarFeature)
-            .filter(GrammarFeature.feature_key.in_(feature_keys))
-            .all()
-        }
-        for key in feature_keys:
-            fid = known_features.get(key)
-            if fid:
-                exp = (
-                    db.query(UserGrammarExposure)
-                    .filter(UserGrammarExposure.feature_id == fid)
-                    .first()
-                )
-                if exp:
-                    exp.times_confused = (exp.times_confused or 0) + 1
 
 
 def undo_sentence_review(

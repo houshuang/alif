@@ -1,5 +1,5 @@
 export type ReviewMode = "reading" | "listening" | "quiz";
-export type ComprehensionSignal = "understood" | "partial" | "no_idea" | "grammar_confused";
+export type ComprehensionSignal = "understood" | "partial" | "no_idea";
 export type WordCategory = "proper_name" | "onomatopoeia";
 
 export interface SelectionInfo {
@@ -379,17 +379,6 @@ export interface SentenceReviewSession {
   reintro_cards?: ReintroCard[];
   grammar_intro_needed?: string[];
   grammar_refresher_needed?: string[];
-}
-
-export interface GrammarProgress {
-  feature_key: string;
-  category: string;
-  label_en: string;
-  times_seen: number;
-  times_correct: number;
-  comfort_score: number;
-  first_seen_at: string | null;
-  last_seen_at: string | null;
 }
 
 export interface GrammarLesson {

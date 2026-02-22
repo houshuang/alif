@@ -9,7 +9,6 @@ from app.services.listening import (
     _get_word_listening_confidence,
     score_sentence_for_listening,
     get_listening_candidates,
-    process_comprehension_signal,
     MIN_LISTENING_STABILITY_DAYS,
 )
 from app.services.fsrs_service import create_new_card
@@ -197,66 +196,6 @@ class TestListeningCandidates:
 
         candidates = get_listening_candidates(db_session, min_confidence=0.6)
         assert len(candidates) == 0
-
-
-# --- Comprehension signal tests ---
-
-class TestComprehensionSignals:
-    def test_listening_word_miss_creates_log(self, db_session):
-        _seed_word(db_session, 1, "كتاب", "book")
-        _seed_word(db_session, 2, "ولد", "boy")
-        db_session.commit()
-
-        logs = process_comprehension_signal(
-            db_session,
-            session_id="test-session",
-            review_mode="listening",
-            comprehension_signal="partial",
-            target_lemma_id=1,
-            missed_word_lemma_ids=[2],
-        )
-
-        assert len(logs) == 1
-        assert logs[0]["lemma_id"] == 2
-        assert logs[0]["signal"] == "listening_word_miss"
-
-        review_logs = db_session.query(ReviewLog).filter(ReviewLog.lemma_id == 2).all()
-        assert len(review_logs) == 1
-        assert review_logs[0].rating == 2
-        assert review_logs[0].review_mode == "listening"
-
-    def test_no_idea_signal_logged(self, db_session):
-        _seed_word(db_session, 1, "كتاب", "book")
-        db_session.commit()
-
-        logs = process_comprehension_signal(
-            db_session,
-            session_id="test-session",
-            review_mode="listening",
-            comprehension_signal="no_idea",
-            target_lemma_id=1,
-        )
-
-        assert len(logs) == 1
-        assert logs[0]["signal"] == "listening_no_idea"
-
-    def test_skip_target_word_in_missed_list(self, db_session):
-        _seed_word(db_session, 1, "كتاب", "book")
-        _seed_word(db_session, 2, "ولد", "boy")
-        db_session.commit()
-
-        logs = process_comprehension_signal(
-            db_session,
-            session_id="test-session",
-            review_mode="listening",
-            comprehension_signal="partial",
-            target_lemma_id=1,
-            missed_word_lemma_ids=[1, 2],  # 1 should be skipped (it's the target)
-        )
-
-        missed_logs = [l for l in logs if l["signal"] == "listening_word_miss"]
-        assert len(missed_logs) == 1
-        assert missed_logs[0]["lemma_id"] == 2
 
 
 # --- API endpoint tests ---

@@ -569,7 +569,6 @@ build_session(db, limit=10, mode="reading")
 │   • Never shown: always eligible             │
 │   • understood: 4-day cooldown               │
 │   • partial: 4-hour cooldown                 │
-│   • grammar_confused: 2-hour cooldown        │
 │   • no_idea: 30-min cooldown                 │
 │   • no record: 4-day cooldown               │
 │                                              │
@@ -873,7 +872,6 @@ The user rates each sentence with one of three signals:
 | `understood` | Got the whole sentence | All words → rating 3 (Good) |
 | `partial` | Got some, missed some | Missed → 1, Confused → 2, Rest → 3 |
 | `no_idea` | Didn't understand at all | All words → rating 1 (Again) |
-| `grammar_confused` | Words known but grammar confusing | All words → rating 3 |
 
 ### Front-Phase Word Marking
 
@@ -1395,7 +1393,6 @@ remaining cards on the next card advance. See Section 8 "Sentence Pre-Warming" f
 |-------------------|----------|
 | `understood` | 4 days |
 | `partial` | 4 hours |
-| `grammar_confused` | 2 hours |
 | `no_idea` | 30 minutes |
 | No record | 4 days |
 

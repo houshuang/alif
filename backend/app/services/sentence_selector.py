@@ -405,7 +405,6 @@ def build_session(
     # then ideally sees the same word in a different sentence next time.
     cutoff_understood = now - timedelta(days=4)
     cutoff_partial = now - timedelta(hours=4)
-    cutoff_grammar_confused = now - timedelta(hours=2)
     cutoff_no_idea = now - timedelta(minutes=30)
 
     # 1. Fetch all word knowledge (exclude only suspended)
@@ -571,7 +570,6 @@ def build_session(
                 shown_col.is_(None),
                 (comp_col == "understood") & (shown_col < cutoff_understood),
                 (comp_col == "partial") & (shown_col < cutoff_partial),
-                (comp_col == "grammar_confused") & (shown_col < cutoff_grammar_confused),
                 (comp_col == "no_idea") & (shown_col < cutoff_no_idea),
                 (comp_col.is_(None)) & (shown_col < cutoff_understood),
             ),

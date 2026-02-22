@@ -265,6 +265,12 @@ export default function StatsScreen() {
             <Text style={styles.paceValue}>{pace.total_study_days}</Text>
             <Text style={styles.paceLabel}>total days</Text>
           </View>
+          {stats.total_reviews > 0 && (
+            <View style={styles.paceItem}>
+              <Text style={styles.paceValue}>{stats.total_reviews.toLocaleString()}</Text>
+              <Text style={styles.paceLabel}>total reviews</Text>
+            </View>
+          )}
           {(analytics.total_words_reviewed_7d ?? 0) > 0 && (
             <View style={styles.paceItem}>
               <Text style={styles.paceValue}>
