@@ -42,7 +42,7 @@ All services in `backend/app/services/`.
 - `soniox_service.py` — Soniox Speech-to-Text REST API wrapper. Async file transcription with Arabic+English code-switching, speaker diarization, word-level timestamps. Used by `import_michel_thomas.py`. Key: SONIOX_API_KEY in `.env`.
 
 ## Other
-- `ocr_service.py` — Gemini Vision OCR: text extraction, word extraction (OCR→morphology→LLM translation), textbook page processing. `_call_gemini_vision()` supports `model_override` param. Timeout: 300s. `start_acquiring` toggle: when true, words start acquisition immediately (box 1, due_immediately); when false, creates "encountered" ULK. Runs variant detection after import (resets variant ULKs from acquiring→encountered).
+- `ocr_service.py` — Gemini Vision OCR: text extraction, word extraction (OCR→morphology→LLM translation), textbook page processing. Detects printed page numbers from textbook images (`textbook_page_number` on PageUpload). `_call_gemini_vision()` supports `model_override` param. Timeout: 300s. `start_acquiring` toggle: when true, words start acquisition immediately (box 1, due_immediately); when false, creates "encountered" ULK. Runs variant detection after import (resets variant ULKs from acquiring→encountered).
 - `interaction_logger.py` — Append-only JSONL. Skipped when TESTING env var set.
 - `flag_evaluator.py` — Background LLM evaluation of flagged content. Auto-fixes or retires. Writes to ActivityLog.
 - `activity_log.py` — Shared helper for writing ActivityLog entries.
