@@ -4,6 +4,51 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-02-22: Memory Hook Prompt Redesign (Cognitive Science-Based)
+
+### Problem
+Memory hooks were generating mnemonics where the image was hard to connect to the Arabic sounds, and even when recalled, the meaning couldn't be extracted from the scene. The old prompt just said "absurd, funny, or vivid images stick best" without enforcing the research-backed principles that actually make mnemonics work.
+
+### Research findings (3 parallel research agents)
+- **No pre-existing Arabic mnemonic database exists** — searched GitHub, Anki, books, Quizlet, all academic papers. LLM generation is the only scalable path.
+- **Interactive imagery beats separate imagery by 20-50%** (Bower 1970, 100+ replications) — THE most impactful fix
+- **Self-reference effect boosts memory** (meta-analysis, very high confidence) — use "you" in mnemonics
+- **Image→meaning link is the fragile point** — most mnemonics fail because meaning is a label, not the action
+- **Bizarreness overrated** (meta-analyses) — interactive plausible imagery works just as well, fades slower
+- **Overgenerate-and-rank outperforms single-shot** (Lee et al., EMNLP 2024) — generate multiple candidates, pick best
+- **Supplied keywords outperform self-generated** — decompose into explicit keyword selection + scene building
+- **Abstract words need different strategies** — verbal mnemonics, consequence-based scenes
+
+Key papers: Atkinson & Raugh 1975 (keyword method), Bower 1970 (interactive imagery), Lee et al. EMNLP 2024 (overgenerate-and-rank), Balepur et al. EMNLP 2024 (SMART mnemonics), PhoniTale EMNLP 2025 (distant language pairs).
+
+### Changes
+Replaced `SYSTEM_PROMPT` in `memory_hooks.py` with a 4-step keyword mnemonic method:
+1. **Keyword candidates**: Generate 3-5 sound-alikes from learner's languages
+2. **Pick best**: Select by (phonetic overlap × imageability)
+3. **Interactive scene**: Keyword + meaning must DO something to each other. Meaning = the ACTION. Use "you" as actor.
+4. **Verify**: Can you extract the meaning from the scene? If not, revise.
+
+Also: abstract word handling (consequence-based), keywords in CAPS, good/bad examples with WHY annotations.
+
+### Output format
+Identical JSON schema — no frontend changes needed.
+
+### Verification
+Regenerated 20 content words, compared before/after. Consistent improvements:
+- Self-reference ("you're at...")
+- Meaning as the action, not a label
+- Better interaction between keyword and meaning
+- More vivid, specific scenes
+
+Full visual research report: `~/.agent/diagrams/memory-hook-research.html`
+
+### Next steps
+- Run full backfill (`--force --limit=500`) to regenerate all hooks
+- Consider overgenerate-and-rank as optional "high quality" mode (more tokens, better results)
+- Monitor user recall subjectively over next week
+
+---
+
 ## 2026-02-21: Restore Features Reverted by Bundled Commit 7ee81cf
 
 ### Problem
