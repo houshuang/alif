@@ -225,6 +225,8 @@ export default function ActionMenu({
           buildExplainPrompt={askAIExplainPrompt}
           buildExplainSentencePrompt={askAIExplainSentencePrompt}
           onClose={() => setAskAIVisible(false)}
+          sentenceId={sentenceId}
+          focusedLemmaId={focusedLemmaId}
         />
       )}
 
@@ -269,12 +271,16 @@ function AskAIModal({
   buildExplainPrompt,
   buildExplainSentencePrompt,
   onClose,
+  sentenceId,
+  focusedLemmaId,
 }: {
   contextBuilder: () => string;
   screen: string;
   buildExplainPrompt?: () => string | null;
   buildExplainSentencePrompt?: () => string | null;
   onClose: () => void;
+  sentenceId?: number | null;
+  focusedLemmaId?: number | null;
 }) {
   return (
     <AskAI
@@ -284,6 +290,8 @@ function AskAIModal({
       buildExplainSentencePrompt={buildExplainSentencePrompt}
       autoOpen
       onClose={onClose}
+      sentenceId={sentenceId}
+      focusedLemmaId={focusedLemmaId}
     />
   );
 }

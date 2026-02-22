@@ -111,6 +111,8 @@ interface RawStats {
   learning: number;
   new: number;
   due_today: number;
+  fsrs_due?: number;
+  acquisition_due?: number;
   reviews_today: number;
   total_reviews?: number;
   lapsed?: number;
@@ -302,6 +304,8 @@ export async function getStats(): Promise<Stats> {
       learning_words: raw.learning,
       new_words: raw.new,
       due_today: raw.due_today,
+      fsrs_due: raw.fsrs_due ?? 0,
+      acquisition_due: raw.acquisition_due ?? 0,
       reviews_today: raw.reviews_today,
       streak_days: 0,
       total_reviews: raw.total_reviews ?? 0,

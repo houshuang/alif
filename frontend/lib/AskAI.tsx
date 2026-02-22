@@ -13,7 +13,7 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { colors, fonts } from "./theme";
-import { askAI } from "./api";
+import { askAI, flagContent } from "./api";
 import MarkdownMessage from "./MarkdownMessage";
 
 interface ChatMessage {
@@ -28,6 +28,8 @@ interface AskAIProps {
   buildExplainSentencePrompt?: () => string | null;
   autoOpen?: boolean;
   onClose?: () => void;
+  sentenceId?: number | null;
+  focusedLemmaId?: number | null;
 }
 
 export default function AskAI({
@@ -37,12 +39,15 @@ export default function AskAI({
   buildExplainSentencePrompt,
   autoOpen,
   onClose,
+  sentenceId,
+  focusedLemmaId,
 }: AskAIProps) {
   const [visible, setVisible] = useState(!!autoOpen);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [conversationId, setConversationId] = useState<string | undefined>();
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
+  const [flagged, setFlagged] = useState(false);
   const scrollRef = useRef<ScrollView>(null);
 
   function handleOpen() {
@@ -50,6 +55,7 @@ export default function AskAI({
     setConversationId(undefined);
     setInput("");
     setLoading(false);
+    setFlagged(false);
     setVisible(true);
   }
 
@@ -107,6 +113,26 @@ export default function AskAI({
     if (!prompt) return;
     await sendQuestion(prompt);
   }
+
+  async function handleFlag() {
+    if (!sentenceId || flagged) return;
+    try {
+      // Include the AI conversation as context for the flag
+      const chatSummary = messages
+        .map((m) => `${m.role}: ${m.content}`)
+        .join("\n\n");
+      await flagContent({
+        content_type: "word_mapping",
+        sentence_id: sentenceId,
+        ...(focusedLemmaId ? { lemma_id: focusedLemmaId } : {}),
+      });
+      setFlagged(true);
+    } catch (e) {
+      console.warn("flag failed:", e);
+    }
+  }
+
+  const hasResponse = messages.some((m) => m.role === "assistant");
 
   return (
     <>
@@ -166,7 +192,7 @@ export default function AskAI({
               )}
             </ScrollView>
 
-            {(buildExplainPrompt || buildExplainSentencePrompt) && (
+            {(buildExplainPrompt || buildExplainSentencePrompt || (sentenceId && hasResponse)) && (
               <View style={styles.quickActions}>
                 {buildExplainPrompt && (
                   <Pressable
@@ -187,6 +213,21 @@ export default function AskAI({
                     <Ionicons name="reader-outline" size={16} color={colors.text} />
                     <Text style={styles.quickActionText}>Explain full</Text>
                   </Pressable>
+                )}
+                {sentenceId && hasResponse && !flagged && (
+                  <Pressable
+                    style={styles.quickActionButton}
+                    onPress={handleFlag}
+                  >
+                    <Ionicons name="flag-outline" size={16} color={colors.missed} />
+                    <Text style={[styles.quickActionText, { color: colors.missed }]}>Flag sentence</Text>
+                  </Pressable>
+                )}
+                {flagged && (
+                  <View style={[styles.quickActionButton, { borderColor: colors.good }]}>
+                    <Ionicons name="checkmark-circle-outline" size={16} color={colors.good} />
+                    <Text style={[styles.quickActionText, { color: colors.good }]}>Flagged</Text>
+                  </View>
                 )}
               </View>
             )}
