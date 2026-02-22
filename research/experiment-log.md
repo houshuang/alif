@@ -4,6 +4,25 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-02-22: Session Build Performance Fix (18s → 1.2s)
+
+### Problem
+First session load was taking ~18 seconds. User reported slow session generation despite cron having run overnight.
+
+### Root cause (profiled with cProfile)
+Two bottlenecks in `build_session()` with `skip_on_demand=True` (the "fast" path):
+1. **`_auto_introduce_words` called `generate_material_for_word`** (Gemini LLM) — 6 LLM calls = ~10s. The `skip_on_demand` flag only controlled `_with_fallbacks`, not auto-introduction.
+2. **Lemma backfill called `lookup_lemma_id` → `_camel_disambiguate`** — cold-starting CAMeL morphological analyzer for 3 unresolvable words = ~4.3s.
+
+### Fix
+1. Pass `skip_material_gen=skip_on_demand` to `_auto_introduce_words` — background warm-sentences task generates material instead.
+2. Replace `lookup_lemma_id()` (with CAMeL fallback) with fast dictionary-only `lemma_lookup.get()` in the backfill loop.
+
+### Result
+Session build: 18s → 1.2s (15x faster). 722 tests pass.
+
+---
+
 ## 2026-02-22: Memory Hook Prompt Redesign (Cognitive Science-Based)
 
 ### Problem

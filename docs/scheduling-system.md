@@ -689,10 +689,12 @@ The frontend prefetches one session ahead to provide instant session transitions
    session has more pre-built material. (Added: 2026-02-18)
 
 **Fast session loads**: Non-prefetch session requests skip on-demand LLM generation
-(`skip_on_demand=True`) for fast response (~0.5s instead of ~30s). Sessions may have
-fewer items (e.g., 9 instead of 10) but load instantly. Background warming fills gaps
-for subsequent sessions. Prefetch requests still do full generation since they already
-run in the background. (Fix: 2026-02-18)
+(`skip_on_demand=True`) for fast response (~1s instead of ~18s). This flag also skips
+material generation during auto-introduction (`skip_material_gen=True`) and uses fast
+dictionary-only lemma backfill (no CAMeL disambiguation). Sessions may have fewer items
+(e.g., 9 instead of 10) but load instantly. Background warming fills gaps for subsequent
+sessions. Prefetch requests still do full generation since they already run in the
+background. (Fix: 2026-02-18, perf fix: 2026-02-22 — 18s→1.2s)
 
 **Why only one prefetch**: Previously 7 prefetch requests fired per session cycle (from
 session start, near-end, session-complete, and next-session-start). Each triggered on-demand
