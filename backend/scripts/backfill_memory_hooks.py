@@ -26,7 +26,7 @@ load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 from app.database import SessionLocal
 from app.models import Lemma, Root, UserLemmaKnowledge
 from app.services.activity_log import log_activity
-from app.services.memory_hooks import SYSTEM_PROMPT, validate_hooks
+from app.services.memory_hooks import PREMIUM_SYSTEM_PROMPT, validate_hooks
 
 
 def build_prompt(lemmas_with_roots):
@@ -46,12 +46,18 @@ def build_prompt(lemmas_with_roots):
             f"- lemma_id={lemma.lemma_id}, word={lemma.lemma_ar}, bare={lemma.lemma_ar_bare}{translit}{pos_hint}{gloss}{root_info}{root_meaning}{etymology_hint}"
         )
     word_list = "\n".join(lines)
-    return f"""Generate memory hooks for each Arabic word. For each mnemonic, internally follow the 4-step process (keyword candidates → pick best → interactive scene → verify meaning is extractable), but only output the final mnemonic text.
+    return f"""Generate memory hooks for each Arabic word using the overgenerate-and-rank method.
+
+For EACH word:
+1. Generate 3 candidate mnemonics with different keywords
+2. Self-evaluate each on sound match, interaction, and meaning extraction (1-5)
+3. Pick the best candidate
 
 {word_list}
 
-Return JSON array: [{{"lemma_id": 1, "hooks": {{"mnemonic": "...", "cognates": [...], "collocations": [...], "usage_context": "...", "fun_fact": "..."}}}}]
+Return JSON array: [{{"lemma_id": 1, "hooks": {{"mnemonic": "THE WINNING MNEMONIC", "cognates": [...], "collocations": [...], "usage_context": "...", "fun_fact": "..."}}}}]
 
+Only include the winning mnemonic in "hooks" — do NOT include candidates/scores in the output.
 Use null for hooks if the word is a particle/pronoun/function word."""
 
 
@@ -110,9 +116,11 @@ def backfill(dry_run=False, batch_size=10, limit=100, force=False, box1_only=Fal
         try:
             result = generate_completion(
                 prompt=prompt,
-                system_prompt=SYSTEM_PROMPT,
+                system_prompt=PREMIUM_SYSTEM_PROMPT,
                 json_mode=True,
-                temperature=0.7,
+                temperature=0.8,
+                model_override="claude_sonnet",
+                task_type="memory_hooks",
             )
         except AllProvidersFailed as e:
             print(f"  LLM failed: {e}")

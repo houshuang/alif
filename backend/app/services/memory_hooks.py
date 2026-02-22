@@ -155,6 +155,9 @@ def generate_memory_hooks(lemma_id: int) -> None:
 
     Opens its own DB session so it can run in a background thread.
     Idempotent — skips if hooks already exist.
+    Uses overgenerate-and-rank (3 candidates, self-evaluate, pick best)
+    with Sonnet for quality. Since hooks are always background tasks
+    and Claude CLI is free, there's no cost to better quality.
     """
     from app.services.llm import generate_completion, AllProvidersFailed
 
@@ -171,16 +174,17 @@ def generate_memory_hooks(lemma_id: int) -> None:
 
 {word_info}
 
-Return JSON object with keys: mnemonic, cognates, collocations, usage_context, fun_fact.
-Return null (not a JSON object) if the word is a particle/pronoun/function word."""
+Generate 3 candidate mnemonics with different keywords, self-evaluate, pick the best.
+Return JSON with keys: candidates, best_index, mnemonic, cognates, collocations, usage_context, fun_fact.
+Return null if the word is a particle/pronoun/function word."""
 
         try:
             result = generate_completion(
                 prompt=prompt,
-                system_prompt=SYSTEM_PROMPT,
+                system_prompt=PREMIUM_SYSTEM_PROMPT,
                 json_mode=True,
-                temperature=0.7,
-                model_override="claude_haiku",
+                temperature=0.8,
+                model_override="claude_sonnet",
                 task_type="memory_hooks",
             )
         except AllProvidersFailed as e:
@@ -196,6 +200,10 @@ Return null (not a JSON object) if the word is a particle/pronoun/function word.
 
         # Sometimes LLM wraps in extra layer
         hooks = result.get("hooks", result) if "hooks" in result else result
+
+        # Strip the candidates/best_index metadata before storing
+        hooks.pop("candidates", None)
+        hooks.pop("best_index", None)
 
         if not validate_hooks(hooks):
             logger.warning(f"Invalid memory hooks structure for lemma {lemma_id}")
