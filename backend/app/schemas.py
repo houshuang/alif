@@ -595,6 +595,7 @@ class PageUploadOut(BaseModel):
     status: str
     new_words: int
     existing_words: int
+    textbook_page_number: int | None = None
     error_message: str | None = None
     created_at: str
     completed_at: str | None = None

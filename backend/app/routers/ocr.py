@@ -29,6 +29,7 @@ def _format_upload(upload: PageUpload) -> dict:
         "status": upload.status,
         "new_words": upload.new_words or 0,
         "existing_words": upload.existing_words or 0,
+        "textbook_page_number": upload.textbook_page_number,
         "error_message": upload.error_message,
         "created_at": upload.created_at.isoformat() if upload.created_at else "",
         "completed_at": upload.completed_at.isoformat() if upload.completed_at else None,

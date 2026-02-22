@@ -243,6 +243,9 @@ def _step1_extract_words(image_bytes: bytes) -> list[str]:
     """Step 1: OCR only — extract Arabic words from image.
 
     Simple prompt that only asks for Arabic words, no translation or analysis.
+    Also extracts the printed page number if visible.
+
+    Returns (words, page_number) tuple where page_number may be None.
     """
     result = _call_gemini_vision(
         image_bytes,
@@ -256,12 +259,14 @@ def _step1_extract_words(image_bytes: bytes) -> list[str]:
             "- Keep the definite article ال if the word is listed that way\n\n"
             "Other rules:\n"
             "- Return ONLY individual Arabic words as a list\n"
-            "- Skip proper nouns, names, and page numbers\n"
+            "- Skip proper nouns and names\n"
             "- Do NOT include punctuation marks with the words\n"
             "- Do NOT include multi-word phrases — extract each word separately\n"
             "- Do NOT include slash-separated alternatives — pick the first word only\n"
             "- Include diacritics if they are visible on the word\n\n"
-            'Respond with JSON: {"words": ["word1", "word2", ...]}'
+            "Also identify the printed page number if visible on the page "
+            "(usually at the top or bottom corner). Use null if no page number is visible.\n\n"
+            'Respond with JSON: {"words": ["word1", "word2", ...], "page_number": 5}'
         ),
         system_prompt=(
             "You are an Arabic OCR system specialized in textbook vocabulary extraction. "
@@ -270,8 +275,17 @@ def _step1_extract_words(image_bytes: bytes) -> list[str]:
         ),
     )
     words = result.get("words", [])
+    page_number = result.get("page_number")
+    if isinstance(page_number, str):
+        try:
+            page_number = int(page_number)
+        except (ValueError, TypeError):
+            page_number = None
+    if not isinstance(page_number, int):
+        page_number = None
+
     if not isinstance(words, list):
-        return []
+        return [], page_number
     from app.services.sentence_validator import sanitize_arabic_word
 
     raw = [w.strip() for w in words if isinstance(w, str) and w.strip()]
@@ -280,7 +294,7 @@ def _step1_extract_words(image_bytes: bytes) -> list[str]:
         sanitized, warnings = sanitize_arabic_word(w)
         if sanitized and "multi_word" not in warnings and "too_short" not in warnings:
             cleaned.append(sanitized)
-    return cleaned
+    return cleaned, page_number
 
 
 def _step2_morphology(words: list[str]) -> list[dict]:
@@ -395,21 +409,22 @@ def _step3_translate(word_entries: list[dict]) -> list[dict]:
     return all_results
 
 
-def extract_words_from_image(image_bytes: bytes) -> list[dict]:
+def extract_words_from_image(image_bytes: bytes) -> tuple[list[dict], int | None]:
     """Extract individual Arabic words/vocabulary from a textbook page image.
 
     Uses the 3-step pipeline:
-    1. OCR only (Gemini Vision) — extract Arabic words
+    1. OCR only (Gemini Vision) — extract Arabic words + page number
     2. Morphology (CAMeL Tools) — root, base lemma, POS
     3. Translation (LLM text) — English glosses
 
-    Returns list of dicts with: arabic, arabic_bare, english, pos, root, base_lemma.
-    base_lemma is set when CAMeL Tools identifies a different base form (e.g. كراج from كراجك).
+    Returns (words, page_number) tuple.
+    words: list of dicts with: arabic, arabic_bare, english, pos, root, base_lemma.
+    page_number: detected textbook page number, or None.
     """
     # Step 1: OCR
-    raw_words = _step1_extract_words(image_bytes)
+    raw_words, page_number = _step1_extract_words(image_bytes)
     if not raw_words:
-        return []
+        return [], page_number
 
     # Step 2: Morphology
     analyzed = _step2_morphology(raw_words)
@@ -442,7 +457,7 @@ def extract_words_from_image(image_bytes: bytes) -> list[dict]:
             "base_lemma": base_lemma if base_lemma != bare else None,
         })
 
-    return results
+    return results, page_number
 
 
 def process_textbook_page(
@@ -461,7 +476,8 @@ def process_textbook_page(
         db.commit()
 
         # Extract words from image (3-step pipeline)
-        extracted = extract_words_from_image(image_bytes)
+        extracted, page_number = extract_words_from_image(image_bytes)
+        upload.textbook_page_number = page_number
         if not extracted:
             upload.status = "completed"
             upload.extracted_words_json = []

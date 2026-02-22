@@ -258,6 +258,7 @@ class PageUpload(Base):
     extracted_words_json = Column(JSON, nullable=True)
     new_words = Column(Integer, default=0)
     existing_words = Column(Integer, default=0)
+    textbook_page_number = Column(Integer, nullable=True)
     error_message = Column(Text, nullable=True)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     completed_at = Column(DateTime, nullable=True)

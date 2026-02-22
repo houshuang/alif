@@ -86,7 +86,7 @@ class TestOCRService:
     def test_extract_words_from_image(self, mock_step1, mock_step2, mock_step3):
         from app.services.ocr_service import extract_words_from_image
 
-        mock_step1.return_value = ["كِتَاب", "جَمِيل", "قَلَم"]
+        mock_step1.return_value = (["كِتَاب", "جَمِيل", "قَلَم"], 7)
         mock_step2.return_value = [
             {"arabic": "كِتَاب", "bare": "كتاب", "root": "ك.ت.ب", "pos": "noun"},
             {"arabic": "جَمِيل", "bare": "جميل", "root": "ج.م.ل", "pos": "adj"},
@@ -98,18 +98,20 @@ class TestOCRService:
             {"arabic": "قَلَم", "bare": "قلم", "root": "ق.ل.م", "pos": "noun", "english": "pen"},
         ]
 
-        result = extract_words_from_image(b"fake_image_data")
+        result, page_number = extract_words_from_image(b"fake_image_data")
         assert len(result) == 3
         assert result[0]["arabic"] == "كِتَاب"
         assert result[1]["english"] == "beautiful"
+        assert page_number == 7
 
     @patch("app.services.ocr_service._step1_extract_words")
     def test_extract_words_empty_result(self, mock_step1):
         from app.services.ocr_service import extract_words_from_image
 
-        mock_step1.return_value = []
-        result = extract_words_from_image(b"fake_image_data")
+        mock_step1.return_value = ([], None)
+        result, page_number = extract_words_from_image(b"fake_image_data")
         assert result == []
+        assert page_number is None
 
     @patch("app.services.ocr_service._call_gemini_vision")
     def test_extract_words_malformed_result(self, mock_vision):
@@ -117,8 +119,9 @@ class TestOCRService:
         from app.services.ocr_service import _step1_extract_words
 
         mock_vision.return_value = {"words": "not a list"}
-        result = _step1_extract_words(b"fake_image_data")
+        result, page_number = _step1_extract_words(b"fake_image_data")
         assert result == []
+        assert page_number is None
 
 
 @patch("app.services.ocr_service.backfill_root_meanings", return_value=0)
@@ -135,15 +138,16 @@ class TestProcessTextbookPage:
         db_session.add(upload)
         db_session.commit()
 
-        mock_extract.return_value = [
+        mock_extract.return_value = ([
             {"arabic": "كِتَاب", "arabic_bare": "كتاب", "english": "book", "pos": "noun", "root": "ك.ت.ب"},
-        ]
+        ], 5)
 
         process_textbook_page(db_session, upload, b"fake_image")
 
         assert upload.status == "completed"
         assert upload.existing_words == 1
         assert upload.new_words == 0
+        assert upload.textbook_page_number == 5
         assert len(upload.extracted_words_json) == 1
         assert upload.extracted_words_json[0]["status"] == "existing"
 
@@ -163,9 +167,9 @@ class TestProcessTextbookPage:
         db_session.add(upload)
         db_session.commit()
 
-        mock_extract.return_value = [
+        mock_extract.return_value = ([
             {"arabic": "جَمِيل", "arabic_bare": "جميل", "english": "beautiful", "pos": "adj", "root": "ج.م.ل"},
-        ]
+        ], None)
 
         process_textbook_page(db_session, upload, b"fake_image")
 
@@ -203,11 +207,11 @@ class TestProcessTextbookPage:
         db_session.add(upload)
         db_session.commit()
 
-        mock_extract.return_value = [
+        mock_extract.return_value = ([
             {"arabic": "كِتَاب", "arabic_bare": "كتاب", "english": "book", "pos": "noun", "root": "ك.ت.ب"},
             {"arabic": "جَمِيل", "arabic_bare": "جميل", "english": "beautiful", "pos": "adj", "root": "ج.م.ل"},
             {"arabic": "قَلَم", "arabic_bare": "قلم", "english": "pen", "pos": "noun", "root": "ق.ل.م"},
-        ]
+        ], None)
 
         process_textbook_page(db_session, upload, b"fake_image")
 
@@ -225,10 +229,10 @@ class TestProcessTextbookPage:
         db_session.add(upload)
         db_session.commit()
 
-        mock_extract.return_value = [
+        mock_extract.return_value = ([
             {"arabic": "جَمِيل", "arabic_bare": "جميل", "english": "beautiful", "pos": "adj", "root": None},
             {"arabic": "جَمِيل", "arabic_bare": "جميل", "english": "beautiful", "pos": "adj", "root": None},
-        ]
+        ], None)
 
         process_textbook_page(db_session, upload, b"fake_image")
 
@@ -243,10 +247,10 @@ class TestProcessTextbookPage:
         db_session.add(upload)
         db_session.commit()
 
-        mock_extract.return_value = [
+        mock_extract.return_value = ([
             {"arabic": "في", "arabic_bare": "في", "english": "in", "pos": "prep", "root": None},
             {"arabic": "من", "arabic_bare": "من", "english": "from", "pos": "prep", "root": None},
-        ]
+        ], None)
 
         process_textbook_page(db_session, upload, b"fake_image")
 
@@ -262,7 +266,7 @@ class TestProcessTextbookPage:
         db_session.add(upload)
         db_session.commit()
 
-        mock_extract.return_value = []
+        mock_extract.return_value = ([], None)
 
         process_textbook_page(db_session, upload, b"fake_image")
 
@@ -296,9 +300,9 @@ class TestProcessTextbookPage:
         db_session.add(upload)
         db_session.commit()
 
-        mock_extract.return_value = [
+        mock_extract.return_value = ([
             {"arabic": "مَدْرَسَة", "arabic_bare": "مدرسة", "english": "school", "pos": "noun", "root": None},
-        ]
+        ], None)
 
         process_textbook_page(db_session, upload, b"fake_image")
 
@@ -347,11 +351,11 @@ class TestBaseLemmaHandling:
         db_session.commit()
 
         # OCR extracts كراجك (your garage) but base_lemma is كراج
-        mock_extract.return_value = [{
+        mock_extract.return_value = ([{
             "arabic": "كِرَاجَك", "arabic_bare": "كراجك",
             "english": "your garage", "pos": "noun", "root": "ك.ر.ج",
             "base_lemma": "كراج",
-        }]
+        }], None)
 
         process_textbook_page(db_session, upload, b"fake")
 
@@ -372,11 +376,11 @@ class TestBaseLemmaHandling:
         db_session.add(upload)
         db_session.commit()
 
-        mock_extract.return_value = [{
+        mock_extract.return_value = ([{
             "arabic": "تَبْدَأُونَ", "arabic_bare": "تبداون",
             "english": "to start", "pos": "verb", "root": "ب.د.أ",
             "base_lemma": "بدا",
-        }]
+        }], None)
 
         process_textbook_page(db_session, upload, b"fake")
 
@@ -395,7 +399,7 @@ class TestBaseLemmaHandling:
         db_session.add(upload)
         db_session.commit()
 
-        mock_extract.return_value = [
+        mock_extract.return_value = ([
             {
                 "arabic": "كِتَابَك", "arabic_bare": "كتابك",
                 "english": "your book", "pos": "noun", "root": "ك.ت.ب",
@@ -406,7 +410,7 @@ class TestBaseLemmaHandling:
                 "english": "my book", "pos": "noun", "root": "ك.ت.ب",
                 "base_lemma": "كتاب",
             },
-        ]
+        ], None)
 
         process_textbook_page(db_session, upload, b"fake")
 
@@ -421,11 +425,11 @@ class TestBaseLemmaHandling:
         db_session.add(upload)
         db_session.commit()
 
-        mock_extract.return_value = [{
+        mock_extract.return_value = ([{
             "arabic": "قَلَم", "arabic_bare": "قلم",
             "english": "pen", "pos": "noun", "root": "ق.ل.م",
             "base_lemma": None,
-        }]
+        }], None)
 
         process_textbook_page(db_session, upload, b"fake")
 
@@ -440,7 +444,7 @@ class TestBaseLemmaHandling:
         """extract_words_from_image should include base_lemma in output."""
         from app.services.ocr_service import extract_words_from_image
 
-        mock_step1.return_value = ["كِرَاجَك"]
+        mock_step1.return_value = (["كِرَاجَك"], 12)
         mock_step2.return_value = [
             {"arabic": "كِرَاجَك", "bare": "كراجك", "base_lemma": "كراج",
              "root": "ك.ر.ج", "pos": "noun"},
@@ -450,10 +454,11 @@ class TestBaseLemmaHandling:
              "root": "ك.ر.ج", "pos": "noun", "english": "garage"},
         ]
 
-        result = extract_words_from_image(b"fake")
+        result, page_number = extract_words_from_image(b"fake")
         assert len(result) == 1
         assert result[0]["base_lemma"] == "كراج"
         assert result[0]["arabic_bare"] == "كراجك"
+        assert page_number == 12
 
     @patch("app.services.ocr_service._step3_translate")
     @patch("app.services.ocr_service._step2_morphology")
@@ -462,7 +467,7 @@ class TestBaseLemmaHandling:
         """Two conjugated forms with the same base_lemma should produce one output."""
         from app.services.ocr_service import extract_words_from_image
 
-        mock_step1.return_value = ["كِتَابَك", "كِتَابِي"]
+        mock_step1.return_value = (["كِتَابَك", "كِتَابِي"], None)
         mock_step2.return_value = [
             {"arabic": "كِتَابَك", "bare": "كتابك", "base_lemma": "كتاب",
              "root": "ك.ت.ب", "pos": "noun"},
@@ -474,7 +479,7 @@ class TestBaseLemmaHandling:
              "root": "ك.ت.ب", "pos": "noun", "english": "book"},
         ]
 
-        result = extract_words_from_image(b"fake")
+        result, page_number = extract_words_from_image(b"fake")
         assert len(result) == 1
 
 

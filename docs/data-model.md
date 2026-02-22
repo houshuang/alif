@@ -21,7 +21,7 @@ SQLAlchemy models in `backend/app/models.py`. Pydantic schemas in `backend/app/s
 ## Stories & Content
 - `stories` — title_ar/en, body_ar/en, transliteration, source (generated/imported/book_ocr), status (active/completed/suspended), readiness_pct, difficulty_level, page_count (for book imports). API returns page_readiness array (per-page new_words/learned_words/unlocked — counts only words unknown at import time, using acquisition_started_at vs story.created_at), new_total/new_learning (deduplicated story-level counts), and sentences_seen for book_ocr stories.
 - `story_words` — Per-token: position, surface_form, lemma_id, gloss_en, is_function_word, name_type
-- `page_uploads` — OCR tracking: batch_id, status, extracted_words_json, new_words, existing_words
+- `page_uploads` — OCR tracking: batch_id, status, extracted_words_json, new_words, existing_words, textbook_page_number (detected printed page number from OCR)
 
 ## System
 - `content_flags` — Flagged content: content_type, status (pending/reviewing/fixed/dismissed)
