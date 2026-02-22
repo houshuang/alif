@@ -426,11 +426,23 @@ def build_session(
     stability_map: dict[int, float] = {}
     knowledge_by_id: dict[int, UserLemmaKnowledge] = {}
 
+    # Build function word lemma ID set to exclude from scheduling
+    function_word_lemma_ids: set[int] = set()
+    lemma_bare_map = {
+        row.lemma_id: row.lemma_ar_bare
+        for row in db.query(Lemma.lemma_id, Lemma.lemma_ar_bare).all()
+    }
+    for lid, bare in lemma_bare_map.items():
+        if bare and _is_function_word(bare):
+            function_word_lemma_ids.add(lid)
+
     for k in all_knowledge:
         knowledge_by_id[k.lemma_id] = k
 
         if k.knowledge_state == "encountered":
             continue  # passive vocab — not due, not scheduled
+        if k.lemma_id in function_word_lemma_ids:
+            continue  # function words excluded from scheduling
         elif k.knowledge_state == "acquiring":
             # Acquisition words use box-based pseudo-stability for difficulty matching
             box = k.acquisition_box or 1

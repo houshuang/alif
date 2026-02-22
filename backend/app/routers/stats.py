@@ -49,25 +49,36 @@ def _count_state(db: Session, state: str) -> int:
 
 
 def _count_due_cards(db: Session, now: datetime) -> tuple[int, int, int]:
-    """Return (total_due, fsrs_due, acquisition_due)."""
+    """Return (total_due, fsrs_due, acquisition_due), excluding function words."""
+    from app.services.sentence_validator import _is_function_word
+    # Build function word lemma_id set for exclusion
+    func_word_ids = {
+        row.lemma_id for row in db.query(Lemma.lemma_id, Lemma.lemma_ar_bare).all()
+        if row.lemma_ar_bare and _is_function_word(row.lemma_ar_bare)
+    }
+
     now_str = now.isoformat()
-    fsrs_due = (
-        db.query(func.count(UserLemmaKnowledge.id))
+    fsrs_due_q = (
+        db.query(UserLemmaKnowledge.lemma_id)
         .filter(
             UserLemmaKnowledge.fsrs_card_json.isnot(None),
             func.json_extract(UserLemmaKnowledge.fsrs_card_json, '$.due') <= now_str,
         )
-        .scalar() or 0
+        .all()
     )
-    acquiring_due = (
-        db.query(func.count(UserLemmaKnowledge.id))
+    fsrs_due = sum(1 for (lid,) in fsrs_due_q if lid not in func_word_ids)
+
+    acq_due_q = (
+        db.query(UserLemmaKnowledge.lemma_id)
         .filter(
             UserLemmaKnowledge.knowledge_state == "acquiring",
             UserLemmaKnowledge.acquisition_next_due.isnot(None),
             UserLemmaKnowledge.acquisition_next_due <= now,
         )
-        .scalar() or 0
+        .all()
     )
+    acquiring_due = sum(1 for (lid,) in acq_due_q if lid not in func_word_ids)
+
     return fsrs_due + acquiring_due, fsrs_due, acquiring_due
 
 
