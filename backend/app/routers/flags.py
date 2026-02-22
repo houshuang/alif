@@ -23,7 +23,7 @@ def create_flag(
     background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
 ):
-    valid_types = {"word_gloss", "sentence_arabic", "sentence_english", "sentence_transliteration"}
+    valid_types = {"word_gloss", "sentence_arabic", "sentence_english", "sentence_transliteration", "word_mapping"}
     if req.content_type not in valid_types:
         raise HTTPException(400, f"Invalid content_type. Must be one of: {valid_types}")
 

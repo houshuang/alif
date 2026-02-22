@@ -101,11 +101,15 @@ export default function ActionMenu({
     }
   }
 
-  async function handleFlagSentence(type: string) {
+  async function handleFlagSentence(type: string, includeLemma?: boolean) {
     if (!sentenceId) return;
     setMenuVisible(false);
     try {
-      await flagContent({ content_type: type, sentence_id: sentenceId });
+      await flagContent({
+        content_type: type,
+        sentence_id: sentenceId,
+        ...(includeLemma && focusedLemmaId ? { lemma_id: focusedLemmaId } : {}),
+      });
       showToast("Flagged for review");
     } catch (e) {
       console.warn("flag failed:", e);
@@ -189,6 +193,12 @@ export default function ActionMenu({
                       icon="flag-outline"
                       label="Flag transliteration"
                       onPress={() => handleFlagSentence("sentence_transliteration")}
+                      indent
+                    />
+                    <MenuItem
+                      icon="flag-outline"
+                      label="Flag word mapping"
+                      onPress={() => handleFlagSentence("word_mapping", true)}
                       indent
                     />
                   </View>

@@ -1,9 +1,10 @@
 """Background LLM evaluation for flagged content.
 
-Uses GPT-5.2 (not Flash) for quality evaluation. Auto-fixes high-confidence
-corrections, retires unfixable sentences.
+Uses GPT-5.2 for gloss/sentence evaluation, Claude CLI for word mapping evaluation.
+Auto-fixes high-confidence corrections, retires unfixable sentences.
 """
 
+import json
 import logging
 from datetime import datetime, timezone
 
@@ -12,7 +13,7 @@ logger = logging.getLogger(__name__)
 from sqlalchemy.orm import Session
 
 from app.database import SessionLocal
-from app.models import ContentFlag, Lemma, Sentence
+from app.models import ContentFlag, Lemma, Sentence, SentenceWord
 from app.services.activity_log import log_activity
 from app.services.llm import generate_completion, LLMError
 
@@ -30,6 +31,8 @@ def evaluate_flag(flag_id: int) -> None:
 
         if flag.content_type == "word_gloss":
             _evaluate_word_gloss(db, flag)
+        elif flag.content_type == "word_mapping":
+            _evaluate_word_mapping(db, flag)
         elif flag.content_type.startswith("sentence_"):
             _evaluate_sentence(db, flag)
 
@@ -107,6 +110,169 @@ Respond with JSON:
         _log_activity(db, "flag_resolved",
                       f"Flag reviewed but not auto-fixed: {lemma.lemma_ar_bare} (confidence {confidence})",
                       {"flag_id": flag.id, "lemma_id": lemma.lemma_id})
+
+    flag.resolved_at = datetime.now(timezone.utc)
+
+
+def _evaluate_word_mapping(db: Session, flag: ContentFlag) -> None:
+    """Evaluate word-lemma mappings in a flagged sentence using Claude CLI."""
+    sentence = db.query(Sentence).filter(Sentence.id == flag.sentence_id).first()
+    if not sentence:
+        flag.status = "dismissed"
+        flag.resolution_note = "Sentence not found"
+        flag.resolved_at = datetime.now(timezone.utc)
+        return
+
+    words = (
+        db.query(SentenceWord)
+        .filter(SentenceWord.sentence_id == sentence.id)
+        .order_by(SentenceWord.position)
+        .all()
+    )
+    if not words:
+        flag.status = "dismissed"
+        flag.resolution_note = "No words found for sentence"
+        flag.resolved_at = datetime.now(timezone.utc)
+        return
+
+    # Build current mapping description for the LLM
+    lemma_ids = [w.lemma_id for w in words if w.lemma_id]
+    lemmas_by_id = {}
+    if lemma_ids:
+        for lemma in db.query(Lemma).filter(Lemma.lemma_id.in_(lemma_ids)).all():
+            lemmas_by_id[lemma.lemma_id] = lemma
+
+    word_lines = []
+    for w in words:
+        lemma = lemmas_by_id.get(w.lemma_id)
+        if lemma:
+            word_lines.append(
+                f"  pos {w.position}: \"{w.surface_form}\" → lemma \"{lemma.lemma_ar_bare}\" (gloss: \"{lemma.gloss_en}\", POS: {lemma.pos or '?'})"
+            )
+        else:
+            word_lines.append(f"  pos {w.position}: \"{w.surface_form}\" → (unmapped)")
+
+    flag.original_value = json.dumps(
+        {w.position: {"surface": w.surface_form, "lemma_id": w.lemma_id} for w in words},
+        ensure_ascii=False,
+    )
+
+    prompt = f"""Evaluate the word-to-lemma mappings in this Arabic sentence.
+
+Arabic: {sentence.arabic_diacritized or sentence.arabic_text}
+English: {sentence.english_translation}
+
+Current mappings:
+{chr(10).join(word_lines)}
+
+For each mapping, check if the surface form is correctly mapped to its lemma.
+
+ONLY flag a mapping as wrong if:
+- The word in context is a COMPLETELY DIFFERENT word from the assigned lemma (e.g. حَوْلَ "around" mapped to حَالَ "to change")
+- A clitic combination was misidentified (e.g. بِأَنَّ "with that" mapped to بَانَ "to appear")
+- The word's POS is clearly wrong (e.g. a verb mapped to an unrelated noun with same consonants)
+
+Do NOT flag:
+- Conjugated verbs mapped to their base/past-tense form (يَكْتُبُ → كَتَبَ is correct)
+- Plurals mapped to singular or vice versa
+- Feminine mapped to masculine lemma
+- Words with possessive/preposition suffixes mapped to base word
+- Masdar mapped to its verb or vice versa
+
+Respond with JSON:
+{{"issues": [
+  {{"position": <int>, "surface_form": "<word>", "current_lemma_wrong": true, "correct_lemma_ar": "<bare Arabic>", "correct_gloss": "<English>", "explanation": "<brief>"}}
+], "all_correct": true/false}}
+
+If all mappings look correct, return {{"issues": [], "all_correct": true}}."""
+
+    try:
+        result = generate_completion(
+            prompt,
+            system_prompt="You are an Arabic morphology expert. Be conservative — only flag clear mismatches.",
+            model_override="claude_haiku",
+            temperature=0.0,
+            task_type="flag_evaluation",
+        )
+    except LLMError:
+        flag.status = "dismissed"
+        flag.resolution_note = "LLM evaluation failed"
+        flag.resolved_at = datetime.now(timezone.utc)
+        return
+
+    all_correct = result.get("all_correct", True)
+    issues = result.get("issues", [])
+
+    if all_correct or not issues:
+        flag.status = "dismissed"
+        flag.resolution_note = "All word mappings appear correct"
+        _log_activity(db, "flag_resolved",
+                      f"Word mappings confirmed correct for sentence #{sentence.id}",
+                      {"flag_id": flag.id, "sentence_id": sentence.id})
+        flag.resolved_at = datetime.now(timezone.utc)
+        return
+
+    # Try to fix each flagged position
+    from app.services.sentence_validator import normalize_arabic
+
+    changes = []
+    for issue in issues:
+        pos = issue.get("position")
+        correct_ar = issue.get("correct_lemma_ar", "")
+        correct_gloss = issue.get("correct_gloss", "")
+        explanation = issue.get("explanation", "")
+
+        if pos is None or not correct_ar:
+            continue
+
+        # Find the sentence_word at this position
+        sw = next((w for w in words if w.position == pos), None)
+        if not sw:
+            continue
+
+        # Search for the correct lemma in the database
+        correct_bare = normalize_arabic(correct_ar)
+        candidate = (
+            db.query(Lemma)
+            .filter(Lemma.lemma_ar_bare == correct_bare)
+            .first()
+        )
+        if not candidate:
+            # Try without al-prefix
+            if correct_bare.startswith("ال"):
+                candidate = db.query(Lemma).filter(Lemma.lemma_ar_bare == correct_bare[2:]).first()
+            else:
+                candidate = db.query(Lemma).filter(Lemma.lemma_ar_bare == "ال" + correct_bare).first()
+
+        if candidate and candidate.lemma_id != sw.lemma_id:
+            old_lemma = lemmas_by_id.get(sw.lemma_id)
+            old_desc = f"{old_lemma.lemma_ar_bare} ({old_lemma.gloss_en})" if old_lemma else "(unmapped)"
+            changes.append({
+                "position": pos,
+                "surface_form": sw.surface_form,
+                "old_lemma_id": sw.lemma_id,
+                "old": old_desc,
+                "new_lemma_id": candidate.lemma_id,
+                "new": f"{candidate.lemma_ar_bare} ({candidate.gloss_en})",
+                "explanation": explanation,
+            })
+            sw.lemma_id = candidate.lemma_id
+
+    if changes:
+        flag.corrected_value = json.dumps(changes, ensure_ascii=False)
+        flag.status = "fixed"
+        flag.resolution_note = f"Fixed {len(changes)} word mapping(s)"
+        _log_activity(db, "flag_resolved",
+                      f"Fixed {len(changes)} word mapping(s) in sentence #{sentence.id}",
+                      {"flag_id": flag.id, "sentence_id": sentence.id, "changes": changes})
+    else:
+        flag.status = "dismissed"
+        flag.resolution_note = (
+            f"LLM found {len(issues)} issue(s) but no matching lemmas in DB to fix them"
+        )
+        _log_activity(db, "flag_resolved",
+                      f"Word mapping issues found but unfixable for sentence #{sentence.id}",
+                      {"flag_id": flag.id, "sentence_id": sentence.id, "issues": issues})
 
     flag.resolved_at = datetime.now(timezone.utc)
 
