@@ -382,6 +382,66 @@
 - Spaced reading: schedule re-reading of texts at increasing intervals
 - Vocabulary prediction: estimate total passive vocabulary from tested sample (like a placement test)
 
+### Ideas from Agent Knowledge Systems Research (2026-02-21)
+
+#### Research Document Management
+- Semantic search index over `research/*.md` — embed all docs, query "what does the research say about X?" via vector similarity. Could use Claude CLI + local embedding or a lightweight library like chromadb.
+- Research claim extraction: run Ars Contexta's "Reduce" step on existing research docs — extract atomic claims with source attribution, making research searchable at claim level instead of document level.
+- Automated freshness checker: cron script comparing CLAUDE.md claims against actual codebase (file existence, function signatures, config values). Flags staleness.
+
+#### CLAUDE.md Improvements
+- Scoped sections with activation markers (`<!-- scope: backend -->`) so agents working on frontend don't load backend-specific rules. Or split into CLAUDE-backend.md / CLAUDE-frontend.md.
+- Temporal tracking: when design decisions change, archive old decisions (not delete). Experiment log partially does this; CLAUDE.md overwrites.
+- Contradiction detection: periodic scan for CLAUDE.md assertions that conflict with codebase reality.
+
+#### Agent Memory Improvements
+- Memory consolidation sessions: periodic "sleep-time" passes (Letta's pattern) where agent reviews MEMORY.md, prunes outdated entries, consolidates related items.
+- Memory quality feedback: after each session, agent rates which memories were useful. High-utility memories get priority; low-utility get archived.
+- Cross-session knowledge transfer: identify learnings from Alif that apply generally (deployment patterns, SQLite gotchas, etc.) and surface them in user-level `~/.claude/CLAUDE.md`.
+
+#### Research Hub Enhancements
+- Progressive disclosure: Layer 1 (one-line summary, always visible) → Layer 2 (key findings, click to expand) → Layer 3 (full analysis) → Layer 4 (raw sources). Currently only 2 levels.
+- Research claim graph: visualize connections between research docs as a knowledge graph. Which findings support/contradict each other?
+- Spaced resurfacing of research claims: periodically re-present key findings for human review — catch stale or superseded knowledge. Inspired by Andy Matuschek's spaced repetition of notes.
+
+### Ideas from Personal Research Knowledge System Design (2026-02-22)
+
+#### Claim-Based Knowledge Management
+- Claim extraction agent: LLM processes any source (article, paper, opinion piece) → structured claims with source attribution, confidence, type (factual/causal/evaluative). Store in Obsidian as typed markdown files with structured frontmatter.
+- Contradiction detection pipeline: embed each new claim, semantic search against existing claims, LLM classifies relationship (supports/contradicts/refines/extends). Surface contradictions for human review.
+- Bi-temporal claim tracking (from Zep/Graphiti): every claim has `t_valid_from`/`t_valid_until` (when true in world) AND `t_created`/`t_expired` (when known to system). Never delete, always deprecate.
+- IBIS-structured research questions: Issue (research question) → Positions (competing answers) → Arguments (evidence pro/con). Maps naturally to academic research debates.
+- Argdown argument maps: LLM generates Argdown plain-text syntax for argument visualization. Obsidian plugin renders. Most agent-friendly argumentation format.
+
+#### Research Capture & Monitoring
+- Readwise Reader + MCP as universal capture layer ($10/mo): articles, PDFs, podcasts, newsletters. All highlights auto-sync to knowledge base. Agent can both read and write via MCP.
+- Zotero + MCP for academic papers: zotero-mcp (590+ stars) adds vector-based similarity search over paper library. Free.
+- RSS monitoring pipeline: n8n (self-hosted, free) + Claude/Gemini summarization. Monitor Norwegian news (Utdanningsnytt, Klassekampen), academic journals. Auto-tag and write to inbox.
+- Semantic Scholar API as research infrastructure: 225M papers, citation graphs, SPECTER2 embeddings, free API. Multiple MCP servers exist.
+- Periodic digest agent: cron-driven scan for new connections, contradictions, newly dense topic clusters. Produces notification feed.
+
+#### Rich Knowledge Interfaces
+- gwern-style recursive popups: hover any link → preview with annotation/abstract. Popups contain hoverable links. "Iceberg" pages — simple surface, arbitrary depth. Best progressive disclosure pattern for knowledge browsing.
+- Epistemic status markers (from Maggie Appleton's digital garden): Seedling → Budding → Evergreen on every claim/note. Trust calibration for both human and agent readers.
+- Andy Matuschak-style stacked panes: clicking a link opens target in new pane to right, preserving exploration chain. See 3-5 notes simultaneously.
+- BERTopic clustering for automatic topic discovery: periodically re-cluster claims by embedding. Generate Maps of Content. Useful at 1K+ claims.
+- Quartz for publishing Obsidian vault as browseable website with graph view, backlinks, search.
+
+### Ideas from Memory Hook Research (2026-02-22)
+
+#### Overgenerate-and-Rank Mode
+- [DEFERRED] Generate 5+ keyword candidates per word, rank by imageability × phonetic overlap × coherence, keep best. Lee et al. EMNLP 2024 showed this outperforms single-shot. Higher token cost but dramatically better quality. Could be a "high quality" backfill mode.
+
+#### Mnemonic Image Generation
+- [DEFERRED] Use text-to-image (DALL-E, Midjourney) to generate actual images for the interactive scenes. SmartPhone (AIED 2023) showed combining verbal + visual mnemonics improves retention. Would add visual card to Learn Mode.
+
+#### Mnemonic Quality Feedback Loop
+- Track which words the user struggles with despite having a mnemonic. If a word gets ≥3 "no_idea" ratings with an existing hook, flag for regeneration with a note "previous mnemonic didn't stick."
+- SMART (Balepur EMNLP 2024) finding: what students think helps and what actually helps disagree (0.4-0.5 agreement). Track observed learning outcomes, not self-reported preferences.
+
+#### PhoniTale-Style IPA Matching
+- [DEFERRED] Use IPA-based phonological adaptation instead of relying on the LLM for keyword selection. PhoniTale (EMNLP 2025) showed this works better for typologically distant language pairs like Arabic-English. Would require IPA transcriptions of all Arabic words (could generate via LLM or use existing pronunciation dictionaries).
+
 ### Ideas from Arabic Linguistic Challenges Research (2026-02-08)
 
 #### Root Explorer UI

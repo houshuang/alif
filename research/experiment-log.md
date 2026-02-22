@@ -62,9 +62,33 @@ Regenerated 20 content words, compared before/after. Consistent improvements:
 Full visual research report: `~/.agent/diagrams/memory-hook-research.html`
 
 ### Next steps
-- Run full backfill (`--force --limit=500`) to regenerate all hooks
-- Consider overgenerate-and-rank as optional "high quality" mode (more tokens, better results)
+- Run full backfill (`--force --limit=500`) to regenerate all hooks — DONE (384 words)
+- ~~Consider overgenerate-and-rank as optional "high quality" mode~~ — DONE (see entry below)
 - Monitor user recall subjectively over next week
+
+---
+
+## 2026-02-22: Premium Overgenerate-and-Rank Mnemonics for Hard Words
+
+### Problem
+Single-shot mnemonic generation works well for most words, but words that lapse or repeatedly fail in acquisition need better mnemonics — the existing one didn't stick.
+
+### Research basis
+Lee et al. (EMNLP 2024): Overgenerate-and-rank outperforms single-shot for mnemonic generation. Generating 3+ candidates and self-evaluating on explicit criteria produces more effective mnemonics.
+
+### Changes
+- Added `PREMIUM_SYSTEM_PROMPT` to `memory_hooks.py` — generates 3 candidate mnemonics with different keywords, self-evaluates each on 3 criteria (sound match, interaction, meaning extraction; 1-5 scale), picks the best
+- Added `regenerate_memory_hooks_premium(lemma_id)` — uses Claude Sonnet (stronger model), always overwrites existing hooks, feeds old failed mnemonic as negative example
+- Wired automatic triggers in two places:
+  1. `fsrs_service.py`: fresh lapse (transition to "lapsed" from non-lapsed) → premium regeneration via background thread
+  2. `acquisition_service.py`: box demotion from 2+ → 1 (failed review after consolidation) → premium regeneration via background thread
+- `_build_word_info()` helper extracted to share between standard and premium functions
+
+### Output format
+Premium function strips `candidates`/`best_index` metadata before storing — same JSON schema as standard hooks. No frontend changes needed.
+
+### Verification
+722 tests pass. Premium regeneration runs in daemon threads so it doesn't block review responses.
 
 ---
 

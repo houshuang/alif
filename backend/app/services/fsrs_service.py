@@ -161,6 +161,17 @@ def submit_review(
     else:
         db.flush()
 
+    # Trigger premium mnemonic regeneration on fresh lapse
+    if new_state == "lapsed" and old_knowledge_state != "lapsed":
+        import threading
+        from app.services.memory_hooks import regenerate_memory_hooks_premium
+        threading.Thread(
+            target=regenerate_memory_hooks_premium,
+            args=(lemma_id,),
+            daemon=True,
+        ).start()
+        logger.info(f"Triggered premium mnemonic regeneration for lapsed lemma {lemma_id}")
+
     return {
         "lemma_id": lemma_id,
         "new_state": new_state,

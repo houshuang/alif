@@ -229,6 +229,16 @@ def submit_acquisition_review(
             ulk.acquisition_next_due = now + timedelta(minutes=5)
         else:
             ulk.acquisition_next_due = now + BOX_INTERVALS[1]
+        # Trigger premium mnemonic regeneration when demoted from box 2+
+        if old_box >= 2:
+            import threading
+            from app.services.memory_hooks import regenerate_memory_hooks_premium
+            threading.Thread(
+                target=regenerate_memory_hooks_premium,
+                args=(lemma_id,),
+                daemon=True,
+            ).start()
+            logger.info(f"Triggered premium mnemonic regeneration for demoted lemma {lemma_id} (box {old_box}→1)")
 
     # Check graduation: box >= 3 + stats + calendar day spread
     if not graduated and ulk.acquisition_box >= 3 and is_due:
