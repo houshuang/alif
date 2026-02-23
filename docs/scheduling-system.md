@@ -1016,8 +1016,8 @@ Two paths for sentence availability:
 
 1. **Pre-generated (warm cache)**: `scripts/update_material.py` runs on cron,
    generating multi-target sentences for words prioritized by FSRS due date. Target:
-   `MIN_SENTENCES=2` per word. Pool cap: 600 active sentences with `CAP_HEADROOM=30`
-   (retires down to 270 so backfill always has budget for multi-target generation).
+   `MIN_SENTENCES=3` per word. Pool cap: 800 active sentences with `CAP_HEADROOM=50`
+   (retires down to 750 so backfill always has budget for multi-target generation).
 
 2. **On-demand (JIT)**: During `build_session()` with `skip_on_demand=False` (prefetch
    requests only), if a due word has no comprehensible sentence, generate one synchronously.
@@ -1049,18 +1049,20 @@ Rule-based validation pipeline:
 
 ### Pipeline Cap & Retirement
 
-**Cap enforcement** (`update_material.py` Step 0): Hard cap of 600 active sentences.
-Step 0 retires down to `300 - CAP_HEADROOM` (270) to leave budget for multi-target
+**Cap enforcement** (`update_material.py` Step 0): Hard cap of 800 active sentences.
+Step 0 retires down to `800 - CAP_HEADROOM` (750) to leave budget for multi-target
 backfill in Step A. Retirement priority: never-shown stale → shown stale → oldest,
 always keeping at least 1 sentence per word.
 
 **Warm cache** (`warm_sentence_cache()`) now rotates stale sentences before checking
 the cap, so it can free space even when over the limit. After rotation, it allows up to
-`PIPELINE_CAP + 10` (310) before skipping generation. The warm cache identifies three
-types of gap words: (1) focus cohort words with < 2 active sentences, (2) likely
-auto-introduction candidates with < 2 sentences, (3) **recency-exhausted words** — words
-with ≥ 2 sentences but ALL shown in the last 24h (capped at 5 per warm run). This ensures
-high-frequency reviewers always have fresh sentences available. (Fix: 2026-02-23)
+`PIPELINE_CAP + 10` (810) before skipping generation. The warm cache identifies three
+types of gap words: (1) focus cohort words with < 3 active sentences, (2) likely
+auto-introduction candidates with < 3 sentences, (3) **recency-exhausted words** — words
+with ≥ 3 sentences but ALL shown in the last 24h (capped at 20 per warm run). This ensures
+high-frequency reviewers always have fresh sentences available.
+(Fix: 2026-02-23 initial, 2026-02-24 raised cap 600→800, MIN_SENTENCES 2→3,
+MAX_RECENCY_EXHAUSTED 5→20, CAP_HEADROOM 30→50, cron 6h→3h)
 
 Old, low-diversity sentences are retired via `is_active=False`. The retirement script
 (`scripts/rotate_stale_sentences.py`) deactivates sentences with overexposed scaffold
@@ -1473,10 +1475,11 @@ remaining cards on the next card advance. See Section 8 "Sentence Pre-Warming" f
 
 | Constant | Value | Purpose |
 |----------|-------|---------|
-| `PIPELINE_CAP` | 600 | Max active sentences |
-| `CAP_HEADROOM` | 30 | Step 0 retires to cap minus this (→270) |
-| `MIN_SENTENCES_PER_WORD` | 2 | Target sentences per word for backfill |
-| Warm cache cap | 310 | `PIPELINE_CAP + 10` — warm cache allowed slightly over |
+| `PIPELINE_CAP` | 800 | Max active sentences |
+| `CAP_HEADROOM` | 50 | Step 0 retires to cap minus this (→750) |
+| `MIN_SENTENCES_PER_WORD` | 3 | Target sentences per word for backfill |
+| `MAX_RECENCY_EXHAUSTED` | 20 | Warm cache: max recency-exhausted words per run |
+| Warm cache cap | 810 | `PIPELINE_CAP + 10` — warm cache allowed slightly over |
 
 ---
 

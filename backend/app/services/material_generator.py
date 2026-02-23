@@ -355,8 +355,8 @@ def generate_word_audio(lemma_id: int) -> None:
         db.close()
 
 
-MIN_SENTENCES_PER_WORD = 2
-PIPELINE_CAP = 600
+MIN_SENTENCES_PER_WORD = 3
+PIPELINE_CAP = 800
 
 
 def rotate_stale_sentences(db, min_shown: int = 1, min_active: int = 2) -> int:
@@ -485,7 +485,7 @@ def warm_sentence_cache(llm_model: str = "gemini") -> dict:
             )
             gaps = [lid for lid in cohort if sentence_counts.get(lid, 0) < MIN_SENTENCES_PER_WORD]
             stats["cohort_gaps"] = len(gaps)
-            gap_word_ids.extend(gaps[:10])
+            gap_word_ids.extend(gaps[:20])
 
         # 2. Likely auto-introduction candidates
         active_topic = ensure_active_topic(db)
@@ -510,7 +510,7 @@ def warm_sentence_cache(llm_model: str = "gemini") -> dict:
         recency_cutoff = now - timedelta(days=1)
         gap_word_set = set(gap_word_ids)
         recency_exhausted_count = 0
-        MAX_RECENCY_EXHAUSTED = 5
+        MAX_RECENCY_EXHAUSTED = 20
         if cohort:
             for lid in cohort:
                 if lid in gap_word_set:

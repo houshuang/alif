@@ -61,10 +61,10 @@ from app.services.tts import (
     get_cached_path,
 )
 
-MIN_SENTENCES = 2  # per-word target for backfill generation
+MIN_SENTENCES = 3  # per-word target for backfill generation
 MIN_SENTENCES_CAP_ENFORCEMENT = 1  # per-word floor during cap enforcement (JIT handles gaps)
-TARGET_PIPELINE_SENTENCES = 600  # hard cap — JIT generation fills gaps with current vocabulary
-CAP_HEADROOM = 30  # retire this many below cap to leave room for multi-target backfill
+TARGET_PIPELINE_SENTENCES = 800  # hard cap — JIT generation fills gaps with current vocabulary
+CAP_HEADROOM = 50  # retire this many below cap to leave room for multi-target backfill
 
 
 def get_existing_counts(db: Session) -> dict[int, int]:
