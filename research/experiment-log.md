@@ -4,6 +4,46 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-02-24: Pipeline Drought Fix — Raise All Caps
+
+### Problem
+Pipeline drought recurring: sessions collapsed from 24 to 1-2 cards within a single day of heavy usage (10+ sessions). Diagnosis showed 59% of focus words (72/122) had zero eligible sentences despite 606 active sentences — the pool was at capacity but sentences clustered around well-known words, not the acquiring words that need frequent review.
+
+### Root Causes
+1. Generation rate (120/day) < consumption rate (~155/day) — net deficit ~35/day
+2. Warm cache recency cap too low (5) — only 5 exhausted words addressed per warm run, 24 were exhausted
+3. MIN_SENTENCES_PER_WORD=2 too low — acquiring words exhaust 2 sentences after a single session
+4. Pipeline cap at ceiling (606/600) — no headroom for burst generation
+
+### Changes
+| Constant | Old | New | Rationale |
+|----------|-----|-----|-----------|
+| `PIPELINE_CAP` | 600 | 800 | More headroom for high-velocity days |
+| `MIN_SENTENCES_PER_WORD` | 2 | 3 | 3 sentences per word survives 2 sessions without exhaustion |
+| `MAX_RECENCY_EXHAUSTED` | 5 | 20 | Address all exhausted words per warm run, not just 5 |
+| `CAP_HEADROOM` | 30 | 50 | Larger retirement buffer for multi-target generation |
+| Warm cache gap limit | 10 | 20 | Process more gap words per warm run |
+| Cron frequency | 6h | 3h | Double the generation rate: 240/day vs 120/day |
+
+### Files Changed
+- `backend/app/services/material_generator.py` — PIPELINE_CAP, MIN_SENTENCES_PER_WORD, MAX_RECENCY_EXHAUSTED, gap limit
+- `backend/scripts/update_material.py` — TARGET_PIPELINE_SENTENCES, MIN_SENTENCES, CAP_HEADROOM
+- Server crontab — update_material.py frequency 6h→3h
+- `docs/scheduling-system.md` — updated all constants
+
+### Expected Effect
+- Pipeline fills to ~800 sentences with 3/word coverage
+- Warm cache addresses all recency-exhausted words each run
+- Cron doubles throughput to ~240 sentences/day
+- Sessions should stay 10+ cards even on heavy days (10+ sessions/day)
+
+### Verification
+- Monitor session sizes over next 48h
+- Check `activity_log` for generation counts rising
+- Count focus words without eligible sentences (target: <20%)
+
+---
+
 ## 2026-02-23: Fill Phase Always Runs + Warm Cache Recency-Exhausted Detection
 
 ### Problem
