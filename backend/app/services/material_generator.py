@@ -5,7 +5,7 @@ Used by both learn.py (word introduction) and ocr_service.py (post-import).
 
 import asyncio
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from app.database import SessionLocal
 from app.models import Lemma, Sentence, SentenceWord, UserLemmaKnowledge
@@ -502,6 +502,42 @@ def warm_sentence_cache(llm_model: str = "gemini") -> dict:
             if count < MIN_SENTENCES_PER_WORD:
                 gap_word_ids.append(lid)
                 stats["intro_gaps"] = stats.get("intro_gaps", 0) + 1
+
+        # 3. Recency-exhausted words: have ≥2 sentences but ALL shown in last 24h
+        #    Generate an extra sentence so the next session has a fresh one available
+        from sqlalchemy import or_
+        now = datetime.now(timezone.utc)
+        recency_cutoff = now - timedelta(days=1)
+        gap_word_set = set(gap_word_ids)
+        recency_exhausted_count = 0
+        MAX_RECENCY_EXHAUSTED = 5
+        if cohort:
+            for lid in cohort:
+                if lid in gap_word_set:
+                    continue
+                if recency_exhausted_count >= MAX_RECENCY_EXHAUSTED:
+                    break
+                active_count = sentence_counts.get(lid, 0)
+                if active_count < MIN_SENTENCES_PER_WORD:
+                    continue
+                fresh_count = (
+                    db.query(func.count(Sentence.id))
+                    .filter(
+                        Sentence.target_lemma_id == lid,
+                        Sentence.is_active == True,
+                        or_(
+                            Sentence.last_reading_shown_at.is_(None),
+                            Sentence.last_reading_shown_at < recency_cutoff,
+                        ),
+                    )
+                    .scalar() or 0
+                )
+                if fresh_count == 0:
+                    gap_word_ids.append(lid)
+                    recency_exhausted_count += 1
+            if recency_exhausted_count:
+                stats["recency_exhausted"] = recency_exhausted_count
+                logger.info(f"Warm cache: {recency_exhausted_count} recency-exhausted words need fresh sentences")
 
         if not gap_word_ids:
             logger.info(f"Warm cache: no gaps found")

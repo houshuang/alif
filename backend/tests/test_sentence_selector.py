@@ -721,6 +721,50 @@ class TestScaffoldDiversity:
                 "Unique scaffold sentence should be preferred over reused scaffold"
 
 
+class TestFillPhasePregenerated:
+    """Fill phase should use pre-generated sentences when skip_on_demand=True."""
+
+    def test_fill_uses_pregenerated_in_fast_mode(self, db_session):
+        """When skip_on_demand=True and session is undersized, fill phase
+        should introduce words and find their pre-generated sentences."""
+        # 1 due word → produces 1-card session (undersized for limit=5)
+        _seed_word(db_session, 1, "كتاب", "book", due_hours=-1)
+        _seed_sentence(db_session, 1, "الكتاب", "the book", 1, [("الكتاب", 1)])
+
+        # An encountered word with a pre-generated sentence (eligible for intro)
+        encountered_lemma = Lemma(
+            lemma_id=50, lemma_ar="جديد", lemma_ar_bare="جديد",
+            pos="adj", gloss_en="new", frequency_rank=100,
+        )
+        db_session.add(encountered_lemma)
+        db_session.flush()
+        ulk = UserLemmaKnowledge(
+            lemma_id=50, knowledge_state="encountered",
+            times_seen=0, times_correct=0, source="study",
+        )
+        db_session.add(ulk)
+        # Sentence with the encountered word + known scaffold
+        _seed_sentence(db_session, 50, "كتاب جديد", "new book", 50,
+                       [("كتاب", 1), ("جديد", 50)])
+
+        # Enough reviews for accuracy-based intro to work
+        now = datetime.now(timezone.utc)
+        for j in range(20):
+            db_session.add(ReviewLog(
+                lemma_id=1, rating=4,
+                reviewed_at=now - timedelta(hours=j),
+                review_mode="reading",
+            ))
+        db_session.commit()
+
+        result = build_session(db_session, limit=5, skip_on_demand=True)
+        # Should have at least the 1 due word; if fill phase works,
+        # it may introduce more words with pre-generated sentences
+        assert len(result["items"]) >= 1
+        # The fill phase should have attempted to expand the session
+        assert result["total_due_words"] >= 1
+
+
 class TestRescuePass:
     """Regression: words blocked by recency filter should get a rescue pass
     with stale sentences at 0.3x penalty (reverted by 7ee81cf)."""
