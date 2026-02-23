@@ -50,17 +50,17 @@ npx expo start --web  # opens on localhost:8081
 - **Story Mode**: generate/import, tap-to-lookup reader, complete/suspend
 
 ## Design Principles
-- **Word introduction is automatic** — `build_session()` reserves `INTRO_RESERVE_FRACTION` (20%) of session slots for new words, even when due queue exceeds limit. Accuracy-based rate: <70%→0, 70-85%→4, 85-92%→7, ≥92%→10 slots. Per-call cap: MAX_AUTO_INTRO_PER_SESSION=10. **Pipeline backlog gate**: reserved intro slots suppressed when acquiring count > `PIPELINE_BACKLOG_THRESHOLD` (40); undersized-session fill still works. Fill phase runs a second pass if still undersized. OCR/story import creates "encountered" state only.
+- **Word introduction is automatic** — `build_session()` reserves `INTRO_RESERVE_FRACTION` (20%) of session slots for new words, even when due queue exceeds limit. Accuracy-based rate: <70%→0, 70-85%→4, 85-92%→7, ≥92%→10 slots. Per-call cap: MAX_AUTO_INTRO_PER_SESSION=10. **Pipeline backlog gate**: reserved intro slots suppressed when acquiring count > `PIPELINE_BACKLOG_THRESHOLD` (40); undersized-session fill still works. **Fill phase always runs** when session is undersized — in fast mode uses `_find_pregenerated_sentences_for_words()` (DB queries only, no LLM); in prefetch mode uses `_generate_on_demand()`. OCR/story import creates "encountered" state only.
 - **No concept of "due"** — the app picks the most relevant cards. Don't use "due" in UI text. Use "ready for review".
 - **No bare word cards in review** — ONLY sentences. Generate on-demand or skip if no comprehensible sentence.
 - **Comprehensibility gate** — ≥60% known scaffold words required. Acquiring box-1 excluded, encountered excluded (only actively studied words count).
 - **Function words** — ~80 particles/prepositions/pronouns/conjunctions (populated from `FUNCTION_WORD_GLOSSES` in `sentence_validator.py`). Excluded from story/book "to learn" counts, book page word introduction, FSRS review credit, scheduling/due counts, and scaffold diversity checks. They still appear in sentences and get glosses. Detection checks both surface form AND resolved lemma bare form (catches cliticized forms like بِهِ → بِ).
 - **Story word counts are deduped** — `total_words`, `known_count`, `unknown_count` count unique lemmas, not tokens. Each lemma counted once even if it appears multiple times in the story.
-- **On-demand sentence generation** — max 10/session, uses current vocabulary for fresher sentences.
+- **On-demand sentence generation** — max 10/session, uses current vocabulary for fresher sentences. Skipped in fast mode (`skip_on_demand=True`); fill phase still runs using pre-generated sentences.
 - **Tapped words are always marked missed** — front-phase tapping auto-marks as missed (rating≤2).
 - **al-prefix is NOT a separate lemma** — الكلب and كلب are the same lemma. All import paths dedup.
 - **Be conservative with ElevenLabs TTS** — costs real money. Only generate for sentences that will be shown.
-- **Sentence pipeline cap**: 600 active sentences. Cron runs `rotate_stale_sentences.py` then `update_material.py` every 6h.
+- **Sentence pipeline cap**: 600 active sentences. Cron runs `rotate_stale_sentences.py` then `update_material.py` every 6h. `warm_sentence_cache()` also runs after every session load and detects recency-exhausted words (≥2 sentences but all shown <24h, generates fresh ones, max 5/run).
 - **Canonical lemma is the unit of scheduling** — variant forms tracked via `variant_stats_json` but never get independent FSRS cards.
 - **All import paths must run variant detection** — `detect_variants_llm()` + `detect_definite_variants()` + `mark_variants()` post-import.
 - **All import paths must run quality gate** — `import_quality.classify_lemmas()` filters junk, classifies standard/proper_name/onomatopoeia.
