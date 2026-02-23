@@ -4,6 +4,35 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-02-23: Fill Phase Always Runs + Warm Cache Recency-Exhausted Detection
+
+### Problem
+6th+ occurrence of undersized sessions (3 cards instead of 10). The 1-day recency window fix from earlier today helped but two deeper structural issues remained:
+
+1. **Fill phase disabled for user requests**: `_with_fallbacks()` gated both on-demand LLM generation AND the fill phase behind one `skip_on_demand` flag. For user-facing requests, the entire fallback chain was skipped — so when pre-generated sentences were exhausted by recency/comprehensibility filters, the session stayed undersized with no recovery.
+
+2. **Warm cache ignores recency-exhausted words**: `warm_sentence_cache()` only generated for words with < 2 active sentences. Words with 2 sentences but both shown in the last 24h got nothing, so intensive reviewers ran dry despite the warm cache running.
+
+### Fix
+1. **Separated fill phase from LLM generation**: The fill phase now ALWAYS runs when a session is undersized, regardless of `skip_on_demand`. When `skip_on_demand=True` (user requests), it uses `_find_pregenerated_sentences_for_words()` — fast DB queries only, no LLM. Introduces new words via `_auto_introduce_words()` then finds their existing active sentences from the pool. When `skip_on_demand=False` (prefetch), it uses `_generate_on_demand()` as before.
+
+2. **Warm cache recency-exhausted detection**: After the existing gap detection, `warm_sentence_cache()` now checks for cohort words whose sentences are ALL shown in the last 24h and queues them for generation (capped at 5 per warm run).
+
+3. **Diagnostic logging** at key decision points: after greedy set cover, fill phase entry, pre-gen fill results.
+
+### Expected impact
+- Sessions should consistently fill to limit even during intensive review periods
+- Warm cache proactively generates fresh sentences for heavily-reviewed words
+- Diagnostic logs will help identify bottlenecks if the issue recurs
+
+### Files changed
+- `backend/app/services/sentence_selector.py` — new `_find_pregenerated_sentences_for_words()`, restructured `_with_fallbacks()`, logging
+- `backend/app/services/material_generator.py` — recency-exhausted detection in `warm_sentence_cache()`
+- `backend/tests/test_sentence_selector.py` — fill-phase test
+- `docs/scheduling-system.md` — updated session building + warm cache docs
+
+---
+
 ## 2026-02-22: Sentence Recency Window Reduced from 4 Days to 1 Day
 
 ### Problem

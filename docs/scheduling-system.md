@@ -6,7 +6,7 @@
 > topics, grammar, listening) interact. It also identifies where the current
 > implementation diverges from the research and stated intentions.
 >
-> **Last updated**: 2026-02-22
+> **Last updated**: 2026-02-23
 > **Canonical location**: `docs/scheduling-system.md`
 > **Keep this document up to date with every algorithm change.**
 
@@ -691,12 +691,13 @@ The frontend prefetches one session ahead to provide instant session transitions
    session has more pre-built material. (Added: 2026-02-18)
 
 **Fast session loads**: Non-prefetch session requests skip on-demand LLM generation
-(`skip_on_demand=True`) for fast response (~1s instead of ~18s). This flag also skips
-material generation during auto-introduction (`skip_material_gen=True`) and uses fast
-dictionary-only lemma backfill (no CAMeL disambiguation). Sessions may have fewer items
-(e.g., 9 instead of 10) but load instantly. Background warming fills gaps for subsequent
-sessions. Prefetch requests still do full generation since they already run in the
-background. (Fix: 2026-02-18, perf fix: 2026-02-22 — 18s→1.2s)
+(`skip_on_demand=True`) for fast response (~1s instead of ~18s). This flag skips LLM
+sentence generation but the **fill phase still runs** using pre-generated sentences from
+the pool (DB queries only, no LLM). When a session is undersized, the fill phase
+introduces new words via `_auto_introduce_words()` then finds existing active sentences
+for them via `_find_pregenerated_sentences_for_words()`. Prefetch requests still do full
+LLM generation since they already run in the background.
+(Fix: 2026-02-18, perf: 2026-02-22, fill-phase-always: 2026-02-23)
 
 **Why only one prefetch**: Previously 7 prefetch requests fired per session cycle (from
 session start, near-end, session-complete, and next-session-start). Each triggered on-demand
@@ -1055,7 +1056,11 @@ always keeping at least 1 sentence per word.
 
 **Warm cache** (`warm_sentence_cache()`) now rotates stale sentences before checking
 the cap, so it can free space even when over the limit. After rotation, it allows up to
-`PIPELINE_CAP + 10` (310) before skipping generation.
+`PIPELINE_CAP + 10` (310) before skipping generation. The warm cache identifies three
+types of gap words: (1) focus cohort words with < 2 active sentences, (2) likely
+auto-introduction candidates with < 2 sentences, (3) **recency-exhausted words** — words
+with ≥ 2 sentences but ALL shown in the last 24h (capped at 5 per warm run). This ensures
+high-frequency reviewers always have fresh sentences available. (Fix: 2026-02-23)
 
 Old, low-diversity sentences are retired via `is_active=False`. The retirement script
 (`scripts/rotate_stale_sentences.py`) deactivates sentences with overexposed scaffold
