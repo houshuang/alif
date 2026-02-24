@@ -523,6 +523,11 @@ class StoryGenerateIn(BaseModel):
     topic: str | None = None
 
 
+class StoryGenerateOut(BaseModel):
+    id: int
+    status: str
+
+
 class StoryImportIn(BaseModel):
     arabic_text: str
     title: str | None = None

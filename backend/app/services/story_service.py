@@ -47,7 +47,7 @@ KNOWN_SAMPLE_SIZE = 500
 MAX_STORY_ATTEMPTS = 1
 MAX_CORRECTION_ROUNDS = 3
 TERMINAL_STORY_STATUSES = {"completed"}
-HIDDEN_STORY_STATUSES = {"deleted"}
+HIDDEN_STORY_STATUSES = {"deleted", "failed"}
 
 STORY_SYSTEM_PROMPT = f"""\
 You are a brilliant Arabic storyteller — think Borges writing flash fiction with a \
@@ -602,11 +602,14 @@ def generate_story(
     max_sentences: int = 6,
     length: str = "medium",
     topic: str | None = None,
+    existing_story_id: int | None = None,
 ) -> tuple["Story", list[int]]:
     """Generate a story using Opus with self-correction for 100% vocabulary compliance.
 
     Strategy: generate once, then iteratively correct unknown words rather than
     regenerating the entire story from scratch.
+
+    If existing_story_id is provided, updates that row instead of creating a new one.
 
     Returns (story, new_lemma_ids).
     """
@@ -744,18 +747,30 @@ Respond with JSON: {{"title_ar": "...", "title_en": "...", "body_ar": "corrected
 
     knowledge_map = _build_knowledge_map(db)
 
-    story = Story(
-        title_ar=result.get("title_ar"),
-        title_en=result.get("title_en"),
-        body_ar=body_ar,
-        body_en=result.get("body_en"),
-        transliteration=result.get("transliteration"),
-        source="generated",
-        status="active",
-        difficulty_level=difficulty,
-    )
-    db.add(story)
-    db.flush()
+    if existing_story_id:
+        story = db.query(Story).get(existing_story_id)
+        if not story:
+            raise ValueError(f"Story placeholder {existing_story_id} not found")
+        story.title_ar = result.get("title_ar")
+        story.title_en = result.get("title_en")
+        story.body_ar = body_ar
+        story.body_en = result.get("body_en")
+        story.transliteration = result.get("transliteration")
+        story.status = "active"
+        db.flush()
+    else:
+        story = Story(
+            title_ar=result.get("title_ar"),
+            title_en=result.get("title_en"),
+            body_ar=body_ar,
+            body_en=result.get("body_en"),
+            transliteration=result.get("transliteration"),
+            source="generated",
+            status="active",
+            difficulty_level=difficulty,
+        )
+        db.add(story)
+        db.flush()
 
     total, known, func = _create_story_words(
         db, story, body_ar, lemma_lookup, knowledge_map
@@ -1176,6 +1191,25 @@ def get_story_detail(db: Session, story_id: int) -> dict:
     story = db.query(Story).filter(Story.id == story_id).first()
     if not story or story.status == "deleted":
         raise ValueError(f"Story {story_id} not found")
+
+    if story.status in ("generating", "failed"):
+        return {
+            "id": story.id,
+            "title_ar": story.title_ar,
+            "title_en": story.title_en,
+            "body_ar": story.body_ar or "",
+            "body_en": story.body_en,
+            "transliteration": story.transliteration,
+            "source": story.source,
+            "status": story.status,
+            "readiness_pct": 0,
+            "unknown_count": 0,
+            "total_words": 0,
+            "known_count": 0,
+            "page_count": None,
+            "created_at": story.created_at.isoformat() if story.created_at else "",
+            "words": [],
+        }
 
     story_lemma_ids = {sw.lemma_id for sw in story.words if sw.lemma_id}
     knowledge_map = _build_knowledge_map(db, lemma_ids=story_lemma_ids or None)

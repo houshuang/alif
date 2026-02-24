@@ -18,7 +18,7 @@ import { useRouter, useFocusEffect } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
 import { colors, fonts, fontFamily } from "../lib/theme";
-import { getStories, generateStory, importStory, deleteStory, suspendStory, prefetchStoryDetails, extractTextFromImage } from "../lib/api";
+import { getStories, generateStory, getStoryDetail, importStory, deleteStory, suspendStory, prefetchStoryDetails, extractTextFromImage } from "../lib/api";
 import { clearStoryLookups } from "../lib/offline-store";
 import { netStatus } from "../lib/net-status";
 import { StoryListItem } from "../lib/types";
@@ -81,16 +81,40 @@ export default function StoriesScreen() {
     setShowGenerate(false);
     setGenerating(true);
     try {
-      const story = await generateStory({
+      const { id } = await generateStory({
         length: genLength,
         topic: genTopic.trim() || undefined,
       });
       setGenTopic("");
       setGenLength("medium");
-      router.push(`/story/${story.id}`);
+
+      // Poll until story is ready (timeout after 5 min)
+      let elapsed = 0;
+      const poll = setInterval(async () => {
+        elapsed += 2000;
+        if (elapsed > 300_000) {
+          clearInterval(poll);
+          setGenerating(false);
+          Alert.alert("Story generation timed out", "Check the stories list — it may still appear.");
+          return;
+        }
+        try {
+          const detail = await getStoryDetail(id);
+          if (detail.status !== "generating") {
+            clearInterval(poll);
+            setGenerating(false);
+            if (detail.status === "failed") {
+              Alert.alert("Story generation failed", "Please try again.");
+            } else {
+              router.push(`/story/${id}`);
+            }
+          }
+        } catch {
+          // Story detail may 404 briefly, keep polling
+        }
+      }, 2000);
     } catch (e) {
       console.error("Failed to generate story:", e);
-    } finally {
       setGenerating(false);
     }
   }
