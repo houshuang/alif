@@ -216,7 +216,7 @@ class Story(Base):
     body_en = Column(Text, nullable=True)
     transliteration = Column(Text, nullable=True)
     source = Column(String(20), nullable=False)  # generated/imported/book_ocr
-    status = Column(String(20), default="active", index=True)  # active/completed/too_difficult/skipped/suspended
+    status = Column(String(20), default="active", index=True)  # active/completed/too_difficult/skipped/suspended/generating/failed
     page_count = Column(Integer, nullable=True)
     total_words = Column(Integer, default=0)
     known_count = Column(Integer, default=0)

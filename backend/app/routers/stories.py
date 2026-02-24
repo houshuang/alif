@@ -1,14 +1,18 @@
 """Story generation, import, and reading API endpoints."""
 
+import logging
+
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from sqlalchemy.orm import Session
 
-from app.database import get_db
+from app.database import SessionLocal, get_db
+from app.models import Story
 from app.schemas import (
     BookPageDetailOut,
     StoryCompleteIn,
     StoryDetailOut,
     StoryGenerateIn,
+    StoryGenerateOut,
     StoryImportIn,
     StoryLookupIn,
     StoryLookupOut,
@@ -28,31 +32,71 @@ from app.services.story_service import (
     suspend_story,
 )
 
+logger = logging.getLogger(__name__)
+
 router = APIRouter(prefix="/api/stories", tags=["stories"])
 
 
-@router.post("/generate", response_model=StoryDetailOut)
+def _generate_story_background(
+    story_id: int,
+    difficulty: str,
+    max_sentences: int,
+    length: str,
+    topic: str | None,
+):
+    """Run story generation in background, updating the placeholder row."""
+    db = SessionLocal()
+    try:
+        story, new_lemma_ids = generate_story(
+            db,
+            difficulty=difficulty,
+            max_sentences=max_sentences,
+            length=length,
+            topic=topic,
+            existing_story_id=story_id,
+        )
+        if new_lemma_ids:
+            from app.services.lemma_enrichment import enrich_lemmas_batch
+            enrich_lemmas_batch(new_lemma_ids)
+    except Exception as e:
+        logger.exception("Background story generation failed for story %d", story_id)
+        try:
+            placeholder = db.query(Story).get(story_id)
+            if placeholder and placeholder.status == "generating":
+                placeholder.status = "failed"
+                db.commit()
+        except Exception:
+            logger.exception("Failed to mark story %d as failed", story_id)
+    finally:
+        db.close()
+
+
+@router.post("/generate", response_model=StoryGenerateOut)
 def generate_story_endpoint(
     body: StoryGenerateIn,
     background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
 ):
-    try:
-        story, new_lemma_ids = generate_story(
-            db,
-            difficulty=body.difficulty,
-            max_sentences=body.max_sentences,
-            length=body.length,
-            topic=body.topic,
-        )
-    except ValueError as e:
-        raise HTTPException(status_code=422, detail=str(e))
+    placeholder = Story(
+        body_ar="",
+        source="generated",
+        status="generating",
+        difficulty_level=body.difficulty,
+    )
+    db.add(placeholder)
+    db.commit()
+    db.refresh(placeholder)
 
-    if new_lemma_ids:
-        from app.services.lemma_enrichment import enrich_lemmas_batch
-        background_tasks.add_task(enrich_lemmas_batch, new_lemma_ids)
+    background_tasks.add_task(
+        _generate_story_background,
+        placeholder.id,
+        body.difficulty,
+        body.max_sentences,
+        body.length,
+        body.topic,
+    )
 
-    return get_story_detail(db, story.id)
+    return {"id": placeholder.id, "status": "generating"}
 
 
 @router.post("/import", response_model=StoryDetailOut)

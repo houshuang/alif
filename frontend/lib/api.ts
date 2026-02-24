@@ -590,8 +590,8 @@ export async function generateStory(opts?: {
   difficulty?: string;
   length?: string;
   topic?: string;
-}): Promise<StoryDetail> {
-  return fetchApi<StoryDetail>("/api/stories/generate", {
+}): Promise<{ id: number; status: string }> {
+  return fetchApi<{ id: number; status: string }>("/api/stories/generate", {
     method: "POST",
     body: JSON.stringify({
       difficulty: opts?.difficulty || "beginner",
