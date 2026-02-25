@@ -388,6 +388,46 @@ def get_word(lemma_id: int, db: Session = Depends(get_db)):
                 source_info["story_id"] = story.id
                 source_info["story_title"] = story.title_en or story.title_ar or "Untitled"
 
+    # Pattern examples: same-wazn words from roots the user has touched
+    pattern_examples = []
+    if lemma.wazn:
+        touched_root_ids_q = (
+            db.query(Lemma.root_id)
+            .join(UserLemmaKnowledge, UserLemmaKnowledge.lemma_id == Lemma.lemma_id)
+            .filter(Lemma.root_id.isnot(None))
+            .distinct()
+        )
+        examples = (
+            db.query(Lemma, UserLemmaKnowledge.knowledge_state)
+            .outerjoin(UserLemmaKnowledge, UserLemmaKnowledge.lemma_id == Lemma.lemma_id)
+            .filter(
+                Lemma.wazn == lemma.wazn,
+                Lemma.root_id.in_(touched_root_ids_q.scalar_subquery()),
+                Lemma.lemma_id != lemma.lemma_id,
+                Lemma.canonical_lemma_id.is_(None),
+            )
+            .order_by(
+                case(
+                    (UserLemmaKnowledge.knowledge_state.in_(["known", "learning"]), 0),
+                    else_=1,
+                ),
+                Lemma.frequency_rank.asc().nullslast(),
+            )
+            .limit(5)
+            .all()
+        )
+        for ex, ks in examples:
+            ex_root = db.query(Root).filter(Root.root_id == ex.root_id).first() if ex.root_id else None
+            pattern_examples.append({
+                "lemma_id": ex.lemma_id,
+                "lemma_ar": ex.lemma_ar,
+                "gloss_en": ex.gloss_en,
+                "transliteration": ex.transliteration_ala_lc,
+                "root": ex_root.root if ex_root else None,
+                "root_meaning": ex_root.core_meaning_en if ex_root else None,
+                "knowledge_state": ks,
+            })
+
     return {
         "lemma_id": lemma.lemma_id,
         "lemma_ar": lemma.lemma_ar,
@@ -396,6 +436,7 @@ def get_word(lemma_id: int, db: Session = Depends(get_db)):
         "gloss_en": lemma.gloss_en or "",
         "transliteration": lemma.transliteration_ala_lc or "",
         "root": lemma.root.root if lemma.root else None,
+        "root_id": lemma.root_id,
         "knowledge_state": k.knowledge_state if k else "new",
         "frequency_rank": lemma.frequency_rank,
         "cefr_level": lemma.cefr_level,
@@ -416,51 +457,9 @@ def get_word(lemma_id: int, db: Session = Depends(get_db)):
         "wazn_meaning": lemma.wazn_meaning,
         "forms_translit": lemma.forms_translit_json,
         "pattern_family": pattern_family,
-        "pattern_examples": [],
+        "pattern_examples": pattern_examples,
         "acquisition_box": k.acquisition_box if k else None,
     }
-
-    # Pattern examples: same-wazn words from roots the user has touched
-    if lemma.wazn:
-        touched_root_ids = (
-            db.query(Lemma.root_id)
-            .join(UserLemmaKnowledge, UserLemmaKnowledge.lemma_id == Lemma.lemma_id)
-            .filter(Lemma.root_id.isnot(None))
-            .distinct()
-            .subquery()
-        )
-        examples = (
-            db.query(Lemma, UserLemmaKnowledge.knowledge_state)
-            .outerjoin(UserLemmaKnowledge, UserLemmaKnowledge.lemma_id == Lemma.lemma_id)
-            .filter(
-                Lemma.wazn == lemma.wazn,
-                Lemma.root_id.in_(touched_root_ids),
-                Lemma.lemma_id != lemma.lemma_id,
-                Lemma.canonical_lemma_id.is_(None),
-            )
-            .order_by(
-                case(
-                    (UserLemmaKnowledge.knowledge_state.in_(["known", "learning"]), 0),
-                    else_=1,
-                ),
-                Lemma.frequency_rank.asc().nullslast(),
-            )
-            .limit(5)
-            .all()
-        )
-        for ex, ks in examples:
-            ex_root = db.query(Root).filter(Root.root_id == ex.root_id).first() if ex.root_id else None
-            result["pattern_examples"].append({
-                "lemma_id": ex.lemma_id,
-                "lemma_ar": ex.lemma_ar,
-                "gloss_en": ex.gloss_en,
-                "transliteration": ex.transliteration_ala_lc,
-                "root": ex_root.root if ex_root else None,
-                "root_meaning": ex_root.core_meaning_en if ex_root else None,
-                "knowledge_state": ks,
-            })
-
-    return result
 
 
 @router.post("/{lemma_id}/postpone")

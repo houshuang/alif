@@ -5,7 +5,8 @@ All frontend in `frontend/`.
 ## Screens (app/)
 - `app/index.tsx` — Review screen: sentence-only (no word-only fallback), reading + listening, word lookup, word marking, back/undo, wrap-up mini-quiz (acquiring + missed words), session word tracking, story source badges on intro cards
 - `app/learn.tsx` — Learn mode: 5-candidate pick → done (no quiz). Shows pattern decomposition (wazn + root), etymology, and mnemonic in highlighted info boxes. Story source badge for story words.
-- `app/words.tsx` — Word browser: grid, category tabs (Vocab/Function/Names), smart filters (Leeches/Struggling/Recent/Solid/Next Up/Acquiring/Encountered), sparklines (variable-width gaps show inter-review timing), search
+- `app/explore.tsx` — Explore tab with three sub-tabs (Words/Roots/Patterns). Words sub-tab: grid, category tabs (Vocab/Function/Names), smart filters (Leeches/Struggling/Recent/Solid/Next Up/Acquiring/Encountered), sparklines, search. Roots sub-tab: FlatList of root cards (Arabic letters, core meaning, coverage bar), search, tap → `/root/{id}`. Patterns sub-tab: FlatList of pattern cards (name, meaning, coverage bar), search, tap → `/pattern/{wazn}`.
+- `app/words.tsx` — Redirect to /explore (legacy URL support)
 - `app/stats.tsx` — Analytics dashboard organized into 5 sections: **Today** (hero card with comprehension bar, graduated pills, new words by source, calibration, today's transitions), **Vocabulary** (word lifecycle funnel: encountered→acquiring→learning→known with counts, reading coverage %, CEFR level + arrival predictions, acquisition pipeline with Leitner boxes), **Progress** (known words growth with week/month deltas, 14-day activity chart with words_learned overlay, learning pace 7d+30d, transitions 7d+30d, retention 7d+30d, comprehension 7d+30d side-by-side), **Sessions** (recent sessions with mini comprehension bars), **Deep Dive** (vocabulary health/stability distribution, struggling words, root progress, insights card with 10 derived stats)
 - `app/story/[id].tsx` — Story reader with tap-to-lookup, WordInfoCard for lookups, ActionMenu in header bar (Ask AI, suspend story). All navigation (back, complete, suspend) goes to `/stories` via `router.replace`.
 - `app/stories.tsx` — Story list with generate + import + book import, grouped sections (Active/Suspended/Completed collapsed), suspend all, suspend/reactivate toggle per story, book source badges, completion prediction (~Xd until ready), clickable per-page readiness pills for book imports (learned/new format, green when all page words acquiring; navigate to book-page detail), book footer shows "X/Y new words learning" (deduplicated, only words unknown at import)
@@ -13,7 +14,9 @@ All frontend in `frontend/`.
 - `app/scanner.tsx` — Textbook page OCR scanner
 - `app/book-import.tsx` — Book import: photograph cover + content pages → reading goal with sentence extraction
 - `app/more.tsx` — More tab: Scanner, Chats, New Words, Activity Log
-- `app/word/[id].tsx` — Word detail: forms, root family, pattern, etymology, memory hooks, review history, sentence stats. Actions (postpone/suspend/flag) in "..." overflow menu in header bar.
+- `app/word/[id].tsx` — Word detail: forms, root family, pattern, etymology, memory hooks, review history, sentence stats. Root Family title links to `/root/{root_id}`, Pattern title links to `/pattern/{wazn}`. Actions (postpone/suspend/flag) in "..." overflow menu in header bar.
+- `app/root/[id].tsx` — Root detail: 52pt Arabic root letters, core meaning, enrichment section (etymology story, cultural significance, literary examples, fun facts, related roots as pills), derivation tree grouped by pattern. Words tappable → `/word/{id}`, pattern headers tappable → `/pattern/{wazn}`.
+- `app/pattern/[id].tsx` — Pattern detail: pattern name + meaning, enrichment section (explanation, how to recognize, semantic fields, example derivations, register notes, fun facts, related patterns as pills), word list sorted by knowledge state. Words tappable → `/word/{id}`.
 - `app/chats.tsx` — AI chat conversations
 - `app/listening.tsx` — Dedicated listening mode
 - `app/review-lab.tsx` — Hidden route for testing review UI variants

@@ -14,6 +14,7 @@ class Root(Base):
     root = Column(Text, unique=True, nullable=False)  # e.g. "ك.ت.ب"
     core_meaning_en = Column(Text)
     productivity_score = Column(Integer, default=0)
+    enrichment_json = Column(JSON, nullable=True)
 
     lemmas = relationship("Lemma", back_populates="root")
 
@@ -314,6 +315,14 @@ class VariantDecision(Base):
     is_variant = Column(Boolean, nullable=False)
     reason = Column(Text, nullable=True)
     decided_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+
+class PatternInfo(Base):
+    __tablename__ = "pattern_info"
+
+    wazn = Column(String(30), primary_key=True)
+    wazn_meaning = Column(Text)
+    enrichment_json = Column(JSON, nullable=True)
 
 
 class LearnerSettings(Base):

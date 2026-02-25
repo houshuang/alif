@@ -76,6 +76,7 @@ export interface WordDetail extends Word {
   forms_json?: WordForms | null;
   grammar_features: GrammarFeatureDetail[];
   root_family: { id: number; arabic: string; english: string }[];
+  root_id?: number | null;
   pattern_family?: PatternFamilyItem[];
   review_history: ReviewHistoryEntry[];
   sentence_stats: WordSentenceStat[];
@@ -749,4 +750,91 @@ export interface TopicInfo {
   available_words: number;
   learned_words: number;
   eligible: boolean;
+}
+
+// --- Root & Pattern Explore types ---
+
+export interface RootListItem {
+  root_id: number;
+  root: string;
+  core_meaning_en: string | null;
+  total_words: number;
+  known_words: number;
+  coverage_pct: number;
+  has_enrichment: boolean;
+}
+
+export interface RootEnrichment {
+  etymology_story: string;
+  cultural_significance: string | null;
+  literary_examples: string[];
+  fun_facts: string[];
+  related_roots: string[];
+}
+
+export interface RootDetailWord {
+  lemma_id: number;
+  lemma_ar: string;
+  gloss_en: string | null;
+  pos: string | null;
+  knowledge_state: string | null;
+  frequency_rank: number | null;
+  transliteration: string | null;
+}
+
+export interface RootDetailPattern {
+  wazn: string | null;
+  wazn_meaning: string | null;
+  words: RootDetailWord[];
+}
+
+export interface RootDetail {
+  root_id: number;
+  root: string;
+  core_meaning_en: string | null;
+  enrichment: RootEnrichment | null;
+  patterns: RootDetailPattern[];
+  total_words: number;
+}
+
+export interface PatternListItem {
+  wazn: string;
+  wazn_meaning: string | null;
+  total_words: number;
+  known_words: number;
+  coverage_pct: number;
+  has_enrichment: boolean;
+}
+
+export interface PatternEnrichment {
+  explanation: string;
+  how_to_recognize: string | null;
+  semantic_fields: string[];
+  register_notes: string | null;
+  example_derivations: {
+    root: string;
+    word: string;
+    gloss: string;
+    explanation: string;
+  }[];
+  fun_facts: string[];
+  related_patterns: string[];
+}
+
+export interface PatternDetailWord {
+  lemma_id: number;
+  lemma_ar: string;
+  gloss_en: string | null;
+  pos: string | null;
+  root: string | null;
+  root_meaning: string | null;
+  knowledge_state: string | null;
+  frequency_rank: number | null;
+}
+
+export interface PatternDetail {
+  wazn: string;
+  wazn_meaning: string | null;
+  enrichment: PatternEnrichment | null;
+  words: PatternDetailWord[];
 }
