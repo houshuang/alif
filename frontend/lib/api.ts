@@ -28,6 +28,10 @@ import {
   TopicSettings,
   TopicInfo,
   WordCategory,
+  RootListItem,
+  RootDetail,
+  PatternListItem,
+  PatternDetail,
 } from "./types";
 import { netStatus } from "./net-status";
 import {
@@ -73,6 +77,7 @@ interface RawWordDetail extends RawWord {
   forms_json: Record<string, string[]> | null;
   grammar_features: { feature_key: string; category?: string; label_en?: string; label_ar?: string }[];
   root_family: { id: number; arabic: string; english: string }[];
+  root_id?: number | null;
   etymology_json?: EtymologyData | null;
   memory_hooks_json?: MemoryHooksData | null;
   source_info?: { type: string; story_id?: number; story_title?: string } | null;
@@ -287,6 +292,7 @@ export async function getWordDetail(id: number): Promise<WordDetail> {
       accuracy_pct: s.accuracy_pct ?? null,
       last_reviewed_at: s.last_reviewed_at ?? null,
     })),
+    root_id: w.root_id ?? null,
     source_info: w.source_info ?? null,
     word_category: (w.word_category as WordCategory) ?? null,
     etymology_json: w.etymology_json ?? null,
@@ -975,4 +981,22 @@ export async function updateTashkeelSettings(
     method: "PUT",
     body: JSON.stringify({ mode, stability_threshold }),
   });
+}
+
+// --- Roots & Patterns (Explore) ---
+
+export async function getRoots(): Promise<RootListItem[]> {
+  return fetchApi<RootListItem[]>("/api/roots");
+}
+
+export async function getRootDetail(rootId: number): Promise<RootDetail> {
+  return fetchApi<RootDetail>(`/api/roots/${rootId}`);
+}
+
+export async function getPatterns(): Promise<PatternListItem[]> {
+  return fetchApi<PatternListItem[]>("/api/patterns");
+}
+
+export async function getPatternDetail(wazn: string): Promise<PatternDetail> {
+  return fetchApi<PatternDetail>(`/api/patterns/${encodeURIComponent(wazn)}`);
 }

@@ -215,9 +215,17 @@ export default function WordDetailScreen() {
 
       {word.root_family.length > 0 && (
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>
-            Root Family ({word.root})
-          </Text>
+          <Pressable
+            style={styles.sectionTitleRow}
+            onPress={word.root_id ? () => router.push(`/root/${word.root_id}`) : undefined}
+          >
+            <Text style={styles.sectionTitle}>
+              Root Family ({word.root})
+            </Text>
+            {word.root_id && (
+              <Ionicons name="chevron-forward" size={16} color={colors.textSecondary} />
+            )}
+          </Pressable>
           {word.root_family.map((f) => (
             <Pressable
               key={f.id}
@@ -233,7 +241,17 @@ export default function WordDetailScreen() {
 
       {word.pattern_examples && word.pattern_examples.length > 0 && (
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Pattern</Text>
+          <Pressable
+            style={styles.sectionTitleRow}
+            onPress={word.wazn ? () => router.push(`/pattern/${encodeURIComponent(word.wazn!)}`) : undefined}
+          >
+            <Text style={styles.sectionTitle}>
+              Pattern{word.wazn ? ` (${word.wazn})` : ""}
+            </Text>
+            {word.wazn && (
+              <Ionicons name="chevron-forward" size={16} color={colors.textSecondary} />
+            )}
+          </Pressable>
           {word.wazn_meaning && (
             <Text style={styles.etymologyDerivation}>{word.wazn_meaning}</Text>
           )}
@@ -639,6 +657,11 @@ const styles = StyleSheet.create({
     color: colors.text,
     fontWeight: "600",
     marginBottom: 6,
+  },
+  sectionTitleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
   },
   grammarChips: {
     flexDirection: "row",

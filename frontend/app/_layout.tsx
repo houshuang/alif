@@ -94,11 +94,11 @@ export default function Layout() {
           }}
         />
         <Tabs.Screen
-          name="words"
+          name="explore"
           options={{
-            title: "Words",
-            tabBarLabel: "Words",
-            tabBarIcon: ({ color, size }) => <Ionicons name="text-outline" size={size} color={color} />,
+            title: "Explore",
+            tabBarLabel: "Explore",
+            tabBarIcon: ({ color, size }) => <Ionicons name="compass-outline" size={size} color={color} />,
           }}
         />
         <Tabs.Screen
@@ -171,6 +171,27 @@ export default function Layout() {
           options={{
             href: null,
             title: "Review Lab",
+          }}
+        />
+        <Tabs.Screen
+          name="root/[id]"
+          options={{
+            href: null,
+            title: "Root Detail",
+          }}
+        />
+        <Tabs.Screen
+          name="pattern/[id]"
+          options={{
+            href: null,
+            title: "Pattern Detail",
+          }}
+        />
+        <Tabs.Screen
+          name="words"
+          options={{
+            href: null,
+            title: "Words",
           }}
         />
       </Tabs>
