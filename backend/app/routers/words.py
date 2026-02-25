@@ -233,7 +233,7 @@ def get_word(lemma_id: int, db: Session = Depends(get_db)):
     root_family = []
     if lemma.root_id:
         root_family = [
-            {"id": w["lemma_id"], "arabic": w["lemma_ar"], "english": w["gloss_en"]}
+            {"id": w["lemma_id"], "arabic": w["lemma_ar"], "english": w["gloss_en"], "transliteration": w.get("transliteration")}
             for w in get_root_family(db, lemma.root_id)
             if w["lemma_id"] != lemma.lemma_id
         ]

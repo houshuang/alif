@@ -75,6 +75,7 @@ interface RawWord {
 
 interface RawWordDetail extends RawWord {
   forms_json: Record<string, string[]> | null;
+  forms_translit?: Record<string, string> | null;
   grammar_features: { feature_key: string; category?: string; label_en?: string; label_ar?: string }[];
   root_family: { id: number; arabic: string; english: string; transliteration?: string | null }[];
   root_id?: number | null;
@@ -256,6 +257,7 @@ export async function getWordDetail(id: number): Promise<WordDetail> {
     times_reviewed: w.times_seen || 0,
     correct_count: w.times_correct || 0,
     forms_json: w.forms_json || null,
+    forms_translit: w.forms_translit || null,
     grammar_features: (w.grammar_features || []).map((g) => ({
       feature_key: g.feature_key,
       category: g.category ?? null,
