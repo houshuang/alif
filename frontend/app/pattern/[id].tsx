@@ -170,9 +170,13 @@ export default function PatternDetailScreen() {
           {enrichment.related_patterns && enrichment.related_patterns.length > 0 && (
             <View style={styles.pillRow}>
               {enrichment.related_patterns.map((rp, i) => (
-                <View key={i} style={styles.pill}>
+                <Pressable
+                  key={i}
+                  style={styles.pill}
+                  onPress={() => router.replace(`/pattern/${encodeURIComponent(rp)}`)}
+                >
                   <Text style={styles.pillText}>{rp}</Text>
-                </View>
+                </Pressable>
               ))}
             </View>
           )}

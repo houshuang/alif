@@ -60,6 +60,15 @@ def list_roots(db: Session = Depends(get_db)):
     return sorted(result, key=lambda r: (-r["known_words"], -r["total_words"]))
 
 
+@router.get("/search")
+def search_root(q: str, db: Session = Depends(get_db)):
+    """Look up a root by its text (e.g. 'ك ت ب')."""
+    root = db.query(Root).filter(Root.root == q).first()
+    if not root:
+        raise HTTPException(404, "Root not found")
+    return {"root_id": root.root_id, "root": root.root}
+
+
 @router.get("/{root_id}")
 def get_root(root_id: int, db: Session = Depends(get_db)):
     """Get root detail with enrichment and derivation tree."""

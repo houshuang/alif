@@ -996,6 +996,14 @@ export async function getRootDetail(rootId: number): Promise<RootDetail> {
   return fetchApi<RootDetail>(`/api/roots/${rootId}`);
 }
 
+export async function searchRootByText(rootText: string): Promise<{ root_id: number; root: string } | null> {
+  try {
+    return await fetchApi<{ root_id: number; root: string }>(`/api/roots/search?q=${encodeURIComponent(rootText)}`);
+  } catch {
+    return null;
+  }
+}
+
 export async function getPatterns(): Promise<PatternListItem[]> {
   return fetchApi<PatternListItem[]>("/api/patterns");
 }

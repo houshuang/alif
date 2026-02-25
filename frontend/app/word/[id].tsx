@@ -29,7 +29,7 @@ export default function WordDetailScreen() {
   useLayoutEffect(() => {
     navigation.setOptions({
       headerLeft: () => (
-        <Pressable onPress={() => router.back()} style={{ paddingLeft: 12 }}>
+        <Pressable onPress={() => router.canGoBack() ? router.back() : router.replace("/explore")} style={{ paddingLeft: 12 }}>
           <Ionicons name="chevron-back" size={24} color={colors.text} />
         </Pressable>
       ),

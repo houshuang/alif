@@ -10,7 +10,7 @@ import {
 import { useLocalSearchParams, useRouter, useNavigation } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { colors, fonts, fontFamily } from "../../lib/theme";
-import { getRootDetail } from "../../lib/api";
+import { getRootDetail, searchRootByText } from "../../lib/api";
 import { RootDetail, RootEnrichment } from "../../lib/types";
 import { getCefrColor } from "../../lib/frequency";
 
@@ -134,9 +134,16 @@ export default function RootDetailScreen() {
           {enrichment.related_roots && enrichment.related_roots.length > 0 && (
             <View style={styles.pillRow}>
               {enrichment.related_roots.map((r, i) => (
-                <View key={i} style={styles.pill}>
+                <Pressable
+                  key={i}
+                  style={styles.pill}
+                  onPress={async () => {
+                    const result = await searchRootByText(r);
+                    if (result) router.replace(`/root/${result.root_id}`);
+                  }}
+                >
                   <Text style={styles.pillText}>{r}</Text>
-                </View>
+                </Pressable>
               ))}
             </View>
           )}
