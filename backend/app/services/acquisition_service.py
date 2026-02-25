@@ -111,6 +111,17 @@ def start_acquisition(
         db.add(ulk)
 
     db.flush()
+
+    # Trigger root/pattern enrichment if this root or pattern now qualifies
+    lemma = db.query(Lemma).filter(Lemma.lemma_id == lemma_id).first()
+    if lemma:
+        if lemma.root_id:
+            from app.services.root_enrichment import maybe_enrich_root
+            maybe_enrich_root(lemma.root_id, db)
+        if lemma.wazn:
+            from app.services.pattern_enrichment import maybe_enrich_pattern
+            maybe_enrich_pattern(lemma.wazn, db)
+
     return ulk
 
 
