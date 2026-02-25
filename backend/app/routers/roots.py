@@ -45,7 +45,7 @@ def list_roots(db: Session = Depends(get_db)):
         )
         known_counts = {r.root_id: r.known for r in known_rows}
 
-    return [
+    result = [
         {
             "root_id": r.root_id,
             "root": r.root,
@@ -57,6 +57,7 @@ def list_roots(db: Session = Depends(get_db)):
         }
         for r in rows
     ]
+    return sorted(result, key=lambda r: (-r["known_words"], -r["total_words"]))
 
 
 @router.get("/{root_id}")
@@ -87,6 +88,7 @@ def get_root(root_id: int, db: Session = Depends(get_db)):
             "knowledge_state": l.knowledge.knowledge_state if l.knowledge else None,
             "frequency_rank": l.frequency_rank,
             "transliteration": l.transliteration_ala_lc,
+            "cefr_level": l.cefr_level,
         })
 
     return {

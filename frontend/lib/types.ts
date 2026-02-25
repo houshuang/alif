@@ -780,6 +780,7 @@ export interface RootDetailWord {
   knowledge_state: string | null;
   frequency_rank: number | null;
   transliteration: string | null;
+  cefr_level: string | null;
 }
 
 export interface RootDetailPattern {
@@ -830,6 +831,8 @@ export interface PatternDetailWord {
   root_meaning: string | null;
   knowledge_state: string | null;
   frequency_rank: number | null;
+  transliteration: string | null;
+  cefr_level: string | null;
 }
 
 export interface PatternDetail {

@@ -93,6 +93,11 @@ function knowledgeColor(state: string | null): string {
   return stateColor((state || "new") as Word["state"]);
 }
 
+function cleanCoreMeaning(s: string | null): string {
+  if (!s) return "—";
+  return s.replace(/^related to\s+/i, "").replace(/^the concept of\s+/i, "");
+}
+
 export default function ExploreScreen() {
   const [topTab, setTopTab] = useState<TopTab>("words");
   const [words, setWords] = useState<Word[]>([]);
@@ -401,7 +406,7 @@ export default function ExploreScreen() {
         <View style={styles.cardRow}>
           <View style={styles.cardLeft}>
             <Text style={styles.cardEnglish} numberOfLines={2}>
-              {item.core_meaning_en || "—"}
+              {cleanCoreMeaning(item.core_meaning_en)}
             </Text>
             <View style={styles.cardMeta}>
               <Text style={styles.metaText}>

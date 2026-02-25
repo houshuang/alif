@@ -96,6 +96,8 @@ def get_pattern(wazn: str, db: Session = Depends(get_db)):
                 "root_meaning": l.root.core_meaning_en if l.root else None,
                 "knowledge_state": l.knowledge.knowledge_state if l.knowledge else None,
                 "frequency_rank": l.frequency_rank,
+                "transliteration": l.transliteration_ala_lc,
+                "cefr_level": l.cefr_level,
             }
             for l in lemmas
         ],

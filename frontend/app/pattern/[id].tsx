@@ -12,6 +12,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { colors, fonts, fontFamily } from "../../lib/theme";
 import { getPatternDetail } from "../../lib/api";
 import { PatternDetail, PatternEnrichment } from "../../lib/types";
+import { getCefrColor } from "../../lib/frequency";
 
 function stateColor(state: string | null): string {
   return (
@@ -44,7 +45,7 @@ export default function PatternDetailScreen() {
   useLayoutEffect(() => {
     navigation.setOptions({
       headerLeft: () => (
-        <Pressable onPress={() => router.back()} style={{ paddingLeft: 12 }}>
+        <Pressable onPress={() => router.canGoBack() ? router.back() : router.replace("/explore")} style={{ paddingLeft: 12 }}>
           <Ionicons name="chevron-back" size={24} color={colors.text} />
         </Pressable>
       ),
@@ -193,14 +194,24 @@ export default function PatternDetailScreen() {
                   { backgroundColor: stateColor(word.knowledge_state) },
                 ]}
               />
-              <Text style={styles.wordEnglish} numberOfLines={1}>
-                {word.gloss_en || "—"}
-              </Text>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.wordEnglish} numberOfLines={1}>
+                  {word.gloss_en || "—"}
+                </Text>
+                {word.transliteration && (
+                  <Text style={styles.wordTranslit} numberOfLines={1}>
+                    {word.transliteration}
+                  </Text>
+                )}
+              </View>
               {word.root && (
                 <Text style={styles.wordRoot}>{word.root}</Text>
               )}
               {word.pos && (
                 <Text style={styles.wordPos}>{word.pos}</Text>
+              )}
+              {word.cefr_level && (
+                <View style={[styles.cefrDot, { backgroundColor: getCefrColor(word.cefr_level) }]} />
               )}
             </View>
             <Text style={styles.wordArabic}>{word.lemma_ar}</Text>
@@ -367,7 +378,12 @@ const styles = StyleSheet.create({
   wordEnglish: {
     fontSize: 14,
     color: colors.text,
-    flex: 1,
+  },
+  wordTranslit: {
+    fontSize: 11,
+    color: colors.textSecondary,
+    fontStyle: "italic",
+    marginTop: 1,
   },
   wordRoot: {
     fontSize: 12,
@@ -379,6 +395,12 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: colors.textSecondary,
     opacity: 0.7,
+  },
+  cefrDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 4,
+    marginLeft: 4,
   },
   wordArabic: {
     fontSize: 22,

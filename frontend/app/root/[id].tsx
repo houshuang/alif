@@ -12,6 +12,12 @@ import { Ionicons } from "@expo/vector-icons";
 import { colors, fonts, fontFamily } from "../../lib/theme";
 import { getRootDetail } from "../../lib/api";
 import { RootDetail, RootEnrichment } from "../../lib/types";
+import { getCefrColor } from "../../lib/frequency";
+
+function cleanCoreMeaning(s: string | null): string {
+  if (!s) return "Unknown meaning";
+  return s.replace(/^related to\s+/i, "").replace(/^the concept of\s+/i, "");
+}
 
 function stateColor(state: string | null): string {
   return (
@@ -35,7 +41,7 @@ export default function RootDetailScreen() {
   useLayoutEffect(() => {
     navigation.setOptions({
       headerLeft: () => (
-        <Pressable onPress={() => router.back()} style={{ paddingLeft: 12 }}>
+        <Pressable onPress={() => router.canGoBack() ? router.back() : router.replace("/explore")} style={{ paddingLeft: 12 }}>
           <Ionicons name="chevron-back" size={24} color={colors.text} />
         </Pressable>
       ),
@@ -80,7 +86,7 @@ export default function RootDetailScreen() {
     <ScrollView style={styles.scroll} contentContainerStyle={styles.content}>
       <Text style={styles.rootLetters}>{root.root}</Text>
       <Text style={styles.coreMeaning}>
-        {root.core_meaning_en || "Unknown meaning"}
+        {cleanCoreMeaning(root.core_meaning_en)}
       </Text>
       <Text style={styles.wordCount}>
         {root.total_words} word{root.total_words !== 1 ? "s" : ""}
@@ -180,14 +186,21 @@ export default function RootDetailScreen() {
                     { backgroundColor: stateColor(word.knowledge_state) },
                   ]}
                 />
-                <Text style={styles.wordEnglish} numberOfLines={1}>
-                  {word.gloss_en || "—"}
-                </Text>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.wordEnglish} numberOfLines={1}>
+                    {word.gloss_en || "—"}
+                  </Text>
+                  {word.transliteration && (
+                    <Text style={styles.wordTranslit} numberOfLines={1}>
+                      {word.transliteration}
+                    </Text>
+                  )}
+                </View>
                 {word.pos && (
                   <Text style={styles.wordPos}>{word.pos}</Text>
                 )}
-                {word.frequency_rank && (
-                  <Text style={styles.wordMeta}>#{word.frequency_rank}</Text>
+                {word.cefr_level && (
+                  <View style={[styles.cefrDot, { backgroundColor: getCefrColor(word.cefr_level) }]} />
                 )}
               </View>
               <Text style={styles.wordArabic}>{word.lemma_ar}</Text>
@@ -340,17 +353,23 @@ const styles = StyleSheet.create({
   wordEnglish: {
     fontSize: 14,
     color: colors.text,
-    flex: 1,
+  },
+  wordTranslit: {
+    fontSize: 11,
+    color: colors.textSecondary,
+    fontStyle: "italic",
+    marginTop: 1,
   },
   wordPos: {
     fontSize: 11,
     color: colors.textSecondary,
     opacity: 0.7,
   },
-  wordMeta: {
-    fontSize: 11,
-    color: colors.textSecondary,
-    opacity: 0.5,
+  cefrDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 4,
+    marginLeft: 4,
   },
   wordArabic: {
     fontSize: 22,
