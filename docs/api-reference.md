@@ -95,11 +95,17 @@ Full endpoint list. See `backend/app/routers/` for implementation.
 | GET | `/api/ocr/uploads` | List recent upload batches with results |
 | POST | `/api/ocr/extract-text` | Extract Arabic text from image for story import (synchronous) |
 
+## Roots
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/api/roots` | List all roots with knowledge stats (total_words, known_words, coverage_pct, has_enrichment). Sorted by total_words desc. |
+| GET | `/api/roots/{root_id}` | Root detail with enrichment JSON + derivation tree grouped by wazn pattern. Each word includes knowledge_state, frequency_rank, transliteration. 404 if not found. |
+
 ## Patterns
 | Method | Path | Description |
 |--------|------|-------------|
-| GET | `/api/patterns` | List all wazn patterns with word counts, known counts, coverage % |
-| GET | `/api/patterns/{wazn}` | All words with a specific pattern, ordered by frequency |
+| GET | `/api/patterns` | List all wazn patterns with word counts, known counts, coverage %, has_enrichment |
+| GET | `/api/patterns/{wazn}` | All words with a specific pattern + enrichment JSON, ordered by frequency |
 | GET | `/api/patterns/roots/{root_id}/tree` | Full derivation tree for a root, grouped by pattern |
 
 ## Settings
