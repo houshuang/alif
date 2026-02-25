@@ -3,7 +3,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.models import Lemma, Root, UserLemmaKnowledge
+from app.models import Lemma, PatternInfo, Root, UserLemmaKnowledge
 
 router = APIRouter(prefix="/api/patterns", tags=["patterns"])
 
@@ -42,6 +42,15 @@ def list_patterns(db: Session = Depends(get_db)):
         )
         known_counts = {r.wazn: r.known for r in known_rows}
 
+    enriched_wazns: set[str] = set()
+    if wazn_list:
+        enriched_rows = (
+            db.query(PatternInfo.wazn)
+            .filter(PatternInfo.wazn.in_(wazn_list), PatternInfo.enrichment_json.isnot(None))
+            .all()
+        )
+        enriched_wazns = {r.wazn for r in enriched_rows}
+
     return [
         {
             "wazn": r.wazn,
@@ -49,6 +58,7 @@ def list_patterns(db: Session = Depends(get_db)):
             "total_words": r.total,
             "known_words": known_counts.get(r.wazn, 0),
             "coverage_pct": round(known_counts.get(r.wazn, 0) / r.total * 100, 1) if r.total > 0 else 0,
+            "has_enrichment": r.wazn in enriched_wazns,
         }
         for r in rows
     ]
@@ -70,9 +80,12 @@ def get_pattern(wazn: str, db: Session = Depends(get_db)):
 
     wazn_meaning = next((l.wazn_meaning for l in lemmas if l.wazn_meaning), None)
 
+    pattern_info = db.query(PatternInfo).filter(PatternInfo.wazn == wazn).first()
+
     return {
         "wazn": wazn,
         "wazn_meaning": wazn_meaning,
+        "enrichment": pattern_info.enrichment_json if pattern_info else None,
         "words": [
             {
                 "lemma_id": l.lemma_id,
