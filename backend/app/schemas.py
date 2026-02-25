@@ -415,6 +415,8 @@ class WrapUpCardOut(BaseModel):
     is_acquiring: bool = False
     wazn: str | None = None
     wazn_meaning: str | None = None
+    forms_translit: dict | None = None
+    pattern_examples: list[dict] = []
 
 
 class WrapUpOut(BaseModel):

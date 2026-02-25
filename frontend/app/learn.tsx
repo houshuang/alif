@@ -17,7 +17,7 @@ import {
   generateUuid,
 } from "../lib/api";
 import { LearnCandidate, WordForms, Analytics } from "../lib/types";
-import { posLabel, FormsRow, GrammarRow, PlayButton } from "../lib/WordCardComponents";
+import { posLabel, FormsStrip, PlayButton } from "../lib/WordCardComponents";
 import { getFrequencyBand, getCefrColor } from "../lib/frequency";
 import ActionMenu from "../lib/review/ActionMenu";
 import { TOPIC_LABELS } from "../lib/topic-labels";
@@ -182,7 +182,7 @@ export default function LearnScreen() {
             )}
             {c.frequency_rank != null && (
               <Text style={{ color: getFrequencyBand(c.frequency_rank).color, fontSize: 12 }}>
-                #{c.frequency_rank.toLocaleString()}
+                #{c.frequency_rank}
               </Text>
             )}
             {c.word_category && (
@@ -193,28 +193,9 @@ export default function LearnScreen() {
               </View>
             )}
           </View>
-          <FormsRow pos={c.pos} forms={c.forms_json} />
-          <GrammarRow details={c.grammar_details} />
+          <FormsStrip pos={c.pos} forms={c.forms_json} formsTranslit={c.forms_translit} />
 
-          {c.wazn ? (
-            <View style={styles.patternSection}>
-              <Text style={styles.patternLabel}>
-                {c.wazn}
-                {c.wazn_meaning ? <Text style={styles.patternMeaning}> — {c.wazn_meaning}</Text> : null}
-              </Text>
-              {c.root && (
-                <Text style={styles.patternDecomposition}>
-                  {c.wazn} + {c.root}
-                  {c.root_meaning ? ` (${c.root_meaning})` : ""}
-                </Text>
-              )}
-              {c.score_breakdown.known_siblings > 0 && (
-                <Text style={styles.knownSiblingsNote}>
-                  {c.score_breakdown.known_siblings} known word{c.score_breakdown.known_siblings !== 1 ? "s" : ""} from root {c.root}
-                </Text>
-              )}
-            </View>
-          ) : c.root ? (
+          {c.root ? (
             <View style={styles.rootInfo}>
               <View style={styles.rootRow}>
                 <Text style={styles.rootLetters}>{c.root}</Text>

@@ -14,6 +14,7 @@ import { getWordDetail, postponeWord, suspendWord, unsuspendWord } from "../../l
 import { WordDetail, ReviewHistoryEntry, EtymologyData, MemoryHooksData } from "../../lib/types";
 import { getCefrColor } from "../../lib/frequency";
 import ActionMenu from "../../lib/review/ActionMenu";
+import { FormsStrip, PatternExamples } from "../../lib/WordCardComponents";
 
 export default function WordDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -236,31 +237,27 @@ export default function WordDetailScreen() {
         </View>
       )}
 
-      {(displayForms.length > 0 || word.grammar_features.length > 0) && (
+      {(displayForms.length > 0 || word.forms_json) && (
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Grammar</Text>
-          {word.grammar_features.length > 0 && (
-            <View style={styles.grammarChips}>
-              {word.grammar_features.map((g) => (
-                <View key={g.feature_key} style={styles.grammarChip}>
-                  <Text style={styles.grammarChipEn}>{g.label_en}</Text>
-                  {g.label_ar ? (
-                    <Text style={styles.grammarChipAr}>{g.label_ar}</Text>
-                  ) : null}
-                </View>
-              ))}
-            </View>
+          <Text style={styles.sectionTitle}>Forms</Text>
+          <FormsStrip
+            pos={word.pos}
+            forms={word.forms_json ?? null}
+            formsTranslit={word.forms_translit}
+          />
+        </View>
+      )}
+
+      {word.pattern_examples && word.pattern_examples.length > 0 && (
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Pattern</Text>
+          {word.wazn_meaning && (
+            <Text style={styles.etymologyDerivation}>{word.wazn_meaning}</Text>
           )}
-          {displayForms.length > 0 && (
-            <View style={styles.formsRow}>
-              {displayForms.map(([key, value]) => (
-                <View key={key} style={styles.formChip}>
-                  <Text style={styles.formVal}>{String(value)}</Text>
-                  <Text style={styles.formKey}>{key.replace(/_/g, " ")}</Text>
-                </View>
-              ))}
-            </View>
-          )}
+          <PatternExamples
+            examples={word.pattern_examples}
+            onPress={(lemmaId) => router.push(`/word/${lemmaId}`)}
+          />
         </View>
       )}
 
@@ -270,15 +267,6 @@ export default function WordDetailScreen() {
           <View style={styles.etymologyCard}>
             {word.etymology_json.derivation && (
               <Text style={styles.etymologyDerivation}>{word.etymology_json.derivation}</Text>
-            )}
-            {word.etymology_json.pattern && (
-              <View style={styles.etymologyRow}>
-                <Text style={styles.etymologyLabel}>Pattern</Text>
-                <Text style={styles.etymologyValue}>
-                  {word.etymology_json.pattern}
-                  {word.etymology_json.pattern_meaning ? ` — ${word.etymology_json.pattern_meaning}` : ""}
-                </Text>
-              </View>
             )}
             {word.etymology_json.root_meaning && (
               <View style={styles.etymologyRow}>

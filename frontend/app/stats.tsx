@@ -269,7 +269,7 @@ export default function StatsScreen() {
           </View>
           {stats.total_reviews > 0 && (
             <View style={styles.paceItem}>
-              <Text style={styles.paceValue}>{stats.total_reviews.toLocaleString()}</Text>
+              <Text style={styles.paceValue}>{stats.total_reviews}</Text>
               <Text style={styles.paceLabel}>total reviews</Text>
             </View>
           )}
@@ -284,7 +284,7 @@ export default function StatsScreen() {
           {(analytics.total_words_reviewed_alltime ?? 0) > 0 && (
             <View style={styles.paceItem}>
               <Text style={styles.paceValue}>
-                {(analytics.total_words_reviewed_alltime ?? 0).toLocaleString()}
+                {analytics.total_words_reviewed_alltime ?? 0}
               </Text>
               <Text style={styles.paceLabel}>words read</Text>
             </View>

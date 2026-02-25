@@ -388,6 +388,22 @@ def _transliterate_word(word: str, strip_tanwin: bool) -> str:
     return "".join(out)
 
 
+def transliterate_forms(forms_json: dict | None) -> dict:
+    """Compute ALA-LC transliteration for each Arabic form value in forms_json."""
+    if not forms_json:
+        return {}
+    result = {}
+    for key, value in forms_json.items():
+        if not isinstance(value, str) or not value.strip():
+            continue
+        if key in ("gender", "verb_form"):
+            continue
+        tr = transliterate_arabic(value, strip_tanwin=True)
+        if tr:
+            result[key] = tr
+    return result
+
+
 def transliterate_lemma(lemma_ar: str) -> str:
     """Transliterate a single lemma to ALA-LC, pausal/dictionary form.
 

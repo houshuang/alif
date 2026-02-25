@@ -10,6 +10,7 @@ from app.models import (
     GrammarFeature,
     Lemma,
     ReviewLog,
+    Root,
     Sentence,
     SentenceWord,
     Story,
@@ -413,9 +414,53 @@ def get_word(lemma_id: int, db: Session = Depends(get_db)):
         "memory_hooks_json": lemma.memory_hooks_json,
         "wazn": lemma.wazn,
         "wazn_meaning": lemma.wazn_meaning,
+        "forms_translit": lemma.forms_translit_json,
         "pattern_family": pattern_family,
+        "pattern_examples": [],
         "acquisition_box": k.acquisition_box if k else None,
     }
+
+    # Pattern examples: same-wazn words from roots the user has touched
+    if lemma.wazn:
+        touched_root_ids = (
+            db.query(Lemma.root_id)
+            .join(UserLemmaKnowledge, UserLemmaKnowledge.lemma_id == Lemma.lemma_id)
+            .filter(Lemma.root_id.isnot(None))
+            .distinct()
+            .subquery()
+        )
+        examples = (
+            db.query(Lemma, UserLemmaKnowledge.knowledge_state)
+            .outerjoin(UserLemmaKnowledge, UserLemmaKnowledge.lemma_id == Lemma.lemma_id)
+            .filter(
+                Lemma.wazn == lemma.wazn,
+                Lemma.root_id.in_(touched_root_ids),
+                Lemma.lemma_id != lemma.lemma_id,
+                Lemma.canonical_lemma_id.is_(None),
+            )
+            .order_by(
+                case(
+                    (UserLemmaKnowledge.knowledge_state.in_(["known", "learning"]), 0),
+                    else_=1,
+                ),
+                Lemma.frequency_rank.asc().nullslast(),
+            )
+            .limit(5)
+            .all()
+        )
+        for ex, ks in examples:
+            ex_root = db.query(Root).filter(Root.root_id == ex.root_id).first() if ex.root_id else None
+            result["pattern_examples"].append({
+                "lemma_id": ex.lemma_id,
+                "lemma_ar": ex.lemma_ar,
+                "gloss_en": ex.gloss_en,
+                "transliteration": ex.transliteration_ala_lc,
+                "root": ex_root.root if ex_root else None,
+                "root_meaning": ex_root.core_meaning_en if ex_root else None,
+                "knowledge_state": ks,
+            })
+
+    return result
 
 
 @router.post("/{lemma_id}/postpone")

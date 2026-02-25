@@ -1,6 +1,7 @@
 import logging
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
+from sqlalchemy import case
 from sqlalchemy.orm import Session, joinedload
 
 from app.database import get_db, SessionLocal
@@ -201,7 +202,9 @@ def word_lookup(lemma_id: int, db: Session = Depends(get_db)):
         "word_category": lemma.word_category,
         "wazn": lemma.wazn,
         "wazn_meaning": lemma.wazn_meaning,
+        "forms_translit": lemma.forms_translit_json,
         "root_family": [],
+        "pattern_examples": [],
     }
 
     if root_obj:
@@ -229,6 +232,46 @@ def word_lookup(lemma_id: int, db: Session = Depends(get_db)):
                 "pos": sib.pos,
                 "transliteration": sib.transliteration_ala_lc,
                 "state": sib_knowledge.knowledge_state if sib_knowledge else "new",
+            })
+
+    # Pattern examples: same-wazn words from roots the user has touched
+    if lemma.wazn:
+        touched_root_ids = (
+            db.query(Lemma.root_id)
+            .join(UserLemmaKnowledge, UserLemmaKnowledge.lemma_id == Lemma.lemma_id)
+            .filter(Lemma.root_id.isnot(None))
+            .distinct()
+            .subquery()
+        )
+        examples = (
+            db.query(Lemma, UserLemmaKnowledge.knowledge_state)
+            .outerjoin(UserLemmaKnowledge, UserLemmaKnowledge.lemma_id == Lemma.lemma_id)
+            .filter(
+                Lemma.wazn == lemma.wazn,
+                Lemma.root_id.in_(touched_root_ids),
+                Lemma.lemma_id != lemma.lemma_id,
+                Lemma.canonical_lemma_id.is_(None),
+            )
+            .order_by(
+                case(
+                    (UserLemmaKnowledge.knowledge_state.in_(["known", "learning"]), 0),
+                    else_=1,
+                ),
+                Lemma.frequency_rank.asc().nullslast(),
+            )
+            .limit(5)
+            .all()
+        )
+        for ex, ks in examples:
+            ex_root = db.query(Root).filter(Root.root_id == ex.root_id).first() if ex.root_id else None
+            result["pattern_examples"].append({
+                "lemma_id": ex.lemma_id,
+                "lemma_ar": ex.lemma_ar,
+                "gloss_en": ex.gloss_en,
+                "transliteration": ex.transliteration_ala_lc,
+                "root": ex_root.root if ex_root else None,
+                "root_meaning": ex_root.core_meaning_en if ex_root else None,
+                "knowledge_state": ks,
             })
 
     log_interaction(
@@ -363,6 +406,47 @@ def wrap_up_quiz(body: WrapUpIn, db: Session = Depends(get_db)):
     # Acquiring words first, then missed
     for lemma in sorted(lemmas, key=lambda l: (l.lemma_id not in acquiring_ids, l.lemma_id)):
         root_obj = lemma.root
+        # Pattern examples for wrap-up (compact, limit 3)
+        pe = []
+        if lemma.wazn:
+            touched_root_ids = (
+                db.query(Lemma.root_id)
+                .join(UserLemmaKnowledge, UserLemmaKnowledge.lemma_id == Lemma.lemma_id)
+                .filter(Lemma.root_id.isnot(None))
+                .distinct()
+                .subquery()
+            )
+            examples = (
+                db.query(Lemma, UserLemmaKnowledge.knowledge_state)
+                .outerjoin(UserLemmaKnowledge, UserLemmaKnowledge.lemma_id == Lemma.lemma_id)
+                .filter(
+                    Lemma.wazn == lemma.wazn,
+                    Lemma.root_id.in_(touched_root_ids),
+                    Lemma.lemma_id != lemma.lemma_id,
+                    Lemma.canonical_lemma_id.is_(None),
+                )
+                .order_by(
+                    case(
+                        (UserLemmaKnowledge.knowledge_state.in_(["known", "learning"]), 0),
+                        else_=1,
+                    ),
+                    Lemma.frequency_rank.asc().nullslast(),
+                )
+                .limit(3)
+                .all()
+            )
+            for ex, ks in examples:
+                ex_root = db.query(Root).filter(Root.root_id == ex.root_id).first() if ex.root_id else None
+                pe.append({
+                    "lemma_id": ex.lemma_id,
+                    "lemma_ar": ex.lemma_ar,
+                    "gloss_en": ex.gloss_en,
+                    "transliteration": ex.transliteration_ala_lc,
+                    "root": ex_root.root if ex_root else None,
+                    "root_meaning": ex_root.core_meaning_en if ex_root else None,
+                    "knowledge_state": ks,
+                })
+
         cards.append(WrapUpCardOut(
             lemma_id=lemma.lemma_id,
             lemma_ar=lemma.lemma_ar,
@@ -377,6 +461,8 @@ def wrap_up_quiz(body: WrapUpIn, db: Session = Depends(get_db)):
             memory_hooks_json=lemma.memory_hooks_json,
             wazn=lemma.wazn,
             wazn_meaning=lemma.wazn_meaning,
+            forms_translit=lemma.forms_translit_json,
+            pattern_examples=pe,
             is_acquiring=lemma.lemma_id in acquiring_ids,
         ))
 
