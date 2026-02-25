@@ -6,11 +6,13 @@ import {
   Pressable,
   StyleSheet,
   ActivityIndicator,
+  Alert,
+  Modal,
 } from "react-native";
 import { useLocalSearchParams, useRouter, useNavigation } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { colors, fonts, fontFamily } from "../../lib/theme";
-import { getWordDetail, postponeWord, suspendWord, unsuspendWord } from "../../lib/api";
+import { getWordDetail, postponeWord, suspendWord, unsuspendWord, flagContent } from "../../lib/api";
 import { WordDetail, ReviewHistoryEntry, EtymologyData, MemoryHooksData } from "../../lib/types";
 import { getCefrColor } from "../../lib/frequency";
 import ActionMenu from "../../lib/review/ActionMenu";
@@ -20,6 +22,7 @@ export default function WordDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const [word, setWord] = useState<WordDetail | null>(null);
   const [loading, setLoading] = useState(true);
+  const [menuOpen, setMenuOpen] = useState(false);
   const router = useRouter();
   const navigation = useNavigation();
 
@@ -28,6 +31,11 @@ export default function WordDetailScreen() {
       headerLeft: () => (
         <Pressable onPress={() => router.back()} style={{ paddingLeft: 12 }}>
           <Ionicons name="chevron-back" size={24} color={colors.text} />
+        </Pressable>
+      ),
+      headerRight: () => (
+        <Pressable onPress={() => setMenuOpen(true)} style={{ paddingRight: 12 }} hitSlop={12}>
+          <Ionicons name="ellipsis-horizontal" size={22} color={colors.text} />
         </Pressable>
       ),
     });
@@ -194,49 +202,6 @@ export default function WordDetailScreen() {
         </View>
       )}
 
-      {/* Action buttons: Postpone / Suspend / Unsuspend */}
-      {word.state !== "new" && (
-        <View style={styles.actionRow}>
-          {word.state === "suspended" ? (
-            <Pressable
-              style={[styles.actionBtn, styles.actionBtnAccent]}
-              onPress={async () => {
-                await unsuspendWord(word.id);
-                loadWord(word.id);
-              }}
-            >
-              <Ionicons name="play-outline" size={16} color={colors.accent} />
-              <Text style={[styles.actionBtnText, { color: colors.accent }]}>Unsuspend</Text>
-            </Pressable>
-          ) : (
-            <>
-              {(word.state === "acquiring" || word.state === "learning" || word.state === "known" || word.state === "lapsed") && (
-                <Pressable
-                  style={styles.actionBtn}
-                  onPress={async () => {
-                    await postponeWord(word.id);
-                    loadWord(word.id);
-                  }}
-                >
-                  <Ionicons name="time-outline" size={16} color={colors.textSecondary} />
-                  <Text style={styles.actionBtnText}>Postpone</Text>
-                </Pressable>
-              )}
-              <Pressable
-                style={styles.actionBtn}
-                onPress={async () => {
-                  await suspendWord(word.id);
-                  loadWord(word.id);
-                }}
-              >
-                <Ionicons name="pause-outline" size={16} color={colors.missed} />
-                <Text style={[styles.actionBtnText, { color: colors.missed }]}>Suspend</Text>
-              </Pressable>
-            </>
-          )}
-        </View>
-      )}
-
       {(displayForms.length > 0 || word.forms_json) && (
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Forms</Text>
@@ -245,6 +210,24 @@ export default function WordDetailScreen() {
             forms={word.forms_json ?? null}
             formsTranslit={word.forms_translit}
           />
+        </View>
+      )}
+
+      {word.root_family.length > 0 && (
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>
+            Root Family ({word.root})
+          </Text>
+          {word.root_family.map((f) => (
+            <Pressable
+              key={f.id}
+              style={styles.familyRow}
+              onPress={() => router.push(`/word/${f.id}`)}
+            >
+              <Text style={styles.familyArabic}>{f.arabic}</Text>
+              <Text style={styles.familyEnglish}>{f.english}</Text>
+            </Pressable>
+          ))}
         </View>
       )}
 
@@ -427,24 +410,6 @@ export default function WordDetailScreen() {
         </View>
       )}
 
-      {word.root_family.length > 0 && (
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>
-            Root Family ({word.root})
-          </Text>
-          {word.root_family.map((f) => (
-            <Pressable
-              key={f.id}
-              style={styles.familyRow}
-              onPress={() => router.push(`/word/${f.id}`)}
-            >
-              <Text style={styles.familyArabic}>{f.arabic}</Text>
-              <Text style={styles.familyEnglish}>{f.english}</Text>
-            </Pressable>
-          ))}
-        </View>
-      )}
-
       {word.sentence_stats.length > 0 && (
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>
@@ -484,6 +449,76 @@ export default function WordDetailScreen() {
       askAIContextBuilder={buildContext}
       askAIScreen="word_detail"
     />
+
+    {/* Overflow menu */}
+    <Modal
+      visible={menuOpen}
+      transparent
+      animationType="fade"
+      onRequestClose={() => setMenuOpen(false)}
+    >
+      <Pressable style={styles.menuBackdrop} onPress={() => setMenuOpen(false)}>
+        <View style={styles.menuDropdown}>
+          {word.state === "suspended" ? (
+            <Pressable
+              style={styles.menuItem}
+              onPress={async () => {
+                setMenuOpen(false);
+                await unsuspendWord(word.id);
+                loadWord(word.id);
+              }}
+            >
+              <Ionicons name="play-outline" size={18} color={colors.accent} />
+              <Text style={[styles.menuItemText, { color: colors.accent }]}>Unsuspend</Text>
+            </Pressable>
+          ) : (
+            <>
+              {(word.state === "acquiring" || word.state === "learning" || word.state === "known" || word.state === "lapsed") && (
+                <Pressable
+                  style={styles.menuItem}
+                  onPress={async () => {
+                    setMenuOpen(false);
+                    await postponeWord(word.id);
+                    loadWord(word.id);
+                  }}
+                >
+                  <Ionicons name="time-outline" size={18} color={colors.textSecondary} />
+                  <Text style={styles.menuItemText}>Postpone</Text>
+                </Pressable>
+              )}
+              {word.state !== "new" && word.state !== "encountered" && (
+                <Pressable
+                  style={styles.menuItem}
+                  onPress={async () => {
+                    setMenuOpen(false);
+                    await suspendWord(word.id);
+                    loadWord(word.id);
+                  }}
+                >
+                  <Ionicons name="pause-outline" size={18} color={colors.missed} />
+                  <Text style={[styles.menuItemText, { color: colors.missed }]}>Suspend</Text>
+                </Pressable>
+              )}
+            </>
+          )}
+          <Pressable
+            style={styles.menuItem}
+            onPress={async () => {
+              setMenuOpen(false);
+              try {
+                await flagContent({ content_type: "word_gloss", lemma_id: word.id });
+                Alert.alert("Flagged", "This word has been flagged for review.");
+              } catch {
+                Alert.alert("Error", "Failed to flag word.");
+              }
+            }}
+          >
+            <Ionicons name="flag-outline" size={18} color={colors.confused} />
+            <Text style={[styles.menuItemText, { color: colors.confused }]}>Flag for review</Text>
+          </Pressable>
+        </View>
+      </Pressable>
+    </Modal>
     </View>
   );
 }
@@ -566,27 +601,32 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: colors.confused,
   },
-  actionRow: {
-    flexDirection: "row",
-    gap: 10,
-    marginTop: 14,
-    alignSelf: "flex-start",
+  menuBackdrop: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.4)",
+    justifyContent: "flex-start",
+    alignItems: "flex-end",
+    paddingTop: 80,
+    paddingRight: 16,
   },
-  actionBtn: {
+  menuDropdown: {
+    backgroundColor: colors.surface,
+    borderRadius: 10,
+    paddingVertical: 6,
+    minWidth: 180,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  menuItem: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 5,
-    backgroundColor: colors.surface,
-    paddingVertical: 8,
-    paddingHorizontal: 14,
-    borderRadius: 8,
+    gap: 10,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
   },
-  actionBtnAccent: {
-    backgroundColor: colors.accent + "18",
-  },
-  actionBtnText: {
-    fontSize: 14,
-    color: colors.textSecondary,
+  menuItemText: {
+    fontSize: 15,
+    color: colors.text,
     fontWeight: "500",
   },
   section: {

@@ -22,6 +22,7 @@ interface WordInfoCardProps {
   onNext?: () => void;
   hasPrev?: boolean;
   hasNext?: boolean;
+  surfaceTranslit?: string | null;
 }
 
 function stemWord(w: string): string {
@@ -104,6 +105,7 @@ export default function WordInfoCard({
   onNext,
   hasPrev = false,
   hasNext = false,
+  surfaceTranslit,
 }: WordInfoCardProps) {
   const hasFocus = !!surfaceForm && markState !== null;
   const showNav = hasPrev || hasNext;
@@ -184,7 +186,7 @@ export default function WordInfoCard({
       ) : particleInfo ? (
         <GrammarParticleView info={particleInfo} />
       ) : (
-        <RevealedView result={result} surfaceForm={surfaceForm} onNavigateToDetail={onNavigateToDetail} />
+        <RevealedView result={result} surfaceForm={surfaceForm} onNavigateToDetail={onNavigateToDetail} surfaceTranslit={surfaceTranslit} />
       )}
     </Animated.View>
   );
@@ -219,10 +221,12 @@ function RevealedView({
   result,
   surfaceForm,
   onNavigateToDetail,
+  surfaceTranslit,
 }: {
   result: WordLookupResult | null;
   surfaceForm?: string | null;
   onNavigateToDetail?: (lemmaId: number) => void;
+  surfaceTranslit?: string | null;
 }) {
   if (!result) return null;
 
@@ -257,9 +261,14 @@ function RevealedView({
           </View>
         )}
         {formLabel && (
-          <View style={styles.formPill}>
-            <Text style={styles.formPillText}>{formLabel}</Text>
-          </View>
+          <>
+            <View style={styles.formPill}>
+              <Text style={styles.formPillText}>{formLabel}</Text>
+            </View>
+            {surfaceTranslit && surfaceTranslit !== result.transliteration && (
+              <Text style={styles.surfaceTranslitText}>{surfaceTranslit}</Text>
+            )}
+          </>
         )}
         {result.word_category && (
           <View style={[styles.posPill, { backgroundColor: "rgba(243, 156, 18, 0.2)" }]}>
@@ -316,6 +325,27 @@ function RevealedView({
               <Text style={styles.siblingEn} numberOfLines={1}>{s.gloss_en ?? "?"}</Text>
             </View>
           ))}
+        </View>
+      )}
+
+      {/* Etymology */}
+      {result.etymology_json && (
+        <View style={styles.etymologyCompact}>
+          {result.etymology_json.derivation && (
+            <Text style={styles.etymologyDerivationSmall} numberOfLines={2}>
+              {result.etymology_json.derivation}
+            </Text>
+          )}
+          {result.etymology_json.related_loanwords && result.etymology_json.related_loanwords.length > 0 && (
+            <Text style={styles.etymologyLoanwords}>
+              cf. {result.etymology_json.related_loanwords.join(", ")}
+            </Text>
+          )}
+          {result.etymology_json.cultural_note && (
+            <Text style={styles.etymologyCulturalNote} numberOfLines={1}>
+              {result.etymology_json.cultural_note}
+            </Text>
+          )}
         </View>
       )}
 
@@ -424,6 +454,12 @@ const styles = StyleSheet.create({
     color: "#e5a117",
     fontSize: 10,
     fontWeight: "600",
+  },
+  surfaceTranslitText: {
+    color: colors.textSecondary,
+    fontSize: 12,
+    fontStyle: "italic",
+    flexShrink: 1,
   },
   /* Grammar particle info */
   particleHeader: {
@@ -573,6 +609,25 @@ const styles = StyleSheet.create({
   },
   navBtnDisabled: {
     opacity: 0.3,
+  },
+
+  /* Etymology compact */
+  etymologyCompact: {
+    gap: 2,
+  },
+  etymologyDerivationSmall: {
+    color: colors.textSecondary,
+    fontSize: 12,
+    lineHeight: 16,
+  },
+  etymologyLoanwords: {
+    color: colors.textSecondary,
+    fontSize: 11,
+    fontStyle: "italic",
+  },
+  etymologyCulturalNote: {
+    color: colors.textSecondary,
+    fontSize: 11,
   },
 
   /* Mnemonic */

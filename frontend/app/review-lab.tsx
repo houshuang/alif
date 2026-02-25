@@ -315,6 +315,7 @@ function SentencePreview() {
           showMeaning={showMeaning}
           onShowMeaning={() => setShowMeaning(true)}
           reserveSpace={false}
+          surfaceTranslit={null}
         />
 
         {/* Action buttons */}
@@ -439,6 +440,7 @@ export default function ReviewLabScreen() {
             showMeaning={showMeaning}
             onShowMeaning={() => setShowMeaning(true)}
             reserveSpace={false}
+            surfaceTranslit={null}
           />
         </>
       )}

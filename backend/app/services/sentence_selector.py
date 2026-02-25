@@ -14,6 +14,7 @@ from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Session, joinedload
 
 from app.services.fsrs_service import parse_json_column
+from app.services.transliteration import transliterate_arabic
 
 from app.models import (
     GrammarFeature,
@@ -1045,6 +1046,7 @@ def build_session(
                 "cefr_level": lemma.cefr_level if lemma else None,
                 "grammar_tags": _compact_grammar_tags(lemma.grammar_features_json) if lemma else [],
                 "show_tashkeel": word_show_tashkeel,
+                "transliteration": transliterate_arabic(w.surface_form) if w.surface_form else None,
             })
 
         # Build selection_info for this item
@@ -1340,6 +1342,7 @@ def _generate_on_demand(
                         "frequency_rank": mapped_lemma.frequency_rank if mapped_lemma else None,
                         "cefr_level": mapped_lemma.cefr_level if mapped_lemma else None,
                         "grammar_tags": [],
+                        "transliteration": transliterate_arabic(sw.surface_form) if sw.surface_form else None,
                     })
 
                 items.append({
@@ -1443,6 +1446,7 @@ def _generate_on_demand(
                     "frequency_rank": mapped_lemma.frequency_rank if mapped_lemma else None,
                     "cefr_level": mapped_lemma.cefr_level if mapped_lemma else None,
                     "grammar_tags": [],
+                    "transliteration": transliterate_arabic(m.surface_form) if m.surface_form else None,
                 })
 
             items.append({
@@ -1698,6 +1702,7 @@ def _find_pregenerated_sentences_for_words(
                 "cefr_level": lemma.cefr_level if lemma else None,
                 "grammar_tags": _compact_grammar_tags(lemma.grammar_features_json) if lemma else [],
                 "show_tashkeel": True,
+                "transliteration": transliterate_arabic(w.surface_form) if w.surface_form else None,
             })
 
         items.append({

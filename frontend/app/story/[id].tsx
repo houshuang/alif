@@ -369,6 +369,7 @@ export default function StoryReadScreen() {
               onShowMeaning={() => {}}
               reserveSpace={false}
               onNavigateToDetail={(lemmaId) => router.push(`/word/${lemmaId}`)}
+              surfaceTranslit={null}
             />
           )}
         </View>

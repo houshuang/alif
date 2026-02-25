@@ -203,6 +203,7 @@ def word_lookup(lemma_id: int, db: Session = Depends(get_db)):
         "wazn": lemma.wazn,
         "wazn_meaning": lemma.wazn_meaning,
         "forms_translit": lemma.forms_translit_json,
+        "etymology_json": lemma.etymology_json,
         "root_family": [],
         "pattern_examples": [],
     }

@@ -116,9 +116,10 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
   const [focusedWordMark, setFocusedWordMark] = useState<FocusWordMark | null>(null);
   const [lookupLoading, setLookupLoading] = useState(false);
   const [lookupShowMeaning, setLookupShowMeaning] = useState(false);
+  const [lookupSurfaceTranslit, setLookupSurfaceTranslit] = useState<string | null>(null);
   const [tappedOrder, setTappedOrder] = useState<number[]>([]);
   const [tappedCursor, setTappedCursor] = useState(-1);
-  const tappedCacheRef = useRef<Map<number, { surfaceForm: string; lemmaId: number | null; result: WordLookupResult | null; markState: FocusWordMark; showMeaning: boolean }>>(new Map());
+  const tappedCacheRef = useRef<Map<number, TappedEntry>>(new Map());
   const [audioPlayCount, setAudioPlayCount] = useState(0);
   const [lookupCount, setLookupCount] = useState(0);
   const [submittingReview, setSubmittingReview] = useState(false);
@@ -411,7 +412,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
     }
   }, [confusedIndices, missedIndices]);
 
-  type TappedEntry = { surfaceForm: string; lemmaId: number | null; result: WordLookupResult | null; markState: FocusWordMark; showMeaning: boolean };
+  type TappedEntry = { surfaceForm: string; lemmaId: number | null; result: WordLookupResult | null; markState: FocusWordMark; showMeaning: boolean; surfaceTranslit?: string | null };
 
   const applyTappedEntry = useCallback((entry: TappedEntry) => {
     setLookupSurfaceForm(entry.surfaceForm);
@@ -419,6 +420,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
     setFocusedWordMark(entry.markState);
     setLookupResult(entry.result);
     setLookupShowMeaning(entry.showMeaning);
+    setLookupSurfaceTranslit(entry.surfaceTranslit ?? null);
     setLookupLoading(false);
   }, []);
 
@@ -482,6 +484,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
   const handleWordTap = useCallback(async (index: number, lemmaId: number | null) => {
     const word = sentenceSession?.items[sentenceItemIndex]?.words[index];
     const isFunctionWord = word?.is_function_word ?? false;
+    const wordTranslit = word?.transliteration ?? null;
 
     // Function words / words without lemma: show gloss only, no marking or API call
     if (!lemmaId || isFunctionWord) {
@@ -523,7 +526,8 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
         is_function_word: !lemmaId || isFunctionWord,
       };
       setLookupResult(fnResult);
-      addToTappedHistory(index, { surfaceForm: fnSurface ?? "", lemmaId: null, result: fnResult, markState: "missed", showMeaning: true });
+      setLookupSurfaceTranslit(wordTranslit);
+      addToTappedHistory(index, { surfaceForm: fnSurface ?? "", lemmaId: null, result: fnResult, markState: "missed", showMeaning: true, surfaceTranslit: wordTranslit });
       return;
     }
 
@@ -577,7 +581,8 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
       );
       const showMeaning = knownSiblings.length < 1;
       setLookupShowMeaning(showMeaning);
-      addToTappedHistory(index, { surfaceForm: tappedSurface ?? "", lemmaId, result, markState: nextMark, showMeaning });
+      setLookupSurfaceTranslit(wordTranslit);
+      addToTappedHistory(index, { surfaceForm: tappedSurface ?? "", lemmaId, result, markState: nextMark, showMeaning, surfaceTranslit: wordTranslit });
     } catch {
       if (lookupRequestRef.current !== requestId) return;
       let fallbackResult: WordLookupResult | null = null;
@@ -604,7 +609,8 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
         setLookupResult(null);
       }
       setLookupShowMeaning(true);
-      addToTappedHistory(index, { surfaceForm: tappedSurface ?? "", lemmaId, result: fallbackResult, markState: nextMark, showMeaning: true });
+      setLookupSurfaceTranslit(wordTranslit);
+      addToTappedHistory(index, { surfaceForm: tappedSurface ?? "", lemmaId, result: fallbackResult, markState: nextMark, showMeaning: true, surfaceTranslit: wordTranslit });
     }
 
     if (lookupRequestRef.current === requestId) {
@@ -1623,6 +1629,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
           onNext={handleLookupNext}
           hasPrev={tappedCursor > 0}
           hasNext={tappedCursor < tappedOrder.length - 1}
+          surfaceTranslit={lookupSurfaceTranslit}
         />
       )}
 

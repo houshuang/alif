@@ -288,6 +288,7 @@ export interface SentenceWordMeta {
   cefr_level: string | null;
   grammar_tags?: string[];
   show_tashkeel?: boolean;
+  transliteration?: string | null;
 }
 
 export interface WordLookupResult {
@@ -307,6 +308,7 @@ export interface WordLookupResult {
   frequency_rank: number | null;
   cefr_level: string | null;
   memory_hooks_json?: MemoryHooksData | null;
+  etymology_json?: EtymologyData | null;
   word_category?: WordCategory | null;
   wazn?: string | null;
   wazn_meaning?: string | null;
