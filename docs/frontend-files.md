@@ -13,18 +13,18 @@ All frontend in `frontend/`.
 - `app/scanner.tsx` — Textbook page OCR scanner
 - `app/book-import.tsx` — Book import: photograph cover + content pages → reading goal with sentence extraction
 - `app/more.tsx` — More tab: Scanner, Chats, New Words, Activity Log
-- `app/word/[id].tsx` — Word detail: forms, grammar, root family, review history, sentence stats, etymology section, acquisition badge
+- `app/word/[id].tsx` — Word detail: forms, root family, pattern, etymology, memory hooks, review history, sentence stats. Actions (postpone/suspend/flag) in "..." overflow menu in header bar.
 - `app/chats.tsx` — AI chat conversations
 - `app/listening.tsx` — Dedicated listening mode
 - `app/review-lab.tsx` — Hidden route for testing review UI variants
 
 ## Components (lib/)
 - `lib/review/ActionMenu.tsx` — "⋯" menu: Ask AI, Suspend, Flag. Supports `extraActions` prop for screen-specific actions (e.g., story suspend).
-- `lib/review/WordInfoCard.tsx` — Word info panel for review. Always shows full info (no root gate). Pattern decomposition line (wazn + root). Only known/learning root siblings shown. Prev/next arrows navigate tapped word history.
+- `lib/review/WordInfoCard.tsx` — Word info panel for review. Always shows full info (no root gate). Pattern decomposition line (wazn + root). Only known/learning root siblings shown. Prev/next arrows navigate tapped word history. Shows surface form transliteration for conjugated forms, full etymology (derivation, loanwords, cultural note), and full memory hooks (mnemonic, cognates, collocations, usage context, fun fact). Scrollable when content overflows (maxHeight 280).
 - `lib/review/SentenceInfoModal.tsx` — Debug modal: sentence ID, source, review history, per-word FSRS difficulty/stability. **Selection reasoning**: when opened from review, shows why the sentence was chosen (scheduled review / acquisition repeat / on-demand / auto-intro fill), primary word state, selection score + pick order, and per-factor score breakdown
 - `lib/AskAI.tsx` — AI chat modal (used in ActionMenu). Quick actions: "Explain marked" (only when words tapped, explains missed/confused words), "Explain full" (word-by-word sentence breakdown with grammar patterns)
 - `lib/MarkdownMessage.tsx` — Markdown renderer for chat/AI responses
-- `lib/WordCardComponents.tsx` — Reusable word display (posLabel, FormsRow, FormsStrip, PatternExamples, PlayButton)
+- `lib/WordCardComponents.tsx` — Reusable word display (posLabel, FormsRow, FormsStrip with per-form transliteration, PatternExamples, PlayButton)
 
 ## Infrastructure (lib/)
 - `lib/api.ts` — API client with typed interfaces for all endpoints

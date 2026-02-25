@@ -4,6 +4,27 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-02-25: Word Card UX Round 2
+
+### Changes
+1. **Surface form transliteration**: Backend adds per-word ALA-LC transliteration to all sentence word dicts (4 locations in sentence_selector.py). Frontend passes it to WordInfoCard, displayed next to form label pill when conjugated form differs from lemma.
+2. **Forms transliteration on-the-fly**: `_compute_forms_translit()` in review.py generates transliteration for each form in `forms_json` using `transliterate_arabic()` when stored `forms_translit_json` is null (all 1764 words). FormsStrip already had rendering support.
+3. **Etymology on word info card**: word-lookup API now returns `etymology_json`. WordInfoCard shows derivation, loanwords ("cf. X, Y"), cultural note.
+4. **Full memory hooks on word info card**: Shows mnemonic, cognates (with language tags), collocations (up to 2), usage context, fun fact. No numberOfLines caps — full content visible. Card is scrollable (maxHeight 280).
+5. **Overflow menu in word detail**: Replaced inline Postpone/Suspend buttons with "..." menu in header bar. Added Flag for review action.
+6. **Section reorder in word detail**: Forms → Root Family → Pattern → Etymology → Memory → Stats → Reviews → Sentences (Root Family moved from bottom to near top).
+
+### Files Changed
+- `backend/app/services/sentence_selector.py` — transliteration import + 4 word_dicts
+- `backend/app/routers/review.py` — `_compute_forms_translit()`, etymology_json in word-lookup
+- `frontend/lib/types.ts` — SentenceWordMeta.transliteration, WordLookupResult.etymology_json
+- `frontend/lib/review/WordInfoCard.tsx` — surfaceTranslit prop, etymology section, full memory hooks, scrollable
+- `frontend/app/index.tsx` — surfaceTranslit state + pass to WordInfoCard
+- `frontend/app/word/[id].tsx` — overflow menu, section reorder, flag action
+- `frontend/app/story/[id].tsx`, `frontend/app/review-lab.tsx` — pass surfaceTranslit={null}
+
+---
+
 ## 2026-02-24: Pipeline Drought Fix — Raise All Caps
 
 ### Problem
