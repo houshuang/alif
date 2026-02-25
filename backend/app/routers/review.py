@@ -23,6 +23,7 @@ from app.services.interaction_logger import log_interaction
 from app.services.sentence_selector import build_session
 from app.services.sentence_review_service import submit_sentence_review, undo_sentence_review
 from app.services.sentence_validator import _is_function_word, FUNCTION_WORDS, FUNCTION_WORD_GLOSSES, strip_diacritics
+from app.services.transliteration import transliterate_arabic
 
 logger = logging.getLogger(__name__)
 
@@ -139,6 +140,19 @@ def submit_sentence(body: SentenceReviewSubmitIn, db: Session = Depends(get_db))
     return result
 
 
+def _compute_forms_translit(forms_json: dict | None) -> dict | None:
+    if not forms_json:
+        return None
+    result = {}
+    for key, val in forms_json.items():
+        if key == "gender" or key == "verb_form" or not val or not isinstance(val, str):
+            continue
+        tr = transliterate_arabic(val)
+        if tr:
+            result[key] = tr
+    return result or None
+
+
 @router.get("/word-lookup/{lemma_id}")
 def word_lookup(lemma_id: int, db: Session = Depends(get_db)):
     """Look up a word's details during sentence review. Returns root family for known-root prediction."""
@@ -202,7 +216,7 @@ def word_lookup(lemma_id: int, db: Session = Depends(get_db)):
         "word_category": lemma.word_category,
         "wazn": lemma.wazn,
         "wazn_meaning": lemma.wazn_meaning,
-        "forms_translit": lemma.forms_translit_json,
+        "forms_translit": lemma.forms_translit_json or _compute_forms_translit(lemma.forms_json),
         "etymology_json": lemma.etymology_json,
         "root_family": [],
         "pattern_examples": [],
@@ -462,7 +476,7 @@ def wrap_up_quiz(body: WrapUpIn, db: Session = Depends(get_db)):
             memory_hooks_json=lemma.memory_hooks_json,
             wazn=lemma.wazn,
             wazn_meaning=lemma.wazn_meaning,
-            forms_translit=lemma.forms_translit_json,
+            forms_translit=lemma.forms_translit_json or _compute_forms_translit(lemma.forms_json),
             pattern_examples=pe,
             is_acquiring=lemma.lemma_id in acquiring_ids,
         ))

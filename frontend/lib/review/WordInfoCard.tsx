@@ -349,13 +349,47 @@ function RevealedView({
         </View>
       )}
 
-      {/* Mnemonic */}
+      {/* Memory hooks — full */}
       {result.memory_hooks_json?.mnemonic && (
-        <View style={styles.mnemonicLine}>
-          <Ionicons name="bulb-outline" size={12} color={colors.textSecondary} />
-          <Text style={styles.mnemonicSmall} numberOfLines={2}>
-            {result.memory_hooks_json.mnemonic}
-          </Text>
+        <View style={styles.hooksSection}>
+          <View style={styles.mnemonicLine}>
+            <Ionicons name="bulb-outline" size={12} color={colors.accent} />
+            <Text style={styles.mnemonicSmall}>
+              {result.memory_hooks_json.mnemonic}
+            </Text>
+          </View>
+
+          {result.memory_hooks_json.cognates && result.memory_hooks_json.cognates.length > 0 && (
+            <View style={styles.hooksSub}>
+              {result.memory_hooks_json.cognates.map((c, i) => (
+                <Text key={i} style={styles.hooksDetail}>
+                  <Text style={styles.hooksLangTag}>{c.lang}</Text> {c.word}{c.note ? ` — ${c.note}` : ""}
+                </Text>
+              ))}
+            </View>
+          )}
+
+          {result.memory_hooks_json.collocations && result.memory_hooks_json.collocations.length > 0 && (
+            <View style={styles.hooksSub}>
+              {result.memory_hooks_json.collocations.slice(0, 2).map((c, i) => (
+                <Text key={i} style={styles.hooksCollocation}>
+                  {c.ar}{c.en ? ` — ${c.en}` : ""}
+                </Text>
+              ))}
+            </View>
+          )}
+
+          {result.memory_hooks_json.usage_context && (
+            <Text style={styles.hooksDetail} numberOfLines={2}>
+              {result.memory_hooks_json.usage_context}
+            </Text>
+          )}
+
+          {result.memory_hooks_json.fun_fact && (
+            <Text style={[styles.hooksDetail, { fontStyle: "italic" }]} numberOfLines={2}>
+              {result.memory_hooks_json.fun_fact}
+            </Text>
+          )}
         </View>
       )}
 
@@ -630,19 +664,43 @@ const styles = StyleSheet.create({
     fontSize: 11,
   },
 
-  /* Mnemonic */
+  /* Memory hooks */
+  hooksSection: {
+    gap: 4,
+    paddingTop: 2,
+  },
   mnemonicLine: {
     flexDirection: "row",
     alignItems: "flex-start",
     gap: 4,
-    paddingTop: 4,
   },
   mnemonicSmall: {
-    color: colors.textSecondary,
+    color: colors.text,
     fontSize: 12,
-    fontStyle: "italic",
+    fontWeight: "500",
     flex: 1,
     lineHeight: 16,
+  },
+  hooksSub: {
+    gap: 2,
+    paddingLeft: 16,
+  },
+  hooksDetail: {
+    color: colors.textSecondary,
+    fontSize: 11,
+    lineHeight: 15,
+    paddingLeft: 16,
+  },
+  hooksLangTag: {
+    color: colors.textSecondary,
+    fontSize: 10,
+    fontWeight: "700",
+  },
+  hooksCollocation: {
+    color: colors.textSecondary,
+    fontSize: 12,
+    fontFamily: fontFamily.arabic,
+    lineHeight: 18,
   },
 
   /* Detail navigation link */
