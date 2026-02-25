@@ -75,7 +75,7 @@ export interface WordDetail extends Word {
   correct_count: number;
   forms_json?: WordForms | null;
   grammar_features: GrammarFeatureDetail[];
-  root_family: { id: number; arabic: string; english: string }[];
+  root_family: { id: number; arabic: string; english: string; transliteration?: string | null }[];
   root_id?: number | null;
   pattern_family?: PatternFamilyItem[];
   review_history: ReviewHistoryEntry[];

@@ -233,6 +233,9 @@ export default function WordDetailScreen() {
               onPress={() => router.push(`/word/${f.id}`)}
             >
               <Text style={styles.familyArabic}>{f.arabic}</Text>
+              {f.transliteration ? (
+                <Text style={styles.familyTranslit}>{f.transliteration}</Text>
+              ) : null}
               <Text style={styles.familyEnglish}>{f.english}</Text>
             </Pressable>
           ))}
@@ -739,8 +742,8 @@ const styles = StyleSheet.create({
     padding: 10,
     marginBottom: 6,
     flexDirection: "row",
-    justifyContent: "space-between",
     alignItems: "center",
+    gap: 6,
   },
   familyArabic: {
     fontSize: fonts.arabicMedium,
@@ -748,10 +751,16 @@ const styles = StyleSheet.create({
     writingDirection: "rtl",
     fontFamily: fontFamily.arabic,
   },
+  familyTranslit: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    fontStyle: "italic",
+    marginLeft: 4,
+  },
   familyEnglish: {
     fontSize: fonts.small,
     color: colors.textSecondary,
-    marginLeft: 12,
+    marginLeft: "auto" as any,
   },
   reviewRow: {
     backgroundColor: colors.surface,

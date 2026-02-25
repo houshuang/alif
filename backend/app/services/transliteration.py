@@ -283,10 +283,11 @@ def _transliterate_word(word: str, strip_tanwin: bool) -> str:
 
             # Long vowel detection
             # Alif or alif maqsura after fatḥa → ā
+            # Also: bare alif after consonant with no vowel → infer long ā
             is_long_a = (
-                short_vowel == FATHA
-                and next_char in (ALIF, ALIF_MAQSURA)
+                next_char in (ALIF, ALIF_MAQSURA)
                 and ch != ALIF
+                and (short_vowel == FATHA or (short_vowel is None and not has_sukun))
             )
             # Waw after ḍamma → ū (but not if waw has shadda = geminate)
             is_long_u = (
@@ -328,9 +329,11 @@ def _transliterate_word(word: str, strip_tanwin: bool) -> str:
             # --- Medial alif (long vowel marker, not consonant) ---
             if ch == ALIF and i > 0:
                 # Alif after tanwin fatha is silent (handled by tanwin_alif in prev consonant)
-                # Standalone medial alif with no diacritics = long ā (already handled by is_long_a)
                 if short_vowel:
                     out.append(_SHORT_VOWELS[short_vowel])
+                elif not has_sukun:
+                    # Bare medial alif = long ā vowel marker (most common case)
+                    out.append("ā")
                 i = j
                 continue
 
