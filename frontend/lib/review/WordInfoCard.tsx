@@ -186,7 +186,9 @@ export default function WordInfoCard({
       ) : particleInfo ? (
         <GrammarParticleView info={particleInfo} />
       ) : (
-        <RevealedView result={result} surfaceForm={surfaceForm} onNavigateToDetail={onNavigateToDetail} surfaceTranslit={surfaceTranslit} />
+        <ScrollView style={{ maxHeight: 280 }} showsVerticalScrollIndicator={false} nestedScrollEnabled>
+          <RevealedView result={result} surfaceForm={surfaceForm} onNavigateToDetail={onNavigateToDetail} surfaceTranslit={surfaceTranslit} />
+        </ScrollView>
       )}
     </Animated.View>
   );
@@ -332,7 +334,7 @@ function RevealedView({
       {result.etymology_json && (
         <View style={styles.etymologyCompact}>
           {result.etymology_json.derivation && (
-            <Text style={styles.etymologyDerivationSmall} numberOfLines={2}>
+            <Text style={styles.etymologyDerivationSmall}>
               {result.etymology_json.derivation}
             </Text>
           )}
@@ -342,7 +344,7 @@ function RevealedView({
             </Text>
           )}
           {result.etymology_json.cultural_note && (
-            <Text style={styles.etymologyCulturalNote} numberOfLines={1}>
+            <Text style={styles.etymologyCulturalNote}>
               {result.etymology_json.cultural_note}
             </Text>
           )}
@@ -380,13 +382,13 @@ function RevealedView({
           )}
 
           {result.memory_hooks_json.usage_context && (
-            <Text style={styles.hooksDetail} numberOfLines={2}>
+            <Text style={styles.hooksDetail}>
               {result.memory_hooks_json.usage_context}
             </Text>
           )}
 
           {result.memory_hooks_json.fun_fact && (
-            <Text style={[styles.hooksDetail, { fontStyle: "italic" }]} numberOfLines={2}>
+            <Text style={[styles.hooksDetail, { fontStyle: "italic" }]}>
               {result.memory_hooks_json.fun_fact}
             </Text>
           )}
