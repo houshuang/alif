@@ -153,10 +153,11 @@ def generate_material_for_word(lemma_id: int, needed: int = 2, model_override: s
                 )
                 continue
 
+        from app.services.transliteration import transliterate_arabic as _translit_ar
         valid_sentences.append({
             "arabic": res.arabic,
             "english": res.english,
-            "transliteration": res.transliteration,
+            "transliteration": _translit_ar(res.arabic) or res.transliteration,
             "mappings": mappings,
         })
 
@@ -226,11 +227,12 @@ def store_multi_target_sentence(
         _strip_clitics,
     )
 
+    from app.services.transliteration import transliterate_arabic as _translit_ar
     sent = Sentence(
         arabic_text=result.arabic,
         arabic_diacritized=result.arabic,
         english_translation=result.english,
-        transliteration=result.transliteration,
+        transliteration=_translit_ar(result.arabic) or result.transliteration,
         source="llm",
         target_lemma_id=result.primary_target_lemma_id,
         created_at=datetime.now(timezone.utc),

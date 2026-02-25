@@ -6,7 +6,7 @@ Full endpoint list. See `backend/app/routers/` for implementation.
 | Method | Path | Description |
 |--------|------|-------------|
 | GET | `/api/words?limit=50&status=learning&category=function&sort=most_seen` | List words with knowledge state. category: function\|names. sort=most_seen orders by times_seen descending. Returns last_ratings (last 8 review ratings for sparkline) and knowledge_score. |
-| GET | `/api/words/{id}` | Word detail with review stats + root family + review history. Returns `source_info` based on `ulk.source` (how the word was introduced to learning: book/story_import/duolingo/textbook_scan) with fallback to `lemma.source` (lexical data origin: wiktionary/avp_a1/etc) for generic ULK sources. |
+| GET | `/api/words/{id}` | Word detail with review stats + root family + review history + forms_translit + pattern_examples (same-wazn words from touched roots). Returns `source_info` based on `ulk.source` (how the word was introduced to learning: book/story_import/duolingo/textbook_scan) with fallback to `lemma.source` (lexical data origin: wiktionary/avp_a1/etc) for generic ULK sources. |
 | POST | `/api/words/{lemma_id}/suspend` | Suspend a word (stops appearing in reviews) |
 | POST | `/api/words/{lemma_id}/unsuspend` | Reactivate a suspended word with fresh FSRS card |
 
@@ -19,10 +19,10 @@ Full endpoint list. See `backend/app/routers/` for implementation.
 | POST | `/api/review/submit` | Submit single-word review (legacy) |
 | POST | `/api/review/submit-sentence` | Submit sentence review — all words get FSRS credit. Accepts confused_lemma_ids |
 | POST | `/api/review/undo-sentence` | Undo a sentence review — restores pre-review FSRS state, deletes logs |
-| GET | `/api/review/word-lookup/{lemma_id}` | Word detail + root family for review lookup |
+| GET | `/api/review/word-lookup/{lemma_id}` | Word detail + root family + forms_translit + pattern_examples (same-wazn words from touched roots) for review lookup |
 | POST | `/api/review/sync` | Bulk sync offline reviews |
 | POST | `/api/review/reintro-result` | Submit re-introduction quiz result |
-| POST | `/api/review/wrap-up` | Wrap-up mini-quiz: word-level recall cards for acquiring words seen in current micro-session |
+| POST | `/api/review/wrap-up` | Wrap-up mini-quiz: word-level recall cards for acquiring words seen in current micro-session. Cards include forms_translit + pattern_examples |
 | POST | `/api/review/recap` | (Deprecated) Was next-session recap — removed from frontend, redundant with within-session repetition |
 | POST | `/api/review/warm-sentences` | Pre-generate sentences for likely next session words (background, returns 202) |
 

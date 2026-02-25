@@ -5,6 +5,7 @@ import { colors, fontFamily } from "../theme";
 import { WordLookupResult } from "../types";
 import { getFrequencyBand, getCefrColor } from "../frequency";
 import { getGrammarParticleInfo, GrammarParticleInfo } from "../grammar-particles";
+import { FormsStrip, PatternExamples } from "../WordCardComponents";
 
 export type FocusWordMark = "missed" | "did_not_recognize";
 
@@ -274,29 +275,32 @@ function RevealedView({
         )}
         {result.frequency_rank != null && (
           <Text style={{ color: getFrequencyBand(result.frequency_rank).color, fontSize: 10 }}>
-            #{result.frequency_rank.toLocaleString()}
+            #{result.frequency_rank}
           </Text>
         )}
       </View>
 
-      {/* Pattern decomposition */}
-      {result.wazn && (
-        <View style={styles.patternLine}>
-          <Text style={styles.patternText}>
-            {result.wazn}
-            {result.wazn_meaning ? ` — ${result.wazn_meaning}` : ""}
-          </Text>
-          {result.root && (
-            <Text style={styles.patternDecomp}>
-              {result.wazn} + {result.root}
-              {result.root_meaning ? ` (${result.root_meaning})` : ""}
-            </Text>
-          )}
-        </View>
-      )}
+      {/* Forms strip */}
+      <FormsStrip
+        pos={result.pos}
+        forms={result.forms_json}
+        formsTranslit={result.forms_translit}
+        compact
+      />
 
-      {/* Root info (when no pattern already shows it) */}
-      {!result.wazn && result.root && (
+      {/* Pattern examples */}
+      {result.pattern_examples && result.pattern_examples.length > 0 ? (
+        <PatternExamples
+          examples={result.pattern_examples}
+          header={result.wazn_meaning || undefined}
+          compact
+        />
+      ) : result.wazn_meaning ? (
+        <Text style={styles.patternText}>{result.wazn_meaning}</Text>
+      ) : null}
+
+      {/* Root info */}
+      {result.root && (
         <View style={styles.rootLine}>
           <Text style={styles.rootLetters}>{result.root}</Text>
           {result.root_meaning && <Text style={styles.rootMeaning}>{result.root_meaning}</Text>}
@@ -529,7 +533,7 @@ const styles = StyleSheet.create({
     lineHeight: 22,
   },
   siblingEn: {
-    fontSize: 10,
+    fontSize: 12,
     color: colors.textSecondary,
     flexShrink: 1,
   },

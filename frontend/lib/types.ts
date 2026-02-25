@@ -85,6 +85,8 @@ export interface WordDetail extends Word {
   memory_hooks_json?: MemoryHooksData | null;
   wazn?: string | null;
   wazn_meaning?: string | null;
+  forms_translit?: Record<string, string> | null;
+  pattern_examples?: PatternExample[];
   acquisition_box?: number | null;
 }
 
@@ -176,6 +178,8 @@ export interface WrapUpCard {
   memory_hooks_json?: MemoryHooksData | null;
   wazn?: string | null;
   wazn_meaning?: string | null;
+  forms_translit?: Record<string, string> | null;
+  pattern_examples?: PatternExample[];
 }
 
 export interface RecapItem {
@@ -200,6 +204,16 @@ export interface WordForms {
   elative?: string;
 }
 
+export interface PatternExample {
+  lemma_id: number;
+  lemma_ar: string;
+  gloss_en: string | null;
+  transliteration: string | null;
+  root: string | null;
+  root_meaning: string | null;
+  knowledge_state: string | null;
+}
+
 export interface LearnCandidate {
   lemma_id: number;
   lemma_ar: string;
@@ -221,6 +235,8 @@ export interface LearnCandidate {
   word_category?: WordCategory | null;
   wazn?: string | null;
   wazn_meaning?: string | null;
+  forms_translit?: Record<string, string> | null;
+  pattern_examples?: PatternExample[];
   score: number;
   etymology_json?: EtymologyData | null;
   memory_hooks_json?: MemoryHooksData | null;
@@ -294,6 +310,8 @@ export interface WordLookupResult {
   word_category?: WordCategory | null;
   wazn?: string | null;
   wazn_meaning?: string | null;
+  forms_translit?: Record<string, string> | null;
+  pattern_examples?: PatternExample[];
   root_family: {
     lemma_id: number;
     lemma_ar: string;

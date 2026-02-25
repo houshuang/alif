@@ -24,7 +24,7 @@ All frontend in `frontend/`.
 - `lib/review/SentenceInfoModal.tsx` — Debug modal: sentence ID, source, review history, per-word FSRS difficulty/stability. **Selection reasoning**: when opened from review, shows why the sentence was chosen (scheduled review / acquisition repeat / on-demand / auto-intro fill), primary word state, selection score + pick order, and per-factor score breakdown
 - `lib/AskAI.tsx` — AI chat modal (used in ActionMenu). Quick actions: "Explain marked" (only when words tapped, explains missed/confused words), "Explain full" (word-by-word sentence breakdown with grammar patterns)
 - `lib/MarkdownMessage.tsx` — Markdown renderer for chat/AI responses
-- `lib/WordCardComponents.tsx` — Reusable word display (posLabel, FormsRow, GrammarRow, PlayButton)
+- `lib/WordCardComponents.tsx` — Reusable word display (posLabel, FormsRow, FormsStrip, PatternExamples, PlayButton)
 
 ## Infrastructure (lib/)
 - `lib/api.ts` — API client with typed interfaces for all endpoints
