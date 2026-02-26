@@ -24,8 +24,7 @@ interface ActionMenuProps {
   sentenceId: number | null;
   askAIContextBuilder: () => string;
   askAIScreen: string;
-  askAIExplainPrompt?: () => string | null;
-  askAIExplainSentencePrompt?: () => string | null;
+  askAIAutoExplainPrompt?: () => string | null;
   onWordSuspended?: (lemmaId: number) => void;
   onBack?: (() => void) | null;
   extraActions?: ExtraAction[];
@@ -39,14 +38,14 @@ export default function ActionMenu({
   sentenceId,
   askAIContextBuilder,
   askAIScreen,
-  askAIExplainPrompt,
-  askAIExplainSentencePrompt,
+  askAIAutoExplainPrompt,
   onWordSuspended,
   onBack,
   extraActions,
 }: ActionMenuProps) {
   const [menuVisible, setMenuVisible] = useState(false);
   const [askAIVisible, setAskAIVisible] = useState(false);
+  const [autoExplainPrompt, setAutoExplainPrompt] = useState<string | null>(null);
   const [sentenceFlagExpanded, setSentenceFlagExpanded] = useState(false);
   const [toast, setToast] = useState<ToastState>(null);
   const toastOpacity = useRef(new Animated.Value(0)).current;
@@ -73,6 +72,7 @@ export default function ActionMenu({
 
   function handleAskAI() {
     setMenuVisible(false);
+    setAutoExplainPrompt(askAIAutoExplainPrompt?.() ?? null);
     setAskAIVisible(true);
   }
 
@@ -222,9 +222,8 @@ export default function ActionMenu({
         <AskAIModal
           contextBuilder={askAIContextBuilder}
           screen={askAIScreen}
-          buildExplainPrompt={askAIExplainPrompt}
-          buildExplainSentencePrompt={askAIExplainSentencePrompt}
-          onClose={() => setAskAIVisible(false)}
+          autoExplainPrompt={autoExplainPrompt}
+          onClose={() => { setAskAIVisible(false); setAutoExplainPrompt(null); }}
           sentenceId={sentenceId}
           focusedLemmaId={focusedLemmaId}
         />
@@ -268,16 +267,14 @@ function MenuItem({
 function AskAIModal({
   contextBuilder,
   screen,
-  buildExplainPrompt,
-  buildExplainSentencePrompt,
+  autoExplainPrompt,
   onClose,
   sentenceId,
   focusedLemmaId,
 }: {
   contextBuilder: () => string;
   screen: string;
-  buildExplainPrompt?: () => string | null;
-  buildExplainSentencePrompt?: () => string | null;
+  autoExplainPrompt?: string | null;
   onClose: () => void;
   sentenceId?: number | null;
   focusedLemmaId?: number | null;
@@ -286,8 +283,7 @@ function AskAIModal({
     <AskAI
       contextBuilder={contextBuilder}
       screen={screen}
-      buildExplainPrompt={buildExplainPrompt}
-      buildExplainSentencePrompt={buildExplainSentencePrompt}
+      autoExplainPrompt={autoExplainPrompt}
       autoOpen
       onClose={onClose}
       sentenceId={sentenceId}

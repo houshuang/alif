@@ -19,13 +19,13 @@ import MarkdownMessage from "./MarkdownMessage";
 interface ChatMessage {
   role: "user" | "assistant";
   content: string;
+  hidden?: boolean;
 }
 
 interface AskAIProps {
   contextBuilder: () => string;
   screen: string;
-  buildExplainPrompt?: () => string | null;
-  buildExplainSentencePrompt?: () => string | null;
+  autoExplainPrompt?: string | null;
   autoOpen?: boolean;
   onClose?: () => void;
   sentenceId?: number | null;
@@ -35,8 +35,7 @@ interface AskAIProps {
 export default function AskAI({
   contextBuilder,
   screen,
-  buildExplainPrompt,
-  buildExplainSentencePrompt,
+  autoExplainPrompt,
   autoOpen,
   onClose,
   sentenceId,
@@ -49,6 +48,8 @@ export default function AskAI({
   const [loading, setLoading] = useState(false);
   const [flagged, setFlagged] = useState(false);
   const scrollRef = useRef<ScrollView>(null);
+  const hasSentAutoRef = useRef(false);
+  const userSentRef = useRef(false);
 
   function handleOpen() {
     setMessages([]);
@@ -64,16 +65,26 @@ export default function AskAI({
     onClose?.();
   }
 
+  // Auto-send explain prompt on open
   useEffect(() => {
-    if (messages.length > 0) {
+    if (autoOpen && autoExplainPrompt && !hasSentAutoRef.current) {
+      hasSentAutoRef.current = true;
+      sendQuestion(autoExplainPrompt, { hidden: true });
+    }
+  }, [autoOpen, autoExplainPrompt]);
+
+  // Only scroll to end on user-initiated messages
+  useEffect(() => {
+    if (messages.length > 0 && userSentRef.current) {
       setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 100);
+      userSentRef.current = false;
     }
   }, [messages.length]);
 
-  async function sendQuestion(question: string) {
+  async function sendQuestion(question: string, options?: { hidden?: boolean }) {
     if (!question || loading) return;
 
-    setMessages((prev) => [...prev, { role: "user", content: question }]);
+    setMessages((prev) => [...prev, { role: "user", content: question, hidden: options?.hidden }]);
     setLoading(true);
 
     try {
@@ -97,21 +108,8 @@ export default function AskAI({
     const question = input.trim();
     if (!question || loading) return;
     setInput("");
+    userSentRef.current = true;
     await sendQuestion(question);
-  }
-
-  async function handleExplain() {
-    if (loading || !buildExplainPrompt) return;
-    const prompt = buildExplainPrompt()?.trim();
-    if (!prompt) return;
-    await sendQuestion(prompt);
-  }
-
-  async function handleExplainSentence() {
-    if (loading || !buildExplainSentencePrompt) return;
-    const prompt = buildExplainSentencePrompt()?.trim();
-    if (!prompt) return;
-    await sendQuestion(prompt);
   }
 
   async function handleFlag() {
@@ -170,21 +168,30 @@ export default function AskAI({
                   Ask anything about what you see on screen.
                 </Text>
               )}
-              {messages.map((msg, i) => (
-                <View
-                  key={i}
-                  style={[
-                    styles.messageBubble,
-                    msg.role === "user" ? styles.userBubble : styles.assistantBubble,
-                  ]}
-                >
-                  {msg.role === "user" ? (
-                    <Text style={[styles.messageText, styles.userText]}>{msg.content}</Text>
-                  ) : (
-                    <MarkdownMessage content={msg.content} textColor={colors.text} />
-                  )}
-                </View>
-              ))}
+              {messages.map((msg, i) => {
+                if (msg.hidden && msg.role === "user") {
+                  return (
+                    <Text key={i} style={styles.autoExplainLabel}>
+                      Explaining this sentence...
+                    </Text>
+                  );
+                }
+                return (
+                  <View
+                    key={i}
+                    style={[
+                      styles.messageBubble,
+                      msg.role === "user" ? styles.userBubble : styles.assistantBubble,
+                    ]}
+                  >
+                    {msg.role === "user" ? (
+                      <Text style={[styles.messageText, styles.userText]}>{msg.content}</Text>
+                    ) : (
+                      <MarkdownMessage content={msg.content} textColor={colors.text} />
+                    )}
+                  </View>
+                );
+              })}
               {loading && (
                 <View style={[styles.messageBubble, styles.assistantBubble]}>
                   <ActivityIndicator size="small" color={colors.accent} />
@@ -192,29 +199,9 @@ export default function AskAI({
               )}
             </ScrollView>
 
-            {(buildExplainPrompt || buildExplainSentencePrompt || (sentenceId && hasResponse)) && (
+            {sentenceId && hasResponse && (
               <View style={styles.quickActions}>
-                {buildExplainPrompt && (
-                  <Pressable
-                    style={[styles.quickActionButton, loading && styles.sendDisabled]}
-                    onPress={handleExplain}
-                    disabled={loading}
-                  >
-                    <Ionicons name="sparkles-outline" size={16} color={colors.text} />
-                    <Text style={styles.quickActionText}>Explain marked</Text>
-                  </Pressable>
-                )}
-                {buildExplainSentencePrompt && (
-                  <Pressable
-                    style={[styles.quickActionButton, loading && styles.sendDisabled]}
-                    onPress={handleExplainSentence}
-                    disabled={loading}
-                  >
-                    <Ionicons name="reader-outline" size={16} color={colors.text} />
-                    <Text style={styles.quickActionText}>Explain full</Text>
-                  </Pressable>
-                )}
-                {sentenceId && hasResponse && !flagged && (
+                {!flagged ? (
                   <Pressable
                     style={styles.quickActionButton}
                     onPress={handleFlag}
@@ -222,8 +209,7 @@ export default function AskAI({
                     <Ionicons name="flag-outline" size={16} color={colors.missed} />
                     <Text style={[styles.quickActionText, { color: colors.missed }]}>Flag sentence</Text>
                   </Pressable>
-                )}
-                {flagged && (
+                ) : (
                   <View style={[styles.quickActionButton, { borderColor: colors.good }]}>
                     <Ionicons name="checkmark-circle-outline" size={16} color={colors.good} />
                     <Text style={[styles.quickActionText, { color: colors.good }]}>Flagged</Text>
@@ -301,7 +287,7 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
   messagesArea: {
-    maxHeight: 400,
+    flex: 1,
     marginBottom: 12,
   },
   messagesContent: {
@@ -314,6 +300,12 @@ const styles = StyleSheet.create({
     textAlign: "center",
     marginTop: 40,
     fontStyle: "italic",
+  },
+  autoExplainLabel: {
+    color: colors.textSecondary,
+    fontSize: fonts.small,
+    fontStyle: "italic",
+    marginBottom: 4,
   },
   messageBubble: {
     maxWidth: "85%",

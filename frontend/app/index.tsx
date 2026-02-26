@@ -1090,76 +1090,59 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
     return parts.join("\n");
   }
 
-  function buildExplainPrompt(): string | null {
-    if (sentenceSession) {
-      const item = isIntroSlot ? null : sentenceSession.items[sentenceItemIndex];
-      if (!item) return null;
-
-      const marked = [
-        ...Array.from(missedIndices).map((i) => ({ index: i, mark: "missed" })),
-        ...Array.from(confusedIndices).map((i) => ({
-          index: i,
-          mark: "did_not_recognize",
-        })),
-      ].sort((a, b) => a.index - b.index);
-
-      if (marked.length === 0) return null;
-
-      const markedLines = marked
-        .map(({ index, mark }) => {
-          const word = item.words[index];
-          if (!word) return null;
-          return `- ${word.surface_form} (index=${index + 1}, mark=${mark}, lemma_id=${word.lemma_id ?? "none"}, gloss=${word.gloss_en ?? "unknown"}, state=${word.knowledge_state || "new"}, stability=${word.stability != null ? word.stability.toFixed(3) : "unknown"})`;
-        })
-        .filter(Boolean)
-        .join("\n");
-
-      return [
-        "Explain why I missed or did not recognize these marked words.",
-        "For each word:",
-        "1) identify the base lemma in Arabic and transliteration if possible,",
-        "2) explain how this surface form differs from the lemma (clitics/article/suffixes/inflection),",
-        "3) give one short recognition heuristic.",
-        "",
-        "Marked words:",
-        markedLines,
-      ].join("\n");
-    }
-
-    return "Explain this card and why the seen form can differ from the underlying lemma.";
-  }
-
-  function buildExplainSentencePrompt(): string | null {
+  function buildAutoExplainPrompt(): string | null {
     if (!sentenceSession) return null;
     const item = isIntroSlot ? null : sentenceSession.items[sentenceItemIndex];
     if (!item) return null;
 
-    const wordLines = item.words.map((w, i) => {
-      const known = w.knowledge_state === "known" || w.knowledge_state === "learning";
-      const status = w.is_function_word ? "function_word" : (known ? "known" : "unknown/new");
-      const parts = [`${i + 1}. ${w.surface_form} — ${status}`];
-      if (w.gloss_en) parts.push(`gloss: "${w.gloss_en}"`);
-      if (w.root) parts.push(`root: ${w.root}`);
-      if (w.grammar_tags?.length) parts.push(`grammar: ${w.grammar_tags.join(", ")}`);
-      return parts.join(", ");
-    }).join("\n");
-
-    return [
-      "Explain how this Arabic sentence works as a whole — how the words combine to produce the meaning, and why the English translation captures it that way.",
+    const parts: string[] = [
+      "Explain how this Arabic sentence works — how the words combine to produce the meaning.",
       "",
       "Focus on:",
-      "- The overall meaning and feel: what is this sentence really saying?",
-      "- Why it's translated this way — are there nuances, idioms, or cultural context?",
-      "- Alternative translations that would also work, and what shades of meaning they'd carry",
-      "- Alternative ways a native speaker might express the same idea",
-      "- Any structural patterns worth noticing (word order, verb form choices, إضافة) — but only when they affect meaning",
+      "- What is this sentence really saying? What's the overall meaning and feel?",
+      "- Why it's translated this way — nuances, idioms, cultural context?",
+      "- Alternative translations and what shades of meaning they'd carry",
+      "- Structural patterns worth noticing (word order, verb forms, idafa) — only when they affect meaning",
       "",
       "Don't list every particle or explain obvious words. I can see the glosses already.",
-      "Give me a feel for how Arabic expresses this thought, not a word-by-word breakdown.",
+    ];
+
+    const marked = [
+      ...Array.from(missedIndices).map((i) => ({ index: i, mark: "MISSED" })),
+      ...Array.from(confusedIndices).map((i) => ({ index: i, mark: "CONFUSED" })),
+    ].sort((a, b) => a.index - b.index);
+
+    if (marked.length > 0) {
+      parts.push(
+        "",
+        "I marked some words below. For each marked word:",
+        "1) Identify the base lemma (Arabic + transliteration)",
+        "2) Explain how the surface form differs from the lemma (clitics, article, suffixes, inflection)",
+        "3) Give one short recognition tip",
+      );
+    }
+
+    parts.push("", "Words:");
+    item.words.forEach((w, i) => {
+      const markLabel = marked.find((m) => m.index === i);
+      const prefix = markLabel ? `[${markLabel.mark}] ` : "";
+      const known = w.knowledge_state === "known" || w.knowledge_state === "learning";
+      const status = w.is_function_word ? "function" : (known ? "known" : "learning/new");
+      const lineParts = [`${prefix}${i + 1}. ${w.surface_form} — ${status}`];
+      if (w.gloss_en) lineParts.push(`gloss: "${w.gloss_en}"`);
+      if (w.root) lineParts.push(`root: ${w.root}`);
+      if (w.grammar_tags?.length) lineParts.push(`grammar: ${w.grammar_tags.join(", ")}`);
+      parts.push(lineParts.join(", "));
+    });
+
+    parts.push(
       "",
-      "Words:",
-      wordLines,
-    ].join("\n");
+      "Also check: do any words have a wrong or confusing lemma assignment? If a word's gloss doesn't match what it means in this specific sentence context, flag it.",
+      "",
+      "Finally: is the English translation accurate? If it's wrong or misleading, say so.",
+    );
+
+    return parts.join("\n");
   }
 
   // --- Render ---
@@ -1563,8 +1546,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
             sentenceId={item.sentence_id}
             askAIContextBuilder={buildContext}
             askAIScreen="review"
-            askAIExplainPrompt={buildExplainPrompt}
-            askAIExplainSentencePrompt={buildExplainSentencePrompt}
+            askAIAutoExplainPrompt={buildAutoExplainPrompt}
             extraActions={[
               ...(item.sentence_id ? [{
                 icon: "information-circle-outline" as const,
