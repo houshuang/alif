@@ -187,7 +187,8 @@ class TestSentence:
         assert "retired" in flag.resolution_note.lower()
 
     @patch("app.services.flag_evaluator.generate_completion")
-    def test_arabic_fixable_updates(self, mock_llm, db_session):
+    def test_arabic_fixable_retires_instead_of_patching(self, mock_llm, db_session):
+        """Bad Arabic always retires (avoids stale word mappings)."""
         _seed_lemma(db_session)
         sent = _seed_sentence(db_session, arabic="هذا كتب")
         flag = _seed_flag(db_session, "sentence_arabic", sentence_id=sent.id)
@@ -198,7 +199,7 @@ class TestSentence:
             "fixable": True,
             "corrected": "هذا كتاب",
             "confidence": 0.9,
-            "explanation": "Fixed grammar",
+            "explanation": "Minor grammar issue",
         }
 
         from app.services.flag_evaluator import _evaluate_sentence
@@ -206,8 +207,10 @@ class TestSentence:
         db_session.commit()
 
         assert flag.status == "fixed"
-        assert sent.arabic_diacritized == "هذا كتاب"
-        assert sent.arabic_text == "هذا كتاب"
+        assert sent.is_active is False
+        assert "retired" in flag.resolution_note.lower()
+        # Original text unchanged — sentence is retired, not patched
+        assert sent.arabic_diacritized == "هذا كتب"
 
     @patch("app.services.flag_evaluator.generate_completion")
     def test_transliteration_fixes(self, mock_llm, db_session):
@@ -296,3 +299,44 @@ class TestEvaluateFlag:
         db_session.expire_all()
         flag = db_session.query(ContentFlag).filter(ContentFlag.id == flag_id).first()
         assert flag.status == "fixed"
+
+
+class TestRecoverStuckFlags:
+    def test_recovers_reviewing_to_pending(self, db_session):
+        _seed_lemma(db_session)
+        flag = _seed_flag(db_session, "word_gloss", lemma_id=1)
+        flag.status = "reviewing"
+        db_session.commit()
+
+        from app.services.flag_evaluator import recover_stuck_flags
+        with patch("app.services.flag_evaluator.SessionLocal", return_value=db_session):
+            original_close = db_session.close
+            db_session.close = lambda: None
+            try:
+                count = recover_stuck_flags()
+            finally:
+                db_session.close = original_close
+
+        db_session.expire_all()
+        flag = db_session.query(ContentFlag).filter(ContentFlag.id == flag.id).first()
+        assert count == 1
+        assert flag.status == "pending"
+
+    def test_ignores_pending_and_resolved(self, db_session):
+        _seed_lemma(db_session)
+        f1 = _seed_flag(db_session, "word_gloss", lemma_id=1)
+        f1.status = "pending"
+        f2 = _seed_flag(db_session, "word_gloss", lemma_id=1)
+        f2.status = "fixed"
+        db_session.commit()
+
+        from app.services.flag_evaluator import recover_stuck_flags
+        with patch("app.services.flag_evaluator.SessionLocal", return_value=db_session):
+            original_close = db_session.close
+            db_session.close = lambda: None
+            try:
+                count = recover_stuck_flags()
+            finally:
+                db_session.close = original_close
+
+        assert count == 0

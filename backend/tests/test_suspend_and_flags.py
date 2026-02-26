@@ -244,13 +244,22 @@ def test_flag_missing_lemma_id(client, db_session):
 
 
 def test_list_flags(client, db_session):
-    lemma = _seed_word(db_session)
-    client.post("/api/flags", json={"content_type": "word_gloss", "lemma_id": lemma.lemma_id})
-    client.post("/api/flags", json={"content_type": "word_gloss", "lemma_id": lemma.lemma_id})
+    lemma1 = _seed_word(db_session, arabic="كَلْب", bare="كلب", gloss="dog")
+    lemma2 = _seed_word(db_session, arabic="كِتَاب", bare="كتاب", gloss="book")
+    client.post("/api/flags", json={"content_type": "word_gloss", "lemma_id": lemma1.lemma_id})
+    client.post("/api/flags", json={"content_type": "word_gloss", "lemma_id": lemma2.lemma_id})
 
     resp = client.get("/api/flags")
     assert resp.status_code == 200
     assert len(resp.json()) == 2
+
+
+def test_duplicate_flag_returns_existing(client, db_session):
+    lemma = _seed_word(db_session)
+    resp1 = client.post("/api/flags", json={"content_type": "word_gloss", "lemma_id": lemma.lemma_id})
+    resp2 = client.post("/api/flags", json={"content_type": "word_gloss", "lemma_id": lemma.lemma_id})
+    assert resp1.json()["flag_id"] == resp2.json()["flag_id"]
+    assert resp2.json()["status"] == "already_flagged"
 
 
 def test_list_flags_filter_status(client, db_session):

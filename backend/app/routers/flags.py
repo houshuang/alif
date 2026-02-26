@@ -38,6 +38,22 @@ def create_flag(
         if not db.query(Sentence).filter(Sentence.id == req.sentence_id).first():
             raise HTTPException(404, "Sentence not found")
 
+    # Skip if there's already a pending/reviewing flag for same content
+    existing = (
+        db.query(ContentFlag)
+        .filter(
+            ContentFlag.content_type == req.content_type,
+            ContentFlag.status.in_(["pending", "reviewing"]),
+        )
+    )
+    if req.content_type == "word_gloss":
+        existing = existing.filter(ContentFlag.lemma_id == req.lemma_id)
+    else:
+        existing = existing.filter(ContentFlag.sentence_id == req.sentence_id)
+    dup = existing.first()
+    if dup:
+        return {"flag_id": dup.id, "status": "already_flagged"}
+
     flag = ContentFlag(
         content_type=req.content_type,
         lemma_id=req.lemma_id,

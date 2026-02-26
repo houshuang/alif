@@ -346,28 +346,24 @@ Respond with JSON:
 
     if flag.content_type == "sentence_arabic":
         acceptable = result.get("acceptable", True)
-        fixable = result.get("fixable", False)
-        corrected = result.get("corrected", "")
 
-        if not acceptable and not fixable:
+        if not acceptable:
+            # Always retire bad Arabic sentences — patching in place would leave
+            # stale SentenceWord mappings. The cron pipeline will generate a fresh
+            # replacement for the target word.
             sentence.is_active = False
             flag.status = "fixed"
-            flag.resolution_note = f"Sentence retired (unfixable): {explanation}"
+            flag.resolution_note = f"Sentence retired (bad Arabic): {explanation}"
             _log_activity(db, "flag_resolved",
-                          f"Retired bad sentence: '{current_value[:50]}...'",
-                          {"flag_id": flag.id, "sentence_id": sentence.id})
-        elif not acceptable and fixable and confidence >= 0.8 and corrected:
-            flag.corrected_value = corrected
-            flag.status = "fixed"
-            flag.resolution_note = explanation
-            sentence.arabic_diacritized = corrected
-            sentence.arabic_text = corrected
-            _log_activity(db, "flag_resolved",
-                          f"Fixed Arabic sentence #{sentence.id}",
-                          {"flag_id": flag.id, "sentence_id": sentence.id})
+                          f"Retired sentence #{sentence.id} (flagged Arabic): '{current_value[:60]}…'",
+                          {"flag_id": flag.id, "sentence_id": sentence.id,
+                           "action": "retired", "reason": explanation})
         else:
             flag.status = "dismissed"
             flag.resolution_note = f"Sentence appears acceptable: {explanation}"
+            _log_activity(db, "flag_resolved",
+                          f"Arabic confirmed OK for sentence #{sentence.id}",
+                          {"flag_id": flag.id, "sentence_id": sentence.id})
     else:
         correct = result.get("correct", True)
         suggested = result.get("suggested", "")
@@ -378,16 +374,42 @@ Respond with JSON:
             flag.resolution_note = explanation
             setattr(sentence, field_name, suggested)
             _log_activity(db, "flag_resolved",
-                          f"Fixed {field_label} for sentence #{sentence.id}",
-                          {"flag_id": flag.id, "sentence_id": sentence.id})
+                          f"Fixed {field_label} for sentence #{sentence.id}: '{current_value[:40]}…' → '{suggested[:40]}…'",
+                          {"flag_id": flag.id, "sentence_id": sentence.id,
+                           "field": field_name, "old": current_value, "new": suggested})
         elif correct:
             flag.status = "dismissed"
             flag.resolution_note = f"{field_label.capitalize()} appears correct: {explanation}"
+            _log_activity(db, "flag_resolved",
+                          f"{field_label.capitalize()} confirmed OK for sentence #{sentence.id}",
+                          {"flag_id": flag.id, "sentence_id": sentence.id})
         else:
             flag.status = "dismissed"
             flag.resolution_note = f"Low confidence ({confidence}): {explanation}"
+            _log_activity(db, "flag_resolved",
+                          f"Flag reviewed but not auto-fixed for sentence #{sentence.id} (confidence {confidence})",
+                          {"flag_id": flag.id, "sentence_id": sentence.id})
 
     flag.resolved_at = datetime.now(timezone.utc)
+
+
+def recover_stuck_flags() -> int:
+    """Reset flags stuck in 'reviewing' (e.g. from server restart) back to pending.
+
+    Call from startup or cron to ensure orphaned flags get re-evaluated.
+    Returns count of recovered flags.
+    """
+    db = SessionLocal()
+    try:
+        stuck = db.query(ContentFlag).filter(ContentFlag.status == "reviewing").all()
+        for flag in stuck:
+            flag.status = "pending"
+            logger.info("Recovered stuck flag #%s (type=%s) back to pending", flag.id, flag.content_type)
+        if stuck:
+            db.commit()
+        return len(stuck)
+    finally:
+        db.close()
 
 
 def _log_activity(db: Session, event_type: str, summary: str, detail: dict | None = None) -> None:

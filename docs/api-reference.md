@@ -118,7 +118,7 @@ Full endpoint list. See `backend/app/routers/` for implementation.
 | Method | Path | Description |
 |--------|------|-------------|
 | POST | `/api/import/duolingo` | Run Duolingo import |
-| POST | `/api/flags` | Flag content for LLM re-evaluation |
+| POST | `/api/flags` | Flag content for LLM re-evaluation (deduped: returns existing if pending) |
 | GET | `/api/flags` | List content flags (optional ?status= filter) |
 | GET | `/api/activity` | Recent activity log entries |
 | POST | `/api/chat/ask` | Ask AI a question (with learning context) |

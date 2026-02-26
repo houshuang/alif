@@ -29,6 +29,14 @@ async def lifespan(app: FastAPI):
             logging.getLogger(__name__).error(f"Alembic failed: {result.stderr}")
     else:
         Base.metadata.create_all(bind=engine)
+
+    # Recover any flags stuck in 'reviewing' from a previous crash/restart
+    from app.services.flag_evaluator import recover_stuck_flags
+    recovered = recover_stuck_flags()
+    if recovered:
+        import logging
+        logging.getLogger(__name__).info("Recovered %d stuck flag(s) back to pending", recovered)
+
     yield
 
 
