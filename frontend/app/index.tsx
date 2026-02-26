@@ -1625,6 +1625,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
           }}
           reserveSpace={false}
           onNavigateToDetail={(id) => router.push(`/word/${id}`)}
+          onNavigateToPattern={(wazn) => router.push(`/pattern/${encodeURIComponent(wazn)}`)}
           onPrev={handleLookupPrev}
           onNext={handleLookupNext}
           hasPrev={tappedCursor > 0}

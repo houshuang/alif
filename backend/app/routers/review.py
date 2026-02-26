@@ -222,6 +222,10 @@ def word_lookup(lemma_id: int, db: Session = Depends(get_db)):
         "pattern_examples": [],
     }
 
+    # Ensure transliteration is always present (compute on-the-fly if missing)
+    if not result["transliteration"] and lemma.lemma_ar:
+        result["transliteration"] = transliterate_arabic(lemma.lemma_ar)
+
     if root_obj:
         siblings = (
             db.query(Lemma)

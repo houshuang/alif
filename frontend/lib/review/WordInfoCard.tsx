@@ -5,7 +5,7 @@ import { colors, fontFamily } from "../theme";
 import { WordLookupResult } from "../types";
 import { getFrequencyBand, getCefrColor } from "../frequency";
 import { getGrammarParticleInfo, GrammarParticleInfo } from "../grammar-particles";
-import { FormsStrip, PatternExamples } from "../WordCardComponents";
+import { FormsStrip } from "../WordCardComponents";
 
 export type FocusWordMark = "missed" | "did_not_recognize";
 
@@ -18,6 +18,7 @@ interface WordInfoCardProps {
   onShowMeaning?: () => void;
   reserveSpace?: boolean;
   onNavigateToDetail?: (lemmaId: number) => void;
+  onNavigateToPattern?: (wazn: string) => void;
   onPrev?: () => void;
   onNext?: () => void;
   hasPrev?: boolean;
@@ -101,6 +102,7 @@ export default function WordInfoCard({
   onShowMeaning,
   reserveSpace = true,
   onNavigateToDetail,
+  onNavigateToPattern,
   onPrev,
   onNext,
   hasPrev = false,
@@ -186,8 +188,8 @@ export default function WordInfoCard({
       ) : particleInfo ? (
         <GrammarParticleView info={particleInfo} />
       ) : (
-        <ScrollView style={{ maxHeight: 280 }} showsVerticalScrollIndicator={false} nestedScrollEnabled>
-          <RevealedView result={result} surfaceForm={surfaceForm} onNavigateToDetail={onNavigateToDetail} surfaceTranslit={surfaceTranslit} />
+        <ScrollView style={{ maxHeight: 200 }} showsVerticalScrollIndicator={false} nestedScrollEnabled>
+          <RevealedView result={result} surfaceForm={surfaceForm} onNavigateToDetail={onNavigateToDetail} onNavigateToPattern={onNavigateToPattern} surfaceTranslit={surfaceTranslit} />
         </ScrollView>
       )}
     </Animated.View>
@@ -197,7 +199,7 @@ export default function WordInfoCard({
 
 function GrammarParticleView({ info }: { info: GrammarParticleInfo }) {
   return (
-    <ScrollView style={{ maxHeight: 200 }} showsVerticalScrollIndicator={false}>
+    <ScrollView style={{ maxHeight: 160 }} showsVerticalScrollIndicator={false}>
       <View style={styles.particleHeader}>
         <Text style={styles.particleArabic}>{info.ar}</Text>
         <Text style={styles.particleTranslit}>{info.transliteration}</Text>
@@ -223,11 +225,13 @@ function RevealedView({
   result,
   surfaceForm,
   onNavigateToDetail,
+  onNavigateToPattern,
   surfaceTranslit,
 }: {
   result: WordLookupResult | null;
   surfaceForm?: string | null;
   onNavigateToDetail?: (lemmaId: number) => void;
+  onNavigateToPattern?: (wazn: string) => void;
   surfaceTranslit?: string | null;
 }) {
   if (!result) return null;
@@ -299,16 +303,17 @@ function RevealedView({
         compact
       />
 
-      {/* Pattern examples */}
-      {result.pattern_examples && result.pattern_examples.length > 0 ? (
-        <PatternExamples
-          examples={result.pattern_examples}
-          header={result.wazn_meaning || undefined}
-          compact
-        />
-      ) : result.wazn_meaning ? (
-        <Text style={styles.patternText}>{result.wazn_meaning}</Text>
-      ) : null}
+      {/* Pattern link */}
+      {result.wazn_meaning && (
+        onNavigateToPattern && result.wazn ? (
+          <Pressable onPress={() => onNavigateToPattern(result.wazn!)} style={styles.patternLink}>
+            <Text style={styles.patternText}>{result.wazn_meaning}</Text>
+            <Ionicons name="chevron-forward" size={12} color={colors.accent} />
+          </Pressable>
+        ) : (
+          <Text style={styles.patternText}>{result.wazn_meaning}</Text>
+        )
+      )}
 
       {/* Root info */}
       {result.root && (
@@ -375,7 +380,8 @@ function RevealedView({
             <View style={styles.hooksSub}>
               {result.memory_hooks_json.collocations.slice(0, 2).map((c, i) => (
                 <Text key={i} style={styles.hooksCollocation}>
-                  {c.ar}{c.en ? ` — ${c.en}` : ""}
+                  <Text style={styles.hooksCollocationAr}>{c.ar}</Text>
+                  {c.en ? <Text style={styles.hooksCollocationEn}> — {c.en}</Text> : null}
                 </Text>
               ))}
             </View>
@@ -619,6 +625,11 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: "600",
   },
+  patternLink: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
   patternDecomp: {
     color: colors.textSecondary,
     fontSize: 12,
@@ -699,10 +710,15 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
   hooksCollocation: {
-    color: colors.textSecondary,
     fontSize: 12,
-    fontFamily: fontFamily.arabic,
     lineHeight: 18,
+  },
+  hooksCollocationAr: {
+    fontFamily: fontFamily.arabic,
+    color: colors.text,
+  },
+  hooksCollocationEn: {
+    color: colors.textSecondary,
   },
 
   /* Detail navigation link */
