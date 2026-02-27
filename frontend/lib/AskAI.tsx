@@ -41,11 +41,14 @@ export default function AskAI({
   sentenceId,
   focusedLemmaId,
 }: AskAIProps) {
+  const hasAutoPrompt = !!(autoOpen && autoExplainPrompt);
   const [visible, setVisible] = useState(!!autoOpen);
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [messages, setMessages] = useState<ChatMessage[]>(
+    hasAutoPrompt ? [{ role: "user", content: autoExplainPrompt!, hidden: true }] : []
+  );
   const [conversationId, setConversationId] = useState<string | undefined>();
   const [input, setInput] = useState("");
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(hasAutoPrompt);
   const [flagged, setFlagged] = useState(false);
   const scrollRef = useRef<ScrollView>(null);
   const hasSentAutoRef = useRef(false);
@@ -65,13 +68,27 @@ export default function AskAI({
     onClose?.();
   }
 
-  // Auto-send explain prompt on open
+  // Auto-send explain prompt on open — API call only (message already in initial state)
   useEffect(() => {
-    if (autoOpen && autoExplainPrompt && !hasSentAutoRef.current) {
+    if (hasAutoPrompt && !hasSentAutoRef.current) {
       hasSentAutoRef.current = true;
-      sendQuestion(autoExplainPrompt, { hidden: true });
+      const doAutoSend = async () => {
+        try {
+          const context = contextBuilder();
+          const result = await askAI(autoExplainPrompt!, context, screen, conversationId);
+          setConversationId(result.conversation_id);
+          setMessages((prev) => [...prev, { role: "assistant", content: result.answer }]);
+        } catch (e: any) {
+          console.error("AskAI auto-explain error:", e);
+          const detail = e?.message || String(e);
+          setMessages((prev) => [...prev, { role: "assistant", content: `Error: ${detail}` }]);
+        } finally {
+          setLoading(false);
+        }
+      };
+      doAutoSend();
     }
-  }, [autoOpen, autoExplainPrompt]);
+  }, [hasAutoPrompt]);
 
   // Only scroll to end on user-initiated messages
   useEffect(() => {

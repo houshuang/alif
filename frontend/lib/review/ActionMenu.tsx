@@ -72,7 +72,9 @@ export default function ActionMenu({
 
   function handleAskAI() {
     setMenuVisible(false);
-    setAutoExplainPrompt(askAIAutoExplainPrompt?.() ?? null);
+    const prompt = askAIAutoExplainPrompt?.() ?? null;
+    console.log("[ActionMenu] handleAskAI, autoExplainPrompt:", prompt ? `${prompt.length} chars` : "null");
+    setAutoExplainPrompt(prompt);
     setAskAIVisible(true);
   }
 
