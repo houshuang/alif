@@ -907,7 +907,8 @@ const styles = StyleSheet.create({
     fontStyle: "italic",
   },
   collocationRow: {
-    marginTop: 4,
+    marginTop: 8,
+    alignItems: "flex-end",
   },
   collocationAr: {
     fontSize: 18,
@@ -920,6 +921,7 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: colors.textSecondary,
     marginTop: 1,
+    textAlign: "right",
   },
   errorText: {
     color: colors.textSecondary,
