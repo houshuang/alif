@@ -169,7 +169,7 @@ export default function AskAI({
         >
           <View style={styles.modalContent}>
             <View style={styles.header}>
-              <Text style={styles.headerTitle}>Ask AI</Text>
+              <Text style={styles.headerTitle}>Ask AI {hasAutoPrompt ? "✓" : `(no prompt: autoOpen=${!!autoOpen}, prompt=${autoExplainPrompt ? autoExplainPrompt.length : "null"})`}</Text>
               <Pressable onPress={handleClose} hitSlop={8}>
                 <Ionicons name="close" size={24} color={colors.textSecondary} />
               </Pressable>
