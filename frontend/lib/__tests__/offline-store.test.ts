@@ -155,14 +155,14 @@ describe("story lookups", () => {
 });
 
 describe("word lookup cache", () => {
-  it("caches and retrieves word lookups", async () => {
-    const lookup = {
-      lemma_id: 42,
-      lemma_ar: "كتاب",
-      gloss_en: "book",
-      root: "ك.ت.ب",
-    } as any;
+  const lookup = {
+    lemma_id: 42,
+    lemma_ar: "كتاب",
+    gloss_en: "book",
+    root: "ك.ت.ب",
+  } as any;
 
+  it("caches and retrieves word lookups", async () => {
     await cacheWordLookup(42, lookup);
     const result = await getCachedWordLookup(42);
 
@@ -172,5 +172,46 @@ describe("word lookup cache", () => {
 
   it("returns null for uncached lookup", async () => {
     expect(await getCachedWordLookup(999)).toBeNull();
+  });
+
+  it("returns null for expired entries", async () => {
+    const now = Date.now();
+    jest.spyOn(Date, "now").mockReturnValue(now);
+    await cacheWordLookup(42, lookup);
+
+    // Advance past 24h TTL
+    (Date.now as jest.Mock).mockReturnValue(now + 25 * 60 * 60 * 1000);
+    const result = await getCachedWordLookup(42);
+    expect(result).toBeNull();
+
+    jest.restoreAllMocks();
+  });
+
+  it("returns stale entry when allowStale is true", async () => {
+    const now = Date.now();
+    jest.spyOn(Date, "now").mockReturnValue(now);
+    await cacheWordLookup(42, lookup);
+
+    // Advance past TTL
+    (Date.now as jest.Mock).mockReturnValue(now + 25 * 60 * 60 * 1000);
+    const result = await getCachedWordLookup(42, true);
+    expect(result).not.toBeNull();
+    expect(result!.gloss_en).toBe("book");
+
+    jest.restoreAllMocks();
+  });
+
+  it("returns fresh entries within TTL", async () => {
+    const now = Date.now();
+    jest.spyOn(Date, "now").mockReturnValue(now);
+    await cacheWordLookup(42, lookup);
+
+    // Still within 24h
+    (Date.now as jest.Mock).mockReturnValue(now + 12 * 60 * 60 * 1000);
+    const result = await getCachedWordLookup(42);
+    expect(result).not.toBeNull();
+    expect(result!.gloss_en).toBe("book");
+
+    jest.restoreAllMocks();
   });
 });

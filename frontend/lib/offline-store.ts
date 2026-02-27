@@ -7,6 +7,9 @@ import type {
   WordLookupResult,
 } from "./types";
 
+const WORD_LOOKUP_CACHE_VERSION = 2;
+const WORD_LOOKUP_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
+
 const KEYS = {
   sessions: (mode: ReviewMode) => `@alif/sessions/${mode}`,
   reviewed: "@alif/reviewed",
@@ -16,7 +19,8 @@ const KEYS = {
   storyLookups: (storyId: number) => `@alif/story-lookups/${storyId}`,
   stories: "@alif/stories",
   storyDetail: (id: number) => `@alif/story-detail/${id}`,
-  wordLookups: "@alif/word-lookups",
+  wordLookups: `@alif/word-lookups/v${WORD_LOOKUP_CACHE_VERSION}`,
+  wordLookupsLegacy: "@alif/word-lookups",
   lastSessionWords: "@alif/last-session-words",
 };
 
@@ -147,6 +151,7 @@ export async function invalidateSessions(): Promise<void> {
     KEYS.stats,
     KEYS.analytics,
     KEYS.wordLookups,
+    KEYS.wordLookupsLegacy,
   ]);
 }
 
@@ -238,23 +243,37 @@ export async function updateCachedStoryStatus(id: number, status: string): Promi
   }
 }
 
-// --- Word lookup cache ---
+// --- Word lookup cache (versioned + TTL) ---
+
+interface CachedWordLookupEntry {
+  data: WordLookupResult;
+  cached_at: number;
+}
 
 export async function cacheWordLookup(lemmaId: number, data: WordLookupResult): Promise<void> {
-  const map = (await getJson<Record<string, WordLookupResult>>(KEYS.wordLookups)) ?? {};
-  map[String(lemmaId)] = data;
+  const map = (await getJson<Record<string, CachedWordLookupEntry>>(KEYS.wordLookups)) ?? {};
+  map[String(lemmaId)] = { data, cached_at: Date.now() };
   await setJson(KEYS.wordLookups, map);
 }
 
-export async function getCachedWordLookup(lemmaId: number): Promise<WordLookupResult | null> {
-  const map = (await getJson<Record<string, WordLookupResult>>(KEYS.wordLookups)) ?? {};
-  return map[String(lemmaId)] ?? null;
+export async function getCachedWordLookup(
+  lemmaId: number,
+  allowStale: boolean = false,
+): Promise<WordLookupResult | null> {
+  const map = (await getJson<Record<string, CachedWordLookupEntry>>(KEYS.wordLookups)) ?? {};
+  const entry = map[String(lemmaId)];
+  if (!entry) return null;
+  if (!allowStale && Date.now() - entry.cached_at > WORD_LOOKUP_TTL_MS) {
+    return null;
+  }
+  return entry.data;
 }
 
 export async function cacheWordLookupBatch(lookups: Record<number, WordLookupResult>): Promise<void> {
-  const map = (await getJson<Record<string, WordLookupResult>>(KEYS.wordLookups)) ?? {};
+  const map = (await getJson<Record<string, CachedWordLookupEntry>>(KEYS.wordLookups)) ?? {};
+  const now = Date.now();
   for (const [id, data] of Object.entries(lookups)) {
-    map[id] = data;
+    map[id] = { data, cached_at: now };
   }
   await setJson(KEYS.wordLookups, map);
 }

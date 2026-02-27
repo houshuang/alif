@@ -748,7 +748,8 @@ export async function lookupReviewWord(lemmaId: number): Promise<WordLookupResul
     cacheWordLookup(lemmaId, result).catch(() => {});
     return result;
   } catch (e) {
-    if (cached) return cached;
+    const stale = await getCachedWordLookup(lemmaId, true);
+    if (stale) return stale;
     throw e;
   }
 }
