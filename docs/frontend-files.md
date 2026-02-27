@@ -32,7 +32,7 @@ All frontend in `frontend/`.
 ## Infrastructure (lib/)
 - `lib/api.ts` — API client with typed interfaces for all endpoints
 - `lib/types.ts` — TypeScript interfaces
-- `lib/offline-store.ts` — AsyncStorage session cache (30-min staleness TTL) + reviewed tracking. Background refresh via `fetchFreshSession()` for in-session staleness (15-min gap detection via AppState).
+- `lib/offline-store.ts` — AsyncStorage session cache (30-min staleness TTL) + reviewed tracking. Background refresh via `fetchFreshSession()` for in-session staleness (15-min gap detection via AppState). Word lookup cache: versioned key (`v2`), 24h TTL per entry, `allowStale` fallback for offline use.
 - `lib/sync-queue.ts` — Offline review queue, bulk sync
 - `lib/theme.ts` — Dark theme, semantic colors
 - `lib/net-status.ts` — Network status singleton + useNetStatus hook

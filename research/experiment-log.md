@@ -4,6 +4,26 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-02-27: Fix Stale Word Lookup Cache
+
+### Problem
+WordInfoCard (tap-to-lookup during review) showed sparse data for some words — only English gloss and Arabic lemma, missing transliteration, conjugations, etymology, memory hooks. Word detail page showed all data correctly.
+
+### Root Cause
+Word lookup results cached in AsyncStorage (`@alif/word-lookups`) had no TTL and no version. Words cached before enrichment fields were added to the API on Feb 25 (etymology_json, memory_hooks_json, forms_translit) permanently served stale sparse data. The prefetch also skipped re-fetching for cached words.
+
+### Fix
+- Bumped cache key to `@alif/word-lookups/v2` — immediately invalidates all stale entries
+- Added 24h TTL to cached entries via `CachedWordLookupEntry { data, cached_at }` wrapper
+- Fixed dead-code bug in `lookupReviewWord()` offline fallback (now uses `allowStale: true`)
+
+### Files Changed
+- `frontend/lib/offline-store.ts` — versioned key, TTL, `CachedWordLookupEntry` type
+- `frontend/lib/api.ts` — stale fallback fix
+- `frontend/lib/__tests__/offline-store.test.ts` — 3 new TTL tests
+
+---
+
 ## 2026-02-25: Word Card UX Round 2
 
 ### Changes
