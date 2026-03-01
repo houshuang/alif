@@ -52,6 +52,7 @@ def next_sentences(
     limit: int = Query(10, ge=1, le=20),
     mode: str = Query("reading"),
     prefetch: bool = Query(False),
+    exclude: list[int] = Query(default=[]),
     background_tasks: BackgroundTasks = BackgroundTasks(),
     db: Session = Depends(get_db),
 ):
@@ -67,6 +68,7 @@ def next_sentences(
         db, limit=limit, mode=mode,
         log_events=not prefetch,
         skip_on_demand=not prefetch,
+        exclude_sentence_ids=set(exclude) if exclude else None,
     )
 
     # Listening mode is only for already-learned words — no intro candidates

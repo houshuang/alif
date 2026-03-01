@@ -389,6 +389,7 @@ def build_session(
     mode: str = "reading",
     log_events: bool = True,
     skip_on_demand: bool = False,
+    exclude_sentence_ids: set[int] | None = None,
 ) -> dict:
     """Assemble a sentence-based review session.
 
@@ -578,6 +579,8 @@ def build_session(
     )
 
     sentence_ids_with_due = {sw.sentence_id for sw in sentence_words}
+    if exclude_sentence_ids:
+        sentence_ids_with_due -= exclude_sentence_ids
     if not sentence_ids_with_due:
         return _with_fallbacks(db, session_id, due_lemma_ids, stability_map, total_due, [], limit, reintro_cards=reintro_cards, knowledge_by_id=knowledge_by_id, all_knowledge=all_knowledge, skip_on_demand=skip_on_demand, mode=mode)
 

@@ -49,6 +49,7 @@ import {
   cacheWordLookup,
   getCachedWordLookup,
   cacheWordLookupBatch,
+  getCachedSentenceIds,
 } from "./offline-store";
 import { enqueueReview, flushQueue, removeFromQueue } from "./sync-queue";
 
@@ -405,6 +406,15 @@ export async function getSentenceReviewSession(
     return cached;
   }
 
+  // If offline, retry cache ignoring staleness — sessions are still valid
+  // because no backend state changes while offline
+  if (!netStatus.isOnline) {
+    const stale = await getCachedSession(mode, true);
+    if (stale && stale.items.length > 0) {
+      return stale;
+    }
+  }
+
   const data = await fetchApi<SentenceReviewSession>(
     `/api/review/next-sentences?limit=10&mode=${mode}`
   );
@@ -487,17 +497,29 @@ export async function warmSentences(): Promise<void> {
   } catch {}
 }
 
-export async function deepPrefetchSessions(mode: ReviewMode, count: number = 2): Promise<void> {
+export async function deepPrefetchSessions(mode: ReviewMode, count: number = 6): Promise<void> {
+  // Collect sentence IDs from already-cached sessions to get diverse results
+  const excludeIds = await getCachedSentenceIds(mode);
+
   for (let i = 0; i < count; i++) {
     try {
       // Delay between prefetch requests to avoid SQLite locking
       if (i > 0) await new Promise(r => setTimeout(r, 500));
+      const excludeParam = excludeIds.size > 0
+        ? `&${Array.from(excludeIds).map(id => `exclude=${id}`).join('&')}`
+        : '';
       const data = await fetchApi<SentenceReviewSession>(
-        `/api/review/next-sentences?limit=10&mode=${mode}&prefetch=true`
+        `/api/review/next-sentences?limit=10&mode=${mode}&prefetch=true${excludeParam}`
       );
+      if (!data.items || data.items.length === 0) break;
       const session = { ...data, session_id: data.session_id || generateSessionId() };
       await cacheSessions(mode, [session]);
       await prefetchWordLookupsForSession(session);
+
+      // Add new sentence IDs to exclusion set for next iteration
+      for (const item of session.items) {
+        if (item.sentence_id != null) excludeIds.add(item.sentence_id);
+      }
     } catch {
       break;
     }

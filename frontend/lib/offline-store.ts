@@ -73,7 +73,8 @@ export async function cacheSessions(
 }
 
 export async function getCachedSession(
-  mode: ReviewMode
+  mode: ReviewMode,
+  allowStale: boolean = false,
 ): Promise<SentenceReviewSession | null> {
   const key = KEYS.sessions(mode);
   const raw = (await getJson<CachedSessionEntry[] | SentenceReviewSession[]>(key)) ?? [];
@@ -88,8 +89,8 @@ export async function getCachedSession(
   );
 
   for (const entry of entries) {
-    // Skip stale sessions (> 30 min old)
-    if (entry.cached_at > 0 && now - entry.cached_at > SESSION_STALENESS_MS) {
+    // Skip stale sessions (> 30 min old) unless explicitly allowed (e.g. offline)
+    if (!allowStale && entry.cached_at > 0 && now - entry.cached_at > SESSION_STALENESS_MS) {
       continue;
     }
 
@@ -110,6 +111,25 @@ export async function getCachedSession(
     }
   }
   return null;
+}
+
+export async function getCachedSentenceIds(
+  mode: ReviewMode
+): Promise<Set<number>> {
+  const key = KEYS.sessions(mode);
+  const raw = (await getJson<CachedSessionEntry[] | SentenceReviewSession[]>(key)) ?? [];
+  const entries: CachedSessionEntry[] = raw.map((item: any) =>
+    item.session
+      ? (item as CachedSessionEntry)
+      : { session: item as SentenceReviewSession, cached_at: 0 }
+  );
+  const ids = new Set<number>();
+  for (const entry of entries) {
+    for (const item of entry.session.items) {
+      if (item.sentence_id != null) ids.add(item.sentence_id);
+    }
+  }
+  return ids;
 }
 
 export async function markReviewed(
