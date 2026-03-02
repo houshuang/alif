@@ -24,7 +24,7 @@ const KEYS = {
   lastSessionWords: "@alif/last-session-words",
 };
 
-const MAX_CACHED_SESSIONS = 10;
+const MAX_CACHED_SESSIONS = 20;
 const SESSION_STALENESS_MS = 30 * 60 * 1000; // 30 minutes
 
 interface CachedSessionEntry {

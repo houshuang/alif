@@ -21,6 +21,7 @@ import {
   getTashkeelSettings,
   updateTashkeelSettings,
   TashkeelSettings,
+  deepPrefetchSessions,
 } from "../lib/api";
 import { TopicSettings, TopicInfo } from "../lib/types";
 import { TOPIC_LABELS } from "../lib/topic-labels";
@@ -65,6 +66,8 @@ export default function MoreScreen() {
   const [availableTopics, setAvailableTopics] = useState<TopicInfo[]>([]);
   const [loadingTopics, setLoadingTopics] = useState(false);
   const [tashkeelSettings, setTashkeelSettings] = useState<TashkeelSettings | null>(null);
+  const [downloading, setDownloading] = useState(false);
+  const [downloadProgress, setDownloadProgress] = useState(0);
 
   useFocusEffect(
     useCallback(() => {
@@ -114,6 +117,24 @@ export default function MoreScreen() {
     }
   }
 
+  async function handleDownloadOffline() {
+    setDownloading(true);
+    setDownloadProgress(0);
+    try {
+      const count = await deepPrefetchSessions("reading", 20, (n) => setDownloadProgress(n));
+      Alert.alert(
+        "Download Complete",
+        count > 0
+          ? `${count} session${count > 1 ? "s" : ""} downloaded (~${count * 3} min of material)`
+          : "No new sessions available to download",
+      );
+    } catch {
+      Alert.alert("Error", "Failed to download sessions");
+    } finally {
+      setDownloading(false);
+    }
+  }
+
   async function openTopicPicker() {
     setTopicPickerVisible(true);
     setLoadingTopics(true);
@@ -156,6 +177,23 @@ export default function MoreScreen() {
         label="New Words"
         onPress={() => router.push("/learn")}
       />
+      <Pressable
+        style={[styles.navRow, downloading && { opacity: 0.5 }]}
+        onPress={handleDownloadOffline}
+        disabled={downloading}
+      >
+        <View style={styles.navRowLeft}>
+          <Ionicons name="airplane-outline" size={22} color={colors.text} />
+          <Text style={styles.navRowLabel}>
+            {downloading ? `Downloading ${downloadProgress}/20...` : "Download for Offline"}
+          </Text>
+        </View>
+        {downloading ? (
+          <ActivityIndicator size="small" color={colors.accent} />
+        ) : (
+          <Ionicons name="chevron-forward" size={18} color={colors.textSecondary} />
+        )}
+      </Pressable>
       <NavRow
         icon="trash-outline"
         label="Clear Cache"

@@ -497,9 +497,14 @@ export async function warmSentences(): Promise<void> {
   } catch {}
 }
 
-export async function deepPrefetchSessions(mode: ReviewMode, count: number = 6): Promise<void> {
+export async function deepPrefetchSessions(
+  mode: ReviewMode,
+  count: number = 6,
+  onProgress?: (fetched: number) => void,
+): Promise<number> {
   // Collect sentence IDs from already-cached sessions to get diverse results
   const excludeIds = await getCachedSentenceIds(mode);
+  let fetched = 0;
 
   for (let i = 0; i < count; i++) {
     try {
@@ -520,10 +525,13 @@ export async function deepPrefetchSessions(mode: ReviewMode, count: number = 6):
       for (const item of session.items) {
         if (item.sentence_id != null) excludeIds.add(item.sentence_id);
       }
+      fetched++;
+      onProgress?.(fetched);
     } catch {
       break;
     }
   }
+  return fetched;
 }
 
 export async function prefetchWordLookupsForSession(
