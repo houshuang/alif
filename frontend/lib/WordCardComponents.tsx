@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { View, Text, Pressable, StyleSheet } from "react-native";
-import { Audio } from "expo-av";
+import { useAudioPlayer, useAudioPlayerStatus } from "expo-audio";
 import { colors, fonts, fontFamily } from "./theme";
 import { WordForms, GrammarFeatureDetail, PatternExample } from "./types";
 import { BASE_URL } from "./api";
@@ -216,40 +216,19 @@ export function PatternExamples({
 }
 
 export function PlayButton({ audioUrl, word }: { audioUrl: string | null; word: string }) {
-  const [playing, setPlaying] = useState(false);
-  const soundRef = useRef<Audio.Sound | null>(null);
+  const url = audioUrl
+    ? `${BASE_URL}${audioUrl}`
+    : `${BASE_URL}/api/tts/speak/${encodeURIComponent(word)}`;
 
-  const play = useCallback(async () => {
+  const player = useAudioPlayer(url);
+  const status = useAudioPlayerStatus(player);
+  const playing = status.playing;
+
+  const play = useCallback(() => {
     if (playing) return;
-    setPlaying(true);
-    try {
-      const url = audioUrl
-        ? `${BASE_URL}${audioUrl}`
-        : `${BASE_URL}/api/tts/speak/${encodeURIComponent(word)}`;
-
-      if (soundRef.current) {
-        await soundRef.current.unloadAsync();
-      }
-      const { sound } = await Audio.Sound.createAsync(
-        { uri: url },
-        { shouldPlay: true }
-      );
-      soundRef.current = sound;
-      sound.setOnPlaybackStatusUpdate((status) => {
-        if (status.isLoaded && status.didJustFinish) {
-          setPlaying(false);
-        }
-      });
-    } catch {
-      setPlaying(false);
-    }
-  }, [audioUrl, word, playing]);
-
-  useEffect(() => {
-    return () => {
-      soundRef.current?.unloadAsync();
-    };
-  }, []);
+    player.seekTo(0);
+    player.play();
+  }, [player, playing]);
 
   return (
     <Pressable style={wcStyles.playButton} onPress={play} disabled={playing}>

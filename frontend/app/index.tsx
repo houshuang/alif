@@ -12,7 +12,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
-import { Audio } from "expo-av";
+import { createAudioPlayer, setAudioModeAsync, AudioPlayer } from "expo-audio";
 import { Ionicons } from "@expo/vector-icons";
 import { colors, fonts, fontFamily } from "../lib/theme";
 import {
@@ -141,7 +141,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
   const [seenLemmaIds, setSeenLemmaIds] = useState<Set<number>>(new Set());
   const [sentenceInfoVisible, setSentenceInfoVisible] = useState(false);
   const showTime = useRef<number>(0);
-  const soundRef = useRef<Audio.Sound | null>(null);
+  const soundRef = useRef<AudioPlayer | null>(null);
   const lookupRequestRef = useRef(0);
   const prefetchTriggered = useRef(false);
   const lastReviewedAt = useRef<number>(0);
@@ -159,9 +159,9 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
   const sentenceItemIndex = currentSlot?.type === "sentence" ? currentSlot.itemIndex : cardIndex;
 
   useEffect(() => {
-    Audio.setAudioModeAsync({
-      playsInSilentModeIOS: true,
-      staysActiveInBackground: false,
+    setAudioModeAsync({
+      playsInSilentMode: true,
+      shouldPlayInBackground: false,
     });
     loadSession();
     return () => {
@@ -234,19 +234,19 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
     return () => sub.remove();
   }, [mode]);
 
-  async function cleanupSound() {
+  function cleanupSound() {
     if (soundRef.current) {
       try {
-        await soundRef.current.unloadAsync();
+        soundRef.current.remove();
       } catch {}
       soundRef.current = null;
     }
   }
 
-  async function playTtsAudio(slow = false) {
+  function playTtsAudio(slow = false) {
     setAudioPlaying(true);
     setAudioPlayCount(prev => prev + 1);
-    await cleanupSound();
+    cleanupSound();
 
     const currentItem = !isIntroSlot
       ? sentenceSession?.items[sentenceItemIndex] ?? null
@@ -263,19 +263,17 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
       : `${BASE_URL}/api/tts/speak/${encodeURIComponent(arabicText)}`;
 
     try {
-      const { sound } = await Audio.Sound.createAsync({
-        uri: audioUri,
-      });
-      soundRef.current = sound;
+      const player = createAudioPlayer(audioUri);
+      soundRef.current = player;
       if (slow) {
-        await sound.setRateAsync(0.6, true);
+        player.setPlaybackRate(0.6);
       }
-      sound.setOnPlaybackStatusUpdate((status) => {
-        if (status.isLoaded && status.didJustFinish) {
+      player.addListener("playbackStatusUpdate", (status) => {
+        if (status.didJustFinish) {
           setAudioPlaying(false);
         }
       });
-      await sound.playAsync();
+      player.play();
     } catch {
       setAudioPlaying(false);
     }
@@ -324,7 +322,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
     setLookupCount(0);
     setSubmittingReview(false);
     setSentenceSession(null);
-    await cleanupSound();
+    cleanupSound();
 
     try {
       const ss = skipCache ? await fetchFreshSession(m) : await getSentenceReviewSession(m);
