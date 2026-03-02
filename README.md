@@ -81,6 +81,172 @@ The frontend reads its API URL from `frontend/app.json`:
 
 Change this to point at wherever your backend is running. For bare python (no Docker) that's `http://localhost:8000`.
 
+## Deploying to a VPS (Hetzner, etc.)
+
+The app is designed to run on a single cheap VPS. Here's how to set it up from scratch.
+
+### 1. Provision a server
+
+Any Linux VPS works. A Hetzner CX22 (~€4/mo, 2 vCPU, 4GB RAM) is plenty. Pick Ubuntu 24.04.
+
+Set up SSH key access:
+```bash
+# On your local machine
+ssh-keygen -t ed25519 -f ~/.ssh/myserver
+ssh-copy-id -i ~/.ssh/myserver root@YOUR_SERVER_IP
+
+# Add an alias to ~/.ssh/config
+Host alif
+    HostName YOUR_SERVER_IP
+    User root
+    IdentityFile ~/.ssh/myserver
+```
+
+### 2. Install dependencies on the server
+
+```bash
+ssh alif
+
+# Docker
+curl -fsSL https://get.docker.com | sh
+
+# Node.js (for the Expo dev server)
+curl -fsSL https://deb.nodesource.com/setup_22.x | bash -
+apt-get install -y nodejs
+
+# Git
+apt-get install -y git
+```
+
+### 3. Clone and configure
+
+```bash
+cd /opt
+git clone https://github.com/YOUR_USER/alif.git
+cd alif
+
+# Create .env with your API keys
+cat > .env << 'EOF'
+GEMINI_KEY=your-gemini-key
+OPENAI_KEY=your-openai-key
+ANTHROPIC_API_KEY=your-anthropic-key
+ELEVENLABS_API_KEY=your-elevenlabs-key
+EOF
+```
+
+### 4. Start the backend
+
+```bash
+cd /opt/alif
+docker compose up -d --build
+# Verify: curl http://localhost:3000/api/stats
+```
+
+The backend runs in Docker (port 3000 → container port 8000). SQLite database is persisted in a Docker volume (`backend-data`).
+
+### 5. Seed starter vocabulary
+
+```bash
+docker exec alif-backend-1 python3 scripts/import_duolingo.py
+```
+
+### 6. Start the frontend (Expo dev server)
+
+The frontend runs as a systemd service outside Docker:
+
+```bash
+# Install frontend dependencies
+cd /opt/alif/frontend
+npm install
+
+# Create systemd service
+cat > /etc/systemd/system/alif-expo.service << EOF
+[Unit]
+Description=Alif Expo Dev Server
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/alif/frontend
+Environment=REACT_NATIVE_PACKAGER_HOSTNAME=YOUR_DOMAIN_OR_IP
+ExecStart=/usr/bin/npx expo start --web --port 8081
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+systemctl daemon-reload
+systemctl enable --now alif-expo
+```
+
+Replace `YOUR_DOMAIN_OR_IP` with your server's IP or domain name. This is what the Expo app uses to connect from your phone.
+
+### 7. Point the frontend at your backend
+
+Edit `frontend/app.json` and set the API URL:
+```json
+"extra": {
+  "apiUrl": "http://YOUR_SERVER_IP:3000"
+}
+```
+
+Then restart Expo: `systemctl restart alif-expo`
+
+### 8. (Optional) Set up a domain with DuckDNS
+
+[DuckDNS](https://www.duckdns.org/) gives you a free subdomain that points at your server IP:
+
+```bash
+# One-time setup
+curl "https://www.duckdns.org/update?domains=YOURNAME&token=YOUR_TOKEN&ip=YOUR_SERVER_IP"
+```
+
+Then use `YOURNAME.duckdns.org` as your `REACT_NATIVE_PACKAGER_HOSTNAME` and in `app.json`.
+
+### 9. (Optional) Set up backups
+
+The repo includes a backup script that copies the SQLite DB to your local machine with grandfather-father-son retention:
+
+```bash
+# On your local machine — edit scripts/backup.sh and set SERVER=alif
+# Then add a daily cron job:
+crontab -e
+# Add: 0 9 * * * /path/to/alif/scripts/backup.sh
+```
+
+For server-side backups, add a cron job on the server:
+```bash
+crontab -e
+# Add: 0 */6 * * * docker cp alif-backend-1:/app/data/alif.db /opt/alif-backups/alif_$(date +\%Y\%m\%d_\%H\%M).db
+```
+
+### 10. Deploy updates
+
+After pushing changes to your repo:
+
+```bash
+# Backend only
+ssh alif "cd /opt/alif && git pull && docker compose up -d --build"
+
+# Frontend only
+ssh alif "cd /opt/alif && git pull && cd frontend && npm install && systemctl restart alif-expo"
+
+# Both
+ssh alif "cd /opt/alif && git pull && docker compose up -d --build && cd frontend && npm install && systemctl restart alif-expo"
+```
+
+Or use the included deploy script: `scripts/deploy.sh` (update the `SERVER` and `EXPO_URL` variables first).
+
+### Connecting from your phone
+
+Open the Expo Go app and enter: `exp://YOUR_DOMAIN_OR_IP:8081`
+
+### Using Claude Code for deployment
+
+If you're using Claude Code, update the references in `CLAUDE.md` and `.claude/skills/` to point at your server, and Claude will handle deploys for you. Tell it something like "update all deployment references to my server at 1.2.3.4 with domain foo.duckdns.org" and it will find and update everything.
+
 ## Files You Need to Personalize
 
 This codebase has hardcoded references to the original author's server, SSH alias, and domain. Here's what to update for your own setup:
