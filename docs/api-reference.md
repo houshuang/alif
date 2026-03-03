@@ -23,6 +23,7 @@ Full endpoint list. See `backend/app/routers/` for implementation.
 | GET | `/api/review/confusion-help/{lemma_id}?surface_form=...` | Confusion analysis for "did not recognize" words — morphological decomposition (clitics/forms) + visual similarity (edit distance/rasm) |
 | POST | `/api/review/sync` | Bulk sync offline reviews |
 | POST | `/api/review/reintro-result` | Submit re-introduction quiz result |
+| POST | `/api/review/experiment-intro-ack` | Acknowledge experiment intro card was shown (A/B test logging) |
 | POST | `/api/review/wrap-up` | Wrap-up mini-quiz: word-level recall cards for acquiring words seen in current micro-session. Cards include forms_translit + pattern_examples |
 | POST | `/api/review/recap` | (Deprecated) Was next-session recap — removed from frontend, redundant with within-session repetition |
 | POST | `/api/review/warm-sentences` | Pre-generate sentences for likely next session words (background, returns 202) |

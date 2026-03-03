@@ -856,6 +856,19 @@ export async function submitReintroResult(
   });
 }
 
+export async function acknowledgeExperimentIntro(
+  lemmaId: number,
+  sessionId?: string,
+): Promise<{ status: string }> {
+  return fetchApi("/api/review/experiment-intro-ack", {
+    method: "POST",
+    body: JSON.stringify({
+      lemma_id: lemmaId,
+      session_id: sessionId,
+    }),
+  });
+}
+
 // --- OCR / Textbook Scanner ---
 
 export async function scanTextbookPages(imageUris: string[], startAcquiring: boolean = false): Promise<BatchUploadResult> {

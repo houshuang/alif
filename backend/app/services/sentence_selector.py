@@ -562,6 +562,9 @@ def build_session(
     # Build reintro cards for struggling words (limit 3 per session)
     reintro_cards = _build_reintro_cards(db, struggling_ids, limit=3) if struggling_ids else []
 
+    # A/B experiment: build intro cards for card-first group (never reviewed yet)
+    experiment_intro_cards = _build_experiment_intro_cards(db, knowledge_by_id)
+
     if not due_lemma_ids:
         return {
             "session_id": session_id,
@@ -569,6 +572,7 @@ def build_session(
             "total_due_words": total_due,
             "covered_due_words": 0,
             "reintro_cards": reintro_cards,
+            "experiment_intro_cards": experiment_intro_cards,
         }
 
     # 2. Fetch candidate sentences containing at least one due word
@@ -582,7 +586,7 @@ def build_session(
     if exclude_sentence_ids:
         sentence_ids_with_due -= exclude_sentence_ids
     if not sentence_ids_with_due:
-        return _with_fallbacks(db, session_id, due_lemma_ids, stability_map, total_due, [], limit, reintro_cards=reintro_cards, knowledge_by_id=knowledge_by_id, all_knowledge=all_knowledge, skip_on_demand=skip_on_demand, mode=mode)
+        return _with_fallbacks(db, session_id, due_lemma_ids, stability_map, total_due, [], limit, reintro_cards=reintro_cards, experiment_intro_cards=experiment_intro_cards, knowledge_by_id=knowledge_by_id, all_knowledge=all_knowledge, skip_on_demand=skip_on_demand, mode=mode)
 
     from sqlalchemy import or_
 
@@ -642,7 +646,7 @@ def build_session(
                 sentences.extend(rescue_sents)
 
     if not sentences:
-        return _with_fallbacks(db, session_id, due_lemma_ids, stability_map, total_due, [], limit, reintro_cards=reintro_cards, knowledge_by_id=knowledge_by_id, all_knowledge=all_knowledge, skip_on_demand=skip_on_demand, mode=mode)
+        return _with_fallbacks(db, session_id, due_lemma_ids, stability_map, total_due, [], limit, reintro_cards=reintro_cards, experiment_intro_cards=experiment_intro_cards, knowledge_by_id=knowledge_by_id, all_knowledge=all_knowledge, skip_on_demand=skip_on_demand, mode=mode)
 
     sentence_map: dict[int, Sentence] = {s.id: s for s in sentences}
 
@@ -1095,7 +1099,7 @@ def build_session(
 
     db.commit()
 
-    return _with_fallbacks(db, session_id, due_lemma_ids, stability_map, total_due, items, limit, covered_ids, reintro_cards=reintro_cards, knowledge_by_id=knowledge_by_id, all_knowledge=all_knowledge, base_item_count=base_item_count, skip_on_demand=skip_on_demand, mode=mode)
+    return _with_fallbacks(db, session_id, due_lemma_ids, stability_map, total_due, items, limit, covered_ids, reintro_cards=reintro_cards, experiment_intro_cards=experiment_intro_cards, knowledge_by_id=knowledge_by_id, all_knowledge=all_knowledge, base_item_count=base_item_count, skip_on_demand=skip_on_demand, mode=mode)
 
 
 MAX_REINTRO_PER_SESSION = 3
@@ -1165,6 +1169,30 @@ def _build_reintro_cards(
         cards.append(card)
 
     return cards
+
+
+def _build_experiment_intro_cards(
+    db: Session,
+    knowledge_by_id: dict[int, UserLemmaKnowledge],
+) -> list[dict]:
+    """Build intro cards for the card-first A/B experiment group.
+
+    Returns cards for acquiring words assigned to 'intro_ab_card' that
+    have never been reviewed (times_seen == 0).
+    """
+    card_ids = set()
+    for lid, ulk in knowledge_by_id.items():
+        if (
+            ulk.knowledge_state == "acquiring"
+            and ulk.experiment_group == "intro_ab_card"
+            and (ulk.times_seen or 0) == 0
+        ):
+            card_ids.add(lid)
+
+    if not card_ids:
+        return []
+
+    return _build_reintro_cards(db, card_ids, limit=len(card_ids))
 
 
 MAX_ON_DEMAND_PER_SESSION = 10
@@ -1743,6 +1771,7 @@ def _with_fallbacks(
     limit: int,
     covered_ids: set[int] | None = None,
     reintro_cards: list[dict] | None = None,
+    experiment_intro_cards: list[dict] | None = None,
     knowledge_by_id: dict[int, UserLemmaKnowledge] | None = None,
     all_knowledge: list | None = None,
     base_item_count: int | None = None,
@@ -1851,6 +1880,7 @@ def _with_fallbacks(
         "covered_due_words": len(covered_ids),
         "intro_candidates": [],  # deprecated: auto-introduction via sentences now
         "reintro_cards": reintro_cards or [],
+        "experiment_intro_cards": experiment_intro_cards or [],
         "grammar_intro_needed": grammar_intro_needed,
         "grammar_refresher_needed": grammar_refresher_needed,
     }

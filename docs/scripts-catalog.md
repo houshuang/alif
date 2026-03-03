@@ -82,6 +82,7 @@ All scripts in `backend/scripts/`. Run from `backend/` directory.
 - `simulate_usage.py` — Simulate raw FSRS usage patterns (no DB, pure library).
 - `simulate_sessions.py` — End-to-end multi-day simulation using real services against a DB copy. Profiles: beginner/strong/casual/intensive/calibrated. Uses freezegun for time control. Output: console table + optional CSV.
 - `learning_analysis.py` — Comprehensive production learning metrics: vocabulary states, graduation rates, retention, FSRS stability, session patterns, frequency coverage, tashkeel readiness. Raw sqlite3, outputs JSON to stdout + console summary to stderr.
+- `analyze_intro_experiment.py` — A/B experiment analysis: intro card vs sentence-first acquisition. Compares reviews-to-graduation, first-review accuracy, time-to-graduation by experiment group. `--db path/to/alif.db`.
 
 ## Utilities
 - `log_activity.py` — CLI tool for manual ActivityLog entries.
