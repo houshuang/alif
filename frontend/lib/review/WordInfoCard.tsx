@@ -59,6 +59,61 @@ const DIACRITICS_RE = /[\u0610-\u061A\u064B-\u065F\u0670\u06D6-\u06DC\u06DF-\u06
 function stripArabicDiacritics(text: string): string {
   return text.replace(DIACRITICS_RE, "");
 }
+
+/** Split Arabic text into grapheme clusters (base char + following diacritics) */
+function splitArabicGraphemes(text: string): string[] {
+  const groups: string[] = [];
+  let current = "";
+  for (const ch of text) {
+    if (DIACRITICS_RE.test(ch)) {
+      current += ch;
+    } else {
+      if (current) groups.push(current);
+      current = ch;
+    }
+    // Reset regex lastIndex (global flag)
+    DIACRITICS_RE.lastIndex = 0;
+  }
+  if (current) groups.push(current);
+  return groups;
+}
+
+/** Render Arabic word with diff positions highlighted */
+function HighlightedArabic({
+  text,
+  diffPositions,
+  highlightColor,
+}: {
+  text: string;
+  diffPositions: Set<number>;
+  highlightColor: string;
+}) {
+  const graphemes = splitArabicGraphemes(text);
+  // Strip al-prefix from position mapping if present
+  const bare = stripArabicDiacritics(text).replace(/\u0640/g, "");
+  const hasAl = bare.startsWith("\u0627\u0644");
+  const alOffset = hasAl ? 2 : 0; // al-prefix takes 2 graphemes (alif + lam)
+
+  return (
+    <Text style={cfStyles.highlightedWord}>
+      {graphemes.map((g, i) => {
+        const bareIdx = i - alOffset;
+        const isHighlighted = bareIdx >= 0 && diffPositions.has(bareIdx);
+        return (
+          <Text
+            key={i}
+            style={[
+              cfStyles.highlightedChar,
+              isHighlighted ? { color: highlightColor } : cfStyles.dimChar,
+            ]}
+          >
+            {g}
+          </Text>
+        );
+      })}
+    </Text>
+  );
+}
 function bareForm(text: string): string {
   let s = stripArabicDiacritics(text).replace(/\u0640/g, ""); // strip tatweel
   if (s.startsWith("\u0627\u0644")) s = s.slice(2); // strip al-prefix
@@ -190,7 +245,7 @@ export default function WordInfoCard({
       ) : particleInfo ? (
         <GrammarParticleView info={particleInfo} />
       ) : (
-        <ScrollView style={{ maxHeight: (markState === "did_not_recognize" && confusionData?.confusion_type) ? 380 : 200 }} showsVerticalScrollIndicator={false} nestedScrollEnabled>
+        <ScrollView style={{ maxHeight: 200 }} showsVerticalScrollIndicator={true} nestedScrollEnabled>
           <RevealedView result={result} surfaceForm={surfaceForm} onNavigateToDetail={onNavigateToDetail} onNavigateToPattern={onNavigateToPattern} surfaceTranslit={surfaceTranslit} confusionData={markState === "did_not_recognize" ? confusionData : null} />
         </ScrollView>
       )}
@@ -302,86 +357,80 @@ function RevealedView({
         )}
       </View>
 
-      {/* Confusion analysis — similar words */}
+      {/* Confusion analysis — similar words (inline highlighting) */}
       {similarWords && similarWords.length > 0 && (
         <View style={styles.confusionSection}>
           <View style={styles.confusionHeader}>
             <Ionicons name="eye-outline" size={14} color={colors.confused} />
             <Text style={styles.confusionTitle}>Easily confused</Text>
           </View>
-          {similarWords.slice(0, 3).map((sw) => (
-            <View key={sw.lemma_id} style={styles.comparisonCard}>
-              <View style={styles.comparisonWordRow}>
-                <Text style={styles.comparisonAr}>{sw.lemma_ar}</Text>
-                <Text style={styles.comparisonGloss} numberOfLines={1}>{sw.gloss_en ?? "?"}</Text>
-              </View>
-              {sw.rasm_distance === 0 ? (
-                <View style={styles.sameDotsBanner}>
-                  <Text style={styles.sameDotsText}>identical shape — only dots differ</Text>
-                </View>
-              ) : sw.diff_positions.length > 0 ? (
-                <View style={styles.letterCompareRow}>
-                  {sw.diff_positions.slice(0, 3).map((d, i) => (
-                    <View key={i} style={styles.letterPair}>
-                      <View style={styles.letterBoxTarget}>
-                        <Text style={styles.letterChar}>{d.original}</Text>
-                      </View>
-                      <Text style={styles.letterNeq}>≠</Text>
-                      <View style={styles.letterBoxSimilar}>
-                        <Text style={styles.letterChar}>{d.similar}</Text>
-                      </View>
+          {similarWords.slice(0, 4).map((sw) => {
+            const diffSet = new Set(sw.diff_positions.map(d => d.pos));
+            return (
+              <View key={sw.lemma_id} style={styles.confusionItem}>
+                <View style={styles.confusionItemRow}>
+                  <HighlightedArabic
+                    text={sw.lemma_ar}
+                    diffPositions={diffSet}
+                    highlightColor={colors.confused}
+                  />
+                  <Text style={styles.confusionGloss} numberOfLines={1}>{sw.gloss_en ?? "?"}</Text>
+                  {sw.rasm_distance === 0 && (
+                    <View style={styles.dotsPill}>
+                      <Text style={styles.dotsPillText}>dots only</Text>
                     </View>
-                  ))}
+                  )}
                 </View>
-              ) : null}
-            </View>
-          ))}
+                {sw.diff_positions.length > 0 && (
+                  <Text style={styles.confusionHint}>
+                    has {sw.diff_positions.slice(0, 2).map(d =>
+                      `${d.similar}`
+                    ).join(", ")} not {sw.diff_positions.slice(0, 2).map(d =>
+                      `${d.original}`
+                    ).join(", ")}
+                  </Text>
+                )}
+              </View>
+            );
+          })}
         </View>
       )}
 
-      {/* Confusion analysis — morphological decomposition */}
-      {decomp && (decomp.prefix_clitics.length > 0 || decomp.suffix_clitics.length > 0 || decomp.matched_form_key) && (
-        <View style={styles.decompSection}>
-          <Text style={styles.decompSectionTitle}>Word breakdown</Text>
-          <View style={styles.decompRow}>
-            {decomp.prefix_clitics.flatMap((c, i) => {
-              const items: React.ReactNode[] = [];
-              if (i > 0) items.push(<Text key={`p-plus-${i}`} style={styles.decompPlus}>+</Text>);
-              items.push(
-                <View key={`pre-${i}`} style={styles.decompSegment}>
-                  <View style={styles.decompClitic}>
-                    <Text style={styles.decompCliticAr}>{c.text}</Text>
-                  </View>
-                  <Text style={styles.decompLabel}>{c.label}</Text>
+      {/* Confusion analysis — morphological decomposition (color bands) */}
+      {decomp && (decomp.prefix_clitics.length > 0 || decomp.suffix_clitics.length > 0 || decomp.matched_form_key) && (() => {
+        const MORPH_COLORS = ["#9b59b6", "#e67e22", colors.accent, "#2ecc71"];
+        const pieces: { text: string; label: string; color: string }[] = [];
+        let ci = 0;
+        for (const c of decomp.prefix_clitics) {
+          pieces.push({ text: c.text, label: c.label, color: MORPH_COLORS[ci % MORPH_COLORS.length] });
+          ci++;
+        }
+        pieces.push({ text: decomp.stem, label: decomp.matched_form_label, color: colors.accent });
+        ci = MORPH_COLORS.length - 1;
+        for (const c of decomp.suffix_clitics) {
+          pieces.push({ text: c.text, label: c.label, color: MORPH_COLORS[ci % MORPH_COLORS.length] });
+          ci--;
+        }
+        return (
+          <View style={styles.decompSection}>
+            <Text style={styles.decompColorWord}>
+              {pieces.map((p, i) => (
+                <Text key={i} style={[cfStyles.highlightedChar, { color: p.color, fontFamily: fontFamily.arabic, fontSize: 20 }]}>
+                  {p.text}
+                </Text>
+              ))}
+            </Text>
+            <View style={styles.decompLegend}>
+              {pieces.map((p, i) => (
+                <View key={i} style={styles.decompLegendItem}>
+                  <View style={[styles.decompLegendDot, { backgroundColor: p.color }]} />
+                  <Text style={styles.decompLegendText}>{p.label}</Text>
                 </View>
-              );
-              return items;
-            })}
-            {decomp.prefix_clitics.length > 0 && (
-              <Text style={styles.decompPlus}>+</Text>
-            )}
-            <View style={styles.decompSegment}>
-              <View style={styles.decompStem}>
-                <Text style={styles.decompStemAr}>{decomp.stem}</Text>
-              </View>
-              <Text style={styles.decompStemLabel}>{decomp.matched_form_label}</Text>
+              ))}
             </View>
-            {decomp.suffix_clitics.flatMap((c, i) => {
-              const items: React.ReactNode[] = [];
-              items.push(<Text key={`s-plus-${i}`} style={styles.decompPlus}>+</Text>);
-              items.push(
-                <View key={`suf-${i}`} style={styles.decompSegment}>
-                  <View style={styles.decompClitic}>
-                    <Text style={styles.decompCliticAr}>{c.text}</Text>
-                  </View>
-                  <Text style={styles.decompLabel}>{c.label}</Text>
-                </View>
-              );
-              return items;
-            })}
           </View>
-        </View>
-      )}
+        );
+      })()}
 
       {/* Forms strip */}
       <FormsStrip
@@ -828,12 +877,13 @@ const styles = StyleSheet.create({
     borderLeftColor: "rgba(243, 156, 18, 0.4)",
     paddingHorizontal: 12,
     paddingVertical: 10,
-    gap: 8,
+    gap: 6,
   },
   confusionHeader: {
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
+    marginBottom: 2,
   },
   confusionTitle: {
     fontSize: 12,
@@ -842,154 +892,89 @@ const styles = StyleSheet.create({
     textTransform: "uppercase",
     letterSpacing: 0.6,
   },
-  comparisonCard: {
-    gap: 6,
-    paddingBottom: 6,
+  confusionItem: {
+    gap: 2,
+    paddingBottom: 5,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: "rgba(243, 156, 18, 0.15)",
+    borderBottomColor: "rgba(243, 156, 18, 0.12)",
   },
-  comparisonWordRow: {
+  confusionItemRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 10,
+    gap: 8,
   },
-  comparisonAr: {
-    fontFamily: fontFamily.arabic,
-    fontSize: 22,
-    color: colors.arabic,
-    writingDirection: "rtl",
-    lineHeight: 32,
-  },
-  comparisonGloss: {
-    fontSize: 14,
+  confusionGloss: {
+    fontSize: 13,
     color: colors.text,
     flex: 1,
   },
-  sameDotsBanner: {
-    backgroundColor: "rgba(243, 156, 18, 0.1)",
-    borderRadius: 6,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    alignSelf: "flex-start",
-  },
-  sameDotsText: {
-    fontSize: 12,
-    color: colors.confused,
-    fontWeight: "600",
-  },
-  letterCompareRow: {
-    flexDirection: "row",
-    gap: 14,
-    alignItems: "center",
+  dotsPill: {
+    backgroundColor: "rgba(243, 156, 18, 0.15)",
+    borderRadius: 4,
+    paddingHorizontal: 6,
     paddingVertical: 2,
   },
-  letterPair: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
+  dotsPillText: {
+    fontSize: 9,
+    color: colors.confused,
+    fontWeight: "700",
+    textTransform: "uppercase",
   },
-  letterBoxTarget: {
-    backgroundColor: "rgba(74, 158, 255, 0.15)",
-    borderRadius: 8,
-    width: 42,
-    height: 42,
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 1,
-    borderColor: "rgba(74, 158, 255, 0.3)",
-  },
-  letterBoxSimilar: {
-    backgroundColor: "rgba(243, 156, 18, 0.15)",
-    borderRadius: 8,
-    width: 42,
-    height: 42,
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 1,
-    borderColor: "rgba(243, 156, 18, 0.3)",
-  },
-  letterChar: {
-    fontFamily: fontFamily.arabic,
-    fontSize: 26,
-    color: colors.arabic,
-    writingDirection: "rtl",
-    lineHeight: 36,
-  },
-  letterNeq: {
-    fontSize: 16,
+  confusionHint: {
+    fontSize: 11,
     color: colors.textSecondary,
-    fontWeight: "600",
+    fontStyle: "italic",
+    fontFamily: fontFamily.arabic,
+    paddingLeft: 2,
   },
 
-  /* Confusion analysis — morphological decomposition */
+  /* Confusion analysis — color band decomposition */
   decompSection: {
     backgroundColor: "rgba(100, 140, 180, 0.06)",
     borderRadius: 10,
-    borderLeftWidth: 3,
-    borderLeftColor: "rgba(100, 140, 180, 0.3)",
     paddingHorizontal: 12,
     paddingVertical: 10,
     gap: 6,
-  },
-  decompSectionTitle: {
-    fontSize: 11,
-    color: colors.accent,
-    fontWeight: "700",
-    textTransform: "uppercase",
-    letterSpacing: 0.6,
-  },
-  decompRow: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    justifyContent: "center",
-    gap: 4,
-    flexWrap: "wrap",
-  },
-  decompSegment: {
     alignItems: "center",
-    gap: 3,
   },
-  decompClitic: {
-    backgroundColor: "rgba(243, 156, 18, 0.12)",
-    borderRadius: 8,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-  },
-  decompCliticAr: {
-    fontFamily: fontFamily.arabic,
-    fontSize: 18,
-    color: colors.confused,
+  decompColorWord: {
     writingDirection: "rtl",
+    textAlign: "center",
+    lineHeight: 30,
   },
-  decompLabel: {
-    fontSize: 10,
+  decompLegend: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "center",
+    gap: 10,
+  },
+  decompLegendItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+  decompLegendDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  decompLegendText: {
+    fontSize: 11,
     color: colors.textSecondary,
-    fontWeight: "500",
   },
-  decompPlus: {
-    fontSize: 16,
-    color: colors.textSecondary,
-    fontWeight: "600",
-    marginTop: 6,
-  },
-  decompStem: {
-    backgroundColor: "rgba(100, 140, 180, 0.12)",
-    borderRadius: 8,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderWidth: 1,
-    borderColor: "rgba(100, 140, 180, 0.25)",
-  },
-  decompStemAr: {
+});
+
+const cfStyles = StyleSheet.create({
+  highlightedWord: {
     fontFamily: fontFamily.arabic,
-    fontSize: 18,
-    color: colors.text,
-    fontWeight: "700",
+    fontSize: 20,
     writingDirection: "rtl",
+    lineHeight: 30,
   },
-  decompStemLabel: {
-    fontSize: 10,
-    color: colors.accent,
-    fontWeight: "600",
+  highlightedChar: {
+    fontFamily: fontFamily.arabic,
+  },
+  dimChar: {
+    color: "rgba(232, 232, 240, 0.25)",
   },
 });
