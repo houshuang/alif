@@ -303,7 +303,7 @@ the bootstrap case by creating sentences using only active vocabulary.
      Box advancement rules (2026-02-14):
        Box 1→2: ALWAYS allowed (within-session encoding phase)
        Box 2→3: ONLY when acquisition_next_due <= now (enforce inter-session spacing)
-       Graduation: ONLY when due + reviews span ≥2 UTC calendar days
+       Graduation: Tiered — first-correct instant, perfect/high-acc fast-track, or standard (due + 2 cal days)
 
      Within-session reviews of not-yet-due words:
        - Still count for times_seen / times_correct (exposure credit)
@@ -326,18 +326,25 @@ GRADUATION_MIN_ACCURACY = 0.60
 GRADUATION_MIN_CALENDAR_DAYS = 2
 ```
 
-### Graduation Criteria
+### Graduation Criteria (Tiered — 2026-03-03)
 
-A word graduates from acquisition to FSRS when **all** conditions are met:
+Graduation uses a tiered system. The word must be due (`acquisition_next_due <= now`) for all tiers except the first-correct fast-track.
+
+**Tier 0 — First-correct instant graduation**: If a word's very first review is correct (rating ≥ 3, `times_seen` was 0), it graduates immediately. Data shows 0% lapse rate for fast graduates. FSRS safety net catches false positives.
+
+**Tier 1 — Perfect accuracy**: 100% accuracy + 3+ reviews → graduate from any box. No calendar-day requirement.
+
+**Tier 2 — High accuracy**: ≥80% accuracy + 4+ reviews + box ≥ 2 → graduate. No calendar-day requirement.
+
+**Tier 3 — Standard** (original criteria):
 1. `acquisition_box >= 3`
 2. `times_seen >= 5`
 3. Cumulative accuracy (`times_correct / times_seen`) >= 60%
-4. `acquisition_next_due <= now` (word must be due for review)
-5. Reviews span at least 2 distinct UTC calendar days (sleep consolidation)
+4. Reviews span at least 2 distinct UTC calendar days (sleep consolidation)
 
 **Important**: Graduation fires regardless of the current review's rating. If a word
-is in box 3 with 5 reviews and 65% accuracy, it graduates even if the current review
-is rated "Again". This was a deliberate fix — see experiment-log.md.
+meets any tier's criteria, it graduates even if the current review is rated "Again".
+This was a deliberate fix — see experiment-log.md.
 
 ### Why Two Phases (Encoding vs Consolidation)
 
@@ -364,8 +371,10 @@ def _graduate(ulk, now):
     ulk.fsrs_card_json = new_card.to_dict()
 ```
 
-The initial FSRS stability after graduation is S₀(Good) ≈ 2.3 days. This is
-appropriate because by this point the word has been seen 5+ times with 60%+ accuracy
+The initial FSRS stability after graduation is S₀(Good) ≈ 2.3 days. For words
+graduating via tier 0 (first-correct), this acts as a 2-day safety net — if the word
+was a false positive, FSRS will detect it quickly. For standard graduates, the word
+has been seen 5+ times with 60%+ accuracy
 over 4+ days — a genuine learning signal.
 
 ### Within-Session Repetition
@@ -1429,10 +1438,13 @@ remaining cards on the next card advance. See Section 8 "Sentence Pre-Warming" f
 | `BOX_INTERVALS[1]` | 4 hours | Box 1 review interval |
 | `BOX_INTERVALS[2]` | 1 day | Box 2 review interval |
 | `BOX_INTERVALS[3]` | 3 days | Box 3 review interval |
-| `GRADUATION_MIN_REVIEWS` | 5 | Min reviews before graduation |
-| `GRADUATION_MIN_ACCURACY` | 0.60 | Min accuracy for graduation |
-| `GRADUATION_MIN_CALENDAR_DAYS` | 2 | Reviews must span this many UTC calendar days |
+| `GRADUATION_MIN_REVIEWS` | 5 | Min reviews before graduation (tier 3 standard) |
+| `GRADUATION_MIN_ACCURACY` | 0.60 | Min accuracy for graduation (tier 3 standard) |
+| `GRADUATION_MIN_CALENDAR_DAYS` | 2 | Reviews must span this many UTC calendar days (tier 3 only) |
 | `ROOT_SIBLING_THRESHOLD` | 2 | Known root siblings needed for Easy graduation boost |
+| Tier 0: first-correct | times_seen=0 + rating≥3 | Instant graduation on first correct review |
+| Tier 1: perfect | accuracy=100% + seen≥3 | Graduate from any box |
+| Tier 2: high accuracy | accuracy≥80% + seen≥4 + box≥2 | Graduate without calendar-day check |
 
 ### Tashkeel Fading (`sentence_selector.py`, `settings.py`)
 

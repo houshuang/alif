@@ -8,10 +8,14 @@ Words go through three acquisition boxes before graduating to FSRS:
 Box 1→2 is "encoding" — allowed within a single session for initial repetition.
 Box 2→3 and 3→graduation enforce real inter-session spacing (sleep consolidation).
 
-Graduation requires: box >= 3 + times_seen >= 5 + accuracy >= 60%
-  + reviews on at least 2 distinct UTC calendar days
+Graduation is tiered (2026-03-03):
+  - First correct review (times_seen was 0, rating >= 3) → instant graduation
+  - Perfect accuracy (100%) + 3+ reviews → graduate from any box
+  - High accuracy (≥80%) + 4+ reviews + box ≥ 2 → graduate
+  - Standard: box >= 3 + times_seen >= 5 + accuracy >= 60% + 2 calendar days
 
 2026-02-14: Added due-date gating for box 2+ and calendar-day graduation check.
+2026-03-03: Added tiered graduation — first-correct instant grad + relaxed criteria.
 """
 
 import logging
@@ -135,6 +139,7 @@ def submit_acquisition_review(
     comprehension_signal: Optional[str] = None,
     client_review_id: Optional[str] = None,
     commit: bool = True,
+    was_confused: bool = False,
 ) -> dict:
     """Submit a review for a word in the acquisition phase.
 
@@ -203,11 +208,18 @@ def submit_acquisition_review(
             acq_due = acq_due.replace(tzinfo=timezone.utc)
         is_due = acq_due <= now
 
+    # Fast-track: first correct review → graduate immediately to FSRS
+    # Production data shows 0% lapse rate for fast grads (≤6 reviews).
+    # FSRS safety net catches any false positives.
+    graduated = False
+    if old_times_seen == 0 and rating_int >= 3:
+        _graduate(ulk, now, db=db)
+        graduated = True
+
     # Box advancement logic
     # Box 1→2: always allowed (encoding phase, within-session repetition)
     # Box 2→3 and graduation: only when due (enforce inter-session spacing)
-    graduated = False
-    if rating_int >= 3:
+    if not graduated and rating_int >= 3:
         if old_box == 1:
             # Box 1→2: always advance (encoding → consolidation handoff)
             ulk.acquisition_box = 2
@@ -254,15 +266,24 @@ def submit_acquisition_review(
             threading.Thread(target=regenerate_memory_hooks_premium, args=(lemma_id,), daemon=True).start()
             logger.info(f"Triggered premium mnemonic regeneration for demoted lemma {lemma_id} (box {old_box}→1)")
 
-    # Check graduation: box >= 3 + stats + calendar day spread
-    if not graduated and ulk.acquisition_box >= 3 and is_due:
+    # Tiered graduation: more aggressive for high-accuracy words
+    if not graduated and is_due:
         new_times_seen = ulk.times_seen
         new_times_correct = ulk.times_correct
         accuracy = new_times_correct / new_times_seen if new_times_seen > 0 else 0
-        if new_times_seen >= GRADUATION_MIN_REVIEWS and accuracy >= GRADUATION_MIN_ACCURACY:
-            # Check reviews span at least 2 distinct UTC calendar days
-            if _reviews_span_calendar_days(db, ulk.lemma_id, GRADUATION_MIN_CALENDAR_DAYS):
-                graduated = True
+
+        # Tier 1: Perfect accuracy, 3+ reviews → graduate from any box
+        if accuracy >= 1.0 and new_times_seen >= 3:
+            graduated = True
+        # Tier 2: High accuracy (≥80%), 4+ reviews → graduate from box ≥ 2
+        elif accuracy >= 0.80 and new_times_seen >= 4 and ulk.acquisition_box >= 2:
+            graduated = True
+        # Tier 3: Standard (existing criteria)
+        elif (ulk.acquisition_box >= 3
+              and new_times_seen >= GRADUATION_MIN_REVIEWS
+              and accuracy >= GRADUATION_MIN_ACCURACY
+              and _reviews_span_calendar_days(db, ulk.lemma_id, GRADUATION_MIN_CALENDAR_DAYS)):
+            graduated = True
 
     if graduated:
         _graduate(ulk, now, db=db)
@@ -278,6 +299,7 @@ def submit_acquisition_review(
         comprehension_signal=comprehension_signal,
         client_review_id=client_review_id,
         is_acquisition=True,
+        was_confused=was_confused,
         fsrs_log_json={
             "rating": rating_int,
             "state": ulk.knowledge_state,

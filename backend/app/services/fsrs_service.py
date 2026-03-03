@@ -76,6 +76,7 @@ def submit_review(
     comprehension_signal: Optional[str] = None,
     client_review_id: Optional[str] = None,
     commit: bool = True,
+    was_confused: bool = False,
 ) -> dict:
     if client_review_id:
         existing = (
@@ -145,6 +146,7 @@ def submit_review(
         review_mode=review_mode,
         comprehension_signal=comprehension_signal,
         client_review_id=client_review_id,
+        was_confused=was_confused,
         fsrs_log_json={
             "rating": rating_int,
             "state": new_state,

@@ -97,6 +97,7 @@ def test_get_word_sentence_stats(client, db_session):
             sentence_id=sentence.id,
             credit_type="collateral",
             review_mode="reading",
+            was_confused=True,
         ),
         ReviewLog(
             lemma_id=lemma.lemma_id,

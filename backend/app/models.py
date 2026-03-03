@@ -101,6 +101,7 @@ class ReviewLog(Base):
     credit_type = Column(String(20), nullable=True)  # primary/collateral
     client_review_id = Column(String(50), nullable=True, unique=True)
     is_acquisition = Column(Boolean, default=False, server_default="0")
+    was_confused = Column(Boolean, default=False, server_default="0")
 
     lemma = relationship("Lemma", back_populates="reviews")
 
