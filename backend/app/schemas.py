@@ -621,3 +621,39 @@ class BatchUploadOut(BaseModel):
 
 class OCRStoryImportOut(BaseModel):
     extracted_text: str
+
+
+# --- Confusion analysis schemas ---
+
+class CliticPart(BaseModel):
+    text: str
+    label: str
+    type: str  # "proclitic" or "enclitic"
+
+class MorphDecomposition(BaseModel):
+    prefix_clitics: list[CliticPart] = []
+    stem: str
+    suffix_clitics: list[CliticPart] = []
+    matched_form_key: str | None = None
+    matched_form_label: str = "dictionary form"
+
+class SimilarWord(BaseModel):
+    lemma_id: int
+    lemma_ar: str
+    lemma_ar_bare: str
+    gloss_en: str | None = None
+    pos: str | None = None
+    edit_distance: int
+    rasm_distance: int
+    diff_positions: list[dict] = []
+    knowledge_state: str | None = None
+    key_forms: dict[str, str] = {}
+
+class ConfusionAnalysisOut(BaseModel):
+    confusion_type: str | None  # "morphological" | "visual" | "both" | None
+    surface_form: str
+    lemma_id: int
+    lemma_ar: str
+    gloss_en: str | None = None
+    decomposition: MorphDecomposition | None = None
+    similar_words: list[SimilarWord] = []

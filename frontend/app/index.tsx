@@ -29,6 +29,7 @@ import {
   introduceGrammarFeature,
   introduceWord,
   getWrapUpCards,
+  getConfusionHelp,
   generateUuid,
   BASE_URL,
 } from "../lib/api";
@@ -41,6 +42,7 @@ import {
   ReintroCard,
   Analytics,
   WordLookupResult,
+  ConfusionAnalysis,
   GrammarLesson,
   WrapUpCard,
 } from "../lib/types";
@@ -117,6 +119,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
   const [lookupLoading, setLookupLoading] = useState(false);
   const [lookupShowMeaning, setLookupShowMeaning] = useState(false);
   const [lookupSurfaceTranslit, setLookupSurfaceTranslit] = useState<string | null>(null);
+  const [confusionData, setConfusionData] = useState<ConfusionAnalysis | null>(null);
   const [tappedOrder, setTappedOrder] = useState<number[]>([]);
   const [tappedCursor, setTappedCursor] = useState(-1);
   const tappedCacheRef = useRef<Map<number, TappedEntry>>(new Map());
@@ -320,6 +323,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
     setFocusedWordMark(null);
     setLookupLoading(false);
     setLookupShowMeaning(false);
+    setConfusionData(null);
     setAudioPlayCount(0);
     setLookupCount(0);
     setSubmittingReview(false);
@@ -560,6 +564,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
     setLookupLoading(true);
     setLookupShowMeaning(false);
     setLookupResult(null);
+    setConfusionData(null);
 
     // Update cursor to this word (add to order if new)
     setTappedOrder(prev => {
@@ -583,6 +588,14 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
       setLookupShowMeaning(showMeaning);
       setLookupSurfaceTranslit(wordTranslit);
       addToTappedHistory(index, { surfaceForm: tappedSurface ?? "", lemmaId, result, markState: nextMark, showMeaning, surfaceTranslit: wordTranslit });
+
+      // Fetch confusion analysis when marking as "did not recognize" (yellow)
+      if (nextMark === "did_not_recognize" && tappedSurface) {
+        getConfusionHelp(lemmaId, tappedSurface).then((data) => {
+          if (lookupRequestRef.current !== requestId) return;
+          if (data?.confusion_type) setConfusionData(data);
+        });
+      }
     } catch {
       if (lookupRequestRef.current !== requestId) return;
       let fallbackResult: WordLookupResult | null = null;
@@ -1613,6 +1626,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
           hasPrev={tappedCursor > 0}
           hasNext={tappedCursor < tappedOrder.length - 1}
           surfaceTranslit={lookupSurfaceTranslit}
+          confusionData={confusionData}
         />
       )}
 

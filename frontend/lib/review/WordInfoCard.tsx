@@ -2,7 +2,7 @@ import { useRef } from "react";
 import { ActivityIndicator, Animated, PanResponder, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { colors, fontFamily } from "../theme";
-import { WordLookupResult } from "../types";
+import { WordLookupResult, ConfusionAnalysis } from "../types";
 import { getFrequencyBand, getCefrColor } from "../frequency";
 import { getGrammarParticleInfo, GrammarParticleInfo } from "../grammar-particles";
 import { FormsStrip } from "../WordCardComponents";
@@ -24,6 +24,7 @@ interface WordInfoCardProps {
   hasPrev?: boolean;
   hasNext?: boolean;
   surfaceTranslit?: string | null;
+  confusionData?: ConfusionAnalysis | null;
 }
 
 function stemWord(w: string): string {
@@ -108,6 +109,7 @@ export default function WordInfoCard({
   hasPrev = false,
   hasNext = false,
   surfaceTranslit,
+  confusionData,
 }: WordInfoCardProps) {
   const hasFocus = !!surfaceForm && markState !== null;
   const showNav = hasPrev || hasNext;
@@ -189,7 +191,7 @@ export default function WordInfoCard({
         <GrammarParticleView info={particleInfo} />
       ) : (
         <ScrollView style={{ maxHeight: 200 }} showsVerticalScrollIndicator={false} nestedScrollEnabled>
-          <RevealedView result={result} surfaceForm={surfaceForm} onNavigateToDetail={onNavigateToDetail} onNavigateToPattern={onNavigateToPattern} surfaceTranslit={surfaceTranslit} />
+          <RevealedView result={result} surfaceForm={surfaceForm} onNavigateToDetail={onNavigateToDetail} onNavigateToPattern={onNavigateToPattern} surfaceTranslit={surfaceTranslit} confusionData={markState === "did_not_recognize" ? confusionData : null} />
         </ScrollView>
       )}
     </Animated.View>
@@ -227,12 +229,14 @@ function RevealedView({
   onNavigateToDetail,
   onNavigateToPattern,
   surfaceTranslit,
+  confusionData,
 }: {
   result: WordLookupResult | null;
   surfaceForm?: string | null;
   onNavigateToDetail?: (lemmaId: number) => void;
   onNavigateToPattern?: (wazn: string) => void;
   surfaceTranslit?: string | null;
+  confusionData?: ConfusionAnalysis | null;
 }) {
   if (!result) return null;
 
@@ -248,8 +252,64 @@ function RevealedView({
     return true;
   });
 
+  const decomp = confusionData?.decomposition;
+  const similarWords = confusionData?.similar_words;
+
   return (
     <View style={styles.revealedWrap}>
+      {/* Confusion analysis — morphological decomposition */}
+      {decomp && (decomp.prefix_clitics.length > 0 || decomp.suffix_clitics.length > 0) && (
+        <View style={styles.confusionSection}>
+          <View style={styles.decompRow}>
+            {decomp.prefix_clitics.map((c, i) => (
+              <View key={`pre-${i}`} style={styles.decompSegment}>
+                <View style={styles.cliticPill}>
+                  <Text style={styles.cliticAr}>{c.text}</Text>
+                </View>
+                <Text style={styles.cliticLabel}>{c.label}</Text>
+                <Text style={styles.decompPlus}>+</Text>
+              </View>
+            ))}
+            <View style={styles.decompSegment}>
+              <View style={styles.stemPill}>
+                <Text style={styles.stemAr}>{decomp.stem}</Text>
+              </View>
+              <Text style={styles.stemLabel}>{decomp.matched_form_label}</Text>
+            </View>
+            {decomp.suffix_clitics.map((c, i) => (
+              <View key={`suf-${i}`} style={styles.decompSegment}>
+                <Text style={styles.decompPlus}>+</Text>
+                <View style={styles.cliticPill}>
+                  <Text style={styles.cliticAr}>{c.text}</Text>
+                </View>
+                <Text style={styles.cliticLabel}>{c.label}</Text>
+              </View>
+            ))}
+          </View>
+        </View>
+      )}
+
+      {/* Confusion analysis — similar words */}
+      {similarWords && similarWords.length > 0 && (
+        <View style={styles.confusionSection}>
+          {similarWords.slice(0, 3).map((sw) => (
+            <View key={sw.lemma_id} style={styles.similarRow}>
+              <Text style={styles.similarAr}>{sw.lemma_ar}</Text>
+              <Text style={styles.similarGloss} numberOfLines={1}>{sw.gloss_en ?? "?"}</Text>
+              {sw.rasm_distance === 0 ? (
+                <Text style={styles.similarNote}>same shape</Text>
+              ) : sw.diff_positions.length > 0 ? (
+                <Text style={styles.similarNote}>
+                  {sw.diff_positions.slice(0, 2).map(d =>
+                    `${d.original}↔${d.similar}`
+                  ).join(", ")}
+                </Text>
+              ) : null}
+            </View>
+          ))}
+        </View>
+      )}
+
       {/* Combined: meaning + lemma + POS */}
       <View style={styles.headRow}>
         {result.gloss_en && (
@@ -730,5 +790,94 @@ const styles = StyleSheet.create({
     color: colors.accent,
     fontSize: 12,
     fontWeight: "600",
+  },
+
+  /* Confusion analysis */
+  confusionSection: {
+    backgroundColor: "rgba(243, 156, 18, 0.08)",
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    gap: 4,
+  },
+  decompRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    justifyContent: "center",
+    gap: 2,
+    flexWrap: "wrap",
+    direction: "rtl",
+  },
+  decompSegment: {
+    alignItems: "center",
+    gap: 2,
+    flexDirection: "column",
+  },
+  decompPlus: {
+    color: colors.textSecondary,
+    fontSize: 12,
+    fontWeight: "600",
+    marginHorizontal: 1,
+  },
+  cliticPill: {
+    backgroundColor: "rgba(243, 156, 18, 0.2)",
+    borderRadius: 6,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+  },
+  cliticAr: {
+    fontFamily: fontFamily.arabic,
+    fontSize: 16,
+    color: "#e5a117",
+    writingDirection: "rtl",
+  },
+  cliticLabel: {
+    fontSize: 9,
+    color: colors.textSecondary,
+    fontWeight: "500",
+  },
+  stemPill: {
+    backgroundColor: "rgba(100, 140, 180, 0.15)",
+    borderRadius: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderWidth: 1,
+    borderColor: "rgba(100, 140, 180, 0.3)",
+  },
+  stemAr: {
+    fontFamily: fontFamily.arabic,
+    fontSize: 16,
+    color: colors.text,
+    fontWeight: "700",
+    writingDirection: "rtl",
+  },
+  stemLabel: {
+    fontSize: 9,
+    color: colors.accent,
+    fontWeight: "600",
+  },
+  similarRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  similarAr: {
+    fontFamily: fontFamily.arabic,
+    fontSize: 16,
+    color: colors.arabic,
+    writingDirection: "rtl",
+    lineHeight: 22,
+    minWidth: 40,
+  },
+  similarGloss: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    flex: 1,
+  },
+  similarNote: {
+    fontSize: 10,
+    color: "#e5a117",
+    fontWeight: "600",
+    fontFamily: fontFamily.arabic,
   },
 });

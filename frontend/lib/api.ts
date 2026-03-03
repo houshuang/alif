@@ -17,6 +17,7 @@ import {
   AskAIResponse,
   ConversationSummary,
   ConversationDetail,
+  ConfusionAnalysis,
   GrammarLesson,
   DeepAnalytics,
   BatchUploadResult,
@@ -765,6 +766,21 @@ export async function prefetchStoryDetails(stories: StoryListItem[]): Promise<vo
     } catch {
       break;
     }
+  }
+}
+
+// --- Confusion help ---
+
+export async function getConfusionHelp(
+  lemmaId: number,
+  surfaceForm: string,
+): Promise<ConfusionAnalysis | null> {
+  try {
+    return await fetchApi<ConfusionAnalysis>(
+      `/api/review/confusion-help/${lemmaId}?surface_form=${encodeURIComponent(surfaceForm)}`
+    );
+  } catch {
+    return null;
   }
 }
 
