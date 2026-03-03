@@ -361,12 +361,18 @@ MIN_SENTENCES_PER_WORD = 3
 PIPELINE_CAP = 800
 
 
-def rotate_stale_sentences(db, min_shown: int = 1, min_active: int = 2) -> int:
+def rotate_stale_sentences(db, min_shown: int = 1, min_active: int = 2, tier_lookup: dict | None = None) -> int:
     """Retire stale sentences where all scaffold words are fully known.
 
+    Uses due-date tiers: sentences for soon-due words get higher floor protection.
     Returns the number of sentences retired.
     """
     from scripts.rotate_stale_sentences import compute_diversity_score
+
+    if tier_lookup is None:
+        from app.services.pipeline_tiers import compute_word_tiers, build_tier_lookup
+        word_tiers = compute_word_tiers(db)
+        tier_lookup = build_tier_lookup(word_tiers)
 
     sentences = db.query(Sentence).filter(Sentence.is_active == True).all()  # noqa: E712
     all_sw = db.query(SentenceWord).all()
@@ -403,7 +409,9 @@ def rotate_stale_sentences(db, min_shown: int = 1, min_active: int = 2) -> int:
         target_id = sent.target_lemma_id
         already_retiring = retire_per_target.get(target_id, 0)
         active = active_per_target.get(target_id, 0)
-        if active - already_retiring > min_active:
+        wt = tier_lookup.get(target_id) if target_id else None
+        effective_floor = max(min_active, wt.cap_floor if wt else 0)
+        if active - already_retiring > effective_floor:
             sent.is_active = False
             retire_per_target[target_id] = already_retiring + 1
             retired += 1
@@ -455,6 +463,11 @@ def warm_sentence_cache(llm_model: str = "gemini") -> dict:
     # ── Phase 1: DB read ──
     db = SessionLocal()
     try:
+        # Compute due-date tiers for tier-aware decisions
+        from app.services.pipeline_tiers import compute_word_tiers, build_tier_lookup
+        word_tiers = compute_word_tiers(db)
+        tier_lookup = build_tier_lookup(word_tiers)
+
         # Check pipeline cap — rotate stale sentences first to make room
         total_active = (
             db.query(func.count(Sentence.id))
@@ -462,7 +475,7 @@ def warm_sentence_cache(llm_model: str = "gemini") -> dict:
             .scalar() or 0
         )
         if total_active >= PIPELINE_CAP:
-            rotated = rotate_stale_sentences(db)
+            rotated = rotate_stale_sentences(db, tier_lookup=tier_lookup)
             stats["rotated"] = rotated
             total_active -= rotated
 
@@ -473,7 +486,7 @@ def warm_sentence_cache(llm_model: str = "gemini") -> dict:
         # Collect all words needing sentences
         gap_word_ids: list[int] = []
 
-        # 1. Focus cohort words with < 2 active sentences
+        # 1. Focus cohort words below their tier-based sentence target
         cohort = get_focus_cohort(db)
         if cohort:
             sentence_counts = dict(
@@ -485,11 +498,16 @@ def warm_sentence_cache(llm_model: str = "gemini") -> dict:
                 .group_by(Sentence.target_lemma_id)
                 .all()
             )
-            gaps = [lid for lid in cohort if sentence_counts.get(lid, 0) < MIN_SENTENCES_PER_WORD]
+            gaps = []
+            for lid in cohort:
+                wt = tier_lookup.get(lid)
+                target = wt.backfill_target if wt else MIN_SENTENCES_PER_WORD
+                if target > 0 and sentence_counts.get(lid, 0) < target:
+                    gaps.append(lid)
             stats["cohort_gaps"] = len(gaps)
             gap_word_ids.extend(gaps[:20])
 
-        # 2. Likely auto-introduction candidates
+        # 2. Likely auto-introduction candidates (not yet in tier system, use default)
         active_topic = ensure_active_topic(db)
         candidates = select_next_words(db, count=5, domain=active_topic)
         for cand in candidates:
@@ -505,8 +523,7 @@ def warm_sentence_cache(llm_model: str = "gemini") -> dict:
                 gap_word_ids.append(lid)
                 stats["intro_gaps"] = stats.get("intro_gaps", 0) + 1
 
-        # 3. Recency-exhausted words: have ≥2 sentences but ALL shown in last 24h
-        #    Generate an extra sentence so the next session has a fresh one available
+        # 3. Recency-exhausted words: have enough sentences but ALL shown in last 24h
         from sqlalchemy import or_
         now = datetime.now(timezone.utc)
         recency_cutoff = now - timedelta(days=1)
@@ -520,8 +537,10 @@ def warm_sentence_cache(llm_model: str = "gemini") -> dict:
                 if recency_exhausted_count >= MAX_RECENCY_EXHAUSTED:
                     break
                 active_count = sentence_counts.get(lid, 0)
-                if active_count < MIN_SENTENCES_PER_WORD:
-                    continue
+                wt = tier_lookup.get(lid)
+                target = wt.backfill_target if wt else MIN_SENTENCES_PER_WORD
+                if active_count < target:
+                    continue  # already a gap word, handled above
                 fresh_count = (
                     db.query(func.count(Sentence.id))
                     .filter(
@@ -540,6 +559,12 @@ def warm_sentence_cache(llm_model: str = "gemini") -> dict:
             if recency_exhausted_count:
                 stats["recency_exhausted"] = recency_exhausted_count
                 logger.info(f"Warm cache: {recency_exhausted_count} recency-exhausted words need fresh sentences")
+
+        # Sort gap words by tier urgency (most urgent first)
+        gap_word_ids.sort(key=lambda lid: (
+            tier_lookup[lid].tier if lid in tier_lookup else 4,
+            tier_lookup[lid].due_dt or datetime.max.replace(tzinfo=timezone.utc) if lid in tier_lookup else datetime.max.replace(tzinfo=timezone.utc),
+        ))
 
         if not gap_word_ids:
             logger.info(f"Warm cache: no gaps found")

@@ -61,10 +61,9 @@ from app.services.tts import (
     get_cached_path,
 )
 
-MIN_SENTENCES = 3  # per-word target for backfill generation
-MIN_SENTENCES_CAP_ENFORCEMENT = 1  # per-word floor during cap enforcement (JIT handles gaps)
 TARGET_PIPELINE_SENTENCES = 800  # hard cap — JIT generation fills gaps with current vocabulary
 CAP_HEADROOM = 50  # retire this many below cap to leave room for multi-target backfill
+PREGEN_SENTENCES_PER_CANDIDATE = 3  # for step C pre-generation of not-yet-introduced words
 
 
 def get_existing_counts(db: Session) -> dict[int, int]:
@@ -262,16 +261,27 @@ def generate_sentences_for_word(
 
 # ── Step 0: Enforce sentence cap by retiring excess ──────────────────
 
-def step_enforce_cap(db: Session, dry_run: bool, max_sentences: int = TARGET_PIPELINE_SENTENCES) -> int:
+def step_enforce_cap(
+    db: Session,
+    dry_run: bool,
+    max_sentences: int = TARGET_PIPELINE_SENTENCES,
+    tier_lookup: dict | None = None,
+) -> int:
     """Retire excess sentences when over the pipeline cap.
 
     Retirement priority:
       1. Never-shown sentences (times_shown=0) — stale first (no acquiring scaffold)
       2. Shown stale sentences (no acquiring/learning scaffold words)
       3. Oldest by last_reading_shown_at as final tiebreaker
-    Always keeps at least MIN_SENTENCES active per target word.
+    Floor per word is due-date-tier-aware: tier 1 (due <12h) keeps 2,
+    tier 2 (12-36h) keeps 1, tier 3+ keeps 0.
     """
     import json
+
+    if tier_lookup is None:
+        from app.services.pipeline_tiers import compute_word_tiers, build_tier_lookup
+        word_tiers = compute_word_tiers(db)
+        tier_lookup = build_tier_lookup(word_tiers)
 
     existing_counts = get_existing_counts(db)
     total_active = sum(existing_counts.values())
@@ -351,7 +361,9 @@ def step_enforce_cap(db: Session, dry_run: bool, max_sentences: int = TARGET_PIP
         target_id = sent.target_lemma_id
         already_retiring = retire_count_per_target.get(target_id, 0)
         active = existing_counts.get(target_id, 0) if target_id else orphan_count
-        if active - already_retiring <= MIN_SENTENCES_CAP_ENFORCEMENT:
+        wt = tier_lookup.get(target_id) if target_id else None
+        floor = wt.cap_floor if wt else 0
+        if active - already_retiring <= floor:
             continue
 
         if not dry_run:
@@ -377,14 +389,24 @@ def step_enforce_cap(db: Session, dry_run: bool, max_sentences: int = TARGET_PIP
 def step_backfill_sentences(
     db: Session, dry_run: bool, model: str, delay: float,
     max_sentences: int = TARGET_PIPELINE_SENTENCES,
+    tier_lookup: dict | None = None,
 ) -> int:
     print("\n═══ Step A: Backfill sentences (due-date priority) ═══")
 
-    # Get words sorted by due date (most urgent first)
-    due_order = get_words_by_due_date(db)
-    if not due_order:
-        print("  No introduced words found.")
-        return 0
+    # Compute tiers if not provided
+    if tier_lookup is None:
+        from app.services.pipeline_tiers import compute_word_tiers, build_tier_lookup
+        word_tiers = compute_word_tiers(db)
+        tier_lookup = build_tier_lookup(word_tiers)
+    else:
+        word_tiers = sorted(
+            tier_lookup.values(),
+            key=lambda w: (w.due_dt or datetime.max.replace(tzinfo=timezone.utc)),
+        )
+
+    from app.services.pipeline_tiers import tier_summary
+    ts = tier_summary(word_tiers)
+    print(f"  Tier distribution: T1={ts.get(1, 0)} T2={ts.get(2, 0)} T3={ts.get(3, 0)} T4={ts.get(4, 0)}")
 
     existing_counts = get_existing_counts(db)
     total_active = sum(existing_counts.values())
@@ -397,31 +419,36 @@ def step_backfill_sentences(
 
     budget = max_sentences - total_active
     print(f"  Budget: {budget} sentences to generate")
-    print(f"  Words ordered by due date: {len(due_order)} total")
 
     known_words, lemma_lookup = get_known_words_and_lookup(db)
     content_word_counts = get_content_word_counts(db)
     avoid_words = get_avoid_words(content_word_counts, known_words)
 
-    # Collect words needing sentences
+    # Collect words needing sentences — tier-based targets
     words_needing: list[dict] = []
-    for lemma_id, due_str in due_order:
-        existing = existing_counts.get(lemma_id, 0)
-        needed = MIN_SENTENCES - existing
+    for wt in word_tiers:
+        if wt.backfill_target <= 0:
+            continue  # tier 4: skip, JIT fills when needed
+        existing = existing_counts.get(wt.lemma_id, 0)
+        needed = wt.backfill_target - existing
         if needed <= 0:
             continue
-        lemma = db.query(Lemma).filter(Lemma.lemma_id == lemma_id).first()
+        lemma = db.query(Lemma).filter(Lemma.lemma_id == wt.lemma_id).first()
         if not lemma:
             continue
         words_needing.append({
-            "lemma_id": lemma_id,
+            "lemma_id": wt.lemma_id,
             "lemma_ar": lemma.lemma_ar,
             "gloss_en": lemma.gloss_en or "",
             "root_id": lemma.root_id,
-            "due_str": due_str,
+            "due_str": wt.due_dt.isoformat() if wt.due_dt else "none",
             "existing": existing,
             "needed": min(needed, budget),
+            "tier": wt.tier,
+            "backfill_target": wt.backfill_target,
         })
+
+    print(f"  Words needing sentences: {len(words_needing)} (of {len(word_tiers)} total)")
 
     total = 0
     words_processed = 0
@@ -484,7 +511,7 @@ def step_backfill_sentences(
 
         lemma_id = w["lemma_id"]
         existing = existing_counts.get(lemma_id, 0)
-        needed = MIN_SENTENCES - existing
+        needed = w["backfill_target"] - existing
         if needed <= 0:
             continue
 
@@ -659,7 +686,7 @@ def step_pregenerate_candidates(db: Session, dry_run: bool, count: int, model: s
             break
         lid = cand["lemma_id"]
         existing = existing_counts.get(lid, 0)
-        needed = MIN_SENTENCES - existing
+        needed = PREGEN_SENTENCES_PER_CANDIDATE - existing
         if needed <= 0:
             continue
 
@@ -744,9 +771,15 @@ async def main():
 
     db = SessionLocal()
     try:
-        retired_0 = step_enforce_cap(db, args.dry_run, args.max_sentences)
+        from app.services.pipeline_tiers import compute_word_tiers, build_tier_lookup, tier_summary
+        word_tiers = compute_word_tiers(db)
+        tier_lk = build_tier_lookup(word_tiers)
+        ts = tier_summary(word_tiers)
+        print(f"\n  Word tiers: T1={ts.get(1, 0)} T2={ts.get(2, 0)} T3={ts.get(3, 0)} T4={ts.get(4, 0)}")
 
-        sent_a = step_backfill_sentences(db, args.dry_run, args.model, args.delay, args.max_sentences)
+        retired_0 = step_enforce_cap(db, args.dry_run, args.max_sentences, tier_lookup=tier_lk)
+
+        sent_a = step_backfill_sentences(db, args.dry_run, args.model, args.delay, args.max_sentences, tier_lookup=tier_lk)
 
         if not args.skip_audio:
             audio_b = await step_generate_audio(db, args.dry_run, args.limit)

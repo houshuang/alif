@@ -100,6 +100,10 @@ def main():
     db = SessionLocal()
 
     try:
+        from app.services.pipeline_tiers import compute_word_tiers, build_tier_lookup
+        word_tiers = compute_word_tiers(db)
+        tier_lookup = build_tier_lookup(word_tiers)
+
         sentences = db.query(Sentence).filter(Sentence.is_active == True).all()  # noqa: E712
         all_sw = db.query(SentenceWord).all()
         all_ulk = db.query(UserLemmaKnowledge).all()
@@ -142,14 +146,16 @@ def main():
         # Sort by lowest diversity (least useful sentences first)
         stale.sort(key=lambda x: (x[1]["diversity_score"], -x[1]["scaffold_count"]))
 
-        # Enforce min_active constraint
+        # Enforce min_active constraint (tier-aware: soon-due words get higher floor)
         retire_per_target: dict[int | None, int] = {}
         final_retire: list[tuple[Sentence, dict]] = []
         for sent, scores in stale:
             target_id = sent.target_lemma_id
             already_retiring = retire_per_target.get(target_id, 0)
             active = active_per_target.get(target_id, 0)
-            if active - already_retiring > args.min_active:
+            wt = tier_lookup.get(target_id) if target_id else None
+            effective_floor = max(args.min_active, wt.cap_floor if wt else 0)
+            if active - already_retiring > effective_floor:
                 final_retire.append((sent, scores))
                 retire_per_target[target_id] = already_retiring + 1
 

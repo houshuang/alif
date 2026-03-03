@@ -1047,26 +1047,38 @@ Rule-based validation pipeline:
 4. Match against known forms (lemma_ar_bare + forms_json entries)
 5. ~80 function words (from `FUNCTION_WORD_GLOSSES`) treated as always-known
 
-### Pipeline Cap & Retirement
+### Pipeline Cap & Due-Date Tiered Allocation
+
+**Due-date tiers** (`app/services/pipeline_tiers.py`): Instead of flat per-word sentence
+targets, words are classified into urgency tiers based on when they're next due:
+
+| Tier | Due within | Backfill target | Cap floor | Rationale |
+|------|-----------|-----------------|-----------|-----------|
+| 1 | 12h (or overdue) | 3 | 2 | Today's sessions |
+| 2 | 12-36h | 2 | 1 | Tomorrow's sessions |
+| 3 | 36-72h | 1 | 0 | Cron fills before due |
+| 4 | 72h+ / unknown | 0 | 0 | JIT fills when needed |
+
+This prevents large word imports from permanently filling the pool. With 295 acquiring
+words, only ~200 are due within 12h (tier 1), requiring ~600 sentences — well within
+the 800 cap. Far-out words get 0 pre-generated sentences; JIT handles gaps.
 
 **Cap enforcement** (`update_material.py` Step 0): Hard cap of 800 active sentences.
 Step 0 retires down to `800 - CAP_HEADROOM` (750) to leave budget for multi-target
-backfill in Step A. Retirement priority: never-shown stale → shown stale → oldest,
-always keeping at least 1 sentence per word.
+backfill in Step A. Retirement priority: never-shown stale → shown stale → oldest.
+Floor per word is tier-based: tier 1 keeps at least 2, tier 2 keeps 1, tier 3-4 can
+drop to 0.
 
-**Warm cache** (`warm_sentence_cache()`) now rotates stale sentences before checking
-the cap, so it can free space even when over the limit. After rotation, it allows up to
-`PIPELINE_CAP + 10` (810) before skipping generation. The warm cache identifies three
-types of gap words: (1) focus cohort words with < 3 active sentences, (2) likely
-auto-introduction candidates with < 3 sentences, (3) **recency-exhausted words** — words
-with ≥ 3 sentences but ALL shown in the last 24h (capped at 20 per warm run). This ensures
-high-frequency reviewers always have fresh sentences available.
-(Fix: 2026-02-23 initial, 2026-02-24 raised cap 600→800, MIN_SENTENCES 2→3,
-MAX_RECENCY_EXHAUSTED 5→20, CAP_HEADROOM 30→50, cron 6h→3h)
+**Warm cache** (`warm_sentence_cache()`) computes tiers on every run. Rotates stale
+sentences (tier-aware floors) before checking the cap. After rotation, allows up to
+`PIPELINE_CAP + 10` (810) before skipping generation. Gap detection uses tier-based
+targets instead of flat MIN_SENTENCES_PER_WORD. Gap words sorted by tier urgency so
+the MAX_RECENCY_EXHAUSTED (20) budget goes to most urgent words first.
+(Evolution: 2026-02-23 initial, 2026-02-24 raised cap 600→800, 2026-03-03 tiered allocation)
 
 Old, low-diversity sentences are retired via `is_active=False`. The retirement script
 (`scripts/rotate_stale_sentences.py`) deactivates sentences with overexposed scaffold
-words (all scaffold words fully known, no cross-training value).
+words (all scaffold words fully known, no cross-training value). Floor is tier-aware.
 
 ---
 
@@ -1471,15 +1483,20 @@ remaining cards on the next card advance. See Section 8 "Sentence Pre-Warming" f
 | S₀(Easy) | ~8.3d | Initial stability for "Easy" (root-boost graduation) |
 | Stability floor | 1.0d | Below this, "known" → "lapsed" |
 
-### Sentence Pipeline (`update_material.py`, `material_generator.py`)
+### Sentence Pipeline (`update_material.py`, `material_generator.py`, `pipeline_tiers.py`)
 
 | Constant | Value | Purpose |
 |----------|-------|---------|
 | `PIPELINE_CAP` | 800 | Max active sentences |
 | `CAP_HEADROOM` | 50 | Step 0 retires to cap minus this (→750) |
-| `MIN_SENTENCES_PER_WORD` | 3 | Target sentences per word for backfill |
+| `MIN_SENTENCES_PER_WORD` | 3 | Fallback target for JIT/intro (words not yet in tier system) |
+| `PREGEN_SENTENCES_PER_CANDIDATE` | 3 | Step C pre-generation for not-yet-introduced words |
 | `MAX_RECENCY_EXHAUSTED` | 20 | Warm cache: max recency-exhausted words per run |
 | Warm cache cap | 810 | `PIPELINE_CAP + 10` — warm cache allowed slightly over |
+| Tier 1 boundary | 12h | Due within 12h: target 3, floor 2 |
+| Tier 2 boundary | 36h | Due within 36h: target 2, floor 1 |
+| Tier 3 boundary | 72h | Due within 72h: target 1, floor 0 |
+| Tier 4 | 72h+ | No pre-generation, JIT fills when needed |
 
 ---
 
