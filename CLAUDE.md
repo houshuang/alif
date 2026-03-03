@@ -44,7 +44,7 @@ npx expo start --web  # opens on localhost:8081
 
 ## Review Modes (summary)
 - **Sentence-First Review**: greedy set cover, ternary ratings, all words get equal FSRS credit
-- **Reading Mode**: front-phase word lookup, triple-tap marking, back/undo
+- **Reading Mode**: front-phase word lookup, triple-tap marking, back/undo, confusion analysis on yellow tap
 - **Listening Mode**: ElevenLabs TTS, reveal Arabic → reveal English
 - **Learn Mode**: 5-candidate pick → done (shows pattern decomposition, etymology, mnemonic)
 - **Story Mode**: generate/import, tap-to-lookup reader, complete/suspend
@@ -58,6 +58,7 @@ npx expo start --web  # opens on localhost:8081
 - **Story word counts are deduped** — `total_words`, `known_count`, `unknown_count` count unique lemmas, not tokens. Each lemma counted once even if it appears multiple times in the story.
 - **On-demand sentence generation** — max 10/session, uses current vocabulary for fresher sentences. Skipped in fast mode (`skip_on_demand=True`); fill phase still runs using pre-generated sentences.
 - **Tapped words are always marked missed** — front-phase tapping auto-marks as missed (rating≤2).
+- **Confusion analysis on yellow tap** — when a word transitions to "did not recognize" (yellow), `confusion_service.py` analyzes why: (1) morphological decomposition via clitic stripping + form matching, (2) visual similarity via edit distance + rasm skeleton (dots-removed). All rule-based, no LLM, <50ms. Endpoint: `GET /api/review/confusion-help/{lemma_id}?surface_form=...`.
 - **al-prefix is NOT a separate lemma** — الكلب and كلب are the same lemma. All import paths dedup.
 - **Be conservative with ElevenLabs TTS** — costs real money. Only generate for sentences that will be shown.
 - **Sentence pipeline cap**: 800 active sentences with **due-date tiered allocation** (`pipeline_tiers.py`). Words due within 12h get 3 sentences (floor 2), 12-36h get 2 (floor 1), 36-72h get 1 (floor 0), 72h+ get 0 (JIT fills when due). This prevents large imports from permanently filling the pool. Cron runs `update_material.py` every 3h. `warm_sentence_cache()` runs after every session load (tier-aware gap detection + recency-exhausted, max 20/run).

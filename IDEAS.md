@@ -22,10 +22,11 @@
 - Prevents interference — AnnA (Anki) and research (Carvalho & Goldstone 2014) show spacing similar items reduces confusion
 - Constraint: if word A's rasm matches word B's rasm, don't put both in the same session
 
-### Confusable Word Info Display
-- In word detail / word info card, show "Visually Similar Words" section
-- Highlight distinguishing feature (e.g., "خبر differs from حبر by: خ has one dot above")
-- WaniKani's "Visually Similar Kanji" feature is the model to follow
+### Confusable Word Info Display [DONE]
+- [DONE] In WordInfoCard, show visually similar words when marking yellow ("did not recognize")
+- [DONE] Highlight distinguishing feature (edit distance + rasm skeleton diff positions)
+- [DONE] Also shows morphological decomposition (clitics + stem + form label) for complex surface forms
+- WaniKani's "Visually Similar Kanji" feature was the model — implemented via `confusion_service.py`
 
 ### Contrastive Review Mode (Future)
 - Once both words in a confusable pair are stable (FSRS stability > 10d), present contrastive sentence pairs
