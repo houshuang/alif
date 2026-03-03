@@ -8,7 +8,7 @@ from collections import Counter
 from app.database import get_db
 from app.models import (
     Lemma, UserLemmaKnowledge, ReviewLog, Root,
-    SentenceReviewLog, SentenceWord,
+    SentenceReviewLog, SentenceWord, PipelineSnapshot,
 )
 from app.schemas import (
     StatsOut, DailyStatsPoint, LearningPaceOut,
@@ -945,6 +945,25 @@ def _get_acquisition_pipeline(db: Session) -> AcquisitionPipeline:
         flow_days[idx]["entered"] = entries_by_day.get(day_key, 0)
         flow_days[idx]["graduated"] = grads_by_day.get(day_key, 0)
 
+    # Compute daily deltas from snapshot
+    today_str = now.strftime("%Y-%m-%d")
+    counts = {"box_1": len(boxes[1]), "box_2": len(boxes[2]), "box_3": len(boxes[3])}
+    snapshot = db.query(PipelineSnapshot).filter(PipelineSnapshot.date == today_str).first()
+    if snapshot is None:
+        snapshot = PipelineSnapshot(
+            date=today_str,
+            box_1_count=counts["box_1"],
+            box_2_count=counts["box_2"],
+            box_3_count=counts["box_3"],
+        )
+        db.add(snapshot)
+        db.commit()
+    deltas = {
+        "box_1": counts["box_1"] - snapshot.box_1_count,
+        "box_2": counts["box_2"] - snapshot.box_2_count,
+        "box_3": counts["box_3"] - snapshot.box_3_count,
+    }
+
     return AcquisitionPipeline(
         box_1=boxes[1],
         box_2=boxes[2],
@@ -955,6 +974,9 @@ def _get_acquisition_pipeline(db: Session) -> AcquisitionPipeline:
         box_1_due=due_per_box[1],
         box_2_due=due_per_box[2],
         box_3_due=due_per_box[3],
+        box_1_delta=deltas["box_1"],
+        box_2_delta=deltas["box_2"],
+        box_3_delta=deltas["box_3"],
         recent_graduations=[
             RecentGraduation(
                 lemma_id=r.lemma_id,

@@ -327,6 +327,16 @@ class PatternInfo(Base):
     enrichment_json = Column(JSON, nullable=True)
 
 
+class PipelineSnapshot(Base):
+    __tablename__ = "pipeline_snapshots"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    date = Column(String(10), unique=True, nullable=False)  # YYYY-MM-DD
+    box_1_count = Column(Integer, nullable=False, default=0)
+    box_2_count = Column(Integer, nullable=False, default=0)
+    box_3_count = Column(Integer, nullable=False, default=0)
+
+
 class LearnerSettings(Base):
     __tablename__ = "learner_settings"
 

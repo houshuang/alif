@@ -559,6 +559,9 @@ export interface AcquisitionPipeline {
   box_1_due: number;
   box_2_due: number;
   box_3_due: number;
+  box_1_delta?: number;
+  box_2_delta?: number;
+  box_3_delta?: number;
   recent_graduations: RecentGraduation[];
   flow_history: Array<{ date: string; entered: number; graduated: number }>;
 }

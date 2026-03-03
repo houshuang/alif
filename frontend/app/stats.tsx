@@ -818,7 +818,7 @@ function AcquisitionPipelineCard({ pipeline }: { pipeline: AcquisitionPipeline }
   const [expanded, setExpanded] = useState(false);
   if (total === 0 && pipeline.recent_graduations.length === 0) return null;
 
-  const renderBox = (label: string, words: typeof pipeline.box_1, count: number, due: number) => (
+  const renderBox = (label: string, words: typeof pipeline.box_1, count: number, due: number, delta: number) => (
     <View style={styles.pipeBox}>
       <View style={styles.pipeBoxHeader}>
         <Text style={styles.pipeBoxLabel}>{label}</Text>
@@ -836,7 +836,11 @@ function AcquisitionPipelineCard({ pipeline }: { pipeline: AcquisitionPipeline }
           </View>
         );
       })}
-      {!expanded && words.length > 3 && <Text style={styles.pipeMore}>+{words.length - 3}</Text>}
+      {delta !== 0 && (
+        <Text style={[styles.pipeMore, delta < 0 ? styles.pipeDeltaNeg : styles.pipeDeltaPos]}>
+          {delta > 0 ? `+${delta}` : delta}
+        </Text>
+      )}
     </View>
   );
 
@@ -850,11 +854,11 @@ function AcquisitionPipelineCard({ pipeline }: { pipeline: AcquisitionPipeline }
         <Text style={styles.pipeTotal}>{total} words</Text>
       </Pressable>
       <View style={styles.pipeBoxes}>
-        {renderBox("Box 1\n4h", pipeline.box_1, pipeline.box_1_count, pipeline.box_1_due ?? 0)}
+        {renderBox("Box 1\n4h", pipeline.box_1, pipeline.box_1_count, pipeline.box_1_due ?? 0, pipeline.box_1_delta ?? 0)}
         <Text style={styles.pipeArrow}>{"\u2192"}</Text>
-        {renderBox("Box 2\n1d", pipeline.box_2, pipeline.box_2_count, pipeline.box_2_due ?? 0)}
+        {renderBox("Box 2\n1d", pipeline.box_2, pipeline.box_2_count, pipeline.box_2_due ?? 0, pipeline.box_2_delta ?? 0)}
         <Text style={styles.pipeArrow}>{"\u2192"}</Text>
-        {renderBox("Box 3\n3d", pipeline.box_3, pipeline.box_3_count, pipeline.box_3_due ?? 0)}
+        {renderBox("Box 3\n3d", pipeline.box_3, pipeline.box_3_count, pipeline.box_3_due ?? 0, pipeline.box_3_delta ?? 0)}
       </View>
       {hasFlow && (
         <View style={styles.pipeFlowChart}>
@@ -1104,7 +1108,9 @@ const styles = StyleSheet.create({
   pipeWord: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingVertical: 3 },
   pipeWordAr: { fontSize: 14, color: colors.text, flex: 1 },
   pipeWordAcc: { fontSize: 11, color: colors.textSecondary, marginLeft: 4 },
-  pipeMore: { fontSize: 11, color: colors.accent, marginTop: 4, textAlign: "center" },
+  pipeMore: { fontSize: 11, color: colors.accent, marginTop: 4, textAlign: "center" as const },
+  pipeDeltaNeg: { color: "#4ade80" },
+  pipeDeltaPos: { color: "#60a5fa" },
   pipeArrow: { fontSize: 16, color: colors.textSecondary, marginTop: 30 },
   pipeDueBadge: { backgroundColor: colors.accent, borderRadius: 8, paddingHorizontal: 5, paddingVertical: 1, minWidth: 18, alignItems: "center" },
   pipeDueText: { color: colors.bg, fontSize: 10, fontWeight: "700" },
