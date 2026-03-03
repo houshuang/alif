@@ -531,7 +531,7 @@ const styles = StyleSheet.create({
   translitText: {
     color: colors.textSecondary,
     fontSize: 13,
-    fontStyle: "italic",
+    fontFamily: fontFamily.translit,
     flexShrink: 1,
   },
   posPill: {
@@ -560,7 +560,7 @@ const styles = StyleSheet.create({
   surfaceTranslitText: {
     color: colors.textSecondary,
     fontSize: 12,
-    fontStyle: "italic",
+    fontFamily: fontFamily.translit,
     flexShrink: 1,
   },
   /* Grammar particle info */
@@ -578,7 +578,7 @@ const styles = StyleSheet.create({
   particleTranslit: {
     color: colors.textSecondary,
     fontSize: 13,
-    fontStyle: "italic",
+    fontFamily: fontFamily.translit,
   },
   particleCategoryPill: {
     backgroundColor: "rgba(100, 140, 180, 0.25)",

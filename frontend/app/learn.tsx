@@ -488,7 +488,7 @@ const styles = StyleSheet.create({
   wordTranslit: {
     fontSize: 16,
     color: colors.textSecondary,
-    fontStyle: "italic",
+    fontFamily: fontFamily.translit,
     marginBottom: 4,
   },
   wordPos: {

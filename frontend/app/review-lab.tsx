@@ -550,7 +550,7 @@ const styles = StyleSheet.create({
   sentenceTranslit: {
     fontSize: 16,
     color: colors.textSecondary,
-    fontStyle: "italic",
+    fontFamily: fontFamily.translit,
     marginTop: 6,
     textAlign: "center",
   },

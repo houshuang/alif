@@ -584,7 +584,7 @@ const styles = StyleSheet.create({
   translitText: {
     fontSize: 14,
     color: colors.textSecondary,
-    fontStyle: "italic",
+    fontFamily: fontFamily.translit,
     marginTop: 2,
   },
   infoLine: {
@@ -754,7 +754,7 @@ const styles = StyleSheet.create({
   familyTranslit: {
     fontSize: 12,
     color: colors.textSecondary,
-    fontStyle: "italic",
+    fontFamily: fontFamily.translit,
     marginLeft: 4,
   },
   familyEnglish: {

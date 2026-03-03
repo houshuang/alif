@@ -268,6 +268,7 @@ const styles = StyleSheet.create({
   wordTranslit: {
     color: colors.textSecondary,
     fontSize: fonts.caption,
+    fontFamily: fontFamily.translit,
     textAlign: "right",
     marginTop: 2,
   },

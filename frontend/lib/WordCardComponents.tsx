@@ -363,7 +363,7 @@ export const wcStyles = StyleSheet.create({
   },
   formsStripTr: {
     color: colors.textSecondary,
-    fontStyle: "italic",
+    fontFamily: fontFamily.translit,
     marginTop: 1,
   },
   formsStripLabel: {
@@ -401,7 +401,7 @@ export const wcStyles = StyleSheet.create({
   patternExTr: {
     fontSize: 11,
     color: colors.textSecondary,
-    fontStyle: "italic",
+    fontFamily: fontFamily.translit,
   },
   patternExGloss: {
     fontSize: 11,

@@ -31,6 +31,8 @@ export const colors = {
 export const fontFamily = {
   arabic: "ScheherazadeNew_400Regular",
   arabicBold: "ScheherazadeNew_700Bold",
+  translit: "NotoSans_400Regular_Italic",
+  translitRegular: "NotoSans_400Regular",
 };
 
 export const fonts = {

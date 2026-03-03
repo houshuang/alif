@@ -8,6 +8,10 @@ import {
   ScheherazadeNew_400Regular,
   ScheherazadeNew_700Bold,
 } from "@expo-google-fonts/scheherazade-new";
+import {
+  NotoSans_400Regular,
+  NotoSans_400Regular_Italic,
+} from "@expo-google-fonts/noto-sans";
 import { colors } from "../lib/theme";
 import { netStatus, useNetStatus } from "../lib/net-status";
 import { flushQueue } from "../lib/sync-queue";
@@ -17,6 +21,8 @@ export default function Layout() {
   const [fontsLoaded] = useFonts({
     ScheherazadeNew_400Regular,
     ScheherazadeNew_700Bold,
+    NotoSans_400Regular,
+    NotoSans_400Regular_Italic,
   });
   const online = useNetStatus();
 
