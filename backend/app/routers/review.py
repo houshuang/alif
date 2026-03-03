@@ -8,6 +8,7 @@ from app.database import get_db, SessionLocal
 from app.models import GrammarFeature, Lemma, Root, UserLemmaKnowledge
 from app.schemas import (
     BulkSyncIn,
+    ConfusionAnalysisOut,
     ReintroResultIn,
     SentenceSessionOut,
     SentenceReviewSubmitIn,
@@ -602,6 +603,31 @@ def get_recap_items(body: RecapIn, db: Session = Depends(get_db)):
         })
 
     return {"items": items, "recap_word_count": len(acquiring_ids)}
+
+
+@router.get("/confusion-help/{lemma_id}", response_model=ConfusionAnalysisOut)
+def confusion_help(
+    lemma_id: int,
+    surface_form: str = Query(...),
+    db: Session = Depends(get_db),
+):
+    """Analyze why a word was confusing — morphological complexity or visual similarity."""
+    from app.services.confusion_service import analyze_confusion
+
+    result = analyze_confusion(db, lemma_id, surface_form)
+    if result.get("error"):
+        raise HTTPException(status_code=404, detail=result["error"])
+
+    log_interaction(
+        event="confusion_help",
+        lemma_id=lemma_id,
+        surface_form=surface_form,
+        confusion_type=result.get("confusion_type"),
+        similar_count=len(result.get("similar_words", [])),
+        has_decomposition=result.get("decomposition") is not None,
+    )
+
+    return result
 
 
 @router.post("/undo-sentence")

@@ -841,3 +841,42 @@ export interface PatternDetail {
   enrichment: PatternEnrichment | null;
   words: PatternDetailWord[];
 }
+
+// --- Confusion analysis types ---
+
+export interface CliticPart {
+  text: string;
+  label: string;
+  type: "proclitic" | "enclitic";
+}
+
+export interface MorphDecomposition {
+  prefix_clitics: CliticPart[];
+  stem: string;
+  suffix_clitics: CliticPart[];
+  matched_form_key: string | null;
+  matched_form_label: string;
+}
+
+export interface SimilarWordItem {
+  lemma_id: number;
+  lemma_ar: string;
+  lemma_ar_bare: string;
+  gloss_en: string | null;
+  pos: string | null;
+  edit_distance: number;
+  rasm_distance: number;
+  diff_positions: { pos: number; original: string; similar: string }[];
+  knowledge_state: string | null;
+  key_forms: Record<string, string>;
+}
+
+export interface ConfusionAnalysis {
+  confusion_type: "morphological" | "visual" | "both" | null;
+  surface_form: string;
+  lemma_id: number;
+  lemma_ar: string;
+  gloss_en: string | null;
+  decomposition: MorphDecomposition | null;
+  similar_words: SimilarWordItem[];
+}

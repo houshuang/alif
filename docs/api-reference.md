@@ -20,6 +20,7 @@ Full endpoint list. See `backend/app/routers/` for implementation.
 | POST | `/api/review/submit-sentence` | Submit sentence review — all words get FSRS credit. Accepts confused_lemma_ids |
 | POST | `/api/review/undo-sentence` | Undo a sentence review — restores pre-review FSRS state, deletes logs |
 | GET | `/api/review/word-lookup/{lemma_id}` | Word detail + root family + forms_translit (computed on-the-fly if not stored) + pattern_examples + etymology_json for review lookup |
+| GET | `/api/review/confusion-help/{lemma_id}?surface_form=...` | Confusion analysis for "did not recognize" words — morphological decomposition (clitics/forms) + visual similarity (edit distance/rasm) |
 | POST | `/api/review/sync` | Bulk sync offline reviews |
 | POST | `/api/review/reintro-result` | Submit re-introduction quiz result |
 | POST | `/api/review/wrap-up` | Wrap-up mini-quiz: word-level recall cards for acquiring words seen in current micro-session. Cards include forms_translit + pattern_examples |
