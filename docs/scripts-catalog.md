@@ -12,10 +12,10 @@ All scripts in `backend/scripts/`. Run from `backend/` directory.
 - `pregenerate_material.py` — Pregenerate sentences and audio for words.
 - `generate_audio.py` — Generate TTS audio for sentences.
 - `generate_sentences.py` — Generate sentences for target words.
-- `update_material.py` — Cron job (every 6h): Step 0 cap enforcement → Step A backfill → Step B audio → Step C pre-gen → Step D SAMER → Step E lemma enrichment → Step F leech reintroduction → Step G book ULK consistency. Pipeline capped at 300 active sentences, MIN_SENTENCES=2. Default `--model claude_sonnet` (free via Claude CLI). Falls back to Gemini if CLI unavailable.
+- `update_material.py` — Cron job (every 3h): Step 0 tier-aware cap enforcement → Step A tier-aware backfill → Step B audio → Step C pre-gen → Step D SAMER → Step E lemma enrichment → Step F leech reintroduction → Step G book ULK consistency. Pipeline capped at 800 active sentences with due-date tiered allocation via `pipeline_tiers.py` (tier 1: 3 per word, tier 4: 0). Default `--model claude_sonnet` (free via Claude CLI). Falls back to Gemini if CLI unavailable.
 - `generate_story_claude.py` — Local story generation via `claude -p` with vocabulary compliance validation and retry loop, free with Max plan.
 - `generate_sentences_claude.py` — Validator-in-the-loop sentence generation via `claude -p` with Read/Bash tools — Claude reads vocab, generates, runs validator, self-corrects in one session; 10 words/batch, diversity-aware prompt prioritizing acquiring words as supporting vocabulary.
-- `rotate_stale_sentences.py` — Identify and retire sentences with low vocabulary diversity — all scaffold words fully known, no cross-training value — then regenerate with diversity-aware prompts.
+- `rotate_stale_sentences.py` — Tier-aware sentence rotation: retire sentences with low vocabulary diversity (all scaffold words fully known, no cross-training value) using `pipeline_tiers.py` min_active floor. Soon-due words get higher protection.
 
 ## Quality & Auditing
 - `audit_sentences_claude.py` — Batch sentence quality audit via Claude Code — reviews grammar/translation/compliance with full vocabulary context, outputs retire/fix/ok report.
