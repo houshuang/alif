@@ -276,17 +276,9 @@ export default function StoryReadScreen() {
       >
         {viewMode === "arabic" ? (
           <View style={styles.storyFlow}>
-            {buildFlatWordList(story.words).map((item) => {
-              if (item.type === "break") {
-                return (
-                  <View key={item.key} style={styles.lineBreak} />
-                );
-              }
-              const word = item.word!;
+            {story.words.map((word) => {
               const isLookedUp = lookedUp.has(word.position);
               const isSelected = selectedPosition === word.position;
-              const isNewWord = !word.is_known && !word.is_function_word;
-
               return (
                 <Pressable
                   key={word.position}
@@ -306,9 +298,6 @@ export default function StoryReadScreen() {
                   >
                     {word.surface_form}
                   </Text>
-                  {isNewWord && !isLookedUp && (
-                    <View style={styles.newWordDot} />
-                  )}
                 </Pressable>
               );
             })}
@@ -380,20 +369,6 @@ export default function StoryReadScreen() {
   );
 }
 
-type FlatItem = { type: "word"; word: StoryWordMeta; key: string } | { type: "break"; key: string; word?: undefined };
-
-function buildFlatWordList(words: StoryWordMeta[]): FlatItem[] {
-  const items: FlatItem[] = [];
-  let lastSentenceIndex = -1;
-  for (const w of words) {
-    if (lastSentenceIndex >= 0 && w.sentence_index !== lastSentenceIndex) {
-      items.push({ type: "break", key: `break-${lastSentenceIndex}` });
-    }
-    items.push({ type: "word", word: w, key: `w-${w.position}` });
-    lastSentenceIndex = w.sentence_index;
-  }
-  return items;
-}
 
 const styles = StyleSheet.create({
   container: {
@@ -470,11 +445,6 @@ const styles = StyleSheet.create({
     gap: 6,
     rowGap: 10,
   },
-  lineBreak: {
-    width: "100%",
-    height: 16,
-  },
-
   // Word chips
   wordChip: {
     paddingVertical: 4,
@@ -486,15 +456,6 @@ const styles = StyleSheet.create({
     lineHeight: 46,
     color: colors.arabic,
     fontFamily: fontFamily.arabic,
-  },
-  newWordDot: {
-    width: 5,
-    height: 5,
-    borderRadius: 3,
-    backgroundColor: colors.accent,
-    alignSelf: "center",
-    opacity: 0.6,
-    marginTop: 1,
   },
   lookedUpChip: {
     backgroundColor: colors.missed + "15",
