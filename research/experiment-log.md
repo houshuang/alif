@@ -4,6 +4,37 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-03-03: Due-Date-Tiered Sentence Pipeline
+
+### Problem
+The sentence pool cap (800) keeps filling up with large word imports. We've raised it multiple times — the root cause is that the pipeline treats all words equally regardless of when they're due. With 295 acquiring words, it tries to maintain 3 sentences each (885 > 800 cap). Cap enforcement has a flat floor of 1 per word, locking 295 slots even for words not due for days.
+
+### Change
+Replace flat per-word targets with due-date tiers:
+- **Tier 1** (due within 12h or overdue): 3 sentences, floor 2
+- **Tier 2** (12-36h): 2 sentences, floor 1
+- **Tier 3** (36-72h): 1 sentence, floor 0
+- **Tier 4** (72h+): 0 sentences, floor 0 (JIT fills when needed)
+
+Shared `pipeline_tiers.py` module computes tiers from `acquisition_next_due` and `fsrs_card_json["due"]`. Used by `update_material.py` (cap enforcement + backfill), `material_generator.py` (warm cache + rotation), and `rotate_stale_sentences.py`.
+
+### Expected Impact
+With 295 acquiring, 176 overdue: ~710 sentences needed (vs 885 before) — fits within 800. After one session: drops to ~590. Pool size naturally scales with actual demand, not total word count.
+
+### Verification
+- `update_material.py --dry-run` shows tier distribution and reduced demand
+- Pool usage drops without cap change
+- After review sessions, tier 1 shrinks as words advance boxes
+
+### Files Changed
+- `backend/app/services/pipeline_tiers.py` — new: tier computation
+- `backend/scripts/update_material.py` — tiered cap enforcement and backfill
+- `backend/app/services/material_generator.py` — tiered warm cache and rotation
+- `backend/scripts/rotate_stale_sentences.py` — tiered min_active floor
+- `backend/tests/test_pipeline_tiers.py` — unit tests
+
+---
+
 ## 2026-02-27: Fix Stale Word Lookup Cache
 
 ### Problem
