@@ -1310,18 +1310,18 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
     );
   }
 
-  // Re-introduction cards shown before sentence review
+  // Re-introduction cards shown before sentence review — pure re-exposure, no self-assessment
   const showingReintro = reintroCards.length > 0 && reintroIndex < reintroCards.length;
   if (showingReintro) {
     const card = reintroCards[reintroIndex];
     const knownSiblings = card.root_family.filter(
-      (s) => s.state === "known" || s.state === "learning"
+      (s) => (s.state === "known" || s.state === "learning") && s.lemma_id !== card.lemma_id
     );
     return (
       <View style={[styles.container, { paddingTop: Math.max(insets.top, 12) }]}>
         <View style={styles.progressContainer}>
           <Text style={styles.progressText}>
-            Re-learning {reintroIndex + 1} of {reintroCards.length}
+            Review {reintroIndex + 1} of {reintroCards.length}
           </Text>
           <View style={styles.actionMenuRow}>
             <ActionMenu
@@ -1338,9 +1338,6 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
           showsVerticalScrollIndicator={false}
         >
           <View style={styles.reintroCard}>
-            <Text style={styles.reintroLabel}>
-              Seen {card.times_seen} times, never recalled
-            </Text>
             <View style={styles.reintroWordHeader}>
               <Text style={styles.reintroArabic}>{card.lemma_ar}</Text>
               <PlayButton audioUrl={card.audio_url} word={card.lemma_ar} />
@@ -1355,36 +1352,62 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
               </Text>
             )}
             <FormsRow pos={card.pos} forms={card.forms_json} />
-            <GrammarRow details={card.grammar_details} />
+
+            {card.wazn && (
+              <View style={styles.expIntroHighlight}>
+                <Text style={styles.expIntroHighlightLabel}>Pattern</Text>
+                <Text style={styles.expIntroHighlightText}>
+                  {card.wazn}{card.wazn_meaning ? ` \u2014 ${card.wazn_meaning}` : ""}
+                </Text>
+              </View>
+            )}
+
+            {card.root && (
+              <View style={styles.expIntroHighlight}>
+                <Text style={styles.expIntroHighlightLabel}>Root</Text>
+                <Text style={styles.expIntroHighlightText}>
+                  {card.root}
+                  {card.root_meaning ? ` \u2014 ${card.root_meaning}` : ""}
+                </Text>
+                {knownSiblings.length > 0 && (
+                  <View style={{ marginTop: 6, gap: 3 }}>
+                    <Text style={{ color: colors.accent, fontSize: 12, fontWeight: "600" }}>
+                      You know {knownSiblings.length} word{knownSiblings.length !== 1 ? "s" : ""} from this root:
+                    </Text>
+                    {knownSiblings.slice(0, 3).map((sib) => (
+                      <Text key={sib.lemma_id} style={{ color: colors.text, fontSize: 13, fontFamily: fontFamily.arabic }}>
+                        {sib.lemma_ar} <Text style={{ color: colors.textSecondary, fontFamily: undefined }}>{sib.gloss_en}</Text>
+                      </Text>
+                    ))}
+                  </View>
+                )}
+              </View>
+            )}
+
+            {card.etymology?.derivation && (
+              <View style={styles.expIntroHighlight}>
+                <Text style={styles.expIntroHighlightLabel}>Origin</Text>
+                <Text style={styles.expIntroHighlightText}>
+                  {card.etymology.pattern ? `${card.etymology.pattern}: ` : ""}
+                  {card.etymology.derivation}
+                </Text>
+              </View>
+            )}
+
+            {card.memory_hooks?.mnemonic && (
+              <View style={[styles.expIntroHighlight, { backgroundColor: "rgba(74, 158, 255, 0.12)" }]}>
+                <Text style={styles.expIntroHighlightLabel}>Remember</Text>
+                <Text style={styles.expIntroHighlightText}>
+                  {card.memory_hooks.mnemonic}
+                </Text>
+              </View>
+            )}
 
             {card.example_ar && (
               <View style={styles.reintroExample}>
                 <Text style={styles.reintroExampleAr}>{card.example_ar}</Text>
                 {card.example_en && (
                   <Text style={styles.reintroExampleEn}>{card.example_en}</Text>
-                )}
-              </View>
-            )}
-
-            {card.root && (
-              <View style={styles.reintroRoot}>
-                <Text style={styles.reintroRootText}>
-                  {card.root}
-                  {card.root_meaning ? ` \u2014 ${card.root_meaning}` : ""}
-                </Text>
-                {card.root_family.length > 0 && (
-                  <Text style={styles.reintroRootSiblings}>
-                    {knownSiblings.length}/{card.root_family.length}
-                  </Text>
-                )}
-                {knownSiblings.length > 0 && (
-                  <View style={styles.reintroSiblingList}>
-                    {knownSiblings.slice(0, 4).map((sib) => (
-                      <Text key={sib.lemma_id} style={styles.reintroSiblingItem}>
-                        {sib.lemma_ar} {sib.gloss_en ? `\u2014 ${sib.gloss_en}` : ""}
-                      </Text>
-                    ))}
-                  </View>
                 )}
               </View>
             )}
@@ -1410,27 +1433,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
               }
             }}
           >
-            <Text style={styles.reintroRememberText}>I remember</Text>
-          </Pressable>
-          <Pressable
-            style={styles.reintroShowAgainBtn}
-            onPress={async () => {
-              try {
-                await submitReintroResult(
-                  card.lemma_id,
-                  "show_again",
-                  sentenceSession?.session_id,
-                );
-              } catch {}
-              if (reintroIndex + 1 < reintroCards.length) {
-                setReintroIndex(reintroIndex + 1);
-              } else {
-                setReintroCards([]);
-                setReintroIndex(0);
-              }
-            }}
-          >
-            <Text style={styles.reintroShowAgainText}>Show again</Text>
+            <Text style={styles.reintroRememberText}>Continue</Text>
           </Pressable>
         </View>
       </View>
