@@ -1,6 +1,7 @@
 import logging
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
+from pydantic import BaseModel as PydanticBaseModel
 from sqlalchemy import case
 from sqlalchemy.orm import Session, joinedload
 
@@ -380,6 +381,26 @@ def submit_reintro_result(
     )
 
     return {"status": "ok", "result": body.result, "lemma_id": body.lemma_id}
+
+
+class ExperimentIntroAckIn(PydanticBaseModel):
+    lemma_id: int
+    session_id: str | None = None
+
+
+@router.post("/experiment-intro-ack")
+def acknowledge_experiment_intro(
+    body: ExperimentIntroAckIn,
+    db: Session = Depends(get_db),
+):
+    """Acknowledge that an experiment intro card was shown."""
+    log_interaction(
+        event="experiment_intro_shown",
+        lemma_id=body.lemma_id,
+        session_id=body.session_id,
+        experiment_group="intro_ab_card",
+    )
+    return {"status": "ok", "lemma_id": body.lemma_id}
 
 
 @router.post("/wrap-up", response_model=WrapUpOut)

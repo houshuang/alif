@@ -350,6 +350,7 @@ class SentenceSessionOut(BaseModel):
     covered_due_words: int
     intro_candidates: list[IntroCandidateOut] = []
     reintro_cards: list[ReintroCardOut] = []
+    experiment_intro_cards: list[ReintroCardOut] = []
     grammar_intro_needed: list[str] = []
     grammar_refresher_needed: list[str] = []
 

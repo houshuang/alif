@@ -400,6 +400,7 @@ export interface SentenceReviewSession {
   covered_due_words: number;
   intro_candidates?: IntroCandidate[];
   reintro_cards?: ReintroCard[];
+  experiment_intro_cards?: ReintroCard[];
   grammar_intro_needed?: string[];
   grammar_refresher_needed?: string[];
 }

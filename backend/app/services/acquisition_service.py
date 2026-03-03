@@ -114,6 +114,11 @@ def start_acquisition(
         )
         db.add(ulk)
 
+    # A/B experiment: intro card vs sentence-first
+    if ulk.experiment_group is None:
+        import random
+        ulk.experiment_group = random.choice(["intro_ab_card", "intro_ab_sentence"])
+
     db.flush()
 
     # Trigger root/pattern enrichment if this root or pattern now qualifies

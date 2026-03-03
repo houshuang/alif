@@ -4,6 +4,40 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-03-03: A/B Experiment — Intro Card vs Sentence-First Acquisition
+
+### Hypothesis
+Showing a word info card (Arabic + English + root + forms) before a word's first sentence review creates a memory anchor that speeds up acquisition, compared to encountering the word cold in a sentence.
+
+### Design
+- **Group A (`intro_ab_sentence`)**: Control — current behavior, first exposure is in a sentence
+- **Group B (`intro_ab_card`)**: Info card shown before first sentence, single "Continue" button, no self-assessment
+- **Assignment**: Random 50/50 per word in `start_acquisition()`, stored in `ULK.experiment_group`
+- **Scope**: All words entering acquisition (auto-intro, learn mode, any source)
+
+### Metrics
+1. **Reviews to graduation**: How many acquisition reviews before graduating to FSRS
+2. **First-sentence accuracy**: % correct (rating >= 3) on first acquisition review in a sentence
+3. **Time to graduation**: Calendar days from `acquisition_started_at` to `graduated_at`
+
+### Status
+Deployed 2026-03-03. Collecting data.
+
+### Files Changed
+- `backend/app/models.py` — added `experiment_group` column to `UserLemmaKnowledge`
+- `backend/app/services/acquisition_service.py` — random group assignment in `start_acquisition()`
+- `backend/app/services/sentence_selector.py` — `_build_experiment_intro_cards()`, threaded through `_with_fallbacks()`
+- `backend/app/schemas.py` — `experiment_intro_cards` field on `SentenceSessionOut`
+- `backend/app/routers/review.py` — `POST /api/review/experiment-intro-ack` endpoint
+- `frontend/app/index.tsx` — experiment intro card rendering with "Continue" button
+- `frontend/lib/types.ts`, `frontend/lib/api.ts` — types and API function
+- `backend/scripts/analyze_intro_experiment.py` — analysis script
+
+### Analysis
+Run after 2+ days: `python3 scripts/analyze_intro_experiment.py --db data/alif.db`
+
+---
+
 ## 2026-03-03: Confusion Analysis UI Redesign
 
 ### Problem
@@ -27,18 +61,38 @@ The confusion analysis display (shown when marking a word yellow / "did not reco
 
 ---
 
-## 2026-03-03: Passage Reading Speed Experiment (Designed)
+## 2026-03-03: Passage Reading Speed Experiment
 
 **Spec**: [`research/experiment-passage-reading-speed.md`](experiment-passage-reading-speed.md)
+**Materials**: [`research/experiment-stories-2026-03-03.json`](experiment-stories-2026-03-03.json)
+**Script**: `backend/scripts/generate_experiment_passages.py`
 
 ### Context
 Exploring whether 3-5 sentence passages could replace or supplement individual sentence review cards. Two key unknowns: (1) reading speed factor, (2) comprehension accuracy in passages. Current baseline: 33.5s median per individual sentence.
 
 ### Design
-Two versions designed — a quick version using the existing story reader (zero code changes, 25 min to run) and a proper A/B version requiring a passage card component. Quick version generates 5 mini-stories of 4 sentences each using comfortable vocabulary (FSRS stability ≥ 7d) plus 1 challenge word (stability 1-7d) per story. Compare `reading_time_ms / 4` against individual `response_ms` baseline.
+Quick version using the existing story reader (zero code changes, ~25 min to run). 5 mini-stories of 4 sentences each, vocabulary-constrained to FSRS stability ≥ 7d (268 strong words) plus 1 challenge word (stability 1-7d) per story. Compare `reading_time_ms / 4` against individual `response_ms` baseline.
+
+### Materials generated
+Generated 5 stories via Claude Opus with compliance validation loop. Total generation cost: ~$1.36.
+
+| # | Story | Challenge word | Compliance | Readiness | Story ID |
+|---|-------|---------------|------------|-----------|----------|
+| 1 | The New Translator | حَقيبَة (bag) | 100% | 100% | #10 |
+| 2 | The Golden Teacher | عَزَفَ (play music) | 94.7% | 100% | #11 |
+| 3 | The New Classroom | قَرّ (decide) | 100% | 92% | #12 |
+| 4 | The Friend of the Roses | فَجَرَ (dig up) | 94.7% | 100% | #13 |
+| 5 | The Pen and the Dog | أَرادَ (want) | 95.5% | 100% | #14 |
+
+All challenge words have FSRS stability ~2.3d (recently graduated, still fragile). Vocabulary pool: 268 strong words + 74 challenge candidates. Stories tagged `[EXP]` in production.
+
+### Protocol
+1. Read 5 experiment stories in story reader (app records `reading_time_ms`)
+2. Same session, do ~20 individual sentence reviews (app records `response_ms`)
+3. Compute `speed_ratio = median(response_ms) / median(reading_time_ms / 4)`
 
 ### Status
-Ready to generate materials and run. Waiting on decision to proceed.
+Materials generated and imported to production (stories #10-14). Ready to run.
 
 ---
 

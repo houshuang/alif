@@ -21,6 +21,7 @@ import {
   submitSentenceReview,
   undoSentenceReview,
   submitReintroResult,
+  acknowledgeExperimentIntro,
   getAnalytics,
   lookupReviewWord,
   prefetchSessions,
@@ -129,6 +130,8 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
   const [wordOutcomes, setWordOutcomes] = useState<Map<number, WordOutcome>>(new Map());
   const [reintroCards, setReintroCards] = useState<ReintroCard[]>([]);
   const [reintroIndex, setReintroIndex] = useState(0);
+  const [experimentIntroCards, setExperimentIntroCards] = useState<ReintroCard[]>([]);
+  const [experimentIntroIndex, setExperimentIntroIndex] = useState(0);
   const [grammarLessons, setGrammarLessons] = useState<GrammarLesson[]>([]);
   const [grammarLessonIndex, setGrammarLessonIndex] = useState(0);
   const [grammarLessonsLoading, setGrammarLessonsLoading] = useState(false);
@@ -312,6 +315,8 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
     setSeenLemmaIds(new Set());
     setReintroCards([]);
     setReintroIndex(0);
+    setExperimentIntroCards([]);
+    setExperimentIntroIndex(0);
     setGrammarLessons([]);
     setGrammarLessonIndex(0);
     setGrammarLessonsLoading(false);
@@ -350,6 +355,10 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
         if (ss.reintro_cards && ss.reintro_cards.length > 0) {
           setReintroCards(ss.reintro_cards);
           setReintroIndex(0);
+        }
+        if (ss.experiment_intro_cards && ss.experiment_intro_cards.length > 0) {
+          setExperimentIntroCards(ss.experiment_intro_cards);
+          setExperimentIntroIndex(0);
         }
         // Load grammar lessons (refreshers first, then intros)
         // Filter out features already introduced this app session (stale prefetch)
@@ -887,6 +896,12 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
     } else {
       setReintroCards([]);
     }
+    if (fresh.experiment_intro_cards && fresh.experiment_intro_cards.length > 0) {
+      setExperimentIntroCards(fresh.experiment_intro_cards);
+      setExperimentIntroIndex(0);
+    } else {
+      setExperimentIntroCards([]);
+    }
     const featureKeys: string[] = [
       ...(fresh.grammar_refresher_needed ?? []),
       ...(fresh.grammar_intro_needed ?? []),
@@ -1416,6 +1431,83 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
             }}
           >
             <Text style={styles.reintroShowAgainText}>Show again</Text>
+          </Pressable>
+        </View>
+      </View>
+    );
+  }
+
+  // A/B experiment: info card before first sentence review
+  const showingExperimentIntro = experimentIntroCards.length > 0 && experimentIntroIndex < experimentIntroCards.length;
+  if (showingExperimentIntro) {
+    const card = experimentIntroCards[experimentIntroIndex];
+    const knownSiblings = card.root_family.filter(
+      (s) => s.state === "known" || s.state === "learning"
+    );
+    return (
+      <View style={[styles.container, { paddingTop: Math.max(insets.top, 12) }]}>
+        <View style={styles.progressContainer}>
+          <Text style={styles.progressText}>
+            New word {experimentIntroIndex + 1} of {experimentIntroCards.length}
+          </Text>
+        </View>
+        <ScrollView
+          contentContainerStyle={styles.reintroScrollContent}
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={styles.reintroCard}>
+            <Text style={[styles.reintroLabel, { color: colors.accent }]}>New word</Text>
+            <View style={styles.reintroWordHeader}>
+              <Text style={styles.reintroArabic}>{card.lemma_ar}</Text>
+              <PlayButton audioUrl={card.audio_url} word={card.lemma_ar} />
+            </View>
+            <Text style={styles.reintroEnglish}>{card.gloss_en}</Text>
+            {card.transliteration && (
+              <Text style={styles.reintroTranslit}>{card.transliteration}</Text>
+            )}
+            {card.pos && (
+              <Text style={styles.reintroPos}>
+                {posLabel(card.pos, card.forms_json)}
+              </Text>
+            )}
+            <FormsRow pos={card.pos} forms={card.forms_json} />
+            <GrammarRow details={card.grammar_details} />
+
+            {card.root && (
+              <View style={styles.reintroRoot}>
+                <Text style={styles.reintroRootText}>
+                  {card.root}
+                  {card.root_meaning ? ` \u2014 ${card.root_meaning}` : ""}
+                </Text>
+                {card.root_family.length > 0 && (
+                  <Text style={styles.reintroRootSiblings}>
+                    {knownSiblings.length}/{card.root_family.length}
+                  </Text>
+                )}
+              </View>
+            )}
+          </View>
+        </ScrollView>
+
+        <View style={styles.reintroActions}>
+          <Pressable
+            style={styles.reintroRememberBtn}
+            onPress={async () => {
+              try {
+                await acknowledgeExperimentIntro(
+                  card.lemma_id,
+                  sentenceSession?.session_id,
+                );
+              } catch {}
+              if (experimentIntroIndex + 1 < experimentIntroCards.length) {
+                setExperimentIntroIndex(experimentIntroIndex + 1);
+              } else {
+                setExperimentIntroCards([]);
+                setExperimentIntroIndex(0);
+              }
+            }}
+          >
+            <Text style={styles.reintroRememberText}>Continue</Text>
           </Pressable>
         </View>
       </View>
