@@ -58,6 +58,7 @@ export default function StoryReadScreen() {
 
   async function loadStory(storyId: number) {
     setLoading(true);
+    setViewMode("arabic");
     lookupRequestRef.current += 1;
     setSubmitting(false);
     setSelectedWord(null);
