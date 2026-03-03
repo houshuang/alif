@@ -4,6 +4,67 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-03-03: Confusion Analysis UI Redesign
+
+### Problem
+The confusion analysis display (shown when marking a word yellow / "did not recognize") was hard to understand:
+- Similar words appeared ABOVE the word's own meaning — user saw confusion data before knowing what the word even means
+- Diff positions shown as raw Arabic character swaps (`م↔ف`) were unreadable
+- No header or context explaining what the similar words section was about
+- Morphological decomposition used nested segments with `+` separators
+
+### Change
+- Moved confusion section BELOW the head row (gloss, lemma, POS) — natural flow: identify → compare → distinguish
+- Added "LOOKS LIKE" header with eye icon
+- Left orange border accent instead of full orange background
+- Similar words now show English gloss prominently (13px white) as the primary distinguishing info
+- Replaced `م↔ف` notation with "differs in: م, ف" (letters from original word only)
+- "same shape" → "same without dots" (clearer for Arabic dot-only differences)
+- Flattened decomposition layout — pills with Arabic + label, no nested segments
+
+### Files Changed
+- `frontend/lib/review/WordInfoCard.tsx` — restructured RevealedView layout and restyled confusion styles
+
+---
+
+## 2026-03-03: Passage Reading Speed Experiment (Designed)
+
+**Spec**: [`research/experiment-passage-reading-speed.md`](experiment-passage-reading-speed.md)
+
+### Context
+Exploring whether 3-5 sentence passages could replace or supplement individual sentence review cards. Two key unknowns: (1) reading speed factor, (2) comprehension accuracy in passages. Current baseline: 33.5s median per individual sentence.
+
+### Design
+Two versions designed — a quick version using the existing story reader (zero code changes, 25 min to run) and a proper A/B version requiring a passage card component. Quick version generates 5 mini-stories of 4 sentences each using comfortable vocabulary (FSRS stability ≥ 7d) plus 1 challenge word (stability 1-7d) per story. Compare `reading_time_ms / 4` against individual `response_ms` baseline.
+
+### Status
+Ready to generate materials and run. Waiting on decision to proceed.
+
+---
+
+## 2026-03-03: Learning Analysis Report
+
+Visual analysis of the full pipeline state after 23 days of study and the Feb 28 bulk import (184 words).
+
+**Report**: [`research/learning-analysis-2026-03-03.html`](learning-analysis-2026-03-03.html)
+
+### Key findings
+- **1,080 total words**: 364 known, 295 acquiring (7.4× above 40-word threshold), 374 encountered
+- **Pipeline overloaded**: 295 acquiring (box 1: 135, box 2: 74, box 3: 86). 176 due now. Auto-intro fully suppressed.
+- **Drain timeline**: ~24 days to reach 40-word threshold (est. March 27) at 10.5 grads/day
+- **FSRS healthy**: 97.4% retention, median stability 13.8d, 66 overdue
+- **Learning rate**: median 4.3 days to graduate, 11 reviews median, 33.5s per sentence
+- **Daily load**: 58 sentences/day avg (37 min). Need 70-80/day to drain faster.
+- **Sentence pool at capacity**: 803/800, 14 words with 0 sentences, 117 with only 1
+
+### Recommendations from analysis
+1. No algorithm changes needed — pipeline threshold doing its job
+2. Raise PIPELINE_CAP from 800 to 1200 temporarily
+3. Raise MIN_SENTENCES_PER_WORD from 3 to 4-5 during backlog
+4. Generation rate (240/day) is adequate — cap is the bottleneck
+
+---
+
 ## 2026-03-03: Confused Rating No Longer Penalizes FSRS
 
 ### Problem

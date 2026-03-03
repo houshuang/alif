@@ -257,59 +257,6 @@ function RevealedView({
 
   return (
     <View style={styles.revealedWrap}>
-      {/* Confusion analysis — morphological decomposition */}
-      {decomp && (decomp.prefix_clitics.length > 0 || decomp.suffix_clitics.length > 0) && (
-        <View style={styles.confusionSection}>
-          <View style={styles.decompRow}>
-            {decomp.prefix_clitics.map((c, i) => (
-              <View key={`pre-${i}`} style={styles.decompSegment}>
-                <View style={styles.cliticPill}>
-                  <Text style={styles.cliticAr}>{c.text}</Text>
-                </View>
-                <Text style={styles.cliticLabel}>{c.label}</Text>
-                <Text style={styles.decompPlus}>+</Text>
-              </View>
-            ))}
-            <View style={styles.decompSegment}>
-              <View style={styles.stemPill}>
-                <Text style={styles.stemAr}>{decomp.stem}</Text>
-              </View>
-              <Text style={styles.stemLabel}>{decomp.matched_form_label}</Text>
-            </View>
-            {decomp.suffix_clitics.map((c, i) => (
-              <View key={`suf-${i}`} style={styles.decompSegment}>
-                <Text style={styles.decompPlus}>+</Text>
-                <View style={styles.cliticPill}>
-                  <Text style={styles.cliticAr}>{c.text}</Text>
-                </View>
-                <Text style={styles.cliticLabel}>{c.label}</Text>
-              </View>
-            ))}
-          </View>
-        </View>
-      )}
-
-      {/* Confusion analysis — similar words */}
-      {similarWords && similarWords.length > 0 && (
-        <View style={styles.confusionSection}>
-          {similarWords.slice(0, 3).map((sw) => (
-            <View key={sw.lemma_id} style={styles.similarRow}>
-              <Text style={styles.similarAr}>{sw.lemma_ar}</Text>
-              <Text style={styles.similarGloss} numberOfLines={1}>{sw.gloss_en ?? "?"}</Text>
-              {sw.rasm_distance === 0 ? (
-                <Text style={styles.similarNote}>same shape</Text>
-              ) : sw.diff_positions.length > 0 ? (
-                <Text style={styles.similarNote}>
-                  {sw.diff_positions.slice(0, 2).map(d =>
-                    `${d.original}↔${d.similar}`
-                  ).join(", ")}
-                </Text>
-              ) : null}
-            </View>
-          ))}
-        </View>
-      )}
-
       {/* Combined: meaning + lemma + POS */}
       <View style={styles.headRow}>
         {result.gloss_en && (
@@ -354,6 +301,53 @@ function RevealedView({
           </Text>
         )}
       </View>
+
+      {/* Confusion analysis — similar words */}
+      {similarWords && similarWords.length > 0 && (
+        <View style={styles.confusionSection}>
+          <View style={styles.confusionHeader}>
+            <Ionicons name="eye-outline" size={13} color={colors.confused} />
+            <Text style={styles.confusionTitle}>Looks like</Text>
+          </View>
+          {similarWords.slice(0, 3).map((sw) => (
+            <View key={sw.lemma_id} style={styles.similarRow}>
+              <Text style={styles.similarAr}>{sw.lemma_ar}</Text>
+              <View style={styles.similarInfo}>
+                <Text style={styles.similarGloss} numberOfLines={1}>{sw.gloss_en ?? "?"}</Text>
+                {sw.rasm_distance === 0 ? (
+                  <Text style={styles.similarHint}>same without dots</Text>
+                ) : sw.diff_positions.length > 0 ? (
+                  <Text style={styles.similarHint}>
+                    differs in: {sw.diff_positions.slice(0, 2).map(d => d.original).join(", ")}
+                  </Text>
+                ) : null}
+              </View>
+            </View>
+          ))}
+        </View>
+      )}
+
+      {/* Confusion analysis — morphological decomposition */}
+      {decomp && (decomp.prefix_clitics.length > 0 || decomp.suffix_clitics.length > 0) && (
+        <View style={styles.decompRow}>
+          {decomp.prefix_clitics.map((c, i) => (
+            <View key={`pre-${i}`} style={styles.cliticPill}>
+              <Text style={styles.cliticAr}>{c.text}</Text>
+              <Text style={styles.cliticLabel}>{c.label}</Text>
+            </View>
+          ))}
+          <View style={styles.stemPill}>
+            <Text style={styles.stemAr}>{decomp.stem}</Text>
+            <Text style={styles.stemLabel}>{decomp.matched_form_label}</Text>
+          </View>
+          {decomp.suffix_clitics.map((c, i) => (
+            <View key={`suf-${i}`} style={styles.cliticPill}>
+              <Text style={styles.cliticAr}>{c.text}</Text>
+              <Text style={styles.cliticLabel}>{c.label}</Text>
+            </View>
+          ))}
+        </View>
+      )}
 
       {/* Forms strip */}
       <FormsStrip
@@ -794,41 +788,74 @@ const styles = StyleSheet.create({
 
   /* Confusion analysis */
   confusionSection: {
-    backgroundColor: "rgba(243, 156, 18, 0.08)",
+    backgroundColor: "rgba(243, 156, 18, 0.06)",
     borderRadius: 8,
+    borderLeftWidth: 3,
+    borderLeftColor: "rgba(243, 156, 18, 0.4)",
     paddingHorizontal: 10,
-    paddingVertical: 6,
-    gap: 4,
+    paddingVertical: 8,
+    gap: 6,
+  },
+  confusionHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    marginBottom: 2,
+  },
+  confusionTitle: {
+    fontSize: 11,
+    color: colors.confused,
+    fontWeight: "700",
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+  },
+  similarRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    paddingVertical: 2,
+  },
+  similarAr: {
+    fontFamily: fontFamily.arabic,
+    fontSize: 18,
+    color: colors.arabic,
+    writingDirection: "rtl",
+    lineHeight: 26,
+    minWidth: 50,
+    textAlign: "right",
+  },
+  similarInfo: {
+    flex: 1,
+    gap: 1,
+  },
+  similarGloss: {
+    fontSize: 13,
+    color: colors.text,
+  },
+  similarHint: {
+    fontSize: 10,
+    color: colors.confused,
+    fontWeight: "500",
   },
   decompRow: {
     flexDirection: "row",
     alignItems: "flex-start",
     justifyContent: "center",
-    gap: 2,
+    gap: 4,
     flexWrap: "wrap",
     direction: "rtl",
   },
-  decompSegment: {
-    alignItems: "center",
-    gap: 2,
-    flexDirection: "column",
-  },
-  decompPlus: {
-    color: colors.textSecondary,
-    fontSize: 12,
-    fontWeight: "600",
-    marginHorizontal: 1,
-  },
   cliticPill: {
-    backgroundColor: "rgba(243, 156, 18, 0.2)",
+    backgroundColor: "rgba(243, 156, 18, 0.12)",
     borderRadius: 6,
     paddingHorizontal: 6,
     paddingVertical: 2,
+    alignItems: "center",
   },
   cliticAr: {
     fontFamily: fontFamily.arabic,
-    fontSize: 16,
-    color: "#e5a117",
+    fontSize: 15,
+    color: colors.confused,
     writingDirection: "rtl",
   },
   cliticLabel: {
@@ -837,16 +864,17 @@ const styles = StyleSheet.create({
     fontWeight: "500",
   },
   stemPill: {
-    backgroundColor: "rgba(100, 140, 180, 0.15)",
+    backgroundColor: "rgba(100, 140, 180, 0.12)",
     borderRadius: 6,
     paddingHorizontal: 8,
     paddingVertical: 2,
+    alignItems: "center",
     borderWidth: 1,
-    borderColor: "rgba(100, 140, 180, 0.3)",
+    borderColor: "rgba(100, 140, 180, 0.25)",
   },
   stemAr: {
     fontFamily: fontFamily.arabic,
-    fontSize: 16,
+    fontSize: 15,
     color: colors.text,
     fontWeight: "700",
     writingDirection: "rtl",
@@ -855,29 +883,5 @@ const styles = StyleSheet.create({
     fontSize: 9,
     color: colors.accent,
     fontWeight: "600",
-  },
-  similarRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-  },
-  similarAr: {
-    fontFamily: fontFamily.arabic,
-    fontSize: 16,
-    color: colors.arabic,
-    writingDirection: "rtl",
-    lineHeight: 22,
-    minWidth: 40,
-  },
-  similarGloss: {
-    fontSize: 12,
-    color: colors.textSecondary,
-    flex: 1,
-  },
-  similarNote: {
-    fontSize: 10,
-    color: "#e5a117",
-    fontWeight: "600",
-    fontFamily: fontFamily.arabic,
   },
 });
