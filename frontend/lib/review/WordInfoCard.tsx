@@ -1,4 +1,4 @@
-import { useRef } from "react";
+import React, { useRef } from "react";
 import { ActivityIndicator, Animated, PanResponder, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { colors, fontFamily } from "../theme";
@@ -190,7 +190,7 @@ export default function WordInfoCard({
       ) : particleInfo ? (
         <GrammarParticleView info={particleInfo} />
       ) : (
-        <ScrollView style={{ maxHeight: 200 }} showsVerticalScrollIndicator={false} nestedScrollEnabled>
+        <ScrollView style={{ maxHeight: (markState === "did_not_recognize" && confusionData?.confusion_type) ? 380 : 200 }} showsVerticalScrollIndicator={false} nestedScrollEnabled>
           <RevealedView result={result} surfaceForm={surfaceForm} onNavigateToDetail={onNavigateToDetail} onNavigateToPattern={onNavigateToPattern} surfaceTranslit={surfaceTranslit} confusionData={markState === "did_not_recognize" ? confusionData : null} />
         </ScrollView>
       )}
@@ -306,46 +306,80 @@ function RevealedView({
       {similarWords && similarWords.length > 0 && (
         <View style={styles.confusionSection}>
           <View style={styles.confusionHeader}>
-            <Ionicons name="eye-outline" size={13} color={colors.confused} />
-            <Text style={styles.confusionTitle}>Looks like</Text>
+            <Ionicons name="eye-outline" size={14} color={colors.confused} />
+            <Text style={styles.confusionTitle}>Easily confused</Text>
           </View>
           {similarWords.slice(0, 3).map((sw) => (
-            <View key={sw.lemma_id} style={styles.similarRow}>
-              <Text style={styles.similarAr}>{sw.lemma_ar}</Text>
-              <View style={styles.similarInfo}>
-                <Text style={styles.similarGloss} numberOfLines={1}>{sw.gloss_en ?? "?"}</Text>
-                {sw.rasm_distance === 0 ? (
-                  <Text style={styles.similarHint}>same without dots</Text>
-                ) : sw.diff_positions.length > 0 ? (
-                  <Text style={styles.similarHint}>
-                    differs in: {sw.diff_positions.slice(0, 2).map(d => d.original).join(", ")}
-                  </Text>
-                ) : null}
+            <View key={sw.lemma_id} style={styles.comparisonCard}>
+              <View style={styles.comparisonWordRow}>
+                <Text style={styles.comparisonAr}>{sw.lemma_ar}</Text>
+                <Text style={styles.comparisonGloss} numberOfLines={1}>{sw.gloss_en ?? "?"}</Text>
               </View>
+              {sw.rasm_distance === 0 ? (
+                <View style={styles.sameDotsBanner}>
+                  <Text style={styles.sameDotsText}>identical shape — only dots differ</Text>
+                </View>
+              ) : sw.diff_positions.length > 0 ? (
+                <View style={styles.letterCompareRow}>
+                  {sw.diff_positions.slice(0, 3).map((d, i) => (
+                    <View key={i} style={styles.letterPair}>
+                      <View style={styles.letterBoxTarget}>
+                        <Text style={styles.letterChar}>{d.original}</Text>
+                      </View>
+                      <Text style={styles.letterNeq}>≠</Text>
+                      <View style={styles.letterBoxSimilar}>
+                        <Text style={styles.letterChar}>{d.similar}</Text>
+                      </View>
+                    </View>
+                  ))}
+                </View>
+              ) : null}
             </View>
           ))}
         </View>
       )}
 
       {/* Confusion analysis — morphological decomposition */}
-      {decomp && (decomp.prefix_clitics.length > 0 || decomp.suffix_clitics.length > 0) && (
-        <View style={styles.decompRow}>
-          {decomp.prefix_clitics.map((c, i) => (
-            <View key={`pre-${i}`} style={styles.cliticPill}>
-              <Text style={styles.cliticAr}>{c.text}</Text>
-              <Text style={styles.cliticLabel}>{c.label}</Text>
+      {decomp && (decomp.prefix_clitics.length > 0 || decomp.suffix_clitics.length > 0 || decomp.matched_form_key) && (
+        <View style={styles.decompSection}>
+          <Text style={styles.decompSectionTitle}>Word breakdown</Text>
+          <View style={styles.decompRow}>
+            {decomp.prefix_clitics.flatMap((c, i) => {
+              const items: React.ReactNode[] = [];
+              if (i > 0) items.push(<Text key={`p-plus-${i}`} style={styles.decompPlus}>+</Text>);
+              items.push(
+                <View key={`pre-${i}`} style={styles.decompSegment}>
+                  <View style={styles.decompClitic}>
+                    <Text style={styles.decompCliticAr}>{c.text}</Text>
+                  </View>
+                  <Text style={styles.decompLabel}>{c.label}</Text>
+                </View>
+              );
+              return items;
+            })}
+            {decomp.prefix_clitics.length > 0 && (
+              <Text style={styles.decompPlus}>+</Text>
+            )}
+            <View style={styles.decompSegment}>
+              <View style={styles.decompStem}>
+                <Text style={styles.decompStemAr}>{decomp.stem}</Text>
+              </View>
+              <Text style={styles.decompStemLabel}>{decomp.matched_form_label}</Text>
             </View>
-          ))}
-          <View style={styles.stemPill}>
-            <Text style={styles.stemAr}>{decomp.stem}</Text>
-            <Text style={styles.stemLabel}>{decomp.matched_form_label}</Text>
+            {decomp.suffix_clitics.flatMap((c, i) => {
+              const items: React.ReactNode[] = [];
+              items.push(<Text key={`s-plus-${i}`} style={styles.decompPlus}>+</Text>);
+              items.push(
+                <View key={`suf-${i}`} style={styles.decompSegment}>
+                  <View style={styles.decompClitic}>
+                    <Text style={styles.decompCliticAr}>{c.text}</Text>
+                  </View>
+                  <Text style={styles.decompLabel}>{c.label}</Text>
+                </View>
+              );
+              return items;
+            })}
           </View>
-          {decomp.suffix_clitics.map((c, i) => (
-            <View key={`suf-${i}`} style={styles.cliticPill}>
-              <Text style={styles.cliticAr}>{c.text}</Text>
-              <Text style={styles.cliticLabel}>{c.label}</Text>
-            </View>
-          ))}
         </View>
       )}
 
@@ -786,56 +820,123 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
 
-  /* Confusion analysis */
+  /* Confusion analysis — similar words */
   confusionSection: {
     backgroundColor: "rgba(243, 156, 18, 0.06)",
-    borderRadius: 8,
+    borderRadius: 10,
     borderLeftWidth: 3,
     borderLeftColor: "rgba(243, 156, 18, 0.4)",
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    gap: 8,
   },
   confusionHeader: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 5,
-    marginBottom: 2,
+    gap: 6,
   },
   confusionTitle: {
-    fontSize: 11,
+    fontSize: 12,
     color: colors.confused,
     fontWeight: "700",
     textTransform: "uppercase",
-    letterSpacing: 0.5,
+    letterSpacing: 0.6,
   },
-  similarRow: {
+  comparisonCard: {
+    gap: 6,
+    paddingBottom: 6,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: "rgba(243, 156, 18, 0.15)",
+  },
+  comparisonWordRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: 10,
-    paddingVertical: 2,
   },
-  similarAr: {
+  comparisonAr: {
     fontFamily: fontFamily.arabic,
-    fontSize: 18,
+    fontSize: 22,
     color: colors.arabic,
     writingDirection: "rtl",
-    lineHeight: 26,
-    minWidth: 50,
-    textAlign: "right",
+    lineHeight: 32,
   },
-  similarInfo: {
-    flex: 1,
-    gap: 1,
-  },
-  similarGloss: {
-    fontSize: 13,
+  comparisonGloss: {
+    fontSize: 14,
     color: colors.text,
+    flex: 1,
   },
-  similarHint: {
-    fontSize: 10,
+  sameDotsBanner: {
+    backgroundColor: "rgba(243, 156, 18, 0.1)",
+    borderRadius: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    alignSelf: "flex-start",
+  },
+  sameDotsText: {
+    fontSize: 12,
     color: colors.confused,
-    fontWeight: "500",
+    fontWeight: "600",
+  },
+  letterCompareRow: {
+    flexDirection: "row",
+    gap: 14,
+    alignItems: "center",
+    paddingVertical: 2,
+  },
+  letterPair: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  letterBoxTarget: {
+    backgroundColor: "rgba(74, 158, 255, 0.15)",
+    borderRadius: 8,
+    width: 42,
+    height: 42,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: "rgba(74, 158, 255, 0.3)",
+  },
+  letterBoxSimilar: {
+    backgroundColor: "rgba(243, 156, 18, 0.15)",
+    borderRadius: 8,
+    width: 42,
+    height: 42,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: "rgba(243, 156, 18, 0.3)",
+  },
+  letterChar: {
+    fontFamily: fontFamily.arabic,
+    fontSize: 26,
+    color: colors.arabic,
+    writingDirection: "rtl",
+    lineHeight: 36,
+  },
+  letterNeq: {
+    fontSize: 16,
+    color: colors.textSecondary,
+    fontWeight: "600",
+  },
+
+  /* Confusion analysis — morphological decomposition */
+  decompSection: {
+    backgroundColor: "rgba(100, 140, 180, 0.06)",
+    borderRadius: 10,
+    borderLeftWidth: 3,
+    borderLeftColor: "rgba(100, 140, 180, 0.3)",
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    gap: 6,
+  },
+  decompSectionTitle: {
+    fontSize: 11,
+    color: colors.accent,
+    fontWeight: "700",
+    textTransform: "uppercase",
+    letterSpacing: 0.6,
   },
   decompRow: {
     flexDirection: "row",
@@ -843,44 +944,51 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     gap: 4,
     flexWrap: "wrap",
-    direction: "rtl",
   },
-  cliticPill: {
-    backgroundColor: "rgba(243, 156, 18, 0.12)",
-    borderRadius: 6,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
+  decompSegment: {
     alignItems: "center",
+    gap: 3,
   },
-  cliticAr: {
+  decompClitic: {
+    backgroundColor: "rgba(243, 156, 18, 0.12)",
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  decompCliticAr: {
     fontFamily: fontFamily.arabic,
-    fontSize: 15,
+    fontSize: 18,
     color: colors.confused,
     writingDirection: "rtl",
   },
-  cliticLabel: {
-    fontSize: 9,
+  decompLabel: {
+    fontSize: 10,
     color: colors.textSecondary,
     fontWeight: "500",
   },
-  stemPill: {
+  decompPlus: {
+    fontSize: 16,
+    color: colors.textSecondary,
+    fontWeight: "600",
+    marginTop: 6,
+  },
+  decompStem: {
     backgroundColor: "rgba(100, 140, 180, 0.12)",
-    borderRadius: 6,
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    alignItems: "center",
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
     borderWidth: 1,
     borderColor: "rgba(100, 140, 180, 0.25)",
   },
-  stemAr: {
+  decompStemAr: {
     fontFamily: fontFamily.arabic,
-    fontSize: 15,
+    fontSize: 18,
     color: colors.text,
     fontWeight: "700",
     writingDirection: "rtl",
   },
-  stemLabel: {
-    fontSize: 9,
+  decompStemLabel: {
+    fontSize: 10,
     color: colors.accent,
     fontWeight: "600",
   },
