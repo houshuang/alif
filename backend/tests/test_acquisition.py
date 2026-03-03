@@ -42,6 +42,14 @@ def _add_review_on_date(db, lemma_id, date_val):
     db.flush()
 
 
+def _bypass_tier0(db, lemma_id):
+    """Submit a Hard first review so tier-0 (first-correct instant grad) doesn't fire.
+
+    After: times_seen=1, times_correct=0, box=1.
+    """
+    submit_acquisition_review(db, lemma_id, rating_int=2)
+
+
 # --- start_acquisition ---
 
 
@@ -92,12 +100,107 @@ def test_start_acquisition_sets_correct_due_time(db_session):
     assert expected_min <= ulk.acquisition_next_due <= expected_max
 
 
+# --- submit_acquisition_review: tiered graduation ---
+
+
+def test_tier0_first_correct_graduates(db_session):
+    """First correct review (times_seen=0) → instant graduation."""
+    lemma = _create_lemma(db_session)
+    start_acquisition(db_session, lemma.lemma_id)
+
+    result = submit_acquisition_review(db_session, lemma.lemma_id, rating_int=3)
+    assert result["graduated"] is True
+    assert result["new_state"] == "learning"
+
+    ulk = db_session.query(UserLemmaKnowledge).filter_by(lemma_id=lemma.lemma_id).first()
+    assert ulk.knowledge_state == "learning"
+    assert ulk.acquisition_box is None
+    assert ulk.fsrs_card_json is not None
+
+
+def test_tier0_first_hard_does_not_graduate(db_session):
+    """Hard rating on first review does NOT trigger tier-0."""
+    lemma = _create_lemma(db_session)
+    start_acquisition(db_session, lemma.lemma_id)
+
+    result = submit_acquisition_review(db_session, lemma.lemma_id, rating_int=2)
+    assert result["new_state"] == "acquiring"
+    assert result.get("graduated") is not True
+
+
+def test_tier0_first_again_does_not_graduate(db_session):
+    """Again rating on first review does NOT trigger tier-0."""
+    lemma = _create_lemma(db_session)
+    start_acquisition(db_session, lemma.lemma_id)
+
+    result = submit_acquisition_review(db_session, lemma.lemma_id, rating_int=1)
+    assert result["new_state"] == "acquiring"
+    assert result.get("graduated") is not True
+
+
+def test_tier1_perfect_accuracy_graduates(db_session):
+    """100% accuracy + 3 reviews → graduate from any box."""
+    lemma = _create_lemma(db_session)
+    start_acquisition(db_session, lemma.lemma_id)
+
+    # Simulate prior reviews (e.g., leech re-intro with preserved stats)
+    ulk = db_session.query(UserLemmaKnowledge).filter_by(lemma_id=lemma.lemma_id).first()
+    ulk.times_seen = 2
+    ulk.times_correct = 2
+    db_session.flush()
+
+    # Next correct review: ts=3, tc=3, acc=100% → tier 1 fires
+    _make_due(db_session, lemma.lemma_id)
+    result = submit_acquisition_review(db_session, lemma.lemma_id, rating_int=3)
+    assert result["graduated"] is True
+    assert result["new_state"] == "learning"
+
+
+def test_tier2_high_accuracy_graduates(db_session):
+    """≥80% accuracy + 4 reviews + box ≥ 2 → graduate."""
+    lemma = _create_lemma(db_session)
+    start_acquisition(db_session, lemma.lemma_id)
+
+    # Set up: box 2, 4 reviews, 3 correct (75% before this review)
+    ulk = db_session.query(UserLemmaKnowledge).filter_by(lemma_id=lemma.lemma_id).first()
+    ulk.times_seen = 4
+    ulk.times_correct = 3
+    ulk.acquisition_box = 2
+    db_session.flush()
+
+    # Next correct: ts=5, tc=4, acc=80%, box=2 → tier 2 fires
+    _make_due(db_session, lemma.lemma_id)
+    result = submit_acquisition_review(db_session, lemma.lemma_id, rating_int=3)
+    assert result["graduated"] is True
+    assert result["new_state"] == "learning"
+
+
+def test_tier2_blocked_by_low_accuracy(db_session):
+    """Tier 2 requires ≥80% accuracy. Word with 60% at box 2 stays acquiring."""
+    lemma = _create_lemma(db_session)
+    start_acquisition(db_session, lemma.lemma_id)
+
+    ulk = db_session.query(UserLemmaKnowledge).filter_by(lemma_id=lemma.lemma_id).first()
+    ulk.times_seen = 4
+    ulk.times_correct = 2  # 50% before this review
+    ulk.acquisition_box = 2
+    db_session.flush()
+
+    # ts=5, tc=3, acc=60%, box=2 → tier 1: no (60%≠100%), tier 2: no (60%<80%)
+    _make_due(db_session, lemma.lemma_id)
+    result = submit_acquisition_review(db_session, lemma.lemma_id, rating_int=3)
+    assert result["new_state"] == "acquiring"
+    assert result.get("graduated") is not True
+
+
 # --- submit_acquisition_review: box advancement ---
+# (These tests bypass tier-0 with a Hard first review)
 
 
 def test_box_advancement(db_session):
     lemma = _create_lemma(db_session)
     start_acquisition(db_session, lemma.lemma_id)
+    _bypass_tier0(db_session, lemma.lemma_id)
 
     # Box 1 -> 2 with rating 3 (Good) — always allowed within session
     result = submit_acquisition_review(db_session, lemma.lemma_id, rating_int=3)
@@ -115,6 +218,7 @@ def test_box2_no_advance_when_not_due(db_session):
     """Box 2→3 is blocked when word is not due (within-session review)."""
     lemma = _create_lemma(db_session)
     start_acquisition(db_session, lemma.lemma_id)
+    _bypass_tier0(db_session, lemma.lemma_id)
 
     # Box 1 -> 2
     submit_acquisition_review(db_session, lemma.lemma_id, rating_int=3)
@@ -122,14 +226,14 @@ def test_box2_no_advance_when_not_due(db_session):
     result = submit_acquisition_review(db_session, lemma.lemma_id, rating_int=3)
     assert result["acquisition_box"] == 2  # stays in box 2
 
-    # But times_seen should still be incremented
     ulk = db_session.query(UserLemmaKnowledge).filter_by(lemma_id=lemma.lemma_id).first()
-    assert ulk.times_seen == 2
+    assert ulk.times_seen == 3  # Hard + Good + Good
 
 
 def test_box_advancement_with_easy_rating(db_session):
     lemma = _create_lemma(db_session)
     start_acquisition(db_session, lemma.lemma_id)
+    _bypass_tier0(db_session, lemma.lemma_id)
 
     # Rating 4 (Easy) should also advance
     result = submit_acquisition_review(db_session, lemma.lemma_id, rating_int=4)
@@ -139,6 +243,7 @@ def test_box_advancement_with_easy_rating(db_session):
 def test_box_reset_on_again(db_session):
     lemma = _create_lemma(db_session)
     start_acquisition(db_session, lemma.lemma_id)
+    _bypass_tier0(db_session, lemma.lemma_id)
 
     # Advance to box 2
     submit_acquisition_review(db_session, lemma.lemma_id, rating_int=3)
@@ -152,6 +257,7 @@ def test_box_reset_on_again(db_session):
 def test_box_reset_from_box_3(db_session):
     lemma = _create_lemma(db_session)
     start_acquisition(db_session, lemma.lemma_id)
+    _bypass_tier0(db_session, lemma.lemma_id)
 
     # Advance to box 3 (with proper due dates)
     submit_acquisition_review(db_session, lemma.lemma_id, rating_int=3)  # box 1->2
@@ -169,7 +275,7 @@ def test_hard_stays_in_box(db_session):
     lemma = _create_lemma(db_session)
     start_acquisition(db_session, lemma.lemma_id)
 
-    # Rating 2 (Hard) in box 1 stays in box 1
+    # Rating 2 (Hard) in box 1 stays in box 1 (also bypasses tier-0)
     result = submit_acquisition_review(db_session, lemma.lemma_id, rating_int=2)
     assert result["acquisition_box"] == 1
     assert result["new_state"] == "acquiring"
@@ -178,6 +284,7 @@ def test_hard_stays_in_box(db_session):
 def test_hard_stays_in_box_2(db_session):
     lemma = _create_lemma(db_session)
     start_acquisition(db_session, lemma.lemma_id)
+    _bypass_tier0(db_session, lemma.lemma_id)
 
     # Advance to box 2
     submit_acquisition_review(db_session, lemma.lemma_id, rating_int=3)
@@ -187,35 +294,37 @@ def test_hard_stays_in_box_2(db_session):
     assert result["acquisition_box"] == 2
 
 
-# --- submit_acquisition_review: graduation ---
+# --- submit_acquisition_review: tier 3 (standard) graduation ---
 
 
-def test_graduation(db_session):
+def test_graduation_tier3(db_session):
+    """Standard graduation: box ≥ 3, 5+ reviews, ≥60% accuracy, 2 calendar days."""
     lemma = _create_lemma(db_session)
     start_acquisition(db_session, lemma.lemma_id)
 
-    # Advance to box 3 with proper due dates
-    submit_acquisition_review(db_session, lemma.lemma_id, rating_int=3)  # box 1->2
+    # Hard + Again to keep accuracy below 80% (blocks tier 1/2)
+    submit_acquisition_review(db_session, lemma.lemma_id, rating_int=2)  # ts=1, tc=0
+    submit_acquisition_review(db_session, lemma.lemma_id, rating_int=1)  # ts=2, tc=0, box→1
+
+    # Advance to box 3
+    submit_acquisition_review(db_session, lemma.lemma_id, rating_int=3)  # box 1→2, ts=3, tc=1 (33%)
     _make_due(db_session, lemma.lemma_id)
-    submit_acquisition_review(db_session, lemma.lemma_id, rating_int=3)  # box 2->3
+    submit_acquisition_review(db_session, lemma.lemma_id, rating_int=3)  # box 2→3, ts=4, tc=2 (50%)
 
     ulk = db_session.query(UserLemmaKnowledge).filter_by(lemma_id=lemma.lemma_id).first()
     assert ulk.acquisition_box == 3
 
-    # Add review history spanning 2 calendar days (for graduation check)
+    # Add review history spanning 2 calendar days
     from datetime import date
     today = date.today()
     yesterday = today - timedelta(days=1)
     _add_review_on_date(db_session, lemma.lemma_id, yesterday)
     _add_review_on_date(db_session, lemma.lemma_id, today)
 
-    # Need GRADUATION_MIN_REVIEWS total. Already have 2, need 3 more.
-    # Make word due for box 3 review each time
-    for _ in range(GRADUATION_MIN_REVIEWS - 2):
-        _make_due(db_session, lemma.lemma_id)
-        submit_acquisition_review(db_session, lemma.lemma_id, rating_int=3)
+    # Need GRADUATION_MIN_REVIEWS=5. Already have 4, need 1 more.
+    _make_due(db_session, lemma.lemma_id)
+    submit_acquisition_review(db_session, lemma.lemma_id, rating_int=3)  # ts=5, tc=3, acc=60%
 
-    # That last review should have triggered graduation
     db_session.refresh(ulk)
     assert ulk.knowledge_state == "learning"
     assert ulk.acquisition_box is None
@@ -228,15 +337,14 @@ def test_graduation_returns_graduated_flag(db_session):
     lemma = _create_lemma(db_session)
     start_acquisition(db_session, lemma.lemma_id)
 
-    # Get to box 3 with proper due dates
-    submit_acquisition_review(db_session, lemma.lemma_id, rating_int=3)  # box 1->2
-    _make_due(db_session, lemma.lemma_id)
-    submit_acquisition_review(db_session, lemma.lemma_id, rating_int=3)  # box 2->3
+    # Hard + Again for low accuracy path
+    submit_acquisition_review(db_session, lemma.lemma_id, rating_int=2)
+    submit_acquisition_review(db_session, lemma.lemma_id, rating_int=1)
 
-    # Accumulate reviews with proper due dates
-    for _ in range(GRADUATION_MIN_REVIEWS - 3):
-        _make_due(db_session, lemma.lemma_id)
-        submit_acquisition_review(db_session, lemma.lemma_id, rating_int=3)
+    # Advance to box 3
+    submit_acquisition_review(db_session, lemma.lemma_id, rating_int=3)  # box 1→2
+    _make_due(db_session, lemma.lemma_id)
+    submit_acquisition_review(db_session, lemma.lemma_id, rating_int=3)  # box 2→3
 
     # Add calendar day spread
     from datetime import date
@@ -244,28 +352,31 @@ def test_graduation_returns_graduated_flag(db_session):
 
     # The graduating review (must be due)
     _make_due(db_session, lemma.lemma_id)
-    result = submit_acquisition_review(db_session, lemma.lemma_id, rating_int=3)
+    result = submit_acquisition_review(db_session, lemma.lemma_id, rating_int=3)  # ts=5, tc=3, acc=60%
     assert result["graduated"] is True
     assert result["new_state"] == "learning"
 
 
 def test_no_graduation_single_calendar_day(db_session):
-    """Words can't graduate if all reviews are on the same calendar day."""
+    """Tier 3 needs 2+ calendar days; tiers 1/2 blocked by low accuracy."""
     lemma = _create_lemma(db_session)
     start_acquisition(db_session, lemma.lemma_id)
 
-    # Advance to box 3
-    submit_acquisition_review(db_session, lemma.lemma_id, rating_int=3)
-    _make_due(db_session, lemma.lemma_id)
-    submit_acquisition_review(db_session, lemma.lemma_id, rating_int=3)
+    # Hard + Again for low accuracy (blocks tier 1/2)
+    submit_acquisition_review(db_session, lemma.lemma_id, rating_int=2)
+    submit_acquisition_review(db_session, lemma.lemma_id, rating_int=1)
 
-    # Accumulate enough reviews (all on same day in DB)
-    for _ in range(GRADUATION_MIN_REVIEWS - 2):
-        _make_due(db_session, lemma.lemma_id)
-        submit_acquisition_review(db_session, lemma.lemma_id, rating_int=3)
+    # Advance to box 3
+    submit_acquisition_review(db_session, lemma.lemma_id, rating_int=3)  # box 1→2
+    _make_due(db_session, lemma.lemma_id)
+    submit_acquisition_review(db_session, lemma.lemma_id, rating_int=3)  # box 2→3
+
+    # One more to reach GRADUATION_MIN_REVIEWS
+    _make_due(db_session, lemma.lemma_id)
+    submit_acquisition_review(db_session, lemma.lemma_id, rating_int=3)  # ts=5, tc=3, acc=60%
 
     ulk = db_session.query(UserLemmaKnowledge).filter_by(lemma_id=lemma.lemma_id).first()
-    # All reviews on same calendar day — should NOT graduate
+    # All reviews same calendar day, accuracy=60% blocks tier 1/2 → should NOT graduate
     assert ulk.knowledge_state == "acquiring"
     assert ulk.acquisition_box == 3
 
@@ -273,11 +384,10 @@ def test_no_graduation_single_calendar_day(db_session):
 def test_no_graduation_low_accuracy(db_session):
     lemma = _create_lemma(db_session)
     start_acquisition(db_session, lemma.lemma_id)
+    _bypass_tier0(db_session, lemma.lemma_id)
 
-    # Advance to box 3 with proper due dates
+    # Advance to box 2
     submit_acquisition_review(db_session, lemma.lemma_id, rating_int=3)  # box 1->2
-    _make_due(db_session, lemma.lemma_id)
-    submit_acquisition_review(db_session, lemma.lemma_id, rating_int=3)  # box 2->3
 
     # Fail a bunch to tank accuracy, resetting to box 1 each time
     for _ in range(6):
@@ -289,12 +399,11 @@ def test_no_graduation_low_accuracy(db_session):
     submit_acquisition_review(db_session, lemma.lemma_id, rating_int=3)  # box 2->3
 
     ulk = db_session.query(UserLemmaKnowledge).filter_by(lemma_id=lemma.lemma_id).first()
-    # times_seen >= GRADUATION_MIN_REVIEWS but accuracy = 4/10 = 40% which is < 60%
     assert ulk.times_seen >= GRADUATION_MIN_REVIEWS
     accuracy = ulk.times_correct / ulk.times_seen
     assert accuracy < GRADUATION_MIN_ACCURACY
 
-    # Try a Good review from box 3 (due) — should NOT graduate due to low accuracy
+    # Good review from box 3 (due) — should NOT graduate due to low accuracy
     _make_due(db_session, lemma.lemma_id)
     result = submit_acquisition_review(db_session, lemma.lemma_id, rating_int=3)
     assert result["new_state"] == "acquiring"
@@ -302,23 +411,20 @@ def test_no_graduation_low_accuracy(db_session):
 
 
 def test_no_graduation_few_reviews(db_session):
+    """Two reviews aren't enough for any graduation tier."""
     lemma = _create_lemma(db_session)
     start_acquisition(db_session, lemma.lemma_id)
+    _bypass_tier0(db_session, lemma.lemma_id)
 
-    # Advance to box 3 with proper due dates (only 2 reviews < GRADUATION_MIN_REVIEWS=5)
-    submit_acquisition_review(db_session, lemma.lemma_id, rating_int=3)  # box 1->2
+    # Good to box 2 (must be due for graduation check)
     _make_due(db_session, lemma.lemma_id)
-    submit_acquisition_review(db_session, lemma.lemma_id, rating_int=3)  # box 2->3
+    submit_acquisition_review(db_session, lemma.lemma_id, rating_int=3)  # ts=2, tc=1, box=2
 
     ulk = db_session.query(UserLemmaKnowledge).filter_by(lemma_id=lemma.lemma_id).first()
     assert ulk.times_seen == 2
-    assert ulk.acquisition_box == 3
-
-    # Good review from box 3 (must be due) but not enough total reviews
-    _make_due(db_session, lemma.lemma_id)
-    result = submit_acquisition_review(db_session, lemma.lemma_id, rating_int=3)
-    assert result["new_state"] == "acquiring"
-    assert ulk.acquisition_box == 3  # stays in box 3
+    assert ulk.acquisition_box == 2
+    # Tier 1: 50% ≠ 100%. Tier 2: ts=2 < 4. Tier 3: box=2 < 3.
+    assert ulk.knowledge_state == "acquiring"
 
 
 # --- submit_acquisition_review: review counting ---
@@ -328,20 +434,17 @@ def test_review_increments_times_seen(db_session):
     lemma = _create_lemma(db_session)
     start_acquisition(db_session, lemma.lemma_id)
 
+    # First correct review triggers tier-0 graduation, but still increments counters
     submit_acquisition_review(db_session, lemma.lemma_id, rating_int=3)
     ulk = db_session.query(UserLemmaKnowledge).filter_by(lemma_id=lemma.lemma_id).first()
     assert ulk.times_seen == 1
     assert ulk.times_correct == 1
 
-    submit_acquisition_review(db_session, lemma.lemma_id, rating_int=1)
-    db_session.refresh(ulk)
-    assert ulk.times_seen == 2
-    assert ulk.times_correct == 1  # Again doesn't increment times_correct
-
 
 def test_review_creates_review_log(db_session):
     lemma = _create_lemma(db_session)
     start_acquisition(db_session, lemma.lemma_id)
+    _bypass_tier0(db_session, lemma.lemma_id)
 
     submit_acquisition_review(
         db_session, lemma.lemma_id, rating_int=3,
@@ -349,21 +452,21 @@ def test_review_creates_review_log(db_session):
     )
 
     logs = db_session.query(ReviewLog).filter_by(lemma_id=lemma.lemma_id).all()
-    assert len(logs) == 1
-    assert logs[0].rating == 3
-    assert logs[0].response_ms == 1500
-    assert logs[0].session_id == "sess-1"
-    assert logs[0].is_acquisition is True
-    assert logs[0].fsrs_log_json is not None
-    assert logs[0].fsrs_log_json["acquisition_box_before"] == 1
-    assert logs[0].fsrs_log_json["acquisition_box_after"] == 2
+    assert len(logs) == 2  # Hard + Good
+    good_log = [log for log in logs if log.rating == 3][0]
+    assert good_log.response_ms == 1500
+    assert good_log.session_id == "sess-1"
+    assert good_log.is_acquisition is True
+    assert good_log.fsrs_log_json is not None
+    assert good_log.fsrs_log_json["acquisition_box_before"] == 1
+    assert good_log.fsrs_log_json["acquisition_box_after"] == 2
 
 
 def test_review_updates_total_encounters(db_session):
     lemma = _create_lemma(db_session)
     start_acquisition(db_session, lemma.lemma_id)
 
-    submit_acquisition_review(db_session, lemma.lemma_id, rating_int=3)
+    submit_acquisition_review(db_session, lemma.lemma_id, rating_int=2)
     submit_acquisition_review(db_session, lemma.lemma_id, rating_int=2)
 
     ulk = db_session.query(UserLemmaKnowledge).filter_by(lemma_id=lemma.lemma_id).first()
@@ -376,6 +479,7 @@ def test_review_updates_total_encounters(db_session):
 def test_duplicate_client_review_id(db_session):
     lemma = _create_lemma(db_session)
     start_acquisition(db_session, lemma.lemma_id)
+    _bypass_tier0(db_session, lemma.lemma_id)
 
     result1 = submit_acquisition_review(
         db_session, lemma.lemma_id, rating_int=3, client_review_id="dup-1"
@@ -392,9 +496,9 @@ def test_duplicate_client_review_id(db_session):
     ulk = db_session.query(UserLemmaKnowledge).filter_by(lemma_id=lemma.lemma_id).first()
     assert ulk.acquisition_box == 2  # still box 2 from first review
 
-    # Only one ReviewLog entry
+    # Only two ReviewLog entries (Hard bypass + Good)
     logs = db_session.query(ReviewLog).filter_by(lemma_id=lemma.lemma_id).all()
-    assert len(logs) == 1
+    assert len(logs) == 2
 
 
 # --- submit_acquisition_review: non-acquiring word ---
@@ -566,6 +670,10 @@ def test_box_intervals_are_correct(db_session):
     assert due >= before + timedelta(hours=4) - timedelta(seconds=5)
     assert due <= before + timedelta(hours=4) + timedelta(seconds=5)
 
+    # Hard to bypass tier-0, then make due for next review
+    _bypass_tier0(db_session, lemma.lemma_id)
+    _make_due(db_session, lemma.lemma_id)
+
     # Advance to box 2 (box 1→2 always allowed) and check interval: 1 day
     before = _strip_tz(datetime.now(timezone.utc))
     submit_acquisition_review(db_session, lemma.lemma_id, rating_int=3)
@@ -629,24 +737,9 @@ def test_count_known_root_siblings_no_root(db_session):
 
 
 def _graduate_word(db_session, lemma_id):
-    """Helper: advance a word through all acquisition boxes until graduation."""
-    from datetime import date
-
+    """Helper: graduate a word via tier-0 (first correct review → instant graduation)."""
     start_acquisition(db_session, lemma_id)
-    # box 1 -> 2
     submit_acquisition_review(db_session, lemma_id, rating_int=3)
-    # box 2 -> 3 (must be due)
-    _make_due(db_session, lemma_id)
-    submit_acquisition_review(db_session, lemma_id, rating_int=3)
-    # Add reviews on 2 calendar days
-    today = date.today()
-    yesterday = today - timedelta(days=1)
-    _add_review_on_date(db_session, lemma_id, yesterday)
-    _add_review_on_date(db_session, lemma_id, today)
-    # Reach GRADUATION_MIN_REVIEWS (already have 2 box advances)
-    for _ in range(GRADUATION_MIN_REVIEWS - 2):
-        _make_due(db_session, lemma_id)
-        submit_acquisition_review(db_session, lemma_id, rating_int=3)
 
 
 def test_root_boost_graduation_easy_rating(db_session):
@@ -667,7 +760,7 @@ def test_root_boost_graduation_easy_rating(db_session):
         db_session.add(ulk)
     db_session.flush()
 
-    # Graduate the target word (goes through full box progression)
+    # Graduate the target word (tier-0: first correct review)
     _graduate_word(db_session, target_lemma.lemma_id)
 
     ulk = db_session.query(UserLemmaKnowledge).filter_by(lemma_id=target_lemma.lemma_id).first()

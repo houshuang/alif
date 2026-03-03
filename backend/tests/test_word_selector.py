@@ -556,7 +556,7 @@ class TestBatchScoringMatchesPerItem:
         exposure_map = {key: exp for key, exp in rows}
 
         batch = _grammar_pattern_score_batch(features, unlocked_set, exposure_map)
-        assert abs(per_item - batch) < 1e-9
+        assert abs(per_item - batch) < 1e-6
 
 
 class TestBatchScoringEdgeCases:

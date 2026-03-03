@@ -4,6 +4,42 @@
 
 ---
 
+## Monitoring & Check-ins
+
+- [2026-03-10] CHECK: Lapse rate for fast-graduated words (tier 0/1/2). Expected ≤2%. If higher, tighten tier 0 (require rating ≥ 4) or tier 1 (require 4+ reviews). Query: words graduated since 2026-03-03 with times_seen at graduation ≤ 4, check current knowledge_state for "lapsed".
+
+---
+
+## Confusable Words / Visual Similarity
+
+### Rasm-Based Confusable Pair Detection
+- Compute rasm (dotless skeleton) for all vocabulary; words sharing a rasm are maximal confusables (e.g., بنت/بيت, حبر/خبر)
+- Use `rasmipy` library or custom rasm extraction (prototype at `/tmp/claude/arabic_similarity.py`)
+- Store in `confusable_pairs` table: `(lemma_id_a, lemma_id_b, similarity_score, similarity_type)`
+- Research: `research/confusable-words-research-2026-03-03.md`
+
+### Session Builder: No Same-Rasm Pairs in Same Session
+- Prevents interference — AnnA (Anki) and research (Carvalho & Goldstone 2014) show spacing similar items reduces confusion
+- Constraint: if word A's rasm matches word B's rasm, don't put both in the same session
+
+### Confusable Word Info Display
+- In word detail / word info card, show "Visually Similar Words" section
+- Highlight distinguishing feature (e.g., "خبر differs from حبر by: خ has one dot above")
+- WaniKani's "Visually Similar Kanji" feature is the model to follow
+
+### Contrastive Review Mode (Future)
+- Once both words in a confusable pair are stable (FSRS stability > 10d), present contrastive sentence pairs
+- "حبر الكاتب جميل" vs "خبر اليوم مهم" — learner identifies which is which
+- Research shows interleaving is better for HIGH-similarity items (Carvalho & Goldstone 2014)
+- ONLY when both words are well-established — presenting confusables to novices causes harmful interference
+
+### Leech Interference Analysis
+- When a word becomes a leech, check if its confusable partner was recently reviewed
+- If correlation found → "interference leech" rather than "knowledge gap leech"
+- Intervention: suspend partner temporarily, add contrastive card
+
+---
+
 ## Core Learning Model
 
 ### Word Knowledge Tracking

@@ -315,7 +315,7 @@ def get_word(lemma_id: int, db: Session = Depends(get_db)):
                 ReviewLog.sentence_id.label("sentence_id"),
                 func.count(ReviewLog.id).label("seen_count"),
                 func.sum(case((ReviewLog.rating == 1, 1), else_=0)).label("missed_count"),
-                func.sum(case((ReviewLog.rating == 2, 1), else_=0)).label("confused_count"),
+                func.sum(case((ReviewLog.was_confused == True, 1), else_=0)).label("confused_count"),  # noqa: E712
                 func.sum(case((ReviewLog.rating >= 3, 1), else_=0)).label("understood_count"),
                 func.sum(case((ReviewLog.credit_type == "primary", 1), else_=0)).label("primary_count"),
                 func.sum(case((ReviewLog.credit_type == "collateral", 1), else_=0)).label("collateral_count"),

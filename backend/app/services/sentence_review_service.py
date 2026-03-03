@@ -38,7 +38,7 @@ def submit_sentence_review(
     """Submit a review for a whole sentence, distributing ratings to words.
 
     - "understood" -> all words get rating=3
-    - "partial" + missed/confused -> missed get rating=1, confused get rating=2, rest get rating=3
+    - "partial" + missed/confused -> missed get rating=1, confused get rating=3 (was_confused flag set), rest get rating=3
     - "no_idea" -> all words get rating=1
 
     Previously unseen words are routed through acquisition (Leitner box 1)
@@ -163,6 +163,7 @@ def submit_sentence_review(
             continue
         processed_effective_ids.add(effective_lemma_id)
 
+        is_confused = False
         if comprehension_signal == "understood":
             rating = 3
         elif comprehension_signal == "partial":
@@ -170,7 +171,10 @@ def submit_sentence_review(
             if lemma_id in missed_set or effective_lemma_id in missed_set:
                 rating = 1
             elif lemma_id in confused_set or effective_lemma_id in confused_set:
-                rating = 2
+                # Confused = knew the word but didn't recognize it in context.
+                # Give full FSRS credit (rating=3) but track confusion separately.
+                rating = 3
+                is_confused = True
             else:
                 rating = 3
         else:  # no_idea
@@ -213,6 +217,7 @@ def submit_sentence_review(
                 comprehension_signal=comprehension_signal,
                 client_review_id=review_client_id,
                 commit=False,
+                was_confused=is_confused,
             )
         else:
             result = submit_review(
@@ -225,6 +230,7 @@ def submit_sentence_review(
                 comprehension_signal=comprehension_signal,
                 client_review_id=review_client_id,
                 commit=False,
+                was_confused=is_confused,
             )
         is_duplicate = bool(result.get("duplicate"))
         # Tag the review log entry with sentence context
@@ -264,7 +270,7 @@ def submit_sentence_review(
                     entry["seen"] = entry.get("seen", 0) + 1
                     if rating == 1:
                         entry["missed"] = entry.get("missed", 0) + 1
-                    elif rating == 2:
+                    elif is_confused:
                         entry["confused"] = entry.get("confused", 0) + 1
                     vstats[surface_bare] = entry
                     knowledge.variant_stats_json = vstats

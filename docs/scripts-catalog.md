@@ -47,6 +47,9 @@ All scripts in `backend/scripts/`. Run from `backend/` directory.
 - `backfill_wazn.py` — Backfill morphological pattern (wazn) for lemmas. Phase 1: extract from existing etymology_json.pattern (no LLM). Phase 2: LLM classify remaining root-bearing lemmas. `--phase=1|2|both`, `--batch-size=N`, `--limit=N`, `--dry-run`.
 - `backfill_word_categories.py` — Classify existing lemmas as proper_name/onomatopoeia via StoryWord cross-ref + LLM batch, --dry-run.
 
+## One-Time Migrations
+- `batch_graduate_perfect.py` — Graduate all acquiring words with perfect accuracy (100%) and ≥3 reviews. One-time fix for 41 stuck words. `--dry-run`, `--min-reviews=N`, `--min-accuracy=N`.
+
 ## Cleanup & Maintenance
 - `cleanup_bad_roots.py` — LLM-assisted bad root classification and cleanup (POS fixes, variant linking).
 - `cleanup_review_pool.py` — Reset under-learned→acquiring, suspend variant ULKs with stat merge, suspend junk, retire bad sentences, run variant detection on uncovered words.

@@ -4,6 +4,80 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-03-03: Confused Rating No Longer Penalizes FSRS
+
+### Problem
+Yellow (confused) marking was giving words `Rating.Hard` (rating=2) in FSRS, dragging down stability and counting against accuracy. But confusion means "I know this word but didn't recognize it in context" — the issue is disambiguation, not knowledge. The penalty was unfair: it slowed FSRS intervals, prevented acquisition box advancement, counted toward leech detection, and didn't count as correct.
+
+### Change
+- Confused words now get `rating=3` (Good) — full FSRS/acquisition credit
+- New `was_confused` boolean on ReviewLog tracks the confusion signal separately
+- `variant_stats_json` still tracks confused count per variant form
+- Leech check no longer triggers for confused words (they get rating=3)
+- Migration backfills existing rating=2 reviews with `was_confused=1`
+
+### Expected Effect
+- Words you know but confuse should progress normally through FSRS
+- Confusion data preserved for future confusable-pair detection system
+- No change to missed (red) behavior — still rating=1 with full penalty
+
+### Verification
+- Check that confused words don't accumulate in acquisition or get stuck at low stability
+- Monitor `was_confused` flag in ReviewLog for future analysis
+- Compare progression of previously-confused words before/after this change
+
+### Files Changed
+- `backend/app/models.py` — added `was_confused` column to ReviewLog
+- `backend/app/services/sentence_review_service.py` — confused → rating=3, track `is_confused` flag
+- `backend/app/services/fsrs_service.py` — pass `was_confused` to ReviewLog
+- `backend/app/services/acquisition_service.py` — pass `was_confused` to ReviewLog
+- `backend/app/routers/words.py` — confused_count query uses `was_confused` instead of `rating==2`
+- `backend/alembic/versions/a1b2c3d4e567_add_was_confused_to_review_log.py` — migration with backfill
+
+---
+
+## 2026-03-03: Aggressive Graduation — First-Correct + Tiered Fast-Track
+
+### Problem
+Production data (1,080 words, 192 graduates) shows the acquisition pipeline is too conservative:
+- 41 words with 100% accuracy stuck in acquisition (e.g. اِشْتَرَى at 21 reviews, still box 3)
+- Fast graduates (≤6 reviews) have 0% lapse rate vs 2.1% for slow graduates (≥12 reviews)
+- Median 11 reviews to graduate when minimum is 5 — timing constraints are the bottleneck
+- 297 words in acquisition pipeline (7x the backlog threshold of 40)
+- ~1,465 excess reviews on words with ≥95% accuracy
+
+### Change
+Three new graduation tiers added before the existing standard criteria:
+
+1. **Tier 0 — First-correct instant graduation**: If a word's first-ever review is correct (rating ≥ 3), graduate immediately to FSRS. Rationale: if you understand a word on first encounter in a sentence, you don't need acquisition drilling. FSRS provides a 2-day safety net.
+
+2. **Tier 1 — Perfect accuracy fast-track**: 100% accuracy + 3+ reviews → graduate from any box. No calendar-day requirement.
+
+3. **Tier 2 — High accuracy fast-track**: ≥80% accuracy + 4+ reviews + box ≥ 2 → graduate. No calendar-day requirement.
+
+4. **Tier 3 — Standard** (unchanged): box ≥ 3 + 5+ reviews + ≥60% accuracy + 2 calendar days.
+
+Also ran `batch_graduate_perfect.py` to graduate all 41 stuck perfect-accuracy words.
+
+### Expected Impact
+- Acquisition pipeline drops from 297 → ~250 immediately (41 batch graduated)
+- New words that are understood on first try skip acquisition entirely
+- High-accuracy words graduate in 3-4 reviews instead of 11+ median
+- Backlog gate (threshold 40) should stop suppressing new word introductions sooner
+
+### Verification
+- Monitor lapse rate over next 7 days (expect ≤2%, currently 1.6% baseline)
+- Check that fast-graduated words don't cluster in "lapsed" state after a week
+- Acquisition pipeline size should drop significantly within 2-3 sessions
+
+### Files Changed
+- `backend/app/services/acquisition_service.py` — tiered graduation logic
+- `backend/scripts/batch_graduate_perfect.py` — one-time batch graduation script
+- `docs/scheduling-system.md` — updated graduation criteria docs
+- `CLAUDE.md` — design principles update
+
+---
+
 ## 2026-03-03: Due-Date-Tiered Sentence Pipeline
 
 ### Problem

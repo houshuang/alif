@@ -81,7 +81,7 @@ def main():
                 enriched += 1
             else:
                 print("FAILED")
-            time.sleep(1)  # Rate limiting
+            time.sleep(3)  # Rate limiting + memory cooldown for Claude CLI
 
         print(f"\nDone: {enriched}/{min(len(candidates), args.limit)} roots enriched")
     finally:

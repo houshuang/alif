@@ -178,7 +178,9 @@ class TestPartial:
 
 
 class TestConfused:
-    def test_confused_words_get_rating_2(self, db_session):
+    def test_confused_words_get_full_credit(self, db_session):
+        """Confused words get rating=3 (Good) — no FSRS penalty.
+        Confusion is tracked via was_confused flag on ReviewLog instead."""
         _seed_word(db_session, 1, "كتاب", "book")
         _seed_word(db_session, 2, "ولد", "boy")
         _seed_word(db_session, 3, "قرأ", "read")
@@ -196,9 +198,28 @@ class TestConfused:
         )
 
         ratings = {wr["lemma_id"]: wr["rating"] for wr in result["word_results"]}
-        assert ratings[2] == 2  # confused
+        assert ratings[2] == 3  # confused gets full credit
         assert ratings[1] == 3  # not confused
         assert ratings[3] == 3  # not confused
+
+        # Verify was_confused flag is set on the review log
+        from app.models import ReviewLog
+        confused_log = (
+            db_session.query(ReviewLog)
+            .filter(ReviewLog.lemma_id == 2)
+            .order_by(ReviewLog.id.desc())
+            .first()
+        )
+        assert confused_log.was_confused is True
+
+        # Non-confused words should not have the flag
+        other_log = (
+            db_session.query(ReviewLog)
+            .filter(ReviewLog.lemma_id == 1)
+            .order_by(ReviewLog.id.desc())
+            .first()
+        )
+        assert other_log.was_confused is False
 
     def test_mixed_missed_and_confused(self, db_session):
         _seed_word(db_session, 1, "كتاب", "book")
@@ -220,7 +241,7 @@ class TestConfused:
 
         ratings = {wr["lemma_id"]: wr["rating"] for wr in result["word_results"]}
         assert ratings[3] == 1  # missed
-        assert ratings[2] == 2  # confused
+        assert ratings[2] == 3  # confused gets full credit
         assert ratings[1] == 3  # understood
 
     def test_confused_ignored_on_no_idea(self, db_session):
@@ -259,7 +280,7 @@ class TestConfused:
         assert resp.status_code == 200
         data = resp.json()
         ratings = {wr["lemma_id"]: wr["rating"] for wr in data["word_results"]}
-        assert ratings[2] == 2
+        assert ratings[2] == 3  # confused gets full credit
         assert ratings[1] == 3
 
 
@@ -284,8 +305,9 @@ class TestNoIdea:
 
 
 class TestEncounterOnly:
-    def test_word_without_card_starts_acquisition(self, db_session):
-        """Words without ULK records start acquisition (not straight to FSRS)."""
+    def test_word_without_card_starts_acquisition_and_may_graduate(self, db_session):
+        """Words without ULK records start acquisition. With tier-0, first correct
+        review graduates immediately to FSRS (learning state)."""
         _seed_word(db_session, 1, "كتاب", "book")
         _seed_word(db_session, 2, "ولد", "boy", with_card=False)
         _seed_sentence(db_session, 1, "الولد الكتاب", "boy book",
@@ -301,7 +323,8 @@ class TestEncounterOnly:
 
         word2_result = [wr for wr in result["word_results"] if wr["lemma_id"] == 2]
         assert len(word2_result) == 1
-        assert word2_result[0]["new_state"] == "acquiring"
+        # Tier-0: first correct review → instant graduation to FSRS
+        assert word2_result[0]["new_state"] == "learning"
 
     def test_unknown_word_creates_acquiring_record(self, db_session):
         _seed_word(db_session, 1, "كتاب", "book")
@@ -325,9 +348,10 @@ class TestEncounterOnly:
         ).first()
         assert k is not None
         assert k.source == "collateral"
-        assert k.knowledge_state == "acquiring"
-        assert k.acquisition_box == 2  # started box 1, rating=3 advanced to box 2
-        assert k.fsrs_card_json is None
+        # Tier-0: first correct review → instant graduation to FSRS
+        assert k.knowledge_state == "learning"
+        assert k.acquisition_box is None  # cleared on graduation
+        assert k.fsrs_card_json is not None  # FSRS card created
 
 
 class TestSentenceReviewLog:
