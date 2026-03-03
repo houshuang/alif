@@ -1442,7 +1442,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
   if (showingExperimentIntro) {
     const card = experimentIntroCards[experimentIntroIndex];
     const knownSiblings = card.root_family.filter(
-      (s) => s.state === "known" || s.state === "learning"
+      (s) => (s.state === "known" || s.state === "learning") && s.lemma_id !== card.lemma_id
     );
     return (
       <View style={[styles.container, { paddingTop: Math.max(insets.top, 12) }]}>
@@ -1456,7 +1456,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
           showsVerticalScrollIndicator={false}
         >
           <View style={styles.reintroCard}>
-            <Text style={[styles.reintroLabel, { color: colors.accent }]}>New word</Text>
+            {/* Core identity: Arabic + meaning + audio */}
             <View style={styles.reintroWordHeader}>
               <Text style={styles.reintroArabic}>{card.lemma_ar}</Text>
               <PlayButton audioUrl={card.audio_url} word={card.lemma_ar} />
@@ -1471,18 +1471,67 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
               </Text>
             )}
             <FormsRow pos={card.pos} forms={card.forms_json} />
-            <GrammarRow details={card.grammar_details} />
 
+            {/* Pattern decomposition — shows morphological structure */}
+            {card.wazn && (
+              <View style={styles.expIntroHighlight}>
+                <Text style={styles.expIntroHighlightLabel}>Pattern</Text>
+                <Text style={styles.expIntroHighlightText}>
+                  {card.wazn}{card.wazn_meaning ? ` \u2014 ${card.wazn_meaning}` : ""}
+                </Text>
+              </View>
+            )}
+
+            {/* Root connection — links to existing knowledge */}
             {card.root && (
-              <View style={styles.reintroRoot}>
-                <Text style={styles.reintroRootText}>
+              <View style={styles.expIntroHighlight}>
+                <Text style={styles.expIntroHighlightLabel}>Root</Text>
+                <Text style={styles.expIntroHighlightText}>
                   {card.root}
                   {card.root_meaning ? ` \u2014 ${card.root_meaning}` : ""}
                 </Text>
-                {card.root_family.length > 0 && (
-                  <Text style={styles.reintroRootSiblings}>
-                    {knownSiblings.length}/{card.root_family.length}
-                  </Text>
+                {knownSiblings.length > 0 && (
+                  <View style={{ marginTop: 6, gap: 3 }}>
+                    <Text style={{ color: colors.accent, fontSize: 12, fontWeight: "600" }}>
+                      You know {knownSiblings.length} word{knownSiblings.length !== 1 ? "s" : ""} from this root:
+                    </Text>
+                    {knownSiblings.slice(0, 3).map((sib) => (
+                      <Text key={sib.lemma_id} style={{ color: colors.text, fontSize: 13, fontFamily: fontFamily.arabic }}>
+                        {sib.lemma_ar} <Text style={{ color: colors.textSecondary, fontFamily: undefined }}>{sib.gloss_en}</Text>
+                      </Text>
+                    ))}
+                  </View>
+                )}
+              </View>
+            )}
+
+            {/* Etymology — deeper understanding */}
+            {card.etymology?.derivation && (
+              <View style={styles.expIntroHighlight}>
+                <Text style={styles.expIntroHighlightLabel}>Origin</Text>
+                <Text style={styles.expIntroHighlightText}>
+                  {card.etymology.pattern ? `${card.etymology.pattern}: ` : ""}
+                  {card.etymology.derivation}
+                </Text>
+              </View>
+            )}
+
+            {/* Mnemonic — retrieval cue */}
+            {card.memory_hooks?.mnemonic && (
+              <View style={[styles.expIntroHighlight, { backgroundColor: "rgba(74, 158, 255, 0.12)" }]}>
+                <Text style={styles.expIntroHighlightLabel}>Remember</Text>
+                <Text style={styles.expIntroHighlightText}>
+                  {card.memory_hooks.mnemonic}
+                </Text>
+              </View>
+            )}
+
+            {/* Example sentence — usage context */}
+            {card.example_ar && (
+              <View style={styles.reintroExample}>
+                <Text style={styles.reintroExampleAr}>{card.example_ar}</Text>
+                {card.example_en && (
+                  <Text style={styles.reintroExampleEn}>{card.example_en}</Text>
                 )}
               </View>
             )}
@@ -3436,5 +3485,26 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: "600",
     textAlign: "center",
+  },
+  expIntroHighlight: {
+    backgroundColor: colors.surfaceLight,
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    width: "100%",
+    marginTop: 10,
+  },
+  expIntroHighlightLabel: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: colors.accent,
+    textTransform: "uppercase",
+    letterSpacing: 0.8,
+    marginBottom: 4,
+  },
+  expIntroHighlightText: {
+    fontSize: 14,
+    color: colors.text,
+    lineHeight: 20,
   },
 });

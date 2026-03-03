@@ -391,6 +391,10 @@ export interface ReintroCard {
     transliteration: string | null;
     state: string;
   }[];
+  memory_hooks?: { mnemonic?: string; cognates?: string; collocations?: string; usage_context?: string; fun_fact?: string } | null;
+  etymology?: { derivation?: string; pattern?: string; loanwords?: string; cultural_note?: string } | null;
+  wazn?: string | null;
+  wazn_meaning?: string | null;
 }
 
 export interface SentenceReviewSession {

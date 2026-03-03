@@ -334,6 +334,10 @@ class ReintroCardOut(BaseModel):
     grammar_details: list[dict] = []
     times_seen: int = 0
     root_family: list[dict] = []
+    memory_hooks: dict | None = None
+    etymology: dict | None = None
+    wazn: str | None = None
+    wazn_meaning: str | None = None
 
 
 class ReintroResultIn(BaseModel):
