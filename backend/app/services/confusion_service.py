@@ -6,7 +6,7 @@ or visual similarity to other known words. All rule-based, no LLM calls, <50ms.
 
 from sqlalchemy.orm import Session
 
-from app.models import Lemma, UserLemmaKnowledge
+from app.models import Lemma, Root, UserLemmaKnowledge
 from app.services.sentence_validator import (
     PROCLITICS, ENCLITICS, strip_diacritics,
 )
@@ -239,6 +239,76 @@ def _form_label(key: str | None) -> str:
     return FORM_KEY_LABELS.get(key, key.replace("_", " "))
 
 
+# --- Prefix disambiguation ---
+# Single-letter proclitics that are also common root-initial letters
+PREFIX_AMBIGUOUS = {"و", "ف", "ب", "ل", "ك"}
+
+
+def _build_prefix_hint(
+    surface_bare: str,
+    lemma_bare: str,
+    root: "Root | None",
+    decomposition: dict | None,
+) -> dict | None:
+    """Build a hint when a word's first letter could be confused as a proclitic."""
+    if not surface_bare:
+        return None
+
+    first_letter = surface_bare[0]
+    if first_letter not in PREFIX_AMBIGUOUS:
+        return None
+
+    # Did the decomposition find a proclitic starting with this letter?
+    has_proclitic = False
+    if decomposition and decomposition.get("prefix_clitics"):
+        first_clitic_text = decomposition["prefix_clitics"][0]["text"]
+        if first_clitic_text == first_letter or first_clitic_text.startswith(first_letter):
+            has_proclitic = True
+
+    # Does the root start with this letter?
+    root_ar = None
+    root_meaning = None
+    root_starts_with_letter = False
+    if root:
+        root_ar = root.root
+        root_meaning = root.core_meaning_en
+        root_letters = root.root.replace(".", "")
+        if root_letters and root_letters[0] == first_letter:
+            root_starts_with_letter = True
+
+    lemma_starts_with_letter = lemma_bare and lemma_bare[0] == first_letter
+    proclitic_label = PROCLITIC_LABELS.get(first_letter, first_letter)
+
+    if has_proclitic:
+        stem_text = decomposition["stem"] if decomposition else lemma_bare
+        return {
+            "letter": first_letter,
+            "is_prefix": True,
+            "root_ar": root_ar,
+            "root_meaning": root_meaning,
+            "hint_text": f"This {first_letter} is \"{proclitic_label}\" — the core word is {stem_text}",
+        }
+    elif root_starts_with_letter or lemma_starts_with_letter:
+        if root_ar:
+            return {
+                "letter": first_letter,
+                "is_prefix": False,
+                "root_ar": root_ar,
+                "root_meaning": root_meaning,
+                "hint_text": f"{first_letter} here is part of root {root_ar}, not \"{proclitic_label}\"",
+            }
+        else:
+            return {
+                "letter": first_letter,
+                "is_prefix": False,
+                "root_ar": None,
+                "root_meaning": None,
+                "hint_text": f"{first_letter} here is part of the word, not the prefix \"{proclitic_label}\"",
+            }
+
+    return None
+
+
 def find_similar_words(
     db: Session,
     lemma_id: int,
@@ -332,6 +402,9 @@ def analyze_confusion(
     # 2. Visual similarity
     similar_words = find_similar_words(db, lemma_id, lemma_bare)
 
+    # 3. Prefix disambiguation hint
+    prefix_hint = _build_prefix_hint(surface_bare, lemma_bare, lemma.root, decomposition)
+
     # Determine confusion type
     has_morph = decomposition is not None
     has_visual = len(similar_words) > 0
@@ -353,4 +426,5 @@ def analyze_confusion(
         "gloss_en": lemma.gloss_en,
         "decomposition": decomposition,
         "similar_words": similar_words,
+        "prefix_hint": prefix_hint,
     }

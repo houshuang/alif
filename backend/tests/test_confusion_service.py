@@ -9,6 +9,7 @@ from app.services.confusion_service import (
     decompose_surface,
     find_similar_words,
     analyze_confusion,
+    _build_prefix_hint,
     RASM_MAP,
 )
 
@@ -236,3 +237,79 @@ class TestAnalyzeConfusion:
 
         result = analyze_confusion(db, 42, "مدرسة")
         assert result["confusion_type"] is None
+
+
+class TestPrefixHint:
+    def _make_root(self, root_str, meaning=None):
+        m = MagicMock()
+        m.root = root_str
+        m.core_meaning_en = meaning
+        return m
+
+    def test_waw_root_initial(self):
+        """وصل — و is part of root, not 'and'."""
+        root = self._make_root("و.ص.ل", "arriving/connecting")
+        result = _build_prefix_hint("وصل", "وصل", root, None)
+        assert result is not None
+        assert result["is_prefix"] is False
+        assert result["letter"] == "و"
+        assert "و.ص.ل" in result["hint_text"]
+
+    def test_waw_is_prefix(self):
+        """وكتب — و IS 'and', decomposition found it."""
+        root = self._make_root("ك.ت.ب", "writing")
+        decomp = {
+            "prefix_clitics": [{"text": "و", "label": "and", "type": "proclitic"}],
+            "stem": "كتب",
+            "suffix_clitics": [],
+        }
+        result = _build_prefix_hint("وكتب", "كتب", root, decomp)
+        assert result is not None
+        assert result["is_prefix"] is True
+        assert "كتب" in result["hint_text"]
+
+    def test_walad_root_initial(self):
+        """ولد — و is root, not prefix."""
+        root = self._make_root("و.ل.د", "giving birth")
+        result = _build_prefix_hint("ولد", "ولد", root, None)
+        assert result is not None
+        assert result["is_prefix"] is False
+
+    def test_no_hint_non_ambiguous(self):
+        """مدرسة — م is not a prefix letter, no hint."""
+        root = self._make_root("د.ر.س", "studying")
+        result = _build_prefix_hint("مدرسة", "مدرسة", root, None)
+        assert result is None
+
+    def test_ba_root_initial(self):
+        """بدا — ب is root, not 'with'."""
+        root = self._make_root("ب.د.أ", "beginning")
+        result = _build_prefix_hint("بدا", "بدا", root, None)
+        assert result is not None
+        assert result["is_prefix"] is False
+        assert result["letter"] == "ب"
+
+    def test_fa_prefix(self):
+        """فكتب — ف IS 'so/then'."""
+        root = self._make_root("ك.ت.ب", "writing")
+        decomp = {
+            "prefix_clitics": [{"text": "ف", "label": "so/then", "type": "proclitic"}],
+            "stem": "كتب",
+            "suffix_clitics": [],
+        }
+        result = _build_prefix_hint("فكتب", "كتب", root, decomp)
+        assert result is not None
+        assert result["is_prefix"] is True
+        assert result["letter"] == "ف"
+
+    def test_no_root_fallback(self):
+        """Hint works with just lemma when root is None."""
+        result = _build_prefix_hint("وصل", "وصل", None, None)
+        assert result is not None
+        assert result["is_prefix"] is False
+        assert result["root_ar"] is None
+        assert "part of the word" in result["hint_text"]
+
+    def test_empty_surface(self):
+        result = _build_prefix_hint("", "وصل", None, None)
+        assert result is None

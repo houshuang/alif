@@ -677,6 +677,13 @@ class SimilarWord(BaseModel):
     knowledge_state: str | None = None
     key_forms: dict[str, str] = {}
 
+class PrefixHint(BaseModel):
+    letter: str
+    is_prefix: bool
+    root_ar: str | None = None
+    root_meaning: str | None = None
+    hint_text: str
+
 class ConfusionAnalysisOut(BaseModel):
     confusion_type: str | None  # "morphological" | "visual" | "both" | None
     surface_form: str
@@ -685,3 +692,4 @@ class ConfusionAnalysisOut(BaseModel):
     gloss_en: str | None = None
     decomposition: MorphDecomposition | None = None
     similar_words: list[SimilarWord] = []
+    prefix_hint: PrefixHint | None = None

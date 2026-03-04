@@ -879,6 +879,14 @@ export interface SimilarWordItem {
   key_forms: Record<string, string>;
 }
 
+export interface PrefixHint {
+  letter: string;
+  is_prefix: boolean;
+  root_ar: string | null;
+  root_meaning: string | null;
+  hint_text: string;
+}
+
 export interface ConfusionAnalysis {
   confusion_type: "morphological" | "visual" | "both" | null;
   surface_form: string;
@@ -887,6 +895,7 @@ export interface ConfusionAnalysis {
   gloss_en: string | null;
   decomposition: MorphDecomposition | null;
   similar_words: SimilarWordItem[];
+  prefix_hint: PrefixHint | null;
 }
 
 export interface WordJourneyItem {

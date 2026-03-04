@@ -309,6 +309,7 @@ function RevealedView({
 
   const decomp = confusionData?.decomposition;
   const similarWords = confusionData?.similar_words;
+  const prefixHint = confusionData?.prefix_hint;
 
   return (
     <View style={styles.revealedWrap}>
@@ -356,6 +357,22 @@ function RevealedView({
           </Text>
         )}
       </View>
+
+      {/* Confusion analysis — prefix disambiguation */}
+      {prefixHint && (
+        <View style={[styles.prefixHintSection, prefixHint.is_prefix && styles.prefixHintIsPrefix]}>
+          <View style={styles.prefixHintRow}>
+            <Text style={styles.prefixHintLetter}>{prefixHint.letter}</Text>
+            <Text style={styles.prefixHintLabel}>
+              {prefixHint.is_prefix ? `= "${prefixHint.letter === "و" ? "and" : prefixHint.letter === "ف" ? "so/then" : prefixHint.letter === "ب" ? "with/by" : prefixHint.letter === "ل" ? "for/to" : "like/as"}" prefix` : "= part of the root"}
+            </Text>
+            {prefixHint.root_ar && !prefixHint.is_prefix && (
+              <Text style={styles.prefixHintRoot}>{prefixHint.root_ar}</Text>
+            )}
+          </View>
+          <Text style={styles.prefixHintText}>{prefixHint.hint_text}</Text>
+        </View>
+      )}
 
       {/* Confusion analysis — similar words (inline highlighting) */}
       {similarWords && similarWords.length > 0 && (
@@ -867,6 +884,48 @@ const styles = StyleSheet.create({
     color: colors.accent,
     fontSize: 12,
     fontWeight: "600",
+  },
+
+  /* Confusion analysis — prefix disambiguation */
+  prefixHintSection: {
+    backgroundColor: "rgba(46, 204, 113, 0.08)",
+    borderRadius: 10,
+    borderLeftWidth: 3,
+    borderLeftColor: "rgba(46, 204, 113, 0.4)",
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    gap: 3,
+  },
+  prefixHintIsPrefix: {
+    backgroundColor: "rgba(100, 140, 180, 0.08)",
+    borderLeftColor: "rgba(100, 140, 180, 0.4)",
+  },
+  prefixHintRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  prefixHintLetter: {
+    fontFamily: fontFamily.arabic,
+    fontSize: 20,
+    color: colors.accent,
+    fontWeight: "700",
+  },
+  prefixHintLabel: {
+    fontSize: 13,
+    color: colors.text,
+    fontWeight: "600",
+  },
+  prefixHintRoot: {
+    fontFamily: fontFamily.arabic,
+    fontSize: 15,
+    color: colors.accent,
+    writingDirection: "rtl",
+  },
+  prefixHintText: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    lineHeight: 16,
   },
 
   /* Confusion analysis — similar words */
