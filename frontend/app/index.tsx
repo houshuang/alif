@@ -2343,6 +2343,7 @@ function SessionComplete({
   sessionId: string;
   onNewSession: () => void;
 }) {
+  const insets = useSafeAreaInsets();
   const [analytics, setAnalytics] = useState<Analytics | null>(null);
   const [deepAnalytics, setDeepAnalytics] = useState<DeepAnalytics | null>(null);
   const [summary, setSummary] = useState<SessionSummary | null>(null);
@@ -2425,7 +2426,7 @@ function SessionComplete({
   return (
     <ScrollView
       style={styles.sessionCompleteScroll}
-      contentContainerStyle={styles.sessionCompleteContent}
+      contentContainerStyle={[styles.sessionCompleteContent, { paddingTop: Math.max(insets.top, 12) + 24 }]}
       showsVerticalScrollIndicator={false}
     >
       {/* Title area */}
@@ -2815,7 +2816,6 @@ const styles = StyleSheet.create({
     backgroundColor: colors.bg,
     alignItems: "center",
     paddingHorizontal: 20,
-    paddingTop: 24,
     paddingBottom: 32,
   },
   listeningContainer: {
