@@ -6,7 +6,7 @@ from sqlalchemy import case
 from sqlalchemy.orm import Session, joinedload
 
 from app.database import get_db, SessionLocal
-from app.models import GrammarFeature, Lemma, Root, UserLemmaKnowledge
+from app.models import GrammarFeature, Lemma, ReviewLog, Root, SentenceReviewLog, UserLemmaKnowledge
 from app.schemas import (
     BulkSyncIn,
     ConfusionAnalysisOut,
@@ -14,6 +14,8 @@ from app.schemas import (
     SentenceSessionOut,
     SentenceReviewSubmitIn,
     SentenceReviewSubmitOut,
+    SessionSummaryOut,
+    WordJourneyItem,
     WrapUpIn,
     WrapUpOut,
     WrapUpCardOut,
@@ -671,3 +673,87 @@ def undo_sentence(
         )
 
     return result
+
+
+@router.get("/session-summary/{session_id}", response_model=SessionSummaryOut)
+def get_session_summary(session_id: str, db: Session = Depends(get_db)):
+    """Return per-word journey data and sentence stats for a completed session."""
+    review_logs = (
+        db.query(ReviewLog, Lemma.lemma_ar, Lemma.gloss_en)
+        .join(Lemma, Lemma.lemma_id == ReviewLog.lemma_id)
+        .filter(ReviewLog.session_id == session_id)
+        .filter(ReviewLog.credit_type == "primary")
+        .order_by(ReviewLog.id)
+        .all()
+    )
+
+    # Deduplicate by lemma_id: first review's old state, last review's new state
+    lemma_first: dict[int, dict] = {}
+    lemma_last: dict[int, dict] = {}
+    for rl, lemma_ar, gloss_en in review_logs:
+        lid = rl.lemma_id
+        log_json = rl.fsrs_log_json or {}
+        entry = {
+            "lemma_id": lid,
+            "lemma_ar": lemma_ar,
+            "gloss_en": gloss_en,
+            "is_acquisition": rl.is_acquisition,
+            "log_json": log_json,
+        }
+        if lid not in lemma_first:
+            lemma_first[lid] = entry
+        lemma_last[lid] = entry
+
+    word_journeys = []
+    for lid, first in lemma_first.items():
+        last = lemma_last[lid]
+        first_json = first["log_json"]
+        last_json = last["log_json"]
+
+        old_state = first_json.get("pre_knowledge_state", "")
+        if last["is_acquisition"]:
+            new_state = last_json.get("state", "acquiring")
+            graduated = last_json.get("graduated", False)
+            old_box = first_json.get("acquisition_box_before")
+            new_box = last_json.get("acquisition_box_after")
+            if graduated:
+                new_state = "learning"
+                new_box = None
+        else:
+            new_state = last_json.get("state", "")
+            graduated = False
+            old_box = None
+            new_box = None
+
+        word_journeys.append(WordJourneyItem(
+            lemma_id=lid,
+            lemma_ar=first["lemma_ar"],
+            gloss_en=first["gloss_en"],
+            old_state=old_state,
+            new_state=new_state,
+            graduated=graduated,
+            old_box=old_box,
+            new_box=new_box,
+        ))
+
+    # Sentence-level stats
+    sentence_logs = (
+        db.query(SentenceReviewLog)
+        .filter(SentenceReviewLog.session_id == session_id)
+        .all()
+    )
+    sentence_count = len(sentence_logs)
+    sentences_understood = sum(1 for s in sentence_logs if s.comprehension == "understood")
+    sentences_partial = sum(1 for s in sentence_logs if s.comprehension == "partial")
+    sentences_no_idea = sum(1 for s in sentence_logs if s.comprehension == "no_idea")
+    response_times = [s.response_ms for s in sentence_logs if s.response_ms is not None]
+    avg_response_ms = sum(response_times) / len(response_times) if response_times else None
+
+    return SessionSummaryOut(
+        word_journeys=word_journeys,
+        sentence_count=sentence_count,
+        sentences_understood=sentences_understood,
+        sentences_partial=sentences_partial,
+        sentences_no_idea=sentences_no_idea,
+        avg_response_ms=avg_response_ms,
+    )

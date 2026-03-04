@@ -27,6 +27,7 @@ Full endpoint list. See `backend/app/routers/` for implementation.
 | POST | `/api/review/wrap-up` | Wrap-up mini-quiz: word-level recall cards for acquiring words seen in current micro-session. Cards include forms_translit + pattern_examples |
 | POST | `/api/review/recap` | (Deprecated) Was next-session recap — removed from frontend, redundant with within-session repetition |
 | POST | `/api/review/warm-sentences` | Pre-generate sentences for likely next session words (background, returns 202) |
+| GET | `/api/review/session-summary/{session_id}` | Per-word journey data (graduated, box advanced/slipped) + sentence comprehension stats + avg response time for session end card |
 
 ## Learn
 | Method | Path | Description |

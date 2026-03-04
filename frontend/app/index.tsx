@@ -23,6 +23,8 @@ import {
   submitReintroResult,
   acknowledgeExperimentIntro,
   getAnalytics,
+  getDeepAnalytics,
+  getSessionSummary,
   lookupReviewWord,
   prefetchSessions,
   warmSentences,
@@ -42,6 +44,8 @@ import {
   IntroCandidate,
   ReintroCard,
   Analytics,
+  DeepAnalytics,
+  SessionSummary,
   WordLookupResult,
   ConfusionAnalysis,
   GrammarLesson,
@@ -49,6 +53,7 @@ import {
 } from "../lib/types";
 import { posLabel, FormsRow, GrammarRow, PlayButton } from "../lib/WordCardComponents";
 import { syncEvents } from "../lib/sync-events";
+import { flushQueue } from "../lib/sync-queue";
 import { useNetStatus } from "../lib/net-status";
 import ActionMenu from "../lib/review/ActionMenu";
 import SentenceInfoModal from "../lib/review/SentenceInfoModal";
@@ -1258,6 +1263,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
         autoIntroduced={autoIntroduced}
         introducedLemmaIds={introducedLemmaIds}
         wordOutcomes={wordOutcomes}
+        sessionId={sentenceSession?.session_id ?? ""}
         onNewSession={() => loadSession()}
       />
     );
@@ -2326,6 +2332,7 @@ function SessionComplete({
   autoIntroduced,
   introducedLemmaIds,
   wordOutcomes,
+  sessionId,
   onNewSession,
 }: {
   results: SessionResults;
@@ -2333,53 +2340,87 @@ function SessionComplete({
   autoIntroduced: IntroCandidate[];
   introducedLemmaIds: Set<number>;
   wordOutcomes: Map<number, WordOutcome>;
+  sessionId: string;
   onNewSession: () => void;
 }) {
   const [analytics, setAnalytics] = useState<Analytics | null>(null);
+  const [deepAnalytics, setDeepAnalytics] = useState<DeepAnalytics | null>(null);
+  const [summary, setSummary] = useState<SessionSummary | null>(null);
+  const [dataReady, setDataReady] = useState(false);
   const fadeAnim = useRef(new Animated.Value(0)).current;
 
-  const accuracy = results.total > 0
-    ? Math.round((results.gotIt / results.total) * 100)
-    : 0;
-
-  // Words newly learned: got right AND weren't already "known"
-  const newlyLearned: { arabic: string; english: string | null }[] = [];
-  const notKnown: { arabic: string; english: string | null }[] = [];
-  for (const [, w] of wordOutcomes) {
-    if (w.failed) {
-      notKnown.push({ arabic: w.arabic, english: w.english });
-    } else if (w.prevState !== "known") {
-      newlyLearned.push({ arabic: w.arabic, english: w.english });
-    }
-  }
-
-  const showSparkles = accuracy >= 70;
-  const sparkleCount = accuracy === 100 ? 12 : 8;
-
-  const title =
-    accuracy === 100 ? "Perfect!" :
-    accuracy >= 80 ? "Great Session!" :
-    accuracy >= 60 ? "Session Complete" :
-    "Solid Effort!";
-
   useEffect(() => {
-    getAnalytics()
-      .then((data) => {
-        setAnalytics(data);
-        Animated.timing(fadeAnim, {
-          toValue: 1,
-          duration: 400,
-          useNativeDriver: true,
-        }).start();
-      })
-      .catch(() => {});
+    const load = async () => {
+      // Ensure all reviews are synced before fetching summary
+      await flushQueue().catch(() => {});
+      const [a, d, s] = await Promise.all([
+        getAnalytics().catch(() => null),
+        getDeepAnalytics().catch(() => null),
+        sessionId ? getSessionSummary(sessionId).catch(() => null) : Promise.resolve(null),
+      ]);
+      if (a) setAnalytics(a);
+      if (d) setDeepAnalytics(d);
+      if (s) setSummary(s);
+      setDataReady(true);
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 400,
+        useNativeDriver: true,
+      }).start();
+    };
+    load();
     prefetchSessions(mode).catch(() => {});
   }, []);
 
-  const accuracyColor =
-    accuracy >= 80 ? colors.gotIt :
-    accuracy >= 60 ? colors.accent :
-    colors.noIdea;
+  // Derive journey categories from summary
+  const graduated = summary?.word_journeys.filter(w => w.graduated) ?? [];
+  const boxAdvanced = summary?.word_journeys.filter(w =>
+    !w.graduated && w.old_box != null && w.new_box != null && w.new_box > w.old_box
+  ) ?? [];
+  const boxSlipped = summary?.word_journeys.filter(w =>
+    w.old_box != null && w.new_box != null && w.new_box < w.old_box
+  ) ?? [];
+
+  // Box advancement breakdown
+  const boxBreakdown: Record<string, number> = {};
+  for (const w of boxAdvanced) {
+    const key = `${w.old_box}\u2192${w.new_box}`;
+    boxBreakdown[key] = (boxBreakdown[key] || 0) + 1;
+  }
+  const boxBreakdownStr = Object.entries(boxBreakdown)
+    .map(([k, v]) => `Box ${k}: ${v}`)
+    .join(" \u00B7 ");
+
+  // Pipeline data from analytics
+  const pipelineData = deepAnalytics?.acquisition_pipeline;
+
+  // Speed comparison
+  const thisSessionMs = summary?.avg_response_ms;
+  const recentSessions = deepAnalytics?.recent_sessions ?? [];
+  const validSessions = recentSessions.filter(r => r.avg_response_ms != null && r.avg_response_ms < 300_000);
+  const overallAvgMs = validSessions.length > 0
+    ? validSessions.reduce((s, r) => s + (r.avg_response_ms ?? 0), 0) / validSessions.length
+    : null;
+  const speedPctDiff = (thisSessionMs && overallAvgMs && overallAvgMs > 0)
+    ? Math.round(((overallAvgMs - thisSessionMs) / overallAvgMs) * 100)
+    : null;
+  const formatTime = (ms: number) => {
+    const s = Math.round(ms / 1000);
+    return s >= 60 ? `${Math.floor(s / 60)}m ${s % 60}s` : `${s}s`;
+  };
+
+  // Root coverage
+  const topRoots = deepAnalytics?.root_coverage?.top_partial_roots ?? [];
+
+  // Title based on what happened
+  const sentenceCount = summary?.sentence_count ?? results.total;
+  const title = graduated.length > 0
+    ? `${graduated.length} ${graduated.length === 1 ? "word" : "words"} graduated!`
+    : boxAdvanced.length > 0
+      ? "Words moving forward"
+      : "Session Complete";
+
+  const MAX_PILLS = 8;
 
   return (
     <ScrollView
@@ -2387,121 +2428,205 @@ function SessionComplete({
       contentContainerStyle={styles.sessionCompleteContent}
       showsVerticalScrollIndicator={false}
     >
-      {/* Celebration header */}
-      <View style={styles.celebrationHeader}>
-        {showSparkles && <SparkleEffect count={sparkleCount} />}
-        <Text style={styles.celebrationIcon}>
-          {accuracy === 100 ? "\u{1F31F}" : accuracy >= 70 ? "\u2728" : "\u{1F4DA}"}
-        </Text>
-      </View>
-
+      {/* Title area */}
       <Text style={styles.summaryTitle}>{title}</Text>
       <Text style={styles.summarySubtitle}>
-        {mode === "listening" ? "Listening" : "Reading"} mode
+        {sentenceCount} sentences in {mode === "listening" ? "listening" : "reading"} mode
       </Text>
 
-      {/* Accuracy */}
-      <Text style={[styles.accuracyText, { color: accuracyColor }]}>
-        {accuracy}%
-      </Text>
-
+      {/* Hero button */}
       <Pressable style={styles.nextSessionHeroButton} onPress={onNewSession}>
         <Text style={styles.nextSessionHeroTitle}>Next Session</Text>
-        <Text style={styles.nextSessionHeroSubtitle}>
-          Keep momentum while these words are fresh
-        </Text>
       </Pressable>
 
-      {/* Session breakdown */}
-      <View style={styles.summaryGrid}>
-        <View style={styles.summaryItem}>
-          <Text style={[styles.summaryLabel, { color: colors.gotIt }]}>
-            Got it
-          </Text>
-          <Text style={styles.summaryValue}>{results.gotIt}</Text>
-        </View>
-        <View style={styles.summaryItem}>
-          <Text style={[styles.summaryLabel, { color: colors.missed }]}>
-            Missed
-          </Text>
-          <Text style={styles.summaryValue}>{results.missed}</Text>
-        </View>
-        {results.noIdea > 0 && (
-          <View style={styles.summaryItem}>
-            <Text style={[styles.summaryLabel, { color: colors.noIdea }]}>
-              No idea
-            </Text>
-            <Text style={styles.summaryValue}>{results.noIdea}</Text>
+      {/* Journey timeline */}
+      {dataReady && summary && (graduated.length > 0 || boxAdvanced.length > 0 || boxSlipped.length > 0) && (
+        <Animated.View style={[styles.journeyTimeline, { opacity: fadeAnim }]}>
+          {graduated.length > 0 && (
+            <View style={styles.journeyNode}>
+              <View style={[styles.journeyDot, { backgroundColor: colors.gotIt }]} />
+              <View style={styles.journeyContent}>
+                <Text style={[styles.journeyNodeTitle, { color: colors.gotIt }]}>
+                  {graduated.length} {graduated.length === 1 ? "word" : "words"} graduated
+                </Text>
+                <Text style={styles.journeyNodeDetail}>Moved to long-term memory</Text>
+                <View style={styles.wordOutcomePills}>
+                  {graduated.slice(0, MAX_PILLS).map((w) => (
+                    <View key={w.lemma_id} style={[styles.wordOutcomePill, { borderColor: colors.gotIt + "40" }]}>
+                      <Text style={styles.wordOutcomePillAr}>{w.lemma_ar}</Text>
+                      <Text style={styles.wordOutcomePillEn}>{w.gloss_en}</Text>
+                    </View>
+                  ))}
+                  {graduated.length > MAX_PILLS && (
+                    <View style={[styles.wordOutcomePill, { borderColor: colors.border }]}>
+                      <Text style={[styles.wordOutcomePillEn, { color: colors.textSecondary }]}>+{graduated.length - MAX_PILLS}</Text>
+                    </View>
+                  )}
+                </View>
+              </View>
+            </View>
+          )}
+          {boxAdvanced.length > 0 && (
+            <View style={styles.journeyNode}>
+              <View style={[styles.journeyDot, { backgroundColor: colors.noIdea }]} />
+              <View style={styles.journeyContent}>
+                <Text style={[styles.journeyNodeTitle, { color: colors.noIdea }]}>
+                  {boxAdvanced.length} {boxAdvanced.length === 1 ? "word" : "words"} advanced
+                </Text>
+                {boxBreakdownStr ? <Text style={styles.journeyNodeDetail}>{boxBreakdownStr}</Text> : null}
+                <View style={styles.wordOutcomePills}>
+                  {boxAdvanced.slice(0, MAX_PILLS).map((w) => (
+                    <View key={w.lemma_id} style={[styles.wordOutcomePill, { borderColor: colors.noIdea + "40" }]}>
+                      <Text style={styles.wordOutcomePillAr}>{w.lemma_ar}</Text>
+                      <Text style={styles.wordOutcomePillEn}>{w.gloss_en}</Text>
+                    </View>
+                  ))}
+                  {boxAdvanced.length > MAX_PILLS && (
+                    <View style={[styles.wordOutcomePill, { borderColor: colors.border }]}>
+                      <Text style={[styles.wordOutcomePillEn, { color: colors.textSecondary }]}>+{boxAdvanced.length - MAX_PILLS}</Text>
+                    </View>
+                  )}
+                </View>
+              </View>
+            </View>
+          )}
+          {boxSlipped.length > 0 && (
+            <View style={styles.journeyNode}>
+              <View style={[styles.journeyDot, { backgroundColor: colors.missed }]} />
+              <View style={styles.journeyContent}>
+                <Text style={[styles.journeyNodeTitle, { color: colors.missed }]}>
+                  {boxSlipped.length} {boxSlipped.length === 1 ? "word needs" : "words need"} more practice
+                </Text>
+                <View style={styles.wordOutcomePills}>
+                  {boxSlipped.slice(0, MAX_PILLS).map((w) => (
+                    <View key={w.lemma_id} style={[styles.wordOutcomePill, { borderColor: colors.missed + "40" }]}>
+                      <Text style={styles.wordOutcomePillAr}>{w.lemma_ar}</Text>
+                      <Text style={styles.wordOutcomePillEn}>{w.gloss_en}</Text>
+                    </View>
+                  ))}
+                </View>
+              </View>
+            </View>
+          )}
+          {/* Comprehension node */}
+          <View style={styles.journeyNode}>
+            <View style={[styles.journeyDot, { backgroundColor: colors.accent }]} />
+            <View style={styles.journeyContent}>
+              <Text style={[styles.journeyNodeTitle, { color: colors.accent }]}>
+                {summary.sentences_understood} of {summary.sentence_count} sentences fully understood
+              </Text>
+            </View>
           </View>
-        )}
-      </View>
-
-      {/* Word-level outcomes */}
-      {(newlyLearned.length > 0 || notKnown.length > 0) && (
-        <View style={styles.wordOutcomeSection}>
-          {newlyLearned.length > 0 && (
-            <View style={styles.wordOutcomeBlock}>
-              <Text style={[styles.wordOutcomeTitle, { color: colors.gotIt }]}>
-                {newlyLearned.length} {newlyLearned.length === 1 ? "word" : "words"} learned
-              </Text>
-              <View style={styles.wordOutcomePills}>
-                {newlyLearned.map((w, i) => (
-                  <View key={i} style={[styles.wordOutcomePill, { borderColor: colors.gotIt + "60" }]}>
-                    <Text style={styles.wordOutcomePillAr}>{w.arabic}</Text>
-                    <Text style={styles.wordOutcomePillEn}>{w.english}</Text>
-                  </View>
-                ))}
-              </View>
-            </View>
-          )}
-          {notKnown.length > 0 && (
-            <View style={styles.wordOutcomeBlock}>
-              <Text style={[styles.wordOutcomeTitle, { color: colors.missed }]}>
-                {notKnown.length} {notKnown.length === 1 ? "word" : "words"} to review
-              </Text>
-              <View style={styles.wordOutcomePills}>
-                {notKnown.map((w, i) => (
-                  <View key={i} style={[styles.wordOutcomePill, { borderColor: colors.missed + "60" }]}>
-                    <Text style={styles.wordOutcomePillAr}>{w.arabic}</Text>
-                    <Text style={styles.wordOutcomePillEn}>{w.english}</Text>
-                  </View>
-                ))}
-              </View>
-              <Text style={styles.wordOutcomeSupportText}>
-                This is normal. Many good practice sentences include one new word.
-              </Text>
-            </View>
-          )}
-        </View>
+        </Animated.View>
       )}
 
-      {/* Progress nuggets (fades in when analytics loads) */}
-      {analytics && (
-        <Animated.View style={[styles.progressNuggets, { opacity: fadeAnim }]}>
-          <View style={styles.nuggetPill}>
-            <Text style={styles.nuggetText}>
-              {analytics.stats.reviews_today} reviews today
-            </Text>
+      {/* Pipeline bar with deltas */}
+      {dataReady && pipelineData && (
+        <Animated.View style={[styles.sectionCard, { opacity: fadeAnim }]}>
+          <Text style={styles.sectionTitle}>WORD PIPELINE</Text>
+          <View style={styles.pipelineBar}>
+            <View style={{ flex: pipelineData.box_1_count || 1, backgroundColor: colors.missed, borderRadius: 4 }} />
+            <View style={{ flex: pipelineData.box_2_count || 1, backgroundColor: colors.noIdea, borderRadius: 4 }} />
+            <View style={{ flex: pipelineData.box_3_count || 1, backgroundColor: colors.gotIt, borderRadius: 4 }} />
+            <View style={{ flex: analytics?.stats.known || 1, backgroundColor: "#2dd4bf", borderRadius: 4 }} />
           </View>
-          {analytics.pace.current_streak >= 2 && (
-            <View style={styles.nuggetPill}>
-              <Text style={styles.nuggetText}>
-                {analytics.pace.current_streak}d streak
-              </Text>
+          <View style={styles.pipelineLegend}>
+            <View style={styles.pipelineLegendItem}>
+              <View style={[styles.pipelineDot, { backgroundColor: colors.missed }]} />
+              <Text style={styles.pipelineLegendNum}>{pipelineData.box_1_count}</Text>
+              <Text style={styles.pipelineLegendLabel}> new</Text>
+            </View>
+            <View style={styles.pipelineLegendItem}>
+              <View style={[styles.pipelineDot, { backgroundColor: colors.noIdea }]} />
+              <Text style={styles.pipelineLegendNum}>{pipelineData.box_2_count}</Text>
+            </View>
+            <View style={styles.pipelineLegendItem}>
+              <View style={[styles.pipelineDot, { backgroundColor: colors.gotIt }]} />
+              <Text style={styles.pipelineLegendNum}>{pipelineData.box_3_count}</Text>
+            </View>
+            <View style={styles.pipelineLegendItem}>
+              <View style={[styles.pipelineDot, { backgroundColor: "#2dd4bf" }]} />
+              <Text style={styles.pipelineLegendNum}>{analytics?.stats.known ?? 0}</Text>
+              <Text style={styles.pipelineLegendLabel}> known</Text>
+            </View>
+          </View>
+          {(graduated.length > 0 || boxAdvanced.length > 0 || boxSlipped.length > 0) && (
+            <Text style={styles.pipelineDelta}>
+              Session:{" "}
+              {graduated.length > 0 && <Text style={{ color: colors.gotIt, fontWeight: "600" }}>+{graduated.length} known</Text>}
+              {graduated.length > 0 && boxAdvanced.length > 0 && " \u00B7 "}
+              {boxAdvanced.length > 0 && <Text style={{ color: colors.noIdea, fontWeight: "600" }}>+{boxAdvanced.length} advanced</Text>}
+              {(graduated.length > 0 || boxAdvanced.length > 0) && boxSlipped.length > 0 && " \u00B7 "}
+              {boxSlipped.length > 0 && <Text style={{ color: colors.missed, fontWeight: "600" }}>{"\u2212"}{boxSlipped.length} slipped</Text>}
+            </Text>
+          )}
+        </Animated.View>
+      )}
+
+      {/* Speed comparison */}
+      {dataReady && thisSessionMs != null && thisSessionMs < 300_000 && (
+        <Animated.View style={[styles.sectionCard, { opacity: fadeAnim }]}>
+          <Text style={styles.sectionTitle}>RESPONSE SPEED</Text>
+          <View style={styles.speedRow}>
+            <Text style={styles.speedLabel}>This session</Text>
+            <Text style={styles.speedValue}>{formatTime(thisSessionMs)} avg</Text>
+          </View>
+          {overallAvgMs != null && (
+            <View style={styles.speedRow}>
+              <Text style={styles.speedLabel}>Your average</Text>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                <Text style={styles.speedValue}>{formatTime(overallAvgMs)} avg</Text>
+                {speedPctDiff != null && speedPctDiff !== 0 && (
+                  <View style={[styles.speedBadge, {
+                    backgroundColor: speedPctDiff > 0 ? colors.gotIt + "20" : colors.missed + "20",
+                  }]}>
+                    <Text style={{ fontSize: 11, fontWeight: "600", color: speedPctDiff > 0 ? colors.gotIt : colors.missed }}>
+                      {speedPctDiff > 0 ? `${speedPctDiff}% faster` : `${Math.abs(speedPctDiff)}% slower`}
+                    </Text>
+                  </View>
+                )}
+              </View>
             </View>
           )}
-          <View style={styles.nuggetPill}>
-            <Text style={styles.nuggetText}>
-              {analytics.cefr.known_words} words known
-            </Text>
+        </Animated.View>
+      )}
+
+      {/* Today stats */}
+      {dataReady && analytics && (
+        <Animated.View style={[styles.todayRow, { opacity: fadeAnim }]}>
+          <View style={styles.todayStat}>
+            <Text style={[styles.todayNum, { color: "#2dd4bf" }]}>{analytics.stats.reviews_today}</Text>
+            <Text style={styles.todayLabel}>REVIEWS TODAY</Text>
           </View>
-          {analytics.cefr.words_to_next !== null && analytics.cefr.words_to_next <= 20 && (
-            <View style={[styles.nuggetPill, { backgroundColor: colors.accent + "30" }]}>
-              <Text style={[styles.nuggetText, { color: colors.accent }]}>
-                {analytics.cefr.words_to_next} to {analytics.cefr.next_level}
-              </Text>
+          <View style={styles.todayStat}>
+            <Text style={[styles.todayNum, { color: "#2dd4bf" }]}>{summary?.sentence_count ?? results.total}</Text>
+            <Text style={styles.todayLabel}>SENTENCES</Text>
+          </View>
+          {(analytics.graduated_today?.length ?? 0) > 0 && (
+            <View style={styles.todayStat}>
+              <Text style={[styles.todayNum, { color: colors.gotIt }]}>{analytics.graduated_today!.length}</Text>
+              <Text style={styles.todayLabel}>GRAD TODAY</Text>
             </View>
           )}
+        </Animated.View>
+      )}
+
+      {/* Root coverage */}
+      {dataReady && topRoots.length > 0 && (
+        <Animated.View style={[styles.sectionCard, { opacity: fadeAnim }]}>
+          <Text style={styles.sectionTitle}>ROOT FAMILIES — CLOSEST TO COMPLETE</Text>
+          {topRoots.slice(0, 3).map((root) => (
+            <View key={root.root} style={styles.rootNugget}>
+              <Text style={styles.rootAr}>{root.root}</Text>
+              <View style={styles.rootInfo}>
+                <Text style={styles.rootMeaning} numberOfLines={1}>{root.root_meaning}</Text>
+                <View style={styles.rootBar}>
+                  <View style={[styles.rootBarFill, { width: `${(root.known / root.total) * 100}%` }]} />
+                </View>
+              </View>
+              <Text style={styles.rootFrac}>{root.known}/{root.total}</Text>
+            </View>
+          ))}
         </Animated.View>
       )}
 
@@ -2520,17 +2645,6 @@ function SessionComplete({
             ))}
           </View>
         </View>
-      )}
-
-      {/* Motivational message */}
-      {analytics && (
-        <Animated.Text style={[styles.motivationalText, { opacity: fadeAnim }]}>
-          {getMotivationalMessage(
-            accuracy,
-            analytics.pace.current_streak,
-            analytics.cefr.words_to_next,
-          )}
-        </Animated.Text>
       )}
 
       <Pressable style={styles.sessionCompleteFooterButton} onPress={onNewSession}>
@@ -3218,6 +3332,187 @@ const styles = StyleSheet.create({
     color: colors.accent,
     fontSize: 15,
     fontWeight: "700",
+  },
+  // Journey timeline
+  journeyTimeline: {
+    width: "100%",
+    maxWidth: 400,
+    paddingLeft: 8,
+    marginTop: 8,
+    marginBottom: 8,
+    borderLeftWidth: 2,
+    borderLeftColor: colors.border,
+  },
+  journeyNode: {
+    flexDirection: "row" as const,
+    alignItems: "flex-start" as const,
+    marginBottom: 16,
+    marginLeft: -9,
+  },
+  journeyDot: {
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    marginTop: 2,
+    borderWidth: 2,
+    borderColor: colors.bg,
+  },
+  journeyContent: {
+    flex: 1,
+    marginLeft: 10,
+  },
+  journeyNodeTitle: {
+    fontSize: 15,
+    fontWeight: "700" as const,
+    marginBottom: 2,
+  },
+  journeyNodeDetail: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    marginBottom: 6,
+  },
+  // Section cards
+  sectionCard: {
+    width: "100%",
+    maxWidth: 400,
+    backgroundColor: colors.surface,
+    borderRadius: 12,
+    padding: 16,
+    marginTop: 12,
+  },
+  sectionTitle: {
+    fontSize: 11,
+    fontWeight: "700" as const,
+    color: colors.textSecondary,
+    textTransform: "uppercase" as const,
+    letterSpacing: 1.2,
+    marginBottom: 10,
+  },
+  // Pipeline bar
+  pipelineBar: {
+    flexDirection: "row" as const,
+    height: 10,
+    borderRadius: 5,
+    overflow: "hidden" as const,
+    gap: 2,
+    marginBottom: 8,
+  },
+  pipelineLegend: {
+    flexDirection: "row" as const,
+    flexWrap: "wrap" as const,
+    gap: 12,
+    marginTop: 4,
+  },
+  pipelineLegendItem: {
+    flexDirection: "row" as const,
+    alignItems: "center" as const,
+  },
+  pipelineDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    marginRight: 4,
+  },
+  pipelineLegendNum: {
+    fontSize: 13,
+    fontWeight: "700" as const,
+    color: colors.text,
+  },
+  pipelineLegendLabel: {
+    fontSize: 12,
+    color: colors.textSecondary,
+  },
+  pipelineDelta: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    marginTop: 8,
+  },
+  // Speed section
+  speedRow: {
+    flexDirection: "row" as const,
+    justifyContent: "space-between" as const,
+    alignItems: "center" as const,
+    paddingVertical: 4,
+  },
+  speedLabel: {
+    fontSize: 14,
+    color: colors.textSecondary,
+  },
+  speedValue: {
+    fontSize: 14,
+    fontWeight: "600" as const,
+    color: colors.text,
+  },
+  speedBadge: {
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+  },
+  // Today stats
+  todayRow: {
+    flexDirection: "row" as const,
+    justifyContent: "space-around" as const,
+    width: "100%",
+    maxWidth: 400,
+    marginTop: 16,
+    paddingVertical: 12,
+    backgroundColor: colors.surface,
+    borderRadius: 12,
+  },
+  todayStat: {
+    alignItems: "center" as const,
+  },
+  todayNum: {
+    fontSize: 22,
+    fontWeight: "700" as const,
+  },
+  todayLabel: {
+    fontSize: 10,
+    fontWeight: "600" as const,
+    color: colors.textSecondary,
+    letterSpacing: 0.5,
+    marginTop: 2,
+  },
+  // Root coverage
+  rootNugget: {
+    flexDirection: "row" as const,
+    alignItems: "center" as const,
+    marginBottom: 10,
+    gap: 10,
+  },
+  rootAr: {
+    fontSize: 20,
+    fontFamily: fontFamily.arabic,
+    color: colors.arabic,
+    writingDirection: "rtl" as const,
+    width: 50,
+    textAlign: "center" as const,
+  },
+  rootInfo: {
+    flex: 1,
+    gap: 3,
+  },
+  rootMeaning: {
+    fontSize: 12,
+    color: colors.textSecondary,
+  },
+  rootBar: {
+    height: 6,
+    backgroundColor: colors.surfaceLight,
+    borderRadius: 3,
+    overflow: "hidden" as const,
+  },
+  rootBarFill: {
+    height: 6,
+    backgroundColor: colors.gotIt,
+    borderRadius: 3,
+  },
+  rootFrac: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    fontWeight: "600" as const,
+    minWidth: 30,
+    textAlign: "right" as const,
   },
   translitSlot: {
     minHeight: 24,

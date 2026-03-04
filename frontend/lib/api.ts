@@ -33,6 +33,7 @@ import {
   RootDetail,
   PatternListItem,
   PatternDetail,
+  SessionSummary,
 } from "./types";
 import { netStatus } from "./net-status";
 import {
@@ -837,6 +838,10 @@ export async function introduceGrammarFeature(featureKey: string): Promise<{ fea
 
 export async function getDeepAnalytics(): Promise<DeepAnalytics> {
   return fetchApi<DeepAnalytics>("/api/stats/deep-analytics");
+}
+
+export async function getSessionSummary(sessionId: string): Promise<SessionSummary> {
+  return fetchApi<SessionSummary>(`/api/review/session-summary/${sessionId}`);
 }
 
 export async function submitReintroResult(

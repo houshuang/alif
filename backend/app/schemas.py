@@ -380,6 +380,26 @@ class SentenceReviewSubmitOut(BaseModel):
     word_results: list[dict]
 
 
+class WordJourneyItem(BaseModel):
+    lemma_id: int
+    lemma_ar: str
+    gloss_en: str | None
+    old_state: str
+    new_state: str
+    graduated: bool = False
+    old_box: int | None = None
+    new_box: int | None = None
+
+
+class SessionSummaryOut(BaseModel):
+    word_journeys: list[WordJourneyItem]
+    sentence_count: int
+    sentences_understood: int = 0
+    sentences_partial: int = 0
+    sentences_no_idea: int = 0
+    avg_response_ms: float | None = None
+
+
 class BulkSyncItem(BaseModel):
     type: str  # "sentence"
     payload: dict

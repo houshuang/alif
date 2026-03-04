@@ -888,3 +888,23 @@ export interface ConfusionAnalysis {
   decomposition: MorphDecomposition | null;
   similar_words: SimilarWordItem[];
 }
+
+export interface WordJourneyItem {
+  lemma_id: number;
+  lemma_ar: string;
+  gloss_en: string | null;
+  old_state: string;
+  new_state: string;
+  graduated: boolean;
+  old_box: number | null;
+  new_box: number | null;
+}
+
+export interface SessionSummary {
+  word_journeys: WordJourneyItem[];
+  sentence_count: number;
+  sentences_understood: number;
+  sentences_partial: number;
+  sentences_no_idea: number;
+  avg_response_ms: number | null;
+}
