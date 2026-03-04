@@ -309,6 +309,7 @@ function RevealedView({
 
   const decomp = confusionData?.decomposition;
   const similarWords = confusionData?.similar_words;
+  const phoneticSimilar = confusionData?.phonetic_similar;
   const prefixHint = confusionData?.prefix_hint;
 
   return (
@@ -410,6 +411,27 @@ function RevealedView({
               </View>
             );
           })}
+        </View>
+      )}
+
+      {/* Confusion analysis — phonetic similarity */}
+      {phoneticSimilar && phoneticSimilar.length > 0 && (
+        <View style={styles.phoneticSection}>
+          <View style={styles.confusionHeader}>
+            <Ionicons name="ear-outline" size={14} color="#8e44ad" />
+            <Text style={[styles.confusionTitle, { color: "#8e44ad" }]}>Sounds similar</Text>
+          </View>
+          {phoneticSimilar.slice(0, 3).map((pw) => (
+            <View key={pw.lemma_id} style={styles.phoneticItem}>
+              <Text style={styles.phoneticAr}>{pw.lemma_ar}</Text>
+              <Text style={styles.confusionGloss} numberOfLines={1}>{pw.gloss_en ?? "?"}</Text>
+              {pw.confused_pairs.length > 0 && (
+                <View style={styles.phoneticPairsPill}>
+                  <Text style={styles.phoneticPairsText}>{pw.confused_pairs.join(" ")}</Text>
+                </View>
+              )}
+            </View>
+          ))}
         </View>
       )}
 
@@ -985,6 +1007,40 @@ const styles = StyleSheet.create({
     fontStyle: "italic",
     fontFamily: fontFamily.arabic,
     paddingLeft: 2,
+  },
+
+  /* Confusion analysis — phonetic similarity */
+  phoneticSection: {
+    backgroundColor: "rgba(142, 68, 173, 0.06)",
+    borderRadius: 10,
+    borderLeftWidth: 3,
+    borderLeftColor: "rgba(142, 68, 173, 0.4)",
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    gap: 6,
+  },
+  phoneticItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  phoneticAr: {
+    fontFamily: fontFamily.arabic,
+    fontSize: 18,
+    color: colors.text,
+    writingDirection: "rtl",
+  },
+  phoneticPairsPill: {
+    backgroundColor: "rgba(142, 68, 173, 0.12)",
+    borderRadius: 4,
+    paddingHorizontal: 5,
+    paddingVertical: 2,
+  },
+  phoneticPairsText: {
+    fontSize: 10,
+    color: "#8e44ad",
+    fontWeight: "700",
+    fontFamily: fontFamily.arabic,
   },
 
   /* Confusion analysis — color band decomposition */

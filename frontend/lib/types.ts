@@ -879,6 +879,15 @@ export interface SimilarWordItem {
   key_forms: Record<string, string>;
 }
 
+export interface PhoneticSimilarItem {
+  lemma_id: number;
+  lemma_ar: string;
+  gloss_en: string | null;
+  phonetic_distance: number;
+  confused_pairs: string[];
+  knowledge_state: string | null;
+}
+
 export interface PrefixHint {
   letter: string;
   is_prefix: boolean;
@@ -895,6 +904,7 @@ export interface ConfusionAnalysis {
   gloss_en: string | null;
   decomposition: MorphDecomposition | null;
   similar_words: SimilarWordItem[];
+  phonetic_similar: PhoneticSimilarItem[];
   prefix_hint: PrefixHint | null;
 }
 

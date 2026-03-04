@@ -6,8 +6,10 @@ from unittest.mock import MagicMock
 from app.services.confusion_service import (
     edit_distance,
     to_rasm,
+    to_phonetic,
     decompose_surface,
     find_similar_words,
+    find_phonetically_similar,
     analyze_confusion,
     _build_prefix_hint,
     RASM_MAP,
@@ -313,3 +315,57 @@ class TestPrefixHint:
     def test_empty_surface(self):
         result = _build_prefix_hint("", "وصل", None, None)
         assert result is None
+
+
+class TestPhonetic:
+    def test_emphatic_mapping(self):
+        """ص maps to س, ط to ت, etc."""
+        assert to_phonetic("صباح") == "سباه"  # ص→س, ح→ه
+        assert to_phonetic("سبع") == "سبا"    # ع→ا
+        assert to_phonetic("طبخ") == "تبخ"    # ط→ت
+
+    def test_pharyngeal_mapping(self):
+        assert to_phonetic("عين") == "اين"    # ع→ا
+        assert to_phonetic("حب") == "هب"      # ح→ه
+
+    def test_phonetic_distance_sabah_sab(self):
+        """سبع and صباح are phonetically close but visually distant."""
+        from app.services.confusion_service import edit_distance
+        phon_a = to_phonetic("سبع")   # سبع
+        phon_b = to_phonetic("صباح")  # سباه
+        assert edit_distance(phon_a, phon_b) <= 2  # close phonetically
+        assert edit_distance("سبع", "صباح") > 2    # far visually
+
+    def test_find_phonetically_similar(self):
+        db = MagicMock()
+        # سبع (seven) should find صباح (morning) as phonetically similar
+        morning = MagicMock()
+        morning.lemma_id = 251
+        morning.lemma_ar = "صَباح"
+        morning.lemma_ar_bare = "صباح"
+        morning.gloss_en = "morning"
+        morning.pos = "noun"
+        morning.forms_json = None
+        morning.canonical_lemma_id = None
+
+        candidates = [(morning, "encountered")]
+        results = find_phonetically_similar(
+            db, 2272, "سبع", set(), candidates=candidates,
+        )
+        assert len(results) >= 1
+        assert results[0]["lemma_id"] == 251
+
+    def test_no_phonetic_for_visual_match(self):
+        """Words already in visual results are excluded from phonetic."""
+        db = MagicMock()
+        word = MagicMock()
+        word.lemma_id = 10
+        word.lemma_ar = "قلب"
+        word.lemma_ar_bare = "قلب"
+        word.gloss_en = "heart"
+        word.canonical_lemma_id = None
+
+        results = find_phonetically_similar(
+            db, 1, "كلب", {10}, candidates=[(word, "known")],
+        )
+        assert len(results) == 0

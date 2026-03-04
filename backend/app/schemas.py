@@ -677,6 +677,14 @@ class SimilarWord(BaseModel):
     knowledge_state: str | None = None
     key_forms: dict[str, str] = {}
 
+class PhoneticSimilarWord(BaseModel):
+    lemma_id: int
+    lemma_ar: str
+    gloss_en: str | None = None
+    phonetic_distance: int
+    confused_pairs: list[str] = []
+    knowledge_state: str | None = None
+
 class PrefixHint(BaseModel):
     letter: str
     is_prefix: bool
@@ -692,4 +700,5 @@ class ConfusionAnalysisOut(BaseModel):
     gloss_en: str | None = None
     decomposition: MorphDecomposition | None = None
     similar_words: list[SimilarWord] = []
+    phonetic_similar: list[PhoneticSimilarWord] = []
     prefix_hint: PrefixHint | None = None

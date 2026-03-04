@@ -309,27 +309,36 @@ def _build_prefix_hint(
     return None
 
 
-def find_similar_words(
-    db: Session,
-    lemma_id: int,
-    lemma_bare: str,
-    max_results: int = 5,
-) -> list[dict]:
-    """Find visually similar words from the user's studied vocabulary."""
-    target_len = len(lemma_bare)
-    target_rasm = to_rasm(lemma_bare)
+_STUDIED_STATES = ["encountered", "acquiring", "learning", "known", "lapsed"]
 
-    # Query studied vocabulary (non-variant, actively studied)
-    candidates = (
+
+def _query_vocabulary(db: Session, lemma_id: int) -> list[tuple]:
+    """Query all words the user has been exposed to (non-variant)."""
+    return (
         db.query(Lemma, UserLemmaKnowledge.knowledge_state)
         .join(UserLemmaKnowledge, UserLemmaKnowledge.lemma_id == Lemma.lemma_id)
         .filter(
             Lemma.lemma_id != lemma_id,
             Lemma.canonical_lemma_id.is_(None),
-            UserLemmaKnowledge.knowledge_state.in_(["acquiring", "learning", "known", "lapsed"]),
+            UserLemmaKnowledge.knowledge_state.in_(_STUDIED_STATES),
         )
         .all()
     )
+
+
+def find_similar_words(
+    db: Session,
+    lemma_id: int,
+    lemma_bare: str,
+    max_results: int = 5,
+    candidates: list[tuple] | None = None,
+) -> list[dict]:
+    """Find visually similar words from the user's vocabulary."""
+    target_len = len(lemma_bare)
+    target_rasm = to_rasm(lemma_bare)
+
+    if candidates is None:
+        candidates = _query_vocabulary(db, lemma_id)
 
     results = []
     for lemma, ks in candidates:
@@ -380,6 +389,94 @@ def find_similar_words(
     return results[:max_results]
 
 
+# --- Phonetic similarity ---
+# Letters that sound similar to Arabic learners, mapped to a common representative.
+# Emphatic → plain, pharyngeal → non-pharyngeal, interdental → sibilant.
+PHONETIC_MAP: dict[str, str] = {
+    "ص": "س", "ض": "د", "ط": "ت", "ظ": "ذ",   # emphatic → plain
+    "ح": "ه", "ع": "ا",                          # pharyngeal → non-pharyngeal
+    "ث": "س", "ذ": "ز",                          # interdental → sibilant
+    "غ": "خ",                                     # voiced → voiceless uvular
+    "ة": "ه",                                     # ta marbuta → ha
+    "ى": "ي",                                     # alif maqsura → ya
+    "أ": "ا", "إ": "ا", "آ": "ا",               # hamza variants → alif
+}
+
+# Human-readable label for each phonetic pair (original → mapped)
+PHONETIC_PAIR_LABELS: dict[str, str] = {
+    "ص": "ص≈س", "ض": "ض≈د", "ط": "ط≈ت", "ظ": "ظ≈ذ",
+    "ح": "ح≈ه", "ع": "ع≈أ",
+    "ث": "ث≈س", "ذ": "ذ≈ز",
+    "غ": "غ≈خ",
+}
+
+
+def to_phonetic(text: str) -> str:
+    """Convert Arabic text to phonetic skeleton (confusable sounds merged)."""
+    return "".join(PHONETIC_MAP.get(ch, ch) for ch in text)
+
+
+def find_phonetically_similar(
+    db: Session,
+    lemma_id: int,
+    lemma_bare: str,
+    visual_ids: set[int],
+    max_results: int = 3,
+    candidates: list[tuple] | None = None,
+) -> list[dict]:
+    """Find words that sound similar but look different (emphatic/pharyngeal confusion)."""
+    target_phonetic = to_phonetic(lemma_bare)
+
+    if candidates is None:
+        candidates = _query_vocabulary(db, lemma_id)
+
+    results = []
+    for lemma, ks in candidates:
+        if lemma.lemma_id in visual_ids:
+            continue
+        bare = lemma.lemma_ar_bare
+        if not bare:
+            continue
+        # Length filter on phonetic forms: ±1
+        phon_bare = to_phonetic(bare)
+        if abs(len(phon_bare) - len(target_phonetic)) > 1:
+            continue
+        # Must be visually distant (edit > 2) — otherwise already caught by visual
+        visual_ed = edit_distance(lemma_bare, bare)
+        if 0 < visual_ed <= 2:
+            continue
+        # Phonetic edit distance
+        phon_ed = edit_distance(target_phonetic, phon_bare)
+        if phon_ed > 2 or phon_ed == 0:
+            continue
+
+        # Find which phonetic pairs are responsible for the confusion
+        confused_pairs = []
+        for ch in bare:
+            if ch in PHONETIC_PAIR_LABELS and ch != lemma_bare[0:1]:
+                label = PHONETIC_PAIR_LABELS[ch]
+                if label not in confused_pairs:
+                    confused_pairs.append(label)
+        # Also check target word's letters
+        for ch in lemma_bare:
+            if ch in PHONETIC_PAIR_LABELS:
+                label = PHONETIC_PAIR_LABELS[ch]
+                if label not in confused_pairs:
+                    confused_pairs.append(label)
+
+        results.append({
+            "lemma_id": lemma.lemma_id,
+            "lemma_ar": lemma.lemma_ar,
+            "gloss_en": lemma.gloss_en,
+            "phonetic_distance": phon_ed,
+            "confused_pairs": confused_pairs[:3],
+            "knowledge_state": ks,
+        })
+
+    results.sort(key=lambda r: r["phonetic_distance"])
+    return results[:max_results]
+
+
 def analyze_confusion(
     db: Session,
     lemma_id: int,
@@ -399,8 +496,13 @@ def analyze_confusion(
     # 1. Morphological analysis
     decomposition = decompose_surface(surface_bare, lemma_bare, lemma.forms_json)
 
-    # 2. Visual similarity
-    similar_words = find_similar_words(db, lemma_id, lemma_bare)
+    # 2. Visual + phonetic similarity (share one DB query)
+    candidates = _query_vocabulary(db, lemma_id)
+    similar_words = find_similar_words(db, lemma_id, lemma_bare, candidates=candidates)
+    visual_ids = {r["lemma_id"] for r in similar_words}
+    phonetic_similar = find_phonetically_similar(
+        db, lemma_id, lemma_bare, visual_ids, candidates=candidates,
+    )
 
     # 3. Prefix disambiguation hint
     prefix_hint = _build_prefix_hint(surface_bare, lemma_bare, lemma.root, decomposition)
@@ -426,5 +528,6 @@ def analyze_confusion(
         "gloss_en": lemma.gloss_en,
         "decomposition": decomposition,
         "similar_words": similar_words,
+        "phonetic_similar": phonetic_similar,
         "prefix_hint": prefix_hint,
     }
