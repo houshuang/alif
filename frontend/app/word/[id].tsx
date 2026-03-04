@@ -281,7 +281,7 @@ export default function WordDetailScreen() {
             {word.etymology_json.semantic_field && (
               <View style={styles.etymologyRow}>
                 <Text style={styles.etymologyLabel}>Semantic field</Text>
-                <Text style={styles.etymologyValue}>{word.etymology_json.semantic_field}</Text>
+                <Text style={styles.etymologyValue}>{Array.isArray(word.etymology_json.semantic_field) ? word.etymology_json.semantic_field.join(", ") : word.etymology_json.semantic_field}</Text>
               </View>
             )}
             {word.etymology_json.related_loanwords && word.etymology_json.related_loanwords.length > 0 && (
