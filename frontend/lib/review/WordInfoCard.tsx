@@ -83,10 +83,12 @@ function HighlightedArabic({
   text,
   diffPositions,
   highlightColor,
+  fontSize,
 }: {
   text: string;
   diffPositions: Set<number>;
   highlightColor: string;
+  fontSize?: number;
 }) {
   const graphemes = splitArabicGraphemes(text);
   // Strip al-prefix from position mapping if present
@@ -95,7 +97,7 @@ function HighlightedArabic({
   const alOffset = hasAl ? 2 : 0; // al-prefix takes 2 graphemes (alif + lam)
 
   return (
-    <Text style={cfStyles.highlightedWord}>
+    <Text style={[cfStyles.highlightedWord, fontSize ? { fontSize, lineHeight: fontSize * 1.5 } : undefined]}>
       {graphemes.map((g, i) => {
         const bareIdx = i - alOffset;
         const isHighlighted = bareIdx >= 0 && diffPositions.has(bareIdx);
@@ -391,23 +393,22 @@ function RevealedView({
                     text={sw.lemma_ar}
                     diffPositions={diffSet}
                     highlightColor={colors.confused}
+                    fontSize={26}
                   />
-                  <Text style={styles.confusionGloss} numberOfLines={1}>{sw.gloss_en ?? "?"}</Text>
+                  <View style={styles.confusionTextCol}>
+                    <Text style={styles.confusionGloss} numberOfLines={1}>{sw.gloss_en ?? "?"}</Text>
+                    {sw.diff_positions.length > 0 && (
+                      <Text style={styles.confusionHint} numberOfLines={1}>
+                        has {sw.diff_positions.slice(0, 2).map(d => d.similar).join(", ")} not {sw.diff_positions.slice(0, 2).map(d => d.original).join(", ")}
+                      </Text>
+                    )}
+                  </View>
                   {sw.rasm_distance === 0 && (
                     <View style={styles.dotsPill}>
                       <Text style={styles.dotsPillText}>dots only</Text>
                     </View>
                   )}
                 </View>
-                {sw.diff_positions.length > 0 && (
-                  <Text style={styles.confusionHint}>
-                    has {sw.diff_positions.slice(0, 2).map(d =>
-                      `${d.similar}`
-                    ).join(", ")} not {sw.diff_positions.slice(0, 2).map(d =>
-                      `${d.original}`
-                    ).join(", ")}
-                  </Text>
-                )}
               </View>
             );
           })}
@@ -974,7 +975,6 @@ const styles = StyleSheet.create({
     letterSpacing: 0.6,
   },
   confusionItem: {
-    gap: 2,
     paddingBottom: 5,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: "rgba(243, 156, 18, 0.12)",
@@ -982,12 +982,15 @@ const styles = StyleSheet.create({
   confusionItemRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
+    gap: 10,
+  },
+  confusionTextCol: {
+    flex: 1,
+    gap: 1,
   },
   confusionGloss: {
     fontSize: 13,
     color: colors.text,
-    flex: 1,
   },
   dotsPill: {
     backgroundColor: "rgba(243, 156, 18, 0.15)",
@@ -1002,11 +1005,9 @@ const styles = StyleSheet.create({
     textTransform: "uppercase",
   },
   confusionHint: {
-    fontSize: 11,
+    fontSize: 10,
     color: colors.textSecondary,
-    fontStyle: "italic",
     fontFamily: fontFamily.arabic,
-    paddingLeft: 2,
   },
 
   /* Confusion analysis — phonetic similarity */

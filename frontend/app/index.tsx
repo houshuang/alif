@@ -3485,7 +3485,7 @@ const styles = StyleSheet.create({
     fontFamily: fontFamily.arabic,
     color: colors.arabic,
     writingDirection: "rtl" as const,
-    width: 50,
+    minWidth: 70,
     textAlign: "center" as const,
   },
   rootInfo: {
