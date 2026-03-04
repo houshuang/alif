@@ -58,7 +58,7 @@ npx expo start --web  # opens on localhost:8081
 - **Story word counts are deduped** — `total_words`, `known_count`, `unknown_count` count unique lemmas, not tokens. Each lemma counted once even if it appears multiple times in the story.
 - **On-demand sentence generation** — max 10/session, uses current vocabulary for fresher sentences. Skipped in fast mode (`skip_on_demand=True`); fill phase still runs using pre-generated sentences.
 - **Tapped words are always marked missed** — front-phase tapping auto-marks as missed (rating≤2).
-- **Confusion analysis on yellow tap** — when a word transitions to "did not recognize" (yellow), `confusion_service.py` analyzes why: (1) morphological decomposition via clitic stripping + form matching, (2) visual similarity via edit distance + rasm skeleton (dots-removed). All rule-based, no LLM, <50ms. Endpoint: `GET /api/review/confusion-help/{lemma_id}?surface_form=...`.
+- **Confusion analysis on yellow tap** — when a word transitions to "did not recognize" (yellow), `confusion_service.py` analyzes why: (1) morphological decomposition via clitic stripping + form matching, (2) visual similarity via edit distance + rasm skeleton (dots-removed), (3) phonetic similarity via `PHONETIC_MAP` (ص≈س, ح≈ه, ع≈أ, ط≈ت, etc. — catches sound-alike confusions like سبع↔صباح), (4) prefix disambiguation hint (و/ف/ب/ل/ك — "part of root" vs "is prefix"). Similarity pool includes `encountered` state. All rule-based, no LLM, <50ms. Endpoint: `GET /api/review/confusion-help/{lemma_id}?surface_form=...`.
 - **al-prefix is NOT a separate lemma** — الكلب and كلب are the same lemma. All import paths dedup.
 - **Be conservative with ElevenLabs TTS** — costs real money. Only generate for sentences that will be shown.
 - **Sentence pipeline cap**: 800 active sentences with **due-date tiered allocation** (`pipeline_tiers.py`). Words due within 12h get 3 sentences (floor 2), 12-36h get 2 (floor 1), 36-72h get 1 (floor 0), 72h+ get 0 (JIT fills when due). This prevents large imports from permanently filling the pool. Cron runs `update_material.py` every 3h. `warm_sentence_cache()` runs after every session load (tier-aware gap detection + recency-exhausted, max 20/run).
@@ -98,6 +98,7 @@ Create reusable Claude Code skills (`.claude/skills/`) for common operations.
 - `research/research-hub.html`: Update when adding new research documents (add doc-row entry in appropriate category section)
 - `research/README.md`: Update when adding new research documents
 - `research/analysis-YYYY-MM-DD.md`: Save analysis findings
+- **All reports and analysis HTML pages go inside the repo** (in `research/`), not in external dirs like `~/.agent/diagrams/`. Link them from the experiment log entry that prompted them.
 
 ### 6. Git Diff Discipline — Prevent Silent Reverts
 **CRITICAL**: Before every commit, run `git diff --stat HEAD` and review what changed. Watch for:

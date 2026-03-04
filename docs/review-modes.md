@@ -10,12 +10,22 @@ Reviews are sentence-centric: greedy set cover selects sentences that maximize d
 6. **Comprehension-aware recency**: sentences repeat based on last comprehension — understood: 7 day cooldown, partial: 2 day cooldown, no_idea: 4 hour cooldown
 7. Inline intro candidates: up to 2 new words suggested at positions 4 and 8 in reading sessions (gated by 75% accuracy over last 20 reviews). **Not auto-introduced** — candidates are returned to the frontend for user to accept via Learn mode. No intro candidates in listening mode.
 
+### Pre-Sentence Cards
+
+Before sentences begin, the session may include informational cards (no FSRS review — pure re-exposure):
+
+1. **Grammar lesson cards** — if the session contains a grammar pattern the user hasn't seen
+2. **Reintro cards** — for struggling words (seen 3+ times, never recalled). Shows Arabic + English + transliteration, plus retention elements: morphological pattern (wazn), root with known siblings, etymology, mnemonic. Single "Continue" button — no self-assessment. Backend: `_build_reintro_cards()`, max `MAX_REINTRO_PER_SESSION` (3).
+3. **Experiment intro cards** — A/B test (active 2026-03). Words in the `intro_ab_card` group get an info card before their first-ever sentence review. Same layout as reintro cards. Logged via `POST /api/review/experiment-intro-ack`. Backend: `_build_experiment_intro_cards()`.
+
+Cards are shown in the order above, then sentences begin.
+
 ## Reading Mode
 1. User sees Arabic sentence (diacritized, large RTL text)
 2. **Front phase**: user can tap non-function words to look them up (calls GET /api/review/word-lookup/{lemma_id}). Tapped words auto-marked as missed.
 3. **Lookup panel**: Shows root, root meaning, forms strip with per-form ALA-LC transliteration, surface form transliteration for conjugated forms, full etymology (derivation, loanwords, cultural note), full memory hooks (mnemonic, cognates, collocations, usage context, fun fact). If root has 2+ known siblings → prediction mode ("You know words from this root: X, Y. Can you guess the meaning?") before revealing English. Otherwise shows meaning immediately. Scrollable when content overflows.
 4. **Front-phase actions**: "Know All" (understood) / "No idea" (no_idea) / "Show Translation" (reveal back). If any word tapped, "Know All" changes to "Continue" (partial).
-5. **Back phase**: triple-tap words to cycle state: off → missed (red, rating 1 Again) → confused (yellow, rating 2 Hard) → off. Builds missed_lemma_ids + confused_lemma_ids. **Confusion analysis**: when a word transitions to yellow ("did not recognize"), `GET /api/review/confusion-help/{lemma_id}` fires asynchronously — returns morphological decomposition (clitics + stem + form label) and/or visually similar words (edit distance + rasm skeleton). Displayed above the word info card content: clitic pills (amber) + bold stem, similar word rows with diff highlights.
+5. **Back phase**: triple-tap words to cycle state: off → missed (red, rating 1 Again) → confused (yellow, rating 2 Hard) → off. Builds missed_lemma_ids + confused_lemma_ids. **Confusion analysis**: when a word transitions to yellow ("did not recognize"), `GET /api/review/confusion-help/{lemma_id}` fires asynchronously. Returns up to four analysis layers: (a) morphological decomposition (color-band clitics + stem + form label), (b) visually similar words (edit distance + rasm skeleton, orange "Easily confused" card), (c) phonetically similar words (emphatic/pharyngeal confusion, purple "Sounds similar" card with confused-pair pills like ص≈س), (d) prefix disambiguation hint (green "part of root" or blue "is prefix" card for words starting with و/ف/ب/ل/ك). All analysis includes encountered words in the similarity pool.
 6. **Back-phase actions**: "Know All" (understood) / "Continue" (partial, if words marked) / "No idea" (no_idea)
 7. **Back/Undo**: after submitting, can go back to previous card — undoes the review (restores pre-review FSRS state via backend undo endpoint), removes from sync queue if not yet flushed, restores word markings
 
