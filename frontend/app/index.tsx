@@ -2577,20 +2577,38 @@ function SessionComplete({
       {/* Today stats */}
       {dataReady && data && (
         <Animated.View style={[styles.todayRow, { opacity: fadeAnim }]}>
-          <View style={styles.todayStat}>
-            <Text style={[styles.todayNum, { color: "#2dd4bf" }]}>{data.reviews_today}</Text>
-            <Text style={styles.todayLabel}>REVIEWS TODAY</Text>
-          </View>
-          <View style={styles.todayStat}>
-            <Text style={[styles.todayNum, { color: "#2dd4bf" }]}>{data.sentence_count ?? results.total}</Text>
-            <Text style={styles.todayLabel}>SENTENCES</Text>
-          </View>
-          {data.graduated_today_count > 0 && (
-            <View style={styles.todayStat}>
-              <Text style={[styles.todayNum, { color: colors.gotIt }]}>{data.graduated_today_count}</Text>
-              <Text style={styles.todayLabel}>GRAD TODAY</Text>
+          <View style={{ width: "100%", paddingHorizontal: 16, marginBottom: 8 }}>
+            <View style={styles.todayProgressBar}>
+              <View style={[styles.todayProgressFill, { flex: data.reviews_today || 0.001 }]} />
+              <View style={{ flex: data.due_today || 0 }} />
             </View>
-          )}
+            <View style={styles.todayProgressLabels}>
+              <Text style={[styles.todayProgressText, { color: colors.gotIt }]}>
+                {data.reviews_today} done
+              </Text>
+              {(data.due_today || 0) > 0 ? (
+                <Text style={[styles.todayProgressText, { color: colors.accent }]}>
+                  {data.due_today} remaining
+                </Text>
+              ) : (
+                <Text style={[styles.todayProgressText, { color: colors.gotIt }]}>
+                  all caught up
+                </Text>
+              )}
+            </View>
+          </View>
+          <View style={{ flexDirection: "row", justifyContent: "space-around", width: "100%" }}>
+            <View style={styles.todayStat}>
+              <Text style={[styles.todayNum, { color: "#2dd4bf" }]}>{data.sentence_count ?? results.total}</Text>
+              <Text style={styles.todayLabel}>SENTENCES</Text>
+            </View>
+            {data.graduated_today_count > 0 && (
+              <View style={styles.todayStat}>
+                <Text style={[styles.todayNum, { color: colors.gotIt }]}>{data.graduated_today_count}</Text>
+                <Text style={styles.todayLabel}>GRADUATED</Text>
+              </View>
+            )}
+          </View>
         </Animated.View>
       )}
 
@@ -3432,8 +3450,8 @@ const styles = StyleSheet.create({
   },
   // Today stats
   todayRow: {
-    flexDirection: "row" as const,
-    justifyContent: "space-around" as const,
+    flexDirection: "column" as const,
+    alignItems: "center" as const,
     width: "100%",
     maxWidth: 400,
     marginTop: 16,
@@ -3454,6 +3472,27 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     letterSpacing: 0.5,
     marginTop: 2,
+  },
+  todayProgressBar: {
+    flexDirection: "row" as const,
+    height: 6,
+    borderRadius: 3,
+    overflow: "hidden" as const,
+    backgroundColor: colors.surfaceLight,
+    marginBottom: 6,
+  },
+  todayProgressFill: {
+    height: "100%",
+    backgroundColor: colors.gotIt,
+    borderRadius: 3,
+  },
+  todayProgressLabels: {
+    flexDirection: "row" as const,
+    justifyContent: "space-between" as const,
+  },
+  todayProgressText: {
+    fontSize: 12,
+    fontWeight: "600" as const,
   },
   // Root coverage
   rootNugget: {

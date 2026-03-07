@@ -913,6 +913,9 @@ def get_session_end(session_id: str, db: Session = Depends(get_db)):
         for r in partial_roots
     ]
 
+    from app.routers.stats import _count_due_cards
+    due_today, _, _ = _count_due_cards(db, now)
+
     return SessionEndOut(
         word_journeys=word_journeys,
         sentence_count=sentence_count,
@@ -922,6 +925,7 @@ def get_session_end(session_id: str, db: Session = Depends(get_db)):
         avg_response_ms=avg_response_ms,
         known_count=known_count,
         reviews_today=reviews_today,
+        due_today=due_today,
         graduated_today_count=graduated_today_count,
         pipeline_box_1=box_map.get(1, 0),
         pipeline_box_2=box_map.get(2, 0),

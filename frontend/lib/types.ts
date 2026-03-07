@@ -944,6 +944,7 @@ export interface SessionEndData {
   avg_response_ms: number | null;
   known_count: number;
   reviews_today: number;
+  due_today: number;
   graduated_today_count: number;
   pipeline_box_1: number;
   pipeline_box_2: number;

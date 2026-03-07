@@ -746,9 +746,18 @@ function TodayHeroCard({
           </Text>
         ) : (
           <View>
-            <Text style={[styles.heroStatusText, { color: colors.accent }]}>
-              {reviewsToday > 0 ? `${reviewsToday} reviews · ` : ""}{dueToday} ready for review
-            </Text>
+            <View style={styles.heroProgressBar}>
+              <View style={[styles.heroProgressFill, { flex: reviewsToday || 0.001 }]} />
+              <View style={{ flex: dueToday }} />
+            </View>
+            <View style={styles.heroProgressLabels}>
+              <Text style={[styles.heroStatusText, { color: colors.good }]}>
+                {reviewsToday} done
+              </Text>
+              <Text style={[styles.heroStatusText, { color: colors.accent }]}>
+                {dueToday} remaining
+              </Text>
+            </View>
             {(fsrsDue > 0 && acquisitionDue > 0) && (
               <Text style={[styles.heroStatusDetail, { color: colors.textSecondary }]}>
                 {acquisitionDue} acquiring · {fsrsDue} review
@@ -978,6 +987,9 @@ const styles = StyleSheet.create({
   heroIntroPill: { backgroundColor: colors.accent + "20", borderRadius: 8, paddingHorizontal: 10, paddingVertical: 4 },
   heroIntroText: { fontSize: 12, color: colors.accent, fontWeight: "600" },
   heroStatus: { marginTop: 6, marginBottom: 4 },
+  heroProgressBar: { flexDirection: "row", height: 6, borderRadius: 3, overflow: "hidden", backgroundColor: colors.surfaceLight, marginBottom: 6 },
+  heroProgressFill: { height: "100%", backgroundColor: colors.good, borderRadius: 3 },
+  heroProgressLabels: { flexDirection: "row", justifyContent: "space-between" },
   heroStatusText: { fontSize: 13 },
   heroStatusDetail: { fontSize: 11, marginTop: 2 },
 
