@@ -1,9 +1,11 @@
 """OCR endpoints for textbook scanning and story image import."""
 
+import time
 import uuid
 import logging
 
 from fastapi import APIRouter, Depends, File, UploadFile, BackgroundTasks, HTTPException, Query
+from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Session
 
 from app.database import SessionLocal, get_db
@@ -69,6 +71,8 @@ async def scan_textbook_pages(
     batch_id = str(uuid.uuid4())[:8]
     uploads = []
 
+    # Read all files first, then do DB writes with retry
+    file_data: list[tuple[str, bytes]] = []
     for file in files:
         image_bytes = await file.read()
 
@@ -81,18 +85,36 @@ async def scan_textbook_pages(
         if not image_bytes:
             continue
 
-        upload = PageUpload(
-            batch_id=batch_id,
-            filename=file.filename,
-            status="pending",
-        )
-        db.add(upload)
-        db.flush()
+        file_data.append((file.filename, image_bytes))
 
-        uploads.append(upload)
+    # Retry DB writes on lock contention (background OCR tasks may hold the lock)
+    max_retries = 3
+    for attempt in range(max_retries):
+        try:
+            for filename, image_bytes in file_data:
+                upload = PageUpload(
+                    batch_id=batch_id,
+                    filename=filename,
+                    status="pending",
+                )
+                db.add(upload)
+                db.flush()
+                uploads.append(upload)
+
+            db.commit()
+            break
+        except OperationalError:
+            db.rollback()
+            uploads.clear()
+            if attempt < max_retries - 1:
+                logger.warning(f"DB locked during scan-pages insert, retrying ({attempt + 1}/{max_retries})")
+                time.sleep(1)
+            else:
+                logger.error("DB locked during scan-pages insert, all retries exhausted")
+                raise HTTPException(status_code=503, detail="Database busy, please retry")
+
+    for (filename, image_bytes), upload in zip(file_data, uploads):
         background_tasks.add_task(_process_page_background, upload.id, image_bytes, start_acquiring)
-
-    db.commit()
 
     return {
         "batch_id": batch_id,
