@@ -34,6 +34,7 @@ import {
   PatternListItem,
   PatternDetail,
   SessionSummary,
+  SessionEndData,
 } from "./types";
 import { netStatus } from "./net-status";
 import {
@@ -842,6 +843,10 @@ export async function getDeepAnalytics(): Promise<DeepAnalytics> {
 
 export async function getSessionSummary(sessionId: string): Promise<SessionSummary> {
   return fetchApi<SessionSummary>(`/api/review/session-summary/${sessionId}`);
+}
+
+export async function getSessionEnd(sessionId: string): Promise<SessionEndData> {
+  return fetchApi<SessionEndData>(`/api/review/session-end/${sessionId}`);
 }
 
 export async function submitReintroResult(

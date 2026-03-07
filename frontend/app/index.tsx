@@ -23,8 +23,7 @@ import {
   submitReintroResult,
   acknowledgeExperimentIntro,
   getAnalytics,
-  getDeepAnalytics,
-  getSessionSummary,
+  getSessionEnd,
   lookupReviewWord,
   prefetchSessions,
   warmSentences,
@@ -44,8 +43,7 @@ import {
   IntroCandidate,
   ReintroCard,
   Analytics,
-  DeepAnalytics,
-  SessionSummary,
+  SessionEndData,
   WordLookupResult,
   ConfusionAnalysis,
   GrammarLesson,
@@ -2344,24 +2342,15 @@ function SessionComplete({
   onNewSession: () => void;
 }) {
   const insets = useSafeAreaInsets();
-  const [analytics, setAnalytics] = useState<Analytics | null>(null);
-  const [deepAnalytics, setDeepAnalytics] = useState<DeepAnalytics | null>(null);
-  const [summary, setSummary] = useState<SessionSummary | null>(null);
+  const [data, setData] = useState<SessionEndData | null>(null);
   const [dataReady, setDataReady] = useState(false);
   const fadeAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     const load = async () => {
-      // Ensure all reviews are synced before fetching summary
       await flushQueue().catch(() => {});
-      const [a, d, s] = await Promise.all([
-        getAnalytics().catch(() => null),
-        getDeepAnalytics().catch(() => null),
-        sessionId ? getSessionSummary(sessionId).catch(() => null) : Promise.resolve(null),
-      ]);
-      if (a) setAnalytics(a);
-      if (d) setDeepAnalytics(d);
-      if (s) setSummary(s);
+      const d = sessionId ? await getSessionEnd(sessionId).catch(() => null) : null;
+      if (d) setData(d);
       setDataReady(true);
       Animated.timing(fadeAnim, {
         toValue: 1,
@@ -2373,12 +2362,12 @@ function SessionComplete({
     prefetchSessions(mode).catch(() => {});
   }, []);
 
-  // Derive journey categories from summary
-  const graduated = summary?.word_journeys.filter(w => w.graduated) ?? [];
-  const boxAdvanced = summary?.word_journeys.filter(w =>
+  // Derive journey categories
+  const graduated = data?.word_journeys.filter(w => w.graduated) ?? [];
+  const boxAdvanced = data?.word_journeys.filter(w =>
     !w.graduated && w.old_box != null && w.new_box != null && w.new_box > w.old_box
   ) ?? [];
-  const boxSlipped = summary?.word_journeys.filter(w =>
+  const boxSlipped = data?.word_journeys.filter(w =>
     w.old_box != null && w.new_box != null && w.new_box < w.old_box
   ) ?? [];
 
@@ -2392,16 +2381,9 @@ function SessionComplete({
     .map(([k, v]) => `Box ${k}: ${v}`)
     .join(" \u00B7 ");
 
-  // Pipeline data from analytics
-  const pipelineData = deepAnalytics?.acquisition_pipeline;
-
   // Speed comparison
-  const thisSessionMs = summary?.avg_response_ms;
-  const recentSessions = deepAnalytics?.recent_sessions ?? [];
-  const validSessions = recentSessions.filter(r => r.avg_response_ms != null && r.avg_response_ms < 300_000);
-  const overallAvgMs = validSessions.length > 0
-    ? validSessions.reduce((s, r) => s + (r.avg_response_ms ?? 0), 0) / validSessions.length
-    : null;
+  const thisSessionMs = data?.avg_response_ms;
+  const overallAvgMs = data?.historical_avg_response_ms;
   const speedPctDiff = (thisSessionMs && overallAvgMs && overallAvgMs > 0)
     ? Math.round(((overallAvgMs - thisSessionMs) / overallAvgMs) * 100)
     : null;
@@ -2411,10 +2393,10 @@ function SessionComplete({
   };
 
   // Root coverage
-  const topRoots = deepAnalytics?.root_coverage?.top_partial_roots ?? [];
+  const topRoots = data?.top_partial_roots ?? [];
 
   // Title based on what happened
-  const sentenceCount = summary?.sentence_count ?? results.total;
+  const sentenceCount = data?.sentence_count ?? results.total;
   const title = graduated.length > 0
     ? `${graduated.length} ${graduated.length === 1 ? "word" : "words"} graduated!`
     : boxAdvanced.length > 0
@@ -2441,7 +2423,7 @@ function SessionComplete({
       </Pressable>
 
       {/* Journey timeline */}
-      {dataReady && summary && (graduated.length > 0 || boxAdvanced.length > 0 || boxSlipped.length > 0) && (
+      {dataReady && data && (graduated.length > 0 || boxAdvanced.length > 0 || boxSlipped.length > 0) && (
         <Animated.View style={[styles.journeyTimeline, { opacity: fadeAnim }]}>
           {graduated.length > 0 && (
             <View style={styles.journeyNode}>
@@ -2514,7 +2496,7 @@ function SessionComplete({
             <View style={[styles.journeyDot, { backgroundColor: colors.accent }]} />
             <View style={styles.journeyContent}>
               <Text style={[styles.journeyNodeTitle, { color: colors.accent }]}>
-                {summary.sentences_understood} of {summary.sentence_count} sentences fully understood
+                {data.sentences_understood} of {data.sentence_count} sentences fully understood
               </Text>
             </View>
           </View>
@@ -2522,32 +2504,32 @@ function SessionComplete({
       )}
 
       {/* Pipeline bar with deltas */}
-      {dataReady && pipelineData && (
+      {dataReady && data && (data.pipeline_box_1 + data.pipeline_box_2 + data.pipeline_box_3 > 0) && (
         <Animated.View style={[styles.sectionCard, { opacity: fadeAnim }]}>
           <Text style={styles.sectionTitle}>WORD PIPELINE</Text>
           <View style={styles.pipelineBar}>
-            <View style={{ flex: pipelineData.box_1_count || 1, backgroundColor: colors.missed, borderRadius: 4 }} />
-            <View style={{ flex: pipelineData.box_2_count || 1, backgroundColor: colors.noIdea, borderRadius: 4 }} />
-            <View style={{ flex: pipelineData.box_3_count || 1, backgroundColor: colors.gotIt, borderRadius: 4 }} />
-            <View style={{ flex: analytics?.stats.known || 1, backgroundColor: "#2dd4bf", borderRadius: 4 }} />
+            <View style={{ flex: data.pipeline_box_1 || 1, backgroundColor: colors.missed, borderRadius: 4 }} />
+            <View style={{ flex: data.pipeline_box_2 || 1, backgroundColor: colors.noIdea, borderRadius: 4 }} />
+            <View style={{ flex: data.pipeline_box_3 || 1, backgroundColor: colors.gotIt, borderRadius: 4 }} />
+            <View style={{ flex: data.known_count || 1, backgroundColor: "#2dd4bf", borderRadius: 4 }} />
           </View>
           <View style={styles.pipelineLegend}>
             <View style={styles.pipelineLegendItem}>
               <View style={[styles.pipelineDot, { backgroundColor: colors.missed }]} />
-              <Text style={styles.pipelineLegendNum}>{pipelineData.box_1_count}</Text>
+              <Text style={styles.pipelineLegendNum}>{data.pipeline_box_1}</Text>
               <Text style={styles.pipelineLegendLabel}> new</Text>
             </View>
             <View style={styles.pipelineLegendItem}>
               <View style={[styles.pipelineDot, { backgroundColor: colors.noIdea }]} />
-              <Text style={styles.pipelineLegendNum}>{pipelineData.box_2_count}</Text>
+              <Text style={styles.pipelineLegendNum}>{data.pipeline_box_2}</Text>
             </View>
             <View style={styles.pipelineLegendItem}>
               <View style={[styles.pipelineDot, { backgroundColor: colors.gotIt }]} />
-              <Text style={styles.pipelineLegendNum}>{pipelineData.box_3_count}</Text>
+              <Text style={styles.pipelineLegendNum}>{data.pipeline_box_3}</Text>
             </View>
             <View style={styles.pipelineLegendItem}>
               <View style={[styles.pipelineDot, { backgroundColor: "#2dd4bf" }]} />
-              <Text style={styles.pipelineLegendNum}>{analytics?.stats.known ?? 0}</Text>
+              <Text style={styles.pipelineLegendNum}>{data.known_count}</Text>
               <Text style={styles.pipelineLegendLabel}> known</Text>
             </View>
           </View>
@@ -2593,19 +2575,19 @@ function SessionComplete({
       )}
 
       {/* Today stats */}
-      {dataReady && analytics && (
+      {dataReady && data && (
         <Animated.View style={[styles.todayRow, { opacity: fadeAnim }]}>
           <View style={styles.todayStat}>
-            <Text style={[styles.todayNum, { color: "#2dd4bf" }]}>{analytics.stats.reviews_today}</Text>
+            <Text style={[styles.todayNum, { color: "#2dd4bf" }]}>{data.reviews_today}</Text>
             <Text style={styles.todayLabel}>REVIEWS TODAY</Text>
           </View>
           <View style={styles.todayStat}>
-            <Text style={[styles.todayNum, { color: "#2dd4bf" }]}>{summary?.sentence_count ?? results.total}</Text>
+            <Text style={[styles.todayNum, { color: "#2dd4bf" }]}>{data.sentence_count ?? results.total}</Text>
             <Text style={styles.todayLabel}>SENTENCES</Text>
           </View>
-          {(analytics.graduated_today?.length ?? 0) > 0 && (
+          {data.graduated_today_count > 0 && (
             <View style={styles.todayStat}>
-              <Text style={[styles.todayNum, { color: colors.gotIt }]}>{analytics.graduated_today!.length}</Text>
+              <Text style={[styles.todayNum, { color: colors.gotIt }]}>{data.graduated_today_count}</Text>
               <Text style={styles.todayLabel}>GRAD TODAY</Text>
             </View>
           )}

@@ -400,6 +400,30 @@ class SessionSummaryOut(BaseModel):
     avg_response_ms: float | None = None
 
 
+class PartialRootOut(BaseModel):
+    root: str
+    root_meaning: str | None
+    known: int
+    total: int
+
+
+class SessionEndOut(BaseModel):
+    word_journeys: list[WordJourneyItem]
+    sentence_count: int
+    sentences_understood: int = 0
+    sentences_partial: int = 0
+    sentences_no_idea: int = 0
+    avg_response_ms: float | None = None
+    known_count: int = 0
+    reviews_today: int = 0
+    graduated_today_count: int = 0
+    pipeline_box_1: int = 0
+    pipeline_box_2: int = 0
+    pipeline_box_3: int = 0
+    historical_avg_response_ms: float | None = None
+    top_partial_roots: list[PartialRootOut] = []
+
+
 class BulkSyncItem(BaseModel):
     type: str  # "sentence"
     payload: dict

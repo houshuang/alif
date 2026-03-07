@@ -927,3 +927,27 @@ export interface SessionSummary {
   sentences_no_idea: number;
   avg_response_ms: number | null;
 }
+
+export interface PartialRoot {
+  root: string;
+  root_meaning: string | null;
+  known: number;
+  total: number;
+}
+
+export interface SessionEndData {
+  word_journeys: WordJourneyItem[];
+  sentence_count: number;
+  sentences_understood: number;
+  sentences_partial: number;
+  sentences_no_idea: number;
+  avg_response_ms: number | null;
+  known_count: number;
+  reviews_today: number;
+  graduated_today_count: number;
+  pipeline_box_1: number;
+  pipeline_box_2: number;
+  pipeline_box_3: number;
+  historical_avg_response_ms: number | null;
+  top_partial_roots: PartialRoot[];
+}

@@ -28,6 +28,7 @@ Full endpoint list. See `backend/app/routers/` for implementation.
 | POST | `/api/review/recap` | (Deprecated) Was next-session recap — removed from frontend, redundant with within-session repetition |
 | POST | `/api/review/warm-sentences` | Pre-generate sentences for likely next session words (background, returns 202) |
 | GET | `/api/review/session-summary/{session_id}` | Per-word journey data (graduated, box advanced/slipped) + sentence comprehension stats + avg response time for session end card |
+| GET | `/api/review/session-end/{session_id}` | Lightweight all-in-one endpoint for session end card: word journeys + pipeline counts + speed comparison + root coverage + today stats. Replaces 3 separate calls to session-summary + analytics + deep-analytics |
 
 ## Learn
 | Method | Path | Description |
