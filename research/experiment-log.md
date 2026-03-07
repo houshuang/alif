@@ -4,6 +4,24 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-03-07: Fix — Scope Intro Cards to Session + Show Once
+
+### Problem
+Intro cards (Group B of A/B experiment) were shown for ALL acquiring `intro_ab_card` words with `times_seen == 0`, regardless of whether those words were in the current session. The ack endpoint only logged — it didn't prevent re-showing. Result: 10-15 intro cards before every session, many for non-due words, same cards repeating across sessions.
+
+### Fix
+1. `_build_experiment_intro_cards()` now filters to `due_lemma_ids` — only words actually in the session
+2. Added `experiment_intro_shown_at` column to ULK — ack endpoint sets it, builder skips words where it's set
+3. Net effect: each word gets one intro card, only in the session where it's due
+
+### Files Changed
+- `backend/app/models.py` — added `experiment_intro_shown_at` column
+- `backend/app/services/sentence_selector.py` — `_build_experiment_intro_cards()` takes `due_lemma_ids`, filters by it + `experiment_intro_shown_at`
+- `backend/app/routers/review.py` — ack endpoint sets `experiment_intro_shown_at`
+- New migration `044cfcef0a96`
+
+---
+
 ## 2026-03-03: A/B Experiment — Intro Card vs Sentence-First Acquisition
 
 ### Hypothesis
@@ -21,14 +39,14 @@ Showing a word info card (Arabic + English + root + forms) before a word's first
 3. **Time to graduation**: Calendar days from `acquisition_started_at` to `graduated_at`
 
 ### Status
-Deployed 2026-03-03. Collecting data.
+Deployed 2026-03-03. Scoping fix deployed 2026-03-07 (cards now limited to session words, shown once).
 
 ### Files Changed
-- `backend/app/models.py` — added `experiment_group` column to `UserLemmaKnowledge`
+- `backend/app/models.py` — added `experiment_group` and `experiment_intro_shown_at` columns to `UserLemmaKnowledge`
 - `backend/app/services/acquisition_service.py` — random group assignment in `start_acquisition()`
 - `backend/app/services/sentence_selector.py` — `_build_experiment_intro_cards()`, threaded through `_with_fallbacks()`
 - `backend/app/schemas.py` — `experiment_intro_cards` field on `SentenceSessionOut`
-- `backend/app/routers/review.py` — `POST /api/review/experiment-intro-ack` endpoint
+- `backend/app/routers/review.py` — `POST /api/review/experiment-intro-ack` endpoint (sets `experiment_intro_shown_at`)
 - `frontend/app/index.tsx` — experiment intro card rendering with "Continue" button
 - `frontend/lib/types.ts`, `frontend/lib/api.ts` — types and API function
 - `backend/scripts/analyze_intro_experiment.py` — analysis script
@@ -38,7 +56,7 @@ Run after 2+ days: `python3 scripts/analyze_intro_experiment.py --db data/alif.d
 
 ---
 
-## 2026-03-03: Confusion Analysis UI Redesign
+## 2026-03-03–04: Confusion Analysis UI Redesign (3 rounds)
 
 ### Problem
 The confusion analysis display (shown when marking a word yellow / "did not recognize") was hard to understand:
@@ -47,17 +65,22 @@ The confusion analysis display (shown when marking a word yellow / "did not reco
 - No header or context explaining what the similar words section was about
 - Morphological decomposition used nested segments with `+` separators
 
-### Change
-- Moved confusion section BELOW the head row (gloss, lemma, POS) — natural flow: identify → compare → distinguish
-- Added "LOOKS LIKE" header with eye icon
-- Left orange border accent instead of full orange background
-- Similar words now show English gloss prominently (13px white) as the primary distinguishing info
-- Replaced `م↔ف` notation with "differs in: م, ف" (letters from original word only)
-- "same shape" → "same without dots" (clearer for Arabic dot-only differences)
-- Flattened decomposition layout — pills with Arabic + label, no nested segments
+### Design Process
+3 rounds of HTML prototypes (44 total variations) with user voting:
+- `research/confusion-card-designs.html` — Round 1: 15 designs. Winners: #5 (Single Focus Letter), #7 (Minimal Text), #15 (Spacious), #13c (Color Bands)
+- `research/confusion-card-v2.html` — Round 2: 17 designs with 3-4 confusables
+- `research/confusion-card-v3.html` — Round 3: 12 designs focused on inline highlighting + color bands. All side-by-side layouts consistently voted "Confusing"; stacked/compact formats preferred
+
+### Final Implementation
+- **Inline-highlighted Arabic**: matching letters dimmed (25% opacity), differing letters in orange — uses `splitArabicGraphemes()` to handle base char + diacritics as a unit
+- **Compact stacked list** (max 4 confusables): each shows highlighted Arabic + English gloss + "dots only" pill (when rasm_distance=0)
+- **Teaching hints**: italic text "has X not Y" per confusable
+- **Color band morphological decomposition**: surface form with each morpheme in a different color (purple/orange/blue/green) + legend dots
+- **200px maxHeight ScrollView** with visible scroll indicator — keeps sentence visible above
+- Moved confusion section BELOW head row — natural flow: identify → compare → distinguish
 
 ### Files Changed
-- `frontend/lib/review/WordInfoCard.tsx` — restructured RevealedView layout and restyled confusion styles
+- `frontend/lib/review/WordInfoCard.tsx` — `splitArabicGraphemes()`, `HighlightedArabic` component, restructured RevealedView, `cfStyles` stylesheet, color band decomposition
 
 ---
 
@@ -73,18 +96,21 @@ Exploring whether 3-5 sentence passages could replace or supplement individual s
 ### Design
 Quick version using the existing story reader (zero code changes, ~25 min to run). 5 mini-stories of 4 sentences each, vocabulary-constrained to FSRS stability ≥ 7d (268 strong words) plus 1 challenge word (stability 1-7d) per story. Compare `reading_time_ms / 4` against individual `response_ms` baseline.
 
-### Materials generated
-Generated 5 stories via Claude Opus with compliance validation loop. Total generation cost: ~$1.36.
+### Materials generated (v2)
+First batch (stories #10-14) used generic genres and produced flat "Ali went to school" stories. Replaced with v2 using diverse literary genres and a stronger creative prompt (Mahfouz/Darwish style). Total generation cost: ~$2.70 (both rounds).
 
-| # | Story | Challenge word | Compliance | Readiness | Story ID |
-|---|-------|---------------|------------|-----------|----------|
-| 1 | The New Translator | حَقيبَة (bag) | 100% | 100% | #10 |
-| 2 | The Golden Teacher | عَزَفَ (play music) | 94.7% | 100% | #11 |
-| 3 | The New Classroom | قَرّ (decide) | 100% | 92% | #12 |
-| 4 | The Friend of the Roses | فَجَرَ (dig up) | 94.7% | 100% | #13 |
-| 5 | The Pen and the Dog | أَرادَ (want) | 95.5% | 100% | #14 |
+| # | Title | Genre | Challenge word | Compliance | Readiness | Story ID |
+|---|-------|-------|---------------|------------|-----------|----------|
+| 1 | نِهَايَةُ الْمَوْسِمِ (The End of the Season) | Poem | سَرَطَان (crab) | 100% | 100% | #15 |
+| 2 | دُفْعَةٌ بَسِيطَةٌ (A Simple Push) | Joke | دُفْعَة (push) | 100% | 100% | #16 |
+| 3 | الضِّفْدَعُ وَالْغَزَالُ (The Frog and the Gazelle) | Fable | قَفَز (jump) | 100% | 100% | #17 |
+| 4 | رِسَالَةٌ بِلَا عُنْوَانٍ (A Letter Without an Address) | Love letter | كَلَّمَ (speak) | 94.4% | 91.7% | #18 |
+| 5 | صَوْتُ أُسَامَةَ (The Voice of Usama) | Dramatic monologue | حَلَق (throat) | 95.5% | 100% | #19 |
 
-All challenge words have FSRS stability ~2.3d (recently graduated, still fragile). Vocabulary pool: 268 strong words + 74 challenge candidates. Stories tagged `[EXP]` in production.
+Vocabulary pool: 268 strong words (stability ≥ 7d) + 74 challenge candidates (stability 1-7d). Stories tagged `[EXP]` in production.
+
+### UI changes
+Removed blue/grey dots marking unknown words in story reader — they telegraph difficulty and break natural reading flow. Removed forced one-sentence-per-line layout so text flows as a paragraph.
 
 ### Protocol
 1. Read 5 experiment stories in story reader (app records `reading_time_ms`)
@@ -92,7 +118,10 @@ All challenge words have FSRS stability ~2.3d (recently graduated, still fragile
 3. Compute `speed_ratio = median(response_ms) / median(reading_time_ms / 4)`
 
 ### Status
-Materials generated and imported to production (stories #10-14). Ready to run.
+v2 materials imported (stories #15-19). UI deployed. Ready to run.
+
+### Observations (pre-data)
+First reading of a v1 story felt too simple and unengaging — generic school settings, flat "Ali did X" structure. v2 genres (poem, joke, fable, love letter, monologue) aim to fix this. Story quality is a key variable for whether passage-based review feels worthwhile.
 
 ---
 

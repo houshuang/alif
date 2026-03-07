@@ -2,7 +2,9 @@ import logging
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
 from pydantic import BaseModel as PydanticBaseModel
-from sqlalchemy import case
+from datetime import datetime, timedelta, timezone
+
+from sqlalchemy import case, func
 from sqlalchemy.orm import Session, joinedload
 
 from app.database import get_db, SessionLocal
@@ -10,10 +12,12 @@ from app.models import GrammarFeature, Lemma, ReviewLog, Root, SentenceReviewLog
 from app.schemas import (
     BulkSyncIn,
     ConfusionAnalysisOut,
+    PartialRootOut,
     ReintroResultIn,
     SentenceSessionOut,
     SentenceReviewSubmitIn,
     SentenceReviewSubmitOut,
+    SessionEndOut,
     SessionSummaryOut,
     WordJourneyItem,
     WrapUpIn,
@@ -396,6 +400,16 @@ def acknowledge_experiment_intro(
     db: Session = Depends(get_db),
 ):
     """Acknowledge that an experiment intro card was shown."""
+    from datetime import datetime
+    from app.models import UserLemmaKnowledge
+
+    ulk = db.query(UserLemmaKnowledge).filter(
+        UserLemmaKnowledge.lemma_id == body.lemma_id,
+    ).first()
+    if ulk:
+        ulk.experiment_intro_shown_at = datetime.utcnow()
+        db.commit()
+
     log_interaction(
         event="experiment_intro_shown",
         lemma_id=body.lemma_id,
@@ -756,4 +770,162 @@ def get_session_summary(session_id: str, db: Session = Depends(get_db)):
         sentences_partial=sentences_partial,
         sentences_no_idea=sentences_no_idea,
         avg_response_ms=avg_response_ms,
+    )
+
+
+@router.get("/session-end/{session_id}", response_model=SessionEndOut)
+def get_session_end(session_id: str, db: Session = Depends(get_db)):
+    """Lightweight endpoint returning everything the session-end card needs in one call."""
+    now = datetime.now(timezone.utc)
+    today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+
+    # --- Word journeys (same logic as get_session_summary) ---
+    review_logs = (
+        db.query(ReviewLog, Lemma.lemma_ar, Lemma.gloss_en)
+        .join(Lemma, Lemma.lemma_id == ReviewLog.lemma_id)
+        .filter(ReviewLog.session_id == session_id, ReviewLog.credit_type == "primary")
+        .order_by(ReviewLog.id)
+        .all()
+    )
+
+    lemma_first: dict[int, dict] = {}
+    lemma_last: dict[int, dict] = {}
+    for rl, lemma_ar, gloss_en in review_logs:
+        lid = rl.lemma_id
+        entry = {
+            "lemma_id": lid, "lemma_ar": lemma_ar, "gloss_en": gloss_en,
+            "is_acquisition": rl.is_acquisition, "log_json": rl.fsrs_log_json or {},
+        }
+        if lid not in lemma_first:
+            lemma_first[lid] = entry
+        lemma_last[lid] = entry
+
+    word_journeys = []
+    for lid, first in lemma_first.items():
+        last = lemma_last[lid]
+        first_json, last_json = first["log_json"], last["log_json"]
+        old_state = first_json.get("pre_knowledge_state", "")
+        if last["is_acquisition"]:
+            new_state = last_json.get("state", "acquiring")
+            graduated = last_json.get("graduated", False)
+            old_box = first_json.get("acquisition_box_before")
+            new_box = last_json.get("acquisition_box_after")
+            if graduated:
+                new_state = "learning"
+                new_box = None
+        else:
+            new_state = last_json.get("state", "")
+            graduated = False
+            old_box = new_box = None
+
+        word_journeys.append(WordJourneyItem(
+            lemma_id=lid, lemma_ar=first["lemma_ar"], gloss_en=first["gloss_en"],
+            old_state=old_state, new_state=new_state, graduated=graduated,
+            old_box=old_box, new_box=new_box,
+        ))
+
+    # --- Sentence stats for this session ---
+    sent_row = (
+        db.query(
+            func.count(SentenceReviewLog.id).label("cnt"),
+            func.sum(case((SentenceReviewLog.comprehension == "understood", 1), else_=0)).label("understood"),
+            func.sum(case((SentenceReviewLog.comprehension == "partial", 1), else_=0)).label("partial"),
+            func.sum(case((SentenceReviewLog.comprehension == "no_idea", 1), else_=0)).label("no_idea"),
+            func.avg(SentenceReviewLog.response_ms).label("avg_ms"),
+        )
+        .filter(SentenceReviewLog.session_id == session_id)
+        .first()
+    )
+    sentence_count = sent_row.cnt or 0
+    sentences_understood = sent_row.understood or 0
+    sentences_partial = sent_row.partial or 0
+    sentences_no_idea = sent_row.no_idea or 0
+    avg_response_ms = round(sent_row.avg_ms, 1) if sent_row.avg_ms else None
+
+    # --- Known count + reviews today (simple counts) ---
+    known_count = (
+        db.query(func.count(UserLemmaKnowledge.id))
+        .filter(UserLemmaKnowledge.knowledge_state.in_(["known", "learning"]))
+        .scalar() or 0
+    )
+    reviews_today = (
+        db.query(func.count(ReviewLog.id))
+        .filter(ReviewLog.reviewed_at >= today_start)
+        .scalar() or 0
+    )
+    graduated_today_count = (
+        db.query(func.count(UserLemmaKnowledge.id))
+        .filter(UserLemmaKnowledge.graduated_at >= today_start)
+        .scalar() or 0
+    )
+
+    # --- Pipeline box counts (just counts, no word lists) ---
+    box_counts = (
+        db.query(
+            UserLemmaKnowledge.acquisition_box,
+            func.count(UserLemmaKnowledge.id),
+        )
+        .filter(UserLemmaKnowledge.knowledge_state == "acquiring")
+        .group_by(UserLemmaKnowledge.acquisition_box)
+        .all()
+    )
+    box_map = {box: cnt for box, cnt in box_counts}
+
+    # --- Historical avg response time (from recent sessions) ---
+    recent_avg = (
+        db.query(func.avg(SentenceReviewLog.response_ms))
+        .filter(
+            SentenceReviewLog.session_id != session_id,
+            SentenceReviewLog.response_ms.isnot(None),
+            SentenceReviewLog.response_ms < 300_000,
+            SentenceReviewLog.reviewed_at >= now - timedelta(days=30),
+        )
+        .scalar()
+    )
+    historical_avg_response_ms = round(float(recent_avg), 1) if recent_avg else None
+
+    # --- Top partial roots (reuses root coverage logic, targeted) ---
+    root_rows = (
+        db.query(
+            Root.root,
+            Root.core_meaning_en,
+            func.count(Lemma.lemma_id).label("total"),
+            func.sum(
+                case(
+                    (UserLemmaKnowledge.knowledge_state.in_(["known", "learning"]), 1),
+                    else_=0,
+                )
+            ).label("known"),
+        )
+        .join(Lemma, Lemma.root_id == Root.root_id)
+        .outerjoin(UserLemmaKnowledge, UserLemmaKnowledge.lemma_id == Lemma.lemma_id)
+        .filter(Lemma.canonical_lemma_id.is_(None))
+        .group_by(Root.root_id)
+        .having(
+            func.sum(case((UserLemmaKnowledge.knowledge_state.in_(["known", "learning"]), 1), else_=0)) > 0,
+            func.sum(case((UserLemmaKnowledge.knowledge_state.in_(["known", "learning"]), 1), else_=0)) < func.count(Lemma.lemma_id),
+        )
+        .all()
+    )
+    partial_roots = sorted(root_rows, key=lambda r: (r.known or 0) / max(r.total, 1), reverse=True)[:3]
+    top_partial_roots = [
+        PartialRootOut(root=r.root, root_meaning=r.core_meaning_en, known=r.known or 0, total=r.total)
+        for r in partial_roots
+    ]
+
+    return SessionEndOut(
+        word_journeys=word_journeys,
+        sentence_count=sentence_count,
+        sentences_understood=sentences_understood,
+        sentences_partial=sentences_partial,
+        sentences_no_idea=sentences_no_idea,
+        avg_response_ms=avg_response_ms,
+        known_count=known_count,
+        reviews_today=reviews_today,
+        graduated_today_count=graduated_today_count,
+        pipeline_box_1=box_map.get(1, 0),
+        pipeline_box_2=box_map.get(2, 0),
+        pipeline_box_3=box_map.get(3, 0),
+        historical_avg_response_ms=historical_avg_response_ms,
+        top_partial_roots=top_partial_roots,
     )

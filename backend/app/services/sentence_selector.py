@@ -563,7 +563,7 @@ def build_session(
     reintro_cards = _build_reintro_cards(db, struggling_ids, limit=3) if struggling_ids else []
 
     # A/B experiment: build intro cards for card-first group (never reviewed yet)
-    experiment_intro_cards = _build_experiment_intro_cards(db, knowledge_by_id)
+    experiment_intro_cards = _build_experiment_intro_cards(db, knowledge_by_id, due_lemma_ids)
 
     if not due_lemma_ids:
         return {
@@ -1176,11 +1176,13 @@ def _build_reintro_cards(
 def _build_experiment_intro_cards(
     db: Session,
     knowledge_by_id: dict[int, UserLemmaKnowledge],
+    due_lemma_ids: set[int],
 ) -> list[dict]:
     """Build intro cards for the card-first A/B experiment group.
 
     Returns cards for acquiring words assigned to 'intro_ab_card' that
-    have never been reviewed (times_seen == 0).
+    have never been reviewed (times_seen == 0), are in this session's
+    due set, and haven't already been shown an intro card.
     """
     card_ids = set()
     for lid, ulk in knowledge_by_id.items():
@@ -1188,8 +1190,11 @@ def _build_experiment_intro_cards(
             ulk.knowledge_state == "acquiring"
             and ulk.experiment_group == "intro_ab_card"
             and (ulk.times_seen or 0) == 0
+            and ulk.experiment_intro_shown_at is None
         ):
             card_ids.add(lid)
+
+    card_ids &= due_lemma_ids
 
     if not card_ids:
         return []

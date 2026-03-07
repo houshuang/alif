@@ -6,7 +6,7 @@
 > topics, grammar, listening) interact. It also identifies where the current
 > implementation diverges from the research and stated intentions.
 >
-> **Last updated**: 2026-02-23
+> **Last updated**: 2026-03-03
 > **Canonical location**: `docs/scheduling-system.md`
 > **Keep this document up to date with every algorithm change.**
 
@@ -677,6 +677,7 @@ build_session(db, limit=10, mode="reading")
 │     word_reason, score component breakdown   │
 │                                              │
 │ Also: reintro_cards for struggling words      │
+│ Also: experiment_intro_cards for A/B test    │
 │ Also: intro_candidates for Learn mode        │
 └─────────────────────────────────────────────┘
 ```
@@ -1122,8 +1123,10 @@ Normal word → Leech detected → Auto-suspended
     │                         Memory hooks ensured
     │                               │
     │                         Reintro card shows:
-    │                           etymology, mnemonic,
-    │                           cognates, root family
+    │                           pattern (wazn), root family,
+    │                           etymology, mnemonic
+    │                           Single "Continue" button
+    │                           (no self-assessment)
     │                               │
     └───────────────────────────────┘
 ```
@@ -1631,7 +1634,7 @@ SentenceReviewLog. It is never used for scheduling decisions.
 **Gap**: Data is collected but not utilized. Could inform FSRS difficulty or
 acquisition graduation.
 
-### 19.9 A/B Testing Framework — Not Implemented
+### 19.9 A/B Testing Framework — Partially Implemented
 
 **Research says**: N-of-1 between-item experiments are feasible with 80-100 words per
 condition, 3-4 weeks duration.
@@ -1639,9 +1642,23 @@ condition, 3-4 weeks duration.
 **Original plan said**: "Add `experiment_group` field to ULK, log experiment
 assignment in interaction logs."
 
-**Current implementation**: No experiment framework exists.
+**Current implementation**: `experiment_group` column added to `user_lemma_knowledge`.
+First experiment: intro card vs sentence-first (groups: `intro_ab_card`, `intro_ab_sentence`).
+Words randomly assigned 50/50 on acquisition start. Card-first group gets `experiment_intro_cards`
+in session response — retention-optimized info cards (pattern, root family, etymology, mnemonic)
+shown before the word's first sentence review. Single "Continue" button, no self-assessment.
+Acknowledgement via `POST /api/review/experiment-intro-ack` sets `experiment_intro_shown_at`
+timestamp on ULK, preventing the card from appearing again.
 
-**Gap**: Cannot validate algorithmic changes empirically.
+**Scoping rules**: Intro cards are only built for words that are (1) in the session's due set,
+(2) assigned to `intro_ab_card` group, (3) have `times_seen == 0`, and (4) have not already
+been shown (`experiment_intro_shown_at IS NULL`). This prevents bulk imports (e.g. OCR) from
+flooding sessions with intro cards for non-due words.
+
+Analysis: `scripts/analyze_intro_experiment.py` (reviews to graduation, first-review accuracy,
+time to graduation).
+
+**Remaining gap**: No automated reporting — analysis is manual via script.
 
 ### 19.10 Sentence Context Quality Labels — Not Implemented
 

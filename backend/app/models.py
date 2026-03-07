@@ -76,11 +76,12 @@ class UserLemmaKnowledge(Base):
     acquisition_box = Column(Integer, nullable=True)  # 1/2/3, NULL = not acquiring
     acquisition_next_due = Column(DateTime, nullable=True)
     acquisition_started_at = Column(DateTime, nullable=True)
-    graduated_at = Column(DateTime, nullable=True)
+    graduated_at = Column(DateTime, nullable=True, index=True)
     entered_acquiring_at = Column(DateTime, nullable=True)
     leech_suspended_at = Column(DateTime, nullable=True)
     leech_count = Column(Integer, default=0, server_default="0")
     experiment_group = Column(String(30), nullable=True)
+    experiment_intro_shown_at = Column(DateTime, nullable=True)
 
     lemma = relationship("Lemma", back_populates="knowledge")
 
@@ -89,12 +90,12 @@ class ReviewLog(Base):
     __tablename__ = "review_log"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    lemma_id = Column(Integer, ForeignKey("lemmas.lemma_id"), nullable=False)
+    lemma_id = Column(Integer, ForeignKey("lemmas.lemma_id"), nullable=False, index=True)
     rating = Column(Integer, nullable=False)  # 1-4
     reviewed_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), index=True)
     response_ms = Column(Integer)
     context = Column(Text)
-    session_id = Column(String(50))
+    session_id = Column(String(50), index=True)
     fsrs_log_json = Column(JSON)
     review_mode = Column(String(20), default="reading")  # reading/listening
     comprehension_signal = Column(String(20), nullable=True)  # understood/partial/no_idea
@@ -156,8 +157,8 @@ class SentenceReviewLog(Base):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     sentence_id = Column(Integer, ForeignKey("sentences.id"), nullable=False)
-    session_id = Column(String(50), nullable=True)
-    reviewed_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    session_id = Column(String(50), nullable=True, index=True)
+    reviewed_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), index=True)
     comprehension = Column(String(20), nullable=False)  # understood/partial/no_idea
     response_ms = Column(Integer, nullable=True)
     review_mode = Column(String(20), default="reading")
