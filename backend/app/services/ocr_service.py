@@ -14,8 +14,11 @@ import base64
 import json
 import logging
 import re
+import time
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 
+from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Session
 
 from app.config import settings
@@ -767,3 +770,333 @@ def _schedule_material_generation(db: Session, lemma_ids: list[int]) -> None:
                 generate_material_for_word(lemma_id, needed)
             except Exception:
                 logger.exception("Material generation failed for OCR word %d", lemma_id)
+
+
+def _commit_with_retry(db: Session, label: str = "ocr", max_retries: int = 3) -> None:
+    """Commit with retry on SQLite lock contention."""
+    for attempt in range(max_retries):
+        try:
+            db.commit()
+            return
+        except OperationalError:
+            db.rollback()
+            if attempt < max_retries - 1:
+                logger.warning(f"DB locked during {label}, retrying ({attempt + 1}/{max_retries})")
+                time.sleep(1)
+            else:
+                raise
+
+
+def process_batch(
+    db: Session,
+    batch_id: str,
+    file_images: list[tuple[str, bytes]],
+    start_acquiring: bool = False,
+) -> None:
+    """Process an entire batch of textbook page images.
+
+    1. OCR all pages in parallel (no DB needed)
+    2. Dedupe extracted words across all pages
+    3. Single DB transaction to import words + update page records
+    """
+    uploads = (
+        db.query(PageUpload)
+        .filter(PageUpload.batch_id == batch_id)
+        .order_by(PageUpload.id)
+        .all()
+    )
+    upload_by_filename: dict[str, PageUpload] = {u.filename: u for u in uploads}
+
+    # Mark all as processing
+    for u in uploads:
+        u.status = "processing"
+    _commit_with_retry(db, "batch-mark-processing")
+
+    # --- Phase 1: OCR all pages (no DB, parallelizable) ---
+    def _ocr_one(item: tuple[str, bytes]) -> tuple[str, list[dict], int | None, str | None]:
+        filename, image_bytes = item
+        try:
+            extracted, page_number = extract_words_from_image(image_bytes)
+            return (filename, extracted, page_number, None)
+        except Exception as e:
+            logger.exception(f"OCR failed for {filename}")
+            return (filename, [], None, str(e)[:500])
+
+    with ThreadPoolExecutor(max_workers=4) as executor:
+        ocr_results = list(executor.map(_ocr_one, file_images))
+
+    # --- Phase 2: Dedupe words across all pages ---
+    # Quality gate all extracted words together
+    all_extracted: list[dict] = []
+    page_word_indices: dict[str, list[int]] = {}  # filename -> indices into all_extracted
+
+    for filename, extracted, page_number, error in ocr_results:
+        upload = upload_by_filename.get(filename)
+        if upload:
+            upload.textbook_page_number = page_number
+        if error:
+            if upload:
+                upload.status = "failed"
+                upload.error_message = error
+                upload.completed_at = datetime.now(timezone.utc)
+            continue
+        if not extracted:
+            if upload:
+                upload.status = "completed"
+                upload.extracted_words_json = []
+                upload.new_words = 0
+                upload.existing_words = 0
+                upload.completed_at = datetime.now(timezone.utc)
+            continue
+
+        start_idx = len(all_extracted)
+        all_extracted.extend(extracted)
+        page_word_indices[filename] = list(range(start_idx, len(all_extracted)))
+
+    if not all_extracted:
+        _commit_with_retry(db, "batch-no-words")
+        return
+
+    # Quality gate on combined word list
+    from app.services.import_quality import classify_lemmas
+    useful, rejected = classify_lemmas([
+        {"arabic": w.get("arabic_bare", ""), "english": w.get("english", "")}
+        for w in all_extracted
+    ])
+    _category_by_bare: dict[str, str] = {}
+    for u in useful:
+        cat = u.get("word_category", "standard")
+        if cat in ("proper_name", "onomatopoeia"):
+            _category_by_bare[u["arabic"]] = cat
+    rejected_bares = {r["arabic"] for r in rejected} if rejected else set()
+
+    # --- Phase 3: Single DB import ---
+    all_lemmas = db.query(Lemma).all()
+    lemma_lookup = build_lemma_lookup(all_lemmas)
+    bare_to_lemma: dict[str, Lemma] = {l.lemma_ar_bare: l for l in all_lemmas}
+    knowledge_map: dict[int, UserLemmaKnowledge] = {
+        ulk.lemma_id: ulk for ulk in db.query(UserLemmaKnowledge).all()
+    }
+
+    seen_bares: set[str] = set()  # dedupe across ALL pages
+    new_lemma_ids: list[int] = []
+    # Track per-word results indexed same as all_extracted
+    word_results: list[dict | None] = [None] * len(all_extracted)
+
+    for idx, word_data in enumerate(all_extracted):
+        arabic = word_data.get("arabic", "").strip()
+        if not arabic:
+            continue
+
+        arabic, san_warnings = sanitize_arabic_word(arabic)
+        if not arabic or "multi_word" in san_warnings or "too_short" in san_warnings:
+            continue
+
+        bare = compute_bare_form(arabic)
+        base_lemma_bare = word_data.get("base_lemma")
+
+        if _is_function_word(bare):
+            continue
+        if base_lemma_bare and _is_function_word(base_lemma_bare):
+            continue
+        if bare in rejected_bares or (base_lemma_bare and base_lemma_bare in rejected_bares):
+            continue
+
+        dedup_key = base_lemma_bare or bare
+        if dedup_key in seen_bares:
+            continue
+        seen_bares.add(dedup_key)
+        if base_lemma_bare and bare != base_lemma_bare:
+            seen_bares.add(bare)
+
+        # Look up existing lemma
+        lemma_id = None
+        if base_lemma_bare and base_lemma_bare != bare:
+            lemma_id = lookup_lemma(base_lemma_bare, lemma_lookup)
+        if not lemma_id:
+            lemma_id = lookup_lemma(bare, lemma_lookup)
+
+        if lemma_id:
+            lemma = db.query(Lemma).filter(Lemma.lemma_id == lemma_id).first()
+            ulk = knowledge_map.get(lemma_id)
+
+            if ulk:
+                ulk.total_encounters = (ulk.total_encounters or 0) + 1
+                word_results[idx] = {
+                    "arabic": lemma.lemma_ar if lemma else arabic,
+                    "arabic_bare": bare,
+                    "english": lemma.gloss_en if lemma else word_data.get("english"),
+                    "status": "existing",
+                    "lemma_id": lemma_id,
+                    "knowledge_state": ulk.knowledge_state,
+                }
+            else:
+                if start_acquiring:
+                    from app.services.acquisition_service import start_acquisition
+                    new_ulk = start_acquisition(
+                        db, lemma_id=lemma_id, source="textbook_scan", due_immediately=True,
+                    )
+                else:
+                    new_ulk = UserLemmaKnowledge(
+                        lemma_id=lemma_id,
+                        knowledge_state="encountered",
+                        fsrs_card_json=None,
+                        source="textbook_scan",
+                        total_encounters=1,
+                    )
+                    db.add(new_ulk)
+                    db.flush()
+                knowledge_map[lemma_id] = new_ulk
+                word_results[idx] = {
+                    "arabic": lemma.lemma_ar if lemma else arabic,
+                    "arabic_bare": bare,
+                    "english": lemma.gloss_en if lemma else word_data.get("english"),
+                    "status": "existing_new_card",
+                    "lemma_id": lemma_id,
+                    "knowledge_state": new_ulk.knowledge_state,
+                }
+        else:
+            import_bare = base_lemma_bare if base_lemma_bare else bare
+            english = word_data.get("english")
+            pos = word_data.get("pos")
+            root_str = word_data.get("root")
+
+            root_id = None
+            if root_str and _is_valid_root(root_str):
+                existing_root = db.query(Root).filter(Root.root == root_str).first()
+                if existing_root:
+                    root_id = existing_root.root_id
+                else:
+                    new_root = Root(root=root_str, core_meaning_en="")
+                    db.add(new_root)
+                    db.flush()
+                    root_id = new_root.root_id
+
+            word_cat = _category_by_bare.get(import_bare)
+            lemma_gloss = english
+            if word_cat == "proper_name" and english and not english.startswith("(name)"):
+                lemma_gloss = f"(name) {english}"
+
+            new_lemma = Lemma(
+                lemma_ar=arabic,
+                lemma_ar_bare=import_bare,
+                root_id=root_id,
+                pos=pos,
+                gloss_en=lemma_gloss,
+                source="textbook_scan",
+                word_category=word_cat,
+            )
+            db.add(new_lemma)
+            db.flush()
+
+            if start_acquiring:
+                from app.services.acquisition_service import start_acquisition
+                new_ulk = start_acquisition(
+                    db, lemma_id=new_lemma.lemma_id, source="textbook_scan", due_immediately=True,
+                )
+            else:
+                new_ulk = UserLemmaKnowledge(
+                    lemma_id=new_lemma.lemma_id,
+                    knowledge_state="encountered",
+                    fsrs_card_json=None,
+                    source="textbook_scan",
+                    total_encounters=1,
+                )
+                db.add(new_ulk)
+                db.flush()
+
+            lemma_lookup[import_bare] = new_lemma.lemma_id
+            if import_bare != bare:
+                lemma_lookup[bare] = new_lemma.lemma_id
+            if import_bare.startswith("ال") and len(import_bare) > 2:
+                lemma_lookup[import_bare[2:]] = new_lemma.lemma_id
+            else:
+                lemma_lookup["ال" + import_bare] = new_lemma.lemma_id
+            knowledge_map[new_lemma.lemma_id] = new_ulk
+            bare_to_lemma[import_bare] = new_lemma
+
+            new_lemma_ids.append(new_lemma.lemma_id)
+            word_results[idx] = {
+                "arabic": arabic,
+                "arabic_bare": import_bare,
+                "english": english,
+                "status": "new",
+                "lemma_id": new_lemma.lemma_id,
+                "knowledge_state": new_ulk.knowledge_state,
+                "root": root_str,
+                "pos": pos,
+            }
+
+    # Update page upload records with per-page results
+    for filename, indices in page_word_indices.items():
+        upload = upload_by_filename.get(filename)
+        if not upload:
+            continue
+        page_results = [word_results[i] for i in indices if word_results[i] is not None]
+        new_count = sum(1 for r in page_results if r["status"] == "new")
+        existing_count = sum(1 for r in page_results if r["status"] in ("existing", "existing_new_card"))
+        upload.status = "completed"
+        upload.extracted_words_json = page_results
+        upload.new_words = new_count
+        upload.existing_words = existing_count
+        upload.completed_at = datetime.now(timezone.utc)
+
+    # Mark any pages that had no words in page_word_indices as completed
+    for u in uploads:
+        if u.status == "processing":
+            u.status = "completed"
+            u.extracted_words_json = []
+            u.new_words = 0
+            u.existing_words = 0
+            u.completed_at = datetime.now(timezone.utc)
+
+    _commit_with_retry(db, "batch-import")
+
+    # Variant detection on new lemmas
+    variants_detected = 0
+    variant_ids: set[int] = set()
+    if new_lemma_ids:
+        from app.services.variant_detection import (
+            detect_variants_llm,
+            detect_definite_variants,
+            mark_variants,
+        )
+        camel_vars = detect_variants_llm(db, lemma_ids=new_lemma_ids)
+        already = {v[0] for v in camel_vars}
+        def_vars = detect_definite_variants(db, lemma_ids=new_lemma_ids, already_variant_ids=already)
+        all_vars = camel_vars + def_vars
+        if all_vars:
+            variants_detected = mark_variants(db, all_vars)
+            variant_ids = {v[0] for v in all_vars}
+            if start_acquiring and variant_ids:
+                for vid in variant_ids:
+                    vulk = knowledge_map.get(vid)
+                    if vulk and vulk.knowledge_state == "acquiring":
+                        vulk.knowledge_state = "encountered"
+                        vulk.acquisition_box = None
+                        vulk.acquisition_next_due = None
+                        vulk.acquisition_started_at = None
+                        vulk.introduced_at = None
+            _commit_with_retry(db, "batch-variants")
+            logger.info(
+                f"OCR batch variant detection: marked {variants_detected} variants "
+                f"among {len(new_lemma_ids)} new words"
+            )
+
+    total_new = sum(u.new_words or 0 for u in uploads)
+    total_existing = sum(u.existing_words or 0 for u in uploads)
+    log_interaction(
+        event="textbook_batch_processed",
+        batch_id=batch_id,
+        page_count=len(uploads),
+        new_words=total_new,
+        existing_words=total_existing,
+        variants_detected=variants_detected,
+    )
+
+    backfill_root_meanings(db)
+    _commit_with_retry(db, "batch-root-backfill")
+
+    # Sentence generation for new words (skip variants)
+    gen_ids = [lid for lid in new_lemma_ids if lid not in variant_ids]
+    _schedule_material_generation(db, gen_ids)

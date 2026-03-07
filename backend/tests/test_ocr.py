@@ -486,7 +486,7 @@ class TestBaseLemmaHandling:
 class TestOCREndpoints:
     """Tests for the OCR API endpoints."""
 
-    @patch("app.routers.ocr._process_page_background")
+    @patch("app.routers.ocr._process_batch_background")
     def test_scan_pages_endpoint(self, mock_process, client):
         """Test the scan-pages endpoint accepts file uploads."""
         import io
@@ -506,7 +506,7 @@ class TestOCREndpoints:
         assert data["pages"][0]["status"] == "pending"
         assert data["pages"][0]["filename"] == "page1.jpg"
 
-    @patch("app.routers.ocr._process_page_background")
+    @patch("app.routers.ocr._process_batch_background")
     def test_scan_multiple_pages(self, mock_process, client):
         """Test uploading multiple pages in one batch."""
         import io
@@ -527,7 +527,7 @@ class TestOCREndpoints:
         response = client.get("/api/ocr/batch/nonexistent")
         assert response.status_code == 404
 
-    @patch("app.routers.ocr._process_page_background")
+    @patch("app.routers.ocr._process_batch_background")
     def test_get_batch_status(self, mock_process, client):
         """Test getting batch status after upload."""
         import io

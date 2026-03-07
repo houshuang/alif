@@ -1,11 +1,9 @@
 """OCR endpoints for textbook scanning and story image import."""
 
-import time
 import uuid
 import logging
 
 from fastapi import APIRouter, Depends, File, UploadFile, BackgroundTasks, HTTPException, Query
-from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Session
 
 from app.database import SessionLocal, get_db
@@ -13,7 +11,7 @@ from app.models import PageUpload
 from app.schemas import PageUploadOut, BatchUploadOut, OCRStoryImportOut
 from app.services.ocr_service import (
     extract_text_from_image,
-    process_textbook_page,
+    process_batch,
 )
 
 logger = logging.getLogger(__name__)
@@ -39,17 +37,17 @@ def _format_upload(upload: PageUpload) -> dict:
     }
 
 
-def _process_page_background(upload_id: int, image_bytes: bytes, start_acquiring: bool = False) -> None:
-    """Background task wrapper — creates its own DB session."""
+def _process_batch_background(
+    batch_id: str,
+    file_images: list[tuple[str, bytes]],
+    start_acquiring: bool = False,
+) -> None:
+    """Background task: OCR all pages, dedupe words, single DB import."""
     db = SessionLocal()
     try:
-        upload = db.query(PageUpload).filter(PageUpload.id == upload_id).first()
-        if not upload:
-            logger.error(f"PageUpload {upload_id} not found for background processing")
-            return
-        process_textbook_page(db, upload, image_bytes, start_acquiring=start_acquiring)
+        process_batch(db, batch_id, file_images, start_acquiring=start_acquiring)
     except Exception:
-        logger.exception(f"Background processing failed for upload {upload_id}")
+        logger.exception(f"Background batch processing failed for {batch_id}")
     finally:
         db.close()
 
@@ -64,15 +62,15 @@ async def scan_textbook_pages(
     """Upload one or more textbook page images for OCR word extraction.
 
     Returns immediately with batch tracking info. Processing happens in background.
+    Pages are OCR'd in parallel, words deduped across pages, then imported in one DB transaction.
     """
     if not files:
         raise HTTPException(status_code=400, detail="No files uploaded")
 
     batch_id = str(uuid.uuid4())[:8]
     uploads = []
+    file_images: list[tuple[str, bytes]] = []
 
-    # Read all files first, then do DB writes with retry
-    file_data: list[tuple[str, bytes]] = []
     for file in files:
         image_bytes = await file.read()
 
@@ -85,36 +83,20 @@ async def scan_textbook_pages(
         if not image_bytes:
             continue
 
-        file_data.append((file.filename, image_bytes))
+        # Create tracking record (lightweight, no OCR yet)
+        upload = PageUpload(
+            batch_id=batch_id,
+            filename=file.filename,
+            status="pending",
+        )
+        db.add(upload)
+        uploads.append(upload)
+        file_images.append((file.filename, image_bytes))
 
-    # Retry DB writes on lock contention (background OCR tasks may hold the lock)
-    max_retries = 3
-    for attempt in range(max_retries):
-        try:
-            for filename, image_bytes in file_data:
-                upload = PageUpload(
-                    batch_id=batch_id,
-                    filename=filename,
-                    status="pending",
-                )
-                db.add(upload)
-                db.flush()
-                uploads.append(upload)
+    db.commit()
 
-            db.commit()
-            break
-        except OperationalError:
-            db.rollback()
-            uploads.clear()
-            if attempt < max_retries - 1:
-                logger.warning(f"DB locked during scan-pages insert, retrying ({attempt + 1}/{max_retries})")
-                time.sleep(1)
-            else:
-                logger.error("DB locked during scan-pages insert, all retries exhausted")
-                raise HTTPException(status_code=503, detail="Database busy, please retry")
-
-    for (filename, image_bytes), upload in zip(file_data, uploads):
-        background_tasks.add_task(_process_page_background, upload.id, image_bytes, start_acquiring)
+    # Single background task for the entire batch
+    background_tasks.add_task(_process_batch_background, batch_id, file_images, start_acquiring)
 
     return {
         "batch_id": batch_id,
