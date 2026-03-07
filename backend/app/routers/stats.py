@@ -82,6 +82,18 @@ def _count_due_cards(db: Session, now: datetime) -> tuple[int, int, int]:
     return fsrs_due + acquiring_due, fsrs_due, acquiring_due
 
 
+def _count_fsrs_reviewed_today(db: Session, today_start: datetime) -> int:
+    """Count unique FSRS (non-acquisition) lemmas reviewed today."""
+    return (
+        db.query(func.count(func.distinct(ReviewLog.lemma_id)))
+        .filter(
+            ReviewLog.reviewed_at >= today_start,
+            ReviewLog.is_acquisition == False,
+        )
+        .scalar() or 0
+    )
+
+
 def _get_basic_stats(db: Session) -> StatsOut:
     now = datetime.now(timezone.utc)
     total = db.query(func.count(Lemma.lemma_id)).scalar() or 0
@@ -99,6 +111,7 @@ def _get_basic_stats(db: Session) -> StatsOut:
         .scalar() or 0
     )
     total_reviews = db.query(func.count(ReviewLog.id)).scalar() or 0
+    fsrs_reviewed_today = _count_fsrs_reviewed_today(db, today_start)
 
     due_today, fsrs_due, acquisition_due = _count_due_cards(db, now)
 
@@ -113,6 +126,7 @@ def _get_basic_stats(db: Session) -> StatsOut:
         due_today=due_today,
         fsrs_due=fsrs_due,
         acquisition_due=acquisition_due,
+        fsrs_reviewed_today=fsrs_reviewed_today,
         reviews_today=reviews_today,
         total_reviews=total_reviews,
         lapsed=lapsed,

@@ -123,6 +123,7 @@ interface RawStats {
   due_today: number;
   fsrs_due?: number;
   acquisition_due?: number;
+  fsrs_reviewed_today?: number;
   reviews_today: number;
   total_reviews?: number;
   lapsed?: number;
@@ -319,6 +320,7 @@ export async function getStats(): Promise<Stats> {
       due_today: raw.due_today,
       fsrs_due: raw.fsrs_due ?? 0,
       acquisition_due: raw.acquisition_due ?? 0,
+      fsrs_reviewed_today: raw.fsrs_reviewed_today ?? 0,
       reviews_today: raw.reviews_today,
       streak_days: 0,
       total_reviews: raw.total_reviews ?? 0,

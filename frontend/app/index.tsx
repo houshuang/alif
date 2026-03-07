@@ -2578,24 +2578,33 @@ function SessionComplete({
       {dataReady && data && (
         <Animated.View style={[styles.todayRow, { opacity: fadeAnim }]}>
           <View style={{ width: "100%", paddingHorizontal: 16, marginBottom: 8 }}>
-            <View style={styles.todayProgressBar}>
-              <View style={[styles.todayProgressFill, { flex: data.reviews_today || 0.001 }]} />
-              <View style={{ flex: data.due_today || 0 }} />
-            </View>
-            <View style={styles.todayProgressLabels}>
-              <Text style={[styles.todayProgressText, { color: colors.gotIt }]}>
-                {data.reviews_today} done
+            {((data.fsrs_reviewed_today || 0) > 0 || (data.fsrs_due || 0) > 0) && (
+              <>
+                <View style={styles.todayProgressBar}>
+                  <View style={[styles.todayProgressFill, { flex: data.fsrs_reviewed_today || 0.001 }]} />
+                  <View style={{ flex: data.fsrs_due || 0 }} />
+                </View>
+                <View style={styles.todayProgressLabels}>
+                  <Text style={[styles.todayProgressText, { color: colors.gotIt }]}>
+                    {data.fsrs_reviewed_today} reviewed
+                  </Text>
+                  {(data.fsrs_due || 0) > 0 ? (
+                    <Text style={[styles.todayProgressText, { color: colors.accent }]}>
+                      {data.fsrs_due} remaining
+                    </Text>
+                  ) : (
+                    <Text style={[styles.todayProgressText, { color: colors.gotIt }]}>
+                      done
+                    </Text>
+                  )}
+                </View>
+              </>
+            )}
+            {(data.acquisition_due || 0) > 0 && (
+              <Text style={[styles.todayProgressText, { color: colors.textSecondary, textAlign: "center", marginTop: 4 }]}>
+                {data.acquisition_due} acquiring due now
               </Text>
-              {(data.due_today || 0) > 0 ? (
-                <Text style={[styles.todayProgressText, { color: colors.accent }]}>
-                  {data.due_today} remaining
-                </Text>
-              ) : (
-                <Text style={[styles.todayProgressText, { color: colors.gotIt }]}>
-                  all caught up
-                </Text>
-              )}
-            </View>
+            )}
           </View>
           <View style={{ flexDirection: "row", justifyContent: "space-around", width: "100%" }}>
             <View style={styles.todayStat}>

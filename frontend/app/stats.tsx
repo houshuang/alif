@@ -84,6 +84,7 @@ export default function StatsScreen() {
         dueToday={stats.due_today}
         fsrsDue={stats.fsrs_due || 0}
         acquisitionDue={stats.acquisition_due || 0}
+        fsrsReviewedToday={stats.fsrs_reviewed_today || 0}
         streak={pace.current_streak}
         transitionsToday={deepAnalytics?.transitions_today}
       />
@@ -712,10 +713,10 @@ function RootProgressSection({ data }: { data: DeepAnalytics["root_coverage"] })
 // --- Existing Components ---
 
 function TodayHeroCard({
-  comprehension, graduated, introduced, calibration, reviewsToday, dueToday, fsrsDue, acquisitionDue, streak, transitionsToday,
+  comprehension, graduated, introduced, calibration, reviewsToday, dueToday, fsrsDue, acquisitionDue, fsrsReviewedToday, streak, transitionsToday,
 }: {
   comprehension?: ComprehensionBreakdown; graduated?: GraduatedWord[]; introduced?: IntroducedBySource[];
-  calibration?: string; reviewsToday: number; dueToday: number; fsrsDue: number; acquisitionDue: number; streak: number; transitionsToday?: StateTransitions;
+  calibration?: string; reviewsToday: number; dueToday: number; fsrsDue: number; acquisitionDue: number; fsrsReviewedToday: number; streak: number; transitionsToday?: StateTransitions;
 }) {
   if (reviewsToday === 0 && dueToday === 0) return null;
 
@@ -740,27 +741,37 @@ function TodayHeroCard({
       </View>
 
       <View style={styles.heroStatus}>
-        {dueToday === 0 ? (
+        {fsrsDue === 0 && acquisitionDue === 0 ? (
           <Text style={[styles.heroStatusText, { color: colors.good }]}>
             {reviewsToday > 0 ? `${reviewsToday} reviews · ` : ""}all caught up
           </Text>
         ) : (
           <View>
-            <View style={styles.heroProgressBar}>
-              <View style={[styles.heroProgressFill, { flex: reviewsToday || 0.001 }]} />
-              <View style={{ flex: dueToday }} />
-            </View>
-            <View style={styles.heroProgressLabels}>
-              <Text style={[styles.heroStatusText, { color: colors.good }]}>
-                {reviewsToday} done
-              </Text>
-              <Text style={[styles.heroStatusText, { color: colors.accent }]}>
-                {dueToday} remaining
-              </Text>
-            </View>
-            {(fsrsDue > 0 && acquisitionDue > 0) && (
-              <Text style={[styles.heroStatusDetail, { color: colors.textSecondary }]}>
-                {acquisitionDue} acquiring · {fsrsDue} review
+            {(fsrsReviewedToday > 0 || fsrsDue > 0) && (
+              <>
+                <View style={styles.heroProgressBar}>
+                  <View style={[styles.heroProgressFill, { flex: fsrsReviewedToday || 0.001 }]} />
+                  <View style={{ flex: fsrsDue }} />
+                </View>
+                <View style={styles.heroProgressLabels}>
+                  <Text style={[styles.heroStatusText, { color: colors.good }]}>
+                    {fsrsReviewedToday} reviewed
+                  </Text>
+                  {fsrsDue > 0 ? (
+                    <Text style={[styles.heroStatusText, { color: colors.accent }]}>
+                      {fsrsDue} remaining
+                    </Text>
+                  ) : (
+                    <Text style={[styles.heroStatusText, { color: colors.good }]}>
+                      done
+                    </Text>
+                  )}
+                </View>
+              </>
+            )}
+            {acquisitionDue > 0 && (
+              <Text style={[styles.heroStatusDetail, { color: colors.textSecondary, marginTop: 4 }]}>
+                {acquisitionDue} acquiring due now
               </Text>
             )}
           </View>

@@ -99,6 +99,7 @@ export interface Stats {
   due_today: number;
   fsrs_due: number;
   acquisition_due: number;
+  fsrs_reviewed_today: number;
   reviews_today: number;
   streak_days: number;
   total_reviews: number;
@@ -449,6 +450,7 @@ export interface Analytics {
     due_today: number;
     fsrs_due: number;
     acquisition_due: number;
+    fsrs_reviewed_today: number;
     reviews_today: number;
     total_reviews: number;
     lapsed: number;
@@ -944,7 +946,9 @@ export interface SessionEndData {
   avg_response_ms: number | null;
   known_count: number;
   reviews_today: number;
-  due_today: number;
+  fsrs_reviewed_today: number;
+  fsrs_due: number;
+  acquisition_due: number;
   graduated_today_count: number;
   pipeline_box_1: number;
   pipeline_box_2: number;

@@ -73,6 +73,7 @@ class StatsOut(BaseModel):
     due_today: int
     fsrs_due: int = 0
     acquisition_due: int = 0
+    fsrs_reviewed_today: int = 0
     reviews_today: int
     total_reviews: int = 0
     lapsed: int = 0
@@ -416,7 +417,9 @@ class SessionEndOut(BaseModel):
     avg_response_ms: float | None = None
     known_count: int = 0
     reviews_today: int = 0
-    due_today: int = 0
+    fsrs_reviewed_today: int = 0
+    fsrs_due: int = 0
+    acquisition_due: int = 0
     graduated_today_count: int = 0
     pipeline_box_1: int = 0
     pipeline_box_2: int = 0
