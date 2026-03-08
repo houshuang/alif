@@ -4,6 +4,33 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-03-08: Redesign — Vocabulary & Pipeline Stats Cards + Honest FSRS Progress
+
+### Problem
+1. **Stats "reviewed today" was dishonest**: `_count_fsrs_reviewed_today` counted ALL unique FSRS lemmas with ReviewLog entries today, including collateral credit (non-due words in reviewed sentences). Showed 229 "reviewed" when real cleared count was much lower.
+2. **Vocabulary section was a flat pipeline**: Encountered→Acquiring→Learning→Known boxes with arrows — no trend data, no flow rates, no health indicators.
+3. **Acquisition pipeline showed individual words**: Three Leitner box columns with word lists — useful but didn't communicate throughput or balance.
+
+### Fix
+**Backend**: `_count_fsrs_cleared_today()` replaces `_count_fsrs_reviewed_today()`. Joins ReviewLog with ULK and checks FSRS card's due date is in the future — proves the word was actually due and got cleared. Excludes collateral credit.
+
+**Frontend**: Redesigned both cards (mockup 17 from design exploration):
+- **Vocabulary card**: Hero known count with weekly/daily trend, proportional flow strip, flow rate annotations (intro/d, grad/d), acquiring+learning detail cells, lapsed+retention chips
+- **Pipeline card**: Pressure bars per Leitner box, throughput metrics (entering/graduating rates, grad rate, avg reviews to grad), entering/graduating balance bar, health banner with ratio assessment, 7-day flow chart, graduated word pills
+
+### Design process
+Used design-explorer skill: 10 initial mockups → user voted → 5 refined variants → user selected mockup 17 (Dense Grid + Sankey Hybrid) for implementation.
+
+### Files Changed
+- `backend/app/routers/stats.py` — `_count_fsrs_cleared_today()` with due-date verification
+- `backend/app/routers/review.py` — updated import to use cleared function
+- `frontend/app/stats.tsx` — new `WordLifecycleFunnel` and `AcquisitionPipelineCard` with `vocStyles` and `pipeStyles`
+
+### Verification
+Check stats page shows: hero known count, proportional bar, flow rates, detail cells, pressure bars, throughput metrics, balance bar, health banner.
+
+---
+
 ## 2026-03-07: Fix — Scope Intro Cards to Session + Show Once
 
 ### Problem
