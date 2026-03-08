@@ -433,7 +433,7 @@ function WordLifecycleFunnel({
       </View>
       <View style={vocStyles.flowLabels}>
         {stages.map(s => (
-          <View key={s.label} style={{ flex: Math.max(s.count, 1), alignItems: "center" }}>
+          <View key={s.label} style={vocStyles.flowLabelItem}>
             <Text style={[vocStyles.flowCount, { color: s.color }]}>{s.count}</Text>
             <Text style={vocStyles.flowName}>{s.label}</Text>
           </View>
@@ -1330,7 +1330,8 @@ const vocStyles = StyleSheet.create({
   heroLabel: { fontSize: 12, color: colors.good },
   heroTrend: { fontSize: 11, color: colors.good, opacity: 0.7 },
   flowStrip: { flexDirection: "row", overflow: "hidden", marginBottom: 6 },
-  flowLabels: { flexDirection: "row", marginBottom: 10 },
+  flowLabels: { flexDirection: "row", justifyContent: "space-between", marginBottom: 10 },
+  flowLabelItem: { flex: 1, alignItems: "center" },
   flowCount: { fontSize: 14, fontWeight: "800" },
   flowName: { fontSize: 8, color: colors.textSecondary, textTransform: "uppercase", letterSpacing: 0.3 },
   flowRates: { flexDirection: "row", justifyContent: "space-around", marginBottom: 12, paddingVertical: 4 },
