@@ -98,6 +98,12 @@ export default function StatsScreen() {
         learning={stats.learning}
         known={stats.known}
         lapsed={stats.lapsed}
+        weeklyKnown={deepAnalytics?.transitions_7d?.learning_to_known ?? 0}
+        weeklyLearning={deepAnalytics?.transitions_7d?.new_to_learning ?? 0}
+        netPerDay={pace.words_per_day_7d}
+        retentionPct={deepAnalytics?.retention_7d?.retention_pct ?? null}
+        acquiringDue={stats.acquisition_due || 0}
+        flowHistory={deepAnalytics?.acquisition_pipeline?.flow_history}
       />
 
       {/* CEFR Level Card with reading coverage */}
@@ -162,7 +168,7 @@ export default function StatsScreen() {
 
       {/* Acquisition Pipeline */}
       {deepAnalytics?.acquisition_pipeline && (
-        <AcquisitionPipelineCard pipeline={deepAnalytics.acquisition_pipeline} />
+        <AcquisitionPipelineCard pipeline={deepAnalytics.acquisition_pipeline} insights={deepAnalytics?.insights} />
       )}
 
       {/* ═══ SECTION 3: PROGRESS ═══ */}
@@ -367,40 +373,125 @@ function SectionHeader({ label }: { label: string }) {
 
 function WordLifecycleFunnel({
   encountered, acquiring, learning, known, lapsed,
+  weeklyKnown, weeklyLearning, netPerDay, retentionPct, acquiringDue, flowHistory,
 }: {
   encountered: number; acquiring: number; learning: number; known: number; lapsed: number;
+  weeklyKnown: number; weeklyLearning: number; netPerDay: number;
+  retentionPct: number | null; acquiringDue: number;
+  flowHistory?: Array<{ date: string; entered: number; graduated: number }>;
 }) {
-  const active = known + learning + acquiring;
   const stages = [
     { label: "Seen", count: encountered, color: colors.stateEncountered },
-    { label: "Acq.", count: acquiring, color: colors.stateAcquiring },
-    { label: "Learning", count: learning, color: colors.stateLearning },
-    { label: "Known", count: known, color: colors.stateKnown },
-  ].filter((s) => s.count > 0);
+    { label: "Acq", count: acquiring, color: colors.stateAcquiring },
+    { label: "Learn", count: learning, color: colors.stateLearning },
+    { label: "Known", count: known, color: colors.good },
+  ];
 
-  if (stages.length === 0) return null;
+  // Compute flow rates from pipeline history
+  let enteringPerDay = 0;
+  let graduatingPerDay = 0;
+  if (flowHistory?.length) {
+    enteringPerDay = flowHistory.reduce((s, d) => s + d.entered, 0) / flowHistory.length;
+    graduatingPerDay = flowHistory.reduce((s, d) => s + d.graduated, 0) / flowHistory.length;
+  }
+
+  // Hero trend text
+  const trendParts: string[] = [];
+  if (weeklyKnown > 0) trendParts.push(`+${weeklyKnown} this week`);
+  if (netPerDay > 0) trendParts.push(`+${netPerDay.toFixed(1)}/day`);
+  const trendText = trendParts.join(" \u00b7 ");
+
+  if (stages.every(s => s.count === 0)) return null;
 
   return (
     <View style={styles.funnelCard}>
-      <View style={styles.funnelPipeline}>
+      {/* Hero: known words count */}
+      <View style={vocStyles.hero}>
+        <Text style={vocStyles.heroNum}>{known}</Text>
+        <View>
+          <Text style={vocStyles.heroLabel}>known words</Text>
+          {trendText ? <Text style={vocStyles.heroTrend}>{trendText}</Text> : null}
+        </View>
+      </View>
+
+      {/* Proportional flow strip */}
+      <View style={vocStyles.flowStrip}>
         {stages.map((s, i) => (
-          <View key={s.label} style={{ flexDirection: "row", alignItems: "center", flex: 1 }}>
-            {i > 0 && <Text style={styles.funnelArrow}>{"\u2192"}</Text>}
-            <View style={[styles.funnelStage, { borderColor: s.color + "60" }]}>
-              <Text style={[styles.funnelCount, { color: s.color }]}>{s.count}</Text>
-              <Text style={styles.funnelLabel}>{s.label}</Text>
-            </View>
+          <View
+            key={s.label}
+            style={{
+              flex: Math.max(s.count, 1),
+              backgroundColor: s.color + "25",
+              height: 8,
+              borderTopLeftRadius: i === 0 ? 4 : 0,
+              borderBottomLeftRadius: i === 0 ? 4 : 0,
+              borderTopRightRadius: i === stages.length - 1 ? 4 : 0,
+              borderBottomRightRadius: i === stages.length - 1 ? 4 : 0,
+            }}
+          />
+        ))}
+      </View>
+      <View style={vocStyles.flowLabels}>
+        {stages.map(s => (
+          <View key={s.label} style={{ flex: Math.max(s.count, 1), alignItems: "center" }}>
+            <Text style={[vocStyles.flowCount, { color: s.color }]}>{s.count}</Text>
+            <Text style={vocStyles.flowName}>{s.label}</Text>
           </View>
         ))}
       </View>
-      {lapsed > 0 && (
-        <View style={styles.funnelLapsed}>
-          <Text style={[styles.funnelLapsedText, { color: colors.missed }]}>{lapsed} lapsed</Text>
+
+      {/* Flow rates */}
+      {(enteringPerDay > 0 || graduatingPerDay > 0) && (
+        <View style={vocStyles.flowRates}>
+          {enteringPerDay > 0 && (
+            <Text style={[vocStyles.flowRateText, { color: colors.stateAcquiring }]}>
+              {"\u2192"} {enteringPerDay.toFixed(0)}/d intro
+            </Text>
+          )}
+          {graduatingPerDay > 0 && (
+            <Text style={[vocStyles.flowRateText, { color: colors.good }]}>
+              {"\u2192"} {graduatingPerDay.toFixed(0)}/d grad
+            </Text>
+          )}
+          <Text style={[vocStyles.flowRateText, { color: colors.textSecondary, opacity: 0.5 }]}>
+            stab{"\u2265"}21d
+          </Text>
         </View>
       )}
-      <Text style={styles.funnelSummary}>
-        {known} known + {learning} learning + {acquiring} acquiring = {active} active
-      </Text>
+
+      {/* Detail cells: Acquiring + Learning */}
+      <View style={vocStyles.sparkRow}>
+        <View style={[vocStyles.sparkCell, { borderTopColor: colors.stateAcquiring + "60" }]}>
+          <Text style={[vocStyles.sparkVal, { color: colors.stateAcquiring }]}>{acquiring}</Text>
+          <Text style={vocStyles.sparkLabel}>Acquiring</Text>
+          {acquiringDue > 0 && (
+            <Text style={[vocStyles.sparkDelta, { color: colors.missed }]}>{acquiringDue} due</Text>
+          )}
+        </View>
+        <View style={[vocStyles.sparkCell, { borderTopColor: colors.stateLearning + "60" }]}>
+          <Text style={[vocStyles.sparkVal, { color: colors.stateLearning }]}>{learning}</Text>
+          <Text style={vocStyles.sparkLabel}>Learning</Text>
+          {weeklyLearning > 0 && (
+            <Text style={[vocStyles.sparkDelta, { color: colors.stateLearning }]}>+{weeklyLearning}/wk</Text>
+          )}
+        </View>
+      </View>
+
+      {/* Bottom chips */}
+      <View style={vocStyles.chips}>
+        {lapsed > 0 && (
+          <View style={vocStyles.chip}>
+            <Text style={vocStyles.chipLabel}>Lapsed</Text>
+            <Text style={[vocStyles.chipVal, { color: colors.missed }]}>{lapsed}</Text>
+          </View>
+        )}
+        <View style={vocStyles.chip}>
+          <Text style={vocStyles.chipLabel}>Retention</Text>
+          <Text style={vocStyles.chipVal}>
+            {retentionPct != null && retentionPct > 0 ? `${Math.round(retentionPct)}%` : "\u2014"}
+          </Text>
+        </View>
+      </View>
     </View>
   );
 }
@@ -833,90 +924,154 @@ function TodayHeroCard({
   );
 }
 
-function AcquisitionPipelineCard({ pipeline }: { pipeline: AcquisitionPipeline }) {
+function AcquisitionPipelineCard({ pipeline, insights }: { pipeline: AcquisitionPipeline; insights?: InsightsData }) {
   const total = pipeline.box_1_count + pipeline.box_2_count + pipeline.box_3_count;
   const [expanded, setExpanded] = useState(false);
   if (total === 0 && pipeline.recent_graduations.length === 0) return null;
 
-  const renderBox = (label: string, words: typeof pipeline.box_1, count: number, due: number, delta: number) => (
-    <View style={styles.pipeBox}>
-      <View style={styles.pipeBoxHeader}>
-        <Text style={styles.pipeBoxLabel}>{label}</Text>
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
-          {due > 0 && <View style={styles.pipeDueBadge}><Text style={styles.pipeDueText}>{due}</Text></View>}
-          <Text style={styles.pipeBoxCount}>{count}</Text>
-        </View>
-      </View>
-      {(expanded ? words : words.slice(0, 3)).map((w) => {
-        const acc = w.times_seen > 0 ? Math.round(w.times_correct / w.times_seen * 100) : 0;
-        return (
-          <View key={w.lemma_id} style={styles.pipeWord}>
-            <Text style={styles.pipeWordAr} numberOfLines={1}>{w.lemma_ar}</Text>
-            <Text style={styles.pipeWordAcc}>{acc}%</Text>
-          </View>
-        );
-      })}
-      {delta !== 0 && (
-        <Text style={[styles.pipeMore, delta < 0 ? styles.pipeDeltaNeg : styles.pipeDeltaPos]}>
-          {delta > 0 ? `+${delta}` : delta}
-        </Text>
-      )}
-    </View>
-  );
-
-  const hasFlow = pipeline.flow_history && pipeline.flow_history.some(d => d.entered > 0 || d.graduated > 0);
+  // Compute flow rates from history
+  const hasFlow = pipeline.flow_history?.length > 0;
+  let enteringPerDay = 0;
+  let graduatingPerDay = 0;
+  if (hasFlow) {
+    const days = pipeline.flow_history.length;
+    enteringPerDay = pipeline.flow_history.reduce((s, d) => s + d.entered, 0) / days;
+    graduatingPerDay = pipeline.flow_history.reduce((s, d) => s + d.graduated, 0) / days;
+  }
   const maxFlow = hasFlow ? Math.max(...pipeline.flow_history.map(d => Math.max(d.entered, d.graduated)), 1) : 1;
+
+  const gradRate = insights?.graduation_rate_pct;
+  const avgReviews = insights?.avg_encounters_to_graduation;
+  const ratio = graduatingPerDay > 0 ? enteringPerDay / graduatingPerDay : 0;
+  const isHealthy = ratio > 0 && ratio <= 3;
+
+  const boxes = [
+    { label: "Box 1", count: pipeline.box_1_count, due: pipeline.box_1_due ?? 0, interval: "4h" },
+    { label: "Box 2", count: pipeline.box_2_count, due: pipeline.box_2_due ?? 0, interval: "1d" },
+    { label: "Box 3", count: pipeline.box_3_count, due: pipeline.box_3_due ?? 0, interval: "3d" },
+  ];
 
   return (
     <View style={styles.deepCard}>
       <Pressable style={styles.pipeTitleRow} onPress={() => setExpanded(!expanded)}>
         <Text style={styles.sectionTitle}>Acquisition Pipeline</Text>
-        <Text style={styles.pipeTotal}>{total} words</Text>
+        <Text style={pipeStyles.count}>{total} words</Text>
       </Pressable>
-      <View style={styles.pipeBoxes}>
-        {renderBox("Box 1\n4h", pipeline.box_1, pipeline.box_1_count, pipeline.box_1_due ?? 0, pipeline.box_1_delta ?? 0)}
-        <Text style={styles.pipeArrow}>{"\u2192"}</Text>
-        {renderBox("Box 2\n1d", pipeline.box_2, pipeline.box_2_count, pipeline.box_2_due ?? 0, pipeline.box_2_delta ?? 0)}
-        <Text style={styles.pipeArrow}>{"\u2192"}</Text>
-        {renderBox("Box 3\n3d", pipeline.box_3, pipeline.box_3_count, pipeline.box_3_due ?? 0, pipeline.box_3_delta ?? 0)}
-      </View>
-      {hasFlow && (
-        <View style={styles.pipeFlowChart}>
-          <Text style={styles.pipeFlowTitle}>7-day flow</Text>
-          <View style={styles.pipeFlowBars}>
-            {pipeline.flow_history.map((d, i) => {
-              const enteredH = (d.entered / maxFlow) * 48;
-              const gradH = (d.graduated / maxFlow) * 48;
-              return (
-                <View key={i} style={styles.pipeFlowCol}>
-                  <View style={styles.pipeFlowBarGroup}>
-                    {d.entered > 0 && <View style={[styles.pipeFlowBar, { height: Math.max(enteredH, 3), backgroundColor: colors.accent }]} />}
-                    {d.graduated > 0 && <View style={[styles.pipeFlowBar, { height: Math.max(gradH, 3), backgroundColor: colors.good }]} />}
-                    {d.entered === 0 && d.graduated === 0 && <View style={[styles.pipeFlowBar, { height: 3, backgroundColor: colors.border }]} />}
-                  </View>
-                  <Text style={styles.pipeFlowLabel}>{d.date}</Text>
-                </View>
-              );
-            })}
+
+      {/* Pressure bar rows */}
+      {boxes.map(box => {
+        const pct = total > 0 ? (box.count / total) * 100 : 0;
+        return (
+          <View key={box.label} style={pipeStyles.boxRow}>
+            <Text style={pipeStyles.boxLabel}>{box.label}</Text>
+            <View style={pipeStyles.barBg}>
+              <View style={[pipeStyles.barFill, { width: `${Math.max(pct, 8)}%` }]}>
+                <Text style={pipeStyles.barNum}>{box.count}</Text>
+              </View>
+              <Text style={pipeStyles.barInterval}>{box.interval}</Text>
+            </View>
+            {box.due > 0 && <Text style={pipeStyles.boxDue}>{box.due} due</Text>}
           </View>
-          <View style={styles.pipeFlowLegend}>
-            <View style={[styles.pipeFlowDot, { backgroundColor: colors.accent }]} />
-            <Text style={styles.pipeFlowLegendText}>entered</Text>
-            <View style={[styles.pipeFlowDot, { backgroundColor: colors.good }]} />
-            <Text style={styles.pipeFlowLegendText}>graduated</Text>
+        );
+      })}
+
+      {/* Throughput metrics */}
+      <View style={pipeStyles.throughput}>
+        {enteringPerDay > 0 && (
+          <View style={pipeStyles.tpItem}>
+            <Text style={[pipeStyles.tpVal, { color: colors.stateAcquiring }]}>{enteringPerDay.toFixed(1)}/d</Text>
+            <Text style={pipeStyles.tpLabel}>Entering</Text>
+          </View>
+        )}
+        {graduatingPerDay > 0 && (
+          <View style={pipeStyles.tpItem}>
+            <Text style={[pipeStyles.tpVal, { color: colors.good }]}>{graduatingPerDay.toFixed(1)}/d</Text>
+            <Text style={pipeStyles.tpLabel}>Graduating</Text>
+          </View>
+        )}
+        {gradRate != null && (
+          <View style={pipeStyles.tpItem}>
+            <Text style={pipeStyles.tpVal}>{Math.round(gradRate)}%</Text>
+            <Text style={pipeStyles.tpLabel}>Grad Rate</Text>
+          </View>
+        )}
+        {avgReviews != null && (
+          <View style={pipeStyles.tpItem}>
+            <Text style={pipeStyles.tpVal}>~{Math.round(avgReviews)}</Text>
+            <Text style={pipeStyles.tpLabel}>To Grad</Text>
+          </View>
+        )}
+      </View>
+
+      {/* Balance bar */}
+      {enteringPerDay > 0 && graduatingPerDay > 0 && (
+        <>
+          <View style={pipeStyles.balanceBar}>
+            <View style={[pipeStyles.balanceSeg, { flex: enteringPerDay, backgroundColor: colors.stateAcquiring + "40" }]}>
+              <Text style={[pipeStyles.balanceText, { color: colors.stateAcquiring }]}>
+                {enteringPerDay.toFixed(0)} in
+              </Text>
+            </View>
+            <View style={[pipeStyles.balanceSeg, { flex: graduatingPerDay, backgroundColor: colors.good + "40" }]}>
+              <Text style={[pipeStyles.balanceText, { color: colors.good }]}>
+                {graduatingPerDay.toFixed(0)} out
+              </Text>
+            </View>
+          </View>
+          <View style={pipeStyles.balanceLabels}>
+            <Text style={pipeStyles.balanceLabelText}>entering</Text>
+            <Text style={pipeStyles.balanceLabelText}>graduating</Text>
+          </View>
+        </>
+      )}
+
+      {/* Health banner */}
+      {ratio > 0 && (
+        <View style={[pipeStyles.healthBanner, { backgroundColor: (isHealthy ? colors.good : colors.missed) + "10" }]}>
+          <View style={[pipeStyles.healthDot, { backgroundColor: isHealthy ? colors.good : colors.missed }]} />
+          <Text style={[pipeStyles.healthText, { color: isHealthy ? colors.good : colors.missed }]}>
+            {ratio.toFixed(0)}:1 ratio {"\u2014"} {isHealthy ? "pipeline balanced" : "pipeline building up"}
+          </Text>
+        </View>
+      )}
+
+      {/* 7-day flow chart */}
+      {hasFlow && pipeline.flow_history.some(d => d.entered > 0 || d.graduated > 0) && (
+        <View style={pipeStyles.flowSection}>
+          <Text style={pipeStyles.flowTitle}>7-day flow</Text>
+          <View style={pipeStyles.flowBars}>
+            {pipeline.flow_history.map((d, i) => (
+              <View key={i} style={pipeStyles.flowCol}>
+                <View style={pipeStyles.flowBarGroup}>
+                  {d.entered > 0 && <View style={[pipeStyles.flowBar, { height: Math.max((d.entered / maxFlow) * 32, 2), backgroundColor: colors.stateAcquiring }]} />}
+                  {d.graduated > 0 && <View style={[pipeStyles.flowBar, { height: Math.max((d.graduated / maxFlow) * 32, 2), backgroundColor: colors.good }]} />}
+                  {d.entered === 0 && d.graduated === 0 && <View style={[pipeStyles.flowBar, { height: 2, backgroundColor: colors.border }]} />}
+                </View>
+                <Text style={pipeStyles.flowDayLabel}>{d.date}</Text>
+              </View>
+            ))}
+          </View>
+          <View style={pipeStyles.flowLegend}>
+            <View style={[pipeStyles.flowLegendDot, { backgroundColor: colors.stateAcquiring }]} />
+            <Text style={pipeStyles.flowLegendText}>entered</Text>
+            <View style={[pipeStyles.flowLegendDot, { backgroundColor: colors.good }]} />
+            <Text style={pipeStyles.flowLegendText}>graduated</Text>
           </View>
         </View>
       )}
+
+      {/* Recent graduations */}
       {pipeline.recent_graduations.length > 0 && (
-        <View style={styles.pipeGrads}>
-          <Text style={styles.pipeGradsTitle}>Recently graduated</Text>
-          {pipeline.recent_graduations.slice(0, expanded ? 15 : 5).map((g) => (
-            <View key={g.lemma_id} style={styles.pipeGradRow}>
-              <Text style={styles.pipeGradAr}>{g.lemma_ar}</Text>
-              <Text style={styles.pipeGradEn} numberOfLines={1}>{g.gloss_en}</Text>
-              <Text style={styles.pipeGradTime}>{_relTime(g.graduated_at)}</Text>
-            </View>
-          ))}
+        <View style={pipeStyles.gradsSection}>
+          <Text style={pipeStyles.gradsTitle}>Recently graduated</Text>
+          <View style={pipeStyles.gradsList}>
+            {pipeline.recent_graduations.slice(0, expanded ? 15 : 5).map((g) => (
+              <View key={g.lemma_id} style={pipeStyles.gradPill}>
+                <Text style={pipeStyles.gradAr}>{g.lemma_ar}</Text>
+                <Text style={pipeStyles.gradTime}>{_relTime(g.graduated_at)}</Text>
+              </View>
+            ))}
+          </View>
         </View>
       )}
     </View>
@@ -1166,4 +1321,67 @@ const styles = StyleSheet.create({
   errorText: { color: colors.textSecondary, fontSize: 18, marginBottom: 16 },
   retryButton: { backgroundColor: colors.accent, paddingVertical: 10, paddingHorizontal: 24, borderRadius: 10 },
   retryText: { color: "#fff", fontSize: 16, fontWeight: "600" },
+});
+
+// Vocabulary card styles (mockup 17)
+const vocStyles = StyleSheet.create({
+  hero: { flexDirection: "row", alignItems: "baseline", gap: 10, marginBottom: 14 },
+  heroNum: { fontSize: 40, fontWeight: "900", color: colors.good, lineHeight: 44 },
+  heroLabel: { fontSize: 12, color: colors.good },
+  heroTrend: { fontSize: 11, color: colors.good, opacity: 0.7 },
+  flowStrip: { flexDirection: "row", overflow: "hidden", marginBottom: 6 },
+  flowLabels: { flexDirection: "row", marginBottom: 10 },
+  flowCount: { fontSize: 14, fontWeight: "800" },
+  flowName: { fontSize: 8, color: colors.textSecondary, textTransform: "uppercase", letterSpacing: 0.3 },
+  flowRates: { flexDirection: "row", justifyContent: "space-around", marginBottom: 12, paddingVertical: 4 },
+  flowRateText: { fontSize: 10, fontWeight: "600" },
+  sparkRow: { flexDirection: "row", gap: 6, marginBottom: 10 },
+  sparkCell: { flex: 1, backgroundColor: colors.surfaceLight, borderRadius: 10, padding: 10, borderTopWidth: 2 },
+  sparkVal: { fontSize: 20, fontWeight: "800" },
+  sparkLabel: { fontSize: 9, color: colors.textSecondary, marginTop: 1 },
+  sparkDelta: { fontSize: 9, fontWeight: "600", marginTop: 2 },
+  chips: { flexDirection: "row", gap: 6 },
+  chip: { flex: 1, flexDirection: "row", justifyContent: "space-between", alignItems: "center", backgroundColor: colors.surfaceLight, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 7 },
+  chipLabel: { fontSize: 10, color: colors.textSecondary },
+  chipVal: { fontSize: 14, fontWeight: "700", color: colors.text },
+});
+
+// Acquisition pipeline styles (mockup 17)
+const pipeStyles = StyleSheet.create({
+  count: { fontSize: 13, color: colors.stateAcquiring, fontWeight: "700" },
+  boxRow: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 6 },
+  boxLabel: { width: 42, fontSize: 11, fontWeight: "600", color: colors.stateAcquiring },
+  barBg: { flex: 1, height: 24, backgroundColor: colors.surfaceLight, borderRadius: 8, overflow: "hidden", justifyContent: "center" },
+  barFill: { height: "100%", backgroundColor: colors.stateAcquiring + "30", borderRadius: 8, justifyContent: "center", paddingLeft: 8 },
+  barNum: { fontSize: 12, fontWeight: "700", color: colors.stateAcquiring },
+  barInterval: { position: "absolute", right: 8, fontSize: 9, color: colors.textSecondary },
+  boxDue: { width: 40, textAlign: "right", fontSize: 10, color: colors.missed, fontWeight: "600" },
+  throughput: { flexDirection: "row", gap: 4, marginTop: 10, marginBottom: 8 },
+  tpItem: { flex: 1, alignItems: "center", backgroundColor: colors.surfaceLight, borderRadius: 6, paddingVertical: 6 },
+  tpVal: { fontSize: 13, fontWeight: "700", color: colors.text },
+  tpLabel: { fontSize: 7, color: colors.textSecondary, textTransform: "uppercase", letterSpacing: 0.2, marginTop: 1 },
+  balanceBar: { flexDirection: "row", height: 22, borderRadius: 6, overflow: "hidden", marginBottom: 3 },
+  balanceSeg: { justifyContent: "center", alignItems: "center" },
+  balanceText: { fontSize: 10, fontWeight: "600" },
+  balanceLabels: { flexDirection: "row", justifyContent: "space-between", marginBottom: 8 },
+  balanceLabelText: { fontSize: 8, color: colors.textSecondary },
+  healthBanner: { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 8, paddingHorizontal: 12, borderRadius: 8, marginBottom: 10 },
+  healthDot: { width: 6, height: 6, borderRadius: 3 },
+  healthText: { fontSize: 11 },
+  flowSection: { marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: colors.border },
+  flowTitle: { fontSize: 11, color: colors.textSecondary, marginBottom: 6, textTransform: "uppercase", letterSpacing: 0.5 },
+  flowBars: { flexDirection: "row", alignItems: "flex-end", height: 40, gap: 3 },
+  flowCol: { flex: 1, alignItems: "center", justifyContent: "flex-end", height: 40 },
+  flowBarGroup: { flexDirection: "row", alignItems: "flex-end", gap: 2, justifyContent: "center" },
+  flowBar: { width: 5, borderRadius: 2 },
+  flowDayLabel: { fontSize: 9, color: colors.textSecondary, marginTop: 2 },
+  flowLegend: { flexDirection: "row", alignItems: "center", gap: 4, marginTop: 6 },
+  flowLegendDot: { width: 8, height: 8, borderRadius: 4 },
+  flowLegendText: { fontSize: 11, color: colors.textSecondary, marginRight: 8 },
+  gradsSection: { marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: colors.border },
+  gradsTitle: { fontSize: 12, color: colors.textSecondary, fontWeight: "600", marginBottom: 6 },
+  gradsList: { flexDirection: "row", flexWrap: "wrap", gap: 4 },
+  gradPill: { backgroundColor: colors.good + "15", borderRadius: 6, paddingHorizontal: 10, paddingVertical: 4, flexDirection: "row", alignItems: "center", gap: 4 },
+  gradAr: { fontSize: 13, color: colors.good, fontWeight: "600" },
+  gradTime: { fontSize: 9, color: colors.textSecondary },
 });

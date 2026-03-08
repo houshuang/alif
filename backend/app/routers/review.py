@@ -913,9 +913,9 @@ def get_session_end(session_id: str, db: Session = Depends(get_db)):
         for r in partial_roots
     ]
 
-    from app.routers.stats import _count_due_cards, _count_fsrs_reviewed_today
+    from app.routers.stats import _count_due_cards, _count_fsrs_cleared_today
     _, fsrs_due, acquisition_due = _count_due_cards(db, now)
-    fsrs_reviewed_today = _count_fsrs_reviewed_today(db, today_start)
+    fsrs_reviewed_today = _count_fsrs_cleared_today(db, today_start, now)
 
     return SessionEndOut(
         word_journeys=word_journeys,

@@ -82,16 +82,27 @@ def _count_due_cards(db: Session, now: datetime) -> tuple[int, int, int]:
     return fsrs_due + acquiring_due, fsrs_due, acquiring_due
 
 
-def _count_fsrs_reviewed_today(db: Session, today_start: datetime) -> int:
-    """Count unique FSRS (non-acquisition) lemmas reviewed today."""
-    return (
-        db.query(func.count(func.distinct(ReviewLog.lemma_id)))
+def _count_fsrs_cleared_today(db: Session, today_start: datetime, now: datetime) -> int:
+    """Count FSRS words cleared today: reviewed today and next due is in the future.
+
+    Only counts words that were actually due (and got reviewed), not collateral
+    credit from sentences. Uses the FSRS card's due date being in the future
+    as proof the word was reviewed and cleared.
+    """
+    now_str = now.isoformat()
+    rows = (
+        db.query(UserLemmaKnowledge.lemma_id)
+        .join(ReviewLog, ReviewLog.lemma_id == UserLemmaKnowledge.lemma_id)
         .filter(
             ReviewLog.reviewed_at >= today_start,
             ReviewLog.is_acquisition == False,
+            UserLemmaKnowledge.fsrs_card_json.isnot(None),
+            func.json_extract(UserLemmaKnowledge.fsrs_card_json, '$.due') > now_str,
         )
-        .scalar() or 0
+        .distinct()
+        .all()
     )
+    return len(rows)
 
 
 def _get_basic_stats(db: Session) -> StatsOut:
@@ -111,7 +122,7 @@ def _get_basic_stats(db: Session) -> StatsOut:
         .scalar() or 0
     )
     total_reviews = db.query(func.count(ReviewLog.id)).scalar() or 0
-    fsrs_reviewed_today = _count_fsrs_reviewed_today(db, today_start)
+    fsrs_reviewed_today = _count_fsrs_cleared_today(db, today_start, now)
 
     due_today, fsrs_due, acquisition_due = _count_due_cards(db, now)
 

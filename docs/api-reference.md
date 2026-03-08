@@ -55,7 +55,7 @@ Full endpoint list. See `backend/app/routers/` for implementation.
 ## Stats
 | Method | Path | Description |
 |--------|------|-------------|
-| GET | `/api/stats` | Basic stats (total, known, learning, due) |
+| GET | `/api/stats` | Basic stats (total, known, learning, due, fsrs_reviewed_today — honest "cleared" count via FSRS due-date verification, excludes collateral credit) |
 | GET | `/api/stats/analytics` | Full analytics (pace, CEFR estimate, daily history) |
 | GET | `/api/stats/cefr` | CEFR reading level estimate |
 | GET | `/api/stats/deep-analytics` | Deep analytics: stability distribution, retention 7d/30d, transitions today/7d/30d, comprehension 7d/30d, struggling words, root coverage, recent sessions, acquisition pipeline, insights (encounters-to-graduation, graduation rate, reading time, strongest/most-encountered word, avg stability, best weekday, dark horse root, unique sentences, forgetting forecast) |
