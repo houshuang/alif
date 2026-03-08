@@ -6,7 +6,9 @@ import {
   StyleSheet,
   ActivityIndicator,
   Animated,
+  ScrollView,
 } from "react-native";
+import { useRouter } from "expo-router";
 import { colors, fonts, fontFamily } from "../lib/theme";
 import {
   BASE_URL,
@@ -17,7 +19,7 @@ import {
   generateUuid,
 } from "../lib/api";
 import { LearnCandidate, WordForms, Analytics } from "../lib/types";
-import { posLabel, FormsStrip, PlayButton } from "../lib/WordCardComponents";
+import { posLabel, FormsStrip } from "../lib/WordCardComponents";
 import { getFrequencyBand, getCefrColor } from "../lib/frequency";
 import ActionMenu from "../lib/review/ActionMenu";
 import { TOPIC_LABELS } from "../lib/topic-labels";
@@ -29,6 +31,7 @@ interface IntroducedWord {
 }
 
 export default function LearnScreen() {
+  const router = useRouter();
   const [phase, setPhase] = useState<Phase>("loading");
   const [candidates, setCandidates] = useState<LearnCandidate[]>([]);
   const [activeTopic, setActiveTopic] = useState<string | null>(null);
@@ -136,106 +139,230 @@ export default function LearnScreen() {
       if (c.wazn) parts.push(`Pattern: ${c.wazn}${c.wazn_meaning ? ` (${c.wazn_meaning})` : ""}`);
       return parts.join("\n");
     };
-    return (
-      <View style={styles.centered}>
-        {topicLabel && (
-          <View style={styles.topicBadge}>
-            <Text style={styles.topicBadgeText}>{topicLabel}</Text>
-          </View>
-        )}
-        <View style={styles.progressContainer}>
-          <Text style={styles.progressText}>
-            Word {pickIndex + 1} of {candidates.length}
-          </Text>
-        </View>
-        <View style={styles.progressTrack}>
-          <View
-            style={[
-              styles.progressFill,
-              { width: `${((pickIndex + 1) / candidates.length) * 100}%` },
-            ]}
-          />
-        </View>
 
-        <View style={styles.card}>
-          {c.story_title && (
-            <View style={styles.storyBadge}>
-              <Text style={styles.storyBadgeText}>From: {c.story_title}</Text>
+    const hasMnemonic = !!c.memory_hooks_json?.mnemonic;
+    const hasEtymology = !!c.etymology_json?.derivation;
+    const hasCognates = c.memory_hooks_json?.cognates && c.memory_hooks_json.cognates.length > 0;
+    const hasFunFact = !!c.memory_hooks_json?.fun_fact;
+    const hasCulturalNote = !!c.etymology_json?.cultural_note;
+    const hasPatternExamples = c.pattern_examples && c.pattern_examples.length > 0;
+    const hasRootFamily = c.score_breakdown.total_siblings > 0;
+    const hasUsageContext = !!c.memory_hooks_json?.usage_context;
+    const hasInfoSections = hasMnemonic || hasEtymology || hasCognates || hasFunFact
+      || hasCulturalNote || hasPatternExamples || hasRootFamily || hasUsageContext;
+
+    return (
+      <View style={styles.pickContainer}>
+        <ScrollView
+          style={styles.scrollView}
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+        >
+          {topicLabel && (
+            <View style={styles.topicBadge}>
+              <Text style={styles.topicBadgeText}>{topicLabel}</Text>
             </View>
           )}
-          <View style={styles.wordHeader}>
-            <Text style={styles.wordArabic}>{c.lemma_ar}</Text>
-            <PlayButton audioUrl={c.audio_url} word={c.lemma_ar} />
-          </View>
-          <Text style={styles.wordEnglish}>{c.gloss_en}</Text>
-          {c.transliteration && (
-            <Text style={styles.wordTranslit}>{c.transliteration}</Text>
-          )}
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginTop: 2 }}>
-            <Text style={styles.wordPos}>
-              {posLabel(c.pos, c.forms_json)}
+          <View style={styles.progressContainer}>
+            <Text style={styles.progressText}>
+              New word {pickIndex + 1} of {candidates.length}
             </Text>
-            {c.cefr_level && (
-              <View style={{ backgroundColor: getCefrColor(c.cefr_level), borderRadius: 4, paddingHorizontal: 6, paddingVertical: 1 }}>
-                <Text style={{ color: "#fff", fontSize: 11, fontWeight: "700" }}>{c.cefr_level}</Text>
-              </View>
-            )}
-            {c.frequency_rank != null && (
-              <Text style={{ color: getFrequencyBand(c.frequency_rank).color, fontSize: 12 }}>
-                #{c.frequency_rank}
-              </Text>
-            )}
-            {c.word_category && (
-              <View style={{ backgroundColor: "rgba(243, 156, 18, 0.2)", borderRadius: 4, paddingHorizontal: 6, paddingVertical: 1 }}>
-                <Text style={{ color: "#f39c12", fontSize: 11, fontWeight: "600" }}>
-                  {c.word_category === "proper_name" ? "Name" : "Sound"}
-                </Text>
-              </View>
-            )}
           </View>
-          <FormsStrip pos={c.pos} forms={c.forms_json} formsTranslit={c.forms_translit} />
+          <View style={styles.progressTrack}>
+            <View
+              style={[
+                styles.progressFill,
+                { width: `${((pickIndex + 1) / candidates.length) * 100}%` },
+              ]}
+            />
+          </View>
 
-          {c.root ? (
-            <View style={styles.rootInfo}>
-              <View style={styles.rootRow}>
-                <Text style={styles.rootLetters}>{c.root}</Text>
-                {c.root_meaning && <Text style={styles.rootMeaning}>{c.root_meaning}</Text>}
+          {/* Hero card */}
+          <View style={[styles.card, !hasInfoSections && { borderRadius: 16 }]}>
+            {c.story_title && (
+              <View style={styles.storyBadge}>
+                <Text style={styles.storyBadgeText}>From: {c.story_title}</Text>
               </View>
-              {c.score_breakdown.total_siblings > 0 && (
-                <Text style={styles.rootSiblings}>
-                  {c.score_breakdown.known_siblings}/{c.score_breakdown.total_siblings}
-                </Text>
+            )}
+            <Text style={styles.wordArabic}>{c.lemma_ar}</Text>
+            <Text style={styles.wordEnglish}>{c.gloss_en}</Text>
+            {c.transliteration && (
+              <Text style={styles.wordTranslit}>{c.transliteration}</Text>
+            )}
+
+            {/* Flow chips */}
+            <View style={styles.chipsArea}>
+              <View style={styles.chipPos}>
+                <Text style={styles.chipPosText}>{posLabel(c.pos, c.forms_json)}</Text>
+              </View>
+              {c.cefr_level && (
+                <View style={[styles.chipOutline, { borderColor: getCefrColor(c.cefr_level) + "60", backgroundColor: getCefrColor(c.cefr_level) + "20" }]}>
+                  <Text style={[styles.chipOutlineText, { color: getCefrColor(c.cefr_level) }]}>{c.cefr_level}</Text>
+                </View>
+              )}
+              {c.frequency_rank != null && (
+                <View style={[styles.chipOutline, { borderColor: "#4a9eff30", backgroundColor: "#4a9eff15" }]}>
+                  <Text style={[styles.chipOutlineText, { color: colors.accent }]}>#{c.frequency_rank}</Text>
+                </View>
+              )}
+              {c.word_category && (
+                <View style={[styles.chipOutline, { borderColor: "#f39c1240", backgroundColor: "#f39c1220" }]}>
+                  <Text style={[styles.chipOutlineText, { color: "#f39c12" }]}>
+                    {c.word_category === "proper_name" ? "Name" : "Sound"}
+                  </Text>
+                </View>
+              )}
+              {c.root && c.root_id && (
+                <Pressable
+                  style={[styles.chipOutline, { borderColor: "#9b59b630", backgroundColor: "#9b59b620" }]}
+                  onPress={() => router.push(`/root/${c.root_id}`)}
+                >
+                  <Text style={[styles.chipArabic, { color: "#9b59b6" }]}>{c.root}</Text>
+                  {c.root_meaning && (
+                    <Text style={[styles.chipOutlineText, { color: "#9b59b6" }]} numberOfLines={1}>{c.root_meaning}</Text>
+                  )}
+                  <Text style={{ color: "#9b59b660", fontSize: 10 }}>{" \u203A"}</Text>
+                </Pressable>
+              )}
+              {c.wazn && (
+                <Pressable
+                  style={[styles.chipOutline, { borderColor: "#f39c1230", backgroundColor: "#f39c1220" }]}
+                  onPress={() => router.push(`/pattern/${encodeURIComponent(c.wazn!)}`)}
+                >
+                  <Text style={[styles.chipOutlineText, { color: "#f39c12" }]}>{c.wazn}</Text>
+                  {c.wazn_meaning && (
+                    <Text style={[styles.chipOutlineText, { color: "#f39c12" }]} numberOfLines={1}>{c.wazn_meaning}</Text>
+                  )}
+                  <Text style={{ color: "#f39c1260", fontSize: 10 }}>{" \u203A"}</Text>
+                </Pressable>
               )}
             </View>
-          ) : null}
 
-          {c.etymology_json?.derivation && (
-            <View style={styles.infoHighlight}>
-              <Text style={styles.infoHighlightText}>
-                {c.etymology_json.pattern ? `${c.etymology_json.pattern}: ` : ""}
-                {c.etymology_json.derivation}
-              </Text>
+            {/* Forms strip */}
+            <FormsStrip pos={c.pos} forms={c.forms_json} formsTranslit={c.forms_translit} />
+          </View>
+
+          {/* Info sections below hero */}
+          {hasInfoSections && (
+            <View style={styles.infoSections}>
+              {/* Memory Hook - highest priority */}
+              {hasMnemonic && (
+                <View style={styles.infoSection}>
+                  <Text style={[styles.sectionLabel, { color: "#9b59b6" }]}>Memory Hook</Text>
+                  <View style={styles.mnemonicCard}>
+                    <Text style={styles.mnemonicText}>{c.memory_hooks_json!.mnemonic}</Text>
+                  </View>
+                </View>
+              )}
+
+              {/* Etymology */}
+              {hasEtymology && (
+                <View style={styles.infoSection}>
+                  <Text style={[styles.sectionLabel, { color: colors.accent }]}>Etymology</Text>
+                  <Text style={styles.infoText}>
+                    {c.etymology_json!.pattern ? `${c.etymology_json!.pattern}: ` : ""}
+                    {c.etymology_json!.derivation}
+                  </Text>
+                </View>
+              )}
+
+              {/* Cognates */}
+              {hasCognates && (
+                <View style={styles.infoSection}>
+                  <Text style={[styles.sectionLabel, { color: "#f39c12" }]}>Cross-Language</Text>
+                  {c.memory_hooks_json!.cognates!.map((cog, i) => (
+                    <View key={i} style={styles.cognateRow}>
+                      <Text style={styles.cognateLang}>{cog.lang}</Text>
+                      <Text style={styles.cognateWord}>{cog.word}</Text>
+                      {cog.note ? <Text style={styles.cognateNote}>{cog.note}</Text> : null}
+                    </View>
+                  ))}
+                </View>
+              )}
+
+              {/* Root Family */}
+              {hasRootFamily && c.root && (
+                <View style={styles.infoSection}>
+                  <Pressable
+                    style={styles.sectionLabelRow}
+                    onPress={c.root_id ? () => router.push(`/root/${c.root_id}`) : undefined}
+                  >
+                    <Text style={[styles.sectionLabel, { color: "#2ecc71", marginBottom: 0 }]}>
+                      Root Family ({c.score_breakdown.known_siblings}/{c.score_breakdown.total_siblings})
+                    </Text>
+                    {c.root_id && <Text style={styles.sectionLink}>View all ›</Text>}
+                  </Pressable>
+                  <View style={styles.rootRow}>
+                    <Text style={styles.rootLetters}>{c.root}</Text>
+                    {c.root_meaning && <Text style={styles.rootMeaning}>{c.root_meaning}</Text>}
+                  </View>
+                </View>
+              )}
+
+              {/* Pattern Examples */}
+              {hasPatternExamples && (
+                <View style={styles.infoSection}>
+                  <Pressable
+                    style={styles.sectionLabelRow}
+                    onPress={c.wazn ? () => router.push(`/pattern/${encodeURIComponent(c.wazn!)}`) : undefined}
+                  >
+                    <Text style={[styles.sectionLabel, { color: "#f39c12", marginBottom: 0 }]}>
+                      Pattern: {c.wazn}
+                    </Text>
+                    {c.wazn && <Text style={styles.sectionLink}>View all ›</Text>}
+                  </Pressable>
+                  <View style={styles.patternSiblings}>
+                    {c.pattern_examples!.slice(0, 4).map((ex) => (
+                      <View key={ex.lemma_id} style={styles.sibItem}>
+                        <View style={[styles.sibDot, {
+                          backgroundColor: ex.knowledge_state === "known" ? "#2ecc71"
+                            : (ex.knowledge_state === "learning" || ex.knowledge_state === "acquiring") ? "#e67e22"
+                            : "#8888a0"
+                        }]} />
+                        <Text style={styles.sibArabic}>{ex.lemma_ar}</Text>
+                        {ex.gloss_en && <Text style={styles.sibGloss}>{ex.gloss_en}</Text>}
+                      </View>
+                    ))}
+                  </View>
+                </View>
+              )}
+
+              {/* Usage Context */}
+              {hasUsageContext && (
+                <View style={styles.infoSection}>
+                  <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>Usage</Text>
+                  <Text style={styles.infoText}>{c.memory_hooks_json!.usage_context}</Text>
+                </View>
+              )}
+
+              {/* Fun Fact or Cultural Note */}
+              {(hasFunFact || hasCulturalNote) && (
+                <View style={styles.infoSection}>
+                  <Text style={[styles.sectionLabel, { color: "#2ecc71" }]}>Did You Know?</Text>
+                  <View style={styles.funFactCard}>
+                    <Text style={styles.funFactText}>
+                      {c.memory_hooks_json?.fun_fact || c.etymology_json?.cultural_note}
+                    </Text>
+                  </View>
+                </View>
+              )}
             </View>
           )}
-          {c.memory_hooks_json?.mnemonic && (
-            <View style={styles.infoHighlight}>
-              <Text style={styles.infoHighlightText}>
-                {c.memory_hooks_json.mnemonic}
-              </Text>
-            </View>
-          )}
-        </View>
+        </ScrollView>
 
+        {/* Fixed actions at bottom */}
         <View style={styles.actionColumn}>
           <Pressable style={styles.primaryButton} onPress={handleLearn}>
             <Text style={styles.primaryButtonText}>Learn</Text>
           </Pressable>
-          <Pressable style={styles.skipButton} onPress={handleSkip}>
-            <Text style={styles.skipButtonText}>Skip</Text>
-          </Pressable>
-          <Pressable style={styles.suspendButton} onPress={handleSuspend}>
-            <Text style={styles.suspendButtonText}>Suspend</Text>
-          </Pressable>
+          <View style={styles.actionRow}>
+            <Pressable style={styles.skipButton} onPress={handleSkip}>
+              <Text style={styles.skipButtonText}>Skip</Text>
+            </Pressable>
+            <Pressable style={styles.suspendButton} onPress={handleSuspend}>
+              <Text style={styles.suspendButtonText}>Suspend</Text>
+            </Pressable>
+          </View>
         </View>
         <ActionMenu
           focusedLemmaId={c.lemma_id}
@@ -393,6 +520,18 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     padding: 20,
   },
+  pickContainer: {
+    flex: 1,
+    backgroundColor: colors.bg,
+  },
+  scrollView: {
+    flex: 1,
+  },
+  scrollContent: {
+    padding: 16,
+    paddingBottom: 8,
+    alignItems: "center",
+  },
   loadingText: {
     color: colors.textSecondary,
     fontSize: 16,
@@ -432,11 +571,11 @@ const styles = StyleSheet.create({
   progressTrack: {
     width: "100%",
     maxWidth: 500,
-    height: 4,
+    height: 3,
     backgroundColor: colors.surfaceLight,
     borderRadius: 2,
     overflow: "hidden",
-    marginBottom: 20,
+    marginBottom: 16,
   },
   progressFill: {
     height: "100%",
@@ -456,159 +595,276 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: "600",
   },
+
+  // Hero card
   card: {
     backgroundColor: colors.surface,
-    borderRadius: 16,
-    padding: 32,
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+    borderBottomLeftRadius: 0,
+    borderBottomRightRadius: 0,
+    padding: 28,
+    paddingBottom: 20,
     width: "100%",
     maxWidth: 500,
     alignItems: "center",
-    marginBottom: 24,
-  },
-  wordHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderBottomWidth: 0,
   },
   wordArabic: {
-    fontSize: 44,
+    fontSize: 52,
     color: colors.arabic,
     fontWeight: "700",
     writingDirection: "rtl",
     fontFamily: fontFamily.arabic,
+    marginBottom: 6,
+    lineHeight: 72,
   },
   wordEnglish: {
-    fontSize: 22,
+    fontSize: 24,
     color: colors.text,
-    fontWeight: "600",
-    marginBottom: 6,
+    fontWeight: "700",
+    marginBottom: 4,
     textAlign: "center",
   },
   wordTranslit: {
-    fontSize: 16,
+    fontSize: 15,
     color: colors.textSecondary,
     fontFamily: fontFamily.translit,
-    marginBottom: 4,
-  },
-  wordPos: {
-    fontSize: 13,
-    color: colors.textSecondary,
-    marginBottom: 8,
+    marginBottom: 10,
   },
 
-  patternSection: {
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-    paddingTop: 12,
-    width: "100%",
+  // Flow chips
+  chipsArea: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 6,
+    justifyContent: "center",
+    marginBottom: 10,
+  },
+  chipPos: {
+    backgroundColor: colors.surfaceLight,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 20,
+  },
+  chipPosText: {
+    color: colors.textSecondary,
+    fontSize: 12,
+    fontWeight: "600",
+  },
+  chipOutline: {
+    flexDirection: "row",
     alignItems: "center",
     gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 20,
+    borderWidth: 1,
   },
-  patternLabel: {
-    fontSize: 15,
-    color: colors.accent,
-    fontWeight: "700",
+  chipOutlineText: {
+    fontSize: 12,
+    fontWeight: "600",
   },
-  patternMeaning: {
-    fontWeight: "400",
-    color: colors.textSecondary,
-  },
-  patternDecomposition: {
+  chipArabic: {
     fontSize: 14,
-    color: colors.text,
+    fontWeight: "600",
     fontFamily: fontFamily.arabic,
     writingDirection: "rtl",
   },
-  knownSiblingsNote: {
+
+  // Info sections below hero
+  infoSections: {
+    backgroundColor: colors.surface,
+    borderBottomLeftRadius: 16,
+    borderBottomRightRadius: 16,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderTopWidth: 0,
+    width: "100%",
+    maxWidth: 500,
+    overflow: "hidden",
+  },
+  infoSection: {
+    padding: 14,
+    paddingHorizontal: 20,
+    borderTopWidth: 1,
+    borderTopColor: colors.surfaceLight,
+  },
+  sectionLabel: {
+    fontSize: 10,
+    textTransform: "uppercase",
+    letterSpacing: 1,
+    fontWeight: "700",
+    marginBottom: 8,
+  },
+  sectionLabelRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 8,
+  },
+  sectionLink: {
     fontSize: 12,
-    color: colors.textSecondary,
-    marginTop: 2,
+    color: colors.accent,
+    fontWeight: "600",
+  },
+  infoText: {
+    fontSize: 14,
+    color: colors.text,
+    lineHeight: 20,
   },
 
-  rootInfo: {
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-    paddingTop: 12,
-    width: "100%",
-    alignItems: "center",
+  // Mnemonic
+  mnemonicCard: {
+    backgroundColor: "#2a1f4e",
+    borderRadius: 10,
+    padding: 12,
+    borderLeftWidth: 3,
+    borderLeftColor: "#9b59b6",
   },
+  mnemonicText: {
+    fontSize: 14,
+    color: colors.text,
+    lineHeight: 20,
+  },
+
+  // Cognates
+  cognateRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 4,
+  },
+  cognateLang: {
+    fontSize: 10,
+    color: colors.textSecondary,
+    textTransform: "uppercase",
+    letterSpacing: 0.8,
+    width: 36,
+  },
+  cognateWord: {
+    fontSize: 14,
+    color: colors.text,
+    fontWeight: "600",
+  },
+  cognateNote: {
+    fontSize: 12,
+    color: colors.textSecondary,
+  },
+
+  // Root family
   rootRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 6,
+    gap: 8,
   },
   rootLetters: {
-    fontSize: 16,
+    fontSize: 20,
     color: colors.accent,
-    fontWeight: "600",
+    fontWeight: "700",
     fontFamily: fontFamily.arabic,
     writingDirection: "rtl",
   },
   rootMeaning: {
     fontSize: 13,
     color: colors.textSecondary,
-  },
-  rootSiblings: {
-    fontSize: 12,
-    color: colors.textSecondary,
-    marginTop: 2,
-  },
-  infoHighlight: {
-    backgroundColor: colors.surfaceLight,
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    width: "100%",
-    marginTop: 8,
-  },
-  infoHighlightText: {
-    fontSize: 14,
-    color: colors.text,
-    lineHeight: 20,
-    textAlign: "center",
+    flex: 1,
   },
 
+  // Pattern / root siblings
+  patternSiblings: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 10,
+    marginTop: 4,
+  },
+  sibItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+  sibDot: {
+    width: 5,
+    height: 5,
+    borderRadius: 3,
+  },
+  sibArabic: {
+    fontSize: 15,
+    color: colors.arabic,
+    fontFamily: fontFamily.arabic,
+    writingDirection: "rtl",
+  },
+  sibGloss: {
+    fontSize: 11,
+    color: colors.textSecondary,
+  },
+
+  // Fun fact
+  funFactCard: {
+    backgroundColor: "#1e2a1e",
+    borderRadius: 10,
+    padding: 12,
+    borderLeftWidth: 3,
+    borderLeftColor: "#2ecc71",
+  },
+  funFactText: {
+    fontSize: 13,
+    color: "#c8e8c8",
+    lineHeight: 19,
+  },
+
+  // Actions (fixed at bottom)
   actionColumn: {
     width: "100%",
-    maxWidth: 500,
-    alignItems: "center",
-    gap: 10,
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 16,
+    gap: 8,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+    backgroundColor: colors.bg,
+  },
+  actionRow: {
+    flexDirection: "row",
+    gap: 8,
   },
   primaryButton: {
     backgroundColor: colors.accent,
     paddingVertical: 16,
-    paddingHorizontal: 48,
-    borderRadius: 12,
+    borderRadius: 14,
     width: "100%",
     maxWidth: 500,
   },
   primaryButtonText: {
     color: "#fff",
-    fontSize: 18,
+    fontSize: 17,
     fontWeight: "600",
     textAlign: "center",
   },
   skipButton: {
+    flex: 1,
     backgroundColor: colors.surfaceLight,
-    paddingVertical: 14,
-    paddingHorizontal: 48,
+    paddingVertical: 12,
     borderRadius: 12,
-    width: "100%",
-    maxWidth: 500,
   },
   skipButtonText: {
     color: colors.textSecondary,
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: "600",
     textAlign: "center",
   },
   suspendButton: {
-    paddingVertical: 8,
+    flex: 1,
+    backgroundColor: colors.surfaceLight,
+    paddingVertical: 12,
+    borderRadius: 12,
   },
   suspendButtonText: {
     color: colors.textSecondary,
     fontSize: 13,
+    textAlign: "center",
     opacity: 0.6,
   },
 
