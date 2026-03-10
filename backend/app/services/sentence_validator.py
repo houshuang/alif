@@ -335,6 +335,7 @@ class TokenMapping:
     lemma_id: int | None
     is_target: bool
     is_function_word: bool
+    alternative_lemma_ids: list[int] | None = None
 
 
 def map_tokens_to_lemmas(
@@ -389,11 +390,19 @@ def map_tokens_to_lemmas(
             # Direct-only lookup for function words — no clitic stripping.
             # This prevents false analysis like كانت → ك+انت → أنت.
             lemma_id = lookup_lemma_direct(bare_norm, lemma_lookup)
+            result.append(TokenMapping(i, token, lemma_id, False, is_function))
         else:
+            alternatives: list[int] = []
             lemma_id = lookup_lemma(
                 bare_norm, lemma_lookup, original_bare=bare_clean,
+                out_alternatives=alternatives,
             )
-        result.append(TokenMapping(i, token, lemma_id, False, is_function))
+            # Deduplicate and exclude winner
+            alts = list(dict.fromkeys(a for a in alternatives if a != lemma_id))
+            result.append(TokenMapping(
+                i, token, lemma_id, False, False,
+                alternative_lemma_ids=alts or None,
+            ))
 
     return result
 
@@ -443,6 +452,7 @@ def lookup_lemma(
     bare_norm: str,
     lemma_lookup: dict[str, int],
     original_bare: str | None = None,
+    out_alternatives: list[int] | None = None,
 ) -> int | None:
     """Find a lemma_id for a normalized bare form, trying variants and clitic stripping.
 
@@ -451,6 +461,10 @@ def lookup_lemma(
         lemma_lookup: Dict from build_lemma_lookup().
         original_bare: Pre-normalization bare form (preserves hamza/madda).
             Used for collision disambiguation.
+        out_alternatives: If provided, alternative candidate lemma_ids are
+            appended here when the mapping is ambiguous (collisions or
+            multiple clitic interpretations). Callers can use these for
+            LLM-based contextual disambiguation.
     """
     # Direct match
     if bare_norm in lemma_lookup:
@@ -462,7 +476,19 @@ def lookup_lemma(
                 original_bare, lemma_lookup.collisions[bare_norm]
             )
             if resolved is not None:
+                # Still report alternatives — hamza/CAMeL isn't always right
+                if out_alternatives is not None:
+                    for lid, _ in lemma_lookup.collisions[bare_norm]:
+                        if lid != resolved:
+                            out_alternatives.append(lid)
                 return resolved
+        # Unresolved collision — report all alternatives
+        if (out_alternatives is not None
+                and hasattr(lemma_lookup, "collisions")
+                and bare_norm in lemma_lookup.collisions):
+            for lid, _ in lemma_lookup.collisions[bare_norm]:
+                if lid != lemma_lookup[bare_norm]:
+                    out_alternatives.append(lid)
         return lemma_lookup[bare_norm]
 
     # With/without al-prefix
@@ -492,7 +518,16 @@ def lookup_lemma(
             original_bare or bare_norm, lemma_lookup
         )
         if camel_id is not None:
+            if out_alternatives is not None:
+                for c in candidates:
+                    if c != camel_id:
+                        out_alternatives.append(c)
             return camel_id
+        # Report all non-winner candidates as alternatives
+        if out_alternatives is not None:
+            for c in candidates[1:]:
+                if c != candidates[0]:
+                    out_alternatives.append(c)
         return candidates[0]  # fallback to first match
 
     # No clitic match — try CAMeL as last resort for unmapped words
@@ -832,6 +867,93 @@ When in doubt, do NOT flag — only flag clear semantic mismatches."""
         _validator_logger.warning(f"LLM mapping verification failed: {e}")
 
     return []
+
+
+def disambiguate_mappings_llm(
+    arabic_text: str,
+    english_text: str,
+    mappings: list[TokenMapping],
+    lemma_map: dict[int, object],
+) -> list[TokenMapping]:
+    """Use LLM with sentence context to resolve ambiguous token→lemma mappings.
+
+    For tokens where lookup produced multiple candidates (alternative_lemma_ids),
+    asks the LLM to pick the correct lemma. Returns the same list with lemma_id
+    updated for any disambiguated tokens.
+    """
+    from app.services.llm import generate_completion, AllProvidersFailed
+
+    ambiguous = [
+        m for m in mappings
+        if m.alternative_lemma_ids and m.lemma_id is not None
+    ]
+    if not ambiguous:
+        return mappings
+
+    # Build prompt listing only the ambiguous positions
+    word_blocks = []
+    for m in ambiguous:
+        all_ids = [m.lemma_id] + m.alternative_lemma_ids
+        options = []
+        for idx, lid in enumerate(all_ids):
+            lemma = lemma_map.get(lid)
+            if lemma and hasattr(lemma, "gloss_en"):
+                label = chr(65 + idx)  # A, B, C...
+                options.append(f"  {label}) #{lid} {getattr(lemma, 'lemma_ar_bare', '?')} ({lemma.gloss_en}, {getattr(lemma, 'pos', '?')})")
+        if options:
+            word_blocks.append(
+                f"Position {m.position}: \"{m.surface_form}\"\n" + "\n".join(options)
+            )
+
+    if not word_blocks:
+        return mappings
+
+    prompt = f"""Arabic: {arabic_text}
+English: {english_text}
+
+For each word below, pick the correct lemma based on the sentence context.
+
+{chr(10).join(word_blocks)}
+
+Return JSON: {{"choices": [{{"position": <int>, "lemma_id": <int>}}]}}
+Only include positions where your choice differs from option A (the current mapping)."""
+
+    try:
+        result = generate_completion(
+            prompt=prompt,
+            system_prompt="You are an Arabic morphology expert. Pick the lemma that matches the word's meaning in this specific sentence.",
+            json_mode=True,
+            temperature=0.0,
+            model_override="gemini",
+            task_type="mapping_disambiguation",
+        )
+        choices = result.get("choices", [])
+        if not isinstance(choices, list):
+            return mappings
+
+        # Build position → mapping index for fast lookup
+        pos_to_mapping = {m.position: m for m in mappings}
+        valid_ids = set()
+        for m in ambiguous:
+            valid_ids.add(m.lemma_id)
+            valid_ids.update(m.alternative_lemma_ids)
+
+        for choice in choices:
+            pos = choice.get("position")
+            chosen_id = choice.get("lemma_id")
+            if pos is None or chosen_id is None:
+                continue
+            m = pos_to_mapping.get(pos)
+            if m and chosen_id in (m.alternative_lemma_ids or []):
+                _validator_logger.info(
+                    f"LLM disambiguated pos {pos} '{m.surface_form}': "
+                    f"#{m.lemma_id} → #{chosen_id}"
+                )
+                m.lemma_id = chosen_id
+    except (AllProvidersFailed, Exception) as e:
+        _validator_logger.warning(f"LLM mapping disambiguation failed: {e}")
+
+    return mappings
 
 
 def resolve_existing_lemma(

@@ -181,7 +181,7 @@ Do NOT flag:
 
 Respond with JSON:
 {{"issues": [
-  {{"position": <int>, "surface_form": "<word>", "current_lemma_wrong": true, "correct_lemma_ar": "<bare Arabic>", "correct_gloss": "<English>", "explanation": "<brief>"}}
+  {{"position": <int>, "surface_form": "<word>", "current_lemma_wrong": true, "correct_lemma_ar": "<bare Arabic>", "correct_gloss": "<English>", "correct_pos": "<noun/verb/adj/adv/prep/conj/pron/particle>", "explanation": "<brief>"}}
 ], "all_correct": true/false}}
 
 If all mappings look correct, return {{"issues": [], "all_correct": true}}."""
@@ -220,6 +220,7 @@ If all mappings look correct, return {{"issues": [], "all_correct": true}}."""
         pos = issue.get("position")
         correct_ar = issue.get("correct_lemma_ar", "")
         correct_gloss = issue.get("correct_gloss", "")
+        correct_pos = issue.get("correct_pos", "")
         explanation = issue.get("explanation", "")
 
         if pos is None or not correct_ar:
@@ -244,6 +245,11 @@ If all mappings look correct, return {{"issues": [], "all_correct": true}}."""
             else:
                 candidate = db.query(Lemma).filter(Lemma.lemma_ar_bare == "ال" + correct_bare).first()
 
+        auto_created = False
+        if not candidate and correct_gloss and len(correct_bare) >= 2:
+            candidate = _auto_create_lemma(db, correct_bare, correct_ar, correct_gloss, correct_pos)
+            auto_created = candidate is not None
+
         if candidate and candidate.lemma_id != sw.lemma_id:
             old_lemma = lemmas_by_id.get(sw.lemma_id)
             old_desc = f"{old_lemma.lemma_ar_bare} ({old_lemma.gloss_en})" if old_lemma else "(unmapped)"
@@ -255,6 +261,7 @@ If all mappings look correct, return {{"issues": [], "all_correct": true}}."""
                 "new_lemma_id": candidate.lemma_id,
                 "new": f"{candidate.lemma_ar_bare} ({candidate.gloss_en})",
                 "explanation": explanation,
+                "auto_created": auto_created,
             })
             sw.lemma_id = candidate.lemma_id
 
@@ -265,6 +272,24 @@ If all mappings look correct, return {{"issues": [], "all_correct": true}}."""
         _log_activity(db, "flag_resolved",
                       f"Fixed {len(changes)} word mapping(s) in sentence #{sentence.id}",
                       {"flag_id": flag.id, "sentence_id": sentence.id, "changes": changes})
+
+        # Propagate fixes to other sentences with the same bad mappings
+        total_propagated = 0
+        for change in changes:
+            propagated = _propagate_mapping_fix(
+                db,
+                surface_bare=normalize_arabic(change["surface_form"]),
+                old_lemma_id=change["old_lemma_id"],
+                new_lemma_id=change["new_lemma_id"],
+                source_sentence_id=sentence.id,
+            )
+            total_propagated += propagated
+        if total_propagated:
+            flag.resolution_note += f", propagated {total_propagated} fix(es) to other sentences"
+            _log_activity(db, "flag_resolved",
+                          f"Propagated {total_propagated} mapping fix(es) from sentence #{sentence.id}",
+                          {"flag_id": flag.id, "sentence_id": sentence.id,
+                           "propagated_count": total_propagated})
     else:
         flag.status = "dismissed"
         flag.resolution_note = (
@@ -275,6 +300,155 @@ If all mappings look correct, return {{"issues": [], "all_correct": true}}."""
                       {"flag_id": flag.id, "sentence_id": sentence.id, "issues": issues})
 
     flag.resolved_at = datetime.now(timezone.utc)
+
+
+def _auto_create_lemma(
+    db: Session, bare: str, arabic: str, gloss: str, pos: str,
+) -> "Lemma | None":
+    """Create a minimal 'encountered' lemma when the correct one is missing from DB."""
+    from app.models import UserLemmaKnowledge
+
+    # Guard against race condition / duplicate
+    existing = db.query(Lemma).filter(Lemma.lemma_ar_bare == bare).first()
+    if existing:
+        return existing
+
+    # Normalize POS to match our conventions
+    pos_map = {"adj": "adjective", "adv": "adverb", "prep": "preposition",
+               "conj": "conjunction", "pron": "pronoun"}
+    normalized_pos = pos_map.get(pos, pos) if pos else None
+
+    new_lemma = Lemma(
+        lemma_ar=arabic,
+        lemma_ar_bare=bare,
+        gloss_en=gloss,
+        pos=normalized_pos,
+        source="flag_autocreate",
+    )
+    db.add(new_lemma)
+    db.flush()  # get lemma_id
+
+    ulk = UserLemmaKnowledge(
+        lemma_id=new_lemma.lemma_id,
+        knowledge_state="encountered",
+        source="flag_autocreate",
+        total_encounters=1,
+    )
+    db.add(ulk)
+    db.flush()
+
+    logger.info(f"Auto-created lemma #{new_lemma.lemma_id}: {bare} ({gloss}, {normalized_pos})")
+    _log_activity(db, "flag_resolved",
+                  f"Auto-created lemma: {bare} ({gloss})",
+                  {"lemma_id": new_lemma.lemma_id, "source": "flag_autocreate"})
+    return new_lemma
+
+
+def _propagate_mapping_fix(
+    db: Session,
+    surface_bare: str,
+    old_lemma_id: int,
+    new_lemma_id: int,
+    source_sentence_id: int,
+    max_propagate: int = 50,
+) -> int:
+    """Find other sentences with the same bad mapping and fix them with LLM verification.
+
+    Returns count of propagated fixes.
+    """
+    from app.services.sentence_validator import normalize_arabic, strip_punctuation
+
+    # Find SentenceWord rows with the wrong lemma in active sentences
+    candidates = (
+        db.query(SentenceWord)
+        .join(Sentence, SentenceWord.sentence_id == Sentence.id)
+        .filter(
+            SentenceWord.lemma_id == old_lemma_id,
+            Sentence.is_active == True,
+            Sentence.id != source_sentence_id,
+        )
+        .all()
+    )
+
+    # Filter to matching surface forms (need to normalize for comparison)
+    surface_bare_clean = strip_punctuation(surface_bare)
+    matching = []
+    for sw in candidates:
+        sw_bare = strip_punctuation(normalize_arabic(sw.surface_form))
+        if sw_bare == surface_bare_clean:
+            matching.append(sw)
+
+    if not matching:
+        return 0
+
+    matching = matching[:max_propagate]
+
+    # Load sentences for LLM verification
+    sentence_ids = list({sw.sentence_id for sw in matching})
+    sentences_by_id = {
+        s.id: s for s in db.query(Sentence).filter(Sentence.id.in_(sentence_ids)).all()
+    }
+
+    old_lemma = db.query(Lemma).filter(Lemma.lemma_id == old_lemma_id).first()
+    new_lemma = db.query(Lemma).filter(Lemma.lemma_id == new_lemma_id).first()
+    if not old_lemma or not new_lemma:
+        return 0
+
+    # Batch LLM verification — group into batches of 10
+    fixed_count = 0
+    for batch_start in range(0, len(matching), 10):
+        batch = matching[batch_start:batch_start + 10]
+        sentence_lines = []
+        batch_sentence_ids = []
+        for sw in batch:
+            sent = sentences_by_id.get(sw.sentence_id)
+            if not sent:
+                continue
+            sentence_lines.append(
+                f"Sentence #{sent.id}: {sent.arabic_diacritized or sent.arabic_text} / {sent.english_translation}"
+            )
+            batch_sentence_ids.append(sent.id)
+
+        if not sentence_lines:
+            continue
+
+        prompt = f"""The word "{surface_bare}" was incorrectly mapped to lemma "{old_lemma.lemma_ar_bare}" ({old_lemma.gloss_en}, {old_lemma.pos}).
+The correct lemma may be "{new_lemma.lemma_ar_bare}" ({new_lemma.gloss_en}, {new_lemma.pos}).
+
+For each sentence below, determine if "{surface_bare}" should be mapped to:
+  A) "{old_lemma.lemma_ar_bare}" ({old_lemma.gloss_en})
+  B) "{new_lemma.lemma_ar_bare}" ({new_lemma.gloss_en})
+
+{chr(10).join(sentence_lines)}
+
+Return JSON: {{"fixes": [{{"sentence_id": <int>, "choice": "A" or "B"}}]}}
+Include ALL sentences. Choose A if the original mapping is actually correct in that context."""
+
+        try:
+            result = generate_completion(
+                prompt,
+                system_prompt="You are an Arabic morphology expert. Be conservative — only choose B when it clearly fits the sentence context better.",
+                model_override="claude_haiku",
+                temperature=0.0,
+                task_type="flag_propagation",
+            )
+            fixes = result.get("fixes", [])
+            fix_map = {f["sentence_id"]: f["choice"] for f in fixes if isinstance(f, dict)}
+
+            for sw in batch:
+                choice = fix_map.get(sw.sentence_id, "A")
+                if choice == "B":
+                    sw.lemma_id = new_lemma_id
+                    fixed_count += 1
+                    logger.info(
+                        f"Propagated fix in sentence #{sw.sentence_id}: "
+                        f"'{surface_bare}' #{old_lemma_id} → #{new_lemma_id}"
+                    )
+        except Exception as e:
+            logger.warning(f"Propagation LLM failed for batch: {e}")
+            continue
+
+    return fixed_count
 
 
 def _evaluate_sentence(db: Session, flag: ContentFlag) -> None:

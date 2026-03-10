@@ -719,6 +719,9 @@
 - [DONE] LLM word-lemma mapping verification: `verify_word_mappings_llm()` in sentence_validator.py sends word→lemma pairs to Gemini Flash for correctness check. Enabled via `VERIFY_MAPPINGS_LLM=1`. Sentences with flagged mappings are skipped. **TODO (late Feb 2026)**: monitor skip rate in logs — search for "LLM flagged mapping issues" in backend logs. If >20% of generated sentences are being skipped, the check may be too aggressive and needs tuning.
 - [DONE] CAMeL disambiguation in mapping pipeline: `lookup_lemma()` uses `_camel_disambiguate()` (via `find_best_db_match()`) when clitic stripping is ambiguous or as last resort. Al-prefix length guard prevents false matches on short stems.
 - [DONE] Lookup dict collision handling (B5): `LemmaLookupDict` tracks collisions, `lookup_lemma()` uses hamza-sensitive matching + CAMeL fallback to disambiguate. A6 batch re-map can now be safely attempted.
+- [DONE] LLM disambiguation for ambiguous mappings: `disambiguate_mappings_llm()` in sentence_validator.py. When `lookup_lemma()` produces multiple candidates (collisions or clitic ambiguity), batches them into one Gemini Flash call with sentence context. Runs at generation time before verify_word_mappings_llm.
+- [DONE] Flag auto-create lemma: `_auto_create_lemma()` in flag_evaluator.py. When flag evaluation identifies correct lemma not in DB, creates it as `source=flag_autocreate` with encountered state. Future enrichment cron picks them up.
+- [DONE] Flag bulk propagation: `_propagate_mapping_fix()` in flag_evaluator.py. After fixing a word_mapping flag, finds other sentences with same bad mapping and LLM-verifies each before fixing (max 50, Claude Haiku).
 
 ### Sentence Generation Pipeline Overhaul (2026-02-13)
 
