@@ -559,40 +559,97 @@ class LemmaLookupDict(dict):
             self._first_bare[key] = bare
 
 
-_PAST_SUFFIXES = ["ت", "ا", "تا", "وا", "ن", "تما", "تم", "تن", "نا"]
+_PAST_3MS_SUFFIXES = ["ت", "ا", "تا", "وا", "ن"]  # 3fs, 3md, 3fd, 3mp, 3fp
+_PAST_1S2_SUFFIXES = ["", "ي", "ما", "م", "ن", "نا"]  # 1s, 2fs, 2md, 2mp, 2fp, 1p
 _PRESENT_PREFIXES = ["ي", "ت", "ا", "ن"]
 _PRESENT_SUFFIXES = ["ون", "ان", "ين", "ن", "ي"]
 
+# Noun inflection suffixes
+_SOUND_F_PLURAL_SUFFIX = "ات"
+_SOUND_M_PLURAL_SUFFIXES = ["ون", "ين"]
+_DUAL_SUFFIXES = ["ان", "ين"]
 
-def _generate_verb_conjugations(past_bare: str, present_bare: str | None) -> set[str]:
+
+def _generate_verb_conjugations(
+    past_bare: str,
+    present_bare: str | None,
+    past_1s_bare: str | None = None,
+) -> set[str]:
     """Generate common Arabic verb conjugation forms from known base forms.
 
     Given the 3ms past (e.g., كتب) and 3ms present (e.g., يكتب), generates
     all standard conjugations by applying regular suffix/prefix patterns.
-    Works well for sound verbs; partial coverage for weak verbs.
+
+    If past_1s is provided (e.g., قلت for قال), extracts the shortened stem
+    for weak verb 1st/2nd person past forms. Without it, falls back to
+    regular suffixation on the 3ms base (works for sound verbs only).
 
     Returns bare (undiacritized) forms, not including the input forms.
     """
     forms: set[str] = set()
 
-    # Past tense: add suffixes to 3ms past base
+    # Past tense: 3ms base + suffixes for 3rd person forms
     if len(past_bare) >= 2:
-        for suffix in _PAST_SUFFIXES:
+        for suffix in _PAST_3MS_SUFFIXES:
             forms.add(past_bare + suffix)
+
+    # Past tense: 1st/2nd person forms — use past_1s stem if available (weak verbs)
+    # For قال: past_1s=قلت → stem=قل, generates قلت/قلتي/قلتما/قلتم/قلتن/قلنا
+    # For كتب (sound): past_1s=كتبت → stem=كتب (same as 3ms base)
+    past_12_stem = None
+    if past_1s_bare and len(past_1s_bare) >= 2:
+        # Strip the ت suffix to get the stem
+        if past_1s_bare.endswith("ت"):
+            past_12_stem = past_1s_bare[:-1]
+        else:
+            past_12_stem = past_1s_bare
+    if past_12_stem is None and len(past_bare) >= 2:
+        past_12_stem = past_bare  # fallback: regular suffixation on 3ms base
+    if past_12_stem and len(past_12_stem) >= 2:
+        for suffix in _PAST_1S2_SUFFIXES:
+            form = past_12_stem + "ت" + suffix if suffix else past_12_stem + "ت"
+            forms.add(form)
+        # 1p uses نا directly on stem
+        forms.add(past_12_stem + "نا")
 
     # Present tense: extract stem, apply prefix/suffix combinations
     if present_bare and len(present_bare) >= 3 and present_bare[0] in "يتان":
         present_stem = present_bare[1:]  # strip 3ms prefix ي/ت
         if len(present_stem) >= 2:
-            # All prefix variants (3ms/3fs/2ms/1s/1p)
             for prefix in _PRESENT_PREFIXES:
                 forms.add(prefix + present_stem)
-            # Prefix + suffix combinations (plural/dual/feminine)
             for prefix in _PRESENT_PREFIXES:
                 for suffix in _PRESENT_SUFFIXES:
                     forms.add(prefix + present_stem + suffix)
 
     # Filter: discard forms shorter than 2 chars (noise from short roots)
+    return {f for f in forms if len(f) >= 2}
+
+
+def _generate_noun_inflections(bare: str) -> set[str]:
+    """Generate sound plural and dual forms for a noun/adjective base.
+
+    Produces ـات (sound feminine plural), ـون/ـين (sound masculine plural),
+    and ـان/ـين (dual) forms. These are speculative — many nouns use broken
+    plurals instead. forms_json entries from LLM enrichment take priority
+    in the lookup (Pass 2 > Pass 3).
+    """
+    forms: set[str] = set()
+    if len(bare) < 2:
+        return forms
+
+    # Strip taa marbuta (ة→ stripped) for feminine nouns: معلمة → معلم + ات
+    stem = bare
+    if stem.endswith("ة") or stem.endswith("ه"):
+        stem = stem[:-1]
+
+    if len(stem) >= 2:
+        forms.add(stem + _SOUND_F_PLURAL_SUFFIX)  # ـات
+        for suffix in _SOUND_M_PLURAL_SUFFIXES:
+            forms.add(stem + suffix)  # ـون / ـين
+        for suffix in _DUAL_SUFFIXES:
+            forms.add(stem + suffix)  # ـان / ـين (dual)
+
     return {f for f in forms if len(f) >= 2}
 
 
@@ -630,37 +687,48 @@ def build_lemma_lookup(lemmas: list) -> dict[str, int]:
             lookup.set_if_new("ال" + bare_norm, lem.lemma_id, lem.lemma_ar_bare)
 
     # Pass 2: Register derived forms from forms_json (lower priority)
+    # Indexes ALL string-valued keys — no hardcoded whitelist needed
+    _FORMS_SKIP_KEYS = {"gender", "verb_form"}  # non-Arabic metadata
     for lem in lemmas:
         forms = getattr(lem, "forms_json", None)
         if forms and isinstance(forms, dict):
             for key, form_val in forms.items():
-                if key in ("plural", "present", "masdar", "active_participle",
-                           "feminine", "elative", "past_3fs", "past_3p",
-                           "imperative", "passive_participle") or key.startswith("variant_"):
-                    if form_val and isinstance(form_val, str):
-                        form_bare = normalize_alef(strip_diacritics(form_val))
-                        lookup.set_if_new(form_bare, lem.lemma_id, form_val)
-                        if not form_bare.startswith("ال"):
-                            lookup.set_if_new("ال" + form_bare, lem.lemma_id, form_val)
+                if key in _FORMS_SKIP_KEYS:
+                    continue
+                if form_val and isinstance(form_val, str):
+                    form_bare = normalize_alef(strip_diacritics(form_val))
+                    lookup.set_if_new(form_bare, lem.lemma_id, form_val)
+                    if not form_bare.startswith("ال"):
+                        lookup.set_if_new("ال" + form_bare, lem.lemma_id, form_val)
 
-    # Pass 3: Generate verb conjugation forms for verbs (have "present" in forms_json)
-    # This allows the validator to recognize يكتبون as a form of كتب
-    pre_verb_size = len(lookup)
+    # Pass 3: Generate verb conjugation + noun inflection forms algorithmically
+    pre_gen_size = len(lookup)
     for lem in lemmas:
         forms = getattr(lem, "forms_json", None)
-        if not forms or not isinstance(forms, dict):
-            continue
-        present_val = forms.get("present")
-        if not present_val or not isinstance(present_val, str):
-            continue
-        past_bare = normalize_alef(lem.lemma_ar_bare)
-        present_bare = normalize_alef(strip_diacritics(present_val))
-        conjugations = _generate_verb_conjugations(past_bare, present_bare)
-        for conj_form in conjugations:
-            lookup.set_if_new(conj_form, lem.lemma_id, f"conj:{conj_form}")
-    verb_forms_added = len(lookup) - pre_verb_size
-    if verb_forms_added:
-        _validator_logger.info(f"Lemma lookup: added {verb_forms_added} verb conjugation forms")
+
+        # Verb conjugations: use past_1s for weak verb stems when available
+        if forms and isinstance(forms, dict) and forms.get("present"):
+            present_val = forms["present"]
+            if isinstance(present_val, str):
+                past_bare = normalize_alef(lem.lemma_ar_bare)
+                present_bare = normalize_alef(strip_diacritics(present_val))
+                past_1s_val = forms.get("past_1s")
+                past_1s_bare = normalize_alef(strip_diacritics(past_1s_val)) if past_1s_val and isinstance(past_1s_val, str) else None
+                conjugations = _generate_verb_conjugations(past_bare, present_bare, past_1s_bare)
+                for conj_form in conjugations:
+                    lookup.set_if_new(conj_form, lem.lemma_id, f"conj:{conj_form}")
+
+        # Noun/adjective inflections: sound plurals + dual
+        pos = getattr(lem, "pos", None)
+        if pos in ("noun", "adjective", None):
+            bare = normalize_alef(lem.lemma_ar_bare)
+            inflections = _generate_noun_inflections(bare)
+            for infl_form in inflections:
+                lookup.set_if_new(infl_form, lem.lemma_id, f"infl:{infl_form}")
+
+    generated_forms = len(lookup) - pre_gen_size
+    if generated_forms:
+        _validator_logger.info(f"Lemma lookup: Pass 3 added {generated_forms} generated forms (verb conjugations + noun inflections)")
 
     # Add FUNCTION_WORD_FORMS: map conjugated forms to their base lemma_id
     for form, base in FUNCTION_WORD_FORMS.items():

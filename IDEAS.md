@@ -7,6 +7,9 @@
 ## Monitoring & Check-ins
 
 - [2026-03-10] CHECK: Lapse rate for fast-graduated words (tier 0/1/2). Expected ≤2%. If higher, tighten tier 0 (require rating ≥ 4) or tier 1 (require 4+ reviews). Query: words graduated since 2026-03-03 with times_seen at graduation ≤ 4, check current knowledge_state for "lapsed".
+- [2026-03-10] RESULT: 242 graduated, 3 lapsed (1.2%). Tier 0: 2/45 (4.4%), Tier 1: 0/31, Tier 2: 0/24, Tier 3: 1/142 (0.7%). All within ≤2% target. Tier 0 lapses (أتى, لدى) graduated just 1 day ago. No action needed. Recheck in 1 week.
+- [2026-03-13] CHECK: Verb conjugation + tier lifecycle verification (deployed 2026-03-10). Check rejection rate, pool size (~600-800?), tier-4 count (~0?), tier-1 undersupply (0?).
+- [2026-03-17] CHECK: Tiered graduation lapse rate recheck (2 weeks of data).
 
 ---
 
@@ -546,7 +549,7 @@
 - [DONE] Story import creates Lemma entries for unknown words (CAMeL + LLM translation). No ULK — words become Learn mode candidates with story_bonus priority. Completes the import → learn → read pipeline.
 - [DONE] Story completion auto-creates ULK: all words get FSRS credit, not just words with existing knowledge records
 - [DONE] Word provenance: word detail screen shows "From story: [title]" / "From textbook scan" badge with tap-to-navigate
-- Expand forms_json to include all verb conjugation paradigms (past 3fs, past 3mp, present, etc.) — would make lookup faster than morphological analysis at import time
+- [DONE] Expand forms_json to include all verb conjugation paradigms — `_generate_verb_conjugations()` in Pass 3 of `build_lemma_lookup()` generates ~33 conjugation forms per verb from past base + present stem. Sound verbs fully covered; weak verbs partial.
 - Graded text mode supporting 95-98% vocabulary coverage for extensive reading
 - Narrow reading: offer multiple texts on the same topic to recycle vocabulary
 - Story series with recurring characters/themes for context building
@@ -558,7 +561,7 @@
 - Cross-model two-pass story pipeline: Sonnet generates freely (best narrative quality), Gemini Flash rewrites for vocabulary compliance — not yet tested but promising given that Sonnet scored 4.75 composite (highest) but only 33% compliance
 - [DONE] **Story retry loop** — MAX_STORY_RETRIES=3, feeds back unknown words as correction prompt. Compliance threshold 70%.
 - Story quality gate: add Gemini Flash review (grammar + translation accuracy) like sentences have
-- Expand forms_json with verb conjugation paradigms — the compliance validator misses known words in conjugated forms (يوم, رأى, قالت, صغير flagged as unknown despite being in vocabulary). Fixing this would improve reported compliance by ~10-15%.
+- [DONE] Expand forms_json with verb conjugation paradigms — solved via `_generate_verb_conjugations()` Pass 3. Remaining gap: weak verb irregular stems (قلت from قال, مشيت from مشى) and noun inflections (sound feminine plural ـات, sound masculine plural ـون/ـين).
 - Recurring character universe for stories: pre-define characters (سمير، ليلى، عمر) with traits. Models produce more coherent stories with established characters.
 - [DONE] **Include acquiring words in story vocabulary** — `_get_known_words()` now includes knowledge_state='acquiring'. Acquiring words highlighted as reinforcement targets in prompt.
 
@@ -703,7 +706,7 @@
 - [DONE] Sentence retirement: soft-delete old low-diversity sentences via is_active flag
 - [DONE] Starter diversity in LLM prompts: discourage هل-default and محمد overuse
 - [DONE] ALWAYS_AVOID_NAMES: proper nouns always in avoid list
-- [DONE] Sentence pipeline cap: hard 300 cap with Step 0 enforcement (retire excess: never-shown stale → shown stale → oldest, min 1/word). Cron: rotate_stale_sentences.py → update_material.py every 6h. JIT-first strategy: MAX_ON_DEMAND=10/session generates with current vocabulary. Warm cache respects cap.
+- [DONE] Sentence pipeline cap: originally hard 300 cap, evolved through 600→800→1000, now replaced by tier-based lifecycle (2026-03-10). Tier-4 sentences actively retired, safety valve at 2000. Pool bounded by review urgency (~200 tier 1-3 words), not vocabulary size.
 - Automatic periodic rebalancing: integrate retire_sentences logic into update_material.py as Step 0
 - [DONE] Vocabulary-diverse generation: prompt marks "CURRENTLY LEARNING" words, instructs Claude to use acquiring words as supporting vocabulary and vary usage across sentences. Stale sentence rotation via `rotate_stale_sentences.py`.
 - Sentence quality scoring dashboard: show diversity metrics on analytics page
@@ -840,7 +843,7 @@ After importing ~100 textbook pages via OCR, 411 words entered the system with a
 - [DONE] Variant resolution in sentence_selector: sentences containing variant forms correctly cover canonical due words. Display uses original lemma_id (not canonical) so tapping always shows correct word.
 - [DONE] Root validation guard in variant detection: rejects candidate pairs with different root_id before LLM. Prevents worst false variants (كلية→أكل, أميرة→مار, شباك→شب). Audited 191 existing variants, cleared 28 false ones.
 - Variant-aware statistics display: show aggregated stats across all variant forms on the word detail page. "You've seen this word as: كتاب (5x), الكتاب (3x), كتابي (1x)"
-- [DEFERRED — re-evaluate late Feb 2026] **FSRS scaffold over-review**: Scaffold words (non-target words in reviewed sentences) get FSRS credit on every sentence review, leading to 60+ reviews for common words. Investigation (2026-02-16) found two patterns: (1) **post-lapse recovery** — words that failed a review have stability crash to <1d and slowly recover, this is correct FSRS behavior; (2) **over-reviewed stable words** — words like قال (stab=16d) get daily reviews but R≈0.99 so stability doesn't grow, reviews are harmless but wasted. Not a bug, just mild inefficiency. Will naturally improve as vocabulary grows and sentences become more diverse. Re-evaluate when known words >200 — if scaffold over-review is still significant, consider: (a) skip FSRS update for words already reviewed same calendar day, (b) only credit target words with full FSRS.
+- [RESOLVED 2026-03-10] **FSRS scaffold over-review**: Resolved itself as vocabulary grew. At 623 known words, 84 words have >30 reviews with >10d stability — harmless. Average known word: 20 reviews. Pool large enough that no word gets disproportionately hammered. No action needed.
 - [DONE] **Sentence utilization**: Was 41% never-shown (229/560). Fixed Feb 16: hard 300 cap enforcement (Step 0 in update_material.py), rotation in cron, warm cache cap check. Retired 260 excess → 300 active, 30% never-shown. JIT fills gaps with current vocabulary.
 - Adaptive comprehensibility threshold: start at 70%, increase to 80% as vocabulary grows. Early learners need more i+1, advanced need less scaffolding.
 - Sentence regeneration trigger: when cleanup retires many sentences, auto-regenerate for words below MIN_SENTENCES=2.

@@ -21,7 +21,11 @@ return its key morphological forms as JSON.
 For verbs, return:
 - "present": the present/imperfect 3rd person masculine singular (e.g. يَكْتُبُ)
 - "past_3fs": past tense 3rd person feminine singular (e.g. كَتَبَتْ)
-- "past_3p": past tense 3rd person plural (e.g. كَتَبُوا)
+- "past_3p": past tense 3rd person masculine plural (e.g. كَتَبُوا)
+- "past_1s": past tense 1st person singular (e.g. كَتَبْتُ). CRITICAL for weak verbs where the stem changes: قُلْتُ (not قَالْتُ), مَشَيْتُ (not مَشَىتُ), نِمْتُ (not نَامْتُ).
+- "past_3fp": past tense 3rd person feminine plural (e.g. كَتَبْنَ)
+- "present_3fp": present 3rd person feminine plural (e.g. يَكْتُبْنَ). Important for weak verbs: يَقُلْنَ, يَمْشِينَ.
+- "present_3mp": present 3rd person masculine plural (e.g. يَكْتُبُونَ). Important for weak/defective verbs where stem changes: يَمْشُونَ (not يَمْشِيُونَ), يَدْعُونَ.
 - "masdar": the verbal noun (e.g. كِتَابَة)
 - "active_participle": the active participle (e.g. كَاتِب)
 - "passive_participle": the passive participle (e.g. مَكْتُوب)
@@ -29,12 +33,17 @@ For verbs, return:
 - "verb_form": the verb form number as Roman numeral (I, II, III, IV, V, VI, VII, VIII, IX, X)
 
 For nouns, return:
-- "plural": the most common plural form with full diacritics
+- "plural": the most common plural form (broken plural) with full diacritics
 - "gender": "m" or "f"
+- "sound_f_plural": sound feminine plural (ـات form) if applicable (e.g. كِتَابَات, مُعَلِّمَات). Omit if no sound feminine plural exists.
+- "sound_m_plural": sound masculine plural (ـون form) if applicable (e.g. مُعَلِّمُون, مُهَنْدِسُون). Omit if no sound masculine plural exists.
+- "dual": dual form if applicable (e.g. كِتَابَان)
 
 For adjectives, return:
 - "feminine": the feminine form (e.g. كَبِيرَة)
 - "plural": the most common plural form
+- "sound_f_plural": sound feminine plural if applicable (e.g. كَبِيرَات)
+- "sound_m_plural": sound masculine plural if applicable (e.g. كَبِيرُون)
 - "elative": the comparative/superlative form if it exists (e.g. أَكْبَر)
 
 Always include full diacritics on Arabic text. Only include fields you are confident about. \
@@ -42,8 +51,10 @@ Return empty object {} if the word doesn't have meaningful forms (particles, pro
 
 FORMS_VALID_KEYS = {
     "gender", "plural", "present", "past_3fs", "past_3p",
+    "past_1s", "past_3fp", "present_3fp", "present_3mp",
     "masdar", "active_participle", "passive_participle",
     "imperative", "verb_form", "feminine", "elative",
+    "sound_f_plural", "sound_m_plural", "dual",
 }
 
 ETYMOLOGY_SYSTEM_PROMPT = """You are an Arabic etymology and morphology expert. For each word, generate structured etymology data that helps a language learner understand word origins.
