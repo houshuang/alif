@@ -4,6 +4,69 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-03-10: Health Check — System Tuning Review
+
+### Context
+Comprehensive health check after 5 weeks of active use. Pulled all learning data, interaction logs, LLM generation logs, and pipeline state.
+
+### Overall Status
+System healthy. 617 known words (up from 364 on March 3), accuracy trending 69.5% → 93.7% over 8 weeks, ~6 sessions/day, ~380 reviews/day. FSRS retention 97.8%. Acquisition backlog drained from 295 → 104. Pipeline threshold gate working as intended.
+
+### Key Metrics
+- **Word lifecycle**: 617 known, 374 encountered, 104 acquiring, 13 learning, 4 lapsed, 26 suspended (23 leeches)
+- **FSRS**: median stability 18.2d, mean retrievability 0.978, only 17 words below 90% retrievability
+- **Acquisition funnel**: 600 entered / 528 graduated in 30 days (88%), avg 5.1 days to graduate
+- **Sessions**: 41 sessions in 7 days, avg 79 reviews/session
+- **LLM**: 16,562 calls in 7 days, 12 failures (0.07%), Claude CLI handling bulk
+
+### Issues Found & Investigation Results
+
+#### 1. Zombie acquiring words — Variant resolution bug
+12 words stuck in acquisition box 1 with 0 reviews for >7 days. Root causes:
+- **Variant resolution bug** (7 words): `sentence_selector.py` resolves `effective_id = variant_to_canonical[variant_id]`, then checks `effective_id in due_lemma_ids` → False. The variant→canonical mapping designed for credit attribution also prevents variant words from finding their own sentences. Words have valid sentences in DB but selector never picks them.
+- **Comprehensibility gate** (3 words): sentences exist but too many scaffold words are `encountered` (not counted as known), failing the 60% threshold.
+- **Bad import** (1 word): ني (suffix pronoun) wrongly imported as standalone lemma — can never have sentences.
+- **Competition** (1 word): loses greedy set-cover competition every session due to 83 higher-priority due words.
+
+#### 2. 82% sentence rejection rate — Validator doesn't recognize conjugated forms
+Rejection rate worsening: 68% (Feb 28) → 85% (Mar 8-10). The comprehensibility gate in `sentence_validator.py` rejects ~84% of LLM-generated sentences. Dominant cause: known words in conjugated/declined forms not in `forms_json`:
+- Accusative tanwin (-an): سَعِيدًا, طالِبًا, جَيِّدًا — ~40% of rejections
+- Feminine past (-at): رَقَصَتْ, نَظَرَتْ — ~25% of rejections
+- Missing forms_json keys (present_1p, past_3fs for many words) — ~15%
+- Diacritic matching bugs (أَخِي flagged unknown despite being in lookup) — ~10%
+Some target words have 100% rejection: بـِ (56 attempts, 0 valid), يلّا (14/0).
+
+#### 3. Tier-1 words undersupplied — Pipeline capacity + churn
+Actually 67 undersupplied tier-1 words (not just 17). Core issues:
+- **Pool at capacity** (801/800) — 48% of pool held by tier-4 words (not due for 72h+)
+- **Churn**: `rotate_stale_sentences()` retires newly-created sentences (times_shown=0) before they're ever shown
+- **Ungeneratable words**: ني (suffix) and بـِ (tatweel char) can never have sentences
+- **Focus cohort gap**: 10 "known" tier-1 words not in focus cohort, so `warm_sentence_cache()` ignores them
+
+#### 4. R4 (Easy) never used
+Reading mode's ternary maps only to R1/R2/R3. FSRS never gets Easy signal. Not hurting (97.8% retention) but caps stability growth for well-known words. Design question — not acting now.
+
+#### 5. A/B experiment — too early
+Group B (card intro) learns faster (3.4 vs 4.4 reviews, 52.6% vs 46.7% first accuracy) but 2.7x leech rate (13.3% vs 4.9%). Sample too small (71 words). Keep running.
+
+#### 6. Non-leech suspensions — All fine
+مو (obscure herb), مار (Syriac religious title), مندى (food proper noun) — all manually suspended by user via app UI. Correctly suspended junk vocabulary.
+
+### User Observations
+- Shape recognition remains a challenge — knowing a word but not recognizing its form in context
+- Confusion card (similar words display) doesn't always surface actual confounders — uses algorithmic similarity (edit distance, rasm skeleton) which doesn't match learning-history-based confusions
+- Yellow marking: gives R3 (full credit) + records `was_confused=True` + shows confusion card + tracks in `variant_stats_json`. Data collected but not yet used to build personalized confounder lists.
+- Red/yellow/understood mapping: "never seen this" / "know it but didn't recognize" / "got it"
+
+### Fixes Planned
+1. **Variant resolution bug** — expand `due_lemma_ids` to include canonical IDs when variants are due
+2. **Tanwin stripping in validator** — strip fathatan/dammatan/kasratan before known-word check (~40% of rejections)
+3. **Clean up ungeneratable words** — suspend ני, fix بـِ/بِ canonical
+4. **Protect never-shown sentences** — don't retire times_shown=0 sentences targeting tier-1 words
+5. **Raise PIPELINE_CAP** from 800 to 1000-1200
+
+---
+
 ## 2026-03-08: Redesign — Vocabulary & Pipeline Stats Cards + Honest FSRS Progress
 
 ### Problem

@@ -112,6 +112,20 @@ def normalize_alef(text: str) -> str:
     return text
 
 
+def strip_tanwin_alif(text: str) -> str:
+    """Strip trailing alif that was the seat of fathatan (accusative tanwin).
+
+    After diacritics are stripped, سَعِيدًا becomes سعيدا — the trailing alif
+    is a grammatical marker, not part of the root. Stripping it allows matching
+    the base form سعيد. Also handles alif maqsura seat (ًى → ى → strip).
+
+    Only strips if the word has 3+ characters (to avoid destroying short words).
+    """
+    if len(text) >= 3 and text.endswith("ا"):
+        return text[:-1]
+    return text
+
+
 def normalize_arabic(text: str) -> str:
     """Full normalization: strip diacritics, tatweel, normalize alef."""
     text = strip_diacritics(text)
@@ -788,6 +802,12 @@ def validate_sentence_multi_target(
             forms_to_check.append(bare_normalized[2:])
         if not bare_normalized.startswith("ال"):
             forms_to_check.append("ال" + bare_normalized)
+        # Try stripping trailing alif (tanwin seat: سعيدًا → سعيدا → سعيد)
+        sans_alif = strip_tanwin_alif(bare_normalized)
+        if sans_alif != bare_normalized:
+            forms_to_check.append(sans_alif)
+            if not sans_alif.startswith("ال"):
+                forms_to_check.append("ال" + sans_alif)
         for form in forms_to_check:
             if form in known_normalized:
                 is_known = True
@@ -796,6 +816,10 @@ def validate_sentence_multi_target(
             for stem in _strip_clitics(bare_normalized):
                 stem_norm = normalize_alef(stem)
                 if stem_norm in known_normalized or _is_function_word(stem_norm):
+                    is_known = True
+                    break
+                stem_sans_alif = strip_tanwin_alif(stem_norm)
+                if stem_sans_alif != stem_norm and (stem_sans_alif in known_normalized or _is_function_word(stem_sans_alif)):
                     is_known = True
                     break
 
@@ -891,7 +915,8 @@ def validate_sentence(
             function_words.append(token)
             continue
 
-        # Check: known word? Try the bare form and with/without ال prefix.
+        # Check: known word? Try the bare form and with/without ال prefix,
+        # and with trailing tanwin-alif stripped (سعيدًا → سعيدا → سعيد).
         is_known = False
         forms_to_check = [bare_normalized]
         # If word starts with ال, also check without it
@@ -900,6 +925,12 @@ def validate_sentence(
         # If word doesn't start with ال, also check with it
         if not bare_normalized.startswith("ال"):
             forms_to_check.append("ال" + bare_normalized)
+        # Try stripping trailing alif (tanwin seat: سعيدًا → سعيدا → سعيد)
+        sans_alif = strip_tanwin_alif(bare_normalized)
+        if sans_alif != bare_normalized:
+            forms_to_check.append(sans_alif)
+            if not sans_alif.startswith("ال"):
+                forms_to_check.append("ال" + sans_alif)
 
         for form in forms_to_check:
             if form in known_normalized:
@@ -911,6 +942,11 @@ def validate_sentence(
             for stem in _strip_clitics(bare_normalized):
                 stem_norm = normalize_alef(stem)
                 if stem_norm in known_normalized or _is_function_word(stem_norm):
+                    is_known = True
+                    break
+                # Also try tanwin-alif stripping on clitic-stripped stems
+                stem_sans_alif = strip_tanwin_alif(stem_norm)
+                if stem_sans_alif != stem_norm and (stem_sans_alif in known_normalized or _is_function_word(stem_sans_alif)):
                     is_known = True
                     break
 

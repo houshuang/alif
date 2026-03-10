@@ -770,7 +770,9 @@ def build_session(
             # Resolve variant→canonical for scheduling purposes
             effective_id = variant_to_canonical.get(sw.lemma_id, sw.lemma_id) if sw.lemma_id else None
             stab = stability_map.get(effective_id, 0.0) if effective_id else None
-            is_due = effective_id in due_lemma_ids if effective_id else False
+            # Check both canonical and original ID — a variant word that is due
+            # must match its own sentences, not just its canonical's
+            is_due = (effective_id in due_lemma_ids or (sw.lemma_id is not None and sw.lemma_id in due_lemma_ids)) if effective_id else False
 
             k_state = "new"
             if effective_id:
@@ -794,6 +796,9 @@ def build_session(
 
             if effective_id and is_due:
                 due_covered.add(effective_id)
+                # Also track the original variant ID if different
+                if sw.lemma_id and sw.lemma_id in due_lemma_ids:
+                    due_covered.add(sw.lemma_id)
             elif effective_id and stab is not None:
                 scaffold_stabilities.append(stab)
 

@@ -61,7 +61,7 @@ from app.services.tts import (
     get_cached_path,
 )
 
-TARGET_PIPELINE_SENTENCES = 800  # hard cap — JIT generation fills gaps with current vocabulary
+TARGET_PIPELINE_SENTENCES = 1000  # hard cap — JIT generation fills gaps with current vocabulary
 CAP_HEADROOM = 50  # retire this many below cap to leave room for multi-target backfill
 PREGEN_SENTENCES_PER_CANDIDATE = 3  # for step C pre-generation of not-yet-introduced words
 
@@ -337,12 +337,14 @@ def step_enforce_cap(
         is_stale = acquiring_count == 0 and len(scaffold_lemmas) >= 2
 
         # Priority: lower = retire first
-        # 0 = never-shown + stale, 1 = never-shown, 2 = shown + stale, 3 = shown
-        if never_shown and is_stale:
+        # Never-shown sentences should be PROTECTED — they haven't had a chance
+        # to be used yet. Stale shown sentences are the best retirement candidates.
+        # 0 = shown + stale, 1 = shown (not stale), 2 = never-shown + stale, 3 = never-shown
+        if not never_shown and is_stale:
             priority = 0
-        elif never_shown:
+        elif not never_shown:
             priority = 1
-        elif is_stale:
+        elif never_shown and is_stale:
             priority = 2
         else:
             priority = 3
