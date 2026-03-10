@@ -61,7 +61,7 @@ from app.services.tts import (
     get_cached_path,
 )
 
-TARGET_PIPELINE_SENTENCES = 1000  # hard cap — JIT generation fills gaps with current vocabulary
+TARGET_PIPELINE_SENTENCES = 2000  # safety valve only — tier-based lifecycle manages pool size
 CAP_HEADROOM = 50  # retire this many below cap to leave room for multi-target backfill
 PREGEN_SENTENCES_PER_CANDIDATE = 3  # for step C pre-generation of not-yet-introduced words
 

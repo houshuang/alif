@@ -358,16 +358,23 @@ def generate_word_audio(lemma_id: int) -> None:
 
 
 MIN_SENTENCES_PER_WORD = 3
-PIPELINE_CAP = 1000
+PIPELINE_CAP = 2000  # safety valve only — tier-based lifecycle manages pool size
 
 
-def rotate_stale_sentences(db, min_shown: int = 1, min_active: int = 2, tier_lookup: dict | None = None) -> int:
-    """Retire stale sentences where all scaffold words are fully known.
+def rotate_stale_sentences(db, min_shown: int = 1, tier_lookup: dict | None = None) -> int:
+    """Retire sentences based on tier lifecycle and scaffold staleness.
 
-    Uses due-date tiers: sentences for soon-due words get higher floor protection.
+    Two retirement paths:
+    1. Tier-4 excess: sentences for words not due for 72h+ are retired down to
+       their tier floor (0), keeping only never-shown sentences < 24h old.
+    2. Scaffold staleness: sentences where all scaffold words are fully known
+       (no acquiring words) are retired down to the tier floor.
+
+    The tier floor controls retention: tier 1 keeps ≥2, tier 2 ≥1, tier 3-4 ≥0.
     Returns the number of sentences retired.
     """
     from scripts.rotate_stale_sentences import compute_diversity_score
+    from datetime import timedelta
 
     if tier_lookup is None:
         from app.services.pipeline_tiers import compute_word_tiers, build_tier_lookup
@@ -387,8 +394,24 @@ def rotate_stale_sentences(db, min_shown: int = 1, min_active: int = 2, tier_loo
     for s in sentences:
         active_per_target[s.target_lemma_id] = active_per_target.get(s.target_lemma_id, 0) + 1
 
-    stale: list[tuple] = []
+    now = datetime.now(timezone.utc)
+    age_cutoff = now - timedelta(hours=24)
+
+    retirable: list[tuple] = []
     for sent in sentences:
+        target_id = sent.target_lemma_id
+        wt = tier_lookup.get(target_id) if target_id else None
+        tier = wt.tier if wt else 4
+
+        # Path 1: Tier-4 excess — retire shown sentences or old never-shown ones
+        if tier >= 4 and (sent.times_shown or 0) >= 1:
+            retirable.append((sent, 0))  # priority 0 = retire first
+            continue
+        if tier >= 4 and sent.created_at and sent.created_at < age_cutoff:
+            retirable.append((sent, 1))
+            continue
+
+        # Path 2: Scaffold staleness — all scaffold words fully known
         sws = sw_by_sentence.get(sent.id, [])
         if not sws:
             continue
@@ -399,18 +422,19 @@ def rotate_stale_sentences(db, min_shown: int = 1, min_active: int = 2, tier_loo
             and (sent.times_shown or 0) >= min_shown
         )
         if is_stale:
-            stale.append((sent, scores))
+            retirable.append((sent, 2 if (sent.times_shown or 0) >= 1 else 3))
 
-    stale.sort(key=lambda x: (x[1]["diversity_score"], -x[1]["scaffold_count"]))
+    retirable.sort(key=lambda x: (x[1], getattr(x[0], 'last_reading_shown_at', None) or datetime.min))
 
     retire_per_target: dict[int | None, int] = {}
     retired = 0
-    for sent, scores in stale:
+    for sent, _ in retirable:
         target_id = sent.target_lemma_id
         already_retiring = retire_per_target.get(target_id, 0)
         active = active_per_target.get(target_id, 0)
         wt = tier_lookup.get(target_id) if target_id else None
-        effective_floor = max(min_active, wt.cap_floor if wt else 0)
+        # Use tier floor directly — no min_active override
+        effective_floor = wt.cap_floor if wt else 0
         if active - already_retiring > effective_floor:
             sent.is_active = False
             retire_per_target[target_id] = already_retiring + 1
@@ -418,12 +442,12 @@ def rotate_stale_sentences(db, min_shown: int = 1, min_active: int = 2, tier_loo
 
     if retired:
         db.commit()
-        logger.info(f"Rotated {retired} stale sentences")
+        logger.info(f"Rotated {retired} sentences (tier lifecycle + staleness)")
         from app.services.activity_log import log_activity
         log_activity(
             db,
             event_type="sentences_retired",
-            summary=f"Rotated {retired} stale sentences (background warm cache)",
+            summary=f"Rotated {retired} sentences (tier lifecycle + staleness)",
             detail={"retired": retired, "total_active": len(sentences)},
         )
 
@@ -468,19 +492,18 @@ def warm_sentence_cache(llm_model: str = "gemini") -> dict:
         word_tiers = compute_word_tiers(db)
         tier_lookup = build_tier_lookup(word_tiers)
 
-        # Check pipeline cap — rotate stale sentences first to make room
+        # Tier-based lifecycle: rotate stale and tier-4 excess sentences
+        rotated = rotate_stale_sentences(db, tier_lookup=tier_lookup)
+        stats["rotated"] = rotated
+
+        # Safety valve only — skip if way over cap (shouldn't happen with tier lifecycle)
         total_active = (
             db.query(func.count(Sentence.id))
             .filter(Sentence.is_active == True)
             .scalar() or 0
         )
         if total_active >= PIPELINE_CAP:
-            rotated = rotate_stale_sentences(db, tier_lookup=tier_lookup)
-            stats["rotated"] = rotated
-            total_active -= rotated
-
-        if total_active >= PIPELINE_CAP + 10:
-            logger.info(f"Warm cache: still over cap after rotation ({total_active} >= {PIPELINE_CAP + 10}), skipping")
+            logger.warning(f"Warm cache: over safety cap after rotation ({total_active} >= {PIPELINE_CAP}), skipping")
             return stats
 
         # Collect all words needing sentences

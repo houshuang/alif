@@ -559,6 +559,43 @@ class LemmaLookupDict(dict):
             self._first_bare[key] = bare
 
 
+_PAST_SUFFIXES = ["ت", "ا", "تا", "وا", "ن", "تما", "تم", "تن", "نا"]
+_PRESENT_PREFIXES = ["ي", "ت", "ا", "ن"]
+_PRESENT_SUFFIXES = ["ون", "ان", "ين", "ن", "ي"]
+
+
+def _generate_verb_conjugations(past_bare: str, present_bare: str | None) -> set[str]:
+    """Generate common Arabic verb conjugation forms from known base forms.
+
+    Given the 3ms past (e.g., كتب) and 3ms present (e.g., يكتب), generates
+    all standard conjugations by applying regular suffix/prefix patterns.
+    Works well for sound verbs; partial coverage for weak verbs.
+
+    Returns bare (undiacritized) forms, not including the input forms.
+    """
+    forms: set[str] = set()
+
+    # Past tense: add suffixes to 3ms past base
+    if len(past_bare) >= 2:
+        for suffix in _PAST_SUFFIXES:
+            forms.add(past_bare + suffix)
+
+    # Present tense: extract stem, apply prefix/suffix combinations
+    if present_bare and len(present_bare) >= 3 and present_bare[0] in "يتان":
+        present_stem = present_bare[1:]  # strip 3ms prefix ي/ت
+        if len(present_stem) >= 2:
+            # All prefix variants (3ms/3fs/2ms/1s/1p)
+            for prefix in _PRESENT_PREFIXES:
+                forms.add(prefix + present_stem)
+            # Prefix + suffix combinations (plural/dual/feminine)
+            for prefix in _PRESENT_PREFIXES:
+                for suffix in _PRESENT_SUFFIXES:
+                    forms.add(prefix + present_stem + suffix)
+
+    # Filter: discard forms shorter than 2 chars (noise from short roots)
+    return {f for f in forms if len(f) >= 2}
+
+
 def build_lemma_lookup(lemmas: list) -> dict[str, int]:
     """Build a normalized bare form → lemma_id lookup dict.
 
@@ -605,6 +642,25 @@ def build_lemma_lookup(lemmas: list) -> dict[str, int]:
                         lookup.set_if_new(form_bare, lem.lemma_id, form_val)
                         if not form_bare.startswith("ال"):
                             lookup.set_if_new("ال" + form_bare, lem.lemma_id, form_val)
+
+    # Pass 3: Generate verb conjugation forms for verbs (have "present" in forms_json)
+    # This allows the validator to recognize يكتبون as a form of كتب
+    pre_verb_size = len(lookup)
+    for lem in lemmas:
+        forms = getattr(lem, "forms_json", None)
+        if not forms or not isinstance(forms, dict):
+            continue
+        present_val = forms.get("present")
+        if not present_val or not isinstance(present_val, str):
+            continue
+        past_bare = normalize_alef(lem.lemma_ar_bare)
+        present_bare = normalize_alef(strip_diacritics(present_val))
+        conjugations = _generate_verb_conjugations(past_bare, present_bare)
+        for conj_form in conjugations:
+            lookup.set_if_new(conj_form, lem.lemma_id, f"conj:{conj_form}")
+    verb_forms_added = len(lookup) - pre_verb_size
+    if verb_forms_added:
+        _validator_logger.info(f"Lemma lookup: added {verb_forms_added} verb conjugation forms")
 
     # Add FUNCTION_WORD_FORMS: map conjugated forms to their base lemma_id
     for form, base in FUNCTION_WORD_FORMS.items():
@@ -779,13 +835,22 @@ def validate_sentence_multi_target(
         bare_clean = strip_tatweel(bare)
         bare_normalized = normalize_alef(bare_clean)
 
-        # Check if it's a target word
+        # Check if it's a target word (try tanwin-alif stripping too)
         matched_target = target_form_map.get(bare_normalized)
+        if not matched_target:
+            sans_alif = strip_tanwin_alif(bare_normalized)
+            if sans_alif != bare_normalized:
+                matched_target = target_form_map.get(sans_alif)
         if not matched_target:
             for stem in _strip_clitics(bare_normalized):
                 matched_target = target_form_map.get(normalize_alef(stem))
                 if matched_target:
                     break
+                stem_sans = strip_tanwin_alif(normalize_alef(stem))
+                if stem_sans != normalize_alef(stem):
+                    matched_target = target_form_map.get(stem_sans)
+                    if matched_target:
+                        break
 
         if matched_target:
             targets_found[matched_target] = True
@@ -886,17 +951,28 @@ def validate_sentence(
         bare_clean = strip_tatweel(bare)
         bare_normalized = normalize_alef(bare_clean)
 
-        # Check: is it the target word? (with ال prefix handling)
+        # Check: is it the target word? (with ال prefix + tanwin-alif handling)
         target_forms = [target_normalized]
         if not target_normalized.startswith("ال"):
             target_forms.append("ال" + target_normalized)
         if target_normalized.startswith("ال") and len(target_normalized) > 2:
             target_forms.append(target_normalized[2:])
 
-        is_target = bare_normalized in target_forms
+        # Try both the token as-is and with tanwin-alif stripped
+        token_forms = [bare_normalized]
+        token_sans_alif = strip_tanwin_alif(bare_normalized)
+        if token_sans_alif != bare_normalized:
+            token_forms.append(token_sans_alif)
+
+        is_target = any(tf in target_forms for tf in token_forms)
         if not is_target:
             for stem in _strip_clitics(bare_normalized):
-                if normalize_alef(stem) in target_forms:
+                stem_norm = normalize_alef(stem)
+                if stem_norm in target_forms:
+                    is_target = True
+                    break
+                stem_sans = strip_tanwin_alif(stem_norm)
+                if stem_sans != stem_norm and stem_sans in target_forms:
                     is_target = True
                     break
 
