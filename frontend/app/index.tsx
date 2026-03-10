@@ -1191,34 +1191,63 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
           </Text>
         </View>
         <ScrollView
-          contentContainerStyle={styles.sentenceArea}
+          contentContainerStyle={styles.reintroScrollContent}
           showsVerticalScrollIndicator={false}
         >
-          <Text style={styles.wordOnlyArabic}>{wc.lemma_ar}</Text>
-          {wc.transliteration && (
-            <Text style={styles.sentenceTranslit}>{wc.transliteration}</Text>
-          )}
-          {wrapUpRevealed && (
-            <>
-              <View style={styles.divider} />
-              <Text style={styles.wordOnlyGloss}>{wc.gloss_en || ""}</Text>
-              {wc.root && (
-                <Text style={[styles.sentenceTranslit, { marginTop: 4 }]}>
-                  Root: {wc.root}{wc.root_meaning ? ` \u2014 ${wc.root_meaning}` : ""}
-                </Text>
-              )}
-              {wc.etymology_json?.derivation && (
-                <Text style={[styles.sentenceTranslit, { fontStyle: "italic", marginTop: 4 }]}>
-                  {wc.etymology_json.derivation}
-                </Text>
-              )}
-              {wc.memory_hooks_json?.mnemonic && (
-                <Text style={[styles.sentenceTranslit, { fontStyle: "italic", marginTop: 2 }]}>
-                  {wc.memory_hooks_json.mnemonic}
-                </Text>
-              )}
-            </>
-          )}
+          <View style={[styles.eiHero, { borderRadius: 16 }]}>
+            <Text style={styles.eiArabic}>{wc.lemma_ar}</Text>
+            {wc.transliteration && (
+              <Text style={styles.eiTranslit}>{wc.transliteration}</Text>
+            )}
+            {wrapUpRevealed && (
+              <>
+                <View style={styles.divider} />
+                <Text style={styles.eiEnglish}>{wc.gloss_en || ""}</Text>
+                <View style={styles.eiChipsArea}>
+                  {wc.pos && (
+                    <View style={styles.eiChipPos}>
+                      <Text style={styles.eiChipPosText}>{posLabel(wc.pos, wc.forms_json)}</Text>
+                    </View>
+                  )}
+                  {wc.root && wc.root_id && (
+                    <Pressable
+                      style={[styles.eiChipOutline, { borderColor: "#9b59b630", backgroundColor: "#9b59b620" }]}
+                      onPress={() => router.push(`/root/${wc.root_id}`)}
+                    >
+                      <Text style={{ fontSize: 14, fontWeight: "600", fontFamily: fontFamily.arabic, writingDirection: "rtl", color: "#9b59b6" }}>{wc.root}</Text>
+                      {wc.root_meaning && (
+                        <Text style={{ fontSize: 12, fontWeight: "600", color: "#9b59b6" }} numberOfLines={1}>{wc.root_meaning}</Text>
+                      )}
+                      <Text style={{ color: "#9b59b660", fontSize: 10 }}>{" \u203A"}</Text>
+                    </Pressable>
+                  )}
+                  {wc.wazn && (
+                    <Pressable
+                      style={[styles.eiChipOutline, { borderColor: "#f39c1230", backgroundColor: "#f39c1220" }]}
+                      onPress={() => router.push(`/pattern/${encodeURIComponent(wc.wazn!)}`)}
+                    >
+                      <Text style={{ fontSize: 12, fontWeight: "600", color: "#f39c12" }}>{wc.wazn}</Text>
+                      {wc.wazn_meaning && (
+                        <Text style={{ fontSize: 12, fontWeight: "600", color: "#f39c12" }} numberOfLines={1}>{wc.wazn_meaning}</Text>
+                      )}
+                      <Text style={{ color: "#f39c1260", fontSize: 10 }}>{" \u203A"}</Text>
+                    </Pressable>
+                  )}
+                </View>
+                <FormsStrip pos={wc.pos} forms={wc.forms_json} formsTranslit={wc.forms_translit} />
+                {wc.etymology_json?.derivation && (
+                  <Text style={[styles.eiInfoText, { fontStyle: "italic", marginTop: 4, fontSize: 12, color: colors.textSecondary }]}>
+                    {wc.etymology_json.derivation}
+                  </Text>
+                )}
+                {wc.memory_hooks_json?.mnemonic && (
+                  <View style={[styles.eiMnemonicCard, { marginTop: 4 }]}>
+                    <Text style={styles.eiInfoText}>{wc.memory_hooks_json.mnemonic}</Text>
+                  </View>
+                )}
+              </>
+            )}
+          </View>
         </ScrollView>
         <View style={styles.bottomActions}>
           {!wrapUpRevealed ? (
@@ -1823,6 +1852,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
           reserveSpace={false}
           onNavigateToDetail={(id) => router.push(`/word/${id}`)}
           onNavigateToPattern={(wazn) => router.push(`/pattern/${encodeURIComponent(wazn)}`)}
+          onNavigateToRoot={(rootId) => router.push(`/root/${rootId}`)}
           onPrev={handleLookupPrev}
           onNext={handleLookupNext}
           hasPrev={tappedCursor > 0}

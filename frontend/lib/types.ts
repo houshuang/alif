@@ -176,12 +176,14 @@ export interface WrapUpCard {
   forms_json: WordForms | null;
   root: string | null;
   root_meaning: string | null;
+  root_id: number | null;
   etymology_json: EtymologyData | null;
   memory_hooks_json?: MemoryHooksData | null;
   wazn?: string | null;
   wazn_meaning?: string | null;
   forms_translit?: Record<string, string> | null;
   pattern_examples?: PatternExample[];
+  root_family?: { lemma_id: number; lemma_ar: string; gloss_en: string | null; transliteration?: string | null; state: string }[];
 }
 
 export interface RecapItem {
