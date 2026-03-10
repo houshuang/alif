@@ -17,10 +17,11 @@ from datetime import datetime, timezone, timedelta
 from typing import Optional
 
 from sqlalchemy.orm import Session
-from sqlalchemy import func
+from sqlalchemy import func, case
 
 from app.models import Root, Lemma, UserLemmaKnowledge, ReviewLog, Sentence, StoryWord, Story
 from app.services.grammar_service import grammar_pattern_score
+from app.services.transliteration import transliterate_arabic
 
 
 # Semantic categories that should NOT be introduced together
@@ -516,6 +517,59 @@ def select_next_words(
             + category_penalty
         )
 
+        # Compute forms_translit
+        ft = lemma.forms_translit_json
+        if not ft and lemma.forms_json:
+            ft = {}
+            for fk, fv in lemma.forms_json.items():
+                if fk in ("gender", "verb_form") or not fv or not isinstance(fv, str):
+                    continue
+                tr = transliterate_arabic(fv)
+                if tr:
+                    ft[fk] = tr
+            ft = ft or None
+
+        # Pattern examples (other words with same wazn from touched roots)
+        pe = []
+        if lemma.wazn:
+            touched_root_ids = (
+                db.query(Lemma.root_id)
+                .join(UserLemmaKnowledge, UserLemmaKnowledge.lemma_id == Lemma.lemma_id)
+                .filter(Lemma.root_id.isnot(None))
+                .distinct()
+                .subquery()
+            )
+            examples = (
+                db.query(Lemma, UserLemmaKnowledge.knowledge_state)
+                .outerjoin(UserLemmaKnowledge, UserLemmaKnowledge.lemma_id == Lemma.lemma_id)
+                .filter(
+                    Lemma.wazn == lemma.wazn,
+                    Lemma.root_id.in_(touched_root_ids),
+                    Lemma.lemma_id != lemma.lemma_id,
+                    Lemma.canonical_lemma_id.is_(None),
+                )
+                .order_by(
+                    case(
+                        (UserLemmaKnowledge.knowledge_state.in_(["known", "learning"]), 0),
+                        else_=1,
+                    ),
+                    Lemma.frequency_rank.asc().nullslast(),
+                )
+                .limit(4)
+                .all()
+            )
+            for ex, ks in examples:
+                ex_root = db.query(Root).filter(Root.root_id == ex.root_id).first() if ex.root_id else None
+                pe.append({
+                    "lemma_id": ex.lemma_id,
+                    "lemma_ar": ex.lemma_ar,
+                    "gloss_en": ex.gloss_en,
+                    "transliteration": ex.transliteration_ala_lc,
+                    "root": ex_root.root if ex_root else None,
+                    "root_meaning": ex_root.core_meaning_en if ex_root else None,
+                    "knowledge_state": ks,
+                })
+
         scored.append({
             "lemma_id": lemma.lemma_id,
             "lemma_ar": lemma.lemma_ar,
@@ -528,6 +582,7 @@ def select_next_words(
             "root": lemma.root.root if lemma.root else None,
             "root_meaning": lemma.root.core_meaning_en if lemma.root else None,
             "forms_json": lemma.forms_json,
+            "forms_translit": ft,
             "grammar_features": lemma.grammar_features_json or [],
             "audio_url": lemma.audio_url,
             "example_ar": lemma.example_ar,
@@ -537,6 +592,7 @@ def select_next_words(
             "word_category": lemma.word_category,
             "wazn": lemma.wazn,
             "wazn_meaning": lemma.wazn_meaning,
+            "pattern_examples": pe,
             "story_title": (story_lemmas[lemma.lemma_id]["title"] if lemma.lemma_id in story_lemmas else None),
             "story_id": (
                 book_pages[lemma.lemma_id]["story_id"] if lemma.lemma_id in book_pages

@@ -19,6 +19,7 @@ interface WordInfoCardProps {
   reserveSpace?: boolean;
   onNavigateToDetail?: (lemmaId: number) => void;
   onNavigateToPattern?: (wazn: string) => void;
+  onNavigateToRoot?: (rootId: number) => void;
   onPrev?: () => void;
   onNext?: () => void;
   hasPrev?: boolean;
@@ -161,6 +162,7 @@ export default function WordInfoCard({
   reserveSpace = true,
   onNavigateToDetail,
   onNavigateToPattern,
+  onNavigateToRoot,
   onPrev,
   onNext,
   hasPrev = false,
@@ -248,7 +250,7 @@ export default function WordInfoCard({
         <GrammarParticleView info={particleInfo} />
       ) : (
         <ScrollView style={{ maxHeight: 200 }} showsVerticalScrollIndicator={true} nestedScrollEnabled>
-          <RevealedView result={result} surfaceForm={surfaceForm} onNavigateToDetail={onNavigateToDetail} onNavigateToPattern={onNavigateToPattern} surfaceTranslit={surfaceTranslit} confusionData={markState === "did_not_recognize" ? confusionData : null} />
+          <RevealedView result={result} surfaceForm={surfaceForm} onNavigateToDetail={onNavigateToDetail} onNavigateToPattern={onNavigateToPattern} onNavigateToRoot={onNavigateToRoot} surfaceTranslit={surfaceTranslit} confusionData={markState === "did_not_recognize" ? confusionData : null} />
         </ScrollView>
       )}
     </Animated.View>
@@ -285,6 +287,7 @@ function RevealedView({
   surfaceForm,
   onNavigateToDetail,
   onNavigateToPattern,
+  onNavigateToRoot,
   surfaceTranslit,
   confusionData,
 }: {
@@ -292,6 +295,7 @@ function RevealedView({
   surfaceForm?: string | null;
   onNavigateToDetail?: (lemmaId: number) => void;
   onNavigateToPattern?: (wazn: string) => void;
+  onNavigateToRoot?: (rootId: number) => void;
   surfaceTranslit?: string | null;
   confusionData?: ConfusionAnalysis | null;
 }) {
@@ -494,20 +498,28 @@ function RevealedView({
 
       {/* Root info */}
       {result.root && (
-        <View style={styles.rootLine}>
-          <Text style={styles.rootLetters}>{result.root}</Text>
-          {result.root_meaning && <Text style={styles.rootMeaning}>{result.root_meaning}</Text>}
-        </View>
+        onNavigateToRoot && result.root_id ? (
+          <Pressable onPress={() => onNavigateToRoot(result.root_id!)} style={styles.rootLink}>
+            <Text style={styles.rootLetters}>{result.root}</Text>
+            {result.root_meaning && <Text style={styles.rootMeaning}>{result.root_meaning}</Text>}
+            <Ionicons name="chevron-forward" size={12} color="#9b59b6" />
+          </Pressable>
+        ) : (
+          <View style={styles.rootLine}>
+            <Text style={styles.rootLetters}>{result.root}</Text>
+            {result.root_meaning && <Text style={styles.rootMeaning}>{result.root_meaning}</Text>}
+          </View>
+        )
       )}
 
       {/* Known root siblings */}
       {knownSiblings.length > 0 && (
         <View style={styles.siblingRow}>
           {knownSiblings.slice(0, 5).map((s) => (
-            <View key={s.lemma_id} style={styles.siblingPill}>
+            <Pressable key={s.lemma_id} style={styles.siblingPill} onPress={onNavigateToDetail ? () => onNavigateToDetail(s.lemma_id) : undefined}>
               <Text style={styles.siblingAr}>{s.lemma_ar}</Text>
               <Text style={styles.siblingEn} numberOfLines={1}>{s.gloss_en ?? "?"}</Text>
-            </View>
+            </Pressable>
           ))}
         </View>
       )}
@@ -747,6 +759,11 @@ const styles = StyleSheet.create({
 
   /* Root */
   rootLine: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  rootLink: {
     flexDirection: "row",
     alignItems: "center",
     gap: 6,

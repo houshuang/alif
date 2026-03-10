@@ -466,6 +466,7 @@ class WrapUpCardOut(BaseModel):
     forms_json: dict | list | None = None
     root: str | None = None
     root_meaning: str | None = None
+    root_id: int | None = None
     etymology_json: dict | None = None
     memory_hooks_json: dict | None = None
     is_acquiring: bool = False
@@ -473,6 +474,7 @@ class WrapUpCardOut(BaseModel):
     wazn_meaning: str | None = None
     forms_translit: dict | None = None
     pattern_examples: list[dict] = []
+    root_family: list[dict] = []
 
 
 class WrapUpOut(BaseModel):

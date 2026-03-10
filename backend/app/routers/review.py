@@ -506,6 +506,29 @@ def wrap_up_quiz(body: WrapUpIn, db: Session = Depends(get_db)):
                     "knowledge_state": ks,
                 })
 
+        # Root family for wrap-up card
+        rf = []
+        if root_obj:
+            siblings = (
+                db.query(Lemma)
+                .filter(Lemma.root_id == root_obj.root_id, Lemma.lemma_id != lemma.lemma_id, Lemma.canonical_lemma_id.is_(None))
+                .all()
+            )
+            sibling_ulk = {
+                ulk.lemma_id: ulk.knowledge_state
+                for ulk in db.query(UserLemmaKnowledge)
+                .filter(UserLemmaKnowledge.lemma_id.in_([s.lemma_id for s in siblings]))
+                .all()
+            } if siblings else {}
+            for sib in siblings:
+                rf.append({
+                    "lemma_id": sib.lemma_id,
+                    "lemma_ar": sib.lemma_ar,
+                    "gloss_en": sib.gloss_en,
+                    "transliteration": sib.transliteration_ala_lc,
+                    "state": sibling_ulk.get(sib.lemma_id, "new"),
+                })
+
         cards.append(WrapUpCardOut(
             lemma_id=lemma.lemma_id,
             lemma_ar=lemma.lemma_ar,
@@ -516,6 +539,7 @@ def wrap_up_quiz(body: WrapUpIn, db: Session = Depends(get_db)):
             forms_json=lemma.forms_json,
             root=root_obj.root if root_obj else None,
             root_meaning=root_obj.core_meaning_en if root_obj else None,
+            root_id=root_obj.root_id if root_obj else None,
             etymology_json=lemma.etymology_json,
             memory_hooks_json=lemma.memory_hooks_json,
             wazn=lemma.wazn,
@@ -523,6 +547,7 @@ def wrap_up_quiz(body: WrapUpIn, db: Session = Depends(get_db)):
             forms_translit=lemma.forms_translit_json or _compute_forms_translit(lemma.forms_json),
             pattern_examples=pe,
             is_acquiring=lemma.lemma_id in acquiring_ids,
+            root_family=rf,
         ))
 
     log_interaction(
