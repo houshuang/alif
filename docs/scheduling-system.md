@@ -1026,8 +1026,8 @@ Two paths for sentence availability:
 
 1. **Pre-generated (warm cache)**: `scripts/update_material.py` runs on cron,
    generating multi-target sentences for words prioritized by FSRS due date. Target:
-   `MIN_SENTENCES=3` per word. Pool cap: 800 active sentences with `CAP_HEADROOM=50`
-   (retires down to 750 so backfill always has budget for multi-target generation).
+   `MIN_SENTENCES=3` per word. Pool cap: 1000 active sentences with `CAP_HEADROOM=50`
+   (retires down to 950 so backfill always has budget for multi-target generation).
 
 2. **On-demand (JIT)**: During `build_session()` with `skip_on_demand=False` (prefetch
    requests only), if a due word has no comprehensible sentence, generate one synchronously.
@@ -1071,20 +1071,21 @@ targets, words are classified into urgency tiers based on when they're next due:
 
 This prevents large word imports from permanently filling the pool. With 295 acquiring
 words, only ~200 are due within 12h (tier 1), requiring ~600 sentences — well within
-the 800 cap. Far-out words get 0 pre-generated sentences; JIT handles gaps.
+the 1000 cap. Far-out words get 0 pre-generated sentences; JIT handles gaps.
 
-**Cap enforcement** (`update_material.py` Step 0): Hard cap of 800 active sentences.
-Step 0 retires down to `800 - CAP_HEADROOM` (750) to leave budget for multi-target
-backfill in Step A. Retirement priority: never-shown stale → shown stale → oldest.
+**Cap enforcement** (`update_material.py` Step 0): Hard cap of 1000 active sentences.
+Step 0 retires down to `1000 - CAP_HEADROOM` (950) to leave budget for multi-target
+backfill in Step A. Retirement priority: shown stale → shown non-stale → never-shown
+stale → never-shown (protects freshly generated sentences from immediate retirement).
 Floor per word is tier-based: tier 1 keeps at least 2, tier 2 keeps 1, tier 3-4 can
 drop to 0.
 
 **Warm cache** (`warm_sentence_cache()`) computes tiers on every run. Rotates stale
 sentences (tier-aware floors) before checking the cap. After rotation, allows up to
-`PIPELINE_CAP + 10` (810) before skipping generation. Gap detection uses tier-based
+`PIPELINE_CAP + 10` (1010) before skipping generation. Gap detection uses tier-based
 targets instead of flat MIN_SENTENCES_PER_WORD. Gap words sorted by tier urgency so
 the MAX_RECENCY_EXHAUSTED (20) budget goes to most urgent words first.
-(Evolution: 2026-02-23 initial, 2026-02-24 raised cap 600→800, 2026-03-03 tiered allocation)
+(Evolution: 2026-02-23 initial, 2026-02-24 raised cap 600→800, 2026-03-03 tiered allocation, 2026-03-10 raised 800→1000 + protect never-shown)
 
 Old, low-diversity sentences are retired via `is_active=False`. The retirement script
 (`scripts/rotate_stale_sentences.py`) deactivates sentences with overexposed scaffold
@@ -1502,12 +1503,12 @@ remaining cards on the next card advance. See Section 8 "Sentence Pre-Warming" f
 
 | Constant | Value | Purpose |
 |----------|-------|---------|
-| `PIPELINE_CAP` | 800 | Max active sentences |
+| `PIPELINE_CAP` | 1000 | Max active sentences |
 | `CAP_HEADROOM` | 50 | Step 0 retires to cap minus this (→750) |
 | `MIN_SENTENCES_PER_WORD` | 3 | Fallback target for JIT/intro (words not yet in tier system) |
 | `PREGEN_SENTENCES_PER_CANDIDATE` | 3 | Step C pre-generation for not-yet-introduced words |
 | `MAX_RECENCY_EXHAUSTED` | 20 | Warm cache: max recency-exhausted words per run |
-| Warm cache cap | 810 | `PIPELINE_CAP + 10` — warm cache allowed slightly over |
+| Warm cache cap | 1010 | `PIPELINE_CAP + 10` — warm cache allowed slightly over |
 | Tier 1 boundary | 12h | Due within 12h: target 3, floor 2 |
 | Tier 2 boundary | 36h | Due within 36h: target 2, floor 1 |
 | Tier 3 boundary | 72h | Due within 72h: target 1, floor 0 |
