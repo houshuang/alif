@@ -137,6 +137,20 @@ def generate_material_for_word(lemma_id: int, needed: int = 2, model_override: s
             logger.warning(f"Skipping sentence with unmapped words: {unmapped}")
             continue
 
+        # Disambiguate tokens with multiple candidate lemmas using sentence context
+        has_ambiguous = any(m.alternative_lemma_ids for m in mappings)
+        if has_ambiguous:
+            from app.services.sentence_validator import disambiguate_mappings_llm
+            lemma_map_for_disambig = {
+                lid: all_lemma_by_id[lid]
+                for m in mappings
+                for lid in [m.lemma_id] + (m.alternative_lemma_ids or [])
+                if lid and lid in all_lemma_by_id
+            }
+            mappings = disambiguate_mappings_llm(
+                res.arabic, res.english, mappings, lemma_map_for_disambig,
+            )
+
         if _settings.verify_mappings_llm:
             from app.services.sentence_validator import verify_word_mappings_llm
             lemma_map_for_verify = {
@@ -272,6 +286,23 @@ def store_multi_target_sentence(
         logger.warning(f"Skipping multi-target sentence with unmapped words: {unmapped}")
         db.delete(sent)
         return None
+
+    # Disambiguate tokens with multiple candidate lemmas using sentence context
+    has_ambiguous = any(m.alternative_lemma_ids for m in mappings)
+    if has_ambiguous:
+        from app.services.sentence_validator import disambiguate_mappings_llm
+        all_ids = set()
+        for m in mappings:
+            if m.lemma_id:
+                all_ids.add(m.lemma_id)
+            for a in (m.alternative_lemma_ids or []):
+                all_ids.add(a)
+        lemma_map_for_disambig = {l.lemma_id: l for l in db.query(Lemma).filter(
+            Lemma.lemma_id.in_(list(all_ids))
+        ).all()}
+        mappings = disambiguate_mappings_llm(
+            result.arabic, result.english, mappings, lemma_map_for_disambig,
+        )
 
     # LLM verification of word-lemma mappings
     from app.config import settings as _settings

@@ -4,6 +4,36 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-03-10: Lemmatization Feedback Loop (Disambiguation + Auto-Create + Bulk Propagation)
+
+### Problem
+When users flag bad word→lemma mappings via Ask AI, the flag evaluator fixes that one sentence but:
+1. The same ambiguity (collisions, multiple clitic candidates) produces the same wrong mapping in future sentences
+2. Other existing sentences with the same bad mapping aren't fixed
+3. When the correct lemma doesn't exist in the DB (5/10 of recent flags), nothing can be done
+
+### Changes
+1. **LLM disambiguation at generation time**: `map_tokens_to_lemmas()` now tracks alternative candidate lemma_ids when collisions or multiple clitic interpretations exist. New `disambiguate_mappings_llm()` batches all ambiguous tokens into one Gemini Flash call with sentence context. Runs before `verify_word_mappings_llm` in both generation paths.
+2. **Auto-create lemma on flag**: When `_evaluate_word_mapping()` identifies a correct lemma that isn't in the DB, it auto-creates a minimal "encountered" lemma (`source=flag_autocreate`) with the LLM-provided Arabic, gloss, and POS. Now also requests `correct_pos` in the evaluation prompt.
+3. **Bulk fix propagation**: After a flag fix, `_propagate_mapping_fix()` finds other active sentences with the same (surface_form, wrong_lemma) pair. Each is LLM-verified (Claude Haiku, batches of 10) before fixing. Capped at 50 sentences per propagation.
+
+### Key design decisions
+- Disambiguation is additive — doesn't replace the existing collision resolution (hamza/CAMeL), just adds LLM as a final arbiter when those fail
+- Propagation uses LLM per-sentence to avoid over-correcting homographs (the "wrong" mapping may be correct in other contexts)
+- Auto-created lemmas are minimal (no forms_json, no root) — existing cron enrichment picks them up later
+
+### Expected Effects
+- Retroactive analysis of 10 recent flags: 2/10 would have been caught by disambiguation, 5/10 would now be auto-fixed via lemma creation + propagation
+- Future ambiguous mappings (like بيده → باد vs يد) resolved correctly at generation time
+- Flagging one bad mapping now fixes the same error across all existing sentences
+
+### Files Changed
+- `sentence_validator.py`: `TokenMapping.alternative_lemma_ids`, `lookup_lemma(out_alternatives=)`, `disambiguate_mappings_llm()`
+- `material_generator.py`: disambiguation calls in both generation paths
+- `flag_evaluator.py`: `_auto_create_lemma()`, `_propagate_mapping_fix()`, updated prompt
+
+---
+
 ## 2026-03-10: Expanded Forms Enrichment (Weak Verbs + Noun Inflections)
 
 ### Problem
