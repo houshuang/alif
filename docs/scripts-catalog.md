@@ -42,6 +42,7 @@ All scripts in `backend/scripts/`. Run from `backend/` directory.
 - `backfill_function_word_lemmas.py` — Creates Lemma rows for FUNCTION_WORD_GLOSSES entries lacking DB entries.
 - `backfill_sentence_translit.py` — Recompute sentence transliteration from diacritized Arabic using deterministic ALA-LC. Replaces LLM-generated transliterations.
 - `backfill_forms_translit.py` — Compute ALA-LC transliteration for all form values in forms_json, stores in forms_translit_json.
+- `backfill_expanded_forms.py` — Re-enrich verbs missing `past_1s` and nouns missing `sound_f_plural`/`sound_m_plural`. Merges new keys into existing forms_json. Uses Claude Haiku CLI. `--dry-run`, `--limit=N`, `--pos=verb|noun|all`.
 - `backfill_root_enrichment.py` — Backfill LLM enrichment for roots with 2+ studied lemmas. Uses Claude Sonnet CLI. `--dry-run`, `--limit=N`, `--force`.
 - `backfill_pattern_enrichment.py` — Backfill LLM enrichment for patterns with 2+ studied words. Uses Claude Haiku CLI. `--dry-run`, `--limit=N`, `--force`.
 - `backfill_wazn.py` — Backfill morphological pattern (wazn) for lemmas. Phase 1: extract from existing etymology_json.pattern (no LLM). Phase 2: LLM classify remaining root-bearing lemmas. `--phase=1|2|both`, `--batch-size=N`, `--limit=N`, `--dry-run`.

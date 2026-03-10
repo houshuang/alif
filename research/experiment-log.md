@@ -4,6 +4,65 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-03-10: Expanded Forms Enrichment (Weak Verbs + Noun Inflections)
+
+### Problem
+The verb conjugation recognition added earlier today only handles sound (regular) verbs algorithmically. Weak verbs (hollow like قال→قلت, defective like مشى→مشيت) have irregular stem changes in 1st/2nd person past that can't be derived from the 3ms base. Nouns also lack sound plural recognition (ـات feminine, ـون/ـين masculine, dual ـان/ـين).
+
+### Changes
+1. **Expanded LLM enrichment prompt**: `lemma_enrichment.py` now asks for 6 new form keys:
+   - Verbs: `past_1s` (crucial for weak verb stems), `past_3fp`, `present_3fp`, `present_3mp`
+   - Nouns/adjectives: `sound_f_plural`, `sound_m_plural`, `dual`
+2. **Pass 2 indexes all string keys**: Removed hardcoded key whitelist — now indexes any string-valued key in forms_json (except `gender` and `verb_form`). Future enrichment keys auto-indexed.
+3. **Pass 3 enhanced**: `_generate_verb_conjugations()` accepts optional `past_1s` to extract weak verb stem for 1st/2nd person past forms. New `_generate_noun_inflections()` generates sound plurals and dual forms algorithmically.
+4. **Backfill script**: `scripts/backfill_expanded_forms.py` re-enriches existing verbs (missing past_1s) and nouns (missing sound plurals).
+
+### Expected Effects
+- Weak verb forms (قلت, مشيت, نمت, جئت) now recognized via LLM-provided past_1s + algorithmic derivation
+- Defective verb present forms (يمشون) recognized via LLM-provided present_3mp
+- Noun sound plurals (معلمات, مهندسون) recognized both via LLM forms and algorithmic generation
+- Combined with earlier verb conjugation + tanwin fix, rejection rate should drop further (estimated <30%)
+
+### Verification Plan
+After backfill runs on server:
+1. Check forms_json for weak verbs (قال, كان, مشى, نام): should have past_1s
+2. Check forms_json for nouns: should have sound_f_plural/sound_m_plural where applicable
+3. Monitor sentence rejection rate over next few days
+
+### Files Changed
+- `backend/app/services/lemma_enrichment.py` — expanded prompt + FORMS_VALID_KEYS
+- `backend/app/services/sentence_validator.py` — Pass 2 all-key indexing, Pass 3 weak verb + noun inflection
+- `backend/tests/test_sentence_validator.py` — 9 new tests (weak verb conjugation + noun inflection)
+- `backend/scripts/backfill_expanded_forms.py` — new backfill script
+
+---
+
+## 2026-03-10: Surface Root/Pattern Info + Memory Hook Regeneration
+
+### Changes
+1. **WordInfoCard root navigation**: Root line is now clickable → navigates to root detail page. Root siblings are now tappable → navigates to word detail.
+2. **Wrap-up card upgrade**: Previously showed only plain text (arabic, transliteration, gloss, root text). Now uses the same info-dense layout as intro cards: root/pattern navigation chips, forms strip, mnemonic card.
+3. **Learn candidates enrichment**: Backend now populates `pattern_examples` and `forms_translit` for learn screen candidates. Frontend expected these but they were always null.
+4. **Story reader root nav**: WordInfoCard in story reader now supports root navigation.
+5. **Memory hooks regeneration**: Nuked all 1870 pre-Sonnet hooks (797 Haiku-era, 190 with broken `lang:"?"` cognate format). Running full backfill with Sonnet overgenerate-and-rank. Both generation paths (`generate_memory_hooks` and `regenerate_memory_hooks_premium`) already use `PREMIUM_SYSTEM_PROMPT` + `claude_sonnet` since Feb 22, but most existing hooks predated the changeover.
+
+### Files Changed
+- `frontend/lib/review/WordInfoCard.tsx`: Added `onNavigateToRoot` prop, clickable root line, pressable siblings
+- `frontend/app/index.tsx`: Upgraded wrap-up card rendering, wired root nav
+- `frontend/app/story/[id].tsx`: Wired root nav
+- `frontend/lib/types.ts`: Added `root_id`, `root_family` to WrapUpCard
+- `backend/app/schemas.py`: Added `root_id`, `root_family` to WrapUpCardOut
+- `backend/app/routers/review.py`: Populate root family in wrap-up cards
+- `backend/app/services/word_selector.py`: Added pattern_examples + forms_translit to learn candidates
+
+### Verification
+- Tap word during review → root shows chevron → tapping navigates to root detail page
+- Root siblings in WordInfoCard are tappable → navigate to word detail
+- Wrap-up cards show chips, forms strip, navigation
+- Learn screen pattern examples now populated
+
+---
+
 ## 2026-03-10: Verb Conjugation Recognition + Tier-Based Sentence Lifecycle
 
 ### Problem

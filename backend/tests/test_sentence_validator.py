@@ -429,10 +429,11 @@ class TestCliticIntegration:
 
 class _FakeLemma:
     """Minimal lemma-like object for testing build_lemma_lookup."""
-    def __init__(self, lemma_id: int, lemma_ar_bare: str, forms_json: dict | None = None):
+    def __init__(self, lemma_id: int, lemma_ar_bare: str, forms_json: dict | None = None, pos: str | None = None):
         self.lemma_id = lemma_id
         self.lemma_ar_bare = lemma_ar_bare
         self.forms_json = forms_json
+        self.pos = pos
 
 
 class TestBuildLemmaLookup:
@@ -937,3 +938,90 @@ class TestLookupCollisions:
         lookup = build_lemma_lookup(lemmas)
         # Both have the same bare "كتب" — collision tracked
         assert "كتب" in lookup.collisions
+
+
+class TestWeakVerbConjugations:
+    """Test verb conjugation generation with weak verb stems via past_1s."""
+
+    def test_hollow_verb_with_past_1s(self):
+        """قال (hollow verb): past_1s=قلت gives correct 1st/2nd person forms."""
+        lemmas = [_FakeLemma(1, "قال", pos="verb", forms_json={
+            "present": "يَقُولُ", "past_1s": "قُلْتُ",
+        })]
+        lookup = build_lemma_lookup(lemmas)
+        # 1st/2nd person past from قل stem
+        assert lookup.get("قلت") == 1
+        assert lookup.get("قلنا") == 1
+        assert lookup.get("قلتم") == 1
+        # 3rd person past from قال base
+        assert lookup.get("قالت") == 1
+        assert lookup.get("قالوا") == 1
+        # Present from يقول stem
+        assert lookup.get("يقول") == 1
+        assert lookup.get("تقول") == 1
+        assert lookup.get("يقولون") == 1
+
+    def test_defective_verb_with_past_1s(self):
+        """مشى (defective verb): past_1s=مشيت gives correct 1st/2nd person forms."""
+        lemmas = [_FakeLemma(1, "مشى", pos="verb", forms_json={
+            "present": "يَمْشِي", "past_1s": "مَشَيْتُ",
+        })]
+        lookup = build_lemma_lookup(lemmas)
+        assert lookup.get("مشيت") == 1
+        assert lookup.get("مشينا") == 1
+
+    def test_verb_without_past_1s_falls_back(self):
+        """Sound verb without past_1s uses regular 3ms-based suffixation."""
+        lemmas = [_FakeLemma(1, "كتب", pos="verb", forms_json={
+            "present": "يَكْتُبُ",
+        })]
+        lookup = build_lemma_lookup(lemmas)
+        assert lookup.get("كتبت") == 1
+        assert lookup.get("كتبنا") == 1
+        assert lookup.get("يكتبون") == 1
+
+    def test_present_3mp_from_forms_json(self):
+        """Defective verb present_3mp indexed directly from forms_json (Pass 2)."""
+        lemmas = [_FakeLemma(1, "مشى", pos="verb", forms_json={
+            "present": "يَمْشِي", "present_3mp": "يَمْشُونَ",
+        })]
+        lookup = build_lemma_lookup(lemmas)
+        assert lookup.get("يمشون") == 1
+
+
+class TestNounInflections:
+    """Test noun inflection generation (sound plurals, dual)."""
+
+    def test_feminine_noun_plural(self):
+        """معلمة → معلمات (sound feminine plural)."""
+        lemmas = [_FakeLemma(1, "معلمة", pos="noun")]
+        lookup = build_lemma_lookup(lemmas)
+        assert lookup.get("معلمات") == 1
+
+    def test_masculine_noun_plural(self):
+        """مهندس → مهندسون/مهندسين."""
+        lemmas = [_FakeLemma(1, "مهندس", pos="noun")]
+        lookup = build_lemma_lookup(lemmas)
+        assert lookup.get("مهندسون") == 1
+        assert lookup.get("مهندسين") == 1
+
+    def test_dual_forms(self):
+        """كتاب → كتابان/كتابين."""
+        lemmas = [_FakeLemma(1, "كتاب", pos="noun")]
+        lookup = build_lemma_lookup(lemmas)
+        assert lookup.get("كتابان") == 1
+        assert lookup.get("كتابين") == 1
+
+    def test_sound_f_plural_from_forms_json(self):
+        """LLM-provided sound_f_plural takes priority via Pass 2."""
+        lemmas = [_FakeLemma(1, "دراسة", pos="noun", forms_json={
+            "plural": "دِرَاسَات", "sound_f_plural": "دِرَاسَات", "gender": "f",
+        })]
+        lookup = build_lemma_lookup(lemmas)
+        assert lookup.get("دراسات") == 1
+
+    def test_verb_not_given_noun_inflections(self):
+        """Verbs should not get noun inflection forms."""
+        lemmas = [_FakeLemma(1, "كتب", pos="verb", forms_json={"present": "يَكْتُبُ"})]
+        lookup = build_lemma_lookup(lemmas)
+        assert lookup.get("كتبات") is None
