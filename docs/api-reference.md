@@ -24,7 +24,7 @@ Full endpoint list. See `backend/app/routers/` for implementation.
 | POST | `/api/review/sync` | Bulk sync offline reviews |
 | POST | `/api/review/reintro-result` | Submit re-introduction quiz result |
 | POST | `/api/review/experiment-intro-ack` | Acknowledge experiment intro card was shown (A/B test logging) |
-| POST | `/api/review/wrap-up` | Wrap-up mini-quiz: word-level recall cards for acquiring words seen in current micro-session. Cards include forms_translit + pattern_examples |
+| POST | `/api/review/wrap-up` | Wrap-up mini-quiz: word-level recall cards for acquiring + missed words. `WrapUpCardOut` includes `root_id`, `root_family`, `forms_translit`, `pattern_examples`, `etymology_json`, `memory_hooks_json` |
 | POST | `/api/review/recap` | (Deprecated) Was next-session recap — removed from frontend, redundant with within-session repetition |
 | POST | `/api/review/warm-sentences` | Pre-generate sentences for likely next session words (background, returns 202) |
 | GET | `/api/review/session-summary/{session_id}` | Per-word journey data (graduated, box advanced/slipped) + sentence comprehension stats + avg response time for session end card |

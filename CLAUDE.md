@@ -44,10 +44,10 @@ npx expo start --web  # opens on localhost:8081
 
 ## Review Modes (summary)
 - **Sentence-First Review**: greedy set cover, ternary ratings, all words get equal FSRS credit
-- **Reading Mode**: front-phase word lookup, triple-tap marking, back/undo, confusion analysis on yellow tap
+- **Reading Mode**: front-phase word lookup (root/pattern/sibling navigation), triple-tap marking, back/undo, confusion analysis on yellow tap
 - **Listening Mode**: ElevenLabs TTS, reveal Arabic → reveal English
-- **Learn Mode**: 5-candidate pick → done (shows pattern decomposition, etymology, mnemonic)
-- **Story Mode**: generate/import, tap-to-lookup reader, complete/suspend
+- **Learn Mode**: 5-candidate pick → done (info-dense card with root/pattern chips → detail pages, pattern examples, forms strip, etymology, mnemonic)
+- **Story Mode**: generate/import, tap-to-lookup reader (root/pattern navigation), complete/suspend
 
 ## Design Principles
 - **Word introduction is automatic** — `build_session()` reserves `INTRO_RESERVE_FRACTION` (20%) of session slots for new words, even when due queue exceeds limit. Accuracy-based rate: <70%→0, 70-85%→4, 85-92%→7, ≥92%→10 slots. Per-call cap: MAX_AUTO_INTRO_PER_SESSION=10. **Pipeline backlog gate**: reserved intro slots suppressed when acquiring count > `PIPELINE_BACKLOG_THRESHOLD` (40); undersized-session fill still works. **Fill phase always runs** when session is undersized — in fast mode uses `_find_pregenerated_sentences_for_words()` (DB queries only, no LLM); in prefetch mode uses `_generate_on_demand()`. OCR/story import creates "encountered" state only.
