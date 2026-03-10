@@ -4,6 +4,57 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-03-10: Verb Conjugation Recognition + Tier-Based Sentence Lifecycle
+
+### Problem
+1. **82% sentence rejection rate**: The comprehensibility gate rejects sentences containing conjugated forms of known verbs (يكتبون flagged as unknown when only يكتب is in the lookup). Only 3 of 13+ verb conjugation forms were tracked per verb.
+2. **Pipeline cap kept needing increases** (600→800→1000): vocabulary growth pushed against the cap, but analysis showed the pool is bounded by review urgency (~200 tier 1-3 words), not vocabulary size. Tier-4 words (72h+) held 49% of pool despite needing zero sentences. 80.9% of all sentences ever generated were retired without being shown.
+
+### Changes
+
+#### Verb Conjugation Recognition
+`build_lemma_lookup()` now has a Pass 3 that generates ~33 conjugation forms per verb:
+- **Past tense**: 3ms base + 9 suffix patterns (ت, ا, تا, وا, ن, تما, تم, تن, نا) for all person/number/gender
+- **Present tense**: extract stem from 3ms present (يكتب→كتب), apply 4 prefixes (ي,ت,ا,ن) × 5 optional suffixes (ون,ان,ين,ن,ي) for all conjugations
+
+Works well for sound (regular) verbs. Partial coverage for weak verbs (hollow like قال, defective like مشى) — some irregular stem changes not handled. This is intentional: partial coverage >> zero coverage, and weak verb improvements can come later.
+
+Also fixed: tanwin-alif stripping now applied to target word matching (not just scaffold), so درسًا matches target درس.
+
+#### Tier-Based Sentence Lifecycle
+Replaced fixed pipeline cap with tier-based lifecycle:
+- **Tier-4 retirement**: shown sentences for words due in 72h+ are immediately retired. Never-shown tier-4 sentences are retired after 24h. Previous behavior kept them indefinitely with `min_active=2` override.
+- **Floor uses tier values directly**: no `min_active=2` override. Tier 1 floor=2, tier 2=1, tier 3-4=0.
+- **Safety valve cap raised to 2000**: should never bind — tier lifecycle keeps pool at ~600-800 naturally.
+- **Warm cache**: runs tier lifecycle rotation first, then generates freely for tier 1-2 gaps (no cap blocking).
+
+### Expected Effects
+1. **Rejection rate should drop significantly**: verb conjugations were ~40% of rejections (combined with tanwin ~50-60%). From ~82% rejection down to estimated ~40-50%.
+2. **Pool should stabilize at ~600-800**: tier-4 sentences (385 currently) will be retired, new sentences only generated for tier 1-2 words. Pool size bounded by review urgency, scales to any vocabulary.
+3. **Fewer wasted LLM calls**: less generate-then-immediately-retire churn. More sentences survive to be shown.
+
+### What This Doesn't Fix
+- Missing non-conjugation verb forms (present_1p, present_3fp not in forms_json — but now recognized via conjugation generation)
+- Weak verb irregular stem changes (قلت from قال — past 1s/2ms of hollow verbs)
+- Noun inflections (sound feminine plural ـات, sound masculine plural ـون/ـين)
+- Grammar-controlled generation (requesting specific tenses/forms in the prompt)
+
+### Verification Plan
+After 2-3 days, check:
+1. `SELECT COUNT(*) FROM sentences WHERE is_active = 1` — should be ~600-800 (down from 800+)
+2. Sentence rejection rate in llm_calls logs — should be <50% (down from 82%)
+3. Tier-4 sentence count — should be near 0
+4. Tier-1 undersupplied words — should be 0 or near 0
+5. Run `scripts/analyze_intro_experiment.py` for A/B experiment update
+
+### Files Changed
+- `backend/app/services/sentence_validator.py` — `_generate_verb_conjugations()`, Pass 3 in `build_lemma_lookup()`, tanwin-alif on target matching
+- `backend/app/services/material_generator.py` — `rotate_stale_sentences()` rewritten with tier-4 retirement + tier floor (no min_active override), `PIPELINE_CAP` → 2000 safety valve, warm cache removes cap block
+- `backend/scripts/update_material.py` — `TARGET_PIPELINE_SENTENCES` → 2000
+- `CLAUDE.md`, `docs/scheduling-system.md` — updated pipeline docs and constants
+
+---
+
 ## 2026-03-10: Health Check — System Tuning Review
 
 ### Context
