@@ -441,10 +441,6 @@ def find_phonetically_similar(
         phon_bare = to_phonetic(bare)
         if abs(len(phon_bare) - len(target_phonetic)) > 1:
             continue
-        # Must be visually distant (edit > 2) — otherwise already caught by visual
-        visual_ed = edit_distance(lemma_bare, bare)
-        if 0 < visual_ed <= 2:
-            continue
         # Phonetic edit distance
         phon_ed = edit_distance(target_phonetic, phon_bare)
         if phon_ed > 2 or phon_ed == 0:
