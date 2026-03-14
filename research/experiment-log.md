@@ -4,6 +4,37 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-03-14: Never-Reviewed Boost — Fix Box-1 Starvation
+
+### Problem
+19 acquiring words in box 1 had literally zero reviews despite being due for up to 14 days. Words like عين (eye), وجه (face), عظم (bone) — introduced from textbook OCR — were never shown in a single session.
+
+**Root cause**: The greedy set-cover sentence selector scores by `(due_coverage ^ 1.5)`. Sentences containing 3+ FSRS-due words score `5.2+`, while dedicated single-target acquiring sentences score `1.0`. With a 10-sentence limit, never-reviewed words consistently lose and never get selected. The acquisition repetition phase only repeats words already in the first 10 sentences.
+
+This created a vicious cycle: words never shown → can't graduate → pipeline at 65 (above threshold 40) → auto-intro suppressed → 392 encountered words blocked.
+
+### Investigation data
+- 40 box-1 words, 19 with zero reviews (oldest: 14 days)
+- 65 acquiring total (backlog gate active)
+- 39 sessions in 7 days, avg 83.7 reviews — high volume, same words kept winning
+- All 65 acquiring words had 3 target sentences each — selection was the bottleneck
+- Accuracy: 93-98%
+
+### Fix
+Added `NEVER_REVIEWED_BOOST = 5.0` multiplier in `sentence_selector.py`. Sentences targeting acquiring words with `times_seen == 0` get a 5x score boost. Applied in both initial scoring and greedy re-scoring. Disappears after first review.
+
+### Expected impact
+- Box-1 zero-review words surfaced within 1-3 sessions
+- Pipeline drains below 40 within days, unblocking auto-intro
+
+### Verification
+```sql
+SELECT COUNT(*) FROM user_lemma_knowledge
+WHERE knowledge_state = 'acquiring' AND acquisition_box = 1 AND times_seen = 0;
+```
+
+---
+
 ## 2026-03-14: Fix — Scope Intro Cards to Covered Words (not all due words)
 
 ### Problem
