@@ -4,6 +4,25 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-03-14: Fix — Scope Intro Cards to Covered Words (not all due words)
+
+### Problem
+The March 7 fix filtered intro cards to `due_lemma_ids`, but that set includes ALL due words — not just the ones with sentences in the session. Sentence selection happens AFTER intro card building. Two consequences:
+
+1. **Textbook scan flood**: `start_acquisition(due_immediately=True)` puts bulk words into `due_lemma_ids` immediately. ~20 got `intro_ab_card` group → 20 intro cards shown at once, but no sentences existed for these words. 7 of the 10 orphaned cards were from a single textbook scan on March 11 (shown within seconds at 16:33–16:35).
+
+2. **No intro cards for 5 days**: After the flood, all eligible words had `experiment_intro_shown_at` set. With 65 acquiring words > backlog threshold (40), no new auto-introductions → no new intro card candidates → zero intro cards shown.
+
+### Fix
+Moved `_build_experiment_intro_cards()` from `build_session()` (before sentence selection) to `_with_fallbacks()` (after all sentence selection + fill phases complete). Now filters by `covered_ids` (words actually in session sentences) instead of `due_lemma_ids`.
+
+Also reset `experiment_intro_shown_at` for 10 orphaned words that got intro cards but were never reviewed (times_seen=0).
+
+### Files Changed
+- `backend/app/services/sentence_selector.py` — moved `_build_experiment_intro_cards` call to `_with_fallbacks`, removed `experiment_intro_cards` parameter
+
+---
+
 ## 2026-03-10: Lemmatization Feedback Loop (Disambiguation + Auto-Create + Bulk Propagation)
 
 ### Problem

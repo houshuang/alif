@@ -47,6 +47,7 @@ AUTO_INTRO_ACCURACY_FLOOR = 0.70  # pause introduction if recent accuracy below 
 INTRO_RESERVE_FRACTION = 0.2  # fraction of session slots reserved for new word introductions
 PIPELINE_BACKLOG_THRESHOLD = 40  # suppress reserved intros when acquiring pipeline exceeds this
 SESSION_SCAFFOLD_DECAY = 0.5  # per-appearance decay for scaffold words already in session
+NEVER_REVIEWED_BOOST = 5.0  # score multiplier for sentences targeting acquiring words with 0 reviews
 
 
 def _intro_slots_for_accuracy(accuracy: float) -> int:
@@ -562,9 +563,6 @@ def build_session(
     # Build reintro cards for struggling words (limit 3 per session)
     reintro_cards = _build_reintro_cards(db, struggling_ids, limit=3) if struggling_ids else []
 
-    # A/B experiment: build intro cards for card-first group (never reviewed yet)
-    experiment_intro_cards = _build_experiment_intro_cards(db, knowledge_by_id, due_lemma_ids)
-
     if not due_lemma_ids:
         return {
             "session_id": session_id,
@@ -572,7 +570,7 @@ def build_session(
             "total_due_words": total_due,
             "covered_due_words": 0,
             "reintro_cards": reintro_cards,
-            "experiment_intro_cards": experiment_intro_cards,
+            "experiment_intro_cards": [],
         }
 
     # 2. Fetch candidate sentences containing at least one due word
@@ -586,7 +584,7 @@ def build_session(
     if exclude_sentence_ids:
         sentence_ids_with_due -= exclude_sentence_ids
     if not sentence_ids_with_due:
-        return _with_fallbacks(db, session_id, due_lemma_ids, stability_map, total_due, [], limit, reintro_cards=reintro_cards, experiment_intro_cards=experiment_intro_cards, knowledge_by_id=knowledge_by_id, all_knowledge=all_knowledge, skip_on_demand=skip_on_demand, mode=mode)
+        return _with_fallbacks(db, session_id, due_lemma_ids, stability_map, total_due, [], limit, reintro_cards=reintro_cards, knowledge_by_id=knowledge_by_id, all_knowledge=all_knowledge, skip_on_demand=skip_on_demand, mode=mode)
 
     from sqlalchemy import or_
 
@@ -646,7 +644,7 @@ def build_session(
                 sentences.extend(rescue_sents)
 
     if not sentences:
-        return _with_fallbacks(db, session_id, due_lemma_ids, stability_map, total_due, [], limit, reintro_cards=reintro_cards, experiment_intro_cards=experiment_intro_cards, knowledge_by_id=knowledge_by_id, all_knowledge=all_knowledge, skip_on_demand=skip_on_demand, mode=mode)
+        return _with_fallbacks(db, session_id, due_lemma_ids, stability_map, total_due, [], limit, reintro_cards=reintro_cards, knowledge_by_id=knowledge_by_id, all_knowledge=all_knowledge, skip_on_demand=skip_on_demand, mode=mode)
 
     sentence_map: dict[int, Sentence] = {s.id: s for s in sentences}
 
@@ -757,6 +755,17 @@ def build_session(
                 if last_r is not None and last_r >= 3:
                     listening_ready.add(lid)
 
+    # Pre-compute never-reviewed acquiring words for score boost.
+    # These words have been introduced but never shown — they need priority
+    # over routine FSRS reviews in the greedy selection.
+    never_reviewed_due_ids: set[int] = set()
+    for lid in due_lemma_ids:
+        k = knowledge_by_id.get(lid)
+        if k and k.knowledge_state == "acquiring" and (k.times_seen or 0) == 0:
+            never_reviewed_due_ids.add(lid)
+    if never_reviewed_due_ids:
+        logger.info(f"Never-reviewed acquiring words due: {len(never_reviewed_due_ids)}")
+
     # Build candidates
     candidates: list[SentenceCandidate] = []
     for sent in sentences:
@@ -852,7 +861,10 @@ def build_session(
         # Rescue sentences (recently shown but only option for a due word) get a
         # penalty so fresh sentences are preferred, but they still participate.
         rescue_penalty = 0.3 if sent.id in rescue_sentence_ids else 1.0
-        score = (len(due_covered) ** 1.5) * dmq * gfit * diversity * freshness * source_bonus * rescue_penalty
+        # Boost sentences targeting never-reviewed acquiring words so they can
+        # compete with multi-word FSRS sentences in the greedy selection.
+        nr_boost = NEVER_REVIEWED_BOOST if (due_covered & never_reviewed_due_ids) else 1.0
+        score = (len(due_covered) ** 1.5) * dmq * gfit * diversity * freshness * source_bonus * rescue_penalty * nr_boost
 
         candidates.append(SentenceCandidate(
             sentence_id=sent.id,
@@ -892,7 +904,8 @@ def build_session(
                 session_diversity = 1.0
 
             rescue_penalty = 0.3 if c.sentence_id in rescue_sentence_ids else 1.0
-            c.score = (len(overlap) ** 1.5) * dmq * gfit * diversity * freshness * source_bonus * session_diversity * rescue_penalty
+            nr_boost = NEVER_REVIEWED_BOOST if (overlap & never_reviewed_due_ids) else 1.0
+            c.score = (len(overlap) ** 1.5) * dmq * gfit * diversity * freshness * source_bonus * session_diversity * rescue_penalty * nr_boost
             c.score_components = {
                 "due_coverage": len(overlap),
                 "difficulty_match": round(dmq, 2),
@@ -902,6 +915,7 @@ def build_session(
                 "source_bonus": source_bonus,
                 "session_diversity": round(session_diversity, 2),
                 "rescue": rescue_penalty < 1.0,
+                "never_reviewed_boost": nr_boost,
             }
 
         candidates.sort(key=lambda c: c.score, reverse=True)
@@ -1104,7 +1118,7 @@ def build_session(
 
     db.commit()
 
-    return _with_fallbacks(db, session_id, due_lemma_ids, stability_map, total_due, items, limit, covered_ids, reintro_cards=reintro_cards, experiment_intro_cards=experiment_intro_cards, knowledge_by_id=knowledge_by_id, all_knowledge=all_knowledge, base_item_count=base_item_count, skip_on_demand=skip_on_demand, mode=mode)
+    return _with_fallbacks(db, session_id, due_lemma_ids, stability_map, total_due, items, limit, covered_ids, reintro_cards=reintro_cards, knowledge_by_id=knowledge_by_id, all_knowledge=all_knowledge, base_item_count=base_item_count, skip_on_demand=skip_on_demand, mode=mode)
 
 
 MAX_REINTRO_PER_SESSION = 3
@@ -1783,7 +1797,6 @@ def _with_fallbacks(
     limit: int,
     covered_ids: set[int] | None = None,
     reintro_cards: list[dict] | None = None,
-    experiment_intro_cards: list[dict] | None = None,
     knowledge_by_id: dict[int, UserLemmaKnowledge] | None = None,
     all_knowledge: list | None = None,
     base_item_count: int | None = None,
@@ -1885,6 +1898,14 @@ def _with_fallbacks(
     confused = get_confused_features(db)
     grammar_refresher_needed = [f["feature_key"] for f in confused]
 
+    # A/B experiment: build intro cards only for words actually covered by
+    # sentences in this session (not all due words). This prevents showing
+    # intro cards for words that have no sentences yet (e.g. after a bulk
+    # textbook scan).
+    experiment_intro_cards = _build_experiment_intro_cards(
+        db, knowledge_by_id, covered_ids
+    )
+
     return {
         "session_id": session_id,
         "items": items,
@@ -1892,7 +1913,7 @@ def _with_fallbacks(
         "covered_due_words": len(covered_ids),
         "intro_candidates": [],  # deprecated: auto-introduction via sentences now
         "reintro_cards": reintro_cards or [],
-        "experiment_intro_cards": experiment_intro_cards or [],
+        "experiment_intro_cards": experiment_intro_cards,
         "grammar_intro_needed": grammar_intro_needed,
         "grammar_refresher_needed": grammar_refresher_needed,
     }
