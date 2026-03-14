@@ -1501,7 +1501,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
           showsVerticalScrollIndicator={false}
         >
           {/* Hero card */}
-          <View style={[styles.eiHero, !eiHasInfoSections && { borderRadius: 16 }]}>
+          <View style={styles.eiHero}>
             <Text style={styles.eiArabic}>{card.lemma_ar}</Text>
             <Text style={styles.eiEnglish}>{card.gloss_en}</Text>
             {card.transliteration && (
@@ -1517,24 +1517,24 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
               )}
               {card.root && card.root_id && (
                 <Pressable
-                  style={[styles.eiChipOutline, { borderColor: "#9b59b630", backgroundColor: "#9b59b620" }]}
+                  style={[styles.eiChipOutline, { borderColor: "#9b59b630", backgroundColor: "#9b59b620", maxWidth: "90%", flexShrink: 1 }]}
                   onPress={() => router.push(`/root/${card.root_id}`)}
                 >
                   <Text style={{ fontSize: 14, fontWeight: "600", fontFamily: fontFamily.arabic, writingDirection: "rtl", color: "#9b59b6" }}>{card.root}</Text>
                   {card.root_meaning && (
-                    <Text style={{ fontSize: 12, fontWeight: "600", color: "#9b59b6" }} numberOfLines={1}>{card.root_meaning}</Text>
+                    <Text style={{ fontSize: 12, fontWeight: "600", color: "#9b59b6", flexShrink: 1 }} numberOfLines={1}>{card.root_meaning}</Text>
                   )}
                   <Text style={{ color: "#9b59b660", fontSize: 10 }}>{" \u203A"}</Text>
                 </Pressable>
               )}
               {card.wazn && (
                 <Pressable
-                  style={[styles.eiChipOutline, { borderColor: "#f39c1230", backgroundColor: "#f39c1220" }]}
+                  style={[styles.eiChipOutline, { borderColor: "#f39c1230", backgroundColor: "#f39c1220", maxWidth: "90%", flexShrink: 1 }]}
                   onPress={() => router.push(`/pattern/${encodeURIComponent(card.wazn!)}`)}
                 >
                   <Text style={{ fontSize: 12, fontWeight: "600", color: "#f39c12" }}>{card.wazn}</Text>
                   {card.wazn_meaning && (
-                    <Text style={{ fontSize: 12, fontWeight: "600", color: "#f39c12" }} numberOfLines={1}>{card.wazn_meaning}</Text>
+                    <Text style={{ fontSize: 12, fontWeight: "600", color: "#f39c12", flexShrink: 1 }} numberOfLines={1}>{card.wazn_meaning}</Text>
                   )}
                   <Text style={{ color: "#f39c1260", fontSize: 10 }}>{" \u203A"}</Text>
                 </Pressable>
@@ -1544,88 +1544,90 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
             <FormsStrip pos={card.pos} forms={card.forms_json} />
           </View>
 
-          {/* Info sections below hero */}
-          {eiHasInfoSections && (
-            <View style={styles.eiInfoSections}>
-              {/* Memory Hook - highest priority */}
-              {eiHasMnemonic && (
-                <View style={styles.eiInfoSection}>
-                  <Text style={[styles.eiSectionLabel, { color: "#9b59b6" }]}>Memory Hook</Text>
-                  <View style={styles.eiMnemonicCard}>
-                    <Text style={styles.eiInfoText}>{card.memory_hooks!.mnemonic}</Text>
-                  </View>
+          {/* Info sections below hero — always show, even without enrichment data */}
+          <View style={styles.eiInfoSections}>
+            {/* Memory Hook - highest priority */}
+            {eiHasMnemonic && (
+              <View style={styles.eiInfoSection}>
+                <Text style={[styles.eiSectionLabel, { color: "#9b59b6" }]}>Memory Hook</Text>
+                <View style={styles.eiMnemonicCard}>
+                  <Text style={styles.eiInfoText}>{card.memory_hooks!.mnemonic}</Text>
                 </View>
-              )}
+              </View>
+            )}
 
-              {/* Etymology */}
-              {eiHasEtymology && (
-                <View style={styles.eiInfoSection}>
-                  <Text style={[styles.eiSectionLabel, { color: colors.accent }]}>Etymology</Text>
-                  <Text style={styles.eiInfoText}>
-                    {card.etymology!.pattern ? `${card.etymology!.pattern}: ` : ""}
-                    {card.etymology!.derivation}
+            {/* Etymology */}
+            {eiHasEtymology && (
+              <View style={styles.eiInfoSection}>
+                <Text style={[styles.eiSectionLabel, { color: colors.accent }]}>Etymology</Text>
+                <Text style={styles.eiInfoText}>
+                  {card.etymology!.pattern ? `${card.etymology!.pattern}: ` : ""}
+                  {card.etymology!.derivation}
+                </Text>
+              </View>
+            )}
+
+            {/* Root Family — always show when root exists */}
+            {card.root && (
+              <View style={styles.eiInfoSection}>
+                <Pressable
+                  style={styles.eiSectionLabelRow}
+                  onPress={card.root_id ? () => router.push(`/root/${card.root_id}`) : undefined}
+                >
+                  <Text style={[styles.eiSectionLabel, { color: "#2ecc71", marginBottom: 0 }]}>
+                    Root Family ({knownSiblings.length}/{card.root_family.length})
+                  </Text>
+                  {card.root_id && <Text style={styles.eiSectionLink}>View all ›</Text>}
+                </Pressable>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginTop: 4 }}>
+                  <Text style={{ fontSize: 20, color: colors.accent, fontWeight: "700", fontFamily: fontFamily.arabic, writingDirection: "rtl" }}>{card.root}</Text>
+                  {card.root_meaning && <Text style={{ fontSize: 13, color: colors.textSecondary, flex: 1 }}>{card.root_meaning}</Text>}
+                </View>
+                {knownSiblings.length > 0 && (
+                  <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10, marginTop: 8 }}>
+                    {knownSiblings.slice(0, 4).map((sib) => (
+                      <View key={sib.lemma_id} style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+                        <View style={{ width: 5, height: 5, borderRadius: 3, backgroundColor: sib.state === "known" ? "#2ecc71" : "#e67e22" }} />
+                        <Text style={{ fontSize: 15, color: colors.arabic, fontFamily: fontFamily.arabic, writingDirection: "rtl" }}>{sib.lemma_ar}</Text>
+                        {sib.gloss_en && <Text style={{ fontSize: 11, color: colors.textSecondary }}>{sib.gloss_en}</Text>}
+                      </View>
+                    ))}
+                  </View>
+                )}
+              </View>
+            )}
+
+            {/* Example sentence */}
+            {card.example_ar && (
+              <View style={styles.eiInfoSection}>
+                <Text style={[styles.eiSectionLabel, { color: colors.textSecondary }]}>Example</Text>
+                <Text style={{ fontSize: 18, color: colors.arabic, fontFamily: fontFamily.arabic, writingDirection: "rtl", lineHeight: 30, textAlign: "right" }}>{card.example_ar}</Text>
+                {card.example_en && (
+                  <Text style={{ fontSize: 14, color: colors.textSecondary, marginTop: 4 }}>{card.example_en}</Text>
+                )}
+              </View>
+            )}
+
+            {/* Usage Context */}
+            {eiHasUsageContext && (
+              <View style={styles.eiInfoSection}>
+                <Text style={[styles.eiSectionLabel, { color: colors.textSecondary }]}>Usage</Text>
+                <Text style={styles.eiInfoText}>{card.memory_hooks!.usage_context}</Text>
+              </View>
+            )}
+
+            {/* Fun Fact or Cultural Note */}
+            {(eiHasFunFact || eiHasCulturalNote) && (
+              <View style={styles.eiInfoSection}>
+                <Text style={[styles.eiSectionLabel, { color: "#2ecc71" }]}>Did You Know?</Text>
+                <View style={styles.eiFunFactCard}>
+                  <Text style={styles.eiFunFactText}>
+                    {card.memory_hooks?.fun_fact || card.etymology?.cultural_note}
                   </Text>
                 </View>
-              )}
-
-              {/* Root Family */}
-              {eiHasRootFamily && card.root && (
-                <View style={styles.eiInfoSection}>
-                  <Pressable
-                    style={styles.eiSectionLabelRow}
-                    onPress={card.root_id ? () => router.push(`/root/${card.root_id}`) : undefined}
-                  >
-                    <Text style={[styles.eiSectionLabel, { color: "#2ecc71", marginBottom: 0 }]}>
-                      Root Family ({knownSiblings.length}/{card.root_family.length})
-                    </Text>
-                    {card.root_id && <Text style={styles.eiSectionLink}>View all ›</Text>}
-                  </Pressable>
-                  {knownSiblings.length > 0 && (
-                    <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10, marginTop: 4 }}>
-                      {knownSiblings.slice(0, 4).map((sib) => (
-                        <View key={sib.lemma_id} style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
-                          <View style={{ width: 5, height: 5, borderRadius: 3, backgroundColor: sib.state === "known" ? "#2ecc71" : "#e67e22" }} />
-                          <Text style={{ fontSize: 15, color: colors.arabic, fontFamily: fontFamily.arabic, writingDirection: "rtl" }}>{sib.lemma_ar}</Text>
-                          {sib.gloss_en && <Text style={{ fontSize: 11, color: colors.textSecondary }}>{sib.gloss_en}</Text>}
-                        </View>
-                      ))}
-                    </View>
-                  )}
-                </View>
-              )}
-
-              {/* Example sentence */}
-              {card.example_ar && (
-                <View style={styles.eiInfoSection}>
-                  <Text style={[styles.eiSectionLabel, { color: colors.textSecondary }]}>Example</Text>
-                  <Text style={{ fontSize: 18, color: colors.arabic, fontFamily: fontFamily.arabic, writingDirection: "rtl", lineHeight: 30, textAlign: "right" }}>{card.example_ar}</Text>
-                  {card.example_en && (
-                    <Text style={{ fontSize: 14, color: colors.textSecondary, marginTop: 4 }}>{card.example_en}</Text>
-                  )}
-                </View>
-              )}
-
-              {/* Usage Context */}
-              {eiHasUsageContext && (
-                <View style={styles.eiInfoSection}>
-                  <Text style={[styles.eiSectionLabel, { color: colors.textSecondary }]}>Usage</Text>
-                  <Text style={styles.eiInfoText}>{card.memory_hooks!.usage_context}</Text>
-                </View>
-              )}
-
-              {/* Fun Fact or Cultural Note */}
-              {(eiHasFunFact || eiHasCulturalNote) && (
-                <View style={styles.eiInfoSection}>
-                  <Text style={[styles.eiSectionLabel, { color: "#2ecc71" }]}>Did You Know?</Text>
-                  <View style={styles.eiFunFactCard}>
-                    <Text style={styles.eiFunFactText}>
-                      {card.memory_hooks?.fun_fact || card.etymology?.cultural_note}
-                    </Text>
-                  </View>
-                </View>
-              )}
-            </View>
-          )}
+              </View>
+            )}
+          </View>
         </ScrollView>
 
         <View style={styles.reintroActions}>
