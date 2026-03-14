@@ -5,6 +5,7 @@ ordered for good learning flow (easy -> hard -> easy).
 """
 
 import json
+import logging
 import uuid
 from datetime import datetime, timedelta, timezone
 from dataclasses import dataclass, field
@@ -38,6 +39,8 @@ from app.services.sentence_validator import (
     strip_diacritics,
     strip_tatweel,
 )
+
+logger = logging.getLogger(__name__)
 
 # Acquisition repetition: each acquiring word should appear this many times in a session
 MIN_ACQUISITION_EXPOSURES = 4
@@ -292,8 +295,6 @@ def _auto_introduce_words(
     Accuracy-based throttle still applies: if the learner is struggling,
     slow down introduction rate.
     """
-    import logging
-    logger = logging.getLogger(__name__)
 
     if slots_needed <= 0:
         return []
@@ -1159,6 +1160,35 @@ def _build_reintro_cards(
         key=lambda l: (ulk_map.get(l.lemma_id) and ulk_map[l.lemma_id].times_seen) or 0,
         reverse=True,
     )
+
+    # Ensure enrichment exists for intro card words (forms, etymology, memory hooks).
+    # Trigger background enrichment for any words missing data so cards are info-dense.
+    needs_enrichment = [
+        l for l in lemmas[:limit]
+        if not l.forms_json or not l.etymology_json or not l.memory_hooks_json
+    ]
+    if needs_enrichment:
+        import threading
+        from app.services.lemma_enrichment import enrich_lemmas_batch
+        from app.services.memory_hooks import generate_memory_hooks
+
+        enrich_ids = [l.lemma_id for l in needs_enrichment if not l.forms_json or not l.etymology_json]
+        hooks_ids = [l.lemma_id for l in needs_enrichment if not l.memory_hooks_json]
+
+        if enrich_ids:
+            threading.Thread(
+                target=enrich_lemmas_batch, args=(enrich_ids,), daemon=True
+            ).start()
+        for lid in hooks_ids:
+            threading.Thread(
+                target=generate_memory_hooks, args=(lid,), daemon=True
+            ).start()
+
+        logger.info(
+            f"Triggered background enrichment for intro cards: "
+            f"{len(enrich_ids)} forms/etymology, {len(hooks_ids)} memory hooks"
+        )
+
 
     cards = []
     for lemma in lemmas[:limit]:
