@@ -16,7 +16,7 @@ Before sentences begin, the session may include informational cards (no FSRS rev
 
 1. **Grammar lesson cards** — if the session contains a grammar pattern the user hasn't seen
 2. **Reintro cards** — for struggling words (seen 3+ times, never recalled). Info-dense layout: large Arabic + English + transliteration hero, flow chips (POS, clickable root chip → `/root/{id}`, clickable pattern chip → `/pattern/{wazn}`), FormsStrip, etymology, memory hook mnemonic, root family with "View all" link. Single "Continue" button — no self-assessment. Backend: `_build_reintro_cards()`, max `MAX_REINTRO_PER_SESSION` (3).
-3. **Experiment intro cards** — A/B test (active 2026-03). Words in the `intro_ab_card` group get an info card before their first-ever sentence review. Same layout as reintro cards. Logged via `POST /api/review/experiment-intro-ack`. Backend: `_build_experiment_intro_cards()`.
+3. **Experiment intro cards** — A/B test (active 2026-03). Words in the `intro_ab_card` group get an info card before their first-ever sentence review. Same layout as reintro cards. Logged via `POST /api/review/experiment-intro-ack`. Backend: `_build_experiment_intro_cards()`, built in `_with_fallbacks()` after all sentence selection — only for words actually covered by session sentences (not all due words).
 
 Cards are shown in the order above, then sentences begin.
 
