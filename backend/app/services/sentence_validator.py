@@ -336,6 +336,7 @@ class TokenMapping:
     is_target: bool
     is_function_word: bool
     alternative_lemma_ids: list[int] | None = None
+    via_clitic: bool = False
 
 
 def map_tokens_to_lemmas(
@@ -393,15 +394,18 @@ def map_tokens_to_lemmas(
             result.append(TokenMapping(i, token, lemma_id, False, is_function))
         else:
             alternatives: list[int] = []
+            clitic_flag: list[bool] = [False]
             lemma_id = lookup_lemma(
                 bare_norm, lemma_lookup, original_bare=bare_clean,
                 out_alternatives=alternatives,
+                out_via_clitic=clitic_flag,
             )
             # Deduplicate and exclude winner
             alts = list(dict.fromkeys(a for a in alternatives if a != lemma_id))
             result.append(TokenMapping(
                 i, token, lemma_id, False, False,
                 alternative_lemma_ids=alts or None,
+                via_clitic=clitic_flag[0],
             ))
 
     return result
@@ -453,6 +457,7 @@ def lookup_lemma(
     lemma_lookup: dict[str, int],
     original_bare: str | None = None,
     out_alternatives: list[int] | None = None,
+    out_via_clitic: list[bool] | None = None,
 ) -> int | None:
     """Find a lemma_id for a normalized bare form, trying variants and clitic stripping.
 
@@ -465,6 +470,8 @@ def lookup_lemma(
             appended here when the mapping is ambiguous (collisions or
             multiple clitic interpretations). Callers can use these for
             LLM-based contextual disambiguation.
+        out_via_clitic: If provided (as single-element list), set to [True]
+            when the match came from clitic stripping rather than direct match.
     """
     # Direct match
     if bare_norm in lemma_lookup:
@@ -511,8 +518,12 @@ def lookup_lemma(
             candidates.append(lemma_lookup[norm_stem])
 
     if len(candidates) == 1:
+        if out_via_clitic is not None:
+            out_via_clitic[0] = True
         return candidates[0]
     if len(candidates) > 1:
+        if out_via_clitic is not None:
+            out_via_clitic[0] = True
         # Multiple clitic interpretations — try CAMeL to disambiguate
         camel_id = _camel_disambiguate(
             original_bare or bare_norm, lemma_lookup
@@ -808,7 +819,25 @@ def verify_word_mappings_llm(
     """Ask LLM to verify word-lemma mappings make sense in context.
 
     Returns list of positions where the mapping looks wrong.
-    Uses Gemini Flash for lowest cost (~$0.001 per call).
+    Thin wrapper around verify_and_correct_mappings_llm for backward compat.
+    """
+    corrections = verify_and_correct_mappings_llm(
+        arabic_text, english_text, mappings, lemma_map,
+    )
+    return [c["position"] for c in corrections]
+
+
+def verify_and_correct_mappings_llm(
+    arabic_text: str,
+    english_text: str,
+    mappings: list[TokenMapping],
+    lemma_map: dict[int, object],
+) -> list[dict]:
+    """Verify word-lemma mappings and suggest corrections for wrong ones.
+
+    Returns list of dicts with correction info:
+    [{"position": int, "correct_lemma_ar": str, "correct_gloss": str, "correct_pos": str}]
+    Empty list means all mappings are acceptable.
     """
     from app.services.llm import generate_completion, AllProvidersFailed
 
@@ -820,7 +849,8 @@ def verify_word_mappings_llm(
             lar = lemma.lemma_ar or "?"
         else:
             continue
-        word_lines.append(f"  {m.position}: {m.surface_form} → {lar} ({gloss})")
+        tag = " [via clitic stripping]" if m.via_clitic else ""
+        word_lines.append(f"  {m.position}: {m.surface_form} → {lar} ({gloss}){tag}")
 
     if not word_lines:
         return []
@@ -831,42 +861,153 @@ English translation: {english_text}
 Word-to-lemma mappings:
 {chr(10).join(word_lines)}
 
-ONLY flag a mapping as wrong if the lemma is a COMPLETELY DIFFERENT WORD than what appears in the sentence. Specifically:
+Your task: check that each word's lemma MAKES SENSE in the context of this sentence and its English translation. For each wrong mapping, provide the correct lemma.
 
-Flag as WRONG:
-- The word in context has a totally different meaning from the lemma's English gloss (e.g. حَوْلَ "around" mapped to حَالَ "to change" — different words despite shared root)
-- A verb form mapped to an unrelated noun, or vice versa, when the bare forms happen to look the same (e.g. كَتَبَ "he wrote" mapped to كُتُب "books")
-- A clitic combination misidentified as a single word (e.g. بِأَنَّ "with that" mapped to بَانَ "to separate")
+Flag as WRONG (and provide correction):
+- The lemma's English gloss doesn't match what the word means in this sentence (e.g. "to sleep" in a sentence about growing, "classroom" in a sentence about describing)
+- A verb mapped to an unrelated noun or vice versa when they happen to share consonants (e.g. طَائِر "bird" mapped to طار "to fly" — these are different lemmas)
+- A clitic prefix (و/ف/ب/ل/ك) wrongly stripped from a word where the letter is part of the root (e.g. وَصْف "description" stripped to صف "row/class")
+- An active participle / verbal noun mapped to the root verb when it should be its own lemma (e.g. حُضُور "attendance" mapped to حاضر "present")
+- A noun/verb homograph mapped to the wrong part of speech (e.g. ذَهَب "gold" mapped to ذَهَبَ "to go")
 
 Do NOT flag (these are CORRECT):
-- A conjugated verb mapped to its dictionary/past-tense form (e.g. يَكْتُبُ mapped to كَتَبَ)
-- A plural mapped to its singular lemma or vice versa (e.g. رِجَال mapped to رَجُل or رِجَال)
-- A feminine form mapped to its masculine lemma (e.g. مُعَلِّمَة mapped to مُعَلِّم)
+- A conjugated verb mapped to its dictionary form, when the MEANING matches the sentence (e.g. يَكْتُبُ "he writes" mapped to كَتَبَ "to write")
+- A plural/feminine/dual form mapped to its base lemma (e.g. مُعَلِّمَة mapped to مُعَلِّم)
 - A noun with possessive suffix mapped to the base noun (e.g. أُمِّي mapped to أُمّ)
-- A word with a preposition prefix mapped to the base word (e.g. بِالعَرَبِيَّة mapped to عَرَبِيّ)
-- A masdar mapped to its verb or vice versa, when semantically related (e.g. قِرَاءة mapped to قَرَأَ)
-- A word mapped to a lemma whose gloss is a close synonym or semantic relative
+- A word with preposition prefix where the base word is correct (e.g. بِالعَرَبِيَّة mapped to عَرَبِيّ)
 
-Return JSON: {{"wrong": [list of position numbers where the mapping is WRONG]}}
-If all mappings are acceptable, return {{"wrong": []}}
-When in doubt, do NOT flag — only flag clear semantic mismatches."""
+Words marked [via clitic stripping] had a prefix/suffix removed during lookup — these are higher risk for errors. Pay extra attention to them.
+
+When in doubt, flag it — a false positive just causes a retry, but a false negative reaches the user.
+
+Return JSON: {{"issues": []}} if all correct, or:
+{{"issues": [{{"position": <int>, "correct_lemma_ar": "<bare form>", "correct_gloss": "<English>", "correct_pos": "<noun/verb/adj/etc>", "explanation": "<brief>"}}]}}"""
 
     try:
         result = generate_completion(
             prompt=prompt,
-            system_prompt="You are an Arabic morphology expert reviewing word-lemma mappings. Be conservative — only flag clear errors.",
+            system_prompt="You are an Arabic morphology expert. Check each mapping against the English translation. Flag any mapping where the gloss doesn't fit the sentence meaning.",
             json_mode=True,
             temperature=0.0,
             model_override="gemini",
             task_type="mapping_verification",
         )
-        wrong = result.get("wrong", [])
-        if isinstance(wrong, list):
-            return [int(p) for p in wrong if isinstance(p, (int, float))]
+        issues = result.get("issues", [])
+        if isinstance(issues, list):
+            return [
+                {
+                    "position": int(iss["position"]),
+                    "correct_lemma_ar": iss.get("correct_lemma_ar", ""),
+                    "correct_gloss": iss.get("correct_gloss", ""),
+                    "correct_pos": iss.get("correct_pos", ""),
+                    "explanation": iss.get("explanation", ""),
+                }
+                for iss in issues
+                if isinstance(iss, dict) and "position" in iss
+            ]
     except (AllProvidersFailed, Exception) as e:
         _validator_logger.warning(f"LLM mapping verification failed: {e}")
 
     return []
+
+
+def _log_mapping_correction(
+    corrections: list[dict],
+    success: bool,
+    sentence_arabic: str,
+) -> None:
+    """Log mapping correction attempt for cost/success tracking."""
+    from app.config import settings
+    import json as _json
+    from datetime import datetime as _dt
+
+    log_dir = settings.log_dir
+    log_dir.mkdir(parents=True, exist_ok=True)
+    log_file = log_dir / f"mapping_corrections_{_dt.now():%Y-%m-%d}.jsonl"
+
+    entry = {
+        "ts": _dt.now().isoformat(),
+        "event": "mapping_correction",
+        "success": success,
+        "corrections_count": len(corrections),
+        "sentence_preview": sentence_arabic[:80],
+        "corrections": corrections,
+    }
+    try:
+        with open(log_file, "a") as f:
+            f.write(_json.dumps(entry, ensure_ascii=False) + "\n")
+    except Exception:
+        pass
+
+
+def correct_mapping(
+    db,
+    correct_ar: str,
+    correct_gloss: str,
+    correct_pos: str,
+) -> int | None:
+    """Find or create the correct lemma and return its lemma_id.
+
+    Searches DB by bare form (with/without al-prefix). If not found and
+    gloss is provided, auto-creates a minimal encountered lemma.
+    """
+    from app.models import Lemma, UserLemmaKnowledge
+
+    if not correct_ar:
+        return None
+
+    correct_bare = normalize_arabic(correct_ar)
+    candidate = (
+        db.query(Lemma)
+        .filter(Lemma.lemma_ar_bare == correct_bare)
+        .first()
+    )
+    if not candidate:
+        if correct_bare.startswith("ال"):
+            candidate = db.query(Lemma).filter(
+                Lemma.lemma_ar_bare == correct_bare[2:]
+            ).first()
+        else:
+            candidate = db.query(Lemma).filter(
+                Lemma.lemma_ar_bare == "ال" + correct_bare
+            ).first()
+
+    if not candidate and correct_gloss and len(correct_bare) >= 2:
+        # Auto-create missing lemma
+        pos_map = {"adj": "adjective", "adv": "adverb", "prep": "preposition",
+                   "conj": "conjunction", "pron": "pronoun"}
+        normalized_pos = pos_map.get(correct_pos, correct_pos) if correct_pos else None
+
+        existing = db.query(Lemma).filter(Lemma.lemma_ar_bare == correct_bare).first()
+        if existing:
+            return existing.lemma_id
+
+        new_lemma = Lemma(
+            lemma_ar=correct_ar,
+            lemma_ar_bare=correct_bare,
+            gloss_en=correct_gloss,
+            pos=normalized_pos,
+            source="mapping_correction",
+        )
+        db.add(new_lemma)
+        db.flush()
+
+        ulk = UserLemmaKnowledge(
+            lemma_id=new_lemma.lemma_id,
+            knowledge_state="encountered",
+            source="mapping_correction",
+            total_encounters=1,
+        )
+        db.add(ulk)
+        db.flush()
+
+        _validator_logger.info(
+            f"Auto-created lemma #{new_lemma.lemma_id}: {correct_bare} "
+            f"({correct_gloss}, {normalized_pos})"
+        )
+        return new_lemma.lemma_id
+
+    return candidate.lemma_id if candidate else None
 
 
 def disambiguate_mappings_llm(

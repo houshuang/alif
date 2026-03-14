@@ -28,7 +28,6 @@ from app.services.sentence_validator import (
     normalize_alef,
     strip_diacritics,
     tokenize_display,
-    verify_word_mappings_llm,
 )
 from app.services.story_service import (
     _create_story_words,
@@ -343,26 +342,38 @@ def create_book_sentences(
         if still_unmapped:
             logger.info(f"Book sentence has {len(still_unmapped)} unmapped words (kept): {still_unmapped[:5]}")
 
-        # LLM verification of word-lemma mappings — null out bad ones
-        from app.config import settings as _settings
+        # LLM verification of word-lemma mappings — correct or null out bad ones
         mapped = [m for m in mappings if m.lemma_id is not None]
-        if _settings.verify_mappings_llm and mapped:
+        if mapped:
+            from app.services.sentence_validator import (
+                verify_and_correct_mappings_llm,
+                correct_mapping as _correct_mapping,
+            )
             lemma_map_for_verify = {
                 l.lemma_id: l for l in db.query(Lemma).filter(
                     Lemma.lemma_id.in_([m.lemma_id for m in mapped])
                 ).all()
             }
-            wrong_positions = verify_word_mappings_llm(
+            corrections = verify_and_correct_mappings_llm(
                 arabic, english, mapped, lemma_map_for_verify,
             )
-            if wrong_positions:
-                for m in mappings:
-                    if m.position in wrong_positions:
-                        logger.warning(
-                            f"LLM flagged bad mapping: {m.surface_form} → "
-                            f"lemma {m.lemma_id}, nulling out"
-                        )
-                        m.lemma_id = None
+            for corr in corrections:
+                pos = corr["position"]
+                m = next((m for m in mappings if m.position == pos), None)
+                if not m:
+                    continue
+                new_lid = _correct_mapping(
+                    db,
+                    corr.get("correct_lemma_ar", ""),
+                    corr.get("correct_gloss", ""),
+                    corr.get("correct_pos", ""),
+                )
+                if new_lid and new_lid != m.lemma_id:
+                    logger.info(f"Book import: corrected mapping pos {pos} '{m.surface_form}': #{m.lemma_id} → #{new_lid}")
+                    m.lemma_id = new_lid
+                elif not new_lid:
+                    logger.warning(f"LLM flagged bad mapping: {m.surface_form} → lemma {m.lemma_id}, nulling out")
+                    m.lemma_id = None
 
         target_lid = _pick_primary_target(mappings, db)
 

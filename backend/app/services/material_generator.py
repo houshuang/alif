@@ -32,14 +32,16 @@ def generate_material_for_word(lemma_id: int, needed: int = 2, model_override: s
     from app.services.sentence_validator import (
         build_comprehensive_lemma_lookup,
         build_lemma_lookup,
+        correct_mapping,
         map_tokens_to_lemmas,
         sanitize_arabic_word,
         strip_diacritics,
         tokenize_display,
         validate_sentence,
+        verify_and_correct_mappings_llm,
+        _log_mapping_correction,
     )
     from app.services.word_selector import get_sentence_difficulty_params
-    from app.config import settings as _settings
 
     # ── Phase 1: DB read ──
     db = SessionLocal()
@@ -151,19 +153,48 @@ def generate_material_for_word(lemma_id: int, needed: int = 2, model_override: s
                 res.arabic, res.english, mappings, lemma_map_for_disambig,
             )
 
-        if _settings.verify_mappings_llm:
-            from app.services.sentence_validator import verify_word_mappings_llm
-            lemma_map_for_verify = {
-                m.lemma_id: all_lemma_by_id[m.lemma_id]
-                for m in mappings if m.lemma_id and m.lemma_id in all_lemma_by_id
-            }
-            wrong_positions = verify_word_mappings_llm(
-                res.arabic, res.english, mappings, lemma_map_for_verify,
-            )
-            if wrong_positions:
+        # Verify mappings and correct any issues (instead of discarding)
+        lemma_map_for_verify = {
+            m.lemma_id: all_lemma_by_id[m.lemma_id]
+            for m in mappings if m.lemma_id and m.lemma_id in all_lemma_by_id
+        }
+        corrections = verify_and_correct_mappings_llm(
+            res.arabic, res.english, mappings, lemma_map_for_verify,
+        )
+        if corrections:
+            correction_failed = False
+            correction_db = SessionLocal()
+            try:
+                for corr in corrections:
+                    pos = corr["position"]
+                    m = next((m for m in mappings if m.position == pos), None)
+                    if not m:
+                        continue
+                    new_lid = correct_mapping(
+                        correction_db,
+                        corr.get("correct_lemma_ar", ""),
+                        corr.get("correct_gloss", ""),
+                        corr.get("correct_pos", ""),
+                    )
+                    if new_lid and new_lid != m.lemma_id:
+                        logger.info(
+                            f"Corrected mapping pos {pos} '{m.surface_form}': "
+                            f"#{m.lemma_id} → #{new_lid}"
+                        )
+                        m.lemma_id = new_lid
+                    elif not new_lid:
+                        correction_failed = True
+                correction_db.commit()
+            except Exception:
+                correction_db.rollback()
+                correction_failed = True
+            finally:
+                correction_db.close()
+
+            _log_mapping_correction(corrections, not correction_failed, res.arabic)
+            if correction_failed:
                 logger.warning(
-                    f"LLM flagged mapping issues at positions {wrong_positions} "
-                    f"in sentence for lemma {lemma_id}, discarding"
+                    f"Mapping correction failed for sentence for lemma {lemma_id}, discarding"
                 )
                 continue
 
@@ -304,21 +335,43 @@ def store_multi_target_sentence(
             result.arabic, result.english, mappings, lemma_map_for_disambig,
         )
 
-    # LLM verification of word-lemma mappings
-    from app.config import settings as _settings
-    if _settings.verify_mappings_llm:
-        from app.services.sentence_validator import verify_word_mappings_llm
-        lemma_map_for_verify = {l.lemma_id: l for l in db.query(Lemma).filter(
-            Lemma.lemma_id.in_([m.lemma_id for m in mappings if m.lemma_id])
-        ).all()}
-        wrong_positions = verify_word_mappings_llm(
-            result.arabic, result.english, mappings, lemma_map_for_verify,
-        )
-        if wrong_positions:
-            logger.warning(
-                f"LLM flagged mapping issues at positions {wrong_positions} "
-                f"in multi-target sentence, discarding"
+    # Verify mappings and correct any issues
+    from app.services.sentence_validator import (
+        verify_and_correct_mappings_llm,
+        correct_mapping as _correct_mapping,
+        _log_mapping_correction,
+    )
+    lemma_map_for_verify = {l.lemma_id: l for l in db.query(Lemma).filter(
+        Lemma.lemma_id.in_([m.lemma_id for m in mappings if m.lemma_id])
+    ).all()}
+    corrections = verify_and_correct_mappings_llm(
+        result.arabic, result.english, mappings, lemma_map_for_verify,
+    )
+    if corrections:
+        correction_failed = False
+        for corr in corrections:
+            pos = corr["position"]
+            m = next((m for m in mappings if m.position == pos), None)
+            if not m:
+                continue
+            new_lid = _correct_mapping(
+                db,
+                corr.get("correct_lemma_ar", ""),
+                corr.get("correct_gloss", ""),
+                corr.get("correct_pos", ""),
             )
+            if new_lid and new_lid != m.lemma_id:
+                logger.info(
+                    f"Corrected mapping pos {pos} '{m.surface_form}': "
+                    f"#{m.lemma_id} → #{new_lid}"
+                )
+                m.lemma_id = new_lid
+            elif not new_lid:
+                correction_failed = True
+
+        _log_mapping_correction(corrections, not correction_failed, result.arabic)
+        if correction_failed:
+            logger.warning("Mapping correction failed in multi-target sentence, discarding")
             db.delete(sent)
             return None
 
