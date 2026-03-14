@@ -4,6 +4,43 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-03-14: Mapping Correction Pipeline — Fix Instead of Discard
+
+### Problem
+Users see ~several wrong lemmatizations per day in review sessions. Examples: فَنَمَتِ mapped to نام (sleep) instead of نما (grow), وَصْفِ → صف (classroom) instead of وصف (description), طَائِرٌ → طار (to fly) instead of طائر (bird). Analysis of 15 recent flags shows 5 patterns: wrong clitic stripping (5), active participle→verb (2), verb homograph (2), noun/verb homograph (1), derived form mismatch (1).
+
+### Root Cause
+The verification step (`verify_word_mappings_llm`) was running but:
+1. **Prompt too conservative** — "When in doubt, do NOT flag" + broad morphological exceptions let Gemini excuse obvious mismatches
+2. **Discard-only response** — when verification flagged errors, the sentence was thrown away and retried. But deterministic clitic stripping produces the same wrong mapping every time, so words like وصف could never get sentences
+3. **No clitic tracking** — verifier didn't know which mappings came from clitic stripping (inherently higher risk)
+
+### Changes
+1. **New `verify_and_correct_mappings_llm()`** — replaces verify-discard with verify-correct-keep. Asks Gemini to both flag wrong mappings AND suggest the correct lemma. Returns structured corrections instead of just position numbers.
+2. **`correct_mapping()` function** — searches DB for correct lemma by bare form, auto-creates if missing (as `source="mapping_correction"`, state=`encountered`). Reuses pattern from flag_evaluator's `_auto_create_lemma`.
+3. **More aggressive verifier prompt** — "When in doubt, flag it" instead of "when in doubt, do NOT flag". Explicit examples of common Arabic errors. `[via clitic stripping]` annotation on higher-risk mappings.
+4. **`via_clitic` field on TokenMapping** — `lookup_lemma()` now tracks when match came from clitic stripping path, passed to verifier for extra scrutiny.
+5. **Verification always on** — removed `VERIFY_MAPPINGS_LLM` config toggle (was already enabled in production).
+6. **Correction logging** — `mapping_corrections_YYYY-MM-DD.jsonl` tracks correction attempts, success rate, for cost review after one week.
+
+### Expected Effect
+- Words that previously could never get sentences (due to systematic clitic errors) will now get correctly-mapped sentences
+- Overall mapping quality improves: errors caught at generation time instead of after user flags them
+- Small cost increase from Gemini corrections (estimated ~$0.001/correction, tracked in logs)
+
+### How to Verify
+- After deploy, check `data/logs/mapping_corrections_*.jsonl` for correction success rate
+- Monitor flag rate over next week — should decrease
+- Check that previously-problematic words (وصف, طائر, ذهب) get valid sentences
+
+### Files Changed
+- `sentence_validator.py`: TokenMapping.via_clitic, verify_and_correct_mappings_llm(), correct_mapping(), _log_mapping_correction(), lookup_lemma() out_via_clitic param
+- `material_generator.py`: both single-target and multi-target paths use correct-then-keep
+- `book_import_service.py`: uses correction instead of null-out
+- `config.py`: removed verify_mappings_llm toggle
+
+---
+
 ## 2026-03-14: Never-Reviewed Boost — Fix Box-1 Starvation
 
 ### Problem
