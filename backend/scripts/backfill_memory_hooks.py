@@ -137,6 +137,8 @@ def backfill(dry_run=False, batch_size=10, limit=100, force=False, box1_only=Fal
 
         lemma_map = {l.lemma_id: l for l in batch}
         for item in items:
+            if item is None:
+                continue
             lid = item.get("lemma_id")
             hooks = item.get("hooks")
 
