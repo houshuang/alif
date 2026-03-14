@@ -171,7 +171,7 @@ learn, and each enters acquisition immediately.
 - **Reserved slots**: `INTRO_RESERVE_FRACTION` (20%) of session slots reserved for introductions, even when due queue exceeds limit. With limit=10, at least 2 slots always available.
 - **Pipeline backlog gate**: Reserved intro slots suppressed when acquiring pipeline > `PIPELINE_BACKLOG_THRESHOLD` (40). Undersized-session fill still works (when due < limit). Resumes automatically when pipeline drains below threshold.
 - Recent accuracy ≥ `AUTO_INTRO_ACCURACY_FLOOR` (70%) over last 10+ reviews
-- Per-call cap: `MAX_AUTO_INTRO_PER_SESSION` (10)
+- Per-call cap: `MAX_AUTO_INTRO_PER_SESSION` (5)
 - Also fires when session is undersized (due words < limit) — backward-compatible path
 - Selects highest-frequency encountered words
 - **Never picks `proper_name` or `onomatopoeia` words** — these must be introduced manually via Learn mode
@@ -1423,18 +1423,20 @@ remaining cards on the next card advance. See Section 8 "Sentence Pre-Warming" f
 |----------|-------|---------|
 | `MIN_ACQUISITION_EXPOSURES` | 4 | Min times an acquiring word should appear per session |
 | `MAX_ACQUISITION_EXTRA_SLOTS` | 15 | Max extra cards for acquisition repetition |
-| `MAX_AUTO_INTRO_PER_SESSION` | 10 | Per-call cap on auto-intro words |
+| `MAX_AUTO_INTRO_PER_SESSION` | 5 | Per-call cap on auto-intro words |
 | `INTRO_RESERVE_FRACTION` | 0.2 | Fraction of session slots reserved for new words |
 | `AUTO_INTRO_ACCURACY_FLOOR` | 0.70 | Pause auto-intro if accuracy below this |
 | `PIPELINE_BACKLOG_THRESHOLD` | 40 | Suppress reserved intro slots when acquiring count exceeds this |
-| Adaptive intro bands | 0→4→7→10 | Slots at <70%/70-85%/85-92%/≥92% accuracy |
+| Adaptive intro bands | 0→3→5 | Slots at <70%/70-85%/≥85% accuracy |
 | `SESSION_SCAFFOLD_DECAY` | 0.5 | Per-appearance multiplier for scaffold words already in session |
 | `NEVER_REVIEWED_BOOST` | 5.0 | Score multiplier for sentences targeting acquiring words with 0 reviews |
+| `MAX_UNKNOWN_SCAFFOLD` | 2 | Max unknown non-target words per sentence (prevents overwhelming density) |
 | `FRESHNESS_BASELINE` | 5 | Reviews before scaffold freshness penalty kicks in (floor 0.1) |
 | `MAX_ON_DEMAND_PER_SESSION` | 10 | Reference constant (callers control actual cap via remaining session capacity) |
 | `MAX_REINTRO_PER_SESSION` | 3 | Struggling word reintro card limit |
 | `STRUGGLING_MIN_SEEN` | 3 | Threshold for struggling classification |
 | Comprehensibility threshold | 60% | Min known scaffold words to show sentence |
+| Unknown scaffold cap | 2 | Hard cap on unknown non-target words per sentence |
 | Acquiring box-1 excluded | stability < 0.5 | Box-1 words don't count as "known" scaffold |
 | Encountered excluded | — | Merely seen words don't count as "known" scaffold |
 
@@ -1551,9 +1553,8 @@ motivation suffers. Above 95%, learning stalls.
 | Accuracy | Slots | Behavior |
 |----------|-------|----------|
 | <70% | 0 | Pause (struggling) |
-| 70-85% | 4 | Normal rate |
-| 85-92% | 7 | Increased rate |
-| ≥92% | 10 | Maximum (`MAX_AUTO_INTRO_PER_SESSION`) |
+| 70-85% | 3 | Slow introduction |
+| ≥85% | 5 | Maximum (`MAX_AUTO_INTRO_PER_SESSION`) |
 
 Default: 4 slots when <10 reviews available (conservative for new/returning users).
 Accuracy and computed slots are logged in interaction events for analysis.

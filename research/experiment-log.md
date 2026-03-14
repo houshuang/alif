@@ -4,6 +4,28 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-03-14: Introduction Focus — Reduce New Words Per Session & Per Sentence
+
+**Problem**: After OCR-scanning 7 textbook pages (51 words → acquiring), session contained 7 intro cards where each sentence had 3-5 new/unseen words. User felt overwhelmed — too many introductions, too many unknown words per sentence. Words came from same medical/body domain, so generated sentences cross-contaminated (sentence for عيادة also contained فحص and حمى, all new).
+
+**Root cause analysis**:
+- `MAX_AUTO_INTRO_PER_SESSION=10` allows too many new words per session
+- Scanner `startAcquiring=true` default pushes all scanned words directly to acquiring (51 words, bringing total acquiring to 104, 78 in box 1)
+- Pipeline backlog gate (`PIPELINE_BACKLOG_THRESHOLD=40`) only suppresses *new* auto-introductions — words already in acquiring bypass it
+- No limit on unknown non-target words per sentence. Comprehensibility gate (60% known scaffold) allows sentences with 3-4 unknown words if enough scaffold is known
+- Same-domain OCR batches cause thematic cross-contamination in generated sentences
+
+**Changes**:
+1. `MAX_AUTO_INTRO_PER_SESSION`: 10 → 5 (focus on fewer words with deeper exposure)
+2. Hard cap of 2 unknown non-target words per sentence for intro cards (prevents overwhelming density)
+3. Scanner default kept as `startAcquiring=true` (user wants immediate pipeline entry, not encountered limbo)
+
+**Hypothesis**: Reducing intro count to 5 and capping unknown non-target words at 2 will create sessions where the user focuses on ~5 new words with mostly-known context. At ~2 sessions/day, 51-word backlog clears in ~5 days. Expected: better retention of introduced words, less overwhelm.
+
+**Check**: Review acquisition rates and session composition after 3-5 days (by 2026-03-19).
+
+---
+
 ## 2026-03-14: Mapping Correction Pipeline — Fix Instead of Discard
 
 ### Problem

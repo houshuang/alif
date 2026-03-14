@@ -42,12 +42,13 @@ from app.services.sentence_validator import (
 # Acquisition repetition: each acquiring word should appear this many times in a session
 MIN_ACQUISITION_EXPOSURES = 4
 MAX_ACQUISITION_EXTRA_SLOTS = 15  # max extra cards beyond session limit for repetitions
-MAX_AUTO_INTRO_PER_SESSION = 10  # cap new words per single auto-intro call
+MAX_AUTO_INTRO_PER_SESSION = 5  # cap new words per single auto-intro call
 AUTO_INTRO_ACCURACY_FLOOR = 0.70  # pause introduction if recent accuracy below this
 INTRO_RESERVE_FRACTION = 0.2  # fraction of session slots reserved for new word introductions
 PIPELINE_BACKLOG_THRESHOLD = 40  # suppress reserved intros when acquiring pipeline exceeds this
 SESSION_SCAFFOLD_DECAY = 0.5  # per-appearance decay for scaffold words already in session
 NEVER_REVIEWED_BOOST = 5.0  # score multiplier for sentences targeting acquiring words with 0 reviews
+MAX_UNKNOWN_SCAFFOLD = 2  # max unknown non-target words per sentence (prevents overwhelming density)
 
 
 def _intro_slots_for_accuracy(accuracy: float) -> int:
@@ -55,16 +56,13 @@ def _intro_slots_for_accuracy(accuracy: float) -> int:
 
     Replaces the binary pause/continue logic with a graduated ramp:
     - <70%: 0 (struggling, don't add new words)
-    - 70-85%: 4 (doing okay, slow introduction)
-    - 85-92%: 7 (doing well, moderate introduction)
-    - >=92%: MAX_AUTO_INTRO_PER_SESSION (cruising, full speed)
+    - 70-85%: 3 (doing okay, slow introduction)
+    - >=85%: MAX_AUTO_INTRO_PER_SESSION (doing well, full speed)
     """
     if accuracy < 0.70:
         return 0
     if accuracy < 0.85:
-        return 4
-    if accuracy < 0.92:
-        return 7
+        return 3
     return MAX_AUTO_INTRO_PER_SESSION
 
 
@@ -828,6 +826,13 @@ def build_session(
             )
         )
         if total_scaffold > 0 and known_scaffold / total_scaffold < 0.6:
+            continue
+
+        # Unknown density cap: reject sentences with too many unknown non-target words.
+        # Prevents overwhelming sentences where 3-5 scaffold words are all new
+        # (common after large OCR batches from the same domain).
+        unknown_scaffold = total_scaffold - known_scaffold
+        if unknown_scaffold > MAX_UNKNOWN_SCAFFOLD:
             continue
 
         # Listening mode: skip if any non-function, non-due word isn't listening-ready

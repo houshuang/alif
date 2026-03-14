@@ -589,23 +589,17 @@ class TestAdaptiveIntroRate:
         assert _intro_slots_for_accuracy(0.69) == 0
 
     def test_boundary_at_70(self):
-        assert _intro_slots_for_accuracy(0.70) == 4
+        assert _intro_slots_for_accuracy(0.70) == 3
 
-    def test_70_to_85_returns_four(self):
-        assert _intro_slots_for_accuracy(0.75) == 4
-        assert _intro_slots_for_accuracy(0.84) == 4
+    def test_70_to_85_returns_three(self):
+        assert _intro_slots_for_accuracy(0.75) == 3
+        assert _intro_slots_for_accuracy(0.84) == 3
 
     def test_boundary_at_85(self):
-        assert _intro_slots_for_accuracy(0.85) == 7
+        assert _intro_slots_for_accuracy(0.85) == MAX_AUTO_INTRO_PER_SESSION
 
-    def test_85_to_92_returns_seven(self):
-        assert _intro_slots_for_accuracy(0.88) == 7
-        assert _intro_slots_for_accuracy(0.91) == 7
-
-    def test_boundary_at_92(self):
-        assert _intro_slots_for_accuracy(0.92) == MAX_AUTO_INTRO_PER_SESSION
-
-    def test_above_92_returns_max(self):
+    def test_above_85_returns_max(self):
+        assert _intro_slots_for_accuracy(0.88) == MAX_AUTO_INTRO_PER_SESSION
         assert _intro_slots_for_accuracy(0.95) == MAX_AUTO_INTRO_PER_SESSION
         assert _intro_slots_for_accuracy(1.0) == MAX_AUTO_INTRO_PER_SESSION
 
