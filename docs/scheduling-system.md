@@ -6,7 +6,7 @@
 > topics, grammar, listening) interact. It also identifies where the current
 > implementation diverges from the research and stated intentions.
 >
-> **Last updated**: 2026-03-03
+> **Last updated**: 2026-03-14
 > **Canonical location**: `docs/scheduling-system.md`
 > **Keep this document up to date with every algorithm change.**
 
@@ -843,10 +843,18 @@ This prevents the same high-frequency scaffold words (e.g., طالب, أستاذ
 appearing in every sentence of a session. The decay is exponential but never reaches zero,
 so a sentence covering many due words can still win over a more diverse single-word sentence.
 
+#### Never-Reviewed Boost
+
+Acquiring words with `times_seen == 0` (introduced but never shown to the learner) get a
+`NEVER_REVIEWED_BOOST` (5.0x) multiplier on sentences that target them. Without this,
+dedicated single-target sentences for new words consistently lose the greedy scoring
+competition against multi-word FSRS sentences (`(3^1.5) = 5.2` vs `(1^1.5) = 1.0`),
+causing words to sit in box 1 with zero reviews for days or weeks.
+
 #### Combined Scoring Formula
 
 ```
-score = (due_coverage ^ 1.5) × dmq × gfit × diversity × freshness × source_bonus × session_diversity
+score = (due_coverage ^ 1.5) × dmq × gfit × diversity × freshness × source_bonus × session_diversity × never_reviewed_boost
 ```
 
 ### Variant Resolution
@@ -1421,6 +1429,7 @@ remaining cards on the next card advance. See Section 8 "Sentence Pre-Warming" f
 | `PIPELINE_BACKLOG_THRESHOLD` | 40 | Suppress reserved intro slots when acquiring count exceeds this |
 | Adaptive intro bands | 0→4→7→10 | Slots at <70%/70-85%/85-92%/≥92% accuracy |
 | `SESSION_SCAFFOLD_DECAY` | 0.5 | Per-appearance multiplier for scaffold words already in session |
+| `NEVER_REVIEWED_BOOST` | 5.0 | Score multiplier for sentences targeting acquiring words with 0 reviews |
 | `FRESHNESS_BASELINE` | 5 | Reviews before scaffold freshness penalty kicks in (floor 0.1) |
 | `MAX_ON_DEMAND_PER_SESSION` | 10 | Reference constant (callers control actual cap via remaining session capacity) |
 | `MAX_REINTRO_PER_SESSION` | 3 | Struggling word reintro card limit |
@@ -1660,10 +1669,12 @@ shown before the word's first sentence review. Single "Continue" button, no self
 Acknowledgement via `POST /api/review/experiment-intro-ack` sets `experiment_intro_shown_at`
 timestamp on ULK, preventing the card from appearing again.
 
-**Scoping rules**: Intro cards are only built for words that are (1) in the session's due set,
-(2) assigned to `intro_ab_card` group, (3) have `times_seen == 0`, and (4) have not already
-been shown (`experiment_intro_shown_at IS NULL`). This prevents bulk imports (e.g. OCR) from
-flooding sessions with intro cards for non-due words.
+**Scoping rules**: Intro cards are built in `_with_fallbacks()` after all sentence selection
+and fill phases complete, filtered to `covered_ids` — only words that actually have sentences
+in this session. Additional filters: (1) assigned to `intro_ab_card` group, (2) have
+`times_seen == 0`, and (3) have not already been shown (`experiment_intro_shown_at IS NULL`).
+This prevents bulk imports (e.g. textbook scans calling `start_acquisition(due_immediately=True)`)
+from flooding sessions with intro cards for words that have no sentences yet.
 
 Analysis: `scripts/analyze_intro_experiment.py` (reviews to graduation, first-review accuracy,
 time to graduation).
