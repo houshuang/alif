@@ -1,16 +1,18 @@
 """Leech auto-management — detect and handle chronically failing words.
 
-A word is a leech if: times_seen >= 5 AND accuracy < 50%.
+A word is a leech if: recent accuracy < 50% (sliding window of last N reviews,
+where N = LEECH_WINDOW_SIZE) AND total reviews >= LEECH_MIN_REVIEWS.
+
 Leeches get graduated cooldowns based on leech_count:
   1st suspension: 3 days
   2nd suspension: 7 days
   3rd+ suspension: 14 days
 
-On reintroduction: stats are preserved (not zeroed), fresh sentences
-generated, memory hooks ensured. The word must genuinely improve to
-escape leech status since detection uses cumulative accuracy.
+On reintroduction: stats are preserved for overall tracking, but leech
+detection uses a sliding window so words can escape with improved performance.
 
 2026-02-14: Graduated cooldown, preserved stats, memory hook integration.
+2026-03-15: Switched to sliding window for leech detection to fix escape trap.
 """
 
 import logging
@@ -26,6 +28,7 @@ logger = logging.getLogger(__name__)
 
 LEECH_MIN_REVIEWS = 5
 LEECH_MAX_ACCURACY = 0.50
+LEECH_WINDOW_SIZE = 8  # sliding window: use last N reviews for accuracy
 
 # Graduated cooldowns based on leech_count (how many times suspended before)
 REINTRO_DELAYS = {
@@ -61,7 +64,10 @@ def check_and_manage_leeches(db: Session) -> list[int]:
 
     suspended = []
     for ulk in candidates:
-        accuracy = (ulk.times_correct or 0) / (ulk.times_seen or 1)
+        acc = _recent_accuracy(db, ulk.lemma_id)
+        if acc is None:
+            continue
+        accuracy = acc
         if accuracy < LEECH_MAX_ACCURACY:
             ulk.knowledge_state = "suspended"
             ulk.leech_suspended_at = datetime.now(timezone.utc)
@@ -168,10 +174,34 @@ def check_leech_reintroductions(db: Session) -> list[int]:
     return reintroduced
 
 
-def is_leech(ulk: UserLemmaKnowledge) -> bool:
-    """Check if a word meets leech criteria."""
+def _recent_accuracy(db: Session, lemma_id: int, window: int = LEECH_WINDOW_SIZE) -> float | None:
+    """Compute accuracy over the last `window` reviews. Returns None if < LEECH_MIN_REVIEWS."""
+    recent = (
+        db.query(ReviewLog.rating)
+        .filter(ReviewLog.lemma_id == lemma_id)
+        .order_by(ReviewLog.reviewed_at.desc())
+        .limit(window)
+        .all()
+    )
+    if len(recent) < LEECH_MIN_REVIEWS:
+        return None
+    correct = sum(1 for (r,) in recent if r >= 3)
+    return correct / len(recent)
+
+
+def is_leech(ulk: UserLemmaKnowledge, db: Session | None = None) -> bool:
+    """Check if a word meets leech criteria using sliding window accuracy.
+
+    Uses last LEECH_WINDOW_SIZE reviews instead of cumulative stats so that
+    words can escape leech status by improving recent performance.
+    """
     if (ulk.times_seen or 0) < LEECH_MIN_REVIEWS:
         return False
+    if db is not None:
+        acc = _recent_accuracy(db, ulk.lemma_id)
+        if acc is not None:
+            return acc < LEECH_MAX_ACCURACY
+    # Fallback to cumulative if no db session provided
     accuracy = (ulk.times_correct or 0) / (ulk.times_seen or 1)
     return accuracy < LEECH_MAX_ACCURACY
 
@@ -189,7 +219,8 @@ def check_single_word_leech(db: Session, lemma_id: int) -> bool:
     if not ulk or ulk.knowledge_state == "suspended":
         return False
 
-    if is_leech(ulk):
+    if is_leech(ulk, db=db):
+        acc = _recent_accuracy(db, lemma_id) or 0
         ulk.knowledge_state = "suspended"
         ulk.leech_suspended_at = datetime.now(timezone.utc)
         ulk.leech_count = (ulk.leech_count or 0) + 1
@@ -202,6 +233,7 @@ def check_single_word_leech(db: Session, lemma_id: int) -> bool:
             lemma_id=lemma_id,
             times_seen=ulk.times_seen,
             times_correct=ulk.times_correct,
+            recent_accuracy=round(acc, 3),
             leech_count=ulk.leech_count,
             reintro_days=cooldown.days,
         )

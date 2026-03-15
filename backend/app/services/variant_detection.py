@@ -204,11 +204,23 @@ def detect_definite_variants(
 def mark_variants(
     db: Session, variants: list[tuple[int, int, str, dict]]
 ) -> int:
-    """Set canonical_lemma_id for detected variants. Returns count marked."""
+    """Set canonical_lemma_id for detected variants. Returns count marked.
+
+    Guards against circular references: if B already points to A as canonical,
+    we don't set A.canonical = B.
+    """
     count = 0
     for var_id, canon_id, _vtype, _details in variants:
         lemma = db.query(Lemma).filter(Lemma.lemma_id == var_id).first()
         if lemma and lemma.canonical_lemma_id is None:
+            # Prevent circular: check if canon already points back to us
+            canon = db.query(Lemma).filter(Lemma.lemma_id == canon_id).first()
+            if canon and canon.canonical_lemma_id == var_id:
+                logger.warning(
+                    f"Skipping circular canonical: #{var_id} -> #{canon_id} "
+                    f"(#{canon_id} already points to #{var_id})"
+                )
+                continue
             lemma.canonical_lemma_id = canon_id
             count += 1
     return count

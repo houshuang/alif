@@ -1118,9 +1118,12 @@ known verb bases. This allows the comprehensibility gate to recognize conjugated
 ### Detection
 
 A word becomes a leech when:
-- `times_seen >= 5` AND `accuracy < 50%`
+- `times_seen >= 5` AND **recent accuracy < 50%** (sliding window of last `LEECH_WINDOW_SIZE=8` reviews)
 
-The leech check runs after every review where the rating ≤ 2.
+The leech check runs after every review where the rating ≤ 2. Uses a sliding window
+instead of cumulative accuracy so that words can escape leech status by improving
+recent performance (fixes the "leech escape trap" where accumulated historical failures
+made it mathematically impossible to reach 50% cumulative accuracy).
 
 ### Lifecycle
 
@@ -1150,11 +1153,13 @@ Normal word → Leech detected → Auto-suspended
     └───────────────────────────────┘
 ```
 
-**Key design decisions (2026-02-14)**:
-- Stats are preserved on reintroduction. Since leech detection uses cumulative accuracy
-  (`times_seen ≥ 5 AND accuracy < 50%`), the word must genuinely improve its accuracy to
-  escape leech status. Zeroing stats would let a word escape by getting 3/5 correct, which
-  is below the 60% graduation threshold anyway.
+**Key design decisions**:
+- Stats are preserved on reintroduction for overall tracking, but leech detection uses
+  a **sliding window** (last 8 reviews) instead of cumulative accuracy (2026-03-15).
+  Previously, cumulative stats created an escape trap: a word with 2/7 (29%) accuracy
+  needed 3 consecutive correct reviews just to reach 50%, and each failed reintroduction
+  made the escape harder as the denominator grew. The sliding window lets a word escape
+  by showing genuine recent improvement (e.g., 5/8 = 62.5% in the last 8 reviews).
 - Fresh sentences are generated because the old sentences clearly didn't work for this word.
 - Memory hooks (mnemonic, cognates, usage context) are generated on first failure
   (rating ≤ 2), not on word introduction. For leeches being reintroduced, hooks

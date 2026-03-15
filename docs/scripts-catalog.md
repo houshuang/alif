@@ -68,6 +68,7 @@ All scripts in `backend/scripts/`. Run from `backend/` directory.
 - `fix_book_glosses.py` — Fix conjugated glosses on book/story-imported lemmas + run full enrichment, --dry-run --limit.
 - `cleanup_lemma_mappings.py` — Batch cleanup of lemma data quality issues: wrong glosses, missing particles, conjugated-form lemmas, possessive-form lemmas, al-prefix lemmas, batch re-map via CAMeL + LLM.
 - `investigate_mapping_flags.py` — Investigate word_mapping flags: shows sentence text, current word→lemma mappings. `--all` shows all statuses, `--fix` re-evaluates and applies corrections via LLM.
+- `cleanup_stale_state.py` — One-time cleanup: clear stale acquisition_box on non-acquiring words, fix circular canonical_lemma_id references, fix conjugated variants with own ULK when canonical already known. `--apply` to commit (default: dry run).
 
 ## Analysis & Testing
 - `db_analysis.py` — Database analysis and statistics.
@@ -83,6 +84,7 @@ All scripts in `backend/scripts/`. Run from `backend/` directory.
 - `simulate_usage.py` — Simulate raw FSRS usage patterns (no DB, pure library).
 - `simulate_sessions.py` — End-to-end multi-day simulation using real services against a DB copy. Profiles: beginner/strong/casual/intensive/calibrated. Uses freezegun for time control. Output: console table + optional CSV.
 - `learning_analysis.py` — Comprehensive production learning metrics: vocabulary states, graduation rates, retention, FSRS stability, session patterns, frequency coverage, tashkeel readiness. Raw sqlite3, outputs JSON to stdout + console summary to stderr.
+- `deep_word_diagnostic.py` — Outlier and grey-zone hunter: state integrity violations, stuck acquirers, FSRS anomalies, accuracy paradoxes, review pattern outliers, leech escape traps, rating oscillation, variant split scheduling. Function-word-aware, uses sentence_words for coverage checks. `--json path` for machine output.
 - `analyze_intro_experiment.py` — A/B experiment analysis: intro card vs sentence-first acquisition. Compares reviews-to-graduation, first-review accuracy, time-to-graduation by experiment group. `--db path/to/alif.db`.
 
 ## Utilities

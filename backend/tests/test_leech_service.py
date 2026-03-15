@@ -1,9 +1,10 @@
 from datetime import datetime, timedelta, timezone
 
-from app.models import Lemma, UserLemmaKnowledge
+from app.models import Lemma, ReviewLog, UserLemmaKnowledge
 from app.services.leech_service import (
     LEECH_MAX_ACCURACY,
     LEECH_MIN_REVIEWS,
+    LEECH_WINDOW_SIZE,
     REINTRO_DELAYS,
     _get_reintro_delay,
     check_and_manage_leeches,
@@ -18,6 +19,18 @@ def _create_lemma(db, arabic="كتاب", english="book"):
     db.add(lemma)
     db.flush()
     return lemma
+
+
+def _add_reviews(db, lemma_id: int, ratings: list[int]):
+    """Add ReviewLog entries with the given ratings (oldest first)."""
+    now = datetime.now(timezone.utc)
+    for i, rating in enumerate(ratings):
+        db.add(ReviewLog(
+            lemma_id=lemma_id,
+            rating=rating,
+            reviewed_at=now - timedelta(hours=len(ratings) - i),
+        ))
+    db.flush()
 
 
 # --- is_leech ---
@@ -91,6 +104,8 @@ def test_detect_leech(db_session):
         times_seen=12,
         times_correct=3,  # 25% accuracy
     ))
+    # Add review logs for sliding window detection
+    _add_reviews(db_session, lemma.lemma_id, [1, 1, 3, 1, 1, 1, 1, 3, 1, 3, 1, 1])
     db_session.commit()
 
     suspended = check_and_manage_leeches(db_session)
@@ -111,6 +126,7 @@ def test_no_leech_when_accurate_full(db_session):
         times_seen=15,
         times_correct=12,  # 80% accuracy
     ))
+    _add_reviews(db_session, lemma.lemma_id, [3, 3, 3, 1, 3, 3, 3, 3, 1, 3, 3, 1, 3, 3, 3])
     db_session.commit()
 
     suspended = check_and_manage_leeches(db_session)
@@ -144,6 +160,7 @@ def test_detect_leech_from_acquiring_state(db_session):
         times_seen=10,
         times_correct=2,  # 20% accuracy
     ))
+    _add_reviews(db_session, lemma.lemma_id, [1, 1, 3, 1, 1, 1, 1, 3, 1, 1])
     db_session.commit()
 
     suspended = check_and_manage_leeches(db_session)
@@ -179,14 +196,17 @@ def test_detect_multiple_leeches(db_session):
         lemma_id=lemmas[0].lemma_id, knowledge_state="learning",
         times_seen=10, times_correct=2,
     ))
+    _add_reviews(db_session, lemmas[0].lemma_id, [1, 1, 3, 1, 1, 1, 1, 3, 1, 1])
     db_session.add(UserLemmaKnowledge(
         lemma_id=lemmas[1].lemma_id, knowledge_state="known",
         times_seen=20, times_correct=15,
     ))
+    _add_reviews(db_session, lemmas[1].lemma_id, [3, 3, 3, 1, 3, 3, 3, 3, 1, 3] * 2)
     db_session.add(UserLemmaKnowledge(
         lemma_id=lemmas[2].lemma_id, knowledge_state="lapsed",
         times_seen=9, times_correct=1,
     ))
+    _add_reviews(db_session, lemmas[2].lemma_id, [1, 3, 1, 1, 1, 1, 1, 1, 1])
     db_session.commit()
 
     suspended = check_and_manage_leeches(db_session)
@@ -347,6 +367,7 @@ def test_leech_count_incremented_on_suspension(db_session):
         times_correct=2,
         leech_count=0,
     ))
+    _add_reviews(db_session, lemma.lemma_id, [1, 1, 3, 1, 1, 1, 1, 3, 1, 1])
     db_session.commit()
 
     suspended = check_and_manage_leeches(db_session)
@@ -355,7 +376,7 @@ def test_leech_count_incremented_on_suspension(db_session):
     ulk = db_session.query(UserLemmaKnowledge).filter_by(lemma_id=lemma.lemma_id).first()
     assert ulk.leech_count == 1
 
-    # Simulate reintroduction and re-leeching
+    # Simulate reintroduction and re-leeching (reviews still bad)
     ulk.knowledge_state = "learning"
     ulk.leech_suspended_at = None
     db_session.commit()
@@ -378,6 +399,7 @@ def test_check_single_word_leech(db_session):
         times_seen=10,
         times_correct=2,  # 20% accuracy — leech
     ))
+    _add_reviews(db_session, lemma.lemma_id, [1, 1, 3, 1, 1, 1, 1, 3, 1, 1])
     db_session.commit()
 
     result = check_single_word_leech(db_session, lemma.lemma_id)
@@ -396,6 +418,7 @@ def test_check_single_word_not_leech(db_session):
         times_seen=10,
         times_correct=8,  # 80% accuracy — not leech
     ))
+    _add_reviews(db_session, lemma.lemma_id, [3, 3, 3, 1, 3, 3, 3, 3, 1, 3])
     db_session.commit()
 
     result = check_single_word_leech(db_session, lemma.lemma_id)
@@ -434,6 +457,7 @@ def test_check_single_word_clears_acquisition_fields(db_session):
         times_seen=10,
         times_correct=2,
     ))
+    _add_reviews(db_session, lemma.lemma_id, [1, 1, 3, 1, 1, 1, 1, 3, 1, 1])
     db_session.commit()
 
     result = check_single_word_leech(db_session, lemma.lemma_id)
