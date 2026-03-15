@@ -4,6 +4,22 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-03-15: Leech Sliding Window & State Cleanup
+
+**Problem**: Deep word diagnostic revealed a "leech escape trap" — words suspended as leeches and reintroduced could never escape because leech detection used cumulative `times_correct / times_seen`. A word at 2/7 (29%) accuracy after 3 leech cycles needed 3 consecutive correct reviews just to reach 50%. Each failed reintroduction made the denominator larger and escape harder. Also found 51 words with stale `acquisition_box` (known/suspended but box not cleared), 1 circular canonical reference (آمر↔أمر pointing at each other), and diagnostic false positives from function words.
+
+**Changes**:
+1. `leech_service.py`: Leech detection switched from cumulative accuracy to **sliding window** of last `LEECH_WINDOW_SIZE=8` reviews. `_recent_accuracy()` queries last N ReviewLog entries. Cumulative stats still preserved for overall tracking.
+2. `variant_detection.py`: `mark_variants()` now blocks circular canonical references (if B→A exists, skip setting A→B).
+3. `cleanup_stale_state.py`: One-time cleanup script — cleared 51 stale `acquisition_box` on non-acquiring words, fixed 1 circular canonical (آمر↔أمر), demoted 1 conjugated variant (أُعَرِّفُكُمْ) to encountered.
+4. `deep_word_diagnostic.py`: New outlier-hunting script — fixed to handle JSON `"null"` FSRS cards, skip function word false positives, check `sentence_words` (any position) instead of `target_lemma_id`.
+
+**Expected**: Reintroduced leeches can now escape by performing well in recent reviews (e.g., 5/8 = 62.5%) without needing to overcome all historical failures. Currently 5 words in the leech cycle (ٱِسْتَطاع 3x, سَمَحَ 2x, سَبَحَ 2x, ضَرِيح 1x, جَوَارِب 1x) will benefit on next reintroduction.
+
+**Verify**: After next study sessions, check that reintroduced leeches with improved recent accuracy (≥50% in last 8 reviews) are not immediately re-suspended. Run `deep_word_diagnostic.py` to confirm reduced findings count.
+
+---
+
 ## 2026-03-14: Introduction Focus — Reduce New Words Per Session & Per Sentence
 
 **Problem**: After OCR-scanning 7 textbook pages (51 words → acquiring), session contained 7 intro cards where each sentence had 3-5 new/unseen words. User felt overwhelmed — too many introductions, too many unknown words per sentence. Words came from same medical/body domain, so generated sentences cross-contaminated (sentence for عيادة also contained فحص and حمى, all new).

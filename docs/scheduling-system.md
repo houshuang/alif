@@ -1494,7 +1494,9 @@ remaining cards on the next card advance. See Section 8 "Sentence Pre-Warming" f
 
 | Constant | Value | Purpose |
 |----------|-------|---------|
-| Detection threshold | times_seen≥5, accuracy<50% | When to suspend |
+| `LEECH_MIN_REVIEWS` | 5 | Minimum total reviews before leech check |
+| `LEECH_MAX_ACCURACY` | 0.50 | Accuracy threshold (below = leech) |
+| `LEECH_WINDOW_SIZE` | 8 | Sliding window size for recent accuracy |
 | Reintro delay (1st) | 3 days | First leech suspension |
 | Reintro delay (2nd) | 7 days | Second suspension |
 | Reintro delay (3rd+) | 14 days | Third and subsequent suspensions |
