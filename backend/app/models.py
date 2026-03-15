@@ -131,6 +131,7 @@ class Sentence(Base):
     is_active = Column(Boolean, default=True, server_default="1")
     created_at = Column(DateTime, nullable=True)
     page_number = Column(Integer, nullable=True)
+    mappings_verified_at = Column(DateTime, nullable=True)
 
     story = relationship("Story", foreign_keys=[story_id])
     words = relationship("SentenceWord", back_populates="sentence")

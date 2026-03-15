@@ -222,6 +222,7 @@ def generate_material_for_word(lemma_id: int, needed: int = 2, model_override: s
                 source="llm",
                 target_lemma_id=target_lemma_id,
                 created_at=datetime.now(timezone.utc),
+                mappings_verified_at=datetime.now(timezone.utc),
             )
             db.add(sent)
             db.flush()
@@ -281,6 +282,7 @@ def store_multi_target_sentence(
         source="llm",
         target_lemma_id=result.primary_target_lemma_id,
         created_at=datetime.now(timezone.utc),
+        mappings_verified_at=datetime.now(timezone.utc),
     )
     db.add(sent)
     db.flush()
@@ -769,7 +771,205 @@ def warm_sentence_cache(llm_model: str = "gemini") -> dict:
         finally:
             db.close()
 
+    # ── Phase 4: Verify unverified active sentences (batch catch-up) ──
+    MAX_VERIFY_BATCH = 20
+    db = SessionLocal()
+    try:
+        unverified = (
+            db.query(Sentence.id)
+            .filter(
+                Sentence.is_active == True,
+                Sentence.mappings_verified_at.is_(None),
+            )
+            .limit(MAX_VERIFY_BATCH)
+            .all()
+        )
+        unverified_ids = [row[0] for row in unverified]
+        if unverified_ids:
+            v_stats = verify_sentence_mappings(db, unverified_ids)
+            stats["verified"] = v_stats.get("verified", 0)
+            stats["verify_corrected"] = v_stats.get("corrected", 0)
+    except Exception:
+        logger.warning("Warm cache: verification phase failed")
+    finally:
+        db.close()
+
     logger.info(f"Warm cache complete: {stats}")
+    return stats
+
+
+def verify_sentence_mappings(db, sentence_ids: list[int]) -> dict:
+    """Verify mappings for existing sentences in a single batched LLM call.
+
+    Phase 1: One LLM call triages all sentences — returns which have problems.
+    Phase 2: For flagged sentences, run per-sentence correction.
+
+    Returns {"verified": N, "corrected": N, "failed": N}.
+    """
+    from app.services.sentence_validator import (
+        verify_and_correct_mappings_llm,
+        correct_mapping,
+        _log_mapping_correction,
+    )
+    from app.services.llm import generate_completion, AllProvidersFailed
+
+    if not sentence_ids:
+        return {"verified": 0, "corrected": 0, "failed": 0}
+
+    sentences = (
+        db.query(Sentence)
+        .filter(
+            Sentence.id.in_(sentence_ids),
+            Sentence.mappings_verified_at.is_(None),
+        )
+        .all()
+    )
+    if not sentences:
+        return {"verified": 0, "corrected": 0, "failed": 0}
+
+    # Load all sentence words
+    all_sw = (
+        db.query(SentenceWord)
+        .filter(SentenceWord.sentence_id.in_([s.id for s in sentences]))
+        .order_by(SentenceWord.sentence_id, SentenceWord.position)
+        .all()
+    )
+    sw_by_sentence: dict[int, list[SentenceWord]] = {}
+    for sw in all_sw:
+        sw_by_sentence.setdefault(sw.sentence_id, []).append(sw)
+
+    # Load lemmas
+    all_lemma_ids = {sw.lemma_id for sw in all_sw if sw.lemma_id}
+    lemmas = db.query(Lemma).filter(Lemma.lemma_id.in_(all_lemma_ids)).all() if all_lemma_ids else []
+    lemma_by_id = {l.lemma_id: l for l in lemmas}
+
+    now = datetime.now(timezone.utc)
+    stats = {"verified": 0, "corrected": 0, "failed": 0}
+
+    # Build batched triage prompt — one block per sentence
+    sentence_blocks = []
+    sent_index_map: dict[int, Sentence] = {}  # index → sentence
+    for idx, sent in enumerate(sentences):
+        sws = sw_by_sentence.get(sent.id, [])
+        if not sws:
+            sent.mappings_verified_at = now
+            stats["verified"] += 1
+            continue
+
+        word_lines = []
+        for sw in sws:
+            if sw.lemma_id and sw.lemma_id in lemma_by_id:
+                lem = lemma_by_id[sw.lemma_id]
+                word_lines.append(
+                    f"    {sw.position}: {sw.surface_form} → {lem.lemma_ar} ({lem.gloss_en or '?'})"
+                )
+        if not word_lines:
+            sent.mappings_verified_at = now
+            stats["verified"] += 1
+            continue
+
+        sent_index_map[idx] = sent
+        sentence_blocks.append(
+            f"[{idx}] Arabic: {sent.arabic_text}\n"
+            f"    English: {sent.english_translation or '?'}\n"
+            f"    Mappings:\n" + "\n".join(word_lines)
+        )
+
+    if not sentence_blocks:
+        try:
+            db.commit()
+        except Exception:
+            db.rollback()
+        return stats
+
+    prompt = f"""Check these {len(sentence_blocks)} Arabic sentences for wrong word-lemma mappings.
+
+For each sentence, check if any word's lemma gloss doesn't match what the word means in context.
+
+Flag as WRONG:
+- Gloss doesn't match the word's meaning in this sentence
+- A clitic prefix (و/ف/ب/ل/ك) wrongly stripped from a root letter
+- Wrong part of speech (noun vs verb homograph)
+
+Do NOT flag:
+- Conjugated verbs mapped to dictionary form (when meaning matches)
+- Plural/feminine/dual mapped to base lemma
+- Possessive suffixes mapped to base noun
+
+Return JSON: {{"flagged": []}} if all OK, or:
+{{"flagged": [
+  {{"sentence": <index>, "position": <word position>, "surface": "<word>", "current_gloss": "<wrong>", "correct_lemma_ar": "<bare>", "correct_gloss": "<correct>", "correct_pos": "<pos>"}}
+]}}
+
+Sentences:
+{chr(10).join(sentence_blocks)}"""
+
+    # Phase 1: Single batched triage call
+    try:
+        result = generate_completion(
+            prompt=prompt,
+            system_prompt="You are an Arabic morphology expert. Check mappings against English translations. Only flag clear errors.",
+            json_mode=True,
+            temperature=0.0,
+            model_override="gemini",
+            task_type="mapping_verification_batch",
+        )
+        flagged = result.get("flagged", [])
+        if not isinstance(flagged, list):
+            flagged = []
+    except (AllProvidersFailed, Exception) as e:
+        logger.warning(f"Batch mapping verification failed: {e}")
+        stats["failed"] = len(sent_index_map)
+        return stats
+
+    # Phase 2: Apply corrections for flagged sentences
+    flagged_by_sentence: dict[int, list[dict]] = {}
+    for flag in flagged:
+        if not isinstance(flag, dict) or "sentence" not in flag:
+            continue
+        sidx = int(flag["sentence"])
+        flagged_by_sentence.setdefault(sidx, []).append(flag)
+
+    for idx, sent in sent_index_map.items():
+        corrections = flagged_by_sentence.get(idx)
+        if corrections:
+            sws = sw_by_sentence.get(sent.id, [])
+            for corr in corrections:
+                pos = corr.get("position")
+                if pos is None:
+                    continue
+                pos = int(pos)
+                sw = next((s for s in sws if s.position == pos), None)
+                if not sw:
+                    continue
+                new_lid = correct_mapping(
+                    db,
+                    corr.get("correct_lemma_ar", ""),
+                    corr.get("correct_gloss", ""),
+                    corr.get("correct_pos", ""),
+                )
+                if new_lid and new_lid != sw.lemma_id:
+                    logger.info(
+                        f"Batch verify: sentence {sent.id} pos {pos} "
+                        f"'{sw.surface_form}': #{sw.lemma_id} → #{new_lid}"
+                    )
+                    sw.lemma_id = new_lid
+            stats["corrected"] += 1
+
+        sent.mappings_verified_at = now
+        stats["verified"] += 1
+
+    try:
+        db.commit()
+    except Exception:
+        logger.exception("Failed to commit verification results")
+        db.rollback()
+        stats["failed"] += stats["verified"]
+        stats["verified"] = 0
+
+    if stats["corrected"] or stats["failed"]:
+        logger.info(f"Batch mapping verification: {stats}")
+
     return stats
 
 

@@ -1007,8 +1007,23 @@ def build_session(
     # 4. Order: easy bookends, hard in middle
     ordered = _order_session(selected, stability_map)
 
-    # Load grammar features for selected sentences
+    # 4b. Verify mappings for unverified sentences (safety net)
     selected_sentence_ids = {c.sentence_id for c in ordered}
+    unverified_ids = [
+        sid for sid in selected_sentence_ids
+        if sentence_map.get(sid) and sentence_map[sid].mappings_verified_at is None
+    ]
+    if unverified_ids:
+        from app.services.material_generator import verify_sentence_mappings
+        try:
+            with db.begin_nested():
+                v_stats = verify_sentence_mappings(db, unverified_ids)
+            if v_stats.get("corrected"):
+                logger.info(f"Session build: verified {len(unverified_ids)} sentences, corrected {v_stats['corrected']}")
+        except Exception:
+            logger.warning("Session build: mapping verification failed, continuing")
+
+    # Load grammar features for selected sentences
     grammar_by_sentence: dict[int, list[str]] = {}
     if selected_sentence_ids:
         sgf_rows = (
