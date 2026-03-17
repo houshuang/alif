@@ -487,7 +487,7 @@ def rotate_stale_sentences(db, min_shown: int = 1, tier_lookup: dict | None = No
     for s in sentences:
         active_per_target[s.target_lemma_id] = active_per_target.get(s.target_lemma_id, 0) + 1
 
-    now = datetime.now(timezone.utc)
+    now = datetime.utcnow()
     age_cutoff = now - timedelta(hours=24)
 
     retirable: list[tuple] = []

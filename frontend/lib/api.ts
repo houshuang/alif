@@ -163,19 +163,36 @@ export function generateUuid(): string {
   return generateSessionId();
 }
 
-async function fetchApi<T>(path: string, options?: RequestInit): Promise<T> {
-  const res = await fetch(`${BASE_URL}${path}`, {
-    ...options,
-    headers: {
-      "Content-Type": "application/json",
-      ...options?.headers,
-    },
-  });
-  if (!res.ok) {
-    const text = await res.text().catch(() => "Unknown error");
-    throw new Error(`API error ${res.status}: ${text}`);
+async function fetchApi<T>(
+  path: string,
+  options?: RequestInit & { timeoutMs?: number }
+): Promise<T> {
+  const { timeoutMs, ...fetchOptions } = options ?? {};
+  let controller: AbortController | undefined;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+
+  if (timeoutMs) {
+    controller = new AbortController();
+    timer = setTimeout(() => controller!.abort(), timeoutMs);
+    fetchOptions.signal = controller.signal;
   }
-  return res.json();
+
+  try {
+    const res = await fetch(`${BASE_URL}${path}`, {
+      ...fetchOptions,
+      headers: {
+        "Content-Type": "application/json",
+        ...fetchOptions?.headers,
+      },
+    });
+    if (!res.ok) {
+      const text = await res.text().catch(() => "Unknown error");
+      throw new Error(`API error ${res.status}: ${text}`);
+    }
+    return res.json();
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
 }
 
 export async function getWords(): Promise<Word[]> {
@@ -394,7 +411,8 @@ export async function fetchFreshSession(
   mode: ReviewMode = "reading"
 ): Promise<SentenceReviewSession> {
   const data = await fetchApi<SentenceReviewSession>(
-    `/api/review/next-sentences?limit=10&mode=${mode}`
+    `/api/review/next-sentences?limit=10&mode=${mode}`,
+    { timeoutMs: 12_000 }
   );
   const session = { ...data, session_id: data.session_id || generateSessionId() };
   cacheSessions(mode, [session]).catch(() => {});
@@ -420,13 +438,24 @@ export async function getSentenceReviewSession(
     }
   }
 
-  const data = await fetchApi<SentenceReviewSession>(
-    `/api/review/next-sentences?limit=10&mode=${mode}`
-  );
-  const session = { ...data, session_id: data.session_id || generateSessionId() };
-  cacheSessions(mode, [session]).catch(() => {});
-  prefetchWordLookupsForSession(session).catch(() => {});
-  return session;
+  try {
+    const data = await fetchApi<SentenceReviewSession>(
+      `/api/review/next-sentences?limit=10&mode=${mode}`,
+      { timeoutMs: 12_000 }
+    );
+    const session = { ...data, session_id: data.session_id || generateSessionId() };
+    cacheSessions(mode, [session]).catch(() => {});
+    prefetchWordLookupsForSession(session).catch(() => {});
+    return session;
+  } catch (e) {
+    // On timeout or network error, fall back to stale cache
+    const stale = await getCachedSession(mode, true);
+    if (stale && stale.items.length > 0) {
+      console.warn("Session fetch failed, using stale cache:", e);
+      return stale;
+    }
+    throw e; // No cache available — propagate the error
+  }
 }
 
 export async function submitSentenceReview(
