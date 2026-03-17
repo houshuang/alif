@@ -1018,10 +1018,64 @@ def build_session(
         try:
             with db.begin_nested():
                 v_stats = verify_sentence_mappings(db, unverified_ids)
-            if v_stats.get("corrected"):
-                logger.info(f"Session build: verified {len(unverified_ids)} sentences, corrected {v_stats['corrected']}")
+
+            # Remove retired sentences and reload corrected word_metas
+            if v_stats.get("corrected") or v_stats.get("failed"):
+                logger.info(f"Session build: verified {len(unverified_ids)} sentences, corrected {v_stats['corrected']}, retired {v_stats.get('failed', 0)}")
+
+                # Drop any sentences that were retired during verification
+                retired_ids = {
+                    c.sentence_id for c in ordered
+                    if sentence_map.get(c.sentence_id) and not sentence_map[c.sentence_id].is_active
+                }
+                if retired_ids:
+                    ordered = [c for c in ordered if c.sentence_id not in retired_ids]
+                    selected_sentence_ids -= retired_ids
+                    logger.info(f"Session build: dropped {len(retired_ids)} retired sentence(s)")
+
+                # Reload corrected SentenceWord records and rebuild word_metas
+                corrected_sws = (
+                    db.query(SentenceWord)
+                    .filter(SentenceWord.sentence_id.in_(unverified_ids))
+                    .order_by(SentenceWord.sentence_id, SentenceWord.position)
+                    .all()
+                )
+                refreshed_by_sent: dict[int, list] = {}
+                for sw in corrected_sws:
+                    refreshed_by_sent.setdefault(sw.sentence_id, []).append(sw)
+
+                for cand in ordered:
+                    if cand.sentence_id not in refreshed_by_sent:
+                        continue
+                    new_metas = []
+                    for sw in refreshed_by_sent[cand.sentence_id]:
+                        lemma = lemma_map.get(sw.lemma_id) if sw.lemma_id else None
+                        effective_id = variant_to_canonical.get(sw.lemma_id, sw.lemma_id) if sw.lemma_id else None
+                        stab = stability_map.get(effective_id, 0.0) if effective_id else None
+                        is_due = (effective_id in due_lemma_ids or (sw.lemma_id is not None and sw.lemma_id in due_lemma_ids)) if effective_id else False
+                        k_state = "new"
+                        if effective_id:
+                            k = knowledge_map.get(effective_id)
+                            if k:
+                                k_state = k.knowledge_state or "new"
+                        bare = strip_diacritics(sw.surface_form)
+                        is_func = _is_function_word(bare)
+                        gloss = lemma.gloss_en if lemma else FUNCTION_WORD_GLOSSES.get(bare)
+                        new_metas.append(WordMeta(
+                            lemma_id=sw.lemma_id,
+                            surface_form=sw.surface_form,
+                            gloss_en=gloss,
+                            stability=stab,
+                            is_due=is_due,
+                            is_function_word=is_func,
+                            knowledge_state=k_state,
+                        ))
+                    cand.words_meta = new_metas
         except Exception:
-            logger.warning("Session build: mapping verification failed, continuing")
+            logger.warning("Session build: mapping verification failed, dropping unverified sentences")
+            # Verification failed — don't show unverified sentences to user
+            ordered = [c for c in ordered if c.sentence_id not in set(unverified_ids)]
+            selected_sentence_ids -= set(unverified_ids)
 
     # Load grammar features for selected sentences
     grammar_by_sentence: dict[int, list[str]] = {}

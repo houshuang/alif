@@ -832,12 +832,15 @@ def verify_and_correct_mappings_llm(
     english_text: str,
     mappings: list[TokenMapping],
     lemma_map: dict[int, object],
-) -> list[dict]:
+) -> list[dict] | None:
     """Verify word-lemma mappings and suggest corrections for wrong ones.
 
-    Returns list of dicts with correction info:
-    [{"position": int, "correct_lemma_ar": str, "correct_gloss": str, "correct_pos": str}]
-    Empty list means all mappings are acceptable.
+    Returns:
+        list[dict]: corrections needed (empty list = verified OK)
+        None: verification failed (LLM unavailable) — caller must NOT
+              treat this as "verified OK"; sentence should be rejected/skipped.
+
+    Tries Gemini first, falls back to Claude Haiku.
     """
     from app.services.llm import generate_completion, AllProvidersFailed
 
@@ -883,32 +886,38 @@ When in doubt, flag it — a false positive just causes a retry, but a false neg
 Return JSON: {{"issues": []}} if all correct, or:
 {{"issues": [{{"position": <int>, "correct_lemma_ar": "<bare form>", "correct_gloss": "<English>", "correct_pos": "<noun/verb/adj/etc>", "explanation": "<brief>"}}]}}"""
 
-    try:
-        result = generate_completion(
-            prompt=prompt,
-            system_prompt="You are an Arabic morphology expert. Check each mapping against the English translation. Flag any mapping where the gloss doesn't fit the sentence meaning.",
-            json_mode=True,
-            temperature=0.0,
-            model_override="gemini",
-            task_type="mapping_verification",
-        )
-        issues = result.get("issues", [])
-        if isinstance(issues, list):
-            return [
-                {
-                    "position": int(iss["position"]),
-                    "correct_lemma_ar": iss.get("correct_lemma_ar", ""),
-                    "correct_gloss": iss.get("correct_gloss", ""),
-                    "correct_pos": iss.get("correct_pos", ""),
-                    "explanation": iss.get("explanation", ""),
-                }
-                for iss in issues
-                if isinstance(iss, dict) and "position" in iss
-            ]
-    except (AllProvidersFailed, Exception) as e:
-        _validator_logger.warning(f"LLM mapping verification failed: {e}")
+    system = "You are an Arabic morphology expert. Check each mapping against the English translation. Flag any mapping where the gloss doesn't fit the sentence meaning."
 
-    return []
+    # Try Gemini first, fall back to Claude Haiku
+    for model in ("gemini", "claude_haiku"):
+        try:
+            result = generate_completion(
+                prompt=prompt,
+                system_prompt=system,
+                json_mode=True,
+                temperature=0.0,
+                model_override=model,
+                task_type="mapping_verification",
+            )
+            issues = result.get("issues", [])
+            if isinstance(issues, list):
+                return [
+                    {
+                        "position": int(iss["position"]),
+                        "correct_lemma_ar": iss.get("correct_lemma_ar", ""),
+                        "correct_gloss": iss.get("correct_gloss", ""),
+                        "correct_pos": iss.get("correct_pos", ""),
+                        "explanation": iss.get("explanation", ""),
+                    }
+                    for iss in issues
+                    if isinstance(iss, dict) and "position" in iss
+                ]
+        except (AllProvidersFailed, Exception) as e:
+            _validator_logger.warning(f"Mapping verification failed with {model}: {e}")
+            continue
+
+    _validator_logger.error("Mapping verification failed on ALL models — sentence cannot be verified")
+    return None
 
 
 def _log_mapping_correction(
@@ -946,12 +955,13 @@ def correct_mapping(
     correct_gloss: str,
     correct_pos: str,
 ) -> int | None:
-    """Find or create the correct lemma and return its lemma_id.
+    """Find the correct lemma in DB and return its lemma_id.
 
-    Searches DB by bare form (with/without al-prefix). If not found and
-    gloss is provided, auto-creates a minimal encountered lemma.
+    Searches by bare form (with/without al-prefix). Returns None if the
+    correct lemma doesn't exist — callers should reject the sentence rather
+    than auto-creating lemmas nobody asked to learn.
     """
-    from app.models import Lemma, UserLemmaKnowledge
+    from app.models import Lemma
 
     if not correct_ar:
         return None
@@ -971,41 +981,6 @@ def correct_mapping(
             candidate = db.query(Lemma).filter(
                 Lemma.lemma_ar_bare == "ال" + correct_bare
             ).first()
-
-    if not candidate and correct_gloss and len(correct_bare) >= 2:
-        # Auto-create missing lemma
-        pos_map = {"adj": "adjective", "adv": "adverb", "prep": "preposition",
-                   "conj": "conjunction", "pron": "pronoun"}
-        normalized_pos = pos_map.get(correct_pos, correct_pos) if correct_pos else None
-
-        existing = db.query(Lemma).filter(Lemma.lemma_ar_bare == correct_bare).first()
-        if existing:
-            return existing.lemma_id
-
-        new_lemma = Lemma(
-            lemma_ar=correct_ar,
-            lemma_ar_bare=correct_bare,
-            gloss_en=correct_gloss,
-            pos=normalized_pos,
-            source="mapping_correction",
-        )
-        db.add(new_lemma)
-        db.flush()
-
-        ulk = UserLemmaKnowledge(
-            lemma_id=new_lemma.lemma_id,
-            knowledge_state="encountered",
-            source="mapping_correction",
-            total_encounters=1,
-        )
-        db.add(ulk)
-        db.flush()
-
-        _validator_logger.info(
-            f"Auto-created lemma #{new_lemma.lemma_id}: {correct_bare} "
-            f"({correct_gloss}, {normalized_pos})"
-        )
-        return new_lemma.lemma_id
 
     return candidate.lemma_id if candidate else None
 

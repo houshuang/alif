@@ -153,7 +153,7 @@ def generate_material_for_word(lemma_id: int, needed: int = 2, model_override: s
                 res.arabic, res.english, mappings, lemma_map_for_disambig,
             )
 
-        # Verify mappings and correct any issues (instead of discarding)
+        # Verify mappings — None means verification failed, discard sentence
         lemma_map_for_verify = {
             m.lemma_id: all_lemma_by_id[m.lemma_id]
             for m in mappings if m.lemma_id and m.lemma_id in all_lemma_by_id
@@ -161,6 +161,9 @@ def generate_material_for_word(lemma_id: int, needed: int = 2, model_override: s
         corrections = verify_and_correct_mappings_llm(
             res.arabic, res.english, mappings, lemma_map_for_verify,
         )
+        if corrections is None:
+            logger.warning(f"Mapping verification unavailable for lemma {lemma_id}, discarding sentence")
+            continue
         if corrections:
             correction_failed = False
             correction_db = SessionLocal()
@@ -337,7 +340,7 @@ def store_multi_target_sentence(
             result.arabic, result.english, mappings, lemma_map_for_disambig,
         )
 
-    # Verify mappings and correct any issues
+    # Verify mappings — None means verification failed, discard sentence
     from app.services.sentence_validator import (
         verify_and_correct_mappings_llm,
         correct_mapping as _correct_mapping,
@@ -349,6 +352,10 @@ def store_multi_target_sentence(
     corrections = verify_and_correct_mappings_llm(
         result.arabic, result.english, mappings, lemma_map_for_verify,
     )
+    if corrections is None:
+        logger.warning("Mapping verification unavailable for multi-target sentence, discarding")
+        db.delete(sent)
+        return None
     if corrections:
         correction_failed = False
         for corr in corrections:
@@ -904,21 +911,30 @@ Return JSON: {{"flagged": []}} if all OK, or:
 Sentences:
 {chr(10).join(sentence_blocks)}"""
 
-    # Phase 1: Single batched triage call
-    try:
-        result = generate_completion(
-            prompt=prompt,
-            system_prompt="You are an Arabic morphology expert. Check mappings against English translations. Only flag clear errors.",
-            json_mode=True,
-            temperature=0.0,
-            model_override="gemini",
-            task_type="mapping_verification_batch",
-        )
-        flagged = result.get("flagged", [])
-        if not isinstance(flagged, list):
-            flagged = []
-    except (AllProvidersFailed, Exception) as e:
-        logger.warning(f"Batch mapping verification failed: {e}")
+    # Phase 1: Single batched triage call — try Gemini, fall back to Haiku
+    system = "You are an Arabic morphology expert. Check mappings against English translations. Only flag clear errors."
+    flagged = None
+    for model in ("gemini", "claude_haiku"):
+        try:
+            result = generate_completion(
+                prompt=prompt,
+                system_prompt=system,
+                json_mode=True,
+                temperature=0.0,
+                model_override=model,
+                task_type="mapping_verification_batch",
+            )
+            flagged = result.get("flagged", [])
+            if not isinstance(flagged, list):
+                flagged = []
+            break
+        except (AllProvidersFailed, Exception) as e:
+            logger.warning(f"Batch mapping verification failed with {model}: {e}")
+            continue
+
+    if flagged is None:
+        # All models failed — leave sentences unverified for retry later
+        logger.error("Batch mapping verification failed on ALL models — sentences stay unverified")
         stats["failed"] = len(sent_index_map)
         return stats
 
@@ -934,6 +950,7 @@ Sentences:
         corrections = flagged_by_sentence.get(idx)
         if corrections:
             sws = sw_by_sentence.get(sent.id, [])
+            has_unfixable = False
             for corr in corrections:
                 pos = corr.get("position")
                 if pos is None:
@@ -954,7 +971,17 @@ Sentences:
                         f"'{sw.surface_form}': #{sw.lemma_id} → #{new_lid}"
                     )
                     sw.lemma_id = new_lid
-            stats["corrected"] += 1
+                elif not new_lid:
+                    has_unfixable = True
+
+            if has_unfixable:
+                # Correct lemma not in DB — retire sentence rather than
+                # leaving known-bad mappings for the user to see
+                sent.is_active = False
+                logger.info(f"Batch verify: retired sentence {sent.id} — unfixable mapping")
+                stats["failed"] += 1
+            else:
+                stats["corrected"] += 1
 
         sent.mappings_verified_at = now
         stats["verified"] += 1

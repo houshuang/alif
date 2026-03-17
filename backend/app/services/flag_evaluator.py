@@ -216,6 +216,7 @@ If all mappings look correct, return {{"issues": [], "all_correct": true}}."""
     from app.services.sentence_validator import normalize_arabic
 
     changes = []
+    unfixable_issues = []
     for issue in issues:
         pos = issue.get("position")
         correct_ar = issue.get("correct_lemma_ar", "")
@@ -245,11 +246,6 @@ If all mappings look correct, return {{"issues": [], "all_correct": true}}."""
             else:
                 candidate = db.query(Lemma).filter(Lemma.lemma_ar_bare == "ال" + correct_bare).first()
 
-        auto_created = False
-        if not candidate and correct_gloss and len(correct_bare) >= 2:
-            candidate = _auto_create_lemma(db, correct_bare, correct_ar, correct_gloss, correct_pos)
-            auto_created = candidate is not None
-
         if candidate and candidate.lemma_id != sw.lemma_id:
             old_lemma = lemmas_by_id.get(sw.lemma_id)
             old_desc = f"{old_lemma.lemma_ar_bare} ({old_lemma.gloss_en})" if old_lemma else "(unmapped)"
@@ -261,11 +257,33 @@ If all mappings look correct, return {{"issues": [], "all_correct": true}}."""
                 "new_lemma_id": candidate.lemma_id,
                 "new": f"{candidate.lemma_ar_bare} ({candidate.gloss_en})",
                 "explanation": explanation,
-                "auto_created": auto_created,
             })
             sw.lemma_id = candidate.lemma_id
+        elif not candidate:
+            # Correct lemma not in DB — retire the sentence rather than
+            # auto-creating lemmas nobody asked to learn
+            unfixable_issues.append({
+                "position": pos,
+                "surface_form": sw.surface_form if sw else correct_ar,
+                "correct_lemma_ar": correct_ar,
+                "explanation": explanation,
+            })
 
-    if changes:
+    if unfixable_issues:
+        # Any unfixable mapping means the sentence has known-bad data — retire it
+        sentence.is_active = False
+        flag.status = "fixed"
+        flag.resolution_note = (
+            f"Retired sentence #{sentence.id}: {len(unfixable_issues)} mapping(s) "
+            f"need lemmas not in DB"
+        )
+        if changes:
+            flag.resolution_note += f" (also fixed {len(changes)} other mapping(s))"
+        _log_activity(db, "flag_resolved",
+                      f"Retired sentence #{sentence.id} — unfixable mappings",
+                      {"flag_id": flag.id, "sentence_id": sentence.id,
+                       "unfixable": unfixable_issues, "fixed_before_retire": changes})
+    elif changes:
         flag.corrected_value = json.dumps(changes, ensure_ascii=False)
         flag.status = "fixed"
         flag.resolution_note = f"Fixed {len(changes)} word mapping(s)"
@@ -301,47 +319,6 @@ If all mappings look correct, return {{"issues": [], "all_correct": true}}."""
 
     flag.resolved_at = datetime.now(timezone.utc)
 
-
-def _auto_create_lemma(
-    db: Session, bare: str, arabic: str, gloss: str, pos: str,
-) -> "Lemma | None":
-    """Create a minimal 'encountered' lemma when the correct one is missing from DB."""
-    from app.models import UserLemmaKnowledge
-
-    # Guard against race condition / duplicate
-    existing = db.query(Lemma).filter(Lemma.lemma_ar_bare == bare).first()
-    if existing:
-        return existing
-
-    # Normalize POS to match our conventions
-    pos_map = {"adj": "adjective", "adv": "adverb", "prep": "preposition",
-               "conj": "conjunction", "pron": "pronoun"}
-    normalized_pos = pos_map.get(pos, pos) if pos else None
-
-    new_lemma = Lemma(
-        lemma_ar=arabic,
-        lemma_ar_bare=bare,
-        gloss_en=gloss,
-        pos=normalized_pos,
-        source="flag_autocreate",
-    )
-    db.add(new_lemma)
-    db.flush()  # get lemma_id
-
-    ulk = UserLemmaKnowledge(
-        lemma_id=new_lemma.lemma_id,
-        knowledge_state="encountered",
-        source="flag_autocreate",
-        total_encounters=1,
-    )
-    db.add(ulk)
-    db.flush()
-
-    logger.info(f"Auto-created lemma #{new_lemma.lemma_id}: {bare} ({gloss}, {normalized_pos})")
-    _log_activity(db, "flag_resolved",
-                  f"Auto-created lemma: {bare} ({gloss})",
-                  {"lemma_id": new_lemma.lemma_id, "source": "flag_autocreate"})
-    return new_lemma
 
 
 def _propagate_mapping_fix(

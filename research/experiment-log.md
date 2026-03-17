@@ -4,6 +4,29 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-03-17: Stop Auto-Creating Lemmas from Mapping Corrections
+
+**Problem**: Three issues causing bad lemmas to reach users:
+1. **Stale cache in session builder**: Step 4b verification corrected mappings in DB, but the API response was built from `cand.words_meta` frozen before verification — user still saw old wrong mappings.
+2. **Auto-created lemmas from flag reports**: When users reported bad mappings via AI chat, the system auto-created missing lemmas (`source="flag_autocreate"` or `"mapping_correction"`) that bypassed quality gate, variant detection, and enrichment. These could be auto-introduced into review within hours despite being rare/obscure words nobody asked to learn.
+3. **Silent verification failures**: `verify_and_correct_mappings_llm()` returned `[]` on any LLM failure, indistinguishable from "all mappings OK."
+
+**Changes**:
+1. `sentence_validator.py`: `correct_mapping()` no longer auto-creates lemmas. If the correct lemma isn't in DB, returns `None` — callers reject/retire the sentence instead. `verify_and_correct_mappings_llm()` now returns `None` on failure (distinct from `[]` = verified OK), tries Gemini → Claude Haiku fallback.
+2. `flag_evaluator.py`: Removed `_auto_create_lemma()`. When a flag identifies a wrong mapping and the correct lemma isn't in DB, the sentence is retired (`is_active=False`) rather than patched with a new lemma. Fixable mappings (correct lemma already in DB) still get fixed and propagated.
+3. `material_generator.py`: Batch verification (`verify_sentence_mappings`) now retires sentences with unfixable mappings instead of silently skipping them. Batch triage LLM call also uses Gemini → Haiku fallback. Generation-time verification returning `None` (all models failed) discards the sentence.
+4. `sentence_selector.py`: After step 4b verification, reloads corrected `SentenceWord` records from DB and rebuilds `words_meta` for affected sentences. Drops retired sentences from the session. If verification completely fails, drops all unverified sentences from the session rather than showing potentially bad mappings.
+
+**Design principles**:
+- The system should only teach words that were explicitly chosen (by user or by the introduction algorithm). Mapping corrections should fix sentences when possible, or retire them when not — never create new learning targets as a side effect.
+- LLM verification failure ≠ success. A sentence that couldn't be verified is never shown to the user. If Gemini is down, Haiku is tried. If both fail, the sentence is skipped/discarded.
+
+**Expected**: No more orphan lemmas from flag reports or mapping corrections. Bad mappings where the correct lemma isn't in DB will cause sentence retirement instead of creating junk lemmas. Session builder now returns fresh data after verification. Any bad lemma that still reaches the user warrants a post-mortem — it means the LLM verification (Gemini + Haiku) both approved it.
+
+**Verify**: Flag a sentence with a mapping where the correct lemma isn't in DB → sentence should be retired, no new lemma created. Flag a sentence where the correct lemma IS in DB → mapping should be fixed and propagated. Kill Gemini API → sentences should still be verified via Haiku. Kill both → sentences should be dropped from session, not shown.
+
+---
+
 ## 2026-03-15: Leech Sliding Window & State Cleanup
 
 **Problem**: Deep word diagnostic revealed a "leech escape trap" — words suspended as leeches and reintroduced could never escape because leech detection used cumulative `times_correct / times_seen`. A word at 2/7 (29%) accuracy after 3 leech cycles needed 3 consecutive correct reviews just to reach 50%. Each failed reintroduction made the denominator larger and escape harder. Also found 51 words with stale `acquisition_box` (known/suspended but box not cleared), 1 circular canonical reference (آمر↔أمر pointing at each other), and diagnostic false positives from function words.
