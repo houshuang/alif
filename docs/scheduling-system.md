@@ -6,7 +6,7 @@
 > topics, grammar, listening) interact. It also identifies where the current
 > implementation diverges from the research and stated intentions.
 >
-> **Last updated**: 2026-03-14
+> **Last updated**: 2026-03-17
 > **Canonical location**: `docs/scheduling-system.md`
 > **Keep this document up to date with every algorithm change.**
 
@@ -169,7 +169,7 @@ learn, and each enters acquisition immediately.
 
 **Gating conditions**:
 - **Reserved slots**: `INTRO_RESERVE_FRACTION` (20%) of session slots reserved for introductions, even when due queue exceeds limit. With limit=10, at least 2 slots always available.
-- **Pipeline backlog gate**: Reserved intro slots suppressed when acquiring pipeline > `PIPELINE_BACKLOG_THRESHOLD` (40). Undersized-session fill still works (when due < limit). Resumes automatically when pipeline drains below threshold.
+- **Pipeline backlog gate**: Reserved intro slots suppressed when acquiring pipeline exceeds a dynamic threshold. Base threshold is `PIPELINE_BACKLOG_THRESHOLD` (40), but scales with recent accuracy: ≥90% → 80, ≥80% → 60, <80% → 40. Undersized-session fill still works (when due < limit). Resumes automatically when pipeline drains below threshold.
 - Recent accuracy ≥ `AUTO_INTRO_ACCURACY_FLOOR` (70%) over last 10+ reviews
 - Per-call cap: `MAX_AUTO_INTRO_PER_SESSION` (5)
 - Also fires when session is undersized (due words < limit) — backward-compatible path
@@ -328,15 +328,17 @@ GRADUATION_MIN_CALENDAR_DAYS = 2
 
 ### Graduation Criteria (Tiered — 2026-03-03)
 
-Graduation uses a tiered system. The word must be due (`acquisition_next_due <= now`) for all tiers except the first-correct fast-track.
+Graduation uses a tiered system. Tier 0/1/2 can fire on **any review** (including collateral appearances in sentences targeting other words). Tier 3 requires the word to be due (`acquisition_next_due <= now`).
+
+**Why collateral reviews count for graduation (tiers 0-2)**: Previously all tiers required `is_due`, but a correct review reschedules the word +3 days. Words appearing as collateral in multiple sentences would get 80%+ accuracy across many exposures but only one "due" review per 3-day cycle — trapping high-accuracy words in acquisition indefinitely. Since tier 1/2 already require high accuracy (80-100%), the spacing proof is redundant.
 
 **Tier 0 — First-correct instant graduation**: If a word's very first review is correct (rating ≥ 3, `times_seen` was 0), it graduates immediately. Data shows 0% lapse rate for fast graduates. FSRS safety net catches false positives.
 
-**Tier 1 — Perfect accuracy**: 100% accuracy + 3+ reviews → graduate from any box. No calendar-day requirement.
+**Tier 1 — Perfect accuracy**: 100% accuracy + 3+ reviews → graduate from any box. No calendar-day or due-date requirement.
 
-**Tier 2 — High accuracy**: ≥80% accuracy + 4+ reviews + box ≥ 2 → graduate. No calendar-day requirement.
+**Tier 2 — High accuracy**: ≥80% accuracy + 4+ reviews + box ≥ 2 → graduate. No calendar-day or due-date requirement.
 
-**Tier 3 — Standard** (original criteria):
+**Tier 3 — Standard** (original criteria, **requires is_due**):
 1. `acquisition_box >= 3`
 2. `times_seen >= 5`
 3. Cumulative accuracy (`times_correct / times_seen`) >= 60%
@@ -1431,7 +1433,7 @@ remaining cards on the next card advance. See Section 8 "Sentence Pre-Warming" f
 | `MAX_AUTO_INTRO_PER_SESSION` | 5 | Per-call cap on auto-intro words |
 | `INTRO_RESERVE_FRACTION` | 0.2 | Fraction of session slots reserved for new words |
 | `AUTO_INTRO_ACCURACY_FLOOR` | 0.70 | Pause auto-intro if accuracy below this |
-| `PIPELINE_BACKLOG_THRESHOLD` | 40 | Suppress reserved intro slots when acquiring count exceeds this |
+| `PIPELINE_BACKLOG_THRESHOLD` | 40 (base) | Suppress reserved intro slots when acquiring count exceeds this. Dynamic: 80 at ≥90% accuracy, 60 at ≥80%, 40 otherwise |
 | Adaptive intro bands | 0→3→5 | Slots at <70%/70-85%/≥85% accuracy |
 | `SESSION_SCAFFOLD_DECAY` | 0.5 | Per-appearance multiplier for scaffold words already in session |
 | `NEVER_REVIEWED_BOOST` | 5.0 | Score multiplier for sentences targeting acquiring words with 0 reviews |
@@ -1472,9 +1474,9 @@ remaining cards on the next card advance. See Section 8 "Sentence Pre-Warming" f
 | `GRADUATION_MIN_ACCURACY` | 0.60 | Min accuracy for graduation (tier 3 standard) |
 | `GRADUATION_MIN_CALENDAR_DAYS` | 2 | Reviews must span this many UTC calendar days (tier 3 only) |
 | `ROOT_SIBLING_THRESHOLD` | 2 | Known root siblings needed for Easy graduation boost |
-| Tier 0: first-correct | times_seen=0 + rating≥3 | Instant graduation on first correct review |
-| Tier 1: perfect | accuracy=100% + seen≥3 | Graduate from any box |
-| Tier 2: high accuracy | accuracy≥80% + seen≥4 + box≥2 | Graduate without calendar-day check |
+| Tier 0: first-correct | times_seen=0 + rating≥3 | Instant graduation on first correct review (any review) |
+| Tier 1: perfect | accuracy=100% + seen≥3 | Graduate from any box (any review, no due-gating) |
+| Tier 2: high accuracy | accuracy≥80% + seen≥4 + box≥2 | Graduate without calendar-day or due-date check |
 
 ### Tashkeel Fading (`sentence_selector.py`, `settings.py`)
 

@@ -478,15 +478,33 @@ def build_session(
     acquiring_count = sum(
         1 for k in all_knowledge if k.knowledge_state == "acquiring"
     )
-    if accuracy_slots > 0 and acquiring_count <= PIPELINE_BACKLOG_THRESHOLD:
+    # Dynamic backlog threshold: scale with accuracy so high-performing learners
+    # aren't starved of new words by an inflow they can clearly handle.
+    recent_reviews = (
+        db.query(ReviewLog)
+        .filter(ReviewLog.reviewed_at >= (now - timedelta(days=2)).replace(tzinfo=None))
+        .all()
+    )
+    if len(recent_reviews) >= 10:
+        recent_accuracy = sum(1 for r in recent_reviews if r.rating >= 3) / len(recent_reviews)
+    else:
+        recent_accuracy = 0.80  # conservative default
+    if recent_accuracy >= 0.90:
+        effective_threshold = 80
+    elif recent_accuracy >= 0.80:
+        effective_threshold = 60
+    else:
+        effective_threshold = PIPELINE_BACKLOG_THRESHOLD  # 40
+
+    if accuracy_slots > 0 and acquiring_count <= effective_threshold:
         reserved_intro = max(1, int(limit * INTRO_RESERVE_FRACTION))
         intro_slots = min(accuracy_slots, reserved_intro)
     else:
         intro_slots = 0
-        if acquiring_count > PIPELINE_BACKLOG_THRESHOLD:
+        if acquiring_count > effective_threshold:
             logger.info(
                 f"Auto-intro reserved slots suppressed: {acquiring_count} acquiring "
-                f"> {PIPELINE_BACKLOG_THRESHOLD} threshold"
+                f"> {effective_threshold} threshold (accuracy={recent_accuracy:.0%})"
             )
     undersized_slots = max(0, limit - len(due_lemma_ids))
     slots_for_intro = max(intro_slots, undersized_slots)

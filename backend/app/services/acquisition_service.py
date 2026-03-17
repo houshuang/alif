@@ -272,7 +272,12 @@ def submit_acquisition_review(
             logger.info(f"Triggered premium mnemonic regeneration for demoted lemma {lemma_id} (box {old_box}→1)")
 
     # Tiered graduation: more aggressive for high-accuracy words
-    if not graduated and is_due:
+    # Tier 1/2: no due-gating — collateral reviews (appearing in sentences for
+    # other target words) are legitimate proof of knowledge. Previously all tiers
+    # required is_due, which blocked graduation for words getting 80%+ accuracy
+    # across many collateral exposures but only one "due" review per 3-day cycle.
+    # Tier 3: still requires is_due to enforce inter-session spacing.
+    if not graduated:
         new_times_seen = ulk.times_seen
         new_times_correct = ulk.times_correct
         accuracy = new_times_correct / new_times_seen if new_times_seen > 0 else 0
@@ -283,8 +288,8 @@ def submit_acquisition_review(
         # Tier 2: High accuracy (≥80%), 4+ reviews → graduate from box ≥ 2
         elif accuracy >= 0.80 and new_times_seen >= 4 and ulk.acquisition_box >= 2:
             graduated = True
-        # Tier 3: Standard (existing criteria)
-        elif (ulk.acquisition_box >= 3
+        # Tier 3: Standard (existing criteria) — requires due for spacing
+        elif is_due and (ulk.acquisition_box >= 3
               and new_times_seen >= GRADUATION_MIN_REVIEWS
               and accuracy >= GRADUATION_MIN_ACCURACY
               and _reviews_span_calendar_days(db, ulk.lemma_id, GRADUATION_MIN_CALENDAR_DAYS)):

@@ -4,6 +4,22 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-03-17: Fix Graduation Due-Gate + Dynamic Backlog Threshold
+
+**Problem**: Two compounding issues starved the learner of new words for 13 days:
+1. **Graduation due-gate blocked collateral reviews**: All graduation tiers required `is_due`, but a correct review reschedules the word +3 days (BOX_INTERVALS[3]). Words appearing as collateral in sentences for other targets got 80%+ accuracy across many exposures but only one "due" review per 3-day cycle. Result: 17 graduation candidates trapped in acquisition with high accuracy.
+2. **Static backlog threshold**: `PIPELINE_BACKLOG_THRESHOLD=40` didn't account for learner capacity. With 50 acquiring words (38 from textbook_scan, 8 leech_reintro), reserved intro slots were suppressed despite 96% accuracy — the learner could clearly handle more.
+
+**Changes**:
+1. `acquisition_service.py`: Tier 1 (perfect) and Tier 2 (≥80% accuracy) graduation no longer requires `is_due`. Collateral reviews can now trigger graduation for high-accuracy words. Tier 3 (standard, ≥60%) still requires `is_due` for spacing enforcement.
+2. `sentence_selector.py`: Pipeline backlog threshold now scales with 2-day accuracy: ≥90% → 80, ≥80% → 60, <80% → 40 (base). Prevents high-performing learners from being starved by inflow they can handle.
+
+**Expected result**: ~8 tier 2 candidates graduate on next collateral appearance, dropping acquiring count well below threshold. Auto-intro resumes immediately. Sessions gain fresh challenge.
+
+**Constants**: `PIPELINE_BACKLOG_THRESHOLD` base unchanged (40). Effective threshold is dynamic.
+
+---
+
 ## 2026-03-17: Fix Session Timeout Cascade — Prewarming Crash + Sync LLM Gate
 
 **Problem**: Three compounding bugs caused session generation to timeout (30-60s+) or fail entirely:
