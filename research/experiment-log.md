@@ -4,6 +4,24 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-03-17: Fix Session Timeout Cascade — Prewarming Crash + Sync LLM Gate
+
+**Problem**: Three compounding bugs caused session generation to timeout (30-60s+) or fail entirely:
+1. `warm_sentence_cache()` crashed immediately on every invocation due to naive vs aware datetime comparison in `rotate_stale_sentences()` (`datetime.now(timezone.utc)` compared against naive SQLite `created_at`). This meant none of the 4 warm cache phases ever ran — no sentence generation, no multi-target sentences, no mapping verification, no stale rotation.
+2. With prewarming broken, unverified sentences accumulated. The recently-added step 4b in `build_session()` ran synchronous LLM verification (15-30s Gemini call) on every user request. When Gemini timed out, all unverified sentences were dropped, leaving depleted sessions.
+3. Frontend `fetchApi()` had no timeout/AbortController, so slow backend responses hung the UI indefinitely with no fallback to cached sessions.
+
+**Changes**:
+1. `material_generator.py`: `datetime.now(timezone.utc)` → `datetime.utcnow()` in `rotate_stale_sentences()` — fixes the comparison that killed all prewarming.
+2. `sentence_selector.py`: Removed step 4b (synchronous LLM verification gate from session build). Mapping verification now happens only at generation time and in `warm_sentence_cache` Phase 4 (background).
+3. `frontend/lib/api.ts`: Added `timeoutMs` support to `fetchApi()` via AbortController. `getSentenceReviewSession()` and `fetchFreshSession()` use 12s timeout with fallback to stale cached sessions on failure.
+
+**Design principle**: Never put LLM calls in the synchronous request path for user-facing endpoints. All LLM work happens at generation time or in background tasks.
+
+**Result**: Session build dropped from 30-60s+ (or timeout) to ~0.7s. Prewarming runs successfully again.
+
+---
+
 ## 2026-03-17: Stop Auto-Creating Lemmas from Mapping Corrections
 
 **Problem**: Three issues causing bad lemmas to reach users:
