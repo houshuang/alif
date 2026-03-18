@@ -10,6 +10,34 @@
 - [2026-03-10] RESULT: 242 graduated, 3 lapsed (1.2%). Tier 0: 2/45 (4.4%), Tier 1: 0/31, Tier 2: 0/24, Tier 3: 1/142 (0.7%). All within ≤2% target. Tier 0 lapses (أتى, لدى) graduated just 1 day ago. No action needed. Recheck in 1 week.
 - [2026-03-13] CHECK: Verb conjugation + tier lifecycle verification (deployed 2026-03-10). Check rejection rate, pool size (~600-800?), tier-4 count (~0?), tier-1 undersupply (0?).
 - [2026-03-17] CHECK: Tiered graduation lapse rate recheck (2 weeks of data).
+- [2026-03-18] DEPLOYED: Encountered words earn collateral credit. 312 words backfilled to FSRS. Known count ~757 → ~1,010.
+- [2026-03-21] CHECK: Collateral credit flow health check. Run the verification query below. Expected: encountered count dropping, graduation rate 20-30/day, no function words in acquiring, collateral introductions visible in interaction logs.
+- [2026-03-25] CHECK: Lapse rate for backfilled words. The 312 retroactively graduated words should have low lapse rate (<5%). Query: `SELECT COUNT(*) FROM user_lemma_knowledge WHERE source IN ('story_import','duolingo','textbook_scan') AND knowledge_state = 'lapsed' AND graduated_at >= '2026-03-18'`. If high, FSRS stability from replayed history may be too optimistic.
+
+---
+
+## Session Quality — Revisit After Collateral Fix Settles (target: 2026-03-25)
+
+### Dynamic Session Limit
+- Current: fixed `limit=10` in `build_session()`
+- Problem: at 96% accuracy with fast completion, 10 sentences is too few
+- Proposal: `base=10; if accuracy_2d >= 0.90: base=14; if accuracy_2d >= 0.95: base=18`
+- Gives high-performing learners bigger, more challenging sessions
+- File: `sentence_selector.py:build_session()`
+
+### Increase Intro Reserve Fraction
+- Current: `INTRO_RESERVE_FRACTION=0.2` → 2 reserved intro slots per session (with limit=10)
+- Problem: even with collateral flow, explicit auto-intro is throttled to 2 slots
+- Proposal: increase to 0.3 (3 slots), AND decouple from accuracy_slots
+- Combined with dynamic limit: 18 * 0.3 = 5 reserved intro slots
+- File: `sentence_selector.py`
+
+### Comprehensibility Gate — Count Familiar Encountered Words as Known
+- Current: encountered words count as NOT known for the 60% gate
+- Problem: words with 8+ encounters are practically known — excluding them makes sentences too easy and limits collateral exposure
+- Proposal: in `sentence_validator.py`, count encountered words with `total_encounters >= 8` as known for the comprehensibility gate
+- Effect: allows harder sentences with more encountered scaffold → more collateral introductions → virtuous cycle
+- Requires: careful tuning — if threshold too low, sentences become incomprehensible
 
 ---
 

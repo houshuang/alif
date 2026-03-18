@@ -242,15 +242,23 @@ now should create `encountered` ULK.
 
 ### 3.8 Sentence Review (Collateral Credit)
 
-**Path**: Word appears in a reviewed sentence but has no existing ULK
+**Path**: Any non-function word appears in a reviewed sentence
 **Effect**: Word auto-introduced into acquisition (Leitner box 1, `due_immediately=False`)
 via `start_acquisition(source="collateral")`, then gets its first acquisition review
 **Code**: `sentence_review_service.py` → `acquisition_service.py:start_acquisition()`
 
-Words discovered through sentence context are routed through the standard acquisition
-pipeline (Leitner 3-box) rather than getting FSRS cards directly. The 4-hour delay
-(`due_immediately=False`) ensures dedicated follow-up in the next session.
-**Encountered words** are explicitly *skipped* — they must be formally introduced first.
+**Foundational principle**: Every word in every sentence earns review credit, regardless
+of prior knowledge state. This applies to:
+- **Words with no ULK**: auto-introduced + first review submitted
+- **Encountered words**: auto-introduced + first review submitted (Tier 0 handles familiar
+  words: first correct review → instant graduation to FSRS)
+- **Acquiring words**: routed through `submit_acquisition_review()` (advances boxes, graduation tiers fire)
+- **Learning/known words**: routed through FSRS `submit_review()`
+
+There are **no artificial throttles** on collateral introductions. If a sentence has 5
+encountered words and the user understands it, all 5 get introduced and graduated in one
+review. Sentence difficulty should be adjusted at generation time, not by capping the
+review engine.
 
 ---
 
@@ -269,15 +277,27 @@ pipeline (Leitner 3-box) rather than getting FSRS cards directly. The 4-hour del
 │ • Appears in Learn mode candidates with encountered_bonus=0.5    │
 │ • Appears in auto-intro pool (highest frequency first)           │
 │                                                                  │
-│ EXIT: Learn mode introduce OR auto-intro during session building │
+│ EXIT: (1) Collateral appearance in reviewed sentence → auto-     │
+│       introduce + review → Tier 0 graduation if understood       │
+│       (2) Learn mode introduce                                   │
+│       (3) Auto-intro during session building                     │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-**Key detail**: Encountered words do **not** count as known for the comprehensibility
-gate. They are passively imported words the learner hasn't studied yet. This means
-sentences with many encountered words will be filtered out until the learner has
-actually studied enough of the vocabulary. On-demand sentence generation handles
-the bootstrap case by creating sentences using only active vocabulary.
+**Key change (2026-03-18)**: Encountered words are no longer a dead zone. When an
+encountered word appears as scaffold in a reviewed sentence, it is auto-introduced
+to acquisition and immediately reviewed. Familiar words (understood on first review)
+graduate instantly via Tier 0 → FSRS. This is the primary flow for encountered words
+to enter the system — collateral exposure in sentences, not explicit auto-introduction.
+
+**Intro cards**: Words introduced via collateral do NOT get intro cards (they already
+got their review in-sentence). Intro cards are reserved for explicitly auto-introduced
+words with fewer than 5 prior encounters.
+
+**Comprehensibility gate**: Encountered words still do **not** count as known for the
+gate. This means sentences won't have many encountered scaffold words, which naturally
+limits how fast the encountered pool drains. Future tuning: count high-encounter words
+(≥8) as known for the gate to allow harder sentences.
 
 ---
 
