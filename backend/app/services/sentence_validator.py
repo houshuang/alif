@@ -888,8 +888,9 @@ Return JSON: {{"issues": []}} if all correct, or:
 
     system = "You are an Arabic morphology expert. Check each mapping against the English translation. Flag any mapping where the gloss doesn't fit the sentence meaning."
 
-    # Try Gemini first, fall back to Claude Haiku
-    for model in ("gemini", "claude_haiku"):
+    # Claude Haiku (via CLI, free) primary — 0% failure rate on server.
+    # Gemini has 35% timeout rate under concurrent load.
+    for model in ("claude_haiku", "gemini"):
         try:
             result = generate_completion(
                 prompt=prompt,
@@ -1040,7 +1041,7 @@ Only include positions where your choice differs from option A (the current mapp
             system_prompt="You are an Arabic morphology expert. Pick the lemma that matches the word's meaning in this specific sentence.",
             json_mode=True,
             temperature=0.0,
-            model_override="gemini",
+            model_override="claude_haiku",
             task_type="mapping_disambiguation",
         )
         choices = result.get("choices", [])

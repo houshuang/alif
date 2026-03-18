@@ -4,6 +4,41 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-03-18: Fix Encountered Word Dead Zone — Every Word Earns Credit
+
+**Problem**: Encountered words (387 in pool from Duolingo, textbook scans, story imports) received ZERO review credit when they appeared in sentences. Line 158 of `sentence_review_service.py` explicitly skipped them: `"Skip encountered words — they need to be introduced first"`. This created a dead zone where words the user had been reading for weeks (e.g., قَرَأَ "to read" with 16 encounters) were invisible to the review engine. The only escape was the 2-slot-per-session auto-introduction bottleneck.
+
+Paradoxically, words with NO ULK record at all (completely unknown) WERE auto-introduced on collateral appearance (line 196). So being "encountered" was worse than being unknown — encountered words were stuck in limbo.
+
+Symptoms reported by user:
+- Introduction card shown for قَرَأَ (a word seen 100+ times in stories)
+- Sessions shrinking (too few words qualifying for review)
+- Only 6 graduations/day despite 296 reviews (pipeline throughput starved)
+- 96% accuracy (system not challenging enough — too many easy reviews, too few new words)
+- 387 encountered words waiting with no path through the pipeline
+
+**Root cause**: The encountered skip was a design misunderstanding. The foundational principle is: every word in every sentence earns review credit. There should be no exceptions for any knowledge state. Encountered words appearing in reviewed sentences should auto-introduce and get reviewed immediately.
+
+**Changes**:
+1. `sentence_review_service.py`: Replaced encountered skip with auto-introduction. When an encountered word appears collaterally in a reviewed sentence, it's auto-introduced to acquisition (`source="collateral"`) and immediately reviewed. Tier 0 handles familiar words: first correct review → instant graduation to FSRS.
+2. `sentence_selector.py`: `_build_experiment_intro_cards()` now skips words with `total_encounters >= 5`. Words the user has been reading in stories don't need a "learn this" intro card.
+3. Retroactive backfill script: `backfill_encountered_credit.py` replays historical SentenceReviewLog data for currently-encountered words. Words that appeared in "understood" sentences get auto-introduced + graduated via Tier 0.
+
+**Design principles documented in CLAUDE.md**:
+- Every word in every sentence earns review credit (foundational, no exceptions)
+- Collateral introductions skip intro cards
+- Tier 0 instant graduation is correct (recognize once → FSRS, safety net catches false positives)
+- No artificial throttles on word flow
+
+**Expected result**: 387 encountered words start flowing through the pipeline via collateral exposure. Most graduate via Tier 0 (already familiar from stories). Graduation rate increases from ~6/day to 20-30+/day. The encountered pool drains naturally as sentences expose scaffold words.
+
+**Verify**: After backfill + deploy, check:
+- `SELECT COUNT(*) FROM user_lemma_knowledge WHERE knowledge_state = 'encountered'` — should drop significantly
+- Graduation rate in next 3 days — target 20-30/day
+- No intro cards for high-encounter words
+
+---
+
 ## 2026-03-17: Fix Graduation Due-Gate + Dynamic Backlog Threshold
 
 **Problem**: Two compounding issues starved the learner of new words for 13 days:

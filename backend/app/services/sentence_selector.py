@@ -1268,6 +1268,9 @@ def _build_experiment_intro_cards(
             and ulk.experiment_group == "intro_ab_card"
             and (ulk.times_seen or 0) == 0
             and ulk.experiment_intro_shown_at is None
+            # Skip intro cards for words already familiar from encounters —
+            # they'll get credit collaterally, no need for a "learn this" card.
+            and (ulk.total_encounters or 0) < 5
         ):
             card_ids.add(lid)
 

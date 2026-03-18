@@ -911,10 +911,10 @@ Return JSON: {{"flagged": []}} if all OK, or:
 Sentences:
 {chr(10).join(sentence_blocks)}"""
 
-    # Phase 1: Single batched triage call — try Gemini, fall back to Haiku
+    # Phase 1: Single batched triage call — Haiku primary (0% failure rate), Gemini fallback
     system = "You are an Arabic morphology expert. Check mappings against English translations. Only flag clear errors."
     flagged = None
-    for model in ("gemini", "claude_haiku"):
+    for model in ("claude_haiku", "gemini"):
         try:
             result = generate_completion(
                 prompt=prompt,

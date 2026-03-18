@@ -275,8 +275,10 @@ def _resolve_unmapped_via_camel(
     for m in mappings:
         if m.lemma_id is not None:
             continue
-        features = get_word_features(m.surface_form)
-        lex = features.get("lex", m.surface_form)
+        # Normalize Quranic orthography (alef wasla → regular alef) before CAMeL
+        surface_normalized = m.surface_form.replace("\u0671", "\u0627")
+        features = get_word_features(surface_normalized)
+        lex = features.get("lex", surface_normalized)
         lex_bare = strip_diacritics(lex)
         lex_norm = normalize_alef(lex_bare)
         existing_id = lemma_lookup.get(lex_norm)

@@ -155,9 +155,19 @@ def submit_sentence_review(
         # Skip if canonical is suspended (or the variant itself)
         if lemma_id in suspended_lemma_ids or effective_lemma_id in suspended_lemma_ids:
             continue
-        # Skip encountered words — they need to be introduced first
+        # Auto-introduce encountered words on collateral appearance —
+        # every word in every sentence earns review credit, no exceptions.
+        # Familiar words graduate instantly via Tier 0 (first correct → FSRS).
         if effective_lemma_id in encountered_lemma_ids:
-            continue
+            from app.services.acquisition_service import start_acquisition
+            start_acquisition(
+                db,
+                lemma_id=effective_lemma_id,
+                source="collateral",
+                due_immediately=False,
+            )
+            acquiring_lemma_ids.add(effective_lemma_id)
+            encountered_lemma_ids.discard(effective_lemma_id)
         # After redirect, multiple variant lemma_ids may map to the same canonical
         if effective_lemma_id in processed_effective_ids:
             continue

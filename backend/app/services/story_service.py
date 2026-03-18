@@ -280,11 +280,17 @@ def _import_unknown_words(
     # Step 1: CAMeL morphological analysis for each unknown word
     word_analyses: list[dict] = []
     for sw in unknown_words:
-        features = get_word_features(sw.surface_form)
-        lex_bare = strip_diacritics(features.get("lex", sw.surface_form))
+        # Normalize Quranic orthography before CAMeL analysis:
+        # alef wasla (ٱ) → regular alef (ا), small/superscript marks
+        surface_normalized = sw.surface_form.replace("\u0671", "\u0627")
+        features = get_word_features(surface_normalized)
+        lex_bare = strip_diacritics(features.get("lex", surface_normalized))
         lex_norm = normalize_alef(lex_bare)
         # Check if the base lemma from CAMeL already exists in DB
         existing_id = lemma_lookup.get(lex_norm)
+        # If CAMeL returned a cliticized form, try stripping prefixes
+        if existing_id is None:
+            existing_id = resolve_existing_lemma(lex_bare, lemma_lookup)
         if existing_id:
             # CAMeL resolved it to a known lemma — update StoryWord
             sw.lemma_id = existing_id
@@ -295,7 +301,7 @@ def _import_unknown_words(
         word_analyses.append({
             "story_word": sw,
             "surface": sw.surface_form,
-            "lex": features.get("lex", sw.surface_form),
+            "lex": features.get("lex", surface_normalized),
             "lex_bare": lex_bare,
             "lex_norm": lex_norm,
             "root": features.get("root"),
