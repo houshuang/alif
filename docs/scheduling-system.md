@@ -6,7 +6,7 @@
 > topics, grammar, listening) interact. It also identifies where the current
 > implementation diverges from the research and stated intentions.
 >
-> **Last updated**: 2026-03-17
+> **Last updated**: 2026-03-18
 > **Canonical location**: `docs/scheduling-system.md`
 > **Keep this document up to date with every algorithm change.**
 
@@ -1634,7 +1634,7 @@ consolidation. "Forced day-1 review regardless of box position."
 **Current implementation** (2026-02-14): Two-phase acquisition:
 - Box 1→2 advances within-session (same-day encoding). Word gets 4 exposures immediately.
 - Box 2→3 requires `acquisition_next_due` (1-day interval enforced). Forces next-day review.
-- Graduation requires reviews on ≥2 UTC calendar days. Guarantees at least one overnight gap.
+- Graduation (tier 3) requires reviews on ≥2 UTC calendar days plus `is_due`. Tiers 0-2 (high accuracy) can graduate on any review including collateral appearances.
 
 **Remaining gap**: If user doesn't open the app for 2+ days, the review just waits. No push notification. But the interval enforcement ensures words can't skip the day-1 review through rapid in-session advancement.
 
