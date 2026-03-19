@@ -52,6 +52,7 @@ All scripts in `backend/scripts/`. Run from `backend/` directory.
 - `batch_graduate_perfect.py` — Graduate all acquiring words with perfect accuracy (100%) and ≥3 reviews. One-time fix for 41 stuck words. `--dry-run`, `--min-reviews=N`, `--min-accuracy=N`.
 
 ## Cleanup & Maintenance
+- `verify_variants.py` — LLM-verified audit of all variant→canonical links. Finds pairs with no gloss overlap, sends to LLM for confirmation, unlinks false positives. `--fix` to apply (default: dry-run). `--verbose` to show all pairs.
 - `cleanup_bad_roots.py` — LLM-assisted bad root classification and cleanup (POS fixes, variant linking).
 - `cleanup_review_pool.py` — Reset under-learned→acquiring, suspend variant ULKs with stat merge, suspend junk, retire bad sentences, run variant detection on uncovered words.
 - `reset_ocr_cards.py` — Reset inflated OCR-imported FSRS cards to "encountered". Supports --dry-run.
