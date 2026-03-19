@@ -114,8 +114,17 @@ def detect_variants(
                 break
 
         if not base and _has_enclitic(enc0):
+            # Enclitic-bearing forms (possessives like كتابه) can be variants
+            # even without gloss overlap, but only if the candidate's bare form
+            # is a proper substring (the word minus the enclitic). This prevents
+            # false positives like صيادية (dish) → صياد (hunter) where CAMeL
+            # reports an enclitic-like suffix but the meanings are unrelated.
             for c in candidates:
-                if c.lemma_id != lemma.lemma_id:
+                if c.lemma_id == lemma.lemma_id:
+                    continue
+                c_bare = normalize_alef(c.lemma_ar_bare or "")
+                l_bare = normalize_alef(lemma_bare)
+                if c_bare and l_bare.startswith(c_bare) and len(l_bare) > len(c_bare):
                     base = c
                     break
 

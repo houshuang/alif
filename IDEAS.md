@@ -39,6 +39,13 @@
 - Effect: allows harder sentences with more encountered scaffold → more collateral introductions → virtuous cycle
 - Requires: careful tuning — if threshold too low, sentences become incomprehensible
 
+### Variant Decision Verification
+- Current: variant detection runs once at import time; no verification of variant→canonical links
+- Problem: morphologically related but semantically distinct words (صيادية "dish" → صياد "hunter") get merged as variants, and the mapping verification pipeline doesn't catch it because it operates at sentence_word→lemma level, not lemma→canonical level
+- Proposal: add a variant verification pass that checks gloss coherence between each variant and its canonical. Flag pairs where glosses have zero overlap for LLM review.
+- Could run as a background task or one-time audit script
+- File: `variant_detection.py`
+
 ---
 
 ## Confusable Words / Visual Similarity

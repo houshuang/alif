@@ -834,15 +834,13 @@ def build_session(
         # Comprehensibility gate: skip sentences where <60% of scaffold words are known.
         # Scaffold = non-function, non-due words (including unmapped words with lemma_id=None).
         # "encountered" does NOT count — the learner has only seen the word, never studied it.
-        # "acquiring" only counts if past box 1 (stability >= 0.5 = reviewed at least once).
+        # All "acquiring" words count — they've been introduced (possibly via collateral
+        # credit) and the user has engaged with them in context.
         scaffold = [w for w in word_metas if not w.is_function_word and not w.is_due]
         total_scaffold = len(scaffold)
         known_scaffold = sum(
             1 for w in scaffold
-            if (
-                w.knowledge_state in ("known", "learning", "lapsed")
-                or (w.knowledge_state == "acquiring" and (w.stability or 0) >= 0.5)
-            )
+            if w.knowledge_state in ("known", "learning", "lapsed", "acquiring")
         )
         if total_scaffold > 0 and known_scaffold / total_scaffold < 0.6:
             continue
@@ -1748,14 +1746,12 @@ def _find_pregenerated_sentences_for_words(
             continue
 
         # Comprehensibility gate: ≥60% known scaffold
+        # All acquiring words count (same logic as main build_session gate).
         scaffold = [w for w in word_metas if not w.is_function_word and not w.is_due]
         total_scaffold = len(scaffold)
         known_scaffold = sum(
             1 for w in scaffold
-            if (
-                w.knowledge_state in ("known", "learning", "lapsed")
-                or (w.knowledge_state == "acquiring" and (w.stability or 0) >= 0.5)
-            )
+            if w.knowledge_state in ("known", "learning", "lapsed", "acquiring")
         )
         if total_scaffold > 0 and known_scaffold / total_scaffold < 0.6:
             continue

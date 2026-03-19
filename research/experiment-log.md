@@ -4,6 +4,24 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-03-19: Fix Comprehensibility Gate Starvation + Variant Detection False Positives
+
+**Problem 1 — Session starvation**: After the collateral credit fix (2026-03-18), encountered words auto-introduced as box-1 acquiring had stability=0.1. The comprehensibility gate required acquiring words to have stability ≥ 0.5 (box ≥ 2) to count as "known scaffold." Sentences with freshly-introduced words failed the 60% gate → sessions collapsed to 1 card.
+
+**Fix**: Both comprehensibility gates (main build_session + fill phase `_find_pregenerated_sentences_for_words`) now count ALL acquiring words as known scaffold. They've been introduced and the user has engaged with them in context.
+
+**Problem 2 — Variant detection false positive**: صيادية (Sayadieh dish) merged as variant of صياد (hunter). The enclitic fallback path in `detect_variants()` bypassed gloss overlap, picking any morphologically-related candidate.
+
+**Fix**: Enclitic fallback now requires candidate bare form to be a proper prefix of the variant (genuine possessive pattern like كتابه → كتاب). Prevents nisba/derived-noun false matches.
+
+**Gap identified**: Mapping verification pipeline operates at sentence_word→lemma level, not lemma→canonical level. Variant decisions are never verified. Added to IDEAS.md.
+
+**Expected**: Sessions return to 8-12 cards. No more false variant merges for derived nouns.
+
+**Verify**: Check session size in next few days. Run `SELECT l.lemma_ar_bare, l.gloss_en, c.lemma_ar_bare, c.gloss_en FROM lemma l JOIN lemma c ON l.canonical_lemma_id = c.lemma_id` to audit remaining variant links.
+
+---
+
 ## 2026-03-18: Fix Encountered Word Dead Zone — Every Word Earns Credit
 
 **Problem**: Encountered words (387 in pool from Duolingo, textbook scans, story imports) received ZERO review credit when they appeared in sentences. Line 158 of `sentence_review_service.py` explicitly skipped them: `"Skip encountered words — they need to be introduced first"`. This created a dead zone where words the user had been reading for weeks (e.g., قَرَأَ "to read" with 16 encounters) were invisible to the review engine. The only escape was the 2-slot-per-session auto-introduction bottleneck.
