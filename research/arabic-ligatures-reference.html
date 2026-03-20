@@ -1,0 +1,1144 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Arabic Ligatures &amp; Letter Forms — Alif Reference</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Amiri:ital,wght@0,400;0,700;1,400&family=Scheherazade+New:wght@400;700&family=Noto+Naskh+Arabic:wght@400;700&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,300&family=DM+Serif+Display&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0a14;
+    --bg2: #0f0f1a;
+    --surface: #1a1a2e;
+    --surface-light: #252542;
+    --surface-hover: #2a2a4a;
+    --text: #e8e8f0;
+    --text-dim: #8888a0;
+    --text-faint: #55556a;
+    --accent: #4a9eff;
+    --accent-dim: #2a6ecc;
+    --accent-glow: rgba(74, 158, 255, 0.08);
+    --warm: #e8c47a;
+    --warm-dim: rgba(232, 196, 122, 0.15);
+    --coral: #e07a5f;
+    --green: #6ecb8a;
+    --font-amiri: 'Amiri', serif;
+    --font-scheherazade: 'Scheherazade New', serif;
+    --font-noto: 'Noto Naskh Arabic', serif;
+    --font-system: 'Arabic Typesetting', 'Traditional Arabic', 'Geeza Pro', serif;
+    --font-display: 'DM Serif Display', serif;
+    --font-body: 'DM Sans', sans-serif;
+    --radius: 12px;
+    --radius-sm: 8px;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-body);
+    font-weight: 400;
+    line-height: 1.65;
+    min-height: 100vh;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* === NOISE TEXTURE OVERLAY === */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    z-index: 9999;
+    pointer-events: none;
+    opacity: 0.025;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+    background-size: 256px 256px;
+  }
+
+  /* === LAYOUT === */
+  .page-wrapper {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 60px 32px 120px;
+  }
+
+  /* === HERO === */
+  .hero {
+    text-align: center;
+    padding: 80px 0 60px;
+    position: relative;
+  }
+
+  .hero::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 120px;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--accent-dim), transparent);
+  }
+
+  .hero-ar {
+    font-family: var(--font-amiri);
+    font-size: 72px;
+    color: var(--accent);
+    line-height: 1.2;
+    margin-bottom: 16px;
+    opacity: 0;
+    animation: fadeUp 0.8s ease forwards;
+    text-shadow: 0 0 80px rgba(74, 158, 255, 0.2);
+  }
+
+  .hero h1 {
+    font-family: var(--font-display);
+    font-size: 36px;
+    font-weight: 400;
+    letter-spacing: -0.5px;
+    color: var(--text);
+    margin-bottom: 16px;
+    opacity: 0;
+    animation: fadeUp 0.8s ease 0.15s forwards;
+  }
+
+  .hero p {
+    font-size: 16px;
+    color: var(--text-dim);
+    max-width: 560px;
+    margin: 0 auto;
+    line-height: 1.7;
+    opacity: 0;
+    animation: fadeUp 0.8s ease 0.3s forwards;
+  }
+
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(16px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  /* === SECTION === */
+  section {
+    margin-top: 72px;
+  }
+
+  .section-label {
+    font-family: var(--font-body);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 2.5px;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin-bottom: 8px;
+  }
+
+  .section-title {
+    font-family: var(--font-display);
+    font-size: 28px;
+    font-weight: 400;
+    color: var(--text);
+    margin-bottom: 12px;
+  }
+
+  .section-desc {
+    font-size: 15px;
+    color: var(--text-dim);
+    max-width: 640px;
+    margin-bottom: 32px;
+    line-height: 1.7;
+  }
+
+  /* === LETTER FORMS TABLE === */
+  .forms-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 10px;
+  }
+
+  .letter-card {
+    background: var(--surface);
+    border: 1px solid rgba(255,255,255,0.04);
+    border-radius: var(--radius-sm);
+    padding: 16px;
+    transition: all 0.2s ease;
+    cursor: default;
+  }
+
+  .letter-card:hover {
+    background: var(--surface-hover);
+    border-color: rgba(74, 158, 255, 0.15);
+  }
+
+  .letter-card-name {
+    font-size: 12px;
+    color: var(--text-dim);
+    margin-bottom: 4px;
+    font-weight: 500;
+  }
+
+  .letter-card-pron {
+    font-size: 11px;
+    color: var(--text-faint);
+    margin-bottom: 10px;
+    line-height: 1.5;
+  }
+
+  .letter-card-pron .ipa {
+    font-family: 'DM Sans', sans-serif;
+    color: var(--accent);
+    font-weight: 500;
+  }
+
+  .letter-card-pron .approx {
+    color: var(--text-faint);
+  }
+
+  .letter-forms-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    direction: rtl;
+    gap: 4px;
+  }
+
+  .letter-form-cell {
+    text-align: center;
+    flex: 1;
+  }
+
+  .letter-form-cell .ar {
+    font-family: var(--font-amiri);
+    font-size: 32px;
+    color: var(--text);
+    line-height: 1.4;
+    display: block;
+  }
+
+  .letter-form-cell .pos {
+    font-size: 9px;
+    color: var(--text-faint);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-top: 2px;
+  }
+
+  /* === LIGATURE SHOWCASE === */
+  .lig-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    gap: 10px;
+  }
+
+  .lig-card {
+    background: var(--surface);
+    border: 1px solid rgba(255,255,255,0.04);
+    border-radius: var(--radius-sm);
+    padding: 20px 16px;
+    text-align: center;
+    transition: all 0.2s ease;
+  }
+
+  .lig-card:hover {
+    background: var(--surface-hover);
+    border-color: rgba(74, 158, 255, 0.12);
+  }
+
+  .lig-ar {
+    font-family: var(--font-amiri);
+    font-size: 48px;
+    color: var(--text);
+    line-height: 1.3;
+    direction: rtl;
+  }
+
+  .lig-label {
+    font-size: 12px;
+    color: var(--text-dim);
+    margin-top: 8px;
+  }
+
+  .lig-pron {
+    font-size: 12px;
+    color: var(--accent);
+    margin-top: 6px;
+    font-weight: 500;
+  }
+
+  .lig-pron-note {
+    font-size: 11px;
+    color: var(--text-faint);
+    margin-top: 3px;
+    line-height: 1.5;
+    max-width: 200px;
+    margin-left: auto;
+    margin-right: auto;
+  }
+
+  .lig-decomp {
+    font-size: 11px;
+    color: var(--text-faint);
+    margin-top: 4px;
+    font-family: var(--font-body);
+  }
+
+  /* === FONT COMPARISON === */
+  .font-compare-table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    overflow: hidden;
+    border-radius: var(--radius);
+    border: 1px solid rgba(255,255,255,0.06);
+  }
+
+  .font-compare-table th {
+    background: var(--surface);
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-dim);
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    padding: 14px 20px;
+    text-align: left;
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+  }
+
+  .font-compare-table th:first-child {
+    width: 160px;
+  }
+
+  .font-compare-table td {
+    padding: 18px 20px;
+    border-bottom: 1px solid rgba(255,255,255,0.03);
+    vertical-align: middle;
+  }
+
+  .font-compare-table tr:last-child td {
+    border-bottom: none;
+  }
+
+  .font-compare-table tr:hover td {
+    background: rgba(74, 158, 255, 0.03);
+  }
+
+  .font-compare-table .font-name {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text-dim);
+    white-space: nowrap;
+  }
+
+  .font-compare-table .font-name .badge {
+    display: inline-block;
+    font-size: 9px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    padding: 2px 6px;
+    border-radius: 4px;
+    margin-left: 6px;
+    vertical-align: middle;
+  }
+
+  .badge-print { background: var(--warm-dim); color: var(--warm); }
+  .badge-learn { background: var(--accent-glow); color: var(--accent); }
+  .badge-std { background: rgba(110, 203, 138, 0.12); color: var(--green); }
+
+  .font-compare-table .ar-sample {
+    font-size: 34px;
+    direction: rtl;
+    text-align: right;
+    color: var(--text);
+    line-height: 1.6;
+  }
+
+  .font-amiri { font-family: var(--font-amiri); }
+  .font-scheherazade { font-family: var(--font-scheherazade); }
+  .font-noto { font-family: var(--font-noto); }
+  .font-system { font-family: var(--font-system); }
+
+  /* === TRICKY PAIRS === */
+  .pairs-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+    gap: 12px;
+  }
+
+  .pair-card {
+    background: var(--surface);
+    border: 1px solid rgba(255,255,255,0.04);
+    border-radius: var(--radius-sm);
+    padding: 20px;
+    transition: all 0.2s ease;
+  }
+
+  .pair-card:hover {
+    background: var(--surface-hover);
+    border-color: rgba(232, 196, 122, 0.15);
+  }
+
+  .pair-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 14px;
+  }
+
+  .pair-letters {
+    font-family: var(--font-amiri);
+    font-size: 38px;
+    direction: rtl;
+    color: var(--warm);
+    letter-spacing: 8px;
+  }
+
+  .pair-name {
+    font-size: 12px;
+    color: var(--text-dim);
+    font-weight: 500;
+  }
+
+  .pair-pron-tip {
+    font-size: 12px;
+    color: var(--text-dim);
+    line-height: 1.6;
+    margin-bottom: 12px;
+    padding: 8px 10px;
+    background: rgba(74, 158, 255, 0.04);
+    border-radius: 6px;
+    border-left: 2px solid var(--accent-dim);
+  }
+
+  .pair-connected {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+
+  .pair-example {
+    background: rgba(255,255,255,0.02);
+    border-radius: 6px;
+    padding: 10px;
+    text-align: center;
+  }
+
+  .pair-example .ar {
+    font-family: var(--font-amiri);
+    font-size: 26px;
+    direction: rtl;
+    color: var(--text);
+    line-height: 1.5;
+  }
+
+  .pair-example .gloss {
+    font-size: 11px;
+    color: var(--text-faint);
+    margin-top: 2px;
+  }
+
+  /* === INTERACTIVE === */
+  .interactive-box {
+    background: var(--surface);
+    border: 1px solid rgba(255,255,255,0.06);
+    border-radius: var(--radius);
+    padding: 32px;
+  }
+
+  .input-row {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    margin-bottom: 28px;
+  }
+
+  .input-row label {
+    font-size: 13px;
+    color: var(--text-dim);
+    font-weight: 500;
+    white-space: nowrap;
+  }
+
+  .arabic-input {
+    flex: 1;
+    background: var(--bg2);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: var(--radius-sm);
+    padding: 14px 18px;
+    font-family: var(--font-amiri);
+    font-size: 28px;
+    color: var(--text);
+    direction: rtl;
+    text-align: right;
+    outline: none;
+    transition: border-color 0.2s ease;
+  }
+
+  .arabic-input:focus {
+    border-color: var(--accent);
+  }
+
+  .arabic-input::placeholder {
+    color: var(--text-faint);
+  }
+
+  .live-renders {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+  }
+
+  .live-render-cell {
+    background: var(--bg2);
+    border: 1px solid rgba(255,255,255,0.04);
+    border-radius: var(--radius-sm);
+    padding: 20px;
+  }
+
+  .live-render-cell .font-tag {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-faint);
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    margin-bottom: 10px;
+  }
+
+  .live-render-cell .live-ar {
+    font-size: 36px;
+    direction: rtl;
+    text-align: right;
+    color: var(--text);
+    line-height: 1.6;
+    min-height: 52px;
+    word-break: break-word;
+  }
+
+  /* === SPECIAL LIGATURES === */
+  .special-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    gap: 10px;
+  }
+
+  .special-card {
+    background: var(--surface);
+    border: 1px solid rgba(255,255,255,0.04);
+    border-radius: var(--radius-sm);
+    padding: 24px 20px;
+    text-align: center;
+    transition: all 0.2s ease;
+  }
+
+  .special-card:hover {
+    border-color: rgba(232, 196, 122, 0.15);
+  }
+
+  .special-ar {
+    font-size: 52px;
+    color: var(--warm);
+    line-height: 1.3;
+    direction: rtl;
+    margin-bottom: 8px;
+  }
+
+  .special-label {
+    font-size: 14px;
+    color: var(--text);
+    font-weight: 500;
+  }
+
+  .special-note {
+    font-size: 12px;
+    color: var(--text-faint);
+    margin-top: 4px;
+    line-height: 1.5;
+  }
+
+  /* === FONT DETAILS BOXES === */
+  .font-detail-cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 12px;
+    margin-top: 28px;
+  }
+
+  .font-detail-card {
+    background: var(--surface);
+    border: 1px solid rgba(255,255,255,0.04);
+    border-radius: var(--radius-sm);
+    padding: 20px;
+  }
+
+  .font-detail-card h4 {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text);
+    margin-bottom: 6px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .font-detail-card p {
+    font-size: 13px;
+    color: var(--text-dim);
+    line-height: 1.6;
+  }
+
+  .font-detail-card .sample {
+    font-size: 28px;
+    direction: rtl;
+    text-align: right;
+    color: var(--text);
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px solid rgba(255,255,255,0.04);
+    line-height: 1.6;
+  }
+
+  /* === NAV === */
+  .nav-bar {
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    background: rgba(10, 10, 20, 0.85);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border-bottom: 1px solid rgba(255,255,255,0.04);
+    padding: 0 32px;
+  }
+
+  .nav-inner {
+    max-width: 1100px;
+    margin: 0 auto;
+    display: flex;
+    gap: 4px;
+    overflow-x: auto;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+
+  .nav-inner::-webkit-scrollbar { display: none; }
+
+  .nav-link {
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--text-dim);
+    text-decoration: none;
+    padding: 14px 14px;
+    white-space: nowrap;
+    transition: color 0.2s ease;
+    border-bottom: 2px solid transparent;
+  }
+
+  .nav-link:hover {
+    color: var(--text);
+  }
+
+  .nav-link.active {
+    color: var(--accent);
+    border-bottom-color: var(--accent);
+  }
+
+  /* === RESPONSIVE === */
+  @media (max-width: 700px) {
+    .page-wrapper { padding: 40px 16px 80px; }
+    .hero { padding: 40px 0 40px; }
+    .hero-ar { font-size: 48px; }
+    .hero h1 { font-size: 24px; }
+    .forms-grid { grid-template-columns: 1fr; }
+    .live-renders { grid-template-columns: 1fr; }
+    .font-compare-table .ar-sample { font-size: 26px; }
+    .interactive-box { padding: 20px; }
+    .input-row { flex-direction: column; align-items: stretch; }
+    .pairs-grid { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<nav class="nav-bar">
+  <div class="nav-inner">
+    <a href="#letters" class="nav-link">Letter Forms</a>
+    <a href="#mandatory" class="nav-link">Mandatory</a>
+    <a href="#special" class="nav-link">Special</a>
+    <a href="#compare" class="nav-link">Font Comparison</a>
+    <a href="#tricky" class="nav-link">Tricky Pairs</a>
+    <a href="#interactive" class="nav-link">Try It</a>
+  </div>
+</nav>
+
+<div class="page-wrapper">
+
+  <!-- HERO -->
+  <header class="hero">
+    <div class="hero-ar">الخط العربي</div>
+    <h1>Arabic Ligatures &amp; Letter Forms</h1>
+    <p>Arabic letters change shape depending on their position in a word. Some letter combinations produce <em>ligatures</em> — merged forms that look dramatically different from their components. This guide covers every form you'll encounter as a reader.</p>
+  </header>
+
+  <!-- SECTION 1: ALL 28 LETTER FORMS -->
+  <section id="letters">
+    <div class="section-label">Foundations</div>
+    <div class="section-title">The 28 Letters in All Positions</div>
+    <div class="section-desc">Every Arabic letter has up to four forms: isolated, initial (start of word), medial (middle), and final (end). Six letters (د ذ ر ز و ا) don't connect to the left, so they lack medial and initial forms — they break the connection.</div>
+
+    <div class="forms-grid" id="letterGrid"></div>
+  </section>
+
+  <!-- SECTION 2: MANDATORY LIGATURES -->
+  <section id="mandatory">
+    <div class="section-label">Essential</div>
+    <div class="section-title">Mandatory Ligatures</div>
+    <div class="section-desc">These combinations are rendered as a single glyph in every Arabic font — they're not optional. The lam-alif family is the most important ligature in Arabic.</div>
+
+    <div class="lig-grid" id="mandatoryGrid"></div>
+  </section>
+
+  <!-- SECTION 3: SPECIAL / WORD LIGATURES -->
+  <section id="special">
+    <div class="section-label">Notable</div>
+    <div class="section-title">Special Word Ligatures</div>
+    <div class="section-desc">Some fonts render entire common words or phrases as unified calligraphic ligatures. Amiri is the most aggressive — it produces ligatures that other fonts don't. These appear primarily in religious and formal texts.</div>
+
+    <div class="special-grid">
+      <div class="special-card">
+        <div class="special-ar font-amiri">الله</div>
+        <div class="special-label">Allāh</div>
+        <div class="lig-pron">/ʔal.laːh/</div>
+        <div class="special-note">The lām is doubled (shadda) and "dark" (velarized). The 'a' sounds deep, like "aw". Amiri renders the full calligraphic form with a superscript alif (dagger alif) over the lām.</div>
+      </div>
+      <div class="special-card">
+        <div class="special-ar font-amiri">لله</div>
+        <div class="special-label">li-llāh (for God)</div>
+        <div class="lig-pron">/lil.laːh/</div>
+        <div class="special-note">The preposition لِ (li, "for/to") attached to الله. The initial alif of الله drops. Amiri renders as a single glyph.</div>
+      </div>
+      <div class="special-card">
+        <div class="special-ar font-amiri">بسم الله</div>
+        <div class="special-label">bismillāh</div>
+        <div class="lig-pron">/bis.mil.laːh/</div>
+        <div class="special-note">"In the name of God." بِاسم contracts to بِسم — the alif of اسم drops after a preposition. Three clitics fused into one breath.</div>
+      </div>
+      <div class="special-card">
+        <div class="special-ar font-amiri">ﷺ</div>
+        <div class="special-label">ṣallā allāhu ʿalayhi wa-sallam</div>
+        <div class="lig-pron">/sˤal.laː ʔal.laː.hu ʕa.laj.hi wa.sal.lam/</div>
+        <div class="special-note">"May God bless him and grant him peace." A single Unicode codepoint (U+FDFA) for the entire honorific phrase. Rendering varies hugely by font.</div>
+      </div>
+      <div class="special-card">
+        <div class="special-ar font-amiri">الرحمن</div>
+        <div class="special-label">al-raḥmān (The Merciful)</div>
+        <div class="lig-pron">/ʔar.raħ.maːn/</div>
+        <div class="special-note">The lām assimilates to rā' (sun letter): الر → "ar-r". The ح is the deep pharyngeal 'h'. Note the lam-rā connection and long ā before final nūn.</div>
+      </div>
+      <div class="special-card">
+        <div class="special-ar font-amiri">محمد</div>
+        <div class="special-label">Muḥammad</div>
+        <div class="lig-pron">/mu.ħam.mad/</div>
+        <div class="special-note">Dense mīm-ḥā-mīm cluster with doubled mīm (shadda). The ح is the pharyngeal, not a simple 'h'. Aggressive fonts merge the three similar-height letters tightly.</div>
+      </div>
+    </div>
+
+    <div class="font-detail-cards">
+      <div class="font-detail-card">
+        <h4><span class="badge badge-print">Print</span> Amiri</h4>
+        <p>Based on the Bulaq press tradition (19th-century Egypt). The most elaborate ligatures of any Google Font — produces Allah and lillah ligatures automatically. Closest to printed Arabic books.</p>
+        <div class="sample font-amiri">الحمد لله رب العالمين</div>
+      </div>
+      <div class="font-detail-card">
+        <h4><span class="badge badge-learn">Learner</span> Scheherazade New</h4>
+        <p>By SIL International for linguistic and scholarly work. Conservative ligatures with the best diacritic positioning — marks stay close to their letters. Optimized for transparency and readability.</p>
+        <div class="sample font-scheherazade">الحمد لله رب العالمين</div>
+      </div>
+      <div class="font-detail-card">
+        <h4><span class="badge badge-std">Standard</span> Noto Naskh Arabic</h4>
+        <p>Google's standard Arabic font from the Noto family ("no tofu"). Clean, moderate ligatures. Widest Unicode coverage. A good middle ground between Amiri and Scheherazade.</p>
+        <div class="sample font-noto">الحمد لله رب العالمين</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- SECTION 4: FONT COMPARISON TABLE -->
+  <section id="compare">
+    <div class="section-label">Side by Side</div>
+    <div class="section-title">Font Comparison</div>
+    <div class="section-desc">The same text rendered in each font. Pay attention to how letter connections, spacing, and vertical proportions differ. These differences add up to very different reading experiences.</div>
+
+    <table class="font-compare-table">
+      <thead>
+        <tr>
+          <th>Font</th>
+          <th>Sample</th>
+        </tr>
+      </thead>
+      <tbody id="compareBody"></tbody>
+    </table>
+  </section>
+
+  <!-- SECTION 5: TRICKY LETTER PAIRS -->
+  <section id="tricky">
+    <div class="section-label">Watch Out</div>
+    <div class="section-title">Confusable Letter Pairs</div>
+    <div class="section-desc">These groups share the same base shape and differ only by dots, or have very similar forms in certain positions. Learners frequently mix them up, especially in connected text.</div>
+
+    <div class="pairs-grid" id="pairsGrid"></div>
+  </section>
+
+  <!-- SECTION 6: INTERACTIVE -->
+  <section id="interactive">
+    <div class="section-label">Playground</div>
+    <div class="section-title">Try It Yourself</div>
+    <div class="section-desc">Type or paste Arabic text to see how it renders in each font.</div>
+
+    <div class="interactive-box">
+      <div class="input-row">
+        <label for="arInput">Arabic text:</label>
+        <input type="text" id="arInput" class="arabic-input" placeholder="اكتب هنا..." value="ذهب الولد الصغير إلى المدرسة">
+      </div>
+      <div class="live-renders">
+        <div class="live-render-cell">
+          <div class="font-tag">Amiri</div>
+          <div class="live-ar font-amiri" id="liveAmiri"></div>
+        </div>
+        <div class="live-render-cell">
+          <div class="font-tag">Scheherazade New</div>
+          <div class="live-ar font-scheherazade" id="liveSch"></div>
+        </div>
+        <div class="live-render-cell">
+          <div class="font-tag">Noto Naskh Arabic</div>
+          <div class="live-ar font-noto" id="liveNoto"></div>
+        </div>
+        <div class="live-render-cell">
+          <div class="font-tag">System Arabic</div>
+          <div class="live-ar font-system" id="liveSys"></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+</div>
+
+<script>
+// === DATA ===
+
+const LETTERS = [
+  { name: "Alif", iso: "ا", init: "ا", med: "ـا", fin: "ـا", noConnect: true,
+    ipa: "/ʔ/ or /aː/", approx: "Glottal stop (uh-oh) or long 'aa'. Carrier for vowels and hamza. Silent when part of definite article ال." },
+  { name: "Bā'", iso: "ب", init: "بـ", med: "ـبـ", fin: "ـب",
+    ipa: "/b/", approx: "Like English 'b' in 'boy'. Identical sound." },
+  { name: "Tā'", iso: "ت", init: "تـ", med: "ـتـ", fin: "ـت",
+    ipa: "/t/", approx: "Like English 't' in 'tea', but dental — tongue touches teeth, not ridge behind teeth." },
+  { name: "Thā'", iso: "ث", init: "ثـ", med: "ـثـ", fin: "ـث",
+    ipa: "/θ/", approx: "Like 'th' in 'think'. Voiceless. Many dialects merge this with /t/ or /s/." },
+  { name: "Jīm", iso: "ج", init: "جـ", med: "ـجـ", fin: "ـج",
+    ipa: "/dʒ/", approx: "Like 'j' in 'judge' (MSA). Egyptian: hard 'g'. Levantine: 'zh'." },
+  { name: "Ḥā'", iso: "ح", init: "حـ", med: "ـحـ", fin: "ـح",
+    ipa: "/ħ/", approx: "Voiceless pharyngeal. A deep, breathy 'h' from the throat — like fogging a mirror intensely. No English equivalent." },
+  { name: "Khā'", iso: "خ", init: "خـ", med: "ـخـ", fin: "ـخ",
+    ipa: "/x/", approx: "Like 'ch' in Scottish 'loch' or German 'Bach'. Friction at back of mouth." },
+  { name: "Dāl", iso: "د", init: "د", med: "ـد", fin: "ـد", noConnect: true,
+    ipa: "/d/", approx: "Like English 'd' in 'door', but dental — tongue against upper teeth." },
+  { name: "Dhāl", iso: "ذ", init: "ذ", med: "ـذ", fin: "ـذ", noConnect: true,
+    ipa: "/ð/", approx: "Like 'th' in 'this' (voiced). Many dialects merge with /d/ or /z/." },
+  { name: "Rā'", iso: "ر", init: "ر", med: "ـر", fin: "ـر", noConnect: true,
+    ipa: "/r/", approx: "Rolled/trilled 'r', like Spanish 'rr'. Never the English soft 'r'." },
+  { name: "Zāy", iso: "ز", init: "ز", med: "ـز", fin: "ـز", noConnect: true,
+    ipa: "/z/", approx: "Like 'z' in 'zoo'. Identical sound." },
+  { name: "Sīn", iso: "س", init: "سـ", med: "ـسـ", fin: "ـس",
+    ipa: "/s/", approx: "Like 's' in 'sun'. Clear, bright 's' — compare with emphatic ص." },
+  { name: "Shīn", iso: "ش", init: "شـ", med: "ـشـ", fin: "ـش",
+    ipa: "/ʃ/", approx: "Like 'sh' in 'ship'. Identical sound." },
+  { name: "Ṣād", iso: "ص", init: "صـ", med: "ـصـ", fin: "ـص",
+    ipa: "/sˤ/", approx: "Emphatic 's'. Tongue root pulls back, darkening nearby vowels: 'a' → 'aw'-ish. صَبر sounds deeper than سَبب." },
+  { name: "Ḍād", iso: "ض", init: "ضـ", med: "ـضـ", fin: "ـض",
+    ipa: "/dˤ/", approx: "Emphatic 'd'. Same tongue-root retraction as ṣād. Arabic is called 'the language of ḍād' — this sound is unique to it." },
+  { name: "Ṭā'", iso: "ط", init: "طـ", med: "ـطـ", fin: "ـط",
+    ipa: "/tˤ/", approx: "Emphatic 't'. Darkens surrounding vowels. طَبخ sounds like 'tawbkh', not 'tabkh'." },
+  { name: "Ẓā'", iso: "ظ", init: "ظـ", med: "ـظـ", fin: "ـظ",
+    ipa: "/ðˤ/", approx: "Emphatic 'dh' (voiced). Like ذ but with tongue-root retraction. Many dialects pronounce as /zˤ/." },
+  { name: "ʿAyn", iso: "ع", init: "عـ", med: "ـعـ", fin: "ـع",
+    ipa: "/ʕ/", approx: "Voiced pharyngeal. A deep, strangled sound from the throat. No English equivalent. The hardest letter for most learners." },
+  { name: "Ghayn", iso: "غ", init: "غـ", med: "ـغـ", fin: "ـغ",
+    ipa: "/ɣ/", approx: "Like a French/German 'r' (gargling). Voiced version of خ. Similar to soft 'g' in some Spanish dialects." },
+  { name: "Fā'", iso: "ف", init: "فـ", med: "ـفـ", fin: "ـف",
+    ipa: "/f/", approx: "Like 'f' in 'far'. Identical sound." },
+  { name: "Qāf", iso: "ق", init: "قـ", med: "ـقـ", fin: "ـق",
+    ipa: "/q/", approx: "Uvular stop — a very deep 'k' from the back of the throat. Further back than English 'k'. Darkens nearby vowels." },
+  { name: "Kāf", iso: "ك", init: "كـ", med: "ـكـ", fin: "ـك",
+    ipa: "/k/", approx: "Like 'k' in 'king'. Standard velar stop — compare with the deeper قāf." },
+  { name: "Lām", iso: "ل", init: "لـ", med: "ـلـ", fin: "ـل",
+    ipa: "/l/", approx: "Like 'l' in 'lamp'. In the word الله (Allāh), it's pronounced 'dark' (velarized)." },
+  { name: "Mīm", iso: "م", init: "مـ", med: "ـمـ", fin: "ـم",
+    ipa: "/m/", approx: "Like 'm' in 'moon'. Identical sound." },
+  { name: "Nūn", iso: "ن", init: "نـ", med: "ـنـ", fin: "ـن",
+    ipa: "/n/", approx: "Like 'n' in 'noon'. Assimilates before certain letters (sun letters): الشّمس = ash-shams." },
+  { name: "Hā'", iso: "ه", init: "هـ", med: "ـهـ", fin: "ـه",
+    ipa: "/h/", approx: "Like 'h' in 'hello'. Lighter than ح — produced in the larynx, not the pharynx." },
+  { name: "Wāw", iso: "و", init: "و", med: "ـو", fin: "ـو", noConnect: true,
+    ipa: "/w/ or /uː/", approx: "As consonant: 'w' in 'water'. As vowel: long 'oo' as in 'food'. Context determines which." },
+  { name: "Yā'", iso: "ي", init: "يـ", med: "ـيـ", fin: "ـي",
+    ipa: "/j/ or /iː/", approx: "As consonant: 'y' in 'yes'. As vowel: long 'ee' as in 'feet'. Alif maqṣūra (ى) looks the same but is always /aː/." },
+];
+
+const MANDATORY = [
+  { ar: "لا", label: "Lām-Alif", decomp: "ل + ا",
+    pron: "/laː/", note: "Pronounced 'laa' — the most common ligature in Arabic. Appears in لا (no/not) and hundreds of words." },
+  { ar: "لأ", label: "Lām-Alif hamza above", decomp: "ل + أ",
+    pron: "/laʔ/", note: "Pronounced 'la' + glottal stop. The hamza adds a catch. As in لأنّ (li'anna, because) or لأجل (li'ajl, for the sake of)." },
+  { ar: "لإ", label: "Lām-Alif hamza below", decomp: "ل + إ",
+    pron: "/liʔ/", note: "Pronounced 'li' + glottal stop. The hamza below signals a kasra (i-vowel). As in لإنسان — but rare, since إ mostly starts words." },
+  { ar: "لآ", label: "Lām-Alif madda", decomp: "ل + آ",
+    pron: "/laːʔ/", note: "Pronounced 'laa' with an extra-long vowel. The madda (~) means alif + hamza + alif. Used in الآن (al-ʾān, now)." },
+  { ar: "لى", label: "Lām-Alif maqṣūra", decomp: "ل + ى",
+    pron: "/laː/", note: "Sounds identical to لا — the alif maqṣūra is just a spelling variant of alif at word end. As in على (ʿalā, on) and إلى (ʾilā, to)." },
+];
+
+const COMPARE_SAMPLES = [
+  "بسم الله الرحمن الرحيم",
+  "لا إله إلا الله",
+  "ذهبتُ إلى المكتبة لأقرأ كتابًا جديدًا",
+  "العلم نور والجهل ظلام",
+  "الأطفال يلعبون في الحديقة الكبيرة",
+];
+
+const FONTS = [
+  { name: "Amiri", cls: "font-amiri", badge: '<span class="badge badge-print">Print</span>' },
+  { name: "Scheherazade New", cls: "font-scheherazade", badge: '<span class="badge badge-learn">Learner</span>' },
+  { name: "Noto Naskh Arabic", cls: "font-noto", badge: '<span class="badge badge-std">Standard</span>' },
+  { name: "System Arabic", cls: "font-system", badge: '' },
+];
+
+const TRICKY_PAIRS = [
+  {
+    letters: "ب ت ث",
+    name: "Dots only",
+    pronTip: "/b/ vs /t/ vs /θ/ — 'b' as in boy, 't' as in tea, 'th' as in think. Completely different sounds, identical base shape. Dots are the only visual cue: 1 below, 2 above, 3 above.",
+    examples: [
+      { ar: "بيت", gloss: "house — /bajt/" },
+      { ar: "تين", gloss: "figs — /tiːn/" },
+      { ar: "ثلاثة", gloss: "three — /θa.laː.θa/" },
+      { ar: "بنت", gloss: "girl — /bint/ (all three!)" },
+    ]
+  },
+  {
+    letters: "ج ح خ",
+    name: "Bowl shape",
+    pronTip: "/dʒ/ vs /ħ/ vs /x/ — completely different sound families. ج is a stop (like 'judge'), ح is a pharyngeal breath, خ is back-of-mouth friction (like 'loch'). Dot below, no dot, dot above.",
+    examples: [
+      { ar: "جمل", gloss: "camel — /dʒa.mal/" },
+      { ar: "حب", gloss: "love — /ħubb/" },
+      { ar: "خبز", gloss: "bread — /xubz/" },
+      { ar: "حجر", gloss: "stone — /ħa.dʒar/" },
+    ]
+  },
+  {
+    letters: "د ذ",
+    name: "Dot above",
+    pronTip: "/d/ vs /ð/ — 'd' as in door vs 'th' as in this (voiced). Both dental, but ذ has airflow between tongue and teeth. In many dialects both merge to /d/.",
+    examples: [
+      { ar: "دار", gloss: "house — /daːr/" },
+      { ar: "ذهب", gloss: "gold — /ða.hab/" },
+      { ar: "أخذ", gloss: "he took — /ʔa.xa.ða/" },
+      { ar: "درس", gloss: "lesson — /dars/" },
+    ]
+  },
+  {
+    letters: "ر ز",
+    name: "Dot above",
+    pronTip: "/r/ vs /z/ — rolled 'r' (tongue trill) vs 'z' as in zoo. Very different sounds. The only visual difference is the dot above ز.",
+    examples: [
+      { ar: "رجل", gloss: "man — /ra.dʒul/" },
+      { ar: "زيت", gloss: "oil — /zajt/" },
+      { ar: "رز", gloss: "rice — /ruzz/" },
+      { ar: "زار", gloss: "he visited — /zaːr/" },
+    ]
+  },
+  {
+    letters: "س ش",
+    name: "Triple dots",
+    pronTip: "/s/ vs /ʃ/ — 's' as in sun vs 'sh' as in ship. Same base shape (teeth). Three dots above turn sīn into shīn. In handwriting the dots often merge into a caret (ˇ).",
+    examples: [
+      { ar: "سمك", gloss: "fish — /sa.mak/" },
+      { ar: "شمس", gloss: "sun — /ʃams/" },
+      { ar: "شكل", gloss: "shape — /ʃakl/" },
+      { ar: "سكر", gloss: "sugar — /suk.kar/" },
+    ]
+  },
+  {
+    letters: "ص ض",
+    name: "Dot above",
+    pronTip: "/sˤ/ vs /dˤ/ — both emphatic (tongue root retracted), but ص is a fricative ('s'-like) and ض is a stop ('d'-like). Both darken surrounding vowels. The dot above is the only visual difference.",
+    examples: [
+      { ar: "صبر", gloss: "patience — /sˤabr/" },
+      { ar: "ضرب", gloss: "he hit — /dˤa.ra.ba/" },
+      { ar: "أرض", gloss: "earth — /ʔardˤ/" },
+      { ar: "صدق", gloss: "truth — /sˤidq/" },
+    ]
+  },
+  {
+    letters: "ط ظ",
+    name: "Dot above",
+    pronTip: "/tˤ/ vs /ðˤ/ — emphatic 't' vs emphatic 'th'. Both darken nearby vowels. ط is a hard stop, ظ has airflow (like ذ but emphatic). Many dialects merge ظ into /zˤ/.",
+    examples: [
+      { ar: "طفل", gloss: "child — /tˤifl/" },
+      { ar: "ظهر", gloss: "noon — /ðˤuhr/" },
+      { ar: "طبخ", gloss: "cooking — /tˤabx/" },
+      { ar: "نظر", gloss: "he looked — /na.ðˤa.ra/" },
+    ]
+  },
+  {
+    letters: "ع غ",
+    name: "Dot above",
+    pronTip: "/ʕ/ vs /ɣ/ — voiced pharyngeal vs voiced velar fricative. ع is the deep throat squeeze (no English equivalent). غ is like a French/German 'r'. Despite similar shape, the sounds are from different parts of the throat.",
+    examples: [
+      { ar: "عين", gloss: "eye — /ʕajn/" },
+      { ar: "غابة", gloss: "forest — /ɣaː.ba/" },
+      { ar: "عرب", gloss: "Arabs — /ʕa.rab/" },
+      { ar: "غريب", gloss: "strange — /ɣa.riːb/" },
+    ]
+  },
+  {
+    letters: "ف ق",
+    name: "Dot position",
+    pronTip: "/f/ vs /q/ — lip fricative vs deep uvular stop. Completely different articulation. ف has one dot above, ق has two dots above. In many fonts medial forms look very similar — dot position is the key cue.",
+    examples: [
+      { ar: "فيل", gloss: "elephant — /fiːl/" },
+      { ar: "قلب", gloss: "heart — /qalb/" },
+      { ar: "فقط", gloss: "only — /fa.qatˤ/" },
+      { ar: "قفل", gloss: "lock — /qufl/" },
+    ]
+  },
+  {
+    letters: "ه ة",
+    name: "Tā marbūṭa",
+    pronTip: "/h/ vs /a/ or /at/ — ه is always 'h'. ة (tā marbūṭa) is pronounced /a/ in pause (مدينة = madīna) but /at/ in iḍāfa construct (مدينةُ القاهرة = madīnat al-qāhira). Visually: ة has two dots above, ه doesn't.",
+    examples: [
+      { ar: "هذه", gloss: "this f. — /haː.ði.hi/" },
+      { ar: "مدينة", gloss: "city — /ma.diː.na/" },
+      { ar: "كلمة", gloss: "word — /ka.li.ma/" },
+      { ar: "وجه", gloss: "face — /wadʒh/" },
+    ]
+  },
+];
+
+// === RENDER ===
+
+function renderLetterGrid() {
+  const grid = document.getElementById('letterGrid');
+  const positions = ['iso', 'init', 'med', 'fin'];
+  const posLabels = { iso: 'Alone', init: 'Start', med: 'Mid', fin: 'End' };
+
+  grid.innerHTML = LETTERS.map(l => `
+    <div class="letter-card">
+      <div class="letter-card-name">${l.name}${l.noConnect ? ' <span style="color:var(--coral);font-size:10px">· non-connecting</span>' : ''}</div>
+      <div class="letter-card-pron"><span class="ipa">${l.ipa}</span> <span class="approx">— ${l.approx}</span></div>
+      <div class="letter-forms-row">
+        ${positions.map(p => `
+          <div class="letter-form-cell">
+            <span class="ar">${l[p]}</span>
+            <div class="pos">${posLabels[p]}</div>
+          </div>
+        `).join('')}
+      </div>
+    </div>
+  `).join('');
+}
+
+function renderMandatoryGrid() {
+  const grid = document.getElementById('mandatoryGrid');
+  grid.innerHTML = MANDATORY.map(l => `
+    <div class="lig-card">
+      <div class="lig-ar">${l.ar}</div>
+      <div class="lig-label">${l.label}</div>
+      <div class="lig-decomp">${l.decomp}</div>
+      <div class="lig-pron">${l.pron}</div>
+      <div class="lig-pron-note">${l.note}</div>
+    </div>
+  `).join('');
+}
+
+function renderCompareTable() {
+  const tbody = document.getElementById('compareBody');
+  const sampleText = COMPARE_SAMPLES.join(' ۞ ');
+
+  tbody.innerHTML = FONTS.map(f => `
+    <tr>
+      <td class="font-name">${f.name} ${f.badge}</td>
+      <td class="ar-sample ${f.cls}">${sampleText}</td>
+    </tr>
+  `).join('');
+}
+
+function renderPairsGrid() {
+  const grid = document.getElementById('pairsGrid');
+  grid.innerHTML = TRICKY_PAIRS.map(p => `
+    <div class="pair-card">
+      <div class="pair-header">
+        <div class="pair-letters">${p.letters}</div>
+        <div class="pair-name">${p.name}</div>
+      </div>
+      <div class="pair-pron-tip">${p.pronTip}</div>
+      <div class="pair-connected">
+        ${p.examples.map(e => `
+          <div class="pair-example">
+            <div class="ar">${e.ar}</div>
+            <div class="gloss">${e.gloss}</div>
+          </div>
+        `).join('')}
+      </div>
+    </div>
+  `).join('');
+}
+
+function setupInteractive() {
+  const input = document.getElementById('arInput');
+  const targets = ['liveAmiri', 'liveSch', 'liveNoto', 'liveSys'];
+
+  function update() {
+    const val = input.value || '';
+    targets.forEach(id => {
+      document.getElementById(id).textContent = val;
+    });
+  }
+
+  input.addEventListener('input', update);
+  update();
+}
+
+// Nav active state on scroll
+function setupNav() {
+  const links = document.querySelectorAll('.nav-link');
+  const sections = Array.from(links).map(l => {
+    const id = l.getAttribute('href').slice(1);
+    return { link: l, el: document.getElementById(id) };
+  }).filter(s => s.el);
+
+  function onScroll() {
+    const y = window.scrollY + 100;
+    let active = sections[0];
+    for (const s of sections) {
+      if (s.el.offsetTop <= y) active = s;
+    }
+    links.forEach(l => l.classList.remove('active'));
+    if (active) active.link.classList.add('active');
+  }
+
+  window.addEventListener('scroll', onScroll, { passive: true });
+  onScroll();
+}
+
+// === INIT ===
+renderLetterGrid();
+renderMandatoryGrid();
+renderCompareTable();
+renderPairsGrid();
+setupInteractive();
+setupNav();
+</script>
+</body>
+</html>
