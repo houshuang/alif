@@ -6,7 +6,7 @@
 > topics, grammar, listening) interact. It also identifies where the current
 > implementation diverges from the research and stated intentions.
 >
-> **Last updated**: 2026-03-18
+> **Last updated**: 2026-03-20
 > **Canonical location**: `docs/scheduling-system.md`
 > **Keep this document up to date with every algorithm change.**
 
@@ -769,8 +769,7 @@ check how many are in a "known" state:
 ```
 scaffold = [w for w in content_words if not w.is_due and not w.is_function_word]
 known = count where:
-  - state in (known, learning, lapsed), OR
-  - state == acquiring AND stability >= 0.5 (i.e. past box 1)
+  - state in (known, learning, lapsed, acquiring)
 comprehensibility = known / len(scaffold)
 if comprehensibility < 0.60: SKIP this sentence
 ```
@@ -781,9 +780,9 @@ count against the threshold rather than being silently excluded.
 Key design choices:
 - **Scaffold-only**: Due words (being reviewed this session) are excluded from the check —
   they're expected to be challenging.
-- **Box-1 acquiring excluded**: Words freshly introduced (box 1, stability 0.1) don't
-  count as "known". This prevents book-imported sentences from appearing when all their
-  words were batch-imported simultaneously and haven't been reviewed yet.
+- **All acquiring words count as known**: Words in the Leitner pipeline (any box) are
+  actively being studied and the user has engaged with them in context. Previous box≥2
+  gate caused session starvation after collateral credit introductions (2026-03-19).
 - **Encountered does NOT count**: Passively imported words (OCR, book, story) that haven't
   been studied are treated as unknown. On-demand generation handles bootstrap.
 - **60% threshold** (lowered from 70%) — the scaffold-only denominator is smaller, so 60%
@@ -1798,6 +1797,38 @@ terms.
 vocabulary pre-flash.
 
 **Gap**: Could improve listening comprehension with a simple UI addition.
+
+### 19.17 Gate Audit Discipline — Lesson Learned (2026-03-19)
+
+**Problem**: The collateral credit change (2026-03-18) altered the word lifecycle — encountered
+words now auto-introduce as box-1 acquiring during review. But the comprehensibility gate
+still required `stability >= 0.5` for acquiring words, which box-1 doesn't have. Result:
+sessions collapsed to 1 card because nearly all sentences failed the gate.
+
+Similarly, variant detection's enclitic fallback bypassed gloss overlap, causing semantically
+unrelated words (صيادية "dish" → صياد "hunter") to merge. The mapping verification pipeline
+didn't catch this because it operates at sentence_word→lemma level, not lemma→canonical level.
+
+**Principle**: When any algorithm or flow changes word states or how words move between states,
+**every gate, filter, and threshold that operates on those states must be audited**. Gates in
+the codebase that filter on `knowledge_state`, `stability`, or `canonical_lemma_id`:
+
+| Gate | Location | Filters on |
+|------|----------|------------|
+| Comprehensibility gate | `sentence_selector.py` (×2: build_session + fill) | knowledge_state, stability |
+| Unknown scaffold cap | `sentence_selector.py` | knowledge_state |
+| Pipeline backlog gate | `sentence_selector.py` | acquiring count |
+| Focus cohort | `cohort_service.py` | knowledge_state |
+| Variant resolution | `sentence_selector.py` | canonical_lemma_id |
+| Mapping verification | `sentence_validator.py` | lemma_id (not canonical!) |
+| Intro card filter | `sentence_selector.py` | times_seen, experiment_group |
+| Listening readiness | `sentence_selector.py` | listening_ready set |
+| Function word exclusion | `sentence_selector.py` | lemma_ar_bare |
+
+**Checklist for any lifecycle/state change**:
+1. List all gates that reference the affected state field
+2. For each gate: does the new flow produce values the gate doesn't expect?
+3. For any verification layer: does it operate at the right abstraction level?
 
 ---
 

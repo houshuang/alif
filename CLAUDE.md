@@ -131,7 +131,10 @@ For changes that touch core algorithm files (`sentence_selector.py`, `session_bu
 
 Direct commits to `main` are OK for: documentation-only changes, single-file bug fixes, test additions, and changes the user explicitly asked to deploy immediately.
 
-### 8. Code Style
+### 8. Gate Audit on Lifecycle Changes
+When changing how words move between states (encountered → acquiring → FSRS) or adding new flows that alter word states, **audit every gate and filter that operates on those states**. Gates include: comprehensibility gate (×2), unknown scaffold cap, pipeline backlog gate, focus cohort, variant resolution, intro card filter, listening readiness, function word exclusion. The full gate registry is in `docs/scheduling-system.md` §19.17. Lesson learned: the collateral credit change (2026-03-18) broke sessions because the comprehensibility gate wasn't updated for the new box-1 acquiring words it created.
+
+### 9. Code Style
 - Python: type hints, pydantic models for API schemas
 - TypeScript: strict mode, functional components
 - No test plans or checklists in PR descriptions
