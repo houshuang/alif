@@ -1914,7 +1914,13 @@ function SentenceReadingCard({
   onWordTap: (index: number, lemmaId: number | null) => void;
 }) {
   const showAnswer = cardState === "back";
-  const { font: sentenceFont } = arabicFontForSentence(item.sentence_id);
+
+  const [useAmiri, setUseAmiri] = useState<boolean | null>(null);
+  const [tashkeelHidden, setTashkeelHidden] = useState(false);
+  const defaultIsAmiri = item.sentence_id != null && item.sentence_id % 2 === 0;
+  const isAmiri = useAmiri ?? defaultIsAmiri;
+  const sentenceFont = isAmiri ? fontFamily.arabicAmiri : fontFamily.arabic;
+  const fontLabel = isAmiri ? "Amiri" : "Scheherazade";
 
   return (
     <>
@@ -1934,12 +1940,22 @@ function SentenceReadingCard({
                 onPress={() => onWordTap(i, word.lemma_id ?? null)}
                 style={wordStyle}
               >
-                {!showAnswer && word.show_tashkeel === false ? stripDiacritics(word.surface_form) : word.surface_form}
+                {!showAnswer && (tashkeelHidden || word.show_tashkeel === false) ? stripDiacritics(word.surface_form) : word.surface_form}
               </Text>
             </Text>
           );
         })}
       </Text>
+
+      <View style={styles.cardToggles}>
+        <Pressable onPress={() => setUseAmiri(!isAmiri)} style={styles.cardTogglePill}>
+          <Text style={styles.cardToggleLabel}>{fontLabel}</Text>
+        </Pressable>
+        <Text style={styles.cardToggleSep}>·</Text>
+        <Pressable onPress={() => setTashkeelHidden(!tashkeelHidden)} style={styles.cardTogglePill}>
+          <Text style={[styles.cardToggleLabel, tashkeelHidden && styles.cardToggleOff]}>تشكيل</Text>
+        </Pressable>
+      </View>
 
       <View
         style={[
@@ -2027,7 +2043,13 @@ function SentenceListeningCard({
   }
 
   const showAnswer = cardState === "answer";
-  const { font: sentenceFont } = arabicFontForSentence(item.sentence_id);
+
+  const [useAmiri, setUseAmiri] = useState<boolean | null>(null);
+  const [tashkeelHidden, setTashkeelHidden] = useState(false);
+  const defaultIsAmiri = item.sentence_id != null && item.sentence_id % 2 === 0;
+  const isAmiri = useAmiri ?? defaultIsAmiri;
+  const sentenceFont = isAmiri ? fontFamily.arabicAmiri : fontFamily.arabic;
+  const fontLabel = isAmiri ? "Amiri" : "Scheherazade";
 
   return (
     <>
@@ -2048,12 +2070,22 @@ function SentenceListeningCard({
                 onPress={() => onToggleMissed(i)}
                 style={wordStyle}
               >
-                {!showAnswer && word.show_tashkeel === false ? stripDiacritics(word.surface_form) : word.surface_form}
+                {!showAnswer && (tashkeelHidden || word.show_tashkeel === false) ? stripDiacritics(word.surface_form) : word.surface_form}
               </Text>
             </Text>
           );
         })}
       </Text>
+
+      <View style={styles.cardToggles}>
+        <Pressable onPress={() => setUseAmiri(!isAmiri)} style={styles.cardTogglePill}>
+          <Text style={styles.cardToggleLabel}>{fontLabel}</Text>
+        </Pressable>
+        <Text style={styles.cardToggleSep}>·</Text>
+        <Pressable onPress={() => setTashkeelHidden(!tashkeelHidden)} style={styles.cardTogglePill}>
+          <Text style={[styles.cardToggleLabel, tashkeelHidden && styles.cardToggleOff]}>تشكيل</Text>
+        </Pressable>
+      </View>
 
       <AudioControls audioPlaying={audioPlaying} onReplay={onReplay} onReplaySlow={onReplaySlow} />
 
@@ -2983,6 +3015,32 @@ const styles = StyleSheet.create({
     writingDirection: "rtl",
     textAlign: "center",
     lineHeight: 64,
+  },
+  cardToggles: {
+    flexDirection: "row" as const,
+    alignItems: "center" as const,
+    justifyContent: "center" as const,
+    gap: 8,
+    marginTop: 6,
+    marginBottom: 2,
+  },
+  cardTogglePill: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+  },
+  cardToggleLabel: {
+    fontSize: 11,
+    color: colors.textSecondary,
+    fontWeight: "500" as const,
+  },
+  cardToggleSep: {
+    fontSize: 11,
+    color: colors.textSecondary,
+    opacity: 0.4,
+  },
+  cardToggleOff: {
+    textDecorationLine: "line-through" as const,
+    opacity: 0.4,
   },
   missedWord: {
     color: colors.missed,
