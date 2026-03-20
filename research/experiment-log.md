@@ -4,6 +4,22 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-03-20: Tashkeel Fading (Front/Back Split) + Dual Font Mixing
+
+**Context**: At ~1,072 active words (1,016 known + 56 learning), 263 words have 60+ day FSRS stability. User wants to practice reading without vowel marks for well-known words, matching how real Arabic is written.
+
+**Change 1 — Tashkeel fading with phase awareness**: Backend already computed `show_tashkeel` per word. Frontend now applies it only on card front (reading challenge); card back always shows full tashkeel (verification). Setting: fade mode, 60-day stability threshold.
+
+**Bug found & fixed**: `stripDiacritics()` in `index.tsx` used regex `[\u0610-\u065f]` which included all Arabic base letters (U+0621–U+064A) in addition to diacritical marks. Words with `show_tashkeel=false` rendered as empty strings. Fixed to `[\u0610-\u061a\u064b-\u065f]` (matching the correct regex already in `WordInfoCard.tsx`).
+
+**Change 2 — 50/50 font mixing**: Added Amiri font (Bulaq press tradition, aggressive ligatures) alongside Scheherazade New. Deterministic split by `sentence_id % 2` — even IDs get Amiri, odd get Scheherazade. Builds familiarity with print-style Arabic typography.
+
+**Research**: 1,000 words in 5 weeks is ~3x DLI pace, ~15x university Arabic pace (but reading-only vs all four skills). CEFR A2→B1 transition. ~66% text coverage. Frequency gap analysis: only ~13 genuine gaps in top-300 (79 learned + ~18 function words covered). Notable gap: كان (to be) is lapsed.
+
+**Verify**: After 1 week, check if tashkeel fading feels natural. Consider lowering threshold to 30 days if comfortable. Monitor whether Amiri font causes any layout issues on mobile.
+
+---
+
 ## 2026-03-19: Fix Comprehensibility Gate Starvation + Variant Detection False Positives
 
 **Problem 1 — Session starvation**: After the collateral credit fix (2026-03-18), encountered words auto-introduced as box-1 acquiring had stability=0.1. The comprehensibility gate required acquiring words to have stability ≥ 0.5 (box ≥ 2) to count as "known scaffold." Sentences with freshly-introduced words failed the 60% gate → sessions collapsed to 1 card.

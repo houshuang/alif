@@ -55,6 +55,12 @@ Initial technology research conducted before app development.
 | [corpus-vs-llm-feasibility-2026-02-21.md](corpus-vs-llm-feasibility-2026-02-21.md) | **Feasibility analysis**: corpus selection vs LLM generation. Architecture, cost projections, vocabulary growth hit rates, phased implementation plan. The strategic decision doc. |
 | [arabic-sentence-corpora-2026-02-21.md](arabic-sentence-corpora-2026-02-21.md) | Survey of 17 Arabic corpora for sentence mining: sizes, licenses, diacritics, translations, integration recommendations |
 
+## Typography & Reading
+
+| File | Contents |
+|------|----------|
+| [arabic-ligatures-reference.html](arabic-ligatures-reference.html) | Interactive reference: all 28 letter forms, mandatory/special ligatures, font comparison (Amiri/Scheherazade/Noto), tricky letter pairs with IPA, live font preview |
+
 ## Analysis Reports
 
 | File | Contents |
