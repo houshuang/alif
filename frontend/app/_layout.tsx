@@ -13,9 +13,9 @@ import {
   Amiri_700Bold,
 } from "@expo-google-fonts/amiri";
 import {
-  NotoSansArabic_400Regular,
-  NotoSansArabic_700Bold,
-} from "@expo-google-fonts/noto-sans-arabic";
+  NotoNaskhArabic_400Regular,
+  NotoNaskhArabic_700Bold,
+} from "@expo-google-fonts/noto-naskh-arabic";
 import {
   NotoSans_400Regular,
   NotoSans_400Regular_Italic,
@@ -31,8 +31,8 @@ export default function Layout() {
     ScheherazadeNew_700Bold,
     Amiri_400Regular,
     Amiri_700Bold,
-    NotoSansArabic_400Regular,
-    NotoSansArabic_700Bold,
+    NotoNaskhArabic_400Regular,
+    NotoNaskhArabic_700Bold,
     NotoSans_400Regular,
     NotoSans_400Regular_Italic,
   });

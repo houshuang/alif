@@ -12,8 +12,8 @@
   },
   "dependencies": {
     "@expo-google-fonts/amiri": "^0.4.1",
+    "@expo-google-fonts/noto-naskh-arabic": "^0.4.5",
     "@expo-google-fonts/noto-sans": "^0.4.2",
-    "@expo-google-fonts/noto-sans-arabic": "^0.4.3",
     "@expo-google-fonts/scheherazade-new": "^0.4.2",
     "@expo/metro-runtime": "~6.1.2",
     "@expo/vector-icons": "^15.0.3",

@@ -33,8 +33,8 @@ export const fontFamily = {
   arabicBold: "ScheherazadeNew_700Bold",
   arabicAmiri: "Amiri_400Regular",
   arabicAmiriBold: "Amiri_700Bold",
-  arabicNoto: "NotoSansArabic_400Regular",
-  arabicNotoBold: "NotoSansArabic_700Bold",
+  arabicNoto: "NotoNaskhArabic_400Regular",
+  arabicNotoBold: "NotoNaskhArabic_700Bold",
   translit: "NotoSans_400Regular_Italic",
   translitRegular: "NotoSans_400Regular",
 };
