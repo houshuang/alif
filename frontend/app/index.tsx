@@ -14,7 +14,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { Audio } from "expo-av";
 import { Ionicons } from "@expo/vector-icons";
-import { colors, fonts, fontFamily } from "../lib/theme";
+import { colors, fonts, fontFamily, arabicFontForSentence } from "../lib/theme";
 import {
   getSentenceReviewSession,
   fetchFreshSession,
@@ -1914,10 +1914,11 @@ function SentenceReadingCard({
   onWordTap: (index: number, lemmaId: number | null) => void;
 }) {
   const showAnswer = cardState === "back";
+  const sentenceFont = arabicFontForSentence(item.sentence_id);
 
   return (
     <>
-      <Text style={styles.sentenceArabic}>
+      <Text style={[styles.sentenceArabic, { fontFamily: sentenceFont }]}>
         {item.words.map((word, i) => {
           const isMissed = missedIndices.has(i);
           const isConfused = confusedIndices.has(i);
@@ -1933,7 +1934,7 @@ function SentenceReadingCard({
                 onPress={() => onWordTap(i, word.lemma_id ?? null)}
                 style={wordStyle}
               >
-                {word.show_tashkeel === false ? stripDiacritics(word.surface_form) : word.surface_form}
+                {!showAnswer && word.show_tashkeel === false ? stripDiacritics(word.surface_form) : word.surface_form}
               </Text>
             </Text>
           );
@@ -2026,10 +2027,11 @@ function SentenceListeningCard({
   }
 
   const showAnswer = cardState === "answer";
+  const sentenceFont = arabicFontForSentence(item.sentence_id);
 
   return (
     <>
-      <Text style={styles.sentenceArabic}>
+      <Text style={[styles.sentenceArabic, { fontFamily: sentenceFont }]}>
         {item.words.map((word, i) => {
           const isMissed = missedIndices.has(i);
           const isConfused = confusedIndices.has(i);
@@ -2046,7 +2048,7 @@ function SentenceListeningCard({
                 onPress={() => onToggleMissed(i)}
                 style={wordStyle}
               >
-                {word.show_tashkeel === false ? stripDiacritics(word.surface_form) : word.surface_form}
+                {!showAnswer && word.show_tashkeel === false ? stripDiacritics(word.surface_form) : word.surface_form}
               </Text>
             </Text>
           );

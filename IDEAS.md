@@ -4,6 +4,20 @@
 
 ---
 
+## Tashkeel Fading — Phase-Aware (2026-03-20)
+- [DONE] Frontend: hide tashkeel on front (reading), restore on back (verification) — `index.tsx` SentenceReadingCard + SentenceListeningCard
+- [ ] Enable "fade" mode on production with 60-day threshold (awaiting user confirmation)
+- [ ] After 1 week: review user experience — lower threshold to 30 days if comfortable
+- [ ] Consider visual indicator (subtle dot/underline) showing which words had tashkeel removed, so user knows to pay extra attention
+
+## Frequency Gap Analysis (2026-03-20)
+- Top-300 coverage: 79/~110 non-function words learned (good)
+- Notable gaps: كان (lapsed), مثل (like), أخبار (news), موقع (site), مجموعة (group), صلى (to pray), ضد (against)
+- [ ] Auto-import missing high-frequency words (top 300) into encountered state
+- [ ] Investigate كان lapse — most important Arabic verb
+
+---
+
 ## Monitoring & Check-ins
 
 - [2026-03-10] CHECK: Lapse rate for fast-graduated words (tier 0/1/2). Expected ≤2%. If higher, tighten tier 0 (require rating ≥ 4) or tier 1 (require 4+ reviews). Query: words graduated since 2026-03-03 with times_seen at graduation ≤ 4, check current knowledge_state for "lapsed".

@@ -31,9 +31,19 @@ export const colors = {
 export const fontFamily = {
   arabic: "ScheherazadeNew_400Regular",
   arabicBold: "ScheherazadeNew_700Bold",
+  arabicAmiri: "Amiri_400Regular",
+  arabicAmiriBold: "Amiri_700Bold",
   translit: "NotoSans_400Regular_Italic",
   translitRegular: "NotoSans_400Regular",
 };
+
+/** Pick an Arabic font for a sentence card. Uses sentence_id for deterministic 50/50 split. */
+export function arabicFontForSentence(sentenceId: number | null | undefined): string {
+  if (sentenceId != null && sentenceId % 2 === 0) {
+    return fontFamily.arabicAmiri;
+  }
+  return fontFamily.arabic;
+}
 
 export const fonts = {
   arabicSentence: 38,

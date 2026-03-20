@@ -9,6 +9,10 @@ import {
   ScheherazadeNew_700Bold,
 } from "@expo-google-fonts/scheherazade-new";
 import {
+  Amiri_400Regular,
+  Amiri_700Bold,
+} from "@expo-google-fonts/amiri";
+import {
   NotoSans_400Regular,
   NotoSans_400Regular_Italic,
 } from "@expo-google-fonts/noto-sans";
@@ -21,6 +25,8 @@ export default function Layout() {
   const [fontsLoaded] = useFonts({
     ScheherazadeNew_400Regular,
     ScheherazadeNew_700Bold,
+    Amiri_400Regular,
+    Amiri_700Bold,
     NotoSans_400Regular,
     NotoSans_400Regular_Italic,
   });
