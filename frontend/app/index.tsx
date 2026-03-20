@@ -14,7 +14,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { Audio } from "expo-av";
 import { Ionicons } from "@expo/vector-icons";
-import { colors, fonts, fontFamily, arabicFontForSentence } from "../lib/theme";
+import { colors, fonts, fontFamily, arabicFonts, arabicFontForSentence } from "../lib/theme";
 import {
   getSentenceReviewSession,
   fetchFreshSession,
@@ -1915,16 +1915,14 @@ function SentenceReadingCard({
 }) {
   const showAnswer = cardState === "back";
 
-  const [useAmiri, setUseAmiri] = useState<boolean | null>(null);
+  const [fontIdx, setFontIdx] = useState<number | null>(null);
   const [tashkeelHidden, setTashkeelHidden] = useState(false);
-  const defaultIsAmiri = item.sentence_id != null && item.sentence_id % 2 === 0;
-  const isAmiri = useAmiri ?? defaultIsAmiri;
-  const sentenceFont = isAmiri ? fontFamily.arabicAmiri : fontFamily.arabic;
-  const fontLabel = isAmiri ? "Amiri" : "Scheherazade";
+  const defaultFont = arabicFontForSentence(item.sentence_id);
+  const currentFont = fontIdx != null ? arabicFonts[fontIdx] : defaultFont;
 
   return (
     <>
-      <Text style={[styles.sentenceArabic, { fontFamily: sentenceFont }]}>
+      <Text style={[styles.sentenceArabic, { fontFamily: currentFont.font }]}>
         {item.words.map((word, i) => {
           const isMissed = missedIndices.has(i);
           const isConfused = confusedIndices.has(i);
@@ -1948,12 +1946,22 @@ function SentenceReadingCard({
       </Text>
 
       <View style={styles.cardToggles}>
-        <Pressable onPress={() => setUseAmiri(!isAmiri)} style={styles.cardTogglePill}>
-          <Text style={styles.cardToggleLabel}>{fontLabel}</Text>
+        <Pressable
+          onPress={() => {
+            const cur = fontIdx ?? arabicFonts.findIndex(f => f.font === defaultFont.font);
+            setFontIdx((cur + 1) % arabicFonts.length);
+          }}
+          style={styles.toggleDot}
+          hitSlop={12}
+        >
+          <View style={[styles.toggleDotInner, fontIdx != null && styles.toggleDotActive]} />
         </Pressable>
-        <Text style={styles.cardToggleSep}>·</Text>
-        <Pressable onPress={() => setTashkeelHidden(!tashkeelHidden)} style={styles.cardTogglePill}>
-          <Text style={[styles.cardToggleLabel, tashkeelHidden && styles.cardToggleOff]}>تشكيل</Text>
+        <Pressable
+          onPress={() => setTashkeelHidden(!tashkeelHidden)}
+          style={styles.toggleDot}
+          hitSlop={12}
+        >
+          <View style={[styles.toggleDotInner, tashkeelHidden && styles.toggleDotActive]} />
         </Pressable>
       </View>
 
@@ -2044,16 +2052,14 @@ function SentenceListeningCard({
 
   const showAnswer = cardState === "answer";
 
-  const [useAmiri, setUseAmiri] = useState<boolean | null>(null);
+  const [fontIdx, setFontIdx] = useState<number | null>(null);
   const [tashkeelHidden, setTashkeelHidden] = useState(false);
-  const defaultIsAmiri = item.sentence_id != null && item.sentence_id % 2 === 0;
-  const isAmiri = useAmiri ?? defaultIsAmiri;
-  const sentenceFont = isAmiri ? fontFamily.arabicAmiri : fontFamily.arabic;
-  const fontLabel = isAmiri ? "Amiri" : "Scheherazade";
+  const defaultFont = arabicFontForSentence(item.sentence_id);
+  const currentFont = fontIdx != null ? arabicFonts[fontIdx] : defaultFont;
 
   return (
     <>
-      <Text style={[styles.sentenceArabic, { fontFamily: sentenceFont }]}>
+      <Text style={[styles.sentenceArabic, { fontFamily: currentFont.font }]}>
         {item.words.map((word, i) => {
           const isMissed = missedIndices.has(i);
           const isConfused = confusedIndices.has(i);
@@ -2078,12 +2084,22 @@ function SentenceListeningCard({
       </Text>
 
       <View style={styles.cardToggles}>
-        <Pressable onPress={() => setUseAmiri(!isAmiri)} style={styles.cardTogglePill}>
-          <Text style={styles.cardToggleLabel}>{fontLabel}</Text>
+        <Pressable
+          onPress={() => {
+            const cur = fontIdx ?? arabicFonts.findIndex(f => f.font === defaultFont.font);
+            setFontIdx((cur + 1) % arabicFonts.length);
+          }}
+          style={styles.toggleDot}
+          hitSlop={12}
+        >
+          <View style={[styles.toggleDotInner, fontIdx != null && styles.toggleDotActive]} />
         </Pressable>
-        <Text style={styles.cardToggleSep}>·</Text>
-        <Pressable onPress={() => setTashkeelHidden(!tashkeelHidden)} style={styles.cardTogglePill}>
-          <Text style={[styles.cardToggleLabel, tashkeelHidden && styles.cardToggleOff]}>تشكيل</Text>
+        <Pressable
+          onPress={() => setTashkeelHidden(!tashkeelHidden)}
+          style={styles.toggleDot}
+          hitSlop={12}
+        >
+          <View style={[styles.toggleDotInner, tashkeelHidden && styles.toggleDotActive]} />
         </Pressable>
       </View>
 
@@ -3018,29 +3034,23 @@ const styles = StyleSheet.create({
   },
   cardToggles: {
     flexDirection: "row" as const,
-    alignItems: "center" as const,
-    justifyContent: "center" as const,
-    gap: 8,
-    marginTop: 6,
+    justifyContent: "space-between" as const,
+    paddingHorizontal: 32,
+    marginTop: 10,
     marginBottom: 2,
   },
-  cardTogglePill: {
-    paddingHorizontal: 8,
-    paddingVertical: 3,
+  toggleDot: {
+    padding: 8,
   },
-  cardToggleLabel: {
-    fontSize: 11,
-    color: colors.textSecondary,
-    fontWeight: "500" as const,
+  toggleDotInner: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: colors.textSecondary,
+    opacity: 0.2,
   },
-  cardToggleSep: {
-    fontSize: 11,
-    color: colors.textSecondary,
-    opacity: 0.4,
-  },
-  cardToggleOff: {
-    textDecorationLine: "line-through" as const,
-    opacity: 0.4,
+  toggleDotActive: {
+    opacity: 0.5,
   },
   missedWord: {
     color: colors.missed,

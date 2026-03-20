@@ -33,16 +33,23 @@ export const fontFamily = {
   arabicBold: "ScheherazadeNew_700Bold",
   arabicAmiri: "Amiri_400Regular",
   arabicAmiriBold: "Amiri_700Bold",
+  arabicNoto: "NotoSansArabic_400Regular",
+  arabicNotoBold: "NotoSansArabic_700Bold",
   translit: "NotoSans_400Regular_Italic",
   translitRegular: "NotoSans_400Regular",
 };
 
-/** Pick an Arabic font for a sentence card. Uses sentence_id for deterministic 50/50 split. */
+/** Ordered list of Arabic font options for cycling. */
+export const arabicFonts = [
+  { font: fontFamily.arabic, label: "Scheherazade" },
+  { font: fontFamily.arabicAmiri, label: "Amiri" },
+  { font: fontFamily.arabicNoto, label: "Noto" },
+] as const;
+
+/** Pick an Arabic font for a sentence card. Uses sentence_id for deterministic 3-way split. */
 export function arabicFontForSentence(sentenceId: number | null | undefined): { font: string; label: string } {
-  if (sentenceId != null && sentenceId % 2 === 0) {
-    return { font: fontFamily.arabicAmiri, label: "Amiri" };
-  }
-  return { font: fontFamily.arabic, label: "Scheherazade" };
+  if (sentenceId == null) return arabicFonts[0];
+  return arabicFonts[sentenceId % arabicFonts.length];
 }
 
 export const fonts = {
