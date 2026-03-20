@@ -89,7 +89,7 @@ interface CardSnapshot {
 }
 
 function stripDiacritics(s: string): string {
-  return s.replace(/[\u0610-\u065f\u0670\u06D6-\u06ED]/g, "");
+  return s.replace(/[\u0610-\u061a\u064b-\u065f\u0670\u06D6-\u06ED]/g, "");
 }
 
 
