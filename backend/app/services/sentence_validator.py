@@ -868,6 +868,7 @@ Your task: check that each word's lemma MAKES SENSE in the context of this sente
 
 Flag as WRONG (and provide correction):
 - The lemma's English gloss doesn't match what the word means in this sentence (e.g. "to sleep" in a sentence about growing, "classroom" in a sentence about describing)
+- **Homograph collisions**: same consonants but different meanings depending on voweling (e.g. جَدّ "grandfather" vs جِدّ "seriousness", حَرَم "to deprive" vs حَرَم "sanctuary", عِلم "knowledge" vs عَلَم "flag"). If the English translation uses a meaning that doesn't match the mapped gloss, FLAG IT even if they share the same root.
 - A verb mapped to an unrelated noun or vice versa when they happen to share consonants (e.g. طَائِر "bird" mapped to طار "to fly" — these are different lemmas)
 - A clitic prefix (و/ف/ب/ل/ك) wrongly stripped from a word where the letter is part of the root (e.g. وَصْف "description" stripped to صف "row/class")
 - An active participle / verbal noun mapped to the root verb when it should be its own lemma (e.g. حُضُور "attendance" mapped to حاضر "present")
