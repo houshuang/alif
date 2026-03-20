@@ -38,11 +38,11 @@ export const fontFamily = {
 };
 
 /** Pick an Arabic font for a sentence card. Uses sentence_id for deterministic 50/50 split. */
-export function arabicFontForSentence(sentenceId: number | null | undefined): string {
+export function arabicFontForSentence(sentenceId: number | null | undefined): { font: string; label: string } {
   if (sentenceId != null && sentenceId % 2 === 0) {
-    return fontFamily.arabicAmiri;
+    return { font: fontFamily.arabicAmiri, label: "Amiri" };
   }
-  return fontFamily.arabic;
+  return { font: fontFamily.arabic, label: "Scheherazade" };
 }
 
 export const fonts = {

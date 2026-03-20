@@ -1914,10 +1914,11 @@ function SentenceReadingCard({
   onWordTap: (index: number, lemmaId: number | null) => void;
 }) {
   const showAnswer = cardState === "back";
-  const sentenceFont = arabicFontForSentence(item.sentence_id);
+  const { font: sentenceFont, label: fontLabel } = arabicFontForSentence(item.sentence_id);
 
   return (
     <>
+      <Text style={{ color: colors.textSecondary, fontSize: 10, textAlign: "center", marginBottom: 2 }}>{fontLabel}</Text>
       <Text style={[styles.sentenceArabic, { fontFamily: sentenceFont }]}>
         {item.words.map((word, i) => {
           const isMissed = missedIndices.has(i);
@@ -2027,10 +2028,11 @@ function SentenceListeningCard({
   }
 
   const showAnswer = cardState === "answer";
-  const sentenceFont = arabicFontForSentence(item.sentence_id);
+  const { font: sentenceFont, label: fontLabel } = arabicFontForSentence(item.sentence_id);
 
   return (
     <>
+      <Text style={{ color: colors.textSecondary, fontSize: 10, textAlign: "center", marginBottom: 2 }}>{fontLabel}</Text>
       <Text style={[styles.sentenceArabic, { fontFamily: sentenceFont }]}>
         {item.words.map((word, i) => {
           const isMissed = missedIndices.has(i);
