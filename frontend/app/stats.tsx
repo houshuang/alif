@@ -25,9 +25,15 @@ export default function StatsScreen() {
   );
 
   useEffect(() => {
-    return syncEvents.on("synced", () => {
-      loadAnalytics();
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const unsub = syncEvents.on("synced", () => {
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(() => loadAnalytics(), 2000);
     });
+    return () => {
+      unsub();
+      if (timer) clearTimeout(timer);
+    };
   }, []);
 
   async function loadAnalytics() {

@@ -22,6 +22,19 @@ from app.schemas import (
 
 router = APIRouter(prefix="/api/stats", tags=["stats"])
 
+# Cached function word ID set — computed once, then reused
+_func_word_ids_cache: set[int] | None = None
+
+def _get_func_word_ids(db: Session) -> set[int]:
+    global _func_word_ids_cache
+    if _func_word_ids_cache is None:
+        from app.services.sentence_validator import _is_function_word
+        _func_word_ids_cache = {
+            row.lemma_id for row in db.query(Lemma.lemma_id, Lemma.lemma_ar_bare).all()
+            if row.lemma_ar_bare and _is_function_word(row.lemma_ar_bare)
+        }
+    return _func_word_ids_cache
+
 # CEFR reading thresholds based on KELLY project + frequency research.
 # These are for *reading comprehension* (receptive vocabulary), which is
 # significantly larger than productive vocabulary at each level.
@@ -50,12 +63,7 @@ def _count_state(db: Session, state: str) -> int:
 
 def _count_due_cards(db: Session, now: datetime) -> tuple[int, int, int]:
     """Return (total_due, fsrs_due, acquisition_due), excluding function words."""
-    from app.services.sentence_validator import _is_function_word
-    # Build function word lemma_id set for exclusion
-    func_word_ids = {
-        row.lemma_id for row in db.query(Lemma.lemma_id, Lemma.lemma_ar_bare).all()
-        if row.lemma_ar_bare and _is_function_word(row.lemma_ar_bare)
-    }
+    func_word_ids = _get_func_word_ids(db)
 
     now_str = now.isoformat()
     fsrs_due_q = (
@@ -975,18 +983,22 @@ def _get_acquisition_pipeline(db: Session) -> AcquisitionPipeline:
     counts = {"box_1": len(boxes[1]), "box_2": len(boxes[2]), "box_3": len(boxes[3])}
     snapshot = db.query(PipelineSnapshot).filter(PipelineSnapshot.date == today_str).first()
     if snapshot is None:
-        snapshot = PipelineSnapshot(
-            date=today_str,
-            box_1_count=counts["box_1"],
-            box_2_count=counts["box_2"],
-            box_3_count=counts["box_3"],
-        )
-        db.add(snapshot)
-        db.commit()
+        try:
+            snapshot = PipelineSnapshot(
+                date=today_str,
+                box_1_count=counts["box_1"],
+                box_2_count=counts["box_2"],
+                box_3_count=counts["box_3"],
+            )
+            db.add(snapshot)
+            db.commit()
+        except Exception:
+            db.rollback()
+            snapshot = None
     deltas = {
-        "box_1": counts["box_1"] - snapshot.box_1_count,
-        "box_2": counts["box_2"] - snapshot.box_2_count,
-        "box_3": counts["box_3"] - snapshot.box_3_count,
+        "box_1": counts["box_1"] - (snapshot.box_1_count if snapshot else counts["box_1"]),
+        "box_2": counts["box_2"] - (snapshot.box_2_count if snapshot else counts["box_2"]),
+        "box_3": counts["box_3"] - (snapshot.box_3_count if snapshot else counts["box_3"]),
     }
 
     return AcquisitionPipeline(

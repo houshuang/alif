@@ -17,6 +17,7 @@ def _set_sqlite_pragmas(dbapi_conn, connection_record):
     cursor.execute("PRAGMA busy_timeout=15000")
     cursor.execute("PRAGMA synchronous=NORMAL")
     cursor.execute("PRAGMA foreign_keys=ON")
+    cursor.execute("PRAGMA cache_size=-64000")
     cursor.close()
 SessionLocal = sessionmaker(bind=engine)
 

@@ -1916,7 +1916,8 @@ function SentenceReadingCard({
   const showAnswer = cardState === "back";
 
   const [fontIdx, setFontIdx] = useState<number | null>(null);
-  const [tashkeelHidden, setTashkeelHidden] = useState(false);
+  // 0 = default (fade per backend), 1 = all vowels, 2 = no vowels
+  const [tashkeelMode, setTashkeelMode] = useState(0);
   const defaultFont = arabicFontForSentence(item.sentence_id);
   const currentFont = fontIdx != null ? arabicFonts[fontIdx] : defaultFont;
 
@@ -1931,6 +1932,7 @@ function SentenceReadingCard({
             : isConfused
               ? styles.confusedWord
               : undefined;
+          const showDiacritics = showAnswer || tashkeelMode === 1 || (tashkeelMode === 0 && word.show_tashkeel !== false);
           return (
             <Text key={`t-${i}`}>
               {i > 0 && " "}
@@ -1938,7 +1940,7 @@ function SentenceReadingCard({
                 onPress={() => onWordTap(i, word.lemma_id ?? null)}
                 style={wordStyle}
               >
-                {!showAnswer && (tashkeelHidden || word.show_tashkeel === false) ? stripDiacritics(word.surface_form) : word.surface_form}
+                {showDiacritics ? word.surface_form : stripDiacritics(word.surface_form)}
               </Text>
             </Text>
           );
@@ -1957,11 +1959,11 @@ function SentenceReadingCard({
           <View style={[styles.toggleDotInner, fontIdx != null && styles.toggleDotActive]} />
         </Pressable>
         <Pressable
-          onPress={() => setTashkeelHidden(!tashkeelHidden)}
+          onPress={() => setTashkeelMode((tashkeelMode + 1) % 3)}
           style={styles.toggleDot}
           hitSlop={12}
         >
-          <View style={[styles.toggleDotInner, tashkeelHidden && styles.toggleDotActive]} />
+          <View style={[styles.toggleDotInner, { opacity: [0.2, 0.5, 1.0][tashkeelMode] }]} />
         </Pressable>
       </View>
 
@@ -2053,7 +2055,8 @@ function SentenceListeningCard({
   const showAnswer = cardState === "answer";
 
   const [fontIdx, setFontIdx] = useState<number | null>(null);
-  const [tashkeelHidden, setTashkeelHidden] = useState(false);
+  // 0 = default (fade per backend), 1 = all vowels, 2 = no vowels
+  const [tashkeelMode, setTashkeelMode] = useState(0);
   const defaultFont = arabicFontForSentence(item.sentence_id);
   const currentFont = fontIdx != null ? arabicFonts[fontIdx] : defaultFont;
 
@@ -2068,7 +2071,7 @@ function SentenceListeningCard({
             : isConfused
               ? styles.confusedWord
               : undefined;
-
+          const showDiacritics = showAnswer || tashkeelMode === 1 || (tashkeelMode === 0 && word.show_tashkeel !== false);
           return (
             <Text key={`t-${i}`}>
               {i > 0 && " "}
@@ -2076,7 +2079,7 @@ function SentenceListeningCard({
                 onPress={() => onToggleMissed(i)}
                 style={wordStyle}
               >
-                {!showAnswer && (tashkeelHidden || word.show_tashkeel === false) ? stripDiacritics(word.surface_form) : word.surface_form}
+                {showDiacritics ? word.surface_form : stripDiacritics(word.surface_form)}
               </Text>
             </Text>
           );
@@ -2095,11 +2098,11 @@ function SentenceListeningCard({
           <View style={[styles.toggleDotInner, fontIdx != null && styles.toggleDotActive]} />
         </Pressable>
         <Pressable
-          onPress={() => setTashkeelHidden(!tashkeelHidden)}
+          onPress={() => setTashkeelMode((tashkeelMode + 1) % 3)}
           style={styles.toggleDot}
           hitSlop={12}
         >
-          <View style={[styles.toggleDotInner, tashkeelHidden && styles.toggleDotActive]} />
+          <View style={[styles.toggleDotInner, { opacity: [0.2, 0.5, 1.0][tashkeelMode] }]} />
         </Pressable>
       </View>
 
