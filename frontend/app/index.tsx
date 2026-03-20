@@ -3035,7 +3035,7 @@ const styles = StyleSheet.create({
   cardToggles: {
     flexDirection: "row" as const,
     justifyContent: "space-between" as const,
-    paddingHorizontal: 12,
+    width: "100%",
     marginTop: 10,
     marginBottom: 2,
   },
