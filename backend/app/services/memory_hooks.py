@@ -1,14 +1,24 @@
 """Generate memory hooks (mnemonics, cognates, collocations) for words.
 
 Called as a background task when words enter acquisition, or via backfill script.
+Also handles regeneration for words where mnemonics didn't stick.
 """
 
 import logging
+from datetime import datetime, timedelta, timezone
+
+from sqlalchemy.orm import Session
 
 from app.database import SessionLocal
-from app.models import Lemma
+from app.models import Lemma, ReviewLog, UserLemmaKnowledge
 
 logger = logging.getLogger(__name__)
+
+# Stuck hook detection thresholds
+STUCK_MIN_REVIEWS = 4
+STUCK_MAX_ACCURACY = 0.50
+STUCK_RECENT_WINDOW = 5
+STUCK_REGEN_COOLDOWN_DAYS = 7
 
 SYSTEM_PROMPT = """You generate memory hooks for Arabic (MSA) vocabulary using the keyword mnemonic method (Atkinson & Raugh 1975). The learner speaks: English, Norwegian, Swedish, Danish, Hindi, German, French, Italian, Spanish, Greek, Latin, Indonesian, and some Russian.
 
@@ -289,3 +299,170 @@ Return null if the word is a particle/pronoun/function word."""
         db.rollback()
     finally:
         db.close()
+
+
+def _recent_accuracy(db: Session, lemma_id: int, window: int = STUCK_RECENT_WINDOW) -> float | None:
+    """Compute accuracy over the last `window` reviews. Returns None if < STUCK_MIN_REVIEWS."""
+    recent = (
+        db.query(ReviewLog.rating)
+        .filter(ReviewLog.lemma_id == lemma_id)
+        .order_by(ReviewLog.reviewed_at.desc())
+        .limit(window)
+        .all()
+    )
+    if len(recent) < STUCK_MIN_REVIEWS:
+        return None
+    correct = sum(1 for (r,) in recent if r >= 3)
+    return correct / len(recent)
+
+
+def find_stuck_hook_words(
+    db: Session,
+    limit: int = 10,
+    cooldown_days: int = STUCK_REGEN_COOLDOWN_DAYS,
+) -> list[tuple["Lemma", "UserLemmaKnowledge", float]]:
+    """Find words with existing memory hooks that are still failing.
+
+    Criteria:
+    - memory_hooks_json is not NULL
+    - knowledge_state is acquiring or lapsed
+    - At least STUCK_MIN_REVIEWS total reviews
+    - Recent accuracy (last STUCK_RECENT_WINDOW reviews) < STUCK_MAX_ACCURACY
+    - Last regeneration was >cooldown_days ago (or never regenerated)
+
+    Returns list of (lemma, ulk, recent_accuracy) tuples.
+    """
+    candidates = (
+        db.query(Lemma, UserLemmaKnowledge)
+        .join(UserLemmaKnowledge, UserLemmaKnowledge.lemma_id == Lemma.lemma_id)
+        .filter(
+            Lemma.memory_hooks_json.isnot(None),
+            Lemma.canonical_lemma_id.is_(None),
+            UserLemmaKnowledge.knowledge_state.in_(["acquiring", "lapsed"]),
+            UserLemmaKnowledge.times_seen >= STUCK_MIN_REVIEWS,
+        )
+        .all()
+    )
+
+    now = datetime.now(timezone.utc)
+    cooldown = timedelta(days=cooldown_days)
+    stuck = []
+
+    for lemma, ulk in candidates:
+        # SQLite JSON columns store Python None as JSON "null", not SQL NULL,
+        # so the isnot(None) filter may not exclude them. Double-check here.
+        hooks = lemma.memory_hooks_json
+        if not hooks or not isinstance(hooks, dict) or not hooks.get("mnemonic"):
+            continue
+
+        # Check cooldown: skip if regenerated too recently
+        if isinstance(hooks, dict) and hooks.get("regenerated_at"):
+            try:
+                regen_at = datetime.fromisoformat(hooks["regenerated_at"])
+                if regen_at.tzinfo is None:
+                    regen_at = regen_at.replace(tzinfo=timezone.utc)
+                if now - regen_at < cooldown:
+                    continue
+            except (ValueError, TypeError):
+                pass
+
+        acc = _recent_accuracy(db, lemma.lemma_id)
+        if acc is not None and acc < STUCK_MAX_ACCURACY:
+            stuck.append((lemma, ulk, acc))
+
+    # Sort by accuracy ascending (worst first)
+    stuck.sort(key=lambda x: x[2])
+    return stuck[:limit]
+
+
+def check_and_regenerate_stuck_hooks(db: Session) -> list[int]:
+    """Background task: find and regenerate hooks for up to 3 stuck words.
+
+    Designed to be called from warm_sentence_cache or cron. Limits to 3 words
+    per run to control LLM cost. Respects 7-day cooldown between regenerations.
+
+    Returns list of lemma_ids that were regenerated.
+    """
+    from app.services.llm import generate_completion, AllProvidersFailed
+    from app.services.activity_log import log_activity
+
+    stuck = find_stuck_hook_words(db, limit=3)
+    if not stuck:
+        return []
+
+    regenerated = []
+    for lemma, ulk, recent_acc in stuck:
+        old_hooks = lemma.memory_hooks_json or {}
+        old_mnemonic = old_hooks.get("mnemonic", "")
+        regen_count = old_hooks.get("regeneration_count", 0)
+
+        word_info = _build_word_info(lemma)
+        failed_note = ""
+        if old_mnemonic:
+            failed_note = (
+                f"\n\nThe previous mnemonic FAILED — the learner reviewed this word "
+                f"{ulk.times_seen} times with only {recent_acc:.0%} accuracy. "
+                f"Do NOT reuse the same keyword or approach:\n"
+                f'  "{old_mnemonic}"'
+            )
+
+        prompt = f"""Generate memory hooks for this HARD Arabic word that the learner keeps forgetting:
+
+{word_info}{failed_note}
+
+Generate 3 candidate mnemonics with COMPLETELY DIFFERENT keywords from the failed one.
+Self-evaluate each on sound match, interaction, and meaning extraction (1-5).
+Pick the candidate with the highest total score.
+
+Return JSON with keys: candidates, best_index, mnemonic, cognates, collocations, usage_context, fun_fact.
+Return null if the word is a particle/pronoun/function word."""
+
+        try:
+            result = generate_completion(
+                prompt=prompt,
+                system_prompt=PREMIUM_SYSTEM_PROMPT,
+                json_mode=True,
+                temperature=0.8,
+                model_override="claude_haiku",
+                task_type="memory_hooks_regeneration",
+            )
+        except AllProvidersFailed as e:
+            logger.warning(f"Stuck hook regeneration LLM failed for lemma {lemma.lemma_id}: {e}")
+            continue
+
+        if result is None or not isinstance(result, dict) or not result:
+            continue
+
+        hooks = result.get("hooks", result) if "hooks" in result else result
+        hooks.pop("candidates", None)
+        hooks.pop("best_index", None)
+
+        if not validate_hooks(hooks):
+            logger.warning(f"Invalid regenerated hooks for lemma {lemma.lemma_id}")
+            continue
+
+        # Preserve old hooks and track regeneration metadata
+        hooks["previous_hooks"] = {
+            k: v for k, v in old_hooks.items()
+            if k not in ("previous_hooks", "regeneration_count", "regenerated_at")
+        }
+        hooks["regeneration_count"] = regen_count + 1
+        hooks["regenerated_at"] = datetime.now(timezone.utc).isoformat()
+
+        lemma.memory_hooks_json = hooks
+        regenerated.append(lemma.lemma_id)
+        logger.info(
+            f"Regenerated stuck mnemonic for lemma {lemma.lemma_id} "
+            f"({lemma.lemma_ar_bare}) — accuracy was {recent_acc:.0%}"
+        )
+
+    if regenerated:
+        db.commit()
+        log_activity(
+            db,
+            event_type="mnemonic_regeneration",
+            summary=f"Auto-regenerated mnemonics for {len(regenerated)} stuck words",
+            detail={"lemma_ids": regenerated},
+        )
+
+    return regenerated
