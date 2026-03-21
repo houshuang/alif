@@ -52,6 +52,8 @@ PIPELINE_BACKLOG_THRESHOLD = 40  # suppress reserved intros when acquiring pipel
 SESSION_SCAFFOLD_DECAY = 0.5  # per-appearance decay for scaffold words already in session
 NEVER_REVIEWED_BOOST = 5.0  # score multiplier for sentences targeting acquiring words with 0 reviews
 MAX_UNKNOWN_SCAFFOLD = 2  # max unknown non-target words per sentence (prevents overwhelming density)
+FLUENCY_SLOW_THRESHOLD = 0.7  # fluency score below which a word is considered "slow" (weak automaticity)
+FLUENCY_BOOST = 0.3  # additive score boost for sentences containing slow-recognition FSRS words
 
 
 def _intro_slots_for_accuracy(accuracy: float) -> int:
@@ -787,6 +789,21 @@ def build_session(
     if boosted_acquiring_ids:
         logger.info(f"Boosted acquiring words due: {len(boosted_acquiring_ids)}")
 
+    # Pre-compute fluency scores for all due words (single batch query).
+    # Words with slow recognition (fluency < FLUENCY_SLOW_THRESHOLD) get a
+    # score boost in sentence selection to build automaticity.
+    from app.services.fluency_service import compute_fluency_batch
+    fluency_scores = compute_fluency_batch(db, due_lemma_ids)
+    # Identify FSRS words (not acquiring) with slow fluency
+    slow_fluency_ids: set[int] = set()
+    for lid, score in fluency_scores.items():
+        if score < FLUENCY_SLOW_THRESHOLD:
+            k = knowledge_by_id.get(lid)
+            if k and k.knowledge_state not in ("acquiring", "encountered"):
+                slow_fluency_ids.add(lid)
+    if slow_fluency_ids:
+        logger.info(f"Slow-fluency FSRS words: {len(slow_fluency_ids)} (threshold={FLUENCY_SLOW_THRESHOLD})")
+
     # Build candidates
     candidates: list[SentenceCandidate] = []
     for sent in sentences:
@@ -890,7 +907,10 @@ def build_session(
         # Boost sentences targeting never-reviewed acquiring words so they can
         # compete with multi-word FSRS sentences in the greedy selection.
         nr_boost = NEVER_REVIEWED_BOOST if (due_covered & boosted_acquiring_ids) else 1.0
-        score = (len(due_covered) ** 1.5) * dmq * gfit * diversity * freshness * source_bonus * rescue_penalty * nr_boost
+        # Fluency boost: sentences containing slow-recognition FSRS words get
+        # an additive bonus so they surface more often to build automaticity.
+        fluency_boost = FLUENCY_BOOST if (due_covered & slow_fluency_ids) else 0.0
+        score = (len(due_covered) ** 1.5) * dmq * gfit * diversity * freshness * source_bonus * rescue_penalty * nr_boost + fluency_boost
 
         candidates.append(SentenceCandidate(
             sentence_id=sent.id,
@@ -931,7 +951,8 @@ def build_session(
 
             rescue_penalty = 0.3 if c.sentence_id in rescue_sentence_ids else 1.0
             nr_boost = NEVER_REVIEWED_BOOST if (overlap & boosted_acquiring_ids) else 1.0
-            c.score = (len(overlap) ** 1.5) * dmq * gfit * diversity * freshness * source_bonus * session_diversity * rescue_penalty * nr_boost
+            fluency_boost = FLUENCY_BOOST if (overlap & slow_fluency_ids) else 0.0
+            c.score = (len(overlap) ** 1.5) * dmq * gfit * diversity * freshness * source_bonus * session_diversity * rescue_penalty * nr_boost + fluency_boost
             c.score_components = {
                 "due_coverage": len(overlap),
                 "difficulty_match": round(dmq, 2),
@@ -942,6 +963,7 @@ def build_session(
                 "session_diversity": round(session_diversity, 2),
                 "rescue": rescue_penalty < 1.0,
                 "never_reviewed_boost": nr_boost,
+                "fluency_boost": fluency_boost,
             }
 
         candidates.sort(key=lambda c: c.score, reverse=True)

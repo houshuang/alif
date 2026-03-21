@@ -6,7 +6,7 @@
 > topics, grammar, listening) interact. It also identifies where the current
 > implementation diverges from the research and stated intentions.
 >
-> **Last updated**: 2026-03-20
+> **Last updated**: 2026-03-21
 > **Canonical location**: `docs/scheduling-system.md`
 > **Keep this document up to date with every algorithm change.**
 
@@ -1465,6 +1465,8 @@ remaining cards on the next card advance. See Section 8 "Sentence Pre-Warming" f
 | `MAX_ON_DEMAND_PER_SESSION` | 10 | Reference constant (callers control actual cap via remaining session capacity) |
 | `MAX_REINTRO_PER_SESSION` | 3 | Struggling word reintro card limit |
 | `STRUGGLING_MIN_SEEN` | 3 | Threshold for struggling classification |
+| `FLUENCY_SLOW_THRESHOLD` | 0.7 | Fluency score below which a word is considered "slow" (weak automaticity) |
+| `FLUENCY_BOOST` | 0.3 | Additive score boost for sentences containing slow-recognition FSRS words |
 | Comprehensibility threshold | 60% | Min known scaffold words to show sentence |
 | Unknown scaffold cap | 2 | Hard cap on unknown non-target words per sentence |
 | Acquiring box-1 excluded | stability < 0.5 | Box-1 words don't count as "known" scaffold |
@@ -1675,16 +1677,26 @@ accelerates FSRS scheduling for words with established root families.
 |----------|-------|----------|
 | `ROOT_SIBLING_THRESHOLD` | 2 | `acquisition_service.py` |
 
-### 19.8 Response Time as Difficulty Signal — Not Used
+### 19.8 Response Time as Difficulty Signal — Implemented (2026-03-21)
 
 **Research says**: Slow response on a "correct" answer may indicate fragile knowledge.
 Decreasing response time = fluency signal.
 
-**Current implementation**: `response_ms` is captured and stored in ReviewLog and
-SentenceReviewLog. It is never used for scheduling decisions.
+**Current implementation**: Per-word fluency score computed from response_ms data
+(`fluency_service.py`). Fluency = ratio of user's global median response time to the
+word's median response time over the last 14 days. Values <1.0 mean slower than average.
+Requires at least 3 word reviews and 10 global reviews with response_ms data.
 
-**Gap**: Data is collected but not utilized. Could inform FSRS difficulty or
-acquisition graduation.
+Sentences containing FSRS words with fluency < 0.7 (the `FLUENCY_SLOW_THRESHOLD`) get
+an additive `FLUENCY_BOOST` (0.3) in the greedy set-cover scoring. This nudges
+slow-recognition words into sessions more often without dominating selection. Only
+applies to FSRS-state words (not acquiring) since acquiring words already get priority
+via other mechanisms.
+
+Fluency scores also exposed in the word-lookup endpoint (`fluency_score` field) for
+user visibility.
+
+**Resolved**: Data is now utilized for sentence selection prioritization.
 
 ### 19.9 A/B Testing Framework — Partially Implemented
 

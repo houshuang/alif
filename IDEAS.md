@@ -940,10 +940,10 @@ After importing ~100 textbook pages via OCR, 411 words entered the system with a
 - User said: "it doesn't say anything about the gap between attempts"
 
 #### Response Time as Signal
-- Already capturing response_ms in ReviewLog — never used for scheduling
+- [DONE] Per-word fluency score (global_median / word_median response time). Sentences containing slow words (fluency < 0.7) get FLUENCY_BOOST (0.3) in session scoring. Exposed in word-lookup endpoint.
 - Slow response on a "correct" answer may indicate fragile knowledge
 - Decreasing response time across reviews = fluency signal
-- Could use as secondary input to FSRS difficulty parameter or to decide acquisition graduation
+- Future: could use as secondary input to FSRS difficulty parameter or to decide acquisition graduation
 
 #### Session Design for Variable Practice Time
 - User has unpredictable practice time (5 min to 2 hours)

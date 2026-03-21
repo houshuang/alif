@@ -4,6 +4,18 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-03-21: Response Time as Implicit Difficulty Signal
+
+**Context**: response_ms is already logged for every review but never used. Slow recognition (high response time relative to user's average) indicates implicit difficulty that FSRS ratings may not capture — a user might mark "Good" but take 8 seconds, suggesting weak automaticity.
+
+**Change**: Added per-word fluency score (ratio of global median response time to word-specific median). Sentences containing "slow" words (fluency < 0.7) get a priority boost in session building. This surfaces words with weak automaticity even if their FSRS state looks healthy.
+
+**Expected**: Words the user recognizes slowly but rates "Good" will appear more often, building automaticity. Should not significantly change session composition for most words — only affects the ~10-15% with notably slow recognition.
+
+**Verify**: After 2 weeks, check if slow-recognition words show improving response times. Compare fluency distribution pre/post.
+
+---
+
 ## 2026-03-21: Tighten LLM Pipeline Verification Across All Code Paths
 
 **Context**: Comprehensive audit of all LLM/automatic processing paths revealed 4 additional issues beyond the unverified cron (fixed earlier today).

@@ -299,6 +299,11 @@ def word_lookup(lemma_id: int, db: Session = Depends(get_db)):
                 "knowledge_state": ks,
             })
 
+    # Compute fluency score (response time relative to global average)
+    from app.services.fluency_service import compute_word_fluency
+    fluency = compute_word_fluency(db, lemma_id)
+    result["fluency_score"] = round(fluency, 2) if fluency is not None else None
+
     log_interaction(
         event="review_word_lookup",
         lemma_id=lemma_id,
