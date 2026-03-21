@@ -4,6 +4,18 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-03-21: Confused Words Get Rating.Hard
+
+**Context**: Confused (yellow) words were getting Rating 3 (Good) — same FSRS treatment as perfectly recognized words. With 60+ day stability, the next review could be weeks away despite the user just demonstrating they didn't recognize the word.
+
+**Data analysis**: 136 confusion events in 60 days, ALL on words with 60+ day stability. After confusion: 84% good on next review, 8% failed again, 5% confused again. Rating was changed from Hard to Good around September — restoring to Hard. Partial sentence rate declining: 54% → 27% over 6 weeks.
+
+**Change**: Confused words now get Rating 2 (Hard) instead of Rating 3 (Good). FSRS Hard reduces interval growth (~1.2x vs ~2.5x) without lapsing the card. Semantically: "I got it, but it was hard."
+
+**Verify**: After 1-2 weeks, check if confused words are appearing sooner and whether re-confusion rate drops below 13%.
+
+---
+
 ## 2026-03-21: Server Performance Fixes + 3-State Tashkeel Toggle
 
 **Context**: Session wrap-up and stats loading were very slow. Server logs showed 6 "database is locked" errors, 61 LLM verification timeouts, and a 500 error on experiment-intro-ack.
