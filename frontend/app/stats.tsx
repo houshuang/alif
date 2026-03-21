@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback } from "react";
 import {
   View,
   Text,
@@ -11,7 +11,6 @@ import { useFocusEffect } from "expo-router";
 import { colors } from "../lib/theme";
 import { getAnalytics, getDeepAnalytics } from "../lib/api";
 import type { Analytics, DeepAnalytics, AcquisitionPipeline, ComprehensionBreakdown, GraduatedWord, IntroducedBySource, InsightsData, StateTransitions } from "../lib/types";
-import { syncEvents } from "../lib/sync-events";
 
 export default function StatsScreen() {
   const [analytics, setAnalytics] = useState<Analytics | null>(null);
@@ -23,18 +22,6 @@ export default function StatsScreen() {
       loadAnalytics();
     }, [])
   );
-
-  useEffect(() => {
-    let timer: ReturnType<typeof setTimeout> | null = null;
-    const unsub = syncEvents.on("synced", () => {
-      if (timer) clearTimeout(timer);
-      timer = setTimeout(() => loadAnalytics(), 2000);
-    });
-    return () => {
-      unsub();
-      if (timer) clearTimeout(timer);
-    };
-  }, []);
 
   async function loadAnalytics() {
     setLoading(true);
