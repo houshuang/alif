@@ -525,7 +525,7 @@
 - [DEFERRED] Use text-to-image (DALL-E, Midjourney) to generate actual images for the interactive scenes. SmartPhone (AIED 2023) showed combining verbal + visual mnemonics improves retention. Would add visual card to Learn Mode.
 
 #### Mnemonic Quality Feedback Loop
-- Track which words the user struggles with despite having a mnemonic. If a word gets ≥3 "no_idea" ratings with an existing hook, flag for regeneration with a note "previous mnemonic didn't stick."
+- [DONE] Track which words the user struggles with despite having a mnemonic. If a word gets ≥4 reviews with <50% accuracy and existing hooks, auto-regenerate with "previous mnemonic didn't stick" prompt. Background task (`check_and_regenerate_stuck_hooks`) + script (`regenerate_stuck_mnemonics.py`). 7-day cooldown. Old hooks preserved in `previous_hooks` field.
 - SMART (Balepur EMNLP 2024) finding: what students think helps and what actually helps disagree (0.4-0.5 agreement). Track observed learning outcomes, not self-reported preferences.
 
 #### PhoniTale-Style IPA Matching

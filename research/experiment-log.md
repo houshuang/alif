@@ -4,6 +4,18 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-03-21: Mnemonic Regeneration for Stuck Words
+
+**Context**: Some words fail repeatedly despite having memory hooks. The original mnemonic didn't work for this learner. IDEAS.md suggests regenerating with a "previous didn't stick" prompt.
+
+**Change**: Added `regenerate_stuck_mnemonics.py` script and background `check_and_regenerate_stuck_hooks()` function. Criteria: >=4 reviews, <50% recent accuracy, existing hooks. Regeneration uses modified prompt mentioning the failed keyword. 7-day cooldown between regenerations.
+
+**Expected**: Stuck words get fresh, different mnemonics. Combined with rescue intro cards (also added today), this provides a second intervention for chronically failing words.
+
+**Verify**: After 2 weeks, check if regenerated words show accuracy improvement vs. their pre-regeneration trend.
+
+---
+
 ## 2026-03-21: Tighten LLM Pipeline Verification Across All Code Paths
 
 **Context**: Comprehensive audit of all LLM/automatic processing paths revealed 4 additional issues beyond the unverified cron (fixed earlier today).

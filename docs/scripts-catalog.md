@@ -65,6 +65,7 @@ All scripts in `backend/scripts/`. Run from `backend/` directory.
 - `merge_al_lemmas.py` — Merge al-prefixed duplicate lemmas.
 - `merge_lemma_variants.py` — Merge identified variant lemmas.
 - `identify_leeches.py` — Find high-review low-accuracy words, optional --suspend.
+- `regenerate_stuck_mnemonics.py` — Regenerate memory hooks for words failing despite having mnemonics. Finds words with hooks but <50% recent accuracy (last 5 reviews, >=4 total), regenerates with prompt mentioning the failed keyword. Backs up old hooks in `previous_hooks` field. `--dry-run`, `--limit=N`.
 - `fix_null_lemma_ids.py` — Re-maps NULL lemma_id sentence_words using comprehensive lookup, retires unfixable sentences.
 - `fix_book_glosses.py` — Fix conjugated glosses on book/story-imported lemmas + run full enrichment, --dry-run --limit.
 - `cleanup_lemma_mappings.py` — Batch cleanup of lemma data quality issues: wrong glosses, missing particles, conjugated-form lemmas, possessive-form lemmas, al-prefix lemmas, batch re-map via CAMeL + LLM.
