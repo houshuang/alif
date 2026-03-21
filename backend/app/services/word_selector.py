@@ -103,8 +103,30 @@ def _get_recently_failed_roots(db: Session) -> set[int]:
     return {r[0] for r in roots}
 
 
+def _resolve_to_canonical(db: Session, lemma_ids: set[int]) -> dict[int, int]:
+    """Map variant lemma IDs to their canonical lemma IDs.
+
+    Returns {variant_id: canonical_id} for lemmas that have a canonical form.
+    """
+    if not lemma_ids:
+        return {}
+    rows = (
+        db.query(Lemma.lemma_id, Lemma.canonical_lemma_id)
+        .filter(
+            Lemma.lemma_id.in_(lemma_ids),
+            Lemma.canonical_lemma_id.isnot(None),
+        )
+        .all()
+    )
+    return {r.lemma_id: r.canonical_lemma_id for r in rows}
+
+
 def _active_story_lemma_ids(db: Session) -> dict[int, dict]:
-    """Get lemma_ids of unknown words in active stories → {title, story_id}."""
+    """Get lemma_ids of unknown words in active stories → {title, story_id}.
+
+    Resolves variant lemma IDs to their canonical forms so the priority
+    bonus reaches the actual introduction candidates.
+    """
     rows = (
         db.query(StoryWord.lemma_id, Story.id, Story.title_en, Story.title_ar)
         .join(Story, StoryWord.story_id == Story.id)
@@ -116,10 +138,14 @@ def _active_story_lemma_ids(db: Session) -> dict[int, dict]:
         )
         .all()
     )
+    raw_ids = {r[0] for r in rows}
+    canon_map = _resolve_to_canonical(db, raw_ids)
+
     result: dict[int, dict] = {}
     for lemma_id, story_id, title_en, title_ar in rows:
-        if lemma_id not in result:
-            result[lemma_id] = {
+        effective_id = canon_map.get(lemma_id, lemma_id)
+        if effective_id not in result:
+            result[effective_id] = {
                 "title": title_en or title_ar or "Story",
                 "story_id": story_id,
             }
@@ -127,7 +153,10 @@ def _active_story_lemma_ids(db: Session) -> dict[int, dict]:
 
 
 def _book_page_numbers(db: Session) -> dict[int, dict]:
-    """Get lemma_id → {page, story_id} for words in active book stories."""
+    """Get lemma_id → {page, story_id} for words in active book stories.
+
+    Resolves variant lemma IDs to their canonical forms.
+    """
     rows = (
         db.query(StoryWord.lemma_id, StoryWord.page_number, Story.id)
         .join(Story, StoryWord.story_id == Story.id)
@@ -140,10 +169,14 @@ def _book_page_numbers(db: Session) -> dict[int, dict]:
         )
         .all()
     )
+    raw_ids = {r[0] for r in rows}
+    canon_map = _resolve_to_canonical(db, raw_ids)
+
     result: dict[int, dict] = {}
     for lemma_id, page, story_id in rows:
-        if lemma_id not in result or page < result[lemma_id]["page"]:
-            result[lemma_id] = {"page": page, "story_id": story_id}
+        effective_id = canon_map.get(lemma_id, lemma_id)
+        if effective_id not in result or page < result[effective_id]["page"]:
+            result[effective_id] = {"page": page, "story_id": story_id}
     return result
 
 

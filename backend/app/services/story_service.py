@@ -564,13 +564,52 @@ def _recalculate_story_counts(db: Session, story: Story) -> None:
     story.readiness_pct = round((known + func) / (total + func) * 100, 1) if (total + func) > 0 else 0
 
 
+_STATE_RANK = {"known": 4, "lapsed": 3, "learning": 2, "acquiring": 1, "encountered": 0}
+
+
 def _build_knowledge_map(db: Session, lemma_ids: set[int] | None = None) -> dict[int, str]:
-    """Build lemma_id -> knowledge_state map."""
+    """Build lemma_id -> knowledge_state map.
+
+    Resolves variants: if a lemma is a variant of a canonical lemma,
+    the canonical's knowledge state is used when it's more advanced.
+    """
     q = db.query(UserLemmaKnowledge)
     if lemma_ids is not None:
         q = q.filter(UserLemmaKnowledge.lemma_id.in_(lemma_ids))
     rows = q.all()
-    return {r.lemma_id: r.knowledge_state for r in rows}
+    result = {r.lemma_id: r.knowledge_state for r in rows}
+
+    if not lemma_ids:
+        return result
+
+    # Resolve variants: check if any requested lemma_ids have canonical forms
+    variant_rows = (
+        db.query(Lemma.lemma_id, Lemma.canonical_lemma_id)
+        .filter(
+            Lemma.lemma_id.in_(lemma_ids),
+            Lemma.canonical_lemma_id.isnot(None),
+        )
+        .all()
+    )
+    if variant_rows:
+        canon_map = {r.lemma_id: r.canonical_lemma_id for r in variant_rows}
+        canonical_ids = set(canon_map.values())
+        # Fetch canonical lemma knowledge states
+        canon_ulk = (
+            db.query(UserLemmaKnowledge)
+            .filter(UserLemmaKnowledge.lemma_id.in_(canonical_ids))
+            .all()
+        )
+        canon_states = {r.lemma_id: r.knowledge_state for r in canon_ulk}
+        # Use canonical state if it's more advanced
+        for var_id, canon_id in canon_map.items():
+            canon_state = canon_states.get(canon_id)
+            if canon_state:
+                var_state = result.get(var_id)
+                if not var_state or _STATE_RANK.get(canon_state, 0) > _STATE_RANK.get(var_state, 0):
+                    result[var_id] = canon_state
+
+    return result
 
 
 LENGTH_SENTENCES = {"short": (2, 4), "medium": (4, 7), "long": (7, 12)}
