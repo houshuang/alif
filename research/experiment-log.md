@@ -4,6 +4,20 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-03-21: Tighten LLM Pipeline Verification Across All Code Paths
+
+**Context**: Comprehensive audit of all LLM/automatic processing paths revealed 4 additional issues beyond the unverified cron (fixed earlier today).
+
+**Changes**:
+1. **Book import crash fix**: `verify_and_correct_mappings_llm()` returns `None` when LLM is unavailable. Book import iterated over `None` → `TypeError`. Now handles gracefully + sets `mappings_verified_at`.
+2. **Remove on-demand generation**: `_generate_on_demand()` in session building created unverified sentences during session load. Removed entirely — sessions now build from pre-generated sentences only (<1s). `warm_sentence_cache` fills gaps for next session.
+3. **Disambiguation fail-closed**: `disambiguate_mappings_llm()` silently returned original (potentially wrong) mappings on LLM failure. Now returns `None`, callers skip sentences with unresolved ambiguities.
+4. **Story import verification**: New `_verify_new_story_mappings()` verifies CAMeL-created lemma-StoryWord mappings via LLM after creation. Wrong mappings nulled out. Enrichment (forms_json, etymology) queued in background for new lemmas.
+
+**Verify**: Session build should remain <1s. No more `_generate_on_demand` in logs. Story imports should show "verified new mappings" log entries.
+
+---
+
 ## 2026-03-21: Unify Sentence Generation Through Verified Pipeline
 
 **Context**: 29 flagged word_mapping issues traced to bad lemma assignments (homograph collisions like ذَهَب "gold" → ذَهَبَ "to go", clitic over-stripping like وَالأَدَبِ → دَبَّ "creep" instead of أَدَب "literature"). Root cause: three scripts (`update_material.py`, `pregenerate_material.py`, `generate_sentences.py`) had their own copy of sentence generation that skipped LLM disambiguation, verification, and correction. The cron alone generated 20-50 unverified sentences every 3 hours — 20.4% of active sentences (136/667) were unverified.
