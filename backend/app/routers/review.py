@@ -66,16 +66,12 @@ def next_sentences(
 ):
     """Get a sentence-based review session.
 
-    Non-prefetch requests skip on-demand LLM generation for fast response
-    (~0.5s instead of ~30s). A background warm task runs after to generate
-    sentences for uncovered words so the next session is ready.
+    No LLM calls — session builds from pre-generated sentences (<1s).
+    Background warm_sentence_cache generates for uncovered words after.
     """
-    # Prefetch calls do full generation (they run in background anyway).
-    # Direct user requests skip on-demand gen for fast load.
     result = build_session(
         db, limit=limit, mode=mode,
         log_events=not prefetch,
-        skip_on_demand=not prefetch,
         exclude_sentence_ids=set(exclude) if exclude else None,
     )
 

@@ -359,6 +359,9 @@ def create_book_sentences(
             corrections = verify_and_correct_mappings_llm(
                 arabic, english, mapped, lemma_map_for_verify,
             )
+            verification_ran = corrections is not None
+            if corrections is None:
+                corrections = []  # LLM unavailable — store without verification
             for corr in corrections:
                 pos = corr["position"]
                 m = next((m for m in mappings if m.position == pos), None)
@@ -376,6 +379,8 @@ def create_book_sentences(
                 elif not new_lid:
                     logger.warning(f"LLM flagged bad mapping: {m.surface_form} → lemma {m.lemma_id}, nulling out")
                     m.lemma_id = None
+        else:
+            verification_ran = False
 
         target_lid = _pick_primary_target(mappings, db)
 
@@ -389,6 +394,7 @@ def create_book_sentences(
             story_id=story.id,
             is_active=True,
             created_at=datetime.now(timezone.utc),
+            mappings_verified_at=datetime.now(timezone.utc) if verification_ran else None,
             max_word_count=len(tokens),
             page_number=sent_data.get("page_number"),
         )

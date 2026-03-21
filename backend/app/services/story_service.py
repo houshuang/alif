@@ -499,7 +499,116 @@ Set name_type to "personal" for personal names (people, characters), "place" for
         except Exception as e:
             logger.warning("Variant detection failed for story %d: %s", story.id, e)
 
+    # Step 5: Verify new lemma-StoryWord mappings via LLM
+    if new_lemma_ids:
+        _verify_new_story_mappings(db, story, set(new_lemma_ids))
+
+    # Step 6: Queue enrichment for new lemmas (forms_json, etymology)
+    if new_lemma_ids:
+        try:
+            from app.services.lemma_enrichment import enrich_lemmas_batch
+            import threading
+            threading.Thread(
+                target=enrich_lemmas_batch,
+                args=(new_lemma_ids,),
+                daemon=True,
+            ).start()
+        except Exception as e:
+            logger.warning("Failed to queue enrichment for story %d new lemmas: %s", story.id, e)
+
     return new_lemma_ids
+
+
+def _verify_new_story_mappings(
+    db: Session, story: Story, new_lemma_ids: set[int]
+) -> None:
+    """Verify StoryWord mappings for newly created lemmas using LLM.
+
+    Groups story words into chunks by position, builds a sentence-like context,
+    and calls verify_and_correct_mappings_llm. Wrong mappings are nulled out
+    (never auto-create lemmas from corrections).
+    """
+    from app.services.sentence_validator import (
+        verify_and_correct_mappings_llm,
+        correct_mapping as _correct_mapping,
+        TokenMapping,
+    )
+
+    # Collect story words that reference new lemmas
+    words_to_verify = [
+        sw for sw in story.words
+        if sw.lemma_id and sw.lemma_id in new_lemma_ids
+    ]
+    if not words_to_verify:
+        return
+
+    # Build context: get surrounding text for each new-lemma word
+    all_words = sorted(story.words, key=lambda w: w.position)
+    text_tokens = [sw.surface_form for sw in all_words]
+    full_text = " ".join(text_tokens)
+
+    # Build mappings for verification (only new-lemma words)
+    lemma_ids_needed = {sw.lemma_id for sw in words_to_verify if sw.lemma_id}
+    lemma_map = {
+        l.lemma_id: l for l in db.query(Lemma).filter(
+            Lemma.lemma_id.in_(list(lemma_ids_needed))
+        ).all()
+    }
+
+    # Batch verify in chunks of 15 words to keep LLM context manageable
+    CHUNK_SIZE = 15
+    fixed = 0
+    nulled = 0
+    for i in range(0, len(words_to_verify), CHUNK_SIZE):
+        chunk = words_to_verify[i:i + CHUNK_SIZE]
+        mappings = [
+            TokenMapping(
+                position=sw.position,
+                surface_form=sw.surface_form,
+                lemma_id=sw.lemma_id,
+                is_target=False,
+                is_function_word=sw.is_function_word or False,
+            )
+            for sw in chunk
+        ]
+
+        # Use story text as context (truncated around the chunk)
+        min_pos = min(sw.position for sw in chunk)
+        max_pos = max(sw.position for sw in chunk)
+        context_start = max(0, min_pos - 5)
+        context_end = min(len(text_tokens), max_pos + 6)
+        context_text = " ".join(text_tokens[context_start:context_end])
+
+        corrections = verify_and_correct_mappings_llm(
+            context_text, "", mappings, lemma_map,
+        )
+        if corrections is None or not corrections:
+            continue
+
+        for corr in corrections:
+            pos = corr["position"]
+            sw = next((sw for sw in chunk if sw.position == pos), None)
+            if not sw:
+                continue
+            new_lid = _correct_mapping(
+                db,
+                corr.get("correct_lemma_ar", ""),
+                corr.get("correct_gloss", ""),
+                corr.get("correct_pos", ""),
+            )
+            if new_lid and new_lid != sw.lemma_id:
+                logger.info(f"Story {story.id}: corrected mapping '{sw.surface_form}': #{sw.lemma_id} → #{new_lid}")
+                sw.lemma_id = new_lid
+                fixed += 1
+            elif not new_lid:
+                logger.warning(f"Story {story.id}: nulling bad mapping '{sw.surface_form}' → #{sw.lemma_id}")
+                sw.lemma_id = None
+                sw.gloss_en = None
+                nulled += 1
+
+    if fixed or nulled:
+        db.flush()
+        logger.info(f"Story {story.id}: verified new mappings — {fixed} fixed, {nulled} nulled")
 
 
 _ACTIVELY_LEARNING_STATES = {"acquiring", "learning", "known", "lapsed"}

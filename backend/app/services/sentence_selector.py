@@ -388,7 +388,6 @@ def build_session(
     limit: int = 10,
     mode: str = "reading",
     log_events: bool = True,
-    skip_on_demand: bool = False,
     exclude_sentence_ids: set[int] | None = None,
 ) -> dict:
     """Assemble a sentence-based review session.
@@ -510,7 +509,7 @@ def build_session(
     slots_for_intro = max(intro_slots, undersized_slots)
     auto_introduced_ids = _auto_introduce_words(
         db, slots_for_intro, knowledge_by_id, now,
-        skip_material_gen=skip_on_demand,
+        skip_material_gen=True,
     )
     if auto_introduced_ids:
         # Add newly introduced words to due set and tracking structures
@@ -601,7 +600,7 @@ def build_session(
     if exclude_sentence_ids:
         sentence_ids_with_due -= exclude_sentence_ids
     if not sentence_ids_with_due:
-        return _with_fallbacks(db, session_id, due_lemma_ids, stability_map, total_due, [], limit, reintro_cards=reintro_cards, knowledge_by_id=knowledge_by_id, all_knowledge=all_knowledge, skip_on_demand=skip_on_demand, mode=mode)
+        return _with_fallbacks(db, session_id, due_lemma_ids, stability_map, total_due, [], limit, reintro_cards=reintro_cards, knowledge_by_id=knowledge_by_id, all_knowledge=all_knowledge, mode=mode)
 
     from sqlalchemy import or_
 
@@ -661,7 +660,7 @@ def build_session(
                 sentences.extend(rescue_sents)
 
     if not sentences:
-        return _with_fallbacks(db, session_id, due_lemma_ids, stability_map, total_due, [], limit, reintro_cards=reintro_cards, knowledge_by_id=knowledge_by_id, all_knowledge=all_knowledge, skip_on_demand=skip_on_demand, mode=mode)
+        return _with_fallbacks(db, session_id, due_lemma_ids, stability_map, total_due, [], limit, reintro_cards=reintro_cards, knowledge_by_id=knowledge_by_id, all_knowledge=all_knowledge, mode=mode)
 
     sentence_map: dict[int, Sentence] = {s.id: s for s in sentences}
 
@@ -1150,7 +1149,7 @@ def build_session(
 
     db.commit()
 
-    return _with_fallbacks(db, session_id, due_lemma_ids, stability_map, total_due, items, limit, covered_ids, reintro_cards=reintro_cards, knowledge_by_id=knowledge_by_id, all_knowledge=all_knowledge, base_item_count=base_item_count, skip_on_demand=skip_on_demand, mode=mode)
+    return _with_fallbacks(db, session_id, due_lemma_ids, stability_map, total_due, items, limit, covered_ids, reintro_cards=reintro_cards, knowledge_by_id=knowledge_by_id, all_knowledge=all_knowledge, base_item_count=base_item_count, mode=mode)
 
 
 MAX_REINTRO_PER_SESSION = 3
@@ -1635,8 +1634,8 @@ def _find_pregenerated_sentences_for_words(
 ) -> list[dict]:
     """Find pre-generated sentences for newly introduced words (no LLM calls).
 
-    Used during fill phase when skip_on_demand=True to populate sessions
-    from the existing sentence pool without waiting for LLM generation.
+    Used during fill phase to populate sessions from the existing sentence pool.
+    All sentence generation happens in background (warm_sentence_cache / cron).
     """
     import logging
     from sqlalchemy import or_
@@ -1891,13 +1890,12 @@ def _with_fallbacks(
     knowledge_by_id: dict[int, UserLemmaKnowledge] | None = None,
     all_knowledge: list | None = None,
     base_item_count: int | None = None,
-    skip_on_demand: bool = False,
     mode: str = "reading",
 ) -> dict:
-    """Generate on-demand sentences for uncovered due words, then fill if undersized.
+    """Fill undersized sessions using pre-generated sentences (DB queries only).
 
-    When skip_on_demand=True, skips LLM generation but still runs the fill
-    phase using pre-generated sentences (fast DB queries only).
+    No LLM calls — all sentence generation happens in background via
+    warm_sentence_cache() and the cron. This keeps session build <1s.
     """
     import logging
     logger = logging.getLogger(__name__)
@@ -1907,33 +1905,15 @@ def _with_fallbacks(
     if knowledge_by_id is None:
         knowledge_by_id = {}
 
-    if not skip_on_demand:
-        # Phase 1: On-demand generation for uncovered due words
-        # Use base_item_count (pre-acquisition-repetition) for budget so that
-        # acquisition repetition doesn't block on-demand generation for uncovered words
-        uncovered = due_lemma_ids - covered_ids
-        budget_basis = base_item_count if base_item_count is not None else len(items)
-        on_demand_budget = max(0, limit - budget_basis)
-        if uncovered and on_demand_budget > 0:
-            try:
-                generated_items = _generate_on_demand(db, uncovered, stability_map, on_demand_budget)
-                items.extend(generated_items)
-                for item in generated_items:
-                    covered_ids.add(item["primary_lemma_id"])
-            except Exception:
-                logger.exception("On-demand generation failed, continuing with existing sentences")
-                db.rollback()
-    else:
-        uncovered = due_lemma_ids - covered_ids
-        if uncovered:
-            logger.info(f"Skipping on-demand generation for {len(uncovered)} uncovered words (fast mode)")
+    uncovered = due_lemma_ids - covered_ids
+    if uncovered:
+        logger.info(f"{len(uncovered)} uncovered words — warm_sentence_cache will generate for next session")
 
-    # Phase 2: Fill phase — ALWAYS runs when session is undersized.
-    # When skip_on_demand=True, uses pre-generated sentences (fast DB queries).
-    # When skip_on_demand=False, uses LLM generation for new sentences.
+    # Fill phase — ALWAYS runs when session is undersized.
+    # Uses pre-generated sentences only (fast DB queries, no LLM).
     if len(items) < limit:
         logger.info(
-            f"Fill phase (fast={skip_on_demand}): session has {len(items)}/{limit} items"
+            f"Fill phase: session has {len(items)}/{limit} items"
         )
         try:
             now = datetime.now(timezone.utc)
@@ -1956,15 +1936,10 @@ def _with_fallbacks(
                 fill_due = set(fill_ids)
                 remaining_cap = limit - len(items)
                 if remaining_cap > 0:
-                    if not skip_on_demand:
-                        fill_items = _generate_on_demand(
-                            db, fill_due, stability_map, remaining_cap
-                        )
-                    else:
-                        fill_items = _find_pregenerated_sentences_for_words(
-                            db, fill_due, stability_map, knowledge_by_id,
-                            all_knowledge or [], remaining_cap, mode=mode,
-                        )
+                    fill_items = _find_pregenerated_sentences_for_words(
+                        db, fill_due, stability_map, knowledge_by_id,
+                        all_knowledge or [], remaining_cap, mode=mode,
+                    )
                     for fi in fill_items:
                         if fi.get("selection_info"):
                             fi["selection_info"]["reason"] = "fill_intro"
