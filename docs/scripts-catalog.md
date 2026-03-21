@@ -53,6 +53,7 @@ All scripts in `backend/scripts/`. Run from `backend/` directory.
 
 ## Cleanup & Maintenance
 - `verify_variants.py` — LLM-verified audit of all variant→canonical links. Finds pairs with no gloss overlap, sends to LLM for confirmation, unlinks false positives. `--fix` to apply (default: dry-run). `--verbose` to show all pairs.
+- `audit_variants.py` — Jaccard-scored variant audit with tabular output. Computes gloss similarity for every variant→canonical link, flags pairs below threshold (default: 0.0 = zero overlap), sends to LLM for verification. `--fix` to unmerge confirmed false positives (default: dry-run). `--threshold=N` to adjust Jaccard cutoff. `--skip-llm` for report-only mode.
 - `cleanup_bad_roots.py` — LLM-assisted bad root classification and cleanup (POS fixes, variant linking).
 - `cleanup_review_pool.py` — Reset under-learned→acquiring, suspend variant ULKs with stat merge, suspend junk, retire bad sentences, run variant detection on uncovered words.
 - `reset_ocr_cards.py` — Reset inflated OCR-imported FSRS cards to "encountered". Supports --dry-run.

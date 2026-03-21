@@ -31,15 +31,42 @@ _NEVER_MERGE = {
 }
 
 
+GLOSS_NOISE_WORDS = {
+    "a", "an", "the", "of", "to", "is", "my", "your", "his", "her", "its",
+    "their", "our", "(m)", "(f)", "m", "f", "(masc)", "(fem)",
+}
+
+
+def _tokenize_gloss(gloss: str) -> set[str]:
+    """Tokenize a gloss into meaningful words, stripping noise words."""
+    if not gloss:
+        return set()
+    return set(gloss.lower().replace("(", " ").replace(")", " ").split()) - GLOSS_NOISE_WORDS
+
+
 def _gloss_overlap(gloss_a: str, gloss_b: str) -> bool:
     """Check if two glosses share semantic content (at least one meaningful word)."""
     if not gloss_a or not gloss_b:
         return False
-    noise = {"a", "an", "the", "of", "to", "is", "my", "your", "his", "her", "its",
-             "their", "our", "(m)", "(f)", "m", "f", "(masc)", "(fem)"}
-    words_a = set(gloss_a.lower().replace("(", " ").replace(")", " ").split()) - noise
-    words_b = set(gloss_b.lower().replace("(", " ").replace(")", " ").split()) - noise
+    words_a = _tokenize_gloss(gloss_a)
+    words_b = _tokenize_gloss(gloss_b)
     return bool(words_a & words_b)
+
+
+def compute_jaccard_similarity(gloss_a: str, gloss_b: str) -> float:
+    """Compute Jaccard similarity between two glosses (0.0 = no overlap, 1.0 = identical).
+
+    Tokenizes glosses into meaningful words (stripping noise words like articles,
+    prepositions, gender markers) and computes |intersection| / |union|.
+    """
+    words_a = _tokenize_gloss(gloss_a)
+    words_b = _tokenize_gloss(gloss_b)
+    if not words_a and not words_b:
+        return 0.0
+    union = words_a | words_b
+    if not union:
+        return 0.0
+    return len(words_a & words_b) / len(union)
 
 
 def _has_enclitic(enc0: str) -> bool:
@@ -522,3 +549,49 @@ def detect_variants_llm(
         print(f"Result: {len(confirmed)}/{len(camel_candidates)} confirmed by LLM")
 
     return confirmed
+
+
+def verify_variant_pair(
+    db: Session,
+    variant_lemma: "Lemma",
+    canonical_lemma: "Lemma",
+    model_override: str | None = "claude_haiku",
+) -> bool:
+    """Check whether a variant-canonical pair is semantically valid.
+
+    Intended for import pipelines to verify new variant assignments before
+    committing them. Uses gloss overlap as a fast check, falls back to LLM
+    for ambiguous cases.
+
+    Args:
+        db: Database session (used for LLM decision cache).
+        variant_lemma: The lemma being marked as a variant.
+        canonical_lemma: The proposed canonical lemma.
+        model_override: LLM model for verification.
+
+    Returns:
+        True if the pair is a valid variant relationship, False if they
+        appear to be semantically distinct words.
+    """
+    # Fast path: if glosses overlap, likely a valid variant
+    if _gloss_overlap(variant_lemma.gloss_en, canonical_lemma.gloss_en):
+        return True
+
+    # No gloss overlap — ask LLM to verify
+    candidate = {
+        "id": 0,
+        "word_ar": variant_lemma.lemma_ar_bare or "",
+        "word_gloss": variant_lemma.gloss_en or "",
+        "word_pos": variant_lemma.pos or "",
+        "base_ar": canonical_lemma.lemma_ar_bare or "",
+        "base_gloss": canonical_lemma.gloss_en or "",
+        "base_pos": canonical_lemma.pos or "",
+    }
+    results = evaluate_variants_llm(
+        [candidate], model_override=model_override, db=db,
+    )
+    if not results:
+        # LLM unavailable — err on the side of not merging
+        return False
+
+    return results[0].get("is_variant", False)

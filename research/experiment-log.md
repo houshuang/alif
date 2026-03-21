@@ -4,6 +4,18 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-03-21: Variant Verification Audit
+
+**Context**: Variant detection sometimes merges semantically-distinct words that are morphologically similar (e.g., صيادية "dish" → صياد "hunter"). These bad merges mean the variant's reviews affect the wrong canonical word.
+
+**Change**: Added `audit_variants.py` script that checks gloss coherence between variants and their canonicals. Zero-overlap pairs get LLM verification. `--fix` mode unmerges confirmed distinct words. Also added `verify_variant_pair()` for import-time checking.
+
+**Expected**: Identifies and fixes incorrectly merged variants. Prevents future bad merges via import-time verification.
+
+**Verify**: Run script, review output. Expected: 5-15 suspicious pairs out of ~100 variants.
+
+---
+
 ## 2026-03-21: Tighten LLM Pipeline Verification Across All Code Paths
 
 **Context**: Comprehensive audit of all LLM/automatic processing paths revealed 4 additional issues beyond the unverified cron (fixed earlier today).
