@@ -46,7 +46,7 @@ export default function StatsScreen() {
       setAnalytics(data);
       setDeepAnalytics(deep);
     } catch (e) {
-      console.error("Failed to load analytics:", e);
+      console.warn("Failed to load analytics:", e);
     } finally {
       setLoading(false);
     }
