@@ -4,6 +4,18 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-03-21: Comprehensibility Gate Counts Familiar Encountered Words as Known
+
+**Context**: Encountered words with 8+ encounters are practically known but were excluded from the comprehensibility gate, making sentences artificially easy and limiting collateral learning exposure.
+
+**Change**: Words in "encountered" state with `total_encounters >= 8` now count as "known" for the comprehensibility threshold (both gates). Threshold still 60%.
+
+**Expected**: Slightly harder sentences with more encountered scaffold → more collateral introductions → virtuous cycle. Users who've read many stories will see the biggest effect.
+
+**Verify**: After 1 week, check comprehensibility scores of served sentences (should be slightly lower but still ≥60%). Check collateral introduction rate (should increase).
+
+---
+
 ## 2026-03-21: Tighten LLM Pipeline Verification Across All Code Paths
 
 **Context**: Comprehensive audit of all LLM/automatic processing paths revealed 4 additional issues beyond the unverified cron (fixed earlier today).

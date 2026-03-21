@@ -46,12 +46,10 @@
 - Combined with dynamic limit: 18 * 0.3 = 5 reserved intro slots
 - File: `sentence_selector.py`
 
-### Comprehensibility Gate — Count Familiar Encountered Words as Known
-- Current: encountered words count as NOT known for the 60% gate
-- Problem: words with 8+ encounters are practically known — excluding them makes sentences too easy and limits collateral exposure
-- Proposal: in `sentence_validator.py`, count encountered words with `total_encounters >= 8` as known for the comprehensibility gate
-- Effect: allows harder sentences with more encountered scaffold → more collateral introductions → virtuous cycle
-- Requires: careful tuning — if threshold too low, sentences become incomprehensible
+### Comprehensibility Gate — Count Familiar Encountered Words as Known [DONE 2026-03-21]
+- Implemented: encountered words with `total_encounters >= FAMILIAR_ENCOUNTER_THRESHOLD` (8) count as known for both comprehensibility gates
+- Constant in `sentence_selector.py`, applied in both `build_session` and `_find_pregenerated_sentences_for_words`
+- `WordMeta` now carries `total_encounters` field for gate evaluation
 
 ### Variant Decision Verification
 - Current: variant detection runs once at import time; no verification of variant→canonical links

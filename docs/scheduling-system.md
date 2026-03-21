@@ -273,7 +273,8 @@ review engine.
 │ • No acquisition box                                             │
 │ • total_encounters may be incremented                            │
 │ • Contributes to story readiness calculations                    │
-│ • Does NOT count as known for comprehensibility gate             │
+│ • Counts as known for comprehensibility gate when                │
+│   total_encounters >= FAMILIAR_ENCOUNTER_THRESHOLD (8)          │
 │ • Appears in Learn mode candidates with encountered_bonus=0.5    │
 │ • Appears in auto-intro pool (highest frequency first)           │
 │                                                                  │
@@ -294,10 +295,10 @@ to enter the system — collateral exposure in sentences, not explicit auto-intr
 got their review in-sentence). Intro cards are reserved for explicitly auto-introduced
 words with fewer than 5 prior encounters.
 
-**Comprehensibility gate**: Encountered words still do **not** count as known for the
-gate. This means sentences won't have many encountered scaffold words, which naturally
-limits how fast the encountered pool drains. Future tuning: count high-encounter words
-(≥8) as known for the gate to allow harder sentences.
+**Comprehensibility gate**: Encountered words with `total_encounters >= FAMILIAR_ENCOUNTER_THRESHOLD` (8)
+count as known for the gate. Low-encounter encountered words still do not count. This allows
+sentences with familiar-but-not-yet-studied scaffold words, enabling more collateral learning.
+The threshold prevents truly unfamiliar words from inflating the known ratio.
 
 ---
 
@@ -770,6 +771,7 @@ check how many are in a "known" state:
 scaffold = [w for w in content_words if not w.is_due and not w.is_function_word]
 known = count where:
   - state in (known, learning, lapsed, acquiring)
+  - OR state == "encountered" AND total_encounters >= FAMILIAR_ENCOUNTER_THRESHOLD (8)
 comprehensibility = known / len(scaffold)
 if comprehensibility < 0.60: SKIP this sentence
 ```
@@ -783,8 +785,10 @@ Key design choices:
 - **All acquiring words count as known**: Words in the Leitner pipeline (any box) are
   actively being studied and the user has engaged with them in context. Previous box≥2
   gate caused session starvation after collateral credit introductions (2026-03-19).
-- **Encountered does NOT count**: Passively imported words (OCR, book, story) that haven't
-  been studied are treated as unknown. On-demand generation handles bootstrap.
+- **Familiar encountered words count**: Encountered words with `total_encounters >= 8`
+  (`FAMILIAR_ENCOUNTER_THRESHOLD`) are treated as known. These are words the learner has
+  seen enough times in stories/books to passively recognize. Low-encounter encountered
+  words still count as unknown.
 - **60% threshold** (lowered from 70%) — the scaffold-only denominator is smaller, so 60%
   provides equivalent filtering without over-rejecting short sentences.
 
@@ -1465,6 +1469,7 @@ remaining cards on the next card advance. See Section 8 "Sentence Pre-Warming" f
 | `MAX_ON_DEMAND_PER_SESSION` | 10 | Reference constant (callers control actual cap via remaining session capacity) |
 | `MAX_REINTRO_PER_SESSION` | 3 | Struggling word reintro card limit |
 | `STRUGGLING_MIN_SEEN` | 3 | Threshold for struggling classification |
+| `FAMILIAR_ENCOUNTER_THRESHOLD` | 8 | Encountered words with this many encounters count as "known" for comprehensibility gate |
 | Comprehensibility threshold | 60% | Min known scaffold words to show sentence |
 | Unknown scaffold cap | 2 | Hard cap on unknown non-target words per sentence |
 | Acquiring box-1 excluded | stability < 0.5 | Box-1 words don't count as "known" scaffold |
@@ -1819,7 +1824,7 @@ the codebase that filter on `knowledge_state`, `stability`, or `canonical_lemma_
 
 | Gate | Location | Filters on |
 |------|----------|------------|
-| Comprehensibility gate | `sentence_selector.py` (×2: build_session + fill) | knowledge_state, stability |
+| Comprehensibility gate | `sentence_selector.py` (×2: build_session + fill) | knowledge_state, total_encounters, stability |
 | Unknown scaffold cap | `sentence_selector.py` | knowledge_state |
 | Pipeline backlog gate | `sentence_selector.py` | acquiring count |
 | Focus cohort | `cohort_service.py` | knowledge_state |
