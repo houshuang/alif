@@ -716,11 +716,11 @@ class TestScaffoldDiversity:
 
 
 class TestFillPhasePregenerated:
-    """Fill phase should use pre-generated sentences when skip_on_demand=True."""
+    """Fill phase should use pre-generated sentences (no LLM calls in session build)."""
 
-    def test_fill_uses_pregenerated_in_fast_mode(self, db_session):
-        """When skip_on_demand=True and session is undersized, fill phase
-        should introduce words and find their pre-generated sentences."""
+    def test_fill_uses_pregenerated(self, db_session):
+        """When session is undersized, fill phase should introduce words
+        and find their pre-generated sentences."""
         # 1 due word → produces 1-card session (undersized for limit=5)
         _seed_word(db_session, 1, "كتاب", "book", due_hours=-1)
         _seed_sentence(db_session, 1, "الكتاب", "the book", 1, [("الكتاب", 1)])
@@ -751,7 +751,7 @@ class TestFillPhasePregenerated:
             ))
         db_session.commit()
 
-        result = build_session(db_session, limit=5, skip_on_demand=True)
+        result = build_session(db_session, limit=5)
         # Should have at least the 1 due word; if fill phase works,
         # it may introduce more words with pre-generated sentences
         assert len(result["items"]) >= 1

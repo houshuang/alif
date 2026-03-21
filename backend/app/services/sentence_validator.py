@@ -1070,6 +1070,7 @@ Only include positions where your choice differs from option A (the current mapp
                 m.lemma_id = chosen_id
     except (AllProvidersFailed, Exception) as e:
         _validator_logger.warning(f"LLM mapping disambiguation failed: {e}")
+        return None  # caller should skip sentence with unresolved ambiguities
 
     return mappings
 

@@ -149,9 +149,13 @@ def generate_material_for_word(lemma_id: int, needed: int = 2, model_override: s
                 for lid in [m.lemma_id] + (m.alternative_lemma_ids or [])
                 if lid and lid in all_lemma_by_id
             }
-            mappings = disambiguate_mappings_llm(
+            result = disambiguate_mappings_llm(
                 res.arabic, res.english, mappings, lemma_map_for_disambig,
             )
+            if result is None:
+                logger.warning(f"Disambiguation failed for ambiguous sentence, skipping")
+                continue
+            mappings = result
 
         # Verify mappings — None means verification failed, discard sentence
         lemma_map_for_verify = {
@@ -337,9 +341,14 @@ def store_multi_target_sentence(
         lemma_map_for_disambig = {l.lemma_id: l for l in db.query(Lemma).filter(
             Lemma.lemma_id.in_(list(all_ids))
         ).all()}
-        mappings = disambiguate_mappings_llm(
+        disambig_result = disambiguate_mappings_llm(
             result.arabic, result.english, mappings, lemma_map_for_disambig,
         )
+        if disambig_result is None:
+            logger.warning("Disambiguation failed for ambiguous multi-target sentence, discarding")
+            db.delete(sent)
+            return None
+        mappings = disambig_result
 
     # Verify mappings — None means verification failed, discard sentence
     from app.services.sentence_validator import (
