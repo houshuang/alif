@@ -4,6 +4,31 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-03-21: Server Performance Fixes + 3-State Tashkeel Toggle
+
+**Context**: Session wrap-up and stats loading were very slow. Server logs showed 6 "database is locked" errors, 61 LLM verification timeouts, and a 500 error on experiment-intro-ack.
+
+**Root causes found**:
+1. **Stats reload storm**: Every `flushQueue()` (one per card) emitted "synced" → stats page fired 2 analytics requests. 10-card session = ~20 extra requests.
+2. **verify_sentence_mappings held DB during LLM calls**: Phase 4 of warm_sentence_cache kept SQLite session open while waiting for LLM responses (60s+ timeout each). When Gemini timed out overnight, this locked the DB for minutes.
+3. **Claude CLI JSON fallback bug**: When CLI returned empty content, `JSONDecodeError` wasn't caught as `LLMError`, so the API fallback chain (Gemini → OpenAI → Anthropic) never triggered. All three bugs compounded: CLI fails → no fallback → Gemini also down → DB locked for minutes → user endpoints 500.
+4. **Function word set recomputed every request**: Scanned all 2,324 lemmas on every stats call.
+5. **Missing SQLite cache_size PRAGMA**: Default ~2MB page cache.
+
+**Fixes**:
+- Debounced stats reload (2s settle time, fires once instead of 20x)
+- Restructured verify_sentence_mappings: read → LLM (no DB) → write, with explicit 30s timeout
+- Fixed CLI JSON parse to raise LLMError → triggers API fallback chain
+- Cached function word ID set (computed once at startup)
+- Added `PRAGMA cache_size=-64000` (64MB)
+- Made experiment-intro-ack resilient to lock errors
+
+**3-state tashkeel toggle**: Card-level dot toggle now cycles: default (fade per backend stability) → all vowels → no vowels. Dot opacity indicates state (0.2/0.5/1.0). Replaces binary on/off toggle.
+
+**Verify**: Monitor server logs for "database is locked" errors — should be near zero. Check session wrap-up responsiveness.
+
+---
+
 ## 2026-03-20: Tashkeel Fading (Front/Back Split) + Dual Font Mixing
 
 **Context**: At ~1,072 active words (1,016 known + 56 learning), 263 words have 60+ day FSRS stability. User wants to practice reading without vowel marks for well-known words, matching how real Arabic is written.
