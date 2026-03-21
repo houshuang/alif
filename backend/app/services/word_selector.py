@@ -104,21 +104,34 @@ def _get_recently_failed_roots(db: Session) -> set[int]:
 
 
 def _resolve_to_canonical(db: Session, lemma_ids: set[int]) -> dict[int, int]:
-    """Map variant lemma IDs to their canonical lemma IDs.
+    """Map variant lemma IDs to their root canonical lemma IDs.
 
-    Returns {variant_id: canonical_id} for lemmas that have a canonical form.
+    Follows variant chains (A→B→C) to the root canonical (A→C).
+    Returns {variant_id: root_canonical_id} for lemmas that have a canonical form.
     """
     if not lemma_ids:
         return {}
-    rows = (
-        db.query(Lemma.lemma_id, Lemma.canonical_lemma_id)
-        .filter(
-            Lemma.lemma_id.in_(lemma_ids),
-            Lemma.canonical_lemma_id.isnot(None),
-        )
+    # Load all canonical mappings in one query
+    all_mappings = {
+        r.lemma_id: r.canonical_lemma_id
+        for r in db.query(Lemma.lemma_id, Lemma.canonical_lemma_id)
+        .filter(Lemma.canonical_lemma_id.isnot(None))
         .all()
-    )
-    return {r.lemma_id: r.canonical_lemma_id for r in rows}
+    }
+    result = {}
+    for lid in lemma_ids:
+        if lid in all_mappings:
+            # Follow the chain to the root canonical
+            current = all_mappings[lid]
+            seen = {lid, current}
+            while current in all_mappings:
+                nxt = all_mappings[current]
+                if nxt in seen:
+                    break  # prevent infinite loops
+                seen.add(nxt)
+                current = nxt
+            result[lid] = current
+    return result
 
 
 def _active_story_lemma_ids(db: Session) -> dict[int, dict]:

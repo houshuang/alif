@@ -582,26 +582,33 @@ def _build_knowledge_map(db: Session, lemma_ids: set[int] | None = None) -> dict
     if not lemma_ids:
         return result
 
-    # Resolve variants: check if any requested lemma_ids have canonical forms
-    variant_rows = (
-        db.query(Lemma.lemma_id, Lemma.canonical_lemma_id)
-        .filter(
-            Lemma.lemma_id.in_(lemma_ids),
-            Lemma.canonical_lemma_id.isnot(None),
-        )
+    # Resolve variants: follow chains to root canonical and use best state
+    all_mappings = {
+        r.lemma_id: r.canonical_lemma_id
+        for r in db.query(Lemma.lemma_id, Lemma.canonical_lemma_id)
+        .filter(Lemma.canonical_lemma_id.isnot(None))
         .all()
-    )
-    if variant_rows:
-        canon_map = {r.lemma_id: r.canonical_lemma_id for r in variant_rows}
+    }
+    canon_map: dict[int, int] = {}
+    for lid in lemma_ids:
+        if lid in all_mappings:
+            current = all_mappings[lid]
+            seen = {lid, current}
+            while current in all_mappings:
+                nxt = all_mappings[current]
+                if nxt in seen:
+                    break
+                seen.add(nxt)
+                current = nxt
+            canon_map[lid] = current
+    if canon_map:
         canonical_ids = set(canon_map.values())
-        # Fetch canonical lemma knowledge states
         canon_ulk = (
             db.query(UserLemmaKnowledge)
             .filter(UserLemmaKnowledge.lemma_id.in_(canonical_ids))
             .all()
         )
         canon_states = {r.lemma_id: r.knowledge_state for r in canon_ulk}
-        # Use canonical state if it's more advanced
         for var_id, canon_id in canon_map.items():
             canon_state = canon_states.get(canon_id)
             if canon_state:
