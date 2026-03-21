@@ -7,6 +7,7 @@ import pytest
 from app.models import Lemma, ReviewLog, UserLemmaKnowledge, Sentence, SentenceWord
 from app.services.fsrs_service import create_new_card
 from app.services.sentence_selector import (
+    ENABLE_CONFUSABLE_EXCLUSION,
     FRESHNESS_BASELINE,
     INTRO_RESERVE_FRACTION,
     MAX_AUTO_INTRO_PER_SESSION,
@@ -821,5 +822,82 @@ class TestSelectionInfo:
         assert "due_coverage" in components
         assert "diversity" in components
         assert "session_diversity" in components
+
+
+class TestConfusableExclusion:
+    """Rasm-based confusable pair exclusion prevents visually similar words
+    (same dotless skeleton) from appearing in the same session."""
+
+    def test_confusable_constant_exists(self):
+        assert ENABLE_CONFUSABLE_EXCLUSION is True
+
+    def test_confusable_pair_excluded_from_session(self, db_session):
+        """Two words sharing the same rasm should not both appear in a session."""
+        # بنت (girl) and بيت (house) share the same rasm
+        _seed_word(db_session, 1, "بنت", "girl", due_hours=-1)
+        _seed_word(db_session, 2, "بيت", "house", due_hours=-1)
+        # Non-confusable word
+        _seed_word(db_session, 3, "كتاب", "book", due_hours=-1)
+
+        _seed_sentence(db_session, 1, "بنت", "girl", 1, [("بنت", 1)])
+        _seed_sentence(db_session, 2, "بيت", "house", 2, [("بيت", 2)])
+        _seed_sentence(db_session, 3, "كتاب", "book", 3, [("كتاب", 3)])
+        db_session.commit()
+
+        result = build_session(db_session, limit=10)
+        items = result["items"]
+        target_ids = {item["primary_lemma_id"] for item in items}
+
+        # Both should NOT be in the same session
+        assert not ({1, 2} <= target_ids), \
+            "Confusable pair بنت/بيت should not both appear in the same session"
+        # At least one should be present, plus the non-confusable word
+        assert 3 in target_ids, "Non-confusable word كتاب should appear"
+        assert len(items) >= 2
+
+    def test_non_confusable_pair_both_appear(self, db_session):
+        """Words with different rasm should both appear in the session."""
+        # كتب (write) and درس (study) have different rasm
+        _seed_word(db_session, 1, "كتب", "write", due_hours=-1)
+        _seed_word(db_session, 2, "درس", "study", due_hours=-1)
+
+        _seed_sentence(db_session, 1, "كتب", "write", 1, [("كتب", 1)])
+        _seed_sentence(db_session, 2, "درس", "study", 2, [("درس", 2)])
+        db_session.commit()
+
+        result = build_session(db_session, limit=10)
+        target_ids = {item["primary_lemma_id"] for item in result["items"]}
+
+        # Both should appear — they are not confusable
+        assert {1, 2} <= target_ids
+
+    def test_confusable_exclusion_only_active_vocabulary(self, db_session):
+        """Confusable pairs are only detected for active vocabulary words."""
+        # بنت (active/due) and بيت (encountered only)
+        _seed_word(db_session, 1, "بنت", "girl", due_hours=-1)
+        # بيت is encountered, not active
+        lemma2 = Lemma(lemma_id=2, lemma_ar="بيت", lemma_ar_bare="بيت",
+                       pos="noun", gloss_en="house")
+        db_session.add(lemma2)
+        db_session.flush()
+        ulk2 = UserLemmaKnowledge(
+            lemma_id=2, knowledge_state="encountered",
+            times_seen=0, times_correct=0, source="book",
+        )
+        db_session.add(ulk2)
+
+        # A third word that IS active and due
+        _seed_word(db_session, 3, "كتاب", "book", due_hours=-1)
+
+        _seed_sentence(db_session, 1, "بنت", "girl", 1, [("بنت", 1)])
+        _seed_sentence(db_session, 3, "كتاب", "book", 3, [("كتاب", 3)])
+        db_session.commit()
+
+        result = build_session(db_session, limit=10)
+        target_ids = {item["primary_lemma_id"] for item in result["items"]}
+
+        # بنت should appear since بيت is only encountered (no conflict)
+        assert 1 in target_ids
+        assert 3 in target_ids
 
 

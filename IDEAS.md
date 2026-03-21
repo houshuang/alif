@@ -64,15 +64,16 @@
 
 ## Confusable Words / Visual Similarity
 
-### Rasm-Based Confusable Pair Detection
-- Compute rasm (dotless skeleton) for all vocabulary; words sharing a rasm are maximal confusables (e.g., بنت/بيت, حبر/خبر)
-- Use `rasmipy` library or custom rasm extraction (prototype at `/tmp/claude/arabic_similarity.py`)
-- Store in `confusable_pairs` table: `(lemma_id_a, lemma_id_b, similarity_score, similarity_type)`
+### Rasm-Based Confusable Pair Detection [DONE]
+- [DONE] Compute rasm (dotless skeleton) for all vocabulary; words sharing a rasm are maximal confusables (e.g., بنت/بيت, حبر/خبر)
+- [DONE] Custom rasm extraction via `compute_rasm()` and `build_confusable_index()` in `confusion_service.py`
+- Computed on-the-fly per session (no persistence needed — fast enough via single DB query + dict grouping)
 - Research: `research/confusable-words-research-2026-03-03.md`
 
-### Session Builder: No Same-Rasm Pairs in Same Session
-- Prevents interference — AnnA (Anki) and research (Carvalho & Goldstone 2014) show spacing similar items reduces confusion
-- Constraint: if word A's rasm matches word B's rasm, don't put both in the same session
+### Session Builder: No Same-Rasm Pairs in Same Session [DONE]
+- [DONE] Prevents interference — AnnA (Anki) and research (Carvalho & Goldstone 2014) show spacing similar items reduces confusion
+- [DONE] Constraint: if word A's rasm matches word B's rasm, don't put both in the same session
+- Toggle: `ENABLE_CONFUSABLE_EXCLUSION` constant in `sentence_selector.py`
 
 ### Confusable Word Info Display [DONE]
 - [DONE] In WordInfoCard, show visually similar words when marking yellow ("did not recognize")

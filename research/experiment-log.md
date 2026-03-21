@@ -4,6 +4,18 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-03-21: Rasm-Based Confusable Pair Session Exclusion
+
+**Context**: Visually similar Arabic words (same dotless skeleton, e.g., بنت/بيت) interfere when presented in the same session. Research (Carvalho & Goldstone 2014) shows spacing similar items reduces confusion.
+
+**Change**: Added rasm-based confusable pair detection. `build_session()` now drops sentences whose target word is confusable with another target word already in the session. Dropped sentences appear in the next session instead. Also fixed rasm mapping to include standard Arabic yeh (ي, U+064A) and alef maqsura (ى) in the ba/ta/tha/nun group.
+
+**Expected**: Reduced interference between visually similar words. May slightly reduce session diversity but improves learning quality.
+
+**Verify**: After 2 weeks, check confusion (yellow) rate for known confusable pairs. Compare to pre-change baseline.
+
+---
+
 ## 2026-03-21: Tighten LLM Pipeline Verification Across All Code Paths
 
 **Context**: Comprehensive audit of all LLM/automatic processing paths revealed 4 additional issues beyond the unverified cron (fixed earlier today).

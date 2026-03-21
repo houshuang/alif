@@ -4,6 +4,7 @@ import pytest
 from unittest.mock import MagicMock
 
 from app.services.confusion_service import (
+    compute_rasm,
     edit_distance,
     to_rasm,
     to_phonetic,
@@ -11,6 +12,7 @@ from app.services.confusion_service import (
     find_similar_words,
     find_phonetically_similar,
     analyze_confusion,
+    build_confusable_index,
     _build_prefix_hint,
     RASM_MAP,
 )
@@ -369,3 +371,134 @@ class TestPhonetic:
             db, 1, "كلب", {10}, candidates=[(word, "known")],
         )
         assert len(results) == 0
+
+
+class TestComputeRasm:
+    def test_strips_diacritics_and_dots(self):
+        """compute_rasm handles diacritized input."""
+        # بِنْت with diacritics → same rasm as بيت
+        assert compute_rasm("بِنْت") == compute_rasm("بَيْت")
+
+    def test_bint_bayt_confusable(self):
+        """بنت (girl) and بيت (house) share the same rasm."""
+        assert compute_rasm("بنت") == compute_rasm("بيت")
+
+    def test_hibr_khibr_confusable(self):
+        """حبر (ink) and خبر (news) share the same rasm (ج group)."""
+        assert compute_rasm("حبر") == compute_rasm("خبر")
+
+    def test_jimal_himal(self):
+        """جمل (camel) and حمل (to carry) share the same rasm."""
+        assert compute_rasm("جمل") == compute_rasm("حمل")
+
+    def test_non_confusable_different_rasm(self):
+        """كتب (write) and درس (study) have different rasm."""
+        assert compute_rasm("كتب") != compute_rasm("درس")
+
+    def test_sin_shin_same_rasm(self):
+        """سمع and شمع share same rasm (س/ش group)."""
+        assert compute_rasm("سمع") == compute_rasm("شمع")
+
+    def test_dal_dhal_same_rasm(self):
+        """دكر and ذكر share same rasm (د/ذ group)."""
+        assert compute_rasm("دكر") == compute_rasm("ذكر")
+
+    def test_empty_string(self):
+        assert compute_rasm("") == ""
+
+    def test_non_arabic(self):
+        """Non-Arabic characters pass through unchanged."""
+        assert compute_rasm("abc") == "abc"
+
+
+class TestBuildConfusableIndex:
+    def test_with_real_db(self, db_session):
+        """Test confusable index with actual DB objects."""
+        from app.models import Lemma, UserLemmaKnowledge
+
+        # Create two lemmas that share a rasm: بنت and بيت
+        l1 = Lemma(lemma_id=1, lemma_ar="بِنْت", lemma_ar_bare="بنت", gloss_en="girl")
+        l2 = Lemma(lemma_id=2, lemma_ar="بَيْت", lemma_ar_bare="بيت", gloss_en="house")
+        # Non-confusable lemma
+        l3 = Lemma(lemma_id=3, lemma_ar="كِتَاب", lemma_ar_bare="كتاب", gloss_en="book")
+        db_session.add_all([l1, l2, l3])
+
+        # All three are active
+        db_session.add(UserLemmaKnowledge(lemma_id=1, knowledge_state="acquiring"))
+        db_session.add(UserLemmaKnowledge(lemma_id=2, knowledge_state="known"))
+        db_session.add(UserLemmaKnowledge(lemma_id=3, knowledge_state="known"))
+        db_session.commit()
+
+        index = build_confusable_index(db_session)
+
+        # بنت and بيت should be confusable
+        assert 1 in index
+        assert 2 in index[1]
+        assert 2 in index
+        assert 1 in index[2]
+        # كتاب should not be in the index (no confusable partner)
+        assert 3 not in index
+
+    def test_excludes_encountered(self, db_session):
+        """Encountered words are not in the confusable index."""
+        from app.models import Lemma, UserLemmaKnowledge
+
+        l1 = Lemma(lemma_id=1, lemma_ar="بنت", lemma_ar_bare="بنت", gloss_en="girl")
+        l2 = Lemma(lemma_id=2, lemma_ar="بيت", lemma_ar_bare="بيت", gloss_en="house")
+        db_session.add_all([l1, l2])
+
+        # l1 is active, l2 is only encountered
+        db_session.add(UserLemmaKnowledge(lemma_id=1, knowledge_state="acquiring"))
+        db_session.add(UserLemmaKnowledge(lemma_id=2, knowledge_state="encountered"))
+        db_session.commit()
+
+        index = build_confusable_index(db_session)
+        # No confusable pairs since l2 is not active
+        assert len(index) == 0
+
+    def test_excludes_variants(self, db_session):
+        """Variant lemmas are excluded from the confusable index."""
+        from app.models import Lemma, UserLemmaKnowledge
+
+        l1 = Lemma(lemma_id=1, lemma_ar="بنت", lemma_ar_bare="بنت", gloss_en="girl")
+        l2 = Lemma(lemma_id=2, lemma_ar="بيت", lemma_ar_bare="بيت", gloss_en="house",
+                   canonical_lemma_id=1)  # variant of l1
+        db_session.add_all([l1, l2])
+
+        db_session.add(UserLemmaKnowledge(lemma_id=1, knowledge_state="known"))
+        db_session.add(UserLemmaKnowledge(lemma_id=2, knowledge_state="known"))
+        db_session.commit()
+
+        index = build_confusable_index(db_session)
+        assert len(index) == 0
+
+    def test_empty_vocabulary(self, db_session):
+        """Empty vocabulary returns empty index."""
+        index = build_confusable_index(db_session)
+        assert index == {}
+
+    def test_three_way_confusable(self, db_session):
+        """Three words sharing the same rasm form a 3-way confusable group."""
+        from app.models import Lemma, UserLemmaKnowledge
+
+        # ب, ت, ن all map to the same rasm base
+        # بنت, بيت, نيت would all share the same rasm
+        l1 = Lemma(lemma_id=1, lemma_ar="بنت", lemma_ar_bare="بنت", gloss_en="girl")
+        l2 = Lemma(lemma_id=2, lemma_ar="بيت", lemma_ar_bare="بيت", gloss_en="house")
+        l3 = Lemma(lemma_id=3, lemma_ar="نيت", lemma_ar_bare="نيت", gloss_en="intent")
+        db_session.add_all([l1, l2, l3])
+
+        db_session.add(UserLemmaKnowledge(lemma_id=1, knowledge_state="known"))
+        db_session.add(UserLemmaKnowledge(lemma_id=2, knowledge_state="acquiring"))
+        db_session.add(UserLemmaKnowledge(lemma_id=3, knowledge_state="known"))
+        db_session.commit()
+
+        index = build_confusable_index(db_session)
+
+        assert 1 in index
+        assert 2 in index
+        assert 3 in index
+        # Each should have the other two
+        assert index[1] == {2, 3}
+        assert index[2] == {1, 3}
+        assert index[3] == {1, 2}

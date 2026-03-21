@@ -651,6 +651,22 @@ build_session(db, limit=10, mode="reading")
                    │
                    ▼
 ┌─────────────────────────────────────────────┐
+│ STAGE 7b: Confusable Pair Exclusion          │
+│                                              │
+│ If ENABLE_CONFUSABLE_EXCLUSION (default on): │
+│   Build rasm (dotless skeleton) index of     │
+│   active vocabulary via confusion_service    │
+│   For each selected sentence (in order):     │
+│     Check if target words share rasm with    │
+│     targets of already-kept sentences        │
+│     If conflict → drop the later sentence    │
+│   Dropped sentences appear next session      │
+│   Prevents interference between visually     │
+│   similar words (e.g. بنت/بيت, حبر/خبر)     │
+└──────────────────┬──────────────────────────┘
+                   │
+                   ▼
+┌─────────────────────────────────────────────┐
 │ STAGE 8: Ordering (Easy Bookends)            │
 │                                              │
 │ Easiest sentence (highest stability) → first │
@@ -1828,6 +1844,7 @@ the codebase that filter on `knowledge_state`, `stability`, or `canonical_lemma_
 | Intro card filter | `sentence_selector.py` | times_seen, experiment_group |
 | Listening readiness | `sentence_selector.py` | listening_ready set |
 | Function word exclusion | `sentence_selector.py` | lemma_ar_bare |
+| Confusable pair exclusion | `sentence_selector.py` | rasm skeleton (via `confusion_service`) |
 
 **Checklist for any lifecycle/state change**:
 1. List all gates that reference the affected state field

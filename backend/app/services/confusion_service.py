@@ -2,7 +2,14 @@
 
 Analyzes WHY the user was confused — morphological complexity (clitics/conjugation)
 or visual similarity to other known words. All rule-based, no LLM calls, <50ms.
+
+Also provides proactive confusable pair detection for session building:
+- compute_rasm(): strips dots from Arabic text to produce the dotless skeleton
+- build_confusable_index(): maps each active lemma to its rasm-confusable siblings
 """
+
+import logging
+from collections import defaultdict
 
 from sqlalchemy.orm import Session
 
@@ -11,12 +18,14 @@ from app.services.sentence_validator import (
     PROCLITICS, ENCLITICS, strip_diacritics,
 )
 
+logger = logging.getLogger(__name__)
+
 # --- Rasm skeleton mapping ---
 # Letters that share the same skeletal shape (differ only by dots) map to the same group.
 RASM_MAP: dict[str, str] = {}
 _RASM_GROUPS = [
     ("ا", "اأإآ"),
-    ("ب", "بتثنی"),  # ba/ta/tha/nun/ya share base shape
+    ("ب", "بتثنيیى"),  # ba/ta/tha/nun/ya/alef-maqsura share base shape
     ("ج", "جحخ"),
     ("د", "دذ"),
     ("ر", "رز"),
@@ -39,6 +48,66 @@ for _base, _letters in _RASM_GROUPS:
 def to_rasm(text: str) -> str:
     """Convert Arabic text to rasm skeleton (dots removed)."""
     return "".join(RASM_MAP.get(ch, ch) for ch in text)
+
+
+def compute_rasm(arabic_text: str) -> str:
+    """Compute the dotless skeleton (rasm) of Arabic text.
+
+    Strips diacritics first, then maps each letter to its dot-free base form.
+    Use this on lemma_ar_bare or any undiacritized Arabic string.
+    """
+    bare = strip_diacritics(arabic_text)
+    return to_rasm(bare)
+
+
+# Active vocabulary states for confusable pair detection
+_ACTIVE_STATES = {"acquiring", "known", "lapsed", "learning"}
+
+
+def build_confusable_index(db: Session) -> dict[int, set[int]]:
+    """Build a mapping of lemma_id -> set of confusable lemma_ids.
+
+    Two lemmas are confusable if they share the same rasm (dotless skeleton)
+    and both are in the user's active vocabulary. Only non-variant lemmas
+    are included.
+
+    Returns an empty dict if no confusable pairs exist.
+    """
+    # Query active, non-variant lemmas with their bare forms
+    rows = (
+        db.query(Lemma.lemma_id, Lemma.lemma_ar_bare)
+        .join(UserLemmaKnowledge, UserLemmaKnowledge.lemma_id == Lemma.lemma_id)
+        .filter(
+            Lemma.canonical_lemma_id.is_(None),
+            UserLemmaKnowledge.knowledge_state.in_(_ACTIVE_STATES),
+        )
+        .all()
+    )
+
+    # Group lemma IDs by rasm
+    rasm_groups: dict[str, list[int]] = defaultdict(list)
+    for lemma_id, bare in rows:
+        if not bare:
+            continue
+        rasm = to_rasm(bare)
+        rasm_groups[rasm].append(lemma_id)
+
+    # Build the index: only groups with 2+ members are confusable pairs
+    index: dict[int, set[int]] = {}
+    for rasm, ids in rasm_groups.items():
+        if len(ids) < 2:
+            continue
+        id_set = set(ids)
+        for lid in ids:
+            index[lid] = id_set - {lid}
+
+    if index:
+        logger.debug(
+            f"Confusable index: {len(index)} lemmas in "
+            f"{sum(1 for ids in rasm_groups.values() if len(ids) >= 2)} rasm groups"
+        )
+
+    return index
 
 
 def edit_distance(a: str, b: str) -> int:

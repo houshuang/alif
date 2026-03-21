@@ -52,6 +52,7 @@ PIPELINE_BACKLOG_THRESHOLD = 40  # suppress reserved intros when acquiring pipel
 SESSION_SCAFFOLD_DECAY = 0.5  # per-appearance decay for scaffold words already in session
 NEVER_REVIEWED_BOOST = 5.0  # score multiplier for sentences targeting acquiring words with 0 reviews
 MAX_UNKNOWN_SCAFFOLD = 2  # max unknown non-target words per sentence (prevents overwhelming density)
+ENABLE_CONFUSABLE_EXCLUSION = True  # drop sentences whose target words share a rasm with already-selected targets
 
 
 def _intro_slots_for_accuracy(accuracy: float) -> int:
@@ -1023,6 +1024,37 @@ def build_session(
                 selected_ids.add(extra.sentence_id)
                 candidates.remove(extra)
                 acquiring_word_counts[acq_lid] = count + 1
+
+    # 3c. Confusable pair exclusion: drop sentences whose target words
+    # share a rasm (dotless skeleton) with targets in already-selected sentences.
+    # This prevents interference between visually similar words (e.g. بنت/بيت).
+    if ENABLE_CONFUSABLE_EXCLUSION and len(selected) > 1:
+        from app.services.confusion_service import build_confusable_index
+        confusable_index = build_confusable_index(db)
+        if confusable_index:
+            kept: list[SentenceCandidate] = []
+            session_target_ids: set[int] = set()
+            dropped = 0
+            for c in selected:
+                target_ids = c.due_words_covered
+                # Check if any target word is confusable with an already-selected target
+                has_conflict = False
+                for tid in target_ids:
+                    confusables = confusable_index.get(tid, set())
+                    if confusables & session_target_ids:
+                        has_conflict = True
+                        break
+                if has_conflict:
+                    dropped += 1
+                else:
+                    kept.append(c)
+                    session_target_ids |= target_ids
+            if dropped:
+                logger.info(
+                    f"Confusable exclusion: dropped {dropped} sentences "
+                    f"to prevent rasm-similar interference"
+                )
+                selected = kept
 
     # 4. Order: easy bookends, hard in middle
     ordered = _order_session(selected, stability_map)
