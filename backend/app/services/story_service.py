@@ -510,16 +510,41 @@ def _recalculate_story_counts(db: Session, story: Story) -> None:
 
     Counts are deduplicated by lemma_id — each unique lemma is counted once.
     Function words and words without a lemma_id are excluded entirely.
+
+    Also re-checks function word flags on each StoryWord in case the function
+    word list has been updated since the story was imported.
     """
     story_lemma_ids = {sw.lemma_id for sw in story.words if sw.lemma_id}
     knowledge_map = _build_knowledge_map(db, lemma_ids=story_lemma_ids or None)
+
+    # Load lemmas for function word re-checking via lemma bare form
+    lemma_map: dict[int, Lemma] = {}
+    if story_lemma_ids:
+        lemma_rows = db.query(Lemma).filter(Lemma.lemma_id.in_(story_lemma_ids)).all()
+        lemma_map = {l.lemma_id: l for l in lemma_rows}
+
     seen_lemmas: set[int] = set()
     seen_func: set[int | str] = set()  # track func words by lemma_id or surface
     total = 0
     known = 0
     func = 0
+    func_fixed = 0
     for sw in story.words:
-        if sw.is_function_word:
+        # Re-check function word status: surface form or resolved lemma bare form
+        is_func = sw.is_function_word
+        if not is_func:
+            surface_clean = strip_diacritics(sw.surface_form).strip()
+            if _is_function_word(surface_clean):
+                is_func = True
+            elif sw.lemma_id:
+                lemma = lemma_map.get(sw.lemma_id)
+                if lemma and _is_function_word(lemma.lemma_ar_bare):
+                    is_func = True
+            if is_func and not sw.is_function_word:
+                sw.is_function_word = True
+                func_fixed += 1
+
+        if is_func:
             key = sw.lemma_id or sw.surface_form
             if key not in seen_func:
                 seen_func.add(key)
@@ -531,6 +556,8 @@ def _recalculate_story_counts(db: Session, story: Story) -> None:
         total += 1
         if knowledge_map.get(sw.lemma_id) in _ACTIVELY_LEARNING_STATES:
             known += 1
+    if func_fixed:
+        logger.info("Story %d: fixed %d function word flags", story.id, func_fixed)
     story.total_words = total
     story.known_count = known
     story.unknown_count = total - known
@@ -1171,6 +1198,12 @@ def get_stories(db: Session) -> list[dict]:
         .all()
     )
 
+    # Refresh counts for active/focused stories so the list stays up-to-date
+    for s in stories:
+        if s.status in ("active", "focused"):
+            _recalculate_story_counts(db, s)
+    db.commit()
+
     book_ids = [s.id for s in stories if s.source == "book_ocr"]
     book_stats = _get_book_stats(db, book_ids)
 
@@ -1216,6 +1249,10 @@ def get_story_detail(db: Session, story_id: int) -> dict:
             "created_at": story.created_at.isoformat() if story.created_at else "",
             "words": [],
         }
+
+    # Recalculate counts live (fixes stale counts + re-checks function word flags)
+    _recalculate_story_counts(db, story)
+    db.commit()
 
     story_lemma_ids = {sw.lemma_id for sw in story.words if sw.lemma_id}
     knowledge_map = _build_knowledge_map(db, lemma_ids=story_lemma_ids or None)
@@ -1455,49 +1492,40 @@ def lookup_word(
 
 
 def recalculate_readiness(db: Session, story_id: int) -> dict:
-    """Re-check each word's current knowledge state and update readiness."""
+    """Re-check each word's current knowledge state and update readiness.
+
+    Delegates to _recalculate_story_counts for consistent deduplication and
+    function word re-checking, then builds the unknown_words list.
+    """
     story = db.query(Story).filter(Story.id == story_id).first()
     if not story:
         raise ValueError(f"Story {story_id} not found")
 
+    _recalculate_story_counts(db, story)
+
+    # Build unknown_words list (deduplicated by lemma_id)
     story_lemma_ids = {sw.lemma_id for sw in story.words if sw.lemma_id}
     knowledge_map = _build_knowledge_map(db, lemma_ids=story_lemma_ids or None)
-
-    total = 0
-    known = 0
-    func = 0
+    seen_lemmas: set[int] = set()
     unknown_words = []
-
     for sw in story.words:
-        total += 1
         if sw.is_function_word:
-            func += 1
             continue
-        if sw.lemma_id:
-            state = knowledge_map.get(sw.lemma_id)
-            if state in _ACTIVELY_LEARNING_STATES:
-                known += 1
-            else:
-                unknown_words.append({
-                    "position": sw.position,
-                    "surface_form": sw.surface_form,
-                    "lemma_id": sw.lemma_id,
-                })
-        else:
+        if not sw.lemma_id or sw.lemma_id in seen_lemmas:
+            continue
+        seen_lemmas.add(sw.lemma_id)
+        state = knowledge_map.get(sw.lemma_id)
+        if state not in _ACTIVELY_LEARNING_STATES:
             unknown_words.append({
                 "position": sw.position,
                 "surface_form": sw.surface_form,
-                "lemma_id": None,
+                "lemma_id": sw.lemma_id,
             })
 
-    pct = round((known + func) / total * 100, 1) if total > 0 else 0
-    story.readiness_pct = pct
-    story.known_count = known
-    story.unknown_count = total - known - func
     db.commit()
 
     return {
-        "readiness_pct": pct,
-        "unknown_count": len(unknown_words),
+        "readiness_pct": story.readiness_pct,
+        "unknown_count": story.unknown_count,
         "unknown_words": unknown_words,
     }
