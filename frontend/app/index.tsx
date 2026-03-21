@@ -1473,10 +1473,11 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
     );
   }
 
-  // A/B experiment: info card before first sentence review
+  // Intro cards: new words + rescue cards for stuck words
   const showingExperimentIntro = experimentIntroCards.length > 0 && experimentIntroIndex < experimentIntroCards.length;
   if (showingExperimentIntro) {
     const card = experimentIntroCards[experimentIntroIndex];
+    const isRescueCard = (card.times_seen ?? 0) > 0;
     const knownSiblings = card.root_family.filter(
       (s) => (s.state === "known" || s.state === "learning") && s.lemma_id !== card.lemma_id
     );
@@ -1493,7 +1494,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
       <View style={[styles.container, { paddingTop: Math.max(insets.top, 12) }]}>
         <View style={styles.progressContainer}>
           <Text style={styles.progressText}>
-            New word {experimentIntroIndex + 1} of {experimentIntroCards.length}
+            {isRescueCard ? "Let\u2019s revisit" : "New word"} {experimentIntroIndex + 1} of {experimentIntroCards.length}
           </Text>
         </View>
         <ScrollView

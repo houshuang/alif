@@ -866,11 +866,15 @@ so a sentence covering many due words can still win over a more diverse single-w
 
 #### Never-Reviewed Boost
 
-Acquiring words with `times_seen == 0` (introduced but never shown to the learner) get a
+Acquiring words with `times_seen == 0` OR zero accuracy (`times_correct == 0`) get a
 `NEVER_REVIEWED_BOOST` (5.0x) multiplier on sentences that target them. Without this,
 dedicated single-target sentences for new words consistently lose the greedy scoring
 competition against multi-word FSRS sentences (`(3^1.5) = 5.2` vs `(1^1.5) = 1.0`),
 causing words to sit in box 1 with zero reviews for days or weeks.
+
+The zero-accuracy extension (2026-03-21) fixes a starvation bug where words reviewed once
+incorrectly lost the boost but still couldn't compete — e.g. أمر stuck 31 days with only
+2 reviews.
 
 #### Combined Scoring Formula
 
@@ -1455,7 +1459,7 @@ remaining cards on the next card advance. See Section 8 "Sentence Pre-Warming" f
 | `PIPELINE_BACKLOG_THRESHOLD` | 40 (base) | Suppress reserved intro slots when acquiring count exceeds this. Dynamic: 80 at ≥90% accuracy, 60 at ≥80%, 40 otherwise |
 | Adaptive intro bands | 0→3→5 | Slots at <70%/70-85%/≥85% accuracy |
 | `SESSION_SCAFFOLD_DECAY` | 0.5 | Per-appearance multiplier for scaffold words already in session |
-| `NEVER_REVIEWED_BOOST` | 5.0 | Score multiplier for sentences targeting acquiring words with 0 reviews |
+| `NEVER_REVIEWED_BOOST` | 5.0 | Score multiplier for sentences targeting acquiring words with 0 reviews OR 0% accuracy |
 | `MAX_UNKNOWN_SCAFFOLD` | 2 | Max unknown non-target words per sentence (prevents overwhelming density) |
 | `FRESHNESS_BASELINE` | 5 | Reviews before scaffold freshness penalty kicks in (floor 0.1) |
 | `MAX_ON_DEMAND_PER_SESSION` | 10 | Reference constant (callers control actual cap via remaining session capacity) |

@@ -772,16 +772,21 @@ def build_session(
                 if last_r is not None and last_r >= 3:
                     listening_ready.add(lid)
 
-    # Pre-compute never-reviewed acquiring words for score boost.
-    # These words have been introduced but never shown — they need priority
-    # over routine FSRS reviews in the greedy selection.
-    never_reviewed_due_ids: set[int] = set()
+    # Pre-compute acquiring words that need a score boost to compete with
+    # multi-word FSRS sentences in the greedy selection.
+    # Two categories: (1) never reviewed (times_seen == 0), and (2) zero-accuracy
+    # words (seen but never correct) — these fall through the cracks when they
+    # lose the times_seen==0 boost after their first failed review.
+    boosted_acquiring_ids: set[int] = set()
     for lid in due_lemma_ids:
         k = knowledge_by_id.get(lid)
-        if k and k.knowledge_state == "acquiring" and (k.times_seen or 0) == 0:
-            never_reviewed_due_ids.add(lid)
-    if never_reviewed_due_ids:
-        logger.info(f"Never-reviewed acquiring words due: {len(never_reviewed_due_ids)}")
+        if k and k.knowledge_state == "acquiring":
+            if (k.times_seen or 0) == 0:
+                boosted_acquiring_ids.add(lid)
+            elif (k.times_correct or 0) == 0:
+                boosted_acquiring_ids.add(lid)
+    if boosted_acquiring_ids:
+        logger.info(f"Boosted acquiring words due: {len(boosted_acquiring_ids)}")
 
     # Build candidates
     candidates: list[SentenceCandidate] = []
@@ -885,7 +890,7 @@ def build_session(
         rescue_penalty = 0.3 if sent.id in rescue_sentence_ids else 1.0
         # Boost sentences targeting never-reviewed acquiring words so they can
         # compete with multi-word FSRS sentences in the greedy selection.
-        nr_boost = NEVER_REVIEWED_BOOST if (due_covered & never_reviewed_due_ids) else 1.0
+        nr_boost = NEVER_REVIEWED_BOOST if (due_covered & boosted_acquiring_ids) else 1.0
         score = (len(due_covered) ** 1.5) * dmq * gfit * diversity * freshness * source_bonus * rescue_penalty * nr_boost
 
         candidates.append(SentenceCandidate(
@@ -926,7 +931,7 @@ def build_session(
                 session_diversity = 1.0
 
             rescue_penalty = 0.3 if c.sentence_id in rescue_sentence_ids else 1.0
-            nr_boost = NEVER_REVIEWED_BOOST if (overlap & never_reviewed_due_ids) else 1.0
+            nr_boost = NEVER_REVIEWED_BOOST if (overlap & boosted_acquiring_ids) else 1.0
             c.score = (len(overlap) ** 1.5) * dmq * gfit * diversity * freshness * source_bonus * session_diversity * rescue_penalty * nr_boost
             c.score_components = {
                 "due_coverage": len(overlap),
@@ -1248,31 +1253,60 @@ def _build_reintro_cards(
     return cards
 
 
-def _build_experiment_intro_cards(
+RESCUE_MIN_SEEN = 4
+RESCUE_MAX_ACCURACY = 0.50
+RESCUE_COOLDOWN_DAYS = 7
+
+
+def _build_intro_cards(
     db: Session,
     knowledge_by_id: dict[int, UserLemmaKnowledge],
-    due_lemma_ids: set[int],
+    covered_ids: set[int],
 ) -> list[dict]:
-    """Build intro cards for the card-first A/B experiment group.
+    """Build intro cards for new and struggling acquiring words in this session.
 
-    Returns cards for acquiring words assigned to 'intro_ab_card' that
-    have never been reviewed (times_seen == 0), are in this session's
-    due set, and haven't already been shown an intro card.
+    Two categories:
+    1. New words (times_seen == 0) — first-encounter teaching card
+    2. Rescue words (acquiring, ≥4 reviews, <50% accuracy) — re-teaching
+       for stuck words, with a 7-day cooldown between rescue cards.
+
+    Both limited to words covered by sentences in this session.
     """
+    now = datetime.now(timezone.utc)
+    cooldown_cutoff = now - timedelta(days=RESCUE_COOLDOWN_DAYS)
+
     card_ids = set()
     for lid, ulk in knowledge_by_id.items():
+        if ulk.knowledge_state != "acquiring":
+            continue
+
+        # Category 1: New words (never reviewed)
         if (
-            ulk.knowledge_state == "acquiring"
-            and ulk.experiment_group == "intro_ab_card"
-            and (ulk.times_seen or 0) == 0
+            (ulk.times_seen or 0) == 0
             and ulk.experiment_intro_shown_at is None
-            # Skip intro cards for words already familiar from encounters —
-            # they'll get credit collaterally, no need for a "learn this" card.
+            # Skip intro cards for words already familiar from encounters
             and (ulk.total_encounters or 0) < 5
         ):
             card_ids.add(lid)
+            continue
 
-    card_ids &= due_lemma_ids
+        # Category 2: Rescue cards for stuck words
+        times_seen = ulk.times_seen or 0
+        times_correct = ulk.times_correct or 0
+        if times_seen >= RESCUE_MIN_SEEN:
+            accuracy = times_correct / times_seen
+            if accuracy < RESCUE_MAX_ACCURACY:
+                # Only show if not recently shown (cooldown)
+                if ulk.experiment_intro_shown_at is None:
+                    card_ids.add(lid)
+                else:
+                    shown_at = ulk.experiment_intro_shown_at
+                    if shown_at.tzinfo is None:
+                        shown_at = shown_at.replace(tzinfo=timezone.utc)
+                    if shown_at < cooldown_cutoff:
+                        card_ids.add(lid)
+
+    card_ids &= covered_ids
 
     if not card_ids:
         return []
@@ -1955,11 +1989,9 @@ def _with_fallbacks(
     confused = get_confused_features(db)
     grammar_refresher_needed = [f["feature_key"] for f in confused]
 
-    # A/B experiment: build intro cards only for words actually covered by
-    # sentences in this session (not all due words). This prevents showing
-    # intro cards for words that have no sentences yet (e.g. after a bulk
-    # textbook scan).
-    experiment_intro_cards = _build_experiment_intro_cards(
+    # Build intro cards for new words and rescue cards for stuck words,
+    # limited to words covered by sentences in this session.
+    experiment_intro_cards = _build_intro_cards(
         db, knowledge_by_id, covered_ids
     )
 
