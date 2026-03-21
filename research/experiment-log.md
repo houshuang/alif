@@ -4,6 +4,49 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-03-21: Intro Cards for All New Words + Rescue Cards for Stuck Words
+
+**Context**: A/B experiment (intro_ab_card vs intro_ab_sentence) ran for ~5 weeks across 264 words. Results are conclusive — intro cards win on every metric.
+
+**Experiment Results** (142 card-first vs 122 sentence-first):
+- Graduation rate: 73% vs 57% (+16pp)
+- First-review accuracy: 65% vs 37% (+28pp)
+- Overall accuracy: 83% vs 72% (+11pp)
+- Median time to graduate: 11h vs 26h (2.4x faster)
+- Median reviews to graduate: 5 vs 7 (-29%)
+- Post-graduation FSRS performance: similar (95% vs 96% accuracy)
+
+**Changes**:
+1. **A/B experiment ended** — all new words now get `intro_ab_card` (no more random assignment)
+2. **Intro cards for ALL new acquiring words** — removed `experiment_group == "intro_ab_card"` filter
+3. **Rescue intro cards for stuck words** — acquiring words with ≥4 reviews and <50% accuracy get a re-teaching intro card, with 7-day cooldown between rescue cards. Only shown for words in the current session.
+4. **Tashkeel threshold raised**: 60d → 90d. Several high-stability lapses (مخلب 71d, صيد 44d, حساب 44d) may have been exacerbated by missing diacritics.
+
+**Frontend**: Progress text differentiates "New word X of Y" vs "Let's revisit X of Y" for rescue cards.
+
+**Verify**: After 2 weeks, check:
+- First-review accuracy for new words (should be ~65%, matching card group)
+- Rescue card effectiveness: do stuck words break out of the <50% accuracy pattern after rescue?
+- Lapse rate with higher tashkeel threshold (should decrease for 60-90d stability words)
+
+---
+
+## 2026-03-21: Comprehensive Learning Progress Analysis
+
+**42-day analysis** (Feb 8 – Mar 21): 20,355 total reviews across 1,257 words. 1,065 known, 78 acquiring, 30 lapsed.
+
+**Key findings**:
+- FSRS lapse recovery works correctly: stability drops 85-95% on lapse but never resets. High-stability words (71d) retain ~3d stability floor. 76.5% of lapses recover in 1-7 reviews.
+- Rating.Hard (confused/yellow) appropriately reduces stability 40-55% for due words; increases stability for overdue words (correct FSRS-6 behavior).
+- Accuracy trend: 80.8% → 96.5% peak → 89.9% (with stricter marking). 89.9% is in the optimal learning zone.
+- Acquisition pipeline healthy: 78 words (down from 219 peak), median graduation in 52h.
+- Session pattern optimal: 20-80 reviews, 4-7 sessions/day, 38-min median gap.
+- Afternoon accuracy dip (84-86%) is normal cognitive fatigue.
+
+**No algorithm parameter changes needed.** Stricter marking gives FSRS better signal without destructive effects.
+
+---
+
 ## 2026-03-21: Confused Words Get Rating.Hard
 
 **Context**: Confused (yellow) words were getting Rating 3 (Good) — same FSRS treatment as perfectly recognized words. With 60+ day stability, the next review could be weeks away despite the user just demonstrating they didn't recognize the word.

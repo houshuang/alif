@@ -114,10 +114,9 @@ def start_acquisition(
         )
         db.add(ulk)
 
-    # A/B experiment: intro card vs sentence-first
+    # Intro card for all new words (A/B experiment concluded: card-first wins)
     if ulk.experiment_group is None:
-        import random
-        ulk.experiment_group = random.choice(["intro_ab_card", "intro_ab_sentence"])
+        ulk.experiment_group = "intro_ab_card"
 
     db.flush()
 
