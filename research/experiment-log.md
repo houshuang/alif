@@ -4,6 +4,18 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-03-21: Unify Sentence Generation Through Verified Pipeline
+
+**Context**: 29 flagged word_mapping issues traced to bad lemma assignments (homograph collisions like ذَهَب "gold" → ذَهَبَ "to go", clitic over-stripping like وَالأَدَبِ → دَبَّ "creep" instead of أَدَب "literature"). Root cause: three scripts (`update_material.py`, `pregenerate_material.py`, `generate_sentences.py`) had their own copy of sentence generation that skipped LLM disambiguation, verification, and correction. The cron alone generated 20-50 unverified sentences every 3 hours — 20.4% of active sentences (136/667) were unverified.
+
+**Change**: All three scripts now call `generate_material_for_word()` which includes the full pipeline: `disambiguate_mappings_llm()` → `verify_and_correct_mappings_llm()` → `correct_mapping()` → `mappings_verified_at`. 467 lines of duplicated unverified code removed.
+
+**Expected**: New sentences from cron will arrive pre-verified with `mappings_verified_at` set. Bad mappings caught at generation time rather than reaching users. Phase 4 background verification will clear the remaining 136 legacy unverified sentences.
+
+**Verify**: After next cron run, check `SELECT COUNT(*) FROM sentences WHERE is_active=1 AND mappings_verified_at IS NULL` — should decrease toward 0. Flag rate should drop.
+
+---
+
 ## 2026-03-21: Intro Cards for All New Words + Rescue Cards for Stuck Words
 
 **Context**: A/B experiment (intro_ab_card vs intro_ab_sentence) ran for ~5 weeks across 264 words. Results are conclusive — intro cards win on every metric.
