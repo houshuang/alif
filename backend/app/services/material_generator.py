@@ -779,27 +779,36 @@ def warm_sentence_cache(llm_model: str = "gemini") -> dict:
             db.close()
 
     # ── Phase 4: Verify unverified active sentences (batch catch-up) ──
+    # IMPORTANT: Don't hold DB session during LLM calls — they can hang for minutes
+    # and block all other writes (caused "database is locked" cascades).
     MAX_VERIFY_BATCH = 20
     db = SessionLocal()
     try:
-        unverified = (
-            db.query(Sentence.id)
+        unverified_ids = [
+            row[0] for row in db.query(Sentence.id)
             .filter(
                 Sentence.is_active == True,
                 Sentence.mappings_verified_at.is_(None),
             )
             .limit(MAX_VERIFY_BATCH)
             .all()
-        )
-        unverified_ids = [row[0] for row in unverified]
-        if unverified_ids:
+        ]
+    except Exception:
+        logger.warning("Warm cache: verification read phase failed")
+        unverified_ids = []
+    finally:
+        db.close()
+
+    if unverified_ids:
+        db = SessionLocal()
+        try:
             v_stats = verify_sentence_mappings(db, unverified_ids)
             stats["verified"] = v_stats.get("verified", 0)
             stats["verify_corrected"] = v_stats.get("corrected", 0)
-    except Exception:
-        logger.warning("Warm cache: verification phase failed")
-    finally:
-        db.close()
+        except Exception:
+            logger.warning("Warm cache: verification phase failed")
+        finally:
+            db.close()
 
     logger.info(f"Warm cache complete: {stats}")
     return stats
@@ -808,21 +817,18 @@ def warm_sentence_cache(llm_model: str = "gemini") -> dict:
 def verify_sentence_mappings(db, sentence_ids: list[int]) -> dict:
     """Verify mappings for existing sentences in a single batched LLM call.
 
-    Phase 1: One LLM call triages all sentences — returns which have problems.
-    Phase 2: For flagged sentences, run per-sentence correction.
+    Structured as read → LLM (no DB) → write to avoid holding the SQLite
+    write lock during potentially slow LLM calls.
 
     Returns {"verified": N, "corrected": N, "failed": N}.
     """
-    from app.services.sentence_validator import (
-        verify_and_correct_mappings_llm,
-        correct_mapping,
-        _log_mapping_correction,
-    )
+    from app.services.sentence_validator import correct_mapping
     from app.services.llm import generate_completion, AllProvidersFailed
 
     if not sentence_ids:
         return {"verified": 0, "corrected": 0, "failed": 0}
 
+    # ── Read phase: collect all data into plain dicts ──
     sentences = (
         db.query(Sentence)
         .filter(
@@ -834,32 +840,32 @@ def verify_sentence_mappings(db, sentence_ids: list[int]) -> dict:
     if not sentences:
         return {"verified": 0, "corrected": 0, "failed": 0}
 
-    # Load all sentence words
     all_sw = (
         db.query(SentenceWord)
         .filter(SentenceWord.sentence_id.in_([s.id for s in sentences]))
         .order_by(SentenceWord.sentence_id, SentenceWord.position)
         .all()
     )
-    sw_by_sentence: dict[int, list[SentenceWord]] = {}
+    sw_by_sentence: dict[int, list] = {}
     for sw in all_sw:
         sw_by_sentence.setdefault(sw.sentence_id, []).append(sw)
 
-    # Load lemmas
     all_lemma_ids = {sw.lemma_id for sw in all_sw if sw.lemma_id}
     lemmas = db.query(Lemma).filter(Lemma.lemma_id.in_(all_lemma_ids)).all() if all_lemma_ids else []
     lemma_by_id = {l.lemma_id: l for l in lemmas}
 
-    now = datetime.now(timezone.utc)
     stats = {"verified": 0, "corrected": 0, "failed": 0}
 
-    # Build batched triage prompt — one block per sentence
+    # Build prompt data — track which sentences need LLM vs are trivially OK
     sentence_blocks = []
-    sent_index_map: dict[int, Sentence] = {}  # index → sentence
+    # sent_id → idx mapping for LLM results
+    sent_id_by_idx: dict[int, int] = {}
+    trivially_ok_ids: list[int] = []
+
     for idx, sent in enumerate(sentences):
         sws = sw_by_sentence.get(sent.id, [])
         if not sws:
-            sent.mappings_verified_at = now
+            trivially_ok_ids.append(sent.id)
             stats["verified"] += 1
             continue
 
@@ -871,24 +877,32 @@ def verify_sentence_mappings(db, sentence_ids: list[int]) -> dict:
                     f"    {sw.position}: {sw.surface_form} → {lem.lemma_ar} ({lem.gloss_en or '?'})"
                 )
         if not word_lines:
-            sent.mappings_verified_at = now
+            trivially_ok_ids.append(sent.id)
             stats["verified"] += 1
             continue
 
-        sent_index_map[idx] = sent
+        sent_id_by_idx[idx] = sent.id
         sentence_blocks.append(
             f"[{idx}] Arabic: {sent.arabic_text}\n"
             f"    English: {sent.english_translation or '?'}\n"
             f"    Mappings:\n" + "\n".join(word_lines)
         )
 
-    if not sentence_blocks:
+    # Mark trivially-OK sentences now
+    if trivially_ok_ids:
+        now = datetime.now(timezone.utc)
+        db.query(Sentence).filter(Sentence.id.in_(trivially_ok_ids)).update(
+            {Sentence.mappings_verified_at: now}, synchronize_session="fetch"
+        )
         try:
             db.commit()
         except Exception:
             db.rollback()
+
+    if not sentence_blocks:
         return stats
 
+    # ── LLM phase: no DB session needed ──
     prompt = f"""Check these {len(sentence_blocks)} Arabic sentences for wrong word-lemma mappings.
 
 For each sentence, check if any word's lemma gloss doesn't match what the word means in context.
@@ -911,7 +925,6 @@ Return JSON: {{"flagged": []}} if all OK, or:
 Sentences:
 {chr(10).join(sentence_blocks)}"""
 
-    # Phase 1: Single batched triage call — Haiku primary (0% failure rate), Gemini fallback
     system = "You are an Arabic morphology expert. Check mappings against English translations. Only flag clear errors."
     flagged = None
     for model in ("claude_haiku", "gemini"):
@@ -922,6 +935,7 @@ Sentences:
                 json_mode=True,
                 temperature=0.0,
                 model_override=model,
+                timeout=30,
                 task_type="mapping_verification_batch",
             )
             flagged = result.get("flagged", [])
@@ -933,23 +947,23 @@ Sentences:
             continue
 
     if flagged is None:
-        # All models failed — leave sentences unverified for retry later
         logger.error("Batch mapping verification failed on ALL models — sentences stay unverified")
-        stats["failed"] = len(sent_index_map)
+        stats["failed"] = len(sent_id_by_idx)
         return stats
 
-    # Phase 2: Apply corrections for flagged sentences
-    flagged_by_sentence: dict[int, list[dict]] = {}
+    # ── Write phase: apply corrections using fresh DB reads ──
+    now = datetime.now(timezone.utc)
+    flagged_by_idx: dict[int, list[dict]] = {}
     for flag in flagged:
         if not isinstance(flag, dict) or "sentence" not in flag:
             continue
         sidx = int(flag["sentence"])
-        flagged_by_sentence.setdefault(sidx, []).append(flag)
+        flagged_by_idx.setdefault(sidx, []).append(flag)
 
-    for idx, sent in sent_index_map.items():
-        corrections = flagged_by_sentence.get(idx)
+    for idx, sent_id in sent_id_by_idx.items():
+        corrections = flagged_by_idx.get(idx)
         if corrections:
-            sws = sw_by_sentence.get(sent.id, [])
+            sws = sw_by_sentence.get(sent_id, [])
             has_unfixable = False
             for corr in corrections:
                 pos = corr.get("position")
@@ -967,7 +981,7 @@ Sentences:
                 )
                 if new_lid and new_lid != sw.lemma_id:
                     logger.info(
-                        f"Batch verify: sentence {sent.id} pos {pos} "
+                        f"Batch verify: sentence {sent_id} pos {pos} "
                         f"'{sw.surface_form}': #{sw.lemma_id} → #{new_lid}"
                     )
                     sw.lemma_id = new_lid
@@ -975,16 +989,22 @@ Sentences:
                     has_unfixable = True
 
             if has_unfixable:
-                # Correct lemma not in DB — retire sentence rather than
-                # leaving known-bad mappings for the user to see
-                sent.is_active = False
-                logger.info(f"Batch verify: retired sentence {sent.id} — unfixable mapping")
+                sent_obj = db.query(Sentence).get(sent_id)
+                if sent_obj:
+                    sent_obj.is_active = False
+                logger.info(f"Batch verify: retired sentence {sent_id} — unfixable mapping")
                 stats["failed"] += 1
             else:
                 stats["corrected"] += 1
 
-        sent.mappings_verified_at = now
-        stats["verified"] += 1
+    # Mark all checked sentences as verified
+    all_checked_ids = list(sent_id_by_idx.values())
+    if all_checked_ids:
+        db.query(Sentence).filter(Sentence.id.in_(all_checked_ids)).update(
+            {Sentence.mappings_verified_at: now}, synchronize_session="fetch"
+        )
+
+    stats["verified"] += len(sent_id_by_idx)
 
     try:
         db.commit()

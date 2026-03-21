@@ -408,7 +408,10 @@ def acknowledge_experiment_intro(
     ).first()
     if ulk:
         ulk.experiment_intro_shown_at = datetime.utcnow()
-        db.commit()
+        try:
+            db.commit()
+        except Exception:
+            db.rollback()
 
     log_interaction(
         event="experiment_intro_shown",
