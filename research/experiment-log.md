@@ -4,6 +4,18 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-03-21: Dynamic Session Sizing Based on Accuracy
+
+**Context**: Fixed 10-sentence limit was too few for a learner at 96% accuracy. Sessions complete too quickly.
+
+**Change**: Session limit now adapts to 2-day accuracy: <90% → 10, ≥90% → 14, ≥95% → 18. Explicit `limit` parameter still overrides. Frontend no longer sends `limit=10` hardcoded — omits the parameter so the backend computes dynamically. API `le` constraint raised from 20 to 30 to accommodate dynamic max of 18 + acquisition repetition headroom.
+
+**Expected**: More practice volume for strong learners. INTRO_RESERVE_FRACTION scales naturally (0.2 * 18 = 3.6 → 3 intro slots instead of 2).
+
+**Verify**: After 1 week, check session completion rate and time-per-session. If sessions feel too long, reduce to 12/16.
+
+---
+
 ## 2026-03-21: Tighten LLM Pipeline Verification Across All Code Paths
 
 **Context**: Comprehensive audit of all LLM/automatic processing paths revealed 4 additional issues beyond the unverified cron (fixed earlier today).

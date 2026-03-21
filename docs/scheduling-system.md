@@ -168,7 +168,7 @@ learn, and each enters acquisition immediately.
 **Code**: `sentence_selector.py:_auto_introduce_words()`
 
 **Gating conditions**:
-- **Reserved slots**: `INTRO_RESERVE_FRACTION` (20%) of session slots reserved for introductions, even when due queue exceeds limit. With limit=10, at least 2 slots always available.
+- **Reserved slots**: `INTRO_RESERVE_FRACTION` (20%) of session slots reserved for introductions, even when due queue exceeds limit. With base limit=10, at least 2 slots; with dynamic limit=18, up to 3 slots.
 - **Pipeline backlog gate**: Reserved intro slots suppressed when acquiring pipeline exceeds a dynamic threshold. Base threshold is `PIPELINE_BACKLOG_THRESHOLD` (40), but scales with recent accuracy: ≥90% → 80, ≥80% → 60, <80% → 40. Undersized-session fill still works (when due < limit). Resumes automatically when pipeline drains below threshold.
 - Recent accuracy ≥ `AUTO_INTRO_ACCURACY_FLOOR` (70%) over last 10+ reviews
 - Per-call cap: `MAX_AUTO_INTRO_PER_SESSION` (5)
@@ -545,16 +545,30 @@ the cohort. Words due but outside the cohort are ignored for this session.
 ## 8. Session Building — The Core Algorithm
 
 **Code**: `backend/app/services/sentence_selector.py:build_session()`
-**Endpoint**: `GET /api/review/next-sentences?limit=10&mode=reading`
+**Endpoint**: `GET /api/review/next-sentences?mode=reading`
 
 This is the most complex piece of the system. It assembles a session of sentence-based
 review cards, optimizing for due-word coverage, comprehensibility, and difficulty
 progression.
 
+### Dynamic Session Sizing
+
+Session limit adapts to 2-day review accuracy via `_dynamic_session_limit()`:
+
+| 2-Day Accuracy | Session Limit | Intro Slots (20%) |
+|---------------|---------------|-------------------|
+| < 90% (or insufficient data) | 10 (base) | 2 |
+| >= 90% | 14 (+4) | 2 |
+| >= 95% | 18 (+8) | 3 |
+
+Constants: `DEFAULT_SESSION_LIMIT=10`, `ACCURACY_TIER_1=0.90`, `ACCURACY_TIER_2=0.95`, `SESSION_LIMIT_BUMP_1=4`, `SESSION_LIMIT_BUMP_2=8`.
+
+Callers can pass an explicit `limit` to override (for tests, simulations, etc.). The API endpoint omits `limit` by default so dynamic sizing takes effect; passing `?limit=N` overrides.
+
 ### Complete Pipeline
 
 ```
-build_session(db, limit=10, mode="reading")
+build_session(db, limit=None, mode="reading")  # None → dynamic sizing
     │
     ▼
 ┌─────────────────────────────────────────────┐
@@ -1451,6 +1465,11 @@ remaining cards on the next card advance. See Section 8 "Sentence Pre-Warming" f
 
 | Constant | Value | Purpose |
 |----------|-------|---------|
+| `DEFAULT_SESSION_LIMIT` | 10 | Base session size (sentences) |
+| `ACCURACY_TIER_1` | 0.90 | 2-day accuracy threshold for +4 sentences |
+| `ACCURACY_TIER_2` | 0.95 | 2-day accuracy threshold for +8 sentences |
+| `SESSION_LIMIT_BUMP_1` | 4 | Extra sentences at tier 1 (limit=14) |
+| `SESSION_LIMIT_BUMP_2` | 8 | Extra sentences at tier 2 (limit=18) |
 | `MIN_ACQUISITION_EXPOSURES` | 4 | Min times an acquiring word should appear per session |
 | `MAX_ACQUISITION_EXTRA_SLOTS` | 15 | Max extra cards for acquisition repetition |
 | `MAX_AUTO_INTRO_PER_SESSION` | 5 | Per-call cap on auto-intro words |
@@ -1591,22 +1610,22 @@ motivation suffers. Above 95%, learning stalls.
 Default: 4 slots when <10 reviews available (conservative for new/returning users).
 Accuracy and computed slots are logged in interaction events for analysis.
 
-### 19.2 Session Length Adaptation — Not Implemented
+### 19.2 Session Length Adaptation — Partially Implemented
 
 **Research says**: Sessions should be 10-20 items, 10-20 minutes. After 3 consecutive
 "Again" ratings, insert 5 easy review items as a "cognitive rest stop." If session
 extends beyond 20 minutes, show only review items (no new introductions in overtime).
 
-**Original plan said**: "Track rolling accuracy over the last 10 items during a
-session; if it drops below 75%, automatically pause new word introductions."
+**Implemented (2026-03-21)**: Dynamic session sizing based on 2-day accuracy. Session
+limit scales from 10 (base) to 14 (>=90% accuracy) to 18 (>=95% accuracy) via
+`_dynamic_session_limit()`. This is inter-session adaptation — strong learners get
+more practice volume. `INTRO_RESERVE_FRACTION` scales naturally (0.2 * 18 = 3.6 → 3
+intro slots instead of 2).
 
-**Current implementation**: Sessions are built as a fixed batch based on `limit`
-parameter. There is no intra-session adaptation. The session is assembled once and
-delivered to the frontend — the backend doesn't know if the user is struggling
-mid-session.
-
-**Gap**: Sessions are pre-built, not adaptive. The frontend could implement
-client-side adaptation but currently does not.
+**Not implemented**: Intra-session adaptation (reacting to mid-session struggles).
+Sessions are pre-built and delivered to the frontend — the backend doesn't know if
+the user is struggling mid-session. The frontend could implement client-side
+adaptation but currently does not.
 
 ### 19.3 ~~Batch Sentence Generation for Word Sets~~ — RESOLVED
 
@@ -1931,7 +1950,7 @@ Frontend                          Backend
 
 ### B.2 Established Learner — Typical Day
 
-1. Open app → `build_session(limit=10)` runs:
+1. Open app → `build_session()` runs (dynamic limit=14 at 92% accuracy):
    - 5 acquiring words due (boxes 1-3)
    - Cohort has 100 words; 30 FSRS words are due
    - Cohort filter keeps 25 lowest-stability FSRS words + 5 acquiring

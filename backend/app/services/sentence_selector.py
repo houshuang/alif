@@ -52,6 +52,42 @@ PIPELINE_BACKLOG_THRESHOLD = 40  # suppress reserved intros when acquiring pipel
 SESSION_SCAFFOLD_DECAY = 0.5  # per-appearance decay for scaffold words already in session
 NEVER_REVIEWED_BOOST = 5.0  # score multiplier for sentences targeting acquiring words with 0 reviews
 MAX_UNKNOWN_SCAFFOLD = 2  # max unknown non-target words per sentence (prevents overwhelming density)
+DEFAULT_SESSION_LIMIT = 10  # base session size
+ACCURACY_TIER_1 = 0.90  # 2-day accuracy threshold for +4 sentences
+ACCURACY_TIER_2 = 0.95  # 2-day accuracy threshold for +8 sentences
+SESSION_LIMIT_BUMP_1 = 4  # extra sentences at tier 1
+SESSION_LIMIT_BUMP_2 = 8  # extra sentences at tier 2
+
+
+def _get_2day_accuracy(db: Session, now: datetime) -> float | None:
+    """Compute 2-day review accuracy. Returns None if insufficient data (<10 reviews)."""
+    recent_reviews = (
+        db.query(ReviewLog)
+        .filter(ReviewLog.reviewed_at >= (now - timedelta(days=2)).replace(tzinfo=None))
+        .all()
+    )
+    if len(recent_reviews) < 10:
+        return None
+    correct = sum(1 for r in recent_reviews if r.rating >= 3)
+    return correct / len(recent_reviews)
+
+
+def _dynamic_session_limit(db: Session, now: datetime, base_limit: int = DEFAULT_SESSION_LIMIT) -> int:
+    """Compute session limit based on 2-day accuracy.
+
+    Strong learners get longer sessions so they aren't bottlenecked by a fixed cap:
+    - <90% accuracy (or insufficient data): base_limit (10)
+    - >=90% accuracy: base_limit + 4 (14)
+    - >=95% accuracy: base_limit + 8 (18)
+    """
+    accuracy = _get_2day_accuracy(db, now)
+    if accuracy is None:
+        return base_limit
+    if accuracy >= ACCURACY_TIER_2:
+        return base_limit + SESSION_LIMIT_BUMP_2
+    if accuracy >= ACCURACY_TIER_1:
+        return base_limit + SESSION_LIMIT_BUMP_1
+    return base_limit
 
 
 def _intro_slots_for_accuracy(accuracy: float) -> int:
@@ -71,14 +107,8 @@ def _intro_slots_for_accuracy(accuracy: float) -> int:
 
 def _get_accuracy_intro_slots(db: Session, now: datetime) -> int:
     """Compute how many intro slots the learner's accuracy allows."""
-    recent_reviews = (
-        db.query(ReviewLog)
-        .filter(ReviewLog.reviewed_at >= (now - timedelta(days=2)).replace(tzinfo=None))
-        .all()
-    )
-    if len(recent_reviews) >= 10:
-        correct = sum(1 for r in recent_reviews if r.rating >= 3)
-        accuracy = correct / len(recent_reviews)
+    accuracy = _get_2day_accuracy(db, now)
+    if accuracy is not None:
         return _intro_slots_for_accuracy(accuracy)
     return 4  # conservative default with insufficient data
 
@@ -385,12 +415,15 @@ def _auto_introduce_words(
 
 def build_session(
     db: Session,
-    limit: int = 10,
+    limit: int | None = None,
     mode: str = "reading",
     log_events: bool = True,
     exclude_sentence_ids: set[int] | None = None,
 ) -> dict:
     """Assemble a sentence-based review session.
+
+    When limit is None (default), uses dynamic sizing based on 2-day accuracy.
+    Pass an explicit limit to override (for tests, simulations, etc.).
 
     Returns a dict matching SentenceSessionOut schema:
     {session_id, items, total_due_words, covered_due_words}
@@ -399,6 +432,10 @@ def build_session(
     logger = logging.getLogger(__name__)
     session_id = str(uuid.uuid4())
     now = datetime.now(timezone.utc)
+
+    if limit is None:
+        limit = _dynamic_session_limit(db, now)
+        logger.info(f"Dynamic session limit: {limit}")
 
     # Load tashkeel settings
     tashkeel_settings = db.query(LearnerSettings).first()

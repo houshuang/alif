@@ -57,7 +57,7 @@ def next_listening_cards(
 
 @router.get("/next-sentences", response_model=SentenceSessionOut)
 def next_sentences(
-    limit: int = Query(10, ge=1, le=20),
+    limit: int | None = Query(None, ge=1, le=30),
     mode: str = Query("reading"),
     prefetch: bool = Query(False),
     exclude: list[int] = Query(default=[]),
@@ -66,6 +66,7 @@ def next_sentences(
 ):
     """Get a sentence-based review session.
 
+    When limit is omitted, session size adapts to 2-day accuracy (10/14/18).
     No LLM calls — session builds from pre-generated sentences (<1s).
     Background warm_sentence_cache generates for uncovered words after.
     """

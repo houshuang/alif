@@ -411,7 +411,7 @@ export async function fetchFreshSession(
   mode: ReviewMode = "reading"
 ): Promise<SentenceReviewSession> {
   const data = await fetchApi<SentenceReviewSession>(
-    `/api/review/next-sentences?limit=10&mode=${mode}`,
+    `/api/review/next-sentences?mode=${mode}`,
     { timeoutMs: 12_000 }
   );
   const session = { ...data, session_id: data.session_id || generateSessionId() };
@@ -440,7 +440,7 @@ export async function getSentenceReviewSession(
 
   try {
     const data = await fetchApi<SentenceReviewSession>(
-      `/api/review/next-sentences?limit=10&mode=${mode}`,
+      `/api/review/next-sentences?mode=${mode}`,
       { timeoutMs: 12_000 }
     );
     const session = { ...data, session_id: data.session_id || generateSessionId() };
@@ -518,7 +518,7 @@ export async function undoSentenceReview(
 export async function prefetchSessions(mode: ReviewMode): Promise<void> {
   try {
     const data = await fetchApi<SentenceReviewSession>(
-      `/api/review/next-sentences?limit=10&mode=${mode}&prefetch=true`
+      `/api/review/next-sentences?mode=${mode}&prefetch=true`
     );
     const session = { ...data, session_id: data.session_id || generateSessionId() };
     await cacheSessions(mode, [session]);
@@ -548,7 +548,7 @@ export async function deepPrefetchSessions(
         ? `&${Array.from(excludeIds).map(id => `exclude=${id}`).join('&')}`
         : '';
       const data = await fetchApi<SentenceReviewSession>(
-        `/api/review/next-sentences?limit=10&mode=${mode}&prefetch=true${excludeParam}`
+        `/api/review/next-sentences?mode=${mode}&prefetch=true${excludeParam}`
       );
       if (!data.items || data.items.length === 0) break;
       const session = { ...data, session_id: data.session_id || generateSessionId() };

@@ -7,12 +7,19 @@ import pytest
 from app.models import Lemma, ReviewLog, UserLemmaKnowledge, Sentence, SentenceWord
 from app.services.fsrs_service import create_new_card
 from app.services.sentence_selector import (
+    ACCURACY_TIER_1,
+    ACCURACY_TIER_2,
+    DEFAULT_SESSION_LIMIT,
     FRESHNESS_BASELINE,
     INTRO_RESERVE_FRACTION,
     MAX_AUTO_INTRO_PER_SESSION,
+    SESSION_LIMIT_BUMP_1,
+    SESSION_LIMIT_BUMP_2,
     SESSION_SCAFFOLD_DECAY,
     WordMeta,
     _difficulty_match_quality,
+    _dynamic_session_limit,
+    _get_2day_accuracy,
     _intro_slots_for_accuracy,
     _scaffold_freshness,
     build_session,
@@ -821,5 +828,150 @@ class TestSelectionInfo:
         assert "due_coverage" in components
         assert "diversity" in components
         assert "session_diversity" in components
+
+
+class TestDynamicSessionLimit:
+    """Dynamic session sizing based on 2-day accuracy."""
+
+    def _seed_reviews(self, db_session, count, rating, hours_spread=48):
+        """Create review logs spread over the last N hours."""
+        now = datetime.now(timezone.utc)
+        for i in range(count):
+            db_session.add(ReviewLog(
+                lemma_id=1,
+                rating=rating,
+                reviewed_at=now - timedelta(hours=i * hours_spread / max(count, 1)),
+                review_mode="reading",
+            ))
+        db_session.flush()
+
+    def test_get_2day_accuracy_insufficient_data(self, db_session):
+        now = datetime.now(timezone.utc)
+        # Fewer than 10 reviews → None
+        self._seed_reviews(db_session, 5, rating=4)
+        assert _get_2day_accuracy(db_session, now) is None
+
+    def test_get_2day_accuracy_all_correct(self, db_session):
+        now = datetime.now(timezone.utc)
+        self._seed_reviews(db_session, 20, rating=4)
+        assert _get_2day_accuracy(db_session, now) == 1.0
+
+    def test_get_2day_accuracy_mixed(self, db_session):
+        now = datetime.now(timezone.utc)
+        # 15 correct + 5 incorrect = 75%
+        for i in range(15):
+            db_session.add(ReviewLog(
+                lemma_id=1, rating=4,
+                reviewed_at=now - timedelta(hours=i),
+                review_mode="reading",
+            ))
+        for i in range(5):
+            db_session.add(ReviewLog(
+                lemma_id=1, rating=1,
+                reviewed_at=now - timedelta(hours=15 + i),
+                review_mode="reading",
+            ))
+        db_session.flush()
+        accuracy = _get_2day_accuracy(db_session, now)
+        assert accuracy == pytest.approx(0.75)
+
+    def test_dynamic_limit_no_data(self, db_session):
+        now = datetime.now(timezone.utc)
+        assert _dynamic_session_limit(db_session, now) == DEFAULT_SESSION_LIMIT
+
+    def test_dynamic_limit_low_accuracy(self, db_session):
+        now = datetime.now(timezone.utc)
+        # 14 correct + 6 incorrect = 70%
+        for i in range(14):
+            db_session.add(ReviewLog(
+                lemma_id=1, rating=4,
+                reviewed_at=now - timedelta(hours=i),
+                review_mode="reading",
+            ))
+        for i in range(6):
+            db_session.add(ReviewLog(
+                lemma_id=1, rating=1,
+                reviewed_at=now - timedelta(hours=14 + i),
+                review_mode="reading",
+            ))
+        db_session.flush()
+        assert _dynamic_session_limit(db_session, now) == DEFAULT_SESSION_LIMIT
+
+    def test_dynamic_limit_tier1(self, db_session):
+        now = datetime.now(timezone.utc)
+        # 91 correct + 9 incorrect = 91% (>= 90%, < 95%)
+        for i in range(91):
+            db_session.add(ReviewLog(
+                lemma_id=1, rating=4,
+                reviewed_at=now - timedelta(minutes=i * 30),
+                review_mode="reading",
+            ))
+        for i in range(9):
+            db_session.add(ReviewLog(
+                lemma_id=1, rating=1,
+                reviewed_at=now - timedelta(minutes=(91 + i) * 30),
+                review_mode="reading",
+            ))
+        db_session.flush()
+        assert _dynamic_session_limit(db_session, now) == DEFAULT_SESSION_LIMIT + SESSION_LIMIT_BUMP_1
+
+    def test_dynamic_limit_tier2(self, db_session):
+        now = datetime.now(timezone.utc)
+        # 96 correct + 4 incorrect = 96% (>= 95%)
+        for i in range(96):
+            db_session.add(ReviewLog(
+                lemma_id=1, rating=4,
+                reviewed_at=now - timedelta(minutes=i * 30),
+                review_mode="reading",
+            ))
+        for i in range(4):
+            db_session.add(ReviewLog(
+                lemma_id=1, rating=1,
+                reviewed_at=now - timedelta(minutes=(96 + i) * 30),
+                review_mode="reading",
+            ))
+        db_session.flush()
+        assert _dynamic_session_limit(db_session, now) == DEFAULT_SESSION_LIMIT + SESSION_LIMIT_BUMP_2
+
+    def test_dynamic_limit_explicit_override(self, db_session):
+        now = datetime.now(timezone.utc)
+        assert _dynamic_session_limit(db_session, now, base_limit=20) == 20
+
+    def test_build_session_uses_dynamic_limit_by_default(self, db_session):
+        """When limit=None, build_session uses dynamic sizing."""
+        # Create a word and sentence
+        _seed_word(db_session, 1, "كتاب", "book", due_hours=-1)
+        _seed_sentence(db_session, 1, "الكتاب", "the book", 1, [("الكتاب", 1)])
+
+        # High accuracy reviews → should get tier 2 limit (18)
+        now = datetime.now(timezone.utc)
+        for i in range(20):
+            db_session.add(ReviewLog(
+                lemma_id=1, rating=4,
+                reviewed_at=now - timedelta(hours=i),
+                review_mode="reading",
+            ))
+        db_session.commit()
+
+        # With default limit=None, should use dynamic sizing
+        result = build_session(db_session)
+        assert result is not None
+        # Session should build without errors
+
+    def test_build_session_explicit_limit_overrides(self, db_session):
+        """When limit is explicitly passed, dynamic sizing is bypassed."""
+        _seed_word(db_session, 1, "كتاب", "book", due_hours=-1)
+        _seed_sentence(db_session, 1, "الكتاب", "the book", 1, [("الكتاب", 1)])
+        db_session.commit()
+
+        result = build_session(db_session, limit=5)
+        assert result is not None
+
+    def test_constants_are_sane(self):
+        assert DEFAULT_SESSION_LIMIT == 10
+        assert ACCURACY_TIER_1 == 0.90
+        assert ACCURACY_TIER_2 == 0.95
+        assert SESSION_LIMIT_BUMP_1 == 4
+        assert SESSION_LIMIT_BUMP_2 == 8
 
 
