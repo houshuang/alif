@@ -190,9 +190,11 @@ def _generate_via_claude_cli(
         try:
             return json.loads(text)
         except json.JSONDecodeError:
-            # Claude CLI sometimes appends extra data — try to extract first JSON object/array
-            decoder = json.JSONDecoder()
-            return decoder.raw_decode(text)[0]
+            try:
+                decoder = json.JSONDecoder()
+                return decoder.raw_decode(text)[0]
+            except (json.JSONDecodeError, ValueError):
+                raise LLMError(f"claude CLI returned unparseable JSON: {text[:200]}")
     return {"content": content}
 
 
