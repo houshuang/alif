@@ -11,7 +11,10 @@ from app.services.variant_detection import (
     _gloss_overlap,
     _has_enclitic,
     _build_llm_batch_prompt,
+    _tokenize_gloss,
+    compute_jaccard_similarity,
     evaluate_variants_llm,
+    verify_variant_pair,
 )
 
 
@@ -222,3 +225,102 @@ class TestEvaluateVariantsLlm:
         assert len(results2) == 1
         assert results2[0]["is_variant"] is True
         assert "(cached)" in results2[0]["reason"]
+
+
+class TestTokenizeGloss:
+    def test_basic(self):
+        result = _tokenize_gloss("big book")
+        assert result == {"big", "book"}
+
+    def test_strips_noise(self):
+        result = _tokenize_gloss("the big book")
+        assert "the" not in result
+        assert result == {"big", "book"}
+
+    def test_strips_gender_markers(self):
+        result = _tokenize_gloss("happy (f)")
+        assert result == {"happy"}
+
+    def test_empty(self):
+        assert _tokenize_gloss("") == set()
+        assert _tokenize_gloss(None) == set()
+
+    def test_only_noise(self):
+        result = _tokenize_gloss("a the of")
+        assert result == set()
+
+
+class TestJaccardSimilarity:
+    def test_identical(self):
+        assert compute_jaccard_similarity("book", "book") == 1.0
+
+    def test_no_overlap(self):
+        assert compute_jaccard_similarity("book", "house") == 0.0
+
+    def test_partial_overlap(self):
+        score = compute_jaccard_similarity("big book", "old book")
+        # intersection = {"book"}, union = {"big", "book", "old"} => 1/3
+        assert abs(score - 1 / 3) < 0.01
+
+    def test_noise_ignored(self):
+        score = compute_jaccard_similarity("the book", "a book")
+        assert score == 1.0
+
+    def test_both_empty(self):
+        assert compute_jaccard_similarity("", "") == 0.0
+
+    def test_one_empty(self):
+        assert compute_jaccard_similarity("book", "") == 0.0
+
+    def test_gender_markers_ignored(self):
+        score = compute_jaccard_similarity("happy (m)", "happy (f)")
+        assert score == 1.0
+
+    def test_distinct_glosses(self):
+        score = compute_jaccard_similarity("hunter", "fish dish")
+        assert score == 0.0
+
+
+class TestVerifyVariantPair:
+    def test_gloss_overlap_returns_true(self, db_session):
+        var = _seed_lemma(db_session, 1, "كتابي", "my book")
+        canon = _seed_lemma(db_session, 2, "كتاب", "book")
+        db_session.commit()
+
+        assert verify_variant_pair(db_session, var, canon) is True
+
+    def test_no_overlap_calls_llm_true(self, db_session):
+        var = _seed_lemma(db_session, 1, "صيادية", "fish dish")
+        canon = _seed_lemma(db_session, 2, "صياد", "hunter")
+        db_session.commit()
+
+        mock_response = {
+            "results": [{"id": 0, "is_variant": False, "reason": "distinct words"}]
+        }
+        with patch("app.services.llm.generate_completion",
+                    return_value=mock_response):
+            result = verify_variant_pair(db_session, var, canon)
+        assert result is False
+
+    def test_no_overlap_llm_confirms_variant(self, db_session):
+        var = _seed_lemma(db_session, 1, "ملكة", "queen")
+        canon = _seed_lemma(db_session, 2, "ملك", "king")
+        db_session.commit()
+
+        mock_response = {
+            "results": [{"id": 0, "is_variant": True, "reason": "feminine of king"}]
+        }
+        with patch("app.services.llm.generate_completion",
+                    return_value=mock_response):
+            result = verify_variant_pair(db_session, var, canon)
+        assert result is True
+
+    def test_llm_failure_returns_false(self, db_session):
+        var = _seed_lemma(db_session, 1, "صيادية", "fish dish")
+        canon = _seed_lemma(db_session, 2, "صياد", "hunter")
+        db_session.commit()
+
+        with patch("app.services.llm.generate_completion",
+                    side_effect=Exception("LLM unavailable")):
+            result = verify_variant_pair(db_session, var, canon)
+        assert result is False
