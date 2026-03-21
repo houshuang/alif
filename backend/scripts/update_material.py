@@ -35,22 +35,17 @@ from sqlalchemy.orm import Session
 from app.database import SessionLocal
 from app.models import Lemma, Sentence, SentenceWord, UserLemmaKnowledge
 from app.services.activity_log import log_activity
-from app.services.word_selector import select_next_words, get_sentence_difficulty_params
-from app.services.llm import AllProvidersFailed, generate_sentences_batch
+from app.services.word_selector import select_next_words
+from app.services.material_generator import generate_material_for_word
 from app.services.sentence_generator import (
     get_content_word_counts,
     get_avoid_words,
     group_words_for_multi_target,
     generate_validated_sentences_multi_target,
-    sample_known_words_weighted,
-    KNOWN_SAMPLE_SIZE,
 )
 from app.services.sentence_validator import (
     build_lemma_lookup,
-    map_tokens_to_lemmas,
     strip_diacritics,
-    tokenize_display,
-    validate_sentence,
 )
 from app.services.tts import (
     DEFAULT_VOICE_ID,
@@ -138,125 +133,6 @@ def get_known_words_and_lookup(db: Session) -> tuple[list[dict[str, str]], dict[
     ]
     lemma_lookup = build_lemma_lookup(all_lemmas)
     return known_words, lemma_lookup
-
-
-def generate_sentences_for_word(
-    db: Session,
-    lemma: Lemma,
-    known_words: list[dict[str, str]],
-    lemma_lookup: dict[str, int],
-    needed: int,
-    model: str = "gemini",
-    delay: float = 1.0,
-    avoid_words: list[str] | None = None,
-    difficulty_hint: str | None = None,
-    max_words: int | None = None,
-) -> int:
-    """Generate sentences for a word using generate-then-write pattern.
-
-    LLM generation happens without holding the DB lock. Only the final
-    write phase holds the DB briefly (milliseconds).
-    """
-    target_bare = strip_diacritics(lemma.lemma_ar)
-    lemma_ar = lemma.lemma_ar
-    gloss_en = lemma.gloss_en or ""
-    target_lemma_id = lemma.lemma_id
-    all_bare = set(lemma_lookup.keys())
-    rejected_words: list[str] = []
-
-    # Read difficulty params before releasing DB
-    if difficulty_hint is None or max_words is None:
-        diff_params = get_sentence_difficulty_params(db, lemma.lemma_id)
-        if difficulty_hint is None:
-            difficulty_hint = diff_params["difficulty_hint"]
-        if max_words is None:
-            max_words = diff_params["max_words"]
-
-    # ── LLM generation phase (no DB writes) ──
-    valid_sentences: list[dict] = []
-    for batch in range(3):
-        if len(valid_sentences) >= needed:
-            break
-        if batch > 0 and delay > 0:
-            time.sleep(delay)
-
-        try:
-            results = generate_sentences_batch(
-                target_word=lemma_ar,
-                target_translation=gloss_en,
-                known_words=known_words,
-                count=min(needed - len(valid_sentences) + 2, 4),
-                difficulty_hint=difficulty_hint,
-                model_override=model,
-                rejected_words=rejected_words if rejected_words else None,
-                avoid_words=avoid_words,
-                max_words=max_words,
-            )
-        except AllProvidersFailed as e:
-            print(f"    LLM error: {e}")
-            break
-
-        for res in results:
-            if len(valid_sentences) >= needed:
-                break
-
-            validation = validate_sentence(
-                arabic_text=res.arabic,
-                target_bare=target_bare,
-                known_bare_forms=all_bare,
-            )
-            if not validation.valid:
-                for issue in validation.issues:
-                    print(f"    ✗ Rejected: {issue}")
-                for uw in validation.unknown_words:
-                    bare = strip_diacritics(uw)
-                    if bare not in rejected_words:
-                        rejected_words.append(bare)
-                continue
-
-            tokens = tokenize_display(res.arabic)
-            mappings = map_tokens_to_lemmas(
-                tokens=tokens,
-                lemma_lookup=lemma_lookup,
-                target_lemma_id=target_lemma_id,
-                target_bare=target_bare,
-            )
-
-            valid_sentences.append({
-                "arabic": res.arabic,
-                "english": res.english,
-                "transliteration": res.transliteration,
-                "mappings": mappings,
-            })
-
-    # ── DB write phase (milliseconds) ──
-    stored = 0
-    for vs in valid_sentences:
-        sent = Sentence(
-            arabic_text=vs["arabic"],
-            arabic_diacritized=vs["arabic"],
-            english_translation=vs["english"],
-            transliteration=vs["transliteration"],
-            source="llm",
-            target_lemma_id=target_lemma_id,
-            created_at=datetime.now(timezone.utc),
-        )
-        db.add(sent)
-        db.flush()
-
-        for m in vs["mappings"]:
-            sw = SentenceWord(
-                sentence_id=sent.id,
-                position=m.position,
-                surface_form=m.surface_form,
-                lemma_id=m.lemma_id,
-                is_target_word=m.is_target,
-            )
-            db.add(sw)
-        stored += 1
-
-    db.commit()
-    return stored
 
 
 # ── Step 0: Enforce sentence cap by retiring excess ──────────────────
@@ -522,20 +398,13 @@ def step_backfill_sentences(
         if not lemma:
             continue
 
-        word_sample = sample_known_words_weighted(
-            known_words, content_word_counts, KNOWN_SAMPLE_SIZE,
-            target_lemma_id=lemma.lemma_id,
-        )
-
         words_processed += 1
         print(f"  {lemma.lemma_ar} ({lemma.gloss_en}) — have {existing}, need {needed}, due {w['due_str'][:10]}")
         if dry_run:
             total += needed
         else:
-            stored = generate_sentences_for_word(
-                db, lemma, word_sample, lemma_lookup,
-                needed=needed, model=model, delay=delay,
-                avoid_words=avoid_words,
+            stored = generate_material_for_word(
+                lemma.lemma_id, needed=needed, model_override=model,
             )
             total += stored
             if stored:
@@ -677,9 +546,6 @@ def step_pregenerate_candidates(db: Session, dry_run: bool, count: int, model: s
 
     print(f"  Found {len(candidates)} upcoming candidates")
 
-    known_words, lemma_lookup = get_known_words_and_lookup(db)
-    content_word_counts = get_content_word_counts(db)
-    avoid_words = get_avoid_words(content_word_counts, known_words)
     budget = TARGET_PIPELINE_SENTENCES - total_active
 
     total = 0
@@ -698,16 +564,12 @@ def step_pregenerate_candidates(db: Session, dry_run: bool, count: int, model: s
         if dry_run:
             total += needed
         else:
-            lemma = db.query(Lemma).filter(Lemma.lemma_id == lid).first()
-            if lemma:
-                stored = generate_sentences_for_word(
-                    db, lemma, known_words, lemma_lookup,
-                    needed=needed, model=model, delay=delay,
-                    avoid_words=avoid_words,
-                )
-                total += stored
-                if stored:
-                    print(f"    Generated {stored} sentences")
+            stored = generate_material_for_word(
+                lid, needed=needed, model_override=model,
+            )
+            total += stored
+            if stored:
+                print(f"    Generated {stored} sentences")
 
     print(f"  → Total sentences: {total}")
     return total

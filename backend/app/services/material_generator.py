@@ -13,7 +13,7 @@ from app.models import Lemma, Sentence, SentenceWord, UserLemmaKnowledge
 logger = logging.getLogger(__name__)
 
 
-def generate_material_for_word(lemma_id: int, needed: int = 2, model_override: str = "gemini") -> None:
+def generate_material_for_word(lemma_id: int, needed: int = 2, model_override: str = "gemini") -> int:
     """Background task: generate sentences + audio for a word.
 
     Uses a generate-then-write pattern to avoid holding the DB lock during
@@ -48,7 +48,7 @@ def generate_material_for_word(lemma_id: int, needed: int = 2, model_override: s
     try:
         lemma = db.query(Lemma).filter(Lemma.lemma_id == lemma_id).first()
         if not lemma:
-            return
+            return 0
         # Snapshot lemma data for use after DB close
         lemma_ar = lemma.lemma_ar
         gloss_en = lemma.gloss_en or ""
@@ -94,7 +94,7 @@ def generate_material_for_word(lemma_id: int, needed: int = 2, model_override: s
     clean_target, san_warnings = sanitize_arabic_word(lemma_ar)
     if not clean_target or " " in clean_target or "too_short" in san_warnings:
         logger.warning(f"Skipping generation for uncleanable lemma {lemma_id}: {lemma_ar!r}")
-        return
+        return 0
     target_bare = strip_diacritics(clean_target)
     all_bare_forms = set(lemma_lookup.keys())
 
@@ -111,7 +111,7 @@ def generate_material_for_word(lemma_id: int, needed: int = 2, model_override: s
         )
     except AllProvidersFailed:
         logger.warning(f"LLM unavailable for sentence generation (lemma {lemma_id})")
-        return
+        return 0
 
     # Validate and prepare sentences in memory
     valid_sentences: list[dict] = []
@@ -210,12 +210,12 @@ def generate_material_for_word(lemma_id: int, needed: int = 2, model_override: s
         })
 
     if not valid_sentences:
-        return
+        return 0
 
     # ── Phase 3: DB write (milliseconds) ──
     db = SessionLocal()
+    stored = 0
     try:
-        stored = 0
         for vs in valid_sentences:
             sent = Sentence(
                 arabic_text=vs["arabic"],
@@ -248,6 +248,7 @@ def generate_material_for_word(lemma_id: int, needed: int = 2, model_override: s
         db.rollback()
     finally:
         db.close()
+    return stored
 
 
 def store_multi_target_sentence(
