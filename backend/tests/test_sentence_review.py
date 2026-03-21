@@ -178,9 +178,9 @@ class TestPartial:
 
 
 class TestConfused:
-    def test_confused_words_get_full_credit(self, db_session):
-        """Confused words get rating=3 (Good) — no FSRS penalty.
-        Confusion is tracked via was_confused flag on ReviewLog instead."""
+    def test_confused_words_get_hard_rating(self, db_session):
+        """Confused words get rating=2 (Hard) — gentle penalty to review sooner.
+        Confusion is tracked via was_confused flag on ReviewLog."""
         _seed_word(db_session, 1, "كتاب", "book")
         _seed_word(db_session, 2, "ولد", "boy")
         _seed_word(db_session, 3, "قرأ", "read")
@@ -198,7 +198,7 @@ class TestConfused:
         )
 
         ratings = {wr["lemma_id"]: wr["rating"] for wr in result["word_results"]}
-        assert ratings[2] == 3  # confused gets full credit
+        assert ratings[2] == 2  # confused gets Hard rating
         assert ratings[1] == 3  # not confused
         assert ratings[3] == 3  # not confused
 
@@ -241,7 +241,7 @@ class TestConfused:
 
         ratings = {wr["lemma_id"]: wr["rating"] for wr in result["word_results"]}
         assert ratings[3] == 1  # missed
-        assert ratings[2] == 3  # confused gets full credit
+        assert ratings[2] == 2  # confused gets Hard rating
         assert ratings[1] == 3  # understood
 
     def test_confused_ignored_on_no_idea(self, db_session):
@@ -280,7 +280,7 @@ class TestConfused:
         assert resp.status_code == 200
         data = resp.json()
         ratings = {wr["lemma_id"]: wr["rating"] for wr in data["word_results"]}
-        assert ratings[2] == 3  # confused gets full credit
+        assert ratings[2] == 2  # confused gets Hard rating
         assert ratings[1] == 3
 
 
