@@ -19,6 +19,7 @@ import {
   scanTextbookPages,
   getBatchStatus,
   getUploadHistory,
+  retryBatch,
 } from "../lib/api";
 import {
   BatchUploadResult,
@@ -359,9 +360,20 @@ export default function ScannerScreen() {
     );
   }
 
+  async function handleRetry(batchId: string) {
+    try {
+      const batch = await retryBatch(batchId, startAcquiring);
+      setCurrentBatch(batch);
+      startPolling(batchId);
+    } catch (e) {
+      console.error("Retry failed:", e);
+    }
+  }
+
   function renderBatchItem(batch: BatchSummary) {
     const isExpanded = expandedBatch === batch.batch_id;
     const isProcessing = batch.status === "processing";
+    const isFailed = batch.status === "failed";
     const date = new Date(batch.created_at);
     const dateStr = date.toLocaleDateString(undefined, {
       month: "short",
@@ -386,7 +398,7 @@ export default function ScannerScreen() {
                     color={colors.accent}
                     style={{ marginRight: 8 }}
                   />
-                ) : batch.status === "failed" ? (
+                ) : isFailed ? (
                   <Ionicons
                     name="alert-circle"
                     size={18}
@@ -408,6 +420,15 @@ export default function ScannerScreen() {
               <Text style={styles.batchDate}>{dateStr}</Text>
             </View>
             <View style={styles.batchStats}>
+              {isFailed && (
+                <Pressable
+                  style={styles.retryBtn}
+                  onPress={() => handleRetry(batch.batch_id)}
+                >
+                  <Ionicons name="refresh" size={14} color="#fff" />
+                  <Text style={styles.retryBtnText}>Retry</Text>
+                </Pressable>
+              )}
               {batch.total_new > 0 && (
                 <Text style={[styles.batchStat, { color: colors.gotIt }]}>
                   +{batch.total_new} new
@@ -708,6 +729,20 @@ const styles = StyleSheet.create({
   },
   batchStat: {
     fontSize: fonts.small,
+    fontWeight: "600",
+  },
+  retryBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: colors.accent,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 8,
+  },
+  retryBtnText: {
+    color: "#fff",
+    fontSize: fonts.caption,
     fontWeight: "600",
   },
   batchPages: {

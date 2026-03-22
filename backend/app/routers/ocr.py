@@ -2,6 +2,8 @@
 
 import uuid
 import logging
+from datetime import datetime, timezone
+from pathlib import Path
 
 from fastapi import APIRouter, Depends, File, UploadFile, BackgroundTasks, HTTPException, Query
 from sqlalchemy.orm import Session
@@ -19,6 +21,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/ocr", tags=["ocr"])
 
 MAX_FILE_SIZE = 20 * 1024 * 1024  # 20MB per image
+UPLOAD_DIR = Path("data/textbook-uploads")
 
 
 def _format_upload(upload: PageUpload) -> dict:
@@ -37,6 +40,28 @@ def _format_upload(upload: PageUpload) -> dict:
     }
 
 
+def _save_uploads(batch_id: str, file_images: list[tuple[str, bytes]]) -> Path:
+    """Save uploaded images to disk for retry on failure."""
+    batch_dir = UPLOAD_DIR / batch_id
+    batch_dir.mkdir(parents=True, exist_ok=True)
+    for filename, data in file_images:
+        safe_name = filename.replace("/", "_") if filename else "page.jpg"
+        (batch_dir / safe_name).write_bytes(data)
+    return batch_dir
+
+
+def _load_saved_images(batch_id: str) -> list[tuple[str, bytes]] | None:
+    """Load previously saved images for a batch. Returns None if not found."""
+    batch_dir = UPLOAD_DIR / batch_id
+    if not batch_dir.exists():
+        return None
+    images = []
+    for f in sorted(batch_dir.iterdir()):
+        if f.is_file() and f.suffix.lower() in (".jpg", ".jpeg", ".png", ".webp"):
+            images.append((f.name, f.read_bytes()))
+    return images if images else None
+
+
 def _process_batch_background(
     batch_id: str,
     file_images: list[tuple[str, bytes]],
@@ -48,6 +73,20 @@ def _process_batch_background(
         process_batch(db, batch_id, file_images, start_acquiring=start_acquiring)
     except Exception:
         logger.exception(f"Background batch processing failed for {batch_id}")
+        # Mark any still-processing pages as failed so they don't stay stuck
+        try:
+            stuck = (
+                db.query(PageUpload)
+                .filter(PageUpload.batch_id == batch_id, PageUpload.status == "processing")
+                .all()
+            )
+            for u in stuck:
+                u.status = "failed"
+                u.error_message = "Background processing crashed"
+                u.completed_at = datetime.now(timezone.utc)
+            db.commit()
+        except Exception:
+            logger.exception(f"Failed to mark stuck pages for batch {batch_id}")
     finally:
         db.close()
 
@@ -94,6 +133,9 @@ async def scan_textbook_pages(
         file_images.append((file.filename, image_bytes))
 
     db.commit()
+
+    # Save images to disk for retry on failure
+    _save_uploads(batch_id, file_images)
 
     # Single background task for the entire batch
     background_tasks.add_task(_process_batch_background, batch_id, file_images, start_acquiring)
@@ -170,6 +212,50 @@ def list_uploads(
         })
 
     return {"batches": batches}
+
+
+@router.post("/batch/{batch_id}/retry", response_model=BatchUploadOut)
+def retry_batch(
+    batch_id: str,
+    background_tasks: BackgroundTasks,
+    start_acquiring: bool = Query(default=False),
+    db: Session = Depends(get_db),
+):
+    """Retry a failed or stuck batch using saved images."""
+    uploads = (
+        db.query(PageUpload)
+        .filter(PageUpload.batch_id == batch_id)
+        .order_by(PageUpload.id)
+        .all()
+    )
+    if not uploads:
+        raise HTTPException(status_code=404, detail="Batch not found")
+
+    file_images = _load_saved_images(batch_id)
+    if not file_images:
+        raise HTTPException(
+            status_code=404,
+            detail="No saved images found for this batch — images must be re-uploaded",
+        )
+
+    # Reset all pages to pending
+    for u in uploads:
+        u.status = "pending"
+        u.error_message = None
+        u.new_words = 0
+        u.existing_words = 0
+        u.extracted_words_json = None
+        u.completed_at = None
+    db.commit()
+
+    background_tasks.add_task(_process_batch_background, batch_id, file_images, start_acquiring)
+
+    return {
+        "batch_id": batch_id,
+        "pages": [_format_upload(u) for u in uploads],
+        "total_new": 0,
+        "total_existing": 0,
+    }
 
 
 @router.post("/extract-text", response_model=OCRStoryImportOut)

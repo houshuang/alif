@@ -943,6 +943,13 @@ export async function getUploadHistory(): Promise<{ batches: BatchSummary[] }> {
   return fetchApi(`/api/ocr/uploads`);
 }
 
+export async function retryBatch(batchId: string, startAcquiring: boolean = false): Promise<BatchUploadResult> {
+  const url = startAcquiring
+    ? `/api/ocr/batch/${batchId}/retry?start_acquiring=true`
+    : `/api/ocr/batch/${batchId}/retry`;
+  return fetchApi<BatchUploadResult>(url, { method: "POST" });
+}
+
 export async function extractTextFromImage(imageUri: string): Promise<string> {
   const formData = new FormData();
   const filename = imageUri.split("/").pop() || "image.jpg";
