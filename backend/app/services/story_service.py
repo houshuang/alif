@@ -691,25 +691,35 @@ def _build_knowledge_map(db: Session, lemma_ids: set[int] | None = None) -> dict
     if not lemma_ids:
         return result
 
-    # Resolve variants: follow chains to root canonical and use best state
-    all_mappings = {
-        r.lemma_id: r.canonical_lemma_id
-        for r in db.query(Lemma.lemma_id, Lemma.canonical_lemma_id)
-        .filter(Lemma.canonical_lemma_id.isnot(None))
+    # Resolve variants: follow chains to root canonical and use best state.
+    # First check which of our lemma_ids are variants, then follow chains.
+    direct_variants = (
+        db.query(Lemma.lemma_id, Lemma.canonical_lemma_id)
+        .filter(
+            Lemma.lemma_id.in_(lemma_ids),
+            Lemma.canonical_lemma_id.isnot(None),
+        )
         .all()
-    }
+    )
     canon_map: dict[int, int] = {}
-    for lid in lemma_ids:
-        if lid in all_mappings:
-            current = all_mappings[lid]
-            seen = {lid, current}
+    if direct_variants:
+        # Only load the full mapping table if we actually have variants to resolve
+        all_mappings = {
+            r.lemma_id: r.canonical_lemma_id
+            for r in db.query(Lemma.lemma_id, Lemma.canonical_lemma_id)
+            .filter(Lemma.canonical_lemma_id.isnot(None))
+            .all()
+        }
+        for var_id, canon_id in direct_variants:
+            current = canon_id
+            seen = {var_id, current}
             while current in all_mappings:
                 nxt = all_mappings[current]
                 if nxt in seen:
                     break
                 seen.add(nxt)
                 current = nxt
-            canon_map[lid] = current
+            canon_map[var_id] = current
     if canon_map:
         canonical_ids = set(canon_map.values())
         canon_ulk = (
@@ -1352,12 +1362,6 @@ def get_stories(db: Session) -> list[dict]:
         .order_by(Story.created_at.desc())
         .all()
     )
-
-    # Refresh counts for active/focused stories so the list stays up-to-date
-    for s in stories:
-        if s.status in ("active", "focused"):
-            _recalculate_story_counts(db, s)
-    db.commit()
 
     book_ids = [s.id for s in stories if s.source == "book_ocr"]
     book_stats = _get_book_stats(db, book_ids)
