@@ -72,6 +72,10 @@ Full endpoint list. See `backend/app/routers/` for implementation.
 | POST | `/api/stories/{id}/too-difficult` | Mark story too difficult |
 | POST | `/api/stories/{id}/lookup` | Look up word in story |
 | GET | `/api/stories/{id}/readiness` | Recalculate readiness |
+| POST | `/api/stories/{id}/archive` | Toggle archive (sets/clears archived_at) |
+| POST | `/api/stories/{id}/mark-heard` | Increment times_heard for all story words |
+| POST | `/api/stories/{id}/generate-audio` | Generate TTS audio (background) |
+| GET | `/api/stories/{id}/audio` | Stream story MP3 audio |
 
 ## Sentences & Analysis
 | Method | Path | Description |

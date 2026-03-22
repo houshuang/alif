@@ -4,6 +4,41 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-03-22: Story System Enhancements — Archive, Audio, Cron, Diversity
+
+**Context**: Stories are the most engaging part of the app. Enhancing them with audio, archiving, auto-generation, and format diversity to make them a core learning pillar alongside sentence review.
+
+**Changes**:
+1. **Archive system**: `archived_at` field on Story. Toggle archive via `POST /stories/{id}/archive`. Archived section in frontend (collapsible). Stories can be both completed AND archived.
+2. **Story audio with voice rotation**: TTS audio for full stories via ElevenLabs. Voice pool (3 male voices), deterministic rotation by `story_id % pool_size`. Audio stored in `data/story-audio/`. Format-aware: standard (straight read), breakdown (half sentence → full sentence → full story), arabic_explanation (Arabic + simple Arabic explanation).
+3. **Format diversity**: 4 story formats — standard, long (12-20 sentences), breakdown (splittable sentences), arabic_explanation (A1 Arabic explanations, no English). Format picker in generate modal.
+4. **times_heard tracking**: New `times_heard` field on ULK. `POST /stories/{id}/mark-heard` increments for all non-function words. Passive — no FSRS reviews.
+5. **Auto-generate cron**: Step H in `update_material.py` — keeps ≥3 active non-archived stories. Rotates formats.
+6. **Batch generation script**: `scripts/generate_stories_batch.py --count N --vary --audio`.
+
+**New DB fields**: Story: `format_type`, `archived_at`, `audio_filename`, `voice_id`, `metadata_json`. ULK: `times_heard`.
+
+**Verification**: Run batch script to generate diverse stories, verify audio plays, test archive toggle, confirm cron step H generates when needed.
+
+---
+
+## 2026-03-22: Fire-and-Forget Intro Card Buttons
+
+**Context**: Tapping "Continue"/"Learn" on intro cards (reintro, experiment intro, mid-session intro) had a noticeable delay — the UI waited for the backend API call to complete before advancing to the next card.
+
+**Root cause**: All three handlers used `await apiCall()` before updating React state. The API calls (`submitReintroResult`, `acknowledgeExperimentIntro`, `introduceWord`) just record timestamps/acknowledgments — the UI state doesn't depend on their response. Errors were already silently caught.
+
+**Fix**: Converted all three to fire-and-forget: call the promise without `await`, `.catch(() => {})` to suppress unhandled rejections, advance the UI immediately. For `introduceWord`, the `setIntroducedLemmaIds` update stays in `.then()` since it depends on the API succeeding.
+
+**Affected handlers** (in `app/index.tsx`):
+1. Reintro card "Continue" button
+2. Experiment intro card "Continue" button
+3. Mid-session intro card "Learn" button
+
+**Expected**: Card transitions feel instant instead of waiting 200-500ms for the network round-trip.
+
+---
+
 ## 2026-03-22: Passive Listening Podcast System
 
 **Context**: Interactive mobile review works at a desk but not on a walk. Michel Thomas succeeds by managing memory without interaction. Alif knows exactly which words the learner knows via FSRS — can we generate personalized audio episodes?

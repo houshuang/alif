@@ -800,12 +800,15 @@ def generate_story(
     max_sentences: int = 6,
     length: str = "medium",
     topic: str | None = None,
+    format_type: str = "standard",
     existing_story_id: int | None = None,
 ) -> tuple["Story", list[int]]:
     """Generate a story using Opus with self-correction for 100% vocabulary compliance.
 
     Strategy: generate once, then iteratively correct unknown words rather than
     regenerating the entire story from scratch.
+
+    format_type: standard, long, breakdown, arabic_explanation.
 
     If existing_story_id is provided, updates that row instead of creating a new one.
 
@@ -840,7 +843,13 @@ REINFORCEMENT WORDS (the reader is currently learning these — try to feature t
 {acq_list}
 """
 
-    lo, hi = LENGTH_SENTENCES.get(length, LENGTH_SENTENCES["medium"])
+    # Override sentence count for long format
+    LONG_SENTENCES = {"short": (8, 12), "medium": (12, 16), "long": (16, 20)}
+    if format_type == "long":
+        lo, hi = LONG_SENTENCES.get(length, LONG_SENTENCES["medium"])
+    else:
+        lo, hi = LENGTH_SENTENCES.get(length, LENGTH_SENTENCES["medium"])
+
     topic_line = f"\nTOPIC/THEME: Write the story about or inspired by: {topic}" if topic else ""
     genre = random.choice(STORY_GENRES)
 
@@ -848,12 +857,29 @@ REINFORCEMENT WORDS (the reader is currently learning these — try to feature t
     all_lemmas = _get_all_lemmas(db)
     lemma_lookup = build_lemma_lookup(all_lemmas)
 
+    # Format-specific prompt additions
+    format_extra = ""
+    json_extra = ""
+    if format_type == "arabic_explanation":
+        format_extra = """
+SPECIAL FORMAT: After the story, provide simple Arabic explanations for EACH sentence.
+These explanations should be A1-level Arabic — very simple words, short sentences, as if explaining to a young child in Arabic.
+Do NOT use English in the explanations.
+"""
+        json_extra = ', "explanation_ar": ["simple Arabic explanation for sentence 1", "...for sentence 2", ...]'
+    elif format_type == "breakdown":
+        format_extra = """
+SPECIAL FORMAT: Write sentences that have a natural midpoint — they should be easy to split into two meaningful halves.
+Each sentence should have at least 4 words so it can be split into a first-half and second-half for audio playback.
+"""
+
     # Step 1: Generate the story
     prompt = f"""Write a {lo}-{hi} sentence mini-story in Arabic for a language learner.
 
 GENRE: {genre}
 {topic_line}
 {acquiring_section}
+{format_extra}
 KNOWN VOCABULARY grouped by part of speech (use ONLY these plus function words — any conjugated form is fine):
 {vocab_list}
 
@@ -865,7 +891,7 @@ CONSTRAINTS:
 
 QUALITY BAR: Would an adult enjoy reading this? Would they smile, feel curious, or be surprised? If not, try harder. A five-sentence story with a great ending beats a long boring one.
 
-Respond with JSON: {{"title_ar": "...", "title_en": "...", "body_ar": "full story in Arabic with diacritics", "body_en": "English translation", "transliteration": "ALA-LC transliteration"}}"""
+Respond with JSON: {{"title_ar": "...", "title_en": "...", "body_ar": "full story in Arabic with diacritics", "body_en": "English translation", "transliteration": "ALA-LC transliteration"{json_extra}}}"""
 
     try:
         result = generate_completion(
@@ -945,6 +971,11 @@ Respond with JSON: {{"title_ar": "...", "title_en": "...", "body_ar": "corrected
 
     knowledge_map = _build_knowledge_map(db)
 
+    # Build metadata for format-specific data
+    metadata = None
+    if format_type == "arabic_explanation" and result.get("explanation_ar"):
+        metadata = {"explanation_ar": result["explanation_ar"]}
+
     if existing_story_id:
         story = db.query(Story).get(existing_story_id)
         if not story:
@@ -954,6 +985,8 @@ Respond with JSON: {{"title_ar": "...", "title_en": "...", "body_ar": "corrected
         story.body_ar = body_ar
         story.body_en = result.get("body_en")
         story.transliteration = result.get("transliteration")
+        story.format_type = format_type
+        story.metadata_json = metadata
         story.status = "active"
         db.flush()
     else:
@@ -966,6 +999,8 @@ Respond with JSON: {{"title_ar": "...", "title_en": "...", "body_ar": "corrected
             source="generated",
             status="active",
             difficulty_level=difficulty,
+            format_type=format_type,
+            metadata_json=metadata,
         )
         db.add(story)
         db.flush()
@@ -1376,6 +1411,9 @@ def get_stories(db: Session) -> list[dict]:
             "readiness_pct": s.readiness_pct or 0,
             "unknown_count": s.unknown_count or 0,
             "total_words": s.total_words or 0,
+            "format_type": s.format_type or "standard",
+            "archived_at": s.archived_at.isoformat() if s.archived_at else None,
+            "audio_filename": s.audio_filename,
             "page_count": s.page_count,
             **(book_stats.get(s.id, {}) if s.source == "book_ocr" else {}),
             "created_at": s.created_at.isoformat() if s.created_at else "",
@@ -1404,6 +1442,10 @@ def get_story_detail(db: Session, story_id: int) -> dict:
             "unknown_count": 0,
             "total_words": 0,
             "known_count": 0,
+            "format_type": story.format_type or "standard",
+            "archived_at": story.archived_at.isoformat() if story.archived_at else None,
+            "audio_filename": story.audio_filename,
+            "voice_id": story.voice_id,
             "page_count": None,
             "created_at": story.created_at.isoformat() if story.created_at else "",
             "words": [],
@@ -1453,6 +1495,10 @@ def get_story_detail(db: Session, story_id: int) -> dict:
         "unknown_count": story.unknown_count or 0,
         "total_words": story.total_words or 0,
         "known_count": story.known_count or 0,
+        "format_type": story.format_type or "standard",
+        "archived_at": story.archived_at.isoformat() if story.archived_at else None,
+        "audio_filename": story.audio_filename,
+        "voice_id": story.voice_id,
         "page_count": story.page_count,
         **book_extra,
         "created_at": story.created_at.isoformat() if story.created_at else "",
@@ -1606,6 +1652,203 @@ def delete_story(db: Session, story_id: int) -> dict:
     log_interaction(event="story_deleted", story_id=story_id)
 
     return {"story_id": story_id, "deleted": True}
+
+
+def archive_story(db: Session, story_id: int) -> dict:
+    """Toggle story archive state."""
+    story = db.query(Story).filter(Story.id == story_id).first()
+    if not story:
+        raise ValueError(f"Story {story_id} not found")
+
+    if story.archived_at:
+        story.archived_at = None
+        db.commit()
+        log_interaction(event="story_unarchived", story_id=story_id)
+        return {"story_id": story_id, "archived": False}
+
+    story.archived_at = datetime.now(timezone.utc)
+    db.commit()
+    log_interaction(event="story_archived", story_id=story_id)
+    return {"story_id": story_id, "archived": True}
+
+
+def mark_story_heard(db: Session, story_id: int) -> dict:
+    """Increment times_heard for all non-function words in a story.
+
+    This is passive listening credit — no FSRS reviews are submitted.
+    """
+    story = db.query(Story).filter(Story.id == story_id).first()
+    if not story:
+        raise ValueError(f"Story {story_id} not found")
+
+    story_lemma_ids = {sw.lemma_id for sw in story.words if sw.lemma_id and not sw.is_function_word}
+    if not story_lemma_ids:
+        return {"story_id": story_id, "words_heard": 0}
+
+    ulks = db.query(UserLemmaKnowledge).filter(
+        UserLemmaKnowledge.lemma_id.in_(story_lemma_ids)
+    ).all()
+
+    heard_count = 0
+    for ulk in ulks:
+        ulk.times_heard = (ulk.times_heard or 0) + 1
+        heard_count += 1
+
+    db.commit()
+
+    log_interaction(
+        event="story_heard",
+        story_id=story_id,
+        words_heard=heard_count,
+    )
+
+    return {"story_id": story_id, "words_heard": heard_count}
+
+
+async def generate_story_audio(db: Session, story_id: int) -> dict:
+    """Generate TTS audio for a story, using the podcast segment stitching pipeline.
+
+    Audio format depends on story.format_type:
+    - standard/long: read full body_ar at learner speed
+    - breakdown: per sentence — first half, pause, full sentence, then full story
+    - arabic_explanation: per sentence — Arabic, pause, simple Arabic explanation
+    """
+    import asyncio
+    import io
+    from pathlib import Path
+
+    from app.services.tts import (
+        STORY_AUDIO_DIR,
+        generate_audio,
+        pick_voice_for_story,
+        DEFAULT_VOICE_SETTINGS,
+        DEFAULT_MODEL,
+    )
+
+    story = db.query(Story).filter(Story.id == story_id).first()
+    if not story:
+        raise ValueError(f"Story {story_id} not found")
+
+    if story.audio_filename:
+        existing = STORY_AUDIO_DIR / story.audio_filename
+        if existing.exists():
+            return {"story_id": story_id, "audio_filename": story.audio_filename, "cached": True}
+
+    voice = pick_voice_for_story(story_id)
+    voice_id = voice["id"]
+    format_type = story.format_type or "standard"
+
+    # Split story into sentences
+    sentences = [s.strip() for s in story.body_ar.split(".") if s.strip()]
+    if not sentences:
+        sentences = [story.body_ar]
+
+    # Better sentence splitting: use Arabic period (.) and newlines
+    import re
+    sentences = [s.strip() for s in re.split(r'[.\n]', story.body_ar) if s.strip()]
+    if not sentences:
+        sentences = [story.body_ar]
+
+    # Build audio segments
+    try:
+        from pydub import AudioSegment as PydubSegment
+    except ImportError:
+        raise ValueError("pydub not installed — needed for audio stitching")
+
+    STORY_AUDIO_DIR.mkdir(parents=True, exist_ok=True)
+
+    settings = dict(DEFAULT_VOICE_SETTINGS)
+    settings["speed"] = 0.75  # learner speed for stories
+
+    final = PydubSegment.empty()
+
+    async def tts(text: str, speed: float = 0.75) -> PydubSegment:
+        s = dict(DEFAULT_VOICE_SETTINGS)
+        s["speed"] = speed
+        audio_bytes = await generate_audio(text, voice_id, voice_settings=s)
+        return PydubSegment.from_mp3(io.BytesIO(audio_bytes))
+
+    silence_1s = PydubSegment.silent(duration=1000)
+    silence_1_5s = PydubSegment.silent(duration=1500)
+    silence_2s = PydubSegment.silent(duration=2000)
+
+    if format_type in ("standard", "long"):
+        # Read full story at learner speed
+        clip = await tts(story.body_ar, speed=0.75)
+        final += clip
+
+    elif format_type == "breakdown":
+        # Per sentence: first half → pause → full sentence
+        for sent in sentences:
+            words = sent.split()
+            mid = len(words) // 2
+            if mid > 0:
+                first_half = " ".join(words[:mid])
+                clip_half = await tts(first_half, speed=0.7)
+                final += clip_half
+                final += silence_1_5s
+            clip_full = await tts(sent, speed=0.75)
+            final += clip_full
+            final += silence_1s
+
+        # Then full story at normal speed
+        final += silence_2s
+        clip_full_story = await tts(story.body_ar, speed=0.9)
+        final += clip_full_story
+
+    elif format_type == "arabic_explanation":
+        # Per sentence: Arabic → pause → simple Arabic explanation
+        explanations = []
+        if story.metadata_json and isinstance(story.metadata_json, dict):
+            explanations = story.metadata_json.get("explanation_ar", [])
+
+        for i, sent in enumerate(sentences):
+            clip_ar = await tts(sent, speed=0.75)
+            final += clip_ar
+            final += silence_1s
+
+            if i < len(explanations) and explanations[i]:
+                clip_explain = await tts(explanations[i], speed=0.8)
+                final += clip_explain
+                final += silence_2s
+            else:
+                final += silence_1s
+
+    else:
+        # Fallback: just read the story
+        clip = await tts(story.body_ar, speed=0.75)
+        final += clip
+
+    # Export
+    filename = f"story_{story_id}.mp3"
+    output_path = STORY_AUDIO_DIR / filename
+    final.export(str(output_path), format="mp3", bitrate="128k")
+
+    duration_s = len(final) / 1000
+    logger.info(
+        "Story audio saved: %s (%.1f min, %.1f MB)",
+        filename, duration_s / 60, output_path.stat().st_size / 1e6,
+    )
+
+    # Update story record
+    story.audio_filename = filename
+    story.voice_id = voice_id
+    db.commit()
+
+    log_interaction(
+        event="story_audio_generated",
+        story_id=story_id,
+        voice=voice["name"],
+        duration_s=round(duration_s, 1),
+        format_type=format_type,
+    )
+
+    return {
+        "story_id": story_id,
+        "audio_filename": filename,
+        "voice": voice["name"],
+        "duration_s": round(duration_s, 1),
+    }
 
 
 def lookup_word(

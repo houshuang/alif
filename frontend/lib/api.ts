@@ -663,6 +663,7 @@ export async function generateStory(opts?: {
   difficulty?: string;
   length?: string;
   topic?: string;
+  format_type?: string;
 }): Promise<{ id: number; status: string }> {
   return fetchApi<{ id: number; status: string }>("/api/stories/generate", {
     method: "POST",
@@ -670,6 +671,7 @@ export async function generateStory(opts?: {
       difficulty: opts?.difficulty || "beginner",
       length: opts?.length || "medium",
       topic: opts?.topic || null,
+      format_type: opts?.format_type || "standard",
     }),
   });
 }
@@ -778,6 +780,14 @@ export async function deleteStory(storyId: number): Promise<void> {
 
 export async function suspendStory(storyId: number): Promise<{ story_id: number; status: string }> {
   return fetchApi(`/api/stories/${storyId}/suspend`, { method: "POST" });
+}
+
+export async function archiveStory(storyId: number): Promise<{ story_id: number; archived: boolean }> {
+  return fetchApi(`/api/stories/${storyId}/archive`, { method: "POST" });
+}
+
+export async function markStoryHeard(storyId: number): Promise<{ story_id: number; words_heard: number }> {
+  return fetchApi(`/api/stories/${storyId}/mark-heard`, { method: "POST" });
 }
 
 export async function lookupStoryWord(storyId: number, lemmaId: number, position: number): Promise<StoryLookupResult> {

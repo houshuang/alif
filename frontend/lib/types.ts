@@ -625,6 +625,9 @@ export interface StoryListItem {
   readiness_pct: number;
   unknown_count: number;
   total_words: number;
+  format_type?: string | null;
+  archived_at?: string | null;
+  audio_filename?: string | null;
   page_count?: number | null;
   sentence_count?: number | null;
   sentences_seen?: number | null;
@@ -640,6 +643,7 @@ export interface StoryDetail extends StoryListItem {
   body_en: string | null;
   transliteration: string | null;
   known_count: number;
+  voice_id?: string | null;
   words: StoryWordMeta[];
 }
 

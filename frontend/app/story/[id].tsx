@@ -15,7 +15,9 @@ import {
   lookupReviewWord,
   completeStory,
   suspendStory,
+  markStoryHeard,
 } from "../../lib/api";
+import { Audio } from "expo-av";
 import { StoryDetail, StoryWordMeta, WordLookupResult } from "../../lib/types";
 import ActionMenu, { ExtraAction } from "../../lib/review/ActionMenu";
 import WordInfoCard from "../../lib/review/WordInfoCard";
@@ -37,6 +39,8 @@ export default function StoryReadScreen() {
   const [lookedUp, setLookedUp] = useState<Set<number>>(new Set());
   const [lookedUpLemmaIds, setLookedUpLemmaIds] = useState<Set<number>>(new Set());
   const [submitting, setSubmitting] = useState(false);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const soundRef = useRef<Audio.Sound | null>(null);
   const storyStartTime = useRef(Date.now());
   const lookupRequestRef = useRef(0);
   const router = useRouter();
@@ -195,6 +199,55 @@ export default function StoryReadScreen() {
     }
   }
 
+  async function handlePlayAudio() {
+    if (!story?.audio_filename) return;
+    try {
+      if (isPlaying && soundRef.current) {
+        await soundRef.current.stopAsync();
+        await soundRef.current.unloadAsync();
+        soundRef.current = null;
+        setIsPlaying(false);
+        return;
+      }
+      const { BASE_URL } = await import("../../lib/api");
+      const { sound } = await Audio.Sound.createAsync(
+        { uri: `${BASE_URL}/api/stories/${story.id}/audio` },
+        { shouldPlay: true },
+      );
+      soundRef.current = sound;
+      setIsPlaying(true);
+      sound.setOnPlaybackStatusUpdate((status) => {
+        if (status.isLoaded && status.didJustFinish) {
+          setIsPlaying(false);
+          sound.unloadAsync();
+          soundRef.current = null;
+        }
+      });
+    } catch (e) {
+      console.error("Failed to play story audio:", e);
+      setIsPlaying(false);
+    }
+  }
+
+  async function handleMarkHeard() {
+    if (!story) return;
+    try {
+      const result = await markStoryHeard(story.id);
+      console.log("Marked heard:", result.words_heard, "words");
+    } catch (e) {
+      console.error("Failed to mark story heard:", e);
+    }
+  }
+
+  // Cleanup audio on unmount
+  useEffect(() => {
+    return () => {
+      if (soundRef.current) {
+        soundRef.current.unloadAsync().catch(() => {});
+      }
+    };
+  }, []);
+
   if (loading) {
     return (
       <View style={styles.centered}>
@@ -215,8 +268,18 @@ export default function StoryReadScreen() {
   const totalWords = story.words.filter((w) => !w.is_function_word).length;
 
   const storyExtraActions: ExtraAction[] = [
+    ...(story.audio_filename ? [{
+      icon: isPlaying ? "stop-circle-outline" as const : "play-circle-outline" as const,
+      label: isPlaying ? "Stop Audio" : "Play Audio",
+      onPress: handlePlayAudio,
+    }] : []),
     {
-      icon: "pause-circle-outline",
+      icon: "ear-outline" as const,
+      label: "Mark as Heard",
+      onPress: handleMarkHeard,
+    },
+    {
+      icon: "pause-circle-outline" as const,
       label: "Suspend Story",
       onPress: handleSuspend,
     },
@@ -245,6 +308,15 @@ export default function StoryReadScreen() {
           </Pressable>
         </View>
         <View style={styles.headerRight}>
+          {story.audio_filename && (
+            <Pressable onPress={handlePlayAudio} hitSlop={8} style={{ marginRight: 8 }}>
+              <Ionicons
+                name={isPlaying ? "stop-circle" : "play-circle"}
+                size={28}
+                color={isPlaying ? colors.missed : colors.accent}
+              />
+            </Pressable>
+          )}
           {lookupCount > 0 && (
             <Text style={styles.lookupCountBadge}>
               {lookupCount} looked up

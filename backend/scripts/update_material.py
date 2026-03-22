@@ -18,6 +18,7 @@ Usage:
 
 import argparse
 import asyncio
+import random
 import sys
 import time
 from datetime import datetime, timezone
@@ -731,6 +732,38 @@ async def main():
         else:
             print("  Skipped (dry run)")
 
+        # ── Step H: auto-generate stories ────────────────────────────
+        stories_h = 0
+        STORY_TARGET = 3  # keep at least 3 non-archived active stories
+        STORY_FORMATS = ["standard", "standard", "long", "breakdown", "arabic_explanation"]
+        print(f"\n[H] Auto-generate stories (target ≥ {STORY_TARGET} active non-archived)")
+        if not args.dry_run:
+            from app.models import Story as StoryModel
+            from app.services.story_service import generate_story as gen_story
+            active_stories = db.query(StoryModel).filter(
+                StoryModel.status == "active",
+                StoryModel.archived_at.is_(None),
+                StoryModel.source != "book_ocr",
+            ).count()
+            deficit = STORY_TARGET - active_stories
+            print(f"  Active non-archived stories: {active_stories}, need {max(0, deficit)} more")
+            for i in range(deficit):
+                fmt = STORY_FORMATS[i % len(STORY_FORMATS)]
+                length = random.choice(["short", "medium", "long"])
+                try:
+                    print(f"  Generating story {i+1}/{deficit} (format={fmt}, length={length})...")
+                    story_obj, new_ids = gen_story(
+                        db, difficulty="beginner", length=length,
+                        format_type=fmt,
+                    )
+                    stories_h += 1
+                    print(f"  Generated: '{story_obj.title_en}' ({story_obj.total_words} words)")
+                except Exception as e:
+                    print(f"  Story generation failed: {e}")
+                    logger.exception("Step H story generation failed")
+        else:
+            print("  Skipped (dry run)")
+
         elapsed = time.time() - start
         print(f"\n{'─' * 60}")
         print(f"Done in {elapsed:.1f}s")
@@ -742,12 +775,13 @@ async def main():
         print(f"  Step E enriched:  {enrich_e}")
         print(f"  Step F leeches:   {leech_f}")
         print(f"  Step G book ULK:  {book_ulk_g}")
+        print(f"  Step H stories:   {stories_h}")
 
-        if not args.dry_run and (retired_0 + sent_a + audio_b + sent_c + enrich_e + leech_f + book_ulk_g > 0):
+        if not args.dry_run and (retired_0 + sent_a + audio_b + sent_c + enrich_e + leech_f + book_ulk_g + stories_h > 0):
             log_activity(
                 db,
                 event_type="material_updated",
-                summary=f"Retired {retired_0}, generated {sent_a}+{sent_c} sentences, {audio_b} audio, enriched {enrich_e}, reintro {leech_f} leeches, {book_ulk_g} book ULK in {elapsed:.0f}s",
+                summary=f"Retired {retired_0}, generated {sent_a}+{sent_c} sentences, {audio_b} audio, enriched {enrich_e}, reintro {leech_f} leeches, {book_ulk_g} book ULK, {stories_h} stories in {elapsed:.0f}s",
                 detail={
                     "step_0_retired": retired_0,
                     "step_a_sentences": sent_a,
@@ -757,6 +791,7 @@ async def main():
                     "step_e_enriched": enrich_e,
                     "step_f_leeches": leech_f,
                     "step_g_book_ulk": book_ulk_g,
+                    "step_h_stories": stories_h,
                     "elapsed_seconds": round(elapsed, 1),
                 },
             )

@@ -542,6 +542,9 @@ class StoryOut(BaseModel):
     unknown_count: int
     total_words: int
     difficulty_level: str | None = None
+    format_type: str | None = None
+    archived_at: str | None = None
+    audio_filename: str | None = None
     page_count: int | None = None
     sentence_count: int | None = None
     sentences_seen: int | None = None
@@ -567,6 +570,10 @@ class StoryDetailOut(BaseModel):
     total_words: int
     known_count: int
     difficulty_level: str | None = None
+    format_type: str | None = None
+    archived_at: str | None = None
+    audio_filename: str | None = None
+    voice_id: str | None = None
     page_count: int | None = None
     sentence_count: int | None = None
     sentences_seen: int | None = None
@@ -581,6 +588,7 @@ class StoryGenerateIn(BaseModel):
     max_sentences: int = 6
     length: str = "medium"  # short/medium/long
     topic: str | None = None
+    format_type: str = "standard"  # standard/long/breakdown/arabic_explanation
 
 
 class StoryGenerateOut(BaseModel):
