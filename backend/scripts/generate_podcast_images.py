@@ -26,49 +26,49 @@ logger = logging.getLogger(__name__)
 PODCAST_DIR = Path(__file__).resolve().parent.parent / "data" / "podcasts"
 GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-image-preview:generateContent"
 
-# Art style directive shared across all prompts
+# Consistent style directive — pencil + watercolor children's book illustration
 ART_STYLE = (
-    "Digital painting in a warm, dreamlike Middle Eastern storybook illustration style. "
-    "Rich jewel tones (deep blue, amber, emerald), soft golden lighting, slightly stylized. "
-    "No text, no words, no letters, no watermarks. Square composition."
+    "Children's book illustration. Hand-drawn pencil outlines on off-white textured watercolor "
+    "paper, with loose transparent watercolor washes in a limited palette of warm ochre, dusty "
+    "blue, soft coral, and charcoal grey. Visible pencil sketch lines left in, slightly wobbly "
+    "and imperfect. Large areas of white and cream negative space. Simple composition with one "
+    "focal subject. No gradients, no photorealistic elements, no lens blur, no HDR lighting. "
+    "Matte finish, flat natural lighting. No text, no words, no letters, no watermarks. "
+    "Square format, centered composition, reads clearly at small sizes. "
+    "The look of a real physical illustration photographed from a sketchbook."
 )
 
-# Image prompts for each theme
+# Image prompts for each theme — keep subjects simple, let the style do the work
 THEME_PROMPTS = {
     "magical-library": (
-        "An ancient Damascus bookshop at twilight. A single blue lantern glows on a wooden shelf "
-        "full of old leather-bound books. One book lies open, and from its pages spill delicate "
-        "luminous flowers floating upward. A small child's silhouette stands in the doorway, "
-        "bathed in warm light. " + ART_STYLE
+        "A small child standing in the doorway of a tiny old bookshop. One book on a shelf "
+        "is open, with a few delicate flowers drifting out of its pages. A single blue lantern "
+        "hangs from the ceiling. Warm, quiet, full of wonder. " + ART_STYLE
     ),
     "clever-cat": (
-        "A mischievous orange tabby cat trotting proudly through a busy Middle Eastern souk market, "
-        "carrying a large silver fish in its mouth. Market stalls with colorful fabrics and spices "
-        "in the background. A bewildered shopkeeper watches from behind his stall. Humorous, warm, "
-        "charming atmosphere. " + ART_STYLE
+        "A proud orange cat walking with a fish in its mouth, tail held high. Behind it, "
+        "a man in an apron throws his hands up in surprise. A few simple market stall shapes "
+        "in the background. Playful and humorous. " + ART_STYLE
     ),
     "lost-letter": (
-        "An old blue notebook lying open on a wooden floor, with dried flowers pressed between "
-        "its yellowed pages. Warm lamplight illuminates handwritten Arabic calligraphy. "
-        "In the background, a window shows a twilight cityscape. Nostalgic, bittersweet mood. "
-        + ART_STYLE
+        "A small blue notebook lying open on old wooden floorboards, with a single dried "
+        "flower pressed between its pages. Warm lamplight from the side. Simple, nostalgic, "
+        "bittersweet. Mostly empty space around the notebook. " + ART_STYLE
     ),
     "night-sky": (
-        "A young girl sitting alone on a hillside of blue-green grass at night, her notebook "
-        "open on her lap. Above her, an enormous luminous crescent moon glows with golden light, "
-        "with a thin thread of light streaming down toward the notebook. Stars scattered across "
-        "a deep indigo sky. Magical, serene, poetic. " + ART_STYLE
+        "A small girl sitting on a grassy hill at night, looking up at a large crescent moon. "
+        "A thin line of light connects the moon to the open notebook in her lap. A few stars. "
+        "Deep quiet blue sky. Poetic and gentle. " + ART_STYLE
     ),
     "two-trees": (
-        "Two flowers on a country road — one towering and proud with elaborate petals, the other "
-        "small and humble but bending gracefully in the wind. A dramatic sky with swirling clouds. "
-        "The small flower seems to dance while the large one strains. Fable-like, philosophical mood. "
-        + ART_STYLE
+        "Two flowers side by side on a simple path — one very tall and stiff, one small and "
+        "bending gently in the wind. A few leaves blowing. Simple sky with one cloud. "
+        "Fable-like, quiet. " + ART_STYLE
     ),
     "sampler": (
-        "An ornate brass microphone with Arabic geometric patterns etched into it, sitting on "
-        "a mosaic table. Sound waves emanate as delicate golden arabesques. Background is deep "
-        "midnight blue with scattered stars. " + ART_STYLE
+        "A simple brass microphone on a small wooden table, with delicate curved lines "
+        "suggesting sound waves floating upward like smoke. A few tiny stars around it. "
+        "Centered on cream paper. Quiet and inviting. " + ART_STYLE
     ),
 }
 
@@ -118,6 +118,11 @@ def generate_image(prompt: str, api_key: str) -> bytes | None:
 
 
 def main():
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--force", action="store_true", help="Regenerate existing images")
+    args = parser.parse_args()
+
     api_key = os.environ.get("GEMINI_KEY")
     if not api_key:
         logger.error("GEMINI_KEY not set")
@@ -135,9 +140,9 @@ def main():
         stem = meta_path.stem
         image_path = PODCAST_DIR / f"{stem}.png"
 
-        # Skip if image already exists
-        if image_path.exists():
-            logger.info("SKIP %s — image already exists", stem)
+        # Skip if image already exists (unless --force)
+        if image_path.exists() and not args.force:
+            logger.info("SKIP %s — image already exists (use --force to regenerate)", stem)
             continue
 
         # Load metadata
