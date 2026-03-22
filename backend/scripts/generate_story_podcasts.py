@@ -34,6 +34,7 @@ from app.services.podcast_service import (
     ar_normal,
     ar_slow,
     en,
+    save_metadata,
     silence,
     stitch_podcast,
 )
@@ -398,6 +399,36 @@ def build_story_episode(story: dict, theme: dict) -> list[Seg]:
     return segments
 
 
+def _extract_key_words(story: dict, known_words: list[dict]) -> list[dict]:
+    """Extract key vocabulary used in the story, matched against known words."""
+    # Collect all Arabic words from the story
+    story_text = " ".join(s["arabic"] for s in story["sentences"])
+    # Match against known words
+    key = []
+    seen = set()
+    for w in known_words:
+        bare = w["arabic"].replace("\u064e", "").replace("\u064f", "").replace("\u0650", "")
+        if bare in story_text and w["arabic"] not in seen and w["pos"] not in ("", "particle"):
+            key.append({
+                "arabic": w["arabic"],
+                "gloss": w["gloss"],
+                "stability_days": w["stability"],
+            })
+            seen.add(w["arabic"])
+        if len(key) >= 12:
+            break
+    return key
+
+
+def _generate_summary(story: dict, theme: dict) -> str:
+    """Generate a short English summary from the story's English translations."""
+    english_sents = [s["english"] for s in story["sentences"]]
+    if len(english_sents) <= 3:
+        return " ".join(english_sents)
+    # Take first 2 and last sentence for a brief summary
+    return f"{english_sents[0]} {english_sents[1]} ... {english_sents[-1]}"
+
+
 async def main():
     parser = argparse.ArgumentParser(description="Generate story podcast episodes")
     parser.add_argument("--count", type=int, default=3, help="Number of stories")
@@ -457,7 +488,33 @@ async def main():
             output_name = f"story-{theme['id']}-{datetime.now().strftime('%Y%m%d-%H%M')}"
             logger.info("Generating audio: %d segments", len(segments))
             path = await stitch_podcast(segments, output_name)
-            logger.info("Saved: %s", path)
+
+            # Estimate duration from file size (128kbps)
+            duration_s = int(path.stat().st_size / 16000)
+
+            # Extract key words from the story (unique content words used)
+            key_words = _extract_key_words(story, words)
+
+            # Generate summary
+            summary = _generate_summary(story, theme)
+
+            # Save metadata
+            meta = {
+                "title_en": story.get("title_en", theme["title"]),
+                "title_ar": story.get("title_ar", ""),
+                "theme_id": theme["id"],
+                "format_type": "story",
+                "summary": summary,
+                "sentences": story["sentences"],
+                "key_words": key_words,
+                "duration_seconds": duration_s,
+                "generated_at": datetime.now().isoformat(),
+                "listened_at": None,
+                "listen_progress": 0,
+            }
+            save_metadata(output_name, meta)
+
+            logger.info("Saved: %s (%.1f min)", path, duration_s / 60)
             print(f"\nPodcast ready: {path}")
             print(f"API URL: /api/podcasts/audio/{path.name}")
             print()

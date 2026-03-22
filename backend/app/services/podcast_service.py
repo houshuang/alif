@@ -704,26 +704,108 @@ def plan_sampler(db: Session) -> list[Seg]:
     return segments
 
 
+def save_metadata(output_name: str, metadata: dict) -> Path:
+    """Save podcast metadata JSON alongside the MP3."""
+    PODCAST_DIR.mkdir(parents=True, exist_ok=True)
+    path = PODCAST_DIR / f"{output_name}.json"
+    path.write_text(json.dumps(metadata, ensure_ascii=False, indent=2))
+    return path
+
+
+def _load_metadata(mp3_path: Path) -> Optional[dict]:
+    """Load metadata JSON for a podcast if it exists."""
+    json_path = mp3_path.with_suffix(".json")
+    if json_path.exists():
+        try:
+            return json.loads(json_path.read_text())
+        except (json.JSONDecodeError, OSError):
+            return None
+    return None
+
+
+def _estimate_duration_seconds(file_size_bytes: int) -> int:
+    """Estimate MP3 duration from file size (128kbps)."""
+    return int(file_size_bytes / 16000)
+
+
 def list_podcasts() -> list[dict]:
-    """List all generated podcast files."""
+    """List all generated podcast files with metadata."""
     PODCAST_DIR.mkdir(parents=True, exist_ok=True)
     results = []
     for f in sorted(PODCAST_DIR.glob("*.mp3")):
-        if f.parent == PODCAST_DIR:  # exclude segments subdir
+        if f.parent == PODCAST_DIR:
             stat = f.stat()
+            meta = _load_metadata(f) or {}
             results.append({
                 "filename": f.name,
                 "size_mb": round(stat.st_size / 1e6, 1),
-                "created_at": datetime.fromtimestamp(stat.st_mtime, tz=timezone.utc).isoformat(),
+                "duration_seconds": meta.get("duration_seconds") or _estimate_duration_seconds(stat.st_size),
+                "created_at": meta.get("generated_at") or datetime.fromtimestamp(stat.st_mtime, tz=timezone.utc).isoformat(),
+                "title_en": meta.get("title_en", ""),
+                "title_ar": meta.get("title_ar", ""),
+                "summary": meta.get("summary", ""),
+                "key_words": meta.get("key_words", []),
+                "sentence_count": len(meta.get("sentences", [])),
+                "listened_at": meta.get("listened_at"),
+                "listen_progress": meta.get("listen_progress", 0),
+                "format_type": meta.get("format_type", "story"),
             })
     return results
 
 
-def get_podcast_path(filename: str) -> Optional[Path]:
-    """Get path to a podcast file, validating it exists."""
+def get_podcast_detail(filename: str) -> Optional[dict]:
+    """Get full detail for a podcast including sentences."""
+    path = _validate_filename(filename)
+    if not path:
+        return None
+    meta = _load_metadata(path) or {}
+    stat = path.stat()
+    return {
+        "filename": path.name,
+        "size_mb": round(stat.st_size / 1e6, 1),
+        "duration_seconds": meta.get("duration_seconds") or _estimate_duration_seconds(stat.st_size),
+        "created_at": meta.get("generated_at") or datetime.fromtimestamp(stat.st_mtime, tz=timezone.utc).isoformat(),
+        "title_en": meta.get("title_en", ""),
+        "title_ar": meta.get("title_ar", ""),
+        "summary": meta.get("summary", ""),
+        "key_words": meta.get("key_words", []),
+        "sentences": meta.get("sentences", []),
+        "listened_at": meta.get("listened_at"),
+        "listen_progress": meta.get("listen_progress", 0),
+        "format_type": meta.get("format_type", "story"),
+    }
+
+
+def mark_podcast_progress(filename: str, progress: float, completed: bool = False) -> bool:
+    """Update listen progress / mark as completed."""
+    path = _validate_filename(filename)
+    if not path:
+        return False
+    json_path = path.with_suffix(".json")
+    meta = {}
+    if json_path.exists():
+        try:
+            meta = json.loads(json_path.read_text())
+        except (json.JSONDecodeError, OSError):
+            pass
+    meta["listen_progress"] = min(progress, 1.0)
+    if completed:
+        meta["listened_at"] = datetime.now(timezone.utc).isoformat()
+    json_path.write_text(json.dumps(meta, ensure_ascii=False, indent=2))
+    return True
+
+
+def _validate_filename(filename: str) -> Optional[Path]:
     if "/" in filename or "\\" in filename or ".." in filename:
         return None
     path = PODCAST_DIR / filename
+    if not path.name.endswith(".mp3"):
+        path = PODCAST_DIR / (filename + ".mp3") if not filename.endswith(".mp3") else path
     if path.exists() and path.parent == PODCAST_DIR:
         return path
     return None
+
+
+def get_podcast_path(filename: str) -> Optional[Path]:
+    """Get path to a podcast file, validating it exists."""
+    return _validate_filename(filename)
