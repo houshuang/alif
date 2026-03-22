@@ -4,6 +4,23 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-03-22: Live Story Count Recalculation + Variant Chain Resolution
+
+**Context**: Rosie in the Haunted House showed 23% readiness despite most words being learned. Three issues: (1) story word counts were frozen at import time, never refreshed as user learned words; (2) function words (71 tokens) were not flagged because story was imported before detection was fully working; (3) variant lemma chains (e.g., الليلة→ليلة→ليل) weren't resolved — variants showed as "unknown" even when the root canonical was known.
+
+**Changes**:
+1. `_recalculate_story_counts()` now re-checks function word flags on each StoryWord (surface form + resolved lemma bare form) and runs on every `get_story_detail()` call for live counts.
+2. `_build_knowledge_map()` resolves variant→canonical chains (multi-hop) and uses the canonical's knowledge state when more advanced.
+3. `_resolve_to_canonical()` in word_selector.py follows multi-hop variant chains. `_active_story_lemma_ids()` and `_book_page_numbers()` resolve to canonical IDs so book/story priority bonuses reach actual introduction candidates.
+4. `recalculate_readiness()` now deduplicates by lemma_id (was counting tokens, inflating totals).
+5. Removed `_recalculate_story_counts` from `get_stories()` list endpoint — caused timeouts due to `db.commit()` blocking on write locks from background LLM tasks.
+
+**Result**: Rosie story went from 23.1% → 99.4% readiness. One remaining word (أحد, Sunday) is now #1 in introduction queue with book page priority 192.6.
+
+**Verify**: Open any story in the app — counts should reflect current knowledge. Check that story list loads fast (<500ms).
+
+---
+
 ## 2026-03-21: Variant Verification Audit
 
 **Context**: Variant detection sometimes merges semantically-distinct words that are morphologically similar (e.g., صيادية "dish" → صياد "hunter"). These bad merges mean the variant's reviews affect the wrong canonical word.

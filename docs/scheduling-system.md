@@ -6,7 +6,7 @@
 > topics, grammar, listening) interact. It also identifies where the current
 > implementation diverges from the research and stated intentions.
 >
-> **Last updated**: 2026-03-20
+> **Last updated**: 2026-03-22
 > **Canonical location**: `docs/scheduling-system.md`
 > **Keep this document up to date with every algorithm change.**
 
@@ -1332,7 +1332,8 @@ Import text
     ├── Run import quality gate (filter_useful_lemmas)
     ├── Detect proper nouns → mark with name_type
     ├── Create "encountered" ULK for all book lemmas without ULK
-    └── Calculate readiness_pct for the story (deduped by lemma)
+    ├── Calculate readiness_pct for the story (deduped by lemma)
+    └── Function word detection (surface form + resolved lemma bare form)
 ```
 
 ### Completion Flow
@@ -1370,6 +1371,11 @@ Priority tiers (higher ALWAYS beats lower, freq/root/grammar are tiebreakers wit
   Tier 4: Duolingo           — +6.0
   Tier 5: AVP A1             — +4.0
   Tier 6: Wiktionary/other   — +0.0 (strictly by frequency)
+
+Variant→canonical resolution: story/book word priorities resolve variant
+lemma IDs to their root canonical via multi-hop chain following (A→B→C
+resolves to C). Ensures priority bonuses reach actual introduction
+candidates, which are always canonical lemmas.
 ```
 
 #### Frequency Score (40%)
