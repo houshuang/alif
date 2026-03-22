@@ -7,7 +7,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.database import engine, Base
-from app.routers import words, review, analyze, stats, import_data, sentences, tts, learn, grammar, stories, chat, ocr, flags, activity, settings, books, patterns, roots
+from app.routers import words, review, analyze, stats, import_data, sentences, tts, learn, grammar, stories, chat, ocr, flags, activity, settings, books, patterns, roots, podcast
 
 
 @asynccontextmanager
@@ -68,6 +68,7 @@ app.include_router(settings.router)
 app.include_router(books.router)
 app.include_router(patterns.router)
 app.include_router(roots.router)
+app.include_router(podcast.router)
 
 
 @app.get("/")

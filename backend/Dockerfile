@@ -3,7 +3,7 @@ FROM python:3.11-slim
 WORKDIR /app
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    gcc cmake \
+    gcc cmake ffmpeg \
     && rm -rf /var/lib/apt/lists/*
 
 COPY pyproject.toml .
@@ -15,7 +15,7 @@ COPY alembic/ alembic/
 COPY app/ app/
 COPY scripts/ scripts/
 
-RUN mkdir -p data/logs data/audio
+RUN mkdir -p data/logs data/audio data/podcasts data/podcasts/segments
 
 EXPOSE 8000
 

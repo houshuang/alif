@@ -104,6 +104,15 @@ export default function Layout() {
           }}
         />
         <Tabs.Screen
+          name="podcast"
+          options={{
+            title: "Podcast",
+            headerShown: false,
+            tabBarLabel: "Podcast",
+            tabBarIcon: ({ color, size }) => <Ionicons name="mic-outline" size={size} color={color} />,
+          }}
+        />
+        <Tabs.Screen
           name="stats"
           options={{
             title: "Stats",
