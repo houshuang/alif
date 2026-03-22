@@ -7,23 +7,20 @@ import {
   ScrollView,
   ActivityIndicator,
   RefreshControl,
+  Image,
+  Dimensions,
 } from "react-native";
 import { Audio } from "expo-av";
 import { Ionicons } from "@expo/vector-icons";
 import { colors, fontFamily } from "../lib/theme";
 import { BASE_URL } from "../lib/api";
 
-interface KeyWord {
-  arabic: string;
-  gloss: string;
-  stability_days?: number;
-}
+const SCREEN_WIDTH = Dimensions.get("window").width;
+const CARD_GAP = 12;
+const CARD_WIDTH = (SCREEN_WIDTH - 16 * 2 - CARD_GAP) / 2;
 
-interface PodcastSentence {
-  arabic: string;
-  english: string;
-}
-
+interface KeyWord { arabic: string; gloss: string; }
+interface PodSentence { arabic: string; english: string; }
 interface Podcast {
   filename: string;
   size_mb: number;
@@ -37,25 +34,18 @@ interface Podcast {
   listened_at: string | null;
   listen_progress: number;
   format_type: string;
+  image_url: string | null;
 }
-
-interface PodcastDetail extends Podcast {
-  sentences: PodcastSentence[];
-}
+interface PodDetail extends Podcast { sentences: PodSentence[]; }
 
 export default function PodcastScreen() {
   const [podcasts, setPodcasts] = useState<Podcast[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [playing, setPlaying] = useState<string | null>(null);
-  const [expanded, setExpanded] = useState<string | null>(null);
-  const [detail, setDetail] = useState<PodcastDetail | null>(null);
-  const [loadingDetail, setLoadingDetail] = useState(false);
-  const [status, setStatus] = useState<{
-    position: number;
-    duration: number;
-    isPlaying: boolean;
-  } | null>(null);
+  const [selected, setSelected] = useState<string | null>(null);
+  const [detail, setDetail] = useState<PodDetail | null>(null);
+  const [status, setStatus] = useState<{ position: number; duration: number; isPlaying: boolean } | null>(null);
   const soundRef = useRef<Audio.Sound | null>(null);
 
   const fetchPodcasts = useCallback(async () => {
@@ -63,454 +53,352 @@ export default function PodcastScreen() {
       const res = await fetch(`${BASE_URL}/api/podcasts`);
       const data = await res.json();
       setPodcasts((data.podcasts || []).reverse());
-    } catch {
-      setPodcasts([]);
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
+    } catch { setPodcasts([]); }
+    finally { setLoading(false); setRefreshing(false); }
   }, []);
 
-  useEffect(() => {
-    fetchPodcasts();
-    return () => {
-      soundRef.current?.unloadAsync();
-    };
-  }, [fetchPodcasts]);
+  useEffect(() => { fetchPodcasts(); return () => { soundRef.current?.unloadAsync(); }; }, [fetchPodcasts]);
 
-  const fetchDetail = async (filename: string) => {
-    setLoadingDetail(true);
+  const fetchDetail = async (fn: string) => {
     try {
-      const res = await fetch(`${BASE_URL}/api/podcasts/detail/${filename}`);
-      if (res.ok) {
-        setDetail(await res.json());
-      }
-    } catch { /* ignore */ }
-    setLoadingDetail(false);
+      const res = await fetch(`${BASE_URL}/api/podcasts/detail/${fn}`);
+      if (res.ok) setDetail(await res.json());
+    } catch {}
   };
 
-  const toggleExpand = (filename: string) => {
-    if (expanded === filename) {
-      setExpanded(null);
-      setDetail(null);
-    } else {
-      setExpanded(filename);
-      fetchDetail(filename);
-    }
-  };
-
-  const reportProgress = async (filename: string, progress: number, completed: boolean) => {
+  const reportProgress = async (fn: string, prog: number, done: boolean) => {
     try {
-      await fetch(`${BASE_URL}/api/podcasts/progress/${filename}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ progress, completed }),
+      await fetch(`${BASE_URL}/api/podcasts/progress/${fn}`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ progress: prog, completed: done }),
       });
-    } catch { /* ignore */ }
+    } catch {}
   };
 
-  const playPodcast = async (filename: string) => {
-    if (soundRef.current) {
-      await soundRef.current.unloadAsync();
-      soundRef.current = null;
-    }
-
-    if (playing === filename) {
-      setPlaying(null);
-      setStatus(null);
-      return;
-    }
-
-    await Audio.setAudioModeAsync({
-      playsInSilentModeIOS: true,
-      staysActiveInBackground: true,
-    });
-
+  const playPodcast = async (fn: string) => {
+    if (soundRef.current) { await soundRef.current.unloadAsync(); soundRef.current = null; }
+    if (playing === fn) { setPlaying(null); setStatus(null); return; }
+    await Audio.setAudioModeAsync({ playsInSilentModeIOS: true, staysActiveInBackground: true });
     const { sound } = await Audio.Sound.createAsync(
-      { uri: `${BASE_URL}/api/podcasts/audio/${filename}` },
+      { uri: `${BASE_URL}/api/podcasts/audio/${fn}` },
       { shouldPlay: true },
       (ps) => {
         if (ps.isLoaded) {
-          setStatus({
-            position: ps.positionMillis,
-            duration: ps.durationMillis || 0,
-            isPlaying: ps.isPlaying,
-          });
-          if (ps.didJustFinish) {
-            reportProgress(filename, 1.0, true);
-            setPlaying(null);
-            setStatus(null);
-            fetchPodcasts();
-          }
+          setStatus({ position: ps.positionMillis, duration: ps.durationMillis || 0, isPlaying: ps.isPlaying });
+          if (ps.didJustFinish) { reportProgress(fn, 1.0, true); setPlaying(null); setStatus(null); fetchPodcasts(); }
         }
       }
     );
-
     soundRef.current = sound;
-    setPlaying(filename);
+    setPlaying(fn);
   };
 
   const togglePlayPause = async () => {
     if (!soundRef.current) return;
     if (status?.isPlaying) {
       await soundRef.current.pauseAsync();
-      if (playing && status) {
-        const prog = status.duration > 0 ? status.position / status.duration : 0;
-        reportProgress(playing, prog, false);
-      }
-    } else {
-      await soundRef.current.playAsync();
-    }
+      if (playing && status) reportProgress(playing, status.duration > 0 ? status.position / status.duration : 0, false);
+    } else { await soundRef.current.playAsync(); }
   };
 
-  const seekRelative = async (deltaMs: number) => {
+  const seekRelative = async (d: number) => {
     if (!soundRef.current || !status) return;
-    const newPos = Math.max(0, Math.min(status.position + deltaMs, status.duration));
-    await soundRef.current.setPositionAsync(newPos);
+    await soundRef.current.setPositionAsync(Math.max(0, Math.min(status.position + d, status.duration)));
   };
 
-  const fmt = (ms: number) => {
-    const s = Math.floor(ms / 1000);
-    return `${Math.floor(s / 60)}:${(s % 60).toString().padStart(2, "0")}`;
-  };
-
-  const fmtDuration = (sec: number) => {
-    if (sec < 60) return `${sec}s`;
-    return `${Math.floor(sec / 60)} min`;
-  };
-
-  const fmtDate = (iso: string) => {
-    const d = new Date(iso);
-    return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
-  };
-
-  const displayTitle = (p: Podcast) =>
-    p.title_en || p.filename.replace(".mp3", "").replace(/^story-/, "").replace(/-\d{8}-\d{4}$/, "").replace(/-/g, " ");
-
+  const fmt = (ms: number) => { const s = Math.floor(ms / 1000); return `${Math.floor(s / 60)}:${(s % 60).toString().padStart(2, "0")}`; };
+  const fmtDur = (sec: number) => sec < 60 ? `${sec}s` : `${Math.floor(sec / 60)} min`;
+  const title = (p: Podcast) => p.title_en || p.filename.replace(".mp3", "").replace(/^story-/, "").replace(/-\d{8}-\d{4}$/, "").replace(/-/g, " ");
   const progress = status && status.duration > 0 ? status.position / status.duration : 0;
 
+  // Detail view
+  if (selected) {
+    const p = podcasts.find(x => x.filename === selected);
+    if (!p) { setSelected(null); return null; }
+    const isPlaying = playing === p.filename;
+    return (
+      <View style={st.container}>
+        <ScrollView contentContainerStyle={{ paddingBottom: 120 }}>
+          {/* Hero image */}
+          {p.image_url ? (
+            <Image source={{ uri: `${BASE_URL}${p.image_url}` }} style={st.heroImage} />
+          ) : (
+            <View style={[st.heroImage, { backgroundColor: colors.surfaceLight }]} />
+          )}
+
+          {/* Back button */}
+          <Pressable style={st.backBtn} onPress={() => { setSelected(null); setDetail(null); }}>
+            <Ionicons name="arrow-back" size={22} color="#fff" />
+          </Pressable>
+
+          <View style={st.detailContent}>
+            {p.title_ar ? <Text style={st.detailTitleAr}>{p.title_ar}</Text> : null}
+            <Text style={st.detailTitle}>{title(p)}</Text>
+            <Text style={st.detailMeta}>
+              {fmtDur(p.duration_seconds)} · {p.sentence_count} sentences
+              {p.listened_at ? " · Listened" : ""}
+            </Text>
+
+            {/* Play button */}
+            <Pressable
+              style={st.detailPlayBtn}
+              onPress={() => playPodcast(p.filename)}
+            >
+              <Ionicons name={isPlaying ? "pause" : "play"} size={20} color="#fff" />
+              <Text style={st.detailPlayText}>{isPlaying ? "Pause" : "Play Episode"}</Text>
+            </Pressable>
+
+            {/* Summary */}
+            {(detail?.summary || p.summary) ? (
+              <Text style={st.detailSummary}>{detail?.summary || p.summary}</Text>
+            ) : null}
+
+            {/* Key words */}
+            {(detail?.key_words?.length || p.key_words?.length) ? (
+              <View style={st.section}>
+                <Text style={st.sectionLabel}>Key vocabulary</Text>
+                <View style={st.chips}>
+                  {(detail?.key_words || p.key_words || []).slice(0, 10).map((w, i) => (
+                    <View key={i} style={st.chip}>
+                      <Text style={st.chipAr}>{w.arabic}</Text>
+                      <Text style={st.chipEn}>{w.gloss}</Text>
+                    </View>
+                  ))}
+                </View>
+              </View>
+            ) : null}
+
+            {/* Sentences */}
+            {detail?.sentences?.length ? (
+              <View style={st.section}>
+                <Text style={st.sectionLabel}>Story</Text>
+                {detail.sentences.map((s, i) => (
+                  <View key={i} style={st.sentRow}>
+                    <Text style={st.sentNum}>{i + 1}</Text>
+                    <View style={{ flex: 1 }}>
+                      <Text style={st.sentAr}>{s.arabic}</Text>
+                      <Text style={st.sentEn}>{s.english}</Text>
+                    </View>
+                  </View>
+                ))}
+              </View>
+            ) : null}
+          </View>
+        </ScrollView>
+
+        {/* Sticky player */}
+        {playing && status && (
+          <View style={st.stickyPlayer}>
+            <View style={st.progressRow}>
+              <Text style={st.time}>{fmt(status.position)}</Text>
+              <View style={st.bar}><View style={[st.barFill, { width: `${progress * 100}%` }]} /></View>
+              <Text style={st.time}>{fmt(status.duration)}</Text>
+            </View>
+            <View style={st.controls}>
+              <Pressable onPress={() => seekRelative(-15000)}><Ionicons name="play-back" size={20} color={colors.text} /></Pressable>
+              <Pressable onPress={togglePlayPause} style={st.miniPlayBtn}>
+                <Ionicons name={status.isPlaying ? "pause" : "play"} size={24} color={colors.bg} />
+              </Pressable>
+              <Pressable onPress={() => seekRelative(30000)}><Ionicons name="play-forward" size={20} color={colors.text} /></Pressable>
+            </View>
+          </View>
+        )}
+      </View>
+    );
+  }
+
+  // Grid view
   return (
-    <View style={s.container}>
-      <View style={s.header}>
-        <Text style={s.title}>Podcast</Text>
-        <Text style={s.subtitle}>
-          {podcasts.length} episode{podcasts.length !== 1 ? "s" : ""}
-        </Text>
+    <View style={st.container}>
+      <View style={st.header}>
+        <Text style={st.headerTitle}>Podcast</Text>
       </View>
 
-      {/* Player */}
+      {/* Mini player bar when playing */}
       {playing && status && (
-        <View style={s.player}>
-          <View style={s.progressRow}>
-            <Text style={s.time}>{fmt(status.position)}</Text>
-            <View style={s.bar}><View style={[s.barFill, { width: `${progress * 100}%` }]} /></View>
-            <Text style={s.time}>{fmt(status.duration)}</Text>
+        <Pressable style={st.miniBar} onPress={() => { const p = podcasts.find(x => x.filename === playing); if (p) { setSelected(playing); fetchDetail(playing); } }}>
+          <Pressable onPress={togglePlayPause} style={st.miniBarPlay}>
+            <Ionicons name={status.isPlaying ? "pause" : "play"} size={18} color={colors.bg} />
+          </Pressable>
+          <View style={{ flex: 1 }}>
+            <Text style={st.miniBarTitle} numberOfLines={1}>{title(podcasts.find(x => x.filename === playing)!)}</Text>
+            <View style={st.miniBarProgress}>
+              <View style={[st.miniBarFill, { width: `${progress * 100}%` }]} />
+            </View>
           </View>
-          <View style={s.controls}>
-            <Pressable onPress={() => seekRelative(-15000)} style={s.seekBtn}>
-              <Ionicons name="play-back" size={22} color={colors.text} />
-              <Text style={s.seekLabel}>15s</Text>
-            </Pressable>
-            <Pressable onPress={togglePlayPause} style={s.playBtn}>
-              <Ionicons name={status.isPlaying ? "pause" : "play"} size={32} color={colors.bg} />
-            </Pressable>
-            <Pressable onPress={() => seekRelative(30000)} style={s.seekBtn}>
-              <Ionicons name="play-forward" size={22} color={colors.text} />
-              <Text style={s.seekLabel}>30s</Text>
-            </Pressable>
-          </View>
-        </View>
+          <Text style={st.miniBarTime}>{fmt(status.position)}</Text>
+        </Pressable>
       )}
 
-      {/* List */}
       <ScrollView
-        style={s.list}
-        contentContainerStyle={{ paddingBottom: 40 }}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={() => { setRefreshing(true); fetchPodcasts(); }}
-            tintColor={colors.accent}
-          />
-        }
+        contentContainerStyle={st.grid}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); fetchPodcasts(); }} tintColor={colors.accent} />}
       >
         {loading ? (
           <ActivityIndicator size="large" color={colors.accent} style={{ marginTop: 40 }} />
         ) : podcasts.length === 0 ? (
-          <View style={s.empty}>
+          <View style={st.empty}>
             <Ionicons name="mic-outline" size={48} color={colors.textSecondary} />
-            <Text style={s.emptyText}>No episodes yet</Text>
+            <Text style={st.emptyText}>No episodes yet</Text>
           </View>
         ) : (
-          podcasts.map((p) => {
-            const isPlaying = playing === p.filename;
-            const isExpanded = expanded === p.filename;
-            const listened = !!p.listened_at;
-
-            return (
-              <View key={p.filename} style={[s.card, isPlaying && s.cardActive]}>
-                {/* Main row */}
-                <Pressable style={s.cardRow} onPress={() => toggleExpand(p.filename)}>
-                  <Pressable
-                    style={[s.playIcon, listened && s.playIconListened]}
-                    onPress={(e) => { e.stopPropagation(); playPodcast(p.filename); }}
-                  >
-                    <Ionicons
-                      name={isPlaying && status?.isPlaying ? "pause" : "play"}
-                      size={22}
-                      color={isPlaying ? colors.accent : listened ? colors.gotIt : colors.text}
-                    />
-                  </Pressable>
-
-                  <View style={s.cardInfo}>
-                    {p.title_ar ? (
-                      <Text style={s.cardTitleAr} numberOfLines={1}>{p.title_ar}</Text>
-                    ) : null}
-                    <Text style={s.cardTitle} numberOfLines={1}>{displayTitle(p)}</Text>
-                    <View style={s.cardMeta}>
-                      <Text style={s.metaText}>{fmtDuration(p.duration_seconds)}</Text>
-                      <Text style={s.metaDot}>·</Text>
-                      <Text style={s.metaText}>{p.sentence_count} sentences</Text>
-                      <Text style={s.metaDot}>·</Text>
-                      <Text style={s.metaText}>{fmtDate(p.created_at)}</Text>
-                      {listened && (
-                        <>
-                          <Text style={s.metaDot}>·</Text>
-                          <Ionicons name="checkmark-circle" size={14} color={colors.gotIt} />
-                        </>
-                      )}
+          <View style={st.gridRow}>
+            {podcasts.map((p) => {
+              const isPlaying = playing === p.filename;
+              return (
+                <Pressable
+                  key={p.filename}
+                  style={[st.gridCard, isPlaying && st.gridCardActive]}
+                  onPress={() => { setSelected(p.filename); fetchDetail(p.filename); }}
+                >
+                  {p.image_url ? (
+                    <Image source={{ uri: `${BASE_URL}${p.image_url}` }} style={st.gridImage} />
+                  ) : (
+                    <View style={[st.gridImage, st.gridImagePlaceholder]}>
+                      <Ionicons name="mic" size={32} color={colors.textSecondary} />
                     </View>
-                  </View>
+                  )}
 
-                  <Ionicons
-                    name={isExpanded ? "chevron-up" : "chevron-down"}
-                    size={18}
-                    color={colors.textSecondary}
-                  />
+                  {/* Listened badge */}
+                  {p.listened_at && (
+                    <View style={st.listenedBadge}>
+                      <Ionicons name="checkmark-circle" size={16} color={colors.gotIt} />
+                    </View>
+                  )}
+
+                  {/* Progress overlay */}
+                  {p.listen_progress > 0 && p.listen_progress < 1 && (
+                    <View style={st.gridProgress}>
+                      <View style={[st.gridProgressFill, { width: `${p.listen_progress * 100}%` }]} />
+                    </View>
+                  )}
+
+                  <View style={st.gridInfo}>
+                    {p.title_ar ? (
+                      <Text style={st.gridTitleAr} numberOfLines={1}>{p.title_ar}</Text>
+                    ) : null}
+                    <Text style={st.gridTitle} numberOfLines={2}>{title(p)}</Text>
+                    <Text style={st.gridMeta}>{fmtDur(p.duration_seconds)}</Text>
+                  </View>
                 </Pressable>
-
-                {/* Listen progress bar */}
-                {p.listen_progress > 0 && p.listen_progress < 1 && (
-                  <View style={s.listenBar}>
-                    <View style={[s.listenFill, { width: `${p.listen_progress * 100}%` }]} />
-                  </View>
-                )}
-
-                {/* Expanded detail */}
-                {isExpanded && (
-                  <View style={s.detail}>
-                    {loadingDetail ? (
-                      <ActivityIndicator size="small" color={colors.accent} style={{ marginVertical: 12 }} />
-                    ) : (
-                      <>
-                        {/* Summary */}
-                        {(detail?.summary || p.summary) ? (
-                          <Text style={s.summary}>{detail?.summary || p.summary}</Text>
-                        ) : null}
-
-                        {/* Key words */}
-                        {(detail?.key_words?.length || p.key_words?.length) ? (
-                          <View style={s.wordsSection}>
-                            <Text style={s.sectionLabel}>Key vocabulary</Text>
-                            <View style={s.wordChips}>
-                              {(detail?.key_words || p.key_words || []).slice(0, 10).map((w, i) => (
-                                <View key={i} style={s.chip}>
-                                  <Text style={s.chipAr}>{w.arabic}</Text>
-                                  <Text style={s.chipEn}>{w.gloss}</Text>
-                                </View>
-                              ))}
-                            </View>
-                          </View>
-                        ) : null}
-
-                        {/* Sentences */}
-                        {detail?.sentences?.length ? (
-                          <View style={s.sentencesSection}>
-                            <Text style={s.sectionLabel}>Sentences</Text>
-                            {detail.sentences.map((sent, i) => (
-                              <View key={i} style={s.sentRow}>
-                                <Text style={s.sentNum}>{i + 1}</Text>
-                                <View style={s.sentText}>
-                                  <Text style={s.sentAr}>{sent.arabic}</Text>
-                                  <Text style={s.sentEn}>{sent.english}</Text>
-                                </View>
-                              </View>
-                            ))}
-                          </View>
-                        ) : null}
-                      </>
-                    )}
-                  </View>
-                )}
-              </View>
-            );
-          })
+              );
+            })}
+          </View>
         )}
       </ScrollView>
     </View>
   );
 }
 
-const s = StyleSheet.create({
+const st = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
-  header: {
-    paddingTop: 60,
-    paddingHorizontal: 20,
-    paddingBottom: 12,
-  },
-  title: { fontSize: 28, fontWeight: "700", color: colors.text },
-  subtitle: { fontSize: 13, color: colors.textSecondary, marginTop: 2 },
 
-  // Player
-  player: {
-    backgroundColor: colors.surface,
-    marginHorizontal: 16,
-    borderRadius: 14,
-    padding: 16,
-    marginBottom: 8,
+  // Header
+  header: { paddingTop: 60, paddingHorizontal: 20, paddingBottom: 8 },
+  headerTitle: { fontSize: 28, fontWeight: "700", color: colors.text },
+
+  // Mini player bar
+  miniBar: {
+    flexDirection: "row", alignItems: "center", gap: 10,
+    backgroundColor: colors.surface, marginHorizontal: 16, borderRadius: 10,
+    padding: 10, marginBottom: 8,
   },
-  progressRow: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 12 },
+  miniBarPlay: {
+    width: 32, height: 32, borderRadius: 16, backgroundColor: colors.accent,
+    justifyContent: "center", alignItems: "center",
+  },
+  miniBarTitle: { fontSize: 13, fontWeight: "600", color: colors.text },
+  miniBarProgress: { height: 2, backgroundColor: colors.surfaceLight, borderRadius: 1, marginTop: 4 },
+  miniBarFill: { height: "100%", backgroundColor: colors.accent, borderRadius: 1 },
+  miniBarTime: { fontSize: 11, color: colors.textSecondary, fontVariant: ["tabular-nums"] },
+
+  // Grid
+  grid: { paddingHorizontal: 16, paddingBottom: 40 },
+  gridRow: { flexDirection: "row", flexWrap: "wrap", gap: CARD_GAP },
+  gridCard: {
+    width: CARD_WIDTH, backgroundColor: colors.surface, borderRadius: 12,
+    overflow: "hidden",
+  },
+  gridCardActive: { borderColor: colors.accent, borderWidth: 2 },
+  gridImage: { width: "100%", aspectRatio: 1, backgroundColor: colors.surfaceLight },
+  gridImagePlaceholder: { justifyContent: "center", alignItems: "center" },
+  listenedBadge: {
+    position: "absolute", top: 8, right: 8,
+    backgroundColor: "rgba(0,0,0,0.5)", borderRadius: 10, padding: 2,
+  },
+  gridProgress: {
+    height: 3, backgroundColor: colors.surfaceLight,
+  },
+  gridProgressFill: { height: "100%", backgroundColor: colors.accent },
+  gridInfo: { padding: 10 },
+  gridTitleAr: {
+    fontSize: 16, color: colors.arabic, fontFamily: fontFamily.arabic,
+    textAlign: "right", marginBottom: 2,
+  },
+  gridTitle: { fontSize: 13, fontWeight: "600", color: colors.text, textTransform: "capitalize" },
+  gridMeta: { fontSize: 11, color: colors.textSecondary, marginTop: 3 },
+
+  empty: { alignItems: "center", paddingTop: 60, gap: 12, width: "100%" },
+  emptyText: { fontSize: 18, fontWeight: "600", color: colors.textSecondary },
+
+  // Detail view
+  heroImage: { width: "100%", aspectRatio: 1 },
+  backBtn: {
+    position: "absolute", top: 50, left: 16,
+    width: 36, height: 36, borderRadius: 18,
+    backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "center", alignItems: "center",
+  },
+  detailContent: { padding: 20 },
+  detailTitleAr: {
+    fontSize: 26, color: colors.arabic, fontFamily: fontFamily.arabic,
+    textAlign: "right", marginBottom: 4,
+  },
+  detailTitle: { fontSize: 22, fontWeight: "700", color: colors.text, textTransform: "capitalize" },
+  detailMeta: { fontSize: 13, color: colors.textSecondary, marginTop: 4 },
+  detailPlayBtn: {
+    flexDirection: "row", alignItems: "center", gap: 8,
+    backgroundColor: colors.accent, alignSelf: "flex-start",
+    paddingHorizontal: 20, paddingVertical: 10, borderRadius: 24,
+    marginTop: 16,
+  },
+  detailPlayText: { fontSize: 15, fontWeight: "600", color: "#fff" },
+  detailSummary: {
+    fontSize: 14, color: colors.textSecondary, lineHeight: 21,
+    marginTop: 20, fontStyle: "italic",
+  },
+  section: { marginTop: 20 },
+  sectionLabel: {
+    fontSize: 11, fontWeight: "600", color: colors.textSecondary,
+    textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 8,
+  },
+  chips: { flexDirection: "row", flexWrap: "wrap", gap: 6 },
+  chip: {
+    backgroundColor: colors.surfaceLight, paddingHorizontal: 10, paddingVertical: 5,
+    borderRadius: 8, flexDirection: "row", alignItems: "center", gap: 6,
+  },
+  chipAr: { fontSize: 16, color: colors.arabic, fontFamily: fontFamily.arabic },
+  chipEn: { fontSize: 11, color: colors.textSecondary },
+  sentRow: {
+    flexDirection: "row", gap: 8, paddingVertical: 8,
+    borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border,
+  },
+  sentNum: { fontSize: 11, color: colors.textSecondary, width: 18, textAlign: "right", paddingTop: 4 },
+  sentAr: { fontSize: 18, color: colors.arabic, fontFamily: fontFamily.arabic, textAlign: "right", lineHeight: 28 },
+  sentEn: { fontSize: 13, color: colors.textSecondary, marginTop: 2 },
+
+  // Sticky player
+  stickyPlayer: {
+    position: "absolute", bottom: 0, left: 0, right: 0,
+    backgroundColor: colors.surface, borderTopWidth: 1, borderTopColor: colors.border,
+    paddingHorizontal: 16, paddingTop: 10, paddingBottom: 30,
+  },
+  progressRow: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 8 },
   bar: { flex: 1, height: 4, backgroundColor: colors.surfaceLight, borderRadius: 2, overflow: "hidden" },
   barFill: { height: "100%", backgroundColor: colors.accent, borderRadius: 2 },
   time: { fontSize: 11, color: colors.textSecondary, fontVariant: ["tabular-nums"], width: 36, textAlign: "center" },
   controls: { flexDirection: "row", justifyContent: "center", alignItems: "center", gap: 28 },
-  seekBtn: { alignItems: "center", gap: 1 },
-  seekLabel: { fontSize: 9, color: colors.textSecondary },
-  playBtn: {
-    width: 56, height: 56, borderRadius: 28,
-    backgroundColor: colors.accent,
+  miniPlayBtn: {
+    width: 48, height: 48, borderRadius: 24, backgroundColor: colors.accent,
     justifyContent: "center", alignItems: "center",
-  },
-
-  // List
-  list: { flex: 1, paddingHorizontal: 16 },
-  empty: { alignItems: "center", paddingTop: 60, gap: 12 },
-  emptyText: { fontSize: 18, fontWeight: "600", color: colors.textSecondary },
-
-  // Card
-  card: {
-    backgroundColor: colors.surface,
-    borderRadius: 12,
-    marginBottom: 10,
-    overflow: "hidden",
-  },
-  cardActive: { borderColor: colors.accent, borderWidth: 1 },
-  cardRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    padding: 14,
-    gap: 12,
-  },
-  playIcon: {
-    width: 44, height: 44, borderRadius: 22,
-    backgroundColor: colors.surfaceLight,
-    justifyContent: "center", alignItems: "center",
-  },
-  playIconListened: { backgroundColor: "rgba(46, 204, 113, 0.15)" },
-  cardInfo: { flex: 1 },
-  cardTitleAr: {
-    fontSize: 18,
-    color: colors.arabic,
-    fontFamily: fontFamily.arabic,
-    textAlign: "right",
-    marginBottom: 2,
-  },
-  cardTitle: {
-    fontSize: 15,
-    fontWeight: "600",
-    color: colors.text,
-    textTransform: "capitalize",
-  },
-  cardMeta: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    marginTop: 3,
-  },
-  metaText: { fontSize: 12, color: colors.textSecondary },
-  metaDot: { fontSize: 12, color: colors.textSecondary },
-
-  // Listen progress
-  listenBar: {
-    height: 2,
-    backgroundColor: colors.surfaceLight,
-    marginHorizontal: 14,
-    borderRadius: 1,
-  },
-  listenFill: {
-    height: "100%",
-    backgroundColor: colors.accent,
-    borderRadius: 1,
-  },
-
-  // Detail
-  detail: {
-    paddingHorizontal: 14,
-    paddingBottom: 16,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-    marginTop: 4,
-  },
-  summary: {
-    fontSize: 13,
-    color: colors.textSecondary,
-    lineHeight: 19,
-    marginTop: 12,
-    fontStyle: "italic",
-  },
-  wordsSection: { marginTop: 14 },
-  sectionLabel: {
-    fontSize: 11,
-    fontWeight: "600",
-    color: colors.textSecondary,
-    textTransform: "uppercase",
-    letterSpacing: 0.5,
-    marginBottom: 8,
-  },
-  wordChips: { flexDirection: "row", flexWrap: "wrap", gap: 6 },
-  chip: {
-    backgroundColor: colors.surfaceLight,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 8,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-  },
-  chipAr: {
-    fontSize: 16,
-    color: colors.arabic,
-    fontFamily: fontFamily.arabic,
-  },
-  chipEn: { fontSize: 11, color: colors.textSecondary },
-
-  // Sentences
-  sentencesSection: { marginTop: 14 },
-  sentRow: {
-    flexDirection: "row",
-    gap: 8,
-    paddingVertical: 8,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.border,
-  },
-  sentNum: {
-    fontSize: 11,
-    color: colors.textSecondary,
-    width: 18,
-    textAlign: "right",
-    paddingTop: 4,
-  },
-  sentText: { flex: 1 },
-  sentAr: {
-    fontSize: 18,
-    color: colors.arabic,
-    fontFamily: fontFamily.arabic,
-    textAlign: "right",
-    lineHeight: 28,
-  },
-  sentEn: {
-    fontSize: 13,
-    color: colors.textSecondary,
-    marginTop: 2,
   },
 });

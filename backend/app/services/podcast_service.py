@@ -749,6 +749,7 @@ def list_podcasts() -> list[dict]:
                 "listened_at": meta.get("listened_at"),
                 "listen_progress": meta.get("listen_progress", 0),
                 "format_type": meta.get("format_type", "story"),
+                "image_url": f"/api/podcasts/image/{meta['image_filename']}" if meta.get("image_filename") else None,
             })
     return results
 
@@ -773,6 +774,7 @@ def get_podcast_detail(filename: str) -> Optional[dict]:
         "listened_at": meta.get("listened_at"),
         "listen_progress": meta.get("listen_progress", 0),
         "format_type": meta.get("format_type", "story"),
+        "image_url": f"/api/podcasts/image/{meta['image_filename']}" if meta.get("image_filename") else None,
     }
 
 

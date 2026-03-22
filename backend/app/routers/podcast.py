@@ -54,3 +54,16 @@ def serve_podcast(filename: str):
         media_type="audio/mpeg",
         headers={"Accept-Ranges": "bytes"},
     )
+
+
+@router.get("/image/{filename}")
+def serve_image(filename: str):
+    """Serve a podcast cover image."""
+    if "/" in filename or "\\" in filename or ".." in filename:
+        raise HTTPException(status_code=400, detail="Invalid filename")
+    from app.services.podcast_service import PODCAST_DIR
+    path = PODCAST_DIR / filename
+    if not path.exists():
+        raise HTTPException(status_code=404, detail="Image not found")
+    mime = "image/png" if filename.endswith(".png") else "image/jpeg"
+    return FileResponse(path, media_type=mime)
