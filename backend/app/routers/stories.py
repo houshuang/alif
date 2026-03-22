@@ -1,8 +1,10 @@
 """Story generation, import, and reading API endpoints."""
 
+import asyncio
 import logging
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
+from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
 from app.database import SessionLocal, get_db
@@ -20,14 +22,17 @@ from app.schemas import (
     StoryReadinessOut,
 )
 from app.services.story_service import (
+    archive_story,
     complete_story,
     delete_story,
     generate_story,
+    generate_story_audio,
     get_book_page_detail,
     get_stories,
     get_story_detail,
     import_story,
     lookup_word,
+    mark_story_heard,
     recalculate_readiness,
     suspend_story,
 )
@@ -43,6 +48,7 @@ def _generate_story_background(
     max_sentences: int,
     length: str,
     topic: str | None,
+    format_type: str = "standard",
 ):
     """Run story generation in background, updating the placeholder row."""
     db = SessionLocal()
@@ -53,6 +59,7 @@ def _generate_story_background(
             max_sentences=max_sentences,
             length=length,
             topic=topic,
+            format_type=format_type,
             existing_story_id=story_id,
         )
         if new_lemma_ids:
@@ -82,6 +89,7 @@ def generate_story_endpoint(
         source="generated",
         status="generating",
         difficulty_level=body.difficulty,
+        format_type=body.format_type,
     )
     db.add(placeholder)
     db.commit()
@@ -94,6 +102,7 @@ def generate_story_endpoint(
         body.max_sentences,
         body.length,
         body.topic,
+        body.format_type,
     )
 
     return {"id": placeholder.id, "status": "generating"}
@@ -203,3 +212,58 @@ def get_readiness(story_id: int, db: Session = Depends(get_db)):
         return recalculate_readiness(db, story_id)
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
+
+
+@router.post("/{story_id}/archive")
+def archive_story_endpoint(story_id: int, db: Session = Depends(get_db)):
+    try:
+        return archive_story(db, story_id)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+
+@router.post("/{story_id}/mark-heard")
+def mark_story_heard_endpoint(story_id: int, db: Session = Depends(get_db)):
+    try:
+        return mark_story_heard(db, story_id)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+
+def _generate_audio_background(story_id: int):
+    """Run story audio generation in background."""
+    db = SessionLocal()
+    try:
+        asyncio.run(generate_story_audio(db, story_id))
+    except Exception as e:
+        logger.exception("Background audio generation failed for story %d", story_id)
+    finally:
+        db.close()
+
+
+@router.post("/{story_id}/generate-audio")
+def generate_audio_endpoint(
+    story_id: int,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+):
+    story = db.query(Story).filter(Story.id == story_id).first()
+    if not story:
+        raise HTTPException(status_code=404, detail="Story not found")
+    background_tasks.add_task(_generate_audio_background, story_id)
+    return {"story_id": story_id, "status": "generating_audio"}
+
+
+@router.get("/{story_id}/audio")
+def get_story_audio(story_id: int, db: Session = Depends(get_db)):
+    from app.services.tts import STORY_AUDIO_DIR
+
+    story = db.query(Story).filter(Story.id == story_id).first()
+    if not story or not story.audio_filename:
+        raise HTTPException(status_code=404, detail="No audio for this story")
+
+    path = STORY_AUDIO_DIR / story.audio_filename
+    if not path.exists():
+        raise HTTPException(status_code=404, detail="Audio file not found")
+
+    return FileResponse(str(path), media_type="audio/mpeg", filename=story.audio_filename)

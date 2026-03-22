@@ -18,17 +18,25 @@ import { useRouter, useFocusEffect } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
 import { colors, fonts, fontFamily } from "../lib/theme";
-import { getStories, generateStory, getStoryDetail, importStory, deleteStory, suspendStory, prefetchStoryDetails, extractTextFromImage } from "../lib/api";
+import { getStories, generateStory, getStoryDetail, importStory, deleteStory, suspendStory, archiveStory, prefetchStoryDetails, extractTextFromImage } from "../lib/api";
 import { clearStoryLookups } from "../lib/offline-store";
 import { netStatus } from "../lib/net-status";
 import { StoryListItem } from "../lib/types";
 
 type StoryLength = "short" | "medium" | "long";
+type StoryFormat = "standard" | "long" | "breakdown" | "arabic_explanation";
 
 const LENGTH_LABELS: Record<StoryLength, { label: string; desc: string }> = {
   short: { label: "Short", desc: "2-4 sentences" },
   medium: { label: "Medium", desc: "4-7 sentences" },
   long: { label: "Long", desc: "7-12 sentences" },
+};
+
+const FORMAT_LABELS: Record<StoryFormat, { label: string; desc: string }> = {
+  standard: { label: "Standard", desc: "Normal story" },
+  long: { label: "Long", desc: "12-20 sentences" },
+  breakdown: { label: "Breakdown", desc: "Half sentences, then full" },
+  arabic_explanation: { label: "Arabic Only", desc: "Explained in simple Arabic" },
 };
 
 export default function StoriesScreen() {
@@ -39,6 +47,7 @@ export default function StoriesScreen() {
   // Generate modal
   const [showGenerate, setShowGenerate] = useState(false);
   const [genLength, setGenLength] = useState<StoryLength>("medium");
+  const [genFormat, setGenFormat] = useState<StoryFormat>("standard");
   const [genTopic, setGenTopic] = useState("");
 
   // Import modal
@@ -50,6 +59,7 @@ export default function StoriesScreen() {
   const [extractingText, setExtractingText] = useState(false);
 
   const [completedExpanded, setCompletedExpanded] = useState(false);
+  const [archivedExpanded, setArchivedExpanded] = useState(false);
 
   const router = useRouter();
 
@@ -82,11 +92,13 @@ export default function StoriesScreen() {
     setGenerating(true);
     try {
       const { id } = await generateStory({
-        length: genLength,
+        length: genFormat === "long" ? "long" : genLength,
         topic: genTopic.trim() || undefined,
+        format_type: genFormat,
       });
       setGenTopic("");
       setGenLength("medium");
+      setGenFormat("standard");
 
       // Poll until story is ready (timeout after 5 min)
       let elapsed = 0;
@@ -216,6 +228,21 @@ export default function StoriesScreen() {
     }
   }
 
+  async function handleArchive(item: StoryListItem) {
+    try {
+      const result = await archiveStory(item.id);
+      setStories((prev) =>
+        prev.map((s) =>
+          s.id === item.id
+            ? { ...s, archived_at: result.archived ? new Date().toISOString() : null }
+            : s
+        )
+      );
+    } catch (e) {
+      console.error("Failed to toggle story archive:", e);
+    }
+  }
+
   async function handleSuspendAll() {
     const toSuspend = stories.filter((s) => s.status !== "suspended");
     if (toSuspend.length === 0) return;
@@ -246,13 +273,15 @@ export default function StoriesScreen() {
     return colors.missed;
   }
 
-  type SectionKey = "active" | "suspended" | "completed";
+  type SectionKey = "active" | "suspended" | "completed" | "archived";
 
   function buildSections(): { key: SectionKey; title: string; data: StoryListItem[] }[] {
     const active: StoryListItem[] = [];
     const suspended: StoryListItem[] = [];
     const completed: StoryListItem[] = [];
+    const archived: StoryListItem[] = [];
     for (const s of stories) {
+      if (s.archived_at) { archived.push(s); continue; }
       if (s.status === "completed") completed.push(s);
       else if (s.status === "suspended") suspended.push(s);
       else active.push(s);
@@ -261,6 +290,7 @@ export default function StoriesScreen() {
     if (active.length > 0) sections.push({ key: "active", title: "Active", data: active });
     if (suspended.length > 0) sections.push({ key: "suspended", title: "Suspended", data: suspended });
     if (completed.length > 0) sections.push({ key: "completed", title: "Completed", data: completedExpanded ? completed : [] });
+    if (archived.length > 0) sections.push({ key: "archived", title: "Archived", data: archivedExpanded ? archived : [] });
     return sections;
   }
 
@@ -278,17 +308,31 @@ export default function StoriesScreen() {
 
     const pctWidth = Math.min(100, Math.max(4, item.readiness_pct));
     const isSuspended = item.status === "suspended";
+    const isArchived = !!item.archived_at;
+    const formatBadge = item.format_type && item.format_type !== "standard"
+      ? FORMAT_LABELS[item.format_type as StoryFormat]?.label
+      : null;
 
     return (
       <Pressable
-        style={[styles.storyCard, isSuspended && { opacity: 0.55 }]}
+        style={[styles.storyCard, (isSuspended || isArchived) && { opacity: 0.55 }]}
         onPress={() => router.push(`/story/${item.id}`)}
       >
         <View style={styles.cardHeader}>
           <View style={styles.cardTitleArea}>
-            <Text style={styles.storyTitle} numberOfLines={1}>
-              {title}
-            </Text>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+              <Text style={styles.storyTitle} numberOfLines={1}>
+                {title}
+              </Text>
+              {formatBadge && (
+                <Text style={{ fontSize: 10, color: colors.textSecondary, backgroundColor: colors.surface, paddingHorizontal: 4, paddingVertical: 1, borderRadius: 3, overflow: "hidden" }}>
+                  {formatBadge}
+                </Text>
+              )}
+              {item.audio_filename && (
+                <Ionicons name="volume-medium" size={12} color={colors.textSecondary} />
+              )}
+            </View>
             {item.title_ar && (
               <Text style={styles.storyTitleAr} numberOfLines={1}>
                 {item.title_ar}
@@ -296,6 +340,17 @@ export default function StoriesScreen() {
             )}
           </View>
           <View style={{ flexDirection: "row", gap: 6 }}>
+            <Pressable
+              onPress={(e) => { e.stopPropagation(); handleArchive(item); }}
+              hitSlop={8}
+              style={styles.iconBtn}
+            >
+              <Ionicons
+                name={isArchived ? "return-up-back" : "archive-outline"}
+                size={14}
+                color={isArchived ? colors.gotIt : colors.textSecondary}
+              />
+            </Pressable>
             <Pressable
               onPress={(e) => { e.stopPropagation(); handleSuspend(item); }}
               hitSlop={8}
@@ -433,29 +488,41 @@ export default function StoriesScreen() {
   }
 
   function renderSectionHeader({ section }: { section: { key: SectionKey; title: string; data: StoryListItem[] } }) {
+    const isCollapsible = section.key === "completed" || section.key === "archived";
     const isCompleted = section.key === "completed";
-    const completedCount = isCompleted ? stories.filter((s) => s.status === "completed").length : 0;
+    const isArchived = section.key === "archived";
+    const collapsibleCount = isCompleted
+      ? stories.filter((s) => !s.archived_at && s.status === "completed").length
+      : isArchived
+        ? stories.filter((s) => !!s.archived_at).length
+        : 0;
+    const isExpanded = isCompleted ? completedExpanded : isArchived ? archivedExpanded : false;
+    const toggleExpand = isCompleted
+      ? () => setCompletedExpanded((v) => !v)
+      : isArchived
+        ? () => setArchivedExpanded((v) => !v)
+        : undefined;
 
     return (
       <Pressable
         style={styles.sectionHeader}
-        onPress={isCompleted ? () => setCompletedExpanded((v) => !v) : undefined}
-        disabled={!isCompleted}
+        onPress={isCollapsible ? toggleExpand : undefined}
+        disabled={!isCollapsible}
       >
         <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-          {isCompleted && (
+          {isCollapsible && (
             <Ionicons
-              name={completedExpanded ? "chevron-down" : "chevron-forward"}
+              name={isExpanded ? "chevron-down" : "chevron-forward"}
               size={14}
               color={colors.textSecondary}
             />
           )}
           <Text style={styles.sectionTitle}>
             {section.title}
-            <Text style={styles.sectionCount}> ({isCompleted ? completedCount : section.data.length})</Text>
+            <Text style={styles.sectionCount}> ({isCollapsible ? collapsibleCount : section.data.length})</Text>
           </Text>
         </View>
-        {section.key === "active" && stories.filter((s) => s.status === "active").length > 1 && (
+        {section.key === "active" && stories.filter((s) => s.status === "active" && !s.archived_at).length > 1 && (
           <Pressable onPress={handleSuspendAll} hitSlop={8}>
             <Text style={styles.suspendAllText}>Suspend All</Text>
           </Pressable>
@@ -581,6 +648,39 @@ export default function StoriesScreen() {
                     ]}
                   >
                     {LENGTH_LABELS[len].desc}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+
+            <Text style={styles.fieldLabel}>Format</Text>
+            <View style={styles.lengthRow}>
+              {(["standard", "long", "breakdown", "arabic_explanation"] as StoryFormat[]).map((fmt) => (
+                <Pressable
+                  key={fmt}
+                  style={[
+                    styles.lengthOption,
+                    genFormat === fmt && styles.lengthOptionActive,
+                    { minWidth: 70 },
+                  ]}
+                  onPress={() => setGenFormat(fmt)}
+                >
+                  <Text
+                    style={[
+                      styles.lengthLabel,
+                      genFormat === fmt && styles.lengthLabelActive,
+                    ]}
+                  >
+                    {FORMAT_LABELS[fmt].label}
+                  </Text>
+                  <Text
+                    style={[
+                      styles.lengthDesc,
+                      genFormat === fmt && styles.lengthDescActive,
+                      { fontSize: 9 },
+                    ]}
+                  >
+                    {FORMAT_LABELS[fmt].desc}
                   </Text>
                 </Pressable>
               ))}

@@ -17,8 +17,21 @@ DEFAULT_VOICE_SETTINGS = {
     "use_speaker_boost": True,
 }
 
+# Voice pool for story audio rotation — one voice per story
+ARABIC_VOICE_POOL = [
+    {"id": "G1HOkzin3NMwRHSq60UI", "name": "Chaouki"},
+    {"id": "onwK4e9ZLuTAKqWW03F9", "name": "Daniel"},
+    {"id": "TX3LPaxmHKxFdv7VOQHJ", "name": "Liam"},
+]
+
 AUDIO_DIR = Path(__file__).resolve().parent.parent.parent / "data" / "audio"
+STORY_AUDIO_DIR = Path(__file__).resolve().parent.parent.parent / "data" / "story-audio"
 INDEX_FILE = AUDIO_DIR / "index.json"
+
+
+def pick_voice_for_story(story_id: int) -> dict:
+    """Deterministic voice selection — same story always gets same voice."""
+    return ARABIC_VOICE_POOL[story_id % len(ARABIC_VOICE_POOL)]
 
 
 class TTSError(Exception):

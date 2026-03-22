@@ -80,6 +80,7 @@ class UserLemmaKnowledge(Base):
     entered_acquiring_at = Column(DateTime, nullable=True)
     leech_suspended_at = Column(DateTime, nullable=True)
     leech_count = Column(Integer, default=0, server_default="0")
+    times_heard = Column(Integer, default=0, server_default="0")
     experiment_group = Column(String(30), nullable=True)
     experiment_intro_shown_at = Column(DateTime, nullable=True)
 
@@ -229,6 +230,11 @@ class Story(Base):
     unknown_count = Column(Integer, default=0)
     readiness_pct = Column(Float, default=0.0)
     difficulty_level = Column(String(20), nullable=True)
+    format_type = Column(String(30), default="standard")  # standard/long/breakdown/arabic_explanation
+    archived_at = Column(DateTime, nullable=True)
+    audio_filename = Column(String(100), nullable=True)
+    voice_id = Column(String(50), nullable=True)
+    metadata_json = Column(JSON, nullable=True)  # format-specific data (breakdown halves, arabic explanations)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     completed_at = Column(DateTime, nullable=True)
 
