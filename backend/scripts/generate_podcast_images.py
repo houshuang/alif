@@ -28,14 +28,13 @@ GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini
 
 # Consistent style directive — pencil + watercolor children's book illustration
 ART_STYLE = (
-    "Children's book illustration. Hand-drawn pencil outlines on off-white textured watercolor "
-    "paper, with loose transparent watercolor washes in a limited palette of warm ochre, dusty "
-    "blue, soft coral, and charcoal grey. Visible pencil sketch lines left in, slightly wobbly "
-    "and imperfect. Large areas of white and cream negative space. Simple composition with one "
-    "focal subject. No gradients, no photorealistic elements, no lens blur, no HDR lighting. "
-    "Matte finish, flat natural lighting. No text, no words, no letters, no watermarks. "
-    "Square format, centered composition, reads clearly at small sizes. "
-    "The look of a real physical illustration photographed from a sketchbook."
+    "Children's book illustration with hand-drawn pencil outlines and loose transparent "
+    "watercolor washes. Limited palette: warm ochre, dusty blue, soft coral, charcoal grey. "
+    "Visible wobbly pencil sketch lines. Simple composition, one focal subject. "
+    "Matte finish, flat natural lighting. No gradients, no photorealistic elements, no lens "
+    "blur, no HDR. No text, no words, no letters, no watermarks. No frame, no border, no "
+    "paper edge, no desk, no sketchbook — just the illustration itself filling the entire "
+    "image edge to edge. The illustration IS the image, not a picture of an illustration."
 )
 
 # Image prompts for each theme — keep subjects simple, let the style do the work
