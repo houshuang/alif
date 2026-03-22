@@ -4,6 +4,23 @@
 
 ---
 
+## Podcast / Passive Listening (2026-03-22)
+- [DONE] Sampler with 6 format variants generated and playable in app
+- [ ] Listen to sampler, choose best format(s)
+- [ ] Generate full 30-min episode in preferred format
+- [ ] Cron job: daily episode generation based on SRS state
+- [ ] Log podcast listening as FSRS review credit (words heard = partial review)
+- [ ] Word-synced transcript in frontend player (tap word for detail)
+- [ ] Two-voice dialogue format (different ElevenLabs voices for characters)
+- [ ] Request stitching (`previous_request_ids`) for smoother segment transitions
+- [ ] Episode series: multi-day story arc across episodes
+- [ ] Speed control in player (0.7x, 1.0x, 1.2x)
+- [ ] Offline download: pre-fetch podcast for airplane/subway mode
+- [ ] Integration with Apple/Android podcast apps (RSS feed)
+- [ ] Consider ElevenLabs Creator plan upgrade ($11/mo) for 3+ episodes/month
+
+---
+
 ## Tashkeel Fading — Phase-Aware (2026-03-20)
 - [DONE] Frontend: hide tashkeel on front (reading), restore on back (verification) — `index.tsx` SentenceReadingCard + SentenceListeningCard
 - [ ] Enable "fade" mode on production with 60-day threshold (awaiting user confirmation)

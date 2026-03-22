@@ -1,0 +1,560 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Alif Podcast Research — Passive Listening Formats</title>
+<style>
+  :root {
+    --bg: #0a0a14;
+    --surface: #141425;
+    --surface2: #1c1c35;
+    --text: #e0e0f0;
+    --text2: #8888a0;
+    --accent: #4a9eff;
+    --accent2: #7cb8ff;
+    --green: #2ecc71;
+    --orange: #e67e22;
+    --red: #e74c3c;
+    --purple: #9b59b6;
+    --border: #2a2a45;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, 'Segoe UI', Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.6;
+    padding: 0;
+  }
+  .hero {
+    background: linear-gradient(135deg, #0d1b2a 0%, #1b2838 50%, #0d1b2a 100%);
+    padding: 60px 40px 40px;
+    border-bottom: 1px solid var(--border);
+  }
+  .hero h1 {
+    font-size: 2.4em;
+    font-weight: 700;
+    margin-bottom: 8px;
+  }
+  .hero .subtitle {
+    color: var(--text2);
+    font-size: 1.1em;
+  }
+  .hero .meta {
+    margin-top: 16px;
+    display: flex;
+    gap: 20px;
+    flex-wrap: wrap;
+  }
+  .hero .meta span {
+    background: var(--surface2);
+    padding: 4px 12px;
+    border-radius: 6px;
+    font-size: 0.85em;
+    color: var(--accent2);
+  }
+  .container {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 40px 24px;
+  }
+  h2 {
+    font-size: 1.6em;
+    margin: 48px 0 16px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--border);
+    color: var(--accent);
+  }
+  h3 {
+    font-size: 1.2em;
+    margin: 28px 0 10px;
+    color: var(--accent2);
+  }
+  p { margin-bottom: 12px; }
+  ul, ol { margin: 0 0 16px 24px; }
+  li { margin-bottom: 6px; }
+
+  .grid-2 {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+    margin: 20px 0;
+  }
+  @media (max-width: 700px) {
+    .grid-2 { grid-template-columns: 1fr; }
+    .hero { padding: 40px 20px 30px; }
+    .hero h1 { font-size: 1.8em; }
+  }
+
+  .card {
+    background: var(--surface);
+    border-radius: 12px;
+    padding: 24px;
+    border: 1px solid var(--border);
+  }
+  .card h3 { margin-top: 0; }
+  .card.highlight {
+    border-color: var(--accent);
+    background: linear-gradient(135deg, var(--surface) 0%, #1a2540 100%);
+  }
+
+  .method-card {
+    background: var(--surface);
+    border-radius: 12px;
+    padding: 20px;
+    border: 1px solid var(--border);
+    margin-bottom: 16px;
+  }
+  .method-card h3 {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin: 0 0 8px;
+  }
+  .method-card .badge {
+    font-size: 0.7em;
+    padding: 3px 10px;
+    border-radius: 20px;
+    font-weight: 500;
+  }
+  .badge-passive { background: var(--green); color: #000; }
+  .badge-semi { background: var(--orange); color: #000; }
+  .badge-active { background: var(--red); color: #fff; }
+
+  .format-card {
+    background: var(--surface);
+    border-radius: 12px;
+    padding: 24px;
+    border: 1px solid var(--border);
+    margin-bottom: 20px;
+    position: relative;
+  }
+  .format-card.recommended {
+    border-color: var(--green);
+    box-shadow: 0 0 20px rgba(46, 204, 113, 0.1);
+  }
+  .format-card .format-num {
+    position: absolute;
+    top: -12px;
+    left: 20px;
+    background: var(--accent);
+    color: #000;
+    font-weight: 700;
+    font-size: 0.85em;
+    padding: 2px 12px;
+    border-radius: 12px;
+  }
+  .format-card h3 { margin-top: 8px; }
+
+  .ratings {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin: 12px 0;
+  }
+  .rating {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.85em;
+  }
+  .rating-bar {
+    width: 60px;
+    height: 6px;
+    background: var(--surface2);
+    border-radius: 3px;
+    overflow: hidden;
+  }
+  .rating-fill {
+    height: 100%;
+    border-radius: 3px;
+  }
+
+  .timeline {
+    background: var(--surface2);
+    border-radius: 8px;
+    padding: 16px;
+    margin: 12px 0;
+    font-family: 'SF Mono', 'Consolas', monospace;
+    font-size: 0.82em;
+    line-height: 1.8;
+    color: var(--text2);
+    white-space: pre-wrap;
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 16px 0;
+    font-size: 0.9em;
+  }
+  th, td {
+    padding: 10px 14px;
+    text-align: left;
+    border-bottom: 1px solid var(--border);
+  }
+  th {
+    background: var(--surface2);
+    color: var(--accent2);
+    font-weight: 600;
+    font-size: 0.85em;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  tr:hover td { background: var(--surface); }
+
+  .key-finding {
+    background: linear-gradient(90deg, var(--surface2) 0%, var(--surface) 100%);
+    border-left: 3px solid var(--accent);
+    padding: 14px 18px;
+    margin: 16px 0;
+    border-radius: 0 8px 8px 0;
+  }
+  .key-finding strong { color: var(--accent2); }
+
+  .tech-detail {
+    background: var(--surface2);
+    border-radius: 8px;
+    padding: 16px 20px;
+    margin: 12px 0;
+    font-size: 0.9em;
+  }
+  .tech-detail code {
+    background: var(--surface);
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 0.9em;
+  }
+
+  .cost-table td:last-child {
+    font-family: 'SF Mono', monospace;
+    color: var(--green);
+  }
+
+  .status-badge {
+    display: inline-block;
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-size: 0.8em;
+    font-weight: 600;
+  }
+  .status-done { background: var(--green); color: #000; }
+  .status-ready { background: var(--accent); color: #000; }
+  .status-planned { background: var(--surface2); color: var(--text2); border: 1px solid var(--border); }
+</style>
+</head>
+<body>
+
+<div class="hero">
+  <h1>Passive Arabic Listening Research</h1>
+  <p class="subtitle">Designing personalized podcast episodes for walking practice — powered by Alif's word knowledge</p>
+  <div class="meta">
+    <span>2026-03-22</span>
+    <span>4 research agents</span>
+    <span>7 format designs</span>
+    <span>Sampler generated: 15.6 min</span>
+  </div>
+</div>
+
+<div class="container">
+
+<!-- ──── MOTIVATION ──── -->
+<h2>The Problem</h2>
+<p>Interactive mobile review (tapping words, rating cards) works well at a desk but poorly on a walk. The Michel Thomas method succeeds because it <strong>manages your memory without requiring interaction</strong> — you just listen. Alif knows exactly which words you know, which you're acquiring, and how stable each one is. Can we use that data to generate personalized audio episodes?</p>
+
+<div class="key-finding">
+  <strong>Core insight:</strong> Alif has the SRS data that audio courses lack. Michel Thomas builds memory management into the audio timeline by hand. We can do it algorithmically — selecting sentences and repetition patterns based on actual FSRS stability, acquisition state, and root/pattern relationships.
+</div>
+
+<!-- ──── RESEARCH: METHODS ──── -->
+<h2>Established Audio Methods</h2>
+
+<div class="method-card">
+  <h3>Michel Thomas Method <span class="badge badge-semi">Semi-Interactive</span></h3>
+  <p>Teacher + 2 students. Progressive build-up: start with one word, add elements. "Don't try to remember." Organic recycling of structures. ~200-400 words per 8-12h course. <strong>Strength:</strong> structural competence, low anxiety. <strong>Weakness:</strong> requires mental construction during pauses, limited vocabulary.</p>
+</div>
+
+<div class="method-card">
+  <h3>Pimsleur <span class="badge badge-active">Interactive</span></h3>
+  <p>Exactly 30 minutes. Graduated Interval Recall (GIR): items return at 5s→25s→2min→10min→1day. L1 prompt → pause → produce L2 → confirmation. ~8-12 new words/lesson. <strong>Strength:</strong> the only method with formal SRS baked into audio. <strong>Weakness:</strong> requires speaking aloud.</p>
+</div>
+
+<div class="method-card">
+  <h3>Assimil (Passive Wave) <span class="badge badge-passive">Passive</span></h3>
+  <p>Two-phase: 50 lessons passive (just listen/understand), then active (production). Short dialogues, line-by-line bilingual. ~2,000-3,000 words by completion. <strong>Strength:</strong> genuinely passive for first 50 lessons, excellent for walking. <strong>Weakness:</strong> no personalization, fixed progression.</p>
+</div>
+
+<div class="method-card">
+  <h3>Glossika <span class="badge badge-semi">Semi-Interactive</span></h3>
+  <p>Mass sentence repetition with SRS scheduling. L1 → pause → L2 → pause → repeat. 50 sentences/day. <strong>Strength:</strong> systematic sentence exposure. <strong>Weakness:</strong> boring, no narrative, no vocabulary control.</p>
+</div>
+
+<div class="method-card">
+  <h3>Comprehensible Input Podcasts <span class="badge badge-passive">Passive</span></h3>
+  <p>InnerFrench, Dreaming Spanish. Mostly/entirely L2, calibrated by level. Interesting topics, no interaction. <strong>Strength:</strong> engaging, maximum L2 exposure. <strong>Weakness:</strong> no personalization, no memory management.</p>
+</div>
+
+<div class="key-finding">
+  <strong>Gap in the market:</strong> No existing method combines <em>formal SRS</em> (Pimsleur's GIR) with <em>genuinely passive listening</em> (Assimil/CI) and <em>personalized vocabulary</em> (only Alif has this). We can fill this gap.
+</div>
+
+<!-- ──── RESEARCH: ACADEMIC ──── -->
+<h2>What Research Says</h2>
+
+<div class="grid-2">
+  <div class="card">
+    <h3>Comprehensibility Threshold</h3>
+    <p>Webb & Chang (2015): vocabulary acquisition from listening requires <strong>95-98% known words</strong>. Alif's reading mode uses 60% — listening needs to be much tighter (90-95%).</p>
+  </div>
+  <div class="card">
+    <h3>Within-Session Repetition</h3>
+    <p>Nakata (2017): <strong>5 retrievals per word</strong> significantly outperforms 1 or 3. Sweet spot is 3-5 per session. Expanding intervals (1, 3, 8 items apart) slightly preferred.</p>
+  </div>
+  <div class="card">
+    <h3>Narrative Superiority</h3>
+    <p>Hasson et al. (2012): stories activate more brain regions. Material with emotional valence retained ~25% better. Prediction drives encoding (testing effect).</p>
+  </div>
+  <div class="card">
+    <h3>Production vs. Passive</h3>
+    <p>MacLeod et al. (2010): saying words aloud helps ~15-20% vs. passive hearing. Moderate effect — passive listening works, production is a bonus, not a requirement.</p>
+  </div>
+</div>
+
+<div class="key-finding">
+  <strong>New word budget:</strong> Research + established methods converge on <strong>5-8 new words per 30 minutes</strong>, each heard in 3-5 contexts with 3+ retrieval opportunities. Pimsleur does 8-12 but with required production. Conservative for passive: 5-8.
+</div>
+
+<!-- ──── FORMAT DESIGNS ──── -->
+<h2>Seven Format Designs</h2>
+<p>Each designed for 30 minutes of passive listening, no phone interaction required.</p>
+
+<div class="format-card">
+  <div class="format-num">Format 1</div>
+  <h3>Sentence Drill (Glossika-style)</h3>
+  <p>Pure sentence-based review with Pimsleur-style graduated recall. Each sentence: Arabic slow → English → Arabic normal. Then echo pass (Arabic only), then recall pass (English → pause → Arabic).</p>
+  <div class="timeline">00:00-01:00  Opening + orientation
+01:00-06:00  Block A — 5 sentences (introduce)
+06:00-07:30  Block A echo (Arabic only)
+07:30-12:30  Block B — 5 sentences
+12:30-14:00  Block A recall (English → pause → Arabic)
+14:00-20:00  Block C + echoes
+20:00-26:00  Interleaved recall from all blocks
+26:00-28:30  Full Arabic stream (no English)
+28:30-30:00  Vocabulary summary + preview</div>
+  <div class="ratings">
+    <div class="rating">Passive <div class="rating-bar"><div class="rating-fill" style="width:90%;background:var(--green)"></div></div> 9/10</div>
+    <div class="rating">Memory <div class="rating-bar"><div class="rating-fill" style="width:70%;background:var(--accent)"></div></div> 7/10</div>
+    <div class="rating">Engagement <div class="rating-bar"><div class="rating-fill" style="width:40%;background:var(--orange)"></div></div> 4/10</div>
+    <div class="rating">Calibration <div class="rating-bar"><div class="rating-fill" style="width:90%;background:var(--green)"></div></div> 9/10</div>
+  </div>
+  <p><strong>Best for:</strong> Maximum SRS alignment, direct review credit. <strong>Weakness:</strong> Boring — can feel like a treadmill.</p>
+</div>
+
+<div class="format-card recommended">
+  <div class="format-num" style="background:var(--green)">Format 2 ★</div>
+  <h3>Story Breakdown (Michel Thomas meets Audiobook)</h3>
+  <p>A short story taught sentence by sentence with build-up technique. English sentence → Arabic chunks → full Arabic. After every 2-3 sentences, replay the growing sequence. Three full replays at the end.</p>
+  <div class="timeline">00:00-01:00  Story premise in English
+01:00-08:30  Teach sentences 1-4 with build-up + replays
+08:30-09:00  English recap
+09:00-19:00  Teach sentences 5-10 with replays
+20:00-23:00  Full story — Arabic only
+23:00-26:00  Full story — bilingual
+26:00-28:00  Vocabulary spotlight + root connections
+28:00-30:00  Final Arabic replay</div>
+  <div class="ratings">
+    <div class="rating">Passive <div class="rating-bar"><div class="rating-fill" style="width:80%;background:var(--green)"></div></div> 8/10</div>
+    <div class="rating">Memory <div class="rating-bar"><div class="rating-fill" style="width:90%;background:var(--green)"></div></div> 9/10</div>
+    <div class="rating">Engagement <div class="rating-bar"><div class="rating-fill" style="width:80%;background:var(--green)"></div></div> 8/10</div>
+    <div class="rating">Calibration <div class="rating-bar"><div class="rating-fill" style="width:70%;background:var(--accent)"></div></div> 7/10</div>
+  </div>
+  <p><strong>Best for:</strong> Strong narrative encoding, growing confidence through replays. Reuses existing story generation pipeline. <strong>Recommended as primary format.</strong></p>
+</div>
+
+<div class="format-card">
+  <div class="format-num">Format 3</div>
+  <h3>Progressive Dialogue</h3>
+  <p>Two characters in a conversation. Narrator provides context in English. Each exchange taught, then "from the top" replays. Role-play section with pauses for mental recall.</p>
+  <div class="ratings">
+    <div class="rating">Passive <div class="rating-bar"><div class="rating-fill" style="width:70%;background:var(--accent)"></div></div> 7/10</div>
+    <div class="rating">Memory <div class="rating-bar"><div class="rating-fill" style="width:80%;background:var(--green)"></div></div> 8/10</div>
+    <div class="rating">Engagement <div class="rating-bar"><div class="rating-fill" style="width:90%;background:var(--green)"></div></div> 9/10</div>
+    <div class="rating">Calibration <div class="rating-bar"><div class="rating-fill" style="width:60%;background:var(--orange)"></div></div> 6/10</div>
+  </div>
+  <p><strong>Best for:</strong> Most engaging, natural conversational contexts. <strong>Weakness:</strong> Hardest to generate, ideally needs two TTS voices.</p>
+</div>
+
+<div class="format-card">
+  <div class="format-num">Format 4</div>
+  <h3>Root Explorer</h3>
+  <p>Explore an Arabic root family: core meaning, derived words, sentences for each. Uniquely suited to Arabic's morphological system. "The root ك-ت-ب means writing: كِتَاب (book), كَاتِب (writer), مَكْتَبَة (library)..."</p>
+  <div class="ratings">
+    <div class="rating">Passive <div class="rating-bar"><div class="rating-fill" style="width:80%;background:var(--green)"></div></div> 8/10</div>
+    <div class="rating">Memory <div class="rating-bar"><div class="rating-fill" style="width:80%;background:var(--green)"></div></div> 8/10</div>
+    <div class="rating">Engagement <div class="rating-bar"><div class="rating-fill" style="width:70%;background:var(--accent)"></div></div> 7/10</div>
+    <div class="rating">Calibration <div class="rating-bar"><div class="rating-fill" style="width:80%;background:var(--green)"></div></div> 8/10</div>
+  </div>
+  <p><strong>Best for:</strong> Building morphological awareness, connecting vocabulary. <strong>Risk:</strong> Semantic clustering interference (Tinkham 1993 — similar words can confuse).</p>
+</div>
+
+<div class="format-card">
+  <div class="format-num">Format 5</div>
+  <h3>Comprehensible Input Stream</h3>
+  <p>Mostly Arabic (~80% of audio). Brief English glosses for key words, then full Arabic sentence twice. Minimal interruption, maximum L2 exposure.</p>
+  <div class="ratings">
+    <div class="rating">Passive <div class="rating-bar"><div class="rating-fill" style="width:100%;background:var(--green)"></div></div> 10/10</div>
+    <div class="rating">Memory <div class="rating-bar"><div class="rating-fill" style="width:50%;background:var(--orange)"></div></div> 5/10</div>
+    <div class="rating">Engagement <div class="rating-bar"><div class="rating-fill" style="width:60%;background:var(--orange)"></div></div> 6/10</div>
+    <div class="rating">Calibration <div class="rating-bar"><div class="rating-fill" style="width:90%;background:var(--green)"></div></div> 9/10</div>
+  </div>
+  <p><strong>Best for:</strong> Maximum Arabic immersion, builds listening stamina. <strong>Weakness:</strong> Weakest for explicit retention.</p>
+</div>
+
+<div class="format-card">
+  <div class="format-num">Format 6</div>
+  <h3>Review &amp; Reinforce</h3>
+  <p>Sentences from the learner's actual review sessions this week. Multi-modal encoding: "you saw this on screen, now hear it." Arabic first, then English. Speed round at end.</p>
+  <div class="ratings">
+    <div class="rating">Passive <div class="rating-bar"><div class="rating-fill" style="width:90%;background:var(--green)"></div></div> 9/10</div>
+    <div class="rating">Memory <div class="rating-bar"><div class="rating-fill" style="width:70%;background:var(--accent)"></div></div> 7/10</div>
+    <div class="rating">Engagement <div class="rating-bar"><div class="rating-fill" style="width:40%;background:var(--orange)"></div></div> 4/10</div>
+    <div class="rating">Calibration <div class="rating-bar"><div class="rating-fill" style="width:100%;background:var(--green)"></div></div> 10/10</div>
+  </div>
+  <p><strong>Best for:</strong> Direct SRS alignment, easiest to produce. <strong>Weakness:</strong> Least exciting.</p>
+</div>
+
+<div class="format-card recommended">
+  <div class="format-num" style="background:var(--green)">Format 7 ★</div>
+  <h3>Hybrid / Layered (Recommended Production Format)</h3>
+  <p>Five-layer structure combining the best of all formats. Warm-up → vocabulary preview with root connections → story core → sentence drills → immersion close.</p>
+  <div class="timeline">00:00-02:00  Warm-up: well-known vocab, pure Arabic listening
+02:00-05:00  Vocab preview: 5 new words, root connections
+05:00-20:00  Story core: build-up technique, growing replays
+20:00-26:00  Drill: mixed old + new sentences, recall pauses
+26:00-30:00  Immersion close: full story + extra Arabic</div>
+  <div class="ratings">
+    <div class="rating">Passive <div class="rating-bar"><div class="rating-fill" style="width:85%;background:var(--green)"></div></div> 8.5/10</div>
+    <div class="rating">Memory <div class="rating-bar"><div class="rating-fill" style="width:90%;background:var(--green)"></div></div> 9/10</div>
+    <div class="rating">Engagement <div class="rating-bar"><div class="rating-fill" style="width:80%;background:var(--green)"></div></div> 8/10</div>
+    <div class="rating">Calibration <div class="rating-bar"><div class="rating-fill" style="width:85%;background:var(--green)"></div></div> 8.5/10</div>
+  </div>
+  <p><strong>Best overall format.</strong> Highest combined score. Covers all learning modalities in a natural arc.</p>
+</div>
+
+<!-- ──── COMPARISON TABLE ──── -->
+<h2>Format Comparison</h2>
+
+<table>
+  <thead>
+    <tr>
+      <th>Format</th>
+      <th>Passive</th>
+      <th>Memory</th>
+      <th>Engagement</th>
+      <th>Calibration</th>
+      <th>Complexity</th>
+      <th>Total</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr><td>1. Sentence Drill</td><td>9</td><td>7</td><td>4</td><td>9</td><td>Low</td><td>29</td></tr>
+    <tr style="background:rgba(46,204,113,0.08)"><td><strong>2. Story Breakdown ★</strong></td><td>8</td><td>9</td><td>8</td><td>7</td><td>Medium</td><td><strong>32</strong></td></tr>
+    <tr><td>3. Dialogue</td><td>7</td><td>8</td><td>9</td><td>6</td><td>High</td><td>30</td></tr>
+    <tr><td>4. Root Explorer</td><td>8</td><td>8</td><td>7</td><td>8</td><td>Medium</td><td>31</td></tr>
+    <tr><td>5. CI Stream</td><td>10</td><td>5</td><td>6</td><td>9</td><td>Low</td><td>30</td></tr>
+    <tr><td>6. Review</td><td>9</td><td>7</td><td>4</td><td>10</td><td>Low</td><td>30</td></tr>
+    <tr style="background:rgba(46,204,113,0.08)"><td><strong>7. Hybrid ★</strong></td><td>8.5</td><td>9</td><td>8</td><td>8.5</td><td>High</td><td><strong>34</strong></td></tr>
+  </tbody>
+</table>
+
+<!-- ──── ELEVENLABS TECHNICAL ──── -->
+<h2>ElevenLabs Technical Details</h2>
+
+<div class="grid-2">
+  <div class="card">
+    <h3>Model Limits</h3>
+    <table style="margin:0;font-size:0.85em">
+      <tr><th>Model</th><th>Max Chars</th><th>~Duration</th></tr>
+      <tr><td>Flash v2.5</td><td>40,000</td><td>~40 min</td></tr>
+      <tr><td>Multilingual v2</td><td>10,000</td><td>~10 min</td></tr>
+      <tr><td>v3</td><td>5,000</td><td>~5 min</td></tr>
+    </table>
+    <p style="margin-top:8px;font-size:0.85em;color:var(--text2)">A 30-min podcast needs 3+ requests with Multilingual v2. Segments stitched with pydub.</p>
+  </div>
+  <div class="card">
+    <h3>Request Stitching</h3>
+    <p>Use <code>previous_request_ids</code> (up to 3) for prosody continuity between segments. Arabic and English generated separately to prevent accent bleed. Same voice (Chaouki) for both.</p>
+  </div>
+  <div class="card">
+    <h3>SSML Support</h3>
+    <p><code>&lt;break time="2.0s"/&gt;</code> works on Multilingual v2. Max 3s per break. Excessive use causes artifacts. Better to generate silence with pydub.</p>
+  </div>
+  <div class="card">
+    <h3>Speed Control</h3>
+    <p>Range: 0.7 (learner) to 1.2 (fast). Arabic learner mode: 0.75 + comma insertion every 2 words. English narration: 1.0.</p>
+  </div>
+</div>
+
+<h3>Cost Per Episode</h3>
+<table class="cost-table">
+  <thead>
+    <tr><th>Duration</th><th>~Characters</th><th>Starter ($5/mo)</th><th>Creator ($11/mo)</th><th>Pro ($99/mo)</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>15 min (sampler)</td><td>~10,000</td><td>33% of quota</td><td>10% of quota</td><td>2% of quota</td></tr>
+    <tr><td>30 min (full)</td><td>~30,000</td><td>100% of quota</td><td>30% of quota</td><td>6% of quota</td></tr>
+  </tbody>
+</table>
+
+<div class="tech-detail">
+  <strong>Optimization:</strong> Segment-level caching (SHA256 by text+lang+speed). Regenerating a podcast with minor changes only pays for new/modified segments. The sampler generated 159 TTS calls in 3.5 minutes. Cached segments are instant.
+</div>
+
+<!-- ──── IMPLEMENTATION ──── -->
+<h2>Implementation Status</h2>
+
+<div class="grid-2">
+  <div class="card">
+    <h3>Backend</h3>
+    <ul>
+      <li><span class="status-badge status-done">Done</span> <code>podcast_service.py</code> — generation + stitching</li>
+      <li><span class="status-badge status-done">Done</span> <code>routers/podcast.py</code> — list + serve API</li>
+      <li><span class="status-badge status-done">Done</span> <code>generate_podcast_sampler.py</code> — CLI script</li>
+      <li><span class="status-badge status-done">Done</span> pydub + ffmpeg in Docker</li>
+      <li><span class="status-badge status-done">Done</span> Segment caching</li>
+    </ul>
+  </div>
+  <div class="card">
+    <h3>Frontend</h3>
+    <ul>
+      <li><span class="status-badge status-done">Done</span> Podcast tab with player</li>
+      <li><span class="status-badge status-done">Done</span> Play/pause/seek controls</li>
+      <li><span class="status-badge status-done">Done</span> Background audio playback</li>
+      <li><span class="status-badge status-planned">Planned</span> Word-synced transcript</li>
+      <li><span class="status-badge status-planned">Planned</span> In-app generation trigger</li>
+    </ul>
+  </div>
+</div>
+
+<h3>First Sampler Generated</h3>
+<div class="card highlight">
+  <p><strong>sampler-20260322-1202.mp3</strong> — 15.6 minutes, 15.0 MB</p>
+  <p>Contains all 6 format samples with real sentences from the learner's vocabulary. 159 TTS segments, ~9,700 characters total, generated in 3.5 minutes.</p>
+  <p>Play in the app: <strong>Podcast tab</strong> → tap to play.</p>
+</div>
+
+<!-- ──── NEXT STEPS ──── -->
+<h2>Recommended Next Steps</h2>
+<ol>
+  <li><strong>Listen to the sampler on a walk</strong> and note which formats feel most natural, engaging, and useful</li>
+  <li><strong>Upgrade ElevenLabs plan</strong> to Creator ($11/mo) for ~3 full episodes/month</li>
+  <li><strong>Generate a full 30-min episode</strong> in the top-rated format</li>
+  <li><strong>Add weekly rotation</strong>: 2× Hybrid, 2× Review, 1× Root Explorer, 1× CI Stream, 1× Dialogue</li>
+  <li><strong>Automate via cron</strong>: generate daily episode based on current SRS state</li>
+  <li><strong>Log listening as review credit</strong>: words heard in podcast count toward FSRS reviews</li>
+</ol>
+
+</div>
+</body>
+</html>

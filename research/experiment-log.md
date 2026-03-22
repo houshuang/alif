@@ -4,6 +4,25 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-03-22: Passive Listening Podcast System
+
+**Context**: Interactive mobile review works at a desk but not on a walk. Michel Thomas succeeds by managing memory without interaction. Alif knows exactly which words the learner knows via FSRS — can we generate personalized audio episodes?
+
+**Research**: 4 parallel agents investigated (1) established audio methods (Michel Thomas, Pimsleur, Assimil, Glossika, CI podcasts), (2) ElevenLabs API limits and stitching, (3) 7 episode format designs, (4) Alif's existing audio/story infrastructure.
+
+**Key findings**: 95-98% known word coverage needed for listening (vs 60% for reading). 5-8 new words per 30-min episode. Pimsleur's GIR is the only method with formal SRS in audio. Story Breakdown and Hybrid formats scored highest overall.
+
+**Implementation**: `podcast_service.py` generates segments (Arabic + English TTS), stitches with pydub/ffmpeg. 6 format variants in the sampler. Segment-level caching by content hash. Frontend player with play/pause/seek and background audio.
+
+**First sampler**: 15.6 min, 159 TTS calls, ~9,700 chars, generated in 3.5 min. Deployed and playable from Podcast tab.
+
+**Research page**: `research/podcast-listening-research-2026-03-22.html`
+**Format designs**: `research/podcast-format-design-2026-03-22.md`
+
+**Next**: Listen to sampler on a walk, choose best format, generate full 30-min episode, automate via cron.
+
+---
+
 ## 2026-03-22: Live Story Count Recalculation + Variant Chain Resolution
 
 **Context**: Rosie in the Haunted House showed 23% readiness despite most words being learned. Three issues: (1) story word counts were frozen at import time, never refreshed as user learned words; (2) function words (71 tokens) were not flagged because story was imported before detection was fully working; (3) variant lemma chains (e.g., الليلة→ليلة→ليل) weren't resolved — variants showed as "unknown" even when the root canonical was known.
