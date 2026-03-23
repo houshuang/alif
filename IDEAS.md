@@ -4,6 +4,27 @@
 
 ---
 
+## Story Audio & Voice Cloning (2026-03-23)
+- [DONE] Story archive system (archived_at, toggle endpoint, frontend section)
+- [DONE] Story format diversity (standard/long/breakdown/arabic_explanation)
+- [DONE] Story audio generation with voice rotation (3-voice pool, deterministic)
+- [DONE] times_heard passive listening tracking
+- [DONE] Auto-generate cron (Step H, keeps ≥3 active non-archived stories)
+- [DONE] Batch generation script (generate_stories_batch.py)
+- [DONE] TTS alternatives research (Google Chirp 3 HD 8x cheaper, Azure 15x cheaper)
+- [DONE] RootsOfKnowledge PVC creation (77 min, pending ElevenLabs verification)
+- [DONE] RootsOfKnowledge IVC v2 (44 min curated audio, voice_id CgiZNnLDkBFp39WsQkMb)
+- [ ] Switch to PVC voice once training completes (swap voice_id in tts.py)
+- [ ] A/B test Google Chirp 3 HD vs ElevenLabs PVC for Arabic emphatics quality
+- [ ] A/B test Azure ar-SA-HamedNeural for emphatic consonant handling
+- [ ] Whisper transcription to strip English from mixed-language files for PVC training
+- [ ] Story audio player with progress bar and speed control
+- [ ] Auto-generate audio for new stories in cron (Step H.5)
+- [ ] Use times_heard in listening readiness scoring (weight passive exposure)
+- [ ] Consider Google Chirp 3 HD for cost reduction ($30/M vs ~$240/M)
+
+---
+
 ## Podcast / Passive Listening (2026-03-22)
 - [DONE] Sampler with 6 format variants generated and playable in app
 - [ ] Listen to sampler, choose best format(s)
