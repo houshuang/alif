@@ -1,0 +1,1091 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Alif Sentence Generation Pipeline — Technical Report</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=IBM+Plex+Mono:wght@400;500;600&family=Source+Sans+3:ital,wght@0,300;0,400;0,600;0,700;1,400&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #0f0f1a;
+  --surface: #1a1a2e;
+  --surface2: #242442;
+  --surface3: #2e2e52;
+  --accent: #6c63ff;
+  --accent2: #a78bfa;
+  --green: #34d399;
+  --yellow: #fbbf24;
+  --red: #f87171;
+  --orange: #fb923c;
+  --cyan: #22d3ee;
+  --pink: #f472b6;
+  --text: #e0e0e8;
+  --text2: #9999b0;
+  --text3: #666680;
+  --border: #333358;
+  --code-bg: #12121f;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  font-family: 'Source Sans 3', sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.7;
+  font-size: 16px;
+}
+
+/* Decorative background */
+body::before {
+  content: '';
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background:
+    radial-gradient(ellipse at 20% 10%, rgba(108,99,255,0.08) 0%, transparent 50%),
+    radial-gradient(ellipse at 80% 90%, rgba(167,139,250,0.05) 0%, transparent 50%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+.container {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 0 24px;
+  position: relative;
+  z-index: 1;
+}
+
+/* Header */
+header {
+  padding: 80px 0 48px;
+  text-align: center;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 48px;
+}
+
+h1 {
+  font-family: 'DM Serif Display', serif;
+  font-size: 2.8em;
+  font-weight: 400;
+  color: #fff;
+  letter-spacing: -0.02em;
+  margin-bottom: 12px;
+}
+
+h1 span { color: var(--accent); }
+
+.subtitle {
+  font-size: 1.1em;
+  color: var(--text2);
+  font-weight: 300;
+}
+
+.meta {
+  margin-top: 20px;
+  font-size: 0.85em;
+  color: var(--text3);
+  font-family: 'IBM Plex Mono', monospace;
+}
+
+/* TOC */
+.toc {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 28px 32px;
+  margin-bottom: 56px;
+}
+
+.toc h2 {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.8em;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  color: var(--accent);
+  margin-bottom: 16px;
+}
+
+.toc ol {
+  list-style: none;
+  counter-reset: toc;
+  columns: 2;
+  column-gap: 32px;
+}
+
+.toc li {
+  counter-increment: toc;
+  margin-bottom: 8px;
+  break-inside: avoid;
+}
+
+.toc li::before {
+  content: counter(toc, decimal-leading-zero);
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.75em;
+  color: var(--accent);
+  margin-right: 8px;
+}
+
+.toc a {
+  color: var(--text);
+  text-decoration: none;
+  border-bottom: 1px solid transparent;
+  transition: border-color 0.2s;
+}
+
+.toc a:hover { border-bottom-color: var(--accent); }
+
+/* Sections */
+section {
+  margin-bottom: 64px;
+}
+
+h2 {
+  font-family: 'DM Serif Display', serif;
+  font-size: 1.8em;
+  font-weight: 400;
+  color: #fff;
+  margin-bottom: 8px;
+  padding-top: 24px;
+}
+
+h2 .num {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.5em;
+  color: var(--accent);
+  vertical-align: super;
+  margin-right: 8px;
+}
+
+h3 {
+  font-size: 1.15em;
+  font-weight: 600;
+  color: var(--accent2);
+  margin: 28px 0 12px;
+}
+
+h4 {
+  font-size: 0.95em;
+  font-weight: 600;
+  color: var(--text);
+  margin: 20px 0 8px;
+}
+
+p { margin-bottom: 14px; }
+
+.lead {
+  font-size: 1.05em;
+  color: var(--text2);
+  border-left: 3px solid var(--accent);
+  padding-left: 16px;
+  margin-bottom: 24px;
+}
+
+/* Cards */
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 24px;
+  margin: 20px 0;
+}
+
+.card-accent {
+  border-left: 3px solid var(--accent);
+}
+
+.card-green { border-left: 3px solid var(--green); }
+.card-red { border-left: 3px solid var(--red); }
+.card-yellow { border-left: 3px solid var(--yellow); }
+
+.card-title {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.8em;
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+  color: var(--accent);
+  margin-bottom: 12px;
+}
+
+/* Flow diagram */
+.flow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  justify-content: center;
+  margin: 32px 0;
+}
+
+.flow-node {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 16px;
+  font-size: 0.85em;
+  font-weight: 600;
+  text-align: center;
+  min-width: 120px;
+  position: relative;
+}
+
+.flow-node.llm { border-color: var(--accent); color: var(--accent); }
+.flow-node.validate { border-color: var(--green); color: var(--green); }
+.flow-node.gate { border-color: var(--yellow); color: var(--yellow); }
+.flow-node.store { border-color: var(--cyan); color: var(--cyan); }
+.flow-node.lifecycle { border-color: var(--pink); color: var(--pink); }
+
+.flow-arrow {
+  color: var(--text3);
+  font-size: 1.2em;
+}
+
+.flow-node small {
+  display: block;
+  font-size: 0.75em;
+  font-weight: 400;
+  color: var(--text2);
+  margin-top: 2px;
+}
+
+/* Code / Prompts */
+.prompt-block {
+  background: var(--code-bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  margin: 16px 0;
+  overflow: hidden;
+}
+
+.prompt-header {
+  background: var(--surface2);
+  padding: 8px 16px;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.75em;
+  color: var(--accent);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  cursor: pointer;
+  user-select: none;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.prompt-header::after {
+  content: '▸ click to expand';
+  font-size: 0.85em;
+  color: var(--text3);
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.prompt-header.open::after { content: '▾ click to collapse'; }
+
+.prompt-body {
+  padding: 16px;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.8em;
+  line-height: 1.6;
+  color: var(--text2);
+  white-space: pre-wrap;
+  word-break: break-word;
+  display: none;
+  max-height: 600px;
+  overflow-y: auto;
+}
+
+.prompt-body.open { display: block; }
+
+code {
+  font-family: 'IBM Plex Mono', monospace;
+  background: var(--surface2);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 0.88em;
+  color: var(--accent2);
+}
+
+pre {
+  background: var(--code-bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 16px;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.8em;
+  line-height: 1.6;
+  overflow-x: auto;
+  margin: 16px 0;
+  color: var(--text2);
+}
+
+/* Tables */
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 16px 0;
+  font-size: 0.9em;
+}
+
+th {
+  background: var(--surface2);
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.75em;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--accent);
+  padding: 10px 12px;
+  text-align: left;
+  border-bottom: 2px solid var(--border);
+}
+
+td {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+  vertical-align: top;
+}
+
+tr:hover td { background: var(--surface); }
+
+.num-cell { text-align: right; font-family: 'IBM Plex Mono', monospace; font-size: 0.9em; }
+.good { color: var(--green); }
+.warn { color: var(--yellow); }
+.bad { color: var(--red); }
+
+/* Tags */
+.tag {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 0.75em;
+  font-weight: 600;
+  font-family: 'IBM Plex Mono', monospace;
+}
+
+.tag-accent { background: rgba(108,99,255,0.2); color: var(--accent); }
+.tag-green { background: rgba(52,211,153,0.2); color: var(--green); }
+.tag-yellow { background: rgba(251,191,36,0.2); color: var(--yellow); }
+.tag-red { background: rgba(248,113,113,0.2); color: var(--red); }
+.tag-cyan { background: rgba(34,211,238,0.2); color: var(--cyan); }
+
+/* Timeline */
+.timeline {
+  position: relative;
+  padding-left: 28px;
+  margin: 24px 0;
+}
+
+.timeline::before {
+  content: '';
+  position: absolute;
+  left: 8px;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: var(--border);
+}
+
+.timeline-item {
+  position: relative;
+  margin-bottom: 20px;
+  padding-bottom: 4px;
+}
+
+.timeline-item::before {
+  content: '';
+  position: absolute;
+  left: -24px;
+  top: 6px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--accent);
+  border: 2px solid var(--bg);
+}
+
+.timeline-date {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.75em;
+  color: var(--accent);
+}
+
+.timeline-title {
+  font-weight: 600;
+  margin: 2px 0 4px;
+}
+
+.timeline-desc {
+  font-size: 0.9em;
+  color: var(--text2);
+}
+
+/* Lists */
+ul, ol { margin: 8px 0 16px 20px; }
+li { margin-bottom: 4px; }
+
+/* Arabic */
+.ar {
+  font-size: 1.2em;
+  direction: rtl;
+  color: var(--cyan);
+}
+
+/* Grid */
+.grid-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+@media (max-width: 700px) {
+  .grid-2 { grid-template-columns: 1fr; }
+  .toc ol { columns: 1; }
+  h1 { font-size: 2em; }
+  .flow { flex-direction: column; }
+}
+
+/* Metric highlight */
+.metric {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.metric-value {
+  font-family: 'DM Serif Display', serif;
+  font-size: 2em;
+  color: #fff;
+}
+
+.metric-label {
+  font-size: 0.85em;
+  color: var(--text2);
+}
+
+/* Separator */
+hr {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: 48px 0;
+}
+
+/* Footer */
+footer {
+  text-align: center;
+  padding: 48px 0;
+  color: var(--text3);
+  font-size: 0.85em;
+  border-top: 1px solid var(--border);
+}
+</style>
+</head>
+<body>
+
+<div class="container">
+
+<header>
+  <h1>Alif <span>Sentence Pipeline</span></h1>
+  <p class="subtitle">How Arabic review sentences are generated, validated, and maintained</p>
+  <p class="meta">Generated 2026-03-23 · Alif Arabic Reading Trainer · v2.0</p>
+</header>
+
+<!-- TOC -->
+<nav class="toc">
+  <h2>Contents</h2>
+  <ol>
+    <li><a href="#overview">Pipeline Overview</a></li>
+    <li><a href="#generation">LLM Generation</a></li>
+    <li><a href="#validation">Deterministic Validation</a></li>
+    <li><a href="#gates">Quality Gates</a></li>
+    <li><a href="#lifecycle">Tier-Based Lifecycle</a></li>
+    <li><a href="#background">Background Jobs</a></li>
+    <li><a href="#benchmarks">Benchmarks &amp; Statistics</a></li>
+    <li><a href="#evolution">Historical Evolution</a></li>
+    <li><a href="#constants">Key Constants</a></li>
+    <li><a href="#limitations">Known Limitations</a></li>
+  </ol>
+</nav>
+
+<!-- SECTION 1: Overview -->
+<section id="overview">
+<h2><span class="num">01</span>Pipeline Overview</h2>
+<p class="lead">Each Arabic sentence passes through 7 stages — from word selection through LLM generation, deterministic validation, quality review, mapping verification, storage, and ongoing lifecycle management. A sentence that fails any gate is retried up to 7 times with feedback-driven correction.</p>
+
+<div class="flow">
+  <div class="flow-node llm">Word Selection<small>Tier-based priority</small></div>
+  <span class="flow-arrow">→</span>
+  <div class="flow-node llm">LLM Generation<small>Gemini / Claude</small></div>
+  <span class="flow-arrow">→</span>
+  <div class="flow-node validate">Validation<small>3-pass lookup</small></div>
+  <span class="flow-arrow">→</span>
+  <div class="flow-node gate">Diversity Check<small>Scaffold reuse</small></div>
+  <span class="flow-arrow">→</span>
+  <div class="flow-node gate">Quality Gate<small>Claude Haiku</small></div>
+  <span class="flow-arrow">→</span>
+  <div class="flow-node validate">Mapping Verify<small>LLM cross-check</small></div>
+  <span class="flow-arrow">→</span>
+  <div class="flow-node store">Storage<small>Sentence + words</small></div>
+  <span class="flow-arrow">→</span>
+  <div class="flow-node lifecycle">Lifecycle<small>Tier rotation</small></div>
+</div>
+
+<div class="card card-accent">
+  <div class="card-title">Design Principle: Generate-Then-Write</div>
+  <p>All generation functions avoid holding SQLite write locks during slow LLM calls (15-30s). The pattern: <strong>Phase 1</strong> read DB and close connection → <strong>Phase 2</strong> call LLM (no DB lock) → <strong>Phase 3</strong> reopen DB briefly for writes. This prevents "database is locked" cascades during concurrent access.</p>
+</div>
+
+<div class="card">
+  <div class="card-title">Key Files</div>
+  <table>
+    <tr><td><code>sentence_generator.py</code></td><td>Retry loop, validation, diversity, quality checks</td></tr>
+    <tr><td><code>sentence_validator.py</code></td><td>Tokenization, clitic stripping, 3-pass lemma lookup, mapping verification</td></tr>
+    <tr><td><code>llm.py</code></td><td>LLM prompts, model routing, quality review, multi-target generation</td></tr>
+    <tr><td><code>material_generator.py</code></td><td>Warm cache, batch verification, lifecycle rotation, audio generation</td></tr>
+    <tr><td><code>pipeline_tiers.py</code></td><td>Due-date tier computation (4 tiers by urgency)</td></tr>
+    <tr><td><code>update_material.py</code></td><td>Cron job: cap enforcement → backfill → audio</td></tr>
+  </table>
+</div>
+</section>
+
+<!-- SECTION 2: Generation -->
+<section id="generation">
+<h2><span class="num">02</span>LLM Generation</h2>
+<p class="lead">Sentences are generated by an LLM constrained to the learner's known vocabulary. Three generation modes exist: single-word (on-demand), batch (multiple sentences per word), and multi-target (sentences covering 2-4 words simultaneously).</p>
+
+<h3>Model Routing</h3>
+<table>
+  <tr><th>Task</th><th>Primary Model</th><th>Fallback</th><th>Notes</th></tr>
+  <tr><td>On-demand generation</td><td><span class="tag tag-green">Gemini Flash</span></td><td>—</td><td>~1s, paid, used during session warm</td></tr>
+  <tr><td>Cron generation</td><td><span class="tag tag-accent">Claude Sonnet CLI</span></td><td>Gemini</td><td>~15-30s, free via Max plan</td></tr>
+  <tr><td>Quality review</td><td><span class="tag tag-accent">Claude Haiku CLI</span></td><td>Gemini</td><td>Fail-closed, temp 0.0</td></tr>
+  <tr><td>Mapping verification</td><td><span class="tag tag-accent">Claude Haiku CLI</span></td><td>Gemini</td><td>0% failure on server</td></tr>
+  <tr><td>Disambiguation</td><td><span class="tag tag-accent">Claude Haiku CLI</span></td><td>—</td><td>Returns None on failure</td></tr>
+  <tr><td>Multi-target</td><td><span class="tag tag-green">Gemini Flash</span></td><td>—</td><td>Groups of 2-4 words</td></tr>
+</table>
+
+<h3>System Prompt: Arabic Style Rules</h3>
+<div class="prompt-block">
+  <div class="prompt-header" onclick="this.classList.toggle('open');this.nextElementSibling.classList.toggle('open')">ARABIC_STYLE_RULES — Grammar &amp; Naturalness Constraints</div>
+  <div class="prompt-body">Arabic naturalness rules:
+- Mix VSO and SVO word order. VSO is more formal/classical; SVO more contemporary
+- VSO agreement: verb matches person + gender only, NOT number: ذَهَبَ الطُّلَّابُ
+- SVO agreement: verb matches person + gender + number: الطُّلَّابُ ذَهَبُوا
+- Mix nominal sentences (descriptions/states) with verbal sentences (actions/events)
+- NO copula: never insert هُوَ/هِيَ as "is" with indefinite predicates.
+  Write مُحَمَّدٌ طَبِيبٌ NOT مُحَمَّدٌ هُوَ طَبِيبٌ
+- Separator pronoun (ضمير الفصل) ONLY when both subject AND predicate are definite:
+  مُحَمَّدٌ هُوَ المُدِيرُ
+- Idafa: first noun has NO ال and NO tanween: كِتَابُ الطَّالِبِ
+- Correct i'rab: nominative ضمة, accusative فتحة, genitive كسرة. Tanween on indefinites.
+- Use connectors naturally: و (and), فَ (so/immediately), ثُمَّ (then/after delay), لَكِنَّ (but)
+- Vary sentence length — mix short and long clauses
+- Do NOT translate English syntax literally into Arabic
+
+Sentence completeness — CRITICAL:
+- NEVER start a nominal sentence with an indefinite noun (نكرة). Use definite or verb-first:
+  ✓ الوَلَدُ يَلْعَبُ (The boy plays) — definite subject
+  ✓ يَلْعَبُ وَلَدٌ فِي الحَدِيقَةِ (A boy plays in the park) — verb-first OK with indefinite
+  ✓ هُنَاكَ وَلَدٌ فِي الحَدِيقَةِ (There is a boy in the park) — existential OK
+  ✗ وَلَدٌ يَلْعَبُ (A boy plays) — bare indefinite start, sounds like a caption
+  ✗ مَطْبَخٌ وَاسِعٌ وَنَافِذَةٌ هُنَا (A kitchen and a window here) — catalog fragment
+- Every sentence must express a complete thought — an action, state, or relation.
+  Avoid catalog-style adjective stacking or noun lists.
+
+Redundant pronouns — CRITICAL:
+- In VSO order, the verb conjugation already encodes the subject. Do NOT add a pronoun:
+  ✓ ذَهَبَتْ إِلَى المَدْرَسَةِ (She went to school)
+  ✗ ذَهَبَتْ هِيَ إِلَى المَدْرَسَةِ (She went she to school — redundant)
+- Use explicit pronouns only for emphasis/contrast: ذَهَبَ هُوَ وَلَمْ تَذْهَبْ هِيَ
+
+Semantic coherence in compound sentences:
+- When joining clauses with و/ثُمَّ/لَكِنَّ, they MUST be logically related:
+  ✓ فِي الكُوَيْتِ مَطَرٌ فَأَخَذْتُ مِظَلَّةً (In Kuwait it is raining, so I took an umbrella)
+  ✗ فِي الكُوَيْتِ مَطَرٌ وَالبَاصُ بَعِيدٌ (In Kuwait it is raining, and the bus is far — unrelated)
+- Do NOT combine unrelated facts into one sentence</div>
+</div>
+
+<div class="prompt-block">
+  <div class="prompt-header" onclick="this.classList.toggle('open');this.nextElementSibling.classList.toggle('open')">DIFFICULTY_STYLE_GUIDE — Level-Appropriate Style</div>
+  <div class="prompt-body">Style by difficulty level:
+- very simple / simple: prefer SVO. Short nominal sentences. Basic connectors (و).
+  Simple tenses. No embedded clauses. Only modern everyday vocabulary.
+- beginner: mix SVO and VSO. Simple idafa. Introduce فَ and ثُمَّ. One clause per sentence.
+  Do NOT use classical/archaic particles (لَعَلَّ، كَأَنَّ، إِذَا، لَوْلَا، حَيْثُ).
+  Do NOT use overly formal register (يا سادة، أيها).
+  Keep language modern and conversational.
+- intermediate: more VSO. Relative clauses (الَّذِي/الَّتِي).
+  Negation with لَمْ/لَنْ. Idafa chains. Dialogue with قَالَ.
+- advanced: VSO default. Embedded clauses. Classical particles (إِنَّ، لَعَلَّ، كَأَنَّ).
+  Formal register approaching classical style.</div>
+</div>
+
+<div class="prompt-block">
+  <div class="prompt-header" onclick="this.classList.toggle('open');this.nextElementSibling.classList.toggle('open')">SENTENCE_SYSTEM_PROMPT — Full System Prompt (Single-Word)</div>
+  <div class="prompt-body">You are an Arabic language tutor creating MSA (fusha) sentences for reading practice.
+Write sentences a native speaker would find natural — not textbook constructions.
+
+[ARABIC_STYLE_RULES inserted here]
+[DIFFICULTY_STYLE_GUIDE inserted here]
+
+Vocabulary constraint:
+- Use ONLY the provided vocabulary + target word + common function words
+- Common function words you may freely use: في، من، على، إلى، و، ب، ل، هذا، هذه،
+  هو، هي، أنا، أنت، ما، لا، أن، إن، كان، ليس، هل، لم، لن، قد، الذي، التي
+- Include full diacritics (tashkeel) on ALL Arabic words with correct i'rab
+- Include Arabic punctuation: use ؟ for questions, . for statements, ، between clauses
+- Transliteration: ALA-LC standard with macrons for long vowels
+
+Sentence structure variety:
+- Do NOT default to هَلْ questions — only use هَلْ when the target word specifically requires a question
+- Vary starters: verbal (verb-first), nominal (definite noun/adjective), prepositional (فِي، مِنَ), time expressions
+- Prefer pronouns (أنا، هو، هي، نحن) and generic definite nouns (المعلم، الولد، الفتاة) as subjects
+- Use proper names sparingly — avoid محمد/أحمد/فاطمة/علي unless they are in the vocabulary list
+
+Respond with JSON only: {"arabic": "...", "english": "...", "transliteration": "..."}</div>
+</div>
+
+<div class="prompt-block">
+  <div class="prompt-header" onclick="this.classList.toggle('open');this.nextElementSibling.classList.toggle('open')">User Prompt Template — Single-Word Generation</div>
+  <div class="prompt-body">Create a natural MSA sentence for a {difficulty_hint} Arabic learner.
+
+TARGET WORD (must appear in the sentence):
+- {target_word} ({target_translation})
+
+KNOWN WORDS (you may use these):
+[NOUNS: كِتَاب (book), مَدْرَسَة (school), ...]
+[VERBS: ذَهَبَ (to go), كَتَبَ (to write), ...]
+[ADJECTIVES: كَبِير (big), جَمِيل (beautiful), ...]
+[OTHER: ...]
+
+Do NOT use Arabic content words outside the lists above (function words are fine).
+The sentence should be natural and meaningful, 6-12 words long.
+Include full diacritics on all Arabic text.
+{avoid_instruction — if overused words detected}
+{retry_feedback — if previous attempt failed}
+Respond with JSON: {"arabic": "...", "english": "...", "transliteration": "..."}</div>
+</div>
+
+<h3>Known Words Sampling</h3>
+<div class="card">
+  <p>The learner's vocabulary is sampled with <strong>inverse-frequency weighting</strong> to promote diversity:</p>
+  <pre>weight = max(0.05, 1.0 / (1 + sentence_count))
+jittered = weight × random.uniform(0.5, 1.5)</pre>
+  <p>Words appearing in many existing sentences get lower probability. <code>KNOWN_SAMPLE_SIZE = 500</code> words are sent to the LLM (up from the original 50 — this single change improved compliance by +31pp).</p>
+  <p>The target word itself is excluded from the sample to prevent self-referential examples.</p>
+</div>
+
+<h3>Overuse Prevention</h3>
+<div class="card">
+  <p>Words appearing in <code>≥ max(median × 1.5, 3)</code> sentences are flagged as overused. The top <code>MAX_AVOID_WORDS = 30</code> are injected into the prompt as "do NOT use". Common proper names (<span class="ar">محمد، أحمد، فاطمة، علي</span>) are always avoided.</p>
+</div>
+
+<h3>Retry Loop</h3>
+<div class="card card-yellow">
+  <div class="card-title">Feedback-Driven Retry (MAX_RETRIES = 7)</div>
+  <p>Each retry includes the previous failure reason in the prompt:</p>
+  <ul>
+    <li><strong>Validation failure</strong>: "Unknown words: X, Y — use only vocabulary list words"</li>
+    <li><strong>Diversity failure</strong>: "For diversity, avoid using: X, Y — they appear in too many sentences"</li>
+    <li><strong>Quality gate rejection</strong>: "Quality review rejected: {reason}. Generate a more natural sentence."</li>
+  </ul>
+  <p>Temperature is 0.5 (some variation without randomness). All retries are logged to <code>data/logs/sentence_gen_*.jsonl</code>.</p>
+</div>
+</section>
+
+<!-- SECTION 3: Validation -->
+<section id="validation">
+<h2><span class="num">03</span>Deterministic Validation</h2>
+<p class="lead">Every generated sentence passes through a fully deterministic validation pipeline — no LLM involved. A sentence is valid iff the target word is found AND there are zero unknown words.</p>
+
+<h3>Three-Pass Lemma Lookup</h3>
+<p>The function <code>build_lemma_lookup()</code> constructs a dictionary mapping normalized Arabic forms to lemma IDs. Three passes, highest priority first:</p>
+
+<div class="grid-2">
+  <div class="card card-green">
+    <div class="card-title">Pass 1 — Direct Bare Forms</div>
+    <p>Register each lemma's normalized bare form (diacritics stripped, alef normalized). Also registers ال-prefix variants.</p>
+  </div>
+  <div class="card card-green">
+    <div class="card-title">Pass 2 — Forms from forms_json</div>
+    <p>Indexes ALL string-valued keys from the lemma's <code>forms_json</code> (no hardcoded whitelist). Includes past_3fs, past_3p, imperative, passive_participle, sound plurals, etc.</p>
+  </div>
+</div>
+
+<div class="card card-green">
+  <div class="card-title">Pass 3 — Algorithmic Conjugation Generation</div>
+  <p>For each verb with <code>present</code> in forms_json, generates ~36 conjugation forms:</p>
+  <ul>
+    <li><strong>Past tense</strong>: 9 suffixes (ت, ا, تا, وا, ن, تُ, تَ, تِ, نا) applied to past_3ms stem</li>
+    <li><strong>Present tense</strong>: 4 prefixes (ي, ت, أ, ن) × 6 suffix variants = 24 forms</li>
+    <li><strong>Weak verb support</strong>: uses <code>past_1s</code> from forms_json for irregular stems (<span class="ar">قال→قلت</span>, <span class="ar">مشى→مشيت</span>)</li>
+  </ul>
+  <p>For nouns: generates sound plurals (<span class="ar">ـات، ـون، ـين</span>) and dual forms (<span class="ar">ـان، ـين</span>).</p>
+</div>
+
+<h3>Clitic Stripping</h3>
+<div class="card">
+  <p>Arabic clitics (prefixed/suffixed particles) are stripped combinatorially to find the base word:</p>
+  <table>
+    <tr><th>Proclitics (prefixes)</th><td><code>وال، بال، فال، لل، كال، و، ف، ب، ل، ك</code></td></tr>
+    <tr><th>Enclitics (suffixes)</th><td><code>هما، هم، هن، ها، كم، كن، نا، ني، ه، ك</code></td></tr>
+  </table>
+  <p>Taa marbuta restoration: <span class="ar">مدرسته</span> → <span class="ar">مدرسة</span> + <span class="ar">ه</span> (converts ت back to ة when suffix removed).</p>
+  <p>All combinations are tested. Clitic-derived mappings are tagged <code>via_clitic=True</code> for extra scrutiny during verification.</p>
+</div>
+
+<h3>Other Checks</h3>
+<ul>
+  <li><strong>Function word detection</strong>: ~80 particles/prepositions/pronouns/conjunctions from <code>FUNCTION_WORD_GLOSSES</code>, plus conjugated forms (<span class="ar">كانت→كان</span>, etc.)</li>
+  <li><strong>Tanwin-alif stripping</strong>: <span class="ar">سعيدًا</span> → <span class="ar">سعيد</span> (removes trailing alif seat of fathatan)</li>
+  <li><strong>Collision tracking</strong>: when two lemmas normalize to the same key, hamza-sensitive resolution picks the exact match; CAMeL Tools morphological analysis as fallback</li>
+</ul>
+
+<div class="card card-accent">
+  <div class="card-title">Validation Result</div>
+  <pre>valid = target_found AND len(unknown_words) == 0</pre>
+  <p>Every token must be classified as: target word, known word, or function word. Any unrecognized token fails the sentence.</p>
+</div>
+</section>
+
+<!-- SECTION 4: Quality Gates -->
+<section id="gates">
+<h2><span class="num">04</span>Quality Gates</h2>
+<p class="lead">Three LLM-powered gates run after deterministic validation passes: scaffold diversity, cross-model quality review, and word-lemma mapping verification.</p>
+
+<h3>Gate 1: Scaffold Diversity</h3>
+<div class="card card-yellow">
+  <p>Rejects sentences where more than 1 scaffold word (non-target, non-function) appears in <code>DIVERSITY_SENTENCE_THRESHOLD = 10</code> or more existing sentences. Prevents the same scaffold words from dominating the sentence pool.</p>
+  <p>On failure: retry feedback includes "For diversity, avoid using: [words]".</p>
+</div>
+
+<h3>Gate 2: Quality Review</h3>
+<div class="card card-yellow">
+  <div class="card-title">Cross-Model Review — Fail-Closed</div>
+  <p>A different model (Claude Haiku) reviews what Gemini generated. Temperature 0.0 for deterministic judgment.</p>
+</div>
+
+<div class="prompt-block">
+  <div class="prompt-header" onclick="this.classList.toggle('open');this.nextElementSibling.classList.toggle('open')">Quality Review Prompt — Full Text</div>
+  <div class="prompt-body">System: You are an expert Arabic linguist reviewing sentences for a language learning app.
+Focus on grammar correctness and translation accuracy. Accept simple or textbook-style
+sentences — they are appropriate for learners. Only reject sentences with clear errors.
+
+User: Review each Arabic sentence for a language learning app. For each:
+1. Is the Arabic grammatically correct and comprehensible?
+2. Is the English translation accurate?
+
+Only reject sentences with:
+- Grammar errors (wrong gender agreement, incorrect verb forms, broken syntax)
+- Translation errors (English doesn't match Arabic meaning, singular/plural mismatch)
+- Nonsensical or incomprehensible meaning (word salad, contradictory clauses)
+
+Do NOT reject sentences just because:
+- The scenario is unusual (a boy putting a book in a kitchen is fine)
+- The style is simple or textbook-like (these are for language learners)
+- Word choices are slightly informal or formal
+
+Respond with JSON array:
+[{"id": 1, "natural": true/false, "translation_correct": true/false, "reason": "..."}]
+
+Sentences:
+1. Arabic: {arabic}
+   English: {english}
+...</div>
+</div>
+
+<h3>Gate 3: Mapping Verification</h3>
+<div class="card card-yellow">
+  <div class="card-title">LLM Mapping Verification — Fail-Closed</div>
+  <p>Every word-to-lemma mapping is verified against sentence context. Claude Haiku primary, Gemini fallback. Returns <code>None</code> on total failure (sentence rejected, NOT treated as verified).</p>
+</div>
+
+<div class="prompt-block">
+  <div class="prompt-header" onclick="this.classList.toggle('open');this.nextElementSibling.classList.toggle('open')">Mapping Verification Prompt — Full Text</div>
+  <div class="prompt-body">System: You are an Arabic morphology expert. Check each mapping against the English
+translation. Flag any mapping where the gloss doesn't fit the sentence meaning.
+
+User: Arabic sentence: {arabic_text}
+English translation: {english_text}
+
+Word-to-lemma mappings:
+  0: يَذْهَبُ → ذَهَبَ (to go)
+  1: الوَلَدُ → وَلَد (boy)
+  2: إِلَى → (function word)
+  3: المَدْرَسَةِ → مَدْرَسَة (school) [via clitic stripping]
+
+Your task: check that each word's lemma MAKES SENSE in context.
+
+Flag as WRONG (and provide correction):
+- The lemma's English gloss doesn't match what the word means in this sentence
+- Homograph collisions: same consonants but different meanings depending on voweling
+  (e.g. جَدّ "grandfather" vs جِدّ "seriousness", عِلم "knowledge" vs عَلَم "flag")
+- A verb mapped to an unrelated noun or vice versa sharing consonants
+- A clitic prefix (و/ف/ب/ل/ك) wrongly stripped from a word where the letter is part of the root
+  (e.g. وَصْف "description" stripped to صف "row/class")
+- An active participle / verbal noun mapped to the root verb when it should be its own lemma
+- A noun/verb homograph mapped to the wrong part of speech
+
+Do NOT flag (these are CORRECT):
+- A conjugated verb mapped to its dictionary form, when the MEANING matches
+- A plural/feminine/dual form mapped to its base lemma
+- A noun with possessive suffix mapped to the base noun
+- A word with preposition prefix where the base word is correct
+
+Words marked [via clitic stripping] had a prefix/suffix removed — higher risk for errors.
+
+When in doubt, flag it — a false positive just causes a retry, but a false negative reaches the user.
+
+Return JSON: {"issues": []} if all correct, or:
+{"issues": [{"position": &lt;int&gt;, "correct_lemma_ar": "...", "correct_gloss": "...",
+             "correct_pos": "noun/verb/adj/etc", "explanation": "..."}]}</div>
+</div>
+
+<h3>Gate 4: Disambiguation (Ambiguous Mappings)</h3>
+<div class="card">
+  <p>When a token has multiple candidate lemma IDs (collision or multi-clitic interpretation), <code>disambiguate_mappings_llm()</code> presents the candidates to Claude Haiku with sentence context and asks it to pick the correct one.</p>
+</div>
+</section>
+
+<!-- SECTION 5: Lifecycle -->
+<section id="lifecycle">
+<h2><span class="num">05</span>Tier-Based Lifecycle</h2>
+<p class="lead">Sentences are allocated and retired based on how urgently their target word needs review. Words due sooner get more sentences; words due later have sentences actively retired. This keeps the pool size bounded by review demand (~600-800), not vocabulary size.</p>
+
+<table>
+  <tr><th>Tier</th><th>Due Window</th><th>Target Sentences</th><th>Floor (Protected)</th><th>Behavior</th></tr>
+  <tr><td><span class="tag tag-red">Tier 1</span></td><td class="num-cell">≤ 12h</td><td class="num-cell">3</td><td class="num-cell">2</td><td>Highest priority backfill</td></tr>
+  <tr><td><span class="tag tag-yellow">Tier 2</span></td><td class="num-cell">12–36h</td><td class="num-cell">2</td><td class="num-cell">1</td><td>Standard generation</td></tr>
+  <tr><td><span class="tag tag-accent">Tier 3</span></td><td class="num-cell">36–72h</td><td class="num-cell">1</td><td class="num-cell">0</td><td>Minimal coverage</td></tr>
+  <tr><td><span class="tag tag-cyan">Tier 4</span></td><td class="num-cell">&gt; 72h</td><td class="num-cell">0</td><td class="num-cell">0</td><td class="bad">Actively retired</td></tr>
+</table>
+
+<div class="card">
+  <div class="card-title">Retirement Logic</div>
+  <ul>
+    <li><strong>Tier-4 excess</strong>: shown sentences immediately retired; never-shown sentences retired after 24h</li>
+    <li><strong>Scaffold staleness</strong>: all scaffold words fully known (no acquiring words), shown ≥1 time → retire</li>
+    <li><strong>Safety valve cap</strong>: 2,000 sentences (should never bind with tier system active)</li>
+  </ul>
+</div>
+
+<div class="card card-accent">
+  <div class="card-title">Tier Boundary Rationale</div>
+  <p>Chosen so the cron (every 3h) has multiple cycles to fill tier 3 before words become tier 2, and tier 2 before they become tier 1. The 12h/36h/72h boundaries give 4×/12×/24× the cron period.</p>
+</div>
+</section>
+
+<!-- SECTION 6: Background -->
+<section id="background">
+<h2><span class="num">06</span>Background Jobs</h2>
+
+<h3>Cron: update_material.py (every 3 hours)</h3>
+<div class="card">
+  <ol>
+    <li><strong>Step 0 — Enforce cap</strong>: Retire excess sentences down to <code>2000 − 50 = 1950</code>. Respects tier floor per word.</li>
+    <li><strong>Step A — Backfill by tier</strong>: Compute tiers, identify words below target. Multi-target generation first (groups of 2-4), single-target fallback. Uses <code>claude_sonnet</code> (free).</li>
+    <li><strong>Step B — Generate audio</strong>: ElevenLabs TTS for eligible sentences (word reviews ≥ 3, stability ≥ 3d). Limited batch size.</li>
+    <li><strong>Step E — Enrich lemmas</strong>: Batch enrichment for unenriched lemmas (forms_json, etymology, transliteration).</li>
+  </ol>
+</div>
+
+<h3>warm_sentence_cache (after every session load)</h3>
+<div class="card">
+  <ol>
+    <li><strong>Phase 1</strong>: Rotate stale sentences (tier-4 excess, scaffold staleness)</li>
+    <li><strong>Phase 2</strong>: Identify gap words — focus cohort below tier target, auto-intro candidates with &lt; 3 sentences, recency-exhausted words (all shown in 24h)</li>
+    <li><strong>Phase 3</strong>: Generate &amp; store sentences (multi-target + single-target)</li>
+    <li><strong>Phase 4</strong>: Batch verification — verify up to 20 unverified sentences per run. Corrects wrong mappings; retires unfixable sentences. Stamps <code>mappings_verified_at</code>.</li>
+  </ol>
+</div>
+</section>
+
+<!-- SECTION 7: Benchmarks -->
+<section id="benchmarks">
+<h2><span class="num">07</span>Benchmarks &amp; Statistics</h2>
+<p class="lead">Extensive benchmarking across 213 sentences (3 models × 6 strategies) plus ongoing production metrics.</p>
+
+<h3>Model Comparison (Feb 2026 Benchmark)</h3>
+<table>
+  <tr><th>Model</th><th>Quality (1-5)</th><th>Naturalness</th><th>Compliance</th><th>Latency</th><th>Word Salad?</th></tr>
+  <tr><td><span class="tag tag-green">Gemini Flash</span></td><td class="num-cell good">4.89</td><td class="num-cell">4.75</td><td class="num-cell good">84%</td><td class="num-cell">1,867ms</td><td>0</td></tr>
+  <tr><td><span class="tag tag-accent">Claude Sonnet</span></td><td class="num-cell good">4.94</td><td class="num-cell">4.91</td><td class="num-cell warn">70%</td><td class="num-cell">3,115ms</td><td>0</td></tr>
+  <tr><td><span class="tag tag-yellow">GPT-5.2</span></td><td class="num-cell">4.63</td><td class="num-cell">4.56</td><td class="num-cell">74%</td><td class="num-cell">1,910ms</td><td class="bad">5</td></tr>
+</table>
+
+<h3>Critical Discovery: KNOWN_SAMPLE_SIZE</h3>
+<div class="card card-red">
+  <div class="grid-2">
+    <div>
+      <div class="metric"><span class="metric-value bad">57%</span><span class="metric-label">compliance with 50 words</span></div>
+    </div>
+    <div>
+      <div class="metric"><span class="metric-value good">88%</span><span class="metric-label">compliance with 500 words</span></div>
+    </div>
+  </div>
+  <p style="margin-top:16px">A single constant change (<code>KNOWN_SAMPLE_SIZE: 50 → 500</code>) improved GPT-5.2 compliance by <strong>+31 percentage points</strong>. The LLM was generating valid Arabic but using words outside the (too small) vocabulary sample. This one fix eliminated ~50% of all retry loops.</p>
+</div>
+
+<h3>Corpus Viability</h3>
+<div class="card">
+  <table>
+    <tr><th>Corpus</th><th>Total Sentences</th><th>Passing (≥70% known)</th><th>Pass Rate</th></tr>
+    <tr><td>Tatoeba</td><td class="num-cell">4,954</td><td class="num-cell">13</td><td class="num-cell bad">0.3%</td></tr>
+    <tr><td>BAREC</td><td class="num-cell">29,758</td><td class="num-cell">22</td><td class="num-cell bad">0.1%</td></tr>
+    <tr><td>Combined</td><td class="num-cell">34,712</td><td class="num-cell">35</td><td class="num-cell bad">0.1%</td></tr>
+  </table>
+  <p><strong>Conclusion</strong>: At 196 words, corpora are not viable as primary source. BAREC becomes a meaningful supplement at 500-1000 words. LLM generation remains the only practical approach for small vocabularies.</p>
+</div>
+
+<h3>Rejection Rate Before/After Verb Recognition</h3>
+<div class="card">
+  <div class="grid-2">
+    <div>
+      <div class="metric"><span class="metric-value bad">82%</span><span class="metric-label">rejection rate before Pass 3</span></div>
+      <p style="margin-top:8px">Most generated sentences contained conjugated verb forms (يذهب, كتبت) that the validator couldn't recognize.</p>
+    </div>
+    <div>
+      <div class="metric"><span class="metric-value warn">~40%</span><span class="metric-label">rejection rate after Pass 3</span></div>
+      <p style="margin-top:8px">Pass 3 generates ~36 conjugation forms per verb, dramatically improving recognition.</p>
+    </div>
+  </div>
+</div>
+
+<h3>Production Metrics (March 2026)</h3>
+<div class="grid-2">
+  <div class="card">
+    <div class="metric"><span class="metric-value">38,336</span><span class="metric-label">LLM calls this month</span></div>
+  </div>
+  <div class="card">
+    <div class="metric"><span class="metric-value good">0.07%</span><span class="metric-label">failure rate</span></div>
+  </div>
+</div>
+</section>
+
+<!-- SECTION 8: Evolution -->
+<section id="evolution">
+<h2><span class="num">08</span>Historical Evolution</h2>
+
+<div class="timeline">
+  <div class="timeline-item">
+    <div class="timeline-date">2026-02-12</div>
+    <div class="timeline-title">Algorithm Redesign Deployed</div>
+    <div class="timeline-desc">Three-phase word lifecycle: Encountered → Acquiring (Leitner 3-box) → FSRS-6. py-fsrs v6, collateral credit, comprehensibility gate.</div>
+  </div>
+  <div class="timeline-item">
+    <div class="timeline-date">2026-02-13</div>
+    <div class="timeline-title">Sentence Pipeline Overhaul</div>
+    <div class="timeline-desc">213-sentence benchmark. KNOWN_SAMPLE_SIZE 50→500 (+31pp). Model switch to Gemini Flash. Quality gate fail-closed. POS-grouped vocabulary. Improved clitic-awareness.</div>
+  </div>
+  <div class="timeline-item">
+    <div class="timeline-date">2026-02-14</div>
+    <div class="timeline-title">Story Model Benchmark</div>
+    <div class="timeline-desc">32 stories, 4 models × 4 strategies. Opus wins (3.73 composite). Self-correction loop replaces full regeneration.</div>
+  </div>
+  <div class="timeline-item">
+    <div class="timeline-date">2026-02-17</div>
+    <div class="timeline-title">Lemma Mapping Audit</div>
+    <div class="timeline-desc">1,895 sentence_words audited. Found 24+ wrong lemma assignments, 249 misleading glosses. Led to LLM verification pipeline.</div>
+  </div>
+  <div class="timeline-item">
+    <div class="timeline-date">2026-02-19</div>
+    <div class="timeline-title">Diversity &amp; Continuous Introduction</div>
+    <div class="timeline-desc">Reserved intro slots (20%), within-session scaffold decay (0.5×), diversity threshold 15→10, pipeline cap 300→600, generate-then-write pattern.</div>
+  </div>
+  <div class="timeline-item">
+    <div class="timeline-date">2026-03-10</div>
+    <div class="timeline-title">Verb Conjugation + Tier-Based Lifecycle</div>
+    <div class="timeline-desc">Pass 3 conjugation generation (~36 forms/verb). Rejection rate 82%→~40%. Tier-based lifecycle replaces fixed 800-cap. Tier-4 words actively retired.</div>
+  </div>
+  <div class="timeline-item">
+    <div class="timeline-date">2026-03-17</div>
+    <div class="timeline-title">Critical Warm Cache Fix</div>
+    <div class="timeline-desc">Warm cache completely broken for weeks (datetime comparison bug). Fixed UTC-aware comparison. Removed synchronous LLM verification from session build (30-60s → 0.7s). Verification failure now returns None (not empty list).</div>
+  </div>
+  <div class="timeline-item">
+    <div class="timeline-date">2026-03-21</div>
+    <div class="timeline-title">Unified Pipeline</div>
+    <div class="timeline-desc">All scripts now use generate_material_for_word() with full verification. Removed 467 lines of duplicated unverified code. Fixed 29 flagged bad mappings. 20.4% unverified sentences → 0% for new sentences.</div>
+  </div>
+  <div class="timeline-item">
+    <div class="timeline-date">2026-03-21</div>
+    <div class="timeline-title">Intro Cards for All New Words</div>
+    <div class="timeline-desc">A/B experiment concluded: card-first showed +28pp first-review accuracy, 2.4x faster graduation. All new words now get intro cards. Rescue cards for stuck words (≥4 reviews, &lt;50% accuracy).</div>
+  </div>
+</div>
+</section>
+
+<!-- SECTION 9: Constants -->
+<section id="constants">
+<h2><span class="num">09</span>Key Constants</h2>
+
+<table>
+  <tr><th>Constant</th><th>Value</th><th>Purpose</th></tr>
+  <tr><td><code>MAX_RETRIES</code></td><td class="num-cell">7</td><td>Single-word generation retry limit</td></tr>
+  <tr><td><code>MULTI_TARGET_MAX_RETRIES</code></td><td class="num-cell">3</td><td>Multi-target retry limit (harder task)</td></tr>
+  <tr><td><code>KNOWN_SAMPLE_SIZE</code></td><td class="num-cell">500</td><td>Known words sent to LLM prompt</td></tr>
+  <tr><td><code>MAX_AVOID_WORDS</code></td><td class="num-cell">30</td><td>Overuse prevention ceiling</td></tr>
+  <tr><td><code>MIN_WEIGHT</code></td><td class="num-cell">0.05</td><td>Floor for inverse-frequency sampling weight</td></tr>
+  <tr><td><code>DIVERSITY_SENTENCE_THRESHOLD</code></td><td class="num-cell">10</td><td>Max sentence appearances per scaffold word</td></tr>
+  <tr><td><code>TARGET_PIPELINE_SENTENCES</code></td><td class="num-cell">2,000</td><td>Safety valve cap (tier system keeps pool ~600-800)</td></tr>
+  <tr><td><code>CAP_HEADROOM</code></td><td class="num-cell">50</td><td>Retire to this much below cap</td></tr>
+  <tr><td><code>Temperature</code></td><td class="num-cell">0.5</td><td>Generation temperature (review gates use 0.0)</td></tr>
+  <tr><td><code>Tier 1 floor</code></td><td class="num-cell">2</td><td>Protected sentences for words due ≤12h</td></tr>
+  <tr><td><code>Tier 2 floor</code></td><td class="num-cell">1</td><td>Protected sentences for words due 12-36h</td></tr>
+  <tr><td><code>MAX_UNKNOWN_SCAFFOLD</code></td><td class="num-cell">2</td><td>Max unknown non-target words per sentence</td></tr>
+  <tr><td><code>SESSION_SCAFFOLD_DECAY</code></td><td class="num-cell">0.5</td><td>Within-session scaffold reuse penalty (exponential)</td></tr>
+  <tr><td><code>INTRO_RESERVE_FRACTION</code></td><td class="num-cell">20%</td><td>Session slots reserved for new words</td></tr>
+  <tr><td><code>ALWAYS_AVOID_NAMES</code></td><td>محمد، أحمد، فاطمة، علي</td><td>Common proper names always avoided</td></tr>
+</table>
+</section>
+
+<!-- SECTION 10: Limitations -->
+<section id="limitations">
+<h2><span class="num">10</span>Known Limitations</h2>
+
+<div class="grid-2">
+  <div class="card card-red">
+    <div class="card-title">Weak Verb Irregular Stems</div>
+    <p>Pass 3 uses <code>past_1s</code> from forms_json for irregular stems, but only for verbs where this field exists. Verbs without enrichment fall back to regular patterns, producing wrong conjugations for hollow/defective verbs.</p>
+  </div>
+  <div class="card card-yellow">
+    <div class="card-title">Noun Inflection Coverage</div>
+    <p>Sound plurals (ـات/ـون/ـين) and dual forms are generated, but broken plurals and irregular patterns are only recognized via forms_json (requires LLM enrichment to have been run).</p>
+  </div>
+  <div class="card card-yellow">
+    <div class="card-title">Legacy Unverified Sentences</div>
+    <p>~136 sentences from before the March 21 pipeline unification remain unverified. Background Phase 4 catches up at 20 per session, but full backfill takes time.</p>
+  </div>
+  <div class="card">
+    <div class="card-title">Corpus Viability at Scale</div>
+    <p>At current vocabulary (~700 words), corpus pass rates are still too low for primary use. BAREC becomes meaningful at ~1,000 words. Full corpus integration deferred until then.</p>
+  </div>
+</div>
+
+<div class="card card-accent" style="margin-top: 24px">
+  <div class="card-title">Critical Invariants</div>
+  <ol>
+    <li><strong>Every sentence_word must have a lemma_id</strong> — all 5 storage paths reject unmapped words</li>
+    <li><strong>Verification failure ≠ success</strong> — <code>None</code> return from verification rejects the sentence</li>
+    <li><strong>No auto-created lemmas</strong> — corrections only use existing DB lemmas; unfixable sentences retired</li>
+    <li><strong>No LLM in session build</strong> — all generation happens at creation time or background Phase 4</li>
+    <li><strong>Generate-then-write</strong> — never hold DB locks during LLM calls</li>
+    <li><strong>Quality gate fail-closed</strong> — LLM failure rejects the sentence, not passes it</li>
+  </ol>
+</div>
+</section>
+
+<footer>
+  <p>Alif Arabic Reading Trainer — Sentence Pipeline Technical Report</p>
+  <p>Generated 2026-03-23 · Source: backend/app/services/</p>
+</footer>
+
+</div>
+
+<script>
+// Auto-close all prompt blocks initially (they start closed via CSS display:none)
+// Toggle logic is inline via onclick
+</script>
+
+</body>
+</html>
