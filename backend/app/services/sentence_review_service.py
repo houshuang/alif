@@ -90,7 +90,8 @@ def submit_sentence_review(
     function_word_lemma_ids: set[int] = set()
     suspended_lemma_ids: set[int] = set()
 
-    # Build variant→canonical mapping so reviews credit the base lemma
+    # Build variant→canonical mapping so reviews credit the base lemma.
+    # Must follow multi-hop chains (A→B→C) to the root canonical.
     variant_to_canonical: dict[int, int] = {}
 
     if lemma_ids_in_sentence:
@@ -116,6 +117,25 @@ def submit_sentence_review(
             )
             for lo in canonical_lemma_objs:
                 lemma_map[lo.lemma_id] = lo
+
+        # Follow multi-hop chains: if A→B and B→C, resolve A→C
+        # (e.g. الغرفة→غرفة→غرف where غرف is the root canonical)
+        changed = True
+        while changed:
+            changed = False
+            next_hop_ids = set()
+            for vid, cid in list(variant_to_canonical.items()):
+                # Check if the canonical is itself a variant
+                canon_lemma = lemma_map.get(cid)
+                if canon_lemma and canon_lemma.canonical_lemma_id:
+                    variant_to_canonical[vid] = canon_lemma.canonical_lemma_id
+                    next_hop_ids.add(canon_lemma.canonical_lemma_id)
+                    changed = True
+            # Fetch any new canonical lemmas we haven't loaded yet
+            missing = next_hop_ids - set(lemma_map.keys())
+            if missing:
+                for lo in db.query(Lemma).filter(Lemma.lemma_id.in_(missing)).all():
+                    lemma_map[lo.lemma_id] = lo
 
         # Fetch ULK for both sentence lemma_ids and their canonical targets
         all_ulk_ids = lemma_ids_in_sentence | set(variant_to_canonical.values())

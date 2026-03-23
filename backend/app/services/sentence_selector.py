@@ -710,10 +710,25 @@ def build_session(
     lemma_map = {l.lemma_id: l for l in lemmas}
 
     # Build variant→canonical map so sentences with variant forms cover canonical due words
+    # Follow multi-hop chains (A→B→C → A maps to C)
     variant_to_canonical: dict[int, int] = {}
     for l in lemmas:
         if l.canonical_lemma_id:
             variant_to_canonical[l.lemma_id] = l.canonical_lemma_id
+    changed = True
+    while changed:
+        changed = False
+        missing_ids = set()
+        for vid, cid in list(variant_to_canonical.items()):
+            canon = lemma_map.get(cid)
+            if canon and canon.canonical_lemma_id:
+                variant_to_canonical[vid] = canon.canonical_lemma_id
+                missing_ids.add(canon.canonical_lemma_id)
+                changed = True
+        for mid in missing_ids - set(lemma_map.keys()):
+            lo = db.query(Lemma).filter(Lemma.lemma_id == mid).first()
+            if lo:
+                lemma_map[lo.lemma_id] = lo
 
     knowledge_map = {k.lemma_id: k for k in all_knowledge}
 
