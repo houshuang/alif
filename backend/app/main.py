@@ -70,6 +70,13 @@ app.include_router(patterns.router)
 app.include_router(roots.router)
 app.include_router(podcast.router)
 
+# Serve voice samples for comparison testing
+from pathlib import Path as _Path
+_voice_dir = _Path(__file__).resolve().parent.parent / "data" / "voice-samples"
+if _voice_dir.exists():
+    from starlette.staticfiles import StaticFiles
+    app.mount("/api/voice-samples", StaticFiles(directory=str(_voice_dir)), name="voice-samples")
+
 
 @app.get("/")
 def root():

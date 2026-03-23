@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Arabic TTS Voice Comparison</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, sans-serif; background: #1a1a2e; color: #e0e0e0; padding: 24px; max-width: 900px; margin: 0 auto; }
+  h1 { font-size: 1.4em; margin-bottom: 8px; color: #64b5f6; }
+  .subtitle { color: #888; margin-bottom: 24px; font-size: 0.9em; }
+  .phrase-section { margin-bottom: 32px; }
+  .phrase-label { font-size: 1.1em; font-weight: 600; margin-bottom: 4px; color: #90caf9; }
+  .phrase-ar { font-size: 1.3em; direction: rtl; text-align: right; font-family: 'Scheherazade New', serif; margin-bottom: 4px; color: #fff; line-height: 2; }
+  .phrase-en { color: #888; font-size: 0.85em; margin-bottom: 16px; }
+  .voice-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; }
+  .voice-card { background: #16213e; border-radius: 10px; padding: 14px; border: 1px solid #2a2a4a; transition: border-color 0.2s; }
+  .voice-card:hover { border-color: #64b5f6; }
+  .voice-card.playing { border-color: #4caf50; background: #1a2e1a; }
+  .voice-name { font-weight: 600; font-size: 0.95em; margin-bottom: 8px; }
+  .voice-name .current { color: #ffd54f; font-size: 0.75em; }
+  .play-btn { width: 100%; padding: 8px; border-radius: 6px; border: none; background: #2a3f6e; color: #e0e0e0; cursor: pointer; font-size: 0.85em; display: flex; align-items: center; justify-content: center; gap: 6px; transition: background 0.2s; }
+  .play-btn:hover { background: #3a5090; }
+  .play-btn.playing { background: #2e7d32; }
+  .rating { margin-top: 8px; display: flex; gap: 4px; }
+  .star { cursor: pointer; font-size: 1.2em; opacity: 0.3; transition: opacity 0.15s; }
+  .star.active { opacity: 1; }
+  .notes { margin-top: 24px; padding: 16px; background: #16213e; border-radius: 10px; border: 1px solid #2a2a4a; }
+  .notes h3 { margin-bottom: 8px; color: #90caf9; }
+  .notes p { font-size: 0.85em; color: #aaa; line-height: 1.6; }
+  @import url('https://fonts.googleapis.com/css2?family=Scheherazade+New&display=swap');
+</style>
+</head>
+<body>
+
+<h1>Arabic TTS Voice Comparison</h1>
+<p class="subtitle">Listen to each voice, rate them. Focus on: emphatic consonant clarity, naturalness, learner-friendliness.</p>
+
+<div id="app"></div>
+
+<div class="notes">
+  <h3>What to listen for</h3>
+  <p>
+    <strong>Emphatics test:</strong> Does the voice distinguish between
+    <span style="font-family: 'Scheherazade New'">نَظَرَ</span> (nazara, with <span style="font-family: 'Scheherazade New'">ظ</span>) and
+    <span style="font-family: 'Scheherazade New'">ضَرَبَ</span> (daraba, with <span style="font-family: 'Scheherazade New'">ض</span>)?
+    <br>
+    <strong>Story test:</strong> Does it sound natural? Good pacing? Clear pronunciation of diacritics?
+    <br>
+    <strong>TikTok comparison:</strong> TikTok likely uses ByteDance's in-house model trained on massive Arabic social media audio. Their advantage is sheer training data volume from Arabic TikTok creators.
+  </p>
+</div>
+
+<script>
+const BASE = "http://alifstian.duckdns.org:8081";
+const AUDIO_BASE = "http://alifstian.duckdns.org:3000/api/voice-samples";
+
+const phrases = [
+  {
+    key: "emphatics",
+    label: "Emphatic Consonants Test",
+    ar: "نَظَرَ الرَّجُلُ إِلَى الظَّلامِ وَضَرَبَ الطَّبْلَ بِقُوَّةٍ",
+    en: "The man looked at the darkness and hit the drum forcefully (tests: ظ nazara, ظ zhalam, ض daraba, ط tabl)"
+  },
+  {
+    key: "story",
+    label: "Story Narration",
+    ar: "ذَهَبَ أَحْمَدُ إِلَى السُّوقِ وَاشْتَرَى خُبْزًا وَحَلِيبًا. كَانَ الْجَوُّ جَمِيلًا وَالشَّمْسُ مُشْرِقَةً",
+    en: "Ahmad went to the market and bought bread and milk. The weather was beautiful and the sun was shining."
+  }
+];
+
+const voices = [
+  { id: "Chaouki_current", name: "Chaouki", current: true },
+  { id: "Daniel", name: "Daniel" },
+  { id: "Liam", name: "Liam" },
+  { id: "Callum", name: "Callum" },
+  { id: "Will", name: "Will" },
+  { id: "George", name: "George" },
+  { id: "Eric", name: "Eric" },
+  { id: "Chris", name: "Chris" },
+  { id: "Bill", name: "Bill" },
+  { id: "Brian", name: "Brian" },
+  { id: "Charlotte", name: "Charlotte (F)" },
+];
+
+let currentAudio = null;
+let currentBtn = null;
+const ratings = {};
+
+function render() {
+  const app = document.getElementById('app');
+  app.innerHTML = phrases.map(p => `
+    <div class="phrase-section">
+      <div class="phrase-label">${p.label}</div>
+      <div class="phrase-ar">${p.ar}</div>
+      <div class="phrase-en">${p.en}</div>
+      <div class="voice-grid">
+        ${voices.map(v => `
+          <div class="voice-card" id="card-${v.id}-${p.key}">
+            <div class="voice-name">${v.name} ${v.current ? '<span class="current">CURRENT</span>' : ''}</div>
+            <button class="play-btn" onclick="play('${v.id}', '${p.key}', this)">
+              <span>&#9654;</span> Play
+            </button>
+            <div class="rating">
+              ${[1,2,3,4,5].map(s => `<span class="star" onclick="rate('${v.id}','${p.key}',${s})" id="star-${v.id}-${p.key}-${s}">&#9733;</span>`).join('')}
+            </div>
+          </div>
+        `).join('')}
+      </div>
+    </div>
+  `).join('');
+}
+
+function play(voiceId, phraseKey, btn) {
+  if (currentAudio) {
+    currentAudio.pause();
+    currentAudio = null;
+    if (currentBtn) {
+      currentBtn.innerHTML = '<span>&#9654;</span> Play';
+      currentBtn.classList.remove('playing');
+      currentBtn.closest('.voice-card').classList.remove('playing');
+    }
+    if (currentBtn === btn) { currentBtn = null; return; }
+  }
+
+  const url = `${AUDIO_BASE}/${voiceId}_${phraseKey}.mp3`;
+  const audio = new Audio(url);
+  currentAudio = audio;
+  currentBtn = btn;
+
+  btn.innerHTML = '<span>&#9632;</span> Stop';
+  btn.classList.add('playing');
+  btn.closest('.voice-card').classList.add('playing');
+
+  audio.play().catch(e => { btn.innerHTML = '<span>&#9654;</span> Error'; console.error(e); });
+  audio.onended = () => {
+    btn.innerHTML = '<span>&#9654;</span> Play';
+    btn.classList.remove('playing');
+    btn.closest('.voice-card').classList.remove('playing');
+    currentAudio = null;
+    currentBtn = null;
+  };
+}
+
+function rate(voiceId, phraseKey, stars) {
+  ratings[`${voiceId}-${phraseKey}`] = stars;
+  for (let i = 1; i <= 5; i++) {
+    const el = document.getElementById(`star-${voiceId}-${phraseKey}-${i}`);
+    if (el) el.classList.toggle('active', i <= stars);
+  }
+}
+
+render();
+</script>
+</body>
+</html>
