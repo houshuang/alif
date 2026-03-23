@@ -1450,14 +1450,12 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
         <View style={styles.reintroActions}>
           <Pressable
             style={styles.reintroRememberBtn}
-            onPress={async () => {
-              try {
-                await submitReintroResult(
-                  card.lemma_id,
-                  "remember",
-                  sentenceSession?.session_id,
-                );
-              } catch {}
+            onPress={() => {
+              submitReintroResult(
+                card.lemma_id,
+                "remember",
+                sentenceSession?.session_id,
+              ).catch(() => {});
               if (reintroIndex + 1 < reintroCards.length) {
                 setReintroIndex(reintroIndex + 1);
               } else {
@@ -1634,13 +1632,11 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
         <View style={styles.reintroActions}>
           <Pressable
             style={styles.reintroRememberBtn}
-            onPress={async () => {
-              try {
-                await acknowledgeExperimentIntro(
-                  card.lemma_id,
-                  sentenceSession?.session_id,
-                );
-              } catch {}
+            onPress={() => {
+              acknowledgeExperimentIntro(
+                card.lemma_id,
+                sentenceSession?.session_id,
+              ).catch(() => {});
               if (experimentIntroIndex + 1 < experimentIntroCards.length) {
                 setExperimentIntroIndex(experimentIntroIndex + 1);
               } else {
@@ -1663,11 +1659,9 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
       (s) => (s.state === "known" || s.state === "learning") && s.lemma_id !== candidate.lemma_id
     ) ?? [];
 
-    async function handleIntroLearn() {
-      try {
-        await introduceWord(candidate.lemma_id);
-        setIntroducedLemmaIds(prev => new Set([...prev, candidate.lemma_id]));
-      } catch {}
+    function handleIntroLearn() {
+      introduceWord(candidate.lemma_id).catch(() => {});
+      setIntroducedLemmaIds(prev => new Set([...prev, candidate.lemma_id]));
       advanceAfterSubmit("understood");
     }
 
