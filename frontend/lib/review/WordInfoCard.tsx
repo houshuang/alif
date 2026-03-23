@@ -485,14 +485,14 @@ function RevealedView({
       />
 
       {/* Pattern link */}
-      {result.wazn_meaning && (
-        onNavigateToPattern && result.wazn ? (
+      {result.wazn && (
+        onNavigateToPattern ? (
           <Pressable onPress={() => onNavigateToPattern(result.wazn!)} style={styles.patternLink}>
-            <Text style={styles.patternText}>{result.wazn_meaning}</Text>
+            <Text style={styles.patternText}>{result.wazn_meaning || result.wazn}</Text>
             <Ionicons name="chevron-forward" size={12} color={colors.accent} />
           </Pressable>
         ) : (
-          <Text style={styles.patternText}>{result.wazn_meaning}</Text>
+          <Text style={styles.patternText}>{result.wazn_meaning || result.wazn}</Text>
         )
       )}
 

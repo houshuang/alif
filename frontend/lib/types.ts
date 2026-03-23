@@ -360,6 +360,8 @@ export interface IntroCandidate {
   grammar_features: string[];
   grammar_details: GrammarFeatureDetail[];
   story_title?: string | null;
+  wazn?: string | null;
+  wazn_meaning?: string | null;
   root_family: {
     lemma_id: number;
     lemma_ar: string;
@@ -476,6 +478,17 @@ export interface GraduatedWord {
   lemma_id: number;
   lemma_ar: string;
   gloss_en: string | null;
+  source?: string | null;
+  transliteration?: string | null;
+  started_at?: string | null;
+}
+
+export interface IntroducedWordDetail {
+  lemma_id: number;
+  lemma_ar: string;
+  gloss_en: string | null;
+  source: string;
+  transliteration?: string | null;
 }
 
 export interface IntroducedBySource {

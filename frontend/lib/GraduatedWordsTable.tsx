@@ -58,7 +58,7 @@ export function GraduatedWordsTable({ words }: { words: GraduatedWord[] }) {
                 <View style={s.translitPlaceholder} />
               )}
               <Text style={s.english} numberOfLines={1}>{w.gloss_en || ""}</Text>
-              <Text style={s.started}>{formatStarted(w.started_at)}</Text>
+              <Text style={s.started}>{formatStarted(w.started_at ?? null)}</Text>
             </View>
           );
         })}

@@ -213,20 +213,20 @@ export default function WordDetailScreen() {
         </View>
       )}
 
-      {word.root_family.length > 0 && (
+      {word.root && (
         <View style={styles.section}>
           <Pressable
             style={styles.sectionTitleRow}
             onPress={word.root_id ? () => router.push(`/root/${word.root_id}`) : undefined}
           >
             <Text style={styles.sectionTitle}>
-              Root Family ({word.root})
+              Root: {word.root}
             </Text>
             {word.root_id && (
               <Ionicons name="chevron-forward" size={16} color={colors.textSecondary} />
             )}
           </Pressable>
-          {word.root_family.map((f) => (
+          {word.root_family.length > 0 && word.root_family.map((f) => (
             <Pressable
               key={f.id}
               style={styles.familyRow}
@@ -242,26 +242,26 @@ export default function WordDetailScreen() {
         </View>
       )}
 
-      {word.pattern_examples && word.pattern_examples.length > 0 && (
+      {word.wazn && (
         <View style={styles.section}>
           <Pressable
             style={styles.sectionTitleRow}
-            onPress={word.wazn ? () => router.push(`/pattern/${encodeURIComponent(word.wazn!)}`) : undefined}
+            onPress={() => router.push(`/pattern/${encodeURIComponent(word.wazn!)}`)}
           >
             <Text style={styles.sectionTitle}>
-              Pattern{word.wazn ? ` (${word.wazn})` : ""}
+              Pattern: {word.wazn}
             </Text>
-            {word.wazn && (
-              <Ionicons name="chevron-forward" size={16} color={colors.textSecondary} />
-            )}
+            <Ionicons name="chevron-forward" size={16} color={colors.textSecondary} />
           </Pressable>
           {word.wazn_meaning && (
             <Text style={styles.etymologyDerivation}>{word.wazn_meaning}</Text>
           )}
-          <PatternExamples
-            examples={word.pattern_examples}
-            onPress={(lemmaId) => router.push(`/word/${lemmaId}`)}
-          />
+          {word.pattern_examples && word.pattern_examples.length > 0 && (
+            <PatternExamples
+              examples={word.pattern_examples}
+              onPress={(lemmaId) => router.push(`/word/${lemmaId}`)}
+            />
+          )}
         </View>
       )}
 
