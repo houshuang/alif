@@ -4,6 +4,26 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-03-23: Homograph Correction + Multi-Hop Variant Resolution Fixes
+
+**Context**: User flagged two wrong lemma mappings (سلم "peace" instead of "ladder", أحد "Sunday" instead of "someone"). Investigation revealed two systemic bugs.
+
+**Bug 1 — Homograph-blind correction**: `correct_mapping()` used `.first()` to find lemmas by bare form. When the correct lemma has the same consonantal skeleton as the wrong one (سلم=peace vs سلم=ladder), it found the same wrong lemma and silently concluded "already correct." Affected all 4 correction paths: generation-time, multi-target, Phase 4 batch, and flag resolution. The flag evaluator dismissed unfixable flags instead of retiring the sentence.
+
+**Fix**: `correct_mapping()` now accepts `current_lemma_id`, searches `.all()`, picks a different lemma. Flag evaluator's else-branch now retires instead of dismissing. All callers pass current lemma_id.
+
+**Bug 2 — Single-hop variant resolution in reviews**: `sentence_review_service.py` and `sentence_selector.py` only followed one hop in variant chains. Chain الغرفة(3)→غرفة(106)→غرف(288) resolved to 106 (itself a variant) instead of root canonical 288. Since 106 was `encountered` and 288 was `known`, the review service introduced 106 as a "new word" — causing غرفة to appear in "new words started today" despite 37 reviews of its canonical.
+
+**Fix**: Both files now follow multi-hop chains via a `while changed` loop, fetching any missing intermediate lemmas.
+
+**Data fix**: Reset 2 wrongly-introduced variants (lemma 106 غرفة, 1328 أمر) back to `encountered`.
+
+**Files changed**: `sentence_validator.py`, `material_generator.py`, `book_import_service.py`, `flag_evaluator.py`, `sentence_review_service.py`, `sentence_selector.py`.
+
+**Verification**: 833 tests pass. User flags now correctly retire unfixable sentences. Variant chains resolve to root canonical in review credit.
+
+---
+
 ## 2026-03-22: Story System Enhancements — Archive, Audio, Cron, Diversity
 
 **Context**: Stories are the most engaging part of the app. Enhancing them with audio, archiving, auto-generation, and format diversity to make them a core learning pillar alongside sentence review.
