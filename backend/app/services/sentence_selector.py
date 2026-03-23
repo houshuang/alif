@@ -52,6 +52,7 @@ PIPELINE_BACKLOG_THRESHOLD = 40  # suppress reserved intros when acquiring pipel
 SESSION_SCAFFOLD_DECAY = 0.5  # per-appearance decay for scaffold words already in session
 NEVER_REVIEWED_BOOST = 5.0  # score multiplier for sentences targeting acquiring words with 0 reviews
 MAX_UNKNOWN_SCAFFOLD = 2  # max unknown non-target words per sentence (prevents overwhelming density)
+COMPREHENSIBILITY_THRESHOLD = 0.6  # min fraction of scaffold words that must be known
 
 
 def _intro_slots_for_accuracy(accuracy: float) -> int:
@@ -835,23 +836,17 @@ def build_session(
         if not due_covered:
             continue
 
-        # Comprehensibility gate: skip sentences where <60% of scaffold words are known.
-        # Scaffold = non-function, non-due words (including unmapped words with lemma_id=None).
-        # "encountered" does NOT count — the learner has only seen the word, never studied it.
-        # All "acquiring" words count — they've been introduced (possibly via collateral
-        # credit) and the user has engaged with them in context.
+        # Comprehensibility gate: skip sentences where <THRESHOLD of scaffold words are known.
         scaffold = [w for w in word_metas if not w.is_function_word and not w.is_due]
         total_scaffold = len(scaffold)
         known_scaffold = sum(
             1 for w in scaffold
             if w.knowledge_state in ("known", "learning", "lapsed", "acquiring")
         )
-        if total_scaffold > 0 and known_scaffold / total_scaffold < 0.6:
+        if total_scaffold > 0 and known_scaffold / total_scaffold < COMPREHENSIBILITY_THRESHOLD:
             continue
 
         # Unknown density cap: reject sentences with too many unknown non-target words.
-        # Prevents overwhelming sentences where 3-5 scaffold words are all new
-        # (common after large OCR batches from the same domain).
         unknown_scaffold = total_scaffold - known_scaffold
         if unknown_scaffold > MAX_UNKNOWN_SCAFFOLD:
             continue
@@ -1471,15 +1466,14 @@ def _find_pregenerated_sentences_for_words(
         if not due_covered:
             continue
 
-        # Comprehensibility gate: ≥60% known scaffold
-        # All acquiring words count (same logic as main build_session gate).
+        # Comprehensibility gate (same logic as main gate).
         scaffold = [w for w in word_metas if not w.is_function_word and not w.is_due]
         total_scaffold = len(scaffold)
         known_scaffold = sum(
             1 for w in scaffold
             if w.knowledge_state in ("known", "learning", "lapsed", "acquiring")
         )
-        if total_scaffold > 0 and known_scaffold / total_scaffold < 0.6:
+        if total_scaffold > 0 and known_scaffold / total_scaffold < COMPREHENSIBILITY_THRESHOLD:
             continue
 
         weakest = min(stability_map.get(lid, 0.0) for lid in due_covered)
