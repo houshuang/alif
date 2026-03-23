@@ -30,10 +30,10 @@ All frontend in `frontend/`.
 - `lib/WordCardComponents.tsx` — Reusable word display (posLabel, FormsRow, FormsStrip with per-form transliteration, PatternExamples, PlayButton)
 
 ## Infrastructure (lib/)
-- `lib/api.ts` — API client with typed interfaces for all endpoints
+- `lib/api.ts` — API client with typed interfaces for all endpoints. Offline-first: `introduceWord()`, `submitReintroResult()`, `acknowledgeExperimentIntro()`, `introduceGrammarFeature()` all enqueue to sync queue with optimistic returns. Auto-prefetch: `backgroundPrefetch()` silently caches 2 more sessions after every session load (fresh, cached, or fallback). Session load cascade: fresh cache → stale cache (offline) → fetch with 12s timeout → stale cache fallback.
 - `lib/types.ts` — TypeScript interfaces
-- `lib/offline-store.ts` — AsyncStorage session cache (30-min staleness TTL) + reviewed tracking. Background refresh via `fetchFreshSession()` for in-session staleness (15-min gap detection via AppState). Word lookup cache: versioned key (`v2`), 24h TTL per entry, `allowStale` fallback for offline use.
-- `lib/sync-queue.ts` — Offline review queue, bulk sync
+- `lib/offline-store.ts` — AsyncStorage session cache (30-min staleness TTL, stale allowed when offline) + reviewed tracking with auto-pruning (caps at 1000 entries, prunes to keys matching cached sessions). Background refresh via `fetchFreshSession()` for in-session staleness (15-min gap detection via AppState). Word lookup cache: versioned key (`v2`), 24h TTL per entry, `allowStale` fallback for offline use.
+- `lib/sync-queue.ts` — Offline-first queue for all mutable actions. Entry types: `sentence` (batch via /api/review/sync), `story_complete`, `introduce_word`, `reintro_result`, `experiment_intro_ack`, `grammar_intro` (individual POST). Max 8 retry attempts before dropping. Queue lock serializes operations. Flush triggers: app resume, network-online event, after each review submission.
 - `lib/theme.ts` — Dark theme, semantic colors, dual Arabic font families (Scheherazade New + Amiri), `arabicFontForSentence()` for 50/50 font mixing by sentence_id
 - `lib/net-status.ts` — Network status singleton + useNetStatus hook
 - `lib/sync-events.ts` — Event emitter for sync notifications
