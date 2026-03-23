@@ -91,10 +91,11 @@ def start_acquisition(
         ulk.acquisition_started_at = now
         ulk.entered_acquiring_at = now
         ulk.introduced_at = now
-        # Update source: book/story always win; otherwise keep the more specific existing source.
-        _OVERRIDABLE_SOURCES = {None, "study", "encountered", "textbook_scan", "auto_intro", "collateral", "leech_reintro"}
-        _HIGH_PRIORITY_SOURCES = {"book", "story_import"}
-        if not ulk.source or ulk.source in _OVERRIDABLE_SOURCES or source in _HIGH_PRIORITY_SOURCES:
+        # Update source: collateral never overrides (weakest mechanism);
+        # book/story always win; otherwise keep the more specific existing source.
+        _OVERRIDABLE_SOURCES = {None, "study", "encountered", "auto_intro", "collateral", "leech_reintro"}
+        _HIGH_PRIORITY_SOURCES = {"book", "story_import", "textbook_scan", "duolingo"}
+        if source != "collateral" and (not ulk.source or ulk.source in _OVERRIDABLE_SOURCES or source in _HIGH_PRIORITY_SOURCES):
             ulk.source = source
         ulk.fsrs_card_json = None  # No FSRS card during acquisition
     else:
