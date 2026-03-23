@@ -14,7 +14,7 @@ All frontend in `frontend/`.
 - `app/scanner.tsx` — Textbook page OCR scanner
 - `app/book-import.tsx` — Book import: photograph cover + content pages → reading goal with sentence extraction
 - `app/more.tsx` — More tab: Scanner, Chats, New Words, Activity Log
-- `app/word/[id].tsx` — Word detail: forms, root family, pattern, etymology, memory hooks, review history, sentence stats. Root Family title links to `/root/{root_id}`, Pattern title links to `/pattern/{wazn}`. Actions (postpone/suspend/flag) in "..." overflow menu in header bar.
+- `app/word/[id].tsx` — Word detail: forms, root family, pattern, etymology, memory hooks, review history, sentence stats. Root section shows whenever `word.root` exists (even without family members), Pattern section shows whenever `word.wazn` exists (even without pattern examples). Root title links to `/root/{root_id}`, Pattern title links to `/pattern/{wazn}`. Actions (postpone/suspend/flag) in "..." overflow menu in header bar.
 - `app/root/[id].tsx` — Root detail: 52pt Arabic root letters, core meaning, enrichment section (etymology story, cultural significance, literary examples, fun facts, related roots as pills), derivation tree grouped by pattern. Words tappable → `/word/{id}`, pattern headers tappable → `/pattern/{wazn}`.
 - `app/pattern/[id].tsx` — Pattern detail: pattern name + meaning, enrichment section (explanation, how to recognize, semantic fields, example derivations, register notes, fun facts, related patterns as pills), word list sorted by knowledge state. Words tappable → `/word/{id}`.
 - `app/chats.tsx` — AI chat conversations
