@@ -8,7 +8,11 @@ const MAX_RETRY_ATTEMPTS = 8;
 
 export type QueueEntryType =
   | "sentence"
-  | "story_complete";
+  | "story_complete"
+  | "introduce_word"
+  | "reintro_result"
+  | "experiment_intro_ack"
+  | "grammar_intro";
 
 export interface QueueEntry {
   id: string;
@@ -88,6 +92,34 @@ const STORY_ACTION_STATUSES: Record<string, string> = {
   story_complete: "completed",
 };
 
+// Individual POST actions — each entry type maps to { url, bodyFn }
+const INDIVIDUAL_ACTIONS: Record<string, {
+  url: (p: Record<string, unknown>) => string;
+  body: (p: Record<string, unknown>) => Record<string, unknown>;
+}> = {
+  introduce_word: {
+    url: () => `${BASE_URL}/api/learn/introduce`,
+    body: (p) => ({ lemma_id: p.lemma_id }),
+  },
+  reintro_result: {
+    url: () => `${BASE_URL}/api/review/reintro-result`,
+    body: (p) => ({
+      lemma_id: p.lemma_id,
+      result: p.result,
+      session_id: p.session_id,
+      client_review_id: p.client_review_id,
+    }),
+  },
+  experiment_intro_ack: {
+    url: () => `${BASE_URL}/api/review/experiment-intro-ack`,
+    body: (p) => ({ lemma_id: p.lemma_id, session_id: p.session_id }),
+  },
+  grammar_intro: {
+    url: () => `${BASE_URL}/api/grammar/introduce`,
+    body: (p) => ({ feature_key: p.feature_key }),
+  },
+};
+
 async function flushStoryEntries(
   entries: QueueEntry[]
 ): Promise<{ synced: Set<string>; attempted: Set<string> }> {
@@ -117,12 +149,38 @@ async function flushStoryEntries(
   return { synced, attempted };
 }
 
+async function flushIndividualEntries(
+  entries: QueueEntry[]
+): Promise<{ synced: Set<string>; attempted: Set<string> }> {
+  const synced = new Set<string>();
+  const attempted = new Set<string>();
+  for (const entry of entries) {
+    const action = INDIVIDUAL_ACTIONS[entry.type];
+    if (!action) continue;
+    try {
+      const res = await fetch(action.url(entry.payload), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(action.body(entry.payload)),
+      });
+      attempted.add(entry.client_review_id);
+      if (res.ok || res.status === 409) {
+        synced.add(entry.client_review_id);
+      }
+    } catch {
+      // network error — keep in queue
+    }
+  }
+  return { synced, attempted };
+}
+
 async function flushQueueInternal(): Promise<{ synced: number; failed: number }> {
   const queue = await withQueueLock(async () => getQueueUnsafe());
   if (queue.length === 0) return { synced: 0, failed: 0 };
 
   const reviewEntries = queue.filter((e) => e.type === "sentence");
   const storyEntries = queue.filter((e) => e.type in STORY_ACTION_ENDPOINTS);
+  const individualEntries = queue.filter((e) => e.type in INDIVIDUAL_ACTIONS);
   const snapshotIds = new Set(queue.map((entry) => entry.client_review_id));
 
   let totalSynced = 0;
@@ -174,13 +232,15 @@ async function flushQueueInternal(): Promise<{ synced: number; failed: number }>
   // Flush story entries individually
   if (storyEntries.length > 0) {
     const storyResult = await flushStoryEntries(storyEntries);
-    const storySynced = storyResult.synced;
-    for (const id of storyResult.attempted) {
-      attempted.add(id);
-    }
-    for (const id of storySynced) {
-      removable.add(id);
-    }
+    for (const id of storyResult.attempted) attempted.add(id);
+    for (const id of storyResult.synced) removable.add(id);
+  }
+
+  // Flush individual action entries (intro, reintro, grammar, etc.)
+  if (individualEntries.length > 0) {
+    const indivResult = await flushIndividualEntries(individualEntries);
+    for (const id of indivResult.attempted) attempted.add(id);
+    for (const id of indivResult.synced) removable.add(id);
   }
 
   totalSynced = removable.size;

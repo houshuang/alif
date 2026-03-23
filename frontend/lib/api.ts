@@ -378,10 +378,11 @@ export async function getNextWords(
 export async function introduceWord(
   lemmaId: number
 ): Promise<IntroduceResult> {
-  return fetchApi<IntroduceResult>("/api/learn/introduce", {
-    method: "POST",
-    body: JSON.stringify({ lemma_id: lemmaId }),
-  });
+  await enqueueReview("introduce_word", { lemma_id: lemmaId }, generateUuid());
+  if (netStatus.isOnline) {
+    flushQueue().catch(() => {});
+  }
+  return { lemma_id: lemmaId, state: "acquiring", already_known: false };
 }
 
 export async function submitQuizResult(
@@ -407,6 +408,12 @@ export async function getLemmaSentence(
   return fetchApi(`/api/learn/sentences/${lemmaId}`);
 }
 
+// Background prefetch: after serving a session, silently cache 2 more
+function backgroundPrefetch(mode: ReviewMode): void {
+  if (!netStatus.isOnline) return;
+  deepPrefetchSessions(mode, 2).catch(() => {});
+}
+
 export async function fetchFreshSession(
   mode: ReviewMode = "reading"
 ): Promise<SentenceReviewSession> {
@@ -417,6 +424,7 @@ export async function fetchFreshSession(
   const session = { ...data, session_id: data.session_id || generateSessionId() };
   cacheSessions(mode, [session]).catch(() => {});
   prefetchWordLookupsForSession(session).catch(() => {});
+  backgroundPrefetch(mode);
   return session;
 }
 
@@ -426,6 +434,7 @@ export async function getSentenceReviewSession(
   // Try prefetched cache first for instant load
   const cached = await getCachedSession(mode);
   if (cached && cached.items.length > 0) {
+    backgroundPrefetch(mode);
     return cached;
   }
 
@@ -446,6 +455,7 @@ export async function getSentenceReviewSession(
     const session = { ...data, session_id: data.session_id || generateSessionId() };
     cacheSessions(mode, [session]).catch(() => {});
     prefetchWordLookupsForSession(session).catch(() => {});
+    backgroundPrefetch(mode);
     return session;
   } catch (e) {
     // On timeout or network error, fall back to stale cache
@@ -872,10 +882,11 @@ export async function getGrammarLesson(featureKey: string): Promise<GrammarLesso
 }
 
 export async function introduceGrammarFeature(featureKey: string): Promise<{ feature_key: string; introduced_at: string }> {
-  return fetchApi("/api/grammar/introduce", {
-    method: "POST",
-    body: JSON.stringify({ feature_key: featureKey }),
-  });
+  await enqueueReview("grammar_intro", { feature_key: featureKey }, generateUuid());
+  if (netStatus.isOnline) {
+    flushQueue().catch(() => {});
+  }
+  return { feature_key: featureKey, introduced_at: new Date().toISOString() };
 }
 
 export async function getDeepAnalytics(): Promise<DeepAnalytics> {
@@ -896,28 +907,31 @@ export async function submitReintroResult(
   sessionId?: string,
   clientReviewId?: string,
 ): Promise<{ status: string; result: string; lemma_id: number }> {
-  return fetchApi("/api/review/reintro-result", {
-    method: "POST",
-    body: JSON.stringify({
-      lemma_id: lemmaId,
-      result,
-      session_id: sessionId,
-      client_review_id: clientReviewId || generateUuid(),
-    }),
-  });
+  const crid = clientReviewId || generateUuid();
+  await enqueueReview("reintro_result", {
+    lemma_id: lemmaId,
+    result,
+    session_id: sessionId,
+    client_review_id: crid,
+  }, crid);
+  if (netStatus.isOnline) {
+    flushQueue().catch(() => {});
+  }
+  return { status: "queued", result, lemma_id: lemmaId };
 }
 
 export async function acknowledgeExperimentIntro(
   lemmaId: number,
   sessionId?: string,
 ): Promise<{ status: string }> {
-  return fetchApi("/api/review/experiment-intro-ack", {
-    method: "POST",
-    body: JSON.stringify({
-      lemma_id: lemmaId,
-      session_id: sessionId,
-    }),
-  });
+  await enqueueReview("experiment_intro_ack", {
+    lemma_id: lemmaId,
+    session_id: sessionId,
+  }, generateUuid());
+  if (netStatus.isOnline) {
+    flushQueue().catch(() => {});
+  }
+  return { status: "queued" };
 }
 
 // --- OCR / Textbook Scanner ---

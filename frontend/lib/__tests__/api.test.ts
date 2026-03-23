@@ -566,17 +566,16 @@ describe("getNextWords", () => {
 });
 
 describe("introduceWord", () => {
-  it("sends POST with lemma_id", async () => {
-    mockFetch.mockReturnValueOnce(
-      mockJsonResponse({ lemma_id: 50, state: "learning", sentences_queued: 3 })
-    );
-
+  it("enqueues to sync queue and returns optimistic result", async () => {
     const result = await introduceWord(50);
     expect(result.lemma_id).toBe(50);
+    expect(result.state).toBe("acquiring");
 
-    const [, opts] = mockFetch.mock.calls[0];
-    const body = JSON.parse(opts.body);
-    expect(body.lemma_id).toBe(50);
+    // Verify it was enqueued in AsyncStorage
+    const raw = await AsyncStorage.getItem("@alif/sync-queue");
+    const queue = raw ? JSON.parse(raw) : [];
+    const entry = queue.find((e: any) => e.type === "introduce_word" && e.payload.lemma_id === 50);
+    expect(entry).toBeTruthy();
   });
 });
 

@@ -110,6 +110,8 @@ export async function getCachedSession(
       return { ...session, items: remaining };
     }
   }
+  // All sessions exhausted — prune stale reviewed keys in background
+  pruneReviewedSet().catch(() => {});
   return null;
 }
 
@@ -159,6 +161,39 @@ export async function unmarkReviewed(
   reviewed.delete(reviewKey(mode, sentenceId, lemmaId));
   reviewed.delete(legacyReviewKey(sessionId, sentenceId, lemmaId));
   await setJson(KEYS.reviewed, Array.from(reviewed));
+}
+
+const REVIEWED_MAX_SIZE = 1000;
+
+export async function pruneReviewedSet(): Promise<void> {
+  const reviewed = await getReviewedSet();
+  if (reviewed.size <= REVIEWED_MAX_SIZE) return;
+
+  // Collect all valid keys from cached sessions across all modes
+  const validKeys = new Set<string>();
+  for (const mode of ["reading", "listening", "quiz"] as ReviewMode[]) {
+    const key = KEYS.sessions(mode);
+    const raw = (await getJson<CachedSessionEntry[] | SentenceReviewSession[]>(key)) ?? [];
+    const entries: CachedSessionEntry[] = raw.map((item: any) =>
+      item.session
+        ? (item as CachedSessionEntry)
+        : { session: item as SentenceReviewSession, cached_at: 0 }
+    );
+    for (const entry of entries) {
+      const session = entry.session;
+      for (const item of session.items) {
+        validKeys.add(reviewKey(mode, item.sentence_id, item.primary_lemma_id));
+        validKeys.add(legacyReviewKey(session.session_id, item.sentence_id, item.primary_lemma_id));
+      }
+    }
+  }
+
+  // Keep only keys that match cached sessions
+  const pruned = new Set<string>();
+  for (const k of reviewed) {
+    if (validKeys.has(k)) pruned.add(k);
+  }
+  await setJson(KEYS.reviewed, Array.from(pruned));
 }
 
 export async function invalidateSessions(): Promise<void> {
