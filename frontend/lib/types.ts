@@ -467,6 +467,7 @@ export interface Analytics {
   comprehension_today?: ComprehensionBreakdown;
   graduated_today?: GraduatedWord[];
   introduced_today?: IntroducedBySource[];
+  introduced_words_today?: IntroducedWordDetail[];
   calibration_signal?: string;
   total_words_reviewed_7d?: number;
   total_words_reviewed_alltime?: number;
@@ -974,4 +975,6 @@ export interface SessionEndData {
   pipeline_box_3: number;
   historical_avg_response_ms: number | null;
   top_partial_roots: PartialRoot[];
+  graduated_today?: GraduatedWord[];
+  introduced_words_today?: IntroducedWordDetail[];
 }

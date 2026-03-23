@@ -56,6 +56,8 @@ import { useNetStatus } from "../lib/net-status";
 import ActionMenu from "../lib/review/ActionMenu";
 import SentenceInfoModal from "../lib/review/SentenceInfoModal";
 import WordInfoCard, { FocusWordMark } from "../lib/review/WordInfoCard";
+import { IntroducedWordsTable } from "../lib/IntroducedWordsTable";
+import { GraduatedWordsTable } from "../lib/GraduatedWordsTable";
 
 type ReadingCardState = "front" | "back";
 type ListeningCardState = "audio" | "arabic" | "answer";
@@ -2774,21 +2776,18 @@ function SessionComplete({
         </Animated.View>
       )}
 
-      {/* Auto-introduced words */}
-      {introducedLemmaIds.size > 0 && (
-        <View style={styles.autoIntroSection}>
-          <Text style={styles.autoIntroTitle}>
-            {introducedLemmaIds.size === 1 ? "New word learned" : `${introducedLemmaIds.size} new words learned`}
-          </Text>
-          <View style={styles.autoIntroPills}>
-            {autoIntroduced.filter((w) => introducedLemmaIds.has(w.lemma_id)).map((w) => (
-              <View key={w.lemma_id} style={styles.autoIntroPill}>
-                <Text style={styles.autoIntroPillAr}>{w.lemma_ar}</Text>
-                <Text style={styles.autoIntroPillEn}>{w.gloss_en}</Text>
-              </View>
-            ))}
-          </View>
-        </View>
+      {/* Today's graduated words */}
+      {dataReady && data?.graduated_today && data.graduated_today.length > 0 && (
+        <Animated.View style={[styles.autoIntroSection, { opacity: fadeAnim }]}>
+          <GraduatedWordsTable words={data.graduated_today} />
+        </Animated.View>
+      )}
+
+      {/* Today's introduced words */}
+      {dataReady && data?.introduced_words_today && data.introduced_words_today.length > 0 && (
+        <Animated.View style={[styles.autoIntroSection, { opacity: fadeAnim }]}>
+          <IntroducedWordsTable words={data.introduced_words_today} />
+        </Animated.View>
       )}
 
       <Pressable style={styles.sessionCompleteFooterButton} onPress={onNewSession}>

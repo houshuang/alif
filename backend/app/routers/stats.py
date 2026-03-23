@@ -475,6 +475,7 @@ def get_analytics(
     comp_today = _get_comprehension_breakdown(db, 0)
     graduated_today = _get_graduated_today(db)
     introduced_today = _get_introduced_today(db)
+    introduced_words_today = _get_introduced_words_today(db)
     calibration = _compute_calibration_signal(comp_today)
 
     graduated_24h = _get_graduated_count_24h(db)
@@ -493,6 +494,7 @@ def get_analytics(
         comprehension_today=comp_today,
         graduated_today=graduated_today,
         introduced_today=introduced_today,
+        introduced_words_today=introduced_words_today,
         calibration_signal=calibration,
         total_words_reviewed_7d=words_reviewed_7d,
         total_words_reviewed_alltime=words_reviewed_all,
@@ -799,14 +801,23 @@ def _get_graduated_today(db: Session) -> list[GraduatedWord]:
     now = datetime.now(timezone.utc)
     today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
     rows = (
-        db.query(UserLemmaKnowledge.lemma_id, Lemma.lemma_ar, Lemma.gloss_en)
+        db.query(
+            UserLemmaKnowledge.lemma_id, Lemma.lemma_ar, Lemma.gloss_en,
+            UserLemmaKnowledge.source, Lemma.transliteration_ala_lc,
+            UserLemmaKnowledge.acquisition_started_at,
+        )
         .join(Lemma, Lemma.lemma_id == UserLemmaKnowledge.lemma_id)
         .filter(UserLemmaKnowledge.graduated_at >= today_start)
         .order_by(UserLemmaKnowledge.graduated_at.desc())
         .all()
     )
     return [
-        GraduatedWord(lemma_id=r.lemma_id, lemma_ar=r.lemma_ar, gloss_en=r.gloss_en)
+        GraduatedWord(
+            lemma_id=r.lemma_id, lemma_ar=r.lemma_ar, gloss_en=r.gloss_en,
+            source=_SOURCE_LABELS.get(r.source or "study", r.source or "study"),
+            transliteration=r.transliteration_ala_lc,
+            started_at=r.acquisition_started_at.isoformat() if r.acquisition_started_at else None,
+        )
         for r in rows
     ]
 
@@ -852,6 +863,33 @@ def _get_introduced_today(db: Session) -> list[IntroducedBySource]:
         )
         for src, cnt in rows
         if cnt > 0
+    ]
+
+
+def _get_introduced_words_today(db: Session) -> list:
+    from app.schemas import IntroducedWordDetail
+    today_start = datetime.now(timezone.utc).replace(
+        hour=0, minute=0, second=0, microsecond=0
+    )
+    rows = (
+        db.query(
+            UserLemmaKnowledge.lemma_id, Lemma.lemma_ar, Lemma.gloss_en,
+            UserLemmaKnowledge.source, Lemma.transliteration_ala_lc,
+        )
+        .join(Lemma, Lemma.lemma_id == UserLemmaKnowledge.lemma_id)
+        .filter(UserLemmaKnowledge.acquisition_started_at >= today_start)
+        .order_by(UserLemmaKnowledge.acquisition_started_at.desc())
+        .all()
+    )
+    return [
+        IntroducedWordDetail(
+            lemma_id=r.lemma_id,
+            lemma_ar=r.lemma_ar,
+            gloss_en=r.gloss_en,
+            source=_SOURCE_LABELS.get(r.source or "study", r.source or "study"),
+            transliteration=r.transliteration_ala_lc,
+        )
+        for r in rows
     ]
 
 

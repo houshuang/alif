@@ -117,11 +117,22 @@ class GraduatedWord(BaseModel):
     lemma_id: int
     lemma_ar: str
     gloss_en: str | None
+    source: str | None = None
+    transliteration: str | None = None
+    started_at: str | None = None
 
 
 class IntroducedBySource(BaseModel):
     source: str
     count: int
+
+
+class IntroducedWordDetail(BaseModel):
+    lemma_id: int
+    lemma_ar: str
+    gloss_en: str | None
+    source: str
+    transliteration: str | None = None
 
 
 class AnalyticsOut(BaseModel):
@@ -132,6 +143,7 @@ class AnalyticsOut(BaseModel):
     comprehension_today: Optional["ComprehensionBreakdown"] = None
     graduated_today: list[GraduatedWord] = []
     introduced_today: list[IntroducedBySource] = []
+    introduced_words_today: list[IntroducedWordDetail] = []
     calibration_signal: str = "not_enough_data"
     total_words_reviewed_7d: int = 0
     total_words_reviewed_alltime: int = 0
@@ -426,6 +438,8 @@ class SessionEndOut(BaseModel):
     pipeline_box_3: int = 0
     historical_avg_response_ms: float | None = None
     top_partial_roots: list[PartialRootOut] = []
+    graduated_today: list[GraduatedWord] = []
+    introduced_words_today: list[IntroducedWordDetail] = []
 
 
 class BulkSyncItem(BaseModel):

@@ -10,7 +10,9 @@ import {
 import { useFocusEffect } from "expo-router";
 import { colors } from "../lib/theme";
 import { getAnalytics, getDeepAnalytics } from "../lib/api";
-import type { Analytics, DeepAnalytics, AcquisitionPipeline, ComprehensionBreakdown, GraduatedWord, IntroducedBySource, InsightsData, StateTransitions } from "../lib/types";
+import type { Analytics, DeepAnalytics, AcquisitionPipeline, ComprehensionBreakdown, GraduatedWord, IntroducedBySource, IntroducedWordDetail, InsightsData, StateTransitions } from "../lib/types";
+import { IntroducedWordsTable } from "../lib/IntroducedWordsTable";
+import { GraduatedWordsTable } from "../lib/GraduatedWordsTable";
 
 export default function StatsScreen() {
   const [analytics, setAnalytics] = useState<Analytics | null>(null);
@@ -72,6 +74,7 @@ export default function StatsScreen() {
         comprehension={analytics.comprehension_today}
         graduated={analytics.graduated_today}
         introduced={analytics.introduced_today}
+        introducedWords={analytics.introduced_words_today}
         calibration={analytics.calibration_signal}
         reviewsToday={stats.reviews_today}
         dueToday={stats.due_today}
@@ -797,9 +800,9 @@ function RootProgressSection({ data }: { data: DeepAnalytics["root_coverage"] })
 // --- Existing Components ---
 
 function TodayHeroCard({
-  comprehension, graduated, introduced, calibration, reviewsToday, dueToday, fsrsDue, acquisitionDue, fsrsReviewedToday, streak, transitionsToday,
+  comprehension, graduated, introduced, introducedWords, calibration, reviewsToday, dueToday, fsrsDue, acquisitionDue, fsrsReviewedToday, streak, transitionsToday,
 }: {
-  comprehension?: ComprehensionBreakdown; graduated?: GraduatedWord[]; introduced?: IntroducedBySource[];
+  comprehension?: ComprehensionBreakdown; graduated?: GraduatedWord[]; introduced?: IntroducedBySource[]; introducedWords?: IntroducedWordDetail[];
   calibration?: string; reviewsToday: number; dueToday: number; fsrsDue: number; acquisitionDue: number; fsrsReviewedToday: number; streak: number; transitionsToday?: StateTransitions;
 }) {
   if (reviewsToday === 0 && dueToday === 0) return null;
@@ -887,18 +890,15 @@ function TodayHeroCard({
 
       {graduated && graduated.length > 0 && (
         <View style={styles.heroGrads}>
-          <Text style={styles.heroGradsLabel}>Graduated today:</Text>
-          <View style={styles.heroGradPills}>
-            {graduated.map((w) => (
-              <View key={w.lemma_id} style={styles.heroGradPill}>
-                <Text style={styles.heroGradAr}>{w.lemma_ar}</Text>
-              </View>
-            ))}
-          </View>
+          <GraduatedWordsTable words={graduated} />
         </View>
       )}
 
-      {introduced && introduced.length > 0 && (() => {
+      {introducedWords && introducedWords.length > 0 ? (
+        <View style={styles.heroGrads}>
+          <IntroducedWordsTable words={introducedWords} />
+        </View>
+      ) : introduced && introduced.length > 0 && (() => {
         const total = introduced.reduce((s, i) => s + i.count, 0);
         return (
           <View style={styles.heroGrads}>
