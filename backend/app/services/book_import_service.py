@@ -372,6 +372,7 @@ def create_book_sentences(
                     corr.get("correct_lemma_ar", ""),
                     corr.get("correct_gloss", ""),
                     corr.get("correct_pos", ""),
+                    current_lemma_id=m.lemma_id,
                 )
                 if new_lid and new_lid != m.lemma_id:
                     logger.info(f"Book import: corrected mapping pos {pos} '{m.surface_form}': #{m.lemma_id} → #{new_lid}")

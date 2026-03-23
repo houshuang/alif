@@ -234,17 +234,29 @@ If all mappings look correct, return {{"issues": [], "all_correct": true}}."""
 
         # Search for the correct lemma in the database
         correct_bare = normalize_arabic(correct_ar)
-        candidate = (
+        candidates = (
             db.query(Lemma)
             .filter(Lemma.lemma_ar_bare == correct_bare)
-            .first()
+            .all()
         )
-        if not candidate:
+        if not candidates:
             # Try without al-prefix
             if correct_bare.startswith("ال"):
-                candidate = db.query(Lemma).filter(Lemma.lemma_ar_bare == correct_bare[2:]).first()
+                candidates = db.query(Lemma).filter(Lemma.lemma_ar_bare == correct_bare[2:]).all()
             else:
-                candidate = db.query(Lemma).filter(Lemma.lemma_ar_bare == "ال" + correct_bare).first()
+                candidates = db.query(Lemma).filter(Lemma.lemma_ar_bare == "ال" + correct_bare).all()
+
+        # Pick the best candidate: prefer one that differs from the current
+        # lemma AND matches the LLM-suggested gloss/POS
+        candidate = None
+        for c in candidates:
+            if c.lemma_id != sw.lemma_id:
+                candidate = c
+                break
+        # If all candidates have the same lemma_id as current (homograph —
+        # same bare form, different meaning not in DB), treat as unfixable
+        if not candidate and candidates and candidates[0].lemma_id == sw.lemma_id:
+            candidate = None  # Force into unfixable path
 
         if candidate and candidate.lemma_id != sw.lemma_id:
             old_lemma = lemmas_by_id.get(sw.lemma_id)
@@ -259,9 +271,9 @@ If all mappings look correct, return {{"issues": [], "all_correct": true}}."""
                 "explanation": explanation,
             })
             sw.lemma_id = candidate.lemma_id
-        elif not candidate:
-            # Correct lemma not in DB — retire the sentence rather than
-            # auto-creating lemmas nobody asked to learn
+        else:
+            # Correct lemma not in DB (or only the already-assigned homograph
+            # exists) — retire the sentence
             unfixable_issues.append({
                 "position": pos,
                 "surface_form": sw.surface_form if sw else correct_ar,
@@ -309,12 +321,16 @@ If all mappings look correct, return {{"issues": [], "all_correct": true}}."""
                           {"flag_id": flag.id, "sentence_id": sentence.id,
                            "propagated_count": total_propagated})
     else:
-        flag.status = "dismissed"
+        # LLM found issues but none were classifiable — still retire since
+        # the sentence has known-bad data the user flagged
+        sentence.is_active = False
+        flag.status = "fixed"
         flag.resolution_note = (
-            f"LLM found {len(issues)} issue(s) but no matching lemmas in DB to fix them"
+            f"Retired sentence #{sentence.id}: LLM found {len(issues)} issue(s) "
+            f"but no matching lemmas in DB to fix them"
         )
         _log_activity(db, "flag_resolved",
-                      f"Word mapping issues found but unfixable for sentence #{sentence.id}",
+                      f"Retired sentence #{sentence.id} — unfixable mapping issues",
                       {"flag_id": flag.id, "sentence_id": sentence.id, "issues": issues})
 
     flag.resolved_at = datetime.now(timezone.utc)

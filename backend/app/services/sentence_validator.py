@@ -956,12 +956,15 @@ def correct_mapping(
     correct_ar: str,
     correct_gloss: str,
     correct_pos: str,
+    current_lemma_id: int | None = None,
 ) -> int | None:
     """Find the correct lemma in DB and return its lemma_id.
 
-    Searches by bare form (with/without al-prefix). Returns None if the
-    correct lemma doesn't exist — callers should reject the sentence rather
-    than auto-creating lemmas nobody asked to learn.
+    Searches by bare form (with/without al-prefix). When ``current_lemma_id``
+    is provided, prefers a *different* lemma (handles homographs like
+    سلم peace vs سلم ladder). Returns None if the correct lemma doesn't
+    exist — callers should reject the sentence rather than auto-creating
+    lemmas nobody asked to learn.
     """
     from app.models import Lemma
 
@@ -969,22 +972,33 @@ def correct_mapping(
         return None
 
     correct_bare = normalize_arabic(correct_ar)
-    candidate = (
+    candidates = (
         db.query(Lemma)
         .filter(Lemma.lemma_ar_bare == correct_bare)
-        .first()
+        .all()
     )
-    if not candidate:
+    if not candidates:
         if correct_bare.startswith("ال"):
-            candidate = db.query(Lemma).filter(
+            candidates = db.query(Lemma).filter(
                 Lemma.lemma_ar_bare == correct_bare[2:]
-            ).first()
+            ).all()
         else:
-            candidate = db.query(Lemma).filter(
+            candidates = db.query(Lemma).filter(
                 Lemma.lemma_ar_bare == "ال" + correct_bare
-            ).first()
+            ).all()
 
-    return candidate.lemma_id if candidate else None
+    if not candidates:
+        return None
+
+    # If we know the current (wrong) lemma_id, prefer a different one
+    if current_lemma_id is not None:
+        for c in candidates:
+            if c.lemma_id != current_lemma_id:
+                return c.lemma_id
+        # Only the same lemma exists — homograph not in DB
+        return None
+
+    return candidates[0].lemma_id
 
 
 def disambiguate_mappings_llm(

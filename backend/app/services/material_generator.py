@@ -227,6 +227,7 @@ def generate_material_for_word(lemma_id: int, needed: int = 2, model_override: s
                         corr.get("correct_lemma_ar", ""),
                         corr.get("correct_gloss", ""),
                         corr.get("correct_pos", ""),
+                        current_lemma_id=m.lemma_id,
                     )
                     if new_lid and new_lid != m.lemma_id:
                         logger.info(
@@ -446,6 +447,7 @@ def store_multi_target_sentence(
                 corr.get("correct_lemma_ar", ""),
                 corr.get("correct_gloss", ""),
                 corr.get("correct_pos", ""),
+                current_lemma_id=m.lemma_id,
             )
             if new_lid and new_lid != m.lemma_id:
                 logger.info(
@@ -1056,6 +1058,7 @@ Sentences:
                     corr.get("correct_lemma_ar", ""),
                     corr.get("correct_gloss", ""),
                     corr.get("correct_pos", ""),
+                    current_lemma_id=sw.lemma_id,
                 )
                 if new_lid and new_lid != sw.lemma_id:
                     logger.info(
