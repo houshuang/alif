@@ -4,13 +4,27 @@ Used by both learn.py (word introduction) and ocr_service.py (post-import).
 """
 
 import asyncio
+import json
 import logging
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 
 from app.database import SessionLocal
 from app.models import Lemma, Sentence, SentenceWord, UserLemmaKnowledge
 
 logger = logging.getLogger(__name__)
+
+
+def _log_pipeline(log_dir: Path, entry: dict) -> None:
+    """Append a generation pipeline event to JSONL log."""
+    try:
+        log_dir.mkdir(parents=True, exist_ok=True)
+        log_file = log_dir / f"generation_pipeline_{datetime.now():%Y-%m-%d}.jsonl"
+        entry["ts"] = datetime.now().isoformat()
+        with open(log_file, "a") as f:
+            f.write(json.dumps(entry, ensure_ascii=False) + "\n")
+    except Exception:
+        pass
 
 
 def generate_material_for_word(lemma_id: int, needed: int = 2, model_override: str = "gemini") -> int:
@@ -91,6 +105,9 @@ def generate_material_for_word(lemma_id: int, needed: int = 2, model_override: s
         db.close()
 
     # ── Phase 2: LLM generation + validation (no DB lock) ──
+    from app.config import settings as _settings
+    _log_dir = _settings.log_dir
+
     clean_target, san_warnings = sanitize_arabic_word(lemma_ar)
     if not clean_target or " " in clean_target or "too_short" in san_warnings:
         logger.warning(f"Skipping generation for uncleanable lemma {lemma_id}: {lemma_ar!r}")
@@ -98,12 +115,13 @@ def generate_material_for_word(lemma_id: int, needed: int = 2, model_override: s
     target_bare = strip_diacritics(clean_target)
     all_bare_forms = set(lemma_lookup.keys())
 
+    batch_requested = needed + 2
     try:
         results = generate_sentences_batch(
             target_word=clean_target,
             target_translation=gloss_en,
             known_words=sample,
-            count=needed + 2,
+            count=batch_requested,
             difficulty_hint=diff_params["difficulty_hint"],
             avoid_words=avoid_words,
             max_words=diff_params["max_words"],
@@ -111,11 +129,21 @@ def generate_material_for_word(lemma_id: int, needed: int = 2, model_override: s
         )
     except AllProvidersFailed:
         logger.warning(f"LLM unavailable for sentence generation (lemma {lemma_id})")
+        _log_pipeline(_log_dir, {
+            "event": "batch_failed", "lemma_id": lemma_id, "target": lemma_ar,
+            "model": model_override, "reason": "all_providers_failed",
+        })
         return 0
+
+    _log_pipeline(_log_dir, {
+        "event": "batch_returned", "lemma_id": lemma_id, "target": lemma_ar,
+        "model": model_override, "requested": batch_requested, "returned": len(results),
+        "difficulty": diff_params["difficulty_hint"], "known_sample_size": len(sample),
+    })
 
     # Validate and prepare sentences in memory
     valid_sentences: list[dict] = []
-    for res in results:
+    for res_idx, res in enumerate(results):
         if len(valid_sentences) >= needed:
             break
 
@@ -125,6 +153,11 @@ def generate_material_for_word(lemma_id: int, needed: int = 2, model_override: s
             known_bare_forms=all_bare_forms,
         )
         if not validation.valid:
+            _log_pipeline(_log_dir, {
+                "event": "validation_failed", "lemma_id": lemma_id, "target": lemma_ar,
+                "arabic": res.arabic, "issues": validation.issues,
+                "unknown_words": validation.unknown_words,
+            })
             continue
 
         tokens = tokenize_display(res.arabic)
@@ -137,6 +170,10 @@ def generate_material_for_word(lemma_id: int, needed: int = 2, model_override: s
         unmapped = [m.surface_form for m in mappings if m.lemma_id is None]
         if unmapped:
             logger.warning(f"Skipping sentence with unmapped words: {unmapped}")
+            _log_pipeline(_log_dir, {
+                "event": "unmapped_words", "lemma_id": lemma_id, "target": lemma_ar,
+                "arabic": res.arabic, "unmapped": unmapped,
+            })
             continue
 
         # Disambiguate tokens with multiple candidate lemmas using sentence context
@@ -154,6 +191,10 @@ def generate_material_for_word(lemma_id: int, needed: int = 2, model_override: s
             )
             if result is None:
                 logger.warning(f"Disambiguation failed for ambiguous sentence, skipping")
+                _log_pipeline(_log_dir, {
+                    "event": "disambiguation_failed", "lemma_id": lemma_id,
+                    "arabic": res.arabic,
+                })
                 continue
             mappings = result
 
@@ -167,6 +208,10 @@ def generate_material_for_word(lemma_id: int, needed: int = 2, model_override: s
         )
         if corrections is None:
             logger.warning(f"Mapping verification unavailable for lemma {lemma_id}, discarding sentence")
+            _log_pipeline(_log_dir, {
+                "event": "verification_failed", "lemma_id": lemma_id,
+                "arabic": res.arabic,
+            })
             continue
         if corrections:
             correction_failed = False
@@ -203,9 +248,28 @@ def generate_material_for_word(lemma_id: int, needed: int = 2, model_override: s
                 logger.warning(
                     f"Mapping correction failed for sentence for lemma {lemma_id}, discarding"
                 )
+                _log_pipeline(_log_dir, {
+                    "event": "correction_failed", "lemma_id": lemma_id,
+                    "arabic": res.arabic, "corrections": corrections,
+                })
                 continue
 
         from app.services.transliteration import transliterate_arabic as _translit_ar
+
+        word_count = len(tokens)
+        known_count = len(validation.known_words)
+        func_count = len(validation.function_words)
+        scaffold_pct = round(known_count / max(word_count, 1), 2)
+
+        _log_pipeline(_log_dir, {
+            "event": "sentence_accepted", "lemma_id": lemma_id, "target": lemma_ar,
+            "arabic": res.arabic, "english": res.english,
+            "word_count": word_count, "known_count": known_count,
+            "function_count": func_count, "scaffold_pct": scaffold_pct,
+            "had_corrections": len(corrections) if corrections else 0,
+            "had_disambiguation": has_ambiguous,
+        })
+
         valid_sentences.append({
             "arabic": res.arabic,
             "english": res.english,
@@ -214,6 +278,10 @@ def generate_material_for_word(lemma_id: int, needed: int = 2, model_override: s
         })
 
     if not valid_sentences:
+        _log_pipeline(_log_dir, {
+            "event": "batch_zero_valid", "lemma_id": lemma_id, "target": lemma_ar,
+            "model": model_override, "returned": len(results),
+        })
         return 0
 
     # ── Phase 3: DB write (milliseconds) ──
