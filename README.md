@@ -11,22 +11,24 @@ A personal Arabic (MSA/fusha) learning app focused on reading and listening comp
 
 ## What It Does
 
-- **Sentence-first review**: Spaced repetition at the sentence level. A greedy set-cover algorithm picks sentences that maximize coverage of your due words. You tap words you missed or found confusing — every word in the sentence gets an FSRS review.
-- **Reading mode**: See diacritized Arabic, tap words to look them up (with root-family predictions), then self-rate comprehension.
-- **Listening mode**: Hear TTS audio first, then reveal text. Trains ear before eye.
-- **Learn mode**: Introduces new words one at a time with forms tables, example sentences, root families, and a quiz.
-- **Story mode**: Generate micro-fiction with your known vocabulary, or import any Arabic text. Tap-to-lookup reader with FSRS credit on completion.
-- **Textbook scanner**: OCR Arabic pages, extract words, add them to your vocabulary.
-- **Grammar tracking**: 24 grammar features across 5 tiers, with LLM-generated lessons.
-- **Arabic NLP pipeline**: Clitic stripping, CAMeL Tools morphological analysis, root extraction, LLM-confirmed variant detection.
+- **Sentence-first review**: Spaced repetition at the sentence level. A greedy set-cover algorithm picks sentences that maximize coverage of your due words. You tap words you missed or found confusing — every word in the sentence gets an FSRS review. Intro cards teach each new word before its first sentence appearance.
+- **Reading mode**: See diacritized Arabic, tap words to look them up (with root-family predictions), then self-rate comprehension. Well-known words fade their diacritics (tashkeel fading), and cards alternate between two Arabic fonts (Scheherazade New + Amiri) to build familiarity with both learner-friendly and print-style typography.
+- **Listening mode**: Hear TTS audio first, then reveal text. Story audio with voice rotation (3 ElevenLabs voices). Supports Professional Voice Clones.
+- **Podcast generation**: Personalized audio episodes built from your FSRS vocabulary state. Six formats: sentence drill, story breakdown, comprehensible input, root explorer, word spotlight, story retelling. Segments stitched via pydub/ffmpeg with per-segment caching.
+- **Learn mode**: Introduces new words with info-dense cards: forms tables, root/pattern chips, etymology, memory hooks, example sentences. Rescue cards re-teach stuck words (≥4 reviews, <50% accuracy).
+- **Story mode**: Generate micro-fiction in 4 formats (standard, long, breakdown, arabic_explanation) with your known vocabulary, or import any Arabic text. Tap-to-lookup reader with FSRS credit on completion. Story audio with voice rotation, archive system, passive `times_heard` tracking. Auto-generate cron keeps ≥3 active stories.
+- **Textbook scanner**: OCR Arabic pages via Gemini Vision, extract words, add them to your vocabulary. Batch processing with crash recovery.
+- **Grammar tracking**: 49 grammar features across 8 tiers, with LLM-generated lessons.
+- **Arabic NLP pipeline**: 7-stage sentence generation pipeline with 3-pass lemma lookup, clitic stripping, CAMeL Tools morphological analysis, root extraction, LLM mapping verification/correction, and LLM-confirmed variant detection with multi-hop chain resolution.
 
 ## Architecture
 
-- **Backend**: Python / FastAPI / SQLite (single user, no auth)
+- **Backend**: Python / FastAPI / SQLite (single user, no auth, WAL mode)
 - **Frontend**: Expo (React Native) — runs on iOS and web
-- **SRS**: py-fsrs (FSRS algorithm)
-- **LLM**: LiteLLM with automatic fallback (Gemini Flash → GPT → Claude Haiku)
-- **TTS**: ElevenLabs REST API
+- **SRS**: py-fsrs v6 (FSRS-6 with same-day review support)
+- **LLM**: Two-tier strategy. Background/cron tasks use Claude CLI (free via Max plan): Sonnet for generation, Haiku for quality gate + verification. User-facing tasks use Gemini Flash (fast, ~1s). Fallback chain: Gemini Flash → GPT → Claude Haiku API.
+- **TTS**: ElevenLabs REST API with Professional Voice Clone support. Voice pool (3 voices) for story audio rotation.
+- **Audio**: pydub + ffmpeg for podcast segment stitching
 - **NLP**: Rule-based clitic stripping + CAMeL Tools morphological analyzer (with graceful fallback if not installed)
 - **Deployment**: Docker Compose, designed for a single cheap VPS
 
@@ -39,9 +41,9 @@ A personal Arabic (MSA/fusha) learning app focused on reading and listening comp
 | `GEMINI_KEY` | Google AI Studio | Recommended (primary LLM) | Sentence generation, grammar tagging, variant detection, OCR |
 | `OPENAI_KEY` | OpenAI | Optional (fallback LLM) | LLM fallback, flag evaluation |
 | `ANTHROPIC_API_KEY` | Anthropic | Optional (tertiary LLM) | LLM fallback |
-| `ELEVENLABS_API_KEY` | ElevenLabs | Optional | Text-to-speech for listening mode |
+| `ELEVENLABS_API_KEY` | ElevenLabs | Optional | TTS for listening mode, story audio, and podcasts |
 
-You need at least one LLM key. Without `ELEVENLABS_API_KEY`, listening mode won't work but everything else will.
+You need at least one LLM key. Without `ELEVENLABS_API_KEY`, listening mode, story audio, and podcast generation won't work but everything else will.
 
 ### Quick Start (Local)
 
@@ -289,7 +291,7 @@ You lose: lemmatization, root extraction, MLE disambiguation, variant detection.
 ## Tests
 
 ```bash
-cd backend && python -m pytest    # ~559 tests, no API keys needed
+cd backend && python -m pytest    # ~833 tests, no API keys needed
 ```
 
 ## Adapting for Another Language
