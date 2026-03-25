@@ -1,10 +1,13 @@
 """Podcast API endpoints."""
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
+from sqlalchemy.orm import Session
 
+from app.database import get_db
 from app.services.podcast_service import (
+    complete_podcast,
     get_podcast_detail,
     get_podcast_path,
     list_podcasts,
@@ -41,6 +44,15 @@ def update_progress(filename: str, body: ProgressUpdate):
     if not ok:
         raise HTTPException(status_code=404, detail="Podcast not found")
     return {"ok": True}
+
+
+@router.post("/complete/{filename}")
+def complete_podcast_endpoint(filename: str, db: Session = Depends(get_db)):
+    """Mark podcast as completed and credit words heard."""
+    try:
+        return complete_podcast(db, filename)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
 
 
 @router.get("/audio/{filename}")

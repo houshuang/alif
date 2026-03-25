@@ -46,6 +46,7 @@ export default function PodcastScreen() {
   const [selected, setSelected] = useState<string | null>(null);
   const [detail, setDetail] = useState<PodDetail | null>(null);
   const [status, setStatus] = useState<{ position: number; duration: number; isPlaying: boolean } | null>(null);
+  const [completeFeedback, setCompleteFeedback] = useState<string | null>(null);
   const soundRef = useRef<Audio.Sound | null>(null);
 
   const fetchPodcasts = useCallback(async () => {
@@ -75,6 +76,19 @@ export default function PodcastScreen() {
     } catch {}
   };
 
+  const completePodcast = async (fn: string) => {
+    try {
+      const res = await fetch(`${BASE_URL}/api/podcasts/complete/${fn}`, { method: "POST" });
+      if (res.ok) {
+        const data = await res.json();
+        const n = data.words_heard || 0;
+        setCompleteFeedback(n > 0 ? `${n} words credited` : "Marked complete");
+        setTimeout(() => setCompleteFeedback(null), 3000);
+        fetchPodcasts();
+      }
+    } catch {}
+  };
+
   const playPodcast = async (fn: string) => {
     if (soundRef.current) { await soundRef.current.unloadAsync(); soundRef.current = null; }
     if (playing === fn) { setPlaying(null); setStatus(null); return; }
@@ -85,7 +99,7 @@ export default function PodcastScreen() {
       (ps) => {
         if (ps.isLoaded) {
           setStatus({ position: ps.positionMillis, duration: ps.durationMillis || 0, isPlaying: ps.isPlaying });
-          if (ps.didJustFinish) { reportProgress(fn, 1.0, true); setPlaying(null); setStatus(null); fetchPodcasts(); }
+          if (ps.didJustFinish) { reportProgress(fn, 1.0, false); setPlaying(null); setStatus(null); }
         }
       }
     );
@@ -139,14 +153,30 @@ export default function PodcastScreen() {
               {p.listened_at ? " · Listened" : ""}
             </Text>
 
-            {/* Play button */}
-            <Pressable
-              style={st.detailPlayBtn}
-              onPress={() => playPodcast(p.filename)}
-            >
-              <Ionicons name={isPlaying ? "pause" : "play"} size={20} color="#fff" />
-              <Text style={st.detailPlayText}>{isPlaying ? "Pause" : "Play Episode"}</Text>
-            </Pressable>
+            {/* Play + Complete buttons */}
+            <View style={st.buttonRow}>
+              <Pressable
+                style={st.detailPlayBtn}
+                onPress={() => playPodcast(p.filename)}
+              >
+                <Ionicons name={isPlaying ? "pause" : "play"} size={20} color="#fff" />
+                <Text style={st.detailPlayText}>{isPlaying ? "Pause" : "Play Episode"}</Text>
+              </Pressable>
+
+              {!p.listened_at && (
+                <Pressable
+                  style={st.completeBtn}
+                  onPress={() => completePodcast(p.filename)}
+                >
+                  <Ionicons name="checkmark-circle" size={20} color="#fff" />
+                  <Text style={st.completeBtnText}>Complete</Text>
+                </Pressable>
+              )}
+            </View>
+
+            {completeFeedback && (
+              <Text style={st.feedbackText}>{completeFeedback}</Text>
+            )}
 
             {/* Summary */}
             {(detail?.summary || p.summary) ? (
@@ -355,13 +385,22 @@ const st = StyleSheet.create({
   },
   detailTitle: { fontSize: 22, fontWeight: "700", color: colors.text, textTransform: "capitalize" },
   detailMeta: { fontSize: 13, color: colors.textSecondary, marginTop: 4 },
+  buttonRow: { flexDirection: "row", gap: 10, marginTop: 16, flexWrap: "wrap" },
   detailPlayBtn: {
     flexDirection: "row", alignItems: "center", gap: 8,
-    backgroundColor: colors.accent, alignSelf: "flex-start",
+    backgroundColor: colors.accent,
     paddingHorizontal: 20, paddingVertical: 10, borderRadius: 24,
-    marginTop: 16,
   },
   detailPlayText: { fontSize: 15, fontWeight: "600", color: "#fff" },
+  completeBtn: {
+    flexDirection: "row", alignItems: "center", gap: 6,
+    backgroundColor: colors.gotIt,
+    paddingHorizontal: 16, paddingVertical: 10, borderRadius: 24,
+  },
+  completeBtnText: { fontSize: 15, fontWeight: "600", color: "#fff" },
+  feedbackText: {
+    fontSize: 13, color: colors.gotIt, marginTop: 8, fontWeight: "500",
+  },
   detailSummary: {
     fontSize: 14, color: colors.textSecondary, lineHeight: 21,
     marginTop: 20, fontStyle: "italic",

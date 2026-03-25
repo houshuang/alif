@@ -811,3 +811,63 @@ def _validate_filename(filename: str) -> Optional[Path]:
 def get_podcast_path(filename: str) -> Optional[Path]:
     """Get path to a podcast file, validating it exists."""
     return _validate_filename(filename)
+
+
+def unheard_count() -> int:
+    """Count podcasts that haven't been completed yet."""
+    PODCAST_DIR.mkdir(parents=True, exist_ok=True)
+    count = 0
+    for f in PODCAST_DIR.glob("*.mp3"):
+        if f.parent != PODCAST_DIR:
+            continue
+        meta = _load_metadata(f) or {}
+        if not meta.get("listened_at"):
+            count += 1
+    return count
+
+
+def complete_podcast(db: Session, filename: str) -> dict:
+    """Mark podcast as completed and increment times_heard for all content words.
+
+    Uses pre-computed word_lemma_ids from podcast metadata (stored at generation
+    time). For older podcasts without this field, still marks as completed but
+    credits 0 words.
+    """
+    from app.services.interaction_logger import log_interaction
+
+    path = _validate_filename(filename)
+    if not path:
+        raise ValueError(f"Podcast not found: {filename}")
+
+    json_path = path.with_suffix(".json")
+    meta = {}
+    if json_path.exists():
+        try:
+            meta = json.loads(json_path.read_text())
+        except (json.JSONDecodeError, OSError):
+            pass
+
+    # Mark as completed
+    meta["listened_at"] = datetime.now(timezone.utc).isoformat()
+    meta["listen_progress"] = 1.0
+    json_path.write_text(json.dumps(meta, ensure_ascii=False, indent=2))
+
+    # Increment times_heard for all content words
+    lemma_ids = set(meta.get("word_lemma_ids", []))
+    heard_count = 0
+    if lemma_ids:
+        ulks = db.query(UserLemmaKnowledge).filter(
+            UserLemmaKnowledge.lemma_id.in_(lemma_ids)
+        ).all()
+        for ulk in ulks:
+            ulk.times_heard = (ulk.times_heard or 0) + 1
+            heard_count += 1
+        db.commit()
+
+    log_interaction(
+        event="podcast_completed",
+        context=f"filename:{filename}",
+        words_heard=heard_count,
+    )
+
+    return {"filename": filename, "words_heard": heard_count, "completed": True}

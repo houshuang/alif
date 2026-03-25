@@ -764,6 +764,40 @@ async def main():
         else:
             print("  Skipped (dry run)")
 
+        # ── Step I: auto-generate podcasts ─────────────────────────
+        podcasts_i = 0
+        PODCAST_TARGET = 4  # keep at least 4 unheard podcasts
+        MAX_PODCAST_PER_RUN = 2  # limit TTS cost per cron run
+        print(f"\n[I] Auto-generate podcasts (target ≥ {PODCAST_TARGET} unheard)")
+        if not args.dry_run:
+            from app.services.podcast_service import unheard_count
+            from scripts.generate_story_podcasts import (
+                generate_single_podcast,
+                get_high_stability_words,
+                pick_unused_theme,
+            )
+            current_unheard = unheard_count()
+            deficit = min(PODCAST_TARGET - current_unheard, MAX_PODCAST_PER_RUN)
+            print(f"  Unheard podcasts: {current_unheard}, need {max(0, deficit)} more")
+            if deficit > 0:
+                words = get_high_stability_words(db, min_stability_days=14.0)
+                if len(words) >= 30:
+                    for i in range(deficit):
+                        theme = pick_unused_theme()
+                        try:
+                            print(f"  Generating podcast {i+1}/{deficit}: {theme['title']}...")
+                            path = await generate_single_podcast(db, words, theme)
+                            if path:
+                                podcasts_i += 1
+                                print(f"  Generated: {path.name}")
+                        except Exception as e:
+                            print(f"  Podcast generation failed: {e}")
+                            logger.exception("Step I podcast generation failed")
+                else:
+                    print(f"  Not enough high-stability words ({len(words)})")
+        else:
+            print("  Skipped (dry run)")
+
         elapsed = time.time() - start
         print(f"\n{'─' * 60}")
         print(f"Done in {elapsed:.1f}s")
@@ -776,12 +810,13 @@ async def main():
         print(f"  Step F leeches:   {leech_f}")
         print(f"  Step G book ULK:  {book_ulk_g}")
         print(f"  Step H stories:   {stories_h}")
+        print(f"  Step I podcasts:  {podcasts_i}")
 
-        if not args.dry_run and (retired_0 + sent_a + audio_b + sent_c + enrich_e + leech_f + book_ulk_g + stories_h > 0):
+        if not args.dry_run and (retired_0 + sent_a + audio_b + sent_c + enrich_e + leech_f + book_ulk_g + stories_h + podcasts_i > 0):
             log_activity(
                 db,
                 event_type="material_updated",
-                summary=f"Retired {retired_0}, generated {sent_a}+{sent_c} sentences, {audio_b} audio, enriched {enrich_e}, reintro {leech_f} leeches, {book_ulk_g} book ULK, {stories_h} stories in {elapsed:.0f}s",
+                summary=f"Retired {retired_0}, generated {sent_a}+{sent_c} sentences, {audio_b} audio, enriched {enrich_e}, reintro {leech_f} leeches, {book_ulk_g} book ULK, {stories_h} stories, {podcasts_i} podcasts in {elapsed:.0f}s",
                 detail={
                     "step_0_retired": retired_0,
                     "step_a_sentences": sent_a,
@@ -792,6 +827,7 @@ async def main():
                     "step_f_leeches": leech_f,
                     "step_g_book_ulk": book_ulk_g,
                     "step_h_stories": stories_h,
+                    "step_i_podcasts": podcasts_i,
                     "elapsed_seconds": round(elapsed, 1),
                 },
             )
