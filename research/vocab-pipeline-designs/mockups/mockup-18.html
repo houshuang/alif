@@ -1,0 +1,229 @@
+<section class="mockup-section" data-mockup-id="mockup-18" data-label="18. Sankey Refined — Wider Bands + Inline Boxes">
+<style>
+  body { background: #0a0a0a; color: #e5e5e5; font-family: 'Inter', sans-serif; margin: 0; }
+  .container { padding: 20px 16px; max-width: 375px; margin: 0 auto; }
+  .card { background: #1a1a1a; border-radius: 16px; padding: 18px; margin-bottom: 14px; }
+  .card-title { font-size: 10px; color: #666; text-transform: uppercase; letter-spacing: 1.5px; font-weight: 700; margin-bottom: 14px; }
+
+  /* Sankey with wider, more readable bands */
+  .sankey-wrap { margin-bottom: 12px; }
+  .sankey-svg { width: 100%; height: 160px; }
+
+  /* Stage cards below sankey */
+  .stage-cards { display: flex; gap: 4px; margin-bottom: 10px; }
+  .sc { flex: 1; text-align: center; padding: 8px 2px; background: #111; border-radius: 8px; border-top: 2px solid transparent; }
+  .sc-count { font-size: 18px; font-weight: 800; }
+  .sc-name { font-size: 8px; color: #888; text-transform: uppercase; letter-spacing: 0.3px; }
+  .sc-sub { font-size: 8px; margin-top: 2px; }
+
+  /* Bottleneck banner */
+  .bottleneck { padding: 8px 12px; border-radius: 8px; display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+  .bn-icon { font-size: 14px; flex-shrink: 0; }
+  .bn-text { font-size: 10px; line-height: 1.3; }
+
+  /* Health chips */
+  .chips { display: flex; gap: 4px; }
+  .chip { flex: 1; padding: 6px 4px; background: #111; border-radius: 6px; text-align: center; }
+  .chip-val { font-size: 13px; font-weight: 700; }
+  .chip-label { font-size: 7px; color: #888; text-transform: uppercase; letter-spacing: 0.2px; }
+
+  /* Acquisition — integrated pipeline */
+  .acq-title-row { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 10px; }
+  .acq-count { font-size: 12px; color: #fbbf24; font-weight: 700; }
+
+  /* Box nodes inline */
+  .box-nodes { display: flex; align-items: center; gap: 4px; margin-bottom: 10px; }
+  .box-node { flex: 1; text-align: center; padding: 10px 2px; background: #111; border-radius: 10px; position: relative; }
+  .box-node-num { font-size: 20px; font-weight: 800; color: #fbbf24; }
+  .box-node-label { font-size: 8px; color: #888; }
+  .box-node-interval { font-size: 7px; color: #555; }
+  .box-node-due { position: absolute; top: -5px; right: -3px; background: #f87171; color: white; font-size: 7px; font-weight: 700; width: 16px; height: 16px; border-radius: 50%; display: flex; align-items: center; justify-content: center; }
+  .box-arrow { color: #333; font-size: 12px; flex-shrink: 0; }
+  .box-end { text-align: center; padding: 10px 6px; border-radius: 10px; background: rgba(45,212,191,0.06); }
+  .box-end-label { font-size: 8px; color: #2dd4bf; font-weight: 600; }
+
+  /* Flow balance */
+  .flow-bal { display: flex; height: 24px; border-radius: 6px; overflow: hidden; margin-bottom: 4px; }
+  .fb-seg { display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 600; }
+  .flow-bal-labels { display: flex; justify-content: space-between; font-size: 8px; color: #666; margin-bottom: 10px; }
+
+  /* Stats grid */
+  .stats-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; margin-bottom: 10px; }
+  .sg-item { text-align: center; padding: 6px 2px; background: #111; border-radius: 6px; }
+  .sg-val { font-size: 13px; font-weight: 700; }
+  .sg-label { font-size: 7px; color: #888; text-transform: uppercase; letter-spacing: 0.2px; }
+
+  /* 30-day chart */
+  .chart-sec { padding-top: 8px; border-top: 1px solid #222; margin-bottom: 8px; }
+  .chart-label { font-size: 9px; color: #666; margin-bottom: 4px; display: flex; justify-content: space-between; }
+  .chart-svg { width: 100%; height: 40px; }
+
+  /* Grads */
+  .grads { padding-top: 8px; border-top: 1px solid #222; }
+  .grad-title { font-size: 9px; color: #666; margin-bottom: 4px; }
+  .grad-list { display: flex; gap: 4px; }
+  .grad-pill { font-size: 12px; color: #2dd4bf; padding: 3px 8px; background: rgba(45,212,191,0.08); border-radius: 5px; }
+  .grad-time { font-size: 8px; color: #555; margin-left: 2px; }
+</style>
+
+<div class="container">
+  <div class="card">
+    <div class="card-title">Word Flow</div>
+
+    <div class="sankey-wrap">
+      <svg class="sankey-svg" viewBox="0 0 335 140" fill="none">
+        <defs>
+          <linearGradient id="g16a" x1="0" y1="0" x2="1" y2="0"><stop offset="0%" stop-color="#666" stop-opacity="0.15"/><stop offset="100%" stop-color="#fbbf24" stop-opacity="0.25"/></linearGradient>
+          <linearGradient id="g16b" x1="0" y1="0" x2="1" y2="0"><stop offset="0%" stop-color="#fbbf24" stop-opacity="0.25"/><stop offset="100%" stop-color="#38bdf8" stop-opacity="0.2"/></linearGradient>
+          <linearGradient id="g16c" x1="0" y1="0" x2="1" y2="0"><stop offset="0%" stop-color="#38bdf8" stop-opacity="0.2"/><stop offset="100%" stop-color="#2dd4bf" stop-opacity="0.2"/></linearGradient>
+        </defs>
+
+        <!-- Stage columns — taller, more visible -->
+        <rect x="0" y="5" width="20" height="110" rx="6" fill="rgba(255,255,255,0.05)" />
+        <rect x="105" y="30" width="20" height="50" rx="6" fill="rgba(251,191,36,0.2)" />
+        <rect x="210" y="15" width="20" height="75" rx="6" fill="rgba(56,189,248,0.12)" />
+        <rect x="315" y="8" width="20" height="90" rx="6" fill="rgba(45,212,191,0.12)" />
+
+        <!-- Wider flow bands -->
+        <path d="M20,46 C60,46 70,48 105,48 L105,62 C70,62 60,60 20,60 Z" fill="url(#g16a)" />
+        <path d="M125,44 C160,44 175,42 210,40 L210,58 C175,60 160,58 125,58 Z" fill="url(#g16b)" />
+        <path d="M230,34 C265,34 285,30 315,26 L315,48 C285,50 265,52 230,52 Z" fill="url(#g16c)" />
+
+        <!-- Lapsed drip -->
+        <path d="M325,98 C328,108 330,118 328,128" stroke="#f87171" stroke-width="1.5" fill="none" opacity="0.4" stroke-dasharray="3 3" />
+        <text x="310" y="136" font-size="9" fill="#f87171" font-family="Inter" font-weight="600">4 lapsed</text>
+
+        <!-- Flow rate labels -->
+        <text x="62" y="42" font-size="10" fill="#fbbf24" font-family="Inter" text-anchor="middle" font-weight="600">6/d</text>
+        <text x="168" y="38" font-size="10" fill="#2dd4bf" font-family="Inter" text-anchor="middle" font-weight="600">3/d</text>
+        <text x="272" y="24" font-size="8" fill="#2dd4bf" font-family="Inter" text-anchor="middle" opacity="0.5">stab≥21d</text>
+
+        <!-- Stage labels inside columns -->
+        <text x="10" y="65" font-size="7" fill="#888" font-family="Inter" text-anchor="middle" transform="rotate(-90 10 65)">SEEN</text>
+        <text x="115" y="58" font-size="7" fill="#fbbf24" font-family="Inter" text-anchor="middle" transform="rotate(-90 115 58)">ACQ</text>
+        <text x="220" y="56" font-size="7" fill="#38bdf8" font-family="Inter" text-anchor="middle" transform="rotate(-90 220 56)">LEARN</text>
+        <text x="325" y="56" font-size="7" fill="#2dd4bf" font-family="Inter" text-anchor="middle" transform="rotate(-90 325 56)">KNOWN</text>
+      </svg>
+    </div>
+
+    <div class="stage-cards">
+      <div class="sc" style="border-top-color: #444;">
+        <div class="sc-count" style="color: #666">847</div>
+        <div class="sc-name">Seen</div>
+      </div>
+      <div class="sc" style="border-top-color: #fbbf24;">
+        <div class="sc-count" style="color: #fbbf24">38</div>
+        <div class="sc-name">Acquiring</div>
+        <div class="sc-sub" style="color: #f87171">12 due</div>
+      </div>
+      <div class="sc" style="border-top-color: #38bdf8;">
+        <div class="sc-count" style="color: #38bdf8">87</div>
+        <div class="sc-name">Learning</div>
+        <div class="sc-sub" style="color: #38bdf8">+5/wk</div>
+      </div>
+      <div class="sc" style="border-top-color: #2dd4bf;">
+        <div class="sc-count" style="color: #2dd4bf">145</div>
+        <div class="sc-name">Known</div>
+        <div class="sc-sub" style="color: #2dd4bf">+12/wk</div>
+      </div>
+    </div>
+
+    <div class="bottleneck" style="background: rgba(45,212,191,0.05); border: 1px solid rgba(45,212,191,0.1);">
+      <span class="bn-icon" style="color: #2dd4bf;">✓</span>
+      <span class="bn-text" style="color: #2dd4bf;">Healthy — 2:1 in/out ratio, no bottleneck detected</span>
+    </div>
+
+    <div class="chips">
+      <div class="chip">
+        <div class="chip-val" style="color: #2dd4bf">+2.1</div>
+        <div class="chip-label">Net/day</div>
+      </div>
+      <div class="chip">
+        <div class="chip-val">87%</div>
+        <div class="chip-label">Retention</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="acq-title-row">
+      <span class="card-title" style="margin-bottom: 0">Acquisition Pipeline</span>
+      <span class="acq-count">38 words</span>
+    </div>
+
+    <div class="box-nodes">
+      <div class="box-node">
+        <div class="box-node-num">18</div>
+        <div class="box-node-label">Box 1</div>
+        <div class="box-node-interval">4 hours</div>
+        <div class="box-node-due">8</div>
+      </div>
+      <span class="box-arrow">→</span>
+      <div class="box-node">
+        <div class="box-node-num">12</div>
+        <div class="box-node-label">Box 2</div>
+        <div class="box-node-interval">1 day</div>
+        <div class="box-node-due">3</div>
+      </div>
+      <span class="box-arrow">→</span>
+      <div class="box-node">
+        <div class="box-node-num">8</div>
+        <div class="box-node-label">Box 3</div>
+        <div class="box-node-interval">3 days</div>
+        <div class="box-node-due">1</div>
+      </div>
+      <span class="box-arrow">→</span>
+      <div class="box-end">
+        <div style="font-size: 13px; color: #2dd4bf; font-weight: 700;">↑</div>
+        <div class="box-end-label">FSRS</div>
+      </div>
+    </div>
+
+    <div class="flow-bal">
+      <div class="fb-seg" style="flex: 6; background: rgba(251,191,36,0.3); color: #fbbf24;">6 in</div>
+      <div class="fb-seg" style="flex: 3; background: rgba(45,212,191,0.3); color: #2dd4bf;">3 out</div>
+      <div class="fb-seg" style="flex: 1; background: rgba(248,113,113,0.25); color: #f87171; font-size: 8px;">1</div>
+    </div>
+    <div class="flow-bal-labels">
+      <span>entering daily</span>
+      <span>graduating</span>
+      <span>lost</span>
+    </div>
+
+    <div class="stats-grid">
+      <div class="sg-item">
+        <div class="sg-val" style="color: #2dd4bf">82%</div>
+        <div class="sg-label">Grad Rate</div>
+      </div>
+      <div class="sg-item">
+        <div class="sg-val">~9</div>
+        <div class="sg-label">Reviews</div>
+      </div>
+      <div class="sg-item">
+        <div class="sg-val" style="color: #fbbf24">4.2d</div>
+        <div class="sg-label">Avg Time</div>
+      </div>
+    </div>
+
+    <div class="chart-sec">
+      <div class="chart-label">
+        <span>Pipeline size (30d)</span>
+        <span style="color: #fbbf24">38 now</span>
+      </div>
+      <svg class="chart-svg" viewBox="0 0 300 40" preserveAspectRatio="none">
+        <path d="M0,35 C20,33 40,28 60,30 C80,32 100,26 120,22 C140,18 160,20 180,24 C200,20 220,14 240,17 C260,20 280,16 300,12 L300,40 L0,40 Z" fill="rgba(251,191,36,0.1)" />
+        <path d="M0,35 C20,33 40,28 60,30 C80,32 100,26 120,22 C140,18 160,20 180,24 C200,20 220,14 240,17 C260,20 280,16 300,12" stroke="#fbbf24" stroke-width="1.5" fill="none" opacity="0.5" />
+      </svg>
+    </div>
+
+    <div class="grads">
+      <div class="grad-title">Recently graduated</div>
+      <div class="grad-list">
+        <span class="grad-pill">سَمَاء <span class="grad-time">2h</span></span>
+        <span class="grad-pill">يَوم <span class="grad-time">5h</span></span>
+        <span class="grad-pill">وَلَد <span class="grad-time">1d</span></span>
+      </div>
+    </div>
+  </div>
+</div>
+</section>

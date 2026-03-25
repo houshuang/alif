@@ -1,0 +1,220 @@
+<section class="mockup-section" data-mockup-id="mockup-20" data-label="20. Dense Grid + Forecast + Activity Feed">
+<style>
+  body { background: #0a0a0a; color: #e5e5e5; font-family: 'Inter', sans-serif; margin: 0; }
+  .container { padding: 20px 16px; max-width: 375px; margin: 0 auto; }
+  .card { background: #1a1a1a; border-radius: 16px; padding: 16px; margin-bottom: 12px; }
+  .card-title { font-size: 10px; color: #666; text-transform: uppercase; letter-spacing: 1.5px; font-weight: 700; margin-bottom: 12px; }
+
+  /* 2x2 grid with sparklines — refined from #14 */
+  .vocab-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 6px; }
+  .vc { background: #111; border-radius: 10px; padding: 10px 12px; position: relative; overflow: hidden; }
+  .vc-spark { position: absolute; bottom: 0; left: 0; right: 0; height: 20px; opacity: 0.12; }
+  .vc-spark svg { width: 100%; height: 100%; }
+  .vc-top { display: flex; justify-content: space-between; align-items: baseline; position: relative; }
+  .vc-count { font-size: 24px; font-weight: 800; }
+  .vc-delta { font-size: 9px; font-weight: 600; }
+  .vc-label { font-size: 9px; color: #888; position: relative; margin-top: 1px; }
+  .vc-due { font-size: 8px; color: #f87171; position: relative; }
+
+  /* Summary chips */
+  .summary-row { display: flex; gap: 4px; margin-bottom: 0; }
+  .sum-chip { flex: 1; padding: 6px 4px; background: #111; border-radius: 6px; text-align: center; }
+  .sum-val { font-size: 13px; font-weight: 700; }
+  .sum-label { font-size: 7px; color: #888; text-transform: uppercase; letter-spacing: 0.2px; }
+
+  /* Pipeline card */
+  .pipe-header { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 10px; }
+  .pipe-count { font-size: 12px; color: #fbbf24; font-weight: 700; }
+
+  /* Table-style box rows with progress rings */
+  .box-table { width: 100%; margin-bottom: 10px; }
+  .box-tr { display: flex; align-items: center; gap: 8px; padding: 7px 0; border-bottom: 1px solid #111; }
+  .box-tr:last-child { border-bottom: none; }
+  .box-ring { width: 36px; height: 36px; flex-shrink: 0; position: relative; }
+  .box-ring svg { transform: rotate(-90deg); }
+  .box-ring-center { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 800; color: #fbbf24; }
+  .box-info { flex: 1; }
+  .box-name { font-size: 11px; font-weight: 600; color: #fbbf24; }
+  .box-interval { font-size: 9px; color: #555; }
+  .box-due-tag { font-size: 9px; color: #f87171; font-weight: 600; }
+
+  /* Throughput strip */
+  .tp-strip { display: flex; gap: 3px; margin-bottom: 8px; }
+  .tp { flex: 1; text-align: center; padding: 5px 2px; background: #111; border-radius: 5px; }
+  .tp-val { font-size: 12px; font-weight: 700; }
+  .tp-label { font-size: 6px; color: #888; text-transform: uppercase; letter-spacing: 0.2px; }
+
+  /* Forecast row */
+  .forecast { display: flex; gap: 4px; margin-bottom: 8px; padding-top: 8px; border-top: 1px solid #222; }
+  .fc-item { flex: 1; text-align: center; padding: 6px 2px; background: rgba(248,113,113,0.04); border-radius: 6px; border: 1px solid rgba(248,113,113,0.06); }
+  .fc-skip { font-size: 7px; color: #666; text-transform: uppercase; letter-spacing: 0.2px; }
+  .fc-count { font-size: 18px; font-weight: 800; color: #f87171; margin: 1px 0; }
+  .fc-label { font-size: 7px; color: #555; }
+
+  /* Activity feed — compact */
+  .feed { padding-top: 8px; border-top: 1px solid #222; }
+  .feed-title { font-size: 9px; color: #666; margin-bottom: 6px; }
+  .feed-item { display: flex; align-items: center; gap: 6px; padding: 3px 0; }
+  .feed-dot { width: 5px; height: 5px; border-radius: 50%; flex-shrink: 0; }
+  .feed-text { font-size: 10px; flex: 1; }
+  .feed-ar { font-weight: 600; }
+  .feed-time { font-size: 9px; color: #444; width: 28px; text-align: right; flex-shrink: 0; }
+</style>
+
+<div class="container">
+  <div class="card">
+    <div class="card-title">Vocabulary</div>
+
+    <div class="vocab-grid">
+      <div class="vc">
+        <div class="vc-spark"><svg viewBox="0 0 80 20" preserveAspectRatio="none"><path d="M0,16 Q20,14 40,12 T80,8 L80,20 L0,20 Z" fill="#555"/></svg></div>
+        <div class="vc-top">
+          <span class="vc-count" style="color: #666">847</span>
+        </div>
+        <div class="vc-label">Encountered</div>
+      </div>
+      <div class="vc">
+        <div class="vc-spark"><svg viewBox="0 0 80 20" preserveAspectRatio="none"><path d="M0,16 Q20,10 40,13 T80,6 L80,20 L0,20 Z" fill="#fbbf24"/></svg></div>
+        <div class="vc-top">
+          <span class="vc-count" style="color: #fbbf24">38</span>
+          <span class="vc-delta" style="color: #f87171">12 due</span>
+        </div>
+        <div class="vc-label">Acquiring</div>
+      </div>
+      <div class="vc">
+        <div class="vc-spark"><svg viewBox="0 0 80 20" preserveAspectRatio="none"><path d="M0,18 Q20,14 40,10 T80,4 L80,20 L0,20 Z" fill="#38bdf8"/></svg></div>
+        <div class="vc-top">
+          <span class="vc-count" style="color: #38bdf8">87</span>
+          <span class="vc-delta" style="color: #38bdf8">+5/wk</span>
+        </div>
+        <div class="vc-label">Learning</div>
+      </div>
+      <div class="vc">
+        <div class="vc-spark"><svg viewBox="0 0 80 20" preserveAspectRatio="none"><path d="M0,18 Q20,12 40,8 T80,2 L80,20 L0,20 Z" fill="#2dd4bf"/></svg></div>
+        <div class="vc-top">
+          <span class="vc-count" style="color: #2dd4bf">145</span>
+          <span class="vc-delta" style="color: #2dd4bf">+12/wk</span>
+        </div>
+        <div class="vc-label">Known</div>
+      </div>
+    </div>
+
+    <div class="summary-row">
+      <div class="sum-chip">
+        <div class="sum-val" style="color: #f87171">4</div>
+        <div class="sum-label">Lapsed</div>
+      </div>
+      <div class="sum-chip">
+        <div class="sum-val" style="color: #2dd4bf">+2.1</div>
+        <div class="sum-label">Net/day</div>
+      </div>
+      <div class="sum-chip">
+        <div class="sum-val">87%</div>
+        <div class="sum-label">Retention</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="pipe-header">
+      <span class="card-title" style="margin-bottom: 0">Acquisition Pipeline</span>
+      <span class="pipe-count">38 words</span>
+    </div>
+
+    <div class="box-table">
+      <div class="box-tr">
+        <div class="box-ring">
+          <svg width="36" height="36" viewBox="0 0 36 36">
+            <circle cx="18" cy="18" r="14" stroke="#222" stroke-width="4" fill="none" />
+            <circle cx="18" cy="18" r="14" stroke="#fbbf24" stroke-width="4" fill="none"
+                    stroke-dasharray="88" stroke-dashoffset="49" stroke-linecap="round" />
+          </svg>
+          <div class="box-ring-center">18</div>
+        </div>
+        <div class="box-info">
+          <div class="box-name">Box 1 <span class="box-interval">· 4 hours</span></div>
+        </div>
+        <div class="box-due-tag">8 due</div>
+      </div>
+      <div class="box-tr">
+        <div class="box-ring">
+          <svg width="36" height="36" viewBox="0 0 36 36">
+            <circle cx="18" cy="18" r="14" stroke="#222" stroke-width="4" fill="none" />
+            <circle cx="18" cy="18" r="14" stroke="#fbbf24" stroke-width="4" fill="none"
+                    stroke-dasharray="88" stroke-dashoffset="58" stroke-linecap="round" />
+          </svg>
+          <div class="box-ring-center">12</div>
+        </div>
+        <div class="box-info">
+          <div class="box-name">Box 2 <span class="box-interval">· 1 day</span></div>
+        </div>
+        <div class="box-due-tag">3 due</div>
+      </div>
+      <div class="box-tr">
+        <div class="box-ring">
+          <svg width="36" height="36" viewBox="0 0 36 36">
+            <circle cx="18" cy="18" r="14" stroke="#222" stroke-width="4" fill="none" />
+            <circle cx="18" cy="18" r="14" stroke="#fbbf24" stroke-width="4" fill="none"
+                    stroke-dasharray="88" stroke-dashoffset="68" stroke-linecap="round" />
+          </svg>
+          <div class="box-ring-center">8</div>
+        </div>
+        <div class="box-info">
+          <div class="box-name">Box 3 <span class="box-interval">· 3 days</span></div>
+        </div>
+        <div class="box-due-tag">1 due</div>
+      </div>
+    </div>
+
+    <div class="tp-strip">
+      <div class="tp"><div class="tp-val" style="color: #fbbf24">6/d</div><div class="tp-label">Entering</div></div>
+      <div class="tp"><div class="tp-val" style="color: #2dd4bf">3/d</div><div class="tp-label">Graduating</div></div>
+      <div class="tp"><div class="tp-val">82%</div><div class="tp-label">Grad Rate</div></div>
+      <div class="tp"><div class="tp-val">~9</div><div class="tp-label">Reviews</div></div>
+      <div class="tp"><div class="tp-val" style="color: #fbbf24">4.2d</div><div class="tp-label">Avg Time</div></div>
+    </div>
+
+    <div class="forecast">
+      <div class="fc-item">
+        <div class="fc-skip">skip 1d</div>
+        <div class="fc-count">2</div>
+        <div class="fc-label">at risk</div>
+      </div>
+      <div class="fc-item">
+        <div class="fc-skip">skip 3d</div>
+        <div class="fc-count">5</div>
+        <div class="fc-label">at risk</div>
+      </div>
+      <div class="fc-item">
+        <div class="fc-skip">skip 7d</div>
+        <div class="fc-count">8</div>
+        <div class="fc-label">at risk</div>
+      </div>
+    </div>
+
+    <div class="feed">
+      <div class="feed-title">Recent activity</div>
+      <div class="feed-item">
+        <div class="feed-dot" style="background: #2dd4bf"></div>
+        <span class="feed-text"><span class="feed-ar" style="color: #2dd4bf">سَمَاء</span> graduated → FSRS</span>
+        <span class="feed-time">2h</span>
+      </div>
+      <div class="feed-item">
+        <div class="feed-dot" style="background: #fbbf24"></div>
+        <span class="feed-text"><span class="feed-ar" style="color: #fbbf24">حَديقة</span> entered Box 1</span>
+        <span class="feed-time">2h</span>
+      </div>
+      <div class="feed-item">
+        <div class="feed-dot" style="background: #2dd4bf"></div>
+        <span class="feed-text"><span class="feed-ar" style="color: #2dd4bf">يَوم</span> graduated → FSRS</span>
+        <span class="feed-time">5h</span>
+      </div>
+      <div class="feed-item">
+        <div class="feed-dot" style="background: #f87171"></div>
+        <span class="feed-text"><span class="feed-ar" style="color: #f87171">مَكتَبة</span> lapsed</span>
+        <span class="feed-time">1d</span>
+      </div>
+    </div>
+  </div>
+</div>
+</section>

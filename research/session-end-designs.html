@@ -1,0 +1,2321 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Session End Card — Design Exploration</title>
+<link href="https://fonts.googleapis.com/css2?family=Amiri:wght@400;700&family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #0a0a0f;
+  --surface: #14141f;
+  --surface2: #1c1c2e;
+  --border: #2a2a40;
+  --text: #e8e8f0;
+  --text-muted: #8888a0;
+  --green: #4ade80;
+  --green-dim: #22c55e20;
+  --amber: #fbbf24;
+  --amber-dim: #fbbf2420;
+  --red: #f87171;
+  --red-dim: #f8717120;
+  --blue: #60a5fa;
+  --blue-dim: #60a5fa20;
+  --purple: #a78bfa;
+  --purple-dim: #a78bfa20;
+  --teal: #2dd4bf;
+  --phone-w: 375px;
+  --phone-h: 720px;
+  --phone-radius: 40px;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'DM Sans', sans-serif;
+  min-height: 100vh;
+  padding: 40px 20px 80px;
+}
+
+.page-header {
+  max-width: 1200px;
+  margin: 0 auto 60px;
+  text-align: center;
+}
+.page-header h1 {
+  font-size: 2.4rem;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  margin-bottom: 12px;
+  background: linear-gradient(135deg, var(--green), var(--teal));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+.page-header p {
+  color: var(--text-muted);
+  font-size: 1.05rem;
+  max-width: 600px;
+  margin: 0 auto;
+  line-height: 1.6;
+}
+
+/* --- Design grid --- */
+.designs-grid {
+  max-width: 1400px;
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(420px, 1fr));
+  gap: 60px;
+}
+
+.design-entry {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.design-label {
+  margin-bottom: 20px;
+  text-align: center;
+}
+.design-label .number {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.75rem;
+  color: var(--teal);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  margin-bottom: 4px;
+}
+.design-label h2 {
+  font-size: 1.3rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+.design-label p {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  margin-top: 4px;
+  line-height: 1.5;
+}
+
+/* --- Phone frame --- */
+.phone {
+  width: var(--phone-w);
+  height: var(--phone-h);
+  border-radius: var(--phone-radius);
+  border: 2px solid var(--border);
+  overflow: hidden;
+  position: relative;
+  background: #111118;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.5), inset 0 0 0 1px rgba(255,255,255,0.03);
+}
+.phone-screen {
+  width: 100%;
+  height: 100%;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-width: none;
+}
+.phone-screen::-webkit-scrollbar { display: none; }
+
+/* ============================================================
+   DESIGN 1: Radial Pulse
+   ============================================================ */
+.d1 {
+  background: radial-gradient(circle at 50% 20%, #1a2a1a 0%, #111118 60%);
+  padding: 48px 24px 32px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-height: 100%;
+}
+.d1 .ring-container {
+  position: relative;
+  width: 160px;
+  height: 160px;
+  margin-bottom: 24px;
+}
+.d1 .ring {
+  width: 160px;
+  height: 160px;
+  border-radius: 50%;
+  border: 4px solid var(--border);
+  position: relative;
+}
+.d1 .ring-fill {
+  position: absolute;
+  inset: -4px;
+  border-radius: 50%;
+  border: 4px solid transparent;
+  border-top-color: var(--green);
+  border-right-color: var(--green);
+  border-bottom-color: var(--green);
+  transform: rotate(-36deg);
+  /* 90% = 324deg */
+}
+.d1 .ring-center {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+.d1 .pct {
+  font-size: 2.8rem;
+  font-weight: 700;
+  color: var(--green);
+  line-height: 1;
+}
+.d1 .pct-label {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  margin-top: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+.d1 .stat-row {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 28px;
+  width: 100%;
+  justify-content: center;
+}
+.d1 .stat-chip {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 10px 16px;
+  text-align: center;
+  min-width: 80px;
+}
+.d1 .stat-chip .val {
+  font-size: 1.3rem;
+  font-weight: 700;
+}
+.d1 .stat-chip .lbl {
+  font-size: 0.65rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-top: 2px;
+}
+.d1 .graduated-section {
+  width: 100%;
+  background: var(--green-dim);
+  border: 1px solid #4ade8030;
+  border-radius: 16px;
+  padding: 16px;
+  margin-bottom: 16px;
+}
+.d1 .section-title {
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-bottom: 10px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.d1 .word-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.d1 .word-pill {
+  background: rgba(255,255,255,0.06);
+  border-radius: 8px;
+  padding: 6px 10px;
+  font-size: 0.8rem;
+}
+.d1 .word-pill .ar {
+  font-family: 'Amiri', serif;
+  font-size: 1rem;
+  direction: rtl;
+}
+.d1 .word-pill .en {
+  color: var(--text-muted);
+  font-size: 0.7rem;
+}
+.d1 .next-btn {
+  width: 100%;
+  background: var(--green);
+  color: #000;
+  border: none;
+  border-radius: 14px;
+  padding: 16px;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  margin-top: auto;
+}
+
+/* ============================================================
+   DESIGN 2: Journey Map
+   ============================================================ */
+.d2 {
+  background: #111118;
+  padding: 40px 20px 32px;
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+.d2 .title-area {
+  text-align: center;
+  margin-bottom: 28px;
+}
+.d2 .title-area h2 {
+  font-size: 1.5rem;
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+.d2 .title-area .sub {
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+.d2 .journey {
+  position: relative;
+  padding-left: 24px;
+  margin-bottom: 24px;
+}
+.d2 .journey::before {
+  content: '';
+  position: absolute;
+  left: 6px;
+  top: 8px;
+  bottom: 8px;
+  width: 2px;
+  background: linear-gradient(to bottom, var(--green), var(--amber), var(--blue));
+  border-radius: 2px;
+}
+.d2 .journey-node {
+  position: relative;
+  padding: 12px 0;
+}
+.d2 .journey-node::before {
+  content: '';
+  position: absolute;
+  left: -24px;
+  top: 18px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 2px solid var(--green);
+  background: var(--bg);
+}
+.d2 .journey-node:nth-child(2)::before { border-color: var(--amber); }
+.d2 .journey-node:nth-child(3)::before { border-color: var(--blue); }
+.d2 .journey-node:nth-child(4)::before { border-color: var(--purple); }
+.d2 .journey-node .node-title {
+  font-weight: 600;
+  font-size: 0.9rem;
+  margin-bottom: 4px;
+}
+.d2 .journey-node .node-detail {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  line-height: 1.5;
+}
+.d2 .journey-node .node-words {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 6px;
+}
+.d2 .mini-pill {
+  background: rgba(255,255,255,0.05);
+  border-radius: 6px;
+  padding: 3px 8px;
+  font-family: 'Amiri', serif;
+  font-size: 0.9rem;
+  direction: rtl;
+}
+.d2 .streak-banner {
+  background: linear-gradient(135deg, #1a1a30, #1a2530);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 16px;
+  text-align: center;
+  margin-bottom: 16px;
+}
+.d2 .streak-num {
+  font-size: 2rem;
+  font-weight: 700;
+  color: var(--amber);
+}
+.d2 .streak-label {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+/* ============================================================
+   DESIGN 3: Dashboard Cards
+   ============================================================ */
+.d3 {
+  background: #0f0f18;
+  padding: 36px 16px 24px;
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.d3 .hero-stat {
+  text-align: center;
+  padding: 20px 0 16px;
+}
+.d3 .hero-stat .big {
+  font-size: 3.5rem;
+  font-weight: 700;
+  color: var(--green);
+  line-height: 1;
+}
+.d3 .hero-stat .label {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  margin-top: 4px;
+}
+.d3 .card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 14px 16px;
+}
+.d3 .card-title {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+  margin-bottom: 8px;
+}
+.d3 .bar-chart {
+  display: flex;
+  align-items: flex-end;
+  gap: 4px;
+  height: 48px;
+}
+.d3 .bar {
+  flex: 1;
+  border-radius: 3px 3px 0 0;
+  min-height: 3px;
+  position: relative;
+}
+.d3 .bar.today { outline: 1px solid var(--green); outline-offset: 1px; }
+.d3 .flow-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.d3 .flow-box {
+  text-align: center;
+  flex: 1;
+}
+.d3 .flow-box .num {
+  font-size: 1.5rem;
+  font-weight: 700;
+}
+.d3 .flow-box .lbl {
+  font-size: 0.65rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+}
+.d3 .flow-arrow {
+  color: var(--text-muted);
+  font-size: 1.2rem;
+}
+.d3 .two-col {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+/* ============================================================
+   DESIGN 4: Celebration + Confetti
+   ============================================================ */
+.d4 {
+  background: linear-gradient(180deg, #1a2520 0%, #111118 40%);
+  padding: 52px 24px 32px;
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  position: relative;
+  overflow: hidden;
+}
+.d4 .confetti-dot {
+  position: absolute;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  animation: confettiFall 2s ease-out forwards;
+  opacity: 0;
+}
+@keyframes confettiFall {
+  0% { transform: translateY(-20px) rotate(0deg); opacity: 1; }
+  100% { transform: translateY(80px) rotate(360deg); opacity: 0; }
+}
+.d4 .big-emoji { font-size: 4rem; margin-bottom: 12px; }
+.d4 .title { font-size: 1.8rem; font-weight: 700; margin-bottom: 4px; }
+.d4 .subtitle { color: var(--text-muted); font-size: 0.9rem; margin-bottom: 32px; }
+.d4 .insights-stack {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 24px;
+}
+.d4 .insight-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 14px 16px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  text-align: left;
+}
+.d4 .insight-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.1rem;
+  flex-shrink: 0;
+}
+.d4 .insight-text .main {
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+.d4 .insight-text .detail {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+/* ============================================================
+   DESIGN 5: Minimal Typographic
+   ============================================================ */
+.d5 {
+  background: #faf8f4;
+  color: #1a1a1a;
+  padding: 52px 28px 32px;
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+  font-family: 'DM Sans', sans-serif;
+}
+.d5 .top-line {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.7rem;
+  color: #999;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  margin-bottom: 8px;
+}
+.d5 .accuracy-huge {
+  font-size: 5rem;
+  font-weight: 700;
+  line-height: 0.9;
+  letter-spacing: -0.04em;
+  margin-bottom: 4px;
+}
+.d5 .accuracy-bar {
+  height: 4px;
+  background: #e5e5e0;
+  border-radius: 2px;
+  margin: 16px 0;
+  overflow: hidden;
+}
+.d5 .accuracy-bar-fill {
+  height: 100%;
+  background: #1a1a1a;
+  border-radius: 2px;
+}
+.d5 .metric-line {
+  display: flex;
+  justify-content: space-between;
+  padding: 12px 0;
+  border-bottom: 1px solid #e5e5e0;
+  font-size: 0.85rem;
+}
+.d5 .metric-line .label { color: #777; }
+.d5 .metric-line .value { font-weight: 600; }
+.d5 .graduated-list {
+  margin-top: 20px;
+}
+.d5 .graduated-list h3 {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #999;
+  margin-bottom: 10px;
+}
+.d5 .grad-word {
+  display: flex;
+  justify-content: space-between;
+  padding: 8px 0;
+  border-bottom: 1px solid #f0ece4;
+}
+.d5 .grad-word .ar {
+  font-family: 'Amiri', serif;
+  font-size: 1.2rem;
+  direction: rtl;
+}
+.d5 .grad-word .en {
+  color: #777;
+  font-size: 0.8rem;
+  align-self: center;
+}
+.d5 .next-btn {
+  margin-top: auto;
+  width: 100%;
+  background: #1a1a1a;
+  color: #faf8f4;
+  border: none;
+  border-radius: 12px;
+  padding: 16px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+/* ============================================================
+   DESIGN 6: Pipeline Flow
+   ============================================================ */
+.d6 {
+  background: #111118;
+  padding: 36px 16px 24px;
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+.d6 .session-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 24px;
+}
+.d6 .session-header h2 {
+  font-size: 1.3rem;
+  font-weight: 700;
+}
+.d6 .session-header .mode-tag {
+  font-size: 0.7rem;
+  background: var(--blue-dim);
+  color: var(--blue);
+  padding: 4px 10px;
+  border-radius: 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.d6 .pipeline {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 16px;
+  margin-bottom: 12px;
+}
+.d6 .pipeline-title {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+  margin-bottom: 12px;
+}
+.d6 .pipe-stages {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+.d6 .pipe-stage {
+  text-align: center;
+  flex: 1;
+}
+.d6 .pipe-stage .count {
+  font-size: 1.6rem;
+  font-weight: 700;
+}
+.d6 .pipe-stage .label {
+  font-size: 0.6rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+}
+.d6 .pipe-arrow {
+  color: var(--text-muted);
+  font-size: 0.8rem;
+}
+.d6 .pipe-bar {
+  display: flex;
+  height: 8px;
+  border-radius: 4px;
+  overflow: hidden;
+  gap: 2px;
+}
+.d6 .pipe-bar div { border-radius: 3px; }
+.d6 .movement-list {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 16px;
+  margin-bottom: 12px;
+}
+.d6 .move-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.82rem;
+}
+.d6 .move-item:last-child { border-bottom: none; }
+.d6 .move-icon {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.75rem;
+  flex-shrink: 0;
+}
+.d6 .move-ar {
+  font-family: 'Amiri', serif;
+  font-size: 1.05rem;
+  direction: rtl;
+  flex: 1;
+}
+.d6 .move-label {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+}
+
+/* ============================================================
+   DESIGN 7: XP / Gamified
+   ============================================================ */
+.d7 {
+  background: linear-gradient(180deg, #141428, #111118);
+  padding: 40px 20px 28px;
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.d7 .xp-burst {
+  position: relative;
+  width: 120px;
+  height: 120px;
+  margin-bottom: 16px;
+}
+.d7 .xp-hex {
+  width: 120px;
+  height: 120px;
+  background: linear-gradient(135deg, var(--purple), var(--blue));
+  clip-path: polygon(50% 0%, 93% 25%, 93% 75%, 50% 100%, 7% 75%, 7% 25%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+.d7 .xp-val {
+  font-size: 2rem;
+  font-weight: 700;
+  line-height: 1;
+}
+.d7 .xp-label {
+  font-size: 0.65rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  opacity: 0.8;
+}
+.d7 .level-bar {
+  width: 100%;
+  background: var(--surface);
+  border-radius: 10px;
+  height: 20px;
+  margin-bottom: 4px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+}
+.d7 .level-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--purple), var(--blue));
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding-right: 8px;
+  font-size: 0.6rem;
+  font-weight: 600;
+}
+.d7 .level-text {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  margin-bottom: 24px;
+  text-align: center;
+}
+.d7 .achievements {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+.d7 .achievement {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 12px 14px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.d7 .achievement.unlocked {
+  border-color: var(--amber);
+  background: var(--amber-dim);
+}
+.d7 .ach-icon { font-size: 1.3rem; }
+.d7 .ach-text {
+  font-size: 0.82rem;
+  font-weight: 500;
+}
+.d7 .ach-detail {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+}
+
+/* ============================================================
+   DESIGN 8: Heatmap Calendar
+   ============================================================ */
+.d8 {
+  background: #111118;
+  padding: 36px 16px 24px;
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+.d8 .session-done {
+  text-align: center;
+  margin-bottom: 24px;
+}
+.d8 .session-done h2 {
+  font-size: 1.4rem;
+  font-weight: 700;
+  margin-bottom: 2px;
+}
+.d8 .session-done .sub {
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+.d8 .heat-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 16px;
+  margin-bottom: 12px;
+}
+.d8 .heat-title {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+  margin-bottom: 10px;
+}
+.d8 .heatmap {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 3px;
+}
+.d8 .heat-cell {
+  aspect-ratio: 1;
+  border-radius: 3px;
+  position: relative;
+}
+.d8 .heat-cell.today {
+  outline: 2px solid var(--green);
+  outline-offset: 1px;
+  border-radius: 4px;
+}
+.d8 .forecast-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 16px;
+  margin-bottom: 12px;
+}
+.d8 .forecast-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.82rem;
+}
+.d8 .forecast-row:last-child { border-bottom: none; }
+.d8 .forecast-row .when { color: var(--text-muted); }
+.d8 .forecast-row .count { font-weight: 600; }
+
+/* ============================================================
+   DESIGN 9: Root Tree
+   ============================================================ */
+.d9 {
+  background: linear-gradient(180deg, #111820, #111118);
+  padding: 36px 20px 24px;
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+.d9 .section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+.d9 .section-header h2 { font-size: 1.2rem; font-weight: 700; }
+.d9 .section-header .pct { font-size: 1.5rem; font-weight: 700; color: var(--green); }
+.d9 .root-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 14px;
+  margin-bottom: 10px;
+}
+.d9 .root-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+.d9 .root-ar {
+  font-family: 'Amiri', serif;
+  font-size: 1.3rem;
+  direction: rtl;
+  color: var(--teal);
+}
+.d9 .root-meaning {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+.d9 .root-bar {
+  height: 6px;
+  background: var(--border);
+  border-radius: 3px;
+  overflow: hidden;
+  margin-bottom: 8px;
+}
+.d9 .root-bar-fill {
+  height: 100%;
+  background: var(--teal);
+  border-radius: 3px;
+}
+.d9 .root-stats {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+}
+.d9 .struggling-section {
+  background: var(--red-dim);
+  border: 1px solid #f8717130;
+  border-radius: 14px;
+  padding: 14px;
+  margin-bottom: 10px;
+}
+.d9 .struggling-title {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--red);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-bottom: 8px;
+}
+.d9 .struggle-word {
+  display: flex;
+  justify-content: space-between;
+  padding: 6px 0;
+  border-bottom: 1px solid rgba(248,113,113,0.15);
+  font-size: 0.82rem;
+}
+.d9 .struggle-word:last-child { border-bottom: none; }
+.d9 .struggle-word .ar {
+  font-family: 'Amiri', serif;
+  font-size: 1rem;
+  direction: rtl;
+}
+.d9 .struggle-word .tries {
+  color: var(--text-muted);
+  font-size: 0.7rem;
+}
+
+/* ============================================================
+   DESIGN 10: Speed Analysis
+   ============================================================ */
+.d10 {
+  background: #111118;
+  padding: 36px 20px 24px;
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+.d10 .speed-hero {
+  text-align: center;
+  margin-bottom: 24px;
+}
+.d10 .speed-hero .time {
+  font-size: 3rem;
+  font-weight: 700;
+  font-family: 'JetBrains Mono', monospace;
+  color: var(--blue);
+  line-height: 1;
+}
+.d10 .speed-hero .label {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  margin-top: 4px;
+}
+.d10 .speed-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 14px 16px;
+  margin-bottom: 10px;
+}
+.d10 .speed-title {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+  margin-bottom: 10px;
+}
+.d10 .speed-list .speed-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border);
+}
+.d10 .speed-list .speed-item:last-child { border-bottom: none; }
+.d10 .speed-word {
+  font-family: 'Amiri', serif;
+  font-size: 1.05rem;
+  direction: rtl;
+  flex: 1;
+}
+.d10 .speed-time {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+.d10 .speed-bar-container {
+  width: 60px;
+  height: 6px;
+  background: var(--border);
+  border-radius: 3px;
+  overflow: hidden;
+}
+.d10 .speed-bar-fill {
+  height: 100%;
+  border-radius: 3px;
+}
+.d10 .comparison-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.82rem;
+}
+.d10 .comparison-row:last-child { border-bottom: none; }
+.d10 .comp-label { color: var(--text-muted); }
+.d10 .comp-val { font-weight: 600; }
+.d10 .comp-trend { font-size: 0.7rem; }
+
+/* ============================================================
+   DESIGN 11: Sentence-Centric
+   ============================================================ */
+.d11 {
+  background: #111118;
+  padding: 36px 16px 24px;
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+.d11 .hero-row {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 20px;
+}
+.d11 .hero-block {
+  flex: 1;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 14px;
+  text-align: center;
+}
+.d11 .hero-block .num {
+  font-size: 1.8rem;
+  font-weight: 700;
+  line-height: 1;
+}
+.d11 .hero-block .lbl {
+  font-size: 0.6rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-top: 4px;
+}
+.d11 .sentence-recap {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 14px;
+  margin-bottom: 10px;
+}
+.d11 .sentence-ar {
+  font-family: 'Amiri', serif;
+  font-size: 1.15rem;
+  direction: rtl;
+  text-align: right;
+  line-height: 1.8;
+  margin-bottom: 8px;
+}
+.d11 .sentence-signal {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.75rem;
+}
+.d11 .signal-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+.d11 .sentence-en {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  margin-top: 4px;
+}
+
+/* ============================================================
+   DESIGN 12: Motivational Story
+   ============================================================ */
+.d12 {
+  background: linear-gradient(180deg, #1a1520, #111118);
+  padding: 52px 24px 32px;
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+.d12 .hero-message {
+  font-size: 1.6rem;
+  font-weight: 700;
+  line-height: 1.35;
+  margin-bottom: 8px;
+  max-width: 280px;
+}
+.d12 .hero-sub {
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  margin-bottom: 32px;
+  line-height: 1.5;
+}
+.d12 .milestone-card {
+  width: 100%;
+  background: var(--purple-dim);
+  border: 1px solid #a78bfa30;
+  border-radius: 16px;
+  padding: 20px;
+  margin-bottom: 16px;
+}
+.d12 .milestone-num {
+  font-size: 2.5rem;
+  font-weight: 700;
+  color: var(--purple);
+  line-height: 1;
+}
+.d12 .milestone-label {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  margin-top: 4px;
+}
+.d12 .milestone-detail {
+  font-size: 0.75rem;
+  color: var(--purple);
+  margin-top: 8px;
+}
+.d12 .fun-facts {
+  width: 100%;
+  text-align: left;
+}
+.d12 .fun-fact {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 12px 14px;
+  margin-bottom: 8px;
+  font-size: 0.82rem;
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+.d12 .fun-fact .icon {
+  font-size: 1.2rem;
+  flex-shrink: 0;
+}
+
+/* ============================================================
+   DESIGN 13: Arabic Calligraphic
+   ============================================================ */
+.d13 {
+  background: #f7f3ee;
+  color: #2a2520;
+  padding: 44px 24px 28px;
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.d13 .bismillah {
+  font-family: 'Amiri', serif;
+  font-size: 1.6rem;
+  direction: rtl;
+  color: #8b7355;
+  margin-bottom: 20px;
+  text-align: center;
+}
+.d13 .session-summary {
+  width: 100%;
+  border: 2px solid #d4c4a8;
+  border-radius: 16px;
+  padding: 20px;
+  margin-bottom: 16px;
+  background: linear-gradient(135deg, #f7f3ee, #ece5d8);
+}
+.d13 .summary-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 16px;
+}
+.d13 .summary-top .pct {
+  font-size: 2.5rem;
+  font-weight: 700;
+  color: #5a8c5a;
+}
+.d13 .summary-top .mode {
+  font-size: 0.75rem;
+  color: #8b7355;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+.d13 .ornament {
+  text-align: center;
+  color: #d4c4a8;
+  font-size: 1.2rem;
+  margin: 12px 0;
+  letter-spacing: 0.3em;
+}
+.d13 .word-grid {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+.d13 .word-tile {
+  background: white;
+  border: 1px solid #e5ddd0;
+  border-radius: 10px;
+  padding: 10px;
+  text-align: center;
+}
+.d13 .word-tile .ar {
+  font-family: 'Amiri', serif;
+  font-size: 1.2rem;
+  direction: rtl;
+  color: #2a2520;
+}
+.d13 .word-tile .en {
+  font-size: 0.7rem;
+  color: #8b7355;
+  margin-top: 2px;
+}
+.d13 .word-tile .state {
+  font-size: 0.6rem;
+  margin-top: 4px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  display: inline-block;
+}
+.d13 .next-btn {
+  margin-top: auto;
+  width: 100%;
+  background: #2a2520;
+  color: #f7f3ee;
+  border: none;
+  border-radius: 12px;
+  padding: 16px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+/* ============================================================
+   DESIGN 14: Weekly Trend
+   ============================================================ */
+.d14 {
+  background: #111118;
+  padding: 36px 16px 24px;
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+.d14 .week-header {
+  text-align: center;
+  margin-bottom: 20px;
+}
+.d14 .week-header h2 { font-size: 1.3rem; font-weight: 700; }
+.d14 .week-header .sub { color: var(--text-muted); font-size: 0.8rem; }
+.d14 .week-chart {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 16px;
+  margin-bottom: 12px;
+}
+.d14 .week-bars {
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+  height: 100px;
+  margin-bottom: 8px;
+}
+.d14 .week-bar-col {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+.d14 .week-bar {
+  width: 100%;
+  border-radius: 4px 4px 0 0;
+  min-height: 4px;
+}
+.d14 .week-label {
+  font-size: 0.6rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+}
+.d14 .trend-cards {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+.d14 .trend-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 12px;
+}
+.d14 .trend-card .val {
+  font-size: 1.4rem;
+  font-weight: 700;
+}
+.d14 .trend-card .lbl {
+  font-size: 0.65rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-top: 2px;
+}
+.d14 .trend-card .change {
+  font-size: 0.7rem;
+  margin-top: 4px;
+}
+
+/* ============================================================
+   DESIGN 15: Compact Summary
+   ============================================================ */
+.d15 {
+  background: #111118;
+  padding: 40px 20px 28px;
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+.d15 .compact-header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+.d15 .mini-ring {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  border: 3px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  flex-shrink: 0;
+}
+.d15 .mini-ring .pct {
+  font-size: 1.2rem;
+  font-weight: 700;
+}
+.d15 .header-text h2 {
+  font-size: 1.2rem;
+  font-weight: 700;
+}
+.d15 .header-text .sub {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+.d15 .compact-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+.d15 .compact-stat {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px;
+  text-align: center;
+}
+.d15 .compact-stat .val {
+  font-size: 1.2rem;
+  font-weight: 700;
+}
+.d15 .compact-stat .lbl {
+  font-size: 0.55rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.d15 .scroll-pills {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  padding-bottom: 8px;
+  margin-bottom: 16px;
+  scrollbar-width: none;
+}
+.d15 .scroll-pills::-webkit-scrollbar { display: none; }
+.d15 .scroll-pill {
+  background: var(--green-dim);
+  border: 1px solid #4ade8030;
+  border-radius: 10px;
+  padding: 8px 12px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.d15 .scroll-pill .ar {
+  font-family: 'Amiri', serif;
+  font-size: 1.05rem;
+  direction: rtl;
+}
+.d15 .scroll-pill .en {
+  font-size: 0.65rem;
+  color: var(--text-muted);
+}
+.d15 .next-btn {
+  margin-top: auto;
+  width: 100%;
+  background: var(--green);
+  color: #000;
+  border: none;
+  border-radius: 12px;
+  padding: 14px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+</style>
+</head>
+<body>
+
+<div class="page-header">
+  <h1>Session End Card — Design Exploration</h1>
+  <p>15 concepts using real data from Alif production. 455 words known, 24-day streak, 687 reviews today, 72 graduations today.</p>
+</div>
+
+<div class="designs-grid">
+
+<!-- ============================================================
+     DESIGN 1: Radial Pulse
+     ============================================================ -->
+<div class="design-entry">
+  <div class="design-label">
+    <div class="number">Design 01</div>
+    <h2>Radial Pulse</h2>
+    <p>Accuracy ring as hero, graduated words prominent below</p>
+  </div>
+  <div class="phone"><div class="phone-screen">
+    <div class="d1">
+      <div class="ring-container">
+        <div class="ring">
+          <div class="ring-fill"></div>
+          <div class="ring-center">
+            <div class="pct">90%</div>
+            <div class="pct-label">accuracy</div>
+          </div>
+        </div>
+      </div>
+      <div class="stat-row">
+        <div class="stat-chip"><div class="val" style="color:var(--green)">13</div><div class="lbl">Got it</div></div>
+        <div class="stat-chip"><div class="val" style="color:var(--amber)">12</div><div class="lbl">Missed</div></div>
+        <div class="stat-chip"><div class="val">25</div><div class="lbl">Sentences</div></div>
+      </div>
+      <div class="graduated-section">
+        <div class="section-title" style="color:var(--green)">&#x2191; 5 words graduated</div>
+        <div class="word-pills">
+          <div class="word-pill"><span class="ar">سِبْتَمْبِر</span> <span class="en">September</span></div>
+          <div class="word-pill"><span class="ar">مانْجو</span> <span class="en">mango</span></div>
+          <div class="word-pill"><span class="ar">ابريل</span> <span class="en">April</span></div>
+          <div class="word-pill"><span class="ar">سُور</span> <span class="en">wall</span></div>
+          <div class="word-pill"><span class="ar">يلّا</span> <span class="en">let's go</span></div>
+        </div>
+      </div>
+      <div style="width:100%;background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:14px;margin-bottom:16px;">
+        <div class="section-title" style="color:var(--amber)">&#x21BB; 3 words need more practice</div>
+        <div class="word-pills">
+          <div class="word-pill"><span class="ar">تَعالَى</span> <span class="en">to come</span></div>
+          <div class="word-pill"><span class="ar">تِمْثَال</span> <span class="en">statue</span></div>
+          <div class="word-pill"><span class="ar">شَاشَةٌ</span> <span class="en">screen</span></div>
+        </div>
+      </div>
+      <button class="next-btn">Next Session</button>
+    </div>
+  </div></div>
+</div>
+
+<!-- ============================================================
+     DESIGN 2: Journey Map
+     ============================================================ -->
+<div class="design-entry">
+  <div class="design-label">
+    <div class="number">Design 02</div>
+    <h2>Journey Map</h2>
+    <p>Vertical timeline showing what happened to words during the session</p>
+  </div>
+  <div class="phone"><div class="phone-screen">
+    <div class="d2">
+      <div class="title-area">
+        <h2>Session Complete</h2>
+        <div class="sub">25 sentences reviewed in reading mode</div>
+      </div>
+      <div class="journey">
+        <div class="journey-node">
+          <div class="node-title" style="color:var(--green)">5 words graduated to FSRS</div>
+          <div class="node-detail">Moved from acquisition boxes to spaced repetition</div>
+          <div class="node-words">
+            <span class="mini-pill">سِبْتَمْبِر</span>
+            <span class="mini-pill">مانْجو</span>
+            <span class="mini-pill">ابريل</span>
+            <span class="mini-pill">سُور</span>
+            <span class="mini-pill">يلّا</span>
+          </div>
+        </div>
+        <div class="journey-node">
+          <div class="node-title" style="color:var(--amber)">8 words advanced a box</div>
+          <div class="node-detail">Box 1 &#x2192; Box 2: 5 words &middot; Box 2 &#x2192; Box 3: 3 words</div>
+          <div class="node-words">
+            <span class="mini-pill">أُكْتُوبَر</span>
+            <span class="mini-pill">باذِنْجان</span>
+            <span class="mini-pill">دافِئ</span>
+            <span class="mini-pill">+5 more</span>
+          </div>
+        </div>
+        <div class="journey-node">
+          <div class="node-title" style="color:var(--blue)">13 sentences fully understood</div>
+          <div class="node-detail">52% full comprehension rate</div>
+        </div>
+        <div class="journey-node">
+          <div class="node-title" style="color:var(--purple)">41 words got collateral practice</div>
+          <div class="node-detail">Known words reinforced through context exposure</div>
+        </div>
+      </div>
+      <div class="streak-banner">
+        <div class="streak-num">24</div>
+        <div class="streak-label">Day streak &middot; your longest ever</div>
+      </div>
+    </div>
+  </div></div>
+</div>
+
+<!-- ============================================================
+     DESIGN 3: Dashboard Cards
+     ============================================================ -->
+<div class="design-entry">
+  <div class="design-label">
+    <div class="number">Design 03</div>
+    <h2>Dashboard Cards</h2>
+    <p>Data-dense cards with mini charts — 7-day activity, acquisition pipeline, flow</p>
+  </div>
+  <div class="phone"><div class="phone-screen">
+    <div class="d3">
+      <div class="hero-stat">
+        <div class="big" style="color:var(--green)">90%</div>
+        <div class="label">25 sentences &middot; Reading mode</div>
+      </div>
+      <div class="card">
+        <div class="card-title">Last 7 days</div>
+        <div class="bar-chart">
+          <div class="bar" style="height:18%;background:var(--green);opacity:0.5"></div>
+          <div class="bar" style="height:50%;background:var(--green);opacity:0.6"></div>
+          <div class="bar" style="height:12%;background:var(--green);opacity:0.5"></div>
+          <div class="bar" style="height:52%;background:var(--green);opacity:0.6"></div>
+          <div class="bar" style="height:80%;background:var(--green);opacity:0.7"></div>
+          <div class="bar" style="height:50%;background:var(--green);opacity:0.6"></div>
+          <div class="bar today" style="height:70%;background:var(--green)"></div>
+        </div>
+        <div style="display:flex;justify-content:space-between;font-size:0.6rem;color:var(--text-muted);margin-top:4px">
+          <span>Feb 25</span><span>Feb 26</span><span>Feb 27</span><span>Feb 28</span><span>Mar 1</span><span>Mar 2</span><span>Today</span>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">Acquisition Pipeline</div>
+        <div class="flow-row">
+          <div class="flow-box"><div class="num" style="color:var(--red)">105</div><div class="lbl">Box 1</div></div>
+          <div class="flow-arrow">&#x2192;</div>
+          <div class="flow-box"><div class="num" style="color:var(--amber)">49</div><div class="lbl">Box 2</div></div>
+          <div class="flow-arrow">&#x2192;</div>
+          <div class="flow-box"><div class="num" style="color:var(--green)">66</div><div class="lbl">Box 3</div></div>
+          <div class="flow-arrow">&#x2192;</div>
+          <div class="flow-box"><div class="num" style="color:var(--teal)">412</div><div class="lbl">Known</div></div>
+        </div>
+      </div>
+      <div class="two-col">
+        <div class="card">
+          <div class="card-title">Today</div>
+          <div style="font-size:1.8rem;font-weight:700;color:var(--green)">72</div>
+          <div style="font-size:0.7rem;color:var(--text-muted)">words graduated</div>
+          <div style="font-size:0.7rem;color:var(--green);margin-top:4px">New record!</div>
+        </div>
+        <div class="card">
+          <div class="card-title">Progress</div>
+          <div style="font-size:1.8rem;font-weight:700;color:var(--purple)">45</div>
+          <div style="font-size:0.7rem;color:var(--text-muted)">words to A1+</div>
+          <div style="font-size:0.7rem;color:var(--purple);margin-top:4px">~2 days at this pace</div>
+        </div>
+      </div>
+    </div>
+  </div></div>
+</div>
+
+<!-- ============================================================
+     DESIGN 4: Celebration + Insights
+     ============================================================ -->
+<div class="design-entry">
+  <div class="design-label">
+    <div class="number">Design 04</div>
+    <h2>Celebration + Insights</h2>
+    <p>Big emoji, then stacked insight cards with contextual tips</p>
+  </div>
+  <div class="phone"><div class="phone-screen">
+    <div class="d4">
+      <div class="big-emoji">&#x2728;</div>
+      <div class="title">Great Session!</div>
+      <div class="subtitle">90% accuracy across 25 sentences</div>
+      <div class="insights-stack">
+        <div class="insight-card">
+          <div class="insight-icon" style="background:var(--green-dim)">&#x1F393;</div>
+          <div class="insight-text">
+            <div class="main">72 words graduated today</div>
+            <div class="detail">A new daily record! Previous: 35 on Feb 23</div>
+          </div>
+        </div>
+        <div class="insight-card">
+          <div class="insight-icon" style="background:var(--amber-dim)">&#x1F525;</div>
+          <div class="insight-text">
+            <div class="main">24-day streak</div>
+            <div class="detail">Your longest streak ever. 687 reviews today.</div>
+          </div>
+        </div>
+        <div class="insight-card">
+          <div class="insight-icon" style="background:var(--blue-dim)">&#x1F4CA;</div>
+          <div class="insight-text">
+            <div class="main">88.2% retention (7-day)</div>
+            <div class="detail">2,049 correct out of 2,324 reviews</div>
+          </div>
+        </div>
+        <div class="insight-card">
+          <div class="insight-icon" style="background:var(--purple-dim)">&#x1F3AF;</div>
+          <div class="insight-text">
+            <div class="main">45 words from A1+</div>
+            <div class="detail">455 known words. At your pace, ~2 days away.</div>
+          </div>
+        </div>
+        <div class="insight-card">
+          <div class="insight-icon" style="background:var(--red-dim)">&#x1F331;</div>
+          <div class="insight-text">
+            <div class="main">Root ك.ت.ب has 7 undiscovered words</div>
+            <div class="detail">You know 1/8 words from the "writing" family</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div></div>
+</div>
+
+<!-- ============================================================
+     DESIGN 5: Minimal Typographic
+     ============================================================ -->
+<div class="design-entry">
+  <div class="design-label">
+    <div class="number">Design 05</div>
+    <h2>Minimal Typographic</h2>
+    <p>Light theme, editorial feel, clean lines with metrics</p>
+  </div>
+  <div class="phone"><div class="phone-screen">
+    <div class="d5">
+      <div class="top-line">Session Complete &middot; Reading</div>
+      <div class="accuracy-huge">90%</div>
+      <div class="accuracy-bar"><div class="accuracy-bar-fill" style="width:90%"></div></div>
+      <div class="metric-line"><span class="label">Sentences</span><span class="value">25</span></div>
+      <div class="metric-line"><span class="label">Understood</span><span class="value" style="color:#5a8c5a">13</span></div>
+      <div class="metric-line"><span class="label">Partial</span><span class="value" style="color:#b08040">12</span></div>
+      <div class="metric-line"><span class="label">Avg response</span><span class="value">39s</span></div>
+      <div class="metric-line"><span class="label">Words graduated</span><span class="value" style="color:#5a8c5a">5</span></div>
+      <div class="metric-line"><span class="label">Total known</span><span class="value">455</span></div>
+      <div class="metric-line"><span class="label">Day streak</span><span class="value">24</span></div>
+      <div class="graduated-list">
+        <h3>Graduated this session</h3>
+        <div class="grad-word"><span class="ar">سِبْتَمْبِر</span><span class="en">September</span></div>
+        <div class="grad-word"><span class="ar">مانْجو</span><span class="en">mango</span></div>
+        <div class="grad-word"><span class="ar">ابريل</span><span class="en">April</span></div>
+        <div class="grad-word"><span class="ar">سُور</span><span class="en">wall</span></div>
+        <div class="grad-word"><span class="ar">يلّا</span><span class="en">let's go</span></div>
+      </div>
+      <button class="next-btn">Next Session</button>
+    </div>
+  </div></div>
+</div>
+
+<!-- ============================================================
+     DESIGN 6: Pipeline Flow
+     ============================================================ -->
+<div class="design-entry">
+  <div class="design-label">
+    <div class="number">Design 06</div>
+    <h2>Pipeline Flow</h2>
+    <p>Acquisition pipeline visualization, per-word movement tracking</p>
+  </div>
+  <div class="phone"><div class="phone-screen">
+    <div class="d6">
+      <div class="session-header">
+        <h2>Session Done</h2>
+        <div class="mode-tag">Reading</div>
+      </div>
+      <div class="pipeline">
+        <div class="pipeline-title">Your word pipeline</div>
+        <div class="pipe-stages">
+          <div class="pipe-stage"><div class="count" style="color:var(--red)">105</div><div class="label">New</div></div>
+          <div class="pipe-arrow">&#x2192;</div>
+          <div class="pipe-stage"><div class="count" style="color:var(--amber)">49</div><div class="label">Learning</div></div>
+          <div class="pipe-arrow">&#x2192;</div>
+          <div class="pipe-stage"><div class="count" style="color:var(--green)">66</div><div class="label">Almost</div></div>
+          <div class="pipe-arrow">&#x2192;</div>
+          <div class="pipe-stage"><div class="count" style="color:var(--teal)">412</div><div class="label">Known</div></div>
+        </div>
+        <div class="pipe-bar">
+          <div style="flex:105;background:var(--red)"></div>
+          <div style="flex:49;background:var(--amber)"></div>
+          <div style="flex:66;background:var(--green)"></div>
+          <div style="flex:412;background:var(--teal)"></div>
+        </div>
+      </div>
+      <div class="movement-list">
+        <div class="pipeline-title">This session's movements</div>
+        <div class="move-item">
+          <div class="move-icon" style="background:var(--green-dim);color:var(--green)">&#x2191;</div>
+          <div class="move-ar">سِبْتَمْبِر</div>
+          <div class="move-label">Box 3 &#x2192; Known</div>
+        </div>
+        <div class="move-item">
+          <div class="move-icon" style="background:var(--green-dim);color:var(--green)">&#x2191;</div>
+          <div class="move-ar">مانْجو</div>
+          <div class="move-label">Box 3 &#x2192; Known</div>
+        </div>
+        <div class="move-item">
+          <div class="move-icon" style="background:var(--amber-dim);color:var(--amber)">&#x2192;</div>
+          <div class="move-ar">أُكْتُوبَر</div>
+          <div class="move-label">Box 1 &#x2192; Box 2</div>
+        </div>
+        <div class="move-item">
+          <div class="move-icon" style="background:var(--amber-dim);color:var(--amber)">&#x2192;</div>
+          <div class="move-ar">باذِنْجان</div>
+          <div class="move-label">Box 1 &#x2192; Box 2</div>
+        </div>
+        <div class="move-item">
+          <div class="move-icon" style="background:var(--red-dim);color:var(--red)">&#x2193;</div>
+          <div class="move-ar">تَعالَى</div>
+          <div class="move-label">Box 2 &#x2192; Box 1</div>
+        </div>
+      </div>
+    </div>
+  </div></div>
+</div>
+
+<!-- ============================================================
+     DESIGN 7: XP / Gamified
+     ============================================================ -->
+<div class="design-entry">
+  <div class="design-label">
+    <div class="number">Design 07</div>
+    <h2>XP / Gamified</h2>
+    <p>Experience points, level progress, achievement unlocks</p>
+  </div>
+  <div class="phone"><div class="phone-screen">
+    <div class="d7">
+      <div class="xp-burst">
+        <div class="xp-hex">
+          <div class="xp-val">+142</div>
+          <div class="xp-label">XP earned</div>
+        </div>
+      </div>
+      <div style="font-size:1.3rem;font-weight:700;margin-bottom:16px">Great Session!</div>
+      <div class="level-bar">
+        <div class="level-fill" style="width:82%">82%</div>
+      </div>
+      <div class="level-text">455 / 500 words to A1+</div>
+      <div class="achievements">
+        <div class="achievement unlocked">
+          <div class="ach-icon">&#x1F3C6;</div>
+          <div>
+            <div class="ach-text">Record Breaker!</div>
+            <div class="ach-detail">72 words graduated in one day — new record</div>
+          </div>
+        </div>
+        <div class="achievement unlocked">
+          <div class="ach-icon">&#x1F525;</div>
+          <div>
+            <div class="ach-text">Marathon Runner</div>
+            <div class="ach-detail">24-day streak — your longest ever</div>
+          </div>
+        </div>
+        <div class="achievement">
+          <div class="ach-icon">&#x1F4DA;</div>
+          <div>
+            <div class="ach-text">Polyglot in Training</div>
+            <div class="ach-detail">45 more words to unlock A1+ level</div>
+          </div>
+        </div>
+        <div class="achievement">
+          <div class="ach-icon">&#x1F333;</div>
+          <div>
+            <div class="ach-text">Root Explorer</div>
+            <div class="ach-detail">279 of 1,030 roots discovered (27%)</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div></div>
+</div>
+
+<!-- ============================================================
+     DESIGN 8: Heatmap Calendar
+     ============================================================ -->
+<div class="design-entry">
+  <div class="design-label">
+    <div class="number">Design 08</div>
+    <h2>Heatmap + Forecast</h2>
+    <p>GitHub-style activity heatmap, plus forgetting forecast</p>
+  </div>
+  <div class="phone"><div class="phone-screen">
+    <div class="d8">
+      <div class="session-done">
+        <h2>90% Accuracy</h2>
+        <div class="sub">25 sentences &middot; 687 reviews today</div>
+      </div>
+      <div class="heat-card">
+        <div class="heat-title">Activity — Last 24 Days</div>
+        <div class="heatmap">
+          <div class="heat-cell" style="background:#22c55e30"></div>
+          <div class="heat-cell" style="background:#22c55e50"></div>
+          <div class="heat-cell" style="background:#22c55e60"></div>
+          <div class="heat-cell" style="background:#22c55e15"></div>
+          <div class="heat-cell" style="background:#22c55e40"></div>
+          <div class="heat-cell" style="background:#22c55e90"></div>
+          <div class="heat-cell" style="background:#22c55eb0"></div>
+          <div class="heat-cell" style="background:#22c55e90"></div>
+          <div class="heat-cell" style="background:#22c55ef0"></div>
+          <div class="heat-cell" style="background:#22c55ea0"></div>
+          <div class="heat-cell" style="background:#22c55ef0"></div>
+          <div class="heat-cell" style="background:#22c55e60"></div>
+          <div class="heat-cell" style="background:#22c55ee0"></div>
+          <div class="heat-cell" style="background:#22c55e50"></div>
+          <div class="heat-cell" style="background:#22c55ee0"></div>
+          <div class="heat-cell" style="background:#22c55ef0"></div>
+          <div class="heat-cell" style="background:#22c55e90"></div>
+          <div class="heat-cell" style="background:#22c55e30"></div>
+          <div class="heat-cell" style="background:#22c55e30"></div>
+          <div class="heat-cell" style="background:#22c55ea0"></div>
+          <div class="heat-cell" style="background:#22c55e20"></div>
+          <div class="heat-cell" style="background:#22c55e40"></div>
+          <div class="heat-cell" style="background:#22c55ea0"></div>
+          <div class="heat-cell today" style="background:#22c55ee0"></div>
+        </div>
+      </div>
+      <div class="forecast-card">
+        <div class="heat-title">Forgetting Forecast</div>
+        <div class="forecast-row">
+          <span class="when">Skip 1 day</span>
+          <span class="count" style="color:var(--amber)">75 words at risk</span>
+        </div>
+        <div class="forecast-row">
+          <span class="when">Skip 3 days</span>
+          <span class="count" style="color:var(--red)">138 words at risk</span>
+        </div>
+        <div class="forecast-row">
+          <span class="when">Skip 7 days</span>
+          <span class="count" style="color:var(--red)">172 words at risk</span>
+        </div>
+      </div>
+      <div class="heat-card">
+        <div class="heat-title">Retention</div>
+        <div class="forecast-row">
+          <span class="when">7-day</span>
+          <span class="count" style="color:var(--green)">88.2%</span>
+        </div>
+        <div class="forecast-row">
+          <span class="when">30-day</span>
+          <span class="count" style="color:var(--green)">89.8%</span>
+        </div>
+      </div>
+    </div>
+  </div></div>
+</div>
+
+<!-- ============================================================
+     DESIGN 9: Root Tree
+     ============================================================ -->
+<div class="design-entry">
+  <div class="design-label">
+    <div class="number">Design 09</div>
+    <h2>Root Coverage</h2>
+    <p>Root family progress bars + struggling words analysis</p>
+  </div>
+  <div class="phone"><div class="phone-screen">
+    <div class="d9">
+      <div class="section-header">
+        <h2>Session Complete</h2>
+        <div class="pct">90%</div>
+      </div>
+      <div class="root-card">
+        <div class="root-header">
+          <div class="root-ar">س.ع.د</div>
+          <div class="root-meaning">happiness, good fortune</div>
+        </div>
+        <div class="root-bar"><div class="root-bar-fill" style="width:83%"></div></div>
+        <div class="root-stats">5 of 6 words known</div>
+      </div>
+      <div class="root-card">
+        <div class="root-header">
+          <div class="root-ar">ج.م.ل</div>
+          <div class="root-meaning">beauty, grace, camels</div>
+        </div>
+        <div class="root-bar"><div class="root-bar-fill" style="width:80%"></div></div>
+        <div class="root-stats">4 of 5 words known</div>
+      </div>
+      <div class="root-card">
+        <div class="root-header">
+          <div class="root-ar">ك.ت.ب</div>
+          <div class="root-meaning">writing, books, scribes</div>
+        </div>
+        <div class="root-bar"><div class="root-bar-fill" style="width:12.5%"></div></div>
+        <div class="root-stats">1 of 8 words known — biggest opportunity</div>
+      </div>
+      <div class="struggling-section">
+        <div class="struggling-title">Struggling words</div>
+        <div class="struggle-word">
+          <span class="ar">تَعالَى</span>
+          <span class="tries">5 seen, 0 correct</span>
+        </div>
+        <div class="struggle-word">
+          <span class="ar">تِمْثَال</span>
+          <span class="tries">5 seen, 0 correct</span>
+        </div>
+        <div class="struggle-word">
+          <span class="ar">رُمَّانٌ</span>
+          <span class="tries">3 seen, 0 correct</span>
+        </div>
+      </div>
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:14px;margin-bottom:10px">
+        <div style="font-size:0.75rem;font-weight:600;margin-bottom:4px">Root coverage</div>
+        <div style="font-size:0.82rem;color:var(--text-muted)">279 of 1,030 roots discovered &middot; 141 fully mastered</div>
+      </div>
+    </div>
+  </div></div>
+</div>
+
+<!-- ============================================================
+     DESIGN 10: Speed Analysis
+     ============================================================ -->
+<div class="design-entry">
+  <div class="design-label">
+    <div class="number">Design 10</div>
+    <h2>Speed Analysis</h2>
+    <p>Response time data — fastest/slowest words, comparison to average</p>
+  </div>
+  <div class="phone"><div class="phone-screen">
+    <div class="d10">
+      <div class="speed-hero">
+        <div class="time">39s</div>
+        <div class="label">Average response time</div>
+      </div>
+      <div class="speed-card">
+        <div class="speed-title">Fastest recognitions</div>
+        <div class="speed-list">
+          <div class="speed-item">
+            <span class="speed-word">طَعام</span>
+            <div class="speed-bar-container"><div class="speed-bar-fill" style="width:20%;background:var(--green)"></div></div>
+            <span class="speed-time">8s</span>
+          </div>
+          <div class="speed-item">
+            <span class="speed-word">قَهْوَة</span>
+            <div class="speed-bar-container"><div class="speed-bar-fill" style="width:30%;background:var(--green)"></div></div>
+            <span class="speed-time">12s</span>
+          </div>
+          <div class="speed-item">
+            <span class="speed-word">مَكان</span>
+            <div class="speed-bar-container"><div class="speed-bar-fill" style="width:35%;background:var(--green)"></div></div>
+            <span class="speed-time">14s</span>
+          </div>
+        </div>
+      </div>
+      <div class="speed-card">
+        <div class="speed-title">Needed most time</div>
+        <div class="speed-list">
+          <div class="speed-item">
+            <span class="speed-word">الحُرِّيَّة</span>
+            <div class="speed-bar-container"><div class="speed-bar-fill" style="width:95%;background:var(--red)"></div></div>
+            <span class="speed-time">89s</span>
+          </div>
+          <div class="speed-item">
+            <span class="speed-word">ضَخَّم</span>
+            <div class="speed-bar-container"><div class="speed-bar-fill" style="width:80%;background:var(--amber)"></div></div>
+            <span class="speed-time">72s</span>
+          </div>
+          <div class="speed-item">
+            <span class="speed-word">صِفة</span>
+            <div class="speed-bar-container"><div class="speed-bar-fill" style="width:70%;background:var(--amber)"></div></div>
+            <span class="speed-time">65s</span>
+          </div>
+        </div>
+      </div>
+      <div class="speed-card">
+        <div class="speed-title">Speed trends</div>
+        <div class="comparison-row">
+          <span class="comp-label">This session</span>
+          <span class="comp-val">39s avg</span>
+        </div>
+        <div class="comparison-row">
+          <span class="comp-label">Your 7-day average</span>
+          <span class="comp-val">44s avg</span>
+          <span class="comp-trend" style="color:var(--green)">12% faster</span>
+        </div>
+      </div>
+    </div>
+  </div></div>
+</div>
+
+<!-- ============================================================
+     DESIGN 11: Sentence-Centric Recap
+     ============================================================ -->
+<div class="design-entry">
+  <div class="design-label">
+    <div class="number">Design 11</div>
+    <h2>Sentence-Centric Recap</h2>
+    <p>Replay memorable sentences, see which you nailed vs struggled with</p>
+  </div>
+  <div class="phone"><div class="phone-screen">
+    <div class="d11">
+      <div class="hero-row">
+        <div class="hero-block">
+          <div class="num" style="color:var(--green)">13</div>
+          <div class="lbl">Understood</div>
+        </div>
+        <div class="hero-block">
+          <div class="num" style="color:var(--amber)">12</div>
+          <div class="lbl">Partial</div>
+        </div>
+        <div class="hero-block">
+          <div class="num">25</div>
+          <div class="lbl">Total</div>
+        </div>
+      </div>
+      <div class="sentence-recap">
+        <div class="sentence-ar">ذَهَبْتُ إِلَى السُّوقِ وَاشْتَرَيْتُ تُفَّاحًا وَبُرْتُقَالًا</div>
+        <div class="sentence-signal">
+          <div class="signal-dot" style="background:var(--green)"></div>
+          <span style="color:var(--green)">Fully understood</span>
+        </div>
+        <div class="sentence-en">I went to the market and bought apples and oranges</div>
+      </div>
+      <div class="sentence-recap">
+        <div class="sentence-ar">الطَّقْسُ دَافِئٌ فِي فَصْلِ الرَّبِيعِ</div>
+        <div class="sentence-signal">
+          <div class="signal-dot" style="background:var(--amber)"></div>
+          <span style="color:var(--amber)">Partial — missed: دَافِئ</span>
+        </div>
+        <div class="sentence-en">The weather is warm in springtime</div>
+      </div>
+      <div class="sentence-recap">
+        <div class="sentence-ar">هَذِهِ الْحَضَارَةُ الْعَظِيمَةُ تَرَكَتْ آثَارًا كَثِيرَةً</div>
+        <div class="sentence-signal">
+          <div class="signal-dot" style="background:var(--amber)"></div>
+          <span style="color:var(--amber)">Partial — missed: آثَار, حَضَارَة</span>
+        </div>
+        <div class="sentence-en">This great civilization left many monuments</div>
+      </div>
+    </div>
+  </div></div>
+</div>
+
+<!-- ============================================================
+     DESIGN 12: Motivational Story
+     ============================================================ -->
+<div class="design-entry">
+  <div class="design-label">
+    <div class="number">Design 12</div>
+    <h2>Motivational Story</h2>
+    <p>Context-aware message, milestone celebration, fun facts</p>
+  </div>
+  <div class="phone"><div class="phone-screen">
+    <div class="d12">
+      <div class="hero-message">You just had your best day ever.</div>
+      <div class="hero-sub">72 words graduated to long-term memory today — smashing your previous record of 35.</div>
+      <div class="milestone-card">
+        <div class="milestone-num">455</div>
+        <div class="milestone-label">words in your vocabulary</div>
+        <div class="milestone-detail">45 away from A1+ &middot; ~2 days at this pace</div>
+      </div>
+      <div class="fun-facts">
+        <div class="fun-fact">
+          <div class="icon">&#x1F4D6;</div>
+          <div>You've reviewed <strong>1,717 unique sentences</strong> — more than most textbooks contain</div>
+        </div>
+        <div class="fun-fact">
+          <div class="icon">&#x1F333;</div>
+          <div>You know words from <strong>279 Arabic root families</strong> — 27% of roots in the system</div>
+        </div>
+        <div class="fun-fact">
+          <div class="icon">&#x1F4AA;</div>
+          <div>Your best day is <strong>Wednesday</strong> (94.1% accuracy from 1,065 reviews)</div>
+        </div>
+        <div class="fun-fact">
+          <div class="icon">&#x1F9E0;</div>
+          <div>On average, you need <strong>8.5 encounters</strong> before a word graduates</div>
+        </div>
+      </div>
+    </div>
+  </div></div>
+</div>
+
+<!-- ============================================================
+     DESIGN 13: Arabic Calligraphic
+     ============================================================ -->
+<div class="design-entry">
+  <div class="design-label">
+    <div class="number">Design 13</div>
+    <h2>Arabic Calligraphic</h2>
+    <p>Light/parchment theme, ornamental borders, word grid with states</p>
+  </div>
+  <div class="phone"><div class="phone-screen">
+    <div class="d13">
+      <div class="bismillah">&#x2756; جلسة مكتملة &#x2756;</div>
+      <div class="session-summary">
+        <div class="summary-top">
+          <div class="pct">90%</div>
+          <div class="mode">Reading</div>
+        </div>
+        <div style="display:flex;justify-content:space-between;font-size:0.82rem">
+          <span>25 sentences</span>
+          <span style="color:#5a8c5a">13 understood</span>
+          <span style="color:#b08040">12 partial</span>
+        </div>
+      </div>
+      <div class="ornament">&#x2022; &#x2022; &#x2022;</div>
+      <div style="font-size:0.75rem;text-transform:uppercase;letter-spacing:0.08em;color:#8b7355;margin-bottom:10px;width:100%">Graduated words</div>
+      <div class="word-grid">
+        <div class="word-tile">
+          <div class="ar">طَعام</div>
+          <div class="en">food</div>
+          <div class="state" style="background:#5a8c5a20;color:#5a8c5a">known</div>
+        </div>
+        <div class="word-tile">
+          <div class="ar">قَهْوَة</div>
+          <div class="en">coffee</div>
+          <div class="state" style="background:#5a8c5a20;color:#5a8c5a">known</div>
+        </div>
+        <div class="word-tile">
+          <div class="ar">حَلِيب</div>
+          <div class="en">milk</div>
+          <div class="state" style="background:#5a8c5a20;color:#5a8c5a">known</div>
+        </div>
+        <div class="word-tile">
+          <div class="ar">خُبْز</div>
+          <div class="en">bread</div>
+          <div class="state" style="background:#5a8c5a20;color:#5a8c5a">known</div>
+        </div>
+        <div class="word-tile">
+          <div class="ar">عَصِير</div>
+          <div class="en">juice</div>
+          <div class="state" style="background:#5a8c5a20;color:#5a8c5a">known</div>
+        </div>
+        <div class="word-tile">
+          <div class="ar">سُكَّر</div>
+          <div class="en">sugar</div>
+          <div class="state" style="background:#b0804020;color:#b08040">box 3</div>
+        </div>
+      </div>
+      <div style="width:100%;text-align:center;margin:12px 0">
+        <div style="font-size:0.82rem;color:#8b7355">455 words known &middot; 24-day streak</div>
+        <div style="font-size:0.75rem;color:#aaa;margin-top:4px">45 words to A1+</div>
+      </div>
+      <button class="next-btn">Next Session</button>
+    </div>
+  </div></div>
+</div>
+
+<!-- ============================================================
+     DESIGN 14: Weekly Trend
+     ============================================================ -->
+<div class="design-entry">
+  <div class="design-label">
+    <div class="number">Design 14</div>
+    <h2>Weekly Trend</h2>
+    <p>Bar chart of the week, trend cards comparing to prior week</p>
+  </div>
+  <div class="phone"><div class="phone-screen">
+    <div class="d14">
+      <div class="week-header">
+        <h2>Session Complete — 90%</h2>
+        <div class="sub">25 sentences in reading mode</div>
+      </div>
+      <div class="week-chart">
+        <div class="heat-title" style="font-size:0.7rem;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-muted);margin-bottom:10px">This week's reviews</div>
+        <div class="week-bars">
+          <div class="week-bar-col">
+            <div class="week-bar" style="height:16px;background:var(--green);opacity:0.5"></div>
+            <div class="week-label">Tu</div>
+          </div>
+          <div class="week-bar-col">
+            <div class="week-bar" style="height:15px;background:var(--green);opacity:0.5"></div>
+            <div class="week-label">We</div>
+          </div>
+          <div class="week-bar-col">
+            <div class="week-bar" style="height:52px;background:var(--green);opacity:0.6"></div>
+            <div class="week-label">Th</div>
+          </div>
+          <div class="week-bar-col">
+            <div class="week-bar" style="height:12px;background:var(--green);opacity:0.5"></div>
+            <div class="week-label">Fr</div>
+          </div>
+          <div class="week-bar-col">
+            <div class="week-bar" style="height:19px;background:var(--green);opacity:0.5"></div>
+            <div class="week-label">Sa</div>
+          </div>
+          <div class="week-bar-col">
+            <div class="week-bar" style="height:50px;background:var(--green);opacity:0.6"></div>
+            <div class="week-label">Su</div>
+          </div>
+          <div class="week-bar-col">
+            <div class="week-bar" style="height:69px;background:var(--green);outline:1px solid var(--green);outline-offset:1px"></div>
+            <div class="week-label" style="color:var(--green)">Mo</div>
+          </div>
+        </div>
+      </div>
+      <div class="trend-cards">
+        <div class="trend-card">
+          <div class="val" style="color:var(--green)">16.6</div>
+          <div class="lbl">Words / day</div>
+          <div class="change" style="color:var(--text-muted)">7-day average</div>
+        </div>
+        <div class="trend-card">
+          <div class="val" style="color:var(--green)">88.2%</div>
+          <div class="lbl">Accuracy</div>
+          <div class="change" style="color:var(--text-muted)">7-day average</div>
+        </div>
+        <div class="trend-card">
+          <div class="val" style="color:var(--teal)">493</div>
+          <div class="lbl">Unique words</div>
+          <div class="change" style="color:var(--green)">+103 vs prior week</div>
+        </div>
+        <div class="trend-card">
+          <div class="val" style="color:var(--amber)">62.1%</div>
+          <div class="lbl">Grad rate</div>
+          <div class="change" style="color:var(--text-muted)">of acquiring words</div>
+        </div>
+      </div>
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px;text-align:center">
+        <div style="font-size:0.82rem">Graduation flow today</div>
+        <div style="display:flex;justify-content:center;gap:16px;margin-top:8px">
+          <div><div style="font-size:1.4rem;font-weight:700;color:var(--blue)">0</div><div style="font-size:0.6rem;color:var(--text-muted)">entered</div></div>
+          <div><div style="font-size:1.4rem;font-weight:700;color:var(--green)">72</div><div style="font-size:0.6rem;color:var(--text-muted)">graduated</div></div>
+        </div>
+      </div>
+    </div>
+  </div></div>
+</div>
+
+<!-- ============================================================
+     DESIGN 15: Compact Summary
+     ============================================================ -->
+<div class="design-entry">
+  <div class="design-label">
+    <div class="number">Design 15</div>
+    <h2>Compact Summary</h2>
+    <p>Quick-scan format — small ring, key stats, horizontal scroll of graduated words</p>
+  </div>
+  <div class="phone"><div class="phone-screen">
+    <div class="d15">
+      <div class="compact-header">
+        <div class="mini-ring" style="border-color:var(--green)">
+          <div class="pct" style="color:var(--green)">90%</div>
+        </div>
+        <div class="header-text">
+          <h2>Great Session!</h2>
+          <div class="sub">25 sentences &middot; Reading mode</div>
+        </div>
+      </div>
+      <div class="compact-grid">
+        <div class="compact-stat"><div class="val" style="color:var(--green)">13</div><div class="lbl">Got it</div></div>
+        <div class="compact-stat"><div class="val" style="color:var(--amber)">12</div><div class="lbl">Partial</div></div>
+        <div class="compact-stat"><div class="val" style="color:var(--teal)">687</div><div class="lbl">Today</div></div>
+      </div>
+      <div style="font-size:0.7rem;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-muted);margin-bottom:8px">Graduated this session</div>
+      <div class="scroll-pills">
+        <div class="scroll-pill"><div class="ar">سِبْتَمْبِر</div><div class="en">September</div></div>
+        <div class="scroll-pill"><div class="ar">مانْجو</div><div class="en">mango</div></div>
+        <div class="scroll-pill"><div class="ar">ابريل</div><div class="en">April</div></div>
+        <div class="scroll-pill"><div class="ar">سُور</div><div class="en">wall</div></div>
+        <div class="scroll-pill"><div class="ar">يلّا</div><div class="en">let's go</div></div>
+      </div>
+      <div class="compact-grid" style="margin-bottom:16px">
+        <div class="compact-stat"><div class="val" style="color:var(--green)">72</div><div class="lbl">Grad today</div></div>
+        <div class="compact-stat"><div class="val" style="color:var(--purple)">455</div><div class="lbl">Known</div></div>
+        <div class="compact-stat"><div class="val" style="color:var(--amber)">24d</div><div class="lbl">Streak</div></div>
+      </div>
+      <div style="background:var(--purple-dim);border:1px solid #a78bfa30;border-radius:12px;padding:12px 14px;margin-bottom:16px;text-align:center">
+        <div style="font-size:0.85rem;color:var(--purple)">45 words to A1+ — about 2 days away</div>
+      </div>
+      <button class="next-btn">Next Session</button>
+    </div>
+  </div></div>
+</div>
+
+</div><!-- /designs-grid -->
+
+</body>
+</html>

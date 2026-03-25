@@ -1,0 +1,200 @@
+<section class="mockup-section" data-mockup-id="mockup-12" data-label="12. Waterfall + Factory Log">
+<style>
+  body { background: #0a0a0a; color: #e5e5e5; font-family: 'Inter', sans-serif; margin: 0; }
+  .container { padding: 20px 16px; max-width: 375px; margin: 0 auto; }
+  .card { background: #1a1a1a; border-radius: 16px; padding: 20px; margin-bottom: 16px; }
+  .card-title { font-size: 11px; color: #888; text-transform: uppercase; letter-spacing: 1.5px; font-weight: 700; margin-bottom: 16px; }
+
+  /* Waterfall stages (from #3) with flow annotations */
+  .stage { display: flex; align-items: center; gap: 12px; padding: 8px 0; }
+  .stage-badge { width: 52px; height: 52px; border-radius: 12px; display: flex; flex-direction: column; align-items: center; justify-content: center; flex-shrink: 0; }
+  .stage-num { font-size: 20px; font-weight: 800; }
+  .stage-label { font-size: 7px; text-transform: uppercase; letter-spacing: 0.5px; opacity: 0.7; }
+  .stage-detail { flex: 1; }
+  .stage-name { font-size: 13px; font-weight: 600; }
+  .stage-desc { font-size: 10px; color: #666; margin-top: 1px; }
+  .stage-right { text-align: right; flex-shrink: 0; }
+  .stage-delta { font-size: 11px; font-weight: 600; }
+  .stage-due { font-size: 10px; color: #f87171; margin-top: 2px; }
+
+  /* Flow arrow between stages */
+  .flow-arrow { display: flex; align-items: center; padding: 2px 0 2px 20px; gap: 8px; }
+  .flow-arrow-line { width: 1px; height: 16px; }
+  .flow-arrow-text { font-size: 10px; }
+
+  /* Acquisition inline breakdown */
+  .acq-detail { margin: 4px 0 4px 20px; padding: 12px; background: #111; border-radius: 10px; border-left: 2px solid rgba(251,191,36,0.3); }
+  .acq-boxes { display: flex; gap: 4px; margin-bottom: 8px; }
+  .acq-box { flex: 1; text-align: center; padding: 6px 4px; background: #1a1a1a; border-radius: 6px; }
+  .acq-box-num { font-size: 16px; font-weight: 800; color: #fbbf24; }
+  .acq-box-label { font-size: 8px; color: #888; }
+  .acq-box-due { font-size: 8px; color: #f87171; margin-top: 2px; }
+  .acq-metrics { display: flex; gap: 12px; }
+  .acq-metric { font-size: 10px; }
+  .acq-metric-val { font-weight: 700; }
+
+  /* Factory log (from #6) — compact event feed */
+  .log-card { background: #1a1a1a; border-radius: 16px; padding: 16px 20px; }
+  .log-title { font-size: 11px; color: #888; text-transform: uppercase; letter-spacing: 1.5px; font-weight: 700; margin-bottom: 10px; }
+  .log-entry { display: flex; align-items: center; gap: 8px; padding: 5px 0; font-size: 12px; border-bottom: 1px solid #111; }
+  .log-entry:last-child { border-bottom: none; }
+  .log-time { font-size: 10px; color: #555; width: 36px; font-family: 'JetBrains Mono', monospace; }
+  .log-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+  .log-text { flex: 1; }
+  .log-ar { font-weight: 600; }
+
+  /* Forecast footer */
+  .forecast { display: flex; gap: 8px; margin-top: 10px; padding-top: 10px; border-top: 1px solid #222; }
+  .forecast-item { flex: 1; text-align: center; padding: 6px; background: rgba(248,113,113,0.04); border-radius: 6px; }
+  .forecast-skip { font-size: 9px; color: #888; }
+  .forecast-count { font-size: 14px; font-weight: 700; color: #f87171; }
+  .forecast-label { font-size: 8px; color: #666; }
+</style>
+
+<div class="container">
+  <div class="card">
+    <div class="card-title">Word Lifecycle</div>
+
+    <div class="stage">
+      <div class="stage-badge" style="background: rgba(255,255,255,0.05);">
+        <div class="stage-num" style="color: #888">847</div>
+        <div class="stage-label" style="color: #666">seen</div>
+      </div>
+      <div class="stage-detail">
+        <div class="stage-name" style="color: #888">Encountered</div>
+        <div class="stage-desc">Seen in stories & books</div>
+      </div>
+    </div>
+
+    <div class="flow-arrow">
+      <div class="flow-arrow-line" style="background: rgba(251,191,36,0.3);"></div>
+      <div class="flow-arrow-text" style="color: #fbbf24">~6/day auto-introduced</div>
+    </div>
+
+    <div class="stage">
+      <div class="stage-badge" style="background: rgba(251,191,36,0.12);">
+        <div class="stage-num" style="color: #fbbf24">38</div>
+        <div class="stage-label" style="color: #fbbf24">acq</div>
+      </div>
+      <div class="stage-detail">
+        <div class="stage-name" style="color: #fbbf24">Acquiring</div>
+        <div class="stage-desc">Leitner boxes, short intervals</div>
+      </div>
+      <div class="stage-right">
+        <div class="stage-due">12 due</div>
+      </div>
+    </div>
+
+    <div class="acq-detail">
+      <div class="acq-boxes">
+        <div class="acq-box">
+          <div class="acq-box-num">18</div>
+          <div class="acq-box-label">Box 1 · 4h</div>
+          <div class="acq-box-due">8 due</div>
+        </div>
+        <div class="acq-box">
+          <div class="acq-box-num">12</div>
+          <div class="acq-box-label">Box 2 · 1d</div>
+          <div class="acq-box-due">3 due</div>
+        </div>
+        <div class="acq-box">
+          <div class="acq-box-num">8</div>
+          <div class="acq-box-label">Box 3 · 3d</div>
+          <div class="acq-box-due">1 due</div>
+        </div>
+      </div>
+      <div class="acq-metrics">
+        <div class="acq-metric"><span class="acq-metric-val" style="color: #2dd4bf">82%</span> grad rate</div>
+        <div class="acq-metric"><span class="acq-metric-val">~9</span> reviews to grad</div>
+        <div class="acq-metric"><span class="acq-metric-val" style="color: #fbbf24">4.2d</span> avg time</div>
+      </div>
+    </div>
+
+    <div class="flow-arrow">
+      <div class="flow-arrow-line" style="background: rgba(45,212,191,0.3);"></div>
+      <div class="flow-arrow-text" style="color: #2dd4bf">~3/day graduating → FSRS</div>
+    </div>
+
+    <div class="stage">
+      <div class="stage-badge" style="background: rgba(56,189,248,0.1);">
+        <div class="stage-num" style="color: #38bdf8">87</div>
+        <div class="stage-label" style="color: #38bdf8">learn</div>
+      </div>
+      <div class="stage-detail">
+        <div class="stage-name" style="color: #38bdf8">Learning</div>
+        <div class="stage-desc">FSRS, intervals growing</div>
+      </div>
+      <div class="stage-right">
+        <div class="stage-delta" style="color: #38bdf8">+5/wk</div>
+      </div>
+    </div>
+
+    <div class="flow-arrow">
+      <div class="flow-arrow-line" style="background: rgba(45,212,191,0.2);"></div>
+      <div class="flow-arrow-text" style="color: #666">stability ≥ 21 days</div>
+    </div>
+
+    <div class="stage">
+      <div class="stage-badge" style="background: rgba(45,212,191,0.1);">
+        <div class="stage-num" style="color: #2dd4bf">145</div>
+        <div class="stage-label" style="color: #2dd4bf">known</div>
+      </div>
+      <div class="stage-detail">
+        <div class="stage-name" style="color: #2dd4bf">Known</div>
+        <div class="stage-desc">Long-term memory</div>
+      </div>
+      <div class="stage-right">
+        <div class="stage-delta" style="color: #2dd4bf">+12/wk</div>
+        <div style="font-size: 10px; color: #f87171; margin-top: 2px;">4 lapsed</div>
+      </div>
+    </div>
+
+    <div class="forecast">
+      <div class="forecast-item">
+        <div class="forecast-skip">skip 1d</div>
+        <div class="forecast-count">2</div>
+        <div class="forecast-label">would lapse</div>
+      </div>
+      <div class="forecast-item">
+        <div class="forecast-skip">skip 3d</div>
+        <div class="forecast-count">5</div>
+        <div class="forecast-label">would lapse</div>
+      </div>
+      <div class="forecast-item">
+        <div class="forecast-skip">skip 7d</div>
+        <div class="forecast-count">8</div>
+        <div class="forecast-label">would lapse</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="log-card">
+    <div class="log-title">Recent Activity</div>
+    <div class="log-entry">
+      <span class="log-time">14:32</span>
+      <div class="log-dot" style="background: #2dd4bf"></div>
+      <span class="log-text"><span class="log-ar" style="color: #2dd4bf">سَمَاء</span> graduated → FSRS</span>
+    </div>
+    <div class="log-entry">
+      <span class="log-time">14:30</span>
+      <div class="log-dot" style="background: #fbbf24"></div>
+      <span class="log-text"><span class="log-ar" style="color: #fbbf24">حَديقة</span> entered Box 1</span>
+    </div>
+    <div class="log-entry">
+      <span class="log-time">11:15</span>
+      <div class="log-dot" style="background: #2dd4bf"></div>
+      <span class="log-text"><span class="log-ar" style="color: #2dd4bf">يَوم</span> graduated → FSRS</span>
+    </div>
+    <div class="log-entry">
+      <span class="log-time">09:40</span>
+      <div class="log-dot" style="background: #fbbf24"></div>
+      <span class="log-text"><span class="log-ar" style="color: #fbbf24">شَمس</span> entered Box 1</span>
+    </div>
+    <div class="log-entry">
+      <span class="log-time">09:38</span>
+      <div class="log-dot" style="background: #f87171"></div>
+      <span class="log-text"><span class="log-ar" style="color: #f87171">مَكتَبة</span> lapsed</span>
+    </div>
+  </div>
+</div>
+</section>

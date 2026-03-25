@@ -15,6 +15,7 @@
   .phrase-en { color: #888; font-size: 0.85em; margin-bottom: 16px; }
   .voice-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; }
   .voice-card { background: #16213e; border-radius: 10px; padding: 14px; border: 1px solid #2a2a4a; transition: border-color 0.2s; }
+  .voice-card.pvc { border-color: #2d5f8a; background: #162040; }
   .voice-card:hover { border-color: #64b5f6; }
   .voice-card.playing { border-color: #4caf50; background: #1a2e1a; }
   .voice-name { font-weight: 600; font-size: 0.95em; margin-bottom: 8px; }
@@ -57,10 +58,16 @@ const AUDIO_BASE = "http://alifstian.duckdns.org:3000/api/voice-samples";
 
 const phrases = [
   {
+    key: "nazara",
+    label: "نَظَرَ Test (the specific problem word)",
+    ar: "نَظَرَ إِلَى السَّمَاءِ وَظَلَّ يُفَكِّرُ",
+    en: "He looked at the sky and kept thinking. (نَظَرَ should be 'naẓara' with ظ, NOT 'naddara' with ض)"
+  },
+  {
     key: "emphatics",
-    label: "Emphatic Consonants Test",
+    label: "Emphatic Consonants Battery",
     ar: "نَظَرَ الرَّجُلُ إِلَى الظَّلامِ وَضَرَبَ الطَّبْلَ بِقُوَّةٍ",
-    en: "The man looked at the darkness and hit the drum forcefully (tests: ظ nazara, ظ zhalam, ض daraba, ط tabl)"
+    en: "The man looked (ظ) at the darkness (ظ) and hit (ض) the drum (ط) forcefully"
   },
   {
     key: "story",
@@ -71,7 +78,15 @@ const phrases = [
 ];
 
 const voices = [
-  { id: "Chaouki_current", name: "Chaouki", current: true },
+  // Your Voice Clones
+  { id: "RootsOfKnowledge_v2", name: "ROK v2 (NEW — 44min IVC)", pvc: true },
+  { id: "Arabic_Knight_current", name: "Arabic Knight (CURRENT)", current: true, pvc: true },
+  { id: "RootsOfKnowledge_IVC_old", name: "ROK IVC (old)", pvc: true },
+  { id: "Fares", name: "Fares PVC", pvc: true },
+  { id: "RAED", name: "RAED PVC", pvc: true },
+  { id: "Adam_Narrator", name: "Adam Narrator PVC", pvc: true },
+  { id: "Salma", name: "Salma PVC (F)", pvc: true },
+  // Stock multilingual voices
   { id: "Daniel", name: "Daniel" },
   { id: "Liam", name: "Liam" },
   { id: "Callum", name: "Callum" },
@@ -97,8 +112,8 @@ function render() {
       <div class="phrase-en">${p.en}</div>
       <div class="voice-grid">
         ${voices.map(v => `
-          <div class="voice-card" id="card-${v.id}-${p.key}">
-            <div class="voice-name">${v.name} ${v.current ? '<span class="current">CURRENT</span>' : ''}</div>
+          <div class="voice-card${v.pvc ? ' pvc' : ''}" id="card-${v.id}-${p.key}">
+            <div class="voice-name">${v.name} ${v.current ? '<span class="current">CURRENT</span>' : ''}${v.pvc && !v.current ? '<span style="color:#64b5f6;font-size:0.7em"> PVC</span>' : ''}</div>
             <button class="play-btn" onclick="play('${v.id}', '${p.key}', this)">
               <span>&#9654;</span> Play
             </button>

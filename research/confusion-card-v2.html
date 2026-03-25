@@ -1,0 +1,2420 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Confusion Card Designs — Round 2</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Naskh+Arabic:wght@400;600;700&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0f0f1a;
+    --surface: #1a1a2e;
+    --surface-light: #252542;
+    --text: #e8e8f0;
+    --text-secondary: #8888a0;
+    --accent: #4a9eff;
+    --confused: #f39c12;
+    --border: #2a2a45;
+    --arabic: #f0f0ff;
+    --got-it: #2ecc71;
+    --missed: #e74c3c;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Inter', system-ui, sans-serif;
+    line-height: 1.5;
+    padding: 20px;
+    min-height: 100vh;
+  }
+
+  .ar {
+    font-family: 'Noto Naskh Arabic', 'Scheherazade New', serif;
+    direction: rtl;
+    color: var(--arabic);
+  }
+
+  /* Page header */
+  .page-header {
+    max-width: 900px;
+    margin: 0 auto 20px;
+    text-align: center;
+  }
+  .page-header h1 {
+    font-size: 28px;
+    font-weight: 700;
+    margin-bottom: 8px;
+    background: linear-gradient(135deg, var(--accent), var(--confused));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  .page-header .subtitle {
+    color: var(--text-secondary);
+    font-size: 14px;
+    margin-bottom: 12px;
+    line-height: 1.6;
+  }
+  .page-header .target-words {
+    display: flex;
+    justify-content: center;
+    gap: 24px;
+    flex-wrap: wrap;
+  }
+  .page-header .target-chip {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 6px 14px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .page-header .target-chip .ar {
+    font-size: 22px;
+    color: var(--accent);
+  }
+  .page-header .target-chip .latin {
+    font-size: 13px;
+    color: var(--text-secondary);
+  }
+
+  /* Section headers */
+  .section-header {
+    max-width: 900px;
+    margin: 48px auto 24px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--border);
+  }
+  .section-header h2 {
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--confused);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+  .section-header p {
+    color: var(--text-secondary);
+    font-size: 13px;
+    margin-top: 4px;
+  }
+
+  /* Grid layout */
+  .card-grid {
+    max-width: 900px;
+    margin: 0 auto;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
+    gap: 28px;
+  }
+  @media (max-width: 480px) {
+    .card-grid { grid-template-columns: 1fr; }
+  }
+
+  /* Card wrapper */
+  .variation {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    overflow: hidden;
+  }
+  .variation-label {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 16px;
+    background: rgba(74, 158, 255, 0.04);
+    border-bottom: 1px solid var(--border);
+  }
+  .variation-number {
+    background: var(--accent);
+    color: var(--bg);
+    font-size: 11px;
+    font-weight: 700;
+    min-width: 28px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 6px;
+    flex-shrink: 0;
+    padding: 0 6px;
+  }
+  .variation-name {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text);
+  }
+  .variation-target {
+    font-size: 11px;
+    color: var(--text-secondary);
+    margin-left: auto;
+  }
+  .variation-body {
+    padding: 16px;
+  }
+
+  .card-grid .full-width {
+    grid-column: 1 / -1;
+  }
+
+  /* ============================================
+     SHARED CARD CHROME — the inner card
+     ============================================ */
+  .inner-card {
+    background: var(--surface-light);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    max-width: 420px;
+    margin: 0 auto;
+    overflow: hidden;
+  }
+  .inner-card-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--border);
+  }
+  .inner-card-header .icon {
+    font-size: 14px;
+  }
+  .inner-card-header .label {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    color: var(--confused);
+  }
+  .inner-card-content {
+    padding: 14px;
+  }
+
+  /* Target word row (shared) */
+  .target-row {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    margin-bottom: 14px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--border);
+  }
+  .target-row .word {
+    font-size: 28px;
+    line-height: 1.3;
+    color: var(--accent);
+  }
+  .target-row .gloss {
+    font-size: 14px;
+    color: var(--text-secondary);
+  }
+  .target-row .translit {
+    font-size: 12px;
+    color: var(--text-secondary);
+    font-style: italic;
+  }
+
+  /* Thin divider between confusables */
+  .conf-divider {
+    border: none;
+    border-top: 1px solid rgba(42, 42, 69, 0.6);
+    margin: 10px 0;
+  }
+
+  /* ============================================
+     V1-V4: #5 Single Focus Letter iterations
+     ============================================ */
+  .v5-item {
+    margin-bottom: 12px;
+  }
+  .v5-item:last-child { margin-bottom: 0; }
+  .v5-word-row {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    margin-bottom: 6px;
+  }
+  .v5-word { font-size: 20px; line-height: 1.4; }
+  .v5-gloss { font-size: 13px; color: var(--text-secondary); }
+  .v5-letter-pair {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    padding: 8px 0;
+  }
+  .v5-letter-box {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+  }
+  .v5-letter {
+    font-size: 48px;
+    line-height: 1.2;
+  }
+  .v5-letter.theirs { color: var(--confused); }
+  .v5-letter.yours { color: var(--accent); }
+  .v5-letter-name {
+    font-size: 11px;
+    color: var(--text-secondary);
+  }
+  .v5-vs {
+    font-size: 12px;
+    color: var(--text-secondary);
+    font-weight: 600;
+  }
+  .v5-explain {
+    text-align: center;
+    font-size: 12px;
+    color: var(--text-secondary);
+    margin-top: 2px;
+  }
+
+  /* Compact variant */
+  .v5-letter.compact { font-size: 36px; }
+  .v5-letter-pair.compact { gap: 12px; padding: 4px 0; }
+
+  /* Multi-diff row */
+  .v5-multi-pairs {
+    display: flex;
+    justify-content: center;
+    gap: 24px;
+  }
+
+  /* Same-shape pill */
+  .same-shape-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    background: rgba(243, 156, 18, 0.15);
+    color: var(--confused);
+    font-size: 10px;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  /* ============================================
+     V5-V8: #7 Minimal Text iterations
+     ============================================ */
+  .v7-line {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    padding: 6px 0;
+  }
+  .v7-line + .v7-line {
+    border-top: 1px solid rgba(42, 42, 69, 0.4);
+  }
+  .v7-word { font-size: 18px; line-height: 1.4; }
+  .v7-gloss {
+    font-size: 12px;
+    color: var(--text-secondary);
+    min-width: 60px;
+  }
+  .v7-hint {
+    font-size: 12px;
+    color: var(--text-secondary);
+    margin-left: auto;
+    white-space: nowrap;
+  }
+  .v7-hint .letter-hl {
+    font-weight: 700;
+    color: var(--confused);
+    font-size: 14px;
+  }
+  .v7-hint .letter-yours {
+    font-weight: 700;
+    color: var(--accent);
+    font-size: 14px;
+  }
+
+  /* V6: inline pills */
+  .v7-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    background: rgba(243, 156, 18, 0.12);
+    border-radius: 4px;
+    padding: 1px 6px;
+    margin: 0 2px;
+  }
+  .v7-pill .ar {
+    font-size: 20px;
+    font-family: 'Noto Naskh Arabic', serif;
+    color: var(--confused);
+    line-height: 1.3;
+  }
+  .v7-pill-yours {
+    background: rgba(74, 158, 255, 0.12);
+  }
+  .v7-pill-yours .ar {
+    color: var(--accent);
+  }
+
+  /* ============================================
+     V9-V12: #15 Spacious iterations
+     ============================================ */
+  .v15-confusable {
+    padding: 12px 0;
+  }
+  .v15-confusable + .v15-confusable {
+    border-top: 1px solid var(--border);
+  }
+  .v15-word-row {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    margin-bottom: 10px;
+  }
+  .v15-word { font-size: 22px; line-height: 1.4; }
+  .v15-gloss { font-size: 13px; color: var(--text-secondary); }
+  .v15-translit { font-size: 11px; color: var(--text-secondary); font-style: italic; }
+  .v15-letter-compare {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+  }
+  .v15-letter-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 8px 16px;
+    text-align: center;
+    min-width: 64px;
+  }
+  .v15-letter-card .letter {
+    font-size: 40px;
+    line-height: 1.2;
+  }
+  .v15-letter-card .letter.theirs { color: var(--confused); }
+  .v15-letter-card .letter.yours { color: var(--accent); }
+  .v15-letter-card .name {
+    font-size: 10px;
+    color: var(--text-secondary);
+    margin-top: 2px;
+  }
+  .v15-letter-card .label-tag {
+    font-size: 9px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-top: 2px;
+  }
+  .v15-letter-card .label-tag.theirs { color: var(--confused); }
+  .v15-letter-card .label-tag.yours { color: var(--accent); }
+  .v15-vs {
+    font-size: 11px;
+    color: var(--text-secondary);
+    font-weight: 600;
+  }
+  .v15-note {
+    font-size: 11px;
+    color: var(--text-secondary);
+    text-align: center;
+    margin-top: 6px;
+    font-style: italic;
+  }
+
+  /* V12: stacked cards */
+  .v12-stack {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+  @media (max-width: 440px) {
+    .v12-stack { grid-template-columns: 1fr; }
+  }
+  .v12-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 10px;
+    text-align: center;
+  }
+  .v12-card .word { font-size: 20px; line-height: 1.4; margin-bottom: 4px; }
+  .v12-card .gloss { font-size: 11px; color: var(--text-secondary); margin-bottom: 8px; }
+
+  /* ============================================
+     V13: Expandable hybrid
+     ============================================ */
+  .v13-item {
+    padding: 6px 0;
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+  .v13-item:hover { background: rgba(74, 158, 255, 0.03); }
+  .v13-item + .v13-item { border-top: 1px solid rgba(42, 42, 69, 0.4); }
+  .v13-summary {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+  }
+  .v13-expand-icon {
+    font-size: 10px;
+    color: var(--text-secondary);
+    transition: transform 0.2s;
+    flex-shrink: 0;
+    margin-top: 4px;
+  }
+  .v13-item.open .v13-expand-icon { transform: rotate(90deg); }
+  .v13-detail {
+    display: none;
+    padding: 8px 0 4px 0;
+  }
+  .v13-item.open .v13-detail { display: block; }
+
+  /* ============================================
+     V15 hybrid: decomposition color bands
+     ============================================ */
+  .decomp-section {
+    margin-top: 12px;
+    padding-top: 10px;
+    border-top: 1px solid var(--border);
+  }
+  .decomp-label {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    color: var(--text-secondary);
+    margin-bottom: 8px;
+  }
+  .decomp-surface {
+    font-size: 24px;
+    text-align: center;
+    margin-bottom: 10px;
+    line-height: 1.5;
+  }
+  .decomp-bands {
+    display: flex;
+    justify-content: center;
+    gap: 4px;
+    flex-wrap: wrap;
+    direction: rtl;
+  }
+  .decomp-band {
+    border-radius: 6px;
+    padding: 4px 10px;
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+  .decomp-band.clitic {
+    background: rgba(136, 136, 160, 0.15);
+    border: 1px solid rgba(136, 136, 160, 0.3);
+  }
+  .decomp-band.stem {
+    background: rgba(74, 158, 255, 0.15);
+    border: 1px solid rgba(74, 158, 255, 0.3);
+  }
+  .decomp-band .band-ar {
+    font-size: 20px;
+    line-height: 1.3;
+  }
+  .decomp-band.clitic .band-ar { color: var(--text-secondary); }
+  .decomp-band.stem .band-ar { color: var(--accent); }
+  .decomp-band .band-label {
+    font-size: 9px;
+    color: var(--text-secondary);
+    white-space: nowrap;
+  }
+  .decomp-band .band-gloss {
+    font-size: 10px;
+    color: var(--text-secondary);
+  }
+  .decomp-translation {
+    text-align: center;
+    font-size: 12px;
+    color: var(--text-secondary);
+    margin-top: 8px;
+    font-style: italic;
+  }
+
+  /* ============================================
+     V16: Teaching card
+     ============================================ */
+  .v16-hero {
+    text-align: center;
+    padding: 16px 0;
+  }
+  .v16-hero-letters {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 24px;
+    margin-bottom: 8px;
+  }
+  .v16-hero-letter {
+    font-size: 60px;
+    line-height: 1.1;
+  }
+  .v16-hero-letter.theirs { color: var(--confused); }
+  .v16-hero-letter.yours { color: var(--accent); }
+  .v16-hero-explain {
+    font-size: 13px;
+    color: var(--text-secondary);
+  }
+  .v16-hero-explain .hl { color: var(--confused); font-weight: 600; }
+  .v16-hero-explain .yours-hl { color: var(--accent); font-weight: 600; }
+  .v16-hero-sep {
+    border: none;
+    border-top: 1px solid var(--border);
+    margin: 12px 0;
+  }
+
+  /* ============================================
+     V17: All-in-one card
+     ============================================ */
+  .v17-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--border);
+  }
+  .v17-header .icon { font-size: 16px; }
+  .v17-header .label {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    color: var(--confused);
+  }
+  .v17-conf-item {
+    padding: 8px 14px;
+  }
+  .v17-conf-item + .v17-conf-item {
+    border-top: 1px solid rgba(42, 42, 69, 0.4);
+  }
+  .v17-word-line {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    margin-bottom: 2px;
+  }
+  .v17-word { font-size: 22px; line-height: 1.4; }
+  .v17-gloss { font-size: 12px; color: var(--text-secondary); }
+  .v17-hint-line {
+    font-size: 12px;
+    color: var(--text-secondary);
+  }
+  .v17-hint-line .hl { color: var(--confused); font-weight: 600; }
+  .v17-hint-line .yours-hl { color: var(--accent); font-weight: 600; }
+
+  /* ============================================
+     VOTE BUTTONS
+     ============================================ */
+  .vote-row {
+    display: flex;
+    gap: 6px;
+    padding: 10px 16px;
+    border-top: 1px solid var(--border);
+    background: rgba(0, 0, 0, 0.15);
+  }
+  .vote-btn {
+    flex: 1;
+    padding: 6px 0;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: transparent;
+    color: var(--text-secondary);
+    font-size: 11px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .vote-btn:hover { border-color: var(--text-secondary); color: var(--text); }
+  .vote-btn.selected { color: #fff; }
+  .vote-btn.selected.clear { background: var(--got-it); border-color: var(--got-it); }
+  .vote-btn.selected.ok { background: var(--accent); border-color: var(--accent); }
+  .vote-btn.selected.confusing { background: var(--missed); border-color: var(--missed); }
+
+  /* ============================================
+     VOTE SUMMARY
+     ============================================ */
+  .vote-summary {
+    max-width: 900px;
+    margin: 48px auto;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 20px;
+  }
+  .vote-summary h2 {
+    font-size: 18px;
+    margin-bottom: 16px;
+    color: var(--text);
+  }
+  .vote-summary-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+    gap: 8px;
+  }
+  .vote-summary-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    color: var(--text-secondary);
+  }
+  .vote-summary-item .num {
+    font-weight: 700;
+    color: var(--text);
+    min-width: 28px;
+  }
+  .vote-summary-item .dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+  .vote-summary-item .dot.clear { background: var(--got-it); }
+  .vote-summary-item .dot.ok { background: var(--accent); }
+  .vote-summary-item .dot.confusing { background: var(--missed); }
+  .vote-summary-item .dot.none { background: var(--border); }
+</style>
+</head>
+<body>
+
+<!-- ============ PAGE HEADER ============ -->
+<div class="page-header">
+  <h1>Confusion Card Designs &mdash; Round 2</h1>
+  <p class="subtitle">
+    Iterating on 4 winning designs from Round 1: #5 Single Focus Letter, #7 Minimal Text, #15 Spacious, #13c Color Bands.<br>
+    Each card now shows 3&ndash;4 confusable words. Testing across multiple target words.
+  </p>
+  <div class="target-words">
+    <div class="target-chip">
+      <span class="latin">A:</span>
+      <span class="ar">نَظَرَ</span>
+      <span class="latin">"to look"</span>
+    </div>
+    <div class="target-chip">
+      <span class="latin">B:</span>
+      <span class="ar">خَرَجَ</span>
+      <span class="latin">"to go out"</span>
+    </div>
+    <div class="target-chip">
+      <span class="latin">C:</span>
+      <span class="ar">كَتَبَ</span>
+      <span class="latin">"to write"</span>
+    </div>
+  </div>
+</div>
+
+
+<!-- ============================================================
+     GROUP 1: Iterating on #5 (Single Focus Letter)
+     ============================================================ -->
+<div class="section-header">
+  <h2>Group 1: Single Focus Letter (#5 iterations)</h2>
+  <p>The key idea: show the confusable word, then the two letters huge with names. "has X &mdash; yours has Y"</p>
+</div>
+
+<div class="card-grid">
+
+  <!-- V1: Original #5 with all 4 confusables -->
+  <div class="variation">
+    <div class="variation-label">
+      <span class="variation-number">V1</span>
+      <span class="variation-name">Original #5 &mdash; all confusables</span>
+      <span class="variation-target">Target A</span>
+    </div>
+    <div class="variation-body">
+      <div class="inner-card">
+        <div class="inner-card-header">
+          <span class="icon">&#x1F50D;</span>
+          <span class="label">Easily confused with</span>
+        </div>
+        <div class="inner-card-content">
+          <!-- Target -->
+          <div class="target-row">
+            <span class="ar word" style="font-size:28px">نَظَرَ</span>
+            <span class="gloss">"to look"</span>
+            <span class="translit">na-za-ra</span>
+          </div>
+
+          <!-- Confusable 1 -->
+          <div class="v5-item">
+            <div class="v5-word-row">
+              <span class="ar v5-word">نَطَرَ</span>
+              <span class="v5-gloss">"to guard"</span>
+              <span class="same-shape-pill">dots only</span>
+            </div>
+            <div class="v5-letter-pair">
+              <div class="v5-letter-box">
+                <span class="ar v5-letter theirs">ط</span>
+                <span class="v5-letter-name">ta</span>
+              </div>
+              <span class="v5-vs">vs</span>
+              <div class="v5-letter-box">
+                <span class="ar v5-letter yours">ظ</span>
+                <span class="v5-letter-name">za</span>
+              </div>
+            </div>
+            <div class="v5-explain">has <span style="color:var(--confused)">ط</span> &mdash; yours has <span style="color:var(--accent)">ظ</span></div>
+          </div>
+
+          <hr class="conf-divider">
+
+          <!-- Confusable 2 -->
+          <div class="v5-item">
+            <div class="v5-word-row">
+              <span class="ar v5-word">نَشَرَ</span>
+              <span class="v5-gloss">"to publish"</span>
+            </div>
+            <div class="v5-letter-pair">
+              <div class="v5-letter-box">
+                <span class="ar v5-letter theirs">ش</span>
+                <span class="v5-letter-name">shin</span>
+              </div>
+              <span class="v5-vs">vs</span>
+              <div class="v5-letter-box">
+                <span class="ar v5-letter yours">ظ</span>
+                <span class="v5-letter-name">za</span>
+              </div>
+            </div>
+            <div class="v5-explain">has <span style="color:var(--confused)">ش</span> &mdash; yours has <span style="color:var(--accent)">ظ</span></div>
+          </div>
+
+          <hr class="conf-divider">
+
+          <!-- Confusable 3 -->
+          <div class="v5-item">
+            <div class="v5-word-row">
+              <span class="ar v5-word">نَصَرَ</span>
+              <span class="v5-gloss">"to help"</span>
+            </div>
+            <div class="v5-letter-pair">
+              <div class="v5-letter-box">
+                <span class="ar v5-letter theirs">ص</span>
+                <span class="v5-letter-name">sad</span>
+              </div>
+              <span class="v5-vs">vs</span>
+              <div class="v5-letter-box">
+                <span class="ar v5-letter yours">ظ</span>
+                <span class="v5-letter-name">za</span>
+              </div>
+            </div>
+            <div class="v5-explain">has <span style="color:var(--confused)">ص</span> &mdash; yours has <span style="color:var(--accent)">ظ</span></div>
+          </div>
+
+          <hr class="conf-divider">
+
+          <!-- Confusable 4 -->
+          <div class="v5-item">
+            <div class="v5-word-row">
+              <span class="ar v5-word">بَصَرَ</span>
+              <span class="v5-gloss">"to see"</span>
+            </div>
+            <div class="v5-letter-pair">
+              <div class="v5-letter-box">
+                <span class="ar v5-letter theirs">ب</span>
+                <span class="v5-letter-name">ba</span>
+              </div>
+              <span class="v5-vs">vs</span>
+              <div class="v5-letter-box">
+                <span class="ar v5-letter yours">ن</span>
+                <span class="v5-letter-name">nun</span>
+              </div>
+            </div>
+            <div class="v5-explain">has <span style="color:var(--confused)">ب</span> &mdash; yours has <span style="color:var(--accent)">ن</span></div>
+            <div class="v5-letter-pair" style="margin-top: 4px;">
+              <div class="v5-letter-box">
+                <span class="ar v5-letter theirs">ص</span>
+                <span class="v5-letter-name">sad</span>
+              </div>
+              <span class="v5-vs">vs</span>
+              <div class="v5-letter-box">
+                <span class="ar v5-letter yours">ظ</span>
+                <span class="v5-letter-name">za</span>
+              </div>
+            </div>
+            <div class="v5-explain">2 positions differ</div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+    <div class="vote-row">
+      <button class="vote-btn clear" data-v="V1" data-vote="clear" onclick="vote(this)">Clear</button>
+      <button class="vote-btn ok" data-v="V1" data-vote="ok" onclick="vote(this)">OK</button>
+      <button class="vote-btn confusing" data-v="V1" data-vote="confusing" onclick="vote(this)">Confusing</button>
+    </div>
+  </div>
+
+  <!-- V2: Compact #5 -->
+  <div class="variation">
+    <div class="variation-label">
+      <span class="variation-number">V2</span>
+      <span class="variation-name">Compact #5 &mdash; tighter layout</span>
+      <span class="variation-target">Target A</span>
+    </div>
+    <div class="variation-body">
+      <div class="inner-card">
+        <div class="inner-card-header">
+          <span class="icon">&#x1F50D;</span>
+          <span class="label">Easily confused with</span>
+        </div>
+        <div class="inner-card-content">
+          <div class="target-row">
+            <span class="ar word" style="font-size:26px">نَظَرَ</span>
+            <span class="gloss">"to look"</span>
+          </div>
+
+          <div class="v5-item">
+            <div class="v5-word-row">
+              <span class="ar v5-word">نَطَرَ</span>
+              <span class="v5-gloss">"to guard"</span>
+              <span class="same-shape-pill">dots only</span>
+            </div>
+            <div class="v5-letter-pair compact">
+              <div class="v5-letter-box">
+                <span class="ar v5-letter compact theirs">ط</span>
+                <span class="v5-letter-name">ta</span>
+              </div>
+              <span class="v5-vs">vs</span>
+              <div class="v5-letter-box">
+                <span class="ar v5-letter compact yours">ظ</span>
+                <span class="v5-letter-name">za</span>
+              </div>
+            </div>
+          </div>
+
+          <hr class="conf-divider">
+
+          <div class="v5-item">
+            <div class="v5-word-row">
+              <span class="ar v5-word">نَشَرَ</span>
+              <span class="v5-gloss">"to publish"</span>
+            </div>
+            <div class="v5-letter-pair compact">
+              <div class="v5-letter-box">
+                <span class="ar v5-letter compact theirs">ش</span>
+                <span class="v5-letter-name">shin</span>
+              </div>
+              <span class="v5-vs">vs</span>
+              <div class="v5-letter-box">
+                <span class="ar v5-letter compact yours">ظ</span>
+                <span class="v5-letter-name">za</span>
+              </div>
+            </div>
+          </div>
+
+          <hr class="conf-divider">
+
+          <div class="v5-item">
+            <div class="v5-word-row">
+              <span class="ar v5-word">نَصَرَ</span>
+              <span class="v5-gloss">"to help"</span>
+            </div>
+            <div class="v5-letter-pair compact">
+              <div class="v5-letter-box">
+                <span class="ar v5-letter compact theirs">ص</span>
+                <span class="v5-letter-name">sad</span>
+              </div>
+              <span class="v5-vs">vs</span>
+              <div class="v5-letter-box">
+                <span class="ar v5-letter compact yours">ظ</span>
+                <span class="v5-letter-name">za</span>
+              </div>
+            </div>
+          </div>
+
+          <hr class="conf-divider">
+
+          <div class="v5-item">
+            <div class="v5-word-row">
+              <span class="ar v5-word">بَصَرَ</span>
+              <span class="v5-gloss">"to see"</span>
+            </div>
+            <div class="v5-multi-pairs">
+              <div class="v5-letter-pair compact">
+                <div class="v5-letter-box">
+                  <span class="ar v5-letter compact theirs">ب</span>
+                  <span class="v5-letter-name">ba</span>
+                </div>
+                <span class="v5-vs">vs</span>
+                <div class="v5-letter-box">
+                  <span class="ar v5-letter compact yours">ن</span>
+                  <span class="v5-letter-name">nun</span>
+                </div>
+              </div>
+              <div class="v5-letter-pair compact">
+                <div class="v5-letter-box">
+                  <span class="ar v5-letter compact theirs">ص</span>
+                  <span class="v5-letter-name">sad</span>
+                </div>
+                <span class="v5-vs">vs</span>
+                <div class="v5-letter-box">
+                  <span class="ar v5-letter compact yours">ظ</span>
+                  <span class="v5-letter-name">za</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+    <div class="vote-row">
+      <button class="vote-btn clear" data-v="V2" data-vote="clear" onclick="vote(this)">Clear</button>
+      <button class="vote-btn ok" data-v="V2" data-vote="ok" onclick="vote(this)">OK</button>
+      <button class="vote-btn confusing" data-v="V2" data-vote="confusing" onclick="vote(this)">Confusing</button>
+    </div>
+  </div>
+
+  <!-- V3: Multi-position diffs -->
+  <div class="variation">
+    <div class="variation-label">
+      <span class="variation-number">V3</span>
+      <span class="variation-name">#5 multi-position diffs inline</span>
+      <span class="variation-target">Target A</span>
+    </div>
+    <div class="variation-body">
+      <div class="inner-card">
+        <div class="inner-card-header">
+          <span class="icon">&#x1F50D;</span>
+          <span class="label">Easily confused with</span>
+        </div>
+        <div class="inner-card-content">
+          <div class="target-row">
+            <span class="ar word" style="font-size:28px">نَظَرَ</span>
+            <span class="gloss">"to look"</span>
+          </div>
+
+          <!-- Single diff -->
+          <div class="v5-item">
+            <div class="v5-word-row">
+              <span class="ar v5-word">نَطَرَ</span>
+              <span class="v5-gloss">"to guard"</span>
+              <span class="same-shape-pill">dots only</span>
+            </div>
+            <div class="v5-letter-pair">
+              <div class="v5-letter-box">
+                <span class="ar v5-letter theirs">ط</span>
+                <span class="v5-letter-name">ta</span>
+              </div>
+              <span class="v5-vs">vs</span>
+              <div class="v5-letter-box">
+                <span class="ar v5-letter yours">ظ</span>
+                <span class="v5-letter-name">za</span>
+              </div>
+            </div>
+          </div>
+
+          <hr class="conf-divider">
+
+          <div class="v5-item">
+            <div class="v5-word-row">
+              <span class="ar v5-word">نَشَرَ</span>
+              <span class="v5-gloss">"to publish"</span>
+            </div>
+            <div class="v5-letter-pair">
+              <div class="v5-letter-box">
+                <span class="ar v5-letter theirs">ش</span>
+                <span class="v5-letter-name">shin</span>
+              </div>
+              <span class="v5-vs">vs</span>
+              <div class="v5-letter-box">
+                <span class="ar v5-letter yours">ظ</span>
+                <span class="v5-letter-name">za</span>
+              </div>
+            </div>
+          </div>
+
+          <hr class="conf-divider">
+
+          <div class="v5-item">
+            <div class="v5-word-row">
+              <span class="ar v5-word">نَصَرَ</span>
+              <span class="v5-gloss">"to help"</span>
+            </div>
+            <div class="v5-letter-pair">
+              <div class="v5-letter-box">
+                <span class="ar v5-letter theirs">ص</span>
+                <span class="v5-letter-name">sad</span>
+              </div>
+              <span class="v5-vs">vs</span>
+              <div class="v5-letter-box">
+                <span class="ar v5-letter yours">ظ</span>
+                <span class="v5-letter-name">za</span>
+              </div>
+            </div>
+          </div>
+
+          <hr class="conf-divider">
+
+          <!-- Multi-position diff: 2 pairs side by side -->
+          <div class="v5-item">
+            <div class="v5-word-row">
+              <span class="ar v5-word">بَصَرَ</span>
+              <span class="v5-gloss">"to see" &mdash; 2 letters differ</span>
+            </div>
+            <div class="v5-multi-pairs">
+              <div style="text-align:center">
+                <div style="font-size:10px;color:var(--text-secondary);margin-bottom:2px">position 1</div>
+                <div class="v5-letter-pair">
+                  <div class="v5-letter-box">
+                    <span class="ar v5-letter theirs">ب</span>
+                    <span class="v5-letter-name">ba</span>
+                  </div>
+                  <span class="v5-vs">vs</span>
+                  <div class="v5-letter-box">
+                    <span class="ar v5-letter yours">ن</span>
+                    <span class="v5-letter-name">nun</span>
+                  </div>
+                </div>
+              </div>
+              <div style="text-align:center">
+                <div style="font-size:10px;color:var(--text-secondary);margin-bottom:2px">position 2</div>
+                <div class="v5-letter-pair">
+                  <div class="v5-letter-box">
+                    <span class="ar v5-letter theirs">ص</span>
+                    <span class="v5-letter-name">sad</span>
+                  </div>
+                  <span class="v5-vs">vs</span>
+                  <div class="v5-letter-box">
+                    <span class="ar v5-letter yours">ظ</span>
+                    <span class="v5-letter-name">za</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+    <div class="vote-row">
+      <button class="vote-btn clear" data-v="V3" data-vote="clear" onclick="vote(this)">Clear</button>
+      <button class="vote-btn ok" data-v="V3" data-vote="ok" onclick="vote(this)">OK</button>
+      <button class="vote-btn confusing" data-v="V3" data-vote="confusing" onclick="vote(this)">Confusing</button>
+    </div>
+  </div>
+
+  <!-- V4: #5 with Target B -->
+  <div class="variation">
+    <div class="variation-label">
+      <span class="variation-number">V4</span>
+      <span class="variation-name">#5 with Target B</span>
+      <span class="variation-target">Target B</span>
+    </div>
+    <div class="variation-body">
+      <div class="inner-card">
+        <div class="inner-card-header">
+          <span class="icon">&#x1F50D;</span>
+          <span class="label">Easily confused with</span>
+        </div>
+        <div class="inner-card-content">
+          <div class="target-row">
+            <span class="ar word" style="font-size:28px">خَرَجَ</span>
+            <span class="gloss">"to go out"</span>
+            <span class="translit">kha-ra-ja</span>
+          </div>
+
+          <div class="v5-item">
+            <div class="v5-word-row">
+              <span class="ar v5-word">حَرَجَ</span>
+              <span class="v5-gloss">"to be embarrassed"</span>
+              <span class="same-shape-pill">dots only</span>
+            </div>
+            <div class="v5-letter-pair">
+              <div class="v5-letter-box">
+                <span class="ar v5-letter theirs">ح</span>
+                <span class="v5-letter-name">ha</span>
+              </div>
+              <span class="v5-vs">vs</span>
+              <div class="v5-letter-box">
+                <span class="ar v5-letter yours">خ</span>
+                <span class="v5-letter-name">kha</span>
+              </div>
+            </div>
+            <div class="v5-explain">has <span style="color:var(--confused)">ح</span> (no dot) &mdash; yours has <span style="color:var(--accent)">خ</span> (dot above)</div>
+          </div>
+
+          <hr class="conf-divider">
+
+          <div class="v5-item">
+            <div class="v5-word-row">
+              <span class="ar v5-word">خَرَقَ</span>
+              <span class="v5-gloss">"to tear"</span>
+            </div>
+            <div class="v5-letter-pair">
+              <div class="v5-letter-box">
+                <span class="ar v5-letter theirs">ق</span>
+                <span class="v5-letter-name">qaf</span>
+              </div>
+              <span class="v5-vs">vs</span>
+              <div class="v5-letter-box">
+                <span class="ar v5-letter yours">ج</span>
+                <span class="v5-letter-name">jim</span>
+              </div>
+            </div>
+            <div class="v5-explain">has <span style="color:var(--confused)">ق</span> &mdash; yours has <span style="color:var(--accent)">ج</span></div>
+          </div>
+
+          <hr class="conf-divider">
+
+          <div class="v5-item">
+            <div class="v5-word-row">
+              <span class="ar v5-word">دَرَجَ</span>
+              <span class="v5-gloss">"to step/grade"</span>
+            </div>
+            <div class="v5-letter-pair">
+              <div class="v5-letter-box">
+                <span class="ar v5-letter theirs">د</span>
+                <span class="v5-letter-name">dal</span>
+              </div>
+              <span class="v5-vs">vs</span>
+              <div class="v5-letter-box">
+                <span class="ar v5-letter yours">خ</span>
+                <span class="v5-letter-name">kha</span>
+              </div>
+            </div>
+            <div class="v5-explain">has <span style="color:var(--confused)">د</span> &mdash; yours has <span style="color:var(--accent)">خ</span></div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+    <div class="vote-row">
+      <button class="vote-btn clear" data-v="V4" data-vote="clear" onclick="vote(this)">Clear</button>
+      <button class="vote-btn ok" data-v="V4" data-vote="ok" onclick="vote(this)">OK</button>
+      <button class="vote-btn confusing" data-v="V4" data-vote="confusing" onclick="vote(this)">Confusing</button>
+    </div>
+  </div>
+
+</div><!-- end card-grid group 1 -->
+
+
+<!-- ============================================================
+     GROUP 2: Iterating on #7 (Minimal Text)
+     ============================================================ -->
+<div class="section-header">
+  <h2>Group 2: Minimal Text (#7 iterations)</h2>
+  <p>The key idea: one line per confusable. Arabic + gloss + "has X not Y"</p>
+</div>
+
+<div class="card-grid">
+
+  <!-- V5: Original #7 with all confusables -->
+  <div class="variation">
+    <div class="variation-label">
+      <span class="variation-number">V5</span>
+      <span class="variation-name">Original #7 &mdash; all confusables</span>
+      <span class="variation-target">Target A</span>
+    </div>
+    <div class="variation-body">
+      <div class="inner-card">
+        <div class="inner-card-header">
+          <span class="icon">&#x1F50D;</span>
+          <span class="label">Easily confused with</span>
+        </div>
+        <div class="inner-card-content">
+          <div class="target-row">
+            <span class="ar word" style="font-size:26px">نَظَرَ</span>
+            <span class="gloss">"to look"</span>
+          </div>
+
+          <div class="v7-line">
+            <span class="ar v7-word">نَطَرَ</span>
+            <span class="v7-gloss">"to guard"</span>
+            <span class="v7-hint">has <span class="ar letter-hl">ط</span> not <span class="ar letter-yours">ظ</span></span>
+          </div>
+          <div class="v7-line">
+            <span class="ar v7-word">نَشَرَ</span>
+            <span class="v7-gloss">"to publish"</span>
+            <span class="v7-hint">has <span class="ar letter-hl">ش</span> not <span class="ar letter-yours">ظ</span></span>
+          </div>
+          <div class="v7-line">
+            <span class="ar v7-word">نَصَرَ</span>
+            <span class="v7-gloss">"to help"</span>
+            <span class="v7-hint">has <span class="ar letter-hl">ص</span> not <span class="ar letter-yours">ظ</span></span>
+          </div>
+          <div class="v7-line">
+            <span class="ar v7-word">بَصَرَ</span>
+            <span class="v7-gloss">"to see"</span>
+            <span class="v7-hint">has <span class="ar letter-hl">ب</span><span class="ar letter-hl">ص</span> not <span class="ar letter-yours">ن</span><span class="ar letter-yours">ظ</span></span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="vote-row">
+      <button class="vote-btn clear" data-v="V5" data-vote="clear" onclick="vote(this)">Clear</button>
+      <button class="vote-btn ok" data-v="V5" data-vote="ok" onclick="vote(this)">OK</button>
+      <button class="vote-btn confusing" data-v="V5" data-vote="confusing" onclick="vote(this)">Confusing</button>
+    </div>
+  </div>
+
+  <!-- V6: #7 with inline letter pills -->
+  <div class="variation">
+    <div class="variation-label">
+      <span class="variation-number">V6</span>
+      <span class="variation-name">#7 with colored letter pills</span>
+      <span class="variation-target">Target A</span>
+    </div>
+    <div class="variation-body">
+      <div class="inner-card">
+        <div class="inner-card-header">
+          <span class="icon">&#x1F50D;</span>
+          <span class="label">Easily confused with</span>
+        </div>
+        <div class="inner-card-content">
+          <div class="target-row">
+            <span class="ar word" style="font-size:26px">نَظَرَ</span>
+            <span class="gloss">"to look"</span>
+          </div>
+
+          <div class="v7-line">
+            <span class="ar v7-word">نَطَرَ</span>
+            <span class="v7-gloss">"to guard"</span>
+            <span class="v7-hint"><span class="v7-pill"><span class="ar">ط</span></span> not <span class="v7-pill v7-pill-yours"><span class="ar">ظ</span></span></span>
+          </div>
+          <div class="v7-line">
+            <span class="ar v7-word">نَشَرَ</span>
+            <span class="v7-gloss">"to publish"</span>
+            <span class="v7-hint"><span class="v7-pill"><span class="ar">ش</span></span> not <span class="v7-pill v7-pill-yours"><span class="ar">ظ</span></span></span>
+          </div>
+          <div class="v7-line">
+            <span class="ar v7-word">نَصَرَ</span>
+            <span class="v7-gloss">"to help"</span>
+            <span class="v7-hint"><span class="v7-pill"><span class="ar">ص</span></span> not <span class="v7-pill v7-pill-yours"><span class="ar">ظ</span></span></span>
+          </div>
+          <div class="v7-line">
+            <span class="ar v7-word">بَصَرَ</span>
+            <span class="v7-gloss">"to see"</span>
+            <span class="v7-hint"><span class="v7-pill"><span class="ar">ب</span><span class="ar">ص</span></span> not <span class="v7-pill v7-pill-yours"><span class="ar">ن</span><span class="ar">ظ</span></span></span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="vote-row">
+      <button class="vote-btn clear" data-v="V6" data-vote="clear" onclick="vote(this)">Clear</button>
+      <button class="vote-btn ok" data-v="V6" data-vote="ok" onclick="vote(this)">OK</button>
+      <button class="vote-btn confusing" data-v="V6" data-vote="confusing" onclick="vote(this)">Confusing</button>
+    </div>
+  </div>
+
+  <!-- V7: #7 with Target C -->
+  <div class="variation">
+    <div class="variation-label">
+      <span class="variation-number">V7</span>
+      <span class="variation-name">#7 with Target C</span>
+      <span class="variation-target">Target C</span>
+    </div>
+    <div class="variation-body">
+      <div class="inner-card">
+        <div class="inner-card-header">
+          <span class="icon">&#x1F50D;</span>
+          <span class="label">Easily confused with</span>
+        </div>
+        <div class="inner-card-content">
+          <div class="target-row">
+            <span class="ar word" style="font-size:26px">كَتَبَ</span>
+            <span class="gloss">"to write"</span>
+            <span class="translit">ka-ta-ba</span>
+          </div>
+
+          <div class="v7-line">
+            <span class="ar v7-word">كَذَبَ</span>
+            <span class="v7-gloss">"to lie"</span>
+            <span class="v7-hint">has <span class="ar letter-hl">ذ</span> not <span class="ar letter-yours">ت</span></span>
+          </div>
+          <div class="v7-line">
+            <span class="ar v7-word">كَسَبَ</span>
+            <span class="v7-gloss">"to earn"</span>
+            <span class="v7-hint">has <span class="ar letter-hl">س</span> not <span class="ar letter-yours">ت</span></span>
+          </div>
+          <div class="v7-line">
+            <span class="ar v7-word">كَتَفَ</span>
+            <span class="v7-gloss">"shoulder"</span>
+            <span class="v7-hint">has <span class="ar letter-hl">ف</span> not <span class="ar letter-yours">ب</span></span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="vote-row">
+      <button class="vote-btn clear" data-v="V7" data-vote="clear" onclick="vote(this)">Clear</button>
+      <button class="vote-btn ok" data-v="V7" data-vote="ok" onclick="vote(this)">OK</button>
+      <button class="vote-btn confusing" data-v="V7" data-vote="confusing" onclick="vote(this)">Confusing</button>
+    </div>
+  </div>
+
+  <!-- V8: #7 with "dots only" badge -->
+  <div class="variation">
+    <div class="variation-label">
+      <span class="variation-number">V8</span>
+      <span class="variation-name">#7 with "dots only" badge</span>
+      <span class="variation-target">Target A</span>
+    </div>
+    <div class="variation-body">
+      <div class="inner-card">
+        <div class="inner-card-header">
+          <span class="icon">&#x1F50D;</span>
+          <span class="label">Easily confused with</span>
+        </div>
+        <div class="inner-card-content">
+          <div class="target-row">
+            <span class="ar word" style="font-size:26px">نَظَرَ</span>
+            <span class="gloss">"to look"</span>
+          </div>
+
+          <div class="v7-line">
+            <span class="ar v7-word">نَطَرَ</span>
+            <span class="v7-gloss">"to guard"</span>
+            <span class="v7-hint">has <span class="ar letter-hl">ط</span> not <span class="ar letter-yours">ظ</span> <span class="same-shape-pill" style="margin-left:4px">dots only</span></span>
+          </div>
+          <div class="v7-line">
+            <span class="ar v7-word">نَشَرَ</span>
+            <span class="v7-gloss">"to publish"</span>
+            <span class="v7-hint">has <span class="ar letter-hl">ش</span> not <span class="ar letter-yours">ظ</span></span>
+          </div>
+          <div class="v7-line">
+            <span class="ar v7-word">نَصَرَ</span>
+            <span class="v7-gloss">"to help"</span>
+            <span class="v7-hint">has <span class="ar letter-hl">ص</span> not <span class="ar letter-yours">ظ</span></span>
+          </div>
+          <div class="v7-line">
+            <span class="ar v7-word">بَصَرَ</span>
+            <span class="v7-gloss">"to see"</span>
+            <span class="v7-hint">has <span class="ar letter-hl">ب</span><span class="ar letter-hl">ص</span> not <span class="ar letter-yours">ن</span><span class="ar letter-yours">ظ</span></span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="vote-row">
+      <button class="vote-btn clear" data-v="V8" data-vote="clear" onclick="vote(this)">Clear</button>
+      <button class="vote-btn ok" data-v="V8" data-vote="ok" onclick="vote(this)">OK</button>
+      <button class="vote-btn confusing" data-v="V8" data-vote="confusing" onclick="vote(this)">Confusing</button>
+    </div>
+  </div>
+
+</div><!-- end card-grid group 2 -->
+
+
+<!-- ============================================================
+     GROUP 3: Iterating on #15 (Spacious)
+     ============================================================ -->
+<div class="section-header">
+  <h2>Group 3: Spacious (#15 iterations)</h2>
+  <p>The key idea: generous card, word large, divider, letter comparison cards, explanatory note.</p>
+</div>
+
+<div class="card-grid">
+
+  <!-- V9: All confusables in one spacious card -->
+  <div class="variation full-width">
+    <div class="variation-label">
+      <span class="variation-number">V9</span>
+      <span class="variation-name">Spacious #15 &mdash; all in one card</span>
+      <span class="variation-target">Target A</span>
+    </div>
+    <div class="variation-body">
+      <div class="inner-card" style="max-width:420px">
+        <div class="inner-card-header">
+          <span class="icon">&#x1F50D;</span>
+          <span class="label">Easily confused with</span>
+        </div>
+        <div class="inner-card-content">
+          <div class="target-row">
+            <span class="ar word" style="font-size:30px">نَظَرَ</span>
+            <span class="gloss">"to look"</span>
+            <span class="translit">na-za-ra</span>
+          </div>
+
+          <!-- Confusable 1 -->
+          <div class="v15-confusable">
+            <div class="v15-word-row">
+              <span class="ar v15-word">نَطَرَ</span>
+              <span class="v15-gloss">"to guard"</span>
+              <span class="v15-translit">na-ta-ra</span>
+              <span class="same-shape-pill" style="margin-left:auto">dots only</span>
+            </div>
+            <div class="v15-letter-compare">
+              <div class="v15-letter-card">
+                <div class="ar letter theirs">ط</div>
+                <div class="name">ta</div>
+                <div class="label-tag theirs">theirs</div>
+              </div>
+              <span class="v15-vs">vs</span>
+              <div class="v15-letter-card">
+                <div class="ar letter yours">ظ</div>
+                <div class="name">za</div>
+                <div class="label-tag yours">yours</div>
+              </div>
+            </div>
+            <div class="v15-note">Same shape &mdash; yours has a dot above</div>
+          </div>
+
+          <!-- Confusable 2 -->
+          <div class="v15-confusable">
+            <div class="v15-word-row">
+              <span class="ar v15-word">نَشَرَ</span>
+              <span class="v15-gloss">"to publish"</span>
+              <span class="v15-translit">na-sha-ra</span>
+            </div>
+            <div class="v15-letter-compare">
+              <div class="v15-letter-card">
+                <div class="ar letter theirs">ش</div>
+                <div class="name">shin</div>
+                <div class="label-tag theirs">theirs</div>
+              </div>
+              <span class="v15-vs">vs</span>
+              <div class="v15-letter-card">
+                <div class="ar letter yours">ظ</div>
+                <div class="name">za</div>
+                <div class="label-tag yours">yours</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Confusable 3 -->
+          <div class="v15-confusable">
+            <div class="v15-word-row">
+              <span class="ar v15-word">نَصَرَ</span>
+              <span class="v15-gloss">"to help"</span>
+              <span class="v15-translit">na-sa-ra</span>
+            </div>
+            <div class="v15-letter-compare">
+              <div class="v15-letter-card">
+                <div class="ar letter theirs">ص</div>
+                <div class="name">sad</div>
+                <div class="label-tag theirs">theirs</div>
+              </div>
+              <span class="v15-vs">vs</span>
+              <div class="v15-letter-card">
+                <div class="ar letter yours">ظ</div>
+                <div class="name">za</div>
+                <div class="label-tag yours">yours</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Confusable 4 -->
+          <div class="v15-confusable">
+            <div class="v15-word-row">
+              <span class="ar v15-word">بَصَرَ</span>
+              <span class="v15-gloss">"to see"</span>
+              <span class="v15-translit">ba-sa-ra</span>
+            </div>
+            <div class="v15-letter-compare">
+              <div class="v15-letter-card">
+                <div class="ar letter theirs">ب</div>
+                <div class="name">ba</div>
+                <div class="label-tag theirs">theirs</div>
+              </div>
+              <span class="v15-vs">vs</span>
+              <div class="v15-letter-card">
+                <div class="ar letter yours">ن</div>
+                <div class="name">nun</div>
+                <div class="label-tag yours">yours</div>
+              </div>
+            </div>
+            <div style="height:6px"></div>
+            <div class="v15-letter-compare">
+              <div class="v15-letter-card">
+                <div class="ar letter theirs">ص</div>
+                <div class="name">sad</div>
+                <div class="label-tag theirs">theirs</div>
+              </div>
+              <span class="v15-vs">vs</span>
+              <div class="v15-letter-card">
+                <div class="ar letter yours">ظ</div>
+                <div class="name">za</div>
+                <div class="label-tag yours">yours</div>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+    <div class="vote-row">
+      <button class="vote-btn clear" data-v="V9" data-vote="clear" onclick="vote(this)">Clear</button>
+      <button class="vote-btn ok" data-v="V9" data-vote="ok" onclick="vote(this)">OK</button>
+      <button class="vote-btn confusing" data-v="V9" data-vote="confusing" onclick="vote(this)">Confusing</button>
+    </div>
+  </div>
+
+  <!-- V10: Simplified spacious, Target B -->
+  <div class="variation">
+    <div class="variation-label">
+      <span class="variation-number">V10</span>
+      <span class="variation-name">Simplified spacious &mdash; no "vs"</span>
+      <span class="variation-target">Target B</span>
+    </div>
+    <div class="variation-body">
+      <div class="inner-card">
+        <div class="inner-card-header">
+          <span class="icon">&#x1F50D;</span>
+          <span class="label">Easily confused with</span>
+        </div>
+        <div class="inner-card-content">
+          <div class="target-row">
+            <span class="ar word" style="font-size:28px">خَرَجَ</span>
+            <span class="gloss">"to go out"</span>
+          </div>
+
+          <div class="v15-confusable">
+            <div class="v15-word-row">
+              <span class="ar v15-word">حَرَجَ</span>
+              <span class="v15-gloss">"to be embarrassed"</span>
+              <span class="same-shape-pill" style="margin-left:auto">dots only</span>
+            </div>
+            <div class="v15-letter-compare">
+              <div class="v15-letter-card">
+                <div class="ar letter theirs" style="font-size:40px">ح</div>
+                <div class="name">ha</div>
+              </div>
+              <div class="v15-letter-card">
+                <div class="ar letter yours" style="font-size:40px">خ</div>
+                <div class="name">kha</div>
+              </div>
+            </div>
+            <div class="v15-note">Same shape &mdash; yours has a dot above</div>
+          </div>
+
+          <div class="v15-confusable">
+            <div class="v15-word-row">
+              <span class="ar v15-word">خَرَقَ</span>
+              <span class="v15-gloss">"to tear"</span>
+            </div>
+            <div class="v15-letter-compare">
+              <div class="v15-letter-card">
+                <div class="ar letter theirs" style="font-size:40px">ق</div>
+                <div class="name">qaf</div>
+              </div>
+              <div class="v15-letter-card">
+                <div class="ar letter yours" style="font-size:40px">ج</div>
+                <div class="name">jim</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="v15-confusable">
+            <div class="v15-word-row">
+              <span class="ar v15-word">دَرَجَ</span>
+              <span class="v15-gloss">"to step/grade"</span>
+            </div>
+            <div class="v15-letter-compare">
+              <div class="v15-letter-card">
+                <div class="ar letter theirs" style="font-size:40px">د</div>
+                <div class="name">dal</div>
+              </div>
+              <div class="v15-letter-card">
+                <div class="ar letter yours" style="font-size:40px">خ</div>
+                <div class="name">kha</div>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+    <div class="vote-row">
+      <button class="vote-btn clear" data-v="V10" data-vote="clear" onclick="vote(this)">Clear</button>
+      <button class="vote-btn ok" data-v="V10" data-vote="ok" onclick="vote(this)">OK</button>
+      <button class="vote-btn confusing" data-v="V10" data-vote="confusing" onclick="vote(this)">Confusing</button>
+    </div>
+  </div>
+
+  <!-- V11: #15 with note only for same-shape -->
+  <div class="variation">
+    <div class="variation-label">
+      <span class="variation-number">V11</span>
+      <span class="variation-name">#15 note only for same-shape</span>
+      <span class="variation-target">Target A</span>
+    </div>
+    <div class="variation-body">
+      <div class="inner-card">
+        <div class="inner-card-header">
+          <span class="icon">&#x1F50D;</span>
+          <span class="label">Easily confused with</span>
+        </div>
+        <div class="inner-card-content">
+          <div class="target-row">
+            <span class="ar word" style="font-size:28px">نَظَرَ</span>
+            <span class="gloss">"to look"</span>
+          </div>
+
+          <!-- Same-shape: gets note -->
+          <div class="v15-confusable">
+            <div class="v15-word-row">
+              <span class="ar v15-word">نَطَرَ</span>
+              <span class="v15-gloss">"to guard"</span>
+              <span class="same-shape-pill" style="margin-left:auto">dots only</span>
+            </div>
+            <div class="v15-letter-compare">
+              <div class="v15-letter-card">
+                <div class="ar letter theirs">ط</div>
+                <div class="name">ta</div>
+              </div>
+              <span class="v15-vs">vs</span>
+              <div class="v15-letter-card">
+                <div class="ar letter yours">ظ</div>
+                <div class="name">za</div>
+              </div>
+            </div>
+            <div class="v15-note">Same base shape &mdash; yours has a dot above</div>
+          </div>
+
+          <!-- Not same-shape: no note -->
+          <div class="v15-confusable">
+            <div class="v15-word-row">
+              <span class="ar v15-word">نَشَرَ</span>
+              <span class="v15-gloss">"to publish"</span>
+            </div>
+            <div class="v15-letter-compare">
+              <div class="v15-letter-card">
+                <div class="ar letter theirs">ش</div>
+                <div class="name">shin</div>
+              </div>
+              <span class="v15-vs">vs</span>
+              <div class="v15-letter-card">
+                <div class="ar letter yours">ظ</div>
+                <div class="name">za</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="v15-confusable">
+            <div class="v15-word-row">
+              <span class="ar v15-word">نَصَرَ</span>
+              <span class="v15-gloss">"to help"</span>
+            </div>
+            <div class="v15-letter-compare">
+              <div class="v15-letter-card">
+                <div class="ar letter theirs">ص</div>
+                <div class="name">sad</div>
+              </div>
+              <span class="v15-vs">vs</span>
+              <div class="v15-letter-card">
+                <div class="ar letter yours">ظ</div>
+                <div class="name">za</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="v15-confusable">
+            <div class="v15-word-row">
+              <span class="ar v15-word">بَصَرَ</span>
+              <span class="v15-gloss">"to see"</span>
+            </div>
+            <div class="v15-letter-compare">
+              <div class="v15-letter-card">
+                <div class="ar letter theirs">ب</div>
+                <div class="name">ba</div>
+              </div>
+              <span class="v15-vs">vs</span>
+              <div class="v15-letter-card">
+                <div class="ar letter yours">ن</div>
+                <div class="name">nun</div>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+    <div class="vote-row">
+      <button class="vote-btn clear" data-v="V11" data-vote="clear" onclick="vote(this)">Clear</button>
+      <button class="vote-btn ok" data-v="V11" data-vote="ok" onclick="vote(this)">OK</button>
+      <button class="vote-btn confusing" data-v="V11" data-vote="confusing" onclick="vote(this)">Confusing</button>
+    </div>
+  </div>
+
+  <!-- V12: Stacked vertical cards -->
+  <div class="variation">
+    <div class="variation-label">
+      <span class="variation-number">V12</span>
+      <span class="variation-name">#15 stacked vertical grid</span>
+      <span class="variation-target">Target A</span>
+    </div>
+    <div class="variation-body">
+      <div class="inner-card">
+        <div class="inner-card-header">
+          <span class="icon">&#x1F50D;</span>
+          <span class="label">Easily confused with</span>
+        </div>
+        <div class="inner-card-content">
+          <div class="target-row">
+            <span class="ar word" style="font-size:28px">نَظَرَ</span>
+            <span class="gloss">"to look"</span>
+          </div>
+
+          <div class="v12-stack">
+            <!-- Card 1 -->
+            <div class="v12-card">
+              <div class="ar word" style="font-size:20px">نَطَرَ</div>
+              <div class="gloss" style="font-size:11px;color:var(--text-secondary)">"to guard"</div>
+              <div class="same-shape-pill" style="margin:4px 0">dots only</div>
+              <div class="v15-letter-compare" style="margin-top:6px">
+                <div class="v15-letter-card" style="padding:4px 10px;min-width:48px">
+                  <div class="ar letter theirs" style="font-size:32px">ط</div>
+                  <div class="name">ta</div>
+                </div>
+                <div class="v15-letter-card" style="padding:4px 10px;min-width:48px">
+                  <div class="ar letter yours" style="font-size:32px">ظ</div>
+                  <div class="name">za</div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Card 2 -->
+            <div class="v12-card">
+              <div class="ar word" style="font-size:20px">نَشَرَ</div>
+              <div class="gloss" style="font-size:11px;color:var(--text-secondary)">"to publish"</div>
+              <div style="height:22px"></div>
+              <div class="v15-letter-compare" style="margin-top:6px">
+                <div class="v15-letter-card" style="padding:4px 10px;min-width:48px">
+                  <div class="ar letter theirs" style="font-size:32px">ش</div>
+                  <div class="name">shin</div>
+                </div>
+                <div class="v15-letter-card" style="padding:4px 10px;min-width:48px">
+                  <div class="ar letter yours" style="font-size:32px">ظ</div>
+                  <div class="name">za</div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Card 3 -->
+            <div class="v12-card">
+              <div class="ar word" style="font-size:20px">نَصَرَ</div>
+              <div class="gloss" style="font-size:11px;color:var(--text-secondary)">"to help"</div>
+              <div style="height:22px"></div>
+              <div class="v15-letter-compare" style="margin-top:6px">
+                <div class="v15-letter-card" style="padding:4px 10px;min-width:48px">
+                  <div class="ar letter theirs" style="font-size:32px">ص</div>
+                  <div class="name">sad</div>
+                </div>
+                <div class="v15-letter-card" style="padding:4px 10px;min-width:48px">
+                  <div class="ar letter yours" style="font-size:32px">ظ</div>
+                  <div class="name">za</div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Card 4 -->
+            <div class="v12-card">
+              <div class="ar word" style="font-size:20px">بَصَرَ</div>
+              <div class="gloss" style="font-size:11px;color:var(--text-secondary)">"to see"</div>
+              <div style="height:22px"></div>
+              <div class="v15-letter-compare" style="margin-top:6px">
+                <div class="v15-letter-card" style="padding:4px 10px;min-width:48px">
+                  <div class="ar letter theirs" style="font-size:32px">ب</div>
+                  <div class="name">ba</div>
+                </div>
+                <div class="v15-letter-card" style="padding:4px 10px;min-width:48px">
+                  <div class="ar letter yours" style="font-size:32px">ن</div>
+                  <div class="name">nun</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+    <div class="vote-row">
+      <button class="vote-btn clear" data-v="V12" data-vote="clear" onclick="vote(this)">Clear</button>
+      <button class="vote-btn ok" data-v="V12" data-vote="ok" onclick="vote(this)">OK</button>
+      <button class="vote-btn confusing" data-v="V12" data-vote="confusing" onclick="vote(this)">Confusing</button>
+    </div>
+  </div>
+
+</div><!-- end card-grid group 3 -->
+
+
+<!-- ============================================================
+     GROUP 4: Hybrid designs
+     ============================================================ -->
+<div class="section-header">
+  <h2>Group 4: Hybrid Designs</h2>
+  <p>Combining the best elements of #5, #7, #15, and #13c.</p>
+</div>
+
+<div class="card-grid">
+
+  <!-- V13: Expandable hybrid #7 + #5 -->
+  <div class="variation">
+    <div class="variation-label">
+      <span class="variation-number">V13</span>
+      <span class="variation-name">Expandable &mdash; #7 + #5</span>
+      <span class="variation-target">Target A</span>
+    </div>
+    <div class="variation-body">
+      <div class="inner-card">
+        <div class="inner-card-header">
+          <span class="icon">&#x1F50D;</span>
+          <span class="label">Easily confused with</span>
+        </div>
+        <div class="inner-card-content">
+          <div class="target-row">
+            <span class="ar word" style="font-size:26px">نَظَرَ</span>
+            <span class="gloss">"to look"</span>
+          </div>
+
+          <!-- Expandable item 1 -->
+          <div class="v13-item" onclick="this.classList.toggle('open')">
+            <div class="v13-summary">
+              <span class="v13-expand-icon">&#9654;</span>
+              <span class="ar v7-word">نَطَرَ</span>
+              <span class="v7-gloss">"to guard"</span>
+              <span class="v7-hint">has <span class="ar letter-hl">ط</span> not <span class="ar letter-yours">ظ</span> <span class="same-shape-pill">dots only</span></span>
+            </div>
+            <div class="v13-detail">
+              <div class="v5-letter-pair compact">
+                <div class="v5-letter-box">
+                  <span class="ar v5-letter compact theirs">ط</span>
+                  <span class="v5-letter-name">ta</span>
+                </div>
+                <span class="v5-vs">vs</span>
+                <div class="v5-letter-box">
+                  <span class="ar v5-letter compact yours">ظ</span>
+                  <span class="v5-letter-name">za</span>
+                </div>
+              </div>
+              <div class="v5-explain">Same shape &mdash; yours has a dot above</div>
+            </div>
+          </div>
+
+          <!-- Expandable item 2 -->
+          <div class="v13-item" onclick="this.classList.toggle('open')">
+            <div class="v13-summary">
+              <span class="v13-expand-icon">&#9654;</span>
+              <span class="ar v7-word">نَشَرَ</span>
+              <span class="v7-gloss">"to publish"</span>
+              <span class="v7-hint">has <span class="ar letter-hl">ش</span> not <span class="ar letter-yours">ظ</span></span>
+            </div>
+            <div class="v13-detail">
+              <div class="v5-letter-pair compact">
+                <div class="v5-letter-box">
+                  <span class="ar v5-letter compact theirs">ش</span>
+                  <span class="v5-letter-name">shin</span>
+                </div>
+                <span class="v5-vs">vs</span>
+                <div class="v5-letter-box">
+                  <span class="ar v5-letter compact yours">ظ</span>
+                  <span class="v5-letter-name">za</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Expandable item 3 -->
+          <div class="v13-item" onclick="this.classList.toggle('open')">
+            <div class="v13-summary">
+              <span class="v13-expand-icon">&#9654;</span>
+              <span class="ar v7-word">نَصَرَ</span>
+              <span class="v7-gloss">"to help"</span>
+              <span class="v7-hint">has <span class="ar letter-hl">ص</span> not <span class="ar letter-yours">ظ</span></span>
+            </div>
+            <div class="v13-detail">
+              <div class="v5-letter-pair compact">
+                <div class="v5-letter-box">
+                  <span class="ar v5-letter compact theirs">ص</span>
+                  <span class="v5-letter-name">sad</span>
+                </div>
+                <span class="v5-vs">vs</span>
+                <div class="v5-letter-box">
+                  <span class="ar v5-letter compact yours">ظ</span>
+                  <span class="v5-letter-name">za</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Expandable item 4 -->
+          <div class="v13-item" onclick="this.classList.toggle('open')">
+            <div class="v13-summary">
+              <span class="v13-expand-icon">&#9654;</span>
+              <span class="ar v7-word">بَصَرَ</span>
+              <span class="v7-gloss">"to see"</span>
+              <span class="v7-hint">has <span class="ar letter-hl">ب</span><span class="ar letter-hl">ص</span> not <span class="ar letter-yours">ن</span><span class="ar letter-yours">ظ</span></span>
+            </div>
+            <div class="v13-detail">
+              <div class="v5-multi-pairs">
+                <div class="v5-letter-pair compact">
+                  <div class="v5-letter-box">
+                    <span class="ar v5-letter compact theirs">ب</span>
+                    <span class="v5-letter-name">ba</span>
+                  </div>
+                  <span class="v5-vs">vs</span>
+                  <div class="v5-letter-box">
+                    <span class="ar v5-letter compact yours">ن</span>
+                    <span class="v5-letter-name">nun</span>
+                  </div>
+                </div>
+                <div class="v5-letter-pair compact">
+                  <div class="v5-letter-box">
+                    <span class="ar v5-letter compact theirs">ص</span>
+                    <span class="v5-letter-name">sad</span>
+                  </div>
+                  <span class="v5-vs">vs</span>
+                  <div class="v5-letter-box">
+                    <span class="ar v5-letter compact yours">ظ</span>
+                    <span class="v5-letter-name">za</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div style="font-size:10px;color:var(--text-secondary);text-align:center;margin-top:8px">Tap a row to see the letter comparison</div>
+        </div>
+      </div>
+    </div>
+    <div class="vote-row">
+      <button class="vote-btn clear" data-v="V13" data-vote="clear" onclick="vote(this)">Clear</button>
+      <button class="vote-btn ok" data-v="V13" data-vote="ok" onclick="vote(this)">OK</button>
+      <button class="vote-btn confusing" data-v="V13" data-vote="confusing" onclick="vote(this)">Confusing</button>
+    </div>
+  </div>
+
+  <!-- V14: Hybrid #15 + #7 -->
+  <div class="variation">
+    <div class="variation-label">
+      <span class="variation-number">V14</span>
+      <span class="variation-name">Most-similar spacious, rest minimal</span>
+      <span class="variation-target">Target A</span>
+    </div>
+    <div class="variation-body">
+      <div class="inner-card">
+        <div class="inner-card-header">
+          <span class="icon">&#x1F50D;</span>
+          <span class="label">Easily confused with</span>
+        </div>
+        <div class="inner-card-content">
+          <div class="target-row">
+            <span class="ar word" style="font-size:26px">نَظَرَ</span>
+            <span class="gloss">"to look"</span>
+          </div>
+
+          <!-- Most similar: spacious treatment -->
+          <div class="v15-confusable" style="padding-bottom:14px">
+            <div class="v15-word-row">
+              <span class="ar v15-word" style="font-size:24px">نَطَرَ</span>
+              <span class="v15-gloss">"to guard"</span>
+              <span class="same-shape-pill" style="margin-left:auto">dots only</span>
+            </div>
+            <div class="v15-letter-compare">
+              <div class="v15-letter-card">
+                <div class="ar letter theirs" style="font-size:44px">ط</div>
+                <div class="name">ta (no dot)</div>
+              </div>
+              <span class="v15-vs">vs</span>
+              <div class="v15-letter-card">
+                <div class="ar letter yours" style="font-size:44px">ظ</div>
+                <div class="name">za (dot above)</div>
+              </div>
+            </div>
+            <div class="v15-note">Same base shape &mdash; yours has a dot above</div>
+          </div>
+
+          <!-- Rest: minimal one-liners -->
+          <div style="border-top:1px solid var(--border);padding-top:8px">
+            <div style="font-size:10px;text-transform:uppercase;letter-spacing:0.6px;color:var(--text-secondary);margin-bottom:6px">Also similar</div>
+            <div class="v7-line">
+              <span class="ar v7-word">نَشَرَ</span>
+              <span class="v7-gloss">"to publish"</span>
+              <span class="v7-hint">has <span class="ar letter-hl">ش</span> not <span class="ar letter-yours">ظ</span></span>
+            </div>
+            <div class="v7-line">
+              <span class="ar v7-word">نَصَرَ</span>
+              <span class="v7-gloss">"to help"</span>
+              <span class="v7-hint">has <span class="ar letter-hl">ص</span> not <span class="ar letter-yours">ظ</span></span>
+            </div>
+            <div class="v7-line">
+              <span class="ar v7-word">بَصَرَ</span>
+              <span class="v7-gloss">"to see"</span>
+              <span class="v7-hint">has <span class="ar letter-hl">ب</span><span class="ar letter-hl">ص</span> not <span class="ar letter-yours">ن</span><span class="ar letter-yours">ظ</span></span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="vote-row">
+      <button class="vote-btn clear" data-v="V14" data-vote="clear" onclick="vote(this)">Clear</button>
+      <button class="vote-btn ok" data-v="V14" data-vote="ok" onclick="vote(this)">OK</button>
+      <button class="vote-btn confusing" data-v="V14" data-vote="confusing" onclick="vote(this)">Confusing</button>
+    </div>
+  </div>
+
+  <!-- V15: #5 + #13c with decomposition -->
+  <div class="variation full-width">
+    <div class="variation-label">
+      <span class="variation-number">V15</span>
+      <span class="variation-name">#5 letter compare + #13c color bands</span>
+      <span class="variation-target">Target C + decomposition</span>
+    </div>
+    <div class="variation-body">
+      <div class="inner-card" style="max-width:420px">
+        <div class="inner-card-header">
+          <span class="icon">&#x1F50D;</span>
+          <span class="label">Easily confused with</span>
+        </div>
+        <div class="inner-card-content">
+          <div class="target-row">
+            <span class="ar word" style="font-size:28px">كَتَبَ</span>
+            <span class="gloss">"to write"</span>
+            <span class="translit">ka-ta-ba</span>
+          </div>
+
+          <!-- Confusable 1 -->
+          <div class="v5-item">
+            <div class="v5-word-row">
+              <span class="ar v5-word">كَذَبَ</span>
+              <span class="v5-gloss">"to lie"</span>
+            </div>
+            <div class="v5-letter-pair compact">
+              <div class="v5-letter-box">
+                <span class="ar v5-letter compact theirs">ذ</span>
+                <span class="v5-letter-name">dhal</span>
+              </div>
+              <span class="v5-vs">vs</span>
+              <div class="v5-letter-box">
+                <span class="ar v5-letter compact yours">ت</span>
+                <span class="v5-letter-name">ta</span>
+              </div>
+            </div>
+          </div>
+
+          <hr class="conf-divider">
+
+          <!-- Confusable 2 -->
+          <div class="v5-item">
+            <div class="v5-word-row">
+              <span class="ar v5-word">كَسَبَ</span>
+              <span class="v5-gloss">"to earn"</span>
+            </div>
+            <div class="v5-letter-pair compact">
+              <div class="v5-letter-box">
+                <span class="ar v5-letter compact theirs">س</span>
+                <span class="v5-letter-name">sin</span>
+              </div>
+              <span class="v5-vs">vs</span>
+              <div class="v5-letter-box">
+                <span class="ar v5-letter compact yours">ت</span>
+                <span class="v5-letter-name">ta</span>
+              </div>
+            </div>
+          </div>
+
+          <hr class="conf-divider">
+
+          <!-- Confusable 3 -->
+          <div class="v5-item">
+            <div class="v5-word-row">
+              <span class="ar v5-word">كَتَفَ</span>
+              <span class="v5-gloss">"shoulder"</span>
+              <span class="same-shape-pill">dots only</span>
+            </div>
+            <div class="v5-letter-pair compact">
+              <div class="v5-letter-box">
+                <span class="ar v5-letter compact theirs">ف</span>
+                <span class="v5-letter-name">fa</span>
+              </div>
+              <span class="v5-vs">vs</span>
+              <div class="v5-letter-box">
+                <span class="ar v5-letter compact yours">ب</span>
+                <span class="v5-letter-name">ba</span>
+              </div>
+            </div>
+            <div class="v5-explain">Same shape &mdash; <span style="color:var(--confused)">ف</span> has dot above, <span style="color:var(--accent)">ب</span> has dot below</div>
+          </div>
+
+          <!-- Decomposition -->
+          <div class="decomp-section">
+            <div class="decomp-label">Morphological decomposition</div>
+            <div class="decomp-surface">
+              <span class="ar" style="font-size:24px;color:var(--text)">وَبِكِتَابِهِمْ</span>
+            </div>
+            <div class="decomp-bands">
+              <div class="decomp-band clitic">
+                <span class="ar band-ar">وَ</span>
+                <span class="band-label">conjunction</span>
+                <span class="band-gloss">"and"</span>
+              </div>
+              <div class="decomp-band clitic">
+                <span class="ar band-ar">بِ</span>
+                <span class="band-label">preposition</span>
+                <span class="band-gloss">"in/with"</span>
+              </div>
+              <div class="decomp-band stem">
+                <span class="ar band-ar">كِتَاب</span>
+                <span class="band-label">noun</span>
+                <span class="band-gloss">"book"</span>
+              </div>
+              <div class="decomp-band clitic">
+                <span class="ar band-ar">هِمْ</span>
+                <span class="band-label">pronoun</span>
+                <span class="band-gloss">"their"</span>
+              </div>
+            </div>
+            <div class="decomp-translation">"and in their book"</div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+    <div class="vote-row">
+      <button class="vote-btn clear" data-v="V15" data-vote="clear" onclick="vote(this)">Clear</button>
+      <button class="vote-btn ok" data-v="V15" data-vote="ok" onclick="vote(this)">OK</button>
+      <button class="vote-btn confusing" data-v="V15" data-vote="confusing" onclick="vote(this)">Confusing</button>
+    </div>
+  </div>
+
+  <!-- V16: Teaching card -->
+  <div class="variation">
+    <div class="variation-label">
+      <span class="variation-number">V16</span>
+      <span class="variation-name">Teaching card &mdash; hero letters</span>
+      <span class="variation-target">Target A</span>
+    </div>
+    <div class="variation-body">
+      <div class="inner-card">
+        <div class="inner-card-header">
+          <span class="icon">&#x1F50D;</span>
+          <span class="label">Easily confused with</span>
+        </div>
+        <div class="inner-card-content">
+          <div class="target-row">
+            <span class="ar word" style="font-size:26px">نَظَرَ</span>
+            <span class="gloss">"to look"</span>
+          </div>
+
+          <!-- Hero letter pair for the same-shape confusion -->
+          <div class="v16-hero">
+            <div class="v16-hero-letters">
+              <span class="ar v16-hero-letter theirs">ط</span>
+              <span class="ar v16-hero-letter yours">ظ</span>
+            </div>
+            <div class="v16-hero-explain">
+              <span class="hl">ط</span> has no dot &middot; <span class="yours-hl">ظ</span> has a dot above
+            </div>
+          </div>
+
+          <hr class="v16-hero-sep">
+
+          <!-- Compact list of all confusables -->
+          <div style="font-size:10px;text-transform:uppercase;letter-spacing:0.6px;color:var(--text-secondary);margin-bottom:6px">Confusable words</div>
+
+          <div class="v7-line">
+            <span class="ar v7-word">نَطَرَ</span>
+            <span class="v7-gloss">"to guard"</span>
+            <span class="v7-hint">has <span class="ar letter-hl">ط</span> not <span class="ar letter-yours">ظ</span> <span class="same-shape-pill">dots only</span></span>
+          </div>
+          <div class="v7-line">
+            <span class="ar v7-word">نَشَرَ</span>
+            <span class="v7-gloss">"to publish"</span>
+            <span class="v7-hint">has <span class="ar letter-hl">ش</span> not <span class="ar letter-yours">ظ</span></span>
+          </div>
+          <div class="v7-line">
+            <span class="ar v7-word">نَصَرَ</span>
+            <span class="v7-gloss">"to help"</span>
+            <span class="v7-hint">has <span class="ar letter-hl">ص</span> not <span class="ar letter-yours">ظ</span></span>
+          </div>
+          <div class="v7-line">
+            <span class="ar v7-word">بَصَرَ</span>
+            <span class="v7-gloss">"to see"</span>
+            <span class="v7-hint">has <span class="ar letter-hl">ب</span><span class="ar letter-hl">ص</span> not <span class="ar letter-yours">ن</span><span class="ar letter-yours">ظ</span></span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="vote-row">
+      <button class="vote-btn clear" data-v="V16" data-vote="clear" onclick="vote(this)">Clear</button>
+      <button class="vote-btn ok" data-v="V16" data-vote="ok" onclick="vote(this)">OK</button>
+      <button class="vote-btn confusing" data-v="V16" data-vote="confusing" onclick="vote(this)">Confusing</button>
+    </div>
+  </div>
+
+  <!-- V17: All-in-one production card -->
+  <div class="variation full-width">
+    <div class="variation-label">
+      <span class="variation-number">V17</span>
+      <span class="variation-name">All-in-one "production" card</span>
+      <span class="variation-target">Target A + decomposition</span>
+    </div>
+    <div class="variation-body">
+      <div class="inner-card" style="max-width:420px">
+        <div class="v17-header">
+          <span class="icon">&#x1F441;</span>
+          <span class="label">Easily confused</span>
+        </div>
+        <div style="padding:14px">
+          <!-- Target -->
+          <div class="target-row">
+            <span class="ar word" style="font-size:28px">نَظَرَ</span>
+            <span class="gloss">"to look"</span>
+            <span class="translit">na-za-ra</span>
+          </div>
+
+          <!-- Confusable items -->
+          <div class="v17-conf-item">
+            <div class="v17-word-line">
+              <span class="ar v17-word">نَطَرَ</span>
+              <span class="v17-gloss">"to guard"</span>
+              <span class="same-shape-pill" style="margin-left:auto">same shape</span>
+            </div>
+            <div class="v17-hint-line">has <span class="hl">ط</span> ta &mdash; yours has <span class="yours-hl">ظ</span> za (dot above)</div>
+          </div>
+
+          <div class="v17-conf-item">
+            <div class="v17-word-line">
+              <span class="ar v17-word">نَشَرَ</span>
+              <span class="v17-gloss">"to publish"</span>
+            </div>
+            <div class="v17-hint-line">has <span class="hl">ش</span> shin &mdash; yours has <span class="yours-hl">ظ</span> za</div>
+          </div>
+
+          <div class="v17-conf-item">
+            <div class="v17-word-line">
+              <span class="ar v17-word">نَصَرَ</span>
+              <span class="v17-gloss">"to help"</span>
+            </div>
+            <div class="v17-hint-line">has <span class="hl">ص</span> sad &mdash; yours has <span class="yours-hl">ظ</span> za</div>
+          </div>
+
+          <div class="v17-conf-item">
+            <div class="v17-word-line">
+              <span class="ar v17-word">بَصَرَ</span>
+              <span class="v17-gloss">"to see"</span>
+            </div>
+            <div class="v17-hint-line">has <span class="hl">ب</span> ba + <span class="hl">ص</span> sad &mdash; yours has <span class="yours-hl">ن</span> nun + <span class="yours-hl">ظ</span> za</div>
+          </div>
+
+          <!-- Decomposition -->
+          <div class="decomp-section">
+            <div class="decomp-label">Word in context</div>
+            <div class="decomp-surface">
+              <span class="ar" style="font-size:22px;color:var(--text)">وَبِنَظَرِهِمْ</span>
+            </div>
+            <div class="decomp-bands">
+              <div class="decomp-band clitic">
+                <span class="ar band-ar">وَ</span>
+                <span class="band-label">conj.</span>
+                <span class="band-gloss">"and"</span>
+              </div>
+              <div class="decomp-band clitic">
+                <span class="ar band-ar">بِ</span>
+                <span class="band-label">prep.</span>
+                <span class="band-gloss">"in"</span>
+              </div>
+              <div class="decomp-band stem">
+                <span class="ar band-ar">نَظَر</span>
+                <span class="band-label">noun</span>
+                <span class="band-gloss">"sight"</span>
+              </div>
+              <div class="decomp-band clitic">
+                <span class="ar band-ar">هِمْ</span>
+                <span class="band-label">pron.</span>
+                <span class="band-gloss">"their"</span>
+              </div>
+            </div>
+            <div class="decomp-translation">"and in their sight"</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="vote-row">
+      <button class="vote-btn clear" data-v="V17" data-vote="clear" onclick="vote(this)">Clear</button>
+      <button class="vote-btn ok" data-v="V17" data-vote="ok" onclick="vote(this)">OK</button>
+      <button class="vote-btn confusing" data-v="V17" data-vote="confusing" onclick="vote(this)">Confusing</button>
+    </div>
+  </div>
+
+</div><!-- end card-grid group 4 -->
+
+
+<!-- ============ VOTE SUMMARY ============ -->
+<div class="vote-summary" id="voteSummary">
+  <h2>Vote Summary</h2>
+  <div class="vote-summary-grid" id="voteSummaryGrid"></div>
+</div>
+
+
+<script>
+  const STORAGE_KEY = 'confusion-card-v2-votes';
+  const VARIATIONS = [
+    'V1','V2','V3','V4','V5','V6','V7','V8',
+    'V9','V10','V11','V12','V13','V14','V15','V16','V17'
+  ];
+
+  function loadVotes() {
+    try {
+      return JSON.parse(localStorage.getItem(STORAGE_KEY)) || {};
+    } catch {
+      return {};
+    }
+  }
+
+  function saveVotes(votes) {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(votes));
+  }
+
+  function vote(btn) {
+    const v = btn.dataset.v;
+    const voteVal = btn.dataset.vote;
+    const votes = loadVotes();
+
+    // Toggle off if same vote
+    if (votes[v] === voteVal) {
+      delete votes[v];
+    } else {
+      votes[v] = voteVal;
+    }
+
+    saveVotes(votes);
+    renderVoteStates();
+    renderSummary();
+  }
+
+  function renderVoteStates() {
+    const votes = loadVotes();
+    document.querySelectorAll('.vote-btn').forEach(btn => {
+      const v = btn.dataset.v;
+      const voteVal = btn.dataset.vote;
+      btn.classList.toggle('selected', votes[v] === voteVal);
+    });
+  }
+
+  function renderSummary() {
+    const votes = loadVotes();
+    const grid = document.getElementById('voteSummaryGrid');
+    grid.innerHTML = '';
+
+    VARIATIONS.forEach(v => {
+      const val = votes[v] || 'none';
+      const item = document.createElement('div');
+      item.className = 'vote-summary-item';
+
+      const labels = { clear: 'Clear', ok: 'OK', confusing: 'Confusing', none: 'No vote' };
+      const dotClass = val === 'none' ? 'none' : val;
+
+      item.innerHTML = `
+        <span class="num">${v}</span>
+        <span class="dot ${dotClass}"></span>
+        <span>${labels[val]}</span>
+      `;
+      grid.appendChild(item);
+    });
+  }
+
+  // Init
+  renderVoteStates();
+  renderSummary();
+</script>
+
+</body>
+</html>

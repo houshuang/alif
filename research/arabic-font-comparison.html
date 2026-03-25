@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Arabic Font Comparison</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Amiri&family=Scheherazade+New&family=Noto+Sans+Arabic&family=Noto+Kufi+Arabic&family=Cairo&family=Tajawal&family=IBM+Plex+Sans+Arabic&family=Readex+Pro&family=Almarai&family=El+Messiri&family=Changa&family=Reem+Kufi&family=Harmattan&family=Lateef&family=Rubik&family=Noto+Naskh+Arabic&display=swap" rel="stylesheet">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #0f0f1a;
+    color: #e8e8f0;
+    font-family: system-ui, sans-serif;
+    padding: 24px;
+    max-width: 900px;
+    margin: 0 auto;
+  }
+  h1 { font-size: 20px; font-weight: 600; margin-bottom: 8px; color: #f0f0ff; }
+  .subtitle { font-size: 13px; color: #8888a0; margin-bottom: 24px; }
+  .categories { display: flex; gap: 8px; margin-bottom: 20px; flex-wrap: wrap; }
+  .cat-btn {
+    padding: 6px 14px; border-radius: 16px; border: 1px solid #2a2a45;
+    background: transparent; color: #8888a0; font-size: 12px; cursor: pointer;
+    transition: all 0.15s;
+  }
+  .cat-btn.active { background: #252542; color: #f0f0ff; border-color: #4a9eff; }
+  .sample-controls {
+    display: flex; gap: 12px; align-items: center; margin-bottom: 20px;
+    flex-wrap: wrap;
+  }
+  .sample-controls label { font-size: 12px; color: #8888a0; }
+  .sample-controls select, .sample-controls input {
+    background: #1a1a2e; border: 1px solid #2a2a45; color: #e8e8f0;
+    padding: 6px 10px; border-radius: 8px; font-size: 13px;
+  }
+  .grid { display: flex; flex-direction: column; gap: 12px; }
+  .card {
+    background: #1a1a2e; border: 1px solid #2a2a45; border-radius: 12px;
+    padding: 20px; cursor: pointer; transition: all 0.2s; position: relative;
+  }
+  .card:hover { border-color: #4a9eff; }
+  .card.favorite { border-color: #2ecc71; }
+  .card-header {
+    display: flex; justify-content: space-between; align-items: center;
+    margin-bottom: 12px;
+  }
+  .font-name { font-size: 14px; font-weight: 600; color: #f0f0ff; }
+  .font-meta { font-size: 11px; color: #8888a0; }
+  .font-tag {
+    font-size: 10px; padding: 2px 8px; border-radius: 10px;
+    background: #252542; color: #8888a0;
+  }
+  .font-tag.calligraphic { color: #e67e22; background: rgba(230,126,34,0.15); }
+  .font-tag.modern { color: #4a9eff; background: rgba(74,158,255,0.15); }
+  .font-tag.geometric { color: #2ecc71; background: rgba(46,204,113,0.15); }
+  .font-tag.kufi { color: #9b59b6; background: rgba(155,89,182,0.15); }
+  .font-tag.current { color: #f39c12; background: rgba(243,156,18,0.15); }
+  .arabic-sample {
+    direction: rtl; text-align: center; color: #f0f0ff;
+    line-height: 1.8; margin-bottom: 8px;
+  }
+  .bare-sample {
+    direction: rtl; text-align: center; color: #8888a0;
+    line-height: 1.8; font-size: 28px;
+  }
+  .star-btn {
+    position: absolute; top: 12px; right: 12px; background: none; border: none;
+    font-size: 18px; cursor: pointer; opacity: 0.3; transition: opacity 0.15s;
+  }
+  .star-btn:hover, .card.favorite .star-btn { opacity: 1; }
+  .size-slider { width: 100px; }
+  .note {
+    font-size: 11px; color: #636380; margin-top: 4px; text-align: center;
+  }
+  .expo-name { font-size: 10px; color: #636380; font-family: monospace; }
+  .compare-bar {
+    position: fixed; bottom: 0; left: 0; right: 0;
+    background: #1a1a2e; border-top: 1px solid #2a2a45;
+    padding: 12px 24px; display: none; z-index: 10;
+  }
+  .compare-bar.visible { display: flex; gap: 12px; align-items: center; justify-content: center; flex-wrap: wrap; }
+  .compare-bar .label { font-size: 12px; color: #8888a0; }
+  .compare-chip {
+    padding: 4px 10px; border-radius: 12px; background: #252542;
+    font-size: 12px; color: #f0f0ff; display: flex; align-items: center; gap: 6px;
+  }
+  .compare-chip button {
+    background: none; border: none; color: #e74c3c; cursor: pointer; font-size: 14px;
+  }
+</style>
+</head>
+<body>
+
+<h1>Arabic Font Comparison for Alif</h1>
+<p class="subtitle">Tap a card to favorite it. Current fonts: Scheherazade New + Amiri. Looking for a clean third option.</p>
+
+<div class="categories">
+  <button class="cat-btn active" data-cat="all">All</button>
+  <button class="cat-btn" data-cat="modern">Modern / Sans</button>
+  <button class="cat-btn" data-cat="calligraphic">Calligraphic / Naskh</button>
+  <button class="cat-btn" data-cat="geometric">Geometric</button>
+  <button class="cat-btn" data-cat="kufi">Kufi</button>
+</div>
+
+<div class="sample-controls">
+  <label>Sample:</label>
+  <select id="sample-select">
+    <option value="الطالبُ الجديدُ ذهبَ إلى المكتبةِ الكبيرةِ ليقرأَ كتابًا عن تاريخِ العربِ">Full tashkeel sentence</option>
+    <option value="الطالب الجديد ذهب إلى المكتبة الكبيرة ليقرأ كتابا عن تاريخ العرب">Same without tashkeel</option>
+    <option value="بسم الله الرحمن الرحيم">Bismillah</option>
+    <option value="كتب، يكتب، كاتب، مكتوب، مكتبة">Word family (k-t-b)</option>
+    <option value="في صباحِ يومٍ مُشمِسٍ، خرجَ الولدُ من بيتِهِ ومشى في الشارعِ الطويلِ">Story opening</option>
+  </select>
+  <label>Size:</label>
+  <input type="range" id="size-slider" class="size-slider" min="24" max="56" value="38">
+  <span id="size-label" style="font-size:12px;color:#8888a0">38px</span>
+</div>
+
+<div class="grid" id="font-grid"></div>
+<div style="height:80px"></div>
+
+<div class="compare-bar" id="compare-bar">
+  <span class="label">Favorites:</span>
+  <div id="compare-chips"></div>
+</div>
+
+<script>
+const fonts = [
+  { name: "Scheherazade New", family: "'Scheherazade New'", cat: "calligraphic", expo: "@expo-google-fonts/scheherazade-new", note: "Current — SIL learner font, conservative ligatures", current: true },
+  { name: "Amiri", family: "'Amiri'", cat: "calligraphic", expo: "@expo-google-fonts/amiri", note: "Current — Bulaq press tradition, rich ligatures", current: true },
+  { name: "Noto Naskh Arabic", family: "'Noto Naskh Arabic'", cat: "calligraphic", expo: "@expo-google-fonts/noto-naskh-arabic", note: "Google's naskh — cleaner than Scheherazade, still traditional" },
+  { name: "Lateef", family: "'Lateef'", cat: "calligraphic", expo: "@expo-google-fonts/lateef", note: "SIL nastaliq-inspired — distinctive, elegant" },
+  { name: "Harmattan", family: "'Harmattan'", cat: "calligraphic", expo: "@expo-google-fonts/harmattan", note: "SIL West African style — clean, good x-height" },
+  { name: "Cairo", family: "'Cairo'", cat: "modern", expo: "@expo-google-fonts/cairo", note: "Popular modern Arabic — clean, slightly rounded" },
+  { name: "Tajawal", family: "'Tajawal'", cat: "modern", expo: "@expo-google-fonts/tajawal", note: "Clean, light — popular in web apps" },
+  { name: "IBM Plex Sans Arabic", family: "'IBM Plex Sans Arabic'", cat: "modern", expo: "@expo-google-fonts/ibm-plex-sans-arabic", note: "Corporate clean — IBM's Arabic. Very uniform strokes" },
+  { name: "Readex Pro", family: "'Readex Pro'", cat: "modern", expo: "@expo-google-fonts/readex-pro", note: "Modern variable font — adjustable weight, compact" },
+  { name: "Almarai", family: "'Almarai'", cat: "modern", expo: "@expo-google-fonts/almarai", note: "Saudi-designed — clean, modern, good diacritics" },
+  { name: "Noto Sans Arabic", family: "'Noto Sans Arabic'", cat: "geometric", expo: "@expo-google-fonts/noto-sans-arabic", note: "Google's geometric sans — very plain" },
+  { name: "Rubik", family: "'Rubik'", cat: "geometric", expo: "@expo-google-fonts/rubik", note: "Geometric with rounded corners — friendly feel" },
+  { name: "Changa", family: "'Changa'", cat: "geometric", expo: "@expo-google-fonts/changa", note: "Square-ish geometric — distinctive, modern" },
+  { name: "El Messiri", family: "'El Messiri'", cat: "geometric", expo: "@expo-google-fonts/el-messiri", note: "Display-oriented — bold presence, less suited for body" },
+  { name: "Reem Kufi", family: "'Reem Kufi'", cat: "kufi", expo: "@expo-google-fonts/reem-kufi", note: "Modern kufi — angular, architectural feel" },
+  { name: "Noto Kufi Arabic", family: "'Noto Kufi Arabic'", cat: "kufi", expo: "@expo-google-fonts/noto-kufi-arabic", note: "Google's kufi — geometric, distinctive vs naskh" },
+];
+
+let favorites = new Set();
+let currentCat = "all";
+let fontSize = 38;
+
+function render() {
+  const grid = document.getElementById("font-grid");
+  const sample = document.getElementById("sample-select").value;
+  const bare = sample.replace(/[\u0610-\u061a\u064b-\u065f\u0670\u06D6-\u06ED]/g, "");
+
+  const filtered = fonts.filter(f => currentCat === "all" || f.cat === currentCat);
+
+  grid.innerHTML = filtered.map(f => `
+    <div class="card ${favorites.has(f.name) ? 'favorite' : ''}" data-name="${f.name}">
+      <button class="star-btn">${favorites.has(f.name) ? '★' : '☆'}</button>
+      <div class="card-header">
+        <div>
+          <span class="font-name">${f.name}</span>
+          <span class="expo-name">${f.expo}</span>
+        </div>
+        <div style="display:flex;gap:4px">
+          ${f.current ? '<span class="font-tag current">current</span>' : ''}
+          <span class="font-tag ${f.cat}">${f.cat}</span>
+        </div>
+      </div>
+      <div class="arabic-sample" style="font-family:${f.family},serif;font-size:${fontSize}px">
+        ${sample}
+      </div>
+      ${sample !== bare ? `<div class="bare-sample" style="font-family:${f.family},serif;font-size:${Math.round(fontSize*0.75)}px">${bare}</div>` : ''}
+      <p class="note">${f.note}</p>
+    </div>
+  `).join("");
+
+  // favorites bar
+  const bar = document.getElementById("compare-bar");
+  const chips = document.getElementById("compare-chips");
+  if (favorites.size > 0) {
+    bar.classList.add("visible");
+    chips.innerHTML = [...favorites].map(n => `
+      <span class="compare-chip">${n} <button data-remove="${n}">×</button></span>
+    `).join("");
+  } else {
+    bar.classList.remove("visible");
+  }
+}
+
+document.getElementById("font-grid").addEventListener("click", e => {
+  const star = e.target.closest(".star-btn");
+  const card = e.target.closest(".card");
+  if (!card) return;
+  const name = card.dataset.name;
+  if (favorites.has(name)) favorites.delete(name);
+  else favorites.add(name);
+  render();
+});
+
+document.getElementById("compare-bar").addEventListener("click", e => {
+  const btn = e.target.closest("[data-remove]");
+  if (btn) { favorites.delete(btn.dataset.remove); render(); }
+});
+
+document.querySelectorAll(".cat-btn").forEach(btn => {
+  btn.addEventListener("click", () => {
+    document.querySelectorAll(".cat-btn").forEach(b => b.classList.remove("active"));
+    btn.classList.add("active");
+    currentCat = btn.dataset.cat;
+    render();
+  });
+});
+
+document.getElementById("sample-select").addEventListener("change", render);
+document.getElementById("size-slider").addEventListener("input", e => {
+  fontSize = parseInt(e.target.value);
+  document.getElementById("size-label").textContent = fontSize + "px";
+  render();
+});
+
+render();
+</script>
+</body>
+</html>

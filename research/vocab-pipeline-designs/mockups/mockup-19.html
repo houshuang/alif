@@ -1,0 +1,229 @@
+<section class="mockup-section" data-mockup-id="mockup-19" data-label="19. Unified Single Card — Grid + Waterfall Fusion">
+<style>
+  body { background: #0a0a0a; color: #e5e5e5; font-family: 'Inter', sans-serif; margin: 0; }
+  .container { padding: 20px 16px; max-width: 375px; margin: 0 auto; }
+  .card { background: #1a1a1a; border-radius: 16px; padding: 18px; margin-bottom: 14px; }
+
+  /* Section divider */
+  .section-div { height: 1px; background: #222; margin: 14px 0; }
+
+  /* Top headline */
+  .headline { display: flex; align-items: baseline; gap: 6px; margin-bottom: 14px; }
+  .headline-num { font-size: 36px; font-weight: 900; color: #2dd4bf; line-height: 1; }
+  .headline-sub { font-size: 11px; color: #888; }
+  .headline-trend { display: inline-block; font-size: 10px; color: #2dd4bf; font-weight: 600; background: rgba(45,212,191,0.1); padding: 1px 6px; border-radius: 4px; margin-left: 4px; }
+
+  /* Proportional stage bar */
+  .stage-bar { display: flex; height: 8px; border-radius: 4px; overflow: hidden; margin-bottom: 6px; }
+  .stage-bar-labels { display: flex; justify-content: space-between; margin-bottom: 10px; }
+  .sbl { text-align: center; }
+  .sbl-count { font-size: 14px; font-weight: 800; }
+  .sbl-name { font-size: 7px; color: #888; text-transform: uppercase; letter-spacing: 0.3px; }
+
+  /* Flow rates inline */
+  .flow-rates { display: flex; justify-content: space-around; padding: 4px 0; margin-bottom: 2px; }
+  .fr { display: flex; align-items: center; gap: 3px; }
+  .fr-arrow { font-size: 10px; }
+  .fr-text { font-size: 9px; font-weight: 600; }
+
+  /* Stats strip */
+  .stats { display: flex; gap: 4px; }
+  .stat { flex: 1; text-align: center; padding: 6px 2px; background: #111; border-radius: 6px; }
+  .stat-val { font-size: 13px; font-weight: 700; }
+  .stat-label { font-size: 7px; color: #888; text-transform: uppercase; letter-spacing: 0.2px; }
+
+  /* Acquisition section title */
+  .acq-header { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 10px; }
+  .acq-title { font-size: 10px; color: #fbbf24; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; }
+  .acq-total { font-size: 11px; color: #fbbf24; font-weight: 700; }
+
+  /* Box rows — compact pressure bars */
+  .box-row { display: flex; align-items: center; gap: 6px; margin-bottom: 5px; }
+  .box-label { width: 38px; font-size: 10px; font-weight: 600; color: #fbbf24; }
+  .box-bar-wrap { flex: 1; height: 22px; background: #222; border-radius: 6px; overflow: hidden; position: relative; display: flex; align-items: center; }
+  .box-bar-fill { height: 100%; border-radius: 6px; display: flex; align-items: center; padding-left: 6px; }
+  .box-bar-count { font-size: 11px; font-weight: 700; color: #fbbf24; }
+  .box-interval { position: absolute; right: 6px; font-size: 8px; color: #555; }
+  .box-due { width: 32px; text-align: right; font-size: 9px; color: #f87171; font-weight: 600; flex-shrink: 0; }
+
+  /* Flow balance */
+  .flow-balance { display: flex; height: 20px; border-radius: 5px; overflow: hidden; margin: 8px 0 4px; }
+  .fbs { display: flex; align-items: center; justify-content: center; font-size: 9px; font-weight: 600; }
+  .flow-balance-labels { display: flex; justify-content: space-between; font-size: 7px; color: #666; margin-bottom: 8px; }
+
+  /* Mini metrics */
+  .mini-metrics { display: flex; gap: 4px; margin-bottom: 8px; }
+  .mm { flex: 1; text-align: center; padding: 5px 2px; background: #111; border-radius: 5px; }
+  .mm-val { font-size: 12px; font-weight: 700; }
+  .mm-label { font-size: 6px; color: #888; text-transform: uppercase; letter-spacing: 0.2px; }
+
+  /* 7-day flow + grads in one row */
+  .bottom-row { display: flex; gap: 8px; padding-top: 8px; border-top: 1px solid #222; }
+  .flow-chart-mini { flex: 1; }
+  .fcm-title { font-size: 8px; color: #666; margin-bottom: 3px; }
+  .flow-bars { display: flex; gap: 1px; height: 28px; align-items: flex-end; }
+  .fb { flex: 1; display: flex; flex-direction: column; justify-content: flex-end; gap: 1px; }
+  .fb-in { border-radius: 1px 1px 0 0; }
+  .fb-out { border-radius: 0 0 1px 1px; }
+
+  .grad-section { flex: 1; }
+  .grad-title { font-size: 8px; color: #666; margin-bottom: 3px; }
+  .grad-list { display: flex; flex-direction: column; gap: 2px; }
+  .grad-item { display: flex; justify-content: space-between; align-items: center; padding: 3px 6px; background: rgba(45,212,191,0.05); border-radius: 4px; }
+  .grad-ar { font-size: 12px; color: #2dd4bf; font-weight: 600; }
+  .grad-meta { font-size: 8px; color: #555; }
+</style>
+
+<div class="container">
+  <div class="card">
+    <!-- Headline: known words -->
+    <div class="headline">
+      <div class="headline-num">145</div>
+      <div>
+        <div class="headline-sub">words known</div>
+        <span class="headline-trend">+12/wk</span>
+      </div>
+    </div>
+
+    <!-- Proportional bar -->
+    <div class="stage-bar">
+      <div style="flex: 847; background: rgba(255,255,255,0.08); border-radius: 4px 0 0 4px;"></div>
+      <div style="flex: 38; background: rgba(251,191,36,0.4);"></div>
+      <div style="flex: 87; background: rgba(56,189,248,0.35);"></div>
+      <div style="flex: 145; background: rgba(45,212,191,0.35); border-radius: 0 4px 4px 0;"></div>
+    </div>
+    <div class="stage-bar-labels">
+      <div class="sbl" style="flex: 847;">
+        <div class="sbl-count" style="color: #666">847</div>
+        <div class="sbl-name">Seen</div>
+      </div>
+      <div class="sbl" style="flex: 38;">
+        <div class="sbl-count" style="color: #fbbf24">38</div>
+        <div class="sbl-name">Acq</div>
+      </div>
+      <div class="sbl" style="flex: 87;">
+        <div class="sbl-count" style="color: #38bdf8">87</div>
+        <div class="sbl-name">Learn</div>
+      </div>
+      <div class="sbl" style="flex: 145;">
+        <div class="sbl-count" style="color: #2dd4bf">145</div>
+        <div class="sbl-name">Known</div>
+      </div>
+    </div>
+
+    <!-- Flow rates -->
+    <div class="flow-rates">
+      <div class="fr">
+        <span class="fr-arrow" style="color: #fbbf24">→</span>
+        <span class="fr-text" style="color: #fbbf24">6/d intro</span>
+      </div>
+      <div class="fr">
+        <span class="fr-arrow" style="color: #2dd4bf">→</span>
+        <span class="fr-text" style="color: #2dd4bf">3/d grad</span>
+      </div>
+      <div class="fr">
+        <span class="fr-arrow" style="color: #f87171">←</span>
+        <span class="fr-text" style="color: #f87171">4 lapsed</span>
+      </div>
+    </div>
+
+    <!-- Stats -->
+    <div class="stats">
+      <div class="stat">
+        <div class="stat-val" style="color: #2dd4bf">+2.1</div>
+        <div class="stat-label">Net/day</div>
+      </div>
+      <div class="stat">
+        <div class="stat-val">87%</div>
+        <div class="stat-label">Retention</div>
+      </div>
+      <div class="stat">
+        <div class="stat-val" style="color: #f87171">12</div>
+        <div class="stat-label">Acq Due</div>
+      </div>
+    </div>
+
+    <div class="section-div"></div>
+
+    <!-- Acquisition Pipeline -->
+    <div class="acq-header">
+      <span class="acq-title">Acquisition Pipeline</span>
+      <span class="acq-total">38 words</span>
+    </div>
+
+    <div class="box-row">
+      <div class="box-label">Box 1</div>
+      <div class="box-bar-wrap">
+        <div class="box-bar-fill" style="width: 60%; background: linear-gradient(90deg, rgba(251,191,36,0.3), rgba(251,191,36,0.08));">
+          <span class="box-bar-count">18</span>
+        </div>
+        <span class="box-interval">4h</span>
+      </div>
+      <div class="box-due">8 due</div>
+    </div>
+    <div class="box-row">
+      <div class="box-label">Box 2</div>
+      <div class="box-bar-wrap">
+        <div class="box-bar-fill" style="width: 40%; background: linear-gradient(90deg, rgba(251,191,36,0.2), rgba(251,191,36,0.05));">
+          <span class="box-bar-count">12</span>
+        </div>
+        <span class="box-interval">1d</span>
+      </div>
+      <div class="box-due">3 due</div>
+    </div>
+    <div class="box-row">
+      <div class="box-label">Box 3</div>
+      <div class="box-bar-wrap">
+        <div class="box-bar-fill" style="width: 27%; background: linear-gradient(90deg, rgba(251,191,36,0.12), rgba(251,191,36,0.02));">
+          <span class="box-bar-count">8</span>
+        </div>
+        <span class="box-interval">3d</span>
+      </div>
+      <div class="box-due">1 due</div>
+    </div>
+
+    <!-- Flow balance -->
+    <div class="flow-balance">
+      <div class="fbs" style="flex: 6; background: rgba(251,191,36,0.3); color: #fbbf24;">6 in</div>
+      <div class="fbs" style="flex: 3; background: rgba(45,212,191,0.3); color: #2dd4bf;">3 out</div>
+      <div class="fbs" style="flex: 1; background: rgba(248,113,113,0.25); color: #f87171; font-size: 7px;">1</div>
+    </div>
+    <div class="flow-balance-labels">
+      <span>entering</span>
+      <span>graduating</span>
+      <span>lost</span>
+    </div>
+
+    <!-- Mini metrics -->
+    <div class="mini-metrics">
+      <div class="mm"><div class="mm-val" style="color: #2dd4bf">82%</div><div class="mm-label">Grad Rate</div></div>
+      <div class="mm"><div class="mm-val">~9</div><div class="mm-label">Reviews</div></div>
+      <div class="mm"><div class="mm-val" style="color: #fbbf24">4.2d</div><div class="mm-label">Avg Time</div></div>
+    </div>
+
+    <!-- Bottom: flow chart + recent grads -->
+    <div class="bottom-row">
+      <div class="flow-chart-mini">
+        <div class="fcm-title">7-day flow</div>
+        <div class="flow-bars">
+          <div class="fb"><div class="fb-in" style="height: 55%; background: #fbbf24;"></div><div class="fb-out" style="height: 35%; background: #2dd4bf;"></div></div>
+          <div class="fb"><div class="fb-in" style="height: 75%; background: #fbbf24;"></div><div class="fb-out" style="height: 45%; background: #2dd4bf;"></div></div>
+          <div class="fb"><div class="fb-in" style="height: 45%; background: #fbbf24;"></div><div class="fb-out" style="height: 65%; background: #2dd4bf;"></div></div>
+          <div class="fb"><div class="fb-in" style="height: 95%; background: #fbbf24;"></div><div class="fb-out" style="height: 25%; background: #2dd4bf;"></div></div>
+          <div class="fb"><div class="fb-in" style="height: 65%; background: #fbbf24;"></div><div class="fb-out" style="height: 55%; background: #2dd4bf;"></div></div>
+          <div class="fb"><div class="fb-in" style="height: 35%; background: #fbbf24;"></div><div class="fb-out" style="height: 75%; background: #2dd4bf;"></div></div>
+          <div class="fb"><div class="fb-in" style="height: 55%; background: #fbbf24;"></div><div class="fb-out" style="height: 40%; background: #2dd4bf;"></div></div>
+        </div>
+      </div>
+      <div class="grad-section">
+        <div class="grad-title">Graduated today</div>
+        <div class="grad-list">
+          <div class="grad-item"><span class="grad-ar">سَمَاء</span><span class="grad-meta">2h ago</span></div>
+          <div class="grad-item"><span class="grad-ar">يَوم</span><span class="grad-meta">5h ago</span></div>
+          <div class="grad-item"><span class="grad-ar">وَلَد</span><span class="grad-meta">1d ago</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</section>

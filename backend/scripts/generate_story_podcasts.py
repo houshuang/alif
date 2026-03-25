@@ -582,6 +582,18 @@ def build_story_episode(story: dict, theme: dict) -> list[Seg]:
             silence(2000),
         ])
 
+    # Balanced recap groups: split N sentences into groups of ~equal size
+    # e.g. 10 → [4, 3, 3], 7 → [4, 3], 5 → [3, 2]
+    n_sents = len(sents)
+    recap_size = 4 if n_sents >= 8 else 3
+    recap_points: set[int] = set()
+    if n_sents > recap_size:
+        pos = recap_size
+        while pos < n_sents:
+            recap_points.add(pos)
+            remaining = n_sents - pos
+            pos += recap_size if remaining > recap_size + 1 else remaining
+
     # Teach each sentence with build-up
     taught = []
     for i, s in enumerate(sents):
@@ -604,8 +616,8 @@ def build_story_episode(story: dict, theme: dict) -> list[Seg]:
 
         taught.append(s)
 
-        # After every 3 sentences, replay the growing sequence
-        if (i + 1) % 3 == 0 and i > 0:
+        # Recap at balanced points
+        if (i + 1) in recap_points:
             n = len(taught)
             segments.append(en(f"Let's hear those {n} sentences together."))
             segments.append(silence(1200))
@@ -628,24 +640,10 @@ def build_story_episode(story: dict, theme: dict) -> list[Seg]:
             silence(1500),
         ])
 
-    # Bilingual replay
-    segments.extend([
-        silence(1500),
-        en("Once more, with English after each sentence."),
-        silence(1500),
-    ])
-    for s in sents:
-        segments.extend([
-            ar_normal(s["arabic"]),
-            silence(1500),
-            en(s["english"], speed=0.95),
-            silence(2000),
-        ])
-
     # Final Arabic-only replay (faster pacing)
     segments.extend([
         silence(1500),
-        en("One last time. Just Arabic, a little faster."),
+        en("One last time, a little faster."),
         silence(2000),
     ])
     for s in sents:
@@ -775,14 +773,25 @@ def build_story_from_db_episode(
             silence(2000),
         ])
 
+    # Balanced recap groups
+    n_sents = len(sentences)
+    recap_size = 4 if n_sents >= 8 else 3
+    recap_points: set[int] = set()
+    if n_sents > recap_size:
+        pos = recap_size
+        while pos < n_sents:
+            recap_points.add(pos)
+            remaining = n_sents - pos
+            pos += recap_size if remaining > recap_size + 1 else remaining
+
     # Teach each sentence
     taught = []
     for i, s in enumerate(sentences):
-        _build_sentence_breakdown(segments, s["arabic"], s["english"])
+        _build_sentence_breakdown(segments, s["arabic"], s.get("english", ""))
         taught.append(s)
 
-        # After every 4 sentences, replay the growing sequence
-        if (i + 1) % 4 == 0 and i > 0:
+        # Recap at balanced points
+        if (i + 1) in recap_points:
             n = len(taught)
             segments.append(en(f"Let's hear those {n} sentences together."))
             segments.append(silence(1200))
@@ -805,31 +814,10 @@ def build_story_from_db_episode(
             silence(1500),
         ])
 
-    # Bilingual replay (only if we have English translations)
-    has_english = any(s.get("english") for s in sentences)
-    if has_english:
-        segments.extend([
-            silence(1500),
-            en("Once more, with English after each sentence."),
-            silence(1500),
-        ])
-        for s in sentences:
-            segments.extend([
-                ar_normal(s["arabic"]),
-                silence(1500),
-            ])
-            if s.get("english"):
-                segments.extend([
-                    en(s["english"], speed=0.95),
-                    silence(2000),
-                ])
-            else:
-                segments.append(silence(2000))
-
     # Final Arabic-only replay
     segments.extend([
         silence(1500),
-        en("One last time. Just Arabic, a little faster."),
+        en("One last time, a little faster."),
         silence(2000),
     ])
     for s in sentences:
@@ -967,6 +955,210 @@ async def generate_podcast_from_story(db, story_id: int) -> Path | None:
     return path
 
 
+# ── Arabic-in-Arabic comprehensible input episodes ───────────────────
+
+
+def build_ci_episode(episode: dict) -> list[Seg]:
+    """Build a comprehensible input podcast where Arabic explains Arabic.
+
+    Episode dict has: {title_ar, title_en, phases: [{phase, label, lines}]}
+    """
+    segments: list[Seg] = []
+
+    # Brief English intro
+    title_en = episode.get("title_en", "Arabic Listening Practice")
+    segments.extend([
+        en(f"Arabic listening practice: {title_en}"),
+        silence(2000),
+    ])
+
+    # Phase speed mapping
+    phase_speeds = {
+        1: 0.7,   # establish context — very slow
+        2: 0.7,   # introduce word — slow
+        3: 0.75,  # build complexity — moderate
+        4: 0.85,  # full passage — near normal
+        5: 0.85,  # replay + close
+    }
+    phase_pauses = {
+        1: 1500,
+        2: 1500,
+        3: 1200,
+        4: 800,
+        5: 800,
+    }
+
+    for phase_data in episode["phases"]:
+        phase_num = phase_data["phase"]
+        speed = phase_speeds.get(phase_num, 0.75)
+        pause = phase_pauses.get(phase_num, 1000)
+
+        # Add a longer pause between phases
+        if phase_num > 1:
+            segments.append(silence(2500))
+
+        for line in phase_data["lines"]:
+            segments.extend([
+                ar(line, speed=speed),
+                silence(pause),
+            ])
+
+    segments.append(silence(2000))
+    return segments
+
+
+def generate_ci_episode_via_llm(
+    words: list[dict], topic: str, target_words: list[dict],
+) -> dict | None:
+    """Generate an Arabic-in-Arabic CI episode via LLM."""
+
+    # Format known word list
+    nouns = [w for w in words if w["pos"] in ("noun", "proper_noun", "")]
+    verbs = [w for w in words if w["pos"] == "verb"]
+    adjs = [w for w in words if w["pos"] in ("adjective", "adverb")]
+
+    word_list = "NOUNS: " + ", ".join(f"{w['arabic']} ({w['gloss']})" for w in nouns[:80])
+    word_list += "\nVERBS: " + ", ".join(f"{w['arabic']} ({w['gloss']})" for w in verbs[:40])
+    word_list += "\nADJECTIVES: " + ", ".join(f"{w['arabic']} ({w['gloss']})" for w in adjs[:30])
+
+    target_str = ", ".join(f"{w['word']} ({w['gloss']})" for w in target_words)
+
+    system_prompt = (
+        "You are a warm, patient Arabic teacher creating a comprehensible input podcast episode. "
+        "You speak ONLY in Arabic (MSA/fusha, full tashkeel). Your tone is encouraging and natural — "
+        "like a beloved teacher talking one-on-one. Think Dreaming Spanish but for Arabic."
+    )
+
+    prompt = f"""Create an Arabic-in-Arabic comprehensible input episode.
+
+TOPIC: {topic}
+TARGET NEW WORD(S) TO TEACH: {target_str}
+
+LEARNER'S KNOWN VOCABULARY (~800 words):
+{word_list}
+
+STRUCTURE (5 phases):
+
+Phase 1 — Establish Context (8-10 lines, ~60 seconds):
+- Use ONLY known vocabulary. Zero new words.
+- Set up the topic/scene. End with a warm hook: هل تعرف...؟
+
+Phase 2 — Introduce Target Word via Circumlocution (10-14 lines, ~90 seconds):
+- Describe the concept using known words BEFORE saying the new word.
+- Then introduce it: هذا هو... / اسمه بالعربية...
+- Circle it: yes/no questions, either/or, wh-questions (pause, then answer).
+- The new word should appear 6-8 times in different frames.
+
+Phase 3 — Build Complexity (10-14 lines, ~90 seconds):
+- Use the new word in increasingly rich sentences.
+- Scaffolded rephrasing: say the same idea 3-4 ways, each more complex.
+- You may introduce 1-2 bonus words, always explained inline.
+
+Phase 4 — Full Passage (6-10 lines, ~60 seconds):
+- Connected passage, slightly faster. No explanations. The payoff.
+- ~85% known words. Unknown words guessable from context.
+
+Phase 5 — Replay and Close (3-5 lines, ~30 seconds):
+- Celebrate: ممتاز! الآن تعرف كلمة X.
+- Warm close: إلى اللقاء!
+
+RULES:
+1. ONLY Arabic. No English anywhere.
+2. Full tashkeel on ALL Arabic text.
+3. Short sentences in Phase 1-2 (3-6 words). Longer in Phase 3-4 (5-12 words).
+4. Use warm teacher phrases: يعني، الآن، اسمع، ممتاز، هل تعرف
+5. Every non-function word must be in the known list OR taught in the episode.
+
+Respond with JSON:
+{{
+  "title_ar": "...",
+  "title_en": "...",
+  "target_words": [{{"word": "...", "gloss": "..."}}],
+  "phases": [
+    {{"phase": 1, "label": "establish_context", "lines": ["...", "..."]}},
+    {{"phase": 2, "label": "introduce_word", "lines": ["...", "..."]}},
+    {{"phase": 3, "label": "build_complexity", "lines": ["...", "..."]}},
+    {{"phase": 4, "label": "full_passage", "lines": ["...", "..."]}},
+    {{"phase": 5, "label": "replay_and_close", "lines": ["...", "..."]}}
+  ]
+}}"""
+
+    try:
+        result = _call_claude_cli(prompt, system_prompt, model="opus")
+        if result:
+            return result
+    except Exception as e:
+        logger.warning("Claude CLI failed for CI episode: %s, trying Gemini...", e)
+
+    try:
+        result = _call_gemini(prompt, system_prompt)
+        if result:
+            return result
+    except Exception as e:
+        logger.warning("Gemini failed for CI episode: %s", e)
+
+    return None
+
+
+async def generate_ci_podcast(db, words: list[dict], topic: str, target_words: list[dict]) -> Path | None:
+    """Generate a full Arabic-in-Arabic CI podcast episode."""
+    logger.info("=== Generating CI episode: %s ===", topic)
+
+    episode = generate_ci_episode_via_llm(words, topic, target_words)
+    if not episode or "phases" not in episode:
+        logger.error("Failed to generate CI episode for topic: %s", topic)
+        return None
+
+    title_en = episode.get("title_en", topic)
+    title_ar = episode.get("title_ar", "")
+    logger.info("CI episode generated: %s", title_en)
+
+    for phase_data in episode["phases"]:
+        logger.info("  Phase %d (%s): %d lines",
+                    phase_data["phase"], phase_data["label"], len(phase_data["lines"]))
+
+    # Build segments
+    segments = build_ci_episode(episode)
+
+    # Stitch audio
+    slug = re.sub(r"[^a-z0-9]+", "-", title_en.lower()).strip("-")[:30]
+    output_name = f"ci-{slug}-{datetime.now().strftime('%Y%m%d-%H%M')}"
+    logger.info("Generating audio: %d segments", len(segments))
+    path = await stitch_podcast(segments, output_name)
+
+    duration_s = int(path.stat().st_size / 16000)
+
+    # Map words to lemma_ids
+    all_lines = []
+    for phase_data in episode["phases"]:
+        for line in phase_data["lines"]:
+            all_lines.append({"arabic": line, "english": ""})
+    story_for_mapping = {"sentences": all_lines}
+    word_lemma_ids, _ = map_story_to_lemma_ids(story_for_mapping, db)
+
+    # Key words from target + bonus
+    key_words = [{"arabic": tw["word"], "gloss": tw["gloss"]} for tw in episode.get("target_words", target_words)]
+
+    meta = {
+        "title_en": title_en,
+        "title_ar": title_ar,
+        "theme_id": f"ci-{slug}",
+        "format_type": "ci",
+        "summary": f"Arabic explained in Arabic. Topic: {topic}",
+        "sentences": all_lines,
+        "key_words": key_words,
+        "word_lemma_ids": word_lemma_ids,
+        "duration_seconds": duration_s,
+        "generated_at": datetime.now().isoformat(),
+        "listened_at": None,
+        "listen_progress": 0,
+    }
+    save_metadata(output_name, meta)
+
+    logger.info("Saved: %s (%.1f min, %d words tracked)", path, duration_s / 60, len(word_lemma_ids))
+    return path
+
+
 async def generate_single_podcast(
     db, words: list[dict], theme: dict,
 ) -> Path | None:
@@ -1036,6 +1228,10 @@ async def main():
                         help="Minimum FSRS stability in days")
     parser.add_argument("--from-story", type=int, default=None,
                         help="Generate podcast from existing DB story ID")
+    parser.add_argument("--ci-topic", type=str, default=None,
+                        help="Generate Arabic-in-Arabic CI episode on this topic")
+    parser.add_argument("--ci-target", type=str, default=None,
+                        help="Target word(s) for CI episode (arabic:gloss, comma-separated)")
     args = parser.parse_args()
 
     db = SessionLocal()
@@ -1051,7 +1247,28 @@ async def main():
                 sys.exit(1)
             return
 
-        # Mode 2: Generate LLM stories
+        # Mode 2: Arabic-in-Arabic CI episode
+        if args.ci_topic:
+            words = get_high_stability_words(db, min_stability_days=args.min_stability)
+            logger.info("Found %d high-stability words for CI episode", len(words))
+            target_words = []
+            if args.ci_target:
+                for pair in args.ci_target.split(","):
+                    parts = pair.strip().split(":")
+                    if len(parts) == 2:
+                        target_words.append({"word": parts[0].strip(), "gloss": parts[1].strip()})
+            if not target_words:
+                target_words = [{"word": "جَدّ", "gloss": "grandfather"}]
+            path = await generate_ci_podcast(db, words, args.ci_topic, target_words)
+            if path:
+                print(f"\nCI Podcast ready: {path}")
+                print(f"API URL: /api/podcasts/audio/{path.name}")
+            else:
+                print("Failed to generate CI episode")
+                sys.exit(1)
+            return
+
+        # Mode 3: Generate LLM stories
         words = get_high_stability_words(db, min_stability_days=args.min_stability)
         logger.info("Found %d words with stability >= %.0f days", len(words), args.min_stability)
 

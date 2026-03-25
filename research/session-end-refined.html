@@ -1,0 +1,776 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Session End Card — Refined Design</title>
+<link href="https://fonts.googleapis.com/css2?family=Amiri:wght@400;700&family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #0a0a0f;
+  --surface: #14141f;
+  --border: #2a2a40;
+  --text: #e8e8f0;
+  --text-muted: #8888a0;
+  --green: #4ade80;
+  --green-dim: #22c55e20;
+  --amber: #fbbf24;
+  --amber-dim: #fbbf2420;
+  --red: #f87171;
+  --red-dim: #f8717120;
+  --blue: #60a5fa;
+  --blue-dim: #60a5fa20;
+  --purple: #a78bfa;
+  --purple-dim: #a78bfa20;
+  --teal: #2dd4bf;
+  --teal-dim: #2dd4bf20;
+  --phone-w: 375px;
+  --phone-h: 812px;
+  --phone-radius: 40px;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'DM Sans', sans-serif;
+  min-height: 100vh;
+  padding: 40px 20px 80px;
+}
+
+.page-header {
+  max-width: 900px;
+  margin: 0 auto 40px;
+  text-align: center;
+}
+.page-header h1 {
+  font-size: 2rem;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  margin-bottom: 8px;
+  background: linear-gradient(135deg, var(--green), var(--teal));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+.page-header p {
+  color: var(--text-muted);
+  font-size: 0.95rem;
+  max-width: 600px;
+  margin: 0 auto;
+  line-height: 1.6;
+}
+
+.variants {
+  max-width: 900px;
+  margin: 0 auto;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 60px;
+  justify-content: center;
+}
+
+.variant-entry {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.variant-label {
+  margin-bottom: 16px;
+  text-align: center;
+}
+.variant-label .tag {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.7rem;
+  color: var(--teal);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  margin-bottom: 4px;
+}
+.variant-label h2 {
+  font-size: 1.15rem;
+  font-weight: 600;
+}
+.variant-label p {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  margin-top: 3px;
+  line-height: 1.4;
+  max-width: 360px;
+}
+
+/* Phone frame */
+.phone {
+  width: var(--phone-w);
+  height: var(--phone-h);
+  border-radius: var(--phone-radius);
+  border: 2px solid var(--border);
+  overflow: hidden;
+  position: relative;
+  background: #111118;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.5), inset 0 0 0 1px rgba(255,255,255,0.03);
+}
+.phone-screen {
+  width: 100%;
+  height: 100%;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-width: none;
+}
+.phone-screen::-webkit-scrollbar { display: none; }
+
+/* ==========================================================
+   SHARED STYLES
+   ========================================================== */
+.s {
+  background: #111118;
+  padding: 40px 20px 28px;
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Title area */
+.s .title-area {
+  margin-bottom: 20px;
+}
+.s .title-area h2 {
+  font-size: 1.35rem;
+  font-weight: 700;
+  margin-bottom: 3px;
+}
+.s .title-area .sub {
+  color: var(--text-muted);
+  font-size: 0.82rem;
+}
+
+/* Journey timeline */
+.s .journey {
+  position: relative;
+  padding-left: 26px;
+  margin-bottom: 16px;
+}
+.s .journey::before {
+  content: '';
+  position: absolute;
+  left: 7px;
+  top: 10px;
+  bottom: 10px;
+  width: 2px;
+  background: linear-gradient(to bottom, var(--green), var(--amber), var(--blue), var(--purple));
+  border-radius: 2px;
+}
+.s .node {
+  position: relative;
+  padding: 10px 0;
+}
+.s .node::before {
+  content: '';
+  position: absolute;
+  left: -26px;
+  top: 16px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 2.5px solid var(--green);
+  background: #111118;
+}
+.s .node.amber::before { border-color: var(--amber); }
+.s .node.blue::before { border-color: var(--blue); }
+.s .node.red::before { border-color: var(--red); }
+.s .node.purple::before { border-color: var(--purple); }
+.s .node.teal::before { border-color: var(--teal); }
+
+.s .node-title {
+  font-weight: 600;
+  font-size: 0.88rem;
+  margin-bottom: 3px;
+}
+.s .node-detail {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  line-height: 1.5;
+}
+.s .node-words {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-top: 6px;
+}
+.s .mini-pill {
+  background: rgba(255,255,255,0.05);
+  border-radius: 7px;
+  padding: 4px 9px;
+  font-family: 'Amiri', serif;
+  font-size: 0.92rem;
+  direction: rtl;
+}
+
+/* Section cards */
+.s .section-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 14px 16px;
+  margin-bottom: 10px;
+}
+.s .section-title {
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+  margin-bottom: 10px;
+}
+
+/* Pipeline */
+.s .pipeline-bar {
+  display: flex;
+  height: 10px;
+  border-radius: 5px;
+  overflow: hidden;
+  gap: 2px;
+  margin-bottom: 10px;
+}
+.s .pipeline-bar div { border-radius: 4px; }
+.s .pipeline-legend {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.7rem;
+}
+.s .pipeline-legend .item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.s .pipeline-legend .dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 3px;
+}
+.s .pipeline-legend .num {
+  font-weight: 600;
+}
+.s .pipeline-legend .lbl {
+  color: var(--text-muted);
+}
+.s .pipeline-delta {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.72rem;
+  margin-top: 6px;
+  color: var(--text-muted);
+}
+.s .pipeline-delta .delta {
+  font-weight: 600;
+}
+
+/* Today stats */
+.s .today-row {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.s .today-stat {
+  flex: 1;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 12px 10px;
+  text-align: center;
+}
+.s .today-stat .num {
+  font-size: 1.3rem;
+  font-weight: 700;
+  line-height: 1;
+}
+.s .today-stat .lbl {
+  font-size: 0.58rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-top: 3px;
+}
+
+/* Root coverage */
+.s .root-nugget {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border);
+}
+.s .root-nugget:last-child { border-bottom: none; }
+.s .root-ar {
+  font-family: 'Amiri', serif;
+  font-size: 1.15rem;
+  direction: rtl;
+  color: var(--teal);
+  min-width: 50px;
+  text-align: center;
+}
+.s .root-info { flex: 1; }
+.s .root-info .meaning {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
+.s .root-bar {
+  height: 5px;
+  background: var(--border);
+  border-radius: 3px;
+  overflow: hidden;
+  margin-top: 4px;
+  width: 100%;
+}
+.s .root-bar-fill {
+  height: 100%;
+  background: var(--teal);
+  border-radius: 3px;
+}
+.s .root-frac {
+  font-size: 0.7rem;
+  font-weight: 600;
+  min-width: 32px;
+  text-align: right;
+}
+
+/* Next session button */
+.s .next-btn {
+  width: 100%;
+  background: var(--green);
+  color: #000;
+  border: none;
+  border-radius: 14px;
+  padding: 16px;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  margin-top: auto;
+  font-family: 'DM Sans', sans-serif;
+}
+
+/* Speed comparison */
+.s .speed-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.82rem;
+}
+.s .speed-row:last-child { border-bottom: none; }
+.s .speed-label { color: var(--text-muted); }
+.s .speed-val { font-weight: 600; }
+.s .speed-badge {
+  font-size: 0.68rem;
+  padding: 2px 8px;
+  border-radius: 6px;
+}
+
+/* Struggling */
+.s .struggle-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 0;
+  border-bottom: 1px solid rgba(248,113,113,0.15);
+  font-size: 0.82rem;
+}
+.s .struggle-item:last-child { border-bottom: none; }
+.s .struggle-ar {
+  font-family: 'Amiri', serif;
+  font-size: 1.05rem;
+  direction: rtl;
+  flex: 1;
+}
+.s .struggle-en {
+  color: var(--text-muted);
+  font-size: 0.75rem;
+}
+.s .struggle-stat {
+  font-size: 0.68rem;
+  color: var(--red);
+}
+</style>
+</head>
+<body>
+
+<div class="page-header">
+  <h1>Session End Card — Refined</h1>
+  <p>Journey map as backbone, with pipeline deltas, root coverage, speed comparison, and today's stats. Three variants showing different information density.</p>
+</div>
+
+<div class="variants">
+
+<!-- ==========================================================
+     VARIANT A: Full Journey
+     Most detailed version — shows everything
+     ========================================================== -->
+<div class="variant-entry">
+  <div class="variant-label">
+    <div class="tag">Variant A</div>
+    <h2>Full Journey</h2>
+    <p>Maximum detail: word movements, pipeline with deltas, roots, speed, today's stats</p>
+  </div>
+  <div class="phone"><div class="phone-screen">
+    <div class="s">
+      <div class="title-area">
+        <h2>Session Complete</h2>
+        <div class="sub">25 sentences in reading mode</div>
+      </div>
+
+      <!-- Journey timeline -->
+      <div class="journey">
+        <div class="node">
+          <div class="node-title" style="color:var(--green)">5 words graduated</div>
+          <div class="node-detail">Moved to long-term memory via spaced repetition</div>
+          <div class="node-words">
+            <span class="mini-pill">سِبْتَمْبِر</span>
+            <span class="mini-pill">مانْجو</span>
+            <span class="mini-pill">ابريل</span>
+            <span class="mini-pill">سُور</span>
+            <span class="mini-pill">يلّا</span>
+          </div>
+        </div>
+        <div class="node amber">
+          <div class="node-title" style="color:var(--amber)">8 words advanced a box</div>
+          <div class="node-detail">Box 1 → 2: 5 words &middot; Box 2 → 3: 3 words</div>
+          <div class="node-words">
+            <span class="mini-pill">أُكْتُوبَر</span>
+            <span class="mini-pill">باذِنْجان</span>
+            <span class="mini-pill">دافِئ</span>
+            <span class="mini-pill">شَخْص</span>
+            <span class="mini-pill" style="color:var(--text-muted);font-family:'DM Sans',sans-serif;font-size:0.75rem">+4 more</span>
+          </div>
+        </div>
+        <div class="node red">
+          <div class="node-title" style="color:var(--red)">2 words slipped back</div>
+          <div class="node-detail">Need more practice — you'll see them again soon</div>
+          <div class="node-words">
+            <span class="mini-pill">تَعالَى</span>
+            <span class="mini-pill">تِمْثَال</span>
+          </div>
+        </div>
+        <div class="node blue">
+          <div class="node-title" style="color:var(--blue)">13 sentences fully understood</div>
+          <div class="node-detail">52% full comprehension, 48% partial</div>
+        </div>
+      </div>
+
+      <!-- Pipeline with deltas -->
+      <div class="section-card">
+        <div class="section-title">Word pipeline after this session</div>
+        <div class="pipeline-bar">
+          <div style="flex:105;background:var(--red)"></div>
+          <div style="flex:49;background:var(--amber)"></div>
+          <div style="flex:66;background:var(--green)"></div>
+          <div style="flex:412;background:var(--teal)"></div>
+        </div>
+        <div class="pipeline-legend">
+          <div class="item"><div class="dot" style="background:var(--red)"></div><span class="num">105</span><span class="lbl"> Box 1</span></div>
+          <div class="item"><div class="dot" style="background:var(--amber)"></div><span class="num">49</span><span class="lbl"> Box 2</span></div>
+          <div class="item"><div class="dot" style="background:var(--green)"></div><span class="num">66</span><span class="lbl"> Box 3</span></div>
+          <div class="item"><div class="dot" style="background:var(--teal)"></div><span class="num">412</span><span class="lbl"> Known</span></div>
+        </div>
+        <div class="pipeline-delta">
+          This session: <span class="delta" style="color:var(--green)">+5 known</span> · <span class="delta" style="color:var(--amber)">+8 advanced</span> · <span class="delta" style="color:var(--red)">−2 slipped</span>
+        </div>
+      </div>
+
+      <!-- Speed -->
+      <div class="section-card">
+        <div class="section-title">Response speed</div>
+        <div class="speed-row">
+          <span class="speed-label">This session</span>
+          <span class="speed-val">39s avg</span>
+        </div>
+        <div class="speed-row">
+          <span class="speed-label">Your overall average</span>
+          <span class="speed-val">44s avg</span>
+          <span class="speed-badge" style="background:var(--green-dim);color:var(--green)">12% faster</span>
+        </div>
+      </div>
+
+      <!-- Today stats -->
+      <div class="today-row">
+        <div class="today-stat">
+          <div class="num" style="color:var(--teal)">687</div>
+          <div class="lbl">Reviews today</div>
+        </div>
+        <div class="today-stat">
+          <div class="num" style="color:var(--teal)">144</div>
+          <div class="lbl">Sentences today</div>
+        </div>
+        <div class="today-stat">
+          <div class="num" style="color:var(--green)">72</div>
+          <div class="lbl">Graduated today</div>
+        </div>
+      </div>
+
+      <!-- Root coverage -->
+      <div class="section-card">
+        <div class="section-title">Root families — closest to complete</div>
+        <div class="root-nugget">
+          <div class="root-ar">س.ع.د</div>
+          <div class="root-info">
+            <div class="meaning">happiness, good fortune</div>
+            <div class="root-bar"><div class="root-bar-fill" style="width:83%"></div></div>
+          </div>
+          <div class="root-frac">5/6</div>
+        </div>
+        <div class="root-nugget">
+          <div class="root-ar">ج.م.ل</div>
+          <div class="root-info">
+            <div class="meaning">beauty, grace</div>
+            <div class="root-bar"><div class="root-bar-fill" style="width:80%"></div></div>
+          </div>
+          <div class="root-frac">4/5</div>
+        </div>
+        <div class="root-nugget">
+          <div class="root-ar">ب.ح.ر</div>
+          <div class="root-info">
+            <div class="meaning">sea, vastness</div>
+            <div class="root-bar"><div class="root-bar-fill" style="width:75%"></div></div>
+          </div>
+          <div class="root-frac">3/4</div>
+        </div>
+      </div>
+
+      <button class="next-btn">Next Session</button>
+    </div>
+  </div></div>
+</div>
+
+<!-- ==========================================================
+     VARIANT B: Focused Journey
+     Less dense — journey + pipeline delta + today's stats only
+     ========================================================== -->
+<div class="variant-entry">
+  <div class="variant-label">
+    <div class="tag">Variant B</div>
+    <h2>Focused Journey</h2>
+    <p>Core journey + pipeline deltas + today's stats. No roots, no speed. Cleaner, faster scan.</p>
+  </div>
+  <div class="phone"><div class="phone-screen">
+    <div class="s">
+      <div class="title-area">
+        <h2>Session Complete</h2>
+        <div class="sub">25 sentences in reading mode</div>
+      </div>
+
+      <div class="journey">
+        <div class="node">
+          <div class="node-title" style="color:var(--green)">5 words graduated</div>
+          <div class="node-detail">Moved to long-term memory</div>
+          <div class="node-words">
+            <span class="mini-pill">سِبْتَمْبِر</span>
+            <span class="mini-pill">مانْجو</span>
+            <span class="mini-pill">ابريل</span>
+            <span class="mini-pill">سُور</span>
+            <span class="mini-pill">يلّا</span>
+          </div>
+        </div>
+        <div class="node amber">
+          <div class="node-title" style="color:var(--amber)">8 words advanced a box</div>
+          <div class="node-detail">Getting closer to graduation</div>
+          <div class="node-words">
+            <span class="mini-pill">أُكْتُوبَر</span>
+            <span class="mini-pill">باذِنْجان</span>
+            <span class="mini-pill">دافِئ</span>
+            <span class="mini-pill">شَخْص</span>
+            <span class="mini-pill" style="color:var(--text-muted);font-family:'DM Sans',sans-serif;font-size:0.75rem">+4</span>
+          </div>
+        </div>
+        <div class="node red">
+          <div class="node-title" style="color:var(--red)">2 words need more practice</div>
+          <div class="node-words">
+            <span class="mini-pill">تَعالَى</span>
+            <span class="mini-pill">تِمْثَال</span>
+          </div>
+        </div>
+        <div class="node blue">
+          <div class="node-title" style="color:var(--blue)">13 of 25 sentences fully understood</div>
+        </div>
+      </div>
+
+      <!-- Pipeline with deltas -->
+      <div class="section-card">
+        <div class="section-title">Word pipeline</div>
+        <div class="pipeline-bar">
+          <div style="flex:105;background:var(--red)"></div>
+          <div style="flex:49;background:var(--amber)"></div>
+          <div style="flex:66;background:var(--green)"></div>
+          <div style="flex:412;background:var(--teal)"></div>
+        </div>
+        <div class="pipeline-legend">
+          <div class="item"><div class="dot" style="background:var(--red)"></div><span class="num">105</span><span class="lbl"> new</span></div>
+          <div class="item"><div class="dot" style="background:var(--amber)"></div><span class="num">49</span><span class="lbl"> learning</span></div>
+          <div class="item"><div class="dot" style="background:var(--green)"></div><span class="num">66</span><span class="lbl"> almost</span></div>
+          <div class="item"><div class="dot" style="background:var(--teal)"></div><span class="num">412</span><span class="lbl"> known</span></div>
+        </div>
+        <div class="pipeline-delta">
+          Session: <span class="delta" style="color:var(--green)">+5 known</span> · <span class="delta" style="color:var(--amber)">+8 advanced</span> · <span class="delta" style="color:var(--red)">−2 slipped</span>
+        </div>
+      </div>
+
+      <!-- Today stats -->
+      <div class="today-row">
+        <div class="today-stat">
+          <div class="num" style="color:var(--teal)">687</div>
+          <div class="lbl">Reviews today</div>
+        </div>
+        <div class="today-stat">
+          <div class="num" style="color:var(--teal)">144</div>
+          <div class="lbl">Sentences today</div>
+        </div>
+      </div>
+
+      <!-- CEFR progress as a simple line -->
+      <div class="section-card" style="text-align:center">
+        <div style="font-size:0.85rem;color:var(--purple)">45 words from A1+</div>
+        <div style="height:5px;background:var(--border);border-radius:3px;margin-top:8px;overflow:hidden">
+          <div style="width:91%;height:100%;background:var(--purple);border-radius:3px"></div>
+        </div>
+        <div style="font-size:0.7rem;color:var(--text-muted);margin-top:4px">455 / 500</div>
+      </div>
+
+      <button class="next-btn">Next Session</button>
+    </div>
+  </div></div>
+</div>
+
+<!-- ==========================================================
+     VARIANT C: Journey + Roots + Struggling
+     For sessions where struggles are interesting
+     ========================================================== -->
+<div class="variant-entry">
+  <div class="variant-label">
+    <div class="tag">Variant C</div>
+    <h2>Journey + Roots + Struggles</h2>
+    <p>Includes root coverage and struggling words. Good for sessions with mixed results.</p>
+  </div>
+  <div class="phone"><div class="phone-screen">
+    <div class="s">
+      <div class="title-area">
+        <h2>Session Complete</h2>
+        <div class="sub">25 sentences in reading mode</div>
+      </div>
+
+      <div class="journey">
+        <div class="node">
+          <div class="node-title" style="color:var(--green)">5 words graduated</div>
+          <div class="node-detail">Moved to long-term memory</div>
+          <div class="node-words">
+            <span class="mini-pill">سِبْتَمْبِر</span>
+            <span class="mini-pill">مانْجو</span>
+            <span class="mini-pill">ابريل</span>
+            <span class="mini-pill">سُور</span>
+            <span class="mini-pill">يلّا</span>
+          </div>
+        </div>
+        <div class="node amber">
+          <div class="node-title" style="color:var(--amber)">8 words advanced</div>
+          <div class="node-words">
+            <span class="mini-pill">أُكْتُوبَر</span>
+            <span class="mini-pill">باذِنْجان</span>
+            <span class="mini-pill">دافِئ</span>
+            <span class="mini-pill" style="color:var(--text-muted);font-family:'DM Sans',sans-serif;font-size:0.75rem">+5</span>
+          </div>
+        </div>
+        <div class="node blue">
+          <div class="node-title" style="color:var(--blue)">13 of 25 sentences fully understood</div>
+        </div>
+      </div>
+
+      <!-- Struggling words -->
+      <div class="section-card" style="background:var(--red-dim);border-color:rgba(248,113,113,0.2)">
+        <div class="section-title" style="color:var(--red)">Struggling words</div>
+        <div class="struggle-item">
+          <div class="struggle-ar">تَعالَى</div>
+          <div class="struggle-en">to come</div>
+          <div class="struggle-stat">5 seen, 0 correct</div>
+        </div>
+        <div class="struggle-item">
+          <div class="struggle-ar">تِمْثَال</div>
+          <div class="struggle-en">statue</div>
+          <div class="struggle-stat">5 seen, 0 correct</div>
+        </div>
+        <div class="struggle-item">
+          <div class="struggle-ar">رُمَّانٌ</div>
+          <div class="struggle-en">pomegranate</div>
+          <div class="struggle-stat">3 seen, 0 correct</div>
+        </div>
+      </div>
+
+      <!-- Pipeline -->
+      <div class="section-card">
+        <div class="section-title">Word pipeline</div>
+        <div class="pipeline-bar">
+          <div style="flex:105;background:var(--red)"></div>
+          <div style="flex:49;background:var(--amber)"></div>
+          <div style="flex:66;background:var(--green)"></div>
+          <div style="flex:412;background:var(--teal)"></div>
+        </div>
+        <div class="pipeline-legend">
+          <div class="item"><div class="dot" style="background:var(--red)"></div><span class="num">105</span></div>
+          <div class="item"><div class="dot" style="background:var(--amber)"></div><span class="num">49</span></div>
+          <div class="item"><div class="dot" style="background:var(--green)"></div><span class="num">66</span></div>
+          <div class="item"><div class="dot" style="background:var(--teal)"></div><span class="num">412</span><span class="lbl"> known</span></div>
+        </div>
+        <div class="pipeline-delta">
+          <span class="delta" style="color:var(--green)">+5 known</span> · <span class="delta" style="color:var(--amber)">+8 advanced</span> · <span class="delta" style="color:var(--red)">−2 slipped</span>
+        </div>
+      </div>
+
+      <!-- Root coverage -->
+      <div class="section-card">
+        <div class="section-title">Root families growing</div>
+        <div class="root-nugget">
+          <div class="root-ar">س.ع.د</div>
+          <div class="root-info">
+            <div class="meaning">happiness, fortune</div>
+            <div class="root-bar"><div class="root-bar-fill" style="width:83%"></div></div>
+          </div>
+          <div class="root-frac">5/6</div>
+        </div>
+        <div class="root-nugget">
+          <div class="root-ar">ج.م.ل</div>
+          <div class="root-info">
+            <div class="meaning">beauty, grace</div>
+            <div class="root-bar"><div class="root-bar-fill" style="width:80%"></div></div>
+          </div>
+          <div class="root-frac">4/5</div>
+        </div>
+      </div>
+
+      <!-- Today -->
+      <div class="today-row">
+        <div class="today-stat">
+          <div class="num" style="color:var(--teal)">687</div>
+          <div class="lbl">Reviews today</div>
+        </div>
+        <div class="today-stat">
+          <div class="num" style="color:var(--teal)">144</div>
+          <div class="lbl">Sentences today</div>
+        </div>
+      </div>
+
+      <button class="next-btn">Next Session</button>
+    </div>
+  </div></div>
+</div>
+
+</div><!-- /variants -->
+
+<div style="max-width:700px;margin:60px auto 0;padding:24px;background:var(--surface);border:1px solid var(--border);border-radius:16px">
+  <h3 style="font-size:1rem;margin-bottom:12px">Implementation Notes</h3>
+  <div style="font-size:0.85rem;color:var(--text-muted);line-height:1.7">
+    <p style="margin-bottom:10px"><strong style="color:var(--text)">Data available now:</strong> sentence count, comprehension (understood/partial/no_idea), graduated_today, analytics stats, CEFR progress, root coverage (from deep-analytics)</p>
+    <p style="margin-bottom:10px"><strong style="color:var(--text)">Needs new tracking:</strong> Per-session box transitions (graduated, advanced, slipped) — currently word_results from submit_sentence_review include new_state but frontend doesn't accumulate them. Need to collect these during the session.</p>
+    <p style="margin-bottom:10px"><strong style="color:var(--text)">Speed comparison:</strong> avg_response_ms is on recent_sessions in deep-analytics. Session average is computable from SentenceReviewLog. We could add a field to the analytics response, or compute it client-side from the per-card response times the frontend already tracks.</p>
+    <p><strong style="color:var(--text)">Struggling words:</strong> Available from deep-analytics.struggling_words. Could filter to just words seen this session.</p>
+  </div>
+</div>
+
+</body>
+</html>

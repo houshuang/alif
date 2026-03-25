@@ -1,0 +1,208 @@
+<section class="mockup-section" data-mockup-id="mockup-15" data-label="15. Sankey + Bottleneck Alert">
+<style>
+  body { background: #0a0a0a; color: #e5e5e5; font-family: 'Inter', sans-serif; margin: 0; }
+  .container { padding: 20px 16px; max-width: 375px; margin: 0 auto; }
+  .card { background: #1a1a1a; border-radius: 16px; padding: 20px; margin-bottom: 16px; }
+  .card-title { font-size: 11px; color: #888; text-transform: uppercase; letter-spacing: 1.5px; font-weight: 700; margin-bottom: 16px; }
+
+  /* Horizontal Sankey-ish diagram */
+  .sankey-wrap { margin-bottom: 16px; }
+  .sankey-svg { width: 100%; height: 140px; }
+
+  /* Stage labels below sankey */
+  .sankey-labels { display: flex; justify-content: space-between; padding: 0 4px; }
+  .sankey-label { text-align: center; }
+  .sl-count { font-size: 16px; font-weight: 800; }
+  .sl-name { font-size: 9px; color: #888; text-transform: uppercase; letter-spacing: 0.5px; }
+  .sl-sub { font-size: 9px; margin-top: 2px; }
+
+  /* Bottleneck detection */
+  .bottleneck { padding: 10px 14px; border-radius: 10px; margin-bottom: 14px; display: flex; align-items: center; gap: 10px; }
+  .bottleneck-icon { font-size: 16px; flex-shrink: 0; }
+  .bottleneck-text { font-size: 12px; line-height: 1.4; }
+
+  /* Acquisition as horizontal connected pipeline */
+  .acq-pipeline { display: flex; align-items: center; margin-bottom: 14px; }
+  .acq-node { flex: 1; text-align: center; padding: 10px 4px; border-radius: 10px; position: relative; }
+  .acq-node-count { font-size: 22px; font-weight: 800; color: #fbbf24; }
+  .acq-node-label { font-size: 9px; color: #888; }
+  .acq-node-due { position: absolute; top: -6px; right: -2px; background: #f87171; color: white; font-size: 8px; font-weight: 700; width: 18px; height: 18px; border-radius: 50%; display: flex; align-items: center; justify-content: center; }
+  .acq-arrow { color: #333; font-size: 14px; padding: 0 2px; }
+  .acq-end { padding: 10px 8px; border-radius: 10px; text-align: center; }
+  .acq-end-label { font-size: 9px; color: #2dd4bf; }
+
+  /* Flow balance bar */
+  .flow-balance { display: flex; height: 28px; border-radius: 8px; overflow: hidden; margin-bottom: 8px; }
+  .fb-seg { display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 600; }
+  .flow-balance-label { display: flex; justify-content: space-between; font-size: 9px; color: #888; margin-bottom: 12px; }
+
+  /* Stats row */
+  .stats-row { display: flex; gap: 6px; margin-bottom: 12px; }
+  .stat-box { flex: 1; text-align: center; padding: 8px 4px; background: #111; border-radius: 8px; }
+  .stat-val { font-size: 14px; font-weight: 700; }
+  .stat-label { font-size: 8px; color: #888; margin-top: 2px; text-transform: uppercase; letter-spacing: 0.3px; }
+
+  /* Mini area chart */
+  .chart-section { padding-top: 12px; border-top: 1px solid #222; margin-bottom: 12px; }
+  .chart-label { font-size: 10px; color: #888; margin-bottom: 6px; display: flex; justify-content: space-between; }
+  .chart-svg { width: 100%; height: 44px; }
+
+  /* Graduated */
+  .grad { padding-top: 12px; border-top: 1px solid #222; }
+  .grad-label { font-size: 10px; color: #888; margin-bottom: 6px; }
+  .grad-list { display: flex; gap: 6px; }
+  .grad-card { background: rgba(45,212,191,0.06); border: 1px solid rgba(45,212,191,0.12); border-radius: 8px; padding: 6px 10px; text-align: center; }
+  .grad-ar { font-size: 14px; color: #2dd4bf; font-weight: 600; }
+  .grad-meta { font-size: 9px; color: #888; }
+</style>
+
+<div class="container">
+  <div class="card">
+    <div class="card-title">Word Flow</div>
+
+    <div class="sankey-wrap">
+      <svg class="sankey-svg" viewBox="0 0 335 120" fill="none">
+        <!-- Sankey bands flowing left to right, height proportional to count -->
+        <defs>
+          <linearGradient id="g1" x1="0" y1="0" x2="1" y2="0"><stop offset="0%" stop-color="#666" stop-opacity="0.2"/><stop offset="100%" stop-color="#fbbf24" stop-opacity="0.2"/></linearGradient>
+          <linearGradient id="g2" x1="0" y1="0" x2="1" y2="0"><stop offset="0%" stop-color="#fbbf24" stop-opacity="0.2"/><stop offset="100%" stop-color="#38bdf8" stop-opacity="0.2"/></linearGradient>
+          <linearGradient id="g3" x1="0" y1="0" x2="1" y2="0"><stop offset="0%" stop-color="#38bdf8" stop-opacity="0.2"/><stop offset="100%" stop-color="#2dd4bf" stop-opacity="0.2"/></linearGradient>
+        </defs>
+
+        <!-- Stage columns -->
+        <!-- Encountered column -->
+        <rect x="0" y="5" width="16" height="100" rx="4" fill="rgba(255,255,255,0.06)" />
+        <!-- Acquiring column -->
+        <rect x="100" y="35" width="16" height="40" rx="4" fill="rgba(251,191,36,0.2)" />
+        <!-- Learning column -->
+        <rect x="200" y="20" width="16" height="65" rx="4" fill="rgba(56,189,248,0.15)" />
+        <!-- Known column -->
+        <rect x="319" y="10" width="16" height="80" rx="4" fill="rgba(45,212,191,0.15)" />
+
+        <!-- Flow bands -->
+        <!-- Encountered → Acquiring (thin band, ~6/day of 847) -->
+        <path d="M16,50 C55,50 65,52 100,52 L100,58 C65,58 55,56 16,56 Z" fill="url(#g1)" />
+
+        <!-- Acquiring → Learning (graduation flow) -->
+        <path d="M116,48 C150,48 165,48 200,46 L200,54 C165,56 150,56 116,56 Z" fill="url(#g2)" />
+
+        <!-- Learning → Known -->
+        <path d="M216,40 C250,40 280,38 319,35 L319,50 C280,52 250,54 216,55 Z" fill="url(#g3)" />
+
+        <!-- Lapsed branch from Known -->
+        <path d="M327,90 C330,100 332,110 330,118" stroke="#f87171" stroke-width="1" fill="none" opacity="0.5" stroke-dasharray="3 3" />
+        <text x="312" y="118" font-size="8" fill="#f87171" font-family="Inter">4</text>
+
+        <!-- Flow rate labels on bands -->
+        <text x="55" y="46" font-size="9" fill="#fbbf24" font-family="Inter" text-anchor="middle">6/d</text>
+        <text x="158" y="44" font-size="9" fill="#2dd4bf" font-family="Inter" text-anchor="middle">3/d</text>
+        <text x="268" y="32" font-size="9" fill="#2dd4bf" font-family="Inter" text-anchor="middle" opacity="0.6">stab≥21d</text>
+      </svg>
+    </div>
+
+    <div class="sankey-labels">
+      <div class="sankey-label">
+        <div class="sl-count" style="color: #888">847</div>
+        <div class="sl-name">Seen</div>
+      </div>
+      <div class="sankey-label">
+        <div class="sl-count" style="color: #fbbf24">38</div>
+        <div class="sl-name">Acquiring</div>
+        <div class="sl-sub" style="color: #f87171">12 due</div>
+      </div>
+      <div class="sankey-label">
+        <div class="sl-count" style="color: #38bdf8">87</div>
+        <div class="sl-name">Learning</div>
+        <div class="sl-sub" style="color: #38bdf8">+5/wk</div>
+      </div>
+      <div class="sankey-label">
+        <div class="sl-count" style="color: #2dd4bf">145</div>
+        <div class="sl-name">Known</div>
+        <div class="sl-sub" style="color: #2dd4bf">+12/wk</div>
+      </div>
+    </div>
+
+    <!-- Bottleneck alert - dynamic based on ratios -->
+    <div class="bottleneck" style="background: rgba(45,212,191,0.06); border: 1px solid rgba(45,212,191,0.12);">
+      <span class="bottleneck-icon" style="color: #2dd4bf;">✓</span>
+      <span class="bottleneck-text" style="color: #2dd4bf;">No bottleneck — entering 6/d, graduating 3/d (2:1 ratio is healthy)</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Acquisition Boxes</div>
+
+    <div class="acq-pipeline">
+      <div class="acq-node" style="background: rgba(251,191,36,0.08);">
+        <div class="acq-node-count">18</div>
+        <div class="acq-node-label">Box 1 · 4h</div>
+        <div class="acq-node-due">8</div>
+      </div>
+      <span class="acq-arrow">→</span>
+      <div class="acq-node" style="background: rgba(251,191,36,0.05);">
+        <div class="acq-node-count">12</div>
+        <div class="acq-node-label">Box 2 · 1d</div>
+        <div class="acq-node-due">3</div>
+      </div>
+      <span class="acq-arrow">→</span>
+      <div class="acq-node" style="background: rgba(251,191,36,0.03);">
+        <div class="acq-node-count">8</div>
+        <div class="acq-node-label">Box 3 · 3d</div>
+        <div class="acq-node-due">1</div>
+      </div>
+      <span class="acq-arrow">→</span>
+      <div class="acq-end" style="background: rgba(45,212,191,0.06);">
+        <div style="font-size: 14px; color: #2dd4bf; font-weight: 700;">↑</div>
+        <div class="acq-end-label">FSRS</div>
+      </div>
+    </div>
+
+    <!-- Flow balance as stacked bar -->
+    <div class="flow-balance">
+      <div class="fb-seg" style="flex: 6; background: rgba(251,191,36,0.25); color: #fbbf24;">6 in</div>
+      <div class="fb-seg" style="flex: 3; background: rgba(45,212,191,0.25); color: #2dd4bf;">3 out</div>
+      <div class="fb-seg" style="flex: 1; background: rgba(248,113,113,0.2); color: #f87171; font-size: 9px;">1</div>
+    </div>
+    <div class="flow-balance-label">
+      <span>daily entering</span>
+      <span>graduating</span>
+      <span>lost</span>
+    </div>
+
+    <div class="stats-row">
+      <div class="stat-box">
+        <div class="stat-val">82%</div>
+        <div class="stat-label">Grad rate</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-val">~9</div>
+        <div class="stat-label">Reviews to grad</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-val" style="color: #fbbf24">4.2d</div>
+        <div class="stat-label">Avg in pipeline</div>
+      </div>
+    </div>
+
+    <div class="chart-section">
+      <div class="chart-label">
+        <span>Pipeline size (30d)</span>
+        <span style="color: #fbbf24">38 now</span>
+      </div>
+      <svg class="chart-svg" viewBox="0 0 300 44" preserveAspectRatio="none">
+        <path d="M0,38 C15,36 30,32 45,34 C60,36 75,30 90,25 C105,20 120,24 135,28 C150,24 165,18 180,22 C195,26 210,20 225,16 C240,20 255,24 270,18 C285,14 295,16 300,14 L300,44 L0,44 Z" fill="rgba(251,191,36,0.1)" />
+        <path d="M0,38 C15,36 30,32 45,34 C60,36 75,30 90,25 C105,20 120,24 135,28 C150,24 165,18 180,22 C195,26 210,20 225,16 C240,20 255,24 270,18 C285,14 295,16 300,14" stroke="#fbbf24" stroke-width="1.5" fill="none" opacity="0.5" />
+      </svg>
+    </div>
+
+    <div class="grad">
+      <div class="grad-label">Recently graduated</div>
+      <div class="grad-list">
+        <div class="grad-card"><div class="grad-ar">سَمَاء</div><div class="grad-meta">sky · 2h</div></div>
+        <div class="grad-card"><div class="grad-ar">يَوم</div><div class="grad-meta">day · 5h</div></div>
+        <div class="grad-card"><div class="grad-ar">وَلَد</div><div class="grad-meta">boy · 1d</div></div>
+      </div>
+    </div>
+  </div>
+</div>
+</section>

@@ -1,0 +1,236 @@
+<section class="mockup-section" data-mockup-id="mockup-17" data-label="17. Dense Grid + Sankey Hybrid">
+<style>
+  body { background: #0a0a0a; color: #e5e5e5; font-family: 'Inter', sans-serif; margin: 0; }
+  .container { padding: 20px 16px; max-width: 375px; margin: 0 auto; }
+  .card { background: #1a1a1a; border-radius: 16px; padding: 16px; margin-bottom: 14px; }
+  .card-title { font-size: 10px; color: #666; text-transform: uppercase; letter-spacing: 1.5px; font-weight: 700; margin-bottom: 12px; }
+
+  /* Top row: big known number + supporting stats */
+  .hero-stat { display: flex; align-items: baseline; gap: 8px; margin-bottom: 12px; }
+  .hero-num { font-size: 42px; font-weight: 900; color: #2dd4bf; line-height: 1; }
+  .hero-label { font-size: 12px; color: #2dd4bf; }
+  .hero-trend { font-size: 11px; color: #2dd4bf; opacity: 0.7; }
+
+  /* Horizontal flow strip */
+  .flow-strip { display: flex; height: 36px; border-radius: 10px; overflow: hidden; margin-bottom: 8px; position: relative; }
+  .fs-seg { display: flex; align-items: center; justify-content: center; gap: 3px; min-width: 30px; transition: all 0.3s; }
+  .fs-count { font-size: 12px; font-weight: 700; }
+  .fs-label { font-size: 7px; opacity: 0.7; text-transform: uppercase; }
+  /* Flow arrows overlay */
+  .flow-arrows { display: flex; justify-content: space-around; padding: 0 40px; margin: -3px 0 6px; }
+  .flow-arrow-item { font-size: 8px; display: flex; flex-direction: column; align-items: center; }
+  .flow-rate { font-size: 9px; font-weight: 600; }
+
+  /* Mini sparklines row */
+  .spark-row { display: flex; gap: 4px; margin-bottom: 8px; }
+  .spark-cell { flex: 1; background: #111; border-radius: 8px; padding: 8px 6px; position: relative; overflow: hidden; }
+  .spark-bg { position: absolute; bottom: 0; left: 0; right: 0; height: 20px; opacity: 0.12; }
+  .spark-bg svg { width: 100%; height: 100%; }
+  .spark-val { font-size: 16px; font-weight: 800; position: relative; }
+  .spark-label { font-size: 7px; color: #888; position: relative; text-transform: uppercase; letter-spacing: 0.3px; }
+  .spark-delta { font-size: 8px; position: relative; font-weight: 600; margin-top: 1px; }
+
+  /* Pipeline section */
+  .pipe-header { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 10px; }
+  .pipe-total { font-size: 12px; color: #fbbf24; font-weight: 700; }
+
+  /* Compact box rows */
+  .box-row { display: flex; align-items: center; gap: 6px; padding: 6px 0; border-bottom: 1px solid #111; }
+  .box-row:last-child { border-bottom: none; }
+  .box-marker { width: 3px; height: 24px; border-radius: 2px; background: #fbbf24; flex-shrink: 0; }
+  .box-name { font-size: 11px; font-weight: 600; color: #fbbf24; width: 42px; }
+  .box-bar-bg { flex: 1; height: 20px; background: #222; border-radius: 6px; overflow: hidden; position: relative; }
+  .box-bar-fill { height: 100%; border-radius: 6px; display: flex; align-items: center; padding-left: 8px; }
+  .box-bar-num { font-size: 11px; font-weight: 700; color: #fbbf24; }
+  .box-interval { font-size: 8px; color: #555; margin-left: auto; padding-right: 6px; }
+  .box-due { font-size: 9px; color: #f87171; font-weight: 600; width: 36px; text-align: right; flex-shrink: 0; }
+
+  /* Throughput + balance */
+  .throughput { display: flex; gap: 4px; margin-top: 10px; }
+  .tp { flex: 1; text-align: center; padding: 6px 2px; background: #111; border-radius: 6px; }
+  .tp-val { font-size: 13px; font-weight: 700; }
+  .tp-label { font-size: 7px; color: #888; margin-top: 1px; text-transform: uppercase; letter-spacing: 0.2px; }
+
+  /* Balance indicator */
+  .balance-bar { margin-top: 8px; }
+  .balance-track { display: flex; height: 6px; border-radius: 3px; overflow: hidden; }
+  .balance-labels { display: flex; justify-content: space-between; margin-top: 3px; font-size: 8px; color: #666; }
+
+  /* Bottleneck / health */
+  .health-banner { display: flex; align-items: center; gap: 8px; padding: 8px 10px; background: #111; border-radius: 8px; margin-top: 10px; }
+  .health-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+  .health-text { font-size: 10px; flex: 1; }
+
+  /* Recent grads */
+  .grads { margin-top: 10px; padding-top: 8px; border-top: 1px solid #222; }
+  .grad-title { font-size: 9px; color: #666; margin-bottom: 4px; }
+  .grad-list { display: flex; gap: 4px; }
+  .grad-pill { font-size: 12px; color: #2dd4bf; padding: 3px 8px; background: rgba(45,212,191,0.08); border-radius: 5px; }
+  .grad-time { font-size: 8px; color: #555; margin-left: 2px; }
+</style>
+
+<div class="container">
+  <div class="card">
+    <div class="card-title">Vocabulary</div>
+
+    <div class="hero-stat">
+      <div class="hero-num">145</div>
+      <div>
+        <div class="hero-label">known words</div>
+        <div class="hero-trend">+12 this week · +2.1/day</div>
+      </div>
+    </div>
+
+    <!-- Proportional flow strip -->
+    <div class="flow-strip">
+      <div class="fs-seg" style="flex: 847; background: rgba(255,255,255,0.05);">
+        <span class="fs-count" style="color: #888">847</span>
+      </div>
+      <div class="fs-seg" style="flex: 38; background: rgba(251,191,36,0.2);">
+        <span class="fs-count" style="color: #fbbf24">38</span>
+      </div>
+      <div class="fs-seg" style="flex: 87; background: rgba(56,189,248,0.15);">
+        <span class="fs-count" style="color: #38bdf8">87</span>
+      </div>
+      <div class="fs-seg" style="flex: 145; background: rgba(45,212,191,0.15);">
+        <span class="fs-count" style="color: #2dd4bf">145</span>
+      </div>
+    </div>
+    <div class="flow-arrows">
+      <div class="flow-arrow-item">
+        <span class="flow-rate" style="color: #fbbf24">6/d →</span>
+      </div>
+      <div class="flow-arrow-item">
+        <span class="flow-rate" style="color: #2dd4bf">3/d →</span>
+      </div>
+      <div class="flow-arrow-item">
+        <span class="flow-rate" style="color: #2dd4bf; opacity: 0.5">stab≥21d</span>
+      </div>
+    </div>
+
+    <!-- Sparkline detail cells -->
+    <div class="spark-row">
+      <div class="spark-cell">
+        <div class="spark-bg"><svg viewBox="0 0 60 20" preserveAspectRatio="none"><path d="M0,16 Q15,14 30,12 T60,8 L60,20 L0,20 Z" fill="#fbbf24"/></svg></div>
+        <div class="spark-val" style="color: #fbbf24">38</div>
+        <div class="spark-label">Acquiring</div>
+        <div class="spark-delta" style="color: #f87171">12 due</div>
+      </div>
+      <div class="spark-cell">
+        <div class="spark-bg"><svg viewBox="0 0 60 20" preserveAspectRatio="none"><path d="M0,18 Q15,14 30,10 T60,4 L60,20 L0,20 Z" fill="#38bdf8"/></svg></div>
+        <div class="spark-val" style="color: #38bdf8">87</div>
+        <div class="spark-label">Learning</div>
+        <div class="spark-delta" style="color: #38bdf8">+5/wk</div>
+      </div>
+      <div class="spark-cell">
+        <div class="spark-bg"><svg viewBox="0 0 60 20" preserveAspectRatio="none"><path d="M0,18 Q15,12 30,8 T60,2 L60,20 L0,20 Z" fill="#2dd4bf"/></svg></div>
+        <div class="spark-val" style="color: #2dd4bf">145</div>
+        <div class="spark-label">Known</div>
+        <div class="spark-delta" style="color: #2dd4bf">+12/wk</div>
+      </div>
+    </div>
+
+    <div style="display: flex; gap: 6px;">
+      <div style="flex: 1; padding: 6px 8px; background: #111; border-radius: 6px; display: flex; justify-content: space-between; align-items: center;">
+        <span style="font-size: 9px; color: #888;">Lapsed</span>
+        <span style="font-size: 13px; font-weight: 700; color: #f87171;">4</span>
+      </div>
+      <div style="flex: 1; padding: 6px 8px; background: #111; border-radius: 6px; display: flex; justify-content: space-between; align-items: center;">
+        <span style="font-size: 9px; color: #888;">Retention</span>
+        <span style="font-size: 13px; font-weight: 700;">87%</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="pipe-header">
+      <span class="card-title" style="margin-bottom: 0">Acquisition Pipeline</span>
+      <span class="pipe-total">38 words</span>
+    </div>
+
+    <div class="box-row">
+      <div class="box-marker" style="opacity: 1;"></div>
+      <div class="box-name">Box 1</div>
+      <div class="box-bar-bg">
+        <div class="box-bar-fill" style="width: 60%; background: linear-gradient(90deg, rgba(251,191,36,0.3), rgba(251,191,36,0.08));">
+          <span class="box-bar-num">18</span>
+        </div>
+        <span class="box-interval" style="position: absolute; right: 6px; top: 50%; transform: translateY(-50%);">4h</span>
+      </div>
+      <div class="box-due">8 due</div>
+    </div>
+    <div class="box-row">
+      <div class="box-marker" style="opacity: 0.6;"></div>
+      <div class="box-name">Box 2</div>
+      <div class="box-bar-bg">
+        <div class="box-bar-fill" style="width: 40%; background: linear-gradient(90deg, rgba(251,191,36,0.2), rgba(251,191,36,0.05));">
+          <span class="box-bar-num">12</span>
+        </div>
+        <span class="box-interval" style="position: absolute; right: 6px; top: 50%; transform: translateY(-50%);">1d</span>
+      </div>
+      <div class="box-due">3 due</div>
+    </div>
+    <div class="box-row">
+      <div class="box-marker" style="opacity: 0.3;"></div>
+      <div class="box-name">Box 3</div>
+      <div class="box-bar-bg">
+        <div class="box-bar-fill" style="width: 27%; background: linear-gradient(90deg, rgba(251,191,36,0.12), rgba(251,191,36,0.02));">
+          <span class="box-bar-num">8</span>
+        </div>
+        <span class="box-interval" style="position: absolute; right: 6px; top: 50%; transform: translateY(-50%);">3d</span>
+      </div>
+      <div class="box-due">1 due</div>
+    </div>
+
+    <div class="throughput">
+      <div class="tp">
+        <div class="tp-val" style="color: #fbbf24">6/d</div>
+        <div class="tp-label">Entering</div>
+      </div>
+      <div class="tp">
+        <div class="tp-val" style="color: #2dd4bf">3/d</div>
+        <div class="tp-label">Graduating</div>
+      </div>
+      <div class="tp">
+        <div class="tp-val">82%</div>
+        <div class="tp-label">Grad Rate</div>
+      </div>
+      <div class="tp">
+        <div class="tp-val">~9</div>
+        <div class="tp-label">To Grad</div>
+      </div>
+      <div class="tp">
+        <div class="tp-val" style="color: #fbbf24">4.2d</div>
+        <div class="tp-label">Avg Time</div>
+      </div>
+    </div>
+
+    <div class="balance-bar">
+      <div class="balance-track">
+        <div style="flex: 6; background: rgba(251,191,36,0.35); border-radius: 3px 0 0 3px;"></div>
+        <div style="flex: 3; background: rgba(45,212,191,0.35);"></div>
+        <div style="flex: 1; background: rgba(248,113,113,0.3); border-radius: 0 3px 3px 0;"></div>
+      </div>
+      <div class="balance-labels">
+        <span>6 entering</span>
+        <span>3 graduating</span>
+        <span style="color: #f87171">1 lost</span>
+      </div>
+    </div>
+
+    <div class="health-banner">
+      <div class="health-dot" style="background: #2dd4bf;"></div>
+      <span class="health-text" style="color: #2dd4bf;">2:1 ratio — pipeline balanced</span>
+    </div>
+
+    <div class="grads">
+      <div class="grad-title">Recently graduated</div>
+      <div class="grad-list">
+        <span class="grad-pill">سَمَاء <span class="grad-time">2h</span></span>
+        <span class="grad-pill">يَوم <span class="grad-time">5h</span></span>
+        <span class="grad-pill">وَلَد <span class="grad-time">1d</span></span>
+      </div>
+    </div>
+  </div>
+</div>
+</section>

@@ -1,0 +1,524 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Word Tables — Preview</title>
+<link href="https://fonts.googleapis.com/css2?family=Scheherazade+New:wght@400;700&family=Noto+Sans:ital,wght@0,400;0,600;0,700;1,400&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0f0f1a;
+    --surface: #1a1a2e;
+    --surface-light: #252542;
+    --text: #e8e8f0;
+    --text-secondary: #8888a0;
+    --arabic: #f0f0ff;
+    --accent: #4a9eff;
+    --got-it: #2ecc71;
+    --no-idea: #e67e22;
+    --missed: #e74c3c;
+    --border: #2a2a45;
+    --purple: #9b59b6;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: #080810;
+    font-family: 'Noto Sans', sans-serif;
+    color: var(--text);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 40px 16px 80px;
+    min-height: 100vh;
+  }
+
+  .page-title {
+    font-size: 11px;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: var(--text-secondary);
+    margin-bottom: 32px;
+    opacity: 0.6;
+  }
+
+  .context-label {
+    font-size: 10px;
+    letter-spacing: 2.5px;
+    text-transform: uppercase;
+    color: var(--text-secondary);
+    margin-bottom: 12px;
+    margin-top: 48px;
+    opacity: 0.4;
+  }
+
+  .context-label:first-of-type { margin-top: 0; }
+
+  /* Phone frame */
+  .phone {
+    width: 390px;
+    max-width: 100%;
+    background: var(--bg);
+    border-radius: 20px;
+    padding: 24px 16px;
+    border: 1px solid var(--border);
+    position: relative;
+    overflow: hidden;
+  }
+
+  .phone::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 50%;
+    transform: translateX(-50%);
+    width: 120px; height: 4px;
+    background: var(--surface-light);
+    border-radius: 0 0 4px 4px;
+  }
+
+  /* Session complete mock */
+  .session-header { text-align: center; margin-bottom: 20px; padding-top: 8px; }
+  .session-title { font-size: 22px; font-weight: 700; color: var(--text); margin-bottom: 4px; }
+  .session-subtitle { font-size: 13px; color: var(--text-secondary); }
+
+  .next-btn {
+    display: block; width: 100%; padding: 14px;
+    background: var(--accent); color: #fff; border: none; border-radius: 12px;
+    font-size: 16px; font-weight: 700; font-family: 'Noto Sans', sans-serif;
+    text-align: center; margin-bottom: 20px;
+  }
+
+  .journey-mock { padding: 12px 0; margin-bottom: 16px; border-bottom: 1px solid var(--border); }
+  .journey-node { display: flex; align-items: flex-start; gap: 10px; margin-bottom: 10px; }
+  .journey-node:last-child { margin-bottom: 0; }
+  .journey-dot { width: 8px; height: 8px; border-radius: 50%; margin-top: 5px; flex-shrink: 0; }
+  .journey-text { font-size: 13px; font-weight: 600; }
+  .journey-detail { font-size: 11px; color: var(--text-secondary); margin-top: 2px; }
+
+  /* ═══ SHARED TABLE STYLES ═══ */
+  .word-table-container { width: 100%; max-width: 420px; margin-bottom: 16px; }
+
+  .word-table-title {
+    font-size: 13px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: 8px;
+    text-align: center;
+  }
+
+  .word-table-title--intro { color: var(--accent); }
+  .word-table-title--grad  { color: var(--got-it); }
+
+  .word-table {
+    background: var(--surface);
+    border-radius: 12px;
+    overflow: hidden;
+  }
+
+  .word-table-header {
+    display: flex;
+    align-items: center;
+    padding: 6px 12px;
+    gap: 8px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .word-table-hcell {
+    font-size: 10px;
+    color: var(--text-secondary);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  .word-table-row {
+    display: flex;
+    align-items: center;
+    padding: 8px 12px;
+    gap: 8px;
+    border-bottom: 0.5px solid var(--border);
+  }
+
+  .word-table-row:last-child { border-bottom: none; }
+
+  /* Source column */
+  .wt-source {
+    display: flex;
+    align-items: center;
+    width: 90px;
+    gap: 5px;
+    flex-shrink: 0;
+  }
+
+  .wt-source-dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  .wt-source-text {
+    font-size: 11px;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+
+  /* Arabic column */
+  .wt-arabic {
+    font-size: 20px;
+    font-family: 'Scheherazade New', serif;
+    color: var(--arabic);
+    direction: rtl;
+    min-width: 55px;
+    text-align: right;
+    flex-shrink: 0;
+  }
+
+  /* Translit column */
+  .wt-translit {
+    font-size: 12px;
+    font-style: italic;
+    color: var(--text-secondary);
+    flex: 1;
+    min-width: 40px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  /* English column */
+  .wt-english {
+    font-size: 13px;
+    color: var(--text);
+    flex: 1;
+    text-align: right;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  /* Started column (graduated only) */
+  .wt-started {
+    font-size: 10px;
+    color: var(--text-secondary);
+    width: 52px;
+    text-align: right;
+    flex-shrink: 0;
+  }
+
+  /* Stats page mock */
+  .stats-hero { padding-top: 8px; }
+  .stats-section-label { font-size: 11px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--text-secondary); font-weight: 600; margin-bottom: 12px; }
+  .stats-mini-row { display: flex; gap: 24px; margin-bottom: 16px; }
+  .stats-mini-item { text-align: center; }
+  .stats-mini-num { font-size: 20px; font-weight: 700; }
+  .stats-mini-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-secondary); }
+  .progress-bar { height: 6px; background: var(--surface-light); border-radius: 3px; overflow: hidden; margin-bottom: 6px; }
+  .progress-fill { height: 100%; background: var(--got-it); border-radius: 3px; }
+  .progress-labels { display: flex; justify-content: space-between; font-size: 11px; margin-bottom: 16px; }
+  .divider { height: 1px; background: var(--border); margin: 16px 0; }
+
+  @keyframes fadeSlideUp {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .word-table-row { animation: fadeSlideUp 0.3s ease both; }
+  .word-table-row:nth-child(2) { animation-delay: 0.05s; }
+  .word-table-row:nth-child(3) { animation-delay: 0.1s; }
+  .word-table-row:nth-child(4) { animation-delay: 0.15s; }
+  .word-table-row:nth-child(5) { animation-delay: 0.2s; }
+  .word-table-row:nth-child(6) { animation-delay: 0.25s; }
+  .word-table-row:nth-child(7) { animation-delay: 0.3s; }
+  .word-table-row:nth-child(8) { animation-delay: 0.35s; }
+  .word-table-row:nth-child(9) { animation-delay: 0.4s; }
+</style>
+</head>
+<body>
+
+<div class="page-title">Graduated &amp; Introduced Word Tables — Preview</div>
+
+<!-- ═══════════════════════════════════════════ -->
+<!-- CONTEXT 1: SESSION COMPLETE                -->
+<!-- ═══════════════════════════════════════════ -->
+<div class="context-label">Context 1 — Session Complete Card</div>
+
+<div class="phone">
+  <div class="session-header">
+    <div class="session-title">2 words graduated!</div>
+    <div class="session-subtitle">8 sentences in reading mode</div>
+  </div>
+
+  <button class="next-btn">Next Session</button>
+
+  <div class="journey-mock">
+    <div class="journey-node">
+      <div class="journey-dot" style="background: var(--got-it)"></div>
+      <div>
+        <div class="journey-text" style="color: var(--got-it)">2 words graduated</div>
+        <div class="journey-detail">Moved to long-term memory</div>
+      </div>
+    </div>
+    <div class="journey-node">
+      <div class="journey-dot" style="background: var(--no-idea)"></div>
+      <div>
+        <div class="journey-text" style="color: var(--no-idea)">3 words advanced</div>
+        <div class="journey-detail">Box 1→2: 2 · Box 2→3: 1</div>
+      </div>
+    </div>
+    <div class="journey-node">
+      <div class="journey-dot" style="background: var(--accent)"></div>
+      <div>
+        <div class="journey-text" style="color: var(--accent)">7 of 8 sentences fully understood</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ★ GRADUATED TABLE ★ -->
+  <div class="word-table-container">
+    <div class="word-table-title word-table-title--grad">2 words graduated</div>
+    <div class="word-table">
+      <div class="word-table-header">
+        <div class="word-table-hcell" style="width: 90px">Source</div>
+        <div class="word-table-hcell" style="min-width: 55px; text-align: right">Arabic</div>
+        <div class="word-table-hcell" style="flex: 1">Translit.</div>
+        <div class="word-table-hcell" style="flex: 1; text-align: right">English</div>
+        <div class="word-table-hcell" style="width: 52px; text-align: right">Started</div>
+      </div>
+      <div class="word-table-row">
+        <div class="wt-source">
+          <div class="wt-source-dot" style="background: var(--got-it)"></div>
+          <span class="wt-source-text" style="color: var(--got-it)">Learn mode</span>
+        </div>
+        <div class="wt-arabic">عَمَل</div>
+        <div class="wt-translit">ʿamal</div>
+        <div class="wt-english">work</div>
+        <div class="wt-started">5d ago</div>
+      </div>
+      <div class="word-table-row">
+        <div class="wt-source">
+          <div class="wt-source-dot" style="background: var(--accent)"></div>
+          <span class="wt-source-text" style="color: var(--accent)">Auto</span>
+        </div>
+        <div class="wt-arabic">كَبِير</div>
+        <div class="wt-translit">kabīr</div>
+        <div class="wt-english">big</div>
+        <div class="wt-started">3d ago</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ★ INTRODUCED TABLE ★ -->
+  <div class="word-table-container">
+    <div class="word-table-title word-table-title--intro">4 new words started</div>
+    <div class="word-table">
+      <div class="word-table-header">
+        <div class="word-table-hcell" style="width: 90px">Source</div>
+        <div class="word-table-hcell" style="min-width: 55px; text-align: right">Arabic</div>
+        <div class="word-table-hcell" style="flex: 1">Translit.</div>
+        <div class="word-table-hcell" style="flex: 1; text-align: right">English</div>
+      </div>
+      <div class="word-table-row">
+        <div class="wt-source">
+          <div class="wt-source-dot" style="background: var(--accent)"></div>
+          <span class="wt-source-text" style="color: var(--accent)">Auto</span>
+        </div>
+        <div class="wt-arabic">كِتَاب</div>
+        <div class="wt-translit">kitāb</div>
+        <div class="wt-english">book</div>
+      </div>
+      <div class="word-table-row">
+        <div class="wt-source">
+          <div class="wt-source-dot" style="background: var(--accent)"></div>
+          <span class="wt-source-text" style="color: var(--accent)">Auto</span>
+        </div>
+        <div class="wt-arabic">مَدْرَسَة</div>
+        <div class="wt-translit">madrasa</div>
+        <div class="wt-english">school</div>
+      </div>
+      <div class="word-table-row">
+        <div class="wt-source">
+          <div class="wt-source-dot" style="background: var(--got-it)"></div>
+          <span class="wt-source-text" style="color: var(--got-it)">Learn mode</span>
+        </div>
+        <div class="wt-arabic">قَلَم</div>
+        <div class="wt-translit">qalam</div>
+        <div class="wt-english">pen</div>
+      </div>
+      <div class="word-table-row">
+        <div class="wt-source">
+          <div class="wt-source-dot" style="background: var(--missed)"></div>
+          <span class="wt-source-text" style="color: var(--missed)">Reintroduced</span>
+        </div>
+        <div class="wt-arabic">شَمْس</div>
+        <div class="wt-translit">shams</div>
+        <div class="wt-english">sun</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════ -->
+<!-- CONTEXT 2: TODAY'S STATS                   -->
+<!-- ═══════════════════════════════════════════ -->
+<div class="context-label">Context 2 — Today's Stats (TodayHeroCard)</div>
+
+<div class="phone">
+  <div class="stats-hero">
+    <div class="stats-section-label">Today</div>
+
+    <div class="progress-bar">
+      <div class="progress-fill" style="width: 72%"></div>
+    </div>
+    <div class="progress-labels">
+      <span style="color: var(--got-it)">18 reviewed</span>
+      <span style="color: var(--accent)">7 remaining</span>
+    </div>
+
+    <div class="stats-mini-row">
+      <div class="stats-mini-item">
+        <div class="stats-mini-num" style="color: #2dd4bf">12</div>
+        <div class="stats-mini-label">Sentences</div>
+      </div>
+      <div class="stats-mini-item">
+        <div class="stats-mini-num" style="color: var(--got-it)">3</div>
+        <div class="stats-mini-label">Graduated</div>
+      </div>
+    </div>
+
+    <div class="divider"></div>
+
+    <!-- ★ GRADUATED TABLE ★ -->
+    <div class="word-table-container">
+      <div class="word-table-title word-table-title--grad">3 words graduated</div>
+      <div class="word-table">
+        <div class="word-table-header">
+          <div class="word-table-hcell" style="width: 90px">Source</div>
+          <div class="word-table-hcell" style="min-width: 55px; text-align: right">Arabic</div>
+          <div class="word-table-hcell" style="flex: 1">Translit.</div>
+          <div class="word-table-hcell" style="flex: 1; text-align: right">English</div>
+          <div class="word-table-hcell" style="width: 52px; text-align: right">Started</div>
+        </div>
+        <div class="word-table-row">
+          <div class="wt-source">
+            <div class="wt-source-dot" style="background: var(--got-it)"></div>
+            <span class="wt-source-text" style="color: var(--got-it)">Learn mode</span>
+          </div>
+          <div class="wt-arabic">عَمَل</div>
+          <div class="wt-translit">ʿamal</div>
+          <div class="wt-english">work</div>
+          <div class="wt-started">5d ago</div>
+        </div>
+        <div class="word-table-row">
+          <div class="wt-source">
+            <div class="wt-source-dot" style="background: var(--accent)"></div>
+            <span class="wt-source-text" style="color: var(--accent)">Auto</span>
+          </div>
+          <div class="wt-arabic">كَبِير</div>
+          <div class="wt-translit">kabīr</div>
+          <div class="wt-english">big</div>
+          <div class="wt-started">3d ago</div>
+        </div>
+        <div class="word-table-row">
+          <div class="wt-source">
+            <div class="wt-source-dot" style="background: var(--no-idea)"></div>
+            <span class="wt-source-text" style="color: var(--no-idea)">Textbook OCR</span>
+          </div>
+          <div class="wt-arabic">يَوْم</div>
+          <div class="wt-translit">yawm</div>
+          <div class="wt-english">day</div>
+          <div class="wt-started">1w ago</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ★ INTRODUCED TABLE ★ -->
+    <div class="word-table-container">
+      <div class="word-table-title word-table-title--intro">8 new words started</div>
+      <div class="word-table">
+        <div class="word-table-header">
+          <div class="word-table-hcell" style="width: 90px">Source</div>
+          <div class="word-table-hcell" style="min-width: 55px; text-align: right">Arabic</div>
+          <div class="word-table-hcell" style="flex: 1">Translit.</div>
+          <div class="word-table-hcell" style="flex: 1; text-align: right">English</div>
+        </div>
+        <div class="word-table-row">
+          <div class="wt-source">
+            <div class="wt-source-dot" style="background: var(--accent)"></div>
+            <span class="wt-source-text" style="color: var(--accent)">Auto</span>
+          </div>
+          <div class="wt-arabic">كِتَاب</div>
+          <div class="wt-translit">kitāb</div>
+          <div class="wt-english">book</div>
+        </div>
+        <div class="word-table-row">
+          <div class="wt-source">
+            <div class="wt-source-dot" style="background: var(--accent)"></div>
+            <span class="wt-source-text" style="color: var(--accent)">Auto</span>
+          </div>
+          <div class="wt-arabic">طَبِيب</div>
+          <div class="wt-translit">ṭabīb</div>
+          <div class="wt-english">doctor</div>
+        </div>
+        <div class="word-table-row">
+          <div class="wt-source">
+            <div class="wt-source-dot" style="background: var(--got-it)"></div>
+            <span class="wt-source-text" style="color: var(--got-it)">Learn mode</span>
+          </div>
+          <div class="wt-arabic">صَدِيق</div>
+          <div class="wt-translit">ṣadīq</div>
+          <div class="wt-english">friend</div>
+        </div>
+        <div class="word-table-row">
+          <div class="wt-source">
+            <div class="wt-source-dot" style="background: var(--no-idea)"></div>
+            <span class="wt-source-text" style="color: var(--no-idea)">Textbook OCR</span>
+          </div>
+          <div class="wt-arabic">سَيَّارَة</div>
+          <div class="wt-translit">sayyāra</div>
+          <div class="wt-english">car</div>
+        </div>
+        <div class="word-table-row">
+          <div class="wt-source">
+            <div class="wt-source-dot" style="background: var(--purple)"></div>
+            <span class="wt-source-text" style="color: var(--purple)">Book</span>
+          </div>
+          <div class="wt-arabic">مَكْتَبَة</div>
+          <div class="wt-translit">maktaba</div>
+          <div class="wt-english">library</div>
+        </div>
+        <div class="word-table-row">
+          <div class="wt-source">
+            <div class="wt-source-dot" style="background: var(--accent)"></div>
+            <span class="wt-source-text" style="color: var(--accent)">Auto</span>
+          </div>
+          <div class="wt-arabic">بَيْت</div>
+          <div class="wt-translit">bayt</div>
+          <div class="wt-english">house</div>
+        </div>
+        <div class="word-table-row">
+          <div class="wt-source">
+            <div class="wt-source-dot" style="background: var(--no-idea)"></div>
+            <span class="wt-source-text" style="color: var(--no-idea)">Textbook OCR</span>
+          </div>
+          <div class="wt-arabic">وَلَد</div>
+          <div class="wt-translit">walad</div>
+          <div class="wt-english">boy</div>
+        </div>
+        <div class="word-table-row">
+          <div class="wt-source">
+            <div class="wt-source-dot" style="background: var(--missed)"></div>
+            <span class="wt-source-text" style="color: var(--missed)">Reintroduced</span>
+          </div>
+          <div class="wt-arabic">شَمْس</div>
+          <div class="wt-translit">shams</div>
+          <div class="wt-english">sun</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

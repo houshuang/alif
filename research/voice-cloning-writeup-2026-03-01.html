@@ -1,0 +1,1114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cloning an Arabic Teacher's Voice — A Field Report</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=DM+Mono:wght@300;400;500&family=Source+Serif+4:ital,opsz,wght@0,8..60,300;0,8..60,400;0,8..60,600;1,8..60,400&display=swap" rel="stylesheet">
+<style>
+:root {
+  --ink: #1a1a18;
+  --paper: #f5f0e8;
+  --paper-warm: #ede7db;
+  --accent: #c23616;
+  --accent-dim: #c2361633;
+  --blue: #2d5f8a;
+  --blue-dim: #2d5f8a22;
+  --green: #3a7d44;
+  --green-dim: #3a7d4422;
+  --purple: #6a4c93;
+  --purple-dim: #6a4c9322;
+  --orange: #d4820a;
+  --orange-dim: #d4820a22;
+  --gray: #8a8578;
+  --gray-light: #d4cfc5;
+  --gray-lighter: #e8e3d9;
+  --mono: 'DM Mono', 'Menlo', monospace;
+  --serif: 'Source Serif 4', 'Georgia', serif;
+  --display: 'Instrument Serif', 'Georgia', serif;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+html {
+  font-size: 17px;
+  scroll-behavior: smooth;
+  scrollbar-width: thin;
+  scrollbar-color: var(--gray-light) transparent;
+}
+
+body {
+  font-family: var(--serif);
+  color: var(--ink);
+  background: var(--paper);
+  line-height: 1.7;
+  -webkit-font-smoothing: antialiased;
+}
+
+::selection {
+  background: var(--accent-dim);
+  color: var(--ink);
+}
+
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 9999;
+  opacity: 0.03;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+}
+
+.page-container {
+  max-width: 820px;
+  margin: 0 auto;
+  padding: 0 2rem;
+}
+
+/* ─── HEADER ─── */
+.page-header {
+  padding: 6rem 0 4rem;
+  border-bottom: 1px solid var(--ink);
+  margin-bottom: 3rem;
+}
+
+.page-header .kicker {
+  font-family: var(--mono);
+  font-size: 0.7rem;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin-bottom: 1.5rem;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.kicker::before {
+  content: '';
+  display: inline-block;
+  width: 2rem;
+  height: 1px;
+  background: var(--accent);
+}
+
+.page-header h1 {
+  font-family: var(--display);
+  font-size: 3.2rem;
+  font-weight: 400;
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+  margin-bottom: 1.5rem;
+}
+
+.page-header .subtitle {
+  font-size: 1.15rem;
+  color: var(--gray);
+  max-width: 38rem;
+  line-height: 1.6;
+}
+
+.page-header .meta {
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  color: var(--gray);
+  margin-top: 2rem;
+  display: flex;
+  gap: 2rem;
+  flex-wrap: wrap;
+}
+
+.meta-item {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+/* ─── TABLE OF CONTENTS ─── */
+.toc {
+  background: var(--paper-warm);
+  border: 1px solid var(--gray-light);
+  padding: 2rem 2.5rem;
+  margin-bottom: 4rem;
+  position: relative;
+}
+
+.toc::before {
+  content: 'Contents';
+  font-family: var(--mono);
+  font-size: 0.65rem;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--gray);
+  position: absolute;
+  top: -0.5rem;
+  left: 1.5rem;
+  background: var(--paper-warm);
+  padding: 0 0.5rem;
+}
+
+.toc ol {
+  list-style: none;
+  counter-reset: toc-counter;
+  columns: 2;
+  column-gap: 3rem;
+}
+
+.toc li {
+  counter-increment: toc-counter;
+  break-inside: avoid;
+  margin-bottom: 0.5rem;
+}
+
+.toc a {
+  font-family: var(--mono);
+  font-size: 0.78rem;
+  color: var(--ink);
+  text-decoration: none;
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
+  transition: color 0.15s;
+}
+
+.toc a::before {
+  content: counter(toc-counter, decimal-leading-zero);
+  color: var(--gray);
+  font-size: 0.65rem;
+  flex-shrink: 0;
+}
+
+.toc a:hover { color: var(--accent); }
+
+/* ─── SECTIONS ─── */
+section {
+  margin-bottom: 4.5rem;
+}
+
+.section-number {
+  font-family: var(--mono);
+  font-size: 0.65rem;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--gray);
+  margin-bottom: 0.75rem;
+  display: block;
+}
+
+h2 {
+  font-family: var(--display);
+  font-size: 2rem;
+  font-weight: 400;
+  line-height: 1.25;
+  margin-bottom: 1.5rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid var(--gray-light);
+}
+
+h3 {
+  font-family: var(--display);
+  font-size: 1.35rem;
+  font-weight: 400;
+  margin-top: 2.5rem;
+  margin-bottom: 1rem;
+  color: var(--ink);
+}
+
+h4 {
+  font-family: var(--mono);
+  font-size: 0.78rem;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--gray);
+  margin-top: 2rem;
+  margin-bottom: 0.75rem;
+}
+
+p { margin-bottom: 1.2rem; }
+strong { font-weight: 600; }
+
+a { color: var(--blue); text-decoration: none; border-bottom: 1px solid var(--blue-dim); transition: all 0.15s; }
+a:hover { border-color: var(--blue); }
+
+/* ─── CODE ─── */
+code {
+  font-family: var(--mono);
+  font-size: 0.82em;
+  background: var(--paper-warm);
+  padding: 0.1em 0.4em;
+  border-radius: 2px;
+  border: 1px solid var(--gray-lighter);
+}
+
+pre {
+  background: var(--ink);
+  color: #e8e3d9;
+  padding: 1.5rem 2rem;
+  margin: 1.5rem 0;
+  overflow-x: auto;
+  font-family: var(--mono);
+  font-size: 0.78rem;
+  line-height: 1.75;
+  border-left: 3px solid var(--accent);
+  position: relative;
+}
+
+pre code {
+  background: none;
+  border: none;
+  padding: 0;
+  font-size: inherit;
+  color: inherit;
+}
+
+pre .file-label {
+  position: absolute;
+  top: 0;
+  right: 0;
+  background: var(--accent);
+  color: var(--paper);
+  font-family: var(--mono);
+  font-size: 0.62rem;
+  padding: 0.25rem 0.75rem;
+  letter-spacing: 0.05em;
+}
+
+.comment { color: #7a7568; font-style: italic; }
+.keyword { color: #d4820a; }
+.string { color: #3a7d44; }
+.type { color: #6a9fd4; }
+.fn { color: #d4a86a; }
+
+/* ─── DIAGRAMS ─── */
+.diagram-container {
+  margin: 2rem 0;
+  padding: 2.5rem 2rem;
+  background: white;
+  border: 1px solid var(--gray-light);
+  position: relative;
+  overflow: hidden;
+}
+
+.diagram-container::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, var(--accent), var(--blue), var(--green), var(--purple));
+}
+
+.diagram-label {
+  font-family: var(--mono);
+  font-size: 0.62rem;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--gray);
+  margin-bottom: 1.5rem;
+}
+
+.flow {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  align-items: center;
+}
+
+.flow-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  width: 100%;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.flow-box {
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  padding: 0.6rem 1.2rem;
+  border: 1.5px solid;
+  background: white;
+  text-align: center;
+  min-width: 120px;
+  position: relative;
+  line-height: 1.4;
+}
+
+.flow-box.accent { border-color: var(--accent); color: var(--accent); }
+.flow-box.blue { border-color: var(--blue); color: var(--blue); background: var(--blue-dim); }
+.flow-box.green { border-color: var(--green); color: var(--green); background: var(--green-dim); }
+.flow-box.purple { border-color: var(--purple); color: var(--purple); background: var(--purple-dim); }
+.flow-box.orange { border-color: var(--orange); color: var(--orange); background: var(--orange-dim); }
+.flow-box.filled { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+
+.flow-box small {
+  display: block;
+  font-size: 0.6rem;
+  opacity: 0.7;
+  margin-top: 0.2rem;
+}
+
+.flow-arrow {
+  font-family: var(--mono);
+  font-size: 0.9rem;
+  color: var(--gray);
+  text-align: center;
+  padding: 0.3rem 0;
+  user-select: none;
+}
+
+.flow-arrow.horizontal {
+  padding: 0 0.25rem;
+}
+
+.flow-note {
+  font-family: var(--mono);
+  font-size: 0.62rem;
+  color: var(--gray);
+  text-align: center;
+  padding: 0.15rem 0;
+  font-style: italic;
+}
+
+/* ─── CALLOUTS ─── */
+.callout {
+  border-left: 3px solid;
+  padding: 1.25rem 1.5rem;
+  margin: 1.5rem 0;
+  background: white;
+  font-size: 0.92rem;
+}
+
+.callout.insight { border-color: var(--blue); }
+.callout.warning { border-color: var(--orange); }
+.callout.pattern { border-color: var(--green); }
+.callout.tradeoff { border-color: var(--purple); }
+
+.callout-label {
+  font-family: var(--mono);
+  font-size: 0.65rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  margin-bottom: 0.5rem;
+  display: block;
+}
+
+.callout.insight .callout-label { color: var(--blue); }
+.callout.warning .callout-label { color: var(--orange); }
+.callout.pattern .callout-label { color: var(--green); }
+.callout.tradeoff .callout-label { color: var(--purple); }
+
+/* ─── STATS GRID ─── */
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 1rem;
+  margin: 2rem 0;
+}
+
+.stat-card {
+  background: white;
+  border: 1px solid var(--gray-light);
+  padding: 1.25rem 1.5rem;
+  text-align: center;
+}
+
+.stat-number {
+  font-family: var(--display);
+  font-size: 2.2rem;
+  font-weight: 400;
+  color: var(--accent);
+  line-height: 1.1;
+}
+
+.stat-label {
+  font-family: var(--mono);
+  font-size: 0.62rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--gray);
+  margin-top: 0.4rem;
+}
+
+/* ─── TIMELINE ─── */
+.timeline {
+  position: relative;
+  padding-left: 2.5rem;
+  margin: 2rem 0;
+}
+
+.timeline::before {
+  content: '';
+  position: absolute;
+  left: 0.5rem;
+  top: 0.5rem;
+  bottom: 0.5rem;
+  width: 2px;
+  background: var(--gray-light);
+}
+
+.timeline-entry {
+  position: relative;
+  margin-bottom: 2rem;
+  padding-left: 0.5rem;
+}
+
+.timeline-entry::before {
+  content: '';
+  position: absolute;
+  left: -2.35rem;
+  top: 0.5rem;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  border: 2px solid var(--gray-light);
+  background: var(--paper);
+}
+
+.timeline-entry.success::before {
+  border-color: var(--green);
+  background: var(--green);
+}
+
+.timeline-entry.fail::before {
+  border-color: var(--accent);
+  background: var(--accent);
+}
+
+.timeline-entry.pivot::before {
+  border-color: var(--orange);
+  background: var(--orange);
+}
+
+.timeline-label {
+  font-family: var(--mono);
+  font-size: 0.65rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--gray);
+  margin-bottom: 0.3rem;
+}
+
+.timeline-title {
+  font-family: var(--display);
+  font-size: 1.15rem;
+  margin-bottom: 0.5rem;
+}
+
+.timeline-body {
+  font-size: 0.92rem;
+  color: var(--ink);
+}
+
+/* ─── COMPARISON TABLE ─── */
+.comparison {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 1.5rem 0;
+  font-size: 0.88rem;
+}
+
+.comparison th {
+  font-family: var(--mono);
+  font-size: 0.65rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--gray);
+  text-align: left;
+  padding: 0.75rem 1rem;
+  border-bottom: 2px solid var(--gray-light);
+  font-weight: 500;
+}
+
+.comparison td {
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid var(--gray-lighter);
+  vertical-align: top;
+}
+
+.comparison .label-cell {
+  font-family: var(--mono);
+  font-size: 0.78rem;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.comparison .verdict {
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  padding: 0.15rem 0.5rem;
+  border-radius: 2px;
+  display: inline-block;
+}
+
+.verdict.yes { background: var(--green-dim); color: var(--green); }
+.verdict.no { background: var(--accent-dim); color: var(--accent); }
+.verdict.maybe { background: var(--orange-dim); color: var(--orange); }
+
+/* ─── ARABIC SAMPLES ─── */
+.arabic-sample {
+  font-size: 1.5rem;
+  direction: rtl;
+  text-align: right;
+  font-family: 'Noto Sans Arabic', 'Geeza Pro', serif;
+  line-height: 2;
+  background: white;
+  border: 1px solid var(--gray-light);
+  padding: 1.25rem 1.5rem;
+  margin: 1rem 0;
+  color: var(--ink);
+}
+
+.arabic-sample .translation {
+  display: block;
+  direction: ltr;
+  text-align: left;
+  font-family: var(--serif);
+  font-size: 0.85rem;
+  color: var(--gray);
+  margin-top: 0.5rem;
+  font-style: italic;
+}
+
+/* ─── BLOCKQUOTE ─── */
+blockquote {
+  border-left: 3px solid var(--gray-light);
+  padding-left: 1.5rem;
+  margin: 1.5rem 0;
+  color: var(--gray);
+  font-style: italic;
+}
+
+blockquote cite {
+  display: block;
+  font-style: normal;
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  margin-top: 0.5rem;
+  color: var(--gray);
+}
+
+/* ─── FOOTER ─── */
+.page-footer {
+  border-top: 1px solid var(--ink);
+  padding: 3rem 0 6rem;
+  margin-top: 4rem;
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  color: var(--gray);
+  display: flex;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+/* ─── RESPONSIVE ─── */
+@media (max-width: 640px) {
+  html { font-size: 15px; }
+  .page-header h1 { font-size: 2.4rem; }
+  .toc ol { columns: 1; }
+  .stats-grid { grid-template-columns: repeat(2, 1fr); }
+}
+</style>
+</head>
+<body>
+
+<div class="page-container">
+
+<!-- ─── HEADER ─── -->
+<header class="page-header">
+  <div class="kicker">Field Report</div>
+  <h1>Cloning an Arabic Teacher's Voice</h1>
+  <p class="subtitle">
+    How I downloaded 157 minutes of audio from a TikToker's YouTube channel, fought three layers of platform defenses, and ended up with a surprisingly good Arabic voice clone for a personal learning app.
+  </p>
+  <div class="meta">
+    <span class="meta-item">March 2026</span>
+    <span class="meta-item">Alif — Arabic Learning App</span>
+    <span class="meta-item">ElevenLabs IVC</span>
+  </div>
+</header>
+
+<!-- ─── TOC ─── -->
+<nav class="toc">
+  <ol>
+    <li><a href="#motivation">The motivation</a></li>
+    <li><a href="#target">The target voice</a></li>
+    <li><a href="#tiktok">The TikTok wall</a></li>
+    <li><a href="#youtube">The YouTube pivot</a></li>
+    <li><a href="#elevenlabs">The ElevenLabs upload</a></li>
+    <li><a href="#result">The result</a></li>
+    <li><a href="#lessons">What I learned</a></li>
+    <li><a href="#next">What's next</a></li>
+  </ol>
+</nav>
+
+<!-- ════════════════════════════════════════════════════════ -->
+
+<section id="motivation">
+  <span class="section-number">01</span>
+  <h2>The Motivation</h2>
+
+  <p>
+    Alif, my Arabic learning app, uses ElevenLabs for text-to-speech. Every sentence the learner reviews can be read aloud — the Arabic script lights up, the audio plays, and you get both the reading and the listening in one pass. It's probably the feature I use most.
+  </p>
+  <p>
+    The problem is the voice. ElevenLabs' stock Arabic voices are fine — technically correct, clearly enunciated — but they sound like a GPS navigation system reading the Quran. There's no warmth, no teaching instinct, no sense that someone is speaking <em>to you</em>. The best language teachers have a particular cadence: they slow down on new vocabulary, they pause at clause boundaries, they repeat key phrases with slight variation. Stock TTS voices don't do this.
+  </p>
+  <p>
+    I've been watching a TikToker called <strong>RootsOfKnowledge</strong> who does exactly this. His "Slow Arabic" series is remarkable — deliberate, clear MSA (Modern Standard Arabic) with a natural teacher's rhythm. He speaks the way you'd want a tutor sitting across from you to speak: unhurried, warm, and precise. 25 years of teaching Arabic distilled into three-minute videos.
+  </p>
+
+  <div class="callout insight">
+    <span class="callout-label">The idea</span>
+    Clone his voice using ElevenLabs, then use it to generate TTS for every sentence in the app. The app already supports custom voice IDs — it would be a one-line config change to switch voices. The question was whether the pipeline from TikTok → audio extraction → voice cloning was actually feasible.
+  </div>
+</section>
+
+<!-- ════════════════════════════════════════════════════════ -->
+
+<section id="target">
+  <span class="section-number">02</span>
+  <h2>The Target Voice</h2>
+
+  <p>
+    <strong>@roots_of_knowledge</strong> on TikTok. 55,800 followers, 245,900 likes. His bio reads: <em>"I studied &amp; teach Arabic &amp; Islam for over 25 yrs. I make content for you."</em> He also has a YouTube channel, a Patreon, and a website at urooq.com.
+  </p>
+
+  <p>His content falls into several categories, but for voice cloning, the most useful are:</p>
+
+  <table class="comparison">
+    <thead>
+      <tr>
+        <th>Series</th>
+        <th>Content</th>
+        <th>Why it's useful</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td class="label-cell">العربية بالبطء</td>
+        <td>Slow Arabic monologues on everyday topics (food, coffee, cleaning)</td>
+        <td><span class="verdict yes">Ideal</span> — solo voice, slow clear speech, no music</td>
+      </tr>
+      <tr>
+        <td class="label-cell">Learn Arabic Convo</td>
+        <td>Short conversational Arabic with translation</td>
+        <td><span class="verdict yes">Ideal</span> — teaching register, measured pacing</td>
+      </tr>
+      <tr>
+        <td class="label-cell">Short Arabic Stories</td>
+        <td>Intermediate-level story narrations</td>
+        <td><span class="verdict yes">Good</span> — longer samples, varied intonation</td>
+      </tr>
+      <tr>
+        <td class="label-cell">Arabic Literature</td>
+        <td>Al-Manfalooti close reading sessions</td>
+        <td><span class="verdict maybe">Decent</span> — more formal register, good for range</td>
+      </tr>
+      <tr>
+        <td class="label-cell">Quran Lessons</td>
+        <td>Tajweed instruction, verse-by-verse</td>
+        <td><span class="verdict no">Skip</span> — Quranic recitation style ≠ conversational TTS</td>
+      </tr>
+    </tbody>
+  </table>
+</section>
+
+<!-- ════════════════════════════════════════════════════════ -->
+
+<section id="tiktok">
+  <span class="section-number">03</span>
+  <h2>The TikTok Wall</h2>
+
+  <p>
+    The plan seemed simple: use <code>yt-dlp</code> to download all his TikTok videos, extract the audio, upload to ElevenLabs. Twenty minutes of work, tops.
+  </p>
+
+  <p>It took considerably longer than twenty minutes.</p>
+
+  <h3>Attempt 1: yt-dlp direct</h3>
+
+  <pre><code>yt-dlp -x --audio-format mp3 "https://www.tiktok.com/@roots_of_knowledge"</code></pre>
+
+  <p>
+    Immediate failure. <code>Read timed out</code>. TikTok's servers simply refused to respond to yt-dlp's requests. The error message hinted at the problem: <em>"No supported JavaScript runtime could be found"</em> and <em>"This user's account is either private or has embedding disabled."</em> The account isn't private — TikTok just doesn't serve content to anything that doesn't look like a real browser.
+  </p>
+
+  <h3>Attempt 2: Browser impersonation</h3>
+
+  <p>
+    yt-dlp supports the <code>--impersonate chrome</code> flag, which spoofs a full browser TLS fingerprint. This requires the <code>curl_cffi</code> library — which wasn't installed. After installing it:
+  </p>
+
+  <pre><code>yt-dlp --impersonate chrome "https://www.tiktok.com/@roots_of_knowledge/video/..."</code></pre>
+
+  <p>
+    Exit code 134. A segfault — or something equally catastrophic deep in the impersonation layer. The process just died silently mid-download.
+  </p>
+
+  <h3>Attempt 3: Browser cookies</h3>
+
+  <pre><code>yt-dlp --impersonate chrome --cookies-from-browser chrome "..."</code></pre>
+
+  <p>
+    This hung at <em>"Extracting cookies from chrome"</em> indefinitely. Presumably Chrome's cookie store was locked, or the cookie format had changed. Killed after two minutes.
+  </p>
+
+  <h3>Attempt 4: Third-party APIs</h3>
+
+  <p>
+    Pivoted to tikwm.com, a popular TikTok scraping API. The user listing endpoint returned <strong>403 Forbidden</strong>. But interestingly, the individual video download endpoint worked — when given a specific video URL, it could return the video without watermark.
+  </p>
+
+  <p>The problem: I only knew three video URLs from web search results. I needed to enumerate all his videos first.</p>
+
+  <h3>Attempt 5: Browser automation</h3>
+
+  <p>
+    Launched a headless browser with <code>agent-browser</code> and navigated to his TikTok profile. The profile loaded — I could see his bio, follower count, playlists — but the video grid showed <strong>"Something went wrong. Sorry about that! Please try again later."</strong> TikTok detected the automated browser and refused to render the actual content.
+  </p>
+
+  <div class="callout warning">
+    <span class="callout-label">TikTok's defenses in 2026</span>
+    TikTok has implemented multiple layers of bot detection: TLS fingerprinting (blocks non-browser HTTP clients), CAPTCHA challenges (slider puzzles on profile pages), JavaScript rendering gates (video grid requires client-side JS execution with valid session), and behavioral analysis (automated scrolling patterns trigger content blocking). Each layer independently blocks a different class of scraping tool. Defeating all of them simultaneously is a serious engineering project.
+  </div>
+
+  <p>
+    After five failed approaches, the total video haul from TikTok was: <strong>3 videos</strong>, downloaded via the tikwm.com single-video endpoint using URLs found through web search. About 90 seconds of audio. Not enough.
+  </p>
+</section>
+
+<!-- ════════════════════════════════════════════════════════ -->
+
+<section id="youtube">
+  <span class="section-number">04</span>
+  <h2>The YouTube Pivot</h2>
+
+  <p>
+    The browser screenshot of his TikTok profile revealed something useful: his bio includes a YouTube link — <code>youtube.com/@rootsofknowledge</code>. YouTube is vastly more scraping-friendly than TikTok. One command:
+  </p>
+
+  <pre><code>yt-dlp --flat-playlist --print <span class="string">"%(id)s | %(title)s | %(duration)s"</span> \
+  <span class="string">"https://www.youtube.com/@rootsofknowledge/videos"</span></code></pre>
+
+  <p>
+    <strong>1,989 videos.</strong> Listed in under 30 seconds. No impersonation, no cookies, no CAPTCHA. YouTube still works.
+  </p>
+
+  <h3>Filtering for Arabic speech</h3>
+
+  <p>
+    Not all 1,989 videos are useful. Many are English-language Fiqh lectures or Quran tajweed lessons. For voice cloning, I needed his clear Arabic teaching voice — not Quranic recitation, not English commentary, not group discussions. Filtering by title keywords (<code>بالبطء</code>, "Slow Arabic", "Learn Arabic Convo", "Arabic Story") yielded 194 videos. From these, I selected the 21 cleanest:
+  </p>
+
+  <div class="stats-grid">
+    <div class="stat-card">
+      <div class="stat-number">1,989</div>
+      <div class="stat-label">Total videos</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-number">194</div>
+      <div class="stat-label">Arabic content</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-number">21</div>
+      <div class="stat-label">Selected</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-number">157 min</div>
+      <div class="stat-label">Total audio</div>
+    </div>
+  </div>
+
+  <h3>Downloading</h3>
+
+  <pre><code>yt-dlp -x --audio-format mp3 --audio-quality 0 \
+  -o <span class="string">"audio/%(id)s.%(ext)s"</span> \
+  <span class="string">"https://www.youtube.com/watch?v=${vid}"</span></code></pre>
+
+  <p>
+    All 21 files downloaded cleanly. 198MB of MP3 audio. yt-dlp complained about missing a JavaScript runtime (<em>"No supported JavaScript runtime could be found. Only deno is enabled by default"</em>) but still managed to download everything without it. The warning was cosmetic — some premium formats were unavailable, but the audio stream was fine.
+  </p>
+
+  <h4>The selection</h4>
+
+  <div class="diagram-container">
+    <div class="diagram-label">Audio corpus composition</div>
+    <div class="flow">
+      <div class="flow-row">
+        <div class="flow-box accent" style="min-width: 200px;">
+          Slow Arabic Series<br>
+          <small>4 files · 14.3 min</small>
+        </div>
+        <div class="flow-box blue" style="min-width: 200px;">
+          Learn Arabic Convo<br>
+          <small>6 files · 18.3 min</small>
+        </div>
+      </div>
+      <div class="flow-arrow">+</div>
+      <div class="flow-row">
+        <div class="flow-box green" style="min-width: 200px;">
+          Arabic Stories<br>
+          <small>3 files · 17.7 min</small>
+        </div>
+        <div class="flow-box purple" style="min-width: 200px;">
+          Traveller's Secret<br>
+          <small>7 files · 97.2 min</small>
+        </div>
+      </div>
+      <div class="flow-arrow">↓</div>
+      <div class="flow-row">
+        <div class="flow-box filled" style="min-width: 250px;">
+          Total: 20 files · 157 minutes<br>
+          <small>198 MB MP3</small>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ════════════════════════════════════════════════════════ -->
+
+<section id="elevenlabs">
+  <span class="section-number">05</span>
+  <h2>The ElevenLabs Upload</h2>
+
+  <p>
+    ElevenLabs offers two flavors of voice cloning: <strong>Instant Voice Clone</strong> (IVC) and <strong>Professional Voice Clone</strong> (PVC). IVC takes up to 45 minutes of audio, processes in seconds, and produces a usable voice immediately. PVC takes 30+ minutes of audio but trains a more accurate model over several hours. For a first test, IVC was the obvious choice.
+  </p>
+
+  <h3>The API key saga</h3>
+
+  <p>
+    The upload script was straightforward — multipart POST to <code>/v1/voices/add</code> with the audio files. But the first attempt failed:
+  </p>
+
+  <pre><code><span class="comment">// Response from ElevenLabs API</span>
+{
+  <span class="string">"status"</span>: <span class="string">"missing_permissions"</span>,
+  <span class="string">"message"</span>: <span class="string">"The API key you used is missing the permission
+              create_instant_voice_clone to execute this operation."</span>
+}</code></pre>
+
+  <p>
+    The existing API key — the one already used in Alif for TTS generation — was scoped to only text-to-speech. It couldn't create voices. ElevenLabs API keys have granular permissions, and the original key was deliberately minimal.
+  </p>
+
+  <p>
+    After updating the key permissions (which didn't seem to take effect — the API still rejected it), a completely new key was generated. This one worked, but came with its own surprise: the new key had a <strong>10-credit quota</strong> by default, far too small to generate any speech. The solution was using the new key for voice creation and the old key for TTS generation. Two keys, two purposes.
+  </p>
+
+  <h3>The 45-minute limit</h3>
+
+  <p>
+    The first upload attempt with the new key included all 13 shortest files — totaling about 48 minutes. ElevenLabs rejected it:
+  </p>
+
+  <pre><code>{
+  <span class="string">"status"</span>: <span class="string">"voice_too_long"</span>,
+  <span class="string">"message"</span>: <span class="string">"Voice samples must be at most 45 minutes long."</span>
+}</code></pre>
+
+  <p>
+    Trimmed to 11 files (~40 minutes) and tried again:
+  </p>
+
+  <pre><code><span class="comment">// The upload that worked</span>
+POST /v1/voices/add
+Content-Type: multipart/form-data
+
+name: <span class="string">"RootsOfKnowledge Arabic"</span>
+description: <span class="string">"Arabic teacher voice..."</span>
+labels: {language: <span class="string">"Arabic"</span>, accent: <span class="string">"MSA"</span>, gender: <span class="string">"male"</span>}
+remove_background_noise: <span class="keyword">true</span>
+files: <span class="comment">[11 MP3 files, 44.6 MB total]</span></code></pre>
+
+  <div class="timeline">
+    <div class="timeline-entry fail">
+      <div class="timeline-label">Attempt 1</div>
+      <div class="timeline-title">Original API key</div>
+      <div class="timeline-body">Missing <code>create_instant_voice_clone</code> permission. Key was scoped to TTS only.</div>
+    </div>
+    <div class="timeline-entry fail">
+      <div class="timeline-label">Attempt 2</div>
+      <div class="timeline-title">"Updated" permissions</div>
+      <div class="timeline-body">User reported updating permissions, but API still rejected. ElevenLabs may require key regeneration for permission changes.</div>
+    </div>
+    <div class="timeline-entry pivot">
+      <div class="timeline-label">Attempt 3</div>
+      <div class="timeline-title">Brand new API key</div>
+      <div class="timeline-body">New key with full permissions. Voice creation worked — but key had a 10-credit TTS quota, too low for generation.</div>
+    </div>
+    <div class="timeline-entry fail">
+      <div class="timeline-label">Attempt 4</div>
+      <div class="timeline-title">48 minutes of audio</div>
+      <div class="timeline-body"><code>voice_too_long</code> — IVC has a 45-minute ceiling. Trimmed to 40 minutes.</div>
+    </div>
+    <div class="timeline-entry success">
+      <div class="timeline-label">Attempt 5</div>
+      <div class="timeline-title">11 files, 40 minutes</div>
+      <div class="timeline-body">HTTP 200. Voice ID: <code>JzW9vpzYBpT1rNWw2hbd</code></div>
+    </div>
+  </div>
+</section>
+
+<!-- ════════════════════════════════════════════════════════ -->
+
+<section id="result">
+  <span class="section-number">06</span>
+  <h2>The Result</h2>
+
+  <p>
+    The voice was available instantly after the upload. Testing it with the original TTS API key (which has the right quota):
+  </p>
+
+  <div class="arabic-sample">
+    مرحباً، أنا أتعلم اللغة العربية. هذا صوت جميل جداً.
+    <span class="translation">"Hello, I am learning the Arabic language. This is a very beautiful voice."</span>
+  </div>
+
+  <p>
+    4.2 seconds of audio. 66KB MP3. Generated in under 2 seconds using <code>eleven_multilingual_v2</code> with the cloned voice. The voice is recognizably <em>him</em> — the warm baritone, the measured pacing, the slight breathiness between phrases. It's not perfect; the cloned voice is slightly smoother than his natural speech, losing some of the micro-hesitations that make a real teacher sound human. But for sentence-level TTS in a learning app, it's remarkably good.
+  </p>
+
+  <div class="stats-grid">
+    <div class="stat-card">
+      <div class="stat-number" style="font-size: 1.1rem; letter-spacing: -0.01em;">JzW9…2hbd</div>
+      <div class="stat-label">Voice ID</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-number">11</div>
+      <div class="stat-label">Training files</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-number">40 min</div>
+      <div class="stat-label">Training audio</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-number">&lt; 2s</div>
+      <div class="stat-label">Generation time</div>
+    </div>
+  </div>
+
+  <h3>Voice settings</h3>
+
+  <p>The TTS generation used these voice settings, tuned for Arabic learner content:</p>
+
+  <table class="comparison">
+    <thead>
+      <tr>
+        <th>Parameter</th>
+        <th>Value</th>
+        <th>Why</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td class="label-cell">stability</td>
+        <td>0.85</td>
+        <td>High stability for consistent pronunciation — learners need repeatability</td>
+      </tr>
+      <tr>
+        <td class="label-cell">similarity_boost</td>
+        <td>0.75</td>
+        <td>Strong voice match without over-fitting (can sound robotic at 1.0)</td>
+      </tr>
+      <tr>
+        <td class="label-cell">style</td>
+        <td>0.0</td>
+        <td>No style exaggeration — natural teaching cadence is the goal</td>
+      </tr>
+      <tr>
+        <td class="label-cell">speaker_boost</td>
+        <td>true</td>
+        <td>Enhances voice characteristics for short clips (sentences are 3-15 words)</td>
+      </tr>
+    </tbody>
+  </table>
+</section>
+
+<!-- ════════════════════════════════════════════════════════ -->
+
+<section id="lessons">
+  <span class="section-number">07</span>
+  <h2>What I Learned</h2>
+
+  <div class="callout pattern">
+    <span class="callout-label">Lesson 1: Start with YouTube</span>
+    If your target creator has both TikTok and YouTube, skip TikTok entirely. YouTube's scraping ecosystem is mature and functional. TikTok's is a constantly shifting arms race. The audio quality from YouTube is also higher — YouTube serves 128-192kbps audio vs TikTok's compressed mobile format.
+  </div>
+
+  <div class="callout insight">
+    <span class="callout-label">Lesson 2: Slow Arabic content is ideal for cloning</span>
+    Language teaching content is nearly perfect voice cloning material: solo speaker, clear enunciation, minimal background noise, consistent recording environment, varied vocabulary and intonation. "Slow Arabic" is even better — the deliberate pacing means less overlapping phonemes and cleaner samples for the model to learn from.
+  </div>
+
+  <div class="callout warning">
+    <span class="callout-label">Lesson 3: ElevenLabs API keys don't hot-reload permissions</span>
+    Editing an existing API key's permissions doesn't seem to take effect immediately — or possibly at all. Creating a new key with the right permissions from the start is the reliable path. Keep separate keys for separate concerns (creation vs. generation).
+  </div>
+
+  <div class="callout tradeoff">
+    <span class="callout-label">Lesson 4: IVC vs PVC</span>
+    Instant Voice Clone was good enough for this use case. Professional Voice Clone would produce a higher-fidelity voice but takes hours to train and requires the Creator+ plan. For a private learning app where the voice is one component among many, IVC's "good enough in seconds" beats PVC's "better in hours." If the voice becomes central to the product experience, upgrading to PVC is a natural next step — I already have 157 minutes of clean audio ready.
+  </div>
+
+  <div class="callout insight">
+    <span class="callout-label">Lesson 5: 40 minutes is more than enough</span>
+    ElevenLabs' IVC limit is 45 minutes, but even 10-15 minutes of clean speech produces a recognizable clone. The marginal quality improvement from 15 → 40 minutes is modest. The most important thing is sample diversity: different intonations, different speeds, different emotional registers. Ten minutes of varied speech beats forty minutes of monotone.
+  </div>
+
+</section>
+
+<!-- ════════════════════════════════════════════════════════ -->
+
+<section id="next">
+  <span class="section-number">08</span>
+  <h2>What's Next</h2>
+
+  <p>
+    The voice exists. It works. It's not integrated into Alif yet — that's a deliberate choice. Before swapping the voice, I want to:
+  </p>
+
+  <p>
+    <strong>A/B test the voice quality.</strong> Generate 20-30 sentences with both the current stock voice (Chaouki, <code>eleven_multilingual_v2</code>) and the cloned voice, then listen to both sets. The cloned voice should be better for Arabic-specific phonetics — it was trained on Arabic, not on multilingual data — but stock voices sometimes handle edge cases (numbers, transliterated words, code-switching) more gracefully.
+  </p>
+
+  <p>
+    <strong>Try Professional Voice Clone.</strong> I have 157 minutes of audio sitting in <code>/private/tmp/claude/roots_of_knowledge/audio/</code>. PVC needs 30+ minutes; I have 5x that. The Creator plan supports one PVC slot. Worth trying to see if the fidelity improvement is perceptible for short sentence-level clips.
+  </p>
+
+  <p>
+    <strong>Tune the voice settings.</strong> The current settings (stability 0.85, similarity 0.75) were copied from the existing Chaouki voice. The cloned voice might perform better with different parameters — possibly lower stability for more natural variation, or higher similarity for stronger voice character on very short phrases.
+  </p>
+
+  <p>
+    <strong>Consider open-source alternatives.</strong> Coqui XTTS and Fish Speech both support Arabic and can run locally with zero per-request cost. For a single-user app generating thousands of sentences, the ElevenLabs per-character cost adds up. A local model with unlimited generation could be more sustainable long-term — if the quality is comparable.
+  </p>
+
+  <blockquote>
+    The voice ID is <code>JzW9vpzYBpT1rNWw2hbd</code>. When it's time to integrate, it's a one-line change in <code>tts_service.py</code>.
+    <cite>— waiting for the right moment</cite>
+  </blockquote>
+
+</section>
+
+</div><!-- .page-container -->
+
+<!-- ─── FOOTER ─── -->
+<div class="page-container">
+  <footer class="page-footer">
+    <span>Alif — Arabic Reading &amp; Listening Trainer</span>
+    <span>Generated with Claude Code · March 2026</span>
+  </footer>
+</div>
+
+</body>
+</html>

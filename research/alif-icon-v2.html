@@ -1,0 +1,856 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Alif Icon — Concept 4 Iterations</title>
+<link href="https://fonts.googleapis.com/css2?family=Scheherazade+New:wght@400;700&family=Noto+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0a10;
+    --app-bg: #0f0f1a;
+    --app-surface: #1a1a2e;
+    --app-surface-light: #252542;
+    --app-accent: #4a9eff;
+    --app-text: #e8e8f0;
+    --app-text-sec: #8888a0;
+    --app-arabic: #f0f0ff;
+    --app-border: #2a2a45;
+    --app-green: #2ecc71;
+    --app-orange: #e67e22;
+    --app-red: #e74c3c;
+    --app-purple: #9b59b6;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--app-text);
+    font-family: 'Noto Sans', sans-serif;
+    font-weight: 400;
+    min-height: 100vh;
+  }
+
+  .page {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 60px 40px 120px;
+  }
+
+  .header {
+    text-align: center;
+    margin-bottom: 64px;
+  }
+
+  .header-label {
+    font-size: 11px;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: var(--app-accent);
+    font-weight: 600;
+    margin-bottom: 16px;
+  }
+
+  .header h1 {
+    font-family: 'Noto Sans', sans-serif;
+    font-size: 28px;
+    font-weight: 300;
+    color: var(--app-text);
+    margin-bottom: 12px;
+  }
+
+  .header p {
+    font-size: 14px;
+    color: var(--app-text-sec);
+    max-width: 500px;
+    margin: 0 auto;
+    line-height: 1.6;
+  }
+
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 56px 40px;
+  }
+
+  .icon-card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    animation: fadeUp 0.6s ease both;
+  }
+
+  .icon-wrap {
+    position: relative;
+    width: 152px;
+    height: 152px;
+    margin-bottom: 20px;
+    transition: transform 0.35s cubic-bezier(0.2, 0, 0, 1);
+  }
+  .icon-wrap:hover { transform: scale(1.06) translateY(-3px); }
+
+  .icon {
+    width: 152px;
+    height: 152px;
+    border-radius: 34px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    overflow: hidden;
+    box-shadow:
+      0 2px 8px rgba(0,0,0,0.4),
+      0 16px 48px rgba(0,0,0,0.3);
+  }
+
+  .icon-number {
+    position: absolute;
+    top: -6px;
+    left: -6px;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background: var(--app-surface);
+    border: 1px solid var(--app-border);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--app-text-sec);
+    z-index: 10;
+  }
+
+  .icon-info { text-align: center; max-width: 250px; }
+  .icon-name {
+    font-size: 15px;
+    font-weight: 600;
+    margin-bottom: 6px;
+    color: var(--app-text);
+  }
+  .icon-desc {
+    font-size: 12px;
+    color: var(--app-text-sec);
+    line-height: 1.55;
+  }
+
+  /* =======================================
+     SHARED ELEMENTS
+     ======================================= */
+  .grid-lines {
+    position: absolute;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(74,158,255,0.06) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(74,158,255,0.06) 1px, transparent 1px);
+    background-size: 19px 19px;
+  }
+
+  .grid-lines-subtle {
+    position: absolute;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(255,255,255,0.025) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,0.025) 1px, transparent 1px);
+    background-size: 19px 19px;
+  }
+
+  /* =======================================
+     4A: Original spirit — dark bg, grid,
+     Scheherazade + Noto Sans, blue accent
+     ======================================= */
+  .icon-4a {
+    background: var(--app-bg);
+  }
+  .icon-4a .accent-bar {
+    position: absolute;
+    top: 16px;
+    right: 16px;
+    width: 24px;
+    height: 4px;
+    background: var(--app-accent);
+    border-radius: 2px;
+  }
+  .icon-4a .content {
+    position: relative;
+    text-align: left;
+  }
+  .icon-4a .en {
+    font-family: 'Noto Sans', sans-serif;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: var(--app-text-sec);
+    margin-bottom: 1px;
+  }
+  .icon-4a .ar {
+    font-family: 'Scheherazade New', serif;
+    font-size: 52px;
+    font-weight: 700;
+    color: var(--app-arabic);
+    line-height: 1.1;
+    direction: rtl;
+  }
+
+  /* =======================================
+     4B: Centered, bigger Arabic, accent dot
+     ======================================= */
+  .icon-4b {
+    background: var(--app-bg);
+  }
+  .icon-4b .content {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+  .icon-4b .ar {
+    font-family: 'Scheherazade New', serif;
+    font-size: 72px;
+    font-weight: 700;
+    color: var(--app-arabic);
+    line-height: 1;
+    direction: rtl;
+  }
+  .icon-4b .dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--app-accent);
+    margin-top: 4px;
+    box-shadow: 0 0 12px rgba(74, 158, 255, 0.4);
+  }
+
+  /* =======================================
+     4C: Surface color bg, left-aligned,
+     horizontal rule divider
+     ======================================= */
+  .icon-4c {
+    background: var(--app-surface);
+  }
+  .icon-4c .content {
+    position: relative;
+    padding: 0 24px;
+    width: 100%;
+  }
+  .icon-4c .ar {
+    font-family: 'Scheherazade New', serif;
+    font-size: 58px;
+    font-weight: 700;
+    color: var(--app-arabic);
+    line-height: 1;
+    direction: rtl;
+    text-align: right;
+  }
+  .icon-4c .rule {
+    width: 100%;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--app-accent), transparent);
+    margin: 6px 0;
+    opacity: 0.5;
+  }
+  .icon-4c .en {
+    font-family: 'Noto Sans', sans-serif;
+    font-size: 10px;
+    font-weight: 500;
+    letter-spacing: 5px;
+    text-transform: uppercase;
+    color: var(--app-text-sec);
+    text-align: right;
+  }
+
+  /* =======================================
+     4D: Full bleed accent color bg
+     White text on blue
+     ======================================= */
+  .icon-4d {
+    background: var(--app-accent);
+  }
+  .icon-4d .content {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+  .icon-4d .ar {
+    font-family: 'Scheherazade New', serif;
+    font-size: 68px;
+    font-weight: 700;
+    color: white;
+    line-height: 1;
+    direction: rtl;
+    text-shadow: 0 2px 8px rgba(0,0,0,0.15);
+  }
+  .icon-4d .en {
+    font-family: 'Noto Sans', sans-serif;
+    font-size: 9px;
+    font-weight: 600;
+    letter-spacing: 4px;
+    text-transform: uppercase;
+    color: rgba(255,255,255,0.7);
+    margin-top: 2px;
+  }
+  .icon-4d .corner {
+    position: absolute;
+    width: 20px;
+    height: 20px;
+    border: 1.5px solid rgba(255,255,255,0.2);
+  }
+  .icon-4d .corner.tl { top: 14px; left: 14px; border-right: none; border-bottom: none; border-radius: 3px 0 0 0; }
+  .icon-4d .corner.br { bottom: 14px; right: 14px; border-left: none; border-top: none; border-radius: 0 0 3px 0; }
+
+  /* =======================================
+     4E: Monogram — just the alif letter
+     huge, cropped, bleeds off edges
+     ======================================= */
+  .icon-4e {
+    background: var(--app-bg);
+  }
+  .icon-4e .alif-huge {
+    font-family: 'Scheherazade New', serif;
+    font-size: 180px;
+    font-weight: 700;
+    color: var(--app-surface-light);
+    position: absolute;
+    right: 20px;
+    top: -20px;
+    line-height: 1;
+    direction: rtl;
+  }
+  .icon-4e .alif-front {
+    font-family: 'Scheherazade New', serif;
+    font-size: 64px;
+    font-weight: 700;
+    color: var(--app-accent);
+    position: relative;
+    line-height: 1;
+    text-shadow: 0 0 30px rgba(74, 158, 255, 0.25);
+  }
+
+  /* =======================================
+     4F: Bottom-weighted, Arabic large,
+     small Latin below baseline
+     ======================================= */
+  .icon-4f {
+    background: var(--app-bg);
+    justify-content: flex-end;
+    padding-bottom: 20px;
+  }
+  .icon-4f .content {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+  .icon-4f .ar {
+    font-family: 'Scheherazade New', serif;
+    font-size: 62px;
+    font-weight: 700;
+    color: var(--app-arabic);
+    line-height: 1;
+    direction: rtl;
+  }
+  .icon-4f .en {
+    font-family: 'Noto Sans', sans-serif;
+    font-size: 11px;
+    font-weight: 300;
+    letter-spacing: 1px;
+    color: var(--app-accent);
+    margin-top: 2px;
+  }
+  .icon-4f .top-line {
+    position: absolute;
+    top: 16px;
+    left: 24px;
+    right: 24px;
+    height: 1px;
+    background: var(--app-border);
+  }
+
+  /* =======================================
+     4G: Two-tone split — dark/surface
+     ======================================= */
+  .icon-4g {
+    background: var(--app-bg);
+  }
+  .icon-4g .split {
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 50%;
+    height: 100%;
+    background: var(--app-surface);
+  }
+  .icon-4g .content {
+    position: relative;
+    z-index: 2;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+  .icon-4g .ar {
+    font-family: 'Scheherazade New', serif;
+    font-size: 66px;
+    font-weight: 700;
+    color: var(--app-arabic);
+    line-height: 1;
+    direction: rtl;
+  }
+  .icon-4g .accent-line {
+    width: 24px;
+    height: 2px;
+    background: var(--app-accent);
+    border-radius: 1px;
+    margin-top: 6px;
+  }
+
+  /* =======================================
+     4H: Outlined — border emphasis,
+     nothing inside but the word
+     ======================================= */
+  .icon-4h {
+    background: var(--app-bg);
+  }
+  .icon-4h .inner-border {
+    position: absolute;
+    inset: 10px;
+    border: 1.5px solid var(--app-border);
+    border-radius: 24px;
+  }
+  .icon-4h .content {
+    position: relative;
+    z-index: 2;
+  }
+  .icon-4h .ar {
+    font-family: 'Scheherazade New', serif;
+    font-size: 56px;
+    font-weight: 400;
+    color: var(--app-arabic);
+    line-height: 1;
+    direction: rtl;
+  }
+
+  /* =======================================
+     4I: Gradient bg — dark to surface,
+     stacked bilingual, accent underline
+     ======================================= */
+  .icon-4i {
+    background: linear-gradient(160deg, var(--app-bg) 0%, var(--app-surface) 100%);
+  }
+  .icon-4i .content {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+  .icon-4i .ar {
+    font-family: 'Scheherazade New', serif;
+    font-size: 50px;
+    font-weight: 700;
+    color: var(--app-arabic);
+    line-height: 1.05;
+    direction: rtl;
+  }
+  .icon-4i .underline {
+    width: 36px;
+    height: 2px;
+    background: var(--app-accent);
+    border-radius: 1px;
+    margin: 6px 0;
+  }
+  .icon-4i .en {
+    font-family: 'Noto Sans', sans-serif;
+    font-size: 13px;
+    font-weight: 300;
+    color: var(--app-text-sec);
+    letter-spacing: 2px;
+  }
+
+  /* =======================================
+     4J: Glow — minimal with accent glow
+     behind the letter
+     ======================================= */
+  .icon-4j {
+    background: var(--app-bg);
+  }
+  .icon-4j .glow {
+    position: absolute;
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(74, 158, 255, 0.15) 0%, transparent 70%);
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+  }
+  .icon-4j .content {
+    position: relative;
+    z-index: 2;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+  .icon-4j .ar {
+    font-family: 'Scheherazade New', serif;
+    font-size: 70px;
+    font-weight: 700;
+    color: var(--app-arabic);
+    line-height: 1;
+    direction: rtl;
+    text-shadow: 0 0 40px rgba(74, 158, 255, 0.2);
+  }
+  .icon-4j .en {
+    font-family: 'Noto Sans', sans-serif;
+    font-size: 9px;
+    font-weight: 600;
+    letter-spacing: 4px;
+    text-transform: uppercase;
+    color: var(--app-accent);
+    opacity: 0.6;
+    margin-top: 4px;
+  }
+
+  /* =======================================
+     4K: Badge — rounded inner shape
+     ======================================= */
+  .icon-4k {
+    background: var(--app-surface);
+  }
+  .icon-4k .badge {
+    width: 90px;
+    height: 90px;
+    border-radius: 50%;
+    background: var(--app-bg);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    border: 1.5px solid var(--app-border);
+  }
+  .icon-4k .ar {
+    font-family: 'Scheherazade New', serif;
+    font-size: 52px;
+    font-weight: 700;
+    color: var(--app-accent);
+    line-height: 1;
+    direction: rtl;
+  }
+
+  /* =======================================
+     4L: Stacked weight contrast —
+     light Arabic, heavy English below
+     ======================================= */
+  .icon-4l {
+    background: var(--app-bg);
+  }
+  .icon-4l .content {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0;
+  }
+  .icon-4l .ar {
+    font-family: 'Scheherazade New', serif;
+    font-size: 54px;
+    font-weight: 400;
+    color: var(--app-arabic);
+    line-height: 1;
+    direction: rtl;
+    opacity: 0.6;
+  }
+  .icon-4l .en {
+    font-family: 'Noto Sans', sans-serif;
+    font-size: 24px;
+    font-weight: 700;
+    color: var(--app-accent);
+    letter-spacing: -0.5px;
+    text-transform: lowercase;
+    margin-top: -2px;
+  }
+
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(14px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .section-label {
+    text-align: center;
+    margin: 64px 0 48px;
+    font-size: 12px;
+    font-weight: 500;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--app-text-sec);
+  }
+  .section-label span {
+    padding: 0 16px;
+    background: var(--bg);
+    position: relative;
+    z-index: 1;
+  }
+  .section-label::before {
+    content: '';
+    display: block;
+    height: 1px;
+    background: var(--app-border);
+    position: relative;
+    top: 9px;
+  }
+
+  .footer {
+    text-align: center;
+    margin-top: 72px;
+    padding-top: 32px;
+    border-top: 1px solid rgba(255,255,255,0.04);
+  }
+  .footer p {
+    font-size: 12px;
+    color: var(--app-text-sec);
+    line-height: 1.7;
+  }
+
+  @media (max-width: 700px) {
+    .page { padding: 32px 16px 60px; }
+    .grid { grid-template-columns: 1fr 1fr; gap: 32px 20px; }
+    .icon-wrap, .icon { width: 130px; height: 130px; }
+    .icon { border-radius: 30px; }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+  <header class="header">
+    <div class="header-label">Concept 4 — Iterations</div>
+    <h1>Swiss Grid × Alif App Identity</h1>
+    <p>All variants use the app's actual fonts (Scheherazade New + Noto Sans) and color palette (navy bg, #4a9eff accent, #e8e8f0 text).</p>
+  </header>
+
+  <div class="section-label"><span>Typographic Variants</span></div>
+
+  <div class="grid">
+    <!-- 4A -->
+    <div class="icon-card">
+      <div class="icon-wrap">
+        <span class="icon-number">A</span>
+        <div class="icon icon-4a">
+          <div class="grid-lines"></div>
+          <div class="accent-bar"></div>
+          <div class="content">
+            <div class="en">ALIF</div>
+            <div class="ar">ألف</div>
+          </div>
+        </div>
+      </div>
+      <div class="icon-info">
+        <div class="icon-name">Grid + Bilingual</div>
+        <div class="icon-desc">Original Swiss concept adapted. Blue grid, Latin label above Arabic wordmark, accent bar top-right.</div>
+      </div>
+    </div>
+
+    <!-- 4B -->
+    <div class="icon-card">
+      <div class="icon-wrap">
+        <span class="icon-number">B</span>
+        <div class="icon icon-4b">
+          <div class="grid-lines-subtle"></div>
+          <div class="content">
+            <div class="ar">ألف</div>
+            <div class="dot"></div>
+          </div>
+        </div>
+      </div>
+      <div class="icon-info">
+        <div class="icon-name">Centered + Dot</div>
+        <div class="icon-desc">Just the Arabic word, centered. Single blue dot below as a minimal accent. Clean and confident.</div>
+      </div>
+    </div>
+
+    <!-- 4C -->
+    <div class="icon-card">
+      <div class="icon-wrap">
+        <span class="icon-number">C</span>
+        <div class="icon icon-4c">
+          <div class="content">
+            <div class="ar">ألف</div>
+            <div class="rule"></div>
+            <div class="en">ALIF</div>
+          </div>
+        </div>
+      </div>
+      <div class="icon-info">
+        <div class="icon-name">Ruled Divider</div>
+        <div class="icon-desc">Right-aligned on surface color. Gradient blue rule separates Arabic from Latin. Editorial.</div>
+      </div>
+    </div>
+
+    <!-- 4D -->
+    <div class="icon-card">
+      <div class="icon-wrap">
+        <span class="icon-number">D</span>
+        <div class="icon icon-4d">
+          <div class="corner tl"></div>
+          <div class="corner br"></div>
+          <div class="content">
+            <div class="ar">ألف</div>
+            <div class="en">ALIF</div>
+          </div>
+        </div>
+      </div>
+      <div class="icon-info">
+        <div class="icon-name">Blue Field</div>
+        <div class="icon-desc">Full accent-blue background. White text. Corner brackets. Bold, instantly recognizable in app grid.</div>
+      </div>
+    </div>
+
+    <!-- 4E -->
+    <div class="icon-card">
+      <div class="icon-wrap">
+        <span class="icon-number">E</span>
+        <div class="icon icon-4e">
+          <span class="alif-huge">ا</span>
+          <span class="alif-front">ا</span>
+        </div>
+      </div>
+      <div class="icon-info">
+        <div class="icon-name">Layered Alif</div>
+        <div class="icon-desc">Giant faded alif letterform behind a smaller glowing blue one. Depth through repetition.</div>
+      </div>
+    </div>
+
+    <!-- 4F -->
+    <div class="icon-card">
+      <div class="icon-wrap">
+        <span class="icon-number">F</span>
+        <div class="icon icon-4f">
+          <div class="top-line"></div>
+          <div class="content">
+            <div class="ar">ألف</div>
+            <div class="en">alif</div>
+          </div>
+        </div>
+      </div>
+      <div class="icon-info">
+        <div class="icon-name">Bottom Weight</div>
+        <div class="icon-desc">Content anchored low. Thin rule at top. Lowercase Latin in accent blue. Feels grounded and calm.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="section-label"><span>Structural Variants</span></div>
+
+  <div class="grid">
+    <!-- 4G -->
+    <div class="icon-card">
+      <div class="icon-wrap">
+        <span class="icon-number">G</span>
+        <div class="icon icon-4g">
+          <div class="split"></div>
+          <div class="content">
+            <div class="ar">ألف</div>
+            <div class="accent-line"></div>
+          </div>
+        </div>
+      </div>
+      <div class="icon-info">
+        <div class="icon-name">Two-Tone Split</div>
+        <div class="icon-desc">Vertical split between bg and surface colors. Text straddles the divide. Blue underline accent.</div>
+      </div>
+    </div>
+
+    <!-- 4H -->
+    <div class="icon-card">
+      <div class="icon-wrap">
+        <span class="icon-number">H</span>
+        <div class="icon icon-4h">
+          <div class="inner-border"></div>
+          <div class="content">
+            <div class="ar">ألف</div>
+          </div>
+        </div>
+      </div>
+      <div class="icon-info">
+        <div class="icon-name">Framed</div>
+        <div class="icon-desc">Inner border creates a frame-within-frame. Light weight Arabic. Maximum restraint — nothing extra.</div>
+      </div>
+    </div>
+
+    <!-- 4I -->
+    <div class="icon-card">
+      <div class="icon-wrap">
+        <span class="icon-number">I</span>
+        <div class="icon icon-4i">
+          <div class="content">
+            <div class="ar">ألف</div>
+            <div class="underline"></div>
+            <div class="en">alif</div>
+          </div>
+        </div>
+      </div>
+      <div class="icon-info">
+        <div class="icon-name">Gradient Stack</div>
+        <div class="icon-desc">Diagonal gradient background. Bold Arabic over blue rule over light Latin. Balanced and composed.</div>
+      </div>
+    </div>
+
+    <!-- 4J -->
+    <div class="icon-card">
+      <div class="icon-wrap">
+        <span class="icon-number">J</span>
+        <div class="icon icon-4j">
+          <div class="glow"></div>
+          <div class="content">
+            <div class="ar">ألف</div>
+            <div class="en">ALIF</div>
+          </div>
+        </div>
+      </div>
+      <div class="icon-info">
+        <div class="icon-name">Soft Glow</div>
+        <div class="icon-desc">Subtle blue radial glow behind the text. Warm and focused. Feels like the app's reading mode.</div>
+      </div>
+    </div>
+
+    <!-- 4K -->
+    <div class="icon-card">
+      <div class="icon-wrap">
+        <span class="icon-number">K</span>
+        <div class="icon icon-4k">
+          <div class="badge">
+            <div class="ar">ألف</div>
+          </div>
+        </div>
+      </div>
+      <div class="icon-info">
+        <div class="icon-name">Badge</div>
+        <div class="icon-desc">Circular badge inset on surface bg. Blue Arabic text. Feels like an achievement or seal.</div>
+      </div>
+    </div>
+
+    <!-- 4L -->
+    <div class="icon-card">
+      <div class="icon-wrap">
+        <span class="icon-number">L</span>
+        <div class="icon icon-4l">
+          <div class="grid-lines-subtle"></div>
+          <div class="content">
+            <div class="ar">ألف</div>
+            <div class="en">alif</div>
+          </div>
+        </div>
+      </div>
+      <div class="icon-info">
+        <div class="icon-name">Weight Contrast</div>
+        <div class="icon-desc">Ghosted light Arabic above bold blue Latin. Bilingual hierarchy inverted — Latin leads.</div>
+      </div>
+    </div>
+  </div>
+
+  <footer class="footer">
+    <p>All 12 variants use: Scheherazade New (Arabic) · Noto Sans (Latin) · #0f0f1a bg · #4a9eff accent</p>
+  </footer>
+</div>
+</body>
+</html>

@@ -1,0 +1,755 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Alif Learning Optimization — 6-Agent Swarm Report</title>
+<style>
+  :root {
+    --bg: #0d1117;
+    --surface: #161b22;
+    --surface-2: #1c2333;
+    --border: #30363d;
+    --text: #e6edf3;
+    --text-muted: #8b949e;
+    --accent: #58a6ff;
+    --green: #3fb950;
+    --orange: #d29922;
+    --red: #f85149;
+    --purple: #bc8cff;
+    --pink: #f778ba;
+    --cyan: #39d2c0;
+    --gold: #e3b341;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.6;
+    padding: 2rem;
+    max-width: 1100px;
+    margin: 0 auto;
+  }
+
+  header {
+    text-align: center;
+    padding: 3rem 0 2rem;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 2.5rem;
+  }
+
+  header h1 {
+    font-size: 2.2rem;
+    font-weight: 700;
+    background: linear-gradient(135deg, var(--accent), var(--purple));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    margin-bottom: 0.5rem;
+  }
+
+  header .subtitle {
+    color: var(--text-muted);
+    font-size: 1.05rem;
+  }
+
+  header .date {
+    color: var(--text-muted);
+    font-size: 0.85rem;
+    margin-top: 0.5rem;
+  }
+
+  .stats-bar {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 1rem;
+    margin-bottom: 2.5rem;
+  }
+
+  .stat-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 1.2rem;
+    text-align: center;
+  }
+
+  .stat-card .number {
+    font-size: 2rem;
+    font-weight: 700;
+    line-height: 1.2;
+  }
+
+  .stat-card .label {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-top: 0.25rem;
+  }
+
+  h2 {
+    font-size: 1.5rem;
+    margin-bottom: 1rem;
+    color: var(--text);
+  }
+
+  h2 .section-num {
+    color: var(--accent);
+    margin-right: 0.4rem;
+  }
+
+  .section {
+    margin-bottom: 3rem;
+  }
+
+  /* Agent cards */
+  .agent-grid {
+    display: grid;
+    gap: 1.5rem;
+  }
+
+  .agent-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+    transition: border-color 0.2s;
+  }
+
+  .agent-card:hover {
+    border-color: var(--accent);
+  }
+
+  .agent-header {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 1.25rem 1.5rem;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .agent-icon {
+    width: 44px;
+    height: 44px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.4rem;
+    flex-shrink: 0;
+  }
+
+  .agent-header-text h3 {
+    font-size: 1.1rem;
+    font-weight: 600;
+    margin-bottom: 0.15rem;
+  }
+
+  .agent-header-text .branch {
+    font-family: 'SF Mono', 'Fira Code', monospace;
+    font-size: 0.78rem;
+    color: var(--text-muted);
+  }
+
+  .pr-badge {
+    margin-left: auto;
+    background: var(--green);
+    color: #000;
+    font-size: 0.75rem;
+    font-weight: 600;
+    padding: 0.2rem 0.6rem;
+    border-radius: 20px;
+    text-decoration: none;
+    white-space: nowrap;
+  }
+
+  .pr-badge.merged {
+    background: var(--purple);
+    color: #fff;
+  }
+
+  .agent-body {
+    padding: 1.25rem 1.5rem;
+  }
+
+  .agent-body p {
+    color: var(--text-muted);
+    font-size: 0.92rem;
+    margin-bottom: 0.75rem;
+  }
+
+  .agent-body p:last-child { margin-bottom: 0; }
+
+  .impl-list {
+    list-style: none;
+    margin-top: 0.75rem;
+  }
+
+  .impl-list li {
+    font-size: 0.88rem;
+    padding: 0.35rem 0;
+    padding-left: 1.4rem;
+    position: relative;
+    color: var(--text);
+  }
+
+  .impl-list li::before {
+    content: '→';
+    position: absolute;
+    left: 0;
+    color: var(--accent);
+  }
+
+  .impl-list code {
+    font-family: 'SF Mono', 'Fira Code', monospace;
+    font-size: 0.82rem;
+    background: var(--surface-2);
+    padding: 0.1rem 0.35rem;
+    border-radius: 4px;
+    color: var(--cyan);
+  }
+
+  /* Learning impact */
+  .impact-why {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 1.5rem;
+    margin-top: 0.5rem;
+    font-size: 0.92rem;
+    color: var(--text-muted);
+    border-left: 3px solid var(--accent);
+  }
+
+  .impact-why strong {
+    color: var(--text);
+  }
+
+  /* System diagram */
+  .system-flow {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 2rem;
+    margin-top: 0.5rem;
+  }
+
+  .flow-chain {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+  }
+
+  .flow-node {
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 0.75rem 1rem;
+    text-align: center;
+    min-width: 140px;
+  }
+
+  .flow-node .flow-title {
+    font-weight: 600;
+    font-size: 0.85rem;
+    margin-bottom: 0.2rem;
+  }
+
+  .flow-node .flow-desc {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+  }
+
+  .flow-arrow {
+    font-size: 1.4rem;
+    color: var(--accent);
+    flex-shrink: 0;
+  }
+
+  /* Verify table */
+  .verify-table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+    margin-top: 0.5rem;
+  }
+
+  .verify-table th {
+    background: var(--surface-2);
+    text-align: left;
+    padding: 0.75rem 1rem;
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--text-muted);
+    border-bottom: 1px solid var(--border);
+  }
+
+  .verify-table td {
+    padding: 0.7rem 1rem;
+    font-size: 0.88rem;
+    border-bottom: 1px solid var(--border);
+    vertical-align: top;
+  }
+
+  .verify-table tr:last-child td {
+    border-bottom: none;
+  }
+
+  .verify-table tr:hover td {
+    background: var(--surface);
+  }
+
+  .timeline {
+    font-family: 'SF Mono', 'Fira Code', monospace;
+    font-size: 0.82rem;
+    color: var(--orange);
+  }
+
+  /* Research callout */
+  .research-callout {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 1.5rem;
+    margin-top: 0.5rem;
+  }
+
+  .research-callout h4 {
+    font-size: 0.85rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--gold);
+    margin-bottom: 0.75rem;
+  }
+
+  .research-callout ul {
+    list-style: none;
+  }
+
+  .research-callout li {
+    font-size: 0.88rem;
+    color: var(--text-muted);
+    padding: 0.3rem 0;
+    padding-left: 1.2rem;
+    position: relative;
+  }
+
+  .research-callout li::before {
+    content: '◇';
+    position: absolute;
+    left: 0;
+    color: var(--gold);
+    font-size: 0.7rem;
+    top: 0.45rem;
+  }
+
+  .research-callout li em {
+    color: var(--text);
+    font-style: normal;
+  }
+
+  /* Merge order */
+  .merge-order {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-top: 0.5rem;
+  }
+
+  .merge-step {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+  }
+
+  .merge-chip {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 0.4rem 0.8rem;
+    font-size: 0.82rem;
+    font-family: 'SF Mono', 'Fira Code', monospace;
+  }
+
+  .merge-chip.done {
+    border-color: var(--purple);
+    color: var(--purple);
+  }
+
+  .merge-arrow {
+    color: var(--text-muted);
+    font-size: 0.9rem;
+  }
+
+  footer {
+    margin-top: 3rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid var(--border);
+    text-align: center;
+    color: var(--text-muted);
+    font-size: 0.82rem;
+  }
+
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+
+  @media (max-width: 640px) {
+    body { padding: 1rem; }
+    header h1 { font-size: 1.6rem; }
+    .flow-chain { flex-direction: column; }
+    .flow-arrow { transform: rotate(90deg); }
+    .stats-bar { grid-template-columns: repeat(3, 1fr); }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Learning Optimization Swarm</h1>
+  <div class="subtitle">6 parallel agents, 6 PRs, one night of improvements to Alif</div>
+  <div class="date">March 22, 2026</div>
+</header>
+
+<div class="stats-bar">
+  <div class="stat-card">
+    <div class="number" style="color: var(--accent)">6</div>
+    <div class="label">Agents</div>
+  </div>
+  <div class="stat-card">
+    <div class="number" style="color: var(--green)">6</div>
+    <div class="label">PRs Created</div>
+  </div>
+  <div class="stat-card">
+    <div class="number" style="color: var(--purple)">~75</div>
+    <div class="label">Tests Added</div>
+  </div>
+  <div class="stat-card">
+    <div class="number" style="color: var(--cyan)">~1,400</div>
+    <div class="label">Lines Added</div>
+  </div>
+  <div class="stat-card">
+    <div class="number" style="color: var(--orange)">6</div>
+    <div class="label">Experiment Entries</div>
+  </div>
+  <div class="stat-card">
+    <div class="number" style="color: var(--gold)">~40 min</div>
+    <div class="label">Wall Clock</div>
+  </div>
+</div>
+
+<div class="section">
+  <h2><span class="section-num">01</span> What Was Built</h2>
+
+  <div class="agent-grid">
+
+    <!-- Agent 1: Dynamic Sessions -->
+    <div class="agent-card">
+      <div class="agent-header">
+        <div class="agent-icon" style="background: rgba(88,166,255,0.15); color: var(--accent);">📊</div>
+        <div class="agent-header-text">
+          <h3>Dynamic Session Sizing</h3>
+          <span class="branch">sh/dynamic-session-sizing</span>
+        </div>
+        <a href="https://github.com/houshuang/alif/pull/22" class="pr-badge">PR #22</a>
+      </div>
+      <div class="agent-body">
+        <p>Session length now adapts to your 2-day accuracy instead of being fixed at 10 cards. At 96% accuracy, you get 18 cards per session — nearly double the practice volume.</p>
+        <ul class="impl-list">
+          <li><code>_dynamic_session_limit()</code> computes limit from 2-day ReviewLog accuracy</li>
+          <li>Thresholds: &lt;90% → 10, ≥90% → 14, ≥95% → 18 cards</li>
+          <li>Extracted <code>_get_2day_accuracy()</code> as shared helper, also used by intro slot computation</li>
+          <li>Frontend removed hardcoded <code>limit=10</code> from all 4 API call sites</li>
+          <li>Explicit <code>limit</code> parameter still overrides (for tests, simulations)</li>
+        </ul>
+        <div class="impact-why" style="margin-top: 1rem;">
+          <strong>Learning impact:</strong> At 96% accuracy with 10-card sessions, you complete in ~3 minutes. 18 cards means more encounters per session, more collateral learning, and the natural difficulty increase pushes toward the 85% optimal accuracy zone (Wilson et al. 2019).
+        </div>
+      </div>
+    </div>
+
+    <!-- Agent 2: Comprehensibility Gate -->
+    <div class="agent-card">
+      <div class="agent-header">
+        <div class="agent-icon" style="background: rgba(63,185,80,0.15); color: var(--green);">🔓</div>
+        <div class="agent-header-text">
+          <h3>Comprehensibility Gate Relaxation</h3>
+          <span class="branch">sh/familiar-encountered-gate</span>
+        </div>
+        <a href="https://github.com/houshuang/alif/pull/25" class="pr-badge">PR #25</a>
+      </div>
+      <div class="agent-body">
+        <p>Words you've seen 8+ times in stories/sentences but never formally studied now count as "known" for the comprehensibility threshold. This allows harder, more natural sentences.</p>
+        <ul class="impl-list">
+          <li><code>FAMILIAR_ENCOUNTER_THRESHOLD = 8</code> — tunable constant</li>
+          <li>Applied to both comprehensibility gates (candidate filtering + greedy selection)</li>
+          <li>Unknown scaffold cap also benefits — familiar words no longer count as "unknown"</li>
+          <li>Full gate audit completed per CLAUDE.md rule 8</li>
+        </ul>
+        <div class="impact-why" style="margin-top: 1rem;">
+          <strong>Learning impact:</strong> Creates a virtuous cycle — harder sentences contain more encountered words as scaffold → more collateral introductions → those words become familiar → even harder sentences become eligible. Especially powerful for story readers who've accumulated many encountered words.
+        </div>
+      </div>
+    </div>
+
+    <!-- Agent 3: Confusable Pairs -->
+    <div class="agent-card">
+      <div class="agent-header">
+        <div class="agent-icon" style="background: rgba(247,120,186,0.15); color: var(--pink);">🔤</div>
+        <div class="agent-header-text">
+          <h3>Confusable Pair Exclusion</h3>
+          <span class="branch">sh/confusable-pair-exclusion</span>
+        </div>
+        <a href="https://github.com/houshuang/alif/pull/24" class="pr-badge">PR #24</a>
+      </div>
+      <div class="agent-body">
+        <p>Arabic words that share a dotless skeleton (rasm) — like بنت "girl" and بيت "house" — are now prevented from appearing in the same session. Reduces interference between visually similar words.</p>
+        <ul class="impl-list">
+          <li><code>compute_rasm()</code> strips dots: بنت → ٮٮٮ, بيت → ٮٮٮ → confusable</li>
+          <li>Fixed missing mapping for standard Arabic yeh (ي U+064A) — was only mapping Farsi yeh</li>
+          <li><code>build_confusable_index()</code> — single DB query + dict grouping</li>
+          <li>Session builder drops lower-priority confusable sentences; they appear next session</li>
+        </ul>
+        <div class="impact-why" style="margin-top: 1rem;">
+          <strong>Learning impact:</strong> Arabic's dot system was a late historical addition — the original rasm was dotless. Many letter pairs are identical without dots (ب/ت/ث/ن/ي are all ٮ). Presenting confusable pairs in the same session creates destructive interference. Research (Carvalho & Goldstone 2014) confirms spacing similar items reduces confusion.
+        </div>
+      </div>
+    </div>
+
+    <!-- Agent 4: Response Time -->
+    <div class="agent-card">
+      <div class="agent-header">
+        <div class="agent-icon" style="background: rgba(57,210,192,0.15); color: var(--cyan);">⏱</div>
+        <div class="agent-header-text">
+          <h3>Response Time Difficulty Signal</h3>
+          <span class="branch">sh/response-time-signal</span>
+        </div>
+        <a href="https://github.com/houshuang/alif/pull/23" class="pr-badge">PR #23</a>
+      </div>
+      <div class="agent-body">
+        <p>Words you rate "Good" but take 8 seconds to recognize now get priority — <code>response_ms</code> was already logged but never used. Catches weak automaticity that FSRS ratings miss.</p>
+        <ul class="impl-list">
+          <li><code>fluency_service.py</code> computes per-word fluency as <code>global_median / word_median</code></li>
+          <li>Batch computation via 2 SQL queries — precomputed once per session build</li>
+          <li>Words with fluency &lt; 0.7 get <code>+0.3</code> additive priority boost</li>
+          <li>Only FSRS words (not acquiring) to avoid double-boosting</li>
+          <li>Fluency score exposed in word detail endpoint</li>
+        </ul>
+        <div class="impact-why" style="margin-top: 1rem;">
+          <strong>Learning impact:</strong> FSRS only sees explicit ratings. A word rated "Good" in 8 seconds vs 1.5 seconds gets identical scheduling. But the slow word has weak automaticity — you can decode it but it's not fluent. The fluency signal surfaces these words for more practice without changing FSRS state.
+        </div>
+      </div>
+    </div>
+
+    <!-- Agent 5: Mnemonic Regen -->
+    <div class="agent-card">
+      <div class="agent-header">
+        <div class="agent-icon" style="background: rgba(227,179,65,0.15); color: var(--gold);">🧠</div>
+        <div class="agent-header-text">
+          <h3>Mnemonic Regeneration</h3>
+          <span class="branch">sh/mnemonic-regeneration</span>
+        </div>
+        <a href="https://github.com/houshuang/alif/pull/21" class="pr-badge">PR #21</a>
+      </div>
+      <div class="agent-body">
+        <p>Words that keep failing despite having memory hooks get fresh, different mnemonics. The old hook is preserved for audit, and a "previous didn't stick" prompt guides the LLM toward a new approach.</p>
+        <ul class="impl-list">
+          <li><code>find_stuck_hook_words()</code> — ≥4 reviews, &lt;50% recent accuracy, existing hooks</li>
+          <li><code>check_and_regenerate_stuck_hooks(db)</code> — background task, 3 words/run, Claude Haiku</li>
+          <li>7-day cooldown between regenerations, <code>regeneration_count</code> tracked</li>
+          <li>Old hooks preserved in <code>previous_hooks</code> field</li>
+          <li>CLI script: <code>regenerate_stuck_mnemonics.py --dry-run --limit N</code></li>
+        </ul>
+        <div class="impact-why" style="margin-top: 1rem;">
+          <strong>Learning impact:</strong> SMART research (Balepur, EMNLP 2024) found that what learners think helps and what actually helps disagree (0.4-0.5 agreement). A mnemonic that seemed clever may not resonate with your specific associative memory. Regenerating with a different keyword/approach gives the word a second chance.
+        </div>
+      </div>
+    </div>
+
+    <!-- Agent 6: Variant Audit -->
+    <div class="agent-card">
+      <div class="agent-header">
+        <div class="agent-icon" style="background: rgba(188,140,255,0.15); color: var(--purple);">🔍</div>
+        <div class="agent-header-text">
+          <h3>Variant Verification Audit</h3>
+          <span class="branch">sh/variant-audit</span>
+        </div>
+        <a href="https://github.com/houshuang/alif/pull/20" class="pr-badge merged">PR #20 · merged</a>
+      </div>
+      <div class="agent-body">
+        <p>Detects semantically-distinct words incorrectly merged as variants (e.g., صيادية "dish" merged into صياد "hunter"). Checks gloss coherence, then LLM-verifies suspicious pairs.</p>
+        <ul class="impl-list">
+          <li><code>compute_jaccard_similarity()</code> — tokenized gloss overlap scoring</li>
+          <li><code>verify_variant_pair()</code> — import-time check for new variant assignments</li>
+          <li><code>audit_variants.py</code> script with <code>--fix</code> and <code>--threshold</code> flags</li>
+          <li>LLM verification via Claude Haiku with Gemini fallback</li>
+          <li>17 tests across 3 test classes</li>
+        </ul>
+        <div class="impact-why" style="margin-top: 1rem;">
+          <strong>Learning impact:</strong> Wrongly merged variants mean reviews credit the wrong word. If صيادية (a fish dish) is merged into صياد (hunter), every time you review a sentence about fishing, your SRS state for the dish gets updated. This corrupts FSRS scheduling for both words silently.
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<div class="section">
+  <h2><span class="section-num">02</span> How They Work Together</h2>
+
+  <div class="system-flow">
+    <div class="flow-chain">
+      <div class="flow-node" style="border-color: var(--accent);">
+        <div class="flow-title" style="color: var(--accent);">Dynamic Sessions</div>
+        <div class="flow-desc">More cards per session</div>
+      </div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-node" style="border-color: var(--green);">
+        <div class="flow-title" style="color: var(--green);">Familiar Gate</div>
+        <div class="flow-desc">Harder sentences allowed</div>
+      </div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-node" style="border-color: var(--pink);">
+        <div class="flow-title" style="color: var(--pink);">Confusable Pairs</div>
+        <div class="flow-desc">No interference in session</div>
+      </div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-node" style="border-color: var(--cyan);">
+        <div class="flow-title" style="color: var(--cyan);">Response Time</div>
+        <div class="flow-desc">Surface weak spots</div>
+      </div>
+    </div>
+    <div style="text-align: center; margin: 1.5rem 0 0.5rem;">
+      <div style="color: var(--text-muted); font-size: 0.85rem; margin-bottom: 0.75rem;">Safety nets underneath:</div>
+    </div>
+    <div class="flow-chain">
+      <div class="flow-node" style="border-color: var(--gold);">
+        <div class="flow-title" style="color: var(--gold);">Mnemonic Regen</div>
+        <div class="flow-desc">Fix stuck words</div>
+      </div>
+      <div class="flow-node" style="border-color: var(--purple); margin-left: 1rem;">
+        <div class="flow-title" style="color: var(--purple);">Variant Audit</div>
+        <div class="flow-desc">Fix data quality</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="impact-why" style="margin-top: 1.5rem;">
+    <strong>The reinforcing loop:</strong> Dynamic sessions increase practice volume. The familiar gate lets those extra cards use harder, more natural sentences. Confusable pair exclusion prevents the harder sessions from causing interference. Response time catches words that seem fine but lack fluency. Meanwhile, mnemonic regeneration and variant auditing fix problems at the data layer — ensuring all the practice goes toward the right words with the right support.
+  </div>
+</div>
+
+<div class="section">
+  <h2><span class="section-num">03</span> Verification Plan</h2>
+
+  <table class="verify-table">
+    <thead>
+      <tr>
+        <th>Feature</th>
+        <th>What to Check</th>
+        <th>When</th>
+        <th>Success Criteria</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>Dynamic Sessions</td>
+        <td>Session completion rate, time-per-session</td>
+        <td class="timeline">+1 week</td>
+        <td>Sessions complete in 5-8 min (not 3 min). If too long, reduce to 12/16.</td>
+      </tr>
+      <tr>
+        <td>Familiar Gate</td>
+        <td>Comprehensibility scores, collateral intro rate</td>
+        <td class="timeline">+1 week</td>
+        <td>Served sentences slightly harder but still ≥60%. Collateral introductions increase.</td>
+      </tr>
+      <tr>
+        <td>Confusable Pairs</td>
+        <td>Confusion (yellow) rate for known rasm-pairs</td>
+        <td class="timeline">+2 weeks</td>
+        <td>Confusion rate for confusable pairs drops below pre-change baseline.</td>
+      </tr>
+      <tr>
+        <td>Response Time</td>
+        <td>Response time trends for slow-fluency words</td>
+        <td class="timeline">+2 weeks</td>
+        <td>Slow-recognition words show improving response times.</td>
+      </tr>
+      <tr>
+        <td>Mnemonic Regen</td>
+        <td>Accuracy of regenerated words post-regen</td>
+        <td class="timeline">+2 weeks</td>
+        <td>Regenerated words show accuracy improvement vs pre-regen trend.</td>
+      </tr>
+      <tr>
+        <td>Variant Audit</td>
+        <td>Run audit script, count bad merges</td>
+        <td class="timeline">immediate</td>
+        <td>5-15 suspicious pairs found, confirmed false positives unmerged.</td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+<div class="section">
+  <h2><span class="section-num">04</span> Research Backing</h2>
+
+  <div class="research-callout">
+    <h4>Evidence Base</h4>
+    <ul>
+      <li><em>Wilson et al. 2019 (Nature)</em> — Optimal training accuracy ~85%. Dynamic sessions push toward this by increasing volume for strong learners.</li>
+      <li><em>Carvalho & Goldstone 2014</em> — Spacing similar items reduces confusion. Confusable pair exclusion implements this directly.</li>
+      <li><em>Uchihara 2019 meta-analysis</em> — 8-12 meaningful encounters needed for stable vocabulary. Familiar gate uses 8 encounters as the "practically known" threshold.</li>
+      <li><em>Balepur, EMNLP 2024 (SMART)</em> — Learner preferences and actual effectiveness disagree. Mnemonic regeneration doesn't ask the learner — it measures outcomes.</li>
+      <li><em>Nakata 2017</em> — Within-session retrieval sweet spot is ~3. Response time signal catches words that need more retrievals despite seeming "known."</li>
+    </ul>
+  </div>
+</div>
+
+<div class="section">
+  <h2><span class="section-num">05</span> Suggested Merge Order</h2>
+  <p style="color: var(--text-muted); font-size: 0.92rem; margin-bottom: 1rem;">
+    To minimize merge conflicts, merge in this order. #20 is already merged.
+  </p>
+  <div class="merge-order">
+    <div class="merge-step">
+      <span class="merge-chip done">#20 variant-audit</span>
+      <span class="merge-arrow">→</span>
+    </div>
+    <div class="merge-step">
+      <span class="merge-chip">#21 mnemonics</span>
+      <span class="merge-arrow">→</span>
+    </div>
+    <div class="merge-step">
+      <span class="merge-chip">#22 dynamic-sessions</span>
+      <span class="merge-arrow">→</span>
+    </div>
+    <div class="merge-step">
+      <span class="merge-chip">#23 response-time</span>
+      <span class="merge-arrow">→</span>
+    </div>
+    <div class="merge-step">
+      <span class="merge-chip">#24 confusable-pairs</span>
+      <span class="merge-arrow">→</span>
+    </div>
+    <div class="merge-step">
+      <span class="merge-chip">#25 familiar-gate</span>
+    </div>
+  </div>
+</div>
+
+<footer>
+  Alif Learning Optimization Report — Generated by a 6-agent Claude Code swarm
+</footer>
+
+</body>
+</html>

@@ -1,0 +1,226 @@
+<section class="mockup-section" data-mockup-id="mockup-16" data-label="16. Waterfall Refined — Tighter + Forecast">
+<style>
+  body { background: #0a0a0a; color: #e5e5e5; font-family: 'Inter', sans-serif; margin: 0; }
+  .container { padding: 20px 16px; max-width: 375px; margin: 0 auto; }
+  .card { background: #1a1a1a; border-radius: 16px; padding: 18px; margin-bottom: 14px; }
+  .card-title { font-size: 10px; color: #666; text-transform: uppercase; letter-spacing: 1.5px; font-weight: 700; margin-bottom: 14px; }
+
+  /* Compact waterfall */
+  .wf-stage { display: flex; align-items: center; gap: 10px; padding: 6px 0; }
+  .wf-pip { width: 4px; height: 36px; border-radius: 2px; flex-shrink: 0; }
+  .wf-num { font-size: 22px; font-weight: 800; min-width: 42px; }
+  .wf-info { flex: 1; }
+  .wf-name { font-size: 11px; font-weight: 600; }
+  .wf-desc { font-size: 9px; color: #555; }
+  .wf-right { text-align: right; }
+  .wf-delta { font-size: 10px; font-weight: 600; }
+  .wf-due { font-size: 9px; color: #f87171; }
+
+  /* Flow connector */
+  .wf-flow { display: flex; align-items: center; padding: 0 0 0 14px; gap: 6px; height: 20px; }
+  .wf-flow-line { width: 1px; height: 12px; }
+  .wf-flow-text { font-size: 9px; }
+  .wf-flow-arrow { font-size: 8px; }
+
+  /* Inline acquisition detail */
+  .acq-inline { margin: 2px 0 2px 14px; padding: 10px 12px; background: #111; border-radius: 10px; border-left: 2px solid rgba(251,191,36,0.3); }
+  .acq-boxes { display: flex; gap: 3px; margin-bottom: 8px; }
+  .acq-box { flex: 1; text-align: center; padding: 6px 2px; background: #1a1a1a; border-radius: 6px; }
+  .acq-box-num { font-size: 18px; font-weight: 800; color: #fbbf24; }
+  .acq-box-label { font-size: 7px; color: #888; text-transform: uppercase; letter-spacing: 0.3px; }
+  .acq-box-due { font-size: 8px; color: #f87171; margin-top: 1px; }
+  .acq-metrics { display: flex; gap: 8px; }
+  .acq-metric { font-size: 9px; color: #888; }
+  .acq-metric b { font-weight: 700; color: #e5e5e5; }
+
+  /* Health + lapsed row */
+  .health-row { display: flex; gap: 6px; margin-top: 12px; }
+  .health-chip { flex: 1; padding: 8px; background: #111; border-radius: 8px; text-align: center; }
+  .health-chip-val { font-size: 15px; font-weight: 700; }
+  .health-chip-label { font-size: 8px; color: #888; margin-top: 1px; text-transform: uppercase; letter-spacing: 0.3px; }
+
+  /* Forecast card */
+  .forecast-card { background: #1a1a1a; border-radius: 16px; padding: 16px 18px; }
+  .forecast-title { font-size: 10px; color: #666; text-transform: uppercase; letter-spacing: 1.5px; font-weight: 700; margin-bottom: 10px; }
+  .forecast-row { display: flex; gap: 6px; margin-bottom: 10px; }
+  .forecast-item { flex: 1; text-align: center; padding: 8px 4px; background: #111; border-radius: 8px; }
+  .forecast-skip { font-size: 8px; color: #666; text-transform: uppercase; letter-spacing: 0.3px; }
+  .forecast-count { font-size: 20px; font-weight: 800; color: #f87171; margin: 2px 0; }
+  .forecast-label { font-size: 8px; color: #555; }
+
+  /* 7-day flow mini chart */
+  .flow-mini { padding-top: 10px; border-top: 1px solid #222; }
+  .flow-mini-title { font-size: 9px; color: #666; margin-bottom: 4px; display: flex; justify-content: space-between; }
+  .flow-bars { display: flex; gap: 2px; height: 32px; align-items: flex-end; }
+  .fb { flex: 1; display: flex; flex-direction: column; justify-content: flex-end; gap: 1px; }
+  .fb-in { border-radius: 2px 2px 0 0; }
+  .fb-out { border-radius: 0 0 2px 2px; }
+  .flow-days { display: flex; gap: 2px; margin-top: 2px; }
+  .flow-day { flex: 1; text-align: center; font-size: 7px; color: #444; }
+
+  /* Recent grads */
+  .grads { padding-top: 10px; border-top: 1px solid #222; margin-top: 10px; }
+  .grad-title { font-size: 9px; color: #666; margin-bottom: 4px; }
+  .grad-list { display: flex; gap: 4px; }
+  .grad-pill { font-size: 12px; color: #2dd4bf; padding: 3px 8px; background: rgba(45,212,191,0.08); border-radius: 5px; }
+  .grad-time { font-size: 8px; color: #555; margin-left: 2px; }
+</style>
+
+<div class="container">
+  <div class="card">
+    <div class="card-title">Word Lifecycle</div>
+
+    <div class="wf-stage">
+      <div class="wf-pip" style="background: #444;"></div>
+      <div class="wf-num" style="color: #666">847</div>
+      <div class="wf-info">
+        <div class="wf-name" style="color: #888">Encountered</div>
+        <div class="wf-desc">Seen in reading</div>
+      </div>
+    </div>
+
+    <div class="wf-flow">
+      <div class="wf-flow-line" style="background: rgba(251,191,36,0.3);"></div>
+      <span class="wf-flow-arrow" style="color: #fbbf24">▼</span>
+      <span class="wf-flow-text" style="color: #fbbf24">~6/day introduced</span>
+    </div>
+
+    <div class="wf-stage">
+      <div class="wf-pip" style="background: #fbbf24;"></div>
+      <div class="wf-num" style="color: #fbbf24">38</div>
+      <div class="wf-info">
+        <div class="wf-name" style="color: #fbbf24">Acquiring</div>
+        <div class="wf-desc">Leitner drilling</div>
+      </div>
+      <div class="wf-right">
+        <div class="wf-due">12 due</div>
+      </div>
+    </div>
+
+    <div class="acq-inline">
+      <div class="acq-boxes">
+        <div class="acq-box">
+          <div class="acq-box-num">18</div>
+          <div class="acq-box-label">Box 1 · 4h</div>
+          <div class="acq-box-due">8 due</div>
+        </div>
+        <div class="acq-box">
+          <div class="acq-box-num">12</div>
+          <div class="acq-box-label">Box 2 · 1d</div>
+          <div class="acq-box-due">3 due</div>
+        </div>
+        <div class="acq-box">
+          <div class="acq-box-num">8</div>
+          <div class="acq-box-label">Box 3 · 3d</div>
+          <div class="acq-box-due">1 due</div>
+        </div>
+      </div>
+      <div class="acq-metrics">
+        <div class="acq-metric"><b style="color: #2dd4bf">82%</b> grad</div>
+        <div class="acq-metric"><b>~9</b> reviews</div>
+        <div class="acq-metric"><b style="color: #fbbf24">4.2d</b> avg</div>
+      </div>
+    </div>
+
+    <div class="wf-flow">
+      <div class="wf-flow-line" style="background: rgba(45,212,191,0.3);"></div>
+      <span class="wf-flow-arrow" style="color: #2dd4bf">▼</span>
+      <span class="wf-flow-text" style="color: #2dd4bf">~3/day graduating → FSRS</span>
+    </div>
+
+    <div class="wf-stage">
+      <div class="wf-pip" style="background: #38bdf8;"></div>
+      <div class="wf-num" style="color: #38bdf8">87</div>
+      <div class="wf-info">
+        <div class="wf-name" style="color: #38bdf8">Learning</div>
+        <div class="wf-desc">FSRS intervals growing</div>
+      </div>
+      <div class="wf-right">
+        <div class="wf-delta" style="color: #38bdf8">+5/wk</div>
+      </div>
+    </div>
+
+    <div class="wf-flow">
+      <div class="wf-flow-line" style="background: rgba(45,212,191,0.15);"></div>
+      <span class="wf-flow-arrow" style="color: #555">▼</span>
+      <span class="wf-flow-text" style="color: #555">stability ≥ 21 days</span>
+    </div>
+
+    <div class="wf-stage">
+      <div class="wf-pip" style="background: #2dd4bf;"></div>
+      <div class="wf-num" style="color: #2dd4bf">145</div>
+      <div class="wf-info">
+        <div class="wf-name" style="color: #2dd4bf">Known</div>
+        <div class="wf-desc">Long-term memory</div>
+      </div>
+      <div class="wf-right">
+        <div class="wf-delta" style="color: #2dd4bf">+12/wk</div>
+      </div>
+    </div>
+
+    <div class="health-row">
+      <div class="health-chip">
+        <div class="health-chip-val" style="color: #2dd4bf">+2.1</div>
+        <div class="health-chip-label">Net/day</div>
+      </div>
+      <div class="health-chip">
+        <div class="health-chip-val" style="color: #f87171">4</div>
+        <div class="health-chip-label">Lapsed</div>
+      </div>
+      <div class="health-chip">
+        <div class="health-chip-val">87%</div>
+        <div class="health-chip-label">Retention</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="forecast-card">
+    <div class="forecast-title">Forgetting Forecast</div>
+    <div class="forecast-row">
+      <div class="forecast-item">
+        <div class="forecast-skip">skip 1 day</div>
+        <div class="forecast-count">2</div>
+        <div class="forecast-label">words at risk</div>
+      </div>
+      <div class="forecast-item">
+        <div class="forecast-skip">skip 3 days</div>
+        <div class="forecast-count">5</div>
+        <div class="forecast-label">words at risk</div>
+      </div>
+      <div class="forecast-item">
+        <div class="forecast-skip">skip 7 days</div>
+        <div class="forecast-count">8</div>
+        <div class="forecast-label">words at risk</div>
+      </div>
+    </div>
+
+    <div class="flow-mini">
+      <div class="flow-mini-title">
+        <span>7-day pipeline flow</span>
+        <span style="color: #fbbf24">in</span> <span style="color: #2dd4bf">out</span>
+      </div>
+      <div class="flow-bars">
+        <div class="fb"><div class="fb-in" style="height: 55%; background: #fbbf24;"></div><div class="fb-out" style="height: 35%; background: #2dd4bf;"></div></div>
+        <div class="fb"><div class="fb-in" style="height: 75%; background: #fbbf24;"></div><div class="fb-out" style="height: 45%; background: #2dd4bf;"></div></div>
+        <div class="fb"><div class="fb-in" style="height: 45%; background: #fbbf24;"></div><div class="fb-out" style="height: 65%; background: #2dd4bf;"></div></div>
+        <div class="fb"><div class="fb-in" style="height: 95%; background: #fbbf24;"></div><div class="fb-out" style="height: 25%; background: #2dd4bf;"></div></div>
+        <div class="fb"><div class="fb-in" style="height: 65%; background: #fbbf24;"></div><div class="fb-out" style="height: 55%; background: #2dd4bf;"></div></div>
+        <div class="fb"><div class="fb-in" style="height: 35%; background: #fbbf24;"></div><div class="fb-out" style="height: 75%; background: #2dd4bf;"></div></div>
+        <div class="fb"><div class="fb-in" style="height: 55%; background: #fbbf24;"></div><div class="fb-out" style="height: 40%; background: #2dd4bf;"></div></div>
+      </div>
+      <div class="flow-days">
+        <div class="flow-day">M</div><div class="flow-day">T</div><div class="flow-day">W</div><div class="flow-day">T</div><div class="flow-day">F</div><div class="flow-day">S</div><div class="flow-day">S</div>
+      </div>
+    </div>
+
+    <div class="grads">
+      <div class="grad-title">Recently graduated</div>
+      <div class="grad-list">
+        <span class="grad-pill">سَمَاء <span class="grad-time">2h</span></span>
+        <span class="grad-pill">يَوم <span class="grad-time">5h</span></span>
+        <span class="grad-pill">وَلَد <span class="grad-time">1d</span></span>
+      </div>
+    </div>
+  </div>
+</div>
+</section>

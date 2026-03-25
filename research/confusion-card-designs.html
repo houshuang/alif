@@ -1,0 +1,1779 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Confusion Card Design Exploration</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Naskh+Arabic:wght@400;600;700&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0f0f1a;
+    --surface: #1a1a2e;
+    --surface-light: #252542;
+    --text: #e8e8f0;
+    --text-secondary: #8888a0;
+    --accent: #4a9eff;
+    --confused: #f39c12;
+    --missed: #e74c3c;
+    --got-it: #2ecc71;
+    --border: #2a2a45;
+    --arabic: #f0f0ff;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Inter', system-ui, sans-serif;
+    line-height: 1.5;
+    padding: 20px;
+    min-height: 100vh;
+  }
+
+  .ar {
+    font-family: 'Noto Naskh Arabic', 'Scheherazade New', serif;
+    direction: rtl;
+    color: var(--arabic);
+  }
+
+  /* Page header */
+  .page-header {
+    max-width: 900px;
+    margin: 0 auto 40px;
+    text-align: center;
+  }
+  .page-header h1 {
+    font-size: 28px;
+    font-weight: 700;
+    margin-bottom: 8px;
+    background: linear-gradient(135deg, var(--accent), var(--confused));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  .page-header .subtitle {
+    color: var(--text-secondary);
+    font-size: 15px;
+    margin-bottom: 4px;
+  }
+  .page-header .target-word {
+    font-size: 18px;
+    color: var(--text);
+  }
+  .page-header .target-word .ar {
+    font-size: 32px;
+    color: var(--accent);
+    vertical-align: middle;
+  }
+
+  /* Section headers */
+  .section-header {
+    max-width: 900px;
+    margin: 48px auto 24px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--border);
+  }
+  .section-header h2 {
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--confused);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+  .section-header p {
+    color: var(--text-secondary);
+    font-size: 13px;
+    margin-top: 4px;
+  }
+
+  /* Grid layout */
+  .card-grid {
+    max-width: 900px;
+    margin: 0 auto;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(380px, 1fr));
+    gap: 28px;
+  }
+  @media (max-width: 480px) {
+    .card-grid { grid-template-columns: 1fr; }
+  }
+
+  /* Card wrapper */
+  .variation {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    overflow: hidden;
+  }
+  .variation-label {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 16px;
+    background: rgba(74, 158, 255, 0.04);
+    border-bottom: 1px solid var(--border);
+  }
+  .variation-number {
+    background: var(--accent);
+    color: var(--bg);
+    font-size: 11px;
+    font-weight: 700;
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 6px;
+    flex-shrink: 0;
+  }
+  .variation-name {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text);
+  }
+  .variation-body {
+    padding: 16px;
+  }
+
+  /* Full-width card for some designs */
+  .card-grid .full-width {
+    grid-column: 1 / -1;
+  }
+
+  /* ============================================
+     VARIATION STYLES
+     ============================================ */
+
+  /* --- V1: Current baseline --- */
+  .v1-section {
+    background: rgba(243, 156, 18, 0.06);
+    border-radius: 10px;
+    border-left: 3px solid rgba(243, 156, 18, 0.4);
+    padding: 12px;
+  }
+  .v1-header {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 10px;
+  }
+  .v1-header-icon {
+    color: var(--confused);
+    font-size: 14px;
+  }
+  .v1-header-text {
+    font-size: 12px;
+    color: var(--confused);
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+  }
+  .v1-word-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 8px;
+  }
+  .v1-word-ar {
+    font-size: 24px;
+    line-height: 36px;
+  }
+  .v1-gloss {
+    font-size: 14px;
+    color: var(--text);
+  }
+  .v1-dots-banner {
+    background: rgba(243, 156, 18, 0.1);
+    border-radius: 6px;
+    padding: 5px 10px;
+    display: inline-block;
+    margin-bottom: 8px;
+  }
+  .v1-dots-text {
+    font-size: 12px;
+    color: var(--confused);
+    font-weight: 600;
+  }
+  .v1-letter-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .v1-letter-box {
+    width: 42px;
+    height: 42px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid;
+  }
+  .v1-letter-box.target {
+    background: rgba(74, 158, 255, 0.15);
+    border-color: rgba(74, 158, 255, 0.3);
+  }
+  .v1-letter-box.similar {
+    background: rgba(243, 156, 18, 0.15);
+    border-color: rgba(243, 156, 18, 0.3);
+  }
+  .v1-letter-char {
+    font-size: 26px;
+    line-height: 36px;
+  }
+  .v1-neq {
+    font-size: 16px;
+    color: var(--text-secondary);
+    font-weight: 600;
+  }
+
+  /* --- V2: Inline highlight --- */
+  .v2-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .v2-word {
+    font-size: 30px;
+    line-height: 44px;
+    letter-spacing: 1px;
+  }
+  .v2-diff {
+    color: var(--confused);
+    font-weight: 700;
+  }
+  .v2-same {
+    color: var(--arabic);
+  }
+  .v2-info {
+    font-size: 14px;
+    color: var(--text-secondary);
+  }
+  .v2-info .v2-gloss {
+    color: var(--text);
+    font-weight: 500;
+  }
+
+  /* --- V3: Both words inline side by side --- */
+  .v3-pair {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 24px;
+    padding: 12px 0;
+  }
+  .v3-word-group {
+    text-align: center;
+  }
+  .v3-word {
+    font-size: 28px;
+    line-height: 42px;
+  }
+  .v3-word .blue { color: var(--accent); font-weight: 700; }
+  .v3-word .orange { color: var(--confused); font-weight: 700; }
+  .v3-word .normal { color: var(--arabic); }
+  .v3-label {
+    font-size: 11px;
+    color: var(--text-secondary);
+    margin-top: 4px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  .v3-vs {
+    font-size: 14px;
+    color: var(--text-secondary);
+    font-weight: 600;
+    background: var(--surface-light);
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+  .v3-gloss {
+    font-size: 13px;
+    color: var(--text);
+    margin-top: 2px;
+  }
+
+  /* --- V4: Stacked with color --- */
+  .v4-stack {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    padding: 8px 0;
+  }
+  .v4-row {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+  .v4-word {
+    font-size: 30px;
+    line-height: 44px;
+    letter-spacing: 2px;
+  }
+  .v4-word .blue { color: var(--accent); }
+  .v4-word .orange { color: var(--confused); }
+  .v4-word .dim { color: rgba(232, 232, 240, 0.4); }
+  .v4-meaning {
+    font-size: 13px;
+    color: var(--text-secondary);
+    min-width: 70px;
+  }
+  .v4-divider {
+    width: 80%;
+    height: 1px;
+    background: var(--border);
+    margin: 2px 0;
+  }
+  .v4-annotation {
+    font-size: 11px;
+    color: var(--text-secondary);
+    margin-top: 6px;
+  }
+
+  /* --- V5: Single focus letter --- */
+  .v5-container {
+    text-align: center;
+    padding: 8px 0;
+  }
+  .v5-similar-word {
+    font-size: 18px;
+    color: var(--text-secondary);
+    margin-bottom: 2px;
+  }
+  .v5-similar-gloss {
+    font-size: 13px;
+    color: var(--text-secondary);
+    margin-bottom: 14px;
+  }
+  .v5-focus-area {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 28px;
+    padding: 12px;
+    background: rgba(243, 156, 18, 0.06);
+    border-radius: 12px;
+    margin-bottom: 10px;
+  }
+  .v5-focus-letter {
+    text-align: center;
+  }
+  .v5-big-letter {
+    font-size: 52px;
+    line-height: 64px;
+    display: block;
+  }
+  .v5-letter-name {
+    font-size: 12px;
+    font-weight: 600;
+    margin-top: 2px;
+  }
+  .v5-arrow {
+    font-size: 24px;
+    color: var(--text-secondary);
+  }
+  .v5-message {
+    font-size: 13px;
+    color: var(--text);
+    line-height: 1.6;
+  }
+  .v5-message .orange { color: var(--confused); font-weight: 600; }
+  .v5-message .blue { color: var(--accent); font-weight: 600; }
+
+  /* --- V6: Dot annotation --- */
+  .v6-container {
+    text-align: center;
+    padding: 12px 0;
+  }
+  .v6-equation {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    margin-bottom: 14px;
+  }
+  .v6-letter-frame {
+    position: relative;
+    width: 72px;
+    height: 72px;
+    border-radius: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 2px solid;
+  }
+  .v6-letter-frame.has-dot {
+    border-color: var(--accent);
+    background: rgba(74, 158, 255, 0.08);
+  }
+  .v6-letter-frame.no-dot {
+    border-color: var(--confused);
+    background: rgba(243, 156, 18, 0.08);
+  }
+  .v6-letter-big {
+    font-size: 44px;
+    line-height: 56px;
+  }
+  .v6-dot-indicator {
+    position: absolute;
+    top: -8px;
+    right: -8px;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    font-weight: 700;
+  }
+  .v6-dot-indicator.present {
+    background: var(--accent);
+    color: var(--bg);
+  }
+  .v6-dot-indicator.absent {
+    background: var(--confused);
+    color: var(--bg);
+  }
+  .v6-operator {
+    font-size: 24px;
+    color: var(--text-secondary);
+    font-weight: 300;
+  }
+  .v6-label {
+    font-size: 12px;
+    margin-top: 4px;
+    font-weight: 600;
+  }
+  .v6-label.blue { color: var(--accent); }
+  .v6-label.orange { color: var(--confused); }
+  .v6-explanation {
+    font-size: 13px;
+    color: var(--text-secondary);
+    padding: 8px 12px;
+    background: var(--surface-light);
+    border-radius: 8px;
+    display: inline-block;
+  }
+  .v6-explanation strong {
+    color: var(--text);
+    font-weight: 600;
+  }
+
+  /* --- V7: Minimal text --- */
+  .v7-line {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 0;
+    flex-wrap: wrap;
+  }
+  .v7-word {
+    font-size: 22px;
+    line-height: 34px;
+  }
+  .v7-gloss {
+    font-size: 14px;
+    color: var(--text);
+  }
+  .v7-dash {
+    color: var(--text-secondary);
+    font-size: 14px;
+  }
+  .v7-hint {
+    font-size: 13px;
+    color: var(--text-secondary);
+  }
+  .v7-hint .orange { color: var(--confused); font-weight: 600; }
+  .v7-hint .blue { color: var(--accent); font-weight: 600; }
+
+  /* --- V8: Comparison table --- */
+  .v8-table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    border-radius: 10px;
+    overflow: hidden;
+    border: 1px solid var(--border);
+  }
+  .v8-table th {
+    background: var(--surface-light);
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    color: var(--text-secondary);
+    padding: 8px 12px;
+    font-weight: 600;
+    text-align: center;
+  }
+  .v8-table th.yours { color: var(--accent); }
+  .v8-table th.theirs { color: var(--confused); }
+  .v8-table td {
+    padding: 10px 12px;
+    text-align: center;
+    border-top: 1px solid var(--border);
+  }
+  .v8-table .row-word td {
+    font-size: 22px;
+    line-height: 34px;
+  }
+  .v8-table .row-gloss td {
+    font-size: 13px;
+    color: var(--text-secondary);
+    border-top: none;
+    padding-top: 0;
+  }
+  .v8-table .row-letters td {
+    font-size: 24px;
+    line-height: 36px;
+    letter-spacing: 8px;
+  }
+  .v8-table .highlight-blue { color: var(--accent); font-weight: 700; }
+  .v8-table .highlight-orange { color: var(--confused); font-weight: 700; }
+  .v8-table .row-diff td {
+    font-size: 12px;
+    color: var(--text-secondary);
+    background: rgba(243, 156, 18, 0.04);
+  }
+
+  /* --- V9: Highlighted word with underline --- */
+  .v9-container {
+    text-align: center;
+    padding: 8px 0;
+  }
+  .v9-word {
+    font-size: 34px;
+    line-height: 52px;
+    letter-spacing: 2px;
+    margin-bottom: 6px;
+  }
+  .v9-char {
+    display: inline-block;
+    padding-bottom: 4px;
+  }
+  .v9-char.diff {
+    border-bottom: 3px solid var(--confused);
+    padding-bottom: 2px;
+  }
+  .v9-gloss {
+    font-size: 14px;
+    color: var(--text-secondary);
+    margin-bottom: 10px;
+  }
+  .v9-hint {
+    font-size: 12px;
+    color: var(--text-secondary);
+    padding: 6px 14px;
+    background: var(--surface-light);
+    border-radius: 20px;
+    display: inline-block;
+  }
+  .v9-hint .orange { color: var(--confused); font-weight: 600; }
+
+  /* --- V10: Emoji/icon approach --- */
+  .v10-container {
+    padding: 4px 0;
+  }
+  .v10-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 6px 0;
+  }
+  .v10-word {
+    font-size: 24px;
+    line-height: 36px;
+    min-width: 80px;
+    text-align: right;
+  }
+  .v10-dots {
+    display: flex;
+    gap: 3px;
+    align-items: center;
+    min-width: 50px;
+  }
+  .v10-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+  .v10-dot.match { background: rgba(232, 232, 240, 0.15); }
+  .v10-dot.diff-blue { background: var(--accent); }
+  .v10-dot.diff-orange { background: var(--confused); }
+  .v10-info {
+    font-size: 13px;
+    color: var(--text-secondary);
+    flex: 1;
+  }
+  .v10-label {
+    font-size: 11px;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    margin-bottom: 2px;
+    padding-left: 4px;
+  }
+
+  /* --- V11: Bracket/parenthetical --- */
+  .v11-container {
+    text-align: center;
+    padding: 12px 0;
+  }
+  .v11-formula {
+    font-size: 28px;
+    line-height: 44px;
+    margin-bottom: 10px;
+    direction: rtl;
+  }
+  .v11-bracket {
+    color: var(--text-secondary);
+    font-family: 'Inter', sans-serif;
+    font-size: 20px;
+  }
+  .v11-original {
+    color: var(--accent);
+    font-weight: 700;
+  }
+  .v11-arrow {
+    color: var(--text-secondary);
+    font-family: 'Inter', sans-serif;
+    font-size: 16px;
+    vertical-align: middle;
+  }
+  .v11-replacement {
+    color: var(--confused);
+    font-weight: 700;
+  }
+  .v11-explanation {
+    font-size: 13px;
+    color: var(--text-secondary);
+  }
+  .v11-explanation .orange { color: var(--confused); font-weight: 600; }
+  .v11-result {
+    margin-top: 4px;
+    font-size: 13px;
+    color: var(--text);
+  }
+
+  /* --- V12: Gradient fade --- */
+  .v12-pair {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 0;
+  }
+  .v12-row {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+  .v12-word {
+    font-size: 32px;
+    line-height: 48px;
+    letter-spacing: 3px;
+  }
+  .v12-word .dim { color: rgba(232, 232, 240, 0.22); }
+  .v12-word .bright-blue {
+    color: var(--accent);
+    text-shadow: 0 0 12px rgba(74, 158, 255, 0.4);
+  }
+  .v12-word .bright-orange {
+    color: var(--confused);
+    text-shadow: 0 0 12px rgba(243, 156, 18, 0.4);
+  }
+  .v12-label {
+    font-size: 12px;
+    min-width: 70px;
+  }
+  .v12-label.blue { color: var(--accent); }
+  .v12-label.orange { color: var(--confused); }
+  .v12-connector {
+    width: 2px;
+    height: 10px;
+    background: var(--border);
+    margin: 0 auto;
+  }
+
+  /* --- V13a: Pill chain decomposition --- */
+  .v13a-container {
+    padding: 8px 0;
+  }
+  .v13a-surface {
+    text-align: center;
+    margin-bottom: 10px;
+  }
+  .v13a-surface-word {
+    font-size: 28px;
+    line-height: 42px;
+  }
+  .v13a-surface-translit {
+    font-size: 12px;
+    color: var(--text-secondary);
+    font-style: italic;
+  }
+  .v13a-chain {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    flex-wrap: wrap;
+    direction: rtl;
+  }
+  .v13a-pill {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 3px;
+  }
+  .v13a-pill-body {
+    padding: 5px 12px;
+    border-radius: 20px;
+    font-size: 20px;
+    line-height: 30px;
+  }
+  .v13a-pill-body.clitic {
+    background: rgba(243, 156, 18, 0.12);
+    border: 1px solid rgba(243, 156, 18, 0.25);
+    color: var(--confused);
+  }
+  .v13a-pill-body.stem {
+    background: rgba(74, 158, 255, 0.12);
+    border: 1px solid rgba(74, 158, 255, 0.25);
+    color: var(--accent);
+    font-weight: 700;
+  }
+  .v13a-pill-label {
+    font-size: 10px;
+    color: var(--text-secondary);
+    font-weight: 500;
+  }
+  .v13a-plus {
+    font-size: 16px;
+    color: var(--text-secondary);
+    font-weight: 600;
+    align-self: center;
+    margin-top: -14px;
+  }
+  .v13a-result {
+    text-align: center;
+    margin-top: 10px;
+    font-size: 13px;
+    color: var(--text-secondary);
+  }
+
+  /* --- V13b: Arrow breakdown --- */
+  .v13b-container {
+    text-align: center;
+    padding: 8px 0;
+  }
+  .v13b-surface-word {
+    font-size: 28px;
+    line-height: 42px;
+  }
+  .v13b-arrow-down {
+    font-size: 20px;
+    color: var(--text-secondary);
+    margin: 6px 0;
+  }
+  .v13b-pieces {
+    display: flex;
+    justify-content: center;
+    gap: 16px;
+    direction: rtl;
+  }
+  .v13b-piece {
+    text-align: center;
+  }
+  .v13b-piece-ar {
+    font-size: 22px;
+    line-height: 34px;
+  }
+  .v13b-piece-ar.clitic { color: var(--confused); }
+  .v13b-piece-ar.stem { color: var(--accent); font-weight: 700; }
+  .v13b-piece-label {
+    font-size: 10px;
+    color: var(--text-secondary);
+    display: block;
+    margin-top: 2px;
+  }
+  .v13b-connector {
+    display: flex;
+    align-items: center;
+    color: var(--text-secondary);
+    font-size: 10px;
+    padding-top: 6px;
+  }
+  .v13b-translation {
+    margin-top: 10px;
+    font-size: 13px;
+    color: var(--text-secondary);
+    font-style: italic;
+  }
+
+  /* --- V13c: Color bands --- */
+  .v13c-container {
+    text-align: center;
+    padding: 8px 0;
+  }
+  .v13c-word-display {
+    font-size: 30px;
+    line-height: 46px;
+    margin-bottom: 8px;
+    direction: rtl;
+    display: inline-flex;
+    align-items: baseline;
+  }
+  .v13c-segment {
+    display: inline-block;
+    padding: 2px 3px;
+    border-radius: 4px;
+    position: relative;
+    margin: 0 1px;
+  }
+  .v13c-segment.prefix1 {
+    background: rgba(155, 89, 182, 0.15);
+    border-bottom: 2px solid rgba(155, 89, 182, 0.6);
+    color: #c39bd3;
+  }
+  .v13c-segment.prefix2 {
+    background: rgba(243, 156, 18, 0.12);
+    border-bottom: 2px solid rgba(243, 156, 18, 0.5);
+    color: var(--confused);
+  }
+  .v13c-segment.core {
+    background: rgba(74, 158, 255, 0.12);
+    border-bottom: 2px solid rgba(74, 158, 255, 0.5);
+    color: var(--accent);
+    font-weight: 700;
+  }
+  .v13c-segment.suffix {
+    background: rgba(46, 204, 113, 0.12);
+    border-bottom: 2px solid rgba(46, 204, 113, 0.5);
+    color: var(--got-it);
+  }
+  .v13c-legend {
+    display: flex;
+    justify-content: center;
+    gap: 14px;
+    flex-wrap: wrap;
+  }
+  .v13c-legend-item {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 11px;
+    color: var(--text-secondary);
+  }
+  .v13c-legend-swatch {
+    width: 12px;
+    height: 3px;
+    border-radius: 2px;
+  }
+  .v13c-legend-swatch.s1 { background: rgba(155, 89, 182, 0.7); }
+  .v13c-legend-swatch.s2 { background: rgba(243, 156, 18, 0.7); }
+  .v13c-legend-swatch.s3 { background: rgba(74, 158, 255, 0.7); }
+  .v13c-legend-swatch.s4 { background: rgba(46, 204, 113, 0.7); }
+  .v13c-translation {
+    margin-top: 8px;
+    font-size: 13px;
+    color: var(--text-secondary);
+    font-style: italic;
+  }
+
+  /* --- V14: Compact layout --- */
+  .v14-card {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 4px 0;
+  }
+  .v14-word {
+    font-size: 22px;
+    line-height: 34px;
+    flex-shrink: 0;
+  }
+  .v14-body {
+    flex: 1;
+    min-width: 0;
+  }
+  .v14-gloss {
+    font-size: 14px;
+    color: var(--text);
+    font-weight: 500;
+  }
+  .v14-hint {
+    font-size: 12px;
+    color: var(--text-secondary);
+  }
+  .v14-hint .orange { color: var(--confused); }
+  .v14-hint .blue { color: var(--accent); }
+
+  /* --- V15: Spacious layout --- */
+  .v15-card {
+    background: rgba(243, 156, 18, 0.04);
+    border-radius: 14px;
+    padding: 24px;
+    border: 1px solid rgba(243, 156, 18, 0.12);
+  }
+  .v15-word-row {
+    display: flex;
+    align-items: baseline;
+    justify-content: center;
+    gap: 16px;
+    margin-bottom: 16px;
+  }
+  .v15-word {
+    font-size: 36px;
+    line-height: 54px;
+  }
+  .v15-word .diff { color: var(--confused); font-weight: 700; }
+  .v15-word .same { color: var(--arabic); }
+  .v15-gloss {
+    font-size: 16px;
+    color: var(--text);
+  }
+  .v15-divider {
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--border), transparent);
+    margin-bottom: 16px;
+  }
+  .v15-details {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+  }
+  .v15-letter-compare {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+  .v15-letter-card {
+    text-align: center;
+    padding: 10px 18px;
+    border-radius: 10px;
+    border: 1px solid;
+  }
+  .v15-letter-card.yours {
+    border-color: rgba(74, 158, 255, 0.3);
+    background: rgba(74, 158, 255, 0.08);
+  }
+  .v15-letter-card.theirs {
+    border-color: rgba(243, 156, 18, 0.3);
+    background: rgba(243, 156, 18, 0.08);
+  }
+  .v15-letter-big {
+    font-size: 38px;
+    line-height: 48px;
+    display: block;
+  }
+  .v15-letter-name {
+    font-size: 11px;
+    margin-top: 4px;
+    font-weight: 600;
+  }
+  .v15-letter-name.blue { color: var(--accent); }
+  .v15-letter-name.orange { color: var(--confused); }
+  .v15-vs {
+    font-size: 14px;
+    color: var(--text-secondary);
+  }
+  .v15-note {
+    font-size: 12px;
+    color: var(--text-secondary);
+    text-align: center;
+    padding: 6px 14px;
+    background: var(--surface-light);
+    border-radius: 8px;
+  }
+
+  /* Scaling demo sub-section */
+  .scale-demo {
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px solid var(--border);
+  }
+  .scale-demo-title {
+    font-size: 11px;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 8px;
+  }
+  .scale-items {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  /* Voting buttons */
+  .vote-bar {
+    display: flex;
+    gap: 6px;
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px solid var(--border);
+  }
+  .vote-btn {
+    flex: 1;
+    padding: 6px 0;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: transparent;
+    color: var(--text-secondary);
+    font-size: 11px;
+    cursor: pointer;
+    transition: all 0.2s;
+    font-family: 'Inter', sans-serif;
+  }
+  .vote-btn:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+    background: rgba(74, 158, 255, 0.06);
+  }
+  .vote-btn.selected {
+    border-color: var(--accent);
+    color: var(--accent);
+    background: rgba(74, 158, 255, 0.12);
+    font-weight: 600;
+  }
+
+  /* Summary bar */
+  .summary-bar {
+    max-width: 900px;
+    margin: 48px auto 20px;
+    padding: 20px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+  }
+  .summary-bar h3 {
+    font-size: 14px;
+    color: var(--confused);
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    margin-bottom: 12px;
+  }
+  #vote-summary {
+    font-size: 13px;
+    color: var(--text-secondary);
+    line-height: 1.8;
+  }
+</style>
+</head>
+<body>
+
+<!-- ====== PAGE HEADER ====== -->
+<div class="page-header">
+  <h1>Confusion Card Design Exploration</h1>
+  <p class="subtitle">Exploring visual treatments for "easily confused words" in review mode</p>
+  <p class="target-word">
+    Target word: <span class="ar">نَظَرَ</span>
+    <span style="color: var(--text-secondary); font-size: 14px;">(na&#x1E93;ara)</span> &mdash;
+    to look
+  </p>
+</div>
+
+<!-- ====== SECTION: LETTER DIFFERENCE DESIGNS ====== -->
+<div class="section-header">
+  <h2>Letter Difference Designs</h2>
+  <p>Variations 1&ndash;12: How to show that <span class="ar" style="font-size: 18px;">&#x0646;&#x064E;&#x0637;&#x064E;&#x0631;&#x064E;</span> (to guard) differs from <span class="ar" style="font-size: 18px;">&#x0646;&#x064E;&#x0638;&#x064E;&#x0631;&#x064E;</span> (to look) by a single dot</p>
+</div>
+
+<div class="card-grid">
+
+  <!-- ============ V1: Current baseline ============ -->
+  <div class="variation">
+    <div class="variation-label">
+      <div class="variation-number">1</div>
+      <div class="variation-name">Current Design (Baseline)</div>
+    </div>
+    <div class="variation-body">
+      <div class="v1-section">
+        <div class="v1-header">
+          <span class="v1-header-icon">&#x1F441;</span>
+          <span class="v1-header-text">Easily confused</span>
+        </div>
+        <div class="v1-word-row">
+          <span class="ar v1-word-ar">&#x0646;&#x064E;&#x0637;&#x064E;&#x0631;&#x064E;</span>
+          <span class="v1-gloss">to guard</span>
+        </div>
+        <div class="v1-dots-banner">
+          <span class="v1-dots-text">identical shape &mdash; only dots differ</span>
+        </div>
+        <div class="v1-letter-row">
+          <div class="v1-letter-box target">
+            <span class="ar v1-letter-char">&#x0638;</span>
+          </div>
+          <span class="v1-neq">&ne;</span>
+          <div class="v1-letter-box similar">
+            <span class="ar v1-letter-char">&#x0637;</span>
+          </div>
+        </div>
+      </div>
+      <div class="vote-bar">
+        <button class="vote-btn" data-var="1" data-vote="clear" onclick="vote(this)">Clear</button>
+        <button class="vote-btn" data-var="1" data-vote="ok" onclick="vote(this)">OK</button>
+        <button class="vote-btn" data-var="1" data-vote="confusing" onclick="vote(this)">Confusing</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ V2: Inline highlight ============ -->
+  <div class="variation">
+    <div class="variation-label">
+      <div class="variation-number">2</div>
+      <div class="variation-name">Inline Highlight</div>
+    </div>
+    <div class="variation-body">
+      <div class="v2-row">
+        <span class="ar v2-word"><span class="v2-same">&#x0646;&#x064E;</span><span class="v2-diff">&#x0637;&#x064E;</span><span class="v2-same">&#x0631;&#x064E;</span></span>
+        <div class="v2-info">
+          <div class="v2-gloss">to guard</div>
+          <div style="font-size: 12px; color: var(--text-secondary);">has <span class="ar" style="color: var(--confused); font-size: 16px;">&#x0637;</span> not <span class="ar" style="color: var(--accent); font-size: 16px;">&#x0638;</span></div>
+        </div>
+      </div>
+      <div class="vote-bar">
+        <button class="vote-btn" data-var="2" data-vote="clear" onclick="vote(this)">Clear</button>
+        <button class="vote-btn" data-var="2" data-vote="ok" onclick="vote(this)">OK</button>
+        <button class="vote-btn" data-var="2" data-vote="confusing" onclick="vote(this)">Confusing</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ V3: Both words inline ============ -->
+  <div class="variation">
+    <div class="variation-label">
+      <div class="variation-number">3</div>
+      <div class="variation-name">Both Words Side by Side</div>
+    </div>
+    <div class="variation-body">
+      <div class="v3-pair">
+        <div class="v3-word-group">
+          <span class="ar v3-word"><span class="normal">&#x0646;&#x064E;</span><span class="blue">&#x0638;&#x064E;</span><span class="normal">&#x0631;&#x064E;</span></span>
+          <div class="v3-label" style="color: var(--accent);">your word</div>
+          <div class="v3-gloss">to look</div>
+        </div>
+        <div class="v3-vs">vs</div>
+        <div class="v3-word-group">
+          <span class="ar v3-word"><span class="normal">&#x0646;&#x064E;</span><span class="orange">&#x0637;&#x064E;</span><span class="normal">&#x0631;&#x064E;</span></span>
+          <div class="v3-label" style="color: var(--confused);">similar</div>
+          <div class="v3-gloss">to guard</div>
+        </div>
+      </div>
+      <div class="vote-bar">
+        <button class="vote-btn" data-var="3" data-vote="clear" onclick="vote(this)">Clear</button>
+        <button class="vote-btn" data-var="3" data-vote="ok" onclick="vote(this)">OK</button>
+        <button class="vote-btn" data-var="3" data-vote="confusing" onclick="vote(this)">Confusing</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ V4: Stacked with color ============ -->
+  <div class="variation">
+    <div class="variation-label">
+      <div class="variation-number">4</div>
+      <div class="variation-name">Stacked with Aligned Letters</div>
+    </div>
+    <div class="variation-body">
+      <div class="v4-stack">
+        <div class="v4-row">
+          <span class="v4-meaning" style="color: var(--accent); text-align: right;">to look</span>
+          <span class="ar v4-word"><span class="dim">&#x0646;&#x064E;</span><span class="blue">&#x0638;&#x064E;</span><span class="dim">&#x0631;&#x064E;</span></span>
+        </div>
+        <div class="v4-divider"></div>
+        <div class="v4-row">
+          <span class="v4-meaning" style="color: var(--confused); text-align: right;">to guard</span>
+          <span class="ar v4-word"><span class="dim">&#x0646;&#x064E;</span><span class="orange">&#x0637;&#x064E;</span><span class="dim">&#x0631;&#x064E;</span></span>
+        </div>
+        <div class="v4-annotation">Same skeleton &mdash; <span class="ar" style="font-size: 14px; color: var(--accent);">&#x0638;</span> has a dot, <span class="ar" style="font-size: 14px; color: var(--confused);">&#x0637;</span> does not</div>
+      </div>
+      <div class="vote-bar">
+        <button class="vote-btn" data-var="4" data-vote="clear" onclick="vote(this)">Clear</button>
+        <button class="vote-btn" data-var="4" data-vote="ok" onclick="vote(this)">OK</button>
+        <button class="vote-btn" data-var="4" data-vote="confusing" onclick="vote(this)">Confusing</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ V5: Single focus letter ============ -->
+  <div class="variation">
+    <div class="variation-label">
+      <div class="variation-number">5</div>
+      <div class="variation-name">Single Focus Letter</div>
+    </div>
+    <div class="variation-body">
+      <div class="v5-container">
+        <div class="v5-similar-word"><span class="ar" style="font-size: 20px;">&#x0646;&#x064E;&#x0637;&#x064E;&#x0631;&#x064E;</span></div>
+        <div class="v5-similar-gloss">to guard</div>
+        <div class="v5-focus-area">
+          <div class="v5-focus-letter">
+            <span class="ar v5-big-letter" style="color: var(--confused);">&#x0637;</span>
+            <div class="v5-letter-name" style="color: var(--confused);">&#x1E6D;&#x0101; (no dot)</div>
+          </div>
+          <div class="v5-arrow">&larr;</div>
+          <div class="v5-focus-letter">
+            <span class="ar v5-big-letter" style="color: var(--accent);">&#x0638;</span>
+            <div class="v5-letter-name" style="color: var(--accent);">&#x1E93;&#x0101; (has dot)</div>
+          </div>
+        </div>
+        <div class="v5-message">This word has <span class="orange">&#x0637; &#x1E6D;&#x0101;</span> &mdash; yours has <span class="blue">&#x0638; &#x1E93;&#x0101;</span></div>
+      </div>
+      <div class="vote-bar">
+        <button class="vote-btn" data-var="5" data-vote="clear" onclick="vote(this)">Clear</button>
+        <button class="vote-btn" data-var="5" data-vote="ok" onclick="vote(this)">OK</button>
+        <button class="vote-btn" data-var="5" data-vote="confusing" onclick="vote(this)">Confusing</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ V6: Dot annotation ============ -->
+  <div class="variation">
+    <div class="variation-label">
+      <div class="variation-number">6</div>
+      <div class="variation-name">Dot Annotation</div>
+    </div>
+    <div class="variation-body">
+      <div class="v6-container">
+        <div class="v6-equation">
+          <div style="text-align: center;">
+            <div class="v6-letter-frame has-dot">
+              <span class="ar v6-letter-big">&#x0638;</span>
+              <div class="v6-dot-indicator present">&bull;</div>
+            </div>
+            <div class="v6-label blue">&#x1E93;&#x0101; &mdash; to look</div>
+          </div>
+          <div class="v6-operator">=</div>
+          <div style="text-align: center;">
+            <div class="v6-letter-frame no-dot">
+              <span class="ar v6-letter-big">&#x0637;</span>
+              <div class="v6-dot-indicator absent">&#x2013;</div>
+            </div>
+            <div class="v6-label orange">&#x1E6D;&#x0101; &mdash; to guard</div>
+          </div>
+          <div class="v6-operator">+</div>
+          <div style="text-align: center; font-size: 32px; color: var(--accent);">&#x25CF;</div>
+        </div>
+        <div class="v6-explanation">
+          Same shape. <strong>&#x0638;</strong> = <strong>&#x0637;</strong> + dot above
+        </div>
+      </div>
+      <div class="vote-bar">
+        <button class="vote-btn" data-var="6" data-vote="clear" onclick="vote(this)">Clear</button>
+        <button class="vote-btn" data-var="6" data-vote="ok" onclick="vote(this)">OK</button>
+        <button class="vote-btn" data-var="6" data-vote="confusing" onclick="vote(this)">Confusing</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ V7: Minimal text ============ -->
+  <div class="variation">
+    <div class="variation-label">
+      <div class="variation-number">7</div>
+      <div class="variation-name">Minimal Text</div>
+    </div>
+    <div class="variation-body">
+      <div class="v7-line">
+        <span class="ar v7-word">&#x0646;&#x064E;&#x0637;&#x064E;&#x0631;&#x064E;</span>
+        <span class="v7-gloss">to guard</span>
+        <span class="v7-dash">&mdash;</span>
+        <span class="v7-hint">has <span class="ar orange" style="font-size: 16px;">&#x0637;</span> not <span class="ar blue" style="font-size: 16px;">&#x0638;</span></span>
+      </div>
+
+      <!-- Show scaling with words 2 and 3 -->
+      <div class="scale-demo">
+        <div class="scale-demo-title">Scaling with more words:</div>
+        <div class="v7-line">
+          <span class="ar v7-word">&#x0646;&#x064E;&#x0634;&#x064E;&#x0631;&#x064E;</span>
+          <span class="v7-gloss">to publish</span>
+          <span class="v7-dash">&mdash;</span>
+          <span class="v7-hint">has <span class="ar orange" style="font-size: 16px;">&#x0634;</span> not <span class="ar blue" style="font-size: 16px;">&#x0638;</span></span>
+        </div>
+        <div class="v7-line">
+          <span class="ar v7-word">&#x0628;&#x064E;&#x0635;&#x064E;&#x0631;&#x064E;</span>
+          <span class="v7-gloss">to see</span>
+          <span class="v7-dash">&mdash;</span>
+          <span class="v7-hint">differs at 2 positions</span>
+        </div>
+      </div>
+      <div class="vote-bar">
+        <button class="vote-btn" data-var="7" data-vote="clear" onclick="vote(this)">Clear</button>
+        <button class="vote-btn" data-var="7" data-vote="ok" onclick="vote(this)">OK</button>
+        <button class="vote-btn" data-var="7" data-vote="confusing" onclick="vote(this)">Confusing</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ V8: Comparison table ============ -->
+  <div class="variation">
+    <div class="variation-label">
+      <div class="variation-number">8</div>
+      <div class="variation-name">Comparison Table</div>
+    </div>
+    <div class="variation-body">
+      <table class="v8-table">
+        <thead>
+          <tr>
+            <th class="yours">Your word</th>
+            <th class="theirs">Looks like</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr class="row-word">
+            <td><span class="ar">&#x0646;&#x064E;&#x0638;&#x064E;&#x0631;&#x064E;</span></td>
+            <td><span class="ar">&#x0646;&#x064E;&#x0637;&#x064E;&#x0631;&#x064E;</span></td>
+          </tr>
+          <tr class="row-gloss">
+            <td>to look</td>
+            <td>to guard</td>
+          </tr>
+          <tr class="row-letters">
+            <td class="ar"><span>&#x0631;</span> <span class="highlight-blue">&#x0638;</span> <span>&#x0646;</span></td>
+            <td class="ar"><span>&#x0631;</span> <span class="highlight-orange">&#x0637;</span> <span>&#x0646;</span></td>
+          </tr>
+          <tr class="row-diff">
+            <td colspan="2">Position 2: <span class="ar" style="font-size: 16px;">&#x0638;</span> (dot) vs <span class="ar" style="font-size: 16px;">&#x0637;</span> (no dot)</td>
+          </tr>
+        </tbody>
+      </table>
+      <div class="vote-bar">
+        <button class="vote-btn" data-var="8" data-vote="clear" onclick="vote(this)">Clear</button>
+        <button class="vote-btn" data-var="8" data-vote="ok" onclick="vote(this)">OK</button>
+        <button class="vote-btn" data-var="8" data-vote="confusing" onclick="vote(this)">Confusing</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ V9: Highlighted word with underline ============ -->
+  <div class="variation">
+    <div class="variation-label">
+      <div class="variation-number">9</div>
+      <div class="variation-name">Underline Highlight</div>
+    </div>
+    <div class="variation-body">
+      <div class="v9-container">
+        <div class="ar v9-word"><span class="v9-char">&#x0646;&#x064E;</span><span class="v9-char diff">&#x0637;&#x064E;</span><span class="v9-char">&#x0631;&#x064E;</span></div>
+        <div class="v9-gloss">to guard</div>
+        <div class="v9-hint">underlined letter differs &mdash; yours has <span class="ar orange" style="font-size: 14px;">&#x0638;</span></div>
+      </div>
+
+      <!-- Scaling demo -->
+      <div class="scale-demo">
+        <div class="scale-demo-title">With multiple differences (&#x0628;&#x064E;&#x0635;&#x064E;&#x0631;&#x064E;):</div>
+        <div class="v9-container" style="padding: 4px 0;">
+          <div class="ar v9-word" style="font-size: 30px;"><span class="v9-char diff">&#x0628;&#x064E;</span><span class="v9-char diff">&#x0635;&#x064E;</span><span class="v9-char">&#x0631;&#x064E;</span></div>
+          <div class="v9-gloss">to see</div>
+        </div>
+      </div>
+      <div class="vote-bar">
+        <button class="vote-btn" data-var="9" data-vote="clear" onclick="vote(this)">Clear</button>
+        <button class="vote-btn" data-var="9" data-vote="ok" onclick="vote(this)">OK</button>
+        <button class="vote-btn" data-var="9" data-vote="confusing" onclick="vote(this)">Confusing</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ V10: Emoji/icon approach ============ -->
+  <div class="variation">
+    <div class="variation-label">
+      <div class="variation-number">10</div>
+      <div class="variation-name">Dot Map</div>
+    </div>
+    <div class="variation-body">
+      <div class="v10-container">
+        <div class="v10-label">Your word</div>
+        <div class="v10-row">
+          <span class="ar v10-word">&#x0646;&#x064E;&#x0638;&#x064E;&#x0631;&#x064E;</span>
+          <div class="v10-dots">
+            <div class="v10-dot match"></div>
+            <div class="v10-dot diff-blue"></div>
+            <div class="v10-dot match"></div>
+          </div>
+          <span class="v10-info">to look</span>
+        </div>
+        <div class="v10-label">Similar</div>
+        <div class="v10-row">
+          <span class="ar v10-word">&#x0646;&#x064E;&#x0637;&#x064E;&#x0631;&#x064E;</span>
+          <div class="v10-dots">
+            <div class="v10-dot match"></div>
+            <div class="v10-dot diff-orange"></div>
+            <div class="v10-dot match"></div>
+          </div>
+          <span class="v10-info">to guard</span>
+        </div>
+      </div>
+
+      <!-- Scaling demo with 2-position diff -->
+      <div class="scale-demo">
+        <div class="scale-demo-title">Two-position diff:</div>
+        <div class="v10-container">
+          <div class="v10-row">
+            <span class="ar v10-word">&#x0628;&#x064E;&#x0635;&#x064E;&#x0631;&#x064E;</span>
+            <div class="v10-dots">
+              <div class="v10-dot diff-orange"></div>
+              <div class="v10-dot diff-orange"></div>
+              <div class="v10-dot match"></div>
+            </div>
+            <span class="v10-info">to see</span>
+          </div>
+        </div>
+      </div>
+      <div class="vote-bar">
+        <button class="vote-btn" data-var="10" data-vote="clear" onclick="vote(this)">Clear</button>
+        <button class="vote-btn" data-var="10" data-vote="ok" onclick="vote(this)">OK</button>
+        <button class="vote-btn" data-var="10" data-vote="confusing" onclick="vote(this)">Confusing</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ V11: Bracket/parenthetical ============ -->
+  <div class="variation">
+    <div class="variation-label">
+      <div class="variation-number">11</div>
+      <div class="variation-name">Inline Substitution Notation</div>
+    </div>
+    <div class="variation-body">
+      <div class="v11-container">
+        <div class="v11-formula">
+          <span class="ar" style="color: var(--arabic);">&#x0646;&#x064E;</span><span class="v11-bracket">[</span><span class="ar v11-original">&#x0638;</span><span class="v11-arrow"> &rarr; </span><span class="ar v11-replacement">&#x0637;</span><span class="v11-bracket">]</span><span class="ar" style="color: var(--arabic);">&#x064E;&#x0631;&#x064E;</span>
+        </div>
+        <div class="v11-explanation">
+          Replace <span class="ar blue" style="font-size: 16px;">&#x0638;</span> with <span class="ar orange" style="font-size: 16px;">&#x0637;</span>
+        </div>
+        <div class="v11-result">
+          <span class="ar" style="font-size: 18px; color: var(--confused);">&#x0646;&#x064E;&#x0637;&#x064E;&#x0631;&#x064E;</span> = to guard
+        </div>
+      </div>
+      <div class="vote-bar">
+        <button class="vote-btn" data-var="11" data-vote="clear" onclick="vote(this)">Clear</button>
+        <button class="vote-btn" data-var="11" data-vote="ok" onclick="vote(this)">OK</button>
+        <button class="vote-btn" data-var="11" data-vote="confusing" onclick="vote(this)">Confusing</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ V12: Gradient fade ============ -->
+  <div class="variation">
+    <div class="variation-label">
+      <div class="variation-number">12</div>
+      <div class="variation-name">Gradient Fade</div>
+    </div>
+    <div class="variation-body">
+      <div class="v12-pair">
+        <div class="v12-row">
+          <span class="v12-label blue" style="text-align: right;">to look</span>
+          <span class="ar v12-word"><span class="dim">&#x0646;&#x064E;</span><span class="bright-blue">&#x0638;&#x064E;</span><span class="dim">&#x0631;&#x064E;</span></span>
+        </div>
+        <div class="v12-connector"></div>
+        <div class="v12-row">
+          <span class="v12-label orange" style="text-align: right;">to guard</span>
+          <span class="ar v12-word"><span class="dim">&#x0646;&#x064E;</span><span class="bright-orange">&#x0637;&#x064E;</span><span class="dim">&#x0631;&#x064E;</span></span>
+        </div>
+      </div>
+      <div class="vote-bar">
+        <button class="vote-btn" data-var="12" data-vote="clear" onclick="vote(this)">Clear</button>
+        <button class="vote-btn" data-var="12" data-vote="ok" onclick="vote(this)">OK</button>
+        <button class="vote-btn" data-var="12" data-vote="confusing" onclick="vote(this)">Confusing</button>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ====== SECTION: DECOMPOSITION DESIGNS ====== -->
+<div class="section-header">
+  <h2>Decomposition Designs</h2>
+  <p>Variation 13a&ndash;c: Morphological breakdown of <span class="ar" style="font-size: 18px;">&#x0648;&#x064E;&#x0628;&#x0650;&#x0646;&#x064E;&#x0638;&#x064E;&#x0631;&#x0650;&#x0647;&#x0650;</span> &rarr; "and with his look"</p>
+</div>
+
+<div class="card-grid">
+
+  <!-- ============ V13a: Pill chain ============ -->
+  <div class="variation">
+    <div class="variation-label">
+      <div class="variation-number">13a</div>
+      <div class="variation-name">Pill Chain</div>
+    </div>
+    <div class="variation-body">
+      <div class="v13a-container">
+        <div class="v13a-surface">
+          <span class="ar v13a-surface-word">&#x0648;&#x064E;&#x0628;&#x0650;&#x0646;&#x064E;&#x0638;&#x064E;&#x0631;&#x0650;&#x0647;&#x0650;</span>
+          <div class="v13a-surface-translit">wabinaẓarihi</div>
+        </div>
+        <div class="v13a-chain">
+          <div class="v13a-pill">
+            <span class="ar v13a-pill-body clitic">&#x0648;&#x064E;</span>
+            <span class="v13a-pill-label">and</span>
+          </div>
+          <span class="v13a-plus" style="direction: ltr;">+</span>
+          <div class="v13a-pill">
+            <span class="ar v13a-pill-body clitic">&#x0628;&#x0650;</span>
+            <span class="v13a-pill-label">in/with</span>
+          </div>
+          <span class="v13a-plus" style="direction: ltr;">+</span>
+          <div class="v13a-pill">
+            <span class="ar v13a-pill-body stem">&#x0646;&#x064E;&#x0638;&#x064E;&#x0631;</span>
+            <span class="v13a-pill-label" style="color: var(--accent); font-weight: 600;">look</span>
+          </div>
+          <span class="v13a-plus" style="direction: ltr;">+</span>
+          <div class="v13a-pill">
+            <span class="ar v13a-pill-body clitic">&#x0647;&#x0650;</span>
+            <span class="v13a-pill-label">his</span>
+          </div>
+        </div>
+        <div class="v13a-result">"and with his look"</div>
+      </div>
+      <div class="vote-bar">
+        <button class="vote-btn" data-var="13a" data-vote="clear" onclick="vote(this)">Clear</button>
+        <button class="vote-btn" data-var="13a" data-vote="ok" onclick="vote(this)">OK</button>
+        <button class="vote-btn" data-var="13a" data-vote="confusing" onclick="vote(this)">Confusing</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ V13b: Arrow breakdown ============ -->
+  <div class="variation">
+    <div class="variation-label">
+      <div class="variation-number">13b</div>
+      <div class="variation-name">Arrow Breakdown</div>
+    </div>
+    <div class="variation-body">
+      <div class="v13b-container">
+        <span class="ar v13b-surface-word">&#x0648;&#x064E;&#x0628;&#x0650;&#x0646;&#x064E;&#x0638;&#x064E;&#x0631;&#x0650;&#x0647;&#x0650;</span>
+        <div class="v13b-arrow-down">&darr;</div>
+        <div class="v13b-pieces">
+          <div class="v13b-piece">
+            <span class="ar v13b-piece-ar clitic">&#x0648;&#x064E;</span>
+            <span class="v13b-piece-label">and</span>
+          </div>
+          <div class="v13b-piece">
+            <span class="ar v13b-piece-ar clitic">&#x0628;&#x0650;</span>
+            <span class="v13b-piece-label">in/with</span>
+          </div>
+          <div class="v13b-piece">
+            <span class="ar v13b-piece-ar stem">&#x0646;&#x064E;&#x0638;&#x064E;&#x0631;</span>
+            <span class="v13b-piece-label" style="color: var(--accent); font-weight: 600;">look</span>
+          </div>
+          <div class="v13b-piece">
+            <span class="ar v13b-piece-ar clitic">&#x0647;&#x0650;</span>
+            <span class="v13b-piece-label">his</span>
+          </div>
+        </div>
+        <div class="v13b-translation">"and with his look"</div>
+      </div>
+      <div class="vote-bar">
+        <button class="vote-btn" data-var="13b" data-vote="clear" onclick="vote(this)">Clear</button>
+        <button class="vote-btn" data-var="13b" data-vote="ok" onclick="vote(this)">OK</button>
+        <button class="vote-btn" data-var="13b" data-vote="confusing" onclick="vote(this)">Confusing</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ V13c: Color bands ============ -->
+  <div class="variation">
+    <div class="variation-label">
+      <div class="variation-number">13c</div>
+      <div class="variation-name">Color Bands</div>
+    </div>
+    <div class="variation-body">
+      <div class="v13c-container">
+        <div class="v13c-word-display">
+          <span class="ar v13c-segment suffix">&#x0647;&#x0650;</span><span class="ar v13c-segment core">&#x0646;&#x064E;&#x0638;&#x064E;&#x0631;&#x0650;</span><span class="ar v13c-segment prefix2">&#x0628;&#x0650;</span><span class="ar v13c-segment prefix1">&#x0648;&#x064E;</span>
+        </div>
+        <div class="v13c-legend">
+          <div class="v13c-legend-item">
+            <div class="v13c-legend-swatch s1"></div>
+            <span>&#x0648;&#x064E; and</span>
+          </div>
+          <div class="v13c-legend-item">
+            <div class="v13c-legend-swatch s2"></div>
+            <span>&#x0628;&#x0650; in/with</span>
+          </div>
+          <div class="v13c-legend-item">
+            <div class="v13c-legend-swatch s3"></div>
+            <span>&#x0646;&#x064E;&#x0638;&#x064E;&#x0631; look</span>
+          </div>
+          <div class="v13c-legend-item">
+            <div class="v13c-legend-swatch s4"></div>
+            <span>&#x0647;&#x0650; his</span>
+          </div>
+        </div>
+        <div class="v13c-translation">"and with his look"</div>
+      </div>
+      <div class="vote-bar">
+        <button class="vote-btn" data-var="13c" data-vote="clear" onclick="vote(this)">Clear</button>
+        <button class="vote-btn" data-var="13c" data-vote="ok" onclick="vote(this)">OK</button>
+        <button class="vote-btn" data-var="13c" data-vote="confusing" onclick="vote(this)">Confusing</button>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ====== SECTION: LAYOUT DESIGNS ====== -->
+<div class="section-header">
+  <h2>Layout Designs</h2>
+  <p>Variations 14&ndash;15: Overall card layout approaches (compact vs spacious)</p>
+</div>
+
+<div class="card-grid">
+
+  <!-- ============ V14: Compact layout ============ -->
+  <div class="variation">
+    <div class="variation-label">
+      <div class="variation-number">14</div>
+      <div class="variation-name">Compact (2-line max)</div>
+    </div>
+    <div class="variation-body">
+      <div style="display: flex; flex-direction: column; gap: 10px;">
+        <div class="v14-card" style="padding-bottom: 10px; border-bottom: 1px solid var(--border);">
+          <span class="ar v14-word">&#x0646;&#x064E;&#x0637;&#x064E;&#x0631;&#x064E;</span>
+          <div class="v14-body">
+            <div class="v14-gloss">to guard</div>
+            <div class="v14-hint"><span class="orange">&#x0637;</span> not <span class="blue">&#x0638;</span> &middot; same shape, dot only</div>
+          </div>
+        </div>
+        <div class="v14-card" style="padding-bottom: 10px; border-bottom: 1px solid var(--border);">
+          <span class="ar v14-word">&#x0646;&#x064E;&#x0634;&#x064E;&#x0631;&#x064E;</span>
+          <div class="v14-body">
+            <div class="v14-gloss">to publish</div>
+            <div class="v14-hint"><span class="orange">&#x0634;</span> not <span class="blue">&#x0638;</span></div>
+          </div>
+        </div>
+        <div class="v14-card">
+          <span class="ar v14-word">&#x0628;&#x064E;&#x0635;&#x064E;&#x0631;&#x064E;</span>
+          <div class="v14-body">
+            <div class="v14-gloss">to see</div>
+            <div class="v14-hint">2 letters differ</div>
+          </div>
+        </div>
+      </div>
+      <div class="vote-bar">
+        <button class="vote-btn" data-var="14" data-vote="clear" onclick="vote(this)">Clear</button>
+        <button class="vote-btn" data-var="14" data-vote="ok" onclick="vote(this)">OK</button>
+        <button class="vote-btn" data-var="14" data-vote="confusing" onclick="vote(this)">Confusing</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ V15: Spacious layout ============ -->
+  <div class="variation">
+    <div class="variation-label">
+      <div class="variation-number">15</div>
+      <div class="variation-name">Spacious (one confusable at a time)</div>
+    </div>
+    <div class="variation-body">
+      <div class="v15-card">
+        <div class="v15-word-row">
+          <span class="ar v15-word"><span class="same">&#x0646;&#x064E;</span><span class="diff">&#x0637;&#x064E;</span><span class="same">&#x0631;&#x064E;</span></span>
+          <span class="v15-gloss">to guard</span>
+        </div>
+        <div class="v15-divider"></div>
+        <div class="v15-details">
+          <div class="v15-letter-compare">
+            <div class="v15-letter-card yours">
+              <span class="ar v15-letter-big">&#x0638;</span>
+              <div class="v15-letter-name blue">&#x1E93;&#x0101; (yours)</div>
+            </div>
+            <span class="v15-vs">vs</span>
+            <div class="v15-letter-card theirs">
+              <span class="ar v15-letter-big">&#x0637;</span>
+              <div class="v15-letter-name orange">&#x1E6D;&#x0101; (theirs)</div>
+            </div>
+          </div>
+          <div class="v15-note">
+            Identical shape &mdash; <span class="ar" style="color: var(--accent); font-size: 14px;">&#x0638;</span> has a dot above, <span class="ar" style="color: var(--confused); font-size: 14px;">&#x0637;</span> does not
+          </div>
+        </div>
+      </div>
+      <div class="vote-bar">
+        <button class="vote-btn" data-var="15" data-vote="clear" onclick="vote(this)">Clear</button>
+        <button class="vote-btn" data-var="15" data-vote="ok" onclick="vote(this)">OK</button>
+        <button class="vote-btn" data-var="15" data-vote="confusing" onclick="vote(this)">Confusing</button>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ====== VOTE SUMMARY ====== -->
+<div class="summary-bar">
+  <h3>Your Votes</h3>
+  <div id="vote-summary">Click "Clear", "OK", or "Confusing" on each variation to record your preference. Votes are saved in your browser.</div>
+</div>
+
+<div style="height: 40px;"></div>
+
+<script>
+  const STORAGE_KEY = 'confusion-card-votes';
+
+  function loadVotes() {
+    try {
+      return JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
+    } catch { return {}; }
+  }
+
+  function saveVotes(votes) {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(votes));
+  }
+
+  function vote(btn) {
+    const varId = btn.dataset.var;
+    const voteVal = btn.dataset.vote;
+    const votes = loadVotes();
+    votes[varId] = voteVal;
+    saveVotes(votes);
+
+    // Update button states
+    const siblings = btn.parentElement.querySelectorAll('.vote-btn');
+    siblings.forEach(b => b.classList.remove('selected'));
+    btn.classList.add('selected');
+
+    updateSummary();
+  }
+
+  function updateSummary() {
+    const votes = loadVotes();
+    const entries = Object.entries(votes);
+    if (entries.length === 0) {
+      document.getElementById('vote-summary').textContent =
+        'Click "Clear", "OK", or "Confusing" on each variation to record your preference. Votes are saved in your browser.';
+      return;
+    }
+
+    const clear = entries.filter(([,v]) => v === 'clear').map(([k]) => k);
+    const ok = entries.filter(([,v]) => v === 'ok').map(([k]) => k);
+    const confusing = entries.filter(([,v]) => v === 'confusing').map(([k]) => k);
+
+    let html = '';
+    if (clear.length) html += '<div style="color: var(--got-it); margin-bottom: 4px;">Clear: #' + clear.join(', #') + '</div>';
+    if (ok.length) html += '<div style="color: var(--accent); margin-bottom: 4px;">OK: #' + ok.join(', #') + '</div>';
+    if (confusing.length) html += '<div style="color: var(--missed); margin-bottom: 4px;">Confusing: #' + confusing.join(', #') + '</div>';
+    html += '<div style="margin-top: 8px; color: var(--text-secondary); font-size: 12px;">' + entries.length + ' of 15 rated</div>';
+
+    document.getElementById('vote-summary').innerHTML = html;
+  }
+
+  // Restore saved votes on load
+  (function() {
+    const votes = loadVotes();
+    for (const [varId, voteVal] of Object.entries(votes)) {
+      const btn = document.querySelector(`.vote-btn[data-var="${varId}"][data-vote="${voteVal}"]`);
+      if (btn) btn.classList.add('selected');
+    }
+    updateSummary();
+  })();
+</script>
+
+</body>
+</html>

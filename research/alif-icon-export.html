@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Alif Icon H — Export</title>
+<link href="https://fonts.googleapis.com/css2?family=Scheherazade+New:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #222;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 48px;
+    padding: 60px;
+    font-family: system-ui, sans-serif;
+    color: #aaa;
+  }
+
+  h2 { font-size: 14px; font-weight: 400; letter-spacing: 2px; text-transform: uppercase; }
+  p { font-size: 12px; color: #666; }
+
+  .export-group {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+  }
+
+  /* The icon at 1024×1024 — screenshot this for app icon */
+  .icon-1024 {
+    width: 1024px;
+    height: 1024px;
+    border-radius: 228px; /* iOS proportional radius */
+    background: #0f0f1a;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .icon-1024 .inner-border {
+    position: absolute;
+    inset: 67px;
+    border: 10px solid #2a2a45;
+    border-radius: 161px;
+  }
+
+  .icon-1024 .ar {
+    font-family: 'Scheherazade New', serif;
+    font-size: 377px;
+    font-weight: 400;
+    color: #f0f0ff;
+    line-height: 1;
+    direction: rtl;
+    position: relative;
+  }
+
+  /* Adaptive icon at 1024×1024 — no rounded corners (Android masks it) */
+  .icon-adaptive {
+    width: 1024px;
+    height: 1024px;
+    background: #0f0f1a;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .icon-adaptive .inner-border {
+    position: absolute;
+    inset: 120px;
+    border: 10px solid #2a2a45;
+    border-radius: 140px;
+  }
+
+  .icon-adaptive .ar {
+    font-family: 'Scheherazade New', serif;
+    font-size: 320px;
+    font-weight: 400;
+    color: #f0f0ff;
+    line-height: 1;
+    direction: rtl;
+    position: relative;
+  }
+
+  /* Favicon at 192×192 */
+  .icon-favicon {
+    width: 192px;
+    height: 192px;
+    border-radius: 43px;
+    background: #0f0f1a;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .icon-favicon .inner-border {
+    position: absolute;
+    inset: 12px;
+    border: 2px solid #2a2a45;
+    border-radius: 30px;
+  }
+
+  .icon-favicon .ar {
+    font-family: 'Scheherazade New', serif;
+    font-size: 70px;
+    font-weight: 400;
+    color: #f0f0ff;
+    line-height: 1;
+    direction: rtl;
+    position: relative;
+  }
+
+  .instructions {
+    max-width: 600px;
+    text-align: center;
+    line-height: 1.7;
+    color: #888;
+    font-size: 13px;
+    border: 1px solid #333;
+    border-radius: 8px;
+    padding: 20px;
+    margin-bottom: 20px;
+  }
+  .instructions code {
+    background: #333;
+    padding: 2px 6px;
+    border-radius: 3px;
+    font-size: 12px;
+  }
+</style>
+</head>
+<body>
+
+<div class="instructions">
+  Right-click each icon → <code>Save image as...</code> or screenshot at exact size.<br>
+  Alternatively, use DevTools to screenshot each <code>.icon-*</code> element at exact pixel dimensions.<br>
+  Chrome: Inspect → right-click element → "Capture node screenshot"
+</div>
+
+<div class="export-group">
+  <h2>App Icon — 1024 × 1024</h2>
+  <p>For icon.png and splash-icon.png</p>
+  <div class="icon-1024">
+    <div class="inner-border"></div>
+    <div class="ar">ألف</div>
+  </div>
+</div>
+
+<div class="export-group">
+  <h2>Adaptive Icon — 1024 × 1024</h2>
+  <p>For adaptive-icon.png (Android) — no corner radius, extra padding for safe zone</p>
+  <div class="icon-adaptive">
+    <div class="inner-border"></div>
+    <div class="ar">ألف</div>
+  </div>
+</div>
+
+<div class="export-group">
+  <h2>Favicon — 192 × 192</h2>
+  <p>For favicon.png (web)</p>
+  <div class="icon-favicon">
+    <div class="inner-border"></div>
+    <div class="ar">ألف</div>
+  </div>
+</div>
+
+</body>
+</html>

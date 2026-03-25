@@ -1,0 +1,1900 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Confusion Card Designs — Round 3: Inline Highlighting</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Naskh+Arabic:wght@400;600;700&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0f0f1a;
+    --surface: #1a1a2e;
+    --surface-light: #252542;
+    --text: #e8e8f0;
+    --text-secondary: #8888a0;
+    --accent: #4a9eff;
+    --confused: #f39c12;
+    --border: #2a2a45;
+    --arabic: #f0f0ff;
+    --got-it: #2ecc71;
+    --missed: #e74c3c;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Inter', system-ui, sans-serif;
+    line-height: 1.5;
+    padding: 20px;
+    min-height: 100vh;
+  }
+
+  .ar {
+    font-family: 'Noto Naskh Arabic', 'Scheherazade New', serif;
+    direction: rtl;
+    color: var(--arabic);
+  }
+
+  /* Inline highlight classes */
+  .dim { color: rgba(232, 232, 240, 0.25); }
+  .bright-blue { color: #4a9eff; text-shadow: 0 0 8px rgba(74, 158, 255, 0.3); }
+  .bright-orange { color: #f39c12; text-shadow: 0 0 8px rgba(243, 156, 18, 0.3); }
+  .bright-all { color: var(--arabic); } /* all letters bright, no highlight */
+
+  /* Morpheme colors for decomposition */
+  .morph-prefix1 { color: #9b59b6; }
+  .morph-prefix2 { color: #f39c12; }
+  .morph-stem { color: #4a9eff; }
+  .morph-suffix { color: #2ecc71; }
+
+  /* Page header */
+  .page-header {
+    max-width: 900px;
+    margin: 0 auto 20px;
+    text-align: center;
+  }
+  .page-header h1 {
+    font-size: 28px;
+    font-weight: 700;
+    margin-bottom: 8px;
+    background: linear-gradient(135deg, var(--accent), var(--confused));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  .page-header .subtitle {
+    color: var(--text-secondary);
+    font-size: 14px;
+    margin-bottom: 16px;
+    line-height: 1.6;
+  }
+
+  /* Reference table */
+  .ref-table {
+    max-width: 900px;
+    margin: 0 auto 40px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+    text-align: left;
+  }
+  .ref-table h3 {
+    font-size: 14px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--text-secondary);
+    margin-bottom: 16px;
+  }
+  .ref-target {
+    margin-bottom: 20px;
+  }
+  .ref-target:last-child { margin-bottom: 0; }
+  .ref-target-word {
+    font-size: 15px;
+    font-weight: 600;
+    margin-bottom: 6px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .ref-target-word .ar {
+    font-size: 22px;
+    color: var(--accent);
+  }
+  .ref-confusable {
+    font-size: 13px;
+    color: var(--text-secondary);
+    padding-left: 20px;
+    margin-top: 3px;
+    line-height: 1.7;
+  }
+  .ref-confusable .ar {
+    font-size: 17px;
+    color: var(--confused);
+  }
+  .rasm-badge-inline {
+    background: rgba(243, 156, 18, 0.15);
+    color: var(--confused);
+    font-size: 10px;
+    padding: 1px 5px;
+    border-radius: 4px;
+    font-weight: 600;
+    vertical-align: middle;
+  }
+
+  /* Section headers */
+  .section-header {
+    max-width: 900px;
+    margin: 56px auto 24px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--border);
+  }
+  .section-header h2 {
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--confused);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+  .section-header p {
+    font-size: 13px;
+    color: var(--text-secondary);
+    margin-top: 6px;
+    line-height: 1.5;
+  }
+
+  /* Card container */
+  .card-row {
+    max-width: 900px;
+    margin: 0 auto 40px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 24px;
+    justify-content: center;
+  }
+  .card-wrapper {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+  }
+  .card-label {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-secondary);
+  }
+  .card-desc {
+    font-size: 12px;
+    color: var(--text-secondary);
+    max-width: 420px;
+    text-align: center;
+    line-height: 1.5;
+    margin-bottom: 4px;
+  }
+
+  /* Base card styling */
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 20px;
+    width: 420px;
+    max-width: 100%;
+  }
+
+  /* Vote buttons */
+  .vote-row {
+    display: flex;
+    gap: 8px;
+    margin-top: 8px;
+  }
+  .vote-btn {
+    flex: 1;
+    padding: 7px 0;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--surface-light);
+    color: var(--text-secondary);
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.15s;
+    font-family: 'Inter', system-ui, sans-serif;
+  }
+  .vote-btn:hover { border-color: var(--accent); color: var(--text); }
+  .vote-btn.voted-clear { background: rgba(46, 204, 113, 0.15); border-color: var(--got-it); color: var(--got-it); }
+  .vote-btn.voted-ok { background: rgba(74, 158, 255, 0.15); border-color: var(--accent); color: var(--accent); }
+  .vote-btn.voted-confusing { background: rgba(231, 76, 60, 0.15); border-color: var(--missed); color: var(--missed); }
+
+  /* ===================== V1: Basic stacked ===================== */
+  .v1-your-word {
+    text-align: center;
+    margin-bottom: 16px;
+  }
+  .v1-your-word .label {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--text-secondary);
+    margin-bottom: 4px;
+  }
+  .v1-your-word .ar {
+    font-size: 28px;
+    font-weight: 600;
+    color: var(--accent);
+  }
+  .v1-your-word .gloss {
+    font-size: 13px;
+    color: var(--text-secondary);
+    margin-top: 2px;
+  }
+  .v1-pair {
+    padding: 12px 0;
+    border-top: 1px solid var(--border);
+  }
+  .v1-pair-row {
+    display: flex;
+    justify-content: center;
+    gap: 28px;
+    align-items: baseline;
+  }
+  .v1-pair-side {
+    text-align: center;
+  }
+  .v1-pair-side .label {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--text-secondary);
+    margin-bottom: 2px;
+  }
+  .v1-pair-side .ar {
+    font-size: 24px;
+  }
+  .v1-pair-side .gloss {
+    font-size: 12px;
+    color: var(--text-secondary);
+    margin-top: 2px;
+  }
+  .v1-rasm-note {
+    text-align: center;
+    margin-top: 6px;
+    font-size: 11px;
+    color: var(--confused);
+    font-style: italic;
+  }
+
+  /* ===================== V2: Compact stacked list ===================== */
+  .v2-your-word {
+    text-align: center;
+    margin-bottom: 14px;
+    padding-bottom: 14px;
+    border-bottom: 1px solid var(--border);
+  }
+  .v2-your-word .ar {
+    font-size: 30px;
+    font-weight: 600;
+    color: var(--arabic);
+  }
+  .v2-your-word .gloss {
+    font-size: 13px;
+    color: var(--text-secondary);
+    margin-top: 2px;
+  }
+  .v2-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 0;
+    gap: 12px;
+  }
+  .v2-row + .v2-row {
+    border-top: 1px solid rgba(42, 42, 69, 0.5);
+  }
+  .v2-row .ar {
+    font-size: 22px;
+    flex-shrink: 0;
+  }
+  .v2-row .gloss {
+    font-size: 12px;
+    color: var(--text-secondary);
+    text-align: left;
+    flex: 1;
+  }
+  .v2-row .pill {
+    font-size: 9px;
+    font-weight: 600;
+    padding: 2px 6px;
+    border-radius: 4px;
+    background: rgba(243, 156, 18, 0.15);
+    color: var(--confused);
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+
+  /* ===================== V3: Fade with glow ===================== */
+  .v3-your-word {
+    text-align: center;
+    margin-bottom: 14px;
+    padding-bottom: 14px;
+    border-bottom: 1px solid var(--border);
+  }
+  .v3-your-word .ar {
+    font-size: 30px;
+    font-weight: 600;
+    color: var(--arabic);
+  }
+  .v3-your-word .gloss {
+    font-size: 13px;
+    color: var(--text-secondary);
+    margin-top: 2px;
+  }
+  .v3-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 0;
+    gap: 12px;
+  }
+  .v3-row + .v3-row {
+    border-top: 1px solid rgba(42, 42, 69, 0.5);
+  }
+  .v3-row .ar {
+    font-size: 22px;
+    flex-shrink: 0;
+  }
+  .v3-row .gloss {
+    font-size: 12px;
+    color: var(--text-secondary);
+    text-align: left;
+    flex: 1;
+  }
+  .v3-row .pill {
+    font-size: 9px;
+    font-weight: 600;
+    padding: 2px 6px;
+    border-radius: 4px;
+    background: rgba(243, 156, 18, 0.15);
+    color: var(--confused);
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+  .glow-orange {
+    color: #f39c12;
+    text-shadow: 0 0 12px rgba(243, 156, 18, 0.5), 0 0 24px rgba(243, 156, 18, 0.2);
+  }
+
+  /* ===================== V4: Vertical alignment ===================== */
+  .v4-table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+  .v4-table th {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--text-secondary);
+    padding: 0 8px 8px;
+    font-weight: 500;
+    text-align: center;
+  }
+  .v4-table td {
+    text-align: center;
+    padding: 6px 8px;
+    font-family: 'Noto Naskh Arabic', serif;
+    font-size: 24px;
+    direction: rtl;
+    border-top: 1px solid rgba(42, 42, 69, 0.4);
+  }
+  .v4-table tr:first-child td {
+    border-top: 1px solid var(--border);
+  }
+  .v4-table .gloss-col {
+    font-family: 'Inter', system-ui, sans-serif;
+    font-size: 12px;
+    color: var(--text-secondary);
+    direction: ltr;
+    text-align: left;
+    padding-left: 12px;
+  }
+  .v4-table .target-row td {
+    padding-top: 10px;
+    padding-bottom: 10px;
+  }
+  .v4-label {
+    font-size: 10px;
+    font-family: 'Inter', system-ui, sans-serif;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    direction: ltr;
+    display: block;
+    margin-top: 2px;
+  }
+
+  /* ===================== V5: Side by side × 4 ===================== */
+  .v5-pair {
+    padding: 12px 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+  }
+  .v5-pair + .v5-pair {
+    border-top: 1px solid var(--border);
+  }
+  .v5-side {
+    text-align: center;
+    min-width: 100px;
+  }
+  .v5-side .label {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--text-secondary);
+    margin-bottom: 2px;
+  }
+  .v5-side .ar {
+    font-size: 24px;
+  }
+  .v5-side .gloss {
+    font-size: 11px;
+    color: var(--text-secondary);
+    margin-top: 2px;
+  }
+  .v5-vs {
+    font-size: 11px;
+    color: var(--text-secondary);
+    font-weight: 600;
+    opacity: 0.5;
+  }
+  .v5-rasm {
+    text-align: center;
+    font-size: 10px;
+    color: var(--confused);
+    margin-top: 4px;
+  }
+
+  /* ===================== V6: Compact side by side ===================== */
+  .v6-header {
+    display: flex;
+    justify-content: space-between;
+    padding: 0 4px 8px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 2px;
+  }
+  .v6-header span {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--text-secondary);
+  }
+  .v6-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 4px;
+  }
+  .v6-row + .v6-row {
+    border-top: 1px solid rgba(42, 42, 69, 0.4);
+  }
+  .v6-cell {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+  }
+  .v6-cell .ar {
+    font-size: 22px;
+  }
+  .v6-cell .gloss {
+    font-size: 11px;
+    color: var(--text-secondary);
+  }
+  .v6-cell .pill {
+    font-size: 9px;
+    font-weight: 600;
+    padding: 2px 6px;
+    border-radius: 4px;
+    background: rgba(243, 156, 18, 0.15);
+    color: var(--confused);
+    white-space: nowrap;
+  }
+  .v6-arrow {
+    color: var(--text-secondary);
+    font-size: 14px;
+    opacity: 0.4;
+    flex-shrink: 0;
+    margin: 0 6px;
+  }
+
+  /* ===================== V7 & V8: Hybrid with decomposition ===================== */
+  .decomp-section {
+    padding: 14px 0 4px;
+  }
+  .decomp-section .label {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--text-secondary);
+    margin-bottom: 10px;
+  }
+  .decomp-surface {
+    text-align: center;
+    font-family: 'Noto Naskh Arabic', serif;
+    font-size: 26px;
+    direction: rtl;
+    margin-bottom: 10px;
+    letter-spacing: 1px;
+  }
+  .decomp-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    justify-content: center;
+  }
+  .decomp-chip {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: var(--surface-light);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 4px 10px;
+  }
+  .decomp-chip .ar {
+    font-size: 18px;
+  }
+  .decomp-chip .info {
+    font-size: 11px;
+    color: var(--text-secondary);
+    line-height: 1.3;
+  }
+  .decomp-chip .info .translit {
+    font-weight: 500;
+    color: var(--text);
+    font-size: 11px;
+  }
+  .decomp-divider {
+    border: none;
+    border-top: 1px solid var(--border);
+    margin: 14px 0;
+  }
+
+  /* ===================== V9: Production card stacked ===================== */
+  .v9-card {
+    border-left: 3px solid var(--confused);
+    padding-left: 17px;
+  }
+  .v9-header {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 12px;
+  }
+  .v9-header .icon {
+    font-size: 14px;
+  }
+  .v9-header .label {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    color: var(--confused);
+    font-weight: 600;
+  }
+  .v9-your-word {
+    text-align: center;
+    margin-bottom: 14px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--border);
+  }
+  .v9-your-word .ar {
+    font-size: 28px;
+    font-weight: 600;
+    color: var(--arabic);
+  }
+  .v9-your-word .gloss {
+    font-size: 13px;
+    color: var(--text-secondary);
+    margin-top: 2px;
+  }
+  .v9-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 7px 0;
+  }
+  .v9-row + .v9-row {
+    border-top: 1px solid rgba(42, 42, 69, 0.4);
+  }
+  .v9-row .ar {
+    font-size: 22px;
+    flex-shrink: 0;
+  }
+  .v9-row .gloss {
+    font-size: 12px;
+    color: var(--text-secondary);
+    flex: 1;
+  }
+  .v9-row .pill {
+    font-size: 9px;
+    font-weight: 600;
+    padding: 2px 6px;
+    border-radius: 4px;
+    background: rgba(243, 156, 18, 0.15);
+    color: var(--confused);
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+
+  /* ===================== V10: Production card side-by-side ===================== */
+  .v10-card {
+    border-left: 3px solid var(--confused);
+    padding-left: 17px;
+  }
+  .v10-header {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 12px;
+  }
+  .v10-header .icon { font-size: 14px; }
+  .v10-header .label {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    color: var(--confused);
+    font-weight: 600;
+  }
+  .v10-pair {
+    padding: 10px 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 14px;
+  }
+  .v10-pair + .v10-pair {
+    border-top: 1px solid var(--border);
+  }
+  .v10-side {
+    text-align: center;
+    min-width: 90px;
+  }
+  .v10-side .ar {
+    font-size: 22px;
+  }
+  .v10-side .gloss {
+    font-size: 11px;
+    color: var(--text-secondary);
+    margin-top: 2px;
+  }
+  .v10-vs {
+    font-size: 10px;
+    color: var(--text-secondary);
+    opacity: 0.4;
+    font-weight: 600;
+  }
+  .v10-rasm {
+    text-align: center;
+    font-size: 10px;
+    color: var(--confused);
+    margin-top: 2px;
+  }
+
+  /* ===================== V11: Mini teaching moments ===================== */
+  .v11-card {
+    border-left: 3px solid var(--confused);
+    padding-left: 17px;
+  }
+  .v11-your-word {
+    text-align: center;
+    margin-bottom: 14px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--border);
+  }
+  .v11-your-word .ar {
+    font-size: 28px;
+    font-weight: 600;
+    color: var(--arabic);
+  }
+  .v11-your-word .gloss {
+    font-size: 13px;
+    color: var(--text-secondary);
+    margin-top: 2px;
+  }
+  .v11-block {
+    padding: 8px 0;
+  }
+  .v11-block + .v11-block {
+    border-top: 1px solid rgba(42, 42, 69, 0.4);
+  }
+  .v11-word-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .v11-word-row .ar {
+    font-size: 22px;
+    flex-shrink: 0;
+  }
+  .v11-word-row .gloss {
+    font-size: 12px;
+    color: var(--text-secondary);
+    flex: 1;
+  }
+  .v11-word-row .pill {
+    font-size: 9px;
+    font-weight: 600;
+    padding: 2px 6px;
+    border-radius: 4px;
+    background: rgba(243, 156, 18, 0.15);
+    color: var(--confused);
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+  .v11-teach {
+    font-size: 11px;
+    color: var(--text-secondary);
+    font-style: italic;
+    margin-top: 4px;
+    padding-left: 2px;
+    line-height: 1.5;
+  }
+  .v11-teach .letter-ref {
+    font-family: 'Noto Naskh Arabic', serif;
+    font-size: 14px;
+    direction: rtl;
+    font-style: normal;
+  }
+  .v11-teach .letter-blue {
+    color: var(--accent);
+    font-style: normal;
+    font-weight: 600;
+  }
+  .v11-teach .letter-orange {
+    color: var(--confused);
+    font-style: normal;
+    font-weight: 600;
+  }
+
+  /* ===================== V12: Scrollable carousel ===================== */
+  .v12-card {
+    position: relative;
+    overflow: hidden;
+  }
+  .v12-viewport {
+    overflow: hidden;
+  }
+  .v12-track {
+    display: flex;
+    transition: transform 0.35s ease;
+  }
+  .v12-slide {
+    min-width: 100%;
+    flex-shrink: 0;
+  }
+  .v12-slide .pair-display {
+    text-align: center;
+    padding: 8px 0 4px;
+  }
+  .v12-slide .pair-display .section-label {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--text-secondary);
+    margin-bottom: 4px;
+  }
+  .v12-slide .pair-display .ar {
+    font-size: 30px;
+    display: block;
+    margin-bottom: 2px;
+  }
+  .v12-slide .pair-display .gloss {
+    font-size: 13px;
+    color: var(--text-secondary);
+  }
+  .v12-slide .vs-divider {
+    text-align: center;
+    font-size: 11px;
+    color: var(--text-secondary);
+    opacity: 0.4;
+    margin: 8px 0;
+  }
+  .v12-slide .rasm-note {
+    text-align: center;
+    font-size: 11px;
+    color: var(--confused);
+    margin-top: 6px;
+    font-style: italic;
+  }
+  .v12-nav {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    margin-top: 14px;
+    padding-top: 10px;
+    border-top: 1px solid var(--border);
+  }
+  .v12-nav button {
+    background: var(--surface-light);
+    border: 1px solid var(--border);
+    border-radius: 50%;
+    width: 30px;
+    height: 30px;
+    color: var(--text-secondary);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    transition: all 0.15s;
+    font-family: 'Inter', system-ui, sans-serif;
+  }
+  .v12-nav button:hover { border-color: var(--accent); color: var(--text); }
+  .v12-nav button:disabled { opacity: 0.3; cursor: default; }
+  .v12-dots {
+    display: flex;
+    gap: 6px;
+  }
+  .v12-dots .dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--border);
+    transition: all 0.2s;
+  }
+  .v12-dots .dot.active {
+    background: var(--accent);
+    box-shadow: 0 0 6px rgba(74, 158, 255, 0.4);
+  }
+
+  /* ===================== Vote summary ===================== */
+  .vote-summary {
+    max-width: 900px;
+    margin: 60px auto 40px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 24px;
+  }
+  .vote-summary h2 {
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--text);
+    margin-bottom: 16px;
+  }
+  .vote-summary-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 10px;
+  }
+  .vote-summary-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 12px;
+    background: var(--surface-light);
+    border-radius: 8px;
+  }
+  .vote-summary-item .name {
+    font-size: 13px;
+    font-weight: 500;
+    flex: 1;
+  }
+  .vote-summary-item .badge {
+    font-size: 11px;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 4px;
+  }
+  .vote-summary-item .badge.clear { background: rgba(46, 204, 113, 0.15); color: var(--got-it); }
+  .vote-summary-item .badge.ok { background: rgba(74, 158, 255, 0.15); color: var(--accent); }
+  .vote-summary-item .badge.confusing { background: rgba(231, 76, 60, 0.15); color: var(--missed); }
+  .vote-summary-item .badge.none { background: rgba(136, 136, 160, 0.1); color: var(--text-secondary); }
+
+  /* Responsive */
+  @media (max-width: 480px) {
+    .card { width: 100%; padding: 16px; }
+    .card-row { padding: 0 8px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ==================== PAGE HEADER ==================== -->
+<div class="page-header">
+  <h1>Confusion Card Designs &mdash; Round 3</h1>
+  <p class="subtitle">
+    Exploring inline letter highlighting: #3 (side-by-side), #4 (stacked), #12 (gradient fade) + #13c (color bands).<br>
+    All variations show 3&ndash;4 confusable words with pre-computed character-group highlighting.
+  </p>
+</div>
+
+<!-- ==================== REFERENCE TABLE ==================== -->
+<div class="ref-table">
+  <h3>Target Words &amp; Confusables</h3>
+
+  <div class="ref-target">
+    <div class="ref-target-word">
+      <span>Target A:</span>
+      <span class="ar">نَظَرَ</span>
+      <span>(na&#x1E93;ara, &ldquo;to look&rdquo;)</span>
+    </div>
+    <div class="ref-confusable">
+      1. <span class="ar">نَطَرَ</span> (na&#x1E6D;ara, &ldquo;to guard&rdquo;) &mdash; pos 1: &#x0638;&harr;&#x0637; <span class="rasm-badge-inline">dots only</span><br>
+      2. <span class="ar">نَشَرَ</span> (nashara, &ldquo;to publish&rdquo;) &mdash; pos 1: &#x0638;&harr;&#x0634;<br>
+      3. <span class="ar">نَصَرَ</span> (na&#x1E63;ara, &ldquo;to help&rdquo;) &mdash; pos 1: &#x0638;&harr;&#x0635;<br>
+      4. <span class="ar">بَصَرَ</span> (ba&#x1E63;ara, &ldquo;to see&rdquo;) &mdash; pos 0+1: &#x0646;&harr;&#x0628;, &#x0638;&harr;&#x0635;
+    </div>
+  </div>
+
+  <div class="ref-target">
+    <div class="ref-target-word">
+      <span>Target B:</span>
+      <span class="ar">خَرَجَ</span>
+      <span>(kharaja, &ldquo;to go out&rdquo;)</span>
+    </div>
+    <div class="ref-confusable">
+      1. <span class="ar">حَرَجَ</span> (&#x1E25;araja, &ldquo;to be embarrassed&rdquo;) &mdash; pos 0: &#x062E;&harr;&#x062D; <span class="rasm-badge-inline">dots only</span><br>
+      2. <span class="ar">خَرَقَ</span> (kharaqa, &ldquo;to tear&rdquo;) &mdash; pos 2: &#x062C;&harr;&#x0642;<br>
+      3. <span class="ar">دَرَجَ</span> (daraja, &ldquo;to step/grade&rdquo;) &mdash; pos 0: &#x062E;&harr;&#x062F;
+    </div>
+  </div>
+
+  <div class="ref-target">
+    <div class="ref-target-word">
+      <span>Target C:</span>
+      <span class="ar">كَتَبَ</span>
+      <span>(kataba, &ldquo;to write&rdquo;)</span>
+    </div>
+    <div class="ref-confusable">
+      1. <span class="ar">كَذَبَ</span> (kadhaba, &ldquo;to lie&rdquo;) &mdash; pos 1: &#x062A;&harr;&#x0630;<br>
+      2. <span class="ar">كَسَبَ</span> (kasaba, &ldquo;to earn&rdquo;) &mdash; pos 1: &#x062A;&harr;&#x0633;<br>
+      3. <span class="ar">كَتَفَ</span> (katafa, &ldquo;shoulder&rdquo;) &mdash; pos 2: &#x0628;&harr;&#x0641; <span class="rasm-badge-inline">dots only</span>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<!--  GROUP 1: Stacked / Fade designs (#4 and #12)                -->
+<!-- ============================================================ -->
+<div class="section-header">
+  <h2>Group 1: Stacked / Fade Designs</h2>
+  <p>Based on #4 (stacked pairs) and #12 (gradient fade). Your word on top, confusables below.</p>
+</div>
+
+<!-- V1: Basic stacked -->
+<div class="card-row">
+  <div class="card-wrapper">
+    <div class="card-label">V1: Basic Stacked &times; 4 Confusables</div>
+    <div class="card-desc">Target word shown once at top. Each confusable shown as a stacked pair below with your word repeated.</div>
+    <div class="card" id="v1">
+      <div class="v1-your-word">
+        <div class="label">Your word</div>
+        <div class="ar">نَظَرَ</div>
+        <div class="gloss">to look</div>
+      </div>
+
+      <!-- Pair 1: نَطَرَ (pos 1) rasm=0 -->
+      <div class="v1-pair">
+        <div class="v1-pair-row">
+          <div class="v1-pair-side">
+            <div class="label" style="color:var(--accent)">yours</div>
+            <div class="ar"><span class="dim">نَ</span><span class="bright-blue">ظَ</span><span class="dim">رَ</span></div>
+            <div class="gloss">to look</div>
+          </div>
+          <div class="v1-pair-side">
+            <div class="label" style="color:var(--confused)">similar</div>
+            <div class="ar"><span class="dim">نَ</span><span class="bright-orange">طَ</span><span class="dim">رَ</span></div>
+            <div class="gloss">to guard</div>
+          </div>
+        </div>
+        <div class="v1-rasm-note">Same shape &mdash; dots only difference</div>
+      </div>
+
+      <!-- Pair 2: نَشَرَ (pos 1) -->
+      <div class="v1-pair">
+        <div class="v1-pair-row">
+          <div class="v1-pair-side">
+            <div class="label" style="color:var(--accent)">yours</div>
+            <div class="ar"><span class="dim">نَ</span><span class="bright-blue">ظَ</span><span class="dim">رَ</span></div>
+            <div class="gloss">to look</div>
+          </div>
+          <div class="v1-pair-side">
+            <div class="label" style="color:var(--confused)">similar</div>
+            <div class="ar"><span class="dim">نَ</span><span class="bright-orange">شَ</span><span class="dim">رَ</span></div>
+            <div class="gloss">to publish</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Pair 3: نَصَرَ (pos 1) -->
+      <div class="v1-pair">
+        <div class="v1-pair-row">
+          <div class="v1-pair-side">
+            <div class="label" style="color:var(--accent)">yours</div>
+            <div class="ar"><span class="dim">نَ</span><span class="bright-blue">ظَ</span><span class="dim">رَ</span></div>
+            <div class="gloss">to look</div>
+          </div>
+          <div class="v1-pair-side">
+            <div class="label" style="color:var(--confused)">similar</div>
+            <div class="ar"><span class="dim">نَ</span><span class="bright-orange">صَ</span><span class="dim">رَ</span></div>
+            <div class="gloss">to help</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Pair 4: بَصَرَ (pos 0+1) -->
+      <div class="v1-pair">
+        <div class="v1-pair-row">
+          <div class="v1-pair-side">
+            <div class="label" style="color:var(--accent)">yours</div>
+            <div class="ar"><span class="bright-blue">نَ</span><span class="bright-blue">ظَ</span><span class="dim">رَ</span></div>
+            <div class="gloss">to look</div>
+          </div>
+          <div class="v1-pair-side">
+            <div class="label" style="color:var(--confused)">similar</div>
+            <div class="ar"><span class="bright-orange">بَ</span><span class="bright-orange">صَ</span><span class="dim">رَ</span></div>
+            <div class="gloss">to see</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="vote-row">
+      <button class="vote-btn" onclick="vote('v1','clear',this)">Clear</button>
+      <button class="vote-btn" onclick="vote('v1','ok',this)">OK</button>
+      <button class="vote-btn" onclick="vote('v1','confusing',this)">Confusing</button>
+    </div>
+  </div>
+</div>
+
+<!-- V2: Compact stacked list -->
+<div class="card-row">
+  <div class="card-wrapper">
+    <div class="card-label">V2: Compact Stacked List</div>
+    <div class="card-desc">Your word shown ONCE at top (all letters bright). Confusables listed below &mdash; no repetition of your word.</div>
+    <div class="card" id="v2">
+      <div class="v2-your-word">
+        <div class="ar" style="color: var(--arabic);">نَظَرَ</div>
+        <div class="gloss">to look</div>
+      </div>
+
+      <div class="v2-row">
+        <span class="ar"><span class="dim">نَ</span><span class="bright-orange">طَ</span><span class="dim">رَ</span></span>
+        <span class="gloss">to guard</span>
+        <span class="pill">dots only</span>
+      </div>
+      <div class="v2-row">
+        <span class="ar"><span class="dim">نَ</span><span class="bright-orange">شَ</span><span class="dim">رَ</span></span>
+        <span class="gloss">to publish</span>
+      </div>
+      <div class="v2-row">
+        <span class="ar"><span class="dim">نَ</span><span class="bright-orange">صَ</span><span class="dim">رَ</span></span>
+        <span class="gloss">to help</span>
+      </div>
+      <div class="v2-row">
+        <span class="ar"><span class="bright-orange">بَ</span><span class="bright-orange">صَ</span><span class="dim">رَ</span></span>
+        <span class="gloss">to see</span>
+      </div>
+    </div>
+    <div class="vote-row">
+      <button class="vote-btn" onclick="vote('v2','clear',this)">Clear</button>
+      <button class="vote-btn" onclick="vote('v2','ok',this)">OK</button>
+      <button class="vote-btn" onclick="vote('v2','confusing',this)">Confusing</button>
+    </div>
+  </div>
+</div>
+
+<!-- V3: Fade with glow -->
+<div class="card-row">
+  <div class="card-wrapper">
+    <div class="card-label">V3: Fade with Glow</div>
+    <div class="card-desc">Target B (&#x062E;&#x0631;&#x062C;). Like V2 but differing letters have a subtle glow/shadow to draw the eye further.</div>
+    <div class="card" id="v3">
+      <div class="v3-your-word">
+        <div class="ar" style="color: var(--arabic);">خَرَجَ</div>
+        <div class="gloss">to go out</div>
+      </div>
+
+      <div class="v3-row">
+        <span class="ar"><span class="glow-orange">حَ</span><span class="dim">رَ</span><span class="dim">جَ</span></span>
+        <span class="gloss">to be embarrassed</span>
+        <span class="pill">dots only</span>
+      </div>
+      <div class="v3-row">
+        <span class="ar"><span class="dim">خَ</span><span class="dim">رَ</span><span class="glow-orange">قَ</span></span>
+        <span class="gloss">to tear</span>
+      </div>
+      <div class="v3-row">
+        <span class="ar"><span class="glow-orange">دَ</span><span class="dim">رَ</span><span class="dim">جَ</span></span>
+        <span class="gloss">to step / grade</span>
+      </div>
+    </div>
+    <div class="vote-row">
+      <button class="vote-btn" onclick="vote('v3','clear',this)">Clear</button>
+      <button class="vote-btn" onclick="vote('v3','ok',this)">OK</button>
+      <button class="vote-btn" onclick="vote('v3','confusing',this)">Confusing</button>
+    </div>
+  </div>
+</div>
+
+<!-- V4: Vertical alignment (table diff view) -->
+<div class="card-row">
+  <div class="card-wrapper">
+    <div class="card-label">V4: Vertical Alignment (Diff View)</div>
+    <div class="card-desc">Table layout &mdash; character groups aligned in columns. The differing column lights up per row, creating an instant visual diff.</div>
+    <div class="card" id="v4">
+      <table class="v4-table">
+        <thead>
+          <tr>
+            <th></th>
+            <!-- RTL: columns are letter 2, letter 1, letter 0 visually, but we write them as pos 0,1,2 in HTML -->
+            <th style="color:var(--text-secondary);">3rd</th>
+            <th style="color:var(--text-secondary);">2nd</th>
+            <th style="color:var(--text-secondary);">1st</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          <!-- Target row -->
+          <tr class="target-row">
+            <td class="gloss-col">
+              <span style="color:var(--accent);font-weight:600;">to look</span>
+              <span class="v4-label" style="color:var(--accent);">yours</span>
+            </td>
+            <td style="direction:rtl;"><span class="bright-all" style="color:var(--arabic);">رَ</span></td>
+            <td style="direction:rtl;"><span class="bright-all" style="color:var(--accent);">ظَ</span></td>
+            <td style="direction:rtl;"><span class="bright-all" style="color:var(--arabic);">نَ</span></td>
+            <td></td>
+          </tr>
+          <!-- نَطَرَ — pos 1 -->
+          <tr>
+            <td class="gloss-col">to guard</td>
+            <td><span class="dim">رَ</span></td>
+            <td><span class="bright-orange">طَ</span></td>
+            <td><span class="dim">نَ</span></td>
+            <td class="gloss-col"><span style="font-size:9px;color:var(--confused);">dots only</span></td>
+          </tr>
+          <!-- نَشَرَ — pos 1 -->
+          <tr>
+            <td class="gloss-col">to publish</td>
+            <td><span class="dim">رَ</span></td>
+            <td><span class="bright-orange">شَ</span></td>
+            <td><span class="dim">نَ</span></td>
+            <td></td>
+          </tr>
+          <!-- نَصَرَ — pos 1 -->
+          <tr>
+            <td class="gloss-col">to help</td>
+            <td><span class="dim">رَ</span></td>
+            <td><span class="bright-orange">صَ</span></td>
+            <td><span class="dim">نَ</span></td>
+            <td></td>
+          </tr>
+          <!-- بَصَرَ — pos 0+1 -->
+          <tr>
+            <td class="gloss-col">to see</td>
+            <td><span class="dim">رَ</span></td>
+            <td><span class="bright-orange">صَ</span></td>
+            <td><span class="bright-orange">بَ</span></td>
+            <td></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="vote-row">
+      <button class="vote-btn" onclick="vote('v4','clear',this)">Clear</button>
+      <button class="vote-btn" onclick="vote('v4','ok',this)">OK</button>
+      <button class="vote-btn" onclick="vote('v4','confusing',this)">Confusing</button>
+    </div>
+  </div>
+</div>
+
+
+<!-- ============================================================ -->
+<!--  GROUP 2: Side-by-side designs (#3)                          -->
+<!-- ============================================================ -->
+<div class="section-header">
+  <h2>Group 2: Side-by-Side Designs</h2>
+  <p>Based on #3 (side-by-side). Your word on the left, confusable on the right, both with inline highlighting.</p>
+</div>
+
+<!-- V5: Side by side × 4 -->
+<div class="card-row">
+  <div class="card-wrapper">
+    <div class="card-label">V5: Side by Side &times; 4</div>
+    <div class="card-desc">Each confusable shown as a pair (your word | vs | similar word). All 4 stacked vertically.</div>
+    <div class="card" id="v5">
+      <!-- Pair 1: نَطَرَ -->
+      <div class="v5-pair">
+        <div class="v5-side">
+          <div class="label" style="color:var(--accent)">yours</div>
+          <div class="ar"><span class="dim">نَ</span><span class="bright-blue">ظَ</span><span class="dim">رَ</span></div>
+          <div class="gloss">to look</div>
+        </div>
+        <div class="v5-vs">vs</div>
+        <div class="v5-side">
+          <div class="label" style="color:var(--confused)">similar</div>
+          <div class="ar"><span class="dim">نَ</span><span class="bright-orange">طَ</span><span class="dim">رَ</span></div>
+          <div class="gloss">to guard</div>
+        </div>
+      </div>
+      <div class="v5-rasm">Same shape &mdash; dots only</div>
+
+      <!-- Pair 2: نَشَرَ -->
+      <div class="v5-pair">
+        <div class="v5-side">
+          <div class="label" style="color:var(--accent)">yours</div>
+          <div class="ar"><span class="dim">نَ</span><span class="bright-blue">ظَ</span><span class="dim">رَ</span></div>
+          <div class="gloss">to look</div>
+        </div>
+        <div class="v5-vs">vs</div>
+        <div class="v5-side">
+          <div class="label" style="color:var(--confused)">similar</div>
+          <div class="ar"><span class="dim">نَ</span><span class="bright-orange">شَ</span><span class="dim">رَ</span></div>
+          <div class="gloss">to publish</div>
+        </div>
+      </div>
+
+      <!-- Pair 3: نَصَرَ -->
+      <div class="v5-pair">
+        <div class="v5-side">
+          <div class="label" style="color:var(--accent)">yours</div>
+          <div class="ar"><span class="dim">نَ</span><span class="bright-blue">ظَ</span><span class="dim">رَ</span></div>
+          <div class="gloss">to look</div>
+        </div>
+        <div class="v5-vs">vs</div>
+        <div class="v5-side">
+          <div class="label" style="color:var(--confused)">similar</div>
+          <div class="ar"><span class="dim">نَ</span><span class="bright-orange">صَ</span><span class="dim">رَ</span></div>
+          <div class="gloss">to help</div>
+        </div>
+      </div>
+
+      <!-- Pair 4: بَصَرَ (2 diffs) -->
+      <div class="v5-pair">
+        <div class="v5-side">
+          <div class="label" style="color:var(--accent)">yours</div>
+          <div class="ar"><span class="bright-blue">نَ</span><span class="bright-blue">ظَ</span><span class="dim">رَ</span></div>
+          <div class="gloss">to look</div>
+        </div>
+        <div class="v5-vs">vs</div>
+        <div class="v5-side">
+          <div class="label" style="color:var(--confused)">similar</div>
+          <div class="ar"><span class="bright-orange">بَ</span><span class="bright-orange">صَ</span><span class="dim">رَ</span></div>
+          <div class="gloss">to see</div>
+        </div>
+      </div>
+    </div>
+    <div class="vote-row">
+      <button class="vote-btn" onclick="vote('v5','clear',this)">Clear</button>
+      <button class="vote-btn" onclick="vote('v5','ok',this)">OK</button>
+      <button class="vote-btn" onclick="vote('v5','confusing',this)">Confusing</button>
+    </div>
+  </div>
+</div>
+
+<!-- V6: Compact side by side -->
+<div class="card-row">
+  <div class="card-wrapper">
+    <div class="card-label">V6: Compact Side by Side</div>
+    <div class="card-desc">Target C (&#x0643;&#x062A;&#x0628;). Two-column diff viewer: your word left, confusable right. Glosses inline.</div>
+    <div class="card" id="v6">
+      <div class="v6-header">
+        <span style="color:var(--accent)">Your word</span>
+        <span style="color:var(--confused)">Similar</span>
+      </div>
+
+      <!-- كَذَبَ — pos 1 -->
+      <div class="v6-row">
+        <div class="v6-cell">
+          <span class="ar"><span class="dim">كَ</span><span class="bright-blue">تَ</span><span class="dim">بَ</span></span>
+          <span class="gloss">to write</span>
+        </div>
+        <span class="v6-arrow">&harr;</span>
+        <div class="v6-cell">
+          <span class="ar"><span class="dim">كَ</span><span class="bright-orange">ذَ</span><span class="dim">بَ</span></span>
+          <span class="gloss">to lie</span>
+        </div>
+      </div>
+
+      <!-- كَسَبَ — pos 1 -->
+      <div class="v6-row">
+        <div class="v6-cell">
+          <span class="ar"><span class="dim">كَ</span><span class="bright-blue">تَ</span><span class="dim">بَ</span></span>
+          <span class="gloss">to write</span>
+        </div>
+        <span class="v6-arrow">&harr;</span>
+        <div class="v6-cell">
+          <span class="ar"><span class="dim">كَ</span><span class="bright-orange">سَ</span><span class="dim">بَ</span></span>
+          <span class="gloss">to earn</span>
+        </div>
+      </div>
+
+      <!-- كَتَفَ — pos 2, rasm=0 -->
+      <div class="v6-row">
+        <div class="v6-cell">
+          <span class="ar"><span class="dim">كَ</span><span class="dim">تَ</span><span class="bright-blue">بَ</span></span>
+          <span class="gloss">to write</span>
+        </div>
+        <span class="v6-arrow">&harr;</span>
+        <div class="v6-cell">
+          <span class="ar"><span class="dim">كَ</span><span class="dim">تَ</span><span class="bright-orange">فَ</span></span>
+          <span class="gloss">shoulder</span>
+          <span class="pill">dots only</span>
+        </div>
+      </div>
+    </div>
+    <div class="vote-row">
+      <button class="vote-btn" onclick="vote('v6','clear',this)">Clear</button>
+      <button class="vote-btn" onclick="vote('v6','ok',this)">OK</button>
+      <button class="vote-btn" onclick="vote('v6','confusing',this)">Confusing</button>
+    </div>
+  </div>
+</div>
+
+
+<!-- ============================================================ -->
+<!--  GROUP 3: Hybrid stacked + decomposition                     -->
+<!-- ============================================================ -->
+<div class="section-header">
+  <h2>Group 3: Hybrid &mdash; Confusables + Color Band Decomposition</h2>
+  <p>Combining inline-highlighted confusable lists with #13c color band morpheme decomposition.</p>
+</div>
+
+<!-- V7: Stacked confusables + color bands -->
+<div class="card-row">
+  <div class="card-wrapper">
+    <div class="card-label">V7: Stacked Confusables + Color Bands Below</div>
+    <div class="card-desc">Top: your word + confusable list (V2 style). Bottom: color band decomposition of a surface form. Separated by a divider.</div>
+    <div class="card" id="v7">
+      <!-- Confusables section (V2 style) -->
+      <div class="v2-your-word">
+        <div class="ar" style="color: var(--arabic);">نَظَرَ</div>
+        <div class="gloss">to look</div>
+      </div>
+
+      <div class="v2-row">
+        <span class="ar"><span class="dim">نَ</span><span class="bright-orange">طَ</span><span class="dim">رَ</span></span>
+        <span class="gloss">to guard</span>
+        <span class="pill">dots only</span>
+      </div>
+      <div class="v2-row">
+        <span class="ar"><span class="dim">نَ</span><span class="bright-orange">شَ</span><span class="dim">رَ</span></span>
+        <span class="gloss">to publish</span>
+      </div>
+      <div class="v2-row">
+        <span class="ar"><span class="dim">نَ</span><span class="bright-orange">صَ</span><span class="dim">رَ</span></span>
+        <span class="gloss">to help</span>
+      </div>
+      <div class="v2-row">
+        <span class="ar"><span class="bright-orange">بَ</span><span class="bright-orange">صَ</span><span class="dim">رَ</span></span>
+        <span class="gloss">to see</span>
+      </div>
+
+      <!-- Divider -->
+      <hr class="decomp-divider">
+
+      <!-- Decomposition section -->
+      <div class="decomp-section">
+        <div class="label">Morpheme Breakdown</div>
+        <div class="decomp-surface">
+          <span class="morph-prefix1">وَ</span><span class="morph-prefix2">بِ</span><span class="morph-stem">كِتَابِ</span><span class="morph-suffix">هِمْ</span>
+        </div>
+        <div class="decomp-legend">
+          <div class="decomp-chip">
+            <span class="ar morph-prefix1" style="font-size:18px;">وَ</span>
+            <div class="info"><span class="translit">wa</span><br>&ldquo;and&rdquo;</div>
+          </div>
+          <div class="decomp-chip">
+            <span class="ar morph-prefix2" style="font-size:18px;">بِ</span>
+            <div class="info"><span class="translit">bi</span><br>&ldquo;in/with&rdquo;</div>
+          </div>
+          <div class="decomp-chip">
+            <span class="ar morph-stem" style="font-size:18px;">كِتَاب</span>
+            <div class="info"><span class="translit">kit&#x101;b</span><br>&ldquo;book&rdquo;</div>
+          </div>
+          <div class="decomp-chip">
+            <span class="ar morph-suffix" style="font-size:18px;">هِمْ</span>
+            <div class="info"><span class="translit">him</span><br>&ldquo;their&rdquo;</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="vote-row">
+      <button class="vote-btn" onclick="vote('v7','clear',this)">Clear</button>
+      <button class="vote-btn" onclick="vote('v7','ok',this)">OK</button>
+      <button class="vote-btn" onclick="vote('v7','confusing',this)">Confusing</button>
+    </div>
+  </div>
+</div>
+
+<!-- V8: Color bands first, confusables below -->
+<div class="card-row">
+  <div class="card-wrapper">
+    <div class="card-label">V8: Color Bands First, Confusables Below</div>
+    <div class="card-desc">Decomposition on TOP (the user saw a weird surface form first), confusable list below.</div>
+    <div class="card" id="v8">
+      <!-- Decomposition section first -->
+      <div class="decomp-section" style="padding-top:0;">
+        <div class="label">Morpheme Breakdown</div>
+        <div class="decomp-surface">
+          <span class="morph-prefix1">وَ</span><span class="morph-prefix2">بِ</span><span class="morph-stem">كِتَابِ</span><span class="morph-suffix">هِمْ</span>
+        </div>
+        <div class="decomp-legend">
+          <div class="decomp-chip">
+            <span class="ar morph-prefix1" style="font-size:18px;">وَ</span>
+            <div class="info"><span class="translit">wa</span><br>&ldquo;and&rdquo;</div>
+          </div>
+          <div class="decomp-chip">
+            <span class="ar morph-prefix2" style="font-size:18px;">بِ</span>
+            <div class="info"><span class="translit">bi</span><br>&ldquo;in/with&rdquo;</div>
+          </div>
+          <div class="decomp-chip">
+            <span class="ar morph-stem" style="font-size:18px;">كِتَاب</span>
+            <div class="info"><span class="translit">kit&#x101;b</span><br>&ldquo;book&rdquo;</div>
+          </div>
+          <div class="decomp-chip">
+            <span class="ar morph-suffix" style="font-size:18px;">هِمْ</span>
+            <div class="info"><span class="translit">him</span><br>&ldquo;their&rdquo;</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Divider -->
+      <hr class="decomp-divider">
+
+      <!-- Confusables section -->
+      <div class="v2-your-word" style="border-bottom:none; padding-bottom:8px; margin-bottom:6px;">
+        <div style="font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--text-secondary);margin-bottom:4px;">Easily confused with</div>
+        <div class="ar" style="color: var(--arabic);">نَظَرَ</div>
+        <div class="gloss">to look</div>
+      </div>
+
+      <div class="v2-row">
+        <span class="ar"><span class="dim">نَ</span><span class="bright-orange">طَ</span><span class="dim">رَ</span></span>
+        <span class="gloss">to guard</span>
+        <span class="pill">dots only</span>
+      </div>
+      <div class="v2-row">
+        <span class="ar"><span class="dim">نَ</span><span class="bright-orange">شَ</span><span class="dim">رَ</span></span>
+        <span class="gloss">to publish</span>
+      </div>
+      <div class="v2-row">
+        <span class="ar"><span class="dim">نَ</span><span class="bright-orange">صَ</span><span class="dim">رَ</span></span>
+        <span class="gloss">to help</span>
+      </div>
+      <div class="v2-row">
+        <span class="ar"><span class="bright-orange">بَ</span><span class="bright-orange">صَ</span><span class="dim">رَ</span></span>
+        <span class="gloss">to see</span>
+      </div>
+    </div>
+    <div class="vote-row">
+      <button class="vote-btn" onclick="vote('v8','clear',this)">Clear</button>
+      <button class="vote-btn" onclick="vote('v8','ok',this)">OK</button>
+      <button class="vote-btn" onclick="vote('v8','confusing',this)">Confusing</button>
+    </div>
+  </div>
+</div>
+
+
+<!-- ============================================================ -->
+<!--  GROUP 4: Refinements and polish                             -->
+<!-- ============================================================ -->
+<div class="section-header">
+  <h2>Group 4: Refinements &amp; Polish</h2>
+  <p>Production-ready card designs with finishing touches: headers, accent borders, teaching notes, carousel.</p>
+</div>
+
+<!-- V9: Production card stacked -->
+<div class="card-row">
+  <div class="card-wrapper">
+    <div class="card-label">V9: &ldquo;Production Card&rdquo; Stacked</div>
+    <div class="card-desc">Complete card as it would appear in the app. Orange left border accent, header badge, &ldquo;dots only&rdquo; pills, optional decomposition at bottom.</div>
+    <div class="card v9-card" id="v9">
+      <div class="v9-header">
+        <span class="icon">&#x1F441;</span>
+        <span class="label">EASILY CONFUSED</span>
+      </div>
+
+      <div class="v9-your-word">
+        <div class="ar" style="color:var(--arabic);">نَظَرَ</div>
+        <div class="gloss">na&#x1E93;ara &mdash; to look</div>
+      </div>
+
+      <div class="v9-row">
+        <span class="ar"><span class="dim">نَ</span><span class="bright-orange">طَ</span><span class="dim">رَ</span></span>
+        <span class="gloss">to guard</span>
+        <span class="pill">dots only</span>
+      </div>
+      <div class="v9-row">
+        <span class="ar"><span class="dim">نَ</span><span class="bright-orange">شَ</span><span class="dim">رَ</span></span>
+        <span class="gloss">to publish</span>
+      </div>
+      <div class="v9-row">
+        <span class="ar"><span class="dim">نَ</span><span class="bright-orange">صَ</span><span class="dim">رَ</span></span>
+        <span class="gloss">to help</span>
+      </div>
+      <div class="v9-row">
+        <span class="ar"><span class="bright-orange">بَ</span><span class="bright-orange">صَ</span><span class="dim">رَ</span></span>
+        <span class="gloss">to see</span>
+      </div>
+
+      <!-- Optional decomposition -->
+      <hr class="decomp-divider">
+      <div class="decomp-section">
+        <div class="label">In context</div>
+        <div class="decomp-surface">
+          <span class="morph-prefix1">وَ</span><span class="morph-prefix2">بِ</span><span class="morph-stem">كِتَابِ</span><span class="morph-suffix">هِمْ</span>
+        </div>
+        <div class="decomp-legend">
+          <div class="decomp-chip">
+            <span class="ar morph-prefix1" style="font-size:18px;">وَ</span>
+            <div class="info"><span class="translit">wa</span><br>&ldquo;and&rdquo;</div>
+          </div>
+          <div class="decomp-chip">
+            <span class="ar morph-prefix2" style="font-size:18px;">بِ</span>
+            <div class="info"><span class="translit">bi</span><br>&ldquo;in/with&rdquo;</div>
+          </div>
+          <div class="decomp-chip">
+            <span class="ar morph-stem" style="font-size:18px;">كِتَاب</span>
+            <div class="info"><span class="translit">kit&#x101;b</span><br>&ldquo;book&rdquo;</div>
+          </div>
+          <div class="decomp-chip">
+            <span class="ar morph-suffix" style="font-size:18px;">هِمْ</span>
+            <div class="info"><span class="translit">him</span><br>&ldquo;their&rdquo;</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="vote-row">
+      <button class="vote-btn" onclick="vote('v9','clear',this)">Clear</button>
+      <button class="vote-btn" onclick="vote('v9','ok',this)">OK</button>
+      <button class="vote-btn" onclick="vote('v9','confusing',this)">Confusing</button>
+    </div>
+  </div>
+</div>
+
+<!-- V10: Production card side-by-side -->
+<div class="card-row">
+  <div class="card-wrapper">
+    <div class="card-label">V10: &ldquo;Production Card&rdquo; Side-by-Side</div>
+    <div class="card-desc">Same as V9 but each confusable is shown with your word repeated side by side. More space, more direct comparison.</div>
+    <div class="card v10-card" id="v10">
+      <div class="v10-header">
+        <span class="icon">&#x1F441;</span>
+        <span class="label">EASILY CONFUSED</span>
+      </div>
+
+      <!-- Pair 1: نَطَرَ rasm=0 -->
+      <div class="v10-pair">
+        <div class="v10-side">
+          <div class="ar"><span class="dim">نَ</span><span class="bright-blue">ظَ</span><span class="dim">رَ</span></div>
+          <div class="gloss">to look</div>
+        </div>
+        <div class="v10-vs">vs</div>
+        <div class="v10-side">
+          <div class="ar"><span class="dim">نَ</span><span class="bright-orange">طَ</span><span class="dim">رَ</span></div>
+          <div class="gloss">to guard</div>
+        </div>
+      </div>
+      <div class="v10-rasm">Same shape &mdash; dots only</div>
+
+      <!-- Pair 2: نَشَرَ -->
+      <div class="v10-pair">
+        <div class="v10-side">
+          <div class="ar"><span class="dim">نَ</span><span class="bright-blue">ظَ</span><span class="dim">رَ</span></div>
+          <div class="gloss">to look</div>
+        </div>
+        <div class="v10-vs">vs</div>
+        <div class="v10-side">
+          <div class="ar"><span class="dim">نَ</span><span class="bright-orange">شَ</span><span class="dim">رَ</span></div>
+          <div class="gloss">to publish</div>
+        </div>
+      </div>
+
+      <!-- Pair 3: نَصَرَ -->
+      <div class="v10-pair">
+        <div class="v10-side">
+          <div class="ar"><span class="dim">نَ</span><span class="bright-blue">ظَ</span><span class="dim">رَ</span></div>
+          <div class="gloss">to look</div>
+        </div>
+        <div class="v10-vs">vs</div>
+        <div class="v10-side">
+          <div class="ar"><span class="dim">نَ</span><span class="bright-orange">صَ</span><span class="dim">رَ</span></div>
+          <div class="gloss">to help</div>
+        </div>
+      </div>
+
+      <!-- Pair 4: بَصَرَ (2 diffs) -->
+      <div class="v10-pair">
+        <div class="v10-side">
+          <div class="ar"><span class="bright-blue">نَ</span><span class="bright-blue">ظَ</span><span class="dim">رَ</span></div>
+          <div class="gloss">to look</div>
+        </div>
+        <div class="v10-vs">vs</div>
+        <div class="v10-side">
+          <div class="ar"><span class="bright-orange">بَ</span><span class="bright-orange">صَ</span><span class="dim">رَ</span></div>
+          <div class="gloss">to see</div>
+        </div>
+      </div>
+    </div>
+    <div class="vote-row">
+      <button class="vote-btn" onclick="vote('v10','clear',this)">Clear</button>
+      <button class="vote-btn" onclick="vote('v10','ok',this)">OK</button>
+      <button class="vote-btn" onclick="vote('v10','confusing',this)">Confusing</button>
+    </div>
+  </div>
+</div>
+
+<!-- V11: Mini teaching moments -->
+<div class="card-row">
+  <div class="card-wrapper">
+    <div class="card-label">V11: Mini Teaching Moments</div>
+    <div class="card-desc">Target A. After each confusable, a one-line teaching note explains the letter difference.</div>
+    <div class="card v11-card" id="v11">
+      <div class="v9-header">
+        <span class="icon">&#x1F441;</span>
+        <span class="label">EASILY CONFUSED</span>
+      </div>
+
+      <div class="v11-your-word">
+        <div class="ar" style="color:var(--arabic);">نَظَرَ</div>
+        <div class="gloss">na&#x1E93;ara &mdash; to look</div>
+      </div>
+
+      <!-- 1: نَطَرَ rasm=0 -->
+      <div class="v11-block">
+        <div class="v11-word-row">
+          <span class="ar"><span class="dim">نَ</span><span class="bright-orange">طَ</span><span class="dim">رَ</span></span>
+          <span class="gloss">to guard</span>
+          <span class="pill">dots only</span>
+        </div>
+        <div class="v11-teach">
+          Same shape &mdash; <span class="letter-ref letter-blue">ظ</span> (<span class="letter-blue">&#x1E93;&#x0101;</span>) has a dot above, <span class="letter-ref letter-orange">ط</span> (<span class="letter-orange">&#x1E6D;&#x0101;</span>) doesn&rsquo;t
+        </div>
+      </div>
+
+      <!-- 2: نَشَرَ -->
+      <div class="v11-block">
+        <div class="v11-word-row">
+          <span class="ar"><span class="dim">نَ</span><span class="bright-orange">شَ</span><span class="dim">رَ</span></span>
+          <span class="gloss">to publish</span>
+        </div>
+        <div class="v11-teach">
+          <span class="letter-ref letter-blue">ظ</span> (<span class="letter-blue">&#x1E93;&#x0101;</span>) is tall with dot &middot; <span class="letter-ref letter-orange">ش</span> (<span class="letter-orange">sh&#x012B;n</span>) has 3 dots and teeth
+        </div>
+      </div>
+
+      <!-- 3: نَصَرَ -->
+      <div class="v11-block">
+        <div class="v11-word-row">
+          <span class="ar"><span class="dim">نَ</span><span class="bright-orange">صَ</span><span class="dim">رَ</span></span>
+          <span class="gloss">to help</span>
+        </div>
+        <div class="v11-teach">
+          <span class="letter-ref letter-blue">ظ</span> (<span class="letter-blue">&#x1E93;&#x0101;</span>) is open/tall &middot; <span class="letter-ref letter-orange">ص</span> (<span class="letter-orange">&#x1E63;&#x0101;d</span>) is closed/round
+        </div>
+      </div>
+
+      <!-- 4: بَصَرَ (2 diffs) -->
+      <div class="v11-block">
+        <div class="v11-word-row">
+          <span class="ar"><span class="bright-orange">بَ</span><span class="bright-orange">صَ</span><span class="dim">رَ</span></span>
+          <span class="gloss">to see</span>
+        </div>
+        <div class="v11-teach">
+          Two letters differ: <span class="letter-ref letter-blue">ن</span>&harr;<span class="letter-ref letter-orange">ب</span> (dot above vs below) and <span class="letter-ref letter-blue">ظ</span>&harr;<span class="letter-ref letter-orange">ص</span> (open vs closed)
+        </div>
+      </div>
+    </div>
+    <div class="vote-row">
+      <button class="vote-btn" onclick="vote('v11','clear',this)">Clear</button>
+      <button class="vote-btn" onclick="vote('v11','ok',this)">OK</button>
+      <button class="vote-btn" onclick="vote('v11','confusing',this)">Confusing</button>
+    </div>
+  </div>
+</div>
+
+<!-- V12: Scrollable carousel -->
+<div class="card-row">
+  <div class="card-wrapper">
+    <div class="card-label">V12: Scrollable Carousel</div>
+    <div class="card-desc">One confusable at a time, large and detailed. Arrow buttons and dot indicators to navigate. Most similar first.</div>
+    <div class="card v12-card" id="v12">
+      <div class="v9-header">
+        <span class="icon">&#x1F441;</span>
+        <span class="label">EASILY CONFUSED</span>
+      </div>
+
+      <div class="v12-viewport">
+        <div class="v12-track" id="v12-track">
+          <!-- Slide 1: نَطَرَ (most similar, rasm=0) -->
+          <div class="v12-slide">
+            <div class="pair-display">
+              <div class="section-label" style="color:var(--accent)">Your word</div>
+              <span class="ar"><span class="dim">نَ</span><span class="bright-blue">ظَ</span><span class="dim">رَ</span></span>
+              <div class="gloss">to look</div>
+            </div>
+            <div class="vs-divider">vs</div>
+            <div class="pair-display">
+              <div class="section-label" style="color:var(--confused)">Similar</div>
+              <span class="ar"><span class="dim">نَ</span><span class="bright-orange">طَ</span><span class="dim">رَ</span></span>
+              <div class="gloss">to guard</div>
+            </div>
+            <div class="rasm-note">Same shape &mdash; only difference is the dot above &#x0638;</div>
+          </div>
+
+          <!-- Slide 2: نَشَرَ -->
+          <div class="v12-slide">
+            <div class="pair-display">
+              <div class="section-label" style="color:var(--accent)">Your word</div>
+              <span class="ar"><span class="dim">نَ</span><span class="bright-blue">ظَ</span><span class="dim">رَ</span></span>
+              <div class="gloss">to look</div>
+            </div>
+            <div class="vs-divider">vs</div>
+            <div class="pair-display">
+              <div class="section-label" style="color:var(--confused)">Similar</div>
+              <span class="ar"><span class="dim">نَ</span><span class="bright-orange">شَ</span><span class="dim">رَ</span></span>
+              <div class="gloss">to publish</div>
+            </div>
+          </div>
+
+          <!-- Slide 3: نَصَرَ -->
+          <div class="v12-slide">
+            <div class="pair-display">
+              <div class="section-label" style="color:var(--accent)">Your word</div>
+              <span class="ar"><span class="dim">نَ</span><span class="bright-blue">ظَ</span><span class="dim">رَ</span></span>
+              <div class="gloss">to look</div>
+            </div>
+            <div class="vs-divider">vs</div>
+            <div class="pair-display">
+              <div class="section-label" style="color:var(--confused)">Similar</div>
+              <span class="ar"><span class="dim">نَ</span><span class="bright-orange">صَ</span><span class="dim">رَ</span></span>
+              <div class="gloss">to help</div>
+            </div>
+          </div>
+
+          <!-- Slide 4: بَصَرَ (2 diffs) -->
+          <div class="v12-slide">
+            <div class="pair-display">
+              <div class="section-label" style="color:var(--accent)">Your word</div>
+              <span class="ar"><span class="bright-blue">نَ</span><span class="bright-blue">ظَ</span><span class="dim">رَ</span></span>
+              <div class="gloss">to look</div>
+            </div>
+            <div class="vs-divider">vs</div>
+            <div class="pair-display">
+              <div class="section-label" style="color:var(--confused)">Similar</div>
+              <span class="ar"><span class="bright-orange">بَ</span><span class="bright-orange">صَ</span><span class="dim">رَ</span></span>
+              <div class="gloss">to see</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="v12-nav">
+        <button id="v12-prev" onclick="carouselNav(-1)">&larr;</button>
+        <div class="v12-dots" id="v12-dots">
+          <div class="dot active"></div>
+          <div class="dot"></div>
+          <div class="dot"></div>
+          <div class="dot"></div>
+        </div>
+        <button id="v12-next" onclick="carouselNav(1)">&rarr;</button>
+      </div>
+    </div>
+    <div class="vote-row">
+      <button class="vote-btn" onclick="vote('v12','clear',this)">Clear</button>
+      <button class="vote-btn" onclick="vote('v12','ok',this)">OK</button>
+      <button class="vote-btn" onclick="vote('v12','confusing',this)">Confusing</button>
+    </div>
+  </div>
+</div>
+
+
+<!-- ==================== VOTE SUMMARY ==================== -->
+<div class="vote-summary" id="vote-summary">
+  <h2>Vote Summary</h2>
+  <div class="vote-summary-grid" id="vote-summary-grid"></div>
+</div>
+
+
+<script>
+// ==================== Voting system ====================
+const STORAGE_KEY = 'confusion-card-v3-votes';
+const VARIATIONS = [
+  { id: 'v1',  name: 'V1: Basic Stacked' },
+  { id: 'v2',  name: 'V2: Compact Stacked' },
+  { id: 'v3',  name: 'V3: Fade with Glow' },
+  { id: 'v4',  name: 'V4: Vertical Alignment' },
+  { id: 'v5',  name: 'V5: Side by Side' },
+  { id: 'v6',  name: 'V6: Compact Side by Side' },
+  { id: 'v7',  name: 'V7: Stacked + Color Bands' },
+  { id: 'v8',  name: 'V8: Color Bands First' },
+  { id: 'v9',  name: 'V9: Production Stacked' },
+  { id: 'v10', name: 'V10: Production Side-by-Side' },
+  { id: 'v11', name: 'V11: Teaching Moments' },
+  { id: 'v12', name: 'V12: Carousel' },
+];
+
+function getVotes() {
+  try {
+    return JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
+  } catch { return {}; }
+}
+
+function vote(variationId, value, btn) {
+  const votes = getVotes();
+  // Toggle off if same vote
+  if (votes[variationId] === value) {
+    delete votes[variationId];
+  } else {
+    votes[variationId] = value;
+  }
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(votes));
+  updateVoteUI();
+}
+
+function updateVoteUI() {
+  const votes = getVotes();
+
+  // Update buttons
+  document.querySelectorAll('.vote-row').forEach(row => {
+    const card = row.previousElementSibling;
+    if (!card) return;
+    const id = card.id;
+    if (!id) return;
+    const currentVote = votes[id];
+    row.querySelectorAll('.vote-btn').forEach(btn => {
+      btn.classList.remove('voted-clear', 'voted-ok', 'voted-confusing');
+      const btnText = btn.textContent.toLowerCase();
+      if (currentVote === btnText) {
+        btn.classList.add('voted-' + btnText);
+      }
+    });
+  });
+
+  // Update summary
+  const grid = document.getElementById('vote-summary-grid');
+  grid.innerHTML = VARIATIONS.map(v => {
+    const vote = votes[v.id];
+    const badgeClass = vote || 'none';
+    const badgeText = vote ? vote.charAt(0).toUpperCase() + vote.slice(1) : 'No vote';
+    return `<div class="vote-summary-item">
+      <span class="name">${v.name}</span>
+      <span class="badge ${badgeClass}">${badgeText}</span>
+    </div>`;
+  }).join('');
+}
+
+// ==================== Carousel (V12) ====================
+let carouselIndex = 0;
+const CAROUSEL_COUNT = 4;
+
+function carouselNav(dir) {
+  carouselIndex = Math.max(0, Math.min(CAROUSEL_COUNT - 1, carouselIndex + dir));
+  updateCarousel();
+}
+
+function updateCarousel() {
+  const track = document.getElementById('v12-track');
+  track.style.transform = `translateX(-${carouselIndex * 100}%)`;
+
+  const dots = document.querySelectorAll('#v12-dots .dot');
+  dots.forEach((d, i) => d.classList.toggle('active', i === carouselIndex));
+
+  document.getElementById('v12-prev').disabled = carouselIndex === 0;
+  document.getElementById('v12-next').disabled = carouselIndex === CAROUSEL_COUNT - 1;
+}
+
+// Init
+updateVoteUI();
+updateCarousel();
+</script>
+
+</body>
+</html>

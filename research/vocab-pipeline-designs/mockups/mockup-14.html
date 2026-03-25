@@ -1,0 +1,174 @@
+<section class="mockup-section" data-mockup-id="mockup-14" data-label="14. Dense Grid + Sparklines">
+<style>
+  body { background: #0a0a0a; color: #e5e5e5; font-family: 'Inter', sans-serif; margin: 0; }
+  .container { padding: 20px 16px; max-width: 375px; margin: 0 auto; }
+  .card { background: #1a1a1a; border-radius: 16px; padding: 16px; margin-bottom: 16px; }
+  .card-title { font-size: 11px; color: #888; text-transform: uppercase; letter-spacing: 1.5px; font-weight: 700; margin-bottom: 12px; }
+
+  /* 2x2 grid of stage cards with sparklines */
+  .vocab-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px; }
+  .vocab-cell { background: #111; border-radius: 10px; padding: 12px; position: relative; overflow: hidden; }
+  .vc-bg-spark { position: absolute; bottom: 0; left: 0; right: 0; height: 24px; opacity: 0.15; }
+  .vc-bg-spark svg { width: 100%; height: 100%; }
+  .vc-count { font-size: 28px; font-weight: 800; position: relative; }
+  .vc-label { font-size: 10px; color: #888; margin-top: 2px; position: relative; }
+  .vc-delta { font-size: 10px; font-weight: 600; margin-top: 4px; position: relative; }
+  .vc-due { font-size: 9px; color: #f87171; margin-top: 2px; position: relative; }
+
+  /* Lapsed + net row */
+  .meta-row { display: flex; gap: 8px; }
+  .meta-chip { flex: 1; background: #111; border-radius: 8px; padding: 8px 10px; display: flex; justify-content: space-between; align-items: center; }
+  .meta-label { font-size: 10px; color: #888; }
+  .meta-val { font-size: 14px; font-weight: 700; }
+
+  /* Pipeline with table-like rows */
+  .pipe-table { width: 100%; border-collapse: separate; border-spacing: 0 4px; margin-bottom: 12px; }
+  .pipe-table td { padding: 8px 10px; background: #111; font-size: 12px; }
+  .pipe-table td:first-child { border-radius: 8px 0 0 8px; font-weight: 700; color: #fbbf24; width: 50px; }
+  .pipe-table td:last-child { border-radius: 0 8px 8px 0; text-align: right; }
+  .pipe-bar-cell { position: relative; }
+  .pipe-bar-inner { height: 6px; border-radius: 3px; margin-top: 4px; }
+  .pipe-due-tag { font-size: 9px; color: #f87171; font-weight: 600; }
+
+  /* Metrics strip */
+  .metrics-strip { display: flex; gap: 4px; margin-bottom: 12px; }
+  .metric { flex: 1; text-align: center; padding: 8px 4px; background: #111; border-radius: 8px; }
+  .metric-val { font-size: 14px; font-weight: 700; }
+  .metric-label { font-size: 7px; color: #888; margin-top: 2px; text-transform: uppercase; letter-spacing: 0.3px; }
+
+  /* Compact 7-day bars */
+  .flow-compact { margin-bottom: 12px; }
+  .flow-compact-label { font-size: 10px; color: #888; margin-bottom: 4px; }
+  .flow-bars { display: flex; gap: 2px; height: 28px; align-items: flex-end; }
+  .fb { flex: 1; display: flex; flex-direction: column; justify-content: flex-end; gap: 1px; }
+  .fb-in { border-radius: 2px 2px 0 0; min-height: 1px; }
+  .fb-out { border-radius: 0 0 2px 2px; min-height: 1px; }
+
+  /* Graduated compact */
+  .grad-compact { display: flex; gap: 4px; flex-wrap: wrap; padding-top: 10px; border-top: 1px solid #222; }
+  .gc-label { width: 100%; font-size: 10px; color: #888; margin-bottom: 2px; }
+  .gc-pill { font-size: 12px; color: #2dd4bf; padding: 3px 8px; background: rgba(45,212,191,0.08); border-radius: 5px; }
+</style>
+
+<div class="container">
+  <div class="card">
+    <div class="card-title">Vocabulary</div>
+
+    <div class="vocab-grid">
+      <div class="vocab-cell">
+        <div class="vc-bg-spark"><svg viewBox="0 0 100 24" preserveAspectRatio="none"><path d="M0,20 Q25,18 50,16 T100,12 L100,24 L0,24 Z" fill="#555"/></svg></div>
+        <div class="vc-count" style="color: #888">847</div>
+        <div class="vc-label">Encountered</div>
+      </div>
+      <div class="vocab-cell">
+        <div class="vc-bg-spark"><svg viewBox="0 0 100 24" preserveAspectRatio="none"><path d="M0,18 Q25,12 50,15 T100,8 L100,24 L0,24 Z" fill="#fbbf24"/></svg></div>
+        <div class="vc-count" style="color: #fbbf24">38</div>
+        <div class="vc-label">Acquiring</div>
+        <div class="vc-due">12 due now</div>
+      </div>
+      <div class="vocab-cell">
+        <div class="vc-bg-spark"><svg viewBox="0 0 100 24" preserveAspectRatio="none"><path d="M0,22 Q25,18 50,14 T100,6 L100,24 L0,24 Z" fill="#38bdf8"/></svg></div>
+        <div class="vc-count" style="color: #38bdf8">87</div>
+        <div class="vc-label">Learning</div>
+        <div class="vc-delta" style="color: #38bdf8">+5 this week</div>
+      </div>
+      <div class="vocab-cell">
+        <div class="vc-bg-spark"><svg viewBox="0 0 100 24" preserveAspectRatio="none"><path d="M0,22 Q25,16 50,10 T100,4 L100,24 L0,24 Z" fill="#2dd4bf"/></svg></div>
+        <div class="vc-count" style="color: #2dd4bf">145</div>
+        <div class="vc-label">Known</div>
+        <div class="vc-delta" style="color: #2dd4bf">+12 this week</div>
+      </div>
+    </div>
+
+    <div class="meta-row">
+      <div class="meta-chip">
+        <span class="meta-label">Lapsed</span>
+        <span class="meta-val" style="color: #f87171">4</span>
+      </div>
+      <div class="meta-chip">
+        <span class="meta-label">Net/day</span>
+        <span class="meta-val" style="color: #2dd4bf">+2.1</span>
+      </div>
+      <div class="meta-chip">
+        <span class="meta-label">Retention</span>
+        <span class="meta-val">87%</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Acquisition Pipeline</div>
+
+    <table class="pipe-table">
+      <tr>
+        <td>Box 1</td>
+        <td class="pipe-bar-cell">
+          18 words <span style="color: #555; font-size: 10px;">· 4h interval</span>
+          <div class="pipe-bar-inner" style="width: 60%; background: rgba(251,191,36,0.4);"></div>
+        </td>
+        <td><span class="pipe-due-tag">8 due</span></td>
+      </tr>
+      <tr>
+        <td>Box 2</td>
+        <td class="pipe-bar-cell">
+          12 words <span style="color: #555; font-size: 10px;">· 1d interval</span>
+          <div class="pipe-bar-inner" style="width: 40%; background: rgba(251,191,36,0.25);"></div>
+        </td>
+        <td><span class="pipe-due-tag">3 due</span></td>
+      </tr>
+      <tr>
+        <td>Box 3</td>
+        <td class="pipe-bar-cell">
+          8 words <span style="color: #555; font-size: 10px;">· 3d interval</span>
+          <div class="pipe-bar-inner" style="width: 27%; background: rgba(251,191,36,0.15);"></div>
+        </td>
+        <td><span class="pipe-due-tag">1 due</span></td>
+      </tr>
+    </table>
+
+    <div class="metrics-strip">
+      <div class="metric">
+        <div class="metric-val" style="color: #fbbf24">6/d</div>
+        <div class="metric-label">Entering</div>
+      </div>
+      <div class="metric">
+        <div class="metric-val" style="color: #2dd4bf">3/d</div>
+        <div class="metric-label">Graduating</div>
+      </div>
+      <div class="metric">
+        <div class="metric-val">82%</div>
+        <div class="metric-label">Grad Rate</div>
+      </div>
+      <div class="metric">
+        <div class="metric-val">~9</div>
+        <div class="metric-label">Reviews</div>
+      </div>
+      <div class="metric">
+        <div class="metric-val" style="color: #fbbf24">4.2d</div>
+        <div class="metric-label">Avg Time</div>
+      </div>
+    </div>
+
+    <div class="flow-compact">
+      <div class="flow-compact-label">7-day entered vs graduated</div>
+      <div class="flow-bars">
+        <div class="fb"><div class="fb-in" style="height: 55%; background: #fbbf24;"></div><div class="fb-out" style="height: 35%; background: #2dd4bf;"></div></div>
+        <div class="fb"><div class="fb-in" style="height: 75%; background: #fbbf24;"></div><div class="fb-out" style="height: 45%; background: #2dd4bf;"></div></div>
+        <div class="fb"><div class="fb-in" style="height: 45%; background: #fbbf24;"></div><div class="fb-out" style="height: 65%; background: #2dd4bf;"></div></div>
+        <div class="fb"><div class="fb-in" style="height: 95%; background: #fbbf24;"></div><div class="fb-out" style="height: 25%; background: #2dd4bf;"></div></div>
+        <div class="fb"><div class="fb-in" style="height: 65%; background: #fbbf24;"></div><div class="fb-out" style="height: 55%; background: #2dd4bf;"></div></div>
+        <div class="fb"><div class="fb-in" style="height: 35%; background: #fbbf24;"></div><div class="fb-out" style="height: 75%; background: #2dd4bf;"></div></div>
+        <div class="fb"><div class="fb-in" style="height: 55%; background: #fbbf24;"></div><div class="fb-out" style="height: 40%; background: #2dd4bf;"></div></div>
+      </div>
+    </div>
+
+    <div class="grad-compact">
+      <span class="gc-label">Recently graduated</span>
+      <span class="gc-pill">سَمَاء 2h</span>
+      <span class="gc-pill">يَوم 5h</span>
+      <span class="gc-pill">وَلَد 1d</span>
+      <span class="gc-pill">بَيت 1d</span>
+    </div>
+  </div>
+</div>
+</section>
