@@ -4,6 +4,20 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-03-25: Podcast System — Auto-Generation, Word Credit, Story-to-Podcast
+
+**Context**: Podcast system had 6 episodes from March 22 with no auto-generation and no word credit on completion.
+
+**Changes**:
+1. **Completion with word credit**: `POST /api/podcasts/complete/{filename}` increments `times_heard` on `UserLemmaKnowledge` for all content words. Lemma_ids stored in metadata at generation time via `build_comprehensive_lemma_lookup()`.
+2. **Auto-generation (Step I in cron)**: Maintains ≥4 unheard podcasts. Max 2 per cron run to control TTS cost. 25 story themes (up from 5).
+3. **Story-to-podcast pipeline**: `generate_podcast_from_story(db, story_id)` pulls sentences from DB stories (books, Qur'an imports). Long sentences (≥8 words) automatically broken into ~4-word chunks taught piece by piece before the full sentence.
+4. **Frontend**: Explicit "Complete" button (decoupled from audio-finish). Shows "N words credited" feedback.
+
+**First book podcasts**: Rosie in the Haunted House (28 sentences, 100% known), Qur'an 33:35 Virtues verse (30-word sentence, chunk-by-chunk breakdown).
+
+---
+
 ## 2026-03-23: Homograph Correction + Multi-Hop Variant Resolution Fixes
 
 **Context**: User flagged two wrong lemma mappings (سلم "peace" instead of "ladder", أحد "Sunday" instead of "someone"). Investigation revealed two systemic bugs.
