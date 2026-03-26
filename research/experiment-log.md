@@ -4,6 +4,21 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-03-26: Fix Empty Glosses in Book Import + Intro Card UX
+
+**Context**: Stats screen showed words (مَغْلِيّ, حِذْر, المقبله،, etc.) with no English translation. 21 active words from book import had empty `gloss_en`. Also, intro/reintro cards didn't clearly label the translation and didn't scroll to top when advancing between cards.
+
+**Root cause**: In `_import_unknown_words()` (`story_service.py`), the LLM batch translation returns Arabic keys that after `normalize_alef(strip_diacritics())` may not match our `surface_bare` or `lex_norm` lookup keys. When the match fails, `gloss_en` defaults to `""`. This affects words where the LLM returns a slightly different spelling (hamza variation, extra tashkeel, etc.).
+
+**Fixes**:
+1. **Pipeline fix**: Added positional fallback in gloss_map building. Since we send words in order and the LLM returns them in order, we now also key the map by our own `surface_bare` and `lex_norm` at each index position — prevents future mismatches.
+2. **Data backfill**: LLM-backfilled all 21 empty glosses on production DB.
+3. **Intro card UX**: Added "MEANING" label above English translation on all 3 intro card types (reintro, experiment intro, mid-session intro). Added `introScrollRef` to reset scroll position to top when advancing between intro cards.
+
+**Verification**: Check stats screen — all graduated/started words should show English glosses. New book imports should not produce empty glosses.
+
+---
+
 ## 2026-03-25: Podcast System — Auto-Generation, Word Credit, Story-to-Podcast
 
 **Context**: Podcast system had 6 episodes from March 22 with no auto-generation and no word credit on completion.
