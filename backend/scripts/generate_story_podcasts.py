@@ -704,34 +704,52 @@ def _split_into_chunks(arabic: str, chunk_size: int = 4) -> list[str]:
     return chunks
 
 
+def _split_english_to_match(english: str, n_chunks: int) -> list[str]:
+    """Split English text into n roughly equal chunks by word count."""
+    if not english or n_chunks <= 1:
+        return [english] if english else [""]
+    words = english.split()
+    if len(words) <= n_chunks:
+        return [english] + [""] * (n_chunks - 1)
+    chunk_size = len(words) / n_chunks
+    chunks = []
+    for i in range(n_chunks):
+        start = round(i * chunk_size)
+        end = round((i + 1) * chunk_size)
+        chunks.append(" ".join(words[start:end]))
+    return chunks
+
+
 def _build_sentence_breakdown(segments: list[Seg], arabic: str, english: str) -> None:
     """Teach a single sentence with optional chunk-by-chunk breakdown."""
     words = arabic.split()
 
     if len(words) >= LONG_SENTENCE_THRESHOLD:
-        # Long sentence: break into chunks, teach each, then build up
-        chunks = _split_into_chunks(arabic, chunk_size=4)
+        # Long sentence: break into chunks, teach each with paired English
+        ar_chunks = _split_into_chunks(arabic, chunk_size=4)
+        en_chunks = _split_english_to_match(english, len(ar_chunks))
 
-        # English meaning first for full context (if available)
+        # Teach each chunk: English fragment → Arabic slow → Arabic normal
+        for j, (ar_chunk, en_chunk) in enumerate(zip(ar_chunks, en_chunks)):
+            if en_chunk:
+                segments.extend([
+                    en(en_chunk, speed=0.95),
+                    silence(1000),
+                ])
+            segments.extend([
+                ar_slow(ar_chunk),
+                silence(1500),
+                ar(ar_chunk, speed=0.85),
+                silence(1500),
+            ])
+
+        # Now full sentence: full English → Arabic slow → Arabic normal
         if english:
             segments.extend([
                 en(english, speed=0.95),
-                silence(1500),
+                silence(1200),
             ])
-
-        # Teach each chunk
-        for j, chunk in enumerate(chunks):
-            segments.extend([
-                ar_slow(chunk),
-                silence(1500),
-                ar(chunk, speed=0.85),
-                silence(1500),
-            ])
-
-        # Now full sentence slow
         segments.extend([
-            en("Now the whole sentence together."),
-            silence(800),
             ar_slow(arabic),
             silence(2000),
             ar_normal(arabic),
