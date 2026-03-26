@@ -342,14 +342,23 @@ Set name_type to "personal" for personal names (people, characters), "place" for
         # Result may be a list or a dict with a list inside
         items = result if isinstance(result, list) else result.get("words", result.get("translations", []))
         if isinstance(items, list):
-            for item in items:
+            for idx, item in enumerate(items):
                 arabic = item.get("arabic", "")
                 bare = normalize_alef(strip_diacritics(arabic))
-                gloss_map[bare] = {
+                gloss_data = {
                     "english": item.get("english", ""),
                     "pos": item.get("pos"),
                     "name_type": item.get("name_type"),
                 }
+                gloss_map[bare] = gloss_data
+                # Positional fallback: also key by the surface/lex forms we sent
+                if idx < len(word_analyses):
+                    a = word_analyses[idx]
+                    surface_bare = normalize_alef(strip_diacritics(a["story_word"].surface_form))
+                    if surface_bare not in gloss_map:
+                        gloss_map[surface_bare] = gloss_data
+                    if a["lex_norm"] not in gloss_map:
+                        gloss_map[a["lex_norm"]] = gloss_data
     except (AllProvidersFailed, Exception) as e:
         logger.warning("LLM translation failed for story %d unknown words: %s", story.id, e)
 
