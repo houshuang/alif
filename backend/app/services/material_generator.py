@@ -890,6 +890,65 @@ def warm_sentence_cache(llm_model: str = "gemini") -> dict:
         finally:
             db.close()
 
+    # ── Phase 5: Backfill empty glosses on active lemmas ──
+    # Catches any lemmas that slipped through import without English translations.
+    # Only processes a small batch per warm-cache run to stay fast.
+    from sqlalchemy import or_ as sa_or_
+    MAX_GLOSS_BACKFILL = 10
+    db = SessionLocal()
+    try:
+        empty_gloss_lemmas = (
+            db.query(Lemma)
+            .join(UserLemmaKnowledge, UserLemmaKnowledge.lemma_id == Lemma.lemma_id)
+            .filter(
+                Lemma.canonical_lemma_id.is_(None),
+                sa_or_(Lemma.gloss_en.is_(None), Lemma.gloss_en == ""),
+                UserLemmaKnowledge.knowledge_state.in_(["acquiring", "known", "lapsed", "learning"]),
+            )
+            .limit(MAX_GLOSS_BACKFILL)
+            .all()
+        )
+        if empty_gloss_lemmas:
+            from app.services.llm import generate_completion
+            words_for_llm = [
+                f"- id={l.lemma_id}, word={l.lemma_ar}, pos={l.pos or 'unknown'}"
+                for l in empty_gloss_lemmas
+            ]
+            prompt = (
+                "Translate these Arabic words to concise English dictionary-form glosses.\n"
+                "Verbs: infinitive ('to write'). Nouns: singular ('book'). Adj: base ('big').\n\n"
+                + "\n".join(words_for_llm)
+                + '\n\nReturn JSON array: [{"id": <lemma_id>, "gloss": "english"}]'
+            )
+            try:
+                result = generate_completion(
+                    prompt=prompt,
+                    system_prompt="Translate Arabic to English. Concise dictionary glosses (1-3 words). JSON only.",
+                    json_mode=True,
+                    temperature=0.1,
+                    task_type="backfill_glosses",
+                )
+                items = result if isinstance(result, list) else result.get("words", result.get("translations", []))
+                lemma_map = {l.lemma_id: l for l in empty_gloss_lemmas}
+                filled = 0
+                if isinstance(items, list):
+                    for item in items:
+                        lid = item.get("id")
+                        gloss = (item.get("gloss") or item.get("english", "")).strip()
+                        if lid and gloss and lid in lemma_map:
+                            lemma_map[lid].gloss_en = gloss
+                            filled += 1
+                    if filled:
+                        db.commit()
+                stats["glosses_backfilled"] = filled
+                logger.info(f"Warm cache Phase 5: backfilled {filled}/{len(empty_gloss_lemmas)} empty glosses")
+            except Exception:
+                logger.warning("Warm cache: gloss backfill LLM call failed")
+    except Exception:
+        logger.warning("Warm cache: gloss backfill read phase failed")
+    finally:
+        db.close()
+
     logger.info(f"Warm cache complete: {stats}")
     return stats
 

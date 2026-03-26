@@ -610,9 +610,20 @@ def process_textbook_page(
                 # New word — create lemma + knowledge record
                 # Use base_lemma for the canonical bare form if available
                 import_bare = base_lemma_bare if base_lemma_bare else bare
-                english = word_data.get("english")
+                english = (word_data.get("english") or "").strip()
                 pos = word_data.get("pos")
                 root_str = word_data.get("root")
+
+                # Never create a Lemma without an English gloss
+                if not english:
+                    logger.warning("Skipping lemma creation for %s: no English gloss", arabic)
+                    results.append({
+                        "arabic": arabic,
+                        "arabic_bare": bare,
+                        "english": "",
+                        "status": "skipped_no_gloss",
+                    })
+                    continue
 
                 # Find or create root (with validation)
                 root_id = None
@@ -957,9 +968,20 @@ def process_batch(
                 }
         else:
             import_bare = base_lemma_bare if base_lemma_bare else bare
-            english = word_data.get("english")
+            english = (word_data.get("english") or "").strip()
             pos = word_data.get("pos")
             root_str = word_data.get("root")
+
+            # Never create a Lemma without an English gloss
+            if not english:
+                logger.warning("Skipping lemma creation for %s: no English gloss", arabic)
+                word_results[idx] = {
+                    "arabic": arabic,
+                    "arabic_bare": bare,
+                    "english": "",
+                    "status": "skipped_no_gloss",
+                }
+                continue
 
             root_id = None
             if root_str and _is_valid_root(root_str):

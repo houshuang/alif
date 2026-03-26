@@ -394,14 +394,22 @@ Set name_type to "personal" for personal names (people, characters), "place" for
         lex_bare = analysis["lex_bare"]
         sw = analysis["story_word"]
 
-        # Get gloss from LLM (fall back to empty)
+        # Get gloss from LLM — skip creating lemma if translation missing
         surface_bare = normalize_alef(strip_diacritics(sw.surface_form))
         gloss_data = gloss_map.get(surface_bare, gloss_map.get(lex_norm, {}))
-        english = gloss_data.get("english", "")
+        english = gloss_data.get("english", "").strip()
         pos = gloss_data.get("pos") or analysis["pos"]
         name_type = gloss_data.get("name_type")
         if pos == "UNK":
             pos = None
+
+        # Never create a Lemma without a gloss — useless for learning
+        if not english and name_type not in ("personal", "place"):
+            logger.warning(
+                "Skipping lemma creation for %s (story %d): no English gloss from LLM",
+                sw.surface_form, story.id,
+            )
+            continue
 
         # Proper nouns: mark as function word, no Lemma entry
         if name_type in ("personal", "place"):

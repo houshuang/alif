@@ -75,10 +75,22 @@ class TestImportStory:
         story, _ = import_story(db_session, arabic_text="الولد كبير")
         assert story.known_count >= 1
 
-    def test_import_identifies_unknown_words(self, db_session):
+    @patch("app.services.story_service.generate_completion")
+    def test_import_identifies_unknown_words(self, mock_gen, db_session):
         _seed_words(db_session)
+        # LLM returns gloss for unknown word so lemma creation succeeds
+        mock_gen.return_value = [{"arabic": "رجل", "english": "man", "pos": "noun", "name_type": None}]
         story, _ = import_story(db_session, arabic_text="الرجل في البيت")
         assert story.unknown_count >= 1
+
+    def test_import_skips_unknown_without_gloss(self, db_session):
+        """Words without LLM gloss should not create glossless lemmas."""
+        _seed_words(db_session)
+        # No mock → LLM fails → no lemma created for unknown word
+        story, _ = import_story(db_session, arabic_text="الرجل في البيت")
+        # رجل should not have a lemma with empty gloss
+        empty = db_session.query(Lemma).filter(Lemma.gloss_en == "").all()
+        assert len(empty) == 0
 
     def test_import_creates_story_words(self, db_session):
         _seed_words(db_session)
