@@ -397,14 +397,97 @@ def _get_used_theme_ids() -> set[str]:
     return used
 
 
+# Track themes picked within a single run to avoid duplicates
+_picked_this_run: set[str] = set()
+
+
 def pick_unused_theme() -> dict:
     """Pick a theme that hasn't been used yet, or a random one if all used."""
-    used = _get_used_theme_ids()
+    used = _get_used_theme_ids() | _picked_this_run
     unused = [t for t in STORY_THEMES if t["id"] not in used]
     if unused:
-        return random.choice(unused)
-    # All used — pick random from full pool
-    return random.choice(STORY_THEMES)
+        choice = random.choice(unused)
+    else:
+        choice = random.choice(STORY_THEMES)
+    _picked_this_run.add(choice["id"])
+    return choice
+
+
+# ── CI topic pool ─────────────────────────────────────────────────────
+
+CI_TOPICS = [
+    {
+        "id": "ci-grandfather",
+        "topic": "Ahmad visits his grandfather every Friday. The grandfather tells stories about the old days.",
+        "target": [{"word": "جَدّ", "gloss": "grandfather"}, {"word": "حَكَى", "gloss": "to tell a story"}],
+    },
+    {
+        "id": "ci-market",
+        "topic": "A woman goes to the old market to buy fruit and vegetables. She talks to the seller.",
+        "target": [{"word": "بائِع", "gloss": "seller/vendor"}, {"word": "سُوق", "gloss": "market"}],
+    },
+    {
+        "id": "ci-teacher",
+        "topic": "A teacher in a small school loves his students. One student asks a question nobody else asks.",
+        "target": [{"word": "مُعَلِّم", "gloss": "teacher"}, {"word": "سُؤَال", "gloss": "question"}],
+    },
+    {
+        "id": "ci-ramadan",
+        "topic": "It is Ramadan. The family gathers every evening to eat together. The children wait for the call to prayer.",
+        "target": [{"word": "رَمَضَان", "gloss": "Ramadan"}, {"word": "إفْطَار", "gloss": "iftar meal"}],
+    },
+    {
+        "id": "ci-neighbor",
+        "topic": "A new neighbor moves in next door. She is from a different country. The children become friends.",
+        "target": [{"word": "جَار", "gloss": "neighbor"}, {"word": "صَدَاقَة", "gloss": "friendship"}],
+    },
+    {
+        "id": "ci-journey",
+        "topic": "A man takes the train from Cairo to Alexandria. He meets an old woman who tells him about the sea.",
+        "target": [{"word": "قِطَار", "gloss": "train"}, {"word": "رِحْلَة", "gloss": "journey/trip"}],
+    },
+    {
+        "id": "ci-garden",
+        "topic": "A girl helps her grandmother in the garden. They plant flowers and vegetables. The grandmother teaches her patience.",
+        "target": [{"word": "حَدِيقَة", "gloss": "garden"}, {"word": "زَرَعَ", "gloss": "to plant"}],
+    },
+    {
+        "id": "ci-rain",
+        "topic": "It hasn't rained in the village for months. The children play in the dust. One day the clouds arrive.",
+        "target": [{"word": "مَطَر", "gloss": "rain"}, {"word": "سَحَاب", "gloss": "clouds"}],
+    },
+    {
+        "id": "ci-doctor",
+        "topic": "A boy is afraid of going to the doctor. His mother takes him. The doctor is kind and funny.",
+        "target": [{"word": "طَبِيب", "gloss": "doctor"}, {"word": "مَرِيض", "gloss": "patient/sick person"}],
+    },
+    {
+        "id": "ci-library",
+        "topic": "A girl goes to the library every day after school. She reads and reads. One day she finds a very old book.",
+        "target": [{"word": "مَكْتَبَة", "gloss": "library"}, {"word": "قِرَاءَة", "gloss": "reading"}],
+    },
+    {
+        "id": "ci-cooking",
+        "topic": "A father decides to cook dinner for the first time. His children try to help. Everything goes wrong but everyone laughs.",
+        "target": [{"word": "طَبَخَ", "gloss": "to cook"}, {"word": "مَطْبَخ", "gloss": "kitchen"}],
+    },
+    {
+        "id": "ci-sea",
+        "topic": "A family goes to the sea for the first time. The children see the waves and are amazed.",
+        "target": [{"word": "بَحْر", "gloss": "sea"}, {"word": "مَوْجَة", "gloss": "wave"}],
+    },
+]
+
+
+def pick_unused_ci_topic() -> dict | None:
+    """Pick a CI topic that hasn't been used, or None if all used."""
+    used = _get_used_theme_ids() | _picked_this_run
+    unused = [t for t in CI_TOPICS if t["id"] not in used]
+    if unused:
+        choice = random.choice(unused)
+        _picked_this_run.add(choice["id"])
+        return choice
+    return None
 
 
 # ── LLM story generation ─────────────────────────────────────────────

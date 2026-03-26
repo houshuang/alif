@@ -772,8 +772,10 @@ async def main():
         if not args.dry_run:
             from app.services.podcast_service import unheard_count
             from scripts.generate_story_podcasts import (
+                generate_ci_podcast,
                 generate_single_podcast,
                 get_high_stability_words,
+                pick_unused_ci_topic,
                 pick_unused_theme,
             )
             current_unheard = unheard_count()
@@ -782,10 +784,21 @@ async def main():
             if deficit > 0:
                 words = get_high_stability_words(db, min_stability_days=14.0)
                 if len(words) >= 30:
+                    # Alternate: odd runs → story, even runs → CI
+                    use_ci = (podcasts_i % 2 == 0) and pick_unused_ci_topic() is not None
                     for i in range(deficit):
-                        theme = pick_unused_theme()
                         try:
-                            print(f"  Generating podcast {i+1}/{deficit}: {theme['title']}...")
+                            if use_ci and i % 2 == 0:
+                                ci = pick_unused_ci_topic()
+                                if ci:
+                                    print(f"  Generating CI podcast {i+1}/{deficit}: {ci['topic'][:50]}...")
+                                    path = await generate_ci_podcast(db, words, ci["topic"], ci["target"])
+                                    if path:
+                                        podcasts_i += 1
+                                        print(f"  Generated: {path.name}")
+                                    continue
+                            theme = pick_unused_theme()
+                            print(f"  Generating story podcast {i+1}/{deficit}: {theme['title']}...")
                             path = await generate_single_podcast(db, words, theme)
                             if path:
                                 podcasts_i += 1
