@@ -159,6 +159,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
   const pendingRefreshRef = useRef<SentenceReviewSession | null>(null);
   const refreshingRef = useRef(false);
   const hasActiveSessionRef = useRef(false);
+  const introScrollRef = useRef<ScrollView>(null);
 
   const totalCards = sentenceSession
     ? (sessionSlots.length > 0 ? sessionSlots.length : sentenceSession.items.length)
@@ -1369,6 +1370,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
           </View>
         </View>
         <ScrollView
+          ref={introScrollRef}
           contentContainerStyle={styles.reintroScrollContent}
           showsVerticalScrollIndicator={false}
         >
@@ -1377,6 +1379,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
               <Text style={styles.reintroArabic}>{card.lemma_ar}</Text>
               <PlayButton audioUrl={card.audio_url} word={card.lemma_ar} />
             </View>
+            <Text style={styles.introMeaningLabel}>Meaning</Text>
             <Text style={styles.reintroEnglish}>{card.gloss_en}</Text>
             {card.transliteration && (
               <Text style={styles.reintroTranslit}>{card.transliteration}</Text>
@@ -1458,6 +1461,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
                 "remember",
                 sentenceSession?.session_id,
               ).catch(() => {});
+              introScrollRef.current?.scrollTo({ y: 0, animated: false });
               if (reintroIndex + 1 < reintroCards.length) {
                 setReintroIndex(reintroIndex + 1);
               } else {
@@ -1498,12 +1502,14 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
           </Text>
         </View>
         <ScrollView
+          ref={introScrollRef}
           contentContainerStyle={styles.reintroScrollContent}
           showsVerticalScrollIndicator={false}
         >
           {/* Hero card */}
           <View style={styles.eiHero}>
             <Text style={styles.eiArabic}>{card.lemma_ar}</Text>
+            <Text style={styles.introMeaningLabel}>Meaning</Text>
             <Text style={styles.eiEnglish}>{card.gloss_en}</Text>
             {card.transliteration && (
               <Text style={styles.eiTranslit}>{card.transliteration}</Text>
@@ -1639,6 +1645,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
                 card.lemma_id,
                 sentenceSession?.session_id,
               ).catch(() => {});
+              introScrollRef.current?.scrollTo({ y: 0, animated: false });
               if (experimentIntroIndex + 1 < experimentIntroCards.length) {
                 setExperimentIntroIndex(experimentIntroIndex + 1);
               } else {
@@ -1684,6 +1691,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
           }
         />
         <ScrollView
+          ref={introScrollRef}
           contentContainerStyle={styles.reintroScrollContent}
           showsVerticalScrollIndicator={false}
         >
@@ -1698,6 +1706,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
               <Text style={styles.reintroArabic}>{candidate.lemma_ar}</Text>
               <PlayButton audioUrl={candidate.audio_url} word={candidate.lemma_ar} />
             </View>
+            <Text style={styles.introMeaningLabel}>Meaning</Text>
             <Text style={styles.reintroEnglish}>{candidate.gloss_en}</Text>
             {candidate.transliteration && (
               <Text style={styles.reintroTranslit}>{candidate.transliteration}</Text>
@@ -3867,6 +3876,15 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     writingDirection: "rtl",
     fontFamily: fontFamily.arabic,
+  },
+  introMeaningLabel: {
+    fontSize: 11,
+    color: colors.textSecondary,
+    fontWeight: "600",
+    textTransform: "uppercase",
+    letterSpacing: 1,
+    marginTop: 4,
+    marginBottom: 2,
   },
   reintroEnglish: {
     fontSize: 22,
