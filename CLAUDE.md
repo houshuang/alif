@@ -48,7 +48,7 @@ npx expo start --web  # opens on localhost:8081
 - **Listening Mode**: ElevenLabs TTS, reveal Arabic → reveal English
 - **Learn Mode**: 5-candidate pick → done (info-dense card with root/pattern chips → detail pages, pattern examples, forms strip, etymology, mnemonic)
 - **Story Mode**: generate/import, tap-to-lookup reader (root/pattern navigation), complete/suspend/archive. 4 formats: standard, long (12-20 sentences), breakdown (audio: half→full sentences), arabic_explanation (simple Arabic explanations). Story audio via ElevenLabs with voice rotation (3 male voices, deterministic by story_id). Archive system (orthogonal to status). `times_heard` passive listening tracking. Auto-generate cron keeps ≥3 active non-archived stories.
-- **Podcast Mode**: Audio learning episodes with sentence-by-sentence breakdown. Two sources: (1) LLM-generated stories from high-stability vocabulary via Claude Opus, (2) existing DB stories (books, Qur'an). Long sentences (≥8 words) auto-broken into ~4-word chunks taught piece-by-piece. Explicit "Complete" button increments `times_heard` on all content words via pre-computed `word_lemma_ids` in metadata. Auto-generation cron (Step I) maintains ≥4 unheard episodes. File-based storage: MP3 + JSON pairs in `data/podcasts/`. 25 story themes. Scripts: `generate_story_podcasts.py` (`--from-story N` for DB stories, `--count N` for LLM stories). API: `/api/podcasts`, `/api/podcasts/complete/{fn}`.
+- **Podcast Mode**: Audio learning episodes in 3 formats: (1) **story** — LLM-generated stories from high-stability vocabulary, (2) **book** — existing DB stories (books, Qur'an) with automatic long-sentence breakdown, (3) **ci** — Arabic-in-Arabic comprehensible input (5-phase: establish context → circumlocute new word → build complexity → full passage → close). Long sentences (≥8 words) auto-broken into ~4-word chunks, each paired with matching English fragment. Explicit "Complete" button increments `times_heard` on all content words via pre-computed `word_lemma_ids` in metadata, closes detail view, moves episode to "Completed" list. Auto-generation cron (Step I) maintains ≥4 unheard episodes, alternating story and CI formats. File-based storage: MP3 + JSON pairs in `data/podcasts/`. 25 story themes + 12 CI topics. Scripts: `generate_story_podcasts.py` (`--from-story N`, `--count N`, `--ci-topic "..." --ci-target "word:gloss"`). API: `/api/podcasts`, `/api/podcasts/complete/{fn}`.
 
 ## Design Principles
 - **FOUNDATIONAL: Every word in every sentence earns review credit** — when a sentence is reviewed, ALL non-function words get a review (acquisition or FSRS), regardless of whether they are the "target" word or collateral scaffold. This is the core learning mechanism. A word seen 10 times collaterally with correct ratings has been learned — the system must recognize this. No word should be invisible to the review engine. Encountered words that appear in reviewed sentences are auto-introduced to acquisition and get their first review immediately; Tier 0 instant graduation handles familiar words (recognized on first review → straight to FSRS). **No artificial throttles on this flow.**
@@ -151,7 +151,9 @@ When changing how words move between states (encountered → acquiring → FSRS)
 - `backend/app/schemas.py` — Pydantic request/response models
 - `backend/app/routers/` — API routes (see `docs/api-reference.md`)
 - `backend/app/services/` — All services (see `docs/backend-services.md`)
+- `backend/app/services/podcast_service.py` — Podcast service: TTS stitching, completion with word credit, file-based metadata
 - `backend/scripts/` — All scripts (see `docs/scripts-catalog.md`)
+- `backend/scripts/generate_story_podcasts.py` — Podcast generation: LLM stories, book-to-podcast, CI episodes
 
 ## Testing
 ```bash
@@ -187,5 +189,6 @@ See `.claude/skills/server-ops.md` for full details. Summary of hard-won rules:
 3. **Read `backend/app/models.py` BEFORE writing DB queries** — Don't guess table/column names. They've caused repeated failures (e.g., `lemma` vs `lemmas`, `query()` vs `get()`).
 4. **Check `backend/scripts/` before writing ad-hoc queries** — Existing scripts cover most analytics and maintenance tasks.
 5. **One deploy per session** — Get code right locally (tests pass), then deploy once. Multiple deploys waste time and risk inconsistent state.
+6. **Push before deploy** — `git push` BEFORE running deploy commands. The deploy does `git pull` on the server — if you haven't pushed, the server pulls stale code.
 
 Next: more story imports, listening mode improvements
