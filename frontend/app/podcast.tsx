@@ -78,12 +78,18 @@ export default function PodcastScreen() {
 
   const completePodcast = async (fn: string) => {
     try {
+      // Stop playback if playing this podcast
+      if (playing === fn && soundRef.current) {
+        await soundRef.current.unloadAsync();
+        soundRef.current = null;
+        setPlaying(null);
+        setStatus(null);
+      }
       const res = await fetch(`${BASE_URL}/api/podcasts/complete/${fn}`, { method: "POST" });
       if (res.ok) {
-        const data = await res.json();
-        const n = data.words_heard || 0;
-        setCompleteFeedback(n > 0 ? `${n} words credited` : "Marked complete");
-        setTimeout(() => setCompleteFeedback(null), 3000);
+        // Close detail view immediately, go back to grid
+        setSelected(null);
+        setDetail(null);
         fetchPodcasts();
       }
     } catch {}
@@ -272,48 +278,62 @@ export default function PodcastScreen() {
             <Text style={st.emptyText}>No episodes yet</Text>
           </View>
         ) : (
-          <View style={st.gridRow}>
-            {podcasts.map((p) => {
-              const isPlaying = playing === p.filename;
-              return (
-                <Pressable
-                  key={p.filename}
-                  style={[st.gridCard, isPlaying && st.gridCardActive]}
-                  onPress={() => { setSelected(p.filename); fetchDetail(p.filename); }}
-                >
-                  {p.image_url ? (
-                    <Image source={{ uri: `${BASE_URL}${p.image_url}` }} style={st.gridImage} />
-                  ) : (
-                    <View style={[st.gridImage, st.gridImagePlaceholder]}>
-                      <Ionicons name="mic" size={32} color={colors.textSecondary} />
-                    </View>
-                  )}
+          <>
+            {/* Active (unheard) episodes — image grid */}
+            <View style={st.gridRow}>
+              {podcasts.filter(p => !p.listened_at).map((p) => {
+                const isPlaying = playing === p.filename;
+                return (
+                  <Pressable
+                    key={p.filename}
+                    style={[st.gridCard, isPlaying && st.gridCardActive]}
+                    onPress={() => { setSelected(p.filename); fetchDetail(p.filename); }}
+                  >
+                    {p.image_url ? (
+                      <Image source={{ uri: `${BASE_URL}${p.image_url}` }} style={st.gridImage} />
+                    ) : (
+                      <View style={[st.gridImage, st.gridImagePlaceholder]}>
+                        <Ionicons name="mic" size={32} color={colors.textSecondary} />
+                      </View>
+                    )}
 
-                  {/* Listened badge */}
-                  {p.listened_at && (
-                    <View style={st.listenedBadge}>
-                      <Ionicons name="checkmark-circle" size={16} color={colors.gotIt} />
-                    </View>
-                  )}
+                    {/* Progress overlay */}
+                    {p.listen_progress > 0 && p.listen_progress < 1 && (
+                      <View style={st.gridProgress}>
+                        <View style={[st.gridProgressFill, { width: `${p.listen_progress * 100}%` }]} />
+                      </View>
+                    )}
 
-                  {/* Progress overlay */}
-                  {p.listen_progress > 0 && p.listen_progress < 1 && (
-                    <View style={st.gridProgress}>
-                      <View style={[st.gridProgressFill, { width: `${p.listen_progress * 100}%` }]} />
+                    <View style={st.gridInfo}>
+                      {p.title_ar ? (
+                        <Text style={st.gridTitleAr} numberOfLines={1}>{p.title_ar}</Text>
+                      ) : null}
+                      <Text style={st.gridTitle} numberOfLines={2}>{title(p)}</Text>
+                      <Text style={st.gridMeta}>{fmtDur(p.duration_seconds)}</Text>
                     </View>
-                  )}
+                  </Pressable>
+                );
+              })}
+            </View>
 
-                  <View style={st.gridInfo}>
-                    {p.title_ar ? (
-                      <Text style={st.gridTitleAr} numberOfLines={1}>{p.title_ar}</Text>
-                    ) : null}
-                    <Text style={st.gridTitle} numberOfLines={2}>{title(p)}</Text>
-                    <Text style={st.gridMeta}>{fmtDur(p.duration_seconds)}</Text>
-                  </View>
-                </Pressable>
-              );
-            })}
-          </View>
+            {/* Completed episodes — plain list */}
+            {podcasts.some(p => p.listened_at) && (
+              <View style={st.completedSection}>
+                <Text style={st.completedHeader}>Completed</Text>
+                {podcasts.filter(p => p.listened_at).map((p) => (
+                  <Pressable
+                    key={p.filename}
+                    style={st.completedRow}
+                    onPress={() => { setSelected(p.filename); fetchDetail(p.filename); }}
+                  >
+                    <Ionicons name="checkmark-circle" size={16} color={colors.gotIt} />
+                    <Text style={st.completedTitle} numberOfLines={1}>{title(p)}</Text>
+                    <Text style={st.completedMeta}>{fmtDur(p.duration_seconds)}</Text>
+                  </Pressable>
+                ))}
+              </View>
+            )}
+          </>
         )}
       </ScrollView>
     </View>
@@ -370,6 +390,16 @@ const st = StyleSheet.create({
 
   empty: { alignItems: "center", paddingTop: 60, gap: 12, width: "100%" },
   emptyText: { fontSize: 18, fontWeight: "600", color: colors.textSecondary },
+
+  // Completed section
+  completedSection: { marginTop: 24, paddingTop: 16, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border },
+  completedHeader: { fontSize: 13, fontWeight: "600", color: colors.textSecondary, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 8 },
+  completedRow: {
+    flexDirection: "row", alignItems: "center", gap: 10,
+    paddingVertical: 10, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border,
+  },
+  completedTitle: { flex: 1, fontSize: 14, color: colors.text, textTransform: "capitalize" },
+  completedMeta: { fontSize: 12, color: colors.textSecondary },
 
   // Detail view
   heroImage: { width: "100%", aspectRatio: 1 },
