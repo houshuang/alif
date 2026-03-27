@@ -4,6 +4,21 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-03-27: Comprehensive Empty-Gloss Prevention + Backfill
+
+**Context**: Despite the March 26 positional-fallback fix, 113 lemmas in production still had empty `gloss_en` (85 from book import, 28 from story_import). 8 were actively being studied (acquiring) with no English translation shown on intro cards or in review.
+
+**Root cause**: `_import_unknown_words()` creates lemmas with `gloss_en=""` when the LLM batch translation returns empty or mismatched results. The empty string falls through `gloss_data.get("english", "")` silently. Same pattern in `ocr_service.py` (2 spots).
+
+**Fixes (3-layer defense)**:
+1. **Prevention**: All lemma creation paths (`story_service._import_unknown_words`, `ocr_service` ×2) now skip creating lemmas when English gloss is empty. Leaves StoryWord unmapped instead of creating a useless vocabulary item.
+2. **Self-healing**: Added Phase 5 to `warm_sentence_cache()` — auto-backfills up to 10 empty-gloss lemmas per session load via LLM. Only targets acquiring/known/lapsed/learning words.
+3. **One-time cleanup**: `scripts/backfill_empty_glosses.py` — backfilled all 113 empty glosses on production. 100% success rate.
+
+**Verification**: `SELECT COUNT(*) FROM lemmas WHERE canonical_lemma_id IS NULL AND (gloss_en IS NULL OR gloss_en = '')` → 0.
+
+---
+
 ## 2026-03-26: Fix Empty Glosses in Book Import + Intro Card UX
 
 **Context**: Stats screen showed words (مَغْلِيّ, حِذْر, المقبله،, etc.) with no English translation. 21 active words from book import had empty `gloss_en`. Also, intro/reintro cards didn't clearly label the translation and didn't scroll to top when advancing between cards.

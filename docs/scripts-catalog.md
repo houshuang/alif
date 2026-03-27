@@ -68,6 +68,7 @@ All scripts in `backend/scripts/`. Run from `backend/` directory.
 - `identify_leeches.py` — Find high-review low-accuracy words, optional --suspend.
 - `fix_null_lemma_ids.py` — Re-maps NULL lemma_id sentence_words using comprehensive lookup, retires unfixable sentences.
 - `fix_book_glosses.py` — Fix conjugated glosses on book/story-imported lemmas + run full enrichment, --dry-run --limit.
+- `backfill_empty_glosses.py` — Backfill empty `gloss_en` for lemmas imported without translations. Prioritizes acquiring/known words. LLM batch translation in batches of 20. `--dry-run`.
 - `cleanup_lemma_mappings.py` — Batch cleanup of lemma data quality issues: wrong glosses, missing particles, conjugated-form lemmas, possessive-form lemmas, al-prefix lemmas, batch re-map via CAMeL + LLM.
 - `investigate_mapping_flags.py` — Investigate word_mapping flags: shows sentence text, current word→lemma mappings. `--all` shows all statuses, `--fix` re-evaluates and applies corrections via LLM.
 - `cleanup_stale_state.py` — One-time cleanup: clear stale acquisition_box on non-acquiring words, fix circular canonical_lemma_id references, fix conjugated variants with own ULK when canonical already known. `--apply` to commit (default: dry run).
