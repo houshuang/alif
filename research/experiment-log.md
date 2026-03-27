@@ -4,6 +4,18 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-03-27: Reverification of pre-Mar-23 sentence corpus
+
+**Context**: User flagged a sentence with 3/8 wrong mappings (لَازَمَنِي→"necessary" instead of "to accompany", غاز→"raider" instead of "gas"). Investigation revealed the verification pipeline was significantly strengthened between Feb-Mar 23: homograph collision examples added to prompt (Mar 20), all code paths tightened (Mar 21), homograph-aware correction (Mar 23). Most flagged sentences either had `verified_at=NULL` (pre-verification era) or were generated during the rapid iteration window.
+
+**Benchmark**: Tested current verification prompt against 14 ground-truth flagged sentences on production server. Claude Haiku: 100% recall, 88% precision. Gemini: 86% recall, 84% precision. Both models now catch all previously-missed errors — the pipeline improvement, not model quality, was the fix.
+
+**Action**: Reset `mappings_verified_at` to NULL for 347 active sentences verified before Mar 23. Ran one-off batch reverification with current prompt. Results: 11 corrections (3.2% error rate), 0 retirements. All corrections had valid replacement lemmas in DB.
+
+**Also**: Removed expensive root coverage query from session-end endpoint (was already committed in `11b785f`). Query did GROUP BY + HAVING across all roots with outer join — main cause of slow session completion screen.
+
+---
+
 ## 2026-03-27: Replace "due" counts with retention % in UI
 
 **Context**: Session end screen and stats hero card showed "X reviewed / Y remaining" progress bar + "Z acquiring due now". The "remaining" count grows with vocabulary (always 100-300+ for a 1200-word learner), is never clearable, and caused nightly anxiety without being actionable. The system already picks optimal cards regardless.

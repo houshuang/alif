@@ -81,6 +81,7 @@ All scripts in `backend/scripts/`. Run from `backend/` directory.
 - `benchmark_claude_code.py` — Benchmark Claude Code CLI (Sonnet/Haiku) vs Gemini Flash. Tests: sentence gen, quality gate, forms, memory hooks. Supports `--tasks`, `--models`, `--count`. Includes batched multi-word mode (`sonnet_batch`, `haiku_batch`). Must run with network access.
 - `benchmark_llm.py` — Test 3 models across 5 tasks (105 ground truth cases).
 - `benchmark_stories.py` — Model × strategy benchmarking for story generation (--models gemini,opus,sonnet --strategies A,B,C,D).
+- `benchmark_verification.py` — Benchmark LLM models on mapping verification quality using 14 ground-truth flagged sentences. Tests recall/precision/F1 per model. `--models claude_haiku,gemini,claude_sonnet --cases all`.
 - `generate_stories_batch.py` — Batch-generate stories with varied formats. `--count N --vary --audio --format TYPE --topic TEXT`. Rotates: standard, long, breakdown, arabic_explanation.
 - `test_llm_variants.py` — Benchmark LLM variant detection against ground truth.
 - `test_book_import_e2e.py` — Download Archive.org children's book + run full import pipeline, --download-only/--images-dir/--max-pages.
