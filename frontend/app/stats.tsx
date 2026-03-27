@@ -78,11 +78,10 @@ export default function StatsScreen() {
         calibration={analytics.calibration_signal}
         reviewsToday={stats.reviews_today}
         dueToday={stats.due_today}
-        fsrsDue={stats.fsrs_due || 0}
-        acquisitionDue={stats.acquisition_due || 0}
         fsrsReviewedToday={stats.fsrs_reviewed_today || 0}
         streak={pace.current_streak}
         transitionsToday={deepAnalytics?.transitions_today}
+        retentionPct={deepAnalytics?.retention_7d?.retention_pct ?? null}
       />
 
       {/* ═══ SECTION 2: VOCABULARY ═══ */}
@@ -98,7 +97,6 @@ export default function StatsScreen() {
         weeklyLearning={deepAnalytics?.transitions_7d?.new_to_learning ?? 0}
         netPerDay={pace.words_per_day_7d}
         retentionPct={deepAnalytics?.retention_7d?.retention_pct ?? null}
-        acquiringDue={stats.acquisition_due || 0}
         flowHistory={deepAnalytics?.acquisition_pipeline?.flow_history}
       />
 
@@ -369,11 +367,11 @@ function SectionHeader({ label }: { label: string }) {
 
 function WordLifecycleFunnel({
   encountered, acquiring, learning, known, lapsed,
-  weeklyKnown, weeklyLearning, netPerDay, retentionPct, acquiringDue, flowHistory,
+  weeklyKnown, weeklyLearning, netPerDay, retentionPct, flowHistory,
 }: {
   encountered: number; acquiring: number; learning: number; known: number; lapsed: number;
   weeklyKnown: number; weeklyLearning: number; netPerDay: number;
-  retentionPct: number | null; acquiringDue: number;
+  retentionPct: number | null;
   flowHistory?: Array<{ date: string; entered: number; graduated: number }>;
 }) {
   const stages = [
@@ -460,9 +458,6 @@ function WordLifecycleFunnel({
         <View style={[vocStyles.sparkCell, { borderTopColor: colors.stateAcquiring + "60" }]}>
           <Text style={[vocStyles.sparkVal, { color: colors.stateAcquiring }]}>{acquiring}</Text>
           <Text style={vocStyles.sparkLabel}>Acquiring</Text>
-          {acquiringDue > 0 && (
-            <Text style={[vocStyles.sparkDelta, { color: colors.missed }]}>{acquiringDue} due</Text>
-          )}
         </View>
         <View style={[vocStyles.sparkCell, { borderTopColor: colors.stateLearning + "60" }]}>
           <Text style={[vocStyles.sparkVal, { color: colors.stateLearning }]}>{learning}</Text>
@@ -800,10 +795,10 @@ function RootProgressSection({ data }: { data: DeepAnalytics["root_coverage"] })
 // --- Existing Components ---
 
 function TodayHeroCard({
-  comprehension, graduated, introduced, introducedWords, calibration, reviewsToday, dueToday, fsrsDue, acquisitionDue, fsrsReviewedToday, streak, transitionsToday,
+  comprehension, graduated, introduced, introducedWords, calibration, reviewsToday, dueToday, fsrsReviewedToday, streak, transitionsToday, retentionPct,
 }: {
   comprehension?: ComprehensionBreakdown; graduated?: GraduatedWord[]; introduced?: IntroducedBySource[]; introducedWords?: IntroducedWordDetail[];
-  calibration?: string; reviewsToday: number; dueToday: number; fsrsDue: number; acquisitionDue: number; fsrsReviewedToday: number; streak: number; transitionsToday?: StateTransitions;
+  calibration?: string; reviewsToday: number; dueToday: number; fsrsReviewedToday: number; streak: number; transitionsToday?: StateTransitions; retentionPct?: number | null;
 }) {
   if (reviewsToday === 0 && dueToday === 0) return null;
 
@@ -828,41 +823,16 @@ function TodayHeroCard({
       </View>
 
       <View style={styles.heroStatus}>
-        {fsrsDue === 0 && acquisitionDue === 0 ? (
+        <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
           <Text style={[styles.heroStatusText, { color: colors.good }]}>
-            {reviewsToday > 0 ? `${reviewsToday} reviews · ` : ""}all caught up
+            {fsrsReviewedToday > 0 ? `${fsrsReviewedToday} reviewed today` : reviewsToday > 0 ? `${reviewsToday} reviews` : "No reviews yet"}
           </Text>
-        ) : (
-          <View>
-            {(fsrsReviewedToday > 0 || fsrsDue > 0) && (
-              <>
-                <View style={styles.heroProgressBar}>
-                  <View style={[styles.heroProgressFill, { flex: fsrsReviewedToday || 0.001 }]} />
-                  <View style={{ flex: fsrsDue }} />
-                </View>
-                <View style={styles.heroProgressLabels}>
-                  <Text style={[styles.heroStatusText, { color: colors.good }]}>
-                    {fsrsReviewedToday} reviewed
-                  </Text>
-                  {fsrsDue > 0 ? (
-                    <Text style={[styles.heroStatusText, { color: colors.accent }]}>
-                      {fsrsDue} remaining
-                    </Text>
-                  ) : (
-                    <Text style={[styles.heroStatusText, { color: colors.good }]}>
-                      done
-                    </Text>
-                  )}
-                </View>
-              </>
-            )}
-            {acquisitionDue > 0 && (
-              <Text style={[styles.heroStatusDetail, { color: colors.textSecondary, marginTop: 4 }]}>
-                {acquisitionDue} acquiring due now
-              </Text>
-            )}
-          </View>
-        )}
+          {retentionPct != null && (
+            <Text style={[styles.heroStatusText, { color: retentionPct >= 90 ? colors.good : retentionPct >= 85 ? colors.accent : colors.missed }]}>
+              {retentionPct}% retention
+            </Text>
+          )}
+        </View>
       </View>
 
       {total > 0 && (

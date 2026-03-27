@@ -2723,32 +2723,17 @@ function SessionComplete({
       {dataReady && data && (
         <Animated.View style={[styles.todayRow, { opacity: fadeAnim }]}>
           <View style={{ width: "100%", paddingHorizontal: 16, marginBottom: 8 }}>
-            {((data.fsrs_reviewed_today || 0) > 0 || (data.fsrs_due || 0) > 0) && (
-              <>
-                <View style={styles.todayProgressBar}>
-                  <View style={[styles.todayProgressFill, { flex: data.fsrs_reviewed_today || 0.001 }]} />
-                  <View style={{ flex: data.fsrs_due || 0 }} />
-                </View>
-                <View style={styles.todayProgressLabels}>
-                  <Text style={[styles.todayProgressText, { color: colors.gotIt }]}>
-                    {data.fsrs_reviewed_today} reviewed
+            {(data.fsrs_reviewed_today || 0) > 0 && (
+              <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
+                <Text style={[styles.todayProgressText, { color: colors.gotIt }]}>
+                  {data.fsrs_reviewed_today} reviewed today
+                </Text>
+                {data.retention_7d_pct != null && (
+                  <Text style={[styles.todayProgressText, { color: data.retention_7d_pct >= 90 ? colors.gotIt : data.retention_7d_pct >= 85 ? colors.accent : colors.missed }]}>
+                    {data.retention_7d_pct}% retention
                   </Text>
-                  {(data.fsrs_due || 0) > 0 ? (
-                    <Text style={[styles.todayProgressText, { color: colors.accent }]}>
-                      {data.fsrs_due} remaining
-                    </Text>
-                  ) : (
-                    <Text style={[styles.todayProgressText, { color: colors.gotIt }]}>
-                      done
-                    </Text>
-                  )}
-                </View>
-              </>
-            )}
-            {(data.acquisition_due || 0) > 0 && (
-              <Text style={[styles.todayProgressText, { color: colors.textSecondary, textAlign: "center", marginTop: 4 }]}>
-                {data.acquisition_due} acquiring due now
-              </Text>
+                )}
+              </View>
             )}
           </View>
           <View style={{ flexDirection: "row", justifyContent: "space-around", width: "100%" }}>
@@ -2832,7 +2817,7 @@ function EmptyState({
           ? "No sessions available offline"
           : mode === "listening"
             ? "No sentences ready for listening practice"
-            : "No cards due for review"}
+            : "No cards ready for review"}
       </Text>
 
       {analytics && analytics.cefr.known_words > 0 && (

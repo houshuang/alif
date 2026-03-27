@@ -969,6 +969,7 @@ export interface SessionEndData {
   fsrs_reviewed_today: number;
   fsrs_due: number;
   acquisition_due: number;
+  retention_7d_pct: number | null;
   graduated_today_count: number;
   pipeline_box_1: number;
   pipeline_box_2: number;

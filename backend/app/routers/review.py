@@ -12,7 +12,6 @@ from app.models import GrammarFeature, Lemma, ReviewLog, Root, SentenceReviewLog
 from app.schemas import (
     BulkSyncIn,
     ConfusionAnalysisOut,
-    PartialRootOut,
     ReintroResultIn,
     SentenceSessionOut,
     SentenceReviewSubmitIn,
@@ -908,40 +907,12 @@ def get_session_end(session_id: str, db: Session = Depends(get_db)):
     )
     historical_avg_response_ms = round(float(recent_avg), 1) if recent_avg else None
 
-    # --- Top partial roots (reuses root coverage logic, targeted) ---
-    root_rows = (
-        db.query(
-            Root.root,
-            Root.core_meaning_en,
-            func.count(Lemma.lemma_id).label("total"),
-            func.sum(
-                case(
-                    (UserLemmaKnowledge.knowledge_state.in_(["known", "learning"]), 1),
-                    else_=0,
-                )
-            ).label("known"),
-        )
-        .join(Lemma, Lemma.root_id == Root.root_id)
-        .outerjoin(UserLemmaKnowledge, UserLemmaKnowledge.lemma_id == Lemma.lemma_id)
-        .filter(Lemma.canonical_lemma_id.is_(None))
-        .group_by(Root.root_id)
-        .having(
-            func.sum(case((UserLemmaKnowledge.knowledge_state.in_(["known", "learning"]), 1), else_=0)) > 0,
-            func.sum(case((UserLemmaKnowledge.knowledge_state.in_(["known", "learning"]), 1), else_=0)) < func.count(Lemma.lemma_id),
-        )
-        .all()
-    )
-    partial_roots = sorted(root_rows, key=lambda r: (r.known or 0) / max(r.total, 1), reverse=True)[:3]
-    top_partial_roots = [
-        PartialRootOut(root=r.root, root_meaning=r.core_meaning_en, known=r.known or 0, total=r.total)
-        for r in partial_roots
-    ]
-
-    from app.routers.stats import _count_due_cards, _count_fsrs_cleared_today, _get_graduated_today, _get_introduced_words_today
+    from app.routers.stats import _count_due_cards, _count_fsrs_cleared_today, _get_graduated_today, _get_introduced_words_today, _get_retention_stats
     _, fsrs_due, acquisition_due = _count_due_cards(db, now)
     fsrs_reviewed_today = _count_fsrs_cleared_today(db, today_start, now)
     graduated_today = _get_graduated_today(db)
     introduced_words_today = _get_introduced_words_today(db)
+    retention_7d = _get_retention_stats(db, 7)
 
     return SessionEndOut(
         word_journeys=word_journeys,
@@ -955,12 +926,13 @@ def get_session_end(session_id: str, db: Session = Depends(get_db)):
         fsrs_reviewed_today=fsrs_reviewed_today,
         fsrs_due=fsrs_due,
         acquisition_due=acquisition_due,
+        retention_7d_pct=retention_7d.retention_pct,
         graduated_today_count=graduated_today_count,
         pipeline_box_1=box_map.get(1, 0),
         pipeline_box_2=box_map.get(2, 0),
         pipeline_box_3=box_map.get(3, 0),
         historical_avg_response_ms=historical_avg_response_ms,
-        top_partial_roots=top_partial_roots,
+        top_partial_roots=[],
         graduated_today=graduated_today,
         introduced_words_today=introduced_words_today,
     )

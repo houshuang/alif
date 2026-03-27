@@ -432,6 +432,7 @@ class SessionEndOut(BaseModel):
     fsrs_reviewed_today: int = 0
     fsrs_due: int = 0
     acquisition_due: int = 0
+    retention_7d_pct: float | None = None
     graduated_today_count: int = 0
     pipeline_box_1: int = 0
     pipeline_box_2: int = 0

@@ -4,6 +4,25 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-03-27: Replace "due" counts with retention % in UI
+
+**Context**: Session end screen and stats hero card showed "X reviewed / Y remaining" progress bar + "Z acquiring due now". The "remaining" count grows with vocabulary (always 100-300+ for a 1200-word learner), is never clearable, and caused nightly anxiety without being actionable. The system already picks optimal cards regardless.
+
+**Change**: Replaced debt-oriented progress bar with progress-oriented metrics:
+- Session end card: `42 reviewed today    93.1% retention` (single line)
+- Stats hero card: same — reviewed count + 7-day retention %
+- Vocabulary funnel: removed "N due" under Acquiring count
+- Empty state: "No cards due for review" → "No cards ready for review"
+- Retention colors: green (≥90%), amber (85-89%), red (<85%)
+
+**Backend**: Added `retention_7d_pct` to `SessionEndOut` schema, computed via existing `_get_retention_stats()`.
+
+**Rationale**: Retention % is the one actionable number — it tells you whether to do more sessions (dropping) or relax (holding). "Remaining" count told you nothing useful. Consistent with existing CLAUDE.md principle: "No concept of due."
+
+**Verify**: After deploy, complete a session → session end card shows "X reviewed today" + "Y% retention" instead of progress bar.
+
+---
+
 ## 2026-03-27: Comprehensive Empty-Gloss Prevention + Backfill
 
 **Context**: Despite the March 26 positional-fallback fix, 113 lemmas in production still had empty `gloss_en` (85 from book import, 28 from story_import). 8 were actively being studied (acquiring) with no English translation shown on intro cards or in review.
