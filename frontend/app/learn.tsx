@@ -24,6 +24,18 @@ import { getFrequencyBand, getCefrColor } from "../lib/frequency";
 import ActionMenu from "../lib/review/ActionMenu";
 import { TOPIC_LABELS } from "../lib/topic-labels";
 
+const VERB_FORM_RELATION: Record<string, string> = {
+  form_2: "causative/intensive of",
+  form_3: "reciprocal of",
+  form_4: "causative of",
+  form_5: "reflexive of (Form II)",
+  form_6: "reciprocal reflexive of (Form III)",
+  form_7: "passive/reflexive of",
+  form_8: "middle voice of",
+  form_9: "color/physical state of",
+  form_10: "seeks/considers",
+};
+
 type Phase = "loading" | "pick" | "done";
 
 interface IntroducedWord {
@@ -296,6 +308,19 @@ export default function LearnScreen() {
                     <Text style={styles.rootLetters}>{c.root}</Text>
                     {c.root_meaning && <Text style={styles.rootMeaning}>{c.root_meaning}</Text>}
                   </View>
+                  {c.wazn && VERB_FORM_RELATION[c.wazn] && (() => {
+                    const base = c.root_family?.find((s) => s.wazn === "form_1" && s.pos === "verb");
+                    if (!base) return null;
+                    return (
+                      <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginTop: 6, flexWrap: "wrap" }}>
+                        <Text style={{ fontSize: 11, color: "#f39c12", fontWeight: "600" }}>
+                          {VERB_FORM_RELATION[c.wazn]}
+                        </Text>
+                        <Text style={{ fontSize: 14, color: colors.arabic, fontFamily: fontFamily.arabic }}>{base.lemma_ar}</Text>
+                        {base.gloss_en && <Text style={{ fontSize: 11, color: colors.textSecondary }}>{base.gloss_en}</Text>}
+                      </View>
+                    );
+                  })()}
                 </View>
               )}
 

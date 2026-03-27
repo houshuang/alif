@@ -288,6 +288,8 @@ def get_root_family(db: Session, root_id: int) -> list[dict]:
             "gloss_en": lemma.gloss_en,
             "pos": lemma.pos,
             "transliteration": lemma.transliteration_ala_lc,
+            "wazn": lemma.wazn,
+            "wazn_meaning": lemma.wazn_meaning,
             "state": knowledge.knowledge_state if knowledge else "unknown",
         })
     return result
@@ -645,6 +647,7 @@ def select_next_words(
                 else story_lemmas[lemma.lemma_id]["story_id"] if lemma.lemma_id in story_lemmas
                 else None
             ),
+            "root_family": get_root_family(db, lemma.root_id) if lemma.root_id else [],
             "score": round(total_score, 3),
             "score_breakdown": {
                 "frequency": round(freq_score, 3),

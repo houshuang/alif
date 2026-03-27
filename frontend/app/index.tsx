@@ -94,6 +94,26 @@ function stripDiacritics(s: string): string {
   return s.replace(/[\u0610-\u061a\u064b-\u065f\u0670\u06D6-\u06ED]/g, "");
 }
 
+// Maps higher verb forms to a short label describing their relationship to Form I
+const VERB_FORM_RELATION: Record<string, string> = {
+  form_2: "causative/intensive of",
+  form_3: "reciprocal of",
+  form_4: "causative of",
+  form_5: "reflexive of (Form II)",
+  form_6: "reciprocal reflexive of (Form III)",
+  form_7: "passive/reflexive of",
+  form_8: "middle voice of",
+  form_9: "color/physical state of",
+  form_10: "seeks/considers",
+};
+
+function getFormIBase(
+  wazn: string | null | undefined,
+  rootFamily: { lemma_id: number; lemma_ar: string; gloss_en: string | null; pos: string | null; wazn?: string | null }[]
+): { lemma_id: number; lemma_ar: string; gloss_en: string | null } | null {
+  if (!wazn || !VERB_FORM_RELATION[wazn]) return null;
+  return rootFamily.find((s) => s.wazn === "form_1" && s.pos === "verb") ?? null;
+}
 
 // Track grammar features already introduced this app session to avoid
 // showing them again from stale prefetched sessions
@@ -1397,6 +1417,17 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
                 <Text style={styles.expIntroHighlightText}>
                   {card.wazn}{card.wazn_meaning ? ` \u2014 ${card.wazn_meaning}` : ""}
                 </Text>
+                {(() => {
+                  const base = getFormIBase(card.wazn, card.root_family);
+                  if (!base) return null;
+                  return (
+                    <Text style={{ color: colors.textSecondary, fontSize: 12, marginTop: 4 }}>
+                      {VERB_FORM_RELATION[card.wazn]}{" "}
+                      <Text style={{ fontFamily: fontFamily.arabic, color: colors.arabic }}>{base.lemma_ar}</Text>
+                      {base.gloss_en ? ` \u2014 ${base.gloss_en}` : ""}
+                    </Text>
+                  );
+                })()}
               </View>
             )}
 
@@ -1590,12 +1621,26 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
                   <Text style={{ fontSize: 20, color: colors.accent, fontWeight: "700", fontFamily: fontFamily.arabic, writingDirection: "rtl" }}>{card.root}</Text>
                   {card.root_meaning && <Text style={{ fontSize: 13, color: colors.textSecondary, flex: 1 }}>{card.root_meaning}</Text>}
                 </View>
+                {(() => {
+                  const base = getFormIBase(card.wazn, card.root_family);
+                  if (!base) return null;
+                  return (
+                    <View style={{ marginTop: 6, flexDirection: "row", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                      <Text style={{ fontSize: 11, color: "#f39c12", fontWeight: "600" }}>
+                        {VERB_FORM_RELATION[card.wazn!]}
+                      </Text>
+                      <Text style={{ fontSize: 14, color: colors.arabic, fontFamily: fontFamily.arabic }}>{base.lemma_ar}</Text>
+                      {base.gloss_en && <Text style={{ fontSize: 11, color: colors.textSecondary }}>{base.gloss_en}</Text>}
+                    </View>
+                  );
+                })()}
                 {knownSiblings.length > 0 && (
                   <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10, marginTop: 8 }}>
                     {knownSiblings.slice(0, 4).map((sib) => (
                       <View key={sib.lemma_id} style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
                         <View style={{ width: 5, height: 5, borderRadius: 3, backgroundColor: sib.state === "known" ? "#2ecc71" : "#e67e22" }} />
                         <Text style={{ fontSize: 15, color: colors.arabic, fontFamily: fontFamily.arabic, writingDirection: "rtl" }}>{sib.lemma_ar}</Text>
+                        {sib.wazn && <Text style={{ fontSize: 10, color: "#f39c1299", fontWeight: "600" }}>{sib.wazn.replace("form_", "F")}</Text>}
                         {sib.gloss_en && <Text style={{ fontSize: 11, color: colors.textSecondary }}>{sib.gloss_en}</Text>}
                       </View>
                     ))}

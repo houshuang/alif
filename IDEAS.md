@@ -100,6 +100,32 @@
 
 ---
 
+## Unvowelized Reading & Morphological Disambiguation (2026-03-27)
+
+### Homograph Warning in Word Info
+- When a word has a high-frequency homograph (same unvowelized form, different meaning), surface it explicitly in word info: "In unvowelized text this looks identical to X — context cue: Y"
+- Examples: مَلِكٌ (king) / مَلَكٌ (angel), حَالٌ (state) / حَالَ (he transformed)
+- `confusion_service.py` already has rasm infrastructure; homograph detection could be added there
+- Triggered in word detail screen and WordInfoCard
+
+### Newspaper Reading Mode for Stories
+- Toggle in story reader that strips ALL diacritics from words above a stability threshold (e.g. >30d)
+- Simulates actual Arabic newspaper/book reading — the highest-value real-world skill
+- Threshold could be per-story (trigger when >80% of words known) rather than per-word
+
+### Pattern Anchor View (Consonant Skeleton)
+- In learn/word info cards, show the unvowelized consonant skeleton alongside the full voweled form
+- Trains "rasm recognition" — the ability to identify a word from its bare skeleton as real readers do
+
+### Verb Form Derivation Bridge [DONE 2026-03-27]
+- [DONE] Root family now includes `wazn`/`wazn_meaning` per sibling (`get_root_family()`)
+- [DONE] `LearnCandidate` now includes `root_family` (was missing)
+- [DONE] Reintro card Pattern section shows "causative/intensive of عَلِمَ — to know" for Form II+ verbs
+- [DONE] ExperimentIntro card root family shows form labels (F2, F3…) + derivation bridge
+- [DONE] Learn card Root Family section shows derivation bridge for Form II+ verbs
+
+---
+
 ## Confusable Words / Visual Similarity
 
 ### Rasm-Based Confusable Pair Detection

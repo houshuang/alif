@@ -245,6 +245,16 @@ export interface LearnCandidate {
   etymology_json?: EtymologyData | null;
   memory_hooks_json?: MemoryHooksData | null;
   story_title?: string | null;
+  root_family?: {
+    lemma_id: number;
+    lemma_ar: string;
+    gloss_en: string | null;
+    pos: string | null;
+    transliteration: string | null;
+    wazn?: string | null;
+    wazn_meaning?: string | null;
+    state: string;
+  }[];
   score_breakdown: {
     frequency: number;
     root_familiarity: number;
@@ -263,6 +273,8 @@ export interface RootFamilyWord {
   gloss_en: string;
   pos: string;
   transliteration: string | null;
+  wazn?: string | null;
+  wazn_meaning?: string | null;
   state: string;
 }
 
@@ -324,6 +336,8 @@ export interface WordLookupResult {
     gloss_en: string | null;
     pos: string | null;
     transliteration: string | null;
+    wazn?: string | null;
+    wazn_meaning?: string | null;
     state: string;
   }[];
 }
@@ -368,6 +382,8 @@ export interface IntroCandidate {
     gloss_en: string | null;
     pos: string | null;
     transliteration: string | null;
+    wazn?: string | null;
+    wazn_meaning?: string | null;
     state: string;
   }[];
 }
@@ -394,6 +410,8 @@ export interface ReintroCard {
     gloss_en: string | null;
     pos: string | null;
     transliteration: string | null;
+    wazn?: string | null;
+    wazn_meaning?: string | null;
     state: string;
   }[];
   memory_hooks?: { mnemonic?: string; cognates?: string; collocations?: string; usage_context?: string; fun_fact?: string } | null;
