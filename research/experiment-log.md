@@ -4,6 +4,34 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-03-27: Graduated Tashkeel Fading
+
+**Research basis**: Bjork desirable difficulties — removing a retrieval cue is most beneficial when the learner is likely to succeed without it. Scaffold words (context words not being tested) with stability ≥30d have been reviewed many times; fading diacritics from them adds a reading challenge at low cost. Target words (is_due=True, being actively tested) still need the diacritics — comprehension is the point of that card.
+
+**Change**: `sentence_selector.py` tashkeel fade logic now uses two thresholds: scaffold words (`w.is_due == False`) fade at `min(tashkeel_threshold / 3, 30d)` = currently 30d; target/due words fade at the full configured threshold (90d). Previously all words used a single threshold.
+
+**Expected**: Gradual increase in unvoweled context words visible during review sessions without degrading comprehension of tested words. Effectively increases reading challenge density without touching the FSRS schedule.
+
+**Verify**: In a session with mature words (stability >30d) as scaffold, they should appear without diacritics on the card front. The target word (highlighted) should still show tashkeel if stability <90d.
+
+---
+
+## 2026-03-27: Cold/Warm Unknown Classification + Pretesting Flash
+
+**Research basis**: Richland, Kornell & Kao (2009): pretesting with near-certain failure (95% miss rate in study) improved 1-week recall of tested items by 19pp (75% vs 56%), d=1.1. Failed retrieval attempts prime encoding when the answer subsequently arrives. Boudelaa & Marslen-Wilson (2013): Arabic L2 learners have ~50-70% semantic access to unknown words from known root families ("warm" unknowns) vs zero access for completely unfamiliar root families ("cold" unknowns).
+
+**Changes**:
+1. **Cold/warm classification**: New `_compute_cold_warm_counts()` in `story_service.py` classifies each unknown story lemma as cold (no known root siblings in DB) or warm (≥1 known root sibling). Two bounded queries: unknown lemma root_ids, then check DB-wide for known lemmas sharing those roots.
+2. **Reading Readiness score**: `reading_readiness_pct = (known + 0.6 × warm) / total × 100`. The 0.6 coefficient reflects partial root-family access. Returned in `StoryDetailOut` alongside `cold_unknown_count` and `warm_unknown_count`.
+3. **Pretest endpoint**: `GET /api/stories/{id}/pretest-words` returns top 5 cold unknowns ranked by token frequency within that specific story (words that appear most often have highest reading-comprehension payoff).
+4. **Frontend pretesting flash**: Reading Readiness banner below header bar shows `X% ready · N new · M familiar root`. "Preview" button opens modal with top 5 cold unknowns. Each word: Arabic displayed for 2s (the failed-attempt window), then gloss + root chip revealed. Timer can be shortcut by tapping "Show meaning". After all words: "Watch for them as you read."
+
+**Expected**: Story reading comprehension for cold-unknown-heavy stories should improve over the following 1-2 weeks. Words pretested before reading should be recognized more often during reading and reviewed more successfully afterward.
+
+**Verify**: After using pretest on a story with ≥3 cold unknowns, check first-review accuracy for those words vs. similar words not pretested. Also verify banner only shows on active, non-completed stories with cold_unknown_count > 0.
+
+---
+
 ## 2026-03-27: Reverification of pre-Mar-23 sentence corpus
 
 **Context**: User flagged a sentence with 3/8 wrong mappings (لَازَمَنِي→"necessary" instead of "to accompany", غاز→"raider" instead of "gas"). Investigation revealed the verification pipeline was significantly strengthened between Feb-Mar 23: homograph collision examples added to prompt (Mar 20), all code paths tightened (Mar 21), homograph-aware correction (Mar 23). Most flagged sentences either had `verified_at=NULL` (pre-verification era) or were generated during the rapid iteration window.

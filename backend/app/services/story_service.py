@@ -693,6 +693,147 @@ def _recalculate_story_counts(db: Session, story: Story) -> None:
 _STATE_RANK = {"known": 4, "lapsed": 3, "learning": 2, "acquiring": 1, "encountered": 0}
 
 
+def _classify_unknowns_by_root(
+    db: Session,
+    unknown_ids: list[int],
+) -> tuple[dict[int, int], set[int]]:
+    """For a list of unknown lemma IDs, find their roots and which roots have known siblings.
+
+    Returns (unknown_root_map, known_root_ids) where:
+    - unknown_root_map: lemma_id -> root_id for unknowns that have a root
+    - known_root_ids: root IDs that have at least one actively-learning lemma in the DB
+    """
+    root_rows = (
+        db.query(Lemma.lemma_id, Lemma.root_id)
+        .filter(Lemma.lemma_id.in_(unknown_ids), Lemma.root_id.isnot(None))
+        .all()
+    )
+    unknown_root_map = {r.lemma_id: r.root_id for r in root_rows}
+    candidate_root_ids = set(unknown_root_map.values())
+
+    known_root_ids: set[int] = set()
+    if candidate_root_ids:
+        known_root_rows = (
+            db.query(Lemma.root_id)
+            .join(UserLemmaKnowledge, Lemma.lemma_id == UserLemmaKnowledge.lemma_id)
+            .filter(
+                Lemma.root_id.in_(candidate_root_ids),
+                UserLemmaKnowledge.knowledge_state.in_(_ACTIVELY_LEARNING_STATES),
+            )
+            .distinct()
+            .all()
+        )
+        known_root_ids = {r.root_id for r in known_root_rows}
+
+    return unknown_root_map, known_root_ids
+
+
+def _is_warm(lid: int, unknown_root_map: dict[int, int], known_root_ids: set[int]) -> bool:
+    """Return True if the unknown lemma has a known root sibling."""
+    root_id = unknown_root_map.get(lid)
+    return root_id is not None and root_id in known_root_ids
+
+
+def _compute_cold_warm_counts(
+    db: Session,
+    story_lemma_ids: set[int],
+    knowledge_map: dict[int, str],
+    known_count: int,
+    total_words: int,
+) -> tuple[int, int, float]:
+    """Classify unknown story lemmas as cold or warm based on root-family knowledge.
+
+    Cold = unknown AND no known root siblings in the full DB.
+    Warm = unknown BUT at least one lemma from the same root is known/acquiring.
+
+    Returns (cold_unknown_count, warm_unknown_count, reading_readiness_pct).
+    reading_readiness_pct applies 0.6 partial credit for warm unknowns, reflecting
+    that root-family knowledge gives ~50-70% semantic access (Boudelaa & Marslen-Wilson 2013).
+    """
+    unknown_ids = [
+        lid for lid in story_lemma_ids
+        if knowledge_map.get(lid) not in _ACTIVELY_LEARNING_STATES
+    ]
+    if not unknown_ids:
+        pct = round(known_count / max(1, total_words) * 100, 1)
+        return 0, 0, pct
+
+    unknown_root_map, known_root_ids = _classify_unknowns_by_root(db, unknown_ids)
+
+    warm = sum(1 for lid in unknown_ids if _is_warm(lid, unknown_root_map, known_root_ids))
+    cold = len(unknown_ids) - warm
+
+    reading_readiness_pct = round(
+        (known_count + 0.6 * warm) / max(1, total_words) * 100, 1
+    )
+    return cold, warm, reading_readiness_pct
+
+
+def get_pretest_words(db: Session, story_id: int) -> list[dict]:
+    """Return top 5 cold unknown words ordered by token frequency in the story.
+
+    Cold = unknown and no known root siblings. These are ideal pretest targets:
+    the learner will almost certainly fail (activating encoding preparation),
+    and they appear frequently enough to matter for reading comprehension.
+    """
+    from collections import Counter
+
+    story = db.query(Story).filter(Story.id == story_id).first()
+    if not story:
+        return []
+
+    token_counts = Counter(
+        sw.lemma_id for sw in story.words
+        if sw.lemma_id and not sw.is_function_word
+    )
+    if not token_counts:
+        return []
+
+    story_lemma_ids = set(token_counts.keys())
+    knowledge_map = _build_knowledge_map(db, lemma_ids=story_lemma_ids)
+
+    unknown_ids = [
+        lid for lid in story_lemma_ids
+        if knowledge_map.get(lid) not in _ACTIVELY_LEARNING_STATES
+    ]
+    if not unknown_ids:
+        return []
+
+    unknown_root_map, known_root_ids = _classify_unknowns_by_root(db, unknown_ids)
+
+    cold_unknowns = sorted(
+        [
+            (lid, token_counts[lid])
+            for lid in unknown_ids
+            if not _is_warm(lid, unknown_root_map, known_root_ids)
+        ],
+        key=lambda x: -x[1],
+    )
+
+    top_ids = [lid for lid, _ in cold_unknowns[:5]]
+    if not top_ids:
+        return []
+
+    lemma_map = {
+        lem.lemma_id: lem
+        for lem in db.query(Lemma).filter(Lemma.lemma_id.in_(top_ids)).all()
+    }
+
+    result = []
+    for lid, freq in cold_unknowns[:5]:
+        lemma = lemma_map.get(lid)
+        if not lemma:
+            continue
+        result.append({
+            "lemma_id": lid,
+            "arabic": lemma.lemma_ar,
+            "gloss_en": lemma.gloss_en or "",
+            "root_ar": lemma.root.root if lemma.root else None,
+            "token_frequency": freq,
+        })
+    return result
+
+
 def _build_knowledge_map(db: Session, lemma_ids: set[int] | None = None) -> dict[int, str]:
     """Build lemma_id -> knowledge_state map.
 
@@ -1474,6 +1615,10 @@ def get_story_detail(db: Session, story_id: int) -> dict:
 
     story_lemma_ids = {sw.lemma_id for sw in story.words if sw.lemma_id}
     knowledge_map = _build_knowledge_map(db, lemma_ids=story_lemma_ids or None)
+    cold_unknown, warm_unknown, reading_readiness_pct = _compute_cold_warm_counts(
+        db, story_lemma_ids, knowledge_map,
+        story.known_count or 0, story.total_words or 0,
+    )
 
     words = []
     for sw in story.words:
@@ -1512,6 +1657,9 @@ def get_story_detail(db: Session, story_id: int) -> dict:
         "unknown_count": story.unknown_count or 0,
         "total_words": story.total_words or 0,
         "known_count": story.known_count or 0,
+        "cold_unknown_count": cold_unknown,
+        "warm_unknown_count": warm_unknown,
+        "reading_readiness_pct": reading_readiness_pct,
         "format_type": story.format_type or "standard",
         "archived_at": story.archived_at.isoformat() if story.archived_at else None,
         "audio_filename": story.audio_filename,

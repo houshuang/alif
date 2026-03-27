@@ -675,8 +675,19 @@ export interface StoryDetail extends StoryListItem {
   body_en: string | null;
   transliteration: string | null;
   known_count: number;
+  cold_unknown_count?: number;
+  warm_unknown_count?: number;
+  reading_readiness_pct?: number;
   voice_id?: string | null;
   words: StoryWordMeta[];
+}
+
+export interface PretestWord {
+  lemma_id: number;
+  arabic: string;
+  gloss_en: string;
+  root_ar: string | null;
+  token_frequency: number;
 }
 
 export interface BookPageWord {

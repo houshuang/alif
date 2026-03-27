@@ -6,19 +6,21 @@ import {
   Pressable,
   StyleSheet,
   ActivityIndicator,
+  Modal,
 } from "react-native";
 import { useLocalSearchParams, useRouter, useNavigation } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { colors, fonts, fontFamily } from "../../lib/theme";
 import {
   getStoryDetail,
+  getPretestWords,
   lookupReviewWord,
   completeStory,
   suspendStory,
   markStoryHeard,
 } from "../../lib/api";
 import { Audio } from "expo-av";
-import { StoryDetail, StoryWordMeta, WordLookupResult } from "../../lib/types";
+import { StoryDetail, StoryWordMeta, WordLookupResult, PretestWord } from "../../lib/types";
 import ActionMenu, { ExtraAction } from "../../lib/review/ActionMenu";
 import WordInfoCard from "../../lib/review/WordInfoCard";
 import { saveStoryLookups, getStoryLookups, clearStoryLookups } from "../../lib/offline-store";
@@ -40,6 +42,11 @@ export default function StoryReadScreen() {
   const [lookedUpLemmaIds, setLookedUpLemmaIds] = useState<Set<number>>(new Set());
   const [submitting, setSubmitting] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [showPretest, setShowPretest] = useState(false);
+  const [pretestWords, setPretestWords] = useState<PretestWord[]>([]);
+  const [pretestIdx, setPretestIdx] = useState(0);
+  const [pretestRevealed, setPretestRevealed] = useState(false);
+  const pretestTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const soundRef = useRef<Audio.Sound | null>(null);
   const storyStartTime = useRef(Date.now());
   const lookupRequestRef = useRef(0);
@@ -91,6 +98,35 @@ export default function StoryReadScreen() {
 
   function persistLookups(positions: Set<number>, lemmaIds: Set<number>) {
     if (id) saveStoryLookups(Number(id), positions, lemmaIds).catch(() => {});
+  }
+
+  async function openPretest() {
+    if (!id) return;
+    try {
+      const words = await getPretestWords(Number(id));
+      if (words.length === 0) return;
+      setPretestWords(words);
+      setPretestIdx(0);
+      setPretestRevealed(false);
+      setShowPretest(true);
+    } catch (e) {
+      console.error("Failed to fetch pretest words:", e);
+    }
+  }
+
+  // Auto-reveal after 2s when a new pretest word is shown (the failed-attempt window)
+  useEffect(() => {
+    if (!showPretest || pretestRevealed || pretestIdx >= pretestWords.length) return;
+    pretestTimerRef.current = setTimeout(() => setPretestRevealed(true), 2000);
+    return () => {
+      if (pretestTimerRef.current) clearTimeout(pretestTimerRef.current);
+    };
+  }, [showPretest, pretestIdx, pretestRevealed, pretestWords.length]);
+
+  function advancePretest() {
+    if (pretestTimerRef.current) clearTimeout(pretestTimerRef.current);
+    setPretestIdx(pretestIdx + 1);
+    setPretestRevealed(false);
   }
 
   const handleWordTap = useCallback(
@@ -155,13 +191,10 @@ export default function StoryReadScreen() {
         // Function word, name, or unknown — show inline gloss
         setSelectedWord(null);
         setCardLoading(false);
-        const label = word.name_type === "personal"
-          ? "personal name"
-          : word.name_type === "place"
-          ? "place name"
-          : word.is_function_word
-          ? "function word"
-          : null;
+        let label: string | null = null;
+        if (word.name_type === "personal") label = "personal name";
+        else if (word.name_type === "place") label = "place name";
+        else if (word.is_function_word) label = "function word";
         setFuncGloss({
           surface: word.surface_form,
           gloss: word.gloss_en || null,
@@ -342,6 +375,29 @@ export default function StoryReadScreen() {
         </View>
       </View>
 
+      {/* Reading Readiness banner — shown when cold unknowns exist and story not complete */}
+      {story.status === "active" && (story.cold_unknown_count ?? 0) > 0 && (
+        <View style={styles.readinessBanner}>
+          <View style={styles.readinessInfo}>
+            <Text style={styles.readinessPct}>
+              {Math.round(story.reading_readiness_pct ?? story.readiness_pct)}% ready
+            </Text>
+            <Text style={styles.readinessBullet}> · </Text>
+            <Text style={styles.coldBadge}>{story.cold_unknown_count} new</Text>
+            {(story.warm_unknown_count ?? 0) > 0 && (
+              <>
+                <Text style={styles.readinessBullet}> · </Text>
+                <Text style={styles.warmBadge}>{story.warm_unknown_count} familiar root</Text>
+              </>
+            )}
+          </View>
+          <Pressable style={styles.previewBtn} onPress={openPretest}>
+            <Ionicons name="eye-outline" size={14} color={colors.accent} style={{ marginRight: 4 }} />
+            <Text style={styles.previewBtnText}>Preview</Text>
+          </Pressable>
+        </View>
+      )}
+
       <ScrollView
         style={styles.scrollArea}
         contentContainerStyle={styles.scrollContent}
@@ -408,6 +464,78 @@ export default function StoryReadScreen() {
           </Pressable>
         </View>
       </ScrollView>
+
+      {/* Pretest flash modal */}
+      <Modal visible={showPretest} transparent animationType="fade">
+        <View style={styles.pretestOverlay}>
+          <View style={styles.pretestCard}>
+            <Text style={styles.pretestLabel}>
+              {pretestIdx >= pretestWords.length ? "Preview complete" : `Word ${pretestIdx + 1} of ${pretestWords.length}`}
+            </Text>
+
+            {pretestIdx >= pretestWords.length ? (
+              <>
+                <Text style={styles.pretestDoneText}>
+                  You've previewed {pretestWords.length} new {pretestWords.length === 1 ? "word" : "words"}.{"\n"}
+                  Watch for them as you read.
+                </Text>
+                <Pressable
+                  style={styles.pretestNextBtn}
+                  onPress={() => setShowPretest(false)}
+                >
+                  <Text style={styles.pretestNextText}>Start reading</Text>
+                </Pressable>
+              </>
+            ) : (
+              <>
+                <Text style={styles.pretestArabic}>
+                  {pretestWords[pretestIdx]?.arabic}
+                </Text>
+
+                {pretestRevealed ? (
+                  <>
+                    <Text style={styles.pretestGloss}>
+                      {pretestWords[pretestIdx]?.gloss_en}
+                    </Text>
+                    {pretestWords[pretestIdx]?.root_ar && (
+                      <Text style={styles.pretestRoot}>
+                        root: {pretestWords[pretestIdx].root_ar}
+                      </Text>
+                    )}
+                    <Pressable style={styles.pretestNextBtn} onPress={advancePretest}>
+                      <Text style={styles.pretestNextText}>
+                        {pretestIdx + 1 >= pretestWords.length ? "Done" : "Next"}
+                      </Text>
+                    </Pressable>
+                  </>
+                ) : (
+                  <>
+                    <Text style={styles.pretestHint}>
+                      Do you recognise this word?
+                    </Text>
+                    <Pressable
+                      style={[styles.pretestNextBtn, styles.pretestRevealBtn]}
+                      onPress={() => {
+                        if (pretestTimerRef.current) clearTimeout(pretestTimerRef.current);
+                        setPretestRevealed(true);
+                      }}
+                    >
+                      <Text style={styles.pretestRevealText}>Show meaning</Text>
+                    </Pressable>
+                  </>
+                )}
+              </>
+            )}
+
+            <Pressable
+              style={styles.pretestSkip}
+              onPress={() => setShowPretest(false)}
+            >
+              <Text style={styles.pretestSkipText}>Skip preview</Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
 
       {/* Word info card */}
       {showCard && (
@@ -630,5 +758,141 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     fontSize: 15,
     fontWeight: "600",
+  },
+
+  // Reading Readiness banner
+  readinessBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 16,
+    paddingVertical: 7,
+    backgroundColor: colors.surfaceLight,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  readinessInfo: {
+    flexDirection: "row",
+    alignItems: "center",
+    flexShrink: 1,
+  },
+  readinessPct: {
+    fontSize: fonts.caption,
+    color: colors.textSecondary,
+    fontWeight: "600",
+  },
+  readinessBullet: {
+    fontSize: fonts.caption,
+    color: colors.textSecondary,
+  },
+  coldBadge: {
+    fontSize: fonts.caption,
+    color: colors.missed,
+    fontWeight: "600",
+  },
+  warmBadge: {
+    fontSize: fonts.caption,
+    color: colors.stateLearning,
+    fontWeight: "500",
+  },
+  previewBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 4,
+    paddingHorizontal: 10,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.accent,
+    marginLeft: 8,
+  },
+  previewBtnText: {
+    fontSize: fonts.caption,
+    color: colors.accent,
+    fontWeight: "600",
+  },
+
+  // Pretest flash modal
+  pretestOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.75)",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 24,
+  },
+  pretestCard: {
+    backgroundColor: colors.surface,
+    borderRadius: 16,
+    padding: 28,
+    width: "100%",
+    alignItems: "center",
+  },
+  pretestLabel: {
+    fontSize: fonts.caption,
+    color: colors.textSecondary,
+    fontWeight: "600",
+    textTransform: "uppercase",
+    letterSpacing: 0.8,
+    marginBottom: 24,
+  },
+  pretestArabic: {
+    fontSize: 42,
+    color: colors.text,
+    fontFamily: fontFamily.arabic,
+    textAlign: "center",
+    marginBottom: 20,
+    lineHeight: 64,
+  },
+  pretestHint: {
+    fontSize: fonts.small,
+    color: colors.textSecondary,
+    marginBottom: 20,
+    textAlign: "center",
+  },
+  pretestGloss: {
+    fontSize: 22,
+    color: colors.text,
+    fontWeight: "600",
+    textAlign: "center",
+    marginBottom: 8,
+  },
+  pretestRoot: {
+    fontSize: fonts.small,
+    color: colors.textSecondary,
+    marginBottom: 24,
+  },
+  pretestDoneText: {
+    fontSize: fonts.body,
+    color: colors.textSecondary,
+    textAlign: "center",
+    lineHeight: 24,
+    marginBottom: 28,
+  },
+  pretestNextBtn: {
+    backgroundColor: colors.accent,
+    paddingVertical: 12,
+    paddingHorizontal: 32,
+    borderRadius: 10,
+    marginTop: 8,
+    marginBottom: 16,
+  },
+  pretestRevealBtn: {
+    backgroundColor: colors.surfaceLight,
+  },
+  pretestNextText: {
+    fontSize: fonts.body,
+    color: "#fff",
+    fontWeight: "700",
+  },
+  pretestRevealText: {
+    fontSize: fonts.body,
+    color: colors.text,
+    fontWeight: "700",
+  },
+  pretestSkip: {
+    paddingVertical: 8,
+  },
+  pretestSkipText: {
+    fontSize: fonts.caption,
+    color: colors.textSecondary,
   },
 });

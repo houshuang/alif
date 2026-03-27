@@ -35,6 +35,7 @@ import {
   PatternDetail,
   SessionSummary,
   SessionEndData,
+  PretestWord,
 } from "./types";
 import { netStatus } from "./net-status";
 import {
@@ -809,6 +810,10 @@ export async function lookupStoryWord(storyId: number, lemmaId: number, position
 
 export async function getStoryReadiness(storyId: number): Promise<{ readiness_pct: number; unknown_count: number }> {
   return fetchApi(`/api/stories/${storyId}/readiness`);
+}
+
+export async function getPretestWords(storyId: number): Promise<PretestWord[]> {
+  return fetchApi<PretestWord[]>(`/api/stories/${storyId}/pretest-words`);
 }
 
 export async function prefetchStoryDetails(stories: StoryListItem[]): Promise<void> {

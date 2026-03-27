@@ -11,6 +11,7 @@ from app.database import SessionLocal, get_db
 from app.models import Story
 from app.schemas import (
     BookPageDetailOut,
+    PretestWordOut,
     StoryCompleteIn,
     StoryDetailOut,
     StoryGenerateIn,
@@ -28,6 +29,7 @@ from app.services.story_service import (
     generate_story,
     generate_story_audio,
     get_book_page_detail,
+    get_pretest_words,
     get_stories,
     get_story_detail,
     import_story,
@@ -164,6 +166,16 @@ def get_story(story_id: int, db: Session = Depends(get_db)):
         return get_story_detail(db, story_id)
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
+
+
+@router.get("/{story_id}/pretest-words", response_model=list[PretestWordOut])
+def get_pretest_words_endpoint(story_id: int, db: Session = Depends(get_db)):
+    """Top 5 cold unknown words for pretesting before reading.
+
+    Ordered by token frequency in the story — words that appear most
+    often have the highest payoff for pre-encoding.
+    """
+    return get_pretest_words(db, story_id)
 
 
 @router.post("/{story_id}/complete")

@@ -584,6 +584,9 @@ class StoryDetailOut(BaseModel):
     unknown_count: int
     total_words: int
     known_count: int
+    cold_unknown_count: int = 0
+    warm_unknown_count: int = 0
+    reading_readiness_pct: float = 0.0
     difficulty_level: str | None = None
     format_type: str | None = None
     archived_at: str | None = None
@@ -596,6 +599,14 @@ class StoryDetailOut(BaseModel):
     completed_at: str | None = None
     created_at: str
     words: list[StoryWordMetaOut]
+
+
+class PretestWordOut(BaseModel):
+    lemma_id: int
+    arabic: str
+    gloss_en: str
+    root_ar: str | None = None
+    token_frequency: int
 
 
 class StoryGenerateIn(BaseModel):

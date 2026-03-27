@@ -64,7 +64,8 @@ Full endpoint list. See `backend/app/routers/` for implementation.
 | Method | Path | Description |
 |--------|------|-------------|
 | GET | `/api/stories` | List all stories |
-| GET | `/api/stories/{id}` | Story detail with words |
+| GET | `/api/stories/{id}` | Story detail with words. Returns `cold_unknown_count`, `warm_unknown_count`, `reading_readiness_pct` (0.6 partial credit for warm unknowns). |
+| GET | `/api/stories/{id}/pretest-words` | Top 5 cold unknown words for pretesting before reading, ordered by token frequency in story. Returns `lemma_id`, `arabic`, `gloss_en`, `root_ar`, `token_frequency`. |
 | POST | `/api/stories/generate` | Generate story (LLM) |
 | POST | `/api/stories/import` | Import Arabic text as story |
 | POST | `/api/stories/{id}/complete` | Complete story (FSRS credit for all words) |

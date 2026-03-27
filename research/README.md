@@ -36,6 +36,16 @@ ENCOUNTERED → ACQUIRING (Leitner 3-box: 4h→1d→3d) → FSRS-6 scheduling
 
 ---
 
+## Cross-Project Learning Science Research
+
+| File | Contents |
+|------|----------|
+| [~/src/research/notes/alif-vocabulary-coverage-research.md](../../research/notes/alif-vocabulary-coverage-research.md) | **Vocabulary coverage thresholds and pre-loading deep dive** (March 2026): Laufer 1989, Hu & Nation 2000, Nation 2006, Schmitt et al. 2011, Kremmel et al. 2023 replication, Boudelaa & Marslen-Wilson 2013 (Arabic psycholinguistics). Key finding: the 98% figure was **extrapolated via regression** (n=66), not directly tested; Schmitt et al. (n=661) found a linear relationship with no threshold. Three distinct thresholds (95% = minimal comprehension, 98% = incidental acquisition). Type vs. token distinction: sort pre-loading queue by **token frequency within the specific target text**. Arabic root-family partial credit model: L2 learners rely on roots 87.5% of time; ~50-70% partial access to warm unknowns. 7 concrete recommendations: Reading Readiness score, cold-unknown-first pre-loading, 7-10 items per session, don't chase 100%. |
+| [~/src/research/notes/bjork-desirable-difficulties-srs-research.md](../../research/notes/bjork-desirable-difficulties-srs-research.md) | **Bjork Desirable Difficulties deep dive** (March 2026): Read actual papers — Bjork & Bjork (2020), (2014), "Forgetting as a Friend", Karpicke & Roediger 2008 *Science*, Richland et al. 2009 pretesting paper. Storage vs. retrieval strength mechanics. Critical finding: Wozniak's empirical data puts peak acquisition at **80% retention (20% forgetting)**, not 90% — FSRS default may be too conservative. Pretesting effect d=1.1, testing effect d=4.03 (dropping items reduces 1-week retention 80%→33%), interleaving 63% vs 20%. 10 specific Alif improvements: two-tier retention target, formal pretesting before Story/Goal Mode, root-interleaving within sessions, warm-up formalization, progressive tashkeel fading, collateral credit guard. |
+| [~/src/research/notes/atomic-deep-analogue-digital-research.md](../../research/notes/atomic-deep-analogue-digital-research.md) | **Atomic↔Deep / Analogue↔Digital framework** (March 2026): Comprehensive literature review on the micro/deep cycle from the Alif blog post. Covers Bjork desirable difficulties + New Theory of Disuse (storage vs. retrieval strength), Schmidt Noticing Hypothesis (priming mechanism for pre-study), Laufer & Hulstijn Involvement Load Hypothesis (depth of processing per learning event), Nation's 98% vocabulary coverage threshold, Pellicer-Sánchez 2021 pre-reading vocabulary instruction, tools landscape (jpdb.io pre-loading, Refold/AJATT methodology, LingQ/Migaku sentence mining). Includes "Implications for Alif" sections growing as 5 deep-dive subagents complete research. **Read this for SLA foundations of Alif's prestudy and reading-session design.** |
+
+---
+
 ## Earlier Research (2026-02-08)
 
 Initial technology research conducted before app development.

@@ -1088,12 +1088,15 @@ def build_session(
             lemma = lemma_map.get(w.lemma_id) if w.lemma_id else None
             root_obj = lemma.root if lemma else None
 
-            # Compute per-word tashkeel visibility
+            # Compute per-word tashkeel visibility.
+            # Scaffold words (not being tested) fade at 30d; target/due words fade
+            # at the user's configured threshold (default 90d) — they still need the crutch.
             if tashkeel_mode == "never":
                 word_show_tashkeel = False
             elif tashkeel_mode == "fade":
                 word_show_tashkeel = True
-                if w.stability is not None and w.stability >= tashkeel_threshold:
+                fade_threshold = tashkeel_threshold if w.is_due else min(tashkeel_threshold / 3, 30.0)
+                if w.stability is not None and w.stability >= fade_threshold:
                     word_show_tashkeel = False
             else:  # "always"
                 word_show_tashkeel = True
