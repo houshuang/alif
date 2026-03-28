@@ -1611,7 +1611,11 @@ def get_story_detail(db: Session, story_id: int) -> dict:
 
     # Recalculate counts live (fixes stale counts + re-checks function word flags)
     _recalculate_story_counts(db, story)
-    db.commit()
+    try:
+        db.commit()
+    except Exception:
+        # Best-effort cache update — don't crash the read endpoint if DB is locked
+        db.rollback()
 
     story_lemma_ids = {sw.lemma_id for sw in story.words if sw.lemma_id}
     knowledge_map = _build_knowledge_map(db, lemma_ids=story_lemma_ids or None)

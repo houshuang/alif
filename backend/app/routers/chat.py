@@ -1,5 +1,6 @@
 """AI chat endpoints for asking questions about Arabic learning."""
 
+import logging
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -18,6 +19,7 @@ from app.schemas import (
 from app.services.interaction_logger import log_interaction
 from app.services.llm import generate_completion
 
+logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/chat", tags=["chat"])
 
 CHAT_SYSTEM_PROMPT = (
@@ -33,7 +35,7 @@ CHAT_SYSTEM_PROMPT = (
 def ask_question(body: AskQuestionIn, db: Session = Depends(get_db)):
     conversation_id = body.conversation_id or uuid.uuid4().hex
 
-    # Load previous messages for this conversation
+    # Read conversation history
     previous = (
         db.query(ChatMessage)
         .filter(ChatMessage.conversation_id == conversation_id)
@@ -41,19 +43,16 @@ def ask_question(body: AskQuestionIn, db: Session = Depends(get_db)):
         .all()
     )
 
-    # Build prompt with conversation history
     parts: list[str] = []
-
     if body.context:
         parts.append(f"[Screen context: {body.screen}]\n{body.context}")
-
     for msg in previous:
         prefix = "User" if msg.role == "user" else "Assistant"
         parts.append(f"{prefix}: {msg.content}")
-
     parts.append(f"User: {body.question}")
     prompt = "\n\n".join(parts)
 
+    # LLM call (can take 5-15s)
     result = generate_completion(
         prompt=prompt,
         system_prompt=CHAT_SYSTEM_PROMPT,
@@ -63,25 +62,25 @@ def ask_question(body: AskQuestionIn, db: Session = Depends(get_db)):
     )
     answer = result["content"]
 
-    # Store user message
-    user_msg = ChatMessage(
-        conversation_id=conversation_id,
-        screen=body.screen,
-        role="user",
-        content=body.question,
-        context_summary=body.context if body.context else None,
-    )
-    db.add(user_msg)
-
-    # Store assistant response
-    assistant_msg = ChatMessage(
-        conversation_id=conversation_id,
-        screen=body.screen,
-        role="assistant",
-        content=answer,
-    )
-    db.add(assistant_msg)
-    db.commit()
+    # Persist messages — best-effort so DB lock doesn't crash the response
+    try:
+        db.add(ChatMessage(
+            conversation_id=conversation_id,
+            screen=body.screen,
+            role="user",
+            content=body.question,
+            context_summary=body.context if body.context else None,
+        ))
+        db.add(ChatMessage(
+            conversation_id=conversation_id,
+            screen=body.screen,
+            role="assistant",
+            content=answer,
+        ))
+        db.commit()
+    except Exception:
+        logger.warning("Chat: failed to persist messages (DB locked?), returning answer anyway")
+        db.rollback()
 
     log_interaction(
         event="ai_ask",

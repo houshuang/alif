@@ -6,6 +6,7 @@ Used by both learn.py (word introduction) and ocr_service.py (post-import).
 import asyncio
 import json
 import logging
+import threading
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -13,6 +14,9 @@ from app.database import SessionLocal
 from app.models import Lemma, Sentence, SentenceWord, UserLemmaKnowledge
 
 logger = logging.getLogger(__name__)
+
+# Prevent concurrent warm_sentence_cache runs from overlapping prefetches
+_warm_cache_lock = threading.Lock()
 
 
 def _log_pipeline(log_dir: Path, entry: dict) -> None:
@@ -640,6 +644,17 @@ def warm_sentence_cache(llm_model: str = "gemini") -> dict:
         llm_model: Model override for sentence generation. Use "claude_sonnet"
                    for free generation via Claude CLI, "gemini" for fast API calls.
     """
+    # Prevent concurrent runs from overlapping prefetches — skip if already running
+    if not _warm_cache_lock.acquire(blocking=False):
+        logger.info("Warm cache: skipping, another run already in progress")
+        return {"skipped": True}
+    try:
+        return _warm_sentence_cache_impl(llm_model)
+    finally:
+        _warm_cache_lock.release()
+
+
+def _warm_sentence_cache_impl(llm_model: str = "gemini") -> dict:
     from app.services.cohort_service import get_focus_cohort
     from app.services.word_selector import select_next_words
     from app.services.topic_service import ensure_active_topic

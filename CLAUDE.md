@@ -19,7 +19,7 @@ npx expo start --web  # opens on localhost:8081
 ```
 
 ## Architecture
-- **Backend**: Python 3.11+ / FastAPI / SQLite (single user, no auth, WAL mode, 15s busy_timeout) — `backend/`
+- **Backend**: Python 3.11+ / FastAPI / SQLite (single user, no auth, WAL mode, 30s busy_timeout) — `backend/`
 - **Frontend**: Expo (React Native) with web + iOS mode — `frontend/`
 - **SRS**: py-fsrs v6 (FSRS-6 with same-day review support) — `backend/app/services/fsrs_service.py`
 - **LLM**: Two-tier model strategy. Background/cron tasks use Claude CLI (free via Max plan): Sonnet for sentence gen, Haiku for quality gate + enrichment + hooks. On-demand/user-facing tasks keep Gemini Flash (fast, ~1s). Story gen: Claude Opus (retry loop). General fallback: Gemini 3 Flash → GPT-5.2 → Claude Haiku API. Keys: GEMINI_KEY, OPENAI_KEY, ANTHROPIC_API_KEY in `.env`
