@@ -132,7 +132,17 @@ async def scan_textbook_pages(
         uploads.append(upload)
         file_images.append((file.filename, image_bytes))
 
-    db.commit()
+    import time as _time
+    for _attempt in range(3):
+        try:
+            db.commit()
+            break
+        except Exception:
+            db.rollback()
+            if _attempt < 2:
+                _time.sleep(1)
+            else:
+                raise HTTPException(status_code=503, detail="Database busy, please retry in a moment")
 
     # Save images to disk for retry on failure
     _save_uploads(batch_id, file_images)

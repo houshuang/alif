@@ -336,6 +336,9 @@ def store_multi_target_sentence(
 ) -> Sentence | None:
     """Store a multi-target generated sentence with SentenceWord rows.
 
+    All LLM calls (disambiguation, verification) happen BEFORE any DB writes
+    to avoid holding the SQLite write lock during slow external calls.
+
     Args:
         db: SQLAlchemy session.
         result: MultiTargetGeneratedSentence with arabic, english, etc.
@@ -354,19 +357,7 @@ def store_multi_target_sentence(
         _strip_clitics,
     )
 
-    from app.services.transliteration import transliterate_arabic as _translit_ar
-    sent = Sentence(
-        arabic_text=result.arabic,
-        arabic_diacritized=result.arabic,
-        english_translation=result.english,
-        transliteration=_translit_ar(result.arabic) or result.transliteration,
-        source="llm",
-        target_lemma_id=result.primary_target_lemma_id,
-        created_at=datetime.now(timezone.utc),
-        mappings_verified_at=datetime.now(timezone.utc),
-    )
-    db.add(sent)
-    db.flush()
+    # ── Phase 1: Validate + LLM calls (no DB writes) ──
 
     # Build expanded target forms for matching
     target_normalized: dict[str, int] = {}
@@ -379,7 +370,6 @@ def store_multi_target_sentence(
             target_normalized[norm[2:]] = lid
 
     tokens = tokenize_display(result.arabic)
-    # Use map_tokens_to_lemmas with primary target for base mapping
     primary_bare = None
     for bare, lid in target_bares.items():
         if lid == result.primary_target_lemma_id:
@@ -398,7 +388,6 @@ def store_multi_target_sentence(
     unmapped = [m.surface_form for m in mappings if m.lemma_id is None]
     if unmapped:
         logger.warning(f"Skipping multi-target sentence with unmapped words: {unmapped}")
-        db.delete(sent)
         return None
 
     # Disambiguate tokens with multiple candidate lemmas using sentence context
@@ -419,7 +408,6 @@ def store_multi_target_sentence(
         )
         if disambig_result is None:
             logger.warning("Disambiguation failed for ambiguous multi-target sentence, discarding")
-            db.delete(sent)
             return None
         mappings = disambig_result
 
@@ -437,7 +425,6 @@ def store_multi_target_sentence(
     )
     if corrections is None:
         logger.warning("Mapping verification unavailable for multi-target sentence, discarding")
-        db.delete(sent)
         return None
     if corrections:
         correction_failed = False
@@ -465,11 +452,25 @@ def store_multi_target_sentence(
         _log_mapping_correction(corrections, not correction_failed, result.arabic)
         if correction_failed:
             logger.warning("Mapping correction failed in multi-target sentence, discarding")
-            db.delete(sent)
             return None
 
+    # ── Phase 2: DB write (fast, no LLM calls) ──
+
+    from app.services.transliteration import transliterate_arabic as _translit_ar
+    sent = Sentence(
+        arabic_text=result.arabic,
+        arabic_diacritized=result.arabic,
+        english_translation=result.english,
+        transliteration=_translit_ar(result.arabic) or result.transliteration,
+        source="llm",
+        target_lemma_id=result.primary_target_lemma_id,
+        created_at=datetime.now(timezone.utc),
+        mappings_verified_at=datetime.now(timezone.utc),
+    )
+    db.add(sent)
+    db.flush()
+
     for m in mappings:
-        # Check if this token matches any of the other targets
         is_target = m.is_target
         if not is_target:
             bare = strip_punctuation(strip_diacritics(m.surface_form))
