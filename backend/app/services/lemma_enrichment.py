@@ -194,22 +194,21 @@ def enrich_lemmas_batch(lemma_ids: list[int]) -> dict:
                     pass
         db.commit()
 
-        # ── Step 2: Forms (individual LLM calls) ──
+        # ── Step 2: Forms (individual LLM calls — collect results first) ──
+        forms_results: dict[int, dict] = {}
         for lemma in lemmas:
             if lemma.forms_json:
                 continue
             try:
                 forms = _generate_forms(lemma)
                 if forms:
-                    lemma.forms_json = forms
-                    summary["forms"] += 1
-                    db.commit()
+                    forms_results[lemma.lemma_id] = forms
                 time.sleep(0.3)
             except Exception:
                 logger.warning(f"Forms generation failed for lemma {lemma.lemma_id}")
-                db.rollback()
 
-        # ── Step 3: Etymology (batched LLM calls) ──
+        # ── Step 3: Etymology (batched LLM calls — collect results first) ──
+        etym_results: dict[int, dict] = {}
         need_etymology = [l for l in lemmas if not l.etymology_json]
         if need_etymology:
             root_ids = {l.root_id for l in need_etymology if l.root_id}
@@ -223,16 +222,22 @@ def enrich_lemmas_batch(lemma_ids: list[int]) -> dict:
                 batch = need_etymology[i:i + batch_size]
                 try:
                     etym_map = _generate_etymology_batch(batch, roots_by_id)
-                    for lemma in batch:
-                        etym = etym_map.get(lemma.lemma_id)
-                        if etym:
-                            lemma.etymology_json = etym
-                            summary["etymology"] += 1
-                    db.commit()
+                    etym_results.update(etym_map)
                     time.sleep(1)
                 except Exception:
                     logger.warning(f"Etymology batch failed for lemmas {[l.lemma_id for l in batch]}")
-                    db.rollback()
+
+        # ── Step 4: Batch-apply all LLM results to DB ──
+        for lemma in lemmas:
+            forms = forms_results.get(lemma.lemma_id)
+            if forms:
+                lemma.forms_json = forms
+                summary["forms"] += 1
+            etym = etym_results.get(lemma.lemma_id)
+            if etym:
+                lemma.etymology_json = etym
+                summary["etymology"] += 1
+        db.commit()
 
         # Memory hooks are no longer generated upfront — they're generated on
         # first failure (rating <= 2) to avoid wasting processing on already-known words.

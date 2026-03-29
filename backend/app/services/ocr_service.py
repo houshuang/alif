@@ -714,16 +714,21 @@ def process_textbook_page(
                 detect_definite_variants,
                 mark_variants,
             )
+            # LLM calls — db was just committed above, no dirty state
             camel_vars = detect_variants_llm(db, lemma_ids=new_lemma_ids)
             already = {v[0] for v in camel_vars}
             def_vars = detect_definite_variants(
                 db, lemma_ids=new_lemma_ids, already_variant_ids=already
             )
+            # Commit any cache writes from detect_variants_llm before
+            # doing more DB writes, to release the write lock promptly
+            db.commit()
+
             all_vars = camel_vars + def_vars
             if all_vars:
+                # Quick burst of DB writes
                 variants_detected = mark_variants(db, all_vars)
                 variant_ids = {v[0] for v in all_vars}
-                # Reset any variant ULKs that were started as acquiring
                 if start_acquiring and variant_ids:
                     for vid in variant_ids:
                         vulk = knowledge_map.get(vid)
@@ -748,7 +753,8 @@ def process_textbook_page(
             variants_detected=variants_detected,
         )
 
-        # Backfill root meanings for any newly created roots
+        # Commit before backfill_root_meanings which makes LLM calls
+        db.commit()
         backfill_root_meanings(db)
         db.commit()
 
@@ -1083,11 +1089,17 @@ def process_batch(
             detect_definite_variants,
             mark_variants,
         )
+        # LLM calls — db was just committed above, no dirty state
         camel_vars = detect_variants_llm(db, lemma_ids=new_lemma_ids)
         already = {v[0] for v in camel_vars}
         def_vars = detect_definite_variants(db, lemma_ids=new_lemma_ids, already_variant_ids=already)
+        # Commit any cache writes from detect_variants_llm before
+        # doing more DB writes, to release the write lock promptly
+        _commit_with_retry(db, "batch-variant-cache")
+
         all_vars = camel_vars + def_vars
         if all_vars:
+            # Quick burst of DB writes
             variants_detected = mark_variants(db, all_vars)
             variant_ids = {v[0] for v in all_vars}
             if start_acquiring and variant_ids:
@@ -1116,6 +1128,8 @@ def process_batch(
         variants_detected=variants_detected,
     )
 
+    # Commit before backfill_root_meanings which makes LLM calls
+    _commit_with_retry(db, "batch-pre-root-backfill")
     backfill_root_meanings(db)
     _commit_with_retry(db, "batch-root-backfill")
 

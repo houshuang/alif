@@ -260,8 +260,15 @@ def _import_unknown_words(
     + LLM batch translation to create proper Lemma (+ Root) entries.
     Does NOT create ULK — words become Learn mode candidates via story_bonus.
 
+    Structured to avoid holding the DB write lock during LLM calls:
+    Phase 1-2: Read DB + CAMeL analysis + all LLM calls (no DB writes)
+    Phase 3: Batch DB writes (roots, lemmas, story word updates)
+    Phase 4: Post-write LLM calls (variant detection, mapping verification)
+
     Returns list of newly created lemma_ids.
     """
+    # ── Phase 1: Collect unknowns + CAMeL analysis (read-only) ──────────
+
     # Collect unknown surface forms
     unknown_words: list[StoryWord] = []
     seen_bares: set[str] = set()
@@ -277,8 +284,13 @@ def _import_unknown_words(
     if not unknown_words:
         return []
 
-    # Step 1: CAMeL morphological analysis for each unknown word
+    # CAMeL morphological analysis — resolve to existing lemmas where possible
     word_analyses: list[dict] = []
+    # Deferred StoryWord updates for words resolved to existing lemmas.
+    # Collected here, applied in Phase 3 to avoid dirtying the session early.
+    resolved_updates: list[tuple[StoryWord, int]] = []  # (sw, existing_lemma_id)
+    resolved_lemma_ids: set[int] = set()
+
     for sw in unknown_words:
         # Normalize Quranic orthography before CAMeL analysis:
         # alef wasla (ٱ) → regular alef (ا), small/superscript marks
@@ -292,11 +304,9 @@ def _import_unknown_words(
         if existing_id is None:
             existing_id = resolve_existing_lemma(lex_bare, lemma_lookup)
         if existing_id:
-            # CAMeL resolved it to a known lemma — update StoryWord
-            sw.lemma_id = existing_id
-            lemma = db.query(Lemma).filter(Lemma.lemma_id == existing_id).first()
-            if lemma:
-                sw.gloss_en = lemma.gloss_en
+            # CAMeL resolved it to a known lemma — defer update to Phase 3
+            resolved_updates.append((sw, existing_id))
+            resolved_lemma_ids.add(existing_id)
             continue
         word_analyses.append({
             "story_word": sw,
@@ -308,11 +318,44 @@ def _import_unknown_words(
             "pos": features.get("pos", "UNK"),
         })
 
+    # Batch-load glosses for all resolved lemmas (avoids N+1 queries later)
+    resolved_gloss_map: dict[int, str] = {}
+    if resolved_lemma_ids:
+        for lem in db.query(Lemma).filter(Lemma.lemma_id.in_(resolved_lemma_ids)).all():
+            resolved_gloss_map[lem.lemma_id] = lem.gloss_en or ""
+
     if not word_analyses:
+        # Apply deferred resolved updates before returning
+        for sw, lid in resolved_updates:
+            sw.lemma_id = lid
+            sw.gloss_en = resolved_gloss_map.get(lid)
         db.flush()
         return []
 
-    # Step 2: LLM batch translation — use lex (base form) not surface form
+    # Pre-load existing roots for root lookup in Phase 3 (avoids queries during writes)
+    root_strs_needed = {a["root"] for a in word_analyses if a.get("root") and is_valid_root(a["root"])}
+    existing_roots: dict[str, int] = {}
+    if root_strs_needed:
+        for r in db.query(Root).filter(Root.root.in_(root_strs_needed)).all():
+            existing_roots[r.root] = r.root_id
+
+    # Pre-load lemmas for dedup checks in Phase 3 (batch instead of per-word queries)
+    dedup_lemma_ids: set[int] = set()
+    for a in word_analyses:
+        lid = lemma_lookup.get(a["lex_norm"])
+        if lid:
+            dedup_lemma_ids.add(lid)
+        lid2 = resolve_existing_lemma(a["lex_bare"], lemma_lookup)
+        if lid2:
+            dedup_lemma_ids.add(lid2)
+    dedup_gloss_map: dict[int, str] = {}
+    if dedup_lemma_ids:
+        for lem in db.query(Lemma).filter(Lemma.lemma_id.in_(dedup_lemma_ids)).all():
+            dedup_gloss_map[lem.lemma_id] = lem.gloss_en or ""
+
+    # ── Phase 2: All LLM calls (no DB writes) ───────────────────────────
+
+    # Step 2a: LLM batch translation — use lex (base form) not surface form
     gloss_map: dict[str, dict] = {}
     try:
         # Build word list from CAMeL lex forms for better dictionary glosses
@@ -387,8 +430,34 @@ Set name_type to "personal" for personal names (people, characters), "place" for
         except Exception as e:
             logger.warning("Quality gate failed for story %d: %s", story.id, e)
 
-    # Step 3: Create Root + Lemma entries (skip proper nouns)
+    # ── Phase 3: Batch DB writes (all roots, lemmas, story word updates) ─
+
+    # First, apply deferred resolved updates from Phase 1
+    for sw, lid in resolved_updates:
+        sw.lemma_id = lid
+        sw.gloss_en = resolved_gloss_map.get(lid)
+
+    # Prepare transliterations (deterministic, no DB/LLM needed)
+    from app.services.transliteration import transliterate_lemma
+
+    # Process each analysis: classify, prepare root/lemma data, then write
     new_lemma_ids: list[int] = []
+
+    # Batch-create all needed new roots first (single flush)
+    roots_to_create: dict[str, Root] = {}  # root_str -> Root object
+    for analysis in word_analyses:
+        root_str = analysis.get("root")
+        if root_str and is_valid_root(root_str) and root_str not in existing_roots and root_str not in roots_to_create:
+            new_root = Root(root=root_str, core_meaning_en="")
+            db.add(new_root)
+            roots_to_create[root_str] = new_root
+    if roots_to_create:
+        db.flush()
+        # Update lookup with newly created root IDs
+        for root_str, root_obj in roots_to_create.items():
+            existing_roots[root_str] = root_obj.root_id
+
+    # Now create lemmas and update story words
     for analysis in word_analyses:
         lex_norm = analysis["lex_norm"]
         lex_bare = analysis["lex_bare"]
@@ -427,18 +496,11 @@ Set name_type to "personal" for personal names (people, characters), "place" for
                     other_sw.gloss_en = english
             continue
 
-        # Find or create root
+        # Look up root (already created in batch above)
         root_id = None
         root_str = analysis.get("root")
         if root_str and is_valid_root(root_str):
-            existing_root = db.query(Root).filter(Root.root == root_str).first()
-            if existing_root:
-                root_id = existing_root.root_id
-            else:
-                new_root = Root(root=root_str, core_meaning_en="")
-                db.add(new_root)
-                db.flush()
-                root_id = new_root.root_id
+            root_id = existing_roots.get(root_str)
 
         # Dedup check: direct match or clitic-aware resolve
         existing_id = lemma_lookup.get(lex_norm)
@@ -446,9 +508,7 @@ Set name_type to "personal" for personal names (people, characters), "place" for
             existing_id = resolve_existing_lemma(lex_bare, lemma_lookup)
         if existing_id is not None:
             sw.lemma_id = existing_id
-            lemma = db.query(Lemma).filter(Lemma.lemma_id == existing_id).first()
-            if lemma:
-                sw.gloss_en = lemma.gloss_en
+            sw.gloss_en = dedup_gloss_map.get(existing_id)
             continue
 
         word_cat = _category_by_bare.get(lex_bare)
@@ -458,7 +518,6 @@ Set name_type to "personal" for personal names (people, characters), "place" for
             lemma_gloss = f"(name) {english}"
 
         # Generate transliteration inline (deterministic, instant)
-        from app.services.transliteration import transliterate_lemma
         translit = None
         lex_form = analysis["lex"]
         if lex_form and any("\u0610" <= c <= "\u065f" or "\u0670" <= c <= "\u0670" for c in lex_form):
@@ -498,6 +557,8 @@ Set name_type to "personal" for personal names (people, characters), "place" for
         new_lemma_ids.append(new_lemma.lemma_id)
 
     db.flush()
+
+    # ── Phase 4: Post-write LLM calls (need lemma IDs from Phase 3) ─────
 
     # Step 4: Run variant detection on new lemmas
     if new_lemma_ids:
