@@ -147,6 +147,25 @@ When changing how words move between states (encountered → acquiring → FSRS)
 - No test plans or checklists in PR descriptions
 - Branch prefix: `sh/` for all GitHub branches
 
+### 10. SQLite Write Lock Discipline — Never Hold During Slow Calls
+**CRITICAL**: SQLite WAL mode allows only one writer at a time. `db.flush()` and `db.add()`+autoflush acquire the write lock, which is held until `db.commit()` or `db.rollback()`. If an LLM call (5-90s), TTS call, or any network I/O runs between flush and commit, **every other writer in the app blocks for that duration**, causing "database is locked" errors.
+
+**Required pattern** for any function that does both DB writes and slow external calls:
+```
+Phase 1: Read — query DB, collect data, close/commit session
+Phase 2: Slow work — LLM calls, TTS, network I/O (no DB session dirty)
+Phase 3: Write — open/reuse session, write results, commit (milliseconds)
+```
+
+**Checklist when writing new code:**
+- `db.flush()` must NEVER be followed by an LLM/network call before `db.commit()`
+- Functions receiving a `db` parameter must not make LLM calls while the session has dirty state
+- Background tasks (`BackgroundTasks.add_task`) must not receive the request's `db` session
+- Long-running scripts must commit between steps, not hold one session for the entire run
+- Non-critical writes (cache updates, counts) should use try/except with rollback so lock contention doesn't crash read endpoints
+
+**Past incidents**: `store_multi_target_sentence` held write lock 30-60s during LLM verification (broke OCR uploads). `_import_unknown_words` held lock during batch translation. Chat endpoint held session during 15s LLM call. All fixed 2026-03-29.
+
 ## Key Backend Files
 - `backend/app/models.py` — SQLAlchemy models (see `docs/data-model.md`)
 - `backend/app/schemas.py` — Pydantic request/response models
