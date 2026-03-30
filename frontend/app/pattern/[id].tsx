@@ -9,7 +9,7 @@ import {
 } from "react-native";
 import { useLocalSearchParams, useRouter, useNavigation } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
-import { colors, fonts, fontFamily } from "../../lib/theme";
+import { colors, fonts, fontFamily, ltr } from "../../lib/theme";
 import { getPatternDetail } from "../../lib/api";
 import { PatternDetail, PatternEnrichment } from "../../lib/types";
 import { getCefrColor } from "../../lib/frequency";
@@ -105,14 +105,14 @@ export default function PatternDetailScreen() {
       {enrichment && (
         <View style={styles.enrichmentSection}>
           {enrichment.explanation && (
-            <Text style={styles.explanation}>{enrichment.explanation}</Text>
+            <Text style={styles.explanation}>{ltr(enrichment.explanation)}</Text>
           )}
 
           {enrichment.how_to_recognize && (
             <View style={styles.enrichmentBlock}>
               <Text style={styles.enrichmentLabel}>How to Recognize</Text>
               <Text style={styles.enrichmentText}>
-                {enrichment.how_to_recognize}
+                {ltr(enrichment.how_to_recognize)}
               </Text>
             </View>
           )}
@@ -140,7 +140,7 @@ export default function PatternDetailScreen() {
                   />
                   <Text style={styles.derivationWord}>{ex.word}</Text>
                   <Text style={styles.derivationGloss}>
-                    {ex.gloss} — {ex.explanation}
+                    {ltr(`${ex.gloss} — ${ex.explanation}`)}
                   </Text>
                 </View>
               ))}
@@ -151,7 +151,7 @@ export default function PatternDetailScreen() {
             <View style={styles.enrichmentBlock}>
               <Text style={styles.enrichmentLabel}>Register</Text>
               <Text style={styles.enrichmentText}>
-                {enrichment.register_notes}
+                {ltr(enrichment.register_notes)}
               </Text>
             </View>
           )}
@@ -161,7 +161,7 @@ export default function PatternDetailScreen() {
               <Text style={styles.enrichmentLabel}>Did you know?</Text>
               {enrichment.fun_facts.map((fact, i) => (
                 <Text key={i} style={styles.funFact}>
-                  {fact}
+                  {ltr(fact)}
                 </Text>
               ))}
             </View>
@@ -289,6 +289,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: colors.text,
     lineHeight: 20,
+    writingDirection: "ltr" as const,
   },
   funFact: {
     fontSize: 14,
@@ -296,6 +297,7 @@ const styles = StyleSheet.create({
     lineHeight: 20,
     fontStyle: "italic",
     marginTop: 4,
+    writingDirection: "ltr" as const,
   },
   pillRow: {
     flexDirection: "row",

@@ -1,7 +1,7 @@
 import React, { useRef } from "react";
 import { ActivityIndicator, Animated, PanResponder, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { colors, fontFamily } from "../theme";
+import { colors, fontFamily, ltr } from "../theme";
 import { WordLookupResult, ConfusionAnalysis } from "../types";
 import { getFrequencyBand, getCefrColor } from "../frequency";
 import { getGrammarParticleInfo, GrammarParticleInfo } from "../grammar-particles";
@@ -529,7 +529,7 @@ function RevealedView({
         <View style={styles.etymologyCompact}>
           {result.etymology_json.derivation && (
             <Text style={styles.etymologyDerivationSmall}>
-              {result.etymology_json.derivation}
+              {ltr(result.etymology_json.derivation)}
             </Text>
           )}
           {result.etymology_json.related_loanwords && result.etymology_json.related_loanwords.length > 0 && (
@@ -539,7 +539,7 @@ function RevealedView({
           )}
           {result.etymology_json.cultural_note && (
             <Text style={styles.etymologyCulturalNote}>
-              {result.etymology_json.cultural_note}
+              {ltr(result.etymology_json.cultural_note)}
             </Text>
           )}
         </View>
@@ -551,7 +551,7 @@ function RevealedView({
           <View style={styles.mnemonicLine}>
             <Ionicons name="bulb-outline" size={12} color={colors.accent} />
             <Text style={styles.mnemonicSmall}>
-              {result.memory_hooks_json.mnemonic}
+              {ltr(result.memory_hooks_json.mnemonic)}
             </Text>
           </View>
 
@@ -578,13 +578,13 @@ function RevealedView({
 
           {result.memory_hooks_json.usage_context && (
             <Text style={styles.hooksDetail}>
-              {result.memory_hooks_json.usage_context}
+              {ltr(result.memory_hooks_json.usage_context)}
             </Text>
           )}
 
           {result.memory_hooks_json.fun_fact && (
             <Text style={[styles.hooksDetail, { fontStyle: "italic" }]}>
-              {result.memory_hooks_json.fun_fact}
+              {ltr(result.memory_hooks_json.fun_fact)}
             </Text>
           )}
         </View>
@@ -860,15 +860,18 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     fontSize: 12,
     lineHeight: 16,
+    writingDirection: "ltr" as const,
   },
   etymologyLoanwords: {
     color: colors.textSecondary,
     fontSize: 11,
     fontStyle: "italic",
+    writingDirection: "ltr" as const,
   },
   etymologyCulturalNote: {
     color: colors.textSecondary,
     fontSize: 11,
+    writingDirection: "ltr" as const,
   },
 
   /* Memory hooks */
@@ -887,6 +890,7 @@ const styles = StyleSheet.create({
     fontWeight: "500",
     flex: 1,
     lineHeight: 16,
+    writingDirection: "ltr" as const,
   },
   hooksSub: {
     gap: 2,
@@ -897,6 +901,7 @@ const styles = StyleSheet.create({
     fontSize: 11,
     lineHeight: 15,
     paddingLeft: 16,
+    writingDirection: "ltr" as const,
   },
   hooksLangTag: {
     color: colors.textSecondary,

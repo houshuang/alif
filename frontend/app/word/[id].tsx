@@ -11,7 +11,7 @@ import {
 } from "react-native";
 import { useLocalSearchParams, useRouter, useNavigation } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
-import { colors, fonts, fontFamily } from "../../lib/theme";
+import { colors, fonts, fontFamily, ltr } from "../../lib/theme";
 import { getWordDetail, postponeWord, suspendWord, unsuspendWord, flagContent } from "../../lib/api";
 import { WordDetail, ReviewHistoryEntry, EtymologyData, MemoryHooksData } from "../../lib/types";
 import { getCefrColor } from "../../lib/frequency";
@@ -270,7 +270,7 @@ export default function WordDetailScreen() {
           <Text style={styles.sectionTitle}>Etymology</Text>
           <View style={styles.etymologyCard}>
             {word.etymology_json.derivation && (
-              <Text style={styles.etymologyDerivation}>{word.etymology_json.derivation}</Text>
+              <Text style={styles.etymologyDerivation}>{ltr(word.etymology_json.derivation)}</Text>
             )}
             {word.etymology_json.root_meaning && (
               <View style={styles.etymologyRow}>
@@ -293,7 +293,7 @@ export default function WordDetailScreen() {
             {word.etymology_json.cultural_note && (
               <View style={styles.etymologyRow}>
                 <Text style={styles.etymologyLabel}>Note</Text>
-                <Text style={styles.etymologyValue}>{word.etymology_json.cultural_note}</Text>
+                <Text style={styles.etymologyValue}>{ltr(word.etymology_json.cultural_note)}</Text>
               </View>
             )}
           </View>
@@ -307,7 +307,7 @@ export default function WordDetailScreen() {
             <View style={styles.mnemonicRow}>
               <Ionicons name="bulb-outline" size={16} color={colors.accent} style={{ marginTop: 2 }} />
               <Text style={styles.mnemonicText}>
-                {word.memory_hooks_json.mnemonic}
+                {ltr(word.memory_hooks_json.mnemonic)}
               </Text>
             </View>
 
@@ -365,7 +365,7 @@ export default function WordDetailScreen() {
               <View style={styles.hooksSubsection}>
                 <Text style={styles.etymologyLabel}>Where you'll see it</Text>
                 <Text style={styles.etymologyValue}>
-                  {word.memory_hooks_json.usage_context}
+                  {ltr(word.memory_hooks_json.usage_context)}
                 </Text>
               </View>
             )}
@@ -374,7 +374,7 @@ export default function WordDetailScreen() {
               <View style={styles.hooksSubsection}>
                 <Text style={styles.etymologyLabel}>Did you know?</Text>
                 <Text style={[styles.etymologyValue, { fontStyle: "italic" }]}>
-                  {word.memory_hooks_json.fun_fact}
+                  {ltr(word.memory_hooks_json.fun_fact)}
                 </Text>
               </View>
             )}
@@ -843,6 +843,7 @@ const styles = StyleSheet.create({
     color: colors.text,
     fontWeight: "600",
     marginBottom: 8,
+    writingDirection: "ltr" as const,
   },
   etymologyRow: {
     flexDirection: "row",
@@ -858,6 +859,7 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: colors.text,
     flex: 1,
+    writingDirection: "ltr" as const,
   },
   mnemonicRow: {
     flexDirection: "row",
@@ -871,6 +873,7 @@ const styles = StyleSheet.create({
     fontWeight: "500",
     flex: 1,
     lineHeight: 22,
+    writingDirection: "ltr" as const,
   },
   hooksSubsection: {
     marginTop: 8,
@@ -900,11 +903,13 @@ const styles = StyleSheet.create({
   cognateWord: {
     fontSize: 13,
     color: colors.text,
+    writingDirection: "ltr" as const,
   },
   cognateNote: {
     fontSize: 12,
     color: colors.textSecondary,
     fontStyle: "italic",
+    writingDirection: "ltr" as const,
   },
   collocationRow: {
     marginTop: 8,

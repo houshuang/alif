@@ -9,7 +9,7 @@ import {
   ScrollView,
 } from "react-native";
 import { useRouter } from "expo-router";
-import { colors, fonts, fontFamily } from "../lib/theme";
+import { colors, fonts, fontFamily, ltr } from "../lib/theme";
 import {
   BASE_URL,
   getNextWords,
@@ -262,7 +262,7 @@ export default function LearnScreen() {
                 <View style={styles.infoSection}>
                   <Text style={[styles.sectionLabel, { color: "#9b59b6" }]}>Memory Hook</Text>
                   <View style={styles.mnemonicCard}>
-                    <Text style={styles.mnemonicText}>{c.memory_hooks_json!.mnemonic}</Text>
+                    <Text style={styles.mnemonicText}>{ltr(c.memory_hooks_json!.mnemonic!)}</Text>
                   </View>
                 </View>
               )}
@@ -272,8 +272,7 @@ export default function LearnScreen() {
                 <View style={styles.infoSection}>
                   <Text style={[styles.sectionLabel, { color: colors.accent }]}>Etymology</Text>
                   <Text style={styles.infoText}>
-                    {c.etymology_json!.pattern ? `${c.etymology_json!.pattern}: ` : ""}
-                    {c.etymology_json!.derivation}
+                    {ltr(`${c.etymology_json!.pattern ? `${c.etymology_json!.pattern}: ` : ""}${c.etymology_json!.derivation}`)}
                   </Text>
                 </View>
               )}
@@ -356,7 +355,7 @@ export default function LearnScreen() {
               {hasUsageContext && (
                 <View style={styles.infoSection}>
                   <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>Usage</Text>
-                  <Text style={styles.infoText}>{c.memory_hooks_json!.usage_context}</Text>
+                  <Text style={styles.infoText}>{ltr(c.memory_hooks_json!.usage_context!)}</Text>
                 </View>
               )}
 
@@ -366,7 +365,7 @@ export default function LearnScreen() {
                   <Text style={[styles.sectionLabel, { color: "#2ecc71" }]}>Did You Know?</Text>
                   <View style={styles.funFactCard}>
                     <Text style={styles.funFactText}>
-                      {c.memory_hooks_json?.fun_fact || c.etymology_json?.cultural_note}
+                      {ltr((c.memory_hooks_json?.fun_fact || c.etymology_json?.cultural_note)!)}
                     </Text>
                   </View>
                 </View>
@@ -739,6 +738,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: colors.text,
     lineHeight: 20,
+    writingDirection: "ltr" as const,
   },
 
   // Mnemonic
@@ -753,6 +753,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: colors.text,
     lineHeight: 20,
+    writingDirection: "ltr" as const,
   },
 
   // Cognates
@@ -773,10 +774,12 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: colors.text,
     fontWeight: "600",
+    writingDirection: "ltr" as const,
   },
   cognateNote: {
     fontSize: 12,
     color: colors.textSecondary,
+    writingDirection: "ltr" as const,
   },
 
   // Root family
@@ -838,6 +841,7 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: "#c8e8c8",
     lineHeight: 19,
+    writingDirection: "ltr" as const,
   },
 
   // Actions (fixed at bottom)

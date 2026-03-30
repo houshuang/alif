@@ -14,7 +14,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { Audio } from "expo-av";
 import { Ionicons } from "@expo/vector-icons";
-import { colors, fonts, fontFamily, arabicFonts, arabicFontForSentence } from "../lib/theme";
+import { colors, fonts, fontFamily, arabicFonts, arabicFontForSentence, ltr } from "../lib/theme";
 import {
   getSentenceReviewSession,
   fetchFreshSession,
@@ -1403,12 +1403,12 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
                 <FormsStrip pos={wc.pos} forms={wc.forms_json} formsTranslit={wc.forms_translit} />
                 {wc.etymology_json?.derivation && (
                   <Text style={[styles.eiInfoText, { fontStyle: "italic", marginTop: 4, fontSize: 12, color: colors.textSecondary }]}>
-                    {wc.etymology_json.derivation}
+                    {ltr(wc.etymology_json.derivation)}
                   </Text>
                 )}
                 {wc.memory_hooks_json?.mnemonic && (
                   <View style={[styles.eiMnemonicCard, { marginTop: 4 }]}>
-                    <Text style={styles.eiInfoText}>{wc.memory_hooks_json.mnemonic}</Text>
+                    <Text style={styles.eiInfoText}>{ltr(wc.memory_hooks_json.mnemonic)}</Text>
                   </View>
                 )}
               </>
@@ -1600,8 +1600,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
               <View style={styles.expIntroHighlight}>
                 <Text style={styles.expIntroHighlightLabel}>Origin</Text>
                 <Text style={styles.expIntroHighlightText}>
-                  {card.etymology.pattern ? `${card.etymology.pattern}: ` : ""}
-                  {card.etymology.derivation}
+                  {ltr(`${card.etymology.pattern ? `${card.etymology.pattern}: ` : ""}${card.etymology.derivation}`)}
                 </Text>
               </View>
             )}
@@ -1610,7 +1609,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
               <View style={[styles.expIntroHighlight, { backgroundColor: "rgba(74, 158, 255, 0.12)" }]}>
                 <Text style={styles.expIntroHighlightLabel}>Remember</Text>
                 <Text style={styles.expIntroHighlightText}>
-                  {card.memory_hooks.mnemonic}
+                  {ltr(card.memory_hooks.mnemonic)}
                 </Text>
               </View>
             )}
@@ -1751,8 +1750,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
               <View style={styles.eiInfoSection}>
                 <Text style={[styles.eiSectionLabel, { color: colors.accent }]}>Etymology</Text>
                 <Text style={styles.eiInfoText}>
-                  {card.etymology!.pattern ? `${card.etymology!.pattern}: ` : ""}
-                  {card.etymology!.derivation}
+                  {ltr(`${card.etymology!.pattern ? `${card.etymology!.pattern}: ` : ""}${card.etymology!.derivation}`)}
                 </Text>
               </View>
             )}
@@ -1761,7 +1759,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
               <View style={styles.eiInfoSection}>
                 <Text style={[styles.eiSectionLabel, { color: "#9b59b6" }]}>Memory Hook</Text>
                 <View style={styles.eiMnemonicCard}>
-                  <Text style={styles.eiInfoText}>{card.memory_hooks!.mnemonic}</Text>
+                  <Text style={styles.eiInfoText}>{ltr(card.memory_hooks!.mnemonic!)}</Text>
                 </View>
               </View>
             )}
@@ -1822,7 +1820,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
             {eiHasUsageContext && (
               <View style={styles.eiInfoSection}>
                 <Text style={[styles.eiSectionLabel, { color: colors.textSecondary }]}>Usage</Text>
-                <Text style={styles.eiInfoText}>{card.memory_hooks!.usage_context}</Text>
+                <Text style={styles.eiInfoText}>{ltr(card.memory_hooks!.usage_context!)}</Text>
               </View>
             )}
 
@@ -1831,7 +1829,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
                 <Text style={[styles.eiSectionLabel, { color: "#2ecc71" }]}>Did You Know?</Text>
                 <View style={styles.eiFunFactCard}>
                   <Text style={styles.eiFunFactText}>
-                    {card.memory_hooks?.fun_fact || card.etymology?.cultural_note}
+                    {ltr((card.memory_hooks?.fun_fact || card.etymology?.cultural_note)!)}
                   </Text>
                 </View>
               </View>
@@ -4424,6 +4422,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: colors.text,
     lineHeight: 20,
+    writingDirection: "ltr" as const,
   },
 
   // Experiment intro card — info-dense design
@@ -4531,6 +4530,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: colors.text,
     lineHeight: 20,
+    writingDirection: "ltr" as const,
   },
   eiMnemonicCard: {
     backgroundColor: "#2a1f4e",
@@ -4550,5 +4550,6 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: "#c8e8c8",
     lineHeight: 19,
+    writingDirection: "ltr" as const,
   },
 });

@@ -9,7 +9,7 @@ import {
 } from "react-native";
 import { useLocalSearchParams, useRouter, useNavigation } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
-import { colors, fonts, fontFamily } from "../../lib/theme";
+import { colors, fonts, fontFamily, ltr } from "../../lib/theme";
 import { getRootDetail, searchRootByText } from "../../lib/api";
 import { RootDetail, RootEnrichment } from "../../lib/types";
 import { getCefrColor } from "../../lib/frequency";
@@ -96,7 +96,7 @@ export default function RootDetailScreen() {
         <View style={styles.enrichmentSection}>
           {enrichment.etymology_story && (
             <Text style={styles.etymologyStory}>
-              {enrichment.etymology_story}
+              {ltr(enrichment.etymology_story)}
             </Text>
           )}
 
@@ -104,7 +104,7 @@ export default function RootDetailScreen() {
             <View style={styles.enrichmentBlock}>
               <Text style={styles.enrichmentLabel}>Cultural Significance</Text>
               <Text style={styles.enrichmentText}>
-                {enrichment.cultural_significance}
+                {ltr(enrichment.cultural_significance)}
               </Text>
             </View>
           )}
@@ -114,7 +114,7 @@ export default function RootDetailScreen() {
               <Text style={styles.enrichmentLabel}>Literary Examples</Text>
               {enrichment.literary_examples.map((ex, i) => (
                 <Text key={i} style={styles.literaryExample}>
-                  {ex}
+                  {ltr(ex)}
                 </Text>
               ))}
             </View>
@@ -125,7 +125,7 @@ export default function RootDetailScreen() {
               <Text style={styles.enrichmentLabel}>Did you know?</Text>
               {enrichment.fun_facts.map((fact, i) => (
                 <Text key={i} style={styles.funFact}>
-                  {fact}
+                  {ltr(fact)}
                 </Text>
               ))}
             </View>
@@ -267,6 +267,7 @@ const styles = StyleSheet.create({
     color: colors.text,
     lineHeight: 22,
     marginBottom: 8,
+    writingDirection: "ltr" as const,
   },
   enrichmentBlock: {
     marginTop: 10,
@@ -284,6 +285,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: colors.text,
     lineHeight: 20,
+    writingDirection: "ltr" as const,
   },
   literaryExample: {
     fontSize: 14,
@@ -291,12 +293,14 @@ const styles = StyleSheet.create({
     lineHeight: 20,
     fontStyle: "italic",
     marginTop: 4,
+    writingDirection: "ltr" as const,
   },
   funFact: {
     fontSize: 14,
     color: colors.text,
     lineHeight: 20,
     marginTop: 4,
+    writingDirection: "ltr" as const,
   },
   pillRow: {
     flexDirection: "row",

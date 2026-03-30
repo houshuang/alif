@@ -52,6 +52,10 @@ export function arabicFontForSentence(sentenceId: number | null | undefined): { 
   return arabicFonts[sentenceId % arabicFonts.length];
 }
 
+/** Prepend Left-to-Right Mark so BiDi renders mixed Arabic/English text as LTR.
+ *  Without this, text starting with Arabic characters gets RTL paragraph direction on iOS. */
+export const ltr = (s: string) => `\u200E${s}`;
+
 export const fonts = {
   arabicSentence: 38,
   arabicLarge: 36,
