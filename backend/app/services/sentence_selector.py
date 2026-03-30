@@ -1169,6 +1169,14 @@ MAX_REINTRO_PER_SESSION = 3
 STRUGGLING_MIN_SEEN = 3
 
 
+_GENERIC_ULK_SOURCES = {None, "study", "encountered", "auto_intro", "collateral", "leech_reintro"}
+
+def _display_source(ulk, lemma) -> str | None:
+    """Prefer ulk.source (how the word entered learning) over lemma.source (dictionary provenance)."""
+    ulk_source = ulk.source if ulk else None
+    return ulk_source if ulk_source not in _GENERIC_ULK_SOURCES else lemma.source
+
+
 def _build_reintro_cards(
     db: Session,
     struggling_ids: set[int],
@@ -1260,7 +1268,7 @@ def _build_reintro_cards(
             "etymology": lemma.etymology_json,
             "wazn": lemma.wazn,
             "wazn_meaning": lemma.wazn_meaning,
-            "source": lemma.source,
+            "source": _display_source(k, lemma),
         }
         cards.append(card)
 
