@@ -43,6 +43,40 @@ _QURAN_FUNCTION_GLOSSES: dict[str, str] = {
     "يس": "Ya Sin",
 }
 
+# Pronoun suffixes (longest first) and their English glosses
+_PRONOUN_SUFFIXES: list[tuple[str, str]] = [
+    ("هما", "them (dual)"),
+    ("كما", "you (dual)"),
+    ("هم", "them"),
+    ("هن", "them (f)"),
+    ("كم", "you (pl)"),
+    ("كن", "you (f pl)"),
+    ("نا", "us"),
+    ("ها", "her/it"),
+    ("ه", "him/it"),
+    ("ك", "you"),
+    ("ي", "me/my"),
+]
+
+
+def _gloss_with_pronoun_suffix(bare: str) -> str | None:
+    """Try stripping pronoun suffixes to find a base function word + suffix gloss."""
+    for suffix, suffix_gloss in _PRONOUN_SUFFIXES:
+        if bare.endswith(suffix) and len(bare) > len(suffix):
+            base = bare[: -len(suffix)]
+            # Try base as-is, then with ya↔alef-maqsura swap
+            candidates = [base]
+            if base.endswith("ي"):
+                candidates.append(base[:-1] + "ى")
+            elif base.endswith("ى"):
+                candidates.append(base[:-1] + "ي")
+            for c in candidates:
+                base_gloss = FUNCTION_WORD_GLOSSES.get(c) or _QURAN_FUNCTION_GLOSSES.get(c)
+                if base_gloss:
+                    return f"{base_gloss} + {suffix_gloss}"
+    return None
+
+
 logger = logging.getLogger(__name__)
 
 # SRS interval progression (level -> timedelta after "got_it")
@@ -158,9 +192,12 @@ def select_verse_cards(
             lemma = vw.lemma
             # For function words without a lemma, look up gloss from known lists
             gloss = lemma.gloss_en if lemma else None
-            if not gloss and vw.is_function_word:
+            if not gloss and (vw.is_function_word or not vw.lemma_id):
                 bare = normalize_alef(strip_tatweel(strip_diacritics(vw.surface_form)))
                 gloss = FUNCTION_WORD_GLOSSES.get(bare) or _QURAN_FUNCTION_GLOSSES.get(bare)
+                # Try stripping pronoun suffixes to find base function word
+                if not gloss:
+                    gloss = _gloss_with_pronoun_suffix(bare)
             verse_words_by_id[vw.verse_id].append({
                 "surface_form": vw.surface_form,
                 "lemma_id": vw.lemma_id,
