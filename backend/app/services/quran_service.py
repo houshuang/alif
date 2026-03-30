@@ -60,20 +60,77 @@ _PRONOUN_SUFFIXES: list[tuple[str, str]] = [
 
 
 def _gloss_with_pronoun_suffix(bare: str) -> str | None:
-    """Try stripping pronoun suffixes to find a base function word + suffix gloss."""
+    """Try stripping pronoun suffixes to find a base function word + suffix gloss.
+
+    Also handles proclitic+base+suffix combinations like ولهم → و+ل+هم.
+    """
     for suffix, suffix_gloss in _PRONOUN_SUFFIXES:
-        if bare.endswith(suffix) and len(bare) > len(suffix):
-            base = bare[: -len(suffix)]
-            # Try base as-is, then with ya↔alef-maqsura swap
-            candidates = [base]
-            if base.endswith("ي"):
-                candidates.append(base[:-1] + "ى")
-            elif base.endswith("ى"):
-                candidates.append(base[:-1] + "ي")
-            for c in candidates:
-                base_gloss = FUNCTION_WORD_GLOSSES.get(c) or _QURAN_FUNCTION_GLOSSES.get(c)
-                if base_gloss:
-                    return f"{base_gloss} + {suffix_gloss}"
+        if not bare.endswith(suffix) or len(bare) <= len(suffix):
+            continue
+        base = bare[: -len(suffix)]
+        # Try base as-is, then with ya↔alef-maqsura swap
+        bases = [base]
+        if base.endswith("ي"):
+            bases.append(base[:-1] + "ى")
+        elif base.endswith("ى"):
+            bases.append(base[:-1] + "ي")
+        for b in bases:
+            base_gloss = FUNCTION_WORD_GLOSSES.get(b) or _QURAN_FUNCTION_GLOSSES.get(b)
+            if base_gloss:
+                return f"{base_gloss} + {suffix_gloss}"
+        # Try stripping leading proclitic from base: ولهم → و + لهم → ل + هم
+        for pro_str, pro_gloss in [("و", "and"), ("ف", "so/then")]:
+            if base.startswith(pro_str) and len(base) > 1:
+                inner = base[len(pro_str):]
+                inner_gloss = FUNCTION_WORD_GLOSSES.get(inner) or _QURAN_FUNCTION_GLOSSES.get(inner)
+                if inner_gloss:
+                    return f"{pro_gloss} + {inner_gloss} + {suffix_gloss}"
+    return None
+
+
+def _gloss_via_lemma_lookup(bare: str, db: Session) -> str | None:
+    """Try stripping proclitics/suffixes and finding a matching lemma in DB."""
+    # Try with and without al-prefix, with and without proclitics
+    candidates = [bare]
+    # Strip leading proclitic+al combos: والمفسدون → المفسدون → مفسدون
+    for pre in ["وال", "فال", "بال", "لل", "كال", "و", "ف", "ب", "ل", "ك"]:
+        if bare.startswith(pre) and len(bare) > len(pre) + 1:
+            after = bare[len(pre):]
+            candidates.append(after)
+            if not after.startswith("ال"):
+                candidates.append("ال" + after)
+    # Strip al-prefix: الغيب → غيب
+    if bare.startswith("ال") and len(bare) > 3:
+        candidates.append(bare[2:])
+    # Strip pronoun suffixes on content words: قلوبهم → قلوب
+    for suffix, _ in _PRONOUN_SUFFIXES:
+        if bare.endswith(suffix) and len(bare) > len(suffix) + 1:
+            stem = bare[:-len(suffix)]
+            candidates.append(stem)
+            # Also try with proclitics stripped
+            for pre in ["و", "ف"]:
+                if stem.startswith(pre) and len(stem) > 2:
+                    candidates.append(stem[len(pre):])
+
+    # Deduplicate while preserving order
+    seen: set[str] = set()
+    unique: list[str] = []
+    for c in candidates:
+        if c not in seen and c != bare:
+            seen.add(c)
+            unique.append(c)
+
+    if not unique:
+        return None
+
+    # Batch lookup in DB
+    lemmas = db.query(Lemma).filter(
+        Lemma.lemma_ar_bare.in_(unique),
+        Lemma.gloss_en.isnot(None),
+        Lemma.gloss_en != "",
+    ).all()
+    if lemmas:
+        return lemmas[0].gloss_en
     return None
 
 
@@ -190,14 +247,15 @@ def select_verse_cards(
         )
         for vw in vw_rows:
             lemma = vw.lemma
-            # For function words without a lemma, look up gloss from known lists
+            # For words without a gloss, try progressively harder lookups
             gloss = lemma.gloss_en if lemma else None
-            if not gloss and (vw.is_function_word or not vw.lemma_id):
+            if not gloss:
                 bare = normalize_alef(strip_tatweel(strip_diacritics(vw.surface_form)))
                 gloss = FUNCTION_WORD_GLOSSES.get(bare) or _QURAN_FUNCTION_GLOSSES.get(bare)
-                # Try stripping pronoun suffixes to find base function word
                 if not gloss:
                     gloss = _gloss_with_pronoun_suffix(bare)
+                if not gloss:
+                    gloss = _gloss_via_lemma_lookup(bare, db)
             verse_words_by_id[vw.verse_id].append({
                 "surface_form": vw.surface_form,
                 "lemma_id": vw.lemma_id,
