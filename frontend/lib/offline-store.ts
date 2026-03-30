@@ -7,7 +7,7 @@ import type {
   WordLookupResult,
 } from "./types";
 
-const WORD_LOOKUP_CACHE_VERSION = 2;
+const WORD_LOOKUP_CACHE_VERSION = 3;
 const WORD_LOOKUP_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
 
 const KEYS = {

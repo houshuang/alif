@@ -1933,7 +1933,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
                       paddingVertical: 2,
                       borderRadius: 4,
                       backgroundColor: verseTappedIdx === i ? "#d4a05625" : "transparent",
-                      borderBottomWidth: verseLookedUp.has(i) && !w.is_function_word ? 2 : 0,
+                      borderBottomWidth: verseTappedIdx === i ? 2 : 0,
                       borderBottomColor: "#d4a05650",
                     }}
                   >
