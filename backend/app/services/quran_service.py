@@ -249,9 +249,9 @@ def select_verse_cards(
     verse_ids = [v.id for v in all_verses]
 
     # Build lemma lookup dict once for morphological fallback
-    lemma_lookup = build_lemma_lookup(db)
-    # Pre-load lemma objects for resolved IDs
-    all_lemma_ids = set()
+    all_lemmas = db.query(Lemma).all()
+    lemma_lookup = build_lemma_lookup(all_lemmas)
+    lemma_by_id = {l.lemma_id: l for l in all_lemmas}
 
     # Batch load verse words + lemmas
     verse_words_by_id: dict[int, list] = {vid: [] for vid in verse_ids}
@@ -280,7 +280,7 @@ def select_verse_cards(
                     # Full morphological lookup (handles conjugations, broken plurals via forms_json)
                     resolved_id = lookup_lemma(bare, lemma_lookup)
                     if resolved_id:
-                        resolved_lemma = db.query(Lemma).get(resolved_id)
+                        resolved_lemma = lemma_by_id.get(resolved_id)
                         if resolved_lemma:
                             gloss = resolved_lemma.gloss_en
             # Use resolved_lemma for richer word data when original lemma was missing
