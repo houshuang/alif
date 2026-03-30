@@ -829,6 +829,12 @@ def build_session(
             bare = strip_diacritics(sw.surface_form)
             is_func = _is_function_word(bare)
             gloss = lemma.gloss_en if lemma else FUNCTION_WORD_GLOSSES.get(bare)
+            if not gloss:
+                from app.services.sentence_validator import normalize_alef, strip_tatweel
+                bare_norm = normalize_alef(strip_tatweel(bare))
+                gloss = FUNCTION_WORD_GLOSSES.get(bare_norm)
+            if not gloss and sw.lemma_id:
+                logger.warning(f"Word '{sw.surface_form}' (lemma_id={sw.lemma_id}) has no gloss in sentence {sw.sentence_id}")
             wm = WordMeta(
                 lemma_id=sw.lemma_id,  # original lemma for display/lookup (effective_id used only for scheduling)
                 surface_form=sw.surface_form,
@@ -1475,6 +1481,10 @@ def _find_pregenerated_sentences_for_words(
             bare = strip_diacritics(sw.surface_form)
             is_func = _is_function_word(bare)
             gloss = lemma.gloss_en if lemma else FUNCTION_WORD_GLOSSES.get(bare)
+            if not gloss:
+                from app.services.sentence_validator import normalize_alef, strip_tatweel
+                bare_norm = normalize_alef(strip_tatweel(bare))
+                gloss = FUNCTION_WORD_GLOSSES.get(bare_norm)
             wm = WordMeta(
                 lemma_id=sw.lemma_id,
                 surface_form=sw.surface_form,

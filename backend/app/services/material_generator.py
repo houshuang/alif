@@ -282,6 +282,24 @@ def generate_material_for_word(lemma_id: int, needed: int = 2, model_override: s
             "mappings": mappings,
         })
 
+    # Gate: reject sentences where any lemma has no gloss
+    glossed_sentences = []
+    for vs in valid_sentences:
+        empty_gloss = [
+            m.surface_form for m in vs["mappings"]
+            if m.lemma_id and m.lemma_id in all_lemma_by_id
+            and not all_lemma_by_id[m.lemma_id].gloss_en
+        ]
+        if empty_gloss:
+            logger.warning(f"Rejecting sentence with glossless lemmas: {empty_gloss}")
+            _log_pipeline(_log_dir, {
+                "event": "glossless_lemma", "lemma_id": lemma_id,
+                "arabic": vs["arabic"], "glossless_words": empty_gloss,
+            })
+            continue
+        glossed_sentences.append(vs)
+    valid_sentences = glossed_sentences
+
     if not valid_sentences:
         _log_pipeline(_log_dir, {
             "event": "batch_zero_valid", "lemma_id": lemma_id, "target": lemma_ar,

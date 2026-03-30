@@ -188,11 +188,17 @@ def _fill_glosses_llm(
         except Exception as e:
             logger.warning(f"LLM gloss fallback failed: {e}")
 
-    # Apply cached glosses
+    # Apply cached glosses — hard guarantee: every word gets SOMETHING
     for vid, wi, sf in glossless:
         gloss = _llm_gloss_cache.get(sf)
-        if gloss and vid in verse_words_by_id and wi < len(verse_words_by_id[vid]):
-            verse_words_by_id[vid][wi]["gloss_en"] = gloss
+        if vid in verse_words_by_id and wi < len(verse_words_by_id[vid]):
+            if gloss:
+                verse_words_by_id[vid][wi]["gloss_en"] = gloss
+            elif not verse_words_by_id[vid][wi]["gloss_en"]:
+                # Absolute last resort: transliterate the Arabic
+                from app.services.transliteration import transliterate_arabic
+                verse_words_by_id[vid][wi]["gloss_en"] = f"({transliterate_arabic(sf)})"
+                logger.error(f"No gloss found for Quran word '{sf}' — using transliteration fallback")
 
 
 logger = logging.getLogger(__name__)
