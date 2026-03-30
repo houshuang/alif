@@ -204,13 +204,14 @@ def _fill_glosses_llm(
 logger = logging.getLogger(__name__)
 
 # SRS interval progression (level -> timedelta after "got_it")
+# Minimum 1 day — Quran verses are full sentences, not vocab flashcards
 VERSE_INTERVALS = {
-    1: timedelta(hours=4),
-    2: timedelta(hours=12),
-    3: timedelta(days=1),
-    4: timedelta(days=3),
-    5: timedelta(days=7),
-    6: timedelta(days=21),
+    1: timedelta(days=1),
+    2: timedelta(days=3),
+    3: timedelta(days=7),
+    4: timedelta(days=14),
+    5: timedelta(days=30),
+    6: timedelta(days=60),
 }
 MAX_LEARNING_LEVEL = 7
 GRADUATED_LEVEL = 8
@@ -223,8 +224,8 @@ LEMMATIZE_THRESHOLD = 10  # trigger when fewer than this many lemmatized unseen 
 
 def select_verse_cards(
     db: Session,
-    max_new: int = 3,
-    max_total: int = 8,
+    max_new: int = 2,
+    max_total: int = 5,
 ) -> list[dict]:
     """Select verse cards for the current session.
 

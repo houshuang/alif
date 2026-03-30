@@ -846,7 +846,8 @@ export async function getConfusionHelp(
 
 export async function lookupReviewWord(lemmaId: number): Promise<WordLookupResult> {
   const cached = await getCachedWordLookup(lemmaId);
-  if (cached) return cached;
+  // Bypass cache if the cached result has no gloss (backend may have fixed it since)
+  if (cached && cached.gloss_en) return cached;
   try {
     const result = await fetchApi<WordLookupResult>(`/api/review/word-lookup/${lemmaId}`);
     cacheWordLookup(lemmaId, result).catch(() => {});

@@ -1286,6 +1286,9 @@ RESCUE_MAX_ACCURACY = 0.50
 RESCUE_COOLDOWN_DAYS = 7
 
 
+MAX_INTRO_CARDS_PER_SESSION = 5
+
+
 def _build_intro_cards(
     db: Session,
     knowledge_by_id: dict[int, UserLemmaKnowledge],
@@ -1299,14 +1302,27 @@ def _build_intro_cards(
        for stuck words, with a 7-day cooldown between rescue cards.
 
     Both limited to words covered by sentences in this session.
+    Capped at MAX_INTRO_CARDS_PER_SESSION to avoid overwhelming sessions.
     """
     now = datetime.now(timezone.utc)
     cooldown_cutoff = now - timedelta(days=RESCUE_COOLDOWN_DAYS)
+
+    # Build canonical resolution map for variant checking
+    canonical_knowledge: dict[int, str] = {}  # canonical_id → knowledge_state
+    for lid, ulk in knowledge_by_id.items():
+        canonical_knowledge[lid] = ulk.knowledge_state or "new"
 
     card_ids = set()
     for lid, ulk in knowledge_by_id.items():
         if ulk.knowledge_state != "acquiring":
             continue
+
+        # Skip variants whose canonical is already known/learning
+        lemma = db.get(Lemma, lid)
+        if lemma and lemma.canonical_lemma_id and lemma.canonical_lemma_id != lid:
+            canon_ulk = knowledge_by_id.get(lemma.canonical_lemma_id)
+            if canon_ulk and canon_ulk.knowledge_state in ("known", "learning"):
+                continue
 
         # Category 1: New words (never reviewed)
         if (
@@ -1339,7 +1355,7 @@ def _build_intro_cards(
     if not card_ids:
         return []
 
-    return _build_reintro_cards(db, card_ids, limit=len(card_ids))
+    return _build_reintro_cards(db, card_ids, limit=min(len(card_ids), MAX_INTRO_CARDS_PER_SESSION))
 
 
 MAX_ON_DEMAND_PER_SESSION = 10
