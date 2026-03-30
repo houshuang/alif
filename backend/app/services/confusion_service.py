@@ -397,6 +397,7 @@ PHONETIC_MAP: dict[str, str] = {
     "ح": "ه", "ع": "ا",                          # pharyngeal → non-pharyngeal
     "ث": "س", "ذ": "ز",                          # interdental → sibilant
     "غ": "خ",                                     # voiced → voiceless uvular
+    "ن": "م",                                     # nasals
     "ة": "ه",                                     # ta marbuta → ha
     "ى": "ي",                                     # alif maqsura → ya
     "أ": "ا", "إ": "ا", "آ": "ا",               # hamza variants → alif
@@ -408,6 +409,7 @@ PHONETIC_PAIR_LABELS: dict[str, str] = {
     "ح": "ح≈ه", "ع": "ع≈أ",
     "ث": "ث≈س", "ذ": "ذ≈ز",
     "غ": "غ≈خ",
+    "ن": "ن≈م",
 }
 
 

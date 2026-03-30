@@ -830,7 +830,6 @@ def build_session(
             is_func = _is_function_word(bare)
             gloss = lemma.gloss_en if lemma else FUNCTION_WORD_GLOSSES.get(bare)
             if not gloss:
-                from app.services.sentence_validator import normalize_alef, strip_tatweel
                 bare_norm = normalize_alef(strip_tatweel(bare))
                 gloss = FUNCTION_WORD_GLOSSES.get(bare_norm)
             if not gloss and sw.lemma_id:
@@ -1498,7 +1497,6 @@ def _find_pregenerated_sentences_for_words(
             is_func = _is_function_word(bare)
             gloss = lemma.gloss_en if lemma else FUNCTION_WORD_GLOSSES.get(bare)
             if not gloss:
-                from app.services.sentence_validator import normalize_alef, strip_tatweel
                 bare_norm = normalize_alef(strip_tatweel(bare))
                 gloss = FUNCTION_WORD_GLOSSES.get(bare_norm)
             wm = WordMeta(

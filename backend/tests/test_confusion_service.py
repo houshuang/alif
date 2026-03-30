@@ -325,7 +325,7 @@ class TestPhonetic:
         assert to_phonetic("طبخ") == "تبخ"    # ط→ت
 
     def test_pharyngeal_mapping(self):
-        assert to_phonetic("عين") == "اين"    # ع→ا
+        assert to_phonetic("عين") == "ايم"    # ع→ا, ن→م
         assert to_phonetic("حب") == "هب"      # ح→ه
 
     def test_phonetic_distance_sabah_sab(self):
