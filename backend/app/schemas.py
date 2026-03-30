@@ -343,6 +343,7 @@ class ReintroCardOut(BaseModel):
     root_meaning: str | None = None
     root_id: int | None = None
     forms_json: dict | None = None
+    forms_translit: dict | None = None
     example_ar: str | None = None
     example_en: str | None = None
     audio_url: str | None = None

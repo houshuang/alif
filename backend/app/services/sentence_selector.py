@@ -15,7 +15,7 @@ from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Session, joinedload
 
 from app.services.fsrs_service import parse_json_column
-from app.services.transliteration import transliterate_arabic
+from app.services.transliteration import transliterate_arabic, transliterate_forms
 
 from app.models import (
     GrammarFeature,
@@ -1248,6 +1248,7 @@ def _build_reintro_cards(
             "root_meaning": root_obj.core_meaning_en if root_obj else None,
             "root_id": root_obj.root_id if root_obj else None,
             "forms_json": lemma.forms_json,
+            "forms_translit": transliterate_forms(lemma.forms_json) if lemma.forms_json else None,
             "example_ar": lemma.example_ar,
             "example_en": lemma.example_en,
             "audio_url": lemma.audio_url,

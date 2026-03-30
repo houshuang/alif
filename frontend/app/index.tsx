@@ -1735,20 +1735,11 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
               )}
             </View>
 
-            <FormsStrip pos={card.pos} forms={card.forms_json} />
+            <FormsStrip pos={card.pos} forms={card.forms_json} formsTranslit={card.forms_translit} />
           </View>
 
           {/* Info sections below hero */}
           <View style={styles.eiInfoSections}>
-            {eiHasMnemonic && (
-              <View style={styles.eiInfoSection}>
-                <Text style={[styles.eiSectionLabel, { color: "#9b59b6" }]}>Memory Hook</Text>
-                <View style={styles.eiMnemonicCard}>
-                  <Text style={styles.eiInfoText}>{card.memory_hooks!.mnemonic}</Text>
-                </View>
-              </View>
-            )}
-
             {eiHasEtymology && (
               <View style={styles.eiInfoSection}>
                 <Text style={[styles.eiSectionLabel, { color: colors.accent }]}>Etymology</Text>
@@ -1756,6 +1747,15 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
                   {card.etymology!.pattern ? `${card.etymology!.pattern}: ` : ""}
                   {card.etymology!.derivation}
                 </Text>
+              </View>
+            )}
+
+            {eiHasMnemonic && (
+              <View style={styles.eiInfoSection}>
+                <Text style={[styles.eiSectionLabel, { color: "#9b59b6" }]}>Memory Hook</Text>
+                <View style={styles.eiMnemonicCard}>
+                  <Text style={styles.eiInfoText}>{card.memory_hooks!.mnemonic}</Text>
+                </View>
               </View>
             )}
 
@@ -4442,7 +4442,8 @@ const styles = StyleSheet.create({
     writingDirection: "rtl",
     fontFamily: fontFamily.arabic,
     marginBottom: 6,
-    lineHeight: 72,
+    marginTop: 4,
+    lineHeight: 84,
   },
   eiEnglish: {
     fontSize: 24,

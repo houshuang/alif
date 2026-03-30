@@ -398,6 +398,7 @@ export interface ReintroCard {
   root_meaning: string | null;
   root_id: number | null;
   forms_json: WordForms | null;
+  forms_translit?: Record<string, string> | null;
   example_ar: string | null;
   example_en: string | null;
   audio_url: string | null;
