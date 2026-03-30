@@ -4,6 +4,31 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-03-30: Quran Card UX Improvements + Re-Lemmatization
+
+**Problem**: Verse cards had several UX issues: (1) font too small for Uthmani diacritics (28pt/24pt caused clipping), (2) no transliteration on card back (unlike sentence cards), (3) tapping a verse word showed a minimal inline tooltip instead of the full WordInfoCard, (4) Uthmani-specific diacritics (U+06E1, U+06DF, U+06E2) were not recognized by the transliteration engine. Separately, the first 20 verses had ~47 wrong lemma mappings from pure rule-based lemmatization (بسم→سمّ, عليهم→علي, أنعمت→ناعم, etc.).
+
+**Changes**:
+1. **Font size**: Bumped verse card Arabic from 28pt/24pt to 36pt/30pt (front/back) with lineHeight ~1.9x for Uthmani diacritics.
+2. **Transliteration on flip**: ALA-LC transliteration now shown on back of verse cards, using `transliterate_arabic()` service (not the junk phonetic data from risan/quran-json).
+3. **WordInfoCard on verse words**: Tapping a verse word opens the full WordInfoCard (root family, pattern chip, navigation to detail/pattern/root pages) — same component as sentence review lookup.
+4. **Uthmani diacritics in transliteration**: Added U+06E1 (Uthmani sukun), U+06DF (rounded zero), U+06E2 (small high meem) to the transliteration engine's diacritics set.
+5. **Ta maftouha fallback**: When Quran lemmatization fails to find a lemma, tries replacing word-final ت with ة and re-lookup. Handles ~15 high-frequency Quranic words (رحمت/رحمة, نعمت/نعمة, etc.).
+6. **Re-lemmatized first 20 verses**: Cleaned up bad rule-based mappings using LLM verification pass. 47 wrong mappings fixed.
+
+**Also in this session — Intro card improvements**:
+- Diacritic clipping fix: lineHeight 72→84 + marginTop 4 on eiArabic style
+- FormsStrip now passes `formsTranslit` prop, showing ALA-LC under conjugation chips
+- Etymology shown before memory hook (swapped order)
+- Source label shows lemma source (book, textbook scan, wiktionary, etc.) next to "New word X of Y"
+- Added `forms_translit` and `source` to `ReintroCardOut` schema
+
+**New reference**: `research/quranic-marks-reference.html` — comprehensive reference of Uthmani-specific typography (vowel marks, waqf signs, spelling differences, tajweed colors).
+
+**Verify**: Open a verse card → Arabic should be large (36pt) with no diacritic clipping. Tap a word → full WordInfoCard opens (not inline tooltip). Flip → ALA-LC transliteration appears alongside English translation. Check Al-Fatihah verses → mappings should be correct (بسم→اسم, عليهم→على, أنعمت→أنعم, etc.).
+
+---
+
 ## 2026-03-30: Intro Card Session Interleaving
 
 **Problem**: After textbook imports, up to 25 intro cards were front-loaded before any sentence reviews, making sessions feel overwhelming. Users reported dreading opening the app when faced with a wall of "learn new word" cards.

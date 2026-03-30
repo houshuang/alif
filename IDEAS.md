@@ -5,16 +5,23 @@
 ---
 
 ## Verse-by-Verse Text Reading Mode (2026-03-30)
-- Sequential reading through the Quran (and other texts) one verse at a time
-- Verse = unit of scheduling (simple SRS based on tap-to-lookup ratio, not FSRS)
-- Mixed into daily sessions or separate tab, micro-interactions (15 sec per verse)
-- New verses released in reading order (~3-5/day), reviewed out-of-order via SRS
+- [DONE] Sequential reading through the Quran one verse at a time
+- [DONE] Verse = unit of scheduling (simple level-based SRS, not FSRS)
+- [DONE] Mixed into daily sessions, micro-interactions
+- [DONE] New verses released in reading order (~3/day), reviewed out-of-order via SRS
+- [DONE] Start from Al-Fatihah, sequential through Quran, 6236 verses imported
+- [DONE] Tap-to-lookup on individual words with full WordInfoCard (root/pattern/navigation)
+- [DONE] ALA-LC transliteration on card back (via transliterate_arabic(), not risan/quran-json phonetic data)
+- [DONE] Ta maftouha fallback in lemmatization (رحمت→رحمة, نعمت→نعمة, etc.)
+- [DONE] Gold accent design distinguishing from regular review cards
 - Words absorbed through repeated verse exposure auto-promote to acquiring after 5+ non-tapped encounters
 - Motivational loop: master surah → unlock recitation listening
-- Start with short surahs (Juz Amma), Quran has ~1800 unique lemmas
 - Classical Arabic vocabulary directly relevant to user's literary goals
 - Pre-teaching: cautious — possibly only flag "too hard" verses, not pre-teach words
 - Inspired by user's earlier Anki Greek NT experience (see Substack post)
+- [ ] Improve Quran lemmatization to use LLM for all words (not just unresolved ones) — current rule-based pipeline misses many mappings
+- [ ] Handle clitic-attached content words in Quran (e.g., قلوبهم→قلب, ربهم→رب) — clitics on Quranic words need same stripping as sentence words
+- [ ] Quran audio: per-verse recitation playback (Husary/Minshawi recordings freely available)
 
 ## Session Presentation (2026-03-30)
 - [DONE] Interleave intro cards with review sentences (not front-loaded)

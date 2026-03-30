@@ -66,6 +66,11 @@ When a user flags a word mapping and the flag evaluator fixes it:
 ## Lookup Collision Handling
 `build_lemma_lookup()` uses two-pass construction: (1) register all lemma bare forms first, (2) register derived forms from `forms_json` second. This ensures direct lemma bare forms always take priority over derived forms (e.g., حول "around" wins over حَوْل masdar of حال "to change"). Returns a `LemmaLookupDict` (dict subclass) that tracks collisions — cases where two different lemmas normalize to the same key (e.g., أب "father" and آب "August" both → اب). First entry wins in the lookup. When `lookup_lemma()` hits a collision key and has the pre-normalized form (`original_bare`), it uses hamza-sensitive matching then CAMeL fallback to pick the correct lemma. Collisions are logged at INFO (count) and DEBUG (details).
 
+## Uthmani-Specific Normalization (Quran Lemmatization)
+Quranic text uses Uthmani orthography which differs from standard Arabic in several ways. The lemmatization pipeline in `quran_service.py` handles:
+1. **Ta maftouha → ta marbuta fallback**: When lemma lookup fails for a Quranic word, tries replacing word-final ت (ta maftouha, the Uthmani spelling) with ة (ta marbuta, standard spelling) and re-lookup. Handles ~15 high-frequency words: رحمت→رحمة, نعمت→نعمة, سنت→سنة, كلمت→كلمة, شجرت→شجرة, etc.
+2. **Uthmani diacritics in transliteration**: The transliteration engine recognizes U+06E1 (small high dotless head of khaa / Uthmani sukun), U+06DF (small high rounded zero), U+06E2 (small high meem) — these are Uthmani-specific marks not present in standard Arabic text.
+
 ## Planned (future)
 1. MLE disambiguator for sentence-level analysis (currently single-word only)
 2. Validate LLM grammar tags against morphological analysis
