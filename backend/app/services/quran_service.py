@@ -373,7 +373,7 @@ def _create_unknown_quran_lemmas(
             gloss_en=gloss,
             pos=pos,
             source="quran",
-            is_function_word=is_name,  # names treated as function words
+            word_category="proper_name" if is_name else None,
         )
         db.add(lemma)
         db.flush()
