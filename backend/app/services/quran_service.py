@@ -234,6 +234,11 @@ def select_verse_cards(
     all_verses = due_verses + new_verses
     verse_ids = [v.id for v in all_verses]
 
+    # Build lemma lookup dict once for morphological fallback
+    lemma_lookup = build_lemma_lookup(db)
+    # Pre-load lemma objects for resolved IDs
+    all_lemma_ids = set()
+
     # Batch load verse words + lemmas
     verse_words_by_id: dict[int, list] = {vid: [] for vid in verse_ids}
     if verse_ids:
@@ -249,6 +254,7 @@ def select_verse_cards(
             lemma = vw.lemma
             # For words without a gloss, try progressively harder lookups
             gloss = lemma.gloss_en if lemma else None
+            resolved_lemma = lemma
             if not gloss:
                 bare = normalize_alef(strip_tatweel(strip_diacritics(vw.surface_form)))
                 gloss = FUNCTION_WORD_GLOSSES.get(bare) or _QURAN_FUNCTION_GLOSSES.get(bare)
@@ -256,14 +262,23 @@ def select_verse_cards(
                     gloss = _gloss_with_pronoun_suffix(bare)
                 if not gloss:
                     gloss = _gloss_via_lemma_lookup(bare, db)
+                if not gloss:
+                    # Full morphological lookup (handles conjugations, broken plurals via forms_json)
+                    resolved_id = lookup_lemma(bare, lemma_lookup)
+                    if resolved_id:
+                        resolved_lemma = db.query(Lemma).get(resolved_id)
+                        if resolved_lemma:
+                            gloss = resolved_lemma.gloss_en
+            # Use resolved_lemma for richer word data when original lemma was missing
+            rl = resolved_lemma  # may be same as lemma, or a morphologically resolved one
             verse_words_by_id[vw.verse_id].append({
                 "surface_form": vw.surface_form,
-                "lemma_id": vw.lemma_id,
-                "lemma_ar": lemma.lemma_ar if lemma else None,
+                "lemma_id": vw.lemma_id or (rl.lemma_id if rl else None),
+                "lemma_ar": (rl.lemma_ar if rl else None) or (lemma.lemma_ar if lemma else None),
                 "gloss_en": gloss,
-                "root": lemma.root.root if lemma and lemma.root else None,
-                "root_meaning": lemma.root.core_meaning_en if lemma and lemma.root else None,
-                "pos": lemma.pos if lemma else None,
+                "root": rl.root.root if rl and rl.root else None,
+                "root_meaning": rl.root.core_meaning_en if rl and rl.root else None,
+                "pos": rl.pos if rl else None,
                 "is_function_word": vw.is_function_word or False,
             })
 
