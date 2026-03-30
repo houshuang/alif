@@ -11,7 +11,7 @@ from datetime import datetime, timedelta
 
 from sqlalchemy.orm import Session
 
-from app.models import Lemma, QuranicVerse, QuranicVerseWord, UserLemmaKnowledge
+from app.models import Lemma, QuranicVerse, QuranicVerseWord, Root, UserLemmaKnowledge
 from app.services.interaction_logger import log_interaction
 from app.services.transliteration import transliterate_arabic
 from app.services.sentence_validator import (
@@ -359,22 +359,33 @@ def _create_unknown_quran_lemmas(
 ) -> dict[str, int]:
     """Create Lemma + ULK records for unknown Quran words via LLM translation.
 
+    Gets general Arabic glosses (not Quran-specific theological meanings),
+    roots, and triggers background enrichment for forms/etymology.
+
     Returns map of bare_norm -> new lemma_id.
     """
+    import re
     from app.services.llm import generate_completion
+    from app.services.morphology import is_valid_root
 
     if not unknown_forms:
         return {}
 
-    # Batch LLM translation
+    # Batch LLM call — general Arabic meanings + root extraction
     word_list = [{"bare": bare, "surface": surf} for bare, surf in unknown_forms.items()]
     prompt = (
-        "Translate these Arabic words to English. Return a JSON array.\n"
-        "For each word, provide:\n"
+        "For each Arabic word, provide its GENERAL Arabic meaning (not Quran-specific "
+        "theological meanings) and its consonantal root.\n\n"
+        "Return a JSON array with:\n"
         "- bare: the bare form (as given)\n"
-        "- gloss_en: English translation (short, 1-3 words)\n"
+        "- gloss_en: general Arabic meaning (short, 1-3 words). Use the everyday "
+        "meaning, not a Quran-specific divine-attribute gloss. E.g. رحيم = "
+        "'merciful, compassionate' NOT 'Most Merciful'\n"
         "- pos: part of speech (noun/verb/adj/adv/prep/particle/name)\n"
-        "- is_name: true if it's a proper noun (person, place, deity name)\n\n"
+        "- root: consonantal root in dotted notation (e.g. ك.ت.ب), or null if none. "
+        "For derived forms (IV, V, VIII, X etc.), give the underlying trilateral root "
+        "(e.g. اِسْتَعَانَ → ع.و.ن, أَنْفَقَ → ن.ف.ق)\n"
+        "- is_name: true if it's a proper noun\n\n"
         "Words:\n"
     )
     for w in word_list[:50]:  # cap batch size
@@ -390,8 +401,13 @@ def _create_unknown_quran_lemmas(
     if not isinstance(translations, list):
         return {}
 
+    # Load existing roots for linking
+    all_roots = db.query(Root).all()
+    root_by_dotted = {r.root: r for r in all_roots}
+
     # Create lemmas
-    result: dict[str, int] = {}
+    result_map: dict[str, int] = {}
+    new_lemma_ids: list[int] = []
     existing_bare_set = {normalize_alef(l.lemma_ar_bare) for l in all_lemmas}
 
     for t in translations:
@@ -405,6 +421,20 @@ def _create_unknown_quran_lemmas(
         pos = t.get("pos", "noun")
         is_name = t.get("is_name", False)
 
+        # Resolve root
+        root_id = None
+        root_str = t.get("root")
+        if root_str:
+            cleaned = re.sub(r'[^\u0600-\u06FF.]', '', root_str)
+            if cleaned and is_valid_root(cleaned):
+                root = root_by_dotted.get(cleaned)
+                if not root:
+                    root = Root(root=cleaned)
+                    db.add(root)
+                    db.flush()
+                    root_by_dotted[cleaned] = root
+                root_id = root.root_id
+
         surface = unknown_forms.get(bare_norm, bare)
 
         lemma = Lemma(
@@ -413,12 +443,14 @@ def _create_unknown_quran_lemmas(
             gloss_en=gloss,
             pos=pos,
             source="quran",
+            root_id=root_id,
             word_category="proper_name" if is_name else None,
         )
         db.add(lemma)
         db.flush()
 
-        result[bare_norm] = lemma.lemma_id
+        result_map[bare_norm] = lemma.lemma_id
+        new_lemma_ids.append(lemma.lemma_id)
         existing_bare_set.add(bare_norm)
 
         # Create "encountered" ULK — does NOT enter learning pipeline
@@ -437,4 +469,14 @@ def _create_unknown_quran_lemmas(
             db.add(ulk)
 
     db.commit()
-    return result
+
+    # Trigger background enrichment (forms, etymology, transliteration)
+    if new_lemma_ids:
+        try:
+            from app.services.lemma_enrichment import enrich_lemmas_batch
+            enriched = enrich_lemmas_batch(new_lemma_ids)
+            logger.info(f"Enriched {len(new_lemma_ids)} new Quran lemmas: {enriched}")
+        except Exception as e:
+            logger.warning(f"Enrichment failed for new Quran lemmas: {e}")
+
+    return result_map
