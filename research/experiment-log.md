@@ -4,6 +4,19 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-03-30b: Quran Card RTL Fix + WordInfoCard + Intro Source
+
+**Problem**: (1) Quran verse words rendered left-to-right instead of right-to-left — `flexDirection: "row"` laid out words in DOM order (LTR). (2) Tapping a verse word showed the WordInfoCard spinner briefly, then it vanished — `hasFocus` required `markState !== null`, but verse taps pass `markState={null}`. (3) Intro card `source` label used `lemma.source` (dictionary provenance like "wiktionary") instead of `ulk.source` (learning source like "book", "textbook_scan").
+
+**Changes**:
+1. **RTL word order**: Changed verse word container from `flexDirection: "row"` to `"row-reverse"` so words flow right-to-left.
+2. **WordInfoCard visibility**: Extended `hasFocus` to also be true when `result` or `loading` is present (not only when `markState` is set). Now the card stays visible after API response arrives.
+3. **Intro card source**: `_build_reintro_cards` now uses `_display_source()` helper — prefers `ulk.source` (book/story_import/duolingo/textbook_scan) over `lemma.source` (wiktionary/avp_a1), same logic as word detail page.
+
+**Verify**: Open Quran verse card → words should read right-to-left. Tap a word → WordInfoCard should stay visible showing root, pattern, gloss. Start a session with intro cards → source label should show meaningful provenance (book, duolingo, etc.).
+
+---
+
 ## 2026-03-30: Quran Card UX Improvements + Re-Lemmatization
 
 **Problem**: Verse cards had several UX issues: (1) font too small for Uthmani diacritics (28pt/24pt caused clipping), (2) no transliteration on card back (unlike sentence cards), (3) tapping a verse word showed a minimal inline tooltip instead of the full WordInfoCard, (4) Uthmani-specific diacritics (U+06E1, U+06DF, U+06E2) were not recognized by the transliteration engine. Separately, the first 20 verses had ~47 wrong lemma mappings from pure rule-based lemmatization (بسم→سمّ, عليهم→علي, أنعمت→ناعم, etc.).
