@@ -7,6 +7,7 @@ All scripts in `backend/scripts/`. Run from `backend/` directory.
 - `import_wiktionary.py` — Import from Wiktionary. Uses clitic-aware dedup.
 - `import_avp_a1.py` — Import AVP A1 word list. Uses clitic-aware dedup.
 - `import_michel_thomas.py` — 5-phase audio course import: Soniox transcribe → extract Arabic segments → LLM classify Egyptian vs MSA → import words as "learning" + sentences → verify; --phase flag for resumability, --dry-run supported.
+- `import_quran.py` — Import all 114 surahs (6236 verses) from risan/quran-json CDN. `--lemmatize N` processes first N verses through the lemmatization pipeline (tokenize → lemma lookup → LLM translation for unknowns). Quran-only lemmas created with source="quran", ULK state="encountered".
 
 ## Material Generation
 - `pregenerate_material.py` — Pregenerate sentences and audio for words.

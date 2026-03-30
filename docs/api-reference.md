@@ -15,7 +15,7 @@ Full endpoint list. See `backend/app/routers/` for implementation.
 |--------|------|-------------|
 | GET | `/api/review/next?limit=10` | Due review cards (legacy word-only) |
 | GET | `/api/review/next-listening` | Listening-suitable review cards (legacy) |
-| GET | `/api/review/next-sentences?limit=10&mode=reading` | Sentence-centric review session (primary). Each item includes `selection_info` with reason, score, word_reason, and score component breakdown |
+| GET | `/api/review/next-sentences?limit=10&mode=reading` | Sentence-centric review session (primary). Each item includes `selection_info` with reason, score, word_reason, and score component breakdown. Response also includes `verse_cards` (Quran verses with word data for tap-to-lookup, reading mode only) |
 | POST | `/api/review/submit` | Submit single-word review (legacy) |
 | POST | `/api/review/submit-sentence` | Submit sentence review — all words get FSRS credit. Accepts confused_lemma_ids |
 | POST | `/api/review/undo-sentence` | Undo a sentence review — restores pre-review FSRS state, deletes logs |
@@ -23,7 +23,8 @@ Full endpoint list. See `backend/app/routers/` for implementation.
 | GET | `/api/review/confusion-help/{lemma_id}?surface_form=...` | Confusion analysis for "did not recognize" words — morphological decomposition (clitics/forms) + visual similarity (edit distance/rasm) |
 | POST | `/api/review/sync` | Bulk sync offline reviews |
 | POST | `/api/review/reintro-result` | Submit re-introduction quiz result |
-| POST | `/api/review/experiment-intro-ack` | Acknowledge experiment intro card was shown (A/B test logging) |
+| POST | `/api/review/experiment-intro-ack` | Acknowledge experiment intro card was shown (sets `experiment_intro_shown_at` for dedup + rescue cooldown) |
+| POST | `/api/review/verse` | Submit Quran verse review: verse_id + rating (got_it/partially/not_yet). Level-based SRS |
 | POST | `/api/review/wrap-up` | Wrap-up mini-quiz: word-level recall cards for acquiring + missed words. `WrapUpCardOut` includes `root_id`, `root_family`, `forms_translit`, `pattern_examples`, `etymology_json`, `memory_hooks_json` |
 | POST | `/api/review/recap` | (Deprecated) Was next-session recap — removed from frontend, redundant with within-session repetition |
 | POST | `/api/review/warm-sentences` | Pre-generate sentences for likely next session words (background, returns 202) |

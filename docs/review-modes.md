@@ -54,3 +54,15 @@ After all sentences are reviewed:
 3. **Reader**: Word-by-word Arabic with tap-to-lookup (shows gloss, transliteration, root, POS). Arabic/English tab toggle. Actions at end of scroll (not fixed bottom bar).
 4. **Completion flow**: Complete (creates "encountered" ULK for unknown words — no FSRS card; submits real review only for words with active FSRS cards), Skip (only rates looked-up words), Too Difficult (same as skip)
 5. **List view**: Cards with readiness indicators (green ≤3 unknown, orange, red), generate + import modals
+
+## Quran Reading Mode
+Verse-by-verse Quran reading interleaved with review sessions. Not a separate mode — verse cards appear among regular sentence cards with a distinct gold-accented design.
+
+1. **Front**: Arabic verse (Uthmani tashkeel, Scheherazade font) pinned at top. Attribution bar shows surah name + verse number. Optional tap-to-lookup on individual words (shows lemma, gloss, root chip, POS badge). "Show Translation" button.
+2. **Back**: Arabic stays visible, English translation (Sahih International) appears below gold divider. Looked-up words shown as summary pills. Three rating buttons: "Got it" (green) / "Partially" (amber) / "Not yet" (red).
+3. **SRS**: Simple level-based (not FSRS). Level 0=unseen, 1-7=learning, 8=graduated. "Got it" advances level with intervals: 4h→12h→1d→3d→7d→21d→graduated. "Partially" drops 1 level, due in 2h. "Not yet" resets to level 1, due immediately.
+4. **Gating**: 3 new verses per session. Only introduced when non-understood backlog < 20. Only lemmatized verses can be introduced (ensures word data available for lookup).
+5. **Lemmatization**: Lazy — `lemmatize_quran_verses()` processes next 20 verses when <10 lemmatized unseen remain. Uses existing pipeline (tokenize → lemma lookup → CAMeL fallback → LLM batch translation for unknowns).
+6. **Pipeline protection**: Quran-only lemmas created with `source="quran"`, ULK `state="encountered"`. They never auto-enter acquiring, never get intro cards, never get FSRS cards.
+7. **Interleaving**: `buildInterleavedSession()` in `index.tsx` distributes verse slots at evenly-spaced positions among sentence + intro card slots.
+8. **Data**: 6236 verses from risan/quran-json CDN. Sequential from Al-Fatihah. Tables: `quranic_verses`, `quranic_verse_words`.

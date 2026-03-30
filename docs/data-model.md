@@ -24,6 +24,10 @@ SQLAlchemy models in `backend/app/models.py`. Pydantic schemas in `backend/app/s
 - `story_words` — Per-token: position, surface_form, lemma_id, gloss_en, is_function_word, name_type
 - `page_uploads` — OCR tracking: batch_id, status, extracted_words_json, new_words, existing_words, textbook_page_number (detected printed page number from OCR)
 
+## Quran
+- `quranic_verses` — surah, ayah, surah_name_ar/en, arabic_text (Uthmani tashkeel), english_translation (Sahih International), transliteration. SRS state: next_due, srs_level (0=unseen, 1-7=learning, 8=graduated), last_rating, times_reviewed. lemmatized_at tracks lazy lemmatization. Unique on (surah, ayah). 6236 rows from risan/quran-json CDN.
+- `quranic_verse_words` — Per-token: verse_id (FK), position, surface_form, lemma_id (FK nullable), is_function_word. Created by `lemmatize_quran_verses()`.
+
 ## System
 - `content_flags` — Flagged content: content_type, status (pending/reviewing/fixed/dismissed)
 - `activity_log` — System events: event_type, summary, detail_json

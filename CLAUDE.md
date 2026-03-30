@@ -48,6 +48,7 @@ npx expo start --web  # opens on localhost:8081
 - **Listening Mode**: ElevenLabs TTS, reveal Arabic → reveal English
 - **Learn Mode**: 5-candidate pick → done (info-dense card with root/pattern chips → detail pages, pattern examples, forms strip, etymology, mnemonic)
 - **Story Mode**: generate/import, tap-to-lookup reader (root/pattern navigation), complete/suspend/archive. 4 formats: standard, long (12-20 sentences), breakdown (audio: half→full sentences), arabic_explanation (simple Arabic explanations). Story audio via ElevenLabs with voice rotation (3 male voices, deterministic by story_id). Archive system (orthogonal to status). `times_heard` passive listening tracking. Auto-generate cron keeps ≥3 active non-archived stories.
+- **Quran Reading Mode**: Verse-by-verse reading interleaved in review sessions. Front: Arabic text (Uthmani tashkeel, Scheherazade font) with optional tap-to-lookup on individual words (shows lemma, gloss, root, POS). Back: flip to reveal English translation (Sahih International), rate as "Got it" / "Partially" / "Not yet". Simple level-based SRS (not FSRS): 4h → 12h → 1d → 3d → 7d → 21d → graduated. 3 new verses per session, gated by non-understood backlog < 20. Rapid repetition: "Not yet" = due next session, "Partially" = 2h. Sequential from Al-Fatihah. Data: `QuranicVerse` + `QuranicVerseWord` tables, 6236 verses imported from risan/quran-json CDN. Lazy lemmatization: `lemmatize_quran_verses()` processes next 20 verses when buffer runs low. **Quran-only lemmas stay "encountered"** — never auto-enter the learning pipeline. Gold accent (#d4a056) distinguishes from regular blue-accented cards. Service: `quran_service.py`. Import: `scripts/import_quran.py`. API: `POST /api/review/verse`, verse cards in session response.
 - **Podcast Mode**: Audio learning episodes in 3 formats: (1) **story** — LLM-generated stories from high-stability vocabulary, (2) **book** — existing DB stories (books, Qur'an) with automatic long-sentence breakdown, (3) **ci** — Arabic-in-Arabic comprehensible input (5-phase: establish context → circumlocute new word → build complexity → full passage → close). Long sentences (≥8 words) auto-broken into ~4-word chunks, each paired with matching English fragment. Explicit "Complete" button increments `times_heard` on all content words via pre-computed `word_lemma_ids` in metadata, closes detail view, moves episode to "Completed" list. Auto-generation cron (Step I) maintains ≥4 unheard episodes, alternating story and CI formats. File-based storage: MP3 + JSON pairs in `data/podcasts/`. 25 story themes + 12 CI topics. Scripts: `generate_story_podcasts.py` (`--from-story N`, `--count N`, `--ci-topic "..." --ci-target "word:gloss"`). API: `/api/podcasts`, `/api/podcasts/complete/{fn}`.
 
 ## Design Principles
@@ -172,8 +173,10 @@ Phase 3: Write — open/reuse session, write results, commit (milliseconds)
 - `backend/app/routers/` — API routes (see `docs/api-reference.md`)
 - `backend/app/services/` — All services (see `docs/backend-services.md`)
 - `backend/app/services/podcast_service.py` — Podcast service: TTS stitching, completion with word credit, file-based metadata
+- `backend/app/services/quran_service.py` — Quran reading: verse selection (backlog-gated SRS), review submission, lazy lemmatization pipeline
 - `backend/scripts/` — All scripts (see `docs/scripts-catalog.md`)
 - `backend/scripts/generate_story_podcasts.py` — Podcast generation: LLM stories, book-to-podcast, CI episodes
+- `backend/scripts/import_quran.py` — Import Quran from risan/quran-json CDN (6236 verses) + initial lemmatization
 
 ## Testing
 ```bash
