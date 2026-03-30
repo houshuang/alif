@@ -148,6 +148,53 @@ def _gloss_via_lemma_lookup(bare: str, db: Session) -> str | None:
     return None
 
 
+# In-memory cache for LLM-generated glosses (surface_form → gloss)
+_llm_gloss_cache: dict[str, str] = {}
+
+
+def _fill_glosses_llm(
+    glossless: list[tuple[int, int, str]],
+    verse_words_by_id: dict[int, list],
+    all_verses: list,
+) -> None:
+    """Batch-translate glossless words via LLM. Results cached in memory."""
+    # Check cache first
+    uncached = [(vid, wi, sf) for vid, wi, sf in glossless if sf not in _llm_gloss_cache]
+    if uncached:
+        surface_forms = list({sf for _, _, sf in uncached})
+        try:
+            from app.services.llm import generate_structured
+            prompt = (
+                "Translate each Arabic word/phrase to a brief English gloss (1-4 words). "
+                "These are from the Quran. Return a JSON object mapping Arabic → English.\n\n"
+                + "\n".join(surface_forms)
+            )
+            result = generate_structured(
+                prompt=prompt,
+                response_schema={"type": "object"},
+                model_override="gemini_flash",
+            )
+            if isinstance(result, dict):
+                for ar, en in result.items():
+                    bare = _normalize_quran(normalize_alef(strip_tatweel(strip_diacritics(ar))))
+                    _llm_gloss_cache[ar] = str(en)
+                    _llm_gloss_cache[bare] = str(en)
+                # Also map by surface form directly
+                for sf in surface_forms:
+                    if sf not in _llm_gloss_cache:
+                        bare = _normalize_quran(normalize_alef(strip_tatweel(strip_diacritics(sf))))
+                        if bare in _llm_gloss_cache:
+                            _llm_gloss_cache[sf] = _llm_gloss_cache[bare]
+        except Exception as e:
+            logger.warning(f"LLM gloss fallback failed: {e}")
+
+    # Apply cached glosses
+    for vid, wi, sf in glossless:
+        gloss = _llm_gloss_cache.get(sf)
+        if gloss and vid in verse_words_by_id and wi < len(verse_words_by_id[vid]):
+            verse_words_by_id[vid][wi]["gloss_en"] = gloss
+
+
 logger = logging.getLogger(__name__)
 
 # SRS interval progression (level -> timedelta after "got_it")
@@ -295,6 +342,15 @@ def select_verse_cards(
                 "pos": rl.pos if rl else None,
                 "is_function_word": vw.is_function_word or False,
             })
+
+    # Safety net: LLM-translate any remaining glossless words
+    glossless: list[tuple[int, int, str]] = []  # (verse_idx_in_list, word_idx, surface_form)
+    for vid, words_list in verse_words_by_id.items():
+        for wi, wd in enumerate(words_list):
+            if not wd["gloss_en"]:
+                glossless.append((vid, wi, wd["surface_form"]))
+    if glossless:
+        _fill_glosses_llm(glossless, verse_words_by_id, all_verses)
 
     result = []
     for v in all_verses:
