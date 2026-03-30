@@ -1914,8 +1914,8 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
                     }}
                   >
                     <Text style={{
-                      fontSize: verseFlipped ? 24 : 28,
-                      lineHeight: verseFlipped ? 44 : 52,
+                      fontSize: verseFlipped ? 30 : 36,
+                      lineHeight: verseFlipped ? 58 : 68,
                       color: colors.arabic,
                       fontFamily: fontFamily.arabic,
                       writingDirection: "rtl",
@@ -1927,8 +1927,8 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
               </View>
             ) : (
               <Text style={{
-                fontSize: verseFlipped ? 24 : 28,
-                lineHeight: verseFlipped ? 44 : 52,
+                fontSize: verseFlipped ? 30 : 36,
+                lineHeight: verseFlipped ? 58 : 68,
                 color: colors.arabic,
                 fontFamily: fontFamily.arabic,
                 writingDirection: "rtl",
@@ -1990,6 +1990,18 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
                 }}>
                   {verse.english_translation}
                 </Text>
+                {verse.transliteration && (
+                  <Text style={{
+                    fontSize: 15,
+                    color: "#8888a0",
+                    fontFamily: fontFamily.translit,
+                    marginTop: 8,
+                    textAlign: "center",
+                    lineHeight: 24,
+                  }}>
+                    {verse.transliteration}
+                  </Text>
+                )}
 
                 {/* Looked-up words summary pills */}
                 {lookedUpWords.length > 0 && (

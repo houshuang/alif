@@ -1,0 +1,1374 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Marks of the Quran — Alif Reference</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Scheherazade+New:wght@400;700&family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400;1,500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #12121f;
+    --bg-deep: #0d0d18;
+    --surface: #1a1a2e;
+    --surface-light: #222240;
+    --surface-hover: #2a2a4a;
+    --border: #2a2a45;
+    --border-light: #353555;
+    --text: #e8e6e0;
+    --text-dim: #9a98a0;
+    --text-faint: #5a586a;
+    --gold: #d4a056;
+    --gold-light: #e8c47a;
+    --gold-dim: rgba(212, 160, 86, 0.15);
+    --gold-glow: rgba(212, 160, 86, 0.06);
+    --gold-bright: #f0c878;
+    --green: #5aab6e;
+    --green-dim: rgba(90, 171, 110, 0.15);
+    --red: #c45c5c;
+    --red-dim: rgba(196, 92, 92, 0.15);
+    --blue: #5a8abf;
+    --blue-dim: rgba(90, 138, 191, 0.15);
+    --purple: #9a6abf;
+    --purple-dim: rgba(154, 106, 191, 0.15);
+    --orange: #c8903a;
+    --orange-dim: rgba(200, 144, 58, 0.15);
+    --gray: #8888a0;
+    --gray-dim: rgba(136, 136, 160, 0.12);
+    --maroon: #a04050;
+    --maroon-dim: rgba(160, 64, 80, 0.15);
+    --font-arabic: 'Scheherazade New', serif;
+    --font-display: 'Cormorant Garamond', serif;
+    --font-body: 'Cormorant Garamond', serif;
+    --radius: 12px;
+    --radius-sm: 8px;
+    --radius-lg: 16px;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-body);
+    font-weight: 400;
+    font-size: 17px;
+    line-height: 1.7;
+    min-height: 100vh;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* Geometric background pattern */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+    opacity: 0.018;
+    background-image:
+      radial-gradient(circle at 25% 25%, var(--gold) 1px, transparent 1px),
+      radial-gradient(circle at 75% 75%, var(--gold) 1px, transparent 1px);
+    background-size: 60px 60px;
+  }
+
+  /* Subtle noise overlay */
+  body::after {
+    content: '';
+    position: fixed;
+    inset: 0;
+    z-index: 9999;
+    pointer-events: none;
+    opacity: 0.02;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+    background-size: 256px 256px;
+  }
+
+  /* === LAYOUT === */
+  .page-wrapper {
+    max-width: 960px;
+    margin: 0 auto;
+    padding: 40px 24px 120px;
+    position: relative;
+    z-index: 1;
+  }
+
+  /* === STICKY NAV === */
+  .sticky-nav {
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    background: rgba(18, 18, 31, 0.92);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border-bottom: 1px solid var(--border);
+    margin: 0 -24px;
+    padding: 0 24px;
+    transition: box-shadow 0.3s ease;
+  }
+
+  .sticky-nav.scrolled {
+    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.4);
+  }
+
+  .nav-inner {
+    display: flex;
+    gap: 0;
+    overflow-x: auto;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+    max-width: 960px;
+    margin: 0 auto;
+  }
+  .nav-inner::-webkit-scrollbar { display: none; }
+
+  .nav-link {
+    display: block;
+    padding: 14px 18px;
+    color: var(--text-dim);
+    text-decoration: none;
+    font-family: var(--font-display);
+    font-size: 14px;
+    font-weight: 500;
+    letter-spacing: 0.03em;
+    white-space: nowrap;
+    border-bottom: 2px solid transparent;
+    transition: color 0.2s, border-color 0.2s;
+  }
+  .nav-link:hover {
+    color: var(--gold-light);
+  }
+  .nav-link.active {
+    color: var(--gold);
+    border-bottom-color: var(--gold);
+  }
+
+  /* === HERO === */
+  .hero {
+    text-align: center;
+    padding: 60px 0 50px;
+    position: relative;
+  }
+
+  .hero-arabic {
+    font-family: var(--font-arabic);
+    font-size: 48px;
+    font-weight: 700;
+    color: var(--gold);
+    line-height: 1.4;
+    margin-bottom: 8px;
+    text-shadow: 0 0 40px rgba(212, 160, 86, 0.15);
+  }
+
+  .hero-title {
+    font-family: var(--font-display);
+    font-size: 28px;
+    font-weight: 300;
+    color: var(--text);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    margin-bottom: 24px;
+  }
+
+  .hero-subtitle {
+    max-width: 600px;
+    margin: 0 auto;
+    color: var(--text-dim);
+    font-size: 17px;
+    line-height: 1.7;
+    font-style: italic;
+  }
+
+  /* Ornamental divider */
+  .ornament {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    margin: 40px 0;
+    color: var(--gold);
+    opacity: 0.4;
+  }
+  .ornament::before,
+  .ornament::after {
+    content: '';
+    flex: 1;
+    max-width: 120px;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--gold), transparent);
+  }
+  .ornament-diamond {
+    width: 8px;
+    height: 8px;
+    background: var(--gold);
+    transform: rotate(45deg);
+  }
+
+  /* === SECTIONS === */
+  .section {
+    margin-bottom: 64px;
+    scroll-margin-top: 60px;
+  }
+
+  .section-header {
+    margin-bottom: 32px;
+  }
+
+  .section-number {
+    font-family: var(--font-display);
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--gold);
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    margin-bottom: 6px;
+  }
+
+  .section-title {
+    font-family: var(--font-display);
+    font-size: 28px;
+    font-weight: 600;
+    color: var(--text);
+    line-height: 1.3;
+    margin-bottom: 8px;
+  }
+
+  .section-title-arabic {
+    font-family: var(--font-arabic);
+    font-size: 24px;
+    color: var(--gold);
+    opacity: 0.7;
+    display: inline-block;
+    margin-right: 12px;
+  }
+
+  .section-desc {
+    color: var(--text-dim);
+    font-size: 16px;
+    max-width: 700px;
+    line-height: 1.7;
+  }
+
+  /* === MARK CARDS === */
+  .marks-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 20px;
+  }
+
+  .mark-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 28px;
+    display: grid;
+    grid-template-columns: 100px 1fr;
+    gap: 24px;
+    transition: border-color 0.3s, transform 0.3s, box-shadow 0.3s;
+    opacity: 0;
+    transform: translateY(12px);
+    animation: fadeInUp 0.5s ease forwards;
+  }
+  .mark-card:hover {
+    border-color: var(--gold);
+    box-shadow: 0 4px 32px rgba(212, 160, 86, 0.08);
+    transform: translateY(-2px);
+  }
+
+  @keyframes fadeInUp {
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .mark-card:nth-child(1) { animation-delay: 0.05s; }
+  .mark-card:nth-child(2) { animation-delay: 0.1s; }
+  .mark-card:nth-child(3) { animation-delay: 0.15s; }
+  .mark-card:nth-child(4) { animation-delay: 0.2s; }
+  .mark-card:nth-child(5) { animation-delay: 0.25s; }
+  .mark-card:nth-child(6) { animation-delay: 0.3s; }
+  .mark-card:nth-child(7) { animation-delay: 0.35s; }
+  .mark-card:nth-child(8) { animation-delay: 0.4s; }
+
+  .mark-glyph-area {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
+    padding-top: 4px;
+  }
+
+  .mark-glyph {
+    font-family: var(--font-arabic);
+    font-size: 64px;
+    line-height: 1;
+    color: var(--gold);
+    text-shadow: 0 0 30px rgba(212, 160, 86, 0.2);
+    margin-bottom: 8px;
+    /* For combining marks, add a base letter */
+  }
+
+  .mark-glyph-base {
+    font-family: var(--font-arabic);
+    font-size: 64px;
+    line-height: 1;
+    color: var(--text);
+    text-shadow: 0 0 30px rgba(212, 160, 86, 0.2);
+    margin-bottom: 8px;
+    position: relative;
+  }
+  .mark-glyph-base .mark-highlight {
+    color: var(--gold);
+  }
+
+  .mark-unicode {
+    font-family: 'SF Mono', 'Fira Code', monospace;
+    font-size: 11px;
+    color: var(--text-faint);
+    background: var(--bg-deep);
+    padding: 2px 8px;
+    border-radius: 4px;
+    letter-spacing: 0.05em;
+  }
+
+  .mark-info {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .mark-name {
+    font-family: var(--font-display);
+    font-size: 20px;
+    font-weight: 600;
+    color: var(--text);
+    line-height: 1.3;
+  }
+
+  .mark-name-arabic {
+    font-family: var(--font-arabic);
+    font-size: 18px;
+    color: var(--gold);
+    opacity: 0.7;
+    margin-left: 8px;
+  }
+
+  .mark-description {
+    color: var(--text-dim);
+    font-size: 15.5px;
+    line-height: 1.65;
+  }
+
+  .mark-example {
+    background: var(--bg-deep);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 16px 20px;
+    margin-top: 4px;
+  }
+
+  .mark-example-verse {
+    font-family: var(--font-arabic);
+    font-size: 28px;
+    color: var(--text);
+    line-height: 1.8;
+    direction: rtl;
+    text-align: right;
+    margin-bottom: 8px;
+  }
+
+  .mark-example-verse .hl {
+    color: var(--gold-bright);
+    text-shadow: 0 0 16px rgba(212, 160, 86, 0.25);
+  }
+
+  .mark-example-ref {
+    font-family: var(--font-display);
+    font-size: 13px;
+    font-style: italic;
+    color: var(--text-faint);
+  }
+
+  .mark-example-note {
+    color: var(--text-dim);
+    font-size: 14px;
+    margin-top: 6px;
+    line-height: 1.5;
+  }
+
+  /* === WAQF CARDS === */
+  .waqf-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 16px;
+  }
+
+  .waqf-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 24px;
+    text-align: center;
+    transition: border-color 0.3s, transform 0.3s;
+    opacity: 0;
+    transform: translateY(12px);
+    animation: fadeInUp 0.5s ease forwards;
+  }
+  .waqf-card:hover {
+    border-color: var(--gold);
+    transform: translateY(-2px);
+  }
+
+  .waqf-card:nth-child(1) { animation-delay: 0.05s; }
+  .waqf-card:nth-child(2) { animation-delay: 0.1s; }
+  .waqf-card:nth-child(3) { animation-delay: 0.15s; }
+  .waqf-card:nth-child(4) { animation-delay: 0.2s; }
+  .waqf-card:nth-child(5) { animation-delay: 0.25s; }
+  .waqf-card:nth-child(6) { animation-delay: 0.3s; }
+  .waqf-card:nth-child(7) { animation-delay: 0.35s; }
+
+  .waqf-glyph {
+    font-family: var(--font-arabic);
+    font-size: 48px;
+    color: var(--gold);
+    line-height: 1.2;
+    margin-bottom: 8px;
+    text-shadow: 0 0 24px rgba(212, 160, 86, 0.15);
+  }
+
+  .waqf-unicode {
+    font-family: 'SF Mono', 'Fira Code', monospace;
+    font-size: 10px;
+    color: var(--text-faint);
+    background: var(--bg-deep);
+    padding: 2px 6px;
+    border-radius: 4px;
+    display: inline-block;
+    margin-bottom: 10px;
+  }
+
+  .waqf-name {
+    font-family: var(--font-display);
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--text);
+    margin-bottom: 4px;
+  }
+
+  .waqf-meaning {
+    color: var(--text-dim);
+    font-size: 14px;
+    line-height: 1.55;
+  }
+
+  .waqf-action {
+    display: inline-block;
+    margin-top: 10px;
+    font-family: var(--font-display);
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    padding: 3px 10px;
+    border-radius: 4px;
+  }
+  .waqf-action.stop {
+    color: var(--red);
+    background: var(--red-dim);
+  }
+  .waqf-action.go {
+    color: var(--green);
+    background: var(--green-dim);
+  }
+  .waqf-action.either {
+    color: var(--gold);
+    background: var(--gold-dim);
+  }
+  .waqf-action.pause {
+    color: var(--blue);
+    background: var(--blue-dim);
+  }
+  .waqf-action.special {
+    color: var(--purple);
+    background: var(--purple-dim);
+  }
+
+  /* === SPELLING TABLE === */
+  .spelling-table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+  }
+
+  .spelling-table thead th {
+    font-family: var(--font-display);
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--gold);
+    background: var(--bg-deep);
+    padding: 14px 18px;
+    text-align: left;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .spelling-table tbody td {
+    padding: 16px 18px;
+    border-bottom: 1px solid var(--border);
+    vertical-align: top;
+  }
+  .spelling-table tbody tr:last-child td {
+    border-bottom: none;
+  }
+
+  .spelling-table tbody tr:hover {
+    background: var(--gold-glow);
+  }
+
+  .spelling-feature {
+    font-family: var(--font-display);
+    font-weight: 600;
+    font-size: 15px;
+    color: var(--text);
+  }
+
+  .spelling-arabic {
+    font-family: var(--font-arabic);
+    font-size: 24px;
+    direction: rtl;
+    color: var(--text);
+    line-height: 1.6;
+  }
+  .spelling-arabic.uthmani {
+    color: var(--gold-light);
+  }
+
+  .spelling-note {
+    color: var(--text-dim);
+    font-size: 14px;
+    line-height: 1.55;
+  }
+
+  /* === TAJWEED CARDS === */
+  .tajweed-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 16px;
+  }
+
+  .tajweed-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 24px;
+    transition: border-color 0.3s, transform 0.3s;
+    position: relative;
+    overflow: hidden;
+    opacity: 0;
+    transform: translateY(12px);
+    animation: fadeInUp 0.5s ease forwards;
+  }
+  .tajweed-card:hover {
+    transform: translateY(-2px);
+  }
+
+  .tajweed-card:nth-child(1) { animation-delay: 0.05s; }
+  .tajweed-card:nth-child(2) { animation-delay: 0.1s; }
+  .tajweed-card:nth-child(3) { animation-delay: 0.15s; }
+  .tajweed-card:nth-child(4) { animation-delay: 0.2s; }
+  .tajweed-card:nth-child(5) { animation-delay: 0.25s; }
+  .tajweed-card:nth-child(6) { animation-delay: 0.3s; }
+  .tajweed-card:nth-child(7) { animation-delay: 0.35s; }
+
+  .tajweed-color-bar {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+  }
+
+  .tajweed-dot {
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    display: inline-block;
+    margin-right: 8px;
+    vertical-align: middle;
+    box-shadow: 0 0 8px currentColor;
+  }
+
+  .tajweed-rule {
+    font-family: var(--font-display);
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--text);
+    margin-bottom: 2px;
+    display: flex;
+    align-items: center;
+  }
+
+  .tajweed-rule-arabic {
+    font-family: var(--font-arabic);
+    font-size: 18px;
+    color: var(--gold);
+    opacity: 0.7;
+    margin-bottom: 8px;
+  }
+
+  .tajweed-desc {
+    color: var(--text-dim);
+    font-size: 14px;
+    line-height: 1.55;
+    margin-bottom: 12px;
+  }
+
+  .tajweed-letters {
+    font-family: var(--font-arabic);
+    font-size: 18px;
+    color: var(--text-faint);
+    direction: rtl;
+    margin-bottom: 12px;
+  }
+
+  .tajweed-example {
+    background: var(--bg-deep);
+    border-radius: var(--radius-sm);
+    padding: 12px 16px;
+    text-align: right;
+    direction: rtl;
+  }
+
+  .tajweed-example-text {
+    font-family: var(--font-arabic);
+    font-size: 24px;
+    line-height: 1.6;
+  }
+
+  /* Tajweed color classes */
+  .tj-green .tajweed-color-bar { background: var(--green); }
+  .tj-green:hover { border-color: var(--green); }
+  .tj-green .tajweed-dot { color: var(--green); background: var(--green); }
+  .tj-green .tajweed-example-text { color: var(--green); }
+
+  .tj-red .tajweed-color-bar { background: var(--red); }
+  .tj-red:hover { border-color: var(--red); }
+  .tj-red .tajweed-dot { color: var(--red); background: var(--red); }
+  .tj-red .tajweed-example-text { color: var(--red); }
+
+  .tj-blue .tajweed-color-bar { background: var(--blue); }
+  .tj-blue:hover { border-color: var(--blue); }
+  .tj-blue .tajweed-dot { color: var(--blue); background: var(--blue); }
+  .tj-blue .tajweed-example-text { color: var(--blue); }
+
+  .tj-orange .tajweed-color-bar { background: var(--orange); }
+  .tj-orange:hover { border-color: var(--orange); }
+  .tj-orange .tajweed-dot { color: var(--orange); background: var(--orange); }
+  .tj-orange .tajweed-example-text { color: var(--orange); }
+
+  .tj-purple .tajweed-color-bar { background: var(--purple); }
+  .tj-purple:hover { border-color: var(--purple); }
+  .tj-purple .tajweed-dot { color: var(--purple); background: var(--purple); }
+  .tj-purple .tajweed-example-text { color: var(--purple); }
+
+  .tj-gray .tajweed-color-bar { background: var(--gray); }
+  .tj-gray:hover { border-color: var(--gray); }
+  .tj-gray .tajweed-dot { color: var(--gray); background: var(--gray); }
+  .tj-gray .tajweed-example-text { color: var(--gray); }
+
+  .tj-maroon .tajweed-color-bar { background: var(--maroon); }
+  .tj-maroon:hover { border-color: var(--maroon); }
+  .tj-maroon .tajweed-dot { color: var(--maroon); background: var(--maroon); }
+  .tj-maroon .tajweed-example-text { color: var(--maroon); }
+
+  /* === FOOTER === */
+  .footer {
+    text-align: center;
+    padding: 40px 0 0;
+    color: var(--text-faint);
+    font-size: 14px;
+    font-style: italic;
+  }
+
+  .footer-bismillah {
+    font-family: var(--font-arabic);
+    font-size: 28px;
+    color: var(--gold);
+    opacity: 0.3;
+    margin-bottom: 12px;
+  }
+
+  /* === RESPONSIVE === */
+  @media (max-width: 700px) {
+    .page-wrapper {
+      padding: 20px 16px 80px;
+    }
+    .hero { padding: 40px 0 30px; }
+    .hero-arabic { font-size: 36px; }
+    .hero-title { font-size: 20px; }
+
+    .mark-card {
+      grid-template-columns: 1fr;
+      text-align: center;
+    }
+    .mark-glyph-area {
+      flex-direction: row;
+      justify-content: center;
+      gap: 16px;
+    }
+
+    .waqf-grid {
+      grid-template-columns: repeat(2, 1fr);
+    }
+
+    .tajweed-grid {
+      grid-template-columns: 1fr;
+    }
+
+    .spelling-table {
+      font-size: 14px;
+    }
+    .spelling-table thead th {
+      font-size: 11px;
+      padding: 10px 12px;
+    }
+    .spelling-table tbody td {
+      padding: 12px;
+    }
+    .spelling-arabic {
+      font-size: 20px;
+    }
+
+    .nav-link {
+      padding: 12px 14px;
+      font-size: 13px;
+    }
+
+    .sticky-nav {
+      margin: 0 -16px;
+      padding: 0 16px;
+    }
+  }
+
+  @media (max-width: 400px) {
+    .waqf-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>
+</head>
+<body>
+
+<!-- Sticky Navigation -->
+<nav class="sticky-nav" id="stickyNav">
+  <div class="nav-inner">
+    <a href="#vowel-marks" class="nav-link">Vowel & Letter Marks</a>
+    <a href="#waqf-marks" class="nav-link">Waqf (Pause) Signs</a>
+    <a href="#spelling" class="nav-link">Uthmani Spelling</a>
+    <a href="#tajweed" class="nav-link">Tajweed Colors</a>
+  </div>
+</nav>
+
+<div class="page-wrapper">
+
+  <!-- Hero -->
+  <header class="hero">
+    <div class="hero-arabic">حُرُوفُ القُرْآنِ</div>
+    <h1 class="hero-title">Marks of the Quran</h1>
+    <p class="hero-subtitle">
+      The Uthmani script carries a layer of orthographic marks not found in modern Arabic printing.
+      These small signs, refined over centuries of scholarly tradition, guide the reciter's voice:
+      where to pause, how to nasalize, which silent letters are implied.
+      For the learner, recognizing them transforms a wall of unfamiliar glyphs into a readable, pronounceable text.
+    </p>
+  </header>
+
+  <div class="ornament"><div class="ornament-diamond"></div></div>
+
+  <!-- Section 1: Vowel & Letter Marks -->
+  <section class="section" id="vowel-marks">
+    <div class="section-header">
+      <div class="section-number">Section I</div>
+      <h2 class="section-title">
+        <span class="section-title-arabic">عَلَامَاتُ الحُرُوف</span>
+        Vowel & Letter Marks
+      </h2>
+      <p class="section-desc">
+        These marks indicate letters that are implied in the original consonantal skeleton (rasm)
+        but not written as full letters. They were added by later scholars to preserve the correct
+        reading of the Quran.
+      </p>
+    </div>
+
+    <div class="marks-grid">
+
+      <!-- Small High Alif -->
+      <div class="mark-card">
+        <div class="mark-glyph-area">
+          <div class="mark-glyph-base">ـ<span class="mark-highlight">ٰ</span></div>
+          <span class="mark-unicode">U+0670</span>
+        </div>
+        <div class="mark-info">
+          <div class="mark-name">
+            Dagger Alif
+            <span class="mark-name-arabic">أَلِف خَنْجَرِيَّة</span>
+          </div>
+          <div class="mark-description">
+            A small superscript alif indicating an implied long <em>a</em> vowel that is not written as a
+            standalone alif in the Uthmani rasm. This is one of the most common Quranic marks &mdash;
+            you will encounter it in the very first verse of Al-Fatihah. It replaces a full alif letter
+            that would appear in modern standard spelling.
+          </div>
+          <div class="mark-example">
+            <div class="mark-example-verse">
+              بِسْمِ ٱللَّهِ <span class="hl">ٱلرَّحْمٰنِ</span> ٱلرَّحِيمِ
+            </div>
+            <div class="mark-example-ref">Al-Fatihah 1:1</div>
+            <div class="mark-example-note">
+              The alif in "Rahman" is written as a dagger alif above the meem, not as a standalone letter.
+              Modern spelling: الرَّحْمَان. Uthmani: الرَّحْمٰن.
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Small Waw -->
+      <div class="mark-card">
+        <div class="mark-glyph-area">
+          <div class="mark-glyph-base">ـ<span class="mark-highlight">ۥ</span></div>
+          <span class="mark-unicode">U+06E5</span>
+        </div>
+        <div class="mark-info">
+          <div class="mark-name">
+            Small Waw
+            <span class="mark-name-arabic">وَاو صَغِيرَة</span>
+          </div>
+          <div class="mark-description">
+            A miniature waw placed above or beside a letter to indicate an implied long <em>u</em> vowel.
+            Like the dagger alif, it marks a vowel letter present in pronunciation but absent from the
+            base consonantal text. Much less common than the dagger alif.
+          </div>
+          <div class="mark-example">
+            <div class="mark-example-verse">
+              <span class="hl">يَدْعُوۥ</span>ا۟ لَمَن ضَرُّهُۥٓ أَقْرَبُ مِن نَّفْعِهِ
+            </div>
+            <div class="mark-example-ref">Al-Hajj 22:13</div>
+            <div class="mark-example-note">
+              The small waw after the damma on the 'ayn signals that this is a long /u:/ vowel
+              in the recitation, preserving the reading where the rasm is ambiguous.
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Small Ya -->
+      <div class="mark-card">
+        <div class="mark-glyph-area">
+          <div class="mark-glyph-base">ـ<span class="mark-highlight">ۦ</span></div>
+          <span class="mark-unicode">U+06E6</span>
+        </div>
+        <div class="mark-info">
+          <div class="mark-name">
+            Small Ya
+            <span class="mark-name-arabic">يَاء صَغِيرَة</span>
+          </div>
+          <div class="mark-description">
+            A miniature ya indicating an implied long <em>i</em> vowel not written in the Uthmani rasm.
+            Completes the set of three small vowel-letter signs (alif, waw, ya) that scholars added
+            to mark the full vowel inventory.
+          </div>
+          <div class="mark-example">
+            <div class="mark-example-verse">
+              وَٱلسَّمَآءَ بَنَيْنٰهَا <span class="hl">بِأَيْىۦدٍ</span> وَإِنَّا لَمُوسِعُونَ
+            </div>
+            <div class="mark-example-ref">Adh-Dhariyat 51:47</div>
+            <div class="mark-example-note">
+              In "bi-aydin" (with strength), the small ya marks an implied long vowel in the
+              Uthmani spelling that differs from the modern orthographic convention.
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Small High Rounded Zero (Sukun) -->
+      <div class="mark-card">
+        <div class="mark-glyph-area">
+          <div class="mark-glyph-base">ـ<span class="mark-highlight">۟</span></div>
+          <span class="mark-unicode">U+06DF</span>
+        </div>
+        <div class="mark-info">
+          <div class="mark-name">
+            Small High Rounded Zero
+            <span class="mark-name-arabic">سُكُون مُسْتَدِير</span>
+          </div>
+          <div class="mark-description">
+            The Uthmani variant of sukun &mdash; a small open circle placed above a letter instead of the
+            standard head-of-kha (&#x0652;) used in modern Arabic printing. Both marks mean the same thing:
+            the letter carries no vowel. You will see this circle throughout Quran mushafs while modern
+            textbooks use the jazm-style sukun.
+          </div>
+          <div class="mark-example">
+            <div class="mark-example-verse">
+              <span class="hl">قُلْ</span> هُوَ ٱللَّهُ أَحَدٌ
+            </div>
+            <div class="mark-example-ref">Al-Ikhlas 112:1</div>
+            <div class="mark-example-note">
+              The lam in "qul" (say) carries no vowel &mdash; in Uthmani script this is shown
+              with the rounded zero rather than the angular sukun of modern print.
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Small High Meem -->
+      <div class="mark-card">
+        <div class="mark-glyph-area">
+          <div class="mark-glyph-base">ـ<span class="mark-highlight">ۢ</span></div>
+          <span class="mark-unicode">U+06E2</span>
+        </div>
+        <div class="mark-info">
+          <div class="mark-name">
+            Small High Meem
+            <span class="mark-name-arabic">مِيم صَغِيرَة</span>
+          </div>
+          <div class="mark-description">
+            A tiny meem placed above a noon or tanwin to indicate <em>iqlab</em> &mdash; the noon's sound
+            transforms into a meem sound before the letter ba. The nasal quality (ghunnah) is held
+            for approximately two beats. This is both a pronunciation guide and a tajweed rule marker.
+          </div>
+          <div class="mark-example">
+            <div class="mark-example-verse">
+              <span class="hl">مِنۢ بَعْدِ</span> مَا جَآءَتْهُمُ ٱلْبَيِّنٰتُ
+            </div>
+            <div class="mark-example-ref">Al-Baqarah 2:213</div>
+            <div class="mark-example-note">
+              The noon in "min" assimilates into a meem sound before "ba'di" &mdash;
+              pronounced as "mim-ba'di" with a nasal hum. The small meem above makes this explicit.
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Small High Noon -->
+      <div class="mark-card">
+        <div class="mark-glyph-area">
+          <div class="mark-glyph-base">ـ<span class="mark-highlight">ۨ</span></div>
+          <span class="mark-unicode">U+06E8</span>
+        </div>
+        <div class="mark-info">
+          <div class="mark-name">
+            Small High Noon
+            <span class="mark-name-arabic">نُون صَغِيرَة</span>
+          </div>
+          <div class="mark-description">
+            A small noon placed above a letter, used in some Quranic orthographic traditions to indicate
+            a noon sound. Less common than the small high meem, it appears in specific recitation variants
+            and certain mushaf editions to mark nasalization or noon-related pronunciation features.
+          </div>
+          <div class="mark-example">
+            <div class="mark-example-verse">
+              Used in specific orthographic traditions of the Uthmani script.
+            </div>
+            <div class="mark-example-note">
+              This mark is rarer than its meem counterpart and appears primarily in certain
+              regional mushaf printings.
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Empty Centre Low Stop -->
+      <div class="mark-card">
+        <div class="mark-glyph-area">
+          <div class="mark-glyph-base">ـ<span class="mark-highlight">۪</span></div>
+          <span class="mark-unicode">U+06EA</span>
+        </div>
+        <div class="mark-info">
+          <div class="mark-name">
+            Empty Centre Low Stop
+            <span class="mark-name-arabic">دَائِرَة خَالِيَة سُفْلِيَّة</span>
+          </div>
+          <div class="mark-description">
+            A small circle placed below a letter marking where a hamzah was historically present in older
+            recitation traditions but has been dropped or softened in the standard reading. It is an
+            orthographic fossil &mdash; a trace of how the pronunciation evolved between the time of
+            revelation and the codification of the Uthmani script.
+          </div>
+          <div class="mark-example">
+            <div class="mark-example-verse">
+              Historical orthographic marker in the Uthmani rasm.
+            </div>
+            <div class="mark-example-note">
+              This mark preserves historical phonological information. When you see it, it tells you
+              that earlier Arabic speakers pronounced a hamzah at that position.
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Small High Seen -->
+      <div class="mark-card">
+        <div class="mark-glyph-area">
+          <div class="mark-glyph-base">ـ<span class="mark-highlight">ۜ</span></div>
+          <span class="mark-unicode">U+06DC</span>
+        </div>
+        <div class="mark-info">
+          <div class="mark-name">
+            Small High Seen
+            <span class="mark-name-arabic">سِين صَغِيرَة</span>
+          </div>
+          <div class="mark-description">
+            A miniature seen placed above a letter (usually a sad) to indicate that a <em>seen</em> reading
+            applies in this position. This reflects variant readings (qira'at) where some reciters read
+            a sin where others read a sad. The small seen signals "this letter may also be read as sin."
+          </div>
+          <div class="mark-example">
+            <div class="mark-example-verse">
+              <span class="hl">بِسۜطَةً</span>
+            </div>
+            <div class="mark-example-ref">Al-Baqarah 2:247</div>
+            <div class="mark-example-note">
+              The small seen above the sad in "bastatan" indicates that some recitation traditions
+              read this word with a sin instead of a sad.
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <div class="ornament"><div class="ornament-diamond"></div></div>
+
+  <!-- Section 2: Waqf (Pause) Marks -->
+  <section class="section" id="waqf-marks">
+    <div class="section-header">
+      <div class="section-number">Section II</div>
+      <h2 class="section-title">
+        <span class="section-title-arabic">عَلَامَاتُ الوَقْف</span>
+        Waqf &mdash; Pause Signs
+      </h2>
+      <p class="section-desc">
+        Waqf marks appear between words and tell the reciter when to stop, pause, or continue.
+        Stopping at the wrong place can change the meaning of a verse, so these signs are
+        carefully placed by Quran scholars. Learning them is essential for correct recitation.
+      </p>
+    </div>
+
+    <div class="waqf-grid">
+
+      <div class="waqf-card" style="animation-delay: 0.05s">
+        <div class="waqf-glyph">&#x06D6;</div>
+        <div class="waqf-unicode">U+06D6</div>
+        <div class="waqf-name">Waqf Lazim</div>
+        <div class="waqf-meaning">Compulsory stop. The meaning of the verse requires you to stop here.</div>
+        <span class="waqf-action stop">Must stop</span>
+      </div>
+
+      <div class="waqf-card" style="animation-delay: 0.1s">
+        <div class="waqf-glyph">&#x06DA;</div>
+        <div class="waqf-unicode">U+06DA</div>
+        <div class="waqf-name">Waqf Wajib</div>
+        <div class="waqf-meaning">Mandatory stop. If you continue, the meaning changes or becomes distorted.</div>
+        <span class="waqf-action stop">Must stop</span>
+      </div>
+
+      <div class="waqf-card" style="animation-delay: 0.15s">
+        <div class="waqf-glyph">&#x06D7;</div>
+        <div class="waqf-unicode">U+06D7</div>
+        <div class="waqf-name">Waqf Ja'iz</div>
+        <div class="waqf-meaning">Permissible stop. You may pause here &mdash; both stopping and continuing are acceptable.</div>
+        <span class="waqf-action either">May stop</span>
+      </div>
+
+      <div class="waqf-card" style="animation-delay: 0.2s">
+        <div class="waqf-glyph">&#x06D9;</div>
+        <div class="waqf-unicode">U+06D9</div>
+        <div class="waqf-name">Waqf Mu'anaqah</div>
+        <div class="waqf-meaning">Embracing stop. These come in pairs: if you stop at one, you must continue through the other. Choose one.</div>
+        <span class="waqf-action either">Stop at one only</span>
+      </div>
+
+      <div class="waqf-card" style="animation-delay: 0.25s">
+        <div class="waqf-glyph">&#x06D8;</div>
+        <div class="waqf-unicode">U+06D8</div>
+        <div class="waqf-name">Waqf Murakhkhas</div>
+        <div class="waqf-meaning">Preferred continuation. It is better to keep reading, but stopping is permitted if you need breath.</div>
+        <span class="waqf-action go">Better to continue</span>
+      </div>
+
+      <div class="waqf-card" style="animation-delay: 0.3s">
+        <div class="waqf-glyph">&#x06DB;</div>
+        <div class="waqf-unicode">U+06DB</div>
+        <div class="waqf-name">Saktah</div>
+        <div class="waqf-meaning">A brief pause without taking a breath. Hold for two beats, then continue seamlessly.</div>
+        <span class="waqf-action pause">Pause, no breath</span>
+      </div>
+
+      <div class="waqf-card" style="animation-delay: 0.35s">
+        <div class="waqf-glyph">&#x06DC;</div>
+        <div class="waqf-unicode">U+06DC</div>
+        <div class="waqf-name">Small High Seen</div>
+        <div class="waqf-meaning">Marks where a sin reading may apply instead of a sad. Related to variant recitation traditions (qira'at).</div>
+        <span class="waqf-action special">Variant reading</span>
+      </div>
+
+    </div>
+  </section>
+
+  <div class="ornament"><div class="ornament-diamond"></div></div>
+
+  <!-- Section 3: Spelling Differences -->
+  <section class="section" id="spelling">
+    <div class="section-header">
+      <div class="section-number">Section III</div>
+      <h2 class="section-title">
+        <span class="section-title-arabic">الرَّسْمُ العُثْمَانِي</span>
+        Uthmani vs Modern Spelling
+      </h2>
+      <p class="section-desc">
+        The Quranic text preserves the spelling conventions of the original Uthmani codex (circa 650 CE),
+        which differ from modern Arabic orthography (imla'i) in several systematic ways. Recognizing these
+        differences prevents confusion when a word "looks wrong" &mdash; it is simply spelled the old way.
+      </p>
+    </div>
+
+    <table class="spelling-table">
+      <thead>
+        <tr>
+          <th>Feature</th>
+          <th>Modern (Imla'i)</th>
+          <th>Uthmani</th>
+          <th>Notes</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="spelling-feature">Alif deletion with dagger alif</td>
+          <td class="spelling-arabic">الرَّحْمَان</td>
+          <td class="spelling-arabic uthmani">الرَّحْمٰن</td>
+          <td class="spelling-note">The full alif is dropped and replaced with a dagger alif (ٰ) above the preceding letter. Extremely common.</td>
+        </tr>
+        <tr>
+          <td class="spelling-feature">Ta marbuta &rarr; ta maftouha</td>
+          <td class="spelling-arabic">رَحْمَة</td>
+          <td class="spelling-arabic uthmani">رَحْمَت</td>
+          <td class="spelling-note">Certain words use an open ta (ت) where modern Arabic uses ta marbuta (ة). Example: رَحْمَتَ ٱللَّهِ in the Quran vs رَحْمَةُ ٱللَّهِ in modern print.</td>
+        </tr>
+        <tr>
+          <td class="spelling-feature">Extended alif</td>
+          <td class="spelling-arabic">لَا</td>
+          <td class="spelling-arabic uthmani">لَآ</td>
+          <td class="spelling-note">Some positions receive an extra alif or a madda sign where modern spelling does not require one.</td>
+        </tr>
+        <tr>
+          <td class="spelling-feature">Ya vs alif maqsura</td>
+          <td class="spelling-arabic">مُوسَى</td>
+          <td class="spelling-arabic uthmani">مُوسٰى</td>
+          <td class="spelling-note">Some proper nouns are spelled differently. The dagger alif may also appear alongside the alif maqsura.</td>
+        </tr>
+        <tr>
+          <td class="spelling-feature">Word splitting</td>
+          <td class="spelling-arabic">أَيْنَمَا</td>
+          <td class="spelling-arabic uthmani">أَيْنَ مَا</td>
+          <td class="spelling-note">Some compound words that are joined in modern Arabic are written as two separate words in the Uthmani rasm.</td>
+        </tr>
+        <tr>
+          <td class="spelling-feature">Noon assimilation marked</td>
+          <td class="spelling-arabic">مِنْ بَعْدِ</td>
+          <td class="spelling-arabic uthmani">مِنۢ بَعْدِ</td>
+          <td class="spelling-note">The noon-to-meem assimilation (iqlab) before ba is explicitly marked with a small high meem, making the tajweed rule visible in the script.</td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <div class="ornament"><div class="ornament-diamond"></div></div>
+
+  <!-- Section 4: Tajweed Color Conventions -->
+  <section class="section" id="tajweed">
+    <div class="section-header">
+      <div class="section-number">Section IV</div>
+      <h2 class="section-title">
+        <span class="section-title-arabic">أَلْوَانُ التَّجْوِيد</span>
+        Tajweed Color Conventions
+      </h2>
+      <p class="section-desc">
+        Color-coded mushafs use a standardized palette to highlight tajweed rules directly in the text.
+        Each color signals a specific pronunciation rule, making it possible to read with correct tajweed
+        even before memorizing all the rules. These colors follow the convention used in most
+        color-coded Quran editions (such as the Tajweed Quran by Dar al-Ma'rifa).
+      </p>
+    </div>
+
+    <div class="tajweed-grid">
+
+      <div class="tajweed-card tj-green">
+        <div class="tajweed-color-bar"></div>
+        <div class="tajweed-rule">
+          <span class="tajweed-dot"></span>
+          Idgham
+        </div>
+        <div class="tajweed-rule-arabic">إِدْغَام</div>
+        <div class="tajweed-desc">
+          Assimilation. A noon sakinah or tanwin merges into one of six following letters,
+          often with nasalization (ghunnah). The noon disappears into the next letter.
+        </div>
+        <div class="tajweed-letters">Letters: ي ن م و ل ر</div>
+        <div class="tajweed-example">
+          <div class="tajweed-example-text">مَ<span style="color: var(--green)">ن يَ</span>عْمَلْ</div>
+        </div>
+      </div>
+
+      <div class="tajweed-card tj-red">
+        <div class="tajweed-color-bar"></div>
+        <div class="tajweed-rule">
+          <span class="tajweed-dot"></span>
+          Qalqalah
+        </div>
+        <div class="tajweed-rule-arabic">قَلْقَلَة</div>
+        <div class="tajweed-desc">
+          Echo or bounce. When one of five specific letters carries a sukun, it produces a
+          slight bouncing sound &mdash; a brief, sharp release rather than a smooth stop.
+        </div>
+        <div class="tajweed-letters">Letters: ق ط ب ج د</div>
+        <div class="tajweed-example">
+          <div class="tajweed-example-text">ٱ<span style="color: var(--red)">قْ</span>رَأْ &bull; يَ<span style="color: var(--red)">جْ</span>عَل</div>
+        </div>
+      </div>
+
+      <div class="tajweed-card tj-blue">
+        <div class="tajweed-color-bar"></div>
+        <div class="tajweed-rule">
+          <span class="tajweed-dot"></span>
+          Ikhfa
+        </div>
+        <div class="tajweed-rule-arabic">إِخْفَاء</div>
+        <div class="tajweed-desc">
+          Concealment. A noon sakinah or tanwin is partially hidden &mdash; not fully
+          pronounced, not fully assimilated &mdash; producing a nasal hum before 15 specific letters.
+        </div>
+        <div class="tajweed-letters">Letters: ت ث ج د ذ ز س ش ص ض ط ظ ف ق ك</div>
+        <div class="tajweed-example">
+          <div class="tajweed-example-text">مِ<span style="color: var(--blue)">نْ ثَ</span>مَرَة</div>
+        </div>
+      </div>
+
+      <div class="tajweed-card tj-orange">
+        <div class="tajweed-color-bar"></div>
+        <div class="tajweed-rule">
+          <span class="tajweed-dot"></span>
+          Ghunnah
+        </div>
+        <div class="tajweed-rule-arabic">غُنَّة</div>
+        <div class="tajweed-desc">
+          Nasalization. A held nasal sound lasting approximately two beats, produced through the nose.
+          Occurs with doubled (mushaddad) noon and meem, and in many idgham and ikhfa contexts.
+        </div>
+        <div class="tajweed-letters">Letters: نّ مّ</div>
+        <div class="tajweed-example">
+          <div class="tajweed-example-text">إِ<span style="color: var(--orange)">نَّ</span> ٱللَّهَ</div>
+        </div>
+      </div>
+
+      <div class="tajweed-card tj-purple">
+        <div class="tajweed-color-bar"></div>
+        <div class="tajweed-rule">
+          <span class="tajweed-dot"></span>
+          Iqlab
+        </div>
+        <div class="tajweed-rule-arabic">إِقْلَاب</div>
+        <div class="tajweed-desc">
+          Conversion. A noon sakinah or tanwin immediately before the letter ba transforms into a
+          meem sound, held with ghunnah for two beats. This is explicitly marked in the Uthmani
+          script with the small high meem (ۢ).
+        </div>
+        <div class="tajweed-letters">Before: ب only</div>
+        <div class="tajweed-example">
+          <div class="tajweed-example-text">مِ<span style="color: var(--purple)">نۢ بَ</span>عْدِ</div>
+        </div>
+      </div>
+
+      <div class="tajweed-card tj-gray">
+        <div class="tajweed-color-bar"></div>
+        <div class="tajweed-rule">
+          <span class="tajweed-dot"></span>
+          Izhar
+        </div>
+        <div class="tajweed-rule-arabic">إِظْهَار</div>
+        <div class="tajweed-desc">
+          Clear pronunciation. A noon sakinah or tanwin is pronounced clearly and distinctly
+          before the six throat letters, with no nasalization, assimilation, or concealment.
+        </div>
+        <div class="tajweed-letters">Letters: ء ه ع ح غ خ</div>
+        <div class="tajweed-example">
+          <div class="tajweed-example-text">مَ<span style="color: var(--gray)">نْ آ</span>مَنَ</div>
+        </div>
+      </div>
+
+      <div class="tajweed-card tj-maroon">
+        <div class="tajweed-color-bar"></div>
+        <div class="tajweed-rule">
+          <span class="tajweed-dot"></span>
+          Madd
+        </div>
+        <div class="tajweed-rule-arabic">مَدّ</div>
+        <div class="tajweed-desc">
+          Elongation. A vowel is stretched beyond its normal length &mdash; from 2 up to 6 beats
+          depending on the type. Obligatory madd occurs before hamzah or sukun; natural madd
+          is the default 2-beat stretch of any long vowel.
+        </div>
+        <div class="tajweed-letters">Vowels: ـَا ـُو ـِي</div>
+        <div class="tajweed-example">
+          <div class="tajweed-example-text"><span style="color: var(--maroon)">قَالُوٓا۟</span> سُبْحٰنَكَ</div>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <div class="ornament"><div class="ornament-diamond"></div></div>
+
+  <!-- Footer -->
+  <footer class="footer">
+    <div class="footer-bismillah">بِسْمِ ٱللَّهِ ٱلرَّحْمٰنِ ٱلرَّحِيمِ</div>
+    <p>A reference for the Alif Arabic learning app.</p>
+  </footer>
+
+</div>
+
+<script>
+// Sticky nav scroll detection
+const nav = document.getElementById('stickyNav');
+window.addEventListener('scroll', () => {
+  nav.classList.toggle('scrolled', window.scrollY > 20);
+}, { passive: true });
+
+// Active nav link tracking via Intersection Observer
+const sections = document.querySelectorAll('.section');
+const navLinks = document.querySelectorAll('.nav-link');
+
+const observer = new IntersectionObserver((entries) => {
+  entries.forEach(entry => {
+    if (entry.isIntersecting) {
+      const id = entry.target.getAttribute('id');
+      navLinks.forEach(link => {
+        link.classList.toggle('active', link.getAttribute('href') === '#' + id);
+      });
+    }
+  });
+}, {
+  rootMargin: '-80px 0px -60% 0px',
+  threshold: 0
+});
+
+sections.forEach(section => observer.observe(section));
+</script>
+
+</body>
+</html>
