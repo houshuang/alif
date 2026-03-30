@@ -4,6 +4,21 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-03-30d: Quran Scheduling, Gloss Guarantees, Intro Card Limits
+
+**Problem**: (1) Quran verse SRS intervals too aggressive (4h minimum for "got it") — verses reappearing same day. (2) Words without glosses could reach the frontend — empty info cards when tapping Quran words. (3) Intro cards overwhelming sessions — no cap, variants of known words getting intro cards (بنية showing intro when بني already known with 33 reviews). (4) Frontend word lookup cache returning stale empty results for 24 hours.
+
+**Changes**:
+1. **Quran SRS intervals**: 4h/12h/1d/3d/7d/21d → **1d/3d/7d/14d/30d/60d**. Max verse cards per session 8→5, max new 3→2. "Got it" button on front side (skip translation).
+2. **Gloss guarantee — 6-layer pipeline**: lemma → function word dict → pronoun suffix decomposition (`_gloss_with_pronoun_suffix`: عليهم→"on/upon + them") → DB proclitic lookup (`_gloss_via_lemma_lookup`) → morphological lookup (38K-entry `build_lemma_lookup`) → LLM batch translation (Gemini Flash, in-memory cached) → transliteration last resort. Result: 0.4% need LLM (4/898 words). Quran-specific Unicode normalization: small ya (ۦ), paragraph markers (۞), standalone hamza (ء→ا).
+3. **Validation gates**: (a) Sentence storage rejects sentences with glossless lemmas. (b) Session builder warns on missing glosses. (c) Frontend bypasses word lookup cache when cached result has no `gloss_en`.
+4. **Intro card cap**: `MAX_INTRO_CARDS_PER_SESSION = 5`. Variants whose canonical lemma is known/learning skip intro cards.
+5. **Quran function word tap fix**: function word path in Quran tap handler wasn't updating display state variables (`lookupResult`, `lookupSurfaceForm`), showing stale info from previous tap.
+
+**Verify**: Load session → Quran verses should not repeat within a day after "Got it". Tap any Quran word → should always show a gloss. Session should have ≤5 intro cards. بنية should not get an intro card if بني is known.
+
+---
+
 ## 2026-03-30c: Quran Card Full Word Interaction + Lemmatization Improvements
 
 **Problem**: (1) Quran verse cards had limited word interaction — only content words with known lemmas were tappable, no navigation between tapped words, no ActionMenu. (2) Quran lemmatizer missed hamzat al-wasl words after proclitic stripping (بسم couldn't find اسم). (3) Newly created Quran lemmas got Quran-specific theological glosses instead of general Arabic meanings, had no root linkage, and missed enrichment. (4) Function words in verses showed no gloss.

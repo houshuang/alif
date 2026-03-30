@@ -1708,6 +1708,8 @@ intro cards. `experiment_intro_cards` in session response — retention-optimize
 (pattern, root family, etymology, mnemonic). Single "Continue" button, no self-assessment.
 Acknowledgement via `POST /api/review/experiment-intro-ack` sets `experiment_intro_shown_at`
 timestamp on ULK, preventing the card from appearing again and enforcing 7-day rescue card cooldown.
+**Capped at `MAX_INTRO_CARDS_PER_SESSION = 5`** (2026-03-30). Variants whose canonical lemma
+is already known or learning skip intro cards entirely (prevents e.g. بنية intro when بني is known).
 
 **Session interleaving** (2026-03-30): Intro cards are no longer front-loaded before sentence
 reviews. Instead, `buildInterleavedSession()` in `frontend/app/index.tsx` distributes intro
