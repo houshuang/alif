@@ -290,9 +290,11 @@ to acquisition and immediately reviewed. Familiar words (understood on first rev
 graduate instantly via Tier 0 → FSRS. This is the primary flow for encountered words
 to enter the system — collateral exposure in sentences, not explicit auto-introduction.
 
-**Intro cards**: Words introduced via collateral do NOT get intro cards (they already
-got their review in-sentence). Intro cards are reserved for explicitly auto-introduced
-words with fewer than 5 prior encounters.
+**Intro cards**: All acquiring words with `times_seen == 0`, `experiment_intro_shown_at IS NULL`,
+and fewer than 5 prior encounters get intro cards, regardless of whether they were introduced
+explicitly or collaterally. Intro cards are interleaved with review sentences in the session
+(not front-loaded) — pattern: 2 intro cards first, then 1 every 3 sentences. Sentences sharing
+words with a recently-shown intro card are spaced apart for better retention.
 
 **Comprehensibility gate**: Encountered words still do **not** count as known for the
 gate. This means sentences won't have many encountered scaffold words, which naturally
@@ -1700,25 +1702,28 @@ condition, 3-4 weeks duration.
 **Original plan said**: "Add `experiment_group` field to ULK, log experiment
 assignment in interaction logs."
 
-**Current implementation**: `experiment_group` column added to `user_lemma_knowledge`.
-First experiment: intro card vs sentence-first (groups: `intro_ab_card`, `intro_ab_sentence`).
-Words randomly assigned 50/50 on acquisition start. Card-first group gets `experiment_intro_cards`
-in session response — retention-optimized info cards (pattern, root family, etymology, mnemonic)
-shown before the word's first sentence review. Single "Continue" button, no self-assessment.
+**Current implementation**: A/B experiment concluded 2026-03-21 with card-first winning
+(+28pp first-review accuracy, 2.4x faster graduation). All new acquiring words now get
+intro cards. `experiment_intro_cards` in session response — retention-optimized info cards
+(pattern, root family, etymology, mnemonic). Single "Continue" button, no self-assessment.
 Acknowledgement via `POST /api/review/experiment-intro-ack` sets `experiment_intro_shown_at`
-timestamp on ULK, preventing the card from appearing again.
+timestamp on ULK, preventing the card from appearing again and enforcing 7-day rescue card cooldown.
 
-**Scoping rules**: Intro cards are built in `_with_fallbacks()` after all sentence selection
+**Session interleaving** (2026-03-30): Intro cards are no longer front-loaded before sentence
+reviews. Instead, `buildInterleavedSession()` in `frontend/app/index.tsx` distributes intro
+cards among review sentences: first 2 intro cards, then 1 every 3 sentences. Sentences sharing
+words with a recently-shown intro card are placed later in the session to maximize spacing
+(greedy maximum-gap algorithm using a `lastSeen` map per intro-card lemma ID). This prevents
+the "wall of 25 intro cards" experience after bulk imports while maintaining the same scheduling
+and intro card eligibility logic.
+
+**Scoping rules**: Intro cards are built in `_build_intro_cards()` after all sentence selection
 and fill phases complete, filtered to `covered_ids` — only words that actually have sentences
-in this session. Additional filters: (1) assigned to `intro_ab_card` group, (2) have
-`times_seen == 0`, and (3) have not already been shown (`experiment_intro_shown_at IS NULL`).
-This prevents bulk imports (e.g. textbook scans calling `start_acquisition(due_immediately=True)`)
-from flooding sessions with intro cards for words that have no sentences yet.
+in this session. Filters: (1) `times_seen == 0`, (2) `experiment_intro_shown_at IS NULL`,
+(3) `total_encounters < 5`. Rescue cards: `times_seen >= 4`, accuracy < 50%, 7-day cooldown.
 
 Analysis: `scripts/analyze_intro_experiment.py` (reviews to graduation, first-review accuracy,
 time to graduation).
-
-**Remaining gap**: No automated reporting — analysis is manual via script.
 
 ### 19.10 Sentence Context Quality Labels — Not Implemented
 

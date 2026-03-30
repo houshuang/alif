@@ -12,7 +12,8 @@ export type QueueEntryType =
   | "introduce_word"
   | "reintro_result"
   | "experiment_intro_ack"
-  | "grammar_intro";
+  | "grammar_intro"
+  | "verse";
 
 export interface QueueEntry {
   id: string;
@@ -117,6 +118,10 @@ const INDIVIDUAL_ACTIONS: Record<string, {
   grammar_intro: {
     url: () => `${BASE_URL}/api/grammar/introduce`,
     body: (p) => ({ feature_key: p.feature_key }),
+  },
+  verse: {
+    url: () => `${BASE_URL}/api/review/verse`,
+    body: (p) => ({ verse_id: p.verse_id, rating: p.rating, session_id: p.session_id, response_ms: p.response_ms }),
   },
 };
 

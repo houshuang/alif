@@ -1,6 +1,7 @@
 from datetime import datetime, timezone
 from sqlalchemy import (
-    Column, Integer, String, Text, Float, DateTime, ForeignKey, JSON, Boolean
+    Column, Integer, String, Text, Float, DateTime, ForeignKey, JSON, Boolean,
+    UniqueConstraint,
 )
 from sqlalchemy.orm import relationship
 
@@ -355,3 +356,47 @@ class LearnerSettings(Base):
     topic_history_json = Column(JSON, nullable=True)
     tashkeel_mode = Column(String(10), default="always", server_default="always")  # always/fade/never
     tashkeel_stability_threshold = Column(Float, default=30.0, server_default="30.0")  # days
+
+
+class QuranicVerse(Base):
+    __tablename__ = "quranic_verses"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    surah = Column(Integer, nullable=False, index=True)
+    ayah = Column(Integer, nullable=False)
+    surah_name_ar = Column(Text, nullable=True)
+    surah_name_en = Column(Text, nullable=True)
+    arabic_text = Column(Text, nullable=False)
+    english_translation = Column(Text, nullable=False)
+    transliteration = Column(Text, nullable=True)
+
+    # Simple SRS state (not FSRS)
+    next_due = Column(DateTime, nullable=True, index=True)  # NULL = unseen
+    srs_level = Column(Integer, default=0)  # 0=unseen, 1-7=learning, 8=graduated
+    last_rating = Column(String(20), nullable=True)
+    last_reviewed = Column(DateTime, nullable=True)
+    times_reviewed = Column(Integer, default=0)
+    introduced_at = Column(DateTime, nullable=True)
+
+    # Lemmatization tracking
+    lemmatized_at = Column(DateTime, nullable=True)
+
+    words = relationship("QuranicVerseWord", back_populates="verse", cascade="all, delete-orphan")
+
+    __table_args__ = (
+        UniqueConstraint("surah", "ayah", name="uq_surah_ayah"),
+    )
+
+
+class QuranicVerseWord(Base):
+    __tablename__ = "quranic_verse_words"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    verse_id = Column(Integer, ForeignKey("quranic_verses.id"), nullable=False, index=True)
+    position = Column(Integer, nullable=False)
+    surface_form = Column(Text, nullable=False)
+    lemma_id = Column(Integer, ForeignKey("lemmas.lemma_id"), nullable=True)
+    is_function_word = Column(Boolean, default=False)
+
+    verse = relationship("QuranicVerse", back_populates="words")
+    lemma = relationship("Lemma")

@@ -939,6 +939,23 @@ export async function acknowledgeExperimentIntro(
   return { status: "queued" };
 }
 
+export async function submitVerseReview(
+  verseId: number,
+  rating: "got_it" | "partially" | "not_yet",
+  sessionId?: string,
+  responseMs?: number,
+): Promise<void> {
+  await enqueueReview("verse", {
+    verse_id: verseId,
+    rating,
+    session_id: sessionId,
+    response_ms: responseMs,
+  }, generateUuid());
+  if (netStatus.isOnline) {
+    flushQueue().catch(() => {});
+  }
+}
+
 // --- OCR / Textbook Scanner ---
 
 export async function scanTextbookPages(imageUris: string[], startAcquiring: boolean = false): Promise<BatchUploadResult> {

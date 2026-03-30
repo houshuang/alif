@@ -22,6 +22,7 @@ import {
   undoSentenceReview,
   submitReintroResult,
   acknowledgeExperimentIntro,
+  submitVerseReview,
   getAnalytics,
   getSessionEnd,
   lookupReviewWord,
@@ -42,6 +43,7 @@ import {
   SentenceReviewSession,
   IntroCandidate,
   ReintroCard,
+  VerseCard,
   Analytics,
   SessionEndData,
   WordLookupResult,
@@ -79,7 +81,147 @@ interface WordOutcome {
 
 type SessionSlot =
   | { type: "sentence"; itemIndex: number }
-  | { type: "intro"; candidateIndex: number };
+  | { type: "intro"; candidateIndex: number }
+  | { type: "experiment_intro"; introIndex: number }
+  | { type: "verse"; verseIndex: number };
+
+/**
+ * Build an interleaved session: experiment intro cards are distributed among
+ * review sentences rather than front-loaded. Sentences sharing words with a
+ * recently-shown intro card are spaced apart for better retention.
+ */
+function buildInterleavedSession(
+  items: SentenceReviewItem[],
+  introCards: ReintroCard[],
+  introCandidates: IntroCandidate[],
+  readingMode: boolean,
+  verseCards: VerseCard[] = [],
+): SessionSlot[] {
+  // If no intro cards, just build sentence slots + deprecated intro candidates
+  if (introCards.length === 0) {
+    const slots: SessionSlot[] = items.map((_, i) => ({
+      type: "sentence" as const,
+      itemIndex: i,
+    }));
+    if (introCandidates.length > 0 && readingMode) {
+      for (let ci = introCandidates.length - 1; ci >= 0; ci--) {
+        const insertPos = Math.min(introCandidates[ci].insert_at, slots.length);
+        slots.splice(insertPos, 0, { type: "intro" as const, candidateIndex: ci });
+      }
+    }
+    return slots;
+  }
+
+  // 1. Build intro-word → sentence-index map
+  const introLemmaIds = new Set(introCards.map((c) => c.lemma_id));
+  const sentenceIntroWords = new Map<number, Set<number>>();
+  items.forEach((item, idx) => {
+    const overlap = new Set<number>();
+    for (const w of item.words) {
+      if (w.lemma_id && introLemmaIds.has(w.lemma_id)) {
+        overlap.add(w.lemma_id);
+      }
+    }
+    if (overlap.size > 0) {
+      sentenceIntroWords.set(idx, overlap);
+    }
+  });
+
+  // 2. Build position template: first 2 intros, then repeat (3 sentences, 1 intro)
+  const template: ("intro" | "sentence")[] = [];
+  let introsLeft = introCards.length;
+  let sentsLeft = items.length;
+
+  const firstBatch = Math.min(2, introsLeft);
+  for (let i = 0; i < firstBatch; i++) {
+    template.push("intro");
+    introsLeft--;
+  }
+
+  while (sentsLeft > 0 || introsLeft > 0) {
+    const batch = Math.min(3, sentsLeft);
+    for (let i = 0; i < batch; i++) {
+      template.push("sentence");
+      sentsLeft--;
+    }
+    if (introsLeft > 0) {
+      template.push("intro");
+      introsLeft--;
+    }
+  }
+
+  // 3. Assign intro cards and sentences to positions with spacing
+  const lastSeen = new Map<number, number>();
+  const available = items.map((_, i) => i); // sentence indices
+  let introIdx = 0;
+  const result: SessionSlot[] = [];
+
+  for (let pos = 0; pos < template.length; pos++) {
+    if (template[pos] === "intro") {
+      const card = introCards[introIdx];
+      result.push({ type: "experiment_intro" as const, introIndex: introIdx });
+      lastSeen.set(card.lemma_id, pos);
+      introIdx++;
+    } else {
+      // Pick the sentence whose intro-word overlap was shown longest ago
+      let bestArrayIdx = 0;
+      let bestMinGap = -1;
+
+      for (let ai = 0; ai < available.length; ai++) {
+        const sentIdx = available[ai];
+        const overlap = sentenceIntroWords.get(sentIdx);
+        let minGap: number;
+        if (!overlap || overlap.size === 0) {
+          minGap = Infinity; // no intro words — always safe as spacer
+        } else {
+          minGap = Infinity;
+          for (const lemmaId of overlap) {
+            const seen = lastSeen.get(lemmaId);
+            const gap = seen !== undefined ? pos - seen : Infinity;
+            if (gap < minGap) minGap = gap;
+          }
+        }
+
+        if (minGap > bestMinGap || (minGap === bestMinGap && ai < bestArrayIdx)) {
+          bestMinGap = minGap;
+          bestArrayIdx = ai;
+        }
+      }
+
+      const chosenIdx = available[bestArrayIdx];
+      result.push({ type: "sentence" as const, itemIndex: chosenIdx });
+
+      // Update lastSeen for intro words in this sentence
+      const overlap = sentenceIntroWords.get(chosenIdx);
+      if (overlap) {
+        for (const lemmaId of overlap) {
+          lastSeen.set(lemmaId, pos);
+        }
+      }
+
+      available.splice(bestArrayIdx, 1);
+    }
+  }
+
+  // 4. Splice in deprecated intro_candidates at their insert_at positions
+  if (introCandidates.length > 0 && readingMode) {
+    for (let ci = introCandidates.length - 1; ci >= 0; ci--) {
+      const insertPos = Math.min(introCandidates[ci].insert_at, result.length);
+      result.splice(insertPos, 0, { type: "intro" as const, candidateIndex: ci });
+    }
+  }
+
+  // 5. Splice in verse cards at evenly-spaced positions
+  if (verseCards.length > 0) {
+    const spacing = Math.floor(result.length / (verseCards.length + 1));
+    for (let vi = verseCards.length - 1; vi >= 0; vi--) {
+      const insertPos = Math.min(spacing * (vi + 1), result.length);
+      result.splice(insertPos, 0, { type: "verse" as const, verseIndex: vi });
+    }
+  }
+
+  return result;
+}
 
 interface CardSnapshot {
   missedIndices: Set<number>;
@@ -156,7 +298,11 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
   const [reintroCards, setReintroCards] = useState<ReintroCard[]>([]);
   const [reintroIndex, setReintroIndex] = useState(0);
   const [experimentIntroCards, setExperimentIntroCards] = useState<ReintroCard[]>([]);
-  const [experimentIntroIndex, setExperimentIntroIndex] = useState(0);
+  const [verseCards, setVerseCards] = useState<VerseCard[]>([]);
+  const [verseFlipped, setVerseFlipped] = useState(false);
+  const [verseTappedIdx, setVerseTappedIdx] = useState<number | null>(null);
+  const [verseLookedUp, setVerseLookedUp] = useState<Set<number>>(new Set());
+  const verseShowTimeRef = useRef<number>(0);
   const [grammarLessons, setGrammarLessons] = useState<GrammarLesson[]>([]);
   const [grammarLessonIndex, setGrammarLessonIndex] = useState(0);
   const [grammarLessonsLoading, setGrammarLessonsLoading] = useState(false);
@@ -188,6 +334,8 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
     ? sessionSlots[cardIndex] ?? null
     : null;
   const isIntroSlot = currentSlot?.type === "intro";
+  const isExperimentIntroSlot = currentSlot?.type === "experiment_intro";
+  const isVerseSlot = currentSlot?.type === "verse";
   const sentenceItemIndex = currentSlot?.type === "sentence" ? currentSlot.itemIndex : cardIndex;
 
   useEffect(() => {
@@ -342,7 +490,6 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
     setReintroCards([]);
     setReintroIndex(0);
     setExperimentIntroCards([]);
-    setExperimentIntroIndex(0);
     setGrammarLessons([]);
     setGrammarLessonIndex(0);
     setGrammarLessonsLoading(false);
@@ -365,26 +512,27 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
       const ss = skipCache ? await fetchFreshSession(m) : await getSentenceReviewSession(m);
       if (ss.items.length > 0) {
         setSentenceSession(ss);
-        // Build session slots: interleave sentence items and intro candidates
-        const slots: SessionSlot[] = ss.items.map((_, i) => ({
-          type: "sentence" as const,
-          itemIndex: i,
-        }));
+        // Build interleaved session slots: intro cards distributed among sentences
         if (ss.intro_candidates && ss.intro_candidates.length > 0 && m === "reading") {
           setAutoIntroduced(ss.intro_candidates);
-          for (let ci = ss.intro_candidates.length - 1; ci >= 0; ci--) {
-            const insertPos = Math.min(ss.intro_candidates[ci].insert_at, slots.length);
-            slots.splice(insertPos, 0, { type: "intro" as const, candidateIndex: ci });
-          }
         }
+        const slots = buildInterleavedSession(
+          ss.items,
+          ss.experiment_intro_cards ?? [],
+          ss.intro_candidates ?? [],
+          m === "reading",
+          ss.verse_cards ?? [],
+        );
         setSessionSlots(slots);
-        if (ss.reintro_cards && ss.reintro_cards.length > 0) {
-          setReintroCards(ss.reintro_cards);
-          setReintroIndex(0);
+        if (ss.verse_cards && ss.verse_cards.length > 0) {
+          setVerseCards(ss.verse_cards);
         }
         if (ss.experiment_intro_cards && ss.experiment_intro_cards.length > 0) {
           setExperimentIntroCards(ss.experiment_intro_cards);
-          setExperimentIntroIndex(0);
+        }
+        if (ss.reintro_cards && ss.reintro_cards.length > 0) {
+          setReintroCards(ss.reintro_cards);
+          setReintroIndex(0);
         }
         // Load grammar lessons (refreshers first, then intros)
         // Filter out features already introduced this app session (stale prefetch)
@@ -880,19 +1028,19 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
 
   function applyFreshSession(fresh: SentenceReviewSession) {
     setSentenceSession(fresh);
-    const slots: SessionSlot[] = fresh.items.map((_, i) => ({
-      type: "sentence" as const,
-      itemIndex: i,
-    }));
     if (fresh.intro_candidates && fresh.intro_candidates.length > 0 && mode === "reading") {
       setAutoIntroduced(fresh.intro_candidates);
-      for (let ci = fresh.intro_candidates.length - 1; ci >= 0; ci--) {
-        const insertPos = Math.min(fresh.intro_candidates[ci].insert_at, slots.length);
-        slots.splice(insertPos, 0, { type: "intro" as const, candidateIndex: ci });
-      }
     } else {
       setAutoIntroduced([]);
     }
+    const slots = buildInterleavedSession(
+      fresh.items,
+      fresh.experiment_intro_cards ?? [],
+      fresh.intro_candidates ?? [],
+      mode === "reading",
+      fresh.verse_cards ?? [],
+    );
+    setVerseCards(fresh.verse_cards ?? []);
     setSessionSlots(slots);
     setCardIndex(0);
     setCardState(mode === "listening" ? "audio" : "front");
@@ -922,12 +1070,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
     } else {
       setReintroCards([]);
     }
-    if (fresh.experiment_intro_cards && fresh.experiment_intro_cards.length > 0) {
-      setExperimentIntroCards(fresh.experiment_intro_cards);
-      setExperimentIntroIndex(0);
-    } else {
-      setExperimentIntroCards([]);
-    }
+    setExperimentIntroCards(fresh.experiment_intro_cards ?? []);
     const featureKeys: string[] = [
       ...(fresh.grammar_refresher_needed ?? []),
       ...(fresh.grammar_intro_needed ?? []),
@@ -1508,10 +1651,10 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
     );
   }
 
-  // Intro cards: new words + rescue cards for stuck words
-  const showingExperimentIntro = experimentIntroCards.length > 0 && experimentIntroIndex < experimentIntroCards.length;
-  if (showingExperimentIntro) {
-    const card = experimentIntroCards[experimentIntroIndex];
+  // Experiment intro card (interleaved in session via sessionSlots)
+  if (sentenceSession && isExperimentIntroSlot) {
+    const eiSlotIndex = (currentSlot as { type: "experiment_intro"; introIndex: number }).introIndex;
+    const card = experimentIntroCards[eiSlotIndex];
     const isRescueCard = (card.times_seen ?? 0) > 0;
     const knownSiblings = card.root_family.filter(
       (s) => (s.state === "known" || s.state === "learning") && s.lemma_id !== card.lemma_id
@@ -1521,17 +1664,27 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
     const eiHasFunFact = !!card.memory_hooks?.fun_fact;
     const eiHasCulturalNote = !!card.etymology?.cultural_note;
     const eiHasUsageContext = !!card.memory_hooks?.usage_context;
-    const eiHasRootFamily = knownSiblings.length > 0 || card.root_family.length > 0;
-    const eiHasInfoSections = eiHasMnemonic || eiHasEtymology || eiHasFunFact
-      || eiHasCulturalNote || eiHasRootFamily || eiHasUsageContext || !!card.example_ar;
+
+    // Count intro slots for progress display
+    const introSlotCount = sessionSlots.filter((s) => s.type === "experiment_intro").length;
+    const introSlotsSoFar = sessionSlots.slice(0, cardIndex + 1).filter((s) => s.type === "experiment_intro").length;
 
     return (
       <View style={[styles.container, { paddingTop: Math.max(insets.top, 12) }]}>
-        <View style={styles.progressContainer}>
-          <Text style={styles.progressText}>
-            {isRescueCard ? "Let\u2019s revisit" : "New word"} {experimentIntroIndex + 1} of {experimentIntroCards.length}
-          </Text>
-        </View>
+        <ProgressBar
+          current={cardIndex + 1}
+          total={totalCards}
+          mode={mode}
+          actionMenu={
+            <ActionMenu
+              focusedLemmaId={card.lemma_id}
+              focusedLemmaAr={card.lemma_ar}
+              sentenceId={null}
+              askAIContextBuilder={buildContext}
+              askAIScreen="review"
+            />
+          }
+        />
         <ScrollView
           ref={introScrollRef}
           contentContainerStyle={styles.reintroScrollContent}
@@ -1539,6 +1692,9 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
         >
           {/* Hero card */}
           <View style={styles.eiHero}>
+            <Text style={[styles.reintroLabel, { color: colors.accent, marginBottom: 4 }]}>
+              {isRescueCard ? "Let\u2019s revisit" : "New word"} {introSlotsSoFar} of {introSlotCount}
+            </Text>
             <Text style={styles.eiArabic}>{card.lemma_ar}</Text>
             <Text style={styles.introMeaningLabel}>Meaning</Text>
             <Text style={styles.eiEnglish}>{card.gloss_en}</Text>
@@ -1582,9 +1738,8 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
             <FormsStrip pos={card.pos} forms={card.forms_json} />
           </View>
 
-          {/* Info sections below hero — always show, even without enrichment data */}
+          {/* Info sections below hero */}
           <View style={styles.eiInfoSections}>
-            {/* Memory Hook - highest priority */}
             {eiHasMnemonic && (
               <View style={styles.eiInfoSection}>
                 <Text style={[styles.eiSectionLabel, { color: "#9b59b6" }]}>Memory Hook</Text>
@@ -1594,7 +1749,6 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
               </View>
             )}
 
-            {/* Etymology */}
             {eiHasEtymology && (
               <View style={styles.eiInfoSection}>
                 <Text style={[styles.eiSectionLabel, { color: colors.accent }]}>Etymology</Text>
@@ -1605,7 +1759,6 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
               </View>
             )}
 
-            {/* Root Family — always show when root exists */}
             {card.root && (
               <View style={styles.eiInfoSection}>
                 <Pressable
@@ -1649,7 +1802,6 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
               </View>
             )}
 
-            {/* Example sentence */}
             {card.example_ar && (
               <View style={styles.eiInfoSection}>
                 <Text style={[styles.eiSectionLabel, { color: colors.textSecondary }]}>Example</Text>
@@ -1660,7 +1812,6 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
               </View>
             )}
 
-            {/* Usage Context */}
             {eiHasUsageContext && (
               <View style={styles.eiInfoSection}>
                 <Text style={[styles.eiSectionLabel, { color: colors.textSecondary }]}>Usage</Text>
@@ -1668,7 +1819,6 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
               </View>
             )}
 
-            {/* Fun Fact or Cultural Note */}
             {(eiHasFunFact || eiHasCulturalNote) && (
               <View style={styles.eiInfoSection}>
                 <Text style={[styles.eiSectionLabel, { color: "#2ecc71" }]}>Did You Know?</Text>
@@ -1691,12 +1841,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
                 sentenceSession?.session_id,
               ).catch(() => {});
               introScrollRef.current?.scrollTo({ y: 0, animated: false });
-              if (experimentIntroIndex + 1 < experimentIntroCards.length) {
-                setExperimentIntroIndex(experimentIntroIndex + 1);
-              } else {
-                setExperimentIntroCards([]);
-                setExperimentIntroIndex(0);
-              }
+              advanceAfterSubmit("understood");
             }}
           >
             <Text style={styles.reintroRememberText}>Continue</Text>
@@ -1706,7 +1851,236 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
     );
   }
 
-  // Intro card mid-session
+  // Quranic verse card (interleaved in session)
+  if (sentenceSession && isVerseSlot) {
+    const verseIdx = (currentSlot as { type: "verse"; verseIndex: number }).verseIndex;
+    const verse = verseCards[verseIdx];
+    if (!verseFlipped && verseShowTimeRef.current === 0) {
+      verseShowTimeRef.current = Date.now();
+    }
+
+    if (verse) {
+      const hasWords = verse.words && verse.words.length > 0;
+      const tappedVerseWord = verseTappedIdx !== null && hasWords ? verse.words[verseTappedIdx] : null;
+      const lookedUpWords = verse.words?.filter((_, i) => verseLookedUp.has(i) && !verse.words[i].is_function_word) ?? [];
+
+      return (
+        <View style={[styles.container, { paddingTop: Math.max(insets.top, 12) }]}>
+          <ProgressBar
+            current={cardIndex + 1}
+            total={totalCards}
+            mode={mode}
+          />
+          <ScrollView
+            contentContainerStyle={{ padding: 20, paddingBottom: 8 }}
+            showsVerticalScrollIndicator={false}
+          >
+            {/* Attribution — pinned at top */}
+            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, marginBottom: 20 }}>
+              <Text style={{ fontSize: 13, color: "#d4a056", fontWeight: "600" }}>
+                {verse.surah_name_en || `Surah ${verse.surah}`} : {verse.ayah}
+              </Text>
+              {verse.surah_name_ar && (
+                <Text style={{ fontSize: 15, color: "#d4a056", fontFamily: fontFamily.arabic, writingDirection: "rtl" }}>
+                  {verse.surah_name_ar}
+                </Text>
+              )}
+              {verse.is_new && (
+                <View style={{ backgroundColor: "#d4a05620", borderRadius: 8, paddingHorizontal: 8, paddingVertical: 2 }}>
+                  <Text style={{ fontSize: 11, color: "#d4a056", fontWeight: "600" }}>NEW</Text>
+                </View>
+              )}
+            </View>
+
+            {/* Arabic text — tappable words if word data available */}
+            {hasWords ? (
+              <View style={{ flexDirection: "row", flexWrap: "wrap", justifyContent: "center", gap: 6, marginBottom: 20 }}>
+                {verse.words.map((w, i) => (
+                  <Pressable
+                    key={i}
+                    onPress={() => {
+                      if (!w.is_function_word && w.lemma_id) {
+                        setVerseTappedIdx(verseTappedIdx === i ? null : i);
+                        setVerseLookedUp((prev) => new Set([...prev, i]));
+                      }
+                    }}
+                    style={{
+                      paddingHorizontal: 4,
+                      paddingVertical: 2,
+                      borderRadius: 4,
+                      backgroundColor: verseTappedIdx === i ? "#d4a05625" : "transparent",
+                      borderBottomWidth: verseLookedUp.has(i) && !w.is_function_word ? 2 : 0,
+                      borderBottomColor: "#d4a05650",
+                    }}
+                  >
+                    <Text style={{
+                      fontSize: verseFlipped ? 24 : 28,
+                      lineHeight: verseFlipped ? 44 : 52,
+                      color: colors.arabic,
+                      fontFamily: fontFamily.arabic,
+                      writingDirection: "rtl",
+                    }}>
+                      {w.surface_form}
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
+            ) : (
+              <Text style={{
+                fontSize: verseFlipped ? 24 : 28,
+                lineHeight: verseFlipped ? 44 : 52,
+                color: colors.arabic,
+                fontFamily: fontFamily.arabic,
+                writingDirection: "rtl",
+                textAlign: "center",
+                marginBottom: 20,
+              }}>
+                {verse.arabic_text}
+              </Text>
+            )}
+
+            {/* Word lookup tooltip */}
+            {tappedVerseWord && !tappedVerseWord.is_function_word && (
+              <View style={{
+                backgroundColor: "#22223a",
+                borderWidth: 1,
+                borderColor: "#d4a05630",
+                borderRadius: 14,
+                padding: 14,
+                marginBottom: 16,
+              }}>
+                <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                    <Text style={{ fontSize: 22, color: colors.arabic, fontFamily: fontFamily.arabic, writingDirection: "rtl" }}>
+                      {tappedVerseWord.lemma_ar || tappedVerseWord.surface_form}
+                    </Text>
+                    {tappedVerseWord.pos && (
+                      <View style={{ backgroundColor: "#4a90d920", borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 }}>
+                        <Text style={{ fontSize: 10, color: "#4a90d9", fontWeight: "600" }}>{tappedVerseWord.pos}</Text>
+                      </View>
+                    )}
+                  </View>
+                </View>
+                {tappedVerseWord.gloss_en && (
+                  <Text style={{ fontSize: 15, color: "#e8e8e8", fontWeight: "500", marginBottom: 6 }}>
+                    {tappedVerseWord.gloss_en}
+                  </Text>
+                )}
+                {tappedVerseWord.root && (
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                    <View style={{ backgroundColor: "#9b59b618", borderRadius: 6, paddingHorizontal: 8, paddingVertical: 2 }}>
+                      <Text style={{ fontSize: 12, color: "#9b59b6", fontWeight: "600", fontFamily: fontFamily.arabic }}>{tappedVerseWord.root}</Text>
+                    </View>
+                    {tappedVerseWord.root_meaning && (
+                      <Text style={{ fontSize: 11, color: "#9b59b680" }}>{tappedVerseWord.root_meaning}</Text>
+                    )}
+                  </View>
+                )}
+              </View>
+            )}
+
+            {/* Translation (shown after flip) */}
+            {verseFlipped && (
+              <View style={{ borderTopWidth: 1, borderTopColor: "#d4a05630", paddingTop: 16, marginBottom: 12 }}>
+                <Text style={{
+                  fontSize: 16,
+                  lineHeight: 26,
+                  color: colors.textSecondary,
+                  textAlign: "center",
+                }}>
+                  {verse.english_translation}
+                </Text>
+
+                {/* Looked-up words summary pills */}
+                {lookedUpWords.length > 0 && (
+                  <View style={{ flexDirection: "row", flexWrap: "wrap", justifyContent: "center", gap: 6, marginTop: 14 }}>
+                    {lookedUpWords.map((w, i) => (
+                      <View key={i} style={{
+                        backgroundColor: "#d4a05610",
+                        borderWidth: 1,
+                        borderColor: "#d4a05620",
+                        borderRadius: 8,
+                        paddingHorizontal: 8,
+                        paddingVertical: 3,
+                        flexDirection: "row",
+                        alignItems: "center",
+                        gap: 4,
+                      }}>
+                        <Text style={{ fontSize: 13, color: colors.arabic, fontFamily: fontFamily.arabic, writingDirection: "rtl" }}>
+                          {w.lemma_ar || w.surface_form}
+                        </Text>
+                        {w.gloss_en && (
+                          <Text style={{ fontSize: 10, color: "#888" }}>{w.gloss_en}</Text>
+                        )}
+                      </View>
+                    ))}
+                  </View>
+                )}
+              </View>
+            )}
+          </ScrollView>
+
+          <View style={{ padding: 16, gap: 10 }}>
+            {!verseFlipped ? (
+              <Pressable
+                style={{ backgroundColor: "#d4a056", borderRadius: 12, paddingVertical: 14, alignItems: "center" }}
+                onPress={() => setVerseFlipped(true)}
+              >
+                <Text style={{ color: "#fff", fontSize: 16, fontWeight: "600" }}>Show Translation</Text>
+              </Pressable>
+            ) : (
+              <View style={{ flexDirection: "row", gap: 10 }}>
+                <Pressable
+                  style={{ flex: 1, backgroundColor: "#e74c3c20", borderWidth: 1, borderColor: "#e74c3c30", borderRadius: 12, paddingVertical: 14, alignItems: "center" }}
+                  onPress={() => {
+                    const ms = Date.now() - verseShowTimeRef.current;
+                    submitVerseReview(verse.verse_id, "not_yet", sentenceSession?.session_id, ms).catch(() => {});
+                    setVerseFlipped(false);
+                    setVerseTappedIdx(null);
+                    setVerseLookedUp(new Set());
+                    verseShowTimeRef.current = 0;
+                    advanceAfterSubmit("no_idea");
+                  }}
+                >
+                  <Text style={{ color: "#e74c3c", fontSize: 14, fontWeight: "600" }}>Not yet</Text>
+                </Pressable>
+                <Pressable
+                  style={{ flex: 1, backgroundColor: "#f39c1220", borderWidth: 1, borderColor: "#f39c1230", borderRadius: 12, paddingVertical: 14, alignItems: "center" }}
+                  onPress={() => {
+                    const ms = Date.now() - verseShowTimeRef.current;
+                    submitVerseReview(verse.verse_id, "partially", sentenceSession?.session_id, ms).catch(() => {});
+                    setVerseFlipped(false);
+                    setVerseTappedIdx(null);
+                    setVerseLookedUp(new Set());
+                    verseShowTimeRef.current = 0;
+                    advanceAfterSubmit("partial");
+                  }}
+                >
+                  <Text style={{ color: "#f39c12", fontSize: 14, fontWeight: "600" }}>Partially</Text>
+                </Pressable>
+                <Pressable
+                  style={{ flex: 1, backgroundColor: "#2ecc7120", borderWidth: 1, borderColor: "#2ecc7130", borderRadius: 12, paddingVertical: 14, alignItems: "center" }}
+                  onPress={() => {
+                    const ms = Date.now() - verseShowTimeRef.current;
+                    submitVerseReview(verse.verse_id, "got_it", sentenceSession?.session_id, ms).catch(() => {});
+                    setVerseFlipped(false);
+                    setVerseTappedIdx(null);
+                    setVerseLookedUp(new Set());
+                    verseShowTimeRef.current = 0;
+                    advanceAfterSubmit("understood");
+                  }}
+                >
+                  <Text style={{ color: "#2ecc71", fontSize: 14, fontWeight: "600" }}>Got it</Text>
+                </Pressable>
+              </View>
+            )}
+          </View>
+        </View>
+      );
+    }
+  }
+
+  // Intro card mid-session (deprecated intro_candidates)
   if (sentenceSession && isIntroSlot) {
     const candidate = autoIntroduced[currentSlot!.type === "intro" ? currentSlot!.candidateIndex : 0];
     const knownSiblings = candidate.root_family?.filter(

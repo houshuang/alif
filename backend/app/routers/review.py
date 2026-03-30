@@ -18,6 +18,7 @@ from app.schemas import (
     SentenceReviewSubmitOut,
     SessionEndOut,
     SessionSummaryOut,
+    VerseReviewIn,
     WordJourneyItem,
     WrapUpIn,
     WrapUpOut,
@@ -78,6 +79,17 @@ def next_sentences(
     if mode == "listening":
         result["intro_candidates"] = []
 
+    # Add verse cards (reading mode only, not prefetch)
+    if mode == "reading":
+        try:
+            from app.services.quran_service import select_verse_cards
+            result["verse_cards"] = select_verse_cards(db)
+        except Exception as e:
+            logging.getLogger(__name__).warning(f"Verse card selection failed: {e}")
+            result["verse_cards"] = []
+    else:
+        result["verse_cards"] = []
+
     if not prefetch:
         log_interaction(
             event="session_start",
@@ -88,6 +100,7 @@ def next_sentences(
             sentence_count=len([i for i in result["items"] if i.get("sentence_id")]),
             fallback_count=len([i for i in result["items"] if not i.get("sentence_id")]),
             intro_candidates=len(result.get("intro_candidates", [])),
+            verse_cards=len(result.get("verse_cards", [])),
         )
         # Trigger background generation so next session has more sentences
         from app.services.material_generator import warm_sentence_cache
@@ -348,6 +361,16 @@ def sync_reviews(body: BulkSyncIn, db: Session = Depends(get_db)):
                         source="sync",
                     )
                 results.append({"client_review_id": item.client_review_id, "status": status})
+            elif item.type == "verse":
+                from app.services.quran_service import submit_verse_review
+                payload = item.payload
+                submit_verse_review(
+                    db,
+                    verse_id=payload["verse_id"],
+                    rating=payload["rating"],
+                    session_id=payload.get("session_id"),
+                )
+                results.append({"client_review_id": item.client_review_id, "status": "ok"})
             else:
                 results.append({"client_review_id": item.client_review_id, "status": "error", "error": f"Unknown type: {item.type}"})
         except Exception as e:
@@ -415,6 +438,13 @@ def acknowledge_experiment_intro(
         experiment_group="intro_ab_card",
     )
     return {"status": "ok", "lemma_id": body.lemma_id}
+
+
+@router.post("/verse")
+def review_verse(body: VerseReviewIn, db: Session = Depends(get_db)):
+    """Submit a verse review rating."""
+    from app.services.quran_service import submit_verse_review
+    return submit_verse_review(db, body.verse_id, body.rating, body.session_id)
 
 
 @router.post("/wrap-up", response_model=WrapUpOut)

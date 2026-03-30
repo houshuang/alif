@@ -4,6 +4,22 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-03-30: Intro Card Session Interleaving
+
+**Problem**: After textbook imports, up to 25 intro cards were front-loaded before any sentence reviews, making sessions feel overwhelming. Users reported dreading opening the app when faced with a wall of "learn new word" cards.
+
+**Research basis**: Spacing effect (Cepeda et al., 2006) — distributed practice within a session is more effective than massed presentation. Interleaving (Rohrer & Taylor, 2007) — alternating between different task types improves retention vs blocked practice.
+
+**Change**: Frontend-only. `buildInterleavedSession()` in `frontend/app/index.tsx` now distributes experiment intro cards among review sentences instead of front-loading them. Pattern: first 2 intro cards, then 1 intro card every 3 sentences. Same-word sentences are spaced apart using a greedy maximum-gap algorithm (tracks `lastSeen` position per intro-card lemma ID, picks sentences whose overlapping intro words were shown longest ago). Sentences with no intro-card words serve as natural "spacers."
+
+**No backend changes**: Same sentences selected, same intro cards generated, same scheduling logic. Only the presentation order changed.
+
+**Expected**: Sessions feel lighter — no more "wall of 25 cards." Each intro card is immediately followed by contextual practice in sentences. Same-word spacing should improve within-session retention. Monitor: session completion rates, first-review accuracy for intro-carded words, user subjective experience.
+
+**Verify**: Load a session with intro cards → verify they appear interleaved (not front-loaded). After an intro card for word X, verify sentences containing X appear 4-6+ cards later, not immediately after.
+
+---
+
 ## 2026-03-27: Graduated Tashkeel Fading
 
 **Research basis**: Bjork desirable difficulties — removing a retrieval cue is most beneficial when the learner is likely to succeed without it. Scaffold words (context words not being tested) with stability ≥30d have been reviewed many times; fading diacritics from them adds a reading challenge at low cost. Target words (is_due=True, being actively tested) still need the diacritics — comprehension is the point of that card.
