@@ -321,7 +321,7 @@ def _create_unknown_quran_lemmas(
 
     Returns map of bare_norm -> new lemma_id.
     """
-    from app.services.llm import generate_structured
+    from app.services.llm import generate_completion
 
     if not unknown_forms:
         return {}
@@ -329,7 +329,8 @@ def _create_unknown_quran_lemmas(
     # Batch LLM translation
     word_list = [{"bare": bare, "surface": surf} for bare, surf in unknown_forms.items()]
     prompt = (
-        "Translate these Arabic words to English. For each word, provide:\n"
+        "Translate these Arabic words to English. Return a JSON array.\n"
+        "For each word, provide:\n"
         "- bare: the bare form (as given)\n"
         "- gloss_en: English translation (short, 1-3 words)\n"
         "- pos: part of speech (noun/verb/adj/adv/prep/particle/name)\n"
@@ -340,22 +341,8 @@ def _create_unknown_quran_lemmas(
         prompt += f"- {w['surface']} ({w['bare']})\n"
 
     try:
-        translations = generate_structured(
-            prompt,
-            response_schema={
-                "type": "array",
-                "items": {
-                    "type": "object",
-                    "properties": {
-                        "bare": {"type": "string"},
-                        "gloss_en": {"type": "string"},
-                        "pos": {"type": "string"},
-                        "is_name": {"type": "boolean"},
-                    },
-                    "required": ["bare", "gloss_en", "pos"],
-                },
-            },
-        )
+        result = generate_completion(prompt, json_mode=True, task_type="quran_lemma_translation")
+        translations = result if isinstance(result, list) else result.get("words", result.get("translations", []))
     except Exception as e:
         logger.warning(f"LLM translation failed for Quran lemmas: {e}")
         return {}
