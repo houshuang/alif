@@ -12,6 +12,7 @@ const baseStyle: Record<string, any> = {
     lineHeight: 22,
     marginTop: 0,
     marginBottom: 0,
+    writingDirection: "ltr" as const,
   },
   paragraph: {
     marginTop: 0,

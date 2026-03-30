@@ -1880,7 +1880,15 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
                 focusedLemmaId={lookupLemmaId}
                 focusedLemmaAr={lookupResult?.lemma_ar ?? null}
                 sentenceId={null}
-                askAIContextBuilder={() => `Quranic verse: ${verse.surah_name_en} ${verse.surah}:${verse.ayah}\nArabic: ${verse.arabic_text}\nTranslation: ${verse.english_translation}`}
+                askAIContextBuilder={() => {
+                  const wordList = verse.words?.map((w: any) => `${w.surface_form} (${w.gloss_en || "?"})`).join(", ") ?? "";
+                  const focused = lookupResult ? `\nFocused word: ${lookupSurfaceForm} — ${lookupResult.lemma_ar} (${lookupResult.gloss_en})` : "";
+                  return `Quranic verse: ${verse.surah_name_en} ${verse.surah}:${verse.ayah}\nArabic: ${verse.arabic_text}\nTranslation: ${verse.english_translation}\nWords: ${wordList}${focused}`;
+                }}
+                askAIAutoExplainPrompt={() => {
+                  const focused = lookupResult ? `\n\nI'm looking at the word "${lookupSurfaceForm}" (${lookupResult.lemma_ar} — ${lookupResult.gloss_en}).` : "";
+                  return `Explain this Quranic verse: ${verse.surah_name_en} ${verse.surah}:${verse.ayah}${focused}\n\nPlease cover:\n- Word-by-word breakdown: for key words, give the traditional Arabic meaning AND any special Quranic/theological significance\n- How the grammar works (verb forms, case endings, particles)\n- The context within the surah — what comes before and after, and why this verse matters\n- Any classical tafsir insights (major commentators' interpretations)\n- Connections to other verses that use the same key words or concepts`;
+                }}
                 askAIScreen="review"
                 extraActions={[
                   {
@@ -2107,13 +2115,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
             {!verseFlipped ? (
               <View style={{ flexDirection: "row", gap: 10 }}>
                 <Pressable
-                  style={{ flex: 2, backgroundColor: "#d4a056", borderRadius: 12, paddingVertical: 14, alignItems: "center" }}
-                  onPress={() => setVerseFlipped(true)}
-                >
-                  <Text style={{ color: "#fff", fontSize: 16, fontWeight: "600" }}>Show Translation</Text>
-                </Pressable>
-                <Pressable
-                  style={{ flex: 1, backgroundColor: "#2ecc7120", borderWidth: 1, borderColor: "#2ecc7130", borderRadius: 12, paddingVertical: 14, alignItems: "center" }}
+                  style={{ flex: 1, backgroundColor: "#2ecc7115", borderWidth: 1, borderColor: "#2ecc7125", borderRadius: 12, paddingVertical: 14, alignItems: "center" }}
                   onPress={() => {
                     const ms = Date.now() - verseShowTimeRef.current;
                     submitVerseReview(verse.verse_id, "got_it", sentenceSession?.session_id, ms).catch(() => {});
@@ -2124,7 +2126,13 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
                     advanceAfterSubmit("understood");
                   }}
                 >
-                  <Text style={{ color: "#2ecc71", fontSize: 14, fontWeight: "600" }}>Got it</Text>
+                  <Text style={{ color: "#2ecc71", fontSize: 13, fontWeight: "500" }}>Know it</Text>
+                </Pressable>
+                <Pressable
+                  style={{ flex: 2, backgroundColor: "#d4a056", borderRadius: 12, paddingVertical: 14, alignItems: "center" }}
+                  onPress={() => setVerseFlipped(true)}
+                >
+                  <Text style={{ color: "#fff", fontSize: 16, fontWeight: "600" }}>Show Translation</Text>
                 </Pressable>
               </View>
             ) : (
@@ -4617,6 +4625,7 @@ const styles = StyleSheet.create({
     color: colors.text,
     lineHeight: 20,
     writingDirection: "ltr" as const,
+    fontFamily: fontFamily.translitRegular,
   },
   eiMnemonicCard: {
     backgroundColor: "#2a1f4e",
@@ -4637,5 +4646,6 @@ const styles = StyleSheet.create({
     color: "#c8e8c8",
     lineHeight: 19,
     writingDirection: "ltr" as const,
+    fontFamily: fontFamily.translitRegular,
   },
 });
