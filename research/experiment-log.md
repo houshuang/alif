@@ -4,6 +4,22 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-03-30c: Quran Card Full Word Interaction + Lemmatization Improvements
+
+**Problem**: (1) Quran verse cards had limited word interaction — only content words with known lemmas were tappable, no navigation between tapped words, no ActionMenu. (2) Quran lemmatizer missed hamzat al-wasl words after proclitic stripping (بسم couldn't find اسم). (3) Newly created Quran lemmas got Quran-specific theological glosses instead of general Arabic meanings, had no root linkage, and missed enrichment. (4) Function words in verses showed no gloss.
+
+**Changes**:
+1. **Full word interaction on Quran cards**: ALL words now tappable (function words show gloss-only card). Prev/next arrows navigate between tapped words. Persistent highlights removable by re-tap. ActionMenu (Ask AI, flag, refresh) on ProgressBar. Uses shared `tappedOrder`/`tappedCursor`/`tappedCacheRef` infrastructure from sentence review.
+2. **Hamzat al-wasl restoration**: `_hamzat_wasl_lookup()` restores dropped initial alef after proclitic stripping — handles Arabic morphophonological rule where hamzat al-wasl words lose their alef when preceded by proclitics (بسم → ب + اسم).
+3. **Enhanced Quran lemma creation**: `_create_unknown_quran_lemmas()` now gets general Arabic glosses, extracts consonantal roots in the same LLM call, links/creates Root records, and triggers `enrich_lemmas_batch()` for forms/etymology/transliteration automatically.
+4. **Function word glosses**: `_QURAN_FUNCTION_GLOSSES` dict provides glosses for Quranic pronouns and particles (إياك, إياه, الم, etc.), populated in `select_verse_cards()`.
+5. **Word lookup cache v3**: bumped to clear stale glosses from previous cache versions.
+6. **Data fixes**: All 26 Quran-created lemmas enriched (15 new roots created, wazn assigned). بسم relinked to existing اسم lemma. All 26 re-glossed with general Arabic meanings.
+
+**Verify**: Open a Quran verse → tap any word (including هو, من, etc.) → should show gloss. Tap multiple words → use prev/next arrows to navigate. Re-tap a highlighted word → highlight clears. Check بسم mapping → should resolve to اسم (id=47).
+
+---
+
 ## 2026-03-30b: Quran Card RTL Fix + WordInfoCard + Intro Source
 
 **Problem**: (1) Quran verse words rendered left-to-right instead of right-to-left — `flexDirection: "row"` laid out words in DOM order (LTR). (2) Tapping a verse word showed the WordInfoCard spinner briefly, then it vanished — `hasFocus` required `markState !== null`, but verse taps pass `markState={null}`. (3) Intro card `source` label used `lemma.source` (dictionary provenance like "wiktionary") instead of `ulk.source` (learning source like "book", "textbook_scan").
