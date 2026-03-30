@@ -170,7 +170,7 @@ export default function WordInfoCard({
   surfaceTranslit,
   confusionData,
 }: WordInfoCardProps) {
-  const hasFocus = !!surfaceForm && markState !== null;
+  const hasFocus = !!surfaceForm && (markState !== null || !!result || loading);
   const showNav = hasPrev || hasNext;
 
   // Check if this is a grammar particle

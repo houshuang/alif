@@ -1901,7 +1901,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
 
             {/* Arabic text — tappable words if word data available */}
             {hasWords ? (
-              <View style={{ flexDirection: "row", flexWrap: "wrap", justifyContent: "center", gap: 6, marginBottom: 20 }}>
+              <View style={{ flexDirection: "row-reverse", flexWrap: "wrap", justifyContent: "center", gap: 6, marginBottom: 20 }}>
                 {verse.words.map((w, i) => (
                   <Pressable
                     key={i}
