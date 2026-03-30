@@ -15,6 +15,7 @@ from app.models import Lemma, QuranicVerse, QuranicVerseWord, Root, UserLemmaKno
 from app.services.interaction_logger import log_interaction
 from app.services.transliteration import transliterate_arabic
 from app.services.sentence_validator import (
+    FUNCTION_WORD_GLOSSES,
     PROCLITICS,
     _is_function_word,
     build_lemma_lookup,
@@ -24,6 +25,23 @@ from app.services.sentence_validator import (
     strip_tatweel,
     tokenize_display,
 )
+
+# Quranic function words not in the standard FUNCTION_WORD_GLOSSES
+_QURAN_FUNCTION_GLOSSES: dict[str, str] = {
+    "اياك": "you (obj.)",
+    "واياك": "and you (obj.)",
+    "اياه": "him (obj.)",
+    "اياهم": "them (obj.)",
+    "اياها": "her (obj.)",
+    "اياي": "me (obj.)",
+    "ايانا": "us (obj.)",
+    "اياكم": "you all (obj.)",
+    "الم": "Alif Lam Mim",
+    "الر": "Alif Lam Ra",
+    "حم": "Ha Mim",
+    "طه": "Ta Ha",
+    "يس": "Ya Sin",
+}
 
 logger = logging.getLogger(__name__)
 
@@ -138,11 +156,16 @@ def select_verse_cards(
         )
         for vw in vw_rows:
             lemma = vw.lemma
+            # For function words without a lemma, look up gloss from known lists
+            gloss = lemma.gloss_en if lemma else None
+            if not gloss and vw.is_function_word:
+                bare = normalize_alef(strip_tatweel(strip_diacritics(vw.surface_form)))
+                gloss = FUNCTION_WORD_GLOSSES.get(bare) or _QURAN_FUNCTION_GLOSSES.get(bare)
             verse_words_by_id[vw.verse_id].append({
                 "surface_form": vw.surface_form,
                 "lemma_id": vw.lemma_id,
                 "lemma_ar": lemma.lemma_ar if lemma else None,
-                "gloss_en": lemma.gloss_en if lemma else None,
+                "gloss_en": gloss,
                 "root": lemma.root.root if lemma and lemma.root else None,
                 "root_meaning": lemma.root.core_meaning_en if lemma and lemma.root else None,
                 "pos": lemma.pos if lemma else None,

@@ -599,7 +599,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
     }
   }, [confusedIndices, missedIndices]);
 
-  type TappedEntry = { surfaceForm: string; lemmaId: number | null; result: WordLookupResult | null; markState: FocusWordMark; showMeaning: boolean; surfaceTranslit?: string | null };
+  type TappedEntry = { surfaceForm: string; lemmaId: number | null; result: WordLookupResult | null; markState: FocusWordMark | null; showMeaning: boolean; surfaceTranslit?: string | null };
 
   const applyTappedEntry = useCallback((entry: TappedEntry) => {
     setLookupSurfaceForm(entry.surfaceForm);
@@ -1866,8 +1866,8 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
 
     if (verse) {
       const hasWords = verse.words && verse.words.length > 0;
-      const tappedVerseWord = verseTappedIdx !== null && hasWords ? verse.words[verseTappedIdx] : null;
-      const lookedUpWords = verse.words?.filter((_, i) => verseLookedUp.has(i) && !verse.words[i].is_function_word) ?? [];
+      const activeVerseWordIdx = tappedOrder.length > 0 && tappedCursor >= 0 ? tappedOrder[tappedCursor] : null;
+      const lookedUpWords = verse.words?.filter((_, i) => tappedOrder.includes(i) && !verse.words[i].is_function_word) ?? [];
 
       return (
         <View style={[styles.container, { paddingTop: Math.max(insets.top, 12) }]}>
@@ -1875,6 +1875,22 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
             current={cardIndex + 1}
             total={totalCards}
             mode={mode}
+            actionMenu={
+              <ActionMenu
+                focusedLemmaId={lookupLemmaId}
+                focusedLemmaAr={lookupResult?.lemma_ar ?? null}
+                sentenceId={null}
+                askAIContextBuilder={() => `Quranic verse: ${verse.surah_name_en} ${verse.surah}:${verse.ayah}\nArabic: ${verse.arabic_text}\nTranslation: ${verse.english_translation}`}
+                askAIScreen="review"
+                extraActions={[
+                  {
+                    icon: "refresh-outline" as const,
+                    label: "Refresh session",
+                    onPress: () => loadSession(undefined, true),
+                  },
+                ]}
+              />
+            }
           />
           <ScrollView
             contentContainerStyle={{ padding: 20, paddingBottom: 8 }}
@@ -1900,41 +1916,67 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
             {/* Arabic text — tappable words if word data available */}
             {hasWords ? (
               <View style={{ flexDirection: "row-reverse", flexWrap: "wrap", justifyContent: "center", gap: 6, marginBottom: 20 }}>
-                {verse.words.map((w, i) => (
+                {verse.words.map((w, i) => {
+                  const isActive = tappedOrder.length > 0 && tappedCursor >= 0 && tappedOrder[tappedCursor] === i;
+                  const isLookedUp = tappedOrder.includes(i);
+                  return (
                   <Pressable
                     key={i}
                     onPress={async () => {
-                      if (!w.is_function_word && w.lemma_id) {
-                        if (verseTappedIdx === i) {
-                          setVerseTappedIdx(null);
-                          setLookupResult(null);
-                          setLookupSurfaceForm(null);
-                          setLookupLoading(false);
-                          return;
-                        }
-                        setVerseTappedIdx(i);
-                        setVerseLookedUp((prev) => new Set([...prev, i]));
-                        const reqId = ++lookupRequestRef.current;
-                        setLookupSurfaceForm(w.surface_form);
-                        setLookupLoading(true);
-                        setLookupShowMeaning(true);
-                        setLookupResult(null);
-                        try {
-                          const result = await lookupReviewWord(w.lemma_id!);
-                          if (lookupRequestRef.current !== reqId) return;
-                          setLookupResult(result);
-                        } catch {} finally {
-                          if (lookupRequestRef.current === reqId) setLookupLoading(false);
-                        }
+                      // Re-tap active word → remove from history
+                      if (isActive) {
+                        removeFromTappedHistory(i);
+                        return;
+                      }
+
+                      // Function words / no lemma → show gloss-only card
+                      if (w.is_function_word || !w.lemma_id) {
+                        const fnResult: WordLookupResult = {
+                          lemma_id: w.lemma_id ?? 0,
+                          lemma_ar: w.lemma_ar ?? "",
+                          gloss_en: w.gloss_en ?? null,
+                          transliteration: null,
+                          root: w.root ?? null,
+                          root_meaning: w.root_meaning ?? null,
+                          root_id: null,
+                          pos: w.pos ?? null,
+                          forms_json: null,
+                          example_ar: null,
+                          frequency_rank: null,
+                          cefr_level: null,
+                          example_en: null,
+                          grammar_details: [],
+                          root_family: [],
+                          is_function_word: true,
+                        };
+                        addToTappedHistory(i, { surfaceForm: w.surface_form, lemmaId: null, result: fnResult, markState: null, showMeaning: true });
+                        return;
+                      }
+
+                      // Content word → fetch full WordInfoCard
+                      const reqId = ++lookupRequestRef.current;
+                      setLookupSurfaceForm(w.surface_form);
+                      setLookupLoading(true);
+                      setLookupShowMeaning(true);
+                      setLookupResult(null);
+                      setLookupLemmaId(w.lemma_id);
+                      addToTappedHistory(i, { surfaceForm: w.surface_form, lemmaId: w.lemma_id, result: null, markState: null, showMeaning: true });
+                      try {
+                        const result = await lookupReviewWord(w.lemma_id!);
+                        if (lookupRequestRef.current !== reqId) return;
+                        setLookupResult(result);
+                        tappedCacheRef.current.set(i, { surfaceForm: w.surface_form, lemmaId: w.lemma_id, result, markState: null, showMeaning: true });
+                      } catch {} finally {
+                        if (lookupRequestRef.current === reqId) setLookupLoading(false);
                       }
                     }}
                     style={{
                       paddingHorizontal: 4,
                       paddingVertical: 2,
                       borderRadius: 4,
-                      backgroundColor: verseTappedIdx === i ? "#d4a05625" : "transparent",
-                      borderBottomWidth: verseTappedIdx === i ? 2 : 0,
-                      borderBottomColor: "#d4a05650",
+                      backgroundColor: isActive ? "#d4a05625" : "transparent",
+                      borderBottomWidth: isLookedUp && !isActive ? 2 : isActive ? 2 : 0,
+                      borderBottomColor: isActive ? "#d4a056" : "#d4a05650",
                     }}
                   >
                     <Text style={{
@@ -1947,7 +1989,8 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
                       {w.surface_form}
                     </Text>
                   </Pressable>
-                ))}
+                  );
+                })}
               </View>
             ) : (
               <Text style={{
@@ -2016,7 +2059,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
             )}
           </ScrollView>
 
-          {verseTappedIdx !== null && (
+          {tappedOrder.length > 0 && (
             <WordInfoCard
               result={lookupResult}
               loading={lookupLoading}
@@ -2027,6 +2070,10 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
               onNavigateToDetail={(id) => router.push(`/word/${id}`)}
               onNavigateToPattern={(wazn) => router.push(`/pattern/${encodeURIComponent(wazn)}`)}
               onNavigateToRoot={(rootId) => router.push(`/root/${rootId}`)}
+              onPrev={handleLookupPrev}
+              onNext={handleLookupNext}
+              hasPrev={tappedCursor > 0}
+              hasNext={tappedCursor < tappedOrder.length - 1}
             />
           )}
 
@@ -2046,9 +2093,8 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
                     const ms = Date.now() - verseShowTimeRef.current;
                     submitVerseReview(verse.verse_id, "not_yet", sentenceSession?.session_id, ms).catch(() => {});
                     setVerseFlipped(false);
-                    setVerseTappedIdx(null);
-                    setVerseLookedUp(new Set());
-                    setLookupResult(null); setLookupSurfaceForm(null);
+                    setTappedOrder([]); setTappedCursor(-1); tappedCacheRef.current = new Map();
+                    setLookupResult(null); setLookupSurfaceForm(null); setLookupLemmaId(null);
                     verseShowTimeRef.current = 0;
                     advanceAfterSubmit("no_idea");
                   }}
@@ -2061,9 +2107,8 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
                     const ms = Date.now() - verseShowTimeRef.current;
                     submitVerseReview(verse.verse_id, "partially", sentenceSession?.session_id, ms).catch(() => {});
                     setVerseFlipped(false);
-                    setVerseTappedIdx(null);
-                    setVerseLookedUp(new Set());
-                    setLookupResult(null); setLookupSurfaceForm(null);
+                    setTappedOrder([]); setTappedCursor(-1); tappedCacheRef.current = new Map();
+                    setLookupResult(null); setLookupSurfaceForm(null); setLookupLemmaId(null);
                     verseShowTimeRef.current = 0;
                     advanceAfterSubmit("partial");
                   }}
@@ -2076,9 +2121,8 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
                     const ms = Date.now() - verseShowTimeRef.current;
                     submitVerseReview(verse.verse_id, "got_it", sentenceSession?.session_id, ms).catch(() => {});
                     setVerseFlipped(false);
-                    setVerseTappedIdx(null);
-                    setVerseLookedUp(new Set());
-                    setLookupResult(null); setLookupSurfaceForm(null);
+                    setTappedOrder([]); setTappedCursor(-1); tappedCacheRef.current = new Map();
+                    setLookupResult(null); setLookupSurfaceForm(null); setLookupLemmaId(null);
                     verseShowTimeRef.current = 0;
                     advanceAfterSubmit("understood");
                   }}
