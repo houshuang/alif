@@ -102,7 +102,7 @@ def _gloss_with_pronoun_suffix(bare: str) -> str | None:
     return None
 
 
-def _gloss_via_lemma_lookup(bare: str, db: Session) -> str | None:
+def _gloss_via_lemma_lookup(bare: str, db: Session) -> Lemma | None:
     """Try stripping proclitics/suffixes and finding a matching lemma in DB."""
     # Try with and without al-prefix, with and without proclitics
     candidates = [bare]
@@ -144,7 +144,7 @@ def _gloss_via_lemma_lookup(bare: str, db: Session) -> str | None:
         Lemma.gloss_en != "",
     ).all()
     if lemmas:
-        return lemmas[0].gloss_en
+        return lemmas[0]
     return None
 
 
@@ -329,7 +329,10 @@ def select_verse_cards(
                 if not gloss:
                     gloss = _gloss_with_pronoun_suffix(bare)
                 if not gloss:
-                    gloss = _gloss_via_lemma_lookup(bare, db)
+                    db_lemma = _gloss_via_lemma_lookup(bare, db)
+                    if db_lemma:
+                        gloss = db_lemma.gloss_en
+                        resolved_lemma = db_lemma
                 if not gloss:
                     # Full morphological lookup (handles conjugations, broken plurals via forms_json)
                     resolved_id = lookup_lemma(bare, lemma_lookup)
