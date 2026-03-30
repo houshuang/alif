@@ -266,6 +266,10 @@ def lemmatize_quran_verses(db: Session, limit: int = 20) -> int:
                     if match:
                         lex_norm = normalize_alef(match["lex_bare"])
                         lemma_id = lemma_lookup.get(lex_norm)
+                # Uthmani ta maftouha → modern ta marbuta fallback
+                if not lemma_id and bare_norm.endswith("ت"):
+                    ta_marbuta = bare_norm[:-1] + "ة"
+                    lemma_id = lookup_lemma(ta_marbuta, lemma_lookup)
 
             # Check if resolved lemma is actually a function word
             if lemma_id and not is_func:
