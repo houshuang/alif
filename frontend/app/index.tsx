@@ -1949,6 +1949,11 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
                           root_family: [],
                           is_function_word: true,
                         };
+                        setLookupSurfaceForm(w.surface_form);
+                        setLookupLemmaId(null);
+                        setLookupResult(fnResult);
+                        setLookupLoading(false);
+                        setLookupShowMeaning(true);
                         addToTappedHistory(i, { surfaceForm: w.surface_form, lemmaId: null, result: fnResult, markState: null, showMeaning: true });
                         return;
                       }
@@ -1966,7 +1971,28 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
                         if (lookupRequestRef.current !== reqId) return;
                         setLookupResult(result);
                         tappedCacheRef.current.set(i, { surfaceForm: w.surface_form, lemmaId: w.lemma_id, result, markState: null, showMeaning: true });
-                      } catch {} finally {
+                      } catch {
+                        if (lookupRequestRef.current !== reqId) return;
+                        const fallbackResult: WordLookupResult = {
+                          lemma_id: w.lemma_id ?? 0,
+                          lemma_ar: w.lemma_ar ?? "",
+                          gloss_en: w.gloss_en ?? null,
+                          transliteration: null,
+                          root: w.root ?? null,
+                          root_meaning: w.root_meaning ?? null,
+                          root_id: null,
+                          pos: w.pos ?? null,
+                          forms_json: null,
+                          example_ar: null,
+                          frequency_rank: null,
+                          cefr_level: null,
+                          example_en: null,
+                          grammar_details: [],
+                          root_family: [],
+                        };
+                        setLookupResult(fallbackResult);
+                        tappedCacheRef.current.set(i, { surfaceForm: w.surface_form, lemmaId: w.lemma_id, result: fallbackResult, markState: null, showMeaning: true });
+                      } finally {
                         if (lookupRequestRef.current === reqId) setLookupLoading(false);
                       }
                     }}
