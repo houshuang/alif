@@ -1898,10 +1898,29 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
                 {verse.words.map((w, i) => (
                   <Pressable
                     key={i}
-                    onPress={() => {
+                    onPress={async () => {
                       if (!w.is_function_word && w.lemma_id) {
-                        setVerseTappedIdx(verseTappedIdx === i ? null : i);
+                        if (verseTappedIdx === i) {
+                          setVerseTappedIdx(null);
+                          setLookupResult(null);
+                          setLookupSurfaceForm(null);
+                          setLookupLoading(false);
+                          return;
+                        }
+                        setVerseTappedIdx(i);
                         setVerseLookedUp((prev) => new Set([...prev, i]));
+                        const reqId = ++lookupRequestRef.current;
+                        setLookupSurfaceForm(w.surface_form);
+                        setLookupLoading(true);
+                        setLookupShowMeaning(true);
+                        setLookupResult(null);
+                        try {
+                          const result = await lookupReviewWord(w.lemma_id!);
+                          if (lookupRequestRef.current !== reqId) return;
+                          setLookupResult(result);
+                        } catch {} finally {
+                          if (lookupRequestRef.current === reqId) setLookupLoading(false);
+                        }
                       }
                     }}
                     style={{
@@ -1937,46 +1956,6 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
               }}>
                 {verse.arabic_text}
               </Text>
-            )}
-
-            {/* Word lookup tooltip */}
-            {tappedVerseWord && !tappedVerseWord.is_function_word && (
-              <View style={{
-                backgroundColor: "#22223a",
-                borderWidth: 1,
-                borderColor: "#d4a05630",
-                borderRadius: 14,
-                padding: 14,
-                marginBottom: 16,
-              }}>
-                <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
-                  <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-                    <Text style={{ fontSize: 22, color: colors.arabic, fontFamily: fontFamily.arabic, writingDirection: "rtl" }}>
-                      {tappedVerseWord.lemma_ar || tappedVerseWord.surface_form}
-                    </Text>
-                    {tappedVerseWord.pos && (
-                      <View style={{ backgroundColor: "#4a90d920", borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 }}>
-                        <Text style={{ fontSize: 10, color: "#4a90d9", fontWeight: "600" }}>{tappedVerseWord.pos}</Text>
-                      </View>
-                    )}
-                  </View>
-                </View>
-                {tappedVerseWord.gloss_en && (
-                  <Text style={{ fontSize: 15, color: "#e8e8e8", fontWeight: "500", marginBottom: 6 }}>
-                    {tappedVerseWord.gloss_en}
-                  </Text>
-                )}
-                {tappedVerseWord.root && (
-                  <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-                    <View style={{ backgroundColor: "#9b59b618", borderRadius: 6, paddingHorizontal: 8, paddingVertical: 2 }}>
-                      <Text style={{ fontSize: 12, color: "#9b59b6", fontWeight: "600", fontFamily: fontFamily.arabic }}>{tappedVerseWord.root}</Text>
-                    </View>
-                    {tappedVerseWord.root_meaning && (
-                      <Text style={{ fontSize: 11, color: "#9b59b680" }}>{tappedVerseWord.root_meaning}</Text>
-                    )}
-                  </View>
-                )}
-              </View>
             )}
 
             {/* Translation (shown after flip) */}
@@ -2032,6 +2011,20 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
             )}
           </ScrollView>
 
+          {verseTappedIdx !== null && (
+            <WordInfoCard
+              result={lookupResult}
+              loading={lookupLoading}
+              surfaceForm={lookupSurfaceForm}
+              markState={null}
+              showMeaning={true}
+              reserveSpace={false}
+              onNavigateToDetail={(id) => router.push(`/word/${id}`)}
+              onNavigateToPattern={(wazn) => router.push(`/pattern/${encodeURIComponent(wazn)}`)}
+              onNavigateToRoot={(rootId) => router.push(`/root/${rootId}`)}
+            />
+          )}
+
           <View style={{ padding: 16, gap: 10 }}>
             {!verseFlipped ? (
               <Pressable
@@ -2050,6 +2043,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
                     setVerseFlipped(false);
                     setVerseTappedIdx(null);
                     setVerseLookedUp(new Set());
+                    setLookupResult(null); setLookupSurfaceForm(null);
                     verseShowTimeRef.current = 0;
                     advanceAfterSubmit("no_idea");
                   }}
@@ -2064,6 +2058,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
                     setVerseFlipped(false);
                     setVerseTappedIdx(null);
                     setVerseLookedUp(new Set());
+                    setLookupResult(null); setLookupSurfaceForm(null);
                     verseShowTimeRef.current = 0;
                     advanceAfterSubmit("partial");
                   }}
@@ -2078,6 +2073,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
                     setVerseFlipped(false);
                     setVerseTappedIdx(null);
                     setVerseLookedUp(new Set());
+                    setLookupResult(null); setLookupSurfaceForm(null);
                     verseShowTimeRef.current = 0;
                     advanceAfterSubmit("understood");
                   }}

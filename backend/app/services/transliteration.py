@@ -14,6 +14,9 @@ DAMMA = "\u064F"       # ُ
 KASRA = "\u0650"       # ِ
 SHADDA = "\u0651"      # ّ
 SUKUN = "\u0652"       # ْ
+UTHMANI_SUKUN = "\u06E1"  # ۡ (small high dotless head of khah — Uthmani sukun)
+ROUNDED_ZERO = "\u06DF"   # ۟ (small high rounded zero — another Uthmani sukun)
+SMALL_HIGH_MEEM = "\u06E2"  # ۢ (noon ghunnah marker)
 FATHATAN = "\u064B"    # ً
 DAMMATAN = "\u064C"    # ٌ
 KASRATAN = "\u064D"    # ٍ
@@ -77,7 +80,7 @@ _CONSONANTS = {
 
 _SHORT_VOWELS = {FATHA: "a", DAMMA: "u", KASRA: "i"}
 _TANWIN = {FATHATAN: "an", DAMMATAN: "un", KASRATAN: "in"}
-_DIACRITICS = set(_SHORT_VOWELS) | set(_TANWIN) | {SHADDA, SUKUN, SUPERSCRIPT_ALEF}
+_DIACRITICS = set(_SHORT_VOWELS) | set(_TANWIN) | {SHADDA, SUKUN, UTHMANI_SUKUN, ROUNDED_ZERO, SMALL_HIGH_MEEM, SUPERSCRIPT_ALEF}
 
 # Hamza carriers that are silent at word start
 _HAMZA_CARRIERS = {ALIF, ALIF_HAMZA_ABOVE, ALIF_HAMZA_BELOW, ALIF_WASLA}
@@ -273,7 +276,7 @@ def _transliterate_word(word: str, strip_tanwin: bool) -> str:
             diacritics, j = _collect_diacritics(chars, i + 1)
 
             has_shadda = SHADDA in diacritics
-            has_sukun = SUKUN in diacritics
+            has_sukun = SUKUN in diacritics or UTHMANI_SUKUN in diacritics or ROUNDED_ZERO in diacritics
             has_dagger_alef = SUPERSCRIPT_ALEF in diacritics
             short_vowel = next((d for d in diacritics if d in _SHORT_VOWELS), None)
             tanwin = next((d for d in diacritics if d in _TANWIN), None)

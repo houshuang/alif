@@ -13,6 +13,7 @@ from sqlalchemy.orm import Session
 
 from app.models import Lemma, QuranicVerse, QuranicVerseWord, UserLemmaKnowledge
 from app.services.interaction_logger import log_interaction
+from app.services.transliteration import transliterate_arabic
 from app.services.sentence_validator import (
     _is_function_word,
     build_lemma_lookup,
@@ -157,7 +158,7 @@ def select_verse_cards(
             "surah_name_en": v.surah_name_en,
             "arabic_text": v.arabic_text,
             "english_translation": v.english_translation,
-            "transliteration": v.transliteration,
+            "transliteration": transliterate_arabic(v.arabic_text),
             "srs_level": v.srs_level,
             "is_new": v in new_verses,
             "words": verse_words_by_id.get(v.id, []),
