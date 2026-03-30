@@ -14,6 +14,8 @@ from sqlalchemy.orm import Session
 from app.models import Lemma, QuranicVerse, QuranicVerseWord, Root, UserLemmaKnowledge
 from app.services.interaction_logger import log_interaction
 from app.services.transliteration import transliterate_arabic
+import re
+
 from app.services.sentence_validator import (
     FUNCTION_WORD_GLOSSES,
     PROCLITICS,
@@ -25,6 +27,18 @@ from app.services.sentence_validator import (
     strip_tatweel,
     tokenize_display,
 )
+
+# Quran-specific Unicode: small ya (ۦ), paragraph markers (۞), small high letters, etc.
+_QURAN_EXTRA_CHARS = re.compile("[\u06D6-\u06ED\u06E5\u06E6\u0670\u08F0-\u08FF\u065E\u065F۞]")
+
+
+def _normalize_quran(text: str) -> str:
+    """Extra normalization for Quran orthography beyond standard Arabic."""
+    text = _QURAN_EXTRA_CHARS.sub("", text)
+    text = text.replace("ء", "ا")  # hamza alone → alef (ءامن → اامن → امن after dedup)
+    # Collapse double alef from hamza normalization: اا → ا
+    text = text.replace("اا", "ا")
+    return text
 
 # Quranic function words not in the standard FUNCTION_WORD_GLOSSES
 _QURAN_FUNCTION_GLOSSES: dict[str, str] = {
@@ -256,7 +270,7 @@ def select_verse_cards(
             gloss = lemma.gloss_en if lemma else None
             resolved_lemma = lemma
             if not gloss:
-                bare = normalize_alef(strip_tatweel(strip_diacritics(vw.surface_form)))
+                bare = _normalize_quran(normalize_alef(strip_tatweel(strip_diacritics(vw.surface_form))))
                 gloss = FUNCTION_WORD_GLOSSES.get(bare) or _QURAN_FUNCTION_GLOSSES.get(bare)
                 if not gloss:
                     gloss = _gloss_with_pronoun_suffix(bare)
