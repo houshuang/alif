@@ -420,6 +420,31 @@ export interface ReintroCard {
   wazn_meaning?: string | null;
 }
 
+export interface VerseWord {
+  surface_form: string;
+  lemma_id: number | null;
+  lemma_ar: string | null;
+  gloss_en: string | null;
+  root: string | null;
+  root_meaning: string | null;
+  pos: string | null;
+  is_function_word: boolean;
+}
+
+export interface VerseCard {
+  verse_id: number;
+  surah: number;
+  ayah: number;
+  surah_name_ar: string | null;
+  surah_name_en: string | null;
+  arabic_text: string;
+  english_translation: string;
+  transliteration: string | null;
+  srs_level: number;
+  is_new: boolean;
+  words: VerseWord[];
+}
+
 export interface SentenceReviewSession {
   session_id: string;
   items: SentenceReviewItem[];
@@ -430,6 +455,7 @@ export interface SentenceReviewSession {
   experiment_intro_cards?: ReintroCard[];
   grammar_intro_needed?: string[];
   grammar_refresher_needed?: string[];
+  verse_cards?: VerseCard[];
 }
 
 export interface GrammarLesson {

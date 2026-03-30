@@ -4,6 +4,25 @@
 
 ---
 
+## Verse-by-Verse Text Reading Mode (2026-03-30)
+- Sequential reading through the Quran (and other texts) one verse at a time
+- Verse = unit of scheduling (simple SRS based on tap-to-lookup ratio, not FSRS)
+- Mixed into daily sessions or separate tab, micro-interactions (15 sec per verse)
+- New verses released in reading order (~3-5/day), reviewed out-of-order via SRS
+- Words absorbed through repeated verse exposure auto-promote to acquiring after 5+ non-tapped encounters
+- Motivational loop: master surah → unlock recitation listening
+- Start with short surahs (Juz Amma), Quran has ~1800 unique lemmas
+- Classical Arabic vocabulary directly relevant to user's literary goals
+- Pre-teaching: cautious — possibly only flag "too hard" verses, not pre-teach words
+- Inspired by user's earlier Anki Greek NT experience (see Substack post)
+
+## Session Presentation (2026-03-30)
+- [DONE] Interleave intro cards with review sentences (not front-loaded)
+- Consider capping intro cards per session (e.g., 15) if interleaving alone isn't enough
+- Consider changing intro card filter from `times_seen == 0` to `experiment_intro_shown_at is None` so words don't lose intro card eligibility after being reviewed in sentences
+
+---
+
 ## Story Audio & Voice Cloning (2026-03-23)
 - [DONE] Story archive system (archived_at, toggle endpoint, frontend section)
 - [DONE] Story format diversity (standard/long/breakdown/arabic_explanation)

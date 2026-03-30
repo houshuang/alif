@@ -363,6 +363,39 @@ class ReintroResultIn(BaseModel):
     client_review_id: str | None = None
 
 
+class VerseWordOut(BaseModel):
+    surface_form: str
+    lemma_id: int | None = None
+    lemma_ar: str | None = None
+    gloss_en: str | None = None
+    root: str | None = None
+    root_meaning: str | None = None
+    pos: str | None = None
+    is_function_word: bool = False
+
+
+class VerseCardOut(BaseModel):
+    verse_id: int
+    surah: int
+    ayah: int
+    surah_name_ar: str | None = None
+    surah_name_en: str | None = None
+    arabic_text: str
+    english_translation: str
+    transliteration: str | None = None
+    srs_level: int
+    is_new: bool = False
+    words: list[VerseWordOut] = []
+
+
+class VerseReviewIn(BaseModel):
+    verse_id: int
+    rating: str  # got_it / partially / not_yet
+    session_id: str | None = None
+    response_ms: int | None = None
+    client_review_id: str | None = None
+
+
 class SentenceSessionOut(BaseModel):
     session_id: str
     items: list[SentenceReviewItem]
@@ -373,6 +406,7 @@ class SentenceSessionOut(BaseModel):
     experiment_intro_cards: list[ReintroCardOut] = []
     grammar_intro_needed: list[str] = []
     grammar_refresher_needed: list[str] = []
+    verse_cards: list[VerseCardOut] = []
 
 
 class SentenceReviewSubmitIn(BaseModel):
