@@ -2105,12 +2105,28 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
 
           <View style={{ padding: 16, gap: 10 }}>
             {!verseFlipped ? (
-              <Pressable
-                style={{ backgroundColor: "#d4a056", borderRadius: 12, paddingVertical: 14, alignItems: "center" }}
-                onPress={() => setVerseFlipped(true)}
-              >
-                <Text style={{ color: "#fff", fontSize: 16, fontWeight: "600" }}>Show Translation</Text>
-              </Pressable>
+              <View style={{ flexDirection: "row", gap: 10 }}>
+                <Pressable
+                  style={{ flex: 2, backgroundColor: "#d4a056", borderRadius: 12, paddingVertical: 14, alignItems: "center" }}
+                  onPress={() => setVerseFlipped(true)}
+                >
+                  <Text style={{ color: "#fff", fontSize: 16, fontWeight: "600" }}>Show Translation</Text>
+                </Pressable>
+                <Pressable
+                  style={{ flex: 1, backgroundColor: "#2ecc7120", borderWidth: 1, borderColor: "#2ecc7130", borderRadius: 12, paddingVertical: 14, alignItems: "center" }}
+                  onPress={() => {
+                    const ms = Date.now() - verseShowTimeRef.current;
+                    submitVerseReview(verse.verse_id, "got_it", sentenceSession?.session_id, ms).catch(() => {});
+                    setVerseFlipped(false);
+                    setTappedOrder([]); setTappedCursor(-1); tappedCacheRef.current = new Map();
+                    setLookupResult(null); setLookupSurfaceForm(null); setLookupLemmaId(null);
+                    verseShowTimeRef.current = 0;
+                    advanceAfterSubmit("understood");
+                  }}
+                >
+                  <Text style={{ color: "#2ecc71", fontSize: 14, fontWeight: "600" }}>Got it</Text>
+                </Pressable>
+              </View>
             ) : (
               <View style={{ flexDirection: "row", gap: 10 }}>
                 <Pressable
