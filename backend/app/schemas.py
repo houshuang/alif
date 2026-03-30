@@ -355,6 +355,7 @@ class ReintroCardOut(BaseModel):
     etymology: dict | None = None
     wazn: str | None = None
     wazn_meaning: str | None = None
+    source: str | None = None
 
 
 class ReintroResultIn(BaseModel):

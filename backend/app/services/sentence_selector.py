@@ -1260,6 +1260,7 @@ def _build_reintro_cards(
             "etymology": lemma.etymology_json,
             "wazn": lemma.wazn,
             "wazn_meaning": lemma.wazn_meaning,
+            "source": lemma.source,
         }
         cards.append(card)
 

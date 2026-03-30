@@ -1692,9 +1692,16 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
         >
           {/* Hero card */}
           <View style={styles.eiHero}>
-            <Text style={[styles.reintroLabel, { color: colors.accent, marginBottom: 4 }]}>
-              {isRescueCard ? "Let\u2019s revisit" : "New word"} {introSlotsSoFar} of {introSlotCount}
-            </Text>
+            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, marginBottom: 4 }}>
+              <Text style={[styles.reintroLabel, { color: colors.accent }]}>
+                {isRescueCard ? "Let\u2019s revisit" : "New word"} {introSlotsSoFar} of {introSlotCount}
+              </Text>
+              {card.source && (
+                <Text style={{ fontSize: 10, color: colors.textSecondary, fontWeight: "500", opacity: 0.7 }}>
+                  {card.source.replace(/_/g, " ")}
+                </Text>
+              )}
+            </View>
             <Text style={styles.eiArabic}>{card.lemma_ar}</Text>
             <Text style={styles.introMeaningLabel}>Meaning</Text>
             <Text style={styles.eiEnglish}>{card.gloss_en}</Text>

@@ -419,6 +419,7 @@ export interface ReintroCard {
   etymology?: { derivation?: string; pattern?: string; loanwords?: string; cultural_note?: string } | null;
   wazn?: string | null;
   wazn_meaning?: string | null;
+  source?: string | null;
 }
 
 export interface VerseWord {
