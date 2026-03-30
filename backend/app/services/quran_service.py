@@ -15,6 +15,7 @@ from app.models import Lemma, QuranicVerse, QuranicVerseWord, UserLemmaKnowledge
 from app.services.interaction_logger import log_interaction
 from app.services.transliteration import transliterate_arabic
 from app.services.sentence_validator import (
+    PROCLITICS,
     _is_function_word,
     build_lemma_lookup,
     lookup_lemma,
@@ -218,6 +219,29 @@ def submit_verse_review(
     }
 
 
+def _hamzat_wasl_lookup(bare_norm: str, lemma_lookup: dict[str, int]) -> int | None:
+    """Try proclitic stripping + hamzat al-wasl restoration.
+
+    In Quranic (and classical) Arabic, words starting with hamzat al-wasl
+    (اسم, ابن, اثنان, امرأة, etc.) lose their initial alef when preceded by
+    a proclitic: بِ + اسم → بِسم.  Standard clitic stripping yields سم but
+    misses اسم because it doesn't restore the dropped alef.
+    """
+    for pre in PROCLITICS:
+        if bare_norm.startswith(pre) and len(bare_norm) > len(pre):
+            stem = bare_norm[len(pre):]
+            if len(stem) >= 2 and not stem.startswith("ا"):
+                # Restore hamzat al-wasl
+                with_alef = "ا" + stem
+                if with_alef in lemma_lookup:
+                    return lemma_lookup[with_alef]
+                # Also try with al- (e.g. والسم → و + السم)
+                with_al = "ال" + stem
+                if with_al in lemma_lookup:
+                    return lemma_lookup[with_al]
+    return None
+
+
 def lemmatize_quran_verses(db: Session, limit: int = 20) -> int:
     """Lemmatize the next batch of unlemmatized Quran verses.
 
@@ -270,6 +294,17 @@ def lemmatize_quran_verses(db: Session, limit: int = 20) -> int:
                 if not lemma_id and bare_norm.endswith("ت"):
                     ta_marbuta = bare_norm[:-1] + "ة"
                     lemma_id = lookup_lemma(ta_marbuta, lemma_lookup)
+                # Hamzat al-wasl restoration (بسم → ب + اسم)
+                if not lemma_id:
+                    lemma_id = _hamzat_wasl_lookup(bare_norm, lemma_lookup)
+
+            # Function-word-looking tokens may be cliticized content words
+            # (e.g. بسم starts with بِ but is actually بِ + اسم)
+            if is_func and not lemma_id:
+                clitic_id = _hamzat_wasl_lookup(bare_norm, lemma_lookup)
+                if clitic_id:
+                    lemma_id = clitic_id
+                    is_func = False
 
             # Check if resolved lemma is actually a function word
             if lemma_id and not is_func:
