@@ -98,67 +98,8 @@ export default function StatsScreen() {
         netPerDay={pace.words_per_day_7d}
         retentionPct={deepAnalytics?.retention_7d?.retention_pct ?? null}
         flowHistory={deepAnalytics?.acquisition_pipeline?.flow_history}
+        benchmarks={analytics.benchmarks}
       />
-
-      {/* Progress Benchmarks */}
-      {analytics.benchmarks && (
-        <View style={styles.cefrCard}>
-          <Text style={styles.cefrLevel}>{analytics.benchmarks.total_words}</Text>
-          <Text style={styles.cefrLabel}>Words Learned</Text>
-          <Text style={styles.cefrCoverage}>{analytics.benchmarks.total_roots} root families</Text>
-
-          {/* Textbook comparisons */}
-          {analytics.benchmarks.textbooks.length > 0 && (
-            <View style={{ width: "100%", marginTop: 16, gap: 12 }}>
-              <Text style={{ fontSize: 13, color: colors.textSecondary, fontWeight: "600", textTransform: "uppercase", letterSpacing: 0.5 }}>
-                Textbook Comparison
-              </Text>
-              {analytics.benchmarks.textbooks.map((tb: any) => (
-                <View key={tb.name} style={{ gap: 4 }}>
-                  <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "baseline" }}>
-                    <Text style={{ fontSize: 14, color: colors.text, fontWeight: "600" }}>{tb.name}</Text>
-                    <Text style={{ fontSize: 13, color: colors.accent, fontWeight: "700" }}>{tb.coverage_pct}%</Text>
-                  </View>
-                  <View style={styles.coverageTrack}>
-                    <View style={[styles.coverageFill, { width: `${Math.min(tb.coverage_pct, 100)}%` }]} />
-                  </View>
-                  <Text style={{ fontSize: 11, color: colors.textSecondary }}>{tb.known_count}/{tb.total_words} words — {tb.description}</Text>
-                </View>
-              ))}
-            </View>
-          )}
-
-          {/* Quran progress */}
-          {analytics.benchmarks.quran && analytics.benchmarks.quran.verses_studied > 0 && (
-            <View style={{ width: "100%", marginTop: 16, gap: 8 }}>
-              <Text style={{ fontSize: 13, color: "#d4a056", fontWeight: "600", textTransform: "uppercase", letterSpacing: 0.5 }}>
-                Quran Progress
-              </Text>
-              {analytics.benchmarks.quran.current_surah ? (
-                <Text style={{ fontSize: 13, color: colors.textSecondary }}>
-                  Currently at: {analytics.benchmarks.quran.current_surah} ayah {analytics.benchmarks.quran.current_ayah}
-                </Text>
-              ) : null}
-              <View style={{ flexDirection: "row", gap: 16, marginTop: 4 }}>
-                <View style={{ alignItems: "center" }}>
-                  <Text style={{ fontSize: 24, color: "#d4a056", fontWeight: "700" }}>{analytics.benchmarks.quran.verses_studied}</Text>
-                  <Text style={{ fontSize: 11, color: colors.textSecondary }}>verses studied</Text>
-                </View>
-                <View style={{ alignItems: "center" }}>
-                  <Text style={{ fontSize: 24, color: "#2ecc71", fontWeight: "700" }}>{analytics.benchmarks.quran.unique_words_in_studied}</Text>
-                  <Text style={{ fontSize: 11, color: colors.textSecondary }}>mastered</Text>
-                </View>
-                {analytics.benchmarks.quran.verses_graduated > 0 && (
-                  <View style={{ alignItems: "center" }}>
-                    <Text style={{ fontSize: 24, color: colors.accent, fontWeight: "700" }}>{analytics.benchmarks.quran.verses_graduated}</Text>
-                    <Text style={{ fontSize: 11, color: colors.textSecondary }}>graduated</Text>
-                  </View>
-                )}
-              </View>
-            </View>
-          )}
-        </View>
-      )}
 
       {/* Acquisition Pipeline */}
       {deepAnalytics?.acquisition_pipeline && (
@@ -363,11 +304,13 @@ function SectionHeader({ label }: { label: string }) {
 function WordLifecycleFunnel({
   encountered, acquiring, learning, known, lapsed,
   weeklyKnown, weeklyLearning, netPerDay, retentionPct, flowHistory,
+  benchmarks,
 }: {
   encountered: number; acquiring: number; learning: number; known: number; lapsed: number;
   weeklyKnown: number; weeklyLearning: number; netPerDay: number;
   retentionPct: number | null;
   flowHistory?: Array<{ date: string; entered: number; graduated: number }>;
+  benchmarks?: any;
 }) {
   const stages = [
     { label: "Seen", count: encountered, color: colors.stateEncountered },
@@ -477,6 +420,79 @@ function WordLifecycleFunnel({
             {retentionPct != null && retentionPct > 0 ? `${Math.round(retentionPct)}%` : "\u2014"}
           </Text>
         </View>
+        {benchmarks?.total_roots > 0 && (
+          <View style={vocStyles.chip}>
+            <Text style={vocStyles.chipLabel}>Roots</Text>
+            <Text style={vocStyles.chipVal}>{benchmarks.total_roots}</Text>
+          </View>
+        )}
+      </View>
+
+      {/* Textbook comparisons */}
+      {benchmarks?.textbooks?.length > 0 && (
+        <View style={{ marginTop: 12, gap: 10 }}>
+          <Text style={{ fontSize: 11, color: colors.textSecondary, fontWeight: "600", textTransform: "uppercase", letterSpacing: 0.5 }}>
+            Textbook Comparison
+          </Text>
+          {benchmarks.textbooks.map((tb: any) => (
+            <View key={tb.name} style={{ gap: 3 }}>
+              <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "baseline" }}>
+                <Text style={{ fontSize: 13, color: colors.text, fontWeight: "600" }}>{tb.name}</Text>
+                <Text style={{ fontSize: 12, color: colors.accent, fontWeight: "700" }}>{tb.coverage_pct}%</Text>
+              </View>
+              <View style={{ height: 4, borderRadius: 2, backgroundColor: colors.surfaceLight }}>
+                <View style={{ height: "100%", borderRadius: 2, width: `${Math.min(tb.coverage_pct, 100)}%`, backgroundColor: colors.accent }} />
+              </View>
+              <Text style={{ fontSize: 10, color: colors.textSecondary }}>{tb.known_count}/{tb.total_words} — {tb.description}</Text>
+            </View>
+          ))}
+        </View>
+      )}
+
+      {/* Quran progress */}
+      {benchmarks?.quran?.verses_studied > 0 && (
+        <View style={{ marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: "#d4a05620", gap: 6 }}>
+          <Text style={{ fontSize: 11, color: "#d4a056", fontWeight: "600", textTransform: "uppercase", letterSpacing: 0.5 }}>
+            Quran
+          </Text>
+          <View style={{ flexDirection: "row", gap: 16 }}>
+            <View>
+              <Text style={{ fontSize: 20, color: "#d4a056", fontWeight: "700" }}>{benchmarks.quran.verses_studied}</Text>
+              <Text style={{ fontSize: 10, color: colors.textSecondary }}>verses</Text>
+            </View>
+            <View>
+              <Text style={{ fontSize: 20, color: colors.good, fontWeight: "700" }}>{benchmarks.quran.unique_words_in_studied}</Text>
+              <Text style={{ fontSize: 10, color: colors.textSecondary }}>mastered</Text>
+            </View>
+            <View style={{ flex: 1, justifyContent: "center" }}>
+              {benchmarks.quran.current_surah ? (
+                <Text style={{ fontSize: 11, color: colors.textSecondary }}>
+                  At <Text style={{ color: "#d4a056" }}>{benchmarks.quran.current_surah.split(" (")[0]}</Text> ayah {benchmarks.quran.current_ayah}
+                </Text>
+              ) : null}
+            </View>
+          </View>
+        </View>
+      )}
+
+      {/* Milestones (compact) */}
+      <View style={{ marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: colors.border + "30", gap: 6 }}>
+        <Text style={{ fontSize: 11, color: colors.textSecondary, fontWeight: "600", textTransform: "uppercase", letterSpacing: 0.5 }}>
+          Milestones
+        </Text>
+        {[
+          { label: "1,000 words", done: known + learning >= 1000 },
+          { label: "500 roots", done: (benchmarks?.total_roots ?? 0) >= 500 },
+          { label: "Madinah Bk 1 > 70%", done: benchmarks?.textbooks?.some((t: any) => t.name.includes("Madinah") && t.coverage_pct >= 70) },
+          { label: "Al-Fatihah mastered", done: (benchmarks?.quran?.unique_words_in_studied ?? 0) >= 7 },
+          { label: "2,000 words", done: known + learning >= 2000 },
+          { label: "Madinah Bk 1 > 90%", done: benchmarks?.textbooks?.some((t: any) => t.name.includes("Madinah") && t.coverage_pct >= 90) },
+        ].map((m, i) => (
+          <View key={i} style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+            <Text style={{ fontSize: 14, color: m.done ? colors.good : colors.textSecondary + "40" }}>{m.done ? "\u2713" : "\u25CB"}</Text>
+            <Text style={{ fontSize: 12, color: m.done ? colors.text : colors.textSecondary + "60", textDecorationLine: m.done ? "none" : "none" }}>{m.label}</Text>
+          </View>
+        ))}
       </View>
     </View>
   );
