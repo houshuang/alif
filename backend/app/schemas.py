@@ -135,6 +135,32 @@ class IntroducedWordDetail(BaseModel):
     transliteration: str | None = None
 
 
+class TextbookBenchmark(BaseModel):
+    name: str
+    total_words: int
+    known_count: int
+    coverage_pct: float
+    description: str = ""
+
+
+class QuranProgress(BaseModel):
+    verses_studied: int
+    verses_graduated: int
+    total_verses: int
+    current_surah: str = ""
+    current_ayah: int = 0
+    unique_words_in_studied: int = 0
+    known_word_count: int = 0
+    word_coverage_pct: float = 0.0
+
+
+class ProgressBenchmarks(BaseModel):
+    total_words: int
+    total_roots: int
+    textbooks: list[TextbookBenchmark] = []
+    quran: Optional[QuranProgress] = None
+
+
 class AnalyticsOut(BaseModel):
     stats: StatsOut
     pace: LearningPaceOut
@@ -149,6 +175,7 @@ class AnalyticsOut(BaseModel):
     total_words_reviewed_alltime: int = 0
     unique_words_recognized_7d: int = 0
     unique_words_recognized_prior_7d: int = 0
+    benchmarks: Optional[ProgressBenchmarks] = None
 
 
 class StabilityBucket(BaseModel):

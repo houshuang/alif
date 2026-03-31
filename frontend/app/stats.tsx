@@ -100,65 +100,67 @@ export default function StatsScreen() {
         flowHistory={deepAnalytics?.acquisition_pipeline?.flow_history}
       />
 
-      {/* CEFR Level Card with reading coverage */}
-      <View style={styles.cefrCard}>
-        <Text style={styles.cefrLevel}>{cefr.sublevel}</Text>
-        <Text style={styles.cefrLabel}>Reading Level</Text>
-        {cefr.reading_coverage_pct > 0 && (
-          <Text style={styles.cefrCoverage}>
-            ~{cefr.reading_coverage_pct}% text coverage
-          </Text>
-        )}
-        <View style={styles.cefrMeta}>
-          <Text style={styles.cefrDetail}>
-            {cefr.known_words} known{cefr.acquiring_known > 0 ? ` + ${cefr.acquiring_known} acquiring` : ""}
-          </Text>
-          {cefr.next_level && (
-            <Text style={styles.cefrDetail}>
-              {cefr.words_to_next} words to {cefr.next_level}
-            </Text>
+      {/* Progress Benchmarks */}
+      {analytics.benchmarks && (
+        <View style={styles.cefrCard}>
+          <Text style={styles.cefrLevel}>{analytics.benchmarks.total_words}</Text>
+          <Text style={styles.cefrLabel}>Words Learned</Text>
+          <Text style={styles.cefrCoverage}>{analytics.benchmarks.total_roots} root families</Text>
+
+          {/* Textbook comparisons */}
+          {analytics.benchmarks.textbooks.length > 0 && (
+            <View style={{ width: "100%", marginTop: 16, gap: 12 }}>
+              <Text style={{ fontSize: 13, color: colors.textSecondary, fontWeight: "600", textTransform: "uppercase", letterSpacing: 0.5 }}>
+                Textbook Comparison
+              </Text>
+              {analytics.benchmarks.textbooks.map((tb: any) => (
+                <View key={tb.name} style={{ gap: 4 }}>
+                  <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "baseline" }}>
+                    <Text style={{ fontSize: 14, color: colors.text, fontWeight: "600" }}>{tb.name}</Text>
+                    <Text style={{ fontSize: 13, color: colors.accent, fontWeight: "700" }}>{tb.coverage_pct}%</Text>
+                  </View>
+                  <View style={styles.coverageTrack}>
+                    <View style={[styles.coverageFill, { width: `${Math.min(tb.coverage_pct, 100)}%` }]} />
+                  </View>
+                  <Text style={{ fontSize: 11, color: colors.textSecondary }}>{tb.known_count}/{tb.total_words} words — {tb.description}</Text>
+                </View>
+              ))}
+            </View>
           )}
-          {cefr.days_to_next_weekly_pace != null && cefr.days_to_next_weekly_pace > 0 && (
-            <Text style={styles.cefrPrediction}>
-              ~{cefr.days_to_next_weekly_pace > 365
-                ? `${Math.round(cefr.days_to_next_weekly_pace / 30)} months`
-                : cefr.days_to_next_weekly_pace > 60
-                  ? `${Math.round(cefr.days_to_next_weekly_pace / 7)} weeks`
-                  : `${cefr.days_to_next_weekly_pace} days`
-              } at this week's pace
-            </Text>
-          )}
-          {cefr.days_to_next_today_pace != null && cefr.days_to_next_today_pace > 0 &&
-           cefr.days_to_next_today_pace !== cefr.days_to_next_weekly_pace && (
-            <Text style={styles.cefrPrediction}>
-              ~{cefr.days_to_next_today_pace > 365
-                ? `${Math.round(cefr.days_to_next_today_pace / 30)} months`
-                : cefr.days_to_next_today_pace > 60
-                  ? `${Math.round(cefr.days_to_next_today_pace / 7)} weeks`
-                  : `${cefr.days_to_next_today_pace} days`
-              } at today's pace
-            </Text>
+
+          {/* Quran progress */}
+          {analytics.benchmarks.quran && analytics.benchmarks.quran.verses_studied > 0 && (
+            <View style={{ width: "100%", marginTop: 16, gap: 8 }}>
+              <Text style={{ fontSize: 13, color: "#d4a056", fontWeight: "600", textTransform: "uppercase", letterSpacing: 0.5 }}>
+                Quran Progress
+              </Text>
+              <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
+                <Text style={{ fontSize: 14, color: colors.text }}>
+                  {analytics.benchmarks.quran.verses_studied} verses studied
+                  {analytics.benchmarks.quran.verses_graduated > 0 ? ` (${analytics.benchmarks.quran.verses_graduated} graduated)` : ""}
+                </Text>
+              </View>
+              {analytics.benchmarks.quran.current_surah ? (
+                <Text style={{ fontSize: 13, color: colors.textSecondary }}>
+                  Currently at: {analytics.benchmarks.quran.current_surah} ayah {analytics.benchmarks.quran.current_ayah}
+                </Text>
+              ) : null}
+              <View style={{ gap: 4 }}>
+                <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
+                  <Text style={{ fontSize: 13, color: colors.text }}>Vocabulary coverage</Text>
+                  <Text style={{ fontSize: 13, color: "#d4a056", fontWeight: "700" }}>{analytics.benchmarks.quran.word_coverage_pct}%</Text>
+                </View>
+                <View style={styles.coverageTrack}>
+                  <View style={[styles.coverageFill, { width: `${Math.min(analytics.benchmarks.quran.word_coverage_pct, 100)}%`, backgroundColor: "#d4a056" }]} />
+                </View>
+                <Text style={{ fontSize: 11, color: colors.textSecondary }}>
+                  {analytics.benchmarks.quran.known_word_count}/{analytics.benchmarks.quran.unique_words_in_studied} unique words in studied verses
+                </Text>
+              </View>
+            </View>
           )}
         </View>
-        {cefr.next_level && cefr.words_to_next != null && (() => {
-          const threshold = cefr.known_words + cefr.words_to_next;
-          const knownPct = Math.min((cefr.known_words / threshold) * 100, 100);
-          const acqPct = Math.min((cefr.acquiring_known / threshold) * 100, 100 - knownPct);
-          return (
-            <View style={styles.coverageBar}>
-              <View style={styles.coverageTrack}>
-                <View style={[styles.coverageFill, { width: `${knownPct}%` }]} />
-                {acqPct > 0 && (
-                  <View style={[styles.coverageFillAcquiring, { width: `${acqPct}%` }]} />
-                )}
-              </View>
-              <Text style={styles.coverageLabel}>
-                {cefr.known_words}{cefr.acquiring_known > 0 ? ` + ${cefr.acquiring_known}` : ""} / {threshold} to {cefr.next_level}
-              </Text>
-            </View>
-          );
-        })()}
-      </View>
+      )}
 
       {/* Acquisition Pipeline */}
       {deepAnalytics?.acquisition_pipeline && (

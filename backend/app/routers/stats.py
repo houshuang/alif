@@ -18,6 +18,7 @@ from app.schemas import (
     RootCoverage, SessionDetail,
     AcquisitionWord, RecentGraduation, AcquisitionPipeline,
     InsightsOut,
+    TextbookBenchmark, QuranProgress, ProgressBenchmarks,
 )
 
 router = APIRouter(prefix="/api/stats", tags=["stats"])
@@ -412,6 +413,130 @@ def _add_cefr_predictions(
     return cefr
 
 
+def _compute_benchmarks(db: Session) -> ProgressBenchmarks:
+    """Compute progress benchmarks: textbook coverage + Quran progress."""
+    import os
+    import re
+    from pathlib import Path
+    from app.models import QuranicVerse, QuranicVerseWord
+    from app.services.sentence_validator import strip_diacritics, normalize_alef
+
+    # Build set of known bare forms (with al-prefix variants)
+    known_ulks = db.query(UserLemmaKnowledge).filter(
+        UserLemmaKnowledge.knowledge_state.in_(["known", "learning"])
+    ).all()
+    known_ids = {u.lemma_id for u in known_ulks}
+    known_lemmas = db.query(Lemma).filter(Lemma.lemma_id.in_(known_ids)).all() if known_ids else []
+    known_bare = set()
+    for l in known_lemmas:
+        bare = normalize_alef(strip_diacritics(l.lemma_ar_bare or "")).strip()
+        known_bare.add(bare)
+        if bare.startswith("ال"):
+            known_bare.add(bare[2:])
+        else:
+            known_bare.add("ال" + bare)
+
+    total_roots = db.query(func.count(Root.root_id)).scalar() or 0
+    known_root_ids = {l.root_id for l in known_lemmas if l.root_id}
+
+    def normalize_tb(text):
+        text = strip_diacritics(text)
+        text = normalize_alef(text)
+        text = text.replace('\u0640', '')
+        text = re.sub(r'[،؟؛«».,!?;:\-\(\)\[\]{}]', '', text)
+        return text.strip()
+
+    # Textbook benchmarks
+    benchmarks_dir = Path(__file__).resolve().parent.parent / "data" / "benchmarks"
+    textbooks = []
+
+    tb_files = [
+        ("alkitaab_part1.tsv", "Al-Kitaab Part 1", "~1st year university Arabic (Georgetown)"),
+        ("madinah_book1.tsv", "Madinah Book 1", "Islamic studies beginner Arabic"),
+    ]
+    for filename, name, desc in tb_files:
+        filepath = benchmarks_dir / filename
+        if not filepath.exists():
+            continue
+        total = 0
+        matched = 0
+        with open(filepath, "r") as f:
+            for line in f:
+                parts = line.strip().split("\t")
+                if len(parts) < 2:
+                    continue
+                bare = normalize_tb(parts[0])
+                if not bare:
+                    continue
+                total += 1
+                candidates = [bare]
+                if bare.startswith("ال"):
+                    candidates.append(bare[2:])
+                else:
+                    candidates.append("ال" + bare)
+                if any(c in known_bare for c in candidates):
+                    matched += 1
+        if total > 0:
+            textbooks.append(TextbookBenchmark(
+                name=name,
+                total_words=total,
+                known_count=matched,
+                coverage_pct=round(matched / total * 100, 1),
+                description=desc,
+            ))
+
+    # Quran progress
+    quran = None
+    total_verses = db.query(func.count(QuranicVerse.id)).scalar() or 0
+    studied = db.query(QuranicVerse).filter(QuranicVerse.srs_level >= 1).count()
+    graduated = db.query(QuranicVerse).filter(QuranicVerse.srs_level >= 8).count()
+
+    # Current position (highest surah:ayah with srs_level > 0)
+    latest = db.query(QuranicVerse).filter(
+        QuranicVerse.srs_level >= 1
+    ).order_by(QuranicVerse.surah.desc(), QuranicVerse.ayah.desc()).first()
+
+    # Word coverage of studied verses
+    studied_verse_ids = [v.id for v in db.query(QuranicVerse).filter(QuranicVerse.srs_level >= 1).all()]
+    unique_words = 0
+    known_words = 0
+    if studied_verse_ids:
+        vw_rows = db.query(QuranicVerseWord).filter(
+            QuranicVerseWord.verse_id.in_(studied_verse_ids)
+        ).all()
+        seen_surfaces = set()
+        for vw in vw_rows:
+            bare = normalize_alef(strip_diacritics(vw.surface_form or "")).strip()
+            if bare not in seen_surfaces:
+                seen_surfaces.add(bare)
+                unique_words += 1
+                candidates = [bare]
+                if bare.startswith("ال"):
+                    candidates.append(bare[2:])
+                else:
+                    candidates.append("ال" + bare)
+                if any(c in known_bare for c in candidates) or vw.is_function_word:
+                    known_words += 1
+
+    quran = QuranProgress(
+        verses_studied=studied,
+        verses_graduated=graduated,
+        total_verses=total_verses,
+        current_surah=f"{latest.surah_name_en} ({latest.surah_name_ar})" if latest else "",
+        current_ayah=latest.ayah if latest else 0,
+        unique_words_in_studied=unique_words,
+        known_word_count=known_words,
+        word_coverage_pct=round(known_words / unique_words * 100, 1) if unique_words > 0 else 0.0,
+    )
+
+    return ProgressBenchmarks(
+        total_words=len(known_ids),
+        total_roots=len(known_root_ids),
+        textbooks=textbooks,
+        quran=quran,
+    )
+
+
 def _get_words_reviewed_count(db: Session, days: int | None = None) -> int:
     """Sum of word counts across all reviewed sentences in the period."""
     word_counts = (
@@ -486,6 +611,8 @@ def get_analytics(
     unique_recognized_7d = _get_unique_words_recognized(db, 0, 7)
     unique_recognized_prior_7d = _get_unique_words_recognized(db, 7, 14)
 
+    benchmarks = _compute_benchmarks(db)
+
     return AnalyticsOut(
         stats=basic,
         pace=pace,
@@ -500,6 +627,7 @@ def get_analytics(
         total_words_reviewed_alltime=words_reviewed_all,
         unique_words_recognized_7d=unique_recognized_7d,
         unique_words_recognized_prior_7d=unique_recognized_prior_7d,
+        benchmarks=benchmarks,
     )
 
 

@@ -105,15 +105,23 @@ def assign_frequency_rank(lemma: Lemma) -> bool:
 def find_duplicate_canonical(db: Session, bare: str, exclude_id: int | None = None) -> Lemma | None:
     """Find an existing canonical lemma with the same normalized bare form."""
     normalized = _normalize(bare)
+    # Efficient query — search by bare form directly instead of loading all canonicals
     candidates = db.query(Lemma).filter(
         Lemma.canonical_lemma_id.is_(None),
         Lemma.word_category != "junk",
+        Lemma.lemma_ar_bare == bare,
     ).all()
+    # Also try normalized variants
+    if not candidates:
+        candidates = db.query(Lemma).filter(
+            Lemma.canonical_lemma_id.is_(None),
+            Lemma.word_category != "junk",
+            Lemma.lemma_ar_bare.in_([normalized, "ال" + normalized] if not normalized.startswith("ال") else [normalized, normalized[2:]]),
+        ).all()
     for c in candidates:
         if c.lemma_id == exclude_id:
             continue
-        if _normalize(c.lemma_ar_bare or "") == normalized:
-            return c
+        return c
     return None
 
 
@@ -131,13 +139,28 @@ def finalize_new_lemmas(db: Session, lemma_ids: list[int]) -> dict:
     if not lemma_ids:
         return {"cleaned": 0, "ranked": 0, "empty_gloss": 0, "potential_dupes": 0}
 
+    # Phase 1: Read — collect data needed (no dirty state)
     lemmas = db.query(Lemma).filter(Lemma.lemma_id.in_(lemma_ids)).all()
+    rank_map = _load_rank_map()  # Slow I/O (~5s first call) — no DB dirty state
 
     cleaned = 0
     ranked = 0
     empty_gloss = 0
     potential_dupes = []
 
+    # Phase 1b: Check for duplicates BEFORE dirtying the session
+    for lemma in lemmas:
+        if lemma.canonical_lemma_id is None and lemma.lemma_ar_bare:
+            bare = clean_bare_form(lemma.lemma_ar_bare)
+            dupe = find_duplicate_canonical(db, bare, exclude_id=lemma.lemma_id)
+            if dupe:
+                potential_dupes.append((lemma.lemma_id, dupe.lemma_id, bare))
+                logger.warning(
+                    f"Potential duplicate: new lemma {lemma.lemma_id} ({bare} = {lemma.gloss_en}) "
+                    f"vs existing {dupe.lemma_id} ({dupe.lemma_ar_bare} = {dupe.gloss_en})"
+                )
+
+    # Phase 2: Write — fast attribute assignments (milliseconds)
     for lemma in lemmas:
         # 1. Clean bare form
         if lemma.lemma_ar_bare:
@@ -151,20 +174,10 @@ def finalize_new_lemmas(db: Session, lemma_ids: list[int]) -> dict:
             empty_gloss += 1
             logger.warning(f"Lemma {lemma.lemma_id} ({lemma.lemma_ar_bare}) has no gloss")
 
-        # 3. Assign frequency rank
-        if lemma.frequency_rank is None:
+        # 3. Assign frequency rank (uses pre-loaded rank_map, no I/O)
+        if lemma.frequency_rank is None and rank_map:
             if assign_frequency_rank(lemma):
                 ranked += 1
-
-        # 4. Flag duplicates (canonical only)
-        if lemma.canonical_lemma_id is None and lemma.lemma_ar_bare:
-            dupe = find_duplicate_canonical(db, lemma.lemma_ar_bare, exclude_id=lemma.lemma_id)
-            if dupe:
-                potential_dupes.append((lemma.lemma_id, dupe.lemma_id, lemma.lemma_ar_bare))
-                logger.warning(
-                    f"Potential duplicate: new lemma {lemma.lemma_id} ({lemma.lemma_ar_bare} = {lemma.gloss_en}) "
-                    f"vs existing {dupe.lemma_id} ({dupe.lemma_ar_bare} = {dupe.gloss_en})"
-                )
 
     summary = {
         "cleaned": cleaned,
