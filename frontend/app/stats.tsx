@@ -210,20 +210,20 @@ export default function StatsScreen() {
               <Text style={styles.paceLabel}>total reviews</Text>
             </View>
           )}
+          {(analytics.total_words_reviewed_alltime ?? 0) > 0 && (
+            <View style={styles.paceItem}>
+              <Text style={styles.paceValue}>
+                {Math.round((analytics.total_words_reviewed_alltime ?? 0) / 200)}
+              </Text>
+              <Text style={styles.paceLabel}>pages read</Text>
+            </View>
+          )}
           {(analytics.total_words_reviewed_7d ?? 0) > 0 && (
             <View style={styles.paceItem}>
               <Text style={styles.paceValue}>
                 {Math.round((analytics.total_words_reviewed_7d ?? 0) / 200)}
               </Text>
-              <Text style={styles.paceLabel}>pages this week</Text>
-            </View>
-          )}
-          {(analytics.total_words_reviewed_alltime ?? 0) > 0 && (
-            <View style={styles.paceItem}>
-              <Text style={styles.paceValue}>
-                {analytics.total_words_reviewed_alltime ?? 0}
-              </Text>
-              <Text style={styles.paceLabel}>words read</Text>
+              <Text style={styles.paceLabel}>this week</Text>
             </View>
           )}
           {(analytics.unique_words_recognized_7d ?? 0) > 0 && (() => {
