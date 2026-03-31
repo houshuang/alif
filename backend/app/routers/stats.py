@@ -447,7 +447,7 @@ def _compute_benchmarks(db: Session) -> ProgressBenchmarks:
         return text.strip()
 
     # Textbook benchmarks
-    benchmarks_dir = Path(__file__).resolve().parent.parent / "data" / "benchmarks"
+    benchmarks_dir = Path(__file__).resolve().parent.parent.parent / "data" / "benchmarks"
     textbooks = []
 
     tb_files = [
