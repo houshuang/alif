@@ -174,8 +174,10 @@ Phase 3: Write — open/reuse session, write results, commit (milliseconds)
 - `backend/app/schemas.py` — Pydantic request/response models
 - `backend/app/routers/` — API routes (see `docs/api-reference.md`)
 - `backend/app/services/` — All services (see `docs/backend-services.md`)
+- `backend/app/services/lemma_quality.py` — Centralized lemma quality gate: `finalize_new_lemmas()` cleans bare forms, assigns frequency rank, flags duplicates
 - `backend/app/services/podcast_service.py` — Podcast service: TTS stitching, completion with word credit, file-based metadata
 - `backend/app/services/quran_service.py` — Quran reading: verse selection (backlog-gated SRS), review submission, lazy lemmatization pipeline
+- `backend/data/benchmarks/` — Textbook vocabulary lists (Al-Kitaab Part 1, Madinah Book 1) for stats comparison
 - `backend/scripts/` — All scripts (see `docs/scripts-catalog.md`)
 - `backend/scripts/generate_story_podcasts.py` — Podcast generation: LLM stories, book-to-podcast, CI episodes
 - `backend/scripts/import_quran.py` — Import Quran from risan/quran-json CDN (6236 verses) + initial lemmatization

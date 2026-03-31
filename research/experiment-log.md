@@ -4,6 +4,26 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-03-31: Stats Overhaul — Frequency Backfill, Textbook Benchmarks, Cleanup
+
+**Problem**: (1) CEFR levels on stats screen were arbitrary (no validated Arabic CEFR-vocabulary mapping). (2) 34% of lemmas had no frequency rank — coverage metrics unreliable. (3) Duplicate lemmas, junk entries (Judeo-Arabic, numbers), punctuation artifacts in bare forms. (4) Stats screen showed "known words" in 3 places with different numbers, untruncated decimals, low-value insights (best weekday). (5) No centralized quality gate for new lemma creation — frequency rank never assigned at creation time.
+
+**Changes**:
+1. **Frequency backfill**: Re-ran CAMeL MSA frequency (10.5M forms) — coverage went from 66% → 99% of lemmas ranked. Known words with rank: 788 → 1,306. Actual text coverage: 34.6% → 52.8%.
+2. **Lemma cleanup**: Merged 5 true duplicates (اراد, قرا, لان, اب, اكبر), marked 11 Judeo-Arabic + 2 number lemmas as junk, fixed 17 punctuation artifacts in bare forms, suspended 14 empty-gloss Quran fragments.
+3. **CEFR replaced with textbook benchmarks**: Stats screen now shows coverage against Al-Kitaab Part 1 (20.9%) and Madinah Book 1 (73.6%). Vocab lists stored in `data/benchmarks/`. Quran progress: verses studied/mastered/graduated.
+4. **Stats screen cleanup**: Merged vocabulary funnel + benchmarks + Quran + milestones into single card. Removed duplicate "Known Words Growth" display. Removed low-value insights (best weekday, record intros/day, record grads/day). Truncated all decimal numbers. Added milestone checklist (1000 words ✓, 500 roots ✓, Madinah >70% ✓, etc.). Total pages read (all-time + weekly).
+5. **`finalize_new_lemmas()` quality gate**: New centralized function in `lemma_quality.py` — cleans bare forms, assigns frequency rank from cached CAMeL data, flags duplicate canonicals. Wired into story_service, ocr_service, quran_service. Tests enforce all three paths call it.
+6. **Quran lemma creation now runs variant detection** (was missing).
+
+**Key data insight**: User has 1,309 known words but only 52.8% MSA text coverage because vocabulary is scattered across frequency spectrum (thematic from stories/textbooks, not frequency-ordered). Top-200 "gaps" are mostly news vocabulary (مجلس, إدارة) irrelevant to Quran/classical goals. Madinah Book 1 coverage (73.6%) is a more meaningful benchmark.
+
+**Files**: `lemma_quality.py` (new), `stats.py` (benchmarks endpoint), `stats.tsx` (frontend), `backfill_frequency.py` (re-run), `data/benchmarks/*.tsv` (textbook vocab lists), `test_gloss_coverage.py` (quality gate tests).
+
+**Verify**: Stats tab → single vocabulary card with pipeline + textbook bars + Quran + milestones. No duplicate word counts. All numbers truncated. No "best weekday" insight.
+
+---
+
 ## 2026-03-30d: Quran Scheduling, Gloss Guarantees, Intro Card Limits
 
 **Problem**: (1) Quran verse SRS intervals too aggressive (4h minimum for "got it") — verses reappearing same day. (2) Words without glosses could reach the frontend — empty info cards when tapping Quran words. (3) Intro cards overwhelming sessions — no cap, variants of known words getting intro cards (بنية showing intro when بني already known with 33 reviews). (4) Frontend word lookup cache returning stale empty results for 24 hours.
