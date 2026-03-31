@@ -42,6 +42,52 @@ class TestSessionGlossWarning:
             assert isinstance(gloss, str), f"Function word '{bare}' gloss is not a string"
 
 
+class TestLemmaQualityGate:
+    """All lemma creation paths must call finalize_new_lemmas."""
+
+    def test_story_import_calls_finalize(self):
+        import inspect
+        from app.services.story_service import _import_unknown_words
+        source = inspect.getsource(_import_unknown_words)
+        assert "finalize_new_lemmas" in source
+
+    def test_ocr_calls_finalize(self):
+        import inspect
+        from app.services.ocr_service import process_textbook_page
+        source = inspect.getsource(process_textbook_page)
+        assert "finalize_new_lemmas" in source
+
+    def test_quran_calls_finalize(self):
+        import inspect
+        from app.services.quran_service import _create_unknown_quran_lemmas
+        source = inspect.getsource(_create_unknown_quran_lemmas)
+        assert "finalize_new_lemmas" in source
+
+    def test_quran_calls_variant_detection(self):
+        import inspect
+        from app.services.quran_service import _create_unknown_quran_lemmas
+        source = inspect.getsource(_create_unknown_quran_lemmas)
+        assert "detect_variants_llm" in source
+
+    def test_clean_bare_form(self):
+        from app.services.lemma_quality import clean_bare_form
+        assert clean_bare_form("بغداد،") == "بغداد"
+        assert clean_bare_form("«طهران»") == "طهران"
+        assert clean_bare_form("الحاوي»") == "الحاوي"
+        assert clean_bare_form("كتاب") == "كتاب"  # no change
+
+    def test_assign_frequency_rank(self):
+        """assign_frequency_rank should handle missing data gracefully."""
+        from app.services.lemma_quality import assign_frequency_rank
+        from unittest.mock import MagicMock
+        lemma = MagicMock()
+        lemma.lemma_ar_bare = ""
+        lemma.frequency_rank = None
+        # Should not crash on empty bare form
+        result = assign_frequency_rank(lemma)
+        assert result is False
+
+
 class TestQuranGlossGuarantee:
     """Quran verse words must always have a gloss — no exceptions."""
 

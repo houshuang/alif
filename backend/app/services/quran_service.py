@@ -697,6 +697,28 @@ def _create_unknown_quran_lemmas(
 
     db.commit()
 
+    # Run variant detection + quality gate on new lemmas
+    if new_lemma_ids:
+        try:
+            from app.services.variant_detection import (
+                detect_variants_llm,
+                detect_definite_variants,
+                mark_variants,
+            )
+            camel_vars = detect_variants_llm(db, lemma_ids=new_lemma_ids)
+            already = {v[0] for v in camel_vars}
+            def_vars = detect_definite_variants(db, lemma_ids=new_lemma_ids, already_variant_ids=already)
+            all_vars = camel_vars + def_vars
+            if all_vars:
+                mark_variants(db, all_vars)
+                db.commit()
+        except Exception as e:
+            logger.warning(f"Variant detection failed for Quran lemmas: {e}")
+
+        from app.services.lemma_quality import finalize_new_lemmas
+        finalize_new_lemmas(db, new_lemma_ids)
+        db.commit()
+
     # Trigger background enrichment (forms, etymology, transliteration)
     if new_lemma_ids:
         try:

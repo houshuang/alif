@@ -744,6 +744,12 @@ def process_textbook_page(
                     f"among {len(new_lemma_ids)} new words"
                 )
 
+        # Finalize: clean bare forms, assign frequency ranks, flag dupes
+        if new_lemma_ids:
+            from app.services.lemma_quality import finalize_new_lemmas
+            finalize_new_lemmas(db, new_lemma_ids)
+            db.commit()
+
         log_interaction(
             event="textbook_page_processed",
             upload_id=upload.id,
