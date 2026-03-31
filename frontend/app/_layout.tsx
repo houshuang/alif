@@ -97,10 +97,9 @@ export default function Layout() {
         <Tabs.Screen
           name="listening"
           options={{
+            href: null,
             title: "Listening",
             headerShown: false,
-            tabBarLabel: "Listening",
-            tabBarIcon: ({ color, size }) => <Ionicons name="headset-outline" size={size} color={color} />,
           }}
         />
         <Tabs.Screen
