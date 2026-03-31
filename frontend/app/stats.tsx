@@ -168,11 +168,6 @@ export default function StatsScreen() {
       {/* ═══ SECTION 3: PROGRESS ═══ */}
       <SectionHeader label="Progress" />
 
-      {/* Known Words Growth */}
-      {daily_history.length > 0 && (
-        <KnownWordsGrowth history={daily_history} known={stats.known + stats.learning} />
-      )}
-
       {/* Activity Chart (14-day reviews + words_learned overlay) */}
       {daily_history.length > 0 && (
         <View style={styles.historyCard}>
@@ -231,19 +226,19 @@ export default function StatsScreen() {
         <Text style={styles.sectionTitle}>Learning Pace</Text>
         <View style={styles.paceGrid}>
           <View style={styles.paceItem}>
-            <Text style={styles.paceValue}>{pace.words_per_day_7d}</Text>
+            <Text style={styles.paceValue}>{Math.round(pace.words_per_day_7d * 10) / 10}</Text>
             <Text style={styles.paceLabel}>new known/day (7d)</Text>
           </View>
           <View style={styles.paceItem}>
-            <Text style={styles.paceValue}>{pace.words_per_day_30d}</Text>
+            <Text style={styles.paceValue}>{Math.round(pace.words_per_day_30d * 10) / 10}</Text>
             <Text style={styles.paceLabel}>new known/day (30d)</Text>
           </View>
           <View style={styles.paceItem}>
-            <Text style={styles.paceValue}>{pace.reviews_per_day_7d}</Text>
+            <Text style={styles.paceValue}>{Math.round(pace.reviews_per_day_7d)}</Text>
             <Text style={styles.paceLabel}>reviews/day (7d)</Text>
           </View>
           <View style={styles.paceItem}>
-            <Text style={styles.paceValue}>{pace.reviews_per_day_30d}</Text>
+            <Text style={styles.paceValue}>{Math.round(pace.reviews_per_day_30d)}</Text>
             <Text style={styles.paceLabel}>reviews/day (30d)</Text>
           </View>
           <View style={styles.paceItem}>
@@ -277,7 +272,7 @@ export default function StatsScreen() {
           {(analytics.total_words_reviewed_7d ?? 0) > 0 && (
             <View style={styles.paceItem}>
               <Text style={styles.paceValue}>
-                {((analytics.total_words_reviewed_7d ?? 0) / 200).toFixed(1)}
+                {Math.round((analytics.total_words_reviewed_7d ?? 0) / 200)}
               </Text>
               <Text style={styles.paceLabel}>pages this week</Text>
             </View>
@@ -392,7 +387,7 @@ function WordLifecycleFunnel({
   // Hero trend text
   const trendParts: string[] = [];
   if (weeklyKnown > 0) trendParts.push(`+${weeklyKnown} this week`);
-  if (netPerDay > 0) trendParts.push(`+${netPerDay.toFixed(1)}/day`);
+  if (netPerDay > 0) trendParts.push(`+${Math.round(netPerDay * 10) / 10}/day`);
   const trendText = trendParts.join(" \u00b7 ");
 
   if (stages.every(s => s.count === 0)) return null;
@@ -544,18 +539,9 @@ function InsightsCard({ insights }: { insights: InsightsData }) {
   if (insights.graduation_rate_pct != null) {
     tiles.push({ big: `${insights.graduation_rate_pct}%`, label: "graduated", context: `${100 - insights.graduation_rate_pct}% still acquiring` });
   }
-  if (insights.best_weekday) {
-    tiles.push({ big: insights.best_weekday.day_name.slice(0, 3), label: "best day", context: `${insights.best_weekday.accuracy_pct}% accuracy` });
-  }
   if (insights.dark_horse_root) {
     const r = insights.dark_horse_root;
     tiles.push({ big: r.root, label: "untapped root", context: `${r.known}/${r.total} known · ${r.meaning || ""}` });
-  }
-  if (insights.record_intro_day) {
-    tiles.push({ big: `${insights.record_intro_day.count}`, label: "record intros/day", context: insights.record_intro_day.date });
-  }
-  if (insights.record_graduation_day) {
-    tiles.push({ big: `${insights.record_graduation_day.count}`, label: "record grads/day", context: insights.record_graduation_day.date });
   }
   if (insights.total_sentence_reviews > 0) {
     tiles.push({ big: `${insights.total_sentence_reviews}`, label: "total reviews", context: `${insights.unique_sentences_reviewed} unique sentences` });
