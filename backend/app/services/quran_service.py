@@ -222,6 +222,9 @@ LEMMATIZE_AHEAD = 20
 LEMMATIZE_THRESHOLD = 10  # trigger when fewer than this many lemmatized unseen remain
 
 
+MAX_NEW_VERSES_PER_DAY = 3
+
+
 def select_verse_cards(
     db: Session,
     max_new: int = 2,
@@ -229,7 +232,7 @@ def select_verse_cards(
 ) -> list[dict]:
     """Select verse cards for the current session.
 
-    Returns due review verses + new verses (gated by backlog).
+    Returns due review verses + new verses (gated by backlog + daily cap).
     Only lemmatized verses can be introduced.
     """
     now = datetime.utcnow()
@@ -259,11 +262,22 @@ def select_verse_cards(
         .count()
     )
 
-    # 3. Introduce new verses if backlog allows
+    # 3. Introduce new verses if backlog allows + daily cap
     new_verses: list[QuranicVerse] = []
     remaining = max_total - len(due_verses)
-    if remaining > 0 and backlog < MAX_NON_UNDERSTOOD_BACKLOG:
-        new_limit = min(max_new, remaining)
+    # Daily cap: count verses introduced today
+    today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    introduced_today = (
+        db.query(QuranicVerse)
+        .filter(
+            QuranicVerse.introduced_at >= today_start,
+            QuranicVerse.introduced_at.isnot(None),
+        )
+        .count()
+    )
+    daily_remaining = max(0, MAX_NEW_VERSES_PER_DAY - introduced_today)
+    if remaining > 0 and backlog < MAX_NON_UNDERSTOOD_BACKLOG and daily_remaining > 0:
+        new_limit = min(max_new, remaining, daily_remaining)
         new_verses = (
             db.query(QuranicVerse)
             .filter(
