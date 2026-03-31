@@ -15,6 +15,7 @@ COPY alembic/ alembic/
 COPY app/ app/
 COPY scripts/ scripts/
 
+COPY data/benchmarks/*.tsv data/benchmarks/
 RUN mkdir -p data/logs data/audio data/podcasts data/podcasts/segments
 
 EXPOSE 8000

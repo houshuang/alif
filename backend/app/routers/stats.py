@@ -496,27 +496,11 @@ def _compute_benchmarks(db: Session) -> ProgressBenchmarks:
         QuranicVerse.srs_level >= 1
     ).order_by(QuranicVerse.surah.desc(), QuranicVerse.ayah.desc()).first()
 
-    # Word coverage of studied verses
-    studied_verse_ids = [v.id for v in db.query(QuranicVerse).filter(QuranicVerse.srs_level >= 1).all()]
-    unique_words = 0
-    known_words = 0
-    if studied_verse_ids:
-        vw_rows = db.query(QuranicVerseWord).filter(
-            QuranicVerseWord.verse_id.in_(studied_verse_ids)
-        ).all()
-        seen_surfaces = set()
-        for vw in vw_rows:
-            bare = normalize_alef(strip_diacritics(vw.surface_form or "")).strip()
-            if bare not in seen_surfaces:
-                seen_surfaces.add(bare)
-                unique_words += 1
-                candidates = [bare]
-                if bare.startswith("ال"):
-                    candidates.append(bare[2:])
-                else:
-                    candidates.append("ال" + bare)
-                if any(c in known_bare for c in candidates) or vw.is_function_word:
-                    known_words += 1
+    # Verse mastery: count verses rated "got_it" at least twice
+    mastered = db.query(QuranicVerse).filter(
+        QuranicVerse.last_rating == "got_it",
+        QuranicVerse.times_reviewed >= 2,
+    ).count()
 
     quran = QuranProgress(
         verses_studied=studied,
@@ -524,9 +508,9 @@ def _compute_benchmarks(db: Session) -> ProgressBenchmarks:
         total_verses=total_verses,
         current_surah=f"{latest.surah_name_en} ({latest.surah_name_ar})" if latest else "",
         current_ayah=latest.ayah if latest else 0,
-        unique_words_in_studied=unique_words,
-        known_word_count=known_words,
-        word_coverage_pct=round(known_words / unique_words * 100, 1) if unique_words > 0 else 0.0,
+        unique_words_in_studied=mastered,  # reuse field for mastered count
+        known_word_count=studied,
+        word_coverage_pct=round(mastered / studied * 100, 1) if studied > 0 else 0.0,
     )
 
     return ProgressBenchmarks(

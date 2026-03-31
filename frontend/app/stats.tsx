@@ -134,28 +134,26 @@ export default function StatsScreen() {
               <Text style={{ fontSize: 13, color: "#d4a056", fontWeight: "600", textTransform: "uppercase", letterSpacing: 0.5 }}>
                 Quran Progress
               </Text>
-              <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
-                <Text style={{ fontSize: 14, color: colors.text }}>
-                  {analytics.benchmarks.quran.verses_studied} verses studied
-                  {analytics.benchmarks.quran.verses_graduated > 0 ? ` (${analytics.benchmarks.quran.verses_graduated} graduated)` : ""}
-                </Text>
-              </View>
               {analytics.benchmarks.quran.current_surah ? (
                 <Text style={{ fontSize: 13, color: colors.textSecondary }}>
                   Currently at: {analytics.benchmarks.quran.current_surah} ayah {analytics.benchmarks.quran.current_ayah}
                 </Text>
               ) : null}
-              <View style={{ gap: 4 }}>
-                <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
-                  <Text style={{ fontSize: 13, color: colors.text }}>Vocabulary coverage</Text>
-                  <Text style={{ fontSize: 13, color: "#d4a056", fontWeight: "700" }}>{analytics.benchmarks.quran.word_coverage_pct}%</Text>
+              <View style={{ flexDirection: "row", gap: 16, marginTop: 4 }}>
+                <View style={{ alignItems: "center" }}>
+                  <Text style={{ fontSize: 24, color: "#d4a056", fontWeight: "700" }}>{analytics.benchmarks.quran.verses_studied}</Text>
+                  <Text style={{ fontSize: 11, color: colors.textSecondary }}>verses studied</Text>
                 </View>
-                <View style={styles.coverageTrack}>
-                  <View style={[styles.coverageFill, { width: `${Math.min(analytics.benchmarks.quran.word_coverage_pct, 100)}%`, backgroundColor: "#d4a056" }]} />
+                <View style={{ alignItems: "center" }}>
+                  <Text style={{ fontSize: 24, color: "#2ecc71", fontWeight: "700" }}>{analytics.benchmarks.quran.unique_words_in_studied}</Text>
+                  <Text style={{ fontSize: 11, color: colors.textSecondary }}>mastered</Text>
                 </View>
-                <Text style={{ fontSize: 11, color: colors.textSecondary }}>
-                  {analytics.benchmarks.quran.known_word_count}/{analytics.benchmarks.quran.unique_words_in_studied} unique words in studied verses
-                </Text>
+                {analytics.benchmarks.quran.verses_graduated > 0 && (
+                  <View style={{ alignItems: "center" }}>
+                    <Text style={{ fontSize: 24, color: colors.accent, fontWeight: "700" }}>{analytics.benchmarks.quran.verses_graduated}</Text>
+                    <Text style={{ fontSize: 11, color: colors.textSecondary }}>graduated</Text>
+                  </View>
+                )}
               </View>
             </View>
           )}
