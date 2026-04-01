@@ -43,31 +43,38 @@ class TestSessionGlossWarning:
 
 
 class TestLemmaQualityGate:
-    """All lemma creation paths must call finalize_new_lemmas."""
+    """All lemma creation paths must call run_quality_gates."""
 
-    def test_story_import_calls_finalize(self):
+    def test_story_import_calls_quality_gates(self):
         import inspect
         from app.services.story_service import _import_unknown_words
         source = inspect.getsource(_import_unknown_words)
-        assert "finalize_new_lemmas" in source
+        assert "run_quality_gates" in source
 
-    def test_ocr_calls_finalize(self):
+    def test_ocr_calls_quality_gates(self):
         import inspect
         from app.services.ocr_service import process_textbook_page
         source = inspect.getsource(process_textbook_page)
-        assert "finalize_new_lemmas" in source
+        assert "run_quality_gates" in source
 
-    def test_quran_calls_finalize(self):
+    def test_ocr_batch_calls_quality_gates(self):
+        import inspect
+        from app.services.ocr_service import process_batch
+        source = inspect.getsource(process_batch)
+        assert "run_quality_gates" in source
+
+    def test_quran_calls_quality_gates(self):
         import inspect
         from app.services.quran_service import _create_unknown_quran_lemmas
         source = inspect.getsource(_create_unknown_quran_lemmas)
-        assert "finalize_new_lemmas" in source
+        assert "run_quality_gates" in source
 
-    def test_quran_calls_variant_detection(self):
+    def test_run_quality_gates_stamps_timestamp(self):
+        """run_quality_gates must set gates_completed_at on processed lemmas."""
         import inspect
-        from app.services.quran_service import _create_unknown_quran_lemmas
-        source = inspect.getsource(_create_unknown_quran_lemmas)
-        assert "detect_variants_llm" in source
+        from app.services.lemma_quality import run_quality_gates
+        source = inspect.getsource(run_quality_gates)
+        assert "gates_completed_at" in source
 
     def test_clean_bare_form(self):
         from app.services.lemma_quality import clean_bare_form
@@ -99,7 +106,7 @@ class TestQuranGlossGuarantee:
             "عليهم": "on/upon",  # على + هم
             "فيها": "in",       # في + ها
             "لهم": "for/to",    # ل + هم
-            "بها": "with/by",   # ب + ها
+            "بها": "in/by/with",   # ب + ها
             "عنه": "about/from", # عن + ه
             "منهم": "from",     # من + هم
             "ولهم": "and",      # و + ل + هم

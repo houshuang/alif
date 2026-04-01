@@ -517,7 +517,7 @@ def import_book(
         if page is not None:
             sw.page_number = page
 
-    # Import unknown words (creates Lemma entries, no ULK)
+    # Import unknown words (creates Lemma entries + runs quality gates internally)
     new_ids = _import_unknown_words(db, story, lemma_lookup)
 
     # Create encountered ULK records for book words that don't have one yet

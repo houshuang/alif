@@ -1196,7 +1196,7 @@ def _build_reintro_cards(
     lemmas = (
         db.query(Lemma)
         .options(joinedload(Lemma.root))
-        .filter(Lemma.lemma_id.in_(struggling_ids))
+        .filter(Lemma.lemma_id.in_(struggling_ids), Lemma.gates_completed_at.isnot(None))
         .all()
     )
 

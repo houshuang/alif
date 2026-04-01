@@ -1,14 +1,19 @@
 """Centralized lemma quality gate — run after every lemma creation path.
 
-Ensures all new lemmas have:
-1. Clean bare form (no punctuation artifacts)
-2. Non-empty gloss
-3. Frequency rank from CAMeL MSA data
-4. No duplicate canonical lemmas (same bare form)
+All import paths MUST call `run_quality_gates(db, lemma_ids)` after creating
+Lemma records. This is the single post-creation pipeline that:
+1. Cleans bare forms (punctuation artifacts)
+2. Assigns frequency ranks
+3. Runs variant detection (LLM + definite + mark)
+4. Queues enrichment (forms, etymology, transliteration)
+5. Stamps `gates_completed_at` — session builder rejects ungated lemmas
+
+A cron in update_material.py catches any lemmas that slip through without gates.
 """
 
 import logging
 import re
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
@@ -162,12 +167,16 @@ def finalize_new_lemmas(db: Session, lemma_ids: list[int]) -> dict:
 
     # Phase 2: Write — fast attribute assignments (milliseconds)
     for lemma in lemmas:
-        # 1. Clean bare form
+        # 1. Clean bare form and diacritized form
         if lemma.lemma_ar_bare:
             new_bare = clean_bare_form(lemma.lemma_ar_bare)
             if new_bare != lemma.lemma_ar_bare:
                 lemma.lemma_ar_bare = new_bare
                 cleaned += 1
+        if lemma.lemma_ar:
+            new_ar = clean_bare_form(lemma.lemma_ar)
+            if new_ar != lemma.lemma_ar:
+                lemma.lemma_ar = new_ar
 
         # 2. Check gloss
         if not lemma.gloss_en:
@@ -187,4 +196,99 @@ def finalize_new_lemmas(db: Session, lemma_ids: list[int]) -> dict:
     }
     if any(v > 0 for v in summary.values()):
         logger.info(f"finalize_new_lemmas: {summary}")
+    return summary
+
+
+def run_quality_gates(
+    db: Session,
+    lemma_ids: list[int],
+    *,
+    skip_variants: bool = False,
+    enrich: bool = True,
+    background_enrich: bool = True,
+) -> dict:
+    """Single post-creation pipeline for new lemmas. ALL import paths must call this.
+
+    Runs in order:
+      1. finalize  — clean bare forms, assign frequency rank, flag dupes
+      2. variants  — detect_variants_llm + detect_definite_variants + mark_variants
+      3. enrich    — forms, etymology, transliteration (background thread by default)
+      4. stamp     — set gates_completed_at on all lemmas
+
+    The caller is responsible for committing after this returns (or this function
+    commits internally between variant detection and finalize to release write locks).
+
+    Args:
+        db: SQLAlchemy session
+        lemma_ids: IDs of newly created Lemma records
+        skip_variants: Skip variant detection (e.g. function word backfill)
+        enrich: Run enrichment at all
+        background_enrich: If True, enrichment runs in a daemon thread (default).
+                           If False, runs inline (for scripts/cron).
+    Returns:
+        Summary dict with gate results.
+    """
+    if not lemma_ids:
+        return {"finalize": {}, "variants": 0, "enriched": False, "stamped": 0}
+
+    # ── Gate 1: Finalize (clean, rank, dedup) ──────────────────────────────
+    finalize_summary = finalize_new_lemmas(db, lemma_ids)
+    db.commit()
+
+    # ── Gate 2: Variant detection (LLM + deterministic) ────────────────────
+    variants_marked = 0
+    if not skip_variants:
+        try:
+            from app.services.variant_detection import (
+                detect_variants_llm,
+                detect_definite_variants,
+                mark_variants,
+            )
+            camel_vars = detect_variants_llm(db, lemma_ids=lemma_ids)
+            already = {v[0] for v in camel_vars}
+            def_vars = detect_definite_variants(
+                db, lemma_ids=lemma_ids, already_variant_ids=already,
+            )
+            all_vars = camel_vars + def_vars
+            if all_vars:
+                variants_marked = mark_variants(db, all_vars)
+            db.commit()
+        except Exception as e:
+            logger.warning("Variant detection failed for lemmas %s: %s", lemma_ids[:5], e)
+            db.rollback()
+
+    # ── Gate 3: Enrichment (forms, etymology, transliteration) ─────────────
+    enriched = False
+    if enrich and lemma_ids:
+        try:
+            from app.services.lemma_enrichment import enrich_lemmas_batch
+            if background_enrich:
+                import threading
+                threading.Thread(
+                    target=enrich_lemmas_batch,
+                    args=(lemma_ids,),
+                    daemon=True,
+                ).start()
+            else:
+                enrich_lemmas_batch(lemma_ids)
+            enriched = True
+        except Exception as e:
+            logger.warning("Enrichment failed for lemmas %s: %s", lemma_ids[:5], e)
+
+    # ── Gate 4: Stamp gates_completed_at ───────────────────────────────────
+    now = datetime.now(timezone.utc)
+    stamped = (
+        db.query(Lemma)
+        .filter(Lemma.lemma_id.in_(lemma_ids))
+        .update({Lemma.gates_completed_at: now}, synchronize_session="fetch")
+    )
+    db.commit()
+
+    summary = {
+        "finalize": finalize_summary,
+        "variants": variants_marked,
+        "enriched": enriched,
+        "stamped": stamped,
+    }
+    logger.info("run_quality_gates(%d lemmas): %s", len(lemma_ids), summary)
     return summary

@@ -42,19 +42,29 @@ def _normalize_quran(text: str) -> str:
 
 # Quranic function words not in the standard FUNCTION_WORD_GLOSSES
 _QURAN_FUNCTION_GLOSSES: dict[str, str] = {
-    "اياك": "you (obj.)",
-    "واياك": "and you (obj.)",
-    "اياه": "him (obj.)",
-    "اياهم": "them (obj.)",
-    "اياها": "her (obj.)",
-    "اياي": "me (obj.)",
-    "ايانا": "us (obj.)",
-    "اياكم": "you all (obj.)",
+    # Disconnected object pronouns (إيّا) — fronted for exclusivity
+    "اياك": "You alone (obj.)",
+    "واياك": "and You alone (obj.)",
+    "اياه": "Him alone (obj.)",
+    "اياهم": "them alone (obj.)",
+    "اياها": "her alone (obj.)",
+    "اياي": "Me alone (obj.)",
+    "ايانا": "us alone (obj.)",
+    "اياكم": "you all alone (obj.)",
+    # Muqatta'at — mystery letters opening surahs
     "الم": "Alif Lam Mim",
+    "المص": "Alif Lam Mim Sad",
     "الر": "Alif Lam Ra",
-    "حم": "Ha Mim",
+    "المر": "Alif Lam Mim Ra",
+    "كهيعص": "Kaf Ha Ya 'Ain Sad",
     "طه": "Ta Ha",
+    "طسم": "Ta Sin Mim",
+    "طس": "Ta Sin",
     "يس": "Ya Sin",
+    "ص": "Sad",
+    "حم": "Ha Mim",
+    "ق": "Qaf",
+    "ن": "Nun",
 }
 
 # Pronoun suffixes (longest first) and their English glosses
@@ -697,35 +707,9 @@ def _create_unknown_quran_lemmas(
 
     db.commit()
 
-    # Run variant detection + quality gate on new lemmas
+    # Run centralized quality gates (finalize + variants + enrich + stamp)
     if new_lemma_ids:
-        try:
-            from app.services.variant_detection import (
-                detect_variants_llm,
-                detect_definite_variants,
-                mark_variants,
-            )
-            camel_vars = detect_variants_llm(db, lemma_ids=new_lemma_ids)
-            already = {v[0] for v in camel_vars}
-            def_vars = detect_definite_variants(db, lemma_ids=new_lemma_ids, already_variant_ids=already)
-            all_vars = camel_vars + def_vars
-            if all_vars:
-                mark_variants(db, all_vars)
-                db.commit()
-        except Exception as e:
-            logger.warning(f"Variant detection failed for Quran lemmas: {e}")
-
-        from app.services.lemma_quality import finalize_new_lemmas
-        finalize_new_lemmas(db, new_lemma_ids)
-        db.commit()
-
-    # Trigger background enrichment (forms, etymology, transliteration)
-    if new_lemma_ids:
-        try:
-            from app.services.lemma_enrichment import enrich_lemmas_batch
-            enriched = enrich_lemmas_batch(new_lemma_ids)
-            logger.info(f"Enriched {len(new_lemma_ids)} new Quran lemmas: {enriched}")
-        except Exception as e:
-            logger.warning(f"Enrichment failed for new Quran lemmas: {e}")
+        from app.services.lemma_quality import run_quality_gates
+        run_quality_gates(db, new_lemma_ids, background_enrich=False)
 
     return result_map

@@ -33,6 +33,7 @@ def _create_lemma(db, arabic, english, root=None, freq=None):
         root_id=root.root_id if root else None,
         frequency_rank=freq,
         pos="noun",
+        gates_completed_at=datetime.now(timezone.utc),
     )
     db.add(lemma)
     db.flush()

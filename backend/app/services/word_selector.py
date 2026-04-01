@@ -392,6 +392,7 @@ def select_next_words(
         db.query(Lemma)
         .filter(
             Lemma.canonical_lemma_id.is_(None),
+            Lemma.gates_completed_at.isnot(None),
             Lemma.lemma_id.notin_(exclude_ids) if exclude_ids else True,
             Lemma.lemma_id.notin_(exclude) if exclude else True,
         )
