@@ -11,6 +11,9 @@ services:
       - /usr/lib/node_modules/@anthropic-ai:/usr/lib/node_modules/@anthropic-ai:ro
       - /root/.claude.json:/root/.claude.json:ro
       - /root/.claude:/root/.claude:rw
+      # Limbic (cost_log + shared libs)
+      - /opt/limbic:/opt/limbic:ro
+      - /opt/limbic-data:/opt/limbic-data
     environment:
       - GEMINI_KEY=${GEMINI_KEY}
       - OPENAI_KEY=${OPENAI_KEY}
@@ -20,6 +23,9 @@ services:
       - CORS_ORIGINS=${CORS_ORIGINS:-}
       - VERIFY_MAPPINGS_LLM=${VERIFY_MAPPINGS_LLM:-0}
       - SONIOX_API_KEY=${SONIOX_API_KEY:-}
+      - PYTHONPATH=/opt/limbic
+      - COST_LOG_DB=/opt/limbic-data/llm_costs.db
+      - COST_LOG_HOST=hetzner
     restart: unless-stopped
 
 volumes:

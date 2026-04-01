@@ -37,6 +37,14 @@ async def lifespan(app: FastAPI):
         import logging
         logging.getLogger(__name__).info("Recovered %d stuck flag(s) back to pending", recovered)
 
+    # Register LLM cost tracking (limbic mounted via PYTHONPATH)
+    try:
+        import litellm
+        from limbic.cerebellum.cost_log import cost_log
+        litellm.callbacks = [cost_log.callback("alif")]
+    except ImportError:
+        pass
+
     yield
 
 
