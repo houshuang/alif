@@ -1330,8 +1330,7 @@ Import text
     ├── Match against existing lemmas
     ├── Create new Lemma entries for unknown words
     │   └── source="story_import", source_story_id set
-    ├── Run variant detection (detect_variants_llm + mark_variants)
-    ├── Run import quality gate (filter_useful_lemmas)
+    ├── Call run_quality_gates() (finalize → variants → enrich → stamp gates_completed_at)
     ├── Detect proper nouns → mark with name_type
     ├── Create "encountered" ULK for all book lemmas without ULK
     ├── Calculate readiness_pct for the story (deduped by lemma)
