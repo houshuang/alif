@@ -42,6 +42,8 @@ async def lifespan(app: FastAPI):
         import litellm
         from limbic.cerebellum.cost_log import cost_log
         litellm.callbacks = [cost_log.callback("alif")]
+        import logging
+        logging.getLogger(__name__).info("LLM cost tracking active → %s", cost_log.db_path)
     except ImportError:
         pass
 
