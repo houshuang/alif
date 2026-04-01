@@ -705,50 +705,29 @@ def process_textbook_page(
         upload.completed_at = datetime.now(timezone.utc)
         db.commit()
 
-        # Detect and mark variants among newly imported lemmas
+        # Run centralized quality gates (finalize + variants + enrich + stamp)
         variants_detected = 0
         variant_ids: set[int] = set()
         if new_lemma_ids:
-            from app.services.variant_detection import (
-                detect_variants_llm,
-                detect_definite_variants,
-                mark_variants,
-            )
-            # LLM calls — db was just committed above, no dirty state
-            camel_vars = detect_variants_llm(db, lemma_ids=new_lemma_ids)
-            already = {v[0] for v in camel_vars}
-            def_vars = detect_definite_variants(
-                db, lemma_ids=new_lemma_ids, already_variant_ids=already
-            )
-            # Commit any cache writes from detect_variants_llm before
-            # doing more DB writes, to release the write lock promptly
-            db.commit()
+            from app.services.lemma_quality import run_quality_gates
+            gate_result = run_quality_gates(db, new_lemma_ids)
+            variants_detected = gate_result.get("variants", 0)
 
-            all_vars = camel_vars + def_vars
-            if all_vars:
-                # Quick burst of DB writes
-                variants_detected = mark_variants(db, all_vars)
-                variant_ids = {v[0] for v in all_vars}
-                if start_acquiring and variant_ids:
-                    for vid in variant_ids:
-                        vulk = knowledge_map.get(vid)
-                        if vulk and vulk.knowledge_state == "acquiring":
-                            vulk.knowledge_state = "encountered"
-                            vulk.acquisition_box = None
-                            vulk.acquisition_next_due = None
-                            vulk.acquisition_started_at = None
-                            vulk.introduced_at = None
+            # Revert any variants that were auto-started to acquiring back to encountered
+            if start_acquiring and variants_detected:
+                variant_lemmas = db.query(Lemma).filter(
+                    Lemma.lemma_id.in_(new_lemma_ids),
+                    Lemma.canonical_lemma_id.isnot(None),
+                ).all()
+                for vlem in variant_lemmas:
+                    vulk = knowledge_map.get(vlem.lemma_id)
+                    if vulk and vulk.knowledge_state == "acquiring":
+                        vulk.knowledge_state = "encountered"
+                        vulk.acquisition_box = None
+                        vulk.acquisition_next_due = None
+                        vulk.acquisition_started_at = None
+                        vulk.introduced_at = None
                 db.commit()
-                logger.info(
-                    f"OCR variant detection: marked {variants_detected} variants "
-                    f"among {len(new_lemma_ids)} new words"
-                )
-
-        # Finalize: clean bare forms, assign frequency ranks, flag dupes
-        if new_lemma_ids:
-            from app.services.lemma_quality import finalize_new_lemmas
-            finalize_new_lemmas(db, new_lemma_ids)
-            db.commit()
 
         log_interaction(
             event="textbook_page_processed",
@@ -765,6 +744,12 @@ def process_textbook_page(
         db.commit()
 
         # Trigger sentence generation for new words (skip variants)
+        if not variant_ids and new_lemma_ids:
+            variant_ids = {
+                r[0] for r in db.query(Lemma.lemma_id)
+                .filter(Lemma.lemma_id.in_(new_lemma_ids), Lemma.canonical_lemma_id.isnot(None))
+                .all()
+            }
         gen_ids = [lid for lid in new_lemma_ids if lid not in variant_ids]
         _schedule_material_generation(db, gen_ids)
 
@@ -1086,42 +1071,30 @@ def process_batch(
 
     _commit_with_retry(db, "batch-import")
 
-    # Variant detection on new lemmas
+    # Run centralized quality gates (finalize + variants + enrich + stamp)
     variants_detected = 0
     variant_ids: set[int] = set()
     if new_lemma_ids:
-        from app.services.variant_detection import (
-            detect_variants_llm,
-            detect_definite_variants,
-            mark_variants,
-        )
-        # LLM calls — db was just committed above, no dirty state
-        camel_vars = detect_variants_llm(db, lemma_ids=new_lemma_ids)
-        already = {v[0] for v in camel_vars}
-        def_vars = detect_definite_variants(db, lemma_ids=new_lemma_ids, already_variant_ids=already)
-        # Commit any cache writes from detect_variants_llm before
-        # doing more DB writes, to release the write lock promptly
-        _commit_with_retry(db, "batch-variant-cache")
+        from app.services.lemma_quality import run_quality_gates
+        gate_result = run_quality_gates(db, new_lemma_ids)
+        variants_detected = gate_result.get("variants", 0)
 
-        all_vars = camel_vars + def_vars
-        if all_vars:
-            # Quick burst of DB writes
-            variants_detected = mark_variants(db, all_vars)
-            variant_ids = {v[0] for v in all_vars}
-            if start_acquiring and variant_ids:
-                for vid in variant_ids:
-                    vulk = knowledge_map.get(vid)
-                    if vulk and vulk.knowledge_state == "acquiring":
-                        vulk.knowledge_state = "encountered"
-                        vulk.acquisition_box = None
-                        vulk.acquisition_next_due = None
-                        vulk.acquisition_started_at = None
-                        vulk.introduced_at = None
-            _commit_with_retry(db, "batch-variants")
-            logger.info(
-                f"OCR batch variant detection: marked {variants_detected} variants "
-                f"among {len(new_lemma_ids)} new words"
-            )
+        # Revert any variants that were auto-started to acquiring back to encountered
+        if start_acquiring and variants_detected:
+            variant_lemmas = db.query(Lemma).filter(
+                Lemma.lemma_id.in_(new_lemma_ids),
+                Lemma.canonical_lemma_id.isnot(None),
+            ).all()
+            variant_ids = {vl.lemma_id for vl in variant_lemmas}
+            for vlem in variant_lemmas:
+                vulk = knowledge_map.get(vlem.lemma_id)
+                if vulk and vulk.knowledge_state == "acquiring":
+                    vulk.knowledge_state = "encountered"
+                    vulk.acquisition_box = None
+                    vulk.acquisition_next_due = None
+                    vulk.acquisition_started_at = None
+                    vulk.introduced_at = None
+            _commit_with_retry(db, "batch-variant-revert")
 
     total_new = sum(u.new_words or 0 for u in uploads)
     total_existing = sum(u.existing_words or 0 for u in uploads)
@@ -1140,5 +1113,11 @@ def process_batch(
     _commit_with_retry(db, "batch-root-backfill")
 
     # Sentence generation for new words (skip variants)
+    if not variant_ids and new_lemma_ids:
+        variant_ids = {
+            r[0] for r in db.query(Lemma.lemma_id)
+            .filter(Lemma.lemma_id.in_(new_lemma_ids), Lemma.canonical_lemma_id.isnot(None))
+            .all()
+        }
     gen_ids = [lid for lid in new_lemma_ids if lid not in variant_ids]
     _schedule_material_generation(db, gen_ids)

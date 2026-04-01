@@ -558,47 +558,15 @@ Set name_type to "personal" for personal names (people, characters), "place" for
 
     db.flush()
 
-    # ── Phase 4: Post-write LLM calls (need lemma IDs from Phase 3) ─────
+    # ── Phase 4: Post-write quality gates + mapping verification ─────────
 
-    # Step 4: Run variant detection on new lemmas
     if new_lemma_ids:
-        try:
-            from app.services.variant_detection import (
-                detect_variants_llm,
-                detect_definite_variants,
-                mark_variants,
-            )
-            camel_vars = detect_variants_llm(db, lemma_ids=new_lemma_ids)
-            already = {v[0] for v in camel_vars}
-            def_vars = detect_definite_variants(db, lemma_ids=new_lemma_ids, already_variant_ids=already)
-            all_vars = camel_vars + def_vars
-            if all_vars:
-                mark_variants(db, all_vars)
-        except Exception as e:
-            logger.warning("Variant detection failed for story %d: %s", story.id, e)
+        from app.services.lemma_quality import run_quality_gates
+        run_quality_gates(db, new_lemma_ids)
 
-    # Step 4b: Finalize new lemmas (clean bare form, assign frequency rank, flag dupes)
-    if new_lemma_ids:
-        from app.services.lemma_quality import finalize_new_lemmas
-        finalize_new_lemmas(db, new_lemma_ids)
-        db.commit()
-
-    # Step 5: Verify new lemma-StoryWord mappings via LLM
+    # Verify new lemma-StoryWord mappings via LLM
     if new_lemma_ids:
         _verify_new_story_mappings(db, story, set(new_lemma_ids))
-
-    # Step 6: Queue enrichment for new lemmas (forms_json, etymology)
-    if new_lemma_ids:
-        try:
-            from app.services.lemma_enrichment import enrich_lemmas_batch
-            import threading
-            threading.Thread(
-                target=enrich_lemmas_batch,
-                args=(new_lemma_ids,),
-                daemon=True,
-            ).start()
-        except Exception as e:
-            logger.warning("Failed to queue enrichment for story %d new lemmas: %s", story.id, e)
 
     return new_lemma_ids
 

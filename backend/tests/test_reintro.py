@@ -27,6 +27,7 @@ def _seed_word(db, lemma_id, arabic, english, state="known",
         pos="noun",
         gloss_en=english,
         root_id=root_id,
+        gates_completed_at=datetime.now(timezone.utc),
     )
     db.add(lemma)
     db.flush()

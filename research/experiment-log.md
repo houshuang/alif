@@ -4,6 +4,25 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-04-01: Centralized Quality Gate Pipeline — `run_quality_gates()`
+
+**Problem**: Every lemma import path (story, book, OCR, Quran) independently called 3-4 quality gate functions (finalize, variant detection, enrichment). Book imports were missing `finalize_new_lemmas()`, causing punctuation artifacts in bare forms (بغداد displayed as «بغداد»،). 21 lemmas had dirty `lemma_ar` fields, 4 had dirty `lemma_ar_bare`. Three duplicate بغداد entries. Adding a new quality gate required touching every import path — classic "shotgun surgery" smell.
+
+**Changes**:
+1. **`run_quality_gates(db, lemma_ids)`** in `lemma_quality.py` — single post-creation pipeline: finalize → variants → enrich → stamp `gates_completed_at`
+2. **`gates_completed_at` column on Lemma** — set only by `run_quality_gates()`. NULL = ungated.
+3. **Model-level guards** — `select_next_words()` and `_build_reintro_cards()` filter `gates_completed_at IS NOT NULL`. Ungated lemmas never appear in sessions.
+4. **Cron catchup** — `update_material.py` Step G2 finds ungated lemmas and runs the pipeline.
+5. **All import paths wired** — story_service, ocr_service, quran_service all replaced scattered calls with single `run_quality_gates()`. Book imports delegate to `_import_unknown_words` which calls it internally.
+6. **`finalize_new_lemmas` now cleans `lemma_ar`** (diacritized form shown on intro cards), not just `lemma_ar_bare`.
+7. **Tests**: `test_gloss_coverage.py` checks all import paths call `run_quality_gates` (one name to grep for, not four).
+
+**Data fixes**: Cleaned 21 dirty `lemma_ar` + 4 dirty `lemma_ar_bare` fields. Merged 3 بغداد duplicates. Marked بغداد and طهران as `proper_name`.
+
+**Expected result**: Future import paths that forget `run_quality_gates()` will have their lemmas silently excluded from sessions until the cron catches them. New quality gates only need to be added to one function.
+
+---
+
 ## 2026-03-31: Stats Overhaul — Frequency Backfill, Textbook Benchmarks, Cleanup
 
 **Problem**: (1) CEFR levels on stats screen were arbitrary (no validated Arabic CEFR-vocabulary mapping). (2) 34% of lemmas had no frequency rank — coverage metrics unreliable. (3) Duplicate lemmas, junk entries (Judeo-Arabic, numbers), punctuation artifacts in bare forms. (4) Stats screen showed "known words" in 3 places with different numbers, untruncated decimals, low-value insights (best weekday). (5) No centralized quality gate for new lemma creation — frequency rank never assigned at creation time.

@@ -732,6 +732,30 @@ async def main():
         else:
             print("  Skipped (dry run)")
 
+        # ── Step G2: Catch ungated lemmas ────────────────────────────
+        ungated_g2 = 0
+        print("\n═══ Step G2: Catch ungated lemmas ═══")
+        if not args.dry_run:
+            ungated = (
+                db.query(Lemma.lemma_id)
+                .filter(Lemma.gates_completed_at.is_(None))
+                .all()
+            )
+            ungated_ids = [r[0] for r in ungated]
+            if ungated_ids:
+                from app.services.lemma_quality import run_quality_gates
+                print(f"  Found {len(ungated_ids)} ungated lemmas — running quality gates")
+                result = run_quality_gates(
+                    db, ungated_ids,
+                    background_enrich=False,
+                )
+                ungated_g2 = result.get("stamped", 0)
+                print(f"  Stamped {ungated_g2} lemmas")
+            else:
+                print("  All lemmas gated")
+        else:
+            print("  Skipped (dry run)")
+
         # ── Step H: auto-generate stories ────────────────────────────
         stories_h = 0
         STORY_TARGET = 3  # keep at least 3 non-archived active stories
@@ -822,14 +846,15 @@ async def main():
         print(f"  Step E enriched:  {enrich_e}")
         print(f"  Step F leeches:   {leech_f}")
         print(f"  Step G book ULK:  {book_ulk_g}")
+        print(f"  Step G2 ungated:  {ungated_g2}")
         print(f"  Step H stories:   {stories_h}")
         print(f"  Step I podcasts:  {podcasts_i}")
 
-        if not args.dry_run and (retired_0 + sent_a + audio_b + sent_c + enrich_e + leech_f + book_ulk_g + stories_h + podcasts_i > 0):
+        if not args.dry_run and (retired_0 + sent_a + audio_b + sent_c + enrich_e + leech_f + book_ulk_g + ungated_g2 + stories_h + podcasts_i > 0):
             log_activity(
                 db,
                 event_type="material_updated",
-                summary=f"Retired {retired_0}, generated {sent_a}+{sent_c} sentences, {audio_b} audio, enriched {enrich_e}, reintro {leech_f} leeches, {book_ulk_g} book ULK, {stories_h} stories, {podcasts_i} podcasts in {elapsed:.0f}s",
+                summary=f"Retired {retired_0}, generated {sent_a}+{sent_c} sentences, {audio_b} audio, enriched {enrich_e}, reintro {leech_f} leeches, {book_ulk_g} book ULK, {ungated_g2} ungated, {stories_h} stories, {podcasts_i} podcasts in {elapsed:.0f}s",
                 detail={
                     "step_0_retired": retired_0,
                     "step_a_sentences": sent_a,
@@ -839,6 +864,7 @@ async def main():
                     "step_e_enriched": enrich_e,
                     "step_f_leeches": leech_f,
                     "step_g_book_ulk": book_ulk_g,
+                    "step_g2_ungated": ungated_g2,
                     "step_h_stories": stories_h,
                     "step_i_podcasts": podcasts_i,
                     "elapsed_seconds": round(elapsed, 1),
