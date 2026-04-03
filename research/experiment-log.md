@@ -4,6 +4,20 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-04-03: Quran Lemma Promotion — Encountered → Acquiring via Verse Comprehension
+
+**Problem**: Quran-only lemmas stayed permanently in "encountered" state. Words like هَدَى (to guide) and آمَنَ (to believe) appeared in multiple understood verses but never entered the learning pipeline. The only crossover path was through other import sources (stories, textbooks), leaving 94 Quran-specific words stranded.
+
+**Change**: `_maybe_promote_quran_lemmas()` in `quran_service.py` — runs after every verse review. For each encountered lemma in the reviewed verse, counts distinct verses with `srs_level >= 2` (rated "got_it" at least once). If ≥ 3, calls `start_acquisition(source="quran")`. Only promotes gated lemmas.
+
+**Constant**: `QURAN_PROMOTION_THRESHOLD = 3` — balances quick promotion for high-frequency words (which cluster in early surahs) against premature promotion of rare words. FSRS safety net catches false positives.
+
+**At deploy**: 2 words immediately promotable (هَدَى, آمَنَ in 3 understood verses). رَحِيم, صِرَاط, رَحْمَٰن at 2 verses, will promote soon.
+
+**Verification**: Check interaction logs for `quran_lemma_promotion` events. Monitor acquiring pipeline for `source="quran"` words. Watch for pipeline backlog gate suppression if too many Quran words flood in (unlikely — early surahs have limited unique vocabulary).
+
+---
+
 ## 2026-04-01: Centralized Quality Gate Pipeline — `run_quality_gates()`
 
 **Problem**: Every lemma import path (story, book, OCR, Quran) independently called 3-4 quality gate functions (finalize, variant detection, enrichment). Book imports were missing `finalize_new_lemmas()`, causing punctuation artifacts in bare forms (بغداد displayed as «بغداد»،). 21 lemmas had dirty `lemma_ar` fields, 4 had dirty `lemma_ar_bare`. Three duplicate بغداد entries. Adding a new quality gate required touching every import path — classic "shotgun surgery" smell.

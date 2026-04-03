@@ -11,6 +11,8 @@ from datetime import datetime, timedelta
 
 from sqlalchemy.orm import Session
 
+from sqlalchemy import func
+
 from app.models import Lemma, QuranicVerse, QuranicVerseWord, Root, UserLemmaKnowledge
 from app.services.interaction_logger import log_interaction
 from app.services.transliteration import transliterate_arabic
@@ -173,16 +175,18 @@ def _fill_glosses_llm(
     if uncached:
         surface_forms = list({sf for _, _, sf in uncached})
         try:
-            from app.services.llm import generate_structured
+            from app.services.llm import generate_completion
             prompt = (
                 "Translate each Arabic word/phrase to a brief English gloss (1-4 words). "
                 "These are from the Quran. Return a JSON object mapping Arabic → English.\n\n"
                 + "\n".join(surface_forms)
             )
-            result = generate_structured(
+            result = generate_completion(
                 prompt=prompt,
-                response_schema={"type": "object"},
-                model_override="gemini_flash",
+                json_mode=True,
+                temperature=0.1,
+                model_override="claude_haiku",
+                task_type="quran_lemma_translation",
             )
             if isinstance(result, dict):
                 for ar, en in result.items():
@@ -404,6 +408,81 @@ def select_verse_cards(
     return result
 
 
+QURAN_PROMOTION_THRESHOLD = 3  # distinct "understood" verses needed to promote to acquiring
+
+
+def _maybe_promote_quran_lemmas(db: Session, verse_id: int) -> list[dict]:
+    """Promote encountered Quran lemmas to acquiring if seen in enough understood verses.
+
+    A verse counts as "understood" if srs_level >= 2 (rated "got_it" at least once).
+    When a lemma appears in >= QURAN_PROMOTION_THRESHOLD such verses, it enters acquisition.
+    """
+    from app.services.acquisition_service import start_acquisition
+
+    # Get lemma_ids in this verse that are still "encountered"
+    verse_lemma_ids = [
+        row[0] for row in
+        db.query(QuranicVerseWord.lemma_id)
+        .filter(QuranicVerseWord.verse_id == verse_id, QuranicVerseWord.lemma_id.isnot(None))
+        .all()
+    ]
+    if not verse_lemma_ids:
+        return []
+
+    encountered_ids = set(
+        row[0] for row in
+        db.query(UserLemmaKnowledge.lemma_id)
+        .filter(
+            UserLemmaKnowledge.lemma_id.in_(verse_lemma_ids),
+            UserLemmaKnowledge.knowledge_state == "encountered",
+        )
+        .all()
+    )
+    if not encountered_ids:
+        return []
+
+    # For each encountered lemma, count distinct understood verses it appears in
+    # (verse srs_level >= 2 means rated "got_it" at least once)
+    counts = (
+        db.query(QuranicVerseWord.lemma_id, func.count(func.distinct(QuranicVerseWord.verse_id)))
+        .join(QuranicVerse, QuranicVerse.id == QuranicVerseWord.verse_id)
+        .filter(
+            QuranicVerseWord.lemma_id.in_(encountered_ids),
+            QuranicVerse.srs_level >= 2,
+        )
+        .group_by(QuranicVerseWord.lemma_id)
+        .all()
+    )
+
+    promoted = []
+    for lemma_id, verse_count in counts:
+        if verse_count >= QURAN_PROMOTION_THRESHOLD:
+            lemma = db.query(Lemma).filter(Lemma.lemma_id == lemma_id).first()
+            if not lemma or not lemma.gates_completed_at:
+                continue
+            start_acquisition(db, lemma_id, source="quran")
+            db.commit()
+            promoted.append({
+                "lemma_id": lemma_id,
+                "lemma_ar": lemma.lemma_ar,
+                "gloss_en": lemma.gloss_en,
+                "verse_count": verse_count,
+            })
+            logger.info(
+                "Promoted Quran lemma %s (%s) to acquiring — appeared in %d understood verses",
+                lemma.lemma_ar, lemma.gloss_en, verse_count,
+            )
+
+    if promoted:
+        log_interaction(
+            event="quran_lemma_promotion",
+            context=f"promoted {len(promoted)} lemmas",
+            extra={"promoted": promoted},
+        )
+
+    return promoted
+
+
 def submit_verse_review(
     db: Session,
     verse_id: int,
@@ -447,12 +526,15 @@ def submit_verse_review(
         extra={"verse_id": verse_id, "rating": rating, "old_level": old_level, "new_level": verse.srs_level},
     )
 
+    promoted = _maybe_promote_quran_lemmas(db, verse_id)
+
     return {
         "verse_id": verse.id,
         "surah": verse.surah,
         "ayah": verse.ayah,
         "new_level": verse.srs_level,
         "next_due": verse.next_due.isoformat() if verse.next_due else None,
+        "promoted_lemmas": promoted,
     }
 
 
@@ -629,7 +711,7 @@ def _create_unknown_quran_lemmas(
         prompt += f"- {w['surface']} ({w['bare']})\n"
 
     try:
-        result = generate_completion(prompt, json_mode=True, task_type="quran_lemma_translation")
+        result = generate_completion(prompt, json_mode=True, task_type="quran_lemma_translation", model_override="claude_haiku")
         translations = result if isinstance(result, list) else result.get("words", result.get("translations", []))
     except Exception as e:
         logger.warning(f"LLM translation failed for Quran lemmas: {e}")

@@ -260,6 +260,20 @@ encountered words and the user understands it, all 5 get introduced and graduate
 review. Sentence difficulty should be adjusted at generation time, not by capping the
 review engine.
 
+### 3.9 Quran Verse Review (Lemma Promotion)
+
+**Path**: User reviews a verse → `POST /api/review/verse` → `_maybe_promote_quran_lemmas()`
+**Effect**: Quran-only `encountered` lemmas promote to `acquiring` (Leitner box 1) when they
+appear in ≥3 distinct verses with `srs_level >= 2` (rated "got_it" at least once).
+**Source**: `"quran"`
+**Code**: `quran_service.py:_maybe_promote_quran_lemmas()`
+
+Only lemmas with `gates_completed_at IS NOT NULL` are promoted (quality gate must have
+completed during Quran lemmatization). Runs after every verse review — scans only the
+lemmas in the just-reviewed verse, then checks their cross-verse appearance count.
+
+**Constant**: `QURAN_PROMOTION_THRESHOLD = 3` in `quran_service.py`.
+
 ---
 
 ## 4. Phase 1: Encountered
@@ -717,7 +731,8 @@ The frontend prefetches one session ahead to provide instant session transitions
 2. **Session-complete screen**: A single `GET /api/review/next-sentences?prefetch=true`
    builds a full session (including on-demand generation and auto-introduction) and caches
    it in AsyncStorage. When the user taps "Next Session", the cached session loads instantly
-   with no server call. This is the only prefetch — one per session cycle.
+   with no server call. This is the only prefetch — one per session cycle. **Deferred 3s**
+   after session-end screen mount so it doesn't compete with the `session-end` query.
 
 3. **Background warm after session load**: Every non-prefetch session load triggers
    `warm_sentence_cache()` as a FastAPI background task. This rotates stale sentences

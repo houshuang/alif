@@ -14,7 +14,7 @@
 - [DONE] ALA-LC transliteration on card back (via transliterate_arabic(), not risan/quran-json phonetic data)
 - [DONE] Ta maftouha fallback in lemmatization (رحمت→رحمة, نعمت→نعمة, etc.)
 - [DONE] Gold accent design distinguishing from regular review cards
-- Words absorbed through repeated verse exposure auto-promote to acquiring after 5+ non-tapped encounters
+- [DONE] Words absorbed through repeated verse exposure auto-promote to acquiring (threshold: 3 distinct understood verses with srs_level >= 2)
 - Motivational loop: master surah → unlock recitation listening
 - Classical Arabic vocabulary directly relevant to user's literary goals
 - Pre-teaching: cautious — possibly only flag "too hard" verses, not pre-teach words
