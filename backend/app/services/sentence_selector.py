@@ -52,6 +52,7 @@ PIPELINE_BACKLOG_THRESHOLD = 40  # suppress reserved intros when acquiring pipel
 SESSION_SCAFFOLD_DECAY = 0.5  # per-appearance decay for scaffold words already in session
 NEVER_REVIEWED_BOOST = 5.0  # score multiplier for sentences targeting acquiring words with 0 reviews
 MAX_UNKNOWN_SCAFFOLD = 2  # max unknown non-target words per sentence (prevents overwhelming density)
+MIN_SESSION_SENTENCES = 5  # minimum sentences before pulling in almost-due words
 COMPREHENSIBILITY_THRESHOLD = 0.6  # min fraction of scaffold words that must be known
 
 
@@ -1688,6 +1689,54 @@ def _with_fallbacks(
                         covered_ids.add(fi["primary_lemma_id"])
         except Exception:
             logger.exception("Fill phase failed, continuing with existing items")
+            db.rollback()
+
+    # Almost-due backfill: if session is still severely undersized after fill,
+    # pull in words closest to their due date so the learner isn't stuck with
+    # a near-empty session.
+    if len(items) < MIN_SESSION_SENTENCES:
+        try:
+            from app.services.cohort_service import get_focus_cohort
+            cohort = get_focus_cohort(db)
+            now = datetime.now(timezone.utc)
+            already_covered = {item.get("primary_lemma_id") for item in items if item.get("primary_lemma_id")}
+            almost_due: list[tuple[int, datetime]] = []
+            for k in (all_knowledge or []):
+                if k.lemma_id in already_covered or k.lemma_id in due_lemma_ids:
+                    continue
+                if k.knowledge_state in ("known", "learning", "lapsed") and k.fsrs_card_json:
+                    due_dt = _get_due_dt(k)
+                    if due_dt:
+                        almost_due.append((k.lemma_id, due_dt))
+                elif k.knowledge_state == "acquiring" and k.acquisition_next_due:
+                    acq_due = k.acquisition_next_due
+                    if acq_due.tzinfo is None:
+                        acq_due = acq_due.replace(tzinfo=timezone.utc)
+                    almost_due.append((k.lemma_id, acq_due))
+            almost_due.sort(key=lambda x: x[1])
+            preview_ids = {lid for lid, _ in almost_due[:limit * 3]} & cohort
+            if preview_ids:
+                remaining_cap = limit - len(items)
+                for lid in preview_ids:
+                    if lid not in stability_map:
+                        k = knowledge_by_id.get(lid)
+                        if k:
+                            stability_map[lid] = _get_stability(k) if k.fsrs_card_json else 0.1
+                fill_items = _find_pregenerated_sentences_for_words(
+                    db, preview_ids, stability_map, knowledge_by_id,
+                    all_knowledge or [], remaining_cap, mode=mode,
+                )
+                for fi in fill_items:
+                    if fi.get("selection_info"):
+                        fi["selection_info"]["reason"] = "almost_due_fill"
+                        fi["selection_info"]["word_reason"] = "Almost due — filling undersized session"
+                items.extend(fill_items)
+                for fi in fill_items:
+                    covered_ids.add(fi["primary_lemma_id"])
+                if fill_items:
+                    logger.info(f"Almost-due backfill: added {len(fill_items)} sentences (session was {len(items) - len(fill_items)}/{limit})")
+        except Exception:
+            logger.exception("Almost-due backfill failed")
             db.rollback()
 
     # Check for un-introduced grammar features in session sentences

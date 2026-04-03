@@ -1,10 +1,12 @@
 """Batch enrichment for newly created Lemma records.
 
-Populates forms_json, etymology_json, memory_hooks_json, and transliteration_ala_lc.
+Populates forms_json, etymology_json, transliteration_ala_lc, grammar_features_json,
+example_ar/example_en, and root_id.
 Designed to run as a background task after import (opens its own DB session).
 """
 
 import logging
+import re
 import time
 
 from app.database import SessionLocal
@@ -82,6 +84,119 @@ There are TWO types of words:
 ONLY return null for the whole entry for closed-class function words.
 
 Return JSON array: [{"lemma_id": 1, "etymology": {...}}]"""
+
+
+ROOTS_SYSTEM_PROMPT = """You are an Arabic morphology expert. For each Arabic word, extract its consonantal root (جذر).
+
+Rules:
+- Return the root in dotted Arabic notation (e.g. ك.ت.ب for كتاب)
+- Most roots are 3 consonants (trilateral), some are 4 (quadrilateral)
+- For particles, pronouns, and words without a clear root, return null
+
+Return a JSON array: [{"lemma_id": 1, "root": "ك.ت.ب"}]
+Use null for root if the word has no meaningful root."""
+
+EXAMPLES_SYSTEM_PROMPT = """You are an Arabic language teaching assistant. Generate very short example sentences (3-5 words) for Arabic vocabulary words. Each sentence should:
+- Use fully diacritized Arabic (all tashkeel)
+- Be simple enough for a beginner
+- Clearly demonstrate the meaning of the target word
+- Use common, everyday vocabulary
+
+Return JSON array with objects having keys: lemma_id, example_ar, example_en"""
+
+
+def _normalize_root(root_str: str | None) -> str | None:
+    """Normalize root format to dotted notation."""
+    if not root_str:
+        return None
+    cleaned = re.sub(r'[^\u0600-\u06FF.]', '', root_str)
+    if not cleaned:
+        return None
+    if '.' in cleaned:
+        parts = cleaned.split('.')
+        if len(parts) < 3 or len(parts) > 4:
+            return None
+        return cleaned
+    chars = [c for c in cleaned if c.strip()]
+    if len(chars) < 3 or len(chars) > 4:
+        return None
+    return '.'.join(chars)
+
+
+def _generate_roots_batch(lemmas: list[Lemma]) -> dict[int, str]:
+    """Extract consonantal roots for a batch of lemmas. Returns {lemma_id: dotted_root_str}."""
+    from app.services.llm import generate_completion, AllProvidersFailed
+    from app.services.morphology import is_valid_root
+
+    lines = []
+    for lemma in lemmas:
+        pos_hint = f", pos={lemma.pos}" if lemma.pos else ""
+        gloss = f', meaning="{lemma.gloss_en}"' if lemma.gloss_en else ""
+        lines.append(f"- lemma_id={lemma.lemma_id}, word={lemma.lemma_ar}{pos_hint}{gloss}")
+
+    try:
+        result = generate_completion(
+            prompt=f"Extract the Arabic consonantal root for each word:\n\n"
+                   + "\n".join(lines)
+                   + '\n\nReturn JSON array: [{"lemma_id": 1, "root": "ك.ت.ب"}] (use null for root if no root)',
+            system_prompt=ROOTS_SYSTEM_PROMPT,
+            json_mode=True,
+            temperature=0.1,
+            model_override="claude_haiku",
+            task_type="enrichment_roots",
+        )
+    except AllProvidersFailed:
+        return {}
+
+    items = result if isinstance(result, list) else result.get("roots", result.get("words", []))
+    if not isinstance(items, list):
+        return {}
+
+    out = {}
+    for item in items:
+        lid = item.get("lemma_id")
+        raw = item.get("root")
+        if lid and raw:
+            norm = _normalize_root(raw)
+            if norm and is_valid_root(norm):
+                out[lid] = norm
+    return out
+
+
+def _generate_examples_batch(lemmas: list[Lemma]) -> dict[int, tuple[str, str]]:
+    """Generate example sentences for a batch. Returns {lemma_id: (ar, en)}."""
+    from app.services.llm import generate_completion, AllProvidersFailed
+
+    lines = []
+    for l in lemmas:
+        lines.append(f'- lemma_id={l.lemma_id}, word={l.lemma_ar}, meaning="{l.gloss_en}", pos={l.pos or "unknown"}')
+
+    try:
+        result = generate_completion(
+            prompt=f"Generate a short (3-5 word) example sentence for each of these Arabic words:\n\n"
+                   + "\n".join(lines)
+                   + '\n\nReturn JSON array: [{"lemma_id": 1, "example_ar": "...", "example_en": "..."}]',
+            system_prompt=EXAMPLES_SYSTEM_PROMPT,
+            json_mode=True,
+            temperature=0.5,
+            model_override="claude_haiku",
+            task_type="enrichment_examples",
+        )
+    except AllProvidersFailed:
+        return {}
+
+    items = result if isinstance(result, list) else result.get("examples", result.get("sentences", []))
+    if not isinstance(items, list):
+        return {}
+
+    out = {}
+    for item in items:
+        lid = item.get("lemma_id")
+        ar = (item.get("example_ar") or "").strip()
+        en = (item.get("example_en") or "").strip()
+        if lid and ar and en:
+            out[lid] = (ar, en)
+    return out
 
 
 def _generate_forms(lemma: Lemma) -> dict | None:
@@ -162,7 +277,7 @@ Use null for etymology if the word has no meaningful root derivation (particles,
 
 
 def enrich_lemmas_batch(lemma_ids: list[int]) -> dict:
-    """Enrich a batch of lemmas with forms, etymology, and memory hooks.
+    """Enrich a batch of lemmas: forms, etymology, roots, grammar tags, examples.
 
     Opens its own DB session (safe for background tasks).
     Skips fields already populated. Each enrichment step is independent.
@@ -173,7 +288,8 @@ def enrich_lemmas_batch(lemma_ids: list[int]) -> dict:
         return {"enriched": 0}
 
     db = SessionLocal()
-    summary = {"forms": 0, "etymology": 0, "transliteration": 0, "memory_hooks": 0, "total": len(lemma_ids)}
+    summary = {"forms": 0, "etymology": 0, "transliteration": 0, "memory_hooks": 0,
+                "roots": 0, "grammar": 0, "examples": 0, "total": len(lemma_ids)}
 
     try:
         lemmas = db.query(Lemma).filter(Lemma.lemma_id.in_(lemma_ids)).all()
@@ -242,9 +358,84 @@ def enrich_lemmas_batch(lemma_ids: list[int]) -> dict:
         # Memory hooks are no longer generated upfront — they're generated on
         # first failure (rating <= 2) to avoid wasting processing on already-known words.
 
+        # ── Step 5: Root association (batched LLM call) ──
+        need_roots = [l for l in lemmas if not l.root_id and l.pos in ('noun', 'verb', 'adjective', 'adj', None)]
+        if need_roots:
+            existing_roots = {r.root: r for r in db.query(Root).all()}
+            batch_size = 20
+            root_results: dict[int, str] = {}
+            for i in range(0, len(need_roots), batch_size):
+                batch = need_roots[i:i + batch_size]
+                try:
+                    root_map = _generate_roots_batch(batch)
+                    root_results.update(root_map)
+                    time.sleep(1)
+                except Exception:
+                    logger.warning(f"Root extraction failed for lemmas {[l.lemma_id for l in batch]}")
+
+            for lemma in need_roots:
+                root_str = root_results.get(lemma.lemma_id)
+                if not root_str:
+                    continue
+                if root_str in existing_roots:
+                    root_obj = existing_roots[root_str]
+                else:
+                    root_obj = Root(root=root_str)
+                    db.add(root_obj)
+                    db.flush()
+                    existing_roots[root_str] = root_obj
+                lemma.root_id = root_obj.root_id
+                summary["roots"] += 1
+            db.commit()
+
+            # Backfill meanings for newly created roots
+            if summary["roots"] > 0:
+                try:
+                    from app.services.morphology import backfill_root_meanings
+                    backfill_root_meanings(db)
+                    db.commit()
+                except Exception:
+                    logger.warning("Root meaning backfill failed")
+
+        # ── Step 6: Grammar features (individual LLM calls) ──
+        need_grammar = [l for l in lemmas if not l.grammar_features_json
+                        and l.pos in ('noun', 'verb', 'adjective', 'adj')]
+        if need_grammar:
+            from app.services.grammar_tagger import tag_lemma_grammar
+            for lemma in need_grammar:
+                try:
+                    features = tag_lemma_grammar(lemma.lemma_ar, lemma.pos, lemma.gloss_en)
+                    if features:
+                        lemma.grammar_features_json = features
+                        summary["grammar"] += 1
+                    time.sleep(0.3)
+                except Exception:
+                    logger.warning(f"Grammar tagging failed for lemma {lemma.lemma_id}")
+            db.commit()
+
+        # ── Step 7: Example sentences (batched LLM calls) ──
+        need_examples = [l for l in lemmas if not l.example_ar
+                         and l.pos in ('noun', 'verb', 'adjective', 'adj')]
+        if need_examples:
+            batch_size = 10
+            for i in range(0, len(need_examples), batch_size):
+                batch = need_examples[i:i + batch_size]
+                try:
+                    ex_map = _generate_examples_batch(batch)
+                    for lemma in batch:
+                        pair = ex_map.get(lemma.lemma_id)
+                        if pair:
+                            lemma.example_ar, lemma.example_en = pair
+                            summary["examples"] += 1
+                    time.sleep(1)
+                except Exception:
+                    logger.warning(f"Example generation failed for lemmas {[l.lemma_id for l in batch]}")
+            db.commit()
+
         logger.info(
             f"Enrichment complete: {summary['forms']} forms, {summary['etymology']} etymology, "
-            f"{summary['transliteration']} transliteration "
+            f"{summary['transliteration']} transliteration, {summary['roots']} roots, "
+            f"{summary['grammar']} grammar, {summary['examples']} examples "
             f"(of {summary['total']} lemmas)"
         )
 

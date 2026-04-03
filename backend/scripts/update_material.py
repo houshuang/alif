@@ -656,7 +656,7 @@ async def main():
 
         samer_d = step_backfill_samer(db, args.dry_run)
 
-        # Step E: Enrich ALL lemmas missing forms/etymology/hooks/transliteration
+        # Step E: Enrich ALL lemmas missing forms/etymology/grammar/examples/roots
         enrich_e = 0
         print("\n═══ Step E: Enrich unenriched lemmas ═══")
         unenriched = (
@@ -667,6 +667,9 @@ async def main():
                     Lemma.forms_json.is_(None)
                     | Lemma.etymology_json.is_(None)
                     | Lemma.memory_hooks_json.is_(None)
+                    | (Lemma.grammar_features_json.is_(None) & Lemma.pos.in_(["noun", "verb", "adjective", "adj"]))
+                    | (Lemma.example_ar.is_(None) & Lemma.pos.in_(["noun", "verb", "adjective", "adj"]))
+                    | (Lemma.root_id.is_(None) & Lemma.pos.in_(["noun", "verb", "adjective", "adj"]))
                 ),
             )
             .all()
@@ -677,7 +680,8 @@ async def main():
             if not args.dry_run:
                 from app.services.lemma_enrichment import enrich_lemmas_batch
                 result = enrich_lemmas_batch(unenriched_ids)
-                enrich_e = result.get("forms", 0) + result.get("etymology", 0)
+                enrich_e = (result.get("forms", 0) + result.get("etymology", 0)
+                            + result.get("roots", 0) + result.get("grammar", 0) + result.get("examples", 0))
         else:
             print("  All lemmas enriched")
 
