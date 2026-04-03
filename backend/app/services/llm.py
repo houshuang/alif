@@ -1,11 +1,16 @@
-"""LLM service using LiteLLM with multi-model fallback.
+"""LLM service using Claude CLI (free via Max plan) with API fallback.
 
-Sentence generation: Gemini Flash (on-demand, fast) or Claude CLI (background, free)
-General tasks: Gemini Flash (fast, cheap) → GPT-5.2 fallback → Claude Haiku tertiary
-Quality gate: Claude Haiku API, fail-closed (rejects on LLM failure)
+All text generation routes through Claude CLI (`claude -p`), free with Max plan:
+  - Sentence generation: claude_sonnet (87% pass rate, better than Gemini's 73%)
+  - Quality gate, enrichment, tagging, flags: claude_haiku
+  - Story generation: opus (via claude_code.py)
 
-Claude CLI models (claude_sonnet, claude_haiku) use `claude -p` from the Max plan (free).
-They require the `claude` CLI to be installed and authenticated (`claude setup-token`).
+API fallback (when CLI unavailable, e.g. network issues):
+  GPT-5.2 → Claude Haiku API
+
+Gemini is used ONLY for vision/OCR tasks (separate code path in ocr_service.py).
+
+Claude CLI requires `claude` installed and authenticated (`claude setup-token`).
 """
 
 import json
@@ -47,13 +52,9 @@ class MultiTargetSentenceResult(BaseModel):
     target_words_used: list[str]
 
 
+# API fallback models — used only when Claude CLI is unavailable.
+# Gemini removed from text chain (2026-04-01): now OCR-only via ocr_service.py.
 MODELS = [
-    {
-        "name": "gemini",
-        "model": "gemini/gemini-3-flash-preview",
-        "key_env": "GEMINI_KEY",
-        "key_setting": "gemini_key",
-    },
     {
         "name": "openai",
         "model": "gpt-5.2",
@@ -212,7 +213,7 @@ def generate_completion(
     Returns parsed JSON dict when json_mode=True, otherwise raw content string
     wrapped as {"content": "..."}.
 
-    When model_override is provided (e.g. "gemini", "openai", "anthropic"),
+    When model_override is provided (e.g. "claude_sonnet", "claude_haiku", "openai"),
     only that specific model is tried — no fallback to others.
 
     task_type: optional label for analytics (e.g. "sentence_gen", "quality_review").
@@ -223,24 +224,28 @@ def generate_completion(
     messages.append({"role": "user", "content": prompt})
 
     # Claude CLI models — shell out to `claude -p` (free via Max plan)
-    # Falls back to default API chain if CLI unavailable (e.g. inside Docker)
+    # Falls back to API chain if CLI unavailable
     CLAUDE_CLI_MODELS = {
         "claude_sonnet": "sonnet",
         "claude_haiku": "haiku",
     }
-    if model_override and model_override in CLAUDE_CLI_MODELS:
+
+    # When no model_override specified, try Claude CLI (haiku) first — it's free
+    cli_model = model_override if model_override in CLAUDE_CLI_MODELS else (None if model_override else "claude_haiku")
+    if cli_model and cli_model in CLAUDE_CLI_MODELS:
         try:
             return _generate_via_claude_cli(
                 prompt=prompt,
                 system_prompt=system_prompt,
-                model=CLAUDE_CLI_MODELS[model_override],
+                model=CLAUDE_CLI_MODELS[cli_model],
                 json_mode=json_mode,
                 timeout=timeout,
                 task_type=task_type,
             )
         except LLMError:
-            # CLI unavailable — fall through to default API chain
-            model_override = None
+            # CLI unavailable — fall through to API chain
+            if model_override and model_override in CLAUDE_CLI_MODELS:
+                model_override = None  # don't try to find "claude_haiku" in MODELS
 
     if model_override:
         models_to_try = [m for m in MODELS if m["name"] == model_override]
@@ -444,7 +449,7 @@ def generate_sentence(
     retry_feedback: str | None = None,
     max_words: int | None = None,
     avoid_words: list[str] | None = None,
-    model_override: str = "gemini",
+    model_override: str = "claude_sonnet",
 ) -> SentenceResult:
     """Generate a single Arabic sentence featuring the target word.
 
@@ -514,7 +519,7 @@ def generate_sentences_batch(
     known_words: list[dict[str, str]],
     count: int = 3,
     difficulty_hint: str = "beginner",
-    model_override: str = "gemini",
+    model_override: str = "claude_sonnet",
     avoid_words: list[str] | None = None,
     rejected_words: list[str] | None = None,
     max_words: int | None = None,
@@ -630,7 +635,7 @@ def generate_sentences_multi_target(
     known_words: list[dict[str, str]],
     count: int = 4,
     difficulty_hint: str = "beginner",
-    model_override: str = "gemini",
+    model_override: str = "claude_sonnet",
     avoid_words: list[str] | None = None,
     max_words: int | None = None,
 ) -> list[MultiTargetSentenceResult]:
@@ -719,7 +724,7 @@ Respond with JSON: {{"sentences": [{{"arabic": "...", "english": "...", "transli
     return sentences
 
 
-# --- Sentence Quality Review (Gemini Flash) ---
+# --- Sentence Quality Review (Claude Haiku via CLI) ---
 
 class SentenceReviewResult(BaseModel):
     natural: bool
@@ -730,7 +735,7 @@ class SentenceReviewResult(BaseModel):
 def review_sentences_quality(
     sentences: list[dict[str, str]],
 ) -> list[SentenceReviewResult]:
-    """Review sentences for naturalness and translation accuracy using Gemini Flash.
+    """Review sentences for naturalness and translation accuracy using Claude Haiku.
 
     Args:
         sentences: List of {"arabic": "...", "english": "..."} dicts.
