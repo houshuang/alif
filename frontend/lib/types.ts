@@ -799,6 +799,7 @@ export interface PageUploadResult {
   status: "pending" | "processing" | "completed" | "failed";
   new_words: number;
   existing_words: number;
+  textbook_page_number: number | null;
   error_message: string | null;
   created_at: string;
   completed_at: string | null;

@@ -285,6 +285,11 @@ export default function ScannerScreen() {
     );
   }
 
+  function pageLabel(page: PageUploadResult) {
+    if (page.textbook_page_number != null) return `Page ${page.textbook_page_number}`;
+    return `Page ${page.id}`;
+  }
+
   function renderPageResult(page: PageUploadResult) {
     if (page.status === "pending" || page.status === "processing") {
       return (
@@ -292,7 +297,7 @@ export default function ScannerScreen() {
           <View style={styles.pageHeader}>
             <ActivityIndicator size="small" color={colors.accent} />
             <Text style={styles.pageFilename}>
-              {page.filename || `Page ${page.id}`}
+              {pageLabel(page)}
             </Text>
             <Text style={styles.pageStatus}>Processing...</Text>
           </View>
@@ -306,7 +311,7 @@ export default function ScannerScreen() {
           <View style={styles.pageHeader}>
             <Ionicons name="alert-circle" size={18} color={colors.missed} />
             <Text style={styles.pageFilename}>
-              {page.filename || `Page ${page.id}`}
+              {pageLabel(page)}
             </Text>
             <Text style={[styles.pageStatus, { color: colors.missed }]}>
               Failed
@@ -328,7 +333,7 @@ export default function ScannerScreen() {
         <View style={styles.pageHeader}>
           <Ionicons name="checkmark-circle" size={18} color={colors.gotIt} />
           <Text style={styles.pageFilename}>
-            {page.filename || `Page ${page.id}`}
+            {pageLabel(page)}
           </Text>
           <View style={styles.pageCounts}>
             <Text style={[styles.countBadge, { color: colors.gotIt }]}>
@@ -414,7 +419,16 @@ export default function ScannerScreen() {
                   />
                 )}
                 <Text style={styles.batchTitle}>
-                  {batch.page_count} page{batch.page_count > 1 ? "s" : ""}
+                  {(() => {
+                    const pageNums = batch.pages
+                      .map((p) => p.textbook_page_number)
+                      .filter((n): n is number => n != null)
+                      .sort((a, b) => a - b);
+                    if (pageNums.length > 0) {
+                      return `Pages ${pageNums[0]}–${pageNums[pageNums.length - 1]}`;
+                    }
+                    return `${batch.page_count} page${batch.page_count > 1 ? "s" : ""}`;
+                  })()}
                 </Text>
               </View>
               <Text style={styles.batchDate}>{dateStr}</Text>
