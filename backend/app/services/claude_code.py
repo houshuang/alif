@@ -31,6 +31,9 @@ import time
 
 logger = logging.getLogger(__name__)
 
+# Strip CLAUDECODE env var to allow nested invocation from Claude Code sessions
+_CLEAN_ENV = {k: v for k, v in os.environ.items() if k != "CLAUDECODE"}
+
 CLAUDE_TIMEOUT = 120  # seconds
 CLAUDE_TOOLS_TIMEOUT = 240  # higher for multi-turn sessions (10-word batches)
 CLAUDE_MAX_BUDGET = 0.50  # dollars, safety cap for tool-enabled sessions
@@ -60,8 +63,8 @@ def _parse_response(proc: subprocess.CompletedProcess) -> tuple[dict, dict]:
     if not result:
         # Fall back to parsing result text (may have markdown fences)
         text = response.get("result", "")
-        text = re.sub(r"^```(?:json)?\s*", "", text.strip())
-        text = re.sub(r"\s*```$", "", text)
+        match = re.search(r'```(?:json)?\s*\n?([\s\S]*?)\n?\s*```', text)
+        text = match.group(1).strip() if match else text.strip()
         if text:
             try:
                 result = json.loads(text)
@@ -132,6 +135,7 @@ def generate_structured(
             capture_output=True,
             text=True,
             timeout=timeout,
+            env=_CLEAN_ENV,
         )
     except subprocess.TimeoutExpired:
         raise RuntimeError(f"claude timed out after {timeout}s")
@@ -212,6 +216,7 @@ def generate_with_tools(
             text=True,
             timeout=timeout,
             cwd=work_dir,
+            env=_CLEAN_ENV,
         )
     except subprocess.TimeoutExpired:
         raise RuntimeError(f"claude with tools timed out after {timeout}s")

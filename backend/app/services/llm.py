@@ -30,6 +30,9 @@ from app.config import settings
 
 litellm.set_verbose = False
 
+# Strip CLAUDECODE env var to allow nested invocation from Claude Code sessions
+_CLEAN_ENV = {k: v for k, v in os.environ.items() if k != "CLAUDECODE"}
+
 
 class LLMError(Exception):
     pass
@@ -152,6 +155,7 @@ def _generate_via_claude_cli(
             capture_output=True,
             text=True,
             timeout=timeout,
+            env=_CLEAN_ENV,
         )
     except subprocess.TimeoutExpired:
         elapsed = time.time() - start
@@ -186,8 +190,8 @@ def _generate_via_claude_cli(
     if json_mode:
         text = content.strip()
         if text.startswith("```"):
-            text = re.sub(r"^```(?:json)?\s*", "", text)
-            text = re.sub(r"\s*```$", "", text)
+            match = re.search(r'```(?:json)?\s*\n?([\s\S]*?)\n?\s*```', text)
+            text = match.group(1).strip() if match else text.strip()
         try:
             return json.loads(text)
         except json.JSONDecodeError:
@@ -290,8 +294,8 @@ def generate_completion(
                 # Some models wrap JSON in markdown fences
                 text = content.strip()
                 if text.startswith("```"):
-                    text = re.sub(r"^```(?:json)?\s*", "", text)
-                    text = re.sub(r"\s*```$", "", text)
+                    match = re.search(r'```(?:json)?\s*\n?([\s\S]*?)\n?\s*```', text)
+                    text = match.group(1).strip() if match else text.strip()
                 return json.loads(text)
             return {"content": content}
 
