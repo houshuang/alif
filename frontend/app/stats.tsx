@@ -28,15 +28,15 @@ export default function StatsScreen() {
   async function loadAnalytics() {
     setLoading(true);
     try {
-      const [data, deep] = await Promise.all([
-        getAnalytics(),
-        getDeepAnalytics().catch(() => null),
-      ]);
+      // Load basic analytics first so the page renders fast
+      const data = await getAnalytics();
       setAnalytics(data);
+      setLoading(false);
+      // Then load deep analytics in background
+      const deep = await getDeepAnalytics().catch(() => null);
       setDeepAnalytics(deep);
     } catch (e) {
       console.warn("Failed to load analytics:", e);
-    } finally {
       setLoading(false);
     }
   }

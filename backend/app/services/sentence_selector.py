@@ -1331,6 +1331,10 @@ def _build_intro_cards(
             # Skip intro cards for words already familiar from encounters
             and (ulk.total_encounters or 0) < 5
         ):
+            # Skip if user already demonstrated recognition (e.g. Quran promotion
+            # means they recognized the word in 3+ understood verses)
+            if (ulk.times_correct or 0) > 0 or ulk.source == "quran":
+                continue
             card_ids.add(lid)
             continue
 
