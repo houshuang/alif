@@ -29,25 +29,28 @@ def test_load_lexemes():
 def test_run_import(db_session):
     result = run_import(db_session)
 
-    assert result["imported"] > 0
+    assert result["imported"] > 100
     assert result["skipped_names"] > 0
     assert result["skipped_phrases"] > 0
 
-    # Check some words were imported
+    # Lemma and knowledge counts should match
     lemma_count = db_session.query(Lemma).count()
-    assert lemma_count == result["imported"]
-
-    # All imported words should have knowledge records
     knowledge_count = db_session.query(UserLemmaKnowledge).count()
-    assert knowledge_count == result["imported"]
+    assert lemma_count == knowledge_count
 
-    # All should be in 'learning' state
+    # All knowledge records should be learning or suspended (quality gate may suspend junk)
     learning = (
         db_session.query(UserLemmaKnowledge)
         .filter(UserLemmaKnowledge.knowledge_state == "learning")
         .count()
     )
-    assert learning == result["imported"]
+    suspended = (
+        db_session.query(UserLemmaKnowledge)
+        .filter(UserLemmaKnowledge.knowledge_state == "suspended")
+        .count()
+    )
+    assert learning + suspended == knowledge_count
+    assert learning > 100
 
     # Check a specific word was imported
     dog = db_session.query(Lemma).filter(Lemma.lemma_ar_bare == "كلب").first()
@@ -68,11 +71,12 @@ def test_run_import(db_session):
 
 def test_import_idempotent(db_session):
     result1 = run_import(db_session)
+    count_after_first = db_session.query(Lemma).count()
     result2 = run_import(db_session)
 
     # Second import should add 0 new words
     assert result2["imported"] == 0
 
-    # Total should match first import
+    # Total should be unchanged after second import
     total = db_session.query(Lemma).count()
-    assert total == result1["imported"]
+    assert total == count_after_first

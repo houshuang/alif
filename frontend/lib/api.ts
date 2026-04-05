@@ -870,6 +870,7 @@ export async function askAI(
   return fetchApi<AskAIResponse>("/api/chat/ask", {
     method: "POST",
     body: JSON.stringify({ question, context, screen, conversation_id: conversationId }),
+    timeoutMs: 30_000,
   });
 }
 

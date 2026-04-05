@@ -52,12 +52,13 @@ def ask_question(body: AskQuestionIn, db: Session = Depends(get_db)):
     parts.append(f"User: {body.question}")
     prompt = "\n\n".join(parts)
 
-    # LLM call (can take 5-15s)
+    # LLM call — use Anthropic API directly (not Claude CLI) for fast interactive response
     result = generate_completion(
         prompt=prompt,
         system_prompt=CHAT_SYSTEM_PROMPT,
         json_mode=False,
         temperature=0.7,
+        model_override="anthropic",
         task_type="chat",
     )
     answer = result["content"]
