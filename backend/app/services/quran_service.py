@@ -241,8 +241,8 @@ MAX_NEW_VERSES_PER_DAY = 3
 
 def select_verse_cards(
     db: Session,
-    max_new: int = 2,
-    max_total: int = 5,
+    max_new: int = 1,
+    max_total: int = 3,
 ) -> list[dict]:
     """Select verse cards for the current session.
 
