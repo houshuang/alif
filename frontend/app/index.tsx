@@ -3018,8 +3018,12 @@ function SessionComplete({
   const fadeAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
+    // Flush queue in parallel — reviews were already synced during session
+    // via fire-and-forget flushes; this is just a safety net for stragglers
+    flushQueue().catch(() => {});
+
+    // Fetch session-end data immediately without waiting for flush
     const load = async () => {
-      await flushQueue().catch(() => {});
       const d = sessionId ? await getSessionEnd(sessionId).catch(() => null) : null;
       if (d) setData(d);
       setDataReady(true);
@@ -3030,7 +3034,12 @@ function SessionComplete({
       }).start();
     };
     load();
-    prefetchSessions(mode).catch(() => {});
+
+    // Delay prefetch so it doesn't compete with session-end query
+    const prefetchTimer = setTimeout(() => {
+      prefetchSessions(mode).catch(() => {});
+    }, 3000);
+    return () => clearTimeout(prefetchTimer);
   }, []);
 
   // Derive journey categories

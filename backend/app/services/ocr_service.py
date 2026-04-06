@@ -5,9 +5,9 @@ Used for two features:
 2. Story image import: extract full Arabic text from an image
 
 Pipeline for textbook scanning (3-step):
-  Step 1 — OCR only: extract Arabic words from image (Gemini Vision)
+  Step 1 — OCR only: extract Arabic words from image (Gemini Vision, only paid API use)
   Step 2 — Morphology: CAMeL Tools for root/base lemma
-  Step 3 — Translation: LLM translates Arabic words to English (no image)
+  Step 3 — Translation: Claude Haiku via CLI (free) translates Arabic words to English
 """
 
 import base64
@@ -168,54 +168,21 @@ def _call_gemini_vision(
 
 
 def _call_llm_text(prompt: str, system_prompt: str = "") -> dict:
-    """Call LLM with text-only prompt. Returns parsed JSON."""
-    import litellm
-    import time
+    """Call LLM with text-only prompt. Returns parsed JSON.
 
-    api_key = settings.gemini_key
-    if not api_key:
-        raise ValueError("GEMINI_KEY not configured")
+    Routes through generate_completion (Claude CLI, free) instead of Gemini API.
+    """
+    from app.services.llm import generate_completion
 
-    messages = []
-    if system_prompt:
-        messages.append({"role": "system", "content": system_prompt})
-    messages.append({"role": "user", "content": prompt})
-
-    start = time.time()
-    try:
-        response = litellm.completion(
-            model="gemini/gemini-3-flash-preview",
-            messages=messages,
-            temperature=0.1,
-            timeout=60,
-            api_key=api_key,
-            response_format={"type": "json_object"},
-        )
-        elapsed = time.time() - start
-        content = response.choices[0].message.content.strip()
-        if content.startswith("```"):
-            content = re.sub(r"^```(?:json)?\s*", "", content)
-            content = re.sub(r"\s*```$", "", content)
-
-        log_dir = settings.log_dir
-        log_dir.mkdir(parents=True, exist_ok=True)
-        log_file = log_dir / f"llm_calls_{datetime.now():%Y-%m-%d}.jsonl"
-        entry = {
-            "ts": datetime.now().isoformat(),
-            "event": "llm_call",
-            "model": "gemini/gemini-3-flash-preview",
-            "task": "ocr_translate",
-            "success": True,
-            "response_time_s": round(elapsed, 2),
-        }
-        with open(log_file, "a") as f:
-            f.write(json.dumps(entry) + "\n")
-
-        return json.loads(content)
-    except Exception as e:
-        elapsed = time.time() - start
-        logger.error(f"LLM text call failed after {elapsed:.1f}s: {e}")
-        raise
+    return generate_completion(
+        prompt=prompt,
+        system_prompt=system_prompt,
+        json_mode=True,
+        temperature=0.1,
+        timeout=60,
+        model_override="claude_haiku",
+        task_type="ocr_translate",
+    )
 
 
 def extract_text_from_image(image_bytes: bytes) -> str:
@@ -761,23 +728,43 @@ def process_textbook_page(
 
 
 def _schedule_material_generation(db: Session, lemma_ids: list[int]) -> None:
-    """Schedule sentence + audio generation for newly imported words."""
+    """Generate sentences for words that entered acquiring after a textbook scan.
+
+    Checks each word's active sentence count and generates up to
+    MIN_SENTENCES_PER_WORD. Also counts active sentences where the word
+    appears (not just as target) to avoid redundant generation.
+    """
     from sqlalchemy import func
 
     from app.services.material_generator import generate_material_for_word
 
+    generated = 0
+    failed = 0
+    skipped = 0
     for lemma_id in lemma_ids:
+        # Check active sentences where this word is the target
         existing_count = (
             db.query(func.count(Sentence.id))
-            .filter(Sentence.target_lemma_id == lemma_id)
+            .filter(
+                Sentence.target_lemma_id == lemma_id,
+                Sentence.is_active == True,
+            )
             .scalar() or 0
         )
-        if existing_count < MIN_SENTENCES_PER_WORD:
-            needed = MIN_SENTENCES_PER_WORD - existing_count
-            try:
-                generate_material_for_word(lemma_id, needed)
-            except Exception:
-                logger.exception("Material generation failed for OCR word %d", lemma_id)
+        if existing_count >= MIN_SENTENCES_PER_WORD:
+            skipped += 1
+            continue
+        needed = MIN_SENTENCES_PER_WORD - existing_count
+        try:
+            stored = generate_material_for_word(lemma_id, needed)
+            generated += stored
+        except Exception:
+            failed += 1
+            logger.exception("Material generation failed for OCR word %d", lemma_id)
+    logger.info(
+        "Post-scan generation: %d sentences generated, %d words failed, %d skipped (had enough)",
+        generated, failed, skipped,
+    )
 
 
 def _commit_with_retry(db: Session, label: str = "ocr", max_retries: int = 3) -> None:
@@ -888,6 +875,7 @@ def process_batch(
 
     seen_bares: set[str] = set()  # dedupe across ALL pages
     new_lemma_ids: list[int] = []
+    started_acquiring_ids: list[int] = []  # ALL lemmas that entered acquiring (new + existing)
     # Track per-word results indexed same as all_extracted
     word_results: list[dict | None] = [None] * len(all_extracted)
 
@@ -944,6 +932,7 @@ def process_batch(
                     new_ulk = start_acquisition(
                         db, lemma_id=lemma_id, source="textbook_scan", due_immediately=True,
                     )
+                    started_acquiring_ids.append(lemma_id)
                 else:
                     new_ulk = UserLemmaKnowledge(
                         lemma_id=lemma_id,
@@ -1013,6 +1002,7 @@ def process_batch(
                 new_ulk = start_acquisition(
                     db, lemma_id=new_lemma.lemma_id, source="textbook_scan", due_immediately=True,
                 )
+                started_acquiring_ids.append(new_lemma.lemma_id)
             else:
                 new_ulk = UserLemmaKnowledge(
                     lemma_id=new_lemma.lemma_id,
@@ -1112,12 +1102,21 @@ def process_batch(
     backfill_root_meanings(db)
     _commit_with_retry(db, "batch-root-backfill")
 
-    # Sentence generation for new words (skip variants)
+    # Sentence generation for ALL words that entered acquiring (new + existing)
+    # Previously only generated for new_lemma_ids, missing existing lemmas promoted to acquiring
     if not variant_ids and new_lemma_ids:
         variant_ids = {
             r[0] for r in db.query(Lemma.lemma_id)
             .filter(Lemma.lemma_id.in_(new_lemma_ids), Lemma.canonical_lemma_id.isnot(None))
             .all()
         }
-    gen_ids = [lid for lid in new_lemma_ids if lid not in variant_ids]
+    all_needing_gen = set(started_acquiring_ids) - variant_ids
+    # Also include new lemmas that didn't start acquiring (they may later)
+    all_needing_gen |= set(lid for lid in new_lemma_ids if lid not in variant_ids)
+    gen_ids = list(all_needing_gen)
+    logger.info(
+        "Batch %s: scheduling sentence generation for %d words "
+        "(%d new lemmas, %d existing promoted to acquiring)",
+        batch_id, len(gen_ids), len(new_lemma_ids), len(started_acquiring_ids),
+    )
     _schedule_material_generation(db, gen_ids)

@@ -40,6 +40,7 @@ def tag_sentence_grammar(arabic_text: str) -> dict[str, Any]:
         json_mode=True,
         temperature=0.2,
         task_type="grammar_tag",
+        model_override="claude_haiku",
     )
 
     features = result.get("features", [])
@@ -92,6 +93,7 @@ def tag_lemma_grammar(
         json_mode=True,
         temperature=0.2,
         task_type="grammar_tag",
+        model_override="claude_haiku",
     )
 
     valid_keys = {

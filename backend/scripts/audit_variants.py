@@ -76,7 +76,7 @@ def call_llm_batch(pairs: list[dict]) -> list[dict]:
 
     prompt = build_batch_prompt(pairs)
 
-    for model in ["claude_haiku", "gemini"]:
+    for model in ["claude_haiku"]:
         try:
             result = generate_completion(
                 prompt=prompt,

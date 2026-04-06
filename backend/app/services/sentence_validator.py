@@ -41,11 +41,11 @@ FUNCTION_WORD_GLOSSES: dict[str, str] = {
     "منذ": "since", "خلال": "during", "عند": "at/with", "نحو": "toward",
     "فوق": "above", "تحت": "under", "امام": "in front of", "أمام": "in front of",
     "وراء": "behind", "بعد": "after", "قبل": "before", "حول": "around", "دون": "without",
-    # Single-letter
-    "ب": "with/by", "ل": "for/to", "ك": "like/as", "و": "and", "ف": "so/then",
+    # Single-letter clitics
+    "ب": "in/by/with", "ل": "for/to", "ك": "like/as", "و": "and", "ف": "so/then",
     # Conjunctions
     "او": "or", "أو": "or", "ان": "that", "أن": "that", "إن": "indeed",
-    "لكن": "but", "ثم": "then", "بل": "rather",
+    "لكن": "but", "ثم": "then (after delay)", "بل": "rather/nay",
     # Pronouns
     "انا": "I", "أنا": "I", "انت": "you (m)", "أنت": "you (m)",
     "انتم": "you (pl)", "أنتم": "you (pl)", "هو": "he", "هي": "she",
@@ -64,7 +64,7 @@ FUNCTION_WORD_GLOSSES: dict[str, str] = {
     "لا": "no/not", "لم": "did not", "لن": "will not", "ليس": "is not", "ليست": "is not (f)",
     # Auxiliary / modal
     "كان": "was/were", "كانت": "was (f)", "يكون": "to be", "تكون": "to be (f)",
-    "قد": "may/already", "سوف": "will", "سـ": "will",
+    "قد": "indeed/may/already", "سوف": "will", "سـ": "will",
     # Adverbs/particles
     "ايضا": "also", "أيضا": "also", "جدا": "very", "فقط": "only",
     "كل": "every/all", "بعض": "some", "كلما": "whenever",
@@ -76,8 +76,9 @@ FUNCTION_WORD_GLOSSES: dict[str, str] = {
     "لان": "because", "لأن": "because", "كي": "in order to", "لكي": "in order to",
     "حين": "when", "حينما": "when",
     # Emphasis / structure
-    "لقد": "indeed (past)", "اما": "as for", "أما": "as for",
+    "لقد": "indeed/certainly (past)", "اما": "as for", "أما": "as for",
     "الا": "except", "إلا": "except", "اذن": "then/so", "إذن": "then/so",
+    "لولا": "if not for", "لوما": "if not for",
     "انه": "indeed he", "إنه": "indeed he", "انها": "indeed she", "إنها": "indeed she",
     "مثل": "like", "غير": "other than",
     # Grammatical verbs
@@ -889,9 +890,9 @@ Return JSON: {{"issues": []}} if all correct, or:
 
     system = "You are an Arabic morphology expert. Check each mapping against the English translation. Flag any mapping where the gloss doesn't fit the sentence meaning."
 
-    # Claude Haiku (via CLI, free) primary — 0% failure rate on server.
-    # Gemini has 35% timeout rate under concurrent load.
-    for model in ("claude_haiku", "gemini"):
+    # Claude Haiku (via CLI, free). cli_only=True prevents falling back to
+    # GPT-5.2 which is too aggressive at flagging Arabic morphology.
+    for model in ("claude_haiku",):
         try:
             result = generate_completion(
                 prompt=prompt,
@@ -900,6 +901,7 @@ Return JSON: {{"issues": []}} if all correct, or:
                 temperature=0.0,
                 model_override=model,
                 task_type="mapping_verification",
+                cli_only=True,
             )
             issues = result.get("issues", [])
             if isinstance(issues, list):
@@ -920,6 +922,132 @@ Return JSON: {{"issues": []}} if all correct, or:
 
     _validator_logger.error("Mapping verification failed on ALL models — sentence cannot be verified")
     return None
+
+
+def batch_verify_sentences(
+    sentences: list[dict],
+    lemma_map: dict[int, object],
+) -> list[dict] | None:
+    """Verify mappings for multiple sentences in a single CLI call.
+
+    Each entry in ``sentences`` must have:
+        arabic: str, english: str, mappings: list[TokenMapping],
+        has_ambiguous: bool
+
+    Returns a list parallel to ``sentences``, each element being:
+        {"disambiguation": [...], "issues": [...]}
+    Returns None if the LLM call fails entirely.
+    """
+    from app.services.llm import generate_completion, AllProvidersFailed
+
+    if not sentences:
+        return []
+
+    # Build combined prompt
+    blocks = []
+    for idx, sent in enumerate(sentences):
+        word_lines = []
+        for m in sent["mappings"]:
+            lemma = lemma_map.get(m.lemma_id)
+            if not lemma or not hasattr(lemma, "gloss_en"):
+                continue
+            tag = " [via clitic stripping]" if m.via_clitic else ""
+            word_lines.append(
+                f"  {m.position}: {m.surface_form} → {lemma.lemma_ar or '?'} "
+                f"({lemma.gloss_en or '?'}){tag}"
+            )
+
+        # Add disambiguation options for ambiguous words
+        disambig_lines = []
+        if sent.get("has_ambiguous"):
+            for m in sent["mappings"]:
+                if not m.alternative_lemma_ids:
+                    continue
+                options = []
+                for opt_id in [m.lemma_id] + m.alternative_lemma_ids:
+                    opt_lem = lemma_map.get(opt_id)
+                    if opt_lem:
+                        options.append(
+                            f"#{opt_id} {getattr(opt_lem, 'lemma_ar_bare', '?')} "
+                            f"({getattr(opt_lem, 'gloss_en', '?')}, "
+                            f"{getattr(opt_lem, 'pos', '?')})"
+                        )
+                if len(options) > 1:
+                    labels = "ABCDEFGH"
+                    opt_str = "\n".join(
+                        f"    {labels[i]}) {o}" for i, o in enumerate(options)
+                    )
+                    disambig_lines.append(
+                        f"  Position {m.position}: \"{m.surface_form}\"\n{opt_str}"
+                    )
+
+        block = f"=== Sentence {idx} ===\n"
+        block += f"Arabic: {sent['arabic']}\nEnglish: {sent['english']}\n"
+        block += f"Mappings:\n{chr(10).join(word_lines)}\n"
+        if disambig_lines:
+            block += f"Ambiguous (pick correct option):\n{chr(10).join(disambig_lines)}\n"
+        blocks.append(block)
+
+    prompt = f"""Check these {len(sentences)} Arabic sentences for correct word-lemma mappings.
+
+For each sentence:
+1. If ambiguous words are listed, pick the correct lemma based on context.
+2. Check that each mapping's gloss matches the word's meaning in the sentence.
+
+Flag as WRONG:
+- Gloss doesn't match the word's meaning in context
+- Homograph collisions (same consonants, different meanings)
+- Clitic prefix wrongly stripped from a root letter
+- Wrong part of speech
+
+Do NOT flag:
+- Conjugated verbs mapped to dictionary form (when meaning matches)
+- Plural/feminine/dual mapped to base lemma
+- Possessive/preposition affixes on correct base word
+
+{chr(10).join(blocks)}
+
+Return JSON:
+{{"sentences": [
+  {{"index": <int>, "disambiguation": [{{"position": <int>, "lemma_id": <int>}}], "issues": [{{"position": <int>, "correct_lemma_ar": "<bare>", "correct_gloss": "<English>", "correct_pos": "<pos>", "explanation": "<brief>"}}]}}
+]}}
+Only include sentences that have disambiguation choices or issues. Omit sentences where everything is correct."""
+
+    system = (
+        "You are an Arabic morphology expert. Check word-lemma mappings "
+        "against English translations. Only flag clear errors."
+    )
+
+    try:
+        result = generate_completion(
+            prompt=prompt,
+            system_prompt=system,
+            json_mode=True,
+            temperature=0.0,
+            model_override="claude_haiku",
+            task_type="batch_verification",
+            cli_only=True,
+        )
+    except (AllProvidersFailed, Exception) as e:
+        _validator_logger.warning(f"Batch verification failed: {e}")
+        return None
+
+    # Parse results into per-sentence dicts
+    raw_sentences = result.get("sentences", [])
+    # Build index lookup
+    result_by_idx = {}
+    for r in raw_sentences:
+        if isinstance(r, dict) and "index" in r:
+            result_by_idx[r["index"]] = r
+
+    output = []
+    for idx in range(len(sentences)):
+        r = result_by_idx.get(idx, {})
+        output.append({
+            "disambiguation": r.get("disambiguation", []),
+            "issues": r.get("issues", []),
+        })
+    return output
 
 
 def _log_mapping_correction(
@@ -995,8 +1123,9 @@ def correct_mapping(
         for c in candidates:
             if c.lemma_id != current_lemma_id:
                 return c.lemma_id
-        # Only the same lemma exists — homograph not in DB
-        return None
+        # Only the same lemma exists — gloss accuracy issue, not wrong mapping.
+        # Return the current lemma_id so callers see "same lemma" and keep the sentence.
+        return current_lemma_id
 
     return candidates[0].lemma_id
 
@@ -1058,6 +1187,7 @@ Only include positions where your choice differs from option A (the current mapp
             temperature=0.0,
             model_override="claude_haiku",
             task_type="mapping_disambiguation",
+            cli_only=True,
         )
         choices = result.get("choices", [])
         if not isinstance(choices, list):

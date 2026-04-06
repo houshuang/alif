@@ -70,7 +70,7 @@ Return JSON: {{"classifications": [{{"idx": 0, "cat": "standard"}}, ...]}}
 Include every word index in the response."""
 
         try:
-            result = generate_completion(prompt, json_mode=True, temperature=0.1, task_type="import_quality")
+            result = generate_completion(prompt, json_mode=True, temperature=0.1, task_type="import_quality", model_override="claude_haiku")
             for item in result.get("classifications", []):
                 idx = int(item["idx"])
                 cat = item.get("cat", "standard")

@@ -211,6 +211,7 @@ def generate_completion(
     timeout: int = 60,
     model_override: str | None = None,
     task_type: str | None = None,
+    cli_only: bool = False,
 ) -> dict[str, Any]:
     """Call LLM with automatic fallback across providers.
 
@@ -219,6 +220,10 @@ def generate_completion(
 
     When model_override is provided (e.g. "claude_sonnet", "claude_haiku", "openai"),
     only that specific model is tried — no fallback to others.
+
+    cli_only: if True and model is a CLI model, don't fall back to API chain on
+              CLI failure. Use for tasks where API models perform poorly (e.g.
+              Arabic morphology verification — GPT-5.2 is too aggressive).
 
     task_type: optional label for analytics (e.g. "sentence_gen", "quality_review").
     """
@@ -247,6 +252,8 @@ def generate_completion(
                 task_type=task_type,
             )
         except LLMError:
+            if cli_only:
+                raise AllProvidersFailed(f"Claude CLI failed for {cli_model} and cli_only=True")
             # CLI unavailable — fall through to API chain
             if model_override and model_override in CLAUDE_CLI_MODELS:
                 model_override = None  # don't try to find "claude_haiku" in MODELS
