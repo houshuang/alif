@@ -77,11 +77,18 @@ class TestLemmaQualityGate:
         assert "gates_completed_at" in source
 
     def test_clean_bare_form(self):
-        from app.services.lemma_quality import clean_bare_form
+        from app.services.lemma_quality import clean_bare_form, normalize_ta_marbuta
         assert clean_bare_form("بغداد،") == "بغداد"
         assert clean_bare_form("«طهران»") == "طهران"
-        assert clean_bare_form("الحاوي»") == "الحاوي"
+        assert clean_bare_form("الحاوي»") == "حاوي"  # ال stripped from bare
         assert clean_bare_form("كتاب") == "كتاب"  # no change
+        # ال-prefix stripping
+        assert clean_bare_form("الكتاب") == "كتاب"
+        assert clean_bare_form("والد") == "والد"  # وال is root letters, not article
+        assert clean_bare_form("والي") == "والي"  # وال is root letters, not article
+        # ta marbuta normalization (only when ال was present)
+        assert normalize_ta_marbuta("مطحونه", had_al_prefix=True) == "مطحونة"
+        assert normalize_ta_marbuta("وجه", had_al_prefix=False) == "وجه"  # legitimate ه
 
     def test_assign_frequency_rank(self):
         """assign_frequency_rank should handle missing data gracefully."""
