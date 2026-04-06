@@ -17,6 +17,7 @@ dependencies = [
     "pydub>=0.25.0",
     "camel-tools>=1.5.0",
     "Pillow>=10.0.0",
+    "limbic @ git+https://github.com/houshuang/limbic.git",
 ]
 
 [project.optional-dependencies]
