@@ -730,19 +730,21 @@ def process_textbook_page(
 def _schedule_material_generation(db: Session, lemma_ids: list[int]) -> None:
     """Generate sentences for words that entered acquiring after a textbook scan.
 
-    Checks each word's active sentence count and generates up to
-    MIN_SENTENCES_PER_WORD. Also counts active sentences where the word
-    appears (not just as target) to avoid redundant generation.
+    Uses batch generation (2 CLI calls for ~15 words) when ≥3 words need
+    sentences. Falls back to single-word generation for small batches and
+    for words that fail in the batch.
     """
     from sqlalchemy import func
 
-    from app.services.material_generator import generate_material_for_word
+    from app.services.material_generator import (
+        batch_generate_material,
+        BATCH_WORD_SIZE,
+        generate_material_for_word,
+    )
 
-    generated = 0
-    failed = 0
-    skipped = 0
+    # Filter to words that actually need sentences
+    words_needing: list[int] = []
     for lemma_id in lemma_ids:
-        # Check active sentences where this word is the target
         existing_count = (
             db.query(func.count(Sentence.id))
             .filter(
@@ -751,20 +753,48 @@ def _schedule_material_generation(db: Session, lemma_ids: list[int]) -> None:
             )
             .scalar() or 0
         )
-        if existing_count >= MIN_SENTENCES_PER_WORD:
-            skipped += 1
-            continue
-        needed = MIN_SENTENCES_PER_WORD - existing_count
-        try:
-            stored = generate_material_for_word(lemma_id, needed)
-            generated += stored
-        except Exception:
-            failed += 1
-            logger.exception("Material generation failed for OCR word %d", lemma_id)
-    logger.info(
-        "Post-scan generation: %d sentences generated, %d words failed, %d skipped (had enough)",
-        generated, failed, skipped,
-    )
+        if existing_count < MIN_SENTENCES_PER_WORD:
+            words_needing.append(lemma_id)
+
+    if not words_needing:
+        logger.info("Post-scan generation: all %d words already have sentences", len(lemma_ids))
+        return
+
+    if len(words_needing) >= 3:
+        # Batch path: 2 CLI calls per chunk of ~15 words
+        total_generated = 0
+        total_failed = 0
+        for i in range(0, len(words_needing), BATCH_WORD_SIZE):
+            chunk = words_needing[i:i + BATCH_WORD_SIZE]
+            result = batch_generate_material(chunk, count_per_word=MIN_SENTENCES_PER_WORD)
+            total_generated += result.get("generated", 0)
+            # Single-word fallback for words that failed in the batch
+            for lid in result.get("words_failed", []):
+                try:
+                    stored = generate_material_for_word(lid, needed=MIN_SENTENCES_PER_WORD)
+                    total_generated += stored
+                except Exception:
+                    total_failed += 1
+                    logger.exception("Single-word fallback failed for %d", lid)
+        logger.info(
+            "Post-scan batch generation: %d sentences generated, %d words failed, %d skipped",
+            total_generated, total_failed, len(lemma_ids) - len(words_needing),
+        )
+    else:
+        # Small batch: single-word path
+        generated = 0
+        failed = 0
+        for lid in words_needing:
+            try:
+                stored = generate_material_for_word(lid, needed=MIN_SENTENCES_PER_WORD)
+                generated += stored
+            except Exception:
+                failed += 1
+                logger.exception("Material generation failed for OCR word %d", lid)
+        logger.info(
+            "Post-scan generation: %d sentences generated, %d words failed, %d skipped",
+            generated, failed, len(lemma_ids) - len(words_needing),
+        )
 
 
 def _commit_with_retry(db: Session, label: str = "ocr", max_retries: int = 3) -> None:
