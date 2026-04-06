@@ -107,16 +107,41 @@ export default function ScannerScreen() {
     if (selectedImages.length === 0) return;
     setUploading(true);
 
+    // Immediately switch to history with a placeholder
+    const placeholderId = `uploading-${Date.now()}`;
+    const placeholder: BatchSummary = {
+      batch_id: placeholderId,
+      page_count: selectedImages.length,
+      total_new: 0,
+      total_existing: 0,
+      status: "processing",
+      created_at: new Date().toISOString(),
+      pages: [],
+    };
+    setHistory((prev) => [placeholder, ...prev]);
+    setExpandedBatch(null);
+    setViewMode("history");
+
     try {
       const batch = await scanTextbookPages(selectedImages, startAcquiring);
       setCurrentBatch(batch);
       setSelectedImages([]);
-      setViewMode("history");
+
+      // Replace placeholder with real batch
+      setHistory((prev) =>
+        prev.map((b) => (b.batch_id === placeholderId
+          ? { ...b, batch_id: batch.batch_id, pages: batch.pages, total_new: batch.total_new, total_existing: batch.total_existing }
+          : b))
+      );
 
       // Start polling for results
       startPolling(batch.batch_id);
     } catch (e) {
       console.error("Upload failed:", e);
+      // Mark placeholder as failed
+      setHistory((prev) =>
+        prev.map((b) => (b.batch_id === placeholderId ? { ...b, status: "failed" as const } : b))
+      );
     } finally {
       setUploading(false);
     }
@@ -424,7 +449,9 @@ export default function ScannerScreen() {
                       .map((p) => p.textbook_page_number)
                       .filter((n): n is number => n != null)
                       .sort((a, b) => a - b);
-                    if (pageNums.length > 0) {
+                    if (pageNums.length === 1) {
+                      return `Page ${pageNums[0]}`;
+                    } else if (pageNums.length > 1) {
                       return `Pages ${pageNums[0]}–${pageNums[pageNums.length - 1]}`;
                     }
                     return `${batch.page_count} page${batch.page_count > 1 ? "s" : ""}`;
@@ -443,14 +470,22 @@ export default function ScannerScreen() {
                   <Text style={styles.retryBtnText}>Retry</Text>
                 </Pressable>
               )}
-              {batch.total_new > 0 && (
-                <Text style={[styles.batchStat, { color: colors.gotIt }]}>
-                  +{batch.total_new} new
+              {batch.batch_id.startsWith("uploading-") ? (
+                <Text style={[styles.batchStat, { color: colors.textSecondary }]}>
+                  Uploading...
                 </Text>
+              ) : (
+                <>
+                  {batch.total_new > 0 && (
+                    <Text style={[styles.batchStat, { color: colors.gotIt }]}>
+                      +{batch.total_new} new
+                    </Text>
+                  )}
+                  <Text style={[styles.batchStat, { color: colors.accent }]}>
+                    {batch.total_existing} known
+                  </Text>
+                </>
               )}
-              <Text style={[styles.batchStat, { color: colors.accent }]}>
-                {batch.total_existing} known
-              </Text>
               <Ionicons
                 name={isExpanded ? "chevron-up" : "chevron-down"}
                 size={18}
