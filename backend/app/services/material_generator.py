@@ -31,7 +31,7 @@ def _log_pipeline(log_dir: Path, entry: dict) -> None:
         pass
 
 
-def generate_material_for_word(lemma_id: int, needed: int = 2, model_override: str = "gemini") -> int:
+def generate_material_for_word(lemma_id: int, needed: int = 2, model_override: str = "claude_sonnet") -> int:
     """Background task: generate sentences + audio for a word.
 
     Uses a generate-then-write pattern to avoid holding the DB lock during
@@ -145,12 +145,11 @@ def generate_material_for_word(lemma_id: int, needed: int = 2, model_override: s
         "difficulty": diff_params["difficulty_hint"], "known_sample_size": len(sample),
     })
 
-    # Validate and prepare sentences in memory
-    valid_sentences: list[dict] = []
-    for res_idx, res in enumerate(results):
-        if len(valid_sentences) >= needed:
-            break
+    # Phase 2a: Deterministic validation + mapping (no LLM calls)
+    from app.services.sentence_validator import batch_verify_sentences
 
+    candidates: list[dict] = []  # sentences that pass deterministic checks
+    for res_idx, res in enumerate(results):
         validation = validate_sentence(
             arabic_text=res.arabic,
             target_bare=target_bare,
@@ -180,49 +179,62 @@ def generate_material_for_word(lemma_id: int, needed: int = 2, model_override: s
             })
             continue
 
-        # Disambiguate tokens with multiple candidate lemmas using sentence context
         has_ambiguous = any(m.alternative_lemma_ids for m in mappings)
-        if has_ambiguous:
-            from app.services.sentence_validator import disambiguate_mappings_llm
-            lemma_map_for_disambig = {
-                lid: all_lemma_by_id[lid]
-                for m in mappings
-                for lid in [m.lemma_id] + (m.alternative_lemma_ids or [])
-                if lid and lid in all_lemma_by_id
-            }
-            result = disambiguate_mappings_llm(
-                res.arabic, res.english, mappings, lemma_map_for_disambig,
-            )
-            if result is None:
-                logger.warning(f"Disambiguation failed for ambiguous sentence, skipping")
-                _log_pipeline(_log_dir, {
-                    "event": "disambiguation_failed", "lemma_id": lemma_id,
-                    "arabic": res.arabic,
-                })
-                continue
-            mappings = result
+        candidates.append({
+            "arabic": res.arabic,
+            "english": res.english,
+            "mappings": mappings,
+            "has_ambiguous": has_ambiguous,
+            "validation": validation,
+            "tokens": tokens,
+        })
 
-        # Verify mappings — None means verification failed, discard sentence
-        lemma_map_for_verify = {
-            m.lemma_id: all_lemma_by_id[m.lemma_id]
-            for m in mappings if m.lemma_id and m.lemma_id in all_lemma_by_id
-        }
-        corrections = verify_and_correct_mappings_llm(
-            res.arabic, res.english, mappings, lemma_map_for_verify,
-        )
-        if corrections is None:
-            logger.warning(f"Mapping verification unavailable for lemma {lemma_id}, discarding sentence")
-            _log_pipeline(_log_dir, {
-                "event": "verification_failed", "lemma_id": lemma_id,
-                "arabic": res.arabic,
-            })
-            continue
+    if not candidates:
+        logger.warning(f"No candidates passed deterministic validation for lemma {lemma_id}")
+        return 0
+
+    # Phase 2b: Batch LLM disambiguation + verification (single CLI call)
+    lemma_map_for_verify = {
+        lid: all_lemma_by_id[lid]
+        for c in candidates
+        for m in c["mappings"]
+        for lid in [m.lemma_id] + (m.alternative_lemma_ids or [])
+        if lid and lid in all_lemma_by_id
+    }
+
+    batch_results = batch_verify_sentences(candidates, lemma_map_for_verify)
+    if batch_results is None:
+        logger.warning(f"Batch verification unavailable for lemma {lemma_id}, discarding all")
+        return 0
+
+    # Phase 2c: Apply disambiguation + corrections
+    valid_sentences: list[dict] = []
+    for cand, verify_result in zip(candidates, batch_results):
+        if len(valid_sentences) >= needed:
+            break
+
+        mappings = cand["mappings"]
+
+        # Apply disambiguation choices
+        pos_to_mapping = {m.position: m for m in mappings}
+        for choice in verify_result.get("disambiguation", []):
+            pos = choice.get("position")
+            new_lid = choice.get("lemma_id")
+            m = pos_to_mapping.get(pos)
+            if m and new_lid and new_lid != m.lemma_id:
+                # Validate the chosen lemma_id is one of the alternatives
+                valid_ids = set([m.lemma_id] + (m.alternative_lemma_ids or []))
+                if new_lid in valid_ids:
+                    m.lemma_id = new_lid
+
+        # Apply corrections
+        corrections = verify_result.get("issues", [])
+        correction_failed = False
         if corrections:
-            correction_failed = False
             correction_db = SessionLocal()
             try:
                 for corr in corrections:
-                    pos = corr["position"]
+                    pos = corr.get("position")
                     m = next((m for m in mappings if m.position == pos), None)
                     if not m:
                         continue
@@ -248,19 +260,22 @@ def generate_material_for_word(lemma_id: int, needed: int = 2, model_override: s
             finally:
                 correction_db.close()
 
-            _log_mapping_correction(corrections, not correction_failed, res.arabic)
-            if correction_failed:
-                logger.warning(
-                    f"Mapping correction failed for sentence for lemma {lemma_id}, discarding"
-                )
-                _log_pipeline(_log_dir, {
-                    "event": "correction_failed", "lemma_id": lemma_id,
-                    "arabic": res.arabic, "corrections": corrections,
-                })
-                continue
+            _log_mapping_correction(corrections, not correction_failed, cand["arabic"])
+
+        if correction_failed:
+            logger.warning(
+                f"Mapping correction failed for sentence for lemma {lemma_id}, discarding"
+            )
+            _log_pipeline(_log_dir, {
+                "event": "correction_failed", "lemma_id": lemma_id,
+                "arabic": cand["arabic"], "corrections": corrections,
+            })
+            continue
 
         from app.services.transliteration import transliterate_arabic as _translit_ar
 
+        validation = cand["validation"]
+        tokens = cand["tokens"]
         word_count = len(tokens)
         known_count = len(validation.known_words)
         func_count = len(validation.function_words)
@@ -268,17 +283,17 @@ def generate_material_for_word(lemma_id: int, needed: int = 2, model_override: s
 
         _log_pipeline(_log_dir, {
             "event": "sentence_accepted", "lemma_id": lemma_id, "target": lemma_ar,
-            "arabic": res.arabic, "english": res.english,
+            "arabic": cand["arabic"], "english": cand["english"],
             "word_count": word_count, "known_count": known_count,
             "function_count": func_count, "scaffold_pct": scaffold_pct,
-            "had_corrections": len(corrections) if corrections else 0,
-            "had_disambiguation": has_ambiguous,
+            "had_corrections": len(corrections),
+            "had_disambiguation": cand["has_ambiguous"],
         })
 
         valid_sentences.append({
-            "arabic": res.arabic,
-            "english": res.english,
-            "transliteration": _translit_ar(res.arabic) or res.transliteration,
+            "arabic": cand["arabic"],
+            "english": cand["english"],
+            "transliteration": _translit_ar(cand["arabic"]) or "",
             "mappings": mappings,
         })
 
@@ -650,7 +665,7 @@ def rotate_stale_sentences(db, min_shown: int = 1, tier_lookup: dict | None = No
     return retired
 
 
-def warm_sentence_cache(llm_model: str = "gemini") -> dict:
+def warm_sentence_cache(llm_model: str = "claude_sonnet") -> dict:
     """Background task: pre-generate sentences for words likely in the next session.
 
     Uses a generate-then-write pattern to avoid holding the DB lock during
@@ -660,8 +675,7 @@ def warm_sentence_cache(llm_model: str = "gemini") -> dict:
     3. DB write: store results (milliseconds)
 
     Args:
-        llm_model: Model override for sentence generation. Use "claude_sonnet"
-                   for free generation via Claude CLI, "gemini" for fast API calls.
+        llm_model: Model override for sentence generation. Default: claude_sonnet (free via CLI).
     """
     # Prevent concurrent runs from overlapping prefetches — skip if already running
     if not _warm_cache_lock.acquire(blocking=False):
@@ -673,7 +687,7 @@ def warm_sentence_cache(llm_model: str = "gemini") -> dict:
         _warm_cache_lock.release()
 
 
-def _warm_sentence_cache_impl(llm_model: str = "gemini") -> dict:
+def _warm_sentence_cache_impl(llm_model: str = "claude_sonnet") -> dict:
     from app.services.cohort_service import get_focus_cohort
     from app.services.word_selector import select_next_words
     from app.services.topic_service import ensure_active_topic
@@ -1100,7 +1114,7 @@ Sentences:
 
     system = "You are an Arabic morphology expert. Check mappings against English translations. Only flag clear errors."
     flagged = None
-    for model in ("claude_haiku", "gemini"):
+    for model in ("claude_haiku",):
         try:
             result = generate_completion(
                 prompt=prompt,

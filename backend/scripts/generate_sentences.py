@@ -44,7 +44,7 @@ def main():
     parser.add_argument("--target-count", type=int, default=3, help="Sentences per word (default: 3)")
     parser.add_argument("--word-id", type=int, help="Generate for a single lemma_id only")
     parser.add_argument("--dry-run", action="store_true", help="Preview without writing to DB")
-    parser.add_argument("--model", default="gemini", help="LLM model (default: gemini)")
+    parser.add_argument("--model", default="claude_sonnet", help="LLM model (default: gemini)")
     args = parser.parse_args()
 
     db = SessionLocal()

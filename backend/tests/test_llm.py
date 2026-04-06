@@ -15,54 +15,61 @@ from app.services.llm import (
 )
 
 
-@patch("app.services.llm.litellm.completion")
-@patch("app.services.llm._get_api_key")
-def test_generate_completion_uses_first_available_model(mock_key, mock_completion):
-    """Should try Gemini first when key is available."""
-    mock_key.side_effect = lambda cfg: "fake-key" if cfg["name"] == "gemini" else None
-
-    mock_response = MagicMock()
-    mock_response.choices = [MagicMock()]
-    mock_response.choices[0].message.content = '{"result": "ok"}'
-    mock_completion.return_value = mock_response
+@patch("app.services.llm._generate_via_claude_cli")
+def test_generate_completion_uses_claude_cli_by_default(mock_cli):
+    """Default (no model_override) should try Claude CLI haiku first."""
+    mock_cli.return_value = {"result": "ok"}
 
     result = generate_completion("test prompt", system_prompt="be helpful")
 
     assert result == {"result": "ok"}
-    call_kwargs = mock_completion.call_args.kwargs
-    assert "gemini" in call_kwargs["model"]
+    mock_cli.assert_called_once()
+    assert mock_cli.call_args.kwargs["model"] == "haiku"
 
 
 @patch("app.services.llm.litellm.completion")
 @patch("app.services.llm._get_api_key")
-def test_fallback_to_openai_when_gemini_fails(mock_key, mock_completion):
-    """Should fall back to OpenAI when Gemini raises an error."""
+@patch("app.services.llm._generate_via_claude_cli")
+def test_fallback_to_api_when_cli_fails(mock_cli, mock_key, mock_completion):
+    """Should fall back to API chain when Claude CLI fails."""
+    from app.services.llm import LLMError
+    mock_cli.side_effect = LLMError("CLI not available")
     mock_key.return_value = "fake-key"
 
-    # First call (gemini) fails, second (openai) succeeds
     mock_response = MagicMock()
     mock_response.choices = [MagicMock()]
     mock_response.choices[0].message.content = '{"result": "from openai"}'
-
-    mock_completion.side_effect = [
-        Exception("Gemini is down"),
-        mock_response,
-    ]
+    mock_completion.return_value = mock_response
 
     result = generate_completion("test prompt")
     assert result == {"result": "from openai"}
-    assert mock_completion.call_count == 2
+    # Should have tried OpenAI (first in MODELS list)
+    call_kwargs = mock_completion.call_args.kwargs
+    assert "gpt" in call_kwargs["model"]
 
 
 @patch("app.services.llm.litellm.completion")
 @patch("app.services.llm._get_api_key")
-def test_all_providers_fail_raises(mock_key, mock_completion):
+@patch("app.services.llm._generate_via_claude_cli")
+def test_all_providers_fail_raises(mock_cli, mock_key, mock_completion):
     """Should raise AllProvidersFailed when all providers fail."""
+    from app.services.llm import LLMError
+    mock_cli.side_effect = LLMError("CLI not available")
     mock_key.return_value = "fake-key"
     mock_completion.side_effect = Exception("down")
 
     with pytest.raises(AllProvidersFailed):
         generate_completion("test prompt")
+
+
+@patch("app.services.llm._generate_via_claude_cli")
+def test_explicit_claude_sonnet_override(mock_cli):
+    """model_override='claude_sonnet' should use CLI with sonnet."""
+    mock_cli.return_value = {"sentences": []}
+
+    generate_completion("test", model_override="claude_sonnet")
+
+    assert mock_cli.call_args.kwargs["model"] == "sonnet"
 
 
 @patch("app.services.llm.generate_completion")

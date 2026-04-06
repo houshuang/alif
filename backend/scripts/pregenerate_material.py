@@ -89,7 +89,7 @@ async def main():
     parser = argparse.ArgumentParser(description="Pre-generate material for top candidates")
     parser.add_argument("--count", type=int, default=20, help="Number of candidates (default: 20)")
     parser.add_argument("--sentences", type=int, default=3, help="Sentences per word (default: 3)")
-    parser.add_argument("--model", default="gemini", help="LLM model (default: gemini)")
+    parser.add_argument("--model", default="claude_sonnet", help="LLM model (default: gemini)")
     parser.add_argument("--delay", type=float, default=1.0, help="Seconds between LLM calls")
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--skip-audio", action="store_true")

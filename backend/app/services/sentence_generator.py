@@ -206,7 +206,7 @@ def generate_validated_sentence(
     target_lemma_id: int | None = None,
     lemma_lookup: dict[str, int] | None = None,
     validation_words: list[dict[str, str]] | None = None,
-    model_override: str = "gemini",
+    model_override: str = "claude_sonnet",
 ) -> GeneratedSentence:
     """Generate and validate a sentence with retry loop.
 
@@ -402,7 +402,7 @@ def generate_validated_sentences_multi_target(
     avoid_words: list[str] | None = None,
     validation_words: list[dict[str, str]] | None = None,
     lemma_lookup: dict[str, int] | None = None,
-    model_override: str = "gemini",
+    model_override: str = "claude_sonnet",
 ) -> list[MultiTargetGeneratedSentence]:
     """Generate and validate sentences targeting multiple words.
 

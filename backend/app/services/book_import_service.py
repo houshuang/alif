@@ -159,7 +159,7 @@ def cleanup_and_segment(raw_text: str, max_retries: int = 2) -> list[dict]:
                     "Clean up OCR text and add full diacritics (tashkeel). "
                     "Respond with JSON only."
                 ),
-                model_override="gemini",
+                model_override="claude_sonnet",
                 temperature=0.2,
                 timeout=120,
                 task_type="book_import",
@@ -209,7 +209,7 @@ def translate_sentences(sentences: list[dict]) -> list[dict]:
                 "Translate children's book sentences clearly and naturally. "
                 "Respond with JSON only."
             ),
-            model_override="gemini",
+            model_override="claude_haiku",
             temperature=0.2,
             timeout=120,
             task_type="book_import",
