@@ -27,7 +27,10 @@ from app.services.sentence_validator import strip_diacritics
 
 def find_dirty_lemmas(db):
     """Find lemmas whose bare forms need cleaning."""
-    all_lemmas = db.query(Lemma).filter(Lemma.word_category != "junk").all()
+    from sqlalchemy import or_
+    all_lemmas = db.query(Lemma).filter(
+        or_(Lemma.word_category != "junk", Lemma.word_category.is_(None))
+    ).all()
     dirty = []
 
     for lem in all_lemmas:
@@ -66,11 +69,12 @@ def find_post_clean_duplicates(db, dirty_items):
     for item in dirty_items:
         new_bare = item["new_bare"]
         lem = item["lemma"]
+        from sqlalchemy import or_
         existing = db.query(Lemma).filter(
             Lemma.lemma_ar_bare == new_bare,
             Lemma.lemma_id != lem.lemma_id,
             Lemma.canonical_lemma_id.is_(None),
-            Lemma.word_category != "junk",
+            or_(Lemma.word_category != "junk", Lemma.word_category.is_(None)),
         ).first()
         if existing:
             dupes.append((lem, existing))
