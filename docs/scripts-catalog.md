@@ -64,7 +64,7 @@ All scripts in `backend/scripts/`. Run from `backend/` directory.
 - `cleanup_lemma_variants.py` — DB-aware CAMeL Tools disambiguation for variants.
 - `cleanup_glosses.py` — Clean up gloss text.
 - `cleanup_lemma_text.py` — Clean up lemma text fields.
-- `cleanup_dirty_bare_forms.py` — Fix OCR-dirty bare forms: strip baked-in ال prefix, normalize ه→ة when ال was present. Dry-run by default, `--apply` to commit.
+- `cleanup_dirty_bare_forms.py` — LLM-powered cleanup of dirty bare forms (ال-prefix, ه→ة). Asks LLM to classify each candidate — correctly distinguishes OCR artifacts from legitimate ال-integral words. Dry-run by default, `--apply` to commit.
 - `merge_al_lemmas.py` — Merge al-prefixed duplicate lemmas.
 - `merge_lemma_variants.py` — Merge identified variant lemmas.
 - `identify_leeches.py` — Find high-review low-accuracy words, optional --suspend.
