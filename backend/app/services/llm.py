@@ -55,6 +55,14 @@ class MultiTargetSentenceResult(BaseModel):
     target_words_used: list[str]
 
 
+class BatchWordSentenceResult(BaseModel):
+    target_index: int
+    target_word: str
+    arabic: str
+    english: str
+    transliteration: str
+
+
 # API fallback models — used only when Claude CLI is unavailable.
 # Gemini removed from text chain (2026-04-01): now OCR-only via ocr_service.py.
 MODELS = [
@@ -604,6 +612,170 @@ Respond with JSON: {{"sentences": [{{"arabic": "...", "english": "...", "transli
                 english=english,
                 transliteration=transliteration,
             ))
+
+    return sentences
+
+
+# ---------------------------------------------------------------------------
+# Multi-word batch generation — one CLI call for many target words
+# ---------------------------------------------------------------------------
+
+BATCH_MULTI_WORD_SYSTEM_PROMPT = f"""\
+You are an Arabic language tutor creating MSA (fusha) sentences for reading practice. \
+You receive a list of target words and create sentences for each one. Each sentence \
+targets exactly one word from the list and must sound natural.
+
+{ARABIC_STYLE_RULES}
+
+{DIFFICULTY_STYLE_GUIDE}
+
+Vocabulary constraint:
+- Use ONLY words from the provided vocabulary, the target words, and common function words
+- Common function words you may freely use: في، من، على، إلى، و، ب، ل، ك، هذا، هذه، \
+ذلك، تلك، هو، هي، أنا، أنت، نحن، هم، ما، لا، أن، إن، كان، كانت، ليس، هل، لم، \
+لن، قد، الذي، التي، كل، بعض، هنا، هناك، الآن، جدا، فقط، أيضا، أو، ثم، لكن
+- Do NOT invent or use Arabic content words not in the vocabulary list
+- Include full diacritics (tashkeel) on ALL Arabic words with correct i'rab
+- Include Arabic punctuation: use ؟ for questions, . for statements, ، between clauses
+- Match the word count range specified in the user prompt
+- Each sentence should use a DIFFERENT syntactic structure (vary VSO/SVO, nominal/verbal, question/statement)
+- Transliteration: ALA-LC standard with macrons for long vowels
+
+Sentence structure variety:
+- Do NOT default to هَلْ questions — only use هَلْ when the target word specifically requires a question
+- Vary starters across sentences: verbal (verb-first), nominal (definite noun/adjective), prepositional, time expressions
+- Prefer pronouns (أنا، هو، هي، نحن) and generic definite nouns (المعلم، الولد، الفتاة) as subjects
+- Use proper names sparingly — avoid محمد/أحمد/فاطمة/علي unless they are in the vocabulary list
+- Never start more than one sentence in a batch with the same word.
+
+Respond with JSON: {{"sentences": [{{"target_index": 0, "target_word": "...", "arabic": "...", "english": "...", "transliteration": "..."}}, ...]}}"""
+
+
+def generate_sentences_for_words(
+    target_words: list[dict[str, str]],
+    known_words: list[dict[str, str]],
+    count_per_word: int = 2,
+    difficulty_hint: str = "simple",
+    model_override: str = "claude_sonnet",
+    avoid_words: list[str] | None = None,
+    max_words: int | None = None,
+    timeout: int = 180,
+) -> list[BatchWordSentenceResult]:
+    """Generate sentences for multiple target words in a single LLM call.
+
+    Each sentence targets exactly one word. Returns tagged results so the
+    caller can route each sentence to the correct word's pipeline.
+    """
+    known_list = format_known_words_by_pos(known_words)
+
+    target_list = "\n".join(
+        f"{i + 1}. {tw['arabic']} ({tw['english']})"
+        for i, tw in enumerate(target_words)
+    )
+
+    avoid_instruction = ""
+    if avoid_words:
+        avoid_str = "، ".join(avoid_words)
+        avoid_instruction = f"\nDo NOT use these overused words — using them will cause rejection: {avoid_str}\nChoose different vocabulary instead."
+
+    if max_words:
+        min_words = max(5, max_words - 3)
+        word_range = f"{min_words}-{max_words}"
+    else:
+        word_range = "6-10"
+
+    total_sentences = count_per_word * len(target_words)
+    prompt = f"""Create {count_per_word} different natural MSA sentences for EACH of the following target words.
+Each sentence must contain exactly ONE target word from the list.
+
+TARGET WORDS:
+{target_list}
+
+VOCABULARY (you may ONLY use these Arabic content words, plus the target words, plus function words):
+{known_list}
+
+IMPORTANT: Do NOT use any Arabic content words that are not in the lists above.
+Each sentence should be {word_range} words, with a different structure or context.
+For each target word, make the {count_per_word} sentences as different as possible in structure and vocabulary.
+Include full diacritics on all Arabic text.
+{avoid_instruction}
+Respond with JSON: {{"sentences": [{{"target_index": <0-based index>, "target_word": "<Arabic>", "arabic": "...", "english": "...", "transliteration": "..."}}, ...]}}
+You should return exactly {total_sentences} sentences ({count_per_word} per target word)."""
+
+    result = generate_completion(
+        prompt=prompt,
+        system_prompt=BATCH_MULTI_WORD_SYSTEM_PROMPT,
+        json_mode=True,
+        temperature=0.5,
+        timeout=timeout,
+        model_override=model_override,
+        task_type="sentence_gen_batch_words",
+    )
+
+    # Parse results
+    sentences: list[BatchWordSentenceResult] = []
+    if isinstance(result, list):
+        raw_list = result
+    elif isinstance(result, dict):
+        raw_list = result.get("sentences", [])
+    else:
+        return sentences
+    if not isinstance(raw_list, list):
+        return sentences
+
+    # Build bare-form lookup for cross-check
+    from app.services.sentence_validator import strip_diacritics
+    target_bares = [strip_diacritics(tw["arabic"]) for tw in target_words]
+
+    for item in raw_list:
+        if not isinstance(item, dict):
+            continue
+        arabic = item.get("arabic", "").strip()
+        english = item.get("english", "").strip()
+        transliteration = item.get("transliteration", "").strip()
+        if not arabic or not english:
+            continue
+
+        target_index = item.get("target_index")
+        target_word = item.get("target_word", "").strip()
+
+        # Validate target_index
+        if target_index is not None and isinstance(target_index, int):
+            if 0 <= target_index < len(target_words):
+                # Cross-check: does target_word match?
+                expected_bare = target_bares[target_index]
+                actual_bare = strip_diacritics(target_word) if target_word else ""
+                if actual_bare and actual_bare != expected_bare:
+                    # Try to find the right index by matching target_word
+                    matched_idx = None
+                    for j, tb in enumerate(target_bares):
+                        if actual_bare == tb:
+                            matched_idx = j
+                            break
+                    if matched_idx is not None:
+                        target_index = matched_idx
+                    # else: trust the index, word might have diacritic variation
+            else:
+                target_index = None
+
+        # Fallback: match by target_word if index is missing/invalid
+        if target_index is None and target_word:
+            actual_bare = strip_diacritics(target_word)
+            for j, tb in enumerate(target_bares):
+                if actual_bare == tb:
+                    target_index = j
+                    break
+
+        if target_index is None:
+            continue  # can't map this sentence to any target
+
+        sentences.append(BatchWordSentenceResult(
+            target_index=target_index,
+            target_word=target_words[target_index]["arabic"],
+            arabic=arabic,
+            english=english,
+            transliteration=transliteration,
+        ))
 
     return sentences
 

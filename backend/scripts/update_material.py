@@ -383,33 +383,74 @@ def step_backfill_sentences(
         if all_multi_results:
             db.commit()
 
-    # Phase 2: Single-target for remaining words
-    for w in words_needing:
-        if total >= budget:
-            break
+    # Phase 2: Batch single-target for remaining words (≥3 → batch, else single)
+    remaining = [
+        w for w in words_needing
+        if existing_counts.get(w["lemma_id"], 0) < w["backfill_target"]
+    ]
+    remaining_ids = [w["lemma_id"] for w in remaining]
 
-        lemma_id = w["lemma_id"]
-        existing = existing_counts.get(lemma_id, 0)
-        needed = w["backfill_target"] - existing
-        if needed <= 0:
-            continue
-
-        needed = min(needed, budget - total)
-        lemma = db.query(Lemma).filter(Lemma.lemma_id == lemma_id).first()
-        if not lemma:
-            continue
-
-        words_processed += 1
-        print(f"  {lemma.lemma_ar} ({lemma.gloss_en}) — have {existing}, need {needed}, due {w['due_str'][:10]}")
-        if dry_run:
-            total += needed
-        else:
-            stored = generate_material_for_word(
-                lemma.lemma_id, needed=needed, model_override=model,
-            )
+    if not dry_run and len(remaining_ids) >= 3 and total < budget:
+        from app.services.material_generator import batch_generate_material, BATCH_WORD_SIZE
+        covered_by_batch: set[int] = set()
+        for i in range(0, len(remaining_ids), BATCH_WORD_SIZE):
+            if total >= budget:
+                break
+            chunk = remaining_ids[i:i + BATCH_WORD_SIZE]
+            print(f"  Batch generating for {len(chunk)} words...")
+            result = batch_generate_material(chunk, model_override=model)
+            batch_stored = result.get("generated", 0)
+            total += batch_stored
+            words_processed += result.get("words_covered", 0)
+            if batch_stored:
+                print(f"    ✓ Batch: {batch_stored} sentences for {result['words_covered']} words")
+            for lid in chunk:
+                if lid not in result.get("words_failed", []):
+                    covered_by_batch.add(lid)
+        # Single-word fallback for batch failures
+        for lid in remaining_ids:
+            if lid in covered_by_batch or total >= budget:
+                continue
+            lemma = db.query(Lemma).filter(Lemma.lemma_id == lid).first()
+            if not lemma:
+                continue
+            w = next((w for w in remaining if w["lemma_id"] == lid), None)
+            if not w:
+                continue
+            needed = min(w["backfill_target"] - existing_counts.get(lid, 0), budget - total)
+            if needed <= 0:
+                continue
+            words_processed += 1
+            print(f"  {lemma.lemma_ar} ({lemma.gloss_en}) — fallback single-word, need {needed}")
+            stored = generate_material_for_word(lemma.lemma_id, needed=needed, model_override=model)
             total += stored
             if stored:
                 print(f"    Generated {stored} sentences")
+    else:
+        # Small set or dry run: single-word path
+        for w in remaining:
+            if total >= budget:
+                break
+            lemma_id = w["lemma_id"]
+            existing = existing_counts.get(lemma_id, 0)
+            needed = w["backfill_target"] - existing
+            if needed <= 0:
+                continue
+            needed = min(needed, budget - total)
+            lemma = db.query(Lemma).filter(Lemma.lemma_id == lemma_id).first()
+            if not lemma:
+                continue
+            words_processed += 1
+            print(f"  {lemma.lemma_ar} ({lemma.gloss_en}) — have {existing}, need {needed}, due {w['due_str'][:10]}")
+            if dry_run:
+                total += needed
+            else:
+                stored = generate_material_for_word(
+                    lemma.lemma_id, needed=needed, model_override=model,
+                )
+                total += stored
+                if stored:
+                    print(f"    Generated {stored} sentences")
 
     print(f"  → Generated {total} sentences for {words_processed} words")
     return total

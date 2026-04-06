@@ -361,6 +361,333 @@ def generate_material_for_word(lemma_id: int, needed: int = 2, model_override: s
     return stored
 
 
+BATCH_WORD_SIZE = 15  # max words per batch generation call
+
+
+def batch_generate_material(
+    lemma_ids: list[int],
+    count_per_word: int = 2,
+    model_override: str = "claude_sonnet",
+) -> dict:
+    """Generate sentences for multiple words in 2 CLI calls.
+
+    Phase 1: DB read (once for all words)
+    Phase 2a: 1 Sonnet call — generate sentences for all words
+    Phase 2b: Deterministic validation + mapping
+    Phase 2c: 1 Haiku call — batch verify all candidates
+    Phase 2d: Apply corrections
+    Phase 3: DB write
+
+    Returns: {"generated": N, "words_covered": N, "words_failed": [ids]}
+    """
+    from app.services.llm import generate_sentences_for_words, AllProvidersFailed
+    from app.services.sentence_validator import (
+        batch_verify_sentences,
+        build_comprehensive_lemma_lookup,
+        build_lemma_lookup,
+        correct_mapping,
+        map_tokens_to_lemmas,
+        sanitize_arabic_word,
+        strip_diacritics,
+        tokenize_display,
+        validate_sentence,
+        _log_mapping_correction,
+    )
+    from app.services.sentence_generator import (
+        get_content_word_counts,
+        get_avoid_words,
+        sample_known_words_weighted,
+        KNOWN_SAMPLE_SIZE,
+    )
+    from app.services.transliteration import transliterate_arabic as _translit_ar
+    from app.config import settings as _settings
+
+    _log_dir = _settings.log_dir
+
+    # ���─ Phase 1: DB read ──
+    db = SessionLocal()
+    try:
+        target_lemmas = (
+            db.query(Lemma)
+            .filter(Lemma.lemma_id.in_(lemma_ids))
+            .all()
+        )
+        lemma_by_id_target = {l.lemma_id: l for l in target_lemmas}
+
+        active_lemmas = (
+            db.query(Lemma)
+            .join(UserLemmaKnowledge)
+            .filter(UserLemmaKnowledge.knowledge_state.in_(
+                ["known", "learning", "lapsed", "acquiring"]
+            ))
+            .all()
+        )
+        all_lemmas = (
+            db.query(Lemma)
+            .join(UserLemmaKnowledge)
+            .filter(UserLemmaKnowledge.knowledge_state.in_(
+                ["known", "learning", "lapsed", "acquiring", "encountered"]
+            ))
+            .all()
+        )
+        known_words = [
+            {"arabic": lem.lemma_ar, "english": lem.gloss_en or "", "lemma_id": lem.lemma_id, "pos": lem.pos or ""}
+            for lem in active_lemmas
+        ]
+
+        lemma_lookup = build_lemma_lookup(all_lemmas)
+        mapping_lookup = build_comprehensive_lemma_lookup(db)
+        all_lemma_by_id = {l.lemma_id: l for l in db.query(Lemma).all()}
+
+        content_word_counts = get_content_word_counts(db)
+        # Sample slightly larger pool since shared across many words
+        sample = sample_known_words_weighted(
+            known_words, content_word_counts, min(KNOWN_SAMPLE_SIZE + 100, len(known_words)),
+        )
+        avoid_words = get_avoid_words(content_word_counts, known_words)
+    finally:
+        db.close()
+
+    # Build target info list — filter uncleanable words
+    targets = []  # [{lemma_id, clean_target, target_bare, gloss_en}]
+    for lid in lemma_ids:
+        lem = lemma_by_id_target.get(lid)
+        if not lem:
+            continue
+        clean, warnings = sanitize_arabic_word(lem.lemma_ar)
+        if not clean or "too_short" in warnings or " " in clean:
+            logger.warning(f"Batch: skipping uncleanable lemma {lid}: {lem.lemma_ar!r}")
+            continue
+        targets.append({
+            "lemma_id": lid,
+            "clean_target": clean,
+            "target_bare": strip_diacritics(clean),
+            "gloss_en": lem.gloss_en or "",
+        })
+
+    if not targets:
+        return {"generated": 0, "words_covered": 0, "words_failed": lemma_ids}
+
+    all_bare_forms = set(lemma_lookup.keys())
+
+    # ── Phase 2a: Sonnet call — generate sentences for all words ──
+    target_words_for_llm = [
+        {"arabic": t["clean_target"], "english": t["gloss_en"]}
+        for t in targets
+    ]
+
+    try:
+        results = generate_sentences_for_words(
+            target_words=target_words_for_llm,
+            known_words=sample,
+            count_per_word=count_per_word + 1,  # request extras for validation failures
+            difficulty_hint="simple",
+            model_override=model_override,
+            avoid_words=avoid_words,
+            max_words=10,
+        )
+    except (AllProvidersFailed, Exception) as e:
+        logger.warning(f"Batch generation failed: {e}")
+        return {"generated": 0, "words_covered": 0, "words_failed": [t["lemma_id"] for t in targets]}
+
+    logger.info(
+        "Batch generation returned %d sentences for %d words",
+        len(results), len(targets),
+    )
+
+    # ─�� Phase 2b: Deterministic validation + mapping ──
+    candidates = []  # validated sentences ready for LLM verification
+    # Track per-word counts to know which words got coverage
+    word_candidate_count: dict[int, int] = {t["lemma_id"]: 0 for t in targets}
+
+    for res in results:
+        idx = res.target_index
+        if idx < 0 or idx >= len(targets):
+            continue
+        target = targets[idx]
+        target_lemma_id = target["lemma_id"]
+        target_bare = target["target_bare"]
+
+        # Only keep up to count_per_word valid candidates per word
+        if word_candidate_count[target_lemma_id] >= count_per_word:
+            continue
+
+        validation = validate_sentence(
+            arabic_text=res.arabic,
+            target_bare=target_bare,
+            known_bare_forms=all_bare_forms,
+        )
+        if not validation.valid:
+            _log_pipeline(_log_dir, {
+                "event": "batch_validation_failed",
+                "lemma_id": target_lemma_id,
+                "arabic": res.arabic,
+                "issues": validation.issues,
+            })
+            continue
+
+        tokens = tokenize_display(res.arabic)
+        mappings = map_tokens_to_lemmas(
+            tokens=tokens,
+            lemma_lookup=mapping_lookup,
+            target_lemma_id=target_lemma_id,
+            target_bare=target_bare,
+        )
+        unmapped = [m.surface_form for m in mappings if m.lemma_id is None]
+        if unmapped:
+            continue
+
+        candidates.append({
+            "arabic": res.arabic,
+            "english": res.english,
+            "transliteration": res.transliteration,
+            "mappings": mappings,
+            "has_ambiguous": any(m.alternative_lemma_ids for m in mappings),
+            "validation": validation,
+            "tokens": tokens,
+            "target_lemma_id": target_lemma_id,
+        })
+        word_candidate_count[target_lemma_id] += 1
+
+    if not candidates:
+        logger.warning("Batch: no candidates passed deterministic validation")
+        return {"generated": 0, "words_covered": 0, "words_failed": [t["lemma_id"] for t in targets]}
+
+    logger.info(
+        "Batch: %d/%d sentences passed deterministic validation",
+        len(candidates), len(results),
+    )
+
+    # ── Phase 2c: Haiku call — batch verify all candidates ──
+    lemma_map_for_verify = {
+        lid: all_lemma_by_id[lid]
+        for c in candidates
+        for m in c["mappings"]
+        for lid in [m.lemma_id] + (m.alternative_lemma_ids or [])
+        if lid and lid in all_lemma_by_id
+    }
+
+    batch_results = batch_verify_sentences(candidates, lemma_map_for_verify)
+    if batch_results is None:
+        logger.warning("Batch verification unavailable, discarding all")
+        return {"generated": 0, "words_covered": 0, "words_failed": [t["lemma_id"] for t in targets]}
+
+    # ── Phase 2d: Apply corrections ──
+    valid_sentences = []  # final sentences ready to store
+    for cand, verify_result in zip(candidates, batch_results):
+        mappings = cand["mappings"]
+
+        # Apply disambiguation choices
+        pos_to_mapping = {m.position: m for m in mappings}
+        for choice in verify_result.get("disambiguation", []):
+            pos = choice.get("position")
+            new_lid = choice.get("lemma_id")
+            m = pos_to_mapping.get(pos)
+            if m and new_lid and new_lid != m.lemma_id:
+                valid_ids = set([m.lemma_id] + (m.alternative_lemma_ids or []))
+                if new_lid in valid_ids:
+                    m.lemma_id = new_lid
+
+        # Apply corrections
+        corrections = verify_result.get("issues", [])
+        correction_failed = False
+        if corrections:
+            correction_db = SessionLocal()
+            try:
+                for corr in corrections:
+                    pos = corr.get("position")
+                    m = next((m for m in mappings if m.position == pos), None)
+                    if not m:
+                        continue
+                    new_lid = correct_mapping(
+                        correction_db,
+                        corr.get("correct_lemma_ar", ""),
+                        corr.get("correct_gloss", ""),
+                        corr.get("correct_pos", ""),
+                        current_lemma_id=m.lemma_id,
+                    )
+                    if new_lid and new_lid != m.lemma_id:
+                        m.lemma_id = new_lid
+                    elif not new_lid:
+                        correction_failed = True
+                correction_db.commit()
+            except Exception:
+                correction_db.rollback()
+                correction_failed = True
+            finally:
+                correction_db.close()
+            _log_mapping_correction(corrections, not correction_failed, cand["arabic"])
+
+        if correction_failed:
+            continue
+
+        # Gloss gate: reject if any lemma has no English gloss
+        empty_gloss = [
+            m.surface_form for m in mappings
+            if m.lemma_id and m.lemma_id in all_lemma_by_id
+            and not all_lemma_by_id[m.lemma_id].gloss_en
+        ]
+        if empty_gloss:
+            continue
+
+        valid_sentences.append({
+            "arabic": cand["arabic"],
+            "english": cand["english"],
+            "transliteration": _translit_ar(cand["arabic"]) or cand.get("transliteration", ""),
+            "mappings": mappings,
+            "target_lemma_id": cand["target_lemma_id"],
+        })
+
+    # ── Phase 3: DB write ─��
+    db = SessionLocal()
+    stored = 0
+    covered_ids: set[int] = set()
+    try:
+        for vs in valid_sentences:
+            sent = Sentence(
+                arabic_text=vs["arabic"],
+                arabic_diacritized=vs["arabic"],
+                english_translation=vs["english"],
+                transliteration=vs["transliteration"],
+                source="llm",
+                target_lemma_id=vs["target_lemma_id"],
+                created_at=datetime.now(timezone.utc),
+                mappings_verified_at=datetime.now(timezone.utc),
+            )
+            db.add(sent)
+            db.flush()
+
+            for m in vs["mappings"]:
+                sw = SentenceWord(
+                    sentence_id=sent.id,
+                    position=m.position,
+                    surface_form=m.surface_form,
+                    lemma_id=m.lemma_id,
+                    is_target_word=m.is_target,
+                )
+                db.add(sw)
+
+            stored += 1
+            covered_ids.add(vs["target_lemma_id"])
+
+        db.commit()
+        logger.info(f"Batch: stored {stored} sentences for {len(covered_ids)} words")
+    except Exception:
+        logger.exception("Error writing batch sentences")
+        db.rollback()
+    finally:
+        db.close()
+
+    all_target_ids = [t["lemma_id"] for t in targets]
+    words_failed = [lid for lid in all_target_ids if lid not in covered_ids]
+
+    return {
+        "generated": stored,
+        "words_covered": len(covered_ids),
+        "words_failed": words_failed,
+    }
+
+
 def store_multi_target_sentence(
     db,
     result,
