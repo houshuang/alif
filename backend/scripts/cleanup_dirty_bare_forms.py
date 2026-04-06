@@ -1,153 +1,165 @@
 #!/usr/bin/env python3
-"""Fix dirty lemma_ar_bare fields from OCR/book imports.
+"""Fix dirty lemma_ar_bare fields using LLM classification.
 
-Finds and fixes two patterns:
-1. Definite article ال baked into bare form (المطحونة → مطحونة)
-2. Ta marbuta written as ha when ال was present (المطحونه → مطحونة)
+Finds lemmas with ال-prefix in bare form, asks the LLM which ones should
+be cleaned (strips ال, normalizes ه→ة), and applies the fixes.
 
-Also checks lemma_ar (diacritized) for the same issues.
+The LLM correctly distinguishes:
+- Dirty OCR: المطحونه → مطحونة (strip + fix ة)
+- Legitimate: الله, الذي, التقى, الرازي (don't touch)
 
-After cleaning, checks for duplicates that the fix may have created
-(e.g. المطحونة and مطحونة now both → مطحونة).
-
-Run: python scripts/cleanup_dirty_bare_forms.py [--apply] [--verbose]
+Run: python scripts/cleanup_dirty_bare_forms.py [--apply]
 """
 
 import argparse
 import sys
 import os
+import logging
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from app.database import SessionLocal
 from app.models import Lemma, UserLemmaKnowledge
-from app.services.lemma_quality import clean_bare_form, normalize_ta_marbuta
 from app.services.sentence_validator import strip_diacritics
 
+logger = logging.getLogger(__name__)
 
-def find_dirty_lemmas(db):
-    """Find lemmas whose bare forms need cleaning."""
+
+def find_al_prefixed_lemmas(db):
+    """Find all lemmas with ال in bare form or diacritized form."""
     from sqlalchemy import or_
     all_lemmas = db.query(Lemma).filter(
         or_(Lemma.word_category != "junk", Lemma.word_category.is_(None))
     ).all()
-    dirty = []
 
+    candidates = []
     for lem in all_lemmas:
-        if not lem.lemma_ar_bare:
-            continue
-
-        old_bare = lem.lemma_ar_bare
-        had_al = old_bare.startswith('ال')
-        new_bare = clean_bare_form(old_bare)
-        new_bare = normalize_ta_marbuta(new_bare, had_al_prefix=had_al)
-
-        # Also check diacritized form
-        old_ar = lem.lemma_ar or ""
-        old_ar_stripped = strip_diacritics(old_ar)
-        had_al_ar = old_ar_stripped.startswith('ال')
-        new_ar = clean_bare_form(old_ar)
-        new_ar = normalize_ta_marbuta(new_ar, had_al_prefix=had_al_ar)
-
-        if new_bare != old_bare or new_ar != old_ar:
-            dirty.append({
-                "lemma": lem,
-                "old_bare": old_bare,
-                "new_bare": new_bare,
-                "old_ar": old_ar,
-                "new_ar": new_ar,
-                "bare_changed": new_bare != old_bare,
-                "ar_changed": new_ar != old_ar,
-            })
-
-    return dirty
+        bare = lem.lemma_ar_bare or ""
+        ar_stripped = strip_diacritics(lem.lemma_ar or "")
+        if bare.startswith('ال') or ar_stripped.startswith('ال'):
+            candidates.append(lem)
+    return candidates
 
 
-def find_post_clean_duplicates(db, dirty_items):
-    """After cleaning, check if any lemmas now collide with existing ones."""
-    dupes = []
-    for item in dirty_items:
-        new_bare = item["new_bare"]
-        lem = item["lemma"]
-        from sqlalchemy import or_
+def classify_with_llm(candidates):
+    """Ask the LLM which bare forms need cleaning."""
+    from app.services.llm import generate_completion
+
+    word_list = "\n".join(
+        f"  {lem.lemma_id}: {lem.lemma_ar_bare} ({lem.gloss_en})"
+        for lem in candidates
+    )
+
+    prompt = f"""Review these Arabic lemma bare forms from a vocabulary database.
+Some have ال-prefix baked in from OCR errors and need cleaning. Others have ال as an integral part.
+
+For each word, decide:
+- If the ال should be stripped (it's just the definite article baked into a bare form), return "clean" with the corrected form
+- Also fix final ه that should be ة (OCR artifact): المطحونه → مطحونة
+- If the ال is integral to the word, return "keep"
+
+Rules for "keep" (do NOT clean):
+- الله (God) — special word
+- Relative pronouns: الذي, التي, الذين, اللذان, اللتان, اللواتي
+- Form VIII/X verbs where ال is part of root: التقى, التحق, التهاب, استقبل
+- الآن (now), اليوم (today) — fixed temporal expressions
+- Proper nouns where ال is part of the name: الرازي, الحاوي
+- الف (one thousand) — not ال + ف
+- Words where stripping would leave <2 chars: الم → م (too short)
+
+Rules for "clean" (DO clean):
+- Common nouns/adjectives with OCR-baked ال: المكتب→مكتب, الشقة→شقة, المدينة→مدينة
+- Country names where ال is article: السودان→سودان, الجزائر→جزائر, المغرب→مغرب
+- Words with ه→ة OCR error: المطحونه→مطحونة, الجراحه→جراحة
+
+Words:
+{word_list}
+
+Return JSON: {{"results": [{{"id": 123, "action": "clean", "fixed": "مطحونة"}}, {{"id": 456, "action": "keep"}}, ...]}}
+Include every word ID."""
+
+    result = generate_completion(prompt, json_mode=True, temperature=0.1, task_type="cleanup")
+    return result.get("results", [])
+
+
+def cleanup(dry_run=True):
+    db = SessionLocal()
+
+    candidates = find_al_prefixed_lemmas(db)
+    if not candidates:
+        print("No ال-prefixed lemmas found.")
+        db.close()
+        return
+
+    print(f"Found {len(candidates)} lemmas with ال-prefix. Asking LLM to classify...\n")
+
+    llm_results = classify_with_llm(candidates)
+    id_to_result = {r["id"]: r for r in llm_results}
+
+    to_clean = []
+    to_keep = []
+    for lem in candidates:
+        r = id_to_result.get(lem.lemma_id, {})
+        action = r.get("action", "keep")
+        if action == "clean" and r.get("fixed"):
+            to_clean.append((lem, r["fixed"]))
+        else:
+            to_keep.append(lem)
+
+    print(f"LLM verdict: {len(to_clean)} to clean, {len(to_keep)} to keep\n")
+
+    if to_clean:
+        print("Will clean:")
+        for lem, fixed in to_clean:
+            ulk = db.query(UserLemmaKnowledge).filter(
+                UserLemmaKnowledge.lemma_id == lem.lemma_id
+            ).first()
+            state = ulk.knowledge_state if ulk else "no_ulk"
+            print(f"  [{lem.lemma_id}] {lem.lemma_ar_bare} → {fixed} ({lem.gloss_en}) [{state}]")
+
+    if to_keep:
+        print("\nKeeping as-is:")
+        for lem in to_keep:
+            print(f"  [{lem.lemma_id}] {lem.lemma_ar_bare} ({lem.gloss_en})")
+
+    if dry_run:
+        print(f"\n[DRY RUN] Use --apply to fix {len(to_clean)} lemmas.")
+        db.close()
+        return
+
+    # Check for post-clean duplicates
+    fixed = 0
+    variants_marked = 0
+    for lem, new_bare in to_clean:
+        # Check if cleaned form collides with existing lemma
         existing = db.query(Lemma).filter(
             Lemma.lemma_ar_bare == new_bare,
             Lemma.lemma_id != lem.lemma_id,
             Lemma.canonical_lemma_id.is_(None),
-            or_(Lemma.word_category != "junk", Lemma.word_category.is_(None)),
         ).first()
-        if existing:
-            dupes.append((lem, existing))
-    return dupes
 
-
-def cleanup(dry_run=True, verbose=False):
-    db = SessionLocal()
-
-    dirty = find_dirty_lemmas(db)
-    if not dirty:
-        print("No dirty bare forms found.")
-        db.close()
-        return
-
-    print(f"Found {len(dirty)} lemmas with dirty bare forms:\n")
-    for item in dirty:
-        lem = item["lemma"]
-        ulk = db.query(UserLemmaKnowledge).filter(
-            UserLemmaKnowledge.lemma_id == lem.lemma_id
-        ).first()
-        state = ulk.knowledge_state if ulk else "no_ulk"
-        changes = []
-        if item["bare_changed"]:
-            changes.append(f"bare: {item['old_bare']!r} → {item['new_bare']!r}")
-        if item["ar_changed"]:
-            changes.append(f"ar: {item['old_ar']!r} → {item['new_ar']!r}")
-        print(f"  [{lem.lemma_id}] {', '.join(changes)} ({lem.gloss_en}) [{state}]")
-
-    # Check for duplicates post-clean
-    dupes = find_post_clean_duplicates(db, dirty)
-    if dupes:
-        print(f"\n⚠ {len(dupes)} post-clean duplicates detected:")
-        for dirty_lem, existing_lem in dupes:
-            print(
-                f"  [{dirty_lem.lemma_id}] {dirty_lem.lemma_ar_bare} → "
-                f"collides with [{existing_lem.lemma_id}] {existing_lem.lemma_ar_bare} "
-                f"({existing_lem.gloss_en})"
-            )
-        print("  These will be marked as variants of the existing lemma.")
-
-    if dry_run:
-        print(f"\n[DRY RUN] Use --apply to fix these.")
-        db.close()
-        return
-
-    # Apply fixes
-    fixed = 0
-    for item in dirty:
-        lem = item["lemma"]
-        if item["bare_changed"]:
-            lem.lemma_ar_bare = item["new_bare"]
-        if item["ar_changed"]:
-            lem.lemma_ar = item["new_ar"]
+        lem.lemma_ar_bare = new_bare
+        # Also clean the diacritized form if it starts with ال
+        if lem.lemma_ar and strip_diacritics(lem.lemma_ar).startswith('ال'):
+            lem.lemma_ar = new_bare  # Use the cleaned bare as fallback
         fixed += 1
 
-    # Mark post-clean duplicates as variants
-    variants_marked = 0
-    for dirty_lem, existing_lem in dupes:
-        dirty_lem.canonical_lemma_id = existing_lem.lemma_id
-        variants_marked += 1
-        print(f"  Marked [{dirty_lem.lemma_id}] as variant of [{existing_lem.lemma_id}]")
+        if existing:
+            lem.canonical_lemma_id = existing.lemma_id
+            variants_marked += 1
+            print(f"  [{lem.lemma_id}] → variant of [{existing.lemma_id}] {existing.lemma_ar_bare}")
 
     db.commit()
-    print(f"\nApplied: {fixed} bare forms cleaned, {variants_marked} variants marked.")
+    print(f"\nApplied: {fixed} cleaned, {variants_marked} marked as variants.")
     db.close()
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Fix dirty lemma bare forms (ال prefix, ه→ة)")
+    parser = argparse.ArgumentParser(description="Fix dirty lemma bare forms (LLM-powered)")
     parser.add_argument("--apply", action="store_true", help="Apply changes (default: dry run)")
-    parser.add_argument("--verbose", action="store_true", help="Extra detail")
     args = parser.parse_args()
+
+    logging.basicConfig(level=logging.INFO)
 
     dry_run = not args.apply
     if dry_run:
@@ -155,4 +167,4 @@ if __name__ == "__main__":
     else:
         print("=== APPLYING CHANGES ===\n")
 
-    cleanup(dry_run=dry_run, verbose=args.verbose)
+    cleanup(dry_run=dry_run)

@@ -84,25 +84,15 @@ def _load_rank_map() -> dict[str, int]:
 
 
 def clean_bare_form(bare: str) -> str:
-    """Clean bare form: strip punctuation and ال-prefix.
+    """Strip punctuation artifacts from bare form.
 
-    OCR/book imports often produce forms like المطحونه (should be مطحونة):
-    - Definite article ال baked into bare form
-    - Ta marbuta written as ha (ه→ة) — handled by normalize_ta_marbuta()
+    NOTE: Does NOT strip ال-prefix automatically — too many false positives
+    (الله, الذي, Form VIII verbs like التقى). Use the LLM-powered cleanup
+    script (cleanup_dirty_bare_forms.py) for ال-prefix + ه→ة fixes.
     """
     bare = ARABIC_PUNCT.sub('', bare)
     bare = bare.replace('«', '').replace('»', '')
-    bare = bare.strip()
-    if not bare:
-        return bare
-
-    # Strip definite article prefix (ال) — bare forms should never have it.
-    # Uses regex to also skip combining marks (diacritics) on the stripped chars.
-    stripped = _AL_PREFIX.sub('', bare)
-    if stripped and stripped != bare:
-        bare = stripped
-
-    return bare
+    return bare.strip()
 
 
 def normalize_ta_marbuta(bare: str, had_al_prefix: bool = False) -> str:
@@ -187,9 +177,7 @@ def finalize_new_lemmas(db: Session, lemma_ids: list[int]) -> dict:
     # Phase 1b: Check for duplicates BEFORE dirtying the session
     for lemma in lemmas:
         if lemma.canonical_lemma_id is None and lemma.lemma_ar_bare:
-            had_al = lemma.lemma_ar_bare.startswith('ال')
             bare = clean_bare_form(lemma.lemma_ar_bare)
-            bare = normalize_ta_marbuta(bare, had_al_prefix=had_al)
             dupe = find_duplicate_canonical(db, bare, exclude_id=lemma.lemma_id)
             if dupe:
                 potential_dupes.append((lemma.lemma_id, dupe.lemma_id, bare))
@@ -200,22 +188,15 @@ def finalize_new_lemmas(db: Session, lemma_ids: list[int]) -> dict:
 
     # Phase 2: Write — fast attribute assignments (milliseconds)
     for lemma in lemmas:
-        # 1. Clean bare form and diacritized form
+        # 1. Clean bare form and diacritized form (punctuation only)
         if lemma.lemma_ar_bare:
-            old_bare = lemma.lemma_ar_bare
-            had_al = old_bare.startswith('ال')
-            new_bare = clean_bare_form(old_bare)
-            new_bare = normalize_ta_marbuta(new_bare, had_al_prefix=had_al)
-            if new_bare != old_bare:
-                logger.info(f"Cleaned bare form: {old_bare!r} → {new_bare!r} (lemma {lemma.lemma_id})")
+            new_bare = clean_bare_form(lemma.lemma_ar_bare)
+            if new_bare != lemma.lemma_ar_bare:
                 lemma.lemma_ar_bare = new_bare
                 cleaned += 1
         if lemma.lemma_ar:
-            old_ar = lemma.lemma_ar
-            had_al_ar = strip_diacritics(old_ar).startswith('ال')
             new_ar = clean_bare_form(lemma.lemma_ar)
-            new_ar = normalize_ta_marbuta(new_ar, had_al_prefix=had_al_ar)
-            if new_ar != old_ar:
+            if new_ar != lemma.lemma_ar:
                 lemma.lemma_ar = new_ar
 
         # 2. Check gloss

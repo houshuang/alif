@@ -464,10 +464,13 @@ def process_textbook_page(
             for w in extracted
         ])
         _category_by_bare: dict[str, str] = {}
+        _cleaned_by_bare: dict[str, str] = {}
         for u in useful:
             cat = u.get("word_category", "standard")
             if cat in ("proper_name", "onomatopoeia"):
                 _category_by_bare[u["arabic"]] = cat
+            if u.get("cleaned_arabic"):
+                _cleaned_by_bare[u["arabic"]] = u["cleaned_arabic"]
         if rejected:
             rejected_bares = {r["arabic"] for r in rejected}
             extracted = [w for w in extracted if w.get("arabic_bare", "") not in rejected_bares]
@@ -577,6 +580,9 @@ def process_textbook_page(
                 # New word — create lemma + knowledge record
                 # Use base_lemma for the canonical bare form if available
                 import_bare = base_lemma_bare if base_lemma_bare else bare
+                # Apply LLM-cleaned bare form if available (fixes ال-prefix, ه→ة)
+                if import_bare in _cleaned_by_bare:
+                    import_bare = _cleaned_by_bare[import_bare]
                 english = (word_data.get("english") or "").strip()
                 pos = word_data.get("pos")
                 root_str = word_data.get("root")
@@ -889,10 +895,13 @@ def process_batch(
         for w in all_extracted
     ])
     _category_by_bare: dict[str, str] = {}
+    _cleaned_by_bare: dict[str, str] = {}
     for u in useful:
         cat = u.get("word_category", "standard")
         if cat in ("proper_name", "onomatopoeia"):
             _category_by_bare[u["arabic"]] = cat
+        if u.get("cleaned_arabic"):
+            _cleaned_by_bare[u["arabic"]] = u["cleaned_arabic"]
     rejected_bares = {r["arabic"] for r in rejected} if rejected else set()
 
     # --- Phase 3: Single DB import ---
@@ -984,6 +993,9 @@ def process_batch(
                 }
         else:
             import_bare = base_lemma_bare if base_lemma_bare else bare
+            # Apply LLM-cleaned bare form if available (fixes ال-prefix, ه→ة)
+            if import_bare in _cleaned_by_bare:
+                import_bare = _cleaned_by_bare[import_bare]
             english = (word_data.get("english") or "").strip()
             pos = word_data.get("pos")
             root_str = word_data.get("root")

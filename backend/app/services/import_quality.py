@@ -38,6 +38,7 @@ def classify_lemmas(
         indexed.append({"idx": i, **lem})
 
     classifications: dict[int, str] = {}
+    cleaned_forms: dict[int, str] = {}
     junk_indices: set[int] = set()
 
     for batch_start in range(0, len(indexed), batch_size):
@@ -63,11 +64,18 @@ Guidelines:
 - Animal noises, sounds → "onomatopoeia"
 - Be conservative: when in doubt, classify as "standard"
 
+Also check if the bare form needs cleaning. Include "clean" ONLY when the arabic form has issues:
+- ال-prefix baked in when it shouldn't be: المطحونة → مطحونة, الشقة → شقة
+- Final ه that should be ة (OCR artifact): المطحونه → مطحونة, الجراحه → جراحة
+- Do NOT clean words where ال is integral: الله, الذي/التي, الآن, اليوم
+- Do NOT clean Form VIII/X verbs: التقى, التحق, استقبل
+- Do NOT clean proper nouns where ال is part of the name: الرازي, الحاوي
+
 Words:
 {word_list}
 
-Return JSON: {{"classifications": [{{"idx": 0, "cat": "standard"}}, ...]}}
-Include every word index in the response."""
+Return JSON: {{"classifications": [{{"idx": 0, "cat": "standard"}}, {{"idx": 1, "cat": "standard", "clean": "مطحونة"}}, ...]}}
+Only include "clean" key when the bare form actually needs fixing. Include every word index."""
 
         try:
             result = generate_completion(prompt, json_mode=True, temperature=0.1, task_type="import_quality", model_override="claude_haiku")
@@ -80,6 +88,9 @@ Include every word index in the response."""
                     classifications[idx] = cat
                 else:
                     classifications[idx] = "standard"
+                # LLM-suggested bare form cleaning (ال prefix, ه→ة, etc.)
+                if item.get("clean"):
+                    cleaned_forms[idx] = item["clean"]
         except AllProvidersFailed:
             logger.warning("LLM unavailable for import quality check, passing all words through")
             return lemmas, []
@@ -95,12 +106,19 @@ Include every word index in the response."""
         else:
             lem_copy = dict(lem)
             lem_copy["word_category"] = classifications.get(i, "standard")
+            if i in cleaned_forms:
+                lem_copy["cleaned_arabic"] = cleaned_forms[i]
             classified.append(lem_copy)
 
     if rejected:
         logger.info(
             f"Import quality gate: {len(classified)} classified, {len(rejected)} rejected "
             f"({', '.join(r.get('arabic', '?') for r in rejected[:5])})"
+        )
+    if cleaned_forms:
+        logger.info(
+            f"Import quality gate cleaned {len(cleaned_forms)} bare forms: "
+            + ", ".join(f"{lemmas[i].get('arabic', '?')}→{v}" for i, v in list(cleaned_forms.items())[:5])
         )
 
     cats = {}

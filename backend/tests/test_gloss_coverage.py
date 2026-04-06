@@ -78,15 +78,12 @@ class TestLemmaQualityGate:
 
     def test_clean_bare_form(self):
         from app.services.lemma_quality import clean_bare_form, normalize_ta_marbuta
+        # clean_bare_form only strips punctuation (ال stripping is LLM-powered in import_quality)
         assert clean_bare_form("بغداد،") == "بغداد"
         assert clean_bare_form("«طهران»") == "طهران"
-        assert clean_bare_form("الحاوي»") == "حاوي"  # ال stripped from bare
+        assert clean_bare_form("الحاوي»") == "الحاوي"  # punctuation stripped, ال kept
         assert clean_bare_form("كتاب") == "كتاب"  # no change
-        # ال-prefix stripping
-        assert clean_bare_form("الكتاب") == "كتاب"
-        assert clean_bare_form("والد") == "والد"  # وال is root letters, not article
-        assert clean_bare_form("والي") == "والي"  # وال is root letters, not article
-        # ta marbuta normalization (only when ال was present)
+        # normalize_ta_marbuta is a standalone utility for cleanup scripts
         assert normalize_ta_marbuta("مطحونه", had_al_prefix=True) == "مطحونة"
         assert normalize_ta_marbuta("وجه", had_al_prefix=False) == "وجه"  # legitimate ه
 
