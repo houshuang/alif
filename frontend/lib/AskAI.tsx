@@ -20,6 +20,7 @@ interface ChatMessage {
   role: "user" | "assistant";
   content: string;
   hidden?: boolean;
+  isError?: boolean;
 }
 
 interface AskAIProps {
@@ -53,6 +54,31 @@ export default function AskAI({
   const scrollRef = useRef<ScrollView>(null);
   const hasSentAutoRef = useRef(false);
   const userSentRef = useRef(false);
+  const [slowWarning, setSlowWarning] = useState(false);
+  const [lastFailedQuestion, setLastFailedQuestion] = useState<string | null>(null);
+  const loadingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const slowTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  function startLoadingTimers() {
+    clearLoadingTimers();
+    slowTimerRef.current = setTimeout(() => setSlowWarning(true), 8000);
+    loadingTimerRef.current = setTimeout(() => {
+      setLoading(false);
+      setSlowWarning(false);
+      setMessages((prev) => [
+        ...prev,
+        { role: "assistant", content: "Request timed out — the server may be busy. Try again.", isError: true },
+      ]);
+    }, 35000);
+  }
+
+  function clearLoadingTimers() {
+    if (slowTimerRef.current) clearTimeout(slowTimerRef.current);
+    if (loadingTimerRef.current) clearTimeout(loadingTimerRef.current);
+    slowTimerRef.current = null;
+    loadingTimerRef.current = null;
+    setSlowWarning(false);
+  }
 
   function handleOpen() {
     setMessages([]);
@@ -60,10 +86,13 @@ export default function AskAI({
     setInput("");
     setLoading(false);
     setFlagged(false);
+    setLastFailedQuestion(null);
+    clearLoadingTimers();
     setVisible(true);
   }
 
   function handleClose() {
+    clearLoadingTimers();
     setVisible(false);
     onClose?.();
   }
@@ -72,23 +101,33 @@ export default function AskAI({
   useEffect(() => {
     if (hasAutoPrompt && !hasSentAutoRef.current) {
       hasSentAutoRef.current = true;
+      startLoadingTimers();
       const doAutoSend = async () => {
         try {
           const context = contextBuilder();
           const result = await askAI(autoExplainPrompt!, context, screen, conversationId);
           setConversationId(result.conversation_id);
+          setLastFailedQuestion(null);
           setMessages((prev) => [...prev, { role: "assistant", content: result.answer }]);
         } catch (e: any) {
           console.error("AskAI auto-explain error:", e);
+          setLastFailedQuestion(autoExplainPrompt!);
           const detail = e?.message || String(e);
-          setMessages((prev) => [...prev, { role: "assistant", content: `Error: ${detail}` }]);
+          const friendly = detail.includes("aborted") || detail.includes("timeout")
+            ? "Request timed out — the server may be busy."
+            : `Something went wrong: ${detail}`;
+          setMessages((prev) => [...prev, { role: "assistant", content: friendly, isError: true }]);
         } finally {
+          clearLoadingTimers();
           setLoading(false);
         }
       };
       doAutoSend();
     }
   }, [hasAutoPrompt]);
+
+  // Cleanup timers on unmount
+  useEffect(() => () => clearLoadingTimers(), []);
 
   // Only scroll to end on user-initiated messages
   useEffect(() => {
@@ -103,20 +142,27 @@ export default function AskAI({
 
     setMessages((prev) => [...prev, { role: "user", content: question, hidden: options?.hidden }]);
     setLoading(true);
+    startLoadingTimers();
 
     try {
       const context = contextBuilder();
       const result = await askAI(question, context, screen, conversationId);
       setConversationId(result.conversation_id);
+      setLastFailedQuestion(null);
       setMessages((prev) => [...prev, { role: "assistant", content: result.answer }]);
     } catch (e: any) {
       console.error("AskAI error:", e);
+      setLastFailedQuestion(question);
       const detail = e?.message || String(e);
+      const friendly = detail.includes("aborted") || detail.includes("timeout")
+        ? "Request timed out — the server may be busy."
+        : `Something went wrong: ${detail}`;
       setMessages((prev) => [
         ...prev,
-        { role: "assistant", content: `Error: ${detail}` },
+        { role: "assistant", content: friendly, isError: true },
       ]);
     } finally {
+      clearLoadingTimers();
       setLoading(false);
     }
   }
@@ -204,7 +250,23 @@ export default function AskAI({
                     {msg.role === "user" ? (
                       <Text style={[styles.messageText, styles.userText]}>{msg.content}</Text>
                     ) : (
-                      <MarkdownMessage content={msg.content} textColor={colors.text} />
+                      <View>
+                        <MarkdownMessage content={msg.content} textColor={msg.isError ? colors.missed : colors.text} />
+                        {msg.isError && lastFailedQuestion && i === messages.length - 1 && (
+                          <Pressable
+                            style={styles.retryButton}
+                            onPress={() => {
+                              const q = lastFailedQuestion;
+                              setLastFailedQuestion(null);
+                              setMessages((prev) => prev.filter((_, idx) => idx !== i));
+                              sendQuestion(q, { hidden: true });
+                            }}
+                          >
+                            <Ionicons name="refresh" size={14} color={colors.accent} />
+                            <Text style={styles.retryText}>Retry</Text>
+                          </Pressable>
+                        )}
+                      </View>
                     )}
                   </View>
                 );
@@ -212,6 +274,9 @@ export default function AskAI({
               {loading && (
                 <View style={[styles.messageBubble, styles.assistantBubble]}>
                   <ActivityIndicator size="small" color={colors.accent} />
+                  {slowWarning && (
+                    <Text style={styles.slowWarningText}>Taking longer than expected...</Text>
+                  )}
                 </View>
               )}
             </ScrollView>
@@ -398,5 +463,22 @@ const styles = StyleSheet.create({
   },
   sendDisabled: {
     opacity: 0.4,
+  },
+  retryButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    marginTop: 8,
+    alignSelf: "flex-start",
+  },
+  retryText: {
+    color: colors.accent,
+    fontSize: fonts.small,
+    fontWeight: "600",
+  },
+  slowWarningText: {
+    color: colors.textSecondary,
+    fontSize: fonts.small,
+    marginTop: 6,
   },
 });
