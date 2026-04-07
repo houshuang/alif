@@ -57,11 +57,11 @@ Prefer focused sessions. If a task has 4+ distinct parts, suggest breaking into 
 ## Podcast System (2026-03-22)
 - [Details](project_podcast_system.md) — Passive listening podcast with 6 format variants, ElevenLabs TTS, segment caching
 
-## Box-1 Starvation Bug (2026-03-14)
-- [Details](project_box1_starvation_bug.md) — 19 acquiring words with 0 reviews, greedy set-cover starves single-target sentences
+## Box-1 Starvation Bug (fixed 2026-03-14)
+- [Details](project_box1_starvation_bug.md) — Fixed with NEVER_REVIEWED_BOOST (5.0x) in sentence_selector.py
 
-## Mapping Correction Pipeline (2026-03-14)
-- [Details](project_mapping_correction_review.md) — verify+correct instead of discard, review by 2026-03-21
+## Mapping Correction Pipeline (operational)
+- [Details](project_mapping_correction_review.md) — verify+correct via Claude Haiku CLI, deployed and working
 
 ## User's Arabic Learning Goal
 - [Details](user_arabic_learning_goal.md) — Classical literature breadth, not just MSA. Quran, commentaries, medieval poetry (Sicilian Arabic poets), full literary tradition.
@@ -69,17 +69,17 @@ Prefer focused sessions. If a task has 4+ distinct parts, suggest breaking into 
 ## Target vs Collateral Words Are Equal
 - [Details](feedback_target_collateral_equal.md) — No distinction between target and collateral words for learning, credit, or intro cards. Repeated user feedback.
 
-## Intro Card Overload (2026-03-30)
-- [Details](feedback_intro_card_overload.md) — Up to 25 intro cards front-loaded at session start feels overwhelming. Consider interleaving or capping.
+## Intro Card Overload (fixed 2026-03-30)
+- [Details](feedback_intro_card_overload.md) — Fixed: interleaved among sentences, dynamic cap. Never front-load.
 
 ## Arabic Educational Reference Pages
 - [Details](reference_arabic_educational_pages.md) — Index of 4 standalone HTML pages: Quran function words, ligatures, Quranic marks, font comparison. All in research/, indexed in research-hub.html.
 
-## Claude CLI Migration Monitoring (2026-04-03)
-- [Details](project_llm_cli_monitoring.md) — llm.py was never deployed until 2026-04-03; verify Gemini fallback calls drop to zero, CLI stays healthy
+## Claude CLI Migration Lesson (2026-04-03)
+- [Details](project_llm_cli_monitoring.md) — Lesson: code committed locally != deployed. Push-before-deploy rule.
 
-## Dirty Lemma Cleanup (TODO)
-- [Details](project_dirty_lemma_cleanup.md) — OCR lemmas with ال-prefix and ه->ة in bare forms block generation for ~10 words. Fix finalize_new_lemmas() + one-off cleanup.
+## Dirty Lemma Cleanup (done 2026-04-06)
+- [Details](project_dirty_lemma_cleanup.md) — Fixed: LLM-powered cleanup in import_quality.py + one-off script. 41 cleaned.
 
 ## Batch Sentence Generation (2026-04-06)
 - [Details](project_batch_sentence_generation.md) — 15 words in 2 CLI calls (~4s/word vs 30s/word). Also fixed broken pipeline (gemini defaults, same-lemma kill, GPT-5.2 fallback)

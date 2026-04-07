@@ -1,15 +1,13 @@
 ---
-name: Mapping correction pipeline review
-description: Mapping correction pipeline deployed 2026-03-14, review cost/effectiveness by 2026-03-21
+name: Mapping correction pipeline
+description: Verify+correct pipeline for sentence word mappings — uses Claude Haiku CLI, deployed and operational since 2026-03-14
 type: project
 ---
 
-Mapping correction pipeline deployed 2026-03-14. Instead of discarding sentences with wrong lemmatizations, the pipeline now asks Gemini to suggest correct lemmas and fixes them inline.
+**Status: Operational.** Pipeline switched from Gemini to Claude Haiku CLI (free) as part of full CLI migration (2026-04-01).
+
+Instead of discarding sentences with wrong lemmatizations, the pipeline asks Claude Haiku to suggest correct lemmas and fixes them inline. `verify_and_correct_mappings_llm()` in `sentence_validator.py`.
 
 **Why:** Deterministic clitic stripping errors meant some words (وصف, طائر, ذهب) could never get sentences — every attempt produced the same wrong mapping and was discarded.
 
-**How to apply:**
-- By 2026-03-21, check `data/logs/mapping_corrections_*.jsonl` on the server to evaluate cost and success rate
-- Monitor user flag rate — should decrease if corrections are working
-- If too costly or low success rate, consider switching to Claude Haiku (free via CLI) instead of Gemini for the verify+correct step
-- Key logs: `ssh alif "docker exec alif-backend-1 cat /app/data/logs/mapping_corrections_$(date +%Y-%m-%d).jsonl"`
+**How to apply:** Correction logs at `data/logs/mapping_corrections_*.jsonl` on server. Check via: `ssh alif "cat /opt/alif/backend/data/logs/mapping_corrections_$(date +%Y-%m-%d).jsonl"`

@@ -1,11 +1,11 @@
 ---
-name: Intro card overload — too many front-loaded
-description: User reports up to 25 intro cards at session start feels overwhelming, wants them distributed or reduced
+name: Intro card overload — fixed with interleaving
+description: Intro cards must be interleaved among sentences, never front-loaded. Fixed 2026-03-30. Dynamic cap min(10, 5 + backlog//10).
 type: feedback
 ---
 
-Getting up to 25 intro cards at the beginning of a session feels very heavy — user has to flip through all of them before even starting to review sentences. This is especially bad when combined with textbook vocabulary imports that increase the intro card queue.
+**Status: Fixed (2026-03-30).** Intro cards are now interleaved among review sentences (2 first, then 1 every 3 sentences) via `buildInterleavedSession()`. Dynamic cap: `min(10, 5 + unintro_backlog // 10)`.
 
-**Why:** Front-loading all intro cards creates a wall of "learn new words" before any actual practice. The cognitive load is too high and it makes sessions feel like a chore rather than productive review.
+**Why:** 25 front-loaded intro cards felt overwhelming — user had to flip through all before any actual review. Fix: distribute through session + cap.
 
-**How to apply:** Consider either (1) capping intro cards per session more aggressively, (2) interleaving intro cards throughout the session instead of front-loading, or (3) both. User mentioned this alongside a broader feeling of overload from textbook imports. Raised 2026-03-30.
+**How to apply:** Never front-load intro cards. If changing intro card logic, preserve the interleaving behavior in `buildInterleavedSession()` (frontend/app/index.tsx).
