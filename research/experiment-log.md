@@ -4,6 +4,28 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-04-07: Repetition-Focused Podcast Episodes
+
+**Goal**: Generate audio episodes that heavily repeat acquiring words the learner has barely seen (0-3 reviews), using known words as scaffold.
+
+**Implementation**: New script `scripts/generate_repetition_podcasts.py`:
+- Queries acquiring words sorted by `times_seen` ascending, filters out function-word-like items
+- Batches into groups of 6 target words per episode
+- LLM generates 15-sentence stories where each target word appears 3-4x in different contexts
+- Audio format: English meaning → Arabic slow → Arabic normal → recap every 4 sentences → full story replay × 2 (normal + faster)
+- Uses `generate_completion()` from `llm.py` (Claude CLI → GPT-5.2 API fallback)
+- TTS via ElevenLabs with segment caching
+
+**Results**: 4 episodes generated (~34 min total), covering 24 least-seen acquiring words:
+1. "A Ghost in the Garden" (8.1 min) — قَصِير, يَوْمِيّ, تَحَسُّن, حالَة, شَبَحٌ, تَعامُل
+2. "Mohamed's Tale in the Garden" (8.5 min) — تَعَلَّقَ, نَهار, حَنَا, فَرْوَة, مَكَّن, خَبِير
+3. "A Clear and Wonderful Garden" (8.2 min) — واضِح, رائِع, عِنايَة, حَالَ, فَجَرَ, حَلَق
+4. "A Soaked Garden and an Important Decision" (8.9 min) — ٱِرْتَعَش, مُبْتَلّ, قَرّ, بَانَ, مَأْلُوف, مُزْعِج
+
+**Notes**: Claude CLI consistently timed out (>300s) for Arabic story generation — both with and without `--output-format json`, with and without Write tools. Root cause: Arabic text with tashkeel generates ~3x more tokens than Latin text, and 15 sentences × multiple stories is massive output volume. Agent approach (single session with Write tools) also failed for the same reason. Using `generate_completion()` with API fallback (GPT-5.2) was fastest (~35s per story). Script uses `generate_completion()` which tries CLI first, then falls back automatically. Story quality from GPT-5.2 is decent — future improvement: use Anthropic Sonnet API directly for better Arabic literary quality.
+
+---
+
 ## 2026-04-07: Intro Card Ordering Fix + Quran Suspension
 
 **Problem**: After a textbook scan importing 74 words, first-review accuracy dropped to 53.2% (vs 92.5% on established words). Root causes:

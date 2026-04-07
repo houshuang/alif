@@ -54,7 +54,7 @@
 ## Podcast / Passive Listening (2026-03-22)
 - [DONE] Sampler with 6 format variants generated and playable in app
 - [ ] Listen to sampler, choose best format(s)
-- [ ] Generate full 30-min episode in preferred format
+- [DONE] Repetition-focused episodes targeting acquiring words (3-4x per word, 15 sentences, breakdown audio). Script: `generate_repetition_podcasts.py`
 - [ ] Cron job: daily episode generation based on SRS state
 - [ ] Log podcast listening as FSRS review credit (words heard = partial review)
 - [ ] Word-synced transcript in frontend player (tap word for detail)
