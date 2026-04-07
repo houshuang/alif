@@ -4,6 +4,28 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-04-07: Intro Card Ordering Fix + Quran Suspension
+
+**Problem**: After a textbook scan importing 74 words, first-review accuracy dropped to 53.2% (vs 92.5% on established words). Root causes:
+
+1. **Ordering bug in `buildInterleavedSession()`**: When assigning sentences to template slots, the algorithm calculated gap from last intro card shown. For intro words whose card hadn't been shown yet, `gap = Infinity` — making those sentences the HIGHEST priority pick, placing them BEFORE their intro card. Fix: `gap = -1` defers sentences until after their intro card is shown.
+
+2. **Low intro card coverage**: Only 20 of 82 new words got intro cards (MAX_INTRO_CARDS_PER_SESSION=5 cap). 47 words were reviewed without any intro card. First-review accuracy: 66.7% with intro card first vs 45.3% without (+21pp).
+
+3. **Quran cards suspended** per user request — disabled `select_verse_cards()` in review router.
+
+**Changes**:
+- `frontend/app/index.tsx`: `buildInterleavedSession()` — changed `gap = Infinity` → `gap = -1` for unseen intro words
+- `frontend/app/index.tsx`: Auto-skip intro cards when word already answered correctly earlier in session (useEffect on cardIndex)
+- `backend/app/services/sentence_selector.py`: Dynamic intro card cap — `min(10, 5 + unintro_count // 10)`. Scales up after large imports, drops back to 5 when backlog clears. Replaces fixed `MAX_INTRO_CARDS_PER_SESSION = 5`.
+- `backend/app/routers/review.py`: Quran verse cards disabled (returns empty array)
+
+**Constants**: `INTRO_CARDS_BASE = 5`, `INTRO_CARDS_MAX = 10`. Current state: 139 acquiring words → ~60 un-introed → cap = 10 until backlog clears.
+
+**Verification**: Next few sessions — check if intro cards consistently appear before sentences testing those words. Monitor first-review accuracy for newly introduced words. Watch for session feel (too many intros?).
+
+---
+
 ## 2026-04-03: Quran Lemma Promotion — Encountered → Acquiring via Verse Comprehension
 
 **Problem**: Quran-only lemmas stayed permanently in "encountered" state. Words like هَدَى (to guide) and آمَنَ (to believe) appeared in multiple understood verses but never entered the learning pipeline. The only crossover path was through other import sources (stories, textbooks), leaving 94 Quran-specific words stranded.

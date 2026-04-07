@@ -1286,7 +1286,26 @@ RESCUE_MAX_ACCURACY = 0.50
 RESCUE_COOLDOWN_DAYS = 7
 
 
-MAX_INTRO_CARDS_PER_SESSION = 5
+INTRO_CARDS_BASE = 5
+INTRO_CARDS_MAX = 10
+
+
+def _dynamic_intro_cap(db: Session) -> int:
+    """Scale intro card cap based on un-introed acquiring word backlog.
+
+    Base 5, +1 per 10 un-introed words, capped at 10.
+    After a large import, temporarily shows more intros to clear the backlog.
+    """
+    unintro_count = (
+        db.query(UserLemmaKnowledge)
+        .filter(
+            UserLemmaKnowledge.knowledge_state == "acquiring",
+            (UserLemmaKnowledge.times_seen == 0) | (UserLemmaKnowledge.times_seen.is_(None)),
+            UserLemmaKnowledge.experiment_intro_shown_at.is_(None),
+        )
+        .count()
+    )
+    return min(INTRO_CARDS_MAX, INTRO_CARDS_BASE + unintro_count // 10)
 
 
 def _build_intro_cards(
@@ -1302,7 +1321,7 @@ def _build_intro_cards(
        for stuck words, with a 7-day cooldown between rescue cards.
 
     Both limited to words covered by sentences in this session.
-    Capped at MAX_INTRO_CARDS_PER_SESSION to avoid overwhelming sessions.
+    Cap scales dynamically with un-introed backlog (5 base, up to 10).
     """
     now = datetime.now(timezone.utc)
     cooldown_cutoff = now - timedelta(days=RESCUE_COOLDOWN_DAYS)
@@ -1359,7 +1378,8 @@ def _build_intro_cards(
     if not card_ids:
         return []
 
-    return _build_reintro_cards(db, card_ids, limit=min(len(card_ids), MAX_INTRO_CARDS_PER_SESSION))
+    cap = _dynamic_intro_cap(db)
+    return _build_reintro_cards(db, card_ids, limit=min(len(card_ids), cap))
 
 
 MAX_ON_DEMAND_PER_SESSION = 10

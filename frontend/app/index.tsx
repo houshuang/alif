@@ -177,7 +177,8 @@ function buildInterleavedSession(
           minGap = Infinity;
           for (const lemmaId of overlap) {
             const seen = lastSeen.get(lemmaId);
-            const gap = seen !== undefined ? pos - seen : Infinity;
+            // If intro card not yet shown, defer this sentence (negative gap)
+            const gap = seen !== undefined ? pos - seen : -1;
             if (gap < minGap) minGap = gap;
           }
         }
@@ -348,6 +349,26 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
       cleanupSound();
     };
   }, []);
+
+  // Auto-skip intro cards for words already answered correctly in this session
+  useEffect(() => {
+    if (!sentenceSession || sessionSlots.length === 0) return;
+    const slot = sessionSlots[cardIndex];
+    if (slot?.type === "experiment_intro") {
+      const card = experimentIntroCards[slot.introIndex];
+      if (card) {
+        const outcome = wordOutcomes.get(card.lemma_id);
+        if (outcome && !outcome.failed) {
+          // Word already answered correctly — skip intro, still mark as shown
+          acknowledgeExperimentIntro(card.lemma_id, sentenceSession.session_id).catch(() => {});
+          if (cardIndex + 1 < sessionSlots.length) {
+            setCardIndex(cardIndex + 1);
+          }
+          return;
+        }
+      }
+    }
+  }, [cardIndex, sessionSlots, experimentIntroCards, wordOutcomes, sentenceSession]);
 
   useEffect(() => {
     if (cardState === "front" || cardState === "audio") {

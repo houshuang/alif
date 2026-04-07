@@ -79,16 +79,17 @@ def next_sentences(
     if mode == "listening":
         result["intro_candidates"] = []
 
-    # Add verse cards (reading mode only, not prefetch)
-    if mode == "reading":
-        try:
-            from app.services.quran_service import select_verse_cards
-            result["verse_cards"] = select_verse_cards(db)
-        except Exception as e:
-            logging.getLogger(__name__).warning(f"Verse card selection failed: {e}")
-            result["verse_cards"] = []
-    else:
-        result["verse_cards"] = []
+    # Quran verse cards suspended (2026-04-07) — re-enable by uncommenting
+    # if mode == "reading":
+    #     try:
+    #         from app.services.quran_service import select_verse_cards
+    #         result["verse_cards"] = select_verse_cards(db)
+    #     except Exception as e:
+    #         logging.getLogger(__name__).warning(f"Verse card selection failed: {e}")
+    #         result["verse_cards"] = []
+    # else:
+    #     result["verse_cards"] = []
+    result["verse_cards"] = []
 
     if not prefetch:
         log_interaction(

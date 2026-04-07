@@ -1722,14 +1722,21 @@ intro cards. `experiment_intro_cards` in session response — retention-optimize
 (pattern, root family, etymology, mnemonic). Single "Continue" button, no self-assessment.
 Acknowledgement via `POST /api/review/experiment-intro-ack` sets `experiment_intro_shown_at`
 timestamp on ULK, preventing the card from appearing again and enforcing 7-day rescue card cooldown.
-**Capped at `MAX_INTRO_CARDS_PER_SESSION = 5`** (2026-03-30). Variants whose canonical lemma
-is already known or learning skip intro cards entirely (prevents e.g. بنية intro when بني is known).
+**Dynamic cap** (2026-04-07): `min(10, 5 + unintro_backlog // 10)` via `_dynamic_intro_cap()`.
+Scales up after large imports (e.g. textbook scans with 60+ new words), drops to base 5 when
+backlog clears. Constants: `INTRO_CARDS_BASE = 5`, `INTRO_CARDS_MAX = 10`. Replaces fixed
+`MAX_INTRO_CARDS_PER_SESSION = 5`. Variants whose canonical lemma is already known or learning
+skip intro cards entirely (prevents e.g. بنية intro when بني is known). **Auto-skip at render
+time**: if the user already answered a word correctly earlier in the session, its intro card is
+silently skipped (acknowledged but not shown).
 
-**Session interleaving** (2026-03-30): Intro cards are no longer front-loaded before sentence
-reviews. Instead, `buildInterleavedSession()` in `frontend/app/index.tsx` distributes intro
-cards among review sentences: first 2 intro cards, then 1 every 3 sentences. Sentences sharing
+**Session interleaving** (2026-03-30, ordering fix 2026-04-07): Intro cards are distributed
+among review sentences: first 2 intro cards, then 1 every 3 sentences. Sentences sharing
 words with a recently-shown intro card are placed later in the session to maximize spacing
-(greedy maximum-gap algorithm using a `lastSeen` map per intro-card lemma ID). This prevents
+(greedy maximum-gap algorithm using a `lastSeen` map per intro-card lemma ID). **Critical fix
+(2026-04-07)**: unseen intro words previously got `gap = Infinity`, causing sentences to be
+placed BEFORE their intro card. Fixed to `gap = -1` so sentences are deferred until after
+their intro card is shown. This prevents
 the "wall of 25 intro cards" experience after bulk imports while maintaining the same scheduling
 and intro card eligibility logic.
 
