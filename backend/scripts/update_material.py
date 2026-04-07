@@ -18,6 +18,8 @@ Usage:
 
 import argparse
 import asyncio
+import json
+import os
 import random
 import sys
 import time
@@ -847,35 +849,79 @@ async def main():
                 pick_unused_ci_topic,
                 pick_unused_theme,
             )
+            from scripts.generate_repetition_podcasts import generate_single_repetition_podcast
+            from scripts.generate_podcast_images import generate_image, ART_STYLE, THEME_PROMPTS
+
             current_unheard = unheard_count()
             deficit = min(PODCAST_TARGET - current_unheard, MAX_PODCAST_PER_RUN)
             print(f"  Unheard podcasts: {current_unheard}, need {max(0, deficit)} more")
             if deficit > 0:
                 words = get_high_stability_words(db, min_stability_days=14.0)
-                if len(words) >= 30:
-                    # Alternate: odd runs → story, even runs → CI
-                    use_ci = (podcasts_i % 2 == 0) and pick_unused_ci_topic() is not None
-                    for i in range(deficit):
-                        try:
-                            if use_ci and i % 2 == 0:
-                                ci = pick_unused_ci_topic()
-                                if ci:
-                                    print(f"  Generating CI podcast {i+1}/{deficit}: {ci['topic'][:50]}...")
-                                    path = await generate_ci_podcast(db, words, ci["topic"], ci["target"])
-                                    if path:
-                                        podcasts_i += 1
-                                        print(f"  Generated: {path.name}")
-                                    continue
+                has_words = len(words) >= 30
+                generated_paths: list[Path] = []
+                # 3-way rotation: story → CI → repetition
+                for i in range(deficit):
+                    try:
+                        fmt_idx = (current_unheard + podcasts_i) % 3
+                        if fmt_idx == 1 and has_words:
+                            ci = pick_unused_ci_topic()
+                            if ci:
+                                print(f"  Generating CI podcast {i+1}/{deficit}: {ci['topic'][:50]}...")
+                                path = await generate_ci_podcast(db, words, ci["topic"], ci["target"])
+                                if path:
+                                    podcasts_i += 1
+                                    generated_paths.append(path)
+                                    print(f"  Generated: {path.name}")
+                                continue
+                        if fmt_idx == 2:
+                            print(f"  Generating repetition podcast {i+1}/{deficit}...")
+                            path = await generate_single_repetition_podcast(db)
+                            if path:
+                                podcasts_i += 1
+                                generated_paths.append(path)
+                                print(f"  Generated: {path.name}")
+                            continue
+                        if has_words:
                             theme = pick_unused_theme()
                             print(f"  Generating story podcast {i+1}/{deficit}: {theme['title']}...")
                             path = await generate_single_podcast(db, words, theme)
                             if path:
                                 podcasts_i += 1
+                                generated_paths.append(path)
                                 print(f"  Generated: {path.name}")
-                        except Exception as e:
-                            print(f"  Podcast generation failed: {e}")
-                            logger.exception("Step I podcast generation failed")
-                else:
+                    except Exception as e:
+                        print(f"  Podcast generation failed: {e}")
+                        logger.exception("Step I podcast generation failed")
+
+                # Auto-generate cover images for new podcasts
+                if generated_paths:
+                    api_key = os.environ.get("GEMINI_KEY")
+                    if api_key:
+                        for path in generated_paths:
+                            try:
+                                stem = path.stem
+                                image_path = path.parent / f"{stem}.png"
+                                if image_path.exists():
+                                    continue
+                                meta_path = path.parent / f"{stem}.json"
+                                if not meta_path.exists():
+                                    continue
+                                meta = json.loads(meta_path.read_text())
+                                theme_id = meta.get("theme_id", "")
+                                if theme_id in THEME_PROMPTS:
+                                    prompt = THEME_PROMPTS[theme_id]
+                                else:
+                                    summary = meta.get("summary", "An Arabic language learning podcast")
+                                    prompt = f"Illustration for a story: {summary}. {ART_STYLE}"
+                                image_bytes = generate_image(prompt, api_key)
+                                if image_bytes:
+                                    image_path.write_bytes(image_bytes)
+                                    meta["image_filename"] = image_path.name
+                                    meta_path.write_text(json.dumps(meta, ensure_ascii=False, indent=2))
+                                    print(f"  Generated image: {image_path.name}")
+                            except Exception as e:
+                                print(f"  Image generation failed for {path.name}: {e}")
+                if not has_words and podcasts_i == 0:
                     print(f"  Not enough high-stability words ({len(words)})")
         else:
             print("  Skipped (dry run)")

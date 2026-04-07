@@ -339,6 +339,34 @@ async def generate_one_episode_from_story(
     return path
 
 
+async def generate_single_repetition_podcast(db) -> Path | None:
+    """Generate one repetition podcast episode. Callable from cron."""
+    acquiring = get_acquiring_words(db)
+    known = get_known_words(db)
+
+    SKIP_BARE = {"انها", "انه", "لك", "بـ", "لقد", "سوف", "لذلك", "لكن", "أن", "حول", "نحو", "يلا", "مرحبا", "أما"}
+    acquiring = [w for w in acquiring if w["bare"] not in SKIP_BARE]
+
+    if len(acquiring) < 3:
+        logger.warning("Not enough acquiring words (%d) for repetition podcast", len(acquiring))
+        return None
+    if len(known) < 30:
+        logger.warning("Only %d known words — skipping repetition podcast", len(known))
+        return None
+
+    batch_size = 7
+    batch = acquiring[:batch_size]
+
+    stories = generate_all_stories([batch], known)
+    if not stories or not stories[0]:
+        logger.error("Failed to generate repetition story")
+        return None
+
+    # Use timestamp-based episode number to avoid collisions
+    ep_num = int(datetime.now().strftime("%H%M"))
+    return await generate_one_episode_from_story(db, batch, stories[0], ep_num)
+
+
 async def main():
     parser = argparse.ArgumentParser(description="Generate repetition-focused podcast episodes")
     parser.add_argument("--count", type=int, default=4,
