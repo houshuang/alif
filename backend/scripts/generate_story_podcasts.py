@@ -958,10 +958,20 @@ def _get_story_sentences_from_db(db, story_id: int) -> tuple[list[dict], list[in
         if sw.lemma_id and not sw.is_function_word:
             all_lemma_ids.add(sw.lemma_id)
 
-    # Parse English translations from body_en (one per line)
+    # Parse English translations from body_en
+    # Try newline-separated first; fall back to sentence-boundary splitting
+    # (book_ocr stores body_en as one continuous blob without newlines)
     english_lines = []
     if story.body_en:
-        english_lines = [line.strip() for line in story.body_en.strip().split("\n") if line.strip()]
+        lines = [line.strip() for line in story.body_en.strip().split("\n") if line.strip()]
+        n_arabic = len(by_sent)
+        if len(lines) >= n_arabic * 0.5:
+            english_lines = lines
+        else:
+            # Single blob — split on sentence boundaries (period/!/? + space)
+            import re
+            raw = re.split(r'(?<=[.!?])\s+', story.body_en.strip())
+            english_lines = [s.strip() for s in raw if s.strip()]
 
     sentences = []
     for idx in sorted(by_sent.keys()):
