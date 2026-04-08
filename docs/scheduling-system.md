@@ -714,7 +714,9 @@ build_session(db, limit=10, mode="reading")
 │   • selection_info: reason, score, order,    │
 │     word_reason, score component breakdown   │
 │                                              │
-│ Also: reintro_cards for struggling words      │
+│ Also: reintro_cards for struggling words       │
+│   (struggling words also get sentences via     │
+│    normal greedy + acquisition repetition)      │
 │ Also: experiment_intro_cards for A/B test    │
 │ Also: intro_candidates for Learn mode        │
 └─────────────────────────────────────────────┘
@@ -1486,7 +1488,7 @@ remaining cards on the next card advance. See Section 8 "Sentence Pre-Warming" f
 | `FRESHNESS_BASELINE` | 5 | Reviews before scaffold freshness penalty kicks in (floor 0.1) |
 | `MAX_ON_DEMAND_PER_SESSION` | 10 | Reference constant (callers control actual cap via remaining session capacity) |
 | `MAX_REINTRO_PER_SESSION` | 3 | Struggling word reintro card limit |
-| `STRUGGLING_MIN_SEEN` | 3 | Threshold for struggling classification |
+| `STRUGGLING_MIN_SEEN` | 3 | Threshold for struggling classification (seen 3+, 0 correct) |
 | Comprehensibility threshold | 60% | Min known scaffold words to show sentence |
 | Unknown scaffold cap | 2 | Hard cap on unknown non-target words per sentence |
 | Acquiring box-1 excluded | stability < 0.5 | Box-1 words don't count as "known" scaffold |

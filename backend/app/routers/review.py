@@ -326,7 +326,44 @@ def word_lookup(lemma_id: int, db: Session = Depends(get_db)):
 @router.post("/sync")
 def sync_reviews(body: BulkSyncIn, db: Session = Depends(get_db)):
     results = []
+
+    # Detect glitch batches: >10 reviews from one session with impossibly fast
+    # response times (sub-500ms). Return "ok" to clear the client queue but skip
+    # processing to prevent FSRS state corruption. (April 1 2026 incident.)
+    glitch_ids: set[str] = set()
+    sentence_reviews = [r for r in body.reviews if r.type == "sentence"]
+    if len(sentence_reviews) > 10:
+        session_groups: dict[str, list] = {}
+        for r in sentence_reviews:
+            sid = r.payload.get("session_id")
+            if sid:
+                session_groups.setdefault(sid, []).append(r)
+        for sid, reviews in session_groups.items():
+            if len(reviews) <= 10:
+                continue
+            fast_count = sum(
+                1 for r in reviews
+                if isinstance(r.payload.get("response_ms"), (int, float))
+                and r.payload["response_ms"] < 500
+            )
+            if fast_count > 10 and fast_count / len(reviews) > 0.8:
+                logger.warning(
+                    f"Sync glitch detected: session {sid} has {len(reviews)} reviews, "
+                    f"{fast_count} with response_ms < 500ms — skipping batch"
+                )
+                for r in reviews:
+                    glitch_ids.add(r.client_review_id)
+                    results.append({"client_review_id": r.client_review_id, "status": "ok"})
+                log_interaction(
+                    event="sync_glitch_rejected",
+                    session_id=sid,
+                    review_count=len(reviews),
+                    fast_count=fast_count,
+                )
+
     for item in body.reviews:
+        if item.client_review_id in glitch_ids:
+            continue
         try:
             if item.type == "sentence":
                 payload = item.payload

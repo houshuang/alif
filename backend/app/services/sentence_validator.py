@@ -83,6 +83,8 @@ FUNCTION_WORD_GLOSSES: dict[str, str] = {
     "مثل": "like", "غير": "other than",
     # Grammatical verbs
     "يوجد": "there is", "توجد": "there is (f)",
+    # Article
+    "ال": "the",
 }
 
 # Populate FUNCTION_WORDS from the glosses dict

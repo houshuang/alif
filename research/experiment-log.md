@@ -4,6 +4,21 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-04-08: Reintro Card + Sentence Pairing Fix, Sync Glitch Protection
+
+**Problem**: Reintro cards (for struggling words: seen 3+, 0 correct) were shown as a pre-session carousel but the struggling words were **excluded** from sentence selection (`due_lemma_ids -= struggling_ids`). Users saw a teaching card for a word but never practiced it in a sentence during that session.
+
+**Fix**: Removed the exclusion — struggling words now stay in `due_lemma_ids` and get sentences through the normal greedy set-cover + acquisition repetition (targeting 4 exposures per acquiring word). Reintro cards still provide the re-teaching moment before the session starts.
+
+**Also fixed**:
+- **Lemma 441 (ال)**: The definite article was incorrectly imported as a standalone lemma during book OCR. The sentence generation cron created sentences with "ال كِتَابُ" (ال separated by a space), causing the لام to render in its unfamiliar isolated form. Fix: added "ال" to `FUNCTION_WORD_GLOSSES`, deactivated sentence 20403, suspended lemma 441.
+- **April 1 sync glitch rollback**: Session 214d75f5 had 102 bogus "Again" reviews from offline sync queue (sub-200ms response times). Rolled back 11 words stuck as "lapsed" to their pre-glitch FSRS state.
+- **Sync glitch prevention**: Added server-side detection in `/api/review/sync` — batches with >10 reviews from one session where >80% have response_ms < 500ms are silently skipped (return "ok" to clear client queue without corrupting FSRS state).
+
+**Files changed**: `sentence_selector.py` (reintro fix), `sentence_validator.py` (ال function word), `routers/review.py` (sync protection), `scripts/rollback_glitch_session.py` (new).
+
+---
+
 ## 2026-04-07: Repetition-Focused Podcast Episodes
 
 **Goal**: Generate audio episodes that heavily repeat acquiring words the learner has barely seen (0-3 reviews), using known words as scaffold.

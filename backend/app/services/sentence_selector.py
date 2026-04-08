@@ -537,10 +537,11 @@ def build_session(
         if k and (k.times_seen or 0) >= 3 and (k.times_correct or 0) == 0:
             struggling_ids.add(lid)
 
-    # Remove struggling words from sentence selection pool
-    due_lemma_ids -= struggling_ids
+    # Keep struggling words in due_lemma_ids so they get sentences through
+    # normal greedy selection + acquisition repetition (MIN_ACQUISITION_EXPOSURES).
+    # They also get reintro cards below for re-teaching.
 
-    total_due = len(due_lemma_ids) + len(struggling_ids)
+    total_due = len(due_lemma_ids)
 
     # Fallback: if nothing is due, pull in "almost due" FSRS words
     # (closest to their due date) so the learner always has something to review.
