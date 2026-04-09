@@ -1125,8 +1125,7 @@ def correct_mapping(
         for c in candidates:
             if c.lemma_id != current_lemma_id:
                 return c.lemma_id
-        # Only the same lemma exists — gloss accuracy issue, not wrong mapping.
-        # Return the current lemma_id so callers see "same lemma" and keep the sentence.
+        # Only the same lemma exists — return it so caller can decide
         return current_lemma_id
 
     return candidates[0].lemma_id
