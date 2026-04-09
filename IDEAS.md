@@ -25,6 +25,7 @@
 
 ## Session Presentation (2026-03-30)
 - [DONE] Interleave intro cards with review sentences (not front-loaded)
+- [DONE] Reintro cards (struggling words) now get sentences in the session — previously they were excluded from sentence selection, so the teaching card was orphaned with no practice
 - Consider capping intro cards per session (e.g., 15) if interleaving alone isn't enough
 - Consider changing intro card filter from `times_seen == 0` to `experiment_intro_shown_at is None` so words don't lose intro card eligibility after being reviewed in sentences
 
@@ -481,6 +482,8 @@
 - Service worker for web PWA caching
 - Expo offline-first with AsyncStorage or expo-sqlite
 - [DONE] Clear Cache button in More screen: flushes sessions, word lookups, stats, analytics from AsyncStorage
+- [DONE] Server-side sync glitch detection: reject batches with >10 sub-500ms reviews from one session (prevents FSRS corruption from rapid-fire sync bugs, April 2026 incident)
+- [ ] Frontend debounce/guard against rapid-fire review submissions — server-side detection catches the symptom, but the root cause (a stuck gesture or auto-advance loop) is still possible
 
 ### Deployment
 - [DONE] Backend: Hetzner Helsinki, direct docker-compose (Coolify removed — too complex for single-user app)
