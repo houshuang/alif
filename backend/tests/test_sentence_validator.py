@@ -1025,3 +1025,86 @@ class TestNounInflections:
         lemmas = [_FakeLemma(1, "كتب", pos="verb", forms_json={"present": "يَكْتُبُ"})]
         lookup = build_lemma_lookup(lemmas)
         assert lookup.get("كتبات") is None
+
+
+class TestCorrectMapping:
+    """Tests for correct_mapping — the LLM correction lookup."""
+
+    def test_exact_match(self, db_session):
+        """Exact bare form match works."""
+        from app.models import Lemma
+        from app.services.sentence_validator import correct_mapping
+
+        lem = Lemma(lemma_ar="كَتَبَ", lemma_ar_bare="كتب", gloss_en="to write", pos="verb")
+        db_session.add(lem)
+        db_session.flush()
+
+        result = correct_mapping(db_session, "كَتَبَ", "to write", "verb")
+        assert result == lem.lemma_id
+
+    def test_alef_hamza_mismatch(self, db_session):
+        """DB stores أمر (hamza) but LLM returns أَمَرَ which normalizes to امر (bare alef)."""
+        from app.models import Lemma
+        from app.services.sentence_validator import correct_mapping
+
+        lem = Lemma(lemma_ar="أَمَرَ", lemma_ar_bare="أمر", gloss_en="to order", pos="verb")
+        db_session.add(lem)
+        db_session.flush()
+
+        # LLM returns diacritized form; normalize_arabic turns أ→ا,
+        # but DB has أمر — exact match fails, fallback should find it
+        result = correct_mapping(db_session, "أَمَرَ", "to order", "verb")
+        assert result == lem.lemma_id
+
+    def test_alef_madda_mismatch(self, db_session):
+        """DB stores آخر (alef madda) but normalized lookup finds it."""
+        from app.models import Lemma
+        from app.services.sentence_validator import correct_mapping
+
+        lem = Lemma(lemma_ar="آخَر", lemma_ar_bare="آخر", gloss_en="other", pos="adj")
+        db_session.add(lem)
+        db_session.flush()
+
+        result = correct_mapping(db_session, "آخَر", "other", "adj")
+        assert result == lem.lemma_id
+
+    def test_al_prefix_toggle(self, db_session):
+        """LLM returns الكتاب but DB stores كتاب (or vice versa)."""
+        from app.models import Lemma
+        from app.services.sentence_validator import correct_mapping
+
+        lem = Lemma(lemma_ar="كِتَاب", lemma_ar_bare="كتاب", gloss_en="book", pos="noun")
+        db_session.add(lem)
+        db_session.flush()
+
+        result = correct_mapping(db_session, "الكِتَاب", "book", "noun")
+        assert result == lem.lemma_id
+
+    def test_prefer_different_lemma(self, db_session):
+        """When current_lemma_id is given, prefer a different match (homograph)."""
+        from app.models import Lemma
+        from app.services.sentence_validator import correct_mapping
+
+        lem1 = Lemma(lemma_ar="سَلَّمَ", lemma_ar_bare="سلم", gloss_en="peace", pos="noun")
+        lem2 = Lemma(lemma_ar="سُلَّم", lemma_ar_bare="سلم", gloss_en="ladder", pos="noun")
+        db_session.add_all([lem1, lem2])
+        db_session.flush()
+
+        result = correct_mapping(
+            db_session, "سَلَّمَ", "ladder", "noun",
+            current_lemma_id=lem1.lemma_id,
+        )
+        assert result == lem2.lemma_id
+
+    def test_returns_none_for_missing(self, db_session):
+        """Returns None when the lemma doesn't exist at all."""
+        from app.services.sentence_validator import correct_mapping
+
+        result = correct_mapping(db_session, "غريب", "strange", "adj")
+        assert result is None
+
+    def test_empty_input(self, db_session):
+        """Empty correct_ar returns None immediately."""
+        from app.services.sentence_validator import correct_mapping
+
+        assert correct_mapping(db_session, "", "to write", "verb") is None

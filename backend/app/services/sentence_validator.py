@@ -1118,14 +1118,18 @@ def correct_mapping(
     correct_gloss: str,
     correct_pos: str,
     current_lemma_id: int | None = None,
+    lemma_lookup: "LemmaLookupDict | None" = None,
 ) -> int | None:
     """Find the correct lemma in DB and return its lemma_id.
 
-    Searches by bare form (with/without al-prefix). When ``current_lemma_id``
-    is provided, prefers a *different* lemma (handles homographs like
-    سلم peace vs سلم ladder). Returns None if the correct lemma doesn't
-    exist — callers should reject the sentence rather than auto-creating
-    lemmas nobody asked to learn.
+    Searches by bare form (with/without al-prefix). Falls back to
+    normalized lookup when exact match fails (handles alef/hamza
+    mismatches between LLM output and stored bare forms).
+
+    When ``current_lemma_id`` is provided, prefers a *different* lemma
+    (handles homographs like سلم peace vs سلم ladder). Returns None if
+    the correct lemma doesn't exist — callers should reject the sentence
+    rather than auto-creating lemmas nobody asked to learn.
     """
     from app.models import Lemma
 
@@ -1133,6 +1137,8 @@ def correct_mapping(
         return None
 
     correct_bare = normalize_arabic(correct_ar)
+
+    # Fast path: exact match on lemma_ar_bare
     candidates = (
         db.query(Lemma)
         .filter(Lemma.lemma_ar_bare == correct_bare)
@@ -1146,6 +1152,31 @@ def correct_mapping(
         else:
             candidates = db.query(Lemma).filter(
                 Lemma.lemma_ar_bare == "ال" + correct_bare
+            ).all()
+
+    # Fallback: normalized lookup handles alef/hamza mismatches between
+    # LLM output and stored bare forms (e.g. DB has أمر, query has امر)
+    if not candidates:
+        if lemma_lookup is None:
+            lemma_lookup = build_comprehensive_lemma_lookup(db)
+
+        search_forms = [correct_bare]
+        stripped = strip_tanwin_alif(correct_bare)
+        if stripped != correct_bare:
+            search_forms.append(stripped)
+
+        candidate_ids: set[int] = set()
+        for form in search_forms:
+            lid = lemma_lookup.get(form)
+            if lid is not None:
+                candidate_ids.add(lid)
+                if form in lemma_lookup.collisions:
+                    for alt_lid, _ in lemma_lookup.collisions[form]:
+                        candidate_ids.add(alt_lid)
+
+        if candidate_ids:
+            candidates = db.query(Lemma).filter(
+                Lemma.lemma_id.in_(candidate_ids)
             ).all()
 
     if not candidates:

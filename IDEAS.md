@@ -8,7 +8,7 @@
 - [DONE] Mine `correction_failed` logs — found 6,871 failures across 2 root causes
 - [DONE] Auto-import script (`scripts/import_scaffold_lemmas.py`) — imported 3 genuinely missing lemmas; 36 others already existed but `correct_mapping()` couldn't find them
 - [DONE] Function word collision resolution — `lookup_lemma_direct()` now checks collision table
-- [ ] Make `correct_mapping()` bare-form search more robust — 36 lemmas exist in DB but aren't found by exact `lemma_ar_bare` match (normalization mismatch between LLM output and stored bare forms)
+- [DONE] Make `correct_mapping()` bare-form search more robust — added fallback via `build_comprehensive_lemma_lookup()` that handles alef/hamza normalization mismatches + tanwin alif stripping
 
 ---
 

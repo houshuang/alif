@@ -244,6 +244,7 @@ def generate_material_for_word(lemma_id: int, needed: int = 2, model_override: s
                         corr.get("correct_gloss", ""),
                         corr.get("correct_pos", ""),
                         current_lemma_id=m.lemma_id,
+                        lemma_lookup=mapping_lookup,
                     )
                     if new_lid and new_lid != m.lemma_id:
                         logger.info(
@@ -613,6 +614,7 @@ def batch_generate_material(
                         corr.get("correct_gloss", ""),
                         corr.get("correct_pos", ""),
                         current_lemma_id=m.lemma_id,
+                        lemma_lookup=mapping_lookup,
                     )
                     if new_lid and new_lid != m.lemma_id:
                         m.lemma_id = new_lid

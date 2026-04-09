@@ -3,7 +3,7 @@ from sqlalchemy import (
     Column, Integer, String, Text, Float, DateTime, ForeignKey, JSON, Boolean,
     UniqueConstraint,
 )
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import relationship, validates
 
 from app.database import Base
 
@@ -49,6 +49,13 @@ class Lemma(Base):
     wazn_meaning = Column(Text, nullable=True)  # e.g. "doer/agent", "object/patient"
     forms_translit_json = Column(JSON, nullable=True)  # ALA-LC transliteration per form key
     gates_completed_at = Column(DateTime, nullable=True)  # set by run_quality_gates(); NULL = ungated
+
+    @validates("lemma_ar_bare")
+    def _normalize_bare(self, key, value):
+        """Normalize alef variants (أإآٱ→ا) on write to prevent lookup mismatches."""
+        if value:
+            value = value.replace("أ", "ا").replace("إ", "ا").replace("آ", "ا").replace("ٱ", "ا")
+        return value
 
     root = relationship("Root", back_populates="lemmas")
     canonical_lemma = relationship("Lemma", remote_side="Lemma.lemma_id", foreign_keys=[canonical_lemma_id])
