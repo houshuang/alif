@@ -393,7 +393,7 @@ def map_tokens_to_lemmas(
         if is_function:
             # Direct-only lookup for function words — no clitic stripping.
             # This prevents false analysis like كانت → ك+انت → أنت.
-            lemma_id = lookup_lemma_direct(bare_norm, lemma_lookup)
+            lemma_id = lookup_lemma_direct(bare_norm, lemma_lookup, original_bare=bare_clean)
             result.append(TokenMapping(i, token, lemma_id, False, is_function))
         else:
             alternatives: list[int] = []
@@ -414,17 +414,48 @@ def map_tokens_to_lemmas(
     return result
 
 
-def lookup_lemma_direct(bare_norm: str, lemma_lookup: dict[str, int]) -> int | None:
-    """Find a lemma_id using direct match and al-prefix only — no clitic stripping."""
+def lookup_lemma_direct(
+    bare_norm: str,
+    lemma_lookup: dict[str, int],
+    original_bare: str | None = None,
+) -> int | None:
+    """Find a lemma_id using direct match and al-prefix only — no clitic stripping.
+
+    When a collision exists for the normalized key and ``original_bare`` is
+    provided, delegates to ``_resolve_collision`` (hamza match then CAMeL) to
+    pick the right lemma — same logic used by ``lookup_lemma`` for regular words.
+    """
+
+    def _check_collision(key: str) -> int | None:
+        """If *key* has a collision entry and we can resolve it, return the winner."""
+        if (original_bare
+                and hasattr(lemma_lookup, "collisions")
+                and key in lemma_lookup.collisions):
+            resolved = _resolve_collision(
+                original_bare, lemma_lookup.collisions[key]
+            )
+            if resolved is not None:
+                return resolved
+        return None
+
     if bare_norm in lemma_lookup:
+        resolved = _check_collision(bare_norm)
+        if resolved is not None:
+            return resolved
         return lemma_lookup[bare_norm]
     if bare_norm.startswith("ال") and len(bare_norm) > 2:
         without_al = bare_norm[2:]
         if without_al in lemma_lookup:
+            resolved = _check_collision(without_al)
+            if resolved is not None:
+                return resolved
             return lemma_lookup[without_al]
     elif len(bare_norm) >= 3:
         with_al = "ال" + bare_norm
         if with_al in lemma_lookup:
+            resolved = _check_collision(with_al)
+            if resolved is not None:
+                return resolved
             return lemma_lookup[with_al]
     return None
 
