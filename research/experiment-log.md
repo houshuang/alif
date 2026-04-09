@@ -4,6 +4,20 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-04-09: Function Word Collision Resolution + Scaffold Imports
+
+**Problem**: Mined 6,871 `correction_failed` pipeline log entries. Found two root causes:
+1. **Function words bypass collision resolution** — `lookup_lemma_direct()` skipped the collision table entirely, so أَنْ (that/to) collided silently with آن (time) after alef normalization. Affected ~5,200 failures.
+2. **Missing scaffold vocabulary** — 3 genuinely missing lemmas the LLM kept using.
+
+**Fix 1**: Added collision checking to `lookup_lemma_direct()`. When a normalized key has collisions, delegates to `_resolve_collision()` (hamza match + CAMeL) — same logic regular words use — while still avoiding clitic stripping for function words.
+
+**Fix 2**: Imported 3 scaffold lemmas (صِدْق, مُقْبِل, مَزْرَعَة) via new `scripts/import_scaffold_lemmas.py`. 36 other candidates already existed but weren't found by `correct_mapping()`'s exact bare-form search.
+
+**Files changed**: `sentence_validator.py` (collision fix), `material_generator.py` (same-lemma rejection), `scripts/import_scaffold_lemmas.py` (new).
+
+---
+
 ## 2026-04-09: Fix Same-Lemma Correction Silent Pass-Through
 
 **Problem**: User flagged 2 consecutive sentences with wrong lemma mappings. Investigation revealed the LLM verification *did* detect the errors and flagged corrections, but `correct_mapping()` returned the same (wrong) lemma_id when the correct lemma wasn't in the DB. The caller's logic had a three-valued gap: it checked for "different lemma" (apply) and "no lemma" (reject), but "same lemma" fell through silently — accepting sentences with known-wrong mappings.

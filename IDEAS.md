@@ -5,8 +5,10 @@
 ---
 
 ## Vocabulary Gap Detection (2026-04-09)
-- [ ] Mine `correction_failed` logs for frequently-needed-but-missing lemmas (e.g., ظَلَّ/to continue, بُنْيَة/structure) — these are common words the LLM keeps using in sentences but we reject because the lemma isn't in the DB
-- [ ] Auto-import script: scan recent pipeline logs for recurring same-lemma correction failures, surface the top N missing lemmas for review/import
+- [DONE] Mine `correction_failed` logs — found 6,871 failures across 2 root causes
+- [DONE] Auto-import script (`scripts/import_scaffold_lemmas.py`) — imported 3 genuinely missing lemmas; 36 others already existed but `correct_mapping()` couldn't find them
+- [DONE] Function word collision resolution — `lookup_lemma_direct()` now checks collision table
+- [ ] Make `correct_mapping()` bare-form search more robust — 36 lemmas exist in DB but aren't found by exact `lemma_ar_bare` match (normalization mismatch between LLM output and stored bare forms)
 
 ---
 
