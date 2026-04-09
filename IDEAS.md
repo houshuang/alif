@@ -4,6 +4,12 @@
 
 ---
 
+## Vocabulary Gap Detection (2026-04-09)
+- [ ] Mine `correction_failed` logs for frequently-needed-but-missing lemmas (e.g., ظَلَّ/to continue, بُنْيَة/structure) — these are common words the LLM keeps using in sentences but we reject because the lemma isn't in the DB
+- [ ] Auto-import script: scan recent pipeline logs for recurring same-lemma correction failures, surface the top N missing lemmas for review/import
+
+---
+
 ## Verse-by-Verse Text Reading Mode (2026-03-30)
 - [DONE] Sequential reading through the Quran one verse at a time
 - [DONE] Verse = unit of scheduling (simple level-based SRS, not FSRS)

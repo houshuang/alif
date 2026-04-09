@@ -4,6 +4,23 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-04-09: Fix Same-Lemma Correction Silent Pass-Through
+
+**Problem**: User flagged 2 consecutive sentences with wrong lemma mappings. Investigation revealed the LLM verification *did* detect the errors and flagged corrections, but `correct_mapping()` returned the same (wrong) lemma_id when the correct lemma wasn't in the DB. The caller's logic had a three-valued gap: it checked for "different lemma" (apply) and "no lemma" (reject), but "same lemma" fell through silently — accepting sentences with known-wrong mappings.
+
+**Specific errors**:
+- أُمِّهِ (his mother) → mapped to أم (or, conjunction) instead of أُمّ (mother)
+- وَظَلَّ (continued) → mapped to ظِلّ (shadow) — verb ظَلَّ (to continue) not in vocabulary
+- الْبُنْيَةِ (infrastructure) → mapped to بُنِّيّة (brown) — noun بُنْيَة (structure) not in vocabulary
+
+**Root cause**: `correct_mapping()` line 1130 returns `current_lemma_id` when only the same lemma is found. Caller at `material_generator.py:248` checks `if new_lid and new_lid != m.lemma_id` (false) and `elif not new_lid` (false) — neither branch triggers.
+
+**Fix**: Added `else` branch in both single-word and batch generation paths that sets `correction_failed = True` when correction returns same lemma. Sentences with LLM-flagged-but-unfixable mappings are now properly rejected.
+
+**Files changed**: `material_generator.py` (both `generate_material_for_word()` and `batch_generate_material()`).
+
+---
+
 ## 2026-04-08: Reintro Card + Sentence Pairing Fix, Sync Glitch Protection
 
 **Problem**: Reintro cards (for struggling words: seen 3+, 0 correct) were shown as a pre-session carousel but the struggling words were **excluded** from sentence selection (`due_lemma_ids -= struggling_ids`). Users saw a teaching card for a word but never practiced it in a sentence during that session.
