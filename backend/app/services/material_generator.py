@@ -253,6 +253,14 @@ def generate_material_for_word(lemma_id: int, needed: int = 2, model_override: s
                         m.lemma_id = new_lid
                     elif not new_lid:
                         correction_failed = True
+                    else:
+                        # LLM flagged mapping as wrong but correct lemma
+                        # not in DB — only the same (wrong) lemma found.
+                        logger.warning(
+                            f"Correction for pos {pos} '{m.surface_form}' "
+                            f"returned same lemma #{m.lemma_id} — rejecting"
+                        )
+                        correction_failed = True
                 correction_db.commit()
             except Exception:
                 correction_db.rollback()
@@ -609,6 +617,12 @@ def batch_generate_material(
                     if new_lid and new_lid != m.lemma_id:
                         m.lemma_id = new_lid
                     elif not new_lid:
+                        correction_failed = True
+                    else:
+                        logger.warning(
+                            f"Batch correction for pos {pos} '{m.surface_form}' "
+                            f"returned same lemma #{m.lemma_id} — rejecting"
+                        )
                         correction_failed = True
                 correction_db.commit()
             except Exception:
