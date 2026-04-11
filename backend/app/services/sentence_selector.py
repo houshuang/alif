@@ -51,6 +51,8 @@ INTRO_RESERVE_FRACTION = 0.2  # fraction of session slots reserved for new word 
 PIPELINE_BACKLOG_THRESHOLD = 40  # suppress reserved intros when acquiring pipeline exceeds this
 SESSION_SCAFFOLD_DECAY = 0.5  # per-appearance decay for scaffold words already in session
 NEVER_REVIEWED_BOOST = 5.0  # score multiplier for sentences targeting acquiring words with 0 reviews
+OVERDUE_ESCALATION_DAYS = 3.0  # start escalating after this many days overdue
+OVERDUE_ESCALATION_MAX = 4.0  # max multiplier for severely overdue words
 MAX_UNKNOWN_SCAFFOLD = 2  # max unknown non-target words per sentence (prevents overwhelming density)
 MIN_SESSION_SENTENCES = 5  # minimum sentences before pulling in almost-due words
 COMPREHENSIBILITY_THRESHOLD = 0.6  # min fraction of scaffold words that must be known
@@ -146,6 +148,23 @@ def _get_due_dt(knowledge: UserLemmaKnowledge) -> Optional[datetime]:
     if dt.tzinfo is None:
         dt = dt.replace(tzinfo=timezone.utc)
     return dt
+
+
+def _overdue_escalation(due_word_ids: set[int], overdue_days_map: dict[int, float]) -> float:
+    """Score multiplier for sentences covering overdue words.
+
+    Words overdue by more than OVERDUE_ESCALATION_DAYS get a growing multiplier
+    (up to OVERDUE_ESCALATION_MAX) so they can compete with multi-word sentences.
+    Uses the max overdue value among covered words.
+    """
+    if not due_word_ids:
+        return 1.0
+    max_overdue = max(overdue_days_map.get(lid, 0.0) for lid in due_word_ids)
+    if max_overdue <= OVERDUE_ESCALATION_DAYS:
+        return 1.0
+    # Linear ramp: 1.0 at threshold, OVERDUE_ESCALATION_MAX at threshold + 14 days
+    escalation = 1.0 + (max_overdue - OVERDUE_ESCALATION_DAYS) / 14.0 * (OVERDUE_ESCALATION_MAX - 1.0)
+    return min(escalation, OVERDUE_ESCALATION_MAX)
 
 
 def _difficulty_match_quality(
@@ -441,6 +460,8 @@ def build_session(
         if bare and _is_function_word(bare):
             function_word_lemma_ids.add(lid)
 
+    overdue_days_map: dict[int, float] = {}  # lemma_id → days past due
+
     for k in all_knowledge:
         knowledge_by_id[k.lemma_id] = k
 
@@ -460,11 +481,13 @@ def build_session(
                     acq_due = acq_due.replace(tzinfo=timezone.utc)
                 if acq_due <= now:
                     due_lemma_ids.add(k.lemma_id)
+                    overdue_days_map[k.lemma_id] = (now - acq_due).total_seconds() / 86400
         elif k.fsrs_card_json:
             stability_map[k.lemma_id] = _get_stability(k)
             due_dt = _get_due_dt(k)
             if due_dt and due_dt <= now:
                 due_lemma_ids.add(k.lemma_id)
+                overdue_days_map[k.lemma_id] = (now - due_dt).total_seconds() / 86400
 
     # Filter through focus cohort — only review words in the active cohort
     from app.services.cohort_service import get_focus_cohort
@@ -907,7 +930,8 @@ def build_session(
         # Boost sentences targeting never-reviewed acquiring words so they can
         # compete with multi-word FSRS sentences in the greedy selection.
         nr_boost = NEVER_REVIEWED_BOOST if (due_covered & boosted_acquiring_ids) else 1.0
-        score = (len(due_covered) ** 1.5) * dmq * gfit * diversity * freshness * source_bonus * rescue_penalty * nr_boost
+        overdue_boost = _overdue_escalation(due_covered, overdue_days_map)
+        score = (len(due_covered) ** 1.5) * dmq * gfit * diversity * freshness * source_bonus * rescue_penalty * nr_boost * overdue_boost
 
         candidates.append(SentenceCandidate(
             sentence_id=sent.id,
@@ -948,7 +972,8 @@ def build_session(
 
             rescue_penalty = 0.3 if c.sentence_id in rescue_sentence_ids else 1.0
             nr_boost = NEVER_REVIEWED_BOOST if (overlap & boosted_acquiring_ids) else 1.0
-            c.score = (len(overlap) ** 1.5) * dmq * gfit * diversity * freshness * source_bonus * session_diversity * rescue_penalty * nr_boost
+            overdue_boost = _overdue_escalation(overlap, overdue_days_map)
+            c.score = (len(overlap) ** 1.5) * dmq * gfit * diversity * freshness * source_bonus * session_diversity * rescue_penalty * nr_boost * overdue_boost
             c.score_components = {
                 "due_coverage": len(overlap),
                 "difficulty_match": round(dmq, 2),
@@ -959,6 +984,7 @@ def build_session(
                 "session_diversity": round(session_diversity, 2),
                 "rescue": rescue_penalty < 1.0,
                 "never_reviewed_boost": nr_boost,
+                "overdue_boost": round(overdue_boost, 2),
             }
 
         candidates.sort(key=lambda c: c.score, reverse=True)

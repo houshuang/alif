@@ -4,6 +4,22 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-04-11: Overdue Escalation + FSRS Difficulty Reconciliation
+
+**Problem 1 — Acquisition starvation**: 62 overdue acquisition words all had viable comprehensible sentences, but the greedy set-cover algorithm systematically favored multi-word FSRS sentences. Score formula: `overlap^1.5` gives 3-word sentences a 5.2x base vs 1.0x for single-word acquisition sentences. The existing `NEVER_REVIEWED_BOOST=5.0` only helped words with 0 reviews — after one failed review the boost disappeared entirely.
+
+**Fix**: Added continuous overdue escalation multiplier to the greedy score. Words >3 days overdue get a growing boost (up to 4x at 17+ days). Applied in both initial scoring and greedy re-scoring loops. This helps both acquisition and FSRS words that fall behind.
+
+**Constants**: `OVERDUE_ESCALATION_DAYS=3.0`, `OVERDUE_ESCALATION_MAX=4.0`. Linear ramp over 14 days.
+
+**Problem 2 — FSRS difficulty stuck**: 189 words had FSRS difficulty >7.0 despite >80% accuracy. Root cause: FSRS-6 lapse penalty is +5.3 per "Again" but recovery is only ~0.012 per "Good" — 54 consecutive Good reviews to recover from one bad rating. Examples: بَيت (house, 98% accuracy) had difficulty 9.86; سَكَنَ (to live, 100% accuracy) had difficulty 9.78.
+
+**Fix**: Repair script (`scripts/repair_fsrs_cards.py`) replays actual review history through a fresh FSRS Scheduler to recompute correct card state. Dry run shows 68 cards improved — e.g. سَكَنَ difficulty 9.8→1.7, stability 3.3→144 days. Added as periodic cron step G3 in `update_material.py` to prevent recurrence.
+
+**Files changed**: `sentence_selector.py` (overdue escalation), `scripts/repair_fsrs_cards.py` (new), `scripts/update_material.py` (step G3)
+
+---
+
 ## 2026-04-11: Focus Cohort Cap Raised 200 → 2000
 
 **Problem**: Deep analysis of all 1,840 lemmas found 179 words overdue (76 severely, >7 days). Root cause: `MAX_COHORT_SIZE = 200` in `cohort_service.py`. With 87 acquiring words auto-included, only 113 FSRS slots remained — but 224 FSRS words were due. The 111 excluded words were silently dropped from session building, growing more overdue each day with no recovery mechanism.

@@ -32,7 +32,7 @@ from dotenv import load_dotenv
 
 load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 
-from sqlalchemy import func
+from sqlalchemy import func, text
 from sqlalchemy.orm import Session
 
 from app.database import SessionLocal
@@ -803,6 +803,33 @@ async def main():
         else:
             print("  Skipped (dry run)")
 
+        # ── Step G3: FSRS difficulty reconciliation ────────────────────
+        diff_g3 = 0
+        print("\n═══ Step G3: FSRS difficulty reconciliation ═══")
+        if not args.dry_run:
+            from scripts.repair_fsrs_cards import find_affected_words, replay_reviews
+            affected = find_affected_words(db)
+            for lemma_id, info in affected.items():
+                new_card, new_state = replay_reviews(db, lemma_id)
+                if new_card is None:
+                    continue
+                old_diff = info.get("old_difficulty") or 0
+                new_diff = new_card.get("difficulty", 0)
+                if old_diff - new_diff > 0.5 or info.get("null_card"):
+                    db.execute(text("""
+                        UPDATE user_lemma_knowledge
+                        SET fsrs_card_json = :card, knowledge_state = :state
+                        WHERE lemma_id = :lid
+                    """), {"card": json.dumps(new_card), "state": new_state, "lid": lemma_id})
+                    diff_g3 += 1
+            if diff_g3:
+                db.commit()
+                print(f"  Repaired {diff_g3} FSRS cards (difficulty reconciliation)")
+            else:
+                print("  No cards need repair")
+        else:
+            print("  Skipped (dry run)")
+
         # ── Step H: auto-generate stories ────────────────────────────
         stories_h = 0
         STORY_TARGET = 3  # keep at least 3 non-archived active stories
@@ -938,14 +965,15 @@ async def main():
         print(f"  Step F leeches:   {leech_f}")
         print(f"  Step G book ULK:  {book_ulk_g}")
         print(f"  Step G2 ungated:  {ungated_g2}")
+        print(f"  Step G3 diff fix: {diff_g3}")
         print(f"  Step H stories:   {stories_h}")
         print(f"  Step I podcasts:  {podcasts_i}")
 
-        if not args.dry_run and (retired_0 + sent_a + audio_b + sent_c + enrich_e + leech_f + book_ulk_g + ungated_g2 + stories_h + podcasts_i > 0):
+        if not args.dry_run and (retired_0 + sent_a + audio_b + sent_c + enrich_e + leech_f + book_ulk_g + ungated_g2 + diff_g3 + stories_h + podcasts_i > 0):
             log_activity(
                 db,
                 event_type="material_updated",
-                summary=f"Retired {retired_0}, generated {sent_a}+{sent_c} sentences, {audio_b} audio, enriched {enrich_e}, reintro {leech_f} leeches, {book_ulk_g} book ULK, {ungated_g2} ungated, {stories_h} stories, {podcasts_i} podcasts in {elapsed:.0f}s",
+                summary=f"Retired {retired_0}, generated {sent_a}+{sent_c} sentences, {audio_b} audio, enriched {enrich_e}, reintro {leech_f} leeches, {book_ulk_g} book ULK, {ungated_g2} ungated, {diff_g3} diff fix, {stories_h} stories, {podcasts_i} podcasts in {elapsed:.0f}s",
                 detail={
                     "step_0_retired": retired_0,
                     "step_a_sentences": sent_a,
@@ -956,6 +984,7 @@ async def main():
                     "step_f_leeches": leech_f,
                     "step_g_book_ulk": book_ulk_g,
                     "step_g2_ungated": ungated_g2,
+                    "step_g3_diff_fix": diff_g3,
                     "step_h_stories": stories_h,
                     "step_i_podcasts": podcasts_i,
                     "elapsed_seconds": round(elapsed, 1),

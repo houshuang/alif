@@ -21,6 +21,7 @@ All scripts in `backend/scripts/`. Run from `backend/` directory.
 
 ## Quality & Auditing
 - `audit_sentences_claude.py` — Batch sentence quality audit via Claude Code — reviews grammar/translation/compliance with full vocabulary context, outputs retire/fix/ok report.
+- `repair_fsrs_cards.py` — Replay FSRS review history to fix stuck difficulty and corrupted cards. Also runs as cron step G3 in `update_material.py`. `--dry-run` to preview.
 - `validate_sentence_cli.py` — CLI wrapper around validate_sentence() for use by Claude Code tool sessions.
 - `review_existing_sentences.py` — Gemini Flash quality audit of all active sentences, --dry-run supported.
 - `verify_sentences.py` — Gemini Flash batch verification of Arabic naturalness, parallel execution.

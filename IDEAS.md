@@ -7,9 +7,8 @@
 ## Learning Progress Deep Analysis Follow-ups (2026-04-11)
 - [DONE] Raise focus cohort cap 200→2000 to unblock 111 silently excluded FSRS words
 - [TODO] **CHECK 2026-04-18**: Evaluate cohort cap change effect — overdue count, session build time, review distribution. Decide whether to remove cohort entirely.
-- [TODO] Fix 93 ghost-corrupted FSRS cards from April 1 quality gate deployment — replay actual review history to recompute correct difficulty/stability
-- [TODO] FSRS difficulty reconciliation — 189 words have difficulty >7 but accuracy >80%. Consider periodic difficulty nudge toward empirical performance, or cap lapse penalty at +2.0
-- [TODO] Greedy algorithm acquisition starvation — 62 overdue acquisition words have viable sentences but lose to multi-word FSRS sentences. Consider reserved acquisition slots or overdue escalation multiplier
+- [DONE] Fix FSRS cards with stuck difficulty — replay script (`scripts/repair_fsrs_cards.py`) + periodic cron step G3
+- [DONE] Greedy algorithm acquisition starvation — added overdue escalation multiplier (up to 4x for severely overdue words)
 - [TODO] Acquisition inflow gate — new introductions (19.4/day) slightly exceed graduation (17.6/day). Consider pausing auto-intro when backlog >100
 
 ---

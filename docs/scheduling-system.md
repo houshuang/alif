@@ -1484,6 +1484,8 @@ remaining cards on the next card advance. See Section 8 "Sentence Pre-Warming" f
 | Adaptive intro bands | 0→3→5 | Slots at <70%/70-85%/≥85% accuracy |
 | `SESSION_SCAFFOLD_DECAY` | 0.5 | Per-appearance multiplier for scaffold words already in session |
 | `NEVER_REVIEWED_BOOST` | 5.0 | Score multiplier for sentences targeting acquiring words with 0 reviews OR 0% accuracy |
+| `OVERDUE_ESCALATION_DAYS` | 3.0 | Start boosting score after this many days overdue |
+| `OVERDUE_ESCALATION_MAX` | 4.0 | Max score multiplier for severely overdue words (linear ramp over 14 days) |
 | `MAX_UNKNOWN_SCAFFOLD` | 2 | Max unknown non-target words per sentence (prevents overwhelming density) |
 | `FRESHNESS_BASELINE` | 5 | Reviews before scaffold freshness penalty kicks in (floor 0.1) |
 | `MAX_ON_DEMAND_PER_SESSION` | 10 | Reference constant (callers control actual cap via remaining session capacity) |
