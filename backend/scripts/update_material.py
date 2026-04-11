@@ -139,6 +139,112 @@ def get_known_words_and_lookup(db: Session) -> tuple[list[dict[str, str]], dict[
     return known_words, lemma_lookup
 
 
+# ── Step A2: Translate untranslated corpus sentences ──────────────────
+
+TRANSLATE_BATCH_SIZE = 15
+MAX_TRANSLATE_PER_RUN = 200
+
+
+def translate_corpus_sentences(db: Session) -> int:
+    """Translate untranslated corpus/book sentences for due/acquiring words.
+
+    Only translates sentences that contain words the learner is actively
+    studying (acquiring or FSRS), so we don't waste effort on sentences
+    that won't be shown.
+    """
+    import json as _json
+    import re as _re
+    import subprocess
+
+    # Find lemma_ids for acquiring + FSRS words
+    active_ids = {
+        r[0] for r in db.query(UserLemmaKnowledge.lemma_id).filter(
+            UserLemmaKnowledge.knowledge_state.in_(
+                ["acquiring", "known", "learning", "lapsed"]
+            )
+        ).all()
+    }
+    if not active_ids:
+        print("  No active words")
+        return 0
+
+    # Find untranslated sentences containing those words
+    untranslated = (
+        db.query(Sentence)
+        .filter(
+            Sentence.is_active == True,
+            Sentence.english_translation.is_(None),
+        )
+        .join(SentenceWord, SentenceWord.sentence_id == Sentence.id)
+        .filter(SentenceWord.lemma_id.in_(active_ids))
+        .distinct()
+        .limit(MAX_TRANSLATE_PER_RUN)
+        .all()
+    )
+
+    if not untranslated:
+        print("  No untranslated sentences for active words")
+        return 0
+
+    print(f"  Found {len(untranslated)} untranslated sentences for active words")
+
+    translated = 0
+    for start in range(0, len(untranslated), TRANSLATE_BATCH_SIZE):
+        batch = untranslated[start : start + TRANSLATE_BATCH_SIZE]
+        numbered = "\n".join(
+            f"{i+1}. {s.arabic_diacritized or s.arabic_text}"
+            for i, s in enumerate(batch)
+        )
+        prompt = (
+            "Translate each numbered Arabic sentence to natural English. "
+            "Return ONLY a JSON array of strings, one translation per sentence, "
+            "in the same order. No explanations.\n\n" + numbered
+        )
+
+        try:
+            result = subprocess.run(
+                ["claude", "-p", prompt, "--output-format", "json"],
+                capture_output=True, text=True, timeout=60,
+            )
+            if result.returncode != 0:
+                print(f"  Claude CLI failed for batch {start}: {result.stderr[:100]}")
+                continue
+
+            text = result.stdout.strip()
+            text = _re.sub(r"^```(?:json)?\s*", "", text)
+            text = _re.sub(r"\s*```$", "", text)
+            output = _json.loads(text)
+            if isinstance(output, dict) and "result" in output:
+                inner = output["result"]
+                if isinstance(inner, str):
+                    inner = _re.sub(r"^```(?:json)?\s*", "", inner.strip())
+                    inner = _re.sub(r"\s*```$", "", inner)
+                    parsed = _json.loads(inner)
+                else:
+                    parsed = inner
+            elif isinstance(output, list):
+                parsed = output
+            else:
+                print(f"  Unexpected output structure")
+                continue
+
+            if isinstance(parsed, list) and len(parsed) == len(batch):
+                for i, translation in enumerate(parsed):
+                    batch[i].english_translation = str(translation)
+                    translated += 1
+                db.commit()
+            else:
+                print(f"  Batch {start}: expected {len(batch)}, got {len(parsed) if isinstance(parsed, list) else '?'}")
+        except subprocess.TimeoutExpired:
+            print(f"  Batch {start} timed out")
+        except Exception as e:
+            print(f"  Batch {start} error: {e}")
+            db.rollback()
+
+    print(f"  Translated {translated}/{len(untranslated)} sentences")
+    return translated
+
+
 # ── Step 0: Enforce sentence cap by retiring excess ──────────────────
 
 def step_enforce_cap(
@@ -690,6 +796,14 @@ async def main():
 
         sent_a = step_backfill_sentences(db, args.dry_run, args.model, args.delay, args.max_sentences, tier_lookup=tier_lk)
 
+        # ── Step A2: Translate untranslated corpus sentences ─────────
+        trans_a2 = 0
+        print("\n═══ Step A2: Translate corpus sentences for due/acquiring words ═══")
+        if not args.dry_run:
+            trans_a2 = translate_corpus_sentences(db)
+        else:
+            print("  Skipped (dry run)")
+
         if not args.skip_audio:
             audio_b = await step_generate_audio(db, args.dry_run, args.limit)
         else:
@@ -959,6 +1073,7 @@ async def main():
         print(f"Done in {elapsed:.1f}s")
         print(f"  Step 0 retired:   {retired_0}")
         print(f"  Step A sentences: {sent_a}")
+        print(f"  Step A2 translate: {trans_a2}")
         print(f"  Step B audio:     {audio_b}")
         print(f"  Step C sentences: {sent_c}")
         print(f"  Step D SAMER:     {samer_d}")
@@ -970,7 +1085,7 @@ async def main():
         print(f"  Step H stories:   {stories_h}")
         print(f"  Step I podcasts:  {podcasts_i}")
 
-        if not args.dry_run and (retired_0 + sent_a + audio_b + sent_c + enrich_e + leech_f + book_ulk_g + ungated_g2 + diff_g3 + stories_h + podcasts_i > 0):
+        if not args.dry_run and (retired_0 + sent_a + trans_a2 + audio_b + sent_c + enrich_e + leech_f + book_ulk_g + ungated_g2 + diff_g3 + stories_h + podcasts_i > 0):
             log_activity(
                 db,
                 event_type="material_updated",

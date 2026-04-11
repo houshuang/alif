@@ -923,7 +923,7 @@ def build_session(
         gfit = _grammar_fit(sent_grammar, grammar_exposure_map)
         diversity = 1.0 / (1.0 + (sent.times_shown or 0))
         freshness = _scaffold_freshness(word_metas, knowledge_map)
-        source_bonus = 1.3 if sent.source == "book" else 1.0
+        source_bonus = 1.3 if sent.source in ("book", "corpus") else 1.0
         # Rescue sentences (recently shown but only option for a due word) get a
         # penalty so fresh sentences are preferred, but they still participate.
         rescue_penalty = 0.3 if sent.id in rescue_sentence_ids else 1.0
@@ -959,7 +959,7 @@ def build_session(
             gfit = _grammar_fit(sentence_grammar_cache.get(c.sentence_id, []), grammar_exposure_map)
             diversity = 1.0 / (1.0 + (c.sentence.times_shown or 0))
             freshness = _scaffold_freshness(c.words_meta, knowledge_map)
-            source_bonus = 1.3 if c.sentence.source == "book" else 1.0
+            source_bonus = 1.3 if c.sentence.source in ("book", "corpus") else 1.0
 
             # Within-session scaffold diversity: penalize reuse of scaffold words
             scaffold_ids = [w.lemma_id for w in c.words_meta

@@ -4,6 +4,24 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-04-11: Hindawi Corpus Import + Function Word Fix
+
+**Goal**: Increase sentence diversity by importing authentic Arabic sentences from published children's books, instead of relying solely on LLM-generated sentences (307 active at time of change).
+
+**Source**: Hindawi E-Book Corpus (1,745 books, 81.5M words, CC-BY-4.0, HuggingFace). Filtered to 167 children's books (~1.9M words).
+
+**Pipeline**: Extract sentences (5-14 words) → two-pass name detection (static list of 50+ foreign names + book-concentration heuristic: words in ≤3 books with 20+ occurrences) → map all tokens via `map_tokens_to_lemmas()` with proper name support → reject any sentence with unmapped content words → create Sentence + SentenceWord records with `source="corpus"`. No new Lemma or ULK records created.
+
+**Function word fix**: Added ~60 preposition+pronoun fused forms (`به`, `عليه`, `منها`, `لديك`, etc.) to `FUNCTION_WORD_GLOSSES`. These were causing sentences to fail the comprehensibility gate across ALL pipelines (LLM, corpus, book import).
+
+**On-demand translation**: Corpus sentences imported without English translation. New cron step A2 in `update_material.py` translates untranslated sentences for acquiring/FSRS words via Claude CLI (free, max 200/run).
+
+**Results**: 4,590 accepted sentences from 162 books, covering 1,122/1,794 lemmas (62%). 203 proper names detected. ~15x increase over previous 307 active sentences.
+
+**Files changed**: `sentence_validator.py` (function words, name detection, `is_proper_name` on TokenMapping), `sentence_selector.py` (corpus scoring bonus), `scripts/import_hindawi.py` (new), `scripts/update_material.py` (step A2 translation), `models.py` (source comment)
+
+---
+
 ## 2026-04-11: Overdue Escalation + FSRS Difficulty Reconciliation
 
 **Problem 1 — Acquisition starvation**: 62 overdue acquisition words all had viable comprehensible sentences, but the greedy set-cover algorithm systematically favored multi-word FSRS sentences. Score formula: `overlap^1.5` gives 3-word sentences a 5.2x base vs 1.0x for single-word acquisition sentences. The existing `NEVER_REVIEWED_BOOST=5.0` only helped words with 0 reviews — after one failed review the boost disappeared entirely.

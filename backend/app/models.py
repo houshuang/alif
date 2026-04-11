@@ -126,7 +126,7 @@ class Sentence(Base):
     arabic_diacritized = Column(Text)
     english_translation = Column(Text)
     transliteration = Column(Text)
-    source = Column(String(20))  # llm/tatoeba/manual/book
+    source = Column(String(20))  # llm/tatoeba/manual/book/corpus/claude_code
     story_id = Column(Integer, ForeignKey("stories.id"), nullable=True, index=True)
     difficulty_score = Column(Float)
     audio_url = Column(Text)
