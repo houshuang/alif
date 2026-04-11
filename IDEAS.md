@@ -280,6 +280,9 @@
 - **Auto-diacritization pipeline**: Fine-Tashkeel (HuggingFace, open source, ~2.5% WER) for bulk corpus processing. Most errors are case endings (least critical for learners). Alif's tashkeel fading hides diacritics on known words anyway.
 - **SAMER readability integration**: 40K-lemma readability lexicon (5 levels) could replace/supplement heuristic difficulty scoring. Map SAMER levels → Alif lemmas for per-word difficulty.
 - **Corpus-sourced vocabulary growth**: When corpus import encounters unmapped words, create Lemma entries in "encountered" state. Corpus becomes a vocabulary discovery source, not just a sentence source.
+- [DONE] **Hindawi children's books import** (2026-04-11): `scripts/import_hindawi.py` imports sentences from Hindawi E-Book Corpus (1,745 books, CC-BY-4.0, HuggingFace). First run: 167 children's books → 4,590 fully-mapped sentences covering 1,122/1,794 lemmas (62%). Proper name detection (static list + book-concentration heuristic). Translation on-demand via cron step A2. `source="corpus"` gets 1.3x scoring bonus.
+- Expand corpus import to other Hindawi categories (novels, detective fiction, travel literature) as vocabulary grows
+- Import additional corpora: AMARA/TED talks (educational MSA with translations), WikiMatrix (millions of Arabic-English pairs)
 
 ### Difficulty Assessment
 - [DONE] SAMER lexicon: 40K lemmas with 5-level readability scale — backfilled to cefr_level (1365/1610 matched), auto-runs in update_material.py cron. TSV at backend/data/samer.tsv on server (not in git, license: non-commercial/no redistribution).

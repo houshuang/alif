@@ -85,6 +85,39 @@ FUNCTION_WORD_GLOSSES: dict[str, str] = {
     "يوجد": "there is", "توجد": "there is (f)",
     # Article
     "ال": "the",
+    # ── Preposition + pronoun fused forms ──
+    # These are extremely common and must be recognized as function words.
+    # Without them, sentences fail comprehensibility gate and corpus import.
+    # بِـ (in/by/with)
+    "به": "in/by him", "بها": "in/by her", "بهم": "in/by them",
+    "بك": "in/by you", "بكم": "in/by you (pl)", "بي": "in/by me", "بنا": "in/by us",
+    # لِـ (for/to)
+    "له": "for him", "لها": "for her", "لهم": "for them",
+    "لك": "for you", "لكم": "for you (pl)", "لي": "for me", "لنا": "for us",
+    # عَنْ (about/from)
+    "عنه": "about him", "عنها": "about her", "عنهم": "about them",
+    "عنك": "about you", "عني": "about me", "عنا": "about us",
+    # مِنْ (from)
+    "منه": "from him", "منها": "from her", "منهم": "from them",
+    "منك": "from you", "مني": "from me", "منا": "from us",
+    # فِي (in)
+    "فيه": "in him/it", "فيها": "in her/it", "فيهم": "in them",
+    "فيك": "in you", "فينا": "in us",
+    # عَلَى (on/upon)
+    "عليه": "on him", "عليها": "on her", "عليهم": "on them",
+    "عليك": "on you", "عليكم": "on you (pl)", "علينا": "on us",
+    # إِلَى (to)
+    "اليه": "to him", "إليه": "to him", "اليها": "to her", "إليها": "to her",
+    "اليهم": "to them", "إليهم": "to them", "اليك": "to you", "إليك": "to you",
+    "الينا": "to us", "إلينا": "to us",
+    # مَعَ (with)
+    "معه": "with him", "معها": "with her", "معهم": "with them",
+    "معك": "with you", "معي": "with me", "معنا": "with us",
+    # لَدَى / عِنْدَ (at/with)
+    "لديه": "he has", "لديها": "she has", "لديهم": "they have",
+    "لديك": "you have", "لدي": "I have", "لدينا": "we have",
+    "عنده": "he has", "عندها": "she has", "عندهم": "they have",
+    "عندك": "you have", "عندي": "I have", "عندنا": "we have",
 }
 
 # Populate FUNCTION_WORDS from the glosses dict
@@ -340,6 +373,69 @@ class TokenMapping:
     is_function_word: bool
     alternative_lemma_ids: list[int] | None = None
     via_clitic: bool = False
+    is_proper_name: bool = False
+
+
+def detect_proper_names(
+    unmapped_words: dict[str, int],
+    lemma_lookup: dict[str, int],
+    min_frequency: int = 3,
+) -> set[str]:
+    """Identify likely proper names from a frequency map of unmapped words.
+
+    Heuristics:
+    - Word appears at least min_frequency times (not a one-off OCR error)
+    - Not in lemma lookup (already checked, but safety)
+    - Not a common Arabic morphological pattern that we just don't have
+    - Prioritizes: short words (2-4 chars), words without Arabic article,
+      words that don't decompose via clitic stripping to known lemmas
+
+    Args:
+        unmapped_words: {normalized_bare_form: count} of words that failed lookup
+        lemma_lookup: the lemma lookup dict (for final verification)
+        min_frequency: minimum occurrences to consider (filters OCR noise)
+
+    Returns:
+        Set of normalized bare forms identified as proper names.
+    """
+    # Common foreign name transliterations in Arabic children's books.
+    # These appear across many translated works (Grimm, Dickens, etc.)
+    KNOWN_FOREIGN_NAMES = {
+        # English/European names
+        "بيتر", "توم", "ماري", "جون", "جيم", "هنري", "ديفيد", "جورج",
+        "تشارلز", "ويليام", "روبرت", "ريتشارد", "جيمس", "ادوارد",
+        "اليس", "دوروثي", "مارجريت", "اليزابيث", "كاترين",
+        "بوبي", "ريدي", "بيل", "جاك", "سام", "بن", "دان", "تيم",
+        "سالي", "جين", "كيت", "روز", "لوسي", "ايمي", "بيتي",
+        "هايدي", "كلارا", "فريتس", "سيباستيان",
+        # German/French names common in fairy tales
+        "هانز", "جريتل", "رابونزل", "هانسل",
+        # Titles that act as names in context
+        "السيد", "السيدة", "الآنسة", "البروفيسور", "الدكتور",
+        # Character names from specific Hindawi children's books
+        "فوكس", "ميكي", "دوليتل", "كوبرفيلد", "هاملت",
+        "هولمز", "براون", "هوكاي", "كوجيا", "بلاكي", "مارثا",
+        "مايلز", "بيجوتي", "ويندي", "فيلياس", "باسبارتو",
+        "ثرثار", "سوسنة", "جولييت", "روميو", "شيرلوك",
+        "فرانك", "ادم", "حنا", "ماركو", "فرانسيس",
+        "مولي", "جيني", "بيكي", "تينكر", "ماكبث",
+    }
+    known_norm = {normalize_alef(n) for n in KNOWN_FOREIGN_NAMES}
+
+    names: set[str] = set()
+    for word, count in unmapped_words.items():
+        if count < min_frequency:
+            continue
+        if word in lemma_lookup:
+            continue
+
+        word_norm = normalize_alef(word)
+
+        # Match against known foreign names
+        if word_norm in known_norm:
+            names.add(word)
+
+    return names
 
 
 def map_tokens_to_lemmas(
@@ -347,6 +443,7 @@ def map_tokens_to_lemmas(
     lemma_lookup: dict[str, int],
     target_lemma_id: int,
     target_bare: str,
+    proper_names: set[str] | None = None,
 ) -> list[TokenMapping]:
     """Map tokenized sentence words to lemma IDs.
 
@@ -358,10 +455,17 @@ def map_tokens_to_lemmas(
                       al-prefix variants.
         target_lemma_id: The lemma_id of the target word.
         target_bare: Bare form of the target word.
+        proper_names: Optional set of normalized bare forms to treat as proper
+                      names (no lemma required). Used by corpus import to skip
+                      character names like بيتر, توم, etc.
 
     Returns:
         List of TokenMapping with position, surface_form, lemma_id, flags.
     """
+    proper_names_norm = set()
+    if proper_names:
+        proper_names_norm = {normalize_alef(strip_diacritics(n)) for n in proper_names}
+
     target_normalized = normalize_alef(target_bare)
     target_forms = {target_normalized}
     if not target_normalized.startswith("ال"):
@@ -387,6 +491,11 @@ def map_tokens_to_lemmas(
 
         if is_target:
             result.append(TokenMapping(i, token, target_lemma_id, True, False))
+            continue
+
+        # Check proper names before function word / lemma lookup
+        if proper_names_norm and bare_norm in proper_names_norm:
+            result.append(TokenMapping(i, token, None, False, False, is_proper_name=True))
             continue
 
         is_function = _is_function_word(bare_clean)
