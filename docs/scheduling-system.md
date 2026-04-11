@@ -521,10 +521,10 @@ reviewed roughly once per 5-6 days. Research shows this is insufficient — word
 ### How It Works
 
 ```
-MAX_COHORT_SIZE = 200
+MAX_COHORT_SIZE = 2000  # raised from 200 on 2026-04-11
 
 ┌────────────────────────────────────────────┐
-│            FOCUS COHORT (≤200)             │
+│           FOCUS COHORT (≤2000)             │
 │                                            │
 │  ┌──────────────────────────────────────┐  │
 │  │ ALL acquiring words (always included)│  │
@@ -1537,7 +1537,7 @@ remaining cards on the next card advance. See Section 8 "Sentence Pre-Warming" f
 
 | Constant | Value | Purpose |
 |----------|-------|---------|
-| `MAX_COHORT_SIZE` | 200 | Max words in active review pool |
+| `MAX_COHORT_SIZE` | 2000 | Max words in active review pool (raised from 200, 2026-04-11) |
 
 ### Leech (`leech_service.py`)
 
@@ -1797,12 +1797,15 @@ Matches the "5+ lapses OR <50% accuracy" specification.
 **Original plan said**: Initially 30-50, then adjusted to 25-40 in subsequent
 experiments.
 
-**Current implementation**: `MAX_COHORT_SIZE = 200`. Expanded on 2026-02-14 to
-accommodate the demand-driven auto-introduction model (no global acquiring cap).
+**Current implementation**: `MAX_COHORT_SIZE = 2000`. Originally 30-50, expanded to 200
+on 2026-02-14, then to 2000 on 2026-04-11 after analysis showed 111 due FSRS words
+were silently excluded from sessions. The cap of 200 was causing words to grow
+overdue indefinitely without being served.
 
-**Status**: Resolved. The cohort just ensures only the most relevant words are reviewed
-each session. With demand-driven introduction, more words flow through acquisition,
-so the cohort needs to be large enough to hold them all.
+**Status**: Effectively uncapped at 2000 (well above current due counts of ~300).
+Check back on 2026-04-18 whether removing the cohort filter entirely would be safe,
+or whether the high cap is sufficient. The greedy set-cover algorithm already handles
+prioritization within a session.
 
 ### 19.14 credit_type Discrepancy — Documented as Metadata, Originally Planned as Signal
 

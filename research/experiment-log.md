@@ -4,6 +4,32 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-04-11: Focus Cohort Cap Raised 200 → 2000
+
+**Problem**: Deep analysis of all 1,840 lemmas found 179 words overdue (76 severely, >7 days). Root cause: `MAX_COHORT_SIZE = 200` in `cohort_service.py`. With 87 acquiring words auto-included, only 113 FSRS slots remained — but 224 FSRS words were due. The 111 excluded words were silently dropped from session building, growing more overdue each day with no recovery mechanism.
+
+**Analysis scope**: Full review history for every active lemma (27,553 reviews). Also found: 93 ghost-corrupted FSRS cards from April 1 quality gate deployment, FSRS difficulty stuck for 189 words (difficulty >7 but accuracy >80%), acquisition pipeline inflow slightly exceeds graduation rate (+1.8 words/day net).
+
+**Change**: Raised `MAX_COHORT_SIZE` from 200 to 2000. This effectively uncaps the cohort since current due counts are ~300. The greedy set-cover algorithm in `sentence_selector.py` already handles prioritization within a session.
+
+**Expected effect**: All 224 currently-due FSRS words become eligible for session building. The overdue backlog should clear within 1-2 weeks as the session builder can now reach these words.
+
+**Follow-up (2026-04-18)**: Check whether the cohort filter can be removed entirely. Metrics to watch:
+- Count of overdue words (should drop from 179 toward 0)
+- Session build time (should not increase noticeably — cohort filtering is O(n) and n went from 200 to ~300)
+- Daily review count distribution (should remain similar)
+- Whether any word is getting reviewed too infrequently (the original cohort rationale)
+
+**Other issues identified for future work**:
+- Ghost FSRS card corruption from April 1 (93 cards modified without review_log entries)
+- FSRS difficulty stuck high for 189 words despite >80% accuracy
+- 62 overdue acquisition words with viable sentences not being served (greedy algorithm favoring multi-word FSRS sentences)
+- Acquisition inflow (19.4/day) slightly exceeds graduation rate (17.6/day)
+
+**Files changed**: `cohort_service.py`, `docs/scheduling-system.md`
+
+---
+
 ## 2026-04-09: Function Word Collision Resolution + Scaffold Imports
 
 **Problem**: Mined 6,871 `correction_failed` pipeline log entries. Found two root causes:
