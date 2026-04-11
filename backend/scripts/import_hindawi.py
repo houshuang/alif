@@ -333,12 +333,15 @@ def run_pipeline(
             db.flush()
 
             for m in s["mappings"]:
+                # For corpus sentences, no word is "the target" — all are scaffold.
+                # lemma_id=0 from target matching must be replaced with None.
+                lid = m.lemma_id if m.lemma_id and m.lemma_id != 0 else None
                 sw = SentenceWord(
                     sentence_id=sent.id,
                     position=m.position,
                     surface_form=m.surface_form,
-                    lemma_id=m.lemma_id,
-                    is_target_word=m.is_target,
+                    lemma_id=lid,
+                    is_target_word=False,
                 )
                 db.add(sw)
 
