@@ -8,6 +8,7 @@ Steps:
   B) Generate audio for review-eligible sentences (all words reviewed ≥1 time)
   C) Pre-generate sentences for top upcoming word candidates (no audio)
   F) Reintroduce leeches past their cooldown period
+  G3) FSRS difficulty reconciliation (replay reviews for stuck-difficulty words)
 
 Usage:
     python scripts/update_material.py                  # full run

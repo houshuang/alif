@@ -898,7 +898,7 @@ incorrectly lost the boost but still couldn't compete — e.g. أمر stuck 31 d
 #### Combined Scoring Formula
 
 ```
-score = (due_coverage ^ 1.5) × dmq × gfit × diversity × freshness × source_bonus × session_diversity × never_reviewed_boost
+score = (due_coverage ^ 1.5) × dmq × gfit × diversity × freshness × source_bonus × session_diversity × never_reviewed_boost × overdue_boost
 ```
 
 ### Variant Resolution
