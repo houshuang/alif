@@ -154,17 +154,22 @@ MAX_ENRICH_PER_RUN = 50
 
 
 def enrich_corpus_sentences(db: Session) -> int:
-    """Enrich unverified corpus sentences: diacritize, translate, verify mappings."""
-    import json as _json
-    import re as _re
-    import subprocess
+    """Enrich unverified corpus sentences: diacritize, translate, verify mappings.
+
+    Concurrency: uses a simple row-level guard — sets mappings_verified_at to
+    a sentinel before processing, so overlapping cron runs skip it.
+    """
     from app.services.llm import generate_completion, AllProvidersFailed
     from app.services.sentence_validator import (
         verify_and_correct_mappings_llm,
         correct_mapping as _correct_mapping,
         _log_mapping_correction,
         build_comprehensive_lemma_lookup,
+        detect_proper_names,
         map_tokens_to_lemmas,
+        normalize_alef,
+        strip_punctuation,
+        strip_tatweel,
         tokenize_display,
     )
     from app.services.transliteration import transliterate_arabic
@@ -214,6 +219,28 @@ def enrich_corpus_sentences(db: Session) -> int:
         for l in db.query(Lemma).filter(Lemma.lemma_id.in_(all_lemma_ids)).all()
     } if all_lemma_ids else {}
 
+    # Build proper names set from unmapped words across all candidate sentences
+    unmapped_freq: dict[str, int] = {}
+    for sent in unverified:
+        for sw in sent.words:
+            if sw.lemma_id is None:
+                bare = normalize_alef(strip_diacritics(strip_punctuation(
+                    strip_tatweel(sw.surface_form)
+                )))
+                if bare and len(bare) > 1:
+                    unmapped_freq[bare] = unmapped_freq.get(bare, 0) + 1
+    proper_names = detect_proper_names(unmapped_freq, lemma_lookup, min_frequency=2)
+    if proper_names:
+        print(f"  Detected {len(proper_names)} proper names: {sorted(proper_names)[:10]}...")
+
+    # Concurrency guard: claim sentences by setting a sentinel timestamp
+    sentinel = datetime(2000, 1, 1)
+    claimed_ids = [s.id for s in unverified]
+    db.query(Sentence).filter(Sentence.id.in_(claimed_ids)).update(
+        {Sentence.mappings_verified_at: sentinel}, synchronize_session="fetch"
+    )
+    db.commit()
+
     enriched = 0
     now = datetime.now(timezone.utc)
 
@@ -225,7 +252,8 @@ def enrich_corpus_sentences(db: Session) -> int:
             prompt = (
                 "You are an Arabic language expert. For the following Arabic sentence:\n\n"
                 f"{arabic}\n\n"
-                "1. Add full tashkeel (diacritics/vowelization) to the Arabic text.\n"
+                "1. Add full tashkeel (diacritics/vowelization) to the Arabic text. "
+                "Keep the exact same words, just add harakat.\n"
                 "2. Translate it to natural English.\n\n"
                 "Return JSON: {\"diacritized\": \"...\", \"translation\": \"...\"}"
             )
@@ -249,15 +277,18 @@ def enrich_corpus_sentences(db: Session) -> int:
                     sent.english_translation = translation
             except (AllProvidersFailed, Exception) as e:
                 print(f"  Sentence {sent.id}: diacritize/translate failed: {e}")
+                sent.mappings_verified_at = None  # release claim for retry
+                db.commit()
                 continue
 
-        # Step 2: Re-map tokens with diacritized text (better disambiguation)
+        # Step 2: Re-map tokens with diacritized text + proper names
         tokens = tokenize_display(sent.arabic_diacritized or sent.arabic_text)
         mappings = map_tokens_to_lemmas(
             tokens=tokens,
             lemma_lookup=lemma_lookup,
             target_lemma_id=0,
             target_bare="",
+            proper_names=proper_names,
         )
 
         # Refresh lemma_map for any new lemma_ids
