@@ -139,22 +139,35 @@ def get_known_words_and_lookup(db: Session) -> tuple[list[dict[str, str]], dict[
     return known_words, lemma_lookup
 
 
-# ── Step A2: Translate untranslated corpus sentences ──────────────────
+# ── Step A2: Enrich unverified corpus sentences ──────────────────────
+#
+# Corpus sentences are imported with raw text (possibly undiacritized),
+# no translation, and rule-based lemma mappings that may be wrong.
+# This step enriches them one at a time via Claude CLI:
+#   1. Diacritize (add tashkeel if missing)
+#   2. Translate to English
+#   3. Verify/correct word-lemma mappings using the existing pipeline
+#
+# Only processes sentences containing words the learner is actively studying.
 
-TRANSLATE_BATCH_SIZE = 15
-MAX_TRANSLATE_PER_RUN = 200
+MAX_ENRICH_PER_RUN = 50
 
 
-def translate_corpus_sentences(db: Session) -> int:
-    """Translate untranslated corpus/book sentences for due/acquiring words.
-
-    Only translates sentences that contain words the learner is actively
-    studying (acquiring or FSRS), so we don't waste effort on sentences
-    that won't be shown.
-    """
+def enrich_corpus_sentences(db: Session) -> int:
+    """Enrich unverified corpus sentences: diacritize, translate, verify mappings."""
     import json as _json
     import re as _re
     import subprocess
+    from app.services.llm import generate_completion, AllProvidersFailed
+    from app.services.sentence_validator import (
+        verify_and_correct_mappings_llm,
+        correct_mapping as _correct_mapping,
+        _log_mapping_correction,
+        build_comprehensive_lemma_lookup,
+        map_tokens_to_lemmas,
+        tokenize_display,
+    )
+    from app.services.transliteration import transliterate_arabic
 
     # Find lemma_ids for acquiring + FSRS words
     active_ids = {
@@ -168,81 +181,144 @@ def translate_corpus_sentences(db: Session) -> int:
         print("  No active words")
         return 0
 
-    # Find untranslated sentences containing those words
-    untranslated = (
+    # Find unverified corpus sentences containing active words
+    unverified = (
         db.query(Sentence)
         .filter(
             Sentence.is_active == True,
-            Sentence.english_translation.is_(None),
+            Sentence.mappings_verified_at.is_(None),
+            Sentence.source.in_(["corpus", "book"]),
         )
         .join(SentenceWord, SentenceWord.sentence_id == Sentence.id)
         .filter(SentenceWord.lemma_id.in_(active_ids))
         .distinct()
-        .limit(MAX_TRANSLATE_PER_RUN)
+        .limit(MAX_ENRICH_PER_RUN)
         .all()
     )
 
-    if not untranslated:
-        print("  No untranslated sentences for active words")
+    if not unverified:
+        print("  No unverified corpus sentences for active words")
         return 0
 
-    print(f"  Found {len(untranslated)} untranslated sentences for active words")
+    print(f"  Found {len(unverified)} unverified corpus sentences to enrich")
 
-    translated = 0
-    for start in range(0, len(untranslated), TRANSLATE_BATCH_SIZE):
-        batch = untranslated[start : start + TRANSLATE_BATCH_SIZE]
-        numbered = "\n".join(
-            f"{i+1}. {s.arabic_diacritized or s.arabic_text}"
-            for i, s in enumerate(batch)
-        )
-        prompt = (
-            "Translate each numbered Arabic sentence to natural English. "
-            "Return ONLY a JSON array of strings, one translation per sentence, "
-            "in the same order. No explanations.\n\n" + numbered
-        )
+    # Build lemma lookup and map for verification
+    lemma_lookup = build_comprehensive_lemma_lookup(db)
+    all_lemma_ids = set()
+    for sent in unverified:
+        for sw in sent.words:
+            if sw.lemma_id:
+                all_lemma_ids.add(sw.lemma_id)
+    lemma_map = {
+        l.lemma_id: l
+        for l in db.query(Lemma).filter(Lemma.lemma_id.in_(all_lemma_ids)).all()
+    } if all_lemma_ids else {}
 
-        try:
-            result = subprocess.run(
-                ["claude", "-p", prompt, "--output-format", "json"],
-                capture_output=True, text=True, timeout=60,
+    enriched = 0
+    now = datetime.now(timezone.utc)
+
+    for sent in unverified:
+        arabic = sent.arabic_diacritized or sent.arabic_text
+
+        # Step 1: Diacritize + translate in one call
+        if not sent.english_translation:
+            prompt = (
+                "You are an Arabic language expert. For the following Arabic sentence:\n\n"
+                f"{arabic}\n\n"
+                "1. Add full tashkeel (diacritics/vowelization) to the Arabic text.\n"
+                "2. Translate it to natural English.\n\n"
+                "Return JSON: {\"diacritized\": \"...\", \"translation\": \"...\"}"
             )
-            if result.returncode != 0:
-                print(f"  Claude CLI failed for batch {start}: {result.stderr[:100]}")
+            try:
+                result = generate_completion(
+                    prompt=prompt,
+                    system_prompt="Add diacritics and translate Arabic. Return JSON only.",
+                    json_mode=True,
+                    temperature=0.0,
+                    model_override="claude_haiku",
+                    task_type="corpus_enrichment",
+                    cli_only=True,
+                )
+                diacritized = result.get("diacritized", "")
+                translation = result.get("translation", "")
+                if diacritized:
+                    sent.arabic_diacritized = diacritized
+                    sent.arabic_text = strip_diacritics(diacritized)
+                    sent.transliteration = transliterate_arabic(diacritized) or ""
+                if translation:
+                    sent.english_translation = translation
+            except (AllProvidersFailed, Exception) as e:
+                print(f"  Sentence {sent.id}: diacritize/translate failed: {e}")
                 continue
 
-            text = result.stdout.strip()
-            text = _re.sub(r"^```(?:json)?\s*", "", text)
-            text = _re.sub(r"\s*```$", "", text)
-            output = _json.loads(text)
-            if isinstance(output, dict) and "result" in output:
-                inner = output["result"]
-                if isinstance(inner, str):
-                    inner = _re.sub(r"^```(?:json)?\s*", "", inner.strip())
-                    inner = _re.sub(r"\s*```$", "", inner)
-                    parsed = _json.loads(inner)
-                else:
-                    parsed = inner
-            elif isinstance(output, list):
-                parsed = output
-            else:
-                print(f"  Unexpected output structure")
-                continue
+        # Step 2: Re-map tokens with diacritized text (better disambiguation)
+        tokens = tokenize_display(sent.arabic_diacritized or sent.arabic_text)
+        mappings = map_tokens_to_lemmas(
+            tokens=tokens,
+            lemma_lookup=lemma_lookup,
+            target_lemma_id=0,
+            target_bare="",
+        )
 
-            if isinstance(parsed, list) and len(parsed) == len(batch):
-                for i, translation in enumerate(parsed):
-                    batch[i].english_translation = str(translation)
-                    translated += 1
+        # Refresh lemma_map for any new lemma_ids
+        new_ids = {m.lemma_id for m in mappings if m.lemma_id and m.lemma_id not in lemma_map}
+        if new_ids:
+            for l in db.query(Lemma).filter(Lemma.lemma_id.in_(new_ids)).all():
+                lemma_map[l.lemma_id] = l
+
+        # Step 3: Verify mappings via LLM (same pipeline as LLM-generated sentences)
+        corrections = verify_and_correct_mappings_llm(
+            sent.arabic_diacritized or sent.arabic_text,
+            sent.english_translation or "",
+            mappings,
+            lemma_map,
+        )
+
+        if corrections is None:
+            print(f"  Sentence {sent.id}: verification unavailable, skipping")
+            continue
+
+        # Apply corrections
+        if corrections:
+            correction_failed = False
+            for corr in corrections:
+                ok = _correct_mapping(
+                    db, sent.id, corr["position"],
+                    corr.get("correct_lemma_ar", ""),
+                    corr.get("correct_gloss", ""),
+                    corr.get("correct_pos", ""),
+                )
+                if not ok:
+                    correction_failed = True
+            _log_mapping_correction(corrections, not correction_failed, sent.arabic_text)
+            if correction_failed:
+                # Too many bad mappings — deactivate this sentence
+                sent.is_active = False
+                print(f"  Sentence {sent.id}: correction failed, deactivated")
                 db.commit()
-            else:
-                print(f"  Batch {start}: expected {len(batch)}, got {len(parsed) if isinstance(parsed, list) else '?'}")
-        except subprocess.TimeoutExpired:
-            print(f"  Batch {start} timed out")
-        except Exception as e:
-            print(f"  Batch {start} error: {e}")
-            db.rollback()
+                continue
 
-    print(f"  Translated {translated}/{len(untranslated)} sentences")
-    return translated
+        # Update SentenceWord records with re-mapped tokens
+        # Delete old and recreate (simpler than diffing)
+        db.query(SentenceWord).filter(SentenceWord.sentence_id == sent.id).delete()
+        for m in mappings:
+            lid = m.lemma_id if m.lemma_id and m.lemma_id != 0 else None
+            db.add(SentenceWord(
+                sentence_id=sent.id,
+                position=m.position,
+                surface_form=m.surface_form,
+                lemma_id=lid,
+                is_target_word=False,
+            ))
+
+        sent.mappings_verified_at = now
+        db.commit()
+        enriched += 1
+        if enriched % 10 == 0:
+            print(f"  ...enriched {enriched}/{len(unverified)}")
+
+    print(f"  Enriched {enriched}/{len(unverified)} corpus sentences")
+    return enriched
 
 
 # ── Step 0: Enforce sentence cap by retiring excess ──────────────────
@@ -796,11 +872,11 @@ async def main():
 
         sent_a = step_backfill_sentences(db, args.dry_run, args.model, args.delay, args.max_sentences, tier_lookup=tier_lk)
 
-        # ── Step A2: Translate untranslated corpus sentences ─────────
+        # ── Step A2: Enrich corpus sentences (diacritize + translate + verify) ──
         trans_a2 = 0
-        print("\n═══ Step A2: Translate corpus sentences for due/acquiring words ═══")
+        print("\n═══ Step A2: Enrich corpus sentences for due/acquiring words ═══")
         if not args.dry_run:
-            trans_a2 = translate_corpus_sentences(db)
+            trans_a2 = enrich_corpus_sentences(db)
         else:
             print("  Skipped (dry run)")
 

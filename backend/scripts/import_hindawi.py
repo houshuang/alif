@@ -336,7 +336,7 @@ def run_pipeline(
                 source="corpus",
                 target_lemma_id=target_lid,
                 created_at=now,
-                mappings_verified_at=now,
+                mappings_verified_at=None,  # enriched on-demand by cron step A2
                 is_active=True,
             )
             db.add(sent)
