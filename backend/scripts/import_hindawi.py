@@ -62,10 +62,16 @@ logger = logging.getLogger(__name__)
 SENT_SPLIT = re.compile(r"[.!?؟\n]+")
 # Quotes, dashes, and other non-sentence characters
 TRIM_CHARS = re.compile(r'^[«»"\'\-–—\s:؛,،]+|[«»"\'\-–—\s:؛,،]+$')
+# Arabic diacritics (tashkeel)
+DIAC_RE = re.compile(r"[\u064B-\u065F\u0670]")
+MIN_DIAC_RATIO = 0.10  # reject sentences with <10% diacritized characters
 
 
 def extract_sentences(text: str, min_words: int = 5, max_words: int = 14) -> list[str]:
-    """Split book text into candidate sentences by length."""
+    """Split book text into candidate sentences by length.
+
+    Only returns sentences with sufficient diacritization (>10% diacritics).
+    """
     sents = []
     for chunk in SENT_SPLIT.split(text):
         chunk = TRIM_CHARS.sub("", chunk.strip())
@@ -74,7 +80,11 @@ def extract_sentences(text: str, min_words: int = 5, max_words: int = 14) -> lis
         words = chunk.split()
         if min_words <= len(words) <= max_words:
             if any("\u0600" <= c <= "\u06FF" for c in chunk):
-                sents.append(chunk)
+                # Reject sentences without proper diacritics
+                chars = len(re.sub(r"\s", "", chunk))
+                diac_count = len(DIAC_RE.findall(chunk))
+                if chars > 0 and diac_count / chars >= MIN_DIAC_RATIO:
+                    sents.append(chunk)
     return sents
 
 
