@@ -1032,10 +1032,9 @@ Return JSON: {{"issues": []}} if all correct, or:
 
     system = "You are an Arabic morphology expert. Check each mapping against the English translation. Flag any mapping where the gloss doesn't fit the sentence meaning."
 
-    # Claude via CLI (free). Try sonnet first (reliable JSON mode), then haiku.
-    # cli_only=True prevents falling back to GPT-5.2 which is too aggressive
-    # at flagging Arabic morphology.
-    for model in ("claude_sonnet", "claude_haiku"):
+    # Try Claude CLI first (free), then fall back to Anthropic API.
+    # GPT-5.2 excluded — too aggressive at flagging Arabic morphology.
+    for model in ("claude_sonnet", "claude_haiku", "anthropic"):
         try:
             result = generate_completion(
                 prompt=prompt,
@@ -1044,7 +1043,7 @@ Return JSON: {{"issues": []}} if all correct, or:
                 temperature=0.0,
                 model_override=model,
                 task_type="mapping_verification",
-                cli_only=True,
+                cli_only=(model != "anthropic"),
             )
             issues = result.get("issues", [])
             if isinstance(issues, list):
