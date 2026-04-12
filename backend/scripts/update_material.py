@@ -181,11 +181,11 @@ def enrich_corpus_sentences(db: Session) -> int:
         print("  No active words")
         return 0
 
-    # Find unverified corpus sentences containing active words
+    # Find unverified corpus sentences containing active words.
+    # These are inactive until enriched — step activates them after verification.
     unverified = (
         db.query(Sentence)
         .filter(
-            Sentence.is_active == True,
             Sentence.mappings_verified_at.is_(None),
             Sentence.source.in_(["corpus", "book"]),
         )
@@ -312,6 +312,7 @@ def enrich_corpus_sentences(db: Session) -> int:
             ))
 
         sent.mappings_verified_at = now
+        sent.is_active = True  # activate after successful enrichment
         db.commit()
         enriched += 1
         if enriched % 10 == 0:

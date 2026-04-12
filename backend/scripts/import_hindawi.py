@@ -337,7 +337,7 @@ def run_pipeline(
                 target_lemma_id=target_lid,
                 created_at=now,
                 mappings_verified_at=None,  # enriched on-demand by cron step A2
-                is_active=True,
+                is_active=False,  # activated after enrichment (diacritize + translate + verify)
             )
             db.add(sent)
             db.flush()
