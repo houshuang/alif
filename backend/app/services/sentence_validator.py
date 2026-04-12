@@ -1032,9 +1032,10 @@ Return JSON: {{"issues": []}} if all correct, or:
 
     system = "You are an Arabic morphology expert. Check each mapping against the English translation. Flag any mapping where the gloss doesn't fit the sentence meaning."
 
-    # Claude Haiku (via CLI, free). cli_only=True prevents falling back to
-    # GPT-5.2 which is too aggressive at flagging Arabic morphology.
-    for model in ("claude_haiku",):
+    # Claude via CLI (free). Try sonnet first (reliable JSON mode), then haiku.
+    # cli_only=True prevents falling back to GPT-5.2 which is too aggressive
+    # at flagging Arabic morphology.
+    for model in ("claude_sonnet", "claude_haiku"):
         try:
             result = generate_completion(
                 prompt=prompt,
