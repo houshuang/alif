@@ -298,6 +298,27 @@ def enrich_corpus_sentences(db: Session) -> int:
                 db.commit()
                 continue
 
+        # Check for unmapped content words — reject if any remain
+        from app.services.sentence_validator import _is_function_word, strip_punctuation, strip_tatweel
+        has_unmapped = False
+        for m in mappings:
+            if m.is_function_word or getattr(m, 'is_proper_name', False):
+                continue
+            lid = m.lemma_id if m.lemma_id and m.lemma_id != 0 else None
+            bare = strip_diacritics(strip_punctuation(strip_tatweel(m.surface_form)))
+            if not bare or len(bare) <= 1:
+                continue
+            if lid is None:
+                has_unmapped = True
+                print(f"  Sentence {sent.id}: unmapped word '{m.surface_form}' — deactivating")
+                break
+
+        if has_unmapped:
+            sent.is_active = False
+            sent.mappings_verified_at = now  # don't retry
+            db.commit()
+            continue
+
         # Update SentenceWord records with re-mapped tokens
         # Delete old and recreate (simpler than diffing)
         db.query(SentenceWord).filter(SentenceWord.sentence_id == sent.id).delete()
