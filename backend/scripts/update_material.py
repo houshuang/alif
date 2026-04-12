@@ -278,22 +278,29 @@ def enrich_corpus_sentences(db: Session) -> int:
             print(f"  Sentence {sent.id}: verification unavailable, skipping")
             continue
 
-        # Apply corrections
+        # Apply corrections (same pattern as material_generator.py)
         if corrections:
             correction_failed = False
             for corr in corrections:
-                ok = _correct_mapping(
-                    db, sent.id, corr["position"],
-                    corr.get("correct_lemma_ar", ""),
-                    corr.get("correct_gloss", ""),
-                    corr.get("correct_pos", ""),
+                pos_idx = corr["position"]
+                m = next((m for m in mappings if m.position == pos_idx), None)
+                if not m:
+                    continue
+                new_lid = _correct_mapping(
+                    db,
+                    str(corr.get("correct_lemma_ar", "") or ""),
+                    str(corr.get("correct_gloss", "") or ""),
+                    str(corr.get("correct_pos", "") or ""),
+                    current_lemma_id=m.lemma_id,
                 )
-                if not ok:
+                if new_lid and new_lid != m.lemma_id:
+                    m.lemma_id = new_lid
+                elif not new_lid:
                     correction_failed = True
             _log_mapping_correction(corrections, not correction_failed, sent.arabic_text)
             if correction_failed:
-                # Too many bad mappings — deactivate this sentence
                 sent.is_active = False
+                sent.mappings_verified_at = now  # don't retry
                 print(f"  Sentence {sent.id}: correction failed, deactivated")
                 db.commit()
                 continue

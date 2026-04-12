@@ -1160,18 +1160,26 @@ Only include sentences that have disambiguation choices or issues. Omit sentence
         "against English translations. Only flag clear errors."
     )
 
-    try:
-        result = generate_completion(
-            prompt=prompt,
-            system_prompt=system,
-            json_mode=True,
-            temperature=0.0,
-            model_override="claude_haiku",
-            task_type="batch_verification",
-            cli_only=True,
-        )
-    except (AllProvidersFailed, Exception) as e:
-        _validator_logger.warning(f"Batch verification failed: {e}")
+    # Try CLI first (free), fall back to Anthropic API
+    result = None
+    for model in ("claude_sonnet", "claude_haiku", "anthropic"):
+        try:
+            result = generate_completion(
+                prompt=prompt,
+                system_prompt=system,
+                json_mode=True,
+                temperature=0.0,
+                model_override=model,
+                task_type="batch_verification",
+                cli_only=(model != "anthropic"),
+            )
+            break
+        except (AllProvidersFailed, Exception) as e:
+            _validator_logger.warning(f"Batch verification failed with {model}: {e}")
+            continue
+
+    if result is None:
+        _validator_logger.error("Batch verification failed on ALL models")
         return None
 
     # Parse results into per-sentence dicts
@@ -1242,6 +1250,8 @@ def correct_mapping(
     """
     from app.models import Lemma
 
+    # Defensive: LLM sometimes returns non-string values
+    correct_ar = str(correct_ar) if correct_ar else ""
     if not correct_ar:
         return None
 
@@ -1351,44 +1361,48 @@ For each word below, pick the correct lemma based on the sentence context.
 Return JSON: {{"choices": [{{"position": <int>, "lemma_id": <int>}}]}}
 Only include positions where your choice differs from option A (the current mapping)."""
 
-    try:
-        result = generate_completion(
-            prompt=prompt,
-            system_prompt="You are an Arabic morphology expert. Pick the lemma that matches the word's meaning in this specific sentence.",
-            json_mode=True,
-            temperature=0.0,
-            model_override="claude_haiku",
-            task_type="mapping_disambiguation",
-            cli_only=True,
-        )
-        choices = result.get("choices", [])
-        if not isinstance(choices, list):
+    # Try CLI first (free), fall back to Anthropic API. Exclude GPT-5.2.
+    for model in ("claude_sonnet", "claude_haiku", "anthropic"):
+        try:
+            result = generate_completion(
+                prompt=prompt,
+                system_prompt="You are an Arabic morphology expert. Pick the lemma that matches the word's meaning in this specific sentence.",
+                json_mode=True,
+                temperature=0.0,
+                model_override=model,
+                task_type="mapping_disambiguation",
+                cli_only=(model != "anthropic"),
+            )
+            choices = result.get("choices", [])
+            if not isinstance(choices, list):
+                return mappings
+
+            # Build position → mapping index for fast lookup
+            pos_to_mapping = {m.position: m for m in mappings}
+            valid_ids = set()
+            for m in ambiguous:
+                valid_ids.add(m.lemma_id)
+                valid_ids.update(m.alternative_lemma_ids)
+
+            for choice in choices:
+                pos = choice.get("position")
+                chosen_id = choice.get("lemma_id")
+                if pos is None or chosen_id is None:
+                    continue
+                m = pos_to_mapping.get(pos)
+                if m and chosen_id in (m.alternative_lemma_ids or []):
+                    _validator_logger.info(
+                        f"LLM disambiguated pos {pos} '{m.surface_form}': "
+                        f"#{m.lemma_id} → #{chosen_id}"
+                    )
+                    m.lemma_id = chosen_id
             return mappings
+        except (AllProvidersFailed, Exception) as e:
+            _validator_logger.warning(f"LLM mapping disambiguation failed with {model}: {e}")
+            continue
 
-        # Build position → mapping index for fast lookup
-        pos_to_mapping = {m.position: m for m in mappings}
-        valid_ids = set()
-        for m in ambiguous:
-            valid_ids.add(m.lemma_id)
-            valid_ids.update(m.alternative_lemma_ids)
-
-        for choice in choices:
-            pos = choice.get("position")
-            chosen_id = choice.get("lemma_id")
-            if pos is None or chosen_id is None:
-                continue
-            m = pos_to_mapping.get(pos)
-            if m and chosen_id in (m.alternative_lemma_ids or []):
-                _validator_logger.info(
-                    f"LLM disambiguated pos {pos} '{m.surface_form}': "
-                    f"#{m.lemma_id} → #{chosen_id}"
-                )
-                m.lemma_id = chosen_id
-    except (AllProvidersFailed, Exception) as e:
-        _validator_logger.warning(f"LLM mapping disambiguation failed: {e}")
-        return None  # caller should skip sentence with unresolved ambiguities
-
-    return mappings
+    _validator_logger.error("Mapping disambiguation failed on ALL models")
+    return None  # caller should skip sentence with unresolved ambiguities
 
 
 def resolve_existing_lemma(
