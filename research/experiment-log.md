@@ -4,21 +4,29 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
-## 2026-04-11: Hindawi Corpus Import + Function Word Fix
+## 2026-04-12: Hindawi Corpus Import + Enrichment Pipeline
 
 **Goal**: Increase sentence diversity by importing authentic Arabic sentences from published children's books, instead of relying solely on LLM-generated sentences (307 active at time of change).
 
-**Source**: Hindawi E-Book Corpus (1,745 books, 81.5M words, CC-BY-4.0, HuggingFace). Filtered to 167 children's books (~1.9M words).
+**Source**: Hindawi E-Book Corpus (1,745 books, 81.5M words, CC-BY-4.0, HuggingFace). Filtered to 167 children's books (~1.9M words). Server import: 10,781 sentences covering 1,855/2,582 lemmas (72%).
 
-**Pipeline**: Extract sentences (5-14 words) → two-pass name detection (static list of 50+ foreign names + book-concentration heuristic: words in ≤3 books with 20+ occurrences) → map all tokens via `map_tokens_to_lemmas()` with proper name support → reject any sentence with unmapped content words → create Sentence + SentenceWord records with `source="corpus"`. No new Lemma or ULK records created.
+**Architecture — two-phase pipeline**:
+1. **Import** (`import_hindawi.py`): Extract sentences (5-14w, ≥10% diacritics) → name detection (static list + book-concentration heuristic) → map tokens → reject unmapped content words → store as `source="corpus"`, `is_active=False`, `mappings_verified_at=NULL`. No new Lemma/ULK records.
+2. **Enrichment** (cron step A2, `update_material.py`): For inactive corpus sentences containing active vocabulary: diacritize + translate via Claude CLI → re-map tokens → verify/correct mappings via LLM (same pipeline as generated sentences) → reject sentences with unmapped words → activate. Max 50/run.
 
-**Function word fix**: Added ~60 preposition+pronoun fused forms (`به`, `عليه`, `منها`, `لديك`, etc.) to `FUNCTION_WORD_GLOSSES`. These were causing sentences to fail the comprehensibility gate across ALL pipelines (LLM, corpus, book import).
+**Key design decisions**:
+- Sentences start **inactive** — only activated after full enrichment (diacritize + translate + verify). Prevents showing undiacritized/unverified sentences.
+- Only 47% of Hindawi books are diacritized. Import now requires ≥10% diacritics at extraction. Undiacritized sentences still imported (LLM diacritizes during enrichment).
+- Sentences with proper names (Heidi, Peter) that can't be mapped to existing lemmas are rejected — no unknown words allowed.
+- ~40% enrichment success rate: failures are sentences needing lemmas not in vocabulary. These stay dormant until vocabulary grows.
 
-**On-demand translation**: Corpus sentences imported without English translation. New cron step A2 in `update_material.py` translates untranslated sentences for acquiring/FSRS words via Claude CLI (free, max 200/run).
+**Other fixes in this batch**:
+- Added ~60 preposition+pronoun fused forms (`به`, `عليه`, `منها`, `لديك`, etc.) to `FUNCTION_WORD_GLOSSES` — fixes comprehensibility gate across ALL pipelines.
+- API fallback for all LLM verification paths: `verify_and_correct_mappings_llm`, `disambiguate_mappings_llm`, `batch_verify_sentences` now try claude_sonnet → claude_haiku → Anthropic API (excludes GPT-5.2). Root cause: CLI `json_mode` unreliable with haiku.
+- `correct_mapping`: defensive `str()` conversion for LLM-returned values.
+- `source="corpus"` gets 1.3x scoring bonus in sentence selector (same as `source="book"`).
 
-**Results**: 4,590 accepted sentences from 162 books, covering 1,122/1,794 lemmas (62%). 203 proper names detected. ~15x increase over previous 307 active sentences.
-
-**Files changed**: `sentence_validator.py` (function words, name detection, `is_proper_name` on TokenMapping), `sentence_selector.py` (corpus scoring bonus), `scripts/import_hindawi.py` (new), `scripts/update_material.py` (step A2 translation), `models.py` (source comment)
+**Files changed**: `sentence_validator.py` (function words, name detection, API fallback for disambiguation/verification/batch_verify, correct_mapping safety), `sentence_selector.py` (corpus scoring bonus), `scripts/import_hindawi.py` (new), `scripts/update_material.py` (step A2 enrichment), `models.py` (source comment)
 
 ---
 
