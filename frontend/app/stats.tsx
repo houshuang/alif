@@ -10,7 +10,7 @@ import {
 import { useFocusEffect } from "expo-router";
 import { colors } from "../lib/theme";
 import { getAnalytics, getDeepAnalytics } from "../lib/api";
-import type { Analytics, DeepAnalytics, AcquisitionPipeline, ComprehensionBreakdown, GraduatedWord, IntroducedBySource, IntroducedWordDetail, InsightsData, StateTransitions } from "../lib/types";
+import type { Analytics, DeepAnalytics, AcquisitionPipeline, ComprehensionBreakdown, GraduatedWord, IntroducedBySource, IntroducedWordDetail, InsightsData, StateTransitions, ProgressBenchmarks } from "../lib/types";
 import { IntroducedWordsTable } from "../lib/IntroducedWordsTable";
 import { GraduatedWordsTable } from "../lib/GraduatedWordsTable";
 
@@ -310,7 +310,7 @@ function WordLifecycleFunnel({
   weeklyKnown: number; weeklyLearning: number; netPerDay: number;
   retentionPct: number | null;
   flowHistory?: Array<{ date: string; entered: number; graduated: number }>;
-  benchmarks?: any;
+  benchmarks?: ProgressBenchmarks | null;
 }) {
   const stages = [
     { label: "Seen", count: encountered, color: colors.stateEncountered },
@@ -420,7 +420,7 @@ function WordLifecycleFunnel({
             {retentionPct != null && retentionPct > 0 ? `${Math.round(retentionPct)}%` : "\u2014"}
           </Text>
         </View>
-        {benchmarks?.total_roots > 0 && (
+        {benchmarks && benchmarks.total_roots > 0 && (
           <View style={vocStyles.chip}>
             <Text style={vocStyles.chipLabel}>Roots</Text>
             <Text style={vocStyles.chipVal}>{benchmarks.total_roots}</Text>
@@ -429,12 +429,12 @@ function WordLifecycleFunnel({
       </View>
 
       {/* Textbook comparisons */}
-      {benchmarks?.textbooks?.length > 0 && (
+      {benchmarks && benchmarks.textbooks.length > 0 && (
         <View style={{ marginTop: 12, gap: 10 }}>
           <Text style={{ fontSize: 11, color: colors.textSecondary, fontWeight: "600", textTransform: "uppercase", letterSpacing: 0.5 }}>
             Textbook Comparison
           </Text>
-          {benchmarks.textbooks.map((tb: any) => (
+          {benchmarks.textbooks.map((tb) => (
             <View key={tb.name} style={{ gap: 3 }}>
               <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "baseline" }}>
                 <Text style={{ fontSize: 13, color: colors.text, fontWeight: "600" }}>{tb.name}</Text>
@@ -450,7 +450,7 @@ function WordLifecycleFunnel({
       )}
 
       {/* Quran progress */}
-      {benchmarks?.quran?.verses_studied > 0 && (
+      {benchmarks?.quran && benchmarks.quran.verses_studied > 0 && (
         <View style={{ marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: "#d4a05620", gap: 6 }}>
           <Text style={{ fontSize: 11, color: "#d4a056", fontWeight: "600", textTransform: "uppercase", letterSpacing: 0.5 }}>
             Quran
@@ -461,13 +461,13 @@ function WordLifecycleFunnel({
               <Text style={{ fontSize: 10, color: colors.textSecondary }}>verses</Text>
             </View>
             <View>
-              <Text style={{ fontSize: 20, color: colors.good, fontWeight: "700" }}>{benchmarks.quran.unique_words_in_studied}</Text>
+              <Text style={{ fontSize: 20, color: colors.good, fontWeight: "700" }}>{benchmarks.quran.unique_words_in_studied ?? 0}</Text>
               <Text style={{ fontSize: 10, color: colors.textSecondary }}>mastered</Text>
             </View>
             <View style={{ flex: 1, justifyContent: "center" }}>
               {benchmarks.quran.current_surah ? (
                 <Text style={{ fontSize: 11, color: colors.textSecondary }}>
-                  At <Text style={{ color: "#d4a056" }}>{benchmarks.quran.current_surah.split(" (")[0]}</Text> ayah {benchmarks.quran.current_ayah}
+                  At <Text style={{ color: "#d4a056" }}>{benchmarks.quran.current_surah.split(" (")[0]}</Text> ayah {benchmarks.quran.current_ayah ?? 0}
                 </Text>
               ) : null}
             </View>
@@ -483,10 +483,10 @@ function WordLifecycleFunnel({
         {[
           { label: "1,000 words", done: known + learning >= 1000 },
           { label: "500 roots", done: (benchmarks?.total_roots ?? 0) >= 500 },
-          { label: "Madinah Bk 1 > 70%", done: benchmarks?.textbooks?.some((t: any) => t.name.includes("Madinah") && t.coverage_pct >= 70) },
+          { label: "Madinah Bk 1 > 70%", done: benchmarks?.textbooks.some((t) => t.name.includes("Madinah") && t.coverage_pct >= 70) ?? false },
           { label: "Al-Fatihah mastered", done: (benchmarks?.quran?.unique_words_in_studied ?? 0) >= 7 },
           { label: "2,000 words", done: known + learning >= 2000 },
-          { label: "Madinah Bk 1 > 90%", done: benchmarks?.textbooks?.some((t: any) => t.name.includes("Madinah") && t.coverage_pct >= 90) },
+          { label: "Madinah Bk 1 > 90%", done: benchmarks?.textbooks.some((t) => t.name.includes("Madinah") && t.coverage_pct >= 90) ?? false },
         ].map((m, i) => (
           <View key={i} style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
             <Text style={{ fontSize: 14, color: m.done ? colors.good : colors.textSecondary + "40" }}>{m.done ? "\u2713" : "\u25CB"}</Text>

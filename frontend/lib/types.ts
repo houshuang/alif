@@ -491,6 +491,32 @@ export interface SentenceReviewSubmission {
   lookup_count?: number;
 }
 
+export interface TextbookBenchmark {
+  name: string;
+  total_words: number;
+  known_count: number;
+  coverage_pct: number;
+  description?: string;
+}
+
+export interface QuranProgress {
+  verses_studied: number;
+  verses_graduated: number;
+  total_verses: number;
+  current_surah?: string;
+  current_ayah?: number;
+  unique_words_in_studied?: number;
+  known_word_count?: number;
+  word_coverage_pct?: number;
+}
+
+export interface ProgressBenchmarks {
+  total_words: number;
+  total_roots: number;
+  textbooks: TextbookBenchmark[];
+  quran?: QuranProgress | null;
+}
+
 export interface Analytics {
   stats: {
     total_words: number;
@@ -519,6 +545,7 @@ export interface Analytics {
   total_words_reviewed_alltime?: number;
   unique_words_recognized_7d?: number;
   unique_words_recognized_prior_7d?: number;
+  benchmarks?: ProgressBenchmarks | null;
 }
 
 export interface GraduatedWord {
