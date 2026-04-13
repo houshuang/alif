@@ -10,7 +10,10 @@ from app.models import Lemma, UserLemmaKnowledge, ReviewLog
 
 logger = logging.getLogger(__name__)
 
-scheduler = Scheduler()
+# desired_retention=0.95 — calibrated from optimize_fsrs.py on 21,363 reviews.
+# Default library weights are well-fit; our only deviation is the retention target,
+# which the optimizer judged optimal at 0.95 for this user's low lapse rate (~4.6%).
+scheduler = Scheduler(desired_retention=0.95)
 
 
 def parse_json_column(data, default=None):

@@ -4,6 +4,42 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-04-13: Lapse Recovery Tuning — desired_retention=0.95 + Lapsed Boost
+
+**Problem**: User flagged concern that lapses on high-stability words might set them back too far. Investigated with full replay analysis over 21,363 FSRS reviews across 1,550 lemmas (see `scripts/optimize_fsrs.py`, `scripts/replay_fsrs.py`).
+
+**Findings**:
+- Well-known lapses (S≥30d) recover well: 91% Good on first follow-up, 96% never re-lapse.
+- BUT coverage gap: **85 of 176 lapses (48%) in past 7 days had zero follow-up reviews**. Of those, ~37 are due + in cohort + have sentences — they just lose the sentence-scoring competition.
+- FSRS optimizer suggested aggressive new weights, but replay analysis showed minimal practical effect — user reviews ~2-3x more often than either scheduler wants (84% of reviews happen before scheduled due), likely driven by incidental co-occurrence reviews. So weights matter less than selector scoring.
+- Optimizer DID confirm `desired_retention=0.95` is the right target with library default weights (user's 95.4% Good rate fits that target better than default 0.90).
+- `OVERDUE_ESCALATION_DAYS=3.0` meant lapses under 3d overdue got no priority boost, losing to multi-word sentences covering other words.
+
+**Changes**:
+- `fsrs_service.py`: `Scheduler(desired_retention=0.95)` — shortens all intervals ~15-20% to match this user's low lapse rate.
+- `sentence_selector.py`:
+  - New `LAPSED_BOOST = 3.0`, applied multiplicatively to sentence score when covering any due word in `lapsed` state (similar pattern to `NEVER_REVIEWED_BOOST`).
+  - `OVERDUE_ESCALATION_DAYS`: 3.0 → **0.5** (escalation starts immediately after due date).
+  - `OVERDUE_ESCALATION_MAX`: 4.0 → **6.0** (steeper ramp for badly overdue).
+- `score_components["lapsed_boost"]` exposed for debugging.
+
+**Expected effect**:
+- Lapsed words re-surface in next 1-2 sessions instead of waiting out FSRS interval alone.
+- Composite boost example: a 2-day-overdue lapsed word on a fresh sentence gets `3.0 × ~1.3 = ~3.9×` score boost vs. `1.0 ×` before.
+- `desired_retention=0.95` doesn't affect already-scheduled cards; takes effect on next review.
+
+**Verification plan**:
+- Re-run `replay_fsrs.py` in 1 week. Expect no-follow-up count to drop from 85 → <40.
+- Monitor lapse rate: should stay ~4-5% (not spike from over-scheduling).
+- Check `recent_accuracy` stays ≥85% — if drops, back off desired_retention.
+
+**Considered but not deployed**:
+- Fully optimized FSRS-6 weights (`optimize_fsrs.py` output). Replay showed nearly identical post-lapse recovery time (4.98 vs 5.12 reviews) and the optimizer was fit on user's incidental-review signal, not clean scheduler-driven signal. Risk/reward didn't favor a weights change.
+
+**Files**: `backend/app/services/fsrs_service.py`, `backend/app/services/sentence_selector.py`, `backend/scripts/optimize_fsrs.py` (new), `backend/scripts/replay_fsrs.py` (new), `docs/scheduling-system.md`
+
+---
+
 ## 2026-04-12: Hindawi Corpus Import + Enrichment Pipeline
 
 **Goal**: Increase sentence diversity by importing authentic Arabic sentences from published children's books, instead of relying solely on LLM-generated sentences (307 active at time of change).

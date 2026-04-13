@@ -97,6 +97,8 @@ All scripts in `backend/scripts/`. Run from `backend/` directory.
 - `learning_analysis.py` — Comprehensive production learning metrics: vocabulary states, graduation rates, retention, FSRS stability, session patterns, frequency coverage, tashkeel readiness. Raw sqlite3, outputs JSON to stdout + console summary to stderr.
 - `deep_word_diagnostic.py` — Outlier and grey-zone hunter: state integrity violations, stuck acquirers, FSRS anomalies, accuracy paradoxes, review pattern outliers, leech escape traps, rating oscillation, variant split scheduling. Function-word-aware, uses sentence_words for coverage checks. `--json path` for machine output.
 - `analyze_intro_experiment.py` — A/B experiment analysis: intro card vs sentence-first acquisition. Compares reviews-to-graduation, first-review accuracy, time-to-graduation by experiment group. `--db path/to/alif.db`.
+- `optimize_fsrs.py` — Run the FSRS-6 optimizer on `review_log` to produce personalized weights. Reports weight comparison vs. library defaults, predicted post-lapse stability, and optimal `desired_retention`. `--db path/to/alif.db` (defaults to `/tmp/claude/alif_fresh.db`). Read-only; prints to stdout.
+- `replay_fsrs.py` — Counterfactual: feed actual rating sequences through default vs. optimized schedulers at the user's real review timestamps. Reports end-stability distribution, post-lapse recovery metrics (reviews/days to recover pre-lapse stability), interval distribution shifts, daily due-queue size, and alignment with actual user behavior. Read-only; stdout only.
 
 ## Utilities
 - `log_activity.py` — CLI tool for manual ActivityLog entries.
