@@ -4,6 +4,16 @@
 
 ---
 
+## Lapse Recovery Tuning Follow-ups (2026-04-13)
+- [DONE] `desired_retention=0.95` + `LAPSED_BOOST=3.0` + tightened overdue escalation (0.5d/6x) — see experiment log
+- [TODO] **CHECK 2026-04-20**: Re-run `replay_fsrs.py` on fresh DB, count lapses in last 7d with no follow-up. Expected drop: 85 → <40. If still >60, investigate selector diversity penalties.
+- [TODO] Periodic FSRS calibration: run `optimize_fsrs.py` monthly, compare `optimal_retention` to current setting, alert on drift >0.02. Could wire as cron step.
+- [TODO] Reconsider the `stability < 1.0 → lapsed` override in `fsrs_service.py:131-132` now that intervals are shorter under 0.95 retention — may catch too many freshly-graduated cards as "lapsed" and trigger premature mnemonic regeneration.
+- [DEFERRED] Full optimizer weight deployment (w0..w20). Replay showed near-identical post-lapse recovery and the optimizer was fit to incidental-review signal (84% of reviews happen before scheduler's intended due date). Revisit if review mix changes (e.g., listening mode becomes primary).
+- [IDEA] "Peak stability" tracking: store `max_stability` per card, use it as a prior when scoring post-lapse recovery urgency. A card that *was* 90d recovers on a different trajectory than one that never exceeded 5d.
+
+---
+
 ## Learning Progress Deep Analysis Follow-ups (2026-04-11)
 - [DONE] Raise focus cohort cap 200→2000 to unblock 111 silently excluded FSRS words
 - [TODO] **CHECK 2026-04-18**: Evaluate cohort cap change effect — overdue count, session build time, review distribution. Decide whether to remove cohort entirely.
