@@ -86,9 +86,10 @@ type SessionSlot =
   | { type: "verse"; verseIndex: number };
 
 /**
- * Build an interleaved session: experiment intro cards are distributed among
- * review sentences rather than front-loaded. Sentences sharing words with a
- * recently-shown intro card are spaced apart for better retention.
+ * Build an interleaved session: an intro card is emitted immediately before
+ * the first sentence that contains its lemma, so the learner never sees a
+ * word for the first time inside a sentence and then gets the intro card after.
+ * Sentences without any intro-word overlap are scheduled first as a warm-up.
  */
 function buildInterleavedSession(
   items: SentenceReviewItem[],
@@ -112,99 +113,59 @@ function buildInterleavedSession(
     return slots;
   }
 
-  // 1. Build intro-word → sentence-index map
-  const introLemmaIds = new Set(introCards.map((c) => c.lemma_id));
-  const sentenceIntroWords = new Map<number, Set<number>>();
-  items.forEach((item, idx) => {
+  // 1. Map intro lemma → introIndex
+  const lemmaToIntroIdx = new Map<number, number>();
+  introCards.forEach((c, i) => lemmaToIntroIdx.set(c.lemma_id, i));
+
+  // 2. For each sentence: which intro lemmas does it contain?
+  const sentenceIntroWords: Set<number>[] = items.map((item) => {
     const overlap = new Set<number>();
     for (const w of item.words) {
-      if (w.lemma_id && introLemmaIds.has(w.lemma_id)) {
+      if (w.lemma_id && lemmaToIntroIdx.has(w.lemma_id)) {
         overlap.add(w.lemma_id);
       }
     }
-    if (overlap.size > 0) {
-      sentenceIntroWords.set(idx, overlap);
+    return overlap;
+  });
+
+  // 3. Order sentences: warm-ups (no intro words) first, then sentences that
+  //    introduce new lemmas. This keeps the first 1-2 cards easy and lets us
+  //    interleave intro cards naturally as their target lemmas first appear.
+  const sentenceOrder = items.map((_, i) => i);
+  sentenceOrder.sort((a, b) => {
+    const sa = sentenceIntroWords[a].size;
+    const sb = sentenceIntroWords[b].size;
+    if (sa === 0 && sb > 0) return -1;
+    if (sb === 0 && sa > 0) return 1;
+    return a - b;
+  });
+
+  // 4. Walk in chosen order. Before each sentence, emit any unshown intro
+  //    cards whose lemma appears in this sentence.
+  const shown = new Set<number>();
+  const result: SessionSlot[] = [];
+
+  for (const sentIdx of sentenceOrder) {
+    for (const lemmaId of sentenceIntroWords[sentIdx]) {
+      const introIdx = lemmaToIntroIdx.get(lemmaId);
+      if (introIdx !== undefined && !shown.has(lemmaId)) {
+        result.push({ type: "experiment_intro" as const, introIndex: introIdx });
+        shown.add(lemmaId);
+      }
+    }
+    result.push({ type: "sentence" as const, itemIndex: sentIdx });
+  }
+
+  // 5. Flush any intro cards whose lemma never appeared in a session sentence
+  //    (defensive: backend filters intros to covered_ids, so this is rare).
+  introCards.forEach((c, i) => {
+    if (!shown.has(c.lemma_id)) {
+      result.push({ type: "experiment_intro" as const, introIndex: i });
+      shown.add(c.lemma_id);
     }
   });
 
-  // 2. Build position template: first 2 intros, then repeat (3 sentences, 1 intro)
-  const template: ("intro" | "sentence")[] = [];
-  let introsLeft = introCards.length;
-  let sentsLeft = items.length;
-
-  const firstBatch = Math.min(2, introsLeft);
-  for (let i = 0; i < firstBatch; i++) {
-    template.push("intro");
-    introsLeft--;
-  }
-
-  while (sentsLeft > 0 || introsLeft > 0) {
-    const batch = Math.min(3, sentsLeft);
-    for (let i = 0; i < batch; i++) {
-      template.push("sentence");
-      sentsLeft--;
-    }
-    if (introsLeft > 0) {
-      template.push("intro");
-      introsLeft--;
-    }
-  }
-
-  // 3. Assign intro cards and sentences to positions with spacing
-  const lastSeen = new Map<number, number>();
-  const available = items.map((_, i) => i); // sentence indices
-  let introIdx = 0;
-  const result: SessionSlot[] = [];
-
-  for (let pos = 0; pos < template.length; pos++) {
-    if (template[pos] === "intro") {
-      const card = introCards[introIdx];
-      result.push({ type: "experiment_intro" as const, introIndex: introIdx });
-      lastSeen.set(card.lemma_id, pos);
-      introIdx++;
-    } else {
-      // Pick the sentence whose intro-word overlap was shown longest ago
-      let bestArrayIdx = 0;
-      let bestMinGap = -1;
-
-      for (let ai = 0; ai < available.length; ai++) {
-        const sentIdx = available[ai];
-        const overlap = sentenceIntroWords.get(sentIdx);
-        let minGap: number;
-        if (!overlap || overlap.size === 0) {
-          minGap = Infinity; // no intro words — always safe as spacer
-        } else {
-          minGap = Infinity;
-          for (const lemmaId of overlap) {
-            const seen = lastSeen.get(lemmaId);
-            // If intro card not yet shown, defer this sentence (negative gap)
-            const gap = seen !== undefined ? pos - seen : -1;
-            if (gap < minGap) minGap = gap;
-          }
-        }
-
-        if (minGap > bestMinGap || (minGap === bestMinGap && ai < bestArrayIdx)) {
-          bestMinGap = minGap;
-          bestArrayIdx = ai;
-        }
-      }
-
-      const chosenIdx = available[bestArrayIdx];
-      result.push({ type: "sentence" as const, itemIndex: chosenIdx });
-
-      // Update lastSeen for intro words in this sentence
-      const overlap = sentenceIntroWords.get(chosenIdx);
-      if (overlap) {
-        for (const lemmaId of overlap) {
-          lastSeen.set(lemmaId, pos);
-        }
-      }
-
-      available.splice(bestArrayIdx, 1);
-    }
-  }
-
-  // 4. Splice in deprecated intro_candidates at their insert_at positions
+  // 6. Splice in deprecated intro_candidates at their insert_at positions
   if (introCandidates.length > 0 && readingMode) {
     for (let ci = introCandidates.length - 1; ci >= 0; ci--) {
       const insertPos = Math.min(introCandidates[ci].insert_at, result.length);
@@ -212,7 +173,7 @@ function buildInterleavedSession(
     }
   }
 
-  // 5. Splice in verse cards at evenly-spaced positions
+  // 7. Splice in verse cards at evenly-spaced positions
   if (verseCards.length > 0) {
     const spacing = Math.floor(result.length / (verseCards.length + 1));
     for (let vi = verseCards.length - 1; vi >= 0; vi--) {

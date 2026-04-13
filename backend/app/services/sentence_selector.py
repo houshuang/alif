@@ -49,6 +49,8 @@ MAX_AUTO_INTRO_PER_SESSION = 5  # cap new words per single auto-intro call
 AUTO_INTRO_ACCURACY_FLOOR = 0.70  # pause introduction if recent accuracy below this
 INTRO_RESERVE_FRACTION = 0.2  # fraction of session slots reserved for new word introductions
 PIPELINE_BACKLOG_THRESHOLD = 40  # suppress reserved intros when acquiring pipeline exceeds this
+LOW_TIER_INTRO_SOURCES = {"wiktionary", "story_import", "manual", "flag_autocreate", "other"}
+LOW_TIER_BLOCK_BACKLOG = 60  # block low-tier auto-intros once box-1 acquiring exceeds this
 SESSION_SCAFFOLD_DECAY = 0.5  # per-appearance decay for scaffold words already in session
 NEVER_REVIEWED_BOOST = 5.0  # score multiplier for sentences targeting acquiring words with 0 reviews
 LAPSED_BOOST = 3.0  # score multiplier for sentences targeting lapsed words (re-expose soon)
@@ -349,12 +351,36 @@ def _auto_introduce_words(
     from app.services.topic_service import ensure_active_topic
 
     active_topic = ensure_active_topic(db)
-    # Request extra candidates since we filter out names/sounds
-    candidates = select_next_words(db, count=slots + 5, domain=active_topic)
+    # Request extra candidates since we filter out names/sounds and low tiers
+    candidates = select_next_words(db, count=slots + 10, domain=active_topic)
     # Never auto-introduce names, onomatopoeia, or function words
     from app.services.sentence_validator import _is_function_word
     candidates = [c for c in candidates if c.get("word_category") not in ("proper_name", "onomatopoeia")]
     candidates = [c for c in candidates if not _is_function_word(c.get("lemma_ar_bare", ""))]
+
+    # Low-tier gate: when box-1 backlog is large, do not introduce wiktionary /
+    # story_import / unsourced words. Forces focus on textbook/book/duolingo until
+    # the user has cleared the backlog of words they actively encountered.
+    box1_count = (
+        db.query(UserLemmaKnowledge)
+        .filter(
+            UserLemmaKnowledge.knowledge_state == "acquiring",
+            UserLemmaKnowledge.acquisition_box == 1,
+        )
+        .count()
+    )
+    if box1_count > LOW_TIER_BLOCK_BACKLOG:
+        before = len(candidates)
+        candidates = [
+            c for c in candidates
+            if c.get("score_breakdown", {}).get("priority_tier") not in LOW_TIER_INTRO_SOURCES
+        ]
+        if before != len(candidates):
+            logger.info(
+                f"Low-tier intro gate active: box-1 backlog={box1_count} > {LOW_TIER_BLOCK_BACKLOG}, "
+                f"filtered {before - len(candidates)} low-tier candidates"
+            )
+
     if not candidates:
         return []
 
