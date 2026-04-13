@@ -4,22 +4,22 @@ Run a comprehensive analysis of the learner's progress on production. This skill
 
 ## Prerequisites
 - SSH access to production: `ssh alif`
-- Container: `alif-backend-1`
-- DB: SQLite at `/app/data/alif.db` inside container
+- Service: `alif-backend.service`
+- DB: SQLite at `/opt/alif/backend/data/alif.db`
 
 ## Quick Analysis Script
 ```bash
-ssh alif "docker exec alif-backend-1 python3 scripts/analyze_progress.py --days 7"
+ssh alif "cd /opt/alif/backend && .venv/bin/python3 scripts/analyze_progress.py --days 7"
 ```
 
 ## Comprehensive Manual Analysis
 
 When the quick script isn't sufficient, run the following queries. All queries go through:
 ```bash
-ssh alif 'docker exec alif-backend-1 python3 -c "SCRIPT"'
+ssh alif 'cd /opt/alif/backend && .venv/bin/python3 -c "SCRIPT"'
 ```
 
-Use single quotes for outer shell, double quotes for Python strings. For complex scripts, write to `/tmp/claude/analysis.py`, then `scp` + `docker cp` + run from `/app` working directory.
+Use single quotes for outer shell, double quotes for Python strings. For complex scripts, write to `/tmp/claude/analysis.py`, then `scp alif:/tmp/` and run from `/opt/alif/backend` working directory.
 
 ### Key Queries
 

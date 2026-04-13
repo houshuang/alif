@@ -29,7 +29,7 @@ echo "  TypeScript OK"
 
 echo ""
 echo "=== Deploying to $SERVER ==="
-ssh $SERVER "cd $REMOTE_DIR && git pull && docker compose up -d --build && cd frontend && npm install && cd .. && systemctl restart alif-expo"
+ssh $SERVER "cd $REMOTE_DIR && git pull && cd backend && .venv/bin/pip install -e . --quiet && cd .. && systemctl restart alif-backend && cd frontend && npm install && cd .. && systemctl restart alif-expo"
 
 echo "Waiting for startup..."
 sleep 10
@@ -40,7 +40,7 @@ if [ $? -eq 0 ]; then
     echo "Backend OK"
 else
     echo "Backend may have failed. Checking logs..."
-    ssh $SERVER "docker logs alif-backend-1 --tail 20"
+    ssh $SERVER "journalctl -u alif-backend --no-pager -n 20"
 fi
 
 # Check Expo bundle compiles without errors

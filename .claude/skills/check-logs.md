@@ -5,7 +5,7 @@ Inspect all user interaction data from the production database and JSONL logs.
 ## Quick Summary
 
 ```bash
-ssh alif "docker exec alif-backend-1 python -c \"
+ssh alif "cd /opt/alif/backend && .venv/bin/python3 -c \"
 import json, glob, os
 from app.database import SessionLocal
 from app.models import ReviewLog, SentenceReviewLog, UserLemmaKnowledge, Lemma, Sentence
@@ -13,7 +13,7 @@ from app.models import ReviewLog, SentenceReviewLog, UserLemmaKnowledge, Lemma, 
 db = SessionLocal()
 
 # JSONL log summary
-log_dir = '/app/data/logs'
+log_dir = '/opt/alif/backend/data/logs'
 for f in sorted(glob.glob(os.path.join(log_dir, '*.jsonl'))):
     by_type = {}
     with open(f) as fh:
@@ -37,7 +37,7 @@ db.close()
 ## Detailed Review History
 
 ```bash
-ssh alif "docker exec alif-backend-1 python -c \"
+ssh alif "cd /opt/alif/backend && .venv/bin/python3 -c \"
 from app.database import SessionLocal
 from app.models import ReviewLog, Lemma, Sentence
 db = SessionLocal()
@@ -57,7 +57,7 @@ db.close()
 ## Knowledge Scores
 
 ```bash
-ssh alif "docker exec alif-backend-1 python -c \"
+ssh alif "cd /opt/alif/backend && .venv/bin/python3 -c \"
 from app.database import SessionLocal
 from app.models import UserLemmaKnowledge, Lemma
 import json, math
@@ -79,7 +79,7 @@ db.close()
 ## Full JSONL Events (today)
 
 ```bash
-ssh alif "docker exec alif-backend-1 cat /app/data/logs/interactions_$(date -u +%Y-%m-%d).jsonl"
+ssh alif "cat /opt/alif/backend/data/logs/interactions_$(date -u +%Y-%m-%d).jsonl"
 ```
 
 ## Data Capture Points

@@ -5,9 +5,9 @@ Deploy backend and/or frontend to the Hetzner production server.
 ## Backend Only
 1. Run tests: `cd backend && python3 -m pytest --tb=short -q`
 2. Commit and push to main
-3. Deploy: `ssh alif "cd /opt/alif && git pull && docker compose up -d --build"`
+3. Deploy: `ssh alif "cd /opt/alif && git pull && cd backend && .venv/bin/pip install -e . --quiet && systemctl restart alif-backend"`
 4. Wait 5s, verify: `ssh alif "curl -sf http://localhost:3000/api/stats"`
-5. If fails: `ssh alif "docker logs alif-backend-1 --tail 30"`
+5. If fails: `ssh alif 'journalctl -u alif-backend --no-pager -n 30'`
 
 ## Frontend Only
 1. Push to main
@@ -16,7 +16,7 @@ Deploy backend and/or frontend to the Hetzner production server.
 ## Full Deploy (both)
 **IMPORTANT**: Always include `npm install` — new frontend dependencies are NOT automatically picked up on the server. This has caused repeated deploy failures.
 ```bash
-ssh alif "cd /opt/alif && git pull && docker compose up -d --build && cd frontend && npm install && systemctl restart alif-expo"
+ssh alif "cd /opt/alif && git pull && cd backend && .venv/bin/pip install -e . --quiet && systemctl restart alif-backend && cd ../frontend && npm install && systemctl restart alif-expo"
 ```
 
 ## IMPORTANT: Always display Expo URL after deploy
@@ -35,7 +35,7 @@ After every deploy, also do:
 4. Do NOT wait to be asked — this is a critical step
 
 ## Notes
-- Backend: http://46.225.75.29:3000 (docker 3000→8000), container `alif-backend-1`
+- Backend: http://46.225.75.29:3000 (binds directly to 0.0.0.0:3000 via systemd ExecStart), service `alif-backend.service`
 - Frontend: Expo dev server on port 8081, runs as systemd service `alif-expo`
 - Stable URL: `alifstian.duckdns.org` → 46.225.75.29 (DuckDNS, static IP)
 - SSH alias `alif` configured in ~/.ssh/config

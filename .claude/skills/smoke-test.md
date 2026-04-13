@@ -15,4 +15,4 @@ Run a full smoke test of the backend API.
 ## Production (Hetzner)
 1. `ssh alif "curl -sf http://localhost:3000/api/stats"` — verify backend is up
 2. `curl -sf http://46.225.75.29:3000/api/stats` — verify external access
-3. `ssh alif "docker logs alif-backend-1 --tail 10"` — check for errors
+3. `ssh alif 'journalctl -u alif-backend --no-pager -n 10'` — check for errors

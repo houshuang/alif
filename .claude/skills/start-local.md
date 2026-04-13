@@ -56,7 +56,7 @@ watchman shutdown-server  # restart watchman
 ## Production (Hetzner)
 Backend and frontend run as services on the server:
 ```bash
-ssh alif "docker logs alif-backend-1 --tail 20"     # backend logs
+ssh alif 'journalctl -u alif-backend --no-pager -n 20'     # backend logs
 ssh alif "systemctl status alif-expo"                 # frontend status
 ssh alif "systemctl restart alif-expo"                # restart frontend
 ```

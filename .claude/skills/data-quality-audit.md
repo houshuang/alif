@@ -4,7 +4,7 @@ Run standard data quality checks on the production database.
 
 ## Full Audit
 ```bash
-ssh alif "docker exec alif-backend-1 python3 -c \"
+ssh alif "cd /opt/alif/backend && .venv/bin/python3 -c \"
 from app.database import SessionLocal
 from app.models import *
 from app.services.sentence_validator import FUNCTION_WORDS
@@ -98,5 +98,5 @@ When issues are found, the typical fixes are:
 
 Always log fixes to ActivityLog:
 ```bash
-ssh alif "docker exec alif-backend-1 python3 scripts/log_activity.py data_quality_audit 'Ran audit: fixed X issues' --detail '{\"issues_found\": N, \"fixed\": M}'"
+ssh alif "cd /opt/alif/backend && .venv/bin/python3 scripts/log_activity.py data_quality_audit 'Ran audit: fixed X issues' --detail '{\"issues_found\": N, \"fixed\": M}'"
 ```

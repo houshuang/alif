@@ -61,12 +61,15 @@ npm install
 npx expo start --web
 ```
 
-### Quick Start (Docker)
+### Quick Start
 
 ```bash
-cp backend/.env.example .env    # fill in your API keys
-docker compose up -d --build
-# Backend at http://localhost:3000
+cp backend/.env.example backend/.env    # fill in your API keys
+cd backend
+python3 -m venv .venv
+.venv/bin/pip install -e .
+.venv/bin/uvicorn app.main:app --port 8000
+# Backend at http://localhost:8000
 ```
 
 Then run the frontend separately (`cd frontend && npm install && npx expo start`).
@@ -77,11 +80,11 @@ The frontend reads its API URL from `frontend/app.json`:
 
 ```json
 "extra": {
-  "apiUrl": "http://localhost:3000"
+  "apiUrl": "http://localhost:8000"
 }
 ```
 
-Change this to point at wherever your backend is running. For bare python (no Docker) that's `http://localhost:8000`.
+Change this to point at wherever your backend is running.
 
 ## Deploying to a VPS (Hetzner, etc.)
 
@@ -109,15 +112,11 @@ Host alif
 ```bash
 ssh alif
 
-# Docker
-curl -fsSL https://get.docker.com | sh
-
-# Node.js (for the Expo dev server)
+# Python + Node.js (for the Expo dev server)
+apt-get update
+apt-get install -y python3 python3-venv git
 curl -fsSL https://deb.nodesource.com/setup_22.x | bash -
 apt-get install -y nodejs
-
-# Git
-apt-get install -y git
 ```
 
 ### 3. Clone and configure
@@ -127,8 +126,8 @@ cd /opt
 git clone https://github.com/YOUR_USER/alif.git
 cd alif
 
-# Create .env with your API keys
-cat > .env << 'EOF'
+# Create backend/.env with your API keys
+cat > backend/.env << 'EOF'
 GEMINI_KEY=your-gemini-key
 OPENAI_KEY=your-openai-key
 ANTHROPIC_API_KEY=your-anthropic-key
@@ -139,17 +138,39 @@ EOF
 ### 4. Start the backend
 
 ```bash
-cd /opt/alif
-docker compose up -d --build
+cd /opt/alif/backend
+python3 -m venv .venv
+.venv/bin/pip install -e .
+
+# Create systemd service
+cat > /etc/systemd/system/alif-backend.service << 'EOF'
+[Unit]
+Description=Alif Backend API
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/alif/backend
+ExecStart=/opt/alif/backend/.venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 3000
+Restart=always
+RestartSec=5
+EnvironmentFile=/opt/alif/backend/.env
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+systemctl daemon-reload
+systemctl enable --now alif-backend
 # Verify: curl http://localhost:3000/api/stats
 ```
 
-The backend runs in Docker (port 3000 → container port 8000). SQLite database is persisted in a Docker volume (`backend-data`).
+The backend runs as a plain systemd service reading from `/opt/alif/backend/.venv`. The SQLite database lives at `/opt/alif/backend/data/alif.db`.
 
 ### 5. Seed starter vocabulary
 
 ```bash
-docker exec alif-backend-1 python3 scripts/import_duolingo.py
+cd /opt/alif/backend && .venv/bin/python scripts/import_duolingo.py
 ```
 
 ### 6. Start the frontend (Expo dev server)
@@ -221,7 +242,7 @@ crontab -e
 For server-side backups, add a cron job on the server:
 ```bash
 crontab -e
-# Add: 0 */6 * * * docker cp alif-backend-1:/app/data/alif.db /opt/alif-backups/alif_$(date +\%Y\%m\%d_\%H\%M).db
+# Add: 0 */6 * * * sqlite3 /opt/alif/backend/data/alif.db 'PRAGMA wal_checkpoint(TRUNCATE);' && cp /opt/alif/backend/data/alif.db /opt/alif-backups/alif_$(date +\%Y\%m\%d_\%H\%M).db
 ```
 
 ### 10. Deploy updates
@@ -230,13 +251,13 @@ After pushing changes to your repo:
 
 ```bash
 # Backend only
-ssh alif "cd /opt/alif && git pull && docker compose up -d --build"
+ssh alif "cd /opt/alif && git pull && cd backend && .venv/bin/pip install -e . --quiet && systemctl restart alif-backend"
 
 # Frontend only
 ssh alif "cd /opt/alif && git pull && cd frontend && npm install && systemctl restart alif-expo"
 
 # Both
-ssh alif "cd /opt/alif && git pull && docker compose up -d --build && cd frontend && npm install && systemctl restart alif-expo"
+ssh alif "cd /opt/alif && git pull && cd backend && .venv/bin/pip install -e . --quiet && systemctl restart alif-backend && cd ../frontend && npm install && systemctl restart alif-expo"
 ```
 
 Or use the included deploy script: `scripts/deploy.sh` (update the `SERVER` and `EXPO_URL` variables first).
@@ -281,10 +302,10 @@ You can also add words through the app itself: Learn mode introduces words one a
 
 ## Disabling CAMeL Tools
 
-CAMeL Tools is an Arabic morphological analyzer that adds ~660MB to the Docker image. The app works without it — all morphology calls fall back to stubs gracefully. To disable:
+CAMeL Tools is an Arabic morphological analyzer that adds ~660MB of data files. The app works without it — all morphology calls fall back to stubs gracefully. To disable:
 
 1. Remove `camel-tools>=1.5.0` from `backend/pyproject.toml`
-2. Remove the `camel_data` download line from `backend/Dockerfile`
+2. Skip the `camel_data` download during install
 
 You lose: lemmatization, root extraction, MLE disambiguation, variant detection. You keep: clitic stripping (rule-based), function word handling, FSRS scheduling, LLM generation, everything else.
 

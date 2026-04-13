@@ -11,16 +11,13 @@ TIMESTAMP=$(date +%Y%m%d_%H%M%S)
 
 mkdir -p "$BACKUP_DIR"
 
-# Copy DB via docker cp
-ssh $SERVER "docker cp alif-backend-1:/app/data/alif.db /tmp/alif_backup.db" 2>/dev/null
-scp $SERVER:/tmp/alif_backup.db "$BACKUP_DIR/alif_${TIMESTAMP}.db"
-ssh $SERVER "rm /tmp/alif_backup.db"
+# Checkpoint WAL and copy DB directly from the host venv runtime path
+ssh $SERVER "sqlite3 /opt/alif/backend/data/alif.db 'PRAGMA wal_checkpoint(TRUNCATE);'" 2>/dev/null || true
+scp $SERVER:/opt/alif/backend/data/alif.db "$BACKUP_DIR/alif_${TIMESTAMP}.db"
 
 # Grab interaction logs
-ssh $SERVER "docker cp alif-backend-1:/app/data/logs /tmp/alif_logs 2>/dev/null" && \
-    mkdir -p "$BACKUP_DIR/logs" && \
-    scp -r $SERVER:/tmp/alif_logs/* "$BACKUP_DIR/logs/" 2>/dev/null && \
-    ssh $SERVER "rm -rf /tmp/alif_logs" 2>/dev/null
+mkdir -p "$BACKUP_DIR/logs"
+rsync -az $SERVER:/opt/alif/backend/data/logs/ "$BACKUP_DIR/logs/" 2>/dev/null || true
 
 # Grandfather-father-son retention
 # Keep: all from last 7 days, one per week for 4 weeks, one per month forever

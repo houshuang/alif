@@ -1,8 +1,0 @@
-__pycache__
-*.pyc
-.env
-*.db
-data/logs/*
-data/audio/*
-tests/
-.pytest_cache
