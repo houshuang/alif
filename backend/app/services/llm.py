@@ -140,75 +140,57 @@ def _generate_via_claude_cli(
 ) -> dict[str, Any]:
     """Generate completion via Claude CLI (`claude -p`). Free with Max plan.
 
-    Uses --output-format json for structured responses.
+    Delegates to `limbic.cerebellum.claude_cli.generate` so every call lands
+    in the shared cost_log (script="claude-cli", project="alif"). Keeps the
+    existing `_log_call` analytics writes for per-day JSONL stats, and
+    preserves the legacy return shape: parsed dict in json_mode, else
+    `{"content": "..."}`. Raises `LLMError` on any failure.
     """
+    from limbic.cerebellum.claude_cli import ClaudeCLIError, generate as _limbic_generate
+
     if not _claude_cli_available():
         raise LLMError("claude CLI not available — install with: npm install -g @anthropic-ai/claude-code")
 
-    cmd = [
-        "claude", "-p",
-        "--tools", "",
-        "--output-format", "json",
-        "--model", model,
-        "--no-session-persistence",
-    ]
-    if system_prompt:
-        cmd.extend(["--system-prompt", system_prompt])
-
     start = time.time()
     try:
-        proc = subprocess.run(
-            cmd,
-            input=prompt,
-            capture_output=True,
-            text=True,
+        content, _meta = _limbic_generate(
+            prompt=prompt,
+            project="alif",
+            purpose=task_type or "",
+            system=system_prompt,
+            model=model,
             timeout=timeout,
-            env=_CLEAN_ENV,
         )
-    except subprocess.TimeoutExpired:
+    except ClaudeCLIError as e:
         elapsed = time.time() - start
-        _log_call(settings.log_dir, f"claude_cli/{model}", False, elapsed,
-                  error=f"timeout after {timeout}s", prompt_length=len(prompt), task_type=task_type)
-        raise LLMError(f"claude CLI timed out after {timeout}s")
+        _log_call(
+            settings.log_dir, f"claude_cli/{model}", False, elapsed,
+            error=str(e)[:200], prompt_length=len(prompt), task_type=task_type,
+        )
+        raise LLMError(str(e)) from e
 
     elapsed = time.time() - start
+    _log_call(
+        settings.log_dir, f"claude_cli/{model}", True, elapsed,
+        prompt_length=len(prompt), task_type=task_type,
+    )
 
-    if proc.returncode != 0:
-        _log_call(settings.log_dir, f"claude_cli/{model}", False, elapsed,
-                  error=proc.stderr[:200], prompt_length=len(prompt), task_type=task_type)
-        raise LLMError(f"claude CLI exited {proc.returncode}: {proc.stderr[:200]}")
+    if not json_mode:
+        return {"content": content if isinstance(content, str) else str(content)}
 
+    # json_mode: limbic returned text (no schema was passed). Parse it.
+    text = (content if isinstance(content, str) else str(content)).strip()
+    if text.startswith("```"):
+        match = re.search(r'```(?:json)?\s*\n?([\s\S]*?)\n?\s*```', text)
+        text = match.group(1).strip() if match else text.strip()
     try:
-        response = json.loads(proc.stdout)
+        return json.loads(text)
     except json.JSONDecodeError:
-        _log_call(settings.log_dir, f"claude_cli/{model}", False, elapsed,
-                  error="invalid JSON response", prompt_length=len(prompt), task_type=task_type)
-        raise LLMError(f"claude CLI returned invalid JSON: {proc.stdout[:200]}")
-
-    if response.get("is_error"):
-        _log_call(settings.log_dir, f"claude_cli/{model}", False, elapsed,
-                  error=response.get("result", "unknown"), prompt_length=len(prompt), task_type=task_type)
-        raise LLMError(f"claude CLI error: {response.get('result', 'unknown')}")
-
-    _log_call(settings.log_dir, f"claude_cli/{model}", True, elapsed,
-              prompt_length=len(prompt), task_type=task_type)
-
-    content = response.get("result", "")
-
-    if json_mode:
-        text = content.strip()
-        if text.startswith("```"):
-            match = re.search(r'```(?:json)?\s*\n?([\s\S]*?)\n?\s*```', text)
-            text = match.group(1).strip() if match else text.strip()
         try:
-            return json.loads(text)
-        except json.JSONDecodeError:
-            try:
-                decoder = json.JSONDecoder()
-                return decoder.raw_decode(text)[0]
-            except (json.JSONDecodeError, ValueError):
-                raise LLMError(f"claude CLI returned unparseable JSON: {text[:200]}")
-    return {"content": content}
+            decoder = json.JSONDecoder()
+            return decoder.raw_decode(text)[0]
+        except (json.JSONDecodeError, ValueError):
+            raise LLMError(f"claude CLI returned unparseable JSON: {text[:200]}")
 
 
 def generate_completion(
