@@ -51,8 +51,9 @@ INTRO_RESERVE_FRACTION = 0.2  # fraction of session slots reserved for new word 
 PIPELINE_BACKLOG_THRESHOLD = 40  # suppress reserved intros when acquiring pipeline exceeds this
 SESSION_SCAFFOLD_DECAY = 0.5  # per-appearance decay for scaffold words already in session
 NEVER_REVIEWED_BOOST = 5.0  # score multiplier for sentences targeting acquiring words with 0 reviews
-OVERDUE_ESCALATION_DAYS = 3.0  # start escalating after this many days overdue
-OVERDUE_ESCALATION_MAX = 4.0  # max multiplier for severely overdue words
+LAPSED_BOOST = 3.0  # score multiplier for sentences targeting lapsed words (re-expose soon)
+OVERDUE_ESCALATION_DAYS = 0.5  # start escalating as soon as a card is past due
+OVERDUE_ESCALATION_MAX = 6.0  # max multiplier for severely overdue words
 MAX_UNKNOWN_SCAFFOLD = 2  # max unknown non-target words per sentence (prevents overwhelming density)
 MIN_SESSION_SENTENCES = 5  # minimum sentences before pulling in almost-due words
 COMPREHENSIBILITY_THRESHOLD = 0.6  # min fraction of scaffold words that must be known
@@ -818,6 +819,7 @@ def build_session(
     # words (seen but never correct) — these fall through the cracks when they
     # lose the times_seen==0 boost after their first failed review.
     boosted_acquiring_ids: set[int] = set()
+    lapsed_lemma_ids: set[int] = set()
     for lid in due_lemma_ids:
         k = knowledge_by_id.get(lid)
         if k and k.knowledge_state == "acquiring":
@@ -825,8 +827,12 @@ def build_session(
                 boosted_acquiring_ids.add(lid)
             elif (k.times_correct or 0) == 0:
                 boosted_acquiring_ids.add(lid)
+        elif k and k.knowledge_state == "lapsed":
+            lapsed_lemma_ids.add(lid)
     if boosted_acquiring_ids:
         logger.info(f"Boosted acquiring words due: {len(boosted_acquiring_ids)}")
+    if lapsed_lemma_ids:
+        logger.info(f"Lapsed words due (boosted for re-exposure): {len(lapsed_lemma_ids)}")
 
     # Build candidates
     candidates: list[SentenceCandidate] = []
@@ -930,8 +936,9 @@ def build_session(
         # Boost sentences targeting never-reviewed acquiring words so they can
         # compete with multi-word FSRS sentences in the greedy selection.
         nr_boost = NEVER_REVIEWED_BOOST if (due_covered & boosted_acquiring_ids) else 1.0
+        lapsed_boost = LAPSED_BOOST if (due_covered & lapsed_lemma_ids) else 1.0
         overdue_boost = _overdue_escalation(due_covered, overdue_days_map)
-        score = (len(due_covered) ** 1.5) * dmq * gfit * diversity * freshness * source_bonus * rescue_penalty * nr_boost * overdue_boost
+        score = (len(due_covered) ** 1.5) * dmq * gfit * diversity * freshness * source_bonus * rescue_penalty * nr_boost * lapsed_boost * overdue_boost
 
         candidates.append(SentenceCandidate(
             sentence_id=sent.id,
@@ -972,8 +979,9 @@ def build_session(
 
             rescue_penalty = 0.3 if c.sentence_id in rescue_sentence_ids else 1.0
             nr_boost = NEVER_REVIEWED_BOOST if (overlap & boosted_acquiring_ids) else 1.0
+            lapsed_boost = LAPSED_BOOST if (overlap & lapsed_lemma_ids) else 1.0
             overdue_boost = _overdue_escalation(overlap, overdue_days_map)
-            c.score = (len(overlap) ** 1.5) * dmq * gfit * diversity * freshness * source_bonus * session_diversity * rescue_penalty * nr_boost * overdue_boost
+            c.score = (len(overlap) ** 1.5) * dmq * gfit * diversity * freshness * source_bonus * session_diversity * rescue_penalty * nr_boost * lapsed_boost * overdue_boost
             c.score_components = {
                 "due_coverage": len(overlap),
                 "difficulty_match": round(dmq, 2),
@@ -984,6 +992,7 @@ def build_session(
                 "session_diversity": round(session_diversity, 2),
                 "rescue": rescue_penalty < 1.0,
                 "never_reviewed_boost": nr_boost,
+                "lapsed_boost": lapsed_boost,
                 "overdue_boost": round(overdue_boost, 2),
             }
 
