@@ -4,6 +4,27 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-04-13: Intro Card Ordering + Low-Tier Auto-Intro Gate
+
+**Problem**: User reported (1) wiktionary words appearing in sessions while ~91 OCR-sourced acquiring words sit in box 1 unprocessed; (2) intro cards sometimes appearing AFTER the first sentence containing that word.
+
+**Findings**:
+- Wiktionary leak: `select_next_words` uses tier-based priority (book=200, story=10, textbook_scan=8, …, wiktionary=0). Once the encountered queue for high-tier sources is exhausted (all OCR `encountered` words have been moved to `acquiring`), `select_next_words` falls through to wiktionary tier=0. The pipeline backlog gate suppresses *reserved* intro slots when `acquiring > 40`, but it's bypassed when sessions are undersized (`slots_for_intro = max(intro_slots, undersized_slots)`).
+- Intro card ordering: `buildInterleavedSession` used a fixed template `[intro, intro, sentence×3, intro, sentence×3, intro, …]`. With 5+ intros and overlapping target-word coverage, intro cards 3–5 inevitably appeared after their first sentence. The slot picker's "max-gap" heuristic could only defer sentences when alternatives existed.
+- DB snapshot at the time of the report: 91 box-1 (63 textbook_scan, 14 wiktionary, 8 book, 3 story_import, 2 avp_a1, 1 duolingo); active stories had 0 unintroduced unknowns (the apparent backlog was variants).
+
+**Changes**:
+- `sentence_selector.py`: new `LOW_TIER_INTRO_SOURCES = {"wiktionary", "story_import", "manual", "flag_autocreate", "other"}` and `LOW_TIER_BLOCK_BACKLOG = 60`. In `_auto_introduce_words`, when box-1 acquiring count > 60, candidates whose `priority_tier` is in the low-tier set are filtered out. Active book/story words (tier `book_pX` / `active_story`) and high-tier sources (`textbook_scan`, `duolingo`, `avp_a1`) are unaffected.
+- `frontend/app/index.tsx`: rewrote `buildInterleavedSession` from a template-based to an event-driven algorithm. New invariant: an intro card is always emitted immediately before the first sentence containing its lemma. Sentences with no intro overlap are sorted first as a warm-up. Net −83 lines.
+
+**Expected effect**: After deploy, when the box-1 backlog is large the auto-introducer will pull only from textbook_scan / duolingo / book / active stories. As the user clears box-1, low-tier sources unlock again. Intro cards will always precede their target word's first sentence.
+
+**Verification**:
+- `pytest tests/test_sentence_selector.py tests/test_word_selector.py tests/test_reintro.py` — all pass (1 pre-existing unrelated failure deselected).
+- Frontend `npx jest --testPathIgnorePatterns="typecheck"` — all pass.
+
+---
+
 ## 2026-04-13: Lapse Recovery Tuning — desired_retention=0.95 + Lapsed Boost
 
 **Problem**: User flagged concern that lapses on high-stability words might set them back too far. Investigated with full replay analysis over 21,363 FSRS reviews across 1,550 lemmas (see `scripts/optimize_fsrs.py`, `scripts/replay_fsrs.py`).
