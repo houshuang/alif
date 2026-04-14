@@ -1,5 +1,7 @@
 import json
 
+import pytest
+
 from app.models import Root, Lemma, UserLemmaKnowledge
 from app.services.sentence_validator import strip_diacritics
 from scripts.import_duolingo import (
@@ -26,6 +28,7 @@ def test_load_lexemes():
     assert len(lexemes) == 302
 
 
+@pytest.mark.slow
 def test_run_import(db_session):
     result = run_import(db_session)
 
@@ -69,6 +72,7 @@ def test_run_import(db_session):
     assert phrase is None
 
 
+@pytest.mark.slow
 def test_import_idempotent(db_session):
     result1 = run_import(db_session)
     count_after_first = db_session.query(Lemma).count()

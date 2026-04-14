@@ -135,6 +135,7 @@ def _generate_via_claude_cli(
     system_prompt: str,
     model: str,
     json_mode: bool = True,
+    json_schema: dict | None = None,
     timeout: int = 120,
     task_type: str | None = None,
 ) -> dict[str, Any]:
@@ -145,6 +146,10 @@ def _generate_via_claude_cli(
     existing `_log_call` analytics writes for per-day JSONL stats, and
     preserves the legacy return shape: parsed dict in json_mode, else
     `{"content": "..."}`. Raises `LLMError` on any failure.
+
+    When json_schema is provided, uses Claude CLI's --json-schema for
+    constrained decoding — the model can ONLY produce valid JSON matching
+    the schema. No text parsing needed; result comes back pre-parsed.
     """
     from limbic.cerebellum.claude_cli import ClaudeCLIError, generate as _limbic_generate
 
@@ -159,6 +164,7 @@ def _generate_via_claude_cli(
             purpose=task_type or "",
             system=system_prompt,
             model=model,
+            schema=json_schema,
             timeout=timeout,
         )
     except ClaudeCLIError as e:
@@ -175,28 +181,47 @@ def _generate_via_claude_cli(
         prompt_length=len(prompt), task_type=task_type,
     )
 
-    if not json_mode:
+    if not json_mode and not json_schema:
         return {"content": content if isinstance(content, str) else str(content)}
 
-    # json_mode: limbic returned text (no schema was passed). Parse it.
+    # With json_schema, limbic returns a pre-parsed dict from structured_output
+    if isinstance(content, dict):
+        return content
+
+    # json_mode without schema: limbic returned text. Parse it.
     text = (content if isinstance(content, str) else str(content)).strip()
-    if text.startswith("```"):
-        match = re.search(r'```(?:json)?\s*\n?([\s\S]*?)\n?\s*```', text)
-        text = match.group(1).strip() if match else text.strip()
+
+    # Try direct parse first (model returned pure JSON)
     try:
         return json.loads(text)
     except json.JSONDecodeError:
+        pass
+
+    # Models often wrap JSON in markdown fences with explanation text before/after.
+    # Search anywhere in the response, not just at the start.
+    fence_match = re.search(r'```(?:json)?\s*\n?([\s\S]*?)\n?\s*```', text)
+    if fence_match:
         try:
-            decoder = json.JSONDecoder()
-            return decoder.raw_decode(text)[0]
-        except (json.JSONDecodeError, ValueError):
-            raise LLMError(f"claude CLI returned unparseable JSON: {text[:200]}")
+            return json.loads(fence_match.group(1).strip())
+        except json.JSONDecodeError:
+            pass
+
+    # Last resort: find the first { ... } JSON object in the text
+    brace_match = re.search(r'\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}', text)
+    if brace_match:
+        try:
+            return json.loads(brace_match.group(0))
+        except json.JSONDecodeError:
+            pass
+
+    raise LLMError(f"claude CLI returned unparseable JSON: {text[:200]}")
 
 
 def generate_completion(
     prompt: str,
     system_prompt: str = "",
     json_mode: bool = True,
+    json_schema: dict | None = None,
     temperature: float = 0.7,
     timeout: int = 60,
     model_override: str | None = None,
@@ -208,6 +233,10 @@ def generate_completion(
     Returns parsed JSON dict when json_mode=True, otherwise raw content string
     wrapped as {"content": "..."}.
 
+    json_schema: when provided with CLI models, uses --json-schema for
+    constrained decoding. The model can ONLY produce valid JSON matching the
+    schema — no text wrapping, no parsing failures. Implies json_mode=True.
+
     When model_override is provided (e.g. "claude_sonnet", "claude_haiku", "openai"),
     only that specific model is tried — no fallback to others.
 
@@ -217,6 +246,9 @@ def generate_completion(
 
     task_type: optional label for analytics (e.g. "sentence_gen", "quality_review").
     """
+    if json_schema:
+        json_mode = True
+
     messages = []
     if system_prompt:
         messages.append({"role": "system", "content": system_prompt})
@@ -238,6 +270,7 @@ def generate_completion(
                 system_prompt=system_prompt,
                 model=CLAUDE_CLI_MODELS[cli_model],
                 json_mode=json_mode,
+                json_schema=json_schema,
                 timeout=timeout,
                 task_type=task_type,
             )

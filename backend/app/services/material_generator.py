@@ -1433,12 +1433,36 @@ def verify_sentence_mappings(db, sentence_ids: list[int]) -> dict:
         return stats
 
     # ── LLM phase: no DB session needed ──
+    _batch_verify_schema = {
+        "type": "object",
+        "properties": {
+            "flagged": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "sentence": {"type": "integer"},
+                        "position": {"type": "integer"},
+                        "surface": {"type": "string"},
+                        "current_gloss": {"type": "string"},
+                        "correct_lemma_ar": {"type": "string"},
+                        "correct_gloss": {"type": "string"},
+                        "correct_pos": {"type": "string"},
+                    },
+                    "required": ["sentence", "position", "correct_lemma_ar", "correct_gloss", "correct_pos"],
+                },
+            },
+        },
+        "required": ["flagged"],
+    }
+
     prompt = f"""Check these {len(sentence_blocks)} Arabic sentences for wrong word-lemma mappings.
 
 For each sentence, check if any word's lemma gloss doesn't match what the word means in context.
 
 Flag as WRONG:
 - Gloss doesn't match the word's meaning in this sentence
+- Homograph collisions: same consonants but different meanings (e.g. احد "Sunday" vs أحد "one/someone")
 - A clitic prefix (و/ف/ب/ل/ك) wrongly stripped from a root letter
 - Wrong part of speech (noun vs verb homograph)
 
@@ -1447,22 +1471,21 @@ Do NOT flag:
 - Plural/feminine/dual mapped to base lemma
 - Possessive suffixes mapped to base noun
 
-Return JSON: {{"flagged": []}} if all OK, or:
-{{"flagged": [
-  {{"sentence": <index>, "position": <word position>, "surface": "<word>", "current_gloss": "<wrong>", "correct_lemma_ar": "<bare>", "correct_gloss": "<correct>", "correct_pos": "<pos>"}}
-]}}
+When in doubt, flag it — a false positive just causes a retry, but a false negative reaches the user.
+
+Return flagged array: empty if all OK, or one entry per wrong mapping.
 
 Sentences:
 {chr(10).join(sentence_blocks)}"""
 
-    system = "You are an Arabic morphology expert. Check mappings against English translations. Only flag clear errors."
+    system = "You are an Arabic morphology expert. Check mappings against English translations. Flag any mapping where the gloss doesn't fit."
     flagged = None
     for model in ("claude_haiku",):
         try:
             result = generate_completion(
                 prompt=prompt,
                 system_prompt=system,
-                json_mode=True,
+                json_schema=_batch_verify_schema,
                 temperature=0.0,
                 model_override=model,
                 timeout=30,

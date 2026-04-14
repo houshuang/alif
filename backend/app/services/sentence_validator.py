@@ -89,34 +89,35 @@ FUNCTION_WORD_GLOSSES: dict[str, str] = {
     # These are extremely common and must be recognized as function words.
     # Without them, sentences fail comprehensibility gate and corpus import.
     # بِـ (in/by/with)
-    "به": "in/by him", "بها": "in/by her", "بهم": "in/by them",
+    "به": "in/by him", "بها": "in/by her", "بهم": "in/by them", "بهما": "in/by them (dual)",
     "بك": "in/by you", "بكم": "in/by you (pl)", "بي": "in/by me", "بنا": "in/by us",
     # لِـ (for/to)
-    "له": "for him", "لها": "for her", "لهم": "for them",
+    "له": "for him", "لها": "for her", "لهم": "for them", "لهما": "for them (dual)",
     "لك": "for you", "لكم": "for you (pl)", "لي": "for me", "لنا": "for us",
     # عَنْ (about/from)
-    "عنه": "about him", "عنها": "about her", "عنهم": "about them",
+    "عنه": "about him", "عنها": "about her", "عنهم": "about them", "عنهما": "about them (dual)",
     "عنك": "about you", "عني": "about me", "عنا": "about us",
     # مِنْ (from)
-    "منه": "from him", "منها": "from her", "منهم": "from them",
+    "منه": "from him", "منها": "from her", "منهم": "from them", "منهما": "from them (dual)",
     "منك": "from you", "مني": "from me", "منا": "from us",
     # فِي (in)
-    "فيه": "in him/it", "فيها": "in her/it", "فيهم": "in them",
+    "فيه": "in him/it", "فيها": "in her/it", "فيهم": "in them", "فيهما": "in them (dual)",
     "فيك": "in you", "فينا": "in us",
     # عَلَى (on/upon)
-    "عليه": "on him", "عليها": "on her", "عليهم": "on them",
+    "عليه": "on him", "عليها": "on her", "عليهم": "on them", "عليهما": "on them (dual)",
     "عليك": "on you", "عليكم": "on you (pl)", "علينا": "on us",
     # إِلَى (to)
     "اليه": "to him", "إليه": "to him", "اليها": "to her", "إليها": "to her",
-    "اليهم": "to them", "إليهم": "to them", "اليك": "to you", "إليك": "to you",
+    "اليهم": "to them", "إليهم": "to them", "اليهما": "to them (dual)", "إليهما": "to them (dual)",
+    "اليك": "to you", "إليك": "to you",
     "الينا": "to us", "إلينا": "to us",
     # مَعَ (with)
-    "معه": "with him", "معها": "with her", "معهم": "with them",
+    "معه": "with him", "معها": "with her", "معهم": "with them", "معهما": "with them (dual)",
     "معك": "with you", "معي": "with me", "معنا": "with us",
     # لَدَى / عِنْدَ (at/with)
-    "لديه": "he has", "لديها": "she has", "لديهم": "they have",
+    "لديه": "he has", "لديها": "she has", "لديهم": "they have", "لديهما": "they (dual) have",
     "لديك": "you have", "لدي": "I have", "لدينا": "we have",
-    "عنده": "he has", "عندها": "she has", "عندهم": "they have",
+    "عنده": "he has", "عندها": "she has", "عندهم": "they have", "عندهما": "they (dual) have",
     "عندك": "you have", "عندي": "I have", "عندنا": "we have",
 }
 
@@ -970,6 +971,28 @@ def verify_word_mappings_llm(
     return [c["position"] for c in corrections]
 
 
+_MAPPING_VERIFICATION_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "issues": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "position": {"type": "integer"},
+                    "correct_lemma_ar": {"type": "string"},
+                    "correct_gloss": {"type": "string"},
+                    "correct_pos": {"type": "string"},
+                    "explanation": {"type": "string"},
+                },
+                "required": ["position", "correct_lemma_ar", "correct_gloss", "correct_pos", "explanation"],
+            },
+        },
+    },
+    "required": ["issues"],
+}
+
+
 def verify_and_correct_mappings_llm(
     arabic_text: str,
     english_text: str,
@@ -983,7 +1006,10 @@ def verify_and_correct_mappings_llm(
         None: verification failed (LLM unavailable) — caller must NOT
               treat this as "verified OK"; sentence should be rejected/skipped.
 
-    Tries Gemini first, falls back to Claude Haiku.
+    Uses --json-schema for constrained decoding so the CLI model's output
+    is guaranteed valid JSON. Without this, CLI models wrap JSON in
+    explanation text which caused silent parse failures — Sonnet's correct
+    answers were discarded and the weak API Haiku fallback missed errors.
     """
     from app.services.llm import generate_completion, AllProvidersFailed
 
@@ -1027,19 +1053,18 @@ Words marked [via clitic stripping] had a prefix/suffix removed during lookup �
 
 When in doubt, flag it — a false positive just causes a retry, but a false negative reaches the user.
 
-Return JSON: {{"issues": []}} if all correct, or:
-{{"issues": [{{"position": <int>, "correct_lemma_ar": "<bare form>", "correct_gloss": "<English>", "correct_pos": "<noun/verb/adj/etc>", "explanation": "<brief>"}}]}}"""
+Return issues array: empty if all correct, or one entry per wrong mapping."""
 
     system = "You are an Arabic morphology expert. Check each mapping against the English translation. Flag any mapping where the gloss doesn't fit the sentence meaning."
 
-    # Try Claude CLI first (free), then fall back to Anthropic API.
-    # GPT-5.2 excluded — too aggressive at flagging Arabic morphology.
+    # Try Claude CLI with structured output (free), then API fallback.
+    # Structured output (--json-schema) guarantees valid JSON from CLI models.
     for model in ("claude_sonnet", "claude_haiku", "anthropic"):
         try:
             result = generate_completion(
                 prompt=prompt,
                 system_prompt=system,
-                json_mode=True,
+                json_schema=_MAPPING_VERIFICATION_SCHEMA,
                 temperature=0.0,
                 model_override=model,
                 task_type="mapping_verification",

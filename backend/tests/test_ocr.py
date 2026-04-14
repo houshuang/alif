@@ -197,6 +197,7 @@ class TestProcessTextbookPage:
         assert ulk.source == "textbook_scan"
         assert ulk.fsrs_card_json is None
 
+    @pytest.mark.slow
     @patch("app.services.ocr_service.extract_words_from_image")
     def test_process_mixed_new_and_existing(self, mock_extract, mock_backfill, db_session):
         from app.services.ocr_service import process_textbook_page
@@ -219,6 +220,7 @@ class TestProcessTextbookPage:
         assert upload.existing_words == 1  # كتاب
         assert upload.new_words == 2  # جميل + قلم
 
+    @pytest.mark.slow
     @patch("app.services.ocr_service.extract_words_from_image")
     def test_process_deduplicates_within_page(self, mock_extract, mock_backfill, db_session):
         from app.services.ocr_service import process_textbook_page

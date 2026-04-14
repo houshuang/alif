@@ -1,5 +1,7 @@
 from datetime import datetime, timezone
 
+import pytest
+
 from app.models import Lemma, UserLemmaKnowledge, Sentence, SentenceWord, ReviewLog
 from app.services.fsrs_service import create_new_card
 
@@ -207,6 +209,7 @@ def test_stats(client, db_session):
     assert data["learning"] >= 1
 
 
+@pytest.mark.slow
 def test_import_duolingo(client, db_session):
     resp = client.post("/api/import/duolingo")
     assert resp.status_code == 200
