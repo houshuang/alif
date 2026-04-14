@@ -184,6 +184,7 @@ class TestCreateBookSentences:
 class TestImportBookEndToEnd:
     @patch("app.services.book_import_service.extract_cover_metadata")
     @patch("app.services.book_import_service.ocr_pages_parallel")
+    @pytest.mark.slow
     @patch("app.services.book_import_service.cleanup_and_segment")
     @patch("app.services.book_import_service.translate_sentences")
     def test_full_pipeline(
@@ -240,6 +241,7 @@ class TestImportBookEndToEnd:
 
     @patch("app.services.book_import_service.extract_cover_metadata")
     @patch("app.services.book_import_service.ocr_pages_parallel")
+    @pytest.mark.slow
     @patch("app.services.book_import_service.cleanup_and_segment")
     @patch("app.services.book_import_service.translate_sentences")
     def test_title_override(

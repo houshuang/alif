@@ -157,6 +157,7 @@ class TestProcessTextbookPage:
         ).first()
         assert ulk.total_encounters == 6  # was 5, now 6
 
+    @pytest.mark.slow
     @patch("app.services.ocr_service.extract_words_from_image")
     def test_process_imports_new_words(self, mock_extract, mock_backfill, db_session):
         from app.services.ocr_service import process_textbook_page

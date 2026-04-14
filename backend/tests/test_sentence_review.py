@@ -437,6 +437,7 @@ class TestReviewLogTags:
 
 
 class TestAPIEndpoints:
+    @pytest.mark.slow
     def test_next_sentences_endpoint(self, client, db_session):
         _seed_word(db_session, 1, "كتاب", "book", with_card=True)
         # Make it due
