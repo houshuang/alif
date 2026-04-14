@@ -4,6 +4,17 @@
 
 ---
 
+## Mapping Verification (2026-04-14)
+- [DONE] Fix JSON parse bug — CLI models' structured output was being silently discarded, falling back to weak API Haiku
+- [DONE] Add `--json-schema` constrained decoding to verification calls
+- [DONE] Add 12 missing dual function words (لهما, بهما, etc.)
+- [TODO] Use `json_schema` in other `generate_completion` callers that use `json_mode=True` — same parse bug may affect sentence generation, enrichment, etc.
+- [TODO] Add `mappings_verified_at IS NOT NULL` filter to sentence_selector as safety net — currently all active sentences are verified, but a future import path could break this
+- [TODO] Re-verify LLM-generated sentences from Apr 12-14 that were verified during the broken period (343 sentences)
+- [TODO] Audit `test_next_sentences_endpoint` (20 min!) — likely makes real LLM calls through quality gates; should mock or restructure
+
+---
+
 ## Lapse Recovery Tuning Follow-ups (2026-04-13)
 - [DONE] `desired_retention=0.95` + `LAPSED_BOOST=3.0` + tightened overdue escalation (0.5d/6x) — see experiment log
 - [TODO] **CHECK 2026-04-20**: Re-run `replay_fsrs.py` on fresh DB, count lapses in last 7d with no follow-up. Expected drop: 85 → <40. If still >60, investigate selector diversity penalties.

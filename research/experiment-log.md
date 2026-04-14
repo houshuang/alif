@@ -4,6 +4,24 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-04-14: Fix Silent JSON Parse Failure in Mapping Verification
+
+**Problem**: User kept reporting wrong lemmas in corpus sentences despite verification pipeline existing. Examples: أحد→"Sunday" (should be "one"), شرك→"partner" (should be "trap"), لهما→"God" (should be "for them two").
+
+**Root cause**: `_generate_via_claude_cli` only stripped markdown fences when the response *started* with `` ``` ``. CLI models (Sonnet/Haiku) wrap JSON in explanation text, so `text.startswith("```")` was always False. The JSON parse silently failed, falling back from Sonnet CLI → Haiku CLI → API Haiku (weakest model). Evidence: 1,225 verification calls on Apr 13, with 355 triples of sonnet→haiku→API for the same prompts. All CLI calls logged as "success" (network succeeded) but JSON extraction failed post-logging.
+
+**Fix**:
+- Use `--json-schema` (constrained decoding) for verification calls — model can only produce valid JSON matching the schema. Sonnet's output goes straight through.
+- Improved text-based JSON fallback: search for fences/braces anywhere in text, not just at start.
+- Added 12 missing dual function words (لهما, بهما, عنهما, etc.) — prevented preposition+pronoun forms from mapping to content lemmas.
+- Improved batch verification prompt (added homograph examples, "when in doubt flag it").
+
+**Backfill**: Reset `mappings_verified_at` on 65 active corpus sentences. Warm cache will re-verify with Sonnet + structured output.
+
+**Verification**: Tested exact prompts with Sonnet — catches all errors trivially. The issue was never model quality, purely JSON parsing.
+
+---
+
 ## 2026-04-13: Intro Card Ordering + Low-Tier Auto-Intro Gate
 
 **Problem**: User reported (1) wiktionary words appearing in sessions while ~91 OCR-sourced acquiring words sit in box 1 unprocessed; (2) intro cards sometimes appearing AFTER the first sentence containing that word.

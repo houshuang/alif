@@ -30,7 +30,7 @@ npx expo start --web  # opens on localhost:8081
 - **Offline**: AsyncStorage sync queue for all mutable actions. Auto-prefetch, background refresh, 12s fetch timeout with stale-cache fallback. See `docs/frontend-files.md`.
 
 ## LLM Architecture
-- **Claude CLI (`claude -p`)** is the primary LLM backend for ALL batch/background text tasks — free via Max plan. Integrated into `llm.py` as `claude_sonnet`/`claude_haiku` model overrides (default when no override specified). Also: `generate_structured()` + `generate_with_tools()` in `claude_code.py`.
+- **Claude CLI (`claude -p`)** is the primary LLM backend for ALL batch/background text tasks — free via Max plan. Integrated into `llm.py` as `claude_sonnet`/`claude_haiku` model overrides (default when no override specified). Also: `generate_structured()` + `generate_with_tools()` in `claude_code.py`. **For JSON responses, prefer `json_schema=` over `json_mode=True`** — uses `--json-schema` constrained decoding which guarantees valid JSON. Without it, CLI models wrap JSON in explanation text that can fail to parse (caused a major verification bug 2026-04-14).
 - **Model routing**: `claude_sonnet` for sentence generation (87% pass rate), `claude_haiku` for quality gate + enrichment + tagging + flags + disambiguation + verification. Story gen: Claude Opus via `claude_code.py` (retry loop).
 - **Latency-sensitive paths use Anthropic API directly** (`model_override="anthropic"` in `llm.py`) — CLI subprocess startup adds ~2-3s which is unacceptable for interactive UX. Current direct-API paths: interactive chat (`/api/chat/ask`). **Do NOT change these to CLI without asking** — the speed difference matters.
 - **API fallback chain** (when CLI unavailable): GPT-5.2 -> Claude Haiku API.
@@ -157,7 +157,9 @@ Phase 3: Write — open/reuse session, write results, commit (milliseconds)
 
 ## Testing
 ```bash
-cd backend && python3 -m pytest
+cd backend && python3 -m pytest          # fast tests only (~2 min), slow tests auto-skipped
+cd backend && python3 -m pytest -m slow  # slow tests only (real LLM calls, ~40 min)
+cd backend && python3 -m pytest -m ''    # all tests
 cd frontend && npm test
 ```
 
