@@ -1,0 +1,6793 @@
+{
+  "sentences_corrected": {
+    "sentences": [
+      {
+        "es": "La hermana es muy bonita",
+        "no": "Søsteren er veldig pen",
+        "word_mapping": [
+          {
+            "position": 0,
+            "form": "La",
+            "lemma_es": "la",
+            "grammatical_note": "artikkel.fem.sg"
+          },
+          {
+            "position": 1,
+            "form": "hermana",
+            "lemma_es": "hermana",
+            "grammatical_note": "substantiv.fem.sg"
+          },
+          {
+            "position": 2,
+            "form": "es",
+            "lemma_es": "ser",
+            "grammatical_note": "presens.3sg"
+          },
+          {
+            "position": 3,
+            "form": "muy",
+            "lemma_es": "muy",
+            "grammatical_note": "adverb"
+          },
+          {
+            "position": 4,
+            "form": "bonita",
+            "lemma_es": "bonito",
+            "grammatical_note": "adjektiv.fem.sg"
+          }
+        ],
+        "distractors_no": [
+          "Broren er veldig pen",
+          "Søstrene er veldig pen",
+          "Søsteren er veldig stygg"
+        ],
+        "difficulty_rank": 1
+      },
+      {
+        "es": "El niño y la niña son amigos",
+        "no": "Gutten og jenta er venner",
+        "word_mapping": [
+          {
+            "position": 0,
+            "form": "El",
+            "lemma_es": "el",
+            "grammatical_note": "artikkel.mask.sg"
+          },
+          {
+            "position": 1,
+            "form": "niño",
+            "lemma_es": "niño",
+            "grammatical_note": "substantiv.mask.sg"
+          },
+          {
+            "position": 2,
+            "form": "y",
+            "lemma_es": "y",
+            "grammatical_note": "konjunksjon"
+          },
+          {
+            "position": 3,
+            "form": "la",
+            "lemma_es": "la",
+            "grammatical_note": "artikkel.fem.sg"
+          },
+          {
+            "position": 4,
+            "form": "niña",
+            "lemma_es": "niña",
+            "grammatical_note": "substantiv.fem.sg"
+          },
+          {
+            "position": 5,
+            "form": "son",
+            "lemma_es": "ser",
+            "grammatical_note": "presens.3pl"
+          },
+          {
+            "position": 6,
+            "form": "amigos",
+            "lemma_es": "amigo",
+            "grammatical_note": "substantiv.mask.pl"
+          }
+        ],
+        "distractors_no": [
+          "Gutten og jenta er brødre",
+          "Gutten og gutten er venner",
+          "Guttene og jentene er venner"
+        ],
+        "difficulty_rank": 2
+      },
+      {
+        "es": "La familia va a la calle",
+        "no": "Familien går til gaten",
+        "word_mapping": [
+          {
+            "position": 0,
+            "form": "La",
+            "lemma_es": "la",
+            "grammatical_note": "artikkel.fem.sg"
+          },
+          {
+            "position": 1,
+            "form": "familia",
+            "lemma_es": "familia",
+            "grammatical_note": "substantiv.fem.sg"
+          },
+          {
+            "position": 2,
+            "form": "va",
+            "lemma_es": "ir",
+            "grammatical_note": "presens.3sg"
+          },
+          {
+            "position": 3,
+            "form": "a",
+            "lemma_es": "a",
+            "grammatical_note": "preposisjon"
+          },
+          {
+            "position": 4,
+            "form": "la",
+            "lemma_es": "la",
+            "grammatical_note": "artikkel.fem.sg"
+          },
+          {
+            "position": 5,
+            "form": "calle",
+            "lemma_es": "calle",
+            "grammatical_note": "substantiv.fem.sg"
+          }
+        ],
+        "distractors_no": [
+          "Familien kommer til gaten",
+          "Familiene går til gaten",
+          "Familien går til byen"
+        ],
+        "difficulty_rank": 3
+      },
+      {
+        "es": "El amigo tiene un perro pequeño",
+        "no": "Vennen har en liten hund",
+        "word_mapping": [
+          {
+            "position": 0,
+            "form": "El",
+            "lemma_es": "el",
+            "grammatical_note": "artikkel.mask.sg"
+          },
+          {
+            "position": 1,
+            "form": "amigo",
+            "lemma_es": "amigo",
+            "grammatical_note": "substantiv.mask.sg"
+          },
+          {
+            "position": 2,
+            "form": "tiene",
+            "lemma_es": "tener",
+            "grammatical_note": "presens.3sg"
+          },
+          {
+            "position": 3,
+            "form": "un",
+            "lemma_es": "un",
+            "grammatical_note": "artikkel.ubestemt.mask.sg"
+          },
+          {
+            "position": 4,
+            "form": "perro",
+            "lemma_es": "perro",
+            "grammatical_note": "substantiv.mask.sg"
+          },
+          {
+            "position": 5,
+            "form": "pequeño",
+            "lemma_es": "pequeño",
+            "grammatical_note": "adjektiv.mask.sg"
+          }
+        ],
+        "distractors_no": [
+          "Vennen har en stor hund",
+          "Venninnen har en liten hund",
+          "Vennen har en liten katt"
+        ],
+        "difficulty_rank": 4
+      },
+      {
+        "es": "Dos hermanas beben leche en casa",
+        "no": "To søstre drikker melk hjemme",
+        "word_mapping": [
+          {
+            "position": 0,
+            "form": "Dos",
+            "lemma_es": "dos",
+            "grammatical_note": "tall"
+          },
+          {
+            "position": 1,
+            "form": "hermanas",
+            "lemma_es": "hermana",
+            "grammatical_note": "substantiv.fem.pl"
+          },
+          {
+            "position": 2,
+            "form": "beben",
+            "lemma_es": "beber",
+            "grammatical_note": "presens.3pl"
+          },
+          {
+            "position": 3,
+            "form": "leche",
+            "lemma_es": "leche",
+            "grammatical_note": "substantiv.fem.sg"
+          },
+          {
+            "position": 4,
+            "form": "en",
+            "lemma_es": "en",
+            "grammatical_note": "preposisjon"
+          },
+          {
+            "position": 5,
+            "form": "casa",
+            "lemma_es": "casa",
+            "grammatical_note": "substantiv.fem.sg"
+          }
+        ],
+        "distractors_no": [
+          "To brødre drikker melk hjemme",
+          "To søstre spiser melk hjemme",
+          "To søstre drikker kaffe hjemme"
+        ],
+        "difficulty_rank": 5
+      },
+      {
+        "es": "La madre trabaja en la ciudad",
+        "no": "Moren jobber i byen",
+        "word_mapping": [
+          {
+            "position": 0,
+            "form": "La",
+            "lemma_es": "la",
+            "grammatical_note": "artikkel.fem.sg"
+          },
+          {
+            "position": 1,
+            "form": "madre",
+            "lemma_es": "madre",
+            "grammatical_note": "substantiv.fem.sg"
+          },
+          {
+            "position": 2,
+            "form": "trabaja",
+            "lemma_es": "trabajar",
+            "grammatical_note": "presens.3sg"
+          },
+          {
+            "position": 3,
+            "form": "en",
+            "lemma_es": "en",
+            "grammatical_note": "preposisjon"
+          },
+          {
+            "position": 4,
+            "form": "la",
+            "lemma_es": "la",
+            "grammatical_note": "artikkel.fem.sg"
+          },
+          {
+            "position": 5,
+            "form": "ciudad",
+            "lemma_es": "ciudad",
+            "grammatical_note": "substantiv.fem.sg"
+          }
+        ],
+        "distractors_no": [
+          "Faren jobber i byen",
+          "Moren bor i byen",
+          "Moren jobber på skolen"
+        ],
+        "difficulty_rank": 6
+      },
+      {
+        "es": "Las amigas hablan en la escuela",
+        "no": "Venninnene snakker på skolen",
+        "word_mapping": [
+          {
+            "position": 0,
+            "form": "Las",
+            "lemma_es": "las",
+            "grammatical_note": "artikkel.fem.pl"
+          },
+          {
+            "position": 1,
+            "form": "amigas",
+            "lemma_es": "amiga",
+            "grammatical_note": "substantiv.fem.pl"
+          },
+          {
+            "position": 2,
+            "form": "hablan",
+            "lemma_es": "hablar",
+            "grammatical_note": "presens.3pl"
+          },
+          {
+            "position": 3,
+            "form": "en",
+            "lemma_es": "en",
+            "grammatical_note": "preposisjon"
+          },
+          {
+            "position": 4,
+            "form": "la",
+            "lemma_es": "la",
+            "grammatical_note": "artikkel.fem.sg"
+          },
+          {
+            "position": 5,
+            "form": "escuela",
+            "lemma_es": "escuela",
+            "grammatical_note": "substantiv.fem.sg"
+          }
+        ],
+        "distractors_no": [
+          "Vennene snakker på skolen",
+          "Venninnene arbeider på skolen",
+          "Venninnene snakker i byen"
+        ],
+        "difficulty_rank": 7
+      },
+      {
+        "es": "Los hermanos corren con el gato",
+        "no": "Brødrene løper med katten",
+        "word_mapping": [
+          {
+            "position": 0,
+            "form": "Los",
+            "lemma_es": "los",
+            "grammatical_note": "artikkel.mask.pl"
+          },
+          {
+            "position": 1,
+            "form": "hermanos",
+            "lemma_es": "hermano",
+            "grammatical_note": "substantiv.mask.pl"
+          },
+          {
+            "position": 2,
+            "form": "corren",
+            "lemma_es": "correr",
+            "grammatical_note": "presens.3pl"
+          },
+          {
+            "position": 3,
+            "form": "con",
+            "lemma_es": "con",
+            "grammatical_note": "preposisjon"
+          },
+          {
+            "position": 4,
+            "form": "el",
+            "lemma_es": "el",
+            "grammatical_note": "artikkel.mask.sg"
+          },
+          {
+            "position": 5,
+            "form": "gato",
+            "lemma_es": "gato",
+            "grammatical_note": "substantiv.mask.sg"
+          }
+        ],
+        "distractors_no": [
+          "Søstrene løper med katten",
+          "Brødrene går med katten",
+          "Brødrene løper med hunden"
+        ],
+        "difficulty_rank": 8
+      },
+      {
+        "es": "El hermano no está contento hoy",
+        "no": "Broren er ikke fornøyd i dag",
+        "word_mapping": [
+          {
+            "position": 0,
+            "form": "El",
+            "lemma_es": "el",
+            "grammatical_note": "artikkel.mask.sg"
+          },
+          {
+            "position": 1,
+            "form": "hermano",
+            "lemma_es": "hermano",
+            "grammatical_note": "substantiv.mask.sg"
+          },
+          {
+            "position": 2,
+            "form": "no",
+            "lemma_es": "no",
+            "grammatical_note": "negasjon"
+          },
+          {
+            "position": 3,
+            "form": "está",
+            "lemma_es": "estar",
+            "grammatical_note": "presens.3sg"
+          },
+          {
+            "position": 4,
+            "form": "contento",
+            "lemma_es": "contento",
+            "grammatical_note": "adjektiv.mask.sg"
+          },
+          {
+            "position": 5,
+            "form": "hoy",
+            "lemma_es": "hoy",
+            "grammatical_note": "adverb"
+          }
+        ],
+        "distractors_no": [
+          "Broren er alltid fornøyd",
+          "Søsteren er ikke fornøyd i dag",
+          "Broren er ikke trøtt i dag"
+        ],
+        "difficulty_rank": 9
+      },
+      {
+        "es": "Las madres están cansadas ahora",
+        "no": "Mødrene er trøtte nå",
+        "word_mapping": [
+          {
+            "position": 0,
+            "form": "Las",
+            "lemma_es": "las",
+            "grammatical_note": "artikkel.fem.pl"
+          },
+          {
+            "position": 1,
+            "form": "madres",
+            "lemma_es": "madre",
+            "grammatical_note": "substantiv.fem.pl"
+          },
+          {
+            "position": 2,
+            "form": "están",
+            "lemma_es": "estar",
+            "grammatical_note": "presens.3pl"
+          },
+          {
+            "position": 3,
+            "form": "cansadas",
+            "lemma_es": "cansado",
+            "grammatical_note": "adjektiv.fem.pl"
+          },
+          {
+            "position": 4,
+            "form": "ahora",
+            "lemma_es": "ahora",
+            "grammatical_note": "adverb"
+          }
+        ],
+        "distractors_no": [
+          "Mødrene er glade nå",
+          "Fedrene er trøtte nå",
+          "Moren er trøtt nå"
+        ],
+        "difficulty_rank": 10
+      },
+      {
+        "es": "Nosotros vivimos en una casa grande",
+        "no": "Vi bor i et stort hus",
+        "word_mapping": [
+          {
+            "position": 0,
+            "form": "Nosotros",
+            "lemma_es": "nosotros",
+            "grammatical_note": "pronomen.1pl"
+          },
+          {
+            "position": 1,
+            "form": "vivimos",
+            "lemma_es": "vivir",
+            "grammatical_note": "presens.1pl"
+          },
+          {
+            "position": 2,
+            "form": "en",
+            "lemma_es": "en",
+            "grammatical_note": "preposisjon"
+          },
+          {
+            "position": 3,
+            "form": "una",
+            "lemma_es": "una",
+            "grammatical_note": "artikkel.ubestemt.fem.sg"
+          },
+          {
+            "position": 4,
+            "form": "casa",
+            "lemma_es": "casa",
+            "grammatical_note": "substantiv.fem.sg"
+          },
+          {
+            "position": 5,
+            "form": "grande",
+            "lemma_es": "grande",
+            "grammatical_note": "adjektiv.sg"
+          }
+        ],
+        "distractors_no": [
+          "Dere bor i et stort hus",
+          "Vi jobber i et stort hus",
+          "Vi bor i et lite hus"
+        ],
+        "difficulty_rank": 11
+      },
+      {
+        "es": "Los niños vienen con los amigos",
+        "no": "Guttene kommer med vennene",
+        "word_mapping": [
+          {
+            "position": 0,
+            "form": "Los",
+            "lemma_es": "los",
+            "grammatical_note": "artikkel.mask.pl"
+          },
+          {
+            "position": 1,
+            "form": "niños",
+            "lemma_es": "niño",
+            "grammatical_note": "substantiv.mask.pl"
+          },
+          {
+            "position": 2,
+            "form": "vienen",
+            "lemma_es": "venir",
+            "grammatical_note": "presens.3pl"
+          },
+          {
+            "position": 3,
+            "form": "con",
+            "lemma_es": "con",
+            "grammatical_note": "preposisjon"
+          },
+          {
+            "position": 4,
+            "form": "los",
+            "lemma_es": "los",
+            "grammatical_note": "artikkel.mask.pl"
+          },
+          {
+            "position": 5,
+            "form": "amigos",
+            "lemma_es": "amigo",
+            "grammatical_note": "substantiv.mask.pl"
+          }
+        ],
+        "distractors_no": [
+          "Gutten kommer med vennene",
+          "Guttene går med vennene",
+          "Guttene kommer med venninnene"
+        ],
+        "difficulty_rank": 12
+      },
+      {
+        "es": "Nosotros vemos a los amigos aquí",
+        "no": "Vi ser vennene her",
+        "word_mapping": [
+          {
+            "position": 0,
+            "form": "Nosotros",
+            "lemma_es": "nosotros",
+            "grammatical_note": "pronomen.1pl"
+          },
+          {
+            "position": 1,
+            "form": "vemos",
+            "lemma_es": "ver",
+            "grammatical_note": "presens.1pl"
+          },
+          {
+            "position": 2,
+            "form": "a",
+            "lemma_es": "a",
+            "grammatical_note": "preposisjon.personlig"
+          },
+          {
+            "position": 3,
+            "form": "los",
+            "lemma_es": "los",
+            "grammatical_note": "artikkel.mask.pl"
+          },
+          {
+            "position": 4,
+            "form": "amigos",
+            "lemma_es": "amigo",
+            "grammatical_note": "substantiv.mask.pl"
+          },
+          {
+            "position": 5,
+            "form": "aquí",
+            "lemma_es": "aquí",
+            "grammatical_note": "adverb"
+          }
+        ],
+        "distractors_no": [
+          "Vi hører vennene her",
+          "Dere ser vennene her",
+          "Vi ser venninnene her"
+        ],
+        "difficulty_rank": 13
+      },
+      {
+        "es": "El padre y el hijo comen pan",
+        "no": "Faren og sønnen spiser brød",
+        "word_mapping": [
+          {
+            "position": 0,
+            "form": "El",
+            "lemma_es": "el",
+            "grammatical_note": "artikkel.mask.sg"
+          },
+          {
+            "position": 1,
+            "form": "padre",
+            "lemma_es": "padre",
+            "grammatical_note": "substantiv.mask.sg"
+          },
+          {
+            "position": 2,
+            "form": "y",
+            "lemma_es": "y",
+            "grammatical_note": "konjunksjon"
+          },
+          {
+            "position": 3,
+            "form": "el",
+            "lemma_es": "el",
+            "grammatical_note": "artikkel.mask.sg"
+          },
+          {
+            "position": 4,
+            "form": "hijo",
+            "lemma_es": "hijo",
+            "grammatical_note": "substantiv.mask.sg"
+          },
+          {
+            "position": 5,
+            "form": "comen",
+            "lemma_es": "comer",
+            "grammatical_note": "presens.3pl"
+          },
+          {
+            "position": 6,
+            "form": "pan",
+            "lemma_es": "pan",
+            "grammatical_note": "substantiv.mask.sg"
+          }
+        ],
+        "distractors_no": [
+          "Faren og sønnen drikker brød",
+          "Moren og datteren spiser brød",
+          "Faren og sønnen spiser frukt"
+        ],
+        "difficulty_rank": 14
+      },
+      {
+        "es": "Los padres quieren a los hijos",
+        "no": "Foreldrene elsker barna",
+        "word_mapping": [
+          {
+            "position": 0,
+            "form": "Los",
+            "lemma_es": "los",
+            "grammatical_note": "artikkel.mask.pl"
+          },
+          {
+            "position": 1,
+            "form": "padres",
+            "lemma_es": "padre",
+            "grammatical_note": "substantiv.mask.pl"
+          },
+          {
+            "position": 2,
+            "form": "quieren",
+            "lemma_es": "querer",
+            "grammatical_note": "presens.3pl"
+          },
+          {
+            "position": 3,
+            "form": "a",
+            "lemma_es": "a",
+            "grammatical_note": "preposisjon.personlig"
+          },
+          {
+            "position": 4,
+            "form": "los",
+            "lemma_es": "los",
+            "grammatical_note": "artikkel.mask.pl"
+          },
+          {
+            "position": 5,
+            "form": "hijos",
+            "lemma_es": "hijo",
+            "grammatical_note": "substantiv.mask.pl"
+          }
+        ],
+        "distractors_no": [
+          "Foreldrene vil barna",
+          "Barna elsker foreldrene",
+          "Foreldrene elsker døtrene"
+        ],
+        "difficulty_rank": 15
+      },
+      {
+        "es": "Los niños toman leche",
+        "no": "Guttene drikker melk",
+        "word_mapping": [
+          {
+            "position": 0,
+            "form": "Los",
+            "lemma_es": "los",
+            "grammatical_note": "mask.pl"
+          },
+          {
+            "position": 1,
+            "form": "niños",
+            "lemma_es": "niño",
+            "grammatical_note": "mask.pl"
+          },
+          {
+            "position": 2,
+            "form": "toman",
+            "lemma_es": "tomar",
+            "grammatical_note": "presens.3pl"
+          },
+          {
+            "position": 3,
+            "form": "leche",
+            "lemma_es": "leche",
+            "grammatical_note": "fem.sg"
+          }
+        ],
+        "distractors_no": [
+          "Gutten drikker melk",
+          "Guttene tar melk",
+          "Guttene drikker vann"
+        ],
+        "difficulty_rank": 1
+      },
+      {
+        "es": "Los hermanos beben agua",
+        "no": "Brødrene drikker vann",
+        "word_mapping": [
+          {
+            "position": 0,
+            "form": "Los",
+            "lemma_es": "los",
+            "grammatical_note": "mask.pl"
+          },
+          {
+            "position": 1,
+            "form": "hermanos",
+            "lemma_es": "hermano",
+            "grammatical_note": "mask.pl"
+          },
+          {
+            "position": 2,
+            "form": "beben",
+            "lemma_es": "beber",
+            "grammatical_note": "presens.3pl"
+          },
+          {
+            "position": 3,
+            "form": "agua",
+            "lemma_es": "agua",
+            "grammatical_note": "fem.sg"
+          }
+        ],
+        "distractors_no": [
+          "Brødrene drikker melk",
+          "Broren drikker vann",
+          "Brødrene spiser vann"
+        ],
+        "difficulty_rank": 1
+      },
+      {
+        "es": "Yo bebo café ahora",
+        "no": "Jeg drikker kaffe nå",
+        "word_mapping": [
+          {
+            "position": 0,
+            "form": "Yo",
+            "lemma_es": "yo",
+            "grammatical_note": "pronomen.1sg"
+          },
+          {
+            "position": 1,
+            "form": "bebo",
+            "lemma_es": "beber",
+            "grammatical_note": "presens.1sg"
+          },
+          {
+            "position": 2,
+            "form": "café",
+            "lemma_es": "café",
+            "grammatical_note": "mask.sg"
+          },
+          {
+            "position": 3,
+            "form": "ahora",
+            "lemma_es": "ahora",
+            "grammatical_note": "adverb"
+          }
+        ],
+        "distractors_no": [
+          "Jeg spiser kaffe nå",
+          "Jeg drikker kaffe alltid",
+          "Du drikker kaffe nå"
+        ],
+        "difficulty_rank": 2
+      },
+      {
+        "es": "Nosotros bebemos agua aquí",
+        "no": "Vi drikker vann her",
+        "word_mapping": [
+          {
+            "position": 0,
+            "form": "Nosotros",
+            "lemma_es": "nosotros",
+            "grammatical_note": "pronomen.1pl"
+          },
+          {
+            "position": 1,
+            "form": "bebemos",
+            "lemma_es": "beber",
+            "grammatical_note": "presens.1pl"
+          },
+          {
+            "position": 2,
+            "form": "agua",
+            "lemma_es": "agua",
+            "grammatical_note": "fem.sg"
+          },
+          {
+            "position": 3,
+            "form": "aquí",
+            "lemma_es": "aquí",
+            "grammatical_note": "adverb"
+          }
+        ],
+        "distractors_no": [
+          "Vi drikker vann der",
+          "Vi spiser vann her",
+          "Dere drikker vann her"
+        ],
+        "difficulty_rank": 2
+      },
+      {
+        "es": "La madre hace café",
+        "no": "Moren lager kaffe",
+        "word_mapping": [
+          {
+            "position": 0,
+            "form": "La",
+            "lemma_es": "la",
+            "grammatical_note": "fem.sg"
+          },
+          {
+            "position": 1,
+            "form": "madre",
+            "lemma_es": "madre",
+            "grammatical_note": "fem.sg"
+          },
+          {
+            "position": 2,
+            "form": "hace",
+            "lemma_es": "hacer",
+            "grammatical_note": "presens.3sg"
+          },
+          {
+            "position": 3,
+            "form": "café",
+            "lemma_es": "café",
+            "grammatical_note": "mask.sg"
+          }
+        ],
+        "distractors_no": [
+          "Moren drikker kaffe",
+          "Faren lager kaffe",
+          "Moren lager melk"
+        ],
+        "difficulty_rank": 2
+      },
+      {
+        "es": "Ellos comen pan aquí",
+        "no": "De spiser brød her",
+        "word_mapping": [
+          {
+            "position": 0,
+            "form": "Ellos",
+            "lemma_es": "ellos",
+            "grammatical_note": "pronomen.3pl.mask"
+          },
+          {
+            "position": 1,
+            "form": "comen",
+            "lemma_es": "comer",
+            "grammatical_note": "presens.3pl"
+          },
+          {
+            "position": 2,
+            "form": "pan",
+            "lemma_es": "pan",
+            "grammatical_note": "mask.sg"
+          },
+          {
+            "position": 3,
+            "form": "aquí",
+            "lemma_es": "aquí",
+            "grammatical_note": "adverb"
+          }
+        ],
+        "distractors_no": [
+          "De spiser brød der",
+          "De drikker brød her",
+          "Han spiser brød her"
+        ],
+        "difficulty_rank": 2
+      },
+      {
+        "es": "Ella come fruta en casa",
+        "no": "Hun spiser frukt hjemme",
+        "word_mapping": [
+          {
+            "position": 0,
+            "form": "Ella",
+            "lemma_es": "ella",
+            "grammatical_note": "pronomen.3sg.fem"
+          },
+          {
+            "position": 1,
+            "form": "come",
+            "lemma_es": "comer",
+            "grammatical_note": "presens.3sg"
+          },
+          {
+            "position": 2,
+            "form": "fruta",
+            "lemma_es": "fruta",
+            "grammatical_note": "fem.sg"
+          },
+          {
+            "position": 3,
+            "form": "en",
+            "lemma_es": "en",
+            "grammatical_note": "preposisjon"
+          },
+          {
+            "position": 4,
+            "form": "casa",
+            "lemma_es": "casa",
+            "grammatical_note": "fem.sg"
+          }
+        ],
+        "distractors_no": [
+          "Hun drikker frukt hjemme",
+          "Han spiser frukt hjemme",
+          "Hun spiser frukt på skolen"
+        ],
+        "difficulty_rank": 3
+      },
+      {
+        "es": "Yo tengo agua y café",
+        "no": "Jeg har vann og kaffe",
+        "word_mapping": [
+          {
+            "position": 0,
+            "form": "Yo",
+            "lemma_es": "yo",
+            "grammatical_note": "pronomen.1sg"
+          },
+          {
+            "position": 1,
+            "form": "tengo",
+            "lemma_es": "tener",
+            "grammatical_note": "presens.1sg"
+          },
+          {
+            "position": 2,
+            "form": "agua",
+            "lemma_es": "agua",
+            "grammatical_note": "fem.sg"
+          },
+          {
+            "position": 3,
+            "form": "y",
+            "lemma_es": "y",
+            "grammatical_note": "konjunksjon"
+          },
+          {
+            "position": 4,
+            "form": "café",
+            "lemma_es": "café",
+            "grammatical_note": "mask.sg"
+          }
+        ],
+        "distractors_no": [
+          "Jeg har vann og melk",
+          "Jeg drikker vann og kaffe",
+          "Du har vann og kaffe"
+        ],
+        "difficulty_rank": 3
+      },
+      {
+        "es": "Las amigas toman leche hoy",
+        "no": "Venninnene drikker melk i dag",
+        "word_mapping": [
+          {
+            "position": 0,
+            "form": "Las",
+            "lemma_es": "las",
+            "grammatical_note": "fem.pl"
+          },
+          {
+            "position": 1,
+            "form": "amigas",
+            "lemma_es": "amiga",
+            "grammatical_note": "fem.pl"
+          },
+          {
+            "position": 2,
+            "form": "toman",
+            "lemma_es": "tomar",
+            "grammatical_note": "presens.3pl"
+          },
+          {
+            "position": 3,
+            "form": "leche",
+            "lemma_es": "leche",
+            "grammatical_note": "fem.sg"
+          },
+          {
+            "position": 4,
+            "form": "hoy",
+            "lemma_es": "hoy",
+            "grammatical_note": "adverb"
+          }
+        ],
+        "distractors_no": [
+          "Venninnene tar melk i dag",
+          "Venninnene drikker melk nå",
+          "Venninnen drikker melk i dag"
+        ],
+        "difficulty_rank": 3
+      },
+      {
+        "es": "Nosotros comemos fruta en casa",
+        "no": "Vi spiser frukt hjemme",
+        "word_mapping": [
+          {
+            "position": 0,
+            "form": "Nosotros",
+            "lemma_es": "nosotros",
+            "grammatical_note": "pronomen.1pl"
+          },
+          {
+            "position": 1,
+            "form": "comemos",
+            "lemma_es": "comer",
+            "grammatical_note": "presens.1pl"
+          },
+          {
+            "position": 2,
+            "form": "fruta",
+            "lemma_es": "fruta",
+            "grammatical_note": "fem.sg"
+          },
+          {
+            "position": 3,
+            "form": "en",
+            "lemma_es": "en",
+            "grammatical_note": "preposisjon"
+          },
+          {
+            "position": 4,
+            "form": "casa",
+            "lemma_es": "casa",
+            "grammatical_note": "fem.sg"
+          }
+        ],
+        "distractors_no": [
+          "Vi spiser frukt på skolen",
+          "Vi drikker frukt hjemme",
+          "Dere spiser frukt hjemme"
+        ],
+        "difficulty_rank": 3
+      },
+      {
+        "es": "Tú tomas café con leche",
+        "no": "Du drikker kaffe med melk",
+        "word_mapping": [
+          {
+            "position": 0,
+            "form": "Tú",
+            "lemma_es": "tú",
+            "grammatical_note": "pronomen.2sg"
+          },
+          {
+            "position": 1,
+            "form": "tomas",
+            "lemma_es": "tomar",
+            "grammatical_note": "presens.2sg"
+          },
+          {
+            "position": 2,
+            "form": "café",
+            "lemma_es": "café",
+            "grammatical_note": "mask.sg"
+          },
+          {
+            "position": 3,
+            "form": "con",
+            "lemma_es": "con",
+            "grammatical_note": "preposisjon"
+          },
+          {
+            "position": 4,
+            "form": "leche",
+            "lemma_es": "leche",
+            "grammatical_note": "fem.sg"
+          }
+        ],
+        "distractors_no": [
+          "Du drikker kaffe med vann",
+          "Du tar kaffe med melk",
+          "Jeg drikker kaffe med melk"
+        ],
+        "difficulty_rank": 4
+      },
+      {
+        "es": "El padre come pan y fruta",
+        "no": "Faren spiser brød og frukt",
+        "word_mapping": [
+          {
+            "position": 0,
+            "form": "El",
+            "lemma_es": "el",
+            "grammatical_note": "mask.sg"
+          },
+          {
+            "position": 1,
+            "form": "padre",
+            "lemma_es": "padre",
+            "grammatical_note": "mask.sg"
+          },
+          {
+            "position": 2,
+            "form": "come",
+            "lemma_es": "comer",
+            "grammatical_note": "presens.3sg"
+          },
+          {
+            "position": 3,
+            "form": "pan",
+            "lemma_es": "pan",
+            "grammatical_note": "mask.sg"
+          },
+          {
+            "position": 4,
+            "form": "y",
+            "lemma_es": "y",
+            "grammatical_note": "konjunksjon"
+          },
+          {
+            "position": 5,
+            "form": "fruta",
+            "lemma_es": "fruta",
+            "grammatical_note": "fem.sg"
+          }
+        ],
+        "distractors_no": [
+          "Faren spiser brød og kaffe",
+          "Faren drikker brød og frukt",
+          "Moren spiser brød og frukt"
+        ],
+        "difficulty_rank": 4
+      },
+      {
+        "es": "El niño come mucho pan",
+        "no": "Gutten spiser mye brød",
+        "word_mapping": [
+          {
+            "position": 0,
+            "form": "El",
+            "lemma_es": "el",
+            "grammatical_note": "mask.sg"
+          },
+          {
+            "position": 1,
+            "form": "niño",
+            "lemma_es": "niño",
+            "grammatical_note": "mask.sg"
+          },
+          {
+            "position": 2,
+            "form": "come",
+            "lemma_es": "comer",
+            "grammatical_note": "presens.3sg"
+          },
+          {
+            "position": 3,
+            "form": "mucho",
+            "lemma_es": "mucho",
+            "grammatical_note": "adverb"
+          },
+          {
+            "position": 4,
+            "form": "pan",
+            "lemma_es": "pan",
+            "grammatical_note": "mask.sg"
+          }
+        ],
+        "distractors_no": [
+          "Gutten spiser lite brød",
+          "Gutten drikker mye brød",
+          "Guttene spiser mye brød"
+        ],
+        "difficulty_rank": 5
+      },
+      {
+        "es": "Las niñas quieren fruta buena",
+        "no": "Jentene vil ha god frukt",
+        "word_mapping": [
+          {
+            "position": 0,
+            "form": "Las",
+            "lemma_es": "las",
+            "grammatical_note": "fem.pl"
+          },
+          {
+            "position": 1,
+            "form": "niñas",
+            "lemma_es": "niña",
+            "grammatical_note": "fem.pl"
+          },
+          {
+            "position": 2,
+            "form": "quieren",
+            "lemma_es": "querer",
+            "grammatical_note": "presens.3pl"
+          },
+          {
+            "position": 3,
+            "form": "fruta",
+            "lemma_es": "fruta",
+            "grammatical_note": "fem.sg"
+          },
+          {
+            "position": 4,
+            "form": "buena",
+            "lemma_es": "bueno",
+            "grammatical_note": "fem.sg"
+          }
+        ],
+        "distractors_no": [
+          "Jentene vil ha dårlig frukt",
+          "Jenta vil ha god frukt",
+          "Jentene vil ha god melk"
+        ],
+        "difficulty_rank": 6
+      },
+      {
+        "es": "El amigo no bebe leche",
+        "no": "Vennen drikker ikke melk",
+        "word_mapping": [
+          {
+            "position": 0,
+            "form": "El",
+            "lemma_es": "el",
+            "grammatical_note": "mask.sg"
+          },
+          {
+            "position": 1,
+            "form": "amigo",
+            "lemma_es": "amigo",
+            "grammatical_note": "mask.sg"
+          },
+          {
+            "position": 2,
+            "form": "no",
+            "lemma_es": "no",
+            "grammatical_note": "adverb.negasjon"
+          },
+          {
+            "position": 3,
+            "form": "bebe",
+            "lemma_es": "beber",
+            "grammatical_note": "presens.3sg"
+          },
+          {
+            "position": 4,
+            "form": "leche",
+            "lemma_es": "leche",
+            "grammatical_note": "fem.sg"
+          }
+        ],
+        "distractors_no": [
+          "Vennen drikker melk",
+          "Vennen spiser ikke melk",
+          "Vennen drikker ikke vann"
+        ],
+        "difficulty_rank": 6
+      },
+      {
+        "es": "Los niños van a la escuela",
+        "no": "Barna går til skolen",
+        "word_mapping": [
+          {
+            "position": 0,
+            "form": "Los",
+            "lemma_es": "los",
+            "grammatical_note": "maskulin.pl"
+          },
+          {
+            "position": 1,
+            "form": "niños",
+            "lemma_es": "niño",
+            "grammatical_note": "maskulin.pl"
+          },
+          {
+            "position": 2,
+            "form": "van",
+            "lemma_es": "ir",
+            "grammatical_note": "presens.3pl"
+          },
+          {
+            "position": 3,
+            "form": "a",
+            "lemma_es": "a",
+            "grammatical_note": "preposisjon"
+          },
+          {
+            "position": 4,
+            "form": "la",
+            "lemma_es": "la",
+            "grammatical_note": "feminin.sg"
+          },
+          {
+            "position": 5,
+            "form": "escuela",
+            "lemma_es": "escuela",
+            "grammatical_note": "feminin.sg"
+          }
+        ],
+        "distractors_no": [
+          "Barna kommer til skolen",
+          "Gutten går til skolen",
+          "Barna går til byen"
+        ],
+        "difficulty_rank": 3
+      },
+      {
+        "es": "El profesor habla con los niños",
+        "no": "Læreren snakker med barna",
+        "word_mapping": [
+          {
+            "position": 0,
+            "form": "El",
+            "lemma_es": "el",
+            "grammatical_note": "maskulin.sg"
+          },
+          {
+            "position": 1,
+            "form": "profesor",
+            "lemma_es": "profesor",
+            "grammatical_note": "maskulin.sg"
+          },
+          {
+            "position": 2,
+            "form": "habla",
+            "lemma_es": "hablar",
+            "grammatical_note": "presens.3sg"
+          },
+          {
+            "position": 3,
+            "form": "con",
+            "lemma_es": "con",
+            "grammatical_note": "preposisjon"
+          },
+          {
+            "position": 4,
+            "form": "los",
+            "lemma_es": "los",
+            "grammatical_note": "maskulin.pl"
+          },
+          {
+            "position": 5,
+            "form": "niños",
+            "lemma_es": "niño",
+            "grammatical_note": "maskulin.pl"
+          }
+        ],
+        "distractors_no": [
+          "Læreren arbeider med barna",
+          "Lærerne snakker med barna",
+          "Læreren snakker med jentene"
+        ],
+        "difficulty_rank": 4
+      },
+      {
+        "es": "Ella estudia en la escuela grande",
+        "no": "Hun studerer på den store skolen",
+        "word_mapping": [
+          {
+            "position": 0,
+            "form": "Ella",
+            "lemma_es": "ella",
+            "grammatical_note": "pronomen.3sg.fem"
+          },
+          {
+            "position": 1,
+            "form": "estudia",
+            "lemma_es": "estudiar",
+            "grammatical_note": "presens.3sg"
+          },
+          {
+            "position": 2,
+            "form": "en",
+            "lemma_es": "en",
+            "grammatical_note": "preposisjon"
+          },
+          {
+            "position": 3,
+            "form": "la",
+            "lemma_es": "la",
+            "grammatical_note": "feminin.sg"
+          },
+          {
+            "position": 4,
+            "form": "escuela",
+            "lemma_es": "escuela",
+            "grammatical_note": "feminin.sg"
+          },
+          {
+            "position": 5,
+            "form": "grande",
+            "lemma_es": "grande",
+            "grammatical_note": "adjektiv.sg"
+          }
+        ],
+        "distractors_no": [
+          "Hun arbeider på den store skolen",
+          "De studerer på den store skolen",
+          "Hun studerer på den lille skolen"
+        ],
+        "difficulty_rank": 6
+      },
+      {
+        "es": "Nosotros trabajamos en la ciudad",
+        "no": "Vi jobber i byen",
+        "word_mapping": [
+          {
+            "position": 0,
+            "form": "Nosotros",
+            "lemma_es": "nosotros",
+            "grammatical_note": "pronomen.1pl"
+          },
+          {
+            "position": 1,
+            "form": "trabajamos",
+            "lemma_es": "trabajar",
+            "grammatical_note": "presens.1pl"
+          },
+          {
+            "position": 2,
+            "form": "en",
+            "lemma_es": "en",
+            "grammatical_note": "preposisjon"
+          },
+          {
+            "position": 3,
+            "form": "la",
+            "lemma_es": "la",
+            "grammatical_note": "feminin.sg"
+          },
+          {
+            "position": 4,
+            "form": "ciudad",
+            "lemma_es": "ciudad",
+            "grammatical_note": "feminin.sg"
+          }
+        ],
+        "distractors_no": [
+          "Vi bor i byen",
+          "De jobber i byen",
+          "Vi jobber i huset"
+        ],
+        "difficulty_rank": 5
+      },
+      {
+        "es": "El padre trabaja mucho hoy",
+        "no": "Faren jobber mye i dag",
+        "word_mapping": [
+          {
+            "position": 0,
+            "form": "El",
+            "lemma_es": "el",
+            "grammatical_note": "maskulin.sg"
+          },
+          {
+            "position": 1,
+            "form": "padre",
+            "lemma_es": "padre",
+            "grammatical_note": "maskulin.sg"
+          },
+          {
+            "position": 2,
+            "form": "trabaja",
+            "lemma_es": "trabajar",
+            "grammatical_note": "presens.3sg"
+          },
+          {
+            "position": 3,
+            "form": "mucho",
+            "lemma_es": "mucho",
+            "grammatical_note": "adverb"
+          },
+          {
+            "position": 4,
+            "form": "hoy",
+            "lemma_es": "hoy",
+            "grammatical_note": "adverb"
+          }
+        ],
+        "distractors_no": [
+          "Faren sover mye i dag",
+          "Mødrene jobber mye i dag",
+          "Faren jobber lite i dag"
+        ],
+        "difficulty_rank": 5
+      },
+      {
+        "es": "Las mujeres trabajan en la escuela",
+        "no": "Kvinnene jobber på skolen",
+        "word_mapping": [
+          {
+            "position": 0,
+            "form": "Las",
+            "lemma_es": "las",
+            "grammatical_note": "feminin.pl"
+          },
+          {
+            "position": 1,
+            "form": "mujeres",
+            "lemma_es": "mujer",
+            "grammatical_note": "feminin.pl"
+          },
+          {
+            "position": 2,
+            "form": "trabajan",
+            "lemma_es": "trabajar",
+            "grammatical_note": "presens.3pl"
+          },
+          {
+            "position": 3,
+            "form": "en",
+            "lemma_es": "en",
+            "grammatical_note": "preposisjon"
+          },
+          {
+            "position": 4,
+            "form": "la",
+            "lemma_es": "la",
+            "grammatical_note": "feminin.sg"
+          },
+          {
+            "position": 5,
+            "form": "escuela",
+            "lemma_es": "escuela",
+            "grammatical_note": "feminin.sg"
+          }
+        ],
+        "distractors_no": [
+          "Kvinnene studerer på skolen",
+          "Kvinnen jobber på skolen",
+          "Kvinnene jobber i byen"
+        ],
+        "difficulty_rank": 5
+      },
+      {
+        "es": "Tú estudias y trabajas mucho",
+        "no": "Du studerer og jobber mye",
+        "word_mapping": [
+          {
+            "position": 0,
+            "form": "Tú",
+            "lemma_es": "tú",
+            "grammatical_note": "pronomen.2sg"
+          },
+          {
+            "position": 1,
+            "form": "estudias",
+            "lemma_es": "estudiar",
+            "grammatical_note": "presens.2sg"
+          },
+          {
+            "position": 2,
+            "form": "y",
+            "lemma_es": "y",
+            "grammatical_note": "konjunksjon"
+          },
+          {
+            "position": 3,
+            "form": "trabajas",
+            "lemma_es": "trabajar",
+            "grammatical_note": "presens.2sg"
+          },
+          {
+            "position": 4,
+            "form": "mucho",
+            "lemma_es": "mucho",
+            "grammatical_note": "adverb"
+          }
+        ],
+        "distractors_no": [
+          "Du studerer og sover mye",
+          "Dere studerer og jobber mye",
+          "Du studerer og jobber lite"
+        ],
+        "difficulty_rank": 7
+      },
+      {
+        "es": "Los profesores son muy buenos",
+        "no": "Lærerne er veldig gode",
+        "word_mapping": [
+          {
+            "position": 0,
+            "form": "Los",
+            "lemma_es": "los",
+            "grammatical_note": "maskulin.pl"
+          },
+          {
+            "position": 1,
+            "form": "profesores",
+            "lemma_es": "profesor",
+            "grammatical_note": "maskulin.pl"
+          },
+          {
+            "position": 2,
+            "form": "son",
+            "lemma_es": "ser",
+            "grammatical_note": "presens.3pl"
+          },
+          {
+            "position": 3,
+            "form": "muy",
+            "lemma_es": "muy",
+            "grammatical_note": "adverb"
+          },
+          {
+            "position": 4,
+            "form": "buenos",
+            "lemma_es": "bueno",
+            "grammatical_note": "adjektiv.maskulin.pl"
+          }
+        ],
+        "distractors_no": [
+          "Lærerne er veldig dårlige",
+          "Læreren er veldig god",
+          "Barna er veldig gode"
+        ],
+        "difficulty_rank": 6
+      },
+      {
+        "es": "Yo camino a la escuela",
+        "no": "Jeg går til skolen",
+        "word_mapping": [
+          {
+            "position": 0,
+            "form": "Yo",
+            "lemma_es": "yo",
+            "grammatical_note": "pronomen.1sg"
+          },
+          {
+            "position": 1,
+            "form": "camino",
+            "lemma_es": "caminar",
+            "grammatical_note": "presens.1sg"
+          },
+          {
+            "position": 2,
+            "form": "a",
+            "lemma_es": "a",
+            "grammatical_note": "preposisjon"
+          },
+          {
+            "position": 3,
+            "form": "la",
+            "lemma_es": "la",
+            "grammatical_note": "feminin.sg"
+          },
+          {
+            "position": 4,
+            "form": "escuela",
+            "lemma_es": "escuela",
+            "grammatical_note": "feminin.sg"
+          }
+        ],
+        "distractors_no": [
+          "Jeg løper til skolen",
+          "Vi går til skolen",
+          "Jeg går til byen"
+        ],
+        "difficulty_rank": 3
+      },
+      {
+        "es": "Ellas no van a la escuela",
+        "no": "De går ikke til skolen",
+        "word_mapping": [
+          {
+            "position": 0,
+            "form": "Ellas",
+            "lemma_es": "ellas",
+            "grammatical_note": "pronomen.3pl.fem"
+          },
+          {
+            "position": 1,
+            "form": "no",
+            "lemma_es": "no",
+            "grammatical_note": "negasjonsadverb"
+          },
+          {
+            "position": 2,
+            "form": "van",
+            "lemma_es": "ir",
+            "grammatical_note": "presens.3pl"
+          },
+          {
+            "position": 3,
+            "form": "a",
+            "lemma_es": "a",
+            "grammatical_note": "preposisjon"
+          },
+          {
+            "position": 4,
+            "form": "la",
+            "lemma_es": "la",
+            "grammatical_note": "feminin.sg"
+          },
+          {
+            "position": 5,
+            "form": "escuela",
+            "lemma_es": "escuela",
+            "grammatical_note": "feminin.sg"
+          }
+        ],
+        "distractors_no": [
+          "De går til skolen",
+          "Hun går ikke til skolen",
+          "De kommer ikke til skolen"
+        ],
+        "difficulty_rank": 5
+      },
+      {
+        "es": "Los hermanos estudian en casa",
+        "no": "Brødrene studerer hjemme",
+        "word_mapping": [
+          {
+            "position": 0,
+            "form": "Los",
+            "lemma_es": "los",
+            "grammatical_note": "maskulin.pl"
+          },
+          {
+            "position": 1,
+            "form": "hermanos",
+            "lemma_es": "hermano",
+            "grammatical_note": "maskulin.pl"
+          },
+          {
+            "position": 2,
+            "form": "estudian",
+            "lemma_es": "estudiar",
+            "grammatical_note": "presens.3pl"
+          },
+          {
+            "position": 3,
+            "form": "en",
+            "lemma_es": "en",
+            "grammatical_note": "preposisjon"
+          },
+          {
+            "position": 4,
+            "form": "casa",
+            "lemma_es": "casa",
+            "grammatical_note": "feminin.sg"
+          }
+        ],
+        "distractors_no": [
+          "Brødrene jobber hjemme",
+          "Broren studerer hjemme",
+          "Brødrene studerer på skolen"
+        ],
+        "difficulty_rank": 4
+      },
+      {
+        "es": "El profesor lee un libro nuevo",
+        "no": "Læreren leser en ny bok",
+        "word_mapping": [
+          {
+            "position": 0,
+            "form": "El",
+            "lemma_es": "el",
+            "grammatical_note": "maskulin.sg"
+          },
+          {
+            "position": 1,
+            "form": "profesor",
+            "lemma_es": "profesor",
+            "grammatical_note": "maskulin.sg"
+          },
+          {
+            "position": 2,
+            "form": "lee",
+            "lemma_es": "leer",
+            "grammatical_note": "presens.3sg"
+          },
+          {
+            "position": 3,
+            "form": "un",
+            "lemma_es": "un",
+            "grammatical_note": "maskulin.sg"
+          },
+          {
+            "position": 4,
+            "form": "libro",
+            "lemma_es": "libro",
+            "grammatical_note": "maskulin.sg"
+          },
+          {
+            "position": 5,
+            "form": "nuevo",
+            "lemma_es": "nuevo",
+            "grammatical_note": "adjektiv.maskulin.sg"
+          }
+        ],
+        "distractors_no": [
+          "Læreren skriver en ny bok",
+          "Lærerne leser en ny bok",
+          "Læreren leser en gammel bok"
+        ],
+        "difficulty_rank": 7
+      },
+      {
+        "es": "El niño escribe en la escuela",
+        "no": "Gutten skriver på skolen",
+        "word_mapping": [
+          {
+            "position": 0,
+            "form": "El",
+            "lemma_es": "el",
+            "grammatical_note": "maskulin.sg"
+          },
+          {
+            "position": 1,
+            "form": "niño",
+            "lemma_es": "niño",
+            "grammatical_note": "maskulin.sg"
+          },
+          {
+            "position": 2,
+            "form": "escribe",
+            "lemma_es": "escribir",
+            "grammatical_note": "presens.3sg"
+          },
+          {
+            "position": 3,
+            "form": "en",
+            "lemma_es": "en",
+            "grammatical_note": "preposisjon"
+          },
+          {
+            "position": 4,
+            "form": "la",
+            "lemma_es": "la",
+            "grammatical_note": "feminin.sg"
+          },
+          {
+            "position": 5,
+            "form": "escuela",
+            "lemma_es": "escuela",
+            "grammatical_note": "feminin.sg"
+          }
+        ],
+        "distractors_no": [
+          "Gutten leser på skolen",
+          "Guttene skriver på skolen",
+          "Gutten skriver hjemme"
+        ],
+        "difficulty_rank": 4
+      },
+      {
+        "es": "Las niñas no quieren trabajar",
+        "no": "Jentene vil ikke jobbe",
+        "word_mapping": [
+          {
+            "position": 0,
+            "form": "Las",
+            "lemma_es": "las",
+            "grammatical_note": "feminin.pl"
+          },
+          {
+            "position": 1,
+            "form": "niñas",
+            "lemma_es": "niña",
+            "grammatical_note": "feminin.pl"
+          },
+          {
+            "position": 2,
+            "form": "no",
+            "lemma_es": "no",
+            "grammatical_note": "negasjonsadverb"
+          },
+          {
+            "position": 3,
+            "form": "quieren",
+            "lemma_es": "querer",
+            "grammatical_note": "presens.3pl"
+          },
+          {
+            "position": 4,
+            "form": "trabajar",
+            "lemma_es": "trabajar",
+            "grammatical_note": "infinitiv"
+          }
+        ],
+        "distractors_no": [
+          "Jentene vil jobbe",
+          "Jenta vil ikke jobbe",
+          "Jentene vil ikke studere"
+        ],
+        "difficulty_rank": 8
+      },
+      {
+        "es": "Nosotros estudiamos con el profesor",
+        "no": "Vi studerer med læreren",
+        "word_mapping": [
+          {
+            "position": 0,
+            "form": "Nosotros",
+            "lemma_es": "nosotros",
+            "grammatical_note": "pronomen.1pl"
+          },
+          {
+            "position": 1,
+            "form": "estudiamos",
+            "lemma_es": "estudiar",
+            "grammatical_note": "presens.1pl"
+          },
+          {
+            "position": 2,
+            "form": "con",
+            "lemma_es": "con",
+            "grammatical_note": "preposisjon"
+          },
+          {
+            "position": 3,
+            "form": "el",
+            "lemma_es": "el",
+            "grammatical_note": "maskulin.sg"
+          },
+          {
+            "position": 4,
+            "form": "profesor",
+            "lemma_es": "profesor",
+            "grammatical_note": "maskulin.sg"
+          }
+        ],
+        "distractors_no": [
+          "Vi jobber med læreren",
+          "De studerer med læreren",
+          "Vi studerer med vennen"
+        ],
+        "difficulty_rank": 4
+      },
+      {
+        "es": "La madre vive en la casa",
+        "no": "Moren lever i huset",
+        "word_mapping": [
+          {
+            "position": 0,
+            "form": "La",
+            "lemma_es": "la",
+            "grammatical_note": "fem.sg.bestemt"
+          },
+          {
+            "position": 1,
+            "form": "madre",
+            "lemma_es": "madre",
+            "grammatical_note": "fem.sg"
+          },
+          {
+            "position": 2,
+            "form": "vive",
+            "lemma_es": "vivir",
+            "grammatical_note": "presens.3sg"
+          },
+          {
+            "position": 3,
+            "form": "en",
+            "lemma_es": "en",
+            "grammatical_note": "preposisjon"
+          },
+          {
+            "position": 4,
+            "form": "la",
+            "lemma_es": "la",
+            "grammatical_note": "fem.sg.bestemt"
+          },
+          {
+            "position": 5,
+            "form": "casa",
+            "lemma_es": "casa",
+            "grammatical_note": "fem.sg"
+          }
+        ],
+        "distractors_no": [
+          "Mødrene lever i huset",
+          "Moren lever i husene",
+          "Faren lever i huset"
+        ],
+        "difficulty_rank": 3
+      },
+      {
+        "es": "El gato duerme en la casa",
+        "no": "Katten sover i huset",
+        "word_mapping": [
+          {
+            "position": 0,
+            "form": "El",
+            "lemma_es": "el",
+            "grammatical_note": "mask.sg.bestemt"
+          },
+          {
+            "position": 1,
+            "form": "gato",
+            "lemma_es": "gato",
+            "grammatical_note": "mask.sg"
+          },
+          {
+            "position": 2,
+            "form": "duerme",
+            "lemma_es": "dormir",
+            "grammatical_note": "presens.3sg"
+          },
+          {
+            "position": 3,
+            "form": "en",
+            "lemma_es": "en",
+            "grammatical_note": "preposisjon"
+          },
+          {
+            "position": 4,
+            "form": "la",
+            "lemma_es": "la",
+            "grammatical_note": "fem.sg.bestemt"
+          },
+          {
+            "position": 5,
+            "form": "casa",
+            "lemma_es": "casa",
+            "grammatical_note": "fem.sg"
+          }
+        ],
+        "distractors_no": [
+          "Kattene sover i huset",
+          "Katten sover i husene",
+          "Hunden sover i huset"
+        ],
+        "difficulty_rank": 2
+      },
+      {
+        "es": "Los hermanos tienen un perro pequeño",
+        "no": "Brødrene har en liten hund",
+        "word_mapping": [
+          {
+            "position": 0,
+            "form": "Los",
+            "lemma_es": "los",
+            "grammatical_note": "mask.pl.bestemt"
+          },
+          {
+            "position": 1,
+            "form": "hermanos",
+            "lemma_es": "hermano",
+            "grammatical_note": "mask.pl"
+          },
+          {
+            "position": 2,
+            "form": "tienen",
+            "lemma_es": "tener",
+            "grammatical_note": "presens.3pl"
+          },
+          {
+            "position": 3,
+            "form": "un",
+            "lemma_es": "un",
+            "grammatical_note": "mask.sg.ubestemt"
+          },
+          {
+            "position": 4,
+            "form": "perro",
+            "lemma_es": "perro",
+            "grammatical_note": "mask.sg"
+          },
+          {
+            "position": 5,
+            "form": "pequeño",
+            "lemma_es": "pequeño",
+            "grammatical_note": "mask.sg"
+          }
+        ],
+        "distractors_no": [
+          "Broren har en liten hund",
+          "Brødrene har en stor hund",
+          "Brødrene har en liten katt"
+        ],
+        "difficulty_rank": 4
+      },
+      {
+        "es": "Yo bebo agua con la madre",
+        "no": "Jeg drikker vann med moren",
+        "word_mapping": [
+          {
+            "position": 0,
+            "form": "Yo",
+            "lemma_es": "yo",
+            "grammatical_note": "1sg.pronomen"
+          },
+          {
+            "position": 1,
+            "form": "bebo",
+            "lemma_es": "beber",
+            "grammatical_note": "presens.1sg"
+          },
+          {
+            "position": 2,
+            "form": "agua",
+            "lemma_es": "agua",
+            "grammatical_note": "fem.sg"
+          },
+          {
+            "position": 3,
+            "form": "con",
+            "lemma_es": "con",
+            "grammatical_note": "preposisjon"
+          },
+          {
+            "position": 4,
+            "form": "la",
+            "lemma_es": "la",
+            "grammatical_note": "fem.sg.bestemt"
+          },
+          {
+            "position": 5,
+            "form": "madre",
+            "lemma_es": "madre",
+            "grammatical_note": "fem.sg"
+          }
+        ],
+        "distractors_no": [
+          "Jeg spiser vann med moren",
+          "Jeg drikker vann med faren",
+          "Du drikker vann med moren"
+        ],
+        "difficulty_rank": 3
+      },
+      {
+        "es": "Las hermanas abren los libros nuevos",
+        "no": "Søstrene åpner de nye bøkene",
+        "word_mapping": [
+          {
+            "position": 0,
+            "form": "Las",
+            "lemma_es": "las",
+            "grammatical_note": "fem.pl.bestemt"
+          },
+          {
+            "position": 1,
+            "form": "hermanas",
+            "lemma_es": "hermana",
+            "grammatical_note": "fem.pl"
+          },
+          {
+            "position": 2,
+            "form": "abren",
+            "lemma_es": "abrir",
+            "grammatical_note": "presens.3pl"
+          },
+          {
+            "position": 3,
+            "form": "los",
+            "lemma_es": "los",
+            "grammatical_note": "mask.pl.bestemt"
+          },
+          {
+            "position": 4,
+            "form": "libros",
+            "lemma_es": "libro",
+            "grammatical_note": "mask.pl"
+          },
+          {
+            "position": 5,
+            "form": "nuevos",
+            "lemma_es": "nuevo",
+            "grammatical_note": "mask.pl"
+          }
+        ],
+        "distractors_no": [
+          "Søsteren åpner de nye bøkene",
+          "Søstrene åpner de gamle bøkene",
+          "Brødrene åpner de nye bøkene"
+        ],
+        "difficulty_rank": 5
+      },
+      {
+        "es": "El hijo lee un libro en casa",
+        "no": "Sønnen leser en bok hjemme",
+        "word_mapping": [
+          {
+            "position": 0,
+            "form": "El",
+            "lemma_es": "el",
+            "grammatical_note": "mask.sg.bestemt"
+          },
+          {
+            "position": 1,
+            "form": "hijo",
+            "lemma_es": "hijo",
+            "grammatical_note": "mask.sg"
+          },
+          {
+            "position": 2,
+            "form": "lee",
+            "lemma_es": "leer",
+            "grammatical_note": "presens.3sg"
+          },
+          {
+            "position": 3,
+            "form": "un",
+            "lemma_es": "un",
+            "grammatical_note": "mask.sg.ubestemt"
+          },
+          {
+            "position": 4,
+            "form": "libro",
+            "lemma_es": "libro",
+            "grammatical_note": "mask.sg"
+          },
+          {
+            "position": 5,
+            "form": "en",
+            "lemma_es": "en",
+            "grammatical_note": "preposisjon"
+          },
+          {
+            "position": 6,
+            "form": "casa",
+            "lemma_es": "casa",
+            "grammatical_note": "fem.sg"
+          }
+        ],
+        "distractors_no": [
+          "Datteren leser en bok hjemme",
+          "Sønnen skriver en bok hjemme",
+          "Sønnen leser en bok på skolen"
+        ],
+        "difficulty_rank": 3
+      },
+      {
+        "es": "La familia come en casa hoy",
+        "no": "Familien spiser hjemme i dag",
+        "word_mapping": [
+          {
+            "position": 0,
+            "form": "La",
+            "lemma_es": "la",
+            "grammatical_note": "fem.sg.bestemt"
+          },
+          {
+            "position": 1,
+            "form": "familia",
+            "lemma_es": "familia",
+            "grammatical_note": "fem.sg"
+          },
+          {
+            "position": 2,
+            "form": "come",
+            "lemma_es": "comer",
+            "grammatical_note": "presens.3sg"
+          },
+          {
+            "position": 3,
+            "form": "en",
+            "lemma_es": "en",
+            "grammatical_note": "preposisjon"
+          },
+          {
+            "position": 4,
+            "form": "casa",
+            "lemma_es": "casa",
+            "grammatical_note": "fem.sg"
+          },
+          {
+            "position": 5,
+            "form": "hoy",
+            "lemma_es": "hoy",
+            "grammatical_note": "adverb"
+          }
+        ],
+        "distractors_no": [
+          "Familien drikker hjemme i dag",
+          "Familien spiser hjemme i morgen",
+          "Familiene spiser hjemme i dag"
+        ],
+        "difficulty_rank": 3
+      },
+      {
+        "es": "Los niños ven el gato grande",
+        "no": "Guttene ser den store katten",
+        "word_mapping": [
+          {
+            "position": 0,
+            "form": "Los",
+            "lemma_es": "los",
+            "grammatical_note": "mask.pl.bestemt"
+          },
+          {
+            "position": 1,
+            "form": "niños",
+            "lemma_es": "niño",
+            "grammatical_note": "mask.pl"
+          },
+          {
+            "position": 2,
+            "form": "ven",
+            "lemma_es": "ver",
+            "grammatical_note": "presens.3pl"
+          },
+          {
+            "position": 3,
+            "form": "el",
+            "lemma_es": "el",
+            "grammatical_note": "mask.sg.bestemt"
+          },
+          {
+            "position": 4,
+            "form": "gato",
+            "lemma_es": "gato",
+            "grammatical_note": "mask.sg"
+          },
+          {
+            "position": 5,
+            "form": "grande",
+            "lemma_es": "grande",
+            "grammatical_note": "adjektiv.sg"
+          }
+        ],
+        "distractors_no": [
+          "Guttene ser den lille katten",
+          "Guttene ser den store hunden",
+          "Jentene ser den store katten"
+        ],
+        "difficulty_rank": 4
+      },
+      {
+        "es": "Ella escribe cosas buenas aquí",
+        "no": "Hun skriver gode ting her",
+        "word_mapping": [
+          {
+            "position": 0,
+            "form": "Ella",
+            "lemma_es": "ella",
+            "grammatical_note": "3sg.fem.pronomen"
+          },
+          {
+            "position": 1,
+            "form": "escribe",
+            "lemma_es": "escribir",
+            "grammatical_note": "presens.3sg"
+          },
+          {
+            "position": 2,
+            "form": "cosas",
+            "lemma_es": "cosa",
+            "grammatical_note": "fem.pl"
+          },
+          {
+            "position": 3,
+            "form": "buenas",
+            "lemma_es": "bueno",
+            "grammatical_note": "fem.pl"
+          },
+          {
+            "position": 4,
+            "form": "aquí",
+            "lemma_es": "aquí",
+            "grammatical_note": "adverb"
+          }
+        ],
+        "distractors_no": [
+          "Han skriver gode ting her",
+          "Hun skriver dårlige ting her",
+          "Hun leser gode ting her"
+        ],
+        "difficulty_rank": 4
+      },
+      {
+        "es": "Nosotros tenemos una casa bonita",
+        "no": "Vi har et pent hus",
+        "word_mapping": [
+          {
+            "position": 0,
+            "form": "Nosotros",
+            "lemma_es": "nosotros",
+            "grammatical_note": "1pl.pronomen"
+          },
+          {
+            "position": 1,
+            "form": "tenemos",
+            "lemma_es": "tener",
+            "grammatical_note": "presens.1pl"
+          },
+          {
+            "position": 2,
+            "form": "una",
+            "lemma_es": "una",
+            "grammatical_note": "fem.sg.ubestemt"
+          },
+          {
+            "position": 3,
+            "form": "casa",
+            "lemma_es": "casa",
+            "grammatical_note": "fem.sg"
+          },
+          {
+            "position": 4,
+            "form": "bonita",
+            "lemma_es": "bonito",
+            "grammatical_note": "fem.sg"
+          }
+        ],
+        "distractors_no": [
+          "Vi har et stygt hus",
+          "Vi har et stort hus",
+          "Dere har et pent hus"
+        ],
+        "difficulty_rank": 3
+      },
+      {
+        "es": "El perro no come la fruta",
+        "no": "Hunden spiser ikke frukten",
+        "word_mapping": [
+          {
+            "position": 0,
+            "form": "El",
+            "lemma_es": "el",
+            "grammatical_note": "mask.sg.bestemt"
+          },
+          {
+            "position": 1,
+            "form": "perro",
+            "lemma_es": "perro",
+            "grammatical_note": "mask.sg"
+          },
+          {
+            "position": 2,
+            "form": "no",
+            "lemma_es": "no",
+            "grammatical_note": "adverb.negasjon"
+          },
+          {
+            "position": 3,
+            "form": "come",
+            "lemma_es": "comer",
+            "grammatical_note": "presens.3sg"
+          },
+          {
+            "position": 4,
+            "form": "la",
+            "lemma_es": "la",
+            "grammatical_note": "fem.sg.bestemt"
+          },
+          {
+            "position": 5,
+            "form": "fruta",
+            "lemma_es": "fruta",
+            "grammatical_note": "fem.sg"
+          }
+        ],
+        "distractors_no": [
+          "Hunden spiser frukten",
+          "Katten spiser ikke frukten",
+          "Hunden drikker ikke frukten"
+        ],
+        "difficulty_rank": 4
+      },
+      {
+        "es": "La niña mira el libro viejo",
+        "no": "Jenten ser på den gamle boken",
+        "word_mapping": [
+          {
+            "position": 0,
+            "form": "La",
+            "lemma_es": "la",
+            "grammatical_note": "fem.sg.bestemt"
+          },
+          {
+            "position": 1,
+            "form": "niña",
+            "lemma_es": "niña",
+            "grammatical_note": "fem.sg"
+          },
+          {
+            "position": 2,
+            "form": "mira",
+            "lemma_es": "mirar",
+            "grammatical_note": "presens.3sg"
+          },
+          {
+            "position": 3,
+            "form": "el",
+            "lemma_es": "el",
+            "grammatical_note": "mask.sg.bestemt"
+          },
+          {
+            "position": 4,
+            "form": "libro",
+            "lemma_es": "libro",
+            "grammatical_note": "mask.sg"
+          },
+          {
+            "position": 5,
+            "form": "viejo",
+            "lemma_es": "viejo",
+            "grammatical_note": "mask.sg"
+          }
+        ],
+        "distractors_no": [
+          "Jenten ser på den nye boken",
+          "Gutten ser på den gamle boken",
+          "Jenten leser den gamle boken"
+        ],
+        "difficulty_rank": 4
+      },
+      {
+        "es": "Los padres viven con los hijos",
+        "no": "Foreldrene lever med barna",
+        "word_mapping": [
+          {
+            "position": 0,
+            "form": "Los",
+            "lemma_es": "los",
+            "grammatical_note": "mask.pl.bestemt"
+          },
+          {
+            "position": 1,
+            "form": "padres",
+            "lemma_es": "padre",
+            "grammatical_note": "mask.pl"
+          },
+          {
+            "position": 2,
+            "form": "viven",
+            "lemma_es": "vivir",
+            "grammatical_note": "presens.3pl"
+          },
+          {
+            "position": 3,
+            "form": "con",
+            "lemma_es": "con",
+            "grammatical_note": "preposisjon"
+          },
+          {
+            "position": 4,
+            "form": "los",
+            "lemma_es": "los",
+            "grammatical_note": "mask.pl.bestemt"
+          },
+          {
+            "position": 5,
+            "form": "hijos",
+            "lemma_es": "hijo",
+            "grammatical_note": "mask.pl"
+          }
+        ],
+        "distractors_no": [
+          "Faren lever med barna",
+          "Foreldrene lever med døtrene",
+          "Foreldrene arbeider med barna"
+        ],
+        "difficulty_rank": 5
+      },
+      {
+        "es": "Tú tienes un gato y un perro",
+        "no": "Du har en katt og en hund",
+        "word_mapping": [
+          {
+            "position": 0,
+            "form": "Tú",
+            "lemma_es": "tú",
+            "grammatical_note": "2sg.pronomen"
+          },
+          {
+            "position": 1,
+            "form": "tienes",
+            "lemma_es": "tener",
+            "grammatical_note": "presens.2sg"
+          },
+          {
+            "position": 2,
+            "form": "un",
+            "lemma_es": "un",
+            "grammatical_note": "mask.sg.ubestemt"
+          },
+          {
+            "position": 3,
+            "form": "gato",
+            "lemma_es": "gato",
+            "grammatical_note": "mask.sg"
+          },
+          {
+            "position": 4,
+            "form": "y",
+            "lemma_es": "y",
+            "grammatical_note": "konjunksjon"
+          },
+          {
+            "position": 5,
+            "form": "un",
+            "lemma_es": "un",
+            "grammatical_note": "mask.sg.ubestemt"
+          },
+          {
+            "position": 6,
+            "form": "perro",
+            "lemma_es": "perro",
+            "grammatical_note": "mask.sg"
+          }
+        ],
+        "distractors_no": [
+          "Du har en katt og en bil",
+          "Jeg har en katt og en hund",
+          "Du har en katt eller en hund"
+        ],
+        "difficulty_rank": 3
+      },
+      {
+        "es": "Ellos leen libros en la casa",
+        "no": "De leser bøker i huset",
+        "word_mapping": [
+          {
+            "position": 0,
+            "form": "Ellos",
+            "lemma_es": "ellos",
+            "grammatical_note": "3pl.mask.pronomen"
+          },
+          {
+            "position": 1,
+            "form": "leen",
+            "lemma_es": "leer",
+            "grammatical_note": "presens.3pl"
+          },
+          {
+            "position": 2,
+            "form": "libros",
+            "lemma_es": "libro",
+            "grammatical_note": "mask.pl"
+          },
+          {
+            "position": 3,
+            "form": "en",
+            "lemma_es": "en",
+            "grammatical_note": "preposisjon"
+          },
+          {
+            "position": 4,
+            "form": "la",
+            "lemma_es": "la",
+            "grammatical_note": "fem.sg.bestemt"
+          },
+          {
+            "position": 5,
+            "form": "casa",
+            "lemma_es": "casa",
+            "grammatical_note": "fem.sg"
+          }
+        ],
+        "distractors_no": [
+          "De skriver bøker i huset",
+          "De leser bøker i skolen",
+          "Han leser bøker i huset"
+        ],
+        "difficulty_rank": 3
+      },
+      {
+        "es": "Ella camina con el perro pequeño",
+        "no": "Hun går med den lille hunden",
+        "word_mapping": [
+          {
+            "position": 0,
+            "form": "Ella",
+            "lemma_es": "ella",
+            "grammatical_note": "pronoun.fem.sg"
+          },
+          {
+            "position": 1,
+            "form": "camina",
+            "lemma_es": "caminar",
+            "grammatical_note": "presens.3sg"
+          },
+          {
+            "position": 2,
+            "form": "con",
+            "lemma_es": "con",
+            "grammatical_note": "preposition"
+          },
+          {
+            "position": 3,
+            "form": "el",
+            "lemma_es": "el",
+            "grammatical_note": "mask.sg"
+          },
+          {
+            "position": 4,
+            "form": "perro",
+            "lemma_es": "perro",
+            "grammatical_note": "mask.sg"
+          },
+          {
+            "position": 5,
+            "form": "pequeño",
+            "lemma_es": "pequeño",
+            "grammatical_note": "mask.sg"
+          }
+        ],
+        "distractors_no": [
+          "Han går med den lille hunden",
+          "Hun løper med den lille hunden",
+          "Hun går med den store hunden"
+        ],
+        "difficulty_rank": 3
+      },
+      {
+        "es": "Nosotros bebemos café en la mañana",
+        "no": "Vi drikker kaffe om morgenen",
+        "word_mapping": [
+          {
+            "position": 0,
+            "form": "Nosotros",
+            "lemma_es": "nosotros",
+            "grammatical_note": "pronoun.1pl"
+          },
+          {
+            "position": 1,
+            "form": "bebemos",
+            "lemma_es": "beber",
+            "grammatical_note": "presens.1pl"
+          },
+          {
+            "position": 2,
+            "form": "café",
+            "lemma_es": "café",
+            "grammatical_note": "mask.sg"
+          },
+          {
+            "position": 3,
+            "form": "en",
+            "lemma_es": "en",
+            "grammatical_note": "preposition"
+          },
+          {
+            "position": 4,
+            "form": "la",
+            "lemma_es": "la",
+            "grammatical_note": "fem.sg"
+          },
+          {
+            "position": 5,
+            "form": "mañana",
+            "lemma_es": "mañana",
+            "grammatical_note": "fem.sg"
+          }
+        ],
+        "distractors_no": [
+          "Dere drikker kaffe om morgenen",
+          "Vi spiser kaffe om morgenen",
+          "Vi drikker kaffe om natten"
+        ],
+        "difficulty_rank": 4
+      },
+      {
+        "es": "Tú cantas muy bien aquí",
+        "no": "Du synger veldig bra her",
+        "word_mapping": [
+          {
+            "position": 0,
+            "form": "Tú",
+            "lemma_es": "tú",
+            "grammatical_note": "pronoun.2sg"
+          },
+          {
+            "position": 1,
+            "form": "cantas",
+            "lemma_es": "cantar",
+            "grammatical_note": "presens.2sg"
+          },
+          {
+            "position": 2,
+            "form": "muy",
+            "lemma_es": "muy",
+            "grammatical_note": "adverb"
+          },
+          {
+            "position": 3,
+            "form": "bien",
+            "lemma_es": "bien",
+            "grammatical_note": "adverb"
+          },
+          {
+            "position": 4,
+            "form": "aquí",
+            "lemma_es": "aquí",
+            "grammatical_note": "adverb"
+          }
+        ],
+        "distractors_no": [
+          "Jeg synger veldig bra her",
+          "Du snakker veldig bra her",
+          "Du synger lite bra her"
+        ],
+        "difficulty_rank": 2
+      },
+      {
+        "es": "Ellos corren en la calle hoy",
+        "no": "De løper i gaten i dag",
+        "word_mapping": [
+          {
+            "position": 0,
+            "form": "Ellos",
+            "lemma_es": "ellos",
+            "grammatical_note": "pronoun.mask.pl"
+          },
+          {
+            "position": 1,
+            "form": "corren",
+            "lemma_es": "correr",
+            "grammatical_note": "presens.3pl"
+          },
+          {
+            "position": 2,
+            "form": "en",
+            "lemma_es": "en",
+            "grammatical_note": "preposition"
+          },
+          {
+            "position": 3,
+            "form": "la",
+            "lemma_es": "la",
+            "grammatical_note": "fem.sg"
+          },
+          {
+            "position": 4,
+            "form": "calle",
+            "lemma_es": "calle",
+            "grammatical_note": "fem.sg"
+          },
+          {
+            "position": 5,
+            "form": "hoy",
+            "lemma_es": "hoy",
+            "grammatical_note": "adverb"
+          }
+        ],
+        "distractors_no": [
+          "De går i gaten i dag",
+          "Han løper i gaten i dag",
+          "De løper i huset i dag"
+        ],
+        "difficulty_rank": 3
+      },
+      {
+        "es": "Yo vivo en una ciudad grande",
+        "no": "Jeg bor i en stor by",
+        "word_mapping": [
+          {
+            "position": 0,
+            "form": "Yo",
+            "lemma_es": "yo",
+            "grammatical_note": "pronoun.1sg"
+          },
+          {
+            "position": 1,
+            "form": "vivo",
+            "lemma_es": "vivir",
+            "grammatical_note": "presens.1sg"
+          },
+          {
+            "position": 2,
+            "form": "en",
+            "lemma_es": "en",
+            "grammatical_note": "preposition"
+          },
+          {
+            "position": 3,
+            "form": "una",
+            "lemma_es": "una",
+            "grammatical_note": "fem.sg"
+          },
+          {
+            "position": 4,
+            "form": "ciudad",
+            "lemma_es": "ciudad",
+            "grammatical_note": "fem.sg"
+          },
+          {
+            "position": 5,
+            "form": "grande",
+            "lemma_es": "grande",
+            "grammatical_note": "sg"
+          }
+        ],
+        "distractors_no": [
+          "Du bor i en stor by",
+          "Jeg bor i et stort hus",
+          "Jeg bor i en liten by"
+        ],
+        "difficulty_rank": 3
+      },
+      {
+        "es": "Las mujeres trabajan en la escuela",
+        "no": "Kvinnene jobber på skolen",
+        "word_mapping": [
+          {
+            "position": 0,
+            "form": "Las",
+            "lemma_es": "las",
+            "grammatical_note": "fem.pl"
+          },
+          {
+            "position": 1,
+            "form": "mujeres",
+            "lemma_es": "mujer",
+            "grammatical_note": "fem.pl"
+          },
+          {
+            "position": 2,
+            "form": "trabajan",
+            "lemma_es": "trabajar",
+            "grammatical_note": "presens.3pl"
+          },
+          {
+            "position": 3,
+            "form": "en",
+            "lemma_es": "en",
+            "grammatical_note": "preposition"
+          },
+          {
+            "position": 4,
+            "form": "la",
+            "lemma_es": "la",
+            "grammatical_note": "fem.sg"
+          },
+          {
+            "position": 5,
+            "form": "escuela",
+            "lemma_es": "escuela",
+            "grammatical_note": "fem.sg"
+          }
+        ],
+        "distractors_no": [
+          "Kvinnene studerer på skolen",
+          "Mennene jobber på skolen",
+          "Kvinnene jobber i byen"
+        ],
+        "difficulty_rank": 4
+      },
+      {
+        "es": "El padre hace pan en casa",
+        "no": "Faren lager brød hjemme",
+        "word_mapping": [
+          {
+            "position": 0,
+            "form": "El",
+            "lemma_es": "el",
+            "grammatical_note": "mask.sg"
+          },
+          {
+            "position": 1,
+            "form": "padre",
+            "lemma_es": "padre",
+            "grammatical_note": "mask.sg"
+          },
+          {
+            "position": 2,
+            "form": "hace",
+            "lemma_es": "hacer",
+            "grammatical_note": "presens.3sg"
+          },
+          {
+            "position": 3,
+            "form": "pan",
+            "lemma_es": "pan",
+            "grammatical_note": "mask.sg"
+          },
+          {
+            "position": 4,
+            "form": "en",
+            "lemma_es": "en",
+            "grammatical_note": "preposition"
+          },
+          {
+            "position": 5,
+            "form": "casa",
+            "lemma_es": "casa",
+            "grammatical_note": "fem.sg"
+          }
+        ],
+        "distractors_no": [
+          "Moren lager brød hjemme",
+          "Faren spiser brød hjemme",
+          "Faren lager kaffe hjemme"
+        ],
+        "difficulty_rank": 3
+      },
+      {
+        "es": "Vosotros entendéis la cosa bien",
+        "no": "Dere forstår tingen godt",
+        "word_mapping": [
+          {
+            "position": 0,
+            "form": "Vosotros",
+            "lemma_es": "vosotros",
+            "grammatical_note": "pronoun.2pl"
+          },
+          {
+            "position": 1,
+            "form": "entendéis",
+            "lemma_es": "entender",
+            "grammatical_note": "presens.2pl"
+          },
+          {
+            "position": 2,
+            "form": "la",
+            "lemma_es": "la",
+            "grammatical_note": "fem.sg"
+          },
+          {
+            "position": 3,
+            "form": "cosa",
+            "lemma_es": "cosa",
+            "grammatical_note": "fem.sg"
+          },
+          {
+            "position": 4,
+            "form": "bien",
+            "lemma_es": "bien",
+            "grammatical_note": "adverb"
+          }
+        ],
+        "distractors_no": [
+          "Vi forstår tingen godt",
+          "Dere forstår tingen dårlig",
+          "Dere ser tingen godt"
+        ],
+        "difficulty_rank": 5
+      },
+      {
+        "es": "La amiga recibe un libro nuevo",
+        "no": "Venninnen mottar en ny bok",
+        "word_mapping": [
+          {
+            "position": 0,
+            "form": "La",
+            "lemma_es": "la",
+            "grammatical_note": "fem.sg"
+          },
+          {
+            "position": 1,
+            "form": "amiga",
+            "lemma_es": "amiga",
+            "grammatical_note": "fem.sg"
+          },
+          {
+            "position": 2,
+            "form": "recibe",
+            "lemma_es": "recibir",
+            "grammatical_note": "presens.3sg"
+          },
+          {
+            "position": 3,
+            "form": "un",
+            "lemma_es": "un",
+            "grammatical_note": "mask.sg"
+          },
+          {
+            "position": 4,
+            "form": "libro",
+            "lemma_es": "libro",
+            "grammatical_note": "mask.sg"
+          },
+          {
+            "position": 5,
+            "form": "nuevo",
+            "lemma_es": "nuevo",
+            "grammatical_note": "mask.sg"
+          }
+        ],
+        "distractors_no": [
+          "Vennen mottar en ny bok",
+          "Venninnen leser en ny bok",
+          "Venninnen mottar en gammel bok"
+        ],
+        "difficulty_rank": 4
+      },
+      {
+        "es": "Los gatos duermen en la noche",
+        "no": "Kattene sover om natten",
+        "word_mapping": [
+          {
+            "position": 0,
+            "form": "Los",
+            "lemma_es": "los",
+            "grammatical_note": "mask.pl"
+          },
+          {
+            "position": 1,
+            "form": "gatos",
+            "lemma_es": "gato",
+            "grammatical_note": "mask.pl"
+          },
+          {
+            "position": 2,
+            "form": "duermen",
+            "lemma_es": "dormir",
+            "grammatical_note": "presens.3pl"
+          },
+          {
+            "position": 3,
+            "form": "en",
+            "lemma_es": "en",
+            "grammatical_note": "preposition"
+          },
+          {
+            "position": 4,
+            "form": "la",
+            "lemma_es": "la",
+            "grammatical_note": "fem.sg"
+          },
+          {
+            "position": 5,
+            "form": "noche",
+            "lemma_es": "noche",
+            "grammatical_note": "fem.sg"
+          }
+        ],
+        "distractors_no": [
+          "Hundene sover om natten",
+          "Kattene løper om natten",
+          "Kattene sover om morgenen"
+        ],
+        "difficulty_rank": 3
+      },
+      {
+        "es": "Él no sabe la cosa",
+        "no": "Han vet ikke tingen",
+        "word_mapping": [
+          {
+            "position": 0,
+            "form": "Él",
+            "lemma_es": "él",
+            "grammatical_note": "pronoun.mask.sg"
+          },
+          {
+            "position": 1,
+            "form": "no",
+            "lemma_es": "no",
+            "grammatical_note": "adverb"
+          },
+          {
+            "position": 2,
+            "form": "sabe",
+            "lemma_es": "saber",
+            "grammatical_note": "presens.3sg"
+          },
+          {
+            "position": 3,
+            "form": "la",
+            "lemma_es": "la",
+            "grammatical_note": "fem.sg"
+          },
+          {
+            "position": 4,
+            "form": "cosa",
+            "lemma_es": "cosa",
+            "grammatical_note": "fem.sg"
+          }
+        ],
+        "distractors_no": [
+          "Hun vet ikke tingen",
+          "Han vet tingen",
+          "Han ser ikke tingen"
+        ],
+        "difficulty_rank": 4
+      },
+      {
+        "es": "Nosotros vamos a la ciudad hoy",
+        "no": "Vi går til byen i dag",
+        "word_mapping": [
+          {
+            "position": 0,
+            "form": "Nosotros",
+            "lemma_es": "nosotros",
+            "grammatical_note": "pronoun.1pl"
+          },
+          {
+            "position": 1,
+            "form": "vamos",
+            "lemma_es": "ir",
+            "grammatical_note": "presens.1pl"
+          },
+          {
+            "position": 2,
+            "form": "a",
+            "lemma_es": "a",
+            "grammatical_note": "preposition"
+          },
+          {
+            "position": 3,
+            "form": "la",
+            "lemma_es": "la",
+            "grammatical_note": "fem.sg"
+          },
+          {
+            "position": 4,
+            "form": "ciudad",
+            "lemma_es": "ciudad",
+            "grammatical_note": "fem.sg"
+          },
+          {
+            "position": 5,
+            "form": "hoy",
+            "lemma_es": "hoy",
+            "grammatical_note": "adverb"
+          }
+        ],
+        "distractors_no": [
+          "Dere går til byen i dag",
+          "Vi kommer til byen i dag",
+          "Vi går til skolen i dag"
+        ],
+        "difficulty_rank": 4
+      },
+      {
+        "es": "Ellas miran el coche viejo aquí",
+        "no": "De ser på den gamle bilen her",
+        "word_mapping": [
+          {
+            "position": 0,
+            "form": "Ellas",
+            "lemma_es": "ellas",
+            "grammatical_note": "pronoun.fem.pl"
+          },
+          {
+            "position": 1,
+            "form": "miran",
+            "lemma_es": "mirar",
+            "grammatical_note": "presens.3pl"
+          },
+          {
+            "position": 2,
+            "form": "el",
+            "lemma_es": "el",
+            "grammatical_note": "mask.sg"
+          },
+          {
+            "position": 3,
+            "form": "coche",
+            "lemma_es": "coche",
+            "grammatical_note": "mask.sg"
+          },
+          {
+            "position": 4,
+            "form": "viejo",
+            "lemma_es": "viejo",
+            "grammatical_note": "mask.sg"
+          },
+          {
+            "position": 5,
+            "form": "aquí",
+            "lemma_es": "aquí",
+            "grammatical_note": "adverb"
+          }
+        ],
+        "distractors_no": [
+          "De ser på den nye bilen her",
+          "Hun ser på den gamle bilen her",
+          "De ser på den gamle katten her"
+        ],
+        "difficulty_rank": 4
+      },
+      {
+        "es": "La hermana toma leche con pan",
+        "no": "Søsteren drikker melk med brød",
+        "word_mapping": [
+          {
+            "position": 0,
+            "form": "La",
+            "lemma_es": "la",
+            "grammatical_note": "fem.sg"
+          },
+          {
+            "position": 1,
+            "form": "hermana",
+            "lemma_es": "hermana",
+            "grammatical_note": "fem.sg"
+          },
+          {
+            "position": 2,
+            "form": "toma",
+            "lemma_es": "tomar",
+            "grammatical_note": "presens.3sg"
+          },
+          {
+            "position": 3,
+            "form": "leche",
+            "lemma_es": "leche",
+            "grammatical_note": "fem.sg"
+          },
+          {
+            "position": 4,
+            "form": "con",
+            "lemma_es": "con",
+            "grammatical_note": "preposition"
+          },
+          {
+            "position": 5,
+            "form": "pan",
+            "lemma_es": "pan",
+            "grammatical_note": "mask.sg"
+          }
+        ],
+        "distractors_no": [
+          "Broren drikker melk med brød",
+          "Søsteren spiser melk med brød",
+          "Søsteren drikker vann med brød"
+        ],
+        "difficulty_rank": 4
+      },
+      {
+        "es": "Tú escribes cosas buenas en libros",
+        "no": "Du skriver gode ting i bøker",
+        "word_mapping": [
+          {
+            "position": 0,
+            "form": "Tú",
+            "lemma_es": "tú",
+            "grammatical_note": "pronoun.2sg"
+          },
+          {
+            "position": 1,
+            "form": "escribes",
+            "lemma_es": "escribir",
+            "grammatical_note": "presens.2sg"
+          },
+          {
+            "position": 2,
+            "form": "cosas",
+            "lemma_es": "cosa",
+            "grammatical_note": "fem.pl"
+          },
+          {
+            "position": 3,
+            "form": "buenas",
+            "lemma_es": "bueno",
+            "grammatical_note": "fem.pl"
+          },
+          {
+            "position": 4,
+            "form": "en",
+            "lemma_es": "en",
+            "grammatical_note": "preposition"
+          },
+          {
+            "position": 5,
+            "form": "libros",
+            "lemma_es": "libro",
+            "grammatical_note": "mask.pl"
+          }
+        ],
+        "distractors_no": [
+          "Du leser gode ting i bøker",
+          "Jeg skriver gode ting i bøker",
+          "Du skriver dårlige ting i bøker"
+        ],
+        "difficulty_rank": 5
+      },
+      {
+        "es": "Yo tengo un coche grande",
+        "no": "Jeg har en stor bil",
+        "word_mapping": [
+          {
+            "position": 0,
+            "form": "Yo",
+            "lemma_es": "yo",
+            "grammatical_note": "pronomen.1sg"
+          },
+          {
+            "position": 1,
+            "form": "tengo",
+            "lemma_es": "tener",
+            "grammatical_note": "presens.1sg"
+          },
+          {
+            "position": 2,
+            "form": "un",
+            "lemma_es": "un",
+            "grammatical_note": "mask.sg"
+          },
+          {
+            "position": 3,
+            "form": "coche",
+            "lemma_es": "coche",
+            "grammatical_note": "mask.sg"
+          },
+          {
+            "position": 4,
+            "form": "grande",
+            "lemma_es": "grande",
+            "grammatical_note": "sg"
+          }
+        ],
+        "distractors_no": [
+          "Jeg har en liten bil",
+          "Du har en stor bil",
+          "Jeg har et stort hus"
+        ],
+        "difficulty_rank": 1
+      },
+      {
+        "es": "Él es un niño pequeño",
+        "no": "Han er en liten gutt",
+        "word_mapping": [
+          {
+            "position": 0,
+            "form": "Él",
+            "lemma_es": "él",
+            "grammatical_note": "pronomen.3sg.mask"
+          },
+          {
+            "position": 1,
+            "form": "es",
+            "lemma_es": "ser",
+            "grammatical_note": "presens.3sg"
+          },
+          {
+            "position": 2,
+            "form": "un",
+            "lemma_es": "un",
+            "grammatical_note": "mask.sg"
+          },
+          {
+            "position": 3,
+            "form": "niño",
+            "lemma_es": "niño",
+            "grammatical_note": "mask.sg"
+          },
+          {
+            "position": 4,
+            "form": "pequeño",
+            "lemma_es": "pequeño",
+            "grammatical_note": "mask.sg"
+          }
+        ],
+        "distractors_no": [
+          "Han er en stor gutt",
+          "Hun er en liten gutt",
+          "Han er en liten jente"
+        ],
+        "difficulty_rank": 2
+      },
+      {
+        "es": "Tú comes frutas buenas",
+        "no": "Du spiser god frukt",
+        "word_mapping": [
+          {
+            "position": 0,
+            "form": "Tú",
+            "lemma_es": "tú",
+            "grammatical_note": "pronomen.2sg"
+          },
+          {
+            "position": 1,
+            "form": "comes",
+            "lemma_es": "comer",
+            "grammatical_note": "presens.2sg"
+          },
+          {
+            "position": 2,
+            "form": "frutas",
+            "lemma_es": "fruta",
+            "grammatical_note": "fem.pl"
+          },
+          {
+            "position": 3,
+            "form": "buenas",
+            "lemma_es": "bueno",
+            "grammatical_note": "fem.pl"
+          }
+        ],
+        "distractors_no": [
+          "Du spiser dårlig frukt",
+          "Du drikker god frukt",
+          "Dere spiser god frukt"
+        ],
+        "difficulty_rank": 3
+      },
+      {
+        "es": "Ella lee libros viejos",
+        "no": "Hun leser gamle bøker",
+        "word_mapping": [
+          {
+            "position": 0,
+            "form": "Ella",
+            "lemma_es": "ella",
+            "grammatical_note": "pronomen.3sg.fem"
+          },
+          {
+            "position": 1,
+            "form": "lee",
+            "lemma_es": "leer",
+            "grammatical_note": "presens.3sg"
+          },
+          {
+            "position": 2,
+            "form": "libros",
+            "lemma_es": "libro",
+            "grammatical_note": "mask.pl"
+          },
+          {
+            "position": 3,
+            "form": "viejos",
+            "lemma_es": "viejo",
+            "grammatical_note": "mask.pl"
+          }
+        ],
+        "distractors_no": [
+          "Hun leser nye bøker",
+          "Han leser gamle bøker",
+          "Hun skriver gamle bøker"
+        ],
+        "difficulty_rank": 4
+      },
+      {
+        "es": "La familia grande vive bien",
+        "no": "Den store familien lever godt",
+        "word_mapping": [
+          {
+            "position": 0,
+            "form": "La",
+            "lemma_es": "la",
+            "grammatical_note": "fem.sg"
+          },
+          {
+            "position": 1,
+            "form": "familia",
+            "lemma_es": "familia",
+            "grammatical_note": "fem.sg"
+          },
+          {
+            "position": 2,
+            "form": "grande",
+            "lemma_es": "grande",
+            "grammatical_note": "sg"
+          },
+          {
+            "position": 3,
+            "form": "vive",
+            "lemma_es": "vivir",
+            "grammatical_note": "presens.3sg"
+          },
+          {
+            "position": 4,
+            "form": "bien",
+            "lemma_es": "bien",
+            "grammatical_note": "adverb"
+          }
+        ],
+        "distractors_no": [
+          "Den lille familien lever godt",
+          "Den store familien arbeider godt",
+          "De store familiene lever godt"
+        ],
+        "difficulty_rank": 5
+      },
+      {
+        "es": "Ellos beben agua en casa",
+        "no": "De drikker vann hjemme",
+        "word_mapping": [
+          {
+            "position": 0,
+            "form": "Ellos",
+            "lemma_es": "ellos",
+            "grammatical_note": "pronomen.3pl.mask"
+          },
+          {
+            "position": 1,
+            "form": "beben",
+            "lemma_es": "beber",
+            "grammatical_note": "presens.3pl"
+          },
+          {
+            "position": 2,
+            "form": "agua",
+            "lemma_es": "agua",
+            "grammatical_note": "fem.sg"
+          },
+          {
+            "position": 3,
+            "form": "en",
+            "lemma_es": "en",
+            "grammatical_note": "preposisjon"
+          },
+          {
+            "position": 4,
+            "form": "casa",
+            "lemma_es": "casa",
+            "grammatical_note": "fem.sg"
+          }
+        ],
+        "distractors_no": [
+          "De drikker vann på skolen",
+          "De drikker kaffe hjemme",
+          "Han drikker vann hjemme"
+        ],
+        "difficulty_rank": 6
+      },
+      {
+        "es": "Ellas tienen hijas bonitas",
+        "no": "De har pene døtre",
+        "word_mapping": [
+          {
+            "position": 0,
+            "form": "Ellas",
+            "lemma_es": "ellas",
+            "grammatical_note": "pronomen.3pl.fem"
+          },
+          {
+            "position": 1,
+            "form": "tienen",
+            "lemma_es": "tener",
+            "grammatical_note": "presens.3pl"
+          },
+          {
+            "position": 2,
+            "form": "hijas",
+            "lemma_es": "hija",
+            "grammatical_note": "fem.pl"
+          },
+          {
+            "position": 3,
+            "form": "bonitas",
+            "lemma_es": "bonito",
+            "grammatical_note": "fem.pl"
+          }
+        ],
+        "distractors_no": [
+          "De har pene sønner",
+          "Hun har pene døtre",
+          "De har stygge døtre"
+        ],
+        "difficulty_rank": 7
+      },
+      {
+        "es": "Las amigas nuevas cantan bien",
+        "no": "De nye venninnene synger godt",
+        "word_mapping": [
+          {
+            "position": 0,
+            "form": "Las",
+            "lemma_es": "las",
+            "grammatical_note": "fem.pl"
+          },
+          {
+            "position": 1,
+            "form": "amigas",
+            "lemma_es": "amiga",
+            "grammatical_note": "fem.pl"
+          },
+          {
+            "position": 2,
+            "form": "nuevas",
+            "lemma_es": "nuevo",
+            "grammatical_note": "fem.pl"
+          },
+          {
+            "position": 3,
+            "form": "cantan",
+            "lemma_es": "cantar",
+            "grammatical_note": "presens.3pl"
+          },
+          {
+            "position": 4,
+            "form": "bien",
+            "lemma_es": "bien",
+            "grammatical_note": "adverb"
+          }
+        ],
+        "distractors_no": [
+          "De nye vennene synger godt",
+          "De gamle venninnene synger godt",
+          "Den nye venninnen synger godt"
+        ],
+        "difficulty_rank": 8
+      },
+      {
+        "es": "Los perros pequeños corren mucho",
+        "no": "De små hundene løper mye",
+        "word_mapping": [
+          {
+            "position": 0,
+            "form": "Los",
+            "lemma_es": "los",
+            "grammatical_note": "mask.pl"
+          },
+          {
+            "position": 1,
+            "form": "perros",
+            "lemma_es": "perro",
+            "grammatical_note": "mask.pl"
+          },
+          {
+            "position": 2,
+            "form": "pequeños",
+            "lemma_es": "pequeño",
+            "grammatical_note": "mask.pl"
+          },
+          {
+            "position": 3,
+            "form": "corren",
+            "lemma_es": "correr",
+            "grammatical_note": "presens.3pl"
+          },
+          {
+            "position": 4,
+            "form": "mucho",
+            "lemma_es": "mucho",
+            "grammatical_note": "adverb"
+          }
+        ],
+        "distractors_no": [
+          "De store hundene løper mye",
+          "De små kattene løper mye",
+          "De små hundene går mye"
+        ],
+        "difficulty_rank": 9
+      },
+      {
+        "es": "Nosotros vemos coches nuevos aquí",
+        "no": "Vi ser nye biler her",
+        "word_mapping": [
+          {
+            "position": 0,
+            "form": "Nosotros",
+            "lemma_es": "nosotros",
+            "grammatical_note": "pronomen.1pl"
+          },
+          {
+            "position": 1,
+            "form": "vemos",
+            "lemma_es": "ver",
+            "grammatical_note": "presens.1pl"
+          },
+          {
+            "position": 2,
+            "form": "coches",
+            "lemma_es": "coche",
+            "grammatical_note": "mask.pl"
+          },
+          {
+            "position": 3,
+            "form": "nuevos",
+            "lemma_es": "nuevo",
+            "grammatical_note": "mask.pl"
+          },
+          {
+            "position": 4,
+            "form": "aquí",
+            "lemma_es": "aquí",
+            "grammatical_note": "adverb"
+          }
+        ],
+        "distractors_no": [
+          "Vi ser gamle biler her",
+          "Vi ser nye hus her",
+          "Jeg ser nye biler her"
+        ],
+        "difficulty_rank": 10
+      },
+      {
+        "es": "Los hombres altos caminan aquí",
+        "no": "De høye mennene går her",
+        "word_mapping": [
+          {
+            "position": 0,
+            "form": "Los",
+            "lemma_es": "los",
+            "grammatical_note": "mask.pl"
+          },
+          {
+            "position": 1,
+            "form": "hombres",
+            "lemma_es": "hombre",
+            "grammatical_note": "mask.pl"
+          },
+          {
+            "position": 2,
+            "form": "altos",
+            "lemma_es": "alto",
+            "grammatical_note": "mask.pl"
+          },
+          {
+            "position": 3,
+            "form": "caminan",
+            "lemma_es": "caminar",
+            "grammatical_note": "presens.3pl"
+          },
+          {
+            "position": 4,
+            "form": "aquí",
+            "lemma_es": "aquí",
+            "grammatical_note": "adverb"
+          }
+        ],
+        "distractors_no": [
+          "De korte mennene går her",
+          "De høye kvinnene går her",
+          "De høye mennene løper her"
+        ],
+        "difficulty_rank": 11
+      },
+      {
+        "es": "Las hermanas contentas hablan mucho",
+        "no": "De fornøyde søstrene snakker mye",
+        "word_mapping": [
+          {
+            "position": 0,
+            "form": "Las",
+            "lemma_es": "las",
+            "grammatical_note": "fem.pl"
+          },
+          {
+            "position": 1,
+            "form": "hermanas",
+            "lemma_es": "hermana",
+            "grammatical_note": "fem.pl"
+          },
+          {
+            "position": 2,
+            "form": "contentas",
+            "lemma_es": "contento",
+            "grammatical_note": "fem.pl"
+          },
+          {
+            "position": 3,
+            "form": "hablan",
+            "lemma_es": "hablar",
+            "grammatical_note": "presens.3pl"
+          },
+          {
+            "position": 4,
+            "form": "mucho",
+            "lemma_es": "mucho",
+            "grammatical_note": "adverb"
+          }
+        ],
+        "distractors_no": [
+          "De fornøyde brødrene snakker mye",
+          "Den fornøyde søsteren snakker mye",
+          "De fornøyde søstrene arbeider mye"
+        ],
+        "difficulty_rank": 12
+      },
+      {
+        "es": "El gato malo no viene",
+        "no": "Den slemme katten kommer ikke",
+        "word_mapping": [
+          {
+            "position": 0,
+            "form": "El",
+            "lemma_es": "el",
+            "grammatical_note": "mask.sg"
+          },
+          {
+            "position": 1,
+            "form": "gato",
+            "lemma_es": "gato",
+            "grammatical_note": "mask.sg"
+          },
+          {
+            "position": 2,
+            "form": "malo",
+            "lemma_es": "malo",
+            "grammatical_note": "mask.sg"
+          },
+          {
+            "position": 3,
+            "form": "no",
+            "lemma_es": "no",
+            "grammatical_note": "adverb.negasjon"
+          },
+          {
+            "position": 4,
+            "form": "viene",
+            "lemma_es": "venir",
+            "grammatical_note": "presens.3sg"
+          }
+        ],
+        "distractors_no": [
+          "Den snille katten kommer ikke",
+          "Den slemme katten kommer",
+          "Den slemme hunden kommer ikke"
+        ],
+        "difficulty_rank": 13
+      },
+      {
+        "es": "La mujer cansada está aquí",
+        "no": "Den trøtte kvinnen er her",
+        "word_mapping": [
+          {
+            "position": 0,
+            "form": "La",
+            "lemma_es": "la",
+            "grammatical_note": "fem.sg"
+          },
+          {
+            "position": 1,
+            "form": "mujer",
+            "lemma_es": "mujer",
+            "grammatical_note": "fem.sg"
+          },
+          {
+            "position": 2,
+            "form": "cansada",
+            "lemma_es": "cansado",
+            "grammatical_note": "fem.sg"
+          },
+          {
+            "position": 3,
+            "form": "está",
+            "lemma_es": "estar",
+            "grammatical_note": "presens.3sg"
+          },
+          {
+            "position": 4,
+            "form": "aquí",
+            "lemma_es": "aquí",
+            "grammatical_note": "adverb"
+          }
+        ],
+        "distractors_no": [
+          "Den fornøyde kvinnen er her",
+          "Den trøtte mannen er her",
+          "De trøtte kvinnene er her"
+        ],
+        "difficulty_rank": 14
+      },
+      {
+        "es": "Los profesores jóvenes trabajan hoy",
+        "no": "De unge lærerne arbeider i dag",
+        "word_mapping": [
+          {
+            "position": 0,
+            "form": "Los",
+            "lemma_es": "los",
+            "grammatical_note": "mask.pl"
+          },
+          {
+            "position": 1,
+            "form": "profesores",
+            "lemma_es": "profesor",
+            "grammatical_note": "mask.pl"
+          },
+          {
+            "position": 2,
+            "form": "jóvenes",
+            "lemma_es": "joven",
+            "grammatical_note": "pl"
+          },
+          {
+            "position": 3,
+            "form": "trabajan",
+            "lemma_es": "trabajar",
+            "grammatical_note": "presens.3pl"
+          },
+          {
+            "position": 4,
+            "form": "hoy",
+            "lemma_es": "hoy",
+            "grammatical_note": "adverb"
+          }
+        ],
+        "distractors_no": [
+          "De gamle lærerne arbeider i dag",
+          "Den unge læreren arbeider i dag",
+          "De unge lærerne studerer i dag"
+        ],
+        "difficulty_rank": 15
+      },
+      {
+        "es": "La ciudad es muy grande",
+        "no": "Byen er veldig stor",
+        "word_mapping": [
+          {
+            "position": 0,
+            "form": "La",
+            "lemma_es": "el",
+            "grammatical_note": "fem.sg"
+          },
+          {
+            "position": 1,
+            "form": "ciudad",
+            "lemma_es": "ciudad",
+            "grammatical_note": "fem.sg"
+          },
+          {
+            "position": 2,
+            "form": "es",
+            "lemma_es": "ser",
+            "grammatical_note": "presens.3sg"
+          },
+          {
+            "position": 3,
+            "form": "muy",
+            "lemma_es": "muy",
+            "grammatical_note": "adverb"
+          },
+          {
+            "position": 4,
+            "form": "grande",
+            "lemma_es": "grande",
+            "grammatical_note": "sg"
+          }
+        ],
+        "distractors_no": [
+          "Byen er veldig liten",
+          "Gaten er veldig stor",
+          "Landet er veldig stort"
+        ],
+        "difficulty_rank": 1
+      },
+      {
+        "es": "Una ciudad pequeña tiene una calle",
+        "no": "En liten by har en gate",
+        "word_mapping": [
+          {
+            "position": 0,
+            "form": "Una",
+            "lemma_es": "una",
+            "grammatical_note": "fem.sg"
+          },
+          {
+            "position": 1,
+            "form": "ciudad",
+            "lemma_es": "ciudad",
+            "grammatical_note": "fem.sg"
+          },
+          {
+            "position": 2,
+            "form": "pequeña",
+            "lemma_es": "pequeño",
+            "grammatical_note": "fem.sg"
+          },
+          {
+            "position": 3,
+            "form": "tiene",
+            "lemma_es": "tener",
+            "grammatical_note": "presens.3sg"
+          },
+          {
+            "position": 4,
+            "form": "una",
+            "lemma_es": "una",
+            "grammatical_note": "fem.sg"
+          },
+          {
+            "position": 5,
+            "form": "calle",
+            "lemma_es": "calle",
+            "grammatical_note": "fem.sg"
+          }
+        ],
+        "distractors_no": [
+          "En liten by har et land",
+          "En stor by har en gate",
+          "En liten by ser en gate"
+        ],
+        "difficulty_rank": 2
+      },
+      {
+        "es": "Ellos viven en la ciudad",
+        "no": "De bor i byen",
+        "word_mapping": [
+          {
+            "position": 0,
+            "form": "Ellos",
+            "lemma_es": "ellos",
+            "grammatical_note": "mask.pl"
+          },
+          {
+            "position": 1,
+            "form": "viven",
+            "lemma_es": "vivir",
+            "grammatical_note": "presens.3pl"
+          },
+          {
+            "position": 2,
+            "form": "en",
+            "lemma_es": "en",
+            "grammatical_note": "preposisjon"
+          },
+          {
+            "position": 3,
+            "form": "la",
+            "lemma_es": "el",
+            "grammatical_note": "fem.sg"
+          },
+          {
+            "position": 4,
+            "form": "ciudad",
+            "lemma_es": "ciudad",
+            "grammatical_note": "fem.sg"
+          }
+        ],
+        "distractors_no": [
+          "De arbeider i byen",
+          "De bor i gaten",
+          "Vi bor i byen"
+        ],
+        "difficulty_rank": 3
+      },
+      {
+        "es": "Él trabaja en un país grande",
+        "no": "Han arbeider i et stort land",
+        "word_mapping": [
+          {
+            "position": 0,
+            "form": "Él",
+            "lemma_es": "él",
+            "grammatical_note": "mask.sg"
+          },
+          {
+            "position": 1,
+            "form": "trabaja",
+            "lemma_es": "trabajar",
+            "grammatical_note": "presens.3sg"
+          },
+          {
+            "position": 2,
+            "form": "en",
+            "lemma_es": "en",
+            "grammatical_note": "preposisjon"
+          },
+          {
+            "position": 3,
+            "form": "un",
+            "lemma_es": "un",
+            "grammatical_note": "mask.sg"
+          },
+          {
+            "position": 4,
+            "form": "país",
+            "lemma_es": "país",
+            "grammatical_note": "mask.sg"
+          },
+          {
+            "position": 5,
+            "form": "grande",
+            "lemma_es": "grande",
+            "grammatical_note": "sg"
+          }
+        ],
+        "distractors_no": [
+          "Han bor i et stort land",
+          "Han arbeider i en stor by",
+          "Hun arbeider i et stort land"
+        ],
+        "difficulty_rank": 4
+      },
+      {
+        "es": "Las calles son bonitas aquí",
+        "no": "Gatene er vakre her",
+        "word_mapping": [
+          {
+            "position": 0,
+            "form": "Las",
+            "lemma_es": "las",
+            "grammatical_note": "fem.pl"
+          },
+          {
+            "position": 1,
+            "form": "calles",
+            "lemma_es": "calle",
+            "grammatical_note": "fem.pl"
+          },
+          {
+            "position": 2,
+            "form": "son",
+            "lemma_es": "ser",
+            "grammatical_note": "presens.3pl"
+          },
+          {
+            "position": 3,
+            "form": "bonitas",
+            "lemma_es": "bonito",
+            "grammatical_note": "fem.pl"
+          },
+          {
+            "position": 4,
+            "form": "aquí",
+            "lemma_es": "aquí",
+            "grammatical_note": "adverb"
+          }
+        ],
+        "distractors_no": [
+          "Gatene er vakre der",
+          "Husene er vakre her",
+          "Gaten er vakker her"
+        ],
+        "difficulty_rank": 5
+      },
+      {
+        "es": "Las ciudades nuevas están aquí",
+        "no": "De nye byene er her",
+        "word_mapping": [
+          {
+            "position": 0,
+            "form": "Las",
+            "lemma_es": "las",
+            "grammatical_note": "fem.pl"
+          },
+          {
+            "position": 1,
+            "form": "ciudades",
+            "lemma_es": "ciudad",
+            "grammatical_note": "fem.pl"
+          },
+          {
+            "position": 2,
+            "form": "nuevas",
+            "lemma_es": "nuevo",
+            "grammatical_note": "fem.pl"
+          },
+          {
+            "position": 3,
+            "form": "están",
+            "lemma_es": "estar",
+            "grammatical_note": "presens.3pl"
+          },
+          {
+            "position": 4,
+            "form": "aquí",
+            "lemma_es": "aquí",
+            "grammatical_note": "adverb"
+          }
+        ],
+        "distractors_no": [
+          "De nye byene er der",
+          "De gamle byene er her",
+          "Den nye byen er her"
+        ],
+        "difficulty_rank": 6
+      },
+      {
+        "es": "Ellas están en la calle ahora",
+        "no": "De er i gaten nå",
+        "word_mapping": [
+          {
+            "position": 0,
+            "form": "Ellas",
+            "lemma_es": "ellas",
+            "grammatical_note": "fem.pl"
+          },
+          {
+            "position": 1,
+            "form": "están",
+            "lemma_es": "estar",
+            "grammatical_note": "presens.3pl"
+          },
+          {
+            "position": 2,
+            "form": "en",
+            "lemma_es": "en",
+            "grammatical_note": "preposisjon"
+          },
+          {
+            "position": 3,
+            "form": "la",
+            "lemma_es": "el",
+            "grammatical_note": "fem.sg"
+          },
+          {
+            "position": 4,
+            "form": "calle",
+            "lemma_es": "calle",
+            "grammatical_note": "fem.sg"
+          },
+          {
+            "position": 5,
+            "form": "ahora",
+            "lemma_es": "ahora",
+            "grammatical_note": "adverb"
+          }
+        ],
+        "distractors_no": [
+          "De er i byen nå",
+          "De er i gaten alltid",
+          "Vi er i gaten nå"
+        ],
+        "difficulty_rank": 7
+      },
+      {
+        "es": "La amiga camina por la calle",
+        "no": "Venninnen går i gaten",
+        "word_mapping": [
+          {
+            "position": 0,
+            "form": "La",
+            "lemma_es": "el",
+            "grammatical_note": "fem.sg"
+          },
+          {
+            "position": 1,
+            "form": "amiga",
+            "lemma_es": "amiga",
+            "grammatical_note": "fem.sg"
+          },
+          {
+            "position": 2,
+            "form": "camina",
+            "lemma_es": "caminar",
+            "grammatical_note": "presens.3sg"
+          },
+          {
+            "position": 3,
+            "form": "por",
+            "lemma_es": "por",
+            "grammatical_note": "preposisjon"
+          },
+          {
+            "position": 4,
+            "form": "la",
+            "lemma_es": "el",
+            "grammatical_note": "fem.sg"
+          },
+          {
+            "position": 5,
+            "form": "calle",
+            "lemma_es": "calle",
+            "grammatical_note": "fem.sg"
+          }
+        ],
+        "distractors_no": [
+          "Venninnen løper i gaten",
+          "Vennen går i gaten",
+          "Venninnen går i byen"
+        ],
+        "difficulty_rank": 8
+      },
+      {
+        "es": "Los países pequeños son buenos",
+        "no": "De små landene er gode",
+        "word_mapping": [
+          {
+            "position": 0,
+            "form": "Los",
+            "lemma_es": "los",
+            "grammatical_note": "mask.pl"
+          },
+          {
+            "position": 1,
+            "form": "países",
+            "lemma_es": "país",
+            "grammatical_note": "mask.pl"
+          },
+          {
+            "position": 2,
+            "form": "pequeños",
+            "lemma_es": "pequeño",
+            "grammatical_note": "mask.pl"
+          },
+          {
+            "position": 3,
+            "form": "son",
+            "lemma_es": "ser",
+            "grammatical_note": "presens.3pl"
+          },
+          {
+            "position": 4,
+            "form": "buenos",
+            "lemma_es": "bueno",
+            "grammatical_note": "mask.pl"
+          }
+        ],
+        "distractors_no": [
+          "De små landene er dårlige",
+          "De store landene er gode",
+          "Det lille landet er godt"
+        ],
+        "difficulty_rank": 9
+      },
+      {
+        "es": "Yo quiero ver la ciudad",
+        "no": "Jeg vil se byen",
+        "word_mapping": [
+          {
+            "position": 0,
+            "form": "Yo",
+            "lemma_es": "yo",
+            "grammatical_note": "1sg"
+          },
+          {
+            "position": 1,
+            "form": "quiero",
+            "lemma_es": "querer",
+            "grammatical_note": "presens.1sg"
+          },
+          {
+            "position": 2,
+            "form": "ver",
+            "lemma_es": "ver",
+            "grammatical_note": "infinitiv"
+          },
+          {
+            "position": 3,
+            "form": "la",
+            "lemma_es": "el",
+            "grammatical_note": "fem.sg"
+          },
+          {
+            "position": 4,
+            "form": "ciudad",
+            "lemma_es": "ciudad",
+            "grammatical_note": "fem.sg"
+          }
+        ],
+        "distractors_no": [
+          "Jeg vil se landet",
+          "Jeg vil åpne byen",
+          "Du vil se byen"
+        ],
+        "difficulty_rank": 10
+      },
+      {
+        "es": "El país es bonito y grande",
+        "no": "Landet er vakkert og stort",
+        "word_mapping": [
+          {
+            "position": 0,
+            "form": "El",
+            "lemma_es": "el",
+            "grammatical_note": "mask.sg"
+          },
+          {
+            "position": 1,
+            "form": "país",
+            "lemma_es": "país",
+            "grammatical_note": "mask.sg"
+          },
+          {
+            "position": 2,
+            "form": "es",
+            "lemma_es": "ser",
+            "grammatical_note": "presens.3sg"
+          },
+          {
+            "position": 3,
+            "form": "bonito",
+            "lemma_es": "bonito",
+            "grammatical_note": "mask.sg"
+          },
+          {
+            "position": 4,
+            "form": "y",
+            "lemma_es": "y",
+            "grammatical_note": "konjunksjon"
+          },
+          {
+            "position": 5,
+            "form": "grande",
+            "lemma_es": "grande",
+            "grammatical_note": "sg"
+          }
+        ],
+        "distractors_no": [
+          "Landet er vakkert og lite",
+          "Byen er vakker og stor",
+          "Landet er stygt og stort"
+        ],
+        "difficulty_rank": 11
+      },
+      {
+        "es": "Los hombres vienen de la ciudad",
+        "no": "Mennene kommer fra byen",
+        "word_mapping": [
+          {
+            "position": 0,
+            "form": "Los",
+            "lemma_es": "los",
+            "grammatical_note": "mask.pl"
+          },
+          {
+            "position": 1,
+            "form": "hombres",
+            "lemma_es": "hombre",
+            "grammatical_note": "mask.pl"
+          },
+          {
+            "position": 2,
+            "form": "vienen",
+            "lemma_es": "venir",
+            "grammatical_note": "presens.3pl"
+          },
+          {
+            "position": 3,
+            "form": "de",
+            "lemma_es": "de",
+            "grammatical_note": "preposisjon"
+          },
+          {
+            "position": 4,
+            "form": "la",
+            "lemma_es": "el",
+            "grammatical_note": "fem.sg"
+          },
+          {
+            "position": 5,
+            "form": "ciudad",
+            "lemma_es": "ciudad",
+            "grammatical_note": "fem.sg"
+          }
+        ],
+        "distractors_no": [
+          "Mennene kommer fra landet",
+          "Mennene går fra byen",
+          "Mannen kommer fra byen"
+        ],
+        "difficulty_rank": 12
+      },
+      {
+        "es": "La calle vieja está en la ciudad",
+        "no": "Den gamle gaten er i byen",
+        "word_mapping": [
+          {
+            "position": 0,
+            "form": "La",
+            "lemma_es": "el",
+            "grammatical_note": "fem.sg"
+          },
+          {
+            "position": 1,
+            "form": "calle",
+            "lemma_es": "calle",
+            "grammatical_note": "fem.sg"
+          },
+          {
+            "position": 2,
+            "form": "vieja",
+            "lemma_es": "viejo",
+            "grammatical_note": "fem.sg"
+          },
+          {
+            "position": 3,
+            "form": "está",
+            "lemma_es": "estar",
+            "grammatical_note": "presens.3sg"
+          },
+          {
+            "position": 4,
+            "form": "en",
+            "lemma_es": "en",
+            "grammatical_note": "preposisjon"
+          },
+          {
+            "position": 5,
+            "form": "la",
+            "lemma_es": "el",
+            "grammatical_note": "fem.sg"
+          },
+          {
+            "position": 6,
+            "form": "ciudad",
+            "lemma_es": "ciudad",
+            "grammatical_note": "fem.sg"
+          }
+        ],
+        "distractors_no": [
+          "Den gamle gaten er i landet",
+          "Den nye gaten er i byen",
+          "Det gamle huset er i byen"
+        ],
+        "difficulty_rank": 13
+      },
+      {
+        "es": "Nosotros no vamos a la calle",
+        "no": "Vi går ikke til gaten",
+        "word_mapping": [
+          {
+            "position": 0,
+            "form": "Nosotros",
+            "lemma_es": "nosotros",
+            "grammatical_note": "1pl"
+          },
+          {
+            "position": 1,
+            "form": "no",
+            "lemma_es": "no",
+            "grammatical_note": "adverb.negasjon"
+          },
+          {
+            "position": 2,
+            "form": "vamos",
+            "lemma_es": "ir",
+            "grammatical_note": "presens.1pl"
+          },
+          {
+            "position": 3,
+            "form": "a",
+            "lemma_es": "a",
+            "grammatical_note": "preposisjon"
+          },
+          {
+            "position": 4,
+            "form": "la",
+            "lemma_es": "el",
+            "grammatical_note": "fem.sg"
+          },
+          {
+            "position": 5,
+            "form": "calle",
+            "lemma_es": "calle",
+            "grammatical_note": "fem.sg"
+          }
+        ],
+        "distractors_no": [
+          "Vi går til gaten",
+          "Vi går ikke til byen",
+          "De går ikke til gaten"
+        ],
+        "difficulty_rank": 14
+      },
+      {
+        "es": "Vosotros miráis las calles viejas",
+        "no": "Dere ser på de gamle gatene",
+        "word_mapping": [
+          {
+            "position": 0,
+            "form": "Vosotros",
+            "lemma_es": "vosotros",
+            "grammatical_note": "2pl"
+          },
+          {
+            "position": 1,
+            "form": "miráis",
+            "lemma_es": "mirar",
+            "grammatical_note": "presens.2pl"
+          },
+          {
+            "position": 2,
+            "form": "las",
+            "lemma_es": "las",
+            "grammatical_note": "fem.pl"
+          },
+          {
+            "position": 3,
+            "form": "calles",
+            "lemma_es": "calle",
+            "grammatical_note": "fem.pl"
+          },
+          {
+            "position": 4,
+            "form": "viejas",
+            "lemma_es": "viejo",
+            "grammatical_note": "fem.pl"
+          }
+        ],
+        "distractors_no": [
+          "Dere ser på de nye gatene",
+          "Dere hører på de gamle gatene",
+          "Vi ser på de gamle gatene"
+        ],
+        "difficulty_rank": 15
+      },
+      {
+        "es": "Nosotros comemos ahora",
+        "no": "Vi spiser nå",
+        "word_mapping": [
+          {
+            "position": 0,
+            "form": "Nosotros",
+            "lemma_es": "nosotros",
+            "grammatical_note": "pronomen.1pl"
+          },
+          {
+            "position": 1,
+            "form": "comemos",
+            "lemma_es": "comer",
+            "grammatical_note": "presens.1pl"
+          },
+          {
+            "position": 2,
+            "form": "ahora",
+            "lemma_es": "ahora",
+            "grammatical_note": "adverb"
+          }
+        ],
+        "distractors_no": [
+          "De spiser nå",
+          "Vi spiste nå",
+          "Vi spiser alltid"
+        ],
+        "difficulty_rank": 2
+      },
+      {
+        "es": "Ella siempre lee libros buenos",
+        "no": "Hun leser alltid gode bøker",
+        "word_mapping": [
+          {
+            "position": 0,
+            "form": "Ella",
+            "lemma_es": "ella",
+            "grammatical_note": "pronomen.3sg.fem"
+          },
+          {
+            "position": 1,
+            "form": "siempre",
+            "lemma_es": "siempre",
+            "grammatical_note": "adverb"
+          },
+          {
+            "position": 2,
+            "form": "lee",
+            "lemma_es": "leer",
+            "grammatical_note": "presens.3sg"
+          },
+          {
+            "position": 3,
+            "form": "libros",
+            "lemma_es": "libro",
+            "grammatical_note": "maskulin.pl"
+          },
+          {
+            "position": 4,
+            "form": "buenos",
+            "lemma_es": "bueno",
+            "grammatical_note": "maskulin.pl"
+          }
+        ],
+        "distractors_no": [
+          "Hun leser alltid god bok",
+          "De leser alltid gode bøker",
+          "Hun leste alltid gode bøker"
+        ],
+        "difficulty_rank": 6
+      },
+      {
+        "es": "Los niños duermen siempre aquí",
+        "no": "Guttene sover alltid her",
+        "word_mapping": [
+          {
+            "position": 0,
+            "form": "Los",
+            "lemma_es": "el",
+            "grammatical_note": "maskulin.pl"
+          },
+          {
+            "position": 1,
+            "form": "niños",
+            "lemma_es": "niño",
+            "grammatical_note": "maskulin.pl"
+          },
+          {
+            "position": 2,
+            "form": "duermen",
+            "lemma_es": "dormir",
+            "grammatical_note": "presens.3pl"
+          },
+          {
+            "position": 3,
+            "form": "siempre",
+            "lemma_es": "siempre",
+            "grammatical_note": "adverb"
+          },
+          {
+            "position": 4,
+            "form": "aquí",
+            "lemma_es": "aquí",
+            "grammatical_note": "adverb"
+          }
+        ],
+        "distractors_no": [
+          "Gutten sover alltid her",
+          "Guttene sover alltid der",
+          "Guttene sov alltid her"
+        ],
+        "difficulty_rank": 3
+      },
+      {
+        "es": "Yo trabajo mucho hoy",
+        "no": "Jeg jobber mye i dag",
+        "word_mapping": [
+          {
+            "position": 0,
+            "form": "Yo",
+            "lemma_es": "yo",
+            "grammatical_note": "pronomen.1sg"
+          },
+          {
+            "position": 1,
+            "form": "trabajo",
+            "lemma_es": "trabajar",
+            "grammatical_note": "presens.1sg"
+          },
+          {
+            "position": 2,
+            "form": "mucho",
+            "lemma_es": "mucho",
+            "grammatical_note": "adverb"
+          },
+          {
+            "position": 3,
+            "form": "hoy",
+            "lemma_es": "hoy",
+            "grammatical_note": "adverb"
+          }
+        ],
+        "distractors_no": [
+          "Jeg arbeider lite i dag",
+          "Vi jobber mye i dag",
+          "Jeg jobbet mye i dag"
+        ],
+        "difficulty_rank": 2
+      },
+      {
+        "es": "Ellas vienen siempre a casa",
+        "no": "De kommer alltid hjem",
+        "word_mapping": [
+          {
+            "position": 0,
+            "form": "Ellas",
+            "lemma_es": "ellas",
+            "grammatical_note": "pronomen.3pl.fem"
+          },
+          {
+            "position": 1,
+            "form": "vienen",
+            "lemma_es": "venir",
+            "grammatical_note": "presens.3pl"
+          },
+          {
+            "position": 2,
+            "form": "siempre",
+            "lemma_es": "siempre",
+            "grammatical_note": "adverb"
+          },
+          {
+            "position": 3,
+            "form": "a",
+            "lemma_es": "a",
+            "grammatical_note": "preposisjon"
+          },
+          {
+            "position": 4,
+            "form": "casa",
+            "lemma_es": "casa",
+            "grammatical_note": "feminin.sg"
+          }
+        ],
+        "distractors_no": [
+          "Hun kommer alltid hjem",
+          "De kommer alltid til huset",
+          "De kom alltid hjem"
+        ],
+        "difficulty_rank": 4
+      },
+      {
+        "es": "El padre no trabaja hoy",
+        "no": "Faren jobber ikke i dag",
+        "word_mapping": [
+          {
+            "position": 0,
+            "form": "El",
+            "lemma_es": "el",
+            "grammatical_note": "maskulin.sg"
+          },
+          {
+            "position": 1,
+            "form": "padre",
+            "lemma_es": "padre",
+            "grammatical_note": "maskulin.sg"
+          },
+          {
+            "position": 2,
+            "form": "no",
+            "lemma_es": "no",
+            "grammatical_note": "adverb.negasjon"
+          },
+          {
+            "position": 3,
+            "form": "trabaja",
+            "lemma_es": "trabajar",
+            "grammatical_note": "presens.3sg"
+          },
+          {
+            "position": 4,
+            "form": "hoy",
+            "lemma_es": "hoy",
+            "grammatical_note": "adverb"
+          }
+        ],
+        "distractors_no": [
+          "Faren arbeider i dag",
+          "Fedrene jobber ikke i dag",
+          "Faren jobbet ikke i dag"
+        ],
+        "difficulty_rank": 5
+      },
+      {
+        "es": "Vosotros estudiáis ahora",
+        "no": "Dere studerer nå",
+        "word_mapping": [
+          {
+            "position": 0,
+            "form": "Vosotros",
+            "lemma_es": "vosotros",
+            "grammatical_note": "pronomen.2pl"
+          },
+          {
+            "position": 1,
+            "form": "estudiáis",
+            "lemma_es": "estudiar",
+            "grammatical_note": "presens.2pl"
+          },
+          {
+            "position": 2,
+            "form": "ahora",
+            "lemma_es": "ahora",
+            "grammatical_note": "adverb"
+          }
+        ],
+        "distractors_no": [
+          "Du studerer nå",
+          "Dere studerte nå",
+          "Dere studerer alltid"
+        ],
+        "difficulty_rank": 1
+      },
+      {
+        "es": "La madre está cansada hoy",
+        "no": "Moren er trøtt i dag",
+        "word_mapping": [
+          {
+            "position": 0,
+            "form": "La",
+            "lemma_es": "la",
+            "grammatical_note": "feminin.sg"
+          },
+          {
+            "position": 1,
+            "form": "madre",
+            "lemma_es": "madre",
+            "grammatical_note": "feminin.sg"
+          },
+          {
+            "position": 2,
+            "form": "está",
+            "lemma_es": "estar",
+            "grammatical_note": "presens.3sg"
+          },
+          {
+            "position": 3,
+            "form": "cansada",
+            "lemma_es": "cansado",
+            "grammatical_note": "feminin.sg"
+          },
+          {
+            "position": 4,
+            "form": "hoy",
+            "lemma_es": "hoy",
+            "grammatical_note": "adverb"
+          }
+        ],
+        "distractors_no": [
+          "Mødrene er trøtt i dag",
+          "Moren er glad i dag",
+          "Moren var trøtt i dag"
+        ],
+        "difficulty_rank": 4
+      },
+      {
+        "es": "Ellos siempre comen pan y fruta",
+        "no": "De spiser alltid brød og frukt",
+        "word_mapping": [
+          {
+            "position": 0,
+            "form": "Ellos",
+            "lemma_es": "ellos",
+            "grammatical_note": "pronomen.3pl.mask"
+          },
+          {
+            "position": 1,
+            "form": "siempre",
+            "lemma_es": "siempre",
+            "grammatical_note": "adverb"
+          },
+          {
+            "position": 2,
+            "form": "comen",
+            "lemma_es": "comer",
+            "grammatical_note": "presens.3pl"
+          },
+          {
+            "position": 3,
+            "form": "pan",
+            "lemma_es": "pan",
+            "grammatical_note": "maskulin.sg"
+          },
+          {
+            "position": 4,
+            "form": "y",
+            "lemma_es": "y",
+            "grammatical_note": "konjunksjon"
+          },
+          {
+            "position": 5,
+            "form": "fruta",
+            "lemma_es": "fruta",
+            "grammatical_note": "feminin.sg"
+          }
+        ],
+        "distractors_no": [
+          "Han spiser alltid brød og frukt",
+          "De spiser alltid brødet og frukten",
+          "De spiste alltid brød og frukt"
+        ],
+        "difficulty_rank": 7
+      },
+      {
+        "es": "Las amigas hablan siempre aquí",
+        "no": "Venninnene snakker alltid her",
+        "word_mapping": [
+          {
+            "position": 0,
+            "form": "Las",
+            "lemma_es": "las",
+            "grammatical_note": "feminin.pl"
+          },
+          {
+            "position": 1,
+            "form": "amigas",
+            "lemma_es": "amiga",
+            "grammatical_note": "feminin.pl"
+          },
+          {
+            "position": 2,
+            "form": "hablan",
+            "lemma_es": "hablar",
+            "grammatical_note": "presens.3pl"
+          },
+          {
+            "position": 3,
+            "form": "siempre",
+            "lemma_es": "siempre",
+            "grammatical_note": "adverb"
+          },
+          {
+            "position": 4,
+            "form": "aquí",
+            "lemma_es": "aquí",
+            "grammatical_note": "adverb"
+          }
+        ],
+        "distractors_no": [
+          "Venninnen snakker alltid her",
+          "Venninnene snakker alltid der",
+          "Venninnene snakket alltid her"
+        ],
+        "difficulty_rank": 3
+      },
+      {
+        "es": "Tú bebes café ahora",
+        "no": "Du drikker kaffe nå",
+        "word_mapping": [
+          {
+            "position": 0,
+            "form": "Tú",
+            "lemma_es": "tú",
+            "grammatical_note": "pronomen.2sg"
+          },
+          {
+            "position": 1,
+            "form": "bebes",
+            "lemma_es": "beber",
+            "grammatical_note": "presens.2sg"
+          },
+          {
+            "position": 2,
+            "form": "café",
+            "lemma_es": "café",
+            "grammatical_note": "maskulin.sg"
+          },
+          {
+            "position": 3,
+            "form": "ahora",
+            "lemma_es": "ahora",
+            "grammatical_note": "adverb"
+          }
+        ],
+        "distractors_no": [
+          "Dere drikker kaffe nå",
+          "Du drikker kaffen nå",
+          "Du drakk kaffe nå"
+        ],
+        "difficulty_rank": 2
+      },
+      {
+        "es": "Los profesores trabajan mucho hoy",
+        "no": "Lærerne jobber mye i dag",
+        "word_mapping": [
+          {
+            "position": 0,
+            "form": "Los",
+            "lemma_es": "el",
+            "grammatical_note": "maskulin.pl"
+          },
+          {
+            "position": 1,
+            "form": "profesores",
+            "lemma_es": "profesor",
+            "grammatical_note": "maskulin.pl"
+          },
+          {
+            "position": 2,
+            "form": "trabajan",
+            "lemma_es": "trabajar",
+            "grammatical_note": "presens.3pl"
+          },
+          {
+            "position": 3,
+            "form": "mucho",
+            "lemma_es": "mucho",
+            "grammatical_note": "adverb"
+          },
+          {
+            "position": 4,
+            "form": "hoy",
+            "lemma_es": "hoy",
+            "grammatical_note": "adverb"
+          }
+        ],
+        "distractors_no": [
+          "Læreren jobber mye i dag",
+          "Lærerne arbeider lite i dag",
+          "Lærerne jobbet mye i dag"
+        ],
+        "difficulty_rank": 3
+      },
+      {
+        "es": "Ella siempre está contenta aquí",
+        "no": "Hun er alltid fornøyd her",
+        "word_mapping": [
+          {
+            "position": 0,
+            "form": "Ella",
+            "lemma_es": "ella",
+            "grammatical_note": "pronomen.3sg.fem"
+          },
+          {
+            "position": 1,
+            "form": "siempre",
+            "lemma_es": "siempre",
+            "grammatical_note": "adverb"
+          },
+          {
+            "position": 2,
+            "form": "está",
+            "lemma_es": "estar",
+            "grammatical_note": "presens.3sg"
+          },
+          {
+            "position": 3,
+            "form": "contenta",
+            "lemma_es": "contento",
+            "grammatical_note": "feminin.sg"
+          },
+          {
+            "position": 4,
+            "form": "aquí",
+            "lemma_es": "aquí",
+            "grammatical_note": "adverb"
+          }
+        ],
+        "distractors_no": [
+          "Hun er alltid fornøyd der",
+          "De er alltid fornøyd her",
+          "Hun var alltid fornøyd her"
+        ],
+        "difficulty_rank": 5
+      },
+      {
+        "es": "Yo voy a la escuela hoy",
+        "no": "Jeg går til skolen i dag",
+        "word_mapping": [
+          {
+            "position": 0,
+            "form": "Yo",
+            "lemma_es": "yo",
+            "grammatical_note": "pronomen.1sg"
+          },
+          {
+            "position": 1,
+            "form": "voy",
+            "lemma_es": "ir",
+            "grammatical_note": "presens.1sg"
+          },
+          {
+            "position": 2,
+            "form": "a",
+            "lemma_es": "a",
+            "grammatical_note": "preposisjon"
+          },
+          {
+            "position": 3,
+            "form": "la",
+            "lemma_es": "la",
+            "grammatical_note": "feminin.sg"
+          },
+          {
+            "position": 4,
+            "form": "escuela",
+            "lemma_es": "escuela",
+            "grammatical_note": "feminin.sg"
+          },
+          {
+            "position": 5,
+            "form": "hoy",
+            "lemma_es": "hoy",
+            "grammatical_note": "adverb"
+          }
+        ],
+        "distractors_no": [
+          "Vi går til skolen i dag",
+          "Jeg går til skolene i dag",
+          "Jeg gikk til skolen i dag"
+        ],
+        "difficulty_rank": 4
+      },
+      {
+        "es": "Ellas no vienen hoy",
+        "no": "De kommer ikke i dag",
+        "word_mapping": [
+          {
+            "position": 0,
+            "form": "Ellas",
+            "lemma_es": "ellas",
+            "grammatical_note": "pronomen.3pl.fem"
+          },
+          {
+            "position": 1,
+            "form": "no",
+            "lemma_es": "no",
+            "grammatical_note": "adverb.negasjon"
+          },
+          {
+            "position": 2,
+            "form": "vienen",
+            "lemma_es": "venir",
+            "grammatical_note": "presens.3pl"
+          },
+          {
+            "position": 3,
+            "form": "hoy",
+            "lemma_es": "hoy",
+            "grammatical_note": "adverb"
+          }
+        ],
+        "distractors_no": [
+          "Hun kommer ikke i dag",
+          "De kommer i dag",
+          "De kom ikke i dag"
+        ],
+        "difficulty_rank": 3
+      },
+      {
+        "es": "Yo estudio porque quiero saber mucho",
+        "no": "Jeg studerer fordi jeg vil vite mye",
+        "word_mapping": [
+          {
+            "position": 0,
+            "form": "Yo",
+            "lemma_es": "yo",
+            "grammatical_note": "pronomen.1sg"
+          },
+          {
+            "position": 1,
+            "form": "estudio",
+            "lemma_es": "estudiar",
+            "grammatical_note": "presens.1sg"
+          },
+          {
+            "position": 2,
+            "form": "porque",
+            "lemma_es": "porque",
+            "grammatical_note": "konjunksjon"
+          },
+          {
+            "position": 3,
+            "form": "quiero",
+            "lemma_es": "querer",
+            "grammatical_note": "presens.1sg"
+          },
+          {
+            "position": 4,
+            "form": "saber",
+            "lemma_es": "saber",
+            "grammatical_note": "infinitiv"
+          },
+          {
+            "position": 5,
+            "form": "mucho",
+            "lemma_es": "mucho",
+            "grammatical_note": "adverb"
+          }
+        ],
+        "distractors_no": [
+          "Du studerer fordi du vil vite mye",
+          "Jeg studerer fordi jeg vil se mye",
+          "Jeg studerer fordi jeg vil ha mye"
+        ],
+        "difficulty_rank": 8
+      },
+      {
+        "es": "Ella no come pan pero bebe café",
+        "no": "Hun spiser ikke brød men drikker kaffe",
+        "word_mapping": [
+          {
+            "position": 0,
+            "form": "Ella",
+            "lemma_es": "ella",
+            "grammatical_note": "pronomen.3sg.fem"
+          },
+          {
+            "position": 1,
+            "form": "no",
+            "lemma_es": "no",
+            "grammatical_note": "negasjonsadverb"
+          },
+          {
+            "position": 2,
+            "form": "come",
+            "lemma_es": "comer",
+            "grammatical_note": "presens.3sg"
+          },
+          {
+            "position": 3,
+            "form": "pan",
+            "lemma_es": "pan",
+            "grammatical_note": "maskulin.sg"
+          },
+          {
+            "position": 4,
+            "form": "pero",
+            "lemma_es": "pero",
+            "grammatical_note": "konjunksjon"
+          },
+          {
+            "position": 5,
+            "form": "bebe",
+            "lemma_es": "beber",
+            "grammatical_note": "presens.3sg"
+          },
+          {
+            "position": 6,
+            "form": "café",
+            "lemma_es": "café",
+            "grammatical_note": "maskulin.sg"
+          }
+        ],
+        "distractors_no": [
+          "Hun spiser ikke brød men drikker melk",
+          "Han spiser ikke brød men drikker kaffe",
+          "Hun spiser ikke brød og drikker kaffe"
+        ],
+        "difficulty_rank": 6
+      },
+      {
+        "es": "Los hermanos son jóvenes y contentos",
+        "no": "Brødrene er unge og fornøyde",
+        "word_mapping": [
+          {
+            "position": 0,
+            "form": "Los",
+            "lemma_es": "el",
+            "grammatical_note": "maskulin.pl"
+          },
+          {
+            "position": 1,
+            "form": "hermanos",
+            "lemma_es": "hermano",
+            "grammatical_note": "maskulin.pl"
+          },
+          {
+            "position": 2,
+            "form": "son",
+            "lemma_es": "ser",
+            "grammatical_note": "presens.3pl"
+          },
+          {
+            "position": 3,
+            "form": "jóvenes",
+            "lemma_es": "joven",
+            "grammatical_note": "maskulin.pl"
+          },
+          {
+            "position": 4,
+            "form": "y",
+            "lemma_es": "y",
+            "grammatical_note": "konjunksjon"
+          },
+          {
+            "position": 5,
+            "form": "contentos",
+            "lemma_es": "contento",
+            "grammatical_note": "maskulin.pl"
+          }
+        ],
+        "distractors_no": [
+          "Søstrene er unge og fornøyde",
+          "Broren er ung og fornøyd",
+          "Brødrene er gamle og fornøyde"
+        ],
+        "difficulty_rank": 3
+      },
+      {
+        "es": "Tú no vienes porque estás cansado",
+        "no": "Du kommer ikke fordi du er trøtt",
+        "word_mapping": [
+          {
+            "position": 0,
+            "form": "Tú",
+            "lemma_es": "tú",
+            "grammatical_note": "pronomen.2sg"
+          },
+          {
+            "position": 1,
+            "form": "no",
+            "lemma_es": "no",
+            "grammatical_note": "negasjonsadverb"
+          },
+          {
+            "position": 2,
+            "form": "vienes",
+            "lemma_es": "venir",
+            "grammatical_note": "presens.2sg"
+          },
+          {
+            "position": 3,
+            "form": "porque",
+            "lemma_es": "porque",
+            "grammatical_note": "konjunksjon"
+          },
+          {
+            "position": 4,
+            "form": "estás",
+            "lemma_es": "estar",
+            "grammatical_note": "presens.2sg"
+          },
+          {
+            "position": 5,
+            "form": "cansado",
+            "lemma_es": "cansado",
+            "grammatical_note": "maskulin.sg"
+          }
+        ],
+        "distractors_no": [
+          "Du kommer fordi du er trøtt",
+          "Jeg kommer ikke fordi jeg er trøtt",
+          "Du går ikke fordi du er trøtt"
+        ],
+        "difficulty_rank": 6
+      },
+      {
+        "es": "Las niñas cantan bien y hablan",
+        "no": "Jentene synger bra og snakker",
+        "word_mapping": [
+          {
+            "position": 0,
+            "form": "Las",
+            "lemma_es": "la",
+            "grammatical_note": "feminin.pl"
+          },
+          {
+            "position": 1,
+            "form": "niñas",
+            "lemma_es": "niña",
+            "grammatical_note": "feminin.pl"
+          },
+          {
+            "position": 2,
+            "form": "cantan",
+            "lemma_es": "cantar",
+            "grammatical_note": "presens.3pl"
+          },
+          {
+            "position": 3,
+            "form": "bien",
+            "lemma_es": "bien",
+            "grammatical_note": "adverb"
+          },
+          {
+            "position": 4,
+            "form": "y",
+            "lemma_es": "y",
+            "grammatical_note": "konjunksjon"
+          },
+          {
+            "position": 5,
+            "form": "hablan",
+            "lemma_es": "hablar",
+            "grammatical_note": "presens.3pl"
+          }
+        ],
+        "distractors_no": [
+          "Guttene synger bra og snakker",
+          "Jentene synger mye og snakker",
+          "Jenta synger bra og snakker"
+        ],
+        "difficulty_rank": 3
+      },
+      {
+        "es": "Nosotros no entendemos pero escuchamos",
+        "no": "Vi forstår ikke men vi lytter",
+        "word_mapping": [
+          {
+            "position": 0,
+            "form": "Nosotros",
+            "lemma_es": "nosotros",
+            "grammatical_note": "pronomen.1pl"
+          },
+          {
+            "position": 1,
+            "form": "no",
+            "lemma_es": "no",
+            "grammatical_note": "negasjonsadverb"
+          },
+          {
+            "position": 2,
+            "form": "entendemos",
+            "lemma_es": "entender",
+            "grammatical_note": "presens.1pl"
+          },
+          {
+            "position": 3,
+            "form": "pero",
+            "lemma_es": "pero",
+            "grammatical_note": "konjunksjon"
+          },
+          {
+            "position": 4,
+            "form": "escuchamos",
+            "lemma_es": "escuchar",
+            "grammatical_note": "presens.1pl"
+          }
+        ],
+        "distractors_no": [
+          "Dere forstår ikke men dere lytter",
+          "Vi forstår men vi lytter",
+          "Vi forstår ikke men vi ser"
+        ],
+        "difficulty_rank": 4
+      },
+      {
+        "es": "El gato duerme aquí porque está contento",
+        "no": "Katten sover her fordi den er fornøyd",
+        "word_mapping": [
+          {
+            "position": 0,
+            "form": "El",
+            "lemma_es": "el",
+            "grammatical_note": "maskulin.sg"
+          },
+          {
+            "position": 1,
+            "form": "gato",
+            "lemma_es": "gato",
+            "grammatical_note": "maskulin.sg"
+          },
+          {
+            "position": 2,
+            "form": "duerme",
+            "lemma_es": "dormir",
+            "grammatical_note": "presens.3sg"
+          },
+          {
+            "position": 3,
+            "form": "aquí",
+            "lemma_es": "aquí",
+            "grammatical_note": "stedadverb"
+          },
+          {
+            "position": 4,
+            "form": "porque",
+            "lemma_es": "porque",
+            "grammatical_note": "konjunksjon"
+          },
+          {
+            "position": 5,
+            "form": "está",
+            "lemma_es": "estar",
+            "grammatical_note": "presens.3sg"
+          },
+          {
+            "position": 6,
+            "form": "contento",
+            "lemma_es": "contento",
+            "grammatical_note": "maskulin.sg"
+          }
+        ],
+        "distractors_no": [
+          "Hunden sover her fordi den er fornøyd",
+          "Katten spiser her fordi den er fornøyd",
+          "Katten sover her fordi den er trøtt"
+        ],
+        "difficulty_rank": 6
+      },
+      {
+        "es": "Vosotros leéis mucho y escribís también",
+        "no": "Dere leser mye og skriver også",
+        "word_mapping": [
+          {
+            "position": 0,
+            "form": "Vosotros",
+            "lemma_es": "vosotros",
+            "grammatical_note": "pronomen.2pl"
+          },
+          {
+            "position": 1,
+            "form": "leéis",
+            "lemma_es": "leer",
+            "grammatical_note": "presens.2pl"
+          },
+          {
+            "position": 2,
+            "form": "mucho",
+            "lemma_es": "mucho",
+            "grammatical_note": "adverb"
+          },
+          {
+            "position": 3,
+            "form": "y",
+            "lemma_es": "y",
+            "grammatical_note": "konjunksjon"
+          },
+          {
+            "position": 4,
+            "form": "escribís",
+            "lemma_es": "escribir",
+            "grammatical_note": "presens.2pl"
+          },
+          {
+            "position": 5,
+            "form": "también",
+            "lemma_es": "también",
+            "grammatical_note": "adverb"
+          }
+        ],
+        "distractors_no": [
+          "Vi leser mye og skriver også",
+          "Dere leser lite og skriver også",
+          "Dere leser mye og snakker også"
+        ],
+        "difficulty_rank": 3
+      },
+      {
+        "es": "Ellas no tienen tiempo para trabajar",
+        "no": "De har ikke tid til å arbeide",
+        "word_mapping": [
+          {
+            "position": 0,
+            "form": "Ellas",
+            "lemma_es": "ellas",
+            "grammatical_note": "pronomen.3pl.fem"
+          },
+          {
+            "position": 1,
+            "form": "no",
+            "lemma_es": "no",
+            "grammatical_note": "negasjonsadverb"
+          },
+          {
+            "position": 2,
+            "form": "tienen",
+            "lemma_es": "tener",
+            "grammatical_note": "presens.3pl"
+          },
+          {
+            "position": 3,
+            "form": "tiempo",
+            "lemma_es": "tiempo",
+            "grammatical_note": "maskulin.sg"
+          },
+          {
+            "position": 4,
+            "form": "para",
+            "lemma_es": "para",
+            "grammatical_note": "preposisjon"
+          },
+          {
+            "position": 5,
+            "form": "trabajar",
+            "lemma_es": "trabajar",
+            "grammatical_note": "infinitiv"
+          }
+        ],
+        "distractors_no": [
+          "De har tid til å arbeide",
+          "Hun har ikke tid til å arbeide",
+          "De har ikke tid til å studere"
+        ],
+        "difficulty_rank": 5
+      },
+      {
+        "es": "Yo veo la casa pero no entiendo",
+        "no": "Jeg ser huset men forstår ikke",
+        "word_mapping": [
+          {
+            "position": 0,
+            "form": "Yo",
+            "lemma_es": "yo",
+            "grammatical_note": "pronomen.1sg"
+          },
+          {
+            "position": 1,
+            "form": "veo",
+            "lemma_es": "ver",
+            "grammatical_note": "presens.1sg"
+          },
+          {
+            "position": 2,
+            "form": "la",
+            "lemma_es": "la",
+            "grammatical_note": "feminin.sg"
+          },
+          {
+            "position": 3,
+            "form": "casa",
+            "lemma_es": "casa",
+            "grammatical_note": "feminin.sg"
+          },
+          {
+            "position": 4,
+            "form": "pero",
+            "lemma_es": "pero",
+            "grammatical_note": "konjunksjon"
+          },
+          {
+            "position": 5,
+            "form": "no",
+            "lemma_es": "no",
+            "grammatical_note": "negasjonsadverb"
+          },
+          {
+            "position": 6,
+            "form": "entiendo",
+            "lemma_es": "entender",
+            "grammatical_note": "presens.1sg"
+          }
+        ],
+        "distractors_no": [
+          "Jeg ser boken men forstår ikke",
+          "Du ser huset men forstår ikke",
+          "Jeg ser huset og forstår ikke"
+        ],
+        "difficulty_rank": 6
+      },
+      {
+        "es": "El profesor habla mucho porque sabe mucho",
+        "no": "Læreren snakker mye fordi han vet mye",
+        "word_mapping": [
+          {
+            "position": 0,
+            "form": "El",
+            "lemma_es": "el",
+            "grammatical_note": "maskulin.sg"
+          },
+          {
+            "position": 1,
+            "form": "profesor",
+            "lemma_es": "profesor",
+            "grammatical_note": "maskulin.sg"
+          },
+          {
+            "position": 2,
+            "form": "habla",
+            "lemma_es": "hablar",
+            "grammatical_note": "presens.3sg"
+          },
+          {
+            "position": 3,
+            "form": "mucho",
+            "lemma_es": "mucho",
+            "grammatical_note": "adverb"
+          },
+          {
+            "position": 4,
+            "form": "porque",
+            "lemma_es": "porque",
+            "grammatical_note": "konjunksjon"
+          },
+          {
+            "position": 5,
+            "form": "sabe",
+            "lemma_es": "saber",
+            "grammatical_note": "presens.3sg"
+          },
+          {
+            "position": 6,
+            "form": "mucho",
+            "lemma_es": "mucho",
+            "grammatical_note": "adverb"
+          }
+        ],
+        "distractors_no": [
+          "Læreren snakker lite fordi han vet mye",
+          "Læreren arbeider mye fordi han vet mye",
+          "Læreren snakker mye fordi han arbeider mye"
+        ],
+        "difficulty_rank": 6
+      },
+      {
+        "es": "Tú y yo vivimos en la ciudad",
+        "no": "Du og jeg bor i byen",
+        "word_mapping": [
+          {
+            "position": 0,
+            "form": "Tú",
+            "lemma_es": "tú",
+            "grammatical_note": "pronomen.2sg"
+          },
+          {
+            "position": 1,
+            "form": "y",
+            "lemma_es": "y",
+            "grammatical_note": "konjunksjon"
+          },
+          {
+            "position": 2,
+            "form": "yo",
+            "lemma_es": "yo",
+            "grammatical_note": "pronomen.1sg"
+          },
+          {
+            "position": 3,
+            "form": "vivimos",
+            "lemma_es": "vivir",
+            "grammatical_note": "presens.1pl"
+          },
+          {
+            "position": 4,
+            "form": "en",
+            "lemma_es": "en",
+            "grammatical_note": "preposisjon"
+          },
+          {
+            "position": 5,
+            "form": "la",
+            "lemma_es": "la",
+            "grammatical_note": "feminin.sg"
+          },
+          {
+            "position": 6,
+            "form": "ciudad",
+            "lemma_es": "ciudad",
+            "grammatical_note": "feminin.sg"
+          }
+        ],
+        "distractors_no": [
+          "Han og jeg bor i byen",
+          "Du og jeg bor i huset",
+          "Du og jeg arbeider i byen"
+        ],
+        "difficulty_rank": 5
+      },
+      {
+        "es": "Los perros corren y también comen",
+        "no": "Hundene løper og spiser også",
+        "word_mapping": [
+          {
+            "position": 0,
+            "form": "Los",
+            "lemma_es": "el",
+            "grammatical_note": "maskulin.pl"
+          },
+          {
+            "position": 1,
+            "form": "perros",
+            "lemma_es": "perro",
+            "grammatical_note": "maskulin.pl"
+          },
+          {
+            "position": 2,
+            "form": "corren",
+            "lemma_es": "correr",
+            "grammatical_note": "presens.3pl"
+          },
+          {
+            "position": 3,
+            "form": "y",
+            "lemma_es": "y",
+            "grammatical_note": "konjunksjon"
+          },
+          {
+            "position": 4,
+            "form": "también",
+            "lemma_es": "también",
+            "grammatical_note": "adverb"
+          },
+          {
+            "position": 5,
+            "form": "comen",
+            "lemma_es": "comer",
+            "grammatical_note": "presens.3pl"
+          }
+        ],
+        "distractors_no": [
+          "Kattene løper og spiser også",
+          "Hundene går og spiser også",
+          "Hundene løper og drikker også"
+        ],
+        "difficulty_rank": 3
+      },
+      {
+        "es": "Ella no abre el libro porque está cansada",
+        "no": "Hun åpner ikke boken fordi hun er trøtt",
+        "word_mapping": [
+          {
+            "position": 0,
+            "form": "Ella",
+            "lemma_es": "ella",
+            "grammatical_note": "pronomen.3sg.fem"
+          },
+          {
+            "position": 1,
+            "form": "no",
+            "lemma_es": "no",
+            "grammatical_note": "negasjonsadverb"
+          },
+          {
+            "position": 2,
+            "form": "abre",
+            "lemma_es": "abrir",
+            "grammatical_note": "presens.3sg"
+          },
+          {
+            "position": 3,
+            "form": "el",
+            "lemma_es": "el",
+            "grammatical_note": "maskulin.sg"
+          },
+          {
+            "position": 4,
+            "form": "libro",
+            "lemma_es": "libro",
+            "grammatical_note": "maskulin.sg"
+          },
+          {
+            "position": 5,
+            "form": "porque",
+            "lemma_es": "porque",
+            "grammatical_note": "konjunksjon"
+          },
+          {
+            "position": 6,
+            "form": "está",
+            "lemma_es": "estar",
+            "grammatical_note": "presens.3sg"
+          },
+          {
+            "position": 7,
+            "form": "cansada",
+            "lemma_es": "cansado",
+            "grammatical_note": "feminin.sg"
+          }
+        ],
+        "distractors_no": [
+          "Hun åpner boken fordi hun er trøtt",
+          "Hun leser ikke boken fordi hun er trøtt",
+          "Han åpner ikke boken fordi han er trøtt"
+        ],
+        "difficulty_rank": 8
+      },
+      {
+        "es": "Nosotros tenemos café y leche aquí",
+        "no": "Vi har kaffe og melk her",
+        "word_mapping": [
+          {
+            "position": 0,
+            "form": "Nosotros",
+            "lemma_es": "nosotros",
+            "grammatical_note": "pronomen.1pl"
+          },
+          {
+            "position": 1,
+            "form": "tenemos",
+            "lemma_es": "tener",
+            "grammatical_note": "presens.1pl"
+          },
+          {
+            "position": 2,
+            "form": "café",
+            "lemma_es": "café",
+            "grammatical_note": "maskulin.sg"
+          },
+          {
+            "position": 3,
+            "form": "y",
+            "lemma_es": "y",
+            "grammatical_note": "konjunksjon"
+          },
+          {
+            "position": 4,
+            "form": "leche",
+            "lemma_es": "leche",
+            "grammatical_note": "feminin.sg"
+          },
+          {
+            "position": 5,
+            "form": "aquí",
+            "lemma_es": "aquí",
+            "grammatical_note": "stedadverb"
+          }
+        ],
+        "distractors_no": [
+          "Dere har kaffe og melk her",
+          "Vi har brød og melk her",
+          "Vi drikker kaffe og melk her"
+        ],
+        "difficulty_rank": 3
+      },
+      {
+        "es": "Yo hago el trabajo ahora",
+        "no": "Jeg gjør arbeidet nå",
+        "word_mapping": [
+          {
+            "position": 0,
+            "form": "Yo",
+            "lemma_es": "yo",
+            "grammatical_note": "pronomen.1sg"
+          },
+          {
+            "position": 1,
+            "form": "hago",
+            "lemma_es": "hacer",
+            "grammatical_note": "presens.1sg"
+          },
+          {
+            "position": 2,
+            "form": "el",
+            "lemma_es": "el",
+            "grammatical_note": "mask.sg"
+          },
+          {
+            "position": 3,
+            "form": "trabajo",
+            "lemma_es": "trabajo",
+            "grammatical_note": "mask.sg"
+          },
+          {
+            "position": 4,
+            "form": "ahora",
+            "lemma_es": "ahora",
+            "grammatical_note": "adverb"
+          }
+        ],
+        "distractors_no": [
+          "Jeg gjør arbeid nå",
+          "Jeg lager arbeidet nå",
+          "Du gjør arbeidet nå"
+        ],
+        "difficulty_rank": 3
+      },
+      {
+        "es": "Los hermanos comen fruta aquí",
+        "no": "Brødrene spiser frukt her",
+        "word_mapping": [
+          {
+            "position": 0,
+            "form": "Los",
+            "lemma_es": "los",
+            "grammatical_note": "mask.pl"
+          },
+          {
+            "position": 1,
+            "form": "hermanos",
+            "lemma_es": "hermano",
+            "grammatical_note": "mask.pl"
+          },
+          {
+            "position": 2,
+            "form": "comen",
+            "lemma_es": "comer",
+            "grammatical_note": "presens.3pl"
+          },
+          {
+            "position": 3,
+            "form": "fruta",
+            "lemma_es": "fruta",
+            "grammatical_note": "fem.sg"
+          },
+          {
+            "position": 4,
+            "form": "aquí",
+            "lemma_es": "aquí",
+            "grammatical_note": "adverb"
+          }
+        ],
+        "distractors_no": [
+          "Broren spiser frukt her",
+          "Brødrene drikker frukt her",
+          "Brødrene spiser frukten her"
+        ],
+        "difficulty_rank": 4
+      },
+      {
+        "es": "La niña toma leche y come pan",
+        "no": "Jenta drikker melk og spiser brød",
+        "word_mapping": [
+          {
+            "position": 0,
+            "form": "La",
+            "lemma_es": "la",
+            "grammatical_note": "fem.sg"
+          },
+          {
+            "position": 1,
+            "form": "niña",
+            "lemma_es": "niña",
+            "grammatical_note": "fem.sg"
+          },
+          {
+            "position": 2,
+            "form": "toma",
+            "lemma_es": "tomar",
+            "grammatical_note": "presens.3sg"
+          },
+          {
+            "position": 3,
+            "form": "leche",
+            "lemma_es": "leche",
+            "grammatical_note": "fem.sg"
+          },
+          {
+            "position": 4,
+            "form": "y",
+            "lemma_es": "y",
+            "grammatical_note": "konjunksjon"
+          },
+          {
+            "position": 5,
+            "form": "come",
+            "lemma_es": "comer",
+            "grammatical_note": "presens.3sg"
+          },
+          {
+            "position": 6,
+            "form": "pan",
+            "lemma_es": "pan",
+            "grammatical_note": "mask.sg"
+          }
+        ],
+        "distractors_no": [
+          "Jenta drikker melk og drikker brød",
+          "Jenta tar melk og spiser brød",
+          "Gutten drikker melk og spiser brød"
+        ],
+        "difficulty_rank": 5
+      },
+      {
+        "es": "Ella quiere agua y café también",
+        "no": "Hun vil ha vann og kaffe også",
+        "word_mapping": [
+          {
+            "position": 0,
+            "form": "Ella",
+            "lemma_es": "ella",
+            "grammatical_note": "pronomen.3sg.fem"
+          },
+          {
+            "position": 1,
+            "form": "quiere",
+            "lemma_es": "querer",
+            "grammatical_note": "presens.3sg"
+          },
+          {
+            "position": 2,
+            "form": "agua",
+            "lemma_es": "agua",
+            "grammatical_note": "fem.sg"
+          },
+          {
+            "position": 3,
+            "form": "y",
+            "lemma_es": "y",
+            "grammatical_note": "konjunksjon"
+          },
+          {
+            "position": 4,
+            "form": "café",
+            "lemma_es": "café",
+            "grammatical_note": "mask.sg"
+          },
+          {
+            "position": 5,
+            "form": "también",
+            "lemma_es": "también",
+            "grammatical_note": "adverb"
+          }
+        ],
+        "distractors_no": [
+          "Hun vil vann og kaffe også",
+          "Hun vil ha vann og kaffen også",
+          "Han vil ha vann og kaffe også"
+        ],
+        "difficulty_rank": 6
+      },
+      {
+        "es": "La mujer lee un libro grande",
+        "no": "Kvinnen leser en stor bok",
+        "word_mapping": [
+          {
+            "position": 0,
+            "form": "La",
+            "lemma_es": "la",
+            "grammatical_note": "fem.sg"
+          },
+          {
+            "position": 1,
+            "form": "mujer",
+            "lemma_es": "mujer",
+            "grammatical_note": "fem.sg"
+          },
+          {
+            "position": 2,
+            "form": "lee",
+            "lemma_es": "leer",
+            "grammatical_note": "presens.3sg"
+          },
+          {
+            "position": 3,
+            "form": "un",
+            "lemma_es": "un",
+            "grammatical_note": "mask.sg"
+          },
+          {
+            "position": 4,
+            "form": "libro",
+            "lemma_es": "libro",
+            "grammatical_note": "mask.sg"
+          },
+          {
+            "position": 5,
+            "form": "grande",
+            "lemma_es": "grande",
+            "grammatical_note": "sg"
+          }
+        ],
+        "distractors_no": [
+          "Kvinnen leser et stort bok",
+          "Kvinnen lærer en stor bok",
+          "Kvinnene leser en stor bok"
+        ],
+        "difficulty_rank": 7
+      },
+      {
+        "es": "Las amigas cantan y hablan mucho",
+        "no": "Venninnene synger og snakker mye",
+        "word_mapping": [
+          {
+            "position": 0,
+            "form": "Las",
+            "lemma_es": "las",
+            "grammatical_note": "fem.pl"
+          },
+          {
+            "position": 1,
+            "form": "amigas",
+            "lemma_es": "amiga",
+            "grammatical_note": "fem.pl"
+          },
+          {
+            "position": 2,
+            "form": "cantan",
+            "lemma_es": "cantar",
+            "grammatical_note": "presens.3pl"
+          },
+          {
+            "position": 3,
+            "form": "y",
+            "lemma_es": "y",
+            "grammatical_note": "konjunksjon"
+          },
+          {
+            "position": 4,
+            "form": "hablan",
+            "lemma_es": "hablar",
+            "grammatical_note": "presens.3pl"
+          },
+          {
+            "position": 5,
+            "form": "mucho",
+            "lemma_es": "mucho",
+            "grammatical_note": "adverb"
+          }
+        ],
+        "distractors_no": [
+          "Venninnen synger og snakker mye",
+          "Venninnene synger og lytter mye",
+          "Vennene synger og snakker mye"
+        ],
+        "difficulty_rank": 8
+      },
+      {
+        "es": "Las niñas miran y escuchan bien",
+        "no": "Jentene ser på og lytter godt",
+        "word_mapping": [
+          {
+            "position": 0,
+            "form": "Las",
+            "lemma_es": "las",
+            "grammatical_note": "fem.pl"
+          },
+          {
+            "position": 1,
+            "form": "niñas",
+            "lemma_es": "niña",
+            "grammatical_note": "fem.pl"
+          },
+          {
+            "position": 2,
+            "form": "miran",
+            "lemma_es": "mirar",
+            "grammatical_note": "presens.3pl"
+          },
+          {
+            "position": 3,
+            "form": "y",
+            "lemma_es": "y",
+            "grammatical_note": "konjunksjon"
+          },
+          {
+            "position": 4,
+            "form": "escuchan",
+            "lemma_es": "escuchar",
+            "grammatical_note": "presens.3pl"
+          },
+          {
+            "position": 5,
+            "form": "bien",
+            "lemma_es": "bien",
+            "grammatical_note": "adverb"
+          }
+        ],
+        "distractors_no": [
+          "Jenta ser på og lytter godt",
+          "Jentene ser på og hører godt",
+          "Jentene ser og lytter godt"
+        ],
+        "difficulty_rank": 9
+      },
+      {
+        "es": "El padre abre el libro viejo",
+        "no": "Faren åpner den gamle boken",
+        "word_mapping": [
+          {
+            "position": 0,
+            "form": "El",
+            "lemma_es": "el",
+            "grammatical_note": "mask.sg"
+          },
+          {
+            "position": 1,
+            "form": "padre",
+            "lemma_es": "padre",
+            "grammatical_note": "mask.sg"
+          },
+          {
+            "position": 2,
+            "form": "abre",
+            "lemma_es": "abrir",
+            "grammatical_note": "presens.3sg"
+          },
+          {
+            "position": 3,
+            "form": "el",
+            "lemma_es": "el",
+            "grammatical_note": "mask.sg"
+          },
+          {
+            "position": 4,
+            "form": "libro",
+            "lemma_es": "libro",
+            "grammatical_note": "mask.sg"
+          },
+          {
+            "position": 5,
+            "form": "viejo",
+            "lemma_es": "viejo",
+            "grammatical_note": "mask.sg"
+          }
+        ],
+        "distractors_no": [
+          "Faren åpner den gammel bok",
+          "Faren åpner det gamle boken",
+          "Moren åpner den gamle boken"
+        ],
+        "difficulty_rank": 10
+      },
+      {
+        "es": "Nosotros vivimos en una ciudad pequeña",
+        "no": "Vi bor i en liten by",
+        "word_mapping": [
+          {
+            "position": 0,
+            "form": "Nosotros",
+            "lemma_es": "nosotros",
+            "grammatical_note": "pronomen.1pl"
+          },
+          {
+            "position": 1,
+            "form": "vivimos",
+            "lemma_es": "vivir",
+            "grammatical_note": "presens.1pl"
+          },
+          {
+            "position": 2,
+            "form": "en",
+            "lemma_es": "en",
+            "grammatical_note": "preposisjon"
+          },
+          {
+            "position": 3,
+            "form": "una",
+            "lemma_es": "una",
+            "grammatical_note": "fem.sg"
+          },
+          {
+            "position": 4,
+            "form": "ciudad",
+            "lemma_es": "ciudad",
+            "grammatical_note": "fem.sg"
+          },
+          {
+            "position": 5,
+            "form": "pequeña",
+            "lemma_es": "pequeño",
+            "grammatical_note": "fem.sg"
+          }
+        ],
+        "distractors_no": [
+          "Vi bor i en lille by",
+          "Vi lever i en liten by",
+          "Vi bor i et lite by"
+        ],
+        "difficulty_rank": 11
+      },
+      {
+        "es": "Tú das café a los amigos",
+        "no": "Du gir kaffe til vennene",
+        "word_mapping": [
+          {
+            "position": 0,
+            "form": "Tú",
+            "lemma_es": "tú",
+            "grammatical_note": "pronomen.2sg"
+          },
+          {
+            "position": 1,
+            "form": "das",
+            "lemma_es": "dar",
+            "grammatical_note": "presens.2sg"
+          },
+          {
+            "position": 2,
+            "form": "café",
+            "lemma_es": "café",
+            "grammatical_note": "mask.sg"
+          },
+          {
+            "position": 3,
+            "form": "a",
+            "lemma_es": "a",
+            "grammatical_note": "preposisjon"
+          },
+          {
+            "position": 4,
+            "form": "los",
+            "lemma_es": "los",
+            "grammatical_note": "mask.pl"
+          },
+          {
+            "position": 5,
+            "form": "amigos",
+            "lemma_es": "amigo",
+            "grammatical_note": "mask.pl"
+          }
+        ],
+        "distractors_no": [
+          "Du gir kaffe til vennen",
+          "Du tar kaffe til vennene",
+          "Du gir kaffe for vennene"
+        ],
+        "difficulty_rank": 12
+      },
+      {
+        "es": "Vosotros tenéis un coche nuevo",
+        "no": "Dere har en ny bil",
+        "word_mapping": [
+          {
+            "position": 0,
+            "form": "Vosotros",
+            "lemma_es": "vosotros",
+            "grammatical_note": "pronomen.2pl"
+          },
+          {
+            "position": 1,
+            "form": "tenéis",
+            "lemma_es": "tener",
+            "grammatical_note": "presens.2pl"
+          },
+          {
+            "position": 2,
+            "form": "un",
+            "lemma_es": "un",
+            "grammatical_note": "mask.sg"
+          },
+          {
+            "position": 3,
+            "form": "coche",
+            "lemma_es": "coche",
+            "grammatical_note": "mask.sg"
+          },
+          {
+            "position": 4,
+            "form": "nuevo",
+            "lemma_es": "nuevo",
+            "grammatical_note": "mask.sg"
+          }
+        ],
+        "distractors_no": [
+          "Dere har en nye bil",
+          "De har en ny bil",
+          "Dere har et ny bil"
+        ],
+        "difficulty_rank": 13
+      },
+      {
+        "es": "Los profesores ven la ciudad bonita",
+        "no": "Lærerne ser den vakre byen",
+        "word_mapping": [
+          {
+            "position": 0,
+            "form": "Los",
+            "lemma_es": "los",
+            "grammatical_note": "mask.pl"
+          },
+          {
+            "position": 1,
+            "form": "profesores",
+            "lemma_es": "profesor",
+            "grammatical_note": "mask.pl"
+          },
+          {
+            "position": 2,
+            "form": "ven",
+            "lemma_es": "ver",
+            "grammatical_note": "presens.3pl"
+          },
+          {
+            "position": 3,
+            "form": "la",
+            "lemma_es": "la",
+            "grammatical_note": "fem.sg"
+          },
+          {
+            "position": 4,
+            "form": "ciudad",
+            "lemma_es": "ciudad",
+            "grammatical_note": "fem.sg"
+          },
+          {
+            "position": 5,
+            "form": "bonita",
+            "lemma_es": "bonito",
+            "grammatical_note": "fem.sg"
+          }
+        ],
+        "distractors_no": [
+          "Læreren ser den vakre byen",
+          "Lærerne ser den vakker by",
+          "Lærerne ser det vakre byen"
+        ],
+        "difficulty_rank": 14
+      },
+      {
+        "es": "Él escribe bien pero no lee mucho",
+        "no": "Han skriver godt men leser ikke mye",
+        "word_mapping": [
+          {
+            "position": 0,
+            "form": "Él",
+            "lemma_es": "él",
+            "grammatical_note": "pronomen.3sg.mask"
+          },
+          {
+            "position": 1,
+            "form": "escribe",
+            "lemma_es": "escribir",
+            "grammatical_note": "presens.3sg"
+          },
+          {
+            "position": 2,
+            "form": "bien",
+            "lemma_es": "bien",
+            "grammatical_note": "adverb"
+          },
+          {
+            "position": 3,
+            "form": "pero",
+            "lemma_es": "pero",
+            "grammatical_note": "konjunksjon"
+          },
+          {
+            "position": 4,
+            "form": "no",
+            "lemma_es": "no",
+            "grammatical_note": "adverb"
+          },
+          {
+            "position": 5,
+            "form": "lee",
+            "lemma_es": "leer",
+            "grammatical_note": "presens.3sg"
+          },
+          {
+            "position": 6,
+            "form": "mucho",
+            "lemma_es": "mucho",
+            "grammatical_note": "adverb"
+          }
+        ],
+        "distractors_no": [
+          "Han skriver godt men ser ikke mye",
+          "Han skrives godt men leser ikke mye",
+          "Hun skriver godt men leser ikke mye"
+        ],
+        "difficulty_rank": 15
+      },
+      {
+        "es": "El perro no corre porque está cansado",
+        "no": "Hunden løper ikke fordi den er trøtt",
+        "word_mapping": [
+          {
+            "position": 0,
+            "form": "El",
+            "lemma_es": "el",
+            "grammatical_note": "mask.sg"
+          },
+          {
+            "position": 1,
+            "form": "perro",
+            "lemma_es": "perro",
+            "grammatical_note": "mask.sg"
+          },
+          {
+            "position": 2,
+            "form": "no",
+            "lemma_es": "no",
+            "grammatical_note": "adverb"
+          },
+          {
+            "position": 3,
+            "form": "corre",
+            "lemma_es": "correr",
+            "grammatical_note": "presens.3sg"
+          },
+          {
+            "position": 4,
+            "form": "porque",
+            "lemma_es": "porque",
+            "grammatical_note": "konjunksjon"
+          },
+          {
+            "position": 5,
+            "form": "está",
+            "lemma_es": "estar",
+            "grammatical_note": "presens.3sg"
+          },
+          {
+            "position": 6,
+            "form": "cansado",
+            "lemma_es": "cansado",
+            "grammatical_note": "mask.sg"
+          }
+        ],
+        "distractors_no": [
+          "Hunden løper ikke fordi han er trøtt",
+          "Hunden går ikke fordi den er trøtt",
+          "Hundene løper ikke fordi de er trøtte"
+        ],
+        "difficulty_rank": 16
+      },
+      {
+        "es": "Ellos no saben porque son jóvenes",
+        "no": "De vet ikke fordi de er unge",
+        "word_mapping": [
+          {
+            "position": 0,
+            "form": "Ellos",
+            "lemma_es": "ellos",
+            "grammatical_note": "pronomen.3pl.mask"
+          },
+          {
+            "position": 1,
+            "form": "no",
+            "lemma_es": "no",
+            "grammatical_note": "adverb"
+          },
+          {
+            "position": 2,
+            "form": "saben",
+            "lemma_es": "saber",
+            "grammatical_note": "presens.3pl"
+          },
+          {
+            "position": 3,
+            "form": "porque",
+            "lemma_es": "porque",
+            "grammatical_note": "konjunksjon"
+          },
+          {
+            "position": 4,
+            "form": "son",
+            "lemma_es": "ser",
+            "grammatical_note": "presens.3pl"
+          },
+          {
+            "position": 5,
+            "form": "jóvenes",
+            "lemma_es": "joven",
+            "grammatical_note": "pl"
+          }
+        ],
+        "distractors_no": [
+          "De vet ikke fordi de er ungt",
+          "De kan ikke fordi de er unge",
+          "De vet ikke fordi han er ung"
+        ],
+        "difficulty_rank": 17
+      }
+    ]
+  },
+  "verification_issues": []
+}
