@@ -1,0 +1,1118 @@
+{
+  "sentences": {
+    "sentences": [
+      {
+        "es": "Yo soy muy bueno",
+        "no": "Jeg er veldig god",
+        "word_mapping": [
+          {
+            "position": 0,
+            "form": "Yo",
+            "lemma_es": "yo",
+            "grammatical_note": ""
+          },
+          {
+            "position": 1,
+            "form": "soy",
+            "lemma_es": "ser",
+            "grammatical_note": "presens.1sg"
+          },
+          {
+            "position": 2,
+            "form": "muy",
+            "lemma_es": "muy",
+            "grammatical_note": ""
+          },
+          {
+            "position": 3,
+            "form": "bueno",
+            "lemma_es": "bueno",
+            "grammatical_note": "mask.sg"
+          }
+        ],
+        "distractors_no": [
+          "Han er veldig god",
+          "Guttene er veldig gode",
+          "Jeg er god"
+        ],
+        "difficulty_rank": 50
+      },
+      {
+        "es": "Él es muy bueno",
+        "no": "Han er veldig god",
+        "word_mapping": [
+          {
+            "position": 0,
+            "form": "Él",
+            "lemma_es": "él",
+            "grammatical_note": ""
+          },
+          {
+            "position": 1,
+            "form": "es",
+            "lemma_es": "ser",
+            "grammatical_note": "presens.3sg"
+          },
+          {
+            "position": 2,
+            "form": "muy",
+            "lemma_es": "muy",
+            "grammatical_note": ""
+          },
+          {
+            "position": 3,
+            "form": "bueno",
+            "lemma_es": "bueno",
+            "grammatical_note": "mask.sg"
+          }
+        ],
+        "distractors_no": [
+          "Jeg er veldig god",
+          "Hun er veldig god",
+          "Han er god"
+        ],
+        "difficulty_rank": 52
+      },
+      {
+        "es": "El niño es bueno",
+        "no": "Gutten er god",
+        "word_mapping": [
+          {
+            "position": 0,
+            "form": "El",
+            "lemma_es": "el",
+            "grammatical_note": "mask.sg"
+          },
+          {
+            "position": 1,
+            "form": "niño",
+            "lemma_es": "niño",
+            "grammatical_note": "mask.sg"
+          },
+          {
+            "position": 2,
+            "form": "es",
+            "lemma_es": "ser",
+            "grammatical_note": "presens.3sg"
+          },
+          {
+            "position": 3,
+            "form": "bueno",
+            "lemma_es": "bueno",
+            "grammatical_note": "mask.sg"
+          }
+        ],
+        "distractors_no": [
+          "Guttene er gode",
+          "Gutten er dårlig",
+          "Barnet spiser godt"
+        ],
+        "difficulty_rank": 62
+      },
+      {
+        "es": "La casa es buena",
+        "no": "Huset er bra",
+        "word_mapping": [
+          {
+            "position": 0,
+            "form": "La",
+            "lemma_es": "el",
+            "grammatical_note": "fem.sg"
+          },
+          {
+            "position": 1,
+            "form": "casa",
+            "lemma_es": "casa",
+            "grammatical_note": "fem.sg"
+          },
+          {
+            "position": 2,
+            "form": "es",
+            "lemma_es": "ser",
+            "grammatical_note": "presens.3sg"
+          },
+          {
+            "position": 3,
+            "form": "buena",
+            "lemma_es": "bueno",
+            "grammatical_note": "fem.sg"
+          }
+        ],
+        "distractors_no": [
+          "Husene er bra",
+          "Huset er dårlig",
+          "Gutten er bra"
+        ],
+        "difficulty_rank": 67
+      },
+      {
+        "es": "El agua es buena",
+        "no": "Vannet er godt",
+        "word_mapping": [
+          {
+            "position": 0,
+            "form": "El",
+            "lemma_es": "el",
+            "grammatical_note": "mask.sg"
+          },
+          {
+            "position": 1,
+            "form": "agua",
+            "lemma_es": "agua",
+            "grammatical_note": "fem.sg"
+          },
+          {
+            "position": 2,
+            "form": "es",
+            "lemma_es": "ser",
+            "grammatical_note": "presens.3sg"
+          },
+          {
+            "position": 3,
+            "form": "buena",
+            "lemma_es": "bueno",
+            "grammatical_note": "fem.sg"
+          }
+        ],
+        "distractors_no": [
+          "Vannet er dårlig",
+          "Vannene er gode",
+          "Huset er godt"
+        ],
+        "difficulty_rank": 77
+      },
+      {
+        "es": "Los niños son buenos",
+        "no": "Guttene er gode",
+        "word_mapping": [
+          {
+            "position": 0,
+            "form": "Los",
+            "lemma_es": "el",
+            "grammatical_note": "mask.pl"
+          },
+          {
+            "position": 1,
+            "form": "niños",
+            "lemma_es": "niño",
+            "grammatical_note": "mask.pl"
+          },
+          {
+            "position": 2,
+            "form": "son",
+            "lemma_es": "ser",
+            "grammatical_note": "presens.3pl"
+          },
+          {
+            "position": 3,
+            "form": "buenos",
+            "lemma_es": "bueno",
+            "grammatical_note": "mask.pl"
+          }
+        ],
+        "distractors_no": [
+          "Gutten er god",
+          "Guttene er dårlige",
+          "Husene er gode"
+        ],
+        "difficulty_rank": 62
+      },
+      {
+        "es": "El niño bueno come",
+        "no": "Den gode gutten spiser",
+        "word_mapping": [
+          {
+            "position": 0,
+            "form": "El",
+            "lemma_es": "el",
+            "grammatical_note": "mask.sg"
+          },
+          {
+            "position": 1,
+            "form": "niño",
+            "lemma_es": "niño",
+            "grammatical_note": "mask.sg"
+          },
+          {
+            "position": 2,
+            "form": "bueno",
+            "lemma_es": "bueno",
+            "grammatical_note": "mask.sg"
+          },
+          {
+            "position": 3,
+            "form": "come",
+            "lemma_es": "comer",
+            "grammatical_note": "presens.3sg"
+          }
+        ],
+        "distractors_no": [
+          "De gode guttene spiser",
+          "Den gode gutten snakker",
+          "Den dårlige gutten spiser"
+        ],
+        "difficulty_rank": 87
+      },
+      {
+        "es": "Los niños buenos comen",
+        "no": "De gode guttene spiser",
+        "word_mapping": [
+          {
+            "position": 0,
+            "form": "Los",
+            "lemma_es": "el",
+            "grammatical_note": "mask.pl"
+          },
+          {
+            "position": 1,
+            "form": "niños",
+            "lemma_es": "niño",
+            "grammatical_note": "mask.pl"
+          },
+          {
+            "position": 2,
+            "form": "buenos",
+            "lemma_es": "bueno",
+            "grammatical_note": "mask.pl"
+          },
+          {
+            "position": 3,
+            "form": "comen",
+            "lemma_es": "comer",
+            "grammatical_note": "presens.3pl"
+          }
+        ],
+        "distractors_no": [
+          "Den gode gutten spiser",
+          "De gode guttene snakker",
+          "De dårlige guttene spiser"
+        ],
+        "difficulty_rank": 87
+      },
+      {
+        "es": "Un niño bueno come",
+        "no": "En god gutt spiser",
+        "word_mapping": [
+          {
+            "position": 0,
+            "form": "Un",
+            "lemma_es": "una",
+            "grammatical_note": "mask.sg"
+          },
+          {
+            "position": 1,
+            "form": "niño",
+            "lemma_es": "niño",
+            "grammatical_note": "mask.sg"
+          },
+          {
+            "position": 2,
+            "form": "bueno",
+            "lemma_es": "bueno",
+            "grammatical_note": "mask.sg"
+          },
+          {
+            "position": 3,
+            "form": "come",
+            "lemma_es": "comer",
+            "grammatical_note": "presens.3sg"
+          }
+        ],
+        "distractors_no": [
+          "Noen gode gutter spiser",
+          "En god gutt snakker",
+          "En dårlig gutt spiser"
+        ],
+        "difficulty_rank": 88
+      },
+      {
+        "es": "Unos niños buenos comen",
+        "no": "Noen gode gutter spiser",
+        "word_mapping": [
+          {
+            "position": 0,
+            "form": "Unos",
+            "lemma_es": "una",
+            "grammatical_note": "mask.pl"
+          },
+          {
+            "position": 1,
+            "form": "niños",
+            "lemma_es": "niño",
+            "grammatical_note": "mask.pl"
+          },
+          {
+            "position": 2,
+            "form": "buenos",
+            "lemma_es": "bueno",
+            "grammatical_note": "mask.pl"
+          },
+          {
+            "position": 3,
+            "form": "comen",
+            "lemma_es": "comer",
+            "grammatical_note": "presens.3pl"
+          }
+        ],
+        "distractors_no": [
+          "En god gutt spiser",
+          "Noen gode gutter snakker",
+          "Noen dårlige gutter spiser"
+        ],
+        "difficulty_rank": 88
+      },
+      {
+        "es": "El niño bueno habla",
+        "no": "Den gode gutten snakker",
+        "word_mapping": [
+          {
+            "position": 0,
+            "form": "El",
+            "lemma_es": "el",
+            "grammatical_note": "mask.sg"
+          },
+          {
+            "position": 1,
+            "form": "niño",
+            "lemma_es": "niño",
+            "grammatical_note": "mask.sg"
+          },
+          {
+            "position": 2,
+            "form": "bueno",
+            "lemma_es": "bueno",
+            "grammatical_note": "mask.sg"
+          },
+          {
+            "position": 3,
+            "form": "habla",
+            "lemma_es": "hablar",
+            "grammatical_note": "presens.3sg"
+          }
+        ],
+        "distractors_no": [
+          "De gode guttene snakker",
+          "Den gode gutten spiser",
+          "Den dårlige gutten snakker"
+        ],
+        "difficulty_rank": 82
+      },
+      {
+        "es": "Los niños buenos hablan",
+        "no": "De gode guttene snakker",
+        "word_mapping": [
+          {
+            "position": 0,
+            "form": "Los",
+            "lemma_es": "el",
+            "grammatical_note": "mask.pl"
+          },
+          {
+            "position": 1,
+            "form": "niños",
+            "lemma_es": "niño",
+            "grammatical_note": "mask.pl"
+          },
+          {
+            "position": 2,
+            "form": "buenos",
+            "lemma_es": "bueno",
+            "grammatical_note": "mask.pl"
+          },
+          {
+            "position": 3,
+            "form": "hablan",
+            "lemma_es": "hablar",
+            "grammatical_note": "presens.3pl"
+          }
+        ],
+        "distractors_no": [
+          "Den gode gutten snakker",
+          "De gode guttene spiser",
+          "De dårlige guttene snakker"
+        ],
+        "difficulty_rank": 82
+      },
+      {
+        "es": "Un niño bueno habla",
+        "no": "En god gutt snakker",
+        "word_mapping": [
+          {
+            "position": 0,
+            "form": "Un",
+            "lemma_es": "una",
+            "grammatical_note": "mask.sg"
+          },
+          {
+            "position": 1,
+            "form": "niño",
+            "lemma_es": "niño",
+            "grammatical_note": "mask.sg"
+          },
+          {
+            "position": 2,
+            "form": "bueno",
+            "lemma_es": "bueno",
+            "grammatical_note": "mask.sg"
+          },
+          {
+            "position": 3,
+            "form": "habla",
+            "lemma_es": "hablar",
+            "grammatical_note": "presens.3sg"
+          }
+        ],
+        "distractors_no": [
+          "Noen gode gutter snakker",
+          "En god gutt spiser",
+          "En dårlig gutt snakker"
+        ],
+        "difficulty_rank": 83
+      },
+      {
+        "es": "Unos niños buenos hablan",
+        "no": "Noen gode gutter snakker",
+        "word_mapping": [
+          {
+            "position": 0,
+            "form": "Unos",
+            "lemma_es": "una",
+            "grammatical_note": "mask.pl"
+          },
+          {
+            "position": 1,
+            "form": "niños",
+            "lemma_es": "niño",
+            "grammatical_note": "mask.pl"
+          },
+          {
+            "position": 2,
+            "form": "buenos",
+            "lemma_es": "bueno",
+            "grammatical_note": "mask.pl"
+          },
+          {
+            "position": 3,
+            "form": "hablan",
+            "lemma_es": "hablar",
+            "grammatical_note": "presens.3pl"
+          }
+        ],
+        "distractors_no": [
+          "En god gutt snakker",
+          "Noen gode gutter spiser",
+          "Noen dårlige gutter snakker"
+        ],
+        "difficulty_rank": 83
+      },
+      {
+        "es": "Yo soy un niño bueno",
+        "no": "Jeg er en god gutt",
+        "word_mapping": [
+          {
+            "position": 0,
+            "form": "Yo",
+            "lemma_es": "yo",
+            "grammatical_note": ""
+          },
+          {
+            "position": 1,
+            "form": "soy",
+            "lemma_es": "ser",
+            "grammatical_note": "presens.1sg"
+          },
+          {
+            "position": 2,
+            "form": "un",
+            "lemma_es": "una",
+            "grammatical_note": "mask.sg"
+          },
+          {
+            "position": 3,
+            "form": "niño",
+            "lemma_es": "niño",
+            "grammatical_note": "mask.sg"
+          },
+          {
+            "position": 4,
+            "form": "bueno",
+            "lemma_es": "bueno",
+            "grammatical_note": "mask.sg"
+          }
+        ],
+        "distractors_no": [
+          "Han er en god gutt",
+          "Jeg er en dårlig gutt",
+          "Jeg er noen gode gutter"
+        ],
+        "difficulty_rank": 73
+      }
+    ]
+  },
+  "verification_issues": [
+    {
+      "sentence_index": 2,
+      "field": "distractors_no",
+      "severity": "critical",
+      "problem_no": "Distractor 'Barnet spiser godt' er en tilfeldig setning, ikke en plausibel feil. Den bytter både verb ('es' → 'spiser') og endrer adjektiv til adverb ('bueno' → 'godt') uten at dette er en typisk feil eleven ville gjøre.",
+      "suggested_fix_no": "Bytt ut med en plausibel feil: 'Barnet er godt' (kun substantiv byttet), 'Gutten er dårlig' (antonym), eller 'Guttene er god' (kongruensfeil)."
+    },
+    {
+      "sentence_index": 14,
+      "field": "distractors_no",
+      "severity": "critical",
+      "problem_no": "Distractor 'Jeg er noen gode gutter' er grammatisk umulig på norsk. 'Jeg' (entall) kan ikke kombineres med 'gutter' (flertall) i en være-setning på denne måten. Dette er en tilfeldig setning som ikke gir mening.",
+      "suggested_fix_no": "Bytt ut med en plausibel feil: 'Vi er noen gode gutter' (person feil), 'Jeg er en god gutt' (mangler bestemt artikkel), 'Han er en god gutt' (person feil), eller 'Jeg er en dårlig gutt' (antonym)."
+    }
+  ],
+  "sentences_corrected": {
+    "sentences": [
+      {
+        "es": "Yo soy muy bueno",
+        "no": "Jeg er veldig god",
+        "word_mapping": [
+          {
+            "position": 0,
+            "form": "Yo",
+            "lemma_es": "yo",
+            "grammatical_note": ""
+          },
+          {
+            "position": 1,
+            "form": "soy",
+            "lemma_es": "ser",
+            "grammatical_note": "presens.1sg"
+          },
+          {
+            "position": 2,
+            "form": "muy",
+            "lemma_es": "muy",
+            "grammatical_note": ""
+          },
+          {
+            "position": 3,
+            "form": "bueno",
+            "lemma_es": "bueno",
+            "grammatical_note": "mask.sg"
+          }
+        ],
+        "distractors_no": [
+          "Han er veldig god",
+          "Guttene er veldig gode",
+          "Jeg er god"
+        ],
+        "difficulty_rank": 50
+      },
+      {
+        "es": "Él es muy bueno",
+        "no": "Han er veldig god",
+        "word_mapping": [
+          {
+            "position": 0,
+            "form": "Él",
+            "lemma_es": "él",
+            "grammatical_note": ""
+          },
+          {
+            "position": 1,
+            "form": "es",
+            "lemma_es": "ser",
+            "grammatical_note": "presens.3sg"
+          },
+          {
+            "position": 2,
+            "form": "muy",
+            "lemma_es": "muy",
+            "grammatical_note": ""
+          },
+          {
+            "position": 3,
+            "form": "bueno",
+            "lemma_es": "bueno",
+            "grammatical_note": "mask.sg"
+          }
+        ],
+        "distractors_no": [
+          "Jeg er veldig god",
+          "Hun er veldig god",
+          "Han er god"
+        ],
+        "difficulty_rank": 52
+      },
+      {
+        "es": "El niño es bueno",
+        "no": "Gutten er god",
+        "word_mapping": [
+          {
+            "position": 0,
+            "form": "El",
+            "lemma_es": "el",
+            "grammatical_note": "mask.sg"
+          },
+          {
+            "position": 1,
+            "form": "niño",
+            "lemma_es": "niño",
+            "grammatical_note": "mask.sg"
+          },
+          {
+            "position": 2,
+            "form": "es",
+            "lemma_es": "ser",
+            "grammatical_note": "presens.3sg"
+          },
+          {
+            "position": 3,
+            "form": "bueno",
+            "lemma_es": "bueno",
+            "grammatical_note": "mask.sg"
+          }
+        ],
+        "distractors_no": [
+          "Guttene er gode",
+          "Gutten er dårlig",
+          "Guttene er god"
+        ],
+        "difficulty_rank": 62
+      },
+      {
+        "es": "La casa es buena",
+        "no": "Huset er bra",
+        "word_mapping": [
+          {
+            "position": 0,
+            "form": "La",
+            "lemma_es": "el",
+            "grammatical_note": "fem.sg"
+          },
+          {
+            "position": 1,
+            "form": "casa",
+            "lemma_es": "casa",
+            "grammatical_note": "fem.sg"
+          },
+          {
+            "position": 2,
+            "form": "es",
+            "lemma_es": "ser",
+            "grammatical_note": "presens.3sg"
+          },
+          {
+            "position": 3,
+            "form": "buena",
+            "lemma_es": "bueno",
+            "grammatical_note": "fem.sg"
+          }
+        ],
+        "distractors_no": [
+          "Husene er bra",
+          "Huset er dårlig",
+          "Gutten er bra"
+        ],
+        "difficulty_rank": 67
+      },
+      {
+        "es": "El agua es buena",
+        "no": "Vannet er godt",
+        "word_mapping": [
+          {
+            "position": 0,
+            "form": "El",
+            "lemma_es": "el",
+            "grammatical_note": "mask.sg"
+          },
+          {
+            "position": 1,
+            "form": "agua",
+            "lemma_es": "agua",
+            "grammatical_note": "fem.sg"
+          },
+          {
+            "position": 2,
+            "form": "es",
+            "lemma_es": "ser",
+            "grammatical_note": "presens.3sg"
+          },
+          {
+            "position": 3,
+            "form": "buena",
+            "lemma_es": "bueno",
+            "grammatical_note": "fem.sg"
+          }
+        ],
+        "distractors_no": [
+          "Vannet er dårlig",
+          "Vannene er gode",
+          "Huset er godt"
+        ],
+        "difficulty_rank": 77
+      },
+      {
+        "es": "Los niños son buenos",
+        "no": "Guttene er gode",
+        "word_mapping": [
+          {
+            "position": 0,
+            "form": "Los",
+            "lemma_es": "el",
+            "grammatical_note": "mask.pl"
+          },
+          {
+            "position": 1,
+            "form": "niños",
+            "lemma_es": "niño",
+            "grammatical_note": "mask.pl"
+          },
+          {
+            "position": 2,
+            "form": "son",
+            "lemma_es": "ser",
+            "grammatical_note": "presens.3pl"
+          },
+          {
+            "position": 3,
+            "form": "buenos",
+            "lemma_es": "bueno",
+            "grammatical_note": "mask.pl"
+          }
+        ],
+        "distractors_no": [
+          "Gutten er god",
+          "Guttene er dårlige",
+          "Husene er gode"
+        ],
+        "difficulty_rank": 62
+      },
+      {
+        "es": "El niño bueno come",
+        "no": "Den gode gutten spiser",
+        "word_mapping": [
+          {
+            "position": 0,
+            "form": "El",
+            "lemma_es": "el",
+            "grammatical_note": "mask.sg"
+          },
+          {
+            "position": 1,
+            "form": "niño",
+            "lemma_es": "niño",
+            "grammatical_note": "mask.sg"
+          },
+          {
+            "position": 2,
+            "form": "bueno",
+            "lemma_es": "bueno",
+            "grammatical_note": "mask.sg"
+          },
+          {
+            "position": 3,
+            "form": "come",
+            "lemma_es": "comer",
+            "grammatical_note": "presens.3sg"
+          }
+        ],
+        "distractors_no": [
+          "De gode guttene spiser",
+          "Den gode gutten snakker",
+          "Den dårlige gutten spiser"
+        ],
+        "difficulty_rank": 87
+      },
+      {
+        "es": "Los niños buenos comen",
+        "no": "De gode guttene spiser",
+        "word_mapping": [
+          {
+            "position": 0,
+            "form": "Los",
+            "lemma_es": "el",
+            "grammatical_note": "mask.pl"
+          },
+          {
+            "position": 1,
+            "form": "niños",
+            "lemma_es": "niño",
+            "grammatical_note": "mask.pl"
+          },
+          {
+            "position": 2,
+            "form": "buenos",
+            "lemma_es": "bueno",
+            "grammatical_note": "mask.pl"
+          },
+          {
+            "position": 3,
+            "form": "comen",
+            "lemma_es": "comer",
+            "grammatical_note": "presens.3pl"
+          }
+        ],
+        "distractors_no": [
+          "Den gode gutten spiser",
+          "De gode guttene snakker",
+          "De dårlige guttene spiser"
+        ],
+        "difficulty_rank": 87
+      },
+      {
+        "es": "Un niño bueno come",
+        "no": "En god gutt spiser",
+        "word_mapping": [
+          {
+            "position": 0,
+            "form": "Un",
+            "lemma_es": "una",
+            "grammatical_note": "mask.sg"
+          },
+          {
+            "position": 1,
+            "form": "niño",
+            "lemma_es": "niño",
+            "grammatical_note": "mask.sg"
+          },
+          {
+            "position": 2,
+            "form": "bueno",
+            "lemma_es": "bueno",
+            "grammatical_note": "mask.sg"
+          },
+          {
+            "position": 3,
+            "form": "come",
+            "lemma_es": "comer",
+            "grammatical_note": "presens.3sg"
+          }
+        ],
+        "distractors_no": [
+          "Noen gode gutter spiser",
+          "En god gutt snakker",
+          "En dårlig gutt spiser"
+        ],
+        "difficulty_rank": 88
+      },
+      {
+        "es": "Unos niños buenos comen",
+        "no": "Noen gode gutter spiser",
+        "word_mapping": [
+          {
+            "position": 0,
+            "form": "Unos",
+            "lemma_es": "una",
+            "grammatical_note": "mask.pl"
+          },
+          {
+            "position": 1,
+            "form": "niños",
+            "lemma_es": "niño",
+            "grammatical_note": "mask.pl"
+          },
+          {
+            "position": 2,
+            "form": "buenos",
+            "lemma_es": "bueno",
+            "grammatical_note": "mask.pl"
+          },
+          {
+            "position": 3,
+            "form": "comen",
+            "lemma_es": "comer",
+            "grammatical_note": "presens.3pl"
+          }
+        ],
+        "distractors_no": [
+          "En god gutt spiser",
+          "Noen gode gutter snakker",
+          "Noen dårlige gutter spiser"
+        ],
+        "difficulty_rank": 88
+      },
+      {
+        "es": "El niño bueno habla",
+        "no": "Den gode gutten snakker",
+        "word_mapping": [
+          {
+            "position": 0,
+            "form": "El",
+            "lemma_es": "el",
+            "grammatical_note": "mask.sg"
+          },
+          {
+            "position": 1,
+            "form": "niño",
+            "lemma_es": "niño",
+            "grammatical_note": "mask.sg"
+          },
+          {
+            "position": 2,
+            "form": "bueno",
+            "lemma_es": "bueno",
+            "grammatical_note": "mask.sg"
+          },
+          {
+            "position": 3,
+            "form": "habla",
+            "lemma_es": "hablar",
+            "grammatical_note": "presens.3sg"
+          }
+        ],
+        "distractors_no": [
+          "De gode guttene snakker",
+          "Den gode gutten spiser",
+          "Den dårlige gutten snakker"
+        ],
+        "difficulty_rank": 82
+      },
+      {
+        "es": "Los niños buenos hablan",
+        "no": "De gode guttene snakker",
+        "word_mapping": [
+          {
+            "position": 0,
+            "form": "Los",
+            "lemma_es": "el",
+            "grammatical_note": "mask.pl"
+          },
+          {
+            "position": 1,
+            "form": "niños",
+            "lemma_es": "niño",
+            "grammatical_note": "mask.pl"
+          },
+          {
+            "position": 2,
+            "form": "buenos",
+            "lemma_es": "bueno",
+            "grammatical_note": "mask.pl"
+          },
+          {
+            "position": 3,
+            "form": "hablan",
+            "lemma_es": "hablar",
+            "grammatical_note": "presens.3pl"
+          }
+        ],
+        "distractors_no": [
+          "Den gode gutten snakker",
+          "De gode guttene spiser",
+          "De dårlige guttene snakker"
+        ],
+        "difficulty_rank": 82
+      },
+      {
+        "es": "Un niño bueno habla",
+        "no": "En god gutt snakker",
+        "word_mapping": [
+          {
+            "position": 0,
+            "form": "Un",
+            "lemma_es": "una",
+            "grammatical_note": "mask.sg"
+          },
+          {
+            "position": 1,
+            "form": "niño",
+            "lemma_es": "niño",
+            "grammatical_note": "mask.sg"
+          },
+          {
+            "position": 2,
+            "form": "bueno",
+            "lemma_es": "bueno",
+            "grammatical_note": "mask.sg"
+          },
+          {
+            "position": 3,
+            "form": "habla",
+            "lemma_es": "hablar",
+            "grammatical_note": "presens.3sg"
+          }
+        ],
+        "distractors_no": [
+          "Noen gode gutter snakker",
+          "En god gutt spiser",
+          "En dårlig gutt snakker"
+        ],
+        "difficulty_rank": 83
+      },
+      {
+        "es": "Unos niños buenos hablan",
+        "no": "Noen gode gutter snakker",
+        "word_mapping": [
+          {
+            "position": 0,
+            "form": "Unos",
+            "lemma_es": "una",
+            "grammatical_note": "mask.pl"
+          },
+          {
+            "position": 1,
+            "form": "niños",
+            "lemma_es": "niño",
+            "grammatical_note": "mask.pl"
+          },
+          {
+            "position": 2,
+            "form": "buenos",
+            "lemma_es": "bueno",
+            "grammatical_note": "mask.pl"
+          },
+          {
+            "position": 3,
+            "form": "hablan",
+            "lemma_es": "hablar",
+            "grammatical_note": "presens.3pl"
+          }
+        ],
+        "distractors_no": [
+          "En god gutt snakker",
+          "Noen gode gutter spiser",
+          "Noen dårlige gutter snakker"
+        ],
+        "difficulty_rank": 83
+      },
+      {
+        "es": "Yo soy un niño bueno",
+        "no": "Jeg er en god gutt",
+        "word_mapping": [
+          {
+            "position": 0,
+            "form": "Yo",
+            "lemma_es": "yo",
+            "grammatical_note": ""
+          },
+          {
+            "position": 1,
+            "form": "soy",
+            "lemma_es": "ser",
+            "grammatical_note": "presens.1sg"
+          },
+          {
+            "position": 2,
+            "form": "un",
+            "lemma_es": "una",
+            "grammatical_note": "mask.sg"
+          },
+          {
+            "position": 3,
+            "form": "niño",
+            "lemma_es": "niño",
+            "grammatical_note": "mask.sg"
+          },
+          {
+            "position": 4,
+            "form": "bueno",
+            "lemma_es": "bueno",
+            "grammatical_note": "mask.sg"
+          }
+        ],
+        "distractors_no": [
+          "Han er en god gutt",
+          "Jeg er en dårlig gutt",
+          "Vi er noen gode gutter"
+        ],
+        "difficulty_rank": 73
+      }
+    ]
+  }
+}

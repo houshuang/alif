@@ -1,0 +1,16 @@
+[Unit]
+Description=Alif Spanish Pilot backend
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/spanish-pilot
+Environment=PYTHONPATH=/opt/spanish-pilot
+Environment=PILOT_DB_PATH=/opt/spanish-pilot/data/pilot.db
+ExecStart=/opt/spanish-pilot/.venv/bin/uvicorn backend.main:app --host 0.0.0.0 --port 3100
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
