@@ -40,9 +40,9 @@ Both scripts use two-pass LLM verification with auto-correction.
 First-time setup on server:
 ```bash
 ssh alif
-mkdir -p /opt/spanish-pilot && cd /opt/spanish-pilot
-git clone https://github.com/stianhaklev/alif.git .
-git checkout sh/spanish-pilot
+git clone https://github.com/stianhaklev/alif.git /opt/alif-pilot
+cd /opt/alif-pilot && git checkout sh/spanish-pilot
+cd spanish-pilot
 python3 -m venv .venv
 .venv/bin/pip install -r backend/requirements.txt
 cp backend/alif-spanish-pilot.service /etc/systemd/system/

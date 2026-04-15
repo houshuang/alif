@@ -93,6 +93,18 @@ Prefer focused sessions. If a task has 4+ distinct parts, suggest breaking into 
 ## Ask Before Changing Design Decisions
 - [Details](feedback_ask_before_changing.md) — Don't change intentional architecture (e.g. API vs CLI for chat speed) without asking first
 
+## History + PKM Research / Petrarca Integration (2026-04-07)
+- [Details](reference_history_pkm_research.md) — 12 historians using PKM tools, Petrarca integration plan. Key: Graham's KG repos, Zotero Translation Server, Hypothesis API, discourser novelty detection.
+
+## CLI JSON Parse Bug (fixed 2026-04-14)
+- [Details](feedback_json_schema_cli.md) — Always use `json_schema=` not `json_mode=True` for CLI models. Old parser silently dropped Sonnet's answers, fell back to weak API Haiku.
+
+## Hindawi Corpus Import (deployed 2026-04-11)
+- [Details](project_corpus_import.md) — 10,781 sentences from 166 children's books (72% lemma coverage). Sentence-only import (no new lemmas). On-demand translation via cron step A2. Also fixed preposition+pronoun function words.
+
+## Spanish Pilot for Norwegian School (2026-04-15)
+- [Details](project_spanish_pilot.md) — Standalone `spanish-pilot/` subproject; UX-validation prototype for Spanish-Norwegian word-level SRS. Separate SQLite/systemd/port 3100 on Hetzner. Norwegian UI, NO English allowed.
+
 ## Architecture Notes (not in CLAUDE.md)
 - FSRS stability floor: "known" with stability < 1.0 -> "lapsed"
 - Interaction logger: skipped when TESTING=1 (set in conftest.py)
