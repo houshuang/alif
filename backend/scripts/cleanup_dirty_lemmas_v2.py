@@ -107,22 +107,38 @@ def find_dirty_lemmas(db, categories: set[str]) -> list[Lemma]:
     return sorted(dirty.values(), key=lambda l: l.lemma_id)
 
 
-def compute_clean_bare(bare: str) -> str:
-    """Deterministic clean bare form: strip Quranic, then conjunction + article.
+def compute_clean_bare(lemma_ar_bare: str, lemma_ar: str | None = None) -> str:
+    """Deterministic clean bare form: strip Quranic presentation + conjunction/article.
 
-    Returns the proposed clean bare. Caller should verify it's not empty or <2 chars.
+    Prefers `lemma_ar` (diacritized) as source when available, because the stored
+    `lemma_ar_bare` may have been computed with the old normalize_arabic before
+    `normalize_quranic_to_msa` existed — which stripped dagger alefs and lost the
+    long-ā vowel (e.g. stored bare `والصـئمت` missing the alif for صائمات).
+
+    Detects integral-ا patterns where ال is NOT the definite article:
+    - If lemma_ar begins with أ / إ / آ, the ا is hamzated (Form IV verb, plural
+      with intrinsic alef, etc.) — do NOT strip the leading ال. Examples:
+        أَلْقَى (to throw), أَلْعَابٌ (games), آلِهَةٌ (gods).
+    - If the candidate clean bare would be shorter than 3 chars, treat as unsafe
+      and return the pre-strip cleaned form (caller then treats as no-op).
     """
-    cleaned = normalize_arabic(bare)
-    # Strip و (conjunction waw) if followed by ال and then a content word
+    source = lemma_ar if lemma_ar else lemma_ar_bare
+    cleaned = normalize_arabic(source)
+
+    # Integral-ا detection via hamzated alef in diacritized form.
+    if lemma_ar and lemma_ar[0] in ("\u0623", "\u0625", "\u0622"):  # أ إ آ
+        return cleaned
+
+    # Strip و + ال (conjunction + definite article) together.
     if cleaned.startswith("وال") and len(cleaned) > 4:
-        cleaned = cleaned[3:]  # drop وال
-    elif cleaned.startswith("و") and len(cleaned) > 3 and cleaned not in KEEP_AL_PREFIX:
-        # Only strip leading و for multi-char words where it's clearly the conjunction.
-        # Conservative: only if the rest of the word has 3+ chars and doesn't start with ال
-        # (handled above).
-        pass  # leave untouched — bare و-prefix without ال is ambiguous
+        candidate = cleaned[3:]
+        if len(candidate) >= 3:
+            return candidate
     elif cleaned.startswith("ال") and len(cleaned) > 3 and cleaned not in KEEP_AL_PREFIX:
-        cleaned = cleaned[2:]  # drop ال
+        candidate = cleaned[2:]
+        if len(candidate) >= 3:
+            return candidate
+
     return cleaned
 
 
@@ -273,8 +289,8 @@ def cleanup(categories: set[str], apply: bool) -> None:
         skipped: list[tuple[Lemma, str]] = []        # (dirty, reason)
 
         for l in dirty:
-            clean = compute_clean_bare(l.lemma_ar_bare)
-            if not clean or len(clean) < 2:
+            clean = compute_clean_bare(l.lemma_ar_bare, l.lemma_ar)
+            if not clean or len(clean) < 3:
                 skipped.append((l, f"clean bare too short ('{clean}')"))
                 continue
             if clean == l.lemma_ar_bare:
