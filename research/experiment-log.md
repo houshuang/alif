@@ -4,15 +4,21 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
-## 2026-04-15: Display-Form Normalization Pass
+## 2026-04-15: Display-Form Normalization + Bare-Form Re-derivation for Damaged Quran Lemmas
 
-**Follow-up to the cleanup below**. After the bare-form cleanup fixed 24 lemmas (merge + rewrite), 76 additional lemmas still had Quranic Mushaf typography in `lemma_ar` even though their `lemma_ar_bare` was already canonical MSA (e.g. `هذه` with `lemma_ar=هٰذِهِ`, or Form VIII/X verbs with alif waṣlah `ٱ`). Users saw these in intro cards/reviews.
+**Follow-up to the cleanup below**. After the initial bare-form cleanup fixed 24 lemmas (3 merges + 21 rewrites), additional passes completed the Quran cleanup:
 
-**Added `--display` mode to `cleanup_dirty_lemmas_v2.py`** — new `normalize_lemma_ar_for_display()` function strips Quranic-only typography (dagger alef, small waw/ya, Quranic annotation marks, tatweel) and converts alif waṣlah `ٱ` → regular alef `ا`, while preserving all standard MSA tashkeel (fatha, kasra, damma, tanwin, sukun, shadda). Safety check: verifies `normalize_arabic(new_ar) == lemma_ar_bare` before applying — refuses to commit a change that would create a letter-count mismatch with the stored bare.
+**Pass 1 — Display normalization** (`--display` flag). 69 lemmas had Quranic Mushaf typography in `lemma_ar` even though `lemma_ar_bare` was already canonical MSA (e.g. `هذه` with `lemma_ar=هٰذِهِ`, Form VIII/X verbs with alif waṣlah `ٱ`). New `normalize_lemma_ar_for_display()` strips Quranic-only typography (dagger alef, small waw/ya, Quranic annotation marks, tatweel) and converts `ٱ` → `ا`. Safety check verifies `normalize_arabic(new_ar) == lemma_ar_bare`. 7 correctly skipped for a separate pass.
 
-**Applied on production**: 69 lemma_ar display forms normalized; 7 correctly skipped by the safety check (their bare is missing an `ال` prefix that lemma_ar has — e.g. `ضللة`/`ٱلضَّلَٰلَةَ`; these need a separate bare-form re-derivation pass).
+**Pass 2 — Bare-form re-derivation** (default mode, enhanced `compute_clean_bare` to prefer `lemma_ar` as source). Caught 5 Quran lemmas whose stored bare was damaged by old `normalize_arabic` (pre-dagger-alef-handling): `ضللة` → `ضلالة`, `صوعق` → `صواعق`, `صلحت` → `صالحات`, `فسقين` → `فاسقين`, `خسرون` → `خاسرون`. Plus `ملئكة` merged into existing `ملائكة` (clean lemma #1450). Added `DAGGER_ALEF_ZERO_WIDTH_BARES` whitelist to distinguish these from zero-width-dagger-alef words (`هذا`, `الله`, `ذلك`, etc.) where the dagger alef is phonetic-only and the stored bare must be trusted.
 
-**Verified**: 9/9 test cases pass (e.g. `هَٰذَا` → `هَذَا`, `ٱسْتَيْقَظَ` → `اِسْتَيْقَظَ`, `أَلْقَى` passed through unchanged, `آلِهَةٌ` passed through unchanged).
+**Pass 3 — Narrow display re-pass** for the 7 Quran remnants. After Pass 2 fixed the bares, their `lemma_ar` still carried the Quranic definite-article prefix `ٱل`. New Pattern 2 in `--display`: when `normalize_arabic(lemma_ar)` = `"ال" + bare` (or `"وال" + bare`), position-strip those 2 or 3 letters from `lemma_ar`. Scoped to `has_quranic_chars(lemma_ar)` only — would otherwise have incorrectly rewritten ~73 textbook_scan lemmas where the definite form is the intentional display.
+
+**Rejected alternative**: a broader "Category E" (all lemmas where `normalize(lemma_ar) != lemma_ar_bare`) caught ~170 lemmas and proposed ~88 rewrites, but was flagging legitimate divergences like masculine/feminine (`قوي`/`قوية`), singular/plural (`فاكهة`/`فواكه`), and unrelated homographs (`رد`/`فرد`). Removed before apply.
+
+**Final production state**: 69 + 5 rewrites + 4 merges + 7 = all 96 originally-dirty lemmas either cleaned, safely merged into clean canonicals, or correctly skipped. The user's flagged lemma #2301 now displays `صَّائِمَاتِ` (bare `صائمات`) — clean MSA, no more `al-`.
+
+**Verified**: 9/9 display test cases pass, 7/7 rewrite test cases pass, 142/142 sentence_validator tests pass. Local spot-check confirmed all 7 Quran remnants now have matching bare + display forms.
 
 ---
 
