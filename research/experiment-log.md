@@ -4,6 +4,18 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-04-15: Display-Form Normalization Pass
+
+**Follow-up to the cleanup below**. After the bare-form cleanup fixed 24 lemmas (merge + rewrite), 76 additional lemmas still had Quranic Mushaf typography in `lemma_ar` even though their `lemma_ar_bare` was already canonical MSA (e.g. `هذه` with `lemma_ar=هٰذِهِ`, or Form VIII/X verbs with alif waṣlah `ٱ`). Users saw these in intro cards/reviews.
+
+**Added `--display` mode to `cleanup_dirty_lemmas_v2.py`** — new `normalize_lemma_ar_for_display()` function strips Quranic-only typography (dagger alef, small waw/ya, Quranic annotation marks, tatweel) and converts alif waṣlah `ٱ` → regular alef `ا`, while preserving all standard MSA tashkeel (fatha, kasra, damma, tanwin, sukun, shadda). Safety check: verifies `normalize_arabic(new_ar) == lemma_ar_bare` before applying — refuses to commit a change that would create a letter-count mismatch with the stored bare.
+
+**Applied on production**: 69 lemma_ar display forms normalized; 7 correctly skipped by the safety check (their bare is missing an `ال` prefix that lemma_ar has — e.g. `ضللة`/`ٱلضَّلَٰلَةَ`; these need a separate bare-form re-derivation pass).
+
+**Verified**: 9/9 test cases pass (e.g. `هَٰذَا` → `هَذَا`, `ٱسْتَيْقَظَ` → `اِسْتَيْقَظَ`, `أَلْقَى` passed through unchanged, `آلِهَةٌ` passed through unchanged).
+
+---
+
 ## 2026-04-15: Quranic Presentation Normalization + Dirty Lemma Cleanup v2
 
 **Problem**: User reported an intro card for "women who fast" (لemma #2301 `وَٱلصَّـٰٓئِمَٰتِ`) which displayed with Quranic Mushaf letters (ٱ dagger alef ـٰ small waw ۥ maddah ٓ etc.) and baked-in و+ال prefix. Investigation: a batch import from Surah al-Ahzab 33:35 brought in 19 lemmas with this pattern. Separately, `source='quran'` contained ~47 lemmas using Mushaf presentation forms. A handful of textbook/book/story imports also had ال prefix baked in that the 2026-04-06 cleanup missed.
