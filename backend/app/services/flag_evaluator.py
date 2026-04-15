@@ -469,13 +469,24 @@ def _evaluate_sentence(db: Session, flag: ContentFlag) -> None:
     flag.original_value = current_value
 
     if flag.content_type == "sentence_arabic":
-        prompt = f"""Evaluate this Arabic sentence for naturalness and grammatical correctness.
+        prompt = f"""A user flagged this Arabic sentence as bad. Evaluate against the same rubric used during generation.
 
 Arabic: {sentence.arabic_diacritized or sentence.arabic_text}
 English translation: {sentence.english_translation}
 
-Is this natural, grammatically correct Arabic? If it has minor issues, provide a corrected version.
-If it's fundamentally broken, say so.
+Mark acceptable=false for ANY of:
+- Grammar errors (wrong gender agreement, incorrect verb forms, broken syntax, wrong i'rab)
+- Nonsensical meaning (word salad, contradictory clauses)
+- Invented proper names or epithets built from content words \
+(e.g. الأميرة حب التوت "Princess Mulberry Love" — a name fabricated from vocabulary words)
+- Implausible scenarios no native speaker would write in any context \
+(news, conversation, story, instruction, poetry) — ask: "would this appear in any natural Arabic text?"
+- Catalog-style fragments: abstract nouns listed without an actor or action
+
+Mark acceptable=true only if the sentence is both grammatical AND something a real Arabic \
+speaker could plausibly say. Simple/textbook-style phrasing is fine; implausibility is not.
+
+The user flagged this — give their judgment significant weight. When in doubt, mark unacceptable.
 
 Respond with JSON:
 {{"acceptable": true/false, "fixable": true/false, "corrected": "fixed Arabic if fixable", "confidence": 0.0-1.0, "explanation": "brief reason"}}"""

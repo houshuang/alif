@@ -4,6 +4,42 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-04-15: Quranic Presentation Normalization + Dirty Lemma Cleanup v2
+
+**Problem**: User reported an intro card for "women who fast" (لemma #2301 `وَٱلصَّـٰٓئِمَٰتِ`) which displayed with Quranic Mushaf letters (ٱ dagger alef ـٰ small waw ۥ maddah ٓ etc.) and baked-in و+ال prefix. Investigation: a batch import from Surah al-Ahzab 33:35 brought in 19 lemmas with this pattern. Separately, `source='quran'` contained ~47 lemmas using Mushaf presentation forms. A handful of textbook/book/story imports also had ال prefix baked in that the 2026-04-06 cleanup missed.
+
+**Root cause**: (1) No import-time sanitization for Quranic presentation letters. `strip_diacritics()` naively removes U+0670 (dagger alef), which represents a long ā — losing the vowel entirely. (2) `import_quality.py` prompt prompted for ال prefix cleaning but not و+ال or Quranic forms. (3) No single comprehensive cleanup script existed — `cleanup_dirty_bare_forms.py` and `merge_al_lemmas.py` covered different pieces but nothing handled Quranic + merge in one pass.
+
+**Changes**:
+- `backend/app/services/sentence_validator.py`: Added `normalize_quranic_to_msa()` — dagger alef ـٰ → ا (with duplicate-collapse for adjacent ا/ى), small waw ۥ → strip, small ya ۦ → strip. Must run BEFORE `strip_diacritics()` since U+0670 is in the diacritic regex range. Integrated into `normalize_arabic()` as the first step.
+- `backend/app/services/import_quality.py`: Pre-normalize every incoming lemma's Arabic via `normalize_quranic_to_msa()` before LLM classification. Extended the LLM prompt to recognize و+ال prefix patterns and plural-as-lemma issues (e.g. "والصائمات → صائمة"). Propagates pre-normalized forms as `cleaned_arabic` when LLM doesn't suggest its own cleanup.
+- `backend/scripts/cleanup_dirty_lemmas_v2.py`: New all-in-one cleanup across categories A/B/C. Uses the same normalization helpers as the import path. Position-aware prefix stripping preserves tashkeel on `lemma_ar` when stripping ال/وال (e.g., `اَلْغُرْفة` → `غُرْفة`). Merges into existing clean lemmas (reassigns SentenceWord/ReviewLog/Sentence.target_lemma_id, combines ULK stats, marks dirty as `canonical_lemma_id`). Rewrites in place otherwise, resets `gates_completed_at` so quality gates re-run. Dry-run by default.
+
+**Verification**: 7 Quranic→MSA test cases all pass (Surah 33:35 `وَٱلصَّـٰٓئِمَٰتِ` → `والصائمات`; `حَوۡلَهُۥ` → `حوله` via small-waw strip; `ٱسۡتَوَىٰٓ` → `استوى` via duplicate-collapse). 197 tests in sentence_validator/sentence_generator/llm/flag_evaluator suites all pass. Local dry-run: 40 dirty lemmas, 9 merges, 27 rewrites, 4 skipped (already-clean quranic-diacritic demonstratives). Production scope: ~23 cat-A, ~47 cat-B (quran source), ~3 cat-C.
+
+**Expected**: After running `cleanup_dirty_lemmas_v2.py --apply` on production, user will stop seeing Mushaf-style intro cards. Future imports via `import_quality.py` will auto-normalize Quranic letters before any lemma is created. Rewrites with `gates_completed_at=None` will be picked up by the next warm-cache cycle for gloss/root/POS refresh.
+
+---
+
+## 2026-04-15: Tighten Naturalness Rubric in Sentence Generation + Review + Flag Evaluation
+
+**Problem**: User flagged a sentence "أَنَا أَخْتَارُكَ زَوْجًا لِلْأَمِيرَةِ حَبِّ التُّوتِ" (princess "Mulberry Love"). Flag evaluator dismissed it as "grammatically correct, minor issue with unusual epithet." Investigation revealed the generator's multi-target path incentivizes the LLM to fabricate proper names/epithets from content words to satisfy the "2+ target words per sentence" constraint, and the quality review + flag evaluator both used rubrics that explicitly said "do NOT reject just because the scenario is unusual."
+
+**Root cause**: Three-layer permissiveness. (1) Generator prompt banned invented *vocabulary* but not invented *proper names*. (2) `review_sentences_quality()` prompt told the reviewer to accept anything not grammatically broken. (3) `flag_evaluator._evaluate_sentence()` used the same permissive rubric, so user flags on implausible-but-grammatical sentences got dismissed. Additionally, `review_sentences_quality()` still used `json_mode=True` (the known CLI parse bug from 2026-04-14) instead of `json_schema`.
+
+**Changes** (`backend/app/services/llm.py`, `sentence_generator.py`, `flag_evaluator.py`):
+- Added "Semantic plausibility — CRITICAL" section to `ARABIC_STYLE_RULES`: bans invented names/epithets built from content words; restricts proper names to vocabulary list; permits the LLM to drop a target word rather than force nonsense; rejects catalog-style fragments without an actor/action.
+- Rewrote `review_sentences_quality()` rubric to REJECT implausible scenarios, invented names, catalog fragments. Kept "accept simple/textbook-style" carve-out. Switched `json_mode=True` → `json_schema=` (uses `--json-schema` constrained decoding).
+- Aligned `flag_evaluator._evaluate_sentence()` sentence_arabic branch with the same rubric. Added "the user flagged this — give their judgment significant weight."
+
+**Tracking**: Added `_log_quality_review()` helper in `sentence_generator.py`. Each call to `review_sentences_quality()` now appends one JSONL entry per sentence to `data/logs/sentence_gen_YYYY-MM-DD.jsonl` with `event=quality_review`, approval, natural/translation flags, caller, and rejection reason. New script `scripts/sentence_gen_stats.py` aggregates the JSONL to report pass rates, per-caller breakdown, and top rejection reasons (`--days N` or `--date YYYY-MM-DD`).
+
+**Expected**: Generation-time rejection rate should rise (from ~0% on old data). If >30% after deploy, loosen the "implausible scenarios" clause. User flags on implausible-but-grammatical sentences should now retire the sentence rather than dismiss.
+
+**Verification**: Run `python3 scripts/sentence_gen_stats.py --days 7` after a few days of traffic. Compare naturalness-rejection rate vs the pre-change baseline (effectively zero).
+
+---
+
 ## 2026-04-14: Fix Silent JSON Parse Failure in Mapping Verification
 
 **Problem**: User kept reporting wrong lemmas in corpus sentences despite verification pipeline existing. Examples: أحد→"Sunday" (should be "one"), شرك→"partner" (should be "trap"), لهما→"God" (should be "for them two").

@@ -29,13 +29,22 @@ def classify_lemmas(
     Rejected dicts are junk (transliterations, fragments, abbreviations).
     """
     from app.services.llm import generate_completion, AllProvidersFailed
+    from app.services.sentence_validator import normalize_quranic_to_msa
 
     if not lemmas:
         return [], []
 
+    # Pre-normalize: convert Quranic presentation forms to MSA before the LLM
+    # ever sees them (dagger alef → ا, small waw → strip, etc.). This keeps the
+    # classifier focused on prefix/suffix/number issues, not typography.
     indexed = []
+    pre_normalized: dict[int, str] = {}
     for i, lem in enumerate(lemmas):
-        indexed.append({"idx": i, **lem})
+        raw = lem.get("arabic", "")
+        normalized = normalize_quranic_to_msa(raw)
+        if normalized != raw:
+            pre_normalized[i] = normalized
+        indexed.append({"idx": i, **lem, "arabic": normalized})
 
     classifications: dict[int, str] = {}
     cleaned_forms: dict[int, str] = {}
@@ -64,12 +73,19 @@ Guidelines:
 - Animal noises, sounds → "onomatopoeia"
 - Be conservative: when in doubt, classify as "standard"
 
-Also check if the bare form needs cleaning. Include "clean" ONLY when the arabic form has issues:
+Also check if the bare form needs cleaning. Include "clean" when the arabic form has issues:
 - ال-prefix baked in when it shouldn't be: المطحونة → مطحونة, الشقة → شقة
+- و+ال (conjunction + article) baked in: والمسلمات → مسلمة, والمؤمنين → مؤمن
 - Final ه that should be ة (OCR artifact): المطحونه → مطحونة, الجراحه → جراحة
+- Reduce plurals to singular dictionary form when plural was imported as lemma: \
+والصائمات → صائمة, والحافظين → حافظ (the lemma should be the singular dictionary entry)
 - Do NOT clean words where ال is integral: الله, الذي/التي, الآن, اليوم
 - Do NOT clean Form VIII/X verbs: التقى, التحق, استقبل
 - Do NOT clean proper nouns where ال is part of the name: الرازي, الحاوي
+
+Note: Quranic presentation diacritics (ٱ dagger-alef ـٰ small-waw ۥ sukun ۡ maddah ٓ \
+Quranic annotation marks) are normalized automatically before classification — you will \
+see MSA-form text even if the source was Mushaf-style. Focus on prefix/suffix/number issues.
 
 Words:
 {word_list}
@@ -106,8 +122,13 @@ Only include "clean" key when the bare form actually needs fixing. Include every
         else:
             lem_copy = dict(lem)
             lem_copy["word_category"] = classifications.get(i, "standard")
+            # If the LLM didn't suggest a cleaner form but we pre-normalized
+            # Quranic → MSA, propagate that as the cleaned bare form so the
+            # lemma is stored in MSA typography.
             if i in cleaned_forms:
                 lem_copy["cleaned_arabic"] = cleaned_forms[i]
+            elif i in pre_normalized:
+                lem_copy["cleaned_arabic"] = pre_normalized[i]
             classified.append(lem_copy)
 
     if rejected:

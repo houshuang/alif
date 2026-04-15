@@ -404,7 +404,24 @@ Semantic coherence in compound sentences:
 - When joining clauses with و/ثُمَّ/لَكِنَّ, they MUST be logically related:
   ✓ فِي الكُوَيْتِ مَطَرٌ فَأَخَذْتُ مِظَلَّةً (In Kuwait it is raining, so I took an umbrella)
   ✗ فِي الكُوَيْتِ مَطَرٌ وَالبَاصُ بَعِيدٌ (In Kuwait it is raining, and the bus is far — unrelated)
-- Do NOT combine unrelated facts into one sentence"""
+- Do NOT combine unrelated facts into one sentence
+
+Semantic plausibility — CRITICAL:
+- Every sentence must be something a real Arabic speaker could plausibly say or write \
+in some real context (news, conversation, story, instruction, poetry). Before writing each \
+sentence, ask: "Would this appear in any natural Arabic text?" If no, rewrite.
+- Do NOT invent proper names or epithets by combining content words. \
+Names like الأميرة حب التوت ("Princess Mulberry Love") or الجندي قمر الليل ("Soldier Night Moon") \
+are unacceptable — they read as a workaround to satisfy vocabulary constraints, not as Arabic.
+- Proper names: use ONLY proper names that appear in the provided vocabulary list. \
+If no suitable name is available, use a generic definite noun instead \
+(الوَلَد، المُعَلِّم، الفَتَاة، الرَّجُل، الطِّفْل، الجَارَة).
+- Do NOT force unrelated target words into one sentence. If two target words cannot \
+naturally co-occur in any realistic scenario, produce a sentence using only one of them \
+and omit the other — it is better to drop a target than to write nonsense.
+- Reject abstract-noun stacking that reads like a dictionary entry: \
+"In the balcony, watering, and a very nice color" is not a sentence. \
+Every clause needs an actor and an action/state with concrete meaning."""
 
 DIFFICULTY_STYLE_GUIDE = """\
 Style by difficulty level:
@@ -945,22 +962,47 @@ def review_sentences_quality(
     if not sentences:
         return []
 
+    schema = {
+        "type": "object",
+        "properties": {
+            "reviews": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "id": {"type": "integer"},
+                        "natural": {"type": "boolean"},
+                        "translation_correct": {"type": "boolean"},
+                        "reason": {"type": "string"},
+                    },
+                    "required": ["id", "natural", "translation_correct", "reason"],
+                },
+            },
+        },
+        "required": ["reviews"],
+    }
+
     prompt = """Review each Arabic sentence for a language learning app. For each:
-1. Is the Arabic grammatically correct and comprehensible?
+1. Is the Arabic grammatically correct AND something a real Arabic speaker could plausibly say?
 2. Is the English translation accurate?
 
-Only reject sentences with:
-- Grammar errors (wrong gender agreement, incorrect verb forms, broken syntax)
+REJECT (natural=false) for any of:
+- Grammar errors (wrong gender agreement, incorrect verb forms, broken syntax, wrong i'rab)
 - Translation errors (English doesn't match Arabic meaning, singular/plural mismatch)
-- Nonsensical or incomprehensible meaning (word salad, contradictory clauses)
+- Nonsensical meaning (word salad, contradictory clauses)
+- Invented proper names or epithets built from content words \
+(e.g. الأميرة حب التوت "Princess Mulberry Love" — a name fabricated to satisfy a word list)
+- Implausible scenarios no native speaker would write in any context \
+(news, conversation, story, instruction, poetry)
+- Catalog-style fragments: abstract nouns listed without an actor or action \
+(e.g. "In the balcony, watering, and a very nice color")
 
-Do NOT reject sentences just because:
-- The scenario is unusual (a boy putting a book in a kitchen is fine)
-- The style is simple or textbook-like (these are for language learners)
-- Word choices are slightly informal or formal
+ACCEPT (natural=true) even if:
+- The scenario is simple or textbook-like (these are for learners)
+- Word choices are slightly formal or informal
+- Vocabulary is basic
 
-Respond with JSON array:
-[{"id": 1, "natural": true/false, "translation_correct": true/false, "reason": "..."}]
+Respond with JSON: {"reviews": [{"id": 1, "natural": true, "translation_correct": true, "reason": "..."}, ...]}
 
 Sentences:
 """
@@ -972,11 +1014,13 @@ Sentences:
             prompt=prompt,
             system_prompt=(
                 "You are an expert Arabic linguist reviewing sentences for a "
-                "language learning app. Focus on grammar correctness and translation "
-                "accuracy. Accept simple or textbook-style sentences — they are "
-                "appropriate for learners. Only reject sentences with clear errors."
+                "language learning app. Judge naturalness by asking: could a real "
+                "Arabic speaker plausibly say this in any context? Accept simple or "
+                "textbook-style sentences (appropriate for learners). Reject "
+                "grammatical but implausible sentences, invented names built from "
+                "content words, and catalog fragments without an actor or action."
             ),
-            json_mode=True,
+            json_schema=schema,
             temperature=0.0,
             model_override="claude_haiku",
             task_type="quality_review",
@@ -984,8 +1028,7 @@ Sentences:
     except (AllProvidersFailed, LLMError):
         return [SentenceReviewResult(natural=False, translation_correct=False, reason="quality review unavailable") for _ in sentences]
 
-    # Parse — result may be a list directly or {"reviews": [...]}
-    items = result if isinstance(result, list) else result.get("reviews", result.get("sentences", []))
+    items = result.get("reviews", []) if isinstance(result, dict) else []
     if not isinstance(items, list):
         return [SentenceReviewResult(natural=False, translation_correct=False, reason="quality review parse error") for _ in sentences]
 
