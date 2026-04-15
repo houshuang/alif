@@ -134,6 +134,20 @@ def find_dirty_lemmas(db, categories: set[str]) -> list[Lemma]:
                     continue
                 dirty[l.lemma_id] = l
 
+    if "E" in categories:
+        # Cross-check: lemmas where normalize(lemma_ar) != lemma_ar_bare indicate
+        # structural divergence between the display and bare forms. Excludes
+        # the zero-width-dagger-alef whitelist where this divergence is expected.
+        for l in db.query(Lemma).all():
+            if not l.lemma_ar or not l.lemma_ar_bare:
+                continue
+            if l.lemma_id in dirty:
+                continue
+            if l.lemma_ar_bare in DAGGER_ALEF_ZERO_WIDTH_BARES:
+                continue
+            if normalize_arabic(l.lemma_ar) != l.lemma_ar_bare:
+                dirty[l.lemma_id] = l
+
     return sorted(dirty.values(), key=lambda l: l.lemma_id)
 
 
@@ -332,33 +346,56 @@ def find_display_candidates(db) -> list[Lemma]:
     return sorted(candidates, key=lambda l: l.lemma_id)
 
 
+def normalize_lemma_ar_for_rewrite(lemma_ar: str) -> str:
+    """Normalize lemma_ar for a rewrite (bare change): converts Quranic letters
+    to MSA equivalents WITHOUT stripping dagger alef. Used when the dagger alef
+    represents a real long ā that must appear in the new bare as ا.
+
+    Contrast with `normalize_lemma_ar_for_display` which strips dagger alef
+    for the zero-width-dagger-alef case (هذا/الله/ذلك).
+    """
+    # Convert dagger alef → ا, strip small waw/ya (via normalize_quranic_to_msa).
+    new = normalize_quranic_to_msa(lemma_ar)
+    # Alif waṣlah → regular alef.
+    new = new.replace("\u0671", "\u0627")
+    # Strip Quranic annotation marks (U+06D6–U+06ED, maddah etc.) — they're
+    # reading aids, not standard MSA tashkeel. Preserves fatha/kasra/damma/etc.
+    for cp in range(0x06D6, 0x06EE):
+        new = new.replace(chr(cp), "")
+    for mark in ["\u0653", "\u0654", "\u0655", "\u0656", "\u0657", "\u0658",
+                 "\u0659", "\u065A", "\u065B", "\u065C", "\u065D", "\u065E", "\u065F"]:
+        new = new.replace(mark, "")
+    # Tatweel.
+    new = new.replace("\u0640", "")
+    return new
+
+
 def rewrite_in_place(db, dirty: Lemma, clean_bare: str) -> dict:
     """Rewrite lemma_ar_bare + lemma_ar in place (no merge target exists).
 
-    Preserves tashkeel on lemma_ar by stripping only the exact number of
-    letters that were dropped from the bare form.
+    Produces a lemma_ar that normalizes exactly to clean_bare:
+    1. Apply Quranic→MSA letter conversions (dagger alef → ا, ٱ → ا, etc.)
+       while preserving all standard tashkeel.
+    2. Compare normalize(new_ar) to clean_bare. If new_ar has a leading ال/وال/و
+       prefix that clean_bare lacks, strip matching letters from new_ar.
+    3. Verify the result normalizes to clean_bare; fall back to clean_bare if
+       any edge case slips through (loses tashkeel but preserves correctness).
     """
     old_bare = dirty.lemma_ar_bare
     old_ar = dirty.lemma_ar or ""
 
-    # Start by normalizing Quranic letters on the diacritized form.
-    new_ar = normalize_quranic_to_msa(old_ar)
+    # Step 1: Quranic letter conversions (keep long-ā alifs).
+    new_ar = normalize_lemma_ar_for_rewrite(old_ar)
 
-    # Compute how many letters were stripped from the bare form.
-    stripped = 0
-    if old_bare.startswith("وال") and not clean_bare.startswith("وال"):
-        stripped = 3  # و + ا + ل
-    elif old_bare.startswith("ال") and not clean_bare.startswith("ال"):
-        stripped = 2  # ا + ل
-    elif old_bare.startswith("و") and not clean_bare.startswith("و"):
-        stripped = 1
+    # Step 2: Strip leading letters if normalize(new_ar) has a prefix clean_bare lacks.
+    ar_normalized = normalize_arabic(new_ar)
+    if ar_normalized != clean_bare and ar_normalized.endswith(clean_bare):
+        n_strip = len(ar_normalized) - len(clean_bare)
+        if 1 <= n_strip <= 3:  # و, ال, or وال
+            new_ar = _strip_ar_prefix_letters(new_ar, n_strip)
 
-    if stripped:
-        # Apply the same strip to the diacritized form to keep them consistent.
-        new_ar = _strip_ar_prefix_letters(new_ar, stripped)
-
-    # Final fallback: if we somehow ended up empty, use the clean bare.
-    if not new_ar.strip():
+    # Step 3: Fallback if anything went wrong.
+    if not new_ar.strip() or normalize_arabic(new_ar) != clean_bare:
         new_ar = clean_bare
 
     dirty.lemma_ar_bare = clean_bare
@@ -565,8 +602,8 @@ if __name__ == "__main__":
     ap.add_argument(
         "--category",
         action="append",
-        choices=["A", "B", "C"],
-        help="Restrict to categor(ies). A=وال prefix, B=Quranic marks, C=ال prefix. Default: all three.",
+        choices=["A", "B", "C", "E"],
+        help="Restrict to categor(ies). A=وال prefix, B=Quranic marks, C=ال prefix, E=normalize(ar)≠bare. Default: A,B,C.",
     )
     ap.add_argument(
         "--display",
