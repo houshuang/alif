@@ -171,6 +171,36 @@ def _log_generation(
         f.write(json.dumps(entry, ensure_ascii=False) + "\n")
 
 
+def _log_quality_review(
+    log_dir: Path,
+    caller: str,
+    sentences: list[dict[str, str]],
+    reviews: list[Any],
+) -> None:
+    """Log quality-review outcomes per sentence. One JSONL entry per sentence.
+
+    caller: "single_target" or "multi_target" — identifies which generation path.
+    """
+    log_dir.mkdir(parents=True, exist_ok=True)
+    log_file = log_dir / f"sentence_gen_{datetime.now():%Y-%m-%d}.jsonl"
+    ts = datetime.now().isoformat()
+    with open(log_file, "a") as f:
+        for s, r in zip(sentences, reviews):
+            approved = bool(getattr(r, "natural", False)) and bool(getattr(r, "translation_correct", False))
+            entry = {
+                "ts": ts,
+                "event": "quality_review",
+                "caller": caller,
+                "arabic": s.get("arabic"),
+                "english": s.get("english"),
+                "natural": bool(getattr(r, "natural", False)),
+                "translation_correct": bool(getattr(r, "translation_correct", False)),
+                "approved": approved,
+                "reason": str(getattr(r, "reason", "")),
+            }
+            f.write(json.dumps(entry, ensure_ascii=False) + "\n")
+
+
 def _check_scaffold_diversity(
     arabic_text: str,
     target_bare: str,
@@ -297,9 +327,9 @@ def generate_validated_sentence(
                     continue
 
             # Gemini quality review
-            reviews = review_sentences_quality(
-                [{"arabic": result.arabic, "english": result.english}]
-            )
+            review_input = [{"arabic": result.arabic, "english": result.english}]
+            reviews = review_sentences_quality(review_input)
+            _log_quality_review(settings.log_dir, "single_target", review_input, reviews)
             if reviews and (not reviews[0].natural or not reviews[0].translation_correct):
                 retry_feedback = (
                     f"Quality review rejected: {reviews[0].reason}. "
@@ -508,6 +538,7 @@ def generate_validated_sentences_multi_target(
     if valid_sentences:
         to_review = [{"arabic": s.arabic, "english": s.english} for s in valid_sentences]
         reviews = review_sentences_quality(to_review)
+        _log_quality_review(settings.log_dir, "multi_target", to_review, reviews)
         valid_sentences = [
             s for s, r in zip(valid_sentences, reviews)
             if r.natural and r.translation_correct

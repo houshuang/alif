@@ -149,6 +149,33 @@ def normalize_alef(text: str) -> str:
     return text
 
 
+def normalize_quranic_to_msa(text: str) -> str:
+    """Convert Quranic Mushaf presentation letters to standard MSA letters.
+
+    Handles three Quranic-only letters that must be converted BEFORE
+    strip_diacritics (U+0670 is in the diacritic range and would otherwise
+    be stripped, losing vowel information):
+
+    - Dagger alef (U+0670 ـٰ) → ا. After conversion, collapse the resulting
+      duplicate when it sits next to an alef (ا) or alif maksura (ى), which
+      already encode the long ā.
+    - Small waw (U+06E5 ۥ) → strip. In MSA orthography the long ū after a
+      damma-bearing pronoun suffix (هُۥ) is implicit.
+    - Small ya (U+06E6 ۦ) → strip. Same reasoning for long ī.
+
+    Alif waṣlah ٱ is already normalized in normalize_alef().
+    Quranic annotation marks (ۡ ٓ ۖ ۗ etc.) are stripped by strip_diacritics().
+    """
+    # Small waw/ya — redundant with the vowel context in MSA, drop them.
+    text = text.replace("\u06E5", "").replace("\u06E6", "")
+    # Dagger alef → alef; then collapse adjacent duplicates.
+    text = text.replace("\u0670", "\u0627")
+    text = text.replace("\u0627\u0627", "\u0627")  # اا → ا
+    text = text.replace("\u0649\u0627", "\u0649")  # ىا → ى
+    text = text.replace("\u0627\u0649", "\u0649")  # اى → ى (rare but safe)
+    return text
+
+
 def strip_tanwin_alif(text: str) -> str:
     """Strip trailing alif that was the seat of fathatan (accusative tanwin).
 
@@ -164,7 +191,12 @@ def strip_tanwin_alif(text: str) -> str:
 
 
 def normalize_arabic(text: str) -> str:
-    """Full normalization: strip diacritics, tatweel, normalize alef."""
+    """Full normalization: Quranic→MSA, strip diacritics, tatweel, normalize alef.
+
+    Quranic→MSA must run first because U+0670 (dagger alef) is in the diacritic
+    range and would otherwise be stripped, losing the long-vowel information.
+    """
+    text = normalize_quranic_to_msa(text)
     text = strip_diacritics(text)
     text = strip_tatweel(text)
     text = normalize_alef(text)
