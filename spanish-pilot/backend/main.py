@@ -16,7 +16,12 @@ from sqlalchemy.orm import Session
 from .content_loader import load_all
 from .database import get_db, Base, engine
 from .models import Card, Lemma, ReviewLog, Sentence, Student
-from .scheduler import apply_review
+from .scheduler import apply_review as _apply_review_raw
+
+
+def apply_review(card, rating, db=None):
+    """Wrapper that injects db into the scheduler for calendar-day span check."""
+    return _apply_review_raw(card, rating, db=db)
 from .session_builder import build_session, dashboard_stats
 
 app = FastAPI(title="Spanish Pilot", version="0.1")
@@ -56,24 +61,29 @@ class ModeUpdate(BaseModel):
 
 
 class ReviewItemOut(BaseModel):
-    card_id: int
+    kind: Literal["intro_card", "sentence"]
     lemma_id: int
     lemma_es: str
-    sentence_id: int
-    sentence_es: str
-    sentence_no: str
-    distractors_no: list[str]
-    word_mapping: list[dict]
     is_new: bool
+    card_id: Optional[int] = None
+    sentence_id: Optional[int] = None
+    sentence_es: Optional[str] = None
+    sentence_no: Optional[str] = None
+    distractors_no: list[str] = []
+    word_mapping: list[dict] = []
+
+
+class LemmaRating(BaseModel):
+    lemma_es: str
+    rating: int  # 1-4
 
 
 class ReviewSubmit(BaseModel):
-    card_id: int
     sentence_id: int
-    rating: int  # 1-4
+    action: Literal["no_idea", "know_all", "continue"]
     mode: Literal["self_grade", "multiple_choice"]
-    correct: Optional[bool] = None
     response_ms: int
+    lemma_ratings: list[LemmaRating]  # one per content word in sentence
 
 
 class LemmaDetailOut(BaseModel):
@@ -159,32 +169,53 @@ def get_session(student_id: int, db: Session = Depends(get_db)):
     if not s:
         raise HTTPException(404, "Elev finnes ikke")
     items = build_session(db, student_id)
-    return [ReviewItemOut(**item.__dict__) for item in items]
+    return [ReviewItemOut(
+        kind=item.kind, lemma_id=item.lemma_id, lemma_es=item.lemma_es, is_new=item.is_new,
+        card_id=item.card_id, sentence_id=item.sentence_id,
+        sentence_es=item.sentence_es, sentence_no=item.sentence_no,
+        distractors_no=item.distractors_no, word_mapping=item.word_mapping,
+    ) for item in items]
 
 
 @app.post("/api/students/{student_id}/review")
 def submit_review(student_id: int, body: ReviewSubmit, db: Session = Depends(get_db)):
-    card = db.query(Card).get(body.card_id)
-    if not card or card.student_id != student_id:
-        raise HTTPException(404, "Kort finnes ikke")
+    """Sentence-level review: applies one rating per content word in the sentence.
 
-    apply_review(card, body.rating)
-    db.add(ReviewLog(
-        student_id=student_id,
-        lemma_id=card.lemma_id,
-        sentence_id=body.sentence_id,
-        mode=body.mode,
-        rating=body.rating,
-        correct=body.correct,
-        response_ms=body.response_ms,
-    ))
+    Matches Alif's foundational invariant — every word in a reviewed sentence
+    earns review credit, not just the target. Function words (article, preposition,
+    conjunction) are skipped client-side already.
+    """
+    updated = []
+    for lr in body.lemma_ratings:
+        lem = db.query(Lemma).filter(Lemma.lemma_es == lr.lemma_es).first()
+        if not lem:
+            continue
+        card = db.query(Card).filter(
+            Card.student_id == student_id, Card.lemma_id == lem.id
+        ).first()
+        if not card:
+            # Auto-introduce as a new card (collateral introduction)
+            card = Card(student_id=student_id, lemma_id=lem.id, state="new", times_seen=0)
+            db.add(card)
+            db.flush()
+        apply_review(card, lr.rating, db=db)
+        db.add(ReviewLog(
+            student_id=student_id,
+            lemma_id=lem.id,
+            sentence_id=body.sentence_id,
+            mode=body.mode,
+            rating=lr.rating,
+            correct=(lr.rating >= 3),
+            response_ms=body.response_ms,
+        ))
+        updated.append({
+            "lemma_es": lr.lemma_es,
+            "state": card.state,
+            "leitner_box": card.acquisition_box,
+            "next_due": card.next_due.isoformat() if card.next_due else None,
+        })
     db.commit()
-    return {
-        "ok": True,
-        "state": card.state,
-        "next_due": card.next_due.isoformat() if card.next_due else None,
-        "leitner_box": card.acquisition_box,
-    }
+    return {"ok": True, "action": body.action, "updated": updated}
 
 
 @app.get("/api/lemmas/by-es/{lemma_es}", response_model=LemmaDetailOut)

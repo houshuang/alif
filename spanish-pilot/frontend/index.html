@@ -10,7 +10,6 @@
 
 <div id="app"></div>
 
-<!-- Templates are simple JS-rendered views. No framework. -->
 <template id="tpl-login">
   <div class="page login-page">
     <header><h1>Spansk</h1><p class="sub">Velg navnet ditt</p></header>
@@ -42,8 +41,8 @@
       <section class="mode-toggle">
         <h3>Repetisjonsmodus</h3>
         <div class="toggle-buttons">
-          <button class="toggle-btn" data-mode="self_grade">Selvvurdering<small>Flipp kort og vurder selv</small></button>
-          <button class="toggle-btn" data-mode="multiple_choice">Flervalg<small>Velg blant alternativer</small></button>
+          <button class="toggle-btn" data-mode="self_grade">Selvvurdering<small>Vurder selv om du kan ordene</small></button>
+          <button class="toggle-btn" data-mode="multiple_choice">Flervalg<small>Velg riktig oversettelse</small></button>
         </div>
       </section>
 
@@ -67,28 +66,12 @@
       </section>
 
       <section class="leitner">
-        <h3>Leitner-bokser (læringsfase)</h3>
+        <h3>Leitner-bokser</h3>
         <div class="boxes">
-          <div class="box">
-            <div class="box-label">Boks 1</div>
-            <div class="box-desc">4 timer</div>
-            <div class="box-count" data-id="box-1">0</div>
-          </div>
-          <div class="box">
-            <div class="box-label">Boks 2</div>
-            <div class="box-desc">1 dag</div>
-            <div class="box-count" data-id="box-2">0</div>
-          </div>
-          <div class="box">
-            <div class="box-label">Boks 3</div>
-            <div class="box-desc">3 dager</div>
-            <div class="box-count" data-id="box-3">0</div>
-          </div>
-          <div class="box box-graduated">
-            <div class="box-label">Langtid</div>
-            <div class="box-desc">FSRS</div>
-            <div class="box-count" data-id="learning-count">0</div>
-          </div>
+          <div class="box"><div class="box-label">Boks 1</div><div class="box-desc">4 timer</div><div class="box-count" data-id="box-1">0</div></div>
+          <div class="box"><div class="box-label">Boks 2</div><div class="box-desc">1 dag</div><div class="box-count" data-id="box-2">0</div></div>
+          <div class="box"><div class="box-label">Boks 3</div><div class="box-desc">3 dager</div><div class="box-count" data-id="box-3">0</div></div>
+          <div class="box box-graduated"><div class="box-label">Langtid</div><div class="box-desc">FSRS</div><div class="box-count" data-id="learning-count">0</div></div>
         </div>
       </section>
 
@@ -100,14 +83,8 @@
     </div>
 
     <nav class="bottom-tabs">
-      <button class="tab-btn active" data-tab-target="start">
-        <span class="tab-icon">▶</span>
-        <span class="tab-label">Start økt</span>
-      </button>
-      <button class="tab-btn" data-tab-target="stats">
-        <span class="tab-icon">📊</span>
-        <span class="tab-label">Stats</span>
-      </button>
+      <button class="tab-btn active" data-tab-target="start"><span class="tab-icon">▶</span><span class="tab-label">Start økt</span></button>
+      <button class="tab-btn" data-tab-target="stats"><span class="tab-icon">▦</span><span class="tab-label">Stats</span></button>
     </nav>
   </div>
 </template>
@@ -128,19 +105,9 @@
 
 <template id="tpl-session-end">
   <div class="page session-end-page">
-    <div class="celebration">🌱</div>
-    <h2>Økten er ferdig!</h2>
+    <h2>Økten er ferdig</h2>
     <div class="end-stats" data-id="end-stats"></div>
     <button class="btn btn-primary" data-action="back-to-dashboard">Til oversikten</button>
-  </div>
-</template>
-
-<template id="tpl-word-modal">
-  <div class="modal-backdrop" data-action="close-modal">
-    <div class="modal" data-id="modal">
-      <button class="btn-icon modal-close" data-action="close-modal">✕</button>
-      <div class="word-detail" data-id="word-detail"></div>
-    </div>
   </div>
 </template>
 

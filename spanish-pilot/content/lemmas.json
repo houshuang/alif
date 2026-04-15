@@ -1,414 +1,4 @@
 {
-  "enriched": {
-    "lemmas": [
-      {
-        "lemma_es": "yo",
-        "pos": "pronoun",
-        "gloss_no": "jeg",
-        "gender": "none",
-        "article_quirk": "",
-        "conjugation_applicable": false,
-        "conjugation_present": {
-          "yo": "",
-          "tu": "",
-          "el": "",
-          "nosotros": "",
-          "vosotros": "",
-          "ellos": ""
-        },
-        "agreement_forms": {
-          "masc_sg": "",
-          "fem_sg": "",
-          "masc_pl": "",
-          "fem_pl": ""
-        },
-        "plural_form": "",
-        "memory_hook_no": "Tenk på «YO!» som et rop – «jeg er her!». Enkelt å huske fordi det står alene og roper oppmerksomhet til seg selv.",
-        "etymology_no": "Fra latin «ego» (jeg). Sammenlign med nynorsk «eg» og gammelgermansk rot som også ga norsk «jeg».",
-        "example_es": "Yo soy estudiante de español",
-        "example_no": "Jeg er spanskstudent",
-        "cefr_level": "A1",
-        "frequency_rank_estimate": 12
-      },
-      {
-        "lemma_es": "él",
-        "pos": "pronoun",
-        "gloss_no": "han",
-        "gender": "none",
-        "article_quirk": "",
-        "conjugation_applicable": false,
-        "conjugation_present": {
-          "yo": "",
-          "tu": "",
-          "el": "",
-          "nosotros": "",
-          "vosotros": "",
-          "ellos": ""
-        },
-        "agreement_forms": {
-          "masc_sg": "",
-          "fem_sg": "",
-          "masc_pl": "",
-          "fem_pl": ""
-        },
-        "plural_form": "",
-        "memory_hook_no": "Aksenten på «él» er som en liten hatt – den viser at dette er en person (han), ikke bare artikkelen «el». Aksenten = person.",
-        "etymology_no": "Fra latin «ille» (han, den). Samme rot som artikkelen «el», men aksenten skiller betydningen.",
-        "example_es": "Él come pan cada día",
-        "example_no": "Han spiser brød hver dag",
-        "cefr_level": "A1",
-        "frequency_rank_estimate": 18
-      },
-      {
-        "lemma_es": "el",
-        "pos": "article",
-        "gloss_no": "bestemt artikkel (maskulin)",
-        "gender": "none",
-        "article_quirk": "",
-        "conjugation_applicable": false,
-        "conjugation_present": {
-          "yo": "",
-          "tu": "",
-          "el": "",
-          "nosotros": "",
-          "vosotros": "",
-          "ellos": ""
-        },
-        "agreement_forms": {
-          "masc_sg": "el",
-          "fem_sg": "la",
-          "masc_pl": "los",
-          "fem_pl": "las"
-        },
-        "plural_form": "",
-        "memory_hook_no": "«El» for maskuline ord (el niño), «la» for feminine (la casa). Unntak: «el agua» selv om agua er feminin – to a-lyder etter hverandre låter stygt.",
-        "etymology_no": "Fra latin «ille» (den). Samme opprinnelse som pronomen «él», men uten aksent når det er artikkel.",
-        "example_es": "El niño juega en casa",
-        "example_no": "Gutten leker hjemme",
-        "cefr_level": "A1",
-        "frequency_rank_estimate": 1
-      },
-      {
-        "lemma_es": "una",
-        "pos": "article",
-        "gloss_no": "en / ei (ubestemt)",
-        "gender": "none",
-        "article_quirk": "",
-        "conjugation_applicable": false,
-        "conjugation_present": {
-          "yo": "",
-          "tu": "",
-          "el": "",
-          "nosotros": "",
-          "vosotros": "",
-          "ellos": ""
-        },
-        "agreement_forms": {
-          "masc_sg": "un",
-          "fem_sg": "una",
-          "masc_pl": "unos",
-          "fem_pl": "unas"
-        },
-        "plural_form": "",
-        "memory_hook_no": "«Una» har a-ending som matcher feminine substantiv: una casa, una niña. «Un» for maskuline. A = feminin marker både i artikkel og substantiv.",
-        "etymology_no": "Fra latin «una» (en, feminin form av unus). Beslektet med tallord «uno» (en) og moderne romanske former.",
-        "example_es": "Una casa tiene muchas ventanas",
-        "example_no": "Et hus har mange vinduer",
-        "cefr_level": "A1",
-        "frequency_rank_estimate": 14
-      },
-      {
-        "lemma_es": "ser",
-        "pos": "verb",
-        "gloss_no": "å være (varig, identitet, egenskaper)",
-        "gender": "none",
-        "article_quirk": "",
-        "conjugation_applicable": true,
-        "conjugation_present": {
-          "yo": "soy",
-          "tu": "eres",
-          "el": "es",
-          "nosotros": "somos",
-          "vosotros": "sois",
-          "ellos": "son"
-        },
-        "agreement_forms": {
-          "masc_sg": "",
-          "fem_sg": "",
-          "masc_pl": "",
-          "fem_pl": ""
-        },
-        "plural_form": "",
-        "memory_hook_no": "Totalt uregelmessig! Tre stammevokabler: soy/eres/es (yo/tú/él). Bruk «ser» for permanente ting: identitet, yrke, egenskaper. «Soy estudiante» (jeg ER student).",
-        "etymology_no": "Fra latin «esse» (å være). Presensformer blandet fra to latinske verb: «esse» og «sedere» (sitte) – språklig suppletering.",
-        "example_es": "Yo soy estudiante de español",
-        "example_no": "Jeg er spanskstudent",
-        "cefr_level": "A1",
-        "frequency_rank_estimate": 4
-      },
-      {
-        "lemma_es": "comer",
-        "pos": "verb",
-        "gloss_no": "å spise",
-        "gender": "none",
-        "article_quirk": "",
-        "conjugation_applicable": true,
-        "conjugation_present": {
-          "yo": "como",
-          "tu": "comes",
-          "el": "come",
-          "nosotros": "comemos",
-          "vosotros": "coméis",
-          "ellos": "comen"
-        },
-        "agreement_forms": {
-          "masc_sg": "",
-          "fem_sg": "",
-          "masc_pl": "",
-          "fem_pl": ""
-        },
-        "plural_form": "",
-        "memory_hook_no": "Regelmessig -er verb. «Como» lyder tilfeldigvis som engelsk «come», men betyr spise! Mønster: com-o, com-es, com-e, com-emos, com-éis, com-en.",
-        "etymology_no": "Fra latin «comedere» (spise opp, fortære). Beslektet med «comestible» (spiselig) og «comida» (mat/måltid).",
-        "example_es": "Él come frutas cada mañana",
-        "example_no": "Han spiser frukt hver morgen",
-        "cefr_level": "A1",
-        "frequency_rank_estimate": 180
-      },
-      {
-        "lemma_es": "hablar",
-        "pos": "verb",
-        "gloss_no": "å snakke",
-        "gender": "none",
-        "article_quirk": "",
-        "conjugation_applicable": true,
-        "conjugation_present": {
-          "yo": "hablo",
-          "tu": "hablas",
-          "el": "habla",
-          "nosotros": "hablamos",
-          "vosotros": "habláis",
-          "ellos": "hablan"
-        },
-        "agreement_forms": {
-          "masc_sg": "",
-          "fem_sg": "",
-          "masc_pl": "",
-          "fem_pl": ""
-        },
-        "plural_form": "",
-        "memory_hook_no": "Regelmessig -ar verb, men H er stumt! Uttales «ablar». Mønster: habl-o, habl-as, habl-a, habl-amos, habl-áis, habl-an. «Habla español?»",
-        "etymology_no": "Fra latin «fabulari» (fortelle historier, snakke). Beslektet med «fábula» (fabel) – opprinnelig: å fortelle fabler.",
-        "example_es": "Yo hablo español todos los días",
-        "example_no": "Jeg snakker spansk hver dag",
-        "cefr_level": "A1",
-        "frequency_rank_estimate": 120
-      },
-      {
-        "lemma_es": "casa",
-        "pos": "noun",
-        "gloss_no": "hus",
-        "gender": "f",
-        "article_quirk": "",
-        "conjugation_applicable": false,
-        "conjugation_present": {
-          "yo": "",
-          "tu": "",
-          "el": "",
-          "nosotros": "",
-          "vosotros": "",
-          "ellos": ""
-        },
-        "agreement_forms": {
-          "masc_sg": "",
-          "fem_sg": "",
-          "masc_pl": "",
-          "fem_pl": ""
-        },
-        "plural_form": "casas",
-        "memory_hook_no": "Identisk på spansk, italiensk og portugisisk: casa. Du kjenner sikkert uttrykket «mi casa es su casa» (mitt hus er ditt hus).",
-        "etymology_no": "Fra latin «casa» (hytte, enkelt hus). Direkte lån til mange språk, inkludert italiensk og portugisisk «casa».",
-        "example_es": "La casa es grande y bonita",
-        "example_no": "Huset er stort og pent",
-        "cefr_level": "A1",
-        "frequency_rank_estimate": 160
-      },
-      {
-        "lemma_es": "niño",
-        "pos": "noun",
-        "gloss_no": "gutt / barn",
-        "gender": "m",
-        "article_quirk": "",
-        "conjugation_applicable": false,
-        "conjugation_present": {
-          "yo": "",
-          "tu": "",
-          "el": "",
-          "nosotros": "",
-          "vosotros": "",
-          "ellos": ""
-        },
-        "agreement_forms": {
-          "masc_sg": "",
-          "fem_sg": "",
-          "masc_pl": "",
-          "fem_pl": ""
-        },
-        "plural_form": "niños",
-        "memory_hook_no": "Tilde ñ uttales «nj» som i norsk «cognac». Niño = gutt, niña = jente. Los niños = barna (eller guttene, avhengig av kontekst).",
-        "etymology_no": "Fra latin «ninnus» (liten gutt, spedbarn). Tilde ñ kommer fra gammel dobbel-n (nn) som smeltet sammen til én nasal lyd.",
-        "example_es": "El niño juega en el parque",
-        "example_no": "Gutten leker i parken",
-        "cefr_level": "A1",
-        "frequency_rank_estimate": 190
-      },
-      {
-        "lemma_es": "agua",
-        "pos": "noun",
-        "gloss_no": "vann",
-        "gender": "f",
-        "article_quirk": "Bruker 'el' i entall (el agua) fordi betonet a-lyd + artikkel 'la' ville gi to a-lyder etter hverandre. MEN substantivet er feminin: 'el agua fría' (ikke 'frío'). Flertall: 'las aguas'.",
-        "conjugation_applicable": false,
-        "conjugation_present": {
-          "yo": "",
-          "tu": "",
-          "el": "",
-          "nosotros": "",
-          "vosotros": "",
-          "ellos": ""
-        },
-        "agreement_forms": {
-          "masc_sg": "",
-          "fem_sg": "",
-          "masc_pl": "",
-          "fem_pl": ""
-        },
-        "plural_form": "aguas",
-        "memory_hook_no": "«El agua» – maskulin artikkel, MEN feminin substantiv! Dette er unntak for å unngå «la agua» (to a-lyder). Si «el agua fría», ikke «frío».",
-        "etymology_no": "Fra latin «aqua» (vann). Beslektet med norske lånord «akvatisk», «akvarium» og spansk «acuático» (vannlevende).",
-        "example_es": "El agua está muy fría hoy",
-        "example_no": "Vannet er veldig kaldt i dag",
-        "cefr_level": "A1",
-        "frequency_rank_estimate": 150
-      },
-      {
-        "lemma_es": "bueno",
-        "pos": "adjective",
-        "gloss_no": "god / bra",
-        "gender": "none",
-        "article_quirk": "",
-        "conjugation_applicable": false,
-        "conjugation_present": {
-          "yo": "",
-          "tu": "",
-          "el": "",
-          "nosotros": "",
-          "vosotros": "",
-          "ellos": ""
-        },
-        "agreement_forms": {
-          "masc_sg": "bueno",
-          "fem_sg": "buena",
-          "masc_pl": "buenos",
-          "fem_pl": "buenas"
-        },
-        "plural_form": "",
-        "memory_hook_no": "«Bueno» forkortes til «buen» foran maskuline substantiver: un buen día (en god dag). Ikke forkort etter substantivet! Komparativ: mejor (bedre).",
-        "etymology_no": "Fra latin «bonus» (god). Beslektet med norsk «bonus» og andre romanske former: italiensk «buono», fransk «bon».",
-        "example_es": "Es un libro muy bueno",
-        "example_no": "Det er en veldig god bok",
-        "cefr_level": "A1",
-        "frequency_rank_estimate": 85
-      },
-      {
-        "lemma_es": "muy",
-        "pos": "adverb",
-        "gloss_no": "veldig / svært",
-        "gender": "none",
-        "article_quirk": "",
-        "conjugation_applicable": false,
-        "conjugation_present": {
-          "yo": "",
-          "tu": "",
-          "el": "",
-          "nosotros": "",
-          "vosotros": "",
-          "ellos": ""
-        },
-        "agreement_forms": {
-          "masc_sg": "",
-          "fem_sg": "",
-          "masc_pl": "",
-          "fem_pl": ""
-        },
-        "plural_form": "",
-        "memory_hook_no": "«Muy» brukes foran adjektiver: muy bueno (veldig god). ALDRI foran substantiver – der bruker du «mucho/a». Muy = veldig, mucho = mye.",
-        "etymology_no": "Fra latin «multum» (mye, meget). Beslektet med «mucho» (mye) – begge fra samme latinske rot, men muy er adverb, mucho er adjektiv/pronomen.",
-        "example_es": "El café está muy caliente",
-        "example_no": "Kaffen er veldig varm",
-        "cefr_level": "A1",
-        "frequency_rank_estimate": 35
-      }
-    ]
-  },
-  "verification_issues": [
-    {
-      "lemma_es": "ser",
-      "field": "conjugation_present.tu",
-      "severity": "critical",
-      "problem_no": "Mangler aksent. Står «tu» men skal være «tú» for å skille pronomen (du) fra possessiv (din/ditt).",
-      "suggested_fix_no": "Endre til «tú»"
-    },
-    {
-      "lemma_es": "comer",
-      "field": "conjugation_present.tu",
-      "severity": "critical",
-      "problem_no": "Mangler aksent. Står «tu» men skal være «tú».",
-      "suggested_fix_no": "Endre til «tú»"
-    },
-    {
-      "lemma_es": "hablar",
-      "field": "conjugation_present.tu",
-      "severity": "critical",
-      "problem_no": "Mangler aksent. Står «tu» men skal være «tú».",
-      "suggested_fix_no": "Endre til «tú»"
-    },
-    {
-      "lemma_es": "hablar",
-      "field": "memory_hook_no",
-      "severity": "minor",
-      "problem_no": "«Habla español?» mangler omvendt spørsmålstegn. På spansk skal det være «¿Habla español?»",
-      "suggested_fix_no": "Endre til «¿Habla español?»"
-    },
-    {
-      "lemma_es": "yo",
-      "field": "etymology_no",
-      "severity": "minor",
-      "problem_no": "Misvisende formulering. «Sammenlign med nynorsk «eg» og gammelgermansk rot som også ga norsk «jeg»» antyder en nærmere kobling enn det er. Latin «ego» → spansk «yo», mens norsk «jeg» kommer fra germansk rot. De deler en fjern indo-europeisk opprinnelse, men det er ikke en direkte sammenheng.",
-      "suggested_fix_no": "Omformuler til: «Fra latin «ego» (jeg). Både latin «ego» og norsk «jeg» stammer fra felles indo-europeisk rot *eǵh-, men via ulike språkgrener.»"
-    },
-    {
-      "lemma_es": "el",
-      "field": "memory_hook_no",
-      "severity": "stylistic",
-      "problem_no": "«låter stygt» er uformelt og subjektivt for et læremiddel.",
-      "suggested_fix_no": "Endre til «to a-lyder etter hverandre unngås» eller «høres dårlig ut»"
-    },
-    {
-      "lemma_es": "ser",
-      "field": "memory_hook_no",
-      "severity": "minor",
-      "problem_no": "«Tre stammevokabler» er en forenkling - «ser» har flere stammeformer (soy/eres/es/somos/sois/son viser minst 4-5 ulike former).",
-      "suggested_fix_no": "Endre til «Totalt uregelmessig med mange ulike stammeformer» eller fjern «Tre stammevokabler»"
-    },
-    {
-      "lemma_es": "ser",
-      "field": "etymology_no",
-      "severity": "minor",
-      "problem_no": "Suppletering fra «esse» og «sedere» er en forenklet fremstilling som er debattert blant lingvister. Noen mener alle former kommer fra «esse» med fonetiske endringer.",
-      "suggested_fix_no": "Legg til «(forenklet fremstilling - etymologien er kompleks og debattert)» eller omformuler til «Fra latin «esse» (å være), med mulig suppletering fra andre latinske verb»"
-    }
-  ],
   "enriched_corrected": {
     "lemmas": [
       {
@@ -418,27 +8,26 @@
         "gender": "none",
         "article_quirk": "",
         "conjugation_applicable": false,
-        "conjugation_present": {
-          "yo": "",
-          "tu": "",
-          "el": "",
-          "nosotros": "",
-          "vosotros": "",
-          "ellos": ""
-        },
-        "agreement_forms": {
-          "masc_sg": "",
-          "fem_sg": "",
-          "masc_pl": "",
-          "fem_pl": ""
-        },
-        "plural_form": "",
-        "memory_hook_no": "Tenk på «YO!» som et rop – «jeg er her!». Enkelt å huske fordi det står alene og roper oppmerksomhet til seg selv.",
-        "etymology_no": "Fra latin «ego» (jeg). Både latin «ego» og norsk «jeg» stammer fra felles indo-europeisk rot *eǵh-, men via ulike språkgrener.",
-        "example_es": "Yo soy estudiante de español",
-        "example_no": "Jeg er spanskstudent",
+        "memory_hook_no": "Ligner 'jeg' i uttale med j-lyd. Brukes ofte for å understreke kontrast: YO soy norsk (men ikke du).",
+        "etymology_no": "Fra latin EGO, kognat med norsk 'jeg' (begge fra indoeuropeisk rot for 'jeg').",
+        "example_es": "Yo vivo en Oslo.",
+        "example_no": "Jeg bor i Oslo.",
         "cefr_level": "A1",
-        "frequency_rank_estimate": 12
+        "frequency_rank_estimate": 5
+      },
+      {
+        "lemma_es": "tú",
+        "pos": "pronoun",
+        "gloss_no": "du",
+        "gender": "none",
+        "article_quirk": "",
+        "conjugation_applicable": false,
+        "memory_hook_no": "Aksent skiller fra 'tu' (din/ditt). Som norsk 'du' vs 'din' - begge korte ord, forskjellig funksjon.",
+        "etymology_no": "Fra latin TU, kognat med norsk 'du' (germansk *þū). Samme rot i alle indoeuropeiske språk.",
+        "example_es": "Tú hablas español bien.",
+        "example_no": "Du snakker spansk godt.",
+        "cefr_level": "A1",
+        "frequency_rank_estimate": 10
       },
       {
         "lemma_es": "él",
@@ -447,90 +36,199 @@
         "gender": "none",
         "article_quirk": "",
         "conjugation_applicable": false,
-        "conjugation_present": {
-          "yo": "",
-          "tu": "",
-          "el": "",
-          "nosotros": "",
-          "vosotros": "",
-          "ellos": ""
-        },
-        "agreement_forms": {
-          "masc_sg": "",
-          "fem_sg": "",
-          "masc_pl": "",
-          "fem_pl": ""
-        },
-        "plural_form": "",
-        "memory_hook_no": "Aksenten på «él» er som en liten hatt – den viser at dette er en person (han), ikke bare artikkelen «el». Aksenten = person.",
-        "etymology_no": "Fra latin «ille» (han, den). Samme rot som artikkelen «el», men aksenten skiller betydningen.",
-        "example_es": "Él come pan cada día",
-        "example_no": "Han spiser brød hver dag",
+        "memory_hook_no": "Aksent skiller fra artikkel 'el' (den). ÉL = HAN (person), el = den (ting).",
+        "etymology_no": "Fra latin ILLE (den, den der). Samme rot som fransk 'il' og italiensk 'il'.",
+        "example_es": "Él es mi hermano.",
+        "example_no": "Han er broren min.",
         "cefr_level": "A1",
-        "frequency_rank_estimate": 18
+        "frequency_rank_estimate": 15
+      },
+      {
+        "lemma_es": "ella",
+        "pos": "pronoun",
+        "gloss_no": "hun",
+        "gender": "none",
+        "article_quirk": "",
+        "conjugation_applicable": false,
+        "memory_hook_no": "Ligner norsk navn 'Elle' og fransk 'elle' (hun). Feminin form av 'él'.",
+        "etymology_no": "Fra latin ILLA (den, feminin). Samme rot som fransk 'elle' og italiensk 'ella/lei'.",
+        "example_es": "Ella trabaja en un hospital.",
+        "example_no": "Hun jobber på et sykehus.",
+        "cefr_level": "A1",
+        "frequency_rank_estimate": 20
+      },
+      {
+        "lemma_es": "nosotros",
+        "pos": "pronoun",
+        "gloss_no": "vi",
+        "gender": "none",
+        "article_quirk": "",
+        "conjugation_applicable": false,
+        "memory_hook_no": "nos-otros = oss-andre. Bokstavelig 'vi andre'. Feminin form 'nosotras' brukes kun om ren kvinnegruppe.",
+        "etymology_no": "Fra latin NOS (oss) + ALTRI (andre). Sammensetning som understreker gruppeidentitet.",
+        "example_es": "Nosotros vivimos en Madrid.",
+        "example_no": "Vi bor i Madrid.",
+        "cefr_level": "A1",
+        "frequency_rank_estimate": 50
+      },
+      {
+        "lemma_es": "vosotros",
+        "pos": "pronoun",
+        "gloss_no": "dere",
+        "gender": "none",
+        "article_quirk": "",
+        "conjugation_applicable": false,
+        "memory_hook_no": "vos-otros = dere-andre. Kun brukt i Spania (Latin-Amerika bruker 'ustedes'). Egen verbform: habláis, coméis.",
+        "etymology_no": "Fra latin VOS (dere) + ALTRI (andre). Spansk særtrekk, bevart kun i europeisk spansk.",
+        "example_es": "Vosotros sois de Barcelona.",
+        "example_no": "Dere er fra Barcelona.",
+        "cefr_level": "A1",
+        "frequency_rank_estimate": 100
+      },
+      {
+        "lemma_es": "ellos",
+        "pos": "pronoun",
+        "gloss_no": "de",
+        "gender": "none",
+        "article_quirk": "",
+        "conjugation_applicable": false,
+        "memory_hook_no": "Flertall av 'él' med standard -s ending. Brukes om menn eller blandet gruppe.",
+        "etymology_no": "Fra latin ILLOS, flertall av ILLE. Samme rot som fransk 'ils'.",
+        "example_es": "Ellos van al cine.",
+        "example_no": "De går på kino.",
+        "cefr_level": "A1",
+        "frequency_rank_estimate": 25
+      },
+      {
+        "lemma_es": "ellas",
+        "pos": "pronoun",
+        "gloss_no": "de",
+        "gender": "none",
+        "article_quirk": "",
+        "conjugation_applicable": false,
+        "memory_hook_no": "Kun om gruppe kvinner. Ending -as (ikke -os) markerer feminin. Hvis én mann: bruk 'ellos'.",
+        "etymology_no": "Fra latin ILLAS, feminin flertall av ILLE. Samme rot som fransk 'elles'.",
+        "example_es": "Ellas estudian juntas.",
+        "example_no": "De studerer sammen.",
+        "cefr_level": "A1",
+        "frequency_rank_estimate": 60
       },
       {
         "lemma_es": "el",
         "pos": "article",
-        "gloss_no": "bestemt artikkel (maskulin)",
+        "gloss_no": "den/det",
         "gender": "none",
-        "article_quirk": "",
+        "article_quirk": "Brukes også foran visse feminine substantiv som begynner med betonet a-/ha-lyd: el agua (vannet), el alma (sjelen), el hacha (øksen)",
         "conjugation_applicable": false,
-        "conjugation_present": {
-          "yo": "",
-          "tu": "",
-          "el": "",
-          "nosotros": "",
-          "vosotros": "",
-          "ellos": ""
-        },
-        "agreement_forms": {
-          "masc_sg": "el",
-          "fem_sg": "la",
-          "masc_pl": "los",
-          "fem_pl": "las"
-        },
-        "plural_form": "",
-        "memory_hook_no": "«El» for maskuline ord (el niño), «la» for feminine (la casa). Unntak: «el agua» selv om agua er feminin – to a-lyder etter hverandre unngås.",
-        "etymology_no": "Fra latin «ille» (den). Samme opprinnelse som pronomen «él», men uten aksent når det er artikkel.",
-        "example_es": "El niño juega en casa",
-        "example_no": "Gutten leker hjemme",
+        "memory_hook_no": "Ingen aksent (skilles fra pronomen 'él'). Mest brukte ordet i spansk.",
+        "etymology_no": "Fra latin ILLUM (den). Kognat med romanske artikler (fransk 'le', italiensk 'il').",
+        "example_es": "El libro es nuevo.",
+        "example_no": "Boken er ny.",
         "cefr_level": "A1",
         "frequency_rank_estimate": 1
       },
       {
-        "lemma_es": "una",
+        "lemma_es": "la",
         "pos": "article",
-        "gloss_no": "en / ei (ubestemt)",
+        "gloss_no": "den/det",
         "gender": "none",
         "article_quirk": "",
         "conjugation_applicable": false,
-        "conjugation_present": {
-          "yo": "",
-          "tu": "",
-          "el": "",
-          "nosotros": "",
-          "vosotros": "",
-          "ellos": ""
-        },
-        "agreement_forms": {
-          "masc_sg": "un",
-          "fem_sg": "una",
-          "masc_pl": "unos",
-          "fem_pl": "unas"
-        },
-        "plural_form": "",
-        "memory_hook_no": "«Una» har a-ending som matcher feminine substantiv: una casa, una niña. «Un» for maskuline. A = feminin marker både i artikkel og substantiv.",
-        "etymology_no": "Fra latin «una» (en, feminin form av unus). Beslektet med tallord «uno» (en) og moderne romanske former.",
-        "example_es": "Una casa tiene muchas ventanas",
-        "example_no": "Et hus har mange vinduer",
+        "memory_hook_no": "Feminin bestemt artikkel. Samme form i de fleste romanske språk (fransk/italiensk/katalansk).",
+        "etymology_no": "Fra latin ILLAM (den, feminin). Kognat med fransk 'la', italiensk 'la'.",
+        "example_es": "La casa es grande.",
+        "example_no": "Huset er stort.",
         "cefr_level": "A1",
-        "frequency_rank_estimate": 14
+        "frequency_rank_estimate": 2
+      },
+      {
+        "lemma_es": "los",
+        "pos": "article",
+        "gloss_no": "de",
+        "gender": "none",
+        "article_quirk": "",
+        "conjugation_applicable": false,
+        "memory_hook_no": "Flertall av 'el'. Mønster: substantiv tar -s, artikkel tar -s: el libro → los libros.",
+        "etymology_no": "Fra latin ILLOS, flertall av ILLUM. Samme utvikling som i fransk 'les'.",
+        "example_es": "Los niños juegan fútbol.",
+        "example_no": "Barna spiller fotball.",
+        "cefr_level": "A1",
+        "frequency_rank_estimate": 3
+      },
+      {
+        "lemma_es": "las",
+        "pos": "article",
+        "gloss_no": "de",
+        "gender": "none",
+        "article_quirk": "",
+        "conjugation_applicable": false,
+        "memory_hook_no": "Feminin flertall av 'la'. Ending -as (ikke -os) markerer feminin: la casa → las casas.",
+        "etymology_no": "Fra latin ILLAS, feminin flertall av ILLAM. Kognat med fransk 'les' (uten kjønnskille).",
+        "example_es": "Las flores son bonitas.",
+        "example_no": "Blomstene er pene.",
+        "cefr_level": "A1",
+        "frequency_rank_estimate": 4
+      },
+      {
+        "lemma_es": "un",
+        "pos": "article",
+        "gloss_no": "en",
+        "gender": "none",
+        "article_quirk": "",
+        "conjugation_applicable": false,
+        "memory_hook_no": "Samme som tall 'uno' (én). Kognat med norsk 'en' og engelsk 'one' - alle fra samme indoeuropeiske rot.",
+        "etymology_no": "Fra latin UNUS (én). Kognat med norsk 'en', engelsk 'one', tysk 'ein'.",
+        "example_es": "Veo un pájaro.",
+        "example_no": "Jeg ser en fugl.",
+        "cefr_level": "A1",
+        "frequency_rank_estimate": 8
+      },
+      {
+        "lemma_es": "una",
+        "pos": "article",
+        "gloss_no": "en/ei",
+        "gender": "none",
+        "article_quirk": "",
+        "conjugation_applicable": false,
+        "memory_hook_no": "Feminin form av 'un'. Samme som italiensk 'una' og katalansk 'una'.",
+        "etymology_no": "Fra latin UNA, feminin av UNUS. Standard romansk femininending -a.",
+        "example_es": "Tengo una pregunta.",
+        "example_no": "Jeg har et spørsmål.",
+        "cefr_level": "A1",
+        "frequency_rank_estimate": 12
+      },
+      {
+        "lemma_es": "unos",
+        "pos": "article",
+        "gloss_no": "noen",
+        "gender": "none",
+        "article_quirk": "",
+        "conjugation_applicable": false,
+        "memory_hook_no": "Ubestemt flertall, finnes ikke på engelsk. Unos libros = noen/omtrent noen bøker (ubestemt antall).",
+        "etymology_no": "Fra latin UNOS, flertall av UNUS. Spansk særtrekk å ha ubestemt flertallsartikkel.",
+        "example_es": "Compro unos libros nuevos.",
+        "example_no": "Jeg kjøper noen nye bøker.",
+        "cefr_level": "A1",
+        "frequency_rank_estimate": 40
+      },
+      {
+        "lemma_es": "unas",
+        "pos": "article",
+        "gloss_no": "noen",
+        "gender": "none",
+        "article_quirk": "",
+        "conjugation_applicable": false,
+        "memory_hook_no": "Feminin ubestemt flertall. Unas flores = noen blomster (ubestemt, feminin, flertall).",
+        "etymology_no": "Fra latin UNAS, feminin flertall av UNUS. Ending -as markerer feminin flertall.",
+        "example_es": "Leo unas revistas interesantes.",
+        "example_no": "Jeg leser noen interessante blader.",
+        "cefr_level": "A1",
+        "frequency_rank_estimate": 80
       },
       {
         "lemma_es": "ser",
         "pos": "verb",
-        "gloss_no": "å være (varig, identitet, egenskaper)",
+        "gloss_no": "å være",
         "gender": "none",
         "article_quirk": "",
         "conjugation_applicable": true,
@@ -542,34 +240,93 @@
           "vosotros": "sois",
           "ellos": "son"
         },
-        "agreement_forms": {
-          "masc_sg": "",
-          "fem_sg": "",
-          "masc_pl": "",
-          "fem_pl": ""
-        },
-        "plural_form": "",
-        "memory_hook_no": "Totalt uregelmessig med mange ulike stammeformer: soy/eres/es (yo/tú/él). Bruk «ser» for permanente ting: identitet, yrke, egenskaper. «Soy estudiante» (jeg ER student).",
-        "etymology_no": "Fra latin «esse» (å være), med mulig suppletering fra andre latinske verb i noen former.",
-        "example_es": "Yo soy estudiante de español",
-        "example_no": "Jeg er spanskstudent",
+        "memory_hook_no": "Permanent væren og identitet. SOY médico (jeg ER lege, identitet), ikke midlertidig. Former helt uregelrett.",
+        "etymology_no": "Fra latin ESSE (å være), med presensformer fra SUM (sum, es, est, sumus, sunt). Kognat med engelsk 'is/essence', norsk 'er/esse'.",
+        "example_es": "Ella es profesora.",
+        "example_no": "Hun er lærer.",
         "cefr_level": "A1",
-        "frequency_rank_estimate": 4
+        "frequency_rank_estimate": 6
       },
       {
-        "lemma_es": "comer",
+        "lemma_es": "estar",
         "pos": "verb",
-        "gloss_no": "å spise",
+        "gloss_no": "å være",
         "gender": "none",
         "article_quirk": "",
         "conjugation_applicable": true,
         "conjugation_present": {
-          "yo": "como",
-          "tu": "comes",
-          "el": "come",
-          "nosotros": "comemos",
-          "vosotros": "coméis",
-          "ellos": "comen"
+          "yo": "estoy",
+          "tu": "estás",
+          "el": "está",
+          "nosotros": "estamos",
+          "vosotros": "estáis",
+          "ellos": "están"
+        },
+        "memory_hook_no": "Sted og midlertidig tilstand. ESTOY en casa (jeg er hjemme, sted), ESTOY cansado (trøtt nå, midlertidig).",
+        "etymology_no": "Fra latin STARE (å stå). Kognat med engelsk 'stand/state/status', norsk 'stå'.",
+        "example_es": "Estamos en Madrid hoy.",
+        "example_no": "Vi er i Madrid i dag.",
+        "cefr_level": "A1",
+        "frequency_rank_estimate": 7
+      },
+      {
+        "lemma_es": "tener",
+        "pos": "verb",
+        "gloss_no": "å ha",
+        "gender": "none",
+        "article_quirk": "",
+        "conjugation_applicable": true,
+        "conjugation_present": {
+          "yo": "tengo",
+          "tu": "tienes",
+          "el": "tiene",
+          "nosotros": "tenemos",
+          "vosotros": "tenéis",
+          "ellos": "tienen"
+        },
+        "memory_hook_no": "Stammeendring e→ie i betonet stavelse: tiENEs/tiENE (ikke tenes/tene). Yo-form spesiell: tenGO.",
+        "etymology_no": "Fra latin TENERE (å holde, beholde). Kognat med engelsk 'tenant/tenable/tenacious'.",
+        "example_es": "Tengo dos hermanos.",
+        "example_no": "Jeg har to brødre.",
+        "cefr_level": "A1",
+        "frequency_rank_estimate": 9
+      },
+      {
+        "lemma_es": "ir",
+        "pos": "verb",
+        "gloss_no": "å gå",
+        "gender": "none",
+        "article_quirk": "",
+        "conjugation_applicable": true,
+        "conjugation_present": {
+          "yo": "voy",
+          "tu": "vas",
+          "el": "va",
+          "nosotros": "vamos",
+          "vosotros": "vais",
+          "ellos": "van"
+        },
+        "memory_hook_no": "Mest uregelrett verb i spansk. Tre latinske verb smeltet sammen: VOY fra VADERE, IBA fra IRE, FUI fra ESSE.",
+        "etymology_no": "Fra latin IRE (gå) + VADERE (bevege seg). Former fra tre ulike latinverb - fullstendig suppletivt paradigme.",
+        "example_es": "Vamos al parque ahora.",
+        "example_no": "Vi går til parken nå.",
+        "cefr_level": "A1",
+        "frequency_rank_estimate": 11
+      },
+      {
+        "lemma_es": "hacer",
+        "pos": "verb",
+        "gloss_no": "å gjøre",
+        "gender": "none",
+        "article_quirk": "",
+        "conjugation_applicable": true,
+        "conjugation_present": {
+          "yo": "hago",
+          "tu": "haces",
+          "el": "hace",
+          "nosotros": "hacemos",
+          "vosotros": "hacéis",
+          "ellos": "hacen"
         },
         "agreement_forms": {
           "masc_sg": "",
@@ -578,12 +335,273 @@
           "fem_pl": ""
         },
         "plural_form": "",
-        "memory_hook_no": "Regelmessig -er verb. «Como» lyder tilfeldigvis som engelsk «come», men betyr spise! Mønster: com-o, com-es, com-e, com-emos, com-éis, com-en.",
-        "etymology_no": "Fra latin «comedere» (spise opp, fortære). Beslektet med «comestible» (spiselig) og «comida» (mat/måltid).",
-        "example_es": "Él come frutas cada mañana",
-        "example_no": "Han spiser frukt hver morgen",
+        "memory_hook_no": "Uregelrett 1. person: «hago» (ikke *haco). Kognat til engelsk «fact», «factory», «manufacture» – alle fra samme latinske rot «facere».",
+        "etymology_no": "Fra latin «facere» (gjøre, lage), samme rot som engelsk «fact», «factory», «manufacture».",
+        "example_es": "Hago mi tarea todos los días",
+        "example_no": "Jeg gjør leksene mine hver dag",
         "cefr_level": "A1",
-        "frequency_rank_estimate": 180
+        "frequency_rank_estimate": 15
+      },
+      {
+        "lemma_es": "ver",
+        "pos": "verb",
+        "gloss_no": "å se",
+        "gender": "none",
+        "article_quirk": "",
+        "conjugation_applicable": true,
+        "conjugation_present": {
+          "yo": "veo",
+          "tu": "ves",
+          "el": "ve",
+          "nosotros": "vemos",
+          "vosotros": "veis",
+          "ellos": "ven"
+        },
+        "agreement_forms": {
+          "masc_sg": "",
+          "fem_sg": "",
+          "masc_pl": "",
+          "fem_pl": ""
+        },
+        "plural_form": "",
+        "memory_hook_no": "Kortest mulige infinitiv (kun 3 bokstaver). Kognat til engelsk «video», «vision» – samme latinske rot.",
+        "etymology_no": "Fra latin «vidēre» (se), samme rot som engelsk «video», «vision», «visible».",
+        "example_es": "Veo la televisión por la noche",
+        "example_no": "Jeg ser på TV om kvelden",
+        "cefr_level": "A1",
+        "frequency_rank_estimate": 50
+      },
+      {
+        "lemma_es": "saber",
+        "pos": "verb",
+        "gloss_no": "å vite",
+        "gender": "none",
+        "article_quirk": "",
+        "conjugation_applicable": true,
+        "conjugation_present": {
+          "yo": "sé",
+          "tu": "sabes",
+          "el": "sabe",
+          "nosotros": "sabemos",
+          "vosotros": "sabéis",
+          "ellos": "saben"
+        },
+        "agreement_forms": {
+          "masc_sg": "",
+          "fem_sg": "",
+          "masc_pl": "",
+          "fem_pl": ""
+        },
+        "plural_form": "",
+        "memory_hook_no": "1. person «sé» (med aksent) vs. pronomen «se» (uten). Kognat til engelsk «sapient» (klok).",
+        "etymology_no": "Fra latin «sapere» (smake, være klok), samme rot som engelsk «sapient», «sage», «savvy».",
+        "example_es": "Sé hablar español",
+        "example_no": "Jeg kan snakke spansk",
+        "cefr_level": "A2",
+        "frequency_rank_estimate": 100
+      },
+      {
+        "lemma_es": "decir",
+        "pos": "verb",
+        "gloss_no": "å si",
+        "gender": "none",
+        "article_quirk": "",
+        "conjugation_applicable": true,
+        "conjugation_present": {
+          "yo": "digo",
+          "tu": "dices",
+          "el": "dice",
+          "nosotros": "decimos",
+          "vosotros": "decís",
+          "ellos": "dicen"
+        },
+        "agreement_forms": {
+          "masc_sg": "",
+          "fem_sg": "",
+          "masc_pl": "",
+          "fem_pl": ""
+        },
+        "plural_form": "",
+        "memory_hook_no": "Stammeendring e→i i «digo/dices/dice». Kognat til engelsk «diction» (uttale/ordvalg).",
+        "etymology_no": "Fra latin «dīcere» (si), samme rot som engelsk «diction», «dictate», «dictionary».",
+        "example_es": "Digo la verdad siempre",
+        "example_no": "Jeg sier alltid sannheten",
+        "cefr_level": "A1",
+        "frequency_rank_estimate": 30
+      },
+      {
+        "lemma_es": "dar",
+        "pos": "verb",
+        "gloss_no": "å gi",
+        "gender": "none",
+        "article_quirk": "",
+        "conjugation_applicable": true,
+        "conjugation_present": {
+          "yo": "doy",
+          "tu": "das",
+          "el": "da",
+          "nosotros": "damos",
+          "vosotros": "dais",
+          "ellos": "dan"
+        },
+        "agreement_forms": {
+          "masc_sg": "",
+          "fem_sg": "",
+          "masc_pl": "",
+          "fem_pl": ""
+        },
+        "plural_form": "",
+        "memory_hook_no": "Uregelrett 1. person: «doy» (ikke *do). Kognat til engelsk «donate» – begge handler om å gi.",
+        "etymology_no": "Fra latin «dare» (gi), samme rot som engelsk «donate», «data» (opprinnelig 'ting som er gitt').",
+        "example_es": "Doy regalos en Navidad",
+        "example_no": "Jeg gir gaver i julen",
+        "cefr_level": "A1",
+        "frequency_rank_estimate": 40
+      },
+      {
+        "lemma_es": "venir",
+        "pos": "verb",
+        "gloss_no": "å komme",
+        "gender": "none",
+        "article_quirk": "",
+        "conjugation_applicable": true,
+        "conjugation_present": {
+          "yo": "vengo",
+          "tu": "vienes",
+          "el": "viene",
+          "nosotros": "venimos",
+          "vosotros": "venís",
+          "ellos": "vienen"
+        },
+        "agreement_forms": {
+          "masc_sg": "",
+          "fem_sg": "",
+          "masc_pl": "",
+          "fem_pl": ""
+        },
+        "plural_form": "",
+        "memory_hook_no": "Dobbel uregelrett: 1. person «vengo» + stammeendring e→ie. Kognat til engelsk «venue» (sted man kommer til).",
+        "etymology_no": "Fra latin «venīre» (komme), samme rot som engelsk «venue», «advent», «convene».",
+        "example_es": "Vengo de México",
+        "example_no": "Jeg kommer fra Mexico",
+        "cefr_level": "A1",
+        "frequency_rank_estimate": 60
+      },
+      {
+        "lemma_es": "querer",
+        "pos": "verb",
+        "gloss_no": "å ville",
+        "gender": "none",
+        "article_quirk": "",
+        "conjugation_applicable": true,
+        "conjugation_present": {
+          "yo": "quiero",
+          "tu": "quieres",
+          "el": "quiere",
+          "nosotros": "queremos",
+          "vosotros": "queréis",
+          "ellos": "quieren"
+        },
+        "agreement_forms": {
+          "masc_sg": "",
+          "fem_sg": "",
+          "masc_pl": "",
+          "fem_pl": ""
+        },
+        "plural_form": "",
+        "memory_hook_no": "Stammeendring e→ie (quiero/quieres/quiere). Betyr både 'å ville' og 'å elske'. Kognat til engelsk «query» (søke/spørre).",
+        "etymology_no": "Fra latin «quaerere» (søke, spørre etter), samme rot som engelsk «query», «quest», «acquire».",
+        "example_es": "Quiero aprender español",
+        "example_no": "Jeg vil lære spansk",
+        "cefr_level": "A1",
+        "frequency_rank_estimate": 25
+      },
+      {
+        "lemma_es": "poder",
+        "pos": "verb",
+        "gloss_no": "å kunne",
+        "gender": "none",
+        "article_quirk": "",
+        "conjugation_applicable": true,
+        "conjugation_present": {
+          "yo": "puedo",
+          "tu": "puedes",
+          "el": "puede",
+          "nosotros": "podemos",
+          "vosotros": "podéis",
+          "ellos": "pueden"
+        },
+        "agreement_forms": {
+          "masc_sg": "",
+          "fem_sg": "",
+          "masc_pl": "",
+          "fem_pl": ""
+        },
+        "plural_form": "",
+        "memory_hook_no": "Stammeendring o→ue. «Poder» = makt/evne, samme ord som «power» på engelsk.",
+        "etymology_no": "Fra latin «posse» (kunne, ha makt), samme rot som engelsk «power», «potent», «possible».",
+        "example_es": "Puedo nadar muy bien",
+        "example_no": "Jeg kan svømme veldig bra",
+        "cefr_level": "A1",
+        "frequency_rank_estimate": 20
+      },
+      {
+        "lemma_es": "entender",
+        "pos": "verb",
+        "gloss_no": "å forstå",
+        "gender": "none",
+        "article_quirk": "",
+        "conjugation_applicable": true,
+        "conjugation_present": {
+          "yo": "entiendo",
+          "tu": "entiendes",
+          "el": "entiende",
+          "nosotros": "entendemos",
+          "vosotros": "entendéis",
+          "ellos": "entienden"
+        },
+        "agreement_forms": {
+          "masc_sg": "",
+          "fem_sg": "",
+          "masc_pl": "",
+          "fem_pl": ""
+        },
+        "plural_form": "",
+        "memory_hook_no": "Stammeendring e→ie. Strukturelt ligner på engelsk «understand» (ent-ender ≈ under-stand).",
+        "etymology_no": "Fra latin «intendere» (strekke seg mot, rette oppmerksomhet), samme rot som engelsk «intend», «intent».",
+        "example_es": "Entiendo el español básico",
+        "example_no": "Jeg forstår grunnleggende spansk",
+        "cefr_level": "A2",
+        "frequency_rank_estimate": 150
+      },
+      {
+        "lemma_es": "dormir",
+        "pos": "verb",
+        "gloss_no": "å sove",
+        "gender": "none",
+        "article_quirk": "",
+        "conjugation_applicable": true,
+        "conjugation_present": {
+          "yo": "duermo",
+          "tu": "duermes",
+          "el": "duerme",
+          "nosotros": "dormimos",
+          "vosotros": "dormís",
+          "ellos": "duermen"
+        },
+        "agreement_forms": {
+          "masc_sg": "",
+          "fem_sg": "",
+          "masc_pl": "",
+          "fem_pl": ""
+        },
+        "plural_form": "",
+        "memory_hook_no": "Stammeendring o→ue (duermo/duermes/duerme). Kognat til engelsk «dormitory» (sovsal).",
+        "etymology_no": "Fra latin «dormīre» (sove), samme rot som engelsk «dormitory», «dormant».",
+        "example_es": "Duermo ocho horas cada noche",
+        "example_no": "Jeg sover åtte timer hver natt",
+        "cefr_level": "A1",
+        "frequency_rank_estimate": 200
       },
       {
         "lemma_es": "hablar",
@@ -607,12 +625,411 @@
           "fem_pl": ""
         },
         "plural_form": "",
-        "memory_hook_no": "Regelmessig -ar verb, men H er stumt! Uttales «ablar». Mønster: habl-o, habl-as, habl-a, habl-amos, habl-áis, habl-an. «¿Habla español?»",
-        "etymology_no": "Fra latin «fabulari» (fortelle historier, snakke). Beslektet med «fábula» (fabel) – opprinnelig: å fortelle fabler.",
-        "example_es": "Yo hablo español todos los días",
-        "example_no": "Jeg snakker spansk hver dag",
+        "memory_hook_no": "Regelrett -ar verb (hablo/hablas/habla). Kognat til engelsk «fable» – begge fra latin 'fortelle'.",
+        "etymology_no": "Fra latin «fābulārī» (snakke, fortelle historier), samme rot som engelsk «fable», «fabulous».",
+        "example_es": "Hablo español e inglés",
+        "example_no": "Jeg snakker spansk og engelsk",
+        "cefr_level": "A1",
+        "frequency_rank_estimate": 70
+      },
+      {
+        "lemma_es": "trabajar",
+        "pos": "verb",
+        "gloss_no": "å jobbe",
+        "gender": "none",
+        "article_quirk": "",
+        "conjugation_applicable": true,
+        "conjugation_present": {
+          "yo": "trabajo",
+          "tu": "trabajas",
+          "el": "trabaja",
+          "nosotros": "trabajamos",
+          "vosotros": "trabajáis",
+          "ellos": "trabajan"
+        },
+        "agreement_forms": {
+          "masc_sg": "",
+          "fem_sg": "",
+          "masc_pl": "",
+          "fem_pl": ""
+        },
+        "plural_form": "",
+        "memory_hook_no": "Regelrett -ar verb. «Trabajo» ligner fransk «travail» (arbeid) – samme latinske rot.",
+        "etymology_no": "Fra middelalder-latin «tripaliāre» (torturere med trepalium), samme rot som fransk «travail», engelsk «travail».",
+        "example_es": "Trabajo en una oficina",
+        "example_no": "Jeg jobber på et kontor",
         "cefr_level": "A1",
         "frequency_rank_estimate": 120
+      },
+      {
+        "lemma_es": "estudiar",
+        "pos": "verb",
+        "gloss_no": "å studere",
+        "gender": "none",
+        "article_quirk": "",
+        "conjugation_applicable": true,
+        "conjugation_present": {
+          "yo": "estudio",
+          "tu": "estudias",
+          "el": "estudia",
+          "nosotros": "estudiamos",
+          "vosotros": "estudiáis",
+          "ellos": "estudian"
+        },
+        "agreement_forms": {
+          "masc_sg": "",
+          "fem_sg": "",
+          "masc_pl": "",
+          "fem_pl": ""
+        },
+        "plural_form": "",
+        "memory_hook_no": "Regelrett -ar verb. Åpenbart kognat til engelsk «study» – identisk betydning og opprinnelse.",
+        "etymology_no": "Fra latin «studēre» (strebe etter, studere), samme rot som engelsk «study», «student», «studio».",
+        "example_es": "Estudio medicina en la universidad",
+        "example_no": "Jeg studerer medisin ved universitetet",
+        "cefr_level": "A1",
+        "frequency_rank_estimate": 180
+      },
+      {
+        "lemma_es": "caminar",
+        "pos": "verb",
+        "gloss_no": "å gå",
+        "gender": "none",
+        "article_quirk": "",
+        "conjugation_applicable": true,
+        "conjugation_present": {
+          "yo": "camino",
+          "tu": "caminas",
+          "el": "camina",
+          "nosotros": "caminamos",
+          "vosotros": "camináis",
+          "ellos": "caminan"
+        },
+        "agreement_forms": {
+          "masc_sg": "",
+          "fem_sg": "",
+          "masc_pl": "",
+          "fem_pl": ""
+        },
+        "plural_form": "",
+        "memory_hook_no": "Regelrett -ar verb. «Camino» betyr både 'jeg går' (verb) og 'vei/sti' (substantiv) – som i «El Camino de Santiago».",
+        "etymology_no": "Fra keltisk-latin «cammīnus» (vei, sti), relatert til substantivet «camino» (vei).",
+        "example_es": "Camino al trabajo cada día",
+        "example_no": "Jeg går til jobb hver dag",
+        "cefr_level": "A1",
+        "frequency_rank_estimate": 250
+      },
+      {
+        "lemma_es": "cantar",
+        "pos": "verb",
+        "gloss_no": "å synge",
+        "gender": "none",
+        "article_quirk": "",
+        "conjugation_applicable": true,
+        "conjugation_present": {
+          "yo": "canto",
+          "tu": "cantas",
+          "el": "canta",
+          "nosotros": "cantamos",
+          "vosotros": "cantáis",
+          "ellos": "cantan"
+        },
+        "agreement_forms": {
+          "masc_sg": "",
+          "fem_sg": "",
+          "masc_pl": "",
+          "fem_pl": ""
+        },
+        "plural_form": "",
+        "memory_hook_no": "Regelrett -ar verb. Kognat til engelsk «chant» (messer/synger monotont).",
+        "etymology_no": "Fra latin «cantāre» (synge), samme rot som engelsk «chant», «incantation», «enchant».",
+        "example_es": "Canto en el coro de la iglesia",
+        "example_no": "Jeg synger i kirkekoret",
+        "cefr_level": "A1",
+        "frequency_rank_estimate": 350
+      },
+      {
+        "lemma_es": "mirar",
+        "pos": "verb",
+        "gloss_no": "å se på",
+        "gender": "none",
+        "article_quirk": "",
+        "conjugation_applicable": true,
+        "conjugation_present": {
+          "yo": "miro",
+          "tu": "miras",
+          "el": "mira",
+          "nosotros": "miramos",
+          "vosotros": "miráis",
+          "ellos": "miran"
+        },
+        "agreement_forms": {
+          "masc_sg": "",
+          "fem_sg": "",
+          "masc_pl": "",
+          "fem_pl": ""
+        },
+        "plural_form": "",
+        "memory_hook_no": "Regelrett -ar verb. Ligner engelsk «mirror» (speil) – begge handler om å se. Forskjell: «mirar» = bevisst se, «ver» = bare se.",
+        "etymology_no": "Fra latin «mīrārī» (undre seg, beundre), samme rot som engelsk «mirror», «admire», «miracle».",
+        "example_es": "Miro las estrellas por la noche",
+        "example_no": "Jeg ser på stjernene om natten",
+        "cefr_level": "A1",
+        "frequency_rank_estimate": 220
+      },
+      {
+        "lemma_es": "tomar",
+        "pos": "verb",
+        "gloss_no": "å ta",
+        "gender": "none",
+        "article_quirk": "",
+        "conjugation_applicable": true,
+        "conjugation_present": {
+          "yo": "tomo",
+          "tu": "tomas",
+          "el": "toma",
+          "nosotros": "tomamos",
+          "vosotros": "tomáis",
+          "ellos": "toman"
+        },
+        "agreement_forms": {
+          "masc_sg": "",
+          "fem_sg": "",
+          "masc_pl": "",
+          "fem_pl": ""
+        },
+        "plural_form": "",
+        "memory_hook_no": "Regelrett -ar verb. Brukes ofte om å drikke: «tomar café» = ta kaffe. Også 'å ta bussen/toget'.",
+        "etymology_no": "Ukjent opprinnelse, muligens førromansk (iberisk substrat).",
+        "example_es": "Tomo café por la mañana",
+        "example_no": "Jeg tar kaffe om morgenen",
+        "cefr_level": "A1",
+        "frequency_rank_estimate": 90
+      },
+      {
+        "lemma_es": "escuchar",
+        "pos": "verb",
+        "gloss_no": "å lytte",
+        "gender": "none",
+        "article_quirk": "",
+        "conjugation_applicable": true,
+        "conjugation_present": {
+          "yo": "escucho",
+          "tu": "escuchas",
+          "el": "escucha",
+          "nosotros": "escuchamos",
+          "vosotros": "escucháis",
+          "ellos": "escuchan"
+        },
+        "agreement_forms": {
+          "masc_sg": "",
+          "fem_sg": "",
+          "masc_pl": "",
+          "fem_pl": ""
+        },
+        "plural_form": "",
+        "memory_hook_no": "Regelrett -ar verb. Kognat til medisinsk «auscultate» (lytte med stetoskop). Forskjell: «escuchar» = aktivt lytte, «oír» = bare høre.",
+        "etymology_no": "Fra latin «ascultāre» (lytte), samme rot som engelsk «auscultate».",
+        "example_es": "Escucho música todos los días",
+        "example_no": "Jeg lytter til musikk hver dag",
+        "cefr_level": "A1",
+        "frequency_rank_estimate": 240
+      },
+      {
+        "lemma_es": "comer",
+        "pos": "verb",
+        "gloss_no": "å spise",
+        "gender": "none",
+        "article_quirk": "",
+        "conjugation_applicable": true,
+        "conjugation_present": {
+          "yo": "como",
+          "tu": "comes",
+          "el": "come",
+          "nosotros": "comemos",
+          "vosotros": "coméis",
+          "ellos": "comen"
+        },
+        "agreement_forms": {
+          "masc_sg": "",
+          "fem_sg": "",
+          "masc_pl": "",
+          "fem_pl": ""
+        },
+        "plural_form": "",
+        "memory_hook_no": "Regelrett -er verb. Kognat til engelsk «comestible» (spiselig). «Como» = både 'jeg spiser' og 'som/hvordan'.",
+        "etymology_no": "Fra latin «comedere» (spise opp, fortære), samme rot som engelsk «comestible».",
+        "example_es": "Como frutas y verduras",
+        "example_no": "Jeg spiser frukt og grønnsaker",
+        "cefr_level": "A1",
+        "frequency_rank_estimate": 80
+      },
+      {
+        "lemma_es": "beber",
+        "pos": "verb",
+        "gloss_no": "å drikke",
+        "gender": "none",
+        "article_quirk": "",
+        "conjugation_applicable": true,
+        "conjugation_present": {
+          "yo": "bebo",
+          "tu": "bebes",
+          "el": "bebe",
+          "nosotros": "bebemos",
+          "vosotros": "bebéis",
+          "ellos": "beben"
+        },
+        "agreement_forms": {
+          "masc_sg": "",
+          "fem_sg": "",
+          "masc_pl": "",
+          "fem_pl": ""
+        },
+        "plural_form": "",
+        "memory_hook_no": "Regelrett -er verb. Kognat til engelsk «beverage» (drikke/drikk). «Bebe» = både 'han/hun drikker' og 'baby'.",
+        "etymology_no": "Fra latin «bibere» (drikke), samme rot som engelsk «beverage», «imbibe».",
+        "example_es": "Bebo agua todos los días",
+        "example_no": "Jeg drikker vann hver dag",
+        "cefr_level": "A1",
+        "frequency_rank_estimate": 280
+      },
+      {
+        "lemma_es": "leer",
+        "pos": "verb",
+        "gloss_no": "å lese",
+        "gender": "none",
+        "article_quirk": "",
+        "conjugation_applicable": true,
+        "conjugation_present": {
+          "yo": "leo",
+          "tu": "lees",
+          "el": "lee",
+          "nosotros": "leemos",
+          "vosotros": "leéis",
+          "ellos": "leen"
+        },
+        "plural_form": "",
+        "memory_hook_no": "Stammen skifter: leo, lees, lee, leen — dobbel-e i alle utom yo-form. Kognat med engelsk 'legible' (leselig).",
+        "etymology_no": "Fra latin 'legere' (å lese). Samme rot som norsk 'lektor' og engelsk 'legend' (noe som skal leses).",
+        "example_es": "Leo el periódico cada mañana.",
+        "example_no": "Jeg leser avisen hver morgen.",
+        "cefr_level": "A1",
+        "frequency_rank_estimate": 200
+      },
+      {
+        "lemma_es": "correr",
+        "pos": "verb",
+        "gloss_no": "å løpe",
+        "gender": "none",
+        "article_quirk": "",
+        "conjugation_applicable": true,
+        "conjugation_present": {
+          "yo": "corro",
+          "tu": "corres",
+          "el": "corre",
+          "nosotros": "corremos",
+          "vosotros": "corréis",
+          "ellos": "corren"
+        },
+        "plural_form": "",
+        "memory_hook_no": "Dobbel-r i alle former (corro, corres...). Tenk 'corridor' — et sted man kan løpe langs.",
+        "etymology_no": "Fra latin 'currere' (å løpe). Samme rot som engelsk 'current' (strøm som løper) og 'course'.",
+        "example_es": "Corro en el parque todos los días.",
+        "example_no": "Jeg løper i parken hver dag.",
+        "cefr_level": "A1",
+        "frequency_rank_estimate": 500
+      },
+      {
+        "lemma_es": "vivir",
+        "pos": "verb",
+        "gloss_no": "å leve; å bo",
+        "gender": "none",
+        "article_quirk": "",
+        "conjugation_applicable": true,
+        "conjugation_present": {
+          "yo": "vivo",
+          "tu": "vives",
+          "el": "vive",
+          "nosotros": "vivimos",
+          "vosotros": "vivís",
+          "ellos": "viven"
+        },
+        "plural_form": "",
+        "memory_hook_no": "Stammen 'viv-' har to v'er (v-i-v). Tenk 'vivid' (livlig) — full av liv.",
+        "etymology_no": "Fra latin 'vivere' (å leve). Samme rot som norsk 'vital' og engelsk 'vivacious' (livfull).",
+        "example_es": "Vivo en Madrid con mi familia.",
+        "example_no": "Jeg bor i Madrid med familien min.",
+        "cefr_level": "A1",
+        "frequency_rank_estimate": 150
+      },
+      {
+        "lemma_es": "abrir",
+        "pos": "verb",
+        "gloss_no": "å åpne",
+        "gender": "none",
+        "article_quirk": "",
+        "conjugation_applicable": true,
+        "conjugation_present": {
+          "yo": "abro",
+          "tu": "abres",
+          "el": "abre",
+          "nosotros": "abrimos",
+          "vosotros": "abrís",
+          "ellos": "abren"
+        },
+        "plural_form": "",
+        "memory_hook_no": "Stammen 'abr-' ligner 'aperture' (blenderåpning i kamera) — en åpning for lys.",
+        "etymology_no": "Fra latin 'aperire' (å åpne). Samme rot som engelsk 'aperture' og 'April' (måned som åpner våren).",
+        "example_es": "Abro la ventana cada mañana.",
+        "example_no": "Jeg åpner vinduet hver morgen.",
+        "cefr_level": "A1",
+        "frequency_rank_estimate": 400
+      },
+      {
+        "lemma_es": "escribir",
+        "pos": "verb",
+        "gloss_no": "å skrive",
+        "gender": "none",
+        "article_quirk": "",
+        "conjugation_applicable": true,
+        "conjugation_present": {
+          "yo": "escribo",
+          "tu": "escribes",
+          "el": "escribe",
+          "nosotros": "escribimos",
+          "vosotros": "escribís",
+          "ellos": "escriben"
+        },
+        "plural_form": "",
+        "memory_hook_no": "Stammen 'escrib-' inneholder 'scrib' som i norsk 'skribent' og 'manuskript' (håndskrevet).",
+        "etymology_no": "Fra latin 'scribere' (å skrive). Samme rot som norsk 'skribent', engelsk 'scribe' og 'transcribe'.",
+        "example_es": "Escribo una carta a mi amigo.",
+        "example_no": "Jeg skriver et brev til vennen min.",
+        "cefr_level": "A1",
+        "frequency_rank_estimate": 300
+      },
+      {
+        "lemma_es": "recibir",
+        "pos": "verb",
+        "gloss_no": "å motta",
+        "gender": "none",
+        "article_quirk": "",
+        "conjugation_applicable": true,
+        "conjugation_present": {
+          "yo": "recibo",
+          "tu": "recibes",
+          "el": "recibe",
+          "nosotros": "recibimos",
+          "vosotros": "recibís",
+          "ellos": "reciben"
+        },
+        "plural_form": "",
+        "memory_hook_no": "Stammen 'recib-' er nesten identisk med engelsk 'receive' — samme rot, lett å huske.",
+        "etymology_no": "Fra latin 'recipere' (å ta imot). Samme rot som engelsk 'receive', 'reception' og 'receipt'.",
+        "example_es": "Recibo muchos mensajes cada día.",
+        "example_no": "Jeg mottar mange meldinger hver dag.",
+        "cefr_level": "A2",
+        "frequency_rank_estimate": 600
       },
       {
         "lemma_es": "casa",
@@ -621,32 +1038,213 @@
         "gender": "f",
         "article_quirk": "",
         "conjugation_applicable": false,
-        "conjugation_present": {
-          "yo": "",
-          "tu": "",
-          "el": "",
-          "nosotros": "",
-          "vosotros": "",
-          "ellos": ""
-        },
-        "agreement_forms": {
-          "masc_sg": "",
-          "fem_sg": "",
-          "masc_pl": "",
-          "fem_pl": ""
-        },
         "plural_form": "casas",
-        "memory_hook_no": "Identisk på spansk, italiensk og portugisisk: casa. Du kjenner sikkert uttrykket «mi casa es su casa» (mitt hus er ditt hus).",
-        "etymology_no": "Fra latin «casa» (hytte, enkelt hus). Direkte lån til mange språk, inkludert italiensk og portugisisk «casa».",
-        "example_es": "La casa es grande y bonita",
-        "example_no": "Huset er stort og pent",
+        "memory_hook_no": "Kjent uttrykk: 'Mi casa es tu casa' (Mitt hjem er ditt hjem). Feminin: la casa.",
+        "etymology_no": "Fra latin 'casa' (hytte, hus). Samme rot som engelsk 'casino' (opprinnelig 'lite hus' på italiensk).",
+        "example_es": "Mi casa es grande y bonita.",
+        "example_no": "Huset mitt er stort og fint.",
         "cefr_level": "A1",
-        "frequency_rank_estimate": 160
+        "frequency_rank_estimate": 100
+      },
+      {
+        "lemma_es": "agua",
+        "pos": "noun",
+        "gloss_no": "vann",
+        "gender": "f",
+        "article_quirk": "el agua (bruker el i entall, tross feminin kjønn)",
+        "conjugation_applicable": false,
+        "plural_form": "aguas",
+        "memory_hook_no": "VIKTIG særegenhet: sier 'el agua' (ikke la), men 'las aguas' i flertall. Tenk 'akvarium' — samme rot.",
+        "etymology_no": "Fra latin 'aqua' (vann). Samme rot som norsk 'akvarium', 'akvarell' og engelsk 'aquatic'.",
+        "example_es": "Bebo agua todos los días.",
+        "example_no": "Jeg drikker vann hver dag.",
+        "cefr_level": "A1",
+        "frequency_rank_estimate": 150
+      },
+      {
+        "lemma_es": "pan",
+        "pos": "noun",
+        "gloss_no": "brød",
+        "gender": "m",
+        "article_quirk": "",
+        "conjugation_applicable": false,
+        "plural_form": "panes",
+        "memory_hook_no": "Kort og konsis. Flertall: panes (ikke pans). Tenk 'panadería' (bakeri) — pan-stedet.",
+        "etymology_no": "Fra latin 'panis' (brød). Samme rot som fransk 'pain' og engelsk 'pantry' (spisekammer, brød-sted).",
+        "example_es": "Compro pan fresco cada mañana.",
+        "example_no": "Jeg kjøper fersk brød hver morgen.",
+        "cefr_level": "A1",
+        "frequency_rank_estimate": 300
+      },
+      {
+        "lemma_es": "libro",
+        "pos": "noun",
+        "gloss_no": "bok",
+        "gender": "m",
+        "article_quirk": "",
+        "conjugation_applicable": false,
+        "plural_form": "libros",
+        "memory_hook_no": "Stammen 'libr-' som i 'library' (bibliotek) og 'librería' (bokhandel) — bok-stedet.",
+        "etymology_no": "Fra latin 'liber' (bok). Samme rot som norsk 'bibliotek' og engelsk 'library'.",
+        "example_es": "Leo un libro interesante.",
+        "example_no": "Jeg leser en interessant bok.",
+        "cefr_level": "A1",
+        "frequency_rank_estimate": 200
+      },
+      {
+        "lemma_es": "día",
+        "pos": "noun",
+        "gloss_no": "dag",
+        "gender": "m",
+        "article_quirk": "maskulin tross -a-endelse",
+        "conjugation_applicable": false,
+        "plural_form": "días",
+        "memory_hook_no": "VIKTIG unntak: maskulin (el día), ikke feminin som -a skulle tilsi. Kommer fra gresk rot, beholder maskulint kjønn fra latin.",
+        "etymology_no": "Fra latin 'dies' (dag). Maskulint kjønn bevart fra latin. IKKE kognat med germansk 'day/dag' (som har en helt annen rot).",
+        "example_es": "Hoy es un día bonito.",
+        "example_no": "I dag er en fin dag.",
+        "cefr_level": "A1",
+        "frequency_rank_estimate": 50
+      },
+      {
+        "lemma_es": "año",
+        "pos": "noun",
+        "gloss_no": "år",
+        "gender": "m",
+        "article_quirk": "",
+        "conjugation_applicable": false,
+        "plural_form": "años",
+        "memory_hook_no": "Ñ-lyden (ikke n). Relatert til 'anual' (årlig) — samme rot. Kognat med engelsk 'annual'.",
+        "etymology_no": "Fra latin 'annus' (år). Samme rot som engelsk 'annual', 'anniversary' og norsk 'annuitet'.",
+        "example_es": "Este año viajo a España.",
+        "example_no": "I år reiser jeg til Spania.",
+        "cefr_level": "A1",
+        "frequency_rank_estimate": 80
+      },
+      {
+        "lemma_es": "hora",
+        "pos": "noun",
+        "gloss_no": "time",
+        "gender": "f",
+        "article_quirk": "",
+        "conjugation_applicable": false,
+        "plural_form": "horas",
+        "memory_hook_no": "Identisk med engelsk 'hour' i betydning og opprinnelse — lett å huske.",
+        "etymology_no": "Fra latin 'hora' (time). Samme rot som engelsk 'hour' og norsk 'horoskop' (time-observasjon).",
+        "example_es": "¿Qué hora es ahora?",
+        "example_no": "Hva er klokka nå?",
+        "cefr_level": "A1",
+        "frequency_rank_estimate": 150
+      },
+      {
+        "lemma_es": "mes",
+        "pos": "noun",
+        "gloss_no": "måned",
+        "gender": "m",
+        "article_quirk": "",
+        "conjugation_applicable": false,
+        "plural_form": "meses",
+        "memory_hook_no": "Kort ord (3 bokstaver). Flertall: meses (legger til -es, ikke bare -s).",
+        "etymology_no": "Fra latin 'mensis' (måned). Relatert til engelsk 'month' og norsk 'måne/måned' (via germansk rot, månen bestemte måneder).",
+        "example_es": "Este mes trabajo mucho.",
+        "example_no": "Denne måneden jobber jeg mye.",
+        "cefr_level": "A1",
+        "frequency_rank_estimate": 250
+      },
+      {
+        "lemma_es": "hombre",
+        "pos": "noun",
+        "gloss_no": "mann",
+        "gender": "m",
+        "article_quirk": "",
+        "conjugation_applicable": false,
+        "plural_form": "hombres",
+        "memory_hook_no": "Kommer fra 'homo' (menneske på latin). Tenk 'human' — samme rot, men betyr 'mann' på spansk.",
+        "etymology_no": "Fra latin 'homo' (menneske). Samme rot som engelsk 'human', 'homicide' og norsk 'homo sapiens'.",
+        "example_es": "El hombre camina en la calle.",
+        "example_no": "Mannen går i gata.",
+        "cefr_level": "A1",
+        "frequency_rank_estimate": 120
+      },
+      {
+        "lemma_es": "mujer",
+        "pos": "noun",
+        "gloss_no": "kvinne",
+        "gender": "f",
+        "article_quirk": "",
+        "conjugation_applicable": false,
+        "plural_form": "mujeres",
+        "memory_hook_no": "VIKTIG: staves med j (mujer), ikke g. Uttales med kh-lyd. Flertall: mujeres.",
+        "etymology_no": "Fra latin 'mulier' (kvinne). Unik latinsk rot uten vanlige norske kognater.",
+        "example_es": "La mujer lee el periódico.",
+        "example_no": "Kvinnen leser avisen.",
+        "cefr_level": "A1",
+        "frequency_rank_estimate": 130
       },
       {
         "lemma_es": "niño",
         "pos": "noun",
-        "gloss_no": "gutt / barn",
+        "gloss_no": "gutt",
+        "gender": "m",
+        "article_quirk": "",
+        "conjugation_applicable": false,
+        "plural_form": "niños",
+        "memory_hook_no": "Ñ-lyd (ikke n). Feminin: niña. Flertall 'niños' kan bety 'barn' generelt (blandet kjønn).",
+        "etymology_no": "Fra latin 'ninnus' (barn, barneord). Ingen direkte norske kognater, men relatert til barneord i mange språk.",
+        "example_es": "El niño juega en el parque.",
+        "example_no": "Gutten leker i parken.",
+        "cefr_level": "A1",
+        "frequency_rank_estimate": 200
+      },
+      {
+        "lemma_es": "niña",
+        "pos": "noun",
+        "gloss_no": "jente",
+        "gender": "f",
+        "article_quirk": "",
+        "conjugation_applicable": false,
+        "plural_form": "niñas",
+        "memory_hook_no": "Feminin form av 'niño' — samme ñ-lyd. Flertall: niñas.",
+        "etymology_no": "Fra latin 'ninna' (jentebarn). Feminin form av 'niño'.",
+        "example_es": "La niña lee un libro.",
+        "example_no": "Jenta leser en bok.",
+        "cefr_level": "A1",
+        "frequency_rank_estimate": 210
+      },
+      {
+        "lemma_es": "padre",
+        "pos": "noun",
+        "gloss_no": "far",
+        "gender": "m",
+        "article_quirk": "",
+        "conjugation_applicable": false,
+        "plural_form": "padres",
+        "memory_hook_no": "VIKTIG: 'padres' i flertall betyr 'foreldre' (inkluderer mor og far), ikke bare 'fedre'. Tenk 'pater' (latin).",
+        "etymology_no": "Fra latin 'pater' (far). Samme rot som norsk 'paternal' og engelsk 'father' (via germansk rot).",
+        "example_es": "Mi padre trabaja en Madrid.",
+        "example_no": "Faren min jobber i Madrid.",
+        "cefr_level": "A1",
+        "frequency_rank_estimate": 180
+      },
+      {
+        "lemma_es": "madre",
+        "pos": "noun",
+        "gloss_no": "mor",
+        "gender": "f",
+        "article_quirk": "",
+        "conjugation_applicable": false,
+        "plural_form": "madres",
+        "memory_hook_no": "Ligner 'mater' (latin) og engelsk 'mother' — samme rot, lett å huske.",
+        "etymology_no": "Fra latin 'mater' (mor). Samme rot som norsk 'maternal' og engelsk 'mother' (via germansk rot).",
+        "example_es": "Mi madre cocina muy bien.",
+        "example_no": "Mora mi lager god mat.",
+        "cefr_level": "A1",
+        "frequency_rank_estimate": 190
+      },
+      {
+        "lemma_es": "hermano",
+        "pos": "noun",
+        "gloss_no": "bror",
         "gender": "m",
         "article_quirk": "",
         "conjugation_applicable": false,
@@ -664,20 +1262,20 @@
           "masc_pl": "",
           "fem_pl": ""
         },
-        "plural_form": "niños",
-        "memory_hook_no": "Tilde ñ uttales «nj» som i norsk «cognac». Niño = gutt, niña = jente. Los niños = barna (eller guttene, avhengig av kontekst).",
-        "etymology_no": "Fra latin «ninnus» (liten gutt, spedbarn). Tilde ñ kommer fra gammel dobbel-n (nn) som smeltet sammen til én nasal lyd.",
-        "example_es": "El niño juega en el parque",
-        "example_no": "Gutten leker i parken",
+        "plural_form": "hermanos",
+        "memory_hook_no": "«hermano» ligner «german» (tysk), men kommer fra latin «germanus» (ekte, stammerelatert)",
+        "etymology_no": "Fra latin «germānus» (ekte, ektefødt). Beslektet med «germansk».",
+        "example_es": "Mi hermano vive en Madrid",
+        "example_no": "Broren min bor i Madrid",
         "cefr_level": "A1",
-        "frequency_rank_estimate": 190
+        "frequency_rank_estimate": 400
       },
       {
-        "lemma_es": "agua",
+        "lemma_es": "hermana",
         "pos": "noun",
-        "gloss_no": "vann",
+        "gloss_no": "søster",
         "gender": "f",
-        "article_quirk": "Bruker 'el' i entall (el agua) fordi betonet a-lyd + artikkel 'la' ville gi to a-lyder etter hverandre. MEN substantivet er feminin: 'el agua fría' (ikke 'frío'). Flertall: 'las aguas'.",
+        "article_quirk": "",
         "conjugation_applicable": false,
         "conjugation_present": {
           "yo": "",
@@ -693,18 +1291,656 @@
           "masc_pl": "",
           "fem_pl": ""
         },
-        "plural_form": "aguas",
-        "memory_hook_no": "«El agua» – maskulin artikkel, MEN feminin substantiv! Dette er unntak for å unngå «la agua» (to a-lyder). Si «el agua fría», ikke «frío».",
-        "etymology_no": "Fra latin «aqua» (vann). Beslektet med norske lånord «akvatisk», «akvarium» og spansk «acuático» (vannlevende).",
-        "example_es": "El agua está muy fría hoy",
-        "example_no": "Vannet er veldig kaldt i dag",
+        "plural_form": "hermanas",
+        "memory_hook_no": "Feminin form av hermano – ender på -a som de fleste feminine substantiv",
+        "etymology_no": "Fra latin «germāna» (feminin av germānus).",
+        "example_es": "Mi hermana es profesora",
+        "example_no": "Søsteren min er lærer",
+        "cefr_level": "A1",
+        "frequency_rank_estimate": 600
+      },
+      {
+        "lemma_es": "hijo",
+        "pos": "noun",
+        "gloss_no": "sønn",
+        "gender": "m",
+        "article_quirk": "",
+        "conjugation_applicable": false,
+        "conjugation_present": {
+          "yo": "",
+          "tu": "",
+          "el": "",
+          "nosotros": "",
+          "vosotros": "",
+          "ellos": ""
+        },
+        "agreement_forms": {
+          "masc_sg": "",
+          "fem_sg": "",
+          "masc_pl": "",
+          "fem_pl": ""
+        },
+        "plural_form": "hijos",
+        "memory_hook_no": "«hijo» uttales omtrent som «i-ho» – h-en er stum i spansk",
+        "etymology_no": "Fra latin «fīlius» (sønn). Beslektet med engelsk «filial».",
+        "example_es": "Mi hijo tiene diez años",
+        "example_no": "Sønnen min er ti år",
+        "cefr_level": "A1",
+        "frequency_rank_estimate": 500
+      },
+      {
+        "lemma_es": "hija",
+        "pos": "noun",
+        "gloss_no": "datter",
+        "gender": "f",
+        "article_quirk": "",
+        "conjugation_applicable": false,
+        "conjugation_present": {
+          "yo": "",
+          "tu": "",
+          "el": "",
+          "nosotros": "",
+          "vosotros": "",
+          "ellos": ""
+        },
+        "agreement_forms": {
+          "masc_sg": "",
+          "fem_sg": "",
+          "masc_pl": "",
+          "fem_pl": ""
+        },
+        "plural_form": "hijas",
+        "memory_hook_no": "Feminin form av hijo – typisk -a ending",
+        "etymology_no": "Fra latin «fīlia» (feminin av fīlius).",
+        "example_es": "Mi hija estudia medicina",
+        "example_no": "Datteren min studerer medisin",
+        "cefr_level": "A1",
+        "frequency_rank_estimate": 700
+      },
+      {
+        "lemma_es": "amigo",
+        "pos": "noun",
+        "gloss_no": "venn",
+        "gender": "m",
+        "article_quirk": "",
+        "conjugation_applicable": false,
+        "conjugation_present": {
+          "yo": "",
+          "tu": "",
+          "el": "",
+          "nosotros": "",
+          "vosotros": "",
+          "ellos": ""
+        },
+        "agreement_forms": {
+          "masc_sg": "",
+          "fem_sg": "",
+          "masc_pl": "",
+          "fem_pl": ""
+        },
+        "plural_form": "amigos",
+        "memory_hook_no": "Velkjent fra filmer – «¡Mi amigo!»",
+        "etymology_no": "Fra latin «amīcus» (venn). Beslektet med «amiable» og «amicable».",
+        "example_es": "Mi amigo vive aquí",
+        "example_no": "Vennen min bor her",
+        "cefr_level": "A1",
+        "frequency_rank_estimate": 800
+      },
+      {
+        "lemma_es": "amiga",
+        "pos": "noun",
+        "gloss_no": "venninne",
+        "gender": "f",
+        "article_quirk": "",
+        "conjugation_applicable": false,
+        "conjugation_present": {
+          "yo": "",
+          "tu": "",
+          "el": "",
+          "nosotros": "",
+          "vosotros": "",
+          "ellos": ""
+        },
+        "agreement_forms": {
+          "masc_sg": "",
+          "fem_sg": "",
+          "masc_pl": "",
+          "fem_pl": ""
+        },
+        "plural_form": "amigas",
+        "memory_hook_no": "Feminin form av amigo",
+        "etymology_no": "Fra latin «amīca» (feminin av amīcus).",
+        "example_es": "Mi amiga es de Barcelona",
+        "example_no": "Venninna mi er fra Barcelona",
+        "cefr_level": "A1",
+        "frequency_rank_estimate": 900
+      },
+      {
+        "lemma_es": "familia",
+        "pos": "noun",
+        "gloss_no": "familie",
+        "gender": "f",
+        "article_quirk": "",
+        "conjugation_applicable": false,
+        "conjugation_present": {
+          "yo": "",
+          "tu": "",
+          "el": "",
+          "nosotros": "",
+          "vosotros": "",
+          "ellos": ""
+        },
+        "agreement_forms": {
+          "masc_sg": "",
+          "fem_sg": "",
+          "masc_pl": "",
+          "fem_pl": ""
+        },
+        "plural_form": "familias",
+        "memory_hook_no": "Nesten identisk med norsk «familie»",
+        "etymology_no": "Fra latin «familia». Direkte kognat med norsk «familie».",
+        "example_es": "Mi familia es grande",
+        "example_no": "Familien min er stor",
+        "cefr_level": "A1",
+        "frequency_rank_estimate": 350
+      },
+      {
+        "lemma_es": "escuela",
+        "pos": "noun",
+        "gloss_no": "skole",
+        "gender": "f",
+        "article_quirk": "",
+        "conjugation_applicable": false,
+        "conjugation_present": {
+          "yo": "",
+          "tu": "",
+          "el": "",
+          "nosotros": "",
+          "vosotros": "",
+          "ellos": ""
+        },
+        "agreement_forms": {
+          "masc_sg": "",
+          "fem_sg": "",
+          "masc_pl": "",
+          "fem_pl": ""
+        },
+        "plural_form": "escuelas",
+        "memory_hook_no": "Fra latin «schola» – lik «school» på engelsk",
+        "etymology_no": "Fra latin «schola» (skole). Beslektet med engelsk «school» og norsk «skole».",
+        "example_es": "Los niños van a la escuela",
+        "example_no": "Barna går på skolen",
+        "cefr_level": "A1",
+        "frequency_rank_estimate": 1200
+      },
+      {
+        "lemma_es": "profesor",
+        "pos": "noun",
+        "gloss_no": "lærer",
+        "gender": "m",
+        "article_quirk": "",
+        "conjugation_applicable": false,
+        "conjugation_present": {
+          "yo": "",
+          "tu": "",
+          "el": "",
+          "nosotros": "",
+          "vosotros": "",
+          "ellos": ""
+        },
+        "agreement_forms": {
+          "masc_sg": "",
+          "fem_sg": "",
+          "masc_pl": "",
+          "fem_pl": ""
+        },
+        "plural_form": "profesores",
+        "memory_hook_no": "Ligner «professor» – en som lærer bort",
+        "etymology_no": "Fra latin «professor» (lærer). Beslektet med norsk «professor».",
+        "example_es": "El profesor enseña español",
+        "example_no": "Læreren underviser i spansk",
+        "cefr_level": "A1",
+        "frequency_rank_estimate": 1500
+      },
+      {
+        "lemma_es": "trabajo",
+        "pos": "noun",
+        "gloss_no": "arbeid, jobb",
+        "gender": "m",
+        "article_quirk": "",
+        "conjugation_applicable": false,
+        "conjugation_present": {
+          "yo": "",
+          "tu": "",
+          "el": "",
+          "nosotros": "",
+          "vosotros": "",
+          "ellos": ""
+        },
+        "agreement_forms": {
+          "masc_sg": "",
+          "fem_sg": "",
+          "masc_pl": "",
+          "fem_pl": ""
+        },
+        "plural_form": "trabajos",
+        "memory_hook_no": "Fra verbet «trabajar» (å arbeide) – samme rot",
+        "etymology_no": "Fra latin «tripaliāre». Beslektet med fransk «travail».",
+        "example_es": "Mi trabajo es interesante",
+        "example_no": "Jobben min er interessant",
+        "cefr_level": "A1",
+        "frequency_rank_estimate": 250
+      },
+      {
+        "lemma_es": "ciudad",
+        "pos": "noun",
+        "gloss_no": "by",
+        "gender": "f",
+        "article_quirk": "",
+        "conjugation_applicable": false,
+        "conjugation_present": {
+          "yo": "",
+          "tu": "",
+          "el": "",
+          "nosotros": "",
+          "vosotros": "",
+          "ellos": ""
+        },
+        "agreement_forms": {
+          "masc_sg": "",
+          "fem_sg": "",
+          "masc_pl": "",
+          "fem_pl": ""
+        },
+        "plural_form": "ciudades",
+        "memory_hook_no": "Ord på -dad er alltid feminine (som «libertad», «verdad»)",
+        "etymology_no": "Fra latin «cīvitās» (by, stat). Beslektet med «city» og «citizen».",
+        "example_es": "Barcelona es una ciudad grande",
+        "example_no": "Barcelona er en stor by",
+        "cefr_level": "A1",
+        "frequency_rank_estimate": 300
+      },
+      {
+        "lemma_es": "país",
+        "pos": "noun",
+        "gloss_no": "land",
+        "gender": "m",
+        "article_quirk": "",
+        "conjugation_applicable": false,
+        "conjugation_present": {
+          "yo": "",
+          "tu": "",
+          "el": "",
+          "nosotros": "",
+          "vosotros": "",
+          "ellos": ""
+        },
+        "agreement_forms": {
+          "masc_sg": "",
+          "fem_sg": "",
+          "masc_pl": "",
+          "fem_pl": ""
+        },
+        "plural_form": "países",
+        "memory_hook_no": "Accent på í – uttales «pa-ÍS»",
+        "etymology_no": "Fra gammelfransk «païs», fra latin «pāgēnsis» (landsby).",
+        "example_es": "España es un país europeo",
+        "example_no": "Spania er et europeisk land",
+        "cefr_level": "A1",
+        "frequency_rank_estimate": 200
+      },
+      {
+        "lemma_es": "calle",
+        "pos": "noun",
+        "gloss_no": "gate",
+        "gender": "f",
+        "article_quirk": "",
+        "conjugation_applicable": false,
+        "conjugation_present": {
+          "yo": "",
+          "tu": "",
+          "el": "",
+          "nosotros": "",
+          "vosotros": "",
+          "ellos": ""
+        },
+        "agreement_forms": {
+          "masc_sg": "",
+          "fem_sg": "",
+          "masc_pl": "",
+          "fem_pl": ""
+        },
+        "plural_form": "calles",
+        "memory_hook_no": "Uttales «CAL-ye» med y-lyd – feminin selv om den ender på -e",
+        "etymology_no": "Fra latin «callis» (sti, vei).",
+        "example_es": "Vivo en esta calle",
+        "example_no": "Jeg bor i denne gaten",
+        "cefr_level": "A1",
+        "frequency_rank_estimate": 600
+      },
+      {
+        "lemma_es": "coche",
+        "pos": "noun",
+        "gloss_no": "bil",
+        "gender": "m",
+        "article_quirk": "",
+        "conjugation_applicable": false,
+        "conjugation_present": {
+          "yo": "",
+          "tu": "",
+          "el": "",
+          "nosotros": "",
+          "vosotros": "",
+          "ellos": ""
+        },
+        "agreement_forms": {
+          "masc_sg": "",
+          "fem_sg": "",
+          "masc_pl": "",
+          "fem_pl": ""
+        },
+        "plural_form": "coches",
+        "memory_hook_no": "I Spania = «coche», i Latin-Amerika = «carro» eller «auto»",
+        "etymology_no": "Fra ungarsk «kocsi» (vogn fra byen Kocs). Beslektet med engelsk «coach».",
+        "example_es": "Mi coche es rojo",
+        "example_no": "Bilen min er rød",
+        "cefr_level": "A1",
+        "frequency_rank_estimate": 1000
+      },
+      {
+        "lemma_es": "perro",
+        "pos": "noun",
+        "gloss_no": "hund",
+        "gender": "m",
+        "article_quirk": "",
+        "conjugation_applicable": false,
+        "conjugation_present": {
+          "yo": "",
+          "tu": "",
+          "el": "",
+          "nosotros": "",
+          "vosotros": "",
+          "ellos": ""
+        },
+        "agreement_forms": {
+          "masc_sg": "",
+          "fem_sg": "",
+          "masc_pl": "",
+          "fem_pl": ""
+        },
+        "plural_form": "perros",
+        "memory_hook_no": "Dobbel-r uttales sterkt rullet",
+        "etymology_no": "Ukjent opprinnelse, kanskje fra lydord som etterligner bjeffing.",
+        "example_es": "El perro come en casa",
+        "example_no": "Hunden spiser hjemme",
+        "cefr_level": "A1",
+        "frequency_rank_estimate": 1400
+      },
+      {
+        "lemma_es": "gato",
+        "pos": "noun",
+        "gloss_no": "katt",
+        "gender": "m",
+        "article_quirk": "",
+        "conjugation_applicable": false,
+        "conjugation_present": {
+          "yo": "",
+          "tu": "",
+          "el": "",
+          "nosotros": "",
+          "vosotros": "",
+          "ellos": ""
+        },
+        "agreement_forms": {
+          "masc_sg": "",
+          "fem_sg": "",
+          "masc_pl": "",
+          "fem_pl": ""
+        },
+        "plural_form": "gatos",
+        "memory_hook_no": "«gato» lyder litt som «cat-o» med spansk ending",
+        "etymology_no": "Fra senlatinsk «cattus» (katt). Beslektet med engelsk «cat» og norsk «katt».",
+        "example_es": "Mi gato es negro",
+        "example_no": "Katten min er svart",
+        "cefr_level": "A1",
+        "frequency_rank_estimate": 1600
+      },
+      {
+        "lemma_es": "café",
+        "pos": "noun",
+        "gloss_no": "kaffe, kafé",
+        "gender": "m",
+        "article_quirk": "",
+        "conjugation_applicable": false,
+        "conjugation_present": {
+          "yo": "",
+          "tu": "",
+          "el": "",
+          "nosotros": "",
+          "vosotros": "",
+          "ellos": ""
+        },
+        "agreement_forms": {
+          "masc_sg": "",
+          "fem_sg": "",
+          "masc_pl": "",
+          "fem_pl": ""
+        },
+        "plural_form": "cafés",
+        "memory_hook_no": "Identisk med norsk «kafé» – accent på é",
+        "etymology_no": "Fra tyrkisk «kahve», via arabisk «qahwa». Internasjonalt ord.",
+        "example_es": "Tomo café por la mañana",
+        "example_no": "Jeg drikker kaffe om morgenen",
+        "cefr_level": "A1",
+        "frequency_rank_estimate": 900
+      },
+      {
+        "lemma_es": "leche",
+        "pos": "noun",
+        "gloss_no": "melk",
+        "gender": "f",
+        "article_quirk": "",
+        "conjugation_applicable": false,
+        "conjugation_present": {
+          "yo": "",
+          "tu": "",
+          "el": "",
+          "nosotros": "",
+          "vosotros": "",
+          "ellos": ""
+        },
+        "agreement_forms": {
+          "masc_sg": "",
+          "fem_sg": "",
+          "masc_pl": "",
+          "fem_pl": ""
+        },
+        "plural_form": "leches",
+        "memory_hook_no": "Uttales «LE-che» – feminin selv om den ender på -e",
+        "etymology_no": "Fra latin «lac, lactis» (melk). Beslektet med «lactose» og «lactic».",
+        "example_es": "Bebo leche cada día",
+        "example_no": "Jeg drikker melk hver dag",
+        "cefr_level": "A1",
+        "frequency_rank_estimate": 1300
+      },
+      {
+        "lemma_es": "fruta",
+        "pos": "noun",
+        "gloss_no": "frukt",
+        "gender": "f",
+        "article_quirk": "",
+        "conjugation_applicable": false,
+        "conjugation_present": {
+          "yo": "",
+          "tu": "",
+          "el": "",
+          "nosotros": "",
+          "vosotros": "",
+          "ellos": ""
+        },
+        "agreement_forms": {
+          "masc_sg": "",
+          "fem_sg": "",
+          "masc_pl": "",
+          "fem_pl": ""
+        },
+        "plural_form": "frutas",
+        "memory_hook_no": "Nesten identisk med norsk «frukt»",
+        "etymology_no": "Fra latin «frūctus» (frukt). Direkte kognat med norsk «frukt».",
+        "example_es": "Como fruta todos los días",
+        "example_no": "Jeg spiser frukt hver dag",
+        "cefr_level": "A1",
+        "frequency_rank_estimate": 1100
+      },
+      {
+        "lemma_es": "mañana",
+        "pos": "noun",
+        "gloss_no": "morgen",
+        "gender": "f",
+        "article_quirk": "",
+        "conjugation_applicable": false,
+        "conjugation_present": {
+          "yo": "",
+          "tu": "",
+          "el": "",
+          "nosotros": "",
+          "vosotros": "",
+          "ellos": ""
+        },
+        "agreement_forms": {
+          "masc_sg": "",
+          "fem_sg": "",
+          "masc_pl": "",
+          "fem_pl": ""
+        },
+        "plural_form": "mañanas",
+        "memory_hook_no": "Tilde over ñ (ny-lyd) – uttales «ma-NYA-na»",
+        "etymology_no": "Fra latin «māne» (om morgenen). Beslektet med «matins» (morgenbønn).",
+        "example_es": "Trabajo por la mañana",
+        "example_no": "Jeg jobber om morgenen",
+        "cefr_level": "A1",
+        "frequency_rank_estimate": 400
+      },
+      {
+        "lemma_es": "noche",
+        "pos": "noun",
+        "gloss_no": "natt",
+        "gender": "f",
+        "article_quirk": "",
+        "conjugation_applicable": false,
+        "conjugation_present": {
+          "yo": "",
+          "tu": "",
+          "el": "",
+          "nosotros": "",
+          "vosotros": "",
+          "ellos": ""
+        },
+        "agreement_forms": {
+          "masc_sg": "",
+          "fem_sg": "",
+          "masc_pl": "",
+          "fem_pl": ""
+        },
+        "plural_form": "noches",
+        "memory_hook_no": "Tenk på 'nocturne' (nattlig musikk) – samme latinrot. Natt er når det er mørkt.",
+        "etymology_no": "Fra latin 'nox, noctis' (natt). Beslektet med norsk 'natt' og engelsk 'night' via felles indoeuropeisk rot.",
+        "example_es": "La noche es larga en invierno.",
+        "example_no": "Natten er lang om vinteren.",
         "cefr_level": "A1",
         "frequency_rank_estimate": 150
       },
       {
+        "lemma_es": "tiempo",
+        "pos": "noun",
+        "gloss_no": "tid, vær",
+        "gender": "m",
+        "article_quirk": "",
+        "conjugation_applicable": false,
+        "conjugation_present": {
+          "yo": "",
+          "tu": "",
+          "el": "",
+          "nosotros": "",
+          "vosotros": "",
+          "ellos": ""
+        },
+        "agreement_forms": {
+          "masc_sg": "",
+          "fem_sg": "",
+          "masc_pl": "",
+          "fem_pl": ""
+        },
+        "plural_form": "tiempos",
+        "memory_hook_no": "Samme rot som 'tempo' i musikk (tid/takt). Dobbeltbetydning: tid eller vær.",
+        "etymology_no": "Fra latin 'tempus' (tid). Beslektet med engelsk 'tempo', 'temporary' og 'contemporary'.",
+        "example_es": "No tengo tiempo para estudiar.",
+        "example_no": "Jeg har ikke tid til å studere.",
+        "cefr_level": "A1",
+        "frequency_rank_estimate": 120
+      },
+      {
+        "lemma_es": "cosa",
+        "pos": "noun",
+        "gloss_no": "ting, sak",
+        "gender": "f",
+        "article_quirk": "",
+        "conjugation_applicable": false,
+        "conjugation_present": {
+          "yo": "",
+          "tu": "",
+          "el": "",
+          "nosotros": "",
+          "vosotros": "",
+          "ellos": ""
+        },
+        "agreement_forms": {
+          "masc_sg": "",
+          "fem_sg": "",
+          "masc_pl": "",
+          "fem_pl": ""
+        },
+        "plural_form": "cosas",
+        "memory_hook_no": "Fra 'causa' (årsak) – en ting som forårsaker noe. Universelt nyttig ord.",
+        "etymology_no": "Fra latin 'causa' (årsak, sak). Utviklet seg til å bety 'ting' generelt i romanske språk.",
+        "example_es": "Es una cosa muy importante.",
+        "example_no": "Det er en veldig viktig ting.",
+        "cefr_level": "A1",
+        "frequency_rank_estimate": 100
+      },
+      {
+        "lemma_es": "vida",
+        "pos": "noun",
+        "gloss_no": "liv",
+        "gender": "f",
+        "article_quirk": "",
+        "conjugation_applicable": false,
+        "conjugation_present": {
+          "yo": "",
+          "tu": "",
+          "el": "",
+          "nosotros": "",
+          "vosotros": "",
+          "ellos": ""
+        },
+        "agreement_forms": {
+          "masc_sg": "",
+          "fem_sg": "",
+          "masc_pl": "",
+          "fem_pl": ""
+        },
+        "plural_form": "vidas",
+        "memory_hook_no": "Samme rot som 'vital' (livsviktig). V-lyd kobler til 'levende'.",
+        "etymology_no": "Fra latin 'vita' (liv). Beslektet med engelsk 'vital', 'vitality' og norsk 'vital'.",
+        "example_es": "La vida es muy bella.",
+        "example_no": "Livet er veldig vakkert.",
+        "cefr_level": "A1",
+        "frequency_rank_estimate": 200
+      },
+      {
         "lemma_es": "bueno",
         "pos": "adjective",
-        "gloss_no": "god / bra",
+        "gloss_no": "god, bra",
         "gender": "none",
         "article_quirk": "",
         "conjugation_applicable": false,
@@ -723,17 +1959,336 @@
           "fem_pl": "buenas"
         },
         "plural_form": "",
-        "memory_hook_no": "«Bueno» forkortes til «buen» foran maskuline substantiver: un buen día (en god dag). Ikke forkort etter substantivet! Komparativ: mejor (bedre).",
-        "etymology_no": "Fra latin «bonus» (god). Beslektet med norsk «bonus» og andre romanske former: italiensk «buono», fransk «bon».",
-        "example_es": "Es un libro muy bueno",
-        "example_no": "Det er en veldig god bok",
+        "memory_hook_no": "Forkortes til 'buen' foran maskulint substantiv (buen día, buen libro). 'Bonus' på latin betyr god.",
+        "etymology_no": "Fra latin 'bonus' (god). Samme rot som engelsk 'bonus' og norsk 'bonus'.",
+        "example_es": "Es un buen libro de historia.",
+        "example_no": "Det er en god historiebok.",
         "cefr_level": "A1",
-        "frequency_rank_estimate": 85
+        "frequency_rank_estimate": 80
+      },
+      {
+        "lemma_es": "malo",
+        "pos": "adjective",
+        "gloss_no": "dårlig, slem",
+        "gender": "none",
+        "article_quirk": "",
+        "conjugation_applicable": false,
+        "conjugation_present": {
+          "yo": "",
+          "tu": "",
+          "el": "",
+          "nosotros": "",
+          "vosotros": "",
+          "ellos": ""
+        },
+        "agreement_forms": {
+          "masc_sg": "malo",
+          "fem_sg": "mala",
+          "masc_pl": "malos",
+          "fem_pl": "malas"
+        },
+        "plural_form": "",
+        "memory_hook_no": "Forkortes til 'mal' foran maskulint substantiv (mal día). 'Malum' på latin = ondt, dårlig.",
+        "etymology_no": "Fra latin 'malus' (dårlig, ond). Samme rot som 'malaria' (dårlig luft) og 'malicious'.",
+        "example_es": "Hace muy mal tiempo hoy.",
+        "example_no": "Det er veldig dårlig vær i dag.",
+        "cefr_level": "A1",
+        "frequency_rank_estimate": 250
+      },
+      {
+        "lemma_es": "grande",
+        "pos": "adjective",
+        "gloss_no": "stor",
+        "gender": "none",
+        "article_quirk": "",
+        "conjugation_applicable": false,
+        "conjugation_present": {
+          "yo": "",
+          "tu": "",
+          "el": "",
+          "nosotros": "",
+          "vosotros": "",
+          "ellos": ""
+        },
+        "agreement_forms": {
+          "masc_sg": "grande",
+          "fem_sg": "grande",
+          "masc_pl": "grandes",
+          "fem_pl": "grandes"
+        },
+        "plural_form": "",
+        "memory_hook_no": "Forkortes til 'gran' foran ethvert entalls-substantiv (gran ciudad). 'Grand' i mange europeiske språk.",
+        "etymology_no": "Fra latin 'grandis' (stor). Beslektet med engelsk 'grand', 'grandiose' og norsk 'grand'.",
+        "example_es": "Es una gran ciudad europea.",
+        "example_no": "Det er en stor europeisk by.",
+        "cefr_level": "A1",
+        "frequency_rank_estimate": 90
+      },
+      {
+        "lemma_es": "pequeño",
+        "pos": "adjective",
+        "gloss_no": "liten",
+        "gender": "none",
+        "article_quirk": "",
+        "conjugation_applicable": false,
+        "conjugation_present": {
+          "yo": "",
+          "tu": "",
+          "el": "",
+          "nosotros": "",
+          "vosotros": "",
+          "ellos": ""
+        },
+        "agreement_forms": {
+          "masc_sg": "pequeño",
+          "fem_sg": "pequeña",
+          "masc_pl": "pequeños",
+          "fem_pl": "pequeñas"
+        },
+        "plural_form": "",
+        "memory_hook_no": "'Peque' lyder liten. Merk ñ-lyden (typisk spansk). Motsats til 'grande'.",
+        "etymology_no": "Fra vulgærlatin, muligens fra 'peccus'. Opprinnelsen er usikker, men ordet er særegent for spansk.",
+        "example_es": "Vivo en una casa pequeña.",
+        "example_no": "Jeg bor i et lite hus.",
+        "cefr_level": "A1",
+        "frequency_rank_estimate": 300
+      },
+      {
+        "lemma_es": "nuevo",
+        "pos": "adjective",
+        "gloss_no": "ny",
+        "gender": "none",
+        "article_quirk": "",
+        "conjugation_applicable": false,
+        "conjugation_present": {
+          "yo": "",
+          "tu": "",
+          "el": "",
+          "nosotros": "",
+          "vosotros": "",
+          "ellos": ""
+        },
+        "agreement_forms": {
+          "masc_sg": "nuevo",
+          "fem_sg": "nueva",
+          "masc_pl": "nuevos",
+          "fem_pl": "nuevas"
+        },
+        "plural_form": "",
+        "memory_hook_no": "Samme rot som 'nova' (ny stjerne) og 'novus'. Nueva York = New York.",
+        "etymology_no": "Fra latin 'novus' (ny). Beslektet med norsk 'ny', engelsk 'new' og 'novel' via indoeuropeisk rot.",
+        "example_es": "Tengo un coche nuevo hoy.",
+        "example_no": "Jeg har en ny bil i dag.",
+        "cefr_level": "A1",
+        "frequency_rank_estimate": 180
+      },
+      {
+        "lemma_es": "viejo",
+        "pos": "adjective",
+        "gloss_no": "gammel",
+        "gender": "none",
+        "article_quirk": "",
+        "conjugation_applicable": false,
+        "conjugation_present": {
+          "yo": "",
+          "tu": "",
+          "el": "",
+          "nosotros": "",
+          "vosotros": "",
+          "ellos": ""
+        },
+        "agreement_forms": {
+          "masc_sg": "viejo",
+          "fem_sg": "vieja",
+          "masc_pl": "viejos",
+          "fem_pl": "viejas"
+        },
+        "plural_form": "",
+        "memory_hook_no": "Samme rot som 'veterano' (gammel soldat). Motsats til 'nuevo'.",
+        "etymology_no": "Fra latin 'vetus, veteris' (gammel). Beslektet med engelsk 'veteran' og 'inveterate'.",
+        "example_es": "Es un edificio muy viejo.",
+        "example_no": "Det er en veldig gammel bygning.",
+        "cefr_level": "A1",
+        "frequency_rank_estimate": 350
+      },
+      {
+        "lemma_es": "bonito",
+        "pos": "adjective",
+        "gloss_no": "pen, vakker",
+        "gender": "none",
+        "article_quirk": "",
+        "conjugation_applicable": false,
+        "conjugation_present": {
+          "yo": "",
+          "tu": "",
+          "el": "",
+          "nosotros": "",
+          "vosotros": "",
+          "ellos": ""
+        },
+        "agreement_forms": {
+          "masc_sg": "bonito",
+          "fem_sg": "bonita",
+          "masc_pl": "bonitos",
+          "fem_pl": "bonitas"
+        },
+        "plural_form": "",
+        "memory_hook_no": "Fra 'bonus' (god) + diminutiv -ito = 'litt god' = pen. Mer hverdagslig enn 'hermoso'.",
+        "etymology_no": "Fra latin 'bonus' (god) + diminutivendelse -ito. Utviklet seg til å bety pen/vakker.",
+        "example_es": "Llevas un vestido muy bonito.",
+        "example_no": "Du har på deg en veldig pen kjole.",
+        "cefr_level": "A1",
+        "frequency_rank_estimate": 400
+      },
+      {
+        "lemma_es": "joven",
+        "pos": "adjective",
+        "gloss_no": "ung",
+        "gender": "none",
+        "article_quirk": "",
+        "conjugation_applicable": false,
+        "conjugation_present": {
+          "yo": "",
+          "tu": "",
+          "el": "",
+          "nosotros": "",
+          "vosotros": "",
+          "ellos": ""
+        },
+        "agreement_forms": {
+          "masc_sg": "joven",
+          "fem_sg": "joven",
+          "masc_pl": "jóvenes",
+          "fem_pl": "jóvenes"
+        },
+        "plural_form": "",
+        "memory_hook_no": "Samme rot som 'juvenil' (ungdommelig). MERK: Flertall får aksent: jóvenes.",
+        "etymology_no": "Fra latin 'iuvenis' (ung). Beslektet med engelsk 'juvenile', 'rejuvenate' og norsk 'juvenil'.",
+        "example_es": "Son muy jóvenes todavía hoy.",
+        "example_no": "De er veldig unge ennå i dag.",
+        "cefr_level": "A1",
+        "frequency_rank_estimate": 450
+      },
+      {
+        "lemma_es": "alto",
+        "pos": "adjective",
+        "gloss_no": "høy, lang",
+        "gender": "none",
+        "article_quirk": "",
+        "conjugation_applicable": false,
+        "conjugation_present": {
+          "yo": "",
+          "tu": "",
+          "el": "",
+          "nosotros": "",
+          "vosotros": "",
+          "ellos": ""
+        },
+        "agreement_forms": {
+          "masc_sg": "alto",
+          "fem_sg": "alta",
+          "masc_pl": "altos",
+          "fem_pl": "altas"
+        },
+        "plural_form": "",
+        "memory_hook_no": "Samme rot som 'altitud' (høyde). Også brukt i musikk (altstemme = høy stemme).",
+        "etymology_no": "Fra latin 'altus' (høy). Beslektet med engelsk 'altitude', 'altar' og norsk 'altitud'.",
+        "example_es": "Mi hermano es muy alto.",
+        "example_no": "Broren min er veldig høy.",
+        "cefr_level": "A1",
+        "frequency_rank_estimate": 500
+      },
+      {
+        "lemma_es": "bajo",
+        "pos": "adjective",
+        "gloss_no": "lav, kort",
+        "gender": "none",
+        "article_quirk": "",
+        "conjugation_applicable": false,
+        "conjugation_present": {
+          "yo": "",
+          "tu": "",
+          "el": "",
+          "nosotros": "",
+          "vosotros": "",
+          "ellos": ""
+        },
+        "agreement_forms": {
+          "masc_sg": "bajo",
+          "fem_sg": "baja",
+          "masc_pl": "bajos",
+          "fem_pl": "bajas"
+        },
+        "plural_form": "",
+        "memory_hook_no": "Samme rot som 'bass' i musikk (dyp/lav tone). Også preposisjon 'under' (debajo).",
+        "etymology_no": "Fra vulgærlatin 'bassus' (dyp, lav). Beslektet med engelsk 'bass', 'base' og 'basement'.",
+        "example_es": "La mesa es muy baja.",
+        "example_no": "Bordet er veldig lavt.",
+        "cefr_level": "A1",
+        "frequency_rank_estimate": 550
+      },
+      {
+        "lemma_es": "contento",
+        "pos": "adjective",
+        "gloss_no": "fornøyd, glad",
+        "gender": "none",
+        "article_quirk": "",
+        "conjugation_applicable": false,
+        "conjugation_present": {
+          "yo": "",
+          "tu": "",
+          "el": "",
+          "nosotros": "",
+          "vosotros": "",
+          "ellos": ""
+        },
+        "agreement_forms": {
+          "masc_sg": "contento",
+          "fem_sg": "contenta",
+          "masc_pl": "contentos",
+          "fem_pl": "contentas"
+        },
+        "plural_form": "",
+        "memory_hook_no": "Brukes med 'estar' (midlertidig tilstand), ikke 'ser'. Som 'content' på engelsk (tilfreds).",
+        "etymology_no": "Fra latin 'contentus' (tilfredsstilt). Beslektet med engelsk 'content' og 'contentment'.",
+        "example_es": "Estoy muy contento hoy aquí.",
+        "example_no": "Jeg er veldig fornøyd i dag her.",
+        "cefr_level": "A1",
+        "frequency_rank_estimate": 600
+      },
+      {
+        "lemma_es": "cansado",
+        "pos": "adjective",
+        "gloss_no": "trøtt",
+        "gender": "none",
+        "article_quirk": "",
+        "conjugation_applicable": false,
+        "conjugation_present": {
+          "yo": "",
+          "tu": "",
+          "el": "",
+          "nosotros": "",
+          "vosotros": "",
+          "ellos": ""
+        },
+        "agreement_forms": {
+          "masc_sg": "cansado",
+          "fem_sg": "cansada",
+          "masc_pl": "cansados",
+          "fem_pl": "cansadas"
+        },
+        "plural_form": "",
+        "memory_hook_no": "Brukes med 'estar' (midlertidig tilstand). Fra verbet 'cansar' (å trette ut). Partisippform.",
+        "etymology_no": "Fra vulgærlatin 'campsare' (å bli sliten). Relatert til 'fatigue' via latinsk rot.",
+        "example_es": "Estoy muy cansado después del trabajo.",
+        "example_no": "Jeg er veldig trøtt etter arbeidet.",
+        "cefr_level": "A1",
+        "frequency_rank_estimate": 650
       },
       {
         "lemma_es": "muy",
         "pos": "adverb",
-        "gloss_no": "veldig / svært",
+        "gloss_no": "veldig, svært",
         "gender": "none",
         "article_quirk": "",
         "conjugation_applicable": false,
@@ -752,13 +2307,724 @@
           "fem_pl": ""
         },
         "plural_form": "",
-        "memory_hook_no": "«Muy» brukes foran adjektiver: muy bueno (veldig god). ALDRI foran substantiver – der bruker du «mucho/a». Muy = veldig, mucho = mye.",
-        "etymology_no": "Fra latin «multum» (mye, meget). Beslektet med «mucho» (mye) – begge fra samme latinske rot, men muy er adverb, mucho er adjektiv/pronomen.",
-        "example_es": "El café está muy caliente",
-        "example_no": "Kaffen er veldig varm",
+        "memory_hook_no": "Går foran adjektiv/adverb. Kontrast: muy bueno (veldig god) vs mucho dinero (mye penger).",
+        "etymology_no": "Fra latin 'multum' (mye). Forkortet form som utviklet seg til intensiverende adverb.",
+        "example_es": "La película es muy interesante.",
+        "example_no": "Filmen er veldig interessant.",
         "cefr_level": "A1",
-        "frequency_rank_estimate": 35
+        "frequency_rank_estimate": 50
+      },
+      {
+        "lemma_es": "mucho",
+        "pos": "adverb",
+        "gloss_no": "mye, svært",
+        "gender": "none",
+        "article_quirk": "",
+        "conjugation_applicable": false,
+        "conjugation_present": {
+          "yo": "",
+          "tu": "",
+          "el": "",
+          "nosotros": "",
+          "vosotros": "",
+          "ellos": ""
+        },
+        "agreement_forms": {
+          "masc_sg": "",
+          "fem_sg": "",
+          "masc_pl": "",
+          "fem_pl": ""
+        },
+        "plural_form": "",
+        "memory_hook_no": "Som adverb invariabelt (trabajo mucho). Som adjektiv bøyes: mucho/a/os/as. Kontrast til 'muy'.",
+        "etymology_no": "Fra latin 'multus' (mye, mange). Beslektet med engelsk 'multi-', 'multiple' og 'multitude'.",
+        "example_es": "Trabajo mucho cada día aquí.",
+        "example_no": "Jeg jobber mye hver dag her.",
+        "cefr_level": "A1",
+        "frequency_rank_estimate": 60
+      },
+      {
+        "lemma_es": "poco",
+        "pos": "adverb",
+        "gloss_no": "lite, få",
+        "gender": "none",
+        "article_quirk": "",
+        "conjugation_applicable": false,
+        "conjugation_present": {
+          "yo": "",
+          "tu": "",
+          "el": "",
+          "nosotros": "",
+          "vosotros": "",
+          "ellos": ""
+        },
+        "agreement_forms": {
+          "masc_sg": "",
+          "fem_sg": "",
+          "masc_pl": "",
+          "fem_pl": ""
+        },
+        "plural_form": "",
+        "memory_hook_no": "Som adverb invariabelt (duermo poco). Som adjektiv bøyes: poco/a/os/as. Motsats til 'mucho'.",
+        "etymology_no": "Fra latin 'paucus' (lite, få). Beslektet med engelsk 'paucity' (knapphet) og 'pauper'.",
+        "example_es": "Duermo poco por la noche.",
+        "example_no": "Jeg sover lite om natten.",
+        "cefr_level": "A1",
+        "frequency_rank_estimate": 200
+      },
+      {
+        "lemma_es": "bien",
+        "pos": "adverb",
+        "gloss_no": "bra, godt",
+        "gender": "none",
+        "article_quirk": "",
+        "conjugation_applicable": false,
+        "conjugation_present": {
+          "yo": "",
+          "tu": "",
+          "el": "",
+          "nosotros": "",
+          "vosotros": "",
+          "ellos": ""
+        },
+        "agreement_forms": {
+          "masc_sg": "",
+          "fem_sg": "",
+          "masc_pl": "",
+          "fem_pl": ""
+        },
+        "plural_form": "",
+        "memory_hook_no": "Fra 'bene' (godt). Kontrast: estar bien (føle seg bra) vs ser bueno (være god person/ting).",
+        "etymology_no": "Fra latin 'bene' (godt). Beslektet med engelsk 'benefit', 'benevolent' og norsk 'benefise'.",
+        "example_es": "Hablas español muy bien hoy.",
+        "example_no": "Du snakker spansk veldig bra i dag.",
+        "cefr_level": "A1",
+        "frequency_rank_estimate": 70
+      },
+      {
+        "lemma_es": "mal",
+        "pos": "adverb",
+        "gloss_no": "dårlig",
+        "gender": "none",
+        "article_quirk": "",
+        "conjugation_applicable": false,
+        "conjugation_present": {
+          "yo": "",
+          "tu": "",
+          "el": "",
+          "nosotros": "",
+          "vosotros": "",
+          "ellos": ""
+        },
+        "agreement_forms": {
+          "masc_sg": "",
+          "fem_sg": "",
+          "masc_pl": "",
+          "fem_pl": ""
+        },
+        "plural_form": "",
+        "memory_hook_no": "Samme rot som adjektivet 'malo' (dårlig), men adverbformen er invariabel",
+        "etymology_no": "Fra latin 'male' (dårlig, vondt, ille)",
+        "example_es": "Hoy duermo mal.",
+        "example_no": "I dag sover jeg dårlig.",
+        "cefr_level": "A2",
+        "frequency_rank_estimate": 180
+      },
+      {
+        "lemma_es": "aquí",
+        "pos": "adverb",
+        "gloss_no": "her",
+        "gender": "none",
+        "article_quirk": "",
+        "conjugation_applicable": false,
+        "conjugation_present": {
+          "yo": "",
+          "tu": "",
+          "el": "",
+          "nosotros": "",
+          "vosotros": "",
+          "ellos": ""
+        },
+        "agreement_forms": {
+          "masc_sg": "",
+          "fem_sg": "",
+          "masc_pl": "",
+          "fem_pl": ""
+        },
+        "plural_form": "",
+        "memory_hook_no": "Tre stedadverb: 'aquí' (her, nær), 'ahí' (der, medium), 'allí' (der borte, langt)",
+        "etymology_no": "Fra latin 'hac' (denne veien) + 'hic' (her)",
+        "example_es": "Vivo aquí en Madrid.",
+        "example_no": "Jeg bor her i Madrid.",
+        "cefr_level": "A1",
+        "frequency_rank_estimate": 130
+      },
+      {
+        "lemma_es": "ahora",
+        "pos": "adverb",
+        "gloss_no": "nå",
+        "gender": "none",
+        "article_quirk": "",
+        "conjugation_applicable": false,
+        "conjugation_present": {
+          "yo": "",
+          "tu": "",
+          "el": "",
+          "nosotros": "",
+          "vosotros": "",
+          "ellos": ""
+        },
+        "agreement_forms": {
+          "masc_sg": "",
+          "fem_sg": "",
+          "masc_pl": "",
+          "fem_pl": ""
+        },
+        "plural_form": "",
+        "memory_hook_no": "Lyden 'a-ora' minner om 'a-hour' (i denne timen) — nettopp nå",
+        "etymology_no": "Fra latin 'hac hora' (i denne timen, akkurat nå)",
+        "example_es": "Ahora como pan.",
+        "example_no": "Nå spiser jeg brød.",
+        "cefr_level": "A1",
+        "frequency_rank_estimate": 95
+      },
+      {
+        "lemma_es": "hoy",
+        "pos": "adverb",
+        "gloss_no": "i dag",
+        "gender": "none",
+        "article_quirk": "",
+        "conjugation_applicable": false,
+        "conjugation_present": {
+          "yo": "",
+          "tu": "",
+          "el": "",
+          "nosotros": "",
+          "vosotros": "",
+          "ellos": ""
+        },
+        "agreement_forms": {
+          "masc_sg": "",
+          "fem_sg": "",
+          "masc_pl": "",
+          "fem_pl": ""
+        },
+        "plural_form": "",
+        "memory_hook_no": "Rimer med 'soy' (jeg er) — 'hoy soy feliz' (i dag er jeg lykkelig)",
+        "etymology_no": "Fra latin 'hodie' (på denne dagen), av 'hoc die'",
+        "example_es": "Hoy es lunes.",
+        "example_no": "I dag er det mandag.",
+        "cefr_level": "A1",
+        "frequency_rank_estimate": 100
+      },
+      {
+        "lemma_es": "siempre",
+        "pos": "adverb",
+        "gloss_no": "alltid",
+        "gender": "none",
+        "article_quirk": "",
+        "conjugation_applicable": false,
+        "conjugation_present": {
+          "yo": "",
+          "tu": "",
+          "el": "",
+          "nosotros": "",
+          "vosotros": "",
+          "ellos": ""
+        },
+        "agreement_forms": {
+          "masc_sg": "",
+          "fem_sg": "",
+          "masc_pl": "",
+          "fem_pl": ""
+        },
+        "plural_form": "",
+        "memory_hook_no": "Italiensk 'sempre', portugisisk 'sempre' — samme latinsk rot på tvers av romanske språk",
+        "etymology_no": "Fra latin 'semper' (alltid, til enhver tid)",
+        "example_es": "Siempre corro por la mañana.",
+        "example_no": "Jeg løper alltid om morgenen.",
+        "cefr_level": "A1",
+        "frequency_rank_estimate": 110
+      },
+      {
+        "lemma_es": "también",
+        "pos": "adverb",
+        "gloss_no": "også",
+        "gender": "none",
+        "article_quirk": "",
+        "conjugation_applicable": false,
+        "conjugation_present": {
+          "yo": "",
+          "tu": "",
+          "el": "",
+          "nosotros": "",
+          "vosotros": "",
+          "ellos": ""
+        },
+        "agreement_forms": {
+          "masc_sg": "",
+          "fem_sg": "",
+          "masc_pl": "",
+          "fem_pl": ""
+        },
+        "plural_form": "",
+        "memory_hook_no": "Deler seg i 'tan bien' (så bra) — 'også' legger til noe positivt",
+        "etymology_no": "Fra 'tan' (så) + 'bien' (godt), opprinnelig 'like så godt som'",
+        "example_es": "Yo también hablo español.",
+        "example_no": "Jeg snakker også spansk.",
+        "cefr_level": "A1",
+        "frequency_rank_estimate": 75
+      },
+      {
+        "lemma_es": "de",
+        "pos": "preposition",
+        "gloss_no": "av / fra",
+        "gender": "none",
+        "article_quirk": "de + el = del (sammentrekning)",
+        "conjugation_applicable": false,
+        "conjugation_present": {
+          "yo": "",
+          "tu": "",
+          "el": "",
+          "nosotros": "",
+          "vosotros": "",
+          "ellos": ""
+        },
+        "agreement_forms": {
+          "masc_sg": "",
+          "fem_sg": "",
+          "masc_pl": "",
+          "fem_pl": ""
+        },
+        "plural_form": "",
+        "memory_hook_no": "Fransk 'de', engelsk 'of' (via latin) — samme funksjon: eiendom, opprinnelse, materiale",
+        "etymology_no": "Fra latin 'de' (ned fra, angående, av)",
+        "example_es": "El libro es de María.",
+        "example_no": "Boken er Marías.",
+        "cefr_level": "A1",
+        "frequency_rank_estimate": 3
+      },
+      {
+        "lemma_es": "en",
+        "pos": "preposition",
+        "gloss_no": "i / på",
+        "gender": "none",
+        "article_quirk": "",
+        "conjugation_applicable": false,
+        "conjugation_present": {
+          "yo": "",
+          "tu": "",
+          "el": "",
+          "nosotros": "",
+          "vosotros": "",
+          "ellos": ""
+        },
+        "agreement_forms": {
+          "masc_sg": "",
+          "fem_sg": "",
+          "masc_pl": "",
+          "fem_pl": ""
+        },
+        "plural_form": "",
+        "memory_hook_no": "Fransk 'en' (i, på) — identisk form og betydning",
+        "etymology_no": "Fra latin 'in' (i, på, inni)",
+        "example_es": "Trabajo en casa.",
+        "example_no": "Jeg jobber hjemme.",
+        "cefr_level": "A1",
+        "frequency_rank_estimate": 8
+      },
+      {
+        "lemma_es": "con",
+        "pos": "preposition",
+        "gloss_no": "med",
+        "gender": "none",
+        "article_quirk": "",
+        "conjugation_applicable": false,
+        "conjugation_present": {
+          "yo": "",
+          "tu": "",
+          "el": "",
+          "nosotros": "",
+          "vosotros": "",
+          "ellos": ""
+        },
+        "agreement_forms": {
+          "masc_sg": "",
+          "fem_sg": "",
+          "masc_pl": "",
+          "fem_pl": ""
+        },
+        "plural_form": "",
+        "memory_hook_no": "Engelsk 'con-' prefiks (sammenheng, kontakt) — samme latinsk rot for 'sammen'",
+        "etymology_no": "Fra latin 'cum' (med, sammen med)",
+        "example_es": "Voy con mi amigo.",
+        "example_no": "Jeg går med vennen min.",
+        "cefr_level": "A1",
+        "frequency_rank_estimate": 18
+      },
+      {
+        "lemma_es": "a",
+        "pos": "preposition",
+        "gloss_no": "til",
+        "gender": "none",
+        "article_quirk": "a + el = al (sammentrekning), personal a foran mennesker som direkte objekt",
+        "conjugation_applicable": false,
+        "conjugation_present": {
+          "yo": "",
+          "tu": "",
+          "el": "",
+          "nosotros": "",
+          "vosotros": "",
+          "ellos": ""
+        },
+        "agreement_forms": {
+          "masc_sg": "",
+          "fem_sg": "",
+          "masc_pl": "",
+          "fem_pl": ""
+        },
+        "plural_form": "",
+        "memory_hook_no": "Korteste spanske preposisjon, men med flest funksjoner: retning, tid, mottaker, personal a",
+        "etymology_no": "Fra latin 'ad' (til, mot, ved)",
+        "example_es": "Voy a la escuela.",
+        "example_no": "Jeg går til skolen.",
+        "cefr_level": "A1",
+        "frequency_rank_estimate": 2
+      },
+      {
+        "lemma_es": "para",
+        "pos": "preposition",
+        "gloss_no": "for / til",
+        "gender": "none",
+        "article_quirk": "",
+        "conjugation_applicable": false,
+        "conjugation_present": {
+          "yo": "",
+          "tu": "",
+          "el": "",
+          "nosotros": "",
+          "vosotros": "",
+          "ellos": ""
+        },
+        "agreement_forms": {
+          "masc_sg": "",
+          "fem_sg": "",
+          "masc_pl": "",
+          "fem_pl": ""
+        },
+        "plural_form": "",
+        "memory_hook_no": "'Para' uttrykker formål (til hva noe er), mens 'por' uttrykker årsak (hvorfor noe skjer)",
+        "etymology_no": "Fra latin 'per ad' (gjennom til, for å nå)",
+        "example_es": "Este regalo es para ti.",
+        "example_no": "Denne gaven er til deg.",
+        "cefr_level": "A1",
+        "frequency_rank_estimate": 28
+      },
+      {
+        "lemma_es": "por",
+        "pos": "preposition",
+        "gloss_no": "for / gjennom / på grunn av",
+        "gender": "none",
+        "article_quirk": "",
+        "conjugation_applicable": false,
+        "conjugation_present": {
+          "yo": "",
+          "tu": "",
+          "el": "",
+          "nosotros": "",
+          "vosotros": "",
+          "ellos": ""
+        },
+        "agreement_forms": {
+          "masc_sg": "",
+          "fem_sg": "",
+          "masc_pl": "",
+          "fem_pl": ""
+        },
+        "plural_form": "",
+        "memory_hook_no": "'Por favor' (vær så snill) — 'por' for årsak/byttehandel, 'para' for formål/destinasjon",
+        "etymology_no": "Fra latin 'pro' (for, på vegne av, i stedet for)",
+        "example_es": "Camino por el parque.",
+        "example_no": "Jeg går gjennom parken.",
+        "cefr_level": "A1",
+        "frequency_rank_estimate": 22
+      },
+      {
+        "lemma_es": "y",
+        "pos": "conjunction",
+        "gloss_no": "og",
+        "gender": "none",
+        "article_quirk": "blir 'e' foran ord som starter med i- eller hi-",
+        "conjugation_applicable": false,
+        "conjugation_present": {
+          "yo": "",
+          "tu": "",
+          "el": "",
+          "nosotros": "",
+          "vosotros": "",
+          "ellos": ""
+        },
+        "agreement_forms": {
+          "masc_sg": "",
+          "fem_sg": "",
+          "masc_pl": "",
+          "fem_pl": ""
+        },
+        "plural_form": "",
+        "memory_hook_no": "Fransk 'et', italiensk 'e' — samme latinsk rot, endring til 'e' foran i-lyder",
+        "etymology_no": "Fra latin 'et' (og)",
+        "example_es": "Ana y Luis estudian.",
+        "example_no": "Ana og Luis studerer.",
+        "cefr_level": "A1",
+        "frequency_rank_estimate": 5
+      },
+      {
+        "lemma_es": "o",
+        "pos": "conjunction",
+        "gloss_no": "eller",
+        "gender": "none",
+        "article_quirk": "blir 'u' foran ord som starter med o- eller ho-",
+        "conjugation_applicable": false,
+        "conjugation_present": {
+          "yo": "",
+          "tu": "",
+          "el": "",
+          "nosotros": "",
+          "vosotros": "",
+          "ellos": ""
+        },
+        "agreement_forms": {
+          "masc_sg": "",
+          "fem_sg": "",
+          "masc_pl": "",
+          "fem_pl": ""
+        },
+        "plural_form": "",
+        "memory_hook_no": "Bare én bokstav, som engelsk 'or' — kort og enkel konjunksjon for alternativ",
+        "etymology_no": "Fra latin 'aut' (eller, eller også)",
+        "example_es": "¿Té o café?",
+        "example_no": "Te eller kaffe?",
+        "cefr_level": "A1",
+        "frequency_rank_estimate": 45
+      },
+      {
+        "lemma_es": "pero",
+        "pos": "conjunction",
+        "gloss_no": "men",
+        "gender": "none",
+        "article_quirk": "",
+        "conjugation_applicable": false,
+        "conjugation_present": {
+          "yo": "",
+          "tu": "",
+          "el": "",
+          "nosotros": "",
+          "vosotros": "",
+          "ellos": ""
+        },
+        "agreement_forms": {
+          "masc_sg": "",
+          "fem_sg": "",
+          "masc_pl": "",
+          "fem_pl": ""
+        },
+        "plural_form": "",
+        "memory_hook_no": "Fransk 'pourtant' (likevel) — samme idé om kontrast mellom to tanker",
+        "etymology_no": "Fra latin 'per hoc' (gjennom dette, likevel)",
+        "example_es": "Es pequeño pero bonito.",
+        "example_no": "Den er liten, men pen.",
+        "cefr_level": "A1",
+        "frequency_rank_estimate": 38
+      },
+      {
+        "lemma_es": "porque",
+        "pos": "conjunction",
+        "gloss_no": "fordi",
+        "gender": "none",
+        "article_quirk": "",
+        "conjugation_applicable": false,
+        "conjugation_present": {
+          "yo": "",
+          "tu": "",
+          "el": "",
+          "nosotros": "",
+          "vosotros": "",
+          "ellos": ""
+        },
+        "agreement_forms": {
+          "masc_sg": "",
+          "fem_sg": "",
+          "masc_pl": "",
+          "fem_pl": ""
+        },
+        "plural_form": "",
+        "memory_hook_no": "'Por qué' (hvorfor, to ord) spør, 'porque' (fordi, ett ord) svarer",
+        "etymology_no": "Fra 'por' (for) + 'que' (at), bokstavelig 'for at'",
+        "example_es": "Estudio porque quiero aprender.",
+        "example_no": "Jeg studerer fordi jeg vil lære.",
+        "cefr_level": "A1",
+        "frequency_rank_estimate": 55
+      },
+      {
+        "lemma_es": "no",
+        "pos": "adverb",
+        "gloss_no": "nei / ikke",
+        "gender": "none",
+        "article_quirk": "",
+        "conjugation_applicable": false,
+        "conjugation_present": {
+          "yo": "",
+          "tu": "",
+          "el": "",
+          "nosotros": "",
+          "vosotros": "",
+          "ellos": ""
+        },
+        "agreement_forms": {
+          "masc_sg": "",
+          "fem_sg": "",
+          "masc_pl": "",
+          "fem_pl": ""
+        },
+        "plural_form": "",
+        "memory_hook_no": "Universelt 'no' på mange språk — samme form og betydning for nektelse",
+        "etymology_no": "Fra latin 'non' (ikke, nei)",
+        "example_es": "No tengo dinero.",
+        "example_no": "Jeg har ikke penger.",
+        "cefr_level": "A1",
+        "frequency_rank_estimate": 10
+      },
+      {
+        "lemma_es": "uno",
+        "pos": "numeral",
+        "gloss_no": "én / ett",
+        "gender": "mf",
+        "article_quirk": "",
+        "conjugation_applicable": false,
+        "conjugation_present": {
+          "yo": "",
+          "tu": "",
+          "el": "",
+          "nosotros": "",
+          "vosotros": "",
+          "ellos": ""
+        },
+        "agreement_forms": {
+          "masc_sg": "un",
+          "fem_sg": "una",
+          "masc_pl": "unos",
+          "fem_pl": "unas"
+        },
+        "plural_form": "unos / unas",
+        "memory_hook_no": "Samme rot som 'unik', 'union' — én, eneste, samlet",
+        "etymology_no": "Fra latin 'unus' (én), kognat med engelsk 'one', tysk 'ein', fransk 'un'",
+        "example_es": "Tengo un perro.",
+        "example_no": "Jeg har én hund.",
+        "cefr_level": "A1",
+        "frequency_rank_estimate": 65
+      },
+      {
+        "lemma_es": "dos",
+        "pos": "numeral",
+        "gloss_no": "to",
+        "gender": "none",
+        "article_quirk": "",
+        "conjugation_applicable": false,
+        "conjugation_present": {
+          "yo": "",
+          "tu": "",
+          "el": "",
+          "nosotros": "",
+          "vosotros": "",
+          "ellos": ""
+        },
+        "agreement_forms": {
+          "masc_sg": "",
+          "fem_sg": "",
+          "masc_pl": "",
+          "fem_pl": ""
+        },
+        "plural_form": "",
+        "memory_hook_no": "Fransk 'deux', italiensk 'due' — samme latinsk rot på tvers av romanske språk",
+        "etymology_no": "Fra latin 'duo' (to), kognat med engelsk 'two', tysk 'zwei', norsk 'to'",
+        "example_es": "Tengo dos gatos.",
+        "example_no": "Jeg har to katter.",
+        "cefr_level": "A1",
+        "frequency_rank_estimate": 85
+      },
+      {
+        "lemma_es": "tres",
+        "pos": "numeral",
+        "gloss_no": "tre",
+        "gender": "none",
+        "article_quirk": "",
+        "conjugation_applicable": false,
+        "conjugation_present": {
+          "yo": "",
+          "tu": "",
+          "el": "",
+          "nosotros": "",
+          "vosotros": "",
+          "ellos": ""
+        },
+        "agreement_forms": {
+          "masc_sg": "",
+          "fem_sg": "",
+          "masc_pl": "",
+          "fem_pl": ""
+        },
+        "plural_form": "",
+        "memory_hook_no": "Fransk 'trois', engelsk 'three' — samme indoeuropeiske rot, lett gjenkjennelig",
+        "etymology_no": "Fra latin 'tres' (tre), kognat med engelsk 'three', tysk 'drei', norsk 'tre'",
+        "example_es": "Comemos a las tres.",
+        "example_no": "Vi spiser klokken tre.",
+        "cefr_level": "A1",
+        "frequency_rank_estimate": 120
       }
     ]
-  }
+  },
+  "verification_issues": [
+    {
+      "lemma_es": "ser",
+      "field": "etymology_no",
+      "severity": "critical",
+      "problem_no": "Etymologien sier at former kommer fra SEDERE (sitte), men presensformene (soy, eres, es, somos, sois, son) kommer fra latin SUM/ESSE-paradigmet, ikke SEDERE. Kun infinitiven 'ser' har mulig tilknytning til SEDERE (omdiskutert blant etymologer).",
+      "suggested_fix_no": "Fra latin ESSE (å være), med presensformer fra SUM (sum, es, est, sumus, sunt). Kognat med engelsk 'is/essence', norsk 'er/esse'."
+    },
+    {
+      "lemma_es": "hacer",
+      "field": "memory_hook_no",
+      "severity": "critical",
+      "problem_no": "Feil kognat-påstand: «hacer» er IKKE kognat til engelsk «make». «Hacer» kommer fra latin «facere», mens «make» kommer fra gammelengelsk «macian» (germansk opprinnelse). De har helt forskjellig etymologi og er ikke beslektet.",
+      "suggested_fix_no": "Uregelrett 1. person: «hago» (ikke *haco). Kognat til engelsk «fact», «factory», «manufacture» – alle fra samme latinske rot «facere»."
+    },
+    {
+      "lemma_es": "día",
+      "field": "etymology_no",
+      "severity": "critical",
+      "problem_no": "Etymologien hevder feilaktig at 'día' er kognat med engelsk 'day' og germansk 'dag'. Latin 'dies' (fra PIE *dyew- 'å skinne') og germansk 'dag' (fra PIE *dʰegʷʰ- 'å brenne') har helt forskjellige røtter og er IKKE kognater.",
+      "suggested_fix_no": "Fra latin 'dies' (dag). Maskulint kjønn bevart fra latin. IKKE kognat med germansk 'day/dag' (som har en helt annen rot)."
+    },
+    {
+      "lemma_es": "vivir",
+      "field": "memory_hook_no",
+      "severity": "minor",
+      "problem_no": "Memory hook sier 'Dobbel-v i stammen (viv-)', men dette er misvisende. Det er ikke dobbel-v (vv), men v-i-v — to separate v'er med vokal i mellom. Kan forvirre nybegynnere til å tro det skrives 'vvir'.",
+      "suggested_fix_no": "Stammen 'viv-' har to v'er (v-i-v). Tenk 'vivid' (livlig) — full av liv."
+    },
+    {
+      "lemma_es": "vivir",
+      "field": "gloss_no",
+      "severity": "minor",
+      "problem_no": "Gloss sier 'å leve', men eksempelsetningen bruker betydningen 'å bo' ('Jeg bor i Madrid'). Vivir har begge betydninger og burde reflekteres i gloss.",
+      "suggested_fix_no": "å leve; å bo"
+    },
+    {
+      "lemma_es": "o",
+      "field": "memory_hook_no",
+      "severity": "minor",
+      "problem_no": "Memory hooken sier at 'o' er 'som norsk å (konjunksjon for alternativ)', men 'å' er ikke en konjunksjon for alternativ på norsk. 'Å' er infinitivsmerke (f.eks. 'å gå', 'å være'). Konjunksjonen for alternativ på norsk er 'eller'.",
+      "suggested_fix_no": "Foreslår å endre memory hooken til for eksempel: 'Bare én bokstav, som engelsk 'or' — kort og enkel konjunksjon for alternativ' eller 'Korteste måte å uttrykke alternativ på — sammenlign med det lengre norske 'eller''"
+    }
+  ]
 }

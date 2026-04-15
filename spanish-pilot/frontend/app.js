@@ -1,10 +1,10 @@
-// Spansk — norsk pilot. Vanilla JS, no framework.
-// State is stored in a single object; views render to #app.
+// Spansk — norsk pilot. Vanilla JS. Mirrors Alif's sentence-first review UX.
 
-const API = ""; // same origin
+const API = "";
 const app = document.getElementById("app");
 
-// ---- Global state ----
+const FUNC_POS = new Set(["article", "preposition", "conjunction"]);
+
 const state = {
   students: [],
   currentStudent: null,
@@ -13,11 +13,15 @@ const state = {
   sessionMode: "self_grade",
   sessionStats: { correct: 0, wrong: 0, new_intro: 0 },
   itemStart: 0,
+
+  // Per-item review state
   showTranslation: false,
-  modalOpen: false,
+  expandedWord: null,        // lemma_es of currently-expanded word
+  markedMissed: new Set(),   // lemma_es set marked as "missed"
+  wordDetailCache: {},       // lemma_es → detail
+  lemmaPosByEs: {},          // lemma_es → pos (for func-word detection in current sentence)
 };
 
-// ---- Utilities ----
 async function api(path, opts = {}) {
   const r = await fetch(API + path, {
     headers: { "Content-Type": "application/json" },
@@ -32,19 +36,19 @@ function renderTpl(id) {
   const tpl = document.getElementById(id);
   return tpl.content.firstElementChild.cloneNode(true);
 }
-
 function clearApp() { app.innerHTML = ""; }
+function escapeHtml(s) {
+  return String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
 
-// ---- Login view ----
+// ---- Login ----
 async function showLogin() {
   clearApp();
   state.currentStudent = null;
   const page = renderTpl("tpl-login");
   app.appendChild(page);
 
-  try {
-    state.students = await api("/api/students");
-  } catch (e) { state.students = []; }
+  try { state.students = await api("/api/students"); } catch (e) { state.students = []; }
 
   const list = page.querySelector(".student-list");
   if (state.students.length === 0) {
@@ -75,20 +79,17 @@ async function showLogin() {
       const s = await api("/api/students", { method: "POST", body: { name } });
       state.students.push(s);
       await showLogin();
-    } catch (e) {
-      alert(e.message);
-    }
+    } catch (e) { alert(e.message); }
   });
 }
 
 async function enterStudent(id) {
-  const s = state.students.find(x => x.id === id);
-  state.currentStudent = s;
-  state.sessionMode = s?.mode_preference || "self_grade";
+  state.currentStudent = state.students.find(x => x.id === id);
+  state.sessionMode = state.currentStudent?.mode_preference || "self_grade";
   await showDashboard();
 }
 
-// ---- Dashboard view ----
+// ---- Dashboard ----
 async function showDashboard() {
   clearApp();
   const page = renderTpl("tpl-dashboard");
@@ -97,10 +98,9 @@ async function showDashboard() {
   page.querySelector(".student-name").textContent = state.currentStudent.name;
   page.querySelector('[data-action="back-to-login"]').addEventListener("click", showLogin);
 
-  let stats;
   try {
     const data = await api(`/api/students/${state.currentStudent.id}/dashboard`);
-    stats = data.stats;
+    const stats = data.stats;
     state.sessionMode = data.student.mode_preference;
 
     page.querySelector("[data-id=known-count]").textContent = stats.known;
@@ -114,7 +114,6 @@ async function showDashboard() {
     page.querySelector("[data-id=lapsed-count]").textContent = stats.lapsed;
     page.querySelector("[data-id=total-lemmas]").textContent = stats.total_lemmas;
 
-    // Due badge on start tab
     const dueBadge = page.querySelector("[data-id=due-badge]");
     if (stats.due_now > 0) {
       dueBadge.textContent = `${stats.due_now} ord til repetisjon`;
@@ -123,14 +122,11 @@ async function showDashboard() {
       dueBadge.textContent = "Du har ingen ord ennå — start for å lære nye";
       dueBadge.classList.add("empty");
     } else {
-      dueBadge.textContent = "Ingen ord til repetisjon nå — øv på nye ord";
+      dueBadge.textContent = "Ingen ord til repetisjon nå — øv på nye";
       dueBadge.classList.add("empty");
     }
-  } catch (e) {
-    console.error(e);
-  }
+  } catch (e) { console.error(e); }
 
-  // Mode toggle
   page.querySelectorAll(".toggle-btn").forEach(btn => {
     if (btn.dataset.mode === state.sessionMode) btn.classList.add("active");
     btn.addEventListener("click", async () => {
@@ -139,14 +135,12 @@ async function showDashboard() {
       state.sessionMode = btn.dataset.mode;
       try {
         await api(`/api/students/${state.currentStudent.id}/mode`, {
-          method: "PUT",
-          body: { mode_preference: btn.dataset.mode },
+          method: "PUT", body: { mode_preference: btn.dataset.mode },
         });
       } catch (e) { console.error(e); }
     });
   });
 
-  // Bottom tab nav
   page.querySelectorAll(".tab-btn").forEach(btn => {
     btn.addEventListener("click", () => {
       const target = btn.dataset.tabTarget;
@@ -158,7 +152,7 @@ async function showDashboard() {
   page.querySelector('[data-action="start-session"]').addEventListener("click", startSession);
 }
 
-// ---- Review session ----
+// ---- Session ----
 async function startSession() {
   try {
     const items = await api(`/api/students/${state.currentStudent.id}/session`);
@@ -181,60 +175,131 @@ function showReview() {
   page.querySelector('[data-action="exit-session"]').addEventListener("click", () => {
     if (confirm("Avslutte økten?")) showDashboard();
   });
-
   renderCurrentItem();
 }
 
 function renderCurrentItem() {
   const item = state.sessionItems[state.sessionIdx];
-  if (!item) {
-    showSessionEnd();
-    return;
-  }
+  if (!item) { showSessionEnd(); return; }
+
+  // Reset per-item state
+  state.showTranslation = false;
+  state.expandedWord = null;
+  state.markedMissed = new Set();
+  state.lemmaPosByEs = {};
+  state.itemStart = Date.now();
+
   const total = state.sessionItems.length;
   const current = state.sessionIdx + 1;
-  const progressFill = app.querySelector(".progress-fill");
-  progressFill.style.width = `${(current / total) * 100}%`;
+  app.querySelector(".progress-fill").style.width = `${(current / total) * 100}%`;
   app.querySelector("[data-id=progress-current]").textContent = current;
   app.querySelector("[data-id=progress-total]").textContent = total;
-
-  state.showTranslation = false;
-  state.itemStart = Date.now();
 
   const body = app.querySelector("[data-id=review-body]");
   body.innerHTML = "";
 
-  const newBadge = item.is_new ? '<div class="new-badge">NYTT ORD</div>' : '';
-
-  // Build Spanish sentence with clickable words
-  const esHtml = buildClickableSentence(item.sentence_es, item.word_mapping, item.lemma_es);
-
-  const card = document.createElement("div");
-  card.className = "card-wrap";
-  card.innerHTML = `
-    ${newBadge}
-    <div class="card-es">${esHtml}</div>
-    <div class="card-no hidden" data-id="translation">${escapeHtml(item.sentence_no)}</div>
-  `;
-  body.appendChild(card);
-
-  // Attach word-click handlers (by lemma_es)
-  card.querySelectorAll(".clickable-word[data-lemma-es]").forEach(el => {
-    el.addEventListener("click", () => showWordModal(el.dataset.lemmaEs));
-  });
-
-  if (state.sessionMode === "self_grade") {
-    renderSelfGrade(body, item);
+  if (item.kind === "intro_card") {
+    renderIntroCard(body, item);
+  } else if (state.sessionMode === "multiple_choice") {
+    renderMultipleChoiceItem(body, item);
   } else {
-    renderMultipleChoice(body, item);
+    renderSelfGradeItem(body, item);
   }
 }
 
-function buildClickableSentence(es, wordMapping, targetLemmaEs) {
-  // word_mapping: [{position, form, lemma_es, grammatical_note}]
-  // We walk whitespace-separated tokens and match to mapping entries in order.
-  const tokens = es.split(/(\s+)/);
-  const sorted = [...(wordMapping || [])].sort((a, b) => a.position - b.position);
+async function renderIntroCard(body, item) {
+  const wrap = document.createElement("div");
+  wrap.className = "intro-wrap";
+  wrap.innerHTML = `
+    <div class="intro-label">Nytt ord</div>
+    <h2 class="intro-heading">Bli kjent med et nytt spansk ord</h2>
+    <div class="intro-lemma-card" data-id="intro-detail-slot"></div>
+    <div class="action-row" style="max-width:400px; margin:0 auto;">
+      <button class="action-btn primary" data-act="continue-intro">Jeg forstår — videre</button>
+    </div>
+  `;
+  body.appendChild(wrap);
+
+  // Load full detail for this lemma and render inline
+  const slot = wrap.querySelector("[data-id=intro-detail-slot]");
+  try {
+    const detail = await api(`/api/lemmas/by-es/${encodeURIComponent(item.lemma_es)}?student_id=${state.currentStudent.id}`);
+    state.wordDetailCache[item.lemma_es] = detail;
+    slot.innerHTML = renderWordDetail(detail, item.lemma_es);
+    // Hide "mark as missed" button on intro cards
+    slot.querySelector("[data-act=toggle-missed]")?.remove();
+  } catch (e) {
+    slot.innerHTML = `<div class="word-detail">Kunne ikke hente ordinfo.</div>`;
+  }
+
+  wrap.querySelector('[data-act="continue-intro"]').addEventListener("click", () => {
+    state.sessionIdx++;
+    renderCurrentItem();
+  });
+}
+
+// Self-grade: Alif-style. Sentence + 3 buttons. Word detail inline.
+function renderSelfGradeItem(body, item) {
+  // Pre-fetch word POS info so we can mark function words
+  // (cheap: use word_mapping which already has lemma_es; we'll fetch detail lazily on click)
+  const wrap = document.createElement("div");
+  wrap.className = "sentence-card";
+
+  if (item.is_new) {
+    const tag = document.createElement("div");
+    tag.className = "new-tag";
+    tag.textContent = "Nytt ord";
+    tag.style.textAlign = "center";
+    wrap.appendChild(tag);
+  }
+
+  const sentence = document.createElement("div");
+  sentence.className = "sentence-es";
+  sentence.innerHTML = renderClickableSentence(item);
+  wrap.appendChild(sentence);
+
+  const wordDetailSlot = document.createElement("div");
+  wordDetailSlot.dataset.id = "word-detail-slot";
+  wrap.appendChild(wordDetailSlot);
+
+  const answer = document.createElement("div");
+  answer.className = "answer-section hidden-stable";
+  answer.innerHTML = `<div class="sentence-no">${escapeHtml(item.sentence_no)}</div>`;
+  wrap.appendChild(answer);
+
+  const actions = document.createElement("div");
+  actions.className = "action-row";
+  actions.innerHTML = `
+    <button class="action-btn no-idea" data-act="no_idea">Vet ikke</button>
+    <button class="action-btn know-all" data-act="know_all">Kan alle</button>
+    <button class="action-btn show-trans" data-act="show_trans">Vis oversettelse</button>
+  `;
+  wrap.appendChild(actions);
+
+  body.appendChild(wrap);
+
+  // Word click handlers
+  wrap.querySelectorAll(".sentence-es .word:not(.func)").forEach(el => {
+    el.addEventListener("click", (ev) => {
+      ev.stopPropagation();
+      const lemmaEs = el.dataset.lemmaEs;
+      handleWordTap(lemmaEs, el);
+    });
+  });
+
+  // Action buttons
+  actions.querySelector('[data-act="no_idea"]').addEventListener("click", () => submitSentence(item, "no_idea"));
+  actions.querySelector('[data-act="know_all"]').addEventListener("click", () => submitSentence(item, "know_all"));
+  actions.querySelector('[data-act="show_trans"]').addEventListener("click", () => {
+    state.showTranslation = true;
+    answer.classList.remove("hidden-stable");
+    actions.querySelector('[data-act="show_trans"]').remove();
+  });
+}
+
+function renderClickableSentence(item) {
+  const tokens = item.sentence_es.split(/(\s+)/);
+  const sorted = [...(item.word_mapping || [])].sort((a, b) => a.position - b.position);
   let mapIdx = 0;
 
   return tokens.map(tok => {
@@ -246,169 +311,107 @@ function buildClickableSentence(es, wordMapping, targetLemmaEs) {
 
     const mapping = sorted[mapIdx++];
     const lemmaEs = mapping?.lemma_es || "";
-    const isTarget = lemmaEs && lemmaEs === targetLemmaEs;
-    const attrs = lemmaEs
-      ? `class="clickable-word${isTarget ? ' word-highlight' : ''}" data-lemma-es="${escapeAttr(lemmaEs)}"`
-      : '';
-    return `${escapeHtml(leading)}<span ${attrs}>${escapeHtml(core)}</span>${escapeHtml(trailing)}`;
+    if (!lemmaEs) return escapeHtml(tok);
+
+    const isTarget = lemmaEs === item.lemma_es;
+    // We don't know POS for arbitrary lemmas without a fetch. We'll mark target/non-func based on cache; default = clickable.
+    const cached = state.wordDetailCache[lemmaEs];
+    const isFunc = cached ? FUNC_POS.has(cached.pos) : false;
+    const cls = ["word"];
+    if (isTarget) cls.push("target");
+    if (isFunc) cls.push("func");
+    const attr = `class="${cls.join(" ")}" data-lemma-es="${escapeHtml(lemmaEs)}"`;
+    return `${escapeHtml(leading)}<span ${attr}>${escapeHtml(core)}</span>${escapeHtml(trailing)}`;
   }).join("");
 }
 
-function renderSelfGrade(body, item) {
-  const btn = document.createElement("button");
-  btn.className = "show-answer-btn";
-  btn.textContent = "Vis oversettelse";
-  btn.addEventListener("click", () => {
-    state.showTranslation = true;
-    body.querySelector("[data-id=translation]").classList.remove("hidden");
-    btn.remove();
+async function handleWordTap(lemmaEs, el) {
+  // Toggle expanded if same word; else load + expand.
+  if (state.expandedWord === lemmaEs) {
+    state.expandedWord = null;
+    el.classList.remove("expanded");
+    document.querySelector("[data-id=word-detail-slot]").innerHTML = "";
+    return;
+  }
 
-    const ratings = document.createElement("div");
-    ratings.className = "ratings";
-    ratings.innerHTML = `
-      <button class="rating-btn" data-rating="1">Igjen<small>< 1 min</small></button>
-      <button class="rating-btn" data-rating="2">Vanskelig<small>snart</small></button>
-      <button class="rating-btn" data-rating="3">Greit<small>planlagt</small></button>
-      <button class="rating-btn" data-rating="4">Lett<small>senere</small></button>
-    `;
-    ratings.querySelectorAll(".rating-btn").forEach(b => {
-      b.addEventListener("click", () => submitRating(Number(b.dataset.rating), null));
-    });
-    body.appendChild(ratings);
+  // Mark previous as not expanded
+  document.querySelectorAll(".sentence-es .word.expanded").forEach(w => w.classList.remove("expanded"));
+  el.classList.add("expanded");
+  state.expandedWord = lemmaEs;
+
+  // Load + render
+  const slot = document.querySelector("[data-id=word-detail-slot]");
+  slot.innerHTML = `<div class="word-detail" style="opacity:0.6">Laster…</div>`;
+
+  let detail = state.wordDetailCache[lemmaEs];
+  if (!detail) {
+    try {
+      detail = await api(`/api/lemmas/by-es/${encodeURIComponent(lemmaEs)}?student_id=${state.currentStudent.id}`);
+      state.wordDetailCache[lemmaEs] = detail;
+    } catch (e) {
+      slot.innerHTML = `<div class="word-detail">Kunne ikke hente ordinfo.</div>`;
+      return;
+    }
+  }
+  slot.innerHTML = renderWordDetail(detail, lemmaEs);
+
+  // Wire "mark as missed" toggle
+  slot.querySelector("[data-act=toggle-missed]")?.addEventListener("click", () => {
+    if (state.markedMissed.has(lemmaEs)) {
+      state.markedMissed.delete(lemmaEs);
+    } else {
+      state.markedMissed.add(lemmaEs);
+    }
+    updateMarkedClasses();
+    refreshActionButtons();
   });
-  body.appendChild(btn);
 }
 
-function renderMultipleChoice(body, item) {
-  // Build options: correct + 3 distractors, shuffled
-  const opts = [{ text: item.sentence_no, correct: true }];
-  for (const d of item.distractors_no) opts.push({ text: d, correct: false });
-  shuffle(opts);
-
-  const wrap = document.createElement("div");
-  wrap.className = "mc-options";
-  opts.forEach(o => {
-    const btn = document.createElement("button");
-    btn.className = "mc-option";
-    btn.textContent = o.text;
-    btn.addEventListener("click", () => {
-      // Reveal correct/incorrect, offer continue
-      Array.from(wrap.children).forEach(el => el.disabled = true);
-      const correct = o.correct;
-      btn.classList.add(correct ? "correct" : "incorrect");
-      if (!correct) {
-        Array.from(wrap.children).forEach(el => {
-          if (opts[Array.from(wrap.children).indexOf(el)].correct) {
-            el.classList.add("correct");
-          }
-        });
-      }
-      // Also reveal official translation below
-      body.querySelector("[data-id=translation]").classList.remove("hidden");
-
-      // Feedback + continue
-      const fb = document.createElement("div");
-      fb.className = `mc-feedback ${correct ? "good" : "bad"}`;
-      fb.textContent = correct ? "Riktig!" : "Feil.";
-      body.appendChild(fb);
-
-      const cont = document.createElement("button");
-      cont.className = "btn btn-primary mc-continue-btn";
-      cont.textContent = "Fortsett";
-      cont.addEventListener("click", () => {
-        // Map correct/incorrect to rating: correct→3 Good, incorrect→1 Again
-        const rating = correct ? 3 : 1;
-        submitRating(rating, correct);
-      });
-      body.appendChild(cont);
-    });
-    wrap.appendChild(btn);
+function updateMarkedClasses() {
+  document.querySelectorAll(".sentence-es .word").forEach(w => {
+    if (state.markedMissed.has(w.dataset.lemmaEs)) {
+      w.classList.add("marked-missed");
+    } else {
+      w.classList.remove("marked-missed");
+    }
   });
-  body.appendChild(wrap);
-}
-
-async function submitRating(rating, correct) {
-  const item = state.sessionItems[state.sessionIdx];
-  const ms = Date.now() - state.itemStart;
-  try {
-    await api(`/api/students/${state.currentStudent.id}/review`, {
-      method: "POST",
-      body: {
-        card_id: item.card_id,
-        sentence_id: item.sentence_id,
-        rating,
-        mode: state.sessionMode,
-        correct,
-        response_ms: ms,
-      },
-    });
-    if (rating >= 3) state.sessionStats.correct++; else state.sessionStats.wrong++;
-    if (item.is_new) state.sessionStats.new_intro++;
-  } catch (e) { console.error(e); }
-  state.sessionIdx++;
-  renderCurrentItem();
-}
-
-function showSessionEnd() {
-  clearApp();
-  const page = renderTpl("tpl-session-end");
-  app.appendChild(page);
-
-  const stats = state.sessionStats;
-  const total = stats.correct + stats.wrong;
-  page.querySelector("[data-id=end-stats]").innerHTML = `
-    <div class="state-row"><span>Repetert</span><strong>${total}</strong></div>
-    <div class="state-row"><span>Riktig</span><strong>${stats.correct}</strong></div>
-    <div class="state-row"><span>Feil</span><strong>${stats.wrong}</strong></div>
-    <div class="state-row"><span>Nye ord introdusert</span><strong>${stats.new_intro}</strong></div>
-  `;
-
-  page.querySelector('[data-action="back-to-dashboard"]').addEventListener("click", showDashboard);
-}
-
-// ---- Word detail modal ----
-async function showWordModal(lemmaEs) {
-  try {
-    const url = `/api/lemmas/by-es/${encodeURIComponent(lemmaEs)}?student_id=${state.currentStudent.id}`;
-    const detail = await api(url);
-    openModalWithDetail(detail);
-  } catch (e) {
-    console.error("Kunne ikke hente ordinfo:", e);
+  // Update the "mark missed" button text in the open word detail
+  const btn = document.querySelector("[data-act=toggle-missed]");
+  if (btn) {
+    const isMarked = state.markedMissed.has(state.expandedWord);
+    btn.textContent = isMarked ? "Fjern markering" : "Marker som ukjent";
+    btn.classList.toggle("marked", isMarked);
   }
 }
 
-function openModalWithDetail(d) {
-  const modal = renderTpl("tpl-word-modal");
-  document.body.appendChild(modal);
-  state.modalOpen = true;
-
-  const wd = modal.querySelector("[data-id=word-detail]");
-  wd.innerHTML = buildWordDetailHtml(d);
-
-  modal.addEventListener("click", (ev) => {
-    const action = ev.target.closest("[data-action=close-modal]");
-    if (action || ev.target === modal) closeModal();
-  });
+function refreshActionButtons() {
+  // If any words are marked → "Kan alle" becomes "Fortsett"
+  const knowBtn = document.querySelector('[data-act="know_all"]');
+  if (!knowBtn) return;
+  if (state.markedMissed.size > 0) {
+    knowBtn.textContent = "Fortsett";
+    knowBtn.classList.remove("know-all");
+    knowBtn.classList.add("continue");
+    knowBtn.dataset.act = "continue";
+    knowBtn.removeEventListener("click", knowBtn._handler);
+    knowBtn._handler = () => submitSentence(state.sessionItems[state.sessionIdx], "continue");
+    knowBtn.addEventListener("click", knowBtn._handler);
+  }
 }
 
-function closeModal() {
-  const m = document.querySelector(".modal-backdrop");
-  if (m) m.remove();
-  state.modalOpen = false;
-}
-
-function buildWordDetailHtml(d) {
-  const genderBadge = d.gender && d.gender !== "none"
-    ? `<span class="badge-gender badge-${d.gender}">${d.gender === "m" ? "maskulin" : d.gender === "f" ? "feminin" : d.gender}</span>`
-    : "";
+function renderWordDetail(d, lemmaEs) {
+  const isMarked = state.markedMissed.has(lemmaEs);
+  const genderBadge = (d.gender && d.gender !== "none")
+    ? `<span class="wd-badge gender-${d.gender}">${d.gender === "m" ? "maskulin" : d.gender === "f" ? "feminin" : d.gender}</span>` : "";
   const quirk = d.article_quirk
-    ? `<div class="w-section"><div class="w-quirk">⚠ ${escapeHtml(d.article_quirk)}</div></div>` : "";
+    ? `<div class="wd-section"><div class="wd-quirk">${escapeHtml(d.article_quirk)}</div></div>` : "";
+
   let conj = "";
   if (d.conjugation_applicable && d.conjugation_present) {
     const c = d.conjugation_present;
-    conj = `<div class="w-section">
-      <div class="w-section-title">Presens</div>
-      <table class="w-conj">
+    conj = `<div class="wd-section">
+      <div class="wd-section-title">Presens</div>
+      <table class="wd-conj">
         <tr><td>yo</td><td>${escapeHtml(c.yo)}</td><td>nosotros</td><td>${escapeHtml(c.nosotros)}</td></tr>
         <tr><td>tú</td><td>${escapeHtml(c.tu)}</td><td>vosotros</td><td>${escapeHtml(c.vosotros)}</td></tr>
         <tr><td>él/ella</td><td>${escapeHtml(c.el)}</td><td>ellos/ellas</td><td>${escapeHtml(c.ellos)}</td></tr>
@@ -418,25 +421,27 @@ function buildWordDetailHtml(d) {
   let agr = "";
   if (d.agreement_forms && Object.values(d.agreement_forms).some(v => v)) {
     const a = d.agreement_forms;
-    agr = `<div class="w-section">
-      <div class="w-section-title">Kongruens</div>
-      <table class="w-conj">
+    agr = `<div class="wd-section">
+      <div class="wd-section-title">Kongruens</div>
+      <table class="wd-conj">
         <tr><td>mask.sg</td><td>${escapeHtml(a.masc_sg || "")}</td><td>mask.pl</td><td>${escapeHtml(a.masc_pl || "")}</td></tr>
         <tr><td>fem.sg</td><td>${escapeHtml(a.fem_sg || "")}</td><td>fem.pl</td><td>${escapeHtml(a.fem_pl || "")}</td></tr>
       </table>
     </div>`;
   }
   const plural = d.plural_form
-    ? `<div class="w-section"><span class="w-section-title">Flertall: </span><strong>${escapeHtml(d.plural_form)}</strong></div>` : "";
+    ? `<div class="wd-section"><span class="wd-section-title">Flertall: </span><strong>${escapeHtml(d.plural_form)}</strong></div>` : "";
   const hook = d.memory_hook_no
-    ? `<div class="w-section"><div class="w-section-title">Huskeregel</div><div>${escapeHtml(d.memory_hook_no)}</div></div>` : "";
+    ? `<div class="wd-section"><div class="wd-section-title">Huskeregel</div><div>${escapeHtml(d.memory_hook_no)}</div></div>` : "";
   const etym = d.etymology_no
-    ? `<div class="w-section"><div class="w-section-title">Etymologi</div><div>${escapeHtml(d.etymology_no)}</div></div>` : "";
+    ? `<div class="wd-section"><div class="wd-section-title">Etymologi</div><div>${escapeHtml(d.etymology_no)}</div></div>` : "";
   const example = d.example_es
-    ? `<div class="w-section"><div class="w-section-title">Eksempel</div>
-         <div style="color:var(--accent-dark); font-size:1rem">${escapeHtml(d.example_es)}</div>
-         <div style="color:var(--text-muted); font-style:italic; font-size:0.95rem">${escapeHtml(d.example_no)}</div>
+    ? `<div class="wd-section">
+         <div class="wd-section-title">Eksempel</div>
+         <div class="wd-example-es">${escapeHtml(d.example_es)}</div>
+         <div class="wd-example-no">${escapeHtml(d.example_no)}</div>
        </div>` : "";
+
   let status = "";
   if (d.card_state) {
     let label = "";
@@ -445,21 +450,26 @@ function buildWordDetailHtml(d) {
     else if (d.card_state === "known") label = "Kjent";
     else if (d.card_state === "lapsed") label = "Glemt — må repeteres";
     else label = d.card_state;
-    status = `<div class="w-status">
-      <div class="w-status-title">Din status</div>
+    status = `<div class="wd-status">
+      <div class="wd-status-title">Din status</div>
       <div>${label} · sett ${d.times_seen} ganger (${d.times_correct} riktig)</div>
     </div>`;
   }
 
-  return `
-    <div class="w-head">
-      <div class="w-es">${escapeHtml(d.lemma_es)}</div>
-      <div class="w-gloss">${escapeHtml(d.gloss_no)}</div>
-      <div class="w-meta">
-        <span class="badge-pos">${escapeHtml(d.pos)}</span>
+  // Func words (article/preposition/conjunction) don't get a "mark missed" — they're not graded
+  const isFunc = FUNC_POS.has(d.pos);
+  const markBtn = isFunc ? "" :
+    `<button class="btn btn-secondary" style="width:100%; margin-top:0.75rem;" data-act="toggle-missed">${isMarked ? "Fjern markering" : "Marker som ukjent"}</button>`;
+
+  return `<div class="word-detail">
+    <div class="wd-head">
+      <div class="wd-es">${escapeHtml(d.lemma_es)}</div>
+      <div class="wd-gloss">${escapeHtml(d.gloss_no)}</div>
+      <div class="wd-meta">
+        <span class="wd-badge">${escapeHtml(d.pos)}</span>
         ${genderBadge}
-        <span class="badge-cefr">${escapeHtml(d.cefr_level)}</span>
-        <span>rang ~${d.frequency_rank}</span>
+        <span class="wd-badge cefr">${escapeHtml(d.cefr_level)}</span>
+        <span style="color:var(--text-dim);">rang ~${d.frequency_rank}</span>
       </div>
     </div>
     ${plural}
@@ -470,10 +480,135 @@ function buildWordDetailHtml(d) {
     ${etym}
     ${example}
     ${status}
-  `;
+    ${markBtn}
+  </div>`;
 }
 
-// ---- Utilities ----
+async function submitSentence(item, action) {
+  const ms = Date.now() - state.itemStart;
+  // Compute per-lemma ratings:
+  //  no_idea → ALL non-func words rated 1
+  //  know_all → ALL non-func words rated 3
+  //  continue → marked words rated 1, others rated 3
+  const lemmaRatings = computeLemmaRatings(item, action);
+
+  try {
+    await api(`/api/students/${state.currentStudent.id}/review`, {
+      method: "POST",
+      body: {
+        sentence_id: item.sentence_id,
+        action,                         // string label for log
+        mode: state.sessionMode,
+        response_ms: ms,
+        lemma_ratings: lemmaRatings,    // [{lemma_es, rating}]
+      },
+    });
+    if (action === "know_all") state.sessionStats.correct++;
+    else if (action === "no_idea") state.sessionStats.wrong++;
+    else state.sessionStats.correct++;  // continue counted as partial-correct
+    if (item.is_new) state.sessionStats.new_intro++;
+  } catch (e) { console.error(e); }
+  state.sessionIdx++;
+  renderCurrentItem();
+}
+
+function computeLemmaRatings(item, action) {
+  const seen = new Set();
+  const ratings = [];
+  for (const w of item.word_mapping || []) {
+    if (!w.lemma_es || seen.has(w.lemma_es)) continue;
+    seen.add(w.lemma_es);
+    const cached = state.wordDetailCache[w.lemma_es];
+    const isFunc = cached ? FUNC_POS.has(cached.pos) : false;
+    if (isFunc) continue;  // skip articles, prepositions, conjunctions
+    let rating;
+    if (action === "no_idea") rating = 1;
+    else if (action === "know_all") rating = 3;
+    else rating = state.markedMissed.has(w.lemma_es) ? 1 : 3;
+    ratings.push({ lemma_es: w.lemma_es, rating });
+  }
+  return ratings;
+}
+
+// Multiple choice mode (kept simple — sentence + 4 options + feedback)
+function renderMultipleChoiceItem(body, item) {
+  const wrap = document.createElement("div");
+  wrap.className = "sentence-card";
+
+  if (item.is_new) {
+    const tag = document.createElement("div");
+    tag.className = "new-tag";
+    tag.textContent = "Nytt ord";
+    tag.style.textAlign = "center";
+    wrap.appendChild(tag);
+  }
+
+  const sentence = document.createElement("div");
+  sentence.className = "sentence-es";
+  sentence.innerHTML = renderClickableSentence(item);
+  wrap.appendChild(sentence);
+
+  const slot = document.createElement("div");
+  slot.dataset.id = "word-detail-slot";
+  wrap.appendChild(slot);
+
+  const opts = [{ text: item.sentence_no, correct: true },
+                ...item.distractors_no.map(d => ({ text: d, correct: false }))];
+  shuffle(opts);
+
+  const optsWrap = document.createElement("div");
+  optsWrap.className = "mc-options";
+  opts.forEach(o => {
+    const btn = document.createElement("button");
+    btn.className = "mc-option";
+    btn.textContent = o.text;
+    btn.addEventListener("click", () => {
+      Array.from(optsWrap.children).forEach(el => el.disabled = true);
+      btn.classList.add(o.correct ? "correct" : "incorrect");
+      if (!o.correct) {
+        Array.from(optsWrap.children).forEach((el, i) => {
+          if (opts[i].correct) el.classList.add("correct");
+        });
+      }
+      const fb = document.createElement("div");
+      fb.className = `mc-feedback ${o.correct ? "good" : "bad"}`;
+      fb.textContent = o.correct ? "Riktig" : "Feil";
+      wrap.appendChild(fb);
+
+      const action = o.correct ? "know_all" : "no_idea";
+      // Auto-advance after short delay so user can see feedback
+      setTimeout(() => submitSentence(item, action), 1100);
+    });
+    optsWrap.appendChild(btn);
+  });
+  wrap.appendChild(optsWrap);
+
+  body.appendChild(wrap);
+
+  // Word taps still allowed (just for inspection — no marking in MC mode)
+  wrap.querySelectorAll(".sentence-es .word:not(.func)").forEach(el => {
+    el.addEventListener("click", (ev) => {
+      ev.stopPropagation();
+      handleWordTap(el.dataset.lemmaEs, el);
+    });
+  });
+}
+
+function showSessionEnd() {
+  clearApp();
+  const page = renderTpl("tpl-session-end");
+  app.appendChild(page);
+  const stats = state.sessionStats;
+  const total = stats.correct + stats.wrong;
+  page.querySelector("[data-id=end-stats]").innerHTML = `
+    <div class="state-row"><span>Setninger</span><strong>${total}</strong></div>
+    <div class="state-row"><span>Kunne</span><strong>${stats.correct}</strong></div>
+    <div class="state-row"><span>Vet ikke</span><strong>${stats.wrong}</strong></div>
+    <div class="state-row"><span>Nye ord</span><strong>${stats.new_intro}</strong></div>
+  `;
+  page.querySelector('[data-action="back-to-dashboard"]').addEventListener("click", showDashboard);
+}
+
 function shuffle(arr) {
   for (let i = arr.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
@@ -481,15 +616,5 @@ function shuffle(arr) {
   }
   return arr;
 }
-function escapeHtml(s) {
-  return String(s || "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-}
-function escapeAttr(s) { return escapeHtml(s); }
 
-// Keyboard: Esc closes modal
-document.addEventListener("keydown", (e) => {
-  if (e.key === "Escape" && state.modalOpen) closeModal();
-});
-
-// ---- Boot ----
 showLogin();
