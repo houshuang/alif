@@ -255,6 +255,72 @@ def _strip_ar_prefix_letters(ar: str, n_letters: int) -> str:
     return ar[i:]
 
 
+def normalize_lemma_ar_for_display(lemma_ar: str) -> str:
+    """Produce a display-safe lemma_ar by stripping/converting Quranic-only
+    typography while preserving all standard MSA tashkeel.
+
+    Rules (each safe when the bare form is already canonical MSA):
+    - ٱ (U+0671 alif waṣlah) → ا (regular alef). These are the same letter;
+      U+0671 is a contextual form used in Mushaf printing.
+    - ۥ (U+06E5 small waw) → strip (silent in MSA).
+    - ۦ (U+06E6 small ya) → strip (silent in MSA).
+    - ـٰ (U+0670 dagger alef) → strip. When the bare already lacks the
+      corresponding ا, the dagger alef is phonetic-only typography for
+      words conventionally spelled without the long-ā letter (هٰذَا, اللّٰهُ).
+    - ـ (U+0640 tatweel) → strip.
+    - Quranic annotation marks (U+06D6–U+06E8 range, U+0653 maddah, etc.)
+      → strip. These are Mushaf-only reading aids, not standard tashkeel.
+
+    Preserves fatha/kasra/damma/sukun/shadda/tanwin (standard MSA tashkeel).
+    """
+    # Safe letter substitutions.
+    new = lemma_ar.replace("\u0671", "\u0627")  # ٱ → ا
+    new = new.replace("\u06E5", "")              # ۥ → strip
+    new = new.replace("\u06E6", "")              # ۦ → strip
+    # Strip Quranic-only marks but preserve standard tashkeel.
+    # Standard MSA tashkeel: U+064B–U+0652 (fatha, kasra, damma, tanwin, sukun, shadda).
+    # Quranic-only: dagger alef U+0670, maddah U+0653, hamza above U+0654, hamza below U+0655,
+    # Quranic annotation symbols U+06D6–U+06ED.
+    quranic_only_marks = [
+        "\u0670",  # dagger alef ـٰ
+        "\u0653",  # maddah above ٓ
+        "\u0654",  # hamza above (can appear Quranic)
+        "\u0655",  # hamza below
+        "\u0656",  # subscript alef
+        "\u0657",  # inverted damma
+        "\u0658",  # mark noon ghunna
+        "\u0659",  # zwarakay
+        "\u065A",  # vowel sign small v above
+        "\u065B",  # vowel sign inverted small v above
+        "\u065C",  # vowel sign dot below
+        "\u065D",  # reversed damma
+        "\u065E",  # fatha with two dots
+        "\u065F",  # wavy hamza below
+    ]
+    for m in quranic_only_marks:
+        new = new.replace(m, "")
+    # Quranic annotation signs U+06D6–U+06ED.
+    for cp in range(0x06D6, 0x06EE):
+        new = new.replace(chr(cp), "")
+    # Tatweel.
+    new = new.replace("\u0640", "")
+    return new
+
+
+def find_display_candidates(db) -> list[Lemma]:
+    """Find lemmas where bare is canonical but lemma_ar carries Quranic typography."""
+    candidates = []
+    for l in db.query(Lemma).all():
+        if not l.lemma_ar or not l.lemma_ar_bare:
+            continue
+        if not has_quranic_chars(l.lemma_ar):
+            continue
+        if not is_bare_already_canonical(l.lemma_ar_bare):
+            continue
+        candidates.append(l)
+    return sorted(candidates, key=lambda l: l.lemma_id)
+
+
 def rewrite_in_place(db, dirty: Lemma, clean_bare: str) -> dict:
     """Rewrite lemma_ar_bare + lemma_ar in place (no merge target exists).
 
@@ -291,6 +357,75 @@ def rewrite_in_place(db, dirty: Lemma, clean_bare: str) -> dict:
     dirty.gates_completed_at = None
 
     return {"old_bare": old_bare, "new_bare": clean_bare, "old_ar": old_ar, "new_ar": new_ar}
+
+
+def normalize_display_forms(apply: bool) -> None:
+    """Normalize lemma_ar display forms for lemmas where bare is already canonical
+    but lemma_ar carries Quranic-only typography. Preserves tashkeel.
+
+    Safety check: verifies normalize_arabic(new_ar) == lemma_ar_bare before
+    applying — if stripping would corrupt word structure (introduce a letter
+    count mismatch), the lemma is skipped.
+    """
+    db = SessionLocal()
+    try:
+        candidates = find_display_candidates(db)
+        if not candidates:
+            print("No display-normalization candidates.")
+            return
+
+        print(f"Found {len(candidates)} lemma(s) with Quranic typography in lemma_ar (bare already canonical).\n")
+
+        to_apply: list[tuple[Lemma, str]] = []
+        skipped: list[tuple[Lemma, str]] = []
+
+        for l in candidates:
+            new_ar = normalize_lemma_ar_for_display(l.lemma_ar)
+            if new_ar == l.lemma_ar:
+                skipped.append((l, "no Quranic typography to strip"))
+                continue
+            # Safety check: the new form must still normalize to the stored bare.
+            if normalize_arabic(new_ar) != l.lemma_ar_bare:
+                skipped.append(
+                    (l, f"would corrupt structure: normalize(new_ar)={normalize_arabic(new_ar)!r} ≠ bare={l.lemma_ar_bare!r}")
+                )
+                continue
+            to_apply.append((l, new_ar))
+
+        print(f"Plan: {len(to_apply)} display normalization(s), {len(skipped)} skip(ped).\n")
+
+        if to_apply:
+            print("=== DISPLAY NORMALIZATIONS (lemma_ar only, bare unchanged) ===")
+            for l, new_ar in to_apply:
+                print(f"  [{l.lemma_id:5d}] {l.lemma_ar_bare:18s}  {l.lemma_ar}  →  {new_ar}")
+            print()
+
+        if skipped:
+            print("=== SKIPPED ===")
+            for l, reason in skipped[:20]:  # cap output
+                print(f"  [{l.lemma_id}] {l.lemma_ar_bare}: {reason}")
+            if len(skipped) > 20:
+                print(f"  ... and {len(skipped) - 20} more")
+            print()
+
+        if not apply:
+            print("[DRY RUN] Re-run with --apply to commit.")
+            return
+
+        for l, new_ar in to_apply:
+            l.lemma_ar = new_ar
+
+        log_activity(
+            db,
+            "manual_action",
+            f"Display normalization: cleaned lemma_ar on {len(to_apply)} canonical-bare lemmas",
+            {"count": len(to_apply), "skipped": len(skipped)},
+            commit=False,
+        )
+        db.commit()
+        print(f"APPLIED: {len(to_apply)} lemma_ar display forms normalized.")
+    finally:
+        db.close()
 
 
 def cleanup(categories: set[str], apply: bool) -> None:
@@ -411,11 +546,20 @@ if __name__ == "__main__":
         choices=["A", "B", "C"],
         help="Restrict to categor(ies). A=وال prefix, B=Quranic marks, C=ال prefix. Default: all three.",
     )
+    ap.add_argument(
+        "--display",
+        action="store_true",
+        help="Run display-normalization pass instead: clean lemma_ar Quranic typography on canonical-bare lemmas (preserves bare + tashkeel).",
+    )
     args = ap.parse_args()
 
     logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
-    cats = set(args.category) if args.category else {"A", "B", "C"}
 
     mode = "APPLY" if args.apply else "DRY RUN"
-    print(f"=== {mode} — categories: {sorted(cats)} ===\n")
-    cleanup(cats, apply=args.apply)
+    if args.display:
+        print(f"=== {mode} — display normalization (lemma_ar only) ===\n")
+        normalize_display_forms(apply=args.apply)
+    else:
+        cats = set(args.category) if args.category else {"A", "B", "C"}
+        print(f"=== {mode} — categories: {sorted(cats)} ===\n")
+        cleanup(cats, apply=args.apply)
