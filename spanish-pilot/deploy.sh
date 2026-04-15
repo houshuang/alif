@@ -13,7 +13,7 @@ echo "==> Pushing latest code"
 git push origin HEAD
 
 echo "==> Pulling on server"
-ssh "$REMOTE" "cd $REMOTE_DIR && git fetch origin && git checkout sh/spanish-pilot && git pull origin sh/spanish-pilot"
+ssh "$REMOTE" "cd $REMOTE_DIR && git fetch origin && git checkout main && git pull origin main"
 
 echo "==> Installing deps"
 ssh "$REMOTE" "cd $PILOT_DIR && .venv/bin/pip install -r backend/requirements.txt -q"
