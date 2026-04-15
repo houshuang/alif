@@ -75,6 +75,25 @@ def has_quranic_chars(text: str) -> bool:
     return any(c in QURANIC_CHARS for c in text or "")
 
 
+def is_bare_already_canonical(bare: str) -> bool:
+    """True if the stored bare form is already in acceptable MSA shape.
+
+    Even if lemma_ar carries Quranic typography (dagger alef in هٰذَا, اللّٰهُ,
+    ذَٰلِكَ), the bare form may already be the canonical MSA spelling (هذا, الله,
+    ذلك). In that case we must NOT rewrite — the dagger alef is conventional
+    typography for those words, not a sign that the bare needs normalization.
+    """
+    if not bare:
+        return False
+    if has_quranic_chars(bare):
+        return False
+    if bare.startswith("وال") and len(bare) > 4:
+        return False
+    if bare.startswith("ال") and len(bare) > 3 and bare not in KEEP_AL_PREFIX:
+        return False
+    return True
+
+
 def find_dirty_lemmas(db, categories: set[str]) -> list[Lemma]:
     """Find all lemmas that are dirty under any of the given categories.
 
@@ -289,6 +308,12 @@ def cleanup(categories: set[str], apply: bool) -> None:
         skipped: list[tuple[Lemma, str]] = []        # (dirty, reason)
 
         for l in dirty:
+            # If the bare is already canonical MSA, skip — even if lemma_ar has
+            # Quranic typography. Words like هذا/الله/ذلك are flagged by Cat B
+            # because lemma_ar has dagger alef, but their bare is already correct.
+            if is_bare_already_canonical(l.lemma_ar_bare):
+                skipped.append((l, "bare already canonical (lemma_ar uses Quranic typography but bare is MSA)"))
+                continue
             clean = compute_clean_bare(l.lemma_ar_bare, l.lemma_ar)
             if not clean or len(clean) < 3:
                 skipped.append((l, f"clean bare too short ('{clean}')"))
