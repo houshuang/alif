@@ -134,20 +134,6 @@ def find_dirty_lemmas(db, categories: set[str]) -> list[Lemma]:
                     continue
                 dirty[l.lemma_id] = l
 
-    if "E" in categories:
-        # Cross-check: lemmas where normalize(lemma_ar) != lemma_ar_bare indicate
-        # structural divergence between the display and bare forms. Excludes
-        # the zero-width-dagger-alef whitelist where this divergence is expected.
-        for l in db.query(Lemma).all():
-            if not l.lemma_ar or not l.lemma_ar_bare:
-                continue
-            if l.lemma_id in dirty:
-                continue
-            if l.lemma_ar_bare in DAGGER_ALEF_ZERO_WIDTH_BARES:
-                continue
-            if normalize_arabic(l.lemma_ar) != l.lemma_ar_bare:
-                dirty[l.lemma_id] = l
-
     return sorted(dirty.values(), key=lambda l: l.lemma_id)
 
 
@@ -333,16 +319,30 @@ def normalize_lemma_ar_for_display(lemma_ar: str) -> str:
 
 
 def find_display_candidates(db) -> list[Lemma]:
-    """Find lemmas where bare is canonical but lemma_ar carries Quranic typography."""
+    """Find lemmas that need lemma_ar display normalization. Two patterns:
+    1. lemma_ar carries Quranic typography (dagger alef etc.) — bare is clean.
+    2. lemma_ar has ال/وال prefix that bare lacks — narrow fix for Quran-
+       source lemmas where the bare was already rewritten but lemma_ar still
+       carries the definite prefix from the Mushaf form.
+    """
     candidates = []
     for l in db.query(Lemma).all():
         if not l.lemma_ar or not l.lemma_ar_bare:
             continue
-        if not has_quranic_chars(l.lemma_ar):
-            continue
         if not is_bare_already_canonical(l.lemma_ar_bare):
             continue
-        candidates.append(l)
+        ar_normalized = normalize_arabic(l.lemma_ar)
+        # Pattern 1: Quranic typography in lemma_ar.
+        if has_quranic_chars(l.lemma_ar):
+            candidates.append(l)
+            continue
+        # Pattern 2: lemma_ar has ال/وال prefix that bare lacks, rest matches.
+        if ar_normalized.startswith("ال") and ar_normalized[2:] == l.lemma_ar_bare:
+            candidates.append(l)
+            continue
+        if ar_normalized.startswith("وال") and ar_normalized[3:] == l.lemma_ar_bare:
+            candidates.append(l)
+            continue
     return sorted(candidates, key=lambda l: l.lemma_id)
 
 
@@ -429,8 +429,18 @@ def normalize_display_forms(apply: bool) -> None:
 
         for l in candidates:
             new_ar = normalize_lemma_ar_for_display(l.lemma_ar)
+            # Check if after Quranic-typography stripping, there's still an extra
+            # ال/وال prefix that the bare doesn't have. If so, position-strip it
+            # from the diacritized form (preserves tashkeel on remaining letters).
+            ar_normalized = normalize_arabic(new_ar)
+            if ar_normalized != l.lemma_ar_bare:
+                if ar_normalized.startswith("وال") and ar_normalized[3:] == l.lemma_ar_bare:
+                    new_ar = _strip_ar_prefix_letters(new_ar, 3)
+                elif ar_normalized.startswith("ال") and ar_normalized[2:] == l.lemma_ar_bare:
+                    new_ar = _strip_ar_prefix_letters(new_ar, 2)
+
             if new_ar == l.lemma_ar:
-                skipped.append((l, "no Quranic typography to strip"))
+                skipped.append((l, "no change needed"))
                 continue
             # Safety check: the new form must still normalize to the stored bare.
             if normalize_arabic(new_ar) != l.lemma_ar_bare:
@@ -602,8 +612,8 @@ if __name__ == "__main__":
     ap.add_argument(
         "--category",
         action="append",
-        choices=["A", "B", "C", "E"],
-        help="Restrict to categor(ies). A=وال prefix, B=Quranic marks, C=ال prefix, E=normalize(ar)≠bare. Default: A,B,C.",
+        choices=["A", "B", "C"],
+        help="Restrict to categor(ies). A=وال prefix, B=Quranic marks, C=ال prefix. Default: all three.",
     )
     ap.add_argument(
         "--display",
