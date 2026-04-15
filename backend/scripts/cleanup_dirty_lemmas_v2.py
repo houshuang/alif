@@ -319,11 +319,12 @@ def normalize_lemma_ar_for_display(lemma_ar: str) -> str:
 
 
 def find_display_candidates(db) -> list[Lemma]:
-    """Find lemmas that need lemma_ar display normalization. Two patterns:
-    1. lemma_ar carries Quranic typography (dagger alef etc.) — bare is clean.
-    2. lemma_ar has ال/وال prefix that bare lacks — narrow fix for Quran-
-       source lemmas where the bare was already rewritten but lemma_ar still
-       carries the definite prefix from the Mushaf form.
+    """Find lemmas where bare is canonical but lemma_ar carries Quranic typography.
+
+    Only Quranic-typography cases are candidates. Textbook-scan lemmas where
+    lemma_ar is the definite form (with ال) and bare is indefinite don't count
+    — those work correctly in reviews and rewriting them would produce orphan
+    shadda artifacts (from شمسي assimilation) without any user-visible win.
     """
     candidates = []
     for l in db.query(Lemma).all():
@@ -331,18 +332,8 @@ def find_display_candidates(db) -> list[Lemma]:
             continue
         if not is_bare_already_canonical(l.lemma_ar_bare):
             continue
-        ar_normalized = normalize_arabic(l.lemma_ar)
-        # Pattern 1: Quranic typography in lemma_ar.
         if has_quranic_chars(l.lemma_ar):
             candidates.append(l)
-            continue
-        # Pattern 2: lemma_ar has ال/وال prefix that bare lacks, rest matches.
-        if ar_normalized.startswith("ال") and ar_normalized[2:] == l.lemma_ar_bare:
-            candidates.append(l)
-            continue
-        if ar_normalized.startswith("وال") and ar_normalized[3:] == l.lemma_ar_bare:
-            candidates.append(l)
-            continue
     return sorted(candidates, key=lambda l: l.lemma_id)
 
 
