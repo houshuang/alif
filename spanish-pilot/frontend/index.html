@@ -27,68 +27,88 @@
 </template>
 
 <template id="tpl-dashboard">
-  <div class="page dashboard-page">
+  <div class="page dashboard-page has-tabs">
     <header class="page-header">
       <button class="btn-icon" data-action="back-to-login" title="Tilbake">←</button>
       <h2 class="student-name"></h2>
     </header>
 
-    <section class="stat-hero">
-      <div class="stat-big">
-        <div class="stat-big-value" data-id="known-count">0</div>
-        <div class="stat-big-label">kjente ord</div>
+    <div class="tab-content" data-tab="start">
+      <div class="start-hero">
+        <div class="due-badge" data-id="due-badge"></div>
+        <h3 class="start-greeting">Klar til å øve?</h3>
       </div>
-      <div class="stat-big">
-        <div class="stat-big-value" data-id="introduced-count">0</div>
-        <div class="stat-big-label">lært</div>
-      </div>
-      <div class="stat-big">
-        <div class="stat-big-value" data-id="due-count">0</div>
-        <div class="stat-big-label">til repetisjon</div>
-      </div>
-    </section>
 
-    <section class="leitner">
-      <h3>Leitner-bokser (læringsfase)</h3>
-      <div class="boxes">
-        <div class="box">
-          <div class="box-label">Boks 1</div>
-          <div class="box-desc">4 timer</div>
-          <div class="box-count" data-id="box-1">0</div>
+      <section class="mode-toggle">
+        <h3>Repetisjonsmodus</h3>
+        <div class="toggle-buttons">
+          <button class="toggle-btn" data-mode="self_grade">Selvvurdering<small>Flipp kort og vurder selv</small></button>
+          <button class="toggle-btn" data-mode="multiple_choice">Flervalg<small>Velg blant alternativer</small></button>
         </div>
-        <div class="box">
-          <div class="box-label">Boks 2</div>
-          <div class="box-desc">1 dag</div>
-          <div class="box-count" data-id="box-2">0</div>
-        </div>
-        <div class="box">
-          <div class="box-label">Boks 3</div>
-          <div class="box-desc">3 dager</div>
-          <div class="box-count" data-id="box-3">0</div>
-        </div>
-        <div class="box box-graduated">
-          <div class="box-label">Langtid</div>
-          <div class="box-desc">FSRS</div>
-          <div class="box-count" data-id="learning-count">0</div>
-        </div>
-      </div>
-    </section>
+      </section>
 
-    <section class="state-overview">
-      <div class="state-row"><span>Under læring</span><strong data-id="learning-count-alt">0</strong></div>
-      <div class="state-row"><span>Glemt (må repetere)</span><strong data-id="lapsed-count">0</strong></div>
-      <div class="state-row"><span>Totalt antall ord i kurset</span><strong data-id="total-lemmas">0</strong></div>
-    </section>
+      <button class="btn btn-primary btn-big" data-action="start-session">Start økt</button>
+    </div>
 
-    <section class="mode-toggle">
-      <h3>Repetisjonsmodus</h3>
-      <div class="toggle-buttons">
-        <button class="toggle-btn" data-mode="self_grade">Selvvurdering<small>Flipp kort og vurder selv</small></button>
-        <button class="toggle-btn" data-mode="multiple_choice">Flervalg<small>Velg blant alternativer</small></button>
-      </div>
-    </section>
+    <div class="tab-content hidden" data-tab="stats">
+      <section class="stat-hero">
+        <div class="stat-big">
+          <div class="stat-big-value" data-id="known-count">0</div>
+          <div class="stat-big-label">kjente ord</div>
+        </div>
+        <div class="stat-big">
+          <div class="stat-big-value" data-id="introduced-count">0</div>
+          <div class="stat-big-label">lært</div>
+        </div>
+        <div class="stat-big">
+          <div class="stat-big-value" data-id="due-count">0</div>
+          <div class="stat-big-label">til repetisjon</div>
+        </div>
+      </section>
 
-    <button class="btn btn-primary btn-big" data-action="start-session">Start økt</button>
+      <section class="leitner">
+        <h3>Leitner-bokser (læringsfase)</h3>
+        <div class="boxes">
+          <div class="box">
+            <div class="box-label">Boks 1</div>
+            <div class="box-desc">4 timer</div>
+            <div class="box-count" data-id="box-1">0</div>
+          </div>
+          <div class="box">
+            <div class="box-label">Boks 2</div>
+            <div class="box-desc">1 dag</div>
+            <div class="box-count" data-id="box-2">0</div>
+          </div>
+          <div class="box">
+            <div class="box-label">Boks 3</div>
+            <div class="box-desc">3 dager</div>
+            <div class="box-count" data-id="box-3">0</div>
+          </div>
+          <div class="box box-graduated">
+            <div class="box-label">Langtid</div>
+            <div class="box-desc">FSRS</div>
+            <div class="box-count" data-id="learning-count">0</div>
+          </div>
+        </div>
+      </section>
+
+      <section class="state-overview">
+        <div class="state-row"><span>Under læring</span><strong data-id="learning-count-alt">0</strong></div>
+        <div class="state-row"><span>Glemt (må repetere)</span><strong data-id="lapsed-count">0</strong></div>
+        <div class="state-row"><span>Totalt antall ord i kurset</span><strong data-id="total-lemmas">0</strong></div>
+      </section>
+    </div>
+
+    <nav class="bottom-tabs">
+      <button class="tab-btn active" data-tab-target="start">
+        <span class="tab-icon">▶</span>
+        <span class="tab-label">Start økt</span>
+      </button>
+      <button class="tab-btn" data-tab-target="stats">
+        <span class="tab-icon">📊</span>
+        <span class="tab-label">Stats</span>
+      </button>
+    </nav>
   </div>
 </template>
 

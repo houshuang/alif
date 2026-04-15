@@ -43,6 +43,63 @@ html, body {
   padding: 2rem 1.25rem 3rem;
   width: 100%;
 }
+.page.has-tabs { padding-bottom: 5rem; }
+
+/* Bottom tab nav */
+.bottom-tabs {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: var(--bg-card);
+  border-top: 1px solid var(--border);
+  display: flex;
+  z-index: 50;
+  box-shadow: 0 -2px 8px rgba(0,0,0,0.05);
+}
+.tab-btn {
+  flex: 1;
+  background: none;
+  border: none;
+  padding: 0.7rem 0.5rem 0.85rem;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.2rem;
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  transition: color 0.15s;
+  font-weight: 500;
+}
+.tab-btn.active { color: var(--accent); }
+.tab-btn.active .tab-icon { transform: scale(1.1); }
+.tab-icon { font-size: 1.25rem; line-height: 1; transition: transform 0.15s; }
+
+/* Start hero */
+.start-hero {
+  text-align: center;
+  margin: 1rem 0 1.5rem;
+}
+.due-badge {
+  display: inline-block;
+  background: var(--accent-bg);
+  color: var(--accent-dark);
+  padding: 0.4rem 0.9rem;
+  border-radius: 20px;
+  font-size: 0.92rem;
+  font-weight: 500;
+  margin-bottom: 1rem;
+}
+.due-badge.empty {
+  background: var(--good-bg);
+  color: var(--good);
+}
+.start-greeting {
+  font-size: 1.4rem;
+  font-weight: 500;
+  margin: 0;
+}
 
 .hidden { display: none !important; }
 

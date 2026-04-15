@@ -97,9 +97,10 @@ async function showDashboard() {
   page.querySelector(".student-name").textContent = state.currentStudent.name;
   page.querySelector('[data-action="back-to-login"]').addEventListener("click", showLogin);
 
+  let stats;
   try {
     const data = await api(`/api/students/${state.currentStudent.id}/dashboard`);
-    const stats = data.stats;
+    stats = data.stats;
     state.sessionMode = data.student.mode_preference;
 
     page.querySelector("[data-id=known-count]").textContent = stats.known;
@@ -112,6 +113,19 @@ async function showDashboard() {
     page.querySelector("[data-id=learning-count-alt]").textContent = stats.learning;
     page.querySelector("[data-id=lapsed-count]").textContent = stats.lapsed;
     page.querySelector("[data-id=total-lemmas]").textContent = stats.total_lemmas;
+
+    // Due badge on start tab
+    const dueBadge = page.querySelector("[data-id=due-badge]");
+    if (stats.due_now > 0) {
+      dueBadge.textContent = `${stats.due_now} ord til repetisjon`;
+      dueBadge.classList.remove("empty");
+    } else if (stats.introduced === 0) {
+      dueBadge.textContent = "Du har ingen ord ennå — start for å lære nye";
+      dueBadge.classList.add("empty");
+    } else {
+      dueBadge.textContent = "Ingen ord til repetisjon nå — øv på nye ord";
+      dueBadge.classList.add("empty");
+    }
   } catch (e) {
     console.error(e);
   }
@@ -129,6 +143,15 @@ async function showDashboard() {
           body: { mode_preference: btn.dataset.mode },
         });
       } catch (e) { console.error(e); }
+    });
+  });
+
+  // Bottom tab nav
+  page.querySelectorAll(".tab-btn").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const target = btn.dataset.tabTarget;
+      page.querySelectorAll(".tab-btn").forEach(b => b.classList.toggle("active", b === btn));
+      page.querySelectorAll(".tab-content").forEach(c => c.classList.toggle("hidden", c.dataset.tab !== target));
     });
   });
 
