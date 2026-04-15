@@ -57,6 +57,17 @@ logger = logging.getLogger(__name__)
 # Quranic presentation characters — any of these in lemma_ar/bare makes it dirty.
 QURANIC_CHARS = {"\u0670", "\u06E5", "\u06E6", "\u0671", "\u06DC", "\u06E1", "\u0653", "\u06D6", "\u06D7", "\u06D8", "\u06D9", "\u06DA", "\u06DB", "\u06E4"}
 
+# Words where dagger alef in lemma_ar is zero-width (phonetic-only typography),
+# meaning the stored bare form WITHOUT the corresponding ا is canonical MSA.
+# For any bare NOT in this set, dagger alef in lemma_ar represents a real long
+# ā that should be present in the bare as ا (e.g. ضلالة not ضللة).
+DAGGER_ALEF_ZERO_WIDTH_BARES = {
+    "هذا", "هذه", "هؤلاء", "هذان", "هاتان",
+    "ذلك", "تلك", "ذلكم", "ذلكما",
+    "الله", "الرحمن", "اللات",
+}
+
+
 # Lemmas where ال is integral and must NOT be stripped (merged with the 2026-04-06 list).
 KEEP_AL_PREFIX = {
     "الله",      # God
@@ -443,13 +454,24 @@ def cleanup(categories: set[str], apply: bool) -> None:
         skipped: list[tuple[Lemma, str]] = []        # (dirty, reason)
 
         for l in dirty:
-            # If the bare is already canonical MSA, skip — even if lemma_ar has
-            # Quranic typography. Words like هذا/الله/ذلك are flagged by Cat B
-            # because lemma_ar has dagger alef, but their bare is already correct.
+            # If the bare is already canonical MSA, check if dagger alef in lemma_ar
+            # is truly zero-width (e.g. هذا/الله/ذلك) or represents a real long ā
+            # that was damaged out of the stored bare (e.g. ضللة should be ضلالة).
             if is_bare_already_canonical(l.lemma_ar_bare):
-                skipped.append((l, "bare already canonical (lemma_ar uses Quranic typography but bare is MSA)"))
-                continue
-            clean = compute_clean_bare(l.lemma_ar_bare, l.lemma_ar)
+                # Whitelist of known zero-width-dagger-alef words: trust the bare.
+                if l.lemma_ar_bare in DAGGER_ALEF_ZERO_WIDTH_BARES:
+                    skipped.append((l, "dagger alef is zero-width (known MSA demonstrative/name)"))
+                    continue
+                # Otherwise, re-derive bare from lemma_ar to see if it's damaged.
+                computed = compute_clean_bare(l.lemma_ar_bare, l.lemma_ar)
+                if computed == l.lemma_ar_bare:
+                    skipped.append((l, "bare already canonical and matches normalized lemma_ar"))
+                    continue
+                # Bare differs from what lemma_ar normalizes to — bare is damaged.
+                # Fall through to the merge/rewrite path with the computed clean.
+                clean = computed
+            else:
+                clean = compute_clean_bare(l.lemma_ar_bare, l.lemma_ar)
             if not clean or len(clean) < 3:
                 skipped.append((l, f"clean bare too short ('{clean}')"))
                 continue
