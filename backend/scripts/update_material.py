@@ -439,10 +439,10 @@ def step_enforce_cap(
     for sw in all_sw:
         sw_by_sentence.setdefault(sw.sentence_id, []).append(sw)
 
-    # Score and sort for retirement — skip book sentences (managed by reactivation step)
+    # Score and sort for retirement — protect unshown book sentences (managed by reactivation step)
     candidates: list[tuple[Sentence, int]] = []  # (sentence, priority)
     for sent in sentences:
-        if sent.source == "book":
+        if sent.source == "book" and (sent.times_shown or 0) == 0:
             continue
         sws = sw_by_sentence.get(sent.id, [])
         scaffold_lemmas: set[int] = set()

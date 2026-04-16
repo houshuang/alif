@@ -123,8 +123,8 @@ def main():
         all_scores: list[dict] = []
 
         for sent in sentences:
-            # Book sentences are managed by the reactivation step, never rotated
-            if sent.source == "book":
+            # Unshown book sentences are managed by the reactivation step
+            if sent.source == "book" and (sent.times_shown or 0) == 0:
                 continue
 
             sws = sw_by_sentence.get(sent.id, [])
