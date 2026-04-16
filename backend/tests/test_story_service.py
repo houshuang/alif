@@ -75,8 +75,9 @@ class TestImportStory:
         story, _ = import_story(db_session, arabic_text="الولد كبير")
         assert story.known_count >= 1
 
+    @patch("app.services.sentence_validator.verify_and_correct_mappings_llm", return_value=None)
     @patch("app.services.story_service.generate_completion")
-    def test_import_identifies_unknown_words(self, mock_gen, db_session):
+    def test_import_identifies_unknown_words(self, mock_gen, mock_verify, db_session):
         _seed_words(db_session)
         # LLM returns gloss for unknown word so lemma creation succeeds
         mock_gen.return_value = [{"arabic": "رجل", "english": "man", "pos": "noun", "name_type": None}]

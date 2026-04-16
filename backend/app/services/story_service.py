@@ -581,8 +581,8 @@ def _verify_new_story_mappings(
     (never auto-create lemmas from corrections).
     """
     from app.services.sentence_validator import (
+        apply_corrections,
         verify_and_correct_mappings_llm,
-        correct_mapping as _correct_mapping,
         TokenMapping,
     )
 
@@ -637,23 +637,22 @@ def _verify_new_story_mappings(
         if corrections is None or not corrections:
             continue
 
-        for corr in corrections:
-            pos = corr["position"]
-            sw = next((sw for sw in chunk if sw.position == pos), None)
-            if not sw:
-                continue
-            new_lid = _correct_mapping(
-                db,
-                corr.get("correct_lemma_ar", ""),
-                corr.get("correct_gloss", ""),
-                corr.get("correct_pos", ""),
-            )
-            if new_lid and new_lid != sw.lemma_id:
-                logger.info(f"Story {story.id}: corrected mapping '{sw.surface_form}': #{sw.lemma_id} → #{new_lid}")
-                sw.lemma_id = new_lid
+        # apply_corrections mutates mappings (TokenMapping wrappers);
+        # mirror successful changes back to the real StoryWord objects
+        sw_by_pos = {sw.position: sw for sw in chunk}
+        failed_positions = apply_corrections(
+            corrections, mappings, db, arabic_text=context_text,
+        )
+        # Sync corrected lemma_ids from TokenMapping back to StoryWord
+        for m in mappings:
+            sw = sw_by_pos.get(m.position)
+            if sw and sw.lemma_id != m.lemma_id:
+                sw.lemma_id = m.lemma_id
                 fixed += 1
-            elif not new_lid:
-                logger.warning(f"Story {story.id}: nulling bad mapping '{sw.surface_form}' → #{sw.lemma_id}")
+        # Null out StoryWord mappings that couldn't be corrected
+        for pos in failed_positions:
+            sw = sw_by_pos.get(pos)
+            if sw:
                 sw.lemma_id = None
                 sw.gloss_en = None
                 nulled += 1

@@ -348,8 +348,8 @@ def create_book_sentences(
         mapped = [m for m in mappings if m.lemma_id is not None]
         if mapped:
             from app.services.sentence_validator import (
+                apply_corrections,
                 verify_and_correct_mappings_llm,
-                correct_mapping as _correct_mapping,
             )
             lemma_map_for_verify = {
                 l.lemma_id: l for l in db.query(Lemma).filter(
@@ -362,23 +362,14 @@ def create_book_sentences(
             verification_ran = corrections is not None
             if corrections is None:
                 corrections = []  # LLM unavailable — store without verification
-            for corr in corrections:
-                pos = corr["position"]
-                m = next((m for m in mappings if m.position == pos), None)
-                if not m:
-                    continue
-                new_lid = _correct_mapping(
-                    db,
-                    corr.get("correct_lemma_ar", ""),
-                    corr.get("correct_gloss", ""),
-                    corr.get("correct_pos", ""),
-                    current_lemma_id=m.lemma_id,
-                )
-                if new_lid and new_lid != m.lemma_id:
-                    logger.info(f"Book import: corrected mapping pos {pos} '{m.surface_form}': #{m.lemma_id} → #{new_lid}")
-                    m.lemma_id = new_lid
-                elif not new_lid:
-                    logger.warning(f"LLM flagged bad mapping: {m.surface_form} → lemma {m.lemma_id}, nulling out")
+            failed_positions = apply_corrections(
+                corrections, mappings, db, arabic_text=arabic,
+            )
+            # Book import: null out mappings that couldn't be corrected
+            pos_to_mapping = {m.position: m for m in mappings}
+            for pos in failed_positions:
+                m = pos_to_mapping.get(pos)
+                if m:
                     m.lemma_id = None
         else:
             verification_ran = False

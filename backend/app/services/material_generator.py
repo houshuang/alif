@@ -48,16 +48,15 @@ def generate_material_for_word(lemma_id: int, needed: int = 2, model_override: s
         KNOWN_SAMPLE_SIZE,
     )
     from app.services.sentence_validator import (
+        apply_corrections,
         build_comprehensive_lemma_lookup,
         build_lemma_lookup,
-        correct_mapping,
         map_tokens_to_lemmas,
         sanitize_arabic_word,
         strip_diacritics,
         tokenize_display,
         validate_sentence,
         verify_and_correct_mappings_llm,
-        _log_mapping_correction,
     )
     from app.services.word_selector import get_sentence_difficulty_params
 
@@ -229,49 +228,23 @@ def generate_material_for_word(lemma_id: int, needed: int = 2, model_override: s
 
         # Apply corrections
         corrections = verify_result.get("issues", [])
-        correction_failed = False
         if corrections:
             correction_db = SessionLocal()
             try:
-                for corr in corrections:
-                    pos = corr.get("position")
-                    m = next((m for m in mappings if m.position == pos), None)
-                    if not m:
-                        continue
-                    new_lid = correct_mapping(
-                        correction_db,
-                        corr.get("correct_lemma_ar", ""),
-                        corr.get("correct_gloss", ""),
-                        corr.get("correct_pos", ""),
-                        current_lemma_id=m.lemma_id,
-                        lemma_lookup=mapping_lookup,
-                    )
-                    if new_lid and new_lid != m.lemma_id:
-                        logger.info(
-                            f"Corrected mapping pos {pos} '{m.surface_form}': "
-                            f"#{m.lemma_id} → #{new_lid}"
-                        )
-                        m.lemma_id = new_lid
-                    elif not new_lid:
-                        correction_failed = True
-                    else:
-                        # LLM flagged mapping as wrong but correct lemma
-                        # not in DB — only the same (wrong) lemma found.
-                        logger.warning(
-                            f"Correction for pos {pos} '{m.surface_form}' "
-                            f"returned same lemma #{m.lemma_id} — rejecting"
-                        )
-                        correction_failed = True
+                failed = apply_corrections(
+                    corrections, mappings, correction_db,
+                    lemma_lookup=mapping_lookup, arabic_text=cand["arabic"],
+                )
                 correction_db.commit()
             except Exception:
                 correction_db.rollback()
-                correction_failed = True
+                failed = [True]  # signal failure
             finally:
                 correction_db.close()
+        else:
+            failed = []
 
-            _log_mapping_correction(corrections, not correction_failed, cand["arabic"])
-
-        if correction_failed:
+        if failed:
             logger.warning(
                 f"Mapping correction failed for sentence for lemma {lemma_id}, discarding"
             )
@@ -391,16 +364,15 @@ def batch_generate_material(
     """
     from app.services.llm import generate_sentences_for_words, AllProvidersFailed
     from app.services.sentence_validator import (
+        apply_corrections,
         batch_verify_sentences,
         build_comprehensive_lemma_lookup,
         build_lemma_lookup,
-        correct_mapping,
         map_tokens_to_lemmas,
         sanitize_arabic_word,
         strip_diacritics,
         tokenize_display,
         validate_sentence,
-        _log_mapping_correction,
     )
     from app.services.sentence_generator import (
         get_content_word_counts,
@@ -599,42 +571,23 @@ def batch_generate_material(
 
         # Apply corrections
         corrections = verify_result.get("issues", [])
-        correction_failed = False
         if corrections:
             correction_db = SessionLocal()
             try:
-                for corr in corrections:
-                    pos = corr.get("position")
-                    m = next((m for m in mappings if m.position == pos), None)
-                    if not m:
-                        continue
-                    new_lid = correct_mapping(
-                        correction_db,
-                        corr.get("correct_lemma_ar", ""),
-                        corr.get("correct_gloss", ""),
-                        corr.get("correct_pos", ""),
-                        current_lemma_id=m.lemma_id,
-                        lemma_lookup=mapping_lookup,
-                    )
-                    if new_lid and new_lid != m.lemma_id:
-                        m.lemma_id = new_lid
-                    elif not new_lid:
-                        correction_failed = True
-                    else:
-                        logger.warning(
-                            f"Batch correction for pos {pos} '{m.surface_form}' "
-                            f"returned same lemma #{m.lemma_id} — rejecting"
-                        )
-                        correction_failed = True
+                failed = apply_corrections(
+                    corrections, mappings, correction_db,
+                    lemma_lookup=mapping_lookup, arabic_text=cand["arabic"],
+                )
                 correction_db.commit()
             except Exception:
                 correction_db.rollback()
-                correction_failed = True
+                failed = [True]
             finally:
                 correction_db.close()
-            _log_mapping_correction(corrections, not correction_failed, cand["arabic"])
+        else:
+            failed = []
 
-        if correction_failed:
+        if failed:
             continue
 
         # Gloss gate: reject if any lemma has no English gloss
@@ -789,9 +742,8 @@ def store_multi_target_sentence(
 
     # Verify mappings — None means verification failed, discard sentence
     from app.services.sentence_validator import (
+        apply_corrections,
         verify_and_correct_mappings_llm,
-        correct_mapping as _correct_mapping,
-        _log_mapping_correction,
     )
     lemma_map_for_verify = {l.lemma_id: l for l in db.query(Lemma).filter(
         Lemma.lemma_id.in_([m.lemma_id for m in mappings if m.lemma_id])
@@ -803,36 +755,10 @@ def store_multi_target_sentence(
         logger.warning("Mapping verification unavailable for multi-target sentence, discarding")
         return None
     if corrections:
-        correction_failed = False
-        for corr in corrections:
-            pos = corr["position"]
-            m = next((m for m in mappings if m.position == pos), None)
-            if not m:
-                continue
-            new_lid = _correct_mapping(
-                db,
-                corr.get("correct_lemma_ar", ""),
-                corr.get("correct_gloss", ""),
-                corr.get("correct_pos", ""),
-                current_lemma_id=m.lemma_id,
-            )
-            if new_lid and new_lid != m.lemma_id:
-                logger.info(
-                    f"Corrected mapping pos {pos} '{m.surface_form}': "
-                    f"#{m.lemma_id} → #{new_lid}"
-                )
-                m.lemma_id = new_lid
-            elif not new_lid:
-                correction_failed = True
-            else:
-                logger.warning(
-                    f"Mapping pos {pos} '{m.surface_form}' flagged wrong but "
-                    f"returned same lemma #{m.lemma_id} — rejecting"
-                )
-                correction_failed = True
-
-        _log_mapping_correction(corrections, not correction_failed, result.arabic)
-        if correction_failed:
+        failed = apply_corrections(
+            corrections, mappings, db, arabic_text=result.arabic,
+        )
+        if failed:
             logger.warning("Mapping correction failed in multi-target sentence, discarding")
             return None
 
@@ -1358,7 +1284,6 @@ def verify_sentence_mappings(db, sentence_ids: list[int]) -> dict:
 
     Returns {"verified": N, "corrected": N, "failed": N}.
     """
-    from app.services.sentence_validator import correct_mapping
     from app.services.llm import generate_completion, AllProvidersFailed
 
     if not sentence_ids:
@@ -1519,36 +1444,13 @@ Sentences:
         sidx = int(flag["sentence"])
         flagged_by_idx.setdefault(sidx, []).append(flag)
 
+    from app.services.sentence_validator import apply_corrections as _apply_corrections
     for idx, sent_id in sent_id_by_idx.items():
         corrections = flagged_by_idx.get(idx)
         if corrections:
             sws = sw_by_sentence.get(sent_id, [])
-            has_unfixable = False
-            for corr in corrections:
-                pos = corr.get("position")
-                if pos is None:
-                    continue
-                pos = int(pos)
-                sw = next((s for s in sws if s.position == pos), None)
-                if not sw:
-                    continue
-                new_lid = correct_mapping(
-                    db,
-                    corr.get("correct_lemma_ar", ""),
-                    corr.get("correct_gloss", ""),
-                    corr.get("correct_pos", ""),
-                    current_lemma_id=sw.lemma_id,
-                )
-                if new_lid and new_lid != sw.lemma_id:
-                    logger.info(
-                        f"Batch verify: sentence {sent_id} pos {pos} "
-                        f"'{sw.surface_form}': #{sw.lemma_id} → #{new_lid}"
-                    )
-                    sw.lemma_id = new_lid
-                elif not new_lid:
-                    has_unfixable = True
-
-            if has_unfixable:
+            failed = _apply_corrections(corrections, sws, db)
+            if failed:
                 sent_obj = db.query(Sentence).get(sent_id)
                 if sent_obj:
                     sent_obj.is_active = False

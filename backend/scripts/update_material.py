@@ -161,9 +161,8 @@ def enrich_corpus_sentences(db: Session) -> int:
     """
     from app.services.llm import generate_completion, AllProvidersFailed
     from app.services.sentence_validator import (
+        apply_corrections,
         verify_and_correct_mappings_llm,
-        correct_mapping as _correct_mapping,
-        _log_mapping_correction,
         build_comprehensive_lemma_lookup,
         detect_proper_names,
         map_tokens_to_lemmas,
@@ -316,31 +315,12 @@ def enrich_corpus_sentences(db: Session) -> int:
             print(f"  Sentence {sent.id}: verification unavailable, skipping")
             continue
 
-        # Apply corrections (same pattern as material_generator.py)
+        # Apply corrections
         if corrections:
-            correction_failed = False
-            for corr in corrections:
-                pos_idx = corr["position"]
-                m = next((m for m in mappings if m.position == pos_idx), None)
-                if not m:
-                    continue
-                new_lid = _correct_mapping(
-                    db,
-                    str(corr.get("correct_lemma_ar", "") or ""),
-                    str(corr.get("correct_gloss", "") or ""),
-                    str(corr.get("correct_pos", "") or ""),
-                    current_lemma_id=m.lemma_id,
-                )
-                if new_lid and new_lid != m.lemma_id:
-                    m.lemma_id = new_lid
-                elif not new_lid:
-                    correction_failed = True
-                else:
-                    # LLM flagged mapping as wrong but correct lemma
-                    # not in vocabulary — returned same lemma; reject
-                    correction_failed = True
-            _log_mapping_correction(corrections, not correction_failed, sent.arabic_text)
-            if correction_failed:
+            failed = apply_corrections(
+                corrections, mappings, db, arabic_text=sent.arabic_text,
+            )
+            if failed:
                 sent.is_active = False
                 sent.mappings_verified_at = now  # don't retry
                 print(f"  Sentence {sent.id}: correction failed, deactivated")

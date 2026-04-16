@@ -1413,6 +1413,76 @@ def correct_mapping(
     return candidates[0].lemma_id
 
 
+def apply_corrections(
+    corrections: list[dict],
+    mappings: list,
+    db,
+    lemma_lookup=None,
+    arabic_text: str = "",
+) -> list[int]:
+    """Apply LLM-suggested corrections to word-lemma mappings.
+
+    Single place for the correct_mapping → 3-way check pattern.
+    Mutates ``mapping.lemma_id`` in-place for successful corrections.
+
+    Args:
+        corrections: list of dicts from verify_and_correct_mappings_llm,
+            each with position, correct_lemma_ar, correct_gloss, correct_pos.
+        mappings: objects with ``.position`` and ``.lemma_id`` attributes
+            (TokenMapping, SentenceWord, StoryWord, etc.)
+        db: SQLAlchemy session for correct_mapping lookups.
+        lemma_lookup: optional pre-built lemma lookup dict.
+        arabic_text: sentence text for logging.
+
+    Returns:
+        List of positions where correction failed (empty = all OK).
+        Callers decide what to do with failures (reject sentence,
+        null out lemma_id, etc.)
+    """
+    if not corrections:
+        return []
+
+    pos_to_mapping = {m.position: m for m in mappings}
+    failed_positions: list[int] = []
+
+    for corr in corrections:
+        pos = corr.get("position") if isinstance(corr.get("position"), int) else corr["position"]
+        m = pos_to_mapping.get(pos)
+        if not m:
+            continue
+
+        new_lid = correct_mapping(
+            db,
+            str(corr.get("correct_lemma_ar", "") or ""),
+            str(corr.get("correct_gloss", "") or ""),
+            str(corr.get("correct_pos", "") or ""),
+            current_lemma_id=m.lemma_id,
+            lemma_lookup=lemma_lookup,
+        )
+
+        if new_lid and new_lid != m.lemma_id:
+            _validator_logger.info(
+                f"Corrected mapping pos {pos} '{m.surface_form}': "
+                f"#{m.lemma_id} → #{new_lid}"
+            )
+            m.lemma_id = new_lid
+        elif not new_lid:
+            _validator_logger.warning(
+                f"Correction for pos {pos} '{m.surface_form}': "
+                f"correct lemma not found in DB"
+            )
+            failed_positions.append(pos)
+        else:
+            _validator_logger.warning(
+                f"Correction for pos {pos} '{m.surface_form}': "
+                f"returned same lemma #{m.lemma_id} — correct lemma not in vocabulary"
+            )
+            failed_positions.append(pos)
+
+    _log_mapping_correction(corrections, not failed_positions, arabic_text)
+    return failed_positions
+
+
 def disambiguate_mappings_llm(
     arabic_text: str,
     english_text: str,
