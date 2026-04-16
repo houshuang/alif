@@ -2,8 +2,8 @@
   "sentences_corrected": {
     "sentences": [
       {
-        "es": "La hermana es muy bonita",
-        "no": "Søsteren er veldig pen",
+        "es": "La hermana es muy bonita.",
+        "no": "Søsteren er veldig pen.",
         "word_mapping": [
           {
             "position": 0,
@@ -44,8 +44,8 @@
         "difficulty_rank": 1
       },
       {
-        "es": "El niño y la niña son amigos",
-        "no": "Gutten og jenta er venner",
+        "es": "El niño y la niña son amigos.",
+        "no": "Gutten og jenta er venner.",
         "word_mapping": [
           {
             "position": 0,
@@ -98,8 +98,8 @@
         "difficulty_rank": 2
       },
       {
-        "es": "La familia va a la calle",
-        "no": "Familien går til gaten",
+        "es": "La familia va a la calle.",
+        "no": "Familien går til gaten.",
         "word_mapping": [
           {
             "position": 0,
@@ -146,8 +146,8 @@
         "difficulty_rank": 3
       },
       {
-        "es": "El amigo tiene un perro pequeño",
-        "no": "Vennen har en liten hund",
+        "es": "El amigo tiene un perro pequeño.",
+        "no": "Vennen har en liten hund.",
         "word_mapping": [
           {
             "position": 0,
@@ -194,8 +194,8 @@
         "difficulty_rank": 4
       },
       {
-        "es": "Dos hermanas beben leche en casa",
-        "no": "To søstre drikker melk hjemme",
+        "es": "Dos hermanas beben leche en casa.",
+        "no": "To søstre drikker melk hjemme.",
         "word_mapping": [
           {
             "position": 0,
@@ -242,8 +242,8 @@
         "difficulty_rank": 5
       },
       {
-        "es": "La madre trabaja en la ciudad",
-        "no": "Moren jobber i byen",
+        "es": "La madre trabaja en la ciudad.",
+        "no": "Moren jobber i byen.",
         "word_mapping": [
           {
             "position": 0,
@@ -290,8 +290,8 @@
         "difficulty_rank": 6
       },
       {
-        "es": "Las amigas hablan en la escuela",
-        "no": "Venninnene snakker på skolen",
+        "es": "Las amigas hablan en la escuela.",
+        "no": "Venninnene snakker på skolen.",
         "word_mapping": [
           {
             "position": 0,
@@ -338,8 +338,8 @@
         "difficulty_rank": 7
       },
       {
-        "es": "Los hermanos corren con el gato",
-        "no": "Brødrene løper med katten",
+        "es": "Los hermanos corren con el gato.",
+        "no": "Brødrene løper med katten.",
         "word_mapping": [
           {
             "position": 0,
@@ -386,8 +386,8 @@
         "difficulty_rank": 8
       },
       {
-        "es": "El hermano no está contento hoy",
-        "no": "Broren er ikke fornøyd i dag",
+        "es": "El hermano no está contento hoy.",
+        "no": "Broren er ikke fornøyd i dag.",
         "word_mapping": [
           {
             "position": 0,
@@ -434,8 +434,8 @@
         "difficulty_rank": 9
       },
       {
-        "es": "Las madres están cansadas ahora",
-        "no": "Mødrene er trøtte nå",
+        "es": "Las madres están cansadas ahora.",
+        "no": "Mødrene er trøtte nå.",
         "word_mapping": [
           {
             "position": 0,
@@ -476,8 +476,8 @@
         "difficulty_rank": 10
       },
       {
-        "es": "Nosotros vivimos en una casa grande",
-        "no": "Vi bor i et stort hus",
+        "es": "Nosotros vivimos en una casa grande.",
+        "no": "Vi bor i et stort hus.",
         "word_mapping": [
           {
             "position": 0,
@@ -524,8 +524,8 @@
         "difficulty_rank": 11
       },
       {
-        "es": "Los niños vienen con los amigos",
-        "no": "Guttene kommer med vennene",
+        "es": "Los niños vienen con los amigos.",
+        "no": "Guttene kommer med vennene.",
         "word_mapping": [
           {
             "position": 0,
@@ -572,8 +572,8 @@
         "difficulty_rank": 12
       },
       {
-        "es": "Nosotros vemos a los amigos aquí",
-        "no": "Vi ser vennene her",
+        "es": "Nosotros vemos a los amigos aquí.",
+        "no": "Vi ser vennene her.",
         "word_mapping": [
           {
             "position": 0,
@@ -620,8 +620,8 @@
         "difficulty_rank": 13
       },
       {
-        "es": "El padre y el hijo comen pan",
-        "no": "Faren og sønnen spiser brød",
+        "es": "El padre y el hijo comen pan.",
+        "no": "Faren og sønnen spiser brød.",
         "word_mapping": [
           {
             "position": 0,
@@ -674,8 +674,8 @@
         "difficulty_rank": 14
       },
       {
-        "es": "Los padres quieren a los hijos",
-        "no": "Foreldrene elsker barna",
+        "es": "Los padres quieren a los hijos.",
+        "no": "Foreldrene elsker barna.",
         "word_mapping": [
           {
             "position": 0,
@@ -722,8 +722,8 @@
         "difficulty_rank": 15
       },
       {
-        "es": "Los niños toman leche",
-        "no": "Guttene drikker melk",
+        "es": "Los niños toman leche.",
+        "no": "Guttene drikker melk.",
         "word_mapping": [
           {
             "position": 0,
@@ -758,8 +758,8 @@
         "difficulty_rank": 1
       },
       {
-        "es": "Los hermanos beben agua",
-        "no": "Brødrene drikker vann",
+        "es": "Los hermanos beben agua.",
+        "no": "Brødrene drikker vann.",
         "word_mapping": [
           {
             "position": 0,
@@ -794,8 +794,8 @@
         "difficulty_rank": 1
       },
       {
-        "es": "Yo bebo café ahora",
-        "no": "Jeg drikker kaffe nå",
+        "es": "Yo bebo café ahora.",
+        "no": "Jeg drikker kaffe nå.",
         "word_mapping": [
           {
             "position": 0,
@@ -830,8 +830,8 @@
         "difficulty_rank": 2
       },
       {
-        "es": "Nosotros bebemos agua aquí",
-        "no": "Vi drikker vann her",
+        "es": "Nosotros bebemos agua aquí.",
+        "no": "Vi drikker vann her.",
         "word_mapping": [
           {
             "position": 0,
@@ -866,8 +866,8 @@
         "difficulty_rank": 2
       },
       {
-        "es": "La madre hace café",
-        "no": "Moren lager kaffe",
+        "es": "La madre hace café.",
+        "no": "Moren lager kaffe.",
         "word_mapping": [
           {
             "position": 0,
@@ -902,8 +902,8 @@
         "difficulty_rank": 2
       },
       {
-        "es": "Ellos comen pan aquí",
-        "no": "De spiser brød her",
+        "es": "Ellos comen pan aquí.",
+        "no": "De spiser brød her.",
         "word_mapping": [
           {
             "position": 0,
@@ -938,8 +938,8 @@
         "difficulty_rank": 2
       },
       {
-        "es": "Ella come fruta en casa",
-        "no": "Hun spiser frukt hjemme",
+        "es": "Ella come fruta en casa.",
+        "no": "Hun spiser frukt hjemme.",
         "word_mapping": [
           {
             "position": 0,
@@ -980,8 +980,8 @@
         "difficulty_rank": 3
       },
       {
-        "es": "Yo tengo agua y café",
-        "no": "Jeg har vann og kaffe",
+        "es": "Yo tengo agua y café.",
+        "no": "Jeg har vann og kaffe.",
         "word_mapping": [
           {
             "position": 0,
@@ -1022,8 +1022,8 @@
         "difficulty_rank": 3
       },
       {
-        "es": "Las amigas toman leche hoy",
-        "no": "Venninnene drikker melk i dag",
+        "es": "Las amigas toman leche hoy.",
+        "no": "Venninnene drikker melk i dag.",
         "word_mapping": [
           {
             "position": 0,
@@ -1064,8 +1064,8 @@
         "difficulty_rank": 3
       },
       {
-        "es": "Nosotros comemos fruta en casa",
-        "no": "Vi spiser frukt hjemme",
+        "es": "Nosotros comemos fruta en casa.",
+        "no": "Vi spiser frukt hjemme.",
         "word_mapping": [
           {
             "position": 0,
@@ -1106,8 +1106,8 @@
         "difficulty_rank": 3
       },
       {
-        "es": "Tú tomas café con leche",
-        "no": "Du drikker kaffe med melk",
+        "es": "Tú tomas café con leche.",
+        "no": "Du drikker kaffe med melk.",
         "word_mapping": [
           {
             "position": 0,
@@ -1148,8 +1148,8 @@
         "difficulty_rank": 4
       },
       {
-        "es": "El padre come pan y fruta",
-        "no": "Faren spiser brød og frukt",
+        "es": "El padre come pan y fruta.",
+        "no": "Faren spiser brød og frukt.",
         "word_mapping": [
           {
             "position": 0,
@@ -1196,8 +1196,8 @@
         "difficulty_rank": 4
       },
       {
-        "es": "El niño come mucho pan",
-        "no": "Gutten spiser mye brød",
+        "es": "El niño come mucho pan.",
+        "no": "Gutten spiser mye brød.",
         "word_mapping": [
           {
             "position": 0,
@@ -1238,8 +1238,8 @@
         "difficulty_rank": 5
       },
       {
-        "es": "Las niñas quieren fruta buena",
-        "no": "Jentene vil ha god frukt",
+        "es": "Las niñas quieren fruta buena.",
+        "no": "Jentene vil ha god frukt.",
         "word_mapping": [
           {
             "position": 0,
@@ -1280,8 +1280,8 @@
         "difficulty_rank": 6
       },
       {
-        "es": "El amigo no bebe leche",
-        "no": "Vennen drikker ikke melk",
+        "es": "El amigo no bebe leche.",
+        "no": "Vennen drikker ikke melk.",
         "word_mapping": [
           {
             "position": 0,
@@ -1322,8 +1322,8 @@
         "difficulty_rank": 6
       },
       {
-        "es": "Los niños van a la escuela",
-        "no": "Barna går til skolen",
+        "es": "Los niños van a la escuela.",
+        "no": "Barna går til skolen.",
         "word_mapping": [
           {
             "position": 0,
@@ -1370,8 +1370,8 @@
         "difficulty_rank": 3
       },
       {
-        "es": "El profesor habla con los niños",
-        "no": "Læreren snakker med barna",
+        "es": "El profesor habla con los niños.",
+        "no": "Læreren snakker med barna.",
         "word_mapping": [
           {
             "position": 0,
@@ -1418,8 +1418,8 @@
         "difficulty_rank": 4
       },
       {
-        "es": "Ella estudia en la escuela grande",
-        "no": "Hun studerer på den store skolen",
+        "es": "Ella estudia en la escuela grande.",
+        "no": "Hun studerer på den store skolen.",
         "word_mapping": [
           {
             "position": 0,
@@ -1466,8 +1466,8 @@
         "difficulty_rank": 6
       },
       {
-        "es": "Nosotros trabajamos en la ciudad",
-        "no": "Vi jobber i byen",
+        "es": "Nosotros trabajamos en la ciudad.",
+        "no": "Vi jobber i byen.",
         "word_mapping": [
           {
             "position": 0,
@@ -1508,8 +1508,8 @@
         "difficulty_rank": 5
       },
       {
-        "es": "El padre trabaja mucho hoy",
-        "no": "Faren jobber mye i dag",
+        "es": "El padre trabaja mucho hoy.",
+        "no": "Faren jobber mye i dag.",
         "word_mapping": [
           {
             "position": 0,
@@ -1550,8 +1550,8 @@
         "difficulty_rank": 5
       },
       {
-        "es": "Las mujeres trabajan en la escuela",
-        "no": "Kvinnene jobber på skolen",
+        "es": "Las mujeres trabajan en la escuela.",
+        "no": "Kvinnene jobber på skolen.",
         "word_mapping": [
           {
             "position": 0,
@@ -1598,8 +1598,8 @@
         "difficulty_rank": 5
       },
       {
-        "es": "Tú estudias y trabajas mucho",
-        "no": "Du studerer og jobber mye",
+        "es": "Tú estudias y trabajas mucho.",
+        "no": "Du studerer og jobber mye.",
         "word_mapping": [
           {
             "position": 0,
@@ -1640,8 +1640,8 @@
         "difficulty_rank": 7
       },
       {
-        "es": "Los profesores son muy buenos",
-        "no": "Lærerne er veldig gode",
+        "es": "Los profesores son muy buenos.",
+        "no": "Lærerne er veldig gode.",
         "word_mapping": [
           {
             "position": 0,
@@ -1682,8 +1682,8 @@
         "difficulty_rank": 6
       },
       {
-        "es": "Yo camino a la escuela",
-        "no": "Jeg går til skolen",
+        "es": "Yo camino a la escuela.",
+        "no": "Jeg går til skolen.",
         "word_mapping": [
           {
             "position": 0,
@@ -1724,8 +1724,8 @@
         "difficulty_rank": 3
       },
       {
-        "es": "Ellas no van a la escuela",
-        "no": "De går ikke til skolen",
+        "es": "Ellas no van a la escuela.",
+        "no": "De går ikke til skolen.",
         "word_mapping": [
           {
             "position": 0,
@@ -1772,8 +1772,8 @@
         "difficulty_rank": 5
       },
       {
-        "es": "Los hermanos estudian en casa",
-        "no": "Brødrene studerer hjemme",
+        "es": "Los hermanos estudian en casa.",
+        "no": "Brødrene studerer hjemme.",
         "word_mapping": [
           {
             "position": 0,
@@ -1814,8 +1814,8 @@
         "difficulty_rank": 4
       },
       {
-        "es": "El profesor lee un libro nuevo",
-        "no": "Læreren leser en ny bok",
+        "es": "El profesor lee un libro nuevo.",
+        "no": "Læreren leser en ny bok.",
         "word_mapping": [
           {
             "position": 0,
@@ -1862,8 +1862,8 @@
         "difficulty_rank": 7
       },
       {
-        "es": "El niño escribe en la escuela",
-        "no": "Gutten skriver på skolen",
+        "es": "El niño escribe en la escuela.",
+        "no": "Gutten skriver på skolen.",
         "word_mapping": [
           {
             "position": 0,
@@ -1910,8 +1910,8 @@
         "difficulty_rank": 4
       },
       {
-        "es": "Las niñas no quieren trabajar",
-        "no": "Jentene vil ikke jobbe",
+        "es": "Las niñas no quieren trabajar.",
+        "no": "Jentene vil ikke jobbe.",
         "word_mapping": [
           {
             "position": 0,
@@ -1952,8 +1952,8 @@
         "difficulty_rank": 8
       },
       {
-        "es": "Nosotros estudiamos con el profesor",
-        "no": "Vi studerer med læreren",
+        "es": "Nosotros estudiamos con el profesor.",
+        "no": "Vi studerer med læreren.",
         "word_mapping": [
           {
             "position": 0,
@@ -1994,8 +1994,8 @@
         "difficulty_rank": 4
       },
       {
-        "es": "La madre vive en la casa",
-        "no": "Moren lever i huset",
+        "es": "La madre vive en la casa.",
+        "no": "Moren lever i huset.",
         "word_mapping": [
           {
             "position": 0,
@@ -2042,8 +2042,8 @@
         "difficulty_rank": 3
       },
       {
-        "es": "El gato duerme en la casa",
-        "no": "Katten sover i huset",
+        "es": "El gato duerme en la casa.",
+        "no": "Katten sover i huset.",
         "word_mapping": [
           {
             "position": 0,
@@ -2090,8 +2090,8 @@
         "difficulty_rank": 2
       },
       {
-        "es": "Los hermanos tienen un perro pequeño",
-        "no": "Brødrene har en liten hund",
+        "es": "Los hermanos tienen un perro pequeño.",
+        "no": "Brødrene har en liten hund.",
         "word_mapping": [
           {
             "position": 0,
@@ -2138,8 +2138,8 @@
         "difficulty_rank": 4
       },
       {
-        "es": "Yo bebo agua con la madre",
-        "no": "Jeg drikker vann med moren",
+        "es": "Yo bebo agua con la madre.",
+        "no": "Jeg drikker vann med moren.",
         "word_mapping": [
           {
             "position": 0,
@@ -2186,8 +2186,8 @@
         "difficulty_rank": 3
       },
       {
-        "es": "Las hermanas abren los libros nuevos",
-        "no": "Søstrene åpner de nye bøkene",
+        "es": "Las hermanas abren los libros nuevos.",
+        "no": "Søstrene åpner de nye bøkene.",
         "word_mapping": [
           {
             "position": 0,
@@ -2234,8 +2234,8 @@
         "difficulty_rank": 5
       },
       {
-        "es": "El hijo lee un libro en casa",
-        "no": "Sønnen leser en bok hjemme",
+        "es": "El hijo lee un libro en casa.",
+        "no": "Sønnen leser en bok hjemme.",
         "word_mapping": [
           {
             "position": 0,
@@ -2288,8 +2288,8 @@
         "difficulty_rank": 3
       },
       {
-        "es": "La familia come en casa hoy",
-        "no": "Familien spiser hjemme i dag",
+        "es": "La familia come en casa hoy.",
+        "no": "Familien spiser hjemme i dag.",
         "word_mapping": [
           {
             "position": 0,
@@ -2336,8 +2336,8 @@
         "difficulty_rank": 3
       },
       {
-        "es": "Los niños ven el gato grande",
-        "no": "Guttene ser den store katten",
+        "es": "Los niños ven el gato grande.",
+        "no": "Guttene ser den store katten.",
         "word_mapping": [
           {
             "position": 0,
@@ -2384,8 +2384,8 @@
         "difficulty_rank": 4
       },
       {
-        "es": "Ella escribe cosas buenas aquí",
-        "no": "Hun skriver gode ting her",
+        "es": "Ella escribe cosas buenas aquí.",
+        "no": "Hun skriver gode ting her.",
         "word_mapping": [
           {
             "position": 0,
@@ -2426,8 +2426,8 @@
         "difficulty_rank": 4
       },
       {
-        "es": "Nosotros tenemos una casa bonita",
-        "no": "Vi har et pent hus",
+        "es": "Nosotros tenemos una casa bonita.",
+        "no": "Vi har et pent hus.",
         "word_mapping": [
           {
             "position": 0,
@@ -2468,8 +2468,8 @@
         "difficulty_rank": 3
       },
       {
-        "es": "El perro no come la fruta",
-        "no": "Hunden spiser ikke frukten",
+        "es": "El perro no come la fruta.",
+        "no": "Hunden spiser ikke frukten.",
         "word_mapping": [
           {
             "position": 0,
@@ -2516,8 +2516,8 @@
         "difficulty_rank": 4
       },
       {
-        "es": "La niña mira el libro viejo",
-        "no": "Jenten ser på den gamle boken",
+        "es": "La niña mira el libro viejo.",
+        "no": "Jenten ser på den gamle boken.",
         "word_mapping": [
           {
             "position": 0,
@@ -2564,8 +2564,8 @@
         "difficulty_rank": 4
       },
       {
-        "es": "Los padres viven con los hijos",
-        "no": "Foreldrene lever med barna",
+        "es": "Los padres viven con los hijos.",
+        "no": "Foreldrene lever med barna.",
         "word_mapping": [
           {
             "position": 0,
@@ -2612,8 +2612,8 @@
         "difficulty_rank": 5
       },
       {
-        "es": "Tú tienes un gato y un perro",
-        "no": "Du har en katt og en hund",
+        "es": "Tú tienes un gato y un perro.",
+        "no": "Du har en katt og en hund.",
         "word_mapping": [
           {
             "position": 0,
@@ -2666,8 +2666,8 @@
         "difficulty_rank": 3
       },
       {
-        "es": "Ellos leen libros en la casa",
-        "no": "De leser bøker i huset",
+        "es": "Ellos leen libros en la casa.",
+        "no": "De leser bøker i huset.",
         "word_mapping": [
           {
             "position": 0,
@@ -2714,8 +2714,8 @@
         "difficulty_rank": 3
       },
       {
-        "es": "Ella camina con el perro pequeño",
-        "no": "Hun går med den lille hunden",
+        "es": "Ella camina con el perro pequeño.",
+        "no": "Hun går med den lille hunden.",
         "word_mapping": [
           {
             "position": 0,
@@ -2762,8 +2762,8 @@
         "difficulty_rank": 3
       },
       {
-        "es": "Nosotros bebemos café en la mañana",
-        "no": "Vi drikker kaffe om morgenen",
+        "es": "Nosotros bebemos café en la mañana.",
+        "no": "Vi drikker kaffe om morgenen.",
         "word_mapping": [
           {
             "position": 0,
@@ -2810,8 +2810,8 @@
         "difficulty_rank": 4
       },
       {
-        "es": "Tú cantas muy bien aquí",
-        "no": "Du synger veldig bra her",
+        "es": "Tú cantas muy bien aquí.",
+        "no": "Du synger veldig bra her.",
         "word_mapping": [
           {
             "position": 0,
@@ -2852,8 +2852,8 @@
         "difficulty_rank": 2
       },
       {
-        "es": "Ellos corren en la calle hoy",
-        "no": "De løper i gaten i dag",
+        "es": "Ellos corren en la calle hoy.",
+        "no": "De løper i gaten i dag.",
         "word_mapping": [
           {
             "position": 0,
@@ -2900,8 +2900,8 @@
         "difficulty_rank": 3
       },
       {
-        "es": "Yo vivo en una ciudad grande",
-        "no": "Jeg bor i en stor by",
+        "es": "Yo vivo en una ciudad grande.",
+        "no": "Jeg bor i en stor by.",
         "word_mapping": [
           {
             "position": 0,
@@ -2948,8 +2948,8 @@
         "difficulty_rank": 3
       },
       {
-        "es": "Las mujeres trabajan en la escuela",
-        "no": "Kvinnene jobber på skolen",
+        "es": "Las mujeres trabajan en la escuela.",
+        "no": "Kvinnene jobber på skolen.",
         "word_mapping": [
           {
             "position": 0,
@@ -2996,8 +2996,8 @@
         "difficulty_rank": 4
       },
       {
-        "es": "El padre hace pan en casa",
-        "no": "Faren lager brød hjemme",
+        "es": "El padre hace pan en casa.",
+        "no": "Faren lager brød hjemme.",
         "word_mapping": [
           {
             "position": 0,
@@ -3044,8 +3044,8 @@
         "difficulty_rank": 3
       },
       {
-        "es": "Vosotros entendéis la cosa bien",
-        "no": "Dere forstår tingen godt",
+        "es": "Vosotros entendéis la cosa bien.",
+        "no": "Dere forstår tingen godt.",
         "word_mapping": [
           {
             "position": 0,
@@ -3086,8 +3086,8 @@
         "difficulty_rank": 5
       },
       {
-        "es": "La amiga recibe un libro nuevo",
-        "no": "Venninnen mottar en ny bok",
+        "es": "La amiga recibe un libro nuevo.",
+        "no": "Venninnen mottar en ny bok.",
         "word_mapping": [
           {
             "position": 0,
@@ -3134,8 +3134,8 @@
         "difficulty_rank": 4
       },
       {
-        "es": "Los gatos duermen en la noche",
-        "no": "Kattene sover om natten",
+        "es": "Los gatos duermen en la noche.",
+        "no": "Kattene sover om natten.",
         "word_mapping": [
           {
             "position": 0,
@@ -3182,8 +3182,8 @@
         "difficulty_rank": 3
       },
       {
-        "es": "Él no sabe la cosa",
-        "no": "Han vet ikke tingen",
+        "es": "Él no sabe la cosa.",
+        "no": "Han vet ikke tingen.",
         "word_mapping": [
           {
             "position": 0,
@@ -3224,8 +3224,8 @@
         "difficulty_rank": 4
       },
       {
-        "es": "Nosotros vamos a la ciudad hoy",
-        "no": "Vi går til byen i dag",
+        "es": "Nosotros vamos a la ciudad hoy.",
+        "no": "Vi går til byen i dag.",
         "word_mapping": [
           {
             "position": 0,
@@ -3272,8 +3272,8 @@
         "difficulty_rank": 4
       },
       {
-        "es": "Ellas miran el coche viejo aquí",
-        "no": "De ser på den gamle bilen her",
+        "es": "Ellas miran el coche viejo aquí.",
+        "no": "De ser på den gamle bilen her.",
         "word_mapping": [
           {
             "position": 0,
@@ -3320,8 +3320,8 @@
         "difficulty_rank": 4
       },
       {
-        "es": "La hermana toma leche con pan",
-        "no": "Søsteren drikker melk med brød",
+        "es": "La hermana toma leche con pan.",
+        "no": "Søsteren drikker melk med brød.",
         "word_mapping": [
           {
             "position": 0,
@@ -3368,8 +3368,8 @@
         "difficulty_rank": 4
       },
       {
-        "es": "Tú escribes cosas buenas en libros",
-        "no": "Du skriver gode ting i bøker",
+        "es": "Tú escribes cosas buenas en libros.",
+        "no": "Du skriver gode ting i bøker.",
         "word_mapping": [
           {
             "position": 0,
@@ -3416,8 +3416,8 @@
         "difficulty_rank": 5
       },
       {
-        "es": "Yo tengo un coche grande",
-        "no": "Jeg har en stor bil",
+        "es": "Yo tengo un coche grande.",
+        "no": "Jeg har en stor bil.",
         "word_mapping": [
           {
             "position": 0,
@@ -3458,8 +3458,8 @@
         "difficulty_rank": 1
       },
       {
-        "es": "Él es un niño pequeño",
-        "no": "Han er en liten gutt",
+        "es": "Él es un niño pequeño.",
+        "no": "Han er en liten gutt.",
         "word_mapping": [
           {
             "position": 0,
@@ -3500,8 +3500,8 @@
         "difficulty_rank": 2
       },
       {
-        "es": "Tú comes frutas buenas",
-        "no": "Du spiser god frukt",
+        "es": "Tú comes frutas buenas.",
+        "no": "Du spiser god frukt.",
         "word_mapping": [
           {
             "position": 0,
@@ -3536,8 +3536,8 @@
         "difficulty_rank": 3
       },
       {
-        "es": "Ella lee libros viejos",
-        "no": "Hun leser gamle bøker",
+        "es": "Ella lee libros viejos.",
+        "no": "Hun leser gamle bøker.",
         "word_mapping": [
           {
             "position": 0,
@@ -3572,8 +3572,8 @@
         "difficulty_rank": 4
       },
       {
-        "es": "La familia grande vive bien",
-        "no": "Den store familien lever godt",
+        "es": "La familia grande vive bien.",
+        "no": "Den store familien lever godt.",
         "word_mapping": [
           {
             "position": 0,
@@ -3614,8 +3614,8 @@
         "difficulty_rank": 5
       },
       {
-        "es": "Ellos beben agua en casa",
-        "no": "De drikker vann hjemme",
+        "es": "Ellos beben agua en casa.",
+        "no": "De drikker vann hjemme.",
         "word_mapping": [
           {
             "position": 0,
@@ -3656,8 +3656,8 @@
         "difficulty_rank": 6
       },
       {
-        "es": "Ellas tienen hijas bonitas",
-        "no": "De har pene døtre",
+        "es": "Ellas tienen hijas bonitas.",
+        "no": "De har pene døtre.",
         "word_mapping": [
           {
             "position": 0,
@@ -3692,8 +3692,8 @@
         "difficulty_rank": 7
       },
       {
-        "es": "Las amigas nuevas cantan bien",
-        "no": "De nye venninnene synger godt",
+        "es": "Las amigas nuevas cantan bien.",
+        "no": "De nye venninnene synger godt.",
         "word_mapping": [
           {
             "position": 0,
@@ -3734,8 +3734,8 @@
         "difficulty_rank": 8
       },
       {
-        "es": "Los perros pequeños corren mucho",
-        "no": "De små hundene løper mye",
+        "es": "Los perros pequeños corren mucho.",
+        "no": "De små hundene løper mye.",
         "word_mapping": [
           {
             "position": 0,
@@ -3776,8 +3776,8 @@
         "difficulty_rank": 9
       },
       {
-        "es": "Nosotros vemos coches nuevos aquí",
-        "no": "Vi ser nye biler her",
+        "es": "Nosotros vemos coches nuevos aquí.",
+        "no": "Vi ser nye biler her.",
         "word_mapping": [
           {
             "position": 0,
@@ -3818,8 +3818,8 @@
         "difficulty_rank": 10
       },
       {
-        "es": "Los hombres altos caminan aquí",
-        "no": "De høye mennene går her",
+        "es": "Los hombres altos caminan aquí.",
+        "no": "De høye mennene går her.",
         "word_mapping": [
           {
             "position": 0,
@@ -3860,8 +3860,8 @@
         "difficulty_rank": 11
       },
       {
-        "es": "Las hermanas contentas hablan mucho",
-        "no": "De fornøyde søstrene snakker mye",
+        "es": "Las hermanas contentas hablan mucho.",
+        "no": "De fornøyde søstrene snakker mye.",
         "word_mapping": [
           {
             "position": 0,
@@ -3902,8 +3902,8 @@
         "difficulty_rank": 12
       },
       {
-        "es": "El gato malo no viene",
-        "no": "Den slemme katten kommer ikke",
+        "es": "El gato malo no viene.",
+        "no": "Den slemme katten kommer ikke.",
         "word_mapping": [
           {
             "position": 0,
@@ -3944,8 +3944,8 @@
         "difficulty_rank": 13
       },
       {
-        "es": "La mujer cansada está aquí",
-        "no": "Den trøtte kvinnen er her",
+        "es": "La mujer cansada está aquí.",
+        "no": "Den trøtte kvinnen er her.",
         "word_mapping": [
           {
             "position": 0,
@@ -3986,8 +3986,8 @@
         "difficulty_rank": 14
       },
       {
-        "es": "Los profesores jóvenes trabajan hoy",
-        "no": "De unge lærerne arbeider i dag",
+        "es": "Los profesores jóvenes trabajan hoy.",
+        "no": "De unge lærerne arbeider i dag.",
         "word_mapping": [
           {
             "position": 0,
@@ -4028,8 +4028,8 @@
         "difficulty_rank": 15
       },
       {
-        "es": "La ciudad es muy grande",
-        "no": "Byen er veldig stor",
+        "es": "La ciudad es muy grande.",
+        "no": "Byen er veldig stor.",
         "word_mapping": [
           {
             "position": 0,
@@ -4070,8 +4070,8 @@
         "difficulty_rank": 1
       },
       {
-        "es": "Una ciudad pequeña tiene una calle",
-        "no": "En liten by har en gate",
+        "es": "Una ciudad pequeña tiene una calle.",
+        "no": "En liten by har en gate.",
         "word_mapping": [
           {
             "position": 0,
@@ -4118,8 +4118,8 @@
         "difficulty_rank": 2
       },
       {
-        "es": "Ellos viven en la ciudad",
-        "no": "De bor i byen",
+        "es": "Ellos viven en la ciudad.",
+        "no": "De bor i byen.",
         "word_mapping": [
           {
             "position": 0,
@@ -4160,8 +4160,8 @@
         "difficulty_rank": 3
       },
       {
-        "es": "Él trabaja en un país grande",
-        "no": "Han arbeider i et stort land",
+        "es": "Él trabaja en un país grande.",
+        "no": "Han arbeider i et stort land.",
         "word_mapping": [
           {
             "position": 0,
@@ -4208,8 +4208,8 @@
         "difficulty_rank": 4
       },
       {
-        "es": "Las calles son bonitas aquí",
-        "no": "Gatene er vakre her",
+        "es": "Las calles son bonitas aquí.",
+        "no": "Gatene er vakre her.",
         "word_mapping": [
           {
             "position": 0,
@@ -4250,8 +4250,8 @@
         "difficulty_rank": 5
       },
       {
-        "es": "Las ciudades nuevas están aquí",
-        "no": "De nye byene er her",
+        "es": "Las ciudades nuevas están aquí.",
+        "no": "De nye byene er her.",
         "word_mapping": [
           {
             "position": 0,
@@ -4292,8 +4292,8 @@
         "difficulty_rank": 6
       },
       {
-        "es": "Ellas están en la calle ahora",
-        "no": "De er i gaten nå",
+        "es": "Ellas están en la calle ahora.",
+        "no": "De er i gaten nå.",
         "word_mapping": [
           {
             "position": 0,
@@ -4340,8 +4340,8 @@
         "difficulty_rank": 7
       },
       {
-        "es": "La amiga camina por la calle",
-        "no": "Venninnen går i gaten",
+        "es": "La amiga camina por la calle.",
+        "no": "Venninnen går i gaten.",
         "word_mapping": [
           {
             "position": 0,
@@ -4388,8 +4388,8 @@
         "difficulty_rank": 8
       },
       {
-        "es": "Los países pequeños son buenos",
-        "no": "De små landene er gode",
+        "es": "Los países pequeños son buenos.",
+        "no": "De små landene er gode.",
         "word_mapping": [
           {
             "position": 0,
@@ -4430,8 +4430,8 @@
         "difficulty_rank": 9
       },
       {
-        "es": "Yo quiero ver la ciudad",
-        "no": "Jeg vil se byen",
+        "es": "Yo quiero ver la ciudad.",
+        "no": "Jeg vil se byen.",
         "word_mapping": [
           {
             "position": 0,
@@ -4472,8 +4472,8 @@
         "difficulty_rank": 10
       },
       {
-        "es": "El país es bonito y grande",
-        "no": "Landet er vakkert og stort",
+        "es": "El país es bonito y grande.",
+        "no": "Landet er vakkert og stort.",
         "word_mapping": [
           {
             "position": 0,
@@ -4520,8 +4520,8 @@
         "difficulty_rank": 11
       },
       {
-        "es": "Los hombres vienen de la ciudad",
-        "no": "Mennene kommer fra byen",
+        "es": "Los hombres vienen de la ciudad.",
+        "no": "Mennene kommer fra byen.",
         "word_mapping": [
           {
             "position": 0,
@@ -4568,8 +4568,8 @@
         "difficulty_rank": 12
       },
       {
-        "es": "La calle vieja está en la ciudad",
-        "no": "Den gamle gaten er i byen",
+        "es": "La calle vieja está en la ciudad.",
+        "no": "Den gamle gaten er i byen.",
         "word_mapping": [
           {
             "position": 0,
@@ -4622,8 +4622,8 @@
         "difficulty_rank": 13
       },
       {
-        "es": "Nosotros no vamos a la calle",
-        "no": "Vi går ikke til gaten",
+        "es": "Nosotros no vamos a la calle.",
+        "no": "Vi går ikke til gaten.",
         "word_mapping": [
           {
             "position": 0,
@@ -4670,8 +4670,8 @@
         "difficulty_rank": 14
       },
       {
-        "es": "Vosotros miráis las calles viejas",
-        "no": "Dere ser på de gamle gatene",
+        "es": "Vosotros miráis las calles viejas.",
+        "no": "Dere ser på de gamle gatene.",
         "word_mapping": [
           {
             "position": 0,
@@ -4712,8 +4712,8 @@
         "difficulty_rank": 15
       },
       {
-        "es": "Nosotros comemos ahora",
-        "no": "Vi spiser nå",
+        "es": "Nosotros comemos ahora.",
+        "no": "Vi spiser nå.",
         "word_mapping": [
           {
             "position": 0,
@@ -4742,8 +4742,8 @@
         "difficulty_rank": 2
       },
       {
-        "es": "Ella siempre lee libros buenos",
-        "no": "Hun leser alltid gode bøker",
+        "es": "Ella siempre lee libros buenos.",
+        "no": "Hun leser alltid gode bøker.",
         "word_mapping": [
           {
             "position": 0,
@@ -4784,8 +4784,8 @@
         "difficulty_rank": 6
       },
       {
-        "es": "Los niños duermen siempre aquí",
-        "no": "Guttene sover alltid her",
+        "es": "Los niños duermen siempre aquí.",
+        "no": "Guttene sover alltid her.",
         "word_mapping": [
           {
             "position": 0,
@@ -4826,8 +4826,8 @@
         "difficulty_rank": 3
       },
       {
-        "es": "Yo trabajo mucho hoy",
-        "no": "Jeg jobber mye i dag",
+        "es": "Yo trabajo mucho hoy.",
+        "no": "Jeg jobber mye i dag.",
         "word_mapping": [
           {
             "position": 0,
@@ -4862,8 +4862,8 @@
         "difficulty_rank": 2
       },
       {
-        "es": "Ellas vienen siempre a casa",
-        "no": "De kommer alltid hjem",
+        "es": "Ellas vienen siempre a casa.",
+        "no": "De kommer alltid hjem.",
         "word_mapping": [
           {
             "position": 0,
@@ -4904,8 +4904,8 @@
         "difficulty_rank": 4
       },
       {
-        "es": "El padre no trabaja hoy",
-        "no": "Faren jobber ikke i dag",
+        "es": "El padre no trabaja hoy.",
+        "no": "Faren jobber ikke i dag.",
         "word_mapping": [
           {
             "position": 0,
@@ -4946,8 +4946,8 @@
         "difficulty_rank": 5
       },
       {
-        "es": "Vosotros estudiáis ahora",
-        "no": "Dere studerer nå",
+        "es": "Vosotros estudiáis ahora.",
+        "no": "Dere studerer nå.",
         "word_mapping": [
           {
             "position": 0,
@@ -4976,8 +4976,8 @@
         "difficulty_rank": 1
       },
       {
-        "es": "La madre está cansada hoy",
-        "no": "Moren er trøtt i dag",
+        "es": "La madre está cansada hoy.",
+        "no": "Moren er trøtt i dag.",
         "word_mapping": [
           {
             "position": 0,
@@ -5018,8 +5018,8 @@
         "difficulty_rank": 4
       },
       {
-        "es": "Ellos siempre comen pan y fruta",
-        "no": "De spiser alltid brød og frukt",
+        "es": "Ellos siempre comen pan y fruta.",
+        "no": "De spiser alltid brød og frukt.",
         "word_mapping": [
           {
             "position": 0,
@@ -5066,8 +5066,8 @@
         "difficulty_rank": 7
       },
       {
-        "es": "Las amigas hablan siempre aquí",
-        "no": "Venninnene snakker alltid her",
+        "es": "Las amigas hablan siempre aquí.",
+        "no": "Venninnene snakker alltid her.",
         "word_mapping": [
           {
             "position": 0,
@@ -5108,8 +5108,8 @@
         "difficulty_rank": 3
       },
       {
-        "es": "Tú bebes café ahora",
-        "no": "Du drikker kaffe nå",
+        "es": "Tú bebes café ahora.",
+        "no": "Du drikker kaffe nå.",
         "word_mapping": [
           {
             "position": 0,
@@ -5144,8 +5144,8 @@
         "difficulty_rank": 2
       },
       {
-        "es": "Los profesores trabajan mucho hoy",
-        "no": "Lærerne jobber mye i dag",
+        "es": "Los profesores trabajan mucho hoy.",
+        "no": "Lærerne jobber mye i dag.",
         "word_mapping": [
           {
             "position": 0,
@@ -5186,8 +5186,8 @@
         "difficulty_rank": 3
       },
       {
-        "es": "Ella siempre está contenta aquí",
-        "no": "Hun er alltid fornøyd her",
+        "es": "Ella siempre está contenta aquí.",
+        "no": "Hun er alltid fornøyd her.",
         "word_mapping": [
           {
             "position": 0,
@@ -5228,8 +5228,8 @@
         "difficulty_rank": 5
       },
       {
-        "es": "Yo voy a la escuela hoy",
-        "no": "Jeg går til skolen i dag",
+        "es": "Yo voy a la escuela hoy.",
+        "no": "Jeg går til skolen i dag.",
         "word_mapping": [
           {
             "position": 0,
@@ -5276,8 +5276,8 @@
         "difficulty_rank": 4
       },
       {
-        "es": "Ellas no vienen hoy",
-        "no": "De kommer ikke i dag",
+        "es": "Ellas no vienen hoy.",
+        "no": "De kommer ikke i dag.",
         "word_mapping": [
           {
             "position": 0,
@@ -5312,8 +5312,8 @@
         "difficulty_rank": 3
       },
       {
-        "es": "Yo estudio porque quiero saber mucho",
-        "no": "Jeg studerer fordi jeg vil vite mye",
+        "es": "Yo estudio porque quiero saber mucho.",
+        "no": "Jeg studerer fordi jeg vil vite mye.",
         "word_mapping": [
           {
             "position": 0,
@@ -5360,8 +5360,8 @@
         "difficulty_rank": 8
       },
       {
-        "es": "Ella no come pan pero bebe café",
-        "no": "Hun spiser ikke brød men drikker kaffe",
+        "es": "Ella no come pan pero bebe café.",
+        "no": "Hun spiser ikke brød men drikker kaffe.",
         "word_mapping": [
           {
             "position": 0,
@@ -5414,8 +5414,8 @@
         "difficulty_rank": 6
       },
       {
-        "es": "Los hermanos son jóvenes y contentos",
-        "no": "Brødrene er unge og fornøyde",
+        "es": "Los hermanos son jóvenes y contentos.",
+        "no": "Brødrene er unge og fornøyde.",
         "word_mapping": [
           {
             "position": 0,
@@ -5462,8 +5462,8 @@
         "difficulty_rank": 3
       },
       {
-        "es": "Tú no vienes porque estás cansado",
-        "no": "Du kommer ikke fordi du er trøtt",
+        "es": "Tú no vienes porque estás cansado.",
+        "no": "Du kommer ikke fordi du er trøtt.",
         "word_mapping": [
           {
             "position": 0,
@@ -5510,8 +5510,8 @@
         "difficulty_rank": 6
       },
       {
-        "es": "Las niñas cantan bien y hablan",
-        "no": "Jentene synger bra og snakker",
+        "es": "Las niñas cantan bien y hablan.",
+        "no": "Jentene synger bra og snakker.",
         "word_mapping": [
           {
             "position": 0,
@@ -5558,8 +5558,8 @@
         "difficulty_rank": 3
       },
       {
-        "es": "Nosotros no entendemos pero escuchamos",
-        "no": "Vi forstår ikke men vi lytter",
+        "es": "Nosotros no entendemos pero escuchamos.",
+        "no": "Vi forstår ikke men vi lytter.",
         "word_mapping": [
           {
             "position": 0,
@@ -5600,8 +5600,8 @@
         "difficulty_rank": 4
       },
       {
-        "es": "El gato duerme aquí porque está contento",
-        "no": "Katten sover her fordi den er fornøyd",
+        "es": "El gato duerme aquí porque está contento.",
+        "no": "Katten sover her fordi den er fornøyd.",
         "word_mapping": [
           {
             "position": 0,
@@ -5654,8 +5654,8 @@
         "difficulty_rank": 6
       },
       {
-        "es": "Vosotros leéis mucho y escribís también",
-        "no": "Dere leser mye og skriver også",
+        "es": "Vosotros leéis mucho y escribís también.",
+        "no": "Dere leser mye og skriver også.",
         "word_mapping": [
           {
             "position": 0,
@@ -5702,8 +5702,8 @@
         "difficulty_rank": 3
       },
       {
-        "es": "Ellas no tienen tiempo para trabajar",
-        "no": "De har ikke tid til å arbeide",
+        "es": "Ellas no tienen tiempo para trabajar.",
+        "no": "De har ikke tid til å arbeide.",
         "word_mapping": [
           {
             "position": 0,
@@ -5750,8 +5750,8 @@
         "difficulty_rank": 5
       },
       {
-        "es": "Yo veo la casa pero no entiendo",
-        "no": "Jeg ser huset men forstår ikke",
+        "es": "Yo veo la casa pero no entiendo.",
+        "no": "Jeg ser huset men forstår ikke.",
         "word_mapping": [
           {
             "position": 0,
@@ -5804,8 +5804,8 @@
         "difficulty_rank": 6
       },
       {
-        "es": "El profesor habla mucho porque sabe mucho",
-        "no": "Læreren snakker mye fordi han vet mye",
+        "es": "El profesor habla mucho porque sabe mucho.",
+        "no": "Læreren snakker mye fordi han vet mye.",
         "word_mapping": [
           {
             "position": 0,
@@ -5858,8 +5858,8 @@
         "difficulty_rank": 6
       },
       {
-        "es": "Tú y yo vivimos en la ciudad",
-        "no": "Du og jeg bor i byen",
+        "es": "Tú y yo vivimos en la ciudad.",
+        "no": "Du og jeg bor i byen.",
         "word_mapping": [
           {
             "position": 0,
@@ -5912,8 +5912,8 @@
         "difficulty_rank": 5
       },
       {
-        "es": "Los perros corren y también comen",
-        "no": "Hundene løper og spiser også",
+        "es": "Los perros corren y también comen.",
+        "no": "Hundene løper og spiser også.",
         "word_mapping": [
           {
             "position": 0,
@@ -5960,8 +5960,8 @@
         "difficulty_rank": 3
       },
       {
-        "es": "Ella no abre el libro porque está cansada",
-        "no": "Hun åpner ikke boken fordi hun er trøtt",
+        "es": "Ella no abre el libro porque está cansada.",
+        "no": "Hun åpner ikke boken fordi hun er trøtt.",
         "word_mapping": [
           {
             "position": 0,
@@ -6020,8 +6020,8 @@
         "difficulty_rank": 8
       },
       {
-        "es": "Nosotros tenemos café y leche aquí",
-        "no": "Vi har kaffe og melk her",
+        "es": "Nosotros tenemos café y leche aquí.",
+        "no": "Vi har kaffe og melk her.",
         "word_mapping": [
           {
             "position": 0,
@@ -6068,8 +6068,8 @@
         "difficulty_rank": 3
       },
       {
-        "es": "Yo hago el trabajo ahora",
-        "no": "Jeg gjør arbeidet nå",
+        "es": "Yo hago el trabajo ahora.",
+        "no": "Jeg gjør arbeidet nå.",
         "word_mapping": [
           {
             "position": 0,
@@ -6110,8 +6110,8 @@
         "difficulty_rank": 3
       },
       {
-        "es": "Los hermanos comen fruta aquí",
-        "no": "Brødrene spiser frukt her",
+        "es": "Los hermanos comen fruta aquí.",
+        "no": "Brødrene spiser frukt her.",
         "word_mapping": [
           {
             "position": 0,
@@ -6152,8 +6152,8 @@
         "difficulty_rank": 4
       },
       {
-        "es": "La niña toma leche y come pan",
-        "no": "Jenta drikker melk og spiser brød",
+        "es": "La niña toma leche y come pan.",
+        "no": "Jenta drikker melk og spiser brød.",
         "word_mapping": [
           {
             "position": 0,
@@ -6206,8 +6206,8 @@
         "difficulty_rank": 5
       },
       {
-        "es": "Ella quiere agua y café también",
-        "no": "Hun vil ha vann og kaffe også",
+        "es": "Ella quiere agua y café también.",
+        "no": "Hun vil ha vann og kaffe også.",
         "word_mapping": [
           {
             "position": 0,
@@ -6254,8 +6254,8 @@
         "difficulty_rank": 6
       },
       {
-        "es": "La mujer lee un libro grande",
-        "no": "Kvinnen leser en stor bok",
+        "es": "La mujer lee un libro grande.",
+        "no": "Kvinnen leser en stor bok.",
         "word_mapping": [
           {
             "position": 0,
@@ -6302,8 +6302,8 @@
         "difficulty_rank": 7
       },
       {
-        "es": "Las amigas cantan y hablan mucho",
-        "no": "Venninnene synger og snakker mye",
+        "es": "Las amigas cantan y hablan mucho.",
+        "no": "Venninnene synger og snakker mye.",
         "word_mapping": [
           {
             "position": 0,
@@ -6350,8 +6350,8 @@
         "difficulty_rank": 8
       },
       {
-        "es": "Las niñas miran y escuchan bien",
-        "no": "Jentene ser på og lytter godt",
+        "es": "Las niñas miran y escuchan bien.",
+        "no": "Jentene ser på og lytter godt.",
         "word_mapping": [
           {
             "position": 0,
@@ -6398,8 +6398,8 @@
         "difficulty_rank": 9
       },
       {
-        "es": "El padre abre el libro viejo",
-        "no": "Faren åpner den gamle boken",
+        "es": "El padre abre el libro viejo.",
+        "no": "Faren åpner den gamle boken.",
         "word_mapping": [
           {
             "position": 0,
@@ -6446,8 +6446,8 @@
         "difficulty_rank": 10
       },
       {
-        "es": "Nosotros vivimos en una ciudad pequeña",
-        "no": "Vi bor i en liten by",
+        "es": "Nosotros vivimos en una ciudad pequeña.",
+        "no": "Vi bor i en liten by.",
         "word_mapping": [
           {
             "position": 0,
@@ -6494,8 +6494,8 @@
         "difficulty_rank": 11
       },
       {
-        "es": "Tú das café a los amigos",
-        "no": "Du gir kaffe til vennene",
+        "es": "Tú das café a los amigos.",
+        "no": "Du gir kaffe til vennene.",
         "word_mapping": [
           {
             "position": 0,
@@ -6542,8 +6542,8 @@
         "difficulty_rank": 12
       },
       {
-        "es": "Vosotros tenéis un coche nuevo",
-        "no": "Dere har en ny bil",
+        "es": "Vosotros tenéis un coche nuevo.",
+        "no": "Dere har en ny bil.",
         "word_mapping": [
           {
             "position": 0,
@@ -6584,8 +6584,8 @@
         "difficulty_rank": 13
       },
       {
-        "es": "Los profesores ven la ciudad bonita",
-        "no": "Lærerne ser den vakre byen",
+        "es": "Los profesores ven la ciudad bonita.",
+        "no": "Lærerne ser den vakre byen.",
         "word_mapping": [
           {
             "position": 0,
@@ -6632,8 +6632,8 @@
         "difficulty_rank": 14
       },
       {
-        "es": "Él escribe bien pero no lee mucho",
-        "no": "Han skriver godt men leser ikke mye",
+        "es": "Él escribe bien pero no lee mucho.",
+        "no": "Han skriver godt men leser ikke mye.",
         "word_mapping": [
           {
             "position": 0,
@@ -6686,8 +6686,8 @@
         "difficulty_rank": 15
       },
       {
-        "es": "El perro no corre porque está cansado",
-        "no": "Hunden løper ikke fordi den er trøtt",
+        "es": "El perro no corre porque está cansado.",
+        "no": "Hunden løper ikke fordi den er trøtt.",
         "word_mapping": [
           {
             "position": 0,
@@ -6740,8 +6740,8 @@
         "difficulty_rank": 16
       },
       {
-        "es": "Ellos no saben porque son jóvenes",
-        "no": "De vet ikke fordi de er unge",
+        "es": "Ellos no saben porque son jóvenes.",
+        "no": "De vet ikke fordi de er unge.",
         "word_mapping": [
           {
             "position": 0,
