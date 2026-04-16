@@ -899,6 +899,7 @@ def step_reactivate_book_sentences(db: Session) -> int:
         for page, lid, is_func, ks in sw_rows:
             if page is None:
                 continue
+            _ = pages[page]  # ensure page exists in dict even if all words are ready
             if is_func:
                 continue
             if ks not in ("known", "learning", "acquiring", "lapsed"):
