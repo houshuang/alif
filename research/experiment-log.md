@@ -4,6 +4,20 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-04-16: Corpus sentence mapping bug — 63/74 active sentences had wrong lemmas
+
+**Problem:** Sentence 21365 shown with 3 wrong lemma mappings (نحل→"to grow thin" instead of "bee", صفر→"to be empty" instead of "yellow", etc.). Investigation found the verification pipeline (Sonnet) correctly caught errors, but the correction step silently failed.
+
+**Root cause:** `correct_mapping()` returns `current_lemma_id` when it can't find the correct lemma in the vocabulary. The caller in `update_material.py` had two branches: success (new lemma found) and failure (no lemma at all), but missed the third case: same wrong lemma returned back. This caused `correction_failed` to stay `False`, and sentences were activated with wrong mappings.
+
+**Scope:** Audited all 74 active corpus sentences — **63 had mapping issues** (85% error rate). Most were homograph collisions (verb/noun with same consonants mapped to wrong POS). Deactivated all 63, leaving 11 clean ones. Also found `batch_verify_sentences()` still used `json_mode=True` instead of `json_schema=` (same CLI parse bug class from 2026-04-14).
+
+**Fix (commit 28a1cc7):** Added `else: correction_failed = True` branch in 3 sites: `update_material.py`, `material_generator.py` (multi-target path), and switched batch verifier to `json_schema=`.
+
+**Verification:** Tested same sentence with Sonnet via verification prompt — correctly returns all 3 issues. Fix confirmed: future sentences with uncorrectable mappings will be rejected.
+
+---
+
 ## 2026-04-15: Spanish Pilot — UX Validation Prototype for Norwegian School
 
 **Context**: A Norwegian school with 60 students learning Spanish expressed interest in testing Alif-style word-level SRS. Rather than adapting the Alif codebase (single-user, deeply Arabic-specific: CAMeL Tools, triliteral roots, RTL, clitic stripping), we built a standalone `spanish-pilot/` prototype to validate the core UX before committing to a full port.
