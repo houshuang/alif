@@ -4,6 +4,31 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-04-15: Spanish Pilot — UX Validation Prototype for Norwegian School
+
+**Context**: A Norwegian school with 60 students learning Spanish expressed interest in testing Alif-style word-level SRS. Rather than adapting the Alif codebase (single-user, deeply Arabic-specific: CAMeL Tools, triliteral roots, RTL, clitic stripping), we built a standalone `spanish-pilot/` prototype to validate the core UX before committing to a full port.
+
+**What was built** (`spanish-pilot/`):
+- **Backend**: FastAPI + py-fsrs v6 + SQLAlchemy, separate SQLite at `data/pilot.db`, deployed on Hetzner port 3100 (`alif-spanish-pilot` systemd unit at `/opt/alif-pilot/`)
+- **Scheduler**: Direct port of Alif's three-phase lifecycle (Encountered → Leitner 3-box → FSRS-6) including tiered graduation (T1: 100%+3 reviews; T2: ≥80%+4 reviews+box≥2; T3: due+box≥3+5 reviews+60%+2 calendar days), first-correct shortcut, rating-2 stay-in-box
+- **Session builder**: Ported NEVER_REVIEWED_BOOST (5.0x), LAPSED_BOOST (3.0x), overdue escalation (up to 6.0x), comprehensibility gate (≥60% known scaffold), greedy set cover, intro cards interleaved among sentences
+- **Review**: Sentence-level with per-lemma credit for ALL non-function words (Alif's "every word earns credit" invariant). Collateral auto-introduction for unknown words seen in reviewed sentences
+- **Content**: 120 curated Spanish lemmas (top-frequency A1-A2, present tense) enriched via Claude CLI with Norwegian gloss, memory hooks, etymology, conjugation tables, agreement forms. 150 pre-generated sentences with word-to-lemma mapping + MC distractors. Two-pass LLM verification (generate → verify → auto-correct) for both lemmas and sentences
+- **Frontend**: Vanilla HTML/JS, light theme. Alif-style 3-button action row (Vet ikke / Kan alle / Vis oversettelse), inline word-detail cards, intro cards for new words, dashboard with Leitner box visualization. Two modes: self-grade and multiple-choice (per-student toggle)
+- **Login**: Name-only student list, no auth (pilot trust model)
+
+**What was NOT ported** (intentionally): podcasts, story mode, listening mode, Quran mode, confusion analysis, grammar exposure tracking, leech detection, OCR, book import, activity logging, offline mode, TTS audio.
+
+**Key design decision**: Norwegian UI throughout — no English anywhere. The teacher specifically wanted to compare self-grade vs multiple-choice modes to decide if student self-grading is reliable enough.
+
+**Content quality pipeline**: Caught and fixed a verb-object mismatch ("come" translated as "drikker" instead of "spiser"), 22 lemma issues (etymology errors, misleading cognate claims, missing punctuation), and 0 sentence issues across 150 sentences in the final run. All seed lemma hints are in Norwegian to prevent English leakage.
+
+**URL**: http://alifstian.duckdns.org:3100/
+
+**What to watch**: If UX validates (students engage, self-grading works), next step is the multi-user + auth + Postgres rewrite. If self-grading doesn't work, add MC-only enforcement per teacher toggle. If content quality is flagged by teacher, review and regenerate specific batches.
+
+---
+
 ## 2026-04-16: Fix undiacritized corpus sentences slipping through enrichment
 
 **Problem**: Corpus sentences (Hindawi import) appearing in review without tashkeel (e.g. sentence 21365). `arabic_diacritized` was identical to `arabic_text` — bare text with no harakat.

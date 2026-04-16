@@ -4,6 +4,22 @@
 
 ---
 
+## Spanish Pilot — Next Steps (2026-04-15)
+- [DONE] Standalone `spanish-pilot/` prototype with 120 lemmas + 150 sentences, ported Alif scheduler, deployed on Hetzner port 3100
+- [TODO] Teacher feedback: is self-grade sufficient or need MC-only enforcement?
+- [TODO] If pilot succeeds: multi-user + auth + Postgres rewrite (UserLemmaKnowledge.lemma_id currently unique globally, needs composite key per student)
+- [TODO] Scale to full A1-B1 vocabulary (~500 lemmas) with past tense + common irregular verbs
+- [TODO] Add TTS audio (ElevenLabs `eleven_multilingual_v2` supports Spanish; need cost estimate for 60 students × 20 sentences/day)
+- [TODO] Teacher dashboard: which students progressing, who stuck, who hasn't reviewed
+- [TODO] Per-student daily TTS/LLM budget caps (prevent one student draining API budget)
+- [TODO] Align content with specific textbook the school uses (teacher can provide word list → seed_lemmas.json)
+- [IDEA] A/B test: randomize half the class to self-grade, half to MC-only, compare retention after 2 weeks
+- [IDEA] Word-level audio: generate isolated word pronunciation for intro cards (cheaper than full sentence TTS)
+- [IDEA] Export student progress as CSV for teacher grade book integration
+- [IDEA] If multi-language works, generalize to a configurable engine: `alif-core` with language-specific content plugins
+
+---
+
 ## Mapping Verification (2026-04-14)
 - [DONE] Fix JSON parse bug — CLI models' structured output was being silently discarded, falling back to weak API Haiku
 - [DONE] Add `--json-schema` constrained decoding to verification calls
