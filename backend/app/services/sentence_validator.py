@@ -1217,14 +1217,58 @@ Only include sentences that have disambiguation choices or issues. Omit sentence
         "against English translations. Only flag clear errors."
     )
 
-    # Try CLI first (free), fall back to Anthropic API
+    # Try CLI first (free), fall back to Anthropic API.
+    # Use json_schema= (not json_mode=True) for constrained decoding —
+    # json_mode lets CLI models wrap JSON in explanation text that fails to parse.
+    batch_schema = {
+        "type": "object",
+        "properties": {
+            "sentences": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "index": {"type": "integer"},
+                        "disambiguation": {
+                            "type": "array",
+                            "items": {
+                                "type": "object",
+                                "properties": {
+                                    "position": {"type": "integer"},
+                                    "lemma_id": {"type": "integer"},
+                                },
+                                "required": ["position", "lemma_id"],
+                            },
+                        },
+                        "issues": {
+                            "type": "array",
+                            "items": {
+                                "type": "object",
+                                "properties": {
+                                    "position": {"type": "integer"},
+                                    "correct_lemma_ar": {"type": "string"},
+                                    "correct_gloss": {"type": "string"},
+                                    "correct_pos": {"type": "string"},
+                                    "explanation": {"type": "string"},
+                                },
+                                "required": ["position", "correct_lemma_ar", "correct_gloss", "correct_pos", "explanation"],
+                            },
+                        },
+                    },
+                    "required": ["index", "disambiguation", "issues"],
+                },
+            },
+        },
+        "required": ["sentences"],
+    }
+
     result = None
     for model in ("claude_sonnet", "claude_haiku", "anthropic"):
         try:
             result = generate_completion(
                 prompt=prompt,
                 system_prompt=system,
-                json_mode=True,
+                json_schema=batch_schema,
                 temperature=0.0,
                 model_override=model,
                 task_type="batch_verification",

@@ -335,6 +335,10 @@ def enrich_corpus_sentences(db: Session) -> int:
                     m.lemma_id = new_lid
                 elif not new_lid:
                     correction_failed = True
+                else:
+                    # LLM flagged mapping as wrong but correct lemma
+                    # not in vocabulary — returned same lemma; reject
+                    correction_failed = True
             _log_mapping_correction(corrections, not correction_failed, sent.arabic_text)
             if correction_failed:
                 sent.is_active = False

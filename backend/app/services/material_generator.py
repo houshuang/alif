@@ -824,6 +824,12 @@ def store_multi_target_sentence(
                 m.lemma_id = new_lid
             elif not new_lid:
                 correction_failed = True
+            else:
+                logger.warning(
+                    f"Mapping pos {pos} '{m.surface_form}' flagged wrong but "
+                    f"returned same lemma #{m.lemma_id} — rejecting"
+                )
+                correction_failed = True
 
         _log_mapping_correction(corrections, not correction_failed, result.arabic)
         if correction_failed:
