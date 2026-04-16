@@ -149,6 +149,23 @@ Phase 3: Write — open/reuse session, write results, commit (milliseconds)
 
 **Past incidents**: `store_multi_target_sentence` held write lock 30-60s during LLM verification (broke OCR uploads). `_import_unknown_words` held lock during batch translation. Chat endpoint held session during 15s LLM call. All fixed 2026-03-29.
 
+### 11. Frontend-Backend Type Sync — Verify at Runtime Boundaries
+TypeScript types (`frontend/lib/types.ts`) can declare fields the backend never sends. `tsc` passes because the types are structurally valid, but `.field.map()` crashes at runtime when `field` is `undefined`. When changing backend response schemas:
+- Check that `schemas.py` Pydantic models match `types.ts` TypeScript interfaces
+- If removing or renaming a backend field, grep for it in `frontend/`
+- Frontend mock data (`frontend/lib/mock-data.ts`) must also stay in sync
+
+### 12. Commit Incrementally in Long Sessions
+5+ sessions lost significant work because uncommitted changes were lost during context compression or git operations. For any session touching >2 files:
+- Commit working intermediate states (even if not deploy-ready) — you can squash later
+- Never `git stash` and continue other work — the stash will be forgotten
+- Never `git reset --hard` to debug — use `git stash` + `git stash pop` or a branch
+
+### 13. Fallback Chains Can Silently Mask Failures
+The LLM fallback chain (CLI Sonnet -> CLI Haiku -> API Haiku) and model routing mean failures in the primary model silently degrade to a weaker model. This masked the CLI JSON parsing bug for weeks (1,225 wasted calls) and the un-deployed migration for 3 days (3,600+ wasted Gemini calls). When debugging quality issues:
+- Check LLM call logs: `ssh alif "ls -la /opt/alif/backend/data/logs/llm_calls_*.jsonl | tail -3"` then inspect which models are actually being used
+- A high rate of fallback calls means the primary model is failing silently
+
 ## Key Backend Files
 - `backend/app/models.py` — SQLAlchemy models (see `docs/data-model.md`)
 - `backend/app/schemas.py` — Pydantic request/response models
@@ -198,7 +215,7 @@ See `.claude/skills/server-ops.md` for full details. Summary of hard-won rules:
 3. **Read `backend/app/models.py` BEFORE writing DB queries** — Don't guess table/column names. They've caused repeated failures (e.g., `lemma` vs `lemmas`, `query()` vs `get()`).
 4. **Check `backend/scripts/` before writing ad-hoc queries** — Existing scripts cover most analytics and maintenance tasks.
 5. **One deploy per session** — Get code right locally (tests pass), then deploy once. Multiple deploys waste time and risk inconsistent state.
-6. **Push before deploy** — `git push` BEFORE running deploy commands. The deploy does `git pull` on the server — if you haven't pushed, the server pulls stale code.
+6. **Push before deploy** — `git push` BEFORE running deploy commands. The deploy does `git pull` on the server — if you haven't pushed, the server pulls stale code. This has failed 5+ times.
 7. **`limbic` install on server** — `pyproject.toml` specifies `limbic @ git+https://...` which tries GitHub clone. On server, install from local: `.venv/bin/pip install -e /opt/limbic` first, then `pip install -e . --no-deps` for alif, then remaining deps separately. CPU-only PyTorch: `pip install torch --index-url https://download.pytorch.org/whl/cpu`.
-
-Next: more story imports, listening mode improvements
+8. **Long-running remote scripts: use nohup** — SSH drops after ~60s idle, causing exit code 255 with no output. Use `nohup ... > /tmp/script.log 2>&1 &` then check the log file later. See `server-ops.md` for pattern.
+9. **Backup DB before manual data changes** — `ssh alif "cp /opt/alif/backend/data/alif.db /opt/alif-backups/alif_pre_fix_$(date +%Y%m%d_%H%M%S).db"` then log the action via `scripts/log_activity.py`.

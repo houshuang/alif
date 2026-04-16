@@ -23,7 +23,20 @@ Use single quotes for outer shell, double quotes for Python strings. For complex
 
 ### Key Queries
 
-**IMPORTANT**: FSRS card JSON uses key `"stability"` (not `"s"`). Always use `card.get("stability", 0)`.
+**IMPORTANT — `fsrs_card_json` Gotchas (have caused 3+ analysis failures):**
+- Key is `"stability"` (not `"s"` or `"stab"`)
+- Always use `card.get("stability", 0) or 0` — the key can exist with value `None`
+- Column can be: a JSON string, a dict, Python `None`, or the literal string `"null"`
+- Parse safely: `card = json.loads(ulk.fsrs_card_json) if isinstance(ulk.fsrs_card_json, str) else ulk.fsrs_card_json; card = card or {}`
+- SQL filter for "has real card": `fsrs_card_json IS NOT NULL AND fsrs_card_json != 'null'`
+- `IS NOT NULL` alone returns True for the string `"null"` — this has bitten analysis scripts
+
+**IMPORTANT — Table/Column Name Gotchas (have caused 3+ server round-trip failures):**
+- Quran: table is `quranic_verses`, columns are `surah`/`ayah` (NOT `chapter`/`verse`/`surah_number`)
+- Flags: table is `content_flags` (NOT `flags` or `word_mapping_flags`)
+- ULK: table is `user_lemma_knowledge` (NOT `ulk`)
+- Reviews: table is `review_log` (NOT `reviews`)
+- Always read `docs/data-model.md` before writing new queries
 
 #### 1. Knowledge State Distribution
 ```python

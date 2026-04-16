@@ -2,15 +2,26 @@
 
 Deploy backend and/or frontend to the Hetzner production server.
 
+## ⚠ BEFORE ANY DEPLOY — Push First!
+**This has failed 5+ times.** The server does `git pull` — if you haven't pushed, it pulls stale code and nothing changes. Always:
+1. `git push` (verify "To github.com..." output, not "Everything up-to-date" when you have local commits)
+2. Then SSH to deploy
+
 ## Backend Only
 1. Run tests: `cd backend && python3 -m pytest --tb=short -q`
-2. Commit and push to main
-3. Deploy: `ssh alif "cd /opt/alif && git pull && cd backend && .venv/bin/pip install -e . --quiet && systemctl restart alif-backend"`
+2. **Commit and `git push` to main** — verify push succeeded
+3. Deploy: `ssh alif "cd /opt/alif && git pull && cd backend && .venv/bin/pip install -e . --no-deps -q && systemctl restart alif-backend"`
 4. Wait 5s, verify: `ssh alif "curl -sf http://localhost:3000/api/stats"`
 5. If fails: `ssh alif 'journalctl -u alif-backend --no-pager -n 30'`
 
+**If pyproject.toml dependencies changed**, use the full install (not `--no-deps`):
+```bash
+ssh alif "cd /opt/alif && git pull && cd backend && .venv/bin/pip install -e /opt/limbic && .venv/bin/pip install -e . -q && systemctl restart alif-backend"
+```
+Note: limbic must be installed from `/opt/limbic` first — `pyproject.toml`'s `git+https://` URL fails on the server.
+
 ## Frontend Only
-1. Push to main
+1. **`git push` to main** — verify push succeeded
 2. `ssh alif "cd /opt/alif && git pull && cd frontend && npm install && systemctl restart alif-expo"`
 
 ## Full Deploy (both)

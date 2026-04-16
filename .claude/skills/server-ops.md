@@ -41,6 +41,47 @@ Run them with:
 ssh alif "cd /opt/alif/backend && PYTHONPATH=/opt/limbic .venv/bin/python3 scripts/SCRIPT_NAME.py ARGS"
 ```
 
+### 7. Long-running scripts: use nohup + output file
+SSH connections drop after ~60s of inactivity, causing exit code 255. For any script that takes >1 minute:
+```bash
+ssh alif "cd /opt/alif/backend && nohup PYTHONPATH=/opt/limbic .venv/bin/python3 /tmp/myscript.py > /tmp/myscript.log 2>&1 &"
+# Check progress later:
+ssh alif "tail -50 /tmp/myscript.log"
+# Check if still running:
+ssh alif "ps aux | grep myscript"
+```
+Do NOT rely on `run_in_background` with SSH for long tasks — the SSH tunnel dies and you get exit 255 with no output.
+
+### 8. Backup DB before manual data changes
+Before running any script that modifies production data (updates, deletes, backfills):
+```bash
+ssh alif "cp /opt/alif/backend/data/alif.db /opt/alif-backups/alif_pre_fix_$(date +%Y%m%d_%H%M%S).db"
+```
+Then log the action afterward: `ssh alif "cd /opt/alif/backend && PYTHONPATH=/opt/limbic .venv/bin/python3 scripts/log_activity.py manual_action 'description of what was changed'"`
+
+### 9. Limbic installation on server
+`pyproject.toml` specifies `limbic @ git+https://...` which tries to clone from GitHub and fails on the server. Install order:
+```bash
+ssh alif "cd /opt/alif/backend && .venv/bin/pip install -e /opt/limbic && .venv/bin/pip install -e . --no-deps"
+```
+Only use `--no-deps` when deps haven't changed. If `pyproject.toml` dependencies changed, install limbic first, then `pip install -e .` (without `--no-deps`).
+
+## fsrs_card_json Access Gotchas
+The `fsrs_card_json` column is a minefield. Always use these patterns:
+```python
+# 1. Parse safely — column can be a JSON string, a dict, None, or the literal string "null"
+card = ulk.fsrs_card_json
+if isinstance(card, str):
+    card = json.loads(card)  # handles "null" -> None too
+card = card or {}
+
+# 2. Get stability — use `or 0` because the key can exist with value None
+stability = card.get("stability", 0) or 0
+
+# 3. SQL filter for "has a real FSRS card" — IS NOT NULL misses "null" strings
+# Use: fsrs_card_json IS NOT NULL AND fsrs_card_json != 'null'
+```
+
 ## Quick Reference
 
 | Task | Command |
