@@ -223,7 +223,14 @@ Pipeline processes each page individually (not merged), preserving page boundari
 
 **Page-based word priority**: Active book words get priority tier 1 in `word_selector.py` with deterministic page ordering: bonus = `200.0 - page * 2.0`. Page 1 words always introduced before page 2, etc. The 2.0 step guarantees strict page ordering (within-page scoring max ~1.5 can never bridge the gap). This is the highest priority tier — all book words rank above any other source.
 
-**Sentence tracking**: `sentences_seen` / `sentence_count` returned in API for book stories. Book sentences get 1.3x scoring preference in session builder.
+**Book sentence lifecycle** (added 2026-04-16): Book sentences have a different lifecycle from LLM sentences — they're real passages, not disposable scaffolding:
+1. **Import**: sentences created with `is_active=True`, `source="book"`, `page_number` set
+2. **Cap pressure**: if the pipeline is full, unshown book sentences may be deactivated by cap enforcement. However, unshown (`times_shown=0`) book sentences are **protected** from both cap-enforcement (Step 0) and rotation (`rotate_stale_sentences.py`).
+3. **Page goes green**: cron Step G1b (`step_reactivate_book_sentences`) checks every 3h which book pages are fully comprehensible (all non-function-word lemmas are known/learning/acquiring/lapsed). Inactive sentences on green pages are reactivated.
+4. **Shown once**: sentence enters review pool, learner reads the real passage. Book sentences get 1.3x scoring preference in session builder.
+5. **Normal retirement**: after being shown at least once, book sentences are subject to normal retirement rules (stale rotation, cap enforcement). They've served their purpose.
+
+**Sentence tracking**: `sentences_seen` / `sentence_count` returned in API for book stories.
 
 **Image persistence**: Uploaded images saved to `data/book-uploads/<timestamp>/` for retry on failure.
 
@@ -1138,7 +1145,10 @@ tier 3-4 ≥ 0.
 
 **Safety valve** (`update_material.py` Step 0): Hard cap of 2000 active sentences.
 Should never bind under normal operation — tier lifecycle keeps the pool at ~600-800.
-Step 0 retires down to `2000 - CAP_HEADROOM` (1950) if ever triggered.
+Step 0 retires down to `2000 - CAP_HEADROOM` (1950) if ever triggered. Unshown book
+sentences (`source="book"`, `times_shown=0`) are exempt from both Step 0 and
+`rotate_stale_sentences.py` — they're managed by the page-based reactivation step
+(G1b) and must be shown at least once before becoming eligible for retirement.
 
 **Warm cache** (`warm_sentence_cache()`) runs tier lifecycle rotation first, then fills
 gaps for tier 1-2 words. No cap check gates generation — only the 2000 safety valve.

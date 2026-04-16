@@ -4,6 +4,25 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-04-16: Book Sentence Lifecycle — Page-Based Reactivation + Retirement Protection
+
+**Problem**: Physician book ("Prince of Physicians", story 20) had 99 sentences, ALL deactivated (`is_active=False`). Only 4 had ever been shown, 0 in the past 7 days. Meanwhile 546 LLM sentences shown in the same period. The book has 73 unintroduced high-frequency content words (قَصَص freq 688, رَضِيَ 1223, كَلَام 1466, etc.) and 7 fully "green" pages where every content word is known/acquiring — but their sentences were dead.
+
+**Root cause**: Cap-enforcement (Step 0 in `update_material.py`) and `rotate_stale_sentences.py` both classify sentences as "stale" when `acquiring_count == 0` in their scaffold. For LLM scaffolding this is correct — no active learning value. But for book sentences on green pages, all-known words means the page is *maximally comprehensible* — exactly when the learner should read it. The stale heuristic was backwards for book content.
+
+**Additionally**: OCR source tagging bug in `ocr_service.py` — when re-encountering a word via OCR that already had a ULK record from wiktionary/collateral, the source was not updated to `textbook_scan`. Only newly-created ULK records got the correct source. Fixed: both `process_textbook_page()` and `process_batch()` now update `ULK.source` to `"textbook_scan"` when existing source is overridable (wiktionary, collateral, auto_intro, etc.).
+
+**Changes**:
+1. **New cron step G1b** (`step_reactivate_book_sentences`): every 3h, checks each active book's pages. A page is "green" when all non-function-word lemmas are known/learning/acquiring/lapsed. Inactive sentences on green pages are reactivated.
+2. **Retirement protection**: both `step_enforce_cap` and `rotate_stale_sentences.py` skip unshown (`times_shown=0`) book sentences. Once shown at least once, normal retirement rules apply — book sentences don't permanently clog the pipeline.
+3. **OCR source fix**: `ocr_service.py` updates ULK.source on re-encounter.
+
+**Result**: 52 sentences reactivated immediately (34 physician book on 6 green pages, 18 Rosie on 9 green pages). Remaining 65 physician sentences will auto-activate as their pages go green through normal word learning progression.
+
+**Files**: `backend/scripts/update_material.py`, `backend/scripts/rotate_stale_sentences.py`, `backend/app/services/ocr_service.py`
+
+---
+
 ## 2026-04-15: Display-Form Normalization + Bare-Form Re-derivation for Damaged Quran Lemmas
 
 **Follow-up to the cleanup below**. After the initial bare-form cleanup fixed 24 lemmas (3 merges + 21 rewrites), additional passes completed the Quran cleanup:
