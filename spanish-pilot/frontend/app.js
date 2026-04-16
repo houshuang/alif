@@ -3,7 +3,9 @@
 const API = "";
 const app = document.getElementById("app");
 
-const FUNC_POS = new Set(["article", "preposition", "conjunction"]);
+// No function word dimming — Spanish prepositions (a, de, por, para) are
+// important for learners, not invisible glue. All words clickable.
+const FUNC_POS = new Set([]);
 
 const state = {
   students: [],
@@ -244,14 +246,6 @@ function renderSelfGradeItem(body, item) {
   // (cheap: use word_mapping which already has lemma_es; we'll fetch detail lazily on click)
   const wrap = document.createElement("div");
   wrap.className = "sentence-card";
-
-  if (item.is_new) {
-    const tag = document.createElement("div");
-    tag.className = "new-tag";
-    tag.textContent = "Nytt ord";
-    tag.style.textAlign = "center";
-    wrap.appendChild(tag);
-  }
 
   const sentence = document.createElement("div");
   sentence.className = "sentence-es";
@@ -534,14 +528,6 @@ function computeLemmaRatings(item, action) {
 function renderMultipleChoiceItem(body, item) {
   const wrap = document.createElement("div");
   wrap.className = "sentence-card";
-
-  if (item.is_new) {
-    const tag = document.createElement("div");
-    tag.className = "new-tag";
-    tag.textContent = "Nytt ord";
-    tag.style.textAlign = "center";
-    wrap.appendChild(tag);
-  }
 
   const sentence = document.createElement("div");
   sentence.className = "sentence-es";
