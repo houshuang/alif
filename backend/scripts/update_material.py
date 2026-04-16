@@ -439,9 +439,11 @@ def step_enforce_cap(
     for sw in all_sw:
         sw_by_sentence.setdefault(sw.sentence_id, []).append(sw)
 
-    # Score and sort for retirement
+    # Score and sort for retirement — skip book sentences (managed by reactivation step)
     candidates: list[tuple[Sentence, int]] = []  # (sentence, priority)
     for sent in sentences:
+        if sent.source == "book":
+            continue
         sws = sw_by_sentence.get(sent.id, [])
         scaffold_lemmas: set[int] = set()
         acquiring_count = 0
@@ -862,6 +864,74 @@ def step_pregenerate_candidates(db: Session, dry_run: bool, count: int, model: s
     return total
 
 
+# ── Step G1b: Reactivate book sentences on comprehensible pages ──────
+
+def step_reactivate_book_sentences(db: Session) -> int:
+    """Activate book sentences whose pages are fully comprehensible.
+
+    A page is comprehensible when every non-function-word lemma is
+    known, learning, acquiring, or lapsed (i.e., no encountered or
+    unknown-state words remain).  Sentences on such pages are activated
+    so they enter the review pool — these are real passages the learner
+    is working through, not disposable LLM scaffolding.
+    """
+    from collections import defaultdict
+    from app.models import Story, StoryWord
+
+    active_books = db.query(Story).filter(
+        Story.source == "book_ocr", Story.status == "active",
+    ).all()
+    if not active_books:
+        print("  No active books")
+        return 0
+
+    total_reactivated = 0
+    for book in active_books:
+        # Build page → lemma readiness map
+        pages: dict[int, dict] = defaultdict(lambda: {"ready": True, "enc": 0})
+        sw_rows = (
+            db.query(StoryWord.page_number, StoryWord.lemma_id, StoryWord.is_function_word,
+                     UserLemmaKnowledge.knowledge_state)
+            .outerjoin(UserLemmaKnowledge, UserLemmaKnowledge.lemma_id == StoryWord.lemma_id)
+            .filter(StoryWord.story_id == book.id, StoryWord.lemma_id.isnot(None))
+            .all()
+        )
+        for page, lid, is_func, ks in sw_rows:
+            if page is None:
+                continue
+            if is_func:
+                continue
+            if ks not in ("known", "learning", "acquiring", "lapsed"):
+                pages[page]["ready"] = False
+                pages[page]["enc"] += 1
+
+        ready_pages = {p for p, info in pages.items() if info["ready"]}
+        if not ready_pages:
+            print(f"  {book.title_en}: no fully comprehensible pages yet")
+            continue
+
+        # Reactivate inactive sentences on ready pages
+        inactive_on_ready = (
+            db.query(Sentence)
+            .filter(
+                Sentence.story_id == book.id,
+                Sentence.is_active == False,  # noqa: E712
+                Sentence.page_number.in_(ready_pages),
+            )
+            .all()
+        )
+        for sent in inactive_on_ready:
+            sent.is_active = True
+        if inactive_on_ready:
+            db.commit()
+            total_reactivated += len(inactive_on_ready)
+            print(f"  {book.title_en}: reactivated {len(inactive_on_ready)} sentences on {len(ready_pages)} green pages")
+        else:
+            print(f"  {book.title_en}: {len(ready_pages)} green pages, all sentences already active")
+
+    return total_reactivated
+
+
 # ── Main ─────────────────────────────────────────────────────────────
 
 def step_backfill_samer(db: Session, dry_run: bool) -> int:
@@ -1027,6 +1097,14 @@ async def main():
                 print(f"  Created {book_ulk_g} missing ULK records for book words")
             else:
                 print("  All book words have ULK records")
+        else:
+            print("  Skipped (dry run)")
+
+        # ── Step G1b: Reactivate book sentences on comprehensible pages ──
+        book_reactivated = 0
+        print("\n═══ Step G1b: Book sentence reactivation ═══")
+        if not args.dry_run:
+            book_reactivated = step_reactivate_book_sentences(db)
         else:
             print("  Skipped (dry run)")
 
@@ -1216,16 +1294,17 @@ async def main():
         print(f"  Step E enriched:  {enrich_e}")
         print(f"  Step F leeches:   {leech_f}")
         print(f"  Step G book ULK:  {book_ulk_g}")
+        print(f"  Step G1b book reactivated: {book_reactivated}")
         print(f"  Step G2 ungated:  {ungated_g2}")
         print(f"  Step G3 diff fix: {diff_g3}")
         print(f"  Step H stories:   {stories_h}")
         print(f"  Step I podcasts:  {podcasts_i}")
 
-        if not args.dry_run and (retired_0 + sent_a + trans_a2 + audio_b + sent_c + enrich_e + leech_f + book_ulk_g + ungated_g2 + diff_g3 + stories_h + podcasts_i > 0):
+        if not args.dry_run and (retired_0 + sent_a + trans_a2 + audio_b + sent_c + enrich_e + leech_f + book_ulk_g + book_reactivated + ungated_g2 + diff_g3 + stories_h + podcasts_i > 0):
             log_activity(
                 db,
                 event_type="material_updated",
-                summary=f"Retired {retired_0}, generated {sent_a}+{sent_c} sentences, {audio_b} audio, enriched {enrich_e}, reintro {leech_f} leeches, {book_ulk_g} book ULK, {ungated_g2} ungated, {diff_g3} diff fix, {stories_h} stories, {podcasts_i} podcasts in {elapsed:.0f}s",
+                summary=f"Retired {retired_0}, generated {sent_a}+{sent_c} sentences, {audio_b} audio, enriched {enrich_e}, reintro {leech_f} leeches, {book_ulk_g} book ULK, {book_reactivated} book reactivated, {ungated_g2} ungated, {diff_g3} diff fix, {stories_h} stories, {podcasts_i} podcasts in {elapsed:.0f}s",
                 detail={
                     "step_0_retired": retired_0,
                     "step_a_sentences": sent_a,
@@ -1235,6 +1314,7 @@ async def main():
                     "step_e_enriched": enrich_e,
                     "step_f_leeches": leech_f,
                     "step_g_book_ulk": book_ulk_g,
+                    "step_g1b_book_reactivated": book_reactivated,
                     "step_g2_ungated": ungated_g2,
                     "step_g3_diff_fix": diff_g3,
                     "step_h_stories": stories_h,

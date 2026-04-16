@@ -537,6 +537,10 @@ def process_textbook_page(
 
                 if ulk:
                     ulk.total_encounters = (ulk.total_encounters or 0) + 1
+                    # Update source to textbook_scan if it was a weaker source
+                    _OVERRIDABLE_SOURCES = {None, "study", "encountered", "auto_intro", "collateral", "leech_reintro", "wiktionary"}
+                    if ulk.source in _OVERRIDABLE_SOURCES:
+                        ulk.source = "textbook_scan"
                     existing_count += 1
                     results.append({
                         "arabic": lemma.lemma_ar if lemma else arabic,
@@ -957,6 +961,10 @@ def process_batch(
 
             if ulk:
                 ulk.total_encounters = (ulk.total_encounters or 0) + 1
+                # Update source to textbook_scan if it was a weaker source
+                _OVERRIDABLE_SOURCES = {None, "study", "encountered", "auto_intro", "collateral", "leech_reintro", "wiktionary"}
+                if ulk.source in _OVERRIDABLE_SOURCES:
+                    ulk.source = "textbook_scan"
                 word_results[idx] = {
                     "arabic": lemma.lemma_ar if lemma else arabic,
                     "arabic_bare": bare,
