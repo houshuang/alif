@@ -4,6 +4,21 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-04-16: Fix undiacritized corpus sentences slipping through enrichment
+
+**Problem**: Corpus sentences (Hindawi import) appearing in review without tashkeel (e.g. sentence 21365). `arabic_diacritized` was identical to `arabic_text` — bare text with no harakat.
+
+**Root cause**: In `update_material.py` step A2, the diacritize+translate LLM call was gated by `if not sent.english_translation:`. If a sentence already had an English translation from a prior partial enrichment run, the entire diacritization step was skipped. The sentence proceeded to mapping verification and activation with bare text.
+
+**Scope**: 12 sentences total — 2 active (shown to learner), 10 inactive but verified (would have been activated on next cron cycle).
+
+**Fix**:
+1. Changed guard to check `needs_diacritics` (no harakat codepoints in `arabic_diacritized`) independently of `needs_translation`.
+2. Added exit guard before activation: if `arabic_diacritized` still has no harakat after enrichment, sentence is not activated and is released for retry.
+3. Data fix: reset all 12 affected sentences to `is_active=0, mappings_verified_at=NULL` for re-enrichment.
+
+---
+
 ## 2026-04-16: Book Sentence Lifecycle — Page-Based Reactivation + Retirement Protection
 
 **Problem**: Physician book ("Prince of Physicians", story 20) had 99 sentences, ALL deactivated (`is_active=False`). Only 4 had ever been shown, 0 in the past 7 days. Meanwhile 546 LLM sentences shown in the same period. The book has 73 unintroduced high-frequency content words (قَصَص freq 688, رَضِيَ 1223, كَلَام 1466, etc.) and 7 fully "green" pages where every content word is known/acquiring — but their sentences were dead.

@@ -247,8 +247,15 @@ def enrich_corpus_sentences(db: Session) -> int:
     for sent in unverified:
         arabic = sent.arabic_diacritized or sent.arabic_text
 
-        # Step 1: Diacritize + translate in one call
-        if not sent.english_translation:
+        # Check if diacritization is actually present (harakat characters)
+        needs_diacritics = not any(
+            0x064B <= ord(c) <= 0x0652 or ord(c) == 0x0670
+            for c in (sent.arabic_diacritized or "")
+        )
+        needs_translation = not sent.english_translation
+
+        # Step 1: Diacritize + translate via LLM
+        if needs_diacritics or needs_translation:
             prompt = (
                 "You are an Arabic language expert. For the following Arabic sentence:\n\n"
                 f"{arabic}\n\n"
@@ -369,6 +376,17 @@ def enrich_corpus_sentences(db: Session) -> int:
                 lemma_id=lid,
                 is_target_word=False,
             ))
+
+        # Final guard: don't activate if still undiacritized
+        still_bare = not any(
+            0x064B <= ord(c) <= 0x0652 or ord(c) == 0x0670
+            for c in (sent.arabic_diacritized or "")
+        )
+        if still_bare:
+            print(f"  Sentence {sent.id}: still undiacritized after enrichment, skipping activation")
+            sent.mappings_verified_at = None  # release for retry
+            db.commit()
+            continue
 
         sent.mappings_verified_at = now
         sent.is_active = True  # activate after successful enrichment
