@@ -9,6 +9,7 @@ from app.services.sentence_validator import (
     FUNCTION_WORDS,
     TokenMapping,
 )
+from scripts.import_hindawi import _split_on_terminators, extract_sentences
 
 
 class TestDetectProperNames:
@@ -87,3 +88,62 @@ class TestFunctionWordsPrepositionPronoun:
         norm = normalize_alef(strip_diacritics(word))
         norm_fw = {normalize_alef(strip_diacritics(w)) for w in FUNCTION_WORDS}
         assert (norm in norm_fw) == expected_in_fw
+
+
+class TestHindawiSplitter:
+    """Dialogue-aware sentence splitter for Hindawi corpus."""
+
+    def test_keeps_closing_guillemet_with_terminator(self):
+        chunks = _split_on_terminators("قال دوليتل.»")
+        assert chunks == ["قال دوليتل.»"]
+
+    def test_does_not_split_inside_open_quote(self):
+        chunks = _split_on_terminators("قال: «أعلم ذلك. اللحوم هنا نادرة.»")
+        assert chunks == ["قال: «أعلم ذلك. اللحوم هنا نادرة.»"]
+
+    def test_splits_outside_quotes_normally(self):
+        chunks = _split_on_terminators("الأول. الثاني. الثالث.")
+        assert chunks == ["الأول.", " الثاني.", " الثالث."]
+
+    def test_newline_always_splits_even_inside_quote(self):
+        # Paragraph break resets depth — guards against source text that
+        # leaves a quote unclosed at paragraph end.
+        chunks = _split_on_terminators("قال: «أعلم\nاللحوم نادرة.")
+        assert len(chunks) == 2
+
+    def test_multiple_sentences_with_embedded_quotes(self):
+        chunks = _split_on_terminators("«مرحبا.» ثم ذهب. «وداعا.»")
+        # Embedded quote "مرحبا." stays with the preceding narration until
+        # the outer terminator. "وداعا." is its own quoted sentence.
+        assert chunks == ["«مرحبا.» ثم ذهب.", " «وداعا.»"]
+
+    def test_absorbs_ascii_closing_quote(self):
+        # Non-guillemet closers after terminator stay attached
+        chunks = _split_on_terminators('he said "hi." he left.')
+        assert chunks[0] == 'he said "hi."'
+
+    def test_question_mark_splits(self):
+        chunks = _split_on_terminators("ما اسمك؟ كيف حالك؟")
+        assert chunks == ["ما اسمك؟", " كيف حالك؟"]
+
+    def test_unbalanced_quote_in_source_still_chunks(self):
+        # Source text may be malformed — unclosed «. Newline + EOF still
+        # yields the chunk; we don't hang or lose the text.
+        chunks = _split_on_terminators("قال: «لا ينتهي أبدا")
+        assert chunks == ["قال: «لا ينتهي أبدا"]
+
+    def test_extract_sentences_word_count_filter(self):
+        # Balanced short sentence within word range is kept.
+        result = extract_sentences(
+            "ذهب الولد إلى المدرسة في الصباح الباكر.",
+            min_words=5, max_words=14,
+        )
+        assert len(result) == 1
+
+    def test_extract_sentences_drops_orphan_guillemet_chunks(self):
+        # Under the dialogue-aware splitter, internal-to-dialogue periods
+        # no longer produce orphan-guillemet sub-sentences.
+        text = "قال بيل: «أعلم ذلك تماما. اللحوم نادرة هنا جدا.»"
+        result = extract_sentences(text, min_words=5, max_words=30)
+        orphan = [s for s in result if ("«" in s) != ("»" in s)]
+        assert orphan == []

@@ -59,32 +59,60 @@ logger = logging.getLogger(__name__)
 
 # ── Sentence extraction ──────────────────────────────────────────────
 
-# Sentence terminator: . ! ? ؟ optionally followed by a closing quote/bracket.
-# Capturing group so the terminator (incl. any trailing closer) stays attached
-# to the preceding chunk when we recombine — so "…دوليتل.»" stays one sentence
-# instead of splitting between "." and "»" and dropping the closing guillemet.
-SENT_TERM = re.compile(r'([.!?؟][»"\'\)\]]?)')
 # Dashes, colons, semicolons, arabic commas and whitespace that may surround a
 # sentence — but NOT «»"'() which carry meaning when the sentence contains a
 # quoted phrase. Those are preserved.
 TRIM_CHARS = re.compile(r'^[\-–—\s:؛,،]+|[\-–—\s:؛,،]+$')
 
+_TERMINATORS = ".!?؟"
+_CLOSERS_AFTER_TERM = '»")]\''  # optional tail char absorbed by terminator at split
+
 
 def _split_on_terminators(text: str) -> list[str]:
-    parts = SENT_TERM.split(text)
+    """Split text into sentences, respecting quoted dialogue.
+
+    Tracks «/» balance and suppresses splitting on internal .!?؟ while
+    inside an unclosed «...» — so "قال: «A. B.»" stays as one chunk
+    instead of producing the orphan pair ("قال: «A.", "B.»"). Newlines
+    always split (paragraph breaks reset depth — covers source text
+    where a quote is left open across paragraphs).
+
+    A terminator at depth 0 absorbs an immediately-following closer so
+    "`he said.\"`" and "`…دوليتل.»`" stay attached. `»` is included in the
+    closer set even though matched `»` normally drops depth before we
+    reach a terminator — for unbalanced source or EOF-trailing `»` it
+    still attaches cleanly.
+    """
     chunks: list[str] = []
-    # SENT_TERM.split yields: [prefix, term, prefix, term, ..., tail]
-    for i in range(0, len(parts) - 1, 2):
-        chunks.append(parts[i] + parts[i + 1])
-    if len(parts) % 2 == 1 and parts[-1]:
-        chunks.append(parts[-1])
-    # Also split on newlines within each chunk (paragraph breaks)
-    final: list[str] = []
-    for c in chunks:
-        for line in c.split("\n"):
-            if line:
-                final.append(line)
-    return final
+    buf: list[str] = []
+    depth = 0
+    i = 0
+    n = len(text)
+    while i < n:
+        c = text[i]
+        if c == "\n":
+            if buf:
+                chunks.append("".join(buf))
+                buf = []
+            depth = 0
+            i += 1
+            continue
+        buf.append(c)
+        if c == "«":
+            depth += 1
+        elif c == "»":
+            if depth > 0:
+                depth -= 1
+        elif c in _TERMINATORS and depth == 0:
+            if i + 1 < n and text[i + 1] in _CLOSERS_AFTER_TERM:
+                buf.append(text[i + 1])
+                i += 1
+            chunks.append("".join(buf))
+            buf = []
+        i += 1
+    if buf:
+        chunks.append("".join(buf))
+    return [c for c in chunks if c.strip()]
 
 
 def extract_sentences(text: str, min_words: int = 5, max_words: int = 14) -> list[str]:
