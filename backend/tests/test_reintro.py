@@ -90,8 +90,12 @@ class TestReintroCards:
         assert reintro[0]["lemma_id"] == 1
         assert reintro[0]["lemma_ar"] == "صعب"
 
-    def test_struggling_words_removed_from_sentence_pool(self, db_session):
-        """Struggling words should NOT appear as sentence targets."""
+    def test_struggling_words_keep_sentence_alongside_reintro(self, db_session):
+        """Struggling words stay in the sentence pool AND get a reintro card.
+
+        The reintro card without a paired sentence is orphaned teaching — the
+        learner sees the card but has no review to reinforce it. Fixed in c9e9793.
+        """
         _seed_word(db_session, 1, "صعب", "difficult",
                    stability=0.1, due_hours=-1, times_seen=5, times_correct=0)
 
@@ -101,9 +105,11 @@ class TestReintroCards:
         db_session.commit()
 
         result = build_session(db_session, limit=10, log_events=False)
-        # Should not have any sentence items since the only due word is struggling
         sentence_items = [i for i in result["items"] if i.get("sentence_id")]
-        assert len(sentence_items) == 0
+        assert len(sentence_items) == 1
+        reintro = result.get("reintro_cards", [])
+        assert len(reintro) == 1
+        assert reintro[0]["lemma_id"] == 1
 
     def test_reintro_limit(self, db_session):
         """At most 3 reintro cards per session."""

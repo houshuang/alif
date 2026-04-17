@@ -318,7 +318,6 @@ class SentenceWordMeta(BaseModel):
 class SentenceReviewItem(BaseModel):
     sentence_id: int | None
     arabic_text: str
-    arabic_diacritized: str | None = None
     english_translation: str
     transliteration: str | None = None
     audio_url: str | None = None
@@ -594,7 +593,7 @@ class BookPageWordOut(BaseModel):
 
 class BookPageSentenceOut(BaseModel):
     id: int
-    arabic_diacritized: str
+    arabic_text: str
     english_translation: str | None = None
     seen: bool = False
 

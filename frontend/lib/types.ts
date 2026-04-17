@@ -345,7 +345,6 @@ export interface WordLookupResult {
 export interface SentenceReviewItem {
   sentence_id: number | null;
   arabic_text: string;
-  arabic_diacritized: string | null;
   english_translation: string;
   transliteration: string | null;
   audio_url: string | null;
@@ -756,7 +755,7 @@ export interface BookPageWord {
 
 export interface BookPageSentence {
   id: number;
-  arabic_diacritized: string;
+  arabic_text: string;
   english_translation: string | null;
   seen: boolean;
 }

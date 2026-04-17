@@ -26,6 +26,7 @@ All scripts in `backend/scripts/`. Run from `backend/` directory.
 - `validate_sentence_cli.py` — CLI wrapper around validate_sentence() for use by Claude Code tool sessions.
 - `review_existing_sentences.py` — Gemini Flash quality audit of all active sentences, --dry-run supported.
 - `verify_sentences.py` — Gemini Flash batch verification of Arabic naturalness, parallel execution.
+- `missing_lemma_candidates.py` — Rank lemmas the verifier keeps wanting but aren't in vocab. Reads `mapping_corrections_*.jsonl` and aggregates per-position `same_lemma` (homograph-gap, strong signal) and `not_found` (noisier) failures. Candidates for curation into `import_scaffold_lemmas.py`. `--days 14 --reason same_lemma` default.
 
 ## Backfills
 - `backfill_lemma_grammar.py` — Backfill grammar features for lemmas.

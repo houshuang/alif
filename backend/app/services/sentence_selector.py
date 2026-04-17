@@ -1209,7 +1209,6 @@ def build_session(
         items.append({
             "sentence_id": cand.sentence_id,
             "arabic_text": sent.arabic_text,
-            "arabic_diacritized": sent.arabic_text,
             "english_translation": sent.english_translation or "",
             "transliteration": sent.transliteration,
             "audio_url": sent.audio_url,
@@ -1681,7 +1680,6 @@ def _find_pregenerated_sentences_for_words(
         items.append({
             "sentence_id": cand.sentence_id,
             "arabic_text": sent.arabic_text,
-            "arabic_diacritized": sent.arabic_text,
             "english_translation": sent.english_translation or "",
             "transliteration": sent.transliteration,
             "audio_url": sent.audio_url,

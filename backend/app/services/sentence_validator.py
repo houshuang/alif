@@ -1305,8 +1305,16 @@ def _log_mapping_correction(
     corrections: list[dict],
     success: bool,
     sentence_arabic: str,
+    failure_reasons: dict[int, str] | None = None,
 ) -> None:
-    """Log mapping correction attempt for cost/success tracking."""
+    """Log mapping correction attempt for cost/success tracking.
+
+    failure_reasons maps position -> one of: "same_lemma" (LLM proposed a
+    lemma that resolved to the current assignment = correct meaning not in
+    vocab) or "not_found" (LLM proposed a lemma text absent from DB).
+    Consumed by scripts/missing_lemma_candidates.py to rank missing-lemma
+    imports.
+    """
     from app.config import settings
     import json as _json
     from datetime import datetime as _dt
@@ -1322,6 +1330,7 @@ def _log_mapping_correction(
         "corrections_count": len(corrections),
         "sentence_preview": sentence_arabic[:80],
         "corrections": corrections,
+        "failure_reasons": failure_reasons or {},
     }
     try:
         with open(log_file, "a") as f:
@@ -1444,6 +1453,7 @@ def apply_corrections(
 
     pos_to_mapping = {m.position: m for m in mappings}
     failed_positions: list[int] = []
+    failure_reasons: dict[int, str] = {}
 
     for corr in corrections:
         pos = corr.get("position") if isinstance(corr.get("position"), int) else corr["position"]
@@ -1472,14 +1482,18 @@ def apply_corrections(
                 f"correct lemma not found in DB"
             )
             failed_positions.append(pos)
+            failure_reasons[pos] = "not_found"
         else:
             _validator_logger.warning(
                 f"Correction for pos {pos} '{m.surface_form}': "
                 f"returned same lemma #{m.lemma_id} — correct lemma not in vocabulary"
             )
             failed_positions.append(pos)
+            failure_reasons[pos] = "same_lemma"
 
-    _log_mapping_correction(corrections, not failed_positions, arabic_text)
+    _log_mapping_correction(
+        corrections, not failed_positions, arabic_text, failure_reasons
+    )
     return failed_positions
 
 

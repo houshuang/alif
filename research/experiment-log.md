@@ -4,6 +4,44 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-04-17: Missing-lemma candidate tracker, arabic_text cleanup, generation-waste diagnosis
+
+Follow-up session after `arabic_text` unification was deployed. Three pieces of work:
+
+### 1. Schema cleanup (follow-up from PR #35)
+Dropped the legacy `arabic_diacritized` key from API response schemas now that the column is gone. Shimmed server-side mirror (`"arabic_diacritized": sent.arabic_text`) removed from `sentence_selector.py` (×2 sites) and `story_service.py`. Frontend `SentenceReviewItem` / `BookPageSentence` types drop the field; `book-page.tsx:192` reads `arabic_text` directly. tsc clean, 863 tests pass.
+
+### 2. 2-hour `update_material.py` hang — root cause found, fix deferred
+Diagnosis (subagent investigation):
+- `enrich_corpus_sentences()` (`update_material.py:156-382`) holds the cron's main DB session across a 50-sentence loop. Per iteration: `generate_completion()` for diacritize/translate (~4-15s) + `verify_and_correct_mappings_llm()` (~15-25s) + `apply_corrections(db, ...)` — all while `sent.arabic_text` autoflushes on the next query, grabbing the write lock for the LLM duration.
+- `store_multi_target_sentence()` (`material_generator.py:658-800`) has the same anti-pattern; called from `update_material.py:622` on the cron's main session.
+- Server log `/var/log/alif-update-material.log` showed the 09:30 run spewing hundreds of "Correction for pos..." lines with no step banners before "Terminated" at 2h. `journalctl -u alif-backend` captured `sqlite3.OperationalError: database is locked` in the web backend during the window. 141 Claude CLI calls in 30 min (85 Sonnet + 56 Haiku).
+- Violates CLAUDE.md §10. Fix is the 3-phase pattern already used in `generate_material_for_word()` (snapshot → LLM → write). Deferred to next session — tracked in IDEAS.md.
+
+### 3. Generation-waste analysis + missing-lemma tracker
+Suspected the "hundreds of correction failures" were wasted work. Drilled into production DB:
+- Last 7 days LLM-generated: **1,230 active / 916 rejected (43% rejection)** — acceptable by design; the gate is meant to reject aggressively.
+- **Corpus** rejection (10,758 inactive in 7d) was a red herring — it's the Hindawi bulk-import aftermath where undiacritized sentences were deactivated by the a700bbb guard, not live generation waste.
+- Real waste: ~20 "known"-state words chronically fail generation (مَبْسُوطَةٌ 0/8, طَيِّبٌ 0/7, عَجِيبٌ 0/7, سِلْمٌ 0/5, مُحَمَّد 0/4, etc.). They sit below `backfill_target` forever because rejected sentences don't count; every 3h cron re-attempts them.
+
+**Historical context:** User has done substantial hardening on the "correct lemma not in vocab → reject sentence" gate over 2026-03-23 through 2026-04-16 (8+ commits, climaxing with the `apply_corrections` extraction in `25fc702`). Any change that weakens the gate would re-open the 85%-bad-mappings problem fixed on 2026-04-16. Therefore the right intervention is **around** the gate, not inside it.
+
+**Change:**
+- `sentence_validator.py`: `apply_corrections` now records per-position `failure_reasons: dict[int, str]` tagging each failed position as `"same_lemma"` (high-confidence vocab-gap signal — LLM proposed a homograph meaning we don't have) or `"not_found"` (noisier — LLM proposed a lemma text absent from DB). Reasons flow into the existing `mapping_corrections_*.jsonl` log via an added `failure_reasons` field.
+- New `scripts/missing_lemma_candidates.py` aggregates the log across N days, ranks `(bare, pos)` by count, shows top gloss + example sentence. Defaults to `--days 14 --reason same_lemma` (strongest signal). Output feeds manual curation into `import_scaffold_lemmas.py` (same workflow user did manually on 2026-04-09 for صِدْق/مُقْبِل/مَزْرَعَة).
+
+**Also fixed:** Pre-existing broken test `test_struggling_words_removed_from_sentence_pool` was asserting the old pre-c9e9793 behavior ("struggling words must be excluded from sentence pool"). That design was inverted on 2026-04-08 to prevent orphan reintro cards — struggling words now stay in the pool AND get a reintro card. Test rewritten as `test_struggling_words_keep_sentence_alongside_reintro` to match current invariant and guard against regression.
+
+**Discarded hypotheses:**
+- Initial recommendation to "constrain the verifier prompt with legal lemma options so it only proposes in-vocab corrections" — would actively undermine the gate; it's designed to loudly signal vocab gaps, not hide them. Withdrawn after reading the full commit history.
+- Initial recommendation to "cache verification outcome so we don't re-run on rejected sentences" — already implemented: `update_material.py:324, 346` sets `mappings_verified_at = now` on failure. No change needed.
+
+**Verification:** 863 tests pass. Tracker script runs locally (empty — needs next cron run on server to populate). Manual check post-deploy: `python scripts/missing_lemma_candidates.py --days 7` should surface candidates within a day.
+
+**Deferred to next session:** write-lock refactor (blocks on seeing real production lock contention after deploy), per-lemma generation backoff (`UserLemmaKnowledge.generation_failed_count` + `generation_backoff_until`), Hindawi re-import with fixed splitter, agentic-generation prototype with tool-using Claude.
+
+---
+
 ## 2026-04-17: Unify arabic_text column, fix Hindawi sentence splitter
 
 **Problem:** Two columns (`sentences.arabic_text`, `sentences.arabic_diacritized`) with inconsistent semantics across pipelines:

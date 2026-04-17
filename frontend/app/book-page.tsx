@@ -189,7 +189,7 @@ function SentenceRow({ sentence }: { sentence: BookPageSentence }) {
   return (
     <View style={styles.sentenceRow}>
       <View style={styles.sentenceContent}>
-        <Text style={styles.sentenceArabic}>{sentence.arabic_diacritized}</Text>
+        <Text style={styles.sentenceArabic}>{sentence.arabic_text}</Text>
         {sentence.english_translation && (
           <Text style={styles.sentenceEnglish}>
             {sentence.english_translation}

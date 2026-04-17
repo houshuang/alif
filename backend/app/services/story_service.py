@@ -1562,7 +1562,7 @@ def get_book_page_detail(db: Session, story_id: int, page_number: int) -> dict:
     sentences_out = [
         {
             "id": s.id,
-            "arabic_diacritized": s.arabic_text,
+            "arabic_text": s.arabic_text,
             "english_translation": s.english_translation,
             "seen": (s.times_shown or 0) > 0,
         }

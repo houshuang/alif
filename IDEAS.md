@@ -4,10 +4,16 @@
 
 ---
 
+## Generation Pipeline — Lock & Waste (2026-04-17)
+- [DONE] Missing-lemma candidate tracker: `apply_corrections` now tags each failed position `same_lemma | not_found`; `scripts/missing_lemma_candidates.py` aggregates from `mapping_corrections_*.jsonl`. Run periodically → curate into `import_scaffold_lemmas.py`.
+- [TODO] Refactor `enrich_corpus_sentences` (`backend/scripts/update_material.py:156`) + `store_multi_target_sentence` (`backend/app/services/material_generator.py:658`) to the 3-phase write-lock pattern (snapshot → LLM calls with no session → write). Currently both hold the cron's DB session across ~20-40s LLM round-trips per sentence; caused 2-hour hang on 2026-04-17 blocking migration deploy and triggering `sqlite3.OperationalError: database is locked` in the web backend. The session-discipline rule in CLAUDE.md §10 is violated — all 7 `apply_corrections` call sites need a session-free LLM phase.
+- [TODO] Per-lemma generation backoff: ~20 known-state words get 5-9 generation attempts per week with 0 successes (e.g. مَبْسُوطَةٌ 0/8, طَيِّبٌ 0/7, عَجِيبٌ 0/7). They stay below `backfill_target` so every 3h cron re-attempts them. Add `UserLemmaKnowledge.generation_failed_count` + `generation_backoff_until`; after 3 consecutive rejected generations back off that lemma for 7 days. Doesn't weaken the verification gate — just stops re-hitting the same wall.
+- [IDEA] Agentic generation prototype: replace two-phase "generate → verify → reject" with one-phase tool-using Claude session. Tools: `check_lemma_available(bare, pos?) → {lemma_id, gloss} | null`, `list_lemmas_with_form(bare) → [...]` (homographs), `flag_missing_lemma(bare, gloss, pos)` (feeds the tracker). Claude composes, self-verifies, swaps problem words before storage. Use `generate_with_tools()` in `claude_code.py` (already used for story gen). Prototype on `generate_material_for_word` (single-word, non-batch), measure pass-rate vs current on the 20 chronically-failing words. Main risk: multi-turn sessions regress throughput vs current 15-words-in-2-calls batch (~4s/word). Only measurement decides.
+
 ## Arabic Text Storage — Follow-ups (2026-04-17)
 - [DONE] Unify `sentences.arabic_text`/`arabic_diacritized` into a single diacritized `arabic_text` column (migration `a8c2d3e4f501`)
 - [DONE] Fix Hindawi sentence splitter so terminal `.»` `!»` `?»` `؟»` stay intact
-- [TODO] Drop the legacy `arabic_diacritized` key from API response schemas (`SentenceReviewItem`, `BookPageSentenceOut`) and update `frontend/lib/types.ts` + `frontend/app/book-page.tsx:192` to read `arabic_text` — deferred from the main unification PR to keep that change minimal. Field is currently mirrored from `arabic_text` server-side.
+- [DONE] Dropped legacy `arabic_diacritized` key from `SentenceReviewItem` and `BookPageSentenceOut` schemas; frontend types + `book-page.tsx` now read `arabic_text` directly.
 - [TODO] Re-run Hindawi import for the backlog of inactive corpus sentences affected by the old splitter (orphaned `«`, missing terminal period) — re-enrichment won't fix the split, only a fresh import can. Needs the deduping logic in `get_existing_arabic_texts()` to continue working, which it will because it normalizes via `strip_diacritics()`.
 
 ---
