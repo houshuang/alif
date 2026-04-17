@@ -107,17 +107,23 @@ Create reusable Claude Code skills (`.claude/skills/`) for common operations.
 - **Bundled commits are dangerous** — if a commit touches >5 files across different features, split it or review each file's diff individually.
 
 ### 7. Branch Workflow for Non-Trivial Changes — Self-Review Gate
+**The user does not review PRs — Claude owns self-review end-to-end.** Do NOT pause after opening a PR to ask the user to review; do NOT ask for approval to merge. Self-review and merge yourself.
+
 For changes that touch core algorithm files (`sentence_selector.py`, `session_builder`, `fsrs_service.py`, `acquisition_service.py`) or modify >3 files:
 1. Create a branch: `git checkout -b sh/<feature-name>`
 2. Make changes and commit on the branch
-3. Create a PR: `gh pr create --title "..." --body "..."`
-4. **Self-review the PR diff** before merging — look at every file's diff on GitHub (`gh pr diff`) and verify:
-   - No unintended deletions in append-only files
+3. Push main first if there are unpushed commits on main, so the PR diff is scoped to just the new work
+4. Create a PR: `gh pr create --title "..." --body "..."`
+5. **Self-review the PR diff** by reading the actual diff (`gh pr diff <N>`) — not just the stats. Verify:
+   - No unintended deletions in append-only files (`experiment-log.md`, `IDEAS.md`)
    - No features silently removed from large files
    - No schema fields lost that the backend still computes
    - Net line counts make sense (a "feature addition" shouldn't have large net deletions)
-5. If the self-review passes, merge the PR: `gh pr merge --squash`
-6. If issues found, fix on the branch, push, and re-review
+   - Logic equivalence in refactors (trace through the new code vs old behavior)
+6. If the self-review passes, merge immediately: `gh pr merge <N> --squash --delete-branch`
+7. If issues found, fix on the branch, push, and re-review. Never merge with known issues.
+
+After merge: `git checkout main && git pull --ff-only`. Deploy only if the user explicitly asked for it — merging and deploying are separate decisions.
 
 Direct commits to `main` are OK for: documentation-only changes, single-file bug fixes, test additions, and changes the user explicitly asked to deploy immediately.
 
