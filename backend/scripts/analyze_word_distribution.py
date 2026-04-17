@@ -240,7 +240,6 @@ def regenerate_worst_offenders(
 
             sent = Sentence(
                 arabic_text=res.arabic,
-                arabic_diacritized=res.arabic,
                 english_translation=res.english,
                 transliteration=res.transliteration,
                 source="llm",

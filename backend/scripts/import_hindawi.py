@@ -59,9 +59,32 @@ logger = logging.getLogger(__name__)
 
 # ── Sentence extraction ──────────────────────────────────────────────
 
-SENT_SPLIT = re.compile(r"[.!?؟\n]+")
-# Quotes, dashes, and other non-sentence characters
-TRIM_CHARS = re.compile(r'^[«»"\'\-–—\s:؛,،]+|[«»"\'\-–—\s:؛,،]+$')
+# Sentence terminator: . ! ? ؟ optionally followed by a closing quote/bracket.
+# Capturing group so the terminator (incl. any trailing closer) stays attached
+# to the preceding chunk when we recombine — so "…دوليتل.»" stays one sentence
+# instead of splitting between "." and "»" and dropping the closing guillemet.
+SENT_TERM = re.compile(r'([.!?؟][»"\'\)\]]?)')
+# Dashes, colons, semicolons, arabic commas and whitespace that may surround a
+# sentence — but NOT «»"'() which carry meaning when the sentence contains a
+# quoted phrase. Those are preserved.
+TRIM_CHARS = re.compile(r'^[\-–—\s:؛,،]+|[\-–—\s:؛,،]+$')
+
+
+def _split_on_terminators(text: str) -> list[str]:
+    parts = SENT_TERM.split(text)
+    chunks: list[str] = []
+    # SENT_TERM.split yields: [prefix, term, prefix, term, ..., tail]
+    for i in range(0, len(parts) - 1, 2):
+        chunks.append(parts[i] + parts[i + 1])
+    if len(parts) % 2 == 1 and parts[-1]:
+        chunks.append(parts[-1])
+    # Also split on newlines within each chunk (paragraph breaks)
+    final: list[str] = []
+    for c in chunks:
+        for line in c.split("\n"):
+            if line:
+                final.append(line)
+    return final
 
 
 def extract_sentences(text: str, min_words: int = 5, max_words: int = 14) -> list[str]:
@@ -70,7 +93,7 @@ def extract_sentences(text: str, min_words: int = 5, max_words: int = 14) -> lis
     No diacritics filter — enrichment step A2 handles diacritization via LLM.
     """
     sents = []
-    for chunk in SENT_SPLIT.split(text):
+    for chunk in _split_on_terminators(text):
         chunk = TRIM_CHARS.sub("", chunk.strip())
         if not chunk:
             continue
@@ -322,8 +345,7 @@ def run_pipeline(
                     break
 
             sent = Sentence(
-                arabic_text=strip_diacritics(s["text"]),
-                arabic_diacritized=s["text"],
+                arabic_text=s["text"],
                 english_translation=None,  # translated on-demand by cron
                 transliteration=transliteration,
                 source="corpus",

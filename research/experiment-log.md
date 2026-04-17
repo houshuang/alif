@@ -4,6 +4,35 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-04-17: Unify arabic_text column, fix Hindawi sentence splitter
+
+**Problem:** Two columns (`sentences.arabic_text`, `sentences.arabic_diacritized`) with inconsistent semantics across pipelines:
+- LLM pipeline stored the diacritized form in BOTH columns (same value twice).
+- Book/corpus/michel_thomas/enrichment pipelines stripped diacritics into `arabic_text`, kept voweled in `arabic_diacritized`.
+- Frontend reads `arabic_text` (via `item.arabic_text`) and also renders from per-word `SentenceWord.surface_form`.
+- AI chat context (`index.tsx:1216`), TTS cache keys, transliteration input — all pulled from `arabic_text`. For book/corpus sentences, that was bare consonantal text.
+
+Separately: Hindawi `SENT_SPLIT = [.!?؟\n]+` split inside quoted dialogue. Text like `…دوليتل.»` split between `.` and `»`, and the orphan `»` got stripped from the next chunk by `TRIM_CHARS`, leaving the first chunk with an open `«` and no close. Affected 2 active corpus sentences (21660, 22448) and many inactive ones.
+
+**Fix:** Collapsed to one column — `arabic_text` always holds the fully diacritized form:
+- Alembic migration `a8c2d3e4f501` backfills and drops `arabic_diacritized`
+- 4 writer sites (import_hindawi, book_import_service, import_michel_thomas, update_material enrichment) drop their `strip_diacritics()` call
+- 4 writer sites in material_generator drop the duplicate `arabic_diacritized=vs["arabic"]` line
+- 18 reader sites collapse `sent.arabic_diacritized or sent.arabic_text` → `sent.arabic_text`
+- API response schemas keep the `arabic_diacritized` key (populated from `arabic_text`) so `frontend/app/book-page.tsx:192` and `types.ts` don't break — a follow-up PR can drop that field cleanly
+
+Hindawi splitter rewrite: regex splits on terminal punct but keeps `.»`, `!»`, `?»`, `؟»` (and closing `"` `'` `)` `]`) attached to the preceding sentence. `TRIM_CHARS` no longer strips `«»"'` — those stay in the sentence where they belong.
+
+**Scope/safety:**
+- Existing TTS audio cache (607 `.mp3` files): 526 LLM files unaffected (arabic_text value unchanged), 1 book file regenerates on next play, 0 corpus files cached.
+- Dedup logic (`get_existing_arabic_texts`) already normalizes via `strip_diacritics()` at query time — agnostic to storage format.
+- `transliterate_arabic()` strips internally — agnostic, but actually produces better output when given diacritized input.
+- Sentence validators (`tokenize_display`, function-word detection) all normalize at call time.
+
+**Verification:** Full pytest suite (862 passed) + manual splitter tests against the failing sentences. Live verify after deploy: sentence 3482 should render voweled in any UI path that reads `item.arabic_text`; next Hindawi re-import should not produce orphaned `«` without `»`.
+
+---
+
 ## 2026-04-16: Corpus sentence mapping bug — 63/74 active sentences had wrong lemmas
 
 **Problem:** Sentence 21365 shown with 3 wrong lemma mappings (نحل→"to grow thin" instead of "bee", صفر→"to be empty" instead of "yellow", etc.). Investigation found the verification pipeline (Sonnet) correctly caught errors, but the correction step silently failed.

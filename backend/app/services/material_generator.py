@@ -311,7 +311,6 @@ def generate_material_for_word(lemma_id: int, needed: int = 2, model_override: s
         for vs in valid_sentences:
             sent = Sentence(
                 arabic_text=vs["arabic"],
-                arabic_diacritized=vs["arabic"],
                 english_translation=vs["english"],
                 transliteration=vs["transliteration"],
                 source="llm",
@@ -615,7 +614,6 @@ def batch_generate_material(
         for vs in valid_sentences:
             sent = Sentence(
                 arabic_text=vs["arabic"],
-                arabic_diacritized=vs["arabic"],
                 english_translation=vs["english"],
                 transliteration=vs["transliteration"],
                 source="llm",
@@ -767,7 +765,6 @@ def store_multi_target_sentence(
     from app.services.transliteration import transliterate_arabic as _translit_ar
     sent = Sentence(
         arabic_text=result.arabic,
-        arabic_diacritized=result.arabic,
         english_translation=result.english,
         transliteration=_translit_ar(result.arabic) or result.transliteration,
         source="llm",

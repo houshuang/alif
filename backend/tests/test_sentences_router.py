@@ -90,8 +90,7 @@ class TestSentenceInfo:
 
         created = datetime(2026, 2, 10, 14, 30, 0)
         sent = Sentence(
-            arabic_text="هذا كتاب",
-            arabic_diacritized="هَذَا كِتَابٌ",
+            arabic_text="هَذَا كِتَابٌ",
             english_translation="This is a book",
             transliteration="hādhā kitāb",
             source="llm",

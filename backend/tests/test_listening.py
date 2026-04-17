@@ -57,7 +57,6 @@ def _seed_sentence(db, sentence_id, arabic, english, target_lemma_id, word_lemma
     sent = Sentence(
         id=sentence_id,
         arabic_text=arabic,
-        arabic_diacritized=arabic,
         english_translation=english,
         target_lemma_id=target_lemma_id,
         max_word_count=len(word_lemma_ids),

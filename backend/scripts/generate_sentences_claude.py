@@ -301,11 +301,11 @@ def store_sentences(db_path: str, results: list[dict], word_map: dict[str, dict]
             word_count = len(arabic.split())
             cursor = conn.execute("""
                 INSERT INTO sentences (
-                    arabic_text, arabic_diacritized, english_translation,
+                    arabic_text, english_translation,
                     transliteration, target_lemma_id, source, is_active,
                     max_word_count, created_at
-                ) VALUES (?, ?, ?, ?, ?, 'claude_code', 1, ?, datetime('now'))
-            """, (arabic, arabic, english, translit, word_info["lemma_id"], word_count))
+                ) VALUES (?, ?, ?, ?, 'claude_code', 1, ?, datetime('now'))
+            """, (arabic, english, translit, word_info["lemma_id"], word_count))
             sentence_id = cursor.lastrowid
 
             # Create SentenceWord records

@@ -34,7 +34,6 @@ def _seed_word(db, arabic="كَلْب", bare="كلب", gloss="dog", state="learn
 def _seed_sentence(db, lemma, text="الكَلْبُ كَبِيرٌ"):
     sentence = Sentence(
         arabic_text=text,
-        arabic_diacritized=text,
         english_translation="The dog is big",
         transliteration="al-kalb kabir",
         target_lemma_id=lemma.lemma_id,

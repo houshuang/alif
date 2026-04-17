@@ -26,7 +26,6 @@ def _seed_sentence(db, sid=1, arabic="هذا كتاب", english="This is a book"
     sent = Sentence(
         id=sid,
         arabic_text=arabic,
-        arabic_diacritized=arabic,
         english_translation=english,
         transliteration=translit,
         target_lemma_id=1,
@@ -210,7 +209,7 @@ class TestSentence:
         assert sent.is_active is False
         assert "retired" in flag.resolution_note.lower()
         # Original text unchanged — sentence is retired, not patched
-        assert sent.arabic_diacritized == "هذا كتب"
+        assert sent.arabic_text == "هذا كتب"
 
     @patch("app.services.flag_evaluator.generate_completion")
     def test_transliteration_fixes(self, mock_llm, db_session):

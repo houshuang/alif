@@ -158,7 +158,7 @@ def main():
 
         for sent, score, reason in final_retire[:50]:
             target = lemma_names.get(sent.target_lemma_id, "?")
-            arabic = sent.arabic_diacritized or sent.arabic_text
+            arabic = sent.arabic_text
             shown = sent.times_shown or 0
             print(f"  [{reason}] score={score:.2f} shown={shown} target={target}")
             print(f"    {arabic[:80]}")

@@ -289,7 +289,7 @@ def get_word(lemma_id: int, db: Session = Depends(get_db)):
         if r.sentence_id:
             sent = sentence_map.get(r.sentence_id)
             if sent:
-                entry["sentence_arabic"] = sent.arabic_diacritized or sent.arabic_text
+                entry["sentence_arabic"] = sent.arabic_text
                 entry["sentence_english"] = sent.english_translation
         review_history.append(entry)
 
@@ -354,7 +354,7 @@ def get_word(lemma_id: int, db: Session = Depends(get_db)):
             sentence_stats.append({
                 "sentence_id": sid,
                 "surface_forms": sentence_surface_map.get(sid, []),
-                "sentence_arabic": sent.arabic_diacritized or sent.arabic_text,
+                "sentence_arabic": sent.arabic_text,
                 "sentence_english": sent.english_translation,
                 "sentence_transliteration": sent.transliteration,
                 "seen_count": seen_count,

@@ -286,7 +286,7 @@ def get_lemma_sentence(lemma_id: int, db: Session = Depends(get_db)):
         "word_audio_url": target_lemma.audio_url if target_lemma else None,
         "sentence": {
             "sentence_id": sentence.id,
-            "arabic_text": sentence.arabic_diacritized or sentence.arabic_text,
+            "arabic_text": sentence.arabic_text,
             "english_translation": sentence.english_translation or "",
             "transliteration": sentence.transliteration,
             "audio_url": sentence.audio_url,

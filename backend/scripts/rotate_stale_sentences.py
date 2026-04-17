@@ -187,7 +187,7 @@ def main():
             print(f"Sentences to retire:")
             for sent, scores in final_retire[:30]:
                 target = lemma_names.get(sent.target_lemma_id, "?")
-                arabic = sent.arabic_diacritized or sent.arabic_text
+                arabic = sent.arabic_text
                 shown = sent.times_shown or 0
                 print(f"  id={sent.id} shown={shown} scaffold={scores['scaffold_count']} "
                       f"known={scores['known_count']} target={target}")

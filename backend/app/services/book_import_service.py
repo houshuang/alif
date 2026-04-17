@@ -377,8 +377,7 @@ def create_book_sentences(
         target_lid = _pick_primary_target(mappings, db)
 
         sent = Sentence(
-            arabic_text=strip_diacritics(arabic),
-            arabic_diacritized=arabic,
+            arabic_text=arabic,
             english_translation=english,
             transliteration=transliteration,
             source="book",

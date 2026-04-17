@@ -1,4 +1,4 @@
-"""Recompute sentence transliterations from arabic_diacritized using ALA-LC.
+"""Recompute sentence transliterations from arabic_text using ALA-LC.
 
 One-time backfill: replaces LLM-generated transliterations with deterministic ALA-LC.
 """
@@ -16,14 +16,10 @@ from app.services.transliteration import transliterate_arabic
 def main():
     db = SessionLocal()
     try:
-        sentences = (
-            db.query(Sentence)
-            .filter(Sentence.arabic_diacritized.isnot(None))
-            .all()
-        )
+        sentences = db.query(Sentence).all()
         updated = 0
         for sent in sentences:
-            new_translit = transliterate_arabic(sent.arabic_diacritized)
+            new_translit = transliterate_arabic(sent.arabic_text)
             if new_translit and new_translit != sent.transliteration:
                 sent.transliteration = new_translit
                 updated += 1
