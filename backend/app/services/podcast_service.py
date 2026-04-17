@@ -214,7 +214,6 @@ def _get_known_sentences(db: Session, limit: int = 40) -> list[SentenceInfo]:
         .filter(
             Sentence.is_active == True,  # noqa: E712
             Sentence.english_translation.isnot(None),
-            Sentence.arabic_diacritized.isnot(None),
             UserLemmaKnowledge.knowledge_state.in_(["learning", "known"]),
         )
         .order_by(sa_func.random())
@@ -225,7 +224,7 @@ def _get_known_sentences(db: Session, limit: int = 40) -> list[SentenceInfo]:
     for sent, lemma, knowledge, root in rows:
         results.append(SentenceInfo(
             id=sent.id,
-            arabic=sent.arabic_diacritized or sent.arabic_text,
+            arabic=sent.arabic_text,
             english=sent.english_translation,
             target_word_ar=lemma.lemma_ar,
             target_gloss=lemma.gloss_en or "",
@@ -245,7 +244,6 @@ def _get_acquiring_sentences(db: Session, limit: int = 10) -> list[SentenceInfo]
         .filter(
             Sentence.is_active == True,  # noqa: E712
             Sentence.english_translation.isnot(None),
-            Sentence.arabic_diacritized.isnot(None),
             UserLemmaKnowledge.knowledge_state == "acquiring",
         )
         .order_by(sa_func.random())
@@ -256,7 +254,7 @@ def _get_acquiring_sentences(db: Session, limit: int = 10) -> list[SentenceInfo]
     for sent, lemma, knowledge, root in rows:
         results.append(SentenceInfo(
             id=sent.id,
-            arabic=sent.arabic_diacritized or sent.arabic_text,
+            arabic=sent.arabic_text,
             english=sent.english_translation,
             target_word_ar=lemma.lemma_ar,
             target_gloss=lemma.gloss_en or "",
@@ -312,15 +310,14 @@ def _get_root_family(db: Session) -> Optional[RootFamily]:
             .filter(
                 Sentence.target_lemma_id == lemma.lemma_id,
                 Sentence.is_active == True,  # noqa: E712
-                Sentence.arabic_diacritized.isnot(None),
-                Sentence.english_translation.isnot(None),
+                    Sentence.english_translation.isnot(None),
             )
             .first()
         )
         if sent_row:
             sents.append(SentenceInfo(
                 id=sent_row.id,
-                arabic=sent_row.arabic_diacritized or sent_row.arabic_text,
+                arabic=sent_row.arabic_text,
                 english=sent_row.english_translation,
                 target_word_ar=lemma.lemma_ar,
                 target_gloss=lemma.gloss_en or "",
@@ -347,7 +344,6 @@ def _get_story_sentences(db: Session) -> list[SentenceInfo]:
         .filter(
             Sentence.story_id == story.id,
             Sentence.is_active == True,  # noqa: E712
-            Sentence.arabic_diacritized.isnot(None),
             Sentence.english_translation.isnot(None),
         )
         .order_by(Sentence.id)
@@ -360,7 +356,7 @@ def _get_story_sentences(db: Session) -> list[SentenceInfo]:
         target_lemma = db.query(Lemma).filter(Lemma.lemma_id == s.target_lemma_id).first() if s.target_lemma_id else None
         results.append(SentenceInfo(
             id=s.id,
-            arabic=s.arabic_diacritized or s.arabic_text,
+            arabic=s.arabic_text,
             english=s.english_translation,
             target_word_ar=target_lemma.lemma_ar if target_lemma else "",
             target_gloss=target_lemma.gloss_en if target_lemma else "",

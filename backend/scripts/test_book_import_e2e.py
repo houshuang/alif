@@ -157,7 +157,7 @@ def run_import_pipeline(image_paths: list[Path]) -> None:
 
         logger.info("\n--- Sample Sentences ---")
         for sent in db_sentences[:5]:
-            logger.info(f"  [{sent.id}] {sent.arabic_diacritized[:60]}...")
+            logger.info(f"  [{sent.id}] {sent.arabic_text[:60]}...")
             logger.info(f"         → {sent.english_translation[:60] if sent.english_translation else '(no translation)'}...")
 
         logger.info("\nPipeline complete!")

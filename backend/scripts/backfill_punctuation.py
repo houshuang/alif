@@ -3,7 +3,7 @@
 
 Existing SentenceWord records had punctuation stripped because tokenize()
 was used instead of tokenize_display(). This script re-tokenizes from the
-stored arabic_diacritized text and updates surface_forms to include punctuation.
+stored arabic_text and updates surface_forms to include punctuation.
 
 Usage:
     cd backend && python3 scripts/backfill_punctuation.py [--dry-run]
@@ -31,7 +31,7 @@ def main():
         updated_words = 0
 
         for sent in sentences:
-            source_text = sent.arabic_diacritized or sent.arabic_text
+            source_text = sent.arabic_text
             if not source_text:
                 continue
 

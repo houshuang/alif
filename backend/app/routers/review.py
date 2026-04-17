@@ -719,7 +719,7 @@ def get_recap_items(body: RecapIn, db: Session = Depends(get_db)):
 
         items.append({
             "sentence_id": sent.id,
-            "arabic_text": sent.arabic_diacritized or sent.arabic_text,
+            "arabic_text": sent.arabic_text,
             "english_translation": sent.english_translation,
             "transliteration": sent.transliteration,
             "audio_url": sent.audio_url,

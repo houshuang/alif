@@ -244,12 +244,12 @@ def enrich_corpus_sentences(db: Session) -> int:
     now = datetime.now(timezone.utc)
 
     for sent in unverified:
-        arabic = sent.arabic_diacritized or sent.arabic_text
+        arabic = sent.arabic_text
 
         # Check if diacritization is actually present (harakat characters)
         needs_diacritics = not any(
             0x064B <= ord(c) <= 0x0652 or ord(c) == 0x0670
-            for c in (sent.arabic_diacritized or "")
+            for c in (sent.arabic_text or "")
         )
         needs_translation = not sent.english_translation
 
@@ -276,8 +276,7 @@ def enrich_corpus_sentences(db: Session) -> int:
                 diacritized = result.get("diacritized", "")
                 translation = result.get("translation", "")
                 if diacritized:
-                    sent.arabic_diacritized = diacritized
-                    sent.arabic_text = strip_diacritics(diacritized)
+                    sent.arabic_text = diacritized
                     sent.transliteration = transliterate_arabic(diacritized) or ""
                 if translation:
                     sent.english_translation = translation
@@ -288,7 +287,7 @@ def enrich_corpus_sentences(db: Session) -> int:
                 continue
 
         # Step 2: Re-map tokens with diacritized text + proper names
-        tokens = tokenize_display(sent.arabic_diacritized or sent.arabic_text)
+        tokens = tokenize_display(sent.arabic_text)
         mappings = map_tokens_to_lemmas(
             tokens=tokens,
             lemma_lookup=lemma_lookup,
@@ -305,7 +304,7 @@ def enrich_corpus_sentences(db: Session) -> int:
 
         # Step 3: Verify mappings via LLM (same pipeline as LLM-generated sentences)
         corrections = verify_and_correct_mappings_llm(
-            sent.arabic_diacritized or sent.arabic_text,
+            sent.arabic_text,
             sent.english_translation or "",
             mappings,
             lemma_map,
@@ -364,7 +363,7 @@ def enrich_corpus_sentences(db: Session) -> int:
         # Final guard: don't activate if still undiacritized
         still_bare = not any(
             0x064B <= ord(c) <= 0x0652 or ord(c) == 0x0670
-            for c in (sent.arabic_diacritized or "")
+            for c in (sent.arabic_text or "")
         )
         if still_bare:
             print(f"  Sentence {sent.id}: still undiacritized after enrichment, skipping activation")

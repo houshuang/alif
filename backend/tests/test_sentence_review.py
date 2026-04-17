@@ -54,7 +54,6 @@ def _seed_sentence(db, sentence_id, arabic, english, target_lemma_id, word_ids):
     sent = Sentence(
         id=sentence_id,
         arabic_text=arabic,
-        arabic_diacritized=arabic,
         english_translation=english,
         target_lemma_id=target_lemma_id,
     )
@@ -503,7 +502,7 @@ class TestVariantStats:
         """When surface form differs from lemma bare, variant_stats_json is updated."""
         _seed_word(db_session, 1, "بنت", "girl")
         sent = Sentence(
-            id=1, arabic_text="بنتي جميلة", arabic_diacritized="بنتي جميلة",
+            id=1, arabic_text="بنتي جميلة",
             english_translation="my daughter is beautiful", target_lemma_id=1,
         )
         db_session.add(sent)
@@ -533,7 +532,7 @@ class TestVariantStats:
         _seed_word(db_session, 1, "بنت", "girl")
         _seed_word(db_session, 2, "كبير", "big")
         sent = Sentence(
-            id=1, arabic_text="بنتك كبيرة", arabic_diacritized="بنتك كبيرة",
+            id=1, arabic_text="بنتك كبيرة",
             english_translation="your daughter is big", target_lemma_id=1,
         )
         db_session.add(sent)
@@ -562,7 +561,7 @@ class TestVariantStats:
         """When surface form equals lemma bare, no variant stats are recorded."""
         _seed_word(db_session, 1, "كتاب", "book")
         sent = Sentence(
-            id=1, arabic_text="كتاب", arabic_diacritized="كتاب",
+            id=1, arabic_text="كتاب",
             english_translation="book", target_lemma_id=1,
         )
         db_session.add(sent)
@@ -735,7 +734,7 @@ class TestVariantRedirect:
         db_session.add(variant)
 
         # Create sentence with the variant form
-        sent = Sentence(id=50, arabic_text="الكتاب جميل", arabic_diacritized="الكتاب جميل",
+        sent = Sentence(id=50, arabic_text="الكتاب جميل",
                        english_translation="the book is beautiful", target_lemma_id=101)
         db_session.add(sent)
         db_session.flush()
@@ -777,7 +776,7 @@ class TestVariantRedirect:
                        pos="noun", gloss_en="the book", canonical_lemma_id=200)
         db_session.add(variant)
 
-        sent = Sentence(id=60, arabic_text="الكتاب", arabic_diacritized="الكتاب",
+        sent = Sentence(id=60, arabic_text="الكتاب",
                        english_translation="the book", target_lemma_id=201)
         db_session.add(sent)
         db_session.flush()
@@ -819,7 +818,7 @@ class TestVariantRedirect:
         )
         db_session.add(variant_ulk)
 
-        sent = Sentence(id=70, arabic_text="الكتاب", arabic_diacritized="الكتاب",
+        sent = Sentence(id=70, arabic_text="الكتاب",
                        english_translation="the book", target_lemma_id=301)
         db_session.add(sent)
         db_session.flush()
@@ -861,7 +860,7 @@ class TestVariantRedirect:
                         pos="noun", gloss_en="my book", canonical_lemma_id=400)
         db_session.add(variant2)
 
-        sent = Sentence(id=80, arabic_text="الكتاب كتابي", arabic_diacritized="الكتاب كتابي",
+        sent = Sentence(id=80, arabic_text="الكتاب كتابي",
                        english_translation="the book is my book", target_lemma_id=401)
         db_session.add(sent)
         db_session.flush()

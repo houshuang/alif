@@ -123,7 +123,6 @@ class Sentence(Base):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     arabic_text = Column(Text, nullable=False)
-    arabic_diacritized = Column(Text)
     english_translation = Column(Text)
     transliteration = Column(Text)
     source = Column(String(20))  # llm/tatoeba/manual/book/corpus/claude_code

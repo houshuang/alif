@@ -4,6 +4,14 @@
 
 ---
 
+## Arabic Text Storage — Follow-ups (2026-04-17)
+- [DONE] Unify `sentences.arabic_text`/`arabic_diacritized` into a single diacritized `arabic_text` column (migration `a8c2d3e4f501`)
+- [DONE] Fix Hindawi sentence splitter so terminal `.»` `!»` `?»` `؟»` stay intact
+- [TODO] Drop the legacy `arabic_diacritized` key from API response schemas (`SentenceReviewItem`, `BookPageSentenceOut`) and update `frontend/lib/types.ts` + `frontend/app/book-page.tsx:192` to read `arabic_text` — deferred from the main unification PR to keep that change minimal. Field is currently mirrored from `arabic_text` server-side.
+- [TODO] Re-run Hindawi import for the backlog of inactive corpus sentences affected by the old splitter (orphaned `«`, missing terminal period) — re-enrichment won't fix the split, only a fresh import can. Needs the deduping logic in `get_existing_arabic_texts()` to continue working, which it will because it normalizes via `strip_diacritics()`.
+
+---
+
 ## Spanish Pilot — Next Steps (2026-04-15)
 - [DONE] Standalone `spanish-pilot/` prototype with 120 lemmas + 150 sentences, ported Alif scheduler, deployed on Hetzner port 3100
 - [TODO] Teacher feedback: is self-grade sufficient or need MC-only enforcement?

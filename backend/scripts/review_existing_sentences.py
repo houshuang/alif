@@ -38,7 +38,7 @@ def main():
         for i in range(0, len(sentences), args.batch_size):
             batch = sentences[i : i + args.batch_size]
             to_review = [
-                {"arabic": s.arabic_diacritized or s.arabic_text, "english": s.english_translation or ""}
+                {"arabic": s.arabic_text, "english": s.english_translation or ""}
                 for s in batch
             ]
 
@@ -48,7 +48,7 @@ def main():
                 reviewed += 1
                 if not r.natural or not r.translation_correct:
                     print(f"  FAIL id={s.id}: {r.reason}")
-                    print(f"    ar: {s.arabic_diacritized}")
+                    print(f"    ar: {s.arabic_text}")
                     print(f"    en: {s.english_translation}")
                     if not args.dry_run:
                         s.is_active = False

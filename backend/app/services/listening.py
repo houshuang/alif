@@ -220,7 +220,7 @@ def get_listening_candidates(
                 "due": due_dt.isoformat(),
                 "sentence": {
                     "id": best_sentence.id,
-                    "arabic": best_sentence.arabic_diacritized or best_sentence.arabic_text,
+                    "arabic": best_sentence.arabic_text,
                     "english": best_sentence.english_translation,
                     "transliteration": best_sentence.transliteration,
                     "audio_url": best_sentence.audio_url,

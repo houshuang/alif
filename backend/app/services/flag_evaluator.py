@@ -159,7 +159,7 @@ def _evaluate_word_mapping(db: Session, flag: ContentFlag) -> None:
 
     prompt = f"""Evaluate the word-to-lemma mappings in this Arabic sentence.
 
-Arabic: {sentence.arabic_diacritized or sentence.arabic_text}
+Arabic: {sentence.arabic_text}
 English: {sentence.english_translation}
 
 Current mappings:
@@ -398,7 +398,7 @@ def _propagate_mapping_fix(
             if not sent:
                 continue
             sentence_lines.append(
-                f"Sentence #{sent.id}: {sent.arabic_diacritized or sent.arabic_text} / {sent.english_translation}"
+                f"Sentence #{sent.id}: {sent.arabic_text} / {sent.english_translation}"
             )
             batch_sentence_ids.append(sent.id)
 
@@ -453,7 +453,7 @@ def _evaluate_sentence(db: Session, flag: ContentFlag) -> None:
         return
 
     field_map = {
-        "sentence_arabic": ("arabic_diacritized", "Arabic text"),
+        "sentence_arabic": ("arabic_text", "Arabic text"),
         "sentence_english": ("english_translation", "English translation"),
         "sentence_transliteration": ("transliteration", "transliteration"),
     }
@@ -471,7 +471,7 @@ def _evaluate_sentence(db: Session, flag: ContentFlag) -> None:
     if flag.content_type == "sentence_arabic":
         prompt = f"""A user flagged this Arabic sentence as bad. Evaluate against the same rubric used during generation.
 
-Arabic: {sentence.arabic_diacritized or sentence.arabic_text}
+Arabic: {sentence.arabic_text}
 English translation: {sentence.english_translation}
 
 Mark acceptable=false for ANY of:
@@ -493,7 +493,7 @@ Respond with JSON:
     elif flag.content_type == "sentence_english":
         prompt = f"""Evaluate this English translation of an Arabic sentence.
 
-Arabic: {sentence.arabic_diacritized or sentence.arabic_text}
+Arabic: {sentence.arabic_text}
 Current English translation: "{sentence.english_translation}"
 
 Is the English translation accurate? If not, provide a better one.
@@ -503,7 +503,7 @@ Respond with JSON:
     else:  # sentence_transliteration
         prompt = f"""Evaluate this ALA-LC transliteration of an Arabic sentence.
 
-Arabic: {sentence.arabic_diacritized or sentence.arabic_text}
+Arabic: {sentence.arabic_text}
 Current transliteration: "{sentence.transliteration}"
 
 Is the transliteration correct using ALA-LC standard (with macrons for long vowels)? If not, provide the correct version.

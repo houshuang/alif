@@ -67,7 +67,6 @@ def test_get_word_sentence_stats(client, db_session):
     lemma = _seed_word(db_session, arabic="قَلَم", bare="قلم", gloss="pen")
     sentence = Sentence(
         arabic_text="هٰذَا قَلَمٌ جَدِيدٌ",
-        arabic_diacritized="هٰذَا قَلَمٌ جَدِيدٌ",
         english_translation="This is a new pen",
         target_lemma_id=lemma.lemma_id,
     )
@@ -132,13 +131,11 @@ def test_get_word_sentence_stats_includes_unreviewed_sentences(client, db_sessio
     lemma = _seed_word(db_session, arabic="دَرْس", bare="درس", gloss="lesson")
     sentence1 = Sentence(
         arabic_text="هٰذَا دَرْسٌ",
-        arabic_diacritized="هٰذَا دَرْسٌ",
         english_translation="This is a lesson",
         target_lemma_id=lemma.lemma_id,
     )
     sentence2 = Sentence(
         arabic_text="الدَّرْسُ سَهْلٌ",
-        arabic_diacritized="الدَّرْسُ سَهْلٌ",
         english_translation="The lesson is easy",
         target_lemma_id=lemma.lemma_id,
     )
@@ -220,8 +217,7 @@ def test_import_duolingo(client, db_session):
 def test_next_sentences_prefetch_skips_logging(client, db_session, monkeypatch):
     lemma = _seed_word(db_session)
     sentence = Sentence(
-        arabic_text="الولد",
-        arabic_diacritized="الْوَلَدُ",
+        arabic_text="الْوَلَدُ",
         english_translation="the boy",
         target_lemma_id=lemma.lemma_id,
     )
