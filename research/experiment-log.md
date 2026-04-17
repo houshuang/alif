@@ -4,6 +4,27 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-04-17: Per-lemma generation backoff — stop retrying chronically-failing lemmas
+
+Branch `sh/generation-backoff`. Targets the ~20 known-state words that the 3h cron kept attempting with 0 successes (mapping-correction walls around phonological/morphological cases the current verifier can't resolve, e.g. مَبْسُوطَة 0/8, طَيِّب 0/7, عَجِيب 0/7). They stayed below `backfill_target` indefinitely → every cron re-queued them → wasted CLI calls and crowded out viable lemmas in the multi-target batches.
+
+**Change (migration `b4e1f07a2c18`):**
+- `UserLemmaKnowledge.generation_failed_count` (Integer, default 0) + `generation_backoff_until` (DateTime, nullable)
+- `record_generation_result(db, lemma_id, sentences_generated)` in `material_generator.py`: +1 on zero; at threshold (3) sets `backoff_until = utcnow() + 7d`; any success resets both fields. Owns its own commit so callers don't need to manage transaction state.
+- `lemmas_on_backoff(db, lemma_ids)` returns the subset with active backoff (`backoff_until > utcnow()`), using naive datetimes to match SQLite's storage format (see MEMORY.md pitfall).
+- Filter applied at both generation entry points: `step_backfill_sentences.words_needing` (tier-based targets) and `_warm_sentence_cache_impl.gap_word_ids` (focus cohort + intro candidates + recency-exhausted).
+- Outcome tracking in both callers: at end of `step_backfill_sentences`, union of `covered_by_multi | covered_by_batch | covered_single` tells us which attempted lemmas got ≥1 sentence; the rest get a failure record. In `_warm_sentence_cache_impl`, `multi_covered` (from Phase 3b writes, cleared on rollback) and `single_covered` (from `generate_material_for_word` return value) serve the same role.
+
+**Expected impact:** ~60-80 fewer wasted CLI calls per week across the failing cohort. Frees slots in multi-target groups for lemmas that could actually succeed. Self-healing: any later verifier/vocab improvement that lets one of those words pass clears the backoff and they re-enter normal rotation.
+
+**Not a verifier weakening:** the 3-strike threshold is intentional — a verifier bug that causes transient failures on a genuinely-generatable word will correct within a week without a manual unstick. If the rate of manually-unstuck words becomes annoying, we'd tune the threshold or duration, not bypass the gate.
+
+**Verification:** 869 tests pass (863 baseline + 6 new in `test_generation_backoff.py`: increment-under-threshold, at-threshold-sets-backoff, success-resets, missing-ULK no-op, expired-filter, empty-input). Not yet deployed.
+
+**Deferred:** Hindawi re-import (operational), agentic generation prototype.
+
+---
+
 ## 2026-04-17: Write-lock refactor — release SQLite write lock across LLM calls
 
 Follow-up to the morning diagnosis of the 2-hour `update_material.py` hang (prior entry). Branch `sh/write-lock-refactor`.
