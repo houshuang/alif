@@ -12,9 +12,10 @@
 
 ## Arabic Text Storage — Follow-ups (2026-04-17)
 - [DONE] Unify `sentences.arabic_text`/`arabic_diacritized` into a single diacritized `arabic_text` column (migration `a8c2d3e4f501`)
-- [DONE] Fix Hindawi sentence splitter so terminal `.»` `!»` `?»` `؟»` stay intact
+- [DONE] Fix Hindawi sentence splitter so terminal `.»` `!»` `?»` `؟»` stay intact (PR #35)
 - [DONE] Dropped legacy `arabic_diacritized` key from `SentenceReviewItem` and `BookPageSentenceOut` schemas; frontend types + `book-page.tsx` now read `arabic_text` directly.
-- [TODO] Re-run Hindawi import for the backlog of inactive corpus sentences affected by the old splitter (orphaned `«`, missing terminal period) — re-enrichment won't fix the split, only a fresh import can. Needs the deduping logic in `get_existing_arabic_texts()` to continue working, which it will because it normalizes via `strip_diacritics()`.
+- [DONE] Dialogue-aware Hindawi splitter (PR #38, 2026-04-17): PR #35 preserved `.»` but still split on internal `.!?؟` inside unclosed `«...»`, leaving ~17% orphan guillemets. New splitter tracks «/» depth, suppresses internal-terminator splits while depth > 0. Empirically measured on children corpus: orphan rate 26%→1.6%, missing-terminal rate 98%→5.6%.
+- [DONE] Hindawi reimport (2026-04-17): deleted 10,748 old-splitter sentences (all inactive + 5 broken active with orphan guillemets); kept 33 cleanly-enriched active. Reimported 6,432 new inactive sentences via dialogue-aware splitter, from 165 of 167 children books, 1,813 distinct lemmas covered. 33 active + 6,432 inactive = 6,465 total corpus sentences.
 
 ---
 

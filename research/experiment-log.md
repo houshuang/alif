@@ -4,6 +4,39 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-04-17: Dialogue-aware Hindawi splitter + corpus reimport
+
+Follow-up to PR #35's splitter fix. Branch `sh/hindawi-dialogue-splitter` (PR #38).
+
+**Problem found:** PR #35 correctly kept end-of-dialogue `.»` / `!»` / `?»` / `؟»` attached to the preceding sentence (fixing the "orphan `»` gets stripped" case). But the underlying regex splitter still fired on *internal* `.!?؟` that occur mid-dialogue, so `قال: «A. B.»` produced the orphan pair `قال: «A.` / `B.»`. Measured on the full children corpus (167 books, 10,781 imported sentences): 98% missing terminal punctuation, 26% orphan guillemets. The missing-terminal rate was the bigger signal — the old regex `[.!?؟\n]+` dropped every terminator unconditionally.
+
+**Fix:** switched `_split_on_terminators` from regex-split to a character-walk with `«/»` depth tracking. Terminators at depth > 0 are suppressed (dialogue stays whole). Newlines always split and reset depth (source text sometimes leaves quotes unclosed across paragraphs — we can't perfectly rebalance). Closers `»")]'` after a terminator still absorb at split, so `.»` / `."` / `.)` stay attached. 10 new tests in `test_corpus_import.py` cover the dialogue-aware cases.
+
+**Measured impact on full children corpus (pre-import):**
+| | Old splitter | New splitter |
+|-|-|-|
+| Orphan guillemet | 26% | 1.36% |
+| No terminal punct | 98% | 4.37% |
+| Per-book count | Higher | ~16% lower (dialogue passages now sometimes exceed max_words=14 and get filtered instead of split into orphans) |
+
+**Reimport execution:**
+1. Backup: `alif_pre_hindawi_reimport_20260417_182031.db` (68MB).
+2. Deletion: 10,748 corpus sentences removed — all inactive (10,743, assumed splitter-damaged; 98% missing terminal confirmed it) + 5 active with orphan guillemet (user-facing broken). 33 cleanly-enriched active sentences preserved. Cleaned up dependent rows: 83,232 sentence_words + 13 sentence_review_log + 146 sentence_grammar_features + 4 content_flags. `review_log.sentence_id` NULLed for 59 rows (lemma-level review history preserved).
+3. Reimport via `import_hindawi.py --parquet /tmp/hindawi.parquet --category children`: 6,432 new inactive sentences accepted, 30,455 rejected for unmapped content words (82% rejection rate, matches original import), 71 deduped against the 33 retained survivors. From 165 of 167 children books. 1,813 distinct lemmas covered out of 2,654 encountered.
+
+**Post-import corpus state:**
+- Total corpus: 6,465 (33 active + 6,432 inactive awaiting enrichment)
+- Orphan guillemet in new batch: 1.60% (103/6,432)
+- No terminal punct in new batch: 5.60% (360/6,432)
+
+**Tradeoff accepted:** 40% fewer sentences than the original 10,781 import, but 94% less orphan-guillemet and 92% less missing-terminal-punct. The missing sentences were the damaged ones that couldn't be cleanly split; what remains is higher-quality reading material.
+
+**Expected impact on enrichment pipeline:** the cron's step A2 (LLM diacritize + translate + verify, 50/run max) will now drain the 6,432-sentence backlog over ~128+ runs (every 3h × ~16 days). Hypothesis: LLM enrichment success rate will be materially higher than the old ~40% because orphan guillemets and missing terminal punctuation had been confusing the verifier. Worth checking after ~5 cron cycles.
+
+**Deferred:** enrichment-success measurement, agentic generation prototype.
+
+---
+
 ## 2026-04-17: Per-lemma generation backoff — stop retrying chronically-failing lemmas
 
 Branch `sh/generation-backoff`. Targets the ~20 known-state words that the 3h cron kept attempting with 0 successes (mapping-correction walls around phonological/morphological cases the current verifier can't resolve, e.g. مَبْسُوطَة 0/8, طَيِّب 0/7, عَجِيب 0/7). They stayed below `backfill_target` indefinitely → every cron re-queued them → wasted CLI calls and crowded out viable lemmas in the multi-target batches.
