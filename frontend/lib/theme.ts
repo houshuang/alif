@@ -39,14 +39,14 @@ export const fontFamily = {
   translitRegular: "NotoSans_400Regular",
 };
 
-/** Ordered list of Arabic font options for cycling. */
+/** Ordered list of Arabic font options for cycling.
+ *  Font mixing is currently disabled — single font (Scheherazade) to reduce visual noise.
+ *  To re-enable: add back Amiri/Noto entries (fontFamily definitions above are preserved). */
 export const arabicFonts = [
   { font: fontFamily.arabic, label: "Scheherazade" },
-  { font: fontFamily.arabicAmiri, label: "Amiri" },
-  { font: fontFamily.arabicNoto, label: "Noto" },
 ] as const;
 
-/** Pick an Arabic font for a sentence card. Uses sentence_id for deterministic 3-way split. */
+/** Pick an Arabic font for a sentence card. */
 export function arabicFontForSentence(sentenceId: number | null | undefined): { font: string; label: string } {
   if (sentenceId == null) return arabicFonts[0];
   return arabicFonts[sentenceId % arabicFonts.length];

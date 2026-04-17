@@ -14,7 +14,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { Audio } from "expo-av";
 import { Ionicons } from "@expo/vector-icons";
-import { colors, fonts, fontFamily, arabicFonts, arabicFontForSentence, ltr } from "../lib/theme";
+import { colors, fonts, fontFamily, arabicFontForSentence, ltr } from "../lib/theme";
 import {
   getSentenceReviewSession,
   fetchFreshSession,
@@ -2429,11 +2429,9 @@ function SentenceReadingCard({
 }) {
   const showAnswer = cardState === "back";
 
-  const [fontIdx, setFontIdx] = useState<number | null>(null);
   // 0 = default (fade per backend), 1 = all vowels, 2 = no vowels
   const [tashkeelMode, setTashkeelMode] = useState(0);
-  const defaultFont = arabicFontForSentence(item.sentence_id);
-  const currentFont = fontIdx != null ? arabicFonts[fontIdx] : defaultFont;
+  const currentFont = arabicFontForSentence(item.sentence_id);
 
   return (
     <>
@@ -2462,16 +2460,6 @@ function SentenceReadingCard({
       </Text>
 
       <View style={styles.cardToggles}>
-        <Pressable
-          onPress={() => {
-            const cur = fontIdx ?? arabicFonts.findIndex(f => f.font === defaultFont.font);
-            setFontIdx((cur + 1) % arabicFonts.length);
-          }}
-          style={styles.toggleDot}
-          hitSlop={12}
-        >
-          <View style={[styles.toggleDotInner, fontIdx != null && styles.toggleDotActive]} />
-        </Pressable>
         <Pressable
           onPress={() => setTashkeelMode((tashkeelMode + 1) % 3)}
           style={styles.toggleDot}
@@ -2568,11 +2556,9 @@ function SentenceListeningCard({
 
   const showAnswer = cardState === "answer";
 
-  const [fontIdx, setFontIdx] = useState<number | null>(null);
   // 0 = default (fade per backend), 1 = all vowels, 2 = no vowels
   const [tashkeelMode, setTashkeelMode] = useState(0);
-  const defaultFont = arabicFontForSentence(item.sentence_id);
-  const currentFont = fontIdx != null ? arabicFonts[fontIdx] : defaultFont;
+  const currentFont = arabicFontForSentence(item.sentence_id);
 
   return (
     <>
@@ -2601,16 +2587,6 @@ function SentenceListeningCard({
       </Text>
 
       <View style={styles.cardToggles}>
-        <Pressable
-          onPress={() => {
-            const cur = fontIdx ?? arabicFonts.findIndex(f => f.font === defaultFont.font);
-            setFontIdx((cur + 1) % arabicFonts.length);
-          }}
-          style={styles.toggleDot}
-          hitSlop={12}
-        >
-          <View style={[styles.toggleDotInner, fontIdx != null && styles.toggleDotActive]} />
-        </Pressable>
         <Pressable
           onPress={() => setTashkeelMode((tashkeelMode + 1) % 3)}
           style={styles.toggleDot}
