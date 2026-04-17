@@ -402,6 +402,11 @@ def create_book_sentences(
             )
             db.add(sw)
 
+        # Commit per-sentence so the SQLite write lock is released before
+        # the next iteration's Lemma query autoflushes and holds it through
+        # the next verify_and_correct_mappings_llm call.
+        db.commit()
+
         created.append(sent)
 
     return created

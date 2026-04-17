@@ -286,6 +286,12 @@ def enrich_corpus_sentences(db: Session) -> int:
                 db.commit()
                 continue
 
+            # Release write lock before the verify LLM call.
+            # Without this, the next autoflush (line below) writes the dirty
+            # sent.arabic_text / english_translation, acquiring the write lock,
+            # which then stays held through the 15-25s verify_and_correct call.
+            db.commit()
+
         # Step 2: Re-map tokens with diacritized text + proper names
         tokens = tokenize_display(sent.arabic_text)
         mappings = map_tokens_to_lemmas(
@@ -581,13 +587,18 @@ def step_backfill_sentences(
     words_processed = 0
     covered_by_multi: set[int] = set()
 
-    # Phase 1: Multi-target generation for groups of 2-4 words
-    # Generate-then-write: LLM calls happen first, DB writes batched after
+    # Phase 1: Multi-target generation for groups of 2-4 words.
+    # Split into generate (LLM) → validate (LLM, read-only DB) → write (DB only),
+    # with db.commit() between phases so the write lock is never held during
+    # an LLM call.
     if not dry_run and len(words_needing) >= 2:
-        from app.services.material_generator import store_multi_target_sentence
+        from app.services.material_generator import (
+            validate_multi_target_sentence,
+            write_multi_target_sentence,
+        )
         groups = group_words_for_multi_target(words_needing)
 
-        # Generate all multi-target sentences (no DB writes during LLM calls)
+        # Phase 1a: generate all multi-target sentences (LLM only, no DB writes)
         all_multi_results: list[tuple[list, dict[str, int]]] = []
         for group in groups:
             if total + sum(len(r) for r, _ in all_multi_results) >= budget:
@@ -614,21 +625,40 @@ def step_backfill_sentences(
             if delay > 0:
                 time.sleep(delay)
 
-        # Write all multi-target results to DB (fast)
+        # Ensure session is clean before the validation LLM calls —
+        # prior steps in this cron run may have left uncommitted writes that
+        # would otherwise be autoflushed during a Lemma lookup, acquiring the
+        # write lock for the duration of the 15-25s verify_and_correct calls.
+        db.commit()
+
+        # Phase 1b: validate each generated sentence (LLM disambig + verify).
+        # DB reads only; no writes. Collect the validated mappings to hand
+        # off to the write phase.
+        validated: list[tuple[object, list]] = []
         for multi_results, target_bares in all_multi_results:
             for mres in multi_results:
-                if total >= budget:
+                if total + len(validated) >= budget:
                     break
-                sent = store_multi_target_sentence(db, mres, lemma_lookup, target_bares)
-                if sent:
-                    total += 1
-                    words_processed += 1
-                    for lid in mres.target_lemma_ids:
-                        covered_by_multi.add(lid)
-                        existing_counts[lid] = existing_counts.get(lid, 0) + 1
-                    print(f"    ✓ Multi-target sentence covering {len(mres.target_lemma_ids)} words")
+                mappings = validate_multi_target_sentence(
+                    db, mres, lemma_lookup, target_bares,
+                )
+                if mappings is None:
+                    continue
+                validated.append((mres, mappings))
 
-        if all_multi_results:
+        # Phase 1c: write validated sentences (pure DB, milliseconds).
+        for mres, mappings in validated:
+            if total >= budget:
+                break
+            sent = write_multi_target_sentence(db, mres, mappings)
+            total += 1
+            words_processed += 1
+            for lid in mres.target_lemma_ids:
+                covered_by_multi.add(lid)
+                existing_counts[lid] = existing_counts.get(lid, 0) + 1
+            print(f"    ✓ Multi-target sentence covering {len(mres.target_lemma_ids)} words")
+
+        if validated:
             db.commit()
 
     # Phase 2: Batch single-target for remaining words (≥3 → batch, else single)
