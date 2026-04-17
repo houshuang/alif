@@ -149,11 +149,16 @@ Phase 3: Write — open/reuse session, write results, commit (milliseconds)
 **Checklist when writing new code:**
 - `db.flush()` must NEVER be followed by an LLM/network call before `db.commit()`
 - Functions receiving a `db` parameter must not make LLM calls while the session has dirty state
+- Autoflush counts as flush — **any `db.query(...)` in SQLAlchemy triggers autoflush**, so a dirty-session + query + LLM-call sequence holds the lock through the LLM call just as surely as an explicit flush. Commit before the query if the next step is slow.
 - Background tasks (`BackgroundTasks.add_task`) must not receive the request's `db` session
 - Long-running scripts must commit between steps, not hold one session for the entire run
+- Loops that do "write → LLM → write" per iteration must `db.commit()` at the end of each iteration, not at the end of the loop — one iteration's dirty state autoflushes at the next iteration's query
 - Non-critical writes (cache updates, counts) should use try/except with rollback so lock contention doesn't crash read endpoints
+- Functions that mix LLM + DB writes: prefer splitting into `validate_*(db, ...)` (LLM + read-only queries, returns validated data) + `write_*(db, ...)` (pure DB write) so callers can run validate-all → write-all, keeping the lock released during validation. See `validate_multi_target_sentence` / `write_multi_target_sentence` in `material_generator.py`.
 
-**Past incidents**: `store_multi_target_sentence` held write lock 30-60s during LLM verification (broke OCR uploads). `_import_unknown_words` held lock during batch translation. Chat endpoint held session during 15s LLM call. All fixed 2026-03-29.
+**Past incidents**:
+- 2026-03-29: `store_multi_target_sentence` held write lock 30-60s during LLM verification (broke OCR uploads). `_import_unknown_words` held lock during batch translation. Chat endpoint held session during 15s LLM call.
+- 2026-04-17: 2-hour `update_material.py` hang + `sqlite3.OperationalError: database is locked` in web backend. Four sites fixed: `store_multi_target_sentence` split into `validate_multi_target_sentence` + `write_multi_target_sentence`; `enrich_corpus_sentences`, `create_book_sentences`, and `_verify_new_story_mappings` got per-iteration `db.commit()`. The recurrence despite the 2026-03-29 fix was because the dirty-session-before-query-autoflush path wasn't as obvious as explicit `db.flush()`; checklist above now calls it out.
 
 ### 11. Frontend-Backend Type Sync — Verify at Runtime Boundaries
 TypeScript types (`frontend/lib/types.ts`) can declare fields the backend never sends. `tsc` passes because the types are structurally valid, but `.field.map()` crashes at runtime when `field` is `undefined`. When changing backend response schemas:
