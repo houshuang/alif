@@ -71,7 +71,27 @@ SCAFFOLD_WORDS = [
     ("تَنْظِيف", "cleaning", "noun"),
     ("أَدْرَكَ", "to realize, to perceive", "verb"),
     ("زِيَادَة", "increase", "noun"),
+    # 2026-04-17 — from missing_lemma_candidates on fresh Hindawi corpus.
+    # طَيْر omitted: maps to existing #2461 طائر by project convention
+    # (collective and singular share a lemma via hamza normalization).
+    ("قَدِمَ", "to come, to arrive", "verb"),
+    ("قَدَّمَ", "to submit, to present", "verb"),
+    ("أَخْبَرَ", "to inform, to tell", "verb"),
+    ("مِثْل", "like, similar to", "noun"),
+    ("قِطّ", "cat", "noun"),
 ]
+
+# Entries that share a bare form with an existing lemma but are a distinct
+# lemma (different pattern / sense). Bypasses bare-form dedup, which would
+# otherwise block them. Exact diacritized match is still enforced.
+# Example: قَدِمَ "to come" vs existing قَدَمَ "to precede" — same bare قدم.
+ALLOW_HOMOGRAPH = {
+    "قَدِمَ",   # vs #561 قَدَمَ "to precede"
+    "قَدَّمَ",  # vs #561 قَدَمَ "to precede"
+    "أَخْبَرَ",  # Form IV "inform" vs Form I #975 خَبَرَ "try" — resolver mis-strips أ
+    "مِثْل",   # vs #976 مَثَلَ "to resemble"
+    "قِطّ",    # vs #490 قَطَّ "to carve"
+}
 
 
 def main():
@@ -89,6 +109,11 @@ def main():
                 Lemma.__table__.select().with_only_columns(Lemma.lemma_ar_bare)
             ).fetchall()
         )
+        existing_diacritized = set(
+            r[0] for r in db.execute(
+                Lemma.__table__.select().with_only_columns(Lemma.lemma_ar)
+            ).fetchall()
+        )
 
         imported = 0
         skipped = 0
@@ -97,17 +122,24 @@ def main():
         for arabic, gloss, pos in SCAFFOLD_WORDS:
             bare = strip_diacritics(arabic)
 
-            # Skip if already exists
-            if normalize_alef(bare) in existing_bare or bare in existing_bare:
+            # Exact diacritized match → true duplicate, always skip.
+            if arabic in existing_diacritized:
                 print(f"  [skip] {arabic} ({gloss}) — already in DB")
                 skipped += 1
                 continue
 
-            existing = resolve_existing_lemma(bare, lookup)
-            if existing:
-                print(f"  [skip] {arabic} ({gloss}) — resolves to existing #{existing}")
-                skipped += 1
-                continue
+            # Bare-form dedup (default). Bypass for curated homograph entries.
+            if arabic not in ALLOW_HOMOGRAPH:
+                if normalize_alef(bare) in existing_bare or bare in existing_bare:
+                    print(f"  [skip] {arabic} ({gloss}) — bare collides with existing lemma")
+                    skipped += 1
+                    continue
+
+                existing = resolve_existing_lemma(bare, lookup)
+                if existing:
+                    print(f"  [skip] {arabic} ({gloss}) — resolves to existing #{existing}")
+                    skipped += 1
+                    continue
 
             if args.dry_run:
                 print(f"  [dry-run] {arabic} (bare: {bare}) — {gloss} [{pos}]")
