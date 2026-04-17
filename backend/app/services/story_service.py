@@ -586,6 +586,11 @@ def _verify_new_story_mappings(
         TokenMapping,
     )
 
+    # Callers (_import_unknown_words) flush new lemma/root writes before
+    # calling us, which leaves the SQLite write lock held. Release it now so
+    # the verify LLM calls below don't stall other writers.
+    db.commit()
+
     # Collect story words that reference new lemmas
     words_to_verify = [
         sw for sw in story.words
@@ -657,8 +662,11 @@ def _verify_new_story_mappings(
                 sw.gloss_en = None
                 nulled += 1
 
+        # Commit per chunk so the write lock is released before the next
+        # chunk's verify_and_correct_mappings_llm call.
+        db.commit()
+
     if fixed or nulled:
-        db.flush()
         logger.info(f"Story {story.id}: verified new mappings — {fixed} fixed, {nulled} nulled")
 
 

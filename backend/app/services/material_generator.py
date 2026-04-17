@@ -655,25 +655,22 @@ def batch_generate_material(
     }
 
 
-def store_multi_target_sentence(
+def validate_multi_target_sentence(
     db,
     result,
     lemma_lookup: dict[str, int],
     target_bares: dict[str, int],
-) -> Sentence | None:
-    """Store a multi-target generated sentence with SentenceWord rows.
+) -> list | None:
+    """LLM-only validation phase. No DB writes, no session dirty state.
 
-    All LLM calls (disambiguation, verification) happen BEFORE any DB writes
-    to avoid holding the SQLite write lock during slow external calls.
+    Tokenizes + maps, disambiguates homographs, verifies mappings with LLM,
+    applies corrections. Returns the validated mappings list with is_target
+    pre-computed, or None if the sentence must be discarded.
 
-    Args:
-        db: SQLAlchemy session.
-        result: MultiTargetGeneratedSentence with arabic, english, etc.
-        lemma_lookup: Bare form -> lemma_id lookup.
-        target_bares: Dict of bare_form -> lemma_id for all target words.
-
-    Returns:
-        The stored Sentence object, or None if storage failed.
+    ``db`` is used ONLY for read-only Lemma queries. Callers must ensure
+    the session has no dirty state when calling — otherwise the query-driven
+    autoflush will acquire the SQLite write lock and hold it for the duration
+    of the LLM calls (verify ~15-25s, disambig ~5-10s).
     """
     from app.services.sentence_validator import (
         map_tokens_to_lemmas,
@@ -683,8 +680,6 @@ def store_multi_target_sentence(
         normalize_alef,
         _strip_clitics,
     )
-
-    # ── Phase 1: Validate + LLM calls (no DB writes) ──
 
     # Build expanded target forms for matching
     target_normalized: dict[str, int] = {}
@@ -760,8 +755,32 @@ def store_multi_target_sentence(
             logger.warning("Mapping correction failed in multi-target sentence, discarding")
             return None
 
-    # ── Phase 2: DB write (fast, no LLM calls) ──
+    # Pre-compute is_target so the write phase doesn't need target_normalized
+    for m in mappings:
+        if m.is_target:
+            continue
+        bare = strip_punctuation(strip_diacritics(m.surface_form))
+        bare_norm = normalize_alef(bare.replace("\u0640", ""))
+        if bare_norm in target_normalized:
+            m.is_target = True
+            continue
+        for stem in _strip_clitics(bare_norm):
+            if normalize_alef(stem) in target_normalized:
+                m.is_target = True
+                break
 
+    return mappings
+
+
+def write_multi_target_sentence(
+    db,
+    result,
+    mappings: list,
+) -> Sentence:
+    """DB-write phase for a validated multi-target sentence. No LLM calls.
+
+    Adds the Sentence + SentenceWord rows. Caller is responsible for commit.
+    """
     from app.services.transliteration import transliterate_arabic as _translit_ar
     sent = Sentence(
         arabic_text=result.arabic,
@@ -776,24 +795,12 @@ def store_multi_target_sentence(
     db.flush()
 
     for m in mappings:
-        is_target = m.is_target
-        if not is_target:
-            bare = strip_punctuation(strip_diacritics(m.surface_form))
-            bare_norm = normalize_alef(bare.replace("\u0640", ""))
-            if bare_norm in target_normalized:
-                is_target = True
-            else:
-                for stem in _strip_clitics(bare_norm):
-                    if normalize_alef(stem) in target_normalized:
-                        is_target = True
-                        break
-
         sw = SentenceWord(
             sentence_id=sent.id,
             position=m.position,
             surface_form=m.surface_form,
             lemma_id=m.lemma_id,
-            is_target_word=is_target,
+            is_target_word=m.is_target,
         )
         db.add(sw)
 
@@ -1161,16 +1168,33 @@ def _warm_sentence_cache_impl(llm_model: str = "claude_sonnet") -> dict:
         except Exception:
             logger.warning(f"Warm cache: failed for word {lid}")
 
-    # ── Phase 3: DB write (milliseconds) ──
+    # ── Phase 3a: Validate multi-target sentences (LLM disambig + verify) ──
+    # DB reads only — a dedicated session means we never autoflush a write
+    # during an LLM call, which was the source of repeated lock contention.
+    validated: list[tuple[object, list]] = []
     if all_results:
         db = SessionLocal()
         try:
             for results, target_bares in all_results:
                 for mres in results:
-                    sent = store_multi_target_sentence(db, mres, mapping_lookup, target_bares)
-                    if sent:
-                        stats["generated"] += 1
-                        stats["multi_target"] += 1
+                    mappings = validate_multi_target_sentence(
+                        db, mres, mapping_lookup, target_bares,
+                    )
+                    if mappings is not None:
+                        validated.append((mres, mappings))
+        except Exception:
+            logger.exception("Warm cache: failed to validate multi-target sentences")
+        finally:
+            db.close()
+
+    # ── Phase 3b: Write validated sentences (pure DB, milliseconds) ──
+    if validated:
+        db = SessionLocal()
+        try:
+            for mres, mappings in validated:
+                write_multi_target_sentence(db, mres, mappings)
+                stats["generated"] += 1
+                stats["multi_target"] += 1
             db.commit()
         except Exception:
             logger.warning("Warm cache: failed to write multi-target sentences")

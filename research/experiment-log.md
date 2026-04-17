@@ -4,6 +4,31 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-04-17: Write-lock refactor — release SQLite write lock across LLM calls
+
+Follow-up to the morning diagnosis of the 2-hour `update_material.py` hang (prior entry). Branch `sh/write-lock-refactor`.
+
+**Problem recap:** `db.flush()` / autoflush writes pending UPDATEs inside the open transaction and acquires SQLite's single write lock. The lock is held until `commit()` or `rollback()`. When the next statement is a 15-25s `verify_and_correct_mappings_llm` call, the lock stays held through the whole LLM round-trip, and every other writer (including the web backend's FSRS updates) blocks on 30s `busy_timeout`.
+
+**Fixes (one commit):**
+- **`store_multi_target_sentence` split** — The function claimed "Phase 1 LLM, Phase 2 write" but was called from loops labeled "DB write (fast)" in both `update_material.py:628` and `_warm_sentence_cache_impl:1196`. The Phase 1 LLM calls lived inside, so callers unknowingly did LLM-per-sentence during their "fast write" phase. Split into:
+  - `validate_multi_target_sentence(db, result, ...)` — disambiguation + verification + `apply_corrections` (LLM + read-only DB). Pre-computes `is_target` on each mapping.
+  - `write_multi_target_sentence(db, result, mappings)` — pure DB write (new Sentence + SentenceWord rows).
+  Callers (`step_backfill_sentences`, `_warm_sentence_cache_impl`) now run a validate-all loop followed by a write-all loop, with `db.commit()` between.
+- **`enrich_corpus_sentences`** (`update_material.py:287`): added a single `db.commit()` between the diacritize/translate mutations and the verify LLM call. The prior flow set `sent.arabic_text = diacritized` → next `db.query(Lemma)` autoflushed → held lock through `verify_and_correct_mappings_llm`.
+- **`create_book_sentences`** (`book_import_service.py:407`): added per-sentence `db.commit()` at end of the loop. Previously each iteration's `db.flush()` left the transaction open through the next iteration's verify LLM.
+- **`_verify_new_story_mappings`** (`story_service.py:589, 667`): `_import_unknown_words` already did `db.flush()` before calling in, so the function inherited a locked transaction. Added `db.commit()` at function entry + after each chunk iteration.
+
+**Clean sites (audited, no changes needed):** `generate_material_for_word` + `batch_generate_material` both open a dedicated `correction_db = SessionLocal()` per candidate for `apply_corrections`, committing and closing inside; `verify_sentence_mappings` is explicitly read → LLM → write with the LLM call happening after `db.commit()` of the trivially-OK path.
+
+**Verification:** 863 tests pass (same as baseline). Behavioral equivalence confirmed: `is_target` computation just moved from write phase into validate phase; budget checks in `step_backfill_sentences` preserve semantics (generation capped at budget, validation capped at budget using projected total, write capped at real total).
+
+**Expected impact:** cron runs stop blocking the web backend. The per-sentence commits make partial progress durable across crashes (previously one sentence failure mid-loop could leave earlier sentences unpersisted if caller never committed).
+
+**Deferred:** per-lemma generation backoff (~20 chronically-failing words retry every 3h), Hindawi re-import with fixed splitter, agentic-generation prototype.
+
+---
+
 ## 2026-04-17: Missing-lemma candidate tracker, arabic_text cleanup, generation-waste diagnosis
 
 Follow-up session after `arabic_text` unification was deployed. Three pieces of work:
