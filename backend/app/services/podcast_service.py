@@ -310,7 +310,7 @@ def _get_root_family(db: Session) -> Optional[RootFamily]:
             .filter(
                 Sentence.target_lemma_id == lemma.lemma_id,
                 Sentence.is_active == True,  # noqa: E712
-                    Sentence.english_translation.isnot(None),
+                Sentence.english_translation.isnot(None),
             )
             .first()
         )
