@@ -40,7 +40,11 @@ from app.database import SessionLocal
 from app.models import Lemma, Sentence, SentenceWord, UserLemmaKnowledge
 from app.services.activity_log import log_activity
 from app.services.word_selector import select_next_words
-from app.services.material_generator import generate_material_for_word
+from app.services.material_generator import (
+    generate_material_for_word,
+    lemmas_on_backoff,
+    record_generation_result,
+)
 from app.services.sentence_generator import (
     get_content_word_counts,
     get_avoid_words,
@@ -557,11 +561,21 @@ def step_backfill_sentences(
     content_word_counts = get_content_word_counts(db)
     avoid_words = get_avoid_words(content_word_counts, known_words)
 
+    # Skip lemmas currently in generation backoff (3+ consecutive failed runs).
+    # They are re-admitted when the backoff_until timestamp expires; any later
+    # success clears the counter.
+    candidate_ids = [wt.lemma_id for wt in word_tiers if wt.backfill_target > 0]
+    backoff_ids = lemmas_on_backoff(db, candidate_ids)
+    if backoff_ids:
+        print(f"  Skipping {len(backoff_ids)} words in generation backoff")
+
     # Collect words needing sentences — tier-based targets
     words_needing: list[dict] = []
     for wt in word_tiers:
         if wt.backfill_target <= 0:
             continue  # tier 4: skip, JIT fills when needed
+        if wt.lemma_id in backoff_ids:
+            continue
         existing = existing_counts.get(wt.lemma_id, 0)
         needed = wt.backfill_target - existing
         if needed <= 0:
@@ -586,6 +600,8 @@ def step_backfill_sentences(
     total = 0
     words_processed = 0
     covered_by_multi: set[int] = set()
+    covered_by_batch: set[int] = set()
+    covered_single: set[int] = set()
 
     # Phase 1: Multi-target generation for groups of 2-4 words.
     # Split into generate (LLM) → validate (LLM, read-only DB) → write (DB only),
@@ -670,7 +686,6 @@ def step_backfill_sentences(
 
     if not dry_run and len(remaining_ids) >= 3 and total < budget:
         from app.services.material_generator import batch_generate_material, BATCH_WORD_SIZE
-        covered_by_batch: set[int] = set()
         for i in range(0, len(remaining_ids), BATCH_WORD_SIZE):
             if total >= budget:
                 break
@@ -704,6 +719,7 @@ def step_backfill_sentences(
             total += stored
             if stored:
                 print(f"    Generated {stored} sentences")
+                covered_single.add(lid)
     else:
         # Small set or dry run: single-word path
         for w in remaining:
@@ -729,6 +745,15 @@ def step_backfill_sentences(
                 total += stored
                 if stored:
                     print(f"    Generated {stored} sentences")
+                    covered_single.add(lemma_id)
+
+    # Record generation outcome per attempted lemma so chronically-failing words
+    # are excluded from future runs via the generation_backoff_until timestamp.
+    if not dry_run and words_needing:
+        covered = covered_by_multi | covered_by_batch | covered_single
+        for w in words_needing:
+            lid = w["lemma_id"]
+            record_generation_result(db, lid, 1 if lid in covered else 0)
 
     print(f"  → Generated {total} sentences for {words_processed} words")
     return total

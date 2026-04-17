@@ -93,6 +93,11 @@ class UserLemmaKnowledge(Base):
     experiment_group = Column(String(30), nullable=True)
     experiment_intro_shown_at = Column(DateTime, nullable=True)
 
+    # Generation backoff — skip words that chronically fail to produce sentences
+    # so the 3h cron doesn't re-attempt them every run and crowd out viable words.
+    generation_failed_count = Column(Integer, default=0, server_default="0")
+    generation_backoff_until = Column(DateTime, nullable=True)
+
     lemma = relationship("Lemma", back_populates="knowledge")
 
 

@@ -19,6 +19,59 @@ logger = logging.getLogger(__name__)
 _warm_cache_lock = threading.Lock()
 
 
+# After this many consecutive 0-result generation attempts, skip the lemma
+# for BACKOFF_DURATION to avoid wasting LLM calls on chronically-failing words.
+GENERATION_BACKOFF_THRESHOLD = 3
+GENERATION_BACKOFF_DURATION = timedelta(days=7)
+
+
+def record_generation_result(db, lemma_id: int, sentences_generated: int) -> None:
+    """Track per-lemma generation success/failure for the backoff filter.
+
+    Resets on any success. After ``GENERATION_BACKOFF_THRESHOLD`` consecutive
+    failures, sets ``generation_backoff_until = now + GENERATION_BACKOFF_DURATION``.
+    Pre-intro words without a ULK row are silently skipped — the backfill loop
+    only operates on lemmas that already have knowledge state.
+
+    Own-transaction: commits on exit so the caller doesn't need to manage
+    session state. Safe to call with a fresh session after long LLM work.
+    """
+    ulk = (
+        db.query(UserLemmaKnowledge)
+        .filter(UserLemmaKnowledge.lemma_id == lemma_id)
+        .first()
+    )
+    if ulk is None:
+        return
+    if sentences_generated > 0:
+        if ulk.generation_failed_count or ulk.generation_backoff_until:
+            ulk.generation_failed_count = 0
+            ulk.generation_backoff_until = None
+            db.commit()
+        return
+    ulk.generation_failed_count = (ulk.generation_failed_count or 0) + 1
+    if ulk.generation_failed_count >= GENERATION_BACKOFF_THRESHOLD:
+        ulk.generation_backoff_until = datetime.utcnow() + GENERATION_BACKOFF_DURATION
+    db.commit()
+
+
+def lemmas_on_backoff(db, lemma_ids: list[int]) -> set[int]:
+    """Return the subset of ``lemma_ids`` whose generation backoff is still active."""
+    if not lemma_ids:
+        return set()
+    now = datetime.utcnow()
+    rows = (
+        db.query(UserLemmaKnowledge.lemma_id)
+        .filter(
+            UserLemmaKnowledge.lemma_id.in_(lemma_ids),
+            UserLemmaKnowledge.generation_backoff_until.isnot(None),
+            UserLemmaKnowledge.generation_backoff_until > now,
+        )
+        .all()
+    )
+    return {r[0] for r in rows}
+
+
 def _log_pipeline(log_dir: Path, entry: dict) -> None:
     """Append a generation pipeline event to JSONL log."""
     try:
@@ -1083,6 +1136,14 @@ def _warm_sentence_cache_impl(llm_model: str = "claude_sonnet") -> dict:
                 stats["recency_exhausted"] = recency_exhausted_count
                 logger.info(f"Warm cache: {recency_exhausted_count} recency-exhausted words need fresh sentences")
 
+        # Drop lemmas in generation backoff (chronically-failing words). They'll
+        # be re-admitted when the backoff_until timestamp expires.
+        backoff_ids = lemmas_on_backoff(db, gap_word_ids)
+        if backoff_ids:
+            gap_word_ids = [lid for lid in gap_word_ids if lid not in backoff_ids]
+            stats["backoff_skipped"] = len(backoff_ids)
+            logger.info(f"Warm cache: skipping {len(backoff_ids)} words in generation backoff")
+
         # Sort gap words by tier urgency (most urgent first)
         gap_word_ids.sort(key=lambda lid: (
             tier_lookup[lid].tier if lid in tier_lookup else 4,
@@ -1161,10 +1222,15 @@ def _warm_sentence_cache_impl(llm_model: str = "claude_sonnet") -> dict:
             covered.add(w["lemma_id"])
     remaining = [lid for lid in gap_word_ids if lid not in covered]
 
+    single_covered: set[int] = set()
     for lid in remaining:
         try:
-            generate_material_for_word(lid, needed=MIN_SENTENCES_PER_WORD, model_override=llm_model)
+            stored = generate_material_for_word(
+                lid, needed=MIN_SENTENCES_PER_WORD, model_override=llm_model
+            )
             stats["generated"] += 1
+            if stored:
+                single_covered.add(lid)
         except Exception:
             logger.warning(f"Warm cache: failed for word {lid}")
 
@@ -1188,6 +1254,7 @@ def _warm_sentence_cache_impl(llm_model: str = "claude_sonnet") -> dict:
             db.close()
 
     # ── Phase 3b: Write validated sentences (pure DB, milliseconds) ──
+    multi_covered: set[int] = set()
     if validated:
         db = SessionLocal()
         try:
@@ -1195,10 +1262,27 @@ def _warm_sentence_cache_impl(llm_model: str = "claude_sonnet") -> dict:
                 write_multi_target_sentence(db, mres, mappings)
                 stats["generated"] += 1
                 stats["multi_target"] += 1
+                for lid in mres.target_lemma_ids:
+                    multi_covered.add(lid)
             db.commit()
         except Exception:
             logger.warning("Warm cache: failed to write multi-target sentences")
             db.rollback()
+            multi_covered.clear()
+        finally:
+            db.close()
+
+    # ── Phase 3c: Update per-lemma generation backoff tracking ──
+    # Each lemma in gap_word_ids was an attempt. Success = covered by a
+    # multi-target write or a single-target call; failure = no new sentences.
+    if gap_word_ids:
+        db = SessionLocal()
+        try:
+            covered_all = multi_covered | single_covered
+            for lid in gap_word_ids:
+                record_generation_result(db, lid, 1 if lid in covered_all else 0)
+        except Exception:
+            logger.warning("Warm cache: failed to record generation outcomes")
         finally:
             db.close()
 
