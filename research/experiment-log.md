@@ -4,6 +4,50 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-04-20: Phase 5 throughput — lookup-based validation + reorder rerank (PR #42)
+
+Shipped three related fixes for sentence generation throughput:
+
+- **F1 (`validate_sentence` uses `lookup_lemma`)** — Tier C analysis of 336
+  recent "unknown word" validation failures showed 44% were words
+  `lookup_lemma` already resolves via clitic stripping + CAMeL morphology.
+  Added optional `known_lemma_lookup` parameter; when provided, validator
+  delegates the known-word check to `lookup_lemma`. Legacy bare-set +
+  clitic path preserved for CLI/benchmark callers. Spot-audit of 30
+  RESTRICTED_LOOKUP_LEMMA cases: 27/30 resolve to plausible lemmas; 3
+  land on root-adjacent homographs (نهر→نهار etc.) — acceptable for
+  accept/reject.
+
+- **F2 (comprehensive fallback)** — Added optional
+  `comprehensive_lemma_lookup` parameter. When the user's active vocab
+  can't resolve a word, the validator falls back to the full DB lookup;
+  resolvable words are accepted as scaffold and tagged `known_via_comp`.
+  Downstream naturalness gates still catch forced combinations.
+
+- **A:H1 (reorder rerank)** — Tier A measured 2.5x throughput gain (0.88
+  → 2.25 sentences/batch, n=8) by reranking after deterministic
+  validation instead of before. `generate_material_for_word` now calls
+  Sonnet with `rerank=False`, validates all 5 candidates, then reranks
+  only the survivors. When `survivors ≤ needed`, rerank is skipped
+  entirely (saves one Haiku call per word).
+
+**Measured throughput on prod**: 0.33 sentences/batch (vs 0.28 baseline,
++18%). Smaller than Tier A's predicted 2.5x because F1 unmasks an
+existing brittleness: `apply_corrections` rejects sentences when the LLM
+verifier returns the same lemma_id as the current mapping ("returned
+same lemma — correct lemma not in vocabulary"). F1 admits more
+candidates → more get flagged by the verifier → more hit this
+false-positive reject path. Fixing this needs a separate change that
+treats verifier-confirms-current as success (not failure).
+
+**Quality**: 4/5 new sentences GOOD on Haiku v2 naturalness gate (80%,
+meets threshold). Full validation at
+`/tmp/phase5_validation.json` on the server.
+
+PR #42 · merged · deployed to prod.
+
+---
+
 ## 2026-04-17: Scaffold import from missing-lemma tracker + dedup split
 
 Follow-up to the 2026-04-17 missing-lemma tracker entry below. Ran
