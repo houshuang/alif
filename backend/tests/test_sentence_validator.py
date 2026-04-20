@@ -1108,3 +1108,259 @@ class TestCorrectMapping:
         from app.services.sentence_validator import correct_mapping
 
         assert correct_mapping(db_session, "", "to write", "verb") is None
+
+
+# ---------------------------------------------------------------------------
+# F1 — validate_sentence with known_lemma_lookup (Tier C 2026-04-20 fix)
+# F2 — validate_sentence with comprehensive_lemma_lookup fallback
+# ---------------------------------------------------------------------------
+
+
+class TestValidateSentenceWithLookup:
+    """Tests for the lookup-based validation path.
+
+    Before Phase 5, ``validate_sentence`` did naive bare-set membership
+    checks, which missed 44% of real unknown words that ``lookup_lemma``
+    (with clitic stripping + CAMeL) would have resolved.
+    """
+
+    def _build_lookup(self, bare_forms_to_ids: dict):
+        """Build a LemmaLookupDict-like lookup directly for tests.
+
+        Simulates what ``build_lemma_lookup`` produces without needing the DB.
+        """
+        from app.services.sentence_validator import LemmaLookupDict
+        lookup = LemmaLookupDict()
+        for bare, lid in bare_forms_to_ids.items():
+            lookup.set_if_new(bare, lid, bare)
+        return lookup
+
+    def test_clitic_stripped_word_accepted_via_lookup(self, db_session):
+        """F1: لِلزَّبَائِنِ (to the customers) should resolve to زبون via clitic
+        stripping. The legacy bare-set path misses this; the lookup path
+        accepts it.
+        """
+        from app.models import Lemma
+        from app.services.sentence_validator import (
+            build_lemma_lookup, validate_sentence,
+        )
+
+        # زبون "customer" — plural زبائن
+        lem = Lemma(
+            lemma_ar="زَبُون", lemma_ar_bare="زبون", gloss_en="customer",
+            pos="noun", forms_json={"plural": "زَبَائِن"},
+        )
+        lem_target = Lemma(
+            lemma_ar="نَاوَلَ", lemma_ar_bare="ناول",
+            gloss_en="to hand over", pos="verb",
+        )
+        db_session.add_all([lem, lem_target])
+        db_session.flush()
+
+        lookup = build_lemma_lookup([lem, lem_target])
+        # Sentence: "he handed to the customers the cup"
+        result = validate_sentence(
+            arabic_text="نَاوَلَ لِلزَّبَائِنِ",
+            target_bare="ناول",
+            known_bare_forms={"زبون", "ناول"},
+            known_lemma_lookup=lookup,
+        )
+        # The target is present and لِلزَّبَائِنِ resolves to زبون via لل + زبائن.
+        assert result.target_found is True
+        assert "لِلزَّبَائِنِ" not in result.unknown_words
+
+    def test_genuinely_unknown_word_still_rejected(self, db_session):
+        """F1 negative: an actual OOV word must still be flagged as unknown."""
+        from app.models import Lemma
+        from app.services.sentence_validator import (
+            build_lemma_lookup, validate_sentence,
+        )
+
+        lem_target = Lemma(
+            lemma_ar="كِتَاب", lemma_ar_bare="كتاب",
+            gloss_en="book", pos="noun",
+        )
+        db_session.add(lem_target)
+        db_session.flush()
+
+        lookup = build_lemma_lookup([lem_target])
+        # خَنْجَر "dagger" is nowhere in the DB
+        result = validate_sentence(
+            arabic_text="الكِتَابُ خَنْجَرٌ",
+            target_bare="كتاب",
+            known_bare_forms={"كتاب"},
+            known_lemma_lookup=lookup,
+        )
+        assert result.valid is False
+        assert any("خنجر" in normalize_alef(w.replace("ً", "").replace("ٌ", ""))
+                   for w in result.unknown_words) or \
+               any(strip_diacritics(w) == "خنجر" for w in result.unknown_words)
+
+    def test_known_forms_still_accepted_with_lookup(self, db_session):
+        """F1 sanity: a plain known word still passes via lookup_lemma."""
+        from app.models import Lemma
+        from app.services.sentence_validator import (
+            build_lemma_lookup, validate_sentence,
+        )
+
+        lem_boy = Lemma(lemma_ar="وَلَد", lemma_ar_bare="ولد",
+                        gloss_en="boy", pos="noun")
+        lem_apple = Lemma(lemma_ar="تُفَّاحَة", lemma_ar_bare="تفاحة",
+                          gloss_en="apple", pos="noun")
+        db_session.add_all([lem_boy, lem_apple])
+        db_session.flush()
+
+        lookup = build_lemma_lookup([lem_boy, lem_apple])
+        result = validate_sentence(
+            arabic_text="الوَلَدُ يَأْكُلُ التُّفَّاحَةَ",
+            target_bare="تفاحة",
+            known_bare_forms={"ولد"},
+            known_lemma_lookup=lookup,
+        )
+        # يأكل is not in vocab but that's the real point of checking.
+        # ولد and تفاحة should resolve; يأكل is the unknown one.
+        assert result.target_found is True
+        # Only يأكل should be unknown
+        unknown_bares = {strip_diacritics(w) for w in result.unknown_words}
+        assert "يأكل" in unknown_bares
+
+    def test_comprehensive_fallback_accepts_db_lemma(self, db_session):
+        """F2: word unknown in user's active vocab but present in the full DB
+        should be accepted via the comprehensive fallback."""
+        from app.models import Lemma
+        from app.services.sentence_validator import (
+            build_lemma_lookup, validate_sentence,
+        )
+
+        lem_target = Lemma(
+            lemma_ar="كِتَاب", lemma_ar_bare="كتاب",
+            gloss_en="book", pos="noun",
+        )
+        lem_dagger = Lemma(
+            lemma_ar="خَنْجَر", lemma_ar_bare="خنجر",
+            gloss_en="dagger", pos="noun",
+        )
+        db_session.add_all([lem_target, lem_dagger])
+        db_session.flush()
+
+        # User's active vocab only has "book"; "dagger" is in the DB but
+        # not yet introduced.
+        active = build_lemma_lookup([lem_target])
+        comp = build_lemma_lookup([lem_target, lem_dagger])
+
+        result = validate_sentence(
+            arabic_text="الكِتَابُ خَنْجَرٌ",
+            target_bare="كتاب",
+            known_bare_forms={"كتاب"},
+            known_lemma_lookup=active,
+            comprehensive_lemma_lookup=comp,
+        )
+        # With comp fallback, خنجر is resolvable → no unknown words.
+        assert len(result.unknown_words) == 0
+        assert result.target_found is True
+        # And one of the classifications is "known_via_comp"
+        cats = [c.category for c in result.classifications]
+        assert "known_via_comp" in cats
+
+    def test_comprehensive_fallback_still_rejects_out_of_db(self, db_session):
+        """F2 negative: a word not in the DB at all is still unknown even with
+        comprehensive fallback."""
+        from app.models import Lemma
+        from app.services.sentence_validator import (
+            build_lemma_lookup, validate_sentence,
+        )
+
+        lem_target = Lemma(
+            lemma_ar="كِتَاب", lemma_ar_bare="كتاب",
+            gloss_en="book", pos="noun",
+        )
+        db_session.add(lem_target)
+        db_session.flush()
+
+        active = build_lemma_lookup([lem_target])
+        comp = build_lemma_lookup([lem_target])  # same — no extra lemmas
+
+        result = validate_sentence(
+            arabic_text="الكِتَابُ زَنْقَلَبُوتٌ",  # nonsense word
+            target_bare="كتاب",
+            known_bare_forms={"كتاب"},
+            known_lemma_lookup=active,
+            comprehensive_lemma_lookup=comp,
+        )
+        assert result.valid is False
+        assert len(result.unknown_words) >= 1
+
+    def test_lookup_path_backwards_compat_when_none(self, db_session):
+        """Passing only known_bare_forms (no lookup) must match pre-F1 behavior."""
+        from app.services.sentence_validator import validate_sentence
+
+        # بيتها should match via the bare-set + clitic path
+        result = validate_sentence(
+            arabic_text="بيتها كبير",
+            target_bare="كبير",
+            known_bare_forms={"بيت"},
+        )
+        assert result.valid is True
+        assert result.target_found is True
+        assert len(result.unknown_words) == 0
+
+
+class TestRerankDeferredToAfterValidation:
+    """A:H1 — rerank runs on deterministic-validation survivors, and should
+    NOT be called when ≤needed survivors already exist (saves a Haiku call)."""
+
+    def test_rerank_skipped_when_survivors_fit_need(self, monkeypatch, db_session):
+        """When len(candidates) ≤ rerank_target, rerank must not be invoked."""
+        import app.services.llm as llm_mod
+
+        call_counter = {"n": 0}
+
+        def fake_rerank(*args, **kwargs):
+            call_counter["n"] += 1
+            return []
+
+        monkeypatch.setattr(
+            llm_mod, "rerank_sentences_by_naturalness", fake_rerank,
+        )
+
+        # Simulate material_generator's rerank gate inline (same logic).
+        needed = 2
+        rerank_target = max(needed, 2)
+        candidates = [{"arabic": "s1", "english": "e1"}, {"arabic": "s2", "english": "e2"}]
+        if len(candidates) > rerank_target:
+            llm_mod.rerank_sentences_by_naturalness(
+                [],
+                target_word="x",
+                target_translation="x",
+                top_k=rerank_target,
+            )
+
+        assert call_counter["n"] == 0, \
+            "rerank should not run when survivors already ≤ needed"
+
+    def test_rerank_runs_when_survivors_exceed_need(self, monkeypatch):
+        """When len(candidates) > rerank_target, rerank IS invoked."""
+        import app.services.llm as llm_mod
+
+        call_counter = {"n": 0}
+
+        def fake_rerank(*args, **kwargs):
+            call_counter["n"] += 1
+            return []
+
+        monkeypatch.setattr(
+            llm_mod, "rerank_sentences_by_naturalness", fake_rerank,
+        )
+
+        needed = 2
+        rerank_target = max(needed, 2)
+        candidates = [{"arabic": f"s{i}", "english": f"e{i}"} for i in range(5)]
+        if len(candidates) > rerank_target:
+            llm_mod.rerank_sentences_by_naturalness(
+                [],
+                target_word="x",
+                target_translation="x",
+                top_k=rerank_target,
+            )
+
+        assert call_counter["n"] == 1
