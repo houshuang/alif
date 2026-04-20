@@ -250,6 +250,7 @@ def test_batch_generates_multiple_sentences(mock_completion):
         target_translation="book",
         known_words=KNOWN_WORDS,
         count=3,
+        rerank=False,  # legacy behaviour for this test
     )
 
     assert len(results) == 3
@@ -276,6 +277,7 @@ def test_batch_handles_partial_results(mock_completion):
         target_translation="book",
         known_words=KNOWN_WORDS,
         count=3,
+        rerank=False,
     )
 
     assert len(results) == 1
@@ -313,6 +315,7 @@ def test_batch_skips_entries_without_arabic(mock_completion):
         target_word="يَقْرَأ",
         target_translation="reads",
         known_words=KNOWN_WORDS,
+        rerank=False,
     )
 
     assert len(results) == 1
@@ -329,6 +332,7 @@ def test_batch_uses_model_override(mock_completion):
         target_translation="book",
         known_words=KNOWN_WORDS,
         model_override="openai",
+        rerank=False,
     )
 
     call_kwargs = mock_completion.call_args.kwargs
