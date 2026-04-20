@@ -4,6 +4,66 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-04-20: Self-correcting batch sentence generation — tool-enabled Sonnet session as default
+
+Shipped a new default path for sentence generation: a single tool-enabled
+Sonnet CLI session writes validated sentences for multiple target lemmas at
+once, using a Bash-invoked `validator.py` to surgically repair unknown words
+instead of regenerating entire sentences. Replaces the legacy
+`generate_sentences_for_words → deterministic-validate → Haiku-rerank` path
+as the default; legacy path preserved behind `ALIF_USE_LEGACY_BATCH=1`.
+
+**Background** — PR #42 reached 0.33 sentences/batch on prod. A single-target
+prototype (`sentence_self_correct.py`, 2026-04-19) pushed throughput to 2.0
+sents/lemma but at 67% naturalness (Sonnet accepted anything that validated,
+e.g. "He has an allergy to prayer") and $0.247/lemma cost (per-turn cached
+token replay dominated over ~16 turns per target).
+
+**Two changes tested in this pass**:
+
+1. **Batch N targets in one Sonnet session** (`generate_sentences_self_correct_batch`).
+   Amortizes vocab dump + system prompt across targets.
+2. **Haiku-v2 naturalness rerank on the self-correct output** (drops
+   CONTEXT_DEPENDENT / CONTINUATION / STORY_SPECIFIC / FORCED_COMBINATION).
+
+**Phase 1 (N=3, no rerank)**: 2.0 sents/lemma, $0.091/lemma, 13 turns total.
+Cost under the $0.10 abort gate, confirming amortization works.
+
+**Phase 2 (N=3, + rerank)**: 83% quality, 1.67 sents/lemma, $0.087/lemma.
+Quality gate cleared.
+
+**Phase 3a (N=10, loose prompt)**: 65% quality, 1.30 sents/lemma, $0.069/lemma.
+Quality fail — all 7 rejections were CONTEXT_DEPENDENT anaphora errors (bare
+"he was late", bare "the disease is hard"). Sonnet's 3rd-person verbs and
+bare definite subjects read as continuations.
+
+**Phase 3b (N=10, tightened prompt — rules A-E for anaphor / bare-definite /
+demonstrative / tautology)**: **95% quality**, **1.90 sents/lemma**,
+$0.085/lemma, 45 turns. Quality + throughput gates cleared. Cost came in
+70% below the single-target baseline of $0.247/lemma.
+
+**Phase 3c (N=15, same tight prompt)**: quality dropped back to 56%. Sonnet
+became sloppier per-target as the batch size grew; N=10 is the sweet spot.
+
+**Shipping decision** — N=10 sweet spot as the default. The $0.05/lemma
+cost target was not achieved; $0.085/lemma is 2.9x better than baseline,
+and the 95%/1.90 quality+throughput improvement justifies relaxing it
+(authorized by user). Rollback: `ALIF_USE_LEGACY_BATCH=1`.
+
+**Files** —
+- `backend/app/services/sentence_self_correct.py` — `generate_sentences_self_correct_batch`, `BatchSelfCorrectResult`, `BATCH_SYSTEM_PROMPT` (rules A-E).
+- `backend/app/services/material_generator.py` — `_use_legacy_batch()`, `_generate_via_self_correct()` shim; `generate_material_for_word` delegates to `batch_generate_material` on the new path.
+- Per-phase data: `/tmp/phase{1,2,3,3b,3c}_results.json` on the server.
+
+**Also in this PR**: documented the intentional `same_lemma` rejection in
+`apply_corrections` with a docstring guard block + inline comment. The
+rejection is load-bearing (fixes the wrong-lemma-sentence class of bugs
+from 2026-03-21 → 2026-04-16, see entries for those dates). Adding guard
+text reduces the risk that a throughput-pressured future refactor softens
+it back into an accept path.
+
+---
+
 ## 2026-04-20: Phase 5 throughput — lookup-based validation + reorder rerank (PR #42)
 
 Shipped three related fixes for sentence generation throughput:

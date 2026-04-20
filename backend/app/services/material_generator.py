@@ -6,6 +6,7 @@ Used by both learn.py (word introduction) and ocr_service.py (post-import).
 import asyncio
 import json
 import logging
+import os
 import threading
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -14,6 +15,14 @@ from app.database import SessionLocal
 from app.models import Lemma, Sentence, SentenceWord, UserLemmaKnowledge
 
 logger = logging.getLogger(__name__)
+
+
+# Default path is the self-correcting tool-enabled Sonnet session. Flip to
+# legacy generate-then-validate by setting ALIF_USE_LEGACY_BATCH=1. See
+# research/experiment-log.md 2026-04-20 entry for the benchmark that
+# justified the switch (95% naturalness vs 67% baseline, 2.9x cheaper).
+def _use_legacy_batch() -> bool:
+    return os.environ.get("ALIF_USE_LEGACY_BATCH", "").strip() == "1"
 
 # Prevent concurrent warm_sentence_cache runs from overlapping prefetches
 _warm_cache_lock = threading.Lock()
@@ -72,6 +81,64 @@ def lemmas_on_backoff(db, lemma_ids: list[int]) -> set[int]:
     return {r[0] for r in rows}
 
 
+class _SelfCorrectBatchResult:
+    """Minimal duck-type of ``BatchWordSentenceResult``.
+
+    The downstream loop in ``batch_generate_material`` only accesses
+    ``target_index``, ``arabic``, ``english``, ``transliteration``. Keeping
+    this as a bare shim avoids importing the pydantic model (which adds an
+    otherwise-unneeded validation pass) and lets us add fields later without
+    reshaping the LLM layer's schema.
+    """
+
+    __slots__ = ("target_index", "arabic", "english", "transliteration")
+
+    def __init__(self, target_index: int, arabic: str, english: str, transliteration: str) -> None:
+        self.target_index = target_index
+        self.arabic = arabic
+        self.english = english
+        self.transliteration = transliteration
+
+
+def _generate_via_self_correct(
+    targets: list[dict],
+    count_per_word: int,
+) -> list[_SelfCorrectBatchResult]:
+    """Run the self-correcting batch generator and adapt the output.
+
+    Returns a flat list with ``target_index`` wired so the existing
+    deterministic validation + mapping loop in ``batch_generate_material``
+    can consume it unchanged. Targets with no returned sentences are simply
+    absent from the list — the loop's per-target coverage tracker handles
+    them by reporting the lemma_id in ``words_failed``.
+    """
+    from app.services.sentence_self_correct import generate_sentences_self_correct_batch
+    from app.config import settings as _settings
+
+    target_ids = [t["lemma_id"] for t in targets]
+    res = generate_sentences_self_correct_batch(
+        target_lemma_ids=target_ids,
+        db_path=_settings.database_url.replace("sqlite:///", ""),
+        needed_per_target=count_per_word,
+        max_budget_usd=max(0.2, 0.1 * len(target_ids)),
+    )
+
+    out: list[_SelfCorrectBatchResult] = []
+    idx_by_tid = {tid: i for i, tid in enumerate(target_ids)}
+    for tid, sentences in res.sentences_by_target.items():
+        target_index = idx_by_tid.get(tid, -1)
+        if target_index < 0:
+            continue
+        for s in sentences:
+            out.append(_SelfCorrectBatchResult(
+                target_index=target_index,
+                arabic=s.arabic,
+                english=s.english,
+                transliteration=s.transliteration,
+            ))
+    return out
+
+
 def _log_pipeline(log_dir: Path, entry: dict) -> None:
     """Append a generation pipeline event to JSONL log."""
     try:
@@ -92,7 +159,18 @@ def generate_material_for_word(lemma_id: int, needed: int = 2, model_override: s
     1. DB read: load all needed data, close DB
     2. LLM generation + validation: no DB lock held
     3. DB write: open fresh session, write results, close (milliseconds)
+
+    Default path (ALIF_USE_LEGACY_BATCH unset): delegates to the self-correct
+    batch generator via ``batch_generate_material`` so a single-lemma call
+    still benefits from the tool-enabled Sonnet session that fixed the
+    67%→95% naturalness regression (experiment-log.md 2026-04-20).
     """
+    if not _use_legacy_batch():
+        result = batch_generate_material(
+            [lemma_id], count_per_word=needed, model_override=model_override,
+        )
+        return int(result.get("generated", 0))
+
     from app.services.llm import generate_sentences_batch, AllProvidersFailed
     from app.services.sentence_generator import (
         get_content_word_counts,
@@ -570,24 +648,39 @@ def batch_generate_material(
     all_bare_forms = set(lemma_lookup.keys())
 
     # ── Phase 2a: Sonnet call — generate sentences for all words ──
-    target_words_for_llm = [
-        {"arabic": t["clean_target"], "english": t["gloss_en"]}
-        for t in targets
-    ]
-
-    try:
-        results = generate_sentences_for_words(
-            target_words=target_words_for_llm,
-            known_words=sample,
-            count_per_word=count_per_word + 1,  # request extras for validation failures
-            difficulty_hint="simple",
-            model_override=model_override,
-            avoid_words=avoid_words,
-            max_words=10,
-        )
-    except (AllProvidersFailed, Exception) as e:
-        logger.warning(f"Batch generation failed: {e}")
-        return {"generated": 0, "words_covered": 0, "words_failed": [t["lemma_id"] for t in targets]}
+    #
+    # Default: tool-enabled self-correcting Sonnet session (one session writes
+    # validated sentences for all N targets). This path produces 95% naturally
+    # acceptable sentences at 1.90 sentences/target in the 2026-04-20 N=10
+    # benchmark vs. 67%/2.0 for the legacy generate-then-validate path.
+    #
+    # Legacy path (flip via ALIF_USE_LEGACY_BATCH=1): single Sonnet call
+    # writes candidates blindly, relies on deterministic validation + a
+    # post-hoc Haiku naturalness rerank to filter awkward outputs.
+    if _use_legacy_batch():
+        target_words_for_llm = [
+            {"arabic": t["clean_target"], "english": t["gloss_en"]}
+            for t in targets
+        ]
+        try:
+            results = generate_sentences_for_words(
+                target_words=target_words_for_llm,
+                known_words=sample,
+                count_per_word=count_per_word + 1,  # request extras for validation failures
+                difficulty_hint="simple",
+                model_override=model_override,
+                avoid_words=avoid_words,
+                max_words=10,
+            )
+        except (AllProvidersFailed, Exception) as e:
+            logger.warning(f"Batch generation failed: {e}")
+            return {"generated": 0, "words_covered": 0, "words_failed": [t["lemma_id"] for t in targets]}
+    else:
+        try:
+            results = _generate_via_self_correct(targets, count_per_word=count_per_word)
+        except Exception as e:
+            logger.warning(f"Self-correct batch generation failed: {e}")
+            return {"generated": 0, "words_covered": 0, "words_failed": [t["lemma_id"] for t in targets]}
 
     logger.info(
         "Batch generation returned %d sentences for %d words",
