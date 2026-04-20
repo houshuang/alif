@@ -4,6 +4,46 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-04-17: Scaffold import from missing-lemma tracker + dedup split
+
+Follow-up to the 2026-04-17 missing-lemma tracker entry below. Ran
+`scripts/missing_lemma_candidates.py --days 2` on the freshly-reimported
+Hindawi corpus and curated 6 top candidates into `SCAFFOLD_WORDS`:
+قَدِمَ / قَدَّمَ / أَخْبَرَ / مِثْل / قِطّ / طَيْر.
+
+4 of these hit a dedup blocker: bare-form dedup would have collided them
+with existing distinct-sense lemmas (قَدَمَ "precede", مَثَلَ "resemble",
+قَطَّ "carve") — genuine homographs the vocab should resolve separately.
+A 5th (أَخْبَرَ) was mis-canonicalized by the clitic-aware resolver to
+#975 خَبَرَ "try" — the resolver treats the Form IV أ as a strippable
+prefix, but Form IV is a distinct verb pattern.
+
+**Fix**: split dedup in `import_scaffold_lemmas.py` into (a) exact
+diacritized-form match → permanent skip, (b) bare-form match → skip
+unless the entry is in a new `ALLOW_HOMOGRAPH` set. The 5 problematic
+entries are listed in ALLOW_HOMOGRAPH with source-code comments citing
+which existing lemma they disambiguate from. طَيْر omitted — it maps to
+existing #2461 طائر by project hamza-normalization convention (collective
+and singular share a lemma).
+
+**Run** (prod, 2026-04-17): 5 imported (#3080–#3084), 39 skipped, gates
+stamped. DB backup: `/opt/alif-backups/alif_pre_scaffold_20260417_210034.db`.
+
+**3-day verification (2026-04-20)**:
+- 4 of 5 scaffolds now mapped to corpus sentences (قَدِمَ ×3, قَدَّمَ ×3,
+  أَخْبَرَ ×4, قِطّ ×2). مِثْل still at 0 — candidate for future
+  gloss-disambiguation if it keeps failing.
+- Corpus enrichment: active count 33 → **91** (+58), inactive 6,432 → 6,374.
+  Daily verification counts 4/17: 64 → 4/18: 400 → 4/19: 400 → 4/20: 100.
+- Generation backoff: chronic-failer count 1 → **21 at count=3** over the
+  same 3 days — confirms the backoff's 3-fail/7-day threshold is
+  well-calibrated; LLM time no longer wasted on hopeless lemmas.
+
+**Files changed**: `scripts/import_scaffold_lemmas.py` (+39/-7).
+Commit `b407f17`.
+
+---
+
 ## 2026-04-17: Dialogue-aware Hindawi splitter + corpus reimport
 
 Follow-up to PR #35's splitter fix. Branch `sh/hindawi-dialogue-splitter` (PR #38).
