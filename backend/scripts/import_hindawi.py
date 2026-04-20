@@ -41,6 +41,7 @@ import pandas as pd
 sys.path.insert(0, ".")
 from app.database import SessionLocal
 from app.models import Sentence, SentenceWord
+from app.services.sentence_quality import fails_corpus_regex_filter
 from app.services.sentence_validator import (
     build_lemma_lookup,
     detect_proper_names,
@@ -247,6 +248,25 @@ def run_pipeline(
             })
 
     logger.info(f"Extracted {len(all_sentences):,} candidate sentences ({min_words}-{max_words} words)")
+
+    # Phase 1 awkward-sentence pre-filter: drop fragments before they reach
+    # the lemma-mapping pass. See app.services.sentence_quality.
+    rule_counts: dict[str, int] = {}
+    kept: list[dict] = []
+    for s in all_sentences:
+        fail, rule = fails_corpus_regex_filter(s["text"])
+        if fail:
+            rule_counts[rule] = rule_counts.get(rule, 0) + 1
+            continue
+        kept.append(s)
+    n_filtered = len(all_sentences) - len(kept)
+    if n_filtered:
+        breakdown = " ".join(f"{k}={v}" for k, v in sorted(rule_counts.items()))
+        logger.info(
+            f"Filtered {n_filtered:,} sentences via regex ({breakdown}); "
+            f"{len(kept):,} remain"
+        )
+    all_sentences = kept
 
     # Build lemma lookup
     db = SessionLocal()
