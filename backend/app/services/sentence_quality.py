@@ -12,11 +12,16 @@ from __future__ import annotations
 
 import re
 
-# Anaphoric multi-letter openers (single-letter و/ف are handled separately).
+# Anaphoric multi-letter openers (single-letter و/ف are handled separately
+# below — only when the connective fatha is present, to spare lexical words
+# like فِي / وُجِدَ).
 _ANAPHORIC_OPENERS_BARE = {
     "ثم", "لكن", "لكنّ", "فإذا", "فلما", "وعندما", "وفي",
     "فقال", "فقالت", "فأخذ",
 }
+
+# Diacritic codepoint we use for the و/ف disambiguation.
+_FATHA = "\u064E"  # ـَ — marks the connective particle (فَ / وَ)
 
 _TERMINAL = (".", "؟", "!", "»", "…", "؛")
 
@@ -44,13 +49,27 @@ def _first_word(s: str) -> str:
 
 
 def _r1_anaphoric_opener(text: str) -> bool:
-    """Opens with و/ف (single-letter prefix attached to next word) or
-    a multi-letter anaphoric connector (ثم/لكن/فإذا/...)."""
-    bare = _strip_diacritics(text.strip())
-    if not bare:
+    """Opens with the connective particle و/ف (only when explicitly
+    diacritized as fatha — `وَ` / `فَ` — to spare lexical words like
+    فِي / وُجِدَ) or with a multi-letter anaphoric connector
+    (ثم/لكن/فإذا/...).
+
+    Heuristic: look at the *raw* first word (no diacritic stripping).
+    If it starts with و or ف and the next codepoint is fatha (ـَ),
+    it's connective. Anything else (kasra, damma, sukun, no mark,
+    shadda) is treated as lexical and does not trip R1.
+    """
+    raw = text.strip()
+    if not raw:
         return False
-    if bare[0] in ("و", "ف"):
-        return True
+    raw_first = raw.split()[0] if raw.split() else ""
+    if raw_first and raw_first[0] in ("و", "ف"):
+        # Need at least one diacritic mark on the first letter to call it
+        # connective; bare-letter prefixes are ambiguous and we err on
+        # the side of keeping them.
+        if len(raw_first) >= 2 and raw_first[1] == _FATHA:
+            return True
+    bare = _strip_diacritics(raw)
     parts = bare.split()
     return bool(parts) and parts[0] in _ANAPHORIC_OPENERS_BARE
 
@@ -92,8 +111,10 @@ def fails_corpus_regex_filter(arabic_text: str) -> tuple[bool, str | None]:
     """Return (fails, rule_name) — True if the sentence should be rejected.
 
     Rules:
-    - R1_ANAPHORIC_OPENER: opens with و / ف (single-letter prefix attached to
-      next word) or ثم / لكن / لكنّ / فإذا / فلما / وعندما / وفي / فقال / ...
+    - R1_ANAPHORIC_OPENER: opens with the connective particle وَ / فَ
+      (single-letter prefix with explicit fatha — bare letters and
+      kasra/damma vocalizations are spared, so فِي and وُجِدَ pass) or
+      ثم / لكن / لكنّ / فإذا / فلما / وعندما / وفي / فقال / ...
     - R3_NO_TERMINAL: no terminal punctuation (. ؟ ! » … ؛)
     - R5_DIALOGUE_ONLY: entirely inside «...» quotes
     - R7_DEMONSTRATIVE_SUBJECT: hadhā/hadhihi/dhālika/tilka/hāʾulāʾi/ʾūlāʾika
