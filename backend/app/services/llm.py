@@ -492,6 +492,25 @@ Sentence structure variety:
 Respond with JSON: {{"sentences": [{{"arabic": "...", "english": "...", "transliteration": "..."}}, ...]}}"""
 
 
+def _format_target_example_block(
+    target_example_ar: str | None,
+    target_example_en: str | None,
+) -> str:
+    """Render an EXAMPLE block to anchor the lemma's correct sense.
+
+    Returns an empty string when either side is missing — we only show the
+    block when we have both Arabic and English so the LLM gets unambiguous
+    sense grounding. (Phase 4: enrich prompt with already-existing examples
+    to prevent wrong-sense awkward sentences like the استَوَى/dust case.)
+    """
+    if not target_example_ar or not target_example_en:
+        return ""
+    return (
+        f"Example of correct usage:\n"
+        f"- {target_example_ar.strip()} → {target_example_en.strip()}\n"
+    )
+
+
 def generate_sentence(
     target_word: str,
     target_translation: str,
@@ -501,6 +520,8 @@ def generate_sentence(
     max_words: int | None = None,
     avoid_words: list[str] | None = None,
     model_override: str = "claude_sonnet",
+    target_example_ar: str | None = None,
+    target_example_en: str | None = None,
 ) -> SentenceResult:
     """Generate a single Arabic sentence featuring the target word.
 
@@ -512,6 +533,11 @@ def generate_sentence(
         retry_feedback: Feedback from a previous failed attempt.
         max_words: Maximum word count for the sentence (for cognitive load management).
         avoid_words: Arabic words to avoid for diversity.
+        target_example_ar: Optional canonical Arabic example sentence (anchors
+            the correct sense for polysemous lemmas). Omitted from prompt when
+            None.
+        target_example_en: Optional English translation of the canonical
+            example.
 
     Returns:
         SentenceResult with arabic, english, transliteration.
@@ -530,11 +556,13 @@ def generate_sentence(
         avoid_str = "، ".join(avoid_words)
         avoid_instruction = f"\nDo NOT use these overused words — using them will cause rejection: {avoid_str}\nChoose different vocabulary instead.\n"
 
+    example_block = _format_target_example_block(target_example_ar, target_example_en)
+
     prompt = f"""Create a natural MSA sentence for a {difficulty_hint} Arabic learner.
 
 TARGET WORD (must appear in the sentence):
 - {target_word} ({target_translation})
-
+{example_block}
 KNOWN WORDS (you may use these):
 {known_list}
 
@@ -568,16 +596,29 @@ def generate_sentences_batch(
     target_word: str,
     target_translation: str,
     known_words: list[dict[str, str]],
-    count: int = 3,
+    count: int = 5,
     difficulty_hint: str = "beginner",
     model_override: str = "claude_sonnet",
     avoid_words: list[str] | None = None,
     rejected_words: list[str] | None = None,
     max_words: int | None = None,
+    target_example_ar: str | None = None,
+    target_example_en: str | None = None,
+    rerank: bool = True,
+    rerank_top_k: int = 2,
 ) -> list[SentenceResult]:
-    """Generate multiple sentences for a target word in a single LLM call.
+    """Generate multiple sentences for a target word in a single LLM call,
+    then optionally rerank by naturalness via a Haiku quality gate.
 
-    Returns up to `count` SentenceResult objects (may be fewer if parsing fails).
+    Default ``count`` was bumped from 3 to 5 in Phase 4 of the awkward-sentence
+    work so the Haiku reranker has a real choice to make. When ``rerank=True``
+    (default), the candidates are scored by ``rerank_sentences_by_naturalness``
+    and only the top ``rerank_top_k`` GOOD ones are returned. If the reranker
+    rejects all candidates, returns ``[]`` — caller decides whether to retry or
+    fall back to single-sentence generation.
+
+    Returns up to ``count`` SentenceResult objects when ``rerank=False`` (legacy
+    behavior), or up to ``rerank_top_k`` when reranking is enabled.
     """
     known_list = format_known_words_by_pos(known_words)
 
@@ -599,11 +640,14 @@ def generate_sentences_batch(
         word_range = f"{min_words}-{max_words}"
     else:
         word_range = "6-10"
+
+    example_block = _format_target_example_block(target_example_ar, target_example_en)
+
     prompt = f"""Create {count} different natural MSA sentences for a {difficulty_hint} Arabic learner.
 
 TARGET WORD (must appear in every sentence):
 - {target_word} ({target_translation})
-
+{example_block}
 VOCABULARY (you may ONLY use these Arabic content words, plus function words):
 {known_list}
 
@@ -645,7 +689,179 @@ Respond with JSON: {{"sentences": [{{"arabic": "...", "english": "...", "transli
                 transliteration=transliteration,
             ))
 
+    if rerank and sentences:
+        try:
+            return rerank_sentences_by_naturalness(
+                sentences,
+                target_word=target_word,
+                target_translation=target_translation,
+                top_k=rerank_top_k,
+            )
+        except (LLMError, AllProvidersFailed) as exc:
+            # Fail-open: rerank is a bonus quality filter; if Haiku times out or
+            # produces malformed output, fall back to the unranked candidates so
+            # we don't regress availability. CLAUDE.md §13 — we explicitly log
+            # so silent fallback doesn't mask repeated failures.
+            _log_call(
+                settings.log_dir, "claude_cli/haiku-rerank", False,
+                response_time=0.0, error=f"rerank failed: {str(exc)[:160]}",
+                prompt_length=0, task_type="sentence_rerank",
+            )
+            return sentences
+
     return sentences
+
+
+# ---------------------------------------------------------------------------
+# Phase 4 candidate ranker — Haiku-scored naturalness filter
+# ---------------------------------------------------------------------------
+
+# Categories shared with /tmp/claude/awkward/simulate_naturalness_v2.py
+_RERANK_CATEGORIES = [
+    "CONTEXT_DEPENDENT",
+    "CONTINUATION",
+    "STORY_SPECIFIC",
+    "DIALOGUE_FRAGMENT",
+    "FORCED_COMBINATION",
+    "WRONG_SENSE",
+    "NO_VERB",
+    "OK",
+]
+
+_RERANK_PROMPT_HEADER = """You are an editor selecting Arabic sentences to use as STANDALONE flashcard examples for an MSA learner. The learner sees one sentence with no other context.
+
+You are deliberately STRICT. The pool of candidate sentences is huge, so when in doubt, REJECT.
+
+Reject (verdict: BAD) when ANY of the following apply:
+
+1. CONTEXT_DEPENDENT — the sentence has a 3rd-person pronoun ("he/she/it/they/them/his/her" — هو/هي/هم/ها/ه/ـها), demonstrative used as subject ("this/that" — هذا/هذه/ذلك), or definite-article noun (الـ X) that points to a specific previously-mentioned referent the learner cannot resolve.
+   - GOOD: "The fox learns from experience" (proverbial, "the fox" is generic)
+   - GOOD: "She felt great satisfaction after completing the homework" (subject pronoun + clear context within sentence)
+   - BAD: "She must be moving at great speed" (who is she?)
+   - BAD: "Take from this bag what you need" (which bag?)
+   - BAD: "After that, he stopped to listen" (after what? who?)
+
+2. CONTINUATION — opens with و (and), ف (so), ثم (then), لكن (but), or فلما/وعندما/فإذا at the start, suggesting it's a continuation of prior text.
+   - Exception: if the و/ف is part of the verb itself (e.g., وَعَدَ "promised", فَهِمَ "understood"), not a connector.
+
+3. STORY_SPECIFIC — references a named character, event, or object specific to a narrative the learner doesn't know.
+
+4. DIALOGUE_FRAGMENT — line of quoted speech with insufficient narrative frame to make sense.
+
+5. FORCED_COMBINATION — words individually fit but the topic combination is bizarre or non-sequitur.
+   - BAD: "I drank cold licorice then hung the coat in the closet" (no semantic link between clauses)
+
+6. WRONG_SENSE — a polysemous word is used in a sense that doesn't fit the context. The TARGET_WORD line below names the intended sense; reject if a candidate uses a different sense.
+   - BAD: "The teacher talked about justice, then the school bell buzzed" (دَوَّى = "to buzz of insects" is wrong sense for a bell)
+   - BAD: "Art and heritage leveled among the participants" (استَوَى = "to settle/sit straight" is wrong sense — "leveled among" is nonsensical)
+
+7. NO_VERB / NOT_A_SENTENCE — sentence fragments, headings, lists.
+
+Otherwise verdict: GOOD.
+
+Be strict — when uncertain about anaphor or topic coherence, choose BAD. The cost of a false positive is low; the learner has many other sentences."""
+
+
+_RERANK_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "verdicts": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "index": {"type": "integer"},
+                    "verdict": {"type": "string", "enum": ["GOOD", "BAD"]},
+                    "category": {"type": "string", "enum": _RERANK_CATEGORIES},
+                    "explanation": {"type": "string"},
+                },
+                "required": ["index", "verdict", "category", "explanation"],
+            },
+        },
+    },
+    "required": ["verdicts"],
+}
+
+
+def rerank_sentences_by_naturalness(
+    sentences: list[SentenceResult],
+    target_word: str,
+    target_translation: str,
+    top_k: int = 2,
+) -> list[SentenceResult]:
+    """Score candidate sentences with the Haiku v2 naturalness gate, return top GOOD.
+
+    Single Haiku CLI call rates all sentences in one shot. Phase 4 of the
+    awkward-sentence prevention work; targets the long-tail wrong-sense and
+    forced-combination cases that no per-lemma fix scales to.
+
+    Behavior:
+      - All N candidates scored in one prompt
+      - Returns up to ``top_k`` sentences whose verdict is GOOD, preserving
+        the LLM's reported order so callers see the most natural picks first
+      - If fewer than ``top_k`` are GOOD, returns however many are GOOD
+      - If all are BAD, returns ``[]`` — caller is expected to either retry
+        generation or fall back to single-sentence generation
+      - Raises LLMError on parse failure / no verdicts; ``generate_sentences_batch``
+        catches this and falls back to the unranked candidates so Phase 4 quality
+        work never regresses availability
+    """
+    if not sentences:
+        return []
+
+    numbered = "\n".join(
+        f"[{i}] Arabic: {s.arabic}\n    English: {s.english}"
+        for i, s in enumerate(sentences)
+    )
+    prompt = f"""{_RERANK_PROMPT_HEADER}
+
+TARGET_WORD: {target_word} ({target_translation})
+
+Score each of the {len(sentences)} candidate sentences below. Return ONE verdict object per candidate (use the same `index` you see in brackets). Use category OK when the verdict is GOOD; otherwise pick the matching reject category.
+
+Candidates:
+{numbered}"""
+
+    result = generate_completion(
+        prompt=prompt,
+        system_prompt=(
+            "You are an expert Arabic linguist filtering candidate flashcard "
+            "sentences. Be deliberately strict — the pool is large, so when in "
+            "doubt, mark BAD. Return one verdict per candidate, keyed by index."
+        ),
+        json_schema=_RERANK_SCHEMA,
+        temperature=0.0,
+        model_override="claude_haiku",
+        task_type="sentence_rerank",
+        cli_only=True,
+    )
+
+    verdicts = result.get("verdicts", []) if isinstance(result, dict) else []
+    if not isinstance(verdicts, list) or not verdicts:
+        # Treat empty/malformed as a soft failure so the caller's except path
+        # falls back to unranked candidates rather than dropping everything.
+        raise LLMError("rerank returned no verdicts")
+
+    good_indices: list[int] = []
+    for v in verdicts:
+        if not isinstance(v, dict):
+            continue
+        idx = v.get("index")
+        if not isinstance(idx, int) or idx < 0 or idx >= len(sentences):
+            continue
+        if str(v.get("verdict", "")).upper() == "GOOD":
+            good_indices.append(idx)
+
+    # Preserve original LLM ordering; dedupe in case Haiku repeats an index.
+    seen: set[int] = set()
+    ordered: list[int] = []
+    for idx in good_indices:
+        if idx in seen:
+            continue
+        seen.add(idx)
+        ordered.append(idx)
+
+    return [sentences[i] for i in ordered[:top_k]]
 
 
 # ---------------------------------------------------------------------------

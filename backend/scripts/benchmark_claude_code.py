@@ -367,13 +367,15 @@ def _generate_batch(
 ) -> list[dict]:
     """Generate a batch of sentences using either API or CLI."""
     if model in API_MODELS:
-        # Use existing generate_sentences_batch
+        # Use existing generate_sentences_batch (skip Phase 4 rerank — this
+        # script benchmarks raw Sonnet quality, not the production pipeline).
         results = generate_sentences_batch(
             target_word=target_word,
             target_translation=target_translation,
             known_words=known_words,
             count=count,
             model_override=API_MODELS[model],
+            rerank=False,
         )
         return [{"arabic": r.arabic, "english": r.english, "transliteration": r.transliteration} for r in results]
 

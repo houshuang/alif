@@ -123,6 +123,12 @@ def generate_material_for_word(lemma_id: int, needed: int = 2, model_override: s
         lemma_ar = lemma.lemma_ar
         gloss_en = lemma.gloss_en or ""
         target_lemma_id = lemma.lemma_id
+        # Phase 4: snapshot canonical example to anchor the correct sense in
+        # the generation prompt (prevents wrong-sense awkward sentences like
+        # the استَوَى/dust case). Both fields required — partial example is
+        # worse than no example.
+        target_example_ar = (lemma.example_ar or "").strip() or None
+        target_example_en = (lemma.example_en or "").strip() or None
 
         active_lemmas = (
             db.query(Lemma)
@@ -171,7 +177,9 @@ def generate_material_for_word(lemma_id: int, needed: int = 2, model_override: s
     target_bare = strip_diacritics(clean_target)
     all_bare_forms = set(lemma_lookup.keys())
 
-    batch_requested = needed + 2
+    # Phase 4: ask Sonnet for at least 5 candidates so the Haiku reranker has
+    # a real choice; the reranker keeps at most ``max(needed, 2)`` GOOD ones.
+    batch_requested = max(5, needed + 2)
     try:
         results = generate_sentences_batch(
             target_word=clean_target,
@@ -182,6 +190,10 @@ def generate_material_for_word(lemma_id: int, needed: int = 2, model_override: s
             avoid_words=avoid_words,
             max_words=diff_params["max_words"],
             model_override=model_override,
+            target_example_ar=target_example_ar,
+            target_example_en=target_example_en,
+            rerank=True,
+            rerank_top_k=max(needed, 2),
         )
     except AllProvidersFailed:
         logger.warning(f"LLM unavailable for sentence generation (lemma {lemma_id})")
@@ -195,6 +207,7 @@ def generate_material_for_word(lemma_id: int, needed: int = 2, model_override: s
         "event": "batch_returned", "lemma_id": lemma_id, "target": lemma_ar,
         "model": model_override, "requested": batch_requested, "returned": len(results),
         "difficulty": diff_params["difficulty_hint"], "known_sample_size": len(sample),
+        "had_example": bool(target_example_ar and target_example_en),
     })
 
     # Phase 2a: Deterministic validation + mapping (no LLM calls)

@@ -217,6 +217,9 @@ def regenerate_worst_offenders(
                 difficulty_hint="beginner",
                 model_override=model,
                 avoid_words=avoid_words,
+                # Diagnostic tool: keep all generated candidates, skip the
+                # Phase 4 Haiku rerank (which would cap to top-2).
+                rerank=False,
             )
         except AllProvidersFailed as e:
             print(f"    LLM error: {e}")
