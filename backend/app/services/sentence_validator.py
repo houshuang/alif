@@ -1434,6 +1434,32 @@ def apply_corrections(
     Single place for the correct_mapping → 3-way check pattern.
     Mutates ``mapping.lemma_id`` in-place for successful corrections.
 
+    ═══════════════════════════════════════════════════════════════════
+    DO NOT WEAKEN THE "same_lemma" REJECTION — it is INTENTIONAL HARDENING.
+
+    If you think "same_lemma" is a false-failure mode and reads like a
+    downstream bug — STOP. It is not a bug. Read:
+      - research/experiment-log.md 2026-03-21 entry ("85% bad-mappings
+        problem fixed", ~line 523)
+      - research/experiment-log.md 2026-04-16 entry ("apply_corrections
+        extraction", commit 25fc702)
+      - research/experiment-log.md 2026-03-17 entry ("Stop Auto-Creating
+        Lemmas from Mapping Corrections")
+
+    Semantics: when the LLM verifier flags a position as wrong and
+    correct_mapping() returns the SAME lemma_id, that means:
+      "the LLM believes this mapping is wrong, and the correct lemma
+       does not exist in the user's vocabulary DB."
+    The right response is to REJECT the sentence — NOT to treat the
+    same-lemma return as confirmation.
+
+    Weakening this gate re-opens the wrong-lemma-sentence class of
+    bugs that took 8+ commits (2026-03-21 through 2026-04-16) to close.
+    If throughput pressure seems to demand softening this, the answer
+    is to fix upstream (better Sonnet vocab discipline, self-correction
+    loop on generation) — not downstream.
+    ═══════════════════════════════════════════════════════════════════
+
     Args:
         corrections: list of dicts from verify_and_correct_mappings_llm,
             each with position, correct_lemma_ar, correct_gloss, correct_pos.
@@ -1484,6 +1510,11 @@ def apply_corrections(
             failed_positions.append(pos)
             failure_reasons[pos] = "not_found"
         else:
+            # INTENTIONAL REJECTION — see the function docstring above.
+            # Verifier says this mapping is wrong but the correct lemma
+            # isn't in the vocab DB. Rejecting the sentence is load-bearing
+            # (fixes the wrong-lemma class of bugs from 2026-03 to 2026-04).
+            # Do not "fix" this into an accept path.
             _validator_logger.warning(
                 f"Correction for pos {pos} '{m.surface_form}': "
                 f"returned same lemma #{m.lemma_id} — correct lemma not in vocabulary"
