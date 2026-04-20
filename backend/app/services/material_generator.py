@@ -177,8 +177,11 @@ def generate_material_for_word(lemma_id: int, needed: int = 2, model_override: s
     target_bare = strip_diacritics(clean_target)
     all_bare_forms = set(lemma_lookup.keys())
 
-    # Phase 4: ask Sonnet for at least 5 candidates so the Haiku reranker has
-    # a real choice; the reranker keeps at most ``max(needed, 2)`` GOOD ones.
+    # Phase 4: ask Sonnet for at least 5 candidates. Tier A (2026-04-20)
+    # measured 2.5x throughput by reordering: validate ALL candidates
+    # deterministically first, then rerank only the survivors. The old order
+    # (rerank → validate) threw out good sentences on candidates that would
+    # fail validation anyway, wasting a Haiku call each time.
     batch_requested = max(5, needed + 2)
     try:
         results = generate_sentences_batch(
@@ -192,8 +195,7 @@ def generate_material_for_word(lemma_id: int, needed: int = 2, model_override: s
             model_override=model_override,
             target_example_ar=target_example_ar,
             target_example_en=target_example_en,
-            rerank=True,
-            rerank_top_k=max(needed, 2),
+            rerank=False,  # deferred to after deterministic validation
         )
     except AllProvidersFailed:
         logger.warning(f"LLM unavailable for sentence generation (lemma {lemma_id})")
@@ -219,6 +221,8 @@ def generate_material_for_word(lemma_id: int, needed: int = 2, model_override: s
             arabic_text=res.arabic,
             target_bare=target_bare,
             known_bare_forms=all_bare_forms,
+            known_lemma_lookup=lemma_lookup,
+            comprehensive_lemma_lookup=mapping_lookup,
         )
         if not validation.valid:
             _log_pipeline(_log_dir, {
@@ -257,6 +261,55 @@ def generate_material_for_word(lemma_id: int, needed: int = 2, model_override: s
     if not candidates:
         logger.warning(f"No candidates passed deterministic validation for lemma {lemma_id}")
         return 0
+
+    # Phase 2a': Rerank surviving candidates by naturalness (Haiku call).
+    # Only rerank when we have more survivors than we need — otherwise keep
+    # all survivors (saves a Haiku call when supply ≤ demand).
+    rerank_target = max(needed, 2)
+    if len(candidates) > rerank_target:
+        try:
+            from app.services.llm import (
+                SentenceResult as _SR,
+                rerank_sentences_by_naturalness,
+            )
+            sr_list = [
+                _SR(arabic=c["arabic"], english=c["english"], transliteration="")
+                for c in candidates
+            ]
+            reranked = rerank_sentences_by_naturalness(
+                sr_list,
+                target_word=clean_target,
+                target_translation=gloss_en,
+                top_k=rerank_target,
+            )
+            if reranked:
+                # Map reranked SentenceResult.arabic back to candidate dicts.
+                good_arabics = [r.arabic for r in reranked]
+                cand_by_arabic = {c["arabic"]: c for c in candidates}
+                new_cands = [cand_by_arabic[a] for a in good_arabics if a in cand_by_arabic]
+                if new_cands:
+                    _log_pipeline(_log_dir, {
+                        "event": "rerank_kept",
+                        "lemma_id": lemma_id, "target": lemma_ar,
+                        "before": len(candidates), "after": len(new_cands),
+                    })
+                    candidates = new_cands
+            else:
+                # Rerank rejected all — keep candidates unchanged; let
+                # verification + gloss gates decide. Log for visibility.
+                _log_pipeline(_log_dir, {
+                    "event": "rerank_all_bad",
+                    "lemma_id": lemma_id, "target": lemma_ar,
+                    "candidates": len(candidates),
+                })
+        except Exception as exc:
+            # Fail-open: rerank is a quality filter. Log and continue with
+            # unranked candidates so availability isn't regressed. §13.
+            _log_pipeline(_log_dir, {
+                "event": "rerank_failed",
+                "lemma_id": lemma_id, "target": lemma_ar,
+                "error": str(exc)[:160],
+            })
 
     # Phase 2b: Batch LLM disambiguation + verification (single CLI call)
     lemma_map_for_verify = {
@@ -562,6 +615,8 @@ def batch_generate_material(
             arabic_text=res.arabic,
             target_bare=target_bare,
             known_bare_forms=all_bare_forms,
+            known_lemma_lookup=lemma_lookup,
+            comprehensive_lemma_lookup=mapping_lookup,
         )
         if not validation.valid:
             _log_pipeline(_log_dir, {

@@ -1741,13 +1741,28 @@ def validate_sentence(
     arabic_text: str,
     target_bare: str,
     known_bare_forms: set[str],
+    known_lemma_lookup: dict | None = None,
+    comprehensive_lemma_lookup: dict | None = None,
 ) -> ValidationResult:
     """Validate that a sentence uses known words + exactly 1 target word.
 
     Args:
         arabic_text: The Arabic sentence (may include diacritics).
         target_bare: The bare (undiacritized) form of the target word.
-        known_bare_forms: Set of bare forms the user knows.
+        known_bare_forms: Set of bare forms the user knows (bare-set fallback).
+        known_lemma_lookup: Optional lookup dict (from ``build_lemma_lookup``)
+            over the user's active vocab. When provided, unknown-word
+            classification delegates to ``lookup_lemma`` which handles clitic
+            stripping + CAMeL morphology, catching forms like لِلزَّبَائِنِ →
+            زَبُون that naive bare-set membership misses (44% of production
+            "unknown" failures, Tier C 2026-04-20). When ``None``, falls back
+            to the bare-set logic for backward compatibility.
+        comprehensive_lemma_lookup: Optional lookup dict (from
+            ``build_comprehensive_lemma_lookup``) over ALL DB lemmas. Used as a
+            secondary check: a word unresolvable via the user's active vocab
+            but resolvable via comprehensive is accepted (it maps to a real
+            lemma the user just doesn't know yet — downstream naturalness
+            gates catch forced combinations).
 
     Returns:
         ValidationResult with word classifications and validity.
@@ -1815,44 +1830,79 @@ def validate_sentence(
             function_words.append(token)
             continue
 
-        # Check: known word? Try the bare form and with/without ال prefix,
-        # and with trailing tanwin-alif stripped (سعيدًا → سعيدا → سعيد).
+        # Check: known word?
+        # Primary: if a lemma lookup was provided, delegate to lookup_lemma
+        # which already handles clitic stripping + al-prefix + CAMeL. This is
+        # far more complete than the bare-set check (Tier C 2026-04-20: 44%
+        # of unknown-word failures are words lookup_lemma would resolve).
         is_known = False
-        forms_to_check = [bare_normalized]
-        # If word starts with ال, also check without it
-        if bare_normalized.startswith("ال") and len(bare_normalized) > 2:
-            forms_to_check.append(bare_normalized[2:])
-        # If word doesn't start with ال, also check with it
-        if not bare_normalized.startswith("ال"):
-            forms_to_check.append("ال" + bare_normalized)
-        # Try stripping trailing alif (tanwin seat: سعيدًا → سعيدا → سعيد)
-        sans_alif = strip_tanwin_alif(bare_normalized)
-        if sans_alif != bare_normalized:
-            forms_to_check.append(sans_alif)
-            if not sans_alif.startswith("ال"):
-                forms_to_check.append("ال" + sans_alif)
-
-        for form in forms_to_check:
-            if form in known_normalized:
+        if known_lemma_lookup is not None:
+            lid = lookup_lemma(
+                bare_normalized,
+                known_lemma_lookup,
+                original_bare=bare_clean,
+            )
+            if lid is not None:
                 is_known = True
-                break
 
-        # Try clitic stripping if direct match failed
-        if not is_known:
-            for stem in _strip_clitics(bare_normalized):
-                stem_norm = normalize_alef(stem)
-                if stem_norm in known_normalized or _is_function_word(stem_norm):
+        # Fallback: bare-set + clitic-stripping path (legacy behavior, kept
+        # for callers that pass only known_bare_forms).
+        if not is_known and known_lemma_lookup is None:
+            forms_to_check = [bare_normalized]
+            # If word starts with ال, also check without it
+            if bare_normalized.startswith("ال") and len(bare_normalized) > 2:
+                forms_to_check.append(bare_normalized[2:])
+            # If word doesn't start with ال, also check with it
+            if not bare_normalized.startswith("ال"):
+                forms_to_check.append("ال" + bare_normalized)
+            # Try stripping trailing alif (tanwin seat: سعيدًا → سعيدا → سعيد)
+            sans_alif = strip_tanwin_alif(bare_normalized)
+            if sans_alif != bare_normalized:
+                forms_to_check.append(sans_alif)
+                if not sans_alif.startswith("ال"):
+                    forms_to_check.append("ال" + sans_alif)
+
+            for form in forms_to_check:
+                if form in known_normalized:
                     is_known = True
                     break
-                # Also try tanwin-alif stripping on clitic-stripped stems
-                stem_sans_alif = strip_tanwin_alif(stem_norm)
-                if stem_sans_alif != stem_norm and (stem_sans_alif in known_normalized or _is_function_word(stem_sans_alif)):
-                    is_known = True
-                    break
+
+            # Try clitic stripping if direct match failed
+            if not is_known:
+                for stem in _strip_clitics(bare_normalized):
+                    stem_norm = normalize_alef(stem)
+                    if stem_norm in known_normalized or _is_function_word(stem_norm):
+                        is_known = True
+                        break
+                    # Also try tanwin-alif stripping on clitic-stripped stems
+                    stem_sans_alif = strip_tanwin_alif(stem_norm)
+                    if stem_sans_alif != stem_norm and (stem_sans_alif in known_normalized or _is_function_word(stem_sans_alif)):
+                        is_known = True
+                        break
+
+        # Secondary: if still unknown, fall back to the comprehensive DB lookup
+        # (all lemmas, not just user's active vocab). A resolvable word maps
+        # to a real lemma the user simply hasn't added to their vocab yet;
+        # treat it as known scaffold and let the downstream naturalness gate
+        # catch forced combinations. Classify separately as "known_via_comp"
+        # for logging.
+        known_via_comp = False
+        if not is_known and comprehensive_lemma_lookup is not None:
+            lid = lookup_lemma(
+                bare_normalized,
+                comprehensive_lemma_lookup,
+                original_bare=bare_clean,
+            )
+            if lid is not None:
+                is_known = True
+                known_via_comp = True
 
         if is_known:
             classifications.append(
-                WordClassification(token, bare_clean, "known")
+                WordClassification(
+                    token, bare_clean,
+                    "known_via_comp" if known_via_comp else "known",
+                )
             )
             known_words.append(token)
         else:
