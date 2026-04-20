@@ -31,9 +31,7 @@ class TestFailingCases:
         assert rule == "R1_ANAPHORIC_OPENER"
 
     def test_r3_no_terminal_punctuation(self):
-        # Chapter-title fragment: "On the way to the palace" (no period).
-        # Note: starts with "في" (ف-prefixed) which also trips R1; R1 wins
-        # by rule order. We assert it fails — either rule is acceptable.
+        # Bare fragment with no .؟!»…؛ — Hindawi lifts these as chunks.
         text = "جَعَلَ ذَلِكَ سِيَّا الْأَكْبَرَ حَزِينًا جِدًّا"
         fails, rule = fails_corpus_regex_filter(text)
         assert fails is True
