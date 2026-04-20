@@ -30,6 +30,27 @@ class TestFailingCases:
         assert fails is True
         assert rule == "R1_ANAPHORIC_OPENER"
 
+    def test_r1_opens_with_fa_kana(self):
+        # "So it was..." — connective فَ + kāna verb. Fatha on the ف.
+        text = "فَكَانَ الْأَمْرُ كَذَلِكَ."
+        fails, rule = fails_corpus_regex_filter(text)
+        assert fails is True
+        assert rule == "R1_ANAPHORIC_OPENER"
+
+    def test_r1_opens_with_wa_lamma(self):
+        # "And when..." — connective وَ + lammā.
+        text = "وَلَمَّا وَصَلْنَا إِلَى الْبَيْتِ."
+        fails, rule = fails_corpus_regex_filter(text)
+        assert fails is True
+        assert rule == "R1_ANAPHORIC_OPENER"
+
+    def test_r1_opens_with_thumma(self):
+        # "Then..." — multi-letter connective.
+        text = "ثُمَّ ذَهَبَ إِلَى السُّوقِ."
+        fails, rule = fails_corpus_regex_filter(text)
+        assert fails is True
+        assert rule == "R1_ANAPHORIC_OPENER"
+
     def test_r3_no_terminal_punctuation(self):
         # Bare fragment with no .؟!»…؛ — Hindawi lifts these as chunks.
         text = "جَعَلَ ذَلِكَ سِيَّا الْأَكْبَرَ حَزِينًا جِدًّا"
@@ -83,6 +104,31 @@ class TestPassingCases:
 
     def test_simple_declarative(self):
         text = "الْكِتَابُ عَلَىٰ الطَّاوِلَةِ."
+        fails, _ = fails_corpus_regex_filter(text)
+        assert fails is False
+
+    def test_fi_kasra_is_lexical(self):
+        # `فِي` ("in") starts with ف+kasra, NOT the connective فَ. Must pass.
+        text = "فِي الْحَدِيقَةِ أَرْنَبٌ نَحِيفٌ."
+        fails, rule = fails_corpus_regex_filter(text)
+        assert fails is False, f"R1 false-positive on فِي ({rule})"
+
+    def test_fi_almustashfa_passes(self):
+        # Same family — `فِي الْمَاضِي ...` was a high-volume false positive
+        # in the prod dry-run that prompted this tighten.
+        text = "فِي الْمَاضِي كَانَ الْجَدَرِيُّ مَرَضًا خَطِيرًا."
+        fails, _ = fails_corpus_regex_filter(text)
+        assert fails is False
+
+    def test_wujida_damma_is_lexical(self):
+        # `وُجِدَ` ("was found") — first letter و with damma, lexical verb.
+        text = "وُجِدَ الْكِتَابُ عَلَى الطَّاوِلَةِ."
+        fails, _ = fails_corpus_regex_filter(text)
+        assert fails is False
+
+    def test_wiladah_kasra_is_lexical(self):
+        # `وِلَادَة` ("birth") — و + kasra, lexical noun.
+        text = "وِلَادَةُ الطِّفْلِ كَانَتْ سَهْلَةً."
         fails, _ = fails_corpus_regex_filter(text)
         assert fails is False
 
