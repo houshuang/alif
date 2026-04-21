@@ -4,6 +4,53 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-04-21: Leech auto-suspend — fire on every review, not just failures (PR #44)
+
+**Problem** — Manual audit of the production `acquiring` pool surfaced توب ("laptop")
+with `leech_count=3` and sliding-window accuracy of 3/8 = 37%, still in the pipeline
+despite being a textbook leech. Six other "stuck" words at <60% cumulative turned out
+to be genuine recoveries (recent 8 ≥ 50%) — the sliding window was doing its job for
+those. توب was the one real anomaly.
+
+**Root cause** — The post-review hook in `sentence_review_service.py:321` was gated
+on `if wr["rating"] <= 2:` before calling `check_single_word_leech()`. That gate
+predates the 2026-03-15 switch from cumulative to sliding-window detection. Under
+cumulative accuracy, a correct review could only *improve* the ratio, so skipping
+the check was a harmless optimization. Under the sliding window, a correct review
+**evicts** the oldest entry from the window. If the evicted entry was also correct,
+the window can drop below 50% — but the gate prevented the check from firing.
+Net effect: any word whose most recent review was rating ≥ 3 escaped leech detection
+indefinitely, even with a terrible rolling-8.
+
+**Fix** — Remove the rating gate. `check_single_word_leech` now runs after every
+review regardless of rating. The sliding-window computation inside `is_leech()` is
+one indexed query, so cost is negligible.
+
+**Regression test** — `TestLeechCheckOnPassingReview` seeds history `[1,1,1,1,1,1,1,3]`,
+submits a rating=3 review, asserts word is auto-suspended. Would have caught the bug.
+
+**Also in this PR** (script fixes surfaced while investigating):
+- `learning_analysis.py` frequency coverage excluded function words only from the
+  gap list, not the numerator/denominator. Plus homonym variants at the same
+  frequency rank (e.g. rank 4 with 5 أنّ-family entries) all counted separately in
+  the denominator. Top 100 content-word coverage was reading 58% when reality is 81%.
+  Now excludes function words + clitic compounds symmetrically, dedupes by (rank, bare),
+  and adds shadda variants (انّ/أنّ/إنّ) to `FUNCTION_WORDS_BARE`.
+- `review_demand_analysis.py` hardcoded `cap: 800`; real `PIPELINE_CAP = 2000`.
+  Sentence pool at 1,476/2,000 = 74% is healthy, not over-full. Also switched
+  "stuck words" section to the real leech criterion (recent 8 < 50%) so it
+  reports genuine anomalies instead of recovering words.
+
+**Expected impact** — Words like توب will now get re-suspended on their next review
+once the window drops below 50%. No impact on retention math or graduation — just
+closes a loophole in auto-suspension. Existing un-suspended leeches beyond توب
+are caught on their next review; a one-off `check_and_manage_leeches()` sweep
+can catch them immediately if desired.
+
+**Docs updated**: `docs/scheduling-system.md` §11 + ASCII flow at §7, `docs/backend-services.md` `sentence_review_service.py` line, `docs/scripts-catalog.md` added `review_demand_analysis.py` entry and corrected stale 800 cap to 2000.
+
+---
+
 ## 2026-04-20: Self-correcting batch sentence generation — tool-enabled Sonnet session as default
 
 Shipped a new default path for sentence generation: a single tool-enabled

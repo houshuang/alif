@@ -994,7 +994,7 @@ User submits: {sentence_id, comprehension_signal, missed_lemma_ids, confused_lem
                    ▼
 ┌─────────────────────────────────────────────┐
 │ 5. Post-review checks                        │
-│    • Leech check for words with rating ≤ 2   │
+│    • Leech check for every rated word        │
 │    • Grammar exposure recording              │
 │    • Update sentence.times_shown             │
 │    • Update sentence comprehension/shown_at  │
@@ -1175,10 +1175,12 @@ known verb bases. This allows the comprehensibility gate to recognize conjugated
 A word becomes a leech when:
 - `times_seen >= 5` AND **recent accuracy < 50%** (sliding window of last `LEECH_WINDOW_SIZE=8` reviews)
 
-The leech check runs after every review where the rating ≤ 2. Uses a sliding window
-instead of cumulative accuracy so that words can escape leech status by improving
-recent performance (fixes the "leech escape trap" where accumulated historical failures
-made it mathematically impossible to reach 50% cumulative accuracy).
+The leech check runs after every review, regardless of rating — the sliding window means
+a *correct* review can evict an older correct one and push the window below 50%, so
+skipping on rating ≥ 3 would let words escape detection indefinitely (fixed 2026-04-21).
+Uses a sliding window instead of cumulative accuracy so that words can escape leech status
+by improving recent performance (fixes the "leech escape trap" where accumulated historical
+failures made it mathematically impossible to reach 50% cumulative accuracy).
 
 ### Lifecycle
 
@@ -2000,12 +2002,13 @@ Frontend                          Backend
    - Partial sentences: missed words get 1, confused get 2, rest get 3
    - No_idea sentences: all words get 1
 4. Acquiring words checked for graduation (box ≥3, seen ≥5, accuracy ≥60%)
-5. Post-review leech check on all rating-1/2 words
+5. Post-review leech check on every rated word (sliding window — a correct review can
+   still flip the window into leech territory by evicting an older correct one)
 
 ### B.3 Leech Lifecycle
 
 1. Word كَتَبَ has been reviewed 6 times with only 2 correct (33% accuracy)
-2. After a rating=1 review: `check_single_word_leech()` fires
+2. After any subsequent review (any rating): `check_single_word_leech()` fires
 3. times_seen=6 ≥ 5 AND accuracy=33% < 50% → **leech detected**
 4. Word suspended: `leech_suspended_at` = now, `knowledge_state` = "suspended"
 5. 14 days later: `check_leech_reintroductions()` finds it
