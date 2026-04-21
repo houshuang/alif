@@ -314,11 +314,13 @@ def submit_sentence_review(
                 "next_due": result["next_due"],
             })
 
-    # Post-review leech check for words that got bad ratings
+    # Post-review leech check for every word in the review. Runs on all
+    # ratings (not just failures) because the sliding-window leech criterion
+    # looks at the last N reviews — a correct review can evict an older
+    # correct one and flip the window into leech territory.
     from app.services.leech_service import check_single_word_leech
     for wr in word_results:
-        if wr["rating"] <= 2:
-            check_single_word_leech(db, wr["lemma_id"])
+        check_single_word_leech(db, wr["lemma_id"])
 
     # Log the sentence-level review
     if sentence_id is not None:
