@@ -1071,3 +1071,42 @@ class TestSingleCommitTransaction:
             complete_story(db_session, story_id=1, looked_up_lemma_ids=[])
 
         assert counter["count"] == 1
+
+
+class TestLeechCheckOnPassingReview:
+    def test_passing_review_still_triggers_sliding_window_leech_check(self, db_session):
+        # History: seven failures then one success. After the *next* passing
+        # review, sliding-8 will be 2/8 = 25% — a leech. Auto-suspend must
+        # fire even though the current rating is 3.
+        _seed_word(db_session, 1, "توب", "laptop", with_card=False)
+        ulk = UserLemmaKnowledge(
+            lemma_id=1,
+            knowledge_state="acquiring",
+            acquisition_box=2,
+            introduced_at=datetime.now(timezone.utc) - timedelta(days=30),
+            times_seen=8,
+            times_correct=1,
+            source="duolingo",
+        )
+        db_session.add(ulk)
+        now = datetime.now(timezone.utc)
+        for i, rating in enumerate([1, 1, 1, 1, 1, 1, 1, 3]):
+            db_session.add(ReviewLog(
+                lemma_id=1, rating=rating,
+                reviewed_at=now - timedelta(hours=24 - i),
+            ))
+        _seed_sentence(db_session, 1, "اشترى توب", "bought laptop",
+                       target_lemma_id=1, word_ids=[1])
+        db_session.commit()
+
+        submit_sentence_review(
+            db_session,
+            sentence_id=1,
+            primary_lemma_id=1,
+            comprehension_signal="understood",
+            session_id="test-leech-passing",
+        )
+
+        db_session.refresh(ulk)
+        assert ulk.knowledge_state == "suspended"
+        assert ulk.leech_suspended_at is not None

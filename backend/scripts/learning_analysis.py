@@ -31,7 +31,7 @@ FUNCTION_WORDS_BARE = {
     "منذ", "خلال", "عند", "نحو", "فوق", "تحت", "امام", "أمام",
     "وراء", "بعد", "قبل", "حول", "دون",
     "ب", "ل", "ك", "و", "ف",
-    "او", "أو", "ان", "أن", "إن", "لكن", "ثم", "بل",
+    "او", "أو", "ان", "أن", "إن", "انّ", "أنّ", "إنّ", "لكن", "ثم", "بل",
     "انا", "أنا", "انت", "أنت", "انتم", "أنتم", "هو", "هي",
     "هم", "هن", "نحن", "انتما", "هما",
     "هذا", "هذه", "ذلك", "تلك", "هؤلاء", "اولئك", "أولئك",
@@ -677,10 +677,16 @@ def analyze_learning_velocity(conn):
 
 
 def analyze_frequency_coverage(conn):
-    """9. Frequency coverage: what % of top-N are known, and top frequency gaps."""
+    """9. Frequency coverage: what % of top-N are known.
+
+    Function words (في، من، الذي، لم، ...) and clitic-composed forms (فيها، به)
+    are excluded from both numerator and denominator — they're learned through
+    exposure, not SRS, so counting them against coverage is misleading.
+    Entries sharing the same bare form at the same rank are collapsed (رank 4
+    has 5 homonym variants; that should count as one concept).
+    """
     cur = conn.cursor()
 
-    # Join lemmas with knowledge
     cur.execute("""
         SELECT l.lemma_id, l.lemma_ar, l.lemma_ar_bare, l.gloss_en, l.frequency_rank,
                ulk.knowledge_state
@@ -689,34 +695,72 @@ def analyze_frequency_coverage(conn):
         WHERE l.frequency_rank IS NOT NULL AND l.frequency_rank > 0
         ORDER BY l.frequency_rank
     """)
-
     rows = cur.fetchall()
 
     active_states = {"acquiring", "learning", "known"}
     known_states = {"known"}
 
+    # A bare form containing a space-free clitic prefix/suffix pattern like
+    # فيها, به, لها, منه is compositional — the learner reads these by
+    # decomposing a known preposition + pronoun suffix. Treat them as
+    # function-word-equivalent for coverage purposes.
+    def is_compositional(bare: str) -> bool:
+        # heuristic: short word starting with a known clitic-forming preposition
+        # and ending in a pronominal suffix
+        if not bare or len(bare) > 6:
+            return False
+        prefixes = ("في", "ب", "ل", "ك", "من", "عن", "على", "الى", "مع")
+        suffixes = ("ها", "ه", "هم", "هن", "كم", "كن", "ي", "نا")
+        return bare.startswith(prefixes) and bare.endswith(suffixes)
+
+    def is_excluded(bare: str) -> bool:
+        return bare in FUNCTION_WORDS_BARE or is_compositional(bare)
+
     thresholds = [100, 500, 1000, 2000]
     coverage = {}
     for thr in thresholds:
         within = [r for r in rows if r[4] <= thr]
-        total_in_thr = len(within)
-        active_in_thr = len([r for r in within if r[5] in active_states])
-        known_in_thr = len([r for r in within if r[5] in known_states])
-        coverage[thr] = {
-            "total_in_corpus": total_in_thr,
-            "active_count": active_in_thr,
-            "known_count": known_in_thr,
-            "active_pct": round(active_in_thr / total_in_thr * 100, 1) if total_in_thr else 0,
-            "known_pct": round(known_in_thr / total_in_thr * 100, 1) if total_in_thr else 0,
+
+        # Raw (old metric, kept for comparison)
+        raw_total = len(within)
+        raw_known = len([r for r in within if r[5] in known_states])
+
+        # Filtered + deduped by (rank, bare)
+        seen = {}  # (rank, bare) -> {"known": bool, "active": bool}
+        for r in within:
+            lemma_id, lemma_ar, bare, gloss, rank, state = r
+            if is_excluded(bare):
+                continue
+            key = (rank, bare)
+            is_known = state in known_states
+            is_active = state in active_states
+            if key in seen:
+                seen[key]["known"] = seen[key]["known"] or is_known
+                seen[key]["active"] = seen[key]["active"] or is_active
+            else:
+                seen[key] = {"known": is_known, "active": is_active}
+
+        content_total = len(seen)
+        content_known = sum(1 for v in seen.values() if v["known"])
+        content_active = sum(1 for v in seen.values() if v["active"])
+
+        coverage[str(thr)] = {
+            "raw_total": raw_total,
+            "raw_known": raw_known,
+            "content_total": content_total,
+            "content_known": content_known,
+            "content_active": content_active,
+            "known_pct": round(content_known / content_total * 100, 1) if content_total else 0,
+            "active_pct": round(content_active / content_total * 100, 1) if content_total else 0,
         }
 
-    # Top frequency gaps: high-frequency words not in active states (excluding function words)
+    # Gaps list: high-frequency content words not yet active (function words excluded)
     gaps = []
     for r in rows:
-        lemma_id, lemma_ar, lemma_bare, gloss, rank, state = r
+        lemma_id, lemma_ar, bare, gloss, rank, state = r
         if state in active_states:
             continue
-        if lemma_bare in FUNCTION_WORDS_BARE:
+        if is_excluded(bare):
             continue
         gaps.append({
             "lemma_id": lemma_id,
@@ -728,20 +772,20 @@ def analyze_frequency_coverage(conn):
         if len(gaps) >= 15:
             break
 
-    # Console
-    section("9. FREQUENCY COVERAGE")
-    eprint(f"  {'Threshold':<15s} {'In corpus':>10s} {'Active':>8s} {'Known':>8s} {'Active%':>9s} {'Known%':>9s}")
-    eprint(f"  {'-'*15} {'-'*10} {'-'*8} {'-'*8} {'-'*9} {'-'*9}")
+    section("9. FREQUENCY COVERAGE (content words only)")
+    eprint(f"  {'Threshold':<12s} {'Content':>9s} {'Known':>7s} {'Active':>7s} {'Known%':>8s} {'(raw N)':>10s}")
+    eprint(f"  {'-'*12} {'-'*9} {'-'*7} {'-'*7} {'-'*8} {'-'*10}")
     for thr in thresholds:
-        c = coverage[thr]
-        eprint(f"  Top {thr:<10d} {c['total_in_corpus']:>10d} {c['active_count']:>8d} {c['known_count']:>8d} {c['active_pct']:>8.1f}% {c['known_pct']:>8.1f}%")
+        c = coverage[str(thr)]
+        eprint(f"  Top {thr:<8d} {c['content_total']:>9d} {c['content_known']:>7d} {c['content_active']:>7d} {c['known_pct']:>7.1f}% {c['raw_total']:>10d}")
+    eprint("  (function words and clitic compounds excluded from content total)")
 
-    subsection("Top 15 frequency gaps (excluding function words)")
+    subsection("Top 15 frequency gaps (content words only)")
     for g in gaps:
         eprint(f"  #{g['frequency_rank']:<5d} {g['lemma_ar']:<15s} {g['gloss_en']:<25s} ({g['state']})")
 
     return {
-        "coverage": {str(k): v for k, v in coverage.items()},
+        "coverage": coverage,
         "top_frequency_gaps": gaps,
     }
 
