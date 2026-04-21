@@ -43,9 +43,16 @@ submits a rating=3 review, asserts word is auto-suspended. Would have caught the
 
 **Expected impact** — Words like توب will now get re-suspended on their next review
 once the window drops below 50%. No impact on retention math or graduation — just
-closes a loophole in auto-suspension. Existing un-suspended leeches beyond توب
-are caught on their next review; a one-off `check_and_manage_leeches()` sweep
-can catch them immediately if desired.
+closes a loophole in auto-suspension.
+
+**Backfill sweep** — Ran `check_and_manage_leeches()` once post-deploy to catch the
+pre-existing un-suspended leeches. Suspended **30** words, including several common
+verbs that had been oscillating (حَصَلَ, زَالَ, تَابَ, تَابَعَ, اعْتَرَفَ) and the
+motivating case توب. DB backed up to `alif_pre_leech_sweep_20260421_122409.db`.
+Notable side-finding: منذ "since" has a ULK record despite being a function word —
+not a bug introduced here, but a latent inconsistency between `FUNCTION_WORDS_BARE`
+(used in validator / analysis) and the SRS tracking. Left untouched; worth auditing
+separately.
 
 **Docs updated**: `docs/scheduling-system.md` §11 + ASCII flow at §7, `docs/backend-services.md` `sentence_review_service.py` line, `docs/scripts-catalog.md` added `review_demand_analysis.py` entry and corrected stale 800 cap to 2000.
 
