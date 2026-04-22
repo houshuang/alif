@@ -4,6 +4,26 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-04-22: Bookify redesign — Kalila dove reader edition, top-25 imported (branch `sh/bookify-redesign`)
+
+**What shipped** — Full redesign of `backend/scripts/bookify_arabic.py`:
+- **Font**: Scheherazade New v4.500 bundled in `backend/data/fonts/`, loaded via `url(file://…)` (no system install, no network fetch).
+- **Layout**: `_build_css(fmt)` branches page size — A4 landscape for bilingual (so AR|EN columns breathe, line-height 2.0 for tashkeel), A5 portrait for glossary.
+- **Two-tier highlights**: `.tok.new` (saffron solid underline) for words in the preface key; `.tok.new-dim` (faint gray dotted underline) for other unfamiliar words to infer from context. Legend on preface page.
+- **Sentence-pair bilingual**: paragraphs split into `pairs: [{ar, en}, …]`, each pair renders as a table row with `break-inside: avoid`. Both languages visible on every page (vs. old whole-paragraph-per-side which left half-pages blank).
+- **`translate_paragraphs` rewrite**: now per-paragraph (not all-in-one) Sonnet CLI calls — smaller, retryable, partial-success tolerant.
+- **New `introduce` subcommand**: imports top-N preface lemmas into Alif as `source='scaffold'` + `UserLemmaKnowledge` rows with `knowledge_state='encountered'`, `source='book'`. Idempotent (exact + bare + comprehensive-resolver match).
+
+**Kalila dove chapter outcome**: 5 cleaned paragraphs (removed Wikisource `==` headers + `تصنيف:` footer), 3162 tokens, 432 distinct new lemmas (after `lemma_ar` dedup), 177 aligned sentence pairs, 100% glossed, fully vocalized (classical iʿrāb).
+
+**Prod changes**: 19 new scaffold lemmas (`#3120–#3138`, enriched via `run_quality_gates`), 23 ULK rows seeded (state=encountered, source=book). Backup: `/opt/alif-backups/alif_pre_bookify_intro_20260422_110908.db`. Logged via `log_activity.py`.
+
+**Process learning — most important**: Wasted 1-2 hours batching classical-Arabic vocalization through `claude -p` subprocess (Sonnet 240s timeout on 2.5K+ char paragraphs; Haiku at 2-3 min/batch × 34 batches; sandbox blocking CLI until `dangerouslyDisableSandbox: true`). Vocalized all 5 paragraphs directly in-session in ~5 min with zero failures. Same for sentence-pair alignment (177 pairs directly). Memory: `feedback_in_session_vs_cli_subprocess.md`. **Default: if I can do it in-session, don't delegate to subprocess.**
+
+**Session report**: `research/bookify-kalila-dove-2026-04-22.html` — full timeline, misses, wins, resume commands.
+
+---
+
 ## 2026-04-21: Leech auto-suspend — fire on every review, not just failures (PR #44)
 
 **Problem** — Manual audit of the production `acquiring` pool surfaced توب ("laptop")

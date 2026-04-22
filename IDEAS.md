@@ -4,6 +4,22 @@
 
 ---
 
+## Bookify Arabic — Reading Aid PDFs (redesigned 2026-04-22)
+`backend/scripts/bookify_arabic.py` — take an Arabic chapter, identify lemmas not yet in the user's Alif vocabulary, and render a paginated PDF reader with preface vocab + two-tier highlighted body. Kalila wa Dimna باب الحمامة المطوقة shipped as pilot. Session report: `research/bookify-kalila-dove-2026-04-22.html`.
+
+- [DONE] Script v0 — `ingest` + `render` subcommands; compound function-word prefix check (ف+لم avoids "film"); clitic folding (الجرذ/للجرذ/والجرذ → جرذ); `frequency_rank ≤ 1000` fallback.
+- [DONE 2026-04-22] Full redesign: Scheherazade New font bundled in `backend/data/fonts/` (via `file://` URL, no system install); A4 landscape bilingual with sentence-pair rows (AR right · EN left on every page); A5 portrait glossary; two-tier highlighting (`.tok.new` saffron solid for preface words, `.tok.new-dim` faint gray dotted for other unfamiliar); title page + colophon; `translate_paragraphs` per-paragraph.
+- [DONE 2026-04-22] Auto-import: `bookify_arabic.py introduce <json> --top 25 [--dry-run]` imports top-N preface lemmas into Alif as `source='scaffold'` + `UserLemmaKnowledge` rows (`knowledge_state='encountered'`, `source='book'`). Idempotent. 19 new lemmas `#3120–#3138` seeded to prod for Kalila dove; activity logged.
+- [TODO] Large-paragraph translation (>2500 chars) still fails via in-ingest CLI due to Sonnet 240s timeout. Fix: split paragraph into halves when large, or fall back to per-sentence with in-context direct alignment. (Current workaround: do alignment in-session directly.)
+- [TODO] Per-page footnote dedup — WeasyPrint chokes on 600+ floating footnotes. Switch to Paged.js (Chromium headless).
+- [TODO] Support more source pipelines: Hindawi books (user has HuggingFace parquet imported), LAL Arabic PDFs (Gemini OCR or archive.org HTML), plain uploaded text files.
+- [TODO] Format coverage — missing: facing-page PDF (AR even pages, EN odd), EPUB export for Kindle (bookifier-style, RTL + Scheherazade), interactive HTML reader (hover-to-gloss, click-to-add-to-Alif).
+- [TODO] Per-lemma gloss instead of per-surface — currently `طَوَّقَ` tags as "passive participle" because that's the surface; `رَأَى` glossed as "I saw" not "to see". Fix at enrichment time, re-run quality gates on the 19 new imports.
+- [TODO] Homograph cleanups beyond فلم: آن ("time" / "that"), ملك ("angel" / "king"). Could use CAMeL MADAMIRA or one-shot claude -p disambiguation.
+- [TODO] Layl / TV transcript pipeline: same ingest stage but source = ASR transcript. Lebanese dialect vocab not in Alif; mixed French/English code-switch.
+
+---
+
 ## Generation Pipeline — Lock & Waste (2026-04-17)
 - [DONE] Missing-lemma candidate tracker: `apply_corrections` now tags each failed position `same_lemma | not_found`; `scripts/missing_lemma_candidates.py` aggregates from `mapping_corrections_*.jsonl`. Run periodically → curate into `import_scaffold_lemmas.py`.
 - [DONE] Refactor `enrich_corpus_sentences` (`backend/scripts/update_material.py:156`) + `store_multi_target_sentence` (`backend/app/services/material_generator.py:658`) to the 3-phase write-lock pattern. Fixed 2026-04-17 (branch `sh/write-lock-refactor`): split `store_multi_target_sentence` into `validate_multi_target_sentence` (LLM + read-only DB) + `write_multi_target_sentence` (pure write); added per-iteration `db.commit()` in `enrich_corpus_sentences`, `create_book_sentences`, and `_verify_new_story_mappings`. All 7 `apply_corrections` sites now audited — 4 were already clean (dedicated `correction_db` sessions in `generate_material_for_word`, `batch_generate_material`, plus explicit phase structure in `verify_sentence_mappings`). 863 tests pass.
