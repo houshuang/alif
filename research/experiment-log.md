@@ -4,6 +4,32 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-04-22 (later): Bookify renderer spike — paged.js rejected, WeasyPrint footnotes work fine
+
+**Question**: the Kalila reader had `bilingual.pdf` (sentence pairs) and `glossary.pdf` (preface vocab + underlined body) but no per-page-footnote variant. IDEAS.md claimed "WeasyPrint chokes >100 footnotes — switch to paged.js" so we hadn't tried. Spike: is paged.js actually a viable replacement?
+
+**Spike setup**: installed `pagedjs-cli` + Chromium (Puppeteer) under `/tmp/claude/pagedjs/`. Local quirk: needs `--browserArgs "--no-sandbox,--disable-setuid-sandbox"` — without it `pagedjs-cli` times out at 30s waiting for the WS endpoint with no useful error. Re-rendered the existing `kalila_dove.{footnotes,bilingual,no_fn}.html` via both renderers; varied first-occurrence footnote cap N ∈ {25, 50, 100, 200, 300, 432}.
+
+**Findings**:
+
+| Renderer | HTML | Pages | Time | Notes |
+|---|---|---|---|---|
+| WeasyPrint 67.0 | full footnotes (432 fn) | **37 A5** | **30s** | ~12 fn/page, beautiful Scheherazade |
+| WeasyPrint 67.0 | top-100 fn | 27 A5 | 5.1s | linear-ish scaling |
+| WeasyPrint 67.0 | top-200 fn | 30 A5 | 10.8s | |
+| WeasyPrint 67.0 | top-432 fn | 35 A5 | 22s | (as `--format footnotes`) |
+| paged.js 0.4.4 | full footnotes | 4 (silently truncated) | 18s | 1-3 lines body/page |
+| paged.js | bilingual HTML (vs WeasyPrint 28) | **4 of 28** | 11s | 85% body lost |
+| paged.js | no-fn body baseline | 4 of ~25 expected | 8s | not a footnote issue |
+
+**Root cause of paged.js failure**: our paragraphs are 500-800 tokens each (chapter sections, not normal paragraphs). paged.js's content-flow handler can't satisfy `break-inside: avoid` on a too-tall block, gives up, and emits the colophon. **Silent truncation** — no warning, exit code 0, just missing content. Scariest class of renderer bug.
+
+**Conclusion**: WeasyPrint's `float: footnote` is fine at our scale. The "SLOW >100 lemmas" warning in IDEAS.md was a defensive guess, not measured. Don't switch to paged.js (or any Chromium-based pager) until we restructure HTML to break long paragraphs into per-sentence `<p>` blocks — and even then it gains us nothing over WeasyPrint at our scale.
+
+**Shipped**: `backend/data/kalila_dove.footnotes.pdf` (37 pages, 432 footnotes). Updated `bookify_arabic.py` docstring + `--help` to remove the SLOW warning. IDEAS.md "Per-page footnote dedup" entry struck. Full spike narrative + page samples: `research/bookify-renderer-spike-2026-04-22.html`.
+
+---
+
 ## 2026-04-22: Bookify redesign — Kalila dove reader edition, top-25 imported (branch `sh/bookify-redesign`)
 
 **What shipped** — Full redesign of `backend/scripts/bookify_arabic.py`:

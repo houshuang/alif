@@ -800,7 +800,7 @@ body {{
   orphans: 3; widows: 3;
 }}
 
-/* ── Footnotes (WeasyPrint CSS3 floats, slow for many) ───────────── */
+/* ── Footnotes (WeasyPrint CSS3 floats) ──────────────────────────── */
 .fn {{ float: footnote; font-size: 8pt; line-height: 1.2; }}
 @page {{ @footnote {{ border-top: 0.35pt solid var(--rule);
                       padding-top: 1.2mm; margin-top: 2mm; }} }}
@@ -1128,7 +1128,10 @@ def render_html(aligned: dict, preface_top_n: int = 25,
                   so every page shows both languages. A4, uses `pairs`
                   field written during ingest.
       footnotes — title + preface + reading body with inline CSS3 footnotes
-                  for first occurrence of each new lemma. SLOW >100 lemmas.
+                  for first occurrence of each new lemma. Empirical: 432
+                  footnotes (full Kalila chapter) → 37 A5 pages in ~30s.
+                  Don't switch to paged.js — see 2026-04-22 spike: it silently
+                  drops 85-95% of body on long-paragraph content.
     """
     parts = [
         '<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8">',
@@ -1336,7 +1339,8 @@ def main() -> None:
                       default="glossary",
                       help="Output layout. glossary=preface+highlighted body (fast, default). "
                            "bilingual=side-by-side AR|EN (fast, needs translation in JSON). "
-                           "footnotes=inline CSS3 footnotes (SLOW >100 new lemmas).")
+                           "footnotes=inline CSS3 footnotes, first-occurrence per lemma "
+                           "(~30s for ~430 footnotes via WeasyPrint).")
 
     p_both = sub.add_parser("both")
     p_both.add_argument("input")

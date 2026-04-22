@@ -1,0 +1,171 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Bookify renderer spike — paged.js vs WeasyPrint (2026-04-22)</title>
+<style>
+  :root {
+    --ink: #1c1a17;
+    --ink-muted: #6b6159;
+    --ink-faint: #9a8f85;
+    --rule: #e2dcd2;
+    --accent: #c4941f;
+    --bg: #fbf8f2;
+    --surface: #ffffff;
+    --good: #2f6f3e;
+    --bad: #a23030;
+  }
+  * { box-sizing: border-box; }
+  html { font-size: 16px; }
+  body {
+    font-family: "EB Garamond", "Georgia", serif;
+    color: var(--ink);
+    background: var(--bg);
+    line-height: 1.6;
+    margin: 0;
+    padding: 32px 24px 80px;
+    max-width: 880px;
+    margin-left: auto;
+    margin-right: auto;
+  }
+  h1 { font-size: 1.9rem; font-weight: 500; letter-spacing: 0.2pt; margin: 0 0 4px; }
+  h2 { font-size: 1.3rem; font-weight: 500; margin: 32px 0 8px; padding-top: 8px; border-top: 1px solid var(--rule); }
+  h3 { font-size: 1.05rem; font-weight: 600; margin: 24px 0 4px; color: var(--ink-muted); }
+  .kicker { font-size: 0.78rem; color: var(--ink-faint); letter-spacing: 1.5pt; text-transform: uppercase; margin-bottom: 18px; font-family: "EB Garamond", serif; }
+  .lede { color: var(--ink-muted); font-size: 1.08rem; margin-bottom: 24px; }
+  table { border-collapse: collapse; width: 100%; margin: 12px 0 24px; font-size: 0.93rem; }
+  th, td { padding: 8px 10px; text-align: left; border-bottom: 1px solid var(--rule); vertical-align: top; }
+  th { font-weight: 600; color: var(--ink-muted); background: var(--surface); }
+  tr.bad td { background: rgba(162,48,48,0.04); }
+  tr.good td { background: rgba(47,111,62,0.05); }
+  td.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  code, pre { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 0.86rem; }
+  pre { background: var(--surface); padding: 14px 16px; border-radius: 6px; border: 1px solid var(--rule); overflow-x: auto; }
+  code:not(pre code) { background: var(--surface); padding: 1px 5px; border-radius: 3px; border: 1px solid var(--rule); }
+  blockquote {
+    border-right: 3px solid var(--accent);
+    padding: 4px 16px 4px 0;
+    margin: 12px 0;
+    color: var(--ink-muted);
+    font-style: italic;
+    background: rgba(196,148,31,0.05);
+  }
+  .verdict {
+    background: var(--surface);
+    border: 1px solid var(--rule);
+    border-left: 4px solid var(--accent);
+    padding: 16px 20px;
+    margin: 24px 0;
+    border-radius: 4px;
+  }
+  .verdict strong { color: var(--ink); }
+  .badge { display: inline-block; padding: 2px 8px; font-size: 0.78rem; border-radius: 3px; font-weight: 500; }
+  .badge.good { background: rgba(47,111,62,0.12); color: var(--good); }
+  .badge.bad  { background: rgba(162,48,48,0.10); color: var(--bad); }
+  ul li, ol li { margin: 4px 0; }
+  hr { border: none; border-top: 1px solid var(--rule); margin: 32px 0; }
+  .footer { color: var(--ink-faint); font-size: 0.85rem; margin-top: 48px; text-align: center; letter-spacing: 0.3pt; }
+</style>
+</head>
+<body>
+
+<div class="kicker">Spike report · 2026-04-22</div>
+<h1>Bookify renderer choice — paged.js rejected, WeasyPrint stays</h1>
+<p class="lede">A 1-hour spike to test whether <code>paged.js</code> is a viable replacement for WeasyPrint as the per-page-footnote renderer in <code>bookify_arabic.py</code>. Result: no, and the WeasyPrint footnote path that was assumed broken is actually fine.</p>
+
+<div class="verdict">
+  <strong>Decision:</strong> Keep WeasyPrint. Generate the missing <code>kalila_dove.footnotes.pdf</code> with the existing <code>--format footnotes</code>. Do not switch to paged.js (or any Chromium-based pager) without first restructuring the HTML to break long paragraphs into per-sentence <code>&lt;p&gt;</code> blocks — and even then it gains nothing at our scale.
+</div>
+
+<h2>Why we ran the spike</h2>
+<p>The Kalila reader had two PDF variants — <code>bilingual.pdf</code> (sentence pairs, A4 landscape) and <code>glossary.pdf</code> (preface vocab + underlined Arabic-only body, A5). The user wanted a third: <strong>per-page footnotes</strong> for first-occurrence glosses inline. <code>IDEAS.md</code> claimed:</p>
+
+<blockquote>WeasyPrint chokes on 600+ floating footnotes. Switch to Paged.js (Chromium headless).</blockquote>
+
+<p>So we'd never actually generated the footnote PDF. The spike: install <code>pagedjs-cli</code> alongside WeasyPrint, render the same Kalila HTML through both, and pick a winner.</p>
+
+<h2>Setup</h2>
+<ul>
+  <li><strong>WeasyPrint</strong>: 67.0 (already installed in system Python).</li>
+  <li><strong>paged.js</strong>: <code>pagedjs-cli</code> 0.4.4 + bundled puppeteer 20.9 + Chrome-for-Testing 115. Installed under <code>/tmp/claude/pagedjs/</code>.</li>
+  <li><strong>Source</strong>: <code>backend/data/kalila_dove.json</code> — 5 paragraphs, 3162 tokens, 432 distinct unfamiliar lemmas.</li>
+  <li><strong>HTML variants tested</strong>: full footnote (479 anchors), top-N gated (N ∈ {25, 50, 100, 200, 300, 432}), no-footnote baseline, bilingual.</li>
+</ul>
+
+<h3>Local quirk worth remembering</h3>
+<p><code>pagedjs-cli</code> on this Mac requires <code>--browserArgs "--no-sandbox,--disable-setuid-sandbox"</code>. Without those, Chrome starts but never prints its WebSocket endpoint URL to stdout — puppeteer times out at 30s with the unhelpful <code>TimeoutError: Timed out after 30000 ms while waiting for the WS endpoint URL to appear in stdout!</code> error. Likely caused by Chrome 115 x64 running under Rosetta on Apple Silicon (puppeteer's bundled Chrome download is x64 only).</p>
+
+<h2>Results</h2>
+
+<table>
+  <thead>
+    <tr><th>Renderer</th><th>HTML variant</th><th class="num">Pages</th><th class="num">Time</th><th>Status</th></tr>
+  </thead>
+  <tbody>
+    <tr class="good"><td>WeasyPrint 67</td><td>full footnotes (432)</td><td class="num">37</td><td class="num">30 s</td><td>✓ ~12 fn/page, beautiful</td></tr>
+    <tr class="good"><td>WeasyPrint 67</td><td>top-25 footnotes</td><td class="num">25</td><td class="num">4.1 s</td><td>✓</td></tr>
+    <tr class="good"><td>WeasyPrint 67</td><td>top-50 footnotes</td><td class="num">26</td><td class="num">4.3 s</td><td>✓</td></tr>
+    <tr class="good"><td>WeasyPrint 67</td><td>top-100 footnotes</td><td class="num">27</td><td class="num">5.1 s</td><td>✓</td></tr>
+    <tr class="good"><td>WeasyPrint 67</td><td>top-200 footnotes</td><td class="num">30</td><td class="num">10.8 s</td><td>✓</td></tr>
+    <tr class="good"><td>WeasyPrint 67</td><td>top-300 footnotes</td><td class="num">32</td><td class="num">15.8 s</td><td>✓</td></tr>
+    <tr class="bad"><td>paged.js 0.4.4</td><td>full footnotes (432)</td><td class="num">4</td><td class="num">18 s</td><td>✗ silently drops 95% body</td></tr>
+    <tr class="bad"><td>paged.js</td><td>top-25 footnotes</td><td class="num">4</td><td class="num">9 s</td><td>✗ silently drops 95% body</td></tr>
+    <tr class="bad"><td>paged.js</td><td>no-footnote baseline</td><td class="num">4</td><td class="num">8 s</td><td>✗ even without footnotes</td></tr>
+    <tr class="bad"><td>paged.js</td><td>bilingual HTML</td><td class="num">4 (vs 28)</td><td class="num">11 s</td><td>✗ same truncation</td></tr>
+  </tbody>
+</table>
+
+<p>WeasyPrint scaling is super-linear (~O(n·log n)) but well-behaved out to 432 footnotes. <strong>The <code>SLOW &gt;100 lemmas</code> warning was a defensive guess</strong>, not measured.</p>
+
+<h3>What paged.js failure looks like</h3>
+<p>Every paged.js run produced the same skeleton: <em>page 1</em> = title, <em>page 2</em> = preface vocab (full), <em>page 3</em> = ~3 lines of body text + footnotes (when present), <em>page 4</em> = colophon. The other ~25-33 pages of body content vanished silently. Exit code 0. No warning.</p>
+
+<p>This held even with footnotes stripped entirely. So it's <strong>not a footnote bug</strong> — paged.js's content-flow handler can't satisfy <code>break-inside: avoid</code> on our too-tall blocks (each Kalila "paragraph" is a 500-800-token chapter section with no internal break) and gives up rather than forcing a break.</p>
+
+<p>This is the scariest class of renderer bug: it "succeeds" but lies about what it rendered. If we'd shipped on paged.js without diffing page counts, the user would have ended up with a pretty-looking 4-page chapter instead of a 37-page one, with no error to investigate.</p>
+
+<h3>Fix path for paged.js (not pursued)</h3>
+<p>Restructure the ingest to split each paragraph into per-sentence <code>&lt;p&gt;</code> blocks (the bilingual format already does this with sentence-pair table rows; the body format does not). With sentence-sized blocks, paged.js's break-finder has natural anchors to work with. But this gains us nothing — WeasyPrint already handles the existing structure in 30 s — so we're not going to do it.</p>
+
+<h2>What we shipped from this spike</h2>
+<ol>
+  <li><strong>The actual artifact</strong>: <code>backend/data/kalila_dove.footnotes.pdf</code> (37 A5 pages, 432 first-occurrence footnotes, ~12 footnotes/page, beautiful Scheherazade shaping). Generated via <code>python3 scripts/bookify_arabic.py --db-path data/alif.prod.db render data/kalila_dove.json data/kalila_dove.footnotes.pdf --format footnotes</code>.</li>
+  <li><strong>IDEAS.md</strong>: marked the per-page-footnote follow-up <code>[DONE 2026-04-22]</code>, struck the paged.js suggestion.</li>
+  <li><strong><code>bookify_arabic.py</code></strong>: removed the <code>SLOW &gt;100 lemmas</code> warning from docstring and <code>--help</code>; added a "do not switch to paged.js" note on the <code>footnotes</code> branch.</li>
+  <li><strong><code>research/experiment-log.md</code></strong>: new entry at top.</li>
+  <li><strong>Memory <code>project_bookify_arabic.md</code></strong>: settled the renderer choice with full reasoning, so we don't re-spike paged.js next session.</li>
+</ol>
+
+<h2>Reproducing the spike</h2>
+<p>If a future session wants to re-test (e.g. after a paged.js major release or a chapter with a different paragraph structure):</p>
+
+<pre><code># 1. install pagedjs-cli (needs sandbox off for npm cache)
+mkdir -p /tmp/claude/pagedjs &amp;&amp; cd /tmp/claude/pagedjs
+npm init -y &amp;&amp; npm install pagedjs-cli
+node node_modules/puppeteer/install.js   # fetches Chromium ~150MB
+
+# 2. dump the footnote HTML without running WeasyPrint
+cd /Users/stian/src/alif/backend &amp;&amp; python3 -c "
+import json, sys
+sys.path.insert(0, '.')
+from scripts.bookify_arabic import render_html
+aligned = json.load(open('data/kalila_dove.json'))
+open('/tmp/claude/test.html', 'w').write(render_html(aligned, fmt='footnotes'))
+"
+
+# 3. render with both, compare page counts
+time python3 -c "from weasyprint import HTML; HTML(filename='/tmp/claude/test.html').write_pdf('/tmp/claude/weasy.pdf')"
+time /tmp/claude/pagedjs/node_modules/.bin/pagedjs-cli \
+  -i /tmp/claude/test.html -o /tmp/claude/pagedjs.pdf \
+  --browserArgs "--no-sandbox,--disable-setuid-sandbox"
+
+pdfinfo /tmp/claude/weasy.pdf | grep Pages
+pdfinfo /tmp/claude/pagedjs.pdf | grep Pages
+# If pagedjs page count is dramatically lower than weasy, paged.js is still
+# silently truncating — keep WeasyPrint.
+</code></pre>
+
+<div class="footer">Spike conducted 2026-04-22 by Claude Opus 4.7 (1M ctx) · session report co-authored with Stian Haklev</div>
+
+</body>
+</html>

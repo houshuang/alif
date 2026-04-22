@@ -83,6 +83,7 @@ Initial technology research conducted before app development.
 | [algorithm-implications.md](algorithm-implications.md) | Earlier algorithm design notes |
 | [variant-detection-spec.md](variant-detection-spec.md) | LLM-confirmed variant detection specification |
 | [bookify-kalila-dove-2026-04-22.html](bookify-kalila-dove-2026-04-22.html) | Bookify redesign session report — Kalīla & Dimna reader edition: font, CSS, two-tier highlights, sentence-pair alignment, introduce subcommand, 19 lemmas imported to prod. Includes timeline, misses, wins, lessons. |
+| [bookify-renderer-spike-2026-04-22.html](bookify-renderer-spike-2026-04-22.html) | Bookify renderer spike — does paged.js beat WeasyPrint for per-page footnotes? Conclusion: no, paged.js silently drops 85-95% of body content; WeasyPrint handles 432 footnotes in 30s. Settles the renderer choice; do not reopen without restructuring HTML to break long paragraphs. |
 
 ---
 
