@@ -82,6 +82,7 @@ Initial technology research conducted before app development.
 | [cognitive-load-language-learning.md](cognitive-load-language-learning.md) | Cognitive load in language learning |
 | [algorithm-implications.md](algorithm-implications.md) | Earlier algorithm design notes |
 | [variant-detection-spec.md](variant-detection-spec.md) | LLM-confirmed variant detection specification |
+| [bookify-kalila-dove-2026-04-22.html](bookify-kalila-dove-2026-04-22.html) | Bookify redesign session report — Kalīla & Dimna reader edition: font, CSS, two-tier highlights, sentence-pair alignment, introduce subcommand, 19 lemmas imported to prod. Includes timeline, misses, wins, lessons. |
 
 ---
 
