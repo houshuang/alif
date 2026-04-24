@@ -40,6 +40,8 @@ backend/data/MSA_freq_lists.tsv
 
 # Resumable-script progress files
 backend/data/decomposition_backfill_progress.json
+backend/data/decomposition_regate_progress.json
+backend/data/decomposition_regate_apply_progress.json
 
 # Test artifacts
 backend/pytest-of-*/

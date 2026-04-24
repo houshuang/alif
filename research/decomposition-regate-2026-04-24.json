@@ -1,0 +1,636 @@
+{
+  "entries": {
+    "437": {
+      "outcome": "confirmed_valid",
+      "reason": "Real compound with prefix preposition clitic بِ (bi- 'with') legitimately stripped. The feminine ة is the noun ending, not a clitic. Orphan 'with speed' correctly decomposes to canonical 'speed' + prefix.",
+      "orphan_ar": "بِسُرْعة",
+      "orphan_gloss": "quickly",
+      "proposed_canonical_ar": "سُرْعَة",
+      "proposed_canonical_gloss": "speed; haste",
+      "new_canonical_id": 3139,
+      "clitic_signals": {
+        "prc1": "bi_prep"
+      },
+      "canonical_refs": {
+        "sentence_words": 0,
+        "review_log": 0,
+        "sent_targets": 0,
+        "ulk": 0,
+        "variants": 0
+      }
+    },
+    "546": {
+      "outcome": "bogus_mle_error",
+      "reason": "Feminine nisba adjective misread: نَرْجِسِيَّة ends in -يَّة (feminine nisba marker), not a possessive clitic. Masculine/feminine nisba pairs are separate lemmas in this system.",
+      "orphan_ar": "نَرْجِسِيَّةٌ",
+      "orphan_gloss": "narcissism",
+      "proposed_canonical_ar": "نَرْجِسِيّ",
+      "proposed_canonical_gloss": "narcissistic; narcissism",
+      "new_canonical_id": 3153,
+      "clitic_signals": {
+        "enc0": "3ms_poss"
+      },
+      "canonical_refs": {
+        "sentence_words": 0,
+        "review_log": 0,
+        "sent_targets": 0,
+        "ulk": 0,
+        "variants": 0
+      }
+    },
+    "576": {
+      "outcome": "bogus_mle_error",
+      "reason": "Feminine nisba misread: قَبَائِلِيَّة (-يَّة feminine marker) falsely parsed as possessing the masculine form. Gender pairs (masc/fem nisba) are separate dictionary lemmas.",
+      "orphan_ar": "قَبَائِلِيَّةٌ",
+      "orphan_gloss": "Kabyle language",
+      "proposed_canonical_ar": "قَبائِلِيّ",
+      "proposed_canonical_gloss": "relating to Kabyle; Kabyle",
+      "new_canonical_id": 3154,
+      "clitic_signals": {
+        "enc0": "3ms_poss"
+      },
+      "canonical_refs": {
+        "sentence_words": 0,
+        "review_log": 0,
+        "sent_targets": 0,
+        "ulk": 0,
+        "variants": 0
+      }
+    },
+    "704": {
+      "outcome": "bogus_mle_error",
+      "reason": "Feminine noun form misread: كَعْبَة ends in ـَة (feminine marker), not 3ms possessive clitic. The orphan is the canonical feminine noun; the ة is an inflectional ending, not a stripped clitic.",
+      "orphan_ar": "كَعْبَةٌ",
+      "orphan_gloss": "cube, a cubic structure",
+      "proposed_canonical_ar": "كَعْب",
+      "proposed_canonical_gloss": "cube; ankle bone",
+      "new_canonical_id": 3155,
+      "clitic_signals": {
+        "enc0": "3ms_poss"
+      },
+      "canonical_refs": {
+        "sentence_words": 0,
+        "review_log": 0,
+        "sent_targets": 0,
+        "ulk": 0,
+        "variants": 0
+      }
+    },
+    "753": {
+      "outcome": "bogus_mle_error",
+      "reason": "Feminine/singulative noun form misread: قِسْمَة ends in ـَة (feminine or singulative marker), not a possessive clitic. These are separate dictionary lemmas in gender/number pairs.",
+      "orphan_ar": "قِسْمَةٌ",
+      "orphan_gloss": "division, fate",
+      "proposed_canonical_ar": "قِسْم",
+      "proposed_canonical_gloss": "division; allocation; fate; portion",
+      "new_canonical_id": 3156,
+      "clitic_signals": {
+        "enc0": "3ms_poss"
+      },
+      "canonical_refs": {
+        "sentence_words": 0,
+        "review_log": 0,
+        "sent_targets": 0,
+        "ulk": 0,
+        "variants": 0
+      }
+    },
+    "802": {
+      "outcome": "bogus_mle_error",
+      "reason": "Singulative/collective pair explicitly cited as a known failure in the audit instructions: نَعام (collective) and نَعَامَة (singulative) are separate dictionary lemmas. The ة is the singulative marker, not a clitic.",
+      "orphan_ar": "نَعَامَةٌ",
+      "orphan_gloss": "ostrich",
+      "proposed_canonical_ar": "نَعام",
+      "proposed_canonical_gloss": "ostrich",
+      "new_canonical_id": 3157,
+      "clitic_signals": {
+        "enc0": "3ms_poss"
+      },
+      "canonical_refs": {
+        "sentence_words": 0,
+        "review_log": 0,
+        "sent_targets": 0,
+        "ulk": 0,
+        "variants": 0
+      }
+    },
+    "1055": {
+      "outcome": "bogus_mle_error",
+      "reason": "Feminine noun misread: شَفْرَة ends in ـَة (feminine ending), not 3ms possessive clitic. Gender-paired or feminine-derivative noun forms are separate lemmas; the orphan is canonical.",
+      "orphan_ar": "شَفْرَةٌ",
+      "orphan_gloss": "large knife",
+      "proposed_canonical_ar": "شَفْر",
+      "proposed_canonical_gloss": "knife blade; sharp instrument",
+      "new_canonical_id": 3158,
+      "clitic_signals": {
+        "enc0": "3ms_poss"
+      },
+      "canonical_refs": {
+        "sentence_words": 0,
+        "review_log": 0,
+        "sent_targets": 0,
+        "ulk": 0,
+        "variants": 0
+      }
+    },
+    "1060": {
+      "outcome": "bogus_mle_error",
+      "reason": "Feminine nisba misread: نَامُوسِيَّة (-يَّة feminine nisba suffix) falsely parsed as possessive. The feminine and masculine nisba forms are separate lemmas; the orphan is the canonical feminine form.",
+      "orphan_ar": "نَامُوسِيَّةٌ",
+      "orphan_gloss": "mosquito net",
+      "proposed_canonical_ar": "نامُوس",
+      "proposed_canonical_gloss": "mosquito net; screen",
+      "new_canonical_id": 3159,
+      "clitic_signals": {
+        "enc0": "3ms_poss"
+      },
+      "canonical_refs": {
+        "sentence_words": 0,
+        "review_log": 0,
+        "sent_targets": 0,
+        "ulk": 0,
+        "variants": 0
+      }
+    },
+    "1134": {
+      "outcome": "bogus_mle_error",
+      "reason": "Feminine nisba gender pair misread: شُكْرِيَّة (fem) cannot be decomposed into شُكْرِيّ (masc) + possessive. Masculine/feminine nisba pairs are separate dictionary lemmas in this system.",
+      "orphan_ar": "شُكْرِيَّةٌ",
+      "orphan_gloss": "of thanks",
+      "proposed_canonical_ar": "شُكْرِيّ",
+      "proposed_canonical_gloss": "of thanks; thanksgiving; related to gratitude",
+      "new_canonical_id": 3143,
+      "clitic_signals": {
+        "enc0": "3ms_poss"
+      },
+      "canonical_refs": {
+        "sentence_words": 0,
+        "review_log": 0,
+        "sent_targets": 0,
+        "ulk": 0,
+        "variants": 0
+      }
+    },
+    "1168": {
+      "outcome": "bogus_mle_error",
+      "reason": "Different lemma (noun vs verb): تَقِيَّة (noun: 'fear, caution') proposed as possessive of وَقَى (verb: 'protected'). These are separate lexical entries with different parts of speech and meanings.",
+      "orphan_ar": "تَقِيَّةٌ",
+      "orphan_gloss": "fear, caution, prudence",
+      "proposed_canonical_ar": "وَقَى",
+      "proposed_canonical_gloss": "fearfulness; piety; caution",
+      "new_canonical_id": 3160,
+      "clitic_signals": {
+        "enc0": "3ms_dobj"
+      },
+      "canonical_refs": {
+        "sentence_words": 0,
+        "review_log": 0,
+        "sent_targets": 0,
+        "ulk": 0,
+        "variants": 0
+      }
+    },
+    "1259": {
+      "outcome": "bogus_mle_error",
+      "reason": "Gender pairs of nisba adjectives (إسبانِيّ / إسبانِيّة) are separate dictionary lemmas. The orphan is the feminine form, and the ـة is a gender marker, not a clitic.",
+      "orphan_ar": "إِسْبَانِيَّةٌ",
+      "orphan_gloss": "Spanish",
+      "proposed_canonical_ar": "إِسْبانِيّ",
+      "proposed_canonical_gloss": "Spanish (adj./noun, masc. form)",
+      "new_canonical_id": 3147,
+      "clitic_signals": {
+        "enc0": "3ms_poss"
+      },
+      "canonical_refs": {
+        "sentence_words": 0,
+        "review_log": 0,
+        "sent_targets": 0,
+        "ulk": 0,
+        "variants": 0
+      }
+    },
+    "1391": {
+      "outcome": "bogus_mle_error",
+      "reason": "Singulative and collective forms are separate dictionary lemmas. تِينَة (one fig) and تِين (figs) are distinct entries. The ـة is a singulative marker, not 3ms_poss.",
+      "orphan_ar": "تِينَةٌ",
+      "orphan_gloss": "fig (fruit)",
+      "proposed_canonical_ar": "تِين",
+      "proposed_canonical_gloss": "fig (fruit)",
+      "new_canonical_id": 3161,
+      "clitic_signals": {
+        "enc0": "3ms_poss"
+      },
+      "canonical_refs": {
+        "sentence_words": 0,
+        "review_log": 0,
+        "sent_targets": 0,
+        "ulk": 0,
+        "variants": 0
+      }
+    },
+    "1394": {
+      "outcome": "bogus_mle_error",
+      "reason": "Gender pairs of adjectives are separate lemmas. جَبَّارَة (feminine) and جَبّار (masculine) are distinct dictionary entries. The ـة is a gender marker.",
+      "orphan_ar": "جَبَّارَةٌ",
+      "orphan_gloss": "mighty; giant",
+      "proposed_canonical_ar": "جَبّار",
+      "proposed_canonical_gloss": "mighty; giant; powerful one",
+      "new_canonical_id": 3162,
+      "clitic_signals": {
+        "enc0": "3ms_poss"
+      },
+      "canonical_refs": {
+        "sentence_words": 0,
+        "review_log": 0,
+        "sent_targets": 0,
+        "ulk": 0,
+        "variants": 0
+      }
+    },
+    "1409": {
+      "outcome": "bogus_mle_error",
+      "reason": "The orphan and proposed canonical are different dictionary lemmas with distinct meanings (feminine noun vs. verbal noun form). The ـة is not a clitic.",
+      "orphan_ar": "حِكَّةٌ",
+      "orphan_gloss": "an itch",
+      "proposed_canonical_ar": "حَكّ",
+      "proposed_canonical_gloss": "itch; itching",
+      "new_canonical_id": 3163,
+      "clitic_signals": {
+        "enc0": "3ms_poss"
+      },
+      "canonical_refs": {
+        "sentence_words": 0,
+        "review_log": 0,
+        "sent_targets": 0,
+        "ulk": 0,
+        "variants": 0
+      }
+    },
+    "1410": {
+      "outcome": "bogus_mle_error",
+      "reason": "Orphan ends in ـة with only 3ms_poss signal—the hallmark false-positive. The ـة is a feminine marker, not a clitic suffix.",
+      "orphan_ar": "دَلَّاعَةٌ",
+      "orphan_gloss": "watermelon",
+      "proposed_canonical_ar": "دَلّاع",
+      "proposed_canonical_gloss": "watermelon",
+      "new_canonical_id": 3164,
+      "clitic_signals": {
+        "enc0": "3ms_poss"
+      },
+      "canonical_refs": {
+        "sentence_words": 0,
+        "review_log": 0,
+        "sent_targets": 0,
+        "ulk": 0,
+        "variants": 0
+      }
+    },
+    "1453": {
+      "outcome": "bogus_mle_error",
+      "reason": "Distinct dictionary lemmas: شَارِحَة (punctuation mark: colon) vs. شارِح (explainer). Same root, different lemmas. The ـة is not a clitic.",
+      "orphan_ar": "شَارِحَةٌ",
+      "orphan_gloss": "colon, \" : \"",
+      "proposed_canonical_ar": "شارِح",
+      "proposed_canonical_gloss": "expounding, explaining; expounder",
+      "new_canonical_id": 3165,
+      "clitic_signals": {
+        "enc0": "3ms_poss"
+      },
+      "canonical_refs": {
+        "sentence_words": 0,
+        "review_log": 0,
+        "sent_targets": 0,
+        "ulk": 0,
+        "variants": 0
+      }
+    },
+    "1538": {
+      "outcome": "bogus_mle_error",
+      "reason": "Although prefix clitics (وَ, الـ) are correctly stripped, the resulting feminine nisba (إِعْدَادِيَّة) is a separate lemma from the masculine canonical (إِعْدادِيّ). Gender pairs are separate lemmas in this system.",
+      "orphan_ar": "وَالإِعْدَادِيَّةِ",
+      "orphan_gloss": "and preparatory",
+      "proposed_canonical_ar": "إِعْدادِيّ",
+      "proposed_canonical_gloss": "preparatory; pertaining to preparation",
+      "new_canonical_id": 3166,
+      "clitic_signals": {
+        "prc0": "Al_det",
+        "prc2": "wa_part"
+      },
+      "canonical_refs": {
+        "sentence_words": 0,
+        "review_log": 0,
+        "sent_targets": 0,
+        "ulk": 0,
+        "variants": 0
+      }
+    },
+    "1640": {
+      "outcome": "bogus_mle_error",
+      "reason": "Gender pairs of adjectives are separate lemmas. صَاخِبَة (feminine) and صاخِب (masculine) are distinct dictionary entries. The ـة is a gender marker.",
+      "orphan_ar": "صَاخِبَةٌ",
+      "orphan_gloss": "noisy",
+      "proposed_canonical_ar": "صاخِب",
+      "proposed_canonical_gloss": "loud; noisy",
+      "new_canonical_id": 3140,
+      "clitic_signals": {
+        "enc0": "3ms_poss"
+      },
+      "canonical_refs": {
+        "sentence_words": 0,
+        "review_log": 0,
+        "sent_targets": 0,
+        "ulk": 0,
+        "variants": 0
+      }
+    },
+    "1644": {
+      "outcome": "bogus_mle_error",
+      "reason": "Gender pairs of adjectives are separate lemmas. مَبْسُوطَة (feminine) and مَبْسُوط (masculine) are distinct dictionary entries. The ـة is a gender marker.",
+      "orphan_ar": "مَبْسُوطَةٌ",
+      "orphan_gloss": "happy",
+      "proposed_canonical_ar": "مَبْسُوط",
+      "proposed_canonical_gloss": "spread out; extended; happy; pleased",
+      "new_canonical_id": 3142,
+      "clitic_signals": {
+        "enc0": "3ms_poss"
+      },
+      "canonical_refs": {
+        "sentence_words": 0,
+        "review_log": 0,
+        "sent_targets": 0,
+        "ulk": 0,
+        "variants": 0
+      }
+    },
+    "1739": {
+      "outcome": "bogus_mle_error",
+      "reason": "Canonical feminine noun whose ـة is the feminine ending, not a clitic. The orphan is itself the legitimate canonical form, not a compound of سَتّار.",
+      "orphan_ar": "سِتَارَة",
+      "orphan_gloss": "curtain",
+      "proposed_canonical_ar": "سَتّار",
+      "proposed_canonical_gloss": "curtain; veil; one who hides/conceals",
+      "new_canonical_id": 3144,
+      "clitic_signals": {
+        "enc0": "3ms_poss"
+      },
+      "canonical_refs": {
+        "sentence_words": 0,
+        "review_log": 0,
+        "sent_targets": 0,
+        "ulk": 0,
+        "variants": 0
+      }
+    },
+    "1740": {
+      "outcome": "bogus_mle_error",
+      "reason": "سَجَّادَة is itself a canonical feminine noun (carpet). The ة ending was misread as 3ms_poss suffix; سَجّاد is a different lemma (agent noun: one who prostrates).",
+      "orphan_ar": "سَجَّادَة",
+      "orphan_gloss": "carpet",
+      "proposed_canonical_ar": "سَجّاد",
+      "proposed_canonical_gloss": "carpet; one who prostrates",
+      "new_canonical_id": 3145,
+      "clitic_signals": {
+        "enc0": "3ms_poss"
+      },
+      "canonical_refs": {
+        "sentence_words": 0,
+        "review_log": 0,
+        "sent_targets": 0,
+        "ulk": 0,
+        "variants": 0
+      }
+    },
+    "1792": {
+      "outcome": "confirmed_valid",
+      "reason": "Real prefix conjunction وَ (wa- and) stripped from comparative adjective. Legitimate compound decomposition.",
+      "orphan_ar": "وَأَذْكَى",
+      "orphan_gloss": "and smarter",
+      "proposed_canonical_ar": "أَذْكَى",
+      "proposed_canonical_gloss": "smarter; more intelligent (comparative adj.)",
+      "new_canonical_id": 3150,
+      "clitic_signals": {
+        "prc2": "wa_sub"
+      },
+      "canonical_refs": {
+        "sentence_words": 0,
+        "review_log": 0,
+        "sent_targets": 0,
+        "ulk": 0,
+        "variants": 0
+      }
+    },
+    "1829": {
+      "outcome": "confirmed_valid",
+      "reason": "Real prefix preposition لِ (li- for) stripped from proper name Ahmed. Legitimate compound.",
+      "orphan_ar": "لِأَحْمَد",
+      "orphan_gloss": "(name) for Ahmed",
+      "proposed_canonical_ar": "أَحْمَد",
+      "proposed_canonical_gloss": "Ahmed (proper name)",
+      "new_canonical_id": 3151,
+      "clitic_signals": {
+        "prc1": "la_emph"
+      },
+      "canonical_refs": {
+        "sentence_words": 0,
+        "review_log": 0,
+        "sent_targets": 0,
+        "ulk": 0,
+        "variants": 0
+      }
+    },
+    "1839": {
+      "outcome": "bogus_mle_error",
+      "reason": "بَقَّالَة is itself a canonical feminine noun (grocery store). The ة was misread as 3ms_poss; بَقّال is a different lemma (grocer, agent noun).",
+      "orphan_ar": "بَقَّالَة",
+      "orphan_gloss": "grocery store",
+      "proposed_canonical_ar": "بَقّال",
+      "proposed_canonical_gloss": "grocer; grocery merchant",
+      "new_canonical_id": 3141,
+      "clitic_signals": {
+        "enc0": "3ms_poss"
+      },
+      "canonical_refs": {
+        "sentence_words": 0,
+        "review_log": 0,
+        "sent_targets": 0,
+        "ulk": 0,
+        "variants": 0
+      }
+    },
+    "2612": {
+      "outcome": "bogus_mle_error",
+      "reason": "حصبة (measles, feminine noun) has its ة feminine ending misread as 3ms_poss, creating false decomposition to حصب (a different lemma: gravel/disease).",
+      "orphan_ar": "حصبه",
+      "orphan_gloss": "measles",
+      "proposed_canonical_ar": "حَصَب",
+      "proposed_canonical_gloss": "measles; gravel",
+      "new_canonical_id": 3146,
+      "clitic_signals": {
+        "enc0": "3ms_poss"
+      },
+      "canonical_refs": {
+        "sentence_words": 0,
+        "review_log": 0,
+        "sent_targets": 0,
+        "ulk": 0,
+        "variants": 0
+      }
+    },
+    "2662": {
+      "outcome": "confirmed_valid",
+      "reason": "Plural + real 3ms_poss possessive suffix on canonical feminine noun فَضْلَة (dropping). The ه is genuine possessive, not a misread feminine ending.",
+      "orphan_ar": "فضلاته",
+      "orphan_gloss": "his droppings",
+      "proposed_canonical_ar": "فَضْلَة",
+      "proposed_canonical_gloss": "dropping; droppings",
+      "new_canonical_id": 3152,
+      "clitic_signals": {
+        "enc0": "3ms_poss"
+      },
+      "canonical_refs": {
+        "sentence_words": 0,
+        "review_log": 0,
+        "sent_targets": 0,
+        "ulk": 0,
+        "variants": 0
+      }
+    },
+    "2862": {
+      "outcome": "confirmed_valid",
+      "reason": "Real prefix conjunction وَ (and) + real 3mp direct object pronoun on verb تَرَك (left). Both are genuine clitics.",
+      "orphan_ar": "وَتَرَكَهُم",
+      "orphan_gloss": "and left them",
+      "proposed_canonical_ar": "تَرَك",
+      "proposed_canonical_gloss": "left; abandoned",
+      "new_canonical_id": 3148,
+      "clitic_signals": {
+        "prc2": "wa_sub",
+        "enc0": "3mp_dobj"
+      },
+      "canonical_refs": {
+        "sentence_words": 0,
+        "review_log": 0,
+        "sent_targets": 0,
+        "ulk": 0,
+        "variants": 0
+      }
+    },
+    "2864": {
+      "outcome": "confirmed_valid",
+      "reason": "Real prefix conjunction وَ (wa- and) stripped from noun رَعْد (thunder). Simple legitimate compound.",
+      "orphan_ar": "وَرَعد",
+      "orphan_gloss": "and thunder",
+      "proposed_canonical_ar": "رَعْد",
+      "proposed_canonical_gloss": "thunder",
+      "new_canonical_id": 3167,
+      "clitic_signals": {
+        "prc2": "wa_conj"
+      },
+      "canonical_refs": {
+        "sentence_words": 0,
+        "review_log": 0,
+        "sent_targets": 0,
+        "ulk": 0,
+        "variants": 0
+      }
+    },
+    "2865": {
+      "outcome": "confirmed_valid",
+      "reason": "Plural + real 3mp_poss possessive suffix on canonical noun إِصْبَع (finger). Genuine inflected form of canonical lemma.",
+      "orphan_ar": "أَصَبِعَهُم",
+      "orphan_gloss": "their fingers",
+      "proposed_canonical_ar": "إِصْبَع",
+      "proposed_canonical_gloss": "finger",
+      "new_canonical_id": 3168,
+      "clitic_signals": {
+        "enc0": "3mp_poss"
+      },
+      "canonical_refs": {
+        "sentence_words": 0,
+        "review_log": 0,
+        "sent_targets": 0,
+        "ulk": 0,
+        "variants": 0
+      }
+    },
+    "2875": {
+      "outcome": "confirmed_valid",
+      "reason": "Particle لَعَلَّ (perhaps) with real 2mp pronoun attachment. Both clitics (emphatic prefix + pronoun suffix) are genuine.",
+      "orphan_ar": "لَعَلَّكُم",
+      "orphan_gloss": "perhaps you",
+      "proposed_canonical_ar": "لَعَلَّ",
+      "proposed_canonical_gloss": "perhaps; perchance",
+      "new_canonical_id": 3169,
+      "clitic_signals": {
+        "prc1": "la_emph",
+        "enc0": "2mp_pron"
+      },
+      "canonical_refs": {
+        "sentence_words": 0,
+        "review_log": 0,
+        "sent_targets": 0,
+        "ulk": 0,
+        "variants": 0
+      }
+    },
+    "2901": {
+      "outcome": "confirmed_valid",
+      "reason": "Conjunction prefix وَ (and) is correctly stripped from the particle إِذ. Real clitic, correct canonical form.",
+      "orphan_ar": "وَإِذ",
+      "orphan_gloss": "and when",
+      "proposed_canonical_ar": "إِذ",
+      "proposed_canonical_gloss": "when; at the time when",
+      "new_canonical_id": 3170,
+      "clitic_signals": {
+        "prc2": "wa_conj"
+      },
+      "canonical_refs": {
+        "sentence_words": 0,
+        "review_log": 0,
+        "sent_targets": 0,
+        "ulk": 0,
+        "variants": 0
+      }
+    },
+    "2905": {
+      "outcome": "confirmed_valid",
+      "reason": "Conjunction prefix وَ (and) is correctly stripped from the present-tense verb conjugation. Canonical قَدَّس is the correct dictionary headword form for the verb 'to sanctify'.",
+      "orphan_ar": "وَنُقَدِّسُ",
+      "orphan_gloss": "and we sanctify",
+      "proposed_canonical_ar": "قَدَّس",
+      "proposed_canonical_gloss": "sanctified; hallowed; honored",
+      "new_canonical_id": 3149,
+      "clitic_signals": {
+        "prc2": "wa_sub"
+      },
+      "canonical_refs": {
+        "sentence_words": 0,
+        "review_log": 0,
+        "sent_targets": 0,
+        "ulk": 0,
+        "variants": 0
+      }
+    },
+    "2911": {
+      "outcome": "confirmed_valid",
+      "reason": "Direct object suffix هُم (them, 3mp) is correctly stripped from the verb form. Canonical نَبَّأ is the correct dictionary headword for the verb 'to inform/report'.",
+      "orphan_ar": "أَنبِئهُم",
+      "orphan_gloss": "inform them",
+      "proposed_canonical_ar": "نَبَّأ",
+      "proposed_canonical_gloss": "to inform; to tell; to report",
+      "new_canonical_id": 3171,
+      "clitic_signals": {
+        "enc0": "3mp_dobj"
+      },
+      "canonical_refs": {
+        "sentence_words": 0,
+        "review_log": 0,
+        "sent_targets": 0,
+        "ulk": 0,
+        "variants": 0
+      }
+    }
+  },
+  "started_at": "2026-04-24T13:59:09",
+  "completed_at": "2026-04-24T14:03:32"
+}
