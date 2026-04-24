@@ -1,0 +1,1694 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Function Words of the Quran — حروف القرآن</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Scheherazade+New:wght@400;700&family=Inter:wght@300;400;500;600;700&family=Amiri:wght@400;700&display=swap');
+
+  :root {
+    --gold: #d4a056;
+    --gold-light: #f5e6c8;
+    --gold-dark: #b8862d;
+    --bg: #0f1419;
+    --bg-card: #1a2028;
+    --bg-card-hover: #1f2832;
+    --bg-verse: #141a22;
+    --text: #e8e0d4;
+    --text-muted: #8a9aad;
+    --text-dim: #5a6a7a;
+    --accent-blue: #4a9eed;
+    --accent-green: #5bb98c;
+    --accent-purple: #9b7ed8;
+    --accent-rose: #d47a8a;
+    --accent-teal: #4ab8a8;
+    --accent-orange: #d89a5e;
+    --border: rgba(212,160,86,0.15);
+    --border-strong: rgba(212,160,86,0.3);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Inter', system-ui, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.7;
+    min-height: 100vh;
+  }
+
+  /* Hero */
+  .hero {
+    text-align: center;
+    padding: 80px 24px 60px;
+    background: linear-gradient(180deg, rgba(212,160,86,0.08) 0%, transparent 100%);
+    border-bottom: 1px solid var(--border);
+  }
+  .hero-arabic {
+    font-family: 'Scheherazade New', serif;
+    font-size: 3.5rem;
+    color: var(--gold);
+    direction: rtl;
+    margin-bottom: 12px;
+    letter-spacing: 2px;
+  }
+  .hero h1 {
+    font-size: 2rem;
+    font-weight: 300;
+    color: var(--text);
+    letter-spacing: 1px;
+  }
+  .hero p {
+    max-width: 680px;
+    margin: 20px auto 0;
+    color: var(--text-muted);
+    font-size: 1.05rem;
+    line-height: 1.8;
+  }
+
+  /* Nav */
+  .toc {
+    max-width: 960px;
+    margin: 0 auto;
+    padding: 40px 24px 20px;
+  }
+  .toc h2 {
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 3px;
+    color: var(--text-dim);
+    margin-bottom: 16px;
+  }
+  .toc-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 8px;
+  }
+  .toc-grid a {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 14px;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    text-decoration: none;
+    color: var(--text);
+    font-size: 0.9rem;
+    transition: all 0.2s;
+  }
+  .toc-grid a:hover {
+    background: var(--bg-card-hover);
+    border-color: var(--border-strong);
+  }
+  .toc-grid a .toc-ar {
+    font-family: 'Scheherazade New', serif;
+    font-size: 1.2rem;
+    color: var(--gold);
+    direction: rtl;
+  }
+
+  /* Main content */
+  .content {
+    max-width: 960px;
+    margin: 0 auto;
+    padding: 20px 24px 80px;
+  }
+
+  /* Section */
+  .section {
+    margin-top: 60px;
+  }
+  .section-header {
+    display: flex;
+    align-items: baseline;
+    gap: 16px;
+    margin-bottom: 8px;
+    padding-bottom: 12px;
+    border-bottom: 2px solid var(--border-strong);
+  }
+  .section-header h2 {
+    font-size: 1.5rem;
+    font-weight: 600;
+    color: var(--text);
+  }
+  .section-header .ar-title {
+    font-family: 'Amiri', serif;
+    font-size: 1.6rem;
+    color: var(--gold);
+    direction: rtl;
+  }
+  .section-intro {
+    color: var(--text-muted);
+    margin: 12px 0 24px;
+    font-size: 0.95rem;
+    line-height: 1.8;
+    max-width: 720px;
+  }
+
+  /* Word cards */
+  .word-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 16px;
+    margin-top: 20px;
+  }
+  .word-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 24px;
+    transition: all 0.25s;
+  }
+  .word-card:hover {
+    border-color: var(--border-strong);
+    background: var(--bg-card-hover);
+    transform: translateY(-1px);
+  }
+  .word-card .arabic {
+    font-family: 'Scheherazade New', serif;
+    font-size: 2.4rem;
+    color: var(--gold);
+    direction: rtl;
+    text-align: right;
+    line-height: 1.4;
+  }
+  .word-card .translit {
+    font-size: 0.85rem;
+    color: var(--accent-blue);
+    font-style: italic;
+    margin-top: 4px;
+    text-align: right;
+  }
+  .word-card .meaning {
+    font-size: 1.1rem;
+    font-weight: 500;
+    color: var(--text);
+    margin-top: 12px;
+  }
+  .word-card .grammar-tag {
+    display: inline-block;
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    padding: 3px 8px;
+    border-radius: 4px;
+    margin-top: 8px;
+    font-weight: 600;
+  }
+  .tag-prep { background: rgba(74,158,237,0.12); color: var(--accent-blue); }
+  .tag-conj { background: rgba(91,185,140,0.12); color: var(--accent-green); }
+  .tag-pron { background: rgba(155,126,216,0.12); color: var(--accent-purple); }
+  .tag-neg { background: rgba(212,122,138,0.12); color: var(--accent-rose); }
+  .tag-dem { background: rgba(74,184,168,0.12); color: var(--accent-teal); }
+  .tag-rel { background: rgba(216,154,94,0.12); color: var(--accent-orange); }
+  .tag-cond { background: rgba(155,126,216,0.12); color: var(--accent-purple); }
+  .tag-emph { background: rgba(212,160,86,0.15); color: var(--gold); }
+  .tag-mystery { background: rgba(212,160,86,0.2); color: var(--gold); }
+  .tag-obj { background: rgba(74,184,168,0.12); color: var(--accent-teal); }
+
+  /* Register badges */
+  .register-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 0.68rem;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    padding: 3px 9px;
+    border-radius: 10px;
+    margin-top: 6px;
+    margin-left: 4px;
+    vertical-align: middle;
+  }
+  .register-badge .dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    display: inline-block;
+  }
+  .reg-all { background: rgba(91,185,140,0.1); color: var(--accent-green); }
+  .reg-all .dot { background: var(--accent-green); }
+  .reg-formal { background: rgba(74,158,237,0.1); color: var(--accent-blue); }
+  .reg-formal .dot { background: var(--accent-blue); }
+  .reg-quran { background: rgba(212,160,86,0.12); color: var(--gold); }
+  .reg-quran .dot { background: var(--gold); }
+
+  /* Register legend */
+  .legend {
+    max-width: 960px;
+    margin: 0 auto;
+    padding: 0 24px;
+  }
+  .legend-box {
+    display: flex;
+    gap: 24px;
+    flex-wrap: wrap;
+    padding: 16px 20px;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+  }
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.85rem;
+    color: var(--text-muted);
+  }
+  .legend-item .register-badge { margin: 0; }
+  .legend-item span.desc { line-height: 1.4; }
+
+  /* Register column in suffix table */
+  .suffix-table .reg-cell { text-align: center; }
+
+  .word-card .explanation {
+    color: var(--text-muted);
+    font-size: 0.88rem;
+    margin-top: 10px;
+    line-height: 1.7;
+  }
+
+  /* Verse example */
+  .verse-example {
+    margin-top: 14px;
+    padding: 14px 16px;
+    background: var(--bg-verse);
+    border-left: 3px solid var(--gold-dark);
+    border-radius: 0 8px 8px 0;
+  }
+  .verse-example .verse-ar {
+    font-family: 'Scheherazade New', serif;
+    font-size: 1.5rem;
+    color: var(--gold-light);
+    direction: rtl;
+    text-align: right;
+    line-height: 2;
+  }
+  .verse-example .verse-ar .highlight {
+    color: #fff;
+    background: rgba(212,160,86,0.25);
+    padding: 2px 4px;
+    border-radius: 3px;
+  }
+  .verse-example .verse-en {
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    margin-top: 8px;
+    font-style: italic;
+  }
+  .verse-example .verse-ref {
+    font-size: 0.75rem;
+    color: var(--text-dim);
+    margin-top: 4px;
+  }
+
+  /* Full-width feature cards */
+  .feature-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 32px;
+    margin-top: 16px;
+  }
+  .feature-card .arabic {
+    font-family: 'Scheherazade New', serif;
+    font-size: 2.8rem;
+    color: var(--gold);
+    direction: rtl;
+    text-align: right;
+    line-height: 1.5;
+  }
+  .feature-card .translit {
+    font-size: 0.9rem;
+    color: var(--accent-blue);
+    font-style: italic;
+    text-align: right;
+    margin-top: 4px;
+  }
+  .feature-card .meaning {
+    font-size: 1.2rem;
+    font-weight: 500;
+    margin-top: 14px;
+  }
+  .feature-card .explanation {
+    color: var(--text-muted);
+    font-size: 0.92rem;
+    margin-top: 12px;
+    line-height: 1.8;
+  }
+
+  /* Clitic decomposition */
+  .decomp {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 8px;
+    direction: rtl;
+    margin: 12px 0;
+    flex-wrap: wrap;
+  }
+  .decomp-part {
+    text-align: center;
+    padding: 8px 14px;
+    background: rgba(212,160,86,0.08);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+  }
+  .decomp-part .ar {
+    font-family: 'Scheherazade New', serif;
+    font-size: 1.6rem;
+    color: var(--gold);
+  }
+  .decomp-part .en {
+    font-size: 0.72rem;
+    color: var(--text-muted);
+    margin-top: 2px;
+  }
+  .decomp-plus {
+    color: var(--text-dim);
+    font-size: 1.2rem;
+  }
+
+  /* Suffix table */
+  .suffix-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 16px;
+  }
+  .suffix-table th {
+    text-align: left;
+    padding: 10px 14px;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    color: var(--text-dim);
+    border-bottom: 1px solid var(--border-strong);
+  }
+  .suffix-table th:nth-child(1),
+  .suffix-table td:nth-child(1) {
+    text-align: right;
+    direction: rtl;
+  }
+  .suffix-table td {
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--border);
+    font-size: 0.92rem;
+  }
+  .suffix-table td:first-child {
+    font-family: 'Scheherazade New', serif;
+    font-size: 1.4rem;
+    color: var(--gold);
+  }
+  .suffix-table tr:hover td {
+    background: rgba(212,160,86,0.04);
+  }
+
+  /* Concept boxes */
+  .concept-box {
+    background: linear-gradient(135deg, rgba(212,160,86,0.06), rgba(212,160,86,0.02));
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 24px;
+    margin: 24px 0;
+  }
+  .concept-box h3 {
+    font-size: 1rem;
+    color: var(--gold);
+    margin-bottom: 10px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .concept-box p {
+    color: var(--text-muted);
+    font-size: 0.92rem;
+    line-height: 1.8;
+  }
+
+  /* Responsive */
+  @media (max-width: 640px) {
+    .hero-arabic { font-size: 2.4rem; }
+    .hero h1 { font-size: 1.5rem; }
+    .word-grid { grid-template-columns: 1fr; }
+    .toc-grid { grid-template-columns: 1fr 1fr; }
+    .section-header { flex-direction: column; gap: 4px; }
+    .decomp { gap: 6px; }
+    .decomp-part { padding: 6px 10px; }
+    .decomp-part .ar { font-size: 1.3rem; }
+  }
+
+  /* Scroll padding for anchors */
+  [id] { scroll-margin-top: 20px; }
+
+  /* Back to top */
+  .back-top {
+    display: inline-block;
+    margin-top: 20px;
+    font-size: 0.8rem;
+    color: var(--text-dim);
+    text-decoration: none;
+  }
+  .back-top:hover { color: var(--gold); }
+</style>
+</head>
+<body>
+
+<div class="hero">
+  <div class="hero-arabic">حُروف القُرآن</div>
+  <h1>Function Words of the Quran</h1>
+  <p>
+    Arabic function words — particles, pronouns, prepositions, and conjunctions — are the connective tissue of Quranic Arabic.
+    They appear on almost every line, yet each carries precise grammatical meaning.
+    Mastering these ~100 words unlocks the structure of every verse you read.
+  </p>
+</div>
+
+<div class="toc">
+  <h2>Contents</h2>
+  <div class="toc-grid">
+    <a href="#iyyaka"><span class="toc-ar">إيّاكَ</span> Disconnected Objects</a>
+    <a href="#muqattaat"><span class="toc-ar">الٓمٓ</span> Mystery Letters</a>
+    <a href="#prepositions"><span class="toc-ar">حروف الجر</span> Prepositions</a>
+    <a href="#clitics"><span class="toc-ar">بِـ لِـ كَـ</span> Single-Letter Clitics</a>
+    <a href="#conjunctions"><span class="toc-ar">حروف العطف</span> Conjunctions</a>
+    <a href="#pronouns"><span class="toc-ar">الضمائر</span> Personal Pronouns</a>
+    <a href="#suffixes"><span class="toc-ar">ـهُ ـها ـهم</span> Pronoun Suffixes</a>
+    <a href="#demonstratives"><span class="toc-ar">أسماء الإشارة</span> Demonstratives</a>
+    <a href="#relative"><span class="toc-ar">الّذي الّذين</span> Relative Pronouns</a>
+    <a href="#negation"><span class="toc-ar">أدوات النفي</span> Negation</a>
+    <a href="#emphasis"><span class="toc-ar">إنَّ قَدْ</span> Emphasis</a>
+    <a href="#conditionals"><span class="toc-ar">إذا لو إنْ</span> Conditionals</a>
+  </div>
+</div>
+
+<div class="legend">
+  <div class="legend-box">
+    <div class="legend-item">
+      <span class="register-badge reg-all"><span class="dot"></span>All Arabic</span>
+      <span class="desc">Universal — used across spoken dialects, MSA, classical, and Quran alike</span>
+    </div>
+    <div class="legend-item">
+      <span class="register-badge reg-formal"><span class="dot"></span>Classical &amp; Formal MSA</span>
+      <span class="desc">Standard in written MSA (news, literature) and Quran/classical, but rare in casual speech</span>
+    </div>
+    <div class="legend-item">
+      <span class="register-badge reg-quran"><span class="dot"></span>Quranic / Classical</span>
+      <span class="desc">Essentially confined to the Quran, classical poetry, and elevated literary prose</span>
+    </div>
+  </div>
+</div>
+
+<div class="content">
+
+  <!-- ═══════════════════════════════════════ -->
+  <!-- SECTION 1: إيّاك — Disconnected Object Pronouns -->
+  <!-- ═══════════════════════════════════════ -->
+  <div class="section" id="iyyaka">
+    <div class="section-header">
+      <h2>Disconnected Object Pronouns</h2>
+      <span class="ar-title">الضمائر المنفصلة المنصوبة</span>
+    </div>
+    <p class="section-intro">
+      These are among the most theologically powerful words in the Quran. While normal object pronouns attach as suffixes (e.g. <em>-hu</em> "him", <em>-ka</em> "you"),
+      the <strong>إيّا</strong> (iyyā-) forms stand alone as separate words. In Arabic grammar, this <strong>fronting</strong> creates exclusive emphasis:
+      "You <em>alone</em>" — not just "you." When you hear <em>إيّاكَ نعبد</em>, the structure itself means worship belongs exclusively to God.
+    </p>
+
+    <div class="feature-card">
+      <div class="arabic">إِيَّاكَ نَعْبُدُ وَإِيَّاكَ نَسْتَعِينُ</div>
+      <div class="translit">iyyāka naʿbudu wa-iyyāka nastaʿīn</div>
+      <div class="meaning">"You alone we worship, and You alone we ask for help."</div>
+      <div class="explanation">
+        This is verse 5 of <strong>Al-Fātiḥah</strong> (The Opening), recited by Muslims in every unit of prayer — making <em>إيّاك</em> possibly the most frequently spoken Arabic word in history.
+        The normal word order would be <em>نعبدك</em> ("we worship you") with the pronoun as a suffix. By fronting <em>إيّاك</em> to the beginning,
+        the verse creates <strong>حصر</strong> (ḥaṣr) — grammatical restriction — meaning "You and <em>no one else</em>."
+      </div>
+      <div class="verse-example">
+        <div class="verse-ref">Sūrat al-Fātiḥah (1:5)</div>
+      </div>
+    </div>
+
+    <div class="word-grid" style="margin-top: 20px;">
+      <div class="word-card">
+        <div class="arabic">إيَّاكَ</div>
+        <div class="translit">iyyāka</div>
+        <div class="meaning">You alone (masc. singular)</div>
+        <span class="grammar-tag tag-obj">Object pronoun</span>
+        <span class="register-badge reg-formal"><span class="dot"></span>Classical &amp; Formal MSA</span>
+        <div class="explanation">Addresses a single male. In the Quran, always addresses God. Technically valid in modern formal Arabic but almost never used outside religious or literary contexts.</div>
+      </div>
+      <div class="word-card">
+        <div class="arabic">إيَّاكُم</div>
+        <div class="translit">iyyākum</div>
+        <div class="meaning">You all alone (masc. plural)</div>
+        <span class="grammar-tag tag-obj">Object pronoun</span>
+        <span class="register-badge reg-formal"><span class="dot"></span>Classical &amp; Formal MSA</span>
+        <div class="explanation">Addresses a group. Used when God speaks to humanity or a community.</div>
+      </div>
+      <div class="word-card">
+        <div class="arabic">إيَّاهُ</div>
+        <div class="translit">iyyāhu</div>
+        <div class="meaning">Him alone</div>
+        <span class="grammar-tag tag-obj">Object pronoun</span>
+        <span class="register-badge reg-formal"><span class="dot"></span>Classical &amp; Formal MSA</span>
+        <div class="explanation">Third person — "Him and no one else."</div>
+        <div class="verse-example">
+          <div class="verse-ar">أَلَّا تَعْبُدُوا إِلَّا <span class="highlight">إِيَّاهُ</span></div>
+          <div class="verse-en">"that you worship none but Him alone"</div>
+          <div class="verse-ref">Yūsuf (12:40)</div>
+        </div>
+      </div>
+      <div class="word-card">
+        <div class="arabic">إيَّاهُم</div>
+        <div class="translit">iyyāhum</div>
+        <div class="meaning">Them alone</div>
+        <span class="grammar-tag tag-obj">Object pronoun</span>
+        <span class="register-badge reg-formal"><span class="dot"></span>Classical &amp; Formal MSA</span>
+        <div class="explanation">Emphasizes exclusivity of a group being referenced.</div>
+      </div>
+      <div class="word-card">
+        <div class="arabic">إيَّايَ</div>
+        <div class="translit">iyyāya</div>
+        <div class="meaning">Me alone</div>
+        <span class="grammar-tag tag-obj">Object pronoun</span>
+        <span class="register-badge reg-quran"><span class="dot"></span>Quranic / Classical</span>
+        <div class="explanation">God referring to Himself as exclusive object of worship or fear. Extremely rare outside the Quran and classical poetry.</div>
+        <div class="verse-example">
+          <div class="verse-ar">فَ<span class="highlight">إِيَّايَ</span> فَارْهَبُونِ</div>
+          <div class="verse-en">"then it is Me alone you should fear"</div>
+          <div class="verse-ref">Al-Baqarah (2:40)</div>
+        </div>
+      </div>
+      <div class="word-card">
+        <div class="arabic">إيَّانا</div>
+        <div class="translit">iyyānā</div>
+        <div class="meaning">Us alone</div>
+        <span class="grammar-tag tag-obj">Object pronoun</span>
+        <span class="register-badge reg-quran"><span class="dot"></span>Quranic / Classical</span>
+        <div class="explanation">First person plural — rare even in the Quran and essentially absent from modern Arabic.</div>
+      </div>
+    </div>
+
+    <div class="concept-box">
+      <h3>💡 Why does fronting create exclusivity?</h3>
+      <p>
+        In Arabic, the default verb-subject-object order (VSO) is <em>نعبدك</em> — "we worship you."
+        Moving the object before the verb (<em>إيّاك نعبد</em>) is grammatically marked. Arabic grammarians call this
+        <strong>تقديم ما حقّه التأخير</strong> — "fronting what by right should come later." This marked structure
+        signals that the fronted element is the exclusive focus. It's as if the sentence says: "As for You — <em>that's</em> who we worship, no one else."
+        The same device is used in legal Arabic for exclusivity clauses.
+      </p>
+    </div>
+
+    <a href="#" class="back-top">↑ Back to top</a>
+  </div>
+
+  <!-- ═══════════════════════════════════════ -->
+  <!-- SECTION 2: Mystery Letters -->
+  <!-- ═══════════════════════════════════════ -->
+  <div class="section" id="muqattaat">
+    <div class="section-header">
+      <h2>The Mystery Letters</h2>
+      <span class="ar-title">الحروف المقطّعة</span>
+    </div>
+    <p class="section-intro">
+      Twenty-nine surahs of the Quran open with combinations of Arabic letters that are not words in any known sense.
+      They are recited as individual letter names: <em>alif, lām, mīm</em> — not as a word. Their meaning has been debated
+      for 1400 years. Some scholars say they are divine secrets; others suggest they are acoustic hooks that grab attention
+      before revelation begins. No definitive explanation exists — which is itself part of their mystique.
+    </p>
+
+    <div class="word-grid">
+      <div class="word-card">
+        <div class="arabic">الٓمٓ</div>
+        <div class="translit">alif lām mīm</div>
+        <div class="meaning">Alif Lam Mim</div>
+        <span class="grammar-tag tag-mystery">Muqaṭṭaʿāt</span>
+        <span class="register-badge reg-quran"><span class="dot"></span>Quranic only</span>
+        <div class="explanation">Opens 6 surahs including Al-Baqarah, Āl ʿImrān, and Al-ʿAnkabūt. The most frequent combination.</div>
+        <div class="verse-example">
+          <div class="verse-ar"><span class="highlight">الٓمٓ</span> ۚ ذَٰلِكَ الْكِتَابُ لَا رَيْبَ ۛ فِيهِ</div>
+          <div class="verse-en">"Alif Lam Mim. This is the Book about which there is no doubt."</div>
+          <div class="verse-ref">Al-Baqarah (2:1–2)</div>
+        </div>
+      </div>
+      <div class="word-card">
+        <div class="arabic">الٓر</div>
+        <div class="translit">alif lām rā</div>
+        <div class="meaning">Alif Lam Ra</div>
+        <span class="grammar-tag tag-mystery">Muqaṭṭaʿāt</span>
+        <span class="register-badge reg-quran"><span class="dot"></span>Quranic only</span>
+        <div class="explanation">Opens 5 surahs: Yūnus, Hūd, Yūsuf, Ibrāhīm, and Al-Ḥijr.</div>
+      </div>
+      <div class="word-card">
+        <div class="arabic">حمٓ</div>
+        <div class="translit">ḥā mīm</div>
+        <div class="meaning">Ha Mim</div>
+        <span class="grammar-tag tag-mystery">Muqaṭṭaʿāt</span>
+        <span class="register-badge reg-quran"><span class="dot"></span>Quranic only</span>
+        <div class="explanation">Opens 7 consecutive surahs (40–46), known collectively as the "Ḥawāmīm" family.</div>
+      </div>
+      <div class="word-card">
+        <div class="arabic">طه</div>
+        <div class="translit">ṭā hā</div>
+        <div class="meaning">Ta Ha</div>
+        <span class="grammar-tag tag-mystery">Muqaṭṭaʿāt</span>
+        <span class="register-badge reg-quran"><span class="dot"></span>Quranic only</span>
+        <div class="explanation">Opens Surah 20 (Ṭā Hā). Some say it means "O man" in an ancient dialect. Often used as a name for Prophet Muhammad.</div>
+      </div>
+      <div class="word-card">
+        <div class="arabic">يسٓ</div>
+        <div class="translit">yā sīn</div>
+        <div class="meaning">Ya Sin</div>
+        <span class="grammar-tag tag-mystery">Muqaṭṭaʿāt</span>
+        <span class="register-badge reg-quran"><span class="dot"></span>Quranic only</span>
+        <div class="explanation">Opens Surah 36. Called "the Heart of the Quran." Some interpret it as "O human being."</div>
+      </div>
+      <div class="word-card">
+        <div class="arabic">صٓ</div>
+        <div class="translit">ṣād</div>
+        <div class="meaning">Sad</div>
+        <span class="grammar-tag tag-mystery">Muqaṭṭaʿāt</span>
+        <span class="register-badge reg-quran"><span class="dot"></span>Quranic only</span>
+        <div class="explanation">A single letter opening Surah 38. Immediately followed by "By the Quran full of remembrance."</div>
+      </div>
+    </div>
+
+    <div class="concept-box">
+      <h3>💡 Theories about the mystery letters</h3>
+      <p>
+        <strong>1. Divine secret</strong> — Many classical scholars (including Ibn ʿAbbās) said these are among the secrets of the Quran that God alone knows.<br>
+        <strong>2. Attention device</strong> — The unexpected letter sounds interrupt the listener, creating attention before the message begins — like a clearing of the throat.<br>
+        <strong>3. Proof of inimitability</strong> — "Here are the same letters you use every day, yet you cannot produce anything like this Book."<br>
+        <strong>4. Surah names</strong> — Some may simply serve as names for their surahs, the way we might title a chapter "Q" or "X."
+      </p>
+    </div>
+
+    <a href="#" class="back-top">↑ Back to top</a>
+  </div>
+
+  <!-- ═══════════════════════════════════════ -->
+  <!-- SECTION 3: Prepositions -->
+  <!-- ═══════════════════════════════════════ -->
+  <div class="section" id="prepositions">
+    <div class="section-header">
+      <h2>Prepositions</h2>
+      <span class="ar-title">حروف الجرّ</span>
+    </div>
+    <p class="section-intro">
+      Prepositions in Arabic (حروف الجرّ, ḥurūf al-jarr — literally "letters of pulling") put the following noun into the genitive case (مجرور).
+      Some are standalone words; others are single-letter clitics that attach directly to the next word. The Quran's prepositions often carry theological weight
+      — <em>فِي</em> (in) versus <em>عَلَى</em> (upon) can change the meaning of a verse significantly.
+    </p>
+
+    <div class="word-grid">
+      <div class="word-card">
+        <div class="arabic">فِي</div>
+        <div class="translit">fī</div>
+        <div class="meaning">In / within</div>
+        <span class="grammar-tag tag-prep">Preposition</span>
+        <span class="register-badge reg-all"><span class="dot"></span>All Arabic</span>
+        <div class="explanation">One of the most common words in the Quran. Indicates location, time, or state.</div>
+        <div class="verse-example">
+          <div class="verse-ar">وَ<span class="highlight">فِي</span> أَنفُسِكُمْ ۚ أَفَلَا تُبْصِرُونَ</div>
+          <div class="verse-en">"And within yourselves — will you not then see?"</div>
+          <div class="verse-ref">Adh-Dhāriyāt (51:21)</div>
+        </div>
+      </div>
+      <div class="word-card">
+        <div class="arabic">مِنْ</div>
+        <div class="translit">min</div>
+        <div class="meaning">From / of / some of</div>
+        <span class="grammar-tag tag-prep">Preposition</span>
+        <span class="register-badge reg-all"><span class="dot"></span>All Arabic</span>
+        <div class="explanation">Indicates origin, partitive meaning ("some of"), or starting point. The most frequent preposition in the Quran.</div>
+        <div class="verse-example">
+          <div class="verse-ar">خَلَقَ الْإِنسَانَ <span class="highlight">مِنْ</span> عَلَقٍ</div>
+          <div class="verse-en">"Created man from a clinging substance"</div>
+          <div class="verse-ref">Al-ʿAlaq (96:2)</div>
+        </div>
+      </div>
+      <div class="word-card">
+        <div class="arabic">عَلَى</div>
+        <div class="translit">ʿalā</div>
+        <div class="meaning">On / upon / over</div>
+        <span class="grammar-tag tag-prep">Preposition</span>
+        <span class="register-badge reg-all"><span class="dot"></span>All Arabic</span>
+        <div class="explanation">Physical or abstract "upon." Often expresses obligation or mastery.</div>
+        <div class="verse-example">
+          <div class="verse-ar">خَتَمَ اللَّهُ <span class="highlight">عَلَىٰ</span> قُلُوبِهِمْ</div>
+          <div class="verse-en">"God has set a seal upon their hearts"</div>
+          <div class="verse-ref">Al-Baqarah (2:7)</div>
+        </div>
+      </div>
+      <div class="word-card">
+        <div class="arabic">إلَى</div>
+        <div class="translit">ilā</div>
+        <div class="meaning">To / toward / until</div>
+        <span class="grammar-tag tag-prep">Preposition</span>
+        <span class="register-badge reg-all"><span class="dot"></span>All Arabic</span>
+        <div class="explanation">Indicates direction, destination, or endpoint. Often paired with مِن for "from...to."</div>
+      </div>
+      <div class="word-card">
+        <div class="arabic">عَنْ</div>
+        <div class="translit">ʿan</div>
+        <div class="meaning">About / away from</div>
+        <span class="grammar-tag tag-prep">Preposition</span>
+        <span class="register-badge reg-all"><span class="dot"></span>All Arabic</span>
+        <div class="explanation">Indicates separation or topic. يسألونك عن — "They ask you about..."</div>
+      </div>
+      <div class="word-card">
+        <div class="arabic">مَعَ</div>
+        <div class="translit">maʿa</div>
+        <div class="meaning">With / together with</div>
+        <span class="grammar-tag tag-prep">Preposition</span>
+        <span class="register-badge reg-all"><span class="dot"></span>All Arabic</span>
+        <div class="explanation">Companionship or accompaniment. إنَّ اللهَ مَعَ الصابرين — "God is with the patient."</div>
+      </div>
+      <div class="word-card">
+        <div class="arabic">بَيْنَ</div>
+        <div class="translit">bayna</div>
+        <div class="meaning">Between / among</div>
+        <span class="grammar-tag tag-prep">Preposition</span>
+        <span class="register-badge reg-all"><span class="dot"></span>All Arabic</span>
+        <div class="explanation">Spatial or relational "between." Often doubled: بينهم — "among them."</div>
+      </div>
+      <div class="word-card">
+        <div class="arabic">حَتَّى</div>
+        <div class="translit">ḥattā</div>
+        <div class="meaning">Until / even</div>
+        <span class="grammar-tag tag-prep">Preposition</span>
+        <span class="register-badge reg-all"><span class="dot"></span>All Arabic</span>
+        <div class="explanation">Marks an endpoint. Can also mean "even" (inclusive emphasis). One of the few Arabic words that can be a preposition, conjunction, or particle.</div>
+      </div>
+      <div class="word-card">
+        <div class="arabic">عِنْدَ</div>
+        <div class="translit">ʿinda</div>
+        <div class="meaning">At / in the possession of</div>
+        <span class="grammar-tag tag-prep">Preposition</span>
+        <span class="register-badge reg-all"><span class="dot"></span>All Arabic</span>
+        <div class="explanation">Proximity or possession. عِندَ اللهِ — "with God / in God's sight."</div>
+      </div>
+    </div>
+
+    <a href="#" class="back-top">↑ Back to top</a>
+  </div>
+
+  <!-- ═══════════════════════════════════════ -->
+  <!-- SECTION 4: Single-Letter Clitics -->
+  <!-- ═══════════════════════════════════════ -->
+  <div class="section" id="clitics">
+    <div class="section-header">
+      <h2>Single-Letter Clitics</h2>
+      <span class="ar-title">الحروف المتّصلة</span>
+    </div>
+    <p class="section-intro">
+      These are the invisible architecture of Quranic Arabic. Single-letter prepositions and conjunctions attach directly to the following word
+      with no space — <em>بِسْمِ</em> is actually <strong>بِ + اسْم</strong> ("in/by + name"). Recognizing these clitics is the single most important
+      skill for reading the Quran, because almost every phrase contains at least one.
+    </p>
+
+    <div class="feature-card">
+      <div class="arabic">بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ</div>
+      <div class="translit">bi-smi llāhi r-raḥmāni r-raḥīm</div>
+      <div class="meaning">"In the name of God, the Most Gracious, the Most Merciful"</div>
+      <div class="explanation">
+        The Basmala — the most recited Arabic phrase on Earth. Notice: <strong>بِسْمِ</strong> is a contraction.
+        The بِـ is the clitic preposition "in/by," attached to اسْم ("name"). When hamzat al-waṣl (ٱ) is preceded by a clitic,
+        the initial alef drops entirely, leaving بِسْمِ instead of *بِاسْمِ.
+      </div>
+      <div class="decomp">
+        <div class="decomp-part">
+          <div class="ar">بِـ</div>
+          <div class="en">in / by</div>
+        </div>
+        <span class="decomp-plus">+</span>
+        <div class="decomp-part">
+          <div class="ar">اسْم</div>
+          <div class="en">name</div>
+        </div>
+        <span class="decomp-plus">+</span>
+        <div class="decomp-part">
+          <div class="ar">الله</div>
+          <div class="en">God</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="word-grid" style="margin-top: 20px;">
+      <div class="word-card">
+        <div class="arabic">بِـ</div>
+        <div class="translit">bi-</div>
+        <div class="meaning">In / by / with</div>
+        <span class="grammar-tag tag-prep">Clitic preposition</span>
+        <span class="register-badge reg-all"><span class="dot"></span>All Arabic</span>
+        <div class="explanation">
+          The Swiss Army knife of Arabic prepositions: means "in" (بالمدينة — "in the city"),
+          "by" (بالله — "by God"), or "with" (instrumental — بالسيف — "with the sword").
+        </div>
+      </div>
+      <div class="word-card">
+        <div class="arabic">لِـ</div>
+        <div class="translit">li-</div>
+        <div class="meaning">For / to / belonging to</div>
+        <span class="grammar-tag tag-prep">Clitic preposition</span>
+        <span class="register-badge reg-all"><span class="dot"></span>All Arabic</span>
+        <div class="explanation">
+          Indicates possession (لِلّه — "belonging to God"), purpose (لِيَعْلَمَ — "so that He knows"),
+          or benefit (لَكُم — "for you").
+        </div>
+        <div class="verse-example">
+          <div class="verse-ar"><span class="highlight">لِ</span>إِيلَافِ قُرَيْشٍ</div>
+          <div class="verse-en">"For the accustomed security of the Quraysh"</div>
+          <div class="verse-ref">Quraysh (106:1)</div>
+        </div>
+      </div>
+      <div class="word-card">
+        <div class="arabic">كَـ</div>
+        <div class="translit">ka-</div>
+        <div class="meaning">Like / as</div>
+        <span class="grammar-tag tag-prep">Clitic preposition</span>
+        <span class="register-badge reg-all"><span class="dot"></span>All Arabic</span>
+        <div class="explanation">
+          Comparison. كَمَثَلِ — "like the example of." Very common in Quranic parables.
+        </div>
+        <div class="verse-example">
+          <div class="verse-ar">لَيْسَ <span class="highlight">كَ</span>مِثْلِهِ شَيْءٌ</div>
+          <div class="verse-en">"There is nothing like unto Him"</div>
+          <div class="verse-ref">Ash-Shūrā (42:11)</div>
+        </div>
+      </div>
+      <div class="word-card">
+        <div class="arabic">وَ</div>
+        <div class="translit">wa-</div>
+        <div class="meaning">And / by (oath)</div>
+        <span class="grammar-tag tag-conj">Clitic conjunction</span>
+        <span class="register-badge reg-all"><span class="dot"></span>All Arabic</span>
+        <div class="explanation">
+          As a conjunction, simply "and." The oath usage (وَالله) is common across all registers. But at the start of a verse/oath, it means "By...!" — وَالْفَجْرِ ("By the dawn!").
+          The most frequent word in the Quran.
+        </div>
+        <div class="verse-example">
+          <div class="verse-ar"><span class="highlight">وَ</span>الْعَصْرِ ۝ إِنَّ الْإِنسَانَ لَفِي خُسْرٍ</div>
+          <div class="verse-en">"By time! Indeed, mankind is in loss."</div>
+          <div class="verse-ref">Al-ʿAṣr (103:1–2)</div>
+        </div>
+      </div>
+      <div class="word-card">
+        <div class="arabic">فَـ</div>
+        <div class="translit">fa-</div>
+        <div class="meaning">So / then / and so</div>
+        <span class="grammar-tag tag-conj">Clitic conjunction</span>
+        <span class="register-badge reg-all"><span class="dot"></span>All Arabic</span>
+        <div class="explanation">
+          Unlike وَ (simple "and"), فَ implies <strong>sequence or consequence</strong>: "and <em>then</em>," "and <em>so</em>."
+          فَسَجَدُوا — "and so they prostrated." Often marks cause→effect.
+        </div>
+      </div>
+    </div>
+
+    <div class="concept-box">
+      <h3>💡 How clitics stack</h3>
+      <p>
+        Arabic clitics can stack on both sides of a word. A single "word" like <strong>أَفَبِعَهْدِهِمْ</strong> decomposes into
+        five meaningful parts:
+      </p>
+      <div class="decomp" style="margin-top: 12px; justify-content: center;">
+        <div class="decomp-part">
+          <div class="ar">أَ</div>
+          <div class="en">? (question)</div>
+        </div>
+        <span class="decomp-plus">+</span>
+        <div class="decomp-part">
+          <div class="ar">فَـ</div>
+          <div class="en">so/then</div>
+        </div>
+        <span class="decomp-plus">+</span>
+        <div class="decomp-part">
+          <div class="ar">بِـ</div>
+          <div class="en">in/with</div>
+        </div>
+        <span class="decomp-plus">+</span>
+        <div class="decomp-part">
+          <div class="ar">عَهْد</div>
+          <div class="en">covenant</div>
+        </div>
+        <span class="decomp-plus">+</span>
+        <div class="decomp-part">
+          <div class="ar">ـهِمْ</div>
+          <div class="en">their</div>
+        </div>
+      </div>
+      <p style="margin-top: 10px;">
+        "Is it then by their covenant...?" — Five morphemes, written as one word. This is why clitic awareness is essential for Quran reading.
+      </p>
+    </div>
+
+    <a href="#" class="back-top">↑ Back to top</a>
+  </div>
+
+  <!-- ═══════════════════════════════════════ -->
+  <!-- SECTION 5: Conjunctions -->
+  <!-- ═══════════════════════════════════════ -->
+  <div class="section" id="conjunctions">
+    <div class="section-header">
+      <h2>Conjunctions</h2>
+      <span class="ar-title">حروف العطف</span>
+    </div>
+    <p class="section-intro">
+      Arabic conjunctions (حروف العطف, ḥurūf al-ʿaṭf — "letters of coordination") link words, phrases, or clauses. Each carries a different nuance:
+      <em>وَ</em> is neutral "and," <em>فَ</em> implies sequence, <em>ثُمَّ</em> implies a time gap, and <em>بَلْ</em> corrects or contradicts.
+      The Quran uses these distinctions with precision.
+    </p>
+
+    <div class="word-grid">
+      <div class="word-card">
+        <div class="arabic">ثُمَّ</div>
+        <div class="translit">thumma</div>
+        <div class="meaning">Then / and then (after a delay)</div>
+        <span class="grammar-tag tag-conj">Conjunction</span>
+        <span class="register-badge reg-all"><span class="dot"></span>All Arabic</span>
+        <div class="explanation">
+          Unlike فَ (immediate sequence), ثُمَّ implies a <strong>gap in time</strong>. "God created you, <em>thumma</em> He will cause you to die" — creation and death are separated by a lifetime.
+        </div>
+      </div>
+      <div class="word-card">
+        <div class="arabic">أَوْ</div>
+        <div class="translit">aw</div>
+        <div class="meaning">Or</div>
+        <span class="grammar-tag tag-conj">Conjunction</span>
+        <span class="register-badge reg-all"><span class="dot"></span>All Arabic</span>
+        <div class="explanation">Choice between alternatives. In legal verses, distinguishes options for expiation or worship.</div>
+      </div>
+      <div class="word-card">
+        <div class="arabic">لٰكِنَّ / لٰكِنْ</div>
+        <div class="translit">lākinna / lākin</div>
+        <div class="meaning">But / however</div>
+        <span class="grammar-tag tag-conj">Conjunction</span>
+        <span class="register-badge reg-all"><span class="dot"></span>All Arabic</span>
+        <div class="explanation">
+          Adversative — introduces a contrast. لٰكِنَّ (with shadda) is a "sister of إنَّ" that takes a noun in the accusative.
+          لٰكِنْ (without shadda) is a simple conjunction.
+        </div>
+      </div>
+      <div class="word-card">
+        <div class="arabic">بَلْ</div>
+        <div class="translit">bal</div>
+        <div class="meaning">Rather / nay / but instead</div>
+        <span class="grammar-tag tag-conj">Conjunction</span>
+        <span class="register-badge reg-formal"><span class="dot"></span>Classical &amp; Formal MSA</span>
+        <div class="explanation">
+          Correction or escalation. Negates what came before and replaces it. بَلْ هُمْ قَوْمٌ يَعْدِلُونَ — "Rather, they are a people who deviate."
+        </div>
+      </div>
+      <div class="word-card">
+        <div class="arabic">أَنَّ / أَنْ</div>
+        <div class="translit">anna / an</div>
+        <div class="meaning">That (content clause)</div>
+        <span class="grammar-tag tag-conj">Conjunction</span>
+        <span class="register-badge reg-formal"><span class="dot"></span>Classical &amp; Formal MSA</span>
+        <div class="explanation">
+          Introduces noun clauses. أَنَّ (with shadda): "that" after verbs of knowledge. أَنْ (without): "to" before subjunctive verbs. يُرِيدُ أَنْ يُخْرِجَكُم — "He wants to expel you."
+        </div>
+      </div>
+      <div class="word-card">
+        <div class="arabic">إِنَّ</div>
+        <div class="translit">inna</div>
+        <div class="meaning">Indeed / verily</div>
+        <span class="grammar-tag tag-emph">Emphatic particle</span>
+        <span class="register-badge reg-formal"><span class="dot"></span>Classical &amp; Formal MSA</span>
+        <div class="explanation">
+          The great emphasizer. Opens hundreds of Quranic statements. Puts the following noun in accusative. إِنَّ اللهَ عَزِيزٌ حَكِيمٌ — "Indeed God is Mighty, Wise."
+        </div>
+        <div class="verse-example">
+          <div class="verse-ar"><span class="highlight">إِنَّ</span> مَعَ الْعُسْرِ يُسْرًا</div>
+          <div class="verse-en">"Indeed, with hardship comes ease."</div>
+          <div class="verse-ref">Ash-Sharḥ (94:6)</div>
+        </div>
+      </div>
+    </div>
+
+    <a href="#" class="back-top">↑ Back to top</a>
+  </div>
+
+  <!-- ═══════════════════════════════════════ -->
+  <!-- SECTION 6: Personal Pronouns -->
+  <!-- ═══════════════════════════════════════ -->
+  <div class="section" id="pronouns">
+    <div class="section-header">
+      <h2>Personal Pronouns</h2>
+      <span class="ar-title">الضمائر المنفصلة</span>
+    </div>
+    <p class="section-intro">
+      Arabic distinguishes 12 personal pronouns: 3 persons × 2 genders × 2 numbers (singular, plural), plus a dual form.
+      These are the independent/subject forms. In the Quran, God refers to Himself as <em>أنا</em> (I), <em>نحن</em> (We — the royal "We," not plural),
+      or in the third person <em>هو</em> (He). The choice carries theological meaning.
+    </p>
+
+    <div class="word-grid">
+      <div class="word-card">
+        <div class="arabic">هُوَ</div>
+        <div class="translit">huwa</div>
+        <div class="meaning">He / it</div>
+        <span class="grammar-tag tag-pron">Pronoun — 3rd m. sg.</span>
+        <span class="register-badge reg-all"><span class="dot"></span>All Arabic</span>
+        <div class="explanation">
+          Often refers to God. قُلْ هُوَ اللهُ أَحَدٌ — "Say: He is God, the One." Surah Al-Ikhlāṣ opens with this word.
+        </div>
+      </div>
+      <div class="word-card">
+        <div class="arabic">هِيَ</div>
+        <div class="translit">hiya</div>
+        <div class="meaning">She / it (f.)</div>
+        <span class="grammar-tag tag-pron">Pronoun — 3rd f. sg.</span>
+        <span class="register-badge reg-all"><span class="dot"></span>All Arabic</span>
+        <div class="explanation">
+          Also used for non-gendered "it" when referring to feminine nouns (most abstract nouns in Arabic are grammatically feminine).
+        </div>
+      </div>
+      <div class="word-card">
+        <div class="arabic">هُمْ</div>
+        <div class="translit">hum</div>
+        <div class="meaning">They (m.)</div>
+        <span class="grammar-tag tag-pron">Pronoun — 3rd m. pl.</span>
+        <span class="register-badge reg-all"><span class="dot"></span>All Arabic</span>
+        <div class="explanation">Extremely frequent. أُولٰئِكَ هُمُ الْمُفْلِحُونَ — "Those are the successful ones."</div>
+      </div>
+      <div class="word-card">
+        <div class="arabic">نَحْنُ</div>
+        <div class="translit">naḥnu</div>
+        <div class="meaning">We</div>
+        <span class="grammar-tag tag-pron">Pronoun — 1st pl.</span>
+        <span class="register-badge reg-all"><span class="dot"></span>All Arabic</span>
+        <div class="explanation">
+          When God says نَحْنُ, it is the <strong>royal "We"</strong> (تعظيم), not a plurality of gods.
+          إِنَّا نَحْنُ نَزَّلْنَا الذِّكْرَ — "Indeed, it is We who sent down the Reminder."
+        </div>
+      </div>
+      <div class="word-card">
+        <div class="arabic">أَنْتَ</div>
+        <div class="translit">anta</div>
+        <div class="meaning">You (m. singular)</div>
+        <span class="grammar-tag tag-pron">Pronoun — 2nd m. sg.</span>
+        <span class="register-badge reg-all"><span class="dot"></span>All Arabic</span>
+        <div class="explanation">Addresses a single male. Often addresses the Prophet: إِنَّكَ أَنْتَ العَلِيمُ — "Indeed, You are the All-Knowing."</div>
+      </div>
+      <div class="word-card">
+        <div class="arabic">أَنَا</div>
+        <div class="translit">anā</div>
+        <div class="meaning">I</div>
+        <span class="grammar-tag tag-pron">Pronoun — 1st sg.</span>
+        <span class="register-badge reg-all"><span class="dot"></span>All Arabic</span>
+        <div class="explanation">
+          When God says أَنَا, it signals intimate, direct speech. إِنَّنِي أَنَا اللهُ — "Indeed, I am God" (Ṭā Hā 20:14).
+        </div>
+      </div>
+    </div>
+
+    <a href="#" class="back-top">↑ Back to top</a>
+  </div>
+
+  <!-- ═══════════════════════════════════════ -->
+  <!-- SECTION 7: Pronoun Suffixes -->
+  <!-- ═══════════════════════════════════════ -->
+  <div class="section" id="suffixes">
+    <div class="section-header">
+      <h2>Pronoun Suffixes</h2>
+      <span class="ar-title">الضمائر المتّصلة</span>
+    </div>
+    <p class="section-intro">
+      While independent pronouns stand alone, <strong>attached pronouns</strong> (الضمائر المتّصلة) fuse onto the end of verbs, nouns, and prepositions.
+      They're the most compact way Arabic expresses "his," "their," "you," "us," etc. A single suffix turns <em>كتاب</em> (book) into
+      <em>كتابهم</em> (their book) — no separate word needed. You'll see these on nearly every line of the Quran.
+    </p>
+
+    <table class="suffix-table">
+      <thead>
+        <tr>
+          <th>Suffix</th>
+          <th>Transliteration</th>
+          <th>Meaning</th>
+          <th>Example</th>
+          <th>Register</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>ـهُ</td>
+          <td>-hu</td>
+          <td>him / his / it</td>
+          <td>رَبُّهُ — "his Lord"</td>
+          <td class="reg-cell"><span class="register-badge reg-all"><span class="dot"></span>All</span></td>
+        </tr>
+        <tr>
+          <td>ـها</td>
+          <td>-hā</td>
+          <td>her / its</td>
+          <td>أَهْلَها — "its people"</td>
+          <td class="reg-cell"><span class="register-badge reg-all"><span class="dot"></span>All</span></td>
+        </tr>
+        <tr>
+          <td>ـهُمْ</td>
+          <td>-hum</td>
+          <td>them / their</td>
+          <td>قُلُوبِهِمْ — "their hearts"</td>
+          <td class="reg-cell"><span class="register-badge reg-all"><span class="dot"></span>All</span></td>
+        </tr>
+        <tr>
+          <td>ـهُنَّ</td>
+          <td>-hunna</td>
+          <td>them (f.) / their (f.)</td>
+          <td>أَجَلُهُنَّ — "their (f.) term"</td>
+          <td class="reg-cell"><span class="register-badge reg-formal"><span class="dot"></span>Formal</span></td>
+        </tr>
+        <tr>
+          <td>ـهُما</td>
+          <td>-humā</td>
+          <td>them (dual) / their (dual)</td>
+          <td>بَيْنَهُما — "between them two"</td>
+          <td class="reg-cell"><span class="register-badge reg-formal"><span class="dot"></span>Formal</span></td>
+        </tr>
+        <tr>
+          <td>ـكَ</td>
+          <td>-ka</td>
+          <td>you (m. sg.) / your</td>
+          <td>رَبُّكَ — "your Lord"</td>
+          <td class="reg-cell"><span class="register-badge reg-all"><span class="dot"></span>All</span></td>
+        </tr>
+        <tr>
+          <td>ـكُمْ</td>
+          <td>-kum</td>
+          <td>you (pl.) / your</td>
+          <td>رَبُّكُمْ — "your (pl.) Lord"</td>
+          <td class="reg-cell"><span class="register-badge reg-all"><span class="dot"></span>All</span></td>
+        </tr>
+        <tr>
+          <td>ـكُما</td>
+          <td>-kumā</td>
+          <td>you (dual)</td>
+          <td>رَبُّكُما — "Lord of you two"</td>
+          <td class="reg-cell"><span class="register-badge reg-formal"><span class="dot"></span>Formal</span></td>
+        </tr>
+        <tr>
+          <td>ـنا</td>
+          <td>-nā</td>
+          <td>us / our</td>
+          <td>رَبَّنا — "our Lord"</td>
+          <td class="reg-cell"><span class="register-badge reg-all"><span class="dot"></span>All</span></td>
+        </tr>
+        <tr>
+          <td>ـي / ـنِي</td>
+          <td>-ī / -nī</td>
+          <td>me / my</td>
+          <td>رَبِّي — "my Lord"</td>
+          <td class="reg-cell"><span class="register-badge reg-all"><span class="dot"></span>All</span></td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="concept-box">
+      <h3>💡 One word, three pieces of information</h3>
+      <p>
+        When a suffix attaches to a preposition + noun, you get a complete phrase in one written word:
+        <strong>عَلَيْهِمْ</strong> = عَلَى (upon) + هِمْ (them) → "upon them."
+        <strong>بِرَبِّهِمْ</strong> = بِـ (in/by) + رَبّ (Lord) + هِمْ (their) → "in their Lord."
+        This density is why Quranic Arabic packs so much meaning into so few words — and why recognizing suffixes
+        is essential for reading fluency.
+      </p>
+    </div>
+
+    <a href="#" class="back-top">↑ Back to top</a>
+  </div>
+
+  <!-- ═══════════════════════════════════════ -->
+  <!-- SECTION 8: Demonstratives -->
+  <!-- ═══════════════════════════════════════ -->
+  <div class="section" id="demonstratives">
+    <div class="section-header">
+      <h2>Demonstrative Pronouns</h2>
+      <span class="ar-title">أسماء الإشارة</span>
+    </div>
+    <p class="section-intro">
+      Arabic demonstratives distinguish gender, number, AND proximity (near vs. far). In the Quran, <em>ذٰلِكَ</em> ("that," distant)
+      often refers to God's Book or decree with a tone of reverence and grandeur, while <em>هٰذا</em> ("this," near) refers to present, tangible things.
+    </p>
+
+    <div class="word-grid">
+      <div class="word-card">
+        <div class="arabic">هٰذَا</div>
+        <div class="translit">hādhā</div>
+        <div class="meaning">This (m.)</div>
+        <span class="grammar-tag tag-dem">Near demonstrative</span>
+        <span class="register-badge reg-all"><span class="dot"></span>All Arabic</span>
+        <div class="explanation">Points to something present or close. هٰذَا بَلَاغٌ لِلنَّاسِ — "This is a message for the people."</div>
+      </div>
+      <div class="word-card">
+        <div class="arabic">هٰذِهِ</div>
+        <div class="translit">hādhihi</div>
+        <div class="meaning">This (f.)</div>
+        <span class="grammar-tag tag-dem">Near demonstrative</span>
+        <span class="register-badge reg-all"><span class="dot"></span>All Arabic</span>
+        <div class="explanation">For feminine nouns. هٰذِهِ جَهَنَّمُ — "This is Hell."</div>
+      </div>
+      <div class="word-card">
+        <div class="arabic">ذٰلِكَ</div>
+        <div class="translit">dhālika</div>
+        <div class="meaning">That (m.)</div>
+        <span class="grammar-tag tag-dem">Far demonstrative</span>
+        <span class="register-badge reg-all"><span class="dot"></span>All Arabic</span>
+        <div class="explanation">
+          Distance can be physical or reverential. The Quran's second verse uses it grandly:
+        </div>
+        <div class="verse-example">
+          <div class="verse-ar"><span class="highlight">ذَٰلِكَ</span> الْكِتَابُ لَا رَيْبَ فِيهِ</div>
+          <div class="verse-en">"That is the Book — no doubt in it."</div>
+          <div class="verse-ref">Al-Baqarah (2:2)</div>
+        </div>
+      </div>
+      <div class="word-card">
+        <div class="arabic">تِلْكَ</div>
+        <div class="translit">tilka</div>
+        <div class="meaning">That (f.)</div>
+        <span class="grammar-tag tag-dem">Far demonstrative</span>
+        <span class="register-badge reg-all"><span class="dot"></span>All Arabic</span>
+        <div class="explanation">
+          For feminine distant reference. تِلْكَ الدَّارُ الْآخِرَةُ — "That is the home of the Hereafter."
+        </div>
+      </div>
+      <div class="word-card">
+        <div class="arabic">هٰؤُلَاءِ</div>
+        <div class="translit">hāʾulāʾi</div>
+        <div class="meaning">These (pl.)</div>
+        <span class="grammar-tag tag-dem">Near demonstrative</span>
+        <span class="register-badge reg-all"><span class="dot"></span>All Arabic</span>
+        <div class="explanation">Plural demonstrative for both genders.</div>
+      </div>
+      <div class="word-card">
+        <div class="arabic">أُولٰئِكَ</div>
+        <div class="translit">ulāʾika</div>
+        <div class="meaning">Those (pl.)</div>
+        <span class="grammar-tag tag-dem">Far demonstrative</span>
+        <span class="register-badge reg-all"><span class="dot"></span>All Arabic</span>
+        <div class="explanation">
+          One of the most common words in the Quran. أُولٰئِكَ عَلَى هُدًى مِّن رَّبِّهِمْ — "Those are upon guidance from their Lord."
+        </div>
+      </div>
+    </div>
+
+    <a href="#" class="back-top">↑ Back to top</a>
+  </div>
+
+  <!-- ═══════════════════════════════════════ -->
+  <!-- SECTION 9: Relative Pronouns -->
+  <!-- ═══════════════════════════════════════ -->
+  <div class="section" id="relative">
+    <div class="section-header">
+      <h2>Relative Pronouns</h2>
+      <span class="ar-title">الأسماء الموصولة</span>
+    </div>
+    <p class="section-intro">
+      Relative pronouns connect a noun to a descriptive clause: "those <em>who</em> believe," "the book <em>which</em> was sent down."
+      Arabic relative pronouns agree in gender and number with the noun they refer to — so <em>الَّذِي</em> is for masculine singular,
+      <em>الَّتِي</em> for feminine singular, and <em>الَّذِينَ</em> for masculine plural. This is the "Ladheena" you encounter
+      on almost every page of the Quran.
+    </p>
+
+    <div class="feature-card">
+      <div class="arabic">الَّذِينَ آمَنُوا وَعَمِلُوا الصَّالِحَاتِ</div>
+      <div class="translit">alladhīna āmanū wa-ʿamilū ṣ-ṣāliḥāt</div>
+      <div class="meaning">"Those who believed and did righteous deeds"</div>
+      <div class="explanation">
+        This phrase appears <strong>over 60 times</strong> in the Quran — it's the single most repeated description of the believers.
+        <em>الَّذِينَ</em> (alladhīna) is the masculine plural relative pronoun "those who / who."
+        Whenever the Quran describes a group, this is the word that introduces them.
+      </div>
+    </div>
+
+    <div class="word-grid" style="margin-top: 20px;">
+      <div class="word-card">
+        <div class="arabic">الَّذِي</div>
+        <div class="translit">alladhī</div>
+        <div class="meaning">Who / which / that (m. sg.)</div>
+        <span class="grammar-tag tag-rel">Relative pronoun</span>
+        <span class="register-badge reg-all"><span class="dot"></span>All Arabic</span>
+        <div class="explanation">
+          Masculine singular. الحَمْدُ لِلَّهِ الَّذِي خَلَقَ السَّمَاوَاتِ — "Praise to God who created the heavens."
+        </div>
+      </div>
+      <div class="word-card">
+        <div class="arabic">الَّتِي</div>
+        <div class="translit">allatī</div>
+        <div class="meaning">Who / which / that (f. sg.)</div>
+        <span class="grammar-tag tag-rel">Relative pronoun</span>
+        <span class="register-badge reg-all"><span class="dot"></span>All Arabic</span>
+        <div class="explanation">Feminine singular. الجَنَّةَ الَّتِي وُعِدَ المُتَّقُونَ — "The Garden which the righteous were promised."</div>
+      </div>
+      <div class="word-card">
+        <div class="arabic">الَّذِينَ</div>
+        <div class="translit">alladhīna</div>
+        <div class="meaning">Those who / who (m. pl.)</div>
+        <span class="grammar-tag tag-rel">Relative pronoun</span>
+        <span class="register-badge reg-all"><span class="dot"></span>All Arabic</span>
+        <div class="explanation">
+          The most frequent relative pronoun in the Quran. Appears in hundreds of verses. Introduces believers, disbelievers, and every group in between.
+        </div>
+        <div class="verse-example">
+          <div class="verse-ar">صِرَاطَ <span class="highlight">الَّذِينَ</span> أَنْعَمْتَ عَلَيْهِمْ</div>
+          <div class="verse-en">"The path of those You have blessed"</div>
+          <div class="verse-ref">Al-Fātiḥah (1:7)</div>
+        </div>
+      </div>
+      <div class="word-card">
+        <div class="arabic">اللَّذَانِ</div>
+        <div class="translit">alladhāni</div>
+        <div class="meaning">Who / which (m. dual)</div>
+        <span class="grammar-tag tag-rel">Relative pronoun</span>
+        <span class="register-badge reg-formal"><span class="dot"></span>Classical &amp; Formal MSA</span>
+        <div class="explanation">Masculine dual — for exactly two male referents. Rare even in written MSA; the dual relative is one of the least-used forms in modern Arabic.</div>
+      </div>
+      <div class="word-card">
+        <div class="arabic">اللَّتَانِ</div>
+        <div class="translit">allatāni</div>
+        <div class="meaning">Who / which (f. dual)</div>
+        <span class="grammar-tag tag-rel">Relative pronoun</span>
+        <span class="register-badge reg-formal"><span class="dot"></span>Classical &amp; Formal MSA</span>
+        <div class="explanation">Feminine dual — for exactly two female referents. Like اللَّذانِ, this form is largely confined to formal written Arabic and classical texts.</div>
+      </div>
+      <div class="word-card">
+        <div class="arabic">مَا</div>
+        <div class="translit">mā</div>
+        <div class="meaning">What / that which</div>
+        <span class="grammar-tag tag-rel">Relative pronoun</span>
+        <span class="register-badge reg-all"><span class="dot"></span>All Arabic</span>
+        <div class="explanation">
+          Used for non-human / abstract referents. وَلَا تَقْفُ مَا لَيْسَ لَكَ بِهِ عِلْمٌ — "And do not pursue that of which you have no knowledge."
+          Also doubles as a question word ("what?") and a negation particle.
+        </div>
+      </div>
+      <div class="word-card">
+        <div class="arabic">مَنْ</div>
+        <div class="translit">man</div>
+        <div class="meaning">Who / whoever</div>
+        <span class="grammar-tag tag-rel">Relative pronoun</span>
+        <span class="register-badge reg-all"><span class="dot"></span>All Arabic</span>
+        <div class="explanation">
+          For human referents (both genders). مَنْ يَتَّقِ اللهَ يَجْعَلْ لَهُ مَخْرَجًا — "Whoever fears God, He will make a way out for him." Also a question word ("who?").
+        </div>
+      </div>
+    </div>
+
+    <a href="#" class="back-top">↑ Back to top</a>
+  </div>
+
+  <!-- ═══════════════════════════════════════ -->
+  <!-- SECTION 10: Negation -->
+  <!-- ═══════════════════════════════════════ -->
+  <div class="section" id="negation">
+    <div class="section-header">
+      <h2>Negation Particles</h2>
+      <span class="ar-title">أدوات النفي</span>
+    </div>
+    <p class="section-intro">
+      Arabic has a rich negation system where each particle operates in a specific tense and grammatical environment.
+      This is one area where Arabic is more precise than English — instead of one "not," there are distinct words
+      for negating past, present, future, and existential statements.
+    </p>
+
+    <div class="word-grid">
+      <div class="word-card">
+        <div class="arabic">لَا</div>
+        <div class="translit">lā</div>
+        <div class="meaning">No / not</div>
+        <span class="grammar-tag tag-neg">General negation</span>
+        <span class="register-badge reg-all"><span class="dot"></span>All Arabic</span>
+        <div class="explanation">
+          The Swiss Army knife of negation. Negates present/future verbs, or functions as an absolute negation (لَا إِلٰهَ إِلَّا اللهُ — "there is no god but God").
+        </div>
+        <div class="verse-example">
+          <div class="verse-ar"><span class="highlight">لَا</span> إِكْرَاهَ فِي الدِّينِ</div>
+          <div class="verse-en">"There is no compulsion in religion."</div>
+          <div class="verse-ref">Al-Baqarah (2:256)</div>
+        </div>
+      </div>
+      <div class="word-card">
+        <div class="arabic">لَمْ</div>
+        <div class="translit">lam</div>
+        <div class="meaning">Did not (past negation)</div>
+        <span class="grammar-tag tag-neg">Past negation</span>
+        <span class="register-badge reg-formal"><span class="dot"></span>Classical &amp; Formal MSA</span>
+        <div class="explanation">
+          Negates the past tense but takes a <strong>present-tense (jussive) verb</strong>. لَمْ يَلِدْ وَلَمْ يُولَدْ — "He neither begot nor was begotten." This is the standard past-tense negation in the Quran.
+        </div>
+      </div>
+      <div class="word-card">
+        <div class="arabic">لَنْ</div>
+        <div class="translit">lan</div>
+        <div class="meaning">Will not (emphatic future negation)</div>
+        <span class="grammar-tag tag-neg">Future negation</span>
+        <span class="register-badge reg-formal"><span class="dot"></span>Classical &amp; Formal MSA</span>
+        <div class="explanation">
+          Negates the future emphatically. Takes a subjunctive verb. لَنْ تَنَالُوا الْبِرَّ حَتَّىٰ تُنفِقُوا — "You will never attain righteousness until you spend."
+        </div>
+      </div>
+      <div class="word-card">
+        <div class="arabic">لَيْسَ</div>
+        <div class="translit">laysa</div>
+        <div class="meaning">Is not / are not</div>
+        <span class="grammar-tag tag-neg">Existential negation</span>
+        <span class="register-badge reg-all"><span class="dot"></span>All Arabic</span>
+        <div class="explanation">
+          Negates identity or existence in the present. Grammatically a verb but functions like "is not." لَيْسَ كَمِثْلِهِ شَيْءٌ — "There is nothing like Him."
+        </div>
+      </div>
+      <div class="word-card">
+        <div class="arabic">مَا</div>
+        <div class="translit">mā</div>
+        <div class="meaning">Not (present/past negation)</div>
+        <span class="grammar-tag tag-neg">Negation particle</span>
+        <span class="register-badge reg-all"><span class="dot"></span>All Arabic</span>
+        <div class="explanation">
+          Versatile negator. Negates past verbs: مَا كَذَبَ — "he did not lie." Also negates nominal sentences in Ḥijāzī dialect (used in Quran): مَا هٰذَا بَشَرًا — "this is not a human."
+        </div>
+      </div>
+    </div>
+
+    <div class="concept-box">
+      <h3>💡 Tense encoded in the negation word</h3>
+      <p>
+        English uses "not" for all tenses and relies on the verb to show when: "did not go," "will not go," "does not go."
+        Arabic encodes the tense <em>in the negation particle itself</em>:<br><br>
+        <strong>مَا ذَهَبَ</strong> — "he did not go" (past, using past verb)<br>
+        <strong>لَمْ يَذْهَبْ</strong> — "he did not go" (past, using jussive present verb — more formal)<br>
+        <strong>لَا يَذْهَبُ</strong> — "he does not go" (present)<br>
+        <strong>لَنْ يَذْهَبَ</strong> — "he will not go" (future, emphatic)<br><br>
+        Once you internalize which particle goes with which tense, negation in Arabic becomes more precise than in English.
+      </p>
+    </div>
+
+    <a href="#" class="back-top">↑ Back to top</a>
+  </div>
+
+  <!-- ═══════════════════════════════════════ -->
+  <!-- SECTION 11: Emphasis Particles -->
+  <!-- ═══════════════════════════════════════ -->
+  <div class="section" id="emphasis">
+    <div class="section-header">
+      <h2>Emphasis & Assertion Particles</h2>
+      <span class="ar-title">أدوات التوكيد</span>
+    </div>
+    <p class="section-intro">
+      These particles add layers of emphasis, certainty, or contrast. The Quran uses them extensively to mark
+      statements of absolute truth, divine promises, and solemn oaths. Recognizing them helps you feel the <em>weight</em>
+      of a verse — whether it's a gentle reminder or an emphatic declaration.
+    </p>
+
+    <div class="word-grid">
+      <div class="word-card">
+        <div class="arabic">إِنَّ</div>
+        <div class="translit">inna</div>
+        <div class="meaning">Indeed / verily</div>
+        <span class="grammar-tag tag-emph">Emphatic particle</span>
+        <span class="register-badge reg-formal"><span class="dot"></span>Classical &amp; Formal MSA</span>
+        <div class="explanation">
+          The queen of Arabic emphasis. Opens assertions of fact. One of the "sisters of إنَّ" — a group of particles that take a noun in accusative + a predicate.
+          Appears in virtually every page of the Quran.
+        </div>
+      </div>
+      <div class="word-card">
+        <div class="arabic">قَدْ</div>
+        <div class="translit">qad</div>
+        <div class="meaning">Indeed (past) / may (present)</div>
+        <span class="grammar-tag tag-emph">Emphasis / possibility</span>
+        <span class="register-badge reg-formal"><span class="dot"></span>Classical &amp; Formal MSA</span>
+        <div class="explanation">
+          With past verbs: certainty — قَدْ أَفْلَحَ ("he has certainly succeeded"). With present verbs: possibility — قَدْ يَعْلَمُ ("He may well know"). Context determines which.
+        </div>
+        <div class="verse-example">
+          <div class="verse-ar"><span class="highlight">قَدْ</span> أَفْلَحَ الْمُؤْمِنُونَ</div>
+          <div class="verse-en">"Certainly the believers have succeeded."</div>
+          <div class="verse-ref">Al-Muʾminūn (23:1)</div>
+        </div>
+      </div>
+      <div class="word-card">
+        <div class="arabic">لَقَدْ</div>
+        <div class="translit">laqad</div>
+        <div class="meaning">Indeed / certainly (emphatic past)</div>
+        <span class="grammar-tag tag-emph">Double emphasis</span>
+        <span class="register-badge reg-formal"><span class="dot"></span>Classical &amp; Formal MSA</span>
+        <div class="explanation">
+          لَـ (emphatic lām) + قَدْ = double emphasis. The strongest way to assert that something happened. لَقَدْ خَلَقْنَا الْإِنسَانَ — "We have certainly created mankind."
+        </div>
+      </div>
+      <div class="word-card">
+        <div class="arabic">أَلَا</div>
+        <div class="translit">alā</div>
+        <div class="meaning">Verily! / Unquestionably!</div>
+        <span class="grammar-tag tag-emph">Attention particle</span>
+        <span class="register-badge reg-quran"><span class="dot"></span>Quranic / Classical</span>
+        <div class="explanation">
+          A rhetorical attention-grabber. Essentially confined to the Quran and classical poetry — you would never hear this in modern conversation or even most formal writing.. Calls the listener to pay close attention to an incontestable fact.
+        </div>
+        <div class="verse-example">
+          <div class="verse-ar"><span class="highlight">أَلَا</span> إِنَّ أَوْلِيَاءَ اللَّهِ لَا خَوْفٌ عَلَيْهِمْ</div>
+          <div class="verse-en">"Unquestionably, the allies of God — no fear will there be on them."</div>
+          <div class="verse-ref">Yūnus (10:62)</div>
+        </div>
+      </div>
+      <div class="word-card">
+        <div class="arabic">إِلَّا</div>
+        <div class="translit">illā</div>
+        <div class="meaning">Except / unless / but</div>
+        <span class="grammar-tag tag-emph">Exception particle</span>
+        <span class="register-badge reg-formal"><span class="dot"></span>Classical &amp; Formal MSA</span>
+        <div class="explanation">
+          Creates exception clauses. لَا إِلٰهَ إِلَّا اللهُ — "There is no god except God." The engine of the Islamic declaration of faith.
+        </div>
+      </div>
+      <div class="word-card">
+        <div class="arabic">أَمَّا</div>
+        <div class="translit">ammā</div>
+        <div class="meaning">As for...</div>
+        <span class="grammar-tag tag-emph">Topic marker</span>
+        <span class="register-badge reg-formal"><span class="dot"></span>Classical &amp; Formal MSA</span>
+        <div class="explanation">
+          Introduces a topic for comment, always followed by فَـ. فَأَمَّا الَّذِينَ آمَنُوا فَيَعْلَمُونَ — "As for those who believed, they know..."
+          Used to structure parallel comparisons (believers vs. disbelievers).
+        </div>
+      </div>
+    </div>
+
+    <a href="#" class="back-top">↑ Back to top</a>
+  </div>
+
+  <!-- ═══════════════════════════════════════ -->
+  <!-- SECTION 12: Conditionals -->
+  <!-- ═══════════════════════════════════════ -->
+  <div class="section" id="conditionals">
+    <div class="section-header">
+      <h2>Conditional & Temporal Particles</h2>
+      <span class="ar-title">أدوات الشرط والزمان</span>
+    </div>
+    <p class="section-intro">
+      Arabic conditional particles specify whether a condition is likely, unlikely, or purely hypothetical — a distinction English
+      makes clumsily through verb tense ("if he goes" vs. "if he were to go") but Arabic makes explicitly through the choice of particle.
+    </p>
+
+    <div class="word-grid">
+      <div class="word-card">
+        <div class="arabic">إِذَا</div>
+        <div class="translit">idhā</div>
+        <div class="meaning">When / if (likely)</div>
+        <span class="grammar-tag tag-cond">Conditional — likely</span>
+        <span class="register-badge reg-all"><span class="dot"></span>All Arabic</span>
+        <div class="explanation">
+          For conditions expected to happen. إِذَا جَاءَ نَصْرُ اللهِ — "When the victory of God comes" (not "if" — it <em>will</em> come). Takes past-tense verb for future meaning.
+        </div>
+        <div class="verse-example">
+          <div class="verse-ar"><span class="highlight">إِذَا</span> جَاءَ نَصْرُ اللَّهِ وَالْفَتْحُ</div>
+          <div class="verse-en">"When the victory of God has come and the conquest..."</div>
+          <div class="verse-ref">An-Naṣr (110:1)</div>
+        </div>
+      </div>
+      <div class="word-card">
+        <div class="arabic">إِنْ</div>
+        <div class="translit">in</div>
+        <div class="meaning">If (uncertain)</div>
+        <span class="grammar-tag tag-cond">Conditional — uncertain</span>
+        <span class="register-badge reg-all"><span class="dot"></span>All Arabic</span>
+        <div class="explanation">
+          For uncertain conditions — the outcome is unknown. وَإِنْ تَعُدُّوا نِعْمَةَ اللهِ لَا تُحْصُوهَا — "And if you should count the favors of God, you could not enumerate them."
+        </div>
+      </div>
+      <div class="word-card">
+        <div class="arabic">لَوْ</div>
+        <div class="translit">law</div>
+        <div class="meaning">If (hypothetical / contrary to fact)</div>
+        <span class="grammar-tag tag-cond">Conditional — counterfactual</span>
+        <span class="register-badge reg-all"><span class="dot"></span>All Arabic</span>
+        <div class="explanation">
+          For conditions that did NOT happen (counterfactual). لَوْ كُنتُ أَعْلَمُ الْغَيْبَ — "If I had known the unseen..." (but I don't).
+        </div>
+      </div>
+      <div class="word-card">
+        <div class="arabic">لَوْلَا</div>
+        <div class="translit">lawlā</div>
+        <div class="meaning">If not for / were it not for</div>
+        <span class="grammar-tag tag-cond">Conditional — but-for</span>
+        <span class="register-badge reg-formal"><span class="dot"></span>Classical &amp; Formal MSA</span>
+        <div class="explanation">
+          Counterfactual with a preventing element. لَوْلَا أَنتُمْ لَكُنَّا مُؤْمِنِينَ — "If not for you, we would have been believers."
+        </div>
+      </div>
+      <div class="word-card">
+        <div class="arabic">حَيْثُ</div>
+        <div class="translit">ḥaythu</div>
+        <div class="meaning">Where / wherever</div>
+        <span class="grammar-tag tag-cond">Locative</span>
+        <span class="register-badge reg-formal"><span class="dot"></span>Classical &amp; Formal MSA</span>
+        <div class="explanation">
+          Indicates location. وَحَيْثُ مَا كُنتُمْ فَوَلُّوا وُجُوهَكُمْ شَطْرَهُ — "Wherever you are, turn your faces toward it."
+        </div>
+      </div>
+      <div class="word-card">
+        <div class="arabic">كَيْ / لِكَيْ</div>
+        <div class="translit">kay / li-kay</div>
+        <div class="meaning">In order to / so that</div>
+        <span class="grammar-tag tag-cond">Purpose</span>
+        <span class="register-badge reg-formal"><span class="dot"></span>Classical &amp; Formal MSA</span>
+        <div class="explanation">
+          Introduces purpose clauses. كَيْ لَا يَكُونَ دُولَةً — "so that it does not become a perpetual distribution."
+          Takes subjunctive verb.
+        </div>
+      </div>
+    </div>
+
+    <div class="concept-box">
+      <h3>💡 The إذا / إنْ / لَوْ spectrum</h3>
+      <p>
+        These three conditionals form a probability spectrum that the Quran uses with precision:<br><br>
+        <strong>إِذَا</strong> — "When" (expected to happen). Used for resurrection, Day of Judgment, inevitable events.<br>
+        <strong>إِنْ</strong> — "If" (genuinely uncertain). Used for human choices, moral tests.<br>
+        <strong>لَوْ</strong> — "If" (didn't/won't happen). Used for counterfactuals, impossible scenarios.<br><br>
+        When the Quran says <strong>إِذَا</strong> السَّمَاءُ انشَقَّتْ ("When the sky splits open"), the choice of إِذَا tells you: this <em>will</em> happen.
+        It's not a question of "if."
+      </p>
+    </div>
+
+    <a href="#" class="back-top">↑ Back to top</a>
+  </div>
+
+  <!-- Footer -->
+  <div style="margin-top: 80px; padding-top: 32px; border-top: 1px solid var(--border); text-align: center; color: var(--text-dim); font-size: 0.85rem;">
+    <p>Generated for the Alif Arabic Learning Project</p>
+    <p style="margin-top: 8px; font-family: 'Scheherazade New', serif; font-size: 1.2rem; color: var(--gold-dark);">
+      رَبِّ زِدْنِي عِلْمًا
+    </p>
+    <p style="font-style: italic; margin-top: 4px;">"My Lord, increase me in knowledge." — Ṭā Hā 20:114</p>
+  </div>
+
+</div>
+
+</body>
+</html>

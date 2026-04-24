@@ -11,6 +11,9 @@ venv/
 
 # Database
 *.db
+*.db-shm
+*.db-wal
+*.db.pre-*
 
 # Environment
 .env
@@ -35,8 +38,33 @@ Thumbs.db
 # Large data files
 backend/data/MSA_freq_lists.tsv
 
+# Resumable-script progress files
+backend/data/decomposition_backfill_progress.json
+
 # Test artifacts
 backend/pytest-of-*/
 
 # Alembic
 alembic/versions/__pycache__/
+
+# Local virtualenvs (any name)
+.review-venv/
+
+# Tiktoken cache
+data-gym-cache/
+
+# Local uv lock (project does not use uv)
+backend/uv.lock
+
+# Generated runtime data
+backend/data/podcasts/
+backend/data/story-gen-tmp/
+backend/data/textbook-uploads/
+backend/data/corpora/
+backend/data/benchmarks/benchmark_*.json
+
+# Local experiment outputs (results.tsv is the tracked ground truth)
+backend/experiments/results/*.json
+
+# Stray top-level data dir (canonical path is backend/data/)
+/data/
