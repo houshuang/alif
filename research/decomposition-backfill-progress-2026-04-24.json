@@ -1,0 +1,648 @@
+{
+  "entries": {
+    "437": {
+      "outcome": "created",
+      "new_canonical_id": 3139,
+      "canonical_ar": "سُرْعَة",
+      "canonical_bare": "سرعه",
+      "gloss_en": "speed; haste",
+      "pos": "noun",
+      "root_str": "س.ر.ع"
+    },
+    "855": {
+      "outcome": "mle_error",
+      "reason": "The canonical 'إِدّ' is not a real Arabic word; 'بَادَ' (to perish) is an indivisible lemma, not بِ + اد.",
+      "canonical_bare": "اد"
+    },
+    "1813": {
+      "outcome": "mle_error",
+      "reason": "The canonical 'راوَنْد' is not an Arabic word; 'فَأْر' (mouse) is an indivisible lemma, not ف + أر.",
+      "canonical_bare": "راوند"
+    },
+    "888": {
+      "outcome": "mle_error",
+      "reason": "The canonical 'فَلّ' is not a real word in MSA; 'فُلْفُلٌ' (pepper) is an indivisible lemma, not a compound with li_prep + fa_conj.",
+      "canonical_bare": "فل"
+    },
+    "19": {
+      "outcome": "mle_error",
+      "reason": "The canonical 'قَبَع' is not a standard Arabic word; 'قُبَّعة' (hat) is an indivisible feminine noun, not derived from a 3ms dobj clitic.",
+      "canonical_bare": "قبع"
+    },
+    "1861": {
+      "outcome": "mle_error",
+      "reason": "The canonical 'صَحِيفَة' (newspaper/page) does not decompose from 'صَحَفِيّ' (journalist) via a 1s poss clitic; they are related but not in a compound-clitic relationship.",
+      "canonical_bare": "صحيفه"
+    },
+    "1640": {
+      "outcome": "created",
+      "new_canonical_id": 3140,
+      "canonical_ar": "صاخِب",
+      "canonical_bare": "صاخب",
+      "gloss_en": "loud; noisy",
+      "pos": "adj",
+      "root_str": "ص.خ.ب"
+    },
+    "180": {
+      "outcome": "mle_error",
+      "reason": "The canonical 'راجِي' is not the base of 'كَراج' (garage); 'كَراج' is a loanword (Persian), not كـ + raaji.",
+      "canonical_bare": "راجي"
+    },
+    "1280": {
+      "outcome": "mle_error",
+      "reason": "The canonical 'طٰهَ' is not a real word; 'بَطَّةٌ' (duck) is an indivisible lemma, not بِ + ṭah.",
+      "canonical_bare": "طه"
+    },
+    "2613": {
+      "outcome": "mle_error",
+      "reason": "The clitic signal '1s_poss' for an imperfect-tense verb is incorrect; 'اِنْبَغَى' (to befit, perfect tense) does not decompose via enclitic possession.",
+      "canonical_bare": "انبغ"
+    },
+    "2082": {
+      "outcome": "mle_error",
+      "reason": "The compound فَرْوَة is a standalone noun meaning 'fur/hair' and is not divisible into فَرّ + a 3ms clitic. فَرّ (flee) is a completely different verb.",
+      "canonical_bare": "فر"
+    },
+    "2010": {
+      "outcome": "mle_error",
+      "reason": "The compound دِمْنَة is a standalone noun meaning 'ruin remains' and is not decomposable. دَمَن is not an attested verb form; CAMeL hallucinated the clitic.",
+      "canonical_bare": "دمن"
+    },
+    "1539": {
+      "outcome": "mle_error",
+      "reason": "The feminine adjective إِعْدادِيَّةِ (preparatory) is a unitary word form; the claimed 3ms possessive clitic on إِعْدادِيّ is spurious. The ـة is inflectional feminine, not a separate clitic.",
+      "canonical_bare": "اعدادي"
+    },
+    "188": {
+      "outcome": "mle_error",
+      "reason": "The compound كُوبٌ is a loanword for 'cup' and does not decompose. وِيب is not a real Arabic word; the 'ka_prep' stripping is hallucinated.",
+      "canonical_bare": "ويب"
+    },
+    "1839": {
+      "outcome": "created",
+      "new_canonical_id": 3141,
+      "canonical_ar": "بَقّال",
+      "canonical_bare": "بقال",
+      "gloss_en": "grocer; grocery merchant",
+      "pos": "noun",
+      "root_str": "ب.ق.ل"
+    },
+    "1644": {
+      "outcome": "created",
+      "new_canonical_id": 3142,
+      "canonical_ar": "مَبْسُوط",
+      "canonical_bare": "مبسوط",
+      "gloss_en": "spread out; extended; happy; pleased",
+      "pos": "adj",
+      "root_str": "ب.س.ط"
+    },
+    "1134": {
+      "outcome": "created",
+      "new_canonical_id": 3143,
+      "canonical_ar": "شُكْرِيّ",
+      "canonical_bare": "شكري",
+      "gloss_en": "of thanks; thanksgiving; related to gratitude",
+      "pos": "adj",
+      "root_str": "ش.ك.ر"
+    },
+    "698": {
+      "outcome": "mle_error",
+      "reason": "The compound بِذْلَةٌ is a standalone noun meaning 'suit of clothes' and is not decomposable into a verb بَذَل + clitic. While بَذَل (to give/offer) exists as a verb, بِذْلَة is a nominal derivative, not a verb with a dobj suffix.",
+      "canonical_bare": "بذل"
+    },
+    "1303": {
+      "outcome": "mle_error",
+      "reason": "The compound فَجْأَةٌ (suddenness/surprise) is a frozen nominal form. The claimed canonical جاه is not correct; فَجْأَة does not decompose into ف + جاه or any fa_conj stripping.",
+      "canonical_bare": "جاه"
+    },
+    "1739": {
+      "outcome": "created",
+      "new_canonical_id": 3144,
+      "canonical_ar": "سَتّار",
+      "canonical_bare": "ستار",
+      "gloss_en": "curtain; veil; one who hides/conceals",
+      "pos": "noun",
+      "root_str": "س.ت.ر"
+    },
+    "1165": {
+      "outcome": "mle_error",
+      "reason": "قافلة is an indivisible noun meaning 'caravan'; CAMeL hallucinated a clitic decomposition where none exists.",
+      "canonical_bare": "قافل"
+    },
+    "1494": {
+      "outcome": "mle_error",
+      "reason": "فُرْشاة (brush) cannot decompose to رَشْوَة (bribe); canonical is unrelated. This is a misalignment.",
+      "canonical_bare": "رشوه"
+    },
+    "654": {
+      "outcome": "mle_error",
+      "reason": "جَلَّابِيَّة is an indivisible noun for a traditional robe; جَلّاب is not a standard MSA lexeme.",
+      "canonical_bare": "جلاب"
+    },
+    "1527": {
+      "outcome": "mle_error",
+      "reason": "إِلْزامِيّ is an adjective derived from the root ل.ز.م, not a possessive-marked noun. Derived morphology, not clitic attachment.",
+      "canonical_bare": "الزام"
+    },
+    "507": {
+      "outcome": "mle_error",
+      "reason": "فارسي (Persian) cannot decompose to رَسا; canonical is not a real MSA word.",
+      "canonical_bare": "رسا"
+    },
+    "24": {
+      "outcome": "mle_error",
+      "reason": "بَلوزة is a modern loanword (blouse) with no MSA morphological decomposition; بلُوز is not a standard lexeme.",
+      "canonical_bare": "بلوز"
+    },
+    "1537": {
+      "outcome": "mle_error",
+      "reason": "إِبْتِدَائِيَّة is an adjective derived from the root ب.د.أ, not a possessive-marked noun. Derived morphology, not clitic attachment.",
+      "canonical_bare": "ابتداء"
+    },
+    "1740": {
+      "outcome": "created",
+      "new_canonical_id": 3145,
+      "canonical_ar": "سَجّاد",
+      "canonical_bare": "سجاد",
+      "gloss_en": "carpet; one who prostrates",
+      "pos": "noun",
+      "root_str": "س.ج.د"
+    },
+    "2612": {
+      "outcome": "created",
+      "new_canonical_id": 3146,
+      "canonical_ar": "حَصَب",
+      "canonical_bare": "حصب",
+      "gloss_en": "measles; gravel",
+      "pos": "noun",
+      "root_str": "ح.ص.ب"
+    },
+    "1350": {
+      "outcome": "mle_error",
+      "reason": "أميرة is the feminine form of أَمِير, not أَمِير + possessive clitic. Derived morphology, not clitic attachment.",
+      "canonical_bare": "امير"
+    },
+    "1723": {
+      "outcome": "mle_error",
+      "reason": "كَنَبَة (kanaba, sofa) is an indivisible lemma; CAMeL falsely decomposed it as كَنَب + possessive clitic. The canonical كَنَب is not a standalone MSA word.",
+      "canonical_bare": "كنب"
+    },
+    "29": {
+      "outcome": "mle_error",
+      "reason": "وِشاح (wishāḥ, scarf) is a single indivisible noun; CAMeL hallucinated clitic stripping. The canonical شاحّ is not a valid MSA form.",
+      "canonical_bare": "شاح"
+    },
+    "1259": {
+      "outcome": "created",
+      "new_canonical_id": 3147,
+      "canonical_ar": "إِسْبانِيّ",
+      "canonical_bare": "اسباني",
+      "gloss_en": "Spanish (adj./noun, masc. form)",
+      "pos": "adj",
+      "root_str": "س.ب.ن"
+    },
+    "2862": {
+      "outcome": "created",
+      "new_canonical_id": 3148,
+      "canonical_ar": "تَرَك",
+      "canonical_bare": "ترك",
+      "gloss_en": "left; abandoned",
+      "pos": "verb",
+      "root_str": "ت.ر.ك"
+    },
+    "2905": {
+      "outcome": "created",
+      "new_canonical_id": 3149,
+      "canonical_ar": "قَدَّس",
+      "canonical_bare": "قدس",
+      "gloss_en": "sanctified; hallowed; honored",
+      "pos": "verb",
+      "root_str": "ق.د.س"
+    },
+    "1320": {
+      "outcome": "mle_error",
+      "reason": "سِتُّونَ (sittūn, sixty) is a single cardinal number word; CAMeL falsely claimed sa_fut prefix stripping. The canonical وَنّ is not a real word.",
+      "canonical_bare": "ون"
+    },
+    "1486": {
+      "outcome": "mle_error",
+      "reason": "زِنْك (zink, zinc) is a loanword noun; CAMeL falsely decomposed it. The canonical زَنّ is not a valid MSA form.",
+      "canonical_bare": "زن"
+    },
+    "1792": {
+      "outcome": "created",
+      "new_canonical_id": 3150,
+      "canonical_ar": "أَذْكَى",
+      "canonical_bare": "اذكي",
+      "gloss_en": "smarter; more intelligent (comparative adj.)",
+      "pos": "adj",
+      "root_str": "ذ.ك.ي"
+    },
+    "1829": {
+      "outcome": "created",
+      "new_canonical_id": 3151,
+      "canonical_ar": "أَحْمَد",
+      "canonical_bare": "احمد",
+      "gloss_en": "Ahmed (proper name)",
+      "pos": "noun",
+      "root_str": "?"
+    },
+    "2650": {
+      "outcome": "mle_error",
+      "reason": "رِقَّة (riqqa, delicacy) is a single noun; CAMeL falsely claimed possessive clitic stripping. The canonical رِقّ is not standard; the word's form is intrinsically riqqa, not derived from a base riqq.",
+      "canonical_bare": "رق"
+    },
+    "2651": {
+      "outcome": "mle_error",
+      "reason": "ثمينة (Thameena) is a single indivisible adjective meaning 'precious/valuable'; there is no clitic to strip. CAMeL hallucinated a 3ms possessive enclitic.",
+      "canonical_bare": "ثمين"
+    },
+    "2662": {
+      "outcome": "created",
+      "new_canonical_id": 3152,
+      "canonical_ar": "فَضْلَة",
+      "canonical_bare": "فضله",
+      "gloss_en": "dropping; droppings",
+      "pos": "noun",
+      "root_str": "ف.ض.ل"
+    },
+    "345": {
+      "outcome": "mle_error",
+      "reason": "فِنْجان (finjan, coffee cup) is a complete loanword; CAMeL incorrectly stripped the initial فِن as a conjunction and produced a non-existent base جانى.",
+      "canonical_bare": "جاني"
+    },
+    "359": {
+      "outcome": "mle_error",
+      "reason": "بَعْض (some, a few) is a single frozen noun meaning 'some/part'; there is no prepositional clitic. CAMeL incorrectly stripped بـ and left عَضّ (to bite), which is unrelated.",
+      "canonical_bare": "عض"
+    },
+    "546": {
+      "outcome": "created",
+      "new_canonical_id": 3153,
+      "canonical_ar": "نَرْجِسِيّ",
+      "canonical_bare": "نرجسي",
+      "gloss_en": "narcissistic; narcissism",
+      "pos": "adj",
+      "root_str": "ن.ر.ج.س"
+    },
+    "547": {
+      "outcome": "mle_error",
+      "reason": "وِيكِي (wiki) is a modern loanword; CAMeL incorrectly stripped the initial و as a conjunction, leaving وَكَى which is not a legitimate base word for 'wiki'.",
+      "canonical_bare": "وكي"
+    },
+    "556": {
+      "outcome": "mle_error",
+      "reason": "كُوبْرِيٌّ (overpass/flyover) is a loanword from English 'ovary'; the decomposition into كـ + وَبَر is incorrect and produces a non-existent compound meaning.",
+      "canonical_bare": "وبر"
+    },
+    "576": {
+      "outcome": "created",
+      "new_canonical_id": 3154,
+      "canonical_ar": "قَبائِلِيّ",
+      "canonical_bare": "قبائلي",
+      "gloss_en": "relating to Kabyle; Kabyle",
+      "pos": "adj",
+      "root_str": "ق.ب.ل"
+    },
+    "618": {
+      "outcome": "mle_error",
+      "reason": "عَاهِرَةٌ (prostitute) is a complete feminine noun; the canonical عاهَر is not the correct base form, and the 3ms_dobj clitic signal is incorrect.",
+      "canonical_bare": "عاهر"
+    },
+    "704": {
+      "outcome": "created",
+      "new_canonical_id": 3155,
+      "canonical_ar": "كَعْب",
+      "canonical_bare": "كعب",
+      "gloss_en": "cube; ankle bone",
+      "pos": "noun",
+      "root_str": "ك.ع.ب"
+    },
+    "705": {
+      "outcome": "mle_error",
+      "reason": "كِرَاء is an indivisible lemma meaning 'rent/hire'; CAMeL hallucinated a kāf-prepositional clitic that doesn't exist. The 'canonical' راء (letters only, no diacritics) is not a real word.",
+      "canonical_bare": "راء"
+    },
+    "728": {
+      "outcome": "mle_error",
+      "reason": "زِنْجِيّ is a nisba adjective (from the ethnic group Zanج); CAMeL misidentified the nisba suffix -ِيّ as a possessive pronoun clitic. زَنْج (without nisba) is the root ethnic term, not the canonical of the adjective.",
+      "canonical_bare": "زنج"
+    },
+    "753": {
+      "outcome": "created",
+      "new_canonical_id": 3156,
+      "canonical_ar": "قِسْم",
+      "canonical_bare": "قسم",
+      "gloss_en": "division; allocation; fate; portion",
+      "pos": "noun",
+      "root_str": "ق.س.م"
+    },
+    "778": {
+      "outcome": "mle_error",
+      "reason": "مِنْجَرَة appears to be a tool noun derived from نجر (to plane wood); the proposed clitic stripping to مِنْجَر is questionable and the singular-feminine marker -ة is not properly accounted for in the canonical form.",
+      "canonical_bare": "منجر"
+    },
+    "789": {
+      "outcome": "mle_error",
+      "reason": "عِبْرِيّ is a nisba adjective meaning 'Hebrew'; CAMeL misidentified the nisba suffix -ِيّ as a possessive clitic. عَبْر as a standalone word does not legitimately anchor this adjective's semantics.",
+      "canonical_bare": "عبر"
+    },
+    "798": {
+      "outcome": "mle_error",
+      "reason": "لُوطِيّ is a nisba adjective from the proper noun لُوط (Lot); CAMeL misread it as لـ + وَطَّى. The proposed canonical وَطَّى (to lay down / prepare) is not the etymological base and the clitic signal is spurious.",
+      "canonical_bare": "وطي"
+    },
+    "802": {
+      "outcome": "created",
+      "new_canonical_id": 3157,
+      "canonical_ar": "نَعام",
+      "canonical_bare": "نعام",
+      "gloss_en": "ostrich",
+      "pos": "noun",
+      "root_str": "ن.ع.م"
+    },
+    "869": {
+      "outcome": "mle_error",
+      "reason": "فَرْش (carpet/furniture) is an indivisible lemma; CAMeL hallucinated a fāʾ-conjunctional clitic and stripped it to رَشّ (to sprinkle), which is a different word entirely and doesn't relate semantically to فَرْش.",
+      "canonical_bare": "رش"
+    },
+    "917": {
+      "outcome": "mle_error",
+      "reason": "لِوَاط (sodomy) is an indivisible noun; CAMeL misidentified it as لـ + waṭī. The proposed canonical واطِي is not a real word, and the etymology is unrelated to the actual root ل.و.ط.",
+      "canonical_bare": "واطي"
+    },
+    "1018": {
+      "outcome": "mle_error",
+      "reason": "فِلِزّ (metal) is an indivisible lemma; CAMeL hallucinated a fāʾ-conjunctional clitic and stripped it to لَزّ (to stick/adhere), which does not relate to the metal sense. The clitic parsing is spurious.",
+      "canonical_bare": "لز"
+    },
+    "1021": {
+      "outcome": "mle_error",
+      "reason": "فِهْرِسْتٌ is a single indivisible loanword (from Persian), not a clitic + verb stem. The canonical هَرَس is a different word (to squeeze/crush) and doesn't relate to indexing.",
+      "canonical_bare": "هرس"
+    },
+    "1049": {
+      "outcome": "mle_error",
+      "reason": "شَرْمُوطَة is a frozen slur/loanword; شَرْمُوط is not a legitimate canonical form. The claimed stripping of 3ms_poss makes no morphological sense here.",
+      "canonical_bare": "شرموط"
+    },
+    "1055": {
+      "outcome": "created",
+      "new_canonical_id": 3158,
+      "canonical_ar": "شَفْر",
+      "canonical_bare": "شفر",
+      "gloss_en": "knife blade; sharp instrument",
+      "pos": "noun",
+      "root_str": "ش.ف.ر"
+    },
+    "1057": {
+      "outcome": "mle_error",
+      "reason": "سُنْبُل (ear of grain) is a unitary noun, not the future tense of أَبْلَى. CAMeL hallucinated a clitic that doesn't exist.",
+      "canonical_bare": "ابلي"
+    },
+    "1060": {
+      "outcome": "created",
+      "new_canonical_id": 3159,
+      "canonical_ar": "نامُوس",
+      "canonical_bare": "ناموس",
+      "gloss_en": "mosquito net; screen",
+      "pos": "noun",
+      "root_str": "?"
+    },
+    "1078": {
+      "outcome": "mle_error",
+      "reason": "بَثْرَة (pimple) is a monolithic noun. The claimed بـ prefix + ثَرّ + 3ms_poss doesn't decompose correctly; ثَرّ alone is not the underlying form.",
+      "canonical_bare": "ثر"
+    },
+    "1105": {
+      "outcome": "mle_error",
+      "reason": "بُرْقُع (face veil) is a unitary noun, not بـ + رُقْعَة. The morphology is frozen; riqaa and burqu' do not have a derivational relationship.",
+      "canonical_bare": "رقعه"
+    },
+    "1114": {
+      "outcome": "mle_error",
+      "reason": "كُحْل (kohl/antimony) is a unitary noun from a root كـ.ح.ل, not كـ (preposition) + حَلّ (to solve). CAMeL misidentified the root.",
+      "canonical_bare": "حل"
+    },
+    "1150": {
+      "outcome": "mle_error",
+      "reason": "سِيلُوفُون is a Greek loanword (xylophone), not the future of لاف. CAMeL hallucinated a verb clitic on a frozen loanword.",
+      "canonical_bare": "لاف"
+    },
+    "1168": {
+      "outcome": "created",
+      "new_canonical_id": 3160,
+      "canonical_ar": "وَقَى",
+      "canonical_bare": "وقي",
+      "gloss_en": "fearfulness; piety; caution",
+      "pos": "noun",
+      "root_str": "و.ق.ي"
+    },
+    "1225": {
+      "outcome": "mle_error",
+      "reason": "CAMeL misanalyzed سَتَرَ (to cover) as sa_fut + راوَنْد; the compound is a simple past-tense verb and راوَنْد is not a real Arabic root or lemma.",
+      "canonical_bare": "راوند"
+    },
+    "1239": {
+      "outcome": "mle_error",
+      "reason": "لِحَاءٌ (bark) is a single indivisible noun lemma; CAMeL falsely stripped لـ as emphatic particle, leaving حاء which is not the canonical form of this word.",
+      "canonical_bare": "حاء"
+    },
+    "1361": {
+      "outcome": "mle_error",
+      "reason": "لبوة (lioness) is a frozen feminine noun; CAMeL hallucinated an enclitic on لَبَّى which is not a real word—the correct lemma is لبوة itself.",
+      "canonical_bare": "لبي"
+    },
+    "1370": {
+      "outcome": "mle_error",
+      "reason": "شِيعَةٌ (sect) is a single noun; CAMeL misanalyzed it as شَيَّع (verb, to accompany) + enclitic, which is a false decomposition—شيعة is an independent noun from the root ش.ي.ع.",
+      "canonical_bare": "شيع"
+    },
+    "1391": {
+      "outcome": "created",
+      "new_canonical_id": 3161,
+      "canonical_ar": "تِين",
+      "canonical_bare": "تين",
+      "gloss_en": "fig (fruit)",
+      "pos": "noun",
+      "root_str": "ت.ي.ن"
+    },
+    "1394": {
+      "outcome": "created",
+      "new_canonical_id": 3162,
+      "canonical_ar": "جَبّار",
+      "canonical_bare": "جبار",
+      "gloss_en": "mighty; giant; powerful one",
+      "pos": "adj",
+      "root_str": "ج.ب.ر"
+    },
+    "1400": {
+      "outcome": "mle_error",
+      "reason": "أُدْحُوَّةٌ (ostrich nest) is a single indivisible noun; دَحا is not the real canonical form—the correct lemma is أدحوة from root د.ح.و.",
+      "canonical_bare": "دحا"
+    },
+    "1409": {
+      "outcome": "created",
+      "new_canonical_id": 3163,
+      "canonical_ar": "حَكّ",
+      "canonical_bare": "حك",
+      "gloss_en": "itch; itching",
+      "pos": "noun",
+      "root_str": "ح.ك.ك"
+    },
+    "1410": {
+      "outcome": "created",
+      "new_canonical_id": 3164,
+      "canonical_ar": "دَلّاع",
+      "canonical_bare": "دلاع",
+      "gloss_en": "watermelon",
+      "pos": "noun",
+      "root_str": "د.ل.ع"
+    },
+    "1416": {
+      "outcome": "mle_error",
+      "reason": "فَقَسَ (to hatch) is a past-tense verb form; قَسّ is not a real canonical lemma—the correct root verb is قَسَ (ق.س.س) and فَقَسَ is fā' + past tense, not an enclitic pattern.",
+      "canonical_bare": "قس"
+    },
+    "1734": {
+      "outcome": "already_canonical",
+      "canonical_lemma_id": 3144,
+      "canonical_bare": "ستار"
+    },
+    "1735": {
+      "outcome": "already_canonical",
+      "canonical_lemma_id": 3145,
+      "canonical_bare": "سجاد"
+    },
+    "1419": {
+      "outcome": "mle_error",
+      "reason": "فُقَّاعٌ (bubbles/foam) is a single indivisible lemma; CAMeL incorrectly stripped fa_conj leaving قاع (bottom, sediment) which is unrelated.",
+      "canonical_bare": "قاع"
+    },
+    "1427": {
+      "outcome": "mle_error",
+      "reason": "فَاطِرٌ (Creator) is a standalone participial noun; CAMeL incorrectly stripped fa_conj leaving إِطار (frame), which is an unrelated noun.",
+      "canonical_bare": "اطار"
+    },
+    "1431": {
+      "outcome": "mle_error",
+      "reason": "فُلُوسٌ (money) is a frozen/indivisible lemma with no clear clitic; CAMeL hallucinated fa_conj stripping, leaving لُوس which is not a valid MSA word.",
+      "canonical_bare": "لوس"
+    },
+    "1453": {
+      "outcome": "created",
+      "new_canonical_id": 3165,
+      "canonical_ar": "شارِح",
+      "canonical_bare": "شارح",
+      "gloss_en": "expounding, explaining; expounder",
+      "pos": "noun",
+      "root_str": "ش.ر.ح"
+    },
+    "1538": {
+      "outcome": "created",
+      "new_canonical_id": 3166,
+      "canonical_ar": "إِعْدادِيّ",
+      "canonical_bare": "اعدادي",
+      "gloss_en": "preparatory; pertaining to preparation",
+      "pos": "adj",
+      "root_str": "ع.د.د"
+    },
+    "1648": {
+      "outcome": "mle_error",
+      "reason": "تِلِفُونِكِ (your phone) contains تِلِفُون (telephone, loanword) + ك (your); canonical لَفّ (to wrap/roll) is unrelated and incorrect.",
+      "canonical_bare": "لف"
+    },
+    "2854": {
+      "outcome": "mle_error",
+      "reason": "طُغيَنِهِم should decompose to طُغيان (transgression) + هِم (their), but canonical طَغَى (to transgress/rebel) is the verb stem, not the nominal form طُغيان.",
+      "canonical_bare": "طغي"
+    },
+    "2856": {
+      "outcome": "mle_error",
+      "reason": "ضَّلَالَةَ (error/straying) is a single indivisible feminine noun; CAMeL incorrectly stripped a non-existent clitic leaving ضالّ (straying/astray), which is an adjective not the noun.",
+      "canonical_bare": "ضال"
+    },
+    "2858": {
+      "outcome": "mle_error",
+      "reason": "تَجَر is not a valid MSA word; the canonical should be تِجَارَة (trade/commerce), not a bare triconsonantal root.",
+      "canonical_bare": "تجر"
+    },
+    "2864": {
+      "outcome": "created",
+      "new_canonical_id": 3167,
+      "canonical_ar": "رَعْد",
+      "canonical_bare": "رعد",
+      "gloss_en": "thunder",
+      "pos": "noun",
+      "root_str": "ر.ع.د"
+    },
+    "2865": {
+      "outcome": "created",
+      "new_canonical_id": 3168,
+      "canonical_ar": "إِصْبَع",
+      "canonical_bare": "اصبع",
+      "gloss_en": "finger",
+      "pos": "noun",
+      "root_str": "ص.ب.ع"
+    },
+    "2872": {
+      "outcome": "mle_error",
+      "reason": "ياي is not a word; يا is the vocative particle and أي is the interrogative/relative, but ياي does not exist as a canonical form.",
+      "canonical_bare": "ياي"
+    },
+    "2875": {
+      "outcome": "created",
+      "new_canonical_id": 3169,
+      "canonical_ar": "لَعَلَّ",
+      "canonical_bare": "لعل",
+      "gloss_en": "perhaps; perchance",
+      "pos": "particle",
+      "root_str": "?"
+    },
+    "2880": {
+      "outcome": "mle_error",
+      "reason": "ادعى (idda'ā) is the verb form, but the canonical ٱِدَّعَى with doubled د is morphologically malformed; the base verb should be دَعَا (to call), not a hamzated variant.",
+      "canonical_bare": "ادعي"
+    },
+    "2882": {
+      "outcome": "mle_error",
+      "reason": "ٱِتَّقَى is malformed; the correct verb is اتَّقَى (ittaqā, to fear/be pious), not with the strange hamza marker ٱ at the start.",
+      "canonical_bare": "اتقي"
+    },
+    "2886": {
+      "outcome": "mle_error",
+      "reason": "مَطْهَر with 3ms possessive clitic makes no sense; مُطَهَّرَة (muṭahhara, purified/chaste) is an adjective that does not take possessive clitics in this manner.",
+      "canonical_bare": "مطهر"
+    },
+    "2895": {
+      "outcome": "mle_error",
+      "reason": "أَفْسَد is the Stem IV causative, but the compound يُفسِدُونَ is Stem I; canonical form does not match compound verb stem.",
+      "canonical_bare": "افسد"
+    },
+    "2901": {
+      "outcome": "created",
+      "new_canonical_id": 3170,
+      "canonical_ar": "إِذ",
+      "canonical_bare": "اذ",
+      "gloss_en": "when; at the time when",
+      "pos": "particle",
+      "root_str": "?"
+    },
+    "2911": {
+      "outcome": "created",
+      "new_canonical_id": 3171,
+      "canonical_ar": "نَبَّأ",
+      "canonical_bare": "نبا",
+      "gloss_en": "to inform; to tell; to report",
+      "pos": "verb",
+      "root_str": "ن.ب.أ"
+    },
+    "3135": {
+      "outcome": "mle_error",
+      "reason": "The adjective form is جُحْرِيّ (with geminated ya), not جُحْر + possessive suffix; CAMeL missed the tashdid in the morphological analysis.",
+      "canonical_bare": "جحر"
+    }
+  },
+  "started_at": "2026-04-24T11:31:01",
+  "completed_at": "2026-04-24T11:34:07"
+}

@@ -4,6 +4,54 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-04-24: Lemma decomposition Phase 2 step 3 — backfilled 33 of 102 orphan canonicals; 67 flagged as MLE false positives
+
+Created canonical Lemma rows for the real clitic compounds in the orphan bucket from Phase 1. Per-orphan, a Claude Haiku batch call acts as both a verdict gate (is the CAMeL MLE decomposition real?) and enrichment (gloss/pos/root for the canonical). Decoupling the verdict from the insert keeps the 67 MLE false positives from becoming bogus lemmas that Step 4 would have to unwind.
+
+**Outcome** (branch `sh/decomposition-phase2-backfill-orphans`, PR #47, run on prod DB 2026-04-24):
+
+| outcome | count | meaning |
+|---|---|---|
+| created | 33 | CAMeL MLE was correct — new canonical inserted with `source=backfill_decomposition_audit`, quality gates stamped. Lemma IDs #3139–#3171. |
+| mle_error | 67 | CAMeL false positive — the compound is a single indivisible lemma. Step 4 should tag these with an `mle_misanalysis` metadata note, not migrate them. |
+| already_canonical | 2 | Canonical appeared in DB between audit (2026-04-24 early) and backfill run (2026-04-24 later) — e.g. via Step 1 patch or unrelated import. Step 4 can link compound→canonical directly. |
+
+**Run time**: 186s wall clock (11:31:01 → 11:34:07 UTC). 11 batches of ~10 orphans, each LLM batch ~10-20s.
+
+**Examples of real canonicals created**:
+- #3139 سُرْعَة (speed; haste, noun) ← #437 بِسُرْعة
+- #3167 رَعْد (thunder, noun) ← #2864 وَالرَّعْدُ
+- #3168 إِصْبَع (finger, noun) ← #2865 بِأَصْبَعِهِ
+- #3169 لَعَلَّ (perhaps; perchance, particle) ← #2875 فَلَعَلَّكُمْ
+- #3170 إِذ (when; at the time when, particle) ← #2901 وَإِذْ
+- #3171 نَبَّأ (to inform; to tell; to report, verb) ← #2911 يُنَبَّأُ
+
+**Examples of MLE false positives flagged and NOT created**:
+- #705 كِرَاء "rent/hire" (CAMeL proposed ك + راء) — single indivisible loanword
+- #855 بَادَ "to perish" — real verb with root ب.و.د, not a compound
+- #1813 فَأْر "mouse" — indivisible noun
+- #789 عِبْرِيّ "Hebrew" — nisba adjective, not ع + برى
+- #1114 كُحْل "kohl/antimony" — indivisible noun
+- #19 قُبَّعة "cap" — ends in ة (feminine marker), not ـه (3ms enclitic)
+- #1150 سِيلُوفُون "xylophone" — Greek loanword
+
+**Rate surprise**: 67% MLE-noise rate in the orphan bucket — noticeably higher than the audit report's HIGH-tier `compound_with_canonical` estimate of ~20-30% noise. Intuitively right: the orphan bucket is *by definition* canonicals that don't exist in the vocabulary, and real canonicals tend to already be in the DB if the user has encountered them. Phase 2 Step 4 should factor this ratio in when estimating work: for the 144 HIGH-tier compounds, the true migration count is likely ≈ 100-115 with the rest being `mle_misanalysis` tags.
+
+**Safety measures taken**:
+- DB backed up pre-run to `/opt/alif-backups/alif_pre_decomposition_20260424_131904.db` (68M).
+- Narrow `lemma_ar_bare`-only re-dedup at insert time (not `resolve_existing_lemma` which uses a broader lookup that includes generated verb conjugations and would falsely match e.g. سرعه against a conjugation of سَرَّع).
+- LLM verdict gate (`valid` / `mle_error`) before any Lemma insert; gate catches CAMeL hallucinations without requiring human spot-checks.
+- Progress file is resumable; re-run skips completed entries.
+
+**Artifacts**:
+- `backend/scripts/backfill_decomposition_orphan_canonicals.py` — resumable backfill script.
+- `research/decomposition-backfill-progress-2026-04-24.json` — per-orphan outcome record for Step 4.
+- ActivityLog `manual_action` entry on prod.
+
+**What's next (Phase 2 step 4)**: Spot-check + migrate the 144 HIGH-tier `compound_with_canonical` rows (now a plausible real-count of ~100-115), merge ULK history, mark the 67 MLE-error orphans + the HIGH-tier noise with `mle_misanalysis`. Do not weaken the `apply_corrections` `same_lemma` gate during this — see `feedback_dont_weaken_same_lemma_gate.md`.
+
+---
+
 ## 2026-04-24: Lemma decomposition Phase 2 step 1 — patched the two buggy import paths
 
 Stops the bleed identified by Phase 1. Both buggy sites now do clitic-aware dedup before creating Lemma rows, mirroring the pattern already used by 9 other import paths (e.g. `story_service.py:305,348,508`).
