@@ -1,7 +1,7 @@
 """Add decomposition_note JSON column to lemmas.
 
 Revision ID: aa7h8i9j0k12
-Revises: z6g7h8i9j012
+Revises: b4e1f07a2c18
 Create Date: 2026-04-24
 
 Audit metadata for lemmas flagged during the lemma-decomposition audit
@@ -13,7 +13,7 @@ from alembic import op
 import sqlalchemy as sa
 
 revision = "aa7h8i9j0k12"
-down_revision = "z6g7h8i9j012"
+down_revision = "b4e1f07a2c18"
 branch_labels = None
 depends_on = None
 
