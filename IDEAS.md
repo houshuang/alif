@@ -21,9 +21,15 @@ User-found bug: a reading card showed **#2862 وَتَرَكَهُم "and left t
 - #2862 confirmed orphan (canonical تَرَكَ not in DB)
 - 9/10 known offenders caught; the miss (#430 تشَرَّفنا) is a different bug class (verb-conjugation duplicate, not clitic compound)
 
-**Phase 2 Step 1 — DONE (2026-04-24).** Both buggy import paths now call `resolve_existing_lemma()` before creating Lemma rows, matching the pattern used by the 9 already-correct paths (e.g. `story_service.py:305,348,508`). Bleed is stopped — new compounds will resolve to canonicals (when canonical exists), or surface as orphans for Step 3 to backfill. Tests in `backend/tests/test_lemma_dedup_imports.py` cover direct-match, clitic-strip, and create-when-new. Branch: `sh/decomposition-phase2-imports`.
+**Phase 2 Step 1 — DONE (2026-04-24, PR #46).** Both buggy import paths now call `resolve_existing_lemma()` before creating Lemma rows, matching the pattern used by the 9 already-correct paths (e.g. `story_service.py:305,348,508`). Bleed is stopped — new compounds will resolve to canonicals (when canonical exists), or surface as orphans for Step 3 to backfill. Tests in `backend/tests/test_lemma_dedup_imports.py` cover direct-match, clitic-strip, and create-when-new.
 
-**Phase 2 Steps 2-8 still OPEN.** Sequence in audit report: backup DB → backfill 102 orphan canonicals → spot-check + mass-migrate 144 HIGH-tier compounds → manual MEDIUM/LOW → re-enrich Hindawi corpus → verify next Quran surah import.
+**Phase 2 Step 2 — DONE (2026-04-24).** DB backup: `/opt/alif-backups/alif_pre_decomposition_20260424_131904.db`.
+
+**Phase 2 Step 3 — DONE (2026-04-24, PR #47).** Backfill for 102 orphan canonicals. Claude Haiku batch calls as combined verdict gate + enrichment. Result: 33 created (#3139-#3171), 67 flagged `mle_error`, 2 `already_canonical`. Artifact: `research/decomposition-backfill-progress-2026-04-24.json`. Script: `backend/scripts/backfill_decomposition_orphan_canonicals.py`.
+
+**Phase 2 Step 4a — DONE (2026-04-24, PRs #49 + #50).** Spot-check of Step 3's 33 canonicals surfaced a systematic CAMeL MLE failure the original gate missed: feminine ة misread as 3ms_poss. Re-gated all 33 with stricter prompt → **22 bogus_mle_error deleted, 11 confirmed_valid linked** to their canonicals with full ULK merge. User's screenshot case #2862 وَتَرَكَهُم now correctly points at canonical #3148 تَرَك. Scripts: `regate_step3_created_canonicals.py`, `apply_step4a_regate_deletions.py`, `apply_step4a_link_survivors.py`. Verdicts: `research/decomposition-regate-2026-04-24.json`.
+
+**Phase 2 Steps 4b, 4c, 5-8 still OPEN.** Sequence: add `decomposition_note` column → tag 89 bogus orphans `mle_misanalysis` (22 from 4a-prime + 67 from Step 3) → re-gate + migrate 144 HIGH-tier with vetted stricter prompt → manual MEDIUM/LOW (17 entries) → re-enrich Hindawi corpus → re-gloss root #305 ت.ر.ك → verify next Quran surah import.
 
 ---
 

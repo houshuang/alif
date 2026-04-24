@@ -4,6 +4,63 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-04-24 (later): Lemma decomposition Phase 2 step 4a — re-gated Step 3's 33 canonicals, deleted 22 bogus, linked 11 survivors
+
+Spot-checking Step 3's 33 "confirmed_valid" canonicals surfaced a systematic CAMeL MLE failure that the original LLM verdict gate missed: **feminine ة (tā marbūṭa) routinely misread as 3ms possessive pronoun ـه**. CAMeL splits a feminine noun X-ة into masculine stem X + fake `enc0: 3ms_poss`; the "canonical" it produces is a different dictionary lemma (often same root, related meaning). Step 3's gate rationalized these by drafting bridging glosses ("curtain; one who conceals").
+
+**Pattern tell**: `lemma_ar_bare` ends in ة/ه AND `clitic_signals == {"enc0": "3ms_poss"}`. 21 of the 33 created entries matched exactly; manual spot-check showed the majority were wrong.
+
+### Step 4a-prime — re-gate + delete 22 bogus canonicals (PR #49)
+
+Re-gated all 33 with a stricter prompt that explicitly names the ة→3ms_poss failure mode with six worked examples (سِتَارَة, نَامُوسِيَّة, شَارِحَة, تِينَة, etc.), instructs the model to default toward `bogus_mle_error` on the pattern match, and treats gender-pair nisba adjectives + singulative/collective pairs as separate dictionary lemmas.
+
+| outcome | count | meaning |
+|---|---|---|
+| confirmed_valid | 11 | Clean prefix clitic (بِ/لِ/وَ + base), or legitimate verb pronoun-attachment. Survives to Step 4a-link. |
+| bogus_mle_error | 22 | Decomposition was wrong — new canonical row deleted. Orphan compound stays in DB for Step 4b `mle_misanalysis` tagging. |
+
+Deleted IDs: #3140-3147, #3153-3166. Each had zero downstream references verified at both regate time AND apply time (defense in depth). No orphan Root rows freed.
+
+Artifacts: `research/decomposition-regate-2026-04-24.json` (frozen verdict snapshot), `backend/scripts/regate_step3_created_canonicals.py` (the re-gate with stricter prompt — reusable template for any future CAMeL audit), `backend/scripts/apply_step4a_regate_deletions.py`.
+
+### Step 4a-link — wire 11 confirmed_valid orphans to canonicals (PR #50)
+
+Surviving canonicals (all eleven):
+
+| Orphan | Canonical | Ref counts redirected |
+|---|---|---|
+| #437 بِسُرْعة | #3139 سُرْعَة (speed) | 316 sw + 80 rl + 8 st |
+| #1792 وَأَذْكَى | #3150 أَذْكَى (smarter) | 5 sw + 3 st |
+| #1829 لِأَحْمَد | #3151 أَحْمَد (Ahmed) | 16 sw + 10 st |
+| #2662 فضلاته | #3152 فَضْلَة (dropping) | 0 |
+| #2862 وَتَرَكَهُم | #3148 تَرَك (left) | 63 sw + 2 rl + 19 st |
+| #2864 وَرَعد | #3167 رَعْد (thunder) | 0 |
+| #2865 أَصَبِعَهُم | #3168 إِصْبَع (finger) | 3 sw |
+| #2875 لَعَلَّكُم | #3169 لَعَلَّ (perhaps) | 2 sw + 2 st |
+| #2901 وَإِذ | #3170 إِذ (when) | 0 |
+| #2905 وَنُقَدِّسُ | #3149 قَدَّس (sanctified) | 6 sw |
+| #2911 أَنبِئهُم | #3171 نَبَّأ (inform) | 0 |
+
+Total: **411 sentence_words + 82 review_logs + 42 sentence_targets + 11 ULK reassignments**. All 11 canonicals had no ULK (just-created in Step 3), so the ULK merge was a simple reassignment — no weighted-state conflict resolution needed. Defensive fallback to the full `merge_into` pattern remains in the script for future use.
+
+**User-visible impact**: #2862 وَتَرَكَهُم — the original screenshot example that kicked off the whole audit — now correctly routes to canonical #3148 تَرَك with its 2 reviews, 63 sentence_words, and 19 sentence_targets attributed to the canonical. The learner's months of practice on the surface form are now credited to the underlying word.
+
+### Lesson learned (saved to memory)
+
+Any LLM gate over CAMeL MLE output must explicitly warn about the feminine-ة → 3ms_poss misread failure pattern with worked examples. Without it, the LLM rationalizes bogus decompositions by inventing bridging glosses. The vetted prompt in `regate_step3_created_canonicals.py` + the memory note `feedback_camel_mle_fem_ta_marbuta_misread.md` are the durable artifacts. Applies directly to Step 4c's 144 HIGH-tier `compound_with_canonical` audit.
+
+### Recalibration for Step 4c
+
+The 67% MLE-noise rate in the orphan bucket was itself an underestimate — Step 4a-prime showed that among Step 3's *validated* 33 outcomes, an additional ~67% were actually wrong. HIGH-tier canonicals already exist in DB (no creation step), so noise there is bounded differently — but the ة→3ms_poss pattern still applies. Plan on ~40-60 of the 144 needing `mle_misanalysis` tagging rather than linking.
+
+### What's next
+
+Step 4b queued: add `decomposition_note` JSON column to `lemmas` via alembic migration, then stamp 89 orphans (22 from 4a-prime + 67 from Step 3) with `mle_misanalysis` metadata. Then Step 4c (144 HIGH-tier, reusing the vetted stricter prompt). Then Steps 5-8 (manual MEDIUM/LOW, Hindawi corpus re-enrichment, root #305 regloss, Quran spot-check).
+
+Activity logged on prod: `Phase 2 Step 4a-prime` + `Phase 2 Step 4a-link` (manual_action events).
+
+---
+
 ## 2026-04-24: Lemma decomposition Phase 2 step 3 — backfilled 33 of 102 orphan canonicals; 67 flagged as MLE false positives
 
 Created canonical Lemma rows for the real clitic compounds in the orphan bucket from Phase 1. Per-orphan, a Claude Haiku batch call acts as both a verdict gate (is the CAMeL MLE decomposition real?) and enrichment (gloss/pos/root for the canonical). Decoupling the verdict from the insert keeps the 67 MLE false positives from becoming bogus lemmas that Step 4 would have to unwind.
