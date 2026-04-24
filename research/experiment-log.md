@@ -4,6 +4,51 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-04-24 (later still): Lemma decomposition Phase 2 step 4b — tag 89 MLE-misanalysed orphans with `decomposition_note`
+
+PR #51. Persists the CAMeL MLE failure pattern caught in Step 4a-prime + the broader Step 3 `mle_error` bucket so the rows are tracked, queryable, and distinguishable from ordinary orphans in future audits.
+
+### What
+
+- **New column** `lemmas.decomposition_note` (nullable JSON) via Alembic `aa7h8i9j0k12` (re-parented post-merge to the real tail `b4e1f07a2c18` — two forks both chained off `z6g7h8i9j012` and produced `MultipleHeads` on startup; fixed with a one-line parent swap committed directly to main).
+- **New script** `backend/scripts/tag_mle_misanalysis_orphans.py`. Reads the two frozen source artifacts (regate + backfill progress), dry-runs by default, `--apply` to commit. Refuses to overwrite existing notes. Emits one ActivityLog entry per run.
+- **89 orphans stamped on prod** — 22 from Step 4a-prime's `bogus_mle_error` bucket + 67 from Step 3's `mle_error` bucket. Activity log entry 1506 confirms the 22+67 split.
+
+### JSON shape written
+
+```json
+{
+  "mle_misanalysis": true,
+  "reason": "<LLM note copied verbatim from source artifact>",
+  "source_artifact": "decomposition-regate-2026-04-24.json" | "decomposition-backfill-progress-2026-04-24.json",
+  "tagged_at": "<UTC ISO8601>",
+  "phase": "step4b"
+}
+```
+
+### Query it
+
+```sql
+-- All MLE-misanalysis flagged orphans
+SELECT lemma_id, lemma_ar, decomposition_note
+FROM lemmas
+WHERE json_extract(decomposition_note, '$.mle_misanalysis') = 1;
+
+-- Just the 22 whose proposed canonical was deleted
+SELECT COUNT(*) FROM lemmas
+WHERE json_extract(decomposition_note, '$.source_artifact') = 'decomposition-regate-2026-04-24.json';
+```
+
+### Why the new column (not `grammar_features_json`)
+
+Clean separation of audit metadata from linguistic features. Future phases (Step 4c, 5) may tag more lemmas here and we want a single predicate for "was this flagged?".
+
+### Next steps
+
+Step 4c (144 HIGH-tier `compound_with_canonical` migration) reuses the regate prompt + this tagging pattern. Expect 40–60 more `mle_misanalysis` writes.
+
+---
+
 ## 2026-04-24 (later): Lemma decomposition Phase 2 step 4a — re-gated Step 3's 33 canonicals, deleted 22 bogus, linked 11 survivors
 
 Spot-checking Step 3's 33 "confirmed_valid" canonicals surfaced a systematic CAMeL MLE failure that the original LLM verdict gate missed: **feminine ة (tā marbūṭa) routinely misread as 3ms possessive pronoun ـه**. CAMeL splits a feminine noun X-ة into masculine stem X + fake `enc0: 3ms_poss`; the "canonical" it produces is a different dictionary lemma (often same root, related meaning). Step 3's gate rationalized these by drafting bridging glosses ("curtain; one who conceals").
