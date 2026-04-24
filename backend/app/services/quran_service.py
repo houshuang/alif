@@ -25,6 +25,7 @@ from app.services.sentence_validator import (
     build_lemma_lookup,
     lookup_lemma,
     normalize_alef,
+    resolve_existing_lemma,
     strip_diacritics,
     strip_tatweel,
     tokenize_display,
@@ -727,12 +728,23 @@ def _create_unknown_quran_lemmas(
     # Create lemmas
     result_map: dict[str, int] = {}
     new_lemma_ids: list[int] = []
+    lemma_lookup = build_lemma_lookup(all_lemmas)
     existing_bare_set = {normalize_alef(l.lemma_ar_bare) for l in all_lemmas}
 
     for t in translations:
         bare = t.get("bare", "")
         bare_norm = normalize_alef(bare)
-        if not bare_norm or bare_norm in existing_bare_set:
+        if not bare_norm:
+            continue
+
+        existing_id = lemma_lookup.get(bare_norm)
+        if existing_id is None:
+            existing_id = resolve_existing_lemma(bare, lemma_lookup)
+        if existing_id is not None:
+            result_map[bare_norm] = existing_id
+            continue
+
+        if bare_norm in existing_bare_set:
             continue
         gloss = t.get("gloss_en", "")
         if not gloss:
@@ -771,6 +783,7 @@ def _create_unknown_quran_lemmas(
         result_map[bare_norm] = lemma.lemma_id
         new_lemma_ids.append(lemma.lemma_id)
         existing_bare_set.add(bare_norm)
+        lemma_lookup[bare_norm] = lemma.lemma_id
 
         # Create "encountered" ULK — does NOT enter learning pipeline
         existing_ulk = (

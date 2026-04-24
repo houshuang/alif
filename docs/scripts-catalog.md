@@ -31,6 +31,7 @@ All scripts in `backend/scripts/`. Run from `backend/` directory.
 - `review_existing_sentences.py` — Gemini Flash quality audit of all active sentences, --dry-run supported.
 - `verify_sentences.py` — Gemini Flash batch verification of Arabic naturalness, parallel execution.
 - `missing_lemma_candidates.py` — Rank lemmas the verifier keeps wanting but aren't in vocab. Reads `mapping_corrections_*.jsonl` and aggregates per-position `same_lemma` (homograph-gap, strong signal) and `not_found` (noisier) failures. Candidates for curation into `import_scaffold_lemmas.py`. `--days 14 --reason same_lemma` default.
+- `audit_lemma_decomposition.py` — Phase 1 audit of clitic-compound lemmas in the DB. Standalone classifier (no SQLAlchemy) that uses CAMeL Tools `MLEDisambiguator` to bucket every lemma as canonical / compound_with_canonical (HIGH/MEDIUM/LOW tiers based on which clitic features fire) / orphan_compound (compound but canonical missing from DB) / no_analysis. Joins ULK review history so the migrator can prioritize by review impact. Filters MLE noise (lex==bare, POS-incompatible verb-misread-as-pronoun-compound). Run with `/usr/local/bin/python3` since CAMeL isn't in the backend venv. Writes JSON report to `research/`. See `research/decomposition-audit-2026-04-24.md` for methodology and Phase 2 sequence.
 
 ## Backfills
 - `backfill_lemma_grammar.py` — Backfill grammar features for lemmas.

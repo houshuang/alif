@@ -4,6 +4,215 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-04-24: Lemma decomposition Phase 2 step 1 — patched the two buggy import paths
+
+Stops the bleed identified by Phase 1. Both buggy sites now do clitic-aware dedup before creating Lemma rows, mirroring the pattern already used by 9 other import paths (e.g. `story_service.py:305,348,508`).
+
+**Changes** (branch `sh/decomposition-phase2-imports`):
+- `backend/app/services/quran_service.py:732` — `_create_unknown_quran_lemmas()` now builds a `lemma_lookup` and tries `lemma_lookup.get(bare_norm)` (direct match) → `resolve_existing_lemma(bare, lemma_lookup)` (clitic-aware) before falling back to the original within-batch `existing_bare_set` guard. When a lookup hits, `result_map[bare_norm]` is set to the canonical id and creation is skipped. The lookup is updated as new lemmas are created in the batch (defensive against the LLM emitting two rows that both resolve to the same canonical).
+- `backend/scripts/backfill_function_word_lemmas.py` — extracted the loop into a testable `backfill_function_words(db, *, verbose=True) -> tuple[int, int, int]` so `main()` is a thin SessionLocal wrapper. Same clitic-aware dedup added. Removed the dead duplicate `if norm in existing` line.
+- `backend/tests/test_lemma_dedup_imports.py` — 6 new cases:
+  - Quran: dedup via clitic-strip (LLM returns compound bare → resolves to canonical), dedup via direct match (LLM returns canonical bare → reuses), creates-when-truly-new (sanity).
+  - Backfill: dedup via clitic-strip (synthetic GLOSSES entry), dedup via direct match, creates-when-new.
+
+**No DB changes.** Existing 144 HIGH-tier compounds, 4 MEDIUM, 13 LOW, and 102 orphan compounds stay where they are. The fix only stops *new* compound lemmas from being created when a canonical (or clitic-strippable canonical) already exists.
+
+**Why this ordering matters**: Steps 2-4 (backup → backfill 102 orphan canonicals → migrate 144 HIGH-tier compounds) operate on the existing compound set. Without Step 1 first, the migration would chase a moving target — new compounds would land between batches. See "Don't act piecemeal" risk in `research/decomposition-audit-2026-04-24.md`.
+
+**Verification**:
+- 930 fast tests pass (full backend suite).
+- 6 new dedup tests pass.
+- No production deploy this PR — Step 1 is purely import-path hardening; the remaining steps require DB backup + data migration.
+
+**Next steps queued in `.claude/next-session-prompt.md`**: Step 2 backup → Step 3 backfill 102 orphan canonicals (e.g. تَرَكَ for #2862) → Step 4 spot-check + mass-migrate HIGH-tier compounds with FSRS state merge → Steps 5-8 (manual MEDIUM/LOW review, Hindawi corpus re-enrichment, post-fix Quran spot-check).
+
+---
+
+## 2026-04-24: Phase 1 lemma-decomposition audit — quantified the bug, sized Phase 2 scope
+
+Follow-up to 2026-04-23 user-found bug (#2862 وَتَرَكَهُم stored as atomic compound). Phase 1 was read-only: classify all 2,905 prod lemmas via CAMeL Tools MLE morphology + per-import-path code audit.
+
+**Buggy import paths found** (out of 11 sites that create Lemma rows):
+- `app/services/quran_service.py:732-768` — primary bug. `existing_bare_set` exact-string dedup, never tries clitic candidates.
+- `scripts/backfill_function_word_lemmas.py:111-122` — same pattern, low blast radius (curated input, fix-direction is opposite of the main bug).
+- All 9 other paths correctly call `resolve_existing_lemma()` (`story_service`, `ocr_service`, `bookify_arabic`, `import_duolingo`, `import_michel_thomas`, `import_avp_a1`, `import_scaffold_lemmas`, etc.).
+
+**Classification (CAMeL MLE + POS-compat + lex≠bare filter)**:
+
+| Bucket | Count | Reviews credited |
+|---|---|---|
+| canonical | 2,642 | — |
+| compound_with_canonical (HIGH tier — enc0/prep) | 144 | 593 |
+| compound_with_canonical (MEDIUM tier — Al_det) | 4 | 141 |
+| compound_with_canonical (LOW tier — wa/fa only) | 13 | 152 |
+| orphan_compound (canonical missing from DB) | 102 | 385 |
+
+**Total compound review impact: 1,271 reviews credited to non-canonical lemmas** — vs. the prior memory note's "~280 reviews on top 4 offenders." Bug was 4.5× under-estimated.
+
+**Coverage check** against the 10 known offenders from `project_lemma_decomposition_audit.md`: 9/10 caught. The miss (#430 تشَرَّفنا) is actually a different bug class — verb conjugation duplicate, not clitic compound; CAMeL correctly says no clitics for Form V perfect 1pl `تَشَرَّفْنا`. Inflectional-duplicate audit deferred as a separate scope.
+
+**The user's screenshot example #2862 is an orphan**: canonical تَرَكَ doesn't exist in prod DB. Phase 2 must backfill canonicals before redirecting compounds — sequence matters.
+
+**Source distribution** of confirmed compound_with_canonical:
+- textbook_scan: 56 (likely OCR pipeline before `ocr_service.py` was hardened)
+- duolingo: 42 (curated; many real e.g. اليوم)
+- wiktionary: 32 (curated)
+- book/avp_a1/quran: 13/9/4
+- flag_autocreate / mapping_correction / story_import: 1 each
+
+**Caveats**: HIGH tier still has ~20-30% MLE false positives (e.g. `بَرْد` cold misread as `بـ + رَدّ`). Phase 2 needs spot-validation before mass migration. LOW tier (13 entries, 152 reviews) needs human classification; not high priority.
+
+**Artifacts**:
+- `research/decomposition-audit-2026-04-24.md` — full Phase 1 report with methodology, per-path table, recommended Phase 2 sequence
+- `research/decomposition-classification-2026-04-24.json` — all 2,905 lemmas with bucket/tier/canonical resolution + ULK history
+- `scripts/audit_lemma_decomposition.py` — re-runnable standalone classifier (uses `/usr/local/bin/python3` for CAMeL Tools)
+
+**Phase 2 not started.** Sequence and risks documented in the audit report.
+
+---
+
+## 2026-04-23: Learning analysis update — going well overall, Kalila lemmas stuck at `encountered`
+
+**Snapshot** (prod DB, 2026-04-23 11:42 UTC — full JSON in `research/learning-analysis-2026-04-23.json`):
+
+| Metric | Value |
+|---|---|
+| Known / learning / acquiring / encountered | 1561 / 46 / 81 / 222 |
+| Total (all states incl. suspended, lapsed) | 2011 |
+| Overall review accuracy | 91.0% (n=32 007) |
+| FSRS retention (rating ≥ 3 on FSRS cards only) | 94.9% (n=24 465) |
+| Median stability | 56.7 d |
+| Top-100 / 500 / 1000 / 2000 freq known | 81% / 79% / 80% / 78% |
+| Active study days (streak) | 75 / 75 (100% — 2026-02-08 → 2026-04-23) |
+| Tashkeel-eligible (stability ≥ 30d) | 1089 / 1568 (69.5%) |
+
+**The headline**: core retention and accuracy are very healthy. The worry is **introduction/graduation slowing down**:
+
+| Week | Introduced | Graduated | Retention |
+|---|---|---|---|
+| W10 | 56 | 228 | 98.5% |
+| W11 | 128 | 168 | 98.7% |
+| W12 | 138 | 110 | 95.3% |
+| W13 | 174 | 150 | 93.5% |
+| W14 | 143 | 115 | 92.7% |
+| W15 | 125 | 94 | 90.3% |
+| W16 | 94 | 91 | 89.9% |
+| **W17** | **47** | **52** | **93.1%** |
+
+Intros fell 73% from W13 peak; retention dipped to 89.9% in W16 then recovered to 93.1% in the current week. Rating distribution: 7.8% rating-1, 1.2% rating-2, 91.0% rating-3. Acquisition accuracy 78.1% vs FSRS 94.9% — the acquiring box is working harder than the mature card pool, which is expected.
+
+**Frequency-coverage headroom** (top-15 gaps, content words only — all still `none` or `encountered`):
+
+| Rank | Word | Gloss | State |
+|---|---|---|---|
+| #32 | بْنٌ | alternative form of ibn | encountered |
+| #58 | مَجْلِسٌ | seat | none |
+| #67 | عَبْدٌ | slave, servant | none |
+| #80 | أخْبار | news | none |
+| #103 | أولى | first (fem.) | encountered |
+| #107 | مَوْقِعٌ | site, location | none |
+| #108 | أَلَّ | to be agitated | none |
+| #143 | أَبُو | father of | encountered |
+| #156 | جَديدة | new | none |
+| #158 | بـِ | with | encountered |
+
+Plenty of high-frequency vocab still unintroduced — we are **not running out of words**.
+
+### Why the Kalila dove lemmas (#3120–#3138) aren't showing up
+
+Verified directly against prod:
+
+- All 19 lemmas exist (source `scaffold`, gates stamped 2026-04-22 09:13)
+- All 19 are in `user_lemma_knowledge` with `knowledge_state='encountered'`, `source='book'`, `times_seen=0`
+- **Zero sentences reference them** (`SELECT COUNT(*) FROM sentence_words WHERE lemma_id BETWEEN 3120 AND 3138` → 0)
+- **No frequency_rank** — the bookify `introduce` subcommand doesn't backfill CAMeL rank for new scaffold lemmas
+
+Tracing `select_next_words()` (backend/app/services/word_selector.py:358-668) shows why. The scoring has a strict tier system:
+
+```python
+_TIER_BOOK_BASE = 200.0        # active book_ocr page words
+_TIER_STORY     = 10.0         # active imported stories
+_SOURCE_TIER_BONUS = {
+    "textbook_scan": 8.0, "duolingo": 6.0, "avp_a1": 4.0,
+}   # "scaffold" not in dict → 0.0
+```
+
+Kalila lemmas:
+- Not in any `Story` row (bookify `introduce` intentionally does *not* create a Story), so **not in `_book_page_numbers()` map** — no 200-bonus
+- `Lemma.source='scaffold'` not in `_SOURCE_TIER_BONUS` — priority_bonus = 0
+- `frequency_rank` NULL → default freq_score 0.3
+- Total score ≈ 0.3·0.4 + 0.5 (encountered bonus) ≈ 0.6
+
+Meanwhile, the two active book_ocr stories (`Rosie in the Haunted House` 163 words + `Prince of Physicians` 651 words) supply ~800 candidates with priority_bonus ≈ 200 - page·2. The Kalila lemmas simply never crack the top-N cutoff of Step C in `update_material.py` (`--candidates 10`). The `LOW_TIER_BLOCK_BACKLOG=60` gate is **not** the cause — current box-1 count is 27, well under threshold.
+
+**This is the designed behavior of `bookify introduce`** (per the 2026-04-22 redesign memo: "soft-seed as scaffold+encountered, safe to re-run"). But it means those 19 words live as `encountered` forever unless explicitly promoted.
+
+### Strategic word selection — do we need a new frequency list?
+
+No. The existing system is already strategic:
+- `frequency_rank` is populated from **CAMeL MSA frequency list** (`backend/data/MSA_freq_lists.tsv`, 11.3M entries) via `scripts/backfill_frequency.py`
+- `word_selector` weights frequency at 40% of in-tier score (`_frequency_score(rank) = 1 / log2(rank+2)`)
+- Root-familiarity (30%), grammar pattern (10%), recency (20%) round out the ranking
+
+The pipeline *would* pick high-frequency gaps like مَجْلِسٌ (#58) and أخْبار (#80) — but right now the active book pool (814 candidate word-slots) dominates the priority queue. Once those books drain, frequency-based selection takes over automatically. This is the book-first strategy functioning as designed.
+
+The **real lever** to reach high-frequency gaps sooner is not a new list — it's either (a) finishing/archiving the active books, or (b) relaxing the 200-point book tier so frequency gaps compete.
+
+### Options for the Kalila words
+
+Not implemented yet — flagging for user decision:
+
+1. **Backfill frequency_rank for the 19 Kalila lemmas** (1-liner against `MSA_freq_lists.tsv`). Low-risk; gives them a legitimate seat at the frequency table instead of the 0.3 default. Score would still be ~1.0 — won't beat book pages, but will rise in ranking once books drain.
+2. **Manually introduce all 19 via `/api/learn/introduce`**. Moves them encountered → acquiring → FSRS cards + on-demand sentence gen. Adds +19 box-1, which is fine (still below the 60-gate).
+3. **Register a `Story` row for "Kalila wa Dimna — Dove chapter"** with `source='book_ocr'` (or new `source='scaffold_chapter'`) and link the 19 lemmas as StoryWords. Makes them active book_ocr candidates with the 200-priority tier.
+4. **Add `scaffold` to `_SOURCE_TIER_BONUS`** at a middle tier (e.g. 5.0). Affects all future bookify imports.
+
+Option (1)+(2) is the cheapest path to "see my dove words in sessions". Option (3) is closer to how Rosie/Prince-of-Physicians work and is the right long-term structure if the user plans to read the Kalila chapter properly rather than just treat it as loose vocabulary.
+
+**Not changing anything now — reporting back for user decision.**
+
+### Follow-up 1: volume-normalized trend (user asked: are intros/grads declining *per review*, or just because I study less some weeks?)
+
+Re-ran the query with reviews-as-denominator. The raw "W10: 228 grads → W17: 52 grads" decline is **mostly an artifact of fewer reviews**, not a pipeline regression:
+
+| Week | Reviews | Rev/day | FSRS ret | Intros | Grads | intros/rev | grads/rev |
+|---|---|---|---|---|---|---|---|
+| W10 | 3 729 | 533 | 98.7% | 132 | 168 | 0.035 | 0.045 |
+| W11 | 3 061 | 437 | 95.3% | 131 | 110 | 0.043 | 0.036 |
+| W12 | 3 066 | 438 | 93.5% | 172 | 150 | 0.056 | 0.049 |
+| W13 | 2 102 | 300 | 92.7% | 143 | 115 | 0.068 | 0.055 |
+| W14 | 2 292 | 327 | 90.3% | 125 | 94 | 0.055 | 0.041 |
+| W15 | 2 108 | 301 | 89.9% | 94 | 91 | 0.045 | 0.043 |
+| W16 (partial, 4 d) | 1 686 | 422 | 93.1% | 24 | 52 | 0.014 | 0.031 |
+
+Reviews-per-day fluctuates with how much you study (300–533/d), not with a downward trend. Intros-per-review is stable at 0.04–0.06 through W10–W15. W16 is a partial week (4 of 7 days) — the 0.014 intros/rev is suspicious but probably a timing artefact (cron frequency plus entered_acquiring_at for today's reviews not yet stamped). **There is no pipeline regression to chase.**
+
+### Follow-up 2: FSRS "too easy" signal
+
+`fsrs_service.py:16`: `Scheduler(desired_retention=0.95)` — calibrated from `optimize_fsrs.py` on 21k reviews. Current FSRS retention is 94.9%, so the scheduler is **hitting its target within 0.1 pp**. The "easy" feeling is the scheduler doing its job, not a tuning error. If you want reviews to feel noticeably harder (at the cost of more lapses, but faster acquisition), lower `desired_retention` to 0.90 — 1 card in 10 failing is the FSRS default and still efficient. But I would not recommend this now: the long-gap recognitions you described ("seeing a word you haven't seen for a long time and recognizing it") are exactly the memory-consolidation events that justify a 0.95 target.
+
+### Follow-up 3: Registered Kalila as Story #31 (option 2)
+
+Created a `Story` row (`source='book_ocr'`, `status='active'`, `page_count=5`, `total_words=3157`) with 19 `StoryWord` rows — one per imported lemma, `page_number` derived from the paragraph of first occurrence. Script: `/tmp/register_kalila_story.py` (run once against prod). Backup: `/opt/alif-backups/alif_pre_kalila_story_20260423_135900.db`. Activity logged (`manual_action`).
+
+Verification: `_book_page_numbers(db)` now returns all 19 lemmas, and `select_next_words(count=30)` places them at ranks **1–19**, with scores 192.63–198.94 (tier `book_p1`..`book_p4`). The next Step C run of `update_material.py` (cron every 3h at :30) will generate 3 sentences per lemma and the words will start appearing in sessions.
+
+Did **not** change `Lemma.source='scaffold'` — the priority system reads from the `StoryWord.page_number` map, not `Lemma.source`.
+
+**Known follow-up for `bookify introduce`**: it should register a Story+StoryWords as part of the import, not just seed ULK rows. Filed in `project_bookify_arabic.md` memory.
+
+### Follow-up 4: Lemma decomposition pipeline — systemic bug (🔴 high priority)
+
+User noticed a reading card showed **#2862 وَتَرَكَهُم "and left them"** (source=`quran`, root=305) as a single atomic verb — it's a compound (و + تَرَكَ + هُمْ) that was never decomposed. Audit in the same session found this is not isolated: at least 10 compound lemmas are in active SRS circulation right now, including #1638 وَلَكِنْ (104 reviews, known), #1469 اَلْيَوْمَ (99), #1468 اَلْآنَ (43), #1806 لَها (35). Plus ~70 of 92 source='quran' lemmas look compound (ءَامَنَّا, شَيَطِينِهِم, فَاتَّقُواْ, يَأَيُّهَا, خَلَقَكُم, …), most not yet promoted to acquiring.
+
+Root cause identified: `backend/app/services/quran_service.py:732-773` uses exact-string dedup (`existing_bare_set`) instead of clitic-aware `resolve_existing_lemma()` (the function that `story_service.py:305,348,508` uses). Fix + remediation plan written up at the top of `IDEAS.md` as "HIGH PRIORITY — Lemma Decomposition Pipeline Audit + Fix." User is waiting for Max plan reset before acting.
+
+**Connects to the earlier Hindawi enrichment-failure analysis**: 6 431 of 6 465 corpus sentences (99.5%) inactive, dominant blocker surface forms were وَرَاقَبَ, عَلَيْهِ, إِلَيْهِ — the *same* decomposition-failure pattern, on the consumer side. Canonicals never got into the DB because the import path stored compounds. Two ends of one broken pipeline.
+
+Secondary bug visible on the same card: root ت.ر.ك glossed as "related to Turkic peoples, Turkey, leaving, and abandoning things" — LLM enrichment conflated ت.ر.ك (to leave) with تُرْك (Turk/Turkey). Fix is separate from decomposition but should follow remediation (re-enrich after canonicals settle).
+
+---
+
 ## 2026-04-22 (later): Bookify renderer spike — paged.js rejected, WeasyPrint footnotes work fine
 
 **Question**: the Kalila reader had `bilingual.pdf` (sentence pairs) and `glossary.pdf` (preface vocab + underlined body) but no per-page-footnote variant. IDEAS.md claimed "WeasyPrint chokes >100 footnotes — switch to paged.js" so we hadn't tried. Spike: is paged.js actually a viable replacement?

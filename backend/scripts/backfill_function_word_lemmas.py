@@ -18,7 +18,9 @@ from app.models import Lemma
 from app.services.sentence_validator import (
     FUNCTION_WORD_GLOSSES,
     FUNCTION_WORD_FORMS,
+    build_lemma_lookup,
     normalize_alef,
+    resolve_existing_lemma,
 )
 
 # POS categories for function words
@@ -75,15 +77,16 @@ POS_MAP = {
 }
 
 
-def main():
-    db = SessionLocal()
+def backfill_function_words(db, *, verbose: bool = True) -> tuple[int, int, int]:
+    """Create Lemma rows for any FUNCTION_WORD_GLOSSES entry not already in DB.
 
-    # Build set of existing bare forms (normalized)
-    existing = set()
-    for lem in db.query(Lemma).all():
-        existing.add(normalize_alef(lem.lemma_ar_bare))
+    Uses clitic-aware dedup so a function word like وان (و + أن) doesn't get
+    created when canonical أن already exists.
 
-    # Skip conjugated forms that map to a base form
+    Returns (created, skipped_existing, skipped_conjugated).
+    """
+    all_lemmas = db.query(Lemma).all()
+    lemma_lookup = build_lemma_lookup(all_lemmas)
     conjugated_bases = set(FUNCTION_WORD_FORMS.keys())
 
     created = 0
@@ -93,22 +96,19 @@ def main():
     for bare, gloss in FUNCTION_WORD_GLOSSES.items():
         norm = normalize_alef(bare)
 
-        # Skip if already exists
-        if norm in existing:
+        existing_id = lemma_lookup.get(norm)
+        if existing_id is None:
+            existing_id = resolve_existing_lemma(bare, lemma_lookup)
+        if existing_id is not None:
             skipped_existing += 1
             continue
 
-        # Skip conjugated forms — they'll map to their base lemma
         if bare in conjugated_bases:
             skipped_conjugated += 1
             continue
 
-        # Skip single-letter proclitics/enclitics (ب, ل, ك, و, ف)
+        # Single-letter proclitics/enclitics (ب, ل, ك, و, ف)
         if len(bare) == 1:
-            continue
-
-        # Skip hamza-variant duplicates (e.g. إلى if الى already handled)
-        if norm in existing:
             continue
 
         pos = POS_MAP.get(bare, "particle")
@@ -120,12 +120,22 @@ def main():
             pos=pos,
         )
         db.add(lemma)
-        existing.add(norm)
+        db.flush()
+        lemma_lookup[norm] = lemma.lemma_id
         created += 1
-        print(f"  Created: {bare} ({gloss}) pos={pos}")
+        if verbose:
+            print(f"  Created: {bare} ({gloss}) pos={pos}")
 
     db.commit()
-    db.close()
+    return created, skipped_existing, skipped_conjugated
+
+
+def main():
+    db = SessionLocal()
+    try:
+        created, skipped_existing, skipped_conjugated = backfill_function_words(db)
+    finally:
+        db.close()
 
     print(f"\nCreated {created} function word lemmas")
     print(f"Skipped {skipped_existing} (already exist)")
