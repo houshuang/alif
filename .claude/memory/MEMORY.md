@@ -105,11 +105,26 @@ Prefer focused sessions. If a task has 4+ distinct parts, suggest breaking into 
 ## Spanish Pilot for Norwegian School (2026-04-15)
 - [Details](project_spanish_pilot.md) — Standalone `spanish-pilot/` subproject; UX-validation prototype for Spanish-Norwegian word-level SRS. Separate SQLite/systemd/port 3100 on Hetzner. Norwegian UI, NO English allowed.
 
+## Never Weaken apply_corrections same_lemma Gate
+- [Details](feedback_dont_weaken_same_lemma_gate.md) — The `same_lemma` rejection in apply_corrections is INTENTIONAL hardening (8+ commits 2026-03-17 to 2026-04-16). I keep trying to "fix" it; it's not broken. See in-code guard block before touching.
+
+## Verify Before Recommending
+- [Details](feedback_verify_before_recommending.md) — Check crontab before "you should run X"; check denominator filter symmetry before quoting a ratio. Got caught twice same session (2026-04-21).
+
+## Bookify Arabic (reading-aid PDF tool, redesigned 2026-04-22)
+- [Details](project_bookify_arabic.md) — `backend/scripts/bookify_arabic.py`. Kalila dove chapter shipped: fully vocalized, A4 landscape bilingual + A5 glossary PDFs, Scheherazade New font bundled in `backend/data/fonts/`, two-tier word highlights, sentence-pair alignment, new `introduce` subcommand (imports top-N to Alif as scaffold+encountered). 19 lemmas added to prod (`#3120–#3138`). Session report: `research/bookify-kalila-dove-2026-04-22.html`.
+
+## Prefer in-session work over claude -p subprocess (2026-04-22)
+- [Details](feedback_in_session_vs_cli_subprocess.md) — For text-transforms I can do directly (vocalize, translate, align, classify), WRITE the output to a file myself. Don't delegate to `claude -p` subprocess. Wasted hours on 2026-04-22 batching classical-Arabic vocalization through CLI before just doing it directly.
+
+## 🟡 Lemma Decomposition Audit — Phase 1 + Phase 2 step 1 done, steps 2-8 open
+- [Details](project_lemma_decomposition_audit.md) — Phase 1 (2026-04-24) classified all 2,905 prod lemmas via CAMeL MLE: 144 HIGH-tier compounds (593 reviews), 102 orphans (385 reviews), 1,271 total review impact (4.5× the prior estimate). Phase 2 step 1 (2026-04-24) patched `quran_service.py:732` and `backfill_function_word_lemmas.py` to call `resolve_existing_lemma()` (clitic-aware dedup) — bleed stopped. Reports: `research/decomposition-audit-2026-04-24.md` + `decomposition-classification-2026-04-24.json`. Steps 2-8 (backup → backfill 102 orphan canonicals → spot-check + migrate 144 HIGH-tier → manual MEDIUM/LOW → re-enrich Hindawi corpus → verify) still open.
+
 ## Architecture Notes (not in CLAUDE.md)
 - FSRS stability floor: "known" with stability < 1.0 -> "lapsed"
 - Interaction logger: skipped when TESTING=1 (set in conftest.py)
 - Frontend tests: `cd frontend && npx jest --watchman=false` (Jest + ts-jest, mocks for AsyncStorage/expo-constants/netinfo)
-- Import dedup: all scripts use `resolve_existing_lemma()` for clitic-aware dedup (catches و-prefix, possessives, al-prefix)
+- Import dedup: ALL 11 lemma-creation sites now use clitic-aware dedup. The two former exceptions — `app/services/quran_service.py:732` and `scripts/backfill_function_word_lemmas.py` — were patched in Phase 2 step 1 of the lemma-decomposition audit (2026-04-24) to call `resolve_existing_lemma()` before creating compound lemmas.
 - Hamza normalization: preserve in storage, normalize at lookup/comparison time only
 - Sentence generation: rejected word feedback + collocate auto-introduction on failure
 - **CRITICAL: SQLite naive datetime pitfall**: SQLite stores ALL datetimes as naive strings. Every datetime comparison in Python must either use naive datetimes (`datetime.utcnow()`) or convert DB values with `.replace(tzinfo=timezone.utc)` before comparing to aware datetimes. This affects: FSRS `reviewed_at` replay, `acquisition_next_due` comparison, FSRS due date comparison. Has caused production crashes 3 times.

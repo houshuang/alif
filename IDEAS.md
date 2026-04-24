@@ -4,12 +4,133 @@
 
 ---
 
+## 🟡 Lemma Decomposition Pipeline — Phase 1 + Phase 2 Step 1 done 2026-04-24, Steps 2-8 OPEN
+
+User-found bug: a reading card showed **#2862 وَتَرَكَهُم "and left them"** (root 305, source=`quran`) as a single atomic verb lemma. Correct decomposition is و (proclitic "and") + تَرَكَ (verb "he left") + هُمْ (enclitic "-them"). The compound form was stored in `lemmas` instead of the canonical تَرَكَ. User flagged: *"this whole pipeline needs investigation."*
+
+**Phase 1 complete (2026-04-24)** — read-only audit. Reports:
+- `research/decomposition-audit-2026-04-24.md` — methodology + per-import-path table + Phase 2 sequence + risks
+- `research/decomposition-classification-2026-04-24.json` — every lemma classified (bucket + tier + canonical resolution + ULK history)
+- `scripts/audit_lemma_decomposition.py` — re-runnable
+
+**Phase 1 quantified findings (vs original estimates below)**:
+- Buggy paths narrowed from "audit all 11" to **2 specific files**: `app/services/quran_service.py:732-768` (primary) + `scripts/backfill_function_word_lemmas.py:111-122` (low-risk hygiene). 9 of 11 lemma-creation sites already correct.
+- 144 HIGH-tier compounds with canonical-in-DB (593 reviews), 4 MEDIUM, 13 LOW
+- 102 orphan compounds (canonical missing from DB; 385 reviews) — Phase 2 must backfill canonicals first
+- **1,271 reviews on non-canonical lemmas — 4.5× the original estimate**
+- #2862 confirmed orphan (canonical تَرَكَ not in DB)
+- 9/10 known offenders caught; the miss (#430 تشَرَّفنا) is a different bug class (verb-conjugation duplicate, not clitic compound)
+
+**Phase 2 Step 1 — DONE (2026-04-24).** Both buggy import paths now call `resolve_existing_lemma()` before creating Lemma rows, matching the pattern used by the 9 already-correct paths (e.g. `story_service.py:305,348,508`). Bleed is stopped — new compounds will resolve to canonicals (when canonical exists), or surface as orphans for Step 3 to backfill. Tests in `backend/tests/test_lemma_dedup_imports.py` cover direct-match, clitic-strip, and create-when-new. Branch: `sh/decomposition-phase2-imports`.
+
+**Phase 2 Steps 2-8 still OPEN.** Sequence in audit report: backup DB → backfill 102 orphan canonicals → spot-check + mass-migrate 144 HIGH-tier compounds → manual MEDIUM/LOW → re-enrich Hindawi corpus → verify next Quran surah import.
+
+---
+
+### Original investigation notes (2026-04-23, kept for reference)
+
+### Scope of the problem (verified against prod 2026-04-23)
+
+**Confirmed compound lemmas with real review history** (10 that appear in my regex audit + hand-verification):
+
+| lemma_id | compound | gloss | reviews | state | source |
+|---|---|---|---|---|---|
+| #1638 | وَلَكِنْ | but (و+لكن) | **104** | known | auto_intro |
+| #1469 | اَلْيَوْمَ | today (ال+يَوْم) | **99** | known | textbook_scan |
+| #1468 | اَلْآنَ | now (ال+آن) | 43 | known | book |
+| #1806 | لَها | to her (ل+ها) | 35 | known | book |
+| #430 | تشَرَّفنا | nice to meet you (تَشَرَّفَ+نا) | 12 | known | auto_intro |
+| #1608 | أُعَرِّفُكُمْ | I introduce you (عَرَّفَ+كُم) | 7 | acquiring | textbook_scan |
+| #1732 | وَنَأْكُلُ | and we eat (و+نَأْكُل) | 5 | known | textbook_scan |
+| **#2862** | **وَتَرَكَهُم** | and left them (و+تَرَكَ+هم) | 2 | learning | **quran** |
+| #1692 | فِيهَا | in it (في+ها) | 0 | encountered | book |
+| #2874 | خَلَقَكُم | created you (خَلَقَ+كُم) | 0 | encountered | quran |
+
+**Top 4 offenders represent ~280 reviews that should have been credited to canonical forms** — the user has been consolidating compound surface forms instead of the underlying lemmas.
+
+**Orphan compounds in Quran source**: ~70 of the 92 source=`quran` lemmas look compound. Examples:
+- ءَامَنَّا (آمَنَ+نا — "we believed")
+- شَيَطِينِهِم (شَيَاطِين+هم — "their devils")
+- فَاتَّقُواْ (ف+اتَّقَى — "then fear")
+- يَأَيُّهَا (يَا+أَيُّ+ها — vocative particle)
+- خَلَقَكُم (خَلَقَ+كُم — "created you")
+
+Most haven't been auto-introduced yet so review impact is low so far, but they'll keep getting promoted as the user reads Quran verses.
+
+### Root cause
+
+**`backend/app/services/quran_service.py:732-773` (`_import_unknown_lemmas` or equivalent)** uses exact-string dedup only:
+
+```python
+existing_bare_set = {normalize_alef(l.lemma_ar_bare) for l in all_lemmas}
+...
+if bare_norm in existing_bare_set:
+    continue
+lemma = Lemma(lemma_ar=surface, lemma_ar_bare=bare, source="quran", ...)
+db.add(lemma)
+```
+
+It never calls `resolve_existing_lemma()` — the clitic-aware dedup from `sentence_validator.py:1624` that's used in `story_service.py:305,348,508`. The CLAUDE.md claim "Import dedup: all scripts use `resolve_existing_lemma()`" is **wrong for the Quran path** (and possibly textbook_scan, avp_a1, etc. — needs per-path audit).
+
+Decomposition infrastructure that *already exists* and should be called:
+- `sentence_validator.py:337` — `_strip_clitics(bare_form) -> list[str]`
+- `sentence_validator.py:1624` — `resolve_existing_lemma(bare, lookup)` — tries stem + clitic-stripped stem
+- `confusion_service.py:74` — `decompose_surface(surface, lemma_bare, forms)`
+
+### Connection to the earlier enrichment-failure analysis (same session, 2026-04-23)
+
+The Hindawi corpus enrichment had ~80% failure rate (6,431 of 6,465 corpus sentences inactive). Top blocker surface forms included وَرَاقَبَ, عَلَيْهِ, إِلَيْهِ — the same decomposition-failure pattern on the *enrichment* side. The tokenizer's `map_tokens_to_lemmas` in the enrichment path *does* call clitic-aware logic, but if the target canonical تَرَكَ / رَاقَبَ doesn't exist in the DB (because the import pipeline stored وَتَرَكَهُم / وَرَاقَبَ as lemmas instead), the enrichment has nothing to match to. **Two ends of the same broken pipeline.**
+
+### Secondary bug on the same card — gloss conflation
+
+The screenshot's root card showed ت.ر.ك glossed as *"related to Turkic peoples, Turkey, leaving, and abandoning things"*. That's the LLM enrichment conflating two unrelated roots:
+- ت.ر.ك (taraka, "to leave")
+- تُرْك (Turk/Turkey)
+
+The shared letters ت-ر-ك confused the enrichment. Separate issue from decomposition, but visible on the same card. Lives in root gloss generation (probably in `lemma_quality.py` or the root enrichment path).
+
+### Investigation + remediation plan (1-2 sessions)
+
+**Phase 1 — Audit (read-only, half a session)**
+1. Use CAMeL Tools morphology (not regex — my regex has false positives like فَهِمَ ends in "هم", وَجَدَ starts with "و" but these are real lemmas). Classify all 2 905 lemmas as: canonical / compound-with-canonical-in-db / orphan-compound / ambiguous. Write the classification to a JSON file in `research/`.
+2. Per-import-path audit: does each of the 7 import scripts (`import_quran.py`, `import_wiktionary.py`, `import_avp_a1.py`, `import_duolingo.py`, `import_hindawi.py`, `import_michel_thomas.py`, `import_scaffold_lemmas.py`) call `resolve_existing_lemma` before `db.add(Lemma)`? Plus `quran_service.py`, `story_service.py`, `book_import_service.py`, `lemma_quality.py`, `material_generator.py` (flag_autocreate path), `sentence_validator.py` (mapping_correction path).
+3. Produce a categorized report in `research/decomposition-audit-2026-XX-XX.md`.
+
+**Phase 2 — Remediation (full session)**
+1. **Fix the import paths** — patch `quran_service.py` + any other outliers to call `resolve_existing_lemma()` before creating, and to run clitic-stripping to try multiple candidate stems. Add a test case per path.
+2. **Backfill canonicals** — for orphan compounds that don't have a canonical in DB yet (e.g. #2862 needs تَرَكَ created), import the canonical forms first via `import_scaffold_lemmas.py` pattern.
+3. **Migrate existing compounds**:
+   - For each compound with `canonical_in_db=True`: set `canonical_lemma_id` to redirect, **migrate `user_lemma_knowledge` review history** to the canonical (sum times_seen, times_correct, take max(stability), earliest(introduced_at), latest(last_reviewed)). Merge FSRS state carefully — a card with stability 90d on compound + stability 30d on canonical becomes stability ≈ 90d on canonical after merge (the user *has* seen this word 104 times, just under a compound spelling).
+   - For orphan compounds after canonical is created: same migration.
+4. **Cleanup**: leave compound rows in place but with `canonical_lemma_id` set (per the existing variant pattern — see `canonical_lemma_id` usage in `word_selector._resolve_to_canonical`). Don't hard-delete — preserves audit trail and any legacy references.
+5. **Fix gloss conflation**: audit root glosses for homograph conflation, re-enrich root 305 (ت.ر.ك) and similar affected roots.
+
+**Phase 3 — Verify**
+1. Re-run the enrichment on the 6 431 inactive corpus sentences (clear `mappings_verified_at`, let cron re-try). Expect success rate to climb materially as canonicals are now present.
+2. Spot-check 10 randomly-sampled new Quran verse imports — confirm all words decompose.
+3. Check that the top-15 frequency gaps from the learning analysis aren't actually just decomposition-failures in disguise.
+
+### Risks / discipline
+
+- **Don't act piecemeal** — halfway state (compounds redirected but imports still creating more) produces churn. Do the import fix *and* cleanup in one session.
+- **Review-history merge is irreversible** — backup DB before Phase 2 step 3.
+- **Watch for the `same_lemma` gate in apply_corrections** (feedback_dont_weaken_same_lemma_gate.md). Once compounds redirect to canonicals, some existing `apply_corrections` events might now be "same lemma" — that's the *correct* behavior post-fix, not a bug.
+- **Gloss enrichment in Phase 2 step 5**: run only after Phase 2 step 1-4 complete so the root's lemma list reflects real vocabulary, not compound ghosts.
+
+### Evidence left behind this session
+- Experiment-log 2026-04-23 entry (this investigation).
+- Memory: `feedback_lemma_decomposition_audit.md` (high-priority flag so next session picks up).
+- User is waiting for Max plan reset before working on it.
+
+---
+
 ## Bookify Arabic — Reading Aid PDFs (redesigned 2026-04-22)
 `backend/scripts/bookify_arabic.py` — take an Arabic chapter, identify lemmas not yet in the user's Alif vocabulary, and render a paginated PDF reader with preface vocab + two-tier highlighted body. Kalila wa Dimna باب الحمامة المطوقة shipped as pilot. Session report: `research/bookify-kalila-dove-2026-04-22.html`.
 
 - [DONE] Script v0 — `ingest` + `render` subcommands; compound function-word prefix check (ف+لم avoids "film"); clitic folding (الجرذ/للجرذ/والجرذ → جرذ); `frequency_rank ≤ 1000` fallback.
 - [DONE 2026-04-22] Full redesign: Scheherazade New font bundled in `backend/data/fonts/` (via `file://` URL, no system install); A4 landscape bilingual with sentence-pair rows (AR right · EN left on every page); A5 portrait glossary; two-tier highlighting (`.tok.new` saffron solid for preface words, `.tok.new-dim` faint gray dotted for other unfamiliar); title page + colophon; `translate_paragraphs` per-paragraph.
 - [DONE 2026-04-22] Auto-import: `bookify_arabic.py introduce <json> --top 25 [--dry-run]` imports top-N preface lemmas into Alif as `source='scaffold'` + `UserLemmaKnowledge` rows (`knowledge_state='encountered'`, `source='book'`). Idempotent. 19 new lemmas `#3120–#3138` seeded to prod for Kalila dove; activity logged.
+- [TODO] **`introduce` should also register a Story + StoryWord rows** (confirmed 2026-04-23). Without a Story in `book_pages` / `story_lemmas`, `word_selector` scores the introduced lemmas at priority_bonus=0 (`scaffold` not in `_SOURCE_TIER_BONUS`), so they sit as `encountered` indefinitely while active book_ocr stories monopolize the 200-tier. Pattern to mirror: `book_import_service.py:491-502` (Story row with `source='book_ocr'`, `status='active'`, `page_count`) + StoryWord rows with `page_number` from first-occurrence paragraph. Manually backfilled Kalila as Story #31 on 2026-04-23 to prove this works — all 19 lemmas immediately jumped to ranks 1–19 in `select_next_words()` with scores 192–199. Teach `introduce` to do it automatically so the next chapter doesn't need manual surgery.
 - [TODO] Large-paragraph translation (>2500 chars) still fails via in-ingest CLI due to Sonnet 240s timeout. Fix: split paragraph into halves when large, or fall back to per-sentence with in-context direct alignment. (Current workaround: do alignment in-session directly.)
 - [DONE 2026-04-22] Per-page footnotes via WeasyPrint `--format footnotes` — empirical: full Kalila chapter (432 distinct unfamiliar lemmas → 432 first-occurrence footnotes) renders in 30s into 37 A5 pages, ~12 footnotes/page, beautiful Scheherazade shaping. Artifact: `backend/data/kalila_dove.footnotes.pdf`. Earlier "WeasyPrint chokes >100 footnotes" worry was wrong (untested guess); WeasyPrint's CSS3 float-solver scales fine. Spike of paged.js as replacement: rejected — it silently truncates 85-95% of body content on our long-paragraph layout (4 pages emitted vs WeasyPrint's 37). Findings: `research/bookify-renderer-spike-2026-04-22.html`.
 - [TODO] Support more source pipelines: Hindawi books (user has HuggingFace parquet imported), LAL Arabic PDFs (Gemini OCR or archive.org HTML), plain uploaded text files.

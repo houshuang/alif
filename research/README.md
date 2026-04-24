@@ -84,6 +84,7 @@ Initial technology research conducted before app development.
 | [variant-detection-spec.md](variant-detection-spec.md) | LLM-confirmed variant detection specification |
 | [bookify-kalila-dove-2026-04-22.html](bookify-kalila-dove-2026-04-22.html) | Bookify redesign session report — Kalīla & Dimna reader edition: font, CSS, two-tier highlights, sentence-pair alignment, introduce subcommand, 19 lemmas imported to prod. Includes timeline, misses, wins, lessons. |
 | [bookify-renderer-spike-2026-04-22.html](bookify-renderer-spike-2026-04-22.html) | Bookify renderer spike — does paged.js beat WeasyPrint for per-page footnotes? Conclusion: no, paged.js silently drops 85-95% of body content; WeasyPrint handles 432 footnotes in 30s. Settles the renderer choice; do not reopen without restructuring HTML to break long paragraphs. |
+| [decomposition-audit-2026-04-24.md](decomposition-audit-2026-04-24.md) | **Phase 1 lemma-decomposition audit** — read-only classification of all 2,905 prod lemmas via CAMeL MLE morphology, plus per-import-path code audit. Confirms quran_service.py:732-768 as primary buggy path (also backfill_function_word_lemmas.py). 161 compounds-with-canonical-in-DB (886 reviews) and 102 orphan compounds (385 reviews) found. Includes confidence tiers (HIGH/MEDIUM/LOW) and a recommended Phase 2 sequence. Companion JSON: `decomposition-classification-2026-04-24.json`. |
 
 ---
 
