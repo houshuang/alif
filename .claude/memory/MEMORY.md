@@ -120,6 +120,9 @@ Prefer focused sessions. If a task has 4+ distinct parts, suggest breaking into 
 ## 🟡 Lemma Decomposition Audit — Phase 1 + Phase 2 step 1 done, steps 2-8 open
 - [Details](project_lemma_decomposition_audit.md) — Phase 1 (2026-04-24) classified all 2,905 prod lemmas via CAMeL MLE: 144 HIGH-tier compounds (593 reviews), 102 orphans (385 reviews), 1,271 total review impact (4.5× the prior estimate). Phase 2 step 1 (2026-04-24) patched `quran_service.py:732` and `backfill_function_word_lemmas.py` to call `resolve_existing_lemma()` (clitic-aware dedup) — bleed stopped. Reports: `research/decomposition-audit-2026-04-24.md` + `decomposition-classification-2026-04-24.json`. Steps 2-8 (backup → backfill 102 orphan canonicals → spot-check + migrate 144 HIGH-tier → manual MEDIUM/LOW → re-enrich Hindawi corpus → verify) still open.
 
+## gh CLI / Go binaries TLS error in sandbox (2026-04-24)
+- [Details](feedback_gh_sandbox_tls.md) — `OSStatus -26276` from gh/terraform/tofu = Claude Code sandbox blocking `com.apple.trustd` Mach IPC. Retry the same command with `dangerouslyDisableSandbox: true` immediately. Don't waste time on auth, GODEBUG, or `brew upgrade gh`.
+
 ## Architecture Notes (not in CLAUDE.md)
 - FSRS stability floor: "known" with stability < 1.0 -> "lapsed"
 - Interaction logger: skipped when TESTING=1 (set in conftest.py)

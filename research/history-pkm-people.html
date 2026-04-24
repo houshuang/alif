@@ -1,0 +1,623 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>History + PKM: People at the Intersection</title>
+<style>
+  :root {
+    --bg: #faf9f6;
+    --card: #ffffff;
+    --text: #2d2d2d;
+    --muted: #6b7280;
+    --accent: #7c3aed;
+    --accent-light: #ede9fe;
+    --border: #e5e7eb;
+    --link: #4f46e5;
+    --tier1: #7c3aed;
+    --tier2: #2563eb;
+    --tier3: #059669;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: 'Georgia', 'Times New Roman', serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.7;
+    padding: 2rem 1rem;
+  }
+  .container { max-width: 900px; margin: 0 auto; }
+  h1 {
+    font-size: 2.2rem;
+    margin-bottom: 0.3rem;
+    color: var(--text);
+    letter-spacing: -0.02em;
+  }
+  .subtitle {
+    color: var(--muted);
+    font-size: 1.05rem;
+    margin-bottom: 2.5rem;
+    font-style: italic;
+  }
+  .tier-label {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    padding: 0.25rem 0.75rem;
+    border-radius: 100px;
+    display: inline-block;
+    margin-bottom: 1.5rem;
+    margin-top: 2.5rem;
+  }
+  .tier-label.t1 { background: #ede9fe; color: var(--tier1); }
+  .tier-label.t2 { background: #dbeafe; color: var(--tier2); }
+  .tier-label.t3 { background: #d1fae5; color: var(--tier3); }
+
+  .person {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 1.75rem 2rem;
+    margin-bottom: 1.25rem;
+    transition: box-shadow 0.2s;
+  }
+  .person:hover { box-shadow: 0 4px 20px rgba(0,0,0,0.06); }
+
+  .person-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-bottom: 0.5rem;
+  }
+  .person h2 {
+    font-size: 1.35rem;
+    color: var(--text);
+    letter-spacing: -0.01em;
+  }
+  .affiliation {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    font-size: 0.82rem;
+    color: var(--muted);
+    flex-shrink: 0;
+  }
+  .person .description {
+    margin-bottom: 1rem;
+    color: #374151;
+  }
+  .links {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+  .links a {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    font-size: 0.8rem;
+    text-decoration: none;
+    color: var(--link);
+    background: #f3f4f6;
+    padding: 0.3rem 0.7rem;
+    border-radius: 6px;
+    transition: background 0.15s;
+    white-space: nowrap;
+  }
+  .links a:hover { background: #e0e7ff; }
+  .links a.email { color: #059669; background: #ecfdf5; }
+  .links a.email:hover { background: #d1fae5; }
+
+  .key-work {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    font-size: 0.82rem;
+    color: var(--muted);
+    margin-top: 0.75rem;
+    padding-top: 0.75rem;
+    border-top: 1px solid var(--border);
+  }
+  .key-work strong { color: #4b5563; }
+
+  .communities {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 1.75rem 2rem;
+    margin-top: 2.5rem;
+  }
+  .communities h2 {
+    font-size: 1.2rem;
+    margin-bottom: 1rem;
+  }
+  .communities ul {
+    list-style: none;
+    padding: 0;
+  }
+  .communities li {
+    padding: 0.4rem 0;
+    border-bottom: 1px solid var(--border);
+    font-size: 0.95rem;
+  }
+  .communities li:last-child { border-bottom: none; }
+  .communities a { color: var(--link); }
+
+  footer {
+    text-align: center;
+    color: var(--muted);
+    font-size: 0.8rem;
+    margin-top: 3rem;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  }
+</style>
+</head>
+<body>
+<div class="container">
+
+<h1>History + Personal Knowledge Management</h1>
+<p class="subtitle">Researchers and educators working at the intersection of historical scholarship and networked notetaking tools</p>
+
+<!-- ============ TIER 1 ============ -->
+<div class="tier-label t1">Core &mdash; History + PKM is central to their work</div>
+
+<div class="person">
+  <div class="person-header">
+    <h2>Shawn Graham</h2>
+    <span class="affiliation">Carleton University, Ottawa</span>
+  </div>
+  <p class="description">
+    Professor of Digital Humanities who builds entire courses around Obsidian as a research instrument.
+    Students create a "Personal Memex" &mdash; an interconnected knowledge base that grows across the semester.
+    Teaches Zettelkasten methodology as foundational to digital archaeology. His toolchain integrates
+    Hypothes.is &rarr; Zotero &rarr; Obsidian &rarr; GitHub. Practices "open notebook scholarship" &mdash;
+    his blog Electric Archaeology is itself a public lab notebook. Created an Obsidian vault template
+    for game design history courses. Key argument: building a linked knowledge base <em>is itself</em>
+    a form of learning, not just productivity.
+  </p>
+  <div class="links">
+    <a href="https://electricarchaeology.ca/">Blog</a>
+    <a href="https://scholar.social/@electricarchaeo">Mastodon</a>
+    <a href="https://github.com/shawngraham">GitHub (365 repos)</a>
+    <a href="https://shawngraham.github.io/hist1900/">HIST1900 Course</a>
+    <a href="https://digiarch.netlify.app/">HIST3000 Course</a>
+    <a href="https://carleton.ca/history/people/shawn-graham/">Faculty Page</a>
+    <a href="https://scholar.google.com/citations?user=IU6usq8AAAAJ">Google Scholar</a>
+    <a class="email" href="mailto:shawn.graham@carleton.ca">Email</a>
+  </div>
+  <div class="key-work">
+    <strong>Key books:</strong> <em>Practical Necromancy for Beginners</em> (AI for history students, 2025),
+    <em>The Historian's Macroscope</em> (with Milligan &amp; Weingart),
+    <em>An Enchantment of Digital Archaeology</em>,
+    <em>Failing Gloriously</em>
+  </div>
+</div>
+
+<div class="person">
+  <div class="person-header">
+    <h2>Chris Aldrich</h2>
+    <span class="affiliation">Independent researcher, Los Angeles</span>
+  </div>
+  <p class="description">
+    Traces the unbroken lineage from ancient mnemonic practices to modern PKM tools. Core argument:
+    Roam, Obsidian, and Notion are reinventing centuries-old practices while ignoring their predecessors.
+    Studies commonplace books (Erasmus, Locke, Newton), florilegia (900&ndash;1300s CE),
+    Zettelkasten (from Gessner's 1548 <em>Pandectarum</em> through Luhmann), waste books, and
+    Indigenous Australian songlines (~65,000 years of spatial-mnemonic knowledge encoding).
+    Presented a PKM Timeline spanning 35,000 BCE to the present at PKM Summit Utrecht (2024).
+    Johns Hopkins-trained biomedical engineer, active in the IndieWeb community.
+    Over 10,000 public annotations on Hypothes.is.
+  </p>
+  <div class="links">
+    <a href="https://boffosocko.com/">Blog (Digital Commonplace Book)</a>
+    <a href="https://x.com/ChrisAldrich">X/Twitter</a>
+    <a href="https://mastodon.social/@chrisaldrich">Mastodon</a>
+    <a href="https://hypothes.is/users/chrisaldrich">Hypothes.is (10K+ annotations)</a>
+    <a href="https://bsky.app/profile/chrisaldrich.bsky.social">Bluesky</a>
+    <a href="https://github.com/chrisaldrich">GitHub</a>
+    <a href="https://www.youtube.com/christopherjaldrich">YouTube</a>
+    <a href="https://theinformed.life/2024/05/05/episode-139-chris-aldrich/">Podcast Interview</a>
+    <a class="email" href="mailto:chris@boffosocko.com">Email</a>
+  </div>
+  <div class="key-work">
+    <strong>Key writing:</strong>
+    <a href="https://boffosocko.com/2021/07/03/differentiating-online-variations-of-the-commonplace-book-digital-gardens-wikis-zettlekasten-waste-books-florilegia-and-second-brains/">Differentiating Online Variations of the Commonplace Book</a> (his most-cited piece)
+  </div>
+</div>
+
+<div class="person">
+  <div class="person-header">
+    <h2>Dan Allosso</h2>
+    <span class="affiliation">Saint Paul College (Minnesota State)</span>
+  </div>
+  <p class="description">
+    History educator who runs the Obsidian Book Club &mdash; a weekly Saturday group reading session
+    (92+ recorded sessions) alternating between note-making methodology books and history/politics texts.
+    Uses Zotero + Research Rabbit + Obsidian as his primary toolchain. Practices a zettelkasten-influenced
+    system with two note types: source notes and point notes. Influenced by historical note-makers
+    including Beatrice Webb, Marcel Mauss, L&eacute;vi-Strauss, Roland Barthes, and Luhmann.
+    Strong advocate for Open Educational Resources in history (authored 3 OER textbooks).
+    Previously at Bemidji State University. PhD from UMass Amherst.
+  </p>
+  <div class="links">
+    <a href="https://danallosso.substack.com/">Substack (MakingHistory)</a>
+    <a href="https://lifelonglearn.substack.com/">Substack (Lifelong Learners)</a>
+    <a href="https://www.youtube.com/channel/UCNw0lsJ9-4ya4OiDQWsRl5A">YouTube</a>
+    <a href="https://x.com/AllossoDan">X/Twitter</a>
+    <a href="https://podcasts.apple.com/us/podcast/makinghistory/id1529500787">Podcast</a>
+    <a href="https://drdanallosso.com">Personal Site</a>
+    <a class="email" href="mailto:danallosso@icloud.com">Email</a>
+  </div>
+  <div class="key-work">
+    <strong>Key books:</strong>
+    <em>How to Make Notes and Write</em> (2022, with S.F. Allosso),
+    <em>Peppermint Kings</em> (Yale University Press, 2020)
+  </div>
+</div>
+
+<div class="person">
+  <div class="person-header">
+    <h2>Johannes F.K. Schmidt</h2>
+    <span class="affiliation">Bielefeld University, Germany</span>
+  </div>
+  <p class="description">
+    Academic custodian of Niklas Luhmann's original 90,000-card Zettelkasten. Scientific coordinator
+    of the long-term research project "Niklas Luhmann &mdash; Theorie als Passion" (2015&ndash;2030),
+    producing a critical digital edition of the entire card index. His research spans the archival science
+    of digitizing a non-linear, self-referential note system; how the Zettelkasten functioned as a
+    "surprise generator" enabling serendipitous discovery; and the broader history of card index systems
+    as cognitive tools. Has published extensively on where Luhmann's system came from, how it worked,
+    and why it was so productive (50 books, ~600 articles).
+  </p>
+  <div class="links">
+    <a href="https://niklas-luhmann-archiv.de/">Luhmann Archive (Digital Edition)</a>
+    <a href="https://www.uni-bielefeld.de/fakultaeten/soziologie/forschung/luhmann-archiv/">Project Page</a>
+    <a href="https://ekvv.uni-bielefeld.de/pers_publ/publ/PersonDetail.jsp?personId=25653450&lang=en">Faculty Profile</a>
+    <a href="https://vimeo.com/173128404">Talk (Vimeo, German)</a>
+    <a href="https://soundcloud.com/undisciplinedpod/jschmidt">Podcast (English)</a>
+    <a class="email" href="mailto:johannes.schmidt@uni-bielefeld.de">Email</a>
+  </div>
+  <div class="key-work">
+    <strong>Key paper:</strong> "Niklas Luhmann's Card Index: The Fabrication of Serendipity" (<em>Sociologica</em>, 2018; expanded Columbia UP edition 2024)
+  </div>
+</div>
+
+<!-- ============ TIER 2 ============ -->
+<div class="tier-label t2">Strong &mdash; Significant work at the intersection</div>
+
+<div class="person">
+  <div class="person-header">
+    <h2>Sean Takats</h2>
+    <span class="affiliation">University of Luxembourg &amp; Digital Scholar</span>
+  </div>
+  <p class="description">
+    Co-CEO of Digital Scholar, the nonprofit behind Zotero, Tropy, Omeka, and PressForward &mdash;
+    tools built <em>by historians, for historians</em>. Spent 12+ years at the Roy Rosenzweig Center
+    for History and New Media (RRCHNM) leading these projects. Tropy in particular fills a gap
+    no general PKM tool covers: organizing, annotating, and managing photographs of archival documents.
+    His current research is on early tropical medicine and colonial medical practice (France and colonies,
+    the Enlightenment). Yale BA, Michigan PhD, former IBM systems engineer.
+  </p>
+  <div class="links">
+    <a href="https://quintessenceofham.org/">Blog</a>
+    <a href="https://x.com/stakats">X/Twitter</a>
+    <a href="https://hcommons.social/@stakats">Mastodon</a>
+    <a href="https://www.uni.lu/c2dh-en/people/sean-takats/">Luxembourg Profile</a>
+    <a href="https://tropy.org">Tropy</a>
+    <a href="https://zotero.org">Zotero</a>
+    <a class="email" href="mailto:sean.takats@uni.lu">Email</a>
+  </div>
+</div>
+
+<div class="person">
+  <div class="person-header">
+    <h2>Ian Milligan</h2>
+    <span class="affiliation">University of Waterloo, Canada</span>
+  </div>
+  <p class="description">
+    Studies how digital sources transform historical practice. His book <em>The Transformation of
+    Historical Research in the Digital Age</em> (Cambridge, 2022) directly examines how historians'
+    workflows &mdash; including knowledge management &mdash; are changing. Led the Archives Unleashed
+    project (2017&ndash;2023) building tools for web archive research, now offered as a service by
+    the Internet Archive. Also Associate Vice-President for Research Oversight at Waterloo.
+    Fellow of the Royal Historical Society. Co-author of <em>The Historian's Macroscope</em> with
+    Shawn Graham.
+  </p>
+  <div class="links">
+    <a href="https://www.ianmilligan.ca/">Website</a>
+    <a href="https://x.com/ianmilligan1">X/Twitter</a>
+    <a href="https://github.com/ianmilligan1">GitHub</a>
+    <a href="https://scholar.google.ca/citations?user=ZDmByc4AAAAJ">Google Scholar</a>
+    <a href="https://uwaterloo.ca/history/profiles/ian-milligan">Faculty Page</a>
+    <a class="email" href="mailto:i2millig@uwaterloo.ca">Email</a>
+  </div>
+  <div class="key-work">
+    <strong>6 books</strong> including <em>Averting the Digital Dark Age</em> (2024),
+    <em>History in the Age of Abundance</em> (2019)
+  </div>
+</div>
+
+<div class="person">
+  <div class="person-header">
+    <h2>Caleb McDaniel</h2>
+    <span class="affiliation">Rice University, Houston</span>
+  </div>
+  <p class="description">
+    Pulitzer Prize winner (2020) for <em>Sweet Taste of Liberty</em>, which he wrote using
+    plain-text Markdown with Git version control. One of the most prominent examples of a
+    working historian using programmer-style PKM workflows (Pandoc, Markdown, Git) for
+    serious scholarship. Course materials and research notes shared openly on GitHub.
+    Demonstrates that these tools aren't just for tech enthusiasts &mdash; they can support
+    prize-winning historical work.
+  </p>
+  <div class="links">
+    <a href="http://wcm1.web.rice.edu/">Website</a>
+    <a href="https://x.com/wcaleb">X/Twitter</a>
+    <a href="https://github.com/wcm1">GitHub</a>
+    <a class="email" href="mailto:wcm1@rice.edu">Email</a>
+  </div>
+</div>
+
+<div class="person">
+  <div class="person-header">
+    <h2>Kathleen Fitzpatrick</h2>
+    <span class="affiliation">Michigan State University</span>
+  </div>
+  <p class="description">
+    Director of Digital Humanities. Writes about digital scholarly infrastructure &mdash;
+    how scholars manage, share, and publish knowledge in networked environments.
+    Co-founded MediaCommons and involved with Humanities Commons (hcommons.org),
+    an open-access platform for humanities scholars. Her books <em>Planned Obsolescence</em> (2011)
+    and <em>Generous Thinking</em> (2019) argue for new models of scholarly communication
+    and public engagement with academic knowledge.
+  </p>
+  <div class="links">
+    <a href="https://kfitz.info/">Website</a>
+    <a href="https://x.com/kfitz">X/Twitter</a>
+    <a href="https://hcommons.org">Humanities Commons</a>
+  </div>
+</div>
+
+<!-- ============ TIER 3 ============ -->
+<div class="tier-label t3">Adjacent &mdash; Notable contributions from related angles</div>
+
+<div class="person">
+  <div class="person-header">
+    <h2>William J. Turkel</h2>
+    <span class="affiliation">Western University, Canada</span>
+  </div>
+  <p class="description">
+    Digital history pioneer. Co-founded The Programming Historian project with Alan MacEachern &mdash;
+    now the leading resource for computational methods in historical research. His "Digital History Hacks"
+    blog was one of the earliest to document using Python, web scraping, and computational tools
+    for historical scholarship. Also works on physical computing for history and co-founded NiCHE
+    (Network in Canadian History &amp; Environment).
+  </p>
+  <div class="links">
+    <a href="http://digitalhistoryhacks.blogspot.com/">Blog (Digital History Hacks)</a>
+    <a href="https://x.com/williamjturkel">X/Twitter</a>
+    <a href="https://www.history.uwo.ca/people/faculty/turkel.html">Faculty Page</a>
+    <a href="https://programminghistorian.org">The Programming Historian</a>
+  </div>
+</div>
+
+<div class="person">
+  <div class="person-header">
+    <h2>Elena Razlogova</h2>
+    <span class="affiliation">Concordia University, Montreal</span>
+  </div>
+  <p class="description">
+    Associate Professor of History working on digital history, sound studies, and the history of
+    broadcasting and media. Has written and presented about using plain-text tools and Obsidian
+    for historical research. Also studies Russian/American cultural exchange.
+    Involved in digital humanities projects at Concordia.
+  </p>
+  <div class="links">
+    <a href="https://www.concordia.ca/artsci/history/faculty.html?fpid=elena-razlogova">Faculty Page</a>
+    <a class="email" href="mailto:elena.razlogova@concordia.ca">Email</a>
+  </div>
+</div>
+
+<div class="person">
+  <div class="person-header">
+    <h2>Manfred Kuehn</h2>
+    <span class="affiliation">Boston University (possibly retired)</span>
+  </div>
+  <p class="description">
+    Philosophy professor who maintained the influential "Taking Note" blog (~2007&ndash;2018) &mdash;
+    one of the earliest English-language sources discussing Luhmann's Zettelkasten, commonplace books,
+    and the history of note-taking methods in depth. Predated the PKM boom by nearly a decade.
+    The blog remains an invaluable archive of scholarly note-taking history, even though it is
+    no longer actively updated.
+  </p>
+  <div class="links">
+    <a href="https://takingnotenow.blogspot.com/">Blog (Taking Note, archived)</a>
+  </div>
+</div>
+
+<div class="person">
+  <div class="person-header">
+    <h2>Cameron Blevins</h2>
+    <span class="affiliation">University of Colorado Denver</span>
+  </div>
+  <p class="description">
+    Digital historian who uses computational methods (topic modeling, text mining, large-scale mapping)
+    for historical research. His "Geography of the Post" project mapped thousands of US post offices
+    in the American West. Active in discussions about labor, credit, and collaboration in
+    digital humanities. Author of <em>Paper Trails: The US Post and the Making of the American West</em>.
+  </p>
+  <div class="links">
+    <a href="http://cameronblevins.org/">Website</a>
+    <a href="https://x.com/historying">X/Twitter</a>
+  </div>
+</div>
+
+<!-- ============ PETRARCA RELEVANCE ============ -->
+<div class="tier-label" style="background: #fef3c7; color: #92400e; margin-top: 3rem;">Petrarca Relevance &mdash; Tools and repos useful for article processing &amp; knowledge modeling</div>
+
+<div class="person" style="border-left: 4px solid #f59e0b;">
+  <div class="person-header">
+    <h2>Zotero Translation Server</h2>
+    <span class="affiliation">Digital Scholar (Takats et al.)</span>
+  </div>
+  <p class="description">
+    <strong>Priority: Highest.</strong> Self-hostable Node.js server (Docker: <code>zotero/translation-server</code>, port 1969)
+    that extracts structured metadata from any URL using 600+ community-maintained translators.
+    <code>POST /web</code> with a URL &rarr; structured JSON (title, authors, date, abstract, DOI, tags, language).
+    The "Embedded Metadata" fallback parses Highwire Press, OpenGraph, Dublin Core, and Twitter card meta tags.
+    Wikipedia uses this (via Citoid) for citation generation. Could replace or augment Petrarca's
+    custom metadata extraction entirely.
+  </p>
+  <div class="links">
+    <a href="https://github.com/zotero/translation-server">translation-server (148 stars)</a>
+    <a href="https://github.com/zotero/translators">translators (1,575 stars)</a>
+    <a href="https://github.com/zotero/zotero-schema">zotero-schema (64 stars)</a>
+  </div>
+</div>
+
+<div class="person" style="border-left: 4px solid #f59e0b;">
+  <div class="person-header">
+    <h2>steamroller &amp; kg-hybrid</h2>
+    <span class="affiliation">Shawn Graham</span>
+  </div>
+  <p class="description">
+    <strong>Priority: High.</strong> Two text-to-knowledge-graph pipelines.
+    <strong>steamroller</strong>: LLM-based triplet extraction with a controlled predicate vocabulary (32 relationship types),
+    multi-model verification (Model 1 checks triplets against source, Model 2 reviews), outputs CSV + GEXF.
+    <strong>kg-hybrid</strong>: Combines spaCy NER with LLM refinement &mdash; fast free entity extraction first,
+    LLM for canonicalization and relationships second. Includes graph embedding analysis scripts.
+    Both use chunking for large documents. The predicate-controlled approach prevents garbage knowledge graphs.
+  </p>
+  <div class="links">
+    <a href="https://github.com/shawngraham/steamroller">steamroller</a>
+    <a href="https://github.com/shawngraham/kg-hybrid">kg-hybrid</a>
+    <a href="https://github.com/shawngraham/structured-cultural-heritage-crime">structured-cultural-heritage-crime (Pydantic validation)</a>
+    <a href="https://github.com/shawngraham/claude_antiquities_extractor_skill">Claude extraction skill</a>
+  </div>
+</div>
+
+<div class="person" style="border-left: 4px solid #f59e0b;">
+  <div class="person-header">
+    <h2>PressForward</h2>
+    <span class="affiliation">Digital Scholar / RRCHNM</span>
+  </div>
+  <p class="description">
+    <strong>Priority: High.</strong> WordPress plugin for content aggregation and editorial curation.
+    Battle-tested <strong>metadata cascade</strong>: JSON-LD &rarr; OpenGraph &rarr; Highwire meta tags &rarr;
+    Twitter cards &rarr; meta description &rarr; Mozilla Readability extraction.
+    Three-stage content lifecycle (Feed Item &rarr; Nomination with team voting &rarr; Published Draft)
+    maps to incremental reading stages. Includes Google Scholar scraping, RSS/Atom feed aggregation
+    with dedup and staleness checks, URL resolution for aggregator redirects, and Internet Archive submission.
+  </p>
+  <div class="links">
+    <a href="https://github.com/PressForward/pressforward">pressforward (124 stars)</a>
+  </div>
+</div>
+
+<div class="person" style="border-left: 4px solid #f59e0b;">
+  <div class="person-header">
+    <h2>discourser</h2>
+    <span class="affiliation">Shawn Graham</span>
+  </div>
+  <p class="description">
+    <strong>Priority: High.</strong> Streamlit app for corpus influence/novelty analysis using embeddings.
+    Compares a "core corpus" (what you know) against a "target corpus" (new articles) via similarity matrices.
+    Does topic modeling on the core corpus and projects texts into vector spaces.
+    The "custom vector creation" feature builds semantic axes from extracted terms for domain-specific
+    novelty metrics. This is conceptually the exact novelty-detection problem Petrarca solves.
+  </p>
+  <div class="links">
+    <a href="https://github.com/shawngraham/discourser">discourser</a>
+  </div>
+</div>
+
+<div class="person" style="border-left: 4px solid #eab308;">
+  <div class="person-header">
+    <h2>Knowledge Commons (KCWorks)</h2>
+    <span class="affiliation">MESH Research, Michigan State</span>
+  </div>
+  <p class="description">
+    <strong>Priority: Medium-High.</strong> Formerly Humanities Commons, now on InvenioRDM (CERN/Zenodo platform).
+    REST API at <code>works.hcommons.org</code> for searching/retrieving humanities scholarship.
+    OAI-PMH for bulk harvesting. DataCite-based metadata schema. The <code>kcworks-nlp-tools</code> repo
+    has experimental NLP tools for processing article content in chunks via the API.
+    Could serve as a curated source of humanities articles for Petrarca.
+  </p>
+  <div class="links">
+    <a href="https://github.com/MESH-Research/knowledge-commons-works">knowledge-commons-works</a>
+    <a href="https://github.com/MESH-Research/kcworks-nlp-tools">kcworks-nlp-tools</a>
+    <a href="https://hcommons.org">Knowledge Commons</a>
+  </div>
+</div>
+
+<div class="person" style="border-left: 4px solid #eab308;">
+  <div class="person-header">
+    <h2>Luhmann Archive API</h2>
+    <span class="affiliation">Johannes Schmidt, Bielefeld University</span>
+  </div>
+  <p class="description">
+    <strong>Priority: Medium.</strong> Public JSON API to 90,000 cross-referenced Zettelkasten cards.
+    TEI P5 data model with named entity markup, cross-references via <code>&lt;ref&gt;</code>/<code>&lt;ptr&gt;</code>,
+    and Luhmann's branching numbering system (1, 1a, 1b, 1a1&hellip;) creating an implicit hierarchical knowledge graph.
+    Interesting as a test corpus for entity linking against real scholarly knowledge structures,
+    and as a reference for how to encode inter-document relationships.
+  </p>
+  <div class="links">
+    <a href="https://niklas-luhmann-archiv.de/">Digital Edition</a>
+    <a href="https://niklas-luhmann-archiv.de/assets/odd-doku/luhmann.html">TEI Documentation</a>
+  </div>
+</div>
+
+<div class="person" style="border-left: 4px solid #eab308;">
+  <div class="person-header">
+    <h2>Smaller Tools &amp; Patterns</h2>
+    <span class="affiliation">Various</span>
+  </div>
+  <p class="description">
+    <strong>pandocket</strong> (McDaniel): URL + CSS selector &rarr; clean Markdown via Pandoc. Lightweight article ingestion.
+    <strong>RAKE</strong> (Turkel): Rapid Automatic Keyword Extraction &mdash; no training data needed, no LLM cost.
+    <strong>OCRnormalizer</strong> (Blevins): Rule-based text cleaning (long-S, hyphenation, spacing).
+    <strong>us-post-offices</strong> (Blevins): Multi-pass entity resolution (exact &rarr; targeted string mod &rarr; fuzzy Levenshtein).
+    <strong>compute-tfidf.py</strong> (Turkel): TF-IDF computation on SQLite-stored documents.
+    <strong>archivelens</strong> (Graham): LLM "provocation engine" that identifies what's <em>missing</em> from a corpus.
+    <strong>latinepi</strong> (Graham): 111 regex patterns for Roman entity extraction (names, military ranks, tribes).
+    <strong>Passim</strong> (Programming Historian lesson): N-gram text reuse detection for dedup.
+    <strong>gooseberry</strong> (starred by Aldrich): Rust CLI that syncs Hypothesis annotations, supports bulk tagging,
+    generates a knowledge base wiki. Reference for annotation import pipelines.
+    <strong>NewSyntopicon</strong> (starred by Aldrich): Digital recreation of Adler's Syntopicon &mdash; links ideas
+    across great books via a knowledge graph in Obsidian. Cross-text idea linking.
+    <strong>Hypothesis API</strong> (Aldrich's core workflow): <code>/api/search</code> with user/tags/URI filters +
+    RSS feeds at <code>/stream.atom?user=X</code> for annotation import.
+  </p>
+  <div class="links">
+    <a href="https://github.com/wcaleb/pandocket">pandocket</a>
+    <a href="https://github.com/williamjturkel/RAKE">RAKE</a>
+    <a href="https://github.com/cblevins/DataMunging">OCRnormalizer</a>
+    <a href="https://github.com/cblevins/us-post-offices">us-post-offices (29 stars)</a>
+    <a href="https://github.com/shawngraham/archivelens">archivelens</a>
+    <a href="https://github.com/shawngraham/latinepi">latinepi</a>
+    <a href="https://github.com/out-of-cheese-error/gooseberry">gooseberry (170 stars)</a>
+    <a href="https://github.com/sajjad2881/NewSyntopicon">NewSyntopicon</a>
+  </div>
+</div>
+
+<!-- ============ COMMUNITIES ============ -->
+<div class="communities">
+  <h2>Communities &amp; Resources</h2>
+  <ul>
+    <li><a href="https://programminghistorian.org">The Programming Historian</a> &mdash; open-access tutorials on digital methods for historians</li>
+    <li><a href="https://obsidian.md/community">Obsidian Discord &amp; Forum</a> &mdash; search "historian" or "history" for active academic workflows</li>
+    <li><a href="https://tropy.org">Tropy</a> &mdash; open-source tool for organizing archival research photographs, built by historians</li>
+    <li><a href="https://zotero.org">Zotero</a> &mdash; reference manager born at the Center for History and New Media</li>
+    <li><a href="https://hcommons.org">Humanities Commons</a> &mdash; open-access platform for humanities scholars</li>
+    <li><a href="https://niklas-luhmann-archiv.de/">Niklas Luhmann Archive</a> &mdash; digital edition of the original 90,000-card Zettelkasten</li>
+    <li><a href="https://www.linkingyourthinking.com/">Linking Your Thinking (LYT)</a> &mdash; PKM community with academic use cases and conferences</li>
+    <li><strong>#DigitalHumanities</strong> on X/Twitter and Mastodon &mdash; historians discussing tools and methods</li>
+  </ul>
+</div>
+
+<footer>
+  Compiled April 2026. Links verified via web search; some may have changed.
+</footer>
+
+</div>
+</body>
+</html>

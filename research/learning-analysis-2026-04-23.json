@@ -1,0 +1,717 @@
+{
+  "vocabulary_by_status": {
+    "state_counts": {
+      "known": 1561,
+      "encountered": 222,
+      "acquiring": 81,
+      "suspended": 69,
+      "learning": 46,
+      "lapsed": 32
+    },
+    "by_source": {
+      "acquiring": {
+        "textbook_scan": 52,
+        "book": 17,
+        "leech_reintro": 7,
+        "quran": 3,
+        "collateral": 2
+      },
+      "encountered": {
+        "book": 91,
+        "quran": 61,
+        "textbook_scan": 43,
+        "study": 25,
+        "mapping_correction": 2
+      },
+      "known": {
+        "textbook_scan": 1004,
+        "book": 213,
+        "auto_intro": 102,
+        "duolingo": 87,
+        "collateral": 57,
+        "leech_reintro": 39,
+        "study": 19,
+        "mapping_correction": 16,
+        "story_import": 15,
+        "flag_autocreate": 6,
+        "quran": 2,
+        "encountered": 1
+      },
+      "lapsed": {
+        "textbook_scan": 25,
+        "book": 4,
+        "auto_intro": 2,
+        "collateral": 1
+      },
+      "learning": {
+        "textbook_scan": 32,
+        "book": 7,
+        "collateral": 5,
+        "quran": 2
+      },
+      "suspended": {
+        "textbook_scan": 41,
+        "duolingo": 8,
+        "story_import": 6,
+        "book": 5,
+        "leech_reintro": 4,
+        "collateral": 2,
+        "mapping_correction": 1,
+        "flag_autocreate": 1,
+        "auto_intro": 1
+      }
+    },
+    "total": 2011
+  },
+  "acquisition_rate": {
+    "total_graduations": 1538,
+    "daily_graduations": {
+      "2026-02-08": 19,
+      "2026-02-09": 27,
+      "2026-02-10": 6,
+      "2026-02-11": 26,
+      "2026-02-12": 92,
+      "2026-02-13": 52,
+      "2026-02-14": 20,
+      "2026-02-15": 8,
+      "2026-02-16": 39,
+      "2026-02-17": 30,
+      "2026-02-18": 21,
+      "2026-02-19": 6,
+      "2026-02-20": 37,
+      "2026-02-21": 23,
+      "2026-02-22": 14,
+      "2026-02-23": 39,
+      "2026-02-24": 11,
+      "2026-02-25": 12,
+      "2026-02-26": 16,
+      "2026-02-27": 21,
+      "2026-02-28": 3,
+      "2026-03-01": 8,
+      "2026-03-02": 22,
+      "2026-03-03": 77,
+      "2026-03-04": 17,
+      "2026-03-05": 30,
+      "2026-03-06": 30,
+      "2026-03-07": 38,
+      "2026-03-08": 14,
+      "2026-03-09": 43,
+      "2026-03-10": 30,
+      "2026-03-11": 22,
+      "2026-03-12": 13,
+      "2026-03-13": 18,
+      "2026-03-14": 25,
+      "2026-03-15": 17,
+      "2026-03-16": 16,
+      "2026-03-17": 6,
+      "2026-03-18": 12,
+      "2026-03-19": 5,
+      "2026-03-20": 20,
+      "2026-03-21": 34,
+      "2026-03-22": 17,
+      "2026-03-23": 27,
+      "2026-03-24": 20,
+      "2026-03-25": 4,
+      "2026-03-26": 31,
+      "2026-03-27": 24,
+      "2026-03-28": 24,
+      "2026-03-29": 20,
+      "2026-03-30": 28,
+      "2026-03-31": 16,
+      "2026-04-01": 14,
+      "2026-04-02": 2,
+      "2026-04-03": 24,
+      "2026-04-04": 14,
+      "2026-04-05": 17,
+      "2026-04-06": 19,
+      "2026-04-07": 11,
+      "2026-04-08": 25,
+      "2026-04-09": 11,
+      "2026-04-10": 9,
+      "2026-04-11": 3,
+      "2026-04-12": 16,
+      "2026-04-13": 33,
+      "2026-04-14": 2,
+      "2026-04-15": 13,
+      "2026-04-16": 1,
+      "2026-04-17": 6,
+      "2026-04-18": 28,
+      "2026-04-19": 8,
+      "2026-04-20": 19,
+      "2026-04-21": 13,
+      "2026-04-22": 13,
+      "2026-04-23": 7
+    },
+    "weekly_graduations": {
+      "2026-W06": 19,
+      "2026-W07": 231,
+      "2026-W08": 170,
+      "2026-W09": 110,
+      "2026-W10": 228,
+      "2026-W11": 168,
+      "2026-W12": 110,
+      "2026-W13": 150,
+      "2026-W14": 115,
+      "2026-W15": 94,
+      "2026-W16": 91,
+      "2026-W17": 52
+    },
+    "median_hours_in_acquisition": 46.8,
+    "mean_hours_in_acquisition": 85.5,
+    "durations_hours_p25_p50_p75": [
+      0.41,
+      46.85,
+      133.1
+    ]
+  },
+  "review_accuracy": {
+    "rating_distribution": {
+      "1": 2493,
+      "2": 397,
+      "3": 29117
+    },
+    "total_reviews": 32007,
+    "overall_accuracy_pct": 91.0,
+    "by_mode": {
+      "listening": {
+        "1": 16,
+        "3": 41
+      },
+      "quiz": {
+        "1": 8,
+        "3": 29
+      },
+      "reading": {
+        "1": 2420,
+        "2": 397,
+        "3": 28711
+      },
+      "reintro": {
+        "1": 49,
+        "3": 89
+      },
+      "textbook_scan": {
+        "3": 247
+      }
+    },
+    "by_credit_type": {
+      "null": {
+        "1": 65,
+        "3": 427
+      },
+      "collateral": {
+        "1": 1252,
+        "2": 323,
+        "3": 24035
+      },
+      "primary": {
+        "1": 1176,
+        "2": 74,
+        "3": 4655
+      }
+    },
+    "by_acquisition": {
+      "fsrs": {
+        "1": 934,
+        "2": 304,
+        "3": 23227
+      },
+      "acquisition": {
+        "1": 1559,
+        "2": 93,
+        "3": 5890
+      }
+    },
+    "weekly_accuracy": {
+      "2026-W06": 80.8,
+      "2026-W07": 88.9,
+      "2026-W08": 92.4,
+      "2026-W09": 91.5,
+      "2026-W10": 93.2,
+      "2026-W11": 95.1,
+      "2026-W12": 92.7,
+      "2026-W13": 90.8,
+      "2026-W14": 89.2,
+      "2026-W15": 85.7,
+      "2026-W16": 85.0,
+      "2026-W17": 91.1
+    }
+  },
+  "session_patterns": {
+    "total_sessions": 536,
+    "session_size_median": 10,
+    "session_size_mean": 11.7,
+    "session_size_buckets": {
+      "16-20": 66,
+      "1-5": 166,
+      "21-30": 112,
+      "6-10": 106,
+      "11-15": 86
+    },
+    "comprehension_distribution": {
+      "no_idea": 6,
+      "partial": 2369,
+      "understood": 3882
+    },
+    "sessions_per_day": {
+      "2026-02-08": 12,
+      "2026-02-09": 17,
+      "2026-02-10": 3,
+      "2026-02-11": 6,
+      "2026-02-12": 27,
+      "2026-02-13": 16,
+      "2026-02-14": 14,
+      "2026-02-15": 9,
+      "2026-02-16": 26,
+      "2026-02-17": 9,
+      "2026-02-18": 24,
+      "2026-02-19": 10,
+      "2026-02-20": 14,
+      "2026-02-21": 6,
+      "2026-02-22": 13,
+      "2026-02-23": 28,
+      "2026-02-24": 7,
+      "2026-02-25": 3,
+      "2026-02-26": 4,
+      "2026-02-27": 6,
+      "2026-02-28": 1,
+      "2026-03-01": 3,
+      "2026-03-02": 10,
+      "2026-03-03": 9,
+      "2026-03-04": 2,
+      "2026-03-05": 5,
+      "2026-03-06": 4,
+      "2026-03-07": 7,
+      "2026-03-08": 4,
+      "2026-03-09": 8,
+      "2026-03-10": 6,
+      "2026-03-11": 4,
+      "2026-03-12": 5,
+      "2026-03-13": 5,
+      "2026-03-14": 4,
+      "2026-03-15": 6,
+      "2026-03-16": 6,
+      "2026-03-17": 6,
+      "2026-03-18": 8,
+      "2026-03-19": 2,
+      "2026-03-20": 7,
+      "2026-03-21": 8,
+      "2026-03-22": 3,
+      "2026-03-23": 9,
+      "2026-03-24": 6,
+      "2026-03-25": 2,
+      "2026-03-26": 6,
+      "2026-03-27": 6,
+      "2026-03-28": 8,
+      "2026-03-29": 3,
+      "2026-03-30": 12,
+      "2026-03-31": 3,
+      "2026-04-01": 5,
+      "2026-04-02": 2,
+      "2026-04-03": 6,
+      "2026-04-04": 4,
+      "2026-04-05": 3,
+      "2026-04-06": 2,
+      "2026-04-07": 3,
+      "2026-04-08": 6,
+      "2026-04-09": 4,
+      "2026-04-10": 4,
+      "2026-04-11": 3,
+      "2026-04-12": 9,
+      "2026-04-13": 5,
+      "2026-04-14": 3,
+      "2026-04-15": 7,
+      "2026-04-16": 3,
+      "2026-04-17": 3,
+      "2026-04-18": 5,
+      "2026-04-19": 4,
+      "2026-04-20": 8,
+      "2026-04-21": 7,
+      "2026-04-22": 6,
+      "2026-04-23": 2
+    }
+  },
+  "fsrs_stability": {
+    "total_cards_with_fsrs": 1615,
+    "stability_median": 56.7,
+    "stability_mean": 69.2,
+    "stability_buckets": {
+      "90+d": 546,
+      "30-90d": 543,
+      "7-30d": 306,
+      "1-7d": 183,
+      "<1d": 37
+    },
+    "stability_by_state": {
+      "known": {
+        "count": 1525,
+        "median": 61.9,
+        "mean": 73.1
+      },
+      "suspended": {
+        "count": 14,
+        "median": 0.9,
+        "mean": 4.9
+      },
+      "learning": {
+        "count": 43,
+        "median": 2.3,
+        "mean": 3.5
+      },
+      "lapsed": {
+        "count": 31,
+        "median": 0.7,
+        "mean": 1.1
+      },
+      "encountered": {
+        "count": 1,
+        "median": 2.3,
+        "mean": 2.3
+      },
+      "acquiring": {
+        "count": 1,
+        "median": 2.3,
+        "mean": 2.3
+      }
+    },
+    "difficulty_buckets": {
+      "<3 (easy)": 1058,
+      "7+ (very hard)": 391,
+      "5-7 (hard)": 52,
+      "3-5 (medium)": 114
+    },
+    "difficulty_median": 2.1
+  },
+  "time_to_acquisition": {
+    "graduated_words": 1422,
+    "duration_hours_percentiles": [
+      0.41,
+      46.85,
+      133.1
+    ],
+    "reviews_to_graduation_median": 0,
+    "reviews_to_graduation_mean": 3.2,
+    "reviews_to_graduation_percentiles": [
+      0,
+      0,
+      5
+    ]
+  },
+  "retention_rate": {
+    "fsrs_reviews_total": 24465,
+    "fsrs_correct": 23227,
+    "retention_rate_pct": 94.9,
+    "weekly_retention": {
+      "2026-W06": 80.8,
+      "2026-W07": 92.4,
+      "2026-W08": 97.5,
+      "2026-W09": 98.3,
+      "2026-W10": 98.5,
+      "2026-W11": 98.7,
+      "2026-W12": 95.3,
+      "2026-W13": 93.5,
+      "2026-W14": 92.7,
+      "2026-W15": 90.3,
+      "2026-W16": 89.9,
+      "2026-W17": 93.1
+    }
+  },
+  "learning_velocity": {
+    "total_introduced": 1773,
+    "total_graduated": 1538,
+    "weekly_introduced": {
+      "2026-W06": 25,
+      "2026-W07": 292,
+      "2026-W08": 261,
+      "2026-W09": 290,
+      "2026-W10": 56,
+      "2026-W11": 128,
+      "2026-W12": 138,
+      "2026-W13": 174,
+      "2026-W14": 143,
+      "2026-W15": 125,
+      "2026-W16": 94,
+      "2026-W17": 47
+    },
+    "weekly_graduated": {
+      "2026-W06": 19,
+      "2026-W07": 231,
+      "2026-W08": 170,
+      "2026-W09": 110,
+      "2026-W10": 228,
+      "2026-W11": 168,
+      "2026-W12": 110,
+      "2026-W13": 150,
+      "2026-W14": 115,
+      "2026-W15": 94,
+      "2026-W16": 91,
+      "2026-W17": 52
+    },
+    "cumulative": [
+      {
+        "week": "2026-W06",
+        "cumulative_introduced": 25,
+        "cumulative_graduated": 19
+      },
+      {
+        "week": "2026-W07",
+        "cumulative_introduced": 317,
+        "cumulative_graduated": 250
+      },
+      {
+        "week": "2026-W08",
+        "cumulative_introduced": 578,
+        "cumulative_graduated": 420
+      },
+      {
+        "week": "2026-W09",
+        "cumulative_introduced": 868,
+        "cumulative_graduated": 530
+      },
+      {
+        "week": "2026-W10",
+        "cumulative_introduced": 924,
+        "cumulative_graduated": 758
+      },
+      {
+        "week": "2026-W11",
+        "cumulative_introduced": 1052,
+        "cumulative_graduated": 926
+      },
+      {
+        "week": "2026-W12",
+        "cumulative_introduced": 1190,
+        "cumulative_graduated": 1036
+      },
+      {
+        "week": "2026-W13",
+        "cumulative_introduced": 1364,
+        "cumulative_graduated": 1186
+      },
+      {
+        "week": "2026-W14",
+        "cumulative_introduced": 1507,
+        "cumulative_graduated": 1301
+      },
+      {
+        "week": "2026-W15",
+        "cumulative_introduced": 1632,
+        "cumulative_graduated": 1395
+      },
+      {
+        "week": "2026-W16",
+        "cumulative_introduced": 1726,
+        "cumulative_graduated": 1486
+      },
+      {
+        "week": "2026-W17",
+        "cumulative_introduced": 1773,
+        "cumulative_graduated": 1538
+      }
+    ]
+  },
+  "frequency_coverage": {
+    "coverage": {
+      "100": {
+        "raw_total": 72,
+        "raw_known": 42,
+        "content_total": 21,
+        "content_known": 17,
+        "content_active": 17,
+        "known_pct": 81.0,
+        "active_pct": 81.0
+      },
+      "500": {
+        "raw_total": 221,
+        "raw_known": 145,
+        "content_total": 132,
+        "content_known": 104,
+        "content_active": 108,
+        "known_pct": 78.8,
+        "active_pct": 81.8
+      },
+      "1000": {
+        "raw_total": 358,
+        "raw_known": 251,
+        "content_total": 258,
+        "content_known": 207,
+        "content_active": 213,
+        "known_pct": 80.2,
+        "active_pct": 82.6
+      },
+      "2000": {
+        "raw_total": 538,
+        "raw_known": 380,
+        "content_total": 429,
+        "content_known": 336,
+        "content_active": 346,
+        "known_pct": 78.3,
+        "active_pct": 80.7
+      }
+    },
+    "top_frequency_gaps": [
+      {
+        "lemma_id": 988,
+        "lemma_ar": "بْنٌ",
+        "gloss_en": "alternative form of اِبْن (ibn)",
+        "frequency_rank": 32,
+        "state": "encountered"
+      },
+      {
+        "lemma_id": 864,
+        "lemma_ar": "مَجْلِسٌ",
+        "gloss_en": "seat",
+        "frequency_rank": 58,
+        "state": "none"
+      },
+      {
+        "lemma_id": 1338,
+        "lemma_ar": "عَبْدٌ",
+        "gloss_en": "slave, servant",
+        "frequency_rank": 67,
+        "state": "none"
+      },
+      {
+        "lemma_id": 317,
+        "lemma_ar": "أخْبار",
+        "gloss_en": "news",
+        "frequency_rank": 80,
+        "state": "none"
+      },
+      {
+        "lemma_id": 1693,
+        "lemma_ar": "أولى",
+        "gloss_en": "first (feminine)",
+        "frequency_rank": 103,
+        "state": "encountered"
+      },
+      {
+        "lemma_id": 914,
+        "lemma_ar": "احد",
+        "gloss_en": "Sunday",
+        "frequency_rank": 106,
+        "state": "encountered"
+      },
+      {
+        "lemma_id": 820,
+        "lemma_ar": "مَوْقِعٌ",
+        "gloss_en": "site, location",
+        "frequency_rank": 107,
+        "state": "none"
+      },
+      {
+        "lemma_id": 1387,
+        "lemma_ar": "أَلَّ",
+        "gloss_en": "to be agitated",
+        "frequency_rank": 108,
+        "state": "none"
+      },
+      {
+        "lemma_id": 1886,
+        "lemma_ar": "أَبُو",
+        "gloss_en": "father of",
+        "frequency_rank": 143,
+        "state": "encountered"
+      },
+      {
+        "lemma_id": 112,
+        "lemma_ar": "جَديدة",
+        "gloss_en": "new",
+        "frequency_rank": 156,
+        "state": "none"
+      },
+      {
+        "lemma_id": 457,
+        "lemma_ar": "بـِ",
+        "gloss_en": "with",
+        "frequency_rank": 158,
+        "state": "encountered"
+      },
+      {
+        "lemma_id": 1163,
+        "lemma_ar": "إِدَارَةٌ",
+        "gloss_en": "administration, management",
+        "frequency_rank": 166,
+        "state": "none"
+      },
+      {
+        "lemma_id": 1969,
+        "lemma_ar": "عراق",
+        "gloss_en": "Iraq",
+        "frequency_rank": 214,
+        "state": "none"
+      },
+      {
+        "lemma_id": 452,
+        "lemma_ar": "لـِ",
+        "gloss_en": "to",
+        "frequency_rank": 234,
+        "state": "none"
+      },
+      {
+        "lemma_id": 2525,
+        "lemma_ar": "أَكْبَر",
+        "gloss_en": "greater, bigger",
+        "frequency_rank": 293,
+        "state": "none"
+      }
+    ]
+  },
+  "study_consistency": {
+    "total_active_days": 75,
+    "current_streak": 75,
+    "longest_streak": 75,
+    "first_active_day": "2026-02-08",
+    "last_active_day": "2026-04-23",
+    "day_of_week": {
+      "Sun": 11,
+      "Mon": 11,
+      "Tue": 11,
+      "Wed": 11,
+      "Thu": 11,
+      "Fri": 10,
+      "Sat": 10
+    },
+    "sessions_per_day_histogram": {
+      "14": 2,
+      "18": 2,
+      "4": 8,
+      "7": 9,
+      "17": 1,
+      "16": 1,
+      "10": 4,
+      "27": 1,
+      "26": 1,
+      "11": 2,
+      "15": 1,
+      "8": 7,
+      "29": 1,
+      "5": 6,
+      "3": 10,
+      "13": 2,
+      "6": 10,
+      "9": 3,
+      "2": 4
+    },
+    "mean_sessions_per_day": 7.8
+  },
+  "tashkeel_readiness": {
+    "total_review_words": 1568,
+    "eligible_count": 1089,
+    "eligible_pct": 69.5,
+    "stability_median": 59.5,
+    "stability_mean": 71.2,
+    "stability_buckets": {
+      "180+d": 59,
+      "90-180d": 487,
+      "30-90d": 543,
+      "7-30d": 302,
+      "1-7d": 168,
+      "<1d": 9
+    }
+  },
+  "_meta": {
+    "generated_at": "2026-04-23T11:42:42Z",
+    "db_path": "/opt/alif/backend/data/alif.db"
+  }
+}

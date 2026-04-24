@@ -1,0 +1,659 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Petrarca Integration Plan: History + PKM Tools</title>
+<style>
+  :root {
+    --bg: #faf9f6;
+    --card: #ffffff;
+    --text: #1f2937;
+    --muted: #6b7280;
+    --accent: #7c3aed;
+    --green: #059669;
+    --amber: #d97706;
+    --red: #dc2626;
+    --border: #e5e7eb;
+    --link: #4f46e5;
+    --code-bg: #f3f4f6;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.65;
+    padding: 2rem 1rem;
+  }
+  .container { max-width: 900px; margin: 0 auto; }
+  h1 { font-size: 1.8rem; margin-bottom: 0.3rem; letter-spacing: -0.02em; }
+  .subtitle { color: var(--muted); font-size: 0.95rem; margin-bottom: 2rem; }
+  h2 { font-size: 1.3rem; margin: 2rem 0 0.75rem; color: var(--text); border-bottom: 2px solid var(--border); padding-bottom: 0.3rem; }
+  h3 { font-size: 1.05rem; margin: 1.25rem 0 0.5rem; color: #374151; }
+
+  .verdict {
+    display: inline-block;
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    padding: 0.2rem 0.6rem;
+    border-radius: 100px;
+    margin-left: 0.5rem;
+    vertical-align: middle;
+  }
+  .verdict.yes { background: #d1fae5; color: var(--green); }
+  .verdict.maybe { background: #fef3c7; color: var(--amber); }
+  .verdict.no { background: #fee2e2; color: var(--red); }
+
+  .section {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 1.5rem 1.75rem;
+    margin-bottom: 1.25rem;
+  }
+  .section.highlight { border-left: 4px solid var(--green); }
+  .section.caution { border-left: 4px solid var(--amber); }
+  .section.skip { border-left: 4px solid #d1d5db; opacity: 0.85; }
+
+  table { width: 100%; border-collapse: collapse; margin: 0.75rem 0; font-size: 0.88rem; }
+  th { text-align: left; padding: 0.4rem 0.6rem; background: var(--code-bg); border-bottom: 2px solid var(--border); font-weight: 600; }
+  td { padding: 0.4rem 0.6rem; border-bottom: 1px solid var(--border); vertical-align: top; }
+  tr:last-child td { border-bottom: none; }
+
+  code {
+    font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+    font-size: 0.82em;
+    background: var(--code-bg);
+    padding: 0.15em 0.4em;
+    border-radius: 4px;
+  }
+  pre {
+    background: #1f2937;
+    color: #e5e7eb;
+    padding: 1rem 1.25rem;
+    border-radius: 8px;
+    overflow-x: auto;
+    font-size: 0.82rem;
+    line-height: 1.5;
+    margin: 0.75rem 0;
+  }
+  pre code { background: none; padding: 0; color: inherit; }
+
+  .effort {
+    display: flex;
+    gap: 1.5rem;
+    margin: 0.75rem 0;
+    font-size: 0.85rem;
+    color: var(--muted);
+  }
+  .effort span { display: flex; align-items: center; gap: 0.3rem; }
+  .effort strong { color: var(--text); }
+
+  .file-list {
+    font-size: 0.85rem;
+    padding: 0.5rem 0;
+  }
+  .file-list code {
+    display: inline-block;
+    margin-right: 0.3rem;
+  }
+
+  ul { padding-left: 1.25rem; margin: 0.5rem 0; }
+  li { margin: 0.3rem 0; }
+
+  .priority-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+    margin: 1rem 0;
+  }
+  .priority-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 1rem 1.25rem;
+  }
+  .priority-card h4 { font-size: 0.9rem; margin-bottom: 0.4rem; }
+  .priority-card p { font-size: 0.85rem; color: var(--muted); }
+
+  .summary-table { margin: 1rem 0; }
+  .summary-table td:first-child { font-weight: 600; white-space: nowrap; width: 30%; }
+
+  a { color: var(--link); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+
+  footer { text-align: center; color: var(--muted); font-size: 0.78rem; margin-top: 3rem; }
+</style>
+</head>
+<body>
+<div class="container">
+
+<h1>Petrarca Integration Plan</h1>
+<p class="subtitle">Concrete integration opportunities from the History + PKM ecosystem research (April 2026)</p>
+
+<!-- ============================================================ -->
+<h2>Executive Summary</h2>
+
+<div class="priority-grid">
+  <div class="priority-card" style="border-left: 4px solid var(--green);">
+    <h4>1. Hypothesis Annotations</h4>
+    <p>User-curated atomic claims, reading depth signals, tag-to-entity linking. ~370 lines, 1-2 sessions.</p>
+  </div>
+  <div class="priority-card" style="border-left: 4px solid var(--green);">
+    <h4>2. Entity Extraction Prompts</h4>
+    <p>Constrained relationship types + canonical IDs + mentions arrays. Prompt-only change, 1 session.</p>
+  </div>
+  <div class="priority-card" style="border-left: 4px solid var(--amber);">
+    <h4>3. Zotero Translation Server</h4>
+    <p>Richer metadata (itemType, DOI, structured authors, abstract). Docker sidecar, ~100 lines.</p>
+  </div>
+  <div class="priority-card" style="border-left: 4px solid var(--amber);">
+    <h4>4. Discourser-style Semantic Vectors</h4>
+    <p>Custom semantic dimensions for richer article characterization. Research spike first.</p>
+  </div>
+</div>
+
+<table class="summary-table">
+  <tr><td>PressForward metadata cascade</td><td><span class="verdict no">Skip</span> Trafilatura already covers it. No incremental value.</td></tr>
+  <tr><td>spaCy pre-pass (kg-hybrid)</td><td><span class="verdict no">Skip</span> For general-knowledge articles, LLM extraction is already good. Adds latency.</td></tr>
+  <tr><td>Gooseberry CLI</td><td><span class="verdict no">Skip</span> Its sync pattern is trivial to replicate. No need for the Rust dependency.</td></tr>
+  <tr><td>KCWorks / Knowledge Commons API</td><td><span class="verdict maybe">Later</span> Interesting as a humanities article source, but not a priority.</td></tr>
+  <tr><td>Luhmann Archive API</td><td><span class="verdict maybe">Later</span> Interesting test corpus, not an integration priority.</td></tr>
+</table>
+
+<!-- ============================================================ -->
+<h2>1. Hypothesis Annotation Integration <span class="verdict yes">Do this</span></h2>
+
+<div class="section highlight">
+  <h3>Why this is the highest-value integration</h3>
+  <p>
+    Hypothesis annotations are <strong>user-curated atomic claims</strong> &mdash; far more reliable than
+    LLM-extracted claims because the user selected the exact passage they found noteworthy.
+    This is the strongest knowledge signal Petrarca can get, and it's currently ignored.
+  </p>
+  <p style="margin-top: 0.5rem;">
+    Your Hypothesis account already exists (3 annotations from 2021). The API is open, unthrottled,
+    and well-documented. Incremental sync via <code>search_after</code> cursor is trivial.
+  </p>
+
+  <div class="effort">
+    <span><strong>Effort:</strong> ~370 lines, 1-2 sessions</span>
+    <span><strong>Dependencies:</strong> None (just <code>requests</code>)</span>
+    <span><strong>Env:</strong> <code>HYPOTHESIS_API_KEY</code>, <code>HYPOTHESIS_USERNAME</code></span>
+  </div>
+
+  <h3>Data model</h3>
+  <p>Each Hypothesis annotation contains:</p>
+  <table>
+    <tr><th>Field</th><th>Source</th><th>Petrarca use</th></tr>
+    <tr><td><code>target.selector[TextQuoteSelector].exact</code></td><td>The highlighted passage</td><td>User-curated atomic claim</td></tr>
+    <tr><td><code>text</code></td><td>User's note/comment</td><td>Elaboration, interpretation signal</td></tr>
+    <tr><td><code>tags[]</code></td><td>User-assigned tags</td><td>Map to entities / curriculum nodes</td></tr>
+    <tr><td><code>uri</code></td><td>Page URL</td><td>Match to existing articles or auto-import</td></tr>
+    <tr><td><code>created</code></td><td>Timestamp</td><td>Reading activity timeline</td></tr>
+  </table>
+
+  <h3>Four integration points</h3>
+
+  <p><strong>A. Highlighted passages &rarr; atomic claims</strong> (highest value)</p>
+  <p>
+    When a user highlights text, that's an atomic claim with <code>claim_type='user_highlight'</code>.
+    These claims should get higher weight in novelty detection &mdash; they represent what the user
+    found noteworthy, not what an LLM thought was important. User notes (<code>text</code> field)
+    become claim annotations.
+  </p>
+
+  <p><strong>B. Reading depth signal</strong></p>
+  <p>
+    Annotation count per article = reading depth. An article with 12 highlights was deeply read;
+    one with 0 was skimmed. This feeds into feed ranking (don't re-surface deeply-read articles)
+    and knowledge state confidence.
+  </p>
+
+  <p><strong>C. Tag &rarr; entity / curriculum linking</strong></p>
+  <p>
+    If a user tags a highlight with "Byzantine Empire", match to <code>shared_entities</code> and
+    upgrade linked curriculum nodes to <code>engaged</code>. This is direct user-declared knowledge evidence.
+  </p>
+
+  <p><strong>D. Auto-import annotated articles</strong></p>
+  <p>
+    If the user annotates a URL not in Petrarca's database, auto-import it via the existing article
+    pipeline. Annotated articles are high-priority candidates &mdash; the user already cared enough to highlight.
+  </p>
+
+  <h3>Sync implementation</h3>
+<pre><code># Incremental sync using search_after cursor (gooseberry pattern)
+def sync_annotations(username: str, api_key: str, since: str | None = None):
+    params = {
+        "user": f"acct:{username}@hypothes.is",
+        "sort": "updated", "order": "asc", "limit": 200,
+    }
+    if since:
+        params["search_after"] = since
+
+    while True:
+        resp = requests.get("https://hypothes.is/api/search",
+                           headers={"Authorization": f"Bearer {api_key}"},
+                           params=params)
+        batch = resp.json()["rows"]
+        if not batch:
+            break
+        yield from batch
+        params["search_after"] = batch[-1]["updated"]</code></pre>
+
+  <h3>Pipeline integration</h3>
+  <p>Add as Step 0c in the 4-hour cron, after Readwise Reader fetch:</p>
+<pre><code># In build_articles.py cron:
+Step 0c: Fetch Hypothesis annotations (incremental)
+         &rarr; Store in hypothesis_annotations table
+         &rarr; Match URIs to existing articles
+         &rarr; Auto-import unmatched URIs as article candidates
+Step 7:  Post-process annotations
+         &rarr; Convert highlights to atomic_claims (type='user_highlight')
+         &rarr; Map tags to entities/curriculum nodes
+         &rarr; Update knowledge_states for tagged nodes</code></pre>
+
+  <div class="file-list">
+    <strong>Files to create/modify:</strong>
+    <code>scripts/fetch_hypothesis.py</code> (new, ~150 lines),
+    <code>scripts/db.py</code> (add table, ~20 lines),
+    <code>scripts/build_articles.py</code> (cron integration, ~100 lines),
+    <code>.env</code> (add keys)
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<h2>2. Entity Extraction Prompt Engineering <span class="verdict yes">Do this</span></h2>
+
+<div class="section highlight">
+  <h3>What to adopt from Graham's repos</h3>
+  <p>
+    Three specific prompt engineering patterns from
+    <a href="https://github.com/shawngraham/steamroller">steamroller</a>,
+    <a href="https://github.com/shawngraham/kg-hybrid">kg-hybrid</a>, and
+    <a href="https://github.com/shawngraham/claude_antiquities_extractor_skill">claude_antiquities_extractor_skill</a>
+    that would improve Petrarca's entity extraction with <strong>zero new dependencies</strong>:
+  </p>
+
+  <div class="effort">
+    <span><strong>Effort:</strong> Prompt changes only, 1 session</span>
+    <span><strong>Dependencies:</strong> None</span>
+    <span><strong>Risk:</strong> Low &mdash; A/B test against current extraction</span>
+  </div>
+
+  <h3>Change 1: Constrained relationship types</h3>
+  <p>
+    Currently Petrarca asks for "related entity pairs (max 5 per entity)" with free-form relationship descriptions.
+    Graham's repos constrain to a fixed vocabulary, producing more structured, queryable graphs.
+  </p>
+  <p>Proposed relationship vocabulary for Petrarca's historical domains (~15 types):</p>
+<pre><code>RULED, CONQUERED, FOUNDED, INFLUENCED, SUCCEEDED,
+PART_OF, LOCATED_IN, CONTEMPORARY_OF, ALLIED_WITH,
+OPPOSED, CAUSED, RESULTED_IN, DERIVED_FROM,
+CREATED, STUDIED_BY</code></pre>
+  <p>
+    Each predicate has a directional definition (e.g. <code>RULED: subject governed/controlled object</code>).
+    The LLM selects from this list rather than inventing relationship descriptions.
+  </p>
+
+  <h3>Change 2: Canonical ID convention</h3>
+  <p>
+    Instead of matching entities by case-insensitive name (fragile for "Alexander" vs "Alexander the Great"
+    vs "Alexander III of Macedon"), assign canonical IDs:
+  </p>
+<pre><code>PERSON:       firstname_lastname       (e.g. roger_ii_sicily)
+PLACE:        place_name_geography     (e.g. palermo_sicily)
+EVENT:        short_description_date   (e.g. norman_conquest_sicily_1061)
+CONCEPT:      descriptive_slug         (e.g. convivencia)
+ORGANIZATION: abbreviated_name        (e.g. fatimid_caliphate)</code></pre>
+  <p>
+    These IDs are stable across articles. When two articles both mention <code>roger_ii_sicily</code>,
+    they link automatically without fuzzy matching.
+  </p>
+
+  <h3>Change 3: Mentions array</h3>
+  <p>
+    Track all text variants encountered for each entity. Currently Petrarca has <code>{name, aliases}</code>.
+    Upgrade to a comprehensive <code>mentions</code> array populated from actual article text:
+  </p>
+<pre><code>{
+  "canonical_id": "roger_ii_sicily",
+  "name": "Roger II of Sicily",
+  "mentions": ["Roger II", "Roger", "the Norman king", "King Roger"],
+  "type": "PERSON",
+  "relationships": [
+    {"target": "kingdom_of_sicily", "type": "RULED"},
+    {"target": "fatimid_caliphate", "type": "OPPOSED"}
+  ]
+}</code></pre>
+
+  <h3>Change 4: Prescribed extraction workflow (from the Claude skill)</h3>
+  <p>
+    Add a step-by-step procedure to the extraction prompt instead of a single "extract entities" instruction:
+  </p>
+<pre><code>1. Read the article thoroughly
+2. Identify all named entities (people, places, events, concepts, organizations)
+3. Assign canonical_id to each using the convention above
+4. Collect all text mentions of each entity
+5. Record attributes (dates, type, description)
+6. Identify relationships using ONLY the predicate vocabulary
+7. Check: did you merge variants that refer to the same entity?</code></pre>
+
+  <h3>How to test</h3>
+  <p>
+    Run through the pipeline-eval framework: create a fixture with 5 articles from different domains,
+    extract entities with current prompt and new prompt, compare coverage and consistency.
+    Key metric: do the same entities get the same <code>canonical_id</code> across articles?
+  </p>
+
+  <div class="file-list">
+    <strong>Files to modify:</strong>
+    <code>scripts/extract_entity_concepts.py</code> (prompt changes),
+    <code>scripts/db.py</code> (add <code>canonical_id</code>, <code>mentions</code>, <code>relationship_type</code> columns)
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<h2>3. Zotero Translation Server <span class="verdict maybe">Worth trying</span></h2>
+
+<div class="section caution">
+  <h3>The pitch</h3>
+  <p>
+    Zotero Translation Server is a standalone Docker service with 600+ community-maintained
+    site-specific extractors. It complements trafilatura &mdash; <strong>Zotero does metadata only,
+    trafilatura does content</strong>. Running both gives you richer article records.
+  </p>
+
+  <div class="effort">
+    <span><strong>Effort:</strong> ~100 lines + Docker setup</span>
+    <span><strong>Cost:</strong> ~500-700MB image, ~200MB RAM</span>
+    <span><strong>Latency:</strong> 1-5s per URL (parallel with trafilatura)</span>
+  </div>
+
+  <h3>What Zotero gives you that trafilatura doesn't</h3>
+  <table>
+    <tr><th>Field</th><th>Value for Petrarca</th></tr>
+    <tr><td><code>itemType</code></td><td>Semantic classification: <code>blogPost</code> vs <code>newspaperArticle</code> vs <code>journalArticle</code>. Much richer than hostname-based <code>content_type</code>.</td></tr>
+    <tr><td><code>creators[]</code></td><td>Structured first/last name + role (author vs editor vs translator). Better than raw author string.</td></tr>
+    <tr><td><code>abstractNote</code></td><td>Article abstract from meta tags. Free summary without LLM cost.</td></tr>
+    <tr><td><code>DOI</code> / <code>PMID</code></td><td>Unique identifiers for academic articles. Enables CrossRef/PubMed enrichment via <code>POST /search</code>.</td></tr>
+    <tr><td><code>publicationTitle</code></td><td>Publication name (journal, newspaper, blog name). More specific than hostname.</td></tr>
+    <tr><td><code>language</code></td><td>ISO language code from meta tags.</td></tr>
+    <tr><td><code>tags[]</code></td><td>Author-assigned keywords from meta tags. Free signal for entity matching.</td></tr>
+  </table>
+
+  <h3>Architecture</h3>
+<pre><code># docker-compose.yml addition:
+services:
+  zotero:
+    image: zotero/translation-server
+    ports: ["1969:1969"]
+    restart: unless-stopped
+
+# Python client (~20 lines):
+def zotero_metadata(url: str) -> dict | None:
+    try:
+        resp = requests.post("http://localhost:1969/web",
+                            data=url,
+                            headers={"Content-Type": "text/plain"},
+                            timeout=15)
+        if resp.status_code == 200:
+            items = resp.json()
+            return items[0] if items else None
+    except Exception:
+        return None  # graceful degradation</code></pre>
+
+  <h3>Integration pattern</h3>
+  <p>Run Zotero and trafilatura in parallel for each URL. Merge results:</p>
+  <ul>
+    <li>Content (markdown body): always from trafilatura</li>
+    <li>Title: prefer Zotero (site-specific extractors are smarter) with trafilatura fallback</li>
+    <li>Author: prefer Zotero (structured name parsing)</li>
+    <li>New fields: <code>item_type</code>, <code>abstract</code>, <code>doi</code>, <code>publication_name</code>, <code>language</code>, <code>meta_tags</code></li>
+  </ul>
+
+  <h3>Notable limitation</h3>
+  <p>
+    Zotero's Embedded Metadata translator does <strong>not parse JSON-LD</strong>
+    (<code>&lt;script type="application/ld+json"&gt;</code>). Many modern sites use JSON-LD
+    exclusively. PressForward's client-side parser does handle JSON-LD, but it requires
+    running in a browser context. For server-side processing, this is a gap.
+  </p>
+
+  <h3>Recommendation</h3>
+  <p>
+    Try it on 50 articles from different sources and measure how many fields Zotero fills
+    that trafilatura doesn't. If the hit rate is &gt;30%, deploy as a sidecar. If most articles
+    already have good metadata from trafilatura, skip it.
+  </p>
+
+  <div class="file-list">
+    <strong>Files to create/modify:</strong>
+    <code>docker-compose.yml</code> (add service),
+    <code>scripts/build_articles.py</code> (parallel metadata fetch + merge),
+    <code>scripts/db.py</code> (add metadata columns)
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<h2>4. Discourser-style Semantic Vectors <span class="verdict maybe">Research spike</span></h2>
+
+<div class="section caution">
+  <h3>The idea</h3>
+  <p>
+    <a href="https://github.com/shawngraham/discourser">Discourser</a> defines custom semantic
+    dimensions by providing positive and negative term sets, then projects documents onto them.
+    For Petrarca, this could add continuous semantic coordinates to articles beyond discrete topic tags.
+  </p>
+
+  <h3>Example dimensions for Petrarca's historical domains</h3>
+<pre><code># Each dimension defined by positive/negative term sets:
+"primary_vs_secondary":
+  pos: ["chronicle", "inscription", "manuscript", "testimony", "decree"]
+  neg: ["argues", "interprets", "historiography", "scholarship", "analysis"]
+
+"military_vs_cultural":
+  pos: ["conquest", "siege", "army", "battle", "fortification"]
+  neg: ["art", "poetry", "mosque", "cathedral", "translation"]
+
+"technical_vs_narrative":
+  pos: ["data", "methodology", "analysis", "evidence", "quantitative"]
+  neg: ["story", "journey", "experience", "vivid", "dramatic"]</code></pre>
+
+  <p>
+    Articles get projected onto these axes, giving coordinates like
+    <code>{primary_vs_secondary: 0.73, military_vs_cultural: -0.2, technical_vs_narrative: 0.45}</code>.
+    This enriches feed ranking and could help the novelty system distinguish
+    "same topic, different angle" from "same topic, same angle."
+  </p>
+
+  <h3>Three methods from discourser</h3>
+  <table>
+    <tr><th>Method</th><th>How</th><th>Quality</th></tr>
+    <tr><td>Orthogonal projection</td><td>pos_centroid - neg_centroid, remove shared component</td><td>Best separation</td></tr>
+    <tr><td>Weighted difference</td><td>Simple centroid subtraction</td><td>Fast, decent</td></tr>
+    <tr><td>PCA axis</td><td>Max variance axis between pos/neg embeddings</td><td>Data-driven</td></tr>
+  </table>
+
+  <h3>Why this is a research spike, not an integration</h3>
+  <p>
+    Petrarca already has MiniLM embeddings via limbic. The computation is trivial.
+    The hard part is <strong>defining the right dimensions</strong> &mdash; this requires experimentation
+    to find axes that actually discriminate usefully between articles. A spike would:
+  </p>
+  <ol>
+    <li>Define 3-5 candidate dimensions with term sets</li>
+    <li>Project 100 existing articles onto them</li>
+    <li>Check: do the projections correlate with meaningful differences?</li>
+    <li>If yes, add to article metadata and feed ranking</li>
+  </ol>
+
+  <div class="effort">
+    <span><strong>Spike effort:</strong> ~2 hours, Jupyter notebook</span>
+    <span><strong>Full integration:</strong> ~150 lines if spike succeeds</span>
+    <span><strong>Dependencies:</strong> Already has MiniLM via limbic</span>
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<h2>5. Dual-Model Verification <span class="verdict maybe">Consider later</span></h2>
+
+<div class="section caution">
+  <h3>What steamroller does</h3>
+  <p>
+    After initial entity/triplet extraction, two additional LLMs review the output:
+    Model 1 checks triplets against source text and suggests corrections,
+    Model 2 reviews Model 1's critique and produces final output.
+    This catches hallucinated entities and wrong relationships.
+  </p>
+
+  <h3>Adaptation for Petrarca</h3>
+  <p>
+    After entity extraction (Gemini Flash), run a verification pass (Claude Haiku via <code>claude -p</code>, free):
+  </p>
+<pre><code># Verification prompt:
+"Here is an article and the entities extracted from it.
+For each entity, verify:
+1. Is it actually mentioned in the article? (not hallucinated)
+2. Is the canonical_id consistent with other articles?
+3. Are the relationships supported by the text?
+Flag any issues."</code></pre>
+  <p>
+    This is cheap (Haiku, free via CLI) and catches the biggest failure mode: hallucinated entities
+    that pollute the knowledge graph. But it doubles the LLM calls per article.
+  </p>
+
+  <h3>When to do this</h3>
+  <p>
+    Wait until after the prompt engineering changes (#2 above). Constrained relationship types
+    and canonical IDs may reduce hallucination enough that verification isn't needed.
+    If entity quality is still an issue after those changes, add verification.
+  </p>
+</div>
+
+<!-- ============================================================ -->
+<h2>Dropped: PressForward Metadata Cascade <span class="verdict no">Skip</span></h2>
+
+<div class="section skip">
+  <h3>Why not</h3>
+  <p>
+    Deep-dive confirmed that trafilatura already covers everything PressForward does for content extraction,
+    and does it better (trafilatura's algorithm outperforms standalone Readability on edge cases).
+    PressForward's metadata cascade (OG &rarr; Twitter &rarr; JSON-LD &rarr; meta description) is well-structured
+    but trafilatura handles the same sources.
+  </p>
+  <p>
+    The interesting part of PressForward is its <strong>editorial workflow</strong> (feed &rarr; nomination &rarr; publication),
+    but Petrarca already has its own article lifecycle. Not worth the WordPress/PHP dependency.
+  </p>
+  <p><strong>One pattern worth stealing</strong> (no integration needed): the image fallback chain
+    (OG image &rarr; <code>link[rel=image_src]</code> &rarr; Twitter image &rarr; first large <code>&lt;img&gt;</code>).
+    Add to trafilatura post-processing if Petrarca needs featured images.
+  </p>
+</div>
+
+<!-- ============================================================ -->
+<h2>Implementation Order</h2>
+
+<div class="section">
+  <table>
+    <tr><th>#</th><th>What</th><th>Effort</th><th>Value</th><th>Dependencies</th></tr>
+    <tr>
+      <td>1</td>
+      <td><strong>Entity extraction prompt changes</strong><br>Constrained predicates, canonical IDs, mentions, prescribed workflow</td>
+      <td>1 session</td>
+      <td>High &mdash; fixes entity dedup, makes KG queryable</td>
+      <td>None</td>
+    </tr>
+    <tr>
+      <td>2</td>
+      <td><strong>Hypothesis integration</strong><br>Sync, claims, tags, auto-import</td>
+      <td>1-2 sessions</td>
+      <td>High &mdash; user-curated claims are the strongest signal</td>
+      <td>Hypothesis API key</td>
+    </tr>
+    <tr>
+      <td>3</td>
+      <td><strong>Semantic vectors spike</strong><br>Define dimensions, project 100 articles, evaluate</td>
+      <td>2 hours</td>
+      <td>Unknown &mdash; depends on spike results</td>
+      <td>limbic (already have)</td>
+    </tr>
+    <tr>
+      <td>4</td>
+      <td><strong>Zotero Translation Server trial</strong><br>Run on 50 articles, measure metadata delta</td>
+      <td>2 hours</td>
+      <td>Medium &mdash; depends on metadata gap</td>
+      <td>Docker</td>
+    </tr>
+    <tr>
+      <td>5</td>
+      <td><strong>Dual-model verification</strong><br>Add if entity quality is still an issue after #1</td>
+      <td>1 session</td>
+      <td>Medium &mdash; insurance against hallucination</td>
+      <td>claude -p (already have)</td>
+    </tr>
+  </table>
+</div>
+
+<!-- ============================================================ -->
+<h2>Source Repos Reference</h2>
+
+<div class="section">
+  <table>
+    <tr><th>Repo</th><th>Author</th><th>What to look at</th></tr>
+    <tr>
+      <td><a href="https://github.com/shawngraham/steamroller">steamroller</a></td>
+      <td>Graham</td>
+      <td><code>predicates.txt</code> (relationship vocabulary pattern), <code>results_evaluator.py</code> (dual-model verification)</td>
+    </tr>
+    <tr>
+      <td><a href="https://github.com/shawngraham/kg-hybrid">kg-hybrid</a></td>
+      <td>Graham</td>
+      <td><code>kg_extract.py</code> lines 272-506 (LLM refinement schema with canonical IDs)</td>
+    </tr>
+    <tr>
+      <td><a href="https://github.com/shawngraham/claude_antiquities_extractor_skill">claude_antiquities_extractor_skill</a></td>
+      <td>Graham</td>
+      <td>SKILL.md (extraction workflow, canonical ID conventions, mentions tracking)</td>
+    </tr>
+    <tr>
+      <td><a href="https://github.com/shawngraham/discourser">discourser</a></td>
+      <td>Graham</td>
+      <td><code>CustomVectorManager</code> class (semantic dimension definition + projection)</td>
+    </tr>
+    <tr>
+      <td><a href="https://github.com/zotero/translation-server">translation-server</a></td>
+      <td>Zotero</td>
+      <td>Docker setup, <code>POST /web</code> API</td>
+    </tr>
+    <tr>
+      <td><a href="https://github.com/zotero/translators">translators</a></td>
+      <td>Zotero</td>
+      <td><code>Embedded Metadata.js</code> (generic meta tag parsing)</td>
+    </tr>
+    <tr>
+      <td><a href="https://hypothes.is/api/">Hypothesis API</a></td>
+      <td>Hypothesis</td>
+      <td><code>GET /api/search</code> (annotation sync), <code>TextQuoteSelector</code> (highlighted text)</td>
+    </tr>
+    <tr>
+      <td><a href="https://github.com/out-of-cheese-error/gooseberry">gooseberry</a></td>
+      <td>out-of-cheese-error</td>
+      <td>Incremental sync pattern via <code>search_after</code> cursor</td>
+    </tr>
+  </table>
+</div>
+
+<footer>
+  Compiled April 2026 from deep-dive analysis of 15+ repos and APIs.
+  Based on Petrarca architecture as of April 2026 (trafilatura + Gemini Flash + MiniLM + atomic claims).
+</footer>
+
+</div>
+</body>
+</html>

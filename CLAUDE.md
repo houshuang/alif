@@ -231,3 +231,10 @@ See `.claude/skills/server-ops.md` for full details. Summary of hard-won rules:
 7. **`limbic` install on server** — `pyproject.toml` specifies `limbic @ git+https://...` which tries GitHub clone. On server, install from local: `.venv/bin/pip install -e /opt/limbic` first, then `pip install -e . --no-deps` for alif, then remaining deps separately. CPU-only PyTorch: `pip install torch --index-url https://download.pytorch.org/whl/cpu`.
 8. **Long-running remote scripts: use nohup** — SSH drops after ~60s idle, causing exit code 255 with no output. Use `nohup ... > /tmp/script.log 2>&1 &` then check the log file later. See `server-ops.md` for pattern.
 9. **Backup DB before manual data changes** — `ssh alif "cp /opt/alif/backend/data/alif.db /opt/alif-backups/alif_pre_fix_$(date +%Y%m%d_%H%M%S).db"` then log the action via `scripts/log_activity.py`.
+
+## Periodic Maintenance Checks
+
+Run these every month or two when working on alif. Append a date + result line to each checklist entry below after running.
+
+- **Check forks for upstream-worthy work** — `gh api repos/houshuang/alif/forks --jq '.[] | {full_name, pushed_at, created_at}'` then for each fork: `gh api repos/houshuang/alif/compare/main...OWNER:main --jq '{ahead_by, behind_by}'`. Only forks with `ahead_by > 0` are worth inspecting. A fork where `pushed_at < created_at` has zero new commits. Note: `gh` in the Claude Code sandbox hits TLS error `OSStatus -26276`; use sandbox-disabled bash.
+  - 2026-04-24 — 1 fork (`eurunuela/alif`), 0 ahead, 119 behind. Nothing to merge.
