@@ -4,7 +4,7 @@
 
 ---
 
-## 🟡 Lemma Decomposition Pipeline — Phase 1 + Phase 2 Step 1 done 2026-04-24, Steps 2-8 OPEN
+## 🟡 Lemma Decomposition Pipeline — Phase 1 + Phase 2 Steps 1-4b done 2026-04-24, Steps 4c + 5-8 OPEN
 
 User-found bug: a reading card showed **#2862 وَتَرَكَهُم "and left them"** (root 305, source=`quran`) as a single atomic verb lemma. Correct decomposition is و (proclitic "and") + تَرَكَ (verb "he left") + هُمْ (enclitic "-them"). The compound form was stored in `lemmas` instead of the canonical تَرَكَ. User flagged: *"this whole pipeline needs investigation."*
 
@@ -29,7 +29,11 @@ User-found bug: a reading card showed **#2862 وَتَرَكَهُم "and left t
 
 **Phase 2 Step 4a — DONE (2026-04-24, PRs #49 + #50).** Spot-check of Step 3's 33 canonicals surfaced a systematic CAMeL MLE failure the original gate missed: feminine ة misread as 3ms_poss. Re-gated all 33 with stricter prompt → **22 bogus_mle_error deleted, 11 confirmed_valid linked** to their canonicals with full ULK merge. User's screenshot case #2862 وَتَرَكَهُم now correctly points at canonical #3148 تَرَك. Scripts: `regate_step3_created_canonicals.py`, `apply_step4a_regate_deletions.py`, `apply_step4a_link_survivors.py`. Verdicts: `research/decomposition-regate-2026-04-24.json`.
 
-**Phase 2 Steps 4b, 4c, 5-8 still OPEN.** Sequence: add `decomposition_note` column → tag 89 bogus orphans `mle_misanalysis` (22 from 4a-prime + 67 from Step 3) → re-gate + migrate 144 HIGH-tier with vetted stricter prompt → manual MEDIUM/LOW (17 entries) → re-enrich Hindawi corpus → re-gloss root #305 ت.ر.ك → verify next Quran surah import.
+**Phase 2 Step 4b — DONE (2026-04-24, PR #51).** Added `lemmas.decomposition_note` (nullable JSON) column via Alembic `aa7h8i9j0k12` (initial chain-off collided with `b4e1f07a2c18` from another PR; fixed with one-line re-parent). Tagged 89 orphans with `{mle_misanalysis: true, reason, source_artifact, tagged_at, phase: "step4b"}`: 22 from 4a-prime `bogus_mle_error` + 67 from Step 3 `mle_error`. Script: `backend/scripts/tag_mle_misanalysis_orphans.py` (dry-run default, refuses to overwrite existing notes, one ActivityLog per run). Query flagged rows: `WHERE json_extract(decomposition_note, '$.mle_misanalysis') = 1`. ActivityLog 1506 confirms on prod.
+
+**Phase 2 Steps 4c, 5-8 still OPEN.** Sequence: re-gate + migrate 144 HIGH-tier with vetted stricter prompt (expect ~40-60 additional `mle_misanalysis` tags via the same column) → manual MEDIUM/LOW (17 entries) → re-enrich Hindawi corpus → re-gloss root #305 ت.ر.ك → verify next Quran surah import.
+
+**New lesson (2026-04-24 during 4b)**: always run `ssh alif "cd /opt/alif/backend && .venv/bin/alembic heads"` BEFORE writing a new migration. Alembic can have two heads even when git has no merge conflict, because two branches each chained off the same parent. Fix is a one-line `down_revision` swap — cheap to prevent by checking upfront.
 
 ---
 
