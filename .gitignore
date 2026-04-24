@@ -42,6 +42,7 @@ backend/data/MSA_freq_lists.tsv
 backend/data/decomposition_backfill_progress.json
 backend/data/decomposition_regate_progress.json
 backend/data/decomposition_regate_apply_progress.json
+backend/data/decomposition_link_progress.json
 
 # Test artifacts
 backend/pytest-of-*/
