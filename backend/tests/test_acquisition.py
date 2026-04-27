@@ -3,6 +3,7 @@ from datetime import datetime, timedelta, timezone
 from app.models import Lemma, ReviewLog, Root, UserLemmaKnowledge
 from app.services.acquisition_service import (
     BOX_INTERVALS,
+    FAST_GRAD_INTRO_GAP,
     GRADUATION_MIN_ACCURACY,
     GRADUATION_MIN_CALENDAR_DAYS,
     GRADUATION_MIN_REVIEWS,
@@ -116,6 +117,56 @@ def test_tier0_first_correct_graduates(db_session):
     assert ulk.knowledge_state == "learning"
     assert ulk.acquisition_box is None
     assert ulk.fsrs_card_json is not None
+
+
+def test_tier0_blocked_when_intro_just_shown(db_session):
+    """First correct review within FAST_GRAD_INTRO_GAP of intro card stays in box 1.
+
+    Working memory after seeing the intro card should not bypass the encoding phase.
+    """
+    lemma = _create_lemma(db_session)
+    start_acquisition(db_session, lemma.lemma_id)
+
+    ulk = db_session.query(UserLemmaKnowledge).filter_by(lemma_id=lemma.lemma_id).first()
+    ulk.experiment_intro_shown_at = datetime.now(timezone.utc) - timedelta(seconds=20)
+    db_session.flush()
+
+    result = submit_acquisition_review(db_session, lemma.lemma_id, rating_int=3)
+    assert result.get("graduated") is not True
+    assert result["new_state"] == "acquiring"
+
+    ulk = db_session.query(UserLemmaKnowledge).filter_by(lemma_id=lemma.lemma_id).first()
+    assert ulk.knowledge_state == "acquiring"
+    assert ulk.acquisition_box == 2  # advanced box 1→2 (encoding handoff)
+    assert ulk.fsrs_card_json is None
+
+
+def test_tier0_allowed_when_intro_was_long_ago(db_session):
+    """First correct review well past FAST_GRAD_INTRO_GAP still fast-grads."""
+    lemma = _create_lemma(db_session)
+    start_acquisition(db_session, lemma.lemma_id)
+
+    ulk = db_session.query(UserLemmaKnowledge).filter_by(lemma_id=lemma.lemma_id).first()
+    ulk.experiment_intro_shown_at = (
+        datetime.now(timezone.utc) - FAST_GRAD_INTRO_GAP - timedelta(minutes=5)
+    )
+    db_session.flush()
+
+    result = submit_acquisition_review(db_session, lemma.lemma_id, rating_int=3)
+    assert result.get("graduated") is True
+    assert result["new_state"] == "learning"
+
+
+def test_tier0_allowed_when_no_intro_shown(db_session):
+    """First correct review still fast-grads when no intro was shown (e.g. textbook word)."""
+    lemma = _create_lemma(db_session)
+    start_acquisition(db_session, lemma.lemma_id)
+
+    ulk = db_session.query(UserLemmaKnowledge).filter_by(lemma_id=lemma.lemma_id).first()
+    assert ulk.experiment_intro_shown_at is None  # no intro card was shown
+
+    result = submit_acquisition_review(db_session, lemma.lemma_id, rating_int=3)
+    assert result.get("graduated") is True
 
 
 def test_tier0_first_hard_does_not_graduate(db_session):

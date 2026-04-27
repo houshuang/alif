@@ -4,6 +4,18 @@
 
 ---
 
+## 🟢 [DONE 2026-04-27] Learner-data-driven session quality fixes (PR sh/learning-data-fixes)
+
+Four issues surfaced from production data audit:
+1. **Tier-0 working-memory false positives** — fast-grad fired within 30 seconds of intro card 4/6 times. Fixed with `FAST_GRAD_INTRO_GAP = 10 min` gate.
+2. **Near-duplicate sentences in same session** — 8 high-Jaccard pairs in 7d (worst was 1.0 on lemma sets). Fixed with `JACCARD_VETO_THRESHOLD = 0.7` hard veto in greedy + acquisition-repeat loops.
+3. **Intro card overload** — sessions had up to 10 intros (40% density). Lowered `INTRO_CARDS_MAX` 10→6, ramp slowed to `+1/15`.
+4. **End-of-session intro flood** — 9/17 sessions placed intros in final 25%. Frontend now reorders sentences (intro-bearing front-middle, no-intro wind-down) and excludes intros from final 20%.
+
+Future: re-evaluate `FAST_GRAD_INTRO_GAP` and `JACCARD_VETO_THRESHOLD` after 1-2 weeks of data.
+
+---
+
 ## 🟡 Lemma Decomposition Pipeline — Phase 1 + Phase 2 Steps 1-4b done 2026-04-24, Steps 4c + 5-8 OPEN
 
 User-found bug: a reading card showed **#2862 وَتَرَكَهُم "and left them"** (root 305, source=`quran`) as a single atomic verb lemma. Correct decomposition is و (proclitic "and") + تَرَكَ (verb "he left") + هُمْ (enclitic "-them"). The compound form was stored in `lemmas` instead of the canonical تَرَكَ. User flagged: *"this whole pipeline needs investigation."*

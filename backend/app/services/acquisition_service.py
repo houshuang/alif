@@ -40,6 +40,10 @@ GRADUATION_MIN_REVIEWS = 5
 GRADUATION_MIN_ACCURACY = 0.60
 GRADUATION_MIN_CALENDAR_DAYS = 2
 ROOT_SIBLING_THRESHOLD = 2  # known root siblings needed for Easy graduation boost
+# Tier-0 (first-correct) instant graduation must NOT fire when the intro card
+# was shown moments ago — that's working memory, not learning. Require this
+# much elapsed time since the intro card before allowing fast-grad.
+FAST_GRAD_INTRO_GAP = timedelta(minutes=10)
 
 
 def _reviews_span_calendar_days(db: Session, lemma_id: int, min_days: int) -> bool:
@@ -213,13 +217,22 @@ def submit_acquisition_review(
             acq_due = acq_due.replace(tzinfo=timezone.utc)
         is_due = acq_due <= now
 
-    # Fast-track: first correct review → graduate immediately to FSRS
-    # Production data shows 0% lapse rate for fast grads (≤6 reviews).
-    # FSRS safety net catches any false positives.
+    # Fast-track: first correct review → graduate immediately to FSRS.
+    # Skip when the intro card was shown within FAST_GRAD_INTRO_GAP — a
+    # correct rating seconds after seeing the card is working memory, not
+    # learning, and bypassing acquisition robs the encoding phase.
     graduated = False
     if old_times_seen == 0 and rating_int >= 3:
-        _graduate(ulk, now, db=db)
-        graduated = True
+        intro_shown = ulk.experiment_intro_shown_at
+        if intro_shown is not None:
+            if intro_shown.tzinfo is None:
+                intro_shown = intro_shown.replace(tzinfo=timezone.utc)
+            recent_intro = (now - intro_shown) < FAST_GRAD_INTRO_GAP
+        else:
+            recent_intro = False
+        if not recent_intro:
+            _graduate(ulk, now, db=db)
+            graduated = True
 
     # Box advancement logic
     # Box 1→2: always allowed (encoding phase, within-session repetition)

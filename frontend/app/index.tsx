@@ -128,20 +128,24 @@ function buildInterleavedSession(
     return overlap;
   });
 
-  // 3. Order sentences: warm-ups (no intro words) first, then sentences that
-  //    introduce new lemmas. This keeps the first 1-2 cards easy and lets us
-  //    interleave intro cards naturally as their target lemmas first appear.
-  const sentenceOrder = items.map((_, i) => i);
-  sentenceOrder.sort((a, b) => {
-    const sa = sentenceIntroWords[a].size;
-    const sb = sentenceIntroWords[b].size;
-    if (sa === 0 && sb > 0) return -1;
-    if (sb === 0 && sa > 0) return 1;
-    return a - b;
-  });
+  // 3. Order: 1-2 no-intro warm-ups → intro-bearing sentences (front-middle) →
+  //    no-intro wind-down (back). The wind-down guarantees the last ~20% of
+  //    the session is intro-free, so the learner finishes with practice, not
+  //    a fresh-card flood (fixed 2026-04-27).
+  const allOrder = items.map((_, i) => i);
+  const noIntro = allOrder.filter((i) => sentenceIntroWords[i].size === 0);
+  const withIntro = allOrder.filter((i) => sentenceIntroWords[i].size > 0);
+  const warmup = noIntro.slice(0, Math.min(2, noIntro.length));
+  const winddown = noIntro.slice(warmup.length);
+  const sentenceOrder = [...warmup, ...withIntro, ...winddown];
 
   // 4. Walk in chosen order. Before each sentence, emit any unshown intro
-  //    cards whose lemma appears in this sentence.
+  //    cards whose lemma appears in this sentence — but never inside the
+  //    last 20% of the projected session. Late intros are silently dropped
+  //    (they'll be picked up in the next session).
+  const INTRO_END_EXCLUSION = 0.20;
+  const estimatedTotal = items.length + introCards.length;
+  const introCutoff = Math.floor(estimatedTotal * (1 - INTRO_END_EXCLUSION));
   const shown = new Set<number>();
   const result: SessionSlot[] = [];
 
@@ -149,17 +153,19 @@ function buildInterleavedSession(
     for (const lemmaId of sentenceIntroWords[sentIdx]) {
       const introIdx = lemmaToIntroIdx.get(lemmaId);
       if (introIdx !== undefined && !shown.has(lemmaId)) {
-        result.push({ type: "experiment_intro" as const, introIndex: introIdx });
-        shown.add(lemmaId);
+        if (result.length < introCutoff) {
+          result.push({ type: "experiment_intro" as const, introIndex: introIdx });
+          shown.add(lemmaId);
+        }
       }
     }
     result.push({ type: "sentence" as const, itemIndex: sentIdx });
   }
 
-  // 5. Flush any intro cards whose lemma never appeared in a session sentence
-  //    (defensive: backend filters intros to covered_ids, so this is rare).
+  // 5. Flush orphan intros whose lemma never appeared in a session sentence,
+  //    but only if they fit before the cutoff. Late orphans are dropped.
   introCards.forEach((c, i) => {
-    if (!shown.has(c.lemma_id)) {
+    if (!shown.has(c.lemma_id) && result.length < introCutoff) {
       result.push({ type: "experiment_intro" as const, introIndex: i });
       shown.add(c.lemma_id);
     }
