@@ -4,6 +4,70 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-04-27: Lemma decomposition Phase 2 step 4c — re-gate 161 `compound_with_canonical` entries, tag 91, link 17, requeue 3,056 corpus sentences
+
+### What
+
+Stricter LLM re-gate of all 161 `compound_with_canonical` audit entries (HIGH=144, MEDIUM=4, LOW=13) using a two-pass asymmetric verification scheme: pass 1 classifies all entries with the 4a-prime stricter prompt extended to 4 verdicts (`confirmed_valid_link`, `bogus_mle_error`, `wrong_canonical_real_compound`, `uncertain`); pass 2 re-checks any non-`confirmed_valid_link` verdict with a flipped framing biased toward keeping. Disagreements are downgraded to `uncertain`. Sonnet on both passes for accuracy.
+
+Three new scripts (`backend/scripts/`):
+- `regate_compound_decompositions.py` — verdict pass, read-only
+- `apply_step4c_tags.py` — stamps `decomposition_note` for bogus + wrong_canonical
+- `apply_step4c_link_survivors.py` — links unlinked confirmed_valid orphans (mirrors `apply_step4a_link_survivors.py`)
+- `reenrich_corpus_post_step4c.py` — clears `mappings_verified_at` on touched corpus sentences
+
+### Outcome
+
+| Verdict | Count | % | Action |
+|---|---|---|---|
+| `confirmed_valid_link` | 67 | 42% | 50 already-linked → no-op; 17 unlinked → linked |
+| `bogus_mle_error` | 76 | 47% | tag (17 already-linked also flagged `wrong_canonical_existing`) |
+| `wrong_canonical_real_compound` | 15 | 9% | tag (link left intact; canonical is wrong but corpus refs depend on it) |
+| `uncertain` | 3 | 2% | no action; surface to manual queue |
+
+47% bogus rate on this bucket vs. 67% on Step 4a-prime's "created canonicals" — confirms the prior intuition that pre-existing canonical compounds have lower MLE-noise than freshly-created ones.
+
+**Prod totals after apply**: 180 lemmas with `decomposition_note` (89 from 4b + 91 from 4c). 17 new compound→canonical links, 15 unique canonicals re-gated.
+
+**High-impact merges in 4c-B**: اَلْيَوْمَ→يَوْم (161 reviews merged), وَلَكِنْ→لكن (111), 3 separate orphans (لِي, لَها, لَكّ) all merged into the preposition canonical لـِ, اَلْآنَ→آنٌ (44).
+
+### Step 6 follow-on
+
+Cleared `mappings_verified_at` on **3,056 inactive corpus sentences** (using `--touched-only` to filter to sentences whose `sentence_word.lemma_id` touches any Step 4 lemma — saves ~700 wasteful LLM calls vs. clearing all 3,725). Cron Step A2 will re-verify on its schedule. Hypothesis: corpus activation rate climbs because previously-unmappable compound surface forms now resolve through their newly-linked canonicals.
+
+### Two-pass asymmetric verification — the design
+
+The cost of false-`bogus` (incorrectly tagging a good link) is asymmetrically higher than false-`valid` (a bad link survives, status quo). Pass 2 only re-checks non-`confirmed_valid_link` verdicts; entries pass 1 confidently called valid skip pass 2 (saves ~50% of the verification budget). Two passes confidently confirming a borderline case would still produce the same answer, so the second look on confirmed-valid is wasted.
+
+The design surfaced a real policy edge case (3 entries): feminine noun/adj linked to masculine canonical (e.g., جارة→جار, وَذَكِيَّة→ذَكِيّ). Pass 1 fired the ة-misread heuristic and said `bogus`; pass 2 reasoned past it and said `valid` ("fem→masc canonical link is standard NLP"). Disagreement → `uncertain` → no action. Meanwhile, 50 fem→masc cases where both passes agreed got `confirmed_valid_link` — the de-facto policy is "link OK." The 3 edge cases stay as-is.
+
+### Verify
+
+```bash
+# Total tagged on prod (expect 180)
+ssh alif "sqlite3 /opt/alif/backend/data/alif.db \\
+  \"SELECT COUNT(*) FROM lemmas WHERE decomposition_note IS NOT NULL;\""
+
+# By phase
+ssh alif "sqlite3 /opt/alif/backend/data/alif.db \\
+  \"SELECT json_extract(decomposition_note, '\$.phase'), COUNT(*) \\
+   FROM lemmas WHERE decomposition_note IS NOT NULL \\
+   GROUP BY 1;\""
+
+# Step 6 progress: how many of the 3056 still unverified
+ssh alif "sqlite3 /opt/alif/backend/data/alif.db \\
+  \"SELECT COUNT(*) FROM sentences \\
+   WHERE source='corpus' AND is_active=0 AND mappings_verified_at IS NULL;\""
+```
+
+### Lessons
+
+- **Asymmetric two-pass beats single-pass on policy edge cases.** Single-pass would have falsely tagged the 3 fem→masc-canonical cases. The disagreement-to-uncertain mechanism is the safety net that lets Sonnet explore borderline reasoning without producing harmful side effects.
+- **`compound_with_canonical` MLE failures are dominated by feminine ة + same-root collisions.** Examples: قِطَّتَك ("your female cat") was linked to verb root قَطَّ ("to cut"); جَدَّتَك ("your grandmother") to جَدّ ("grandfather"); لَطيفة (fem "kind") to nisba pair لَطِيف. These slip through because the stem matches a real DB lemma even when the morphology is wrong.
+- **Tag-only is the right action for already-linked compounds with wrong canonicals.** Unlinking would orphan the corpus sentence_words; the safer choice is to leave the link, stamp the note, and let a future targeted re-mapping pass decide.
+
+---
+
 ## 2026-04-24 (later still): Lemma decomposition Phase 2 step 4b — tag 89 MLE-misanalysed orphans with `decomposition_note`
 
 PR #51. Persists the CAMeL MLE failure pattern caught in Step 4a-prime + the broader Step 3 `mle_error` bucket so the rows are tracked, queryable, and distinguishable from ordinary orphans in future audits.

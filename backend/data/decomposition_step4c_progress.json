@@ -1,0 +1,2959 @@
+{
+  "entries": {
+    "26": {
+      "outcome": "confirmed_valid_link",
+      "agreement": true,
+      "reason_pass1": "عِنْدي = عِنْد (preposition/pseudo-verb 'at; to have') + 1s pronoun clitic ي. This is an extremely common and morphologically transparent Arabic construction meaning 'I have / at me'. The 1s_pron enc0 is a genuine pronominal suffix, not a misread. Canonical عِنْد is correct.",
+      "in_db_link_state": "linked",
+      "orphan_ar": "عِنْدي",
+      "orphan_gloss": "I have had",
+      "orphan_db_pos": "",
+      "proposed_canonical_id": 152,
+      "proposed_canonical_ar": "عِنْد",
+      "proposed_canonical_gloss": "at; to have",
+      "proposed_canonical_pos": "",
+      "clitic_signals": {
+        "enc0": "1s_pron"
+      },
+      "confidence_tier": "HIGH"
+    },
+    "27": {
+      "outcome": "confirmed_valid_link",
+      "agreement": true,
+      "reason_pass1": "عِنْدَك = عِنْد + 2ms pronoun clitic كَ, meaning 'you have / at you'. Parallel to entry 1. The 2ms_pron enc0 is a genuine pronominal suffix. Canonical عِنْد is correct.",
+      "in_db_link_state": "linked",
+      "orphan_ar": "عِنْدَك",
+      "orphan_gloss": "you have",
+      "orphan_db_pos": "",
+      "proposed_canonical_id": 152,
+      "proposed_canonical_ar": "عِنْد",
+      "proposed_canonical_gloss": "at; to have",
+      "proposed_canonical_pos": "",
+      "clitic_signals": {
+        "enc0": "2ms_pron"
+      },
+      "confidence_tier": "HIGH"
+    },
+    "28": {
+      "outcome": "bogus_mle_error",
+      "agreement": true,
+      "reason_pass1": "Classic tā marbūṭa (ة) misread as 3ms_poss ـه. تَنّورة is an independent noun meaning 'skirt' (or 'stove/tanur'); its ة is a feminine ending, not a possessive suffix. The proposed canonical تَنَوَّرَ ('to be lit/illuminated') is a completely different root and POS (Form V verb) with no semantic or morphological connection to the noun تَنّورة. Orphan is its own dictionary lemma.",
+      "in_db_link_state": "unlinked",
+      "orphan_ar": "تَنّورة",
+      "orphan_gloss": "skirt",
+      "orphan_db_pos": "",
+      "proposed_canonical_id": 763,
+      "proposed_canonical_ar": "تَنَوَّرَ",
+      "proposed_canonical_gloss": "to be lit, to be illuminated",
+      "proposed_canonical_pos": "verb",
+      "clitic_signals": {
+        "enc0": "3ms_poss"
+      },
+      "confidence_tier": "HIGH",
+      "reason_pass2": "Independent re-evaluation confirms the pass-1 verdict. تَنّورة (skirt / tanur-stove) ends in tā marbūṭa that serves as a feminine morphological marker — not an enclitic possessive. More importantly, the proposed canonical تَنَوَّرَ (Form V, 'to be illuminated') belongs to root ن-و-ر and is categorically distinct from the noun تَنّورة, which also derives from ن-و-ر but as a noun pattern (فَعُّولة/تَفعِّلة region) with a completely different meaning domain ('skirt' or 'furnace'). No possessive reading of the gloss 'skirt' is plausible, confirming the ة is feminine, not ـه. The proposed canonical is wrong both semantically and in POS (verb vs. noun). Classic tā marbūṭa → 3ms_poss misread.",
+      "pass2_revised_verdict": "bogus_mle_error"
+    },
+    "31": {
+      "outcome": "confirmed_valid_link",
+      "agreement": true,
+      "reason_pass1": "مُعَلِّمَتَك is مُعَلِّمَة (feminine form of مُعَلِّم 'teacher') + 2ms possessive suffix كَ, meaning 'your (male addressee's) female teacher'. The tā marbūṭa of the feminine stem correctly shifts to ت in construct/suffixed position. Crucially, the clitic stripped is enc0: 2ms_poss (كَ), NOT 3ms_poss — so this is not the ة-misread failure mode. Mapping the feminine مُعَلِّمَة to its masculine canonical مُعَلِّم is standard Arabic NLP practice. Decomposition is valid.",
+      "in_db_link_state": "linked",
+      "orphan_ar": "مُعَلِّمَتَك",
+      "orphan_gloss": "your teacher",
+      "orphan_db_pos": "",
+      "proposed_canonical_id": 121,
+      "proposed_canonical_ar": "مُعَلِّم",
+      "proposed_canonical_gloss": "teacher",
+      "proposed_canonical_pos": "",
+      "clitic_signals": {
+        "enc0": "2ms_poss"
+      },
+      "confidence_tier": "HIGH"
+    },
+    "32": {
+      "outcome": "uncertain",
+      "agreement": false,
+      "reason_pass1": "Triggers the tā marbūṭa misread rule: orphan ends in ة and the only clitic is enc0: 3ms_poss. جارة is the feminine form of جار ('female neighbor'), not 'his neighbor' (which would be written جارَه with ه). The orphan gloss 'neighbor' confirms no possession is intended. The ة is a feminine morphological marker, not a possessive clitic. جارة is its own lexeme (or a regular gender-inflected form of جار), not جار + 3ms_poss.",
+      "in_db_link_state": "linked",
+      "orphan_ar": "جارة",
+      "orphan_gloss": "neighbor",
+      "orphan_db_pos": "",
+      "proposed_canonical_id": 185,
+      "proposed_canonical_ar": "جار",
+      "proposed_canonical_gloss": "neighbor",
+      "proposed_canonical_pos": "",
+      "clitic_signals": {
+        "enc0": "3ms_poss"
+      },
+      "confidence_tier": "HIGH",
+      "reason_pass2": "Pass-1 correctly identifies that the ة is a feminine suffix, not a 3ms_poss clitic. However, the conclusion that the link is therefore bogus is overcautious. جارة IS the feminine form of جار — both gloss as 'neighbor', both from root ج-و-ر, with جار as the masculine canonical and جارة as its regular feminine counterpart. The proposed canonical جار is CORRECT as the base/canonical form for this word family. In Arabic NLP and dictionary practice, feminine forms routinely link to their masculine canonical. The MLE mislabeled the morpheme type (3ms_poss instead of feminine suffix) but arrived at the right canonical through the wrong analysis path. The instruction bias toward keeping valid links applies here: rejecting جارة → جار would orphan a word that has a clear, semantically sound canonical. The link is genuine even though the clitic-type label is wrong.",
+      "pass2_revised_verdict": "confirmed_valid_link"
+    },
+    "33": {
+      "outcome": "confirmed_valid_link",
+      "agreement": true,
+      "reason_pass1": "مَدينَتِك = مَدينة (city, fem. noun) + 2ms possessive suffix ك. The tā marbūṭa opens to تِ before the suffix, which is standard Arabic morphology. The proposed canonical مَدينة is exactly right.",
+      "in_db_link_state": "linked",
+      "orphan_ar": "مَدينَتِك",
+      "orphan_gloss": "your city",
+      "orphan_db_pos": "",
+      "proposed_canonical_id": 110,
+      "proposed_canonical_ar": "مَدينة",
+      "proposed_canonical_gloss": "city",
+      "proposed_canonical_pos": "",
+      "clitic_signals": {
+        "enc0": "2ms_poss"
+      },
+      "confidence_tier": "HIGH"
+    },
+    "34": {
+      "outcome": "wrong_canonical_real_compound",
+      "agreement": true,
+      "reason_pass1": "The orphan جارَتي is genuinely جارة (female neighbor) + 1s possessive ي (ة → ت before suffix). However the proposed canonical جار (male neighbor) is a different dictionary lemma. The correct canonical is جارة.",
+      "in_db_link_state": "linked",
+      "orphan_ar": "جارَتي",
+      "orphan_gloss": "my neighbor",
+      "orphan_db_pos": "",
+      "proposed_canonical_id": 185,
+      "proposed_canonical_ar": "جار",
+      "proposed_canonical_gloss": "neighbor",
+      "proposed_canonical_pos": "",
+      "clitic_signals": {
+        "enc0": "1s_poss"
+      },
+      "confidence_tier": "HIGH",
+      "reason_pass2": "جارَتي unambiguously parses as جارة (female neighbor) + 1s possessive ي, with standard ة→ت before the suffix. The gloss 'my neighbor' confirms the possessive is genuine. The decomposition is real, but the proposed canonical جار (male neighbor) is a distinct lexeme — جارة and جار are separate dictionary entries (the feminine form is not simply جار with a ة tacked on; they can differ in usage and frequency). Correct canonical is جارة. wrong_canonical_real_compound stands.",
+      "pass2_revised_verdict": "wrong_canonical_real_compound",
+      "suggested_canonical_bare": "جارَة"
+    },
+    "35": {
+      "outcome": "wrong_canonical_real_compound",
+      "agreement": true,
+      "reason_pass1": "The orphan قِطَّتَك is genuinely قِطَّة (cat, fem. noun) + 2ms possessive ك (ة → تَ before suffix). The proposed canonical قَطَّ (to carve, verb) is a completely different root with an incompatible POS and meaning. The correct canonical is قِطَّة.",
+      "in_db_link_state": "linked",
+      "orphan_ar": "قِطَّتَك",
+      "orphan_gloss": "your cat",
+      "orphan_db_pos": "",
+      "proposed_canonical_id": 490,
+      "proposed_canonical_ar": "قَطَّ",
+      "proposed_canonical_gloss": "to carve",
+      "proposed_canonical_pos": "verb",
+      "clitic_signals": {
+        "enc0": "2ms_poss"
+      },
+      "confidence_tier": "HIGH",
+      "reason_pass2": "قِطَّتَك = قِطَّة (cat, feminine noun) + 2ms possessive كَ, with ة→ت before the suffix. Gloss 'your cat' confirms a real possessive compound. The proposed canonical قَطَّ (to carve, verb) shares surface consonants but is an entirely unrelated root with a different POS and meaning — the MLE clearly picked the wrong lemma. The correct canonical is قِطَّة. wrong_canonical_real_compound stands.",
+      "pass2_revised_verdict": "wrong_canonical_real_compound",
+      "suggested_canonical_bare": "قِطَّة"
+    },
+    "36": {
+      "outcome": "wrong_canonical_real_compound",
+      "agreement": true,
+      "reason_pass1": "The orphan جَدَّتَك is genuinely جَدَّة (grandmother) + 2ms possessive ك (ة → تَ before suffix). The proposed canonical جَدّ (grandfather) is a different lexeme; جَدَّة and جَدّ are separate dictionary entries. The correct canonical is جَدَّة.",
+      "in_db_link_state": "linked",
+      "orphan_ar": "جَدَّتَك",
+      "orphan_gloss": "your grandmother",
+      "orphan_db_pos": "",
+      "proposed_canonical_id": 43,
+      "proposed_canonical_ar": "جَدّ",
+      "proposed_canonical_gloss": "grandfather",
+      "proposed_canonical_pos": "",
+      "clitic_signals": {
+        "enc0": "2ms_poss"
+      },
+      "confidence_tier": "HIGH",
+      "reason_pass2": "جَدَّتَك = جَدَّة (grandmother) + 2ms possessive كَ, with ة→ت before the suffix. Gloss 'your grandmother' confirms the possessive reading is genuine. The proposed canonical جَدّ (grandfather) is the masculine counterpart, a distinct lexeme — جَدَّة is not merely جَدّ inflected; they differ semantically (male vs. female grandparent) and are separate dictionary entries. Correct canonical is جَدَّة. wrong_canonical_real_compound stands.",
+      "pass2_revised_verdict": "wrong_canonical_real_compound",
+      "suggested_canonical_bare": "جَدَّة"
+    },
+    "37": {
+      "outcome": "confirmed_valid_link",
+      "agreement": true,
+      "reason_pass1": "زَوْجَتِك = زَوْجة (wife) + 2ms possessive ك (ة → تِ before suffix). The proposed canonical زَوْجة is the correct standalone feminine lemma (not collapsed into زَوْج), so the decomposition is valid.",
+      "in_db_link_state": "linked",
+      "orphan_ar": "زَوْجَتِك",
+      "orphan_gloss": "your wife",
+      "orphan_db_pos": "",
+      "proposed_canonical_id": 40,
+      "proposed_canonical_ar": "زَوْجة",
+      "proposed_canonical_gloss": "wife",
+      "proposed_canonical_pos": "",
+      "clitic_signals": {
+        "enc0": "2ms_poss"
+      },
+      "confidence_tier": "HIGH"
+    },
+    "38": {
+      "outcome": "bogus_mle_error",
+      "agreement": true,
+      "reason_pass1": "Classic tā marbūṭa misread: قِطّة (cat) is a complete feminine noun whose ة is a feminine ending, not a 3ms possessive suffix. The proposed canonical قَطَّ (to carve, verb) is an entirely different root. The orphan is its own dictionary lemma.",
+      "in_db_link_state": "unlinked",
+      "orphan_ar": "قِطّة",
+      "orphan_gloss": "cat",
+      "orphan_db_pos": "",
+      "proposed_canonical_id": 490,
+      "proposed_canonical_ar": "قَطَّ",
+      "proposed_canonical_gloss": "to carve",
+      "proposed_canonical_pos": "verb",
+      "clitic_signals": {
+        "enc0": "3ms_poss"
+      },
+      "confidence_tier": "HIGH",
+      "reason_pass2": "قِطّة is a standalone feminine noun (cat). The gloss 'cat' carries no possessive reading — if there were a genuine 3ms possessive the gloss would be 'his cat'. This is the classic tā marbūṭa misread: the MLE treated the feminine ending ة as a 3ms possessive suffix and reached for the spurious verbal canonical قَطَّ (to carve). The orphan قِطّة is its own dictionary lemma; no valid decomposition exists. bogus_mle_error stands.",
+      "pass2_revised_verdict": "bogus_mle_error"
+    },
+    "39": {
+      "outcome": "bogus_mle_error",
+      "agreement": true,
+      "reason_pass1": "Gender-pair adjective misanalysis: لَطيفة is the feminine form of the adjective لَطِيف. The ة is a feminine morpheme, not a 3ms possessive clitic. Per the decision rules, adjective gender pairs → bogus_mle_error. The orphan لَطيفة is its own dictionary form and should not be linked to لَطِيف via a possessive clitic.",
+      "in_db_link_state": "linked",
+      "orphan_ar": "لَطيفة",
+      "orphan_gloss": "kind",
+      "orphan_db_pos": "",
+      "proposed_canonical_id": 1580,
+      "proposed_canonical_ar": "لَطِيف",
+      "proposed_canonical_gloss": "kind",
+      "proposed_canonical_pos": "adj",
+      "clitic_signals": {
+        "enc0": "3ms_poss"
+      },
+      "confidence_tier": "HIGH",
+      "reason_pass2": "لَطيفة is the feminine gender form of the adjective لَطِيف. The gloss 'kind' (not 'his kind one' or any possessed reading) confirms the ة is a feminine morpheme, not a 3ms possessive clitic. Although the proposed canonical لَطِيف is the correct masculine base of this adjective, the enc0=3ms_poss link is invalid — the decomposition asserts a possessive clitic that does not exist here. This is an adjective gender-pair tā marbūṭa misread. The orphan لَطيفة should stand as its own form, not be linked via a bogus possessive clitic. bogus_mle_error stands.",
+      "pass2_revised_verdict": "bogus_mle_error"
+    },
+    "41": {
+      "outcome": "confirmed_valid_link",
+      "agreement": true,
+      "reason_pass1": "زَوْجَتي = زَوْجة (wife) + 1s possessive ي (ة → تَ before suffix). The proposed canonical زَوْجة is the correct feminine lemma. Decomposition is valid.",
+      "in_db_link_state": "linked",
+      "orphan_ar": "زَوْجَتي",
+      "orphan_gloss": "my wife",
+      "orphan_db_pos": "",
+      "proposed_canonical_id": 40,
+      "proposed_canonical_ar": "زَوْجة",
+      "proposed_canonical_gloss": "wife",
+      "proposed_canonical_pos": "",
+      "clitic_signals": {
+        "enc0": "1s_poss"
+      },
+      "confidence_tier": "HIGH"
+    },
+    "42": {
+      "outcome": "wrong_canonical_real_compound",
+      "agreement": true,
+      "reason_pass1": "The orphan جَدَّتي is genuinely جَدَّة (grandmother) + 1s possessive ي (ة → تَ before suffix). The proposed canonical جَدّ (grandfather) is a different lexeme. The correct canonical is جَدَّة.",
+      "in_db_link_state": "unlinked",
+      "orphan_ar": "جَدَّتي",
+      "orphan_gloss": "my grandmother",
+      "orphan_db_pos": "",
+      "proposed_canonical_id": 43,
+      "proposed_canonical_ar": "جَدّ",
+      "proposed_canonical_gloss": "grandfather",
+      "proposed_canonical_pos": "",
+      "clitic_signals": {
+        "enc0": "1s_poss"
+      },
+      "confidence_tier": "HIGH",
+      "reason_pass2": "جَدَّتي = جَدَّة (grandmother) + 1s possessive ي, with ة→ت before the suffix. Gloss 'my grandmother' confirms a genuine possessive compound. The proposed canonical جَدّ (grandfather) is the masculine counterpart, a separate lexeme from جَدَّة. The decomposition is real; only the canonical is wrong. Correct canonical is جَدَّة. wrong_canonical_real_compound stands.",
+      "pass2_revised_verdict": "wrong_canonical_real_compound",
+      "suggested_canonical_bare": "جَدَّة"
+    },
+    "49": {
+      "outcome": "confirmed_valid_link",
+      "agreement": true,
+      "reason_pass1": "اِسْمِك = اِسْم (name) + 2ms possessive ك. Straightforward possessive clitic attachment to a plain masculine noun. The proposed canonical اِسْم is correct.",
+      "in_db_link_state": "linked",
+      "orphan_ar": "اِسْمِك",
+      "orphan_gloss": "your name",
+      "orphan_db_pos": "",
+      "proposed_canonical_id": 47,
+      "proposed_canonical_ar": "اِسْم",
+      "proposed_canonical_gloss": "name",
+      "proposed_canonical_pos": "",
+      "clitic_signals": {
+        "enc0": "2ms_poss"
+      },
+      "confidence_tier": "HIGH"
+    },
+    "50": {
+      "outcome": "confirmed_valid_link",
+      "agreement": true,
+      "reason_pass1": "جار (neighbor) + 2ms possessive suffix ـكَ → جارِكَ 'your neighbor'. Kasra on the noun stem is standard genitive before the possessive kaf. Semantics, morphology, and gloss all agree.",
+      "in_db_link_state": "linked",
+      "orphan_ar": "جارِك",
+      "orphan_gloss": "your neighbor",
+      "orphan_db_pos": "",
+      "proposed_canonical_id": 185,
+      "proposed_canonical_ar": "جار",
+      "proposed_canonical_gloss": "neighbor",
+      "proposed_canonical_pos": "",
+      "clitic_signals": {
+        "enc0": "2ms_poss"
+      },
+      "confidence_tier": "HIGH"
+    },
+    "51": {
+      "outcome": "confirmed_valid_link",
+      "agreement": true,
+      "reason_pass1": "كَراج (garage) + 2ms possessive ـكَ → كَراجِكَ 'your garage'. Loanword noun, but the possessive suffix attaches normally. Gloss confirmed.",
+      "in_db_link_state": "linked",
+      "orphan_ar": "كَراجِك",
+      "orphan_gloss": "your garage",
+      "orphan_db_pos": "",
+      "proposed_canonical_id": 180,
+      "proposed_canonical_ar": "كَراج",
+      "proposed_canonical_gloss": "garage",
+      "proposed_canonical_pos": "",
+      "clitic_signals": {
+        "enc0": "2ms_poss"
+      },
+      "confidence_tier": "HIGH"
+    },
+    "52": {
+      "outcome": "confirmed_valid_link",
+      "agreement": true,
+      "reason_pass1": "بَيْت (house) + 2ms possessive ـكَ → بَيْتِكَ 'your house'. Textbook possessive pronoun attachment. Gloss confirmed.",
+      "in_db_link_state": "linked",
+      "orphan_ar": "بَيْتِك",
+      "orphan_gloss": "your house",
+      "orphan_db_pos": "",
+      "proposed_canonical_id": 181,
+      "proposed_canonical_ar": "بَيت",
+      "proposed_canonical_gloss": "house",
+      "proposed_canonical_pos": "",
+      "clitic_signals": {
+        "enc0": "2ms_poss"
+      },
+      "confidence_tier": "HIGH"
+    },
+    "53": {
+      "outcome": "confirmed_valid_link",
+      "agreement": true,
+      "reason_pass1": "جَاكِت (jacket) + 2ms possessive ـكَ → جاكيتَكَ 'your jacket'. The fatha on the final ت likely reflects accusative case in context; the possessive clitic and the gloss 'your jacket' both confirm the decomposition is correct.",
+      "in_db_link_state": "linked",
+      "orphan_ar": "جاكيتَك",
+      "orphan_gloss": "your jacket",
+      "orphan_db_pos": "",
+      "proposed_canonical_id": 2404,
+      "proposed_canonical_ar": "جَاكِت",
+      "proposed_canonical_gloss": "jacket",
+      "proposed_canonical_pos": "noun",
+      "clitic_signals": {
+        "enc0": "2ms_poss"
+      },
+      "confidence_tier": "HIGH"
+    },
+    "54": {
+      "outcome": "wrong_canonical_real_compound",
+      "agreement": true,
+      "reason_pass1": "بِنْتَك is unambiguously بِنْت (daughter/girl) + 2ms clitic suffix ـكَ = 'your daughter', as confirmed by the orphan gloss. The proposed canonical بُنِّيّ 'brown' is a completely different word from a different root (ب-ن-ن vs ب-ن-ت). CAMeL made a catastrophic mis-segmentation. The compound is genuine; the canonical is wrong.",
+      "in_db_link_state": "linked",
+      "orphan_ar": "بِنْتَك",
+      "orphan_gloss": "your daughter",
+      "orphan_db_pos": "",
+      "proposed_canonical_id": 18,
+      "proposed_canonical_ar": "بُنِّيّ",
+      "proposed_canonical_gloss": "brown",
+      "proposed_canonical_pos": "",
+      "clitic_signals": {
+        "enc0": "2ms_dobj"
+      },
+      "confidence_tier": "HIGH",
+      "reason_pass2": "Re-evaluating from scratch: بِنْتَك decomposes unambiguously as بِنْت (daughter, root ب-ن-ت) + 2ms possessive suffix ـكَ = 'your daughter', which is exactly what the gloss states. The compound is entirely real and well-formed. The proposed canonical بُنِّيّ ('brown', root ب-ن-ي/ن) shares no root, no meaning, and no morphological relationship with بِنْت. This is a catastrophic CAMeL MLE mis-segmentation — it appears to have confused the tāʾ marbūṭa-like ending sequence or made a phonological surface-form error. The correct canonical for this orphan is بِنْت, not بُنِّيّ. Verdict: the decomposition link is real, but the proposed canonical is the wrong word entirely.",
+      "pass2_revised_verdict": "wrong_canonical_real_compound",
+      "suggested_canonical_bare": "بِنْت"
+    },
+    "55": {
+      "outcome": "confirmed_valid_link",
+      "agreement": true,
+      "reason_pass1": "زَوْج (husband) + 2fs possessive ـكِ (kaf with kasra) → زَوْجِكِ 'your husband' (addressed to a female speaker). The clitic signal 2fs_poss, the kasra on the kaf, and the gloss all align correctly.",
+      "in_db_link_state": "linked",
+      "orphan_ar": "زَوْجِك",
+      "orphan_gloss": "your husband",
+      "orphan_db_pos": "",
+      "proposed_canonical_id": 184,
+      "proposed_canonical_ar": "زَوج",
+      "proposed_canonical_gloss": "husband",
+      "proposed_canonical_pos": "",
+      "clitic_signals": {
+        "enc0": "2fs_poss"
+      },
+      "confidence_tier": "HIGH"
+    },
+    "56": {
+      "outcome": "confirmed_valid_link",
+      "agreement": true,
+      "reason_pass1": "كَلْب (dog) + 2ms possessive ـكَ → كَلْبِكَ 'your dog'. Standard possessive construction with genitive kasra on the stem. Gloss confirmed.",
+      "in_db_link_state": "linked",
+      "orphan_ar": "كَلْبِك",
+      "orphan_gloss": "your dog",
+      "orphan_db_pos": "",
+      "proposed_canonical_id": 77,
+      "proposed_canonical_ar": "كَلْب",
+      "proposed_canonical_gloss": "dog",
+      "proposed_canonical_pos": "",
+      "clitic_signals": {
+        "enc0": "2ms_poss"
+      },
+      "confidence_tier": "HIGH"
+    },
+    "57": {
+      "outcome": "confirmed_valid_link",
+      "agreement": true,
+      "reason_pass1": "اِبْن (son) + 2ms possessive ـكَ → اِبْنِكَ 'your son'. The hamzat al-waṣl on اِبْن is standard; possessive attachment is regular. Gloss confirmed.",
+      "in_db_link_state": "linked",
+      "orphan_ar": "اِبْنِك",
+      "orphan_gloss": "your son",
+      "orphan_db_pos": "",
+      "proposed_canonical_id": 79,
+      "proposed_canonical_ar": "اِبْن",
+      "proposed_canonical_gloss": "son",
+      "proposed_canonical_pos": "",
+      "clitic_signals": {
+        "enc0": "2ms_poss"
+      },
+      "confidence_tier": "HIGH"
+    },
+    "58": {
+      "outcome": "confirmed_valid_link",
+      "agreement": true,
+      "reason_pass1": "مُعَلِّم (teacher) + 1s possessive ـي → مُعَلِّمي 'my teacher'. Standard 1s possessive ya attached to masculine noun. Gloss confirmed.",
+      "in_db_link_state": "linked",
+      "orphan_ar": "مُعَلِّمي",
+      "orphan_gloss": "my teacher",
+      "orphan_db_pos": "",
+      "proposed_canonical_id": 121,
+      "proposed_canonical_ar": "مُعَلِّم",
+      "proposed_canonical_gloss": "teacher",
+      "proposed_canonical_pos": "",
+      "clitic_signals": {
+        "enc0": "1s_poss"
+      },
+      "confidence_tier": "HIGH"
+    },
+    "60": {
+      "outcome": "confirmed_valid_link",
+      "agreement": true,
+      "reason_pass1": "زَوْج (husband) + 1s possessive ـي → زَوْجي 'my husband'. Standard 1s possessive ya; same canonical as entry 6, different possessor suffix. Gloss confirmed.",
+      "in_db_link_state": "linked",
+      "orphan_ar": "زَوْجي",
+      "orphan_gloss": "my husband",
+      "orphan_db_pos": "",
+      "proposed_canonical_id": 184,
+      "proposed_canonical_ar": "زَوج",
+      "proposed_canonical_gloss": "husband",
+      "proposed_canonical_pos": "",
+      "clitic_signals": {
+        "enc0": "1s_poss"
+      },
+      "confidence_tier": "HIGH"
+    },
+    "61": {
+      "outcome": "confirmed_valid_link",
+      "agreement": true,
+      "reason_pass1": "بَيْتي = بَيْت (house) + ي (1s possessive suffix). Straightforward, productive Arabic clitic attachment. Gloss 'my house' confirms the 1s_poss reading.",
+      "in_db_link_state": "linked",
+      "orphan_ar": "بَيْتي",
+      "orphan_gloss": "my house",
+      "orphan_db_pos": "",
+      "proposed_canonical_id": 181,
+      "proposed_canonical_ar": "بَيت",
+      "proposed_canonical_gloss": "house",
+      "proposed_canonical_pos": "",
+      "clitic_signals": {
+        "enc0": "1s_poss"
+      },
+      "confidence_tier": "HIGH"
+    },
+    "62": {
+      "outcome": "confirmed_valid_link",
+      "agreement": true,
+      "reason_pass1": "أُسْتاذي = أُسْتاذ (professor) + ي (1s possessive suffix). Gloss 'my professor' directly confirms the 1s_poss reading. No ambiguity.",
+      "in_db_link_state": "linked",
+      "orphan_ar": "أُسْتاذي",
+      "orphan_gloss": "my professor",
+      "orphan_db_pos": "",
+      "proposed_canonical_id": 130,
+      "proposed_canonical_ar": "أُسْتاذ",
+      "proposed_canonical_gloss": "professor",
+      "proposed_canonical_pos": "",
+      "clitic_signals": {
+        "enc0": "1s_poss"
+      },
+      "confidence_tier": "HIGH"
+    },
+    "68": {
+      "outcome": "confirmed_valid_link",
+      "agreement": true,
+      "reason_pass1": "بِنْتي = بِنْت (daughter) + ي (1s possessive suffix). The word ends in a plain tā (ت), not tā marbūṭa (ة), so there is no feminine-ending confusion. Gloss 'my daughter' confirms 1s_poss.",
+      "in_db_link_state": "linked",
+      "orphan_ar": "بِنْتي",
+      "orphan_gloss": "my daughter",
+      "orphan_db_pos": "",
+      "proposed_canonical_id": 134,
+      "proposed_canonical_ar": "بِنْت",
+      "proposed_canonical_gloss": "daughter",
+      "proposed_canonical_pos": "",
+      "clitic_signals": {
+        "enc0": "1s_poss"
+      },
+      "confidence_tier": "HIGH"
+    },
+    "70": {
+      "outcome": "confirmed_valid_link",
+      "agreement": true,
+      "reason_pass1": "أُخْتي = أُخْت (sister) + ي (1s possessive suffix). Ends in plain tā (ت), not ة. Gloss 'my sister' confirms 1s_poss. Standard valid construction.",
+      "in_db_link_state": "linked",
+      "orphan_ar": "أُخْتي",
+      "orphan_gloss": "my sister",
+      "orphan_db_pos": "",
+      "proposed_canonical_id": 78,
+      "proposed_canonical_ar": "أُخْت",
+      "proposed_canonical_gloss": "sister",
+      "proposed_canonical_pos": "",
+      "clitic_signals": {
+        "enc0": "1s_poss"
+      },
+      "confidence_tier": "HIGH"
+    },
+    "71": {
+      "outcome": "confirmed_valid_link",
+      "agreement": true,
+      "reason_pass1": "أُمّي = أُمّ (mother) + ي (1s possessive suffix). No ة ambiguity; the ي is unambiguously the 1s possessive enclitic. Gloss 'my mother' confirms.",
+      "in_db_link_state": "linked",
+      "orphan_ar": "أُمّي",
+      "orphan_gloss": "my mother",
+      "orphan_db_pos": "",
+      "proposed_canonical_id": 76,
+      "proposed_canonical_ar": "أُمّ",
+      "proposed_canonical_gloss": "mother",
+      "proposed_canonical_pos": "",
+      "clitic_signals": {
+        "enc0": "1s_poss"
+      },
+      "confidence_tier": "HIGH"
+    },
+    "72": {
+      "outcome": "confirmed_valid_link",
+      "agreement": true,
+      "reason_pass1": "أَخي = أَخ (brother) + ي (1s possessive suffix). أَخ is one of the five special nouns (الأسماء الخمسة); it regularly attaches ي directly for the 1s possessive, yielding أَخِي 'my brother'. Gloss confirms.",
+      "in_db_link_state": "linked",
+      "orphan_ar": "أَخي",
+      "orphan_gloss": "my brother",
+      "orphan_db_pos": "",
+      "proposed_canonical_id": 75,
+      "proposed_canonical_ar": "أَخ",
+      "proposed_canonical_gloss": "brother",
+      "proposed_canonical_pos": "",
+      "clitic_signals": {
+        "enc0": "1s_poss"
+      },
+      "confidence_tier": "HIGH"
+    },
+    "73": {
+      "outcome": "confirmed_valid_link",
+      "agreement": true,
+      "reason_pass1": "كَلْبي = كَلْب (dog) + ي (1s possessive suffix). Straightforward noun + 1s_poss enclitic. Gloss 'my dog' confirms.",
+      "in_db_link_state": "linked",
+      "orphan_ar": "كَلْبي",
+      "orphan_gloss": "my dog",
+      "orphan_db_pos": "",
+      "proposed_canonical_id": 77,
+      "proposed_canonical_ar": "كَلْب",
+      "proposed_canonical_gloss": "dog",
+      "proposed_canonical_pos": "",
+      "clitic_signals": {
+        "enc0": "1s_poss"
+      },
+      "confidence_tier": "HIGH"
+    },
+    "74": {
+      "outcome": "confirmed_valid_link",
+      "agreement": true,
+      "reason_pass1": "اِبْني = اِبْن (son) + ي (1s possessive suffix). Standard possessive construction; gloss 'my son' confirms 1s_poss. No ambiguity.",
+      "in_db_link_state": "linked",
+      "orphan_ar": "اِبْني",
+      "orphan_gloss": "my son",
+      "orphan_db_pos": "",
+      "proposed_canonical_id": 79,
+      "proposed_canonical_ar": "اِبْن",
+      "proposed_canonical_gloss": "son",
+      "proposed_canonical_pos": "",
+      "clitic_signals": {
+        "enc0": "1s_poss"
+      },
+      "confidence_tier": "HIGH"
+    },
+    "97": {
+      "outcome": "bogus_mle_error",
+      "agreement": true,
+      "reason_pass1": "Classic tā marbūṭa (ة) misread as 3ms possessive. مُزْدَحِمة is the feminine form of the adjective مُزْدَحِم (crowded), where ة marks feminine gender agreement — it is NOT a possessive suffix. The form 'crowded-his' (*مُزْدَحِمُهُ) is not a plausible lexical item. The orphan is its own dictionary form (fem. adj.) and should not be linked to the masculine adj. via a fake enc0:3ms_poss clitic.",
+      "in_db_link_state": "unlinked",
+      "orphan_ar": "مُزْدَحِمة",
+      "orphan_gloss": "crowded",
+      "orphan_db_pos": "",
+      "proposed_canonical_id": 2006,
+      "proposed_canonical_ar": "مُزْدَحِم",
+      "proposed_canonical_gloss": "crowded",
+      "proposed_canonical_pos": "adj",
+      "clitic_signals": {
+        "enc0": "3ms_poss"
+      },
+      "confidence_tier": "HIGH",
+      "reason_pass2": "Independent re-evaluation confirms the bogus_mle_error verdict. مُزْدَحِمة is unambiguously the feminine adjective form of مُزْدَحِم, with ة (tā marbūṭa) marking grammatical gender, not possession. A 3ms possessive reading would produce مُزْدَحِمُهُ (written مزدحمه), which is a distinct orthographic and phonological form and is in any case a marginal construction for an adjective meaning 'crowded'. The gloss 'crowded' (not 'his crowded [X]') corroborates the feminine-adjective reading. The CAMeL MLE has stripped the ة and relabeled it enc0:3ms_poss — the classic tā-marbūṭa misread failure mode. No valid compound decomposition exists here; the correct relationship between مُزْدَحِمة and مُزْدَحِم is feminine-form inflection, which is outside the scope of clitic-decomposition links.",
+      "pass2_revised_verdict": "bogus_mle_error"
+    },
+    "113": {
+      "outcome": "bogus_mle_error",
+      "agreement": true,
+      "reason_pass1": "Same tā marbūṭa (ة) misread pattern. مُهَنْدِسة is the feminine form of the noun مُهَنْدِس (engineer), with ة as a feminine marker — not a 3ms possessive enclitic. The decomposition 'engineer + his' is semantically incoherent and morphologically wrong. The orphan is a standard feminine noun and its own dictionary entry, separate from the masculine form.",
+      "in_db_link_state": "linked",
+      "orphan_ar": "مُهَنْدِسة",
+      "orphan_gloss": "engineer",
+      "orphan_db_pos": "",
+      "proposed_canonical_id": 114,
+      "proposed_canonical_ar": "مُهَنْدِس",
+      "proposed_canonical_gloss": "engineer",
+      "proposed_canonical_pos": "",
+      "clitic_signals": {
+        "enc0": "3ms_poss"
+      },
+      "confidence_tier": "HIGH",
+      "reason_pass2": "Independent re-evaluation confirms the bogus_mle_error verdict. مُهَنْدِسة is the standard feminine noun 'female engineer', formed by appending tā marbūṭa to the masculine base مُهَنْدِس. The ة is a gender marker, not an enclitic possessive. 'His engineer' in Arabic would be مُهَنْدِسُهُ (مهندسه), a graphically and phonologically distinct form. The orphan's gloss 'engineer' (not 'his engineer') further rules out the possessive reading. This is another instance of the documented CAMeL MLE failure mode where feminine ة is misanalyzed as enc0:3ms_poss. The proposed decomposition link via 3ms_poss is bogus; the feminine noun مُهَنْدِسة should stand as its own form, related to the masculine by inflection rather than by clitic stripping.",
+      "pass2_revised_verdict": "bogus_mle_error"
+    },
+    "118": {
+      "outcome": "bogus_mle_error",
+      "agreement": true,
+      "reason_pass1": "جَوْعانة is the feminine form of the adjective جَوْعان (pattern فَعْلانة). The ة is a feminine morphological suffix, not a 3ms possessive enclitic. CAMeL-MLE has misread the tā marbūṭa as ـه. Gender pairs of adjectives → bogus_mle_error per decision rules.",
+      "in_db_link_state": "linked",
+      "orphan_ar": "جَوْعانة",
+      "orphan_gloss": "hungry",
+      "orphan_db_pos": "",
+      "proposed_canonical_id": 120,
+      "proposed_canonical_ar": "جَوْعان",
+      "proposed_canonical_gloss": "hungry",
+      "proposed_canonical_pos": "",
+      "clitic_signals": {
+        "enc0": "3ms_poss"
+      },
+      "confidence_tier": "HIGH",
+      "reason_pass2": "جَوْعانة is the feminine form of the فَعْلان adjective جَوْعان via the regular فَعْلانة feminine pattern. The ة is an inseparable morphological gender marker. Gloss 'hungry' corroborates the feminine adjective reading completely — a 3ms possessive reading would yield 'his hunger' (a noun sense), not 'hungry'. No possessive analysis is viable here.",
+      "pass2_revised_verdict": "bogus_mle_error"
+    },
+    "123": {
+      "outcome": "bogus_mle_error",
+      "agreement": true,
+      "reason_pass1": "غَريبة is the feminine form of the adjective غَريب. The ة is a feminine suffix, not a 3ms possessive enclitic. Classic tā marbūṭa misread. Gender pair of adjective → bogus_mle_error.",
+      "in_db_link_state": "linked",
+      "orphan_ar": "غَريبة",
+      "orphan_gloss": "weird",
+      "orphan_db_pos": "",
+      "proposed_canonical_id": 119,
+      "proposed_canonical_ar": "غَريب",
+      "proposed_canonical_gloss": "weird",
+      "proposed_canonical_pos": "",
+      "clitic_signals": {
+        "enc0": "3ms_poss"
+      },
+      "confidence_tier": "HIGH",
+      "reason_pass2": "غَريبة is the regular feminine of the adjective غَريب. The ة is a feminine suffix, and the gloss 'weird' is exactly what the feminine adjective means — not 'his strangeness'. The 3ms_poss enc0 signal is a CAMeL-MLE tā marbūṭa misread. No possessive analysis is supportable.",
+      "pass2_revised_verdict": "bogus_mle_error"
+    },
+    "126": {
+      "outcome": "bogus_mle_error",
+      "agreement": true,
+      "reason_pass1": "مُتَرْجِمة is the feminine form of the active participle/agent noun مُتَرجِم (translator). The ة is a feminine suffix marking grammatical gender, not a 3ms possessive enclitic. Tā marbūṭa misread; gender pair → bogus_mle_error.",
+      "in_db_link_state": "linked",
+      "orphan_ar": "مُتَرْجِمة",
+      "orphan_gloss": "a translator",
+      "orphan_db_pos": "",
+      "proposed_canonical_id": 166,
+      "proposed_canonical_ar": "مُتَرجِم",
+      "proposed_canonical_gloss": "translator",
+      "proposed_canonical_pos": "",
+      "clitic_signals": {
+        "enc0": "3ms_poss"
+      },
+      "confidence_tier": "HIGH",
+      "reason_pass2": "مُتَرْجِمة is the feminine active participle/agent noun of ترجم (translate), meaning 'female translator'. The ة marks grammatical gender. Gloss 'a translator' matches the feminine agent noun perfectly. A possessive reading (his translator) is conceivable in theory, but the orphan entry here represents the feminine lemma in its own right, not a possessed form of the masculine. Classic tā marbūṭa misread.",
+      "pass2_revised_verdict": "bogus_mle_error"
+    },
+    "128": {
+      "outcome": "bogus_mle_error",
+      "agreement": true,
+      "reason_pass1": "أُسْتاذة is the feminine form of the profession noun أُسْتاذ (professor). The ة is a feminine suffix, not a 3ms possessive enclitic. Tā marbūṭa misread; gender pair → bogus_mle_error.",
+      "in_db_link_state": "linked",
+      "orphan_ar": "أُسْتاذة",
+      "orphan_gloss": "a professor",
+      "orphan_db_pos": "",
+      "proposed_canonical_id": 130,
+      "proposed_canonical_ar": "أُسْتاذ",
+      "proposed_canonical_gloss": "professor",
+      "proposed_canonical_pos": "",
+      "clitic_signals": {
+        "enc0": "3ms_poss"
+      },
+      "confidence_tier": "HIGH",
+      "reason_pass2": "أُسْتاذة is the established feminine form of the profession noun أُسْتاذ. The ة is a feminine suffix. Gloss 'a professor' matches the feminine form. CAMeL-MLE mistook the tā marbūṭa for a 3ms possessive ـه. Bogus decomposition.",
+      "pass2_revised_verdict": "bogus_mle_error"
+    },
+    "129": {
+      "outcome": "bogus_mle_error",
+      "agreement": true,
+      "reason_pass1": "دُكْتورة is the feminine form of دُكتور (doctor). The ة is a feminine suffix, not a 3ms possessive enclitic. Tā marbūṭa misread; gender pair → bogus_mle_error.",
+      "in_db_link_state": "linked",
+      "orphan_ar": "دُكْتورة",
+      "orphan_gloss": "doctor",
+      "orphan_db_pos": "",
+      "proposed_canonical_id": 167,
+      "proposed_canonical_ar": "دُكتور",
+      "proposed_canonical_gloss": "doctor",
+      "proposed_canonical_pos": "",
+      "clitic_signals": {
+        "enc0": "3ms_poss"
+      },
+      "confidence_tier": "HIGH",
+      "reason_pass2": "دُكْتورة is the feminine form of the loanword دُكتور (doctor), a standard gender pair in Arabic. The ة is a feminine morphological suffix, not a possessive enclitic. Gloss 'doctor' confirms the feminine noun reading. CAMeL-MLE tā marbūṭa misread.",
+      "pass2_revised_verdict": "bogus_mle_error"
+    },
+    "186": {
+      "outcome": "bogus_mle_error",
+      "agreement": true,
+      "reason_pass1": "كيك is a standalone loanword from English 'cake' (meaning 'cakes/cake'). It is not decomposable as كي (particle 'in order to') + 2ms possessive ك. The proposed canonical is a completely unrelated particle with a different gloss. The orphan is its own dictionary lemma.",
+      "in_db_link_state": "unlinked",
+      "orphan_ar": "كيك",
+      "orphan_gloss": "cakes",
+      "orphan_db_pos": "",
+      "proposed_canonical_id": 2066,
+      "proposed_canonical_ar": "كي",
+      "proposed_canonical_gloss": "in order to",
+      "proposed_canonical_pos": "particle",
+      "clitic_signals": {
+        "enc0": "2ms_poss"
+      },
+      "confidence_tier": "HIGH",
+      "reason_pass2": "كيك is an English loanword ('cake/cakes') and an independent dictionary lemma. Stripping a 2ms possessive ك would yield كي (particle 'in order to'), which is semantically and categorically unrelated to 'cakes'. The gloss 'cakes' is irreconcilable with any كي+ك decomposition. CAMeL-MLE incorrectly segmented a loanword.",
+      "pass2_revised_verdict": "bogus_mle_error"
+    },
+    "187": {
+      "outcome": "bogus_mle_error",
+      "agreement": true,
+      "reason_pass1": "وَاي with gloss 'wi' is almost certainly a loanword (e.g. 'Wi[-Fi]' or 'Why' from English), not a compound of وَ (wa_conj) + أَيّ 'any'. The orphan gloss 'wi' is irreconcilable with the meaning 'and any' that the decomposition would yield. Additionally, stripping وَ from وَاي leaves اي, not أَيّ (which has hamza and shadda). The orphan is its own lexical item.",
+      "in_db_link_state": "unlinked",
+      "orphan_ar": "وَاي",
+      "orphan_gloss": "wi",
+      "orphan_db_pos": "",
+      "proposed_canonical_id": 360,
+      "proposed_canonical_ar": "أَيّ",
+      "proposed_canonical_gloss": "any",
+      "proposed_canonical_pos": "noun",
+      "clitic_signals": {
+        "prc2": "wa_conj"
+      },
+      "confidence_tier": "LOW",
+      "reason_pass2": "وَاي with gloss 'wi' is a loanword (Wi[-Fi] or English 'why'/'wi'). Even setting aside the loanword status, stripping the wa_conj وَ prefix from وَاي leaves اي, not أَيّ (which requires hamza + shadda on ي). The gloss 'wi' is irreconcilable with the meaning 'and any' that the decomposition would produce. Both phonological and semantic analyses fail.",
+      "pass2_revised_verdict": "bogus_mle_error"
+    },
+    "225": {
+      "outcome": "bogus_mle_error",
+      "agreement": true,
+      "reason_pass1": "طَلبة 'students' is a well-established collective/plural noun (orphan_db_pos = noun). The proposed analysis as طَلَبَ (verb, 'to request') + 3ms_poss enc0 is doubly wrong: (1) POS conflict — orphan is noun, canonical is verb; (2) the ة is part of the noun طَلَبَة (students), not a possessive enclitic. The orphan is its own dictionary lemma.",
+      "in_db_link_state": "unlinked",
+      "orphan_ar": "طَلبة",
+      "orphan_gloss": "students",
+      "orphan_db_pos": "noun",
+      "proposed_canonical_id": 620,
+      "proposed_canonical_ar": "طَلَبَ",
+      "proposed_canonical_gloss": "to request, ask",
+      "proposed_canonical_pos": "verb",
+      "clitic_signals": {
+        "enc0": "3ms_poss"
+      },
+      "confidence_tier": "HIGH",
+      "reason_pass2": "طَلبة 'students' (DB POS: noun) is a well-established collective/plural noun (seeking-ones of knowledge) from root ط-ل-ب. The ة is part of the collective noun morphology, not a possessive enclitic. Proposing طَلَبَ (verb, 'to request') as canonical introduces a POS conflict (noun orphan → verb canonical) on top of the tā marbūṭa misread. Doubly bogus.",
+      "pass2_revised_verdict": "bogus_mle_error"
+    },
+    "260": {
+      "outcome": "bogus_mle_error",
+      "agreement": true,
+      "reason_pass1": "إِخْوة 'brothers/siblings' is the broken/irregular plural of أَخ. The ة in إِخْوة is an integral part of the broken plural morphological pattern, not a 3ms possessive suffix. CAMeL-MLE has misanalyzed the tā marbūṭa in a broken plural form as an enclitic. إِخْوة is its own dictionary lemma (the plural); the enc0:3ms_poss reading is morphologically impossible here.",
+      "in_db_link_state": "linked",
+      "orphan_ar": "إِخْوة",
+      "orphan_gloss": "brothers, sibilings",
+      "orphan_db_pos": "noun",
+      "proposed_canonical_id": 75,
+      "proposed_canonical_ar": "أَخ",
+      "proposed_canonical_gloss": "brother",
+      "proposed_canonical_pos": "",
+      "clitic_signals": {
+        "enc0": "3ms_poss"
+      },
+      "confidence_tier": "HIGH",
+      "reason_pass2": "إِخْوة 'brothers/siblings' is the broken/collective plural of أَخ. The ة is an integral part of the broken plural morphological pattern — it is not separable as a possessive suffix (إِخْوة → removing ة gives إِخْو, not a valid stem). CAMeL-MLE cannot legitimately decompose a broken plural into singular + enclitic; the enc0:3ms_poss signal is a misanalysis of the tā marbūṭa in a suppletive plural.",
+      "pass2_revised_verdict": "bogus_mle_error"
+    },
+    "285": {
+      "outcome": "bogus_mle_error",
+      "agreement": true,
+      "reason_pass1": "بَرْد 'cold' (root ب-ر-د) is its own dictionary lemma and bears no morphological or semantic relation to فَرْد (root ف-ر-د). The proposed analysis bi_prep + فَرْد is completely wrong: the initial ب in بَرْد is a root consonant, not the preposition بِ. The proposed canonical is also a different POS (verb vs noun) with a different root entirely.",
+      "in_db_link_state": "unlinked",
+      "orphan_ar": "بَرْد",
+      "orphan_gloss": "cold",
+      "orphan_db_pos": "noun",
+      "proposed_canonical_id": 2431,
+      "proposed_canonical_ar": "فَرْد",
+      "proposed_canonical_gloss": "to return",
+      "proposed_canonical_pos": "verb",
+      "clitic_signals": {
+        "prc1": "bi_prep"
+      },
+      "confidence_tier": "HIGH",
+      "reason_pass2": "بَرْد 'cold' derives from root ب-ر-د, where ب is a root consonant, not the preposition بِ. Stripping a bi_prep prefix would leave رَد, not فَرْد. Furthermore, the proposed canonical فَرْد ('to return'/'an individual') belongs to root ف-ر-د — an entirely different root with no phonological or semantic overlap with بَرْد. The proposed decomposition is wrong on every axis: segmentation, root, POS, and meaning.",
+      "pass2_revised_verdict": "bogus_mle_error"
+    },
+    "343": {
+      "outcome": "bogus_mle_error",
+      "agreement": true,
+      "reason_pass1": "لَبَن 'milk/yoghurt' is an independent noun from root ل-ب-ن. The initial لَ is part of the root, not a لِ preposition prefix. The proposed canonical بْنٌ 'ibn (son)' is a completely unrelated lexeme. MLE has wrongly segmented the root-initial consonant as a clitic.",
+      "in_db_link_state": "unlinked",
+      "orphan_ar": "لَبَن",
+      "orphan_gloss": "milk, yoghurt",
+      "orphan_db_pos": "noun",
+      "proposed_canonical_id": 988,
+      "proposed_canonical_ar": "بْنٌ",
+      "proposed_canonical_gloss": "alternative form of اِبْن (ibn)",
+      "proposed_canonical_pos": "noun",
+      "clitic_signals": {
+        "prc1": "li_prep"
+      },
+      "confidence_tier": "HIGH",
+      "reason_pass2": "لَبَن 'milk/yoghurt' is an established, primary noun from root ل-ب-ن. The opening لَ is the root's first radical, not a لِ preposition clitic. The proposed residual بْنٌ (ibn) is phonologically impossible as a standalone form (would need the connecting hamzat wasl → ابْن) and belongs to an entirely unrelated root ب-ن. No plausible reading makes لَبَن a prepositional compound.",
+      "pass2_revised_verdict": "bogus_mle_error"
+    },
+    "375": {
+      "outcome": "bogus_mle_error",
+      "agreement": true,
+      "reason_pass1": "ساكِن 'residing' is an active participle (فاعل pattern) from root س-ك-ن. The سَا- opening is the canonical فَاعِل root shape, not a future-tense clitic سَ. Proposing كانَ 'to be' as canonical is a completely different root (ك-و-ن). Bogus segmentation.",
+      "in_db_link_state": "unlinked",
+      "orphan_ar": "ساكِن",
+      "orphan_gloss": "living, residing in..",
+      "orphan_db_pos": "adj",
+      "proposed_canonical_id": 385,
+      "proposed_canonical_ar": "كانَ",
+      "proposed_canonical_gloss": "to be",
+      "proposed_canonical_pos": "verb",
+      "clitic_signals": {
+        "prc1": "sa_fut"
+      },
+      "confidence_tier": "HIGH",
+      "reason_pass2": "ساكِن 'residing' is a sound فاعِل active participle from root س-ك-ن. The سا- sequence is the canonical فاعِل stem onset (س + long-ā), not a future-tense proclitic سَ. Furthermore, سَ attaches to imperfect verb forms, not to participles/adjectives. The proposed canonical كانَ belongs to root ك-و-ن — an unrelated root. The MLE has wrongly parsed the fāʿil vowel pattern as a future prefix.",
+      "pass2_revised_verdict": "bogus_mle_error"
+    },
+    "431": {
+      "outcome": "bogus_mle_error",
+      "agreement": true,
+      "reason_pass1": "بَاي is a loanword expression from English 'bye'. It has no productive Arabic morphology. The decomposition بِ + أَيّ is nonsensical — the بَ here is not the preposition بِ, and the word has nothing to do with أَيّ 'any'. Loanword is its own lemma.",
+      "in_db_link_state": "unlinked",
+      "orphan_ar": "بَاي",
+      "orphan_gloss": "bye",
+      "orphan_db_pos": "expr",
+      "proposed_canonical_id": 360,
+      "proposed_canonical_ar": "أَيّ",
+      "proposed_canonical_gloss": "any",
+      "proposed_canonical_pos": "noun",
+      "clitic_signals": {
+        "prc1": "bi_prep"
+      },
+      "confidence_tier": "HIGH",
+      "reason_pass2": "بَاي is an English loanword 'bye' with no productive Arabic internal morphology. The بَ is part of the borrowed phonological shape, not the Arabic preposition بِ (which carries a kasra, not a fatha). The remainder أَيّ 'any' is completely unrelated semantically and structurally. Loanwords must be treated as opaque stems.",
+      "pass2_revised_verdict": "bogus_mle_error"
+    },
+    "458": {
+      "outcome": "confirmed_valid_link",
+      "agreement": true,
+      "reason_pass1": "بِدُون 'without' is a genuine prepositional compound: بِ (preposition) + دُون (particle meaning 'below/without'). Both the orphan and canonical share the same gloss. The morphological analysis بِ+دُون is standard in Arabic grammar. The POS difference (prep vs particle) reflects the compound acquiring full prepositional function. Valid link.",
+      "in_db_link_state": "unlinked",
+      "orphan_ar": "بِدُون",
+      "orphan_gloss": "without",
+      "orphan_db_pos": "prep",
+      "proposed_canonical_id": 2034,
+      "proposed_canonical_ar": "دون",
+      "proposed_canonical_gloss": "without",
+      "proposed_canonical_pos": "particle",
+      "clitic_signals": {
+        "prc1": "bi_prep"
+      },
+      "confidence_tier": "HIGH"
+    },
+    "459": {
+      "outcome": "wrong_canonical_real_compound",
+      "agreement": true,
+      "reason_pass1": "بِسَبَبِ 'because of' is genuinely بِ + سَبَب (noun, 'reason/cause'), not بِ + سَبَّبَ (verb, 'to cause'). The proposed canonical is the Form II denominal verb — a different lexeme. The correct canonical is the noun سَبَب.",
+      "in_db_link_state": "unlinked",
+      "orphan_ar": "بِسَبَبِ",
+      "orphan_gloss": "because of",
+      "orphan_db_pos": "prep",
+      "proposed_canonical_id": 643,
+      "proposed_canonical_ar": "سَبَّبَ",
+      "proposed_canonical_gloss": "to cause",
+      "proposed_canonical_pos": "verb",
+      "clitic_signals": {
+        "prc1": "bi_prep"
+      },
+      "confidence_tier": "HIGH",
+      "reason_pass2": "بِسَبَبِ 'because of' is genuinely بِ (preposition) + سَبَب (noun, 'reason/cause') — a real prepositional compound. The compound is valid; the error is in the proposed canonical. سَبَّبَ is the Form II verb 'to cause', a different lexeme from the noun سَبَب (root is shared but lemma identity differs). The correct canonical should be the noun سَبَب, not the verb.",
+      "pass2_revised_verdict": "wrong_canonical_real_compound",
+      "suggested_canonical_bare": "سَبَب"
+    },
+    "460": {
+      "outcome": "wrong_canonical_real_compound",
+      "agreement": true,
+      "reason_pass1": "بِجَانِبِ 'next to' is بِ + جانِب (noun, 'side'), not بِ + جانَب (Form III verb, 'to avoid/be alongside'). This is the exact example cited in the decision rules. The orphan is a legitimate preposition compound with the nominal جانِب, not the verb جانَب.",
+      "in_db_link_state": "unlinked",
+      "orphan_ar": "بِجَانِبِ",
+      "orphan_gloss": "next to",
+      "orphan_db_pos": "prep",
+      "proposed_canonical_id": 2020,
+      "proposed_canonical_ar": "جانَب",
+      "proposed_canonical_gloss": "to avoid",
+      "proposed_canonical_pos": "verb",
+      "clitic_signals": {
+        "prc1": "bi_prep"
+      },
+      "confidence_tier": "HIGH",
+      "reason_pass2": "بِجَانِبِ 'next to/beside' is genuinely بِ (preposition) + جانِب (noun, 'side/flank') — a real prepositional compound used as a spatial preposition. The compound is valid; the error is in the canonical selection. جانَب (Form III verb, 'to avoid') is a different lexeme from the noun جانِب, even though both share root ج-ن-ب. The correct canonical is the noun جانِب.",
+      "pass2_revised_verdict": "wrong_canonical_real_compound",
+      "suggested_canonical_bare": "جانِب"
+    },
+    "468": {
+      "outcome": "bogus_mle_error",
+      "agreement": true,
+      "reason_pass1": "مرأة 'woman' (also امرأة) is a primary independent noun. MLE has misanalysed the tā marbūṭa ة as a 3ms direct-object suffix, yielding the entirely unrelated proposed canonical مُرّ 'bitter'. The ة is the feminine ending intrinsic to the noun, not an enclitic. Completely wrong root mapping (م-ر-أ vs م-ر-ر).",
+      "in_db_link_state": "unlinked",
+      "orphan_ar": "مرأة",
+      "orphan_gloss": "woman",
+      "orphan_db_pos": "noun",
+      "proposed_canonical_id": 2366,
+      "proposed_canonical_ar": "مُرّ",
+      "proposed_canonical_gloss": "bitter",
+      "proposed_canonical_pos": "noun",
+      "clitic_signals": {
+        "enc0": "3ms_dobj"
+      },
+      "confidence_tier": "HIGH",
+      "reason_pass2": "مرأة 'woman' (full form امرأة) is a primary noun from root م-ر-أ. The tā marbūṭa ة is the intrinsic feminine marker of this noun, not a 3ms direct-object enclitic. This is precisely the known ة → 3ms_dobj misread failure mode. The proposed canonical مُرّ 'bitter' (root م-ر-ر) is completely unrelated in root, meaning, and phonology.",
+      "pass2_revised_verdict": "bogus_mle_error"
+    },
+    "516": {
+      "outcome": "bogus_mle_error",
+      "agreement": true,
+      "reason_pass1": "لُورْدٌ 'lord' is a foreign loanword (English 'lord'). The initial لُ is part of the borrowed phonological shape, not the Arabic emphatic/connective lam prefix لَ. The proposed canonical وَرْد 'roses' is completely unrelated. Loanword is its own lemma.",
+      "in_db_link_state": "unlinked",
+      "orphan_ar": "لُورْدٌ",
+      "orphan_gloss": "lord",
+      "orphan_db_pos": "noun",
+      "proposed_canonical_id": 1474,
+      "proposed_canonical_ar": "وَرْد",
+      "proposed_canonical_gloss": "roses",
+      "proposed_canonical_pos": "noun",
+      "clitic_signals": {
+        "prc1": "la_rc"
+      },
+      "confidence_tier": "HIGH",
+      "reason_pass2": "لُورْدٌ 'lord' is an English loanword. The initial لُ (with a ḍamma, not the فتحة or كسرة typical of Arabic lam clitics) is simply the first sound of the borrowed word /lord/. The proposed canonical وَرْد 'roses' is entirely unrelated. No Arabic lam proclitic (la_emph, la_rc, etc.) carries a ḍamma; the vowelling alone rules out any clitic reading.",
+      "pass2_revised_verdict": "bogus_mle_error"
+    },
+    "523": {
+      "outcome": "bogus_mle_error",
+      "agreement": true,
+      "reason_pass1": "لِحْيَةٌ 'beard' is an independent noun from root ل-ح-ي. MLE has wrongly split it as emphatic-lam لِ + حَيّ 'alive' + 3ms possessive, which produces a nonsensical parse. لِحْيَة is a first-class lexeme; its لِ is root-initial, not a clitic. The proposed canonical حَيّ is an unrelated adjective.",
+      "in_db_link_state": "unlinked",
+      "orphan_ar": "لِحْيَةٌ",
+      "orphan_gloss": "beard",
+      "orphan_db_pos": "noun",
+      "proposed_canonical_id": 2580,
+      "proposed_canonical_ar": "حَيّ",
+      "proposed_canonical_gloss": "alive",
+      "proposed_canonical_pos": "adj",
+      "clitic_signals": {
+        "prc1": "la_emph",
+        "enc0": "3ms_poss"
+      },
+      "confidence_tier": "HIGH",
+      "reason_pass2": "لِحْيَةٌ 'beard' is an independent noun from root ل-ح-ي in the فِعْلَة pattern. The لِ is the root's first radical, not an emphatic-lam proclitic. Additionally, the tanwīn on ةٌ (indefinite nominative marking) is incompatible with a 3ms possessive reading — a possessive would appear as لِحْيَتُهُ. The proposed canonical حَيّ 'alive' (root ح-ي-ي) is unrelated.",
+      "pass2_revised_verdict": "bogus_mle_error"
+    },
+    "539": {
+      "outcome": "bogus_mle_error",
+      "agreement": true,
+      "reason_pass1": "أَبْجَدِيٌّ 'alphabetical' is a nisba adjective formed by the suffix ـِيّ from the noun أَبْجَد. MLE has misread the nisba ـِيّ as a 1s possessive enclitic ـِي. The nisba adjective and the base noun are distinct dictionary lemmas (adjective vs noun); this is a productive derivational suffix pair, not a clitic attachment. The full tanwin form ـِيٌّ further confirms this is a nisba in indefinite case, not a possessive.",
+      "in_db_link_state": "unlinked",
+      "orphan_ar": "أَبْجَدِيٌّ",
+      "orphan_gloss": "alphabetical",
+      "orphan_db_pos": "adj",
+      "proposed_canonical_id": 706,
+      "proposed_canonical_ar": "أَبْجَدٌ",
+      "proposed_canonical_gloss": "alphabet, abjad",
+      "proposed_canonical_pos": "noun",
+      "clitic_signals": {
+        "enc0": "1s_poss"
+      },
+      "confidence_tier": "HIGH",
+      "reason_pass2": "أَبْجَدِيٌّ 'alphabetical' is a nisba adjective formed from أَبْجَد + the derivational suffix ـِيّ. The nisba ـِيّ (with shadda + tanwīn in indefinite form: ـِيٌّ) is a word-class-changing derivational morpheme, not a possessive enclitic ـِي. MLE apparently conflated the two by missing or ignoring the shadda. Although أَبْجَدٌ is the etymological base, the nisba adjective is an independent dictionary lemma — the relationship is derivational, not clitic-attachment, so the decomposition mechanism does not apply here.",
+      "pass2_revised_verdict": "bogus_mle_error"
+    },
+    "552": {
+      "outcome": "bogus_mle_error",
+      "agreement": true,
+      "reason_pass1": "إيطالية is the feminine nisba adjective/noun 'Italian (fem.)' — its own dictionary lemma. The ة is the feminine suffix of the nisba form, not a 3ms possessive clitic. The masculine nisba إيطالي and feminine إيطالية are separate lemmas; this is a textbook gender-pair bogus split.",
+      "in_db_link_state": "linked",
+      "orphan_ar": "إيطالية",
+      "orphan_gloss": "Italian (fem.)",
+      "orphan_db_pos": "noun",
+      "proposed_canonical_id": 711,
+      "proposed_canonical_ar": "إِيطَالِيٌّ",
+      "proposed_canonical_gloss": "Italian",
+      "proposed_canonical_pos": "adj",
+      "clitic_signals": {
+        "enc0": "3ms_poss"
+      },
+      "confidence_tier": "HIGH",
+      "reason_pass2": "إيطالية is the feminine nisba form of إيطالي 'Italian' — a standard gender pair in Arabic where تاء مربوطة marks the feminine, not a 3ms possessive clitic. The orphan gloss 'Italian (fem.)' confirms this is a lexically distinct entry, not a possessive construction. The MLE's enc0=3ms_poss reading is the classic ة-misread failure mode.",
+      "pass2_revised_verdict": "bogus_mle_error"
+    },
+    "554": {
+      "outcome": "bogus_mle_error",
+      "agreement": true,
+      "reason_pass1": "بَانَ is a full verb lemma (Form I, root ب-ي-ن, 'to be distinct/separate/clear'), not a prepositional compound. The MLE misreads it as بِ (bi_prep) + آن (time, noun), but the ب is part of the root, not a prefix, and the proposed canonical آن is from a completely different root (أ-و-ن). POS mismatch (verb orphan vs. noun canonical) confirms the error.",
+      "in_db_link_state": "unlinked",
+      "orphan_ar": "بَانَ",
+      "orphan_gloss": "to separate, to become distinct, to sunder",
+      "orphan_db_pos": "verb",
+      "proposed_canonical_id": 943,
+      "proposed_canonical_ar": "آنٌ",
+      "proposed_canonical_gloss": "time",
+      "proposed_canonical_pos": "noun",
+      "clitic_signals": {
+        "prc1": "bi_prep"
+      },
+      "confidence_tier": "HIGH",
+      "reason_pass2": "بَانَ is a well-attested Form I verb (root ب-ي-ن, 'to be/become distinct/separate/clear'), fully documented in classical dictionaries. The ب is a root consonant, not a detachable preposition prefix. The proposed canonical آن (root أ-و-ن, 'time') belongs to an entirely different triliteral root. POS mismatch (verb orphan, noun canonical) and incompatible roots confirm the MLE segmentation is spurious.",
+      "pass2_revised_verdict": "bogus_mle_error"
+    },
+    "594": {
+      "outcome": "bogus_mle_error",
+      "agreement": true,
+      "reason_pass1": "فَخِذٌ 'thigh' is a noun from root ف-خ-ذ — its own dictionary lemma. The MLE misreads it as فَ (fa_conj) + أَخَذَ (to take, root أ-خ-ذ). The roots are completely different; the fa- prefix analysis is phonological coincidence. The DB orphan_db_pos 'verb' is itself likely a tagging error on this noun.",
+      "in_db_link_state": "unlinked",
+      "orphan_ar": "فَخِذٌ",
+      "orphan_gloss": "thigh",
+      "orphan_db_pos": "verb",
+      "proposed_canonical_id": 393,
+      "proposed_canonical_ar": "أَخَذَ",
+      "proposed_canonical_gloss": "to take",
+      "proposed_canonical_pos": "verb",
+      "clitic_signals": {
+        "prc2": "fa_conj"
+      },
+      "confidence_tier": "LOW",
+      "reason_pass2": "فَخِذ 'thigh' is a standalone noun (root ف-خ-ذ, pattern فَعِل); its DB POS tag 'verb' is itself a secondary tagging error. The MLE misreads the ف as the conjunction فَ and maps the remainder to أَخَذَ (root أ-خ-ذ). The two roots ف-خ-ذ and أ-خ-ذ share only ‹خذ› by coincidence; there is no morphological or semantic relationship. The gloss 'thigh' is anatomical, making any fa_conj + verb analysis impossible.",
+      "pass2_revised_verdict": "bogus_mle_error"
+    },
+    "608": {
+      "outcome": "bogus_mle_error",
+      "agreement": true,
+      "reason_pass1": "مِنَّة 'favor, grace' (from root م-ن-ن) is its own dictionary noun lemma. The MLE misreads the ة as a 3ms pronominal clitic on the preposition مِن, producing the nonsensical split مِن + ه. The proposed canonical مِن (preposition) is a completely different word and POS.",
+      "in_db_link_state": "unlinked",
+      "orphan_ar": "منة",
+      "orphan_gloss": "favor, grace",
+      "orphan_db_pos": "noun",
+      "proposed_canonical_id": 154,
+      "proposed_canonical_ar": "مِن",
+      "proposed_canonical_gloss": "from; than",
+      "proposed_canonical_pos": "",
+      "clitic_signals": {
+        "enc0": "3ms_pron"
+      },
+      "confidence_tier": "HIGH",
+      "reason_pass2": "مِنَّة 'favor, grace' (root م-ن-ن, the geminated form, related to مَنَّ 'to bestow a favor') is a recognized lexical noun. The MLE parses it as the preposition مِن plus a 3ms pronominal suffix ه, giving 'from him' — semantically and morphologically incompatible with 'favor/grace'. The ة is the tā marbūṭa noun ending, not a clitic; the proposed canonical is a preposition, a completely different word class.",
+      "pass2_revised_verdict": "bogus_mle_error"
+    },
+    "615": {
+      "outcome": "bogus_mle_error",
+      "agreement": true,
+      "reason_pass1": "مَنِيٌّ 'semen' (root م-ن-ي) is its own dictionary noun lemma. The MLE misreads it as مِن + 1s pronoun ي, i.e. 'from me'. The proposed canonical مِن is a preposition from a different word class entirely; the decomposition is semantically and morphologically impossible for this noun.",
+      "in_db_link_state": "unlinked",
+      "orphan_ar": "مني",
+      "orphan_gloss": "semen",
+      "orphan_db_pos": "noun",
+      "proposed_canonical_id": 154,
+      "proposed_canonical_ar": "مِن",
+      "proposed_canonical_gloss": "from; than",
+      "proposed_canonical_pos": "",
+      "clitic_signals": {
+        "enc0": "1s_pron"
+      },
+      "confidence_tier": "HIGH",
+      "reason_pass2": "مَنِيّ 'semen' (root م-ن-ي, fāʿil-pattern nisba/adjective nominalised) is its own dictionary noun. The MLE reads the terminal ي as a 1s pronominal clitic on مِن, yielding 'from me' — a reading that is semantically nonsensical and phonologically coincidental. The proposed canonical مِن is a preposition with no etymological or morphological link to this noun.",
+      "pass2_revised_verdict": "bogus_mle_error"
+    },
+    "647": {
+      "outcome": "bogus_mle_error",
+      "agreement": true,
+      "reason_pass1": "مِثْلِيّ 'homosexual, gay' is a modern nisba adjective (its own lemma). The MLE misreads the final يّ as a 1s possessive clitic on the verb مَثَلَ 'to resemble'. The proposed canonical is the wrong POS (verb vs. adj orphan) and the wrong root (م-ث-ل verbal stem vs. م-ث-ل nominal). The orphan gloss 'homosexual' makes a verbal 1s-possessive reading impossible.",
+      "in_db_link_state": "unlinked",
+      "orphan_ar": "مثلي",
+      "orphan_gloss": "homosexual, gay",
+      "orphan_db_pos": "adj",
+      "proposed_canonical_id": 976,
+      "proposed_canonical_ar": "مَثَلَ",
+      "proposed_canonical_gloss": "to resemble, to look like",
+      "proposed_canonical_pos": "verb",
+      "clitic_signals": {
+        "enc0": "1s_poss"
+      },
+      "confidence_tier": "HIGH",
+      "reason_pass2": "مِثْلِيّ 'homosexual, gay' is a modern Arabic nisba adjective (from مِثْل 'same/like-kind'). The terminal يّ is the nisba suffix, not a 1s possessive clitic. POS mismatch is clear: orphan is adj, proposed canonical مَثَلَ is a verb. The gloss 'homosexual' is lexically fixed and makes a verbal 1s-possessive decomposition ('my resemblance'?) semantically impossible.",
+      "pass2_revised_verdict": "bogus_mle_error"
+    },
+    "707": {
+      "outcome": "bogus_mle_error",
+      "agreement": true,
+      "reason_pass1": "تَرَاجِمَة 'translators' is the broken plural (فَعَالِلَة pattern) of تَرْجُمَان/مُتَرْجِم — its own dictionary noun. The ة here is the plural collective suffix, not a 3ms possessive clitic. The proposed canonical تَرْجَمَة 'translation' is a completely different noun (verbal noun vs. agent plural); the gloss 'translators' (pl. persons) vs. 'translation' (abstract process) confirms they are separate lemmas.",
+      "in_db_link_state": "unlinked",
+      "orphan_ar": "تراجمة",
+      "orphan_gloss": "translators",
+      "orphan_db_pos": "noun",
+      "proposed_canonical_id": 211,
+      "proposed_canonical_ar": "تَرْجَمة",
+      "proposed_canonical_gloss": "translation",
+      "proposed_canonical_pos": "noun",
+      "clitic_signals": {
+        "enc0": "3ms_poss"
+      },
+      "confidence_tier": "HIGH",
+      "reason_pass2": "تَرَاجِمَة 'translators' is a broken plural (فَعَالِمَة/فَعَالِلَة pattern) of translator-agent nouns — a well-formed Arabic plural class where ة is a collective human-group suffix (cf. صَيَارِفَة 'bankers', سَلَاطِنَة 'sultans'). It is not the verbal noun تَرْجَمَة 'translation' with a 3ms possessive clitic. The glosses 'translators' (human agents, plural) vs. 'translation' (abstract process) confirm these are distinct lemmas. The MLE collapse is the ة-misread failure mode applied to a broken plural.",
+      "pass2_revised_verdict": "bogus_mle_error"
+    },
+    "725": {
+      "outcome": "bogus_mle_error",
+      "agreement": true,
+      "reason_pass1": "عَلْمَنَة 'secularization' is the verbal noun of the quadriliteral verb عَلْمَنَ (to secularize, derived from عَالَم 'world') — its own dictionary lemma. The MLE misreads it as عَلِمَ (to know, root ع-ل-م) + 3ms_dobj suffix, but that would yield عَلِمَهُ 'he knew it', not عَلْمَنَة. The ن is part of the quadriliteral root, not a separate morpheme.",
+      "in_db_link_state": "unlinked",
+      "orphan_ar": "علمنة",
+      "orphan_gloss": "secularization",
+      "orphan_db_pos": "noun",
+      "proposed_canonical_id": 722,
+      "proposed_canonical_ar": "عَلِمَ",
+      "proposed_canonical_gloss": "to know",
+      "proposed_canonical_pos": "verb",
+      "clitic_signals": {
+        "enc0": "3ms_dobj"
+      },
+      "confidence_tier": "HIGH",
+      "reason_pass2": "عَلْمَنَة 'secularization' is the verbal noun (masdar) of the quadriliteral verb عَلْمَنَ (to secularize), itself derived from عَالَم 'world'. The ن is the fourth root consonant of the quadriliteral root ع-ل-م-ن, and ة is the masdar ending. Decomposing as عَلِمَ (root ع-ل-م) + 3ms_dobj clitic ه would yield عَلِمَهُ 'he knew it', which bears no phonological or semantic resemblance to عَلْمَنَة. The quadriliteral stem is not parseable as a triliteral verb plus a suffix.",
+      "pass2_revised_verdict": "bogus_mle_error"
+    },
+    "736": {
+      "outcome": "bogus_mle_error",
+      "agreement": true,
+      "reason_pass1": "فُرُوسِيَّة 'horsemanship, chivalry' is its own dictionary noun (abstract noun from فَارِس, root ف-ر-س). The MLE absurdly decomposes it as فَ (fa_conj) + رُوسِيّ (Russian, adj) + ة (3ms_poss), conflating three entirely unrelated morphemes from different roots and languages. The orphan is a standalone lemma with no connection to رُوسِيّ.",
+      "in_db_link_state": "unlinked",
+      "orphan_ar": "فُرُوسِيَّةٌ",
+      "orphan_gloss": "horsemanship, chivalry",
+      "orphan_db_pos": "noun",
+      "proposed_canonical_id": 1483,
+      "proposed_canonical_ar": "رُوسِيّ",
+      "proposed_canonical_gloss": "Russian",
+      "proposed_canonical_pos": "adj",
+      "clitic_signals": {
+        "prc2": "fa_conj",
+        "enc0": "3ms_poss"
+      },
+      "confidence_tier": "HIGH",
+      "reason_pass2": "فُرُوسِيَّة 'horsemanship, chivalry' is a classical Arabic abstract noun derived from فَارِس 'knight/horseman' (root ف-ر-س) via the pattern فُعُولِيَّة. The MLE's decomposition فَ + رُوسِيّ 'Russian' + ة is entirely spurious: رُوسِيّ is a Russified ethnic adjective with no etymological relationship to the Arabic root ف-ر-س, and the two clitics (fa_conj + 3ms_poss) together represent a fantastical triple-misread. The orphan is a firmly established standalone lemma.",
+      "pass2_revised_verdict": "bogus_mle_error"
+    },
+    "795": {
+      "outcome": "bogus_mle_error",
+      "agreement": true,
+      "reason_pass1": "زُبْرَة 'piece/lump of iron' (فُعْلَة pattern from root ز-ب-ر) is its own dictionary noun lemma. The MLE misreads the final ة (tā marbūṭa, part of the فُعْلَة singulative pattern) as a 3ms direct-object clitic on the verb زَبَرَ 'to apply stones to', which would yield زَبَرَهُ not زُبْرَة. Root and vowel pattern mismatch confirm this is bogus.",
+      "in_db_link_state": "unlinked",
+      "orphan_ar": "زُبْرَةٌ",
+      "orphan_gloss": "piece of iron",
+      "orphan_db_pos": "noun",
+      "proposed_canonical_id": 794,
+      "proposed_canonical_ar": "زَبَرَ",
+      "proposed_canonical_gloss": "to apply stones to",
+      "proposed_canonical_pos": "verb",
+      "clitic_signals": {
+        "enc0": "3ms_dobj"
+      },
+      "confidence_tier": "HIGH",
+      "reason_pass2": "زُبْرَة 'piece/lump of iron' (فُعْلَة singulative pattern, root ز-ب-ر) is its own dictionary noun. The MLE misreads the tā marbūṭa (ة) as a 3ms direct-object clitic on the verb زَبَرَ 'to apply stones to'. This would require the surface form زَبَرَهُ, which neither matches the phonological shape زُبْرَة nor the vowel pattern فُعْلَة. Root is the same (ز-ب-ر) but the noun and verb are separate lemmas and the segmentation is morphologically impossible.",
+      "pass2_revised_verdict": "bogus_mle_error"
+    },
+    "852": {
+      "outcome": "bogus_mle_error",
+      "agreement": true,
+      "reason_pass1": "The orphan قرمزي (adj, 'crimson') is the nisba adjective قِرْمِزِيّ, formed with the productive ـيّ nisba suffix on the noun قِرْمِز. CAMeL misreads the nisba ـيّ as a 1s possessive ـي, then proposes the underlying noun قِرْمِزٌ as canonical. The nisba adjective is an independent dictionary lemma; it does not mean 'my kermes'. POS mismatch (adj vs noun) confirms the error.",
+      "in_db_link_state": "unlinked",
+      "orphan_ar": "قرمزي",
+      "orphan_gloss": "crimson",
+      "orphan_db_pos": "adj",
+      "proposed_canonical_id": 819,
+      "proposed_canonical_ar": "قِرْمِزٌ",
+      "proposed_canonical_gloss": "crimson; kermes",
+      "proposed_canonical_pos": "noun",
+      "clitic_signals": {
+        "enc0": "1s_poss"
+      },
+      "confidence_tier": "HIGH",
+      "reason_pass2": "قرمزي is the nisba adjective قِرْمِزِيّ 'crimson-colored', an independent dictionary lemma. CAMeL misreads the nisba suffix ـيّ as 1s possessive ـي, then surfaces the underlying noun قِرْمِزٌ as the canonical. Nisba adjectives are not possessive constructions; adj/noun POS mismatch is a secondary confirmer. No basis for keeping the link.",
+      "pass2_revised_verdict": "bogus_mle_error"
+    },
+    "887": {
+      "outcome": "bogus_mle_error",
+      "agreement": true,
+      "reason_pass1": "بَبْرٌ 'tiger' is an independent noun lemma with root ب-ب-ر. It has no phonological or semantic relationship to بَرٌّ 'land/dry land'. The claim that بَبْرٌ = بِ (bi_prep) + بَرٌّ is phonologically incoherent (bi+barr yields بِبَرّ, not بَبْرٌ) and semantically absurd.",
+      "in_db_link_state": "unlinked",
+      "orphan_ar": "بَبْرٌ",
+      "orphan_gloss": "tiger",
+      "orphan_db_pos": "noun",
+      "proposed_canonical_id": 979,
+      "proposed_canonical_ar": "بَرٌّ",
+      "proposed_canonical_gloss": "land, dry land",
+      "proposed_canonical_pos": "noun",
+      "clitic_signals": {
+        "prc1": "bi_prep"
+      },
+      "confidence_tier": "HIGH",
+      "reason_pass2": "بَبْرٌ 'tiger' is an independent noun with root ب-ب-ر. بِ + بَرٌّ would produce بِبَرٍّ (proclitic short vowel), utterly unlike the fatha+gemination phonology of بَبْرٌ. There is no semantic or phonological basis for decomposing this as bi_prep + بَرٌّ.",
+      "pass2_revised_verdict": "bogus_mle_error"
+    },
+    "926": {
+      "outcome": "bogus_mle_error",
+      "agreement": true,
+      "reason_pass1": "سِنْجَابٌ 'squirrel' is an independent noun lemma (root س-ن-ج-ب, a quadriliteral/loanword). It has zero phonological or semantic relation to أَجَابَ 'to answer'. The claim that سِنْجَابٌ = سَ (future marker) + أَجَابَ is absurd; sa+ajāba would produce سَأَجَابَ, not سِنْجَابٌ. POS mismatch (noun vs verb) reinforces the error.",
+      "in_db_link_state": "unlinked",
+      "orphan_ar": "سِنْجَابٌ",
+      "orphan_gloss": "squirrel",
+      "orphan_db_pos": "noun",
+      "proposed_canonical_id": 2217,
+      "proposed_canonical_ar": "أَجَابَ",
+      "proposed_canonical_gloss": "to answer",
+      "proposed_canonical_pos": "verb",
+      "clitic_signals": {
+        "prc1": "sa_fut"
+      },
+      "confidence_tier": "HIGH",
+      "reason_pass2": "سِنْجَابٌ is a Persian loanword meaning 'squirrel'. سَ (future) + أَجَابَ would produce سَأَجَابَ; the initial kasra, the ن, and the ج are entirely unaccounted for. Noun/verb POS mismatch is an additional indicator. Completely spurious decomposition.",
+      "pass2_revised_verdict": "bogus_mle_error"
+    },
+    "929": {
+      "outcome": "bogus_mle_error",
+      "agreement": true,
+      "reason_pass1": "Classic tā marbūṭa (ة) misread as 3ms possessive ـه. دُرَّةٌ 'pearl' is a feminine noun whose final ة is the feminine/nominal marker, not a possessive clitic. Stripping it yields دُرّ (not a separate lemma in the same sense), and CAMeL then maps wrongly to the unrelated verb دَرَّ 'to stream'. POS mismatch (noun → verb) confirms the decomposition is spurious.",
+      "in_db_link_state": "unlinked",
+      "orphan_ar": "دُرَّةٌ",
+      "orphan_gloss": "pearl",
+      "orphan_db_pos": "noun",
+      "proposed_canonical_id": 884,
+      "proposed_canonical_ar": "دَرَّ",
+      "proposed_canonical_gloss": "to stream, to flow, to well",
+      "proposed_canonical_pos": "verb",
+      "clitic_signals": {
+        "enc0": "3ms_poss"
+      },
+      "confidence_tier": "HIGH",
+      "reason_pass2": "Classic tā marbūṭa → 3ms_poss failure. دُرَّةٌ 'pearl' is a feminine noun whose ة is a nominal/feminine marker, not a possessive ـه. The unrelated verb دَرَّ 'to stream' is further evidence of error; noun→verb POS mismatch confirms.",
+      "pass2_revised_verdict": "bogus_mle_error"
+    },
+    "950": {
+      "outcome": "bogus_mle_error",
+      "agreement": true,
+      "reason_pass1": "The orphan تَحْسِينِيٌّ 'amendatory' (adj) is the nisba adjective تَحْسِينِيّ, formed with the ـيّ nisba suffix on the verbal noun تَحْسِين. CAMeL misreads the nisba ـيّ as 1s possessive ـي and proposes the underlying noun تَحْسِينٌ as canonical. The nisba adjective is an independent dictionary lemma; POS mismatch (adj vs noun) confirms the error.",
+      "in_db_link_state": "unlinked",
+      "orphan_ar": "تَحْسِينِيٌّ",
+      "orphan_gloss": "amendatory",
+      "orphan_db_pos": "adj",
+      "proposed_canonical_id": 949,
+      "proposed_canonical_ar": "تَحْسِينٌ",
+      "proposed_canonical_gloss": "improvement",
+      "proposed_canonical_pos": "noun",
+      "clitic_signals": {
+        "enc0": "1s_poss"
+      },
+      "confidence_tier": "HIGH",
+      "reason_pass2": "تَحْسِينِيٌّ is the nisba adjective (تَحْسِين + ـيّ), an independent dictionary lemma. CAMeL misreads nisba ـيّ as 1s possessive ـي, then proposes the underlying noun تَحْسِينٌ. Same nisba-suffix failure mode as entry 1; adj/noun POS mismatch confirms.",
+      "pass2_revised_verdict": "bogus_mle_error"
+    },
+    "998": {
+      "outcome": "bogus_mle_error",
+      "agreement": true,
+      "reason_pass1": "لَاتَ 'not to be' is an independent negative particle/pseudo-verb (well attested in Classical Arabic in constructions like لَاتَ حِينَ). It is unrelated to أَتَى 'to come'. Phonologically, لَا+أَتَى would produce لَاأَتَى or لَآتَى, not لَاتَ. The semantic mismatch (negation vs motion verb) makes this decomposition impossible.",
+      "in_db_link_state": "unlinked",
+      "orphan_ar": "لَاتَ",
+      "orphan_gloss": "not to be",
+      "orphan_db_pos": "verb",
+      "proposed_canonical_id": 2195,
+      "proposed_canonical_ar": "أَتَى",
+      "proposed_canonical_gloss": "to come",
+      "proposed_canonical_pos": "verb",
+      "clitic_signals": {
+        "prc1": "la_emph"
+      },
+      "confidence_tier": "HIGH",
+      "reason_pass2": "لَاتَ is a frozen Classical Arabic negative particle (attested in Quran 38:3 and classical grammars). لَا + أَتَى would yield لَاأَتَى / لَآتَى, not لَاتَ. Phonological structure is incompatible and semantics are entirely unrelated.",
+      "pass2_revised_verdict": "bogus_mle_error"
+    },
+    "1030": {
+      "outcome": "bogus_mle_error",
+      "agreement": true,
+      "reason_pass1": "رَدَهٌ 'halls, lobbies' is an independent noun lemma with root ر-د-ه. The terminal ه is a root consonant with nunation (tanwīn), not a 3ms possessive clitic. The proposed canonical فَرْد (root ف-ر-د) 'to return/individual' shares no root with رَدَهٌ and the gloss is completely unrelated. This is a multi-way failure: wrong root identification, spurious clitic parsing, and POS/semantic mismatch.",
+      "in_db_link_state": "unlinked",
+      "orphan_ar": "رَدَهٌ",
+      "orphan_gloss": "halls, lobbies",
+      "orphan_db_pos": "noun",
+      "proposed_canonical_id": 2431,
+      "proposed_canonical_ar": "فَرْد",
+      "proposed_canonical_gloss": "to return",
+      "proposed_canonical_pos": "verb",
+      "clitic_signals": {
+        "enc0": "3ms_poss"
+      },
+      "confidence_tier": "HIGH",
+      "reason_pass2": "رَدَهٌ 'halls/lobbies' has root ر-د-ه; the terminal ه carries tanwīn as part of the root, not a 3ms clitic. فَرْد (root ف-ر-د) + ـه yields فَرْده, phonologically and semantically incompatible with رَدَهٌ. Multi-way failure: wrong root, impossible phonology, unrelated gloss.",
+      "pass2_revised_verdict": "bogus_mle_error"
+    },
+    "1071": {
+      "outcome": "bogus_mle_error",
+      "agreement": true,
+      "reason_pass1": "Classic tā marbūṭa (ة) misread as 3ms possessive ـه. حَلَمَة 'nipple' (also 'tick [insect]') is an independent feminine noun whose ة is the nominal/feminine marker. Stripping it and mapping to the unrelated verb حَلَمَ 'to dream' is a POS-mismatched semantic non-sequitur. The orphan is its own dictionary lemma.",
+      "in_db_link_state": "unlinked",
+      "orphan_ar": "حلمة",
+      "orphan_gloss": "nipple",
+      "orphan_db_pos": "noun",
+      "proposed_canonical_id": 1268,
+      "proposed_canonical_ar": "حَلَمَ",
+      "proposed_canonical_gloss": "to dream",
+      "proposed_canonical_pos": "verb",
+      "clitic_signals": {
+        "enc0": "3ms_poss"
+      },
+      "confidence_tier": "HIGH",
+      "reason_pass2": "Classic tā marbūṭa → 3ms_poss failure. حَلَمَة 'nipple/tick' is an independent feminine noun; ة is the nominal/feminine marker, not ـه. The verb حَلَمَ 'to dream' is semantically unrelated; noun→verb POS flip confirms the decomposition is spurious.",
+      "pass2_revised_verdict": "bogus_mle_error"
+    },
+    "1112": {
+      "outcome": "bogus_mle_error",
+      "agreement": true,
+      "reason_pass1": "Classic tā marbūṭa (ة) misread as 3ms possessive ـه. دبلومة 'diploma' is a loanword form that has absorbed ة as its Arabic nominal ending, making it an independent lexical entry distinct from دبلوم. A true 3ms possessive on دبلوم would be دبلومه (with ه), not دبلومة (with ة). The ة is not a clitic here.",
+      "in_db_link_state": "linked",
+      "orphan_ar": "دبلومة",
+      "orphan_gloss": "diploma",
+      "orphan_db_pos": "noun",
+      "proposed_canonical_id": 1111,
+      "proposed_canonical_ar": "دبلوم",
+      "proposed_canonical_gloss": "diploma",
+      "proposed_canonical_pos": "noun",
+      "clitic_signals": {
+        "enc0": "3ms_poss"
+      },
+      "confidence_tier": "HIGH",
+      "reason_pass2": "Classic tā marbūṭa → 3ms_poss misread. دبلومة is the Arabic-ized loanword form with ة as its nominal ending; a genuine 3ms possessive on دبلوم would be دبلومه (with ه). The semantic proximity of the proposed canonical doesn't validate the spurious clitic analysis.",
+      "pass2_revised_verdict": "bogus_mle_error"
+    },
+    "1127": {
+      "outcome": "bogus_mle_error",
+      "agreement": true,
+      "reason_pass1": "Classic tā marbūṭa (ة) misread as 3ms possessive ـه. ممطرة 'raincoat' (noun) is an independent lemma (pattern مِفْعَلة or substantivized feminine form) distinct from the adjective مُمْطِر 'rainy'. Even if one treats مُمْطِرَة as the feminine adjective 'rainy [fem.]', the orphan's gloss and POS are explicitly 'raincoat / noun'—a separate lexical item. The ة is a nominal/feminine marker, not a possessive clitic.",
+      "in_db_link_state": "unlinked",
+      "orphan_ar": "ممطرة",
+      "orphan_gloss": "raincoat",
+      "orphan_db_pos": "noun",
+      "proposed_canonical_id": 1126,
+      "proposed_canonical_ar": "مُمْطِرٌ",
+      "proposed_canonical_gloss": "rainy",
+      "proposed_canonical_pos": "noun",
+      "clitic_signals": {
+        "enc0": "3ms_poss"
+      },
+      "confidence_tier": "HIGH",
+      "reason_pass2": "Classic tā marbūṭa → 3ms_poss misread. ممطرة 'raincoat' (pattern مِمْطَرة, a tool/garment noun) is an independent lexical item; ة is the nominal/feminine marker, not ـه. A true possessive on مُمْطِر would be مُمْطِره. The active participle مُمْطِر 'rainy' is a different word from the instrument noun.",
+      "pass2_revised_verdict": "bogus_mle_error"
+    },
+    "1136": {
+      "outcome": "bogus_mle_error",
+      "agreement": true,
+      "reason_pass1": "لُقَيْمَةٌ is a diminutive noun (pattern فُعَيْلَة) of لُقْمَة (morsel/bite), a fully independent lexeme meaning 'small bite/snack'. MLE has misanalysed the initial lām of the diminutive stem as the preposition لِ and reconstructed a spurious canonical قِيمَة (value), which belongs to an entirely different root (ق-ي-م vs ل-ق-م). No real clitic attachment is involved.",
+      "in_db_link_state": "unlinked",
+      "orphan_ar": "لُقَيْمَةٌ",
+      "orphan_gloss": "morsel, snack",
+      "orphan_db_pos": "noun",
+      "proposed_canonical_id": 3064,
+      "proposed_canonical_ar": "قِيمَة",
+      "proposed_canonical_gloss": "value, worth",
+      "proposed_canonical_pos": "noun",
+      "clitic_signals": {
+        "prc1": "li_prep"
+      },
+      "confidence_tier": "HIGH",
+      "reason_pass2": "لُقَيْمَةٌ is the diminutive (pattern فُعَيْلَة) of لُقْمَة (root ل-ق-م). MLE misread the diminutive vowel لُـ as the preposition لِ, reconstructing the phonologically and semantically unrelated قِيمَة (root ق-ي-م). بِ+قِيمَة cannot produce the diminutive surface form. No real clitic is present.",
+      "pass2_revised_verdict": "bogus_mle_error"
+    },
+    "1236": {
+      "outcome": "bogus_mle_error",
+      "agreement": true,
+      "reason_pass1": "Classic feminine-ة → 3ms_poss failure. عِبْرِيَّةٌ is the feminine nisba adjective 'Hebrew (f.)'; its terminal ة is the feminine marker, not a possessive suffix. MLE stripped it and proposed the masculine nisba عِبْرِيٌّ as the canonical. Per the decision rules, gender pairs of nisba adjectives are separate dictionary lemmas (cf. إسبانِيَّة → إسبانِيّ). Bogus.",
+      "in_db_link_state": "unlinked",
+      "orphan_ar": "عِبْرِيَّةٌ",
+      "orphan_gloss": "Hebrew",
+      "orphan_db_pos": "adj",
+      "proposed_canonical_id": 789,
+      "proposed_canonical_ar": "عِبْرِيٌّ",
+      "proposed_canonical_gloss": "Hebrew, Hebraic",
+      "proposed_canonical_pos": "adj",
+      "clitic_signals": {
+        "enc0": "3ms_poss"
+      },
+      "confidence_tier": "HIGH",
+      "reason_pass2": "The terminal ة of عِبْرِيَّةٌ is the feminine gender marker of a nisba adjective, not the 3ms_poss clitic. Gender-marked nisba pairs are treated as separate lexemes; the enc0:3ms_poss signal is the standard ة → 3ms_poss misread failure mode. No clitic compound exists.",
+      "pass2_revised_verdict": "bogus_mle_error"
+    },
+    "1276": {
+      "outcome": "bogus_mle_error",
+      "agreement": true,
+      "reason_pass1": "Classic feminine-ة → 3ms_poss failure. شَمْعَة (a candle) is a singulative/unit noun; its terminal ة is the feminine/singulative suffix, not a possessive clitic. The proposed canonical شَمْعٌ (wax, the collective/material) is a distinct dictionary lemma with different meaning and number category. The orphan is its own entry.",
+      "in_db_link_state": "unlinked",
+      "orphan_ar": "شمعة",
+      "orphan_gloss": "candle",
+      "orphan_db_pos": "noun",
+      "proposed_canonical_id": 991,
+      "proposed_canonical_ar": "شَمْعٌ",
+      "proposed_canonical_gloss": "wax",
+      "proposed_canonical_pos": "noun",
+      "clitic_signals": {
+        "enc0": "3ms_poss"
+      },
+      "confidence_tier": "HIGH",
+      "reason_pass2": "The ة of شَمْعَة (candle) is the singulative/feminine suffix, not a possessive clitic. شَمْع + 3ms_poss would surface as شَمْعُهُ, not شَمْعَة. The collective/singulative relationship between شَمْع and شَمْعَة is lexical-derivational, not a clitic attachment. Classic ة → 3ms_poss misread.",
+      "pass2_revised_verdict": "bogus_mle_error"
+    },
+    "1301": {
+      "outcome": "bogus_mle_error",
+      "agreement": true,
+      "reason_pass1": "وَرْدَة (rose) is a well-established singulative noun from root و-ر-د, completely unrelated to فَرْد (individual/single) from root ف-ر-د. MLE has posited wa_sub + enc0:3ms_poss around فَرْد, which is phonologically and semantically incoherent. The gloss 'to return' for فَرْد is itself wrong (that is رَدَّ), compounding the error. The orphan is its own dictionary lemma.",
+      "in_db_link_state": "linked",
+      "orphan_ar": "وردة",
+      "orphan_gloss": "rose, flower",
+      "orphan_db_pos": "noun",
+      "proposed_canonical_id": 2431,
+      "proposed_canonical_ar": "فَرْد",
+      "proposed_canonical_gloss": "to return",
+      "proposed_canonical_pos": "verb",
+      "clitic_signals": {
+        "prc2": "wa_sub",
+        "enc0": "3ms_poss"
+      },
+      "confidence_tier": "HIGH",
+      "reason_pass2": "وَرْدَة (rose, root و-ر-د) has no phonological or morphological connection to فَرْد (root ف-ر-د). The decomposition wa_sub + فَرْد + 3ms_poss would yield وَفَرْدِهِ, not وَرْدَة. The proposed gloss 'to return' for فَرْد is itself wrong, compounding the error. Completely spurious analysis.",
+      "pass2_revised_verdict": "bogus_mle_error"
+    },
+    "1319": {
+      "outcome": "bogus_mle_error",
+      "agreement": true,
+      "reason_pass1": "بَشَرٌ (human/mankind) is a primary Arabic noun from root ب-ش-ر, a core vocabulary item with no clitic involvement. MLE has misread the initial بَ as the preposition بِ and reconstructed a spurious canonical شَرّ (evil) from root ش-ر-ر. The roots are different, the vowel pattern is different, and بَشَرٌ cannot be decomposed as بِ + شَرّ. The orphan is its own lemma.",
+      "in_db_link_state": "unlinked",
+      "orphan_ar": "بَشَرٌ",
+      "orphan_gloss": "human",
+      "orphan_db_pos": "noun",
+      "proposed_canonical_id": 2164,
+      "proposed_canonical_ar": "شَرّ",
+      "proposed_canonical_gloss": "evil",
+      "proposed_canonical_pos": "noun",
+      "clitic_signals": {
+        "prc1": "bi_prep"
+      },
+      "confidence_tier": "HIGH",
+      "reason_pass2": "بَشَرٌ (root ب-ش-ر, human) is a primary noun that cannot be decomposed as بِ + شَرّ. The bi_prep vowel is /bi-/ but the word-initial syllable here is /ba-/; and بِ+شَرّ would surface as بِشَرٍّ. Roots ب-ش-ر and ش-ر-ر are entirely distinct. No clitic involved.",
+      "pass2_revised_verdict": "bogus_mle_error"
+    },
+    "1356": {
+      "outcome": "bogus_mle_error",
+      "agreement": true,
+      "reason_pass1": "شَرَكَ is a legitimate Arabic verb ('he associated/partnered') from root ش-ر-ك, entirely distinct from شَرّ (evil, root ش-ر-ر). MLE has incorrectly treated the final كَ as a 2ms_poss enclitic and proposed شَرّ as the base, but شَرّ + 2ms_poss would yield شَرَّكَ/شَرُّكَ, not شَرَكَ. POS mismatch (orphan is verb; proposed canonical is noun) further confirms the decomposition is implausible. The orphan is its own dictionary lemma.",
+      "in_db_link_state": "unlinked",
+      "orphan_ar": "شَرَكَ",
+      "orphan_gloss": "associate, partner",
+      "orphan_db_pos": "verb",
+      "proposed_canonical_id": 2164,
+      "proposed_canonical_ar": "شَرّ",
+      "proposed_canonical_gloss": "evil",
+      "proposed_canonical_pos": "noun",
+      "clitic_signals": {
+        "enc0": "2ms_poss"
+      },
+      "confidence_tier": "HIGH",
+      "reason_pass2": "شَرَكَ (verb, root ش-ر-ك, to associate) is unrelated to شَرّ (noun, root ش-ر-ر, evil). شَرّ + 2ms_poss produces شَرُّكَ/شَرَّكَ (geminate ر), not شَرَكَ. POS mismatch (verb orphan vs noun canonical) further confirms the analysis is impossible. The final كَ is part of the root, not a clitic.",
+      "pass2_revised_verdict": "bogus_mle_error"
+    },
+    "1363": {
+      "outcome": "bogus_mle_error",
+      "agreement": true,
+      "reason_pass1": "بَسَرَ (to scowl/frown) is a well-attested Arabic verb from root ب-س-ر (cf. Quran 74:22 وَبَسَرَ). MLE has misread the initial بَ as the preposition بِ and posited سَرَّ (to gladden) as the base. Prepending بِ to a verb does not produce a different verb; the operation is morphologically impossible. The orphan is its own dictionary lemma.",
+      "in_db_link_state": "unlinked",
+      "orphan_ar": "بَسَرَ",
+      "orphan_gloss": "scowl, frown",
+      "orphan_db_pos": "verb",
+      "proposed_canonical_id": 845,
+      "proposed_canonical_ar": "سَرَّ",
+      "proposed_canonical_gloss": "to gladden, delight",
+      "proposed_canonical_pos": "verb",
+      "clitic_signals": {
+        "prc1": "bi_prep"
+      },
+      "confidence_tier": "HIGH",
+      "reason_pass2": "بَسَرَ (root ب-س-ر, to scowl; attested Quran 74:22) is a standalone verb. Prefixing a preposition بِ to a finite verb form is morphologically impossible in Arabic. Root mismatch (ب-س-ر vs س-ر-ر). MLE misread the root-initial بَـ as the preposition بِ.",
+      "pass2_revised_verdict": "bogus_mle_error"
+    },
+    "1443": {
+      "outcome": "bogus_mle_error",
+      "agreement": true,
+      "reason_pass1": "مَلَائِكٌ is a broken-plural / construct form of مَلَائِكَة (angels), from root م-ل-أ-ك. MLE has treated the final كَ as a 2ms_poss enclitic and proposed مَلِيء (full, root م-ل-أ) as the canonical — a completely different root and meaning. The orphan is its own dictionary entry.",
+      "in_db_link_state": "unlinked",
+      "orphan_ar": "مَلَائِكٌ",
+      "orphan_gloss": "angels",
+      "orphan_db_pos": "noun",
+      "proposed_canonical_id": 2739,
+      "proposed_canonical_ar": "مَلِيء",
+      "proposed_canonical_gloss": "full",
+      "proposed_canonical_pos": "adj",
+      "clitic_signals": {
+        "enc0": "2ms_poss"
+      },
+      "confidence_tier": "HIGH",
+      "reason_pass2": "مَلَائِكٌ is the broken plural/construct of مَلَائِكَة (root م-ل-أ-ك). MLE stripped the final كَ as 2ms_poss, but مَلِيء (root م-ل-أ) + 2ms_poss yields مَلِيئُكَ, not مَلَائِكٌ. The final كَ is part of the root consonantism, not a possessive clitic.",
+      "pass2_revised_verdict": "bogus_mle_error"
+    },
+    "1445": {
+      "outcome": "bogus_mle_error",
+      "agreement": true,
+      "reason_pass1": "بُنَّة/بِنَّة (scent, aroma; also coffee-bean aroma) ends in ة (tā marbūṭa). The only clitic claimed is enc0:3ms_poss, triggering the default bogus rule. The proposed canonical بْنٌ (a phonological variant of اِبْن, 'son') belongs to an entirely different root and semantic field. The orphan is its own dictionary lemma; the ة is the feminine noun ending, not a possessive suffix.",
+      "in_db_link_state": "unlinked",
+      "orphan_ar": "بنة",
+      "orphan_gloss": "scent, aroma",
+      "orphan_db_pos": "noun",
+      "proposed_canonical_id": 988,
+      "proposed_canonical_ar": "بْنٌ",
+      "proposed_canonical_gloss": "alternative form of اِبْن (ibn)",
+      "proposed_canonical_pos": "noun",
+      "clitic_signals": {
+        "enc0": "3ms_poss"
+      },
+      "confidence_tier": "HIGH",
+      "reason_pass2": "Classic ة → 3ms_poss misread. The ة of بُنَّة/بِنَّة (scent/aroma) is a feminine noun ending. The proposed canonical بْنٌ (ibn, son; root ب-ن-و/ي) belongs to an entirely different root and semantic field. No possessive clitic is present.",
+      "pass2_revised_verdict": "bogus_mle_error"
+    },
+    "1452": {
+      "outcome": "bogus_mle_error",
+      "agreement": true,
+      "reason_pass1": "مَلَائِكِيٌّ is a nisba adjective meaning 'angelic', derived from مَلَائِكَة (angels). Its terminal ـيٌّ is the nisba suffix (شَدَّة + تنوين), not the 1s_poss enclitic ـي. MLE has stripped this nisba suffix and proposed مَلَاكٌ (angel, singular) as the canonical — a different word form and stem. The orphan is an independent dictionary lemma.",
+      "in_db_link_state": "unlinked",
+      "orphan_ar": "مَلَائِكِيٌّ",
+      "orphan_gloss": "angelic",
+      "orphan_db_pos": "adj",
+      "proposed_canonical_id": 1418,
+      "proposed_canonical_ar": "مَلَاكٌ",
+      "proposed_canonical_gloss": "angel",
+      "proposed_canonical_pos": "noun",
+      "clitic_signals": {
+        "enc0": "1s_poss"
+      },
+      "confidence_tier": "HIGH",
+      "reason_pass2": "The terminal ـيٌّ (shadda + tanwīn) of مَلَائِكِيٌّ is the nisba suffix, not the 1s_poss enclitic ـي. Stripping it and arriving at مَلَاكٌ (singular angel) also requires ignoring the broken-plural stem مَلَائِكِـ; the nisba derives from the plural مَلَائِكَة, not the singular مَلَاكٌ. No clitic compound exists.",
+      "pass2_revised_verdict": "bogus_mle_error"
+    },
+    "1468": {
+      "outcome": "confirmed_valid_link",
+      "agreement": true,
+      "reason_pass1": "اَلْآنَ is the frozen adverbial 'now' formed from the genuine definite article ال + the noun آن 'time/moment'. The decomposition Al_det + آن is linguistically sound in Arabic morphology even though الآن behaves as a lexicalised adverb. The proposed canonical آنٌ 'time' is the correct base noun.",
+      "in_db_link_state": "unlinked",
+      "orphan_ar": "اَلْآنَ",
+      "orphan_gloss": "now",
+      "orphan_db_pos": "",
+      "proposed_canonical_id": 943,
+      "proposed_canonical_ar": "آنٌ",
+      "proposed_canonical_gloss": "time",
+      "proposed_canonical_pos": "noun",
+      "clitic_signals": {
+        "prc0": "Al_det"
+      },
+      "confidence_tier": "MEDIUM"
+    },
+    "1469": {
+      "outcome": "confirmed_valid_link",
+      "agreement": true,
+      "reason_pass1": "اَلْيَوْمَ 'today' is transparently ال (definite article) + يَوْم 'day', used in a frozen adverbial accusative construction. يَوْم is the correct canonical noun. A textbook valid Al_det clitic attachment.",
+      "in_db_link_state": "unlinked",
+      "orphan_ar": "اَلْيَوْمَ",
+      "orphan_gloss": "today",
+      "orphan_db_pos": "",
+      "proposed_canonical_id": 240,
+      "proposed_canonical_ar": "يَوْم",
+      "proposed_canonical_gloss": "day",
+      "proposed_canonical_pos": "noun",
+      "clitic_signals": {
+        "prc0": "Al_det"
+      },
+      "confidence_tier": "MEDIUM"
+    },
+    "1474": {
+      "outcome": "bogus_mle_error",
+      "agreement": true,
+      "reason_pass1": "وَرْد 'roses' is an independent noun from root و-ر-د with no waw-conjunction clitic. The proposed split into وَ (conjunction) + فَرْد 'to return' is wrong on every level: the root is different (ف-ر-د vs و-ر-د), the POS is incompatible (orphan is a noun, proposed canonical is a verb), and the semantics are unrelated. وَرْد is its own dictionary lemma.",
+      "in_db_link_state": "unlinked",
+      "orphan_ar": "وَرْد",
+      "orphan_gloss": "roses",
+      "orphan_db_pos": "noun",
+      "proposed_canonical_id": 2431,
+      "proposed_canonical_ar": "فَرْد",
+      "proposed_canonical_gloss": "to return",
+      "proposed_canonical_pos": "verb",
+      "clitic_signals": {
+        "prc2": "wa_conj"
+      },
+      "confidence_tier": "LOW",
+      "reason_pass2": "وَرْد 'roses' is an independent lexeme from root و-ر-د (cf. وَرَدَ 'to arrive/come'). The MLE misread the initial وَ as a waw-conjunction prefix and then couldn't locate a coherent canonical — the proposed فَرْد is from a completely different root ف-ر-د 'individual/single', unrelated in form, root, POS, or meaning. There is no plausible reading of وَرْد as a clitic+stem compound; the word is simply a noun in its own right. Bogus MLE error confirmed.",
+      "pass2_revised_verdict": "bogus_mle_error"
+    },
+    "1490": {
+      "outcome": "bogus_mle_error",
+      "agreement": true,
+      "reason_pass1": "سَمَكَة is the singulative form of the collective noun سَمَك 'fish'. The final ة is a singulative/feminine suffix marking 'one fish', not a 3ms possessive enclitic. Singulative/collective pairs are distinct lexemes; the decision rules explicitly class this as a bogus MLE error.",
+      "in_db_link_state": "linked",
+      "orphan_ar": "سَمَكَة",
+      "orphan_gloss": "fish",
+      "orphan_db_pos": "noun",
+      "proposed_canonical_id": 170,
+      "proposed_canonical_ar": "سَمَك",
+      "proposed_canonical_gloss": "fish",
+      "proposed_canonical_pos": "",
+      "clitic_signals": {
+        "enc0": "3ms_poss"
+      },
+      "confidence_tier": "HIGH",
+      "reason_pass2": "سَمَكَة is the singulative form of the collective noun سَمَك, both from root س-م-ك. The final ة is a singulative/feminine morpheme meaning 'one fish', not a 3ms possessive clitic. Possessive 3ms in Arabic is the enclitic ـهُ/ـه, never tā' marbūṭa ة. A genitive/possessive 'his fish' would be سَمَكَتُهُ or سَمَكَهُ. Even though the proposed canonical سَمَك is a genuine related word, the morphological analysis (enc0=3ms_poss) is wrong — this is the classic tā' marbūṭa misread as 3ms_poss. Bogus MLE error confirmed.",
+      "pass2_revised_verdict": "bogus_mle_error"
+    },
+    "1565": {
+      "outcome": "wrong_canonical_real_compound",
+      "agreement": true,
+      "reason_pass1": "The orphan مُدَرِّسَتِي is genuinely مُدَرِّسَة 'female teacher' (Form II active participle, root د-ر-س) + 1s possessive ي 'my female teacher'. The proposed canonical مَدْرَسَة 'school' is a different lexeme (مَفْعَلَة pattern place-noun from the same root). The compound is real but the canonical is wrong; the correct canonical is مُدَرِّسَة.",
+      "in_db_link_state": "linked",
+      "orphan_ar": "مُدَرِّسَتِي",
+      "orphan_gloss": "my teacher",
+      "orphan_db_pos": "noun",
+      "proposed_canonical_id": 226,
+      "proposed_canonical_ar": "مَدْرَسَة",
+      "proposed_canonical_gloss": "school",
+      "proposed_canonical_pos": "noun",
+      "clitic_signals": {
+        "enc0": "1s_poss"
+      },
+      "confidence_tier": "HIGH",
+      "reason_pass2": "The decomposition is genuinely valid: مُدَرِّسَتِي = مُدَرِّسَة (Form II active participle feminine, 'female teacher') + ي (1s possessive) = 'my female teacher'. The 1s_poss enc0 clitic analysis is correct. However, the proposed canonical مَدْرَسَة 'school' is a different lexeme from the same root د-ر-س (a مَفْعَلَة pattern place noun), not the base for this word. The correct canonical is مُدَرِّسَة 'female teacher'. Real compound, wrong canonical confirmed.",
+      "pass2_revised_verdict": "wrong_canonical_real_compound",
+      "suggested_canonical_bare": "مُدَرِّسَة"
+    },
+    "1567": {
+      "outcome": "wrong_canonical_real_compound",
+      "agreement": true,
+      "reason_pass1": "وَتَهْتَمُّ is genuinely وَ (waw-subordinating) + تَهْتَمُّ (Form VIII imperfect 3fs/2ms of اهتمّ 'to care'). The compound is real, but the proposed canonical أَهْتَمَّ is not the standard citation form: the 1s present would be أَهْتَمُّ (with ḍamma) and the standard dictionary lemma for Form VIII verbs is the 3ms perfect اِهْتَمَّ. The correct canonical is اِهْتَمَّ.",
+      "in_db_link_state": "linked",
+      "orphan_ar": "وَتَهْتَمُّ",
+      "orphan_gloss": "and cares",
+      "orphan_db_pos": "verb",
+      "proposed_canonical_id": 2237,
+      "proposed_canonical_ar": "أَهْتَمَّ",
+      "proposed_canonical_gloss": "to care",
+      "proposed_canonical_pos": "verb",
+      "clitic_signals": {
+        "prc2": "wa_sub"
+      },
+      "confidence_tier": "LOW",
+      "reason_pass2": "The compound وَتَهْتَمُّ is genuine: وَ (coordinating/subordinating conjunction) + تَهْتَمُّ (Form VIII imperfect 3fs/2ms from root ه-م-م, 'to care/be interested'). The wa_sub prc2 clitic analysis is correct. The proposed canonical أَهْتَمَّ appears to be the 1s perfect of Form VIII, which is not the standard dictionary citation form. The correct canonical lemma for Form VIII of this root is اِهْتَمَّ (3ms perfect active). Real compound confirmed; canonical is wrong.",
+      "pass2_revised_verdict": "wrong_canonical_real_compound",
+      "suggested_canonical_bare": "اِهْتَمَّ"
+    },
+    "1578": {
+      "outcome": "bogus_mle_error",
+      "agreement": true,
+      "reason_pass1": "مُمْتِعَةٌ is the feminine form of the adjective مُمْتِع 'enjoyable', inflected with feminine suffix ة and case tanwin (ٌ). The nunation (tanwin) is incompatible with possessive constructions; a 3ms possessive would require definiteness and the absence of tanwin. The ة is a grammatical feminine ending, not a 3ms possessive clitic. This is the classic feminine-adjective-ة misread as 3ms_poss enc0.",
+      "in_db_link_state": "unlinked",
+      "orphan_ar": "مُمْتِعَةٌ",
+      "orphan_gloss": "enjoyable",
+      "orphan_db_pos": "adj",
+      "proposed_canonical_id": 168,
+      "proposed_canonical_ar": "مُمتِع",
+      "proposed_canonical_gloss": "entertaining",
+      "proposed_canonical_pos": "",
+      "clitic_signals": {
+        "enc0": "3ms_poss"
+      },
+      "confidence_tier": "HIGH",
+      "reason_pass2": "مُمْتِعَةٌ is the feminine nominative indefinite form of the Form IV active participle مُمْتِع 'enjoyable', from root م-ت-ع. The ة is a feminine grammatical suffix and the ٌ is indefinite tanwin (nunation). Both features are incompatible with a possessive construction: (1) Arabic possessives use the enclitic ـهُ/ـه, never tā' marbūṭa alone; (2) tanwin marks indefiniteness, which is definitionally absent in possessive (iḍāfa/pronominal) constructions. Although مُمتِع is the correct masculine base form (the relationship is real morphologically), the MLE clitic analysis enc0=3ms_poss is wrong. Classic feminine-ة misread as 3ms_poss. Bogus MLE error confirmed.",
+      "pass2_revised_verdict": "bogus_mle_error"
+    },
+    "1582": {
+      "outcome": "confirmed_valid_link",
+      "agreement": true,
+      "reason_pass1": "مُدَرِّسِي = مُدَرِّس 'teacher (m)' + ي (1s possessive), meaning 'my (male) teacher'. The proposed canonical مُدَرِّس is the correct base noun. A straightforward and valid 1s possessive clitic attachment.",
+      "in_db_link_state": "linked",
+      "orphan_ar": "مُدَرِّسِي",
+      "orphan_gloss": "my teacher",
+      "orphan_db_pos": "noun",
+      "proposed_canonical_id": 222,
+      "proposed_canonical_ar": "مُدَرِّس",
+      "proposed_canonical_gloss": "teacher",
+      "proposed_canonical_pos": "noun",
+      "clitic_signals": {
+        "enc0": "1s_poss"
+      },
+      "confidence_tier": "HIGH"
+    },
+    "1583": {
+      "outcome": "confirmed_valid_link",
+      "agreement": true,
+      "reason_pass1": "أَصْدِقَائِي = أَصْدِقَاء (broken plural of صَدِيق 'friend') + ي (1s possessive), meaning 'my friends'. Canonicalising back to the singular صَدِيق is standard Arabic lemmatisation practice. The possessive suffix is genuine and the link is valid.",
+      "in_db_link_state": "linked",
+      "orphan_ar": "أَصْدِقَائِي",
+      "orphan_gloss": "my friends",
+      "orphan_db_pos": "noun",
+      "proposed_canonical_id": 1500,
+      "proposed_canonical_ar": "صَدِيق",
+      "proposed_canonical_gloss": "friend",
+      "proposed_canonical_pos": "noun",
+      "clitic_signals": {
+        "enc0": "1s_poss"
+      },
+      "confidence_tier": "HIGH"
+    },
+    "1585": {
+      "outcome": "confirmed_valid_link",
+      "agreement": true,
+      "reason_pass1": "عُمْري = عُمْر 'age/life' + ي (1s possessive), meaning 'my age'. The proposed canonical عُمْر is correct. A clear and unambiguous 1s possessive clitic attachment.",
+      "in_db_link_state": "linked",
+      "orphan_ar": "عُمْري",
+      "orphan_gloss": "my age",
+      "orphan_db_pos": "noun",
+      "proposed_canonical_id": 245,
+      "proposed_canonical_ar": "عُمْر",
+      "proposed_canonical_gloss": "age",
+      "proposed_canonical_pos": "noun",
+      "clitic_signals": {
+        "enc0": "1s_poss"
+      },
+      "confidence_tier": "HIGH"
+    },
+    "1589": {
+      "outcome": "confirmed_valid_link",
+      "agreement": true,
+      "reason_pass1": "وَالْمَسْجِد = وَ (wa_part prefix) + الـ (Al_det definite article) + مَسْجِد. Both clitics are real Arabic prefixes; the canonical noun مَسْجِد is correct; POS noun→noun matches. Straightforward valid link.",
+      "in_db_link_state": "linked",
+      "orphan_ar": "وَالْمَسْجِد",
+      "orphan_gloss": "and the mosque",
+      "orphan_db_pos": "noun",
+      "proposed_canonical_id": 496,
+      "proposed_canonical_ar": "مَسْجِدٌ",
+      "proposed_canonical_gloss": "mosque",
+      "proposed_canonical_pos": "noun",
+      "clitic_signals": {
+        "prc0": "Al_det",
+        "prc2": "wa_part"
+      },
+      "confidence_tier": "MEDIUM"
+    },
+    "1590": {
+      "outcome": "uncertain",
+      "agreement": false,
+      "reason_pass1": "وَذَكِيَّة is وَ + ذَكِيَّة, where ذَكِيَّة is the FEMININE form of the adjective ذَكِيّ. The final ة is tā marbūṭa (feminine morphological marker), not a 3ms possessive clitic. The gloss 'and smart' confirms adjectival use — adjectives in attributive/predicative position do not take possessive enclitics in this way. Classic CAMeL-MLE ة → enc0:3ms_poss misread. ذَكِيَّة and ذَكِيّ are paired gender forms of the same adjective and count as separate lemma entries.",
+      "in_db_link_state": "linked",
+      "orphan_ar": "وَذَكِيَّة",
+      "orphan_gloss": "and smart",
+      "orphan_db_pos": "adj",
+      "proposed_canonical_id": 159,
+      "proposed_canonical_ar": "ذَكِيّ",
+      "proposed_canonical_gloss": "smart",
+      "proposed_canonical_pos": "",
+      "clitic_signals": {
+        "prc2": "wa_sub",
+        "enc0": "3ms_poss"
+      },
+      "confidence_tier": "HIGH",
+      "reason_pass2": "Pass-1 correctly identifies the MLE failure mode (feminine ة misread as enc0:3ms_poss), but incorrectly concludes the LINK itself is bogus. The morphological decomposition وَذَكِيَّة = وَ (prc2:wa_sub) + ذَكِيَّة is valid, and ذَكِيَّة IS the feminine form of ذَكِيّ. In standard Arabic lexicography — and in virtually all Arabic NLP pipelines — the masculine form is the canonical dictionary entry, and the feminine form is a morphological variant tracked under it. The proposed canonical ذَكِيّ is therefore CORRECT, even though the MLE mislabeled the mechanism (calling ة a possessive suffix rather than a feminine marker). The link 'وَذَكِيَّة belongs under canonical ذَكِيّ' is lexicographically sound. A wrong analytical label that happens to produce the right canonical resolution should not cause the link to be discarded, especially given the higher cost of false-bogus tags.",
+      "pass2_revised_verdict": "confirmed_valid_link"
+    },
+    "1591": {
+      "outcome": "uncertain",
+      "agreement": false,
+      "reason_pass1": "وَلَطيفة = وَ + لَطِيفة, where لَطِيفة is the FEMININE adjective form of لَطِيف. The ة is tā marbūṭa (feminine ending), not a 3ms possessive suffix. Gloss 'and kind' confirms attributive/predicative adjectival use, not a possessed noun. Identical failure mode to entry 2: feminine nisba/adjective pair treated as masculine stem + 3ms_poss.",
+      "in_db_link_state": "linked",
+      "orphan_ar": "وَلَطيفة",
+      "orphan_gloss": "and kind",
+      "orphan_db_pos": "adj",
+      "proposed_canonical_id": 1580,
+      "proposed_canonical_ar": "لَطِيف",
+      "proposed_canonical_gloss": "kind",
+      "proposed_canonical_pos": "adj",
+      "clitic_signals": {
+        "prc2": "wa_sub",
+        "enc0": "3ms_poss"
+      },
+      "confidence_tier": "HIGH",
+      "reason_pass2": "Identical analysis to entry 1. وَلَطيفة = وَ (prc2:wa_sub) + لَطيفة, and لَطيفة is unambiguously the feminine form of the adjective لَطِيف. The MLE misread of ة as enc0:3ms_poss is a well-known failure mode, but the proposed canonical لَطِيف is the correct masculine dictionary form for this adjective. The gloss 'and kind' confirms predicative/attributive adjectival use. The LINK (وَلَطيفة → لَطِيف) is lexicographically valid: the orphan is وَ + feminine form of the canonical. The MLE arrived at the right canonical via the wrong analysis path; that does not make the link bogus. The bias toward keeping links applies here.",
+      "pass2_revised_verdict": "confirmed_valid_link"
+    },
+    "1595": {
+      "outcome": "confirmed_valid_link",
+      "agreement": true,
+      "reason_pass1": "زُمَلائي = زُمَلاء (sound masculine broken plural of زَميل) + ي (enc0: 1s_poss). Plural inflection is internal morphology; the 1s possessive ي is a genuine enclitic. Dictionary canonical for the word family is the singular زَميل. POS noun→noun matches. Valid link.",
+      "in_db_link_state": "linked",
+      "orphan_ar": "زُمَلائي",
+      "orphan_gloss": "my colleagues",
+      "orphan_db_pos": "noun",
+      "proposed_canonical_id": 1605,
+      "proposed_canonical_ar": "زَميل",
+      "proposed_canonical_gloss": "colleague",
+      "proposed_canonical_pos": "noun",
+      "clitic_signals": {
+        "enc0": "1s_poss"
+      },
+      "confidence_tier": "HIGH"
+    },
+    "1599": {
+      "outcome": "confirmed_valid_link",
+      "agreement": true,
+      "reason_pass1": "مادَّتي = مَادَّة + ي (enc0: 1s_poss). When a 1s possessive suffix is added to a feminine noun ending in ة, the ة regularly shifts to ت (maddatī), so the ت here is not a separate morpheme but the phonological realisation of the feminine marker before a vowel-initial suffix. The canonical مَادَّة 'matter/subject' is correct; POS noun→noun matches.",
+      "in_db_link_state": "linked",
+      "orphan_ar": "مادَّتي",
+      "orphan_gloss": "my subject",
+      "orphan_db_pos": "noun",
+      "proposed_canonical_id": 1227,
+      "proposed_canonical_ar": "مَادَّةٌ",
+      "proposed_canonical_gloss": "matter, material",
+      "proposed_canonical_pos": "noun",
+      "clitic_signals": {
+        "enc0": "1s_poss"
+      },
+      "confidence_tier": "HIGH"
+    },
+    "1601": {
+      "outcome": "confirmed_valid_link",
+      "agreement": true,
+      "reason_pass1": "وَأُحِبُّها = وَ (prc2: wa_sub conjunction) + أُحِبُّ (1s present of أَحَبَّ) + ها (enc0: 3fs_dobj). All three components are genuine clitics/inflections of the correct canonical verb. POS verb→verb matches. Gloss 'and I love her' is fully consistent.",
+      "in_db_link_state": "linked",
+      "orphan_ar": "وَأُحِبُّها",
+      "orphan_gloss": "and I love her",
+      "orphan_db_pos": "verb",
+      "proposed_canonical_id": 394,
+      "proposed_canonical_ar": "أَحَبَّ",
+      "proposed_canonical_gloss": "to like, love",
+      "proposed_canonical_pos": "verb",
+      "clitic_signals": {
+        "prc2": "wa_sub",
+        "enc0": "3fs_dobj"
+      },
+      "confidence_tier": "HIGH"
+    },
+    "1608": {
+      "outcome": "wrong_canonical_real_compound",
+      "agreement": true,
+      "reason_pass1": "أُعَرِّفُكُمْ = أُعَرِّفُ (1s present of Form II عَرَّفَ 'to introduce/present') + كُمْ (enc0: 2mp_dobj). The Form II doubled-ر gemination in أُعَرِّفُ is diagnostic: this is عَرَّفَ, NOT Form I عَرَفَ 'to know'. The two verbs are distinct dictionary lemmas with different meanings. The enclitic decomposition is correct, but the proposed canonical is wrong.",
+      "in_db_link_state": "unlinked",
+      "orphan_ar": "أُعَرِّفُكُمْ",
+      "orphan_gloss": "I introduce you",
+      "orphan_db_pos": "noun",
+      "proposed_canonical_id": 389,
+      "proposed_canonical_ar": "عَرَفَ",
+      "proposed_canonical_gloss": "to know",
+      "proposed_canonical_pos": "verb",
+      "clitic_signals": {
+        "enc0": "2mp_dobj"
+      },
+      "confidence_tier": "HIGH",
+      "reason_pass2": "The compound is genuine: أُعَرِّفُكُمْ = أُعَرِّفُ (Form II imperfect 1sg, يُفَعِّلُ pattern) + كُمْ (enc0: 2mp_dobj). The gloss 'I introduce you' is a perfect semantic match for Form II عَرَّفَ 'to introduce / make known to'. However, the proposed canonical عَرَفَ is Form I ('to know') — a fully distinct lemma with a different meaning and different morphological pattern. The doubled-ر gemination in أُعَرِّفُ is unambiguous diagnostic evidence for Form II. The enclitic analysis is correct, the compound is real, but the canonical must be عَرَّفَ, not عَرَفَ.",
+      "pass2_revised_verdict": "wrong_canonical_real_compound",
+      "suggested_canonical_bare": "عَرَّفَ"
+    },
+    "1629": {
+      "outcome": "confirmed_valid_link",
+      "agreement": true,
+      "reason_pass1": "عُنْوَانُكِ = عُنْوان + كِ (2nd-person possessive suffix). The canonical عُنْوان 'address' is correct and POS noun→noun matches. Note: the clitic_signal labels this enc0:2ms_poss but the Arabic suffix كِ (with kasra) is actually 2fs_poss — a gender-label annotation error in CAMeL's output, not a decomposition error. The structural link (canonical noun + possessive enclitic) is valid.",
+      "in_db_link_state": "linked",
+      "orphan_ar": "عُنْوَانُكِ",
+      "orphan_gloss": "your address?",
+      "orphan_db_pos": "noun",
+      "proposed_canonical_id": 297,
+      "proposed_canonical_ar": "عُنْوان",
+      "proposed_canonical_gloss": "address",
+      "proposed_canonical_pos": "noun",
+      "clitic_signals": {
+        "enc0": "2ms_poss"
+      },
+      "confidence_tier": "HIGH"
+    },
+    "1630": {
+      "outcome": "confirmed_valid_link",
+      "agreement": true,
+      "reason_pass1": "عُنْوَانِي = عُنْوان + ي (enc0: 1s_poss). Canonical 'address' is correct; the 1s possessive ي is a genuine enclitic; POS noun→noun matches. Identical and unambiguous construction to entry 5/8.",
+      "in_db_link_state": "linked",
+      "orphan_ar": "عُنْوَانِي",
+      "orphan_gloss": "my address",
+      "orphan_db_pos": "noun",
+      "proposed_canonical_id": 297,
+      "proposed_canonical_ar": "عُنْوان",
+      "proposed_canonical_gloss": "address",
+      "proposed_canonical_pos": "noun",
+      "clitic_signals": {
+        "enc0": "1s_poss"
+      },
+      "confidence_tier": "HIGH"
+    },
+    "1638": {
+      "outcome": "confirmed_valid_link",
+      "agreement": true,
+      "reason_pass1": "وَلَكِنْ = وَ (prc2: wa_conj) + لَكِنْ (canonical particle 'but'). The wa- prefix is a standard coordinating conjunction clitic. POS conj/particle match is acceptable (both functional connectives). The decomposition is structurally sound and well-attested in Arabic grammar.",
+      "in_db_link_state": "unlinked",
+      "orphan_ar": "وَلَكِنْ",
+      "orphan_gloss": "but",
+      "orphan_db_pos": "conj",
+      "proposed_canonical_id": 2035,
+      "proposed_canonical_ar": "لكن",
+      "proposed_canonical_gloss": "but",
+      "proposed_canonical_pos": "particle",
+      "clitic_signals": {
+        "prc2": "wa_conj"
+      },
+      "confidence_tier": "LOW"
+    },
+    "1646": {
+      "outcome": "confirmed_valid_link",
+      "agreement": true,
+      "reason_pass1": "بِالتَّأْكِيدِ is a genuine Arabic adverbial compound: بِ (bi_prep) + ال (Al_det) + تَأْكِيد → 'certainly/definitely'. Both clitics are real Arabic morphemes. POS (noun→noun) matches. The canonical التَّأْكِيد retaining the article in the DB is a convention quirk but the decomposition is linguistically sound. Gloss difference ('certainty' vs 'confirmation') is trivially explained by the adverbial usage of the prepositional phrase.",
+      "in_db_link_state": "unlinked",
+      "orphan_ar": "بِالتَّأْكِيدِ",
+      "orphan_gloss": "certainty",
+      "orphan_db_pos": "noun",
+      "proposed_canonical_id": 2573,
+      "proposed_canonical_ar": "التَّأْكِيد",
+      "proposed_canonical_gloss": "confirmation",
+      "proposed_canonical_pos": "noun",
+      "clitic_signals": {
+        "prc0": "Al_det",
+        "prc1": "bi_prep"
+      },
+      "confidence_tier": "HIGH"
+    },
+    "1669": {
+      "outcome": "bogus_mle_error",
+      "agreement": true,
+      "reason_pass1": "وَرْدِيٌّ 'pink' is a nisba adjective from root و-ر-د (ward = rose/flower) and is its own independent dictionary lemma. The proposed canonical فَرْد comes from a completely different root ف-ر-د. CAMeL has misanalysed the wāw as a wa_sub particle and the final ي as a 1s_poss enclitic, when both are integral parts of the nisba morphology (وَرْد + iyy). There is no clitic stripping here — just a root-confusion error.",
+      "in_db_link_state": "unlinked",
+      "orphan_ar": "وَرْدِيٌّ",
+      "orphan_gloss": "pink",
+      "orphan_db_pos": "adj",
+      "proposed_canonical_id": 2431,
+      "proposed_canonical_ar": "فَرْد",
+      "proposed_canonical_gloss": "to return",
+      "proposed_canonical_pos": "verb",
+      "clitic_signals": {
+        "prc2": "wa_sub",
+        "enc0": "1s_poss"
+      },
+      "confidence_tier": "HIGH",
+      "reason_pass2": "وَرْدِيٌّ 'pink' is straightforwardly a nisba adjective formed as وَرْد (rose) + ـِيٌّ (nisba suffix). The root is و-ر-د; the initial وَ is part of the root consonants, not a wa_sub particle, and the ِيٌّ is the nisba morpheme, not a 1s_poss enclitic. The proposed canonical فَرْد does not share this root at all (it is from ف-ر-د), and its gloss 'to return' matches neither فَرْد nor anything that could relate to 'pink'. CAMeL MLE has completely misanalysed the word — segmented at a spurious clitic boundary and then matched the remnant to an unrelated stem. No real clitic stripping is possible here; there is nothing left to strip that yields a plausible canonical. Verdict: bogus_mle_error, confirmed independently.",
+      "pass2_revised_verdict": "bogus_mle_error"
+    },
+    "1674": {
+      "outcome": "confirmed_valid_link",
+      "agreement": true,
+      "reason_pass1": "غُرْفَتِي 'my room' = غُرْفَة (room) + ي (1s possessive). Before a 1s possessive suffix, tā marbūṭa (ة) regularly surfaces as tā maftūḥa (ت): غُرْفَة → غُرْفَتِي. This is a standard morphophonological process, not a tā marbūṭa misread. The proposed canonical غرفة is correct and POS (noun→noun) matches.",
+      "in_db_link_state": "linked",
+      "orphan_ar": "غُرْفَتِي",
+      "orphan_gloss": "my room",
+      "orphan_db_pos": "noun",
+      "proposed_canonical_id": 3,
+      "proposed_canonical_ar": "غرفة",
+      "proposed_canonical_gloss": "the room",
+      "proposed_canonical_pos": "",
+      "clitic_signals": {
+        "enc0": "1s_poss"
+      },
+      "confidence_tier": "HIGH"
+    },
+    "1686": {
+      "outcome": "confirmed_valid_link",
+      "agreement": true,
+      "reason_pass1": "أُحِبُّهَا = أُحِبُّ (1s imperfect of أَحَبَّ 'to love') + هَا (3fs direct object enclitic). Both the canonical أَحَبَّ and the clitic enc0=3fs_dobj are correct. POS (verb→verb) matches, and the gloss 'I love it' is a straightforward surface-form gloss of the inflected+cliticised word.",
+      "in_db_link_state": "linked",
+      "orphan_ar": "أُحِبُّهَا",
+      "orphan_gloss": "I love it",
+      "orphan_db_pos": "verb",
+      "proposed_canonical_id": 394,
+      "proposed_canonical_ar": "أَحَبَّ",
+      "proposed_canonical_gloss": "to like, love",
+      "proposed_canonical_pos": "verb",
+      "clitic_signals": {
+        "enc0": "3fs_dobj"
+      },
+      "confidence_tier": "HIGH"
+    },
+    "1690": {
+      "outcome": "confirmed_valid_link",
+      "agreement": true,
+      "reason_pass1": "مَلَابِسِي = مَلَابِس (broken plural of مَلْبَس, pattern مَفَاعِل from مَفْعَل) + ي (1s possessive). The canonical مَلْبَس 'garment' is the correct singular lemma for the plural مَلَابِس. The clitic enc0=1s_poss is real. POS (noun→noun) matches. Gloss 'my clothes' is the expected surface meaning of plural + 1s poss.",
+      "in_db_link_state": "linked",
+      "orphan_ar": "مَلَابِسِي",
+      "orphan_gloss": "my clothes",
+      "orphan_db_pos": "noun",
+      "proposed_canonical_id": 2808,
+      "proposed_canonical_ar": "مَلْبَس",
+      "proposed_canonical_gloss": "garment",
+      "proposed_canonical_pos": "noun",
+      "clitic_signals": {
+        "enc0": "1s_poss"
+      },
+      "confidence_tier": "HIGH"
+    },
+    "1691": {
+      "outcome": "confirmed_valid_link",
+      "agreement": true,
+      "reason_pass1": "كُتُبِي = كُتُب (broken plural of كِتَاب, pattern فُعُل) + ي (1s possessive) = 'my books'. كِتَاب is the standard singular canonical. POS (noun→noun) matches. Entirely valid decomposition.",
+      "in_db_link_state": "linked",
+      "orphan_ar": "كُتُبِي",
+      "orphan_gloss": "my books",
+      "orphan_db_pos": "noun",
+      "proposed_canonical_id": 228,
+      "proposed_canonical_ar": "كِتاب",
+      "proposed_canonical_gloss": "book",
+      "proposed_canonical_pos": "noun",
+      "clitic_signals": {
+        "enc0": "1s_poss"
+      },
+      "confidence_tier": "HIGH"
+    },
+    "1692": {
+      "outcome": "confirmed_valid_link",
+      "agreement": true,
+      "reason_pass1": "فِيهَا = فِي (preposition 'in') + هَا (3fs pronoun enclitic) = 'in it (f.)'. This is one of the most common prepositional+pronoun compounds in Arabic. The proposed canonical فِي is correct. The enc0=3fs_pron clitic is real. POS (prep→prep/particle) is consistent.",
+      "in_db_link_state": "linked",
+      "orphan_ar": "فِيهَا",
+      "orphan_gloss": "in it",
+      "orphan_db_pos": "prep",
+      "proposed_canonical_id": 95,
+      "proposed_canonical_ar": "فِي",
+      "proposed_canonical_gloss": "in",
+      "proposed_canonical_pos": "",
+      "clitic_signals": {
+        "enc0": "3fs_pron"
+      },
+      "confidence_tier": "HIGH"
+    },
+    "1717": {
+      "outcome": "bogus_mle_error",
+      "agreement": true,
+      "reason_pass1": "Classic tā marbūṭa (ة) misread as 3ms_dobj enclitic. عَاشِرَة 'tenth (feminine)' ends in ة which is the standard feminine morpheme for ordinal/adjective agreement (عَاشِر masc. → عَاشِرَة fem.). The ة is not a 3ms direct-object suffix. The feminine ordinal عَاشِرَة is its own dictionary entry (or the feminine paradigm form of عَاشِر), not عَاشِر with a pronominal object attached.",
+      "in_db_link_state": "unlinked",
+      "orphan_ar": "عَاشِرَة",
+      "orphan_gloss": "tenth (feminine)",
+      "orphan_db_pos": "noun",
+      "proposed_canonical_id": 1716,
+      "proposed_canonical_ar": "عَاشِر",
+      "proposed_canonical_gloss": "tenth",
+      "proposed_canonical_pos": "noun",
+      "clitic_signals": {
+        "enc0": "3ms_dobj"
+      },
+      "confidence_tier": "HIGH",
+      "reason_pass2": "عَاشِرَة 'tenth (feminine)' ends in tā marbūṭa (ة), which is the standard feminine agreement morpheme for ordinal numerals (عَاشِر masc. → عَاشِرَة fem.). The gloss 'tenth (feminine)' and POS 'noun' are both consistent with the feminine ordinal, not with a possessed/suffixed form. The enc0=3ms_dobj signal is the known tā-marbūṭa misread: CAMeL MLE is confusing the feminine suffix ة with an attached 3ms pronoun, which is orthographically distinct (هُ). While عَاشِرُهُ 'his tenth' is grammatically possible Arabic, the gloss supplied explicitly identifies this as the feminine form, ruling out the possessed reading. The relationship between عَاشِرَة and عَاشِر is pure gender morphology, not a clitic attachment. bogus_mle_error confirmed.",
+      "pass2_revised_verdict": "bogus_mle_error"
+    },
+    "1729": {
+      "outcome": "confirmed_valid_link",
+      "agreement": true,
+      "reason_pass1": "أُسْرَتِي = أُسْرَة 'family' + ي (1s possessive). Identical morphophonology to entry 3: tā marbūṭa surfaces as tā maftūḥa before the possessive suffix. The proposed canonical أُسْرَة is correct, POS (noun→noun) matches, and the gloss 'my family' is the expected surface meaning.",
+      "in_db_link_state": "linked",
+      "orphan_ar": "أُسْرَتِي",
+      "orphan_gloss": "my family",
+      "orphan_db_pos": "noun",
+      "proposed_canonical_id": 264,
+      "proposed_canonical_ar": "أُسْرَة",
+      "proposed_canonical_gloss": "family",
+      "proposed_canonical_pos": "noun",
+      "clitic_signals": {
+        "enc0": "1s_poss"
+      },
+      "confidence_tier": "HIGH"
+    },
+    "1732": {
+      "outcome": "wrong_canonical_real_compound",
+      "agreement": true,
+      "reason_pass1": "The compound وَنَأْكُلُ = وَ (wa-conjunction) + نَأْكُلُ (1p imperfect 'we eat') is a genuine clitic compound, so the link is structurally real. However, the proposed canonical أَكْل is a NOUN (verbal noun/maṣdar 'food/eating'), while نَأْكُلُ is unambiguously a verbal form conjugated from the verb أَكَلَ 'to eat'. The orphan POS is correctly tagged as verb, making the noun canonical implausible. The correct canonical is the verb أَكَلَ.",
+      "in_db_link_state": "unlinked",
+      "orphan_ar": "وَنَأْكُلُ",
+      "orphan_gloss": "and we eat",
+      "orphan_db_pos": "verb",
+      "proposed_canonical_id": 324,
+      "proposed_canonical_ar": "أَكْل",
+      "proposed_canonical_gloss": "food",
+      "proposed_canonical_pos": "noun",
+      "clitic_signals": {
+        "prc2": "wa_part"
+      },
+      "confidence_tier": "LOW",
+      "reason_pass2": "The compound وَنَأْكُلُ is genuine: وَ (wa-conjunction) + نَأْكُلُ (1pl imperfect 'we eat'). The prc2=wa_part clitic signal is correct and the decomposition is structurally real — this is a confirmed clitic compound. The problem is exclusively with the canonical: أَكْل is the masdar (verbal noun, 'food/eating'), a NOUN, while نَأْكُلُ is an inflected VERB form from the root أ-ك-ل. The orphan is tagged verb and glossed 'and we eat', both of which point unambiguously to the verb lemma أَكَلَ as the correct canonical. The link should exist but pointing to أَكَلَ, not أَكْل. wrong_canonical_real_compound confirmed.",
+      "pass2_revised_verdict": "wrong_canonical_real_compound",
+      "suggested_canonical_bare": "أَكَلَ"
+    },
+    "1733": {
+      "outcome": "confirmed_valid_link",
+      "agreement": true,
+      "reason_pass1": "وَنُشَاهِدُ = وَ (wa- conjunction, prc2) + نُشَاهِدُ (imperfect 1pl of شاهَدَ). The conjunction prefix is a genuine Arabic clitic, and نُشَاهِدُ is the regular imperfect first-person plural of the canonical verb شاهَدَ. Gloss 'and we watch' matches perfectly.",
+      "in_db_link_state": "linked",
+      "orphan_ar": "وَنُشَاهِدُ",
+      "orphan_gloss": "and we watch",
+      "orphan_db_pos": "verb",
+      "proposed_canonical_id": 399,
+      "proposed_canonical_ar": "شاهَدَ",
+      "proposed_canonical_gloss": "to watch",
+      "proposed_canonical_pos": "verb",
+      "clitic_signals": {
+        "prc2": "wa_sub"
+      },
+      "confidence_tier": "LOW"
+    },
+    "1760": {
+      "outcome": "confirmed_valid_link",
+      "agreement": true,
+      "reason_pass1": "لِي = لِ (preposition 'to/for') + ي (1s pronoun enclitic). This is one of the most elementary Arabic pronominal-preposition combinations. Gloss 'for me' matches exactly.",
+      "in_db_link_state": "unlinked",
+      "orphan_ar": "لِي",
+      "orphan_gloss": "for me",
+      "orphan_db_pos": "prep",
+      "proposed_canonical_id": 452,
+      "proposed_canonical_ar": "لـِ",
+      "proposed_canonical_gloss": "to",
+      "proposed_canonical_pos": "prep",
+      "clitic_signals": {
+        "enc0": "1s_pron"
+      },
+      "confidence_tier": "HIGH"
+    },
+    "1761": {
+      "outcome": "confirmed_valid_link",
+      "agreement": true,
+      "reason_pass1": "لِأُخْتِي = لِ (li_prep prc1) + أُخْت (canonical 'sister') + ي (1s_poss enc0). Both clitics are genuine Arabic morphological elements; the compound 'for my sister' is well-formed and the gloss matches.",
+      "in_db_link_state": "linked",
+      "orphan_ar": "لِأُخْتِي",
+      "orphan_gloss": "for my sister",
+      "orphan_db_pos": "noun",
+      "proposed_canonical_id": 78,
+      "proposed_canonical_ar": "أُخْت",
+      "proposed_canonical_gloss": "sister",
+      "proposed_canonical_pos": "",
+      "clitic_signals": {
+        "prc1": "li_prep",
+        "enc0": "1s_poss"
+      },
+      "confidence_tier": "HIGH"
+    },
+    "1762": {
+      "outcome": "confirmed_valid_link",
+      "agreement": true,
+      "reason_pass1": "وَحَمَّامٌ = وَ (wa- conjunction, prc2) + حَمَّامٌ (bathroom, nominative indefinite). The wa- conjunction is a standard proclitic. The tanwīn on حَمَّامٌ is an inflectional ending, not a clitic issue. Gloss 'and a bathroom' matches.",
+      "in_db_link_state": "linked",
+      "orphan_ar": "وَحَمَّامٌ",
+      "orphan_gloss": "and a bathroom",
+      "orphan_db_pos": "noun",
+      "proposed_canonical_id": 12,
+      "proposed_canonical_ar": "حَمّام",
+      "proposed_canonical_gloss": "bathroom",
+      "proposed_canonical_pos": "",
+      "clitic_signals": {
+        "prc2": "wa_sub"
+      },
+      "confidence_tier": "LOW"
+    },
+    "1787": {
+      "outcome": "confirmed_valid_link",
+      "agreement": true,
+      "reason_pass1": "صَدِيقَتِي = صَدِيقَة (feminine form of صَدِيق) + ي (1s_poss). When ة (tā marbūṭa) takes a pronominal suffix it surfaces as ت, giving صَدِيقَتِي. Crucially, the clitic signal is enc0=1s_poss (not 3ms_poss), so this is not the classic tā-marbūṭa misread. صَدِيقَة is the canonical masculine صَدِيق's feminine morphological variant (same lemma, same meaning 'friend'), and 'my friend (f)' is a valid gloss for صَدِيقَتِي.",
+      "in_db_link_state": "linked",
+      "orphan_ar": "صَدِيقَتِي",
+      "orphan_gloss": "my friend",
+      "orphan_db_pos": "noun",
+      "proposed_canonical_id": 1500,
+      "proposed_canonical_ar": "صَدِيق",
+      "proposed_canonical_gloss": "friend",
+      "proposed_canonical_pos": "noun",
+      "clitic_signals": {
+        "enc0": "1s_poss"
+      },
+      "confidence_tier": "HIGH"
+    },
+    "1788": {
+      "outcome": "bogus_mle_error",
+      "agreement": true,
+      "reason_pass1": "مفضلة ends in ة (tā marbūṭa, U+0629), which is the feminine morphological ending of the adjective/noun مُفَضَّلَة 'favorite (f)'. The MLE has misread this ة as the 3ms possessive suffix ـه, producing the spurious clitic enc0=3ms_poss. مُفَضَّلَة is a self-standing feminine form; its canonical should be مُفَضَّلَة (or مُفَضَّل as a gender-shared lemma), but the decomposition path via 3ms_poss is phonologically and orthographically impossible: 3ms possession would be written مفضله (final ه), not مفضلة (final ة).",
+      "in_db_link_state": "linked",
+      "orphan_ar": "مفضلة",
+      "orphan_gloss": "favorite",
+      "orphan_db_pos": "noun",
+      "proposed_canonical_id": 1603,
+      "proposed_canonical_ar": "مُفَضَّل",
+      "proposed_canonical_gloss": "favorite",
+      "proposed_canonical_pos": "noun",
+      "clitic_signals": {
+        "enc0": "3ms_poss"
+      },
+      "confidence_tier": "HIGH",
+      "reason_pass2": "مفضلة ends in ة (U+0629, tā marbūṭa), the standard feminine morphological suffix of the Form II passive participle مُفَضَّلَة 'favorite (f)'. The 3ms possessive suffix is ـه (U+0647, hāʾ) — a completely different character. The MLE has conflated these two distinct graphemes, producing a phantom enc0=3ms_poss parse. No phonological or orthographic process converts ة into a possessive ه: possession would yield مفضّله, not مفضّلة. The word مُفَضَّلَة is a self-standing feminine form whose canonical is مُفَضَّل, but that link should be established via gender-inflection morphology, NOT via 3ms_poss clitic stripping. The decomposition path itself is bogus; the known ة → 3ms_poss misread failure mode applies exactly.",
+      "pass2_revised_verdict": "bogus_mle_error"
+    },
+    "1789": {
+      "outcome": "bogus_mle_error",
+      "agreement": true,
+      "reason_pass1": "نَرْوِيجِيَّة is the feminine nisba adjective 'Norwegian (f)', formed regularly from the masculine nisba نَرْوِيجِيّ with the feminine suffix ـيَّة. The instructions explicitly flag gender pairs of nisba adjectives as bogus_mle_error. The ة ending is the feminine nisba marker, not a 3ms possessive suffix. The masculine and feminine nisba forms are separate dictionary entries (different morphological paradigms), so mapping the feminine to the masculine via 3ms_poss is incorrect.",
+      "in_db_link_state": "linked",
+      "orphan_ar": "نَرْوِيجِيَّة",
+      "orphan_gloss": "Norwegian",
+      "orphan_db_pos": "adj",
+      "proposed_canonical_id": 1981,
+      "proposed_canonical_ar": "نُرْويجي",
+      "proposed_canonical_gloss": "Norwegian",
+      "proposed_canonical_pos": "adj",
+      "clitic_signals": {
+        "enc0": "3ms_poss"
+      },
+      "confidence_tier": "HIGH",
+      "reason_pass2": "نَرْوِيجِيَّة is the feminine nisba adjective 'Norwegian (f)', formed by appending the feminine nisba suffix ـيَّة (which terminates in ة, U+0629) to the masculine base نَرْوِيجِيّ. The MLE has again misread this terminal ة as the 3ms possessive ه (U+0647), generating a spurious enc0=3ms_poss analysis. The two characters are orthographically and phonologically distinct; the feminine nisba ـيَّة can never be a possessive suffix. The masculine nisba نُرْويجي is a plausible canonical lemma for this adjective, but the decomposition path via 3ms_poss is factually impossible — the ة → 3ms_poss failure mode applies directly here as well. The link as a gender-inflection pair might be valid under a different morphological treatment, but the clitic-decomposition link via 3ms_poss is bogus.",
+      "pass2_revised_verdict": "bogus_mle_error"
+    },
+    "1793": {
+      "outcome": "confirmed_valid_link",
+      "agreement": true,
+      "reason_pass1": "رَأْيِي = رَأْي (opinion) + ي (1s_poss enclitic). The canonical رَأْيٌ carries a tanwīn that is purely an inflectional citation marker, not a clitic. The 1s possessive ي attaches to the bare stem رَأْي regularly. Gloss 'my opinion' matches perfectly.",
+      "in_db_link_state": "linked",
+      "orphan_ar": "رَأْيِي",
+      "orphan_gloss": "my opinion",
+      "orphan_db_pos": "noun",
+      "proposed_canonical_id": 1260,
+      "proposed_canonical_ar": "رَأْيٌ",
+      "proposed_canonical_gloss": "opinion, view",
+      "proposed_canonical_pos": "noun",
+      "clitic_signals": {
+        "enc0": "1s_poss"
+      },
+      "confidence_tier": "HIGH"
+    },
+    "1801": {
+      "outcome": "confirmed_valid_link",
+      "agreement": true,
+      "reason_pass1": "وَلَها = وَ (wa_conj prc2) + لَ (prep لـِ) + ها (3fs pronoun enc0). Arabic لَها / لها 'for her / she has' is a standard preposition+pronoun combination; the wa- conjunction prefix is an additional genuine proclitic. The orphan gloss 'and she has' (existential use of لـِ + 3fs) matches the decomposition.",
+      "in_db_link_state": "linked",
+      "orphan_ar": "وَلَها",
+      "orphan_gloss": "and she has",
+      "orphan_db_pos": "prep",
+      "proposed_canonical_id": 452,
+      "proposed_canonical_ar": "لـِ",
+      "proposed_canonical_gloss": "to",
+      "proposed_canonical_pos": "prep",
+      "clitic_signals": {
+        "prc2": "wa_conj",
+        "enc0": "3fs_pron"
+      },
+      "confidence_tier": "HIGH"
+    },
+    "1802": {
+      "outcome": "confirmed_valid_link",
+      "agreement": true,
+      "reason_pass1": "وَأُخْت = وَ (wa- conjunction, prc2) + أُخْت (sister). Single conjunction proclitic attached to a common noun; gloss 'and a sister' matches exactly.",
+      "in_db_link_state": "linked",
+      "orphan_ar": "وَأُخْت",
+      "orphan_gloss": "and a sister",
+      "orphan_db_pos": "noun",
+      "proposed_canonical_id": 78,
+      "proposed_canonical_ar": "أُخْت",
+      "proposed_canonical_gloss": "sister",
+      "proposed_canonical_pos": "",
+      "clitic_signals": {
+        "prc2": "wa_sub"
+      },
+      "confidence_tier": "LOW"
+    },
+    "1803": {
+      "outcome": "confirmed_valid_link",
+      "agreement": true,
+      "reason_pass1": "أَخوها = أَخ (defective noun 'brother') + وـ connector vowel + ها 3fs possessive suffix. Defective nouns of this class (أخ، أب، حم) take a wāw connector before pronoun suffixes, so أخوها 'her brother' is a textbook possessive compound. Gloss and clitic signal both align perfectly.",
+      "in_db_link_state": "linked",
+      "orphan_ar": "أَخوها",
+      "orphan_gloss": "her brother",
+      "orphan_db_pos": "noun",
+      "proposed_canonical_id": 75,
+      "proposed_canonical_ar": "أَخ",
+      "proposed_canonical_gloss": "brother",
+      "proposed_canonical_pos": "",
+      "clitic_signals": {
+        "enc0": "3fs_poss"
+      },
+      "confidence_tier": "HIGH"
+    },
+    "1806": {
+      "outcome": "confirmed_valid_link",
+      "agreement": true,
+      "reason_pass1": "لَها = لِ (preposition 'to/for') + ها (3fs pronoun enclitic). This is the standard Arabic prep+pronoun fusion: لِ + ها → لَها 'to her / for her'. POS, gloss, and clitic all agree.",
+      "in_db_link_state": "unlinked",
+      "orphan_ar": "لَها",
+      "orphan_gloss": "to her",
+      "orphan_db_pos": "prep",
+      "proposed_canonical_id": 452,
+      "proposed_canonical_ar": "لـِ",
+      "proposed_canonical_gloss": "to",
+      "proposed_canonical_pos": "prep",
+      "clitic_signals": {
+        "enc0": "3fs_pron"
+      },
+      "confidence_tier": "HIGH"
+    },
+    "1809": {
+      "outcome": "confirmed_valid_link",
+      "agreement": true,
+      "reason_pass1": "وَتَبْتَسِم = وَ (conjunctive/coordinating prefix) + تَبْتَسِم (3fs imperfect of اِبْتَسَمَ 'to smile'). The canonical اِبْتَسَمَ is the correct dictionary lemma; prc2:wa_sub is a genuine conjunction prefix. Gloss 'and she smiles' matches perfectly.",
+      "in_db_link_state": "unlinked",
+      "orphan_ar": "وَتَبْتَسِم",
+      "orphan_gloss": "and she smiles",
+      "orphan_db_pos": "verb",
+      "proposed_canonical_id": 2535,
+      "proposed_canonical_ar": "اِبْتَسَمَ",
+      "proposed_canonical_gloss": "to smile",
+      "proposed_canonical_pos": "verb",
+      "clitic_signals": {
+        "prc2": "wa_sub"
+      },
+      "confidence_tier": "LOW"
+    },
+    "1817": {
+      "outcome": "bogus_mle_error",
+      "agreement": true,
+      "reason_pass1": "كَنَارِي means 'canary' (the bird), a loan-word from Spanish/Portuguese 'canario'. It is its own independent dictionary lemma. CAMeL has mis-segmented it as كَ (like/as) + نَار (fire) + ي (1s_poss) = 'like my fire', which is semantically and morphologically absurd. The proposed canonical نَارٌ 'fire' is an entirely different root and lemma.",
+      "in_db_link_state": "unlinked",
+      "orphan_ar": "كَنَارِي",
+      "orphan_gloss": "canary",
+      "orphan_db_pos": "noun",
+      "proposed_canonical_id": 562,
+      "proposed_canonical_ar": "نَارٌ",
+      "proposed_canonical_gloss": "fire",
+      "proposed_canonical_pos": "noun",
+      "clitic_signals": {
+        "prc1": "ka_prep",
+        "enc0": "1s_poss"
+      },
+      "confidence_tier": "HIGH",
+      "reason_pass2": "كَنَارِي is the Arabic loanword for 'canary' (the bird), borrowed from Spanish/Portuguese 'canario'. It is a standalone dictionary lemma with no morphological relationship to نَار 'fire'. The CAMeL MLE segmentation كَ+نَار+ي ('like my fire') is semantically absurd and produces clitic signals (ka_prep + 1s_poss) that have no natural possessive reading. The proposed canonical نَارٌ is from a completely different root. This is a clear bogus MLE mis-segmentation of a foreign loanword.",
+      "pass2_revised_verdict": "bogus_mle_error"
+    },
+    "1834": {
+      "outcome": "confirmed_valid_link",
+      "agreement": true,
+      "reason_pass1": "صَدِيقِي = صَدِيق (friend) + ي (1s possessive enclitic). 'My friend' is a standard possessive noun phrase. POS (noun), gloss, and clitic signal all align.",
+      "in_db_link_state": "linked",
+      "orphan_ar": "صَدِيقِي",
+      "orphan_gloss": "my friend",
+      "orphan_db_pos": "noun",
+      "proposed_canonical_id": 1500,
+      "proposed_canonical_ar": "صَدِيق",
+      "proposed_canonical_gloss": "friend",
+      "proposed_canonical_pos": "noun",
+      "clitic_signals": {
+        "enc0": "1s_poss"
+      },
+      "confidence_tier": "HIGH"
+    },
+    "1846": {
+      "outcome": "bogus_mle_error",
+      "agreement": true,
+      "reason_pass1": "Classic tā marbūṭa misread. خَالَةُ 'maternal aunt' is an independent feminine noun with ة as its feminine morpheme (and tanwin ُ marking nominative indefinite — not a suffix). CAMeL has misread the ة as a 3ms direct-object suffix ـه and proposed the masculine خَالٌ 'maternal uncle' as canonical. These are two distinct dictionary lemmas (خَالَة vs خَالٌ). Furthermore, a 3ms_dobj clitic on a noun is grammatically incoherent in this context.",
+      "in_db_link_state": "linked",
+      "orphan_ar": "خَالَةُ",
+      "orphan_gloss": "maternal aunt",
+      "orphan_db_pos": "noun",
+      "proposed_canonical_id": 960,
+      "proposed_canonical_ar": "خَالٌ",
+      "proposed_canonical_gloss": "maternal uncle",
+      "proposed_canonical_pos": "noun",
+      "clitic_signals": {
+        "enc0": "3ms_dobj"
+      },
+      "confidence_tier": "HIGH",
+      "reason_pass2": "خَالَةُ 'maternal aunt' is a fully independent feminine noun; the ة is the feminine morpheme (tā' marbūṭa) and the ُ is the nominative indefinite case ending, together confirming a standalone base form. There is no possessive pronoun present. The enc0=3ms_dobj signal is additionally incoherent — a 3ms direct-object clitic attaches to verbs, not to nouns. Both signals (wrong suffix type, tā marbūṭa misread as ـه) point to a CAMeL MLE failure. خَالَة 'maternal aunt' and خَالٌ 'maternal uncle' are separate lexical entries; the proposed canonical is wrong.",
+      "pass2_revised_verdict": "bogus_mle_error"
+    },
+    "1848": {
+      "outcome": "confirmed_valid_link",
+      "agreement": true,
+      "reason_pass1": "زَوْجُهَا = زَوْج (husband) + ها (3fs possessive enclitic). 'Her husband' is a standard possessive compound. Gloss and clitic signal align.",
+      "in_db_link_state": "linked",
+      "orphan_ar": "زَوْجُهَا",
+      "orphan_gloss": "her husband",
+      "orphan_db_pos": "noun",
+      "proposed_canonical_id": 184,
+      "proposed_canonical_ar": "زَوج",
+      "proposed_canonical_gloss": "husband",
+      "proposed_canonical_pos": "",
+      "clitic_signals": {
+        "enc0": "3fs_poss"
+      },
+      "confidence_tier": "HIGH"
+    },
+    "1865": {
+      "outcome": "confirmed_valid_link",
+      "agreement": true,
+      "reason_pass1": "عَمِّي = عَمّ (paternal uncle, geminate root ع-م-م) + ي (1s possessive enclitic). The gemination of م is the expected phonological result when ي attaches to the geminate stem. 'My paternal uncle' matches canonical, gloss, and clitic perfectly.",
+      "in_db_link_state": "unlinked",
+      "orphan_ar": "عَمِّي",
+      "orphan_gloss": "my paternal uncle",
+      "orphan_db_pos": "noun",
+      "proposed_canonical_id": 2364,
+      "proposed_canonical_ar": "عَمّ",
+      "proposed_canonical_gloss": "paternal uncle",
+      "proposed_canonical_pos": "noun",
+      "clitic_signals": {
+        "enc0": "1s_poss"
+      },
+      "confidence_tier": "HIGH"
+    },
+    "1868": {
+      "outcome": "bogus_mle_error",
+      "agreement": true,
+      "reason_pass1": "Classic tā marbūṭa misread. عَمَّةٌ 'paternal aunt' is an independent feminine noun derived from عَمّ by adding the feminine suffix ة. The tanwin ٌ on the ة marks it as nominative indefinite — confirming it is a standalone base form, not a possessive compound. CAMeL has misread the ة as a 3ms_poss suffix ـه and proposed عَمّ 'paternal uncle' as canonical. عَمَّة and عَمّ are separate dictionary lemmas.",
+      "in_db_link_state": "unlinked",
+      "orphan_ar": "عَمَّةٌ",
+      "orphan_gloss": "paternal aunt",
+      "orphan_db_pos": "noun",
+      "proposed_canonical_id": 2364,
+      "proposed_canonical_ar": "عَمّ",
+      "proposed_canonical_gloss": "paternal uncle",
+      "proposed_canonical_pos": "noun",
+      "clitic_signals": {
+        "enc0": "3ms_poss"
+      },
+      "confidence_tier": "HIGH",
+      "reason_pass2": "عَمَّةٌ 'paternal aunt' carries tanwin (nunation: ٌ) on the final ة, which is the definitive marker of an indefinite standalone noun in the nominative case. A genuine 3ms possessive form would be عَمَّتُهُ (construct state, no tanwin, with the pronoun ـه attached). The tanwin alone rules out the possessive reading. This is the classic tā marbūṭa → 3ms_poss misread documented in the project's known failure modes. عَمَّة 'paternal aunt' and عَمّ 'paternal uncle' are distinct dictionary lemmas; the proposed canonical is wrong.",
+      "pass2_revised_verdict": "bogus_mle_error",
+      "suggested_canonical_bare": "عَمَّة"
+    },
+    "1869": {
+      "outcome": "confirmed_valid_link",
+      "agreement": true,
+      "reason_pass1": "عَمَّتِي = عَمَّة (paternal aunt) + ي (1s possessive enclitic). When the 1s suffix attaches to a tā marbūṭa noun, the ة regularly surfaces as ت (عَمَّة + ي → عَمَّتِي). The proposed canonical عَمَّةٌ is the correct base lemma, gloss matches 'my paternal aunt', and the clitic 1s_poss is phonologically and grammatically sound.",
+      "in_db_link_state": "linked",
+      "orphan_ar": "عَمَّتِي",
+      "orphan_gloss": "my paternal aunt",
+      "orphan_db_pos": "noun",
+      "proposed_canonical_id": 1868,
+      "proposed_canonical_ar": "عَمَّةٌ",
+      "proposed_canonical_gloss": "paternal aunt",
+      "proposed_canonical_pos": "noun",
+      "clitic_signals": {
+        "enc0": "1s_poss"
+      },
+      "confidence_tier": "HIGH"
+    },
+    "1874": {
+      "outcome": "bogus_mle_error",
+      "agreement": true,
+      "reason_pass1": "مُصَوِّرَةٌ is the feminine form of the active-participle noun 'photographer,' marked by tā marbūṭa (ة) PLUS nunation (ـٌ = indefinite nominative). The tanwīn alone proves this is not a possessive suffix — a 3ms possessive would yield مُصَوِّرُهُ/مُصَوِّرَتُهُ, not *مُصَوِّرَةٌ. CAMeL has misread the feminine ة as enc0:3ms_poss and stripped it to produce the masculine canonical مُصَوِّر. Per the gender-pair rule, مُصَوِّرَة (fem.) is a separate dictionary entry from مُصَوِّر (masc.); the decomposition is invalid.",
+      "in_db_link_state": "linked",
+      "orphan_ar": "مُصَوِّرَةٌ",
+      "orphan_gloss": "photographer",
+      "orphan_db_pos": "noun",
+      "proposed_canonical_id": 1853,
+      "proposed_canonical_ar": "مُصَوِّر",
+      "proposed_canonical_gloss": "photographer",
+      "proposed_canonical_pos": "noun",
+      "clitic_signals": {
+        "enc0": "3ms_poss"
+      },
+      "confidence_tier": "HIGH",
+      "reason_pass2": "مُصَوِّرَةٌ bears both tā marbūṭa (ة) AND tanwīn ḍamma (ـٌ). Tanwīn marks indefiniteness, which is categorically incompatible with a possessive suffix — a 3ms possessive on the feminine form would yield مُصَوِّرَتُهُ, never *مُصَوِّرَةٌ. The gloss 'photographer' (feminine) confirms this is a standalone fem. active-participle noun. CAMeL MLE has misread ة as enc0:3ms_poss; the masculine مُصَوِّر is a related lemma but not the canonical of this form. Bogus MLE error.",
+      "pass2_revised_verdict": "bogus_mle_error"
+    },
+    "1888": {
+      "outcome": "bogus_mle_error",
+      "agreement": true,
+      "reason_pass1": "رَبَّةُ ('mistress of') is a feminine noun whose ة is the tā marbūṭa feminine ending (the ُ is a simple nominative case vowel). CAMeL misreads the ة as enc0:3ms_poss and proposes the canonical رَبَّ (VERB, 'to be master/lord') — a POS mismatch (noun→verb) that is semantically incoherent. The real canonical, if needed, would be the noun رَبّ ('lord/master'), not the verb. Doubly bogus: wrong ة interpretation + wrong POS/lemma.",
+      "in_db_link_state": "unlinked",
+      "orphan_ar": "رَبَّةُ",
+      "orphan_gloss": "mistress of",
+      "orphan_db_pos": "noun",
+      "proposed_canonical_id": 968,
+      "proposed_canonical_ar": "رَبَّ",
+      "proposed_canonical_gloss": "to be master, to be lord",
+      "proposed_canonical_pos": "verb",
+      "clitic_signals": {
+        "enc0": "3ms_poss"
+      },
+      "confidence_tier": "HIGH",
+      "reason_pass2": "رَبَّةُ is a feminine noun ('mistress/lady of') in construct state or nominative; the ة is tā marbūṭa and ُ is the case vowel. A 3ms possessive would produce رَبُّهُ (masc.) or رَبَّتُهُ (fem.), not رَبَّةُ. Beyond the ة misread, the proposed canonical رَبَّ is a verb ('to master/lord') — POS mismatch with a noun orphan. The correct base, if needed, is the noun رَبّ. Doubly bogus: wrong morphological interpretation of ة plus wrong POS/lemma in the canonical.",
+      "pass2_revised_verdict": "bogus_mle_error"
+    },
+    "1889": {
+      "outcome": "wrong_canonical_real_compound",
+      "agreement": true,
+      "reason_pass1": "قِطَّتِي is a genuine compound: قِطَّة ('cat', feminine noun) + ي (enc0:1s_poss, 'my') = 'my cat.' The 1s possessive clitic is correctly identified. However, the proposed canonical قَطَّ (VERB, 'to carve') is completely wrong — it is an unrelated root. The real canonical is the feminine noun قِطَّة ('cat').",
+      "in_db_link_state": "linked",
+      "orphan_ar": "قِطَّتِي",
+      "orphan_gloss": "my cat",
+      "orphan_db_pos": "noun",
+      "proposed_canonical_id": 490,
+      "proposed_canonical_ar": "قَطَّ",
+      "proposed_canonical_gloss": "to carve",
+      "proposed_canonical_pos": "verb",
+      "clitic_signals": {
+        "enc0": "1s_poss"
+      },
+      "confidence_tier": "HIGH",
+      "reason_pass2": "قِطَّتِي is a genuine compound: feminine noun قِطَّة ('cat') + 1s possessive ـِي ('my') → 'my cat.' Before a pronominal suffix, tā marbūṭa predictably becomes tā maftūḥa (ة → ت), so the surface form قِطَّتِي is exactly what correct morphology predicts. The enc0:1s_poss signal is therefore valid. However, the proposed canonical قَطَّ (verb 'to carve', root ق-ط-ط) is completely unrelated; the correct canonical is the feminine noun قِطَّة. Real compound, wrong canonical.",
+      "pass2_revised_verdict": "wrong_canonical_real_compound",
+      "suggested_canonical_bare": "قِطَّة"
+    },
+    "1913": {
+      "outcome": "bogus_mle_error",
+      "agreement": true,
+      "reason_pass1": "طبيبة is the feminine form of طبيب ('doctor'), formed by the standard tā marbūṭa feminine suffix. CAMeL misreads ة as enc0:3ms_poss and proposes the masculine طَبِيب as canonical. The ة here carries no possessive meaning — a possessive form would be طبيبُهُ ('his doctor'), not طبيبة ('female doctor'). By the gender-pair rule, طبيبة is a separate lexical entry and its own dictionary lemma.",
+      "in_db_link_state": "linked",
+      "orphan_ar": "طبيبة",
+      "orphan_gloss": "female doctor",
+      "orphan_db_pos": "noun",
+      "proposed_canonical_id": 274,
+      "proposed_canonical_ar": "طَبِيب",
+      "proposed_canonical_gloss": "doctor",
+      "proposed_canonical_pos": "noun",
+      "clitic_signals": {
+        "enc0": "3ms_poss"
+      },
+      "confidence_tier": "HIGH",
+      "reason_pass2": "طبيبة is the standard feminine counterpart of طبيب, formed by tā marbūṭa. The gloss 'female doctor' confirms it is a standalone lexical entry, not a possessive form. A 3ms possessive would be طبيبُهُ ('his doctor'), and the ة here carries no possessive semantics whatsoever. CAMeL MLE has misread the feminine ة as enc0:3ms_poss, yielding the masculine طَبِيب as canonical. By the gender-pair principle, طبيبة is its own lemma. Bogus MLE error.",
+      "pass2_revised_verdict": "bogus_mle_error"
+    },
+    "1933": {
+      "outcome": "bogus_mle_error",
+      "agreement": true,
+      "reason_pass1": "إِمَارَاتِيّ is a nisba adjective ('Emirati') formed by the derivational suffix ـِيّ appended to the toponym إِمَارَات ('Emirates'). The ـِيّ is a word-formation morpheme, not a 1s possessive clitic; CAMeL's enc0:1s_poss analysis is phonologically and morphologically impossible (a 1s possessive on a ـت-final plural would yield إِمَارَاتِي with short final kasra, but the long ـِيّ is the nisba marker). Additionally, the proposed canonical إِمَارَة (singular 'emirate') is the wrong base — the nisba derives from the plural إِمَارَات. إِمَارَاتِيّ is its own dictionary adjective lemma.",
+      "in_db_link_state": "unlinked",
+      "orphan_ar": "إِمَارَاتِيّ",
+      "orphan_gloss": "Emirati",
+      "orphan_db_pos": "adj",
+      "proposed_canonical_id": 2409,
+      "proposed_canonical_ar": "إِمَارَة",
+      "proposed_canonical_gloss": "emirate",
+      "proposed_canonical_pos": "noun",
+      "clitic_signals": {
+        "enc0": "1s_poss"
+      },
+      "confidence_tier": "HIGH",
+      "reason_pass2": "إِمَارَاتِيّ is a nisba adjective ('Emirati'), formed by the derivational suffix ـِيّ (with shadda — written doubled) applied to the toponym إِمَارَات. The nisba ـِيّ is a lexeme-creating derivational morpheme, not the pronominal 1s possessive clitic ـِي (short, no shadda). The two are orthographically and morphologically distinct. CAMeL conflating them is a systematic failure mode on nisba forms. إِمَارَاتِيّ is an independent adjective lemma and cannot be reduced to إِمَارَة + possessive. Bogus MLE error.",
+      "pass2_revised_verdict": "bogus_mle_error"
+    },
+    "1934": {
+      "outcome": "bogus_mle_error",
+      "agreement": true,
+      "reason_pass1": "عُمَانِيّ is a nisba adjective ('Omani') formed by the derivational suffix ـِيّ on the toponym عُمَان ('Oman'). As with entry 5, ـِيّ is a derivational nisba morpheme, not an enc0:1s_poss clitic. Nisba adjectives are independent dictionary lemmas; عُمَانِيّ cannot be reduced to عُمَان + possessive. The proposed canonical عُمَانُ is the correct base noun, but the clitic signal and the compound interpretation are both invalid.",
+      "in_db_link_state": "unlinked",
+      "orphan_ar": "عُمَانِيّ",
+      "orphan_gloss": "Omani",
+      "orphan_db_pos": "adj",
+      "proposed_canonical_id": 1044,
+      "proposed_canonical_ar": "عُمَانُ",
+      "proposed_canonical_gloss": "Amman or Oman",
+      "proposed_canonical_pos": "noun",
+      "clitic_signals": {
+        "enc0": "1s_poss"
+      },
+      "confidence_tier": "HIGH",
+      "reason_pass2": "عُمَانِيّ is a nisba adjective ('Omani') formed by the derivational suffix ـِيّ on the toponym عُمَان. Like entry 5, the shadda-bearing ـِيّ is derivational morphology, not the 1s possessive clitic ـِي. Although عُمَانُ is indeed the correct etymological base for the nisba, the clitic segmentation framework does not apply to derivational suffixes: عُمَانِيّ is its own independent adjective lemma. The enc0:1s_poss signal is a MLE misclassification of the nisba morpheme. Bogus MLE error.",
+      "pass2_revised_verdict": "bogus_mle_error"
+    },
+    "1952": {
+      "outcome": "bogus_mle_error",
+      "agreement": true,
+      "reason_pass1": "بحرين is the proper noun 'Bahrain' — an indivisible toponymic lemma. The proposed canonical الحُرَّة ('free', feminine definite adjective) is phonologically and semantically unrelated. Even if a بِ- prefix were stripped from بحرين, the residue would be حرين, not الحُرَّة. The entire decomposition is a complete mismatch; CAMeL has hallucinated a bi_prep where none exists.",
+      "in_db_link_state": "unlinked",
+      "orphan_ar": "بحرين",
+      "orphan_gloss": "Bahrain",
+      "orphan_db_pos": "noun",
+      "proposed_canonical_id": 2766,
+      "proposed_canonical_ar": "الحُرَّة",
+      "proposed_canonical_gloss": "free",
+      "proposed_canonical_pos": "adj",
+      "clitic_signals": {
+        "prc1": "bi_prep"
+      },
+      "confidence_tier": "HIGH",
+      "reason_pass2": "بحرين is the proper noun 'Bahrain' — an indivisible toponym (historically 'two seas' but treated as a fixed proper name). The proposed canonical الحُرَّة ('free', fem. adj.) is phonologically unrelated: stripping a بِ- prefix from بحرين would yield حرين, not الحُرَّة. There is no path from any legitimate segmentation of بحرين to الحُرَّة. CAMeL has produced a wholly hallucinated analysis with no morphological coherence. Bogus MLE error.",
+      "pass2_revised_verdict": "bogus_mle_error"
+    },
+    "2016": {
+      "outcome": "bogus_mle_error",
+      "agreement": true,
+      "reason_pass1": "وَشَّم ('tattoo') is an independent Arabic lexical item (noun وَشْم / verb وَشَّمَ, root و-ش-م). CAMeL incorrectly treats the initial وَ as a coordinating conjunction prefix (prc2:wa_sub) and strips it to yield شَمّ ('smell/smelling') — a completely different root (ش-م-م). The consonant gemination in وَشَّم belongs to the root, not to any clitic. وَشَّم/وَشْم is its own dictionary lemma.",
+      "in_db_link_state": "unlinked",
+      "orphan_ar": "وَشَّم",
+      "orphan_gloss": "tattoo",
+      "orphan_db_pos": "noun",
+      "proposed_canonical_id": 2523,
+      "proposed_canonical_ar": "شَمّ",
+      "proposed_canonical_gloss": "smelling/smell",
+      "proposed_canonical_pos": "noun",
+      "clitic_signals": {
+        "prc2": "wa_sub"
+      },
+      "confidence_tier": "LOW",
+      "reason_pass2": "وَشَّم ('tattoo') derives from the triconsonantal root و-ش-م (Form II verb وَشَّمَ, verbal noun وَشْم/وَشَّم); the initial و is root-initial, not a conjunction prefix. CAMeL misreads وَ as prc2:wa_sub (coordinating conjunction) and strips it to yield شَمّ ('smell/smelling', root ش-م-م) — an entirely different root. The gemination (شّ) in وَشَّم belongs to the Form II pattern on root و-ش-م, not to any prefix+stem analysis. وَشَّم/وَشْم is its own dictionary lemma. Bogus MLE error.",
+      "pass2_revised_verdict": "bogus_mle_error"
+    },
+    "2058": {
+      "outcome": "confirmed_valid_link",
+      "agreement": true,
+      "reason_pass1": "لذلك is a genuine clitic compound: the prepositional prefix لِ (prc1:li_prep) + demonstrative pronoun ذلِكَ ('that, masc.') = 'for that / therefore.' The لِ- prefix is a standard Arabic procliticised preposition; ذلِكَ is the correct canonical demonstrative. The fact that the compound has grammaticalized into a discourse particle meaning 'therefore' is expected lexicalization — it does not invalidate the underlying morphological decomposition. The link is valid.",
+      "in_db_link_state": "unlinked",
+      "orphan_ar": "لذلك",
+      "orphan_gloss": "therefore",
+      "orphan_db_pos": "particle",
+      "proposed_canonical_id": 443,
+      "proposed_canonical_ar": "ذلِكَ",
+      "proposed_canonical_gloss": "that (masc.)",
+      "proposed_canonical_pos": "pron",
+      "clitic_signals": {
+        "prc1": "li_prep"
+      },
+      "confidence_tier": "HIGH"
+    },
+    "2062": {
+      "outcome": "confirmed_valid_link",
+      "agreement": true,
+      "reason_pass1": "عندما is a standard Arabic temporal conjunction formed transparently by the preposition/particle عِنْد ('at, with') + the subordinating particle مَا (enc0:mA_sub) = 'when.' This is a well-documented Arabic grammatical construction. The clitic signal mA_sub is correctly identified; عِنْد is the correct canonical base. The empty canonical_pos is a data gap but does not affect the validity of the decomposition.",
+      "in_db_link_state": "unlinked",
+      "orphan_ar": "عندما",
+      "orphan_gloss": "when",
+      "orphan_db_pos": "particle",
+      "proposed_canonical_id": 152,
+      "proposed_canonical_ar": "عِنْد",
+      "proposed_canonical_gloss": "at; to have",
+      "proposed_canonical_pos": "",
+      "clitic_signals": {
+        "enc0": "mA_sub"
+      },
+      "confidence_tier": "HIGH"
+    },
+    "2070": {
+      "outcome": "confirmed_valid_link",
+      "agreement": true,
+      "reason_pass1": "لقد is the standard Classical/Quranic construction of the emphatic lam (لَ‍, prc1 la_emph) prefixed to قَدْ (particle 'already/indeed'). The compound لَقَدْ is one of the most frequent fixed collocations in Arabic and the canonical قد is correct. Decomposition is linguistically valid.",
+      "in_db_link_state": "unlinked",
+      "orphan_ar": "لقد",
+      "orphan_gloss": "indeed",
+      "orphan_db_pos": "particle",
+      "proposed_canonical_id": 2054,
+      "proposed_canonical_ar": "قد",
+      "proposed_canonical_gloss": "already",
+      "proposed_canonical_pos": "particle",
+      "clitic_signals": {
+        "prc1": "la_emph"
+      },
+      "confidence_tier": "HIGH"
+    },
+    "2071": {
+      "outcome": "wrong_canonical_real_compound",
+      "agreement": true,
+      "reason_pass1": "The orphan انه is إنَّهُ = إنَّ (emphatic/assertive particle 'indeed/that') + هُ (3ms pronoun enclitic). The orphan IS a genuine particle+pronoun compound, but the proposed canonical آنٌ 'time' (noun) is completely wrong — it confuses the unvoweled string ان with آن. The correct canonical is the particle إنَّ.",
+      "in_db_link_state": "unlinked",
+      "orphan_ar": "انه",
+      "orphan_gloss": "indeed he",
+      "orphan_db_pos": "particle",
+      "proposed_canonical_id": 943,
+      "proposed_canonical_ar": "آنٌ",
+      "proposed_canonical_gloss": "time",
+      "proposed_canonical_pos": "noun",
+      "clitic_signals": {
+        "enc0": "3ms_pron"
+      },
+      "confidence_tier": "HIGH",
+      "reason_pass2": "انه unambiguously parses as إنَّهُ = إنَّ (emphatic assertive particle) + هُ (3ms pronominal enclitic), consistent with the gloss 'indeed he' and the DB POS 'particle'. The clitic attachment is genuine. However the proposed canonical آنٌ 'time' (noun) is entirely wrong — it confuses the unvoweled ان with the noun آن. The true canonical base is the particle إنَّ. This is a real compound with a wrong canonical, not a bogus MLE error.",
+      "pass2_revised_verdict": "wrong_canonical_real_compound",
+      "suggested_canonical_bare": "إنَّ"
+    },
+    "2072": {
+      "outcome": "wrong_canonical_real_compound",
+      "agreement": true,
+      "reason_pass1": "Same failure as id 2. انها = إنَّها = إنَّ (particle) + ها (3fs pronoun). A genuine compound with a real pronominal clitic, but the proposed canonical آنٌ 'time' (noun) is wrong. The correct canonical is the particle إنَّ.",
+      "in_db_link_state": "unlinked",
+      "orphan_ar": "انها",
+      "orphan_gloss": "indeed she",
+      "orphan_db_pos": "particle",
+      "proposed_canonical_id": 943,
+      "proposed_canonical_ar": "آنٌ",
+      "proposed_canonical_gloss": "time",
+      "proposed_canonical_pos": "noun",
+      "clitic_signals": {
+        "enc0": "3fs_pron"
+      },
+      "confidence_tier": "HIGH",
+      "reason_pass2": "انها parses as إنَّها = إنَّ (particle) + ها (3fs pronominal enclitic), consistent with gloss 'indeed she' and POS 'particle'. The enclitic attachment is genuine. The proposed canonical آنٌ 'time' (noun) is wrong for the same reason as id 1 — unvoweled ان read as آن. The correct canonical is إنَّ. Real compound, wrong canonical.",
+      "pass2_revised_verdict": "wrong_canonical_real_compound",
+      "suggested_canonical_bare": "إنَّ"
+    },
+    "2099": {
+      "outcome": "confirmed_valid_link",
+      "agreement": true,
+      "reason_pass1": "لَكَ is the standard Arabic form of the preposition لِ + كَ (2ms pronoun enclitic), meaning 'for you'. The shadda on كّ in the stored string is a likely encoding/diacritisation artefact, but the decomposition لِ + 2ms_pron is linguistically correct and unambiguous. The proposed canonical لِ is right.",
+      "in_db_link_state": "unlinked",
+      "orphan_ar": "لَكّ",
+      "orphan_gloss": "for",
+      "orphan_db_pos": "prep",
+      "proposed_canonical_id": 452,
+      "proposed_canonical_ar": "لـِ",
+      "proposed_canonical_gloss": "to",
+      "proposed_canonical_pos": "prep",
+      "clitic_signals": {
+        "enc0": "2ms_pron"
+      },
+      "confidence_tier": "HIGH"
+    },
+    "2144": {
+      "outcome": "bogus_mle_error",
+      "agreement": true,
+      "reason_pass1": "تَذْكَرَة 'ticket/memo' is an independent Arabic noun (taf'ila pattern, Form V verbal noun or established noun) ending in feminine tā marbūṭa ة. The ة is the feminine suffix of the noun, not a 3ms direct-object enclitic. The proposed canonical ذَكَرَ 'to mention' (verb) is a completely different dictionary entry. Classic ة → 3ms_dobj misread.",
+      "in_db_link_state": "unlinked",
+      "orphan_ar": "تَذْكَرَة",
+      "orphan_gloss": "ticket",
+      "orphan_db_pos": "noun",
+      "proposed_canonical_id": 572,
+      "proposed_canonical_ar": "ذَكَرَ",
+      "proposed_canonical_gloss": "to mention",
+      "proposed_canonical_pos": "verb",
+      "clitic_signals": {
+        "enc0": "3ms_dobj"
+      },
+      "confidence_tier": "HIGH",
+      "reason_pass2": "تَذْكَرَة 'ticket/memorandum' is an independent noun of the تَفْعِلَة pattern (Form V verbal noun / established lexeme). The final ة is the feminine suffix integral to the word, not a 3ms direct-object clitic. The proposed canonical ذَكَرَ 'to mention' would only arise if the MLE stripped ة as a clitic, which is a classic tā-marbūṭa misread. The word is indivisible and stands alone in any dictionary.",
+      "pass2_revised_verdict": "bogus_mle_error"
+    },
+    "2158": {
+      "outcome": "bogus_mle_error",
+      "agreement": true,
+      "reason_pass1": "عَرَبَة 'cart/wagon' is an independent Arabic noun ending in feminine tā marbūṭa ة. The ة is the feminine marker of the noun, not a 3ms possessive enclitic. The proposed canonical عَرَّبَ 'to translate into Arabic' (verb, Form II) is an entirely different lexeme with a different root pattern. Classic ة → 3ms_poss misread.",
+      "in_db_link_state": "unlinked",
+      "orphan_ar": "عَرَبَة",
+      "orphan_gloss": "cart",
+      "orphan_db_pos": "noun",
+      "proposed_canonical_id": 788,
+      "proposed_canonical_ar": "عَرَّبَ",
+      "proposed_canonical_gloss": "to translate into Arabic",
+      "proposed_canonical_pos": "verb",
+      "clitic_signals": {
+        "enc0": "3ms_poss"
+      },
+      "confidence_tier": "HIGH",
+      "reason_pass2": "عَرَبَة 'cart/wagon' is a standalone feminine noun (root ع-ر-ب, fa'ala pattern with tā marbūṭa). The ة is the feminine marker of the noun, not a 3ms possessive enclitic. The proposed canonical عَرَّبَ (Form II verb 'to translate into Arabic') is a completely different lexeme with geminated middle radical. No clitic stripping is involved — this is the canonical ة → 3ms_poss misread.",
+      "pass2_revised_verdict": "bogus_mle_error"
+    },
+    "2343": {
+      "outcome": "bogus_mle_error",
+      "agreement": true,
+      "reason_pass1": "صَيّادِيَة 'Sayadieh (dish)' ends in the feminine nisba suffix ـِيَّة (‑iyya + tā marbūṭa). The ة is part of the feminine nisba ending, not a 3ms possessive enclitic. The proposed canonical صَيَّاد 'hunter' is a separate dictionary lemma. Nisba feminine → 3ms_poss is a well-documented CAMeL MLE failure mode.",
+      "in_db_link_state": "unlinked",
+      "orphan_ar": "صَيّادِيَة",
+      "orphan_gloss": "Sayadieh (dish)",
+      "orphan_db_pos": "noun",
+      "proposed_canonical_id": 3127,
+      "proposed_canonical_ar": "صَيَّاد",
+      "proposed_canonical_gloss": "hunter",
+      "proposed_canonical_pos": "noun",
+      "clitic_signals": {
+        "enc0": "3ms_poss"
+      },
+      "confidence_tier": "HIGH",
+      "reason_pass2": "صَيّادِيَة ends in the feminine nisba suffix ـِيَّة (ـِيّ + ة). The entire ـِيَّة sequence is a morphological suffix of the noun; the ة is not a 3ms possessive enclitic. Sayadieh is a proper culinary noun derived from صَيَّاد 'fisherman/hunter' via nisba formation, making it a distinct lexical item. Treating ة as enc0=3ms_poss and listing صَيَّاد as the canonical is a standard nisba-feminine MLE misread.",
+      "pass2_revised_verdict": "bogus_mle_error"
+    },
+    "2462": {
+      "outcome": "bogus_mle_error",
+      "agreement": true,
+      "reason_pass1": "آنسة 'Miss/young woman' is a feminine active participle of the root أ-ن-س, ending in the feminine participle marker ة. The proposed canonical آنِسَة is essentially the same word (just with different diacritics), yet its POS is listed as 'verb', which is contradictory and signals a junk DB entry. The ة is the feminine participle ending, not a 3ms direct-object clitic. The orphan is its own dictionary lemma.",
+      "in_db_link_state": "unlinked",
+      "orphan_ar": "آنسة",
+      "orphan_gloss": "Miss, young woman",
+      "orphan_db_pos": "noun",
+      "proposed_canonical_id": 2307,
+      "proposed_canonical_ar": "آنِسَة",
+      "proposed_canonical_gloss": "Miss",
+      "proposed_canonical_pos": "verb",
+      "clitic_signals": {
+        "enc0": "3ms_dobj"
+      },
+      "confidence_tier": "HIGH",
+      "reason_pass2": "آنسة 'Miss/young woman' is a feminine active participle of root أ-ن-س (Form I: آنَسَ 'to be sociable/friendly'), and the ة is the feminine participle suffix, not a 3ms direct-object clitic. The proposed canonical آنِسَة is essentially the same word with different diacritics, yet is listed as POS 'verb', which is internally contradictory and indicates a corrupt or junk DB entry. The orphan itself is a valid standalone dictionary lemma.",
+      "pass2_revised_verdict": "bogus_mle_error"
+    },
+    "2530": {
+      "outcome": "bogus_mle_error",
+      "agreement": true,
+      "reason_pass1": "فَرَدَ 'to spread/unfold' is a sound triliteral verb with root ف-ر-د; the initial فَ is an integral root consonant, not a fa-conjunction prefix (prc2 fa_conj). Stripping فَ leaves رَدَ, which does not match the proposed canonical فَرْد in any case. Moreover, the proposed canonical's gloss 'to return' is wrong for فَرْد (which means 'individual/alone', a noun). Both the clitic claim and the proposed canonical are erroneous.",
+      "in_db_link_state": "unlinked",
+      "orphan_ar": "فَرَدَ",
+      "orphan_gloss": "to spread/unfold",
+      "orphan_db_pos": "verb",
+      "proposed_canonical_id": 2431,
+      "proposed_canonical_ar": "فَرْد",
+      "proposed_canonical_gloss": "to return",
+      "proposed_canonical_pos": "verb",
+      "clitic_signals": {
+        "prc2": "fa_conj"
+      },
+      "confidence_tier": "LOW",
+      "reason_pass2": "فَرَدَ 'to spread/unfold' is a sound triliteral verb with root ف-ر-د. The initial فَ is the first radical of the root, not a fa-conjunction prefix (prc2 fa_conj). If the MLE's analysis were correct, stripping فَ would leave رَدَ, but the proposed canonical is فَرْد 'individual' (a noun, not a verb), which doesn't even match the residue. Additionally, the proposed canonical's gloss 'to return' is wrong for فَرْد. Both the clitic segmentation and the canonical resolution are erroneous.",
+      "pass2_revised_verdict": "bogus_mle_error"
+    },
+    "2607": {
+      "outcome": "bogus_mle_error",
+      "agreement": true,
+      "reason_pass1": "سريرية (سَرِيرِيَّة) 'clinical' is a feminine nisba adjective (سرير → سريري → سريرية). The ة is the feminine suffix of the nisba, not a 3ms possessive enclitic. The proposed canonical سرير 'bed' is a different POS (noun) and a different lexeme. This is the standard nisba-feminine → 3ms_poss CAMeL MLE misread.",
+      "in_db_link_state": "unlinked",
+      "orphan_ar": "سريرية",
+      "orphan_gloss": "clinical",
+      "orphan_db_pos": "noun_prop",
+      "proposed_canonical_id": 1059,
+      "proposed_canonical_ar": "سرير",
+      "proposed_canonical_gloss": "bed, bedstead",
+      "proposed_canonical_pos": "noun",
+      "clitic_signals": {
+        "enc0": "3ms_poss"
+      },
+      "confidence_tier": "HIGH",
+      "reason_pass2": "سَرِيرِيَّة 'clinical' is a feminine nisba adjective (سرير → سريري → سريرية). The ة is the feminine suffix of the nisba ending ـِيَّة, not a 3ms possessive enclitic. The proposed canonical سرير 'bed/bedstead' would only arise by stripping ـِيَّة as if it were a clitic, which is the standard nisba-feminine → 3ms_poss CAMeL MLE failure mode documented in the project. The word is a complete, independent lexical item.",
+      "pass2_revised_verdict": "bogus_mle_error"
+    },
+    "2692": {
+      "outcome": "confirmed_valid_link",
+      "agreement": true,
+      "reason_pass1": "وتجارب = conjunction وَ (prc2 wa_sub) + تجارب, the broken plural of تَجْرِبَة. Linking a broken plural to its singular canonical lemma is standard Arabic morphological analysis, and وَ is a genuine Arabic clitic prefix. The orphan_db_pos of noun_prop is likely a mis-tagging in the DB rather than evidence against the decomposition; the gloss 'experiments' confirms this is the common noun, not a proper name. The link is linguistically valid.",
+      "in_db_link_state": "unlinked",
+      "orphan_ar": "وتجارب",
+      "orphan_gloss": "experiments",
+      "orphan_db_pos": "noun_prop",
+      "proposed_canonical_id": 2587,
+      "proposed_canonical_ar": "تَجْرِبَة",
+      "proposed_canonical_gloss": "experiment",
+      "proposed_canonical_pos": "noun",
+      "clitic_signals": {
+        "prc2": "wa_sub"
+      },
+      "confidence_tier": "LOW"
+    },
+    "2696": {
+      "outcome": "bogus_mle_error",
+      "agreement": true,
+      "reason_pass1": "الحاوي (orphan_db_pos: noun_prop, gloss 'Al-Hawi') is a proper noun — the famous medieval encyclopedic medical text by Al-Razi. It is a lexicalized title and its own dictionary lemma. Although the definite article ال is etymologically present, proper names like الحاوي, القاهرة, etc. are not productive ال+noun formations for vocabulary purposes. Linking it as a mere definite variant of the common noun حاوِي ('container') would corrupt the canonical-variant graph. The orphan must stand as its own lemma.",
+      "in_db_link_state": "unlinked",
+      "orphan_ar": "الحاوي",
+      "orphan_gloss": "Al-Hawi",
+      "orphan_db_pos": "noun_prop",
+      "proposed_canonical_id": 2694,
+      "proposed_canonical_ar": "حاوِي",
+      "proposed_canonical_gloss": "container",
+      "proposed_canonical_pos": "noun",
+      "clitic_signals": {
+        "prc0": "Al_det"
+      },
+      "confidence_tier": "MEDIUM",
+      "reason_pass2": "Re-evaluating from scratch: الحاوي is stored in the DB as noun_prop with the gloss 'Al-Hawi' — the famous medieval medical encyclopedia by Al-Razi (الحاوي في الطب). Although the word is etymologically ال + حاوي (active participle of حوى, 'the comprehensive/encompassing one'), it has been fully lexicalized as a proper noun / title and the DB records it as such. Linking it as a productive definite variant of the common noun حاوِي ('container') would (a) misrepresent the learner's encounter — they see a title, not a common-noun phrase — and (b) corrupt the canonical-variant graph by treating a frozen proper name as a live morphological derivation. The fact that حاوي also happens to be an Arabic common noun meaning 'container/encompasser' is coincidental from a vocabulary-learning standpoint. The MLE correctly identified the definite-article prefix but wrongly proposed a common-noun canonical for what is in practice a proper noun. Verdict: bogus_mle_error stands.",
+      "pass2_revised_verdict": "bogus_mle_error"
+    },
+    "2861": {
+      "outcome": "confirmed_valid_link",
+      "agreement": true,
+      "reason_pass1": "حَوْلَهُ = preposition/particle حَوْل ('around') + 3ms pronominal suffix هُ. 'Around him' is the expected meaning. No ة is involved; the terminal ـهُ is unambiguously a pronominal clitic. POS is consistent (orphan prep, canonical particle — حول is classified interchangeably as prep/particle). Textbook valid clitic attachment.",
+      "in_db_link_state": "unlinked",
+      "orphan_ar": "حَولَهُ",
+      "orphan_gloss": "around him",
+      "orphan_db_pos": "prep",
+      "proposed_canonical_id": 2033,
+      "proposed_canonical_ar": "حول",
+      "proposed_canonical_gloss": "around",
+      "proposed_canonical_pos": "particle",
+      "clitic_signals": {
+        "enc0": "3ms_poss"
+      },
+      "confidence_tier": "HIGH"
+    },
+    "2874": {
+      "outcome": "confirmed_valid_link",
+      "agreement": true,
+      "reason_pass1": "خَلَقَكُم = verb خَلَقَ (3ms perfect, 'created') + 2mp object pronoun suffix كُم. 'Created you (pl.)' is exactly what the form means. Both orphan and canonical are POS verb. The enc0 2mp_poss pronoun suffix on a verb functioning as a direct-object clitic is standard Arabic morphology. Fully valid decomposition.",
+      "in_db_link_state": "unlinked",
+      "orphan_ar": "خَلَقَكُم",
+      "orphan_gloss": "created you",
+      "orphan_db_pos": "verb",
+      "proposed_canonical_id": 2898,
+      "proposed_canonical_ar": "خَلَقَ",
+      "proposed_canonical_gloss": "created",
+      "proposed_canonical_pos": "verb",
+      "clitic_signals": {
+        "enc0": "2mp_poss"
+      },
+      "confidence_tier": "HIGH"
+    },
+    "2876": {
+      "outcome": "confirmed_valid_link",
+      "agreement": true,
+      "reason_pass1": "بِهِ = preposition بِ ('with/by') + 3ms pronoun suffix هُ. 'With it' is correct. Both orphan and canonical are POS prep. بِ + pronominal suffix is among the most productive and unambiguous clitic formations in Arabic. Fully valid.",
+      "in_db_link_state": "unlinked",
+      "orphan_ar": "به",
+      "orphan_gloss": "with it",
+      "orphan_db_pos": "prep",
+      "proposed_canonical_id": 457,
+      "proposed_canonical_ar": "بـِ",
+      "proposed_canonical_gloss": "with",
+      "proposed_canonical_pos": "prep",
+      "clitic_signals": {
+        "enc0": "3ms_pron"
+      },
+      "confidence_tier": "HIGH"
+    },
+    "2879": {
+      "outcome": "wrong_canonical_real_compound",
+      "agreement": true,
+      "reason_pass1": "مثله is genuinely a compound: مِثْل (noun/preposition, 'like, similar to') + 3ms pronominal suffix هُ = 'like it/him'. The orphan_db_pos (noun) and gloss ('like it') both confirm this. However, the proposed canonical مَثَلَ is the Form-I verb 'to appear/stand before' — a different root vocalization and a completely different lexeme. CAMeL has mis-vocalized the stem and picked the wrong canonical. The correct canonical is مِثْل (noun/quasi-preposition, 'like').",
+      "in_db_link_state": "unlinked",
+      "orphan_ar": "مثله",
+      "orphan_gloss": "like it",
+      "orphan_db_pos": "noun",
+      "proposed_canonical_id": 976,
+      "proposed_canonical_ar": "مَثَلَ",
+      "proposed_canonical_gloss": "to resemble, to look like",
+      "proposed_canonical_pos": "verb",
+      "clitic_signals": {
+        "enc0": "3ms_poss"
+      },
+      "confidence_tier": "HIGH",
+      "reason_pass2": "Re-evaluating from scratch: مثله with gloss 'like it' and orphan_db_pos noun clearly parses as مِثْل (quasi-preposition/noun, 'like, similar to') + 3ms pronominal suffix هُ = 'like it/him'. This is an extremely common and productive Arabic clitic construction; there is no ambiguity. The enc0=3ms_poss signal is genuine — the word ends in هُ (not ة), so there is no feminine-tā'-marbūṭa misread failure mode at play. The proposed canonical مَثَلَ ('to resemble', Form-I verb) is a completely different lexeme with a different vocalization of the stem (مَثَلَ vs مِثْل) and a different POS. CAMeL MLE mis-vocalized the stem and picked the wrong lemma. The compound itself (مِثْل + 3ms_poss) is real and valid; only the proposed canonical is wrong. The correct canonical is مِثْل. Verdict: wrong_canonical_real_compound stands.",
+      "pass2_revised_verdict": "wrong_canonical_real_compound",
+      "suggested_canonical_bare": "مِثْل"
+    }
+  },
+  "started_at": "2026-04-27T07:58:56",
+  "completed_at": "2026-04-27T08:47:47"
+}
