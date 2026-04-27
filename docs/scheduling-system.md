@@ -378,6 +378,8 @@ Graduation uses a tiered system. Tier 0/1/2 can fire on **any review** (includin
 
 **Tier 0 — First-correct instant graduation**: If a word's very first review is correct (rating ≥ 3, `times_seen` was 0), it graduates immediately. Data shows 0% lapse rate for fast graduates. FSRS safety net catches false positives.
 
+**Tier 0 working-memory gate** (2026-04-27): if the intro card was shown within `FAST_GRAD_INTRO_GAP = 10 minutes` of the first review, Tier 0 is **skipped** and the word advances Box 1→2 normally. Production data showed 6/6 traceable fast-grads happened within 60 seconds of the intro card (4/6 within 30s) — that's working memory of the intro card, not knowledge. Words with no intro card shown (e.g. encountered → auto-introduced via collateral) bypass the gate and still fast-grad.
+
 **Tier 1 — Perfect accuracy**: 100% accuracy + 3+ reviews → graduate from any box. No calendar-day or due-date requirement.
 
 **Tier 2 — High accuracy**: ≥80% accuracy + 4+ reviews + box ≥ 2 → graduate. No calendar-day or due-date requirement.
@@ -890,6 +892,23 @@ where SESSION_SCAFFOLD_DECAY = 0.5
 This prevents the same high-frequency scaffold words (e.g., طالب, أستاذ, جميل) from
 appearing in every sentence of a session. The decay is exponential but never reaches zero,
 so a sentence covering many due words can still win over a more diverse single-word sentence.
+
+#### Whole-Sentence Near-Duplicate Veto (2026-04-27)
+
+Per-word scaffold decay isn't enough when two sentences for the same target word share their
+entire lemma set (e.g. `صَامَ المُسْلِمُونَ رَمَضَانَ كُلَّهُ` vs.
+`يَصُومُ المُسْلِمُونَ شَهْرَ رَمَضَانَ كُلَّ سَنَةٍ`). A second hard veto applies in both the
+greedy cover loop and the acquisition-repetition loop:
+
+```
+JACCARD_VETO_THRESHOLD = 0.7
+veto if |cand_lemmas ∩ prior_lemmas| / |cand_lemmas ∪ prior_lemmas| ≥ 0.7
+```
+
+Vetoed candidates are removed from the pool entirely; the next-best candidate is picked. The
+veto fires after the greedy pick, so it doesn't affect scoring math — it only blocks selection.
+Cost: a target word may end up with fewer total exposures in a session if all its candidate
+sentences are mutually near-duplicate; that's the desired tradeoff (variety > raw count).
 
 #### Never-Reviewed Boost
 
@@ -1497,6 +1516,8 @@ remaining cards on the next card advance. See Section 8 "Sentence Pre-Warming" f
 | `LOW_TIER_BLOCK_BACKLOG` | 60 | Block low-tier sources (wiktionary, story_import, manual, flag_autocreate, unsourced) from auto-intro when box-1 acquiring count exceeds this |
 | Adaptive intro bands | 0→3→5 | Slots at <70%/70-85%/≥85% accuracy |
 | `SESSION_SCAFFOLD_DECAY` | 0.5 | Per-appearance multiplier for scaffold words already in session |
+| `JACCARD_VETO_THRESHOLD` | 0.7 | Hard veto: skip candidate sentence if lemma-set Jaccard ≥ this with any prior selection (2026-04-27) |
+| `FAST_GRAD_INTRO_GAP` | 10 min | Tier-0 instant-grad blocked if intro card was shown within this window (working-memory guard, 2026-04-27) |
 | `NEVER_REVIEWED_BOOST` | 5.0 | Score multiplier for sentences targeting acquiring words with 0 reviews OR 0% accuracy |
 | `LAPSED_BOOST` | 3.0 | Score multiplier for sentences targeting any due word in `lapsed` state — drives aggressive re-exposure after a miss |
 | `OVERDUE_ESCALATION_DAYS` | 0.5 | Start boosting score after this many days overdue |
@@ -1742,9 +1763,15 @@ intro cards. `experiment_intro_cards` in session response — retention-optimize
 (pattern, root family, etymology, mnemonic). Single "Continue" button, no self-assessment.
 Acknowledgement via `POST /api/review/experiment-intro-ack` sets `experiment_intro_shown_at`
 timestamp on ULK, preventing the card from appearing again and enforcing 7-day rescue card cooldown.
-**Dynamic cap** (2026-04-07): `min(10, 5 + unintro_backlog // 10)` via `_dynamic_intro_cap()`.
-Scales up after large imports (e.g. textbook scans with 60+ new words), drops to base 5 when
-backlog clears. Constants: `INTRO_CARDS_BASE = 5`, `INTRO_CARDS_MAX = 10`. Replaces fixed
+**Dynamic cap** (2026-04-07, tightened 2026-04-27): `min(6, 4 + unintro_backlog // 15)` via
+`_dynamic_intro_cap()`. Scales up after large imports, drops to base 4 when backlog clears.
+Constants: `INTRO_CARDS_BASE = 4`, `INTRO_CARDS_MAX = 6`. Tightened from 5/10 after production
+data showed 9/17 sessions placing intros in the final 25% — see `research/experiment-log.md`
+2026-04-27 entry. **End-of-session exclusion** (frontend, 2026-04-27): intros never emitted in
+the final 20% of the projected session — late-overflow intros are silently dropped and surface
+in the next session. **Sentence reorder** (frontend, 2026-04-27): intro-bearing sentences are
+placed in the front-middle, no-intro sentences fill the wind-down — guarantees the user
+finishes a session practicing, not facing a fresh-card flood. Replaces fixed
 `MAX_INTRO_CARDS_PER_SESSION = 5`. Variants whose canonical lemma is already known or learning
 skip intro cards entirely (prevents e.g. بنية intro when بني is known). **Auto-skip at render
 time**: if the user already answered a word correctly earlier in the session, its intro card is

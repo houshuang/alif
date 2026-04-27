@@ -9,11 +9,13 @@ from app.services.fsrs_service import create_new_card
 from app.services.sentence_selector import (
     FRESHNESS_BASELINE,
     INTRO_RESERVE_FRACTION,
+    JACCARD_VETO_THRESHOLD,
     MAX_AUTO_INTRO_PER_SESSION,
     SESSION_SCAFFOLD_DECAY,
     WordMeta,
     _difficulty_match_quality,
     _intro_slots_for_accuracy,
+    _is_near_duplicate_of_selected,
     _scaffold_freshness,
     build_session,
     compute_sentence_diversity_score,
@@ -551,8 +553,10 @@ class TestWithinSessionRepetition:
         db_session.add(lemma)
         db_session.flush()
 
-        # Known scaffold word
+        # Known scaffold words (distinct, so the two sentences aren't near-duplicates)
         _seed_word(db_session, 2, "ولد", "boy", due_hours=24)
+        _seed_word(db_session, 3, "بيت", "house", due_hours=24)
+        _seed_word(db_session, 4, "مدرسة", "school", due_hours=24)
 
         # Acquiring word due now
         naive_due = datetime(2020, 1, 1, 0, 0, 0)
@@ -568,11 +572,12 @@ class TestWithinSessionRepetition:
         )
         db_session.add(ulk)
 
-        # Two sentences containing the acquiring word
-        _seed_sentence(db_session, 1, "الكتاب ولد", "book boy", 1,
-                       [("الكتاب", 1), ("ولد", 2)])
-        _seed_sentence(db_session, 2, "ولد الكتاب", "boy book", 1,
-                       [("ولد", 2), ("الكتاب", 1)])
+        # Two sentences containing the acquiring word — different scaffold words so
+        # they're not near-duplicates (Jaccard veto would block identical lemma sets).
+        _seed_sentence(db_session, 1, "الكتاب في البيت", "book in house", 1,
+                       [("الكتاب", 1), ("بيت", 3)])
+        _seed_sentence(db_session, 2, "الكتاب مع الولد في المدرسة", "book with boy at school", 1,
+                       [("الكتاب", 1), ("ولد", 2), ("مدرسة", 4)])
         db_session.commit()
 
         result = build_session(db_session, limit=10)
@@ -712,6 +717,57 @@ class TestScaffoldDiversity:
         if items[0]["sentence_id"] == 1:
             assert items[1]["sentence_id"] == 3, \
                 "Unique scaffold sentence should be preferred over reused scaffold"
+
+
+class TestNearDuplicateVeto:
+    """Whole-sentence Jaccard veto must block near-identical sentence pairs."""
+
+    def _candidate(self, lemma_ids):
+        class _Cand:
+            pass
+        c = _Cand()
+        c.words_meta = [WordMeta(lemma_id=lid, surface_form="x", gloss_en="x",
+                                  stability=1.0, is_due=False) for lid in lemma_ids]
+        return c
+
+    def test_unrelated_sentences_pass(self):
+        sel = [self._candidate([1, 2, 3, 4])]
+        cand = self._candidate([5, 6, 7, 8])
+        sel_sets = [{w.lemma_id for w in s.words_meta} for s in sel]
+        assert _is_near_duplicate_of_selected(cand, sel_sets) is False
+
+    def test_identical_lemma_set_vetoed(self):
+        sel = [self._candidate([1, 2, 3, 4])]
+        cand = self._candidate([1, 2, 3, 4])
+        sel_sets = [{w.lemma_id for w in s.words_meta} for s in sel]
+        assert _is_near_duplicate_of_selected(cand, sel_sets) is True
+
+    def test_threshold_boundary(self):
+        # 3 of 4 shared, 1 unique each side → Jaccard = 3/5 = 0.6
+        sel = [self._candidate([1, 2, 3, 4])]
+        cand = self._candidate([1, 2, 3, 5])
+        sel_sets = [{w.lemma_id for w in s.words_meta} for s in sel]
+        # Jaccard 0.6 is below 0.7 threshold → not vetoed
+        assert _is_near_duplicate_of_selected(cand, sel_sets) is False
+
+        # 3 of 3 shared + 1 extra in cand → Jaccard = 3/4 = 0.75 → vetoed
+        sel2 = [self._candidate([1, 2, 3])]
+        cand2 = self._candidate([1, 2, 3, 5])
+        sel2_sets = [{w.lemma_id for w in s.words_meta} for s in sel2]
+        assert _is_near_duplicate_of_selected(cand2, sel2_sets) is True
+
+    def test_empty_candidate_passes(self):
+        sel = [self._candidate([1, 2, 3])]
+        cand = self._candidate([])
+        sel_sets = [{w.lemma_id for w in s.words_meta} for s in sel]
+        assert _is_near_duplicate_of_selected(cand, sel_sets) is False
+
+    def test_empty_selected_passes(self):
+        cand = self._candidate([1, 2, 3])
+        assert _is_near_duplicate_of_selected(cand, []) is False
+
+    def test_threshold_constant_in_range(self):
+        assert 0 < JACCARD_VETO_THRESHOLD < 1.0
 
 
 class TestFillPhasePregenerated:

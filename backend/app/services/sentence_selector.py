@@ -52,6 +52,7 @@ PIPELINE_BACKLOG_THRESHOLD = 40  # suppress reserved intros when acquiring pipel
 LOW_TIER_INTRO_SOURCES = {"wiktionary", "story_import", "manual", "flag_autocreate", "other"}
 LOW_TIER_BLOCK_BACKLOG = 60  # block low-tier auto-intros once box-1 acquiring exceeds this
 SESSION_SCAFFOLD_DECAY = 0.5  # per-appearance decay for scaffold words already in session
+JACCARD_VETO_THRESHOLD = 0.7  # max lemma-set Jaccard between two sentences in same session
 NEVER_REVIEWED_BOOST = 5.0  # score multiplier for sentences targeting acquiring words with 0 reviews
 LAPSED_BOOST = 3.0  # score multiplier for sentences targeting lapsed words (re-expose soon)
 OVERDUE_ESCALATION_DAYS = 0.5  # start escalating as soon as a card is past due
@@ -301,6 +302,23 @@ def compute_sentence_diversity_score(
         "scaffold_freshness": round(freshness, 3),
         "unique_scaffold_count": unique_scaffold_count,
     }
+
+
+def _is_near_duplicate_of_selected(candidate, selected_lemma_sets: list[set[int]]) -> bool:
+    """True if candidate's lemma set has Jaccard >= JACCARD_VETO_THRESHOLD with any prior."""
+    cand_lemmas = {w.lemma_id for w in candidate.words_meta if w.lemma_id}
+    if not cand_lemmas:
+        return False
+    for prior in selected_lemma_sets:
+        if not prior:
+            continue
+        union = cand_lemmas | prior
+        if not union:
+            continue
+        jacc = len(cand_lemmas & prior) / len(union)
+        if jacc >= JACCARD_VETO_THRESHOLD:
+            return True
+    return False
 
 
 def _auto_introduce_words(
@@ -1027,6 +1045,17 @@ def build_session(
         if best.score <= 0:
             break
 
+        # Whole-sentence near-duplicate veto: skip when this candidate's lemma
+        # set is >= JACCARD_VETO_THRESHOLD overlapping any already-selected
+        # sentence. Catches the "صَامَ المُسْلِمُونَ رَمَضَانَ كُلَّهُ" /
+        # "يَصُومُ المُسْلِمُونَ شَهْرَ رَمَضَانَ" pattern that scaffold-decay misses.
+        selected_lemma_sets = [
+            {w.lemma_id for w in s.words_meta if w.lemma_id} for s in selected
+        ]
+        if _is_near_duplicate_of_selected(best, selected_lemma_sets):
+            candidates.remove(best)
+            continue
+
         selected.append(best)
         best.selection_reason = "greedy_cover"
         best.selection_order = len(selected)
@@ -1090,11 +1119,19 @@ def build_session(
                 break
             if count >= target_count:
                 continue
+            selected_lemma_sets = [
+                {w.lemma_id for w in s.words_meta if w.lemma_id} for s in selected
+            ]
             extra = None
             for c in candidates:
-                if c.sentence_id not in selected_ids and acq_lid in {w.lemma_id for w in c.words_meta}:
-                    extra = c
-                    break
+                if c.sentence_id in selected_ids:
+                    continue
+                if acq_lid not in {w.lemma_id for w in c.words_meta}:
+                    continue
+                if _is_near_duplicate_of_selected(c, selected_lemma_sets):
+                    continue
+                extra = c
+                break
             if extra:
                 extra.selection_reason = "acquisition_repeat"
                 selected.append(extra)
@@ -1347,15 +1384,18 @@ RESCUE_MAX_ACCURACY = 0.50
 RESCUE_COOLDOWN_DAYS = 7
 
 
-INTRO_CARDS_BASE = 5
-INTRO_CARDS_MAX = 10
+INTRO_CARDS_BASE = 4
+INTRO_CARDS_MAX = 6
 
 
 def _dynamic_intro_cap(db: Session) -> int:
     """Scale intro card cap based on un-introed acquiring word backlog.
 
-    Base 5, +1 per 10 un-introed words, capped at 10.
-    After a large import, temporarily shows more intros to clear the backlog.
+    Base 4, +1 per 15 un-introed words, capped at 6. Tightened 2026-04-27 from
+    base=5/max=10 — production data showed sessions of 25 sentences with 10
+    intros (40% intro density), with 9/17 sessions placing the last intro in
+    the final 25% of the session. Lowering the cap shifts excess intros to
+    later sessions and keeps any single session readable.
     """
     unintro_count = (
         db.query(UserLemmaKnowledge)
@@ -1366,7 +1406,7 @@ def _dynamic_intro_cap(db: Session) -> int:
         )
         .count()
     )
-    return min(INTRO_CARDS_MAX, INTRO_CARDS_BASE + unintro_count // 10)
+    return min(INTRO_CARDS_MAX, INTRO_CARDS_BASE + unintro_count // 15)
 
 
 def _build_intro_cards(

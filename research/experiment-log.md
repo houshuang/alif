@@ -4,6 +4,43 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-04-27: Four learner-data-driven fixes — Tier-0 time gate, Jaccard veto, intro cap, end-of-session intro exclusion
+
+### What
+
+Addressed four concerns from the user's recent learning data with backend + frontend changes (PR sh/learning-data-fixes).
+
+**Fix 1 — Tier-0 instant graduation: time gate against working-memory false positives.**
+`acquisition_service.py:226`: skip instant graduation when `experiment_intro_shown_at` is within `FAST_GRAD_INTRO_GAP = 10 minutes`. A correct first review seconds after the intro card is working memory, not learning. Word advances Box 1→2 normally instead.
+
+**Fix 2 — Whole-sentence Jaccard veto on near-duplicates.**
+`sentence_selector.py`: new helper `_is_near_duplicate_of_selected()` and `JACCARD_VETO_THRESHOLD = 0.7`. After picking a candidate in the greedy cover loop *and* the acquisition-repetition loop, reject if its lemma set has Jaccard ≥ 0.7 with any already-selected sentence. Complements `SESSION_SCAFFOLD_DECAY` (per-word penalty) with a hard whole-sentence veto.
+
+**Fix 3a — Lower intro card cap.**
+`sentence_selector.py:1387`: `INTRO_CARDS_BASE` 5→4, `INTRO_CARDS_MAX` 10→6. Dynamic ramp slowed from `+1/10` to `+1/15`. Caps a single session at ~24% intro density (vs. 40% before).
+
+**Fix 3b — End-of-session intro exclusion + reorder.**
+`frontend/app/index.tsx:131`: rewrote `buildInterleavedSession` so intro-bearing sentences are placed in the front-middle, no-intro sentences in the back. Added `INTRO_END_EXCLUSION = 0.20` — never emit an intro card in the final 20% of the projected session. Late-overflow intros are silently dropped (next session picks them up).
+
+### Why — what the data showed
+
+7-day learner audit on the production DB (sessions, intro events, fast-grads, sentence pairs):
+
+| Concern | Finding | File:line |
+|---|---|---|
+| Intro flood | 2 sessions with 9–10 intros (40% intro density). 9/17 intro-bearing sessions had their last intro in the final 25%. 3 sessions had intros at literal session-end position. | `index.tsx:131-166` (sort + flush both pushed intros to end) |
+| Tier-0 false positives | 6/6 fast-grads with timestamps graduated within 1 minute of the intro card; 4/6 within 30 seconds (e.g. نَفَخَ "to blow" — 12s). Bimodal distribution: nothing between 1m and 14d. | `acquisition_service.py:220` (only `times_seen==0 and rating>=3`, no time check) |
+| Near-duplicate sentences | 8 pairs with Jaccard ≥ 0.5 in 7d; worst case 100% (`صَانَ الْمُتَخَصِّصُ الْكُنُوزَ الْقَدِيمَةَ` / `صَانَ الْمُتَخَصِّصُ الْكَنْزَ الْقَدِيمَ`). Greedy selector picks both because both cover the same due word. | `sentence_selector.py:998` (per-word decay too weak when sentences are highly aligned) |
+| Textbook scan inerts | Working as designed — 170 textbook_scan words in `encountered`, auto-introduced via collateral when relevant. No fix needed. | `ocr_service.py:566` |
+
+### How to verify
+
+- 7 new tests in `test_acquisition.py` and `test_sentence_selector.py` cover boundary cases (intro-shown-recently blocks, intro-shown-long-ago allows, no-intro allows; near-duplicate vetoed, threshold boundary, empty edge cases).
+- Run a session today and check (a) no session > 6 intros, (b) no intro in final 20% of session, (c) no consecutive sentences sharing >70% lemmas.
+- After 7 days: re-run the analysis script and check the fast-grad-within-1-minute count drops to 0, and high-Jaccard sentence pairs drop to 0.
+
+---
+
 ## 2026-04-27: Lemma decomposition Phase 2 step 4c — re-gate 161 `compound_with_canonical` entries, tag 91, link 17, requeue 3,056 corpus sentences
 
 ### What
