@@ -1,11 +1,53 @@
 ---
-name: lemma decomposition pipeline audit (Phase 1 + Phase 2 step 1 done; steps 2-8 open)
-description: Import pipelines stored compound surface forms (proclitic + stem + enclitic) as lemmas instead of canonical stems. Phase 1 audit (2026-04-24) classified all 2,905 prod lemmas — 1,271 reviews on non-canonical compounds (4.5× the prior estimate). Phase 2 step 1 (2026-04-24) patched both buggy import paths to call resolve_existing_lemma(); bleed stopped. Steps 2-8 (DB backup → backfill 102 orphan canonicals → migrate 144 HIGH-tier compounds → re-enrich corpus → verify) still open.
+name: lemma decomposition pipeline audit (Phase 1 + Phase 2 steps 1-4c + 6 done; 7-8 open)
+description: Import pipelines stored compound surface forms as lemmas instead of canonical stems. Phases shipped 2026-04-24 to 2026-04-27. Steps 4a-prime+link, 4b, 4c-A, 4c-B, 6 all on prod. 180 lemmas tagged with `decomposition_note.mle_misanalysis=true`, 28 compound→canonical links created, 3,056 corpus sentences requeued for re-verification. Remaining: Step 7 (re-gloss ت.ر.ك root #305 — separate bug), Step 8 (Quran spot-check verification milestone).
 type: project
 originSessionId: aa23c8d5-8427-4e7e-b29f-5b12a26f8556
 ---
 ## Status
-**🟡 PHASE 1 COMPLETE (2026-04-24). PHASE 2 STEP 1 COMPLETE (2026-04-24). PHASE 2 STEPS 2-8 OPEN.**
+**🟡 PHASE 1 + PHASE 2 STEPS 1-4c + 6 COMPLETE. PHASE 2 STEPS 7-8 OPEN.**
+
+**Step 4c + Step 6 result (2026-04-27)**:
+- Re-gated all 161 `compound_with_canonical` entries (HIGH=144, MEDIUM=4, LOW=13) using two-pass asymmetric verification (Sonnet primary + Sonnet re-check on flagged verdicts only).
+- Verdict distribution: 67 `confirmed_valid_link` (42%), 76 `bogus_mle_error` (47%), 15 `wrong_canonical_real_compound` (9%), 3 `uncertain` (2%).
+- **91 lemmas tagged** via `apply_step4c_tags.py` (76 bogus + 15 wrong_canonical). Prod total now 180 tagged (89 from 4b + 91 from 4c).
+- **17 compounds linked** to existing canonicals via `apply_step4c_link_survivors.py`. High-impact merges: اَلْيَوْمَ→يَوْم (161 reviews merged), وَلَكِنْ→لكن (111), 3 orphans (لِي, لَها, لَكّ) → preposition لـِ, اَلْآنَ→آنٌ (44).
+- **Step 6**: cleared `mappings_verified_at` on 3,056 inactive corpus sentences (touched-only filter — saves ~700 wasteful LLM calls vs. clearing all 3,725). Cron Step A2 will re-verify on next run.
+- 3 `uncertain` entries (جارة→جار, وَذَكِيَّة→ذَكِيّ, وَلَطيفة→لَطِيف) all in fem→masc-canonical edge case. Pass 1 fired ة-misread heuristic, pass 2 reasoned past it. Conservative default: no action. Meanwhile 50 fem→masc cases where both passes agreed got `confirmed_valid_link` — the de-facto policy is "link OK".
+- **47% bogus rate** vs. 67% on Step 4a-prime (created canonicals): pre-existing canonical compounds have lower MLE-noise than freshly-created ones, as predicted.
+- New scripts (all in `backend/scripts/`): `regate_compound_decompositions.py`, `apply_step4c_tags.py`, `apply_step4c_link_survivors.py`, `reenrich_corpus_post_step4c.py`. Verdict snapshot frozen at `backend/data/decomposition_step4c_progress.json` (also on prod).
+- Two-pass asymmetric verification design: cost of false-`bogus` is asymmetrically higher than false-`valid`, so pass 2 only re-checks non-`confirmed_valid_link` verdicts. Saves ~50% of verification budget without sacrificing precision. The disagreement→`uncertain` mechanism is the safety net for policy edge cases.
+- Activity log entries 1507 (4c-A tags), 1508 (4c-B links), 1509 (Step 6 requeue).
+
+**Step 4b result (2026-04-24 PM, PR #51)**:
+- Added `lemmas.decomposition_note` (nullable JSON) column via Alembic `aa7h8i9j0k12`. Initial migration chained off `z6g7h8i9j012`, but `b4e1f07a2c18` had landed on main in the meantime — two heads. One-line re-parent fixed it, direct to main. **Always check `alembic heads` on the server before deploying a new migration.**
+- Wrote `backend/scripts/tag_mle_misanalysis_orphans.py`. Reads two frozen JSON artifacts: regate (22 `bogus_mle_error`) + backfill progress (67 `mle_error`). Stamps `{mle_misanalysis, reason, source_artifact, tagged_at, phase: "step4b"}`. Dry-run default, `--apply` to commit. Refuses to overwrite an existing note. One ActivityLog row per run.
+- **89 orphans tagged on prod** (22 + 67). ActivityLog entry 1506. Second-run idempotency verified locally before shipping.
+- Query: `SELECT ... WHERE json_extract(decomposition_note, '$.mle_misanalysis') = 1`.
+
+**Step 4a-prime result (2026-04-24 PM, PR #49)**:
+- Spot-check of Step 3's 33 "created" canonicals found systematic CAMeL failure the original gate missed: feminine ة (tā marbūṭa) routinely misread as 3ms possessive pronoun ـه. Pattern tell: `lemma_ar_bare` ends ة/ه AND `clitic_signals == {"enc0": "3ms_poss"}`. 21/33 matched exactly; manual spot-check showed majority bogus.
+- Stricter re-gate with explicit failure-mode warning + worked examples: **22 bogus_mle_error DELETED, 11 confirmed_valid retained**.
+- Deleted IDs: #3140-3147, #3153-3166. Survivors: #3139 سُرْعَة, #3148 تَرَك, #3149 قَدَّس, #3150 أَذْكَى, #3151 أَحْمَد, #3152 فَضْلَة, #3167 رَعْد, #3168 إِصْبَع, #3169 لَعَلَّ, #3170 إِذ, #3171 نَبَّأ.
+- Zero downstream refs verified pre-delete (per-lemma double-check). No orphan roots freed.
+- Artifacts: `research/decomposition-regate-2026-04-24.json` (frozen verdict snapshot), `backend/scripts/regate_step3_created_canonicals.py`, `backend/scripts/apply_step4a_regate_deletions.py`.
+- 2 `already_canonical` entries (#1734, #1735) pointed at now-deleted bogus canonicals (#3144/#3145) via bare-key collision — they remain correctly linked in prod to their actual canonicals (#1739, #1740) and need no Step 4a-link action.
+- See also: `feedback_camel_mle_fem_ta_marbuta_misread.md` for the failure pattern.
+
+**Step 3 result (2026-04-24 PM, PR #47)**:
+- Ran `backend/scripts/backfill_decomposition_orphan_canonicals.py` on prod (186s, 11 LLM batches).
+- DB backed up pre-run: `/opt/alif-backups/alif_pre_decomposition_20260424_131904.db`.
+- 33 new canonical lemmas inserted (#3139-#3171, `source=backfill_decomposition_audit`, quality gates stamped). Examples: سُرْعَة #3139, رَعْد #3167, إِصْبَع #3168, لَعَلَّ #3169, إِذ #3170, نَبَّأ #3171.
+- 67 of 102 orphans flagged `mle_error` by the LLM verdict gate — CAMeL had hallucinated clitic splits on single-indivisible lemmas (كِرَاء "rent", بَادَ "to perish", فَأْر "mouse", عِبْرِيّ "Hebrew", كُحْل "kohl", سِيلُوفُون "xylophone", قُبَّعة "cap" — the last because ة is a feminine marker, not ـه 3ms enclitic).
+- 2 skipped as `already_canonical` (drift between audit and run).
+- Per-orphan outcomes in `research/decomposition-backfill-progress-2026-04-24.json` — Step 4 should read this to know which 67 orphan compounds to tag `mle_misanalysis` and which 2 to link directly.
+
+**Key Step 3 design decisions to carry forward**:
+- Narrow `lemma_ar_bare`-only lookup (not `resolve_existing_lemma`) for re-dedup at insert — the broader lookup matches generated verb conjugations and produces false positives.
+- `run_quality_gates(enrich=False)` keeps the script fast; forms/etymology/transliteration decoupled and not load-bearing for Step 4.
+- LLM verdict gate (`valid` / `mle_error`) catches CAMeL hallucinations, avoiding 67 bogus Lemma inserts that Step 4 would otherwise need to unwind.
+
+**67% MLE-noise rate surprise**: orphan bucket has way more false positives than the HIGH-tier bucket. Makes sense: orphans by definition are canonicals not in the DB, and real canonicals tend to already exist. For the 144 HIGH-tier `compound_with_canonical` compounds, expect ~100-115 real migrations and ~30-45 mle_misanalysis tags — lower than the raw count suggests.
 
 Phase 1 audit: `research/decomposition-audit-2026-04-24.md`. Classification JSON: `research/decomposition-classification-2026-04-24.json`. Classifier script: `scripts/audit_lemma_decomposition.py` (re-runnable; uses `/usr/local/bin/python3` for CAMeL Tools).
 

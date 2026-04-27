@@ -117,8 +117,11 @@ Prefer focused sessions. If a task has 4+ distinct parts, suggest breaking into 
 ## Prefer in-session work over claude -p subprocess (2026-04-22)
 - [Details](feedback_in_session_vs_cli_subprocess.md) — For text-transforms I can do directly (vocalize, translate, align, classify), WRITE the output to a file myself. Don't delegate to `claude -p` subprocess. Wasted hours on 2026-04-22 batching classical-Arabic vocalization through CLI before just doing it directly.
 
-## 🟡 Lemma Decomposition Audit — Phase 1 + Phase 2 step 1 done, steps 2-8 open
-- [Details](project_lemma_decomposition_audit.md) — Phase 1 (2026-04-24) classified all 2,905 prod lemmas via CAMeL MLE: 144 HIGH-tier compounds (593 reviews), 102 orphans (385 reviews), 1,271 total review impact (4.5× the prior estimate). Phase 2 step 1 (2026-04-24) patched `quran_service.py:732` and `backfill_function_word_lemmas.py` to call `resolve_existing_lemma()` (clitic-aware dedup) — bleed stopped. Reports: `research/decomposition-audit-2026-04-24.md` + `decomposition-classification-2026-04-24.json`. Steps 2-8 (backup → backfill 102 orphan canonicals → spot-check + migrate 144 HIGH-tier → manual MEDIUM/LOW → re-enrich Hindawi corpus → verify) still open.
+## 🟡 Lemma Decomposition Audit — Phase 1 + Phase 2 steps 1-4c + 6 done; 7-8 open
+- [Details](project_lemma_decomposition_audit.md) — Step 4c + Step 6 shipped 2026-04-27. Two-pass asymmetric verification re-gated 161 `compound_with_canonical`: 91 tagged (180 prod total), 17 compounds linked to canonicals (incl. اَلْيَوْمَ→يَوْم 161 reviews), 3,056 inactive corpus sentences requeued via touched-only filter. Remaining: Step 7 (re-gloss ت.ر.ك root #305) + Step 8 (Quran spot-check).
+
+## CAMeL MLE feminine ة → 3ms_poss misread (failure mode)
+- [Details](feedback_camel_mle_fem_ta_marbuta_misread.md) — Any LLM gate over CAMeL MLE output must explicitly warn about feminine-ة misread. 22/33 Step-3 "valid" canonicals were wrong because of this (2026-04-24).
 
 ## gh CLI / Go binaries TLS error in sandbox (2026-04-24)
 - [Details](feedback_gh_sandbox_tls.md) — `OSStatus -26276` from gh/terraform/tofu = Claude Code sandbox blocking `com.apple.trustd` Mach IPC. Retry the same command with `dangerouslyDisableSandbox: true` immediately. Don't waste time on auth, GODEBUG, or `brew upgrade gh`.
