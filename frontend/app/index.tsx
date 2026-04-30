@@ -121,8 +121,13 @@ function buildInterleavedSession(
   const sentenceIntroWords: Set<number>[] = items.map((item) => {
     const overlap = new Set<number>();
     for (const w of item.words) {
-      if (w.lemma_id && lemmaToIntroIdx.has(w.lemma_id)) {
-        overlap.add(w.lemma_id);
+      const ids = [w.lemma_id, w.canonical_lemma_id].filter(
+        (id): id is number => typeof id === "number"
+      );
+      for (const id of ids) {
+        if (lemmaToIntroIdx.has(id)) {
+          overlap.add(id);
+        }
       }
     }
     return overlap;
@@ -140,9 +145,8 @@ function buildInterleavedSession(
   const sentenceOrder = [...warmup, ...withIntro, ...winddown];
 
   // 4. Walk in chosen order. Before each sentence, emit any unshown intro
-  //    cards whose lemma appears in this sentence — but never inside the
-  //    last 20% of the projected session. Late intros are silently dropped
-  //    (they'll be picked up in the next session).
+  //    cards whose lemma appears in this sentence. Sentence-bound intros are
+  //    never dropped; otherwise the user would see the word before its card.
   const INTRO_END_EXCLUSION = 0.20;
   const estimatedTotal = items.length + introCards.length;
   const introCutoff = Math.floor(estimatedTotal * (1 - INTRO_END_EXCLUSION));
@@ -153,10 +157,8 @@ function buildInterleavedSession(
     for (const lemmaId of sentenceIntroWords[sentIdx]) {
       const introIdx = lemmaToIntroIdx.get(lemmaId);
       if (introIdx !== undefined && !shown.has(lemmaId)) {
-        if (result.length < introCutoff) {
-          result.push({ type: "experiment_intro" as const, introIndex: introIdx });
-          shown.add(lemmaId);
-        }
+        result.push({ type: "experiment_intro" as const, introIndex: introIdx });
+        shown.add(lemmaId);
       }
     }
     result.push({ type: "sentence" as const, itemIndex: sentIdx });

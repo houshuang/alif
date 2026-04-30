@@ -9,6 +9,7 @@ import logging
 import uuid
 from datetime import datetime, timedelta, timezone
 from dataclasses import dataclass, field
+from difflib import SequenceMatcher
 from typing import Optional
 
 from sqlalchemy.exc import OperationalError
@@ -37,6 +38,7 @@ from app.services.sentence_validator import (
     build_lemma_lookup,
     normalize_alef,
     strip_diacritics,
+    strip_punctuation,
     strip_tatweel,
 )
 
@@ -53,6 +55,8 @@ LOW_TIER_INTRO_SOURCES = {"wiktionary", "story_import", "manual", "flag_autocrea
 LOW_TIER_BLOCK_BACKLOG = 60  # block low-tier auto-intros once box-1 acquiring exceeds this
 SESSION_SCAFFOLD_DECAY = 0.5  # per-appearance decay for scaffold words already in session
 JACCARD_VETO_THRESHOLD = 0.7  # max lemma-set Jaccard between two sentences in same session
+TEXT_VETO_RATIO = 0.86  # max normalized Arabic char similarity in same session
+TEXT_TOKEN_VETO_THRESHOLD = 0.8  # max normalized Arabic token Jaccard in same session
 NEVER_REVIEWED_BOOST = 5.0  # score multiplier for sentences targeting acquiring words with 0 reviews
 LAPSED_BOOST = 3.0  # score multiplier for sentences targeting lapsed words (re-expose soon)
 OVERDUE_ESCALATION_DAYS = 0.5  # start escalating as soon as a card is past due
@@ -319,6 +323,71 @@ def _is_near_duplicate_of_selected(candidate, selected_lemma_sets: list[set[int]
         if jacc >= JACCARD_VETO_THRESHOLD:
             return True
     return False
+
+
+def _sentence_text_fingerprint(text: str | None) -> str:
+    """Normalize Arabic sentence text for exact/similarity duplicate checks."""
+    if not text:
+        return ""
+    bare = normalize_alef(strip_tatweel(strip_diacritics(text)))
+    bare = strip_punctuation(bare)
+    return " ".join(bare.split())
+
+
+def _canonical_id_for_word(
+    lemma_id: int | None,
+    lemma_map: dict[int, Lemma],
+) -> int | None:
+    """Return the root canonical ID for a lemma, following multi-hop chains."""
+    if not lemma_id:
+        return None
+    current = lemma_map.get(lemma_id)
+    seen: set[int] = set()
+    while current and current.canonical_lemma_id and current.canonical_lemma_id not in seen:
+        seen.add(current.lemma_id)
+        next_id = current.canonical_lemma_id
+        next_lemma = lemma_map.get(next_id)
+        if not next_lemma:
+            return next_id if next_id != lemma_id else None
+        current = next_lemma
+    if current and current.lemma_id != lemma_id:
+        return current.lemma_id
+    return None
+
+
+def _is_text_near_duplicate(candidate_text: str | None, selected_texts: list[str]) -> bool:
+    """Catch surface-near-identical sentences that lemma-set Jaccard can miss."""
+    cand_fp = _sentence_text_fingerprint(candidate_text)
+    if not cand_fp:
+        return False
+    cand_tokens = set(cand_fp.split())
+    for selected_text in selected_texts:
+        prior_fp = _sentence_text_fingerprint(selected_text)
+        if not prior_fp:
+            continue
+        if cand_fp == prior_fp:
+            return True
+        prior_tokens = set(prior_fp.split())
+        union = cand_tokens | prior_tokens
+        token_jacc = len(cand_tokens & prior_tokens) / len(union) if union else 0.0
+        if token_jacc >= TEXT_TOKEN_VETO_THRESHOLD:
+            return True
+        if SequenceMatcher(None, cand_fp, prior_fp).ratio() >= TEXT_VETO_RATIO:
+            return True
+    return False
+
+
+def _is_near_duplicate_candidate(
+    candidate,
+    selected: list[SentenceCandidate],
+) -> bool:
+    selected_lemma_sets = [
+        {w.lemma_id for w in s.words_meta if w.lemma_id} for s in selected
+    ]
+    if _is_near_duplicate_of_selected(candidate, selected_lemma_sets):
+        return True
+    selected_texts = [getattr(s.sentence, "arabic_text", "") for s in selected]
+    return _is_text_near_duplicate(getattr(candidate.sentence, "arabic_text", ""), selected_texts)
 
 
 def _auto_introduce_words(
@@ -1049,10 +1118,7 @@ def build_session(
         # set is >= JACCARD_VETO_THRESHOLD overlapping any already-selected
         # sentence. Catches the "صَامَ المُسْلِمُونَ رَمَضَانَ كُلَّهُ" /
         # "يَصُومُ المُسْلِمُونَ شَهْرَ رَمَضَانَ" pattern that scaffold-decay misses.
-        selected_lemma_sets = [
-            {w.lemma_id for w in s.words_meta if w.lemma_id} for s in selected
-        ]
-        if _is_near_duplicate_of_selected(best, selected_lemma_sets):
+        if _is_near_duplicate_candidate(best, selected):
             candidates.remove(best)
             continue
 
@@ -1119,16 +1185,13 @@ def build_session(
                 break
             if count >= target_count:
                 continue
-            selected_lemma_sets = [
-                {w.lemma_id for w in s.words_meta if w.lemma_id} for s in selected
-            ]
             extra = None
             for c in candidates:
                 if c.sentence_id in selected_ids:
                     continue
                 if acq_lid not in {w.lemma_id for w in c.words_meta}:
                     continue
-                if _is_near_duplicate_of_selected(c, selected_lemma_sets):
+                if _is_near_duplicate_candidate(c, selected):
                     continue
                 extra = c
                 break
@@ -1208,6 +1271,7 @@ def build_session(
 
             word_dicts.append({
                 "lemma_id": w.lemma_id,
+                "canonical_lemma_id": _canonical_id_for_word(w.lemma_id, lemma_map),
                 "surface_form": w.surface_form,
                 "gloss_en": w.gloss_en,
                 "stability": w.stability,
@@ -1412,7 +1476,7 @@ def _dynamic_intro_cap(db: Session) -> int:
 def _build_intro_cards(
     db: Session,
     knowledge_by_id: dict[int, UserLemmaKnowledge],
-    covered_ids: set[int],
+    eligible_ids: set[int],
 ) -> list[dict]:
     """Build intro cards for new and struggling acquiring words in this session.
 
@@ -1421,18 +1485,15 @@ def _build_intro_cards(
     2. Rescue words (acquiring, ≥4 reviews, <50% accuracy) — re-teaching
        for stuck words, with a 7-day cooldown between rescue cards.
 
-    Both limited to words covered by sentences in this session.
-    Cap scales dynamically with un-introed backlog (5 base, up to 10).
+    Both limited to non-function words that appear in this session.
+    First-time intro cards are uncapped; rescue cards use the dynamic cap
+    (4 base, up to 6) after first-time cards are placed.
     """
     now = datetime.now(timezone.utc)
     cooldown_cutoff = now - timedelta(days=RESCUE_COOLDOWN_DAYS)
 
-    # Build canonical resolution map for variant checking
-    canonical_knowledge: dict[int, str] = {}  # canonical_id → knowledge_state
-    for lid, ulk in knowledge_by_id.items():
-        canonical_knowledge[lid] = ulk.knowledge_state or "new"
-
-    card_ids = set()
+    new_card_ids = set()
+    rescue_card_ids = set()
     for lid, ulk in knowledge_by_id.items():
         if ulk.knowledge_state != "acquiring":
             continue
@@ -1455,7 +1516,7 @@ def _build_intro_cards(
             # means they recognized the word in 3+ understood verses)
             if (ulk.times_correct or 0) > 0 or ulk.source == "quran":
                 continue
-            card_ids.add(lid)
+            new_card_ids.add(lid)
             continue
 
         # Category 2: Rescue cards for stuck words
@@ -1466,21 +1527,31 @@ def _build_intro_cards(
             if accuracy < RESCUE_MAX_ACCURACY:
                 # Only show if not recently shown (cooldown)
                 if ulk.experiment_intro_shown_at is None:
-                    card_ids.add(lid)
+                    rescue_card_ids.add(lid)
                 else:
                     shown_at = ulk.experiment_intro_shown_at
                     if shown_at.tzinfo is None:
                         shown_at = shown_at.replace(tzinfo=timezone.utc)
                     if shown_at < cooldown_cutoff:
-                        card_ids.add(lid)
+                        rescue_card_ids.add(lid)
 
-    card_ids &= covered_ids
+    new_card_ids &= eligible_ids
+    rescue_card_ids &= eligible_ids
 
-    if not card_ids:
+    if not new_card_ids and not rescue_card_ids:
         return []
 
     cap = _dynamic_intro_cap(db)
-    return _build_reintro_cards(db, card_ids, limit=min(len(card_ids), cap))
+    # First-time intro cards are not capped: if the session will show a new
+    # word, the card must appear before its first sentence. The dynamic cap only
+    # limits rescue cards so remediation doesn't crowd out practice.
+    new_cards = _build_reintro_cards(db, new_card_ids, limit=len(new_card_ids))
+    rescue_limit = max(0, cap - len(new_cards))
+    rescue_cards = (
+        _build_reintro_cards(db, rescue_card_ids, limit=min(len(rescue_card_ids), rescue_limit))
+        if rescue_limit > 0 else []
+    )
+    return new_cards + rescue_cards
 
 
 MAX_ON_DEMAND_PER_SESSION = 10
@@ -1653,6 +1724,9 @@ def _find_pregenerated_sentences_for_words(
         )
         if total_scaffold > 0 and known_scaffold / total_scaffold < COMPREHENSIBILITY_THRESHOLD:
             continue
+        unknown_scaffold = total_scaffold - known_scaffold
+        if unknown_scaffold > MAX_UNKNOWN_SCAFFOLD:
+            continue
 
         weakest = min(stability_map.get(lid, 0.0) for lid in due_covered)
         dmq = _difficulty_match_quality(weakest, scaffold_stabilities)
@@ -1677,6 +1751,9 @@ def _find_pregenerated_sentences_for_words(
         best = candidates[0]
         if best.score <= 0:
             break
+        if _is_near_duplicate_candidate(best, selected):
+            candidates.remove(best)
+            continue
         selected.append(best)
         remaining -= best.due_words_covered
         candidates.remove(best)
@@ -1701,6 +1778,7 @@ def _find_pregenerated_sentences_for_words(
             root_obj = lemma.root if lemma else None
             word_dicts.append({
                 "lemma_id": w.lemma_id,
+                "canonical_lemma_id": _canonical_id_for_word(w.lemma_id, lemma_map),
                 "surface_form": w.surface_form,
                 "gloss_en": w.gloss_en,
                 "stability": w.stability,
@@ -1739,6 +1817,87 @@ def _find_pregenerated_sentences_for_words(
         })
 
     return items
+
+
+def _session_intro_eligible_lemma_ids(db: Session, items: list[dict]) -> set[int]:
+    """Return canonical non-function lemma IDs that appear in session items."""
+    raw_ids: set[int] = set()
+    for item in items:
+        for word in item.get("words", []) or []:
+            if word.get("is_function_word"):
+                continue
+            lid = word.get("lemma_id")
+            if isinstance(lid, int):
+                raw_ids.add(lid)
+    if not raw_ids:
+        return set()
+
+    lemma_map = {
+        l.lemma_id: l
+        for l in db.query(Lemma).filter(Lemma.lemma_id.in_(raw_ids)).all()
+    }
+    needed = {l.canonical_lemma_id for l in lemma_map.values() if l.canonical_lemma_id}
+    while needed - set(lemma_map.keys()):
+        rows = db.query(Lemma).filter(Lemma.lemma_id.in_(needed - set(lemma_map.keys()))).all()
+        if not rows:
+            break
+        for l in rows:
+            lemma_map[l.lemma_id] = l
+            if l.canonical_lemma_id:
+                needed.add(l.canonical_lemma_id)
+
+    resolved: set[int] = set()
+    for lid in raw_ids:
+        current = lemma_map.get(lid)
+        seen: set[int] = set()
+        while current and current.canonical_lemma_id and current.canonical_lemma_id not in seen:
+            seen.add(current.lemma_id)
+            current = lemma_map.get(current.canonical_lemma_id)
+        resolved.add(current.lemma_id if current else lid)
+    return resolved
+
+
+def _ensure_session_words_have_intro_state(
+    db: Session,
+    lemma_ids: set[int],
+    knowledge_by_id: dict[int, UserLemmaKnowledge],
+) -> None:
+    """Promote cold session words early so they can get intro cards.
+
+    Sentence review already auto-introduces unknown collateral words after the
+    card is answered. Doing it here preserves that learning flow while allowing
+    the intro card to appear before the sentence.
+    """
+    if not lemma_ids:
+        return
+
+    missing_ids = lemma_ids - set(knowledge_by_id.keys())
+    if missing_ids:
+        for ulk in (
+            db.query(UserLemmaKnowledge)
+            .filter(UserLemmaKnowledge.lemma_id.in_(missing_ids))
+            .all()
+        ):
+            knowledge_by_id[ulk.lemma_id] = ulk
+
+    to_start = [
+        lid for lid in lemma_ids
+        if lid not in knowledge_by_id
+        or knowledge_by_id[lid].knowledge_state == "encountered"
+    ]
+    if not to_start:
+        return
+
+    from app.services.acquisition_service import start_acquisition
+
+    for lid in to_start:
+        ulk = start_acquisition(
+            db,
+            lemma_id=lid,
+            source="collateral",
+            due_immediately=False,
+        )
+        knowledge_by_id[lid] = ulk
 
 
 def _with_fallbacks(
@@ -1876,10 +2035,13 @@ def _with_fallbacks(
     confused = get_confused_features(db)
     grammar_refresher_needed = [f["feature_key"] for f in confused]
 
-    # Build intro cards for new words and rescue cards for stuck words,
-    # limited to words covered by sentences in this session.
+    # Build intro cards for new words and rescue cards for stuck words. This
+    # scans every non-function word in the returned session, not just primary
+    # due words, because collateral words earn review credit too.
+    intro_eligible_ids = _session_intro_eligible_lemma_ids(db, items)
+    _ensure_session_words_have_intro_state(db, intro_eligible_ids, knowledge_by_id)
     experiment_intro_cards = _build_intro_cards(
-        db, knowledge_by_id, covered_ids
+        db, knowledge_by_id, intro_eligible_ids
     )
 
     return {
@@ -1914,5 +2076,3 @@ def _order_session(
     middle = sorted_by_difficulty[2:]
 
     return start + middle + end
-
-

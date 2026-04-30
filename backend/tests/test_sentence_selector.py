@@ -16,6 +16,7 @@ from app.services.sentence_selector import (
     _difficulty_match_quality,
     _intro_slots_for_accuracy,
     _is_near_duplicate_of_selected,
+    _is_text_near_duplicate,
     _scaffold_freshness,
     build_session,
     compute_sentence_diversity_score,
@@ -769,6 +770,95 @@ class TestNearDuplicateVeto:
     def test_threshold_constant_in_range(self):
         assert 0 < JACCARD_VETO_THRESHOLD < 1.0
 
+    def test_text_near_duplicate_vetoes_same_frame(self):
+        selected = ["نَظَّمَ السَّفِيرُ اجْتِمَاعًا فِي السَّاحَةِ."]
+        cand = "نَظَّمَ السَّفِيرُ اجْتِمَاعًا فِي السَّاحَةِ"
+        assert _is_text_near_duplicate(cand, selected) is True
+
+    def test_text_near_duplicate_allows_different_sentence(self):
+        selected = ["نَظَّمَ السَّفِيرُ اجْتِمَاعًا فِي السَّاحَةِ."]
+        cand = "قَرَأَ الطَّالِبُ كِتَابًا جَدِيدًا فِي الْمَكْتَبَةِ."
+        assert _is_text_near_duplicate(cand, selected) is False
+
+
+class TestIntroCardsForSessionWords:
+    """Intro cards must cover every new non-function word shown in a session."""
+
+    def test_new_acquiring_scaffold_gets_intro_card(self, db_session):
+        _seed_word(db_session, 1, "كتاب", "book", due_hours=-1)
+        scaffold = Lemma(
+            lemma_id=2,
+            lemma_ar="قلم",
+            lemma_ar_bare="قلم",
+            pos="noun",
+            gloss_en="pen",
+            gates_completed_at=datetime.now(timezone.utc),
+        )
+        db_session.add(scaffold)
+        db_session.add(UserLemmaKnowledge(
+            lemma_id=2,
+            knowledge_state="acquiring",
+            acquisition_box=1,
+            acquisition_next_due=datetime.now(timezone.utc) + timedelta(hours=4),
+            introduced_at=datetime.now(timezone.utc),
+            times_seen=0,
+            times_correct=0,
+            total_encounters=0,
+            source="study",
+        ))
+        _seed_sentence(
+            db_session,
+            1,
+            "كتاب قلم",
+            "book pen",
+            1,
+            [("كتاب", 1), ("قلم", 2)],
+        )
+        db_session.commit()
+
+        result = build_session(db_session, limit=1)
+
+        assert [c["lemma_id"] for c in result["experiment_intro_cards"]] == [2]
+
+    def test_encountered_scaffold_is_promoted_before_intro_card_build(self, db_session):
+        _seed_word(db_session, 1, "كتاب", "book", due_hours=-1)
+        _seed_word(db_session, 2, "بيت", "house", due_hours=24)
+        _seed_word(db_session, 3, "مدرسة", "school", due_hours=24)
+        encountered = Lemma(
+            lemma_id=4,
+            lemma_ar="قلم",
+            lemma_ar_bare="قلم",
+            pos="noun",
+            gloss_en="pen",
+            gates_completed_at=datetime.now(timezone.utc),
+        )
+        db_session.add(encountered)
+        db_session.add(UserLemmaKnowledge(
+            lemma_id=4,
+            knowledge_state="encountered",
+            fsrs_card_json=None,
+            introduced_at=None,
+            times_seen=0,
+            times_correct=0,
+            total_encounters=0,
+            source="book",
+        ))
+        _seed_sentence(
+            db_session,
+            1,
+            "كتاب بيت مدرسة قلم",
+            "book house school pen",
+            1,
+            [("كتاب", 1), ("بيت", 2), ("مدرسة", 3), ("قلم", 4)],
+        )
+        db_session.commit()
+
+        result = build_session(db_session, limit=1)
+        ulk = db_session.query(UserLemmaKnowledge).filter_by(lemma_id=4).one()
+
+        assert ulk.knowledge_state == "acquiring"
+        assert [c["lemma_id"] for c in result["experiment_intro_cards"]] == [4]
+
 
 class TestFillPhasePregenerated:
     """Fill phase should use pre-generated sentences (no LLM calls in session build)."""
@@ -876,5 +966,4 @@ class TestSelectionInfo:
         assert "due_coverage" in components
         assert "diversity" in components
         assert "session_diversity" in components
-
 

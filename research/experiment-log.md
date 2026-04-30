@@ -4,6 +4,37 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-04-30: Intro-card coverage, duplicate-session veto, and Al-Kitaab benchmark matcher
+
+### What
+
+Fixed three learner-visible quality issues from the April 30 investigation.
+
+1. **Intro cards now cover every new non-function word that appears in a returned session.**
+   `_with_fallbacks()` now scans all session item words, resolves variants to canonicals, promotes cold `new`/`encountered` session words into acquisition before card construction, and builds intro cards from that full eligible set instead of only `covered_ids`. First-time intro cards are uncapped; the dynamic cap now applies only to rescue cards.
+
+2. **Frontend interleaving no longer drops sentence-bound intros.**
+   `buildInterleavedSession()` still keeps orphan intro cards out of the wind-down, but if a sentence contains an intro-card lemma the card is emitted immediately before that sentence regardless of the final-20% cutoff. The word-first violation was worse than late-session intro density. It also matches intro cards through `canonical_lemma_id`, so variant surface forms no longer bypass the card.
+
+3. **Session duplicate veto now checks sentence text, and the fill path uses it.**
+   The existing lemma-set Jaccard veto remains. A normalized Arabic text fingerprint/ratio check catches exact and near-exact surface repeats that differ in only a small lemma set. `_find_pregenerated_sentences_for_words()` now applies the same veto and the same unknown-scaffold cap as the main selector.
+
+4. **Textbook benchmark coverage uses known forms, not exact row strings.**
+   `_compute_benchmarks()` now builds the known set with `build_lemma_lookup()` over known/learning/lapsed lemmas and parses common Al-Kitaab row shapes: principal parts, plurals, masculine/feminine slashes, parenthetical variants, and short phrases. On `backend/data/alif.prod.db`, Al-Kitaab Part 1 coverage changes from 86/364 (23.6%) under the old exact matcher to 268/364 (73.6%).
+
+Generated report: `research/alkitaab_part1_missing_2026-04-30.tsv` lists the 96 rows still missing after the stronger matcher.
+
+### Why
+
+The prior 2026-04-27 intro-density fix created a hard-ordering regression: late intro cards could be silently dropped while their sentences still appeared. Separate backend scoping meant cold scaffolds and capped-out acquiring words could enter the session without any card. For duplicates, the previous fix only applied a lemma-set veto in the main greedy loop; fill sessions and near-identical surface text could still leak through. For benchmarks, exact string matching made a 1,670-lemma learner look like they covered only a quarter of Al-Kitaab because the benchmark rows are textbook headword entries, not normalized Alif lemmas.
+
+### How to verify
+
+- `backend/.review-venv/bin/python -m pytest backend/tests/test_sentence_selector.py -q`
+- `backend/.review-venv/bin/python -m pytest backend/tests/test_analytics.py backend/tests/test_sentence_selector.py -q`
+- `cd frontend && npx tsc --noEmit`
+- Recompute `_compute_benchmarks()` against `backend/data/alif.prod.db`; expected Al-Kitaab Part 1 = 268/364 (73.6%).
+
 ## 2026-04-27: Four learner-data-driven fixes — Tier-0 time gate, Jaccard veto, intro cap, end-of-session intro exclusion
 
 ### What

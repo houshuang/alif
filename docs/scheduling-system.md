@@ -1763,19 +1763,22 @@ intro cards. `experiment_intro_cards` in session response — retention-optimize
 (pattern, root family, etymology, mnemonic). Single "Continue" button, no self-assessment.
 Acknowledgement via `POST /api/review/experiment-intro-ack` sets `experiment_intro_shown_at`
 timestamp on ULK, preventing the card from appearing again and enforcing 7-day rescue card cooldown.
-**Dynamic cap** (2026-04-07, tightened 2026-04-27): `min(6, 4 + unintro_backlog // 15)` via
-`_dynamic_intro_cap()`. Scales up after large imports, drops to base 4 when backlog clears.
-Constants: `INTRO_CARDS_BASE = 4`, `INTRO_CARDS_MAX = 6`. Tightened from 5/10 after production
-data showed 9/17 sessions placing intros in the final 25% — see `research/experiment-log.md`
-2026-04-27 entry. **End-of-session exclusion** (frontend, 2026-04-27): intros never emitted in
-the final 20% of the projected session — late-overflow intros are silently dropped and surface
-in the next session. **Sentence reorder** (frontend, 2026-04-27): intro-bearing sentences are
-placed in the front-middle, no-intro sentences fill the wind-down — guarantees the user
-finishes a session practicing, not facing a fresh-card flood. Replaces fixed
-`MAX_INTRO_CARDS_PER_SESSION = 5`. Variants whose canonical lemma is already known or learning
-skip intro cards entirely (prevents e.g. بنية intro when بني is known). **Auto-skip at render
-time**: if the user already answered a word correctly earlier in the session, its intro card is
-silently skipped (acknowledged but not shown).
+**Dynamic cap** (2026-04-07, tightened 2026-04-27, rescoped 2026-04-30): rescue cards use
+`min(6, 4 + unintro_backlog // 15)` via `_dynamic_intro_cap()`. First-time intro cards are
+uncapped because the hard invariant is stronger: if a non-function word appears in a session
+and is still unseen, it must get its card before the sentence. `_with_fallbacks()` now scans
+all session words, resolves variant chains to canonical IDs, and promotes cold `new`/`encountered`
+session words into acquisition before `_build_intro_cards()` runs. This preserves collateral
+credit while avoiding the old "first review before first intro" path. **End-of-session exclusion**
+(frontend, 2026-04-27, fixed 2026-04-30): orphan intros may still be deferred out of the final
+20%, but sentence-bound intros are never dropped; they are emitted immediately before the first
+sentence containing either the card lemma or a variant whose `canonical_lemma_id` matches it.
+**Sentence reorder** (frontend, 2026-04-27): intro-bearing sentences are placed in the
+front-middle, no-intro sentences fill the wind-down — usually the user finishes practicing,
+not facing a fresh-card flood. Replaces fixed `MAX_INTRO_CARDS_PER_SESSION = 5`. Variants
+whose canonical lemma is already known or learning skip intro cards entirely (prevents e.g.
+بنية intro when بني is known). **Auto-skip at render time**: if the user already answered a
+word correctly earlier in the session, its intro card is silently skipped (acknowledged but not shown).
 
 **Session interleaving** (2026-03-30, ordering fix 2026-04-07): Intro cards are distributed
 among review sentences: first 2 intro cards, then 1 every 3 sentences. Sentences sharing
@@ -1788,9 +1791,10 @@ the "wall of 25 intro cards" experience after bulk imports while maintaining the
 and intro card eligibility logic.
 
 **Scoping rules**: Intro cards are built in `_build_intro_cards()` after all sentence selection
-and fill phases complete, filtered to `covered_ids` — only words that actually have sentences
-in this session. Filters: (1) `times_seen == 0`, (2) `experiment_intro_shown_at IS NULL`,
-(3) `total_encounters < 5`. Rescue cards: `times_seen >= 4`, accuracy < 50%, 7-day cooldown.
+and fill phases complete, filtered to canonical non-function lemma IDs that actually appear in
+this session. Filters: (1) `times_seen == 0`, (2) `experiment_intro_shown_at IS NULL`,
+(3) `total_encounters < 5`. Rescue cards: `times_seen >= 4`, accuracy < 50%, 7-day cooldown,
+subject to the dynamic rescue cap.
 
 Analysis: `scripts/analyze_intro_experiment.py` (reviews to graduation, first-review accuracy,
 time to graduation).

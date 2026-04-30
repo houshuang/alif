@@ -415,26 +415,30 @@ def _add_cefr_predictions(
 
 def _compute_benchmarks(db: Session) -> ProgressBenchmarks:
     """Compute progress benchmarks: textbook coverage + Quran progress."""
-    import os
     import re
     from pathlib import Path
     from app.models import QuranicVerse, QuranicVerseWord
-    from app.services.sentence_validator import strip_diacritics, normalize_alef
+    from app.services.sentence_validator import (
+        FUNCTION_WORD_GLOSSES,
+        build_lemma_lookup,
+        normalize_alef,
+        strip_diacritics,
+        strip_punctuation,
+        strip_tatweel,
+        tokenize,
+    )
 
-    # Build set of known bare forms (with al-prefix variants)
+    # Build a known-form lookup using the same form/conjugation expansion used by
+    # sentence validation. The old benchmark only matched exact lemma_ar_bare
+    # strings, which undercounted textbook entries that list conjugations,
+    # plurals, masculine/feminine pairs, or short phrases.
     known_ulks = db.query(UserLemmaKnowledge).filter(
-        UserLemmaKnowledge.knowledge_state.in_(["known", "learning"])
+        UserLemmaKnowledge.knowledge_state.in_(["known", "learning", "lapsed"])
     ).all()
     known_ids = {u.lemma_id for u in known_ulks}
     known_lemmas = db.query(Lemma).filter(Lemma.lemma_id.in_(known_ids)).all() if known_ids else []
-    known_bare = set()
-    for l in known_lemmas:
-        bare = normalize_alef(strip_diacritics(l.lemma_ar_bare or "")).strip()
-        known_bare.add(bare)
-        if bare.startswith("ال"):
-            known_bare.add(bare[2:])
-        else:
-            known_bare.add("ال" + bare)
+    known_lookup = build_lemma_lookup(known_lemmas) if known_lemmas else {}
+    known_bare = set(known_lookup.keys())
 
     total_roots = db.query(func.count(Root.root_id)).scalar() or 0
     known_root_ids = {l.root_id for l in known_lemmas if l.root_id}
@@ -442,9 +446,62 @@ def _compute_benchmarks(db: Session) -> ProgressBenchmarks:
     def normalize_tb(text):
         text = strip_diacritics(text)
         text = normalize_alef(text)
-        text = text.replace('\u0640', '')
-        text = re.sub(r'[،؟؛«».,!?;:\-\(\)\[\]{}]', '', text)
+        text = strip_tatweel(text)
+        text = re.sub(r'[؟؛«».,!?;:\[\]{}]', ' ', text)
         return text.strip()
+
+    def candidate_variants(bare: str) -> set[str]:
+        bare = normalize_tb(strip_punctuation(bare))
+        if not bare:
+            return set()
+        variants = {bare}
+        if bare.startswith("ال") and len(bare) > 2:
+            variants.add(bare[2:])
+        elif len(bare) >= 3:
+            variants.add("ال" + bare)
+        return variants
+
+    function_bares = {normalize_tb(k) for k in FUNCTION_WORD_GLOSSES}
+
+    def token_known(token: str) -> bool:
+        variants = candidate_variants(token)
+        return bool(variants & known_bare) or any(v in function_bares for v in variants)
+
+    def textbook_entry_known(entry: str, gloss: str) -> bool:
+        normalized = normalize_tb(entry)
+        if not normalized:
+            return False
+
+        # Parentheses and slashes usually encode alternate forms: مصري/مصرية,
+        # مازال (مازلت). Treat those alternatives independently.
+        alternate_text = re.sub(r'[()/]', ' ، ', normalized)
+        alternates = [
+            a.strip()
+            for a in re.split(r'[،,;]+', alternate_text)
+            if a.strip()
+        ]
+
+        # Al-Kitaab often lists principal parts as whitespace-separated tokens
+        # with no comma: past present masdar. For "to ..." glosses, any known
+        # principal part is enough to count the vocabulary row as covered.
+        if len(alternates) == 1:
+            tokens = tokenize(alternates[0])
+            if len(tokens) > 1 and (gloss or "").lower().strip().startswith("to "):
+                alternates.extend(tokens)
+
+        for alt in alternates:
+            if any(v in known_bare for v in candidate_variants(alt)):
+                return True
+            tokens = [
+                t for t in tokenize(alt)
+                if normalize_tb(t) not in {"ج", "ج.", "المصدر", "ان"} and "+" not in t
+            ]
+            if tokens and all(token_known(t) for t in tokens):
+                return True
+            if any(token_known(t) for t in tokens) and len(tokens) >= 2 and (gloss or "").lower().strip().startswith("to "):
+                return True
+
+        return False
 
     # Textbook benchmarks
     benchmarks_dir = Path(__file__).resolve().parent.parent.parent / "data" / "benchmarks"
@@ -469,12 +526,7 @@ def _compute_benchmarks(db: Session) -> ProgressBenchmarks:
                 if not bare:
                     continue
                 total += 1
-                candidates = [bare]
-                if bare.startswith("ال"):
-                    candidates.append(bare[2:])
-                else:
-                    candidates.append("ال" + bare)
-                if any(c in known_bare for c in candidates):
+                if textbook_entry_known(parts[0], parts[1]):
                     matched += 1
         if total > 0:
             textbooks.append(TextbookBenchmark(
