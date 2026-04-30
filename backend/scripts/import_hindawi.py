@@ -36,8 +36,6 @@ import re
 import sys
 from datetime import datetime, timezone
 
-import pandas as pd
-
 sys.path.insert(0, ".")
 from app.database import SessionLocal
 from app.models import Sentence, SentenceWord
@@ -219,6 +217,14 @@ def run_pipeline(
     analyze_only: bool = False,
     limit: int | None = None,
 ):
+    try:
+        import pandas as pd
+    except ImportError as exc:
+        raise SystemExit(
+            "pandas is required to run the Hindawi import pipeline. "
+            "Install it in the backend environment before importing parquet data."
+        ) from exc
+
     # Load corpus
     logger.info(f"Loading {parquet_path}...")
     df = pd.read_parquet(parquet_path)
