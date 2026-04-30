@@ -4,6 +4,10 @@
 
 ---
 
+## 🟢 [DONE 2026-04-30] Session intro-card and benchmark coverage corrections
+
+Follow-up to the 2026-04-27 learner-data fixes. The end-of-session intro exclusion and backend card cap could still let a user see new words before an intro card. Fixed by scanning every non-function word in returned session items, promoting cold session scaffolds before card construction, uncapping first-time sentence-bound intro cards, and matching frontend intro placement through `canonical_lemma_id`. Also extended the duplicate veto to normalized Arabic text and the pregenerated fill path, and replaced exact-string Al-Kitaab benchmark matching with the sentence-validator lemma/form lookup. Current prod snapshot: Al-Kitaab Part 1 coverage recalculates to 268/364 (73.6%), with remaining rows in `research/alkitaab_part1_missing_2026-04-30.tsv`.
+
 ## 🟢 [DONE 2026-04-27] Learner-data-driven session quality fixes (PR sh/learning-data-fixes)
 
 Four issues surfaced from production data audit:

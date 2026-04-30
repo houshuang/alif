@@ -301,6 +301,7 @@ class ImportResultOut(BaseModel):
 
 class SentenceWordMeta(BaseModel):
     lemma_id: int | None
+    canonical_lemma_id: int | None = None
     surface_form: str
     gloss_en: str | None = None
     stability: float | None = None

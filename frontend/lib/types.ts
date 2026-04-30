@@ -291,6 +291,7 @@ export interface IntroduceResult {
 
 export interface SentenceWordMeta {
   lemma_id: number | null;
+  canonical_lemma_id?: number | null;
   surface_form: string;
   gloss_en: string | null;
   stability: number | null;
