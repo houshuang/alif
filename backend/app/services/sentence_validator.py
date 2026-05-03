@@ -1797,6 +1797,27 @@ def validate_sentence(
 
     Returns:
         ValidationResult with word classifications and validity.
+
+    Note on the target-word check (asymmetry vs known-word check):
+        The target check below uses an **exact-form match** on
+        ``target_bare`` (with ال-prefix variants and clitic stripping),
+        NOT ``lookup_lemma``. PR #42 (2026-04-20) added ``lookup_lemma``
+        for the *known*-word check (delegated to ``known_lemma_lookup``
+        below) but deliberately did not extend it to the target. The
+        target word is the lemma the user is studying, so demanding
+        its surface in the sentence keeps the LLM honest — without
+        this gate, generation can drift to a related-root word that
+        is easier to fit grammatically.
+
+        Symptom that may tempt you to relax this: textbook_scan lemmas
+        where ``lemma_ar`` and ``lemma_ar_bare`` carry different
+        morphological forms (e.g. ``ar=تَرَفَّعَ`` form V vs
+        ``bare=رفع`` form I). The fix in that case is upstream data
+        repair via ``cleanup_dirty_lemmas_v2.py``, NOT softening the
+        target-match check. Before changing this, measure the
+        proportion of "Target word ... not found" failures that are
+        genuine inflectional mismatch vs. corrupt source data; the
+        2026-05-03 investigation found the latter dominated.
     """
     tokens = tokenize(arabic_text)
     if not tokens:

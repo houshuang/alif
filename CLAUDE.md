@@ -178,6 +178,14 @@ The LLM fallback chain (CLI Sonnet -> CLI Haiku -> API Haiku) and model routing 
 - Check LLM call logs: `ssh alif "ls -la /opt/alif/backend/data/logs/llm_calls_*.jsonl | tail -3"` then inspect which models are actually being used
 - A high rate of fallback calls means the primary model is failing silently
 
+### 14. Investigation Discipline in Iterated Areas
+Before proposing any fix in an area with a long change history (generation pipeline, FSRS scheduling, sentence selector, lemma quality, validator), the first three reads are mandatory — not aspirational:
+- `git log --since="3 months ago" --oneline -- <file>`
+- `grep -i <topic> IDEAS.md docs/scripts-catalog.md research/experiment-log.md`
+- `ls backend/scripts/ | grep -i <related-keyword>`
+
+If a file has 10+ commits in the last 3 months, the most likely shape of an issue is "previous fix didn't fully close" or "operational gap (script exists, isn't being run)" — not "new bug." Skipping these has produced re-proposals of already-tried fixes (~5 documented occurrences). Confirming "this looks new" before going further is cheap; re-doing rejected work is expensive. The 2026-05-03 generation-pipeline investigation re-proposed weakening the `same_lemma` rejection (load-bearing per 4 prior commits + a docstring guard) before catching itself.
+
 ## Key Backend Files
 - `backend/app/models.py` — SQLAlchemy models (see `docs/data-model.md`)
 - `backend/app/schemas.py` — Pydantic request/response models
