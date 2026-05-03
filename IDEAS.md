@@ -4,6 +4,20 @@
 
 ---
 
+## 🔴 Generation pipeline — three concurrent bugs (2026-05-03)
+
+Found while drilling into the 21-day learning review. The 211 words in 7-day backoff and 12 acquiring words with no active sentence are caused by:
+
+1. **`lemma_ar_bare` corruption on textbook_scan imports** — bare form is a different morphological word than `lemma_ar` (verb root vs noun, plural vs singular, form V vs form I, or sometimes a wholly different lemma). Fix: audit + repair script, ~50–100 lemmas.
+2. **Validator demands exact bare-form match on the target** — doesn't accept any inflection. Fix: replace target check in `validate_sentence` with a `lookup_lemma()` resolution to `target_lemma_id`. ~5 LOC.
+3. **Step A2 corpus enrichment kills sentences on first verifier disagreement** — 22.4% kept (1,846/8,250). `same_lemma` is not actionable feedback yet triggers permanent deactivation. Fix: soften `apply_corrections` callsite *in enrichment only*, without weakening the gate for fresh LLM generation (where the same_lemma rejection is intentional hardening — see `feedback_dont_weaken_same_lemma_gate`).
+4. (observability) **New self-correct batch path emits no success events.** Add `batch_self_correct_returned/_validated/_rejected` events. ~10 LOC.
+5. (cleanup) **Drain the 172-entry backoff list** once 1+2 land.
+
+See `research/generation-pipeline-investigation-2026-05-03.md` for full evidence and dependency-ordered fixes.
+
+---
+
 ## 🟢 [DONE 2026-04-30] Session intro-card and benchmark coverage corrections
 
 Follow-up to the 2026-04-27 learner-data fixes. The end-of-session intro exclusion and backend card cap could still let a user see new words before an intro card. Fixed by scanning every non-function word in returned session items, promoting cold session scaffolds before card construction, uncapping first-time sentence-bound intro cards, and matching frontend intro placement through `canonical_lemma_id`. Also extended the duplicate veto to normalized Arabic text and the pregenerated fill path, and replaced exact-string Al-Kitaab benchmark matching with the sentence-validator lemma/form lookup. Current prod snapshot: Al-Kitaab Part 1 coverage recalculates to 268/364 (73.6%), with remaining rows in `research/alkitaab_part1_missing_2026-04-30.tsv`.

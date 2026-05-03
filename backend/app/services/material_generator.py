@@ -103,6 +103,7 @@ class _SelfCorrectBatchResult:
 def _generate_via_self_correct(
     targets: list[dict],
     count_per_word: int,
+    log_dir: Path | None = None,
 ) -> list[_SelfCorrectBatchResult]:
     """Run the self-correcting batch generator and adapt the output.
 
@@ -111,18 +112,46 @@ def _generate_via_self_correct(
     can consume it unchanged. Targets with no returned sentences are simply
     absent from the list — the loop's per-target coverage tracker handles
     them by reporting the lemma_id in ``words_failed``.
+
+    Emits ``batch_self_correct_returned`` on success and
+    ``batch_self_correct_empty`` when the CLI returns no result. Without
+    these, the new generation path (default since 2026-04-20) has no
+    measurable success rate — only failures were logged previously.
     """
     from app.services.sentence_self_correct import generate_sentences_self_correct_batch
     from app.config import settings as _settings
+    import time as _time
 
     target_ids = [t["lemma_id"] for t in targets]
-    res = generate_sentences_self_correct_batch(
-        target_lemma_ids=target_ids,
-        db_path=_settings.database_url.replace("sqlite:///", ""),
-        needed_per_target=count_per_word,
-        max_budget_usd=max(0.2, 0.1 * len(target_ids)),
-    )
+    started = _time.time()
+    try:
+        res = generate_sentences_self_correct_batch(
+            target_lemma_ids=target_ids,
+            db_path=_settings.database_url.replace("sqlite:///", ""),
+            needed_per_target=count_per_word,
+            max_budget_usd=max(0.2, 0.1 * len(target_ids)),
+        )
+    except RuntimeError as exc:
+        elapsed = _time.time() - started
+        msg = str(exc)
+        # ClaudeCLIError is wrapped to RuntimeError by the limbic helper.
+        # Empty-response failures are the dominant failure mode (596 since
+        # 2026-04-20) and we want them explicitly tagged so retry/diagnosis
+        # work has a stable event to query.
+        is_empty = msg.startswith("empty response") or "empty response" in msg
+        if log_dir is not None:
+            _log_pipeline(log_dir, {
+                "event": "batch_self_correct_empty" if is_empty
+                         else "batch_self_correct_error",
+                "target_lemma_ids": target_ids,
+                "group_size": len(target_ids),
+                "needed_per_target": count_per_word,
+                "elapsed_s": round(elapsed, 1),
+                "error": msg[:200],
+            })
+        raise
 
+    elapsed = _time.time() - started
     out: list[_SelfCorrectBatchResult] = []
     idx_by_tid = {tid: i for i, tid in enumerate(target_ids)}
     for tid, sentences in res.sentences_by_target.items():
@@ -136,6 +165,25 @@ def _generate_via_self_correct(
                 english=s.english,
                 transliteration=s.transliteration,
             ))
+
+    if log_dir is not None:
+        per_target_counts = {
+            tid: len(res.sentences_by_target.get(tid, [])) for tid in target_ids
+        }
+        _log_pipeline(log_dir, {
+            "event": "batch_self_correct_returned",
+            "target_lemma_ids": target_ids,
+            "group_size": len(target_ids),
+            "needed_per_target": count_per_word,
+            "sentences_returned": len(out),
+            "per_target_counts": per_target_counts,
+            "targets_with_zero": [
+                tid for tid, n in per_target_counts.items() if n == 0
+            ],
+            "cost_usd": round(getattr(res, "cost_usd", 0.0), 4),
+            "turns": getattr(res, "turns", 0),
+            "elapsed_s": round(elapsed, 1),
+        })
     return out
 
 
@@ -677,7 +725,9 @@ def batch_generate_material(
             return {"generated": 0, "words_covered": 0, "words_failed": [t["lemma_id"] for t in targets]}
     else:
         try:
-            results = _generate_via_self_correct(targets, count_per_word=count_per_word)
+            results = _generate_via_self_correct(
+                targets, count_per_word=count_per_word, log_dir=_log_dir,
+            )
         except Exception as e:
             logger.warning(f"Self-correct batch generation failed: {e}")
             return {"generated": 0, "words_covered": 0, "words_failed": [t["lemma_id"] for t in targets]}
@@ -819,6 +869,12 @@ def batch_generate_material(
             "mappings": mappings,
             "target_lemma_id": cand["target_lemma_id"],
         })
+        if not _use_legacy_batch():
+            _log_pipeline(_log_dir, {
+                "event": "batch_self_correct_accepted",
+                "lemma_id": cand["target_lemma_id"],
+                "arabic": cand["arabic"],
+            })
 
     # ── Phase 3: DB write ─��
     db = SessionLocal()

@@ -4,6 +4,113 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-05-03: Phase A — generation pipeline observability
+
+### What
+
+Added success-event logging to the self-correct batch generation path (default since 2026-04-20). Before this change, only `batch_validation_failed` was emitted to `generation_pipeline_*.jsonl`; the dominant generation path had no observable success rate.
+
+Three new events in `_generate_via_self_correct` and the call site in `batch_generate_material`:
+
+- `batch_self_correct_returned` — non-empty result. Includes `target_lemma_ids`, `group_size`, `sentences_returned`, `per_target_counts`, `targets_with_zero`, `cost_usd`, `turns`, `elapsed_s`.
+- `batch_self_correct_empty` — `RuntimeError("empty response")` from limbic. Includes `target_lemma_ids`, `group_size`, `elapsed_s`. Replaces the previous untagged log line.
+- `batch_self_correct_accepted` — sentence reached `valid_sentences` (post-deterministic-validation, post-Haiku-verify). Includes `lemma_id`, `arabic`.
+
+New script: `backend/scripts/pipeline_stats.py` reads `generation_pipeline_*.jsonl` and reports daily counts for self-correct returned/accepted/empty plus legacy events.
+
+### Phase B finding (no fix shipped this PR)
+
+Probed top `same_lemma` and `not_found` failure surfaces against the prod snapshot via `/tmp/claude/probe_correct_mapping.py`. Every same_lemma surface (`فَعَلَ`→#207, `لَا`→#163, `بَدَا`→#402, `نَفْس`→#357, `حَال`→#890, …) resolves cleanly through both `lookup_lemma` and `correct_mapping`. **There is no resolution gap.** The verifier (Haiku) is hallucinating mismatch on already-correct mappings, then proposing back the same lemma; the gate correctly rejects this as non-actionable.
+
+This means the corpus-enrichment Step A2 22.4% kept rate is mostly verifier non-determinism, not a real lemma-vocabulary gap. The right fix is a softer Step A2 policy ("if all `apply_corrections` failures are `same_lemma`, leave the sentence as-is, retry on next cron") — a future PR, not in scope here. The hard `same_lemma` rejection in `apply_corrections` itself stays untouched per CLAUDE.md memory + 2+ docstring guards.
+
+### Why
+
+Without observability, every Phase C code change would be a guess about its effect. Now we can measure: `python scripts/pipeline_stats.py --days 1` after one cron cycle to confirm the success rate, and again after future fixes to confirm direction.
+
+### How to verify
+
+- Wait one cron cycle (~3h) after deploy, then `ssh alif "cd /opt/alif/backend && PYTHONPATH=/opt/limbic .venv/bin/python3 scripts/pipeline_stats.py --days 1"`.
+- Expect `batch_self_correct_returned` and `batch_self_correct_accepted` to be non-zero. The dominant path should show 70–90% accept rate based on the 2026-04-20 N=10 benchmark of 95% naturalness × ~80% deterministic validation.
+
+### Phase B follow-ups (separate PRs)
+
+- C1 — Empty-response retry. ~20 LOC in `sentence_self_correct.py`.
+- C2 — Softer Step A2 corpus policy (leave on same_lemma, retry next cycle). Requires `apply_corrections` to surface failure reasons, not just positions.
+- C3 — Manual fix of ~10–15 textbook_scan lemmas with genuine ar/bare-different-morpheme corruption.
+- D — Drain backoff list after C1+C2 land and one clean cron cycle.
+
+---
+
+## 2026-05-03: Generation-pipeline investigation — three concurrent bugs found
+
+### What
+
+After the 21-day learning review surfaced 12 acquiring words with no active sentence, 211 in generation backoff, and a degrading pipeline, drilled into `update_material.py` cron logs (9.3MB, 535 runs) and `generation_pipeline_*.jsonl`. Report: `research/generation-pipeline-investigation-2026-05-03.md`.
+
+### Findings
+
+1. **`lemma_ar_bare` is corrupt on textbook_scan imports.** Spot-check: `#2516 حَاجِب (eyebrow)` has `lemma_ar_bare = احتجاب` (an entirely different word), `#2570 رِبْطَة (noun)` has `bare = ربط` (verb root), `#2402 جَوَارِب (plural)` has `bare = جورب` (singular), `#3173 تَرَفَّعَ (form V)` has `bare = رفع` (form I). The OCR-import disambiguator picked `lemma_ar` and CAMeL morphology produced an inconsistent `lemma_ar_bare`. At least 5 of the 12 sentence-less acquiring words are affected.
+
+2. **Validator demands exact bare-form match on the target word.** `validate_sentence` checks the surface against `target_bare` (+ ال prefix + clitic-stripping fallbacks) but not against `lookup_lemma()` for the target's lemma_id. Singular↔plural, masculine↔feminine, and form-I↔form-V inflections all fail. The LLM correctly produces sentences using the lemma, the validator demands a different surface, sentences rejected, fail counter ticks up to 3 → 7-day backoff.
+
+3. **Step A2 corpus enrichment is at 22.4% kept** (1,846 / 8,250 across 165 cron runs). Sentences that fail one verifier round are deactivated permanently (`is_active = False`, `mappings_verified_at = now`). Most failures are `same_lemma` — verifier disagrees with current mapping but proposes the same lemma_id, which is not actionable feedback yet still triggers permanent deactivation.
+
+4. **Observability gap on the dominant generation path.** The self-correct batch path (default since 2026-04-20) emits `batch_validation_failed` events but no success events at all. We have no measurable success rate for the path that handles ~80% of generation. 596 `Self-correct batch generation failed: empty response` instances since 2026-04-20 with no retry logic.
+
+5. **Backoff list grew 31 → 172 monotonically.** With 7-day backoff durations, even a fix today doesn't drain the queue immediately.
+
+### Why these compound
+
+Bug 1 + Bug 2 together: bad data → impossible-to-satisfy target check → 3 fails → 7-day backoff. Bug 3: existing well-formed corpus sentences get permanently destroyed at 4× the rate they should. Bug 4: nobody noticed, because we stopped logging successes.
+
+### How to verify
+
+- `ssh alif "grep '→ Generated' /var/log/alif-update-material.log | awk '...'"` (success rate and counts)
+- Inspect `lemma_ar` vs `lemma_ar_bare` for any `source = "textbook_scan"` lemma in `acquiring` state with `times_seen >= 4` and `acc < 0.5`.
+- Check `generation_pipeline_2026-05-03.jsonl`: every `batch_validation_failed` event today has the target-form mismatch pattern.
+
+### Recommended fixes (dependency order)
+
+A. Loosen validator target check: accept any token whose `lookup_lemma()` resolves to `target_lemma_id`. ~5 LOC.
+B. Audit + repair `lemma_ar_bare` on textbook_scan imports (~50-100 lemmas).
+C. Soften Step A2: treat `same_lemma` as "no-op" (not as failure), retry on transient failures instead of permanent deactivation, loosen single-occurrence proper-name detection.
+D. Add success-event logging to `_generate_via_self_correct`.
+E. Drain the backoff list once A and B land.
+
+Not addressed by these: the 3 FSRS words 30+ days overdue (different filter — comprehensibility gate in sentence_selector), 305 encountered NULL `introduced_at` (data shape from pre-04-27), listening-mode UX.
+
+---
+
+## 2026-05-03: 21-day learning review — system check after PR #55 deploy
+
+### What
+
+Full audit of learning indicators 04-13 → 05-03 against `~/alif-backups/alif_20260503_210136.db`. Report: `research/learning-review-2026-05-03.md`.
+
+Headline numbers: **1,697 known words** (median stability 64d), **93.2% retention** over 21d (above 90% target), **278 graduations vs 269 intros** (net −9, consolidating). Box-1 backlog at 47 (under the 60 gate). All hard invariants pass.
+
+### Six follow-up issues flagged
+
+1. **12 acquiring words have no active sentence** — e.g. ر د (return), د م (smear), ر ف ع (rise). Several have `times_seen ≥ 5`, so the user is hitting them but FSRS can't space them. Highest priority.
+2. **211 words in generation backoff** with `failed_count = 8` — common nouns dominate (refrigerator, bicycle, jam, Sufi, Morocco). Likely verifier-too-strict, not genuinely impossible content.
+3. **305 of 319 encountered ULKs have NULL `introduced_at`** — pre-PR-#53 records. Low risk but distorts any introduced_at-bucketed metric.
+4. **10 starved acquiring words** never reviewed despite >2d overdue. Five of them have ≥1 active sentence — `NEVER_REVIEWED_BOOST = 5.0` should make them dominate selection. Likely failing comprehensibility gate or `mappings_verified_at IS NULL` skip.
+5. **3 FSRS words 30+ days overdue** (max 67d) — past `OVERDUE_ESCALATION` 4× ramp.
+6. **0 listening reviews in 21 days** — mode appears dormant. UX or audio-gen issue.
+
+### Why
+
+PR #53 (2026-04-27) and PR #55 (today) shipped large session-quality changes. This is a baseline check before the next algorithm iteration. Confirms the changes worked at the macro level — graduation spike on 04-27/28 (29 + 34) lines up with Tier-0 instant graduation landing. No invariant regressions.
+
+### How to verify
+
+- `python3 /tmp/claude/learning_review.py "$TMPDIR/alif_review.db"`
+- `python3 /tmp/claude/learning_followups.py "$TMPDIR/alif_review.db"`
+- Re-run after the six fixes to confirm follow-ups close out.
+
+---
+
 ## 2026-04-30: Intro-card coverage, duplicate-session veto, and Al-Kitaab benchmark matcher
 
 ### What
