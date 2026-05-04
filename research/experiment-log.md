@@ -4,6 +4,60 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-05-04: Backoff-aware multi-target — recovery via collateral coverage
+
+### What
+
+Replaces the planned C1 (blind retry on `batch_self_correct_empty`). Backed-off lemmas are now eligible for multi-target groups as collateral, capped at 1 per group of ≤4 healthy lemmas. Self-correct paths (batch + single-word fallback) still exclude backed-off lemmas — those are where they consistently fail. A successful multi-target generation auto-resets `generation_failed_count` via the existing `record_generation_result()` path.
+
+Implementation: `_augment_groups_with_recovery()` in `update_material.py` tops up under-sized groups with one backed-off lemma each, skipping any with same-root collisions. Recovery lemmas only get success recorded (no failure increments) so their backoff isn't pushed further out by piggy-back attempts.
+
+Bonus: fixed a `pipeline_stats.py` mislabel where the per-target-counts block read from `self_correct_returned` events but printed under "Multi-target path." Multi-target now has its own coverage stats (distinct targets, % covered) and the daily breakdown sums sentences from `multi_target_summary` rather than counting attempt events.
+
+### Why
+
+The handoff plan called for C1 — retry single-word self-correct on empty response. Investigating one cron cycle of multi-target Phase 1 data (after the manual 09:09 UTC trigger) revealed:
+
+- Multi-target Phase 1 hits **88% target coverage** (22/25 lemmas covered ≥1 sentence) and **45.9% post-quality acceptance** (17/37 sentences).
+- One of the handoff's "hard-core 5" failures (#2307) was covered TWICE as collateral in a `[1835, 2307, 632, 2982]` multi-target group, immediately resetting its `generation_failed_count` to 0.
+- Self-correct empties are deterministic budget-exhaust (30-73s elapsed, all `group_size=1`), not flakiness — a same-prompt retry hits the same wall.
+
+The "hard" lemmas aren't permanently hard. They fail in single-word fallback because the LLM has to weave a rare lemma into a sentence using only known-vocab. Bundled with 2-3 healthy peers in a multi-target group, the LLM picks the easiest combo to write naturally about, the rare lemma rides along as collateral, and quality review accepts the result.
+
+The original concern (commit 26bba5f) was that chronic failures crowded out viable lemmas in multi-target batches. The 1-per-group cap directly addresses that: groups remain ≥75% healthy.
+
+### Expected effect
+
+- Backoff list (currently 207 entries, growing ~3-4/hr) drains naturally as backed-off lemmas piggy-back on healthy cohorts.
+- Self-correct empty rate stays ~50% — this isn't trying to fix self-correct, just to route around it for chronic failures.
+- Multi-target coverage rate stays similar (88% in the one observed run) since the cap keeps groups majority-healthy.
+
+### How to verify
+
+- `pipeline_stats --days 7` over the next week. Watch backoff list size:
+  ```bash
+  ssh alif "cd /opt/alif/backend && PYTHONPATH=/opt/limbic .venv/bin/python3 -c 'import sqlite3, datetime; c=sqlite3.connect(\"data/alif.db\"); now=datetime.datetime.utcnow().isoformat(); n=c.execute(\"SELECT COUNT(*) FROM user_lemma_knowledge WHERE generation_backoff_until > ?\", (now,)).fetchone()[0]; print(n)'"
+  ```
+- Cron output should print `Including N backed-off lemmas as multi-target recovery (≤1/group)` when there are backoff entries.
+- Spot-check named recoveries: handoff's "hard-core 5" (#840, #2650, #2651, #582, #2307) — most should clear backoff over the next few cron cycles.
+
+### Decision rationale
+
+C1 (blind retry) was rejected before implementation. Reasoning: pipeline_stats showed self-correct empty rate at 53% with all empties from `group_size=1`, multi-target showed 88% coverage in one run. Retry on a path that's structurally weak just doubles spend on same-prompt failures.
+
+### Test plan
+
+`backend/tests/test_generation_backoff.py` extended with 4 unit tests for `_augment_groups_with_recovery`: full groups untouched, undersized groups topped up with 1 recovery word, root-collision recovery words skipped, distribution of recovery words across multiple groups (1 per group cap).
+
+### Guardrails preserved (CLAUDE.md Rule #14)
+
+- `same_lemma` rejection in `apply_corrections` untouched.
+- `lookup_lemma` not added to multi-target validator's target check (still exact match).
+- No auto-creation of lemmas anywhere.
+- `record_generation_result` policy: recovery lemmas only get success recorded; failures don't push backoff further.
+
+---
+
 ## 2026-05-04: Phase C1.5 — multi-target Phase 1 observability + Phase A measurements
 
 ### What

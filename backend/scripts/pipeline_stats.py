@@ -53,6 +53,8 @@ def iter_pipeline_entries(log_dir: Path, dates: list[date]):
 def _per_day(entries):
     by_day: dict[date, Counter] = defaultdict(Counter)
     self_correct_returned: dict[date, list[dict]] = defaultdict(list)
+    multi_target_summaries: list[dict] = []
+    multi_target_accepted: list[dict] = []
     issues: Counter[str] = Counter()
     empty_groups: list[dict] = []
 
@@ -64,11 +66,22 @@ def _per_day(entries):
             self_correct_returned[d].append(e)
         elif ev == "batch_self_correct_empty":
             empty_groups.append({"date": d.isoformat(), **e})
+        elif ev == "multi_target_summary":
+            multi_target_summaries.append(e)
+        elif ev == "multi_target_accepted":
+            multi_target_accepted.append(e)
         elif ev == "batch_validation_failed":
             for iss in e.get("issues") or []:
                 issues[iss[:90]] += 1
 
-    return by_day, self_correct_returned, issues, empty_groups
+    return (
+        by_day,
+        self_correct_returned,
+        multi_target_summaries,
+        multi_target_accepted,
+        issues,
+        empty_groups,
+    )
 
 
 def main():
@@ -88,9 +101,14 @@ def main():
         dates = [today - timedelta(days=i) for i in range(args.days)]
         label = f"last {args.days} days ({dates[-1]} .. {dates[0]})"
 
-    by_day, self_correct_returned, issues, empty_groups = _per_day(
-        iter_pipeline_entries(log_dir, dates)
-    )
+    (
+        by_day,
+        self_correct_returned,
+        multi_target_summaries,
+        multi_target_accepted,
+        issues,
+        empty_groups,
+    ) = _per_day(iter_pipeline_entries(log_dir, dates))
 
     print(f"=== Generation Pipeline Stats — {label} ===")
     print(f"Log dir: {log_dir}")
@@ -101,6 +119,26 @@ def main():
         return
 
     # ── Daily breakdown ──
+    # mt_grp = number of multi_target_summary events (one per group call).
+    # mt_ret = sum of sentences_returned across summaries (sentences from LLM).
+    # mt_acc = sum of accepted across summaries (post-quality-review survivors).
+    mt_by_day: dict[date, tuple[int, int, int]] = defaultdict(lambda: (0, 0, 0))
+    for s in multi_target_summaries:
+        # Find the date by parsing ts; fall back to no-op if absent
+        ts = s.get("ts", "")
+        try:
+            d = datetime.fromisoformat(ts).date() if ts else None
+        except ValueError:
+            d = None
+        if d is None:
+            continue
+        g, r, a = mt_by_day[d]
+        mt_by_day[d] = (
+            g + 1,
+            r + (s.get("sentences_returned") or 0),
+            a + (s.get("accepted") or 0),
+        )
+
     print("Self-correct (single + batch fallback) | Multi-target (Phase 1) | shared")
     print(f"{'date':<12} {'sc_ret':>6} {'sc_acc':>6} {'sc_emp':>6} | "
           f"{'mt_grp':>6} {'mt_ret':>6} {'mt_acc':>6} {'mt_fail':>7} | "
@@ -112,11 +150,7 @@ def main():
         sc_ret = c.get("batch_self_correct_returned", 0)
         sc_acc = c.get("batch_self_correct_accepted", 0)
         sc_emp = c.get("batch_self_correct_empty", 0)
-        # Multi-target events. mt_grp counts groups attempted (one summary per call).
-        # mt_ret counts sentences returned by the LLM, mt_acc the post-quality-review survivors.
-        mt_grp = c.get("multi_target_summary", 0)
-        mt_ret = c.get("multi_target_returned", 0)
-        mt_acc = c.get("multi_target_accepted", 0)
+        mt_grp, mt_ret, mt_acc = mt_by_day.get(d, (0, 0, 0))
         mt_fail = c.get("multi_target_failed", 0)
         val_fail = c.get("batch_validation_failed", 0)
         sc_ret_sum += sc_ret
@@ -138,14 +172,6 @@ def main():
              if sc_ret_sum + sc_emp_sum else ""))
     print(f"  sentences accepted (post-Haiku verify): {sc_acc_sum}")
 
-    # ── Multi-target effectiveness ──
-    print()
-    print("Multi-target path (Phase 1 of cron, dominant generation source):")
-    print(f"  groups attempted: {mt_grp_sum}")
-    print(f"  sentences returned by LLM: {mt_ret_sum}")
-    print(f"  sentences accepted (post-quality-review): {mt_acc_sum}"
-          + (f"  ({100*mt_acc_sum/mt_ret_sum:.1f}% of returned)" if mt_ret_sum else ""))
-
     if self_correct_returned:
         all_groups = [e for ents in self_correct_returned.values() for e in ents]
         per_target = []
@@ -162,6 +188,31 @@ def main():
             print(f"  mean sentences/target: {mean(per_target):.2f}"
                   f"  (over {len(per_target)} target slots)")
             print(f"  groups returning zero sentences: {zero_groups}/{len(all_groups)}")
+
+    # ── Multi-target effectiveness ──
+    print()
+    print("Multi-target path (Phase 1 of cron, dominant generation source):")
+    print(f"  groups attempted: {mt_grp_sum}")
+    print(f"  sentences returned by LLM: {mt_ret_sum}")
+    print(f"  sentences accepted (post-quality-review): {mt_acc_sum}"
+          + (f"  ({100*mt_acc_sum/mt_ret_sum:.1f}% of returned)" if mt_ret_sum else ""))
+
+    if multi_target_summaries:
+        target_slots: set[int] = set()
+        for s in multi_target_summaries:
+            target_slots.update(s.get("target_lemma_ids") or [])
+        covered_targets: set[int] = set()
+        for a in multi_target_accepted:
+            covered_targets.update(a.get("target_lemma_ids") or [])
+        zero_groups = sum(
+            1 for s in multi_target_summaries
+            if not (s.get("accepted") or 0)
+        )
+        if target_slots:
+            print(f"  distinct target lemmas: {len(target_slots)}")
+            print(f"  targets covered ≥1 accepted sentence: {len(covered_targets)}"
+                  f"  ({100*len(covered_targets)/len(target_slots):.1f}%)")
+            print(f"  groups with zero accepted sentences: {zero_groups}/{len(multi_target_summaries)}")
 
     # ── Empty-response details ──
     if empty_groups:

@@ -106,3 +106,79 @@ def test_lemmas_on_backoff_filters_expired_entries(db_session):
 
 def test_lemmas_on_backoff_empty_input(db_session):
     assert lemmas_on_backoff(db_session, []) == set()
+
+
+# ── Backoff-aware multi-target group augmentation ──
+# Backed-off lemmas piggy-back on healthy cohorts via multi-target collateral,
+# capped at 1 per group of ≤4 healthy lemmas. Original concern from #37 was
+# chronic failures crowding out viable lemmas; the cap keeps groups majority-
+# healthy. A successful generation auto-resets the counter via the existing
+# record_generation_result path.
+
+def _w(lemma_id, root_id=None):
+    return {"lemma_id": lemma_id, "lemma_ar": f"w{lemma_id}", "root_id": root_id}
+
+
+def test_augment_skips_full_groups():
+    import sys
+    from pathlib import Path
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
+    from update_material import _augment_groups_with_recovery
+
+    full_group = [_w(1, 100), _w(2, 200), _w(3, 300), _w(4, 400)]
+    recovery = [_w(99, 999)]
+    out = _augment_groups_with_recovery([full_group], recovery)
+    assert out == [full_group]  # unchanged — no slot available
+
+
+def test_augment_adds_one_to_undersized_group():
+    import sys
+    from pathlib import Path
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
+    from update_material import _augment_groups_with_recovery
+
+    group = [_w(1, 100), _w(2, 200)]
+    recovery = [_w(99, 999), _w(100, 998)]
+    out = _augment_groups_with_recovery([group], recovery)
+    assert len(out) == 1
+    assert len(out[0]) == 3  # 1 recovery added
+    assert out[0][:2] == group  # recovery appended, healthy intact
+
+
+def test_augment_skips_recovery_with_root_collision():
+    import sys
+    import random as _random
+    from pathlib import Path
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
+    from update_material import _augment_groups_with_recovery
+
+    _random.seed(0)
+    group = [_w(1, 100), _w(2, 200)]
+    # Both recovery candidates collide with the group's roots.
+    recovery = [_w(99, 100), _w(100, 200)]
+    out = _augment_groups_with_recovery([group], recovery)
+    # No non-colliding option → group left unchanged.
+    assert out[0] == group
+
+
+def test_augment_distributes_one_per_group():
+    import sys
+    import random as _random
+    from pathlib import Path
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
+    from update_material import _augment_groups_with_recovery
+
+    _random.seed(0)
+    groups = [
+        [_w(1, 100), _w(2, 200)],
+        [_w(3, 300), _w(4, 400)],
+    ]
+    recovery = [_w(99, 901), _w(100, 902), _w(101, 903)]
+    out = _augment_groups_with_recovery(groups, recovery)
+    # Both groups had room; each gets exactly 1 recovery word.
+    assert len(out[0]) == 3
+    assert len(out[1]) == 3
+    # Recovery lemmas present in result
+    recovery_ids = {99, 100, 101}
+    found = {w["lemma_id"] for g in out for w in g if w["lemma_id"] in recovery_ids}
+    assert len(found) == 2  # one per group, third recovery word unused

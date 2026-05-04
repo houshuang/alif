@@ -69,6 +69,38 @@ CAP_HEADROOM = 50  # retire this many below cap to leave room for multi-target b
 PREGEN_SENTENCES_PER_CANDIDATE = 3  # for step C pre-generation of not-yet-introduced words
 
 
+def _augment_groups_with_recovery(
+    groups: list[list[dict]],
+    recovery_words: list[dict],
+    max_group_size: int = 4,
+) -> list[list[dict]]:
+    """Top up multi-target groups with at most 1 backed-off lemma each.
+
+    Recovery lemmas only fill empty slots — never displace a healthy lemma —
+    so groups remain majority-healthy. Skips a recovery lemma whose root_id
+    collides with one already in the group.
+    """
+    if not recovery_words:
+        return groups
+    pool = list(recovery_words)
+    random.shuffle(pool)
+    out: list[list[dict]] = []
+    for group in groups:
+        if len(group) >= max_group_size or not pool:
+            out.append(group)
+            continue
+        existing_roots = {w.get("root_id") for w in group if w.get("root_id") is not None}
+        for i, rw in enumerate(pool):
+            rid = rw.get("root_id")
+            if rid is not None and rid in existing_roots:
+                continue
+            group = group + [rw]
+            pool.pop(i)
+            break
+        out.append(group)
+    return out
+
+
 def get_existing_counts(db: Session) -> dict[int, int]:
     rows = (
         db.query(Sentence.target_lemma_id, func.count(Sentence.id))
@@ -597,6 +629,34 @@ def step_backfill_sentences(
 
     print(f"  Words needing sentences: {len(words_needing)} (of {len(word_tiers)} total)")
 
+    # Backoff-aware multi-target: backed-off lemmas are excluded from the
+    # self-correct paths (where they keep failing) but get free recovery
+    # attempts as collateral in multi-target groups, capped at 1 per group of
+    # ≤4 healthy lemmas. The original concern from #37 was chronic failures
+    # crowding out viable lemmas; the cap keeps groups majority-healthy while
+    # giving backoff lemmas a path back. A successful generation auto-resets
+    # the counter via record_generation_outcome().
+    backoff_recovery_words: list[dict] = []
+    if backoff_ids and len(words_needing) >= 2:
+        sample_n = min(len(backoff_ids), max(1, len(words_needing) // 3))
+        for lid in random.sample(list(backoff_ids), sample_n):
+            lemma = db.query(Lemma).filter(Lemma.lemma_id == lid).first()
+            if not lemma or not (lemma.gloss_en or "").strip():
+                continue
+            backoff_recovery_words.append({
+                "lemma_id": lid,
+                "lemma_ar": lemma.lemma_ar,
+                "gloss_en": lemma.gloss_en or "",
+                "root_id": lemma.root_id,
+                "due_str": "backoff",
+                "existing": existing_counts.get(lid, 0),
+                "needed": 1,
+                "tier": 4,
+                "backfill_target": 1,
+            })
+        if backoff_recovery_words:
+            print(f"  Including {len(backoff_recovery_words)} backed-off lemmas as multi-target recovery (≤1/group)")
+
     total = 0
     words_processed = 0
     covered_by_multi: set[int] = set()
@@ -613,6 +673,8 @@ def step_backfill_sentences(
             write_multi_target_sentence,
         )
         groups = group_words_for_multi_target(words_needing)
+        if backoff_recovery_words:
+            groups = _augment_groups_with_recovery(groups, backoff_recovery_words)
 
         # Phase 1a: generate all multi-target sentences (LLM only, no DB writes)
         all_multi_results: list[tuple[list, dict[str, int]]] = []
@@ -754,6 +816,15 @@ def step_backfill_sentences(
         for w in words_needing:
             lid = w["lemma_id"]
             record_generation_result(db, lid, 1 if lid in covered else 0)
+        # Backoff-recovery lemmas: only record successes (which clear the counter).
+        # Don't penalise failures — they're already on backoff and not in
+        # words_needing; recording another 0-result here would just push their
+        # backoff_until further out without giving them another chance until
+        # they age out. A success via multi-target collateral resets normally.
+        for w in backoff_recovery_words:
+            lid = w["lemma_id"]
+            if lid in covered:
+                record_generation_result(db, lid, 1)
 
     print(f"  → Generated {total} sentences for {words_processed} words")
     return total
