@@ -4,6 +4,49 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-05-04: Phase C1.5 — multi-target Phase 1 observability + Phase A measurements
+
+### What
+
+Added pipeline events to the multi-target generation path (`generate_validated_sentences_multi_target` in `sentence_generator.py`). This is the dominant source of generated sentences in each cron run (5–21/run from cron summaries) but emitted nothing to `generation_pipeline_*.jsonl` previously — Phase A only covered the self-correct fallback path.
+
+Four new events:
+- `multi_target_returned` — per-attempt: `target_lemma_ids`, `group_size`, `attempt`, `sentences_returned`, `validated`
+- `multi_target_accepted` — per accepted sentence: `target_lemma_ids`, `primary_target_lemma_id`, `arabic`
+- `multi_target_failed` — `AllProvidersFailed` with attempt + reason
+- `multi_target_summary` — one per call: total attempts, sentences returned, validated, accepted
+
+`pipeline_stats.py` extended with a multi-target section so a single run shows both paths side by side.
+
+### Phase A measurements (after 48h on prod)
+
+```
+date         sc_ret sc_acc sc_emp val_fail
+2026-05-03        3     15      6       11
+2026-05-04       11      9     11        0
+```
+
+- **Self-correct fallback path: 54.8% empty-response rate** (22/40 attempts). Higher than expected.
+- All 22 empty responses come from `group_size=1` calls (Phase 3 single-word fallback) plus one `group_size=6` batch — the multi-target Phase 1 path is invisible.
+- 4 lemmas (#840 ماه, #2650 رقة, #2651 ثمينه, #582 آلة) hit 3 empty responses each → into 7-day backoff.
+- Lemmas with sometimes-success: #1067 رحم (1 empty / 3 accepted), #2279 سور (1 / 2), #3138 منع (2 / 2).
+
+### C0 reconsidered, dropped
+
+Initially proposed filtering `pos=noun_prop` from the generation queue based on #2651 Thameena failing. Probed: only 1/12 failure-list lemmas is `noun_prop`. Six other proper-name lemmas (Oslo, Lebanon, Norway, etc.) work fine and would be starved. The actual failure cluster is rare/abstract content, not POS — needs more data before targeting. Per CLAUDE.md Rule #14, dropped C0 from the plan.
+
+### How to verify
+
+After one cron cycle (~3h):
+
+```bash
+ssh alif "cd /opt/alif/backend && PYTHONPATH=/opt/limbic .venv/bin/python3 scripts/pipeline_stats.py --days 1"
+```
+
+Expected: the new "Multi-target path" section is non-zero. `mt_acc / mt_ret` is the post-quality-review survival rate; cron summaries suggest 70-90%.
+
+---
+
 ## 2026-05-03: Phase A — generation pipeline observability
 
 ### What

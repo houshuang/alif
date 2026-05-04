@@ -485,8 +485,18 @@ def generate_validated_sentences_multi_target(
 
     valid_sentences: list[MultiTargetGeneratedSentence] = []
     counts = existing_sentence_counts or {}
+    target_ids = [tw["lemma_id"] for tw in target_words]
 
+    # Companion to material_generator._generate_via_self_correct events.
+    # Multi-target Phase 1 produces the bulk of cron generation but emitted
+    # nothing to generation_pipeline_*.jsonl until 2026-05-04.
+    from app.services.material_generator import _log_pipeline
+
+    sentences_returned_total = 0
+    validated_total = 0
+    final_attempt = 0
     for attempt in range(1, MULTI_TARGET_MAX_RETRIES + 1):
+        final_attempt = attempt
         try:
             results = generate_sentences_multi_target(
                 target_words=llm_targets,
@@ -498,8 +508,17 @@ def generate_validated_sentences_multi_target(
                 model_override=model_override,
             )
         except AllProvidersFailed:
+            _log_pipeline(settings.log_dir, {
+                "event": "multi_target_failed",
+                "target_lemma_ids": target_ids,
+                "group_size": len(target_ids),
+                "attempt": attempt,
+                "reason": "all_providers_failed",
+            })
             break
 
+        sentences_returned_total += len(results)
+        validated_this_attempt = 0
         for res in results:
             validation = validate_sentence_multi_target(
                 arabic_text=res.arabic,
@@ -530,18 +549,48 @@ def generate_validated_sentences_multi_target(
                 target_bares_found=validation.targets_found,
                 attempts=attempt,
             ))
+            validated_this_attempt += 1
+
+        validated_total += validated_this_attempt
+        _log_pipeline(settings.log_dir, {
+            "event": "multi_target_returned",
+            "target_lemma_ids": target_ids,
+            "group_size": len(target_ids),
+            "attempt": attempt,
+            "sentences_returned": len(results),
+            "validated": validated_this_attempt,
+        })
 
         if valid_sentences:
             break
 
     # Batch quality review
+    quality_passed = 0
     if valid_sentences:
         to_review = [{"arabic": s.arabic, "english": s.english} for s in valid_sentences]
         reviews = review_sentences_quality(to_review)
         _log_quality_review(settings.log_dir, "multi_target", to_review, reviews)
-        valid_sentences = [
-            s for s, r in zip(valid_sentences, reviews)
-            if r.natural and r.translation_correct
-        ]
+        accepted: list[MultiTargetGeneratedSentence] = []
+        for s, r in zip(valid_sentences, reviews):
+            if r.natural and r.translation_correct:
+                accepted.append(s)
+                _log_pipeline(settings.log_dir, {
+                    "event": "multi_target_accepted",
+                    "target_lemma_ids": s.target_lemma_ids,
+                    "primary_target_lemma_id": s.primary_target_lemma_id,
+                    "arabic": s.arabic,
+                })
+        quality_passed = len(accepted)
+        valid_sentences = accepted
+
+    _log_pipeline(settings.log_dir, {
+        "event": "multi_target_summary",
+        "target_lemma_ids": target_ids,
+        "group_size": len(target_ids),
+        "attempts_used": final_attempt,
+        "sentences_returned": sentences_returned_total,
+        "validated": validated_total,
+        "accepted": quality_passed,
+    })
 
     return valid_sentences
