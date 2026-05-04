@@ -23,7 +23,7 @@ load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 from app.database import SessionLocal
 from app.models import Lemma
 from app.services.activity_log import log_activity
-from app.services.sentence_validator import strip_diacritics
+from app.services.sentence_validator import strip_diacritics, normalize_alef
 from app.services.claude_code import generate_structured
 
 
@@ -83,7 +83,7 @@ def _build_prompt(batch):
     return "\n".join(lines)
 
 
-def vocalize_batch(batch):
+def vocalize_batch(batch, timeout=180):
     """Returns dict {lemma_id: vocalized_ar} for the batch."""
     prompt = _build_prompt(batch)
     result = generate_structured(
@@ -91,7 +91,7 @@ def vocalize_batch(batch):
         system_prompt=_SYSTEM,
         json_schema=_SCHEMA,
         model="haiku",
-        timeout=120,
+        timeout=timeout,
     )
     return {entry["lemma_id"]: entry["vocalized_ar"] for entry in result.get("vocalized", [])}
 
@@ -134,8 +134,10 @@ def main(dry_run=False, batch_size=20):
                     continue
 
                 # Validate: stripped proposal must match original bare form
+                # (after normalizing alef variants — LLM often restores hamza
+                # forms like اعراب → إعراب, which is a valid correction).
                 stripped = strip_diacritics(proposal)
-                if stripped != l.lemma_ar_bare:
+                if normalize_alef(stripped) != normalize_alef(l.lemma_ar_bare):
                     print(f"  {l.lemma_id} {l.lemma_ar_bare}: REJECTED (changed letters: got {stripped!r})")
                     rejected_changed_letters += 1
                     continue
