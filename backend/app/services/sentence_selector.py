@@ -44,8 +44,14 @@ from app.services.sentence_validator import (
 
 logger = logging.getLogger(__name__)
 
-# Acquisition repetition: each acquiring word should appear this many times in a session
-MIN_ACQUISITION_EXPOSURES = 4
+# Acquisition repetition: how many times an acquiring word should appear in a session.
+# Box 1 = encoding (first exposure), needs 4 reps to lay down memory.
+# Box 2 = consolidation (already encoded), 2 reps is enough — a single correct
+# review here already triggers Tier 1 graduation, so 4 reps wasted 2 cards on
+# words the learner had already mastered (data 2026-05-04).
+MIN_ACQUISITION_EXPOSURES = 4  # legacy alias for box 1 / fallback
+BOX1_MIN_EXPOSURES = 4
+BOX2_MIN_EXPOSURES = 2
 MAX_ACQUISITION_EXTRA_SLOTS = 15  # max extra cards beyond session limit for repetitions
 MAX_AUTO_INTRO_PER_SESSION = 5  # cap new words per single auto-intro call
 AUTO_INTRO_ACCURACY_FLOOR = 0.70  # pause introduction if recent accuracy below this
@@ -1161,28 +1167,39 @@ def build_session(
     # Track pre-repetition count so on-demand generation uses the right budget
     base_item_count = len(selected)
 
-    # 3b. Within-session repetition for acquisition words
-    # Target MIN_ACQUISITION_EXPOSURES (3-4) per acquiring word
+    # 3b. Within-session repetition for acquisition words.
+    # Per-box target: box 1 (encoding) keeps 4 reps; box 2 (consolidation)
+    # gets 2. A single correct rating in box 2 already triggers Tier 1
+    # graduation, so further reps were wasted on already-mastered words.
     acquiring_word_counts: dict[int, int] = {}
+    acquiring_word_targets: dict[int, int] = {}
     for c in selected:
         for w in c.words_meta:
             if w.lemma_id and w.lemma_id in due_lemma_ids:
                 k = knowledge_by_id.get(w.lemma_id)
                 if k and k.knowledge_state == "acquiring":
                     acquiring_word_counts[w.lemma_id] = acquiring_word_counts.get(w.lemma_id, 0) + 1
+                    if w.lemma_id not in acquiring_word_targets:
+                        box = k.acquisition_box or 1
+                        acquiring_word_targets[w.lemma_id] = (
+                            BOX2_MIN_EXPOSURES if box >= 2 else BOX1_MIN_EXPOSURES
+                        )
 
     # Allow session to grow beyond limit to fit acquisition repetitions
     acq_extra_slots = sum(
-        max(0, MIN_ACQUISITION_EXPOSURES - count)
-        for count in acquiring_word_counts.values()
+        max(0, acquiring_word_targets.get(lid, BOX1_MIN_EXPOSURES) - count)
+        for lid, count in acquiring_word_counts.items()
     )
     effective_limit = limit + min(acq_extra_slots, MAX_ACQUISITION_EXTRA_SLOTS)
 
     selected_ids = {c.sentence_id for c in selected}
-    for target_count in range(2, MIN_ACQUISITION_EXPOSURES + 1):
+    max_target = max(acquiring_word_targets.values(), default=BOX1_MIN_EXPOSURES)
+    for target_count in range(2, max_target + 1):
         for acq_lid, count in list(acquiring_word_counts.items()):
             if len(selected) >= effective_limit:
                 break
+            if count >= acquiring_word_targets.get(acq_lid, BOX1_MIN_EXPOSURES):
+                continue
             if count >= target_count:
                 continue
             extra = None

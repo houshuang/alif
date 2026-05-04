@@ -320,6 +320,11 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
   }, []);
 
   // Auto-skip intro cards for words already answered correctly in this session
+  // and auto-skip duplicate sentence cards whose primary lemma the learner
+  // already nailed in this session. One correct exposure is enough; further
+  // reps in the same session are massed practice with diminishing return.
+  // If the first exposure failed, all queued reps remain so the learner gets
+  // the intended re-teaching loop.
   useEffect(() => {
     if (!sentenceSession || sessionSlots.length === 0) return;
     const slot = sessionSlots[cardIndex];
@@ -328,13 +333,22 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
       if (card) {
         const outcome = wordOutcomes.get(card.lemma_id);
         if (outcome && !outcome.failed) {
-          // Word already answered correctly — skip intro, still mark as shown
           acknowledgeExperimentIntro(card.lemma_id, sentenceSession.session_id).catch(() => {});
           if (cardIndex + 1 < sessionSlots.length) {
             setCardIndex(cardIndex + 1);
           }
           return;
         }
+      }
+    }
+    if (slot?.type === "sentence" && sentenceSession.items[slot.itemIndex]) {
+      const item = sentenceSession.items[slot.itemIndex];
+      const outcome = wordOutcomes.get(item.primary_lemma_id);
+      if (outcome && !outcome.failed) {
+        if (cardIndex + 1 < sessionSlots.length) {
+          setCardIndex(cardIndex + 1);
+        }
+        return;
       }
     }
   }, [cardIndex, sessionSlots, experimentIntroCards, wordOutcomes, sentenceSession]);
@@ -2452,7 +2466,9 @@ function SentenceReadingCard({
             : isConfused
               ? styles.confusedWord
               : undefined;
-          const showDiacritics = showAnswer || tashkeelMode === 1 || (tashkeelMode === 0 && word.show_tashkeel !== false);
+          const showDiacritics =
+            tashkeelMode === 1 ||
+            (tashkeelMode === 0 && (showAnswer || word.show_tashkeel !== false));
           return (
             <Text key={`t-${i}`}>
               {i > 0 && " "}
@@ -2579,7 +2595,9 @@ function SentenceListeningCard({
             : isConfused
               ? styles.confusedWord
               : undefined;
-          const showDiacritics = showAnswer || tashkeelMode === 1 || (tashkeelMode === 0 && word.show_tashkeel !== false);
+          const showDiacritics =
+            tashkeelMode === 1 ||
+            (tashkeelMode === 0 && (showAnswer || word.show_tashkeel !== false));
           return (
             <Text key={`t-${i}`}>
               {i > 0 && " "}
@@ -3526,7 +3544,7 @@ const styles = StyleSheet.create({
   },
   cardToggles: {
     flexDirection: "row" as const,
-    justifyContent: "space-between" as const,
+    justifyContent: "flex-end" as const,
     width: "100%",
     marginTop: 10,
     marginBottom: 2,
