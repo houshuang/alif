@@ -4,6 +4,162 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-05-04: ALA-LC transliteration fix + bulk lemma vocalization (PR #60)
+
+### What
+
+Two coupled changes to make Arabic display + transcription consistent across all review/intro cards:
+
+**(1) `transliteration.py` — generalize bare ya/waw long-vowel inference**
+
+The function had inferred long ā from a bare alif following a vowelless consonant for years (commit `48e9881`), but the parallel branches for long ī (bare ya) and long ū (bare waw) required an *explicit* kasra/damma on the previous consonant. In partially-vocalized Arabic the short vowel is routinely omitted before a long-vowel weak letter (the reader infers it), so 18% of stored `transliteration_ala_lc` values were wrong: `ḥadyqa` (should be `ḥadīqa`), `yjār` (should be `ījār`), `qadym` (should be `qadīm`), and similar.
+
+Generalized the three is_long_* checks symmetrically: explicit matching short vowel OR (no short vowel and no sukun) on the previous consonant + matching weak letter. Extended the word-initial hamza-carrier branch to handle long ī/ū the same way. Added consonant-glide disambiguation: ya/waw is a consonant when it carries its own short vowel (`سِيَاسَة` = `siyāsa`, not `sīāsa`) or is immediately followed by alif/maqsura (`حَالِياً` = `ḥāliyā`, not `ḥālīā`) — Arabic phonotactics disallow two adjacent long vowels.
+
+15 regression tests added covering bare/explicit/sukun/glide/word-initial cases. `backfill_transliteration.py` got a `--rerun-all` flag for refreshing stored values.
+
+**(2) `vocalize_unvocalized_lemmas.py` — fill in missing tashkeel**
+
+Production had 274 lemmas where `lemma_ar == lemma_ar_bare` (no diacritics ever stored). On intro/review cards these displayed unvocalized Arabic, and their transliterations were consonant-only ("kyk" for كيك, "twb" for توب). New script batches these through Claude CLI Haiku with a JSON schema and validates each output by comparing under `normalize_alef` after stripping diacritics — accepts hamza-form corrections (اعراب → إعراب) while rejecting genuine letter changes (plural ↔ singular).
+
+### Production impact
+
+- 242 lemma transliterations corrected (post-deploy) + 142 more after vocalization = **384 total**
+- 2,802 `forms_translit_json` entries refreshed
+- 9,280 sentence-level transliterations refreshed
+- 244 lemmas vocalized (out of 274 unvocalized; remaining 30 are Hebrew/Judeo-Arabic script, Arabic numerals, or LLM-corrected variants)
+- **99.0% of production lemmas (3,052/3,082) now display fully vocalized Arabic on intro/review cards**
+
+Backup at `/opt/alif-backups/alif_pre_translit_fix_20260504_232508.db`.
+
+### Why
+
+User reported inconsistent transcription on review cards — `yjar` in one place, `ījār` elsewhere — and asked for both fully accented Arabic and the macron-style ALA-LC everywhere. Root cause was the missing branch in `transliterate_arabic`. Lesson: this is a textbook case of CLAUDE.md Rule #14 ("previous fix didn't fully close") — the bare-alif fix from `48e9881` set up half of a three-way symmetry; the ya/waw extension was never made.
+
+### How to verify
+
+- `python3 -m pytest tests/test_transliteration.py` — 15 cases, all should pass.
+- Browse review/intro cards in the app: every Arabic word shows tashkeel, transcription uses macrons (ī/ū/ā) consistently.
+- Spot-check via `/api/review/word/<lemma_id>`: response `transliteration` field uses macrons.
+
+### Follow-ups
+
+- 30 prod lemmas still unvocalized (Hebrew script, numerals, edge cases) — accept and skip.
+- Consider folding `backfill_forms_translit.py` into `lemma_quality.run_quality_gates` so future imports never need a separate pass.
+
+---
+
+## 2026-05-04: Acquisition pipeline shows daily per-slot throughput (PR #61)
+
+### What
+
+Replaced the `PipelineSnapshot`-based per-box "delta today" with throughput counts derived from `ReviewLog.fsrs_log_json` box transitions plus `entered_acquiring_at` / `graduated_at`:
+
+- New schema fields on `AcquisitionPipeline`: `box_1_in_today`, `box_2_in_today`, `box_3_in_today`, `graduated_today`. Removed `box_1_delta` / `box_2_delta` / `box_3_delta`.
+- `flow_history` per-day rows extended with `box_1_in` / `box_2_in` / `box_3_in` (existing `entered` / `graduated` retained for `WordLifecycleFunnel`).
+- Each box row in the Stats card shows `+N today`; new "Grad" row appears when graduations happened today; the 7-day chart now has one mini-bar row per slot (Box 1 / Box 2 / Box 3 / Graduated) with per-day counts.
+- `PipelineSnapshot` model + table left in place but no longer read or written.
+
+### Why
+
+The "delta today" baseline was the *first time stats was loaded that day*, not midnight, so the pipeline card looked frozen even on heavy review days. User on 2026-05-04 had done 16 graduations and 22 new entries by mid-afternoon while the deltas still showed −2 / +2 / −3, which felt eternal.
+
+Showing per-slot throughput separates "current pool size" from "how many cards passed each gate today" — Box 1 looks structurally larger because it's the holding pool, while Box 2/3 churn through quickly.
+
+### Expected effect
+
+- Daily progress is visible from the moment of the first review of the day.
+- The 7-day per-slot chart exposes funnel imbalances (e.g. lots of Box 2 promotions but few graduations → Box 3 is the bottleneck) instead of just net `entered`/`graduated`.
+
+### How to verify
+
+- `curl http://alifstian.duckdns.org:3000/api/stats/deep-analytics | jq '.acquisition_pipeline | {box_1_in_today, box_2_in_today, box_3_in_today, graduated_today}'`
+- Open the Stats tab on multiple days; the box rows should change as cards move, and the chart should show different per-slot patterns per day rather than a flat baseline.
+
+---
+
+## 2026-05-04: Frequency-core curriculum + stronger intro pressure
+
+### What
+
+Added a frequency-core curriculum layer on top of total vocabulary growth:
+
+- new `frequency_core_entries` table with continuous `core_rank`
+- stats API exposes `frequency_core.learned_prefix_count`, band coverage for top 100/250/500/1000/2000/5000, and the next ranked gaps
+- word selector can prioritize ranked frequency-core lemmas above book/OCR/source tiers when the core rank is high enough
+- auto-intro source attribution records these as `frequency_core`
+- reserved intro slots increased from 20% to 30% of session size for the 30/day trial
+
+This supersedes the earlier same-day note that per-session intro density was unchanged. The experiment is now intentionally more aggressive.
+
+### Why
+
+Total known vocabulary is not enough for general reading. A learner can know 1,700 words while still missing basic high-frequency lemmas if the input stream overweights OCR artifacts, book-specific words, or incidental collateral. The new metric answers a stricter question: "How far down a trusted ranked list can I go before the first gap?"
+
+### Expected effect
+
+- The next-word queue should fill more of the top 1,000 general-reading core instead of treating source tags as the primary curriculum.
+- The stats page should make high-frequency gaps visible and actionable.
+- The 30/day target should require fewer sessions to reach because a 10-card session can reserve up to 3 intro slots when accuracy and backlog gates allow it.
+
+### Safety gates
+
+Review after 1-2 days:
+
+- daily intros should rise toward 30 without total acquiring staying above ~120
+- 7-day retention should stay at or above 90%
+- maintenance remaining should not grow across days when sentence volume is high
+- top-frequency gaps should move into acquiring/learning rather than staying stuck as missing/new
+
+---
+
+## 2026-05-04: Aggressive daily target instrumentation + 30/day intro experiment
+
+### What
+
+Added a real daily target counter:
+
+- `new_words_target = 30`
+- new-word progress = words that entered acquisition today, excluding explicit leech reintroductions
+- maintenance progress = distinct FSRS/acquisition words reviewed today plus current due debt
+- overall progress = the lower of new-word progress and maintenance progress, so 100% requires both targets
+
+Scheduler experiment: keep per-session intro density unchanged, but allow reserved intro slots to continue at high recent accuracy until the acquiring queue reaches a higher experimental cap. This is intended to make 30/day possible with today's session volume without suddenly making individual sessions intro-heavy.
+
+### Why
+
+The May 4 live snapshot showed:
+
+- 24 introductions, 16 graduations, 206 sentence reviews, 857 word reviews
+- 92.3% daily word-review accuracy
+- 81 acquiring words, 45 in box 1
+- 195 FSRS due + 55 acquisition due still remaining at the analysis timestamp
+- simulated 30/day acquisition load: about 100-110 acquisition word reviews/day at 90-93% accuracy once steady
+
+The previous intro throttle suppressed reserved intro slots when the acquiring queue exceeded 80 even at >90% recent accuracy. That made the system slightly too conservative for an explicitly aggressive 30/day trial.
+
+### Expected effect
+
+- With ~10-15 sessions/day, daily introductions should approach 30.
+- Per-session intro density should stay near the existing reserved-slot behavior rather than jumping to 5 every session.
+- Maintenance risk should be visible quickly: if due debt grows or retention drops, the daily target counter will show it within the same day.
+
+### Safety gates
+
+Review after 1-2 days. Roll back or lower the cap if any of these happen:
+
+- 7-day retention falls below 90%
+- box-1 acquiring backlog rises above ~70
+- total acquiring rises above the experimental cap
+- maintenance remaining stays high despite >100 sentence reviews/day
+- no-active/backoff due words keep accumulating
+
+### How to verify
+
+Check `/api/stats/analytics` and the session-complete card after each session. The key numbers are `daily_goal.introduced_today`, `daily_goal.maintenance_remaining`, and `daily_goal.overall_pct`.
+
+---
+
 ## 2026-05-04: Session quality — skip already-known reps, retry intro-ack, longer LLM sentences
 
 ### What
