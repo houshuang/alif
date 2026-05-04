@@ -12,7 +12,8 @@ Found while drilling into the 21-day learning review. The 211 words in 7-day bac
 2. **Validator demands exact bare-form match on the target** — doesn't accept any inflection. Fix: replace target check in `validate_sentence` with a `lookup_lemma()` resolution to `target_lemma_id`. ~5 LOC.
 3. **Step A2 corpus enrichment kills sentences on first verifier disagreement** — 22.4% kept (1,846/8,250). `same_lemma` is not actionable feedback yet triggers permanent deactivation. Fix: soften `apply_corrections` callsite *in enrichment only*, without weakening the gate for fresh LLM generation (where the same_lemma rejection is intentional hardening — see `feedback_dont_weaken_same_lemma_gate`).
 4. (observability) **New self-correct batch path emits no success events.** Add `batch_self_correct_returned/_validated/_rejected` events. ~10 LOC.
-5. (cleanup) **Drain the 172-entry backoff list** once 1+2 land.
+5. (cleanup) **Drain the 172-entry backoff list** once 1+2 land. — *2026-05-04 update: now expected to drain naturally via backoff-aware multi-target (see entry below); manual drain probably unnecessary.*
+6. (deployed 2026-05-04) **Backoff-aware multi-target** (replaces planned C1 retry): backed-off lemmas can ride along as collateral in multi-target groups (≤1 per group of ≤4 healthy peers). A multi-target success auto-resets `generation_failed_count`. Self-correct paths still exclude backed-off lemmas. Driven by the observation that #2307 (named hard-core failure) succeeded twice as multi-target collateral while consistently empty-failing in single-word fallback. See `research/experiment-log.md` 2026-05-04 entry.
 
 See `research/generation-pipeline-investigation-2026-05-03.md` for full evidence and dependency-ordered fixes.
 
