@@ -200,6 +200,22 @@ def _next_has_shadda(chars: list[str], j: int) -> bool:
     return False
 
 
+def _next_has_own_short_vowel(chars: list[str], j: int) -> bool:
+    """Check if the character at position j carries its own fatha/kasra/damma.
+
+    Used to distinguish a consonant ya/waw (has its own vowel) from a long-vowel
+    marker (has sukun or no diacritic). For example, the ya in سِيَاسَة has its
+    own fatha → it's the consonant /j/ in 'siyāsa', not long ī.
+    """
+    n = len(chars)
+    k = j + 1
+    while k < n and chars[k] in _DIACRITICS:
+        if chars[k] in _SHORT_VOWELS:
+            return True
+        k += 1
+    return False
+
+
 def _transliterate_word(word: str, strip_tanwin: bool) -> str:
     chars = list(word)
     n = len(chars)
@@ -283,26 +299,43 @@ def _transliterate_word(word: str, strip_tanwin: bool) -> str:
 
             next_char = chars[j] if j < n else None
             next_shadda = _next_has_shadda(chars, j) if next_char else False
+            # ya/waw is a consonant glide (not a long vowel marker) if either:
+            #  - it has its own short vowel — e.g. سِيَاسَة = siyāsa, not sīāsa;
+            #  - it is immediately followed by alif/maqsura — Arabic doesn't allow
+            #    two adjacent long vowels, so the glide is always consonantal,
+            #    e.g. حَالِياً = ḥāliyā, not ḥālīā.
+            next_is_consonant_glide = False
+            if next_char in (YA, WAW):
+                if _next_has_own_short_vowel(chars, j):
+                    next_is_consonant_glide = True
+                else:
+                    after_ya_diacs, after_ya_pos = _collect_diacritics(chars, j + 1)
+                    if after_ya_pos < n and chars[after_ya_pos] in (ALIF, ALIF_MAQSURA):
+                        next_is_consonant_glide = True
 
             # Long vowel detection
-            # Alif or alif maqsura after fatḥa → ā
-            # Also: bare alif after consonant with no vowel → infer long ā
+            # Long vowels in Arabic are written as a "weak letter" (alif/waw/ya)
+            # after a matching short vowel. In partially-vocalized text the
+            # short vowel is often omitted — readers infer it from the weak
+            # letter. We mirror that for all three: an explicit matching
+            # short vowel triggers a long vowel, AND a vowelless consonant
+            # (no short_vowel, no sukun) followed by the weak letter does too.
             is_long_a = (
                 next_char in (ALIF, ALIF_MAQSURA)
                 and ch != ALIF
                 and (short_vowel == FATHA or (short_vowel is None and not has_sukun))
             )
-            # Waw after ḍamma → ū (but not if waw has shadda = geminate)
             is_long_u = (
-                short_vowel == DAMMA
-                and next_char == WAW
+                next_char == WAW
                 and not next_shadda
+                and not next_is_consonant_glide
+                and (short_vowel == DAMMA or (short_vowel is None and not has_sukun))
             )
-            # Ya after kasra → ī (but not if ya has shadda = geminate/nisba)
             is_long_i = (
-                short_vowel == KASRA
-                and next_char == YA
+                next_char == YA
                 and not next_shadda
+                and not next_is_consonant_glide
+                and (short_vowel == KASRA or (short_vowel is None and not has_sukun))
             )
 
             # Tanwin fatha + alif: alif is silent (orthographic only)
@@ -317,6 +350,14 @@ def _transliterate_word(word: str, strip_tanwin: bool) -> str:
                     out.append("ā")
                 elif is_long_a:
                     out.append("ā")
+                    i = j + 1
+                    continue
+                elif is_long_i:
+                    out.append("ī")
+                    i = j + 1
+                    continue
+                elif is_long_u:
+                    out.append("ū")
                     i = j + 1
                     continue
                 elif short_vowel:
