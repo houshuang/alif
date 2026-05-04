@@ -677,10 +677,10 @@ build_session(db, limit=10, mode="reading")
 │ STAGE 7: Acquisition Repetition              │
 │                                              │
 │ For each acquiring word in selected:         │
-│   If appearances < MIN_ACQUISITION_EXPOSURES │
-│   (4): find additional sentences             │
-│   Session can grow up to +15 extra slots     │
-│   Multi-pass: target_count 2→3→4             │
+│   Per-box target: box-1 → 4 reps,            │
+│   box-2 → 2 reps.                            │
+│   Session can grow up to +15 extra slots.    │
+│   Multi-pass: target_count 2 → ... → max.    │
 └──────────────────┬──────────────────────────┘
                    │
                    ▼
@@ -2024,7 +2024,7 @@ Frontend                          Backend
    - 0 FSRS words (none graduated yet)
    - Auto-intro adds up to 4 from encountered pool (conservative, <10 reviews)
    - Generates on-demand sentences for each acquiring word
-   - Session: ~12 cards (3 acquiring × 4 exposures each + any auto-intros)
+   - Session: ~12 cards (3 box-1 acquiring × 4 exposures each + any auto-intros; box-2 words would be 2 exposures each)
 5. After 4 hours: words move to box 2 if rated Good (next due: 1 day)
 
 ### B.2 Established Learner — Typical Day
@@ -2035,7 +2035,7 @@ Frontend                          Backend
    - Cohort filter keeps 25 lowest-stability FSRS words + 5 acquiring
    - Auto-intro: accuracy is 82% (70-85% band → 4 slots), acquiring count is 12 (<30), adds up to 4 encountered
    - Greedy set cover selects 10 sentences covering 15 due words
-   - Acquisition repetition adds 8 extra cards for acquiring words (4 exposures each)
+   - Acquisition repetition adds extra cards per per-box target (4 for box-1, 2 for box-2)
    - Session: 18 cards, easy bookend ordering
 2. User reviews: understood=12, partial=4, no_idea=2
 3. Each sentence → per-word ratings:
