@@ -4,6 +4,99 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-05-04: Session quality — skip already-known reps, retry intro-ack, longer LLM sentences
+
+### What
+
+Four targeted fixes after analyzing today's 13 sessions (835 events, 169 reviews):
+
+1. **`BOX2_MIN_EXPOSURES = 2`** (was 4 via `MIN_ACQUISITION_EXPOSURES`). Box-1 (encoding) still gets 4 reps, box-2 (consolidation) gets 2. The repetition loop in `build_session()` now uses a per-lemma target derived from the lemma's `acquisition_box` at session start.
+2. **Frontend auto-skips duplicate sentence cards** when the primary lemma was already answered correctly earlier in the session. Mirrors the existing intro-card auto-skip; failed reviews still get the full re-teaching loop.
+3. **`acknowledge_experiment_intro` retries on lock** with exponential backoff (100/200/400ms) instead of swallowing `OperationalError`. Re-fetches the ULK after rollback so the dirty state survives.
+4. **LLM sentence prompts (`SYSTEM_PROMPT` + `BATCH_SYSTEM_PROMPT`) target ≥8 words** via idafa chains, prepositional phrases, relative clauses, and concrete objects — not by padding. Also explicitly forbids reusing the same agent noun (الطبيب, الطفل, الرجل, المعلم) more than once per batch.
+
+PR #59 (squash-merged as `ac5f2c0`).
+
+### Why
+
+Today's session inspection (`backend/data/logs/interactions_2026-05-04.jsonl` cross-referenced against `review_log`) surfaced four issues:
+
+- **Same lemma 4× in one session.** The acquisition-repetition loop (sentence_selector.py:1170-1209) explicitly targeted `MIN_ACQUISITION_EXPOSURES=4` per acquiring word. Several box-2 lemmas got 4 reps and graduated mid-session via Tier 1 (3 reviews + 100% accuracy) — the trailing 1-2 reps were on a now-known word.
+- **High-stab repeats.** Lemmas with stability=2.3065 (FSRS-6 default initial after fresh graduation) appeared 3-4× in one session because they were still acquiring at build time and got the full repetition allotment.
+- **Same intro card 3× in 3 consecutive sessions** (lemma #2650 رِقَّة at 14:36, 14:38, 14:49). The build's `_build_intro_cards` checks `experiment_intro_shown_at IS NULL` — but the ack endpoint's `try/commit/except: rollback` silently dropped the write under lock contention, leaving the field NULL across builds.
+- **LLM sentence monotony.** Every LLM sentence today was 4-6 words and reused الطبيب/الطفل/الرجل/المعلم as agents. Book/corpus sentences (10-12 words) felt jarring next to the LLM ones.
+
+### Expected effect
+
+- Box-2 acquiring words: 50% fewer reps per session, with no graduation regression (Tier 1 still fires after 3 correct reviews; the trimmed reps were post-graduation anyway).
+- Cards reviewed per session that target an already-correct lemma: should drop to 0 (auto-skipped client-side).
+- Intro re-fires per lemma per day: should drop to ≤1 unless rescue criteria genuinely match.
+- LLM sentence avg word count: should rise from ~5 to ~9-10. Variety: agent-noun repetition within a batch should drop.
+
+### How to verify
+
+After the next ~3 sessions, run:
+
+```bash
+ssh alif "cd /opt/alif/backend && PYTHONPATH=/opt/limbic .venv/bin/python3 -c '
+import json, sqlite3
+from collections import Counter, defaultdict
+from datetime import datetime, timedelta
+from pathlib import Path
+
+today = datetime.utcnow().strftime(\"%Y-%m-%d\")
+log = Path(f\"data/logs/interactions_{today}.jsonl\")
+events = [json.loads(l) for l in log.read_text().splitlines() if l.strip()]
+db = sqlite3.connect(\"data/alif.db\")
+
+# Per-session: which target lemmas appear ≥2×
+sessions = defaultdict(list)
+for e in events:
+    if e.get(\"event\") == \"sentence_review\" and e.get(\"session_id\"):
+        sessions[e[\"session_id\"]].append(e)
+
+dup_counts = []
+for sid, evs in sessions.items():
+    sids = [r[\"sentence_id\"] for r in evs if r.get(\"sentence_id\")]
+    if not sids: continue
+    targets = [r[0] for r in db.execute(f\"SELECT target_lemma_id FROM sentences WHERE id IN ({\",\".join(\"?\"*len(sids))})\", sids)]
+    c = Counter(targets)
+    dup_counts.append(sum(1 for n in c.values() if n >= 3))
+print(f\"Sessions with ≥3-rep target: {sum(1 for x in dup_counts if x > 0)}/{len(dup_counts)}\")
+
+# Intro re-fires
+intros = defaultdict(list)
+for e in events:
+    if e.get(\"event\") == \"experiment_intro_shown\":
+        intros[e[\"lemma_id\"]].append(e[\"ts\"])
+multi = {l: ts for l, ts in intros.items() if len(ts) > 1}
+print(f\"Lemmas with multiple intros today: {len(multi)}\")
+
+# LLM sentence length (recent generation)
+import sqlite3
+rows = db.execute(\"SELECT arabic_text FROM sentences WHERE source=\\\"llm\\\" AND created_at >= datetime(\\\"now\\\", \\\"-1 day\\\") LIMIT 200\").fetchall()
+if rows:
+    lens = [len(r[0].split()) for r in rows]
+    print(f\"Recent LLM sentence avg words: {sum(lens)/len(lens):.1f} (n={len(rows)})\")
+'"
+```
+
+**Pass:**
+- "Sessions with ≥3-rep target" should hit 0 within ~5 sessions.
+- "Lemmas with multiple intros today" should be 0 unless the rescue path legitimately fired.
+- LLM avg word count should approach 9-10 over the next cron cycle (12:30/15:30/18:30/21:30 UTC).
+
+**Fail:**
+- Box-2 lemmas still getting 3+ cards → check `acquiring_word_targets` is populated correctly.
+- Intros still re-firing → check backend warning log for "experiment_intro_shown_at failed to persist".
+- LLM sentences still 4-6 words → cron may have run with cached prompt before deploy.
+
+### Rollback plan
+
+`git revert ac5f2c0` and redeploy. No schema migration. Retire the new constants `BOX1_MIN_EXPOSURES` / `BOX2_MIN_EXPOSURES` if rolling back beyond the next experiment cycle.
+
+---
+
 ## 2026-05-04: Backoff-aware multi-target — recovery via collateral coverage
 
 ### What
