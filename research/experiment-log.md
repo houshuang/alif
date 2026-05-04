@@ -34,12 +34,69 @@ The original concern (commit 26bba5f) was that chronic failures crowded out viab
 
 ### How to verify
 
-- `pipeline_stats --days 7` over the next week. Watch backoff list size:
-  ```bash
-  ssh alif "cd /opt/alif/backend && PYTHONPATH=/opt/limbic .venv/bin/python3 -c 'import sqlite3, datetime; c=sqlite3.connect(\"data/alif.db\"); now=datetime.datetime.utcnow().isoformat(); n=c.execute(\"SELECT COUNT(*) FROM user_lemma_knowledge WHERE generation_backoff_until > ?\", (now,)).fetchone()[0]; print(n)'"
-  ```
-- Cron output should print `Including N backed-off lemmas as multi-target recovery (≤1/group)` when there are backoff entries.
-- Spot-check named recoveries: handoff's "hard-core 5" (#840, #2650, #2651, #582, #2307) — most should clear backoff over the next few cron cycles.
+**Deploy state at observation start (2026-05-04 10:51 UTC):**
+- PR #58 merged as `244caa2`, deployed via `systemctl restart alif-backend`.
+- Backoff list size at deploy: **207 entries**.
+- Activity log marker: `manual_action — Deployed PR #58: backoff-aware multi-target` with `backoff_at_deploy=207`.
+- First cron exercising new code: 12:30 UTC (server cron `30 */3 * * *` — runs at 00:30, 03:30, 06:30, 09:30, 12:30, 15:30, 18:30, 21:30 UTC).
+
+**Observation window: ~48h (8–16 cron cycles)** before drawing conclusions.
+
+**One-liner for both signals (backoff size + multi-target coverage) — paste this:**
+
+```bash
+ssh alif "cd /opt/alif/backend && PYTHONPATH=/opt/limbic .venv/bin/python3 scripts/pipeline_stats.py --days 3 && echo --- && PYTHONPATH=/opt/limbic .venv/bin/python3 -c 'import sqlite3, datetime; c=sqlite3.connect(\"data/alif.db\"); now=datetime.datetime.utcnow().isoformat(); print(\"backoff size:\", c.execute(\"SELECT COUNT(*) FROM user_lemma_knowledge WHERE generation_backoff_until > ?\", (now,)).fetchone()[0])'"
+```
+
+**Pass/fail criteria** (what good vs. bad looks like):
+
+| Signal | Pass | Fail |
+|---|---|---|
+| Backoff size after 24h | ≤ 207 (held steady) or trending down | > 220 (kept growing despite recoveries) |
+| Backoff size after 48h | < 200, ideally < 180 | ≥ 207 (no net drain at all) |
+| Multi-target target coverage (per `pipeline_stats`) | 80–90% (handoff baseline 88%) | < 70% (1-per-group cap eroded coverage) |
+| Multi-target groups with zero accepted | 0–1 / 10 | ≥ 2 / 10 (recovery lemmas tanking groups) |
+| Cron stdout marker | `Including N backed-off lemmas as multi-target recovery (≤1/group)` appears when backoff > 0 | Missing line + 0 recoveries in DB |
+| Self-correct empty rate | unchanged ~50% (this PR doesn't try to fix that path) | spike > 70% (regression — investigate) |
+
+**Spot-check named recoveries** (the handoff's "hard-core 5"):
+
+```bash
+ssh alif "cd /opt/alif/backend && PYTHONPATH=/opt/limbic .venv/bin/python3 -c 'import sqlite3; c=sqlite3.connect(\"data/alif.db\"); rows=c.execute(\"SELECT lemma_id, generation_failed_count, generation_backoff_until FROM user_lemma_knowledge WHERE lemma_id IN (840,2650,2651,582,2307)\").fetchall(); [print(r) for r in rows]'"
+```
+
+Expected: by end of window, most of the 5 should have `generation_failed_count = 0` and `generation_backoff_until = NULL` (recovered). Persistent backoff on any specific lemma after 48h = candidate for manual investigation (corrupt `lemma_ar_bare`, missing gloss, root collision suppressing every recovery attempt).
+
+**Recovery-event audit** (count how many backed-off lemmas actually got recovered each day):
+
+```bash
+ssh alif "cd /opt/alif/backend && PYTHONPATH=/opt/limbic .venv/bin/python3 -c '
+import sqlite3, datetime, json
+c = sqlite3.connect(\"data/alif.db\")
+# Find lemmas whose generation_failed_count was reset to 0 recently
+# (proxy: ULK rows with low failed_count that have target_sentence_id rows in last day)
+# Best approximation: just count current backoff size at intervals.
+print(\"current backoff:\", c.execute(\"SELECT COUNT(*) FROM user_lemma_knowledge WHERE generation_backoff_until > ?\", (datetime.datetime.utcnow().isoformat(),)).fetchone()[0])
+'"
+```
+
+**Diagnostic queries if observation goes wrong:**
+
+If backoff size keeps growing, check whether recoveries are firing at all:
+
+```bash
+ssh alif "grep -c 'Including [0-9]* backed-off' /var/log/alif-update-material.log | tail"
+```
+
+If multi-target coverage tanks (< 70%), check whether recovery lemmas are over-represented in groups (cap not holding):
+
+```bash
+ssh alif "grep -E 'Multi-target group|Including [0-9]+ backed-off' /var/log/alif-update-material.log | tail -40"
+```
+
+**Rollback plan if needed:**
+
+This is a pure additive change in `update_material.py`. Rollback = revert PR #58 (`gh pr revert 58`) and redeploy. No schema migration, no data backfill needed. Backoff list state is unaffected by the change either way (recovery successes use the same `record_generation_result()` path that already existed for healthy lemmas).
 
 ### Decision rationale
 
