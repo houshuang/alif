@@ -2451,8 +2451,12 @@ function SentenceReadingCard({
 }) {
   const showAnswer = cardState === "back";
 
-  // 0 = default (fade per backend), 1 = all vowels, 2 = no vowels
-  const [tashkeelMode, setTashkeelMode] = useState(0);
+  // false = default for the current side; true = inverted
+  // (front: force show all; back: force hide all)
+  const [overridden, setOverridden] = useState(false);
+  useEffect(() => {
+    setOverridden(false);
+  }, [showAnswer]);
   const currentFont = arabicFontForSentence(item.sentence_id);
 
   return (
@@ -2466,9 +2470,9 @@ function SentenceReadingCard({
             : isConfused
               ? styles.confusedWord
               : undefined;
-          const showDiacritics =
-            tashkeelMode === 1 ||
-            (tashkeelMode === 0 && (showAnswer || word.show_tashkeel !== false));
+          const showDiacritics = showAnswer
+            ? !overridden
+            : (overridden || word.show_tashkeel !== false);
           return (
             <Text key={`t-${i}`}>
               {i > 0 && " "}
@@ -2485,11 +2489,11 @@ function SentenceReadingCard({
 
       <View style={styles.cardToggles}>
         <Pressable
-          onPress={() => setTashkeelMode((tashkeelMode + 1) % 3)}
+          onPress={() => setOverridden((o) => !o)}
           style={styles.toggleDot}
           hitSlop={12}
         >
-          <View style={[styles.toggleDotInner, { opacity: [0.2, 0.5, 1.0][tashkeelMode] }]} />
+          <View style={[styles.toggleDotInner, { opacity: overridden ? 1.0 : 0.3 }]} />
         </Pressable>
       </View>
 
@@ -2580,8 +2584,12 @@ function SentenceListeningCard({
 
   const showAnswer = cardState === "answer";
 
-  // 0 = default (fade per backend), 1 = all vowels, 2 = no vowels
-  const [tashkeelMode, setTashkeelMode] = useState(0);
+  // false = default for the current side; true = inverted
+  // (front: force show all; back: force hide all)
+  const [overridden, setOverridden] = useState(false);
+  useEffect(() => {
+    setOverridden(false);
+  }, [showAnswer]);
   const currentFont = arabicFontForSentence(item.sentence_id);
 
   return (
@@ -2595,9 +2603,9 @@ function SentenceListeningCard({
             : isConfused
               ? styles.confusedWord
               : undefined;
-          const showDiacritics =
-            tashkeelMode === 1 ||
-            (tashkeelMode === 0 && (showAnswer || word.show_tashkeel !== false));
+          const showDiacritics = showAnswer
+            ? !overridden
+            : (overridden || word.show_tashkeel !== false);
           return (
             <Text key={`t-${i}`}>
               {i > 0 && " "}
@@ -2614,11 +2622,11 @@ function SentenceListeningCard({
 
       <View style={styles.cardToggles}>
         <Pressable
-          onPress={() => setTashkeelMode((tashkeelMode + 1) % 3)}
+          onPress={() => setOverridden((o) => !o)}
           style={styles.toggleDot}
           hitSlop={12}
         >
-          <View style={[styles.toggleDotInner, { opacity: [0.2, 0.5, 1.0][tashkeelMode] }]} />
+          <View style={[styles.toggleDotInner, { opacity: overridden ? 1.0 : 0.3 }]} />
         </Pressable>
       </View>
 
