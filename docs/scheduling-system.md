@@ -427,9 +427,17 @@ over 4+ days — a genuine learning signal.
 
 ### Within-Session Repetition
 
-Acquiring words get aggressive repetition within each session. The session builder
-ensures each acquiring word appears at least `MIN_ACQUISITION_EXPOSURES` = 4 times
-across different sentences, using a multi-pass expanding interval approach:
+Acquiring words get repetition within each session, with a per-box target:
+`BOX1_MIN_EXPOSURES` = 4 for box-1 (encoding) and `BOX2_MIN_EXPOSURES` = 2 for
+box-2 (consolidation). Box-2 was lowered from 4 → 2 on 2026-05-04 because a
+single correct rating in box-2 already triggers Tier 1 graduation, so the
+trailing 2 reps were on words the learner had just mastered.
+
+Additionally, the **frontend auto-skips a sentence card** when its primary
+lemma was already answered correctly earlier in the same session. Failed
+reviews still get the full re-teaching loop (intro + reps next session).
+
+The session builder uses a multi-pass expanding interval approach:
 
 ```
 Session with 3 acquiring words (A, B, C):
@@ -1507,7 +1515,9 @@ remaining cards on the next card advance. See Section 8 "Sentence Pre-Warming" f
 
 | Constant | Value | Purpose |
 |----------|-------|---------|
-| `MIN_ACQUISITION_EXPOSURES` | 4 | Min times an acquiring word should appear per session |
+| `BOX1_MIN_EXPOSURES` | 4 | Min times a box-1 (encoding) acquiring word should appear per session |
+| `BOX2_MIN_EXPOSURES` | 2 | Min times a box-2 (consolidation) acquiring word should appear per session — lowered from 4 → 2 on 2026-05-04 |
+| `MIN_ACQUISITION_EXPOSURES` | 4 | Legacy alias for `BOX1_MIN_EXPOSURES` (kept for out-of-tree callers) |
 | `MAX_ACQUISITION_EXTRA_SLOTS` | 15 | Max extra cards for acquisition repetition |
 | `MAX_AUTO_INTRO_PER_SESSION` | 5 | Per-call cap on auto-intro words |
 | `INTRO_RESERVE_FRACTION` | 0.2 | Fraction of session slots reserved for new words |
