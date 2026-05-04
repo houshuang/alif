@@ -39,6 +39,7 @@ All scripts in `backend/scripts/`. Run from `backend/` directory.
 - `backfill_forms.py` — Backfill inflection forms from CAMeL Tools.
 - `backfill_forms_llm.py` — Backfill inflection forms using LLM.
 - `backfill_frequency.py` — Backfill frequency ranks (CAMeL MSA corpus) + CEFR levels (Kelly Project).
+- `build_frequency_core.py` — Build `frequency_core_entries`, the weighted high-frequency curriculum used for top-N coverage and word-selection priority. Defaults to CAMeL MSA + Kelly/Leeds, accepts optional Buckwalter/Parkinson, Hindawi/book, and news/OSIAN TSV/CSV sources. Keeps unmapped entries as `lemma_id=NULL` gaps; excludes function words/proper names/noise by default; supports `--dry-run`.
 - `backfill_roots.py` — Backfill root associations for lemmas.
 - `backfill_root_meanings.py` — Backfill root core meanings.
 - `backfill_story_words.py` — Resolve null lemma_ids in story words via morphology + LLM import.
@@ -47,7 +48,8 @@ All scripts in `backend/scripts/`. Run from `backend/` directory.
 - `backfill_etymology.py` — LLM etymology data generation for lemmas.
 - `backfill_memory_hooks.py` — LLM memory hooks for currently learning words. Uses overgenerate-and-rank with Claude Sonnet (3 candidates per word, self-evaluated, best picked). Flags: `--force` (re-generate existing hooks), `--box1-only` (only Leitner box-1 words), `--batch-size=N`, `--limit=N`, `--dry-run`.
 - `backfill_diacritics.py` — LLM tashkīl (diacritization) for bare lemmas + auto-transliteration.
-- `backfill_transliteration.py` — Deterministic ALA-LC transliteration from diacritized lemma_ar. No LLM.
+- `backfill_transliteration.py` — Deterministic ALA-LC transliteration from diacritized lemma_ar. No LLM. `--rerun-all` recomputes for every diacritized lemma (use after fixing the transliteration function itself, to refresh stored values).
+- `vocalize_unvocalized_lemmas.py` — Adds tashkeel to lemmas where `lemma_ar == lemma_ar_bare` (no diacritics stored). Uses Claude CLI Haiku in batches of 10–20; validates each output by stripping diacritics and comparing under `normalize_alef` so hamza-form corrections (اعراب → إعراب) are accepted while genuine letter changes (plural → singular) are rejected. Per-batch commits. Run `backfill_transliteration.py --rerun-all` afterwards to refresh ALA-LC output.
 - `backfill_samer.py` — SAMER readability L1-L5→CEFR mapping. TSV at backend/data/samer.tsv on server only.
 - `backfill_function_word_lemmas.py` — Creates Lemma rows for FUNCTION_WORD_GLOSSES entries lacking DB entries.
 - `backfill_sentence_translit.py` — Recompute sentence transliteration from diacritized Arabic using deterministic ALA-LC. Replaces LLM-generated transliterations.
