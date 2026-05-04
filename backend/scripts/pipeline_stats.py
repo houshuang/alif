@@ -101,32 +101,50 @@ def main():
         return
 
     # ── Daily breakdown ──
-    print(f"{'date':<12} {'sc_ret':>6} {'sc_acc':>6} {'sc_emp':>6} {'sc_err':>6} "
-          f"{'val_fail':>8} {'leg_acc':>7} {'leg_ret':>7}")
+    print("Self-correct (single + batch fallback) | Multi-target (Phase 1) | shared")
+    print(f"{'date':<12} {'sc_ret':>6} {'sc_acc':>6} {'sc_emp':>6} | "
+          f"{'mt_grp':>6} {'mt_ret':>6} {'mt_acc':>6} {'mt_fail':>7} | "
+          f"{'val_fail':>8}")
     sc_ret_sum = sc_acc_sum = sc_emp_sum = 0
+    mt_ret_sum = mt_acc_sum = mt_grp_sum = 0
     for d in sorted(by_day.keys()):
         c = by_day[d]
         sc_ret = c.get("batch_self_correct_returned", 0)
         sc_acc = c.get("batch_self_correct_accepted", 0)
         sc_emp = c.get("batch_self_correct_empty", 0)
-        sc_err = c.get("batch_self_correct_error", 0)
+        # Multi-target events. mt_grp counts groups attempted (one summary per call).
+        # mt_ret counts sentences returned by the LLM, mt_acc the post-quality-review survivors.
+        mt_grp = c.get("multi_target_summary", 0)
+        mt_ret = c.get("multi_target_returned", 0)
+        mt_acc = c.get("multi_target_accepted", 0)
+        mt_fail = c.get("multi_target_failed", 0)
         val_fail = c.get("batch_validation_failed", 0)
-        leg_acc = c.get("sentence_accepted", 0)
-        leg_ret = c.get("batch_returned", 0)
         sc_ret_sum += sc_ret
         sc_acc_sum += sc_acc
         sc_emp_sum += sc_emp
-        print(f"{d.isoformat():<12} {sc_ret:>6} {sc_acc:>6} {sc_emp:>6} {sc_err:>6} "
-              f"{val_fail:>8} {leg_acc:>7} {leg_ret:>7}")
+        mt_ret_sum += mt_ret
+        mt_acc_sum += mt_acc
+        mt_grp_sum += mt_grp
+        print(f"{d.isoformat():<12} {sc_ret:>6} {sc_acc:>6} {sc_emp:>6} | "
+              f"{mt_grp:>6} {mt_ret:>6} {mt_acc:>6} {mt_fail:>7} | "
+              f"{val_fail:>8}")
 
     # ── Self-correct effectiveness ──
     print()
-    print("Self-correct path totals:")
+    print("Self-correct path (single-word + batch fallback):")
     print(f"  groups returned non-empty: {sc_ret_sum}")
     print(f"  empty-response failures:   {sc_emp_sum}"
           + (f"  ({100*sc_emp_sum/(sc_ret_sum+sc_emp_sum):.1f}% of attempted groups)"
              if sc_ret_sum + sc_emp_sum else ""))
     print(f"  sentences accepted (post-Haiku verify): {sc_acc_sum}")
+
+    # ── Multi-target effectiveness ──
+    print()
+    print("Multi-target path (Phase 1 of cron, dominant generation source):")
+    print(f"  groups attempted: {mt_grp_sum}")
+    print(f"  sentences returned by LLM: {mt_ret_sum}")
+    print(f"  sentences accepted (post-quality-review): {mt_acc_sum}"
+          + (f"  ({100*mt_acc_sum/mt_ret_sum:.1f}% of returned)" if mt_ret_sum else ""))
 
     if self_correct_returned:
         all_groups = [e for ents in self_correct_returned.values() for e in ents]
