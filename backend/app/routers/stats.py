@@ -8,7 +8,7 @@ from collections import Counter
 from app.database import get_db
 from app.models import (
     Lemma, UserLemmaKnowledge, ReviewLog, Root,
-    SentenceReviewLog, SentenceWord, PipelineSnapshot,
+    SentenceReviewLog, SentenceWord,
 )
 from app.schemas import (
     StatsOut, DailyStatsPoint, LearningPaceOut,
@@ -1107,7 +1107,10 @@ def _get_acquisition_pipeline(db: Session) -> AcquisitionPipeline:
             if acq_due <= now:
                 due_per_box[box] += 1
 
+    today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    seven_day_start = today_start - timedelta(days=6)  # inclusive of today
     cutoff_7d = now - timedelta(days=7)
+
     grad_rows = (
         db.query(
             UserLemmaKnowledge.lemma_id,
@@ -1125,83 +1128,95 @@ def _get_acquisition_pipeline(db: Session) -> AcquisitionPipeline:
         .all()
     )
 
-    # Build flow history: entries and graduations per day for last 7 days
-    flow_days = []
+    # Per-day per-slot throughput: derived from ReviewLog box transitions +
+    # ULK entered_acquiring_at (new arrivals) + ULK graduated_at (exits).
+    # Replaces the old PipelineSnapshot-based delta, which froze at first
+    # endpoint hit each day and made the page feel static.
+    flow: dict[str, dict] = {}
     for i in range(6, -1, -1):
-        day_start = (now - timedelta(days=i)).replace(
-            hour=0, minute=0, second=0, microsecond=0
-        )
-        day_str = day_start.strftime("%m-%d")
-        flow_days.append({"date": day_str, "entered": 0, "graduated": 0})
+        day = today_start - timedelta(days=i)
+        flow[day.strftime("%Y-%m-%d")] = {
+            "date": day.strftime("%m-%d"),
+            "entered": 0,        # new acquiring entries (via entered_acquiring_at)
+            "box_1_in": 0,       # arrivals at box 1: new entries + lapses back
+            "box_2_in": 0,       # promotions box 1 -> 2
+            "box_3_in": 0,       # promotions box 2 -> 3
+            "graduated": 0,      # exits from box 3 -> known
+        }
 
-    # Count entries per day (using entered_acquiring_at)
-    try:
-        entry_rows = (
-            db.query(
-                func.date(UserLemmaKnowledge.entered_acquiring_at).label("day"),
-                func.count(UserLemmaKnowledge.id).label("cnt"),
-            )
-            .filter(
-                UserLemmaKnowledge.entered_acquiring_at >= cutoff_7d,
-                UserLemmaKnowledge.entered_acquiring_at.isnot(None),
-            )
-            .group_by(func.date(UserLemmaKnowledge.entered_acquiring_at))
-            .all()
+    entry_rows = (
+        db.query(
+            func.date(UserLemmaKnowledge.entered_acquiring_at).label("day"),
+            func.count(UserLemmaKnowledge.id).label("cnt"),
         )
-        entries_by_day = {str(r.day): r.cnt for r in entry_rows}
-    except Exception:
-        entries_by_day = {}
-
-    # Count graduations per day
-    try:
-        grad_day_rows = (
-            db.query(
-                func.date(UserLemmaKnowledge.graduated_at).label("day"),
-                func.count(UserLemmaKnowledge.id).label("cnt"),
-            )
-            .filter(
-                UserLemmaKnowledge.graduated_at >= cutoff_7d,
-                UserLemmaKnowledge.graduated_at.isnot(None),
-            )
-            .group_by(func.date(UserLemmaKnowledge.graduated_at))
-            .all()
+        .filter(
+            UserLemmaKnowledge.entered_acquiring_at >= seven_day_start,
+            UserLemmaKnowledge.entered_acquiring_at.isnot(None),
         )
-        grads_by_day = {str(r.day): r.cnt for r in grad_day_rows}
-    except Exception:
-        grads_by_day = {}
+        .group_by(func.date(UserLemmaKnowledge.entered_acquiring_at))
+        .all()
+    )
+    for r in entry_rows:
+        key = str(r.day)
+        if key in flow:
+            flow[key]["entered"] += r.cnt
+            flow[key]["box_1_in"] += r.cnt
 
-    # Fill flow_days with actual counts
-    for i in range(6, -1, -1):
-        day_dt = (now - timedelta(days=i)).replace(
-            hour=0, minute=0, second=0, microsecond=0
+    grad_day_rows = (
+        db.query(
+            func.date(UserLemmaKnowledge.graduated_at).label("day"),
+            func.count(UserLemmaKnowledge.id).label("cnt"),
         )
-        day_key = day_dt.strftime("%Y-%m-%d")
-        idx = 6 - i
-        flow_days[idx]["entered"] = entries_by_day.get(day_key, 0)
-        flow_days[idx]["graduated"] = grads_by_day.get(day_key, 0)
+        .filter(
+            UserLemmaKnowledge.graduated_at >= seven_day_start,
+            UserLemmaKnowledge.graduated_at.isnot(None),
+        )
+        .group_by(func.date(UserLemmaKnowledge.graduated_at))
+        .all()
+    )
+    for r in grad_day_rows:
+        key = str(r.day)
+        if key in flow:
+            flow[key]["graduated"] += r.cnt
 
-    # Compute daily deltas from snapshot
-    today_str = now.strftime("%Y-%m-%d")
-    counts = {"box_1": len(boxes[1]), "box_2": len(boxes[2]), "box_3": len(boxes[3])}
-    snapshot = db.query(PipelineSnapshot).filter(PipelineSnapshot.date == today_str).first()
-    if snapshot is None:
-        try:
-            snapshot = PipelineSnapshot(
-                date=today_str,
-                box_1_count=counts["box_1"],
-                box_2_count=counts["box_2"],
-                box_3_count=counts["box_3"],
-            )
-            db.add(snapshot)
-            db.commit()
-        except Exception:
-            db.rollback()
-            snapshot = None
-    deltas = {
-        "box_1": counts["box_1"] - (snapshot.box_1_count if snapshot else counts["box_1"]),
-        "box_2": counts["box_2"] - (snapshot.box_2_count if snapshot else counts["box_2"]),
-        "box_3": counts["box_3"] - (snapshot.box_3_count if snapshot else counts["box_3"]),
-    }
+    # Box transitions from acquisition ReviewLog rows
+    log_rows = (
+        db.query(ReviewLog.reviewed_at, ReviewLog.fsrs_log_json)
+        .filter(
+            ReviewLog.is_acquisition.is_(True),
+            ReviewLog.reviewed_at >= seven_day_start.replace(tzinfo=None),
+        )
+        .all()
+    )
+    for r in log_rows:
+        rev_at = r.reviewed_at
+        if rev_at is None:
+            continue
+        if rev_at.tzinfo is None:
+            rev_at = rev_at.replace(tzinfo=timezone.utc)
+        key = rev_at.strftime("%Y-%m-%d")
+        if key not in flow:
+            continue
+        log = r.fsrs_log_json
+        if isinstance(log, str):
+            try:
+                log = json.loads(log)
+            except (json.JSONDecodeError, TypeError):
+                continue
+        if not isinstance(log, dict):
+            continue
+        before = log.get("acquisition_box_before")
+        after = log.get("acquisition_box_after")
+        if before == 1 and after == 2:
+            flow[key]["box_2_in"] += 1
+        elif before == 2 and after == 3:
+            flow[key]["box_3_in"] += 1
+        elif after == 1 and before in (2, 3):
+            flow[key]["box_1_in"] += 1  # lapse back to box 1
+
+    today_key = today_start.strftime("%Y-%m-%d")
+    today_flow = flow[today_key]
+    flow_days = [flow[k] for k in sorted(flow.keys())]
 
     return AcquisitionPipeline(
         box_1=boxes[1],
@@ -1213,9 +1228,10 @@ def _get_acquisition_pipeline(db: Session) -> AcquisitionPipeline:
         box_1_due=due_per_box[1],
         box_2_due=due_per_box[2],
         box_3_due=due_per_box[3],
-        box_1_delta=deltas["box_1"],
-        box_2_delta=deltas["box_2"],
-        box_3_delta=deltas["box_3"],
+        box_1_in_today=today_flow["box_1_in"],
+        box_2_in_today=today_flow["box_2_in"],
+        box_3_in_today=today_flow["box_3_in"],
+        graduated_today=today_flow["graduated"],
         recent_graduations=[
             RecentGraduation(
                 lemma_id=r.lemma_id,

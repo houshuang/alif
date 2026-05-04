@@ -257,11 +257,13 @@ class AcquisitionPipeline(BaseModel):
     box_1_due: int = 0
     box_2_due: int = 0
     box_3_due: int = 0
-    box_1_delta: int = 0
-    box_2_delta: int = 0
-    box_3_delta: int = 0
+    box_1_in_today: int = 0  # arrivals at box 1 today (new + lapses back)
+    box_2_in_today: int = 0  # promotions 1->2 today
+    box_3_in_today: int = 0  # promotions 2->3 today
+    graduated_today: int = 0
     recent_graduations: list[RecentGraduation]
-    flow_history: list[dict] = []  # [{date, entered, graduated}] last 7 days
+    # [{date, entered, box_1_in, box_2_in, box_3_in, graduated}] last 7 days
+    flow_history: list[dict] = []
 
 
 class InsightsOut(BaseModel):
