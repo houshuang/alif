@@ -650,11 +650,19 @@ export interface AcquisitionPipeline {
   box_1_due: number;
   box_2_due: number;
   box_3_due: number;
-  box_1_delta?: number;
-  box_2_delta?: number;
-  box_3_delta?: number;
+  box_1_in_today?: number;
+  box_2_in_today?: number;
+  box_3_in_today?: number;
+  graduated_today?: number;
   recent_graduations: RecentGraduation[];
-  flow_history: Array<{ date: string; entered: number; graduated: number }>;
+  flow_history: Array<{
+    date: string;
+    entered: number;
+    box_1_in: number;
+    box_2_in: number;
+    box_3_in: number;
+    graduated: number;
+  }>;
 }
 
 export interface InsightsData {

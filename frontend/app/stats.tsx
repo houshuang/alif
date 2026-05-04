@@ -309,7 +309,7 @@ function WordLifecycleFunnel({
   encountered: number; acquiring: number; learning: number; known: number; lapsed: number;
   weeklyKnown: number; weeklyLearning: number; netPerDay: number;
   retentionPct: number | null;
-  flowHistory?: Array<{ date: string; entered: number; graduated: number }>;
+  flowHistory?: Array<{ date: string; entered: number; box_1_in: number; box_2_in: number; box_3_in: number; graduated: number }>;
   benchmarks?: ProgressBenchmarks | null;
 }) {
   const stages = [
@@ -903,18 +903,17 @@ function AcquisitionPipelineCard({ pipeline, insights }: { pipeline: Acquisition
     enteringPerDay = pipeline.flow_history.reduce((s, d) => s + d.entered, 0) / days;
     graduatingPerDay = pipeline.flow_history.reduce((s, d) => s + d.graduated, 0) / days;
   }
-  const maxFlow = hasFlow ? Math.max(...pipeline.flow_history.map(d => Math.max(d.entered, d.graduated)), 1) : 1;
-
   const gradRate = insights?.graduation_rate_pct;
   const avgReviews = insights?.avg_encounters_to_graduation;
   const ratio = graduatingPerDay > 0 ? enteringPerDay / graduatingPerDay : 0;
   const isHealthy = ratio > 0 && ratio <= 3;
 
   const boxes = [
-    { label: "Box 1", count: pipeline.box_1_count, due: pipeline.box_1_due ?? 0, interval: "4h" },
-    { label: "Box 2", count: pipeline.box_2_count, due: pipeline.box_2_due ?? 0, interval: "1d" },
-    { label: "Box 3", count: pipeline.box_3_count, due: pipeline.box_3_due ?? 0, interval: "3d" },
+    { label: "Box 1", count: pipeline.box_1_count, due: pipeline.box_1_due ?? 0, interval: "4h", inToday: pipeline.box_1_in_today ?? 0 },
+    { label: "Box 2", count: pipeline.box_2_count, due: pipeline.box_2_due ?? 0, interval: "1d", inToday: pipeline.box_2_in_today ?? 0 },
+    { label: "Box 3", count: pipeline.box_3_count, due: pipeline.box_3_due ?? 0, interval: "3d", inToday: pipeline.box_3_in_today ?? 0 },
   ];
+  const graduatedToday = pipeline.graduated_today ?? 0;
 
   return (
     <View style={styles.deepCard}>
@@ -935,10 +934,24 @@ function AcquisitionPipelineCard({ pipeline, insights }: { pipeline: Acquisition
               </View>
               <Text style={pipeStyles.barInterval}>{box.interval}</Text>
             </View>
+            {box.inToday > 0 && (
+              <Text style={[pipeStyles.boxDue, { color: colors.stateAcquiring }]}>+{box.inToday} today</Text>
+            )}
             {box.due > 0 && <Text style={pipeStyles.boxDue}>{box.due} due</Text>}
           </View>
         );
       })}
+      {graduatedToday > 0 && (
+        <View style={pipeStyles.boxRow}>
+          <Text style={pipeStyles.boxLabel}>Grad</Text>
+          <View style={pipeStyles.barBg}>
+            <View style={[pipeStyles.barFill, { width: "8%", backgroundColor: colors.good }]}>
+              <Text style={pipeStyles.barNum}>{graduatedToday}</Text>
+            </View>
+            <Text style={pipeStyles.barInterval}>today</Text>
+          </View>
+        </View>
+      )}
 
       {/* Throughput metrics */}
       <View style={pipeStyles.throughput}>
@@ -1000,30 +1013,46 @@ function AcquisitionPipelineCard({ pipeline, insights }: { pipeline: Acquisition
         </View>
       )}
 
-      {/* 7-day flow chart */}
-      {hasFlow && pipeline.flow_history.some(d => d.entered > 0 || d.graduated > 0) && (
-        <View style={pipeStyles.flowSection}>
-          <Text style={pipeStyles.flowTitle}>7-day flow</Text>
-          <View style={pipeStyles.flowBars}>
-            {pipeline.flow_history.map((d, i) => (
-              <View key={i} style={pipeStyles.flowCol}>
-                <View style={pipeStyles.flowBarGroup}>
-                  {d.entered > 0 && <View style={[pipeStyles.flowBar, { height: Math.max((d.entered / maxFlow) * 32, 2), backgroundColor: colors.stateAcquiring }]} />}
-                  {d.graduated > 0 && <View style={[pipeStyles.flowBar, { height: Math.max((d.graduated / maxFlow) * 32, 2), backgroundColor: colors.good }]} />}
-                  {d.entered === 0 && d.graduated === 0 && <View style={[pipeStyles.flowBar, { height: 2, backgroundColor: colors.border }]} />}
+      {/* 7-day flow chart: per-slot throughput per day */}
+      {hasFlow && pipeline.flow_history.some(d => d.box_1_in > 0 || d.box_2_in > 0 || d.box_3_in > 0 || d.graduated > 0) && (() => {
+        const slotMax = Math.max(
+          ...pipeline.flow_history.map(d => Math.max(d.box_1_in, d.box_2_in, d.box_3_in, d.graduated)),
+          1,
+        );
+        const slots: Array<{ key: "box_1_in" | "box_2_in" | "box_3_in" | "graduated"; label: string; color: string }> = [
+          { key: "box_1_in", label: "→ Box 1", color: colors.stateEncountered },
+          { key: "box_2_in", label: "→ Box 2", color: colors.stateAcquiring },
+          { key: "box_3_in", label: "→ Box 3", color: colors.stateLearning },
+          { key: "graduated", label: "Graduated", color: colors.good },
+        ];
+        return (
+          <View style={pipeStyles.flowSection}>
+            <Text style={pipeStyles.flowTitle}>7-day throughput per slot</Text>
+            {slots.map(slot => (
+              <View key={slot.key} style={{ marginBottom: 6 }}>
+                <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 2 }}>
+                  <View style={[pipeStyles.flowLegendDot, { backgroundColor: slot.color }]} />
+                  <Text style={pipeStyles.flowLegendText}>{slot.label}</Text>
                 </View>
-                <Text style={pipeStyles.flowDayLabel}>{d.date}</Text>
+                <View style={pipeStyles.flowBars}>
+                  {pipeline.flow_history.map((d, i) => {
+                    const v = d[slot.key];
+                    return (
+                      <View key={i} style={pipeStyles.flowCol}>
+                        <View style={[pipeStyles.flowBarGroup, { justifyContent: "flex-end" }]}>
+                          <View style={[pipeStyles.flowBar, { height: v > 0 ? Math.max((v / slotMax) * 24, 3) : 2, backgroundColor: v > 0 ? slot.color : colors.border, width: 14 }]} />
+                          {v > 0 && <Text style={{ fontSize: 9, color: colors.textSecondary, marginTop: 1 }}>{v}</Text>}
+                        </View>
+                        {slot.key === "graduated" && <Text style={pipeStyles.flowDayLabel}>{d.date}</Text>}
+                      </View>
+                    );
+                  })}
+                </View>
               </View>
             ))}
           </View>
-          <View style={pipeStyles.flowLegend}>
-            <View style={[pipeStyles.flowLegendDot, { backgroundColor: colors.stateAcquiring }]} />
-            <Text style={pipeStyles.flowLegendText}>entered</Text>
-            <View style={[pipeStyles.flowLegendDot, { backgroundColor: colors.good }]} />
-            <Text style={pipeStyles.flowLegendText}>graduated</Text>
-          </View>
-        </View>
-      )}
+        );
+      })()}
 
       {/* Recent graduations */}
       {pipeline.recent_graduations.length > 0 && (
