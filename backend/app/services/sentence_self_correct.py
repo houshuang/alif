@@ -71,7 +71,7 @@ Tools available in the work_dir:
 JSON with valid, target_found, unknown_words, known_words, function_words, issues.
 
 Per-sentence workflow:
-  1. Draft a 4-10 word Arabic sentence using the target + vocabulary words.
+  1. Draft a 7-14 word Arabic sentence using the target + vocabulary words.
   2. Validate it.
   3. On unknown_words: REPLACE each offending word with a word from \
 vocab_prompt.txt — surgical swaps, not full rewrites — and re-validate.
@@ -88,6 +88,14 @@ Rules:
 - No anaphor referring to unstated context. No continuations starting \
 with و/ف/ثم.
 - Vary sentence structures across the batch (VSO/SVO/idafa/nominal).
+- Aim for ≥8 words by default. Use real Arabic constructions to get there \
+naturally: idafa chains (مدير الشركة الجديد), prepositional phrases \
+(في الصباح الباكر), relative clauses (الذي/التي), modifying adjectives, \
+and specific objects rather than bare ones. Reject your own draft if it \
+reads as a 4-word skeleton; rewrite with more anchoring detail.
+- Vary the agent across sentences in a batch — don't reuse الطبيب, الطفل, \
+الرجل, المعلم more than once per batch. Reach for less generic subjects \
+(scholars, travelers, named professions, time-of-day phrases as topic).
 
 When you have the requested validated count, return the JSON. The `edits` \
 field per sentence = number of validator-driven word swaps before it passed."""
@@ -392,11 +400,13 @@ def generate_sentences_self_correct(
 {target_word} ({target_translation}).
 {example_block}
 1. Read {work_dir}/vocab_prompt.txt once.
-2. For each sentence: draft, validate via \
+2. For each sentence: draft (target ≥8 words, use idafa chains / prep \
+phrases / relative clauses to add detail naturally), validate via \
 `python3 {work_dir}/validator.py "<arabic>" "{target_word}"`, surgically \
 swap each unknown_word with a vocab word and re-validate. Drop after 4 \
 failed edits.
-3. Vary sentence structures across the batch.
+3. Vary sentence structures and agents across the batch — don't reuse the \
+same subject noun (الطبيب, الطفل, etc.) more than once.
 4. Return the JSON when {needed} sentences are validated. Set `edits` per \
 sentence = number of validator-driven word swaps before it passed."""
 
@@ -507,7 +517,7 @@ example_ar, example_en} you must write sentences for).
 JSON with valid, target_found, unknown_words, known_words, function_words, issues.
 
 Per-target workflow:
-  1. Draft a 4-10 word Arabic sentence using the target + vocabulary words.
+  1. Draft a 7-14 word Arabic sentence using the target + vocabulary words.
   2. Validate it.
   3. On unknown_words: REPLACE each offending word with a word from \
 vocab_prompt.txt — surgical swaps, not full rewrites — and re-validate.
@@ -527,6 +537,15 @@ Rules:
 - No anaphor referring to unstated context. No continuations starting \
 with و/ف/ثم.
 - Vary sentence structures across targets (VSO/SVO/idafa/nominal).
+- Aim for ≥8 words by default. Reach length naturally with idafa chains \
+(مدير الشركة الجديد), prepositional phrases (في الصباح الباكر), relative \
+clauses (الذي/التي), modifying adjectives, and concrete objects — not by \
+padding with empty filler. Reject your own draft if it reads as a 4-word \
+skeleton.
+- Across the batch, vary the agent. Do not reuse الطبيب, الطفل, الرجل, \
+المعلم more than once per batch. Reach for less generic subjects (scholars, \
+travelers, named professions, time-of-day phrases as topic, animals, \
+artifacts).
 - The sentence MUST sound like something a literate Arabic speaker would \
 actually say. Reject your own draft if the topic combination is bizarre, \
 forced, or non-sequitur (e.g. "He has an allergy to prayer"). Pick a \
@@ -758,12 +777,16 @@ EACH of {len(targets)} target words listed in {work_dir}/targets.json.
 Workflow:
 1. Read {work_dir}/vocab_prompt.txt and {work_dir}/targets.json once.
 2. For EACH target in targets.json (process them sequentially):
-   a. Draft a sentence featuring target_word.
+   a. Draft a sentence featuring target_word. Aim for ≥8 words; reach length \
+naturally with idafa chains, prepositional phrases, relative clauses, or \
+modifying adjectives — not with empty filler.
    b. Validate via `python3 {work_dir}/validator.py "<arabic>" "<target_bare>"`.
    c. On unknown_words, surgically swap each offending word with a vocab \
 word and re-validate. Drop after 4 failed edits; try a fresh sentence.
    d. Stop once {needed_per_target} validated sentences exist for this target.
-3. Vary sentence structures across the batch (VSO/SVO/idafa/nominal).
+3. Vary sentence structures across the batch (VSO/SVO/idafa/nominal). Vary \
+the agent: don't reuse الطبيب, الطفل, الرجل, المعلم more than once across \
+the whole batch — reach for less generic subjects.
 4. After ALL targets, return JSON: {{"results": [{{"target_lemma_id": N, \
 "sentences": [{{"arabic": "...", "english": "...", "transliteration": "...", \
 "edits": K}}, ...]}}, ...]}}.
