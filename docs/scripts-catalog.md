@@ -94,7 +94,7 @@ These scripts are designed to run periodically against the generation pipeline b
 - `merge_al_lemmas.py` — Merge al-prefixed duplicate lemmas.
 - `merge_lemma_variants.py` — Merge identified variant lemmas.
 - `identify_leeches.py` — Find high-review low-accuracy words, optional --suspend.
-- `fix_null_lemma_ids.py` — Re-maps NULL lemma_id sentence_words using comprehensive lookup, retires unfixable sentences.
+- `fix_null_lemma_ids.py` — Periodic healing pass for `SentenceWord.lemma_id IS NULL` rows on active sentences (auto-runs as `update_material.py` step 0b every cron pass). Three phases: (0) **delete** rows whose surface form has no Unicode letter (em-dashes, Arabic-Indic digits, ligatures) — the new tokenizer wouldn't produce these; (1) **lookup** via `build_comprehensive_lemma_lookup` + clitic stripping with punctuation-stripped `original_bare`; (2) **proper-name auto-create** for residual unmapped surfaces detected by `detect_proper_names`. Does **not** retire common-word gaps — they stay `is_active=True` (storage concern) and are filtered at review time by `sentence_eligibility.not_has_unmapped_words` until the missing lemma is added. `--dry-run`.
 - `fix_book_glosses.py` — Fix conjugated glosses on book/story-imported lemmas + run full enrichment, --dry-run --limit.
 - `backfill_empty_glosses.py` — Backfill empty `gloss_en` for lemmas imported without translations. Prioritizes acquiring/known words. LLM batch translation in batches of 20. `--dry-run`.
 - `cleanup_lemma_mappings.py` — Batch cleanup of lemma data quality issues: wrong glosses, missing particles, conjugated-form lemmas, possessive-form lemmas, al-prefix lemmas, batch re-map via CAMeL + LLM.
