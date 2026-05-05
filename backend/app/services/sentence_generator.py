@@ -398,11 +398,11 @@ def group_words_for_multi_target(
         return (tier, due, existing, -needed, word.get("lemma_id") or 0)
 
     def compatible(a: dict, b: dict) -> bool:
-        ar_a = strip_diacritics(str(a.get("lemma_ar") or ""))
-        ar_b = strip_diacritics(str(b.get("lemma_ar") or ""))
+        # Same-root pairs make poor multi-target groups (the LLM tends to use
+        # one form and the other becomes redundant). The earlier substring
+        # branch falsely rejected distinct-root pairs that share characters
+        # (كل ⊂ أكل, بنت ⊂ بناء, حال ⊂ حالة) — root_id is the load-bearing rule.
         if a.get("root_id") is not None and a.get("root_id") == b.get("root_id"):
-            return False
-        if ar_a and ar_b and (ar_a in ar_b or ar_b in ar_a):
             return False
         return True
 

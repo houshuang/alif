@@ -42,7 +42,6 @@ All scripts in `backend/scripts/`. Run from `backend/` directory.
 - `backfill_forms.py` — Backfill inflection forms from CAMeL Tools.
 - `backfill_forms_llm.py` — Backfill inflection forms using LLM.
 - `backfill_frequency.py` — Backfill frequency ranks (CAMeL MSA corpus) + CEFR levels (Kelly Project).
-- `build_frequency_core.py` — Build `frequency_core_entries`, the weighted high-frequency curriculum used for top-N coverage and word-selection priority. Defaults to CAMeL MSA + Kelly/Leeds, accepts optional Buckwalter/Parkinson, Hindawi/book, and news/OSIAN TSV/CSV sources. Keeps unmapped entries as `lemma_id=NULL` gaps; excludes function words/proper names/noise by default; supports `--dry-run`.
 - `backfill_roots.py` — Backfill root associations for lemmas.
 - `backfill_root_meanings.py` — Backfill root core meanings.
 - `backfill_story_words.py` — Resolve null lemma_ids in story words via morphology + LLM import.
