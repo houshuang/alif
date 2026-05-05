@@ -30,6 +30,7 @@ from app.database import SessionLocal
 from app.models import Sentence, SentenceWord
 from app.services.proper_name_lemmas import get_or_create_proper_name_lemma
 from app.services.sentence_validator import (
+    _WORD_CHAR,
     build_comprehensive_lemma_lookup,
     detect_proper_names,
     lookup_lemma,
@@ -49,7 +50,8 @@ def _canonical_bare(surface_form: str) -> str:
 def remap_unmapped_sentence_words(db, *, dry_run: bool = False) -> dict[str, int]:
     """Single pass over active SentenceWord rows with lemma_id IS NULL.
 
-    Returns counts: {fixed_by_lookup, fixed_by_proper_name, still_unmapped, sentences_touched}.
+    Returns counts: {deleted_non_word, fixed_by_lookup, fixed_by_proper_name,
+    still_unmapped, sentences_touched}.
     """
     lookup = build_comprehensive_lemma_lookup(db)
     print(f"Built comprehensive lookup with {len(lookup)} entries")
@@ -66,14 +68,33 @@ def remap_unmapped_sentence_words(db, *, dry_run: bool = False) -> dict[str, int
     for sw in null_words:
         by_sentence.setdefault(sw.sentence_id, []).append(sw)
 
+    # Zeroth pass: delete rows whose surface form has no letter character
+    # (em-dashes, Arabic-Indic digits, parenthesized digits). The tokenizer
+    # would not produce these now, so old rows are noise.
+    deleted_non_word = 0
+    null_words_after_purge: list[SentenceWord] = []
+    for sw in null_words:
+        if not _WORD_CHAR.search(sw.surface_form or ""):
+            db.delete(sw)
+            deleted_non_word += 1
+            print(f"  DELETE: sent={sw.sentence_id} non-word token '{sw.surface_form}'")
+        else:
+            null_words_after_purge.append(sw)
+    null_words = null_words_after_purge
+
     # First pass: comprehensive lookup
+    # Note: `original_bare` must already be punctuation-stripped — otherwise
+    # leading guillemets/quotes break collision/CAMeL disambiguation. The
+    # production `map_tokens_to_lemmas` path passes `bare_clean` (which IS
+    # punctuation-stripped) for the same reason.
     fixed_by_lookup = 0
     still_unmapped: list[SentenceWord] = []
     for sw in null_words:
         bare = _canonical_bare(sw.surface_form)
         if not bare:
             continue
-        lemma_id = lookup_lemma(bare, lookup, original_bare=strip_diacritics(sw.surface_form))
+        original_bare = strip_punctuation(strip_tatweel(strip_diacritics(sw.surface_form or "")))
+        lemma_id = lookup_lemma(bare, lookup, original_bare=original_bare)
         if lemma_id is not None:
             sw.lemma_id = lemma_id
             fixed_by_lookup += 1
@@ -118,6 +139,7 @@ def remap_unmapped_sentence_words(db, *, dry_run: bool = False) -> dict[str, int
         .count()
     )
     return {
+        "deleted_non_word": deleted_non_word,
         "fixed_by_lookup": fixed_by_lookup,
         "fixed_by_proper_name": fixed_by_proper_name,
         "still_unmapped": remaining,
@@ -138,7 +160,8 @@ def main() -> None:
     finally:
         db.close()
 
-    print(f"\nFixed by lookup:        {stats['fixed_by_lookup']}")
+    print(f"\nDeleted non-word rows:  {stats['deleted_non_word']}")
+    print(f"Fixed by lookup:        {stats['fixed_by_lookup']}")
     print(f"Fixed by proper-name:   {stats['fixed_by_proper_name']}")
     print(f"Sentences touched:      {stats['sentences_touched']}")
     print(f"Still unmapped (active): {stats['still_unmapped']}")

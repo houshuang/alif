@@ -21,8 +21,19 @@ ARABIC_DIACRITICS = re.compile(
 )
 
 ARABIC_PUNCTUATION = re.compile(
-    r"[،؟؛«»\u060C\u061B\u061F.,:;!?\"'\-\(\)\[\]{}…]"
+    r"[،؟؛«»\u060C\u061B\u061F.,:;!?\"'\-\(\)\[\]{}…"
+    r"\u2010-\u2015"   # hyphen, NB-hyphen, figure-dash, en-dash, em-dash, horizontal bar
+    r"\u2212"           # minus sign
+    r"\u2018\u2019\u201C\u201D"   # smart single + double quotes
+    r"]"
 )
+
+# Matches any Unicode letter. Used by `tokenize_display` to skip tokens with no
+# real word content — em-dashes, Arabic-Indic numerals (١٤), parenthesized
+# digits ((٢)), Arabic diacritic-only fragments, etc. Such tokens cannot map
+# to a lemma and would violate the `not_has_unmapped_words` review-time gate.
+# `[^\W\d_]` = "alphanumeric minus digits minus underscores" = letters only.
+_WORD_CHAR = re.compile(r"[^\W\d_]", re.UNICODE)
 
 # Function words are excluded from story/book "to learn" counts and from
 # book page word introduction. They CAN still be learned through normal
@@ -300,14 +311,20 @@ def tokenize_display(text: str) -> list[str]:
 
     Used for creating SentenceWord records where surface_form should
     preserve original punctuation (question marks, periods, commas).
-    Filters out pure-punctuation tokens.
+    Filters out pure-punctuation tokens AND tokens with no letter at all
+    (em-dashes, Arabic-Indic numerals, parenthesized digits, ligatures).
+    Such tokens cannot map to a lemma; keeping them would only break the
+    runtime `not_has_unmapped_words` gate.
     """
     result = []
     for t in text.split():
         if not t.strip():
             continue
-        if strip_punctuation(t).strip():
-            result.append(t)
+        if not strip_punctuation(t).strip():
+            continue
+        if not _WORD_CHAR.search(t):
+            continue
+        result.append(t)
     return result
 
 

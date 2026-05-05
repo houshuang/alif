@@ -4,6 +4,52 @@
 
 ---
 
+## 🟡 Lookup gaps surfaced by sentence-eligibility-gate backfill (2026-05-05)
+
+Three real morphology / vocabulary gaps surfaced when remapping the 8 active
+sentences still unmapped after the eligibility-gate backfill. None are simple
+fixes — each warrants its own focused task.
+
+### A. Missing function-word lemma `ل`
+
+`لِي` (li-ya = "to me") fails to remap. After the `ل` proclitic is stripped,
+the residue `ي` is len<2 and gets discarded. There's also no Lemma row for the
+preposition `ل` itself. **Fix idea**: ensure every `FUNCTION_WORD_GLOSSES` key
+has a corresponding Lemma row (one-shot script). The `_strip_clitics` len<2
+guard is correct (prevents matching very short stems against false roots) — the
+real fix is that `ل` should match directly without clitic stripping when the
+surface form IS just `لي`.
+
+### B. Missing 1st-person possessive `ي` in ENCLITICS
+
+`شُهْرَتِي` (my fame) cannot strip the trailing `ي`. ENCLITICS includes object
+suffixes (هما, هم, ها, ه, نا, ني, ك, كم, كن) but the bare 1st-person possessive
+`ي` is absent. Adding it would also help `كتابي`, `بيتي`, etc. Risk: many false
+matches because `ي` is also a regular letter; need a careful guard (e.g., only
+strip on a stem that ends in a non-vowel before the `ي`).
+
+### C. Alef-maksura ↔ ya asymmetry in lookup
+
+`إِلَيْهَا` strips `ها` to give `الي` (regular ya, U+064A) but the lemma is
+keyed `الى` (alef-maksura, U+0649) at lemma_id 454. They're different keys.
+**Fix idea**: in `build_comprehensive_lemma_lookup`, for every lemma whose
+bare ends in ى, also index a `ي`-final variant. Same for the inverse.
+
+### D. Plural / verbal-noun gaps
+
+`الْمُشَاهَدَاتِ` (the observations) — only the verb `شاهَدَ` (to watch) is in
+the DB; the verbal noun `مشاهدة` and its plural `مشاهدات` aren't imported.
+Similar for `شهرة` (fame). **Fix idea**: a one-shot script that scans all
+`is_active=1` book/corpus sentences for unmapped tokens, classifies them via
+LLM, and either auto-imports common derived nouns or flags for manual review.
+Distinct from proper-name auto-create because these are real vocabulary the
+user should learn (with quality gates).
+
+When any of A–D is fixed, the runtime gate auto-activates the affected
+sentences on the next cron pass — no manual intervention needed.
+
+---
+
 ## 🟢 [DONE 2026-05-04] Aggressive frequency-core acquisition experiment
 
 User goal shifted from unlocking one specific book to unlocking general Arabic
