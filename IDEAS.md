@@ -19,6 +19,23 @@ Docs:
 - `docs/frequency-core-curriculum.md`
 - `docs/aggressive-acquisition-runbook.md`
 
+Deployed 2026-05-05 with CAMeL only (5,000 rows). Top 100 learned 86%,
+top 500 78%, top 1,000 68%, top 5,000 29%.
+
+Follow-ups discovered during deploy:
+- **Kelly source unreachable**: Leeds corpus server (`corpus.leeds.ac.uk`)
+  timed out from both local and server. Re-attempt later or mirror the file.
+- **`learned_prefix_count` semantics differ between dry-run and API**: the
+  builder's dry-run printout uses "highest rank ever learned" while the API's
+  `_compute_frequency_core_progress` correctly uses "continuous prefix from
+  rank 1." After deploy the API showed 0 (rank #1 منتدى missing from DB) while
+  the dry-run printed 90. Align the dry-run print to match API semantics so
+  the two numbers don't disagree.
+- **High-frequency unmapped lemmas**: rank #1 منتدى (forum), #2 قسم (section),
+  #13 عملية (operation), #16 المنتدى — these are top-20 forum/web frequencies
+  CAMeL captures but Alif's vocabulary never imported. Worth a one-shot script
+  to import the unmapped top 100 freq-core slots as wiktionary-source lemmas.
+
 ---
 
 ## 🔴 Generation pipeline — three concurrent bugs (2026-05-03)
