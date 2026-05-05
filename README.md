@@ -1,5 +1,7 @@
 # Alif — Arabic Reading & Listening Trainer
 
+[Blog post](https://networkedthought.substack.com/p/how-an-iraqi-play-about-cain-and)
+
 A personal Arabic (MSA/fusha) learning app focused on reading and listening comprehension. Tracks word knowledge at root, lemma, and conjugation levels using FSRS spaced repetition. Uses LLM-generated sentences and stories tailored to your vocabulary.
 
 > **This is a private project shared as-is.** It was built for one person's Arabic learning workflow using Claude Code. It is not a polished open-source product — there are hardcoded server addresses, personal deployment scripts, and opinionated design decisions throughout. It works well, but setting it up requires reading the code and adapting things to your own setup. Claude Code can help you with that.
