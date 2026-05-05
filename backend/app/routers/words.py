@@ -373,12 +373,13 @@ def get_word(lemma_id: int, db: Session = Depends(get_db)):
     grammar_keys = _coerce_grammar_keys(lemma.grammar_features_json)
     grammar_details = _build_grammar_details(db, grammar_keys)
 
-    # Build provenance info.
-    # Prefer ulk.source (how this word was introduced to learning: book/story_import/duolingo/textbook_scan)
-    # over lemma.source (where the dictionary data came from: wiktionary/avp_a1/etc).
+    # Build provenance info. Only show specific learning provenance here; generic
+    # paths such as collateral/auto_intro should not fall back to lemma.source,
+    # because that source is lexical provenance and can misleadingly show
+    # "duolingo" for words learned through OCR, books, or collateral review.
     _GENERIC_ULK_SOURCES = {None, "study", "encountered", "auto_intro", "collateral", "leech_reintro"}
     ulk_source = k.source if k else None
-    display_source = ulk_source if ulk_source not in _GENERIC_ULK_SOURCES else lemma.source
+    display_source = ulk_source if ulk_source not in _GENERIC_ULK_SOURCES else None
     source_info = None
     if display_source:
         source_info = {"type": display_source}

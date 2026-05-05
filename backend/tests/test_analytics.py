@@ -1,6 +1,6 @@
 from datetime import datetime, timezone, timedelta
 import pytest
-from app.models import Root, Lemma, UserLemmaKnowledge, ReviewLog
+from app.models import Root, Lemma, UserLemmaKnowledge, ReviewLog, FrequencyCoreEntry
 from app.routers.stats import _estimate_cefr, _calculate_streak, CEFR_THRESHOLDS
 
 
@@ -163,6 +163,77 @@ class TestStatsAPI:
         assert "daily_history" in data
         assert data["cefr"]["level"] == "Pre-A1"
         assert data["pace"]["total_study_days"] >= 1
+
+    def test_frequency_core_progress_counts_unmapped_and_confidence(self, client, db_session):
+        learned = _make_lemma(db_session, 1, "known")
+        gap_lemma = _make_lemma(db_session, 2, "encountered")
+        db_session.add_all([
+            FrequencyCoreEntry(
+                core_rank=1,
+                lemma_id=learned.lemma_id,
+                lemma_key=f"lemma:{learned.lemma_id}",
+                display_form=learned.lemma_ar,
+                score=10.0,
+                confidence_tier="high",
+                broad_source_count=2,
+            ),
+            FrequencyCoreEntry(
+                core_rank=2,
+                lemma_id=None,
+                lemma_key="missing:بيت",
+                display_form="بيت",
+                score=9.0,
+                confidence_tier="low",
+                gap_status="unmapped",
+            ),
+            FrequencyCoreEntry(
+                core_rank=3,
+                lemma_id=gap_lemma.lemma_id,
+                lemma_key=f"lemma:{gap_lemma.lemma_id}",
+                display_form=gap_lemma.lemma_ar,
+                score=8.0,
+                confidence_tier="medium",
+            ),
+        ])
+        db_session.commit()
+
+        resp = client.get("/api/stats/analytics")
+        assert resp.status_code == 200
+        core = resp.json()["frequency_core"]
+        assert core["learned_prefix_count"] == 1
+        top100 = core["bands"][0]
+        assert top100["unmapped_count"] == 1
+        assert top100["low_confidence_count"] == 1
+        assert core["next_gaps"][0]["gap_status"] == "unmapped"
+
+    def test_daily_goal_splits_main_and_slow_lane_due_debt(self, client, db_session):
+        now = datetime.now(timezone.utc)
+        main = Lemma(lemma_ar="مهم", lemma_ar_bare="مهم", gloss_en="important")
+        slow = Lemma(lemma_ar="نادر", lemma_ar_bare="نادر", gloss_en="rare", source="book")
+        db_session.add_all([main, slow])
+        db_session.flush()
+        db_session.add_all([
+            UserLemmaKnowledge(
+                lemma_id=main.lemma_id,
+                knowledge_state="known",
+                source="study",
+                fsrs_card_json={"due": (now - timedelta(days=1)).isoformat()},
+            ),
+            UserLemmaKnowledge(
+                lemma_id=slow.lemma_id,
+                knowledge_state="known",
+                source="book",
+                fsrs_card_json={"due": (now - timedelta(days=1)).isoformat()},
+            ),
+        ])
+        db_session.commit()
+
+        resp = client.get("/api/stats/analytics")
+        assert resp.status_code == 200
+        daily_goal = resp.json()["daily_goal"]
+        assert daily_goal["main_maintenance_remaining"] == 1
+        assert daily_goal["slow_lane_budget"] == 1
+        assert daily_goal["slow_lane_remaining"] == 1
 
     def test_cefr_endpoint(self, client, db_session):
         for i in range(350):

@@ -1650,6 +1650,7 @@ def validate_sentence_multi_target(
     arabic_text: str,
     target_bares: dict[str, int],
     known_bare_forms: set[str],
+    min_targets: int = 2,
 ) -> MultiTargetValidationResult:
     """Validate that a sentence uses known words and contains target words.
 
@@ -1659,7 +1660,7 @@ def validate_sentence_multi_target(
         known_bare_forms: Set of bare forms the user knows.
 
     Returns:
-        MultiTargetValidationResult. Valid = at least 1 target found AND no unknown words.
+        MultiTargetValidationResult. Valid = min_targets found AND no unknown words.
     """
     tokens = tokenize(arabic_text)
     if not tokens:
@@ -1752,10 +1753,12 @@ def validate_sentence_multi_target(
     issues: list[str] = []
     if target_count == 0:
         issues.append("No target words found in sentence")
+    elif target_count < min_targets:
+        issues.append(f"Only {target_count} target word(s) found; need {min_targets}")
     if unknown_words:
         issues.append(f"Unknown words: {', '.join(unknown_words)}")
 
-    valid = target_count >= 1 and len(unknown_words) == 0
+    valid = target_count >= min_targets and len(unknown_words) == 0
 
     return MultiTargetValidationResult(
         valid=valid,

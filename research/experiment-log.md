@@ -4,6 +4,81 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-05-04: Aggressive frequency-core acquisition experiment
+
+### What
+
+Started a gated 30-new-words/day experiment aimed at general-reading frequency
+coverage instead of book-specific unlocks alone:
+
+1. Added `frequency_core_entries` as an honest top-N curriculum table. Rows with
+   `lemma_id = NULL` stay visible so "top 500" means 500 frequency-core slots,
+   not 500 mapped rows after hiding gaps.
+2. Added frequency-core source fusion with lemma-level source aggregation and
+   weights: CAMeL MSA 1000, Buckwalter/Parkinson 900, arTenTen 800, KELLY 600,
+   Hindawi/books 400, news 300, Islamic/classical 150.
+3. Raised the aggressive target to 30 daily intros, gated by recent accuracy and
+   a high-accuracy acquiring-backlog cap.
+4. Split due maintenance into main lane and slow lane. Main lane includes all
+   acquiring words, all core/proxy rank <=5,000 due words, and non-artifact due
+   words. Slow lane samples low/null-rank artifact FSRS debt at 10% of session
+   budget.
+5. Improved due-targeting efficiency with oldest-overdue-first selection,
+   >=2-target diversity relaxation, demand-weighted multi-target grouping,
+   validator-enforced 2+ target multi-target sentences, and conservative
+   inactive-sentence salvage before new LLM generation.
+6. Fixed misleading intro/reintro source labels by separating learning
+   provenance from lexical provenance.
+
+Research docs:
+
+- `research/aggressive-vocab-experiment-2026-05-04.md`
+- `research/sentence-generation-prompt-experiments-2026-05-04.md`
+- `docs/frequency-core-curriculum.md`
+- `docs/aggressive-acquisition-runbook.md`
+
+### Why
+
+Production data showed the backlog was not caused by lack of effort: the last
+day had ~219 sentence reviews at ~92% accuracy. The debt was dominated by
+low/null-frequency book/OCR/scaffold artifacts, while active sentence candidates
+mostly covered one target each. The highest-leverage change is to make the daily
+target count real general-reading progress while keeping artifact debt visible
+but bounded.
+
+### Expected effect
+
+- >=30 intros/day while recent accuracy stays >=90%.
+- Main-lane due debt clears daily.
+- Slow-lane artifact debt no longer dominates session construction.
+- Frequency-core top-N stats become honest and motivational.
+- Useful main-lane target units per sentence improves from the ~1.0 baseline.
+
+### How to verify
+
+After 48 hours:
+
+```bash
+curl -s http://localhost:8000/api/stats/analytics | jq '.daily_goal, .frequency_core'
+```
+
+Pass:
+
+- `daily_goal.introduced_today >= 30`
+- `daily_goal.main_maintenance_remaining == 0` by end of day
+- recent accuracy >=90%
+- no increase in sentence-less acquiring words
+- multi-target acceptance and useful-units/sentence improve materially
+
+Fail / rollback:
+
+- two-day rolling accuracy <88%
+- acquiring backlog >140 without a downward trend
+- main-lane due carryover >40 for two consecutive days
+- sentence-less acquiring words increase by >10
+
+---
+
 ## 2026-05-04: ALA-LC transliteration fix + bulk lemma vocalization (PR #60)
 
 ### What

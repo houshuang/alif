@@ -41,6 +41,11 @@ from app.services.sentence_validator import (
     strip_punctuation,
     strip_tatweel,
 )
+from app.services.frequency_lanes import (
+    frequency_core_ranks,
+    is_main_lane_word,
+    select_slow_lane_sample,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -54,8 +59,10 @@ BOX1_MIN_EXPOSURES = 4
 BOX2_MIN_EXPOSURES = 2
 MAX_ACQUISITION_EXTRA_SLOTS = 15  # max extra cards beyond session limit for repetitions
 MAX_AUTO_INTRO_PER_SESSION = 5  # cap new words per single auto-intro call
+DAILY_AUTO_INTRO_TARGET = 30  # aggressive 2026-05-04 trial target
+HIGH_ACCURACY_INTRO_BACKLOG_CAP = 120  # allow 30/day trial while retention is strong
 AUTO_INTRO_ACCURACY_FLOOR = 0.70  # pause introduction if recent accuracy below this
-INTRO_RESERVE_FRACTION = 0.2  # fraction of session slots reserved for new word introductions
+INTRO_RESERVE_FRACTION = 0.3  # fraction of session slots reserved for new word introductions
 PIPELINE_BACKLOG_THRESHOLD = 40  # suppress reserved intros when acquiring pipeline exceeds this
 LOW_TIER_INTRO_SOURCES = {"wiktionary", "story_import", "manual", "flag_autocreate", "other"}
 LOW_TIER_BLOCK_BACKLOG = 60  # block low-tier auto-intros once box-1 acquiring exceeds this
@@ -70,6 +77,7 @@ OVERDUE_ESCALATION_MAX = 6.0  # max multiplier for severely overdue words
 MAX_UNKNOWN_SCAFFOLD = 2  # max unknown non-target words per sentence (prevents overwhelming density)
 MIN_SESSION_SENTENCES = 5  # minimum sentences before pulling in almost-due words
 COMPREHENSIBILITY_THRESHOLD = 0.6  # min fraction of scaffold words that must be known
+OLDEST_DUE_FIRST_BLOCK = 5  # first cards should shrink aged debt before normal set cover
 
 
 def _intro_slots_for_accuracy(accuracy: float) -> int:
@@ -99,6 +107,22 @@ def _get_accuracy_intro_slots(db: Session, now: datetime) -> int:
         accuracy = correct / len(recent_reviews)
         return _intro_slots_for_accuracy(accuracy)
     return 4  # conservative default with insufficient data
+
+
+def _introduced_today_count(db: Session, now: datetime) -> int:
+    """Count today's acquisition starts for the 30/day intro experiment."""
+    today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    return (
+        db.query(UserLemmaKnowledge)
+        .filter(
+            UserLemmaKnowledge.acquisition_started_at >= today_start,
+            (
+                UserLemmaKnowledge.source.is_(None)
+                | (UserLemmaKnowledge.source != "leech_reintro")
+            ),
+        )
+        .count()
+    )
 
 
 @dataclass
@@ -179,6 +203,47 @@ def _overdue_escalation(due_word_ids: set[int], overdue_days_map: dict[int, floa
     # Linear ramp: 1.0 at threshold, OVERDUE_ESCALATION_MAX at threshold + 14 days
     escalation = 1.0 + (max_overdue - OVERDUE_ESCALATION_DAYS) / 14.0 * (OVERDUE_ESCALATION_MAX - 1.0)
     return min(escalation, OVERDUE_ESCALATION_MAX)
+
+
+def _relax_due_dense_penalty(value: float, due_overlap_count: int) -> float:
+    """Relax freshness/diversity penalties for genuinely due-dense sentences."""
+    if due_overlap_count >= 2:
+        return max(value, 0.8)
+    return value
+
+
+def _filter_due_ids_for_frequency_lanes(
+    db: Session,
+    due_lemma_ids: set[int],
+    knowledge_by_id: dict[int, UserLemmaKnowledge],
+    overdue_days_map: dict[int, float],
+    limit: int,
+) -> tuple[set[int], set[int], set[int], set[int]]:
+    if not due_lemma_ids:
+        return set(), set(), set(), set()
+    lemmas = {
+        l.lemma_id: l
+        for l in db.query(Lemma).filter(Lemma.lemma_id.in_(due_lemma_ids)).all()
+    }
+    core_ranks = frequency_core_ranks(db, due_lemma_ids)
+    main_due: set[int] = set()
+    slow_due: set[int] = set()
+    for lid in due_lemma_ids:
+        k = knowledge_by_id.get(lid)
+        if not k:
+            continue
+        if is_main_lane_word(k, lemmas.get(lid), core_ranks.get(lid)):
+            main_due.add(lid)
+        else:
+            slow_due.add(lid)
+    slow_sample = select_slow_lane_sample(slow_due, overdue_days_map, limit)
+    scheduled = main_due | slow_sample
+    if slow_due:
+        logger.info(
+            "Frequency lanes: main=%s slow_total=%s slow_scheduled=%s",
+            len(main_due), len(slow_due), len(slow_sample),
+        )
+    return scheduled, main_due, slow_due, slow_sample
 
 
 def _difficulty_match_quality(
@@ -435,7 +500,16 @@ def _auto_introduce_words(
         accuracy = None
         accuracy_slots = 4  # conservative default with insufficient data
 
-    slots = min(accuracy_slots, slots_needed, MAX_AUTO_INTRO_PER_SESSION)
+    daily_intro_remaining = max(0, DAILY_AUTO_INTRO_TARGET - _introduced_today_count(db, now))
+    if daily_intro_remaining <= 0:
+        return []
+
+    slots = min(
+        accuracy_slots,
+        slots_needed,
+        MAX_AUTO_INTRO_PER_SESSION,
+        daily_intro_remaining,
+    )
     if slots <= 0:
         return []
 
@@ -452,8 +526,8 @@ def _auto_introduce_words(
     candidates = [c for c in candidates if not _is_function_word(c.get("lemma_ar_bare", ""))]
 
     # Low-tier gate: when box-1 backlog is large, do not introduce wiktionary /
-    # story_import / unsourced words. Forces focus on textbook/book/duolingo until
-    # the user has cleared the backlog of words they actively encountered.
+    # story_import / unsourced words. Forces focus on frequency core, textbook,
+    # book, and duolingo until the actively encountered backlog clears.
     box1_count = (
         db.query(UserLemmaKnowledge)
         .filter(
@@ -483,6 +557,8 @@ def _auto_introduce_words(
         tier = cand.get("score_breakdown", {}).get("priority_tier", "")
         if tier.startswith("book_p"):
             intro_source = "book"
+        elif tier.startswith("freq_core_"):
+            intro_source = "frequency_core"
         elif tier == "active_story":
             intro_source = "story_import"
         elif tier in ("textbook_scan", "duolingo"):
@@ -634,18 +710,28 @@ def build_session(
     else:
         recent_accuracy = 0.80  # conservative default
     if recent_accuracy >= 0.90:
-        effective_threshold = 80
+        effective_threshold = HIGH_ACCURACY_INTRO_BACKLOG_CAP
     elif recent_accuracy >= 0.80:
         effective_threshold = 60
     else:
         effective_threshold = PIPELINE_BACKLOG_THRESHOLD  # 40
 
-    if accuracy_slots > 0 and acquiring_count <= effective_threshold:
+    daily_intro_remaining = max(0, DAILY_AUTO_INTRO_TARGET - _introduced_today_count(db, now))
+    if (
+        daily_intro_remaining > 0
+        and accuracy_slots > 0
+        and acquiring_count <= effective_threshold
+    ):
         reserved_intro = max(1, int(limit * INTRO_RESERVE_FRACTION))
-        intro_slots = min(accuracy_slots, reserved_intro)
+        intro_slots = min(accuracy_slots, reserved_intro, daily_intro_remaining)
     else:
         intro_slots = 0
-        if acquiring_count > effective_threshold:
+        if daily_intro_remaining <= 0:
+            logger.info(
+                f"Auto-intro reserved slots suppressed: daily target "
+                f"{DAILY_AUTO_INTRO_TARGET} already reached"
+            )
+        elif acquiring_count > effective_threshold:
             logger.info(
                 f"Auto-intro reserved slots suppressed: {acquiring_count} acquiring "
                 f"> {effective_threshold} threshold (accuracy={recent_accuracy:.0%})"
@@ -672,6 +758,10 @@ def build_session(
         # Refresh cohort to include newly acquiring words
         cohort = get_focus_cohort(db)
         due_lemma_ids &= cohort
+
+    due_lemma_ids, main_due_ids, slow_due_ids, slow_scheduled_ids = _filter_due_ids_for_frequency_lanes(
+        db, due_lemma_ids, knowledge_by_id, overdue_days_map, limit
+    )
 
     # Identify struggling words: seen 3+ times, never correct
     struggling_ids: set[int] = set()
@@ -1048,6 +1138,7 @@ def build_session(
         gfit = _grammar_fit(sent_grammar, grammar_exposure_map)
         diversity = 1.0 / (1.0 + (sent.times_shown or 0))
         freshness = _scaffold_freshness(word_metas, knowledge_map)
+        freshness = _relax_due_dense_penalty(freshness, len(due_covered))
         source_bonus = 1.3 if sent.source in ("book", "corpus") else 1.0
         # Rescue sentences (recently shown but only option for a due word) get a
         # penalty so fresh sentences are preferred, but they still participate.
@@ -1072,6 +1163,87 @@ def build_session(
     remaining_due = set(due_lemma_ids)
     session_scaffold_counts: dict[int, int] = {}
 
+    oldest_due_ids = sorted(
+        due_lemma_ids,
+        key=lambda lid: (overdue_days_map.get(lid, 0.0), lid),
+        reverse=True,
+    )[: min(OLDEST_DUE_FIRST_BLOCK, limit)]
+    for lid in oldest_due_ids:
+        if lid not in remaining_due:
+            continue
+        options = [c for c in candidates if lid in c.due_words_covered]
+        for cand in options:
+            overlap = cand.due_words_covered & remaining_due
+            if not overlap:
+                cand.score = 0.0
+                continue
+            weakest = min(stability_map.get(ol, 0.0) for ol in overlap)
+            scaffold_stabs = [
+                w.stability for w in cand.words_meta
+                if w.lemma_id and not w.is_due and w.stability is not None
+            ]
+            dmq = _difficulty_match_quality(weakest, scaffold_stabs)
+            gfit = _grammar_fit(sentence_grammar_cache.get(cand.sentence_id, []), grammar_exposure_map)
+            diversity = 1.0 / (1.0 + (cand.sentence.times_shown or 0))
+            freshness = _scaffold_freshness(cand.words_meta, knowledge_map)
+            freshness = _relax_due_dense_penalty(freshness, len(overlap))
+            source_bonus = 1.3 if cand.sentence.source in ("book", "corpus") else 1.0
+
+            scaffold_ids = [
+                w.lemma_id for w in cand.words_meta
+                if w.lemma_id and not w.is_due and not w.is_function_word
+            ]
+            if scaffold_ids and session_scaffold_counts:
+                max_session_count = max(session_scaffold_counts.get(sid, 0) for sid in scaffold_ids)
+                session_diversity = SESSION_SCAFFOLD_DECAY ** max_session_count
+            else:
+                session_diversity = 1.0
+            session_diversity = _relax_due_dense_penalty(session_diversity, len(overlap))
+
+            rescue_penalty = 0.3 if cand.sentence_id in rescue_sentence_ids else 1.0
+            nr_boost = NEVER_REVIEWED_BOOST if (overlap & boosted_acquiring_ids) else 1.0
+            lapsed_boost = LAPSED_BOOST if (overlap & lapsed_lemma_ids) else 1.0
+            overdue_boost = _overdue_escalation(overlap, overdue_days_map)
+            cand.score = (
+                (len(overlap) ** 1.5)
+                * dmq
+                * gfit
+                * diversity
+                * freshness
+                * source_bonus
+                * session_diversity
+                * rescue_penalty
+                * nr_boost
+                * lapsed_boost
+                * overdue_boost
+            )
+            cand.score_components = {
+                "due_coverage": len(overlap),
+                "difficulty_match": round(dmq, 2),
+                "grammar_fit": round(gfit, 2),
+                "diversity": round(diversity, 2),
+                "freshness": round(freshness, 2),
+                "source_bonus": source_bonus,
+                "session_diversity": round(session_diversity, 2),
+                "rescue": rescue_penalty < 1.0,
+                "never_reviewed_boost": nr_boost,
+                "lapsed_boost": lapsed_boost,
+                "overdue_boost": round(overdue_boost, 2),
+            }
+        options.sort(key=lambda c: c.score, reverse=True)
+        for cand in options:
+            if _is_near_duplicate_candidate(cand, selected):
+                continue
+            cand.selection_reason = "oldest_due_first"
+            cand.selection_order = len(selected) + 1
+            selected.append(cand)
+            remaining_due -= cand.due_words_covered
+            candidates.remove(cand)
+            for w in cand.words_meta:
+                if w.lemma_id and not w.is_due and not w.is_function_word:
+                    session_scaffold_counts[w.lemma_id] = session_scaffold_counts.get(w.lemma_id, 0) + 1
+            break
+
     while remaining_due and len(selected) < limit and candidates:
         for c in candidates:
             overlap = c.due_words_covered & remaining_due
@@ -1085,6 +1257,7 @@ def build_session(
             gfit = _grammar_fit(sentence_grammar_cache.get(c.sentence_id, []), grammar_exposure_map)
             diversity = 1.0 / (1.0 + (c.sentence.times_shown or 0))
             freshness = _scaffold_freshness(c.words_meta, knowledge_map)
+            freshness = _relax_due_dense_penalty(freshness, len(overlap))
             source_bonus = 1.3 if c.sentence.source in ("book", "corpus") else 1.0
 
             # Within-session scaffold diversity: penalize reuse of scaffold words
@@ -1095,6 +1268,7 @@ def build_session(
                 session_diversity = SESSION_SCAFFOLD_DECAY ** max_session_count
             else:
                 session_diversity = 1.0
+            session_diversity = _relax_due_dense_penalty(session_diversity, len(overlap))
 
             rescue_penalty = 0.3 if c.sentence_id in rescue_sentence_ids else 1.0
             nr_boost = NEVER_REVIEWED_BOOST if (overlap & boosted_acquiring_ids) else 1.0
@@ -1357,9 +1531,14 @@ STRUGGLING_MIN_SEEN = 3
 _GENERIC_ULK_SOURCES = {None, "study", "encountered", "auto_intro", "collateral", "leech_reintro"}
 
 def _display_source(ulk, lemma) -> str | None:
-    """Prefer ulk.source (how the word entered learning) over lemma.source (dictionary provenance)."""
+    """Return only specific learning provenance, not dictionary provenance.
+
+    Generic/collateral learning paths used to fall back to ``lemma.source`` and
+    could show labels such as Duolingo even when Duolingo was merely lexical
+    provenance. That made the curriculum source look wrong.
+    """
     ulk_source = ulk.source if ulk else None
-    return ulk_source if ulk_source not in _GENERIC_ULK_SOURCES else lemma.source
+    return ulk_source if ulk_source not in _GENERIC_ULK_SOURCES else None
 
 
 def _build_reintro_cards(

@@ -517,6 +517,56 @@ export interface ProgressBenchmarks {
   quran?: QuranProgress | null;
 }
 
+export interface DailyGoal {
+  new_words_target: number;
+  introduced_today: number;
+  introduced_remaining: number;
+  new_words_pct: number;
+  maintenance_done: number;
+  maintenance_remaining: number;
+  maintenance_target: number;
+  maintenance_pct: number;
+  overall_pct: number;
+  is_complete: boolean;
+  fsrs_reviewed_today: number;
+  acquisition_reviewed_today: number;
+  fsrs_due: number;
+  acquisition_due: number;
+  main_maintenance_done: number;
+  main_maintenance_remaining: number;
+  main_maintenance_target: number;
+  slow_lane_done: number;
+  slow_lane_budget: number;
+  slow_lane_remaining: number;
+}
+
+export interface FrequencyCoreBand {
+  top_n: number;
+  learned_count: number;
+  pipeline_count: number;
+  total_count: number;
+  coverage_pct: number;
+  low_confidence_count: number;
+  unmapped_count: number;
+}
+
+export interface FrequencyCoreGap {
+  core_rank: number;
+  lemma_id: number | null;
+  display_form: string;
+  gloss_en: string | null;
+  status: string;
+  confidence_tier: string;
+  gap_status: string | null;
+}
+
+export interface FrequencyCoreProgress {
+  total_entries: number;
+  learned_prefix_count: number;
+  bands: FrequencyCoreBand[];
+  next_gaps: FrequencyCoreGap[];
+}
+
 export interface Analytics {
   stats: {
     total_words: number;
@@ -546,6 +596,8 @@ export interface Analytics {
   unique_words_recognized_7d?: number;
   unique_words_recognized_prior_7d?: number;
   benchmarks?: ProgressBenchmarks | null;
+  daily_goal?: DailyGoal | null;
+  frequency_core?: FrequencyCoreProgress | null;
 }
 
 export interface GraduatedWord {
@@ -1071,4 +1123,5 @@ export interface SessionEndData {
   top_partial_roots: PartialRoot[];
   graduated_today?: GraduatedWord[];
   introduced_words_today?: IntroducedWordDetail[];
+  daily_goal?: DailyGoal | null;
 }

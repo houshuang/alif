@@ -8,7 +8,7 @@ from collections import Counter
 from app.database import get_db
 from app.models import (
     Lemma, UserLemmaKnowledge, ReviewLog, Root,
-    SentenceReviewLog, SentenceWord,
+    SentenceReviewLog, SentenceWord, FrequencyCoreEntry,
 )
 from app.schemas import (
     StatsOut, DailyStatsPoint, LearningPaceOut,
@@ -19,9 +19,17 @@ from app.schemas import (
     AcquisitionWord, RecentGraduation, AcquisitionPipeline,
     InsightsOut,
     TextbookBenchmark, QuranProgress, ProgressBenchmarks,
+    DailyGoalOut, FrequencyCoreBand, FrequencyCoreGap, FrequencyCoreProgress,
+)
+from app.services.frequency_lanes import (
+    due_lane_snapshot,
+    frequency_core_ranks,
+    is_main_lane_word,
 )
 
 router = APIRouter(prefix="/api/stats", tags=["stats"])
+
+DAILY_NEW_WORD_TARGET = 30
 
 # Cached function word ID set — computed once, then reused
 _func_word_ids_cache: set[int] | None = None
@@ -112,6 +120,131 @@ def _count_fsrs_cleared_today(db: Session, today_start: datetime, now: datetime)
         .all()
     )
     return len(rows)
+
+
+def _count_acquisition_reviewed_today(db: Session, today_start: datetime) -> int:
+    """Count distinct acquisition words reviewed today."""
+    return (
+        db.query(func.count(func.distinct(ReviewLog.lemma_id)))
+        .filter(
+            ReviewLog.reviewed_at >= today_start,
+            ReviewLog.is_acquisition == True,  # noqa: E712
+        )
+        .scalar() or 0
+    )
+
+
+def _count_introduced_today(db: Session, today_start: datetime) -> int:
+    """Count new acquisition starts today, excluding explicit leech reintroductions."""
+    return (
+        db.query(func.count(UserLemmaKnowledge.id))
+        .filter(
+            UserLemmaKnowledge.acquisition_started_at >= today_start,
+            (
+                UserLemmaKnowledge.source.is_(None)
+                | (UserLemmaKnowledge.source != "leech_reintro")
+            ),
+        )
+        .scalar() or 0
+    )
+
+
+def _count_reviewed_today_by_lane(db: Session, today_start: datetime) -> tuple[int, int]:
+    reviewed_ids = [
+        lid for (lid,) in (
+            db.query(ReviewLog.lemma_id)
+            .filter(ReviewLog.reviewed_at >= today_start)
+            .distinct()
+            .all()
+        )
+    ]
+    if not reviewed_ids:
+        return 0, 0
+    rows = (
+        db.query(UserLemmaKnowledge, Lemma)
+        .join(Lemma, Lemma.lemma_id == UserLemmaKnowledge.lemma_id)
+        .filter(UserLemmaKnowledge.lemma_id.in_(reviewed_ids))
+        .all()
+    )
+    if not rows:
+        return 0, 0
+    core_ranks = frequency_core_ranks(db, reviewed_ids)
+    main = 0
+    slow = 0
+    for ulk, lemma in rows:
+        if is_main_lane_word(ulk, lemma, core_ranks.get(ulk.lemma_id)):
+            main += 1
+        else:
+            slow += 1
+    return main, slow
+
+
+def _get_daily_goal(db: Session) -> DailyGoalOut:
+    """Progress toward the daily aggressive-learning target.
+
+    Maintenance is intentionally computed as completed review work plus current
+    due debt. The target can grow during the day when new acquisition cards
+    become due, which makes the countdown conservative instead of pretending
+    the morning queue was the whole day.
+    """
+    now = datetime.now(timezone.utc)
+    today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+
+    introduced_today = _count_introduced_today(db, today_start)
+    lanes = due_lane_snapshot(db, now)
+    fsrs_due = len(lanes.fsrs_due_ids)
+    acquisition_due = len(lanes.acquisition_due_ids)
+    fsrs_reviewed_today = _count_fsrs_cleared_today(db, today_start, now)
+    acquisition_reviewed_today = _count_acquisition_reviewed_today(db, today_start)
+    main_reviewed_today, slow_reviewed_today = _count_reviewed_today_by_lane(db, today_start)
+
+    maintenance_done = fsrs_reviewed_today + acquisition_reviewed_today
+    main_maintenance_done = main_reviewed_today
+    main_maintenance_remaining = len(lanes.main_due_ids)
+    main_maintenance_target = main_maintenance_done + main_maintenance_remaining
+    slow_lane_total_available = slow_reviewed_today + len(lanes.slow_due_ids)
+    slow_lane_budget = min(
+        slow_lane_total_available,
+        max(1, round((main_maintenance_target + slow_lane_total_available) * 0.10)),
+    ) if slow_lane_total_available else 0
+    slow_lane_remaining = max(0, slow_lane_budget - slow_reviewed_today)
+    maintenance_remaining = main_maintenance_remaining + slow_lane_remaining
+    maintenance_target = maintenance_done + maintenance_remaining
+
+    new_words_pct = min(100.0, introduced_today / DAILY_NEW_WORD_TARGET * 100.0)
+    maintenance_pct = (
+        100.0
+        if maintenance_target == 0
+        else min(100.0, maintenance_done / maintenance_target * 100.0)
+    )
+    overall_pct = min(new_words_pct, maintenance_pct)
+
+    return DailyGoalOut(
+        new_words_target=DAILY_NEW_WORD_TARGET,
+        introduced_today=introduced_today,
+        introduced_remaining=max(0, DAILY_NEW_WORD_TARGET - introduced_today),
+        new_words_pct=round(new_words_pct, 1),
+        maintenance_done=maintenance_done,
+        maintenance_remaining=maintenance_remaining,
+        maintenance_target=maintenance_target,
+        maintenance_pct=round(maintenance_pct, 1),
+        overall_pct=round(overall_pct, 1),
+        is_complete=(
+            introduced_today >= DAILY_NEW_WORD_TARGET
+            and main_maintenance_remaining == 0
+            and slow_lane_remaining == 0
+        ),
+        fsrs_reviewed_today=fsrs_reviewed_today,
+        acquisition_reviewed_today=acquisition_reviewed_today,
+        fsrs_due=fsrs_due,
+        acquisition_due=acquisition_due,
+        main_maintenance_done=main_maintenance_done,
+        main_maintenance_remaining=main_maintenance_remaining,
+        main_maintenance_target=main_maintenance_target,
+        slow_lane_done=slow_reviewed_today,
+        slow_lane_budget=slow_lane_budget,
+        slow_lane_remaining=slow_lane_remaining,
+    )
 
 
 def _get_basic_stats(db: Session) -> StatsOut:
@@ -573,6 +706,93 @@ def _compute_benchmarks(db: Session) -> ProgressBenchmarks:
     )
 
 
+def _compute_frequency_core_progress(db: Session) -> FrequencyCoreProgress | None:
+    """Compute continuous and banded coverage of the ranked frequency core."""
+    total_entries = (
+        db.query(func.count(FrequencyCoreEntry.id))
+        .filter(FrequencyCoreEntry.excluded_reason.is_(None))
+        .scalar() or 0
+    )
+    if total_entries == 0:
+        return None
+
+    max_band = 5000
+    rows = (
+        db.query(
+            FrequencyCoreEntry.core_rank,
+            FrequencyCoreEntry.lemma_id,
+            FrequencyCoreEntry.display_form,
+            FrequencyCoreEntry.gloss_en,
+            FrequencyCoreEntry.confidence_tier,
+            FrequencyCoreEntry.gap_status,
+            UserLemmaKnowledge.knowledge_state,
+        )
+        .outerjoin(
+            UserLemmaKnowledge,
+            UserLemmaKnowledge.lemma_id == FrequencyCoreEntry.lemma_id,
+        )
+        .filter(
+            FrequencyCoreEntry.excluded_reason.is_(None),
+            FrequencyCoreEntry.core_rank <= max_band,
+        )
+        .order_by(FrequencyCoreEntry.core_rank.asc())
+        .all()
+    )
+
+    learned_states = {"known", "learning"}
+    pipeline_states = learned_states | {"acquiring", "lapsed", "encountered"}
+
+    learned_prefix_count = 0
+    for r in rows:
+        if r.knowledge_state in learned_states:
+            learned_prefix_count = r.core_rank
+            continue
+        break
+
+    bands: list[FrequencyCoreBand] = []
+    for top_n in (100, 250, 500, 1000, 2000, 5000):
+        band_rows = [r for r in rows if r.core_rank <= top_n]
+        if not band_rows:
+            continue
+        learned_count = sum(1 for r in band_rows if r.knowledge_state in learned_states)
+        pipeline_count = sum(1 for r in band_rows if r.knowledge_state in pipeline_states)
+        low_confidence_count = sum(1 for r in band_rows if r.confidence_tier == "low")
+        unmapped_count = sum(1 for r in band_rows if r.lemma_id is None)
+        bands.append(FrequencyCoreBand(
+            top_n=top_n,
+            learned_count=learned_count,
+            pipeline_count=pipeline_count,
+            total_count=len(band_rows),
+            coverage_pct=round(learned_count / len(band_rows) * 100, 1),
+            low_confidence_count=low_confidence_count,
+            unmapped_count=unmapped_count,
+        ))
+
+    next_gaps: list[FrequencyCoreGap] = []
+    for r in rows:
+        if r.knowledge_state in learned_states:
+            continue
+        status = r.knowledge_state or ("missing_from_db" if r.lemma_id is None else "new")
+        next_gaps.append(FrequencyCoreGap(
+            core_rank=r.core_rank,
+            lemma_id=r.lemma_id,
+            display_form=r.display_form,
+            gloss_en=r.gloss_en,
+            status=status,
+            confidence_tier=r.confidence_tier,
+            gap_status=r.gap_status,
+        ))
+        if len(next_gaps) >= 12:
+            break
+
+    return FrequencyCoreProgress(
+        total_entries=total_entries,
+        learned_prefix_count=learned_prefix_count,
+        bands=bands,
+        next_gaps=next_gaps,
+    )
+
+
 def _get_words_reviewed_count(db: Session, days: int | None = None) -> int:
     """Sum of word counts across all reviewed sentences in the period."""
     word_counts = (
@@ -648,6 +868,8 @@ def get_analytics(
     unique_recognized_prior_7d = _get_unique_words_recognized(db, 7, 14)
 
     benchmarks = _compute_benchmarks(db)
+    daily_goal = _get_daily_goal(db)
+    frequency_core = _compute_frequency_core_progress(db)
 
     return AnalyticsOut(
         stats=basic,
@@ -664,6 +886,8 @@ def get_analytics(
         unique_words_recognized_7d=unique_recognized_7d,
         unique_words_recognized_prior_7d=unique_recognized_prior_7d,
         benchmarks=benchmarks,
+        daily_goal=daily_goal,
+        frequency_core=frequency_core,
     )
 
 
@@ -1002,6 +1226,7 @@ _SOURCE_LABELS = {
     "book": "Book",
     "story_import": "Story",
     "auto_intro": "Auto",
+    "frequency_core": "Frequency core",
     "collateral": "Review",
     "leech_reintro": "Reintro",
 }

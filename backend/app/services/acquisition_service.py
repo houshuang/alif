@@ -98,7 +98,7 @@ def start_acquisition(
         # Update source: collateral never overrides (weakest mechanism);
         # book/story always win; otherwise keep the more specific existing source.
         _OVERRIDABLE_SOURCES = {None, "study", "encountered", "auto_intro", "collateral", "leech_reintro"}
-        _HIGH_PRIORITY_SOURCES = {"book", "story_import", "textbook_scan", "duolingo"}
+        _HIGH_PRIORITY_SOURCES = {"book", "story_import", "textbook_scan", "duolingo", "frequency_core"}
         if source != "collateral" and (not ulk.source or ulk.source in _OVERRIDABLE_SOURCES or source in _HIGH_PRIORITY_SOURCES):
             ulk.source = source
         ulk.fsrs_card_json = None  # No FSRS card during acquisition

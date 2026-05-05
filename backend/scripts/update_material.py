@@ -67,6 +67,7 @@ from app.services.tts import (
 TARGET_PIPELINE_SENTENCES = 2000  # safety valve only — tier-based lifecycle manages pool size
 CAP_HEADROOM = 50  # retire this many below cap to leave room for multi-target backfill
 PREGEN_SENTENCES_PER_CANDIDATE = 3  # for step C pre-generation of not-yet-introduced words
+MAX_DUE_DENSE_SALVAGE_PER_RUN = 25
 
 
 def _augment_groups_with_recovery(
@@ -173,6 +174,85 @@ def get_known_words_and_lookup(db: Session) -> tuple[list[dict[str, str]], dict[
     ]
     lemma_lookup = build_lemma_lookup(all_lemmas)
     return known_words, lemma_lookup
+
+
+def salvage_due_dense_inactive_sentences(
+    db: Session,
+    target_lemma_ids: set[int],
+    known_lemma_ids: set[int],
+    budget: int,
+    dry_run: bool,
+) -> int:
+    """Reactivate verified inactive sentences that cover multiple target words.
+
+    This is deliberately conservative: only already-verified sentences whose
+    non-function content is in the active known/acquiring set are considered,
+    and non-dry runs still pass the Haiku quality gate before reactivation.
+    """
+    if budget <= 0 or len(target_lemma_ids) < 2:
+        return 0
+    from app.services.llm import review_sentences_quality
+    from app.services.sentence_validator import _is_function_word, strip_diacritics
+
+    rows = (
+        db.query(Sentence)
+        .join(SentenceWord, SentenceWord.sentence_id == Sentence.id)
+        .filter(
+            Sentence.is_active == False,  # noqa: E712
+            Sentence.mappings_verified_at.isnot(None),
+            SentenceWord.lemma_id.in_(target_lemma_ids),
+        )
+        .distinct()
+        .limit(400)
+        .all()
+    )
+    candidates: list[tuple[Sentence, set[int]]] = []
+    for sent in rows:
+        due_hits: set[int] = set()
+        safe = True
+        for sw in sent.words:
+            if not sw.lemma_id:
+                continue
+            if _is_function_word(strip_diacritics(sw.surface_form or "")):
+                continue
+            if sw.lemma_id in target_lemma_ids:
+                due_hits.add(sw.lemma_id)
+            elif sw.lemma_id not in known_lemma_ids:
+                safe = False
+                break
+        if safe and len(due_hits) >= 2:
+            candidates.append((sent, due_hits))
+
+    candidates.sort(key=lambda item: (-len(item[1]), item[0].times_shown or 0, item[0].id))
+    candidates = candidates[: min(MAX_DUE_DENSE_SALVAGE_PER_RUN, budget)]
+    if not candidates:
+        return 0
+    if dry_run:
+        print(f"  Due-dense inactive salvage candidates: {len(candidates)}")
+        return min(len(candidates), budget)
+
+    reviews = review_sentences_quality([
+        {"arabic": sent.arabic_text, "english": sent.english_translation or ""}
+        for sent, _hits in candidates
+    ])
+    reactivated = 0
+    for (sent, hits), review in zip(candidates, reviews):
+        if not (getattr(review, "natural", False) and getattr(review, "translation_correct", False)):
+            continue
+        sent.is_active = True
+        reactivated += 1
+        print(f"    ✓ Salvaged inactive sentence {sent.id} covering {len(hits)} target words")
+        if reactivated >= budget:
+            break
+    if reactivated:
+        db.commit()
+        log_activity(
+            db,
+            event_type="sentences_salvaged",
+            summary=f"Reactivated {reactivated} due-dense inactive sentences",
+            detail={"reactivated": reactivated},
+        )
+    return reactivated
 
 
 # ── Step A2: Enrich unverified corpus sentences ──────────────────────
@@ -619,6 +699,7 @@ def step_backfill_sentences(
             "lemma_id": wt.lemma_id,
             "lemma_ar": lemma.lemma_ar,
             "gloss_en": lemma.gloss_en or "",
+            "pos": lemma.pos or "",
             "root_id": lemma.root_id,
             "due_str": wt.due_dt.isoformat() if wt.due_dt else "none",
             "existing": existing,
@@ -628,6 +709,29 @@ def step_backfill_sentences(
         })
 
     print(f"  Words needing sentences: {len(words_needing)} (of {len(word_tiers)} total)")
+
+    salvaged = 0
+    if words_needing and budget > 0:
+        active_known_ids = {
+            row[0] for row in db.query(UserLemmaKnowledge.lemma_id)
+            .filter(UserLemmaKnowledge.knowledge_state.in_(["acquiring", "known", "learning", "lapsed"]))
+            .all()
+        }
+        salvaged = salvage_due_dense_inactive_sentences(
+            db=db,
+            target_lemma_ids={w["lemma_id"] for w in words_needing},
+            known_lemma_ids=active_known_ids,
+            budget=budget,
+            dry_run=dry_run,
+        )
+        if salvaged:
+            budget -= salvaged
+            existing_counts = get_existing_counts(db)
+            words_needing = [
+                w for w in words_needing
+                if existing_counts.get(w["lemma_id"], 0) < w["backfill_target"]
+            ]
+            print(f"  Salvaged {salvaged}; remaining words needing generation: {len(words_needing)}")
 
     # Backoff-aware multi-target: backed-off lemmas are excluded from the
     # self-correct paths (where they keep failing) but get free recovery
@@ -647,6 +751,7 @@ def step_backfill_sentences(
                 "lemma_id": lid,
                 "lemma_ar": lemma.lemma_ar,
                 "gloss_en": lemma.gloss_en or "",
+                "pos": lemma.pos or "",
                 "root_id": lemma.root_id,
                 "due_str": "backoff",
                 "existing": existing_counts.get(lid, 0),
@@ -657,7 +762,7 @@ def step_backfill_sentences(
         if backoff_recovery_words:
             print(f"  Including {len(backoff_recovery_words)} backed-off lemmas as multi-target recovery (≤1/group)")
 
-    total = 0
+    total = salvaged
     words_processed = 0
     covered_by_multi: set[int] = set()
     covered_by_batch: set[int] = set()

@@ -1388,6 +1388,7 @@ def _warm_sentence_cache_impl(llm_model: str = "claude_sonnet") -> dict:
                     "lemma_id": lid,
                     "lemma_ar": lem.lemma_ar,
                     "gloss_en": lem.gloss_en or "",
+                    "pos": lem.pos or "",
                     "root_id": lem.root_id,
                 })
 

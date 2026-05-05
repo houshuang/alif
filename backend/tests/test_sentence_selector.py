@@ -17,6 +17,7 @@ from app.services.sentence_selector import (
     _intro_slots_for_accuracy,
     _is_near_duplicate_of_selected,
     _is_text_near_duplicate,
+    _display_source,
     _scaffold_freshness,
     build_session,
     compute_sentence_diversity_score,
@@ -98,6 +99,18 @@ class TestDifficultyMatchQuality:
 
     def test_strong_word_any_scaffold(self):
         assert _difficulty_match_quality(10.0, [1.0, 2.0]) == 1.0
+
+
+class TestSourceDisplay:
+    def test_generic_learning_source_does_not_fall_back_to_lexical_source(self):
+        lemma = Lemma(lemma_ar="كلمة", lemma_ar_bare="كلمة", gloss_en="word", source="duolingo")
+        ulk = UserLemmaKnowledge(lemma_id=1, source="collateral")
+        assert _display_source(ulk, lemma) is None
+
+    def test_specific_learning_source_is_displayed(self):
+        lemma = Lemma(lemma_ar="كلمة", lemma_ar_bare="كلمة", gloss_en="word", source="duolingo")
+        ulk = UserLemmaKnowledge(lemma_id=1, source="textbook_scan")
+        assert _display_source(ulk, lemma) == "textbook_scan"
 
 
 class TestScaffoldFreshness:
@@ -643,9 +656,9 @@ class TestReservedIntroSlots:
         db_session.commit()
 
         result = build_session(db_session, limit=10)
-        # The constant must exist and be ~0.2
-        assert INTRO_RESERVE_FRACTION == pytest.approx(0.2)
-        # With 10 due words and limit=10, reserved_intro = max(1, int(10*0.2)) = 2
+        # The constant must exist and be the current aggressive-trial reserve.
+        assert INTRO_RESERVE_FRACTION == pytest.approx(0.3)
+        # With 10 due words and limit=10, reserved_intro = max(1, int(10*0.3)) = 3
         # Auto-intro should have at least attempted to introduce
         # (may not succeed if no sentences available, but the slot reservation must exist)
 
@@ -966,4 +979,3 @@ class TestSelectionInfo:
         assert "due_coverage" in components
         assert "diversity" in components
         assert "session_diversity" in components
-
