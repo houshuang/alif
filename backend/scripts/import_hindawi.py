@@ -39,6 +39,7 @@ from datetime import datetime, timezone
 sys.path.insert(0, ".")
 from app.database import SessionLocal
 from app.models import Sentence, SentenceWord
+from app.services.proper_name_lemmas import get_or_create_proper_name_lemma
 from app.services.sentence_quality import fails_corpus_regex_filter
 from app.services.sentence_validator import (
     build_lemma_lookup,
@@ -415,6 +416,10 @@ def run_pipeline(
                 # For corpus sentences, no word is "the target" — all are scaffold.
                 # lemma_id=0 from target matching must be replaced with None.
                 lid = m.lemma_id if m.lemma_id and m.lemma_id != 0 else None
+                if lid is None and m.is_proper_name:
+                    lid = get_or_create_proper_name_lemma(
+                        db, m.surface_form, source="corpus"
+                    )
                 sw = SentenceWord(
                     sentence_id=sent.id,
                     position=m.position,

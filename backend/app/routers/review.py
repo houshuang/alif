@@ -30,6 +30,7 @@ from app.services.listening import get_listening_candidates
 from app.services.interaction_logger import log_interaction
 from app.services.sentence_selector import build_session
 from app.services.sentence_review_service import submit_sentence_review, undo_sentence_review
+from app.services.sentence_eligibility import not_has_unmapped_words
 from app.services.sentence_validator import _is_function_word, FUNCTION_WORDS, FUNCTION_WORD_GLOSSES, strip_diacritics
 from app.services.transliteration import transliterate_arabic
 
@@ -685,7 +686,11 @@ def get_recap_items(body: RecapIn, db: Session = Depends(get_db)):
 
     sentences = (
         db.query(Sentence)
-        .filter(Sentence.id.in_(sentence_ids), Sentence.is_active == True)
+        .filter(
+            Sentence.id.in_(sentence_ids),
+            Sentence.is_active == True,
+            not_has_unmapped_words(),
+        )
         .limit(3)
         .all()
     )

@@ -317,9 +317,14 @@ class TestSessionOrdering:
 class TestWordMetadata:
     def test_word_metas_include_surface_form(self, db_session):
         _seed_word(db_session, 1, "كتاب", "book", due_hours=-1)
+        # Function-word lemma (required by the runtime not-has-unmapped-words gate).
+        db_session.add(Lemma(
+            lemma_id=50, lemma_ar="في", lemma_ar_bare="في",
+            pos="prep", gloss_en="in",
+        ))
         _seed_sentence(db_session, 1, "في الكتاب", "in the book",
                        target_lemma_id=1,
-                       word_surfaces_and_ids=[("في", None), ("الكتاب", 1)])
+                       word_surfaces_and_ids=[("في", 50), ("الكتاب", 1)])
         db_session.commit()
 
         result = build_session(db_session, limit=10)
@@ -329,27 +334,6 @@ class TestWordMetadata:
         assert words[0]["is_function_word"] is True
         assert words[1]["surface_form"] == "الكتاب"
         assert words[1]["is_due"] is True
-
-    def test_backfills_function_word_lemma_when_available(self, db_session):
-        _seed_word(db_session, 1, "كتاب", "book", due_hours=-1)
-        _seed_word(db_session, 2, "في", "in", due_hours=24)
-        _seed_sentence(db_session, 1, "في الكتاب", "in the book",
-                       target_lemma_id=1,
-                       word_surfaces_and_ids=[("في", None), ("الكتاب", 1)])
-        db_session.commit()
-
-        result = build_session(db_session, limit=10)
-        words = result["items"][0]["words"]
-        assert words[0]["surface_form"] == "في"
-        assert words[0]["is_function_word"] is True
-        assert words[0]["lemma_id"] == 2
-        sw = (
-            db_session.query(SentenceWord)
-            .filter(SentenceWord.sentence_id == 1, SentenceWord.position == 0)
-            .first()
-        )
-        assert sw is not None
-        assert sw.lemma_id == 2
 
     def test_session_id_generated(self, db_session):
         _seed_word(db_session, 1, "كتاب", "book", due_hours=-1)
@@ -449,13 +433,19 @@ class TestComprehensibilityGate:
     def test_function_words_excluded_from_comprehensibility(self, db_session):
         """Function words shouldn't count against comprehensibility."""
         _seed_word(db_session, 1, "كتاب", "book", due_hours=-1)
+        # Function-word lemmas — required by the runtime not-has-unmapped-words gate.
+        for fw_id, fw_ar, fw_gloss in [(50, "في", "in"), (51, "من", "from")]:
+            db_session.add(Lemma(
+                lemma_id=fw_id, lemma_ar=fw_ar, lemma_ar_bare=fw_ar,
+                pos="prep", gloss_en=fw_gloss,
+            ))
         db_session.flush()
 
-        # Sentence with 1 known content word + 2 function words (في, من)
-        # Only 1 content word, and it's known → 100% comprehensible
+        # Sentence with 1 known content word + 2 function words (في, من).
+        # Only 1 content word, and it's known → 100% comprehensible.
         _seed_sentence(db_session, 1, "في كتاب من", "in book from",
                        target_lemma_id=1,
-                       word_surfaces_and_ids=[("في", None), ("كتاب", 1), ("من", None)])
+                       word_surfaces_and_ids=[("في", 50), ("كتاب", 1), ("من", 51)])
         db_session.commit()
 
         result = build_session(db_session, limit=10)

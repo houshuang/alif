@@ -88,6 +88,7 @@ def submit_sentence_review(
     lemma_map: dict[int, Lemma] = {}
     knowledge_map: dict[int, UserLemmaKnowledge] = {}
     function_word_lemma_ids: set[int] = set()
+    proper_name_lemma_ids: set[int] = set()
     suspended_lemma_ids: set[int] = set()
 
     # Build variant→canonical mapping so reviews credit the base lemma.
@@ -104,6 +105,8 @@ def submit_sentence_review(
         for lo in lemma_objs:
             if lo.lemma_ar_bare and _is_function_word(lo.lemma_ar_bare):
                 function_word_lemma_ids.add(lo.lemma_id)
+            if lo.word_category == "proper_name":
+                proper_name_lemma_ids.add(lo.lemma_id)
             if lo.canonical_lemma_id:
                 variant_to_canonical[lo.lemma_id] = lo.canonical_lemma_id
 
@@ -167,6 +170,12 @@ def submit_sentence_review(
         # Skip FSRS credit for function words — they keep lemma_id in
         # SentenceWord for lookups but don't get spaced repetition cards
         if lemma_id in function_word_lemma_ids:
+            continue
+
+        # Proper names are decorative tokens. They have a real lemma_id so the
+        # sentence passes the reviewability gate, but they never enter the SRS
+        # pipeline — no FSRS card, no acquisition box, no review credit.
+        if lemma_id in proper_name_lemma_ids:
             continue
 
         # Resolve variant→canonical: credit goes to the base lemma
