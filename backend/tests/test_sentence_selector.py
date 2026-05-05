@@ -862,6 +862,87 @@ class TestIntroCardsForSessionWords:
         assert ulk.knowledge_state == "acquiring"
         assert [c["lemma_id"] for c in result["experiment_intro_cards"]] == [4]
 
+    def test_proper_name_is_not_promoted_or_carded(self, db_session):
+        """A proper-name lemma in a session sentence must NOT be promoted to
+        acquiring and must NOT receive an intro card. Reproduces the Heidi
+        regression: fix_null_lemma_ids step 0b auto-creates a proper_name
+        lemma; without the guard it flowed encountered → acquiring → intro."""
+        _seed_word(db_session, 1, "كتاب", "book", due_hours=-1)
+        heidi = Lemma(
+            lemma_id=2,
+            lemma_ar="هايدي",
+            lemma_ar_bare="هايدي",
+            pos="noun",
+            gloss_en="(proper name)",
+            word_category="proper_name",
+            gates_completed_at=datetime.now(timezone.utc),
+        )
+        db_session.add(heidi)
+        db_session.add(UserLemmaKnowledge(
+            lemma_id=2,
+            knowledge_state="encountered",
+            fsrs_card_json=None,
+            introduced_at=None,
+            times_seen=0,
+            times_correct=0,
+            total_encounters=0,
+            source="book",
+        ))
+        _seed_sentence(
+            db_session,
+            1,
+            "كتاب هايدي",
+            "Heidi's book",
+            1,
+            [("كتاب", 1), ("هايدي", 2)],
+        )
+        db_session.commit()
+
+        result = build_session(db_session, limit=1)
+        ulk = db_session.query(UserLemmaKnowledge).filter_by(lemma_id=2).one()
+
+        assert ulk.knowledge_state == "encountered"
+        assert 2 not in {c["lemma_id"] for c in result["experiment_intro_cards"]}
+
+    def test_legacy_acquiring_function_word_does_not_render_card(self, db_session):
+        """A pre-existing acquiring ULK row for a function-word lemma (e.g. ال,
+        منذ — created before the upstream guard existed) must not produce an
+        intro card. The bare-form check `_is_function_word` is the backstop."""
+        _seed_word(db_session, 1, "كتاب", "book", due_hours=-1)
+        particle = Lemma(
+            lemma_id=2,
+            lemma_ar="مُنْذُ",
+            lemma_ar_bare="منذ",
+            pos="prep",
+            gloss_en="since",
+            gates_completed_at=datetime.now(timezone.utc),
+        )
+        db_session.add(particle)
+        db_session.add(UserLemmaKnowledge(
+            lemma_id=2,
+            knowledge_state="acquiring",
+            acquisition_box=1,
+            acquisition_next_due=datetime.now(timezone.utc) + timedelta(hours=4),
+            introduced_at=datetime.now(timezone.utc),
+            times_seen=0,
+            times_correct=0,
+            total_encounters=0,
+            source="book",
+        ))
+        _seed_sentence(
+            db_session,
+            1,
+            "كتاب منذ",
+            "book since",
+            1,
+            [("كتاب", 1), ("منذ", 2)],
+        )
+        db_session.commit()
+
+        result = build_session(db_session, limit=1)
+
+        assert 2 not in {c["lemma_id"] for c in result["experiment_intro_cards"]}
+
 
 class TestFillPhasePregenerated:
     """Fill phase should use pre-generated sentences (no LLM calls in session build)."""

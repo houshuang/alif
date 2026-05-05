@@ -100,6 +100,7 @@ These scripts are designed to run periodically against the generation pipeline b
 - `cleanup_lemma_mappings.py` — Batch cleanup of lemma data quality issues: wrong glosses, missing particles, conjugated-form lemmas, possessive-form lemmas, al-prefix lemmas, batch re-map via CAMeL + LLM.
 - `investigate_mapping_flags.py` — Investigate word_mapping flags: shows sentence text, current word→lemma mappings. `--all` shows all statuses, `--fix` re-evaluates and applies corrections via LLM.
 - `cleanup_stale_state.py` — One-time cleanup: clear stale acquisition_box on non-acquiring words, fix circular canonical_lemma_id references, fix conjugated variants with own ULK when canonical already known. `--apply` to commit (default: dry run).
+- `demote_inert_acquiring.py` — One-shot cleanup: demote function-word and proper-name lemmas that ended up in `acquiring` from legacy book/textbook imports back to `encountered`. Per CLAUDE.md these categories are inert (no FSRS, no acquisition box, no intro card) and should never be `acquiring`. Filter is `word_category == "proper_name"` plus a bare-form `_is_function_word` lookup so legacy `word_category=None` rows are caught too. Preserves `experiment_intro_shown_at` so an intro card cannot re-fire. `--dry-run` / `--apply`.
 - `rollback_glitch_session.py` — Roll back the April 1, 2026 sync glitch session (102 bogus "Again" reviews). Restores FSRS state for 11 lapsed words. Also deactivates sentence 20403 (separated ال) and suspends lemma 441. `--execute` to apply (default: dry run).
 
 ## Analysis & Testing
