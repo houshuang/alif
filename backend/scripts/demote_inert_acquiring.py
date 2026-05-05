@@ -93,7 +93,7 @@ def main() -> int:
             db,
             event_type="manual_action",
             summary=f"Demoted {len(targets)} inert lemmas (function_word/proper_name) from acquiring to encountered",
-            details={
+            detail={
                 "lemma_ids": [t[1].lemma_id for t in targets],
                 "by_reason": {
                     r: [t[1].lemma_id for t in targets if t[2] == r]
