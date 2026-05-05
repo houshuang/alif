@@ -297,6 +297,26 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
   const hasActiveSessionRef = useRef(false);
   const introScrollRef = useRef<ScrollView>(null);
 
+  const resetSentenceCardUi = useCallback((nextState?: CardState) => {
+    lookupRequestRef.current += 1;
+    setCardState(nextState ?? (mode === "listening" ? "audio" : "front"));
+    setMissedIndices(new Set());
+    setConfusedIndices(new Set());
+    setTappedOrder([]);
+    setTappedCursor(-1);
+    tappedCacheRef.current = new Map();
+    setAudioPlaying(false);
+    setAudioPlayCount(0);
+    setLookupCount(0);
+    setLookupResult(null);
+    setLookupSurfaceForm(null);
+    setLookupLemmaId(null);
+    setFocusedWordMark(null);
+    setLookupLoading(false);
+    setLookupShowMeaning(false);
+    setConfusionData(null);
+  }, [mode]);
+
   const totalCards = sentenceSession
     ? (sessionSlots.length > 0 ? sessionSlots.length : sentenceSession.items.length)
     : 0;
@@ -326,7 +346,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
   // If the first exposure failed, all queued reps remain so the learner gets
   // the intended re-teaching loop.
   useEffect(() => {
-    if (!sentenceSession || sessionSlots.length === 0) return;
+    if (!sentenceSession || sessionSlots.length === 0 || submittingReview) return;
     const slot = sessionSlots[cardIndex];
     if (slot?.type === "experiment_intro") {
       const card = experimentIntroCards[slot.introIndex];
@@ -335,6 +355,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
         if (outcome && !outcome.failed) {
           acknowledgeExperimentIntro(card.lemma_id, sentenceSession.session_id).catch(() => {});
           if (cardIndex + 1 < sessionSlots.length) {
+            resetSentenceCardUi();
             setCardIndex(cardIndex + 1);
           }
           return;
@@ -346,12 +367,13 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
       const outcome = wordOutcomes.get(item.primary_lemma_id);
       if (outcome && !outcome.failed) {
         if (cardIndex + 1 < sessionSlots.length) {
+          resetSentenceCardUi();
           setCardIndex(cardIndex + 1);
         }
         return;
       }
     }
-  }, [cardIndex, sessionSlots, experimentIntroCards, wordOutcomes, sentenceSession]);
+  }, [cardIndex, sessionSlots, experimentIntroCards, wordOutcomes, sentenceSession, submittingReview, resetSentenceCardUi]);
 
   useEffect(() => {
     if (cardState === "front" || cardState === "audio") {
@@ -1123,24 +1145,11 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
 
     if (nextCardIndex >= totalCards) {
       setResults(next);
-      setCardState(mode === "listening" ? "audio" : "front");
+      resetSentenceCardUi();
     } else {
       setResults(next);
+      resetSentenceCardUi();
       setCardIndex(nextCardIndex);
-      setCardState(mode === "listening" ? "audio" : "front");
-      setMissedIndices(new Set());
-      setConfusedIndices(new Set());
-      setTappedOrder([]);
-      setTappedCursor(-1);
-      tappedCacheRef.current = new Map();
-      setAudioPlaying(false);
-      setAudioPlayCount(0);
-      setLookupCount(0);
-      setLookupResult(null);
-      setLookupSurfaceForm(null);
-      setLookupLemmaId(null);
-      setFocusedWordMark(null);
-      setLookupShowMeaning(false);
     }
   }
 
@@ -2450,13 +2459,14 @@ function SentenceReadingCard({
   onWordTap: (index: number, lemmaId: number | null) => void;
 }) {
   const showAnswer = cardState === "back";
+  const itemKey = `${item.sentence_id ?? "word"}:${item.primary_lemma_id}`;
 
   // false = default for the current side; true = inverted
   // (front: force show all; back: force hide all)
   const [overridden, setOverridden] = useState(false);
   useEffect(() => {
     setOverridden(false);
-  }, [showAnswer]);
+  }, [showAnswer, itemKey]);
   const currentFont = arabicFontForSentence(item.sentence_id);
 
   return (
@@ -2568,6 +2578,16 @@ function SentenceListeningCard({
   onReplay: () => void;
   onReplaySlow: () => void;
 }) {
+  const showAnswer = cardState === "answer";
+  const itemKey = `${item.sentence_id ?? "word"}:${item.primary_lemma_id}`;
+
+  // false = default for the current side; true = inverted
+  // (front: force show all; back: force hide all)
+  const [overridden, setOverridden] = useState(false);
+  useEffect(() => {
+    setOverridden(false);
+  }, [showAnswer, itemKey]);
+
   if (cardState === "audio") {
     return (
       <View style={styles.listeningAudioState}>
@@ -2581,15 +2601,6 @@ function SentenceListeningCard({
       </View>
     );
   }
-
-  const showAnswer = cardState === "answer";
-
-  // false = default for the current side; true = inverted
-  // (front: force show all; back: force hide all)
-  const [overridden, setOverridden] = useState(false);
-  useEffect(() => {
-    setOverridden(false);
-  }, [showAnswer]);
   const currentFont = arabicFontForSentence(item.sentence_id);
 
   return (
