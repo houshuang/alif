@@ -28,12 +28,17 @@ suffixes (هما, هم, ها, ه, نا, ني, ك, كم, كن) but the bare 1st-p
 matches because `ي` is also a regular letter; need a careful guard (e.g., only
 strip on a stem that ends in a non-vowel before the `ي`).
 
-### C. Alef-maksura ↔ ya asymmetry in lookup
+### C. [DONE 2026-05-05] Alef-maksura ↔ ya asymmetry in lookup
 
 `إِلَيْهَا` strips `ها` to give `الي` (regular ya, U+064A) but the lemma is
 keyed `الى` (alef-maksura, U+0649) at lemma_id 454. They're different keys.
-**Fix idea**: in `build_comprehensive_lemma_lookup`, for every lemma whose
-bare ends in ى, also index a `ي`-final variant. Same for the inverse.
+**Fix**: `build_lemma_lookup` now has a Pass 1b that, for every lemma whose
+normalized bare ends in ى, indexes a ي-final variant via `set_if_new`. The
+separate pass (rather than inlining in Pass 1) ensures real ي-final lemmas
+(e.g. موسيقي "musical") always claim their own key before a ى-final lemma's
+ya-variant (موسيقى "music") can fill it. 28 ى-final lemmas, 25 add a new
+ي-variant, 3 silently no-op on collision (موسيقى/علي/منى). Inverse direction
+(ي → ى) not done — riskier and no observed gap that needed it.
 
 ### D. Plural / verbal-noun gaps
 
@@ -71,12 +76,13 @@ top 500 78%, top 1,000 68%, top 5,000 29%.
 Follow-ups discovered during deploy:
 - **Kelly source unreachable**: Leeds corpus server (`corpus.leeds.ac.uk`)
   timed out from both local and server. Re-attempt later or mirror the file.
-- **`learned_prefix_count` semantics differ between dry-run and API**: the
-  builder's dry-run printout uses "highest rank ever learned" while the API's
-  `_compute_frequency_core_progress` correctly uses "continuous prefix from
-  rank 1." After deploy the API showed 0 (rank #1 منتدى missing from DB) while
-  the dry-run printed 90. Align the dry-run print to match API semantics so
-  the two numbers don't disagree.
+- **[DONE 2026-05-05] `learned_prefix_count` semantics differ between dry-run
+  and API**: the builder's dry-run printout used "highest rank ever learned"
+  while the API's `_compute_frequency_core_progress` correctly uses "continuous
+  prefix from rank 1." Fixed by adding a `prefix_locked` flag in `print_summary`
+  that freezes `prefix` on the first non-learned row, mirroring the API's
+  `break`-on-gap. Verified against 6 synthetic states (incl. the 90/gap/50
+  scenario from the original report) — both halves now agree.
 - **High-frequency unmapped lemmas**: rank #1 منتدى (forum), #2 قسم (section),
   #13 عملية (operation), #16 المنتدى — these are top-20 forum/web frequencies
   CAMeL captures but Alif's vocabulary never imported. Worth a one-shot script

@@ -583,16 +583,22 @@ def print_summary(db, entries: list[CoreCandidate]) -> None:
     unresolved_top_500 = sum(1 for cand in entries[:500] if cand.lemma_id is None or cand.confidence_tier == "low")
     print(f"  unresolved/low-confidence in top 500: {unresolved_top_500}")
 
+    # `prefix` mirrors the API's `learned_prefix_count` in stats._compute_frequency_core_progress:
+    # the continuous learned prefix from rank 1, NOT the highest rank ever learned. Lock it on
+    # the first gap so a single gap doesn't get masked by later learned entries.
     prefix = 0
+    prefix_locked = False
     gaps: list[tuple[int, CoreCandidate, str]] = []
     for rank, cand in enumerate(entries, 1):
         state = states.get(cand.lemma_id) if cand.lemma_id is not None else "missing_from_db"
         if state in learned_states:
-            prefix = rank
+            if not prefix_locked:
+                prefix = rank
             continue
+        prefix_locked = True
         if len(gaps) < 12:
             gaps.append((rank, cand, state or "new"))
-        if len(gaps) >= 12 and rank > prefix:
+        if len(gaps) >= 12:
             break
 
     print(f"  continuous learned prefix: top {prefix}")

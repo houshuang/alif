@@ -925,6 +925,19 @@ def build_lemma_lookup(lemmas: list) -> dict[str, int]:
         elif not bare_norm.startswith("ال"):
             lookup.set_if_new("ال" + bare_norm, lem.lemma_id, lem.lemma_ar_bare)
 
+    # Pass 1b: Alef-maksura ↔ ya asymmetry. Clitic stripping turns ـيها into ـي
+    # with regular ya (U+064A), but lemmas like إلى/متى/مقهى are stored with
+    # alef-maksura (U+0649). Index a ي-final variant so post-strip residues remap.
+    # Safe because ى only appears word-final in Arabic orthography. Runs AFTER
+    # the main Pass 1 so a real ي-final lemma (e.g. موسيقي "musical") always
+    # claims its key before the ya_variant of a ى-final lemma (موسيقى "music")
+    # can fill it.
+    for lem in lemmas:
+        bare_norm = normalize_alef(lem.lemma_ar_bare)
+        if len(bare_norm) >= 2 and bare_norm.endswith("ى"):
+            ya_variant = bare_norm[:-1] + "ي"
+            lookup.set_if_new(ya_variant, lem.lemma_id, lem.lemma_ar_bare)
+
     # Pass 2: Register derived forms from forms_json (lower priority)
     # Indexes ALL string-valued keys — no hardcoded whitelist needed
     _FORMS_SKIP_KEYS = {"gender", "verb_form"}  # non-Arabic metadata
