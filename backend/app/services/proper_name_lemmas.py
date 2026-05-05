@@ -64,7 +64,6 @@ def get_or_create_proper_name_lemma(
     if existing:
         return existing.lemma_id
 
-    now = datetime.now(timezone.utc)
     lemma = Lemma(
         lemma_ar=surface_form.strip() or bare,
         lemma_ar_bare=bare,
@@ -72,8 +71,7 @@ def get_or_create_proper_name_lemma(
         pos="noun",
         word_category="proper_name",
         source=source,
-        gates_completed_at=now,  # quality gates do not apply
-        created_at=now,
+        gates_completed_at=datetime.now(timezone.utc),  # quality gates do not apply
     )
     db.add(lemma)
     db.flush()
