@@ -31,6 +31,7 @@ from app.models import (
     StoryWord,
     UserLemmaKnowledge,
 )
+from app.services.sentence_eligibility import not_has_unmapped_words
 
 logger = logging.getLogger(__name__)
 
@@ -213,6 +214,7 @@ def _get_known_sentences(db: Session, limit: int = 40) -> list[SentenceInfo]:
         .outerjoin(Root, Lemma.root_id == Root.root_id)
         .filter(
             Sentence.is_active == True,  # noqa: E712
+            not_has_unmapped_words(),
             Sentence.english_translation.isnot(None),
             UserLemmaKnowledge.knowledge_state.in_(["learning", "known"]),
         )
@@ -243,6 +245,7 @@ def _get_acquiring_sentences(db: Session, limit: int = 10) -> list[SentenceInfo]
         .outerjoin(Root, Lemma.root_id == Root.root_id)
         .filter(
             Sentence.is_active == True,  # noqa: E712
+            not_has_unmapped_words(),
             Sentence.english_translation.isnot(None),
             UserLemmaKnowledge.knowledge_state == "acquiring",
         )
@@ -310,6 +313,7 @@ def _get_root_family(db: Session) -> Optional[RootFamily]:
             .filter(
                 Sentence.target_lemma_id == lemma.lemma_id,
                 Sentence.is_active == True,  # noqa: E712
+                not_has_unmapped_words(),
                 Sentence.english_translation.isnot(None),
             )
             .first()
@@ -344,6 +348,7 @@ def _get_story_sentences(db: Session) -> list[SentenceInfo]:
         .filter(
             Sentence.story_id == story.id,
             Sentence.is_active == True,  # noqa: E712
+            not_has_unmapped_words(),
             Sentence.english_translation.isnot(None),
         )
         .order_by(Sentence.id)

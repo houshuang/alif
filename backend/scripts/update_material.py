@@ -39,6 +39,7 @@ from sqlalchemy.orm import Session
 from app.database import SessionLocal
 from app.models import Lemma, Sentence, SentenceWord, UserLemmaKnowledge
 from app.services.activity_log import log_activity
+from app.services.proper_name_lemmas import get_or_create_proper_name_lemma
 from app.services.word_selector import select_next_words
 from app.services.material_generator import (
     generate_material_for_word,
@@ -474,6 +475,10 @@ def enrich_corpus_sentences(db: Session) -> int:
         db.query(SentenceWord).filter(SentenceWord.sentence_id == sent.id).delete()
         for m in mappings:
             lid = m.lemma_id if m.lemma_id and m.lemma_id != 0 else None
+            if lid is None and getattr(m, "is_proper_name", False):
+                lid = get_or_create_proper_name_lemma(
+                    db, m.surface_form, source="corpus"
+                )
             db.add(SentenceWord(
                 sentence_id=sent.id,
                 position=m.position,
@@ -1232,6 +1237,32 @@ async def main():
         print(f"\n  Word tiers: T1={ts.get(1, 0)} T2={ts.get(2, 0)} T3={ts.get(3, 0)} T4={ts.get(4, 0)}")
 
         retired_0 = step_enforce_cap(db, args.dry_run, args.max_sentences, tier_lookup=tier_lk)
+
+        # Re-attempt mapping for any active SentenceWord rows still NULL —
+        # newer lemmas / clitic-stripping fixes can resolve old gaps. Auto-
+        # creates proper-name lemmas (the documented exception). Sentences
+        # with unresolvable common-word gaps remain is_active=True but stay
+        # filtered by sentence_eligibility.not_has_unmapped_words at review
+        # time until the missing lemma is added.
+        print("\n═══ Step 0b: Re-map unmapped sentence_words ═══")
+        if args.dry_run:
+            print("  Skipped (dry run)")
+        else:
+            from scripts.fix_null_lemma_ids import remap_unmapped_sentence_words
+            try:
+                remap_stats = remap_unmapped_sentence_words(db)
+                if remap_stats["fixed_by_lookup"] or remap_stats["fixed_by_proper_name"]:
+                    log_activity(
+                        db,
+                        event_type="sentence_words_remapped",
+                        summary=(
+                            f"Remapped {remap_stats['fixed_by_lookup']} via lookup, "
+                            f"{remap_stats['fixed_by_proper_name']} via proper-name auto-create"
+                        ),
+                        detail=remap_stats,
+                    )
+            except Exception as exc:
+                print(f"  Remap step failed: {exc}")
 
         sent_a = step_backfill_sentences(db, args.dry_run, args.model, args.delay, args.max_sentences, tier_lookup=tier_lk)
 

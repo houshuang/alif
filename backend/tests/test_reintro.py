@@ -98,9 +98,14 @@ class TestReintroCards:
         """
         _seed_word(db_session, 1, "صعب", "difficult",
                    stability=0.1, due_hours=-1, times_seen=5, times_correct=0)
+        # Function-word lemma — required by the not-has-unmapped-words gate.
+        db_session.add(Lemma(
+            lemma_id=50, lemma_ar="هذا", lemma_ar_bare="هذا",
+            pos="pron", gloss_en="this",
+        ))
 
         _seed_sentence(db_session, 1, "هذا صعب", "this is difficult", 1,
-                       [("هذا", None), ("صعب", 1)])
+                       [("هذا", 50), ("صعب", 1)])
 
         db_session.commit()
 
@@ -126,9 +131,13 @@ class TestReintroCards:
         """Words with some correct reviews should NOT be reintro'd."""
         _seed_word(db_session, 1, "كتاب", "book",
                    stability=0.1, due_hours=-1, times_seen=5, times_correct=2)
+        db_session.add(Lemma(
+            lemma_id=50, lemma_ar="هذا", lemma_ar_bare="هذا",
+            pos="pron", gloss_en="this",
+        ))
 
         _seed_sentence(db_session, 1, "هذا كتاب", "this is a book", 1,
-                       [("هذا", None), ("كتاب", 1)])
+                       [("هذا", 50), ("كتاب", 1)])
 
         db_session.commit()
 

@@ -46,6 +46,7 @@ from app.services.frequency_lanes import (
     is_main_lane_word,
     select_slow_lane_sample,
 )
+from app.services.sentence_eligibility import not_has_unmapped_words
 
 logger = logging.getLogger(__name__)
 
@@ -133,6 +134,7 @@ class WordMeta:
     stability: Optional[float]
     is_due: bool
     is_function_word: bool = False
+    is_proper_name: bool = False
     knowledge_state: str = "new"
 
 
@@ -330,7 +332,7 @@ def _scaffold_freshness(
     """
     scaffold = [
         w for w in words_meta
-        if w.lemma_id and not w.is_due and not w.is_function_word
+        if w.lemma_id and not w.is_due and not w.is_function_word and not w.is_proper_name
     ]
     if not scaffold:
         return 1.0
@@ -354,7 +356,7 @@ def compute_sentence_diversity_score(
     """Compute per-sentence diversity metrics for logging."""
     scaffold = [
         w for w in words_meta
-        if w.lemma_id and not w.is_due and not w.is_function_word
+        if w.lemma_id and not w.is_due and not w.is_function_word and not w.is_proper_name
     ]
     unique_scaffold_count = len({w.lemma_id for w in scaffold})
 
@@ -853,6 +855,7 @@ def build_session(
         .filter(
             Sentence.id.in_(sentence_ids_with_due),
             Sentence.is_active == True,  # noqa: E712
+            not_has_unmapped_words(),
             or_(
                 shown_col.is_(None),
                 (comp_col == "understood") & (shown_col < cutoff_understood),
@@ -888,6 +891,7 @@ def build_session(
                 .filter(
                     Sentence.id.in_(potential_rescue_ids),
                     Sentence.is_active == True,  # noqa: E712
+                    not_has_unmapped_words(),
                 )
                 .all()
             )
@@ -908,31 +912,10 @@ def build_session(
         .all()
     )
 
-    # Backfill missing lemma IDs in older sentence rows, including
-    # function words that now have lemma entries.
-    # Uses fast dict lookup only (no CAMeL) to avoid 4s+ disambiguation cost.
-    # Uses SAVEPOINT so a DB lock doesn't crash the whole session build.
-    words_missing_lemma = [sw for sw in all_sw if sw.lemma_id is None]
-    if words_missing_lemma:
-        lookup_lemmas = db.query(Lemma).all()
-        lemma_lookup = build_lemma_lookup(lookup_lemmas) if lookup_lemmas else {}
-        backfilled = 0
-        for sw in words_missing_lemma:
-            bare = strip_diacritics(sw.surface_form)
-            bare_norm = normalize_alef(strip_tatweel(bare))
-            lemma_id = lemma_lookup.get(bare_norm)
-            if lemma_id is not None:
-                sw.lemma_id = lemma_id
-                backfilled += 1
-        if backfilled > 0:
-            import logging
-            _log = logging.getLogger(__name__)
-            try:
-                with db.begin_nested():
-                    db.flush()
-                _log.info(f"Backfilled {backfilled} lemma IDs")
-            except OperationalError:
-                _log.warning(f"DB lock during lemma backfill, deferring ({backfilled} words)")
+    # Note: in-session lemma_id backfill was removed when the runtime
+    # `not_has_unmapped_words()` gate started filtering sentences with any
+    # NULL lemma_id at the SQL layer. Periodic remap now happens via
+    # `scripts/update_material.py` step 0b (`fix_null_lemma_ids`).
 
     sw_by_sentence: dict[int, list[SentenceWord]] = {}
     for sw in all_sw:
@@ -1068,11 +1051,12 @@ def build_session(
 
             bare = strip_diacritics(sw.surface_form)
             is_func = _is_function_word(bare)
+            is_name = bool(lemma and lemma.word_category == "proper_name")
             gloss = lemma.gloss_en if lemma else FUNCTION_WORD_GLOSSES.get(bare)
             if not gloss:
                 bare_norm = normalize_alef(strip_tatweel(bare))
                 gloss = FUNCTION_WORD_GLOSSES.get(bare_norm)
-            if not gloss and sw.lemma_id:
+            if not gloss and sw.lemma_id and not is_name:
                 logger.warning(f"Word '{sw.surface_form}' (lemma_id={sw.lemma_id}) has no gloss in sentence {sw.sentence_id}")
             wm = WordMeta(
                 lemma_id=sw.lemma_id,  # original lemma for display/lookup (effective_id used only for scheduling)
@@ -1081,6 +1065,7 @@ def build_session(
                 stability=stab,
                 is_due=is_due,
                 is_function_word=is_func,
+                is_proper_name=is_name,
                 knowledge_state=k_state,
             )
             word_metas.append(wm)
@@ -1097,7 +1082,7 @@ def build_session(
             continue
 
         # Comprehensibility gate: skip sentences where <THRESHOLD of scaffold words are known.
-        scaffold = [w for w in word_metas if not w.is_function_word and not w.is_due]
+        scaffold = [w for w in word_metas if not w.is_function_word and not w.is_due and not w.is_proper_name]
         total_scaffold = len(scaffold)
         known_scaffold = sum(
             1 for w in scaffold
@@ -1114,7 +1099,7 @@ def build_session(
         # Listening mode: skip if any non-function, non-due word isn't listening-ready
         if mode == "listening":
             scaffold_ids = [w.lemma_id for w in word_metas
-                            if w.lemma_id and not w.is_due and not w.is_function_word]
+                            if w.lemma_id and not w.is_due and not w.is_function_word and not w.is_proper_name]
             if any(lid not in listening_ready for lid in scaffold_ids):
                 continue
 
@@ -1191,7 +1176,7 @@ def build_session(
 
             scaffold_ids = [
                 w.lemma_id for w in cand.words_meta
-                if w.lemma_id and not w.is_due and not w.is_function_word
+                if w.lemma_id and not w.is_due and not w.is_function_word and not w.is_proper_name
             ]
             if scaffold_ids and session_scaffold_counts:
                 max_session_count = max(session_scaffold_counts.get(sid, 0) for sid in scaffold_ids)
@@ -1240,7 +1225,7 @@ def build_session(
             remaining_due -= cand.due_words_covered
             candidates.remove(cand)
             for w in cand.words_meta:
-                if w.lemma_id and not w.is_due and not w.is_function_word:
+                if w.lemma_id and not w.is_due and not w.is_function_word and not w.is_proper_name:
                     session_scaffold_counts[w.lemma_id] = session_scaffold_counts.get(w.lemma_id, 0) + 1
             break
 
@@ -1262,7 +1247,7 @@ def build_session(
 
             # Within-session scaffold diversity: penalize reuse of scaffold words
             scaffold_ids = [w.lemma_id for w in c.words_meta
-                            if w.lemma_id and not w.is_due and not w.is_function_word]
+                            if w.lemma_id and not w.is_due and not w.is_function_word and not w.is_proper_name]
             if scaffold_ids and session_scaffold_counts:
                 max_session_count = max(session_scaffold_counts.get(lid, 0) for lid in scaffold_ids)
                 session_diversity = SESSION_SCAFFOLD_DECAY ** max_session_count
@@ -1310,7 +1295,7 @@ def build_session(
 
         # Track scaffold words used in this session for diversity
         for w in best.words_meta:
-            if w.lemma_id and not w.is_due and not w.is_function_word:
+            if w.lemma_id and not w.is_due and not w.is_function_word and not w.is_proper_name:
                 session_scaffold_counts[w.lemma_id] = session_scaffold_counts.get(w.lemma_id, 0) + 1
 
         if log_events:
@@ -1804,6 +1789,7 @@ def _find_pregenerated_sentences_for_words(
         .filter(
             Sentence.id.in_(sentence_ids_with_target),
             Sentence.is_active == True,  # noqa: E712
+            not_has_unmapped_words(),
             or_(
                 shown_col.is_(None),
                 (comp_col == "understood") & (shown_col < cutoff_understood),
@@ -1832,7 +1818,11 @@ def _find_pregenerated_sentences_for_words(
         if potential_rescue_ids:
             rescue_sents = (
                 db.query(Sentence)
-                .filter(Sentence.id.in_(potential_rescue_ids), Sentence.is_active == True)  # noqa: E712
+                .filter(
+                    Sentence.id.in_(potential_rescue_ids),
+                    Sentence.is_active == True,  # noqa: E712
+                    not_has_unmapped_words(),
+                )
                 .all()
             )
             if rescue_sents:
@@ -1888,6 +1878,7 @@ def _find_pregenerated_sentences_for_words(
 
             bare = strip_diacritics(sw.surface_form)
             is_func = _is_function_word(bare)
+            is_name = bool(lemma and lemma.word_category == "proper_name")
             gloss = lemma.gloss_en if lemma else FUNCTION_WORD_GLOSSES.get(bare)
             if not gloss:
                 bare_norm = normalize_alef(strip_tatweel(bare))
@@ -1899,6 +1890,7 @@ def _find_pregenerated_sentences_for_words(
                 stability=stab,
                 is_due=is_due,
                 is_function_word=is_func,
+                is_proper_name=is_name,
                 knowledge_state=k_state,
             )
             word_metas.append(wm)
@@ -1912,7 +1904,7 @@ def _find_pregenerated_sentences_for_words(
             continue
 
         # Comprehensibility gate (same logic as main gate).
-        scaffold = [w for w in word_metas if not w.is_function_word and not w.is_due]
+        scaffold = [w for w in word_metas if not w.is_function_word and not w.is_due and not w.is_proper_name]
         total_scaffold = len(scaffold)
         known_scaffold = sum(
             1 for w in scaffold

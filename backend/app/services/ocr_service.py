@@ -25,6 +25,7 @@ from app.config import settings
 from app.models import Lemma, Root, Sentence, UserLemmaKnowledge, PageUpload
 
 from app.services.interaction_logger import log_interaction
+from app.services.sentence_eligibility import not_has_unmapped_words
 from app.services.sentence_validator import (
     build_lemma_lookup,
     compute_bare_form,
@@ -760,6 +761,7 @@ def _schedule_material_generation(db: Session, lemma_ids: list[int]) -> None:
             .filter(
                 Sentence.target_lemma_id == lemma_id,
                 Sentence.is_active == True,
+                not_has_unmapped_words(),
             )
             .scalar() or 0
         )
