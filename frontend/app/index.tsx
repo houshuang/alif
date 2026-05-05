@@ -2987,6 +2987,37 @@ function getMotivationalMessage(
 
 // --- Session Complete ---
 
+function SessionGoalRow({
+  label,
+  done,
+  target,
+  pct,
+  color,
+  detail,
+}: {
+  label: string;
+  done: number;
+  target: number;
+  pct: number;
+  color: string;
+  detail: string;
+}) {
+  const width = `${Math.min(100, Math.max(0, pct))}%` as `${number}%`;
+  return (
+    <View style={styles.sessionGoalRow}>
+      <View style={styles.sessionGoalTop}>
+        <Text style={styles.sessionGoalLabel}>{label}</Text>
+        <Text style={styles.sessionGoalValue}>
+          {done}/{Math.max(target, done)} · {detail}
+        </Text>
+      </View>
+      <View style={styles.sessionGoalTrack}>
+        <View style={[styles.sessionGoalFill, { width, backgroundColor: color }]} />
+      </View>
+    </View>
+  );
+}
+
 function SessionComplete({
   results,
   mode,
@@ -3093,6 +3124,58 @@ function SessionComplete({
       <Pressable style={styles.nextSessionHeroButton} onPress={onNewSession}>
         <Text style={styles.nextSessionHeroTitle}>Next Session</Text>
       </Pressable>
+
+      {dataReady && data?.daily_goal && (
+        <Animated.View style={[styles.sectionCard, { opacity: fadeAnim }]}>
+          <View style={styles.sessionGoalHeader}>
+            <Text style={styles.sectionTitle}>DAILY TARGET</Text>
+            <Text style={[
+              styles.sessionGoalPct,
+              { color: data.daily_goal.is_complete ? colors.gotIt : colors.accent },
+            ]}>
+              {Math.round(data.daily_goal.overall_pct)}%
+            </Text>
+          </View>
+          <SessionGoalRow
+            label="New words"
+            done={data.daily_goal.introduced_today}
+            target={data.daily_goal.new_words_target}
+            pct={data.daily_goal.new_words_pct}
+            color={colors.noIdea}
+            detail={
+              data.daily_goal.introduced_remaining > 0
+                ? `${data.daily_goal.introduced_remaining} left`
+                : "target hit"
+            }
+          />
+          <SessionGoalRow
+            label="Main review"
+            done={data.daily_goal.main_maintenance_done}
+            target={data.daily_goal.main_maintenance_target}
+            pct={Math.min(100, (data.daily_goal.main_maintenance_done / Math.max(data.daily_goal.main_maintenance_target, 1)) * 100)}
+            color={colors.gotIt}
+            detail={
+              data.daily_goal.main_maintenance_remaining > 0
+                ? `${data.daily_goal.main_maintenance_remaining} left`
+                : "clear"
+            }
+          />
+          {data.daily_goal.slow_lane_budget > 0 && (
+            <SessionGoalRow
+              label="Slow lane"
+              done={data.daily_goal.slow_lane_done}
+              target={data.daily_goal.slow_lane_budget}
+              pct={Math.min(100, (data.daily_goal.slow_lane_done / Math.max(data.daily_goal.slow_lane_budget, 1)) * 100)}
+              color={colors.textSecondary}
+              detail={
+                data.daily_goal.slow_lane_remaining > 0
+                  ? `${data.daily_goal.slow_lane_remaining} left`
+                  : "sample done"
+              }
+            />
+          )}
+        </Animated.View>
+      )}
 
       {/* Journey timeline */}
       {dataReady && data && (graduated.length > 0 || boxAdvanced.length > 0 || boxSlipped.length > 0) && (
@@ -4070,6 +4153,43 @@ const styles = StyleSheet.create({
     textTransform: "uppercase" as const,
     letterSpacing: 1.2,
     marginBottom: 10,
+  },
+  sessionGoalHeader: {
+    flexDirection: "row" as const,
+    justifyContent: "space-between" as const,
+    alignItems: "baseline" as const,
+  },
+  sessionGoalPct: {
+    fontSize: 16,
+    fontWeight: "800" as const,
+  },
+  sessionGoalRow: {
+    marginBottom: 8,
+  },
+  sessionGoalTop: {
+    flexDirection: "row" as const,
+    justifyContent: "space-between" as const,
+    alignItems: "center" as const,
+    marginBottom: 4,
+  },
+  sessionGoalLabel: {
+    fontSize: 12,
+    color: colors.text,
+    fontWeight: "600" as const,
+  },
+  sessionGoalValue: {
+    fontSize: 12,
+    color: colors.textSecondary,
+  },
+  sessionGoalTrack: {
+    height: 6,
+    borderRadius: 3,
+    overflow: "hidden" as const,
+    backgroundColor: colors.surfaceLight,
+  },
+  sessionGoalFill: {
+    height: "100%",
+    borderRadius: 3,
   },
   // Pipeline bar
   pipelineBar: {

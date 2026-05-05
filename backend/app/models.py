@@ -79,7 +79,7 @@ class UserLemmaKnowledge(Base):
     times_correct = Column(Integer, default=0)
     total_encounters = Column(Integer, default=0)
     distinct_contexts = Column(Integer, default=0)
-    source = Column(String(20), default="study")  # study/duolingo/encountered/textbook_scan/story_import/book/auto_intro/collateral/leech_reintro
+    source = Column(String(20), default="study")  # study/duolingo/encountered/textbook_scan/story_import/book/frequency_core/auto_intro/collateral/leech_reintro
     variant_stats_json = Column(JSON, nullable=True)
 
     # Acquisition (Leitner 3-box) fields
@@ -100,6 +100,37 @@ class UserLemmaKnowledge(Base):
     generation_backoff_until = Column(DateTime, nullable=True)
 
     lemma = relationship("Lemma", back_populates="knowledge")
+
+
+class FrequencyCoreEntry(Base):
+    __tablename__ = "frequency_core_entries"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    core_rank = Column(Integer, unique=True, nullable=False, index=True)
+    lemma_id = Column(Integer, ForeignKey("lemmas.lemma_id"), nullable=True, index=True)
+    lemma_key = Column(Text, nullable=False, index=True)
+    display_form = Column(Text, nullable=False)
+    gloss_en = Column(Text, nullable=True)
+    pos = Column(String(20), nullable=True)
+    score = Column(Float, nullable=False, default=0.0)
+    camel_rank = Column(Integer, nullable=True)
+    camel_count = Column(Integer, nullable=True)
+    buckwalter_rank = Column(Integer, nullable=True)
+    artenten_rank = Column(Integer, nullable=True)
+    kelly_rank = Column(Integer, nullable=True)
+    kelly_cefr = Column(String(2), nullable=True)
+    hindawi_rank = Column(Integer, nullable=True)
+    news_rank = Column(Integer, nullable=True)
+    islamic_rank = Column(Integer, nullable=True)
+    broad_source_count = Column(Integer, nullable=False, default=0)
+    confidence_tier = Column(String(20), nullable=False, default="low")
+    gap_status = Column(String(30), nullable=True)
+    source_flags_json = Column(JSON, nullable=True)
+    excluded_reason = Column(String(50), nullable=True)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+    lemma = relationship("Lemma", foreign_keys=[lemma_id])
 
 
 class ReviewLog(Base):

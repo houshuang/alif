@@ -25,6 +25,7 @@ from app.services.sentence_validator import (
     tokenize,
     tokenize_display,
     validate_sentence,
+    validate_sentence_multi_target,
 )
 
 
@@ -1364,3 +1365,25 @@ class TestRerankDeferredToAfterValidation:
             )
 
         assert call_counter["n"] == 1
+
+
+class TestMultiTargetValidation:
+    def test_rejects_single_target_sentence_by_default(self):
+        result = validate_sentence_multi_target(
+            arabic_text="كتاب كبير",
+            target_bares={"كتاب": 1, "قلم": 2},
+            known_bare_forms={"كتاب", "قلم", "كبير"},
+        )
+        assert result.valid is False
+        assert result.target_count == 1
+        assert any("need 2" in issue for issue in result.issues)
+
+    def test_single_target_callers_can_opt_in_to_one_target_minimum(self):
+        result = validate_sentence_multi_target(
+            arabic_text="كتاب كبير",
+            target_bares={"كتاب": 1},
+            known_bare_forms={"كتاب", "كبير"},
+            min_targets=1,
+        )
+        assert result.valid is True
+        assert result.target_count == 1

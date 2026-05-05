@@ -161,6 +161,56 @@ class ProgressBenchmarks(BaseModel):
     quran: Optional[QuranProgress] = None
 
 
+class FrequencyCoreBand(BaseModel):
+    top_n: int
+    learned_count: int
+    pipeline_count: int
+    total_count: int
+    coverage_pct: float
+    low_confidence_count: int = 0
+    unmapped_count: int = 0
+
+
+class FrequencyCoreGap(BaseModel):
+    core_rank: int
+    lemma_id: Optional[int] = None
+    display_form: str
+    gloss_en: Optional[str] = None
+    status: str = "missing"
+    confidence_tier: str = "low"
+    gap_status: Optional[str] = None
+
+
+class FrequencyCoreProgress(BaseModel):
+    total_entries: int = 0
+    learned_prefix_count: int = 0
+    bands: list[FrequencyCoreBand] = []
+    next_gaps: list[FrequencyCoreGap] = []
+
+
+class DailyGoalOut(BaseModel):
+    new_words_target: int = 30
+    introduced_today: int = 0
+    introduced_remaining: int = 0
+    new_words_pct: float = 0.0
+    maintenance_done: int = 0
+    maintenance_remaining: int = 0
+    maintenance_target: int = 0
+    maintenance_pct: float = 0.0
+    overall_pct: float = 0.0
+    is_complete: bool = False
+    fsrs_reviewed_today: int = 0
+    acquisition_reviewed_today: int = 0
+    fsrs_due: int = 0
+    acquisition_due: int = 0
+    main_maintenance_done: int = 0
+    main_maintenance_remaining: int = 0
+    main_maintenance_target: int = 0
+    slow_lane_done: int = 0
+    slow_lane_budget: int = 0
+    slow_lane_remaining: int = 0
+
+
 class AnalyticsOut(BaseModel):
     stats: StatsOut
     pace: LearningPaceOut
@@ -176,6 +226,8 @@ class AnalyticsOut(BaseModel):
     unique_words_recognized_7d: int = 0
     unique_words_recognized_prior_7d: int = 0
     benchmarks: Optional[ProgressBenchmarks] = None
+    daily_goal: Optional[DailyGoalOut] = None
+    frequency_core: Optional[FrequencyCoreProgress] = None
 
 
 class StabilityBucket(BaseModel):
@@ -506,6 +558,7 @@ class SessionEndOut(BaseModel):
     top_partial_roots: list[PartialRootOut] = []
     graduated_today: list[GraduatedWord] = []
     introduced_words_today: list[IntroducedWordDetail] = []
+    daily_goal: Optional[DailyGoalOut] = None
 
 
 class BulkSyncItem(BaseModel):

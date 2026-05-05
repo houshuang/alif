@@ -998,12 +998,20 @@ def get_session_end(session_id: str, db: Session = Depends(get_db)):
     )
     historical_avg_response_ms = round(float(recent_avg), 1) if recent_avg else None
 
-    from app.routers.stats import _count_due_cards, _count_fsrs_cleared_today, _get_graduated_today, _get_introduced_words_today, _get_retention_stats
+    from app.routers.stats import (
+        _count_due_cards,
+        _count_fsrs_cleared_today,
+        _get_daily_goal,
+        _get_graduated_today,
+        _get_introduced_words_today,
+        _get_retention_stats,
+    )
     _, fsrs_due, acquisition_due = _count_due_cards(db, now)
     fsrs_reviewed_today = _count_fsrs_cleared_today(db, today_start, now)
     graduated_today = _get_graduated_today(db)
     introduced_words_today = _get_introduced_words_today(db)
     retention_7d = _get_retention_stats(db, 7)
+    daily_goal = _get_daily_goal(db)
 
     return SessionEndOut(
         word_journeys=word_journeys,
@@ -1026,4 +1034,5 @@ def get_session_end(session_id: str, db: Session = Depends(get_db)):
         top_partial_roots=[],
         graduated_today=graduated_today,
         introduced_words_today=introduced_words_today,
+        daily_goal=daily_goal,
     )

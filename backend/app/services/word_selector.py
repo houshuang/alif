@@ -1,6 +1,7 @@
 """New word selection algorithm.
 
 Picks optimal words to introduce next based on:
+- Frequency core priority — close general-reading gaps first
 - Frequency rank (40%) — high-frequency words first
 - Root familiarity (30%) — prefer words whose root is partially known
 - Pattern coverage (10%) — fill morphological gaps
@@ -19,7 +20,16 @@ from typing import Optional
 from sqlalchemy.orm import Session
 from sqlalchemy import func, case
 
-from app.models import Root, Lemma, UserLemmaKnowledge, ReviewLog, Sentence, StoryWord, Story
+from app.models import (
+    FrequencyCoreEntry,
+    Root,
+    Lemma,
+    UserLemmaKnowledge,
+    ReviewLog,
+    Sentence,
+    StoryWord,
+    Story,
+)
 from app.services.grammar_service import grammar_pattern_score
 from app.services.transliteration import transliterate_arabic
 
@@ -47,6 +57,10 @@ _SOURCE_TIER_BONUS = {
 }
 _TOPIC_BONUS_SOURCES = {"textbook_scan", "duolingo"}
 _TOPIC_BONUS = 0.3            # Small tiebreaker within OCR/Duolingo
+_FREQ_CORE_TOP_500 = 240.0    # Primary general-reading curriculum
+_FREQ_CORE_TOP_1000 = 210.0
+_FREQ_CORE_TOP_2000 = 170.0
+_FREQ_CORE_TOP_5000 = 120.0
 
 # Gloss prefixes that indicate Wiktionary reference entries, not real words
 _SKIP_GLOSS_PREFIXES = (
@@ -198,6 +212,21 @@ def _frequency_score(frequency_rank: Optional[int], max_rank: int = 50000) -> fl
     if frequency_rank is None or frequency_rank <= 0:
         return 0.3  # unknown frequency gets moderate score
     return 1.0 / math.log2(frequency_rank + 2)
+
+
+def _frequency_core_bonus(core_rank: Optional[int]) -> float:
+    """Strict priority bonus for the curated high-frequency core."""
+    if core_rank is None or core_rank <= 0:
+        return 0.0
+    if core_rank <= 500:
+        return _FREQ_CORE_TOP_500
+    if core_rank <= 1000:
+        return _FREQ_CORE_TOP_1000
+    if core_rank <= 2000:
+        return _FREQ_CORE_TOP_2000
+    if core_rank <= 5000:
+        return _FREQ_CORE_TOP_5000
+    return 0.0
 
 
 def _root_familiarity_score(
@@ -448,6 +477,22 @@ def select_next_words(
         ]
 
     # --- Batch pre-fetch for scoring ---
+    candidate_ids = {c.lemma_id for c in candidates}
+    frequency_core_by_id: dict[int, FrequencyCoreEntry] = {}
+    if candidate_ids:
+        frequency_core_by_id = {
+            row.lemma_id: row
+            for row in (
+                db.query(FrequencyCoreEntry)
+                .filter(
+                    FrequencyCoreEntry.lemma_id.in_(candidate_ids),
+                    FrequencyCoreEntry.excluded_reason.is_(None),
+                )
+                .all()
+            )
+            if row.lemma_id is not None
+        }
+
     root_ids = {c.root_id for c in candidates if c.root_id}
 
     # Root familiarity: total lemma count per root
@@ -530,6 +575,12 @@ def select_next_words(
         )
 
         # --- Priority bonus: strict tier system ---
+        # The curated frequency core is the default general-reading curriculum.
+        # It can outrank book/OCR tiers for the top 1k words, while book pages
+        # still compete for lower-ranked core words.
+        core_entry = frequency_core_by_id.get(lemma.lemma_id)
+        core_rank = core_entry.core_rank if core_entry else None
+        core_bonus = _frequency_core_bonus(core_rank)
         if lemma.lemma_id in book_pages:
             page = book_pages[lemma.lemma_id]["page"]
             priority_bonus = _TIER_BOOK_BASE - page * _TIER_BOOK_PAGE_STEP
@@ -540,6 +591,9 @@ def select_next_words(
         else:
             priority_bonus = _SOURCE_TIER_BONUS.get(lemma.source, 0.0)
             priority_tier = lemma.source or "other"
+        if core_bonus > priority_bonus:
+            priority_bonus = core_bonus
+            priority_tier = f"freq_core_{core_rank}"
 
         # Topic as tiebreaker within OCR/Duolingo only
         topic_bonus = 0.0
@@ -641,6 +695,7 @@ def select_next_words(
             "word_category": lemma.word_category,
             "wazn": lemma.wazn,
             "wazn_meaning": lemma.wazn_meaning,
+            "frequency_core_rank": core_rank,
             "pattern_examples": pe,
             "story_title": (story_lemmas[lemma.lemma_id]["title"] if lemma.lemma_id in story_lemmas else None),
             "story_id": (
@@ -656,6 +711,7 @@ def select_next_words(
                 "recency_bonus": round(recency_bonus, 3),
                 "priority_bonus": round(priority_bonus, 3),
                 "priority_tier": priority_tier,
+                "frequency_core_rank": core_rank,
                 "topic_bonus": round(topic_bonus, 3),
                 "encountered_bonus": round(encountered_bonus, 3),
                 "category_penalty": round(category_penalty, 3),

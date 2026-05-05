@@ -168,8 +168,9 @@ learn, and each enters acquisition immediately.
 **Code**: `sentence_selector.py:_auto_introduce_words()`
 
 **Gating conditions**:
-- **Reserved slots**: `INTRO_RESERVE_FRACTION` (20%) of session slots reserved for introductions, even when due queue exceeds limit. With limit=10, at least 2 slots always available.
-- **Pipeline backlog gate**: Reserved intro slots suppressed when acquiring pipeline exceeds a dynamic threshold. Base threshold is `PIPELINE_BACKLOG_THRESHOLD` (40), but scales with recent accuracy: ≥90% → 80, ≥80% → 60, <80% → 40. Undersized-session fill still works (when due < limit). Resumes automatically when pipeline drains below threshold.
+- **Reserved slots**: `INTRO_RESERVE_FRACTION` (30%) of session slots reserved for introductions, even when due queue exceeds limit. With limit=10, up to 3 slots are available.
+- **Daily intro target**: Reserved auto-intro stops once `DAILY_AUTO_INTRO_TARGET` (30) words have entered acquisition that day.
+- **Pipeline backlog gate**: Reserved intro slots suppressed when acquiring pipeline exceeds a dynamic threshold. Base threshold is `PIPELINE_BACKLOG_THRESHOLD` (40), but scales with recent accuracy: ≥90% → 120 during the aggressive 30/day trial, ≥80% → 60, <80% → 40. Undersized-session fill still works (when due < limit). Resumes automatically when pipeline drains below threshold.
 - **Low-tier intro gate**: When box-1 acquiring count exceeds `LOW_TIER_BLOCK_BACKLOG` (60), candidates whose source is in `LOW_TIER_INTRO_SOURCES` (`wiktionary`, `story_import`, `manual`, `flag_autocreate`, unsourced) are filtered out of the auto-intro candidate list, even during undersized-session fill. Active book/story words and high-tier sources (`textbook_scan`, `duolingo`, `avp_a1`) are unaffected. Forces the learner to clear actively-encountered backlog before introducing words from passive frequency lists.
 - Recent accuracy ≥ `AUTO_INTRO_ACCURACY_FLOOR` (70%) over last 10+ reviews
 - Per-call cap: `MAX_AUTO_INTRO_PER_SESSION` (5)
@@ -221,7 +222,7 @@ Pipeline processes each page individually (not merged), preserving page boundari
 
 **Page-level readiness**: API returns `page_readiness` array with per-page `new_words`, `learned_words`, and `unlocked` status. A page is unlocked when all its content words are at least acquiring.
 
-**Page-based word priority**: Active book words get priority tier 1 in `word_selector.py` with deterministic page ordering: bonus = `200.0 - page * 2.0`. Page 1 words always introduced before page 2, etc. The 2.0 step guarantees strict page ordering (within-page scoring max ~1.5 can never bridge the gap). This is the highest priority tier — all book words rank above any other source.
+**Page-based word priority**: Active book words get a strict page-order priority in `word_selector.py`: bonus = `200.0 - page * 2.0`. Page 1 words rank before page 2 within the book path. Top-ranked frequency-core words can now outrank book words when the system is closing general-reading gaps.
 
 **Book sentence lifecycle** (added 2026-04-16): Book sentences have a different lifecycle from LLM sentences — they're real passages, not disposable scaffolding:
 1. **Import**: sentences created with `is_active=True`, `source="book"`, `page_number` set
@@ -885,6 +886,22 @@ which don't count as known) and LLM sentences fill the gap. As the user reviews 
 and words advance to box 2+, book sentences gradually become comprehensible and replace
 LLM-generated ones naturally.
 
+#### Frequency Main Lane / Slow Lane (2026-05-04)
+
+The aggressive 30/day experiment separates due words by curriculum importance before
+set cover:
+
+- **Main lane**: all acquiring words, all frequency-core/proxy rank <=5,000 due
+  words, and due words whose learning/lexical source is not an artifact source.
+- **Slow lane**: low/null-rank FSRS debt from artifact-heavy sources
+  (`textbook_scan`, `book`, `story_import`, `scaffold`, `book_ocr`).
+- **Sampling**: slow lane is capped at 10% of session budget, oldest-overdue
+  first inside that budget.
+
+This does not delete old book/OCR debt. It prevents low-frequency artifact debt
+from crowding out high-frequency general-reading progress while still making the
+debt visible in the daily goal.
+
 #### Within-Session Scaffold Diversity
 
 During greedy set cover, tracks which scaffold words have already been selected. Applies
@@ -900,6 +917,16 @@ where SESSION_SCAFFOLD_DECAY = 0.5
 This prevents the same high-frequency scaffold words (e.g., طالب, أستاذ, جميل) from
 appearing in every sentence of a session. The decay is exponential but never reaches zero,
 so a sentence covering many due words can still win over a more diverse single-word sentence.
+
+For due-dense sentences, freshness and within-session scaffold diversity are relaxed
+to a 0.8 floor only when the sentence covers at least two still-ready due words.
+Single-target sentences still pay the normal freshness/diversity penalties.
+
+#### Oldest-Overdue-First Block (2026-05-04)
+
+Before normal greedy set cover, the selector reserves up to five early selections for
+the oldest overdue due words. This shrinks aged debt without letting old single-word
+cards dominate the entire session.
 
 #### Whole-Sentence Near-Duplicate Veto (2026-04-27)
 
@@ -1082,12 +1109,15 @@ For each target word:
     6. Store: Sentence + SentenceWord entries + optional TTS audio
 ```
 
-**Multi-target** (groups of 2-4 words, 3-attempt retry loop):
+**Multi-target** (groups of 2-3 words, 3-attempt retry loop):
 ```
-1. Group words via group_words_for_multi_target() (avoids same-root pairs)
-2. Request 4 sentences from LLM, each must include ≥2 target words
+1. Group words via group_words_for_multi_target():
+   - demand-weighted by tier, due age, existing sentence count, and needed count
+   - avoids same-root and near-identical written-form pairs
+   - prefers root-diverse compatible pairs; triples only when coherent
+2. Request 4 sentences from LLM, each must include ≥2 exact target forms
 3. Validate via validate_sentence_multi_target():
-   - At least 1 target found AND no unknown content words
+   - At least 2 targets found AND no unknown content words
 4. Assign Sentence.target_lemma_id to target with fewest existing sentences
 5. All found targets get SentenceWord.is_target_word=True
 6. Falls back to single-target if multi-target fails
@@ -1417,18 +1447,22 @@ total_score = frequency × 0.4
             + root_familiarity × 0.3
             + recency_bonus × 0.2
             + grammar_pattern × 0.1
-            + priority_bonus     (strict tier: book→story→OCR→duolingo→AVP→wiktionary)
+            + priority_bonus     (strict tier: frequency core / book / story / source)
             + topic_bonus        (+0.3 for OCR/Duolingo matching active topic)
             + encountered_bonus  (flat +0.5)
             + category_penalty   (proper_name: −0.8, onomatopoeia: −1.0)
 
 Priority tiers (higher ALWAYS beats lower, freq/root/grammar are tiebreakers within):
-  Tier 1: Active book words  — 200.0 − page × 2.0 (deterministic page order)
-  Tier 2: Active stories     — +10.0
-  Tier 3: OCR textbook_scan  — +8.0
-  Tier 4: Duolingo           — +6.0
-  Tier 5: AVP A1             — +4.0
-  Tier 6: Wiktionary/other   — +0.0 (strictly by frequency)
+  Frequency core top 500     — +240.0
+  Frequency core top 1000    — +210.0
+  Active book words          — 200.0 − page × 2.0 (deterministic page order)
+  Frequency core top 2000    — +170.0
+  Frequency core top 5000    — +120.0
+  Active stories             — +10.0
+  OCR textbook_scan          — +8.0
+  Duolingo                   — +6.0
+  AVP A1                     — +4.0
+  Wiktionary/other           — +0.0 (strictly by frequency)
 
 Variant→canonical resolution: story/book word priorities resolve variant
 lemma IDs to their root canonical via multi-hop chain following (A→B→C
@@ -1520,12 +1554,17 @@ remaining cards on the next card advance. See Section 8 "Sentence Pre-Warming" f
 | `MIN_ACQUISITION_EXPOSURES` | 4 | Legacy alias for `BOX1_MIN_EXPOSURES` (kept for out-of-tree callers) |
 | `MAX_ACQUISITION_EXTRA_SLOTS` | 15 | Max extra cards for acquisition repetition |
 | `MAX_AUTO_INTRO_PER_SESSION` | 5 | Per-call cap on auto-intro words |
-| `INTRO_RESERVE_FRACTION` | 0.2 | Fraction of session slots reserved for new words |
+| `DAILY_AUTO_INTRO_TARGET` | 30 | Daily cap for automatic new-word introductions during the aggressive trial |
+| `HIGH_ACCURACY_INTRO_BACKLOG_CAP` | 120 | Acquiring-pipeline cap used at ≥90% recent accuracy during the 30/day trial |
+| `INTRO_RESERVE_FRACTION` | 0.3 | Fraction of session slots reserved for new words during the aggressive trial |
 | `AUTO_INTRO_ACCURACY_FLOOR` | 0.70 | Pause auto-intro if accuracy below this |
-| `PIPELINE_BACKLOG_THRESHOLD` | 40 (base) | Suppress reserved intro slots when acquiring count exceeds this. Dynamic: 80 at ≥90% accuracy, 60 at ≥80%, 40 otherwise |
+| `PIPELINE_BACKLOG_THRESHOLD` | 40 (base) | Suppress reserved intro slots when acquiring count exceeds this. Dynamic: 120 at ≥90% accuracy during the 30/day trial, 60 at ≥80%, 40 otherwise |
 | `LOW_TIER_BLOCK_BACKLOG` | 60 | Block low-tier sources (wiktionary, story_import, manual, flag_autocreate, unsourced) from auto-intro when box-1 acquiring count exceeds this |
 | Adaptive intro bands | 0→3→5 | Slots at <70%/70-85%/≥85% accuracy |
 | `SESSION_SCAFFOLD_DECAY` | 0.5 | Per-appearance multiplier for scaffold words already in session |
+| `OLDEST_DUE_FIRST_BLOCK` | 5 | Max early selections reserved for oldest-overdue due words before normal greedy cover |
+| `SLOW_LANE_SESSION_FRACTION` | 0.10 | Max share of session budget spent on low/null-rank artifact slow-lane debt |
+| `MAIN_LANE_MAX_RANK` | 5000 | Frequency-core/proxy-rank cutoff that keeps due words in the main lane |
 | `JACCARD_VETO_THRESHOLD` | 0.7 | Hard veto: skip candidate sentence if lemma-set Jaccard ≥ this with any prior selection (2026-04-27) |
 | `FAST_GRAD_INTRO_GAP` | 10 min | Tier-0 instant-grad blocked if intro card was shown within this window (working-memory guard, 2026-04-27) |
 | `NEVER_REVIEWED_BOOST` | 5.0 | Score multiplier for sentences targeting acquiring words with 0 reviews OR 0% accuracy |

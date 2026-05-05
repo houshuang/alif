@@ -10,7 +10,7 @@ import {
 import { useFocusEffect } from "expo-router";
 import { colors } from "../lib/theme";
 import { getAnalytics, getDeepAnalytics } from "../lib/api";
-import type { Analytics, DeepAnalytics, AcquisitionPipeline, ComprehensionBreakdown, GraduatedWord, IntroducedBySource, IntroducedWordDetail, InsightsData, StateTransitions, ProgressBenchmarks } from "../lib/types";
+import type { Analytics, DeepAnalytics, AcquisitionPipeline, ComprehensionBreakdown, DailyGoal, FrequencyCoreProgress, GraduatedWord, IntroducedBySource, IntroducedWordDetail, InsightsData, StateTransitions, ProgressBenchmarks } from "../lib/types";
 import { IntroducedWordsTable } from "../lib/IntroducedWordsTable";
 import { GraduatedWordsTable } from "../lib/GraduatedWordsTable";
 
@@ -82,6 +82,7 @@ export default function StatsScreen() {
         streak={pace.current_streak}
         transitionsToday={deepAnalytics?.transitions_today}
         retentionPct={deepAnalytics?.retention_7d?.retention_pct ?? null}
+        dailyGoal={analytics.daily_goal}
       />
 
       {/* ═══ SECTION 2: VOCABULARY ═══ */}
@@ -100,6 +101,10 @@ export default function StatsScreen() {
         flowHistory={deepAnalytics?.acquisition_pipeline?.flow_history}
         benchmarks={analytics.benchmarks}
       />
+
+      {analytics.frequency_core && (
+        <FrequencyCoreCard data={analytics.frequency_core} />
+      )}
 
       {/* Acquisition Pipeline */}
       {deepAnalytics?.acquisition_pipeline && (
@@ -498,6 +503,71 @@ function WordLifecycleFunnel({
   );
 }
 
+function FrequencyCoreCard({ data }: { data: FrequencyCoreProgress }) {
+  const top1000 = data.bands.find((b) => b.top_n === 1000) ?? data.bands[data.bands.length - 1];
+  const visibleBands = data.bands.filter((b) => b.top_n <= 1000);
+  const gaps = data.next_gaps.slice(0, 6);
+
+  if (!top1000) return null;
+
+  return (
+    <View style={styles.freqCoreCard}>
+      <View style={styles.freqCoreHeader}>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.freqCoreTitle}>High-Frequency Core</Text>
+          <Text style={styles.freqCoreSubtitle}>
+            Top {data.learned_prefix_count} learned with no earlier gaps
+          </Text>
+        </View>
+        <View style={styles.freqCoreBadge}>
+          <Text style={styles.freqCoreBadgePct}>{top1000.coverage_pct}%</Text>
+          <Text style={styles.freqCoreBadgeLabel}>top {top1000.top_n}</Text>
+        </View>
+      </View>
+
+      <View style={styles.freqCoreBands}>
+        {visibleBands.map((band) => {
+          const learnedPct = Math.min(band.coverage_pct, 100);
+          const pipelinePct = Math.min((band.pipeline_count / Math.max(band.total_count, 1)) * 100, 100);
+          return (
+            <View key={band.top_n} style={styles.freqCoreBand}>
+              <View style={styles.freqCoreBandTop}>
+                <Text style={styles.freqCoreBandLabel}>Top {band.top_n}</Text>
+                <Text style={styles.freqCoreBandCount}>
+                  {band.learned_count}/{band.total_count}
+                  {band.unmapped_count > 0 ? ` · ${band.unmapped_count} gaps` : ""}
+                </Text>
+              </View>
+              <View style={styles.freqCoreTrack}>
+                <View style={[styles.freqCorePipelineFill, { width: `${pipelinePct}%` }]} />
+                <View style={[styles.freqCoreLearnedFill, { width: `${learnedPct}%` }]} />
+              </View>
+            </View>
+          );
+        })}
+      </View>
+
+      {gaps.length > 0 && (
+        <View style={styles.freqCoreGaps}>
+          <Text style={styles.freqCoreGapTitle}>Next gaps</Text>
+          {gaps.map((gap) => (
+            <View key={`${gap.core_rank}-${gap.display_form}`} style={styles.freqCoreGapRow}>
+              <Text style={styles.freqCoreGapRank}>#{gap.core_rank}</Text>
+              <Text style={styles.freqCoreGapWord}>{gap.display_form}</Text>
+              <Text style={styles.freqCoreGapGloss} numberOfLines={1}>
+                {gap.gloss_en || gap.status.replace(/_/g, " ")}
+              </Text>
+              <Text style={styles.freqCoreGapStatus}>
+                {(gap.gap_status || gap.status).replace(/_/g, " ")}
+              </Text>
+            </View>
+          ))}
+        </View>
+      )}
+    </View>
+  );
+}
+
 function KnownWordsGrowth({
   history, known,
 }: {
@@ -796,11 +866,43 @@ function RootProgressSection({ data }: { data: DeepAnalytics["root_coverage"] })
 
 // --- Existing Components ---
 
+function GoalProgressRow({
+  label,
+  done,
+  target,
+  pct,
+  color,
+  detail,
+}: {
+  label: string;
+  done: number;
+  target: number;
+  pct: number;
+  color: string;
+  detail: string;
+}) {
+  const width = `${Math.min(100, Math.max(0, pct))}%` as `${number}%`;
+  return (
+    <View style={styles.goalRow}>
+      <View style={styles.goalRowTop}>
+        <Text style={styles.goalLabel}>{label}</Text>
+        <Text style={styles.goalValue}>
+          {done}/{Math.max(target, done)} · {detail}
+        </Text>
+      </View>
+      <View style={styles.goalTrack}>
+        <View style={[styles.goalFill, { width, backgroundColor: color }]} />
+      </View>
+    </View>
+  );
+}
+
 function TodayHeroCard({
-  comprehension, graduated, introduced, introducedWords, calibration, reviewsToday, dueToday, fsrsReviewedToday, streak, transitionsToday, retentionPct,
+  comprehension, graduated, introduced, introducedWords, calibration, reviewsToday, dueToday, fsrsReviewedToday, streak, transitionsToday, retentionPct, dailyGoal,
 }: {
   comprehension?: ComprehensionBreakdown; graduated?: GraduatedWord[]; introduced?: IntroducedBySource[]; introducedWords?: IntroducedWordDetail[];
   calibration?: string; reviewsToday: number; dueToday: number; fsrsReviewedToday: number; streak: number; transitionsToday?: StateTransitions; retentionPct?: number | null;
+  dailyGoal?: DailyGoal | null;
 }) {
   if (reviewsToday === 0 && dueToday === 0) return null;
 
@@ -836,6 +938,58 @@ function TodayHeroCard({
           )}
         </View>
       </View>
+
+      {dailyGoal && (
+        <View style={styles.dailyGoalBox}>
+          <View style={styles.dailyGoalHeader}>
+            <Text style={styles.dailyGoalTitle}>Daily target</Text>
+            <Text style={[
+              styles.dailyGoalPct,
+              { color: dailyGoal.is_complete ? colors.good : colors.accent },
+            ]}>
+              {Math.round(dailyGoal.overall_pct)}%
+            </Text>
+          </View>
+          <GoalProgressRow
+            label="New words"
+            done={dailyGoal.introduced_today}
+            target={dailyGoal.new_words_target}
+            pct={dailyGoal.new_words_pct}
+            color={colors.stateAcquiring}
+            detail={
+              dailyGoal.introduced_remaining > 0
+                ? `${dailyGoal.introduced_remaining} left`
+                : "target hit"
+            }
+          />
+          <GoalProgressRow
+            label="Main review"
+            done={dailyGoal.main_maintenance_done}
+            target={dailyGoal.main_maintenance_target}
+            pct={Math.min(100, (dailyGoal.main_maintenance_done / Math.max(dailyGoal.main_maintenance_target, 1)) * 100)}
+            color={colors.good}
+            detail={
+              dailyGoal.main_maintenance_remaining > 0
+                ? `${dailyGoal.main_maintenance_remaining} left`
+                : "clear"
+            }
+          />
+          {dailyGoal.slow_lane_budget > 0 && (
+            <GoalProgressRow
+              label="Slow lane"
+              done={dailyGoal.slow_lane_done}
+              target={dailyGoal.slow_lane_budget}
+              pct={Math.min(100, (dailyGoal.slow_lane_done / Math.max(dailyGoal.slow_lane_budget, 1)) * 100)}
+              color={colors.textSecondary}
+              detail={
+                dailyGoal.slow_lane_remaining > 0
+                  ? `${dailyGoal.slow_lane_remaining} left`
+                  : "sample done"
+              }
+            />
+          )}
+        </View>
+      )}
 
       {total > 0 && (
         <>
@@ -1152,6 +1306,16 @@ const styles = StyleSheet.create({
   heroProgressLabels: { flexDirection: "row", justifyContent: "space-between" },
   heroStatusText: { fontSize: 13 },
   heroStatusDetail: { fontSize: 11, marginTop: 2 },
+  dailyGoalBox: { marginTop: 10, marginBottom: 12, paddingTop: 10, borderTopWidth: 1, borderTopColor: colors.border },
+  dailyGoalHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "baseline", marginBottom: 8 },
+  dailyGoalTitle: { fontSize: 12, color: colors.textSecondary, fontWeight: "700", textTransform: "uppercase", letterSpacing: 0.8 },
+  dailyGoalPct: { fontSize: 16, fontWeight: "800" },
+  goalRow: { marginBottom: 8 },
+  goalRowTop: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 4 },
+  goalLabel: { fontSize: 12, color: colors.text, fontWeight: "600" },
+  goalValue: { fontSize: 12, color: colors.textSecondary },
+  goalTrack: { height: 6, borderRadius: 3, backgroundColor: colors.surfaceLight, overflow: "hidden" },
+  goalFill: { height: "100%", borderRadius: 3 },
 
   // Word Lifecycle Funnel
   funnelCard: { backgroundColor: colors.surface, borderRadius: 16, padding: 20, width: "100%", maxWidth: 500, marginBottom: 16 },
@@ -1163,6 +1327,30 @@ const styles = StyleSheet.create({
   funnelLapsed: { alignItems: "flex-end", marginBottom: 4 },
   funnelLapsedText: { fontSize: 12, fontWeight: "600" },
   funnelSummary: { fontSize: 12, color: colors.textSecondary, textAlign: "center", marginTop: 4 },
+
+  // Frequency Core
+  freqCoreCard: { backgroundColor: colors.surface, borderRadius: 16, padding: 20, width: "100%", maxWidth: 500, marginBottom: 16 },
+  freqCoreHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", gap: 12, marginBottom: 14 },
+  freqCoreTitle: { fontSize: 18, color: colors.text, fontWeight: "600", marginBottom: 4 },
+  freqCoreSubtitle: { fontSize: 12, color: colors.textSecondary },
+  freqCoreBadge: { alignItems: "center", backgroundColor: colors.accent + "18", borderRadius: 10, paddingHorizontal: 10, paddingVertical: 7, minWidth: 78 },
+  freqCoreBadgePct: { fontSize: 18, color: colors.accent, fontWeight: "800" },
+  freqCoreBadgeLabel: { fontSize: 10, color: colors.textSecondary, marginTop: 1 },
+  freqCoreBands: { gap: 10 },
+  freqCoreBand: { gap: 4 },
+  freqCoreBandTop: { flexDirection: "row", justifyContent: "space-between", alignItems: "baseline" },
+  freqCoreBandLabel: { fontSize: 12, color: colors.text, fontWeight: "600" },
+  freqCoreBandCount: { fontSize: 12, color: colors.textSecondary },
+  freqCoreTrack: { height: 7, borderRadius: 4, backgroundColor: colors.surfaceLight, overflow: "hidden" },
+  freqCorePipelineFill: { position: "absolute", left: 0, top: 0, bottom: 0, backgroundColor: colors.stateAcquiring + "45", borderRadius: 4 },
+  freqCoreLearnedFill: { height: "100%", backgroundColor: colors.good, borderRadius: 4 },
+  freqCoreGaps: { marginTop: 14, paddingTop: 12, borderTopWidth: 1, borderTopColor: colors.border, gap: 6 },
+  freqCoreGapTitle: { fontSize: 11, color: colors.textSecondary, fontWeight: "700", textTransform: "uppercase", letterSpacing: 0.6 },
+  freqCoreGapRow: { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 3 },
+  freqCoreGapRank: { width: 42, fontSize: 11, color: colors.accent, fontWeight: "700" },
+  freqCoreGapWord: { width: 62, fontSize: 15, color: colors.text, fontWeight: "700", textAlign: "right" },
+  freqCoreGapGloss: { flex: 1, fontSize: 12, color: colors.textSecondary },
+  freqCoreGapStatus: { fontSize: 10, color: colors.textSecondary, backgroundColor: colors.surfaceLight, borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2, overflow: "hidden" },
 
   // CEFR Card
   cefrCard: { backgroundColor: colors.surface, borderRadius: 16, padding: 28, width: "100%", maxWidth: 500, alignItems: "center", marginBottom: 16 },

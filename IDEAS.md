@@ -4,6 +4,23 @@
 
 ---
 
+## 🟢 [DONE 2026-05-04] Aggressive frequency-core acquisition experiment
+
+User goal shifted from unlocking one specific book to unlocking general Arabic
+reading as fast as possible. Implemented a gated 30-new-words/day experiment
+with an honest frequency-core curriculum, main/slow review lanes, due-dense
+multi-target generation, inactive-sentence salvage, and source-label provenance
+cleanup. Follow-up after 48h: decide whether 30/day is sustainable, reduce to
+20/day, or roll back intro constants while keeping the correctness fixes.
+
+Docs:
+- `research/aggressive-vocab-experiment-2026-05-04.md`
+- `research/sentence-generation-prompt-experiments-2026-05-04.md`
+- `docs/frequency-core-curriculum.md`
+- `docs/aggressive-acquisition-runbook.md`
+
+---
+
 ## 🔴 Generation pipeline — three concurrent bugs (2026-05-03)
 
 Found while drilling into the 21-day learning review. The 211 words in 7-day backoff and 12 acquiring words with no active sentence are caused by:

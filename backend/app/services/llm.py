@@ -1102,15 +1102,18 @@ def generate_sentences_multi_target(
 
     prompt = f"""Create {count} different natural MSA sentences for a {difficulty_hint} Arabic learner.
 
-TARGET WORDS (each sentence MUST include at least 2 of these):
+TARGET WORDS (each sentence MUST include at least 2 of these exact written forms):
 {target_list}
 
 VOCABULARY (you may ONLY use these Arabic content words, plus the target words, plus function words):
 {known_list}
 
-IMPORTANT: Do NOT use any Arabic content words that are not in the lists above.
-Each sentence MUST naturally include at least 2 of the target words.
-Vary which target word combinations you use across sentences.
+IMPORTANT:
+- Do NOT use any Arabic content words that are not in the lists above.
+- Each sentence MUST naturally include at least 2 target words as exact surface forms from the target list.
+- Do not force unrelated targets together. If a pair sounds random, use a different natural pair from the list.
+- Prefer short everyday contexts over poetic, encyclopedic, or proper-name-heavy sentences.
+- Vary which target word combinations you use across sentences.
 Each sentence should be {word_range} words, with a different structure or context.
 Include full diacritics on all Arabic text.
 {avoid_instruction}

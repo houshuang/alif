@@ -390,26 +390,38 @@ def group_words_for_multi_target(
     if len(word_lemmas) < min_group_size:
         return []
 
-    remaining = list(word_lemmas)
-    random.shuffle(remaining)
+    def priority(word: dict) -> tuple:
+        due = str(word.get("due_str") or "")
+        tier = int(word.get("tier") or 99)
+        needed = int(word.get("needed") or 1)
+        existing = int(word.get("existing") or 0)
+        return (tier, due, existing, -needed, word.get("lemma_id") or 0)
+
+    def compatible(a: dict, b: dict) -> bool:
+        # Same-root pairs make poor multi-target groups (the LLM tends to use
+        # one form and the other becomes redundant). The earlier substring
+        # branch falsely rejected distinct-root pairs that share characters
+        # (كل ⊂ أكل, بنت ⊂ بناء, حال ⊂ حالة) — root_id is the load-bearing rule.
+        if a.get("root_id") is not None and a.get("root_id") == b.get("root_id"):
+            return False
+        return True
+
+    remaining = sorted(word_lemmas, key=priority)
     groups: list[list[dict]] = []
 
     while len(remaining) >= min_group_size:
-        group: list[dict] = []
-        group_root_ids: set[int | None] = set()
+        seed = remaining.pop(0)
+        group: list[dict] = [seed]
         skipped: list[dict] = []
 
         for word in remaining:
             if len(group) >= max_group_size:
                 skipped.append(word)
                 continue
-            root_id = word.get("root_id")
-            if root_id is not None and root_id in group_root_ids:
+            if not all(compatible(word, member) for member in group):
                 skipped.append(word)
                 continue
             group.append(word)
-            if root_id is not None:
-                group_root_ids.add(root_id)
 
         if len(group) >= min_group_size:
             groups.append(group)
