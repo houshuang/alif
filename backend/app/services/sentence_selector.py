@@ -1453,6 +1453,7 @@ def build_session(
                 "stability": w.stability,
                 "is_due": w.is_due,
                 "is_function_word": w.is_function_word,
+                "is_proper_name": w.is_proper_name,
                 "knowledge_state": w.knowledge_state,
                 "root": root_obj.root if root_obj else None,
                 "root_meaning": root_obj.core_meaning_en if root_obj else None,
@@ -1719,6 +1720,15 @@ def _build_intro_cards(
     new_card_ids &= eligible_ids
     rescue_card_ids &= eligible_ids
 
+    # Backstop: even if a function word or proper name has knowledge_state="acquiring"
+    # in the DB (e.g. legacy book imports stamped a ULK row before the upstream
+    # filter existed), do not render a card for it.
+    drop_ids = set(new_card_ids) | set(rescue_card_ids)
+    if drop_ids:
+        kept = set(_drop_function_and_proper_name_lemma_ids(db, drop_ids))
+        new_card_ids &= kept
+        rescue_card_ids &= kept
+
     if not new_card_ids and not rescue_card_ids:
         return []
 
@@ -1972,6 +1982,7 @@ def _find_pregenerated_sentences_for_words(
                 "stability": w.stability,
                 "is_due": w.is_due,
                 "is_function_word": w.is_function_word,
+                "is_proper_name": w.is_proper_name,
                 "knowledge_state": w.knowledge_state,
                 "root": root_obj.root if root_obj else None,
                 "root_meaning": root_obj.core_meaning_en if root_obj else None,
@@ -2008,11 +2019,16 @@ def _find_pregenerated_sentences_for_words(
 
 
 def _session_intro_eligible_lemma_ids(db: Session, items: list[dict]) -> set[int]:
-    """Return canonical non-function lemma IDs that appear in session items."""
+    """Return canonical content-word lemma IDs that appear in session items.
+
+    Excludes function words (`is_function_word` flag from WordMeta) and proper
+    names (`is_proper_name` flag) — neither category receives intro cards or
+    cold-promotion to acquiring.
+    """
     raw_ids: set[int] = set()
     for item in items:
         for word in item.get("words", []) or []:
-            if word.get("is_function_word"):
+            if word.get("is_function_word") or word.get("is_proper_name"):
                 continue
             lid = word.get("lemma_id")
             if isinstance(lid, int):
@@ -2055,6 +2071,12 @@ def _ensure_session_words_have_intro_state(
     Sentence review already auto-introduces unknown collateral words after the
     card is answered. Doing it here preserves that learning flow while allowing
     the intro card to appear before the sentence.
+
+    Function words (`ل`, `هم`, `في`, …) and proper names (Heidi, Ali, …) are
+    excluded — they never receive intro cards (CLAUDE.md invariants). Without
+    this guard, an unmapped proper-name surface auto-created by step 0b would
+    flow encountered → acquiring → intro card the moment a sentence containing
+    it became eligible.
     """
     if not lemma_ids:
         return
@@ -2068,17 +2090,21 @@ def _ensure_session_words_have_intro_state(
         ):
             knowledge_by_id[ulk.lemma_id] = ulk
 
-    to_start = [
+    candidate_ids = [
         lid for lid in lemma_ids
         if lid not in knowledge_by_id
         or knowledge_by_id[lid].knowledge_state == "encountered"
     ]
-    if not to_start:
+    if not candidate_ids:
+        return
+
+    candidate_ids = _drop_function_and_proper_name_lemma_ids(db, candidate_ids)
+    if not candidate_ids:
         return
 
     from app.services.acquisition_service import start_acquisition
 
-    for lid in to_start:
+    for lid in candidate_ids:
         ulk = start_acquisition(
             db,
             lemma_id=lid,
@@ -2086,6 +2112,38 @@ def _ensure_session_words_have_intro_state(
             due_immediately=False,
         )
         knowledge_by_id[lid] = ulk
+
+
+def _drop_function_and_proper_name_lemma_ids(
+    db: Session, lemma_ids: list[int] | set[int]
+) -> list[int]:
+    """Filter lemma IDs that should never get intro cards or auto-promotion.
+
+    Per CLAUDE.md: function words and proper names are inert in the SRS
+    pipeline — they earn no FSRS / acquisition credit and never get intro
+    cards. The check is by lemma row (`word_category == "proper_name"`) and
+    by bare-form lookup against `FUNCTION_WORD_GLOSSES`.
+    """
+    if not lemma_ids:
+        return []
+    lemmas = (
+        db.query(Lemma)
+        .filter(Lemma.lemma_id.in_(list(lemma_ids)))
+        .all()
+    )
+    by_id = {l.lemma_id: l for l in lemmas}
+    keep: list[int] = []
+    for lid in lemma_ids:
+        lem = by_id.get(lid)
+        if lem is None:
+            keep.append(lid)
+            continue
+        if lem.word_category == "proper_name":
+            continue
+        if lem.lemma_ar_bare and _is_function_word(lem.lemma_ar_bare):
+            continue
+        keep.append(lid)
+    return keep
 
 
 def _with_fallbacks(
