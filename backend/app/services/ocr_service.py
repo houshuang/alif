@@ -532,6 +532,11 @@ def process_textbook_page(
                 lemma_id = lookup_lemma(bare, lemma_lookup)
 
             if lemma_id:
+                # If lookup landed on a variant, redirect to its canonical so
+                # we never create or update a variant-scoped ULK row.
+                from app.services.canonical_resolution import resolve_canonical_lemma_id
+                lemma_id = resolve_canonical_lemma_id(db, lemma_id)
+
                 # Existing word — increment encounter count
                 lemma = db.query(Lemma).filter(Lemma.lemma_id == lemma_id).first()
                 ulk = knowledge_map.get(lemma_id)

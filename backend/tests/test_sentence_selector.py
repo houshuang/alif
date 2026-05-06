@@ -284,6 +284,50 @@ class TestGreedySetCover:
         word_only = [i for i in result["items"] if i.get("sentence_id") is None]
         assert len(word_only) == 0
 
+    def test_variant_with_known_canonical_is_not_scheduled(self, db_session):
+        """Regression for the أُمِّي / أُمّ bug (2026-05-06).
+
+        When a variant lemma has its own ULK in acquiring/FSRS state but the
+        canonical is already known/learning, the variant must be excluded from
+        `due_lemma_ids`. Otherwise the user keeps seeing the same sentence
+        forever: review credit goes to the canonical (sentence_review_service),
+        but the variant's box never advances.
+        """
+        # Canonical: أُمّ ("mother") — known, not yet due
+        _seed_word(db_session, 1, "ام", "mother", state="known", stability=100.0, due_hours=24 * 30)
+        # Variant: أُمّي ("my mother") with canonical_lemma_id=1
+        variant_lemma = Lemma(
+            lemma_id=2, lemma_ar="أمي", lemma_ar_bare="امي",
+            pos="noun", gloss_en="my mother", canonical_lemma_id=1,
+        )
+        db_session.add(variant_lemma)
+        db_session.flush()
+        # Give the variant its own acquiring ULK (the bug condition).
+        variant_ulk = UserLemmaKnowledge(
+            lemma_id=2,
+            knowledge_state="acquiring",
+            acquisition_box=1,
+            acquisition_next_due=datetime.now(timezone.utc) - timedelta(days=18),
+            entered_acquiring_at=datetime.now(timezone.utc) - timedelta(days=18),
+            source="textbook_scan",
+        )
+        db_session.add(variant_ulk)
+        # Sentence targeting the variant (mirrors production sentence #41263).
+        _seed_sentence(db_session, 99, "أمي تحب", "my mother loves",
+                       target_lemma_id=2,
+                       word_surfaces_and_ids=[("أمي", 2), ("تحب", 1)])
+        db_session.commit()
+
+        result = build_session(db_session, limit=10)
+        # The variant must NOT contribute to due_lemma_ids; the canonical is
+        # known and not due. Hence no items.
+        target_lemma_ids = {i.get("primary_lemma_id") for i in result["items"]}
+        assert 2 not in target_lemma_ids, (
+            f"Variant lemma 2 should be skipped (canonical is known), "
+            f"but session selected it. items={result['items']}"
+        )
+        assert result["total_due_words"] == 0
+
 
 class TestSessionOrdering:
     def test_easy_sentences_at_bookends(self, db_session):

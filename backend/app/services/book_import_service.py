@@ -515,8 +515,11 @@ def import_book(
     # Import unknown words (creates Lemma entries + runs quality gates internally)
     new_ids = _import_unknown_words(db, story, lemma_lookup)
 
-    # Create encountered ULK records for book words that don't have one yet
-    book_lemma_ids = {sw.lemma_id for sw in story.words if sw.lemma_id and not sw.is_function_word}
+    # Create encountered ULK records for book words that don't have one yet.
+    # Redirect variants to their canonical so we never create a variant-scoped ULK.
+    from app.services.canonical_resolution import resolve_canonical_lemma_id
+    raw_book_lemma_ids = {sw.lemma_id for sw in story.words if sw.lemma_id and not sw.is_function_word}
+    book_lemma_ids = {resolve_canonical_lemma_id(db, lid) for lid in raw_book_lemma_ids}
     existing_ulk_ids = set()
     if book_lemma_ids:
         existing_ulk_ids = {

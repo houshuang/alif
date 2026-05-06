@@ -78,6 +78,17 @@ def start_acquisition(
     If due_immediately=True, word is due right now (for auto-intro in current session).
     Otherwise, first review is due after BOX_INTERVALS[1] (4 hours).
     """
+    from app.services.canonical_resolution import resolve_canonical_lemma_id
+
+    # Variants must never get their own scheduling rows; redirect to canonical.
+    canonical_id = resolve_canonical_lemma_id(db, lemma_id)
+    if canonical_id != lemma_id:
+        logger.info(
+            "start_acquisition redirecting variant %s → canonical %s (source=%r)",
+            lemma_id, canonical_id, source,
+        )
+        lemma_id = canonical_id
+
     now = datetime.now(timezone.utc)
     next_due = now if due_immediately else now + BOX_INTERVALS[1]
 
@@ -86,6 +97,11 @@ def start_acquisition(
         .filter(UserLemmaKnowledge.lemma_id == lemma_id)
         .first()
     )
+
+    # Don't demote a known/learning canonical back to acquiring just because a
+    # variant collateral path landed here. Return the existing row unchanged.
+    if ulk and ulk.knowledge_state in ("known", "learning"):
+        return ulk
 
     if ulk:
         # Transition existing record (e.g. from "encountered")
