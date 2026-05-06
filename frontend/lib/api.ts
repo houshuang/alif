@@ -928,6 +928,26 @@ export async function submitReintroResult(
   return { status: "queued", result, lemma_id: lemmaId };
 }
 
+export interface CardShownPayload {
+  card_type: "intro" | "sentence" | "reintro" | "verse" | "grammar" | "wrapup";
+  session_id?: string | null;
+  lemma_id?: number | null;
+  sentence_id?: number | null;
+  card_index?: number | null;
+  total_cards?: number | null;
+  detail?: Record<string, unknown> | null;
+}
+
+/** Fire-and-forget: tell the backend the user is now seeing this card. */
+export function logCardShown(payload: CardShownPayload): void {
+  if (!netStatus.isOnline) return;
+  fetch(`${BASE_URL}/api/review/log-card-shown`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  }).catch(() => {});
+}
+
 export async function acknowledgeExperimentIntro(
   lemmaId: number,
   sessionId?: string,
