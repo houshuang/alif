@@ -436,7 +436,13 @@ trailing 2 reps were on words the learner had just mastered.
 
 Additionally, the **frontend auto-skips a sentence card** when its primary
 lemma was already answered correctly earlier in the same session. Failed
-reviews still get the full re-teaching loop (intro + reps next session).
+reviews still get the full re-teaching loop (intro + reps next session). The
+auto-skip is implemented as a single-pass forward scan in
+`frontend/app/index.tsx` (jumps directly to the first non-skippable slot, no
+per-card flicker). If the scan reaches the end of the session, results.total
+is bumped to `totalCards` so the session-complete screen fires (without this
+bookkeeping the last card would re-render with the answer hidden — see
+2026-05-06 entry in the experiment log).
 
 The session builder uses a multi-pass expanding interval approach:
 

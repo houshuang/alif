@@ -4,6 +4,72 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-05-06: Sentence-review session-end stall + auto-skip flicker (regression from 2026-05-04 PR #59)
+
+### What
+
+Two frontend bugs surfaced 48 hours after PR #59 (`ac5f2c0`) shipped client-side
+auto-skip for already-known sentence reps. Both fixed in commit `595eb3f` on
+`main`:
+
+1. **Last card flipped back to "front" instead of advancing to results.** On the
+   final manual submit, `advanceAfterSubmit` did `setResults({...next, total:
+   prev.total + 1})`. `isSessionDone` (`frontend/app/index.tsx:1360`) compares
+   `results.total` to `totalCards`, but auto-skipped cards never incremented
+   `results.total`, so a +1 bump left the counter short. Render fell through:
+   `cardIndex` was unchanged, `cardState` was reset to `"front"` by
+   `resetSentenceCardUi()`, and the same card re-rendered with the answer
+   hidden — looking like a button-state glitch.
+   - Fix: on the end-of-session branch, set `total: totalCards`. Matches the
+     existing pattern in `handleWrapUp` / `handleWrapUpAnswer`.
+
+2. **Cascading auto-skip flickered each skipped card briefly.** The auto-skip
+   `useEffect` advanced `cardIndex + 1` per render. Two consecutive skippable
+   cards meant two renders, each flashing the skipped card at `cardState =
+   "front"` before the next skip fired. Also: when the *last* card itself was
+   skippable, `cardIndex + 1 < sessionSlots.length` was false and the user got
+   stuck on a card whose lemma was already known.
+   - Fix: replace the per-render advance with a single-pass forward scan that
+     finds the first non-skippable slot and jumps directly to it. If the scan
+     walks off the end, set `results.total = totalCards` to end the session.
+     Acknowledgments for skipped experiment-intro slots are batched into the
+     same pass.
+
+### Why
+
+The May 4 PR (#59) added auto-skip for sentences whose primary lemma was
+already answered correctly earlier in the session — designed to drop the
+trailing reps Box-2 graduates didn't need. The mechanism worked, but the
+end-of-session counter bookkeeping wasn't updated to match the new flow:
+auto-skipped cards were silently outside the "answered" tally.
+
+The flicker came from doing the skip in a `useEffect` with cardIndex as a
+dependency, which serializes the cascade across renders. Easy to miss in
+testing because a single skippable card causes only one flash.
+
+### Expected effect
+
+- Last-card stall → 0%. The session-end transition is now driven by
+  `results.total === totalCards`, which the fix guarantees on every code path
+  that ends a session (manual submit on last card, all-skippable tail).
+- Auto-skip flicker → 0 visible flashes. The single-pass jump means consecutive
+  skippable cards never render between skips.
+- Stuck-on-last-skippable-card scenario → ends the session correctly.
+
+### How to verify
+
+Manual: build a session that contains a duplicate primary lemma where the
+duplicate is the *last* card (or one of several trailing duplicates). Answer
+the first occurrence correctly; the session should advance straight to the
+results screen without showing the duplicates.
+
+### Rollback plan
+
+`git revert 595eb3f` restores the cascading auto-skip and the broken
+end-of-session check. No backend or schema changes.
+
+---
+
 ## 2026-05-04: Aggressive frequency-core acquisition experiment
 
 ### What
