@@ -1883,6 +1883,22 @@ def _find_pregenerated_sentences_for_words(
         .all()
     ) if all_lemma_ids else []
     lemma_map = {l.lemma_id: l for l in lemmas}
+    # Expand the map to cover the full canonical chain so that
+    # `_canonical_id_for_word` reaches the ROOT canonical, not the first hop.
+    # Without this, a sentence whose word is a multi-hop variant Y→Z→C reports
+    # `canonical_lemma_id=Z` to the client, the intro card for the root C never
+    # matches any sentence's words, and the frontend orphan-flushes it to the
+    # end of the session — producing the "intro card with no sentence containing
+    # that word" + "intro as last card" complaints (2026-05-06).
+    needed = {l.canonical_lemma_id for l in lemma_map.values() if l.canonical_lemma_id}
+    while needed - set(lemma_map.keys()):
+        rows = db.query(Lemma).filter(Lemma.lemma_id.in_(needed - set(lemma_map.keys()))).all()
+        if not rows:
+            break
+        for lo in rows:
+            lemma_map[lo.lemma_id] = lo
+            if lo.canonical_lemma_id:
+                needed.add(lo.canonical_lemma_id)
     knowledge_map = {k.lemma_id: k for k in all_knowledge} if all_knowledge else {}
 
     # Build candidates with comprehensibility gate

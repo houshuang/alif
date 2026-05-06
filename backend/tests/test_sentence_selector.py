@@ -14,6 +14,7 @@ from app.services.sentence_selector import (
     SESSION_SCAFFOLD_DECAY,
     WordMeta,
     _difficulty_match_quality,
+    _find_pregenerated_sentences_for_words,
     _intro_slots_for_accuracy,
     _is_near_duplicate_of_selected,
     _is_text_near_duplicate,
@@ -283,6 +284,66 @@ class TestGreedySetCover:
         # No word-only items should appear
         word_only = [i for i in result["items"] if i.get("sentence_id") is None]
         assert len(word_only) == 0
+
+    def test_fill_path_canonical_lemma_id_reaches_root_for_multi_hop(self, db_session):
+        """Regression for orphan-intro bug (2026-05-06).
+
+        The fill path's `_find_pregenerated_sentences_for_words` built a
+        `lemma_map` only from sentence_word lemma IDs, so `_canonical_id_for_word`
+        for a multi-hop variant Y→Z→C returned Z (first hop) instead of C
+        (root). The intro card carrying lemma_id=C never matched the
+        sentence's word.canonical_lemma_id=Z on the frontend, and the
+        orphan-flush path appended the intro at the end of the session —
+        producing intros for words with no matching sentence.
+
+        Setup: target_lemma_id=1 (canonical), but the sentence has a word
+        whose surface lemma_id=3 (variant Y), where 3→2→1 is a multi-hop
+        chain. lemma_map is built from `{1, 3}` only; without expansion,
+        `_canonical_id_for_word(3, …)` returns 2 (first hop).
+        """
+        # Multi-hop chain: Y(3) → Z(2) → C(1, root canonical)
+        root = Lemma(lemma_id=1, lemma_ar="جدد", lemma_ar_bare="جدد",
+                     pos="noun", gloss_en="root")
+        mid = Lemma(lemma_id=2, lemma_ar="جداً", lemma_ar_bare="جدا",
+                    pos="noun", gloss_en="very", canonical_lemma_id=1)
+        leaf = Lemma(lemma_id=3, lemma_ar="جدّ", lemma_ar_bare="جد",
+                     pos="noun", gloss_en="grandfather", canonical_lemma_id=2)
+        # Two scaffold words so the comprehensibility gate passes (the variant
+        # without its own knowledge counts as unknown scaffold).
+        _seed_word(db_session, 4, "كتاب", "book", state="known",
+                   stability=30.0, due_hours=24)
+        _seed_word(db_session, 5, "بيت", "house", state="known",
+                   stability=30.0, due_hours=24)
+        db_session.add_all([root, mid, leaf])
+        db_session.flush()
+
+        # Sentence contains target word #1 + the variant #3 + two known scaffolds.
+        _seed_sentence(db_session, 100, "جدد جدّ كتاب بيت", "root grandfather book house",
+                       target_lemma_id=1,
+                       word_surfaces_and_ids=[("جدد", 1), ("جدّ", 3),
+                                              ("كتاب", 4), ("بيت", 5)])
+        knowledge = UserLemmaKnowledge(
+            lemma_id=1, knowledge_state="acquiring", acquisition_box=1,
+            acquisition_next_due=datetime.now(timezone.utc) - timedelta(hours=1),
+        )
+        db_session.add(knowledge)
+        db_session.commit()
+
+        s4 = db_session.query(UserLemmaKnowledge).filter_by(lemma_id=4).first()
+        s5 = db_session.query(UserLemmaKnowledge).filter_by(lemma_id=5).first()
+        items = _find_pregenerated_sentences_for_words(
+            db_session, {1}, {1: 0.1, 4: 30.0, 5: 30.0},
+            {1: knowledge, 4: s4, 5: s5},
+            [knowledge, s4, s5], limit=5,
+        )
+        assert len(items) == 1, f"Expected the sentence to be picked up, got {items}"
+        # Find the variant word (lemma_id=3) in the returned words.
+        variant_word = next(w for w in items[0]["words"] if w["lemma_id"] == 3)
+        # Without the fix this would be 2 (first hop only).
+        assert variant_word["canonical_lemma_id"] == 1, (
+            f"canonical_lemma_id should reach the root canonical (1), "
+            f"got {variant_word['canonical_lemma_id']}. Frontend orphan flush would fire."
+        )
 
     def test_variant_with_known_canonical_is_not_scheduled(self, db_session):
         """Regression for the أُمِّي / أُمّ bug (2026-05-06).
