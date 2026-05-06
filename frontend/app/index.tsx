@@ -53,6 +53,7 @@ import {
 } from "../lib/types";
 import { posLabel, FormsRow, FormsStrip, GrammarRow, PlayButton } from "../lib/WordCardComponents";
 import { syncEvents } from "../lib/sync-events";
+import { getShownIntroLemmaIds, markIntroShown } from "../lib/offline-store";
 import { flushQueue } from "../lib/sync-queue";
 import { useNetStatus } from "../lib/net-status";
 import ActionMenu from "../lib/review/ActionMenu";
@@ -275,11 +276,13 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
   const [reintroCards, setReintroCards] = useState<ReintroCard[]>([]);
   const [reintroIndex, setReintroIndex] = useState(0);
   const [experimentIntroCards, setExperimentIntroCards] = useState<ReintroCard[]>([]);
-  // Track intro lemmas already shown in this UI session, so background
-  // refreshes (applyFreshSession) don't re-emit a card the user just dismissed
-  // — server ack lag through the sync queue can leave `experiment_intro_shown_at`
-  // unset when the next prefetch returns. Bug: lemmas 259/464/596 fired 3-4×
-  // in a single 10-min session on 2026-05-06.
+  // Track intro lemmas already shown to the user (last 24h), so cached
+  // sessions and background refreshes don't replay them. Backed by AsyncStorage
+  // so it survives component remounts (iOS app suspend/restore). useRef-only
+  // dedup was insufficient — bug observed 2026-05-06 sessions 4-5: lemmas
+  // 308/345/3103/255/321 each fired 2-4× across resumed sessions because the
+  // ref reset on remount and the cached AsyncStorage session still listed
+  // them as intros.
   const shownIntroLemmaIdsRef = useRef<Set<number>>(new Set());
   const [verseCards, setVerseCards] = useState<VerseCard[]>([]);
   const [verseFlipped, setVerseFlipped] = useState(false);
@@ -346,7 +349,17 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
       playsInSilentModeIOS: true,
       staysActiveInBackground: false,
     });
-    loadSession();
+    // Hydrate the persisted shown-intro set BEFORE loading the session, so
+    // buildInterleavedSession can filter out already-acked intros even on a
+    // fresh component mount (iOS app suspend / restart).
+    (async () => {
+      try {
+        shownIntroLemmaIdsRef.current = await getShownIntroLemmaIds();
+      } catch {
+        shownIntroLemmaIdsRef.current = new Set();
+      }
+      await loadSession();
+    })();
     return () => {
       cleanupSound();
     };
@@ -394,6 +407,12 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
 
     for (const lemmaId of acknowledgedIntros) {
       shownIntroLemmaIdsRef.current.add(lemmaId);
+      // Fire-and-forget the AsyncStorage write so the next prefetch (or app
+      // remount) sees this intro as already-shown even if the network ack
+      // hasn't reached the server yet. acknowledgeExperimentIntro also calls
+      // markIntroShown internally, but doing it here too closes the gap if
+      // the server POST fails.
+      markIntroShown(lemmaId).catch(() => {});
       acknowledgeExperimentIntro(lemmaId, sentenceSession.session_id).catch(() => {});
     }
 
@@ -552,7 +571,9 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
     setReintroCards([]);
     setReintroIndex(0);
     setExperimentIntroCards([]);
-    shownIntroLemmaIdsRef.current = new Set();
+    // NB: do NOT reset shownIntroLemmaIdsRef here. The persisted AsyncStorage
+    // entries have a 24h TTL — clearing on every loadSession() would re-open
+    // the door to cached sessions replaying intros the user already saw.
     setGrammarLessons([]);
     setGrammarLessonIndex(0);
     setGrammarLessonsLoading(false);
@@ -1899,6 +1920,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
             style={styles.reintroRememberBtn}
             onPress={() => {
               shownIntroLemmaIdsRef.current.add(card.lemma_id);
+              markIntroShown(card.lemma_id).catch(() => {});
               acknowledgeExperimentIntro(
                 card.lemma_id,
                 sentenceSession?.session_id,

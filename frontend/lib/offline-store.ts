@@ -13,6 +13,7 @@ const WORD_LOOKUP_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
 const KEYS = {
   sessions: (mode: ReviewMode) => `@alif/sessions/${mode}`,
   reviewed: "@alif/reviewed",
+  shownIntros: "@alif/shown-intros",
   words: "@alif/words",
   stats: "@alif/stats",
   analytics: "@alif/analytics",
@@ -23,6 +24,11 @@ const KEYS = {
   wordLookupsLegacy: "@alif/word-lookups",
   lastSessionWords: "@alif/last-session-words",
 };
+
+// 24h: short enough that the server's Category 2 rescue card (7-day cooldown)
+// can re-fire when we want it to; long enough to cover any plausible session
+// resume window after the app is suspended/remounted.
+const SHOWN_INTRO_TTL_MS = 24 * 60 * 60 * 1000;
 
 const MAX_CACHED_SESSIONS = 20;
 const SESSION_STALENESS_MS = 30 * 60 * 1000; // 30 minutes
@@ -79,6 +85,7 @@ export async function getCachedSession(
   const key = KEYS.sessions(mode);
   const raw = (await getJson<CachedSessionEntry[] | SentenceReviewSession[]>(key)) ?? [];
   const reviewed = await getReviewedSet();
+  const shownIntros = await getShownIntroLemmaIds();
   const now = Date.now();
 
   // Normalize: support both old format (plain sessions) and new (with cached_at)
@@ -107,7 +114,16 @@ export async function getCachedSession(
         )
     );
     if (remaining.length > 0) {
-      return { ...session, items: remaining };
+      // Strip intros the user already dismissed (24h window). Otherwise a
+      // session resumed after iOS suspend/restart will replay them.
+      const filteredIntros = (session.experiment_intro_cards ?? []).filter(
+        (c) => !shownIntros.has(c.lemma_id),
+      );
+      return {
+        ...session,
+        items: remaining,
+        experiment_intro_cards: filteredIntros,
+      };
     }
   }
   // All sessions exhausted — prune stale reviewed keys in background
@@ -149,6 +165,41 @@ export async function markReviewed(
 async function getReviewedSet(): Promise<Set<string>> {
   const arr = (await getJson<string[]>(KEYS.reviewed)) ?? [];
   return new Set(arr);
+}
+
+// --- Shown intro tracking -----------------------------------------------
+// Persisted across app restarts so cached sessions don't re-fire intros the
+// user already dismissed. Bug (2026-05-06): a useRef-only dedup reset on
+// component remount; iOS app suspend/restore looked like a fresh mount, and
+// AsyncStorage replayed the cached session which still had intros for already-
+// acked lemmas. Server filters once `experiment_intro_shown_at` is set, but
+// only on FRESH responses — cached responses bypass that filter entirely.
+
+export async function markIntroShown(lemmaId: number): Promise<void> {
+  const map = await getShownIntroMap();
+  map.set(lemmaId, Date.now());
+  await persistShownIntroMap(map);
+}
+
+export async function getShownIntroLemmaIds(): Promise<Set<number>> {
+  const map = await getShownIntroMap();
+  return new Set(map.keys());
+}
+
+async function getShownIntroMap(): Promise<Map<number, number>> {
+  const raw = (await getJson<[number, number][]>(KEYS.shownIntros)) ?? [];
+  const cutoff = Date.now() - SHOWN_INTRO_TTL_MS;
+  const map = new Map<number, number>();
+  for (const [lid, ts] of raw) {
+    if (ts >= cutoff) map.set(lid, ts);
+  }
+  return map;
+}
+
+async function persistShownIntroMap(map: Map<number, number>): Promise<void> {
+  const cutoff = Date.now() - SHOWN_INTRO_TTL_MS;
+  const arr = Array.from(map.entries()).filter(([, ts]) => ts >= cutoff);
+  await setJson(KEYS.shownIntros, arr);
 }
 
 export async function unmarkReviewed(
