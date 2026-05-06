@@ -734,6 +734,12 @@ def introduce_word(
     Returns the created knowledge record as dict.
     """
     from app.services.acquisition_service import start_acquisition
+    from app.services.canonical_resolution import resolve_canonical_lemma_id
+
+    # Variants must never get their own scheduling rows; redirect to canonical.
+    canonical_id = resolve_canonical_lemma_id(db, lemma_id)
+    if canonical_id != lemma_id:
+        lemma_id = canonical_id
 
     lemma = db.query(Lemma).filter(Lemma.lemma_id == lemma_id).first()
     if not lemma:

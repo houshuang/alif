@@ -15,6 +15,7 @@ from typing import Optional
 from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Session, joinedload
 
+from app.services.canonical_resolution import resolve_canonical_via_map
 from app.services.fsrs_service import parse_json_column
 from app.services.transliteration import transliterate_arabic, transliterate_forms
 
@@ -646,23 +647,40 @@ def build_session(
 
     due_lemma_ids: set[int] = set()
     stability_map: dict[int, float] = {}
-    knowledge_by_id: dict[int, UserLemmaKnowledge] = {}
+    knowledge_by_id: dict[int, UserLemmaKnowledge] = {k.lemma_id: k for k in all_knowledge}
 
-    # Build function word lemma ID set to exclude from scheduling
+    # Build function word lemma ID set + canonical chain map in one full Lemma scan.
     function_word_lemma_ids: set[int] = set()
-    lemma_bare_map = {
-        row.lemma_id: row.lemma_ar_bare
-        for row in db.query(Lemma.lemma_id, Lemma.lemma_ar_bare).all()
-    }
-    for lid, bare in lemma_bare_map.items():
-        if bare and _is_function_word(bare):
-            function_word_lemma_ids.add(lid)
+    lemma_bare_map: dict[int, str | None] = {}
+    canonical_chain: dict[int, int | None] = {}
+    for row in db.query(Lemma.lemma_id, Lemma.lemma_ar_bare, Lemma.canonical_lemma_id).all():
+        lemma_bare_map[row.lemma_id] = row.lemma_ar_bare
+        canonical_chain[row.lemma_id] = row.canonical_lemma_id
+        if row.lemma_ar_bare and _is_function_word(row.lemma_ar_bare):
+            function_word_lemma_ids.add(row.lemma_id)
+
+    # Variants whose canonical is already known/learning must not enter the
+    # schedule. The review pipeline credits the canonical (sentence_review_service.py
+    # line ~182), so the variant's own box never advances — sentences keep
+    # reappearing under "rescue" forever. Mirror of the guard already in
+    # _build_intro_cards (line ~1683-1688). Drop them from `all_knowledge` so
+    # every downstream consumer (almost_due_fill, fallback paths, etc.) sees
+    # the same filtered view.
+    overshadowed_variants: set[int] = set()
+    for k in all_knowledge:
+        canon_id = resolve_canonical_via_map(k.lemma_id, canonical_chain)
+        if canon_id != k.lemma_id:
+            canon_ulk = knowledge_by_id.get(canon_id)
+            if canon_ulk and canon_ulk.knowledge_state in ("known", "learning"):
+                overshadowed_variants.add(k.lemma_id)
+    if overshadowed_variants:
+        all_knowledge = [k for k in all_knowledge if k.lemma_id not in overshadowed_variants]
+        for vid in overshadowed_variants:
+            knowledge_by_id.pop(vid, None)
 
     overdue_days_map: dict[int, float] = {}  # lemma_id → days past due
 
     for k in all_knowledge:
-        knowledge_by_id[k.lemma_id] = k
-
         if k.knowledge_state == "encountered":
             continue  # passive vocab — not due, not scheduled
         if k.lemma_id in function_word_lemma_ids:
