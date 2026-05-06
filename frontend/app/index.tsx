@@ -34,6 +34,7 @@ import {
   getWrapUpCards,
   getConfusionHelp,
   generateUuid,
+  logCardShown,
   BASE_URL,
 } from "../lib/api";
 import {
@@ -435,6 +436,97 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
       showTime.current = Date.now();
     }
   }, [cardIndex, cardState]);
+
+  // Trace what the user actually sees on screen, card by card. Without this
+  // we only had ack-driven events (`experiment_intro_shown`, `sentence_review`)
+  // which fire on USER ACTION — invisible to a card that re-rendered, was
+  // auto-skipped, or got replaced by a background prefetch. This event is
+  // fire-and-forget and tagged so we can reconstruct the exact card sequence
+  // the user experienced.
+  useEffect(() => {
+    if (!sentenceSession || sessionSlots.length === 0) return;
+    const slot = sessionSlots[cardIndex];
+    if (!slot) return;
+    const sid = sentenceSession.session_id;
+    const total = sessionSlots.length;
+    if (slot.type === "experiment_intro") {
+      const card = experimentIntroCards[slot.introIndex];
+      if (card) {
+        logCardShown({
+          card_type: "intro",
+          session_id: sid,
+          lemma_id: card.lemma_id,
+          card_index: cardIndex,
+          total_cards: total,
+          detail: { times_seen: card.times_seen ?? 0, source: card.source ?? null },
+        });
+      }
+    } else if (slot.type === "sentence") {
+      const item = sentenceSession.items[slot.itemIndex];
+      if (item) {
+        logCardShown({
+          card_type: "sentence",
+          session_id: sid,
+          sentence_id: item.sentence_id,
+          lemma_id: item.primary_lemma_id,
+          card_index: cardIndex,
+          total_cards: total,
+        });
+      }
+    } else if (slot.type === "verse") {
+      const verse = verseCards[slot.verseIndex];
+      if (verse) {
+        logCardShown({
+          card_type: "verse",
+          session_id: sid,
+          card_index: cardIndex,
+          total_cards: total,
+          detail: { verse_id: (verse as any).verse_id ?? null },
+        });
+      }
+    }
+  }, [cardIndex, sessionSlots, sentenceSession, experimentIntroCards, verseCards]);
+
+  // Also trace the non-slot card flows (reintro, grammar, wrap-up).
+  useEffect(() => {
+    const card = reintroCards[reintroIndex];
+    if (card) {
+      logCardShown({
+        card_type: "reintro",
+        session_id: sentenceSession?.session_id,
+        lemma_id: card.lemma_id,
+        card_index: reintroIndex,
+        total_cards: reintroCards.length,
+      });
+    }
+  }, [reintroIndex, reintroCards, sentenceSession?.session_id]);
+
+  useEffect(() => {
+    const lesson = grammarLessons[grammarLessonIndex];
+    if (lesson) {
+      logCardShown({
+        card_type: "grammar",
+        session_id: sentenceSession?.session_id,
+        card_index: grammarLessonIndex,
+        total_cards: grammarLessons.length,
+        detail: { feature_key: lesson.feature_key, is_refresher: !!lesson.is_refresher },
+      });
+    }
+  }, [grammarLessonIndex, grammarLessons, sentenceSession?.session_id]);
+
+  useEffect(() => {
+    if (!inWrapUp) return;
+    const card = wrapUpCards[wrapUpIndex];
+    if (card) {
+      logCardShown({
+        card_type: "wrapup",
+        session_id: sentenceSession?.session_id,
+        lemma_id: card.lemma_id,
+        card_index: wrapUpIndex,
+        total_cards: wrapUpCards.length,
+      });
+    }
+  }, [inWrapUp, wrapUpIndex, wrapUpCards, sentenceSession?.session_id]);
 
   // TTS audio playback for listening mode — wait until session data is loaded
   useEffect(() => {

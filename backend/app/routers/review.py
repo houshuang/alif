@@ -446,6 +446,39 @@ def submit_reintro_result(
     return {"status": "ok", "result": body.result, "lemma_id": body.lemma_id}
 
 
+class CardShownIn(PydanticBaseModel):
+    """What the user actually sees on screen.
+
+    Logged from the frontend on every card transition so we can reconstruct
+    the user's session card-by-card — not just the acks. Without this, intro
+    cards re-firing or being skipped were invisible until the user clicked
+    Continue (which writes the ack and the only log entry).
+    """
+    card_type: str  # "intro" | "sentence" | "reintro" | "verse" | "grammar" | "wrapup"
+    session_id: str | None = None
+    lemma_id: int | None = None
+    sentence_id: int | None = None
+    card_index: int | None = None
+    total_cards: int | None = None
+    detail: dict | None = None
+
+
+@router.post("/log-card-shown")
+def log_card_shown(body: CardShownIn):
+    """Fire-and-forget: record that a card transitioned onto the user's screen."""
+    log_interaction(
+        event="card_shown",
+        card_type=body.card_type,
+        session_id=body.session_id,
+        lemma_id=body.lemma_id,
+        sentence_id=body.sentence_id,
+        card_index=body.card_index,
+        total_cards=body.total_cards,
+        detail=body.detail,
+    )
+    return {"status": "ok"}
+
+
 class ExperimentIntroAckIn(PydanticBaseModel):
     lemma_id: int
     session_id: str | None = None
