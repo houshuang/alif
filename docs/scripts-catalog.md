@@ -130,3 +130,4 @@ These scripts are designed to run periodically against the generation pipeline b
 
 ## Utilities
 - `log_activity.py` — CLI tool for manual ActivityLog entries.
+- `suspend_variant_ulks.py` — Find variant ULKs whose canonical is `known`/`learning` (multi-hop), suspend them, and remap their `SentenceWord.lemma_id` + `Sentence.target_lemma_id` rows to the canonical. Used 2026-05-06 to clear 39 overshadowed variants (3017 sentence_word + 547 sentence target rows) that caused sentences to keep reappearing as "Rescue" cards forever (variant-side scheduling never advanced because credit went to the canonical). Run with `--dry-run` first. Backup DB before applying.

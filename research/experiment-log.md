@@ -4,6 +4,109 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-05-06: Variant-canonical scheduling, intro-card re-fire, orphan intros, card-display logging (PRs #67–#71)
+
+### What
+
+User report: sentence #41263 (`أُمِّي تُحِبُّ الشِّوَاءَ عادَةً.`) kept reappearing in
+review (8× shown, all "understood") under "Rescue (recently shown)" — same
+card, no progress. Plus intro cards firing 2-4× in a single session, plus
+intro cards appearing without a matching sentence, plus seemingly "short"
+sessions.
+
+Five PRs landed today addressing distinct root causes:
+
+**PR #67 — variant-canonical scheduling asymmetry.** 36 variant lemmas in
+prod held their own `UserLemmaKnowledge` rows in `acquiring`/`encountered`
+state while their canonical was already `known`. Review credit correctly
+went to the canonical (sentence_review_service.py:182), but
+`build_session()` (sentence_selector.py:663-688) had no canonical guard,
+so the variant's own box never advanced — the screenshot's "Rescue" card
+was the symptom of an infinite re-show loop. Fixed in three pieces:
+- New `app/services/canonical_resolution.py` (multi-hop redirect helper).
+- Scheduler guard in `build_session()` mirrors the existing one in
+  `_build_intro_cards`.
+- Upstream gates: `start_acquisition()` and `introduce_word()` redirect at
+  entry, so 6 unprotected call sites (learn router, quran_service,
+  ocr_service, leech_service, book_import_service, sentence_selector
+  collateral path) can't recreate the bug.
+- Cleanup script `backend/scripts/suspend_variant_ulks.py` suspended 39
+  ULKs and remapped 3017 `SentenceWord.lemma_id` rows + 547
+  `Sentence.target_lemma_id` rows from variant→canonical. Verified on
+  prod DB copy → 0 overshadowed remain.
+
+**PR #68 — intro card re-firing within a session.** Lemmas 259/464/596
+each fired 2-4× in a single 10-min session. `applyFreshSession` rebuilds
+session slots on every prefetch; the in-process "shown" set inside
+`buildInterleavedSession` reset on every call. Added
+`shownIntroLemmaIdsRef` (useRef) tracking ack'd intros, passed into the
+slot builder.
+
+**PR #69 — orphan intros for multi-hop variants.** 11 orphan intros across
+3 days (intros for words not in any session sentence, sometimes as the
+last card). `_find_pregenerated_sentences_for_words` built `lemma_map`
+only from sentence_word lemma IDs, so for a multi-hop variant chain Y→Z→C,
+`_canonical_id_for_word(Y)` returned Z (first hop) instead of C. Frontend
+`buildInterleavedSession` matched intros via `lemma_id ∪ canonical_lemma_id`,
+so C never matched Z and the orphan-flush appended the intro at the end.
+Mirrored the multi-hop expansion already in the main `_select_sentences`
+path.
+
+**PR #70 — persist shown-intro set across iOS app remounts.** Sessions
+4-5 (post-PR-67/68) STILL showed lemmas 308/345/3103/255/321 firing 2-4×
+across resumed sessions. PR #68's useRef-only dedup didn't survive iOS
+suspend/restore: component remounted with empty ref; AsyncStorage's
+cached session still listed acked intros and replayed them. Added
+`markIntroShown` / `getShownIntroLemmaIds` in offline-store.ts backed by
+`@alif/shown-intros` AsyncStorage key with 24h TTL. `getCachedSession`
+strips already-shown intros before returning. `acknowledgeExperimentIntro`
+calls `markIntroShown`. `loadSession` no longer resets the ref — TTL
+handles staleness.
+
+**PR #71 — log every card the user actually sees.** Existing logs only
+fired on user actions (ack, submit). Auto-skipped cards, re-rendered
+cards, cards replaced by background prefetch — all invisible. New
+`POST /api/review/log-card-shown` endpoint; frontend `logCardShown` helper;
+five useEffects in index.tsx covering intro/sentence/verse/reintro/grammar/
+wrap-up flows. Each `card_shown` event carries `card_type`, `session_id`,
+`lemma_id`/`sentence_id`, `card_index`, `total_cards`.
+
+### Why
+
+Two interacting failures:
+1. The variant scheduling bug had been latent since the multi-hop variant
+   rework in March; surfaced now because more variants had accumulated in
+   the user's vocabulary.
+2. Intro re-firing was originally diagnosed as a single bug. PR #68
+   addressed the in-session case; PR #70 addressed the across-session
+   case after observing it persist post-deploy.
+
+### Expected effect
+
+- Sentence #41263 not selected again (redirected to canonical #76 which
+  is `known`, FSRS stab 107d, next due 2026-06-15).
+- Intro cards fire at most once per lemma in any 24h window.
+- No orphan intros: every intro must match at least one sentence in the
+  session via `lemma_id` or `canonical_lemma_id`.
+- `card_shown` events visible per-session; analyzer can audit intro-rate
+  and detect future regressions.
+
+### Verify
+
+Overshadowed-variant audit:
+```
+ssh alif "cd /opt/alif/backend && PYTHONPATH=/opt/limbic .venv/bin/python3 \\
+  scripts/suspend_variant_ulks.py --dry-run"
+```
+Should print "No overshadowed variants found".
+
+Tail today's interaction log for new `card_shown` events:
+```
+ssh alif "grep '\"event\": \"card_shown\"' /opt/alif/backend/data/logs/interactions_2026-05-06.jsonl | tail -50"
+```
+
+---
+
 ## 2026-05-06: Sentence-review session-end stall + auto-skip flicker (regression from 2026-05-04 PR #59)
 
 ### What

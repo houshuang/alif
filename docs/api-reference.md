@@ -24,6 +24,7 @@ Full endpoint list. See `backend/app/routers/` for implementation.
 | POST | `/api/review/sync` | Bulk sync offline reviews |
 | POST | `/api/review/reintro-result` | Submit re-introduction quiz result |
 | POST | `/api/review/experiment-intro-ack` | Acknowledge experiment intro card was shown (sets `experiment_intro_shown_at` for dedup + rescue cooldown) |
+| POST | `/api/review/log-card-shown` | Fire-and-forget: log a `card_shown` interaction event when a card transitions onto the user's screen. Body: `card_type` (intro/sentence/reintro/verse/grammar/wrapup), `session_id`, `lemma_id`, `sentence_id`, `card_index`, `total_cards`, `detail` |
 | POST | `/api/review/verse` | Submit Quran verse review: verse_id + rating (got_it/partially/not_yet). Level-based SRS |
 | POST | `/api/review/wrap-up` | Wrap-up mini-quiz: word-level recall cards for acquiring + missed words. `WrapUpCardOut` includes `root_id`, `root_family`, `forms_translit`, `pattern_examples`, `etymology_json`, `memory_hooks_json` |
 | POST | `/api/review/recap` | (Deprecated) Was next-session recap — removed from frontend, redundant with within-session repetition |
