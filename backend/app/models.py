@@ -2,6 +2,7 @@ from datetime import datetime, timezone
 from sqlalchemy import (
     Column, Integer, String, Text, Float, DateTime, ForeignKey, JSON, Boolean,
     UniqueConstraint,
+    event,
 )
 from sqlalchemy.orm import relationship, validates
 
@@ -64,6 +65,17 @@ class Lemma(Base):
     knowledge = relationship("UserLemmaKnowledge", back_populates="lemma", uselist=False)
     reviews = relationship("ReviewLog", back_populates="lemma")
     story_words = relationship("StoryWord", back_populates="lemma")
+
+
+@event.listens_for(Lemma, "before_insert")
+def _ensure_proper_name_category(mapper, connection, target):
+    # `pos` and `word_category` independently encode "is this a proper noun" and
+    # used to drift apart silently — `pos='noun_prop'` lemmas with NULL
+    # word_category leaked past the proper-name filters in word_selector,
+    # sentence_selector, and sentence_review_service, producing intro cards for
+    # country/city/personal names. Guarantee they agree at insert time.
+    if target.pos == "noun_prop" and target.word_category is None:
+        target.word_category = "proper_name"
 
 
 class UserLemmaKnowledge(Base):
