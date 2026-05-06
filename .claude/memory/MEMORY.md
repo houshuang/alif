@@ -129,8 +129,8 @@ Prefer focused sessions. If a task has 4+ distinct parts, suggest breaking into 
 ## gh CLI / Go binaries TLS error in sandbox (2026-04-24)
 - [Details](feedback_gh_sandbox_tls.md) — `OSStatus -26276` from gh/terraform/tofu = Claude Code sandbox blocking `com.apple.trustd` Mach IPC. Retry the same command with `dangerouslyDisableSandbox: true` immediately. Don't waste time on auth, GODEBUG, or `brew upgrade gh`.
 
-## 🟡 1sg possessive clitic leftover audit — 35 dirty lemmas (open, 2026-05-06)
-- [Details](project_clitic_my_leftover_audit.md) — `جدي`, `بيتي`, `أبي` etc. — bare form keeps ـِي. 17 duolingo, 17 textbook_scan, 1 story_import. All predate the 2026-04-24 clitic-aware dedup fix. Cleanup needs canonical-merge + UserLemmaKnowledge follow. Branch: `sh/clitic-my-leftover-audit`.
+## Clitic-leftover audit — 95 lemmas, 88 cleaned (done 2026-05-06)
+- [Details](project_clitic_my_leftover_audit.md) — Broadened from 35 "my X" to all proclitics+enclitics. 75 ALREADY_LINKED stale-wiring cleanups, 7 link-to-existing, 6 create-new-canonical (ميثاق, طغيان, تجارة, اتقى, افسد, مجال). Script: `backend/scripts/cleanup_clitic_leftovers.py`.
 
 ## Architecture Notes (not in CLAUDE.md)
 - FSRS stability floor: "known" with stability < 1.0 -> "lapsed"
