@@ -54,6 +54,7 @@ import {
   getCachedWordLookup,
   cacheWordLookupBatch,
   getCachedSentenceIds,
+  markIntroShown,
 } from "./offline-store";
 import { enqueueReview, flushQueue, removeFromQueue } from "./sync-queue";
 
@@ -931,6 +932,10 @@ export async function acknowledgeExperimentIntro(
   lemmaId: number,
   sessionId?: string,
 ): Promise<{ status: string }> {
+  // Persist the lemma_id so cached sessions (loaded after iOS suspend / app
+  // restart) don't replay the intro card. The useRef-only dedup in index.tsx
+  // resets on component remount and was insufficient.
+  await markIntroShown(lemmaId);
   await enqueueReview("experiment_intro_ack", {
     lemma_id: lemmaId,
     session_id: sessionId,

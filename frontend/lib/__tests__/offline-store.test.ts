@@ -12,6 +12,8 @@ import {
   clearStoryLookups,
   cacheWordLookup,
   getCachedWordLookup,
+  markIntroShown,
+  getShownIntroLemmaIds,
 } from "../offline-store";
 
 const store = (AsyncStorage as any)._store;
@@ -113,6 +115,48 @@ describe("cacheSessions / getCachedSession", () => {
 
     const result = await getCachedSession("reading");
     expect(result).toBeNull();
+  });
+
+  it("filters out already-shown intros from cached session", async () => {
+    const session = {
+      ...makeSession("s-1", [
+        { sentence_id: 1, primary_lemma_id: 10, words: [] },
+      ]),
+      experiment_intro_cards: [
+        { lemma_id: 308, lemma_ar: "كَامِيرَا", gloss_en: "camera" },
+        { lemma_id: 999, lemma_ar: "x", gloss_en: "y" },
+      ],
+    };
+    await cacheSessions("reading", [session as any]);
+    await markIntroShown(308);
+
+    const result = await getCachedSession("reading");
+    expect(result).not.toBeNull();
+    const introIds = (result!.experiment_intro_cards ?? []).map((c: any) => c.lemma_id);
+    expect(introIds).not.toContain(308);
+    expect(introIds).toContain(999);
+  });
+});
+
+describe("markIntroShown / getShownIntroLemmaIds", () => {
+  it("persists across calls", async () => {
+    await markIntroShown(42);
+    await markIntroShown(7);
+    const set = await getShownIntroLemmaIds();
+    expect(set.has(42)).toBe(true);
+    expect(set.has(7)).toBe(true);
+  });
+
+  it("expires entries older than 24h", async () => {
+    // Hand-craft a stale entry
+    const stale = Date.now() - 25 * 60 * 60 * 1000;
+    (AsyncStorage as any)._store["@alif/shown-intros"] = JSON.stringify([
+      [42, stale],
+      [7, Date.now()],
+    ]);
+    const set = await getShownIntroLemmaIds();
+    expect(set.has(42)).toBe(false);
+    expect(set.has(7)).toBe(true);
   });
 });
 
