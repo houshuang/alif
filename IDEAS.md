@@ -23,7 +23,7 @@ shape + matching English gloss prefix). Found 95 hits in prod:
 
 Concrete trigger: lemma #2652 `مَجالِي` "my field" appeared as a New Word
 intro card because the canonical `مجال` didn't exist; book/corpus sentences
-containing بare `مجال` got mapped to the dirty compound.
+containing the bare form `مجال` got mapped to the dirty compound.
 
 Implementation: `backend/scripts/cleanup_clitic_leftovers.py` (idempotent,
 three phases). Reuses the `merge_orphan_into_canonical` primitive from
