@@ -347,33 +347,55 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
   // the intended re-teaching loop.
   useEffect(() => {
     if (!sentenceSession || sessionSlots.length === 0 || submittingReview) return;
-    const slot = sessionSlots[cardIndex];
-    if (slot?.type === "experiment_intro") {
-      const card = experimentIntroCards[slot.introIndex];
-      if (card) {
-        const outcome = wordOutcomes.get(card.lemma_id);
+
+    // Walk forward past every consecutive auto-skippable slot in one pass.
+    // Doing it card-by-card across renders flashed each skipped card briefly
+    // (one render per cardIndex bump). A single-pass jump avoids that flicker
+    // and also handles the case where the LAST card itself is skippable —
+    // the previous loop bailed because cardIndex+1 was out of bounds, leaving
+    // the user stuck on a card whose answer was already known.
+    const acknowledgedIntros: number[] = [];
+    let target = cardIndex;
+    while (target < sessionSlots.length) {
+      const slot = sessionSlots[target];
+      if (slot?.type === "experiment_intro") {
+        const card = experimentIntroCards[slot.introIndex];
+        const outcome = card ? wordOutcomes.get(card.lemma_id) : undefined;
+        if (card && outcome && !outcome.failed) {
+          acknowledgedIntros.push(card.lemma_id);
+          target++;
+          continue;
+        }
+      } else if (slot?.type === "sentence" && sentenceSession.items[slot.itemIndex]) {
+        const item = sentenceSession.items[slot.itemIndex];
+        const outcome = wordOutcomes.get(item.primary_lemma_id);
         if (outcome && !outcome.failed) {
-          acknowledgeExperimentIntro(card.lemma_id, sentenceSession.session_id).catch(() => {});
-          if (cardIndex + 1 < sessionSlots.length) {
-            resetSentenceCardUi();
-            setCardIndex(cardIndex + 1);
-          }
-          return;
+          target++;
+          continue;
         }
       }
+      break;
     }
-    if (slot?.type === "sentence" && sentenceSession.items[slot.itemIndex]) {
-      const item = sentenceSession.items[slot.itemIndex];
-      const outcome = wordOutcomes.get(item.primary_lemma_id);
-      if (outcome && !outcome.failed) {
-        if (cardIndex + 1 < sessionSlots.length) {
-          resetSentenceCardUi();
-          setCardIndex(cardIndex + 1);
-        }
-        return;
-      }
+
+    if (target === cardIndex) return;
+
+    for (const lemmaId of acknowledgedIntros) {
+      acknowledgeExperimentIntro(lemmaId, sentenceSession.session_id).catch(() => {});
     }
-  }, [cardIndex, sessionSlots, experimentIntroCards, wordOutcomes, sentenceSession, submittingReview, resetSentenceCardUi]);
+
+    if (target < sessionSlots.length) {
+      resetSentenceCardUi();
+      setCardIndex(target);
+    } else {
+      // All remaining slots were skippable — end the session. We must bump
+      // results.total to totalCards so isSessionDone fires (it compares
+      // results.total to totalCards, and auto-skips never incremented it).
+      setResults((prev) => ({
+        ...(prev ?? { total: 0, gotIt: 0, missed: 0, noIdea: 0 }),
+        total: totalCards,
+      }));
+    }
+  }, [cardIndex, sessionSlots, experimentIntroCards, wordOutcomes, sentenceSession, submittingReview, resetSentenceCardUi, totalCards]);
 
   useEffect(() => {
     if (cardState === "front" || cardState === "audio") {
@@ -1144,7 +1166,12 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
     }
 
     if (nextCardIndex >= totalCards) {
-      setResults(next);
+      // End of session. Bump total to totalCards so isSessionDone fires —
+      // it compares results.total to totalCards, but auto-skipped cards
+      // never incremented results.total, so a +1 increment leaves it short
+      // and the same card re-renders at cardState="front" (the "answer
+      // flips back to hidden" symptom).
+      setResults({ ...next, total: totalCards });
       resetSentenceCardUi();
     } else {
       setResults(next);
