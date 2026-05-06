@@ -4,6 +4,59 @@
 
 ---
 
+## 🟡 Clitic-leftover audit — 35 "my X" lemmas (2026-05-06)
+
+While investigating PR #72 (proper-name leak) found a second class of leftover
+dirty data: **35 lemmas where the bare form ends in ـِي and the gloss starts
+with "my "** — the 1sg possessive clitic was never stripped at import. By
+source: 17 duolingo, 17 textbook_scan, 1 story_import (`مَجالِي` "my field"
+from "Prince of Physicians" story_id=20). All predate the 2026-04-24 clitic-
+aware dedup fix. Examples: `جدي` "my grandfather" (should be `جد`), `بيتي`
+"my house" (`بيت`), `أبي` "my father" (`أب`), `كتبي` "my books" (`كتاب`),
+`اسمي` "my name" (`اسم`), `مَجالِي` "my field" (`مجال`).
+
+Concrete trigger that surfaced this: book/corpus sentences containing the
+bare `مجال` got mapped to lemma 2652 `مَجالِي` because the canonical `مجال`
+doesn't exist yet — they shared a root and `مجالي` was the closest match.
+
+**Fix idea** (`sh/clitic-my-leftover-audit`):
+1. For each of the 35 dirty lemmas, decide the canonical (e.g. `جد` for `جدي`)
+   and check whether it already exists in the DB.
+2. If it exists: redirect via `canonical_lemma_id`. Update all `SentenceWord.
+   lemma_id` and `UserLemmaKnowledge` rows to point at the canonical. Then
+   suspend or delete the dirty lemma.
+3. If it doesn't exist: create the canonical with proper bare form + gloss
+   stripped of "my", run quality gates, then redirect.
+4. **`UserLemmaKnowledge` is live FSRS data** — must dry-run + DB backup +
+   activity log before any merge. Anything else risks losing review history.
+
+Related to top sections A/B below: section B already proposes adding the bare
+1sg possessive `ي` to `ENCLITICS` so future surface forms strip correctly at
+lookup time. That fix would also help these dirty rows find the right
+canonical (once canonicals exist), so doing B first is a reasonable
+prerequisite.
+
+Audit query:
+```python
+db.query(Lemma).filter(
+    Lemma.lemma_ar_bare.like("%ي"),
+    Lemma.gloss_en.like("my %"),
+).all()
+```
+
+---
+
+## 🟢 [DONE 2026-05-06, PR #72] Proper-name filter leak — `pos='noun_prop'` vs `word_category` drift
+
+Filters keyed on `word_category=='proper_name'` but CAMeL-driven imports populated
+only `pos='noun_prop'`. 101 lemmas leaked through (incl. Thameena, Al-Razi,
+Bakr, Zakariya). Fixed with a `before_insert` listener on `Lemma` (forces
+`word_category='proper_name'` when `pos='noun_prop'` and category is NULL) +
+LLM-driven backfill of the 101 dirty rows (12 → proper_name, 82 → pos noun,
+7 loanword junk left). See `research/experiment-log.md` 2026-05-06 (later).
+
+---
+
 ## 🟡 Lookup gaps surfaced by sentence-eligibility-gate backfill (2026-05-05)
 
 Three real morphology / vocabulary gaps surfaced when remapping the 8 active

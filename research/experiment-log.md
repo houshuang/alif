@@ -4,6 +4,82 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-05-06 (later): Proper-name filter leak — `pos='noun_prop'` vs `word_category` drift (PR #72)
+
+### What
+
+User report: lemma `ثمينه` "Thameena" appeared as a full New Word intro card
+during reading review. CLAUDE.md says proper-name lemmas are inert (no
+intro card, no FSRS, no acquisition credit) — so why did this one slip
+through?
+
+Root cause: the inert-proper-name filters in `word_selector`,
+`sentence_selector`, `sentence_review_service`, and the
+`_drop_function_and_proper_name_lemma_ids` helper all key on
+`Lemma.word_category == "proper_name"`. None of them check `pos`. But
+CAMeL morphology populates `pos`, including `pos='noun_prop'` for proper
+nouns. Of 111 lemmas with `pos='noun_prop'` in prod, **only 6 had
+`word_category='proper_name'`**; the other 101 had `word_category=NULL`
+and bypassed every filter. Three import paths produced these: textbook_scan
+(OCR'd Arabic textbooks), book (Hindawi corpus + bookify imports), and
+story_import (Claude-generated stories).
+
+### Fix
+
+1. **`models.py` event listener** — `@event.listens_for(Lemma, "before_insert")`:
+   if `pos='noun_prop'` and `word_category` is NULL, set
+   `word_category='proper_name'`. Catches all 21+ Lemma creation sites and
+   any future ones with one piece of code. Tests in `test_models.py` cover
+   the guard, explicit-category preservation, and non-noun_prop bypass.
+
+2. **One-shot LLM-driven backfill** of the 101 leaked rows via the
+   existing `import_quality.classify_lemmas` gate:
+   - **12 → `word_category='proper_name'`**: Thameena, Najahat, Bakr (×2),
+     Jabir, Zakariya, Al-Razi (×2), Al-Hawi, Al-Qadir, Oslo, Sanaa.
+   - **82 → `pos` corrected to `noun`** (CAMeL misclassifications, left
+     `word_category` NULL so they remain learnable vocabulary): countries
+     (Norway, Syria, Lebanon, Yemen, Kuwait, Libya, Tunisia, Algeria,
+     Morocco, Mauritania, Sudan, Somalia, Palestine, Iraq, Denmark,
+     Sweden, Jordan), all 12 months, and common nouns mistagged by OCR
+     (modern, painter, Mr., hummus, appointments, examination, surgery,
+     experiments, etc.).
+   - **7 → left as-is**: foreign-loanword "junk" classifications
+     (sandwich, papaya, jeans, tango, Viking, cathedral, hello).
+
+   The classifier prompt explicitly encodes the policy "countries and
+   cities are useful vocabulary, not personal names" — that's why a bulk
+   `noun_prop NULL → proper_name` would have been wrong; it would have
+   inerted ~70 legitimate vocabulary words.
+
+### Why the listener and not a `@validates` decorator?
+
+`@validates` fires per-column-on-assignment and only sees one field at a
+time, so it can't reason about "if pos==X and word_category is None".
+`before_insert` runs at flush and sees the whole instance.
+
+### Verification
+
+`noun_prop ∧ word_category IS NULL` count went from 101 → 7 (the loanword
+junk). Total `word_category='proper_name'` lemmas: 25 → 37. Lemma 2651
+(Thameena): now `word_category='proper_name'`, inert. Lemma 1948 (Syria):
+now `pos='noun'`, learnable as intended.
+
+DB backed up at `/opt/alif-backups/alif_pre_proper_name_backfill_20260506_212717.db`.
+Activity logged (`manual_action`, lists all proper_name + pos-fixed + junk IDs).
+
+### Open follow-up — separate audit
+
+While inspecting the DB, surfaced a second class of leftover dirty data:
+**35 lemmas where the bare form ends in ـِي and the gloss starts with
+"my "** — the 1sg possessive clitic was never stripped at import (17
+duolingo, 17 textbook_scan, 1 story_import: `مَجالِي` "my field" from
+"Prince of Physicians" story_id=20). All predate the 2026-04-24 clitic-aware
+dedup fix. Cleanup is non-trivial because each needs canonical-merge +
+`UserLemmaKnowledge` redirect; branched as `sh/clitic-my-leftover-audit`
+(TBD), tracked in auto-memory.
+
+---
+
 ## 2026-05-06: Variant-canonical scheduling, intro-card re-fire, orphan intros, card-display logging (PRs #67–#71)
 
 ### What
