@@ -97,7 +97,14 @@ function buildInterleavedSession(
   introCandidates: IntroCandidate[],
   readingMode: boolean,
   verseCards: VerseCard[] = [],
+  alreadyShownIntroLemmaIds: Set<number> = new Set(),
 ): SessionSlot[] {
+  // Drop intros for lemmas the user already saw this UI session — applyFreshSession
+  // rebuilds slots on every prefetch; without this, an intro re-fires whenever
+  // the server's ack hasn't propagated yet.
+  if (alreadyShownIntroLemmaIds.size > 0) {
+    introCards = introCards.filter((c) => !alreadyShownIntroLemmaIds.has(c.lemma_id));
+  }
   // If no intro cards, just build sentence slots + deprecated intro candidates
   if (introCards.length === 0) {
     const slots: SessionSlot[] = items.map((_, i) => ({
@@ -268,6 +275,12 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
   const [reintroCards, setReintroCards] = useState<ReintroCard[]>([]);
   const [reintroIndex, setReintroIndex] = useState(0);
   const [experimentIntroCards, setExperimentIntroCards] = useState<ReintroCard[]>([]);
+  // Track intro lemmas already shown in this UI session, so background
+  // refreshes (applyFreshSession) don't re-emit a card the user just dismissed
+  // — server ack lag through the sync queue can leave `experiment_intro_shown_at`
+  // unset when the next prefetch returns. Bug: lemmas 259/464/596 fired 3-4×
+  // in a single 10-min session on 2026-05-06.
+  const shownIntroLemmaIdsRef = useRef<Set<number>>(new Set());
   const [verseCards, setVerseCards] = useState<VerseCard[]>([]);
   const [verseFlipped, setVerseFlipped] = useState(false);
   const [verseTappedIdx, setVerseTappedIdx] = useState<number | null>(null);
@@ -380,6 +393,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
     if (target === cardIndex) return;
 
     for (const lemmaId of acknowledgedIntros) {
+      shownIntroLemmaIdsRef.current.add(lemmaId);
       acknowledgeExperimentIntro(lemmaId, sentenceSession.session_id).catch(() => {});
     }
 
@@ -538,6 +552,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
     setReintroCards([]);
     setReintroIndex(0);
     setExperimentIntroCards([]);
+    shownIntroLemmaIdsRef.current = new Set();
     setGrammarLessons([]);
     setGrammarLessonIndex(0);
     setGrammarLessonsLoading(false);
@@ -570,6 +585,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
           ss.intro_candidates ?? [],
           m === "reading",
           ss.verse_cards ?? [],
+          shownIntroLemmaIdsRef.current,
         );
         setSessionSlots(slots);
         if (ss.verse_cards && ss.verse_cards.length > 0) {
@@ -1087,6 +1103,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
       fresh.intro_candidates ?? [],
       mode === "reading",
       fresh.verse_cards ?? [],
+      shownIntroLemmaIdsRef.current,
     );
     setVerseCards(fresh.verse_cards ?? []);
     setSessionSlots(slots);
@@ -1881,6 +1898,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
           <Pressable
             style={styles.reintroRememberBtn}
             onPress={() => {
+              shownIntroLemmaIdsRef.current.add(card.lemma_id);
               acknowledgeExperimentIntro(
                 card.lemma_id,
                 sentenceSession?.session_id,
