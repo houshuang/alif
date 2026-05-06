@@ -97,3 +97,43 @@ def test_sentence_with_words(db_session):
     fetched = db_session.query(Sentence).first()
     assert len(fetched.words) == 1
     assert fetched.words[0].is_target_word is True
+
+
+def test_noun_prop_auto_sets_word_category(db_session):
+    lemma = Lemma(
+        lemma_ar="ثَمِينَه",
+        lemma_ar_bare="ثمينه",
+        pos="noun_prop",
+        gloss_en="Thameena",
+        source="book",
+    )
+    db_session.add(lemma)
+    db_session.flush()
+    assert lemma.word_category == "proper_name"
+
+
+def test_explicit_word_category_not_overwritten(db_session):
+    lemma = Lemma(
+        lemma_ar="بُوم",
+        lemma_ar_bare="بوم",
+        pos="noun_prop",
+        word_category="onomatopoeia",
+        gloss_en="boom",
+        source="manual",
+    )
+    db_session.add(lemma)
+    db_session.flush()
+    assert lemma.word_category == "onomatopoeia"
+
+
+def test_non_noun_prop_word_category_untouched(db_session):
+    lemma = Lemma(
+        lemma_ar="كِتَاب",
+        lemma_ar_bare="كتاب",
+        pos="noun",
+        gloss_en="book",
+        source="manual",
+    )
+    db_session.add(lemma)
+    db_session.flush()
+    assert lemma.word_category is None
