@@ -4,6 +4,91 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-05-06 (latest): Broadened clitic-leftover audit — 95 lemmas, 88 cleaned
+
+### What
+
+Follow-up to the 35-lemma 1sg possessive audit. Broadened the gloss-driven
+audit to cover every Arabic proclitic (و, ف, ب, ل, ك, ال, وال, بال, فال, كال, لل)
+and enclitic (ـي, ـنا, ـك, ـه, ـها, ـهم, ـهن, ـكم, ـكن, ـني, ـهما) by
+matching the bare form's clitic shape against an English gloss prefix
+("my ", "and ", "with the ", …). Found 95 hits in prod:
+
+  * **75 ALREADY_LINKED** — `canonical_lemma_id` set by the 2026-04-27
+    decomposition audit (Phase 2 step 4c), but 31 of them still had stale
+    sentence_words / review_log / target_lemma_id / ULK refs pointing at
+    the compound form rather than the canonical. The prior pass set the
+    canonical link but didn't always reassign downstream refs.
+  * **13 ORPHAN_NO_CANON** — no canonical link. Of those: 7 mapped onto
+    existing-in-DB canonicals (with alef-restoration / hamza variants),
+    6 needed brand-new canonicals to be created (ميثاق, طغيان, تجارة,
+    اتقى, افسد, مجال — all Quran/story-import nouns and verbs whose root
+    forms hadn't been imported yet).
+  * **7 FALSE_POS_VERB** — ل-initial verbs like لعب "to play" where the
+    English "to V" infinitive marker masquerades as the "to/for X"
+    proclitic gloss. Skipped.
+
+### Trigger
+
+User reported lemma #2652 `مَجالِي` "my field" appearing as a New Word
+intro card. The canonical `مجال` didn't exist, so any sentence containing
+the surface form `مجال` was being mapped to this dirty compound lemma.
+
+### Fix
+
+`backend/scripts/cleanup_clitic_leftovers.py` runs three idempotent phases:
+
+  * **Phase A** — repoint stale sentence_words / review_log /
+    target_lemma_id from the 75 already-linked compounds to their
+    canonicals; merge or reassign 9 stale ULK rows preserving FSRS state
+    (largest merges: #1834 صديقي 183 times_seen → #1500, #1691 كتبي 144 →
+    #228, #61 بيتي 144 → #181, #69 ابي 125 → #158, #71 امي 123 → #76).
+  * **Phase B** — link 7 orphans to existing canonicals (full
+    `merge_orphan_into_canonical` from `apply_step4c_link_survivors.py`):
+    جدتي→جدة, للملئكة→الملئكة, شيطينهم→شيطان, ءاذانهم→أذن, وادعوا→دعا,
+    بالشوكلاته→شوكولاتة, وناكل→ناكل.
+  * **Phase C** — create 6 new canonical lemmas as stubs, run
+    `run_quality_gates(enrich=True)` synchronously (Claude Haiku CLI
+    populates diacritized form, root, transliteration, etymology,
+    forms_json), then link the orphans.
+
+The merge primitive comes from `apply_step4c_link_survivors.py:68–121`,
+preserving FSRS card / times_seen / last_reviewed when both sides have a
+ULK (weighted merge favoring the side with more reviews).
+
+### Root cause analysis
+
+The active import path is fixed: ALL 11 lemma-creation sites use
+`resolve_existing_lemma()` since 2026-04-24. But `_strip_clitics()` in
+`sentence_validator.py:354` deliberately omits ـي from the ENCLITICS list
+because it's ambiguous with defective-noun final radical (قاضي "judge"),
+relational adjective suffix (عربي "Arabic"), and dual oblique. So even a
+clitic-aware dedup wouldn't have caught these 35 ـي leftovers if it had
+run on those imports.
+
+The right place to catch them is the gloss check, which is exactly what
+this audit does: it requires *both* a clitic-shape match AND a matching
+English gloss prefix, sidestepping the defective-noun ambiguity.
+
+### Verification
+
+  * Local test on a copy of prod DB: A+B+C all applied cleanly, idempotent
+    on re-run. 6 new canonicals enriched correctly with proper roots
+    (تجارة → root #708 same as تاجر "merchant"; اتقى → root #446 same as
+    متقون; افسد → root #1233 same as يفسد; etc.).
+  * Re-running the audit after cleanup: same 95 lemma rows present
+    (intentional — kept as variants pointing at canonicals), but ALREADY_LINKED
+    stale-ref counts drop to zero and ORPHAN_NO_CANON empties out.
+
+### What's deliberately NOT changed
+
+`ENCLITICS` in `sentence_validator.py` still does not include ـي. Adding
+it would over-strip defective verbs and relational adjectives at every
+import. The pre-2026-04-24 cohort was a one-time data fix; the active
+import path doesn't need an ENCLITICS change.
+
+---
+
 ## 2026-05-06 (later): Proper-name filter leak — `pos='noun_prop'` vs `word_category` drift (PR #72)
 
 ### What

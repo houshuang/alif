@@ -4,45 +4,38 @@
 
 ---
 
-## 🟡 Clitic-leftover audit — 35 "my X" lemmas (2026-05-06)
+## 🟢 [DONE 2026-05-06] Broadened clitic-leftover audit — 95 lemmas, 88 cleaned
 
-While investigating PR #72 (proper-name leak) found a second class of leftover
-dirty data: **35 lemmas where the bare form ends in ـِي and the gloss starts
-with "my "** — the 1sg possessive clitic was never stripped at import. By
-source: 17 duolingo, 17 textbook_scan, 1 story_import (`مَجالِي` "my field"
-from "Prince of Physicians" story_id=20). All predate the 2026-04-24 clitic-
-aware dedup fix. Examples: `جدي` "my grandfather" (should be `جد`), `بيتي`
-"my house" (`بيت`), `أبي` "my father" (`أب`), `كتبي` "my books" (`كتاب`),
-`اسمي` "my name" (`اسم`), `مَجالِي` "my field" (`مجال`).
+Started as the "my X" cohort (35 lemmas) but broadened to all proclitics
+(و, ف, ب, ل, ك, ال, وال, بال, فال, كال, لل) + enclitics (ـي, ـنا, ـك, ـه, ـها,
+ـهم, ـهن, ـكم, ـكن, ـني, ـهما) using a two-signal audit (bare-form clitic
+shape + matching English gloss prefix). Found 95 hits in prod:
 
-Concrete trigger that surfaced this: book/corpus sentences containing the
-bare `مجال` got mapped to lemma 2652 `مَجالِي` because the canonical `مجال`
-doesn't exist yet — they shared a root and `مجالي` was the closest match.
+  * **75 ALREADY_LINKED** — `canonical_lemma_id` set by 2026-04-27 decomposition
+    audit, but 31 had stale sentence_words / review_log / target_lemma_id /
+    UserLemmaKnowledge refs left pointing at the compound. Cleaned via
+    `merge_or_drop_orphan_ulk` (preserves FSRS state).
+  * **13 ORPHAN_NO_CANON** — no canonical link. 7 mapped onto existing
+    canonicals via alef/hamza variant lookup; 6 needed brand-new canonicals
+    created (ميثاق, طغيان, تجارة, اتقى, افسد, مجال) with full LLM enrichment.
+  * **7 FALSE_POS_VERB** — ل-initial verbs whose English "to V" infinitive
+    looks like the "to/for X" proclitic gloss. Skipped.
 
-**Fix idea** (`sh/clitic-my-leftover-audit`):
-1. For each of the 35 dirty lemmas, decide the canonical (e.g. `جد` for `جدي`)
-   and check whether it already exists in the DB.
-2. If it exists: redirect via `canonical_lemma_id`. Update all `SentenceWord.
-   lemma_id` and `UserLemmaKnowledge` rows to point at the canonical. Then
-   suspend or delete the dirty lemma.
-3. If it doesn't exist: create the canonical with proper bare form + gloss
-   stripped of "my", run quality gates, then redirect.
-4. **`UserLemmaKnowledge` is live FSRS data** — must dry-run + DB backup +
-   activity log before any merge. Anything else risks losing review history.
+Concrete trigger: lemma #2652 `مَجالِي` "my field" appeared as a New Word
+intro card because the canonical `مجال` didn't exist; book/corpus sentences
+containing بare `مجال` got mapped to the dirty compound.
 
-Related to top sections A/B below: section B already proposes adding the bare
-1sg possessive `ي` to `ENCLITICS` so future surface forms strip correctly at
-lookup time. That fix would also help these dirty rows find the right
-canonical (once canonicals exist), so doing B first is a reasonable
-prerequisite.
+Implementation: `backend/scripts/cleanup_clitic_leftovers.py` (idempotent,
+three phases). Reuses the `merge_orphan_into_canonical` primitive from
+`apply_step4c_link_survivors.py`. See `research/experiment-log.md`
+2026-05-06 (latest) for the full writeup.
 
-Audit query:
-```python
-db.query(Lemma).filter(
-    Lemma.lemma_ar_bare.like("%ي"),
-    Lemma.gloss_en.like("my %"),
-).all()
-```
+`ENCLITICS` in `sentence_validator.py` deliberately still excludes ـي —
+adding it would over-strip defective verbs (قاضي) and relational adjectives
+(عربي). The audit's two-signal design (clitic shape AND gloss prefix)
+sidesteps that ambiguity, which is why it can safely surface ـي leftovers
+without false positives. See section B below for the prior idea about
+adding ـي to ENCLITICS — keeping it as a [REJECTED] alternative.
 
 ---
 
@@ -73,13 +66,18 @@ guard is correct (prevents matching very short stems against false roots) — th
 real fix is that `ل` should match directly without clitic stripping when the
 surface form IS just `لي`.
 
-### B. Missing 1st-person possessive `ي` in ENCLITICS
+### B. [REJECTED 2026-05-06] Missing 1st-person possessive `ي` in ENCLITICS
 
 `شُهْرَتِي` (my fame) cannot strip the trailing `ي`. ENCLITICS includes object
 suffixes (هما, هم, ها, ه, نا, ني, ك, كم, كن) but the bare 1st-person possessive
-`ي` is absent. Adding it would also help `كتابي`, `بيتي`, etc. Risk: many false
-matches because `ي` is also a regular letter; need a careful guard (e.g., only
-strip on a stem that ends in a non-vowel before the `ي`).
+`ي` is absent. Adding it would also help `كتابي`, `بيتي`, etc.
+
+**Rejected** in favor of the gloss-driven audit (see top entry, 2026-05-06).
+Adding ـي to ENCLITICS would over-strip defective verbs (قاضي, ماضي), relational
+adjectives (عربي, طبي, رياضي), and dual oblique inflections at every import.
+The pre-2026-04-24 cohort of ـي leftovers was cleaned as a one-time data fix
+via `cleanup_clitic_leftovers.py` (95 lemma audit). The active import path
+relies on CAMeL morphology + `resolve_existing_lemma()` for proper handling.
 
 ### C. [DONE 2026-05-05] Alef-maksura ↔ ya asymmetry in lookup
 
