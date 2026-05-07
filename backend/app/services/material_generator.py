@@ -4,6 +4,7 @@ Used by both learn.py (word introduction) and ocr_service.py (post-import).
 """
 
 import asyncio
+import fcntl
 import json
 import logging
 import os
@@ -23,6 +24,41 @@ logger = logging.getLogger(__name__)
 # justified the switch (95% naturalness vs 67% baseline, 2.9x cheaper).
 def _use_legacy_batch() -> bool:
     return os.environ.get("ALIF_USE_LEGACY_BATCH", "").strip() == "1"
+
+
+def _self_correct_batch_timeout(group_size: int) -> int:
+    raw = os.environ.get("ALIF_SELF_CORRECT_BATCH_TIMEOUT", "").strip()
+    if raw:
+        try:
+            return max(30, int(raw))
+        except ValueError:
+            logger.warning("Ignoring invalid ALIF_SELF_CORRECT_BATCH_TIMEOUT=%r", raw)
+    return 180 if group_size >= 10 else 120
+
+
+def _material_update_lock_path() -> Path:
+    return Path(os.environ.get("ALIF_UPDATE_MATERIAL_LOCK", "/tmp/alif-update-material.lock"))
+
+
+def _try_acquire_material_update_lock():
+    """Acquire the shared material-pipeline lock, or return None if busy."""
+    lock_path = _material_update_lock_path()
+    lock_path.parent.mkdir(parents=True, exist_ok=True)
+    handle = lock_path.open("w")
+    try:
+        fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError:
+        handle.close()
+        return None
+    return handle
+
+
+def _release_material_update_lock(handle) -> None:
+    try:
+        fcntl.flock(handle, fcntl.LOCK_UN)
+    finally:
+        handle.close()
+
 
 # Prevent concurrent warm_sentence_cache runs from overlapping prefetches
 _warm_cache_lock = threading.Lock()
@@ -118,11 +154,15 @@ def _generate_via_self_correct(
     these, the new generation path (default since 2026-04-20) has no
     measurable success rate — only failures were logged previously.
     """
+    from app.services.llm import claude_cli_temporarily_disabled
     from app.services.sentence_self_correct import generate_sentences_self_correct_batch
     from app.config import settings as _settings
     import time as _time
 
     target_ids = [t["lemma_id"] for t in targets]
+    if claude_cli_temporarily_disabled():
+        raise RuntimeError("claude CLI temporarily disabled")
+
     started = _time.time()
     try:
         res = generate_sentences_self_correct_batch(
@@ -130,6 +170,7 @@ def _generate_via_self_correct(
             db_path=_settings.database_url.replace("sqlite:///", ""),
             needed_per_target=count_per_word,
             max_budget_usd=max(0.2, 0.1 * len(target_ids)),
+            timeout=_self_correct_batch_timeout(len(target_ids)),
         )
     except RuntimeError as exc:
         elapsed = _time.time() - started
@@ -1286,9 +1327,16 @@ def warm_sentence_cache(llm_model: str = "claude_sonnet") -> dict:
     if not _warm_cache_lock.acquire(blocking=False):
         logger.info("Warm cache: skipping, another run already in progress")
         return {"skipped": True}
+    lock_handle = None
     try:
+        lock_handle = _try_acquire_material_update_lock()
+        if lock_handle is None:
+            logger.info("Warm cache: skipping, material update/backfill is already running")
+            return {"skipped": True, "reason": "material_update_active"}
         return _warm_sentence_cache_impl(llm_model)
     finally:
+        if lock_handle is not None:
+            _release_material_update_lock(lock_handle)
         _warm_cache_lock.release()
 
 
@@ -1318,11 +1366,14 @@ def _warm_sentence_cache_impl(llm_model: str = "claude_sonnet") -> dict:
         word_tiers = compute_word_tiers(db)
         tier_lookup = build_tier_lookup(word_tiers)
 
-        # Tier-based lifecycle: rotate stale and tier-4 excess sentences
-        rotated = rotate_stale_sentences(db, tier_lookup=tier_lookup)
-        stats["rotated"] = rotated
+        # Warm cache runs from user-facing review requests. It must not retire
+        # active material before proving it can replenish, especially while a
+        # cron/backfill job is producing replacements. Tier lifecycle rotation
+        # is handled by the locked update_material.py path.
+        stats["rotated"] = 0
 
-        # Safety valve only — skip if way over cap (shouldn't happen with tier lifecycle)
+        # Safety valve only — skip if way over cap. The scheduled material job
+        # owns lifecycle rotation.
         total_active = (
             db.query(func.count(Sentence.id))
             .filter(Sentence.is_active == True)
