@@ -516,7 +516,7 @@ function FrequencyCoreCard({ data }: { data: FrequencyCoreProgress }) {
         <View style={{ flex: 1 }}>
           <Text style={styles.freqCoreTitle}>High-Frequency Core</Text>
           <Text style={styles.freqCoreSubtitle}>
-            Top {data.learned_prefix_count} learned with no earlier gaps
+            {top1000.learned_count} learned · {top1000.pipeline_count} in pipeline
           </Text>
         </View>
         <View style={styles.freqCoreBadge}>
@@ -534,8 +534,8 @@ function FrequencyCoreCard({ data }: { data: FrequencyCoreProgress }) {
               <View style={styles.freqCoreBandTop}>
                 <Text style={styles.freqCoreBandLabel}>Top {band.top_n}</Text>
                 <Text style={styles.freqCoreBandCount}>
-                  {band.learned_count}/{band.total_count}
-                  {band.unmapped_count > 0 ? ` · ${band.unmapped_count} gaps` : ""}
+                  {band.learned_count} learned · {band.pipeline_count} pipeline
+                  {band.unmapped_count > 0 ? ` · ${band.unmapped_count} unmapped` : ""}
                 </Text>
               </View>
               <View style={styles.freqCoreTrack}>
@@ -549,7 +549,7 @@ function FrequencyCoreCard({ data }: { data: FrequencyCoreProgress }) {
 
       {gaps.length > 0 && (
         <View style={styles.freqCoreGaps}>
-          <Text style={styles.freqCoreGapTitle}>Next gaps</Text>
+          <Text style={styles.freqCoreGapTitle}>Earliest unresolved ranks</Text>
           {gaps.map((gap) => (
             <View key={`${gap.core_rank}-${gap.display_form}`} style={styles.freqCoreGapRow}>
               <Text style={styles.freqCoreGapRank}>#{gap.core_rank}</Text>
@@ -558,7 +558,7 @@ function FrequencyCoreCard({ data }: { data: FrequencyCoreProgress }) {
                 {gap.gloss_en || gap.status.replace(/_/g, " ")}
               </Text>
               <Text style={styles.freqCoreGapStatus}>
-                {(gap.gap_status || gap.status).replace(/_/g, " ")}
+                {frequencyCoreGapLabel(gap)}
               </Text>
             </View>
           ))}
@@ -566,6 +566,17 @@ function FrequencyCoreCard({ data }: { data: FrequencyCoreProgress }) {
       )}
     </View>
   );
+}
+
+function frequencyCoreGapLabel(gap: FrequencyCoreProgress["next_gaps"][number]) {
+  if (!gap.lemma_id || gap.status === "missing_from_db" || gap.gap_status === "unmapped") {
+    return "missing from DB";
+  }
+  if (gap.status === "acquiring") return "introduced";
+  if (gap.status === "encountered") return "encountered";
+  if (gap.status === "lapsed") return "lapsed";
+  if (gap.status === "new") return "not started";
+  return (gap.gap_status || gap.status).replace(/_/g, " ");
 }
 
 function KnownWordsGrowth({
@@ -1338,9 +1349,9 @@ const styles = StyleSheet.create({
   freqCoreBadgeLabel: { fontSize: 10, color: colors.textSecondary, marginTop: 1 },
   freqCoreBands: { gap: 10 },
   freqCoreBand: { gap: 4 },
-  freqCoreBandTop: { flexDirection: "row", justifyContent: "space-between", alignItems: "baseline" },
+  freqCoreBandTop: { flexDirection: "row", justifyContent: "space-between", alignItems: "baseline", gap: 8 },
   freqCoreBandLabel: { fontSize: 12, color: colors.text, fontWeight: "600" },
-  freqCoreBandCount: { fontSize: 12, color: colors.textSecondary },
+  freqCoreBandCount: { flexShrink: 1, fontSize: 12, color: colors.textSecondary, textAlign: "right" },
   freqCoreTrack: { height: 7, borderRadius: 4, backgroundColor: colors.surfaceLight, overflow: "hidden" },
   freqCorePipelineFill: { position: "absolute", left: 0, top: 0, bottom: 0, backgroundColor: colors.stateAcquiring + "45", borderRadius: 4 },
   freqCoreLearnedFill: { height: "100%", backgroundColor: colors.good, borderRadius: 4 },

@@ -1065,6 +1065,37 @@ def step_pregenerate_candidates(db: Session, dry_run: bool, count: int, model: s
         print(f"  Pipeline full ({total_active} >= {TARGET_PIPELINE_SENTENCES}), skipping.")
         return 0
 
+    try:
+        from app.services.frequency_core_intake import (
+            DEFAULT_LIMIT as FREQ_CORE_INTAKE_LIMIT,
+            DEFAULT_MAX_RANK as FREQ_CORE_INTAKE_MAX_RANK,
+            intake_frequency_core_gaps,
+        )
+        intake_limit = max(
+            0,
+            int(os.environ.get("ALIF_FREQ_CORE_INTAKE_LIMIT", str(FREQ_CORE_INTAKE_LIMIT))),
+        )
+        intake_max_rank = max(
+            0,
+            int(os.environ.get("ALIF_FREQ_CORE_INTAKE_MAX_RANK", str(FREQ_CORE_INTAKE_MAX_RANK))),
+        )
+        intake = intake_frequency_core_gaps(
+            db,
+            limit=intake_limit,
+            max_rank=intake_max_rank,
+            dry_run=dry_run,
+        )
+        if any(intake.get(k) for k in ("resolved_existing", "created", "rejected", "errors")):
+            print(
+                "  Frequency-core intake: "
+                f"resolved={intake.get('resolved_existing', 0)}, "
+                f"created={intake.get('created', 0)}, "
+                f"rejected={intake.get('rejected', 0)}, "
+                f"errors={intake.get('errors', 0)}"
+            )
+    except Exception as exc:
+        print(f"  Frequency-core intake failed: {exc}")
+
     candidates = select_next_words(db, count=count)
     if not candidates:
         print("  No candidates available.")

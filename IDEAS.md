@@ -134,10 +134,17 @@ Follow-ups discovered during deploy:
   that freezes `prefix` on the first non-learned row, mirroring the API's
   `break`-on-gap. Verified against 6 synthetic states (incl. the 90/gap/50
   scenario from the original report) — both halves now agree.
-- **High-frequency unmapped lemmas**: rank #1 منتدى (forum), #2 قسم (section),
-  #13 عملية (operation), #16 المنتدى — these are top-20 forum/web frequencies
-  CAMeL captures but Alif's vocabulary never imported. Worth a one-shot script
-  to import the unmapped top 100 freq-core slots as wiktionary-source lemmas.
+- **[DONE 2026-05-07] High-frequency unmapped lemmas**: rank #1 منتدى (forum),
+  #2 قسم (section), #13 عملية (operation), #16 المنتدى — these are top-20
+  forum/web frequencies CAMeL captures but Alif's vocabulary never imported.
+  Implemented as a capped cron intake valve instead of a one-shot bulk import:
+  `frequency_core_intake.py` handles up to 5 top-1,000 unmapped rows per material
+  generation run, tries deterministic existing-lemma lookup first, and only
+  creates high-confidence standard vocabulary through import-quality +
+  `run_quality_gates(background_enrich=False)`. Conservative rejects get
+  `gap_status="needs_manual_review"` so cron does not retry them forever. It
+  creates no ULK rows; normal candidate selection and material generation
+  introduce the words later.
 
 ---
 

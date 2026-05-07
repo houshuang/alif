@@ -12,6 +12,7 @@ const SOURCE_COLORS: Record<string, string> = {
   "Story": "#9b59b6",
   "Duolingo": colors.gotIt,
   "Review": colors.textSecondary,
+  "Frequency core": colors.stateAcquiring,
 };
 
 export function IntroducedWordsTable({ words }: { words: IntroducedWordDetail[] }) {

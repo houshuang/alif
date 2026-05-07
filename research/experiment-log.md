@@ -4,7 +4,53 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
-## 2026-05-06 (latest): Broadened clitic-leftover audit — 95 lemmas, 88 cleaned
+## 2026-05-07 (latest): Capped intake for unmapped frequency-core rows
+
+### What
+
+Added `backend/app/services/frequency_core_intake.py` and wired it into the
+scheduled material-generation path (`update_material.py` Step C). Each run
+processes at most 5 unmapped frequency-core rows in the top 1,000 by default
+(`ALIF_FREQ_CORE_INTAKE_LIMIT`, `ALIF_FREQ_CORE_INTAKE_MAX_RANK` can override).
+
+The intake path:
+
+  * first resolves rows to existing canonical lemmas using the comprehensive
+    lookup + CAMeL analysis,
+  * only asks Claude Haiku for a dictionary lemma when no existing lemma maps,
+  * accepts creation only for high-confidence standard vocabulary whose proposed
+    lemma is morphologically related to the source form,
+  * reuses `import_quality.classify_lemmas`,
+  * runs `run_quality_gates(background_enrich=False)`,
+  * marks conservative rejects as `gap_status="needs_manual_review"` to avoid
+    retry loops while keeping them visible in stats,
+  * creates no `UserLemmaKnowledge` rows.
+
+### Why
+
+The stats page surfaced persistent top-core gaps such as #1 منتدى, #2 قسم,
+#13 عملية, and #16 المنتدى. Bulk importing those rows is risky because previous
+low-quality lemma creation bugs came from clitic/plural/variant surfaces entering
+the scheduler as if they were canonical dictionary lemmas. The cron already has
+the right moment to do this: when it is preparing material for upcoming new-word
+candidates.
+
+### Expected
+
+Unmapped counts in the high-frequency bands should decline gradually as the cron
+runs, without a sudden batch of unreviewed low-quality lemmas. Newly created rows
+should become normal `frequency_core` candidates, get sentences from the existing
+material pipeline, and only then be introduced by the session scheduler.
+
+### Verification
+
+Focused tests cover deterministic mapping to an existing lemma, gated creation
+without ULK seeding, and rejection of uncertain lemmatization:
+`pytest backend/tests/test_frequency_core_intake.py`.
+
+---
+
+## 2026-05-06: Broadened clitic-leftover audit — 95 lemmas, 88 cleaned
 
 ### What
 

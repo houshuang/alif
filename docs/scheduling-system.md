@@ -1221,6 +1221,17 @@ MAX_RECENCY_EXHAUSTED (20) budget goes to most urgent words first.
 allocation, 2026-03-10 protect never-shown, 2026-03-10 tier-based lifecycle replaces
 fixed cap)
 
+**Frequency-core intake** (`update_material.py` Step C): before selecting likely
+new-word candidates, cron may intake a small batch of unmapped top-core rows
+(default 5 rows, max rank 1,000; env overrides:
+`ALIF_FREQ_CORE_INTAKE_LIMIT`, `ALIF_FREQ_CORE_INTAKE_MAX_RANK`). It tries
+deterministic existing-lemma resolution first; otherwise it only creates
+high-confidence standard vocabulary through import-quality +
+`run_quality_gates()`. This does not create ULK rows; it only makes safe lemmas
+available to the normal `select_next_words()` → material generation → session
+introduction flow. Conservative rejects are marked `needs_manual_review` and
+skipped by later intake runs while still appearing as unmapped stats rows.
+
 **Verb conjugation recognition** (`sentence_validator.py`): Pass 3 of
 `build_lemma_lookup()` generates all standard Arabic verb conjugation forms (~33 per
 verb) by applying past-tense suffixes and present-tense prefix/suffix combinations to
