@@ -4,6 +4,7 @@ import {
   unmarkReviewed,
   getCachedSession,
   cacheSessions,
+  dropCachedSession,
   invalidateSessions,
   cacheData,
   getCachedData,
@@ -17,6 +18,7 @@ import {
 } from "../offline-store";
 
 const store = (AsyncStorage as any)._store;
+const REVIEWED_KEY = "@alif/reviewed/v2";
 
 beforeEach(async () => {
   for (const key of Object.keys(store)) delete store[key];
@@ -27,7 +29,7 @@ describe("markReviewed / unmarkReviewed", () => {
   it("marks a sentence as reviewed", async () => {
     await markReviewed("sess-1", 10, 42, "reading");
 
-    const raw = store["@alif/reviewed"];
+    const raw = store[REVIEWED_KEY];
     const keys: string[] = JSON.parse(raw);
     expect(keys).toContain("reading:10:42");
     expect(keys).toContain("sess-1:10:42");
@@ -36,7 +38,7 @@ describe("markReviewed / unmarkReviewed", () => {
   it("marks a word-only card as reviewed", async () => {
     await markReviewed("sess-1", null, 42, "reading");
 
-    const keys: string[] = JSON.parse(store["@alif/reviewed"]);
+    const keys: string[] = JSON.parse(store[REVIEWED_KEY]);
     expect(keys).toContain("reading:word:42");
   });
 
@@ -46,7 +48,7 @@ describe("markReviewed / unmarkReviewed", () => {
 
     await unmarkReviewed("sess-1", 10, 42, "reading");
 
-    const keys: string[] = JSON.parse(store["@alif/reviewed"]);
+    const keys: string[] = JSON.parse(store[REVIEWED_KEY]);
     expect(keys).not.toContain("reading:10:42");
     expect(keys).not.toContain("sess-1:10:42");
     // Other entry still there
@@ -58,13 +60,13 @@ describe("markReviewed / unmarkReviewed", () => {
     await unmarkReviewed("sess-1", 10, 42, "reading");
     await unmarkReviewed("sess-1", 10, 42, "reading");
 
-    const keys: string[] = JSON.parse(store["@alif/reviewed"]);
+    const keys: string[] = JSON.parse(store[REVIEWED_KEY]);
     expect(keys).not.toContain("reading:10:42");
   });
 
   it("unmark on empty reviewed set does not error", async () => {
     await unmarkReviewed("sess-1", 10, 42, "reading");
-    const raw = store["@alif/reviewed"];
+    const raw = store[REVIEWED_KEY];
     const keys: string[] = JSON.parse(raw);
     expect(keys).toEqual([]);
   });
@@ -104,6 +106,45 @@ describe("cacheSessions / getCachedSession", () => {
     expect(result).not.toBeNull();
     expect(result!.items).toHaveLength(1);
     expect(result!.items[0].primary_lemma_id).toBe(20);
+  });
+
+  it("skips depleted cached sessions when a minimum remaining count is requested", async () => {
+    const depleted = makeSession("s-1", [
+      { sentence_id: 1, primary_lemma_id: 10, words: [] },
+      { sentence_id: 2, primary_lemma_id: 20, words: [] },
+      { sentence_id: 3, primary_lemma_id: 30, words: [] },
+    ]);
+    const healthy = makeSession("s-2", [
+      { sentence_id: 4, primary_lemma_id: 40, words: [] },
+      { sentence_id: 5, primary_lemma_id: 50, words: [] },
+      { sentence_id: 6, primary_lemma_id: 60, words: [] },
+      { sentence_id: 7, primary_lemma_id: 70, words: [] },
+      { sentence_id: 8, primary_lemma_id: 80, words: [] },
+    ]);
+    await cacheSessions("reading", [depleted, healthy]);
+    await markReviewed("s-1", 1, 10, "reading");
+    await markReviewed("s-1", 2, 20, "reading");
+
+    const result = await getCachedSession("reading", false, 5);
+    expect(result).not.toBeNull();
+    expect(result!.session_id).toBe("s-2");
+    expect(result!.items).toHaveLength(5);
+  });
+
+  it("drops a cached session by id", async () => {
+    const first = makeSession("s-1", [
+      { sentence_id: 1, primary_lemma_id: 10, words: [] },
+    ]);
+    const second = makeSession("s-2", [
+      { sentence_id: 2, primary_lemma_id: 20, words: [] },
+    ]);
+    await cacheSessions("reading", [first, second]);
+
+    await dropCachedSession("reading", "s-2");
+
+    const result = await getCachedSession("reading");
+    expect(result).not.toBeNull();
+    expect(result!.session_id).toBe("s-1");
   });
 
   it("returns null when all items reviewed", async () => {
@@ -171,7 +212,7 @@ describe("invalidateSessions", () => {
     expect(await getCachedData("words")).toBeNull();
     expect(await getCachedData("stats")).toBeNull();
     // reviewed set also cleared
-    expect(store["@alif/reviewed"]).toBeUndefined();
+    expect(store[REVIEWED_KEY]).toBeUndefined();
   });
 });
 

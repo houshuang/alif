@@ -54,7 +54,7 @@ import {
 } from "../lib/types";
 import { posLabel, FormsRow, FormsStrip, GrammarRow, PlayButton } from "../lib/WordCardComponents";
 import { syncEvents } from "../lib/sync-events";
-import { getShownIntroLemmaIds, markIntroShown } from "../lib/offline-store";
+import { dropCachedSession, getShownIntroLemmaIds, markIntroShown } from "../lib/offline-store";
 import { flushQueue } from "../lib/sync-queue";
 import { useNetStatus } from "../lib/net-status";
 import ActionMenu from "../lib/review/ActionMenu";
@@ -1627,7 +1627,14 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
         introducedLemmaIds={introducedLemmaIds}
         wordOutcomes={wordOutcomes}
         sessionId={sentenceSession?.session_id ?? ""}
-        onNewSession={() => loadSession()}
+        onNewSession={() => {
+          void (async () => {
+            if (sentenceSession?.session_id) {
+              await dropCachedSession(mode, sentenceSession.session_id).catch(() => {});
+            }
+            await loadSession(undefined, true);
+          })();
+        }}
       />
     );
   }
@@ -3211,6 +3218,13 @@ function SessionComplete({
   const fadeAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
+    // Once the complete screen is shown, any unreviewed tail of this generated
+    // session is intentionally abandoned. Keeping it cached makes the next
+    // "new" session resume old cards under the old session_id.
+    if (sessionId) {
+      dropCachedSession(mode, sessionId).catch(() => {});
+    }
+
     // Flush queue in parallel — reviews were already synced during session
     // via fire-and-forget flushes; this is just a safety net for stragglers
     flushQueue().catch(() => {});

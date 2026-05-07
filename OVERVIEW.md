@@ -106,7 +106,7 @@ This distinction matters because FSRS schedules "Hard" differently from "Again" 
 
 ## Offline-First
 
-All reviews queue locally and sync when you're back online. Sessions are cached (3 per mode). Story lookups persist in local storage. You can practice on a plane or subway without losing anything.
+All reviews queue locally and sync when you're back online. Sessions are cached briefly for offline use, but online "new session" loads skip depleted cached fragments and the completion screen drops abandoned tails so a wrapped-up session cannot reappear later as a one-card session. Story lookups persist in local storage. You can practice on a plane or subway without losing anything.
 
 ## What It Doesn't Do
 

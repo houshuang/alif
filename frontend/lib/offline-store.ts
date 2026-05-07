@@ -7,12 +7,15 @@ import type {
   WordLookupResult,
 } from "./types";
 
+const SESSION_CACHE_VERSION = 2;
 const WORD_LOOKUP_CACHE_VERSION = 3;
 const WORD_LOOKUP_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
 
 const KEYS = {
-  sessions: (mode: ReviewMode) => `@alif/sessions/${mode}`,
-  reviewed: "@alif/reviewed",
+  sessions: (mode: ReviewMode) => `@alif/sessions/v${SESSION_CACHE_VERSION}/${mode}`,
+  legacySessions: (mode: ReviewMode) => `@alif/sessions/${mode}`,
+  reviewed: `@alif/reviewed/v${SESSION_CACHE_VERSION}`,
+  legacyReviewed: "@alif/reviewed",
   shownIntros: "@alif/shown-intros",
   words: "@alif/words",
   stats: "@alif/stats",
@@ -36,6 +39,32 @@ const SESSION_STALENESS_MS = 30 * 60 * 1000; // 30 minutes
 interface CachedSessionEntry {
   session: SentenceReviewSession;
   cached_at: number; // Date.now() timestamp
+}
+
+let sessionCacheLock: Promise<void> = Promise.resolve();
+
+async function withSessionCacheLock<T>(fn: () => Promise<T>): Promise<T> {
+  const previous = sessionCacheLock;
+  let release!: () => void;
+  sessionCacheLock = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  await previous;
+  try {
+    return await fn();
+  } finally {
+    release();
+  }
+}
+
+function normalizeSessionEntries(
+  raw: CachedSessionEntry[] | SentenceReviewSession[]
+): CachedSessionEntry[] {
+  return raw.map((item: any) =>
+    item.session
+      ? (item as CachedSessionEntry)
+      : { session: item as SentenceReviewSession, cached_at: 0 }
+  );
 }
 
 function reviewKey(
@@ -67,20 +96,28 @@ export async function cacheSessions(
   mode: ReviewMode,
   sessions: SentenceReviewSession[]
 ): Promise<void> {
-  const key = KEYS.sessions(mode);
-  const existing = (await getJson<CachedSessionEntry[]>(key)) ?? [];
-  const existingIds = new Set(existing.map((e) => e.session.session_id));
-  const now = Date.now();
-  const newEntries: CachedSessionEntry[] = sessions
-    .filter((s) => !existingIds.has(s.session_id))
-    .map((s) => ({ session: s, cached_at: now }));
-  const combined = [...existing, ...newEntries].slice(-MAX_CACHED_SESSIONS);
-  await setJson(key, combined);
+  await withSessionCacheLock(async () => {
+    const key = KEYS.sessions(mode);
+    const existing = normalizeSessionEntries(
+      (await getJson<CachedSessionEntry[] | SentenceReviewSession[]>(key)) ?? []
+    );
+    const existingIds = new Set(existing.map((e) => e.session.session_id));
+    const now = Date.now();
+    const newEntries: CachedSessionEntry[] = sessions
+      .filter((s) => !existingIds.has(s.session_id))
+      .map((s) => ({ session: s, cached_at: now }));
+    const freshExisting = existing.filter(
+      (e) => e.cached_at === 0 || now - e.cached_at <= SESSION_STALENESS_MS
+    );
+    const combined = [...freshExisting, ...newEntries].slice(-MAX_CACHED_SESSIONS);
+    await setJson(key, combined);
+  });
 }
 
 export async function getCachedSession(
   mode: ReviewMode,
   allowStale: boolean = false,
+  minRemaining: number = 1,
 ): Promise<SentenceReviewSession | null> {
   const key = KEYS.sessions(mode);
   const raw = (await getJson<CachedSessionEntry[] | SentenceReviewSession[]>(key)) ?? [];
@@ -88,14 +125,11 @@ export async function getCachedSession(
   const shownIntros = await getShownIntroLemmaIds();
   const now = Date.now();
 
-  // Normalize: support both old format (plain sessions) and new (with cached_at)
-  const entries: CachedSessionEntry[] = raw.map((item: any) =>
-    item.session
-      ? (item as CachedSessionEntry)
-      : { session: item as SentenceReviewSession, cached_at: 0 }
-  );
+  const entries = normalizeSessionEntries(raw);
 
-  for (const entry of entries) {
+  // Prefer the newest cached session. Older partial sessions are often
+  // abandoned tails after the user manually wrapped up.
+  for (const entry of [...entries].reverse()) {
     // Skip stale sessions (> 30 min old) unless explicitly allowed (e.g. offline)
     if (!allowStale && entry.cached_at > 0 && now - entry.cached_at > SESSION_STALENESS_MS) {
       continue;
@@ -113,7 +147,7 @@ export async function getCachedSession(
           )
         )
     );
-    if (remaining.length > 0) {
+    if (remaining.length >= minRemaining) {
       // Strip intros the user already dismissed (24h window). Otherwise a
       // session resumed after iOS suspend/restart will replay them.
       const filteredIntros = (session.experiment_intro_cards ?? []).filter(
@@ -131,16 +165,25 @@ export async function getCachedSession(
   return null;
 }
 
+export async function dropCachedSession(
+  mode: ReviewMode,
+  sessionId: string,
+): Promise<void> {
+  await withSessionCacheLock(async () => {
+    const key = KEYS.sessions(mode);
+    const raw = (await getJson<CachedSessionEntry[] | SentenceReviewSession[]>(key)) ?? [];
+    const entries = normalizeSessionEntries(raw);
+    const filtered = entries.filter((e) => e.session.session_id !== sessionId);
+    await setJson(key, filtered);
+  });
+}
+
 export async function getCachedSentenceIds(
   mode: ReviewMode
 ): Promise<Set<number>> {
   const key = KEYS.sessions(mode);
   const raw = (await getJson<CachedSessionEntry[] | SentenceReviewSession[]>(key)) ?? [];
-  const entries: CachedSessionEntry[] = raw.map((item: any) =>
-    item.session
-      ? (item as CachedSessionEntry)
-      : { session: item as SentenceReviewSession, cached_at: 0 }
-  );
+  const entries = normalizeSessionEntries(raw);
   const ids = new Set<number>();
   for (const entry of entries) {
     for (const item of entry.session.items) {
@@ -225,11 +268,7 @@ export async function pruneReviewedSet(): Promise<void> {
   for (const mode of ["reading", "listening", "quiz"] as ReviewMode[]) {
     const key = KEYS.sessions(mode);
     const raw = (await getJson<CachedSessionEntry[] | SentenceReviewSession[]>(key)) ?? [];
-    const entries: CachedSessionEntry[] = raw.map((item: any) =>
-      item.session
-        ? (item as CachedSessionEntry)
-        : { session: item as SentenceReviewSession, cached_at: 0 }
-    );
+    const entries = normalizeSessionEntries(raw);
     for (const entry of entries) {
       const session = entry.session;
       for (const item of session.items) {
@@ -252,7 +291,11 @@ export async function invalidateSessions(): Promise<void> {
     KEYS.sessions("reading"),
     KEYS.sessions("listening"),
     KEYS.sessions("quiz"),
+    KEYS.legacySessions("reading"),
+    KEYS.legacySessions("listening"),
+    KEYS.legacySessions("quiz"),
     KEYS.reviewed,
+    KEYS.legacyReviewed,
     KEYS.words,
     KEYS.stats,
     KEYS.analytics,

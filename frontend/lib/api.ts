@@ -61,6 +61,8 @@ import { enqueueReview, flushQueue, removeFromQueue } from "./sync-queue";
 export const BASE_URL =
   Constants.expoConfig?.extra?.apiUrl ?? "http://localhost:8000";
 
+const MIN_ONLINE_CACHED_SESSION_ITEMS = 5;
+
 interface RawWord {
   lemma_id: number;
   lemma_ar: string;
@@ -434,7 +436,7 @@ export async function getSentenceReviewSession(
   mode: ReviewMode = "reading"
 ): Promise<SentenceReviewSession> {
   // Try prefetched cache first for instant load
-  const cached = await getCachedSession(mode);
+  const cached = await getCachedSession(mode, false, MIN_ONLINE_CACHED_SESSION_ITEMS);
   if (cached && cached.items.length > 0) {
     backgroundPrefetch(mode);
     return cached;

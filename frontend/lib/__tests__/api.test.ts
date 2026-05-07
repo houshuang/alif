@@ -57,6 +57,8 @@ function mockErrorResponse(status: number, body = "error") {
 }
 
 const store = (AsyncStorage as any)._store;
+const REVIEWED_KEY = "@alif/reviewed/v2";
+const SESSION_CACHE_KEY = "@alif/sessions/v2/reading";
 
 beforeEach(() => {
   mockFetch.mockReset();
@@ -209,7 +211,7 @@ describe("submitSentenceReview", () => {
     expect(entry.payload.comprehension_signal).toBe("understood");
 
     // Check marked as reviewed
-    const reviewed = JSON.parse(store["@alif/reviewed"]);
+    const reviewed = JSON.parse(store[REVIEWED_KEY]);
     expect(reviewed.some((k: string) => k.includes("42"))).toBe(true);
   });
 
@@ -286,7 +288,7 @@ describe("undoSentenceReview", () => {
     expect(queue.some((e: any) => e.client_review_id === clientReviewId)).toBe(false);
 
     // Reviewed mark removed
-    const reviewed = JSON.parse(store["@alif/reviewed"]);
+    const reviewed = JSON.parse(store[REVIEWED_KEY]);
     expect(reviewed.some((k: string) => k.includes("42"))).toBe(false);
 
     // Backend called
@@ -357,12 +359,16 @@ describe("getSentenceReviewSession", () => {
       session_id: "cached-sess",
       items: [
         { sentence_id: 1, primary_lemma_id: 10, words: [] },
+        { sentence_id: 2, primary_lemma_id: 20, words: [] },
+        { sentence_id: 3, primary_lemma_id: 30, words: [] },
+        { sentence_id: 4, primary_lemma_id: 40, words: [] },
+        { sentence_id: 5, primary_lemma_id: 50, words: [] },
       ],
-      total_due_words: 1,
-      covered_due_words: 1,
+      total_due_words: 5,
+      covered_due_words: 5,
       intro_candidates: [],
     };
-    store["@alif/sessions/reading"] = JSON.stringify([cached]);
+    store[SESSION_CACHE_KEY] = JSON.stringify([{ session: cached, cached_at: Date.now() }]);
 
     const session = await getSentenceReviewSession("reading");
     expect(session.session_id).toBe("cached-sess");
