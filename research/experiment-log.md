@@ -4,7 +4,86 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
-## 2026-05-07 (latest): Capped intake for unmapped frequency-core rows
+## 2026-05-07 (latest): Claude quota fallback, material lock coordination, and intro-promotion persistence
+
+### What
+
+Production learning-log audit found three interacting issues in the sentence
+material path:
+
+  * Claude CLI quota/refusal failures could leave background material jobs
+    spinning or returning empty self-correct results without taking the normal
+    API fallback path.
+  * `warm_sentence_cache()` could run while `update_material.py` was already
+    rotating/backfilling material, so a user-triggered warm cache could retire
+    active rows during a long backfill.
+  * Session build promoted cold collateral words to acquisition so it could
+    return intro cards, but that promotion was not committed before the later
+    intro-ack/review path. DB timestamps could therefore make it look like a
+    sentence appeared before the word was introduced.
+
+Fixes shipped:
+
+  * `backend/app/services/llm.py`: CLI quota/refusal cooldown plus API fallback.
+  * `backend/app/services/material_generator.py`: self-correct respects CLI
+    cooldown, uses shorter configurable batch timeouts, and `warm_sentence_cache()`
+    skips with `reason="material_update_active"` while the shared material-update
+    lock is held.
+  * `backend/scripts/update_material.py`: nonblocking flock around the cron/backfill
+    run; corpus enrichment no longer forces CLI-only calls.
+  * `backend/app/services/sentence_selector.py`: session-only collateral
+    promotions now apply only to first-time-card-eligible cold words and commit
+    before returning intro cards.
+
+### Why
+
+The learner saw new words in sentences even while fresh generation was degraded.
+That was mostly expected: sessions draw from the existing sentence bank, and
+sentence review gives collateral credit to every content word in a sentence, not
+only the sentence target. Example production traces:
+
+  * `هَاتِفٌ` started acquisition on 2026-05-07, but the reviewed sentence was
+    created on 2026-05-04 for target `مَسِيرَة`; `هَاتِفٌ` was collateral.
+  * `صُعُوبَة` started acquisition on 2026-05-07, but its reviewed sentence was
+    created on 2026-05-05 for target `جَلْب`; `صُعُوبَة` was collateral.
+
+The confusing part was the uncommitted intro-promotion edge: the UI could receive
+an intro card from session build while the durable `acquisition_started_at` did
+not land until a subsequent ack/review transaction.
+
+### Production Outcome
+
+Deployed commits:
+
+  * `f6b2a73` — CLI quota fallback for material cron.
+  * `33f6098` — coordinate warm cache with material backfill.
+  * `7332fab` — persist session intro promotions.
+
+A controlled production backfill was run under the material lock and then stopped
+after exceeding the target. Final observed state: 101 sentence rows created since
+`2026-05-07 19:02Z`, active sentence pool 685, backend active on `7332fab`, and
+the material-update lock released.
+
+### Verification
+
+Focused tests:
+
+```bash
+pytest backend/tests/test_llm.py backend/tests/test_material_generator_fallback.py backend/tests/test_self_correct.py backend/tests/test_sentence_selector.py -q
+```
+
+Result: 88 passed.
+
+Runtime checks:
+
+  * `warm_sentence_cache()` returned `{"skipped": true, "reason": "material_update_active"}`
+    while the backfill lock was held.
+  * Prod `git rev-parse --short HEAD` returned `7332fab`.
+  * `systemctl is-active alif-backend` returned `active`.
+
+---
+
+## 2026-05-07: Capped intake for unmapped frequency-core rows
 
 ### What
 

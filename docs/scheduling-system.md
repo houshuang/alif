@@ -762,9 +762,12 @@ The frontend prefetches one session ahead to provide instant session transitions
    after session-end screen mount so it doesn't compete with the `session-end` query.
 
 3. **Background warm after session load**: Every non-prefetch session load triggers
-   `warm_sentence_cache()` as a FastAPI background task. This rotates stale sentences
-   (freeing pipeline cap space) and generates new sentences for gap words, so the next
-   session has more pre-built material. (Added: 2026-02-18)
+   `warm_sentence_cache()` as a FastAPI background task. It generates new sentences
+   for gap words so the next session has more pre-built material. It does **not**
+   rotate stale sentences; lifecycle rotation belongs to the locked cron/backfill
+   path in `update_material.py`. If the material-update lock is already held,
+   warm cache skips with `reason="material_update_active"` instead of competing
+   with the cron/backfill. (Added: 2026-02-18; lock coordination: 2026-05-07)
 
 **Fast session loads**: Non-prefetch session requests skip on-demand LLM generation
 (`skip_on_demand=True`) for fast response (~1s instead of ~18s). This flag skips LLM
@@ -1213,13 +1216,16 @@ sentences (`source="book"`, `times_shown=0`) are exempt from both Step 0 and
 `rotate_stale_sentences.py` — they're managed by the page-based reactivation step
 (G1b) and must be shown at least once before becoming eligible for retirement.
 
-**Warm cache** (`warm_sentence_cache()`) runs tier lifecycle rotation first, then fills
-gaps for tier 1-2 words. No cap check gates generation — only the 2000 safety valve.
+**Warm cache** (`warm_sentence_cache()`) fills gaps for tier 1-2 words and likely
+intro candidates, but it no longer runs tier lifecycle rotation. Rotation belongs
+to `update_material.py` under the shared material-update flock; warm cache checks
+that same lock and skips with `reason="material_update_active"` while cron/manual
+backfill is active. No cap check gates generation — only the 2000 safety valve.
 Gap detection uses tier-based targets. Gap words sorted by tier urgency so the
 MAX_RECENCY_EXHAUSTED (20) budget goes to most urgent words first.
 (Evolution: 2026-02-23 initial, 2026-02-24 raised cap 600→800, 2026-03-03 tiered
 allocation, 2026-03-10 protect never-shown, 2026-03-10 tier-based lifecycle replaces
-fixed cap)
+fixed cap, 2026-05-07 warm-cache/update-material lock coordination)
 
 **Frequency-core intake** (`update_material.py` Step C): before selecting likely
 new-word candidates, cron may intake a small batch of unmapped top-core rows
