@@ -187,6 +187,47 @@ def _generate_via_self_correct(
     return out
 
 
+def _generate_via_legacy_batch(
+    targets: list[dict],
+    sample: list[dict],
+    avoid_words: list[str] | None,
+    count_per_word: int,
+    model_override: str,
+    log_dir: Path | None = None,
+) -> list:
+    """Generate batch sentences through the API-backed legacy path.
+
+    This path routes through ``generate_completion()``, so a Claude CLI quota
+    failure can fall back to GPT/Anthropic APIs. It is intentionally kept as a
+    fallback for the tool-enabled self-correct path, which cannot run without
+    Claude Code CLI.
+    """
+    from app.services.llm import generate_sentences_for_words
+
+    target_words_for_llm = [
+        {"arabic": t["clean_target"], "english": t["gloss_en"]}
+        for t in targets
+    ]
+    results = generate_sentences_for_words(
+        target_words=target_words_for_llm,
+        known_words=sample,
+        count_per_word=count_per_word + 1,  # request extras for validation failures
+        difficulty_hint="simple",
+        model_override=model_override,
+        avoid_words=avoid_words,
+        max_words=10,
+    )
+    if log_dir is not None:
+        _log_pipeline(log_dir, {
+            "event": "batch_legacy_returned",
+            "target_lemma_ids": [t["lemma_id"] for t in targets],
+            "group_size": len(targets),
+            "needed_per_target": count_per_word,
+            "sentences_returned": len(results),
+        })
+    return results
+
+
 def _log_pipeline(log_dir: Path, entry: dict) -> None:
     """Append a generation pipeline event to JSONL log."""
     try:
@@ -606,7 +647,7 @@ def batch_generate_material(
 
     Returns: {"generated": N, "words_covered": N, "words_failed": [ids]}
     """
-    from app.services.llm import generate_sentences_for_words, AllProvidersFailed
+    from app.services.llm import AllProvidersFailed
     from app.services.sentence_validator import (
         apply_corrections,
         batch_verify_sentences,
@@ -706,19 +747,14 @@ def batch_generate_material(
     # writes candidates blindly, relies on deterministic validation + a
     # post-hoc Haiku naturalness rerank to filter awkward outputs.
     if _use_legacy_batch():
-        target_words_for_llm = [
-            {"arabic": t["clean_target"], "english": t["gloss_en"]}
-            for t in targets
-        ]
         try:
-            results = generate_sentences_for_words(
-                target_words=target_words_for_llm,
-                known_words=sample,
-                count_per_word=count_per_word + 1,  # request extras for validation failures
-                difficulty_hint="simple",
-                model_override=model_override,
+            results = _generate_via_legacy_batch(
+                targets=targets,
+                sample=sample,
                 avoid_words=avoid_words,
-                max_words=10,
+                count_per_word=count_per_word,
+                model_override=model_override,
+                log_dir=_log_dir,
             )
         except (AllProvidersFailed, Exception) as e:
             logger.warning(f"Batch generation failed: {e}")
@@ -729,8 +765,28 @@ def batch_generate_material(
                 targets, count_per_word=count_per_word, log_dir=_log_dir,
             )
         except Exception as e:
+            from app.services.llm import mark_claude_cli_unavailable_from_error
+            mark_claude_cli_unavailable_from_error(e)
             logger.warning(f"Self-correct batch generation failed: {e}")
-            return {"generated": 0, "words_covered": 0, "words_failed": [t["lemma_id"] for t in targets]}
+            _log_pipeline(_log_dir, {
+                "event": "batch_self_correct_fallback",
+                "target_lemma_ids": [t["lemma_id"] for t in targets],
+                "group_size": len(targets),
+                "needed_per_target": count_per_word,
+                "error": str(e)[:200],
+            })
+            try:
+                results = _generate_via_legacy_batch(
+                    targets=targets,
+                    sample=sample,
+                    avoid_words=avoid_words,
+                    count_per_word=count_per_word,
+                    model_override=model_override,
+                    log_dir=_log_dir,
+                )
+            except (AllProvidersFailed, Exception) as fallback_exc:
+                logger.warning(f"Legacy batch fallback failed: {fallback_exc}")
+                return {"generated": 0, "words_covered": 0, "words_failed": [t["lemma_id"] for t in targets]}
 
     logger.info(
         "Batch generation returned %d sentences for %d words",

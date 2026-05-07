@@ -42,6 +42,11 @@ class AllProvidersFailed(LLMError):
     pass
 
 
+CLAUDE_CLI_QUOTA_COOLDOWN_S = int(os.environ.get("ALIF_CLAUDE_CLI_QUOTA_COOLDOWN_S", "21600"))
+_CLAUDE_CLI_DISABLED_UNTIL = 0.0
+_CLAUDE_CLI_DISABLED_REASON = ""
+
+
 class SentenceResult(BaseModel):
     arabic: str
     english: str
@@ -130,6 +135,43 @@ def _claude_cli_available() -> bool:
     return shutil.which("claude") is not None
 
 
+def _is_claude_cli_quota_error(message: str) -> bool:
+    """Return True when Claude CLI is authenticated but temporarily out of quota."""
+    msg = (message or "").lower()
+    quota_markers = (
+        "out of extra usage",
+        "usage limit",
+        "rate limit",
+        "too many requests",
+        "quota",
+    )
+    return "claude" in msg and any(marker in msg for marker in quota_markers)
+
+
+def mark_claude_cli_unavailable_from_error(error: Exception | str) -> None:
+    """Temporarily skip Claude CLI after quota/rate-limit errors.
+
+    Cron jobs make hundreds of LLM calls. Once Claude Max quota is exhausted,
+    retrying the CLI for every call adds several seconds per request and can
+    leave material-generation runs overlapping. This marker is process-local;
+    each new cron process gets one chance to discover that the CLI has recovered.
+    """
+    global _CLAUDE_CLI_DISABLED_UNTIL, _CLAUDE_CLI_DISABLED_REASON
+    message = str(error)
+    if not _is_claude_cli_quota_error(message):
+        return
+    _CLAUDE_CLI_DISABLED_UNTIL = max(
+        _CLAUDE_CLI_DISABLED_UNTIL,
+        time.time() + max(1, CLAUDE_CLI_QUOTA_COOLDOWN_S),
+    )
+    _CLAUDE_CLI_DISABLED_REASON = message[:200]
+
+
+def claude_cli_temporarily_disabled() -> bool:
+    """Whether this process should skip Claude CLI and use API fallback."""
+    return time.time() < _CLAUDE_CLI_DISABLED_UNTIL
+
+
 def _generate_via_claude_cli(
     prompt: str,
     system_prompt: str,
@@ -155,6 +197,8 @@ def _generate_via_claude_cli(
 
     if not _claude_cli_available():
         raise LLMError("claude CLI not available — install with: npm install -g @anthropic-ai/claude-code")
+    if claude_cli_temporarily_disabled():
+        raise LLMError(f"claude CLI temporarily disabled: {_CLAUDE_CLI_DISABLED_REASON}")
 
     start = time.time()
     try:
@@ -169,6 +213,7 @@ def _generate_via_claude_cli(
         )
     except ClaudeCLIError as e:
         elapsed = time.time() - start
+        mark_claude_cli_unavailable_from_error(e)
         _log_call(
             settings.log_dir, f"claude_cli/{model}", False, elapsed,
             error=str(e)[:200], prompt_length=len(prompt), task_type=task_type,
@@ -264,22 +309,31 @@ def generate_completion(
     # When no model_override specified, try Claude CLI (haiku) first — it's free
     cli_model = model_override if model_override in CLAUDE_CLI_MODELS else (None if model_override else "claude_haiku")
     if cli_model and cli_model in CLAUDE_CLI_MODELS:
-        try:
-            return _generate_via_claude_cli(
-                prompt=prompt,
-                system_prompt=system_prompt,
-                model=CLAUDE_CLI_MODELS[cli_model],
-                json_mode=json_mode,
-                json_schema=json_schema,
-                timeout=timeout,
-                task_type=task_type,
-            )
-        except LLMError:
+        if claude_cli_temporarily_disabled():
             if cli_only:
-                raise AllProvidersFailed(f"Claude CLI failed for {cli_model} and cli_only=True")
-            # CLI unavailable — fall through to API chain
+                raise AllProvidersFailed(
+                    f"Claude CLI disabled for {cli_model}: {_CLAUDE_CLI_DISABLED_REASON}"
+                )
             if model_override and model_override in CLAUDE_CLI_MODELS:
-                model_override = None  # don't try to find "claude_haiku" in MODELS
+                model_override = None
+        else:
+            try:
+                return _generate_via_claude_cli(
+                    prompt=prompt,
+                    system_prompt=system_prompt,
+                    model=CLAUDE_CLI_MODELS[cli_model],
+                    json_mode=json_mode,
+                    json_schema=json_schema,
+                    timeout=timeout,
+                    task_type=task_type,
+                )
+            except LLMError as exc:
+                mark_claude_cli_unavailable_from_error(exc)
+                if cli_only:
+                    raise AllProvidersFailed(f"Claude CLI failed for {cli_model} and cli_only=True")
+                # CLI unavailable — fall through to API chain
+                if model_override and model_override in CLAUDE_CLI_MODELS:
+                    model_override = None  # don't try to find "claude_haiku" in MODELS
 
     if model_override:
         models_to_try = [m for m in MODELS if m["name"] == model_override]

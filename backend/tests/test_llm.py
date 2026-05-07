@@ -6,9 +6,11 @@ Tests prompt construction and fallback behavior with mocked litellm.
 from unittest.mock import MagicMock, patch
 
 import inspect
+import time
 
 import pytest
 
+import app.services.llm as llm_module
 from app.services.llm import (
     AllProvidersFailed,
     LLMError,
@@ -51,6 +53,46 @@ def test_fallback_to_api_when_cli_fails(mock_cli, mock_key, mock_completion):
     # Should have tried OpenAI (first in MODELS list)
     call_kwargs = mock_completion.call_args.kwargs
     assert "gpt" in call_kwargs["model"]
+
+
+@patch("app.services.llm.litellm.completion")
+@patch("app.services.llm._get_api_key")
+@patch("app.services.llm._generate_via_claude_cli")
+def test_claude_quota_error_skips_future_cli_calls(mock_cli, mock_key, mock_completion):
+    """Once Claude Max quota is exhausted, subsequent calls should go straight to API."""
+    llm_module._CLAUDE_CLI_DISABLED_UNTIL = 0.0
+    llm_module._CLAUDE_CLI_DISABLED_REASON = ""
+    mock_cli.side_effect = LLMError("claude exited 1: You're out of extra usage · resets later")
+    mock_key.return_value = "fake-key"
+
+    mock_response = MagicMock()
+    mock_response.choices = [MagicMock()]
+    mock_response.choices[0].message.content = '{"result": "from api"}'
+    mock_completion.return_value = mock_response
+
+    try:
+        first = generate_completion("first", model_override="claude_sonnet")
+        second = generate_completion("second", model_override="claude_sonnet")
+    finally:
+        llm_module._CLAUDE_CLI_DISABLED_UNTIL = 0.0
+        llm_module._CLAUDE_CLI_DISABLED_REASON = ""
+
+    assert first == {"result": "from api"}
+    assert second == {"result": "from api"}
+    assert mock_cli.call_count == 1
+    assert mock_completion.call_count == 2
+
+
+def test_cli_only_respects_claude_quota_cooldown():
+    """cli_only callers fail fast instead of repeatedly shelling out to exhausted Claude."""
+    llm_module._CLAUDE_CLI_DISABLED_UNTIL = time.time() + 60
+    llm_module._CLAUDE_CLI_DISABLED_REASON = "claude exited 1: usage limit"
+    try:
+        with pytest.raises(AllProvidersFailed):
+            generate_completion("test", model_override="claude_haiku", cli_only=True)
+    finally:
+        llm_module._CLAUDE_CLI_DISABLED_UNTIL = 0.0
+        llm_module._CLAUDE_CLI_DISABLED_REASON = ""
 
 
 @patch("app.services.llm.litellm.completion")

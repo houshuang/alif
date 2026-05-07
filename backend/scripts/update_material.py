@@ -19,6 +19,7 @@ Usage:
 
 import argparse
 import asyncio
+import fcntl
 import json
 import os
 import random
@@ -268,6 +269,7 @@ def salvage_due_dense_inactive_sentences(
 # Only processes sentences containing words the learner is actively studying.
 
 MAX_ENRICH_PER_RUN = 50
+LOCK_PATH = Path(os.environ.get("ALIF_UPDATE_MATERIAL_LOCK", "/tmp/alif-update-material.lock"))
 
 
 def enrich_corpus_sentences(db: Session) -> int:
@@ -388,7 +390,6 @@ def enrich_corpus_sentences(db: Session) -> int:
                     temperature=0.0,
                     model_override="claude_haiku",
                     task_type="corpus_enrichment",
-                    cli_only=True,
                 )
                 diacritized = result.get("diacritized", "")
                 translation = result.get("translation", "")
@@ -1259,6 +1260,19 @@ async def main():
     print(f"  skip_audio={args.skip_audio}, limit={args.limit}, candidates={args.candidates}")
     start = time.time()
 
+    lock_handle = None
+    if not args.dry_run:
+        LOCK_PATH.parent.mkdir(parents=True, exist_ok=True)
+        lock_handle = LOCK_PATH.open("w")
+        try:
+            fcntl.flock(lock_handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            print(f"  Another update_material.py run is active ({LOCK_PATH}); skipping.")
+            lock_handle.close()
+            return
+        lock_handle.write(f"{os.getpid()} {datetime.now(timezone.utc).isoformat()}\n")
+        lock_handle.flush()
+
     db = SessionLocal()
     try:
         from app.services.pipeline_tiers import compute_word_tiers, build_tier_lookup, tier_summary
@@ -1619,6 +1633,9 @@ async def main():
             )
     finally:
         db.close()
+        if lock_handle is not None:
+            fcntl.flock(lock_handle, fcntl.LOCK_UN)
+            lock_handle.close()
 
 
 if __name__ == "__main__":
