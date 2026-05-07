@@ -3,6 +3,7 @@
 from datetime import datetime, timezone, timedelta
 
 import pytest
+from sqlalchemy.orm import sessionmaker
 
 from app.models import Lemma, ReviewLog, UserLemmaKnowledge, Sentence, SentenceWord
 from app.services.fsrs_service import create_new_card
@@ -966,6 +967,49 @@ class TestIntroCardsForSessionWords:
 
         assert ulk.knowledge_state == "acquiring"
         assert [c["lemma_id"] for c in result["experiment_intro_cards"]] == [4]
+
+    def test_intro_state_promotion_is_committed_before_ack(self, db_session):
+        _seed_word(db_session, 1, "كتاب", "book", due_hours=-1)
+        encountered = Lemma(
+            lemma_id=4,
+            lemma_ar="قلم",
+            lemma_ar_bare="قلم",
+            pos="noun",
+            gloss_en="pen",
+            gates_completed_at=datetime.now(timezone.utc),
+        )
+        db_session.add(encountered)
+        db_session.add(UserLemmaKnowledge(
+            lemma_id=4,
+            knowledge_state="encountered",
+            fsrs_card_json=None,
+            introduced_at=None,
+            times_seen=0,
+            times_correct=0,
+            total_encounters=0,
+            source="book",
+        ))
+        _seed_sentence(
+            db_session,
+            1,
+            "كتاب قلم",
+            "book pen",
+            1,
+            [("كتاب", 1), ("قلم", 4)],
+        )
+        db_session.commit()
+
+        result = build_session(db_session, limit=1)
+
+        assert [c["lemma_id"] for c in result["experiment_intro_cards"]] == [4]
+        Session = sessionmaker(bind=db_session.bind)
+        fresh = Session()
+        try:
+            persisted = fresh.query(UserLemmaKnowledge).filter_by(lemma_id=4).one()
+            assert persisted.knowledge_state == "acquiring"
+            assert persisted.acquisition_started_at is not None
+        finally:
+            fresh.close()
 
     def test_proper_name_is_not_promoted_or_carded(self, db_session):
         """A proper-name lemma in a session sentence must NOT be promoted to

@@ -2099,7 +2099,7 @@ def _ensure_session_words_have_intro_state(
     db: Session,
     lemma_ids: set[int],
     knowledge_by_id: dict[int, UserLemmaKnowledge],
-) -> None:
+) -> bool:
     """Promote cold session words early so they can get intro cards.
 
     Sentence review already auto-introduces unknown collateral words after the
@@ -2113,7 +2113,7 @@ def _ensure_session_words_have_intro_state(
     it became eligible.
     """
     if not lemma_ids:
-        return
+        return False
 
     missing_ids = lemma_ids - set(knowledge_by_id.keys())
     if missing_ids:
@@ -2124,17 +2124,29 @@ def _ensure_session_words_have_intro_state(
         ):
             knowledge_by_id[ulk.lemma_id] = ulk
 
-    candidate_ids = [
-        lid for lid in lemma_ids
-        if lid not in knowledge_by_id
-        or knowledge_by_id[lid].knowledge_state == "encountered"
-    ]
+    candidate_ids: list[int] = []
+    for lid in lemma_ids:
+        ulk = knowledge_by_id.get(lid)
+        if ulk is None:
+            candidate_ids.append(lid)
+            continue
+        if ulk.knowledge_state != "encountered":
+            continue
+        if ulk.experiment_intro_shown_at is not None:
+            continue
+        if (ulk.total_encounters or 0) >= 5:
+            continue
+        if (ulk.times_seen or 0) != 0 or (ulk.times_correct or 0) > 0:
+            continue
+        if ulk.source == "quran":
+            continue
+        candidate_ids.append(lid)
     if not candidate_ids:
-        return
+        return False
 
     candidate_ids = _drop_function_and_proper_name_lemma_ids(db, candidate_ids)
     if not candidate_ids:
-        return
+        return False
 
     from app.services.acquisition_service import start_acquisition
 
@@ -2146,6 +2158,7 @@ def _ensure_session_words_have_intro_state(
             due_immediately=False,
         )
         knowledge_by_id[lid] = ulk
+    return True
 
 
 def _drop_function_and_proper_name_lemma_ids(
@@ -2319,10 +2332,14 @@ def _with_fallbacks(
     # scans every non-function word in the returned session, not just primary
     # due words, because collateral words earn review credit too.
     intro_eligible_ids = _session_intro_eligible_lemma_ids(db, items)
-    _ensure_session_words_have_intro_state(db, intro_eligible_ids, knowledge_by_id)
+    intro_state_promoted = _ensure_session_words_have_intro_state(
+        db, intro_eligible_ids, knowledge_by_id
+    )
     experiment_intro_cards = _build_intro_cards(
         db, knowledge_by_id, intro_eligible_ids
     )
+    if intro_state_promoted:
+        db.commit()
 
     return {
         "session_id": session_id,
