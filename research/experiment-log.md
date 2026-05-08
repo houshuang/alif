@@ -4,7 +4,62 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
-## 2026-05-07 (latest): Claude quota fallback, material lock coordination, and intro-promotion persistence
+## 2026-05-08 (latest): Frequency-core stats gap list now means unhandled, not in-progress
+
+### What
+
+The stats page's frequency-core gap list was still showing ranks whose lemmas
+were already in the learning pipeline, including:
+
+  * `دَقائِق` / minutes — rank 29, `acquiring`
+  * `عَبْدٌ` / slave, servant — rank 44, `acquiring`
+  * `رَسائِل` / messages — rank 47, `acquiring`
+
+Those words were legitimately being served in sentences because they were
+introduced by the acquisition pipeline. The bug was in the analytics contract:
+`next_gaps` skipped only `known`/`learning`, so it still listed `acquiring`,
+`lapsed`, and `encountered` rows under a heading that read "not-yet-learned".
+
+### Fix
+
+`backend/app/routers/stats.py` now filters `next_gaps` using the full pipeline
+state set: `known`, `learning`, `acquiring`, `lapsed`, and `encountered`.
+Coverage metrics are unchanged: learned coverage still counts only
+`known`/`learning`, while pipeline coverage counts all five states.
+
+The frontend title is now "Earliest unhandled core ranks", and
+`needs_manual_review` rows are labelled "needs mapping" instead of the broader
+"missing from DB".
+
+### Data Follow-Up
+
+Production still had real top-rank mapping gaps where no suitable lemma existed
+yet. After the code fix, a conservative one-off data repair created five
+canonical `frequency_core` lemmas and mapped the obvious rows without creating
+`UserLemmaKnowledge` rows:
+
+  * `مُنْتَدَى` — forum (`منتدى`, `المنتدى`, `منتديات`, `المنتديات`)
+  * `قِسْم` — section, department (`قسم`, `القسم`)
+  * `مُحْتَوًى` — content
+  * `عَدَم` — lack, nonexistence
+  * `عَبْرَ` — through, via, across
+
+Ambiguous/specialized rows such as `الليزك` and `الشبكية` were left for later
+curation rather than promoted into the core scheduler blindly.
+
+### Verification
+
+Focused tests:
+
+```bash
+pytest backend/tests/test_analytics.py backend/tests/test_frequency_core_intake.py -q
+```
+
+Result: 30 passed.
+
+---
+
+## 2026-05-07: Claude quota fallback, material lock coordination, and intro-promotion persistence
 
 ### What
 

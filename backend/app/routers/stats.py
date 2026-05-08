@@ -770,7 +770,7 @@ def _compute_frequency_core_progress(db: Session) -> FrequencyCoreProgress | Non
 
     next_gaps: list[FrequencyCoreGap] = []
     for r in rows:
-        if r.knowledge_state in learned_states:
+        if r.knowledge_state in pipeline_states:
             continue
         status = r.knowledge_state or ("missing_from_db" if r.lemma_id is None else "new")
         next_gaps.append(FrequencyCoreGap(

@@ -202,9 +202,67 @@ class TestStatsAPI:
         core = resp.json()["frequency_core"]
         assert core["learned_prefix_count"] == 1
         top100 = core["bands"][0]
+        assert top100["pipeline_count"] == 2
         assert top100["unmapped_count"] == 1
         assert top100["low_confidence_count"] == 1
         assert core["next_gaps"][0]["gap_status"] == "unmapped"
+
+    def test_frequency_core_gaps_skip_words_already_in_pipeline(self, client, db_session):
+        learned = _make_lemma(db_session, 1, "known")
+        acquiring = _make_lemma(db_session, 2, "acquiring")
+        lapsed = _make_lemma(db_session, 3, "lapsed")
+        encountered = _make_lemma(db_session, 4, "encountered")
+        db_session.add_all([
+            FrequencyCoreEntry(
+                core_rank=1,
+                lemma_id=learned.lemma_id,
+                lemma_key=f"lemma:{learned.lemma_id}",
+                display_form=learned.lemma_ar,
+                score=10.0,
+                confidence_tier="high",
+            ),
+            FrequencyCoreEntry(
+                core_rank=2,
+                lemma_id=acquiring.lemma_id,
+                lemma_key=f"lemma:{acquiring.lemma_id}",
+                display_form=acquiring.lemma_ar,
+                score=9.0,
+                confidence_tier="high",
+            ),
+            FrequencyCoreEntry(
+                core_rank=3,
+                lemma_id=lapsed.lemma_id,
+                lemma_key=f"lemma:{lapsed.lemma_id}",
+                display_form=lapsed.lemma_ar,
+                score=8.0,
+                confidence_tier="medium",
+            ),
+            FrequencyCoreEntry(
+                core_rank=4,
+                lemma_id=encountered.lemma_id,
+                lemma_key=f"lemma:{encountered.lemma_id}",
+                display_form=encountered.lemma_ar,
+                score=7.0,
+                confidence_tier="medium",
+            ),
+            FrequencyCoreEntry(
+                core_rank=5,
+                lemma_id=None,
+                lemma_key="missing:منتدى",
+                display_form="منتدى",
+                score=6.0,
+                confidence_tier="low",
+                gap_status="needs_manual_review",
+            ),
+        ])
+        db_session.commit()
+
+        resp = client.get("/api/stats/analytics")
+        assert resp.status_code == 200
+        core = resp.json()["frequency_core"]
+        assert core["learned_prefix_count"] == 1
+        assert core["bands"][0]["pipeline_count"] == 4
+        assert [gap["core_rank"] for gap in core["next_gaps"]] == [5]
 
     def test_daily_goal_splits_main_and_slow_lane_due_debt(self, client, db_session):
         now = datetime.now(timezone.utc)

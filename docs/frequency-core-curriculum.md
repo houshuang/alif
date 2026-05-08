@@ -13,6 +13,12 @@ unmapped high-frequency words are curriculum gaps, not invisible rows.
 Learned coverage counts only `known` and `learning`. Pipeline coverage counts
 `known`, `learning`, `acquiring`, `lapsed`, and `encountered`.
 
+`next_gaps` is the earliest unhandled curriculum gap list, not a "not learned
+yet" list. It excludes every pipeline state above so already-introduced words do
+not appear there just because they have not graduated to `learning`/`known` yet.
+Rows marked `needs_manual_review` are unresolved mapping/curation work; rows
+marked `unmapped` are still missing from the DB.
+
 ## Sources And Weights
 
 | Source | Weight | Intended signal |
@@ -92,5 +98,6 @@ Review scheduling uses the same core for lanes:
 - `unmapped_count`,
 - `next_gaps`.
 
-The stats card must label low-confidence/unmapped rows as gaps. A top-N number
-is only motivational if it is honest.
+The stats card must label low-confidence/unmapped rows as gaps and keep
+pipeline words out of the gap list. A top-N number is only motivational if it is
+honest.

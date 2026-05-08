@@ -549,7 +549,7 @@ function FrequencyCoreCard({ data }: { data: FrequencyCoreProgress }) {
 
       {gaps.length > 0 && (
         <View style={styles.freqCoreGaps}>
-          <Text style={styles.freqCoreGapTitle}>Earliest not-yet-learned ranks</Text>
+          <Text style={styles.freqCoreGapTitle}>Earliest unhandled core ranks</Text>
           {gaps.map((gap) => (
             <View key={`${gap.core_rank}-${gap.display_form}`} style={styles.freqCoreGapRow}>
               <Text style={styles.freqCoreGapRank}>#{gap.core_rank}</Text>
@@ -569,6 +569,7 @@ function FrequencyCoreCard({ data }: { data: FrequencyCoreProgress }) {
 }
 
 function frequencyCoreGapLabel(gap: FrequencyCoreProgress["next_gaps"][number]) {
+  if (gap.gap_status === "needs_manual_review") return "needs mapping";
   if (!gap.lemma_id || gap.status === "missing_from_db" || gap.gap_status === "unmapped") {
     return "missing from DB";
   }
