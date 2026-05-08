@@ -36,6 +36,7 @@ logger = logging.getLogger(__name__)
 
 DEFAULT_MAX_RANK = 1000
 DEFAULT_LIMIT = 5
+DEFAULT_RETRY_LIMIT = 1
 
 _ARABIC_ONLY_RE = re.compile(r"[^\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF\u0640]")
 
@@ -284,6 +285,7 @@ def intake_frequency_core_gaps(
     *,
     limit: int = DEFAULT_LIMIT,
     max_rank: int = DEFAULT_MAX_RANK,
+    retry_limit: int = DEFAULT_RETRY_LIMIT,
     create_missing: bool = True,
     dry_run: bool = False,
 ) -> dict[str, Any]:
@@ -307,7 +309,7 @@ def intake_frequency_core_gaps(
     if limit <= 0:
         return stats
 
-    entries = (
+    fresh_entries = (
         db.query(FrequencyCoreEntry)
         .filter(
             FrequencyCoreEntry.excluded_reason.is_(None),
@@ -322,6 +324,24 @@ def intake_frequency_core_gaps(
         .limit(limit)
         .all()
     )
+
+    retry_entries: list[FrequencyCoreEntry] = []
+    if retry_limit > 0:
+        retry_entries = (
+            db.query(FrequencyCoreEntry)
+            .filter(
+                FrequencyCoreEntry.excluded_reason.is_(None),
+                FrequencyCoreEntry.lemma_id.is_(None),
+                FrequencyCoreEntry.core_rank <= max_rank,
+                FrequencyCoreEntry.gap_status == "needs_manual_review",
+            )
+            .order_by(FrequencyCoreEntry.core_rank.asc())
+            .limit(retry_limit)
+            .all()
+        )
+
+    entries_by_id = {entry.id: entry for entry in retry_entries + fresh_entries}
+    entries = sorted(entries_by_id.values(), key=lambda e: e.core_rank)
     stats["scanned"] = len(entries)
     if not entries:
         return stats

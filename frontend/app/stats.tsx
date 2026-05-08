@@ -569,7 +569,7 @@ function FrequencyCoreCard({ data }: { data: FrequencyCoreProgress }) {
 }
 
 function frequencyCoreGapLabel(gap: FrequencyCoreProgress["next_gaps"][number]) {
-  if (gap.gap_status === "needs_manual_review") return "needs mapping";
+  if (gap.gap_status === "needs_manual_review") return "auto retry";
   if (!gap.lemma_id || gap.status === "missing_from_db" || gap.gap_status === "unmapped") {
     return "missing from DB";
   }

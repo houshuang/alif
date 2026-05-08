@@ -168,7 +168,7 @@ def test_frequency_core_intake_rejects_candidates_needing_cleanup(monkeypatch):
     assert rejected == 1
 
 
-def test_frequency_core_intake_skips_manual_review_rows(db_session):
+def test_frequency_core_intake_retries_manual_review_rows_without_starving_fresh_rows(db_session):
     lemma = Lemma(
         lemma_ar="كِتَاب",
         lemma_ar_bare="كتاب",
@@ -186,6 +186,37 @@ def test_frequency_core_intake_skips_manual_review_rows(db_session):
         db_session,
         limit=1,
         max_rank=10,
+        create_missing=False,
+    )
+    db_session.refresh(blocked)
+    db_session.refresh(next_entry)
+
+    assert stats["scanned"] == 2
+    assert stats["resolved_existing"] == 1
+    assert stats["skipped"] == 1
+    assert blocked.lemma_id is None
+    assert next_entry.lemma_id == lemma.lemma_id
+
+
+def test_frequency_core_intake_can_disable_manual_review_retry(db_session):
+    lemma = Lemma(
+        lemma_ar="كِتَاب",
+        lemma_ar_bare="كتاب",
+        gloss_en="book",
+        pos="noun",
+        gates_completed_at=datetime.now(timezone.utc),
+    )
+    blocked = _core_entry(1, "قسم")
+    blocked.gap_status = "needs_manual_review"
+    next_entry = _core_entry(2, "الكتاب")
+    db_session.add_all([lemma, blocked, next_entry])
+    db_session.commit()
+
+    stats = intake_frequency_core_gaps(
+        db_session,
+        limit=1,
+        max_rank=10,
+        retry_limit=0,
         create_missing=False,
     )
     db_session.refresh(blocked)

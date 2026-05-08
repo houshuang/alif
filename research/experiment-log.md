@@ -34,9 +34,14 @@ been seen but not formally introduced into acquisition. The list is deduplicated
 by lemma ID so definite/plural frequency rows do not repeat the same
 unintroduced lemma.
 
+Follow-up: `frequency_core_intake.py` no longer leaves `needs_manual_review`
+rows as a permanent manual queue. Each material run now processes the usual
+fresh unmapped batch plus one previously rejected top-core row, so hard cases
+continue through automated retry without blocking lower fresh rows.
+
 The frontend title is now "Earliest not-yet-introduced core ranks", and
-`needs_manual_review` rows are labelled "needs mapping" instead of the broader
-"missing from DB".
+`needs_manual_review` rows are labelled "auto retry" instead of implying user
+curation.
 
 ### Data Follow-Up
 
