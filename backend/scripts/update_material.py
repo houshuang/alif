@@ -1070,6 +1070,7 @@ def step_pregenerate_candidates(db: Session, dry_run: bool, count: int, model: s
         from app.services.frequency_core_intake import (
             DEFAULT_LIMIT as FREQ_CORE_INTAKE_LIMIT,
             DEFAULT_MAX_RANK as FREQ_CORE_INTAKE_MAX_RANK,
+            DEFAULT_RETRY_COOLDOWN_HOURS as FREQ_CORE_INTAKE_RETRY_COOLDOWN_HOURS,
             DEFAULT_RETRY_LIMIT as FREQ_CORE_INTAKE_RETRY_LIMIT,
             intake_frequency_core_gaps,
         )
@@ -1085,11 +1086,19 @@ def step_pregenerate_candidates(db: Session, dry_run: bool, count: int, model: s
             0,
             int(os.environ.get("ALIF_FREQ_CORE_INTAKE_RETRY_LIMIT", str(FREQ_CORE_INTAKE_RETRY_LIMIT))),
         )
+        intake_retry_cooldown_hours = max(
+            0,
+            int(os.environ.get(
+                "ALIF_FREQ_CORE_INTAKE_RETRY_COOLDOWN_HOURS",
+                str(FREQ_CORE_INTAKE_RETRY_COOLDOWN_HOURS),
+            )),
+        )
         intake = intake_frequency_core_gaps(
             db,
             limit=intake_limit,
             max_rank=intake_max_rank,
             retry_limit=intake_retry_limit,
+            retry_cooldown_hours=intake_retry_cooldown_hours,
             dry_run=dry_run,
         )
         if any(intake.get(k) for k in ("resolved_existing", "created", "rejected", "errors")):

@@ -36,8 +36,9 @@ unintroduced lemma.
 
 Follow-up: `frequency_core_intake.py` no longer leaves `needs_manual_review`
 rows as a permanent manual queue. Each material run now processes the usual
-fresh unmapped batch plus one previously rejected top-core row, so hard cases
-continue through automated retry without blocking lower fresh rows.
+fresh unmapped batch plus one previously rejected top-core row after a cooldown,
+so hard cases continue through automated retry without blocking lower fresh rows
+or repeatedly retrying the same item every cron.
 
 Follow-up: `word_selector.py` now uses the earliest core rank when multiple
 frequency rows map to the same lemma, so `منتدى` is prioritized as rank 1

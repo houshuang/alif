@@ -14,7 +14,7 @@ import json
 import logging
 import re
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from typing import Any
 
 from sqlalchemy import or_
@@ -37,6 +37,7 @@ logger = logging.getLogger(__name__)
 DEFAULT_MAX_RANK = 1000
 DEFAULT_LIMIT = 5
 DEFAULT_RETRY_LIMIT = 1
+DEFAULT_RETRY_COOLDOWN_HOURS = 24
 
 _ARABIC_ONLY_RE = re.compile(r"[^\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF\u0640]")
 
@@ -123,6 +124,22 @@ def _mark_needs_manual_review(entry: FrequencyCoreEntry, reason: str) -> None:
     entry.source_flags_json = flags
     entry.gap_status = "needs_manual_review"
     entry.updated_at = datetime.now(timezone.utc)
+
+
+def _manual_retry_due(entry: FrequencyCoreEntry, cooldown_hours: int) -> bool:
+    if cooldown_hours <= 0:
+        return True
+    flags = entry.source_flags_json if isinstance(entry.source_flags_json, dict) else {}
+    intake = flags.get("frequency_core_intake") if isinstance(flags, dict) else None
+    if not isinstance(intake, dict) or not intake.get("at"):
+        return True
+    try:
+        last_attempt = datetime.fromisoformat(str(intake["at"]).replace("Z", "+00:00"))
+    except ValueError:
+        return True
+    if last_attempt.tzinfo is None:
+        last_attempt = last_attempt.replace(tzinfo=timezone.utc)
+    return datetime.now(timezone.utc) - last_attempt >= timedelta(hours=cooldown_hours)
 
 
 def _classification_schema() -> dict[str, Any]:
@@ -286,6 +303,7 @@ def intake_frequency_core_gaps(
     limit: int = DEFAULT_LIMIT,
     max_rank: int = DEFAULT_MAX_RANK,
     retry_limit: int = DEFAULT_RETRY_LIMIT,
+    retry_cooldown_hours: int = DEFAULT_RETRY_COOLDOWN_HOURS,
     create_missing: bool = True,
     dry_run: bool = False,
 ) -> dict[str, Any]:
@@ -306,28 +324,30 @@ def intake_frequency_core_gaps(
         "mapped_ranks": [],
         "created_ids": [],
     }
-    if limit <= 0:
+    if limit <= 0 and retry_limit <= 0:
         return stats
 
-    fresh_entries = (
-        db.query(FrequencyCoreEntry)
-        .filter(
-            FrequencyCoreEntry.excluded_reason.is_(None),
-            FrequencyCoreEntry.lemma_id.is_(None),
-            FrequencyCoreEntry.core_rank <= max_rank,
-            or_(
-                FrequencyCoreEntry.gap_status.is_(None),
-                FrequencyCoreEntry.gap_status == "unmapped",
-            ),
+    fresh_entries: list[FrequencyCoreEntry] = []
+    if limit > 0:
+        fresh_entries = (
+            db.query(FrequencyCoreEntry)
+            .filter(
+                FrequencyCoreEntry.excluded_reason.is_(None),
+                FrequencyCoreEntry.lemma_id.is_(None),
+                FrequencyCoreEntry.core_rank <= max_rank,
+                or_(
+                    FrequencyCoreEntry.gap_status.is_(None),
+                    FrequencyCoreEntry.gap_status == "unmapped",
+                ),
+            )
+            .order_by(FrequencyCoreEntry.core_rank.asc())
+            .limit(limit)
+            .all()
         )
-        .order_by(FrequencyCoreEntry.core_rank.asc())
-        .limit(limit)
-        .all()
-    )
 
     retry_entries: list[FrequencyCoreEntry] = []
     if retry_limit > 0:
-        retry_entries = (
+        retry_candidates = (
             db.query(FrequencyCoreEntry)
             .filter(
                 FrequencyCoreEntry.excluded_reason.is_(None),
@@ -336,9 +356,14 @@ def intake_frequency_core_gaps(
                 FrequencyCoreEntry.gap_status == "needs_manual_review",
             )
             .order_by(FrequencyCoreEntry.core_rank.asc())
-            .limit(retry_limit)
             .all()
         )
+        for entry in retry_candidates:
+            if not _manual_retry_due(entry, retry_cooldown_hours):
+                continue
+            retry_entries.append(entry)
+            if len(retry_entries) >= retry_limit:
+                break
 
     entries_by_id = {entry.id: entry for entry in retry_entries + fresh_entries}
     entries = sorted(entries_by_id.values(), key=lambda e: e.core_rank)

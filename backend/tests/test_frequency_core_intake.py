@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 
 from app.models import FrequencyCoreEntry, Lemma, UserLemmaKnowledge
 from app.services.frequency_core_intake import intake_frequency_core_gaps
@@ -226,3 +226,37 @@ def test_frequency_core_intake_can_disable_manual_review_retry(db_session):
     assert stats["resolved_existing"] == 1
     assert blocked.lemma_id is None
     assert next_entry.lemma_id == lemma.lemma_id
+
+
+def test_frequency_core_intake_manual_review_retry_uses_cooldown(db_session):
+    recent = _core_entry(1, "الليزك")
+    recent.gap_status = "needs_manual_review"
+    recent.source_flags_json = {
+        "frequency_core_intake": {
+            "status": "needs_manual_review",
+            "reason": "not safe to create",
+            "at": datetime.now(timezone.utc).isoformat(),
+        }
+    }
+    due = _core_entry(2, "الشبكية")
+    due.gap_status = "needs_manual_review"
+    due.source_flags_json = {
+        "frequency_core_intake": {
+            "status": "needs_manual_review",
+            "reason": "not safe to create",
+            "at": (datetime.now(timezone.utc) - timedelta(days=2)).isoformat(),
+        }
+    }
+    db_session.add_all([recent, due])
+    db_session.commit()
+
+    stats = intake_frequency_core_gaps(
+        db_session,
+        limit=0,
+        max_rank=10,
+        retry_limit=1,
+        create_missing=False,
+    )
+
+    assert stats["scanned"] == 1
+    assert stats["skipped"] == 1
