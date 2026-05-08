@@ -247,10 +247,18 @@ class TestStatsAPI:
             ),
             FrequencyCoreEntry(
                 core_rank=5,
+                lemma_id=encountered.lemma_id,
+                lemma_key=f"lemma:{encountered.lemma_id}:variant",
+                display_form=f"{encountered.lemma_ar} variant",
+                score=6.0,
+                confidence_tier="medium",
+            ),
+            FrequencyCoreEntry(
+                core_rank=6,
                 lemma_id=None,
                 lemma_key="missing:منتدى",
                 display_form="منتدى",
-                score=6.0,
+                score=5.0,
                 confidence_tier="low",
                 gap_status="needs_manual_review",
             ),
@@ -263,8 +271,8 @@ class TestStatsAPI:
         assert core["learned_prefix_count"] == 2
         top100 = core["bands"][0]
         assert top100["learned_count"] == 2
-        assert top100["pipeline_count"] == 4
-        assert [gap["core_rank"] for gap in core["next_gaps"]] == [4, 5]
+        assert top100["pipeline_count"] == 5
+        assert [gap["core_rank"] for gap in core["next_gaps"]] == [4, 6]
 
     def test_daily_goal_splits_main_and_slow_lane_due_debt(self, client, db_session):
         now = datetime.now(timezone.utc)

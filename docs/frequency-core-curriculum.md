@@ -17,6 +17,8 @@ Pipeline coverage counts those states plus `lapsed` and `encountered`.
 `next_gaps` is the earliest not-yet-introduced curriculum list, not a "not
 graduated yet" list. It excludes rows with `introduced_at` set and rows in an
 introduced state (`known`, `learning`, `acquiring`, `lapsed`, `suspended`).
+It is deduplicated by lemma ID so definite/plural frequency rows do not repeat
+the same unintroduced lemma; unmapped rows are deduplicated by display form.
 Rows marked `needs_manual_review` are unresolved mapping/curation work; rows
 marked `unmapped` are still missing from the DB.
 

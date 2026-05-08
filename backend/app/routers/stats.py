@@ -771,9 +771,14 @@ def _compute_frequency_core_progress(db: Session) -> FrequencyCoreProgress | Non
         ))
 
     next_gaps: list[FrequencyCoreGap] = []
+    seen_gap_keys: set[str] = set()
     for r in rows:
         if r.introduced_at is not None or r.knowledge_state in introduced_states:
             continue
+        gap_key = f"lemma:{r.lemma_id}" if r.lemma_id is not None else f"missing:{r.display_form}"
+        if gap_key in seen_gap_keys:
+            continue
+        seen_gap_keys.add(gap_key)
         status = r.knowledge_state or ("missing_from_db" if r.lemma_id is None else "new")
         next_gaps.append(FrequencyCoreGap(
             core_rank=r.core_rank,

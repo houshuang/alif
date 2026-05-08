@@ -30,7 +30,9 @@ and `encountered`.
 `next_gaps` is now a not-yet-introduced list: rows with `introduced_at` set, or
 with an introduced state (`known`, `learning`, `acquiring`, `lapsed`,
 `suspended`), are excluded. `encountered` rows can still appear because they have
-been seen but not formally introduced into acquisition.
+been seen but not formally introduced into acquisition. The list is deduplicated
+by lemma ID so definite/plural frequency rows do not repeat the same
+unintroduced lemma.
 
 The frontend title is now "Earliest not-yet-introduced core ranks", and
 `needs_manual_review` rows are labelled "needs mapping" instead of the broader
