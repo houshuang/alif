@@ -687,13 +687,19 @@ def step_backfill_sentences(
 
     # Skip lemmas currently in generation backoff (3+ consecutive failed runs).
     # They are re-admitted when the backoff_until timestamp expires; any later
-    # success clears the counter.
+    # success clears the counter. Acquiring rescue is stricter: already-active
+    # study words with missing material are attempted even while on backoff.
+    rescue_ids = {w["lemma_id"] for w in acquiring_rescue_words}
     candidate_ids = list({
         wt.lemma_id for wt in word_tiers if wt.backfill_target > 0
-    } | {w["lemma_id"] for w in acquiring_rescue_words})
+    } | rescue_ids)
     backoff_ids = lemmas_on_backoff(db, candidate_ids)
-    if backoff_ids:
-        print(f"  Skipping {len(backoff_ids)} words in generation backoff")
+    rescue_backoff_ids = backoff_ids & rescue_ids
+    ordinary_backoff_ids = backoff_ids - rescue_backoff_ids
+    if ordinary_backoff_ids:
+        print(f"  Skipping {len(ordinary_backoff_ids)} non-rescue words in generation backoff")
+    if rescue_backoff_ids:
+        print(f"  Overriding backoff for {len(rescue_backoff_ids)} acquiring material rescue gaps")
 
     # Collect words needing sentences — tier-based targets
     words_needing: list[dict] = []
@@ -701,8 +707,6 @@ def step_backfill_sentences(
     rescue_ready = 0
     for w in acquiring_rescue_words:
         lid = w["lemma_id"]
-        if lid in backoff_ids:
-            continue
         words_needing.append({
             **w,
             "needed": min(w["needed"], budget),
@@ -720,7 +724,7 @@ def step_backfill_sentences(
             continue  # tier 4: skip, JIT fills when needed
         if wt.lemma_id in seen_needing:
             continue
-        if wt.lemma_id in backoff_ids:
+        if wt.lemma_id in ordinary_backoff_ids:
             continue
         existing = existing_counts.get(wt.lemma_id, 0)
         needed = wt.backfill_target - existing
@@ -775,9 +779,9 @@ def step_backfill_sentences(
     # giving backoff lemmas a path back. A successful generation auto-resets
     # the counter via record_generation_outcome().
     backoff_recovery_words: list[dict] = []
-    if backoff_ids and len(words_needing) >= 2:
-        sample_n = min(len(backoff_ids), max(1, len(words_needing) // 3))
-        for lid in random.sample(list(backoff_ids), sample_n):
+    if ordinary_backoff_ids and len(words_needing) >= 2:
+        sample_n = min(len(ordinary_backoff_ids), max(1, len(words_needing) // 3))
+        for lid in random.sample(list(ordinary_backoff_ids), sample_n):
             lemma = db.query(Lemma).filter(Lemma.lemma_id == lid).first()
             if not lemma or not (lemma.gloss_en or "").strip():
                 continue

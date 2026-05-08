@@ -129,3 +129,35 @@ def test_acquiring_material_gaps_prioritizes_overdue_zero_material_words(db_sess
     assert by_id[overdue_zero.lemma_id]["needed"] == ACQUIRING_RESCUE_SENTENCE_TARGET
     assert by_id[overdue_one_collateral.lemma_id]["needed"] == ACQUIRING_RESCUE_SENTENCE_TARGET - 1
     assert by_id[overdue_zero.lemma_id]["tier"] == 0
+
+
+def test_backfill_dry_run_overrides_backoff_for_acquiring_rescue(db_session, capsys):
+    import sys
+    from pathlib import Path
+
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
+    from update_material import step_backfill_sentences
+
+    now = datetime.utcnow()
+    lemma = _lemma(db_session, "دَوْرٌ", "role")
+    db_session.add(UserLemmaKnowledge(
+        lemma_id=lemma.lemma_id,
+        knowledge_state="acquiring",
+        acquisition_box=1,
+        acquisition_next_due=now - timedelta(hours=1),
+        generation_failed_count=3,
+        generation_backoff_until=now + timedelta(days=6),
+    ))
+    db_session.commit()
+
+    generated = step_backfill_sentences(
+        db_session,
+        dry_run=True,
+        model="claude_sonnet",
+        delay=0.0,
+        max_sentences=ACQUIRING_RESCUE_SENTENCE_TARGET,
+    )
+
+    out = capsys.readouterr().out
+    assert "Overriding backoff for 1 acquiring material rescue gaps" in out
+    assert generated == ACQUIRING_RESCUE_SENTENCE_TARGET

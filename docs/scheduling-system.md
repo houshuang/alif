@@ -770,10 +770,12 @@ The frontend prefetches one session ahead to provide instant session transitions
    with the cron/backfill. Acquiring words below 3 active, fully mapped
    sentences now get a first-priority rescue lane before focus-cohort and
    speculative intro gaps; coverage is counted through `SentenceWord`, so
-   collateral and multi-target sentences count. If a multi-target group fails
-   to write coverage for a rescue word, warm cache falls back to single-target
-   generation for that word. (Added: 2026-02-18; lock coordination: 2026-05-07;
-   acquiring rescue: 2026-05-08)
+   collateral and multi-target sentences count. This rescue lane overrides
+   generation backoff for acquiring words because they are already in active
+   study; ordinary non-rescue backoff still applies. If a multi-target group
+   fails to write coverage for a rescue word, warm cache falls back to
+   single-target generation for that word. (Added: 2026-02-18; lock
+   coordination: 2026-05-07; acquiring rescue: 2026-05-08)
 
 **Fast session loads**: Non-prefetch session requests skip on-demand LLM generation
 (`skip_on_demand=True`) for fast response (~1s instead of ~18s). This flag skips LLM

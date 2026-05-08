@@ -20,9 +20,11 @@ Both material entrypoints use the same rescue helper:
   * `update_material.py` Step A adds up to 80 acquiring rescue gaps before
     normal tier backfill, configurable with `ALIF_ACQUIRING_RESCUE_LIMIT`.
 
-Within the rescue queue, overdue and zero-material words come first. The queue
-still respects generation backoff so chronic zero-result lemmas do not crowd out
-viable words.
+Within the rescue queue, overdue and zero-material words come first. Acquiring
+rescue deliberately overrides generation backoff: these lemmas are already in
+active study, so a missing-material gap is more important than waiting out a
+cooldown. Ordinary non-rescue words still respect backoff so chronic failures do
+not crowd out viable work.
 
 ### Why
 

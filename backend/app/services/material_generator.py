@@ -1602,12 +1602,29 @@ def _warm_sentence_cache_impl(llm_model: str = "claude_sonnet") -> dict:
                 logger.info(f"Warm cache: {recency_exhausted_count} recency-exhausted words need fresh sentences")
 
         # Drop lemmas in generation backoff (chronically-failing words). They'll
-        # be re-admitted when the backoff_until timestamp expires.
+        # be re-admitted when the backoff_until timestamp expires. Acquiring
+        # rescue is the exception: those words are already in active study, so a
+        # missing-material gap must keep trying instead of waiting out backoff.
         backoff_ids = lemmas_on_backoff(db, gap_word_ids)
         if backoff_ids:
-            gap_word_ids = [lid for lid in gap_word_ids if lid not in backoff_ids]
-            stats["backoff_skipped"] = len(backoff_ids)
-            logger.info(f"Warm cache: skipping {len(backoff_ids)} words in generation backoff")
+            rescue_ids = set(rescue_rank)
+            rescue_backoff_ids = backoff_ids & rescue_ids
+            ordinary_backoff_ids = backoff_ids - rescue_backoff_ids
+            gap_word_ids = [
+                lid for lid in gap_word_ids if lid not in ordinary_backoff_ids
+            ]
+            if ordinary_backoff_ids:
+                stats["backoff_skipped"] = len(ordinary_backoff_ids)
+                logger.info(
+                    "Warm cache: skipping %d non-rescue words in generation backoff",
+                    len(ordinary_backoff_ids),
+                )
+            if rescue_backoff_ids:
+                stats["acquiring_rescue_backoff_overridden"] = len(rescue_backoff_ids)
+                logger.info(
+                    "Warm cache: overriding generation backoff for %d acquiring rescue gaps",
+                    len(rescue_backoff_ids),
+                )
 
         # Sort gap words by tier urgency (most urgent first)
         gap_word_ids.sort(key=lambda lid: (
