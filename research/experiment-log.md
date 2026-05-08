@@ -50,6 +50,7 @@ canonical `frequency_core` lemmas and mapped the obvious rows without creating
   * `مُحْتَوًى` — content
   * `عَدَم` — lack, nonexistence
   * `عَبْرَ` — through, via, across
+  * `لَيْزَر` — laser, correcting a bad `بالليزر` → `زَرَّ` mapping
 
 Ambiguous/specialized rows such as `الليزك` and `الشبكية` were left for later
 curation rather than promoted into the core scheduler blindly.
