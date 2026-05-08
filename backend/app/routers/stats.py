@@ -726,6 +726,7 @@ def _compute_frequency_core_progress(db: Session) -> FrequencyCoreProgress | Non
             FrequencyCoreEntry.confidence_tier,
             FrequencyCoreEntry.gap_status,
             UserLemmaKnowledge.knowledge_state,
+            UserLemmaKnowledge.introduced_at,
         )
         .outerjoin(
             UserLemmaKnowledge,
@@ -739,8 +740,9 @@ def _compute_frequency_core_progress(db: Session) -> FrequencyCoreProgress | Non
         .all()
     )
 
-    learned_states = {"known", "learning"}
-    pipeline_states = learned_states | {"acquiring", "lapsed", "encountered"}
+    learned_states = {"known", "learning", "acquiring"}
+    pipeline_states = learned_states | {"lapsed", "encountered"}
+    introduced_states = learned_states | {"lapsed", "suspended"}
 
     learned_prefix_count = 0
     for r in rows:
@@ -770,7 +772,7 @@ def _compute_frequency_core_progress(db: Session) -> FrequencyCoreProgress | Non
 
     next_gaps: list[FrequencyCoreGap] = []
     for r in rows:
-        if r.knowledge_state in pipeline_states:
+        if r.introduced_at is not None or r.knowledge_state in introduced_states:
             continue
         status = r.knowledge_state or ("missing_from_db" if r.lemma_id is None else "new")
         next_gaps.append(FrequencyCoreGap(

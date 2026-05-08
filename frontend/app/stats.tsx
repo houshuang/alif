@@ -549,7 +549,7 @@ function FrequencyCoreCard({ data }: { data: FrequencyCoreProgress }) {
 
       {gaps.length > 0 && (
         <View style={styles.freqCoreGaps}>
-          <Text style={styles.freqCoreGapTitle}>Earliest unhandled core ranks</Text>
+          <Text style={styles.freqCoreGapTitle}>Earliest not-yet-introduced core ranks</Text>
           {gaps.map((gap) => (
             <View key={`${gap.core_rank}-${gap.display_form}`} style={styles.freqCoreGapRow}>
               <Text style={styles.freqCoreGapRank}>#{gap.core_rank}</Text>
@@ -574,9 +574,9 @@ function frequencyCoreGapLabel(gap: FrequencyCoreProgress["next_gaps"][number]) 
     return "missing from DB";
   }
   if (gap.status === "acquiring") return "introduced";
-  if (gap.status === "encountered") return "encountered";
+  if (gap.status === "encountered") return "not introduced";
   if (gap.status === "lapsed") return "lapsed";
-  if (gap.status === "new") return "not started";
+  if (gap.status === "new") return "not introduced";
   return (gap.gap_status || gap.status).replace(/_/g, " ");
 }
 

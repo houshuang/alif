@@ -207,7 +207,7 @@ class TestStatsAPI:
         assert top100["low_confidence_count"] == 1
         assert core["next_gaps"][0]["gap_status"] == "unmapped"
 
-    def test_frequency_core_gaps_skip_words_already_in_pipeline(self, client, db_session):
+    def test_frequency_core_gaps_skip_introduced_words(self, client, db_session):
         learned = _make_lemma(db_session, 1, "known")
         acquiring = _make_lemma(db_session, 2, "acquiring")
         lapsed = _make_lemma(db_session, 3, "lapsed")
@@ -260,9 +260,11 @@ class TestStatsAPI:
         resp = client.get("/api/stats/analytics")
         assert resp.status_code == 200
         core = resp.json()["frequency_core"]
-        assert core["learned_prefix_count"] == 1
-        assert core["bands"][0]["pipeline_count"] == 4
-        assert [gap["core_rank"] for gap in core["next_gaps"]] == [5]
+        assert core["learned_prefix_count"] == 2
+        top100 = core["bands"][0]
+        assert top100["learned_count"] == 2
+        assert top100["pipeline_count"] == 4
+        assert [gap["core_rank"] for gap in core["next_gaps"]] == [4, 5]
 
     def test_daily_goal_splits_main_and_slow_lane_due_debt(self, client, db_session):
         now = datetime.now(timezone.utc)

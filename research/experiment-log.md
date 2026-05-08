@@ -4,7 +4,7 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
-## 2026-05-08 (latest): Frequency-core stats gap list now means unhandled, not in-progress
+## 2026-05-08 (latest): Frequency-core stats gap list now means not introduced
 
 ### What
 
@@ -22,12 +22,17 @@ introduced by the acquisition pipeline. The bug was in the analytics contract:
 
 ### Fix
 
-`backend/app/routers/stats.py` now filters `next_gaps` using the full pipeline
-state set: `known`, `learning`, `acquiring`, `lapsed`, and `encountered`.
-Coverage metrics are unchanged: learned coverage still counts only
-`known`/`learning`, while pipeline coverage counts all five states.
+`backend/app/routers/stats.py` now treats `acquiring` as learned for top-N
+progress (`learned_count`, `coverage_pct`, and `learned_prefix_count`). Pipeline
+coverage remains broader and counts `known`, `learning`, `acquiring`, `lapsed`,
+and `encountered`.
 
-The frontend title is now "Earliest unhandled core ranks", and
+`next_gaps` is now a not-yet-introduced list: rows with `introduced_at` set, or
+with an introduced state (`known`, `learning`, `acquiring`, `lapsed`,
+`suspended`), are excluded. `encountered` rows can still appear because they have
+been seen but not formally introduced into acquisition.
+
+The frontend title is now "Earliest not-yet-introduced core ranks", and
 `needs_manual_review` rows are labelled "needs mapping" instead of the broader
 "missing from DB".
 

@@ -10,12 +10,13 @@ The frequency core is Alif's general-reading vocabulary curriculum. It answers
 remain in the table and count against the denominator. This is intentional:
 unmapped high-frequency words are curriculum gaps, not invisible rows.
 
-Learned coverage counts only `known` and `learning`. Pipeline coverage counts
-`known`, `learning`, `acquiring`, `lapsed`, and `encountered`.
+Learned coverage counts `known`, `learning`, and `acquiring`: once a word has
+entered acquisition, it is already being learned for top-N progress purposes.
+Pipeline coverage counts those states plus `lapsed` and `encountered`.
 
-`next_gaps` is the earliest unhandled curriculum gap list, not a "not learned
-yet" list. It excludes every pipeline state above so already-introduced words do
-not appear there just because they have not graduated to `learning`/`known` yet.
+`next_gaps` is the earliest not-yet-introduced curriculum list, not a "not
+graduated yet" list. It excludes rows with `introduced_at` set and rows in an
+introduced state (`known`, `learning`, `acquiring`, `lapsed`, `suspended`).
 Rows marked `needs_manual_review` are unresolved mapping/curation work; rows
 marked `unmapped` are still missing from the DB.
 
@@ -99,5 +100,5 @@ Review scheduling uses the same core for lanes:
 - `next_gaps`.
 
 The stats card must label low-confidence/unmapped rows as gaps and keep
-pipeline words out of the gap list. A top-N number is only motivational if it is
-honest.
+introduced words out of the gap list. A top-N number is only motivational if it
+is honest.
