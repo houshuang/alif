@@ -12,6 +12,8 @@ import threading
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
+from sqlalchemy import func
+
 from app.database import SessionLocal
 from app.models import Lemma, Sentence, SentenceWord, UserLemmaKnowledge
 
@@ -68,6 +70,124 @@ _warm_cache_lock = threading.Lock()
 # for BACKOFF_DURATION to avoid wasting LLM calls on chronically-failing words.
 GENERATION_BACKOFF_THRESHOLD = 3
 GENERATION_BACKOFF_DURATION = timedelta(days=7)
+
+# Acquiring words are already in active study. If any of them have thin or
+# missing reviewable sentence coverage, they should outrank speculative
+# pre-generation for future introductions.
+ACQUIRING_RESCUE_SENTENCE_TARGET = 3
+
+
+def active_sentence_counts_by_lemma(db, lemma_ids: list[int]) -> dict[int, int]:
+    """Count active, fully mapped sentences containing each lemma.
+
+    This intentionally counts by ``sentence_words`` rather than
+    ``sentences.target_lemma_id``. Multi-target and collateral sentences are
+    valid review material for an acquiring lemma even when another lemma is the
+    primary target.
+    """
+    if not lemma_ids:
+        return {}
+    from sqlalchemy import exists
+    from sqlalchemy.orm import aliased
+
+    UnmappedSentenceWord = aliased(SentenceWord)
+    no_unmapped_words = ~exists().where(
+        UnmappedSentenceWord.sentence_id == Sentence.id,
+        UnmappedSentenceWord.lemma_id.is_(None),
+    )
+
+    rows = (
+        db.query(SentenceWord.lemma_id, func.count(func.distinct(Sentence.id)))
+        .join(Sentence, Sentence.id == SentenceWord.sentence_id)
+        .filter(
+            SentenceWord.lemma_id.in_(lemma_ids),
+            Sentence.is_active == True,  # noqa: E712
+            no_unmapped_words,
+        )
+        .group_by(SentenceWord.lemma_id)
+        .all()
+    )
+    return {int(lid): int(count) for lid, count in rows}
+
+
+def acquiring_material_gaps(db, limit: int = 40) -> list[dict]:
+    """Return acquiring lemmas that need more active reviewable sentences.
+
+    The generation queues use this as a priority rescue lane. It is deliberately
+    broader than due-date tier backfill: all acquiring words below the target
+    are eligible, with overdue and zero-material words sorted first.
+    """
+    rows = (
+        db.query(Lemma, UserLemmaKnowledge)
+        .join(UserLemmaKnowledge, UserLemmaKnowledge.lemma_id == Lemma.lemma_id)
+        .filter(
+            UserLemmaKnowledge.knowledge_state == "acquiring",
+            Lemma.canonical_lemma_id.is_(None),
+            Lemma.gloss_en.isnot(None),
+            func.length(func.trim(Lemma.gloss_en)) > 0,
+        )
+        .all()
+    )
+    if not rows:
+        return []
+
+    lemma_ids = [lemma.lemma_id for lemma, _ulk in rows]
+    active_counts = active_sentence_counts_by_lemma(db, lemma_ids)
+    now_ts = datetime.now(timezone.utc).timestamp()
+
+    def _ts(dt, fallback: float) -> float:
+        if dt is None:
+            return fallback
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt.timestamp()
+
+    gaps: list[tuple[tuple, dict]] = []
+    for lemma, ulk in rows:
+        existing = active_counts.get(lemma.lemma_id, 0)
+        target = ACQUIRING_RESCUE_SENTENCE_TARGET
+        needed = target - existing
+        if needed <= 0:
+            continue
+
+        due_ts = _ts(ulk.acquisition_next_due, float("inf"))
+        started_ts = _ts(
+            ulk.acquisition_started_at
+            or ulk.entered_acquiring_at
+            or ulk.introduced_at,
+            float("inf"),
+        )
+        gap = {
+            "lemma_id": lemma.lemma_id,
+            "lemma_ar": lemma.lemma_ar,
+            "gloss_en": lemma.gloss_en or "",
+            "pos": lemma.pos or "",
+            "root_id": lemma.root_id,
+            "due_str": (
+                ulk.acquisition_next_due.isoformat()
+                if ulk.acquisition_next_due
+                else "none"
+            ),
+            "existing": existing,
+            "needed": needed,
+            "tier": 0,
+            "backfill_target": target,
+            "source": "acquiring_rescue",
+        }
+        gaps.append((
+            (
+                0 if due_ts <= now_ts else 1,
+                0 if existing == 0 else 1,
+                due_ts,
+                started_ts,
+                lemma.frequency_rank if lemma.frequency_rank is not None else 1_000_000,
+                lemma.lemma_id,
+            ),
+            gap,
+        ))
+
+    gaps.sort(key=lambda item: item[0])
+    return [gap for _sort_key, gap in gaps[:limit]]
 
 
 def record_generation_result(db, lemma_id: int, sentences_generated: int) -> None:
@@ -1356,7 +1476,14 @@ def _warm_sentence_cache_impl(llm_model: str = "claude_sonnet") -> dict:
     from sqlalchemy import func
     from sqlalchemy.orm import joinedload
 
-    stats = {"cohort_gaps": 0, "intro_gaps": 0, "generated": 0, "multi_target": 0, "rotated": 0}
+    stats = {
+        "acquiring_rescue_gaps": 0,
+        "cohort_gaps": 0,
+        "intro_gaps": 0,
+        "generated": 0,
+        "multi_target": 0,
+        "rotated": 0,
+    }
 
     # ── Phase 1: DB read ──
     db = SessionLocal()
@@ -1385,6 +1512,20 @@ def _warm_sentence_cache_impl(llm_model: str = "claude_sonnet") -> dict:
 
         # Collect all words needing sentences
         gap_word_ids: list[int] = []
+        seen_gap_ids: set[int] = set()
+
+        def add_gap_word(lid: int) -> None:
+            if lid not in seen_gap_ids:
+                gap_word_ids.append(lid)
+                seen_gap_ids.add(lid)
+
+        acquiring_rescue_words = acquiring_material_gaps(db, limit=40)
+        rescue_rank = {
+            w["lemma_id"]: idx for idx, w in enumerate(acquiring_rescue_words)
+        }
+        for w in acquiring_rescue_words:
+            add_gap_word(w["lemma_id"])
+        stats["acquiring_rescue_gaps"] = len(acquiring_rescue_words)
 
         # 1. Focus cohort words below their tier-based sentence target
         cohort = get_focus_cohort(db)
@@ -1405,14 +1546,15 @@ def _warm_sentence_cache_impl(llm_model: str = "claude_sonnet") -> dict:
                 if target > 0 and sentence_counts.get(lid, 0) < target:
                     gaps.append(lid)
             stats["cohort_gaps"] = len(gaps)
-            gap_word_ids.extend(gaps[:20])
+            for lid in gaps[:20]:
+                add_gap_word(lid)
 
         # 2. Likely auto-introduction candidates (not yet in tier system, use default)
         active_topic = ensure_active_topic(db)
         candidates = select_next_words(db, count=5, domain=active_topic)
         for cand in candidates:
             lid = cand["lemma_id"]
-            if lid in gap_word_ids:
+            if lid in seen_gap_ids:
                 continue
             count = (
                 db.query(func.count(Sentence.id))
@@ -1420,19 +1562,18 @@ def _warm_sentence_cache_impl(llm_model: str = "claude_sonnet") -> dict:
                 .scalar() or 0
             )
             if count < MIN_SENTENCES_PER_WORD:
-                gap_word_ids.append(lid)
+                add_gap_word(lid)
                 stats["intro_gaps"] = stats.get("intro_gaps", 0) + 1
 
         # 3. Recency-exhausted words: have enough sentences but ALL shown in last 24h
         from sqlalchemy import or_
         now = datetime.now(timezone.utc)
         recency_cutoff = now - timedelta(days=1)
-        gap_word_set = set(gap_word_ids)
         recency_exhausted_count = 0
         MAX_RECENCY_EXHAUSTED = 20
         if cohort:
             for lid in cohort:
-                if lid in gap_word_set:
+                if lid in seen_gap_ids:
                     continue
                 if recency_exhausted_count >= MAX_RECENCY_EXHAUSTED:
                     break
@@ -1454,7 +1595,7 @@ def _warm_sentence_cache_impl(llm_model: str = "claude_sonnet") -> dict:
                     .scalar() or 0
                 )
                 if fresh_count == 0:
-                    gap_word_ids.append(lid)
+                    add_gap_word(lid)
                     recency_exhausted_count += 1
             if recency_exhausted_count:
                 stats["recency_exhausted"] = recency_exhausted_count
@@ -1470,6 +1611,8 @@ def _warm_sentence_cache_impl(llm_model: str = "claude_sonnet") -> dict:
 
         # Sort gap words by tier urgency (most urgent first)
         gap_word_ids.sort(key=lambda lid: (
+            0 if lid in rescue_rank else 1,
+            rescue_rank.get(lid, 1_000_000),
             tier_lookup[lid].tier if lid in tier_lookup else 4,
             tier_lookup[lid].due_dt or datetime.max.replace(tzinfo=timezone.utc) if lid in tier_lookup else datetime.max.replace(tzinfo=timezone.utc),
         ))
@@ -1540,25 +1683,6 @@ def _warm_sentence_cache_impl(llm_model: str = "claude_sonnet") -> dict:
         except Exception:
             logger.warning(f"Warm cache: multi-target failed for group")
 
-    # Single-target fallback for any remaining ungrouped words
-    covered = set()
-    for group in groups:
-        for w in group:
-            covered.add(w["lemma_id"])
-    remaining = [lid for lid in gap_word_ids if lid not in covered]
-
-    single_covered: set[int] = set()
-    for lid in remaining:
-        try:
-            stored = generate_material_for_word(
-                lid, needed=MIN_SENTENCES_PER_WORD, model_override=llm_model
-            )
-            stats["generated"] += 1
-            if stored:
-                single_covered.add(lid)
-        except Exception:
-            logger.warning(f"Warm cache: failed for word {lid}")
-
     # ── Phase 3a: Validate multi-target sentences (LLM disambig + verify) ──
     # DB reads only — a dedicated session means we never autoflush a write
     # during an LLM call, which was the source of repeated lock contention.
@@ -1596,6 +1720,22 @@ def _warm_sentence_cache_impl(llm_model: str = "claude_sonnet") -> dict:
             multi_covered.clear()
         finally:
             db.close()
+
+    # Single-target fallback for any word not actually covered by a written
+    # multi-target sentence. This is intentionally after validation/write so a
+    # failed group does not consume the only rescue attempt for an acquiring gap.
+    single_covered: set[int] = set()
+    remaining = [lid for lid in gap_word_ids if lid not in multi_covered]
+    for lid in remaining:
+        try:
+            stored = generate_material_for_word(
+                lid, needed=MIN_SENTENCES_PER_WORD, model_override=llm_model
+            )
+            stats["generated"] += stored
+            if stored:
+                single_covered.add(lid)
+        except Exception:
+            logger.warning(f"Warm cache: failed for word {lid}")
 
     # ── Phase 3c: Update per-lemma generation backoff tracking ──
     # Each lemma in gap_word_ids was an attempt. Success = covered by a

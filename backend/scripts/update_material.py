@@ -43,6 +43,7 @@ from app.services.activity_log import log_activity
 from app.services.proper_name_lemmas import get_or_create_proper_name_lemma
 from app.services.word_selector import select_next_words
 from app.services.material_generator import (
+    acquiring_material_gaps,
     generate_material_for_word,
     lemmas_on_backoff,
     record_generation_result,
@@ -679,19 +680,46 @@ def step_backfill_sentences(
     content_word_counts = get_content_word_counts(db)
     avoid_words = get_avoid_words(content_word_counts, known_words)
 
+    acquiring_rescue_words = acquiring_material_gaps(
+        db,
+        limit=max(0, int(os.environ.get("ALIF_ACQUIRING_RESCUE_LIMIT", "80"))),
+    )
+
     # Skip lemmas currently in generation backoff (3+ consecutive failed runs).
     # They are re-admitted when the backoff_until timestamp expires; any later
     # success clears the counter.
-    candidate_ids = [wt.lemma_id for wt in word_tiers if wt.backfill_target > 0]
+    candidate_ids = list({
+        wt.lemma_id for wt in word_tiers if wt.backfill_target > 0
+    } | {w["lemma_id"] for w in acquiring_rescue_words})
     backoff_ids = lemmas_on_backoff(db, candidate_ids)
     if backoff_ids:
         print(f"  Skipping {len(backoff_ids)} words in generation backoff")
 
     # Collect words needing sentences — tier-based targets
     words_needing: list[dict] = []
+    seen_needing: set[int] = set()
+    rescue_ready = 0
+    for w in acquiring_rescue_words:
+        lid = w["lemma_id"]
+        if lid in backoff_ids:
+            continue
+        words_needing.append({
+            **w,
+            "needed": min(w["needed"], budget),
+        })
+        seen_needing.add(lid)
+        rescue_ready += 1
+    if acquiring_rescue_words:
+        print(
+            f"  Acquiring material rescue gaps: {rescue_ready} "
+            f"(of {len(acquiring_rescue_words)} found)"
+        )
+
     for wt in word_tiers:
         if wt.backfill_target <= 0:
             continue  # tier 4: skip, JIT fills when needed
+        if wt.lemma_id in seen_needing:
+            continue
         if wt.lemma_id in backoff_ids:
             continue
         existing = existing_counts.get(wt.lemma_id, 0)

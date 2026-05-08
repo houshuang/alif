@@ -4,7 +4,59 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
-## 2026-05-08 (latest): Frequency-core stats gap list now means not introduced
+## 2026-05-08 (latest): Acquiring material rescue is now first-priority
+
+### What
+
+Already-acquiring words can now enter a priority rescue lane when they have
+fewer than 3 active, fully mapped sentences. Coverage is counted through
+`SentenceWord`, not only `Sentence.target_lemma_id`, so collateral and
+multi-target sentences count as real review material.
+
+Both material entrypoints use the same rescue helper:
+
+  * `warm_sentence_cache()` adds up to 40 acquiring rescue gaps before focus
+    cohort, intro-candidate, and recency-exhausted gaps.
+  * `update_material.py` Step A adds up to 80 acquiring rescue gaps before
+    normal tier backfill, configurable with `ALIF_ACQUIRING_RESCUE_LIMIT`.
+
+Within the rescue queue, overdue and zero-material words come first. The queue
+still respects generation backoff so chronic zero-result lemmas do not crowd out
+viable words.
+
+### Why
+
+The previous tier backfill could miss acquiring words whose due date had drifted
+into tier 4 or whose usable coverage came only from non-primary sentences. That
+left real acquisition items with no active review material while the system was
+busy pre-generating for future introductions.
+
+### Fix
+
+`material_generator.py` now exposes:
+
+  * `active_sentence_counts_by_lemma()`
+  * `acquiring_material_gaps()`
+
+Warm cache now sorts acquiring rescue ahead of ordinary gaps and falls back to
+single-target generation for any grouped word that was not actually covered by a
+written multi-target sentence. That closes the previous edge where a failed
+multi-target group consumed the only warm-cache attempt.
+
+### Verification
+
+Focused tests:
+
+```bash
+pytest backend/tests/test_acquiring_material_rescue.py backend/tests/test_generation_backoff.py -q
+python3 -m py_compile backend/app/services/material_generator.py backend/scripts/update_material.py
+```
+
+Result: 12 passed; compile check passed.
+
+---
+
+## 2026-05-08: Frequency-core stats gap list now means not introduced
 
 ### What
 
