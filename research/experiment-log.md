@@ -39,6 +39,10 @@ rows as a permanent manual queue. Each material run now processes the usual
 fresh unmapped batch plus one previously rejected top-core row, so hard cases
 continue through automated retry without blocking lower fresh rows.
 
+Follow-up: `word_selector.py` now uses the earliest core rank when multiple
+frequency rows map to the same lemma, so `منتدى` is prioritized as rank 1
+rather than being overwritten by its later plural/definite rows.
+
 The frontend title is now "Earliest not-yet-introduced core ranks", and
 `needs_manual_review` rows are labelled "auto retry" instead of implying user
 curation.

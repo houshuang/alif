@@ -1,7 +1,7 @@
 from datetime import datetime, timezone, timedelta
 import pytest
 
-from app.models import Root, Lemma, UserLemmaKnowledge, GrammarFeature, UserGrammarExposure
+from app.models import Root, Lemma, UserLemmaKnowledge, GrammarFeature, UserGrammarExposure, FrequencyCoreEntry
 from app.services.word_selector import (
     select_next_words,
     introduce_word,
@@ -183,6 +183,39 @@ class TestSelectNextWords:
 
         result = select_next_words(db_session, count=3)
         assert result[0]["lemma_id"] == l1.lemma_id  # freq 10 > freq 100 > freq 5000
+
+    def test_frequency_core_uses_earliest_rank_for_duplicate_rows(self, db_session):
+        forum = _create_lemma(db_session, "منتدى", "forum")
+        other = _create_lemma(db_session, "عدم", "lack")
+        db_session.add_all([
+            FrequencyCoreEntry(
+                core_rank=1,
+                lemma_id=forum.lemma_id,
+                lemma_key=f"lemma:{forum.lemma_id}",
+                display_form="منتدى",
+                score=100.0,
+            ),
+            FrequencyCoreEntry(
+                core_rank=95,
+                lemma_id=forum.lemma_id,
+                lemma_key=f"lemma:{forum.lemma_id}",
+                display_form="منتديات",
+                score=90.0,
+            ),
+            FrequencyCoreEntry(
+                core_rank=50,
+                lemma_id=other.lemma_id,
+                lemma_key=f"lemma:{other.lemma_id}",
+                display_form="عدم",
+                score=80.0,
+            ),
+        ])
+        db_session.commit()
+
+        result = select_next_words(db_session, count=2)
+        assert result[0]["lemma_id"] == forum.lemma_id
+        assert result[0]["frequency_core_rank"] == 1
+        assert result[0]["score_breakdown"]["priority_tier"] == "freq_core_1"
 
     def test_root_familiarity_boosts_score(self, db_session):
         root = _create_root(db_session, "ك.ت.ب")

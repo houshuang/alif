@@ -478,20 +478,17 @@ def select_next_words(
 
     # --- Batch pre-fetch for scoring ---
     candidate_ids = {c.lemma_id for c in candidates}
-    frequency_core_by_id: dict[int, FrequencyCoreEntry] = {}
+    frequency_core_rank_by_id: dict[int, int] = {}
     if candidate_ids:
-        frequency_core_by_id = {
-            row.lemma_id: row
-            for row in (
-                db.query(FrequencyCoreEntry)
-                .filter(
-                    FrequencyCoreEntry.lemma_id.in_(candidate_ids),
-                    FrequencyCoreEntry.excluded_reason.is_(None),
-                )
-                .all()
+        frequency_core_rank_by_id = dict(
+            db.query(FrequencyCoreEntry.lemma_id, func.min(FrequencyCoreEntry.core_rank))
+            .filter(
+                FrequencyCoreEntry.lemma_id.in_(candidate_ids),
+                FrequencyCoreEntry.excluded_reason.is_(None),
             )
-            if row.lemma_id is not None
-        }
+            .group_by(FrequencyCoreEntry.lemma_id)
+            .all()
+        )
 
     root_ids = {c.root_id for c in candidates if c.root_id}
 
@@ -578,8 +575,7 @@ def select_next_words(
         # The curated frequency core is the default general-reading curriculum.
         # It can outrank book/OCR tiers for the top 1k words, while book pages
         # still compete for lower-ranked core words.
-        core_entry = frequency_core_by_id.get(lemma.lemma_id)
-        core_rank = core_entry.core_rank if core_entry else None
+        core_rank = frequency_core_rank_by_id.get(lemma.lemma_id)
         core_bonus = _frequency_core_bonus(core_rank)
         if lemma.lemma_id in book_pages:
             page = book_pages[lemma.lemma_id]["page"]
