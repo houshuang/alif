@@ -24,9 +24,16 @@ Function words (pronouns, prepositions, conjunctions, demonstratives, copular ve
 - **NOT given FSRS cards**: no spaced repetition scheduling, no "due" state, no review cards
 - **Tracked in SentenceWord**: keep lemma_id for lookup purposes, but sentence_review_service skips them for credit
 - **Have Lemma entries in DB**: with proper glosses and forms, but no ULK (UserLemmaKnowledge) records
-- **Defined in FUNCTION_WORDS set** in sentence_validator.py (60+ entries, bare forms)
+- **Defined in FUNCTION_WORDS set** in sentence_validator.py (60+ entries, bare forms); detection strips diacritics, tatweel, and wrapping punctuation before lookup so quoted/dialogue tokens like `«هَلْ` and `عِنْدَها؟»` still classify correctly
 - **FUNCTION_WORD_FORMS dict** maps conjugated forms to base lemma (كانت→كان, يكون→كان, etc.)
 - **Clitic stripping is NOT applied** to function words in map_tokens_to_lemmas() to prevent false analysis (e.g., كانت → ك+انت)
+
+## Proper Names
+Proper names are represented as real lemmas with `word_category="proper_name"` and gloss `(proper name)`:
+- **Clickable in review**: sentence words keep the lemma_id so tap-to-lookup works and the UI can show that the token is a proper name
+- **NOT scheduled**: no FSRS cards, acquisition boxes, intro cards, due state, or review credit
+- **Ignored by scoring**: excluded from scaffold/comprehensibility counts, due coverage, missed/confused submission, and story unknown counts
+- **Created conservatively**: storage paths can pass declared names; Hindawi promotion also infers high-confidence single-token guillemet names like `«لَيْلَى»`
 
 ## CAMeL Disambiguation in Lemma Mapping
 When `lookup_lemma()` finds a match via clitic stripping but the stripped form is ambiguous (multiple possible lemmas), it calls `_camel_disambiguate()` which delegates to `find_best_db_match()` in morphology.py to pick the best DB lemma. This also serves as a last-resort fallback when no rule-based match is found. Minimum-length guard: al-prefix is not prepended to stems shorter than 3 characters (prevents false matches like ال + بت).

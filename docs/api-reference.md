@@ -17,7 +17,7 @@ Full endpoint list. See `backend/app/routers/` for implementation.
 | GET | `/api/review/next-listening` | Listening-suitable review cards (legacy) |
 | GET | `/api/review/next-sentences?limit=10&mode=reading` | Sentence-centric review session (primary). Each item includes `selection_info` with reason, score, word_reason, and score component breakdown. Response also includes `verse_cards` (Quran verses with word data for tap-to-lookup, reading mode only) |
 | POST | `/api/review/submit` | Submit single-word review (legacy) |
-| POST | `/api/review/submit-sentence` | Submit sentence review — all words get FSRS credit. Accepts confused_lemma_ids |
+| POST | `/api/review/submit-sentence` | Submit sentence review. Schedulable content lemmas get FSRS/acquisition credit; function words and proper-name lemmas are lookup-only and ignored for scheduling/review credit. Accepts missed_lemma_ids and confused_lemma_ids |
 | POST | `/api/review/undo-sentence` | Undo a sentence review — restores pre-review FSRS state, deletes logs |
 | GET | `/api/review/word-lookup/{lemma_id}` | Word detail + root family + forms_translit (computed on-the-fly if not stored) + pattern_examples + etymology_json for review lookup |
 | GET | `/api/review/confusion-help/{lemma_id}?surface_form=...` | Confusion analysis for "did not recognize" words — morphological decomposition (clitics/forms) + visual similarity (edit distance/rasm) |

@@ -11,7 +11,7 @@ SQLAlchemy models in `backend/app/models.py`. Pydantic schemas in `backend/app/s
 
 ## Sentences & Reviews
 - `sentences` — Generated/imported: arabic_text (fully diacritized — all pipelines store the voweled form; callers needing plain text strip diacritics at query time), english_translation, transliteration, target_lemma_id, story_id (FK to stories, for book-extracted sentences), source (llm/book/corpus/michel_thomas/tatoeba/manual), times_shown, last_reading_shown_at/last_listening_shown_at, last_reading_comprehension/last_listening_comprehension, is_active, max_word_count, created_at, page_number (for book sentences), mappings_verified_at (nullable DateTime — NULL=never verified, timestamp=when last verified by batch LLM check)
-- `sentence_words` — Word breakdown: position, surface_form, lemma_id, is_target_word, grammar_role_json
+- `sentence_words` — Word breakdown: position, surface_form, lemma_id, is_target_word, grammar_role_json. Proper names should point at a `lemmas.word_category="proper_name"` row rather than a standard content lemma; that keeps them clickable while excluding them from scheduling/review credit.
 - `review_log` — Review history: rating 1-4, mode, sentence_id, credit_type (metadata only), is_acquisition, was_confused (bool, explicit confusion signal), fsrs_log_json (pre-review snapshots for undo)
 - `sentence_review_log` — Per-sentence review: comprehension, timing, session_id
 
@@ -22,7 +22,7 @@ SQLAlchemy models in `backend/app/models.py`. Pydantic schemas in `backend/app/s
 
 ## Stories & Content
 - `stories` — title_ar/en, body_ar/en, transliteration, source (generated/imported/book_ocr), status (active/completed/suspended), readiness_pct, difficulty_level, page_count (for book imports), format_type (standard/long/breakdown/arabic_explanation), archived_at (DateTime nullable — orthogonal to status), audio_filename (MP3 in data/story-audio/), voice_id (ElevenLabs voice used), metadata_json (format-specific data e.g. explanation_ar). API returns page_readiness array (per-page new_words/learned_words/unlocked — counts only words unknown at import time, using acquisition_started_at vs story.created_at), new_total/new_learning (deduplicated story-level counts), and sentences_seen for book_ocr stories.
-- `story_words` — Per-token: position, surface_form, lemma_id, gloss_en, is_function_word, name_type
+- `story_words` — Per-token: position, surface_form, lemma_id, gloss_en, is_function_word, name_type. Proper names use `name_type` (`personal`/`place`) plus a proper-name lemma row, count as known/inert for readiness, and should not create tracked `user_lemma_knowledge`.
 - `page_uploads` — OCR tracking: batch_id, status, extracted_words_json, new_words, existing_words, textbook_page_number (detected printed page number from OCR)
 
 ## Quran
