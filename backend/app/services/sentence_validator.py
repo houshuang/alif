@@ -409,7 +409,7 @@ def _is_function_word(bare_form: str) -> bool:
     """
     if not FUNCTION_WORDS:
         return False
-    stripped = strip_diacritics(bare_form)
+    stripped = strip_punctuation(strip_tatweel(strip_diacritics(bare_form)))
     normalized = normalize_alef(stripped)
     return normalized in _FUNCTION_WORDS_NORMALIZED
 

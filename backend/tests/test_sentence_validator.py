@@ -654,6 +654,13 @@ class TestMapTokensToLemmas:
         assert result.valid is True
         assert any("لَيْلَى" in word for word in result.known_words)
 
+    def test_function_word_detection_ignores_wrapping_punctuation(self):
+        from app.services.sentence_validator import _is_function_word
+
+        assert _is_function_word("«هَلْ") is True
+        assert _is_function_word("عِنْدَها؟»") is True
+        assert _is_function_word("الطَّرِيقِ.") is False
+
     def test_attached_ind_maps_to_ind_base(self):
         """عند + pronoun forms should map to عند instead of storing NULL lemma ids."""
         lemmas = [
