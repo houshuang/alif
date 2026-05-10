@@ -7,7 +7,7 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session, joinedload
 
 from app.database import get_db
-from app.models import Sentence, SentenceWord, SentenceReviewLog, Lemma, UserLemmaKnowledge
+from app.models import Sentence, SentenceWord, SentenceReviewLog, Lemma, Story, UserLemmaKnowledge
 from app.services.sentence_generator import (
     GeneratedSentence,
     GenerationError,
@@ -156,4 +156,152 @@ def sentence_info(sentence_id: int, db: Session = Depends(get_db)):
             for r in reviews
         ],
         "words": words,
+    }
+
+
+@router.get("/{sentence_id}/story-info")
+def story_info_for_sentence(sentence_id: int, db: Session = Depends(get_db)):
+    """Debug info for the passage/story containing a review sentence."""
+    sent = db.query(Sentence).filter(Sentence.id == sentence_id).first()
+    if not sent:
+        raise HTTPException(404, "Sentence not found")
+    if not sent.story_id:
+        raise HTTPException(404, "Sentence is not attached to a story")
+
+    story = db.query(Story).filter(Story.id == sent.story_id).first()
+    if not story:
+        raise HTTPException(404, "Story not found")
+
+    story_sentences = (
+        db.query(Sentence)
+        .filter(Sentence.story_id == story.id)
+        .order_by(Sentence.id)
+        .all()
+    )
+
+    metadata = story.metadata_json or {}
+    if isinstance(metadata, str):
+        try:
+            metadata = json.loads(metadata)
+        except json.JSONDecodeError:
+            metadata = {}
+    if not isinstance(metadata, dict):
+        metadata = {}
+
+    target_ids = [
+        int(lid)
+        for lid in (metadata.get("target_lemma_ids") or [])
+        if isinstance(lid, int) or (isinstance(lid, str) and lid.isdigit())
+    ]
+    if not target_ids:
+        seen_target_ids: set[int] = set()
+        for row in story_sentences:
+            if row.target_lemma_id and row.target_lemma_id not in seen_target_ids:
+                target_ids.append(row.target_lemma_id)
+                seen_target_ids.add(row.target_lemma_id)
+
+    sentence_ids = [row.id for row in story_sentences]
+    target_word_rows = (
+        db.query(SentenceWord)
+        .filter(
+            SentenceWord.sentence_id.in_(sentence_ids),
+            SentenceWord.lemma_id.in_(target_ids),
+        )
+        .all()
+        if sentence_ids and target_ids
+        else []
+    )
+    occurrences_by_lid: dict[int, dict[str, object]] = {}
+    for sw in target_word_rows:
+        if not sw.lemma_id:
+            continue
+        entry = occurrences_by_lid.setdefault(
+            sw.lemma_id,
+            {"count": 0, "surface_forms": []},
+        )
+        entry["count"] = int(entry["count"]) + 1
+        forms = entry["surface_forms"]
+        if isinstance(forms, list) and sw.surface_form not in forms:
+            forms.append(sw.surface_form)
+
+    lemma_map: dict[int, Lemma] = {}
+    ulk_map: dict[int, UserLemmaKnowledge] = {}
+    if target_ids:
+        lemmas = db.query(Lemma).filter(Lemma.lemma_id.in_(target_ids)).all()
+        lemma_map = {lemma.lemma_id: lemma for lemma in lemmas}
+        ulks = db.query(UserLemmaKnowledge).filter(UserLemmaKnowledge.lemma_id.in_(target_ids)).all()
+        ulk_map = {ulk.lemma_id: ulk for ulk in ulks}
+
+    def _fsrs_due(ulk: UserLemmaKnowledge | None) -> str | None:
+        if not ulk or not ulk.fsrs_card_json:
+            return None
+        card_data = ulk.fsrs_card_json
+        if isinstance(card_data, str):
+            try:
+                card_data = json.loads(card_data)
+            except json.JSONDecodeError:
+                return None
+        if not isinstance(card_data, dict):
+            return None
+        due = card_data.get("due")
+        return str(due) if due else None
+
+    last_shown = [
+        dt for row in story_sentences
+        for dt in (row.last_reading_shown_at, row.last_listening_shown_at)
+        if dt
+    ]
+
+    return {
+        "story_id": story.id,
+        "title_ar": story.title_ar,
+        "title_en": story.title_en,
+        "source": story.source,
+        "format_type": story.format_type,
+        "status": story.status,
+        "created_at": story.created_at.isoformat() if story.created_at else None,
+        "completed_at": story.completed_at.isoformat() if story.completed_at else None,
+        "readiness_pct": story.readiness_pct,
+        "total_words": story.total_words,
+        "known_count": story.known_count,
+        "unknown_count": story.unknown_count,
+        "sentence_count": len(story_sentences),
+        "active_sentence_count": sum(1 for row in story_sentences if row.is_active),
+        "times_shown_total": sum(row.times_shown or 0 for row in story_sentences),
+        "last_shown_at": max(last_shown).isoformat() if last_shown else None,
+        "style_tag": metadata.get("style_tag"),
+        "authentic_source": metadata.get("authentic_source"),
+        "hindawi": metadata.get("hindawi"),
+        "target_lemma_ids": target_ids,
+        "target_lemmas": [
+            {
+                "lemma_id": lid,
+                "lemma_ar": lemma_map[lid].lemma_ar if lid in lemma_map else "",
+                "lemma_ar_bare": lemma_map[lid].lemma_ar_bare if lid in lemma_map else "",
+                "gloss_en": lemma_map[lid].gloss_en if lid in lemma_map else None,
+                "pos": lemma_map[lid].pos if lid in lemma_map else None,
+                "knowledge_state": ulk_map[lid].knowledge_state if lid in ulk_map else None,
+                "times_seen": ulk_map[lid].times_seen if lid in ulk_map else 0,
+                "times_correct": ulk_map[lid].times_correct if lid in ulk_map else 0,
+                "fsrs_due": _fsrs_due(ulk_map.get(lid)),
+                "occurrence_count": int(occurrences_by_lid.get(lid, {}).get("count", 0)),
+                "surface_forms": occurrences_by_lid.get(lid, {}).get("surface_forms", []),
+            }
+            for lid in target_ids
+        ],
+        "sentences": [
+            {
+                "sentence_id": row.id,
+                "created_at": row.created_at.isoformat() if row.created_at else None,
+                "source": row.source,
+                "is_active": row.is_active,
+                "times_shown": row.times_shown,
+                "target_lemma_id": row.target_lemma_id,
+                "last_reading_shown_at": row.last_reading_shown_at.isoformat() if row.last_reading_shown_at else None,
+                "last_reading_comprehension": row.last_reading_comprehension,
+                "last_listening_shown_at": row.last_listening_shown_at.isoformat() if row.last_listening_shown_at else None,
+                "last_listening_comprehension": row.last_listening_comprehension,
+            }
+            for row in story_sentences
+        ],
     }

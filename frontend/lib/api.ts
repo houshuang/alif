@@ -1089,6 +1089,62 @@ export async function getSentenceInfo(sentenceId: number): Promise<SentenceInfo>
   return fetchApi<SentenceInfo>(`/api/sentences/${sentenceId}/info`);
 }
 
+export interface StoryInfoTargetLemma {
+  lemma_id: number;
+  lemma_ar: string;
+  lemma_ar_bare: string;
+  gloss_en: string | null;
+  pos: string | null;
+  knowledge_state: string | null;
+  times_seen: number;
+  times_correct: number;
+  fsrs_due: string | null;
+  occurrence_count: number;
+  surface_forms: string[];
+}
+
+export interface StoryInfoSentence {
+  sentence_id: number;
+  created_at: string | null;
+  source: string | null;
+  is_active: boolean;
+  times_shown: number;
+  target_lemma_id: number | null;
+  last_reading_shown_at: string | null;
+  last_reading_comprehension: string | null;
+  last_listening_shown_at: string | null;
+  last_listening_comprehension: string | null;
+}
+
+export interface StoryInfo {
+  story_id: number;
+  title_ar: string | null;
+  title_en: string | null;
+  source: string | null;
+  format_type: string | null;
+  status: string | null;
+  created_at: string | null;
+  completed_at: string | null;
+  readiness_pct: number | null;
+  total_words: number;
+  known_count: number;
+  unknown_count: number;
+  sentence_count: number;
+  active_sentence_count: number;
+  times_shown_total: number;
+  last_shown_at: string | null;
+  style_tag: string | null;
+  authentic_source: string | null;
+  hindawi: Record<string, unknown> | null;
+  target_lemma_ids: number[];
+  target_lemmas: StoryInfoTargetLemma[];
+  sentences: StoryInfoSentence[];
+}
+
+export async function getStoryInfoForSentence(sentenceId: number): Promise<StoryInfo> {
+  return fetchApi<StoryInfo>(`/api/sentences/${sentenceId}/story-info`);
+}
+
 // --- Word management ---
 
 export async function postponeWord(lemmaId: number): Promise<{ lemma_id: number; state: string }> {

@@ -5,7 +5,7 @@ from unittest.mock import patch
 
 import pytest
 
-from app.models import Lemma, Sentence, SentenceWord, SentenceReviewLog, UserLemmaKnowledge
+from app.models import Lemma, Sentence, SentenceWord, SentenceReviewLog, Story, UserLemmaKnowledge
 from app.services.sentence_generator import GeneratedSentence, GenerationError
 
 
@@ -165,4 +165,82 @@ class TestSentenceInfo:
 
     def test_404_for_missing_sentence(self, client):
         resp = client.get("/api/sentences/99999/info")
+        assert resp.status_code == 404
+
+
+class TestStoryInfo:
+    def test_returns_story_metadata_and_target_words(self, client, db_session):
+        lemma = Lemma(lemma_ar="خُفّ", lemma_ar_bare="خف", gloss_en="slipper", pos="noun")
+        db_session.add(lemma)
+        db_session.flush()
+        ulk = UserLemmaKnowledge(
+            lemma_id=lemma.lemma_id,
+            knowledge_state="known",
+            times_seen=7,
+            times_correct=6,
+            fsrs_card_json={"due": "2026-05-10T12:00:00+00:00"},
+        )
+        db_session.add(ulk)
+        story = Story(
+            title_ar="الخُفُّ القَدِيمُ",
+            title_en="The Old Slipper",
+            body_ar="الخُفُّ القَدِيمُ.",
+            body_en="The old slipper.",
+            source="maintenance",
+            format_type="maintenance_passage",
+            metadata_json={"style_tag": "nostalgic", "target_lemma_ids": [lemma.lemma_id]},
+            total_words=4,
+            known_count=4,
+            unknown_count=0,
+            readiness_pct=100.0,
+        )
+        db_session.add(story)
+        db_session.flush()
+        created = datetime(2026, 5, 10, 17, 47, tzinfo=timezone.utc)
+        sent1 = Sentence(
+            arabic_text="الخُفُّ القَدِيمُ.",
+            english_translation="The old slipper.",
+            source="passage",
+            story_id=story.id,
+            target_lemma_id=lemma.lemma_id,
+            created_at=created,
+        )
+        sent2 = Sentence(
+            arabic_text="الخُفُّ عِنْدِي.",
+            english_translation="The slipper is with me.",
+            source="passage",
+            story_id=story.id,
+            target_lemma_id=lemma.lemma_id,
+            created_at=created,
+        )
+        db_session.add_all([sent1, sent2])
+        db_session.flush()
+        db_session.add_all([
+            SentenceWord(sentence_id=sent1.id, position=0, surface_form="الخُفُّ", lemma_id=lemma.lemma_id, is_target_word=True),
+            SentenceWord(sentence_id=sent2.id, position=0, surface_form="الخُفُّ", lemma_id=lemma.lemma_id, is_target_word=True),
+        ])
+        db_session.commit()
+
+        resp = client.get(f"/api/sentences/{sent1.id}/story-info")
+
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["story_id"] == story.id
+        assert data["title_en"] == "The Old Slipper"
+        assert data["format_type"] == "maintenance_passage"
+        assert data["style_tag"] == "nostalgic"
+        assert data["sentence_count"] == 2
+        assert data["target_lemma_ids"] == [lemma.lemma_id]
+        assert data["target_lemmas"][0]["lemma_id"] == lemma.lemma_id
+        assert data["target_lemmas"][0]["lemma_ar"] == "خُفّ"
+        assert data["target_lemmas"][0]["occurrence_count"] == 2
+        assert data["target_lemmas"][0]["fsrs_due"] == "2026-05-10T12:00:00+00:00"
+
+    def test_404_for_sentence_without_story(self, client, db_session):
+        sent = Sentence(arabic_text="هَذَا كِتَابٌ", source="llm")
+        db_session.add(sent)
+        db_session.commit()
+
+        resp = client.get(f"/api/sentences/{sent.id}/story-info")
+
         assert resp.status_code == 404

@@ -59,6 +59,7 @@ import { flushQueue } from "../lib/sync-queue";
 import { useNetStatus } from "../lib/net-status";
 import ActionMenu from "../lib/review/ActionMenu";
 import SentenceInfoModal from "../lib/review/SentenceInfoModal";
+import StoryInfoModal from "../lib/review/StoryInfoModal";
 import WordInfoCard, { FocusWordMark } from "../lib/review/WordInfoCard";
 import { IntroducedWordsTable } from "../lib/IntroducedWordsTable";
 import { GraduatedWordsTable } from "../lib/GraduatedWordsTable";
@@ -361,6 +362,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
   const [inWrapUp, setInWrapUp] = useState(false);
   const [seenLemmaIds, setSeenLemmaIds] = useState<Set<number>>(new Set());
   const [sentenceInfoVisible, setSentenceInfoVisible] = useState(false);
+  const [storyInfoVisible, setStoryInfoVisible] = useState(false);
   const showTime = useRef<number>(0);
   const soundRef = useRef<Audio.Sound | null>(null);
   const lookupRequestRef = useRef(0);
@@ -2552,6 +2554,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
 
   const item = sentenceSession.items[sentenceItemIndex];
   const showSentenceInfo = item.sentence_id != null && !isPassageCard(item);
+  const showStoryInfo = item.sentence_id != null && isPassageCard(item);
 
   return (
     <View
@@ -2575,6 +2578,11 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
                 icon: "information-circle-outline" as const,
                 label: "Sentence info",
                 onPress: () => setSentenceInfoVisible(true),
+              }] : []),
+              ...(showStoryInfo ? [{
+                icon: "book-outline" as const,
+                label: "Story info",
+                onPress: () => setStoryInfoVisible(true),
               }] : []),
               {
                 icon: "refresh-outline" as const,
@@ -2668,6 +2676,13 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
           visible={sentenceInfoVisible}
           onClose={() => setSentenceInfoVisible(false)}
           selectionInfo={item.selection_info}
+        />
+      )}
+      {showStoryInfo && (
+        <StoryInfoModal
+          sentenceId={item.sentence_id!}
+          visible={storyInfoVisible}
+          onClose={() => setStoryInfoVisible(false)}
         />
       )}
     </View>
