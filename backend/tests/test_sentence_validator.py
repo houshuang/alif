@@ -633,6 +633,18 @@ class TestMapTokensToLemmas:
         assert mappings[0].is_function_word is True  # ليست is in FUNCTION_WORD_GLOSSES
         assert mappings[0].lemma_id == 1
 
+    def test_attached_ind_maps_to_ind_base(self):
+        """عند + pronoun forms should map to عند instead of storing NULL lemma ids."""
+        lemmas = [
+            _FakeLemma(1, "عند"),
+            _FakeLemma(2, "كتاب"),
+        ]
+        lookup = build_lemma_lookup(lemmas)
+        tokens = tokenize("عِنْدَها الكِتَابَ")
+        mappings = map_tokens_to_lemmas(tokens, lookup, target_lemma_id=2, target_bare="كتاب")
+        assert mappings[0].is_function_word is True
+        assert mappings[0].lemma_id == 1
+
 
     def test_punctuation_preserved_in_surface_form(self):
         """Punctuation should be preserved in surface_form when using tokenize_display."""

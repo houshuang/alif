@@ -292,6 +292,11 @@ FUNCTION_WORD_FORMS: dict[str, str] = {
     "توجد": "يوجد", "وجد": "يوجد",
     # كان passive
     "يكن": "كان",
+    # عند + attached pronouns. These are function words, so mapping uses the
+    # direct-only path; without explicit forms they remain NULL and fail the
+    # review-time unmapped-word gate.
+    "عنده": "عند", "عندها": "عند", "عندهم": "عند", "عندهما": "عند",
+    "عندك": "عند", "عندي": "عند", "عندنا": "عند",
 }
 
 
