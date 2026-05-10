@@ -185,6 +185,7 @@ learn, and each enters acquisition immediately.
 `encountered` (no FSRS card) when `preserve_known=false`
 **Source**: `"textbook_scan"`
 **Code**: `ocr_service.py`
+**Intro-card rule**: OCR `total_encounters` is treated as import occurrence count, not learner familiarity, so repeated textbook-scan words can still get first-time intro cards when they enter acquisition.
 
 Textbook scan is a preservation path: the user is saying "I know this word now;
 keep it in the system." Preserved words skip new-word acquisition and enter the

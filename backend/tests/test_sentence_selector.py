@@ -1074,6 +1074,45 @@ class TestIntroCardsForSessionWords:
         assert ulk.knowledge_state == "acquiring"
         assert [c["lemma_id"] for c in result["experiment_intro_cards"]] == [4]
 
+    def test_repeated_textbook_scan_scaffold_still_gets_intro_card(self, db_session):
+        _seed_word(db_session, 1, "كتاب", "book", due_hours=-1)
+        _seed_word(db_session, 2, "بيت", "house", due_hours=24)
+        _seed_word(db_session, 3, "مدرسة", "school", due_hours=24)
+        encountered = Lemma(
+            lemma_id=4,
+            lemma_ar="قلم",
+            lemma_ar_bare="قلم",
+            pos="noun",
+            gloss_en="pen",
+            gates_completed_at=datetime.now(timezone.utc),
+        )
+        db_session.add(encountered)
+        db_session.add(UserLemmaKnowledge(
+            lemma_id=4,
+            knowledge_state="encountered",
+            fsrs_card_json=None,
+            introduced_at=None,
+            times_seen=0,
+            times_correct=0,
+            total_encounters=7,
+            source="textbook_scan",
+        ))
+        _seed_sentence(
+            db_session,
+            1,
+            "كتاب بيت مدرسة قلم",
+            "book house school pen",
+            1,
+            [("كتاب", 1), ("بيت", 2), ("مدرسة", 3), ("قلم", 4)],
+        )
+        db_session.commit()
+
+        result = build_session(db_session, limit=1)
+        ulk = db_session.query(UserLemmaKnowledge).filter_by(lemma_id=4).one()
+
+        assert ulk.knowledge_state == "acquiring"
+        assert [c["lemma_id"] for c in result["experiment_intro_cards"]] == [4]
+
     def test_intro_state_promotion_is_committed_before_ack(self, db_session):
         _seed_word(db_session, 1, "كتاب", "book", due_hours=-1)
         encountered = Lemma(

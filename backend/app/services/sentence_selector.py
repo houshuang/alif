@@ -1994,8 +1994,9 @@ def _build_intro_cards(
         if (
             (ulk.times_seen or 0) == 0
             and ulk.experiment_intro_shown_at is None
-            # Skip intro cards for words already familiar from encounters
-            and (ulk.total_encounters or 0) < 5
+            # Skip intro cards for words already familiar from real encounters.
+            # OCR occurrence counts are import evidence, not learner familiarity.
+            and ((ulk.total_encounters or 0) < 5 or ulk.source == "textbook_scan")
         ):
             # Skip if user already demonstrated recognition (e.g. Quran promotion
             # means they recognized the word in 3+ understood verses)
@@ -2452,7 +2453,7 @@ def _ensure_session_words_have_intro_state(
             continue
         if ulk.experiment_intro_shown_at is not None:
             continue
-        if (ulk.total_encounters or 0) >= 5:
+        if (ulk.total_encounters or 0) >= 5 and ulk.source != "textbook_scan":
             continue
         if (ulk.times_seen or 0) != 0 or (ulk.times_correct or 0) > 0:
             continue
