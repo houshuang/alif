@@ -1682,6 +1682,7 @@ def validate_sentence_multi_target(
     known_bare_forms: set[str],
     min_targets: int = 2,
     known_lemma_lookup: dict | None = None,
+    comprehensive_lemma_lookup: dict | None = None,
 ) -> MultiTargetValidationResult:
     """Validate that a sentence uses known words and contains target words.
 
@@ -1692,6 +1693,9 @@ def validate_sentence_multi_target(
         known_lemma_lookup: Optional lookup over the permitted vocabulary.
             When provided, known-word classification uses the same morphology-
             aware lookup path as single-target sentence validation.
+        comprehensive_lemma_lookup: Optional lookup over all DB lemmas. This
+            mirrors validate_sentence(): resolvable scaffold words are allowed
+            as long as downstream mapping can attach them to a real lemma.
 
     Returns:
         MultiTargetValidationResult. Valid = min_targets found AND no unknown words.
@@ -1787,6 +1791,15 @@ def validate_sentence_multi_target(
                     if stem_sans_alif != stem_norm and (stem_sans_alif in known_normalized or _is_function_word(stem_sans_alif)):
                         is_known = True
                         break
+
+        if not is_known and comprehensive_lemma_lookup is not None:
+            lid = lookup_lemma(
+                bare_normalized,
+                comprehensive_lemma_lookup,
+                original_bare=bare_clean,
+            )
+            if lid is not None:
+                is_known = True
 
         if is_known:
             known_words.append(token)

@@ -322,6 +322,7 @@ def store_maintenance_passage(
             known_bare_forms=allowed_bare_forms or known_bare_forms,
             min_targets=1,
             known_lemma_lookup=story_lemma_lookup,
+            comprehensive_lemma_lookup=mapping_lookup,
         )
         if not validation.valid:
             raise PassageGenerationError(
