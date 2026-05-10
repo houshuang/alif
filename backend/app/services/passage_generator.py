@@ -807,7 +807,7 @@ def store_maintenance_passage(
             glossless = [
                 lemma.lemma_ar
                 for lemma in db.query(Lemma).filter(Lemma.lemma_id.in_(mapped_ids)).all()
-                if not lemma.gloss_en
+                if not lemma.gloss_en and lemma.word_category != "proper_name"
             ]
             if glossless:
                 raise PassageGenerationError(f"Passage sentence has glossless lemmas: {glossless}")
