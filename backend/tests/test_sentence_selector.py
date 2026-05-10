@@ -1160,6 +1160,44 @@ class TestIntroCardsForSessionWords:
         assert ulk.knowledge_state == "known"
         assert ulk.acquisition_box is None
 
+    def test_reviewed_textbook_preserved_known_does_not_get_intro_card(self, db_session):
+        _seed_word(db_session, 1, "كتاب", "book", due_hours=-1)
+        textbook_lemma = Lemma(
+            lemma_id=4,
+            lemma_ar="قلم",
+            lemma_ar_bare="قلم",
+            pos="noun",
+            gloss_en="pen",
+            gates_completed_at=datetime.now(timezone.utc),
+        )
+        db_session.add(textbook_lemma)
+        db_session.add(UserLemmaKnowledge(
+            lemma_id=4,
+            knowledge_state="known",
+            fsrs_card_json=_make_card(stability_days=30.0, due_offset_hours=72),
+            introduced_at=datetime.now(timezone.utc) - timedelta(days=30),
+            last_reviewed=datetime.now(timezone.utc),
+            times_seen=19,
+            times_correct=19,
+            total_encounters=24,
+            source="textbook_scan",
+            experiment_group="textbook_preserve_intro",
+            experiment_intro_shown_at=None,
+        ))
+        _seed_sentence(
+            db_session,
+            1,
+            "كتاب",
+            "book",
+            1,
+            [("كتاب", 1)],
+        )
+        db_session.commit()
+
+        result = build_session(db_session, limit=1)
+
+        assert 4 not in {c["lemma_id"] for c in result["experiment_intro_cards"]}
+
     def test_old_textbook_known_without_preserve_group_does_not_get_intro_card(self, db_session):
         _seed_word(db_session, 1, "كتاب", "book", due_hours=-1)
         old_textbook_lemma = Lemma(

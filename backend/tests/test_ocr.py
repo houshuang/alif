@@ -204,6 +204,36 @@ class TestProcessTextbookPage:
         assert mock_schedule.call_args.args[1] == [lemma.lemma_id]
 
     @patch("app.services.ocr_service._schedule_material_generation")
+    @patch("app.services.ocr_service.extract_words_from_image")
+    def test_preserve_known_does_not_intro_already_reviewed_word(
+        self, mock_extract, mock_schedule, mock_backfill, db_session
+    ):
+        from app.services.ocr_service import process_textbook_page
+
+        lemma_ids = _seed_words(db_session)
+        upload = PageUpload(batch_id="test_reviewed_preserve", filename="page1.jpg", status="pending")
+        db_session.add(upload)
+        db_session.commit()
+
+        ulk = db_session.query(UserLemmaKnowledge).filter_by(lemma_id=lemma_ids[0]).one()
+        ulk.times_seen = 19
+        ulk.times_correct = 19
+        ulk.experiment_group = None
+        db_session.commit()
+
+        mock_extract.return_value = ([
+            {"arabic": "كِتَاب", "arabic_bare": "كتاب", "english": "book", "pos": "noun", "root": "ك.ت.ب"},
+        ], None)
+
+        process_textbook_page(db_session, upload, b"fake_image", preserve_known=True)
+
+        db_session.refresh(ulk)
+        assert ulk.knowledge_state == "known"
+        assert ulk.experiment_group is None
+        assert ulk.times_seen == 19
+        assert ulk.times_correct == 19
+
+    @patch("app.services.ocr_service._schedule_material_generation")
     @patch("app.services.import_quality.classify_lemmas")
     @patch("app.services.ocr_service.extract_words_from_image")
     def test_save_only_keeps_new_textbook_words_encountered(

@@ -1964,15 +1964,15 @@ def _build_intro_cards(
     1. New words (times_seen == 0) — first-encounter teaching card
     2. Rescue words (acquiring, ≥4 reviews, <50% accuracy) — re-teaching
        for stuck words, with a 7-day cooldown between rescue cards.
-    3. Preserved textbook words — one-time card-only intro for words the user
-       says they already know and wants to retain as known review cards.
+    3. Newly preserved textbook words — one-time card-only intro for words
+       with no real review history yet.
 
     New/rescue cards are limited to non-function words that appear in this
     session. Preserved textbook cards are intentionally independent of sentence
     scheduling so a scan can preserve current knowledge without forcing the
-    word back through acquisition. First-time intro cards are uncapped; rescue
-    cards use the dynamic cap (4 base, up to 6) after first-time cards are
-    placed.
+    word back through acquisition. Already-reviewed familiar words are filtered
+    out. First-time intro cards are uncapped; rescue cards use the dynamic cap
+    (4 base, up to 6) after first-time cards are placed.
     """
     now = datetime.now(timezone.utc)
     cooldown_cutoff = now - timedelta(days=RESCUE_COOLDOWN_DAYS)
@@ -2041,6 +2041,9 @@ def _build_intro_cards(
                 UserLemmaKnowledge.knowledge_state == "known",
                 UserLemmaKnowledge.experiment_group == TEXTBOOK_PRESERVE_INTRO_GROUP,
                 UserLemmaKnowledge.experiment_intro_shown_at.is_(None),
+                (UserLemmaKnowledge.times_seen.is_(None)) | (UserLemmaKnowledge.times_seen <= 1),
+                (UserLemmaKnowledge.times_correct.is_(None)) | (UserLemmaKnowledge.times_correct <= 1),
+                (UserLemmaKnowledge.total_encounters.is_(None)) | (UserLemmaKnowledge.total_encounters < 5),
                 Lemma.gates_completed_at.isnot(None),
             )
             .order_by(UserLemmaKnowledge.introduced_at.asc(), UserLemmaKnowledge.lemma_id.asc())

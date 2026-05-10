@@ -181,7 +181,7 @@ learn, and each enters acquisition immediately.
 ### 3.3 OCR / Textbook Scan
 
 **Path**: `POST /api/ocr/scan-pages?preserve_known=true|false` → Gemini Vision extraction
-**Initial state**: `known` with an FSRS review card and one-time intro card when `preserve_known=true` (default);
+**Initial state**: `known` with an FSRS review card when `preserve_known=true` (default); only newly preserved/unreviewed words may get a one-time card-only intro;
 `encountered` (no FSRS card) when `preserve_known=false`
 **Source**: `"textbook_scan"`
 **Code**: `ocr_service.py`

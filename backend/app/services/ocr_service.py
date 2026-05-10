@@ -106,7 +106,13 @@ def _preserve_textbook_knowledge(db: Session, lemma_id: int) -> UserLemmaKnowled
     if ulk.knowledge_state == "suspended":
         return ulk
 
-    if ulk.experiment_intro_shown_at is None:
+    has_review_history = (ulk.times_seen or 0) > 0 or (ulk.times_correct or 0) > 0
+    is_unreviewed_encounter = ulk.knowledge_state == "encountered" and not has_review_history
+    if (
+        is_unreviewed_encounter
+        and (ulk.total_encounters or 0) < 5
+        and ulk.experiment_intro_shown_at is None
+    ):
         ulk.experiment_group = TEXTBOOK_PRESERVE_INTRO_GROUP
 
     if ulk.knowledge_state != "known" or not ulk.fsrs_card_json:
