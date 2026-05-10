@@ -89,6 +89,14 @@ PASSAGE_MIN_DUE_PER_SENTENCE = 1.25
 PASSAGE_REVIEW_STATES = {"known", "learning", "lapsed"}
 
 
+def _source_bonus_for_sentence(sent: Sentence) -> float:
+    if sent.source == "passage":
+        return 2.0
+    if sent.source in ("book", "corpus"):
+        return 1.3
+    return 1.0
+
+
 def _intro_slots_for_accuracy(accuracy: float) -> int:
     """Return how many words to auto-introduce based on recent session accuracy.
 
@@ -1242,7 +1250,7 @@ def build_session(
         diversity = 1.0 / (1.0 + (sent.times_shown or 0))
         freshness = _scaffold_freshness(word_metas, knowledge_map)
         freshness = _relax_due_dense_penalty(freshness, len(due_covered))
-        source_bonus = 1.3 if sent.source in ("book", "corpus") else 1.0
+        source_bonus = _source_bonus_for_sentence(sent)
         # Rescue sentences (recently shown but only option for a due word) get a
         # penalty so fresh sentences are preferred, but they still participate.
         rescue_penalty = 0.3 if sent.id in rescue_sentence_ids else 1.0
@@ -1302,7 +1310,7 @@ def build_session(
             diversity = 1.0 / (1.0 + (cand.sentence.times_shown or 0))
             freshness = _scaffold_freshness(cand.words_meta, knowledge_map)
             freshness = _relax_due_dense_penalty(freshness, len(overlap))
-            source_bonus = 1.3 if cand.sentence.source in ("book", "corpus") else 1.0
+            source_bonus = _source_bonus_for_sentence(cand.sentence)
 
             scaffold_ids = [
                 w.lemma_id for w in cand.words_meta
@@ -1376,7 +1384,7 @@ def build_session(
             diversity = 1.0 / (1.0 + (c.sentence.times_shown or 0))
             freshness = _scaffold_freshness(c.words_meta, knowledge_map)
             freshness = _relax_due_dense_penalty(freshness, len(overlap))
-            source_bonus = 1.3 if c.sentence.source in ("book", "corpus") else 1.0
+            source_bonus = _source_bonus_for_sentence(c.sentence)
 
             # Within-session scaffold diversity: penalize reuse of scaffold words
             scaffold_ids = [w.lemma_id for w in c.words_meta
