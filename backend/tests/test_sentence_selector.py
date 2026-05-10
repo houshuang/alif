@@ -122,13 +122,13 @@ class TestMaintenancePassageGrouping:
     def _candidate(
         self,
         sentence_id: int,
-        due_id: int,
+        due_id: int | None = None,
         extra_due_id: int | None = None,
         *,
         story_id: int | None = None,
         source: str | None = None,
     ):
-        due = {due_id}
+        due = {due_id} if due_id is not None else set()
         if extra_due_id is not None:
             due.add(extra_due_id)
         return SentenceCandidate(
@@ -153,7 +153,7 @@ class TestMaintenancePassageGrouping:
             due_words_covered=due,
         )
 
-    def test_groups_due_maintenance_sentences_into_passage(self):
+    def test_keeps_unrelated_due_maintenance_sentences_single(self):
         candidates = [
             self._candidate(1, 101, 102),
             self._candidate(2, 103, 104),
@@ -166,7 +166,7 @@ class TestMaintenancePassageGrouping:
 
         groups = _group_maintenance_passages(candidates, knowledge)
 
-        assert [[c.sentence_id for c in group] for group in groups] == [[1, 2, 3]]
+        assert [[c.sentence_id for c in group] for group in groups] == [[1], [2], [3]]
 
     def test_keeps_acquisition_sentences_single(self):
         candidates = [
@@ -200,6 +200,21 @@ class TestMaintenancePassageGrouping:
         groups = _group_maintenance_passages(candidates, knowledge)
 
         assert [[c.sentence_id for c in group] for group in groups] == [[1, 2, 3], [9]]
+
+    def test_generated_passage_group_can_include_connector_sentence(self):
+        candidates = [
+            self._candidate(1, 101, story_id=10, source="passage"),
+            self._candidate(2, story_id=10, source="passage"),
+            self._candidate(3, 103, story_id=10, source="passage"),
+        ]
+        knowledge = {
+            lid: UserLemmaKnowledge(lemma_id=lid, knowledge_state="known")
+            for lid in {101, 103}
+        }
+
+        groups = _group_maintenance_passages(candidates, knowledge)
+
+        assert [[c.sentence_id for c in group] for group in groups] == [[1, 2, 3]]
 
 
 class TestScaffoldFreshness:

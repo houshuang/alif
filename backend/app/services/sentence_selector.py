@@ -193,34 +193,16 @@ def _group_maintenance_passages(
     ordered: list[SentenceCandidate],
     knowledge_by_id: dict[int, UserLemmaKnowledge],
 ) -> list[list[SentenceCandidate]]:
-    """Bundle adjacent due FSRS maintenance sentences into short passage cards.
+    """Bundle generated maintenance-passage rows into passage cards.
 
     Acquisition cards remain single-sentence so fragile box-1/box-2 words keep
-    the fast, focused repetitions they need.
+    the fast, focused repetitions they need. Standalone generated/book/corpus
+    review sentences must not be opportunistically bundled here: a passage card
+    only earns its extra reading cost when the rows were authored as one
+    cohesive story.
     """
     groups: list[list[SentenceCandidate]] = []
-    buffer: list[SentenceCandidate] = []
     used_sentence_ids: set[int] = set()
-
-    def flush_buffer() -> None:
-        nonlocal buffer
-        while buffer:
-            if len(buffer) < PASSAGE_MIN_SENTENCES:
-                groups.extend([[cand] for cand in buffer])
-                buffer = []
-                return
-
-            group = buffer[:PASSAGE_MAX_SENTENCES]
-            if _candidate_group_due_density(group) < PASSAGE_MIN_DUE_PER_SENTENCE:
-                shorter = buffer[:PASSAGE_MIN_SENTENCES]
-                if _candidate_group_due_density(shorter) >= PASSAGE_MIN_DUE_PER_SENTENCE:
-                    group = shorter
-                else:
-                    groups.append([buffer.pop(0)])
-                    continue
-
-            groups.append(group)
-            del buffer[:len(group)]
 
     for candidate in ordered:
         if candidate.sentence_id in used_sentence_ids:
@@ -230,30 +212,27 @@ def _group_maintenance_passages(
         if (
             story_id
             and source == "passage"
-            and _is_maintenance_passage_candidate(candidate, knowledge_by_id)
         ):
             story_group = [
                 c for c in ordered
                 if c.sentence_id not in used_sentence_ids
                 and getattr(c.sentence, "story_id", None) == story_id
                 and getattr(c.sentence, "source", None) == "passage"
-                and _is_maintenance_passage_candidate(c, knowledge_by_id)
             ]
             story_group.sort(key=lambda c: c.sentence_id)
-            if len(story_group) >= PASSAGE_MIN_SENTENCES:
-                flush_buffer()
+            due_members = [c for c in story_group if c.due_words_covered]
+            if (
+                len(story_group) >= PASSAGE_MIN_SENTENCES
+                and due_members
+                and all(_is_maintenance_passage_candidate(c, knowledge_by_id) for c in due_members)
+            ):
                 group = story_group[:PASSAGE_MAX_SENTENCES]
                 groups.append(group)
                 used_sentence_ids.update(c.sentence_id for c in group)
                 continue
 
-        if _is_maintenance_passage_candidate(candidate, knowledge_by_id):
-            buffer.append(candidate)
-        else:
-            flush_buffer()
-            groups.append([candidate])
+        groups.append([candidate])
 
-    flush_buffer()
     return groups
 
 
@@ -267,7 +246,6 @@ def _best_generated_passage_seed(
         if (
             story_id
             and getattr(candidate.sentence, "source", None) == "passage"
-            and _is_maintenance_passage_candidate(candidate, knowledge_by_id)
         ):
             groups.setdefault(story_id, []).append(candidate)
 
@@ -275,6 +253,12 @@ def _best_generated_passage_seed(
         sorted(group, key=lambda c: c.sentence_id)[:PASSAGE_MAX_SENTENCES]
         for group in groups.values()
         if len(group) >= PASSAGE_MIN_SENTENCES
+        and any(c.due_words_covered for c in group)
+        and all(
+            _is_maintenance_passage_candidate(c, knowledge_by_id)
+            for c in group
+            if c.due_words_covered
+        )
     ]
     if not viable:
         return []
@@ -1059,6 +1043,29 @@ def build_session(
     if not sentences:
         return _with_fallbacks(db, session_id, due_lemma_ids, stability_map, total_due, [], limit, reintro_cards=reintro_cards, knowledge_by_id=knowledge_by_id, all_knowledge=all_knowledge, mode=mode)
 
+    # Generated passage cards are authored as a unit. Some connector sentences
+    # may not contain a due word, but they are still part of the reading object.
+    # Once one sentence from a generated passage is reviewable for due FSRS
+    # maintenance, load its active sibling rows so the card can render the full
+    # coherent passage instead of only the due-bearing fragments.
+    passage_story_ids = {
+        s.story_id for s in sentences
+        if mode == "reading" and s.source == "passage" and s.story_id
+    }
+    if passage_story_ids:
+        existing_ids = {s.id for s in sentences}
+        passage_siblings = (
+            db.query(Sentence)
+            .filter(
+                Sentence.story_id.in_(passage_story_ids),
+                Sentence.source == "passage",
+                Sentence.is_active == True,  # noqa: E712
+                not_has_unmapped_words(),
+            )
+            .all()
+        )
+        sentences.extend(s for s in passage_siblings if s.id not in existing_ids)
+
     sentence_map: dict[int, Sentence] = {s.id: s for s in sentences}
 
     # Load all sentence words for these sentences
@@ -1235,7 +1242,12 @@ def build_session(
             elif effective_id and stab is not None:
                 scaffold_stabilities.append(stab)
 
-        if not due_covered:
+        is_passage_context = (
+            mode == "reading"
+            and sent.source == "passage"
+            and sent.story_id in passage_story_ids
+        )
+        if not due_covered and not is_passage_context:
             continue
 
         # Comprehensibility gate: skip sentences where <THRESHOLD of scaffold words are known.
@@ -1259,6 +1271,16 @@ def build_session(
                             if w.lemma_id and not w.is_due and not w.is_function_word and not w.is_proper_name]
             if any(lid not in listening_ready for lid in scaffold_ids):
                 continue
+
+        if not due_covered:
+            candidates.append(SentenceCandidate(
+                sentence_id=sent.id,
+                sentence=sent,
+                words_meta=word_metas,
+                due_words_covered=set(),
+                score=0.0,
+            ))
+            continue
 
         weakest = min(stability_map.get(lid, 0.0) for lid in due_covered)
         dmq = _difficulty_match_quality(weakest, scaffold_stabilities)
@@ -1752,7 +1774,8 @@ def build_session(
             grammar_features.update(grammar_by_sentence.get(cand.sentence_id, []))
             due_ids |= cand.due_words_covered
 
-        primary_lid = _primary_lid_for_candidate(group[0])
+        primary_source = next((c for c in group if c.due_words_covered), group[0])
+        primary_lid = _primary_lid_for_candidate(primary_source)
         if primary_lid not in due_ids and due_ids:
             primary_lid = next(iter(due_ids))
         primary_lemma = lemma_map.get(primary_lid)
