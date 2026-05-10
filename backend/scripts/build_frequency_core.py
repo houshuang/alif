@@ -69,6 +69,7 @@ SOURCE_WEIGHTS = {
     "islamic": 150.0,
 }
 BROAD_FREQUENCY_SOURCES = {"camel", "buckwalter", "artenten", "kelly"}
+FREQUENCY_SOURCES = set(SOURCE_WEIGHTS)
 STRONG_SOURCE_RANK_LIMITS = {
     "camel": 1000,
     "buckwalter": 1000,
@@ -524,13 +525,20 @@ def finalize_candidate_confidence(cand: CoreCandidate) -> None:
         source for source in BROAD_FREQUENCY_SOURCES
         if source in cand.source_flags
     }
+    frequency_sources = {
+        source for source in FREQUENCY_SOURCES
+        if source in cand.source_flags
+    }
+    strong_source_count = count_strong_frequency_sources(cand)
     cand.broad_source_count = len(broad_sources)
     if cand.lemma_id is None:
         cand.confidence_tier = "low"
         cand.gap_status = "unmapped"
         return
-    if cand.broad_source_count >= 2:
+    if strong_source_count >= 2 or cand.broad_source_count >= 2:
         cand.confidence_tier = "high"
+    elif strong_source_count >= 1 and len(frequency_sources) >= 2:
+        cand.confidence_tier = "medium"
     elif cand.broad_source_count >= 1 and (
         "hindawi" in cand.source_flags
         or "news" in cand.source_flags
@@ -544,13 +552,18 @@ def finalize_candidate_confidence(cand: CoreCandidate) -> None:
     cand.gap_status = None
 
 
-def apply_source_agreement_penalty(cand: CoreCandidate) -> None:
-    """Downrank one-corpus outliers unless they come from a curriculum source."""
+def count_strong_frequency_sources(cand: CoreCandidate) -> int:
     strong_sources = 0
     for source, rank_limit in STRONG_SOURCE_RANK_LIMITS.items():
         evidence = cand.source_flags.get(source)
         if isinstance(evidence, dict) and int(evidence.get("rank") or 1_000_000_000) <= rank_limit:
             strong_sources += 1
+    return strong_sources
+
+
+def apply_source_agreement_penalty(cand: CoreCandidate) -> None:
+    """Downrank one-corpus outliers unless they come from a curriculum source."""
+    strong_sources = count_strong_frequency_sources(cand)
 
     has_curriculum_boost = any(f"db_{source}" in cand.source_flags for source in DB_SOURCE_BOOST)
     if strong_sources >= 2 or has_curriculum_boost:

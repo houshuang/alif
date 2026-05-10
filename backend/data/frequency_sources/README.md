@@ -14,6 +14,9 @@ book-prose evidence (850) and news/SAMER evidence (750) lead, while CAMeL (450)
 acts as a broad support signal. Single-source outliers receive an agreement
 penalty unless they are corroborated by another strong source or an explicit
 curriculum DB source such as `avp_a1`, `duolingo`, or `textbook_scan`.
+Confidence tiers use the same agreement model: `high` means at least two strong
+frequency signals, so Hindawi + SAMER agreement can count as high confidence
+even when Buckwalter/arTenTen/KELLY files are unavailable.
 
 Optional inputs can be passed as TSV or CSV:
 

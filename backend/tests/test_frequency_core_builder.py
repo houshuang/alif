@@ -5,6 +5,7 @@ from scripts.build_frequency_core import (
     CoreCandidate,
     add_source,
     apply_source_agreement_penalty,
+    count_strong_frequency_sources,
     finalize_candidate_confidence,
     load_ranked_file,
     load_hindawi_from_db_corpus,
@@ -42,14 +43,34 @@ def test_add_source_uses_best_source_rank_once_per_lemma():
     assert cand.source_flags["camel"]["rank"] == 100
 
 
-def test_confidence_high_requires_two_broad_sources():
+def test_confidence_high_accepts_two_strong_reading_sources():
     cand = CoreCandidate(key="lemma:1", display_form="كتاب", normalized="كتاب", lemma_id=1)
-    cand.source_flags = {"camel": {}, "artenten": {}}
+    cand.source_flags = {"hindawi": {"rank": 25}, "news": {"rank": 300}, "camel": {"rank": 1200}}
+
+    finalize_candidate_confidence(cand)
+
+    assert cand.confidence_tier == "high"
+    assert cand.broad_source_count == 1
+
+
+def test_confidence_high_keeps_two_broad_sources():
+    cand = CoreCandidate(key="lemma:1", display_form="كتاب", normalized="كتاب", lemma_id=1)
+    cand.source_flags = {"camel": {"rank": 4000}, "artenten": {"rank": 5000}}
 
     finalize_candidate_confidence(cand)
 
     assert cand.confidence_tier == "high"
     assert cand.broad_source_count == 2
+
+
+def test_confidence_medium_for_single_strong_source_with_support():
+    cand = CoreCandidate(key="lemma:1", display_form="كتاب", normalized="كتاب", lemma_id=1)
+    cand.source_flags = {"hindawi": {"rank": 50}, "news": {"rank": 3500}, "camel": {"rank": 2000}}
+
+    finalize_candidate_confidence(cand)
+
+    assert count_strong_frequency_sources(cand) == 1
+    assert cand.confidence_tier == "medium"
 
 
 def test_kelly_duplicate_keeps_cefr_from_best_rank():

@@ -51,8 +51,8 @@ one corpus alone.
 
 | Tier | Meaning |
 |---|---|
-| high | Mapped lemma appears in at least two broad sources among CAMeL, Buckwalter/Parkinson, arTenTen, KELLY |
-| medium | Mapped lemma has one broad source plus a domain source, or strong beginner KELLY signal |
+| high | Mapped lemma has at least two strong frequency signals, including Hindawi/SAMER agreement, or appears in at least two broad reference sources |
+| medium | Mapped lemma has one strong frequency signal plus another source, one broad source plus a domain source, or strong beginner KELLY signal |
 | low | Weak evidence, source skew, or unmapped row |
 
 `gap_status = "unmapped"` means the source item was high enough to rank but did
