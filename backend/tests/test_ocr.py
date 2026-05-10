@@ -157,6 +157,51 @@ class TestProcessTextbookPage:
         ).first()
         assert ulk.total_encounters == 6  # was 5, now 6
 
+    @patch("app.services.ocr_service._schedule_material_generation")
+    @patch("app.services.import_quality.classify_lemmas")
+    @patch("app.services.ocr_service.extract_words_from_image")
+    def test_start_acquiring_promotes_existing_encountered(
+        self, mock_extract, mock_classify, mock_schedule, mock_backfill, db_session
+    ):
+        from app.services.ocr_service import process_textbook_page
+
+        lemma = Lemma(
+            lemma_ar="كَاتِب",
+            lemma_ar_bare="كاتب",
+            pos="noun",
+            gloss_en="writer",
+            source="textbook_scan",
+        )
+        db_session.add(lemma)
+        db_session.flush()
+        ulk = UserLemmaKnowledge(
+            lemma_id=lemma.lemma_id,
+            knowledge_state="encountered",
+            fsrs_card_json=None,
+            source="textbook_scan",
+            total_encounters=2,
+        )
+        db_session.add(ulk)
+        upload = PageUpload(batch_id="test_existing_enc", filename="page1.jpg", status="pending")
+        db_session.add(upload)
+        db_session.commit()
+
+        mock_extract.return_value = ([
+            {"arabic": "كَاتِب", "arabic_bare": "كاتب", "english": "writer", "pos": "noun", "root": "ك.ت.ب"},
+        ], None)
+        mock_classify.return_value = ([{"arabic": "كاتب", "word_category": "standard"}], [])
+
+        process_textbook_page(db_session, upload, b"fake_image", start_acquiring=True)
+
+        db_session.refresh(ulk)
+        assert ulk.knowledge_state == "acquiring"
+        assert ulk.acquisition_box == 1
+        assert ulk.acquisition_started_at is not None
+        assert ulk.total_encounters == 3
+        assert upload.extracted_words_json[0]["status"] == "existing"
+        assert upload.extracted_words_json[0]["knowledge_state"] == "acquiring"
+        assert mock_schedule.call_args.args[1] == [lemma.lemma_id]
+
     @pytest.mark.slow
     @patch("app.services.ocr_service.extract_words_from_image")
     def test_process_imports_new_words(self, mock_extract, mock_backfill, db_session):
@@ -484,6 +529,59 @@ class TestBaseLemmaHandling:
 
         result, page_number = extract_words_from_image(b"fake")
         assert len(result) == 1
+
+
+class TestProcessBatch:
+    """Tests for the production batch OCR path."""
+
+    @patch("app.services.ocr_service._schedule_material_generation")
+    @patch("app.services.ocr_service.backfill_root_meanings", return_value=0)
+    @patch("app.services.import_quality.classify_lemmas")
+    @patch("app.services.ocr_service.extract_words_from_image")
+    def test_start_acquiring_promotes_existing_encountered(
+        self, mock_extract, mock_classify, mock_backfill, mock_schedule, db_session
+    ):
+        from app.services.ocr_service import process_batch
+
+        lemma = Lemma(
+            lemma_ar="كَاتِب",
+            lemma_ar_bare="كاتب",
+            pos="noun",
+            gloss_en="writer",
+            source="textbook_scan",
+        )
+        db_session.add(lemma)
+        db_session.flush()
+        ulk = UserLemmaKnowledge(
+            lemma_id=lemma.lemma_id,
+            knowledge_state="encountered",
+            fsrs_card_json=None,
+            source="textbook_scan",
+            total_encounters=1,
+        )
+        db_session.add(ulk)
+        upload = PageUpload(batch_id="batch_enc", filename="page1.jpg", status="pending")
+        db_session.add(upload)
+        db_session.commit()
+
+        mock_extract.return_value = ([
+            {"arabic": "كَاتِب", "arabic_bare": "كاتب", "english": "writer", "pos": "noun", "root": "ك.ت.ب"},
+        ], None)
+        mock_classify.return_value = ([{"arabic": "كاتب", "word_category": "standard"}], [])
+
+        process_batch(db_session, "batch_enc", [("page1.jpg", b"fake_image")], start_acquiring=True)
+
+        db_session.refresh(ulk)
+        db_session.refresh(upload)
+        assert ulk.knowledge_state == "acquiring"
+        assert ulk.acquisition_box == 1
+        assert ulk.acquisition_started_at is not None
+        assert ulk.total_encounters == 2
+        assert upload.status == "completed"
+        assert upload.existing_words == 1
+        assert upload.extracted_words_json[0]["status"] == "existing"
+        assert upload.extracted_words_json[0]["knowledge_state"] == "acquiring"
+        assert mock_schedule.call_args.args[1] == [lemma.lemma_id]
 
 
 class TestOCREndpoints:

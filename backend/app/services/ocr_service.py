@@ -493,6 +493,7 @@ def process_textbook_page(
         new_count = 0
         existing_count = 0
         new_lemma_ids: list[int] = []
+        started_acquiring_ids: list[int] = []
 
         seen_bares: set[str] = set()  # dedup within this page
 
@@ -547,6 +548,16 @@ def process_textbook_page(
                     _OVERRIDABLE_SOURCES = {None, "study", "encountered", "auto_intro", "collateral", "leech_reintro", "wiktionary"}
                     if ulk.source in _OVERRIDABLE_SOURCES:
                         ulk.source = "textbook_scan"
+                    if start_acquiring and ulk.knowledge_state == "encountered":
+                        from app.services.acquisition_service import start_acquisition
+                        ulk = start_acquisition(
+                            db,
+                            lemma_id=lemma_id,
+                            source="textbook_scan",
+                            due_immediately=True,
+                        )
+                        knowledge_map[lemma_id] = ulk
+                        started_acquiring_ids.append(lemma_id)
                     existing_count += 1
                     results.append({
                         "arabic": lemma.lemma_ar if lemma else arabic,
@@ -566,6 +577,7 @@ def process_textbook_page(
                             source="textbook_scan",
                             due_immediately=True,
                         )
+                        started_acquiring_ids.append(lemma_id)
                     else:
                         new_ulk = UserLemmaKnowledge(
                             lemma_id=lemma_id,
@@ -645,6 +657,7 @@ def process_textbook_page(
                         source="textbook_scan",
                         due_immediately=True,
                     )
+                    started_acquiring_ids.append(new_lemma.lemma_id)
                 else:
                     new_ulk = UserLemmaKnowledge(
                         lemma_id=new_lemma.lemma_id,
@@ -726,14 +739,15 @@ def process_textbook_page(
         backfill_root_meanings(db)
         db.commit()
 
-        # Trigger sentence generation for new words (skip variants)
+        # Trigger sentence generation for new words and existing encountered
+        # words that were explicitly queued by the scan toggle.
         if not variant_ids and new_lemma_ids:
             variant_ids = {
                 r[0] for r in db.query(Lemma.lemma_id)
                 .filter(Lemma.lemma_id.in_(new_lemma_ids), Lemma.canonical_lemma_id.isnot(None))
                 .all()
             }
-        gen_ids = [lid for lid in new_lemma_ids if lid not in variant_ids]
+        gen_ids = [lid for lid in set(new_lemma_ids) | set(started_acquiring_ids) if lid not in variant_ids]
         _schedule_material_generation(db, gen_ids)
 
     except Exception as e:
@@ -972,6 +986,13 @@ def process_batch(
                 _OVERRIDABLE_SOURCES = {None, "study", "encountered", "auto_intro", "collateral", "leech_reintro", "wiktionary"}
                 if ulk.source in _OVERRIDABLE_SOURCES:
                     ulk.source = "textbook_scan"
+                if start_acquiring and ulk.knowledge_state == "encountered":
+                    from app.services.acquisition_service import start_acquisition
+                    ulk = start_acquisition(
+                        db, lemma_id=lemma_id, source="textbook_scan", due_immediately=True,
+                    )
+                    knowledge_map[lemma_id] = ulk
+                    started_acquiring_ids.append(lemma_id)
                 word_results[idx] = {
                     "arabic": lemma.lemma_ar if lemma else arabic,
                     "arabic_bare": bare,
