@@ -70,6 +70,11 @@ Passage craft:
 
 Vocabulary constraint:
 - Use ONLY the provided learner vocabulary, target words, and common function words.
+- Every Arabic content word must come from the TARGET WORDS or SUPPORT WORDS
+  lists in the user prompt. If a good scene needs another word, choose a
+  simpler scene instead.
+- Do not use family members, countries, illnesses, foods, animals, body parts,
+  or place names unless that exact word is listed in the prompt.
 - Common function words you may freely use: في، من، على، إلى، و، ب، ل، ك، هذا، هذه،
 ذلك، تلك، هو، هي، أنا، أنت، نحن، هم، ما، لا، أن، إن، كان، كانت، ليس، هل، لم،
 لن، قد، الذي، التي، كل، بعض، هنا، هناك، الآن، جدا، فقط، أيضا، أو، ثم، لكن، يا
@@ -106,6 +111,39 @@ PASSAGE_SCHEMA = {
 
 class PassageGenerationError(RuntimeError):
     pass
+
+
+def _limit_targets_for_passage(
+    targets: list[dict[str, Any]],
+    sentence_count: int,
+) -> list[dict[str, Any]]:
+    """Keep passage targets dense enough for review without forcing word salad."""
+    max_targets = max(3, min(5, sentence_count + 1, len(targets)))
+    return targets[:max_targets]
+
+
+def _prompt_support_words(
+    eligible_words: list[dict[str, Any]],
+    target_words: list[dict[str, Any]],
+    limit: int = 180,
+) -> list[dict[str, Any]]:
+    target_ids = {int(w["lemma_id"]) for w in target_words}
+    state_rank = {
+        "known": 0,
+        "learning": 1,
+        "lapsed": 2,
+        "acquiring": 3,
+    }
+    support = [
+        w for w in eligible_words
+        if int(w["lemma_id"]) not in target_ids
+    ]
+    support.sort(key=lambda w: (
+        state_rank.get(str(w.get("state") or ""), 9),
+        str(w.get("pos") or ""),
+        int(w["lemma_id"]),
+    ))
+    return support[:limit]
 
 
 def _due_dt(ulk: UserLemmaKnowledge) -> datetime | None:
@@ -201,7 +239,8 @@ def generate_maintenance_passage_draft(
     target_list = "\n".join(
         f"- {w['arabic']} ({w['english']})" for w in target_words
     )
-    known_list = format_known_words_by_pos(known_words)
+    support_words = _prompt_support_words(known_words, target_words)
+    known_list = format_known_words_by_pos(support_words)
     prompt = f"""Write one cohesive {sentence_count}-sentence MSA maintenance passage.
 
 Style target: {style}
@@ -209,12 +248,13 @@ Style target: {style}
 TARGET WORDS TO REINFORCE:
 {target_list}
 
-LEARNER VOCABULARY:
+SUPPORT WORDS YOU MAY USE:
 {known_list}
 
 Rules:
 - Use at least one target word in each sentence.
-- Across the full passage, use at least {min(6, len(target_words))} target words if natural.
+- Across the full passage, use at least {min(sentence_count, len(target_words))} target words.
+- Reuse simple listed words instead of adding any unlisted content word.
 - Keep it comprehensible and compact, but not childish.
 - No drills, no grammar talk, no learner instructions.
 - Return exactly {sentence_count} sentence objects."""
@@ -223,7 +263,7 @@ Rules:
         prompt=prompt,
         system_prompt=PASSAGE_SYSTEM_PROMPT,
         json_schema=PASSAGE_SCHEMA,
-        temperature=0.6,
+        temperature=0.35,
         timeout=180,
         model_override=model_override,
         task_type="maintenance_passage_gen",
@@ -260,6 +300,7 @@ def store_maintenance_passage(
     all_lemma_ids = {w["lemma_id"] for w in eligible_words} | set(target_order)
     all_lemmas = db.query(Lemma).filter(Lemma.lemma_id.in_(all_lemma_ids)).all()
     story_lemma_lookup = build_lemma_lookup(all_lemmas)
+    allowed_bare_forms = set(story_lemma_lookup.keys())
     knowledge_map = {
         row.lemma_id: row.knowledge_state
         for row in db.query(UserLemmaKnowledge)
@@ -278,8 +319,9 @@ def store_maintenance_passage(
         validation = validate_sentence_multi_target(
             arabic_text=arabic,
             target_bares=target_bares,
-            known_bare_forms=known_bare_forms,
+            known_bare_forms=allowed_bare_forms or known_bare_forms,
             min_targets=1,
+            known_lemma_lookup=story_lemma_lookup,
         )
         if not validation.valid:
             raise PassageGenerationError(
@@ -399,6 +441,7 @@ def generate_and_store_maintenance_passage(
     style: str | None = None,
     sentence_count: int = 4,
     model_override: str = "claude_sonnet",
+    max_generation_attempts: int = 3,
 ) -> Story:
     """Generate, validate, and store one maintenance passage.
 
@@ -412,32 +455,42 @@ def generate_and_store_maintenance_passage(
             target_set = set(target_lemma_ids)
             targets = [w for w in eligible_words if w["lemma_id"] in target_set]
         else:
-            targets = _due_maintenance_targets(db)
+            targets = _due_maintenance_targets(db, limit=24)
         if not targets:
             raise PassageGenerationError("No eligible maintenance targets")
+        targets = _limit_targets_for_passage(targets, sentence_count)
         prompt_vocab = eligible_words
     finally:
         db.close()
 
-    draft = generate_maintenance_passage_draft(
-        target_words=targets,
-        known_words=prompt_vocab,
-        style=style,
-        sentence_count=sentence_count,
-        model_override=model_override,
-    )
-
-    db = SessionLocal()
-    try:
-        return store_maintenance_passage(
-            db,
-            draft,
+    last_error: Exception | None = None
+    for _attempt in range(max(1, max_generation_attempts)):
+        draft = generate_maintenance_passage_draft(
             target_words=targets,
-            eligible_words=prompt_vocab,
-            quality_gate=True,
+            known_words=prompt_vocab,
+            style=style,
+            sentence_count=sentence_count,
+            model_override=model_override,
         )
-    except Exception:
-        db.rollback()
-        raise
-    finally:
-        db.close()
+
+        db = SessionLocal()
+        try:
+            return store_maintenance_passage(
+                db,
+                draft,
+                target_words=targets,
+                eligible_words=prompt_vocab,
+                quality_gate=True,
+            )
+        except PassageGenerationError as exc:
+            db.rollback()
+            last_error = exc
+        except Exception:
+            db.rollback()
+            raise
+        finally:
+            db.close()
+
+    raise PassageGenerationError(
+        f"Passage generation failed after retries: {last_error}"
+    )

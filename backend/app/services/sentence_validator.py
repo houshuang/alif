@@ -1681,6 +1681,7 @@ def validate_sentence_multi_target(
     target_bares: dict[str, int],
     known_bare_forms: set[str],
     min_targets: int = 2,
+    known_lemma_lookup: dict | None = None,
 ) -> MultiTargetValidationResult:
     """Validate that a sentence uses known words and contains target words.
 
@@ -1688,6 +1689,9 @@ def validate_sentence_multi_target(
         arabic_text: The Arabic sentence (may include diacritics).
         target_bares: Dict mapping bare form -> lemma_id for each target word.
         known_bare_forms: Set of bare forms the user knows.
+        known_lemma_lookup: Optional lookup over the permitted vocabulary.
+            When provided, known-word classification uses the same morphology-
+            aware lookup path as single-target sentence validation.
 
     Returns:
         MultiTargetValidationResult. Valid = min_targets found AND no unknown words.
@@ -1748,31 +1752,41 @@ def validate_sentence_multi_target(
 
         # Known word check (same logic as validate_sentence)
         is_known = False
-        forms_to_check = [bare_normalized]
-        if bare_normalized.startswith("ال") and len(bare_normalized) > 2:
-            forms_to_check.append(bare_normalized[2:])
-        if not bare_normalized.startswith("ال"):
-            forms_to_check.append("ال" + bare_normalized)
-        # Try stripping trailing alif (tanwin seat: سعيدًا → سعيدا → سعيد)
-        sans_alif = strip_tanwin_alif(bare_normalized)
-        if sans_alif != bare_normalized:
-            forms_to_check.append(sans_alif)
-            if not sans_alif.startswith("ال"):
-                forms_to_check.append("ال" + sans_alif)
-        for form in forms_to_check:
-            if form in known_normalized:
+        if known_lemma_lookup is not None:
+            lid = lookup_lemma(
+                bare_normalized,
+                known_lemma_lookup,
+                original_bare=bare_clean,
+            )
+            if lid is not None:
                 is_known = True
-                break
-        if not is_known:
-            for stem in _strip_clitics(bare_normalized):
-                stem_norm = normalize_alef(stem)
-                if stem_norm in known_normalized or _is_function_word(stem_norm):
+
+        if not is_known and known_lemma_lookup is None:
+            forms_to_check = [bare_normalized]
+            if bare_normalized.startswith("ال") and len(bare_normalized) > 2:
+                forms_to_check.append(bare_normalized[2:])
+            if not bare_normalized.startswith("ال"):
+                forms_to_check.append("ال" + bare_normalized)
+            # Try stripping trailing alif (tanwin seat: سعيدًا → سعيدا → سعيد)
+            sans_alif = strip_tanwin_alif(bare_normalized)
+            if sans_alif != bare_normalized:
+                forms_to_check.append(sans_alif)
+                if not sans_alif.startswith("ال"):
+                    forms_to_check.append("ال" + sans_alif)
+            for form in forms_to_check:
+                if form in known_normalized:
                     is_known = True
                     break
-                stem_sans_alif = strip_tanwin_alif(stem_norm)
-                if stem_sans_alif != stem_norm and (stem_sans_alif in known_normalized or _is_function_word(stem_sans_alif)):
-                    is_known = True
-                    break
+            if not is_known:
+                for stem in _strip_clitics(bare_normalized):
+                    stem_norm = normalize_alef(stem)
+                    if stem_norm in known_normalized or _is_function_word(stem_norm):
+                        is_known = True
+                        break
+                    stem_sans_alif = strip_tanwin_alif(stem_norm)
+                    if stem_sans_alif != stem_norm and (stem_sans_alif in known_normalized or _is_function_word(stem_sans_alif)):
+                        is_known = True
+                        break
 
         if is_known:
             known_words.append(token)

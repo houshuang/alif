@@ -235,7 +235,7 @@ def _group_maintenance_passages(
             if (
                 len(story_group) >= PASSAGE_MIN_SENTENCES
                 and _candidate_group_due_density(story_group[:PASSAGE_MAX_SENTENCES])
-                >= PASSAGE_MIN_DUE_PER_SENTENCE
+                >= 1.0
             ):
                 flush_buffer()
                 group = story_group[:PASSAGE_MAX_SENTENCES]
