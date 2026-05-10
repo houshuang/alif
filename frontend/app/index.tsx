@@ -325,6 +325,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
   const [lookupShowMeaning, setLookupShowMeaning] = useState(false);
   const [lookupSurfaceTranslit, setLookupSurfaceTranslit] = useState<string | null>(null);
   const [confusionData, setConfusionData] = useState<ConfusionAnalysis | null>(null);
+  const [confusionCandidateLemmaIds, setConfusionCandidateLemmaIds] = useState<Record<number, number[]>>({});
   const [tappedOrder, setTappedOrder] = useState<number[]>([]);
   const [tappedCursor, setTappedCursor] = useState(-1);
   const tappedCacheRef = useRef<Map<number, TappedEntry>>(new Map());
@@ -391,6 +392,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
     setLookupLoading(false);
     setLookupShowMeaning(false);
     setConfusionData(null);
+    setConfusionCandidateLemmaIds({});
   }, [mode]);
 
   const totalCards = sentenceSession
@@ -1026,6 +1028,15 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
     // Cycle state: off → missed → confused → off
     toggleMissed(index);
 
+    if (nextMark !== "did_not_recognize") {
+      setConfusionCandidateLemmaIds((prev) => {
+        if (!prev[lemmaId]) return prev;
+        const next = { ...prev };
+        delete next[lemmaId];
+        return next;
+      });
+    }
+
     // If tap clears this word, hide the info card or show previous.
     if (nextMark === null) {
       lookupRequestRef.current += 1;
@@ -1073,7 +1084,19 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
       if (nextMark === "did_not_recognize" && tappedSurface) {
         getConfusionHelp(lemmaId, tappedSurface).then((data) => {
           if (lookupRequestRef.current !== requestId) return;
-          if (data?.confusion_type) setConfusionData(data);
+          if (data?.confusion_type) {
+            setConfusionData(data);
+            const candidateIds = [
+              ...data.similar_words.map((w) => w.lemma_id),
+              ...data.phonetic_similar.map((w) => w.lemma_id),
+            ];
+            if (candidateIds.length > 0) {
+              setConfusionCandidateLemmaIds((prev) => ({
+                ...prev,
+                [lemmaId]: Array.from(new Set(candidateIds)).slice(0, 12),
+              }));
+            }
+          }
         });
       }
     } catch {
@@ -1147,6 +1170,15 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
       missedLemmaIds.push(item.primary_lemma_id);
     }
 
+    const confusionCandidateMap: Record<number, number[]> = {};
+    for (const lemmaId of confusedLemmaIds) {
+      const candidateIds = confusionCandidateLemmaIds[lemmaId] ?? [];
+      if (candidateIds.length > 0) {
+        confusionCandidateMap[lemmaId] = candidateIds;
+      }
+    }
+    const hasConfusionCandidates = Object.keys(confusionCandidateMap).length > 0;
+
     // Save snapshot for undo before updating wordOutcomes
     const snapshot: CardSnapshot = {
       missedIndices: new Set(missedIndices),
@@ -1200,6 +1232,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
         comprehension_signal: signal,
         missed_lemma_ids: missedLemmaIds,
         confused_lemma_ids: confusedLemmaIds.length > 0 ? confusedLemmaIds : undefined,
+        confusion_candidate_lemma_ids: hasConfusionCandidates ? confusionCandidateMap : undefined,
         response_ms: responseMs,
         session_id: sentenceSession.session_id,
         review_mode: mode,

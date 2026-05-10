@@ -164,6 +164,65 @@ class TestFindSimilarWords:
         assert 10 in ids
         assert 20 in ids
 
+    def test_includes_same_spelling_homograph(self):
+        """Different lemmas with the same bare form can still be confusors."""
+        db = MagicMock()
+
+        homograph = self._make_lemma(10, "عَلِمَ", "علم", "know", "verb")
+        results = find_similar_words(
+            db, 1, "علم", max_results=5, candidates=[(homograph, "known")]
+        )
+
+        assert len(results) == 1
+        assert results[0]["lemma_id"] == 10
+        assert results[0]["match_reason"] == "same spelling"
+
+    def test_uses_exposed_surface_against_candidate_forms(self):
+        """A candidate can be shown because its conjugated form matches the exposed form."""
+        db = MagicMock()
+
+        candidate = self._make_lemma(
+            10,
+            "اِسْتَعَدَّ",
+            "استعد",
+            "be ready",
+            "verb",
+            forms={"present": "يَعِدّ"},
+        )
+        results = find_similar_words(
+            db,
+            1,
+            "اعد",
+            max_results=5,
+            candidates=[(candidate, "learning")],
+            surface_bare="يعد",
+            target_pos="verb",
+        )
+
+        assert len(results) == 1
+        assert results[0]["lemma_id"] == 10
+        assert results[0]["matched_form_key"] == "present"
+        assert results[0]["matched_form"] == "يَعِدّ"
+        assert results[0]["match_reason"] == "same exposed form"
+
+    def test_prioritizes_short_verb_neighbors(self):
+        """For short verb targets, verb neighbors outrank equally close nouns."""
+        db = MagicMock()
+
+        noun = self._make_lemma(10, "أَعْب", "اعب", "load", "noun")
+        verb = self._make_lemma(20, "أَعْطى", "اعط", "give", "verb")
+        results = find_similar_words(
+            db,
+            1,
+            "اعد",
+            max_results=5,
+            candidates=[(noun, "known"), (verb, "known")],
+            target_pos="verb",
+        )
+
+        assert [r["lemma_id"] for r in results][:2] == [20, 10]
+        assert results[0]["match_reason"] == "short verb neighbor"
+
     def test_filters_by_length(self):
         """Words with length difference > 1 should be filtered out."""
         db = MagicMock()

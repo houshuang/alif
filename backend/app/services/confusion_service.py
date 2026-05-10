@@ -1,7 +1,7 @@
 """Confusion analysis for words marked "did not recognize" during review.
 
 Analyzes WHY the user was confused — morphological complexity (clitics/conjugation)
-or visual similarity to other known words. All rule-based, no LLM calls, <50ms.
+or visual similarity to other known words/forms. All rule-based, no LLM calls.
 """
 
 from sqlalchemy.orm import Session
@@ -309,7 +309,20 @@ def _build_prefix_hint(
     return None
 
 
-_STUDIED_STATES = ["encountered", "acquiring", "learning", "known", "lapsed"]
+_STUDIED_STATES = ["encountered", "acquiring", "learning", "known", "lapsed", "suspended"]
+_FORM_METADATA_KEYS = {"gender", "verb_form", "pattern", "notes"}
+_DISPLAY_FORM_KEYS = (
+    "plural",
+    "feminine",
+    "present",
+    "masdar",
+    "imperative",
+    "past_1s",
+    "past_3fs",
+    "past_3p",
+    "active_participle",
+    "passive_participle",
+)
 
 
 def _query_vocabulary(db: Session, lemma_id: int) -> list[tuple]:
@@ -326,16 +339,186 @@ def _query_vocabulary(db: Session, lemma_id: int) -> list[tuple]:
     )
 
 
+def _diff_positions(target: str, candidate: str) -> list[dict]:
+    diff_positions = []
+    max_len = max(len(target), len(candidate))
+    for i in range(max_len):
+        ch_a = target[i] if i < len(target) else ""
+        ch_b = candidate[i] if i < len(candidate) else ""
+        if ch_a != ch_b:
+            diff_positions.append({"pos": i, "original": ch_a, "similar": ch_b})
+    return diff_positions
+
+
+def _similarity_forms(lemma: Lemma) -> list[dict]:
+    """Return dictionary and known derived forms used for confusion matching."""
+    entries: list[dict] = []
+    seen: set[str] = set()
+
+    bare = lemma.lemma_ar_bare
+    if bare:
+        entries.append({
+            "bare": bare,
+            "display": lemma.lemma_ar,
+            "key": None,
+            "label": "dictionary form",
+        })
+        seen.add(bare)
+
+    forms = getattr(lemma, "forms_json", None)
+    if isinstance(forms, dict):
+        for key, value in forms.items():
+            if key in _FORM_METADATA_KEYS or not isinstance(value, str) or not value.strip():
+                continue
+            form_bare = strip_diacritics(value)
+            if not form_bare or form_bare in seen:
+                continue
+            entries.append({
+                "bare": form_bare,
+                "display": value,
+                "key": key,
+                "label": _form_label(key),
+            })
+            seen.add(form_bare)
+
+    return entries
+
+
+def _target_forms(
+    lemma_bare: str,
+    surface_bare: str | None = None,
+) -> list[dict]:
+    entries = [{
+        "bare": lemma_bare,
+        "display": lemma_bare,
+        "key": None,
+        "label": "dictionary form",
+        "source": "lemma",
+    }]
+    if surface_bare and surface_bare != lemma_bare:
+        entries.append({
+            "bare": surface_bare,
+            "display": surface_bare,
+            "key": "surface",
+            "label": "exposed form",
+            "source": "surface",
+        })
+    return entries
+
+
+def _same_root(target_root: Root | None, lemma: Lemma) -> bool:
+    if not target_root:
+        return False
+    target_root_id = getattr(target_root, "root_id", None)
+    if not isinstance(target_root_id, int):
+        return False
+    return getattr(lemma, "root_id", None) == target_root_id
+
+
+def _is_match_eligible(
+    edit_dist: int,
+    rasm_dist: int,
+    len_gap: int,
+    is_form_or_surface_match: bool,
+    same_root: bool,
+    target_pos: str | None,
+    candidate_pos: str | None,
+    target_bare: str,
+    candidate_bare: str,
+) -> bool:
+    if edit_dist == 0:
+        return True
+    if len_gap <= 1 and edit_dist <= 2:
+        return True
+    if is_form_or_surface_match and len_gap <= 2 and edit_dist <= 2:
+        return True
+    if rasm_dist == 0 and len_gap <= 2 and edit_dist <= 3:
+        return True
+    if same_root and len_gap <= 3 and (edit_dist <= 3 or rasm_dist <= 2):
+        return True
+
+    both_verbs = target_pos == "verb" and candidate_pos == "verb"
+    short_neighbor = both_verbs and (len(target_bare) <= 4 or len(candidate_bare) <= 4)
+    if short_neighbor and len_gap <= 2 and (edit_dist <= 2 or rasm_dist <= 2):
+        return True
+
+    return False
+
+
+def _match_reason(
+    edit_dist: int,
+    rasm_dist: int,
+    candidate_form_key: str | None,
+    target_source: str,
+    same_root: bool,
+    target_pos: str | None,
+    candidate_pos: str | None,
+    target_bare: str,
+    candidate_bare: str,
+) -> str:
+    if edit_dist == 0:
+        if target_source == "surface" or candidate_form_key:
+            return "same exposed form"
+        return "same spelling"
+    if same_root:
+        return "same root"
+    if (
+        target_pos == "verb"
+        and candidate_pos == "verb"
+        and (len(target_bare) <= 4 or len(candidate_bare) <= 4)
+    ):
+        return "short verb neighbor"
+    if candidate_form_key or target_source == "surface":
+        return "similar exposed form"
+    if rasm_dist == 0:
+        return "dots only"
+    return "similar spelling"
+
+
+def _score_match(
+    edit_dist: int,
+    rasm_dist: int,
+    len_gap: int,
+    candidate_form_key: str | None,
+    target_source: str,
+    same_root: bool,
+    target_pos: str | None,
+    candidate_pos: str | None,
+    target_bare: str,
+    candidate_bare: str,
+) -> int:
+    score = edit_dist * 8 + rasm_dist * 6 + len_gap * 2
+    if edit_dist == 0:
+        score -= 20
+    if rasm_dist == 0:
+        score -= 8
+    if same_root:
+        score -= 7
+    if candidate_form_key or target_source == "surface":
+        score -= 5
+    if target_pos and target_pos == candidate_pos:
+        score -= 4
+    if (
+        target_pos == "verb"
+        and candidate_pos == "verb"
+        and (len(target_bare) <= 4 or len(candidate_bare) <= 4)
+    ):
+        score -= 6
+    return score
+
+
 def find_similar_words(
     db: Session,
     lemma_id: int,
     lemma_bare: str,
     max_results: int = 5,
     candidates: list[tuple] | None = None,
+    surface_bare: str | None = None,
+    target_root: Root | None = None,
+    target_pos: str | None = None,
 ) -> list[dict]:
-    """Find visually similar words from the user's vocabulary."""
-    target_len = len(lemma_bare)
-    target_rasm = to_rasm(lemma_bare)
+    """Find visually similar words/forms from the user's exposed vocabulary."""
+    targets = _target_forms(lemma_bare, surface_bare)
 
     if candidates is None:
         candidates = _query_vocabulary(db, lemma_id)
@@ -345,31 +528,85 @@ def find_similar_words(
         bare = lemma.lemma_ar_bare
         if not bare:
             continue
-        # Length filter: ±1
-        if abs(len(bare) - target_len) > 1:
-            continue
-        ed = edit_distance(lemma_bare, bare)
-        if ed > 2 or ed == 0:
-            continue
 
-        rasm_ed = edit_distance(target_rasm, to_rasm(bare))
+        same_root = _same_root(target_root, lemma)
+        best: dict | None = None
+        for target in targets:
+            target_bare = target["bare"]
+            target_rasm = to_rasm(target_bare)
+            for candidate_form in _similarity_forms(lemma):
+                candidate_bare = candidate_form["bare"]
+                len_gap = abs(len(candidate_bare) - len(target_bare))
+                ed = edit_distance(target_bare, candidate_bare)
+                rasm_ed = edit_distance(target_rasm, to_rasm(candidate_bare))
+                is_form_or_surface_match = bool(candidate_form["key"]) or target["source"] == "surface"
+                if not _is_match_eligible(
+                    ed,
+                    rasm_ed,
+                    len_gap,
+                    is_form_or_surface_match,
+                    same_root,
+                    target_pos,
+                    lemma.pos,
+                    target_bare,
+                    candidate_bare,
+                ):
+                    continue
+                score = _score_match(
+                    ed,
+                    rasm_ed,
+                    len_gap,
+                    candidate_form["key"],
+                    target["source"],
+                    same_root,
+                    target_pos,
+                    lemma.pos,
+                    target_bare,
+                    candidate_bare,
+                )
+                match = {
+                    "score": score,
+                    "edit_distance": ed,
+                    "rasm_distance": rasm_ed,
+                    "target": target,
+                    "candidate_form": candidate_form,
+                }
+                if best is None or (
+                    match["score"],
+                    match["rasm_distance"],
+                    match["edit_distance"],
+                ) < (
+                    best["score"],
+                    best["rasm_distance"],
+                    best["edit_distance"],
+                ):
+                    best = match
 
-        # Find which positions differ
-        diff_positions = []
-        max_len = max(len(lemma_bare), len(bare))
-        for i in range(max_len):
-            ch_a = lemma_bare[i] if i < len(lemma_bare) else ""
-            ch_b = bare[i] if i < len(bare) else ""
-            if ch_a != ch_b:
-                diff_positions.append({"pos": i, "original": ch_a, "similar": ch_b})
+        if not best:
+            continue
 
         # Select a few key forms for pattern recognition
         key_forms: dict[str, str] = {}
         if lemma.forms_json and isinstance(lemma.forms_json, dict):
-            for k in ("plural", "present", "masdar"):
+            for k in _DISPLAY_FORM_KEYS:
                 v = lemma.forms_json.get(k)
                 if v and isinstance(v, str):
                     key_forms[k] = v
+
+        candidate_form = best["candidate_form"]
+        target = best["target"]
+        matched_form = candidate_form["display"] if candidate_form["key"] else None
+        match_reason = _match_reason(
+            best["edit_distance"],
+            best["rasm_distance"],
+            candidate_form["key"],
+            target["source"],
+            same_root,
+            target_pos,
+            lemma.pos,
+            target["bare"],
+            candidate_form["bare"],
+        )
 
         results.append({
             "lemma_id": lemma.lemma_id,
@@ -377,15 +614,19 @@ def find_similar_words(
             "lemma_ar_bare": bare,
             "gloss_en": lemma.gloss_en,
             "pos": lemma.pos,
-            "edit_distance": ed,
-            "rasm_distance": rasm_ed,
-            "diff_positions": diff_positions,
+            "edit_distance": best["edit_distance"],
+            "rasm_distance": best["rasm_distance"],
+            "diff_positions": _diff_positions(lemma_bare, bare),
             "knowledge_state": ks,
             "key_forms": key_forms,
+            "match_reason": match_reason,
+            "matched_form": matched_form,
+            "matched_form_key": candidate_form["key"],
+            "matched_target": target["display"] if target["source"] == "surface" else None,
+            "score": best["score"],
         })
 
-    # Sort by rasm_distance (same skeleton = most confusing), then edit_distance
-    results.sort(key=lambda r: (r["rasm_distance"], r["edit_distance"]))
+    results.sort(key=lambda r: (r["score"], r["rasm_distance"], r["edit_distance"]))
     return results[:max_results]
 
 
@@ -496,7 +737,16 @@ def analyze_confusion(
 
     # 2. Visual + phonetic similarity (share one DB query)
     candidates = _query_vocabulary(db, lemma_id)
-    similar_words = find_similar_words(db, lemma_id, lemma_bare, candidates=candidates)
+    similar_words = find_similar_words(
+        db,
+        lemma_id,
+        lemma_bare,
+        candidates=candidates,
+        surface_bare=surface_bare,
+        target_root=lemma.root,
+        target_pos=lemma.pos,
+        max_results=8,
+    )
     visual_ids = {r["lemma_id"] for r in similar_words}
     phonetic_similar = find_phonetically_similar(
         db, lemma_id, lemma_bare, visual_ids, candidates=candidates,

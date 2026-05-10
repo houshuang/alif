@@ -498,6 +498,7 @@ export interface SentenceReviewSubmission {
   comprehension_signal: ComprehensionSignal;
   missed_lemma_ids: number[];
   confused_lemma_ids?: number[];
+  confusion_candidate_lemma_ids?: Record<number, number[]>;
   response_ms: number;
   session_id: string;
   review_mode: ReviewMode;
@@ -1064,6 +1065,11 @@ export interface SimilarWordItem {
   diff_positions: { pos: number; original: string; similar: string }[];
   knowledge_state: string | null;
   key_forms: Record<string, string>;
+  match_reason?: string | null;
+  matched_form?: string | null;
+  matched_form_key?: string | null;
+  matched_target?: string | null;
+  score?: number | null;
 }
 
 export interface PhoneticSimilarItem {

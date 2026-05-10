@@ -23,6 +23,26 @@ from app.services.fsrs_service import STATE_MAP, parse_json_column, submit_revie
 from app.services.grammar_service import record_grammar_exposure
 from app.services.sentence_validator import strip_diacritics, _is_function_word
 
+_FORM_METADATA_KEYS = {"gender", "verb_form", "pattern", "notes"}
+
+
+def _match_surface_form(surface_bare: str, lemma: Lemma | None) -> dict | None:
+    """Return the forms_json key matching a tracked surface, when known."""
+    if not lemma:
+        return None
+    forms = parse_json_column(lemma.forms_json)
+    if not isinstance(forms, dict):
+        return None
+    surface_no_al = surface_bare[2:] if surface_bare.startswith("ال") else surface_bare
+    for key, value in forms.items():
+        if key in _FORM_METADATA_KEYS or not isinstance(value, str) or not value:
+            continue
+        form_bare = strip_diacritics(value)
+        form_no_al = form_bare[2:] if form_bare.startswith("ال") else form_bare
+        if surface_bare in (form_bare, form_no_al) or surface_no_al in (form_bare, form_no_al):
+            return {"form_key": key, "form_label": key.replace("_", " ")}
+    return None
+
 
 def submit_sentence_review(
     db: Session,
@@ -31,6 +51,7 @@ def submit_sentence_review(
     comprehension_signal: str,
     missed_lemma_ids: list[int] | None = None,
     confused_lemma_ids: list[int] | None = None,
+    confusion_candidate_lemma_ids: dict[int, list[int]] | None = None,
     response_ms: Optional[int] = None,
     session_id: Optional[str] = None,
     review_mode: str = "reading",
@@ -40,7 +61,7 @@ def submit_sentence_review(
     """Submit a review for a whole sentence, distributing ratings to words.
 
     - "understood" -> all words get rating=3
-    - "partial" + missed/confused -> missed get rating=1, confused get rating=3 (was_confused flag set), rest get rating=3
+    - "partial" + missed/confused -> missed get rating=1, confused get rating=2 (was_confused flag set), rest get rating=3
     - "no_idea" -> all words get rating=1
 
     Previously unseen words are routed through acquisition (Leitner box 1)
@@ -329,6 +350,9 @@ def submit_sentence_review(
                         entry["missed"] = entry.get("missed", 0) + 1
                     elif is_confused:
                         entry["confused"] = entry.get("confused", 0) + 1
+                    form_match = _match_surface_form(surface_bare, canonical_lemma_obj)
+                    if form_match:
+                        entry.update(form_match)
                     vstats[surface_bare] = entry
                     knowledge.variant_stats_json = vstats
 

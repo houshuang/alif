@@ -17,10 +17,10 @@ Full endpoint list. See `backend/app/routers/` for implementation.
 | GET | `/api/review/next-listening` | Listening-suitable review cards (legacy) |
 | GET | `/api/review/next-sentences?limit=10&mode=reading` | Sentence-centric review session (primary). Each item includes `selection_info` with reason, score, word_reason, and score component breakdown. Response also includes `verse_cards` (Quran verses with word data for tap-to-lookup, reading mode only) |
 | POST | `/api/review/submit` | Submit single-word review (legacy) |
-| POST | `/api/review/submit-sentence` | Submit sentence review. Schedulable content lemmas get FSRS/acquisition credit; function words and proper-name lemmas are lookup-only and ignored for scheduling/review credit. Accepts missed_lemma_ids and confused_lemma_ids |
+| POST | `/api/review/submit-sentence` | Submit sentence review. Schedulable content lemmas get FSRS/acquisition credit; function words and proper-name lemmas are lookup-only and ignored for scheduling/review credit. Accepts `missed_lemma_ids`, `confused_lemma_ids`, and optional `confusion_candidate_lemma_ids` telemetry from the yellow-tap help panel |
 | POST | `/api/review/undo-sentence` | Undo a sentence review — restores pre-review FSRS state, deletes logs |
 | GET | `/api/review/word-lookup/{lemma_id}` | Word detail + root family + forms_translit (computed on-the-fly if not stored) + pattern_examples + etymology_json for review lookup |
-| GET | `/api/review/confusion-help/{lemma_id}?surface_form=...` | Confusion analysis for "did not recognize" words — morphological decomposition (clitics/forms) + visual similarity (edit distance/rasm) |
+| GET | `/api/review/confusion-help/{lemma_id}?surface_form=...` | Confusion analysis for "did not recognize" words — morphological decomposition (clitics/forms) + form-aware visual similarity (surface/form edit distance, rasm, short-verb ranking) + phonetic similarity |
 | POST | `/api/review/sync` | Bulk sync offline reviews |
 | POST | `/api/review/reintro-result` | Submit re-introduction quiz result |
 | POST | `/api/review/experiment-intro-ack` | Acknowledge experiment intro card was shown (sets `experiment_intro_shown_at` for dedup + rescue cooldown) |

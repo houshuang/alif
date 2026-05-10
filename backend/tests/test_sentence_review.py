@@ -591,6 +591,38 @@ class TestVariantStats:
         assert vstats["بنتك"]["seen"] == 1
         assert vstats["بنتك"]["missed"] == 1
 
+    def test_variant_stats_record_matched_form_key(self, db_session):
+        """Known forms_json matches are recorded for later form-level diagnostics."""
+        _seed_word(db_session, 1, "كبير", "big")
+        lemma = db_session.query(Lemma).filter(Lemma.lemma_id == 1).first()
+        lemma.forms_json = {"feminine": "كبيرة"}
+        sent = Sentence(
+            id=1, arabic_text="كبيرة",
+            english_translation="big (feminine)", target_lemma_id=1,
+        )
+        db_session.add(sent)
+        db_session.flush()
+        sw = SentenceWord(sentence_id=1, position=0, surface_form="كبيرة", lemma_id=1)
+        db_session.add(sw)
+        db_session.flush()
+        db_session.commit()
+
+        submit_sentence_review(
+            db_session, sentence_id=1, primary_lemma_id=1,
+            comprehension_signal="partial", confused_lemma_ids=[1],
+            session_id="test-variant-form-key",
+        )
+
+        knowledge = db_session.query(UserLemmaKnowledge).filter(
+            UserLemmaKnowledge.lemma_id == 1
+        ).first()
+        vstats = knowledge.variant_stats_json
+        assert vstats is not None
+        assert vstats["كبيرة"]["seen"] == 1
+        assert vstats["كبيرة"]["confused"] == 1
+        assert vstats["كبيرة"]["form_key"] == "feminine"
+        assert vstats["كبيرة"]["form_label"] == "feminine"
+
     def test_same_surface_as_lemma_not_tracked(self, db_session):
         """When surface form equals lemma bare, no variant stats are recorded."""
         _seed_word(db_session, 1, "كتاب", "book")

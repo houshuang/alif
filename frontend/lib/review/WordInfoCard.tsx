@@ -388,8 +388,13 @@ function RevealedView({
             <Ionicons name="eye-outline" size={14} color={colors.confused} />
             <Text style={styles.confusionTitle}>Easily confused</Text>
           </View>
-          {similarWords.slice(0, 4).map((sw) => {
+          {similarWords.slice(0, 6).map((sw) => {
             const diffSet = new Set(sw.diff_positions.map(d => d.pos));
+            const formHint = sw.matched_form ? `: ${sw.matched_form}` : sw.matched_target ? ` near ${sw.matched_target}` : "";
+            const diffHint = sw.diff_positions.length > 0
+              ? `has ${sw.diff_positions.slice(0, 2).map(d => d.similar).join(", ")} not ${sw.diff_positions.slice(0, 2).map(d => d.original).join(", ")}`
+              : null;
+            const hint = sw.match_reason ? `${sw.match_reason}${formHint}` : diffHint;
             return (
               <View key={sw.lemma_id} style={styles.confusionItem}>
                 <View style={styles.confusionItemRow}>
@@ -401,9 +406,9 @@ function RevealedView({
                   />
                   <View style={styles.confusionTextCol}>
                     <Text style={styles.confusionGloss} numberOfLines={1}>{sw.gloss_en ?? "?"}</Text>
-                    {sw.diff_positions.length > 0 && (
+                    {hint && (
                       <Text style={styles.confusionHint} numberOfLines={1}>
-                        has {sw.diff_positions.slice(0, 2).map(d => d.similar).join(", ")} not {sw.diff_positions.slice(0, 2).map(d => d.original).join(", ")}
+                        {hint}
                       </Text>
                     )}
                   </View>

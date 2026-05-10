@@ -520,6 +520,7 @@ class SentenceReviewSubmitIn(BaseModel):
     comprehension_signal: str  # understood/partial/no_idea
     missed_lemma_ids: list[int] = []
     confused_lemma_ids: list[int] = []
+    confusion_candidate_lemma_ids: dict[int, list[int]] = {}
     response_ms: int | None = None
     session_id: str | None = None
     review_mode: str = "reading"
@@ -880,6 +881,11 @@ class SimilarWord(BaseModel):
     diff_positions: list[dict] = []
     knowledge_state: str | None = None
     key_forms: dict[str, str] = {}
+    match_reason: str | None = None
+    matched_form: str | None = None
+    matched_form_key: str | None = None
+    matched_target: str | None = None
+    score: int | None = None
 
 class PhoneticSimilarWord(BaseModel):
     lemma_id: int

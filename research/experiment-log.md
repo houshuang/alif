@@ -4,6 +4,55 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-05-10: Form-aware confusor candidates and telemetry
+
+### What
+
+This experiment widens confusion help for yellow-marked words so the candidate
+list is no longer limited to dictionary-form edit distance. The analysis will
+compare the exposed surface form and known `forms_json` forms against the
+learner's exposed vocabulary, include suspended leech words as possible mental
+confusors, rank short verb neighbors more deliberately, and log which candidate
+lemma IDs were shown.
+
+It also upgrades `variant_stats_json` from a surface-only counter to a
+surface-plus-form diagnostic when a surface can be matched back to a known form
+key. This remains read-side telemetry only; canonical lemmas are still the only
+scheduling unit.
+
+### Why
+
+The current production shape records "this lemma was confused" but not "it was
+confused with this other lemma." The visible confusor list can also miss the
+learner's actual mental neighbor because it mostly compares `lemma_ar_bare`
+against `lemma_ar_bare`. That is weakest for the exact cases noticed in use:
+very short verbs such as "prepare/give/double/usually" clusters, and longer
+verbs where the exposed conjugation is what failed, not the dictionary form.
+
+### Expected effect
+
+Best case: yellow taps become usable training data instead of just a harder
+rating. Confusion help should surface more relevant neighbors for short verbs,
+and later analysis can separate "I forgot this lemma" from "I failed this form"
+or "this nearby lemma interfered." No review scheduling changes are made in this
+first step, so negative impact should be limited to a noisier help panel if the
+ranking is too broad.
+
+### Verification
+
+Focused backend tests should cover form-matched candidates, short-verb ranking,
+and unchanged strict filtering for distant non-form matches. Frontend type checks
+should verify the expanded API shape. If candidate quality is worse, revert this
+experiment patch; no migration or data rewrite is required.
+
+Production sanity check on `أَعَدَّ` / "to prepare": `أَعْطَى` / "to give" now
+appears as a short-verb neighbor in the automatic list. `ضَاعَف` / "to double"
+is eligible but lower-ranked, and `عادَةً` / "usually" is still outside the
+rule-based list; those cases motivate an explicit "I thought it was..." picker if
+the telemetry confirms automatic candidates are frequently incomplete.
+
+---
+
 ## 2026-05-10 (latest): Batch material now has a mandatory quality gate
 
 ### What

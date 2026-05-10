@@ -4,6 +4,73 @@
 
 ---
 
+## 🟡 Learning projections + confusor telemetry layer (2026-05-10)
+
+Prod analysis of 39,773 word reviews / 7,945 sentence reviews found stable
+predictors of lemma difficulty:
+
+- verbs and 11+ form lemmas are much harder than nouns/adjectives;
+- root-family support helps after 2-3 known siblings but can also create
+  same-root confusions;
+- target-heavy exposure is a warning signal, while collateral exposure is a
+  strong-projection signal;
+- scaffold unknown count is a large sentence-level predictor: understood drops
+  from 70.8% at 0 unknown scaffolds to 56.7% at 1 and 47.5% at 2;
+- repeated partials on the same sentence need a sentence-level leech path.
+
+Idea: build an offline/read-side `learning_projections` layer for canonical
+lemmas. It should cache projection band, risk reasons, likely confusors, expected
+remaining acquisition burden, and recommended treatment. Use it first in intro,
+word detail, confusion help, and wrap-up. Only later let it lightly influence
+`sentence_selector`.
+
+Instrumentation needed before serious pair modeling:
+
+- log pair-level confusion candidates ("confused with X");
+- persist `selection_info`, unknown scaffold count, due/collateral lemma IDs,
+  sentence source/length, card index, and intro-to-first-review delay;
+- populate observed `difficulty_score` or a separate sentence difficulty table.
+
+2026-05-10 follow-up: first reversible implementation should keep scheduling
+unchanged, but make confusion help form-aware and log the candidate lemma IDs it
+actually showed. `variant_stats_json` should also store a matched form key when
+the exposed surface maps to `forms_json`, so later analysis can tell "bad lemma"
+from "bad conjugation/form."
+
+Observed prod sanity check: for `أَعَدَّ` / "to prepare", the form-aware list
+now surfaces `أَعْطَى` / "to give" as a short-verb neighbor, while `ضَاعَف` /
+"to double" is eligible but ranks lower, and `عادَةً` / "usually" still does
+not qualify by spelling/form rules. Add an explicit "I thought it was..."
+confusor picker/search if candidate telemetry shows the real confusor is often
+outside the automatic list.
+
+Report: `research/analysis-2026-05-10-lemma-learning-projections.md`.
+Design spec: `research/spec-2026-05-10-learning-projection-interventions.md`.
+
+---
+
+## 🟡 Hindawi reading-pack unlocker (2026-05-10)
+
+Prod analysis of Hindawi `children.stories` shows a split:
+
+- Imported sentence pool is close now: 6,427/6,465 corpus sentences have <=3
+  unknown content items under the practical reading band (`known`, `learning`,
+  `acquiring`, `lapsed`). Top 100 mapped missing lemmas cover 76.2% of mapped
+  missing-token occurrences.
+- Whole raw books are not close yet: even with CAMeL on selected short books,
+  likely-easiest candidates such as `لَيْلَى وَالذِّئْبُ` are around 80-82%
+  active coverage and still capped by 12-15% unmapped surfaces.
+
+Idea: build a **Hindawi Reading Pack** flow before trying full-book unlock:
+query verified corpus/book sentences (including inactive rows), re-run the
+quality gate, rank by current coverage and missing-lemma gain, and output a
+20-50 sentence reading pack plus a small pre-study list. For full books, add a
+book-specific unmapped-surface audit/import queue. First pilot target:
+`لَيْلَى وَالذِّئْبُ`. Analysis:
+`research/analysis-2026-05-10-hindawi-reading-path.md`.
+
+---
+
 ## 🟢 [DONE 2026-05-06] Broadened clitic-leftover audit — 95 lemmas, 88 cleaned
 
 Started as the "my X" cohort (35 lemmas) but broadened to all proclitics

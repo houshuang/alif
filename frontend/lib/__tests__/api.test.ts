@@ -224,6 +224,7 @@ describe("submitSentenceReview", () => {
       comprehension_signal: "partial",
       missed_lemma_ids: [43, 44],
       confused_lemma_ids: [45],
+      confusion_candidate_lemma_ids: { 45: [50, 51] },
       response_ms: 2000,
       session_id: "sess-1",
       review_mode: "reading",
@@ -233,6 +234,7 @@ describe("submitSentenceReview", () => {
     const entry = queue.find((e: any) => e.payload.sentence_id === 10);
     expect(entry.payload.missed_lemma_ids).toEqual([43, 44]);
     expect(entry.payload.confused_lemma_ids).toEqual([45]);
+    expect(entry.payload.confusion_candidate_lemma_ids).toEqual({ 45: [50, 51] });
   });
 
   it("accepts explicit client review id", async () => {

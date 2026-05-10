@@ -143,6 +143,7 @@ def submit_sentence(body: SentenceReviewSubmitIn, db: Session = Depends(get_db))
         comprehension_signal=body.comprehension_signal,
         missed_lemma_ids=body.missed_lemma_ids,
         confused_lemma_ids=body.confused_lemma_ids,
+        confusion_candidate_lemma_ids=body.confusion_candidate_lemma_ids,
         response_ms=body.response_ms,
         session_id=body.session_id,
         review_mode=body.review_mode,
@@ -386,6 +387,7 @@ def sync_reviews(body: BulkSyncIn, db: Session = Depends(get_db)):
                     comprehension_signal=payload["comprehension_signal"],
                     missed_lemma_ids=payload.get("missed_lemma_ids", []),
                     confused_lemma_ids=payload.get("confused_lemma_ids", []),
+                    confusion_candidate_lemma_ids=payload.get("confusion_candidate_lemma_ids", {}),
                     response_ms=payload.get("response_ms"),
                     session_id=payload.get("session_id"),
                     review_mode=payload.get("review_mode", "reading"),
@@ -401,6 +403,7 @@ def sync_reviews(body: BulkSyncIn, db: Session = Depends(get_db)):
                         comprehension_signal=payload["comprehension_signal"],
                         missed_lemma_ids=payload.get("missed_lemma_ids", []),
                         confused_lemma_ids=payload.get("confused_lemma_ids", []),
+                        confusion_candidate_lemma_ids=payload.get("confusion_candidate_lemma_ids", {}),
                         response_ms=payload.get("response_ms"),
                         session_id=payload.get("session_id"),
                         review_mode=payload.get("review_mode", "reading"),
@@ -826,6 +829,12 @@ def confusion_help(
         surface_form=surface_form,
         confusion_type=result.get("confusion_type"),
         similar_count=len(result.get("similar_words", [])),
+        similar_lemma_ids=[w.get("lemma_id") for w in result.get("similar_words", [])],
+        similar_reasons=[
+            {"lemma_id": w.get("lemma_id"), "reason": w.get("match_reason")}
+            for w in result.get("similar_words", [])
+        ],
+        phonetic_lemma_ids=[w.get("lemma_id") for w in result.get("phonetic_similar", [])],
         has_decomposition=result.get("decomposition") is not None,
     )
 
