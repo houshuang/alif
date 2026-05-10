@@ -4,7 +4,59 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
-## 2026-05-08 (latest): Acquiring material rescue is now first-priority
+## 2026-05-10 (latest): Batch material now has a mandatory quality gate
+
+### What
+
+`batch_generate_material()` now runs `review_sentences_quality()` after
+deterministic validation, mapping verification, correction application, and the
+empty-gloss guard, but before DB write. A sentence must pass both `natural` and
+`translation_correct` to be stored. Rejected rows are logged as
+`batch_quality_rejected` with the sentence, target lemma, reviewer booleans, and
+reason.
+
+The accepted self-correct log event now fires only after the quality gate, so
+`batch_self_correct_accepted` means "accepted and write-eligible", not merely
+"passed mapping validation".
+
+### Why
+
+A live scan on 2026-05-10 found 47 active LLM sentences from the day's pool that
+Claude Haiku rejected for grammar, orthography, translation mismatch, or
+implausible catalog-style phrasing. The root cause was a gap between generation
+paths: `sentence_generator.py` already had a post-validation quality review, but
+the production self-correct batch path in `material_generator.py` stored outputs
+after rule/mapping checks only. Deterministic validation catches vocabulary and
+mapping safety, but not agreement errors or semantically forced sentences.
+
+### Fix
+
+`backend/app/services/material_generator.py` now applies the same fail-closed
+Haiku naturalness/translation gate to batch material before writing sentences.
+Regression tests in `backend/tests/test_material_generator_fallback.py` cover
+both quality rejection and quality approval.
+
+Existing bad active rows from the 2026-05-10 scan were retired manually after a
+DB backup:
+
+```text
+/opt/alif-backups/alif_pre_quality_retire_20260510_110651.db
+```
+
+### Verification
+
+```bash
+backend/.review-venv/bin/python -m pytest backend/tests
+```
+
+Result: 1006 passed, 9 deselected, 18 existing warnings.
+
+Production: deployed commit `3fcfb96`; backend and frontend active; `/api/stats`
+returns 200.
+
+---
+
+## 2026-05-08: Acquiring material rescue is now first-priority
 
 ### What
 

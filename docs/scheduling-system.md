@@ -1191,6 +1191,17 @@ Rule-based validation pipeline:
 4. Match against known forms (lemma_ar_bare + forms_json entries)
 5. ~80 function words (from `FUNCTION_WORD_GLOSSES`) treated as always-known
 
+**Generation-time quality gate**: rule-based validation is necessary but not
+sufficient. `material_generator.batch_generate_material()` now runs
+`review_sentences_quality()` after deterministic validation, mapping
+verification, correction application, and empty-gloss filtering, but before DB
+write. A batch sentence is stored only when Claude Haiku marks it both natural
+and translation-correct; rejections are logged as `batch_quality_rejected`.
+This mirrors the quality gate already used by `sentence_generator.py` and keeps
+grammar/orthography/translation errors out of the active pool before review.
+(Added 2026-05-10 after retiring 47 quality-scan failures from that day's LLM
+pool.)
+
 ### Pipeline Cap & Due-Date Tiered Allocation
 
 **Due-date tiers** (`app/services/pipeline_tiers.py`): Instead of flat per-word sentence
