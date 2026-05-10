@@ -232,11 +232,7 @@ def _group_maintenance_passages(
                 and _is_maintenance_passage_candidate(c, knowledge_by_id)
             ]
             story_group.sort(key=lambda c: c.sentence_id)
-            if (
-                len(story_group) >= PASSAGE_MIN_SENTENCES
-                and _candidate_group_due_density(story_group[:PASSAGE_MAX_SENTENCES])
-                >= 1.0
-            ):
+            if len(story_group) >= PASSAGE_MIN_SENTENCES:
                 flush_buffer()
                 group = story_group[:PASSAGE_MAX_SENTENCES]
                 groups.append(group)
