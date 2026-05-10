@@ -4,7 +4,8 @@ from unittest.mock import patch
 
 import pytest
 
-from app.models import Lemma, UserLemmaKnowledge
+from app.models import Lemma, Sentence, UserLemmaKnowledge
+from app.services.llm import SentenceReviewResult
 from app.services import material_generator
 
 
@@ -102,3 +103,72 @@ def test_warm_sentence_cache_skips_when_material_lock_busy(tmp_path, monkeypatch
 
     assert result == {"skipped": True, "reason": "material_update_active"}
     impl.assert_not_called()
+
+
+def _seed_batch_quality_word(db_session):
+    db_session.add_all([
+        Lemma(
+            lemma_id=1,
+            lemma_ar="كِتَابٌ",
+            lemma_ar_bare="كتاب",
+            gloss_en="book",
+            pos="noun",
+        ),
+        Lemma(
+            lemma_id=2,
+            lemma_ar="جَدِيدٌ",
+            lemma_ar_bare="جديد",
+            gloss_en="new",
+            pos="adjective",
+        ),
+        UserLemmaKnowledge(lemma_id=1, knowledge_state="acquiring"),
+        UserLemmaKnowledge(lemma_id=2, knowledge_state="known", fsrs_card_json={"stability": 10}),
+    ])
+    db_session.commit()
+
+
+def test_batch_generation_rejects_quality_failed_sentence(db_session):
+    _seed_batch_quality_word(db_session)
+    generated_sentence = SimpleNamespace(
+        target_index=0,
+        arabic="الكِتَابُ جَدِيدٌ.",
+        english="The book is new.",
+        transliteration="al-kitabu jadidun.",
+    )
+
+    with (
+        patch("app.services.material_generator._generate_via_self_correct", return_value=[generated_sentence]),
+        patch("app.services.sentence_validator.batch_verify_sentences", return_value=[{"disambiguation": [], "issues": []}]),
+        patch("app.services.llm.review_sentences_quality", return_value=[
+            SentenceReviewResult(natural=False, translation_correct=True, reason="bad agreement"),
+        ]),
+    ):
+        result = material_generator.batch_generate_material([1], count_per_word=1)
+
+    assert result["generated"] == 0
+    assert result["words_failed"] == [1]
+    assert db_session.query(Sentence).count() == 0
+
+
+def test_batch_generation_stores_quality_approved_sentence(db_session):
+    _seed_batch_quality_word(db_session)
+    generated_sentence = SimpleNamespace(
+        target_index=0,
+        arabic="الكِتَابُ جَدِيدٌ.",
+        english="The book is new.",
+        transliteration="al-kitabu jadidun.",
+    )
+
+    with (
+        patch("app.services.material_generator._generate_via_self_correct", return_value=[generated_sentence]),
+        patch("app.services.sentence_validator.batch_verify_sentences", return_value=[{"disambiguation": [], "issues": []}]),
+        patch("app.services.llm.review_sentences_quality", return_value=[
+            SentenceReviewResult(natural=True, translation_correct=True, reason="ok"),
+        ]),
+    ):
+        result = material_generator.batch_generate_material([1], count_per_word=1)
+
+    assert result["generated"] == 1
+    assert result["words_failed"] == []
+    stored = db_session.query(Sentence).one()
+    assert stored.arabic_text == "الكِتَابُ جَدِيدٌ."

@@ -1086,11 +1086,35 @@ def batch_generate_material(
             "mappings": mappings,
             "target_lemma_id": cand["target_lemma_id"],
         })
-        if not _use_legacy_batch():
+
+    if valid_sentences:
+        from app.services.llm import review_sentences_quality
+
+        quality_reviews = review_sentences_quality([
+            {"arabic": vs["arabic"], "english": vs["english"]}
+            for vs in valid_sentences
+        ])
+        quality_filtered = []
+        for vs, review in zip(valid_sentences, quality_reviews):
+            if review.natural and review.translation_correct:
+                quality_filtered.append(vs)
+                continue
+            _log_pipeline(_log_dir, {
+                "event": "batch_quality_rejected",
+                "lemma_id": vs["target_lemma_id"],
+                "arabic": vs["arabic"],
+                "natural": review.natural,
+                "translation_correct": review.translation_correct,
+                "reason": review.reason[:200],
+            })
+        valid_sentences = quality_filtered
+
+    if valid_sentences and not _use_legacy_batch():
+        for vs in valid_sentences:
             _log_pipeline(_log_dir, {
                 "event": "batch_self_correct_accepted",
-                "lemma_id": cand["target_lemma_id"],
-                "arabic": cand["arabic"],
+                "lemma_id": vs["target_lemma_id"],
+                "arabic": vs["arabic"],
             })
 
     # ── Phase 3: DB write ─��
