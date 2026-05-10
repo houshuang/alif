@@ -290,8 +290,30 @@ export default function ScannerScreen() {
 
   function renderWordItem(word: ExtractedWord) {
     const isNew = word.status === "new";
-    const statusColor = isNew ? colors.gotIt : colors.accent;
-    const statusLabel = isNew ? "New" : "Known";
+    const statusColor = isNew
+      ? colors.gotIt
+      : word.knowledge_state === "known"
+        ? colors.stateKnown
+        : word.knowledge_state === "learning"
+          ? colors.stateLearning
+          : word.knowledge_state === "acquiring"
+            ? colors.stateAcquiring
+            : word.knowledge_state === "lapsed"
+              ? colors.confused
+              : colors.stateEncountered;
+    const statusLabel = isNew
+      ? "New"
+      : word.knowledge_state === "known"
+        ? "Known"
+        : word.knowledge_state === "learning"
+          ? "Learning"
+          : word.knowledge_state === "acquiring"
+            ? "Queued"
+            : word.knowledge_state === "lapsed"
+              ? "Lapsed"
+              : word.knowledge_state === "encountered"
+                ? "Saved"
+                : "Existing";
 
     return (
       <View style={styles.wordItem} key={`${word.arabic_bare}-${word.lemma_id}`}>
@@ -365,7 +387,7 @@ export default function ScannerScreen() {
               +{page.new_words} new
             </Text>
             <Text style={[styles.countBadge, { color: colors.accent }]}>
-              {page.existing_words} known
+              {page.existing_words} existing
             </Text>
           </View>
         </View>
@@ -482,7 +504,7 @@ export default function ScannerScreen() {
                     </Text>
                   )}
                   <Text style={[styles.batchStat, { color: colors.accent }]}>
-                    {batch.total_existing} known
+                    {batch.total_existing} existing
                   </Text>
                 </>
               )}
