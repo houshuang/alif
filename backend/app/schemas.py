@@ -167,8 +167,13 @@ class FrequencyCoreBand(BaseModel):
     pipeline_count: int
     total_count: int
     coverage_pct: float
+    introduced_count: int = 0
+    not_introduced_count: int = 0
+    high_confidence_count: int = 0
+    medium_confidence_count: int = 0
     low_confidence_count: int = 0
     unmapped_count: int = 0
+    state_counts: dict[str, int] = {}
 
 
 class FrequencyCoreGap(BaseModel):

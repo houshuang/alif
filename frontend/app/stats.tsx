@@ -510,38 +510,67 @@ function FrequencyCoreCard({ data }: { data: FrequencyCoreProgress }) {
 
   if (!top1000) return null;
 
+  const trustedCount = top1000.high_confidence_count + top1000.medium_confidence_count;
+  const confidencePct = Math.round((trustedCount / Math.max(top1000.total_count, 1)) * 1000) / 10;
+
   return (
     <View style={styles.freqCoreCard}>
       <View style={styles.freqCoreHeader}>
         <View style={{ flex: 1 }}>
           <Text style={styles.freqCoreTitle}>High-Frequency Core</Text>
           <Text style={styles.freqCoreSubtitle}>
-            {top1000.learned_count} learned · {top1000.pipeline_count} in pipeline
+            top {top1000.top_n}: {top1000.learned_count} learned · {top1000.not_introduced_count} need intro
           </Text>
         </View>
         <View style={styles.freqCoreBadge}>
           <Text style={styles.freqCoreBadgePct}>{top1000.coverage_pct}%</Text>
-          <Text style={styles.freqCoreBadgeLabel}>top {top1000.top_n}</Text>
+          <Text style={styles.freqCoreBadgeLabel}>learned</Text>
+        </View>
+      </View>
+
+      <View style={styles.freqCoreMetricGrid}>
+        <FrequencyCoreMetric value={top1000.learned_count} label="learned" color={colors.good} />
+        <FrequencyCoreMetric value={top1000.introduced_count} label="introduced" color={colors.accent} />
+        <FrequencyCoreMetric value={top1000.not_introduced_count} label="need intro" color={colors.noIdea} />
+        <FrequencyCoreMetric value={top1000.unmapped_count} label="missing" color={colors.missed} />
+      </View>
+
+      <View style={styles.freqCoreConfidence}>
+        <View>
+          <Text style={styles.freqCoreConfidenceTitle}>Source confidence</Text>
+          <Text style={styles.freqCoreConfidenceSub}>{trustedCount}/{top1000.total_count} trusted · {confidencePct}%</Text>
+        </View>
+        <View style={styles.freqCoreConfidenceChips}>
+          <ConfidenceChip label="high" value={top1000.high_confidence_count} color={colors.good} />
+          <ConfidenceChip label="med" value={top1000.medium_confidence_count} color={colors.accent} />
+          <ConfidenceChip label="low" value={top1000.low_confidence_count} color={colors.missed} />
         </View>
       </View>
 
       <View style={styles.freqCoreBands}>
         {visibleBands.map((band) => {
           const learnedPct = Math.min(band.coverage_pct, 100);
-          const pipelinePct = Math.min((band.pipeline_count / Math.max(band.total_count, 1)) * 100, 100);
+          const introducedPct = Math.min((band.introduced_count / Math.max(band.total_count, 1)) * 100, 100);
+          const missingPct = Math.min((band.unmapped_count / Math.max(band.total_count, 1)) * 100, 100);
           return (
             <View key={band.top_n} style={styles.freqCoreBand}>
               <View style={styles.freqCoreBandTop}>
                 <Text style={styles.freqCoreBandLabel}>Top {band.top_n}</Text>
                 <Text style={styles.freqCoreBandCount}>
-                  {band.learned_count} learned · {band.pipeline_count} pipeline
-                  {band.unmapped_count > 0 ? ` · ${band.unmapped_count} unmapped` : ""}
+                  {band.learned_count} learned · {band.not_introduced_count} need intro
+                  {band.unmapped_count > 0 ? ` · ${band.unmapped_count} missing` : ""}
                 </Text>
               </View>
               <View style={styles.freqCoreTrack}>
-                <View style={[styles.freqCorePipelineFill, { width: `${pipelinePct}%` }]} />
+                <View style={[styles.freqCoreIntroducedFill, { width: `${introducedPct}%` }]} />
                 <View style={[styles.freqCoreLearnedFill, { width: `${learnedPct}%` }]} />
+                {missingPct > 0 && (
+                  <View style={[styles.freqCoreMissingFill, { width: `${missingPct}%` }]} />
+                )}
               </View>
+              <Text style={styles.freqCoreBandQuality}>
+                {band.high_confidence_count} high · {band.medium_confidence_count} medium · {band.low_confidence_count} low confidence
+              </Text>
             </View>
           );
         })}
@@ -549,7 +578,7 @@ function FrequencyCoreCard({ data }: { data: FrequencyCoreProgress }) {
 
       {gaps.length > 0 && (
         <View style={styles.freqCoreGaps}>
-          <Text style={styles.freqCoreGapTitle}>Earliest not-yet-introduced core ranks</Text>
+          <Text style={styles.freqCoreGapTitle}>Next core introduction candidates</Text>
           {gaps.map((gap) => (
             <View key={`${gap.core_rank}-${gap.display_form}`} style={styles.freqCoreGapRow}>
               <Text style={styles.freqCoreGapRank}>#{gap.core_rank}</Text>
@@ -568,15 +597,33 @@ function FrequencyCoreCard({ data }: { data: FrequencyCoreProgress }) {
   );
 }
 
+function FrequencyCoreMetric({ value, label, color }: { value: number; label: string; color: string }) {
+  return (
+    <View style={[styles.freqCoreMetric, { borderLeftColor: color }]}>
+      <Text style={[styles.freqCoreMetricValue, { color }]}>{value}</Text>
+      <Text style={styles.freqCoreMetricLabel}>{label}</Text>
+    </View>
+  );
+}
+
+function ConfidenceChip({ value, label, color }: { value: number; label: string; color: string }) {
+  return (
+    <View style={styles.freqCoreConfidenceChip}>
+      <Text style={[styles.freqCoreConfidenceValue, { color }]}>{value}</Text>
+      <Text style={styles.freqCoreConfidenceLabel}>{label}</Text>
+    </View>
+  );
+}
+
 function frequencyCoreGapLabel(gap: FrequencyCoreProgress["next_gaps"][number]) {
   if (gap.gap_status === "needs_manual_review") return "auto retry";
   if (!gap.lemma_id || gap.status === "missing_from_db" || gap.gap_status === "unmapped") {
-    return "missing from DB";
+    return "missing";
   }
   if (gap.status === "acquiring") return "introduced";
-  if (gap.status === "encountered") return "not introduced";
+  if (gap.status === "encountered") return "seen only";
   if (gap.status === "lapsed") return "lapsed";
-  if (gap.status === "new") return "not introduced";
+  if (gap.status === "new") return "need intro";
   return (gap.gap_status || gap.status).replace(/_/g, " ");
 }
 
@@ -1348,14 +1395,27 @@ const styles = StyleSheet.create({
   freqCoreBadge: { alignItems: "center", backgroundColor: colors.accent + "18", borderRadius: 10, paddingHorizontal: 10, paddingVertical: 7, minWidth: 78 },
   freqCoreBadgePct: { fontSize: 18, color: colors.accent, fontWeight: "800" },
   freqCoreBadgeLabel: { fontSize: 10, color: colors.textSecondary, marginTop: 1 },
-  freqCoreBands: { gap: 10 },
+  freqCoreMetricGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 12 },
+  freqCoreMetric: { flexGrow: 1, flexBasis: "47%", minWidth: 120, backgroundColor: colors.surfaceLight, borderRadius: 8, borderLeftWidth: 3, paddingHorizontal: 10, paddingVertical: 8 },
+  freqCoreMetricValue: { fontSize: 18, fontWeight: "800", lineHeight: 22 },
+  freqCoreMetricLabel: { fontSize: 10, color: colors.textSecondary, textTransform: "uppercase", letterSpacing: 0.4, marginTop: 1 },
+  freqCoreConfidence: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: 10, paddingVertical: 10, borderTopWidth: 1, borderBottomWidth: 1, borderColor: colors.border, marginBottom: 12 },
+  freqCoreConfidenceTitle: { fontSize: 12, color: colors.text, fontWeight: "700" },
+  freqCoreConfidenceSub: { fontSize: 11, color: colors.textSecondary, marginTop: 2 },
+  freqCoreConfidenceChips: { flexDirection: "row", gap: 6, flexShrink: 0 },
+  freqCoreConfidenceChip: { alignItems: "center", minWidth: 38 },
+  freqCoreConfidenceValue: { fontSize: 14, fontWeight: "800", lineHeight: 17 },
+  freqCoreConfidenceLabel: { fontSize: 9, color: colors.textSecondary, marginTop: 1 },
+  freqCoreBands: { gap: 12 },
   freqCoreBand: { gap: 4 },
   freqCoreBandTop: { flexDirection: "row", justifyContent: "space-between", alignItems: "baseline", gap: 8 },
   freqCoreBandLabel: { fontSize: 12, color: colors.text, fontWeight: "600" },
   freqCoreBandCount: { flexShrink: 1, fontSize: 12, color: colors.textSecondary, textAlign: "right" },
   freqCoreTrack: { height: 7, borderRadius: 4, backgroundColor: colors.surfaceLight, overflow: "hidden" },
-  freqCorePipelineFill: { position: "absolute", left: 0, top: 0, bottom: 0, backgroundColor: colors.stateAcquiring + "45", borderRadius: 4 },
+  freqCoreIntroducedFill: { position: "absolute", left: 0, top: 0, bottom: 0, backgroundColor: colors.stateAcquiring + "45", borderRadius: 4 },
   freqCoreLearnedFill: { height: "100%", backgroundColor: colors.good, borderRadius: 4 },
+  freqCoreMissingFill: { position: "absolute", right: 0, top: 0, bottom: 0, backgroundColor: colors.missed, opacity: 0.85 },
+  freqCoreBandQuality: { fontSize: 10, color: colors.textSecondary, textAlign: "right" },
   freqCoreGaps: { marginTop: 14, paddingTop: 12, borderTopWidth: 1, borderTopColor: colors.border, gap: 6 },
   freqCoreGapTitle: { fontSize: 11, color: colors.textSecondary, fontWeight: "700", textTransform: "uppercase", letterSpacing: 0.6 },
   freqCoreGapRow: { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 3 },

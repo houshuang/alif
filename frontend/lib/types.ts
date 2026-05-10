@@ -560,8 +560,13 @@ export interface FrequencyCoreBand {
   pipeline_count: number;
   total_count: number;
   coverage_pct: number;
+  introduced_count: number;
+  not_introduced_count: number;
+  high_confidence_count: number;
+  medium_confidence_count: number;
   low_confidence_count: number;
   unmapped_count: number;
+  state_counts: Record<string, number>;
 }
 
 export interface FrequencyCoreGap {

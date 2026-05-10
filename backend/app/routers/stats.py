@@ -756,8 +756,27 @@ def _compute_frequency_core_progress(db: Session) -> FrequencyCoreProgress | Non
         band_rows = [r for r in rows if r.core_rank <= top_n]
         if not band_rows:
             continue
+        state_counts: dict[str, int] = {}
+        for r in band_rows:
+            state = r.knowledge_state or ("unmapped" if r.lemma_id is None else "new")
+            state_counts[state] = state_counts.get(state, 0) + 1
         learned_count = sum(1 for r in band_rows if r.knowledge_state in learned_states)
         pipeline_count = sum(1 for r in band_rows if r.knowledge_state in pipeline_states)
+        introduced_count = sum(
+            1
+            for r in band_rows
+            if r.lemma_id is not None
+            and (r.introduced_at is not None or r.knowledge_state in introduced_states)
+        )
+        not_introduced_count = sum(
+            1
+            for r in band_rows
+            if r.lemma_id is not None
+            and r.introduced_at is None
+            and r.knowledge_state not in introduced_states
+        )
+        high_confidence_count = sum(1 for r in band_rows if r.confidence_tier == "high")
+        medium_confidence_count = sum(1 for r in band_rows if r.confidence_tier == "medium")
         low_confidence_count = sum(1 for r in band_rows if r.confidence_tier == "low")
         unmapped_count = sum(1 for r in band_rows if r.lemma_id is None)
         bands.append(FrequencyCoreBand(
@@ -766,8 +785,13 @@ def _compute_frequency_core_progress(db: Session) -> FrequencyCoreProgress | Non
             pipeline_count=pipeline_count,
             total_count=len(band_rows),
             coverage_pct=round(learned_count / len(band_rows) * 100, 1),
+            introduced_count=introduced_count,
+            not_introduced_count=not_introduced_count,
+            high_confidence_count=high_confidence_count,
+            medium_confidence_count=medium_confidence_count,
             low_confidence_count=low_confidence_count,
             unmapped_count=unmapped_count,
+            state_counts=state_counts,
         ))
 
     next_gaps: list[FrequencyCoreGap] = []

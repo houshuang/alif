@@ -203,8 +203,13 @@ class TestStatsAPI:
         assert core["learned_prefix_count"] == 1
         top100 = core["bands"][0]
         assert top100["pipeline_count"] == 2
+        assert top100["introduced_count"] == 1
+        assert top100["not_introduced_count"] == 1
+        assert top100["high_confidence_count"] == 1
+        assert top100["medium_confidence_count"] == 1
         assert top100["unmapped_count"] == 1
         assert top100["low_confidence_count"] == 1
+        assert top100["state_counts"] == {"known": 1, "unmapped": 1, "encountered": 1}
         assert core["next_gaps"][0]["gap_status"] == "unmapped"
 
     def test_frequency_core_gaps_skip_introduced_words(self, client, db_session):
@@ -272,6 +277,10 @@ class TestStatsAPI:
         top100 = core["bands"][0]
         assert top100["learned_count"] == 2
         assert top100["pipeline_count"] == 5
+        assert top100["introduced_count"] == 3
+        assert top100["not_introduced_count"] == 2
+        assert top100["state_counts"]["encountered"] == 2
+        assert top100["state_counts"]["unmapped"] == 1
         assert [gap["core_rank"] for gap in core["next_gaps"]] == [4, 6]
 
     def test_daily_goal_splits_main_and_slow_lane_due_debt(self, client, db_session):
