@@ -257,6 +257,37 @@ def _group_maintenance_passages(
     return groups
 
 
+def _best_generated_passage_seed(
+    candidates: list[SentenceCandidate],
+    knowledge_by_id: dict[int, UserLemmaKnowledge],
+) -> list[SentenceCandidate]:
+    groups: dict[int, list[SentenceCandidate]] = {}
+    for candidate in candidates:
+        story_id = getattr(candidate.sentence, "story_id", None)
+        if (
+            story_id
+            and getattr(candidate.sentence, "source", None) == "passage"
+            and _is_maintenance_passage_candidate(candidate, knowledge_by_id)
+        ):
+            groups.setdefault(story_id, []).append(candidate)
+
+    viable = [
+        sorted(group, key=lambda c: c.sentence_id)[:PASSAGE_MAX_SENTENCES]
+        for group in groups.values()
+        if len(group) >= PASSAGE_MIN_SENTENCES
+    ]
+    if not viable:
+        return []
+    viable.sort(
+        key=lambda group: (
+            len(set().union(*(c.due_words_covered for c in group))),
+            max(c.sentence_id for c in group),
+        ),
+        reverse=True,
+    )
+    return viable[0]
+
+
 _GRAMMAR_ABBREV = {
     "singular": "sg.", "dual": "du.", "plural_sound": "pl.", "plural_broken": "pl.",
     "masculine": "m.", "feminine": "f.",
@@ -1286,6 +1317,21 @@ def build_session(
     selected: list[SentenceCandidate] = []
     remaining_due = set(due_lemma_ids)
     session_scaffold_counts: dict[int, int] = {}
+
+    if mode == "reading":
+        passage_seed = _best_generated_passage_seed(candidates, knowledge_by_id)
+        for cand in passage_seed:
+            if len(selected) >= limit:
+                break
+            cand.selection_reason = "generated_passage_seed"
+            cand.selection_order = len(selected) + 1
+            selected.append(cand)
+            remaining_due -= cand.due_words_covered
+            if cand in candidates:
+                candidates.remove(cand)
+            for w in cand.words_meta:
+                if w.lemma_id and not w.is_due and not w.is_function_word and not w.is_proper_name:
+                    session_scaffold_counts[w.lemma_id] = session_scaffold_counts.get(w.lemma_id, 0) + 1
 
     priority_due_ids = sorted(
         due_lemma_ids,
