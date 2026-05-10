@@ -111,6 +111,40 @@ class TestUnderstood:
         assert credits[1] == "primary"
         assert credits[2] == "collateral"
 
+    def test_passage_reviews_words_from_all_sentence_ids(self, db_session):
+        _seed_word(db_session, 1, "كتاب", "book")
+        _seed_word(db_session, 2, "ولد", "boy")
+        _seed_word(db_session, 3, "بيت", "house")
+        _seed_sentence(db_session, 1, "الولد الكتاب", "the boy the book",
+                       target_lemma_id=1, word_ids=[2, 1])
+        _seed_sentence(db_session, 2, "البيت", "the house",
+                       target_lemma_id=3, word_ids=[3])
+        db_session.commit()
+
+        result = submit_sentence_review(
+            db_session,
+            sentence_id=1,
+            sentence_ids=[1, 2],
+            primary_lemma_id=1,
+            comprehension_signal="understood",
+            session_id="passage-1",
+            client_review_id="passage-review-1",
+        )
+
+        assert {wr["lemma_id"] for wr in result["word_results"]} == {1, 2, 3}
+        sentence_logs = (
+            db_session.query(SentenceReviewLog)
+            .order_by(SentenceReviewLog.sentence_id)
+            .all()
+        )
+        assert [log.sentence_id for log in sentence_logs] == [1, 2]
+        assert [log.client_review_id for log in sentence_logs] == [
+            "passage-review-1",
+            "passage-review-1:s2",
+        ]
+        assert db_session.query(Sentence).filter(Sentence.id == 1).first().times_shown == 1
+        assert db_session.query(Sentence).filter(Sentence.id == 2).first().times_shown == 1
+
 
 class TestPartial:
     def test_missed_words_get_rating_1(self, db_session):

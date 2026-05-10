@@ -361,17 +361,31 @@ class SentenceWordMeta(BaseModel):
     stability: float | None = None
     is_due: bool = False
     is_function_word: bool = False
+    is_proper_name: bool = False
     knowledge_state: str = "new"
     root: str | None = None
     root_meaning: str | None = None
     root_id: int | None = None
     frequency_rank: int | None = None
     cefr_level: str | None = None
+    grammar_tags: list[str] = []
     show_tashkeel: bool = True
+    transliteration: str | None = None
+
+
+class PassageSentenceOut(BaseModel):
+    sentence_id: int
+    arabic_text: str
+    english_translation: str = ""
+    transliteration: str | None = None
+    start_index: int
+    end_index: int
 
 
 class SentenceReviewItem(BaseModel):
     sentence_id: int | None
+    sentence_ids: list[int] = []
+    card_type: str = "sentence"
     arabic_text: str
     english_translation: str
     transliteration: str | None = None
@@ -380,6 +394,7 @@ class SentenceReviewItem(BaseModel):
     primary_lemma_ar: str
     primary_gloss_en: str
     words: list[SentenceWordMeta]
+    passage_sentences: list[PassageSentenceOut] = []
     grammar_features: list[str] = []
     selection_info: dict | None = None
 
@@ -495,6 +510,7 @@ class SentenceSessionOut(BaseModel):
 
 class SentenceReviewSubmitIn(BaseModel):
     sentence_id: int | None = None
+    sentence_ids: list[int] = []
     primary_lemma_id: int
     comprehension_signal: str  # understood/partial/no_idea
     missed_lemma_ids: list[int] = []

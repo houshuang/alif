@@ -83,6 +83,10 @@ MAX_UNKNOWN_SCAFFOLD = 2  # max unknown non-target words per sentence (prevents 
 MIN_SESSION_SENTENCES = 5  # minimum sentences before pulling in almost-due words
 COMPREHENSIBILITY_THRESHOLD = 0.6  # min fraction of scaffold words that must be known
 OLDEST_DUE_FIRST_BLOCK = 5  # first cards should shrink aged debt before normal set cover
+PASSAGE_MIN_SENTENCES = 3
+PASSAGE_MAX_SENTENCES = 5
+PASSAGE_MIN_DUE_PER_SENTENCE = 1.25
+PASSAGE_REVIEW_STATES = {"known", "learning", "lapsed"}
 
 
 def _intro_slots_for_accuracy(accuracy: float) -> int:
@@ -152,6 +156,101 @@ class SentenceCandidate:
     score_components: dict = field(default_factory=dict)
     selection_reason: str = ""
     selection_order: int = 0
+
+
+def _is_maintenance_passage_candidate(
+    candidate: SentenceCandidate,
+    knowledge_by_id: dict[int, UserLemmaKnowledge],
+) -> bool:
+    """Only FSRS maintenance words are eligible for bundled passage cards."""
+    if not candidate.due_words_covered:
+        return False
+    for lid in candidate.due_words_covered:
+        k = knowledge_by_id.get(lid)
+        if not k or k.knowledge_state not in PASSAGE_REVIEW_STATES:
+            return False
+    return True
+
+
+def _candidate_group_due_density(group: list[SentenceCandidate]) -> float:
+    if not group:
+        return 0.0
+    due_ids: set[int] = set()
+    for candidate in group:
+        due_ids |= candidate.due_words_covered
+    return len(due_ids) / len(group)
+
+
+def _group_maintenance_passages(
+    ordered: list[SentenceCandidate],
+    knowledge_by_id: dict[int, UserLemmaKnowledge],
+) -> list[list[SentenceCandidate]]:
+    """Bundle adjacent due FSRS maintenance sentences into short passage cards.
+
+    Acquisition cards remain single-sentence so fragile box-1/box-2 words keep
+    the fast, focused repetitions they need.
+    """
+    groups: list[list[SentenceCandidate]] = []
+    buffer: list[SentenceCandidate] = []
+    used_sentence_ids: set[int] = set()
+
+    def flush_buffer() -> None:
+        nonlocal buffer
+        while buffer:
+            if len(buffer) < PASSAGE_MIN_SENTENCES:
+                groups.extend([[cand] for cand in buffer])
+                buffer = []
+                return
+
+            group = buffer[:PASSAGE_MAX_SENTENCES]
+            if _candidate_group_due_density(group) < PASSAGE_MIN_DUE_PER_SENTENCE:
+                shorter = buffer[:PASSAGE_MIN_SENTENCES]
+                if _candidate_group_due_density(shorter) >= PASSAGE_MIN_DUE_PER_SENTENCE:
+                    group = shorter
+                else:
+                    groups.append([buffer.pop(0)])
+                    continue
+
+            groups.append(group)
+            del buffer[:len(group)]
+
+    for candidate in ordered:
+        if candidate.sentence_id in used_sentence_ids:
+            continue
+        story_id = getattr(candidate.sentence, "story_id", None)
+        source = getattr(candidate.sentence, "source", None)
+        if (
+            story_id
+            and source == "passage"
+            and _is_maintenance_passage_candidate(candidate, knowledge_by_id)
+        ):
+            story_group = [
+                c for c in ordered
+                if c.sentence_id not in used_sentence_ids
+                and getattr(c.sentence, "story_id", None) == story_id
+                and getattr(c.sentence, "source", None) == "passage"
+                and _is_maintenance_passage_candidate(c, knowledge_by_id)
+            ]
+            story_group.sort(key=lambda c: c.sentence_id)
+            if (
+                len(story_group) >= PASSAGE_MIN_SENTENCES
+                and _candidate_group_due_density(story_group[:PASSAGE_MAX_SENTENCES])
+                >= PASSAGE_MIN_DUE_PER_SENTENCE
+            ):
+                flush_buffer()
+                group = story_group[:PASSAGE_MAX_SENTENCES]
+                groups.append(group)
+                used_sentence_ids.update(c.sentence_id for c in group)
+                continue
+
+        if _is_maintenance_passage_candidate(candidate, knowledge_by_id):
+            buffer.append(candidate)
+        else:
+            flush_buffer()
+            groups.append([candidate])
+
+    flush_buffer()
+    return groups
 
 
 _GRAMMAR_ABBREV = {
@@ -1470,16 +1569,37 @@ def build_session(
                     grammar_by_sentence[sid] = list(feature_keys)
 
     # Build response items (shown_at is set on review submission, not here)
-    items: list[dict] = []
-    for cand in ordered:
-        sent = sentence_map[cand.sentence_id]
+    card_groups = (
+        _group_maintenance_passages(ordered, knowledge_by_id)
+        if mode == "reading"
+        else [[cand] for cand in ordered]
+    )
 
+    def _primary_lid_for_candidate(cand: SentenceCandidate) -> int:
+        sent = sentence_map[cand.sentence_id]
         primary_lid = sent.target_lemma_id
         if primary_lid not in due_lemma_ids and cand.due_words_covered:
             primary_lid = next(iter(cand.due_words_covered))
+        return primary_lid or next(iter(cand.due_words_covered))
 
-        primary_lemma = lemma_map.get(primary_lid)
+    def _word_reason_for_lid(primary_lid: int) -> str:
+        k = knowledge_by_id.get(primary_lid)
+        if k and k.knowledge_state == "acquiring":
+            return f"Acquiring (box {k.acquisition_box})"
+        if k:
+            stab = stability_map.get(primary_lid)
+            if stab is not None:
+                if stab < 1:
+                    stab_label = f"{max(1, round(stab * 24))}h"
+                elif stab < 30:
+                    stab_label = f"{round(stab)}d"
+                else:
+                    stab_label = f"{stab / 30:.1f}mo"
+                return f"{k.knowledge_state.title()} (stability {stab_label})"
+            return k.knowledge_state.title()
+        return "New"
 
+    def _word_dicts_for_candidate(cand: SentenceCandidate) -> list[dict]:
         word_dicts = []
         for w in cand.words_meta:
             lemma = lemma_map.get(w.lemma_id) if w.lemma_id else None
@@ -1517,28 +1637,19 @@ def build_session(
                 "show_tashkeel": word_show_tashkeel,
                 "transliteration": transliterate_arabic(w.surface_form) if w.surface_form else None,
             })
+        return word_dicts
 
-        # Build selection_info for this item
-        k = knowledge_by_id.get(primary_lid)
-        if k and k.knowledge_state == "acquiring":
-            word_reason = f"Acquiring (box {k.acquisition_box})"
-        elif k:
-            stab = stability_map.get(primary_lid)
-            if stab is not None:
-                if stab < 1:
-                    stab_label = f"{max(1, round(stab * 24))}h"
-                elif stab < 30:
-                    stab_label = f"{round(stab)}d"
-                else:
-                    stab_label = f"{stab / 30:.1f}mo"
-                word_reason = f"{k.knowledge_state.title()} (stability {stab_label})"
-            else:
-                word_reason = k.knowledge_state.title()
-        else:
-            word_reason = "New"
+    def _item_for_single_sentence(cand: SentenceCandidate) -> dict:
+        sent = sentence_map[cand.sentence_id]
+        primary_lid = _primary_lid_for_candidate(cand)
 
-        items.append({
+        primary_lemma = lemma_map.get(primary_lid)
+        word_dicts = _word_dicts_for_candidate(cand)
+
+        return {
             "sentence_id": cand.sentence_id,
+            "sentence_ids": [cand.sentence_id],
+            "card_type": "sentence",
             "arabic_text": sent.arabic_text,
             "english_translation": sent.english_translation or "",
             "transliteration": sent.transliteration,
@@ -1547,16 +1658,94 @@ def build_session(
             "primary_lemma_ar": primary_lemma.lemma_ar if primary_lemma else "",
             "primary_gloss_en": primary_lemma.gloss_en if primary_lemma else "",
             "words": word_dicts,
+            "passage_sentences": [],
             "grammar_features": grammar_by_sentence.get(cand.sentence_id, []),
             "selection_info": {
                 "reason": cand.selection_reason,
                 "order": cand.selection_order,
                 "score": round(cand.score, 2),
-                "word_reason": word_reason,
+                "word_reason": _word_reason_for_lid(primary_lid),
                 "components": cand.score_components,
                 "due_lemma_ids": sorted(cand.due_words_covered),
             },
-        })
+        }
+
+    def _item_for_passage(group: list[SentenceCandidate]) -> dict:
+        sentence_ids: list[int] = []
+        words: list[dict] = []
+        passage_sentences: list[dict] = []
+        arabic_parts: list[str] = []
+        english_parts: list[str] = []
+        transliteration_parts: list[str] = []
+        grammar_features: set[str] = set()
+        due_ids: set[int] = set()
+
+        for cand in group:
+            sent = sentence_map[cand.sentence_id]
+            sentence_ids.append(cand.sentence_id)
+            start_index = len(words)
+            cand_words = _word_dicts_for_candidate(cand)
+            words.extend(cand_words)
+            end_index = len(words)
+            passage_sentences.append({
+                "sentence_id": cand.sentence_id,
+                "arabic_text": sent.arabic_text,
+                "english_translation": sent.english_translation or "",
+                "transliteration": sent.transliteration,
+                "start_index": start_index,
+                "end_index": end_index,
+            })
+            arabic_parts.append(sent.arabic_text)
+            english_parts.append(sent.english_translation or "")
+            if sent.transliteration:
+                transliteration_parts.append(sent.transliteration)
+            grammar_features.update(grammar_by_sentence.get(cand.sentence_id, []))
+            due_ids |= cand.due_words_covered
+
+        primary_lid = _primary_lid_for_candidate(group[0])
+        if primary_lid not in due_ids and due_ids:
+            primary_lid = next(iter(due_ids))
+        primary_lemma = lemma_map.get(primary_lid)
+        due_per_sentence = len(due_ids) / max(1, len(group))
+
+        return {
+            "sentence_id": sentence_ids[0],
+            "sentence_ids": sentence_ids,
+            "card_type": "passage",
+            "arabic_text": "\n".join(arabic_parts),
+            "english_translation": "\n".join(english_parts),
+            "transliteration": "\n".join(transliteration_parts) if transliteration_parts else None,
+            "audio_url": None,
+            "primary_lemma_id": primary_lid,
+            "primary_lemma_ar": primary_lemma.lemma_ar if primary_lemma else "",
+            "primary_gloss_en": primary_lemma.gloss_en if primary_lemma else "",
+            "words": words,
+            "passage_sentences": passage_sentences,
+            "grammar_features": sorted(grammar_features),
+            "selection_info": {
+                "reason": "maintenance_passage",
+                "order": min((c.selection_order for c in group), default=0),
+                "score": round(sum(c.score for c in group), 2),
+                "word_reason": (
+                    f"Maintenance passage: {len(due_ids)} due words "
+                    f"in {len(group)} sentences"
+                ),
+                "components": {
+                    "passage": True,
+                    "sentence_count": len(group),
+                    "due_coverage": len(due_ids),
+                    "due_per_sentence": round(due_per_sentence, 2),
+                },
+                "due_lemma_ids": sorted(due_ids),
+            },
+        }
+
+    items: list[dict] = []
+    for group in card_groups:
+        if len(group) == 1:
+            items.append(_item_for_single_sentence(group[0]))
+        else:
+            items.append(_item_for_passage(group))
 
     db.commit()
 
@@ -2301,16 +2490,18 @@ def _with_fallbacks(
     if uncovered:
         logger.info(f"{len(uncovered)} uncovered words — warm_sentence_cache will generate for next session")
 
+    session_unit_count = max(len(items), base_item_count or 0)
+
     # Fill phase — ALWAYS runs when session is undersized.
     # Uses pre-generated sentences only (fast DB queries, no LLM).
-    if len(items) < limit:
+    if session_unit_count < limit:
         logger.info(
-            f"Fill phase: session has {len(items)}/{limit} items"
+            f"Fill phase: session has {len(items)} cards / {session_unit_count} sentence-units out of {limit}"
         )
         try:
             now = datetime.now(timezone.utc)
             fill_ids = _auto_introduce_words(
-                db, limit - len(items), knowledge_by_id, now,
+                db, limit - session_unit_count, knowledge_by_id, now,
                 skip_material_gen=True,
             )
             if fill_ids:
@@ -2326,7 +2517,7 @@ def _with_fallbacks(
                         knowledge_by_id[lid] = ulk
 
                 fill_due = set(fill_ids)
-                remaining_cap = limit - len(items)
+                remaining_cap = limit - session_unit_count
                 if remaining_cap > 0:
                     fill_items = _find_pregenerated_sentences_for_words(
                         db, fill_due, stability_map, knowledge_by_id,
@@ -2337,6 +2528,7 @@ def _with_fallbacks(
                             fi["selection_info"]["reason"] = "fill_intro"
                             fi["selection_info"]["word_reason"] = "Auto-introduced to fill session"
                     items.extend(fill_items)
+                    session_unit_count += len(fill_items)
                     for fi in fill_items:
                         covered_ids.add(fi["primary_lemma_id"])
         except Exception:
@@ -2346,7 +2538,7 @@ def _with_fallbacks(
     # Almost-due backfill: if session is still severely undersized after fill,
     # pull in words closest to their due date so the learner isn't stuck with
     # a near-empty session.
-    if len(items) < MIN_SESSION_SENTENCES:
+    if session_unit_count < MIN_SESSION_SENTENCES:
         try:
             from app.services.cohort_service import get_focus_cohort
             cohort = get_focus_cohort(db)
@@ -2368,7 +2560,7 @@ def _with_fallbacks(
             almost_due.sort(key=lambda x: x[1])
             preview_ids = {lid for lid, _ in almost_due[:limit * 3]} & cohort
             if preview_ids:
-                remaining_cap = limit - len(items)
+                remaining_cap = limit - session_unit_count
                 for lid in preview_ids:
                     if lid not in stability_map:
                         k = knowledge_by_id.get(lid)
@@ -2383,6 +2575,7 @@ def _with_fallbacks(
                         fi["selection_info"]["reason"] = "almost_due_fill"
                         fi["selection_info"]["word_reason"] = "Almost due — filling undersized session"
                 items.extend(fill_items)
+                session_unit_count += len(fill_items)
                 for fi in fill_items:
                     covered_ids.add(fi["primary_lemma_id"])
                 if fill_items:
@@ -2391,8 +2584,16 @@ def _with_fallbacks(
             logger.exception("Almost-due backfill failed")
             db.rollback()
 
-    # Check for un-introduced grammar features in session sentences
-    sentence_ids_in_session = [item["sentence_id"] for item in items if item.get("sentence_id")]
+    # Check for un-introduced grammar features in session sentences. Passage
+    # cards carry multiple sentence IDs behind one review card.
+    sentence_ids_in_session: list[int] = []
+    for item in items:
+        ids = item.get("sentence_ids") or (
+            [item["sentence_id"]] if item.get("sentence_id") else []
+        )
+        for sid in ids:
+            if sid not in sentence_ids_in_session:
+                sentence_ids_in_session.append(sid)
     grammar_intro_needed: list[str] = []
     if sentence_ids_in_session:
         from app.services.grammar_lesson_service import get_unintroduced_features_for_session

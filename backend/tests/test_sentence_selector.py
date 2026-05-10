@@ -13,9 +13,11 @@ from app.services.sentence_selector import (
     JACCARD_VETO_THRESHOLD,
     MAX_AUTO_INTRO_PER_SESSION,
     SESSION_SCAFFOLD_DECAY,
+    SentenceCandidate,
     WordMeta,
     _difficulty_match_quality,
     _find_pregenerated_sentences_for_words,
+    _group_maintenance_passages,
     _intro_slots_for_accuracy,
     _is_near_duplicate_of_selected,
     _is_text_near_duplicate,
@@ -114,6 +116,90 @@ class TestSourceDisplay:
         lemma = Lemma(lemma_ar="كلمة", lemma_ar_bare="كلمة", gloss_en="word", source="duolingo")
         ulk = UserLemmaKnowledge(lemma_id=1, source="textbook_scan")
         assert _display_source(ulk, lemma) == "textbook_scan"
+
+
+class TestMaintenancePassageGrouping:
+    def _candidate(
+        self,
+        sentence_id: int,
+        due_id: int,
+        extra_due_id: int | None = None,
+        *,
+        story_id: int | None = None,
+        source: str | None = None,
+    ):
+        due = {due_id}
+        if extra_due_id is not None:
+            due.add(extra_due_id)
+        return SentenceCandidate(
+            sentence_id=sentence_id,
+            sentence=Sentence(
+                id=sentence_id,
+                arabic_text=f"s{sentence_id}",
+                story_id=story_id,
+                source=source,
+            ),
+            words_meta=[
+                WordMeta(
+                    lemma_id=lid,
+                    surface_form=f"w{lid}",
+                    gloss_en="",
+                    stability=10.0,
+                    is_due=True,
+                    knowledge_state="known",
+                )
+                for lid in due
+            ],
+            due_words_covered=due,
+        )
+
+    def test_groups_due_maintenance_sentences_into_passage(self):
+        candidates = [
+            self._candidate(1, 101, 102),
+            self._candidate(2, 103, 104),
+            self._candidate(3, 105),
+        ]
+        knowledge = {
+            lid: UserLemmaKnowledge(lemma_id=lid, knowledge_state="known")
+            for lid in {101, 102, 103, 104, 105}
+        }
+
+        groups = _group_maintenance_passages(candidates, knowledge)
+
+        assert [[c.sentence_id for c in group] for group in groups] == [[1, 2, 3]]
+
+    def test_keeps_acquisition_sentences_single(self):
+        candidates = [
+            self._candidate(1, 101, 102),
+            self._candidate(2, 103),
+            self._candidate(3, 104, 105),
+            self._candidate(4, 106),
+        ]
+        knowledge = {
+            lid: UserLemmaKnowledge(lemma_id=lid, knowledge_state="known")
+            for lid in {101, 102, 104, 105, 106}
+        }
+        knowledge[103] = UserLemmaKnowledge(lemma_id=103, knowledge_state="acquiring")
+
+        groups = _group_maintenance_passages(candidates, knowledge)
+
+        assert [[c.sentence_id for c in group] for group in groups] == [[1], [2], [3], [4]]
+
+    def test_keeps_generated_passage_story_sentences_together(self):
+        candidates = [
+            self._candidate(1, 101, 102, story_id=10, source="passage"),
+            self._candidate(9, 201, 202),
+            self._candidate(2, 103, 104, story_id=10, source="passage"),
+            self._candidate(3, 105, story_id=10, source="passage"),
+        ]
+        knowledge = {
+            lid: UserLemmaKnowledge(lemma_id=lid, knowledge_state="known")
+            for lid in {101, 102, 103, 104, 105, 201, 202}
+        }
+
+        groups = _group_maintenance_passages(candidates, knowledge)
+
+        assert [[c.sentence_id for c in group] for group in groups] == [[1, 2, 3], [9]]
 
 
 class TestScaffoldFreshness:

@@ -6,6 +6,7 @@ Translates sentence comprehension signals into per-word FSRS reviews.
 from datetime import datetime, timezone
 from typing import Optional
 
+from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from app.models import (
@@ -34,6 +35,7 @@ def submit_sentence_review(
     session_id: Optional[str] = None,
     review_mode: str = "reading",
     client_review_id: Optional[str] = None,
+    sentence_ids: list[int] | None = None,
 ) -> dict:
     """Submit a review for a whole sentence, distributing ratings to words.
 
@@ -44,11 +46,24 @@ def submit_sentence_review(
     Previously unseen words are routed through acquisition (Leitner box 1)
     rather than getting FSRS cards directly.
     """
+    review_sentence_ids: list[int] = []
+    for sid in sentence_ids or []:
+        if sid is not None and sid not in review_sentence_ids:
+            review_sentence_ids.append(sid)
+    if sentence_id is not None:
+        review_sentence_ids = [sentence_id] + [
+            sid for sid in review_sentence_ids if sid != sentence_id
+        ]
+    primary_sentence_id = review_sentence_ids[0] if review_sentence_ids else None
+
     if client_review_id:
-        if sentence_id is not None:
+        if review_sentence_ids:
+            sentence_log_ids = [client_review_id] + [
+                f"{client_review_id}:s{sid}" for sid in review_sentence_ids
+            ]
             existing = (
                 db.query(SentenceReviewLog)
-                .filter(SentenceReviewLog.client_review_id == client_review_id)
+                .filter(SentenceReviewLog.client_review_id.in_(sentence_log_ids))
                 .first()
             )
             if existing:
@@ -70,16 +85,19 @@ def submit_sentence_review(
 
     # Collect lemma_ids from sentence words, or just primary for word-only items
     lemma_ids_in_sentence: set[int] = set()
+    lemma_ids_by_sentence: dict[int, set[int]] = {}
     surface_forms_by_lemma: dict[int, list[str]] = {}
-    if sentence_id is not None:
+    if review_sentence_ids:
         sentence_words = (
             db.query(SentenceWord)
-            .filter(SentenceWord.sentence_id == sentence_id)
+            .filter(SentenceWord.sentence_id.in_(review_sentence_ids))
+            .order_by(SentenceWord.sentence_id, SentenceWord.position)
             .all()
         )
         lemma_ids_in_sentence = {sw.lemma_id for sw in sentence_words if sw.lemma_id}
         for sw in sentence_words:
             if sw.lemma_id:
+                lemma_ids_by_sentence.setdefault(sw.sentence_id, set()).add(sw.lemma_id)
                 surface_forms_by_lemma.setdefault(sw.lemma_id, []).append(sw.surface_form)
     else:
         lemma_ids_in_sentence = {primary_lemma_id}
@@ -223,10 +241,10 @@ def submit_sentence_review(
 
         review_client_id = (
             f"{client_review_id}:{effective_lemma_id}"
-            if client_review_id and sentence_id is not None
+            if client_review_id and review_sentence_ids
             else (
                 client_review_id
-                if sentence_id is None and effective_lemma_id == primary_lemma_id
+                if not review_sentence_ids and effective_lemma_id == primary_lemma_id
                 else None
             )
         )
@@ -280,7 +298,7 @@ def submit_sentence_review(
             .first()
         )
         if latest_log and not is_duplicate:
-            latest_log.sentence_id = sentence_id
+            latest_log.sentence_id = primary_sentence_id
             latest_log.credit_type = credit_type
 
         # Track encounters on the canonical ULK
@@ -332,31 +350,48 @@ def submit_sentence_review(
         check_single_word_leech(db, wr["lemma_id"])
 
     # Log the sentence-level review
-    if sentence_id is not None:
-        sent_log = SentenceReviewLog(
-            sentence_id=sentence_id,
-            session_id=session_id,
-            reviewed_at=now,
-            comprehension=comprehension_signal,
-            response_ms=response_ms,
-            review_mode=review_mode,
-            client_review_id=client_review_id,
-        )
-        db.add(sent_log)
+    if review_sentence_ids:
+        sentence_map = {
+            s.id: s
+            for s in db.query(Sentence)
+            .filter(Sentence.id.in_(review_sentence_ids))
+            .all()
+        }
+        for idx, sid in enumerate(review_sentence_ids):
+            sent_log = SentenceReviewLog(
+                sentence_id=sid,
+                session_id=session_id,
+                reviewed_at=now,
+                comprehension=comprehension_signal,
+                response_ms=response_ms,
+                review_mode=review_mode,
+                client_review_id=(
+                    client_review_id
+                    if idx == 0 or not client_review_id
+                    else f"{client_review_id}:s{sid}"
+                ),
+            )
+            db.add(sent_log)
 
-        sentence = db.query(Sentence).filter(Sentence.id == sentence_id).first()
-        if sentence:
-            sentence.times_shown = (sentence.times_shown or 0) + 1
-            if review_mode == "listening":
-                sentence.last_listening_shown_at = now
-                sentence.last_listening_comprehension = comprehension_signal
-            else:
-                sentence.last_reading_shown_at = now
-                sentence.last_reading_comprehension = comprehension_signal
+            sentence = sentence_map.get(sid)
+            if sentence:
+                sentence.times_shown = (sentence.times_shown or 0) + 1
+                if review_mode == "listening":
+                    sentence.last_listening_shown_at = now
+                    sentence.last_listening_comprehension = comprehension_signal
+                else:
+                    sentence.last_reading_shown_at = now
+                    sentence.last_reading_comprehension = comprehension_signal
 
     # Record grammar exposure from sentence's word lemmas
-    if sentence_id is not None:
-        _record_sentence_grammar(db, sentence_id, lemma_ids_in_sentence, comprehension_signal, commit=False)
+    for sid in review_sentence_ids:
+        _record_sentence_grammar(
+            db,
+            sid,
+            lemma_ids_by_sentence.get(sid, lemma_ids_in_sentence),
+            comprehension_signal,
+            commit=False,
+        )
 
     db.commit()
 
@@ -470,12 +505,17 @@ def undo_sentence_review(
         db.delete(log)
 
     # Delete the sentence-level review log
-    sent_log = (
+    sent_logs = (
         db.query(SentenceReviewLog)
-        .filter(SentenceReviewLog.client_review_id == client_review_id)
-        .first()
+        .filter(
+            or_(
+                SentenceReviewLog.client_review_id == client_review_id,
+                SentenceReviewLog.client_review_id.like(f"{client_review_id}:s%"),
+            )
+        )
+        .all()
     )
-    if sent_log:
+    for sent_log in sent_logs:
         sentence = db.query(Sentence).filter(Sentence.id == sent_log.sentence_id).first()
         if sentence:
             sentence.times_shown = max(0, (sentence.times_shown or 1) - 1)

@@ -93,13 +93,21 @@ def next_sentences(
     result["verse_cards"] = []
 
     if not prefetch:
+        sentence_ids_shown = {
+            sid
+            for item in result["items"]
+            for sid in (item.get("sentence_ids") or ([item.get("sentence_id")] if item.get("sentence_id") else []))
+            if sid
+        }
         log_interaction(
             event="session_start",
             session_id=result["session_id"],
             review_mode=mode,
             total_due_words=result["total_due_words"],
             covered_due_words=result["covered_due_words"],
-            sentence_count=len([i for i in result["items"] if i.get("sentence_id")]),
+            sentence_count=len(sentence_ids_shown),
+            card_count=len(result["items"]),
+            passage_count=len([i for i in result["items"] if i.get("card_type") == "passage"]),
             fallback_count=len([i for i in result["items"] if not i.get("sentence_id")]),
             intro_candidates=len(result.get("intro_candidates", [])),
             verse_cards=len(result.get("verse_cards", [])),
@@ -130,6 +138,7 @@ def submit_sentence(body: SentenceReviewSubmitIn, db: Session = Depends(get_db))
     result = submit_sentence_review(
         db,
         sentence_id=body.sentence_id,
+        sentence_ids=body.sentence_ids,
         primary_lemma_id=body.primary_lemma_id,
         comprehension_signal=body.comprehension_signal,
         missed_lemma_ids=body.missed_lemma_ids,
@@ -143,6 +152,7 @@ def submit_sentence(body: SentenceReviewSubmitIn, db: Session = Depends(get_db))
     log_interaction(
         event="sentence_review",
         sentence_id=body.sentence_id,
+        sentence_ids=body.sentence_ids,
         lemma_id=body.primary_lemma_id,
         comprehension_signal=body.comprehension_signal,
         missed_lemma_ids=body.missed_lemma_ids,
@@ -371,6 +381,7 @@ def sync_reviews(body: BulkSyncIn, db: Session = Depends(get_db)):
                 result = submit_sentence_review(
                     db,
                     sentence_id=payload.get("sentence_id"),
+                    sentence_ids=payload.get("sentence_ids") or [],
                     primary_lemma_id=payload["primary_lemma_id"],
                     comprehension_signal=payload["comprehension_signal"],
                     missed_lemma_ids=payload.get("missed_lemma_ids", []),
@@ -385,6 +396,7 @@ def sync_reviews(body: BulkSyncIn, db: Session = Depends(get_db)):
                     log_interaction(
                         event="sentence_review",
                         sentence_id=payload.get("sentence_id"),
+                        sentence_ids=payload.get("sentence_ids") or [],
                         lemma_id=payload["primary_lemma_id"],
                         comprehension_signal=payload["comprehension_signal"],
                         missed_lemma_ids=payload.get("missed_lemma_ids", []),
@@ -454,7 +466,7 @@ class CardShownIn(PydanticBaseModel):
     cards re-firing or being skipped were invisible until the user clicked
     Continue (which writes the ack and the only log entry).
     """
-    card_type: str  # "intro" | "sentence" | "reintro" | "verse" | "grammar" | "wrapup"
+    card_type: str  # "intro" | "sentence" | "passage" | "reintro" | "verse" | "grammar" | "wrapup"
     session_id: str | None = None
     lemma_id: int | None = None
     sentence_id: int | None = None

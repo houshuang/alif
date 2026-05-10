@@ -83,6 +83,17 @@ function legacyReviewKey(
   return `${sessionId}:${sentenceId}:${lemmaId}`;
 }
 
+function itemSentenceIds(item: {
+  sentence_id: number | null;
+  sentence_ids?: number[];
+  passage_sentences?: { sentence_id: number }[];
+}): (number | null)[] {
+  const ids = item.sentence_ids?.length
+    ? item.sentence_ids
+    : item.passage_sentences?.map((s) => s.sentence_id);
+  return ids?.length ? ids : [item.sentence_id];
+}
+
 async function getJson<T>(key: string): Promise<T | null> {
   const raw = await AsyncStorage.getItem(key);
   return raw ? JSON.parse(raw) : null;
@@ -137,15 +148,10 @@ export async function getCachedSession(
 
     const session = entry.session;
     const remaining = session.items.filter(
-      (item) =>
-        !reviewed.has(reviewKey(mode, item.sentence_id, item.primary_lemma_id)) &&
-        !reviewed.has(
-          legacyReviewKey(
-            session.session_id,
-            item.sentence_id,
-            item.primary_lemma_id
-          )
-        )
+      (item) => !itemSentenceIds(item).some((sentenceId) =>
+        reviewed.has(reviewKey(mode, sentenceId, item.primary_lemma_id)) ||
+        reviewed.has(legacyReviewKey(session.session_id, sentenceId, item.primary_lemma_id))
+      )
     );
     if (remaining.length >= minRemaining) {
       // Strip intros the user already dismissed (24h window). Otherwise a
@@ -187,7 +193,9 @@ export async function getCachedSentenceIds(
   const ids = new Set<number>();
   for (const entry of entries) {
     for (const item of entry.session.items) {
-      if (item.sentence_id != null) ids.add(item.sentence_id);
+      for (const sentenceId of itemSentenceIds(item)) {
+        if (sentenceId != null) ids.add(sentenceId);
+      }
     }
   }
   return ids;
@@ -197,11 +205,15 @@ export async function markReviewed(
   sessionId: string,
   sentenceId: number | null,
   lemmaId: number,
-  mode: ReviewMode = "reading"
+  mode: ReviewMode = "reading",
+  sentenceIds?: number[]
 ): Promise<void> {
   const reviewed = await getReviewedSet();
-  reviewed.add(reviewKey(mode, sentenceId, lemmaId));
-  reviewed.add(legacyReviewKey(sessionId, sentenceId, lemmaId));
+  const ids = sentenceIds?.length ? sentenceIds : [sentenceId];
+  for (const id of ids) {
+    reviewed.add(reviewKey(mode, id, lemmaId));
+    reviewed.add(legacyReviewKey(sessionId, id, lemmaId));
+  }
   await setJson(KEYS.reviewed, Array.from(reviewed));
 }
 
@@ -249,11 +261,15 @@ export async function unmarkReviewed(
   sessionId: string,
   sentenceId: number | null,
   lemmaId: number,
-  mode: ReviewMode = "reading"
+  mode: ReviewMode = "reading",
+  sentenceIds?: number[]
 ): Promise<void> {
   const reviewed = await getReviewedSet();
-  reviewed.delete(reviewKey(mode, sentenceId, lemmaId));
-  reviewed.delete(legacyReviewKey(sessionId, sentenceId, lemmaId));
+  const ids = sentenceIds?.length ? sentenceIds : [sentenceId];
+  for (const id of ids) {
+    reviewed.delete(reviewKey(mode, id, lemmaId));
+    reviewed.delete(legacyReviewKey(sessionId, id, lemmaId));
+  }
   await setJson(KEYS.reviewed, Array.from(reviewed));
 }
 
@@ -272,8 +288,10 @@ export async function pruneReviewedSet(): Promise<void> {
     for (const entry of entries) {
       const session = entry.session;
       for (const item of session.items) {
-        validKeys.add(reviewKey(mode, item.sentence_id, item.primary_lemma_id));
-        validKeys.add(legacyReviewKey(session.session_id, item.sentence_id, item.primary_lemma_id));
+        for (const sentenceId of itemSentenceIds(item)) {
+          validKeys.add(reviewKey(mode, sentenceId, item.primary_lemma_id));
+          validKeys.add(legacyReviewKey(session.session_id, sentenceId, item.primary_lemma_id));
+        }
       }
     }
   }

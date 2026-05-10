@@ -308,6 +308,15 @@ export interface SentenceWordMeta {
   transliteration?: string | null;
 }
 
+export interface PassageSentence {
+  sentence_id: number;
+  arabic_text: string;
+  english_translation: string;
+  transliteration?: string | null;
+  start_index: number;
+  end_index: number;
+}
+
 export interface WordLookupResult {
   lemma_id: number;
   lemma_ar: string;
@@ -344,7 +353,10 @@ export interface WordLookupResult {
 }
 
 export interface SentenceReviewItem {
+  card_type?: "sentence" | "passage";
   sentence_id: number | null;
+  sentence_ids?: number[];
+  passage_sentences?: PassageSentence[];
   arabic_text: string;
   english_translation: string;
   transliteration: string | null;
@@ -480,6 +492,7 @@ export interface GrammarLesson {
 
 export interface SentenceReviewSubmission {
   sentence_id: number | null;
+  sentence_ids?: number[];
   primary_lemma_id: number;
   comprehension_signal: ComprehensionSignal;
   missed_lemma_ids: number[];

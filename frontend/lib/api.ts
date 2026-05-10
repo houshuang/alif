@@ -480,6 +480,7 @@ export async function submitSentenceReview(
 
   await enqueueReview("sentence", {
     sentence_id: submission.sentence_id,
+    sentence_ids: submission.sentence_ids,
     primary_lemma_id: submission.primary_lemma_id,
     comprehension_signal: submission.comprehension_signal,
     missed_lemma_ids: submission.missed_lemma_ids,
@@ -495,7 +496,8 @@ export async function submitSentenceReview(
     submission.session_id,
     submission.sentence_id,
     submission.primary_lemma_id,
-    submission.review_mode
+    submission.review_mode,
+    submission.sentence_ids
   );
 
   if (netStatus.isOnline) {
@@ -510,13 +512,14 @@ export async function undoSentenceReview(
   sessionId: string,
   sentenceId: number | null,
   primaryLemmaId: number,
-  mode: ReviewMode = "reading"
+  mode: ReviewMode = "reading",
+  sentenceIds?: number[]
 ): Promise<void> {
   // Remove from local queue if not yet flushed
   await removeFromQueue(clientReviewId);
 
   // Unmark as reviewed so card can reappear
-  await unmarkReviewed(sessionId, sentenceId, primaryLemmaId, mode);
+  await unmarkReviewed(sessionId, sentenceId, primaryLemmaId, mode, sentenceIds);
 
   // Call backend undo (idempotent — no-op if review wasn't flushed yet)
   try {
@@ -571,7 +574,10 @@ export async function deepPrefetchSessions(
 
       // Add new sentence IDs to exclusion set for next iteration
       for (const item of session.items) {
-        if (item.sentence_id != null) excludeIds.add(item.sentence_id);
+        const ids = item.sentence_ids?.length ? item.sentence_ids : [item.sentence_id];
+        for (const id of ids) {
+          if (id != null) excludeIds.add(id);
+        }
       }
       fetched++;
       onProgress?.(fetched);
@@ -931,7 +937,7 @@ export async function submitReintroResult(
 }
 
 export interface CardShownPayload {
-  card_type: "intro" | "sentence" | "reintro" | "verse" | "grammar" | "wrapup";
+  card_type: "intro" | "sentence" | "passage" | "reintro" | "verse" | "grammar" | "wrapup";
   session_id?: string | null;
   lemma_id?: number | null;
   sentence_id?: number | null;

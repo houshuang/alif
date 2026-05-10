@@ -296,6 +296,40 @@ class TestBulkSyncEndpoint:
         assert len(data["results"]) == 1
         assert data["results"][0]["status"] == "ok"
 
+    def test_bulk_sync_passage_sentence_ids(self, client, db_session):
+        _seed_word(db_session, 1, "كتاب", "book")
+        _seed_word(db_session, 2, "ولد", "boy")
+        _seed_sentence(db_session, 1, "الكتاب", "the book",
+                       target_lemma_id=1, word_ids=[1])
+        _seed_sentence(db_session, 2, "الولد", "the boy",
+                       target_lemma_id=2, word_ids=[2])
+        db_session.commit()
+
+        resp = client.post("/api/review/sync", json={
+            "reviews": [
+                {
+                    "type": "sentence",
+                    "client_review_id": "sync-passage-1",
+                    "payload": {
+                        "sentence_id": 1,
+                        "sentence_ids": [1, 2],
+                        "primary_lemma_id": 1,
+                        "comprehension_signal": "understood",
+                        "session_id": "sync-passage-session",
+                    },
+                },
+            ]
+        })
+
+        assert resp.status_code == 200
+        assert resp.json()["results"][0]["status"] == "ok"
+        logs = (
+            db_session.query(SentenceReviewLog)
+            .order_by(SentenceReviewLog.sentence_id)
+            .all()
+        )
+        assert [log.sentence_id for log in logs] == [1, 2]
+
     def test_bulk_sync_handles_duplicates(self, client, db_session):
         _seed_word(db_session, 1, "كتاب", "book")
         _seed_sentence(db_session, 1, "الكتاب", "the book",

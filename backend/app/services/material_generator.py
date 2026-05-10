@@ -15,7 +15,8 @@ from pathlib import Path
 from sqlalchemy import func
 
 from app.database import SessionLocal
-from app.models import Lemma, Sentence, SentenceWord, UserLemmaKnowledge
+from app.models import Lemma, Sentence, SentenceWord, Story, UserLemmaKnowledge
+from app.services.fsrs_service import parse_json_column
 
 logger = logging.getLogger(__name__)
 
@@ -75,6 +76,9 @@ GENERATION_BACKOFF_DURATION = timedelta(days=7)
 # missing reviewable sentence coverage, they should outrank speculative
 # pre-generation for future introductions.
 ACQUIRING_RESCUE_SENTENCE_TARGET = 3
+MAINTENANCE_PASSAGE_RECENT_WINDOW = timedelta(hours=12)
+MAINTENANCE_PASSAGE_MIN_DUE_TARGETS = 6
+MAINTENANCE_PASSAGE_MAX_RECENT = 2
 
 
 def active_sentence_counts_by_lemma(db, lemma_ids: list[int]) -> dict[int, int]:
@@ -1507,6 +1511,7 @@ def _warm_sentence_cache_impl(llm_model: str = "claude_sonnet") -> dict:
         "generated": 0,
         "multi_target": 0,
         "rotated": 0,
+        "maintenance_passages": 0,
     }
 
     # ── Phase 1: DB read ──
@@ -1791,6 +1796,54 @@ def _warm_sentence_cache_impl(llm_model: str = "claude_sonnet") -> dict:
             logger.warning("Warm cache: failed to record generation outcomes")
         finally:
             db.close()
+
+    # ── Phase 3d: Seed cohesive maintenance passages ───────────────────
+    # Runs after normal sentence generation and never blocks session response
+    # because warm_sentence_cache is a FastAPI background task. Conservative
+    # cap prevents every app open from spending an LLM call.
+    try:
+        db = SessionLocal()
+        try:
+            now = datetime.now(timezone.utc)
+            recent_count = (
+                db.query(Story)
+                .filter(
+                    Story.format_type == "maintenance_passage",
+                    Story.created_at >= now - MAINTENANCE_PASSAGE_RECENT_WINDOW,
+                )
+                .count()
+            )
+            due_maintenance_count = 0
+            for ulk in db.query(UserLemmaKnowledge).filter(
+                UserLemmaKnowledge.knowledge_state.in_(["known", "learning", "lapsed"]),
+                UserLemmaKnowledge.fsrs_card_json.isnot(None),
+            ).all():
+                card = parse_json_column(ulk.fsrs_card_json)
+                due_raw = card.get("due") if isinstance(card, dict) else None
+                if not due_raw:
+                    continue
+                due = datetime.fromisoformat(due_raw)
+                if due.tzinfo is None:
+                    due = due.replace(tzinfo=timezone.utc)
+                if due <= now:
+                    due_maintenance_count += 1
+            should_generate_passage = (
+                recent_count < MAINTENANCE_PASSAGE_MAX_RECENT
+                and due_maintenance_count >= MAINTENANCE_PASSAGE_MIN_DUE_TARGETS
+            )
+        finally:
+            db.close()
+
+        if should_generate_passage:
+            from app.services.passage_generator import generate_and_store_maintenance_passage
+
+            generate_and_store_maintenance_passage(
+                sentence_count=4,
+                model_override=llm_model,
+            )
+            stats["maintenance_passages"] += 1
+    except Exception:
+        logger.warning("Warm cache: maintenance passage generation skipped", exc_info=True)
 
     # ── Phase 4: Verify unverified active sentences (batch catch-up) ──
     # IMPORTANT: Don't hold DB session during LLM calls — they can hang for minutes

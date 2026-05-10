@@ -229,12 +229,47 @@ interface CardSnapshot {
   confusedIndices: Set<number>;
   signal: ComprehensionSignal;
   sentenceId: number | null;
+  sentenceIds?: number[];
   primaryLemmaId: number;
   wordOutcomesBefore: Map<number, WordOutcome>;
 }
 
 function stripDiacritics(s: string): string {
   return s.replace(/[\u0610-\u061a\u064b-\u065f\u0670\u06D6-\u06ED]/g, "");
+}
+
+function passageSentenceIds(item: SentenceReviewItem): number[] | undefined {
+  if (item.sentence_ids?.length) return item.sentence_ids;
+  const ids = item.passage_sentences?.map((s) => s.sentence_id).filter((id) => id != null);
+  return ids?.length ? ids : undefined;
+}
+
+function isPassageCard(item: SentenceReviewItem): boolean {
+  return item.card_type === "passage";
+}
+
+function passageWordBreaks(item: SentenceReviewItem): { before: Set<number>; after: Set<number> } {
+  const spans = item.passage_sentences;
+  if (!spans || spans.length < 2) return { before: new Set(), after: new Set() };
+  const before = new Set<number>();
+  for (const span of spans.slice(1)) {
+    if (span.start_index > 0 && span.start_index < item.words.length) {
+      before.add(span.start_index);
+    }
+  }
+  return { before, after: new Set() };
+}
+
+function passageLines(
+  item: SentenceReviewItem,
+  key: "english_translation" | "transliteration",
+): string[] {
+  const lines = item.passage_sentences
+    ?.map((s) => s[key])
+    .filter((line): line is string => !!line);
+  if (lines?.length) return lines;
+  const fallback = key === "english_translation" ? item.english_translation : item.transliteration;
+  return fallback ? [fallback] : [];
 }
 
 // Maps higher verb forms to a short label describing their relationship to Form I
@@ -486,13 +521,15 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
     } else if (slot.type === "sentence") {
       const item = sentenceSession.items[slot.itemIndex];
       if (item) {
+        const sentenceIds = passageSentenceIds(item);
         logCardShown({
-          card_type: "sentence",
+          card_type: isPassageCard(item) ? "passage" : "sentence",
           session_id: sid,
           sentence_id: item.sentence_id,
           lemma_id: item.primary_lemma_id,
           card_index: cardIndex,
           total_cards: total,
+          detail: sentenceIds ? { sentence_ids: sentenceIds } : undefined,
         });
       }
     } else if (slot.type === "verse") {
@@ -1055,6 +1092,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
       confusedIndices: new Set(confusedIndices),
       signal,
       sentenceId: item.sentence_id,
+      sentenceIds: passageSentenceIds(item),
       primaryLemmaId: item.primary_lemma_id,
       wordOutcomesBefore: new Map(wordOutcomes),
     };
@@ -1095,6 +1133,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
     try {
       await submitSentenceReview({
         sentence_id: item.sentence_id,
+        sentence_ids: passageSentenceIds(item),
         primary_lemma_id: item.primary_lemma_id,
         comprehension_signal: signal,
         missed_lemma_ids: missedLemmaIds,
@@ -1157,7 +1196,8 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
         sentenceSession.session_id,
         snapshot.sentenceId,
         snapshot.primaryLemmaId,
-        mode
+        mode,
+        snapshot.sentenceIds
       );
     } catch (e) {
       console.warn("undo failed:", e);
@@ -1422,7 +1462,9 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
     if (sentenceSession) {
       const item = isIntroSlot ? null : sentenceSession.items[sentenceItemIndex];
       if (item) {
+        const sentenceIds = passageSentenceIds(item);
         parts.push(`Sentence ID: ${item.sentence_id ?? "word_only"}`);
+        if (sentenceIds) parts.push(`Sentence IDs: ${sentenceIds.join(", ")}`);
         parts.push(`Arabic: ${item.arabic_text || item.primary_lemma_ar}`);
         parts.push(`English: ${item.english_translation || item.primary_gloss_en}`);
         if (item.transliteration) {
@@ -2509,6 +2551,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
   }
 
   const item = sentenceSession.items[sentenceItemIndex];
+  const showSentenceInfo = item.sentence_id != null && !isPassageCard(item);
 
   return (
     <View
@@ -2528,7 +2571,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
             askAIScreen="review"
             askAIAutoExplainPrompt={buildAutoExplainPrompt}
             extraActions={[
-              ...(item.sentence_id ? [{
+              ...(showSentenceInfo ? [{
                 icon: "information-circle-outline" as const,
                 label: "Sentence info",
                 onPress: () => setSentenceInfoVisible(true),
@@ -2619,9 +2662,9 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
         )}
       </View>
 
-      {item.sentence_id != null && (
+      {showSentenceInfo && (
         <SentenceInfoModal
-          sentenceId={item.sentence_id}
+          sentenceId={item.sentence_id!}
           visible={sentenceInfoVisible}
           onClose={() => setSentenceInfoVisible(false)}
           selectionInfo={item.selection_info}
@@ -2648,7 +2691,10 @@ function SentenceReadingCard({
   onWordTap: (index: number, lemmaId: number | null) => void;
 }) {
   const showAnswer = cardState === "back";
-  const itemKey = `${item.sentence_id ?? "word"}:${item.primary_lemma_id}`;
+  const itemKey = `${passageSentenceIds(item)?.join(",") ?? item.sentence_id ?? "word"}:${item.primary_lemma_id}`;
+  const breaks = passageWordBreaks(item);
+  const englishLines = passageLines(item, "english_translation");
+  const translitLines = passageLines(item, "transliteration");
 
   // false = default for the current side; true = inverted
   // (front: force show all; back: force hide all)
@@ -2674,13 +2720,14 @@ function SentenceReadingCard({
             : (overridden || word.show_tashkeel !== false);
           return (
             <Text key={`t-${i}`}>
-              {i > 0 && " "}
+              {i > 0 ? (breaks.before.has(i) ? "\n" : " ") : null}
               <Text
                 onPress={() => onWordTap(i, word.lemma_id ?? null)}
                 style={wordStyle}
               >
                 {showDiacritics ? word.surface_form : stripDiacritics(word.surface_form)}
               </Text>
+              {breaks.after.has(i) ? "\n" : null}
             </Text>
           );
         })}
@@ -2704,12 +2751,18 @@ function SentenceReadingCard({
         ]}
       >
           <View style={styles.divider} />
-          <Text style={styles.sentenceEnglish}>
-            {showAnswer ? item.english_translation : " "}
-          </Text>
+          {showAnswer ? (
+            englishLines.map((line, i) => (
+              <Text key={`en-${i}`} style={styles.sentenceEnglish}>
+                {line}
+              </Text>
+            ))
+          ) : (
+            <Text style={styles.sentenceEnglish}> </Text>
+          )}
           <View style={styles.translitSlot}>
             <Text style={[styles.sentenceTranslit, !showAnswer && styles.hiddenText]}>
-              {item.transliteration ?? " "}
+              {showAnswer && translitLines.length > 0 ? translitLines.join("\n") : " "}
             </Text>
           </View>
         </View>
@@ -2768,7 +2821,10 @@ function SentenceListeningCard({
   onReplaySlow: () => void;
 }) {
   const showAnswer = cardState === "answer";
-  const itemKey = `${item.sentence_id ?? "word"}:${item.primary_lemma_id}`;
+  const itemKey = `${passageSentenceIds(item)?.join(",") ?? item.sentence_id ?? "word"}:${item.primary_lemma_id}`;
+  const breaks = passageWordBreaks(item);
+  const englishLines = passageLines(item, "english_translation");
+  const translitLines = passageLines(item, "transliteration");
 
   // false = default for the current side; true = inverted
   // (front: force show all; back: force hide all)
@@ -2808,13 +2864,14 @@ function SentenceListeningCard({
             : (overridden || word.show_tashkeel !== false);
           return (
             <Text key={`t-${i}`}>
-              {i > 0 && " "}
+              {i > 0 ? (breaks.before.has(i) ? "\n" : " ") : null}
               <Text
                 onPress={() => onToggleMissed(i)}
                 style={wordStyle}
               >
                 {showDiacritics ? word.surface_form : stripDiacritics(word.surface_form)}
               </Text>
+              {breaks.after.has(i) ? "\n" : null}
             </Text>
           );
         })}
@@ -2835,13 +2892,15 @@ function SentenceListeningCard({
       {showAnswer && (
         <View style={styles.answerSection}>
           <View style={styles.divider} />
-          <Text style={styles.sentenceEnglish}>
-            {item.english_translation}
-          </Text>
+          {englishLines.map((line, i) => (
+            <Text key={`en-${i}`} style={styles.sentenceEnglish}>
+              {line}
+            </Text>
+          ))}
           <View style={styles.translitSlot}>
-            {item.transliteration ? (
+            {translitLines.length > 0 ? (
               <Text style={styles.sentenceTranslit}>
-                {item.transliteration}
+                {translitLines.join("\n")}
               </Text>
             ) : (
               <Text style={styles.translitPlaceholder}>.</Text>
