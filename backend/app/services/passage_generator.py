@@ -26,12 +26,15 @@ from app.services.llm import (
     generate_completion,
     review_sentences_quality,
 )
+from app.services.proper_name_lemmas import get_or_create_proper_name_lemma
 from app.services.sentence_validator import (
     build_comprehensive_lemma_lookup,
     build_lemma_lookup,
     map_tokens_to_lemmas,
     normalize_alef,
     strip_diacritics,
+    strip_punctuation,
+    strip_tatweel,
     tokenize_display,
     validate_sentence_multi_target,
     _is_function_word,
@@ -730,6 +733,7 @@ def store_maintenance_passage(
     eligible_words: list[dict[str, Any]],
     *,
     quality_gate: bool = True,
+    proper_names: set[str] | None = None,
 ) -> Story:
     sentences = generated.get("sentences")
     if not isinstance(sentences, list) or not (3 <= len(sentences) <= 5):
@@ -757,6 +761,11 @@ def store_maintenance_passage(
         .filter(UserLemmaKnowledge.lemma_id.in_(all_lemma_ids))
         .all()
     }
+    proper_name_norms = {
+        normalize_alef(strip_tatweel(strip_diacritics(strip_punctuation(name or ""))))
+        for name in (proper_names or set())
+    }
+    proper_name_norms = {name for name in proper_name_norms if name}
 
     validated: list[dict[str, Any]] = []
     target_ids_used: set[int] = set()
@@ -773,6 +782,7 @@ def store_maintenance_passage(
             min_targets=0,
             known_lemma_lookup=story_lemma_lookup,
             comprehensive_lemma_lookup=mapping_lookup,
+            proper_names=proper_name_norms,
         )
         if not validation.valid:
             raise PassageGenerationError(
@@ -794,7 +804,15 @@ def store_maintenance_passage(
             mapping_lookup,
             target_lemma_id=map_target_id,
             target_bare=primary_bare,
+            proper_names=proper_name_norms,
         )
+        for mapping in mappings:
+            if mapping.is_proper_name and mapping.lemma_id is None:
+                mapping.lemma_id = get_or_create_proper_name_lemma(
+                    db,
+                    mapping.surface_form,
+                    source="passage",
+                )
         unmapped = [
             m.surface_form for m in mappings
             if m.lemma_id is None and not m.is_function_word and not m.is_proper_name
@@ -869,6 +887,7 @@ def store_maintenance_passage(
             "style_tag": generated.get("style_tag"),
             "target_lemma_ids": sorted(target_ids_used),
             "sentence_count": len(validated),
+            "proper_names": sorted(proper_name_norms),
         },
     )
     db.add(story)
@@ -880,6 +899,8 @@ def store_maintenance_passage(
         body_ar,
         story_lemma_lookup,
         knowledge_map,
+        proper_names=proper_name_norms,
+        proper_name_source="passage",
     )
     story.total_words = total
     story.known_count = known + func

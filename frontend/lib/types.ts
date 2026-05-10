@@ -297,6 +297,7 @@ export interface SentenceWordMeta {
   stability: number | null;
   is_due: boolean;
   is_function_word: boolean;
+  is_proper_name?: boolean;
   knowledge_state: string;
   root: string | null;
   root_meaning: string | null;

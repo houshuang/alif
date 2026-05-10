@@ -909,7 +909,66 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
   const handleWordTap = useCallback(async (index: number, lemmaId: number | null) => {
     const word = sentenceSession?.items[sentenceItemIndex]?.words[index];
     const isFunctionWord = word?.is_function_word ?? false;
+    const isProperName = word?.is_proper_name ?? false;
     const wordTranslit = word?.transliteration ?? null;
+
+    if (isProperName && lemmaId) {
+      if (lookupSurfaceForm === (word?.surface_form ?? null) && lookupLemmaId === lemmaId) {
+        lookupRequestRef.current += 1;
+        setLookupResult(null);
+        setLookupSurfaceForm(null);
+        setLookupLemmaId(null);
+        setFocusedWordMark(null);
+        setLookupLoading(false);
+        setLookupShowMeaning(false);
+        removeFromTappedHistory(index);
+        return;
+      }
+
+      const requestId = ++lookupRequestRef.current;
+      const tappedSurface = word?.surface_form ?? null;
+      setLookupCount((prev) => prev + 1);
+      setLookupSurfaceForm(tappedSurface);
+      setLookupLemmaId(lemmaId);
+      setFocusedWordMark(null);
+      setLookupLoading(true);
+      setLookupShowMeaning(true);
+      setLookupResult(null);
+      setLookupSurfaceTranslit(wordTranslit);
+      addToTappedHistory(index, { surfaceForm: tappedSurface ?? "", lemmaId, result: null, markState: null, showMeaning: true, surfaceTranslit: wordTranslit });
+
+      try {
+        const result = await lookupReviewWord(lemmaId);
+        if (lookupRequestRef.current !== requestId) return;
+        setLookupResult(result);
+        tappedCacheRef.current.set(index, { surfaceForm: tappedSurface ?? "", lemmaId, result, markState: null, showMeaning: true, surfaceTranslit: wordTranslit });
+      } catch {
+        if (lookupRequestRef.current !== requestId) return;
+        const fallbackResult: WordLookupResult = {
+          lemma_id: lemmaId,
+          lemma_ar: word?.surface_form ?? "",
+          gloss_en: word?.gloss_en ?? "(proper name)",
+          transliteration: wordTranslit,
+          root: null,
+          root_meaning: null,
+          root_id: null,
+          pos: "noun",
+          forms_json: null,
+          example_ar: null,
+          frequency_rank: null,
+          cefr_level: null,
+          example_en: null,
+          grammar_details: [],
+          root_family: [],
+          word_category: "proper_name",
+        };
+        setLookupResult(fallbackResult);
+        tappedCacheRef.current.set(index, { surfaceForm: tappedSurface ?? "", lemmaId, result: fallbackResult, markState: null, showMeaning: true, surfaceTranslit: wordTranslit });
+      } finally {
+        if (lookupRequestRef.current === requestId) setLookupLoading(false);
+      }
+      return;
+    }
 
     // Function words / words without lemma: show gloss only, no marking or API call
     if (!lemmaId || isFunctionWord) {
@@ -1050,7 +1109,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
     if (lookupRequestRef.current === requestId) {
       setLookupLoading(false);
     }
-  }, [toggleMissed, sentenceSession, cardIndex, confusedIndices, missedIndices, lookupSurfaceForm, focusedWordMark, addToTappedHistory, removeFromTappedHistory]);
+  }, [toggleMissed, sentenceSession, cardIndex, confusedIndices, missedIndices, lookupSurfaceForm, lookupLemmaId, focusedWordMark, addToTappedHistory, removeFromTappedHistory]);
 
   async function handleSentenceSubmit(signal: ComprehensionSignal) {
     if (!sentenceSession) return;
@@ -1060,7 +1119,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
     const missedLemmaIds: number[] = [];
     for (const idx of missedIndices) {
       const word = item.words[idx];
-      if (word?.lemma_id != null) {
+      if (word?.lemma_id != null && !word.is_proper_name) {
         missedLemmaIds.push(word.lemma_id);
       }
     }
@@ -1068,7 +1127,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
     const confusedLemmaIds: number[] = [];
     for (const idx of confusedIndices) {
       const word = item.words[idx];
-      if (word?.lemma_id != null) {
+      if (word?.lemma_id != null && !word.is_proper_name) {
         confusedLemmaIds.push(word.lemma_id);
       }
     }
@@ -1107,6 +1166,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
       for (let i = 0; i < item.words.length; i++) {
         const w = item.words[i];
         if (w.lemma_id == null) continue;
+        if (w.is_proper_name || w.is_function_word) continue;
 
         let failed = false;
         if (signal === "no_idea") {

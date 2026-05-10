@@ -771,13 +771,21 @@ def build_session(
     stability_map: dict[int, float] = {}
     knowledge_by_id: dict[int, UserLemmaKnowledge] = {k.lemma_id: k for k in all_knowledge}
 
-    # Build function word lemma ID set + canonical chain map in one full Lemma scan.
+    # Build inert lemma ID sets + canonical chain map in one full Lemma scan.
     function_word_lemma_ids: set[int] = set()
+    proper_name_lemma_ids: set[int] = set()
     lemma_bare_map: dict[int, str | None] = {}
     canonical_chain: dict[int, int | None] = {}
-    for row in db.query(Lemma.lemma_id, Lemma.lemma_ar_bare, Lemma.canonical_lemma_id).all():
+    for row in db.query(
+        Lemma.lemma_id,
+        Lemma.lemma_ar_bare,
+        Lemma.canonical_lemma_id,
+        Lemma.word_category,
+    ).all():
         lemma_bare_map[row.lemma_id] = row.lemma_ar_bare
         canonical_chain[row.lemma_id] = row.canonical_lemma_id
+        if row.word_category == "proper_name":
+            proper_name_lemma_ids.add(row.lemma_id)
         if row.lemma_ar_bare and _is_function_word(row.lemma_ar_bare):
             function_word_lemma_ids.add(row.lemma_id)
 
@@ -800,14 +808,18 @@ def build_session(
         for vid in overshadowed_variants:
             knowledge_by_id.pop(vid, None)
 
+    inert_lemma_ids = function_word_lemma_ids | proper_name_lemma_ids
+    if inert_lemma_ids:
+        all_knowledge = [k for k in all_knowledge if k.lemma_id not in inert_lemma_ids]
+        for lid in inert_lemma_ids:
+            knowledge_by_id.pop(lid, None)
+
     overdue_days_map: dict[int, float] = {}  # lemma_id → days past due
 
     for k in all_knowledge:
         if k.knowledge_state == "encountered":
             continue  # passive vocab — not due, not scheduled
-        if k.lemma_id in function_word_lemma_ids:
-            continue  # function words excluded from scheduling
-        elif k.knowledge_state == "acquiring":
+        if k.knowledge_state == "acquiring":
             # Acquisition words use box-based pseudo-stability for difficulty matching
             box = k.acquisition_box or 1
             pseudo_stability = {1: 0.1, 2: 0.5, 3: 2.0}.get(box, 0.1)
@@ -1200,12 +1212,19 @@ def build_session(
 
         for sw in sws:
             lemma = lemma_map.get(sw.lemma_id) if sw.lemma_id else None
+            is_name = bool(lemma and lemma.word_category == "proper_name")
             # Resolve variant→canonical for scheduling purposes
             effective_id = variant_to_canonical.get(sw.lemma_id, sw.lemma_id) if sw.lemma_id else None
             stab = stability_map.get(effective_id, 0.0) if effective_id else None
             # Check both canonical and original ID — a variant word that is due
             # must match its own sentences, not just its canonical's
-            is_due = (effective_id in due_lemma_ids or (sw.lemma_id is not None and sw.lemma_id in due_lemma_ids)) if effective_id else False
+            is_due = (
+                not is_name
+                and (
+                    effective_id in due_lemma_ids
+                    or (sw.lemma_id is not None and sw.lemma_id in due_lemma_ids)
+                )
+            ) if effective_id else False
 
             k_state = "new"
             if effective_id:
@@ -1215,7 +1234,6 @@ def build_session(
 
             bare = strip_diacritics(sw.surface_form)
             is_func = _is_function_word(bare)
-            is_name = bool(lemma and lemma.word_category == "proper_name")
             gloss = lemma.gloss_en if lemma else FUNCTION_WORD_GLOSSES.get(bare)
             if not gloss:
                 bare_norm = normalize_alef(strip_tatweel(bare))
@@ -1234,7 +1252,7 @@ def build_session(
             )
             word_metas.append(wm)
 
-            if effective_id and is_due:
+            if effective_id and is_due and not is_name:
                 due_covered.add(effective_id)
                 # Also track the original variant ID if different
                 if sw.lemma_id and sw.lemma_id in due_lemma_ids:
@@ -2253,8 +2271,13 @@ def _find_pregenerated_sentences_for_words(
 
         for sw in sws:
             lemma = lemma_map.get(sw.lemma_id) if sw.lemma_id else None
+            is_name = bool(lemma and lemma.word_category == "proper_name")
             stab = stability_map.get(sw.lemma_id, 0.0) if sw.lemma_id else None
-            is_due = sw.lemma_id in target_lemma_ids if sw.lemma_id else False
+            is_due = (
+                sw.lemma_id in target_lemma_ids
+                if sw.lemma_id and not is_name
+                else False
+            )
 
             k_state = "new"
             if sw.lemma_id:
@@ -2264,7 +2287,6 @@ def _find_pregenerated_sentences_for_words(
 
             bare = strip_diacritics(sw.surface_form)
             is_func = _is_function_word(bare)
-            is_name = bool(lemma and lemma.word_category == "proper_name")
             gloss = lemma.gloss_en if lemma else FUNCTION_WORD_GLOSSES.get(bare)
             if not gloss:
                 bare_norm = normalize_alef(strip_tatweel(bare))
@@ -2281,7 +2303,7 @@ def _find_pregenerated_sentences_for_words(
             )
             word_metas.append(wm)
 
-            if sw.lemma_id and is_due:
+            if sw.lemma_id and is_due and not is_name:
                 due_covered.add(sw.lemma_id)
             elif sw.lemma_id and stab is not None:
                 scaffold_stabilities.append(stab)

@@ -354,12 +354,14 @@ def sentence_coverage(
     lookup,
     context: LemmaContext,
     runtime,
+    proper_names: set[str] | None = None,
 ) -> SentenceCoverage:
     mappings = runtime["map_tokens_to_lemmas"](
         tokens=runtime["tokenize_display"](text),
         lemma_lookup=lookup,
         target_lemma_id=0,
         target_bare="",
+        proper_names=proper_names,
     )
     coverage = SentenceCoverage(
         text=text,

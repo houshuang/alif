@@ -37,7 +37,7 @@ def _make_card(stability_days=30.0, due_offset_hours=-1):
 
 
 def _seed_word(db, lemma_id, arabic, english, state="known",
-               stability=30.0, due_hours=-1, frequency_rank=None):
+               stability=30.0, due_hours=-1, frequency_rank=None, word_category=None):
     lemma = Lemma(
         lemma_id=lemma_id,
         lemma_ar=arabic,
@@ -45,6 +45,7 @@ def _seed_word(db, lemma_id, arabic, english, state="known",
         pos="noun",
         gloss_en=english,
         frequency_rank=frequency_rank,
+        word_category=word_category,
     )
     db.add(lemma)
     db.flush()
@@ -332,6 +333,36 @@ class TestGreedySetCover:
         assert len(result["items"]) == 1
         assert result["items"][0]["sentence_id"] == 1
         assert result["items"][0]["primary_lemma_id"] == 1
+
+    def test_proper_name_with_due_card_is_clickable_but_not_scheduled(self, db_session):
+        _seed_word(db_session, 1, "كتاب", "book", due_hours=-1)
+        _seed_word(
+            db_session,
+            2,
+            "لَيْلَى",
+            "(proper name)",
+            due_hours=-24,
+            word_category="proper_name",
+        )
+        _seed_sentence(
+            db_session,
+            1,
+            "ليلى قرأت الكتاب",
+            "Layla read the book",
+            target_lemma_id=1,
+            word_surfaces_and_ids=[("ليلى", 2), ("الكتاب", 1)],
+        )
+        db_session.commit()
+
+        result = build_session(db_session, limit=10)
+
+        assert result["total_due_words"] == 1
+        assert result["covered_due_words"] == 1
+        item = result["items"][0]
+        name_word = next(w for w in item["words"] if w["lemma_id"] == 2)
+        assert name_word["is_proper_name"] is True
+        assert name_word["is_due"] is False
+        assert item["selection_info"]["due_lemma_ids"] == [1]
 
     def test_prefers_sentence_covering_more_due_words(self, db_session):
         _seed_word(db_session, 1, "كتاب", "book", due_hours=-1)

@@ -64,8 +64,9 @@ def get_or_create_proper_name_lemma(
     if existing:
         return existing.lemma_id
 
+    display = strip_punctuation(strip_tatweel(surface_form or "")).strip() or bare
     lemma = Lemma(
-        lemma_ar=surface_form.strip() or bare,
+        lemma_ar=display,
         lemma_ar_bare=bare,
         gloss_en="(proper name)",
         pos="noun",

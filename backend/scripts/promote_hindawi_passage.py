@@ -13,6 +13,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import sys
 from collections import Counter
 from dataclasses import dataclass
@@ -42,6 +43,7 @@ MAINTENANCE_STATES = {"known", "learning", "lapsed"}
 DEFAULT_MIN_ACTIVE_PCT = 0.90
 DEFAULT_MAX_UNMAPPED_PCT = 0.0
 DEFAULT_MAX_TARGETS = 1
+QUOTED_SINGLE_WORD_RE = re.compile(r"«([^»\s]{2,30})»")
 
 
 class PromotionError(RuntimeError):
@@ -139,6 +141,7 @@ def _content_counts(
     lookup: Any,
     context: LemmaContext,
     runtime: dict[str, Any],
+    proper_names: set[str] | None = None,
 ) -> tuple[Counter[int], dict[int, set[str]]]:
     counts: Counter[int] = Counter()
     surfaces: dict[int, set[str]] = {}
@@ -148,6 +151,7 @@ def _content_counts(
             lemma_lookup=lookup,
             target_lemma_id=0,
             target_bare="",
+            proper_names=proper_names,
         )
         for mapping in mappings:
             bare = _clean_bare(mapping.surface_form, runtime)
@@ -161,6 +165,34 @@ def _content_counts(
             counts[canonical] += 1
             surfaces.setdefault(canonical, set()).add(mapping.surface_form)
     return counts, surfaces
+
+
+def _clean_proper_name(value: str, runtime: dict[str, Any]) -> str:
+    return runtime["normalize_alef"](
+        runtime["strip_diacritics"](
+            runtime["strip_punctuation"](
+                runtime["strip_tatweel"](value or "")
+            )
+        )
+    )
+
+
+def _infer_proper_names(
+    arabic_sentences: list[str],
+    runtime: dict[str, Any],
+    explicit_names: list[str] | None = None,
+) -> set[str]:
+    """Infer narrow, high-confidence proper-name surfaces for curated passages."""
+    names = {
+        _clean_proper_name(name, runtime)
+        for name in (explicit_names or [])
+    }
+    for sentence in arabic_sentences:
+        for match in QUOTED_SINGLE_WORD_RE.finditer(sentence):
+            cleaned = _clean_proper_name(match.group(1), runtime)
+            if cleaned and len(cleaned) > 1 and not runtime["_is_function_word"](cleaned):
+                names.add(cleaned)
+    return {name for name in names if name}
 
 
 def _target_word_dict(lemma: Any, state: str | None) -> dict[str, Any]:
@@ -486,9 +518,10 @@ def _build_window(
     lookup: Any,
     context: LemmaContext,
     runtime: dict[str, Any],
+    proper_names: set[str] | None = None,
 ) -> PassageWindow:
     covered: list[SentenceCoverage] = [
-        sentence_coverage(sentence, lookup, context, runtime)
+        sentence_coverage(sentence, lookup, context, runtime, proper_names=proper_names)
         for sentence in arabic_sentences
     ]
     empty = [idx + start_sentence for idx, coverage in enumerate(covered) if coverage.content_tokens <= 0]
@@ -528,6 +561,7 @@ def _patch_story_metadata(
     book_index: int,
     target_ids: list[int],
     coverage: dict[str, Any],
+    proper_names: set[str],
 ) -> None:
     metadata = story.metadata_json if isinstance(story.metadata_json, dict) else {}
     metadata = {
@@ -542,6 +576,7 @@ def _patch_story_metadata(
             "sentence_count": args.sentence_count,
             "source_parquet": Path(args.parquet).name,
             "coverage": coverage,
+            "proper_names": sorted(proper_names),
             "promoted_at": datetime.now(timezone.utc).isoformat(),
             "promotion_version": 1,
         },
@@ -558,12 +593,15 @@ def _print_human_summary(
     candidates: list[TargetCandidate],
     translations: list[str] | None,
     duplicate_story_id: int | None,
+    proper_names: set[str],
 ) -> None:
     print(
         f"{window_data['title']} - sentence {window_data['start_sentence']} "
         f"({window_data['active_pct']}% active, {window_data['unmapped_pct']}% unmapped)"
     )
     print(f"Selected targets: {target_ids}")
+    if proper_names:
+        print(f"Proper names: {', '.join(sorted(proper_names))}")
     print("Top candidates:")
     for candidate in candidates[:8]:
         due = candidate.due_at.isoformat() if candidate.due_at else "no due"
@@ -599,6 +637,12 @@ def main() -> None:
     parser.add_argument("--min-active-pct", type=float, default=DEFAULT_MIN_ACTIVE_PCT)
     parser.add_argument("--max-unmapped-pct", type=float, default=DEFAULT_MAX_UNMAPPED_PCT)
     parser.add_argument("--target-lemma-id", type=int, action="append", default=[])
+    parser.add_argument(
+        "--proper-name",
+        action="append",
+        default=[],
+        help="Proper-name surface to store as an inert clickable name lemma",
+    )
     parser.add_argument("--max-targets", type=int, default=DEFAULT_MAX_TARGETS)
     parser.add_argument("--title-en", help="English title for the promoted story")
     parser.add_argument("--translations-json", help="JSON list of English translations")
@@ -633,6 +677,11 @@ def main() -> None:
             args.start_sentence,
             args.sentence_count,
         )
+        proper_names = _infer_proper_names(
+            arabic_sentences,
+            runtime,
+            explicit_names=args.proper_name,
+        )
         book_title = str(book.get("title") or "")
         author = str(book.get("author") or "")
         window = _build_window(
@@ -643,6 +692,7 @@ def main() -> None:
             lookup,
             context,
             runtime,
+            proper_names=proper_names,
         )
         _assert_coverage_gates(
             window,
@@ -650,7 +700,13 @@ def main() -> None:
             max_unmapped_pct=args.max_unmapped_pct,
         )
         window_data = window_to_dict(window, context, include_text=True)
-        counts, surfaces = _content_counts(arabic_sentences, lookup, context, runtime)
+        counts, surfaces = _content_counts(
+            arabic_sentences,
+            lookup,
+            context,
+            runtime,
+            proper_names=proper_names,
+        )
 
         SessionLocal = runtime["SessionLocal"]
         db = SessionLocal()
@@ -681,6 +737,7 @@ def main() -> None:
                         "window": window_data,
                         "selected_target_ids": target_ids,
                         "target_candidates": [candidate.to_dict() for candidate in candidates[:20]],
+                        "proper_names": sorted(proper_names),
                         "translations": translations,
                         "duplicate_story_id": duplicate_id,
                     }, ensure_ascii=False, indent=2))
@@ -691,6 +748,7 @@ def main() -> None:
                         candidates=candidates,
                         translations=translations,
                         duplicate_story_id=duplicate_id,
+                        proper_names=proper_names,
                     )
                 return
 
@@ -713,6 +771,7 @@ def main() -> None:
                 target_words,
                 eligible_words,
                 quality_gate=args.quality_gate,
+                proper_names=proper_names,
             )
             _patch_story_metadata(
                 db,
@@ -723,6 +782,7 @@ def main() -> None:
                 book_index=book_index,
                 target_ids=target_ids,
                 coverage=window_data,
+                proper_names=proper_names,
             )
             db.refresh(story)
             from app.models import Sentence

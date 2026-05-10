@@ -5,12 +5,14 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 
-from app.models import Lemma, Story, UserLemmaKnowledge
+from app.models import Lemma, Sentence, SentenceWord, Story, UserLemmaKnowledge
+from app.services.passage_generator import store_maintenance_passage
 from scripts.promote_hindawi_passage import (
     PromotionError,
     _build_generated_payload,
     _extract_window,
     _find_duplicate_story,
+    _infer_proper_names,
     _select_target_ids,
 )
 from scripts.rank_hindawi_passages import LemmaContext, LemmaInfo
@@ -84,6 +86,26 @@ def test_build_generated_payload_pairs_arabic_and_translations():
         {"arabic": "جملة أولى.", "english": "First sentence."},
         {"arabic": "جملة ثانية.", "english": "Second sentence."},
     ]
+
+
+def test_infer_proper_names_from_single_quoted_words():
+    runtime = {
+        "normalize_alef": lambda text: text.replace("أ", "ا").replace("إ", "ا").replace("آ", "ا"),
+        "strip_diacritics": lambda text: text.translate(str.maketrans("", "", "ًٌٍَُِّْ")),
+        "strip_punctuation": lambda text: text.replace("«", "").replace("»", "").replace(":", ""),
+        "strip_tatweel": lambda text: text.replace("ـ", ""),
+        "_is_function_word": lambda text: text in {"في", "من"},
+    }
+
+    names = _infer_proper_names(
+        [
+            "قالَتْ «لَيْلَى»: «إِنَّها هُنَا.»",
+            "قالَ: «هَلْ هِيَ فِي مَنْزِلِها؟»",
+        ],
+        runtime,
+    )
+
+    assert names == {"ليلى"}
 
 
 def test_select_target_ids_prefers_due_repeated_nouns_and_skips_proper_names(db_session):
@@ -161,3 +183,56 @@ def test_find_duplicate_story_matches_exact_maintenance_body(db_session):
 
     assert _find_duplicate_story(db_session, "سطر أول\nسطر ثان").id == story.id
     assert _find_duplicate_story(db_session, "سطر آخر") is None
+
+
+def test_store_passage_keeps_proper_name_clickable_but_inert(db_session):
+    wolf = _lemma(10, "ذِئْبٌ", "ذئب", gloss="wolf", pos="noun")
+    house = _lemma(11, "مَنْزِلٌ", "منزل", gloss="house", pos="noun")
+    db_session.add_all([wolf, house])
+    db_session.add_all([
+        _ulk(10, "known", datetime.now(timezone.utc) - timedelta(days=1)),
+        _ulk(11, "known", datetime.now(timezone.utc) + timedelta(days=1)),
+    ])
+    db_session.flush()
+
+    generated = {
+        "title_ar": "اختبار",
+        "title_en": "Test",
+        "style_tag": "hindawi_authentic",
+        "sentences": [
+            {"arabic": "الذِّئْبُ مَعَ «لَيْلَى».", "english": "The wolf is with Layla."},
+            {"arabic": "الذِّئْبُ هُنَا مَعَ «لَيْلَى».", "english": "The wolf is here with Layla."},
+            {"arabic": "الذِّئْبُ فِي مَنْزِلٍ.", "english": "The wolf is in a house."},
+        ],
+    }
+
+    story = store_maintenance_passage(
+        db_session,
+        generated,
+        target_words=[_target_word_dict(wolf, "known")],
+        eligible_words=[_target_word_dict(wolf, "known"), _target_word_dict(house, "known")],
+        quality_gate=False,
+        proper_names={"ليلى"},
+    )
+
+    # Fetch by surface instead of story relationship; Sentence rows are not
+    # exposed through Story.
+    name_rows = (
+        db_session.query(SentenceWord, Lemma)
+        .join(Sentence, Sentence.id == SentenceWord.sentence_id)
+        .join(Lemma, Lemma.lemma_id == SentenceWord.lemma_id)
+        .filter(
+            Sentence.story_id == story.id,
+            SentenceWord.surface_form.like("%لَيْلَى%"),
+        )
+        .all()
+    )
+    assert name_rows
+    assert {lemma.word_category for _sw, lemma in name_rows} == {"proper_name"}
+    for _sw, lemma in name_rows:
+        assert (
+            db_session.query(UserLemmaKnowledge)
+            .filter(UserLemmaKnowledge.lemma_id == lemma.lemma_id)
+            .first()
+            is None
+        )

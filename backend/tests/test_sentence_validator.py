@@ -633,6 +633,27 @@ class TestMapTokensToLemmas:
         assert mappings[0].is_function_word is True  # ليست is in FUNCTION_WORD_GLOSSES
         assert mappings[0].lemma_id == 1
 
+    def test_multi_target_validation_allows_declared_proper_names(self):
+        from app.services.sentence_validator import validate_sentence_multi_target
+
+        lemmas = [
+            _FakeLemma(1, "ذئب"),
+            _FakeLemma(2, "منزل"),
+        ]
+        lookup = build_lemma_lookup(lemmas)
+        result = validate_sentence_multi_target(
+            arabic_text="الذِّئْبُ مَعَ «لَيْلَى».",
+            target_bares={"ذئب": 1},
+            known_bare_forms=set(lookup.keys()),
+            min_targets=1,
+            known_lemma_lookup=lookup,
+            comprehensive_lemma_lookup=lookup,
+            proper_names={"ليلى"},
+        )
+
+        assert result.valid is True
+        assert any("لَيْلَى" in word for word in result.known_words)
+
     def test_attached_ind_maps_to_ind_base(self):
         """عند + pronoun forms should map to عند instead of storing NULL lemma ids."""
         lemmas = [

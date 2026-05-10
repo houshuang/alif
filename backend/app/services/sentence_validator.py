@@ -1688,6 +1688,7 @@ def validate_sentence_multi_target(
     min_targets: int = 2,
     known_lemma_lookup: dict | None = None,
     comprehensive_lemma_lookup: dict | None = None,
+    proper_names: set[str] | None = None,
 ) -> MultiTargetValidationResult:
     """Validate that a sentence uses known words and contains target words.
 
@@ -1713,6 +1714,11 @@ def validate_sentence_multi_target(
         )
 
     known_normalized = {normalize_alef(w) for w in known_bare_forms}
+    proper_names_normalized = {
+        normalize_alef(strip_diacritics(strip_punctuation(strip_tatweel(name or ""))))
+        for name in (proper_names or set())
+    }
+    proper_names_normalized = {name for name in proper_names_normalized if name}
 
     # Build expanded target forms for each target (with/without al-prefix)
     target_form_map: dict[str, str] = {}  # normalized_form -> original_bare
@@ -1753,6 +1759,10 @@ def validate_sentence_multi_target(
 
         if matched_target:
             targets_found[matched_target] = True
+            continue
+
+        if bare_normalized in proper_names_normalized:
+            known_words.append(token)
             continue
 
         if _is_function_word(bare_clean):

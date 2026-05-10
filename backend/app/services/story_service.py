@@ -40,6 +40,7 @@ from app.services.sentence_validator import (
     lookup_lemma,
 )
 from app.services.morphology import find_best_db_match, get_word_features, is_valid_root
+from app.services.proper_name_lemmas import get_or_create_proper_name_lemma
 
 logger = logging.getLogger(__name__)
 
@@ -154,6 +155,8 @@ def _create_story_words(
     body_ar: str,
     lemma_lookup: dict[str, int],
     knowledge_map: dict[int, str],
+    proper_names: set[str] | None = None,
+    proper_name_source: str = "story",
 ) -> tuple[int, int, int]:
     """Create StoryWord records for each token in the story.
 
@@ -169,6 +172,11 @@ def _create_story_words(
     total = 0
     known = 0
     func = 0
+    proper_name_norms = {
+        normalize_alef(strip_tatweel(strip_diacritics(ARABIC_PUNCTUATION.sub("", name or ""))))
+        for name in (proper_names or set())
+    }
+    proper_name_norms = {name for name in proper_name_norms if name}
 
     # Build set of known bare forms for morphological fallback
     known_bare_forms: set[str] = set()
@@ -181,6 +189,8 @@ def _create_story_words(
     for sent_idx, sentence_text in enumerate(sentences):
         for display_form, clean_form in _tokenize_story_display(sentence_text):
             bare_norm = normalize_alef(clean_form)
+            if bare_norm in proper_name_norms:
+                continue
             if not _is_function_word(clean_form):
                 lid = lookup_lemma(bare_norm, lemma_lookup)
                 if not lid and bare_norm not in morph_cache:
@@ -204,16 +214,28 @@ def _create_story_words(
             bare_norm = normalize_alef(clean_form)
 
             is_func = _is_function_word(clean_form)
-            lemma_id = None if is_func else lookup_lemma(bare_norm, lemma_lookup)
-            if not lemma_id and not is_func:
+            is_proper_name = bare_norm in proper_name_norms
+            lemma_id = None
+            if is_proper_name:
+                lemma_id = get_or_create_proper_name_lemma(
+                    db,
+                    display_form,
+                    source=proper_name_source,
+                )
+            elif not is_func:
+                lemma_id = lookup_lemma(bare_norm, lemma_lookup)
+            if not lemma_id and not is_func and not is_proper_name:
                 lemma_id = morph_cache.get(bare_norm)
 
             # Also check the resolved lemma's bare form (catches cliticized
             # surface forms like بِهِ whose lemma بِ is a function word)
-            if lemma_id and not is_func:
+            if lemma_id and not is_func and not is_proper_name:
                 lemma = lemma_by_id.get(lemma_id)
-                if lemma and _is_function_word(lemma.lemma_ar_bare):
-                    is_func = True
+                if lemma:
+                    if lemma.word_category == "proper_name":
+                        is_proper_name = True
+                    elif _is_function_word(lemma.lemma_ar_bare):
+                        is_func = True
 
             is_known = False
             if lemma_id:
@@ -225,6 +247,8 @@ def _create_story_words(
                 lemma = lemma_by_id.get(lemma_id)
                 if lemma:
                     gloss = lemma.gloss_en
+            if is_proper_name and not gloss:
+                gloss = "(proper name)"
             elif is_func:
                 gloss = FUNCTION_WORD_GLOSSES.get(bare_norm) or FUNCTION_WORD_GLOSSES.get(clean_form)
 
@@ -235,14 +259,15 @@ def _create_story_words(
                 lemma_id=lemma_id,
                 sentence_index=sent_idx,
                 gloss_en=gloss,
-                is_known_at_creation=is_known or is_func,
+                is_known_at_creation=is_known or is_func or is_proper_name,
                 is_function_word=is_func,
+                name_type="personal" if is_proper_name else None,
             )
             db.add(sw)
             total += 1
             if is_known:
                 known += 1
-            if is_func:
+            if is_func or is_proper_name:
                 func += 1
             position += 1
 
@@ -700,19 +725,23 @@ def _recalculate_story_counts(db: Session, story: Story) -> None:
     for sw in story.words:
         # Re-check function word status: surface form or resolved lemma bare form
         is_func = sw.is_function_word
+        is_proper_name = sw.name_type in ("personal", "place")
         if not is_func:
             surface_clean = strip_diacritics(sw.surface_form).strip()
             if _is_function_word(surface_clean):
                 is_func = True
             elif sw.lemma_id:
                 lemma = lemma_map.get(sw.lemma_id)
-                if lemma and _is_function_word(lemma.lemma_ar_bare):
-                    is_func = True
+                if lemma:
+                    if lemma.word_category == "proper_name":
+                        is_proper_name = True
+                    elif _is_function_word(lemma.lemma_ar_bare):
+                        is_func = True
             if is_func and not sw.is_function_word:
                 sw.is_function_word = True
                 func_fixed += 1
 
-        if is_func:
+        if is_func or is_proper_name:
             key = sw.lemma_id or sw.surface_form
             if key not in seen_func:
                 seen_func.add(key)
