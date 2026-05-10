@@ -83,9 +83,15 @@ Then SELF-EVALUATE each candidate on 3 criteria (1-5 scale):
 
 Pick the candidate with the highest total score.
 
+QUALITY GATE:
+- Only return hooks if the winning candidate is genuinely memorable: sound_match >= 4, interaction >= 4, and extraction >= 4.
+- If every candidate is forced, vague, weakly connected to the sound, or only loosely related to the meaning, return null for the entire entry.
+- Do not invent a mediocre mnemonic just to fill the field. A missing hook is better than a bad hook.
+
 ALSO GENERATE cognates, collocations, usage_context, fun_fact (same rules as standard prompt).
 
-Return JSON: {"candidates": [{"keyword": "...", "mnemonic": "...", "sound_match": N, "interaction": N, "extraction": N}], "best_index": N, "mnemonic": "THE WINNING MNEMONIC TEXT", "cognates": [...], "collocations": [...], "usage_context": "...", "fun_fact": "..."}
+Return JSON: {"candidates": [{"keyword": "...", "mnemonic": "...", "sound_match": N, "interaction": N, "extraction": N}], "best_index": 0, "mnemonic": "THE WINNING MNEMONIC TEXT", "cognates": [...], "collocations": [...], "usage_context": "...", "fun_fact": "..."}
+best_index is zero-based.
 
 SHORTCUTS:
 - Particles, pronouns, basic function words: return null for the ENTIRE entry.
@@ -124,6 +130,98 @@ def _normalize_collocations(collocations):
     return result if result else []
 
 
+QUALITY_MIN_COMPONENT_SCORE = 4
+_SCORE_ALIASES = {
+    "sound_match": ("sound_match", "sound", "phonetic_match", "phonetic_overlap"),
+    "interaction": ("interaction", "imagery", "interactive_scene"),
+    "extraction": ("extraction", "meaning_extraction", "meaning", "extractability"),
+}
+
+
+def _score(candidate: dict, name: str) -> int | None:
+    for key in _SCORE_ALIASES[name]:
+        value = candidate.get(key)
+        if value is None:
+            continue
+        try:
+            return int(value)
+        except (TypeError, ValueError):
+            return None
+    return None
+
+
+def _best_candidate(hooks: dict) -> dict | None:
+    candidates = hooks.get("candidates")
+    if not isinstance(candidates, list) or not candidates:
+        return None
+
+    index = hooks.get("best_index")
+    try:
+        idx = int(index)
+    except (TypeError, ValueError):
+        idx = None
+
+    if idx is not None:
+        if 0 <= idx < len(candidates) and isinstance(candidates[idx], dict):
+            return candidates[idx]
+        one_based = idx - 1
+        if 0 <= one_based < len(candidates) and isinstance(candidates[one_based], dict):
+            return candidates[one_based]
+
+    scored: list[tuple[int, dict]] = []
+    for candidate in candidates:
+        if not isinstance(candidate, dict):
+            continue
+        scores = [_score(candidate, name) for name in ("sound_match", "interaction", "extraction")]
+        if any(s is None for s in scores):
+            continue
+        scored.append((sum(scores), candidate))
+    if not scored:
+        return None
+    return max(scored, key=lambda item: item[0])[1]
+
+
+def _has_direct_borrowing(hooks: dict) -> bool:
+    cognates = hooks.get("cognates")
+    if not isinstance(cognates, list):
+        return False
+    for cognate in cognates:
+        if not isinstance(cognate, dict):
+            continue
+        text = " ".join(
+            str(cognate.get(k, ""))
+            for k in ("lang", "word", "note")
+        ).lower()
+        if "direct borrowing" in text or "you already know" in text:
+            return True
+    return False
+
+
+def hook_quality_reason(hooks: dict) -> tuple[bool, str]:
+    """Return whether hooks are worth storing, plus a short reason."""
+    if _has_direct_borrowing(hooks):
+        return True, "direct_borrowing"
+
+    candidate = _best_candidate(hooks)
+    if candidate is None:
+        return False, "missing_candidate_scores"
+
+    scores = {
+        name: _score(candidate, name)
+        for name in ("sound_match", "interaction", "extraction")
+    }
+    if any(value is None for value in scores.values()):
+        return False, "incomplete_candidate_scores"
+    weak = [
+        name
+        for name, value in scores.items()
+        if value < QUALITY_MIN_COMPONENT_SCORE
+    ]
+    if weak:
+        return False, "weak_" + "_".join(weak)
+    return True, "strong_candidate"
+
+
 def validate_hooks(hooks: dict) -> bool:
     """Check that the hooks dict has valid structure. Auto-normalizes collocations."""
     if not isinstance(hooks, dict):
@@ -148,6 +246,25 @@ def validate_hooks(hooks: dict) -> bool:
                 normalized.append({"lang": "?", "word": c, "note": ""})
         hooks["cognates"] = normalized
     return True
+
+
+def prepare_hooks_for_storage(hooks: dict) -> tuple[dict | None, str]:
+    """Validate, quality-gate, and strip generation metadata before storage."""
+    if not validate_hooks(hooks):
+        return None, "invalid_structure"
+    quality_ok, reason = hook_quality_reason(hooks)
+    if not quality_ok:
+        return None, reason
+    if reason == "strong_candidate":
+        candidate = _best_candidate(hooks)
+        mnemonic = candidate.get("mnemonic") if isinstance(candidate, dict) else None
+        if isinstance(mnemonic, str) and mnemonic.strip():
+            hooks["mnemonic"] = mnemonic.strip()
+    hooks.pop("candidates", None)
+    hooks.pop("best_index", None)
+    hooks.pop("quality", None)
+    hooks.pop("quality_reason", None)
+    return hooks, reason
 
 
 def generate_memory_hooks(lemma_id: int) -> None:
@@ -175,7 +292,8 @@ def generate_memory_hooks(lemma_id: int) -> None:
 {word_info}
 
 Generate 3 candidate mnemonics with different keywords, self-evaluate, pick the best.
-Return JSON with keys: candidates, best_index, mnemonic, cognates, collocations, usage_context, fun_fact.
+Return null if no candidate deserves >=4/5 on sound_match, interaction, and extraction.
+Return JSON with keys: candidates, best_index (zero-based), mnemonic, cognates, collocations, usage_context, fun_fact.
 Return null if the word is a particle/pronoun/function word."""
 
         try:
@@ -201,17 +319,17 @@ Return null if the word is a particle/pronoun/function word."""
         # Sometimes LLM wraps in extra layer
         hooks = result.get("hooks", result) if "hooks" in result else result
 
-        # Strip the candidates/best_index metadata before storing
-        hooks.pop("candidates", None)
-        hooks.pop("best_index", None)
-
-        if not validate_hooks(hooks):
-            logger.warning(f"Invalid memory hooks structure for lemma {lemma_id}")
+        storage_hooks, reason = prepare_hooks_for_storage(hooks)
+        if storage_hooks is None:
+            logger.info(f"Discarded memory hooks for lemma {lemma_id}: {reason}")
             return
 
-        lemma.memory_hooks_json = hooks
+        lemma.memory_hooks_json = storage_hooks
         db.commit()
-        logger.info(f"Generated memory hooks for lemma {lemma_id} ({lemma.lemma_ar_bare})")
+        logger.info(
+            f"Generated memory hooks for lemma {lemma_id} "
+            f"({lemma.lemma_ar_bare}, quality={reason})"
+        )
     except Exception:
         logger.exception(f"Error generating memory hooks for lemma {lemma_id}")
         db.rollback()
@@ -249,7 +367,8 @@ def regenerate_memory_hooks_premium(lemma_id: int) -> None:
 {word_info}{failed_note}
 
 Generate 3 candidate mnemonics with different keywords, self-evaluate, pick the best.
-Return JSON with keys: candidates, best_index, mnemonic, cognates, collocations, usage_context, fun_fact.
+Return null if no candidate deserves >=4/5 on sound_match, interaction, and extraction.
+Return JSON with keys: candidates, best_index (zero-based), mnemonic, cognates, collocations, usage_context, fun_fact.
 Return null if the word is a particle/pronoun/function word."""
 
         try:
@@ -270,19 +389,16 @@ Return null if the word is a particle/pronoun/function word."""
 
         hooks = result.get("hooks", result) if "hooks" in result else result
 
-        # Strip the candidates/best_index metadata before storing
-        hooks.pop("candidates", None)
-        hooks.pop("best_index", None)
-
-        if not validate_hooks(hooks):
-            logger.warning(f"Invalid premium hooks structure for lemma {lemma_id}")
+        storage_hooks, reason = prepare_hooks_for_storage(hooks)
+        if storage_hooks is None:
+            logger.info(f"Discarded premium hooks for lemma {lemma_id}: {reason}")
             return
 
-        lemma.memory_hooks_json = hooks
+        lemma.memory_hooks_json = storage_hooks
         db.commit()
         logger.info(
             f"Regenerated premium memory hooks for lemma {lemma_id} "
-            f"({lemma.lemma_ar_bare})"
+            f"({lemma.lemma_ar_bare}, quality={reason})"
         )
     except Exception:
         logger.exception(f"Error generating premium hooks for lemma {lemma_id}")

@@ -26,7 +26,7 @@ load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 from app.database import SessionLocal
 from app.models import Lemma, Root, UserLemmaKnowledge
 from app.services.activity_log import log_activity
-from app.services.memory_hooks import PREMIUM_SYSTEM_PROMPT, validate_hooks
+from app.services.memory_hooks import PREMIUM_SYSTEM_PROMPT, prepare_hooks_for_storage
 
 
 def build_prompt(lemmas_with_roots):
@@ -52,12 +52,14 @@ For EACH word:
 1. Generate 3 candidate mnemonics with different keywords
 2. Self-evaluate each on sound match, interaction, and meaning extraction (1-5)
 3. Pick the best candidate
+4. If no candidate deserves >=4/5 on sound_match, interaction, and meaning extraction, set hooks to null
 
 {word_list}
 
-Return JSON array: [{{"lemma_id": 1, "hooks": {{"mnemonic": "THE WINNING MNEMONIC", "cognates": [...], "collocations": [...], "usage_context": "...", "fun_fact": "..."}}}}]
+Return JSON array: [{{"lemma_id": 1, "hooks": {{"candidates": [{{"keyword": "...", "mnemonic": "...", "sound_match": 5, "interaction": 5, "extraction": 5}}], "best_index": 0, "mnemonic": "THE WINNING MNEMONIC", "cognates": [...], "collocations": [...], "usage_context": "...", "fun_fact": "..."}}}}]
+best_index is zero-based.
 
-Only include the winning mnemonic in "hooks" — do NOT include candidates/scores in the output.
+Include candidates and scores in "hooks"; the backend will store only the winning public fields if quality passes.
 Use null for hooks if the word is a particle/pronoun/function word."""
 
 
@@ -152,17 +154,18 @@ def backfill(dry_run=False, batch_size=10, limit=100, force=False, box1_only=Fal
                 total_null += 1
                 continue
 
-            if not validate_hooks(hooks):
-                print(f"  {lid} {lemma.lemma_ar_bare}: invalid hooks structure, skipping")
+            storage_hooks, reason = prepare_hooks_for_storage(hooks)
+            if storage_hooks is None:
+                print(f"  {lid} {lemma.lemma_ar_bare}: discarded hooks ({reason})")
                 total_skipped += 1
                 continue
 
-            mnemonic_preview = hooks.get("mnemonic", "")[:60]
-            cognate_count = len(hooks.get("cognates", []) or [])
+            mnemonic_preview = storage_hooks.get("mnemonic", "")[:60]
+            cognate_count = len(storage_hooks.get("cognates", []) or [])
             action = "regenerated" if force and lemma.memory_hooks_json else "generated"
-            print(f"  {lid} {lemma.lemma_ar_bare}: [{action}] {mnemonic_preview}... ({cognate_count} cognates)")
+            print(f"  {lid} {lemma.lemma_ar_bare}: [{action}] {mnemonic_preview}... ({cognate_count} cognates, quality={reason})")
             if not dry_run:
-                lemma.memory_hooks_json = hooks
+                lemma.memory_hooks_json = storage_hooks
             total_done += 1
 
         if not dry_run:

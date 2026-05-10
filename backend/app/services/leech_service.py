@@ -22,6 +22,7 @@ from sqlalchemy.orm import Session
 
 from app.models import Lemma, ReviewLog, UserLemmaKnowledge
 from app.services.activity_log import log_activity
+from app.services.frequency_lanes import is_low_priority_lemma
 from app.services.interaction_logger import log_interaction
 
 logger = logging.getLogger(__name__)
@@ -36,16 +37,25 @@ REINTRO_DELAYS = {
     1: timedelta(days=7),   # second: 7 days
     2: timedelta(days=14),  # third+: 14 days
 }
+LOW_PRIORITY_LEECH_DELAY_MULTIPLIER = 4
+LOW_PRIORITY_LEECH_MAX_DELAY = timedelta(days=60)
 
 
-def _get_reintro_delay(leech_count: int) -> timedelta:
+def _get_reintro_delay(leech_count: int, lemma: Lemma | None = None) -> timedelta:
     """Return the reintroduction delay based on how many times this word has been leeched."""
     if leech_count <= 0:
-        return REINTRO_DELAYS[0]
+        delay = REINTRO_DELAYS[0]
     elif leech_count == 1:
-        return REINTRO_DELAYS[1]
+        delay = REINTRO_DELAYS[1]
     else:
-        return REINTRO_DELAYS[2]
+        delay = REINTRO_DELAYS[2]
+    if lemma is not None and is_low_priority_lemma(lemma):
+        return min(delay * LOW_PRIORITY_LEECH_DELAY_MULTIPLIER, LOW_PRIORITY_LEECH_MAX_DELAY)
+    return delay
+
+
+def _get_lemma(db: Session, lemma_id: int) -> Lemma | None:
+    return db.query(Lemma).filter(Lemma.lemma_id == lemma_id).first()
 
 
 def check_and_manage_leeches(db: Session) -> list[int]:
@@ -69,6 +79,7 @@ def check_and_manage_leeches(db: Session) -> list[int]:
             continue
         accuracy = acc
         if accuracy < LEECH_MAX_ACCURACY:
+            lemma = _get_lemma(db, ulk.lemma_id)
             ulk.knowledge_state = "suspended"
             ulk.leech_suspended_at = datetime.now(timezone.utc)
             ulk.leech_count = (ulk.leech_count or 0) + 1
@@ -76,7 +87,7 @@ def check_and_manage_leeches(db: Session) -> list[int]:
             ulk.acquisition_next_due = None
             suspended.append(ulk.lemma_id)
 
-            cooldown = _get_reintro_delay(ulk.leech_count - 1)
+            cooldown = _get_reintro_delay(ulk.leech_count - 1, lemma)
             log_interaction(
                 event="leech_suspended",
                 lemma_id=ulk.lemma_id,
@@ -85,6 +96,7 @@ def check_and_manage_leeches(db: Session) -> list[int]:
                 accuracy=round(accuracy, 3),
                 leech_count=ulk.leech_count,
                 reintro_days=cooldown.days,
+                low_priority=lemma is not None and is_low_priority_lemma(lemma),
             )
 
     if suspended:
@@ -124,7 +136,8 @@ def check_leech_reintroductions(db: Session) -> list[int]:
     for ulk in suspended_leeches:
         # Calculate per-word cooldown based on leech_count
         lc = (ulk.leech_count or 1) - 1  # count before this suspension
-        delay = _get_reintro_delay(lc)
+        lemma = _get_lemma(db, ulk.lemma_id)
+        delay = _get_reintro_delay(lc, lemma)
         suspended_at = ulk.leech_suspended_at
         if suspended_at.tzinfo is None:
             suspended_at = suspended_at.replace(tzinfo=timezone.utc)
@@ -143,6 +156,7 @@ def check_leech_reintroductions(db: Session) -> list[int]:
             leech_count=ulk.leech_count,
             times_seen=ulk.times_seen,
             times_correct=ulk.times_correct,
+            low_priority=lemma is not None and is_low_priority_lemma(lemma),
         )
 
     if reintroduced:
@@ -221,13 +235,14 @@ def check_single_word_leech(db: Session, lemma_id: int) -> bool:
 
     if is_leech(ulk, db=db):
         acc = _recent_accuracy(db, lemma_id) or 0
+        lemma = _get_lemma(db, lemma_id)
         ulk.knowledge_state = "suspended"
         ulk.leech_suspended_at = datetime.now(timezone.utc)
         ulk.leech_count = (ulk.leech_count or 0) + 1
         ulk.acquisition_box = None
         ulk.acquisition_next_due = None
 
-        cooldown = _get_reintro_delay(ulk.leech_count - 1)
+        cooldown = _get_reintro_delay(ulk.leech_count - 1, lemma)
         log_interaction(
             event="leech_suspended",
             lemma_id=lemma_id,
@@ -236,6 +251,7 @@ def check_single_word_leech(db: Session, lemma_id: int) -> bool:
             recent_accuracy=round(acc, 3),
             leech_count=ulk.leech_count,
             reintro_days=cooldown.days,
+            low_priority=lemma is not None and is_low_priority_lemma(lemma),
         )
         return True
 

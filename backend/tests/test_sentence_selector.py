@@ -35,13 +35,14 @@ def _make_card(stability_days=30.0, due_offset_hours=-1):
 
 
 def _seed_word(db, lemma_id, arabic, english, state="known",
-               stability=30.0, due_hours=-1):
+               stability=30.0, due_hours=-1, frequency_rank=None):
     lemma = Lemma(
         lemma_id=lemma_id,
         lemma_ar=arabic,
         lemma_ar_bare=arabic,
         pos="noun",
         gloss_en=english,
+        frequency_rank=frequency_rank,
     )
     db.add(lemma)
     db.flush()
@@ -249,6 +250,25 @@ class TestGreedySetCover:
         result = build_session(db_session, limit=10)
         assert result["covered_due_words"] == 3
         assert len(result["items"]) == 2
+
+    def test_tight_session_prefers_high_frequency_due_word(self, db_session):
+        _seed_word(
+            db_session, 1, "نادر", "rare",
+            due_hours=-24 * 30, frequency_rank=50000,
+        )
+        _seed_word(
+            db_session, 2, "مهم", "important",
+            due_hours=-1, frequency_rank=100,
+        )
+        _seed_sentence(db_session, 1, "نادر", "rare", 1, [("نادر", 1)])
+        _seed_sentence(db_session, 2, "مهم", "important", 2, [("مهم", 2)])
+        db_session.commit()
+
+        result = build_session(db_session, limit=1)
+
+        assert len(result["items"]) == 1
+        assert result["items"][0]["primary_lemma_id"] == 2
+        assert result["items"][0]["selection_info"]["components"]["frequency_boost"] > 1
 
     def test_skips_recently_shown_sentences(self, db_session):
         _seed_word(db_session, 1, "كتاب", "book", due_hours=-1)

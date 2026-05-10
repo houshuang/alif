@@ -210,7 +210,7 @@ def _book_page_numbers(db: Session) -> dict[int, dict]:
 def _frequency_score(frequency_rank: Optional[int], max_rank: int = 50000) -> float:
     """Higher score for lower (more frequent) rank. Log scale."""
     if frequency_rank is None or frequency_rank <= 0:
-        return 0.3  # unknown frequency gets moderate score
+        return 0.02  # unknown frequency should not outrank known frequency evidence
     return 1.0 / math.log2(frequency_rank + 2)
 
 

@@ -43,7 +43,10 @@ from app.services.sentence_validator import (
     strip_tatweel,
 )
 from app.services.frequency_lanes import (
+    effective_frequency_ranks,
     frequency_core_ranks,
+    frequency_priority_multiplier,
+    frequency_priority_sort_key,
     is_main_lane_word,
     select_slow_lane_sample,
 )
@@ -221,9 +224,9 @@ def _filter_due_ids_for_frequency_lanes(
     knowledge_by_id: dict[int, UserLemmaKnowledge],
     overdue_days_map: dict[int, float],
     limit: int,
-) -> tuple[set[int], set[int], set[int], set[int]]:
+) -> tuple[set[int], set[int], set[int], set[int], dict[int, int]]:
     if not due_lemma_ids:
-        return set(), set(), set(), set()
+        return set(), set(), set(), set(), {}
     lemmas = {
         l.lemma_id: l
         for l in db.query(Lemma).filter(Lemma.lemma_id.in_(due_lemma_ids)).all()
@@ -239,14 +242,15 @@ def _filter_due_ids_for_frequency_lanes(
             main_due.add(lid)
         else:
             slow_due.add(lid)
-    slow_sample = select_slow_lane_sample(slow_due, overdue_days_map, limit)
+    priority_ranks = effective_frequency_ranks(db, due_lemma_ids)
+    slow_sample = select_slow_lane_sample(slow_due, overdue_days_map, limit, priority_ranks)
     scheduled = main_due | slow_sample
     if slow_due:
         logger.info(
             "Frequency lanes: main=%s slow_total=%s slow_scheduled=%s",
             len(main_due), len(slow_due), len(slow_sample),
         )
-    return scheduled, main_due, slow_due, slow_sample
+    return scheduled, main_due, slow_due, slow_sample, priority_ranks
 
 
 def _difficulty_match_quality(
@@ -779,7 +783,7 @@ def build_session(
         cohort = get_focus_cohort(db)
         due_lemma_ids &= cohort
 
-    due_lemma_ids, main_due_ids, slow_due_ids, slow_scheduled_ids = _filter_due_ids_for_frequency_lanes(
+    due_lemma_ids, main_due_ids, slow_due_ids, slow_scheduled_ids, due_frequency_ranks = _filter_due_ids_for_frequency_lanes(
         db, due_lemma_ids, knowledge_by_id, overdue_days_map, limit
     )
 
@@ -822,6 +826,7 @@ def build_session(
                     k = knowledge_by_id.get(lid)
                     if k:
                         stability_map[lid] = _get_stability(k) if k.fsrs_card_json else 0.1
+            due_frequency_ranks = effective_frequency_ranks(db, due_lemma_ids)
             logger.info(f"No due words — previewing {len(due_lemma_ids)} almost-due words")
         if not due_lemma_ids:
             return {
@@ -1151,7 +1156,20 @@ def build_session(
         nr_boost = NEVER_REVIEWED_BOOST if (due_covered & boosted_acquiring_ids) else 1.0
         lapsed_boost = LAPSED_BOOST if (due_covered & lapsed_lemma_ids) else 1.0
         overdue_boost = _overdue_escalation(due_covered, overdue_days_map)
-        score = (len(due_covered) ** 1.5) * dmq * gfit * diversity * freshness * source_bonus * rescue_penalty * nr_boost * lapsed_boost * overdue_boost
+        frequency_boost = frequency_priority_multiplier(due_covered, due_frequency_ranks)
+        score = (
+            (len(due_covered) ** 1.5)
+            * dmq
+            * gfit
+            * diversity
+            * freshness
+            * source_bonus
+            * rescue_penalty
+            * nr_boost
+            * lapsed_boost
+            * overdue_boost
+            * frequency_boost
+        )
 
         candidates.append(SentenceCandidate(
             sentence_id=sent.id,
@@ -1166,12 +1184,11 @@ def build_session(
     remaining_due = set(due_lemma_ids)
     session_scaffold_counts: dict[int, int] = {}
 
-    oldest_due_ids = sorted(
+    priority_due_ids = sorted(
         due_lemma_ids,
-        key=lambda lid: (overdue_days_map.get(lid, 0.0), lid),
-        reverse=True,
+        key=lambda lid: frequency_priority_sort_key(lid, due_frequency_ranks, overdue_days_map),
     )[: min(OLDEST_DUE_FIRST_BLOCK, limit)]
-    for lid in oldest_due_ids:
+    for lid in priority_due_ids:
         if lid not in remaining_due:
             continue
         options = [c for c in candidates if lid in c.due_words_covered]
@@ -1207,6 +1224,7 @@ def build_session(
             nr_boost = NEVER_REVIEWED_BOOST if (overlap & boosted_acquiring_ids) else 1.0
             lapsed_boost = LAPSED_BOOST if (overlap & lapsed_lemma_ids) else 1.0
             overdue_boost = _overdue_escalation(overlap, overdue_days_map)
+            frequency_boost = frequency_priority_multiplier(overlap, due_frequency_ranks)
             cand.score = (
                 (len(overlap) ** 1.5)
                 * dmq
@@ -1219,6 +1237,7 @@ def build_session(
                 * nr_boost
                 * lapsed_boost
                 * overdue_boost
+                * frequency_boost
             )
             cand.score_components = {
                 "due_coverage": len(overlap),
@@ -1232,12 +1251,13 @@ def build_session(
                 "never_reviewed_boost": nr_boost,
                 "lapsed_boost": lapsed_boost,
                 "overdue_boost": round(overdue_boost, 2),
+                "frequency_boost": round(frequency_boost, 2),
             }
         options.sort(key=lambda c: c.score, reverse=True)
         for cand in options:
             if _is_near_duplicate_candidate(cand, selected):
                 continue
-            cand.selection_reason = "oldest_due_first"
+            cand.selection_reason = "frequency_due_first"
             cand.selection_order = len(selected) + 1
             selected.append(cand)
             remaining_due -= cand.due_words_covered
@@ -1277,7 +1297,21 @@ def build_session(
             nr_boost = NEVER_REVIEWED_BOOST if (overlap & boosted_acquiring_ids) else 1.0
             lapsed_boost = LAPSED_BOOST if (overlap & lapsed_lemma_ids) else 1.0
             overdue_boost = _overdue_escalation(overlap, overdue_days_map)
-            c.score = (len(overlap) ** 1.5) * dmq * gfit * diversity * freshness * source_bonus * session_diversity * rescue_penalty * nr_boost * lapsed_boost * overdue_boost
+            frequency_boost = frequency_priority_multiplier(overlap, due_frequency_ranks)
+            c.score = (
+                (len(overlap) ** 1.5)
+                * dmq
+                * gfit
+                * diversity
+                * freshness
+                * source_bonus
+                * session_diversity
+                * rescue_penalty
+                * nr_boost
+                * lapsed_boost
+                * overdue_boost
+                * frequency_boost
+            )
             c.score_components = {
                 "due_coverage": len(overlap),
                 "difficulty_match": round(dmq, 2),
@@ -1290,6 +1324,7 @@ def build_session(
                 "never_reviewed_boost": nr_boost,
                 "lapsed_boost": lapsed_boost,
                 "overdue_boost": round(overdue_boost, 2),
+                "frequency_boost": round(frequency_boost, 2),
             }
 
         candidates.sort(key=lambda c: c.score, reverse=True)

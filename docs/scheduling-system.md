@@ -1517,8 +1517,11 @@ candidates, which are always canonical lemmas.
 #### Frequency Score (40%)
 ```
 score = 1.0 / log₂(frequency_rank + 2)
-Unknown frequency → 0.3
+Unknown frequency → 0.02
 ```
+
+Unknown or invalid frequency is deliberately a low tiebreaker. It should not
+outrank words with real frequency evidence inside the same priority tier.
 
 #### Root Familiarity Score (30%)
 ```
@@ -1681,6 +1684,7 @@ remaining cards on the next card advance. See Section 8 "Sentence Pre-Warming" f
 | Reintro delay (1st) | 3 days | First leech suspension |
 | Reintro delay (2nd) | 7 days | Second suspension |
 | Reintro delay (3rd+) | 14 days | Third and subsequent suspensions |
+| Low-priority leech delay multiplier | 4×, capped at 60 days | Obscure/unranked leeches stay suspended longer before automatic reintro |
 | Reintro target | Acquisition box 1 | Stats preserved, fresh sentences |
 
 ### Topic (`topic_service.py`)

@@ -65,3 +65,13 @@ def test_slow_lane_sample_is_capped_to_ten_percent():
         session_limit=10,
     )
     assert sample == {2}
+
+
+def test_slow_lane_sample_prefers_higher_frequency_before_oldest_debt():
+    sample = select_slow_lane_sample(
+        slow_due_ids={1, 2, 3},
+        overdue_days_map={1: 30.0, 2: 10.0, 3: 1.0},
+        session_limit=10,
+        frequency_rank_map={1: 50000, 2: 5000, 3: 100},
+    )
+    assert sample == {3}

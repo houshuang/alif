@@ -49,7 +49,7 @@ All scripts in `backend/scripts/`. Run from `backend/` directory.
 - `backfill_story_proper_nouns.py` — Convert proper nouns to function words.
 - `backfill_themes.py` — LLM thematic domain tagging for lemmas.
 - `backfill_etymology.py` — LLM etymology data generation for lemmas.
-- `backfill_memory_hooks.py` — LLM memory hooks for currently learning words. Uses overgenerate-and-rank with Claude Sonnet (3 candidates per word, self-evaluated, best picked). Flags: `--force` (re-generate existing hooks), `--box1-only` (only Leitner box-1 words), `--batch-size=N`, `--limit=N`, `--dry-run`.
+- `backfill_memory_hooks.py` — LLM memory hooks for currently learning words. Uses overgenerate-and-rank with Claude Sonnet (3 candidates per word, self-evaluated, best picked) and stores only hooks whose winning candidate passes the quality gate. Flags: `--force` (re-generate existing hooks), `--box1-only` (only Leitner box-1 words), `--batch-size=N`, `--limit=N`, `--dry-run`.
 - `backfill_diacritics.py` — LLM tashkīl (diacritization) for bare lemmas + auto-transliteration.
 - `backfill_transliteration.py` — Deterministic ALA-LC transliteration from diacritized lemma_ar. No LLM. `--rerun-all` recomputes for every diacritized lemma (use after fixing the transliteration function itself, to refresh stored values).
 - `vocalize_unvocalized_lemmas.py` — Adds tashkeel to lemmas where `lemma_ar == lemma_ar_bare` (no diacritics stored). Uses Claude CLI Haiku in batches of 10–20; validates each output by stripping diacritics and comparing under `normalize_alef` so hamza-form corrections (اعراب → إعراب) are accepted while genuine letter changes (plural → singular) are rejected. Per-batch commits. Run `backfill_transliteration.py --rerun-all` afterwards to refresh ALA-LC output.

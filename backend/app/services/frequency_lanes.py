@@ -25,6 +25,9 @@ SLOW_LANE_SESSION_FRACTION = 0.10
 ARTIFACT_SOURCES = {"textbook_scan", "book", "story_import", "scaffold", "book_ocr"}
 LEARNED_STATES = {"known", "learning"}
 PIPELINE_STATES = LEARNED_STATES | {"acquiring", "lapsed", "encountered"}
+UNKNOWN_FREQUENCY_RANK = 1_000_000_000
+LOW_PRIORITY_FREQUENCY_RANK = 20_000
+LOW_PRIORITY_EXEMPT_SOURCES = {"duolingo", "avp_a1", "frequency_core"}
 
 
 @dataclass(frozen=True)
@@ -83,6 +86,89 @@ def frequency_core_ranks(db: Session, lemma_ids: Iterable[int]) -> dict[int, int
     return {lemma_id: rank for lemma_id, rank in rows if lemma_id is not None and rank is not None}
 
 
+def effective_frequency_ranks(db: Session, lemma_ids: Iterable[int]) -> dict[int, int]:
+    """Return the best available rank for each lemma, lower means more frequent.
+
+    Frequency-core rank is preferred when present, otherwise the lemma's own
+    frequency rank is used. Missing ranks are represented by a very large
+    sentinel so callers can still sort deterministically.
+    """
+    ids = {lid for lid in lemma_ids if lid is not None}
+    if not ids:
+        return {}
+
+    core = frequency_core_ranks(db, ids)
+    lemma_rows = (
+        db.query(Lemma.lemma_id, Lemma.frequency_rank)
+        .filter(Lemma.lemma_id.in_(ids))
+        .all()
+    )
+    ranks: dict[int, int] = {}
+    for lemma_id, frequency_rank in lemma_rows:
+        candidates = [
+            rank
+            for rank in (core.get(lemma_id), frequency_rank)
+            if rank is not None and rank > 0
+        ]
+        ranks[lemma_id] = min(candidates) if candidates else UNKNOWN_FREQUENCY_RANK
+    for lid in ids:
+        ranks.setdefault(lid, core.get(lid) or UNKNOWN_FREQUENCY_RANK)
+    return ranks
+
+
+def frequency_priority_weight(rank: int | None) -> float:
+    """Scoring multiplier for due-word selection."""
+    if rank is None or rank >= UNKNOWN_FREQUENCY_RANK:
+        return 0.70
+    if rank <= 500:
+        return 2.20
+    if rank <= 1000:
+        return 2.00
+    if rank <= 2000:
+        return 1.75
+    if rank <= 5000:
+        return 1.50
+    if rank <= 10000:
+        return 1.20
+    if rank <= 20000:
+        return 1.00
+    if rank <= 50000:
+        return 0.85
+    return 0.70
+
+
+def frequency_priority_multiplier(
+    lemma_ids: Iterable[int],
+    frequency_rank_map: dict[int, int] | None,
+) -> float:
+    ranks = frequency_rank_map or {}
+    weights = [frequency_priority_weight(ranks.get(lid)) for lid in lemma_ids]
+    if not weights:
+        return 1.0
+    return sum(weights) / len(weights)
+
+
+def frequency_priority_sort_key(
+    lemma_id: int,
+    frequency_rank_map: dict[int, int] | None,
+    overdue_days_map: dict[int, float] | None = None,
+) -> tuple[int, float, int]:
+    """Sort high-frequency due words first, then older debt."""
+    rank = (frequency_rank_map or {}).get(lemma_id, UNKNOWN_FREQUENCY_RANK)
+    overdue = (overdue_days_map or {}).get(lemma_id, 0.0)
+    return rank, -overdue, lemma_id
+
+
+def is_low_priority_lemma(lemma: Lemma | None) -> bool:
+    """Return True for obscure/unranked words that should spend less bandwidth."""
+    if lemma is None:
+        return True
+    if lemma.source in LOW_PRIORITY_EXEMPT_SOURCES:
+        return False
+    rank = lemma.frequency_rank
+    return rank is None or rank <= 0 or rank > LOW_PRIORITY_FREQUENCY_RANK
+
+
 def is_artifact_source(ulk_source: str | None, lemma_source: str | None) -> bool:
     return (ulk_source in ARTIFACT_SOURCES) or (lemma_source in ARTIFACT_SOURCES)
 
@@ -108,14 +194,14 @@ def select_slow_lane_sample(
     slow_due_ids: set[int],
     overdue_days_map: dict[int, float],
     session_limit: int,
+    frequency_rank_map: dict[int, int] | None = None,
 ) -> set[int]:
     if not slow_due_ids or session_limit <= 0:
         return set()
     budget = max(1, int(session_limit * SLOW_LANE_SESSION_FRACTION))
     ordered = sorted(
         slow_due_ids,
-        key=lambda lid: (overdue_days_map.get(lid, 0.0), lid),
-        reverse=True,
+        key=lambda lid: frequency_priority_sort_key(lid, frequency_rank_map, overdue_days_map),
     )
     return set(ordered[:budget])
 

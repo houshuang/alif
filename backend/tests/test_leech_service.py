@@ -5,6 +5,7 @@ from app.services.leech_service import (
     LEECH_MAX_ACCURACY,
     LEECH_MIN_REVIEWS,
     LEECH_WINDOW_SIZE,
+    LOW_PRIORITY_LEECH_DELAY_MULTIPLIER,
     REINTRO_DELAYS,
     _get_reintro_delay,
     check_and_manage_leeches,
@@ -14,8 +15,14 @@ from app.services.leech_service import (
 )
 
 
-def _create_lemma(db, arabic="كتاب", english="book"):
-    lemma = Lemma(lemma_ar=arabic, lemma_ar_bare=arabic, gloss_en=english, pos="noun")
+def _create_lemma(db, arabic="كتاب", english="book", frequency_rank=100):
+    lemma = Lemma(
+        lemma_ar=arabic,
+        lemma_ar_bare=arabic,
+        gloss_en=english,
+        pos="noun",
+        frequency_rank=frequency_rank,
+    )
     db.add(lemma)
     db.flush()
     return lemma
@@ -351,6 +358,33 @@ def test_reintroduction_exactly_at_delay(db_session):
         times_seen=10,
         times_correct=2,
     ))
+    db_session.commit()
+
+    reintroduced = check_leech_reintroductions(db_session)
+    assert lemma.lemma_id in reintroduced
+
+
+def test_low_priority_leech_reintroduction_uses_longer_cooldown(db_session):
+    lemma = _create_lemma(db_session, arabic="جحرية", english="burrowing", frequency_rank=100000)
+    now = datetime.now(timezone.utc)
+
+    db_session.add(UserLemmaKnowledge(
+        lemma_id=lemma.lemma_id,
+        knowledge_state="suspended",
+        leech_suspended_at=now - timedelta(days=3, hours=1),
+        leech_count=1,
+        times_seen=10,
+        times_correct=2,
+    ))
+    db_session.commit()
+
+    reintroduced = check_leech_reintroductions(db_session)
+    assert reintroduced == []
+
+    ulk = db_session.query(UserLemmaKnowledge).filter_by(lemma_id=lemma.lemma_id).first()
+    ulk.leech_suspended_at = now - (
+        REINTRO_DELAYS[0] * LOW_PRIORITY_LEECH_DELAY_MULTIPLIER
+    ) - timedelta(hours=1)
     db_session.commit()
 
     reintroduced = check_leech_reintroductions(db_session)

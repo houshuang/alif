@@ -89,6 +89,13 @@ Review scheduling uses the same core for lanes:
   non-artifact due words,
 - slow lane: low/null-rank artifact FSRS debt from book/OCR/story/scaffold
   paths, sampled at 10% of the session budget.
+- when the due queue is larger than the session, effective frequency rank is
+  used as a priority signal before raw age of debt. Older debt still breaks
+  ties inside the same frequency neighborhood, but obscure overdue words do not
+  crowd out high-frequency overdue words just because they are older.
+- low-priority leeches are not permanently excluded; their automatic
+  reintroduction cooldown is longer, so rare words that keep failing consume
+  less near-term review bandwidth.
 
 ## API And UI
 

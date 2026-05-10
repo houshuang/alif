@@ -64,7 +64,7 @@ class TestFrequencyScore:
         assert _frequency_score(10) > 0.2
 
     def test_unknown_frequency(self):
-        assert _frequency_score(None) == 0.3
+        assert _frequency_score(None) < _frequency_score(50000)
 
     def test_zero_rank(self):
         score = _frequency_score(0)
