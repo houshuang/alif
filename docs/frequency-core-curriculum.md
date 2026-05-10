@@ -26,17 +26,24 @@ marked `unmapped` are still missing from the DB.
 
 | Source | Weight | Intended signal |
 |---|---:|---|
-| CAMeL MSA | 1000 | Broad modern MSA frequency |
-| Buckwalter/Parkinson | 900 | Learner-oriented 5,000-entry reference |
+| Hindawi/books | 850 | Book prose and children's literature |
+| Buckwalter/Parkinson | 800 | Learner-oriented 5,000-entry reference |
 | arTenTen export | 800 | Large modern web usage |
-| KELLY | 600 | CEFR/learner frequency signal |
-| Hindawi/books | 400 | Book prose and children's literature |
-| News | 300 | Current public prose |
+| News/SAMER | 750 | Current public prose and readability-aligned frequency |
+| KELLY | 650 | CEFR/learner frequency signal |
+| CAMeL MSA | 450 | Broad modern MSA support signal |
 | Islamic/classical | 150 | Religious/classical target-domain relevance |
 
 Each source is aggregated to lemma-level rank before fusion. If several source
 forms map to the same Alif lemma, that source contributes once using the best
 rank; counts may still be summed for audit metadata.
+
+Single-source outliers are downranked by an agreement penalty unless they have
+at least two strong frequency signals or an explicit curriculum DB boost
+(`avp_a1`, `duolingo`, `textbook_scan`). This keeps the top bands conservative:
+Hindawi/SAMER can lead the reading curriculum, while CAMeL-only web artifacts or
+Hindawi-domain proper-noun-like outliers do not jump into the first 500 rows on
+one corpus alone.
 
 ## Confidence
 
@@ -62,16 +69,39 @@ PYTHONPATH=. python3 scripts/build_frequency_core.py --dry-run
 
 PYTHONPATH=. python3 scripts/build_frequency_core.py \
   --entries 5000 \
+  --hindawi-from-corpus \
   --buckwalter data/frequency_sources/buckwalter.tsv \
   --artenten data/frequency_sources/artenten.tsv \
-  --hindawi data/frequency_sources/hindawi_books.tsv \
   --news data/frequency_sources/news.tsv \
   --islamic data/frequency_sources/islamic.tsv
 ```
 
 Default downloadable inputs are CAMeL MSA and KELLY/Leeds when available.
 Optional files accept `word`/`form`/`lemma`/`arabic`, optional `rank`, optional
-`count`/`freq`, and optional `cefr`.
+`count`/`freq`, and optional `cefr`. SAMER-style `lemma#pos` and `Occurrences`
+columns are also accepted.
+
+`--hindawi-from-corpus` uses the imported Hindawi sentence corpus already in the
+database (`Sentence.source = "corpus"`) as the Hindawi/books source. It counts
+mapped `SentenceWord.lemma_id` tokens and rolls variants up to canonical lemmas.
+
+The 2026-05-10 production rebuild used the sources currently available on the
+server:
+
+```bash
+cd /opt/alif/backend
+ALIF_SKIP_MIGRATIONS=1 PYTHONPATH=. .venv/bin/python3 scripts/build_frequency_core.py \
+  --entries 5000 \
+  --no-kelly \
+  --hindawi-from-corpus \
+  --news data/samer.tsv
+```
+
+Before replacing production rows, take a SQLite backup:
+
+```bash
+sqlite3 data/alif.db ".backup data/alif.db.backup_freq_$(date +%Y%m%d_%H%M%S)"
+```
 
 ## How Scheduling Uses It
 

@@ -35,11 +35,13 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Iterable
 
+from sqlalchemy import func
+
 os.environ.setdefault("ALIF_SKIP_MIGRATIONS", "1")
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from app.database import SessionLocal
-from app.models import FrequencyCoreEntry, Lemma, UserLemmaKnowledge
+from app.models import FrequencyCoreEntry, Lemma, Sentence, SentenceWord, UserLemmaKnowledge
 from app.services.sentence_validator import (
     _is_function_word,
     build_comprehensive_lemma_lookup,
@@ -58,15 +60,25 @@ KELLY_HTML_URL = "http://corpus.leeds.ac.uk/frqc/arabic-m3.num.html"
 KELLY_HTML_CACHE = DATA_DIR / "kelly_arabic_m3.html"
 
 SOURCE_WEIGHTS = {
-    "camel": 1000.0,
-    "buckwalter": 900.0,
+    "camel": 450.0,
+    "buckwalter": 800.0,
     "artenten": 800.0,
-    "kelly": 600.0,
-    "hindawi": 400.0,
-    "news": 300.0,
+    "kelly": 650.0,
+    "hindawi": 850.0,
+    "news": 750.0,
     "islamic": 150.0,
 }
 BROAD_FREQUENCY_SOURCES = {"camel", "buckwalter", "artenten", "kelly"}
+STRONG_SOURCE_RANK_LIMITS = {
+    "camel": 1000,
+    "buckwalter": 1000,
+    "artenten": 1000,
+    "kelly": 1200,
+    "hindawi": 1000,
+    "news": 1000,
+    "islamic": 1000,
+}
+SOURCE_AGREEMENT_PENALTY = 0.72
 
 CEFR_BOOST = {"A1": 120.0, "A2": 75.0, "B1": 35.0, "B2": 15.0}
 DB_SOURCE_BOOST = {
@@ -228,7 +240,10 @@ def load_ranked_file(path: Path) -> list[tuple[str, int, int | None, str | None]
         return []
 
     header = [c.strip().lower() for c in rows[0]]
-    has_header = any(h in header for h in ("word", "form", "lemma", "arabic", "rank", "count", "cefr"))
+    has_header = any(
+        h in header
+        for h in ("word", "form", "lemma", "lemma#pos", "arabic", "rank", "count", "occurrences", "cefr")
+    )
     body = rows[1:] if has_header else rows
 
     parsed: list[tuple[str, int | None, int | None, str | None, int]] = []
@@ -239,9 +254,9 @@ def load_ranked_file(path: Path) -> list[tuple[str, int, int | None, str | None]
                     return header.index(name)
             return None
 
-        word_col = find_col(("word", "form", "lemma", "arabic", "token"))
+        word_col = find_col(("word", "form", "lemma", "lemma#pos", "arabic", "token"))
         rank_col = find_col(("rank", "frequency_rank"))
-        count_col = find_col(("count", "freq", "frequency"))
+        count_col = find_col(("count", "freq", "frequency", "occurrences"))
         cefr_col = find_col(("cefr", "level"))
         if word_col is None:
             return []
@@ -278,6 +293,70 @@ def load_ranked_file(path: Path) -> list[tuple[str, int, int | None, str | None]
             rank = order
         result.append((form, rank, count, cefr))
     return result
+
+
+def _canonical_lemma_id(lemma_id: int, lemmas_by_id: dict[int, Lemma]) -> int:
+    """Resolve a lemma ID through any canonical chain."""
+    current = lemma_id
+    seen: set[int] = set()
+    while current not in seen:
+        seen.add(current)
+        lemma = lemmas_by_id.get(current)
+        if not lemma or not lemma.canonical_lemma_id:
+            return current
+        current = lemma.canonical_lemma_id
+    return lemma_id
+
+
+def load_hindawi_from_db_corpus(
+    db,
+    lemmas_by_id: dict[int, Lemma],
+    source_names: tuple[str, ...] = ("corpus",),
+    include_function_words: bool = False,
+) -> list[tuple[int, int, int]]:
+    """Rank lemmas by token frequency in imported Hindawi corpus sentences.
+
+    `import_hindawi.py` stores accepted Hindawi sentences as `Sentence.source =
+    "corpus"` with mapped `SentenceWord.lemma_id` rows. This loader turns that
+    imported prose corpus into the same ranked input shape accepted by optional
+    TSV sources, so the frequency core can use Hindawi evidence without a
+    separate exported frequency file.
+    """
+    sources = tuple(s.strip() for s in source_names if s and s.strip())
+    if not sources:
+        return []
+
+    raw_counts = (
+        db.query(SentenceWord.lemma_id, func.count(SentenceWord.id))
+        .join(Sentence, Sentence.id == SentenceWord.sentence_id)
+        .filter(
+            Sentence.source.in_(sources),
+            SentenceWord.lemma_id.isnot(None),
+        )
+        .group_by(SentenceWord.lemma_id)
+        .all()
+    )
+
+    counts: dict[int, int] = defaultdict(int)
+    for raw_lemma_id, count in raw_counts:
+        if raw_lemma_id is None:
+            continue
+        canonical_id = _canonical_lemma_id(int(raw_lemma_id), lemmas_by_id)
+        lemma = lemmas_by_id.get(canonical_id)
+        if lemma is None:
+            continue
+        if should_skip_lemma(lemma, include_function_words):
+            continue
+        counts[canonical_id] += int(count or 0)
+
+    ranked = sorted(
+        ((lemma_id, count) for lemma_id, count in counts.items() if count > 0),
+        key=lambda item: (-item[1], lemmas_by_id[item[0]].lemma_ar_bare or lemmas_by_id[item[0]].lemma_ar),
+    )
+    return [
+        (lemma_id, rank, count)
+        for rank, (lemma_id, count) in enumerate(ranked, 1)
+    ]
 
 
 def parse_int(value: object) -> int | None:
@@ -322,40 +401,13 @@ def candidate_key(lemma_id: int | None, norm: str) -> str:
     return f"lemma:{lemma_id}" if lemma_id is not None else f"missing:{norm}"
 
 
-def add_source(
-    candidates: dict[str, CoreCandidate],
-    *,
-    form: str,
+def record_source_on_candidate(
+    cand: CoreCandidate,
     source: str,
     rank: int,
-    lemma_lookup: dict[str, int],
-    lemmas_by_id: dict[int, Lemma],
     count: int | None = None,
     cefr: str | None = None,
-    include_function_words: bool = False,
 ) -> None:
-    norm = normalize_form(form)
-    if should_skip_norm(norm, include_function_words):
-        return
-
-    lemma_id = resolve_lemma_id(norm, form, lemma_lookup)
-    lemma = lemmas_by_id.get(lemma_id) if lemma_id is not None else None
-    if lemma is not None and should_skip_lemma(lemma, include_function_words):
-        return
-
-    key = candidate_key(lemma_id, norm)
-    cand = candidates.get(key)
-    if cand is None:
-        cand = CoreCandidate(
-            key=key,
-            display_form=lemma.lemma_ar if lemma is not None else form,
-            normalized=norm,
-            lemma_id=lemma_id,
-            gloss_en=lemma.gloss_en if lemma is not None else None,
-            pos=lemma.pos if lemma is not None else None,
-        )
-        candidates[key] = cand
-
     points = rank_points(source, rank)
     previous = cand.source_flags.get(source)
     if isinstance(previous, dict):
@@ -397,6 +449,76 @@ def add_source(
         cand.islamic_rank = rank if cand.islamic_rank is None else min(cand.islamic_rank, rank)
 
 
+def add_source_for_lemma(
+    candidates: dict[str, CoreCandidate],
+    *,
+    lemma: Lemma,
+    source: str,
+    rank: int,
+    count: int | None = None,
+    cefr: str | None = None,
+    include_function_words: bool = False,
+) -> None:
+    """Add source evidence when the source already resolved to an Alif lemma."""
+    if should_skip_lemma(lemma, include_function_words):
+        return
+    norm = normalize_form(lemma.lemma_ar_bare or lemma.lemma_ar)
+    if should_skip_norm(norm, include_function_words):
+        return
+
+    key = candidate_key(lemma.lemma_id, norm)
+    cand = candidates.get(key)
+    if cand is None:
+        cand = CoreCandidate(
+            key=key,
+            display_form=lemma.lemma_ar,
+            normalized=norm,
+            lemma_id=lemma.lemma_id,
+            gloss_en=lemma.gloss_en,
+            pos=lemma.pos,
+        )
+        candidates[key] = cand
+
+    record_source_on_candidate(cand, source, rank, count=count, cefr=cefr)
+
+
+def add_source(
+    candidates: dict[str, CoreCandidate],
+    *,
+    form: str,
+    source: str,
+    rank: int,
+    lemma_lookup: dict[str, int],
+    lemmas_by_id: dict[int, Lemma],
+    count: int | None = None,
+    cefr: str | None = None,
+    include_function_words: bool = False,
+) -> None:
+    norm = normalize_form(form)
+    if should_skip_norm(norm, include_function_words):
+        return
+
+    lemma_id = resolve_lemma_id(norm, form, lemma_lookup)
+    lemma = lemmas_by_id.get(lemma_id) if lemma_id is not None else None
+    if lemma is not None and should_skip_lemma(lemma, include_function_words):
+        return
+
+    key = candidate_key(lemma_id, norm)
+    cand = candidates.get(key)
+    if cand is None:
+        cand = CoreCandidate(
+            key=key,
+            display_form=lemma.lemma_ar if lemma is not None else form,
+            normalized=norm,
+            lemma_id=lemma_id,
+            gloss_en=lemma.gloss_en if lemma is not None else None,
+            pos=lemma.pos if lemma is not None else None,
+        )
+        candidates[key] = cand
+
+    record_source_on_candidate(cand, source, rank, count=count, cefr=cefr)
+
+
 def finalize_candidate_confidence(cand: CoreCandidate) -> None:
     broad_sources = {
         source for source in BROAD_FREQUENCY_SOURCES
@@ -420,6 +542,25 @@ def finalize_candidate_confidence(cand: CoreCandidate) -> None:
     else:
         cand.confidence_tier = "low"
     cand.gap_status = None
+
+
+def apply_source_agreement_penalty(cand: CoreCandidate) -> None:
+    """Downrank one-corpus outliers unless they come from a curriculum source."""
+    strong_sources = 0
+    for source, rank_limit in STRONG_SOURCE_RANK_LIMITS.items():
+        evidence = cand.source_flags.get(source)
+        if isinstance(evidence, dict) and int(evidence.get("rank") or 1_000_000_000) <= rank_limit:
+            strong_sources += 1
+
+    has_curriculum_boost = any(f"db_{source}" in cand.source_flags for source in DB_SOURCE_BOOST)
+    if strong_sources >= 2 or has_curriculum_boost:
+        return
+
+    cand.score *= SOURCE_AGREEMENT_PENALTY
+    cand.source_flags["agreement_penalty"] = {
+        "strong_sources": strong_sources,
+        "multiplier": SOURCE_AGREEMENT_PENALTY,
+    }
 
 
 def add_db_source_boosts(
@@ -512,9 +653,30 @@ def build_candidates(args: argparse.Namespace) -> list[CoreCandidate]:
                     include_function_words=args.include_function_words,
                 )
 
+        if args.hindawi_from_corpus:
+            source_names = tuple(args.hindawi_corpus_sources.split(","))
+            for lemma_id, rank, count in load_hindawi_from_db_corpus(
+                db,
+                lemmas_by_id,
+                source_names=source_names,
+                include_function_words=args.include_function_words,
+            ):
+                lemma = lemmas_by_id.get(lemma_id)
+                if lemma is None:
+                    continue
+                add_source_for_lemma(
+                    candidates,
+                    lemma=lemma,
+                    source="hindawi",
+                    rank=rank,
+                    count=count,
+                    include_function_words=args.include_function_words,
+                )
+
         add_db_source_boosts(candidates, lemmas, args.include_function_words)
         for cand in candidates.values():
             finalize_candidate_confidence(cand)
+            apply_source_agreement_penalty(cand)
         ranked = sorted(candidates.values(), key=lambda c: (-c.score, c.best_rank, c.normalized))
         return ranked[: args.entries]
     finally:
@@ -623,6 +785,16 @@ def main() -> None:
     parser.add_argument("--buckwalter", type=Path, default=None, help="Optional Buckwalter/Parkinson ranked TSV/CSV")
     parser.add_argument("--artenten", type=Path, default=None, help="Optional arTenTen lemma/POS ranked TSV/CSV")
     parser.add_argument("--hindawi", type=Path, default=None, help="Optional Hindawi/book ranked TSV/CSV")
+    parser.add_argument(
+        "--hindawi-from-corpus",
+        action="store_true",
+        help="Use imported Hindawi corpus sentences from the DB as a Hindawi/book frequency source",
+    )
+    parser.add_argument(
+        "--hindawi-corpus-sources",
+        default="corpus",
+        help="Comma-separated Sentence.source values to treat as Hindawi corpus evidence",
+    )
     parser.add_argument("--news", type=Path, default=None, help="Optional news/OSIAN ranked TSV/CSV")
     parser.add_argument("--islamic", type=Path, default=None, help="Optional Islamic/classical ranked TSV/CSV")
     args = parser.parse_args()
