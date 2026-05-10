@@ -420,6 +420,7 @@ export interface ReintroCard {
   wazn?: string | null;
   wazn_meaning?: string | null;
   source?: string | null;
+  intro_kind?: string | null;
 }
 
 export interface VerseWord {

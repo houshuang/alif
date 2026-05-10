@@ -197,6 +197,7 @@ class TestProcessTextbookPage:
         assert ulk.knowledge_state == "known"
         assert ulk.fsrs_card_json is not None
         assert ulk.acquisition_box is None
+        assert ulk.experiment_group == "textbook_preserve_intro"
         assert ulk.total_encounters == 3
         assert upload.extracted_words_json[0]["status"] == "existing"
         assert upload.extracted_words_json[0]["knowledge_state"] == "known"
@@ -604,6 +605,7 @@ class TestProcessBatch:
         assert ulk.knowledge_state == "known"
         assert ulk.fsrs_card_json is not None
         assert ulk.acquisition_box is None
+        assert ulk.experiment_group == "textbook_preserve_intro"
         assert ulk.total_encounters == 2
         assert upload.status == "completed"
         assert upload.existing_words == 1

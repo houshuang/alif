@@ -1530,6 +1530,8 @@ def build_session(
 
 MAX_REINTRO_PER_SESSION = 3
 STRUGGLING_MIN_SEEN = 3
+TEXTBOOK_PRESERVE_INTRO_GROUP = "textbook_preserve_intro"
+TEXTBOOK_PRESERVE_INTRO_KIND = "textbook_preserve"
 
 
 _GENERIC_ULK_SOURCES = {None, "study", "encountered", "auto_intro", "collateral", "leech_reintro"}
@@ -1549,6 +1551,7 @@ def _build_reintro_cards(
     db: Session,
     struggling_ids: set[int],
     limit: int = MAX_REINTRO_PER_SESSION,
+    intro_kind: str | None = None,
 ) -> list[dict]:
     """Build rich introduction-style cards for struggling words."""
     if not struggling_ids:
@@ -1638,6 +1641,8 @@ def _build_reintro_cards(
             "wazn_meaning": lemma.wazn_meaning,
             "source": _display_source(k, lemma),
         }
+        if intro_kind:
+            card["intro_kind"] = intro_kind
         cards.append(card)
 
     return cards
@@ -1650,6 +1655,7 @@ RESCUE_COOLDOWN_DAYS = 7
 
 INTRO_CARDS_BASE = 4
 INTRO_CARDS_MAX = 6
+TEXTBOOK_PRESERVE_INTRO_CAP = 4
 
 
 def _dynamic_intro_cap(db: Session) -> int:
@@ -1678,16 +1684,21 @@ def _build_intro_cards(
     knowledge_by_id: dict[int, UserLemmaKnowledge],
     eligible_ids: set[int],
 ) -> list[dict]:
-    """Build intro cards for new and struggling acquiring words in this session.
+    """Build intro cards for new, struggling, and preserved textbook words.
 
-    Two categories:
+    Three categories:
     1. New words (times_seen == 0) — first-encounter teaching card
     2. Rescue words (acquiring, ≥4 reviews, <50% accuracy) — re-teaching
        for stuck words, with a 7-day cooldown between rescue cards.
+    3. Preserved textbook words — one-time card-only intro for words the user
+       says they already know and wants to retain as known review cards.
 
-    Both limited to non-function words that appear in this session.
-    First-time intro cards are uncapped; rescue cards use the dynamic cap
-    (4 base, up to 6) after first-time cards are placed.
+    New/rescue cards are limited to non-function words that appear in this
+    session. Preserved textbook cards are intentionally independent of sentence
+    scheduling so a scan can preserve current knowledge without forcing the
+    word back through acquisition. First-time intro cards are uncapped; rescue
+    cards use the dynamic cap (4 base, up to 6) after first-time cards are
+    placed.
     """
     now = datetime.now(timezone.utc)
     cooldown_cutoff = now - timedelta(days=RESCUE_COOLDOWN_DAYS)
@@ -1747,7 +1758,31 @@ def _build_intro_cards(
         new_card_ids &= kept
         rescue_card_ids &= kept
 
-    if not new_card_ids and not rescue_card_ids:
+    textbook_preserve_ids = {
+        row[0]
+        for row in (
+            db.query(UserLemmaKnowledge.lemma_id)
+            .join(Lemma, Lemma.lemma_id == UserLemmaKnowledge.lemma_id)
+            .filter(
+                UserLemmaKnowledge.knowledge_state == "known",
+                UserLemmaKnowledge.experiment_group == TEXTBOOK_PRESERVE_INTRO_GROUP,
+                UserLemmaKnowledge.experiment_intro_shown_at.is_(None),
+                Lemma.gates_completed_at.isnot(None),
+            )
+            .order_by(UserLemmaKnowledge.introduced_at.asc(), UserLemmaKnowledge.lemma_id.asc())
+            .limit(TEXTBOOK_PRESERVE_INTRO_CAP * 2)
+            .all()
+        )
+    }
+    if textbook_preserve_ids:
+        textbook_preserve_ids = set(
+            _drop_function_and_proper_name_lemma_ids(db, textbook_preserve_ids)
+        )
+        textbook_preserve_ids = set(
+            sorted(textbook_preserve_ids)[:TEXTBOOK_PRESERVE_INTRO_CAP]
+        )
+
+    if not new_card_ids and not rescue_card_ids and not textbook_preserve_ids:
         return []
 
     cap = _dynamic_intro_cap(db)
@@ -1755,12 +1790,18 @@ def _build_intro_cards(
     # word, the card must appear before its first sentence. The dynamic cap only
     # limits rescue cards so remediation doesn't crowd out practice.
     new_cards = _build_reintro_cards(db, new_card_ids, limit=len(new_card_ids))
+    textbook_cards = _build_reintro_cards(
+        db,
+        textbook_preserve_ids,
+        limit=min(len(textbook_preserve_ids), TEXTBOOK_PRESERVE_INTRO_CAP),
+        intro_kind=TEXTBOOK_PRESERVE_INTRO_KIND,
+    )
     rescue_limit = max(0, cap - len(new_cards))
     rescue_cards = (
         _build_reintro_cards(db, rescue_card_ids, limit=min(len(rescue_card_ids), rescue_limit))
         if rescue_limit > 0 else []
     )
-    return new_cards + rescue_cards
+    return new_cards + textbook_cards + rescue_cards
 
 
 MAX_ON_DEMAND_PER_SESSION = 10

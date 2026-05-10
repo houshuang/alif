@@ -504,6 +504,7 @@ def acknowledge_experiment_intro(
     ulk = db.query(UserLemmaKnowledge).filter(
         UserLemmaKnowledge.lemma_id == body.lemma_id,
     ).first()
+    experiment_group = ulk.experiment_group if ulk else None
     if ulk:
         ulk.experiment_intro_shown_at = datetime.utcnow()
         for attempt in range(3):
@@ -530,7 +531,7 @@ def acknowledge_experiment_intro(
         event="experiment_intro_shown",
         lemma_id=body.lemma_id,
         session_id=body.session_id,
-        experiment_group="intro_ab_card",
+        experiment_group=experiment_group or "intro_ab_card",
     )
     return {"status": "ok", "lemma_id": body.lemma_id}
 

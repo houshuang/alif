@@ -173,7 +173,29 @@ function buildInterleavedSession(
     result.push({ type: "sentence" as const, itemIndex: sentIdx });
   }
 
-  // 5. Flush orphan intros whose lemma never appeared in a session sentence,
+  // 5. Textbook-preservation cards are intentionally card-only: the scan means
+  //    "I know this now, preserve it", not "force an immediate sentence".
+  //    Keep those intros even when the sentence session is otherwise full.
+  const preservedTextbookOrphans = introCards
+    .map((c, i) => ({ card: c, introIndex: i }))
+    .filter(
+      ({ card }) =>
+        card.intro_kind === "textbook_preserve" && !shown.has(card.lemma_id),
+    );
+  if (preservedTextbookOrphans.length > 0) {
+    const insertAt = Math.min(result.length, warmup.length);
+    result.splice(
+      insertAt,
+      0,
+      ...preservedTextbookOrphans.map(({ introIndex }) => ({
+        type: "experiment_intro" as const,
+        introIndex,
+      })),
+    );
+    preservedTextbookOrphans.forEach(({ card }) => shown.add(card.lemma_id));
+  }
+
+  // 6. Flush orphan intros whose lemma never appeared in a session sentence,
   //    but only if they fit before the cutoff. Late orphans are dropped.
   introCards.forEach((c, i) => {
     if (!shown.has(c.lemma_id) && result.length < introCutoff) {
@@ -182,7 +204,7 @@ function buildInterleavedSession(
     }
   });
 
-  // 6. Splice in deprecated intro_candidates at their insert_at positions
+  // 7. Splice in deprecated intro_candidates at their insert_at positions
   if (introCandidates.length > 0 && readingMode) {
     for (let ci = introCandidates.length - 1; ci >= 0; ci--) {
       const insertPos = Math.min(introCandidates[ci].insert_at, result.length);
@@ -190,7 +212,7 @@ function buildInterleavedSession(
     }
   }
 
-  // 7. Splice in verse cards at evenly-spaced positions
+  // 8. Splice in verse cards at evenly-spaced positions
   if (verseCards.length > 0) {
     const spacing = Math.floor(result.length / (verseCards.length + 1));
     for (let vi = verseCards.length - 1; vi >= 0; vi--) {
@@ -1831,7 +1853,8 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
   if (sentenceSession && isExperimentIntroSlot) {
     const eiSlotIndex = (currentSlot as { type: "experiment_intro"; introIndex: number }).introIndex;
     const card = experimentIntroCards[eiSlotIndex];
-    const isRescueCard = (card.times_seen ?? 0) > 0;
+    const isTextbookPreserveCard = card.intro_kind === "textbook_preserve";
+    const isRescueCard = !isTextbookPreserveCard && (card.times_seen ?? 0) > 0;
     const knownSiblings = card.root_family.filter(
       (s) => (s.state === "known" || s.state === "learning") && s.lemma_id !== card.lemma_id
     );
@@ -1870,7 +1893,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
           <View style={styles.eiHero}>
             <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, marginBottom: 4 }}>
               <Text style={[styles.reintroLabel, { color: colors.accent }]}>
-                {isRescueCard ? "Let\u2019s revisit" : "New word"} {introSlotsSoFar} of {introSlotCount}
+                {isTextbookPreserveCard ? "Textbook word" : isRescueCard ? "Let\u2019s revisit" : "New word"} {introSlotsSoFar} of {introSlotCount}
               </Text>
               {card.source && (
                 <Text style={{ fontSize: 10, color: colors.textSecondary, fontWeight: "500", opacity: 0.7 }}>

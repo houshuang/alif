@@ -1011,6 +1011,87 @@ class TestIntroCardsForSessionWords:
         finally:
             fresh.close()
 
+    def test_textbook_preserved_known_gets_card_without_acquisition(self, db_session):
+        _seed_word(db_session, 1, "كتاب", "book", due_hours=-1)
+        textbook_lemma = Lemma(
+            lemma_id=4,
+            lemma_ar="قلم",
+            lemma_ar_bare="قلم",
+            pos="noun",
+            gloss_en="pen",
+            gates_completed_at=datetime.now(timezone.utc),
+        )
+        db_session.add(textbook_lemma)
+        db_session.add(UserLemmaKnowledge(
+            lemma_id=4,
+            knowledge_state="known",
+            fsrs_card_json=_make_card(stability_days=30.0, due_offset_hours=72),
+            introduced_at=datetime.now(timezone.utc),
+            last_reviewed=datetime.now(timezone.utc),
+            times_seen=1,
+            times_correct=1,
+            total_encounters=1,
+            source="textbook_scan",
+            experiment_group="textbook_preserve_intro",
+            experiment_intro_shown_at=None,
+        ))
+        _seed_sentence(
+            db_session,
+            1,
+            "كتاب",
+            "book",
+            1,
+            [("كتاب", 1)],
+        )
+        db_session.commit()
+
+        result = build_session(db_session, limit=1)
+        ulk = db_session.query(UserLemmaKnowledge).filter_by(lemma_id=4).one()
+
+        assert [(c["lemma_id"], c.get("intro_kind")) for c in result["experiment_intro_cards"]] == [
+            (4, "textbook_preserve")
+        ]
+        assert ulk.knowledge_state == "known"
+        assert ulk.acquisition_box is None
+
+    def test_old_textbook_known_without_preserve_group_does_not_get_intro_card(self, db_session):
+        _seed_word(db_session, 1, "كتاب", "book", due_hours=-1)
+        old_textbook_lemma = Lemma(
+            lemma_id=4,
+            lemma_ar="قلم",
+            lemma_ar_bare="قلم",
+            pos="noun",
+            gloss_en="pen",
+            gates_completed_at=datetime.now(timezone.utc),
+        )
+        db_session.add(old_textbook_lemma)
+        db_session.add(UserLemmaKnowledge(
+            lemma_id=4,
+            knowledge_state="known",
+            fsrs_card_json=_make_card(stability_days=30.0, due_offset_hours=72),
+            introduced_at=datetime.now(timezone.utc) - timedelta(days=30),
+            last_reviewed=datetime.now(timezone.utc) - timedelta(days=30),
+            times_seen=1,
+            times_correct=1,
+            total_encounters=1,
+            source="textbook_scan",
+            experiment_group=None,
+            experiment_intro_shown_at=None,
+        ))
+        _seed_sentence(
+            db_session,
+            1,
+            "كتاب",
+            "book",
+            1,
+            [("كتاب", 1)],
+        )
+        db_session.commit()
+
+        result = build_session(db_session, limit=1)
+
+        assert 4 not in {c["lemma_id"] for c in result["experiment_intro_cards"]}
+
     def test_proper_name_is_not_promoted_or_carded(self, db_session):
         """A proper-name lemma in a session sentence must NOT be promoted to
         acquiring and must NOT receive an intro card. Reproduces the Heidi

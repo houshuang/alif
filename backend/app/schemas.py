@@ -437,6 +437,7 @@ class ReintroCardOut(BaseModel):
     wazn: str | None = None
     wazn_meaning: str | None = None
     source: str | None = None
+    intro_kind: str | None = None
 
 
 class ReintroResultIn(BaseModel):

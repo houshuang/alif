@@ -41,6 +41,7 @@ logger = logging.getLogger(__name__)
 
 MIN_SENTENCES_PER_WORD = 3
 MAX_GLOSS_LENGTH = 50
+TEXTBOOK_PRESERVE_INTRO_GROUP = "textbook_preserve_intro"
 
 # Common patterns indicating a wiktionary-style definition rather than a concise gloss
 _VERBOSE_PATTERNS = [
@@ -91,6 +92,7 @@ def _preserve_textbook_knowledge(db: Session, lemma_id: int) -> UserLemmaKnowled
             times_correct=1,
             total_encounters=1,
             source="textbook_scan",
+            experiment_group=TEXTBOOK_PRESERVE_INTRO_GROUP,
         )
         db.add(ulk)
         db.flush()
@@ -103,6 +105,9 @@ def _preserve_textbook_knowledge(db: Session, lemma_id: int) -> UserLemmaKnowled
     # An explicit suspension should continue to win over passive import.
     if ulk.knowledge_state == "suspended":
         return ulk
+
+    if ulk.experiment_intro_shown_at is None:
+        ulk.experiment_group = TEXTBOOK_PRESERVE_INTRO_GROUP
 
     if ulk.knowledge_state != "known" or not ulk.fsrs_card_json:
         ulk.knowledge_state = "known"
@@ -770,6 +775,8 @@ def process_textbook_page(
                         vulk.knowledge_state = "encountered"
                         vulk.fsrs_card_json = None
                         vulk.last_reviewed = None
+                        vulk.experiment_group = None
+                        vulk.experiment_intro_shown_at = None
                     if vlem.canonical_lemma_id:
                         canonical_ulk = _preserve_textbook_knowledge(db, vlem.canonical_lemma_id)
                         preserved_known_ids.append(canonical_ulk.lemma_id)
@@ -1207,6 +1214,8 @@ def process_batch(
                     vulk.knowledge_state = "encountered"
                     vulk.fsrs_card_json = None
                     vulk.last_reviewed = None
+                    vulk.experiment_group = None
+                    vulk.experiment_intro_shown_at = None
                 if vlem.canonical_lemma_id:
                     canonical_ulk = _preserve_textbook_knowledge(db, vlem.canonical_lemma_id)
                     preserved_known_ids.append(canonical_ulk.lemma_id)
