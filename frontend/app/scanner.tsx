@@ -38,7 +38,7 @@ export default function ScannerScreen() {
   const [history, setHistory] = useState<BatchSummary[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [expandedBatch, setExpandedBatch] = useState<string | null>(null);
-  const [startAcquiring, setStartAcquiring] = useState(true);
+  const [preserveKnown, setPreserveKnown] = useState(true);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useFocusEffect(
@@ -123,7 +123,7 @@ export default function ScannerScreen() {
     setViewMode("history");
 
     try {
-      const batch = await scanTextbookPages(selectedImages, startAcquiring);
+      const batch = await scanTextbookPages(selectedImages, preserveKnown);
       setCurrentBatch(batch);
       setSelectedImages([]);
 
@@ -245,18 +245,18 @@ export default function ScannerScreen() {
             </ScrollView>
 
             <View style={styles.toggleRow}>
-              <Text style={styles.toggleLabel}>Start learning immediately</Text>
+              <Text style={styles.toggleLabel}>Preserve as known</Text>
               <Switch
-                value={startAcquiring}
-                onValueChange={setStartAcquiring}
+                value={preserveKnown}
+                onValueChange={setPreserveKnown}
                 trackColor={{ false: "#555", true: colors.accent + "80" }}
-                thumbColor={startAcquiring ? colors.accent : "#999"}
+                thumbColor={preserveKnown ? colors.accent : "#999"}
               />
             </View>
             <Text style={styles.toggleHint}>
-              {startAcquiring
-                ? "Words will be scheduled for review right away"
-                : "Words will be saved for later introduction"}
+              {preserveKnown
+                ? "Textbook words will be saved as known review cards"
+                : "Words will be saved only, without review scheduling"}
             </Text>
 
             <Pressable
@@ -414,7 +414,7 @@ export default function ScannerScreen() {
 
   async function handleRetry(batchId: string) {
     try {
-      const batch = await retryBatch(batchId, startAcquiring);
+      const batch = await retryBatch(batchId, preserveKnown);
       setCurrentBatch(batch);
       startPolling(batchId);
     } catch (e) {

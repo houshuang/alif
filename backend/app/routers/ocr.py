@@ -65,12 +65,12 @@ def _load_saved_images(batch_id: str) -> list[tuple[str, bytes]] | None:
 def _process_batch_background(
     batch_id: str,
     file_images: list[tuple[str, bytes]],
-    start_acquiring: bool = False,
+    preserve_known: bool = True,
 ) -> None:
     """Background task: OCR all pages, dedupe words, single DB import."""
     db = SessionLocal()
     try:
-        process_batch(db, batch_id, file_images, start_acquiring=start_acquiring)
+        process_batch(db, batch_id, file_images, preserve_known=preserve_known)
     except Exception:
         logger.exception(f"Background batch processing failed for {batch_id}")
         # Mark any still-processing pages as failed so they don't stay stuck
@@ -95,7 +95,8 @@ def _process_batch_background(
 async def scan_textbook_pages(
     background_tasks: BackgroundTasks,
     files: list[UploadFile] = File(...),
-    start_acquiring: bool = Query(default=False),
+    preserve_known: bool = Query(default=True),
+    start_acquiring: bool | None = Query(default=None),
     db: Session = Depends(get_db),
 ):
     """Upload one or more textbook page images for OCR word extraction.
@@ -147,8 +148,11 @@ async def scan_textbook_pages(
     # Save images to disk for retry on failure
     _save_uploads(batch_id, file_images)
 
+    # Backward compatibility: older clients sent start_acquiring=true/false.
+    effective_preserve_known = preserve_known if start_acquiring is None else start_acquiring
+
     # Single background task for the entire batch
-    background_tasks.add_task(_process_batch_background, batch_id, file_images, start_acquiring)
+    background_tasks.add_task(_process_batch_background, batch_id, file_images, effective_preserve_known)
 
     return {
         "batch_id": batch_id,
@@ -228,7 +232,8 @@ def list_uploads(
 def retry_batch(
     batch_id: str,
     background_tasks: BackgroundTasks,
-    start_acquiring: bool = Query(default=False),
+    preserve_known: bool = Query(default=True),
+    start_acquiring: bool | None = Query(default=None),
     db: Session = Depends(get_db),
 ):
     """Retry a failed or stuck batch using saved images."""
@@ -258,7 +263,8 @@ def retry_batch(
         u.completed_at = None
     db.commit()
 
-    background_tasks.add_task(_process_batch_background, batch_id, file_images, start_acquiring)
+    effective_preserve_known = preserve_known if start_acquiring is None else start_acquiring
+    background_tasks.add_task(_process_batch_background, batch_id, file_images, effective_preserve_known)
 
     return {
         "batch_id": batch_id,

@@ -263,6 +263,38 @@ class TestCompleteStory:
         assert story.status == "completed"
         assert story.completed_at is not None
 
+    def test_imported_story_completion_marks_new_words_as_story_import(self, db_session):
+        lemma = Lemma(
+            lemma_ar="غَرِيب",
+            lemma_ar_bare="غريب",
+            gloss_en="strange",
+            pos="adj",
+            source="story_import",
+        )
+        db_session.add(lemma)
+        db_session.flush()
+        story = Story(body_ar="غريب", source="imported", status="active")
+        db_session.add(story)
+        db_session.flush()
+        db_session.add(StoryWord(
+            story_id=story.id,
+            position=0,
+            surface_form="غَرِيب",
+            lemma_id=lemma.lemma_id,
+            is_known_at_creation=False,
+            is_function_word=False,
+        ))
+        db_session.commit()
+
+        complete_story(db_session, story.id, looked_up_lemma_ids=[])
+
+        ulk = db_session.query(UserLemmaKnowledge).filter(
+            UserLemmaKnowledge.lemma_id == lemma.lemma_id
+        ).one()
+        assert ulk.knowledge_state == "encountered"
+        assert ulk.source == "story_import"
+        assert ulk.fsrs_card_json is None
+
     def test_complete_reviews_words(self, db_session):
         lemmas = _seed_words(db_session)
         story, _ = import_story(db_session, arabic_text="الولد في البيت")

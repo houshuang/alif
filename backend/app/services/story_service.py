@@ -1776,7 +1776,7 @@ def complete_story(
                 lemma_id=sw.lemma_id,
                 knowledge_state="encountered",
                 fsrs_card_json=None,
-                source="encountered",
+                source="story_import" if story.source == "imported" else "encountered",
                 total_encounters=1,
             )
             db.add(new_ulk)

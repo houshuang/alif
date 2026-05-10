@@ -180,16 +180,18 @@ learn, and each enters acquisition immediately.
 
 ### 3.3 OCR / Textbook Scan
 
-**Path**: `POST /api/ocr/scan-pages?start_acquiring=true|false` → Gemini Vision extraction
-**Initial state**: `acquiring` (box 1, `due_immediately=True`) when `start_acquiring=true`;
-`encountered` (no FSRS card) when `start_acquiring=false` (default)
+**Path**: `POST /api/ocr/scan-pages?preserve_known=true|false` → Gemini Vision extraction
+**Initial state**: `known` with an FSRS review card when `preserve_known=true` (default);
+`encountered` (no FSRS card) when `preserve_known=false`
 **Source**: `"textbook_scan"`
 **Code**: `ocr_service.py`
 
-With the `start_acquiring` toggle enabled, scanned words go straight into Leitner
-box 1 for immediate follow-up review. Without it, words are parked as encountered
-and become Learn mode candidates with an `encountered_bonus` of 0.5. Variant words
-detected post-import are reset from acquiring back to encountered.
+Textbook scan is a preservation path: the user is saying "I know this word now;
+keep it in the system." Preserved words skip new-word acquisition and enter the
+regular review pool as known cards. With preservation disabled, words are parked
+as encountered and become Learn mode candidates with an `encountered_bonus` of
+0.5. Variant words detected post-import are redirected to their canonical lemma;
+variant-scoped ULKs are reset to encountered.
 
 ### 3.4 Story Import
 

@@ -160,7 +160,7 @@ class TestProcessTextbookPage:
     @patch("app.services.ocr_service._schedule_material_generation")
     @patch("app.services.import_quality.classify_lemmas")
     @patch("app.services.ocr_service.extract_words_from_image")
-    def test_start_acquiring_promotes_existing_encountered(
+    def test_preserve_known_promotes_existing_encountered(
         self, mock_extract, mock_classify, mock_schedule, mock_backfill, db_session
     ):
         from app.services.ocr_service import process_textbook_page
@@ -191,16 +191,44 @@ class TestProcessTextbookPage:
         ], None)
         mock_classify.return_value = ([{"arabic": "كاتب", "word_category": "standard"}], [])
 
-        process_textbook_page(db_session, upload, b"fake_image", start_acquiring=True)
+        process_textbook_page(db_session, upload, b"fake_image", preserve_known=True)
 
         db_session.refresh(ulk)
-        assert ulk.knowledge_state == "acquiring"
-        assert ulk.acquisition_box == 1
-        assert ulk.acquisition_started_at is not None
+        assert ulk.knowledge_state == "known"
+        assert ulk.fsrs_card_json is not None
+        assert ulk.acquisition_box is None
         assert ulk.total_encounters == 3
         assert upload.extracted_words_json[0]["status"] == "existing"
-        assert upload.extracted_words_json[0]["knowledge_state"] == "acquiring"
+        assert upload.extracted_words_json[0]["knowledge_state"] == "known"
         assert mock_schedule.call_args.args[1] == [lemma.lemma_id]
+
+    @patch("app.services.ocr_service._schedule_material_generation")
+    @patch("app.services.import_quality.classify_lemmas")
+    @patch("app.services.ocr_service.extract_words_from_image")
+    def test_save_only_keeps_new_textbook_words_encountered(
+        self, mock_extract, mock_classify, mock_schedule, mock_backfill, db_session
+    ):
+        from app.services.ocr_service import process_textbook_page
+
+        upload = PageUpload(batch_id="test_save_only", filename="page1.jpg", status="pending")
+        db_session.add(upload)
+        db_session.commit()
+
+        mock_extract.return_value = ([
+            {"arabic": "جَمِيل", "arabic_bare": "جميل", "english": "beautiful", "pos": "adj", "root": "ج.م.ل"},
+        ], None)
+        mock_classify.return_value = ([{"arabic": "جميل", "word_category": "standard"}], [])
+
+        process_textbook_page(db_session, upload, b"fake_image", preserve_known=False)
+
+        new_lemma = db_session.query(Lemma).filter(Lemma.lemma_ar_bare == "جميل").first()
+        ulk = db_session.query(UserLemmaKnowledge).filter(
+            UserLemmaKnowledge.lemma_id == new_lemma.lemma_id
+        ).first()
+        assert ulk.knowledge_state == "encountered"
+        assert ulk.fsrs_card_json is None
+        assert upload.extracted_words_json[0]["knowledge_state"] == "encountered"
+        assert mock_schedule.call_args.args[1] == [new_lemma.lemma_id]
 
     @pytest.mark.slow
     @patch("app.services.ocr_service.extract_words_from_image")
@@ -239,9 +267,9 @@ class TestProcessTextbookPage:
             UserLemmaKnowledge.lemma_id == new_lemma.lemma_id
         ).first()
         assert ulk is not None
-        assert ulk.knowledge_state == "encountered"
+        assert ulk.knowledge_state == "known"
         assert ulk.source == "textbook_scan"
-        assert ulk.fsrs_card_json is None
+        assert ulk.fsrs_card_json is not None
 
     @pytest.mark.slow
     @patch("app.services.ocr_service.extract_words_from_image")
@@ -364,8 +392,8 @@ class TestProcessTextbookPage:
         ).first()
         assert ulk is not None
         assert ulk.source == "textbook_scan"
-        assert ulk.knowledge_state == "encountered"
-        assert ulk.fsrs_card_json is None
+        assert ulk.knowledge_state == "known"
+        assert ulk.fsrs_card_json is not None
 
 
 @patch("app.services.ocr_service.backfill_root_meanings", return_value=0)
@@ -538,7 +566,7 @@ class TestProcessBatch:
     @patch("app.services.ocr_service.backfill_root_meanings", return_value=0)
     @patch("app.services.import_quality.classify_lemmas")
     @patch("app.services.ocr_service.extract_words_from_image")
-    def test_start_acquiring_promotes_existing_encountered(
+    def test_preserve_known_promotes_existing_encountered(
         self, mock_extract, mock_classify, mock_backfill, mock_schedule, db_session
     ):
         from app.services.ocr_service import process_batch
@@ -569,18 +597,18 @@ class TestProcessBatch:
         ], None)
         mock_classify.return_value = ([{"arabic": "كاتب", "word_category": "standard"}], [])
 
-        process_batch(db_session, "batch_enc", [("page1.jpg", b"fake_image")], start_acquiring=True)
+        process_batch(db_session, "batch_enc", [("page1.jpg", b"fake_image")], preserve_known=True)
 
         db_session.refresh(ulk)
         db_session.refresh(upload)
-        assert ulk.knowledge_state == "acquiring"
-        assert ulk.acquisition_box == 1
-        assert ulk.acquisition_started_at is not None
+        assert ulk.knowledge_state == "known"
+        assert ulk.fsrs_card_json is not None
+        assert ulk.acquisition_box is None
         assert ulk.total_encounters == 2
         assert upload.status == "completed"
         assert upload.existing_words == 1
         assert upload.extracted_words_json[0]["status"] == "existing"
-        assert upload.extracted_words_json[0]["knowledge_state"] == "acquiring"
+        assert upload.extracted_words_json[0]["knowledge_state"] == "known"
         assert mock_schedule.call_args.args[1] == [lemma.lemma_id]
 
 

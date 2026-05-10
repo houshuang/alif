@@ -101,7 +101,7 @@ Full endpoint list. See `backend/app/routers/` for implementation.
 ## OCR
 | Method | Path | Description |
 |--------|------|-------------|
-| POST | `/api/ocr/scan-pages` | Upload textbook page images for OCR word extraction (multipart). Returns immediately; single background job OCRs pages in parallel, dedupes words across pages, imports in one DB transaction. Response includes detected `textbook_page_number` per page. |
+| POST | `/api/ocr/scan-pages` | Upload textbook page images for OCR word extraction (multipart). Defaults to `preserve_known=true`: scanned textbook words are saved as known review cards. Use `preserve_known=false` to save only as encountered. Returns immediately; single background job OCRs pages in parallel, dedupes words across pages, imports in one DB transaction. Response includes detected `textbook_page_number` per page. |
 | GET | `/api/ocr/batch/{batch_id}` | Get batch upload status with per-page results (includes `textbook_page_number`) |
 | GET | `/api/ocr/uploads` | List recent upload batches with results |
 | POST | `/api/ocr/extract-text` | Extract Arabic text from image for story import (synchronous) |

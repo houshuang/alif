@@ -987,7 +987,7 @@ export async function submitVerseReview(
 
 // --- OCR / Textbook Scanner ---
 
-export async function scanTextbookPages(imageUris: string[], startAcquiring: boolean = false): Promise<BatchUploadResult> {
+export async function scanTextbookPages(imageUris: string[], preserveKnown: boolean = true): Promise<BatchUploadResult> {
   const formData = new FormData();
   for (const uri of imageUris) {
     const filename = uri.split("/").pop() || "page.jpg";
@@ -996,9 +996,7 @@ export async function scanTextbookPages(imageUris: string[], startAcquiring: boo
     formData.append("files", { uri, name: filename, type } as any);
   }
 
-  const url = startAcquiring
-    ? `${BASE_URL}/api/ocr/scan-pages?start_acquiring=true`
-    : `${BASE_URL}/api/ocr/scan-pages`;
+  const url = `${BASE_URL}/api/ocr/scan-pages?preserve_known=${preserveKnown ? "true" : "false"}`;
   const res = await fetch(url, {
     method: "POST",
     body: formData,
@@ -1018,10 +1016,8 @@ export async function getUploadHistory(): Promise<{ batches: BatchSummary[] }> {
   return fetchApi(`/api/ocr/uploads`);
 }
 
-export async function retryBatch(batchId: string, startAcquiring: boolean = false): Promise<BatchUploadResult> {
-  const url = startAcquiring
-    ? `/api/ocr/batch/${batchId}/retry?start_acquiring=true`
-    : `/api/ocr/batch/${batchId}/retry`;
+export async function retryBatch(batchId: string, preserveKnown: boolean = true): Promise<BatchUploadResult> {
+  const url = `/api/ocr/batch/${batchId}/retry?preserve_known=${preserveKnown ? "true" : "false"}`;
   return fetchApi<BatchUploadResult>(url, { method: "POST" });
 }
 
