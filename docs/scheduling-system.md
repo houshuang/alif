@@ -1499,12 +1499,12 @@ total_score = frequency × 0.4
 
 Priority tiers (higher ALWAYS beats lower, freq/root/grammar are tiebreakers within):
   Frequency core top 500     — +240.0
+  OCR textbook_scan          — +220.0 (learning provenance, not fake frequency)
   Frequency core top 1000    — +210.0
   Active book words          — 200.0 − page × 2.0 (deterministic page order)
   Frequency core top 2000    — +170.0
   Frequency core top 5000    — +120.0
   Active stories             — +10.0
-  OCR textbook_scan          — +8.0
   Duolingo                   — +6.0
   AVP A1                     — +4.0
   Wiktionary/other           — +0.0 (strictly by frequency)
@@ -1513,6 +1513,12 @@ Variant→canonical resolution: story/book word priorities resolve variant
 lemma IDs to their root canonical via multi-hop chain following (A→B→C
 resolves to C). Ensures priority bonuses reach actual introduction
 candidates, which are always canonical lemmas.
+
+Textbook OCR priority reads `user_lemma_knowledge.source` first, then
+`lemmas.source`, so a lemma imported lexically from Wiktionary still receives
+textbook priority when the learner actually encountered it in scanned course
+material. This preserves the real frequency rank while making OCR words flow
+through introduction ahead of lower-priority backfill.
 ```
 
 #### Frequency Score (40%)

@@ -48,9 +48,10 @@ DEFAULT_BATCH_SIZE = 3
 # can never bridge the gap between tiers.
 _TIER_BOOK_BASE = 200.0       # Active book words: 200 - page * 2.0
 _TIER_BOOK_PAGE_STEP = 2.0    # >1.5 gap ensures strict page ordering
+_TIER_TEXTBOOK_SCAN = 220.0   # OCR provenance: user's textbook, ahead of mid-core/backfill
 _TIER_STORY = 10.0            # Active imported stories (non-book)
 _SOURCE_TIER_BONUS = {
-    "textbook_scan": 8.0,     # OCR — user's textbook
+    "textbook_scan": _TIER_TEXTBOOK_SCAN,
     "duolingo": 6.0,          # Curated beginner curriculum
     "avp_a1": 4.0,            # Expert-validated A1 vocab
     # wiktionary, story_import, others: 0.0 (strictly by frequency)
@@ -402,11 +403,18 @@ def select_next_words(
     introduced_ids = set()
     encountered_ids = set()
     suspended_ids = set()
+    ulk_source_by_id: dict[int, str] = {}
     encountered_query = (
-        db.query(UserLemmaKnowledge.lemma_id, UserLemmaKnowledge.knowledge_state)
+        db.query(
+            UserLemmaKnowledge.lemma_id,
+            UserLemmaKnowledge.knowledge_state,
+            UserLemmaKnowledge.source,
+        )
         .all()
     )
-    for lid, state in encountered_query:
+    for lid, state, source in encountered_query:
+        if source:
+            ulk_source_by_id[lid] = source
         if state == "encountered":
             encountered_ids.add(lid)
         elif state == "suspended":
@@ -433,9 +441,6 @@ def select_next_words(
     from app.services.sentence_validator import _is_function_word
     candidates = [c for c in candidates if not (c.lemma_ar_bare and _is_function_word(c.lemma_ar_bare))]
 
-    if not candidates:
-        return []
-
     story_lemmas = _active_story_lemma_ids(db)
     book_pages = _book_page_numbers(db)
 
@@ -445,7 +450,11 @@ def select_next_words(
         for sid in suspended_ids:
             if sid in book_pages or sid in story_lemmas:
                 readmit_ids.add(sid)
-        # Also check textbook_scan source
+        # Also check textbook_scan learning provenance, falling back to lexical source.
+        readmit_ids.update(
+            sid for sid in (suspended_ids - readmit_ids)
+            if ulk_source_by_id.get(sid) == "textbook_scan"
+        )
         if suspended_ids - readmit_ids:
             ocr_suspended = (
                 db.query(Lemma)
@@ -464,9 +473,16 @@ def select_next_words(
                 .filter(Lemma.lemma_id.in_(readmit_ids))
                 .all()
             )
-            candidates.extend([c for c in readmitted if not _is_noise_lemma(c)])
+            candidates.extend([
+                c for c in readmitted
+                if not _is_noise_lemma(c)
+                and not (c.lemma_ar_bare and _is_function_word(c.lemma_ar_bare))
+            ])
             # Treat readmitted suspended words like encountered for bonus purposes
             encountered_ids.update(readmit_ids)
+
+    if not candidates:
+        return []
 
     # Root-sibling interference guard: skip words whose root siblings failed in last 7d
     recently_failed_roots = _get_recently_failed_roots(db)
@@ -577,23 +593,26 @@ def select_next_words(
         # still compete for lower-ranked core words.
         core_rank = frequency_core_rank_by_id.get(lemma.lemma_id)
         core_bonus = _frequency_core_bonus(core_rank)
-        if lemma.lemma_id in book_pages:
-            page = book_pages[lemma.lemma_id]["page"]
-            priority_bonus = _TIER_BOOK_BASE - page * _TIER_BOOK_PAGE_STEP
-            priority_tier = f"book_p{page}"
-        elif lemma.lemma_id in story_lemmas:
+        priority_source = ulk_source_by_id.get(lemma.lemma_id) or lemma.source
+        priority_bonus = _SOURCE_TIER_BONUS.get(priority_source, 0.0)
+        priority_tier = priority_source or "other"
+
+        if lemma.lemma_id in story_lemmas and _TIER_STORY > priority_bonus:
             priority_bonus = _TIER_STORY
             priority_tier = "active_story"
-        else:
-            priority_bonus = _SOURCE_TIER_BONUS.get(lemma.source, 0.0)
-            priority_tier = lemma.source or "other"
+        if lemma.lemma_id in book_pages:
+            page = book_pages[lemma.lemma_id]["page"]
+            book_bonus = _TIER_BOOK_BASE - page * _TIER_BOOK_PAGE_STEP
+            if book_bonus > priority_bonus:
+                priority_bonus = book_bonus
+                priority_tier = f"book_p{page}"
         if core_bonus > priority_bonus:
             priority_bonus = core_bonus
             priority_tier = f"freq_core_{core_rank}"
 
         # Topic as tiebreaker within OCR/Duolingo only
         topic_bonus = 0.0
-        if domain and lemma.source in _TOPIC_BONUS_SOURCES and lemma.thematic_domain == domain:
+        if domain and priority_source in _TOPIC_BONUS_SOURCES and lemma.thematic_domain == domain:
             topic_bonus = _TOPIC_BONUS
 
         # Encountered words (seen in textbook/story but not yet introduced) get a bonus

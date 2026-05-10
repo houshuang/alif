@@ -217,6 +217,64 @@ class TestSelectNextWords:
         assert result[0]["frequency_core_rank"] == 1
         assert result[0]["score_breakdown"]["priority_tier"] == "freq_core_1"
 
+    def test_textbook_scan_learning_source_outranks_mid_frequency_core(self, db_session):
+        top_core = _create_lemma(db_session, "اسم", "name", freq=100)
+        mid_core = _create_lemma(db_session, "قول", "saying", freq=700)
+        textbook = _create_lemma(db_session, "جحرية", "burrowing", freq=None)
+        textbook.source = "wiktionary"
+        db_session.add_all([
+            FrequencyCoreEntry(
+                core_rank=100,
+                lemma_id=top_core.lemma_id,
+                lemma_key=f"lemma:{top_core.lemma_id}",
+                display_form=top_core.lemma_ar,
+                score=100.0,
+            ),
+            FrequencyCoreEntry(
+                core_rank=700,
+                lemma_id=mid_core.lemma_id,
+                lemma_key=f"lemma:{mid_core.lemma_id}",
+                display_form=mid_core.lemma_ar,
+                score=90.0,
+            ),
+            UserLemmaKnowledge(
+                lemma_id=textbook.lemma_id,
+                knowledge_state="encountered",
+                source="textbook_scan",
+                total_encounters=3,
+            ),
+        ])
+        db_session.commit()
+
+        result = select_next_words(db_session, count=3)
+
+        assert [w["lemma_id"] for w in result] == [
+            top_core.lemma_id,
+            textbook.lemma_id,
+            mid_core.lemma_id,
+        ]
+        assert result[0]["score_breakdown"]["priority_tier"] == "freq_core_100"
+        assert result[1]["score_breakdown"]["priority_tier"] == "textbook_scan"
+        assert result[2]["score_breakdown"]["priority_tier"] == "freq_core_700"
+
+    def test_suspended_textbook_scan_learning_source_is_readmitted(self, db_session):
+        textbook = _create_lemma(db_session, "مطمور", "buried", freq=None)
+        textbook.source = "wiktionary"
+        db_session.add(UserLemmaKnowledge(
+            lemma_id=textbook.lemma_id,
+            knowledge_state="suspended",
+            source="textbook_scan",
+            total_encounters=2,
+            leech_suspended_at=datetime.now(timezone.utc),
+        ))
+        db_session.commit()
+
+        result = select_next_words(db_session, count=1)
+
+        assert len(result) == 1
+        assert result[0]["lemma_id"] == textbook.lemma_id
+        assert result[0]["score_breakdown"]["priority_tier"] == "textbook_scan"
+
     def test_root_familiarity_boosts_score(self, db_session):
         root = _create_root(db_session, "ك.ت.ب")
         l1 = _create_lemma(db_session, "كتاب", "book", root, freq=100)
