@@ -8,6 +8,7 @@ Designed to run as a background task after import (opens its own DB session).
 import logging
 import re
 import time
+from typing import Any
 
 from app.database import SessionLocal
 from app.models import Lemma, Root
@@ -57,6 +58,33 @@ FORMS_VALID_KEYS = {
     "masdar", "active_participle", "passive_participle",
     "imperative", "verb_form", "feminine", "elative",
     "sound_f_plural", "sound_m_plural", "dual",
+}
+
+FORMS_BATCH_SIZE = 10
+GRAMMAR_BATCH_SIZE = 20
+
+_FORMS_OBJECT_SCHEMA = {
+    "type": "object",
+    "properties": {key: {"type": "string"} for key in sorted(FORMS_VALID_KEYS)},
+    "additionalProperties": False,
+}
+
+_FORMS_BATCH_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "words": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "lemma_id": {"type": "integer"},
+                    "forms": _FORMS_OBJECT_SCHEMA,
+                },
+                "required": ["lemma_id", "forms"],
+            },
+        },
+    },
+    "required": ["words"],
 }
 
 ETYMOLOGY_SYSTEM_PROMPT = """You are an Arabic etymology and morphology expert. For each word, generate structured etymology data that helps a language learner understand word origins.
@@ -199,8 +227,85 @@ def _generate_examples_batch(lemmas: list[Lemma]) -> dict[int, tuple[str, str]]:
     return out
 
 
+def _clean_forms_result(result: Any) -> dict | None:
+    """Keep only known non-empty string form fields."""
+    if not isinstance(result, dict):
+        return None
+    cleaned = {}
+    for k, v in result.items():
+        if k in FORMS_VALID_KEYS and isinstance(v, str) and v.strip():
+            cleaned[k] = v.strip()
+    return cleaned if cleaned else None
+
+
+def _generate_forms_batch(lemmas: list[Lemma]) -> dict[int, dict]:
+    """Generate forms_json for a batch of lemmas. Returns {lemma_id: forms}."""
+    from app.services.llm import generate_completion, AllProvidersFailed
+
+    if not lemmas:
+        return {}
+
+    lines = []
+    for lemma in lemmas:
+        parts = [f"lemma_id={lemma.lemma_id}", f"word={lemma.lemma_ar}"]
+        if lemma.pos:
+            parts.append(f"pos={lemma.pos}")
+        if lemma.gloss_en:
+            parts.append(f'meaning="{lemma.gloss_en}"')
+        lines.append("- " + ", ".join(parts))
+
+    prompt = (
+        "Return the morphological forms for each Arabic word below.\n\n"
+        + "\n".join(lines)
+        + "\n\nReturn JSON exactly in this shape:\n"
+        '{"words": [{"lemma_id": 1, "forms": {"plural": "..."}}, ...]}\n'
+        "Use an empty forms object when a word has no meaningful forms."
+    )
+
+    try:
+        result = generate_completion(
+            prompt=prompt,
+            system_prompt=FORMS_SYSTEM_PROMPT,
+            json_schema=_FORMS_BATCH_SCHEMA,
+            temperature=0.1,
+            model_override="claude_haiku",
+            task_type="enrichment_forms",
+        )
+    except AllProvidersFailed:
+        return {}
+
+    items: Any
+    if isinstance(result, list):
+        items = result
+    elif isinstance(result, dict):
+        items = result.get("words", result.get("forms", result.get("items", [])))
+    else:
+        items = []
+    if not isinstance(items, list):
+        return {}
+
+    requested_ids = {lemma.lemma_id for lemma in lemmas}
+    out: dict[int, dict] = {}
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        lid = item.get("lemma_id")
+        if not isinstance(lid, int) or lid not in requested_ids:
+            continue
+        forms = item.get("forms", item)
+        cleaned = _clean_forms_result(forms)
+        if cleaned:
+            out[lid] = cleaned
+    return out
+
+
 def _generate_forms(lemma: Lemma) -> dict | None:
     """Generate forms_json for a single lemma via LLM."""
+    return _generate_forms_batch([lemma]).get(lemma.lemma_id)
+
+
+def _generate_forms_single_legacy(lemma: Lemma) -> dict | None:
+    """Legacy single-word forms call used only as a fallback for batch failures."""
     from app.services.llm import generate_completion, AllProvidersFailed
 
     parts = [f"Arabic: {lemma.lemma_ar}"]
@@ -221,11 +326,7 @@ def _generate_forms(lemma: Lemma) -> dict | None:
     except AllProvidersFailed:
         return None
 
-    cleaned = {}
-    for k, v in result.items():
-        if k in FORMS_VALID_KEYS and isinstance(v, str) and v.strip():
-            cleaned[k] = v.strip()
-    return cleaned if cleaned else None
+    return _clean_forms_result(result)
 
 
 def _generate_etymology_batch(lemmas: list[Lemma], roots_by_id: dict) -> dict[int, dict]:
@@ -310,18 +411,32 @@ def enrich_lemmas_batch(lemma_ids: list[int]) -> dict:
                     pass
         db.commit()
 
-        # ── Step 2: Forms (individual LLM calls — collect results first) ──
+        # ── Step 2: Forms (batched LLM calls — collect results first) ──
         forms_results: dict[int, dict] = {}
-        for lemma in lemmas:
-            if lemma.forms_json:
-                continue
+        need_forms = [l for l in lemmas if not l.forms_json]
+        for i in range(0, len(need_forms), FORMS_BATCH_SIZE):
+            batch = need_forms[i:i + FORMS_BATCH_SIZE]
             try:
-                forms = _generate_forms(lemma)
-                if forms:
-                    forms_results[lemma.lemma_id] = forms
-                time.sleep(0.3)
+                forms_map = _generate_forms_batch(batch)
+                forms_results.update(forms_map)
+                missing = [l for l in batch if l.lemma_id not in forms_map]
+                if missing and len(missing) < len(batch):
+                    retry_map = _generate_forms_batch(missing)
+                    forms_results.update(retry_map)
+                time.sleep(1)
             except Exception:
-                logger.warning(f"Forms generation failed for lemma {lemma.lemma_id}")
+                logger.warning(
+                    f"Forms batch failed for lemmas {[l.lemma_id for l in batch]}; "
+                    "falling back to single-word calls"
+                )
+                for lemma in batch:
+                    try:
+                        forms = _generate_forms_single_legacy(lemma)
+                        if forms:
+                            forms_results[lemma.lemma_id] = forms
+                        time.sleep(0.3)
+                    except Exception:
+                        logger.warning(f"Forms generation failed for lemma {lemma.lemma_id}")
 
         # ── Step 3: Etymology (batched LLM calls — collect results first) ──
         etym_results: dict[int, dict] = {}
@@ -397,20 +512,38 @@ def enrich_lemmas_batch(lemma_ids: list[int]) -> dict:
                 except Exception:
                     logger.warning("Root meaning backfill failed")
 
-        # ── Step 6: Grammar features (individual LLM calls) ──
+        # ── Step 6: Grammar features (batched LLM calls) ──
         need_grammar = [l for l in lemmas if not l.grammar_features_json
                         and l.pos in ('noun', 'verb', 'adjective', 'adj')]
         if need_grammar:
-            from app.services.grammar_tagger import tag_lemma_grammar
-            for lemma in need_grammar:
+            from app.services.grammar_tagger import tag_lemma_grammar, tag_lemmas_grammar_batch
+            for i in range(0, len(need_grammar), GRAMMAR_BATCH_SIZE):
+                batch = need_grammar[i:i + GRAMMAR_BATCH_SIZE]
                 try:
-                    features = tag_lemma_grammar(lemma.lemma_ar, lemma.pos, lemma.gloss_en)
-                    if features:
-                        lemma.grammar_features_json = features
-                        summary["grammar"] += 1
-                    time.sleep(0.3)
+                    features_map = tag_lemmas_grammar_batch(batch)
+                    missing = [l for l in batch if l.lemma_id not in features_map]
+                    if missing and len(missing) < len(batch):
+                        features_map.update(tag_lemmas_grammar_batch(missing))
+                    for lemma in batch:
+                        features = features_map.get(lemma.lemma_id)
+                        if features:
+                            lemma.grammar_features_json = features
+                            summary["grammar"] += 1
+                    time.sleep(1)
                 except Exception:
-                    logger.warning(f"Grammar tagging failed for lemma {lemma.lemma_id}")
+                    logger.warning(
+                        f"Grammar tagging batch failed for lemmas {[l.lemma_id for l in batch]}; "
+                        "falling back to single-word calls"
+                    )
+                    for lemma in batch:
+                        try:
+                            features = tag_lemma_grammar(lemma.lemma_ar, lemma.pos, lemma.gloss_en)
+                            if features:
+                                lemma.grammar_features_json = features
+                                summary["grammar"] += 1
+                            time.sleep(0.3)
+                        except Exception:
+                            logger.warning(f"Grammar tagging failed for lemma {lemma.lemma_id}")
             db.commit()
 
         # ── Step 7: Example sentences (batched LLM calls) ──

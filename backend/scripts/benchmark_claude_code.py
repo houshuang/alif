@@ -10,6 +10,7 @@ Usage:
     python3 scripts/benchmark_claude_code.py                           # all tasks
     python3 scripts/benchmark_claude_code.py --tasks sentence_gen      # specific task
     python3 scripts/benchmark_claude_code.py --tasks sentence_gen,forms
+    python3 scripts/benchmark_claude_code.py --tasks self_correct_batch --batch-sizes 5,10,15 --count 30
     python3 scripts/benchmark_claude_code.py --count 5                 # fewer samples
     python3 scripts/benchmark_claude_code.py --models gemini,sonnet    # specific models
 """
@@ -356,6 +357,137 @@ def benchmark_sentence_gen(
             print(f"    {model:12s}: ERROR: {e}")
 
     return results
+
+
+def benchmark_self_correct_batch(
+    data: dict,
+    batch_sizes: list[int],
+    count: int = 20,
+    sentences_per_word: int = 2,
+    judge_quality: bool = True,
+    timeout: int | None = None,
+) -> dict:
+    """Benchmark the production self-correct generator across batch sizes.
+
+    This answers the throughput question directly: for the same target set,
+    compare several horizontal batch sizes while keeping the prompt, validator,
+    model, and post-generation gates aligned with production.
+    """
+    from app.config import settings
+    from app.services.material_generator import _self_correct_batch_timeout
+    from app.services.sentence_self_correct import generate_sentences_self_correct_batch
+
+    targets = data["target_words"][:count]
+    target_ids = [int(t["lemma_id"]) for t in targets]
+    target_by_id = {int(t["lemma_id"]): t for t in targets}
+    target_bare_by_id = {
+        int(t["lemma_id"]): normalize_alef(strip_diacritics(t.get("bare") or t["arabic"]))
+        for t in targets
+    }
+    db_path = settings.database_url.replace("sqlite:///", "")
+    out: dict[int, dict] = {}
+
+    for batch_size in batch_sizes:
+        batch_size = max(1, int(batch_size))
+        print(f"\n  self_correct_batch size={batch_size}: {len(target_ids)} target words")
+        started = time.time()
+        result = {
+            "target_count": len(target_ids),
+            "batch_size": batch_size,
+            "calls": 0,
+            "errors": 0,
+            "returned": 0,
+            "deterministic_valid": 0,
+            "quality_approved": 0,
+            "targets_with_zero": [],
+            "cost_usd": 0.0,
+            "turns": 0,
+            "elapsed_s": 0.0,
+            "sentences": [],
+        }
+
+        returned_by_target = {tid: 0 for tid in target_ids}
+        for i in range(0, len(target_ids), batch_size):
+            chunk = target_ids[i:i + batch_size]
+            result["calls"] += 1
+            chunk_timeout = timeout or _self_correct_batch_timeout(len(chunk))
+            print(f"    call {result['calls']}: {len(chunk)} targets, timeout={chunk_timeout}s")
+            try:
+                res = generate_sentences_self_correct_batch(
+                    target_lemma_ids=chunk,
+                    db_path=db_path,
+                    needed_per_target=sentences_per_word,
+                    max_budget_usd=max(0.2, 0.1 * len(chunk)),
+                    timeout=chunk_timeout,
+                    keep_work_dir=True,
+                )
+            except Exception as exc:
+                result["errors"] += 1
+                result["sentences"].append({
+                    "chunk": chunk,
+                    "error": str(exc)[:240],
+                })
+                print(f"      ERROR: {exc}")
+                continue
+
+            result["cost_usd"] += float(getattr(res, "cost_usd", 0.0) or 0.0)
+            result["turns"] += int(getattr(res, "turns", 0) or 0)
+            for tid in chunk:
+                target = target_by_id.get(tid, {})
+                target_bare = target_bare_by_id.get(tid, "")
+                sentences = res.sentences_by_target.get(tid, [])
+                returned_by_target[tid] += len(sentences)
+                for s in sentences:
+                    vr = validate_sentence(s.arabic, target_bare, data["known_bare"])
+                    result["returned"] += 1
+                    if vr.valid:
+                        result["deterministic_valid"] += 1
+                    result["sentences"].append({
+                        "target_lemma_id": tid,
+                        "target": target.get("arabic", ""),
+                        "gloss": target.get("english", ""),
+                        "arabic": s.arabic,
+                        "english": s.english,
+                        "valid": vr.valid,
+                        "unknown": vr.unknown_words,
+                    })
+
+        quality_items = [
+            s for s in result["sentences"]
+            if isinstance(s, dict) and s.get("arabic") and s.get("valid")
+        ]
+        if judge_quality and quality_items:
+            for i in range(0, len(quality_items), 10):
+                chunk = quality_items[i:i + 10]
+                reviews = review_sentences_quality([
+                    {"arabic": s["arabic"], "english": s["english"]}
+                    for s in chunk
+                ])
+                for item, review in zip(chunk, reviews):
+                    approved = review.natural and review.translation_correct
+                    item["quality_approved"] = approved
+                    item["quality_reason"] = review.reason
+                    if approved:
+                        result["quality_approved"] += 1
+
+        result["targets_with_zero"] = [
+            tid for tid, n in returned_by_target.items() if n == 0
+        ]
+        result["elapsed_s"] = round(time.time() - started, 1)
+        out[batch_size] = result
+        print(
+            "    returned={returned} valid={valid} approved={approved} "
+            "zero_targets={zero} errors={errors} elapsed={elapsed:.1f}s".format(
+                returned=result["returned"],
+                valid=result["deterministic_valid"],
+                approved=result["quality_approved"] if judge_quality else -1,
+                zero=len(result["targets_with_zero"]),
+                errors=result["errors"],
+                elapsed=result["elapsed_s"],
+            )
+        )
+
+    return out
 
 
 def _generate_batch(
@@ -761,6 +893,30 @@ def print_sentence_report(results: dict):
                 print(f"      unknown: {unknown_str}")
 
 
+def print_self_correct_report(results: dict, judge_quality: bool):
+    """Print production self-correct batch-size comparison."""
+    print("\n" + "=" * 86)
+    print("PRODUCTION SELF-CORRECT BATCH RESULTS")
+    print("=" * 86)
+    quality_header = "Approved" if judge_quality else "Approved*"
+    print(
+        f"{'Batch':>5} {'Calls':>6} {'Targets':>8} {'Returned':>9} "
+        f"{'Valid':>7} {quality_header:>10} {'Zero':>6} {'Errors':>7} "
+        f"{'Turns':>7} {'Time':>8}"
+    )
+    print("-" * 86)
+    for batch_size, r in sorted(results.items()):
+        approved = r["quality_approved"] if judge_quality else 0
+        print(
+            f"{batch_size:>5} {r['calls']:>6} {r['target_count']:>8} "
+            f"{r['returned']:>9} {r['deterministic_valid']:>7} "
+            f"{approved:>10} {len(r['targets_with_zero']):>6} "
+            f"{r['errors']:>7} {r['turns']:>7} {r['elapsed_s']:>7.1f}s"
+        )
+    if not judge_quality:
+        print("*Quality review was skipped; compare deterministic validity only.")
+
+
 def print_quality_report(results: dict):
     """Print quality gate comparison."""
     print("\n" + "=" * 70)
@@ -834,10 +990,26 @@ def main():
                         help="Number of test items per task (default: 10)")
     parser.add_argument("--output-dir", default=None,
                         help="Directory for JSON results (default: backend/data/benchmarks/)")
+    parser.add_argument("--batch-sizes", default="5,10,15",
+                        help="Batch sizes for self_correct_batch, comma-separated (default: 5,10,15)")
+    parser.add_argument("--sentences-per-word", type=int, default=2,
+                        help="Sentences per target for self_correct_batch (default: 2)")
+    parser.add_argument("--skip-quality", action="store_true",
+                        help="Skip Haiku quality review in self_correct_batch benchmark")
+    parser.add_argument("--self-correct-timeout", type=int, default=None,
+                        help="Override per-call timeout for self_correct_batch")
     args = parser.parse_args()
 
     tasks = args.tasks.split(",")
     models = args.models.split(",") if args.models else ALL_MODELS
+    batch_sizes = [
+        int(x) for x in args.batch_sizes.split(",")
+        if x.strip()
+    ]
+
+    if "self_correct_batch" in tasks and not claude_available():
+        print("ERROR: self_correct_batch requires the Claude CLI.")
+        sys.exit(1)
 
     # Validate models
     cli_models_requested = [m for m in models if m in CLI_MODELS or m in CLI_BATCH_MODELS]
@@ -875,6 +1047,21 @@ def main():
         print("\n--- Sentence Generation ---")
         all_results["sentence_gen"] = benchmark_sentence_gen(data, models, args.count)
         print_sentence_report(all_results["sentence_gen"])
+
+    if "self_correct_batch" in tasks:
+        print("\n--- Production Self-Correct Batch Sizes ---")
+        all_results["self_correct_batch"] = benchmark_self_correct_batch(
+            data,
+            batch_sizes=batch_sizes,
+            count=args.count,
+            sentences_per_word=args.sentences_per_word,
+            judge_quality=not args.skip_quality,
+            timeout=args.self_correct_timeout,
+        )
+        print_self_correct_report(
+            all_results["self_correct_batch"],
+            judge_quality=not args.skip_quality,
+        )
 
     if "quality_gate" in tasks:
         print("\n--- Quality Gate ---")

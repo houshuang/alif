@@ -48,7 +48,7 @@ def test_self_correct_batch_falls_back_to_legacy_generation(db_session):
     legacy.assert_called_once()
 
 
-def test_self_correct_batch_uses_fast_timeout(monkeypatch):
+def test_self_correct_batch_uses_mid_size_timeout(monkeypatch):
     monkeypatch.delenv("ALIF_SELF_CORRECT_BATCH_TIMEOUT", raising=False)
     called = {}
 
@@ -64,11 +64,11 @@ def test_self_correct_batch_uses_fast_timeout(monkeypatch):
         ),
     ):
         material_generator._generate_via_self_correct(
-            [{"lemma_id": i} for i in range(10)],
+            [{"lemma_id": i} for i in range(8)],
             count_per_word=1,
         )
 
-    assert called["timeout"] == 180
+    assert called["timeout"] == 300
 
 
 def test_self_correct_batch_honors_cli_cooldown():
@@ -172,3 +172,62 @@ def test_batch_generation_stores_quality_approved_sentence(db_session):
     assert result["words_failed"] == []
     stored = db_session.query(Sentence).one()
     assert stored.arabic_text == "الكِتَابُ جَدِيدٌ."
+
+
+def test_multi_target_validation_uses_one_batch_verifier(db_session):
+    db_session.add_all([
+        Lemma(
+            lemma_id=1,
+            lemma_ar="كِتَابٌ",
+            lemma_ar_bare="كتاب",
+            gloss_en="book",
+            pos="noun",
+        ),
+        Lemma(
+            lemma_id=2,
+            lemma_ar="جَدِيدٌ",
+            lemma_ar_bare="جديد",
+            gloss_en="new",
+            pos="adjective",
+        ),
+    ])
+    db_session.commit()
+
+    from app.services.sentence_validator import build_comprehensive_lemma_lookup
+
+    lookup = build_comprehensive_lemma_lookup(db_session)
+    candidates = [
+        (
+            SimpleNamespace(
+                arabic="كِتَابٌ جَدِيدٌ",
+                english="A new book.",
+                primary_target_lemma_id=1,
+            ),
+            {"كتاب": 1, "جديد": 2},
+        ),
+        (
+            SimpleNamespace(
+                arabic="كِتَابٌ جَدِيدٌ",
+                english="A new book.",
+                primary_target_lemma_id=2,
+            ),
+            {"كتاب": 1, "جديد": 2},
+        ),
+    ]
+
+    with patch(
+        "app.services.sentence_validator.batch_verify_sentences",
+        return_value=[
+            {"disambiguation": [], "issues": []},
+            {"disambiguation": [], "issues": []},
+        ],
+    ) as batch_verify:
+        validated = material_generator.validate_multi_target_sentences_batch(
+            db_session, candidates, lookup,
+        )
+
+    assert len(validated) == 2
+    batch_verify.assert_called_once()
+    verify_candidates = batch_verify.call_args.args[0]
+    assert len(verify_candidates) == 2
+    assert sum(m.is_target for m in validated[0][1]) >= 2

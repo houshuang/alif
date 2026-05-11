@@ -36,7 +36,11 @@ def _self_correct_batch_timeout(group_size: int) -> int:
             return max(30, int(raw))
         except ValueError:
             logger.warning("Ignoring invalid ALIF_SELF_CORRECT_BATCH_TIMEOUT=%r", raw)
-    return 180 if group_size >= 10 else 120
+    if group_size >= 5:
+        return 300
+    if group_size >= 2:
+        return 180
+    return 120
 
 
 def _material_update_lock_path() -> Path:
@@ -79,6 +83,9 @@ ACQUIRING_RESCUE_SENTENCE_TARGET = 3
 MAINTENANCE_PASSAGE_RECENT_WINDOW = timedelta(hours=12)
 MAINTENANCE_PASSAGE_MIN_DUE_TARGETS = 6
 MAINTENANCE_PASSAGE_MAX_RECENT = 2
+MULTI_TARGET_VERIFY_BATCH_SIZE = max(
+    1, int(os.environ.get("ALIF_MULTI_TARGET_VERIFY_BATCH_SIZE", "10"))
+)
 
 
 def active_sentence_counts_by_lemma(db, lemma_ids: list[int]) -> dict[int, int]:
@@ -793,7 +800,7 @@ def generate_material_for_word(lemma_id: int, needed: int = 2, model_override: s
     return stored
 
 
-BATCH_WORD_SIZE = 15  # max words per batch generation call
+BATCH_WORD_SIZE = max(1, int(os.environ.get("ALIF_BATCH_WORD_SIZE", "8")))
 
 
 def batch_generate_material(
@@ -1287,6 +1294,138 @@ def validate_multi_target_sentence(
     return mappings
 
 
+def validate_multi_target_sentences_batch(
+    db,
+    candidates: list[tuple[object, dict[str, int]]],
+    lemma_lookup: dict[str, int],
+) -> list[tuple[object, list]]:
+    """Validate multi-target generated sentences with batched verifier calls.
+
+    Each candidate is ``(result, target_bares)`` where ``result`` has the same
+    shape as ``MultiTargetGeneratedSentence``. Returns validated
+    ``(result, mappings)`` pairs ready for ``write_multi_target_sentence``.
+    """
+    from app.services.sentence_validator import (
+        apply_corrections,
+        batch_verify_sentences,
+        map_tokens_to_lemmas,
+        normalize_alef,
+        strip_diacritics,
+        strip_punctuation,
+        tokenize_display,
+        _strip_clitics,
+    )
+
+    if not candidates:
+        return []
+
+    verification_candidates: list[dict] = []
+    lemma_ids: set[int] = set()
+
+    for result, target_bares in candidates:
+        target_normalized: dict[str, int] = {}
+        for bare, lid in target_bares.items():
+            norm = normalize_alef(bare)
+            target_normalized[norm] = lid
+            if not norm.startswith("ال"):
+                target_normalized["ال" + norm] = lid
+            if norm.startswith("ال") and len(norm) > 2:
+                target_normalized[norm[2:]] = lid
+
+        primary_bare = None
+        for bare, lid in target_bares.items():
+            if lid == result.primary_target_lemma_id:
+                primary_bare = bare
+                break
+        if not primary_bare:
+            primary_bare = next(iter(target_bares.keys()), "")
+
+        tokens = tokenize_display(result.arabic)
+        mappings = map_tokens_to_lemmas(
+            tokens=tokens,
+            lemma_lookup=lemma_lookup,
+            target_lemma_id=result.primary_target_lemma_id,
+            target_bare=primary_bare,
+        )
+
+        unmapped = [m.surface_form for m in mappings if m.lemma_id is None]
+        if unmapped:
+            logger.warning(f"Skipping multi-target sentence with unmapped words: {unmapped}")
+            continue
+
+        for m in mappings:
+            if m.lemma_id:
+                lemma_ids.add(m.lemma_id)
+            for alt_id in m.alternative_lemma_ids or []:
+                lemma_ids.add(alt_id)
+
+        verification_candidates.append({
+            "result": result,
+            "target_normalized": target_normalized,
+            "arabic": result.arabic,
+            "english": result.english,
+            "mappings": mappings,
+            "has_ambiguous": any(m.alternative_lemma_ids for m in mappings),
+        })
+
+    if not verification_candidates:
+        return []
+
+    lemma_map_for_verify = {
+        l.lemma_id: l for l in db.query(Lemma).filter(
+            Lemma.lemma_id.in_(list(lemma_ids))
+        ).all()
+    } if lemma_ids else {}
+
+    validated: list[tuple[object, list]] = []
+    for i in range(0, len(verification_candidates), MULTI_TARGET_VERIFY_BATCH_SIZE):
+        chunk = verification_candidates[i:i + MULTI_TARGET_VERIFY_BATCH_SIZE]
+        batch_results = batch_verify_sentences(chunk, lemma_map_for_verify)
+        if batch_results is None:
+            logger.warning("Batch mapping verification unavailable for multi-target sentences")
+            continue
+
+        for cand, verify_result in zip(chunk, batch_results):
+            mappings = cand["mappings"]
+
+            pos_to_mapping = {m.position: m for m in mappings}
+            for choice in verify_result.get("disambiguation", []):
+                pos = choice.get("position")
+                new_lid = choice.get("lemma_id")
+                m = pos_to_mapping.get(pos)
+                if m and new_lid and new_lid != m.lemma_id:
+                    valid_ids = set([m.lemma_id] + (m.alternative_lemma_ids or []))
+                    if new_lid in valid_ids:
+                        m.lemma_id = new_lid
+
+            corrections = verify_result.get("issues", [])
+            if corrections:
+                failed = apply_corrections(
+                    corrections, mappings, db, arabic_text=cand["result"].arabic,
+                )
+                if failed:
+                    logger.warning("Mapping correction failed in multi-target sentence, discarding")
+                    continue
+
+            target_normalized = cand["target_normalized"]
+            for m in mappings:
+                if m.is_target:
+                    continue
+                bare = strip_punctuation(strip_diacritics(m.surface_form))
+                bare_norm = normalize_alef(bare.replace("\u0640", ""))
+                if bare_norm in target_normalized:
+                    m.is_target = True
+                    continue
+                for stem in _strip_clitics(bare_norm):
+                    if normalize_alef(stem) in target_normalized:
+                        m.is_target = True
+                        break
+
+            validated.append((cand["result"], mappings))
+
+    return validated
+
+
 def write_multi_target_sentence(
     db,
     result,
@@ -1729,20 +1868,21 @@ def _warm_sentence_cache_impl(llm_model: str = "claude_sonnet") -> dict:
         except Exception:
             logger.warning(f"Warm cache: multi-target failed for group")
 
-    # ── Phase 3a: Validate multi-target sentences (LLM disambig + verify) ──
+    # ── Phase 3a: Validate multi-target sentences (batched LLM disambig + verify) ──
     # DB reads only — a dedicated session means we never autoflush a write
     # during an LLM call, which was the source of repeated lock contention.
     validated: list[tuple[object, list]] = []
     if all_results:
         db = SessionLocal()
         try:
-            for results, target_bares in all_results:
-                for mres in results:
-                    mappings = validate_multi_target_sentence(
-                        db, mres, mapping_lookup, target_bares,
-                    )
-                    if mappings is not None:
-                        validated.append((mres, mappings))
+            candidates = [
+                (mres, target_bares)
+                for results, target_bares in all_results
+                for mres in results
+            ]
+            validated = validate_multi_target_sentences_batch(
+                db, candidates, mapping_lookup,
+            )
         except Exception:
             logger.exception("Warm cache: failed to validate multi-target sentences")
         finally:

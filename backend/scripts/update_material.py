@@ -270,7 +270,86 @@ def salvage_due_dense_inactive_sentences(
 # Only processes sentences containing words the learner is actively studying.
 
 MAX_ENRICH_PER_RUN = 50
+CORPUS_ENRICH_BATCH_SIZE = max(1, int(os.environ.get("ALIF_CORPUS_ENRICH_BATCH_SIZE", "10")))
+CORPUS_VERIFY_BATCH_SIZE = max(1, int(os.environ.get("ALIF_CORPUS_VERIFY_BATCH_SIZE", "10")))
 LOCK_PATH = Path(os.environ.get("ALIF_UPDATE_MATERIAL_LOCK", "/tmp/alif-update-material.lock"))
+
+_CORPUS_ENRICH_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "sentences": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "id": {"type": "integer"},
+                    "diacritized": {"type": "string"},
+                    "translation": {"type": "string"},
+                },
+                "required": ["id", "diacritized", "translation"],
+            },
+        },
+    },
+    "required": ["sentences"],
+}
+
+
+def _has_diacritics(arabic_text: str | None) -> bool:
+    return any(
+        0x064B <= ord(c) <= 0x0652 or ord(c) == 0x0670
+        for c in (arabic_text or "")
+    )
+
+
+def _generate_corpus_enrichment_batch(sentences: list[Sentence]) -> dict[int, dict[str, str]]:
+    """Diacritize and translate corpus sentences in one structured LLM call."""
+    from app.services.llm import generate_completion, AllProvidersFailed
+
+    if not sentences:
+        return {}
+
+    lines = [f"- id={sent.id}: {sent.arabic_text}" for sent in sentences]
+    prompt = (
+        "For each Arabic sentence below:\n"
+        "1. Add full tashkeel (diacritics/vowelization) to the Arabic text. "
+        "Keep the exact same words; only add harakat.\n"
+        "2. Translate it to natural English.\n\n"
+        + "\n".join(lines)
+        + "\n\nReturn JSON exactly as "
+        '{"sentences": [{"id": 1, "diacritized": "...", "translation": "..."}]}.'
+    )
+
+    try:
+        result = generate_completion(
+            prompt=prompt,
+            system_prompt="Add diacritics and translate Arabic sentences. Return JSON only.",
+            json_schema=_CORPUS_ENRICH_SCHEMA,
+            temperature=0.0,
+            model_override="claude_haiku",
+            task_type="corpus_enrichment",
+        )
+    except AllProvidersFailed:
+        return {}
+
+    if not isinstance(result, dict):
+        return {}
+    items = result.get("sentences", [])
+    if not isinstance(items, list):
+        return {}
+
+    requested_ids = {sent.id for sent in sentences}
+    out: dict[int, dict[str, str]] = {}
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        sid = item.get("id")
+        if not isinstance(sid, int) or sid not in requested_ids:
+            continue
+        diacritized = (item.get("diacritized") or "").strip()
+        translation = (item.get("translation") or "").strip()
+        if diacritized or translation:
+            out[sid] = {"diacritized": diacritized, "translation": translation}
+    return out
 
 
 def enrich_corpus_sentences(db: Session) -> int:
@@ -279,10 +358,9 @@ def enrich_corpus_sentences(db: Session) -> int:
     Concurrency: uses a simple row-level guard — sets mappings_verified_at to
     a sentinel before processing, so overlapping cron runs skip it.
     """
-    from app.services.llm import generate_completion, AllProvidersFailed
     from app.services.sentence_validator import (
         apply_corrections,
-        verify_and_correct_mappings_llm,
+        batch_verify_sentences,
         build_comprehensive_lemma_lookup,
         detect_proper_names,
         map_tokens_to_lemmas,
@@ -363,55 +441,57 @@ def enrich_corpus_sentences(db: Session) -> int:
     enriched = 0
     now = datetime.now(timezone.utc)
 
-    for sent in unverified:
-        arabic = sent.arabic_text
+    # Step 1: Diacritize + translate via batched LLM calls.
+    ready_for_mapping: list[Sentence] = []
+    need_enrichment = [
+        sent for sent in unverified
+        if not _has_diacritics(sent.arabic_text) or not sent.english_translation
+    ]
+    need_enrichment_ids = {sent.id for sent in need_enrichment}
+    ready_for_mapping.extend(sent for sent in unverified if sent.id not in need_enrichment_ids)
 
-        # Check if diacritization is actually present (harakat characters)
-        needs_diacritics = not any(
-            0x064B <= ord(c) <= 0x0652 or ord(c) == 0x0670
-            for c in (sent.arabic_text or "")
-        )
-        needs_translation = not sent.english_translation
+    for i in range(0, len(need_enrichment), CORPUS_ENRICH_BATCH_SIZE):
+        batch = need_enrichment[i:i + CORPUS_ENRICH_BATCH_SIZE]
+        try:
+            enrich_map = _generate_corpus_enrichment_batch(batch)
+        except Exception as e:
+            print(f"  Sentences {[s.id for s in batch]}: diacritize/translate batch failed: {e}")
+            enrich_map = {}
 
-        # Step 1: Diacritize + translate via LLM
-        if needs_diacritics or needs_translation:
-            prompt = (
-                "You are an Arabic language expert. For the following Arabic sentence:\n\n"
-                f"{arabic}\n\n"
-                "1. Add full tashkeel (diacritics/vowelization) to the Arabic text. "
-                "Keep the exact same words, just add harakat.\n"
-                "2. Translate it to natural English.\n\n"
-                "Return JSON: {\"diacritized\": \"...\", \"translation\": \"...\"}"
-            )
-            try:
-                result = generate_completion(
-                    prompt=prompt,
-                    system_prompt="Add diacritics and translate Arabic. Return JSON only.",
-                    json_mode=True,
-                    temperature=0.0,
-                    model_override="claude_haiku",
-                    task_type="corpus_enrichment",
-                )
-                diacritized = result.get("diacritized", "")
-                translation = result.get("translation", "")
-                if diacritized:
-                    sent.arabic_text = diacritized
-                    sent.transliteration = transliterate_arabic(diacritized) or ""
-                if translation:
-                    sent.english_translation = translation
-            except (AllProvidersFailed, Exception) as e:
-                print(f"  Sentence {sent.id}: diacritize/translate failed: {e}")
+        for sent in batch:
+            enriched_item = enrich_map.get(sent.id)
+            needs_diacritics = not _has_diacritics(sent.arabic_text)
+            needs_translation = not sent.english_translation
+            if not enriched_item:
+                print(f"  Sentence {sent.id}: diacritize/translate missing from batch result")
                 sent.mappings_verified_at = None  # release claim for retry
-                db.commit()
                 continue
 
-            # Release write lock before the verify LLM call.
-            # Without this, the next autoflush (line below) writes the dirty
-            # sent.arabic_text / english_translation, acquiring the write lock,
-            # which then stays held through the 15-25s verify_and_correct call.
-            db.commit()
+            diacritized = enriched_item.get("diacritized", "")
+            translation = enriched_item.get("translation", "")
+            if needs_diacritics and not diacritized:
+                print(f"  Sentence {sent.id}: diacritics missing from batch result")
+                sent.mappings_verified_at = None
+                continue
+            if needs_translation and not translation:
+                print(f"  Sentence {sent.id}: translation missing from batch result")
+                sent.mappings_verified_at = None
+                continue
 
-        # Step 2: Re-map tokens with diacritized text + proper names
+            if diacritized:
+                sent.arabic_text = diacritized
+                sent.transliteration = transliterate_arabic(diacritized) or ""
+            if translation:
+                sent.english_translation = translation
+            ready_for_mapping.append(sent)
+
+        # Release the write lock before mapping verification LLM calls.
+        db.commit()
+
+    # Step 2: Re-map tokens with diacritized text + proper names.
+    verification_candidates: list[dict] = []
+    mapping_ids: set[int] = set()
+    for sent in ready_for_mapping:
         tokens = tokenize_display(sent.arabic_text)
         mappings = map_tokens_to_lemmas(
             tokens=tokens,
@@ -421,23 +501,59 @@ def enrich_corpus_sentences(db: Session) -> int:
             proper_names=proper_names,
         )
 
-        # Refresh lemma_map for any new lemma_ids
-        new_ids = {m.lemma_id for m in mappings if m.lemma_id and m.lemma_id not in lemma_map}
-        if new_ids:
-            for l in db.query(Lemma).filter(Lemma.lemma_id.in_(new_ids)).all():
-                lemma_map[l.lemma_id] = l
+        for m in mappings:
+            if m.lemma_id:
+                mapping_ids.add(m.lemma_id)
+            for alt_id in m.alternative_lemma_ids or []:
+                mapping_ids.add(alt_id)
 
-        # Step 3: Verify mappings via LLM (same pipeline as LLM-generated sentences)
-        corrections = verify_and_correct_mappings_llm(
-            sent.arabic_text,
-            sent.english_translation or "",
-            mappings,
-            lemma_map,
-        )
+        verification_candidates.append({
+            "sentence": sent,
+            "arabic": sent.arabic_text,
+            "english": sent.english_translation or "",
+            "mappings": mappings,
+            "has_ambiguous": any(m.alternative_lemma_ids for m in mappings),
+        })
 
-        if corrections is None:
-            print(f"  Sentence {sent.id}: verification unavailable, skipping")
+    # Refresh lemma_map for any new lemma_ids.
+    new_ids = {lid for lid in mapping_ids if lid and lid not in lemma_map}
+    if new_ids:
+        for l in db.query(Lemma).filter(Lemma.lemma_id.in_(new_ids)).all():
+            lemma_map[l.lemma_id] = l
+
+    # Step 3: Verify mappings via LLM in batches.
+    verification_results: dict[int, dict] = {}
+    for i in range(0, len(verification_candidates), CORPUS_VERIFY_BATCH_SIZE):
+        batch = verification_candidates[i:i + CORPUS_VERIFY_BATCH_SIZE]
+        batch_results = batch_verify_sentences(batch, lemma_map)
+        if batch_results is None:
+            print(f"  Sentences {[c['sentence'].id for c in batch]}: verification unavailable, releasing for retry")
+            for cand in batch:
+                cand["sentence"].mappings_verified_at = None
+            db.commit()
             continue
+        for cand, verify_result in zip(batch, batch_results):
+            verification_results[cand["sentence"].id] = verify_result
+
+    for cand in verification_candidates:
+        sent = cand["sentence"]
+        verify_result = verification_results.get(sent.id)
+        if verify_result is None:
+            continue
+
+        mappings = cand["mappings"]
+
+        pos_to_mapping = {m.position: m for m in mappings}
+        for choice in verify_result.get("disambiguation", []):
+            pos = choice.get("position")
+            new_lid = choice.get("lemma_id")
+            m = pos_to_mapping.get(pos)
+            if m and new_lid and new_lid != m.lemma_id:
+                valid_ids = set([m.lemma_id] + (m.alternative_lemma_ids or []))
+                if new_lid in valid_ids:
+                    m.lemma_id = new_lid
+
+        corrections = verify_result.get("issues", [])
 
         # Apply corrections
         if corrections:
@@ -452,7 +568,7 @@ def enrich_corpus_sentences(db: Session) -> int:
                 continue
 
         # Check for unmapped content words — reject if any remain
-        from app.services.sentence_validator import _is_function_word, strip_punctuation, strip_tatweel
+        from app.services.sentence_validator import strip_punctuation, strip_tatweel
         has_unmapped = False
         for m in mappings:
             if m.is_function_word or getattr(m, 'is_proper_name', False):
@@ -490,10 +606,7 @@ def enrich_corpus_sentences(db: Session) -> int:
             ))
 
         # Final guard: don't activate if still undiacritized
-        still_bare = not any(
-            0x064B <= ord(c) <= 0x0652 or ord(c) == 0x0670
-            for c in (sent.arabic_text or "")
-        )
+        still_bare = not _has_diacritics(sent.arabic_text)
         if still_bare:
             print(f"  Sentence {sent.id}: still undiacritized after enrichment, skipping activation")
             sent.mappings_verified_at = None  # release for retry
@@ -812,7 +925,7 @@ def step_backfill_sentences(
     # an LLM call.
     if not dry_run and len(words_needing) >= 2:
         from app.services.material_generator import (
-            validate_multi_target_sentence,
+            validate_multi_target_sentences_batch,
             write_multi_target_sentence,
         )
         groups = group_words_for_multi_target(words_needing)
@@ -852,20 +965,18 @@ def step_backfill_sentences(
         # write lock for the duration of the 15-25s verify_and_correct calls.
         db.commit()
 
-        # Phase 1b: validate each generated sentence (LLM disambig + verify).
+        # Phase 1b: validate generated sentences (batched LLM disambig + verify).
         # DB reads only; no writes. Collect the validated mappings to hand
         # off to the write phase.
-        validated: list[tuple[object, list]] = []
+        candidates: list[tuple[object, dict[str, int]]] = []
         for multi_results, target_bares in all_multi_results:
             for mres in multi_results:
-                if total + len(validated) >= budget:
+                if total + len(candidates) >= budget:
                     break
-                mappings = validate_multi_target_sentence(
-                    db, mres, lemma_lookup, target_bares,
-                )
-                if mappings is None:
-                    continue
-                validated.append((mres, mappings))
+                candidates.append((mres, target_bares))
+        validated = validate_multi_target_sentences_batch(
+            db, candidates, lemma_lookup,
+        )
 
         # Phase 1c: write validated sentences (pure DB, milliseconds).
         for mres, mappings in validated:
