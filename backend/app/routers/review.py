@@ -158,6 +158,7 @@ def submit_sentence(body: SentenceReviewSubmitIn, db: Session = Depends(get_db))
         comprehension_signal=body.comprehension_signal,
         missed_lemma_ids=body.missed_lemma_ids,
         confused_lemma_ids=body.confused_lemma_ids,
+        confusion_candidate_lemma_ids=body.confusion_candidate_lemma_ids,
         response_ms=body.response_ms,
         session_id=body.session_id,
         review_mode=body.review_mode,

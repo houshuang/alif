@@ -44,8 +44,20 @@ not qualify by spelling/form rules. Add an explicit "I thought it was..."
 confusor picker/search if candidate telemetry shows the real confusor is often
 outside the automatic list.
 
+2026-05-11 post-deploy audit: mini-story attribution is healthy at the card and
+story level. Seven grouped/passage reviews since 2026-05-10 credited 117/117
+expected schedulable lemmas, and the latest four-sentence mini-story credited
+13/13. Remaining limitation: `ReviewLog.sentence_id` records the primary
+sentence only, so per-word analysis can recover `source="passage"` and
+`story_id`, but not the exact intra-passage sentence that exposed a word. Add a
+review context table or `source_sentence_ids_json` before doing fine-grained
+sentence-level causal attribution inside mini-stories. Also add a recurring
+health check that grouped reviews have `words_reviewed == len(word_ratings)` and
+no expected-vs-actual lemma-credit mismatches.
+
 Report: `research/analysis-2026-05-10-lemma-learning-projections.md`.
 Design spec: `research/spec-2026-05-10-learning-projection-interventions.md`.
+Post-deploy audit: `research/analysis-2026-05-11-post-deploy-learning-health.md`.
 
 ---
 

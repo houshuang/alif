@@ -316,6 +316,33 @@ class TestConfused:
         assert ratings[2] == 2  # confused gets Hard rating
         assert ratings[1] == 3
 
+    def test_confused_api_logs_candidate_lemma_ids(self, client, db_session, monkeypatch):
+        _seed_word(db_session, 1, "كتاب", "book")
+        _seed_word(db_session, 2, "ولد", "boy")
+        _seed_sentence(db_session, 1, "الولد الكتاب", "boy book",
+                       target_lemma_id=1, word_ids=[2, 1])
+        db_session.commit()
+
+        events = []
+
+        def capture_log(**kwargs):
+            events.append(kwargs)
+
+        monkeypatch.setattr("app.routers.review.log_interaction", capture_log)
+
+        resp = client.post("/api/review/submit-sentence", json={
+            "sentence_id": 1,
+            "primary_lemma_id": 1,
+            "comprehension_signal": "partial",
+            "confused_lemma_ids": [2],
+            "confusion_candidate_lemma_ids": {"2": [1]},
+            "session_id": "api-test",
+        })
+
+        assert resp.status_code == 200
+        assert events[-1]["event"] == "sentence_review"
+        assert events[-1]["confusion_candidate_lemma_ids"] == {2: [1]}
+
 
 class TestNoIdea:
     def test_all_words_get_rating_1(self, db_session):
