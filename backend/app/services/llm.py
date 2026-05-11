@@ -1263,6 +1263,9 @@ REJECT (natural=false) for any of:
 - Grammar errors (wrong gender agreement, incorrect verb forms, broken syntax, wrong i'rab)
 - Translation errors (English doesn't match Arabic meaning, singular/plural mismatch)
 - Nonsensical meaning (word salad, contradictory clauses)
+- Forced word-list combinations that technically contain the target words but
+  do not form a coherent scene or proposition without an absurd hidden context
+  (e.g. asking whether a camel's thigh is ground, then calling it bad classification)
 - Invented proper names or epithets built from content words \
 (e.g. الأميرة حب التوت "Princess Mulberry Love" — a name fabricated to satisfy a word list)
 - Implausible scenarios no native speaker would write in any context \

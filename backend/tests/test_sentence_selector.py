@@ -21,6 +21,7 @@ from app.services.sentence_selector import (
     _intro_slots_for_accuracy,
     _is_near_duplicate_of_selected,
     _is_text_near_duplicate,
+    _quality_multiplier_for_sentence,
     _display_source,
     _scaffold_freshness,
     build_session,
@@ -65,12 +66,27 @@ def _seed_word(db, lemma_id, arabic, english, state="known",
     return lemma, knowledge
 
 
-def _seed_sentence(db, sentence_id, arabic, english, target_lemma_id, word_surfaces_and_ids):
+def _seed_sentence(
+    db,
+    sentence_id,
+    arabic,
+    english,
+    target_lemma_id,
+    word_surfaces_and_ids,
+    source=None,
+    quality_reviewed_at=None,
+    quality_natural=None,
+    quality_translation_correct=None,
+):
     sent = Sentence(
         id=sentence_id,
         arabic_text=arabic,
         english_translation=english,
         target_lemma_id=target_lemma_id,
+        source=source,
+        quality_reviewed_at=quality_reviewed_at,
+        quality_natural=quality_natural,
+        quality_translation_correct=quality_translation_correct,
     )
     db.add(sent)
     db.flush()
@@ -382,6 +398,79 @@ class TestGreedySetCover:
         result = build_session(db_session, limit=10)
         assert result["covered_due_words"] == 3
         assert len(result["items"]) == 2
+
+    def test_skips_llm_sentence_that_failed_quality_review(self, db_session):
+        _seed_word(db_session, 1, "كتاب", "book", due_hours=-1)
+        _seed_word(db_session, 2, "ولد", "boy", due_hours=24)
+
+        reviewed_at = datetime.now(timezone.utc)
+        _seed_sentence(
+            db_session, 1, "كتاب ولد", "book boy",
+            target_lemma_id=1,
+            word_surfaces_and_ids=[("كتاب", 1), ("ولد", 2)],
+            source="llm",
+            quality_reviewed_at=reviewed_at,
+            quality_natural=False,
+            quality_translation_correct=True,
+        )
+        _seed_sentence(
+            db_session, 2, "قرأ الولد الكتاب", "The boy read the book",
+            target_lemma_id=1,
+            word_surfaces_and_ids=[("قرأ", 2), ("الكتاب", 1)],
+            source="llm",
+            quality_reviewed_at=reviewed_at,
+            quality_natural=True,
+            quality_translation_correct=True,
+        )
+        db_session.commit()
+
+        result = build_session(db_session, limit=1)
+
+        assert len(result["items"]) == 1
+        assert result["items"][0]["sentence_id"] == 2
+
+    def test_unreviewed_llm_sentence_is_penalized_not_blocked(self, db_session):
+        _seed_word(db_session, 1, "كتاب", "book", due_hours=-1)
+        sent = _seed_sentence(
+            db_session, 1, "الكتاب جديد", "The book is new",
+            target_lemma_id=1,
+            word_surfaces_and_ids=[("الكتاب", 1)],
+            source="llm",
+        )
+        db_session.commit()
+
+        result = build_session(db_session, limit=1)
+
+        assert _quality_multiplier_for_sentence(sent) < 1.0
+        assert len(result["items"]) == 1
+        assert result["items"][0]["sentence_id"] == 1
+        assert result["items"][0]["selection_info"]["components"]["quality_multiplier"] < 1.0
+
+    def test_quality_reviewed_llm_beats_unreviewed_equal_coverage(self, db_session):
+        _seed_word(db_session, 1, "كتاب", "book", due_hours=-1)
+        _seed_word(db_session, 2, "ولد", "boy", due_hours=24)
+
+        _seed_sentence(
+            db_session, 1, "كتاب ولد", "book boy",
+            target_lemma_id=1,
+            word_surfaces_and_ids=[("كتاب", 1), ("ولد", 2)],
+            source="llm",
+        )
+        _seed_sentence(
+            db_session, 2, "قرأ الولد الكتاب", "The boy read the book",
+            target_lemma_id=1,
+            word_surfaces_and_ids=[("قرأ", 2), ("الكتاب", 1)],
+            source="llm",
+            quality_reviewed_at=datetime.now(timezone.utc),
+            quality_natural=True,
+            quality_translation_correct=True,
+        )
+        db_session.commit()
+
+        result = build_session(db_session, limit=1)
+
+        assert len(result["items"]) == 1
+        assert result["items"][0]["sentence_id"] == 2
 
     def test_tight_session_prefers_high_frequency_due_word(self, db_session):
         _seed_word(

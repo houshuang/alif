@@ -87,6 +87,7 @@ PASSAGE_MIN_SENTENCES = 3
 PASSAGE_MAX_SENTENCES = 5
 PASSAGE_MIN_DUE_PER_SENTENCE = 1.25
 PASSAGE_REVIEW_STATES = {"known", "learning", "lapsed"}
+LLM_UNREVIEWED_QUALITY_MULTIPLIER = 0.55
 
 
 def _source_bonus_for_sentence(sent: Sentence) -> float:
@@ -95,6 +96,26 @@ def _source_bonus_for_sentence(sent: Sentence) -> float:
     if sent.source in ("book", "corpus"):
         return 1.3
     return 1.0
+
+
+def _quality_multiplier_for_sentence(sent: Sentence) -> float:
+    """Prefer quality-reviewed LLM rows, but keep unreviewed rows as fallback.
+
+    Short sentences are not penalized here. The quality distinction is about
+    semantic plausibility and translation correctness, not word count.
+    """
+    if getattr(sent, "source", None) != "llm":
+        return 1.0
+
+    natural = getattr(sent, "quality_natural", None)
+    translation_correct = getattr(sent, "quality_translation_correct", None)
+    if natural is False or translation_correct is False:
+        return 0.0
+    if natural is True and translation_correct is True:
+        return 1.0
+    if getattr(sent, "quality_reviewed_at", None) is not None:
+        return 1.0
+    return LLM_UNREVIEWED_QUALITY_MULTIPLIER
 
 
 def _intro_slots_for_accuracy(accuracy: float) -> int:
@@ -1268,6 +1289,10 @@ def build_session(
         if not due_covered and not is_passage_context:
             continue
 
+        quality_multiplier = _quality_multiplier_for_sentence(sent)
+        if quality_multiplier <= 0:
+            continue
+
         # Comprehensibility gate: skip sentences where <THRESHOLD of scaffold words are known.
         scaffold = [w for w in word_metas if not w.is_function_word and not w.is_due and not w.is_proper_name]
         total_scaffold = len(scaffold)
@@ -1338,6 +1363,7 @@ def build_session(
             * diversity
             * freshness
             * source_bonus
+            * quality_multiplier
             * rescue_penalty
             * nr_boost
             * lapsed_boost
@@ -1397,6 +1423,7 @@ def build_session(
             freshness = _scaffold_freshness(cand.words_meta, knowledge_map)
             freshness = _relax_due_dense_penalty(freshness, len(overlap))
             source_bonus = _source_bonus_for_sentence(cand.sentence)
+            quality_multiplier = _quality_multiplier_for_sentence(cand.sentence)
 
             scaffold_ids = [
                 w.lemma_id for w in cand.words_meta
@@ -1421,6 +1448,7 @@ def build_session(
                 * diversity
                 * freshness
                 * source_bonus
+                * quality_multiplier
                 * session_diversity
                 * rescue_penalty
                 * nr_boost
@@ -1435,6 +1463,7 @@ def build_session(
                 "diversity": round(diversity, 2),
                 "freshness": round(freshness, 2),
                 "source_bonus": source_bonus,
+                "quality_multiplier": round(quality_multiplier, 2),
                 "session_diversity": round(session_diversity, 2),
                 "rescue": rescue_penalty < 1.0,
                 "never_reviewed_boost": nr_boost,
@@ -1471,6 +1500,7 @@ def build_session(
             freshness = _scaffold_freshness(c.words_meta, knowledge_map)
             freshness = _relax_due_dense_penalty(freshness, len(overlap))
             source_bonus = _source_bonus_for_sentence(c.sentence)
+            quality_multiplier = _quality_multiplier_for_sentence(c.sentence)
 
             # Within-session scaffold diversity: penalize reuse of scaffold words
             scaffold_ids = [w.lemma_id for w in c.words_meta
@@ -1494,6 +1524,7 @@ def build_session(
                 * diversity
                 * freshness
                 * source_bonus
+                * quality_multiplier
                 * session_diversity
                 * rescue_penalty
                 * nr_boost
@@ -1508,6 +1539,7 @@ def build_session(
                 "diversity": round(diversity, 2),
                 "freshness": round(freshness, 2),
                 "source_bonus": source_bonus,
+                "quality_multiplier": round(quality_multiplier, 2),
                 "session_diversity": round(session_diversity, 2),
                 "rescue": rescue_penalty < 1.0,
                 "never_reviewed_boost": nr_boost,

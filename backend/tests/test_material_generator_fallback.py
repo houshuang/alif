@@ -172,6 +172,10 @@ def test_batch_generation_stores_quality_approved_sentence(db_session):
     assert result["words_failed"] == []
     stored = db_session.query(Sentence).one()
     assert stored.arabic_text == "الكِتَابُ جَدِيدٌ."
+    assert stored.quality_reviewed_at is not None
+    assert stored.quality_natural is True
+    assert stored.quality_translation_correct is True
+    assert stored.quality_reason == "ok"
 
 
 def test_multi_target_validation_uses_one_batch_verifier(db_session):

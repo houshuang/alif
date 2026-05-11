@@ -4,6 +4,22 @@
 
 ---
 
+## 🟢 [DONE 2026-05-11] Persist sentence quality and demote unreviewed legacy LLM rows
+
+Triggered by sentence `44415`, where due-word coverage selected a short but
+nonsensical LLM sentence. The fix is not a length gate: short sentences remain
+eligible when they make sense. Instead, sentence quality review metadata is
+stored on `sentences`, failed reviewed LLM rows are skipped by the selector,
+approved rows score normally, and legacy unreviewed LLM rows stay available only
+as fallback material. The existing review script can now audit specific IDs or
+active unreviewed LLM rows and persist retire/approval decisions.
+
+Follow-up idea: add a small recurring health job that samples recently selected
+unreviewed LLM rows, runs the quality gate, and reports the fail rate before
+they reach review sessions.
+
+---
+
 ## 🟡 Learning projections + confusor telemetry layer (2026-05-10)
 
 Prod analysis of 39,773 word reviews / 7,945 sentence reviews found stable

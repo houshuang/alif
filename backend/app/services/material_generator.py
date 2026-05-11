@@ -762,11 +762,43 @@ def generate_material_for_word(lemma_id: int, needed: int = 2, model_override: s
         })
         return 0
 
+    from app.services.llm import review_sentences_quality
+
+    quality_reviews = review_sentences_quality([
+        {"arabic": vs["arabic"], "english": vs["english"]}
+        for vs in valid_sentences
+    ])
+    quality_filtered = []
+    for vs, review in zip(valid_sentences, quality_reviews):
+        if review.natural and review.translation_correct:
+            vs["quality_review"] = review
+            quality_filtered.append(vs)
+            continue
+        _log_pipeline(_log_dir, {
+            "event": "quality_rejected",
+            "lemma_id": lemma_id,
+            "arabic": vs["arabic"],
+            "natural": review.natural,
+            "translation_correct": review.translation_correct,
+            "reason": review.reason[:200],
+        })
+    valid_sentences = quality_filtered
+
+    if not valid_sentences:
+        _log_pipeline(_log_dir, {
+            "event": "batch_zero_valid", "lemma_id": lemma_id, "target": lemma_ar,
+            "model": model_override, "returned": len(results),
+            "reason": "quality_rejected",
+        })
+        return 0
+
     # ── Phase 3: DB write (milliseconds) ──
     db = SessionLocal()
     stored = 0
     try:
         for vs in valid_sentences:
+            review = vs.get("quality_review")
+            reviewed_at = datetime.now(timezone.utc) if review is not None else None
             sent = Sentence(
                 arabic_text=vs["arabic"],
                 english_translation=vs["english"],
@@ -775,6 +807,10 @@ def generate_material_for_word(lemma_id: int, needed: int = 2, model_override: s
                 target_lemma_id=target_lemma_id,
                 created_at=datetime.now(timezone.utc),
                 mappings_verified_at=datetime.now(timezone.utc),
+                quality_reviewed_at=reviewed_at,
+                quality_natural=bool(review.natural) if review is not None else None,
+                quality_translation_correct=bool(review.translation_correct) if review is not None else None,
+                quality_reason=review.reason[:500] if review is not None else None,
             )
             db.add(sent)
             db.flush()
@@ -1108,6 +1144,7 @@ def batch_generate_material(
         quality_filtered = []
         for vs, review in zip(valid_sentences, quality_reviews):
             if review.natural and review.translation_correct:
+                vs["quality_review"] = review
                 quality_filtered.append(vs)
                 continue
             _log_pipeline(_log_dir, {
@@ -1134,6 +1171,8 @@ def batch_generate_material(
     covered_ids: set[int] = set()
     try:
         for vs in valid_sentences:
+            review = vs.get("quality_review")
+            reviewed_at = datetime.now(timezone.utc) if review is not None else None
             sent = Sentence(
                 arabic_text=vs["arabic"],
                 english_translation=vs["english"],
@@ -1142,6 +1181,10 @@ def batch_generate_material(
                 target_lemma_id=vs["target_lemma_id"],
                 created_at=datetime.now(timezone.utc),
                 mappings_verified_at=datetime.now(timezone.utc),
+                quality_reviewed_at=reviewed_at,
+                quality_natural=bool(review.natural) if review is not None else None,
+                quality_translation_correct=bool(review.translation_correct) if review is not None else None,
+                quality_reason=review.reason[:500] if review is not None else None,
             )
             db.add(sent)
             db.flush()
@@ -1444,6 +1487,14 @@ def write_multi_target_sentence(
         target_lemma_id=result.primary_target_lemma_id,
         created_at=datetime.now(timezone.utc),
         mappings_verified_at=datetime.now(timezone.utc),
+        quality_reviewed_at=getattr(result, "quality_reviewed_at", None),
+        quality_natural=getattr(result, "quality_natural", None),
+        quality_translation_correct=getattr(result, "quality_translation_correct", None),
+        quality_reason=(
+            getattr(result, "quality_reason", None)[:500]
+            if getattr(result, "quality_reason", None)
+            else None
+        ),
     )
     db.add(sent)
     db.flush()

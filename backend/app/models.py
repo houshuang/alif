@@ -190,6 +190,10 @@ class Sentence(Base):
     created_at = Column(DateTime, nullable=True)
     page_number = Column(Integer, nullable=True)
     mappings_verified_at = Column(DateTime, nullable=True)
+    quality_reviewed_at = Column(DateTime, nullable=True)
+    quality_natural = Column(Boolean, nullable=True)
+    quality_translation_correct = Column(Boolean, nullable=True)
+    quality_reason = Column(Text, nullable=True)
 
     story = relationship("Story", foreign_keys=[story_id])
     words = relationship("SentenceWord", back_populates="sentence")

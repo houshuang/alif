@@ -906,6 +906,24 @@ which don't count as known) and LLM sentences fill the gap. As the user reviews 
 and words advance to box 2+, book sentences gradually become comprehensible and replace
 LLM-generated ones naturally.
 
+#### LLM Sentence Quality Multiplier (2026-05-11)
+
+LLM-generated sentences carry persisted quality-review metadata once they have
+passed or failed the Haiku naturalness/translation gate:
+
+```
+quality_multiplier = 0.0   if natural=false or translation_correct=false
+quality_multiplier = 1.0   if natural=true and translation_correct=true
+quality_multiplier = 0.55  for legacy LLM rows with no persisted review
+quality_multiplier = 1.0   for non-LLM sources
+```
+
+The selector skips failed-quality LLM rows entirely, prefers approved LLM rows
+over legacy unreviewed rows, and keeps unreviewed rows as fallback material when
+they are the only available way to exercise due words. The multiplier is about
+semantic plausibility and translation correctness, not sentence length: short
+sentences remain valid when they make sense and cover due vocabulary naturally.
+
 #### Frequency Main Lane / Slow Lane (2026-05-04)
 
 The aggressive 30/day experiment separates due words by curriculum importance before

@@ -7,7 +7,7 @@ The core loop: generate → validate → retry (up to MAX_RETRIES).
 import json
 import random
 import statistics
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -372,6 +372,10 @@ class MultiTargetGeneratedSentence(BaseModel):
     primary_target_lemma_id: int
     target_bares_found: dict[str, bool]
     attempts: int
+    quality_reviewed_at: datetime | None = None
+    quality_natural: bool | None = None
+    quality_translation_correct: bool | None = None
+    quality_reason: str | None = None
 
 
 def group_words_for_multi_target(
@@ -585,6 +589,10 @@ def generate_validated_sentences_multi_target(
         accepted: list[MultiTargetGeneratedSentence] = []
         for s, r in zip(valid_sentences, reviews):
             if r.natural and r.translation_correct:
+                s.quality_reviewed_at = datetime.now(timezone.utc)
+                s.quality_natural = bool(r.natural)
+                s.quality_translation_correct = bool(r.translation_correct)
+                s.quality_reason = r.reason[:500]
                 accepted.append(s)
                 _log_pipeline(settings.log_dir, {
                     "event": "multi_target_accepted",

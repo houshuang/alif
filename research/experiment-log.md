@@ -4,6 +4,57 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-05-11: Persist sentence quality review and prefer approved LLM rows
+
+### What
+
+Sentence quality review results are now persisted on `sentences`:
+`quality_reviewed_at`, `quality_natural`, `quality_translation_correct`, and
+`quality_reason`. New LLM material that passes the naturalness/translation gate
+stores those approval fields at write time.
+
+The review selector now treats quality as a selection signal for LLM sentences:
+rows with an explicit failed review are skipped, approved rows score normally,
+and unreviewed legacy LLM rows remain eligible with a fallback multiplier. Short
+sentences are not penalized; the change targets semantic plausibility and
+translation correctness only.
+
+`scripts/review_existing_sentences.py` can now audit specific IDs or active
+unreviewed LLM rows and persist the review result while retiring failed rows.
+
+### Why
+
+Production sentence `44415` showed the failure mode: it was short, due-dense,
+and selected for three overdue words, but its meaning was forced and awkward.
+The recent generation quality gate helps new material, but the selector could
+not distinguish older unreviewed LLM rows from quality-approved rows. Due-word
+coverage could therefore still lift old nonsensical rows into sessions.
+
+### Expected effect
+
+Approved or authentic sentences should win when available. Legacy unreviewed LLM
+rows can still cover due words when no reviewed alternative exists, preserving
+availability for narrow vocabulary gaps. Once the active LLM pool is audited,
+failed rows become invisible to session building and retired from production.
+
+### Verification
+
+Focused tests cover failed-quality skipping, unreviewed fallback eligibility,
+approved-vs-unreviewed preference, and persisted generation quality metadata.
+
+```bash
+cd backend
+pytest tests/test_sentence_selector.py tests/test_material_generator_fallback.py tests/test_sentence_generator.py
+```
+
+Result: 114 passed.
+
+Production dry-run against `44415` failed it for implausible meaning,
+agreement, and unnatural Arabic response, confirming the audit path catches the
+reported example.
+
+---
+
 ## 2026-05-10: Form-aware confusor candidates and telemetry
 
 ### What
