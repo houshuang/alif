@@ -86,6 +86,17 @@ def _env_int(name: str, default: int) -> int:
         return default
 
 
+def _env_bool(name: str, default: bool = False) -> bool:
+    raw = os.environ.get(name)
+    if raw is None or raw.strip() == "":
+        return default
+    return raw.strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _run_lemma_enrichment(force: bool = False) -> bool:
+    return force or _env_bool("ALIF_RUN_CRON_LEMMA_ENRICHMENT", False)
+
+
 def _is_generation_inert_lemma(lemma: Lemma) -> bool:
     if lemma.word_category in {"proper_name", "onomatopoeia"}:
         return True
@@ -1487,6 +1498,11 @@ async def main():
         action="store_true",
         help="Allow per-lemma fallback after batch misses (manual rescue only; off for cron)",
     )
+    parser.add_argument(
+        "--run-lemma-enrichment",
+        action="store_true",
+        help="Run expensive lemma enrichment in this invocation (off by default for cron)",
+    )
     parser.add_argument("--model", default="claude_sonnet", help="LLM model for sentence gen (default: claude_sonnet)")
     parser.add_argument("--delay", type=float, default=1.0, help="Seconds between LLM calls")
     args = parser.parse_args()
@@ -1579,31 +1595,37 @@ async def main():
         # Step E: Enrich ALL lemmas missing forms/etymology/grammar/examples/roots
         enrich_e = 0
         print("\n═══ Step E: Enrich unenriched lemmas ═══")
-        unenriched = (
-            db.query(Lemma.lemma_id)
-            .filter(
-                Lemma.canonical_lemma_id.is_(None),
-                (
-                    Lemma.forms_json.is_(None)
-                    | Lemma.etymology_json.is_(None)
-                    | Lemma.memory_hooks_json.is_(None)
-                    | (Lemma.grammar_features_json.is_(None) & Lemma.pos.in_(["noun", "verb", "adjective", "adj"]))
-                    | (Lemma.example_ar.is_(None) & Lemma.pos.in_(["noun", "verb", "adjective", "adj"]))
-                    | (Lemma.root_id.is_(None) & Lemma.pos.in_(["noun", "verb", "adjective", "adj"]))
-                ),
+        if not _run_lemma_enrichment(args.run_lemma_enrichment):
+            print(
+                "  Skipped (expensive; use --run-lemma-enrichment or "
+                "ALIF_RUN_CRON_LEMMA_ENRICHMENT=1)"
             )
-            .all()
-        )
-        unenriched_ids = [r[0] for r in unenriched]
-        if unenriched_ids:
-            print(f"  Found {len(unenriched_ids)} lemmas to enrich")
-            if not args.dry_run:
-                from app.services.lemma_enrichment import enrich_lemmas_batch
-                result = enrich_lemmas_batch(unenriched_ids)
-                enrich_e = (result.get("forms", 0) + result.get("etymology", 0)
-                            + result.get("roots", 0) + result.get("grammar", 0) + result.get("examples", 0))
         else:
-            print("  All lemmas enriched")
+            unenriched = (
+                db.query(Lemma.lemma_id)
+                .filter(
+                    Lemma.canonical_lemma_id.is_(None),
+                    (
+                        Lemma.forms_json.is_(None)
+                        | Lemma.etymology_json.is_(None)
+                        | Lemma.memory_hooks_json.is_(None)
+                        | (Lemma.grammar_features_json.is_(None) & Lemma.pos.in_(["noun", "verb", "adjective", "adj"]))
+                        | (Lemma.example_ar.is_(None) & Lemma.pos.in_(["noun", "verb", "adjective", "adj"]))
+                        | (Lemma.root_id.is_(None) & Lemma.pos.in_(["noun", "verb", "adjective", "adj"]))
+                    ),
+                )
+                .all()
+            )
+            unenriched_ids = [r[0] for r in unenriched]
+            if unenriched_ids:
+                print(f"  Found {len(unenriched_ids)} lemmas to enrich")
+                if not args.dry_run:
+                    from app.services.lemma_enrichment import enrich_lemmas_batch
+                    result = enrich_lemmas_batch(unenriched_ids)
+                    enrich_e = (result.get("forms", 0) + result.get("etymology", 0)
+                                + result.get("roots", 0) + result.get("grammar", 0) + result.get("examples", 0))
+            else:
+                print("  All lemmas enriched")
 
         # Step F: Reintroduce leeches past cooldown
         leech_f = 0

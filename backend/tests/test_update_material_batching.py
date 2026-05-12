@@ -124,3 +124,14 @@ def test_step_a_batch_misses_do_not_fall_back_to_single_sessions(db_session, cap
     batch.assert_called_once_with([1], model_override="claude_sonnet")
     single.assert_not_called()
     assert "Skipping single-word fallback for 1 batch misses" in capsys.readouterr().out
+
+
+def test_cron_lemma_enrichment_is_opt_in(monkeypatch):
+    monkeypatch.delenv("ALIF_RUN_CRON_LEMMA_ENRICHMENT", raising=False)
+    assert update_material._run_lemma_enrichment(False) is False
+
+    monkeypatch.setenv("ALIF_RUN_CRON_LEMMA_ENRICHMENT", "1")
+    assert update_material._run_lemma_enrichment(False) is True
+
+    monkeypatch.setenv("ALIF_RUN_CRON_LEMMA_ENRICHMENT", "0")
+    assert update_material._run_lemma_enrichment(True) is True
