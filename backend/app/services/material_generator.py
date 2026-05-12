@@ -132,6 +132,8 @@ def acquiring_material_gaps(db, limit: int = 40) -> list[dict]:
     broader than due-date tier backfill: all acquiring words below the target
     are eligible, with overdue and zero-material words sorted first.
     """
+    from app.services.sentence_validator import _is_function_word
+
     rows = (
         db.query(Lemma, UserLemmaKnowledge)
         .join(UserLemmaKnowledge, UserLemmaKnowledge.lemma_id == Lemma.lemma_id)
@@ -140,9 +142,21 @@ def acquiring_material_gaps(db, limit: int = 40) -> list[dict]:
             Lemma.canonical_lemma_id.is_(None),
             Lemma.gloss_en.isnot(None),
             func.length(func.trim(Lemma.gloss_en)) > 0,
+            (
+                Lemma.word_category.is_(None)
+                | Lemma.word_category.notin_(["proper_name", "onomatopoeia"])
+            ),
         )
         .all()
     )
+    if not rows:
+        return []
+
+    rows = [
+        (lemma, ulk)
+        for lemma, ulk in rows
+        if not _is_function_word(lemma.lemma_ar_bare or "")
+    ]
     if not rows:
         return []
 

@@ -55,6 +55,7 @@ from app.services.sentence_generator import (
     generate_validated_sentences_multi_target,
 )
 from app.services.sentence_validator import (
+    _is_function_word,
     build_lemma_lookup,
     strip_diacritics,
 )
@@ -83,6 +84,12 @@ def _env_int(name: str, default: int) -> int:
         return int(raw)
     except ValueError:
         return default
+
+
+def _is_generation_inert_lemma(lemma: Lemma) -> bool:
+    if lemma.word_category in {"proper_name", "onomatopoeia"}:
+        return True
+    return _is_function_word(lemma.lemma_ar_bare or "")
 
 
 def _augment_groups_with_recovery(
@@ -867,6 +874,8 @@ def step_backfill_sentences(
         lemma = db.query(Lemma).filter(Lemma.lemma_id == wt.lemma_id).first()
         if not lemma:
             continue
+        if _is_generation_inert_lemma(lemma):
+            continue
         words_needing.append({
             "lemma_id": wt.lemma_id,
             "lemma_ar": lemma.lemma_ar,
@@ -918,6 +927,8 @@ def step_backfill_sentences(
         for lid in random.sample(list(ordinary_backoff_ids), sample_n):
             lemma = db.query(Lemma).filter(Lemma.lemma_id == lid).first()
             if not lemma or not (lemma.gloss_en or "").strip():
+                continue
+            if _is_generation_inert_lemma(lemma):
                 continue
             backoff_recovery_words.append({
                 "lemma_id": lid,

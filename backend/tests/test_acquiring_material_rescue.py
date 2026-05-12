@@ -8,12 +8,19 @@ from app.services.material_generator import (
 )
 
 
-def _lemma(db, arabic: str, gloss: str = "x", freq: int | None = None) -> Lemma:
+def _lemma(
+    db,
+    arabic: str,
+    gloss: str = "x",
+    freq: int | None = None,
+    word_category: str | None = None,
+) -> Lemma:
     lemma = Lemma(
         lemma_ar=arabic,
         lemma_ar_bare=arabic,
         gloss_en=gloss,
         frequency_rank=freq,
+        word_category=word_category,
     )
     db.add(lemma)
     db.flush()
@@ -129,6 +136,26 @@ def test_acquiring_material_gaps_prioritizes_overdue_zero_material_words(db_sess
     assert by_id[overdue_zero.lemma_id]["needed"] == ACQUIRING_RESCUE_SENTENCE_TARGET
     assert by_id[overdue_one_collateral.lemma_id]["needed"] == ACQUIRING_RESCUE_SENTENCE_TARGET - 1
     assert by_id[overdue_zero.lemma_id]["tier"] == 0
+
+
+def test_acquiring_material_gaps_excludes_proper_names(db_session):
+    now = datetime.utcnow()
+    name = _lemma(
+        db_session,
+        "لَيْلَى",
+        "Layla",
+        freq=1,
+        word_category="proper_name",
+    )
+    real_word = _lemma(db_session, "دَوْرٌ", "role", freq=2)
+    _acquiring(db_session, name, due=now - timedelta(hours=1), started=now)
+    _acquiring(db_session, real_word, due=now - timedelta(hours=1), started=now)
+    db_session.commit()
+
+    ids = {g["lemma_id"] for g in acquiring_material_gaps(db_session, limit=10)}
+
+    assert name.lemma_id not in ids
+    assert real_word.lemma_id in ids
 
 
 def test_backfill_dry_run_overrides_backoff_for_acquiring_rescue(db_session, capsys):
