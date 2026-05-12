@@ -23,7 +23,7 @@ from app.services.sentence_validator import _is_function_word
 
 KIND_SENTENCE_SHARD = "sentence_shard"
 DEFAULT_SENTENCE_BUDGET = 40
-DEFAULT_SHARD_SIZE = 4
+DEFAULT_SHARD_SIZE = 2
 DEFAULT_MAX_JOBS = 10
 
 
