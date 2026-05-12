@@ -21,7 +21,7 @@ from app.services.material_generator import (
 )
 from app.services.material_job_planner import KIND_SENTENCE_SHARD
 from app.services.material_job_worker import process_material_job
-from app.services.material_jobs import STATUS_QUEUED, lease_material_jobs
+from app.services.material_jobs import STATUS_QUEUED, lease_material_jobs_locked
 
 
 def _env_int(name: str, default: int) -> int:
@@ -102,19 +102,20 @@ def main() -> int:
                 print("Another material update is active; skipping material job worker.")
                 return 0
 
-        jobs = lease_material_jobs(
-            db,
-            worker_id=worker_id,
-            kinds=[KIND_SENTENCE_SHARD],
-            limit=args.max_jobs,
-            lease_seconds=args.lease_seconds,
-        )
-        if not jobs:
-            print("No queued material jobs.")
-            return 0
-
-        print(f"Leased {len(jobs)} material job(s) as {worker_id}")
-        for job in jobs:
+        processed = 0
+        while processed < max(0, args.max_jobs):
+            jobs = lease_material_jobs_locked(
+                db,
+                worker_id=worker_id,
+                kinds=[KIND_SENTENCE_SHARD],
+                limit=1,
+                lease_seconds=args.lease_seconds,
+            )
+            if not jobs:
+                if processed == 0:
+                    print("No queued material jobs.")
+                break
+            job = jobs[0]
             payload = job.payload_json or {}
             print(
                 f"  Running job={job.id} priority={job.priority} "
@@ -127,6 +128,9 @@ def main() -> int:
                 retry_delay_seconds=args.retry_delay_seconds,
             )
             print(f"    status={updated.status} result={updated.result_json or {}}")
+            processed += 1
+        if processed:
+            print(f"Processed {processed} material job(s) as {worker_id}")
         return 0
     finally:
         db.close()

@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import fcntl
+import os
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 from typing import Any, Iterable
 
 from sqlalchemy import or_
@@ -29,6 +32,33 @@ def _normalize_kinds(kinds: Iterable[str] | str | None) -> list[str] | None:
     if isinstance(kinds, str):
         return [kinds]
     return list(kinds)
+
+
+def material_job_lease_lock_path() -> Path:
+    return Path(os.environ.get("ALIF_MATERIAL_JOB_LEASE_LOCK", "/tmp/alif-material-job-lease.lock"))
+
+
+def try_acquire_material_job_lease_lock():
+    """Acquire the short critical-section lock used while claiming queue rows."""
+
+    lock_path = material_job_lease_lock_path()
+    lock_path.parent.mkdir(parents=True, exist_ok=True)
+    handle = lock_path.open("w")
+    try:
+        fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError:
+        handle.close()
+        return None
+    handle.write(f"{os.getpid()} {_now().isoformat()}\n")
+    handle.flush()
+    return handle
+
+
+def release_material_job_lease_lock(handle) -> None:
+    try:
+        fcntl.flock(handle, fcntl.LOCK_UN)
+    finally:
+        handle.close()
 
 
 def release_expired_leases(
@@ -174,6 +204,35 @@ def lease_material_jobs(
         for job in jobs:
             db.refresh(job)
     return jobs
+
+
+def lease_material_jobs_locked(
+    db: Session,
+    *,
+    worker_id: str,
+    limit: int = 1,
+    lease_seconds: int = 1800,
+    kinds: Iterable[str] | str | None = None,
+    now: datetime | None = None,
+    commit: bool = True,
+) -> list[MaterialJob]:
+    """Lease jobs under a short filesystem lock for multi-worker cron runs."""
+
+    lock_handle = try_acquire_material_job_lease_lock()
+    if lock_handle is None:
+        return []
+    try:
+        return lease_material_jobs(
+            db,
+            worker_id=worker_id,
+            limit=limit,
+            lease_seconds=lease_seconds,
+            kinds=kinds,
+            now=now,
+            commit=commit,
+        )
+    finally:
+        release_material_job_lease_lock(lock_handle)
 
 
 def complete_material_job(

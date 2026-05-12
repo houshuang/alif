@@ -10,7 +10,10 @@ from app.services.material_jobs import (
     enqueue_material_job,
     fail_material_job,
     lease_material_jobs,
+    lease_material_jobs_locked,
+    release_material_job_lease_lock,
     release_expired_leases,
+    try_acquire_material_job_lease_lock,
 )
 
 
@@ -95,6 +98,33 @@ def test_lease_jobs_filters_kind_and_orders_by_priority(db_session):
 
     corpus = db_session.query(MaterialJob).filter_by(kind="corpus_enrichment").one()
     assert corpus.status == STATUS_QUEUED
+
+
+def test_locked_lease_returns_empty_when_claim_lock_busy(db_session, monkeypatch, tmp_path):
+    lock_path = tmp_path / "material-job-lease.lock"
+    monkeypatch.setenv("ALIF_MATERIAL_JOB_LEASE_LOCK", str(lock_path))
+    enqueue_material_job(
+        db_session,
+        kind="sentence_shard",
+        payload={"lemma_ids": [1]},
+        now=_now(),
+    )
+
+    handle = try_acquire_material_job_lease_lock()
+    assert handle is not None
+    try:
+        leased = lease_material_jobs_locked(
+            db_session,
+            worker_id="worker-a",
+            kinds=["sentence_shard"],
+            now=_now(),
+        )
+    finally:
+        release_material_job_lease_lock(handle)
+
+    assert leased == []
+    job = db_session.query(MaterialJob).one()
+    assert job.status == STATUS_QUEUED
 
 
 def test_not_before_prevents_early_leasing(db_session):
