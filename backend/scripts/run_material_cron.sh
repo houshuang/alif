@@ -21,6 +21,7 @@ SHARD_SIZE="${ALIF_MATERIAL_JOB_SHARD_SIZE:-2}"
 WORKER_MAX_JOBS="${ALIF_MATERIAL_WORKER_MAX_JOBS:-3}"
 WORKER_TIMEOUT_SECONDS="${ALIF_MATERIAL_WORKER_TIMEOUT_SECONDS:-1200}"
 MAINTENANCE_TIMEOUT_SECONDS="${ALIF_MATERIAL_MAINTENANCE_TIMEOUT_SECONDS:-900}"
+WORKER_USE_LEGACY_BATCH="${ALIF_MATERIAL_USE_LEGACY_BATCH:-1}"
 
 export PYTHONUNBUFFERED=1
 
@@ -51,7 +52,8 @@ run_phase "plan_material_jobs.py" "$VENV" scripts/plan_material_jobs.py \
   --max-jobs "$PLAN_MAX_JOBS" \
   --shard-size "$SHARD_SIZE"
 
-run_phase "work_material_jobs.py" timeout "$WORKER_TIMEOUT_SECONDS" \
+run_phase "work_material_jobs.py" env ALIF_MATERIAL_USE_LEGACY_BATCH="$WORKER_USE_LEGACY_BATCH" \
+  timeout "$WORKER_TIMEOUT_SECONDS" \
   "$VENV" scripts/work_material_jobs.py --max-jobs "$WORKER_MAX_JOBS"
 
 echo "[$TIMESTAMP] Material cron done" >> "$LOG"

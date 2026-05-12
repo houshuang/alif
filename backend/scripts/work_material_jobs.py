@@ -34,8 +34,19 @@ def _env_int(name: str, default: int) -> int:
         return default
 
 
+def _env_bool(name: str, default: bool) -> bool:
+    raw = os.environ.get(name)
+    if raw is None or raw.strip() == "":
+        return default
+    return raw.strip().lower() in {"1", "true", "yes", "on"}
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
+    default_legacy_batch = _env_bool(
+        "ALIF_MATERIAL_USE_LEGACY_BATCH",
+        _env_bool("ALIF_USE_LEGACY_BATCH", True),
+    )
     parser.add_argument("--dry-run", action="store_true", help="Print queue candidates without leasing")
     parser.add_argument(
         "--max-jobs",
@@ -62,6 +73,19 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Do not acquire the legacy material update lock. Use only when legacy cron is disabled.",
     )
+    parser.add_argument(
+        "--legacy-batch",
+        dest="legacy_batch",
+        action="store_true",
+        default=default_legacy_batch,
+        help="Use the legacy generate-then-validate batch path for queued sentence jobs",
+    )
+    parser.add_argument(
+        "--self-correct-batch",
+        dest="legacy_batch",
+        action="store_false",
+        help="Use the tool-enabled self-correct batch path for queued sentence jobs",
+    )
     return parser.parse_args()
 
 
@@ -72,6 +96,7 @@ def _default_worker_id() -> str:
 def main() -> int:
     args = parse_args()
     worker_id = args.worker_id or _default_worker_id()
+    os.environ["ALIF_USE_LEGACY_BATCH"] = "1" if args.legacy_batch else "0"
     db = SessionLocal()
     lock_handle = None
     try:
@@ -95,6 +120,11 @@ def main() -> int:
                     f"planned={payload.get('planned_sentences')}"
                 )
             return 0
+
+        print(
+            "Material worker batch mode: "
+            f"{'legacy' if args.legacy_batch else 'self-correct'}"
+        )
 
         if not args.no_lock:
             lock_handle = _try_acquire_material_update_lock()
