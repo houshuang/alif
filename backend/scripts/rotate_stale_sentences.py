@@ -17,7 +17,9 @@ Usage:
 """
 
 import argparse
+import fcntl
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -32,6 +34,30 @@ from sqlalchemy.orm import Session
 from app.database import SessionLocal
 from app.models import Lemma, Sentence, SentenceWord, UserLemmaKnowledge
 from app.services.activity_log import log_activity
+
+
+def _material_update_lock_path() -> Path:
+    return Path(os.environ.get("ALIF_UPDATE_MATERIAL_LOCK", "/tmp/alif-update-material.lock"))
+
+
+def _try_acquire_material_update_lock():
+    """Acquire the shared material-pipeline lock, or return None if busy."""
+    lock_path = _material_update_lock_path()
+    lock_path.parent.mkdir(parents=True, exist_ok=True)
+    handle = lock_path.open("w")
+    try:
+        fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError:
+        handle.close()
+        return None
+    return handle
+
+
+def _release_material_update_lock(handle) -> None:
+    try:
+        fcntl.flock(handle, fcntl.LOCK_UN)
+    finally:
+        handle.close()
 
 
 def compute_diversity_score(
@@ -96,6 +122,15 @@ def main():
                         help="Keep at least this many active sentences per target word (default: 2)")
     parser.add_argument("--verbose", "-v", action="store_true")
     args = parser.parse_args()
+
+    lock_handle = None
+    if not args.dry_run:
+        lock_handle = _try_acquire_material_update_lock()
+        if lock_handle is None:
+            print(f"Another material update is active ({_material_update_lock_path()}); skipping rotation.")
+            return
+        lock_handle.write(f"{os.getpid()} rotate_stale_sentences\n")
+        lock_handle.flush()
 
     db = SessionLocal()
 
@@ -247,6 +282,8 @@ def main():
 
     finally:
         db.close()
+        if lock_handle is not None:
+            _release_material_update_lock(lock_handle)
 
 
 if __name__ == "__main__":
