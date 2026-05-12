@@ -5,6 +5,7 @@ from app.services.material_job_planner import plan_sentence_shards
 from app.services.material_job_worker import process_material_job
 from app.services.material_jobs import (
     STATUS_DONE,
+    STATUS_QUEUED,
     enqueue_material_job,
     lease_material_jobs,
 )
@@ -102,4 +103,33 @@ def test_process_sentence_shard_job_completes_and_records_failures(db_session):
     assert updated.status == STATUS_DONE
     assert updated.result_json["generated"] == 1
     failed = db_session.query(UserLemmaKnowledge).filter_by(lemma_id=2).one()
+    assert failed.generation_failed_count == 1
+
+
+def test_process_sentence_shard_job_retries_zero_output(db_session):
+    _seed_lemma(db_session, 1, "كِتَاب", "كتاب", "book", state="acquiring", due=_now())
+    db_session.commit()
+    enqueue_material_job(
+        db_session,
+        kind="sentence_shard",
+        payload={"lemma_ids": [1], "count_per_word": 1},
+        max_attempts=2,
+        now=_now(),
+    )
+    job = lease_material_jobs(db_session, worker_id="worker-a", now=_now())[0]
+
+    def fake_generator(lemma_ids, count_per_word, model):
+        return {"generated": 0, "words_covered": 0, "words_failed": lemma_ids}
+
+    updated = process_material_job(
+        db_session,
+        job,
+        retry_delay_seconds=300,
+        generator=fake_generator,
+    )
+
+    assert updated.status == STATUS_QUEUED
+    assert updated.last_error == "generated 0 sentences for lemma_ids=[1]"
+    assert updated.not_before is not None
+    failed = db_session.query(UserLemmaKnowledge).filter_by(lemma_id=1).one()
     assert failed.generation_failed_count == 1

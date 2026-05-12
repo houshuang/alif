@@ -72,4 +72,13 @@ def process_material_job(
             0 if lemma_id in failed_ids else 1,
         )
 
+    generated = int(result.get("generated") or 0)
+    if generated <= 0:
+        return fail_material_job(
+            db,
+            job,
+            error=f"generated 0 sentences for lemma_ids={lemma_ids}",
+            retry_delay_seconds=retry_delay_seconds,
+        )
+
     return complete_material_job(db, job, result=result)
