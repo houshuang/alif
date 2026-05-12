@@ -86,6 +86,13 @@ FUNCTION_WORD_GLOSSES: dict[str, str] = {
     "بينما": "while", "حيث": "where", "كما": "as/like",
     "لان": "because", "لأن": "because", "كي": "in order to", "لكي": "in order to",
     "حين": "when", "حينما": "when",
+    # أن/إن with common proclitics and attached pronouns
+    "بأن": "that", "بأنه": "that he/it", "بأنها": "that she/it",
+    "بان": "that", "بانه": "that he/it", "بانها": "that she/it",
+    "وأن": "and that", "وأنه": "and that he/it", "وأنها": "and that she/it",
+    "وان": "and that", "وانه": "and that he/it", "وانها": "and that she/it",
+    "وإن": "and if", "وإنه": "and indeed he/it", "وإنها": "and indeed she/it",
+    "أنك": "that you", "انك": "that you",
     # Emphasis / structure
     "لقد": "indeed/certainly (past)", "اما": "as for", "أما": "as for",
     "الا": "except", "إلا": "except", "اذن": "then/so", "إذن": "then/so",
@@ -297,6 +304,53 @@ FUNCTION_WORD_FORMS: dict[str, str] = {
     # review-time unmapped-word gate.
     "عنده": "عند", "عندها": "عند", "عندهم": "عند", "عندهما": "عند",
     "عندك": "عند", "عندي": "عند", "عندنا": "عند",
+    # Preposition + attached pronoun compounds. These must map to the base
+    # preposition, not to same-bare content lemmas such as عَلِيّ "Ali".
+    "به": "ب", "بها": "ب", "بهم": "ب", "بهما": "ب",
+    "بك": "ب", "بكم": "ب", "بي": "ب", "بنا": "ب",
+    "له": "ل", "لها": "ل", "لهم": "ل", "لهما": "ل",
+    "لك": "ل", "لكم": "ل", "لي": "ل", "لنا": "ل",
+    "عنه": "عن", "عنها": "عن", "عنهم": "عن", "عنهما": "عن",
+    "عنك": "عن", "عني": "عن", "عنا": "عن",
+    "منه": "من", "منها": "من", "منهم": "من", "منهما": "من",
+    "منك": "من", "مني": "من", "منا": "من",
+    "فيه": "في", "فيها": "في", "فيهم": "في", "فيهما": "في",
+    "فيك": "في", "فينا": "في",
+    "عليه": "على", "عليها": "على", "عليهم": "على", "عليهما": "على",
+    "عليك": "على", "عليكم": "على", "علينا": "على",
+    "اليه": "إلى", "إليه": "إلى", "اليها": "إلى", "إليها": "إلى",
+    "اليهم": "إلى", "إليهم": "إلى", "اليهما": "إلى", "إليهما": "إلى",
+    "اليك": "إلى", "إليك": "إلى", "الينا": "إلى", "إلينا": "إلى",
+    "معه": "مع", "معها": "مع", "معهم": "مع", "معهما": "مع",
+    "معك": "مع", "معي": "مع", "معنا": "مع",
+    # أَنْ / إِنْ compounds. Alef normalization makes these collide with آن
+    # "time/now"; exact-form overrides below keep particles out of content
+    # lemma mappings.
+    "أن": "أَنْ", "ان": "أَنْ", "أنه": "أَنْ", "انه": "أَنْ",
+    "أنها": "أَنْ", "انها": "أَنْ", "أنك": "أَنْ", "انك": "أَنْ",
+    "بأن": "أَنْ", "بان": "أَنْ", "بأنه": "أَنْ", "بانه": "أَنْ",
+    "بأنها": "أَنْ", "بانها": "أَنْ", "لأن": "أَنْ", "لان": "أَنْ",
+    "لأنه": "أَنْ", "لانه": "أَنْ", "لأنها": "أَنْ", "لانها": "أَنْ",
+    "وأن": "أَنْ", "وان": "أَنْ", "وأنه": "أَنْ", "وانه": "أَنْ",
+    "وأنها": "أَنْ", "وانها": "أَنْ",
+    "إن": "إِنْ", "إنه": "إِنْ", "إنها": "إِنْ",
+    "وإن": "إِنْ", "وإنه": "إِنْ", "وإنها": "إِنْ",
+    "الآن": "آن", "الان": "آن",
+}
+
+
+FUNCTION_WORD_FORM_OVERRIDES: set[str] = {
+    normalize_alef(strip_diacritics(form))
+    for form in FUNCTION_WORD_FORMS
+    if form in {
+        "عليه", "عليها", "عليهم", "عليهما", "عليك", "عليكم", "علينا",
+        "أن", "ان", "أنه", "انه", "أنها", "انها", "أنك", "انك",
+        "بأن", "بان", "بأنه", "بانه", "بأنها", "بانها",
+        "لأن", "لان", "لأنه", "لانه", "لأنها", "لانها",
+        "وأن", "وان", "وأنه", "وانه", "وأنها", "وانها",
+        "إن", "إنه", "إنها", "وإن", "وإنه", "وإنها",
+        "الآن", "الان",
+    }
 }
 
 
@@ -590,6 +644,14 @@ def lookup_lemma_direct(
     pick the right lemma — same logic used by ``lookup_lemma`` for regular words.
     """
 
+    if original_bare and hasattr(lemma_lookup, "function_form_overrides"):
+        exact = _exact_lookup_bare(original_bare)
+        override = lemma_lookup.function_form_overrides.get(exact)
+        if override is None:
+            override = lemma_lookup.function_form_overrides.get(normalize_alef(exact))
+        if override is not None:
+            return override
+
     def _check_collision(key: str) -> int | None:
         """If *key* has a collision entry and we can resolve it, return the winner."""
         if (original_bare
@@ -671,6 +733,14 @@ def lookup_lemma(
         out_via_clitic: If provided (as single-element list), set to [True]
             when the match came from clitic stripping rather than direct match.
     """
+    if original_bare and hasattr(lemma_lookup, "function_form_overrides"):
+        exact = _exact_lookup_bare(original_bare)
+        override = lemma_lookup.function_form_overrides.get(exact)
+        if override is None:
+            override = lemma_lookup.function_form_overrides.get(normalize_alef(exact))
+        if override is not None:
+            return override
+
     # Direct match
     if bare_norm in lemma_lookup:
         # If collision exists and we have original form, disambiguate
@@ -769,9 +839,11 @@ def _camel_disambiguate(word: str, lemma_lookup: dict[str, int]) -> int | None:
 def lookup_lemma_id(surface_form: str, lemma_lookup: dict[str, int]) -> int | None:
     """Resolve a sentence token surface form to a lemma_id using lookup variants."""
     bare = strip_diacritics(surface_form)
-    bare_clean = strip_tatweel(bare)
+    bare_clean = strip_punctuation(strip_tatweel(bare))
     bare_norm = normalize_alef(bare_clean)
-    return lookup_lemma(bare_norm, lemma_lookup)
+    if _is_function_word(bare_clean):
+        return lookup_lemma_direct(bare_norm, lemma_lookup, original_bare=bare_clean)
+    return lookup_lemma(bare_norm, lemma_lookup, original_bare=bare_clean)
 
 
 class LemmaLookupDict(dict):
@@ -787,6 +859,9 @@ class LemmaLookupDict(dict):
         # normalized_key → [(lemma_id, pre_normalized_bare), ...]
         self.collisions: dict[str, list[tuple[int, str]]] = {}
         self._first_bare: dict[str, str] = {}
+        # Exact surface bare form → lemma_id for high-confidence function-word
+        # compounds that must override same-bare content lemmas.
+        self.function_form_overrides: dict[str, int] = {}
 
     def set_if_new(self, key: str, lemma_id: int, original_bare: str = "") -> None:
         """Set key→lemma_id without overwriting. Track collisions."""
@@ -801,6 +876,33 @@ class LemmaLookupDict(dict):
         else:
             self[key] = lemma_id
             self._first_bare[key] = bare
+
+
+def _exact_lookup_bare(value: str | None) -> str:
+    """Return bare form preserving hamza/madda distinctions."""
+    return strip_punctuation(strip_tatweel(strip_diacritics(value or "")))
+
+
+def _lemma_exact_bare(lemma) -> str:
+    """Prefer displayed lemma text for collision resolution.
+
+    ``lemma_ar_bare`` is already alef-normalized in prod for many rows, so using
+    it for collision metadata collapses أَنْ / إِنْ / آن into the same opaque
+    "ان" value. ``lemma_ar`` still preserves hamza/madda and lets lookup resolve
+    the exact surface form before falling back to CAMeL.
+    """
+    exact = _exact_lookup_bare(getattr(lemma, "lemma_ar", None))
+    return exact or _exact_lookup_bare(getattr(lemma, "lemma_ar_bare", ""))
+
+
+def _prefixed_exact_bare(exact_bare: str, prefix: str) -> str:
+    if not exact_bare:
+        return exact_bare
+    if prefix == "strip_al" and exact_bare.startswith("ال") and len(exact_bare) > 2:
+        return exact_bare[2:]
+    if prefix == "add_al" and not exact_bare.startswith("ال"):
+        return "ال" + exact_bare
+    return exact_bare
 
 
 _PAST_3MS_SUFFIXES = ["ت", "ا", "تا", "وا", "ن"]  # 3fs, 3md, 3fd, 3mp, 3fp
@@ -917,18 +1019,33 @@ def build_lemma_lookup(lemmas: list) -> dict[str, int]:
     """
     lookup = LemmaLookupDict()
     bare_to_id: dict[str, int] = {}
+    exact_bare_to_ids: dict[str, list[int]] = {}
+
+    for lem in lemmas:
+        exact_bare = _lemma_exact_bare(lem)
+        if exact_bare:
+            exact_bare_to_ids.setdefault(exact_bare, []).append(lem.lemma_id)
 
     # Pass 1: Register all lemma bare forms (highest priority)
     for lem in lemmas:
         bare_norm = normalize_alef(lem.lemma_ar_bare)
-        lookup.set_if_new(bare_norm, lem.lemma_id, lem.lemma_ar_bare)
+        exact_bare = _lemma_exact_bare(lem)
+        lookup.set_if_new(bare_norm, lem.lemma_id, exact_bare or lem.lemma_ar_bare)
         bare_to_id.setdefault(bare_norm, lem.lemma_id)
         if bare_norm.startswith("ال") and len(bare_norm) > 2:
             without_al = bare_norm[2:]
-            lookup.set_if_new(without_al, lem.lemma_id, lem.lemma_ar_bare)
+            lookup.set_if_new(
+                without_al,
+                lem.lemma_id,
+                _prefixed_exact_bare(exact_bare, "strip_al") or lem.lemma_ar_bare,
+            )
             bare_to_id.setdefault(without_al, lem.lemma_id)
         elif not bare_norm.startswith("ال"):
-            lookup.set_if_new("ال" + bare_norm, lem.lemma_id, lem.lemma_ar_bare)
+            lookup.set_if_new(
+                "ال" + bare_norm,
+                lem.lemma_id,
+                _prefixed_exact_bare(exact_bare, "add_al") or lem.lemma_ar_bare,
+            )
 
     # Pass 1b: Alef-maksura ↔ ya asymmetry. Clitic stripping turns ـيها into ـي
     # with regular ya (U+064A), but lemmas like إلى/متى/مقهى are stored with
@@ -989,12 +1106,23 @@ def build_lemma_lookup(lemmas: list) -> dict[str, int]:
 
     # Add FUNCTION_WORD_FORMS: map conjugated forms to their base lemma_id
     for form, base in FUNCTION_WORD_FORMS.items():
-        form_norm = normalize_alef(form)
-        if form_norm not in lookup:
-            base_norm = normalize_alef(base)
+        form_exact = _exact_lookup_bare(form)
+        form_norm = normalize_alef(form_exact)
+        override = form_norm in FUNCTION_WORD_FORM_OVERRIDES
+
+        base_exact = _exact_lookup_bare(base)
+        base_ids = exact_bare_to_ids.get(base_exact) or []
+        base_id = base_ids[0] if base_ids else None
+        if base_id is None:
+            base_norm = normalize_alef(base_exact)
             base_id = bare_to_id.get(base_norm)
-            if base_id is not None:
-                lookup[form_norm] = base_id
+
+        if base_id is not None and (override or form_norm not in lookup):
+            lookup[form_norm] = base_id
+            lookup._first_bare[form_norm] = form_exact
+            if override:
+                lookup.function_form_overrides[form_exact] = base_id
+                lookup.function_form_overrides.setdefault(form_norm, base_id)
 
     if lookup.collisions:
         _validator_logger.info(

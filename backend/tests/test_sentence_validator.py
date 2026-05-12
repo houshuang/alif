@@ -430,9 +430,10 @@ class TestCliticIntegration:
 
 class _FakeLemma:
     """Minimal lemma-like object for testing build_lemma_lookup."""
-    def __init__(self, lemma_id: int, lemma_ar_bare: str, forms_json: dict | None = None, pos: str | None = None):
+    def __init__(self, lemma_id: int, lemma_ar_bare: str, forms_json: dict | None = None, pos: str | None = None, lemma_ar: str | None = None):
         self.lemma_id = lemma_id
         self.lemma_ar_bare = lemma_ar_bare
+        self.lemma_ar = lemma_ar or lemma_ar_bare
         self.forms_json = forms_json
         self.pos = pos
 
@@ -673,6 +674,71 @@ class TestMapTokensToLemmas:
         assert mappings[0].is_function_word is True
         assert mappings[0].lemma_id == 1
 
+    def test_an_particle_collision_does_not_map_to_time(self):
+        lemmas = [
+            _FakeLemma(943, "ان", lemma_ar="آنٌ"),
+            _FakeLemma(2185, "ان", pos="particle", lemma_ar="أَنْ"),
+            _FakeLemma(2186, "ان", pos="particle", lemma_ar="إِنْ"),
+        ]
+        lookup = build_lemma_lookup(lemmas)
+        tokens = tokenize_display("أَنْ أَقْرَأَ")
+        mappings = map_tokens_to_lemmas(tokens, lookup, target_lemma_id=0, target_bare="")
+        assert mappings[0].lemma_id == 2185
+
+    def test_inna_particle_collision_does_not_map_to_time(self):
+        lemmas = [
+            _FakeLemma(943, "ان", lemma_ar="آنٌ"),
+            _FakeLemma(2185, "ان", pos="particle", lemma_ar="أَنْ"),
+            _FakeLemma(2186, "ان", pos="particle", lemma_ar="إِنْ"),
+        ]
+        lookup = build_lemma_lookup(lemmas)
+        tokens = tokenize_display("إِنَّ الجَوَّ صَعْبٌ")
+        mappings = map_tokens_to_lemmas(tokens, lookup, target_lemma_id=0, target_bare="")
+        assert mappings[0].lemma_id == 2186
+
+    def test_unhamzated_an_prefers_that_particle(self):
+        lemmas = [
+            _FakeLemma(943, "ان", lemma_ar="آنٌ"),
+            _FakeLemma(2185, "ان", pos="particle", lemma_ar="أَنْ"),
+            _FakeLemma(2186, "ان", pos="particle", lemma_ar="إِنْ"),
+        ]
+        lookup = build_lemma_lookup(lemmas)
+        tokens = tokenize_display("ان الطَّرِيقَ طَوِيلٌ")
+        mappings = map_tokens_to_lemmas(tokens, lookup, target_lemma_id=0, target_bare="")
+        assert mappings[0].lemma_id == 2185
+
+    def test_bi_anna_overrides_bana_content_verb(self):
+        lemmas = [
+            _FakeLemma(554, "بان", pos="verb", lemma_ar="بَانَ"),
+            _FakeLemma(2185, "ان", pos="particle", lemma_ar="أَنْ"),
+        ]
+        lookup = build_lemma_lookup(lemmas)
+        tokens = tokenize_display("بِأَنَّ الطَّرِيقَ طَوِيلٌ")
+        mappings = map_tokens_to_lemmas(tokens, lookup, target_lemma_id=0, target_bare="")
+        assert mappings[0].lemma_id == 2185
+
+    def test_alayhi_maps_to_preposition_not_ali(self):
+        lemmas = [
+            _FakeLemma(453, "على", pos="prep", lemma_ar="عَلى"),
+            _FakeLemma(1968, "علي", pos="noun_prop", lemma_ar="عَلِيٌّ"),
+        ]
+        lookup = build_lemma_lookup(lemmas)
+        tokens = tokenize_display("رَدَّ عَلَيْهِ")
+        mappings = map_tokens_to_lemmas(tokens, lookup, target_lemma_id=0, target_bare="")
+        assert mappings[1].is_function_word is True
+        assert mappings[1].lemma_id == 453
+
+    def test_al_an_now_does_not_map_to_that_particle(self):
+        lemmas = [
+            _FakeLemma(943, "ان", lemma_ar="آنٌ"),
+            _FakeLemma(2185, "ان", pos="particle", lemma_ar="أَنْ"),
+            _FakeLemma(2500, "ان", pos="adverb", lemma_ar="آن"),
+        ]
+        lookup = build_lemma_lookup(lemmas)
+        tokens = tokenize_display("الآنَ")
+        mappings = map_tokens_to_lemmas(tokens, lookup, target_lemma_id=0, target_bare="")
+        assert mappings[0].lemma_id in {943, 2500}
+        assert mappings[0].lemma_id != 2185
 
     def test_punctuation_preserved_in_surface_form(self):
         """Punctuation should be preserved in surface_form when using tokenize_display."""

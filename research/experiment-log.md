@@ -4,6 +4,37 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-05-12: Tighten reviewability gate and repair known bad lemma mappings
+
+### What
+
+Review-facing sentence selection now uses `reviewable_sentence_clauses()` everywhere, not raw `is_active` plus `not_has_unmapped_words()`. The gate rejects sentences with NULL mappings, missing `mappings_verified_at`, stale verification before the 2026-04-16 same-lemma fix, or the `2000-01-01` corpus sentinel.
+
+The deterministic lookup also gained exact-form overrides for high-risk function-word compounds: `أَنْ`/`إِنْ` and their common proclitic/pronoun forms, `عليه`-style preposition compounds, and `الآن`. This prevents alef-normalization collisions from mapping particles to `آن` or `عليه` to `عَلِيّ`.
+
+Added `scripts/cleanup_bad_mappings_2026_05_12.py` for the concrete production rows seen in today's reviews: remap fixable particles/prepositions/plurals, and retire sentences whose correct lemma is absent from the database.
+
+### Why
+
+Today's reviews still exposed rows that had non-NULL `lemma_id` values but came from older or sentinel verification paths. Those rows passed the old runtime gate even though the previous LLM/correction work had only made new or reverified material safer.
+
+### Expected effect
+
+Sessions should no longer serve legacy rows that predate the current verifier semantics. New particles and preposition+pronoun compounds should resolve deterministically before the LLM verifier sees them, reducing both review waste and downstream flags.
+
+### Verification
+
+Focused backend coverage:
+
+```bash
+cd backend
+.review-venv/bin/python -m pytest tests/test_sentence_validator.py tests/test_sentence_eligibility.py tests/test_corpus_import.py tests/test_sentence_selector.py tests/test_sentence_review.py tests/test_sentences_router.py tests/test_update_material_batching.py -q
+```
+
+Focused result before prod cleanup: 325 passed, 1 deselected. Full app test suite: 1112 passed, 9 deselected.
+
+---
+
 ## 2026-05-11: Persist sentence quality review and prefer approved LLM rows
 
 ### What

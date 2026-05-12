@@ -106,6 +106,7 @@ def _seed_simulation_data(db):
 
     # Create sentences covering words 1-15 (the ones with active states)
     # Each sentence has its target word + 2 known scaffold words
+    verified_at = datetime(2026, 5, 1, tzinfo=timezone.utc)
     for i in range(1, 16):
         sent = Sentence(
             id=i,
@@ -113,6 +114,7 @@ def _seed_simulation_data(db):
             english_translation=f"A sentence containing word{i}",
             target_lemma_id=i,
             is_active=True,
+            mappings_verified_at=verified_at,
         )
         db.add(sent)
         db.flush()
@@ -149,6 +151,7 @@ def _seed_simulation_data(db):
             english_translation=f"A second sentence with word{i}",
             target_lemma_id=i,
             is_active=True,
+            mappings_verified_at=verified_at,
         )
         db.add(sent)
         db.flush()

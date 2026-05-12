@@ -55,6 +55,7 @@ def _seed_sentence(db, sentence_id, arabic, english, target_lemma_id, word_surfa
         english_translation=english,
         target_lemma_id=target_lemma_id,
         times_shown=times_shown,
+        mappings_verified_at=datetime.now(timezone.utc),
     )
     db.add(sent)
     db.flush()

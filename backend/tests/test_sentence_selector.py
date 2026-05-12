@@ -88,6 +88,7 @@ def _seed_sentence(
         english_translation=english,
         target_lemma_id=target_lemma_id,
         source=source,
+        mappings_verified_at=datetime.now(timezone.utc),
         quality_reviewed_at=quality_reviewed_at,
         quality_natural=quality_natural,
         quality_translation_correct=quality_translation_correct,

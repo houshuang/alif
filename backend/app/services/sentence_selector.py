@@ -50,7 +50,7 @@ from app.services.frequency_lanes import (
     is_main_lane_word,
     select_slow_lane_sample,
 )
-from app.services.sentence_eligibility import not_has_unmapped_words
+from app.services.sentence_eligibility import reviewable_sentence_clauses
 
 logger = logging.getLogger(__name__)
 
@@ -1033,8 +1033,7 @@ def build_session(
         db.query(Sentence)
         .filter(
             Sentence.id.in_(sentence_ids_with_due),
-            Sentence.is_active == True,  # noqa: E712
-            not_has_unmapped_words(),
+            reviewable_sentence_clauses(),
             or_(
                 shown_col.is_(None),
                 (comp_col == "understood") & (shown_col < cutoff_understood),
@@ -1069,8 +1068,7 @@ def build_session(
                 db.query(Sentence)
                 .filter(
                     Sentence.id.in_(potential_rescue_ids),
-                    Sentence.is_active == True,  # noqa: E712
-                    not_has_unmapped_words(),
+                    reviewable_sentence_clauses(),
                 )
                 .all()
             )
@@ -1097,8 +1095,7 @@ def build_session(
             .filter(
                 Sentence.story_id.in_(passage_story_ids),
                 Sentence.source == "passage",
-                Sentence.is_active == True,  # noqa: E712
-                not_has_unmapped_words(),
+                reviewable_sentence_clauses(),
             )
             .all()
         )
@@ -2213,8 +2210,7 @@ def _find_pregenerated_sentences_for_words(
         db.query(Sentence)
         .filter(
             Sentence.id.in_(sentence_ids_with_target),
-            Sentence.is_active == True,  # noqa: E712
-            not_has_unmapped_words(),
+            reviewable_sentence_clauses(),
             or_(
                 shown_col.is_(None),
                 (comp_col == "understood") & (shown_col < cutoff_understood),
@@ -2245,8 +2241,7 @@ def _find_pregenerated_sentences_for_words(
                 db.query(Sentence)
                 .filter(
                     Sentence.id.in_(potential_rescue_ids),
-                    Sentence.is_active == True,  # noqa: E712
-                    not_has_unmapped_words(),
+                    reviewable_sentence_clauses(),
                 )
                 .all()
             )

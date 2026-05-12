@@ -33,6 +33,7 @@ def _sentence_with_words(db, *, sentence_id, words):
         arabic_text=" ".join(w[0] for w in words),
         is_active=True,
         target_lemma_id=next((lid for _, lid in words if lid), None),
+        mappings_verified_at=datetime.now(timezone.utc),
     )
     db.add(sent)
     db.flush()
@@ -118,3 +119,33 @@ def test_proper_name_lemma_makes_sentence_reviewable(db_session):
         .all()
     )
     assert len(rows) == 1
+
+
+def test_reviewable_clause_excludes_stale_mapping_stamp(db_session):
+    l1 = _lemma(db_session, "بيت")
+    stale = _sentence_with_words(
+        db_session,
+        sentence_id=900_030,
+        words=[("بيت", l1.lemma_id)],
+    )
+    stale.mappings_verified_at = datetime(2026, 3, 21)
+    sentinel = _sentence_with_words(
+        db_session,
+        sentence_id=900_031,
+        words=[("بيت", l1.lemma_id)],
+    )
+    sentinel.mappings_verified_at = datetime(2000, 1, 1)
+    current = _sentence_with_words(
+        db_session,
+        sentence_id=900_032,
+        words=[("بيت", l1.lemma_id)],
+    )
+    db_session.commit()
+
+    rows = (
+        db_session.query(Sentence)
+        .filter(Sentence.id.in_([stale.id, sentinel.id, current.id]))
+        .filter(reviewable_sentence_clauses())
+        .all()
+    )
+    assert {s.id for s in rows} == {current.id}
