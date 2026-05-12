@@ -21,12 +21,14 @@ from app.services.fsrs_service import parse_json_column
 logger = logging.getLogger(__name__)
 
 
-# Default path is the self-correcting tool-enabled Sonnet session. Flip to
-# legacy generate-then-validate by setting ALIF_USE_LEGACY_BATCH=1. See
-# research/experiment-log.md 2026-04-20 entry for the benchmark that
-# justified the switch (95% naturalness vs 67% baseline, 2.9x cheaper).
+# Default path is the bounded legacy generate-then-validate flow. The
+# tool-enabled self-correcting Sonnet session is still available for experiments
+# by setting ALIF_USE_LEGACY_BATCH=0, but production logs on 2026-05-12 showed
+# repeated empty structured results that spent full Claude Code sessions without
+# producing sentences.
 def _use_legacy_batch() -> bool:
-    return os.environ.get("ALIF_USE_LEGACY_BATCH", "").strip() == "1"
+    raw = os.environ.get("ALIF_USE_LEGACY_BATCH", "1").strip().lower()
+    return raw not in {"0", "false", "no", "off"}
 
 
 def _allow_legacy_batch_fallback() -> bool:
@@ -439,10 +441,9 @@ def generate_material_for_word(lemma_id: int, needed: int = 2, model_override: s
     2. LLM generation + validation: no DB lock held
     3. DB write: open fresh session, write results, close (milliseconds)
 
-    Default path (ALIF_USE_LEGACY_BATCH unset): delegates to the self-correct
-    batch generator via ``batch_generate_material`` so a single-lemma call
-    still benefits from the tool-enabled Sonnet session that fixed the
-    67%→95% naturalness regression (experiment-log.md 2026-04-20).
+    Default path (ALIF_USE_LEGACY_BATCH unset): uses the bounded legacy
+    generate-then-validate flow. Set ALIF_USE_LEGACY_BATCH=0 to exercise the
+    tool-enabled self-correct batch generator after it is fixed.
     """
     if not _use_legacy_batch():
         result = batch_generate_material(
@@ -964,14 +965,13 @@ def batch_generate_material(
 
     # ── Phase 2a: Sonnet call — generate sentences for all words ──
     #
-    # Default: tool-enabled self-correcting Sonnet session (one session writes
-    # validated sentences for all N targets). This path produces 95% naturally
-    # acceptable sentences at 1.90 sentences/target in the 2026-04-20 N=10
-    # benchmark vs. 67%/2.0 for the legacy generate-then-validate path.
+    # Default: bounded legacy generate-then-validate flow. It writes candidates
+    # through one Sonnet call, then relies on deterministic validation,
+    # batched mapping verification, and a post-hoc Haiku quality gate.
     #
-    # Legacy path (flip via ALIF_USE_LEGACY_BATCH=1): single Sonnet call
-    # writes candidates blindly, relies on deterministic validation + a
-    # post-hoc Haiku naturalness rerank to filter awkward outputs.
+    # Experimental path (ALIF_USE_LEGACY_BATCH=0): tool-enabled self-correcting
+    # Sonnet session. It produced strong benchmark results in 2026-04, but
+    # 2026-05 prod logs showed repeated empty structured results.
     if _use_legacy_batch():
         try:
             results = _generate_via_legacy_batch(

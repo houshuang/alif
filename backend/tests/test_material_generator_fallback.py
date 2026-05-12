@@ -13,8 +13,14 @@ def test_default_batch_word_size_keeps_cron_shards_small():
     assert material_generator.BATCH_WORD_SIZE == 4
 
 
+def test_legacy_batch_is_default(monkeypatch):
+    monkeypatch.delenv("ALIF_USE_LEGACY_BATCH", raising=False)
+    assert material_generator._use_legacy_batch() is True
+
+
 def test_self_correct_batch_does_not_fall_back_to_legacy_by_default(db_session, monkeypatch):
-    """Cron should not double-spend sessions after self-correct batch failures."""
+    """Self-correct experiments should not double-spend after failures."""
+    monkeypatch.setenv("ALIF_USE_LEGACY_BATCH", "0")
     monkeypatch.delenv("ALIF_ALLOW_LEGACY_BATCH_FALLBACK", raising=False)
     db_session.add_all([
         Lemma(
@@ -54,6 +60,7 @@ def test_self_correct_batch_does_not_fall_back_to_legacy_by_default(db_session, 
 
 
 def test_self_correct_batch_legacy_fallback_escape_hatch(db_session, monkeypatch):
+    monkeypatch.setenv("ALIF_USE_LEGACY_BATCH", "0")
     monkeypatch.setenv("ALIF_ALLOW_LEGACY_BATCH_FALLBACK", "1")
     db_session.add_all([
         Lemma(
@@ -171,7 +178,8 @@ def _seed_batch_quality_word(db_session):
     db_session.commit()
 
 
-def test_batch_generation_rejects_quality_failed_sentence(db_session):
+def test_batch_generation_rejects_quality_failed_sentence(db_session, monkeypatch):
+    monkeypatch.setenv("ALIF_USE_LEGACY_BATCH", "0")
     _seed_batch_quality_word(db_session)
     generated_sentence = SimpleNamespace(
         target_index=0,
@@ -194,7 +202,8 @@ def test_batch_generation_rejects_quality_failed_sentence(db_session):
     assert db_session.query(Sentence).count() == 0
 
 
-def test_batch_generation_stores_quality_approved_sentence(db_session):
+def test_batch_generation_stores_quality_approved_sentence(db_session, monkeypatch):
+    monkeypatch.setenv("ALIF_USE_LEGACY_BATCH", "0")
     _seed_batch_quality_word(db_session)
     generated_sentence = SimpleNamespace(
         target_index=0,

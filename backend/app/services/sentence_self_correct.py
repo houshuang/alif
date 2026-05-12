@@ -1,4 +1,4 @@
-"""Self-correcting sentence generator (EXPERIMENTAL — not yet wired into prod).
+"""Self-correcting sentence generator (EXPERIMENTAL).
 
 A single Claude CLI session that:
   1. Reads the learner's vocabulary from a temp file.
@@ -16,10 +16,9 @@ Output shape matches ``app.services.llm.SentenceResult`` so callers (most
 importantly ``generate_material_for_word``) can swap this in without
 downstream changes.
 
-This module is the prototype called by the test in
-``backend/tests/test_self_correct_smoke.py`` and the ad-hoc benchmark in
-``/tmp/claude/self_correct_test.py``. It is not imported by production code
-yet — wiring happens in a follow-up only if the benchmark passes the gates.
+This module is called only when ``ALIF_USE_LEGACY_BATCH=0``. Keep production
+cron/background generation on the default legacy path until the empty
+structured-result failures seen on 2026-05-12 are fixed.
 """
 
 from __future__ import annotations
