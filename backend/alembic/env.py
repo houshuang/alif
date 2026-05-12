@@ -9,6 +9,7 @@ from app.config import settings
 from app.models import (  # noqa: F401
     Root, Lemma, UserLemmaKnowledge, ReviewLog, Sentence, SentenceWord,
     SentenceReviewLog, GrammarFeature, SentenceGrammarFeature, UserGrammarExposure,
+    MaterialJob,
 )
 
 config = context.config

@@ -145,6 +145,31 @@ class FrequencyCoreEntry(Base):
     lemma = relationship("Lemma", foreign_keys=[lemma_id])
 
 
+class MaterialJob(Base):
+    __tablename__ = "material_jobs"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    kind = Column(String(40), nullable=False, index=True)
+    status = Column(String(20), nullable=False, default="queued", index=True)
+    priority = Column(Integer, nullable=False, default=100, index=True)
+    dedupe_key = Column(String(200), nullable=True, index=True)
+    payload_json = Column(JSON, nullable=False, default=dict)
+    attempts = Column(Integer, nullable=False, default=0)
+    max_attempts = Column(Integer, nullable=False, default=3)
+    not_before = Column(DateTime, nullable=True, index=True)
+    lease_owner = Column(String(100), nullable=True)
+    lease_until = Column(DateTime, nullable=True, index=True)
+    last_error = Column(Text, nullable=True)
+    result_json = Column(JSON, nullable=True)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), index=True)
+    updated_at = Column(
+        DateTime,
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
+    )
+    completed_at = Column(DateTime, nullable=True)
+
+
 class ReviewLog(Base):
     __tablename__ = "review_log"
 
