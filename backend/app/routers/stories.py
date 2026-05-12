@@ -259,6 +259,13 @@ def generate_audio_endpoint(
     background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
 ):
+    from app.services.tts import audio_generation_enabled
+
+    if not audio_generation_enabled():
+        raise HTTPException(
+            status_code=503,
+            detail="Audio generation is disabled. Set ALIF_AUDIO_ENABLED=1 to enable it.",
+        )
     story = db.query(Story).filter(Story.id == story_id).first()
     if not story:
         raise HTTPException(status_code=404, detail="Story not found")

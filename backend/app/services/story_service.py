@@ -1959,11 +1959,16 @@ async def generate_story_audio(db: Session, story_id: int) -> dict:
 
     from app.services.tts import (
         STORY_AUDIO_DIR,
+        TTSDisabled,
+        audio_generation_enabled,
         generate_audio,
         pick_voice_for_story,
         DEFAULT_VOICE_SETTINGS,
         DEFAULT_MODEL,
     )
+
+    if not audio_generation_enabled():
+        raise TTSDisabled("Audio generation is disabled. Set ALIF_AUDIO_ENABLED=1 to enable it.")
 
     story = db.query(Story).filter(Story.id == story_id).first()
     if not story:

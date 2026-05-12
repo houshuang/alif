@@ -8,6 +8,7 @@ from pydantic import BaseModel
 from ..services.tts import (
     AUDIO_DIR,
     DEFAULT_VOICE_ID as TTS_DEFAULT_VOICE_ID,
+    TTSDisabled,
     TTSError,
     TTSKeyMissing,
     cache_key_for,
@@ -56,6 +57,8 @@ async def generate(req: GenerateRequest):
     voice_id = req.voice_id or DEFAULT_VOICE_ID
     try:
         path = await generate_and_cache(req.text, voice_id)
+    except TTSDisabled as e:
+        raise HTTPException(status_code=503, detail=str(e))
     except TTSKeyMissing:
         raise HTTPException(
             status_code=503,
@@ -72,6 +75,8 @@ async def generate_for_sentence(req: GenerateForSentenceRequest):
     cache_key = cache_key_for(req.text, voice_id)
     try:
         path = await generate_and_cache(req.text, voice_id, cache_key=cache_key, slow_mode=True)
+    except TTSDisabled as e:
+        raise HTTPException(status_code=503, detail=str(e))
     except TTSKeyMissing:
         raise HTTPException(
             status_code=503,
@@ -99,6 +104,17 @@ async def speak(text: str):
     try:
         is_sentence = len(text.split()) >= 3
         path = await generate_and_cache(text, voice_id, cache_key=ck, slow_mode=is_sentence)
+    except TTSDisabled as e:
+        latency_ms = int((time.monotonic() - t0) * 1000)
+        log_interaction(
+            event="tts_request",
+            text_length=len(text),
+            cache_hit=False,
+            success=False,
+            latency_ms=latency_ms,
+            error="audio_disabled",
+        )
+        raise HTTPException(status_code=503, detail=str(e))
     except TTSKeyMissing:
         log_interaction(
             event="tts_request",

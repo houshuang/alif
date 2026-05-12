@@ -8,9 +8,11 @@ import pytest
 
 from app.services.tts import (
     AUDIO_DIR,
+    TTSDisabled,
     TTSError,
     TTSKeyMissing,
     _get_api_key,
+    audio_generation_enabled,
     cache_key_for,
     filter_arabic_compatible_voices,
     generate_and_cache,
@@ -48,6 +50,11 @@ SAMPLE_VOICES = [
 ]
 
 FAKE_MP3 = b"\xff\xfb\x90\x00" + b"\x00" * 100
+
+
+@pytest.fixture(autouse=True)
+def _enable_audio_for_tts_tests(monkeypatch):
+    monkeypatch.setenv("ALIF_AUDIO_ENABLED", "1")
 
 
 def _mock_async_client(method: str, mock_resp: httpx.Response):
@@ -151,6 +158,13 @@ class TestListVoices:
 
 
 class TestGenerateAudio:
+    def test_disabled_by_default(self, monkeypatch):
+        monkeypatch.delenv("ALIF_AUDIO_ENABLED", raising=False)
+
+        assert not audio_generation_enabled()
+        with pytest.raises(TTSDisabled):
+            asyncio.run(generate_audio("مرحبا", "voice1", api_key="test-key"))
+
     def test_success(self):
         mock_resp = httpx.Response(
             200,

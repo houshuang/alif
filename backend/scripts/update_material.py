@@ -62,15 +62,27 @@ from app.services.tts import (
     DEFAULT_VOICE_ID,
     TTSError,
     TTSKeyMissing,
+    audio_generation_enabled,
     cache_key_for,
     generate_and_cache,
     get_cached_path,
 )
 
 TARGET_PIPELINE_SENTENCES = 2000  # safety valve only — tier-based lifecycle manages pool size
+DEFAULT_STEP_A_SENTENCE_BUDGET = 40  # bounded per cron; 2000 is a cap, not a fill target
 CAP_HEADROOM = 50  # retire this many below cap to leave room for multi-target backfill
 PREGEN_SENTENCES_PER_CANDIDATE = 3  # for step C pre-generation of not-yet-introduced words
 MAX_DUE_DENSE_SALVAGE_PER_RUN = 25
+
+
+def _env_int(name: str, default: int) -> int:
+    raw = os.environ.get(name)
+    if raw is None or raw.strip() == "":
+        return default
+    try:
+        return int(raw)
+    except ValueError:
+        return default
 
 
 def _augment_groups_with_recovery(
@@ -758,6 +770,8 @@ def step_enforce_cap(
 def step_backfill_sentences(
     db: Session, dry_run: bool, model: str, delay: float,
     max_sentences: int = TARGET_PIPELINE_SENTENCES,
+    max_step_a_sentences: int | None = None,
+    allow_single_word_fallback: bool = False,
     tier_lookup: dict | None = None,
 ) -> int:
     print("\n═══ Step A: Backfill sentences (due-date priority) ═══")
@@ -780,14 +794,21 @@ def step_backfill_sentences(
     existing_counts = get_existing_counts(db)
     total_active = sum(existing_counts.values())
     print(f"  Total active sentences: {total_active}")
-    print(f"  Pipeline target: {max_sentences}")
+    print(f"  Pipeline cap: {max_sentences}")
 
     if total_active >= max_sentences:
         print(f"  Pipeline full ({total_active} >= {max_sentences}), skipping.")
         return 0
 
-    budget = max_sentences - total_active
-    print(f"  Budget: {budget} sentences to generate")
+    if max_step_a_sentences is None:
+        max_step_a_sentences = _env_int("ALIF_STEP_A_SENTENCE_BUDGET", DEFAULT_STEP_A_SENTENCE_BUDGET)
+    if max_step_a_sentences <= 0:
+        print(f"  Step A sentence budget disabled ({max_step_a_sentences}); skipping.")
+        return 0
+
+    capacity = max_sentences - total_active
+    budget = min(capacity, max_step_a_sentences)
+    print(f"  Step A budget: {budget} sentences (capacity to cap: {capacity})")
 
     known_words, lemma_lookup = get_known_words_and_lookup(db)
     content_word_counts = get_content_word_counts(db)
@@ -918,6 +939,7 @@ def step_backfill_sentences(
     covered_by_multi: set[int] = set()
     covered_by_batch: set[int] = set()
     covered_single: set[int] = set()
+    attempted_lemma_ids: set[int] = set()
 
     # Phase 1: Multi-target generation for groups of 2-4 words.
     # Split into generate (LLM) → validate (LLM, read-only DB) → write (DB only),
@@ -938,6 +960,7 @@ def step_backfill_sentences(
             if total + sum(len(r) for r, _ in all_multi_results) >= budget:
                 break
             print(f"  Multi-target group: {', '.join(w['lemma_ar'] for w in group)}")
+            attempted_lemma_ids.update(w["lemma_id"] for w in group)
             try:
                 multi_results = generate_validated_sentences_multi_target(
                     target_words=group,
@@ -993,19 +1016,22 @@ def step_backfill_sentences(
         if validated:
             db.commit()
 
-    # Phase 2: Batch single-target for remaining words (≥3 → batch, else single)
+    # Phase 2: Batch single-target for remaining words.
+    # Do not fan failed batches out into many one-lemma Claude sessions during
+    # cron. One- and two-word needs still run as a single bounded batch.
     remaining = [
         w for w in words_needing
         if existing_counts.get(w["lemma_id"], 0) < w["backfill_target"]
     ]
     remaining_ids = [w["lemma_id"] for w in remaining]
 
-    if not dry_run and len(remaining_ids) >= 3 and total < budget:
+    if not dry_run and remaining_ids and total < budget:
         from app.services.material_generator import batch_generate_material, BATCH_WORD_SIZE
         for i in range(0, len(remaining_ids), BATCH_WORD_SIZE):
             if total >= budget:
                 break
             chunk = remaining_ids[i:i + BATCH_WORD_SIZE]
+            attempted_lemma_ids.update(chunk)
             print(f"  Batch generating for {len(chunk)} words...")
             result = batch_generate_material(chunk, model_override=model)
             batch_stored = result.get("generated", 0)
@@ -1016,9 +1042,15 @@ def step_backfill_sentences(
             for lid in chunk:
                 if lid not in result.get("words_failed", []):
                     covered_by_batch.add(lid)
-        # Single-word fallback for batch failures
+        # Optional manual escape hatch for rescue operations. Cron keeps this
+        # off so a bad batch cannot turn into dozens of single-target sessions.
+        failed_after_batch = [lid for lid in remaining_ids if lid not in covered_by_batch]
+        if failed_after_batch and not allow_single_word_fallback:
+            print(f"  Skipping single-word fallback for {len(failed_after_batch)} batch misses")
+        if failed_after_batch and allow_single_word_fallback:
+            print(f"  Single-word fallback enabled for {len(failed_after_batch)} batch misses")
         for lid in remaining_ids:
-            if lid in covered_by_batch or total >= budget:
+            if not allow_single_word_fallback or lid in covered_by_batch or total >= budget:
                 continue
             lemma = db.query(Lemma).filter(Lemma.lemma_id == lid).first()
             if not lemma:
@@ -1037,7 +1069,7 @@ def step_backfill_sentences(
                 print(f"    Generated {stored} sentences")
                 covered_single.add(lid)
     else:
-        # Small set or dry run: single-word path
+        # Dry run: simulate the work the live run would attempt.
         for w in remaining:
             if total >= budget:
                 break
@@ -1054,14 +1086,6 @@ def step_backfill_sentences(
             print(f"  {lemma.lemma_ar} ({lemma.gloss_en}) — have {existing}, need {needed}, due {w['due_str'][:10]}")
             if dry_run:
                 total += needed
-            else:
-                stored = generate_material_for_word(
-                    lemma.lemma_id, needed=needed, model_override=model,
-                )
-                total += stored
-                if stored:
-                    print(f"    Generated {stored} sentences")
-                    covered_single.add(lemma_id)
 
     # Record generation outcome per attempted lemma so chronically-failing words
     # are excluded from future runs via the generation_backoff_until timestamp.
@@ -1069,6 +1093,8 @@ def step_backfill_sentences(
         covered = covered_by_multi | covered_by_batch | covered_single
         for w in words_needing:
             lid = w["lemma_id"]
+            if lid not in attempted_lemma_ids:
+                continue
             record_generation_result(db, lid, 1 if lid in covered else 0)
         # Backoff-recovery lemmas: only record successes (which clear the counter).
         # Don't penalise failures — they're already on backoff and not in
@@ -1142,6 +1168,9 @@ MIN_AUDIO_BACKLOG = 30
 
 async def step_generate_audio(db: Session, dry_run: bool, limit: int) -> int:
     print("\n═══ Step B: Generate audio for review-eligible sentences ═══")
+    if not audio_generation_enabled():
+        print("  Audio generation disabled (ALIF_AUDIO_ENABLED is not set); skipping.")
+        return 0
 
     # Check existing audio backlog — only generate if below minimum
     existing_audio = (
@@ -1264,9 +1293,10 @@ def step_pregenerate_candidates(db: Session, dry_run: bool, count: int, model: s
 
     budget = TARGET_PIPELINE_SENTENCES - total_active
 
-    total = 0
+    planned_total = 0
+    candidate_needs: list[tuple[int, int]] = []
     for i, cand in enumerate(candidates):
-        if total >= budget:
+        if planned_total >= budget:
             break
         lid = cand["lemma_id"]
         existing = existing_counts.get(lid, 0)
@@ -1274,18 +1304,40 @@ def step_pregenerate_candidates(db: Session, dry_run: bool, count: int, model: s
         if needed <= 0:
             continue
 
-        needed = min(needed, budget - total)
+        needed = min(needed, budget - planned_total)
         print(f"  [{i+1}/{len(candidates)}] {cand['lemma_ar']} ({cand['gloss_en']}) — "
               f"have {existing}, need {needed}")
-        if dry_run:
-            total += needed
-        else:
-            stored = generate_material_for_word(
-                lid, needed=needed, model_override=model,
-            )
-            total += stored
-            if stored:
-                print(f"    Generated {stored} sentences")
+        candidate_needs.append((lid, needed))
+        planned_total += needed
+
+    if dry_run:
+        print(f"  → Total sentences: {planned_total}")
+        return planned_total
+
+    total = 0
+    if candidate_needs:
+        from collections import defaultdict
+        from app.services.material_generator import batch_generate_material, BATCH_WORD_SIZE
+
+        ids_by_needed: dict[int, list[int]] = defaultdict(list)
+        for lid, needed in candidate_needs:
+            ids_by_needed[needed].append(lid)
+
+        for needed, lemma_ids in sorted(ids_by_needed.items(), reverse=True):
+            for i in range(0, len(lemma_ids), BATCH_WORD_SIZE):
+                chunk = lemma_ids[i:i + BATCH_WORD_SIZE]
+                result = batch_generate_material(
+                    chunk,
+                    count_per_word=needed,
+                    model_override=model,
+                )
+                stored = result.get("generated", 0)
+                total += stored
+                if stored:
+                    print(
+                        f"    Batch: {stored} sentences for "
+                        f"{result.get('words_covered', 0)} words"
+                    )
 
     print(f"  → Total sentences: {total}")
     return total
@@ -1409,13 +1461,30 @@ async def main():
     parser.add_argument("--limit", type=int, default=0, help="Max audio generations (0=unlimited)")
     parser.add_argument("--candidates", type=int, default=10, help="Number of upcoming candidates (default: 10)")
     parser.add_argument("--max-sentences", type=int, default=TARGET_PIPELINE_SENTENCES,
-                        help=f"Max total active sentences in pipeline (default: {TARGET_PIPELINE_SENTENCES})")
+                        help=f"Max total active sentences safety cap (default: {TARGET_PIPELINE_SENTENCES})")
+    parser.add_argument(
+        "--max-step-a-sentences",
+        type=int,
+        default=_env_int("ALIF_STEP_A_SENTENCE_BUDGET", DEFAULT_STEP_A_SENTENCE_BUDGET),
+        help=(
+            "Max Step A sentences to generate this run "
+            f"(default: {DEFAULT_STEP_A_SENTENCE_BUDGET}; ALIF_STEP_A_SENTENCE_BUDGET)"
+        ),
+    )
+    parser.add_argument(
+        "--allow-single-word-fallback",
+        action="store_true",
+        help="Allow per-lemma fallback after batch misses (manual rescue only; off for cron)",
+    )
     parser.add_argument("--model", default="claude_sonnet", help="LLM model for sentence gen (default: claude_sonnet)")
     parser.add_argument("--delay", type=float, default=1.0, help="Seconds between LLM calls")
     args = parser.parse_args()
 
     print(f"update_material.py — {'DRY RUN' if args.dry_run else 'LIVE RUN'}")
-    print(f"  skip_audio={args.skip_audio}, limit={args.limit}, candidates={args.candidates}")
+    print(
+        f"  skip_audio={args.skip_audio}, limit={args.limit}, candidates={args.candidates}, "
+        f"max_step_a_sentences={args.max_step_a_sentences}"
+    )
     start = time.time()
 
     lock_handle = None
@@ -1467,7 +1536,16 @@ async def main():
             except Exception as exc:
                 print(f"  Remap step failed: {exc}")
 
-        sent_a = step_backfill_sentences(db, args.dry_run, args.model, args.delay, args.max_sentences, tier_lookup=tier_lk)
+        sent_a = step_backfill_sentences(
+            db,
+            args.dry_run,
+            args.model,
+            args.delay,
+            args.max_sentences,
+            max_step_a_sentences=args.max_step_a_sentences,
+            allow_single_word_fallback=args.allow_single_word_fallback,
+            tier_lookup=tier_lk,
+        )
 
         # ── Step A2: Enrich corpus sentences (diacritize + translate + verify) ──
         trans_a2 = 0
@@ -1663,7 +1741,9 @@ async def main():
         PODCAST_TARGET = 4  # keep at least 4 unheard podcasts
         MAX_PODCAST_PER_RUN = 2  # limit TTS cost per cron run
         print(f"\n[I] Auto-generate podcasts (target ≥ {PODCAST_TARGET} unheard)")
-        if not args.dry_run:
+        if not audio_generation_enabled():
+            print("  Audio generation disabled (ALIF_AUDIO_ENABLED is not set); skipping podcasts.")
+        elif not args.dry_run:
             from app.services.podcast_service import unheard_count
             from scripts.generate_story_podcasts import (
                 generate_ci_podcast,

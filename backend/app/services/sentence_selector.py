@@ -65,10 +65,11 @@ BOX2_MIN_EXPOSURES = 2
 MAX_ACQUISITION_EXTRA_SLOTS = 15  # max extra cards beyond session limit for repetitions
 MAX_AUTO_INTRO_PER_SESSION = 5  # cap new words per single auto-intro call
 DAILY_AUTO_INTRO_TARGET = 30  # aggressive 2026-05-04 trial target
-HIGH_ACCURACY_INTRO_BACKLOG_CAP = 120  # allow 30/day trial while retention is strong
+HIGH_ACCURACY_INTRO_BACKLOG_CAP = 200  # allow daily intros while retention is strong
+MID_ACCURACY_INTRO_BACKLOG_CAP = 120  # keep daily intros flowing at acceptable accuracy
 AUTO_INTRO_ACCURACY_FLOOR = 0.70  # pause introduction if recent accuracy below this
 INTRO_RESERVE_FRACTION = 0.3  # fraction of session slots reserved for new word introductions
-PIPELINE_BACKLOG_THRESHOLD = 40  # suppress reserved intros when acquiring pipeline exceeds this
+PIPELINE_BACKLOG_THRESHOLD = 80  # suppress reserved intros only when backlog is genuinely high
 LOW_TIER_INTRO_SOURCES = {"wiktionary", "story_import", "manual", "flag_autocreate", "other"}
 LOW_TIER_BLOCK_BACKLOG = 60  # block low-tier auto-intros once box-1 acquiring exceeds this
 SESSION_SCAFFOLD_DECAY = 0.5  # per-appearance decay for scaffold words already in session
@@ -145,6 +146,15 @@ def _get_accuracy_intro_slots(db: Session, now: datetime) -> int:
         accuracy = correct / len(recent_reviews)
         return _intro_slots_for_accuracy(accuracy)
     return 4  # conservative default with insufficient data
+
+
+def _intro_backlog_threshold_for_accuracy(recent_accuracy: float) -> int:
+    """Return acquiring-backlog cap for reserved new-word slots."""
+    if recent_accuracy >= 0.90:
+        return HIGH_ACCURACY_INTRO_BACKLOG_CAP
+    if recent_accuracy >= 0.80:
+        return MID_ACCURACY_INTRO_BACKLOG_CAP
+    return PIPELINE_BACKLOG_THRESHOLD
 
 
 def _introduced_today_count(db: Session, now: datetime) -> int:
@@ -884,12 +894,7 @@ def build_session(
         recent_accuracy = sum(1 for r in recent_reviews if r.rating >= 3) / len(recent_reviews)
     else:
         recent_accuracy = 0.80  # conservative default
-    if recent_accuracy >= 0.90:
-        effective_threshold = HIGH_ACCURACY_INTRO_BACKLOG_CAP
-    elif recent_accuracy >= 0.80:
-        effective_threshold = 60
-    else:
-        effective_threshold = PIPELINE_BACKLOG_THRESHOLD  # 40
+    effective_threshold = _intro_backlog_threshold_for_accuracy(recent_accuracy)
 
     daily_intro_remaining = max(0, DAILY_AUTO_INTRO_TARGET - _introduced_today_count(db, now))
     if (

@@ -42,6 +42,29 @@ class TTSKeyMissing(TTSError):
     pass
 
 
+class TTSDisabled(TTSError):
+    pass
+
+
+def audio_generation_enabled() -> bool:
+    """Return whether new audio generation is enabled.
+
+    Existing cached audio can still be served. New ElevenLabs calls require an
+    explicit opt-in while audio work is paused.
+    """
+    return os.environ.get("ALIF_AUDIO_ENABLED", "").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }
+
+
+def _ensure_audio_generation_enabled() -> None:
+    if not audio_generation_enabled():
+        raise TTSDisabled("Audio generation is disabled. Set ALIF_AUDIO_ENABLED=1 to enable it.")
+
+
 def _get_api_key() -> str:
     key = os.environ.get("ELEVENLABS_API_KEY", "")
     if not key:
@@ -127,6 +150,7 @@ async def generate_audio(
     voice_settings: Optional[dict] = None,
     slow_mode: bool = False,
 ) -> bytes:
+    _ensure_audio_generation_enabled()
     key = api_key or _get_api_key()
     settings = voice_settings or DEFAULT_VOICE_SETTINGS
 

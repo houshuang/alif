@@ -9,15 +9,19 @@ from app.models import Lemma, ReviewLog, UserLemmaKnowledge, Sentence, SentenceW
 from app.services.fsrs_service import create_new_card
 from app.services.sentence_selector import (
     FRESHNESS_BASELINE,
+    HIGH_ACCURACY_INTRO_BACKLOG_CAP,
     INTRO_RESERVE_FRACTION,
     JACCARD_VETO_THRESHOLD,
     MAX_AUTO_INTRO_PER_SESSION,
+    MID_ACCURACY_INTRO_BACKLOG_CAP,
+    PIPELINE_BACKLOG_THRESHOLD,
     SESSION_SCAFFOLD_DECAY,
     SentenceCandidate,
     WordMeta,
     _difficulty_match_quality,
     _find_pregenerated_sentences_for_words,
     _group_maintenance_passages,
+    _intro_backlog_threshold_for_accuracy,
     _intro_slots_for_accuracy,
     _is_near_duplicate_of_selected,
     _is_text_near_duplicate,
@@ -957,6 +961,13 @@ class TestAdaptiveIntroRate:
         assert _intro_slots_for_accuracy(0.88) == MAX_AUTO_INTRO_PER_SESSION
         assert _intro_slots_for_accuracy(0.95) == MAX_AUTO_INTRO_PER_SESSION
         assert _intro_slots_for_accuracy(1.0) == MAX_AUTO_INTRO_PER_SESSION
+
+    def test_intro_backlog_threshold_keeps_daily_intros_available(self):
+        assert _intro_backlog_threshold_for_accuracy(0.79) == PIPELINE_BACKLOG_THRESHOLD
+        assert _intro_backlog_threshold_for_accuracy(0.80) == MID_ACCURACY_INTRO_BACKLOG_CAP
+        assert _intro_backlog_threshold_for_accuracy(0.89) == MID_ACCURACY_INTRO_BACKLOG_CAP
+        assert _intro_backlog_threshold_for_accuracy(0.90) == HIGH_ACCURACY_INTRO_BACKLOG_CAP
+        assert MID_ACCURACY_INTRO_BACKLOG_CAP > 60
 
 
 class TestReservedIntroSlots:

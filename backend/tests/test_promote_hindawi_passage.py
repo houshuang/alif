@@ -66,6 +66,17 @@ def _context(*lemmas: Lemma, states: dict[int, str]) -> LemmaContext:
     )
 
 
+def _target_word_dict(lemma: Lemma, state: str) -> dict:
+    return {
+        "lemma_id": lemma.lemma_id,
+        "arabic": lemma.lemma_ar,
+        "arabic_bare": lemma.lemma_ar_bare,
+        "english": lemma.gloss_en or "",
+        "pos": lemma.pos or "",
+        "state": state,
+    }
+
+
 def test_extract_window_uses_one_based_sentence_offsets():
     assert _extract_window(["s1", "s2", "s3", "s4"], 2, 3) == ["s2", "s3", "s4"]
 

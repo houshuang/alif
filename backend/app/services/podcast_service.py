@@ -119,6 +119,7 @@ def _add_learner_pauses(text: str) -> str:
 async def generate_tts(seg: Seg) -> bytes:
     """Generate TTS audio for a single segment, with caching."""
     from pydub import AudioSegment as PydubSegment
+    from app.services.tts import TTSDisabled, audio_generation_enabled
 
     if seg.lang == "silence":
         silent = PydubSegment.silent(duration=seg.duration_ms)
@@ -131,6 +132,9 @@ async def generate_tts(seg: Seg) -> bytes:
     cache_path = SEGMENT_CACHE_DIR / f"{ck}.mp3"
     if cache_path.exists():
         return cache_path.read_bytes()
+
+    if not audio_generation_enabled():
+        raise TTSDisabled("Audio generation is disabled. Set ALIF_AUDIO_ENABLED=1 to enable it.")
 
     api_key = _get_api_key()
     voice_id = ARABIC_VOICE_ID if seg.lang == "ar" else ENGLISH_VOICE_ID

@@ -29,6 +29,10 @@ def _use_legacy_batch() -> bool:
     return os.environ.get("ALIF_USE_LEGACY_BATCH", "").strip() == "1"
 
 
+def _allow_legacy_batch_fallback() -> bool:
+    return os.environ.get("ALIF_ALLOW_LEGACY_BATCH_FALLBACK", "").strip() == "1"
+
+
 def _self_correct_batch_timeout(group_size: int) -> int:
     raw = os.environ.get("ALIF_SELF_CORRECT_BATCH_TIMEOUT", "").strip()
     if raw:
@@ -977,6 +981,20 @@ def batch_generate_material(
             mark_claude_cli_unavailable_from_error(e)
             logger.warning(f"Self-correct batch generation failed: {e}")
             _log_pipeline(_log_dir, {
+                "event": "batch_self_correct_failed",
+                "target_lemma_ids": [t["lemma_id"] for t in targets],
+                "group_size": len(targets),
+                "needed_per_target": count_per_word,
+                "error": str(e)[:200],
+                "legacy_fallback": _allow_legacy_batch_fallback(),
+            })
+            if not _allow_legacy_batch_fallback():
+                return {
+                    "generated": 0,
+                    "words_covered": 0,
+                    "words_failed": [t["lemma_id"] for t in targets],
+                }
+            _log_pipeline(_log_dir, {
                 "event": "batch_self_correct_fallback",
                 "target_lemma_ids": [t["lemma_id"] for t in targets],
                 "group_size": len(targets),
@@ -1518,10 +1536,15 @@ def generate_word_audio(lemma_id: int) -> None:
         DEFAULT_VOICE_ID,
         TTSError,
         TTSKeyMissing,
+        audio_generation_enabled,
         cache_key_for,
         generate_and_cache,
         get_cached_path,
     )
+
+    if not audio_generation_enabled():
+        logger.info("Word audio generation disabled; skipping lemma %s", lemma_id)
+        return
 
     db = SessionLocal()
     try:
@@ -2343,10 +2366,15 @@ def _generate_audio_for_lemma(db, lemma_id: int) -> None:
         DEFAULT_VOICE_ID,
         TTSError,
         TTSKeyMissing,
+        audio_generation_enabled,
         cache_key_for,
         generate_and_cache,
         get_cached_path,
     )
+
+    if not audio_generation_enabled():
+        logger.info("Sentence audio generation disabled; skipping lemma %s", lemma_id)
+        return
 
     sentences = (
         db.query(Sentence)
