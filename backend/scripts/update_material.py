@@ -97,6 +97,10 @@ def _run_lemma_enrichment(force: bool = False) -> bool:
     return force or _env_bool("ALIF_RUN_CRON_LEMMA_ENRICHMENT", False)
 
 
+def _run_corpus_enrichment(force: bool = False) -> bool:
+    return force or _env_bool("ALIF_RUN_CRON_CORPUS_ENRICHMENT", False)
+
+
 def _is_generation_inert_lemma(lemma: Lemma) -> bool:
     if lemma.word_category in {"proper_name", "onomatopoeia"}:
         return True
@@ -1503,6 +1507,11 @@ async def main():
         action="store_true",
         help="Run expensive lemma enrichment in this invocation (off by default for cron)",
     )
+    parser.add_argument(
+        "--run-corpus-enrichment",
+        action="store_true",
+        help="Run corpus sentence enrichment in this invocation (off by default for cron)",
+    )
     parser.add_argument("--model", default="claude_sonnet", help="LLM model for sentence gen (default: claude_sonnet)")
     parser.add_argument("--delay", type=float, default=1.0, help="Seconds between LLM calls")
     args = parser.parse_args()
@@ -1577,7 +1586,12 @@ async def main():
         # ── Step A2: Enrich corpus sentences (diacritize + translate + verify) ──
         trans_a2 = 0
         print("\n═══ Step A2: Enrich corpus sentences for due/acquiring words ═══")
-        if not args.dry_run:
+        if not _run_corpus_enrichment(args.run_corpus_enrichment):
+            print(
+                "  Skipped (expensive; use --run-corpus-enrichment or "
+                "ALIF_RUN_CRON_CORPUS_ENRICHMENT=1)"
+            )
+        elif not args.dry_run:
             trans_a2 = enrich_corpus_sentences(db)
         else:
             print("  Skipped (dry run)")

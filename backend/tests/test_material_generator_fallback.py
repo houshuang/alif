@@ -9,6 +9,10 @@ from app.services.llm import SentenceReviewResult
 from app.services import material_generator
 
 
+def test_default_batch_word_size_keeps_cron_shards_small():
+    assert material_generator.BATCH_WORD_SIZE == 4
+
+
 def test_self_correct_batch_does_not_fall_back_to_legacy_by_default(db_session, monkeypatch):
     """Cron should not double-spend sessions after self-correct batch failures."""
     monkeypatch.delenv("ALIF_ALLOW_LEGACY_BATCH_FALLBACK", raising=False)

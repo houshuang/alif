@@ -135,3 +135,14 @@ def test_cron_lemma_enrichment_is_opt_in(monkeypatch):
 
     monkeypatch.setenv("ALIF_RUN_CRON_LEMMA_ENRICHMENT", "0")
     assert update_material._run_lemma_enrichment(True) is True
+
+
+def test_cron_corpus_enrichment_is_opt_in(monkeypatch):
+    monkeypatch.delenv("ALIF_RUN_CRON_CORPUS_ENRICHMENT", raising=False)
+    assert update_material._run_corpus_enrichment(False) is False
+
+    monkeypatch.setenv("ALIF_RUN_CRON_CORPUS_ENRICHMENT", "1")
+    assert update_material._run_corpus_enrichment(False) is True
+
+    monkeypatch.setenv("ALIF_RUN_CRON_CORPUS_ENRICHMENT", "0")
+    assert update_material._run_corpus_enrichment(True) is True

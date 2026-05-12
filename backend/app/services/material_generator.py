@@ -854,7 +854,7 @@ def generate_material_for_word(lemma_id: int, needed: int = 2, model_override: s
     return stored
 
 
-BATCH_WORD_SIZE = max(1, int(os.environ.get("ALIF_BATCH_WORD_SIZE", "8")))
+BATCH_WORD_SIZE = max(1, int(os.environ.get("ALIF_BATCH_WORD_SIZE", "4")))
 
 
 def batch_generate_material(
