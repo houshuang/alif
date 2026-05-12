@@ -101,6 +101,10 @@ def _run_corpus_enrichment(force: bool = False) -> bool:
     return force or _env_bool("ALIF_RUN_CRON_CORPUS_ENRICHMENT", False)
 
 
+def _run_pregeneration(force: bool = False) -> bool:
+    return force or _env_bool("ALIF_RUN_CRON_PREGENERATION", False)
+
+
 def _is_generation_inert_lemma(lemma: Lemma) -> bool:
     if lemma.word_category in {"proper_name", "onomatopoeia"}:
         return True
@@ -1512,6 +1516,11 @@ async def main():
         action="store_true",
         help="Run corpus sentence enrichment in this invocation (off by default for cron)",
     )
+    parser.add_argument(
+        "--run-pregeneration",
+        action="store_true",
+        help="Run speculative upcoming-word sentence pre-generation (off by default for cron)",
+    )
     parser.add_argument("--model", default="claude_sonnet", help="LLM model for sentence gen (default: claude_sonnet)")
     parser.add_argument("--delay", type=float, default=1.0, help="Seconds between LLM calls")
     args = parser.parse_args()
@@ -1519,7 +1528,8 @@ async def main():
     print(f"update_material.py — {'DRY RUN' if args.dry_run else 'LIVE RUN'}")
     print(
         f"  skip_audio={args.skip_audio}, limit={args.limit}, candidates={args.candidates}, "
-        f"max_step_a_sentences={args.max_step_a_sentences}"
+        f"max_step_a_sentences={args.max_step_a_sentences}, "
+        f"pregeneration={_run_pregeneration(args.run_pregeneration)}"
     )
     start = time.time()
 
@@ -1602,7 +1612,15 @@ async def main():
             audio_b = 0
             print("\n═══ Step B: Skipped (--skip-audio) ═══")
 
-        sent_c = step_pregenerate_candidates(db, args.dry_run, args.candidates, args.model, args.delay)
+        sent_c = 0
+        if not _run_pregeneration(args.run_pregeneration):
+            print("\n═══ Step C: Pre-generate sentences for upcoming candidates ═══")
+            print(
+                "  Skipped (speculative; use --run-pregeneration or "
+                "ALIF_RUN_CRON_PREGENERATION=1)"
+            )
+        else:
+            sent_c = step_pregenerate_candidates(db, args.dry_run, args.candidates, args.model, args.delay)
 
         samer_d = step_backfill_samer(db, args.dry_run)
 

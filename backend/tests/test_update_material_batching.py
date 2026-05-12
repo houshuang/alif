@@ -146,3 +146,14 @@ def test_cron_corpus_enrichment_is_opt_in(monkeypatch):
 
     monkeypatch.setenv("ALIF_RUN_CRON_CORPUS_ENRICHMENT", "0")
     assert update_material._run_corpus_enrichment(True) is True
+
+
+def test_cron_pregeneration_is_opt_in(monkeypatch):
+    monkeypatch.delenv("ALIF_RUN_CRON_PREGENERATION", raising=False)
+    assert update_material._run_pregeneration(False) is False
+
+    monkeypatch.setenv("ALIF_RUN_CRON_PREGENERATION", "1")
+    assert update_material._run_pregeneration(False) is True
+
+    monkeypatch.setenv("ALIF_RUN_CRON_PREGENERATION", "0")
+    assert update_material._run_pregeneration(True) is True
