@@ -32,7 +32,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Iterable
 
 from sqlalchemy import exists, or_
@@ -681,6 +681,52 @@ def reverify_all_active_sentences(
             )
 
     return stats
+
+
+def reverify_oldest_active_sentences(
+    *,
+    max_sentences: int = 30,
+    min_age_days: int = 1,
+) -> ReverifyStats:
+    """Per-warm-cache pre-verification of the oldest-stamped active sentences.
+
+    Picks up where the one-shot ``reverify_all_active_sentences`` sweep leaves
+    off: each warm cache pass re-checks the ``max_sentences`` sentences whose
+    ``mappings_verified_at`` is oldest (and at least ``min_age_days`` old, so
+    we don't re-verify what we just stamped). At ~30 sentences/warm pass with
+    typical usage, the full active corpus rolls over every ~12 days.
+
+    Same calibrated logic as the full sweep: false-positive ``same_lemma``
+    flags are dropped, real failures NULL the offending position(s) and log
+    to ``mapping_reverify_failures_<date>.jsonl``.
+    """
+    stats = ReverifyStats()
+    cutoff = datetime.now(timezone.utc) - timedelta(days=min_age_days)
+
+    db = SessionLocal()
+    try:
+        from app.services.sentence_eligibility import reviewable_sentence_clauses
+        ids = [
+            r[0] for r in db.query(Sentence.id)
+            .filter(
+                reviewable_sentence_clauses(),
+                Sentence.mappings_verified_at < cutoff.replace(tzinfo=None),
+            )
+            .order_by(Sentence.mappings_verified_at.asc())
+            .limit(max_sentences)
+            .all()
+        ]
+    finally:
+        db.close()
+
+    if not ids:
+        return stats
+
+    # Delegate to the existing sweep machinery with the explicit ID list.
+    return reverify_all_active_sentences(
+        batch_size=REVERIFY_BATCH_SIZE,
+        sentence_ids=ids,
+    )
 
 
 def rescue_sentences_for_lemmas(

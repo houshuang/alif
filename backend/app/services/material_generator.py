@@ -1740,6 +1740,7 @@ def _warm_sentence_cache_impl(llm_model: str = "claude_sonnet") -> dict:
         "rotated": 0,
         "maintenance_passages": 0,
         "mapping_rescue": {},
+        "mapping_reverify": {},
     }
 
     # ── Phase 1: DB read ──
@@ -1956,6 +1957,19 @@ def _warm_sentence_cache_impl(llm_model: str = "claude_sonnet") -> dict:
             )
     except Exception:
         logger.exception("Warm cache: mapping rescue raised; continuing with generation")
+
+    # ── Phase 1.6: Pre-verify the oldest-stamped active sentences ─────────
+    # The one-shot reverify_active_sentences.py sweep brings every active
+    # sentence to a fresh verified state at one point in time. This bounded
+    # per-warm-pass reverify rolls that over: each call re-checks the oldest
+    # ~30 sentences (whose mappings_verified_at is at least 1 day old). The
+    # full active corpus rolls over every ~12 days at typical usage.
+    try:
+        from app.services.mapping_rescue import reverify_oldest_active_sentences
+        reverify_stats = reverify_oldest_active_sentences(max_sentences=30, min_age_days=1)
+        stats["mapping_reverify"] = reverify_stats.to_dict()
+    except Exception:
+        logger.exception("Warm cache: reverify raised; continuing with generation")
 
     # If rescue cleared the gap list, the generation phase below no-ops cleanly
     # (empty groups → empty validated → empty writes). Phase 3d (maintenance
