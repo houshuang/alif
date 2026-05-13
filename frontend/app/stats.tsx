@@ -504,14 +504,19 @@ function WordLifecycleFunnel({
 }
 
 function FrequencyCoreCard({ data }: { data: FrequencyCoreProgress }) {
-  const top1000 = data.bands.find((b) => b.top_n === 1000) ?? data.bands[data.bands.length - 1];
-  const visibleBands = data.bands.filter((b) => b.top_n <= 1000);
+  // Headline auto-advances: smallest band still under 95% learned, falling back
+  // to the largest available band when every smaller tier is near-complete.
+  const sortedBands = [...data.bands].sort((a, b) => a.top_n - b.top_n);
+  const focusBand =
+    sortedBands.find((b) => b.coverage_pct < 95) ??
+    sortedBands[sortedBands.length - 1];
+  const visibleBands = sortedBands;
   const gaps = data.next_gaps.slice(0, 6);
 
-  if (!top1000) return null;
+  if (!focusBand) return null;
 
-  const trustedCount = top1000.high_confidence_count + top1000.medium_confidence_count;
-  const confidencePct = Math.round((trustedCount / Math.max(top1000.total_count, 1)) * 1000) / 10;
+  const trustedCount = focusBand.high_confidence_count + focusBand.medium_confidence_count;
+  const confidencePct = Math.round((trustedCount / Math.max(focusBand.total_count, 1)) * 1000) / 10;
 
   return (
     <View style={styles.freqCoreCard}>
@@ -519,31 +524,31 @@ function FrequencyCoreCard({ data }: { data: FrequencyCoreProgress }) {
         <View style={{ flex: 1 }}>
           <Text style={styles.freqCoreTitle}>High-Frequency Core</Text>
           <Text style={styles.freqCoreSubtitle}>
-            top {top1000.top_n}: {top1000.learned_count} learned · {top1000.not_introduced_count} need intro
+            top {focusBand.top_n}: {focusBand.learned_count} learned · {focusBand.not_introduced_count} need intro
           </Text>
         </View>
         <View style={styles.freqCoreBadge}>
-          <Text style={styles.freqCoreBadgePct}>{top1000.coverage_pct}%</Text>
+          <Text style={styles.freqCoreBadgePct}>{focusBand.coverage_pct}%</Text>
           <Text style={styles.freqCoreBadgeLabel}>learned</Text>
         </View>
       </View>
 
       <View style={styles.freqCoreMetricGrid}>
-        <FrequencyCoreMetric value={top1000.learned_count} label="learned" color={colors.good} />
-        <FrequencyCoreMetric value={top1000.introduced_count} label="introduced" color={colors.accent} />
-        <FrequencyCoreMetric value={top1000.not_introduced_count} label="need intro" color={colors.noIdea} />
-        <FrequencyCoreMetric value={top1000.unmapped_count} label="missing" color={colors.missed} />
+        <FrequencyCoreMetric value={focusBand.learned_count} label="learned" color={colors.good} />
+        <FrequencyCoreMetric value={focusBand.introduced_count} label="introduced" color={colors.accent} />
+        <FrequencyCoreMetric value={focusBand.not_introduced_count} label="need intro" color={colors.noIdea} />
+        <FrequencyCoreMetric value={focusBand.unmapped_count} label="missing" color={colors.missed} />
       </View>
 
       <View style={styles.freqCoreConfidence}>
         <View>
           <Text style={styles.freqCoreConfidenceTitle}>Source confidence</Text>
-          <Text style={styles.freqCoreConfidenceSub}>{trustedCount}/{top1000.total_count} trusted · {confidencePct}%</Text>
+          <Text style={styles.freqCoreConfidenceSub}>{trustedCount}/{focusBand.total_count} trusted · {confidencePct}%</Text>
         </View>
         <View style={styles.freqCoreConfidenceChips}>
-          <ConfidenceChip label="high" value={top1000.high_confidence_count} color={colors.good} />
-          <ConfidenceChip label="med" value={top1000.medium_confidence_count} color={colors.accent} />
-          <ConfidenceChip label="low" value={top1000.low_confidence_count} color={colors.missed} />
+          <ConfidenceChip label="high" value={focusBand.high_confidence_count} color={colors.good} />
+          <ConfidenceChip label="med" value={focusBand.medium_confidence_count} color={colors.accent} />
+          <ConfidenceChip label="low" value={focusBand.low_confidence_count} color={colors.missed} />
         </View>
       </View>
 
