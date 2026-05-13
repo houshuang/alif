@@ -50,7 +50,7 @@ npx expo start --web  # opens on localhost:8081
 | `docs/nlp-pipeline.md` | NLP pipeline: clitic stripping, CAMeL Tools, morphology |
 | `docs/review-modes.md` | Full UX flows for all review modes |
 | `docs/scripts-catalog.md` | All import, backfill, cleanup, analysis scripts |
-| `docs/design-principles.md` | Feature-level design decisions (intro cards, tashkeel, fonts, graduation, etc.) |
+| `docs/design-principles.md` | Feature-level design decisions (lemma identity, intro cards, tashkeel, fonts, graduation, etc.) |
 
 ## Review Modes
 See `docs/review-modes.md` for full UX flows. Modes: Sentence-First Review (primary), Reading Mode, Listening Mode, Learn Mode, Story Mode, Quran Reading Mode (suspended 2026-04-07), Podcast Mode.

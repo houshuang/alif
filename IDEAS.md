@@ -4,6 +4,18 @@
 
 ---
 
+## 🟢 [DONE 2026-05-13] Lazy mapping rescue in warm_sentence_cache
+
+Added `app/services/mapping_rescue.py` and hooked it into `warm_sentence_cache`. For each gap lemma the warm cache identifies, the rescue pulls stale-verified sentences for that lemma, batch-verifies them, applies confident corrections, and re-stamps survivors with a fresh `mappings_verified_at`. Verifier-proposed lemmas that don't exist in the DB are gated by the frequency-core list: if the bare form has an FCE row whose `lemma_id` is NULL we create the lemma and route through `run_quality_gates`; otherwise we log the proposal and leave the sentence stale.
+
+Trust-recovery move. Drains the 184 stranded sentences surfaced by `research/post-consolidation-audit-2026-05-13.md` lazily as demand picks them up, rather than running a global re-verification sweep. The frequency-core gate prevents the verifier from hallucinating lemmas into existence.
+
+Open follow-ups:
+- Periodic surface-form roll-up of `rescue_proposals_*.jsonl` to see which "needs-lemma" forms keep coming back, feeding a manual import queue.
+- A dedicated `/api/admin/rescue-stats` endpoint or activity-log surface so the daily rescue counts are visible in the More tab instead of only in logs.
+
+---
+
 ## 🟢 [DONE 2026-05-11] Persist sentence quality and demote unreviewed legacy LLM rows
 
 Triggered by sentence `44415`, where due-word coverage selected a short but

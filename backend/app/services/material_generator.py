@@ -1739,6 +1739,7 @@ def _warm_sentence_cache_impl(llm_model: str = "claude_sonnet") -> dict:
         "multi_target": 0,
         "rotated": 0,
         "maintenance_passages": 0,
+        "mapping_rescue": {},
     }
 
     # ── Phase 1: DB read ──
@@ -1935,6 +1936,30 @@ def _warm_sentence_cache_impl(llm_model: str = "claude_sonnet") -> dict:
         return stats
     finally:
         db.close()
+
+    # ── Phase 1.5: Lazy rescue of stale-verified sentences for gap lemmas ─────
+    # Cheap LLM verification on existing material before paying to generate
+    # new sentences. If rescue closes the gap, drop the lemma from generation.
+    try:
+        from app.services.mapping_rescue import rescue_sentences_for_lemmas
+
+        rescue_stats = rescue_sentences_for_lemmas(gap_word_ids)
+        stats["mapping_rescue"] = rescue_stats.to_dict()
+        if rescue_stats.lemmas_now_covered:
+            covered = rescue_stats.lemmas_now_covered
+            before = len(gap_word_ids)
+            gap_word_ids = [lid for lid in gap_word_ids if lid not in covered]
+            word_dicts = [wd for wd in word_dicts if wd["lemma_id"] not in covered]
+            logger.info(
+                "Warm cache: mapping rescue closed %d/%d gap lemmas",
+                before - len(gap_word_ids), before,
+            )
+    except Exception:
+        logger.exception("Warm cache: mapping rescue raised; continuing with generation")
+
+    # If rescue cleared the gap list, the generation phase below no-ops cleanly
+    # (empty groups → empty validated → empty writes). Phase 3d (maintenance
+    # passages) and Phase 4 (NULL-stamp verification) still run as designed.
 
     # ── Phase 2: LLM generation (no DB lock) ──
     groups = group_words_for_multi_target(word_dicts)

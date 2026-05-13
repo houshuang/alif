@@ -4,6 +4,26 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-05-13: Lazy mapping rescue in warm_sentence_cache
+
+### What
+
+New module `app/services/mapping_rescue.py` hooks into `warm_sentence_cache` between gap detection and LLM generation. For each gap lemma (capped at 10 per warm-cache run), it pulls up to 5 stale-verified sentences (`mappings_verified_at` < 2026-04-16, NULL, or the 2000-01-01 corpus sentinel), batch-verifies them via the existing `batch_verify_sentences`, applies confident corrections via the existing `apply_corrections`, and stamps survivors with a fresh `mappings_verified_at`. Sentences that can't be repaired stay stale (no destructive action — purgatory is fine).
+
+When the verifier proposes a lemma not in the vocabulary, the rescue tries one extra path: it looks the proposed bare form up in `frequency_core_entries`. If an FCE row matches and already points at a lemma, that lemma is reused. If the FCE row's `lemma_id` is NULL (we have it on the frequency list but haven't imported it yet), the rescue creates the lemma from the LLM proposal, links the FCE row, and routes the new lemma through `run_quality_gates`. Proposals without an FCE match are logged to `rescue_proposals_<date>.jsonl` for offline triage and the sentence stays stale.
+
+### Why
+
+The 2026-05-12 reviewability-gate hardening left 184 active sentences (153 LLM, 29 book, 2 corpus) stranded with stale `mappings_verified_at`. The cron's healing only re-stamps NULL `lemma_id` positions; it never re-verifies a stale stamp. A scheduled global drain would be expensive and blind. The lazy hook only spends LLM cycles on sentences attached to lemmas the warm-cache has just flagged as gap candidates, so the rescue cost scales with demand, not with corpus size. The frequency-core gate keeps the auto-create path vocabulary-driven so the verifier can't hallucinate lemmas into existence.
+
+### Verify
+
+- Unit tests: `backend/tests/test_mapping_rescue.py` covers clean-stamp, fixable-issue, unfixable-no-FCE, FCE-with-existing-lemma, FCE-unlinked-create-lemma, coverage-threshold, and LLM-failure paths.
+- Prod observability: `stats["mapping_rescue"]` in the warm-cache return dict, plus `rescue_proposals_<date>.jsonl` and the existing `mapping_corrections_<date>.jsonl` log.
+- Backlog drain: the 184 stale active sentences from `research/post-consolidation-audit-2026-05-13.md` should taper as their lemmas cycle through gap detection.
+
+---
+
 ## 2026-05-12: Tighten reviewability gate and repair known bad lemma mappings
 
 ### What

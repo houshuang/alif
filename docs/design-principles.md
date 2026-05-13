@@ -27,6 +27,36 @@ Feature-level design decisions and implementation details. For bug-preventing in
 - **Single Arabic font (mixing disabled 2026-04-17)** — Review cards use **Scheherazade New** (SIL, learner-optimized, conservative ligatures, large counters designed for L2 literacy). Previously cycled between Scheherazade / Amiri / Noto Naskh Arabic via `sentence_id % 3` to build familiarity with multiple typographic traditions, but the visual noise outweighed the benefit for a beginner-focused reading trainer. `arabicFonts` in `theme.ts` now holds a single entry; the per-card font-cycle toggle was removed from both review card components. `fontFamily` entries for Amiri/Noto and their `@expo-google-fonts/*` packages are preserved for easy re-enabling. Font packages: `@expo-google-fonts/scheherazade-new` (active), `@expo-google-fonts/amiri`, `@expo-google-fonts/noto-naskh-arabic` (dormant).
 - **BiDi text direction** — Pure Arabic text uses `writingDirection: "rtl"`. Mixed Arabic+English explanatory text (etymology, mnemonics, cognates, usage notes, fun facts) uses `writingDirection: "ltr"` **plus** `ltr()` wrapper (prepends U+200E Left-to-Right Mark) from `theme.ts`. The LRM is needed because iOS Core Text determines paragraph direction from the first strong character, overriding the style — text starting with Arabic gets RTL layout even with `writingDirection: "ltr"`. The `ltr()` helper must wrap any mixed-language text content that could start with Arabic characters.
 
+## Lemma Identity
+
+What counts as "one lemma" in Alif is a learner-facing question, not a linguist's. The rule is: **two surface forms collapse to one lemma when learning one of them gives the learner the other for free; they stay separate when the learner has to memorize each form independently.** This is decided in `research/variant-detection-spec.md` (2026-02-11) and enforced in code by `app/services/canonical_resolution.py` + `Lemma.canonical_lemma_id`.
+
+### Same lemma (track via `canonical_lemma_id` + `variant_stats_json`)
+
+- **Verb conjugations** (كَتَبَ / يَكْتُبُ / اكْتُبْ — past / present / imperative). All tenses, persons, numbers, moods. Predictable from the root + form pattern.
+- **Sound + broken plurals** (كِتاب / كُتُب; قَلَم / أَقْلام). Even though broken plurals are unpredictable in form, learners memorize them tied to the singular. One FSRS card, both forms tracked in `variant_stats_json`.
+- **Sound feminine adjective forms** (سَعِيد / سَعِيدَة). Predictable -ة suffix.
+- **Elatives and color/defect adjective forms** (كَبِير / أَكْبَر — big/bigger; أَسْوَد / سَوْدَاء / سُود — black masc/fem/plural). Same lexical concept, different grammatical role (comparative degree, or gender/number agreement within the special أَفْعَل pattern). Learning one gives the others.
+- **Clitic-prefixed and clitic-suffixed forms** (كِتابي, وكِتاب, بالكِتاب). Stripped silently at lookup; one lemma.
+
+### Separate lemmas (each gets its own row + its own FSRS card)
+
+- **Same root, different POS** (كَتَبَ verb / كاتِب active participle / كِتاب noun / مَكْتَب noun-of-place). These are distinct dictionary entries. The learner must memorize each.
+- **Taa marbuta feminine nouns vs masculine root or plural** (غرفة room / غرف rooms; جامعة university / جامع mosque; ملكة queen / ملك king). Genuinely independent semantic units even when CAMeL collapses them — this is the dominant false-positive class. See `research/variant-detection-spec.md` §3a.
+- **Nisba adjective vs base** (مِصْرِيّ Egyptian / مِصْر Egypt). The adjectival derivation is its own learnable item.
+- **Loanwords sharing form with native words** (بنك bank / بِن son). Always separate, regardless of orthographic overlap.
+
+### The unresolved case: multi-sense homographs
+
+Words like عَيْن (eye / spring / spy) or سِلْم (peace / ladder) currently fit one row with one `gloss_en` field. The schema has no multi-sense support. Today's behavior: a single best-fit gloss is shown, and context-disambiguation at generation/verification time picks which sense was intended, but the user can't see the sense inventory in intro cards or word detail. `IDEAS.md` carries the proposal to add per-word contextual glosses during generation; until then, homographs with truly disparate meanings will sometimes display a gloss that doesn't fit the sentence the learner is reading.
+
+### How the variant decision is made today
+
+- **Pass 1**: rule-based clitic stripping + form lookup (`build_lemma_lookup` indexes the `forms_json` entries). Catches clitics, sound plurals, sound feminines, verb conjugations.
+- **Pass 2**: CAMeL Tools morphological analysis with MLE disambiguator. Catches broken plurals and irregular forms but introduces the taa-marbuta and short-stem false positives documented in `research/variant-detection-spec.md` §3.
+- **Pass 3**: LLM variant confirmation (`variant_detection.detect_variants_llm` in `run_quality_gates`). The gate that catches the CAMeL false positives.
+- **Storage rule**: `lemma_ar_bare` has alef variants normalized (أ → ا via the `_normalize_bare` validator), but tashkeel is preserved on `lemma_ar`. Hamza is preserved at storage, normalized at lookup-time only — under-normalizing breaks pairs like بَدَأ vs بَدا that mean different things.
+
 ## NLP & Morphology
 
 - **Function words** — ~85 particles/prepositions/pronouns/conjunctions (populated from `FUNCTION_WORD_GLOSSES` in `sentence_validator.py`). Excluded from story/book "to learn" counts, book page word introduction, FSRS review credit, scheduling/due counts, and scaffold diversity checks. They still appear in sentences and get glosses. Detection checks both surface form AND resolved lemma bare form (catches cliticized forms like بِهِ -> بِ). Glosses are register-aware (e.g. ثم = "then (after delay)" to distinguish from فَـ). `_QURAN_FUNCTION_GLOSSES` in `quran_service.py` covers all 14 muqatta'at letter combinations + إيّاك forms with exclusivity semantics ("You alone"). Educational reference: `research/quran-function-words.html`.
