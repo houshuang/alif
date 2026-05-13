@@ -4,6 +4,45 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-05-13: Variant re-admit bug + select_next_words performance fix
+
+### What
+
+Two compounding issues surfaced after the frequency-core supply fix landed earlier today: sessions returned 0 intros and `build_session` took ~3.4s end-to-end. Both fixed.
+
+**Fix 1 — variant re-admit bug** (`backend/app/services/word_selector.py`, commit `5bfeb31`)
+`select_next_words` has three re-admit paths for suspended lemmas (in book pages, in active stories, with `ULK.source = 'textbook_scan'`). All three funneled through one final `db.query(Lemma).filter(Lemma.lemma_id.in_(readmit_ids))` that was missing a `Lemma.canonical_lemma_id.is_(None)` filter. So the 36 variant ULKs that `suspend_variant_ulks.py` deliberately suspended on 2026-05-06 (because their canonicals were already `known`/`learning`) kept being surfaced as intro candidates. `introduce_word` canonical-resolved each one to the already-known canonical and returned `already_known=True`, so the loop in `_auto_introduce_words` skipped every iteration and returned `[]`.
+
+Symptom for the user: top candidates were #1693 أولى → canonical #156 أَوَّلٌ (known), #318 صُورَة → #319 (known), #21 بُنِّيّة → #18 (known). Three slots, three rejections, zero intros per session.
+
+Added the `canonical_lemma_id.is_(None)` filter to the final readmit query, plus tightened the `encountered_ids.update` to only count actually-readmitted lemmas instead of the unfiltered `readmit_ids` set.
+
+**Fix 2 — `select_next_words` performance** (commit `a41dd41`)
+The function scored ~750 candidates per call but only returned the top 15. Two heavy fields were computed for every scored row before the slice:
+- `root_family` via `get_root_family(db, lemma.root_id)` — does an N+1 lazy-load of `lemma.knowledge` per child of the root. ~753 calls, ~1s cumulative.
+- `pattern_examples` — a subquery for `touched_root_ids`, a JOIN'd wazn-match query with `LIMIT 4`, then a per-example `db.query(Root).first()` lookup. ~5 queries per candidate with `wazn`, ~3500+ queries total.
+
+Both moved to a deferred pass *after* `scored.sort()` and `scored[:count]`. `touched_root_ids` now computed once for all returned candidates; `ex_root` lookups batched into a single `IN` query.
+
+Profile delta (cumulative time for `select_next_words`):
+- Before: 2.3s, 2971 SQL executes, 753 `get_root_family` calls
+- After:  0.38s, 724 SQL executes, 15 `get_root_family` calls
+
+End-to-end `build_session(limit=10)`: 3.4s → 1.5s.
+
+### Why
+
+User reported sessions short, no intros, slow loads. Diagnostic walked the gate stack first (`/tmp/claude/diagnose_intro_throttle.py`, `diagnose_intro_pool.py`, `diagnose_sessions_intros.py`), confirmed all gates open and 21+ candidates ready, then probed `_auto_introduce_words` directly to find the empty return, then `introduce_word(1693)` to find the canonical-resolution path. Profiling with `cProfile` surfaced the root_family / pattern_examples N+1.
+
+### Verify
+
+- `_auto_introduce_words(3 slots)` now returns `[1772, 1715, 771]` instead of `[]`.
+- `build_session` returns 16 items instead of 10; latest sessions show box-1 acquisition repeats for the newly-introduced words.
+- Cumulative time for `select_next_words` profile is ~380ms instead of ~2300ms.
+- Diagnostic scripts at `/tmp/claude/` are worth promoting if you ever hit this class of issue again.
+
+---
+
 ## 2026-05-13: Restore frequency-core intro supply chain — drought diagnosis
 
 ### What

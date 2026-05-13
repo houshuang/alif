@@ -4,6 +4,20 @@
 
 ---
 
+## 🟢 [DONE 2026-05-13] Two regression fixes — variant re-admit + select_next_words perf
+
+After the frequency-core supply fix went out, sessions still showed 0 intros and `build_session` was taking 3.4s. Two underlying bugs:
+
+1. **Variant re-admit** (`word_selector.py`): the suspended-lemma re-admit paths (book_pages / story_lemmas / ULK.source=textbook_scan) had no `canonical_lemma_id.is_(None)` filter, so the 36 deliberately-suspended variants (per `suspend_variant_ulks.py` 2026-05-06) kept being surfaced as intro candidates. `introduce_word` canonical-resolved each to an already-known root, returned `already_known=True`, and `_auto_introduce_words` skipped them — final return: empty list.
+
+2. **`select_next_words` perf**: `root_family` and `pattern_examples` were computed eagerly for ~750 scored candidates per call. `scored[:count]` then threw away 95% of that work. Deferred to a post-sort pass that only fills the ~15 returned candidates. Cumulative time: 2.3s → 0.38s. End-to-end `build_session`: 3.4s → 1.5s.
+
+Pattern lesson: both were "compute eagerly, throw away most of it" — common when prototype code accretes features without revisiting the per-candidate cost. Watch for it in other scoring paths.
+
+Open: `build_session` is still at 1.5s. The remaining time is in FSRS card parsing + comprehensibility gate + sentence scoring against due lemmas. Not a regression, but worth profiling on a quieter day.
+
+---
+
 ## 🟢 [DONE 2026-05-13] Version the cron wrapper, restore intro supply chain
 
 After diagnosing a 5x drop in intro rate (from ~30/day to ~5/day) that all three intro gates failed to explain, traced the cause to the 2026-05-12 cost-consolidation push:
