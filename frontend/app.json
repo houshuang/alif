@@ -14,14 +14,25 @@
       "backgroundColor": "#1a1a2e"
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.houshuang.alif",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false,
+        "NSAppTransportSecurity": {
+          "NSAllowsArbitraryLoads": true
+        }
+      }
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#1a1a2e"
       },
-      "edgeToEdgeEnabled": true
+      "edgeToEdgeEnabled": true,
+      "permissions": [
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO"
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png",
@@ -38,7 +49,11 @@
       ]
     ],
     "extra": {
-      "apiUrl": "http://46.225.75.29:3000"
+      "apiUrl": "http://46.225.75.29:3000",
+      "router": {},
+      "eas": {
+        "projectId": "20b68974-631b-4074-83df-64d741f72325"
+      }
     }
   }
 }
