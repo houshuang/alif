@@ -280,6 +280,8 @@ def extract_text_from_image(image_bytes: bytes) -> str:
             "Respond with JSON only."
         ),
     )
+    if not isinstance(result, dict):
+        return ""
     return result.get("arabic_text", "")
 
 
@@ -318,8 +320,15 @@ def _step1_extract_words(image_bytes: bytes) -> list[str]:
             "Respond with JSON only."
         ),
     )
-    words = result.get("words", [])
-    page_number = result.get("page_number")
+    if isinstance(result, list):
+        words = result
+        page_number = None
+    elif isinstance(result, dict):
+        words = result.get("words", [])
+        page_number = result.get("page_number")
+    else:
+        words = []
+        page_number = None
     if isinstance(page_number, str):
         try:
             page_number = int(page_number)
