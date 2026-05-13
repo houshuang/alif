@@ -29,7 +29,13 @@
     },
     "plugins": [
       "expo-router",
-      "expo-font"
+      "expo-font",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Alif uses the camera to scan textbook pages and extract vocabulary."
+        }
+      ]
     ],
     "extra": {
       "apiUrl": "http://46.225.75.29:3000"
