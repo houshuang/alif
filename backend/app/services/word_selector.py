@@ -470,7 +470,17 @@ def select_next_words(
         if readmit_ids:
             readmitted = (
                 db.query(Lemma)
-                .filter(Lemma.lemma_id.in_(readmit_ids))
+                .filter(
+                    Lemma.lemma_id.in_(readmit_ids),
+                    # Variants whose canonical is known/learning were suspended
+                    # on 2026-05-06 to prevent dead-end intro attempts (the
+                    # `_auto_introduce_words` → `introduce_word` path resolves
+                    # them to the already-known canonical and returns
+                    # already_known=True, wasting a slot per call). Don't
+                    # re-admit them via the book_pages / story_lemmas /
+                    # textbook_scan paths above.
+                    Lemma.canonical_lemma_id.is_(None),
+                )
                 .all()
             )
             candidates.extend([
@@ -479,7 +489,7 @@ def select_next_words(
                 and not (c.lemma_ar_bare and _is_function_word(c.lemma_ar_bare))
             ])
             # Treat readmitted suspended words like encountered for bonus purposes
-            encountered_ids.update(readmit_ids)
+            encountered_ids.update(c.lemma_id for c in readmitted)
 
     if not candidates:
         return []
