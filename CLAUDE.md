@@ -231,10 +231,15 @@ ssh alif "cd /opt/alif && git pull && systemctl restart alif-expo"
 # Full deploy (both):
 ssh alif "cd /opt/alif && git pull && cd backend && .venv/bin/pip install -e . --no-deps -q && systemctl restart alif-backend && systemctl restart alif-expo"
 
+# Cron wrapper (only when deploy/alif-update-material.sh changed):
+scp deploy/alif-update-material.sh alif:/opt/alif-update-material.sh && ssh alif "chmod +x /opt/alif-update-material.sh"
+
 # Expo URL (always display after deploy):
 # exp://alifstian.duckdns.org:8081
 # Web: http://alifstian.duckdns.org:8081
 ```
+
+Server-side config that lives outside the app process (cron wrappers, etc.) is versioned under `deploy/`. The cron wrapper at `/opt/alif-update-material.sh` is the authoritative supply-chain entry for daily intros — it sets `ALIF_RUN_CRON_PREGENERATION=1`, `ALIF_RUN_CRON_LEMMA_ENRICHMENT=1`, `ALIF_FREQ_CORE_INTAKE_MAX_RANK=3000`, `ALIF_FREQ_CORE_INTAKE_LIMIT=10` so the intake script can keep filling the top-frequency lemma pool past rank 1000. Without these, intros silently dry up once you graduate past the easy tier. See `deploy/README.md` and the 2026-05-13 experiment-log entry.
 
 ## Server Operations — MUST READ
 See `.claude/skills/server-ops.md` for full details. Summary of hard-won rules:

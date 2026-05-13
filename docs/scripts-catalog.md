@@ -135,3 +135,8 @@ These scripts are designed to run periodically against the generation pipeline b
 ## Utilities
 - `log_activity.py` — CLI tool for manual ActivityLog entries.
 - `suspend_variant_ulks.py` — Find variant ULKs whose canonical is `known`/`learning` (multi-hop), suspend them, and remap their `SentenceWord.lemma_id` + `Sentence.target_lemma_id` rows to the canonical. Used 2026-05-06 to clear 39 overshadowed variants (3017 sentence_word + 547 sentence target rows) that caused sentences to keep reappearing as "Rescue" cards forever (variant-side scheduling never advanced because credit went to the canonical). Run with `--dry-run` first. Backup DB before applying.
+
+## Deploy / cron wrappers
+Server-side scripts under `deploy/` (separate from `backend/scripts/`). See `deploy/README.md`.
+
+- `deploy/alif-update-material.sh` — 3-hourly cron wrapper installed at `/opt/alif-update-material.sh`. Runs rotate_stale_sentences, update_material.py in maintenance-only mode (`--max-step-a-sentences 0`), plan_material_jobs, work_material_jobs. Sets `ALIF_RUN_CRON_PREGENERATION=1`, `ALIF_RUN_CRON_LEMMA_ENRICHMENT=1`, `ALIF_FREQ_CORE_INTAKE_MAX_RANK=3000`, `ALIF_FREQ_CORE_INTAKE_LIMIT=10` so frequency-core intake keeps refilling the high-frequency lemma pool. Update procedure: edit in repo → `scp deploy/alif-update-material.sh alif:/opt/`. See `research/experiment-log.md` 2026-05-13 entry for the drought incident that motivated versioning this.
