@@ -71,7 +71,7 @@ class RescueStats:
     sentences_rescued: int = 0
     sentences_corrected: int = 0
     sentences_unfixable: int = 0
-    proposals_matched_existing: int = 0
+    proposals_reused_existing: int = 0
     proposals_created_lemma: int = 0
     proposals_logged_only: int = 0
     lemmas_now_covered: set[int] = field(default_factory=set)
@@ -113,9 +113,10 @@ def _stale_sentences_for_lemma(
 def _to_token_mappings(words: Iterable[SentenceWord]) -> list[TokenMapping]:
     """Adapt persisted SentenceWord rows into TokenMapping shape for the verifier.
 
-    SentenceWord lacks ``via_clitic`` / ``alternative_lemma_ids`` (those are
-    transient generation-time signals); the verifier tolerates their absence
-    via duck-typing on TokenMapping objects, so we synthesize neutral values.
+    TokenMapping carries transient generation-time fields (``via_clitic``,
+    ``alternative_lemma_ids``) that don't exist on the persisted row, so we
+    synthesize neutral values. For stale-verified sentences we have already
+    resolved every position, so no ambiguity is signalled to the verifier.
     """
     out: list[TokenMapping] = []
     for w in words:
@@ -137,17 +138,6 @@ def _to_token_mappings(words: Iterable[SentenceWord]) -> list[TokenMapping]:
             )
         )
     return out
-
-
-def _build_verify_input(
-    sentence: Sentence, mappings: list[TokenMapping]
-) -> dict:
-    return {
-        "arabic": sentence.arabic_text,
-        "english": sentence.english_translation or "",
-        "mappings": mappings,
-        "has_ambiguous": False,
-    }
 
 
 def _frequency_core_lookup(
@@ -226,6 +216,7 @@ def _try_frequency_gated_proposal(
     proposed_pos: str,
     sentence_id: int,
     surface_form: str,
+    stats: "RescueStats",
 ) -> int | None:
     """Resolve or create a lemma for an LLM-proposed correction, gated by frequency.
 
@@ -244,6 +235,7 @@ def _try_frequency_gated_proposal(
             proposed_ar, proposed_gloss, proposed_pos,
             sentence_id, surface_form, fce_matched=False,
         )
+        stats.proposals_logged_only += 1
         return None
 
     if fce.lemma_id is not None:
@@ -251,6 +243,7 @@ def _try_frequency_gated_proposal(
             proposed_ar, proposed_gloss, proposed_pos,
             sentence_id, surface_form, fce_matched=True,
         )
+        stats.proposals_reused_existing += 1
         return fce.lemma_id
 
     bare = normalize_arabic(proposed_ar)
@@ -279,6 +272,7 @@ def _try_frequency_gated_proposal(
         proposed_ar, proposed_gloss, proposed_pos,
         sentence_id, surface_form, fce_matched=True,
     )
+    stats.proposals_created_lemma += 1
     return new_id
 
 
@@ -289,6 +283,7 @@ def _apply_with_proposal_fallback(
     sentence_id: int,
     arabic_text: str,
     lemma_lookup,
+    stats: "RescueStats",
 ) -> list[int]:
     """apply_corrections + frequency-gated proposal fallback for remaining failures.
 
@@ -320,6 +315,7 @@ def _apply_with_proposal_fallback(
             str(issue.get("correct_pos", "") or ""),
             sentence_id,
             word.surface_form or "",
+            stats,
         )
         if new_lid and new_lid != word.lemma_id:
             logger.info(
@@ -489,7 +485,7 @@ def rescue_sentences_for_lemmas(
 
             still_failed = _apply_with_proposal_fallback(
                 db, issues, word_rows, sentence_id,
-                sentence.arabic_text or "", lemma_lookup,
+                sentence.arabic_text or "", lemma_lookup, stats,
             )
             if still_failed:
                 stats.sentences_unfixable += 1
