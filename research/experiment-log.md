@@ -12,7 +12,7 @@ A sentence the user reviewed today (`#43898`) had `وَصَفَا` ("became clea
 
 Built a comprehensive pre-verify layer:
 
-**One-shot sweep**: `backend/scripts/reverify_active_sentences.py` walks every active reviewable sentence (~1700) through `batch_verify_sentences()` in 15-sentence batches, applies confident corrections via the shared `apply_corrections` path, NULLs positions that can't be repaired (reviewability gate then hides the sentence; `update_material.py` step 0b auto-heals proper-name cases). Free via Claude CLI; ~75 minutes for the full corpus.
+**One-shot sweep**: `backend/scripts/reverify_active_sentences.py` walks every active reviewable sentence (~1700) through `batch_verify_sentences()` in 15-sentence batches, applies confident corrections via the shared `apply_corrections` path, NULLs positions that can't be repaired (reviewability gate then hides the sentence; `update_material.py` step 0b auto-heals proper-name cases). Free via Claude CLI; ~39 minutes for the live 1,582-sentence corpus.
 
 **Same-lemma calibration**: the existing `apply_corrections` marks positions failed in two cases — (i) `not_found` (proposed lemma absent from DB), (ii) `same_lemma` (proposed lemma resolves to the current mapping, i.e. verifier pedantically flagged a conjugation/inflection like `أُعَلِّمُ → عَلَّمَ` when `#722` is already `عَلَّمَ`). The fallback helper now distinguishes these via a deferred `correct_mapping(..., current_lemma_id=None)` lookup: same_lemma → keep mapping, not a failure. Without this calibration, the sweep had a 70% false-positive deactivation rate on a 10-sentence sample; with it, the rate dropped to 18% on a 50-sentence sample (and ~10% on the live full sweep).
 
@@ -29,8 +29,8 @@ Spot-checks against DB confirmed the sweep is identifying real bad mappings (hom
 ### Verify
 
 - `backend/scripts/reverify_active_sentences.py --dry-run --limit 50` on prod returned 26 passed / 15 corrected / 9 unfixable.
-- Full sweep launched 2026-05-13 10:56 UTC against the live DB (backup taken at `/opt/alif-backups/alif_pre_reverify_sweep_*.db`).
-- After full sweep + ongoing hook deploy, every active sentence should have `mappings_verified_at >= today` on day 1 and roll forward in 12-day cycles.
+- Full sweep ran 2026-05-13 10:56–11:36 UTC against the live DB (backup at `/opt/alif-backups/alif_pre_reverify_sweep_*.db`). Final: 1,212 passed (76.6%) / 341 corrected (21.6%) / 29 unfixable (1.8%) / 33 positions NULL'd; 0 LLM failures across 106 batches. Triage rows logged to `data/logs/mapping_reverify_failures_2026-05-13.jsonl` (36 KB) for offline review.
+- Rolling hook deployed after sweep finished; every active sentence will have `mappings_verified_at >= today` on day 1 and roll forward in ~12-day cycles thereafter.
 
 ---
 
