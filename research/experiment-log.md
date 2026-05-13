@@ -4,6 +4,41 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-05-13: Restore frequency-core intro supply chain — drought diagnosis
+
+### What
+
+Found and fixed a silent intro-rate collapse. On the daily timeline, introductions ran 22–37/day from 2026-05-05 through 2026-05-08 (hitting `DAILY_AUTO_INTRO_TARGET = 30` four days running), then cliffed to 3–7/day from 2026-05-09 onwards while all three intro gates (`accuracy_slots`, backlog threshold, daily cap) remained open and the box-1 backlog stayed at 11 (well below `LOW_TIER_BLOCK_BACKLOG = 60`). The drop was concentrated entirely in the `frequency_core` source (5/5: 27 → 5/12: 2). Other sources (book, textbook_scan, quran) held roughly constant.
+
+Root cause: `frequency_core_intake` (`update_material.py` Step C) feeds new high-frequency Lemma rows into the candidate pool by mapping `FrequencyCoreEntry` rows with `lemma_id IS NULL`. Two parameters were quietly capping the supply:
+
+1. The 2026-05-12 cost-consolidation push made the entire Step C opt-in via `ALIF_RUN_CRON_PREGENERATION` (default false). The cron stopped running intake at all.
+2. Even when intake runs, its `DEFAULT_MAX_RANK = 1000` scans only the top 1000 FCE rows. Of those, 0 are still unmapped — the user has graduated past that tier. The 19 unmapped rows in rank 1000–2000 and 777 in 2000–3000 were invisible to the script.
+
+Fix shipped to `/opt/alif-update-material.sh` (cron wrapper, not in the repo):
+
+```bash
+export ALIF_RUN_CRON_PREGENERATION=1
+export ALIF_RUN_CRON_LEMMA_ENRICHMENT=1
+export ALIF_FREQ_CORE_INTAKE_MAX_RANK=3000
+export ALIF_FREQ_CORE_INTAKE_LIMIT=10
+```
+
+Manual one-shot run confirmed: intake created 5 new lemmas (أكّد "to confirm", سبيل "path", صحيفة "newspaper", إطار "frame", تطوير "development") and resolved 2 existing ones. Pool now has 21 frequency-core candidates ready to introduce.
+
+### Why
+
+The user explicitly asked for ambitious intro pacing — happy to dial back if overwhelming. The 5x intro collapse violated that preference silently. Diagnostic scripts (`/tmp/claude/diagnose_intro_throttle.py`, `diagnose_intro_pool.py`, `diagnose_sessions_intros.py`) walked every gate, candidate filter, and supply node before locating the rank-ceiling cap as the binding constraint.
+
+### Verify
+
+- Cron supply rate: every 3h pass should now create ≤10 new `frequency_core` lemmas at rank ≤3000. With 8 passes/day, that's up to 80 candidates/day, well above the 30/day intro cap.
+- Daily intro count: should rebound to 25–30/day in 1–2 days of sessions.
+- Drought rerun: `python3 /tmp/claude/diagnose_sessions_intros.py` on prod after 3 days; the source breakdown should show `frequency_core` 20–30/day, not 0–3/day.
+- If the wrapper at `/opt/alif-update-material.sh` is replaced by a future deploy, the env exports will vanish. Worth committing a versioned copy under `backend/scripts/` (open follow-up).
+
+---
+
 ## 2026-05-13: Lazy mapping rescue in warm_sentence_cache
 
 ### What
