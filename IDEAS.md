@@ -4,6 +4,22 @@
 
 ---
 
+## 🟢 [DONE 2026-05-13] Version the cron wrapper, restore intro supply chain
+
+After diagnosing a 5x drop in intro rate (from ~30/day to ~5/day) that all three intro gates failed to explain, traced the cause to the 2026-05-12 cost-consolidation push:
+
+1. Step C of `update_material.py` (which calls `frequency_core_intake`) became opt-in via `ALIF_RUN_CRON_PREGENERATION` (default off). Cron stopped invoking it.
+2. Even when invoked, intake's `DEFAULT_MAX_RANK = 1000` caps it at top-1000 FCE rows — but every top-1000 row is already mapped. The unmapped rows at ranks 1000–2000 (19) and 2000–3000 (777) were invisible to the script.
+
+Fixed by versioning the cron wrapper under `deploy/alif-update-material.sh` (previously only existed on the server, never in the repo) with `ALIF_RUN_CRON_PREGENERATION=1`, `ALIF_RUN_CRON_LEMMA_ENRICHMENT=1`, `ALIF_FREQ_CORE_INTAKE_MAX_RANK=3000`, `ALIF_FREQ_CORE_INTAKE_LIMIT=10` baked in via `:-` defaults so per-instance overrides still work. Manual one-shot run after the fix created 5 new high-frequency lemmas (`أكّد`, `سبيل`, `صحيفة`, `إطار`, `تطوير`). Pool now has 21 candidates ready.
+
+Followups:
+- Watch the supply-chain audit in 5–7 days; verify frequency_core intros are back to 25–30/day.
+- The drought was diagnosed by reading the gates one layer at a time. The diagnostic scripts at `/tmp/claude/diagnose_intro_*.py` should probably be promoted to `backend/scripts/` if intro-rate questions come up again.
+- Server-side config drift is a known failure mode now. Anything else living at `/opt/*` outside the repo should get the same `deploy/` treatment.
+
+---
+
 ## 🟢 [DONE 2026-05-13] Lazy mapping rescue in warm_sentence_cache
 
 Added `app/services/mapping_rescue.py` and hooked it into `warm_sentence_cache`. For each gap lemma the warm cache identifies, the rescue pulls stale-verified sentences for that lemma, batch-verifies them, applies confident corrections, and re-stamps survivors with a fresh `mappings_verified_at`. Verifier-proposed lemmas that don't exist in the DB are gated by the frequency-core list: if the bare form has an FCE row whose `lemma_id` is NULL we create the lemma and route through `run_quality_gates`; otherwise we log the proposal and leave the sentence stale.

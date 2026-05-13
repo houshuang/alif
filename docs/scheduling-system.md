@@ -170,7 +170,7 @@ learn, and each enters acquisition immediately.
 **Gating conditions**:
 - **Reserved slots**: `INTRO_RESERVE_FRACTION` (30%) of session slots reserved for introductions, even when due queue exceeds limit. With limit=10, up to 3 slots are available.
 - **Daily intro target**: Reserved auto-intro stops once `DAILY_AUTO_INTRO_TARGET` (30) words have entered acquisition that day.
-- **Pipeline backlog gate**: Reserved intro slots suppressed when acquiring pipeline exceeds a dynamic threshold. Base threshold is `PIPELINE_BACKLOG_THRESHOLD` (40), but scales with recent accuracy: ≥90% → 120 during the aggressive 30/day trial, ≥80% → 60, <80% → 40. Undersized-session fill still works (when due < limit). Resumes automatically when pipeline drains below threshold.
+- **Pipeline backlog gate**: Reserved intro slots suppressed when acquiring pipeline exceeds a dynamic threshold keyed on recent word-level ReviewLog accuracy (last 2 days, min 10 reviews). Current values in `sentence_selector.py`: `PIPELINE_BACKLOG_THRESHOLD = 80` (accuracy < 80%), `MID_ACCURACY_INTRO_BACKLOG_CAP = 120` (80–90%), `HIGH_ACCURACY_INTRO_BACKLOG_CAP = 200` (≥ 90%). The 40/60/120 earlier values were tightened upward during the aggressive intro trial. Undersized-session fill still works (when due < limit). Resumes automatically when pipeline drains below threshold.
 - **Low-tier intro gate**: When box-1 acquiring count exceeds `LOW_TIER_BLOCK_BACKLOG` (60), candidates whose source is in `LOW_TIER_INTRO_SOURCES` (`wiktionary`, `story_import`, `manual`, `flag_autocreate`, unsourced) are filtered out of the auto-intro candidate list, even during undersized-session fill. Active book/story words and high-tier sources (`textbook_scan`, `duolingo`, `avp_a1`) are unaffected. Forces the learner to clear actively-encountered backlog before introducing words from passive frequency lists.
 - Recent accuracy ≥ `AUTO_INTRO_ACCURACY_FLOOR` (70%) over last 10+ reviews
 - Per-call cap: `MAX_AUTO_INTRO_PER_SESSION` (5)
@@ -1268,15 +1268,27 @@ allocation, 2026-03-10 protect never-shown, 2026-03-10 tier-based lifecycle repl
 fixed cap, 2026-05-07 warm-cache/update-material lock coordination)
 
 **Frequency-core intake** (`update_material.py` Step C): before selecting likely
-new-word candidates, cron may intake a small batch of unmapped top-core rows
-(default 5 rows, max rank 1,000; env overrides:
-`ALIF_FREQ_CORE_INTAKE_LIMIT`, `ALIF_FREQ_CORE_INTAKE_MAX_RANK`). It tries
-deterministic existing-lemma resolution first; otherwise it only creates
-high-confidence standard vocabulary through import-quality +
+new-word candidates, cron may intake a small batch of unmapped top-core rows.
+Code defaults: `DEFAULT_LIMIT = 5` rows, `DEFAULT_MAX_RANK = 1000`. **In prod
+the cron wrapper at `/opt/alif-update-material.sh` (versioned at
+`deploy/alif-update-material.sh`) raises these to `ALIF_FREQ_CORE_INTAKE_LIMIT=10`
+and `ALIF_FREQ_CORE_INTAKE_MAX_RANK=3000`** so the supply keeps flowing once
+the user has graduated past the top 1000. Step C only runs when
+`ALIF_RUN_CRON_PREGENERATION=1` (also set by the wrapper) — the in-code default
+is opt-in to bound LLM spend.
+
+Intake tries deterministic existing-lemma resolution first; otherwise it only
+creates high-confidence standard vocabulary through import-quality +
 `run_quality_gates()`. This does not create ULK rows; it only makes safe lemmas
 available to the normal `select_next_words()` → material generation → session
 introduction flow. Conservative rejects are marked `needs_manual_review` and
 skipped by later intake runs while still appearing as unmapped stats rows.
+
+**Drought failure mode**: if the cron wrapper's env exports get lost (server
+rebuild, manual edit), Step C goes dormant. The visible symptom is `frequency_core`
+intros dropping from 25–30/day to 0–5/day with **all gates still open** — the
+supply is missing, not the demand throttle. Diagnosed 2026-05-13; see
+`research/experiment-log.md`.
 
 **Verb conjugation recognition** (`sentence_validator.py`): Pass 3 of
 `build_lemma_lookup()` generates all standard Arabic verb conjugation forms (~33 per
