@@ -321,8 +321,24 @@ def _step1_extract_words(image_bytes: bytes) -> list[str]:
         ),
     )
     if isinstance(result, list):
-        words = result
+        # Two observed shapes:
+        # 1. bare list of word strings (model ignored the JSON envelope)
+        # 2. list of per-page dicts when a camera image shows a textbook spread:
+        #    [{"words": [...], "page_number": 182}, {"words": [...], "page_number": 183}]
+        # Flatten both into a single (words, page_number) — preserve the first
+        # non-null page_number. All words attribute to the first PageUpload row;
+        # imperfect for spreads but vastly better than dropping them.
+        words = []
         page_number = None
+        for item in result:
+            if isinstance(item, dict):
+                page_words = item.get("words")
+                if isinstance(page_words, list):
+                    words.extend(page_words)
+                if page_number is None:
+                    page_number = item.get("page_number")
+            elif isinstance(item, str):
+                words.append(item)
     elif isinstance(result, dict):
         words = result.get("words", [])
         page_number = result.get("page_number")
