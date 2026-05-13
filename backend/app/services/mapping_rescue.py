@@ -63,6 +63,12 @@ MAX_RESCUE_SENTENCES_PER_LEMMA = 5
 TOTAL_RESCUE_SENTENCE_CAP = 30
 RESCUE_BATCH_SIZE = 15  # sentences per batch_verify_sentences call
 
+# Comprehensive corpus reverification: walk every active reviewable sentence,
+# batch-verify against the current verifier and vocabulary, deactivate unfixable
+# ones. Designed to run in a single ~15-20 minute pass (free CLI calls), then
+# leave the corpus in a "every active sentence is currently verified" state.
+REVERIFY_BATCH_SIZE = 15
+
 
 @dataclass
 class RescueStats:
@@ -290,7 +296,26 @@ def _apply_with_proposal_fallback(
     Mutates ``word_rows`` in place when a fix is found. Returns the list of
     positions that still don't have a valid lemma after both passes — caller
     decides whether to stamp the sentence as verified or leave it stale.
+
+    Discriminates between two kinds of `apply_corrections` failures:
+
+    1. **`same_lemma`** — the verifier proposed a lemma that resolves to the
+       *current* mapping (e.g. flagged `أُعَلِّمُ → عَلَّمَ` when `#722` is
+       already `عَلَّمَ`). This is a pedantic verifier overcalling a
+       conjugation/inflection that's already correctly mapped to the base
+       lemma. Treat as not-a-failure: the mapping stands.
+    2. **`not_found`** — the verifier proposed a lemma not in the DB at all.
+       This is the legitimate vocab-gap case; try the frequency-gated
+       proposal path. If even that can't create a lemma, return the position
+       as a real failure so the caller can decide (rescue: leave stale;
+       reverify: deactivate).
+
+    Without this discrimination the reverify sweep had a 70% false-positive
+    deactivation rate on conjugated verbs and inflected nouns — the verifier
+    routinely flags those even when the prompt says not to.
     """
+    from app.services.sentence_validator import correct_mapping
+
     failed = apply_corrections(
         issues, word_rows, db, lemma_lookup=lemma_lookup,
         arabic_text=arabic_text,
@@ -308,14 +333,34 @@ def _apply_with_proposal_fallback(
         if not issue or not word:
             still_failed.append(pos)
             continue
+
+        proposed_ar = str(issue.get("correct_lemma_ar", "") or "")
+        proposed_gloss = str(issue.get("correct_gloss", "") or "")
+        proposed_pos = str(issue.get("correct_pos", "") or "")
+
+        # Does the verifier's proposal resolve to any lemma in the DB?
+        # `current_lemma_id=None` so we don't prefer a different lemma — we
+        # just want to know whether the proposed lemma exists at all.
+        resolved = correct_mapping(
+            db, proposed_ar, proposed_gloss, proposed_pos,
+            current_lemma_id=None, lemma_lookup=lemma_lookup,
+        )
+        if resolved is not None:
+            # Proposed lemma exists in DB. `apply_corrections` already would
+            # have remapped to it if it were a different lemma; the failure
+            # here must be the same_lemma path — verifier flagged a correct
+            # conjugation/inflection mapping. Mapping stands, no fix needed.
+            logger.debug(
+                "Reverify pos %d '%s': verifier overcalled (proposed %r "
+                "resolves to existing lemma); keeping current mapping",
+                pos, word.surface_form, proposed_ar,
+            )
+            continue
+
+        # Proposed lemma not in DB at all — legitimate gap. Try FCE proposal.
         new_lid = _try_frequency_gated_proposal(
-            db,
-            str(issue.get("correct_lemma_ar", "") or ""),
-            str(issue.get("correct_gloss", "") or ""),
-            str(issue.get("correct_pos", "") or ""),
-            sentence_id,
-            word.surface_form or "",
-            stats,
+            db, proposed_ar, proposed_gloss, proposed_pos,
+            sentence_id, word.surface_form or "", stats,
         )
         if new_lid and new_lid != word.lemma_id:
             logger.info(
@@ -347,6 +392,295 @@ def _coverage_after_rescue(db: Session, lemma_id: int) -> int:
         .filter(has_lemma, reviewable_sentence_clauses())
         .count()
     )
+
+
+@dataclass
+class ReverifyStats:
+    """Stats for the full-corpus reverification sweep."""
+    batches_run: int = 0
+    sentences_attempted: int = 0
+    sentences_passed: int = 0
+    sentences_corrected: int = 0
+    # Sentences with at least one position the verifier flagged AND we couldn't
+    # repair. We NULL the offending position(s) rather than deactivating the
+    # whole sentence — the reviewability gate hides anything with a NULL
+    # lemma_id, and the cron's step 0b healer can auto-create proper-name
+    # lemmas on the next pass, restoring the sentence naturally. The triage
+    # log captures the original lemma_id + verifier proposal for offline
+    # investigation.
+    sentences_unfixable: int = 0
+    positions_nulled: int = 0
+    proposals_reused_existing: int = 0
+    proposals_created_lemma: int = 0
+    proposals_logged_only: int = 0
+    llm_failures: int = 0
+
+    def to_dict(self) -> dict:
+        return self.__dict__.copy()
+
+
+def _log_reverify_triage(
+    sentence_id: int,
+    arabic_text: str,
+    english_text: str,
+    failed_positions: list[int],
+    word_rows: list[SentenceWord],
+    issues: list[dict],
+) -> None:
+    """Append to a triage log for deeper later investigation.
+
+    The sweep deactivates sentences when even the frequency-gated proposal
+    can't repair the mapping. That's usually because the correct lemma simply
+    isn't in the vocabulary yet — the sentence is structurally fine but
+    references a word we haven't imported. A slower offline pass can decide
+    case-by-case whether to add the lemma or retire the sentence permanently.
+    """
+    from app.config import settings
+    import json
+    from datetime import datetime as _dt
+
+    log_dir = settings.log_dir
+    log_dir.mkdir(parents=True, exist_ok=True)
+    log_file = log_dir / f"mapping_reverify_failures_{_dt.now():%Y-%m-%d}.jsonl"
+
+    failure_detail = []
+    word_by_pos = {w.position: w for w in word_rows}
+    issue_by_pos = {i.get("position"): i for i in issues if "position" in i}
+    for pos in failed_positions:
+        w = word_by_pos.get(pos)
+        i = issue_by_pos.get(pos, {})
+        failure_detail.append({
+            "position": pos,
+            "surface_form": w.surface_form if w else None,
+            "current_lemma_id": w.lemma_id if w else None,
+            "proposed_lemma_ar": i.get("correct_lemma_ar"),
+            "proposed_gloss": i.get("correct_gloss"),
+            "explanation": i.get("explanation"),
+        })
+
+    entry = {
+        "ts": _dt.now().isoformat(),
+        "event": "reverify_deactivated",
+        "sentence_id": sentence_id,
+        "arabic": arabic_text,
+        "english": english_text,
+        "failed_positions": failure_detail,
+    }
+    try:
+        with open(log_file, "a") as f:
+            f.write(json.dumps(entry, ensure_ascii=False) + "\n")
+    except Exception:
+        logger.debug("Failed to write reverify triage log", exc_info=True)
+
+
+def _all_active_reviewable_sentence_ids(db: Session) -> list[int]:
+    """All sentence IDs the user could currently see — the population to sweep.
+
+    Uses the reviewability gate (active + no NULL lemma + fresh verification
+    cohort). Sentences blocked by the gate are already invisible; the existing
+    `rescue_sentences_for_lemmas` covers those lazily.
+    """
+    from app.services.sentence_eligibility import reviewable_sentence_clauses
+
+    return [
+        r[0] for r in db.query(Sentence.id)
+        .filter(reviewable_sentence_clauses())
+        .order_by(Sentence.id.asc())
+        .all()
+    ]
+
+
+def reverify_all_active_sentences(
+    *,
+    batch_size: int = REVERIFY_BATCH_SIZE,
+    sentence_ids: list[int] | None = None,
+    dry_run: bool = False,
+    progress_every: int = 10,
+) -> ReverifyStats:
+    """Walk the full active-reviewable corpus, re-verify, deactivate unfixable.
+
+    Designed to run as a one-shot maintenance pass when the user wants
+    confidence that *every* sentence currently visible in sessions has been
+    checked by the current verifier against the current vocabulary. Subsequent
+    runs are idempotent: passing sentences get re-stamped (cheap), already-bad
+    sentences would've been deactivated on a previous pass.
+
+    Write-lock discipline (CLAUDE.md Rule #10): each batch reads its data and
+    closes the DB before the LLM call, then reopens for a quick write.
+
+    Args:
+        batch_size: sentences per LLM call. Higher → fewer round trips but
+            longer single-call latency and bigger prompt. 15 is a good
+            balance and matches the existing rescue batch size.
+        sentence_ids: optional restrict to specific IDs (for spot-check or
+            resume-after-failure). Defaults to all reviewable sentences.
+        dry_run: if True, run the verifier but don't deactivate or stamp.
+        progress_every: print a one-line progress update every N batches.
+    """
+    stats = ReverifyStats()
+
+    db = SessionLocal()
+    try:
+        if sentence_ids is None:
+            ids = _all_active_reviewable_sentence_ids(db)
+        else:
+            ids = list(sentence_ids)
+    finally:
+        db.close()
+
+    if not ids:
+        return stats
+
+    total = len(ids)
+    logger.info("reverify_all_active_sentences: %d sentences to check", total)
+
+    now = datetime.now(timezone.utc)
+    batch_count = (total + batch_size - 1) // batch_size
+
+    for batch_idx in range(batch_count):
+        chunk_ids = ids[batch_idx * batch_size:(batch_idx + 1) * batch_size]
+
+        # ── Read phase ───────────────────────────────────────────────────
+        db = SessionLocal()
+        snapshots: list[tuple[int, dict]] = []
+        try:
+            sentences = (
+                db.query(Sentence)
+                .options(joinedload(Sentence.words))
+                .filter(Sentence.id.in_(chunk_ids))
+                .all()
+            )
+            referenced_lemma_ids = {
+                w.lemma_id for s in sentences for w in s.words if w.lemma_id
+            }
+            referenced_lemmas = (
+                db.query(Lemma)
+                .filter(Lemma.lemma_id.in_(list(referenced_lemma_ids)))
+                .all()
+            )
+            lemma_map = {l.lemma_id: l for l in referenced_lemmas}
+
+            for s in sentences:
+                mappings = _to_token_mappings(s.words)
+                if not mappings:
+                    continue
+                snapshots.append((
+                    s.id,
+                    {
+                        "arabic": s.arabic_text,
+                        "english": s.english_translation or "",
+                        "mappings": mappings,
+                        "has_ambiguous": False,
+                    },
+                ))
+        except Exception:
+            logger.exception("reverify: read phase failed for batch %d", batch_idx)
+            db.close()
+            continue
+        finally:
+            db.close()
+
+        if not snapshots:
+            continue
+
+        # ── LLM verify (no DB session held) ──────────────────────────────
+        inputs = [snap[1] for snap in snapshots]
+        try:
+            results = batch_verify_sentences(inputs, lemma_map)
+        except Exception:
+            logger.exception("reverify: batch_verify raised, batch %d", batch_idx)
+            results = None
+        if results is None:
+            stats.llm_failures += len(snapshots)
+            if (batch_idx + 1) % progress_every == 0 or batch_idx + 1 == batch_count:
+                logger.info(
+                    "reverify: batch %d/%d — LLM failed, skipping %d sentences",
+                    batch_idx + 1, batch_count, len(snapshots),
+                )
+            continue
+
+        stats.batches_run += 1
+        stats.sentences_attempted += len(snapshots)
+
+        # ── Write phase ──────────────────────────────────────────────────
+        db = SessionLocal()
+        try:
+            lemma_lookup = build_comprehensive_lemma_lookup(db)
+            rescue_stats_shim = RescueStats()  # tracks proposal sub-counters
+            for (sid, _), res in zip(snapshots, results):
+                issues = list(res.get("issues") or [])
+                sentence = (
+                    db.query(Sentence)
+                    .options(joinedload(Sentence.words))
+                    .filter(Sentence.id == sid)
+                    .one_or_none()
+                )
+                if sentence is None:
+                    continue
+                word_rows = list(sentence.words)
+
+                if not issues:
+                    if not dry_run:
+                        sentence.mappings_verified_at = now
+                    stats.sentences_passed += 1
+                    continue
+
+                still_failed = _apply_with_proposal_fallback(
+                    db, issues, word_rows, sid,
+                    sentence.arabic_text or "", lemma_lookup, rescue_stats_shim,
+                )
+                if not still_failed:
+                    if not dry_run:
+                        sentence.mappings_verified_at = now
+                    stats.sentences_corrected += 1
+                    continue
+
+                # Can't repair — NULL the offending positions and log for triage.
+                # The reviewability gate (`not_has_unmapped_words`) will hide
+                # the sentence from selection. update_material.py step 0b
+                # (`fix_null_lemma_ids.remap_unmapped_sentence_words`) will
+                # retry these on each cron pass and auto-create proper-name
+                # lemmas when applicable.
+                _log_reverify_triage(
+                    sid,
+                    sentence.arabic_text or "",
+                    sentence.english_translation or "",
+                    still_failed,
+                    word_rows,
+                    issues,
+                )
+                if not dry_run:
+                    word_by_pos = {w.position: w for w in word_rows}
+                    for pos in still_failed:
+                        w = word_by_pos.get(pos)
+                        if w is not None:
+                            w.lemma_id = None
+                            stats.positions_nulled += 1
+                stats.sentences_unfixable += 1
+
+            if not dry_run:
+                db.commit()
+            # Fold proposal stats from the shim into our top-level stats.
+            stats.proposals_reused_existing += rescue_stats_shim.proposals_reused_existing
+            stats.proposals_created_lemma += rescue_stats_shim.proposals_created_lemma
+            stats.proposals_logged_only += rescue_stats_shim.proposals_logged_only
+        except Exception:
+            logger.exception("reverify: write phase failed for batch %d", batch_idx)
+            db.rollback()
+        finally:
+            db.close()
+
+        if (batch_idx + 1) % progress_every == 0 or batch_idx + 1 == batch_count:
+            logger.info(
+                "reverify: batch %d/%d — passed=%d corrected=%d unfixable=%d (nulled %d positions)",
+                batch_idx + 1, batch_count,
+                stats.sentences_passed,
+                stats.sentences_corrected,
+                stats.sentences_unfixable,
+                stats.positions_nulled,
+            )
+
+    return stats
 
 
 def rescue_sentences_for_lemmas(
