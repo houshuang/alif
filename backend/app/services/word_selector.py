@@ -657,46 +657,12 @@ def select_next_words(
                     ft[fk] = tr
             ft = ft or None
 
-        # Pattern examples (other words with same wazn from touched roots)
+        # Pattern examples are deferred to after sort+slice — computing them
+        # here cost ~5 SQL queries per scored candidate (subquery for touched
+        # roots, joined wazn-match query, then a Root lookup per example) for
+        # results that were thrown away when scored[:count] sliced down. See
+        # the deferred fill at the bottom of select_next_words.
         pe = []
-        if lemma.wazn:
-            touched_root_ids = (
-                db.query(Lemma.root_id)
-                .join(UserLemmaKnowledge, UserLemmaKnowledge.lemma_id == Lemma.lemma_id)
-                .filter(Lemma.root_id.isnot(None))
-                .distinct()
-                .subquery()
-            )
-            examples = (
-                db.query(Lemma, UserLemmaKnowledge.knowledge_state)
-                .outerjoin(UserLemmaKnowledge, UserLemmaKnowledge.lemma_id == Lemma.lemma_id)
-                .filter(
-                    Lemma.wazn == lemma.wazn,
-                    Lemma.root_id.in_(touched_root_ids),
-                    Lemma.lemma_id != lemma.lemma_id,
-                    Lemma.canonical_lemma_id.is_(None),
-                )
-                .order_by(
-                    case(
-                        (UserLemmaKnowledge.knowledge_state.in_(["known", "learning"]), 0),
-                        else_=1,
-                    ),
-                    Lemma.frequency_rank.asc().nullslast(),
-                )
-                .limit(4)
-                .all()
-            )
-            for ex, ks in examples:
-                ex_root = db.query(Root).filter(Root.root_id == ex.root_id).first() if ex.root_id else None
-                pe.append({
-                    "lemma_id": ex.lemma_id,
-                    "lemma_ar": ex.lemma_ar,
-                    "gloss_en": ex.gloss_en,
-                    "transliteration": ex.transliteration_ala_lc,
-                    "root": ex_root.root if ex_root else None,
-                    "root_meaning": ex_root.core_meaning_en if ex_root else None,
-                    "knowledge_state": ks,
-                })
 
         scored.append({
             "lemma_id": lemma.lemma_id,
@@ -728,7 +694,11 @@ def select_next_words(
                 else story_lemmas[lemma.lemma_id]["story_id"] if lemma.lemma_id in story_lemmas
                 else None
             ),
-            "root_family": get_root_family(db, lemma.root_id) if lemma.root_id else [],
+            # Deferred — computed only for the top `count` after sort+slice below.
+            # Computing it here triggered ~750 get_root_family calls per session
+            # (each with N+1 lemma.knowledge lazy loads), costing ~1s for results
+            # that were thrown away when scored[:count] sliced down to 15.
+            "root_family": [],
             "score": round(total_score, 3),
             "score_breakdown": {
                 "frequency": round(freq_score, 3),
@@ -746,7 +716,81 @@ def select_next_words(
         })
 
     scored.sort(key=lambda x: x["score"], reverse=True)
-    return scored[:count]
+    top = scored[:count]
+
+    # Deferred heavy fields — computed only for the top `count` after sort+slice.
+    # The frontend uses these for the intro card root tree and pattern-example
+    # tiles; computing them during scoring was pure waste because scored[:count]
+    # threw away results for ~750 candidates.
+
+    # root_family per returned candidate
+    for cand in top:
+        rid = cand.get("root_id")
+        if rid:
+            cand["root_family"] = get_root_family(db, rid)
+
+    # pattern_examples: words sharing this candidate's wazn from roots that have
+    # any studied lemma. touched_root_ids is the same for every candidate, so
+    # we compute it once.
+    waznful = [c for c in top if c.get("wazn")]
+    if waznful:
+        touched_root_ids_sub = (
+            db.query(Lemma.root_id)
+            .join(UserLemmaKnowledge, UserLemmaKnowledge.lemma_id == Lemma.lemma_id)
+            .filter(Lemma.root_id.isnot(None))
+            .distinct()
+            .subquery()
+        )
+        # Collect every ex_root lookup the loop is going to need, in one query.
+        per_cand_examples: dict[int, list[tuple]] = {}
+        for cand in waznful:
+            examples = (
+                db.query(Lemma, UserLemmaKnowledge.knowledge_state)
+                .outerjoin(UserLemmaKnowledge, UserLemmaKnowledge.lemma_id == Lemma.lemma_id)
+                .filter(
+                    Lemma.wazn == cand["wazn"],
+                    Lemma.root_id.in_(touched_root_ids_sub),
+                    Lemma.lemma_id != cand["lemma_id"],
+                    Lemma.canonical_lemma_id.is_(None),
+                )
+                .order_by(
+                    case(
+                        (UserLemmaKnowledge.knowledge_state.in_(["known", "learning"]), 0),
+                        else_=1,
+                    ),
+                    Lemma.frequency_rank.asc().nullslast(),
+                )
+                .limit(4)
+                .all()
+            )
+            per_cand_examples[cand["lemma_id"]] = examples
+        # Batch-fetch all referenced ex_root rows in one query
+        all_root_ids = {
+            ex.root_id for examples in per_cand_examples.values()
+            for ex, _ in examples if ex.root_id
+        }
+        roots_by_id: dict[int, Root] = {}
+        if all_root_ids:
+            roots_by_id = {
+                r.root_id: r for r in
+                db.query(Root).filter(Root.root_id.in_(all_root_ids)).all()
+            }
+        for cand in waznful:
+            pe = []
+            for ex, ks in per_cand_examples.get(cand["lemma_id"], []):
+                ex_root = roots_by_id.get(ex.root_id) if ex.root_id else None
+                pe.append({
+                    "lemma_id": ex.lemma_id,
+                    "lemma_ar": ex.lemma_ar,
+                    "gloss_en": ex.gloss_en,
+                    "transliteration": ex.transliteration_ala_lc,
+                    "root": ex_root.root if ex_root else None,
+                    "root_meaning": ex_root.core_meaning_en if ex_root else None,
+                    "knowledge_state": ks,
+                })
+            cand["pattern_examples"] = pe
+
+    return top
 
 
 def introduce_word(
