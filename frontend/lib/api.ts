@@ -491,6 +491,7 @@ export async function submitSentenceReview(
     review_mode: submission.review_mode,
     audio_play_count: submission.audio_play_count,
     lookup_count: submission.lookup_count,
+    parent_card_type: submission.parent_card_type,
   }, clientReviewId);
 
   await markReviewed(

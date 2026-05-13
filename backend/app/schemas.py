@@ -527,6 +527,7 @@ class SentenceReviewSubmitIn(BaseModel):
     client_review_id: str | None = None
     audio_play_count: int | None = None
     lookup_count: int | None = None
+    parent_card_type: str | None = None  # passage|sentence|wrapup|... — set by frontend so analytics can split passage-internal reviews
 
 
 class SentenceReviewSubmitOut(BaseModel):

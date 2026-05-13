@@ -111,7 +111,9 @@ def main() -> None:
         sid = r.get("sentence_id")
         if not isinstance(sid, int):
             continue
-        ct = sentence_id_to_card_type.get(sid, "<unknown>")
+        # Prefer parent_card_type from the review payload (added 2026-05-13).
+        # Falls back to the card_shown lookup for events logged before that.
+        ct = r.get("parent_card_type") or sentence_id_to_card_type.get(sid, "<unknown>")
         ms = r.get("response_ms")
         if isinstance(ms, (int, float)) and ms > 0:
             wc = sentence_word_counts.get(sid)

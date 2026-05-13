@@ -1238,6 +1238,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
         review_mode: mode,
         audio_play_count: audioPlayCount > 0 ? audioPlayCount : undefined,
         lookup_count: lookupCount > 0 ? lookupCount : undefined,
+        parent_card_type: isPassageCard(item) ? "passage" : "sentence",
       }, clientReviewId);
     } catch (e) {
       console.warn("sentence submit failed:", e);
@@ -1519,6 +1520,7 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
         response_ms: Date.now() - showTime.current,
         session_id: sentenceSession?.session_id ?? generateUuid(),
         review_mode: "quiz",
+        parent_card_type: "wrapup",
       });
     } catch {}
 

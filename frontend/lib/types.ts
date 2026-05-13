@@ -505,6 +505,7 @@ export interface SentenceReviewSubmission {
   client_review_id?: string;
   audio_play_count?: number;
   lookup_count?: number;
+  parent_card_type?: string;
 }
 
 export interface TextbookBenchmark {

@@ -167,6 +167,7 @@ def submit_sentence(body: SentenceReviewSubmitIn, db: Session = Depends(get_db))
         word_ratings={w["lemma_id"]: w["rating"] for w in result.get("word_results", []) if "lemma_id" in w and "rating" in w},
         audio_play_count=body.audio_play_count,
         lookup_count=body.lookup_count,
+        parent_card_type=body.parent_card_type,
     )
 
     return result
