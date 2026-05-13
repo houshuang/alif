@@ -37,14 +37,21 @@ def _acquiring(db, lemma: Lemma, *, due=None, started=None) -> None:
     ))
 
 
-def _sentence(db, lemma_ids: list[int | None], *, active: bool = True, target_id=None) -> Sentence:
+def _sentence(
+    db,
+    lemma_ids: list[int | None],
+    *,
+    active: bool = True,
+    target_id=None,
+    mappings_verified_at=None,
+) -> Sentence:
     sent = Sentence(
         arabic_text="جملة قصيرة",
         english_translation="a short sentence",
         source="llm",
         target_lemma_id=target_id,
         is_active=active,
-        mappings_verified_at=datetime.utcnow(),
+        mappings_verified_at=mappings_verified_at or datetime.utcnow(),
     )
     db.add(sent)
     db.flush()
@@ -78,6 +85,21 @@ def test_active_sentence_counts_by_lemma_counts_collateral_reviewable_sentences(
     assert counts[target.lemma_id] == 1
     assert counts[collateral.lemma_id] == 1
     assert unmapped.lemma_id not in counts
+
+
+def test_active_sentence_counts_by_lemma_ignores_stale_verified_sentences(db_session):
+    lemma = _lemma(db_session, "قَدِيمٌ", "old")
+    _sentence(
+        db_session,
+        [lemma.lemma_id],
+        target_id=lemma.lemma_id,
+        mappings_verified_at=datetime(2026, 3, 21),
+    )
+    db_session.commit()
+
+    counts = active_sentence_counts_by_lemma(db_session, [lemma.lemma_id])
+
+    assert lemma.lemma_id not in counts
 
 
 def test_acquiring_material_gaps_prioritizes_overdue_zero_material_words(db_session):

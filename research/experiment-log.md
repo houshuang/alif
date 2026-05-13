@@ -192,7 +192,7 @@ returns 200.
 ### What
 
 Already-acquiring words can now enter a priority rescue lane when they have
-fewer than 3 active, fully mapped sentences. Coverage is counted through
+fewer than 3 reviewable sentences. Coverage is counted through
 `SentenceWord`, not only `Sentence.target_lemma_id`, so collateral and
 multi-target sentences count as real review material.
 

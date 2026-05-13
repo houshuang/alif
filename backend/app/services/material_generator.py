@@ -12,11 +12,13 @@ import threading
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-from sqlalchemy import func
+from sqlalchemy import exists, func
+from sqlalchemy.orm import aliased
 
 from app.database import SessionLocal
 from app.models import Lemma, Sentence, SentenceWord, Story, UserLemmaKnowledge
 from app.services.fsrs_service import parse_json_column
+from app.services.sentence_eligibility import has_current_mapping_verification
 
 logger = logging.getLogger(__name__)
 
@@ -95,7 +97,7 @@ MULTI_TARGET_VERIFY_BATCH_SIZE = max(
 
 
 def active_sentence_counts_by_lemma(db, lemma_ids: list[int]) -> dict[int, int]:
-    """Count active, fully mapped sentences containing each lemma.
+    """Count reviewable sentences containing each lemma.
 
     This intentionally counts by ``sentence_words`` rather than
     ``sentences.target_lemma_id``. Multi-target and collateral sentences are
@@ -104,9 +106,6 @@ def active_sentence_counts_by_lemma(db, lemma_ids: list[int]) -> dict[int, int]:
     """
     if not lemma_ids:
         return {}
-    from sqlalchemy import exists
-    from sqlalchemy.orm import aliased
-
     UnmappedSentenceWord = aliased(SentenceWord)
     no_unmapped_words = ~exists().where(
         UnmappedSentenceWord.sentence_id == Sentence.id,
@@ -120,6 +119,7 @@ def active_sentence_counts_by_lemma(db, lemma_ids: list[int]) -> dict[int, int]:
             SentenceWord.lemma_id.in_(lemma_ids),
             Sentence.is_active == True,  # noqa: E712
             no_unmapped_words,
+            has_current_mapping_verification(),
         )
         .group_by(SentenceWord.lemma_id)
         .all()

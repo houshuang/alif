@@ -770,8 +770,8 @@ The frontend prefetches one session ahead to provide instant session transitions
    rotate stale sentences; lifecycle rotation belongs to the locked cron/backfill
    path in `update_material.py`. If the material-update lock is already held,
    warm cache skips with `reason="material_update_active"` instead of competing
-   with the cron/backfill. Acquiring words below 3 active, fully mapped
-   sentences now get a first-priority rescue lane before focus-cohort and
+   with the cron/backfill. Acquiring words below 3 reviewable sentences now
+   get a first-priority rescue lane before focus-cohort and
    speculative intro gaps; coverage is counted through `SentenceWord`, so
    collateral and multi-target sentences count. This rescue lane overrides
    generation backoff for acquiring words because they are already in active
