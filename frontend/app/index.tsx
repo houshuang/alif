@@ -3416,14 +3416,28 @@ function SessionComplete({
     if (sessionId) {
       dropCachedSession(mode, sessionId).catch(() => {});
     }
-
-    // Flush queue in parallel — reviews were already synced during session
-    // via fire-and-forget flushes; this is just a safety net for stragglers
     flushQueue().catch(() => {});
+    const prefetchTimer = setTimeout(() => {
+      prefetchSessions(mode).catch(() => {});
+    }, 3000);
+    return () => clearTimeout(prefetchTimer);
+  }, []);
 
-    // Fetch session-end data immediately without waiting for flush
-    const load = async () => {
-      const d = sessionId ? await getSessionEnd(sessionId).catch(() => null) : null;
+  // Fetch session-end data when sessionId becomes available. Empty sessionId
+  // at mount happened in production 2026-05-14 — sentenceSession was
+  // transiently null while results.total caught up to totalCards, so the
+  // empty-deps effect above ran with sessionId="" and the fetch was skipped
+  // permanently. Refire whenever sessionId changes so a late-arriving id
+  // still loads stats.
+  useEffect(() => {
+    if (!sessionId) {
+      if (!dataReady) setDataReady(true);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      const d = await getSessionEnd(sessionId).catch(() => null);
+      if (cancelled) return;
       if (d) setData(d);
       setDataReady(true);
       Animated.timing(fadeAnim, {
@@ -3431,15 +3445,11 @@ function SessionComplete({
         duration: 400,
         useNativeDriver: true,
       }).start();
+    })();
+    return () => {
+      cancelled = true;
     };
-    load();
-
-    // Delay prefetch so it doesn't compete with session-end query
-    const prefetchTimer = setTimeout(() => {
-      prefetchSessions(mode).catch(() => {});
-    }, 3000);
-    return () => clearTimeout(prefetchTimer);
-  }, []);
+  }, [sessionId]);
 
   // Derive journey categories
   const graduated = data?.word_journeys.filter(w => w.graduated) ?? [];
