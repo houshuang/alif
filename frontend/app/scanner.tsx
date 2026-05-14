@@ -10,6 +10,7 @@ import {
   ScrollView,
   Platform,
   Switch,
+  Animated,
 } from "react-native";
 import { useFocusEffect } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -45,6 +46,8 @@ export default function ScannerScreen() {
   const [capturing, setCapturing] = useState(false);
   const [cameraPermission, requestCameraPermission] = useCameraPermissions();
   const cameraRef = useRef<CameraView>(null);
+  const thumbStripRef = useRef<ScrollView>(null);
+  const flashOpacity = useRef(new Animated.Value(0)).current;
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useFocusEffect(
@@ -104,6 +107,10 @@ export default function ScannerScreen() {
   async function capturePhoto() {
     if (capturing || !cameraRef.current) return;
     setCapturing(true);
+    Animated.sequence([
+      Animated.timing(flashOpacity, { toValue: 0.85, duration: 60, useNativeDriver: true }),
+      Animated.timing(flashOpacity, { toValue: 0, duration: 180, useNativeDriver: true }),
+    ]).start();
     try {
       const photo = await cameraRef.current.takePictureAsync({
         quality: 0.8,
@@ -111,6 +118,9 @@ export default function ScannerScreen() {
       });
       if (photo?.uri) {
         setCameraCaptures((prev) => [...prev, photo.uri]);
+        requestAnimationFrame(() => {
+          thumbStripRef.current?.scrollToEnd({ animated: true });
+        });
       }
     } catch (e) {
       console.error("Capture failed:", e);
@@ -604,6 +614,10 @@ export default function ScannerScreen() {
           style={StyleSheet.absoluteFill}
           facing="back"
         />
+        <Animated.View
+          pointerEvents="none"
+          style={[styles.cameraFlash, { opacity: flashOpacity }]}
+        />
         <View style={styles.cameraTopBar}>
           <Pressable
             style={styles.cameraTopBtn}
@@ -628,6 +642,7 @@ export default function ScannerScreen() {
         <View style={styles.cameraBottomBar}>
           {cameraCaptures.length > 0 && (
             <ScrollView
+              ref={thumbStripRef}
               horizontal
               showsHorizontalScrollIndicator={false}
               style={styles.cameraStrip}
@@ -1017,6 +1032,10 @@ const styles = StyleSheet.create({
   cameraContainer: {
     flex: 1,
     backgroundColor: "#000",
+  },
+  cameraFlash: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "#fff",
   },
   cameraTopBar: {
     position: "absolute",
