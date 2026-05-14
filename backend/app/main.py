@@ -37,6 +37,34 @@ async def lifespan(app: FastAPI):
         import logging
         logging.getLogger(__name__).info("Recovered %d stuck flag(s) back to pending", recovered)
 
+    # Recover any OCR pages stuck in 'pending' or 'processing' from a previous
+    # crash/restart. Background batch tasks die silently on SIGTERM (systemctl
+    # restart, OOM kill) without raising in _process_batch_background's
+    # except-handler, so pages can stay stuck forever. The retry endpoint can
+    # rerun them since images are saved on disk.
+    try:
+        from app.models import PageUpload
+        from sqlalchemy.orm import Session as _Session
+        with _Session(engine) as _db:
+            stuck = (
+                _db.query(PageUpload)
+                .filter(PageUpload.status.in_(("processing", "pending")))
+                .all()
+            )
+            if stuck:
+                for u in stuck:
+                    u.status = "failed"
+                    u.error_message = "Server restarted before processing finished — use Retry to reprocess"
+                _db.commit()
+                import logging
+                logging.getLogger(__name__).info(
+                    "Recovered %d stuck OCR page(s) -> failed (saved images still on disk; user can Retry)",
+                    len(stuck),
+                )
+    except Exception:
+        import logging
+        logging.getLogger(__name__).exception("OCR stuck-page recovery failed")
+
     # Register LLM cost tracking (limbic mounted via PYTHONPATH)
     try:
         import litellm
