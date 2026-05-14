@@ -4,6 +4,43 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-05-14: OCR multi-page-spread + in-app burst camera
+
+### What
+
+Two related fixes to the textbook OCR upload flow.
+
+**Backend: multi-shape Gemini response handling**. Five of six uploaded images in batch `2e6ec3bf` came back with 0 extracted words despite each photo containing 18-26 Arabic vocabulary words from an Al-Kitaab page. Root cause: when a single camera photo shows a textbook *spread* (two facing pages), Gemini ignores the `response_format={"type":"json_object"}` envelope and returns a top-level list of per-page dicts instead — `[{"words":[...],"page_number":182},{"words":[...],"page_number":183}]`. Two earlier crashes/silent-drops on this path:
+
+1. Original: `_step1_extract_words` called `result.get("words", [])` unconditionally — `AttributeError: 'list' object has no attribute 'get'` for any list-shaped response. Killed the page.
+2. Interim fix (`c5dd700`): handled the list case but treated the outer list as `words`, so the downstream `[w for w in words if isinstance(w, str) and w.strip()]` filter dropped every entry. No crash, no error log, no extracted words.
+
+Final fix (`fbb4147`): list-of-dicts is flattened — all `item["words"]` arrays concatenated, first non-null `page_number` preserved. Bare list of strings still handled as fallback. Retry of batch `2e6ec3bf` then extracted 18+18+17+14+18+26 = 111 words across the 6 pages with correct page numbers 180-190.
+
+**Frontend: in-app burst camera**. Pre-2026-05-14 the scanner's "Camera" button called `ImagePicker.launchCameraAsync` — one shot, dismiss to app, tap Camera again for the next page. Painful for the dominant use case (capturing several consecutive pages from a textbook). Replaced with an embedded `CameraView` (expo-camera): tap Camera once, shutter button stays on-screen, captures land in a horizontal thumbnail strip, Done returns all pages to the upload list at once, Cancel discards. On each shutter: 240ms white flash overlay + thumbnail strip auto-scrolls to the newest capture so feedback stays visible after the strip fills past the viewport.
+
+### Why
+
+Three distinct failure modes shipped to the user inside 24 hours, two silent. The original crash was visible in journal logs but the user only saw "OCR failed for X.jpg". The interim fix masked the symptom but produced 0-word pages, which is a **silent data loss** mode (the batch summary says "completed" but contributed nothing). The textbook is exactly the high-value input for vocabulary acquisition; an OCR that says "completed, 0 words" on a vocab page erodes trust.
+
+The camera UX change is unrelated to the OCR fix but shipped same-day because of the same user session. The new in-app camera produces the spread-shape inputs that exposed the multi-page bug — landscape iPhone holding an open book — more often than `launchCameraAsync` did (which framed differently). Both shapes now produce non-zero word counts.
+
+### Verify
+
+- Backend: `python3 -c "from app.services.ocr_service import _step1_extract_words"` mock the gemini call with each of `{dict, bare_list, list_of_dicts, str}` — all four return `(words, page_number)` without raising. 28 ocr tests pass.
+- Backend, in production: batch `2e6ec3bf` retry result 6/6 completed, 111 total existing words, 6 new lemmas (`AD7E0E44`:2, `C4DE467B`:1, `AD66A1CC`:3), page numbers 180/182/184/186/188/190 detected.
+- Frontend: connect dev client, open Scanner → Upload, tap Camera, take 6+ photos in a row, verify the flash fires every shutter and the strip auto-scrolls. Done returns all captures.
+
+### Related: EAS dev-client rebuild cascade
+
+The camera change is a native-module addition (`expo-camera`) so a new EAS dev build was required. That rebuild surfaced three latent issues that had been hidden behind the previous build:
+
+1. **iOS ATS blocks plain-HTTP dev server** — `alifstian.duckdns.org:8081` is plain HTTP. Without `NSAllowsArbitraryLoads: true` in Info.plist the dev client can't connect to the dev server (Chrome on the same device works because Chrome ships its own arbitrary-loads exception). Added to `frontend/app.json` infoPlist (`6b63ded`). This had presumably been working before via some forgotten path; the present build chain is the simplest fix.
+2. **Home-screen icon was the Expo placeholder all along** — the March 2026 icon design ("variant H Framed", `ألف` in Scheherazade New on `#0f0f1a` with thin inner border) generated PNGs locally but never `git add`'d. Every iOS build since shipped the default gray-with-circles. Restored from `research/alif-icon-v2.html` via the `icon-generation` skill; source HTMLs now committed under `frontend/assets/sources/` so this can't silently regress (`a178f1b`).
+3. **CgBI PNGs aren't broken** — embedded `AppIcon60x60@2x.png` in the .ipa fails to decode in PIL with "broken data stream"; that's Apple's proprietary BGRA-byteorder PNG variant (`file` reports `PNG image data (CgBI)`), readable by iOS only. Don't try to inspect embedded iOS icons with non-Apple tooling.
+
+---
+
 ## 2026-05-13: Comprehensive reverification sweep + continuous rolling reverify
 
 ### What
