@@ -399,11 +399,9 @@ def enrich_lemmas_batch(lemma_ids: list[int]) -> dict:
             return summary
 
         # ── Step 1: Transliteration (deterministic, instant) ──
-        from app.services.transliteration import transliterate_lemma
-
-        # Step 0: Vocalize any lemmas that arrived without diacritics.
-        # Without this, the transliteration loop below silently skips them
-        # (or worse, fallback paths produce broken translits like al-ghl\u0101m).
+        # Step 1a: Vocalize any lemmas that arrived without diacritics, so
+        # transliteration below has short-vowel info to encode. Without this,
+        # fallback paths produce broken translits like al-ghl\u0101m for \u0627\u0644\u063a\u0644\u0627\u0645.
         from app.services.lemma_vocalization import (
             apply_vocalization,
             needs_vocalization,
@@ -425,6 +423,9 @@ def enrich_lemmas_batch(lemma_ids: list[int]) -> dict:
                     len(unvocalized), e,
                 )
                 db.rollback()
+
+        # Step 1b: Transliteration (deterministic, instant).
+        from app.services.transliteration import transliterate_lemma
 
         for lemma in lemmas:
             if lemma.transliteration_ala_lc:
