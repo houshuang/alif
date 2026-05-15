@@ -4,6 +4,76 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-05-15: Quran + OCR lemma canonicalization rewrite
+
+### What
+
+Three user-flagged bugs traced to the same root-cause class: import paths that stored inflected/clitic-attached surface forms as canonical lemmas because the LLM prompts asked for translation but never for lemmatization, and CAMeL fallback logic was DB-gated (couldn't promote a canonical that wasn't already in the table).
+
+**1. Quran inflected-form leak** (PR #76, commit `af648d1`)
+
+User flagged نَزَّلْنَا "we sent down" (1st pers plural perfect of نَزَّلَ) appearing as an intro card with its own Form II conjugation table and root link. Root cause in `_create_unknown_quran_lemmas` (`quran_service.py`): Phase 2 LLM prompt asked `"bare: the bare form (as given)"` and never lemmatized. When the canonical نَزَّلَ wasn't already in the lemma table, the inflected surface became a brand-new canonical. `detect_variants` and `find_best_db_match` both DB-gated, so the inflected form couldn't self-heal on later runs.
+
+Fix: new `_camel_canonicalize_unknowns` runs CAMeL `get_best_lemma_mle` upstream of the LLM call. Inflected surfaces collapse into per-canonical groups; lemmas now created at the citation form (vocalized lex). Tightened the LLM prompt to require infinitive glosses. Three pytest cases pin the new behavior (`test_lemma_dedup_imports.py`).
+
+**2. MLE shadda-dropping** (in PR #77 bundle, my commit landed via the squash at `a96c2ba`)
+
+CAMeL's MLE disambiguator wrongly picked `lex=نَزِل` (Form I) for the input نَزَّلْنَا — the diac dropped the shadda. Without override, PR #76's canonicalization would have promoted the wrong Form I lex as the new canonical.
+
+Fix in `morphology.get_best_lemma_mle`: when input surface has shadda but MLE's diac doesn't, scan `analyze_word_camel` for the first analysis whose diac preserves the gemination. Falls back to MLE if no faithful analysis exists. Test in `test_morphology.py::TestMleSurfaceFidelity`.
+
+**3. OCR al-display leak + chimera lemmas** (PR #78, commit `71a04f2`)
+
+User flagged الماشي appearing as an intro card headword with al- prefix. `process_textbook_page` stored the raw OCR surface as `lemma_ar` even when CAMeL had clearly canonicalized to ماشِي (prc0='Al_det'). Bare was correct, display was not. Separately, a story showed "Miss" as the gloss for "to forget" — traced to lemma #2307 (chimera: `lemma_ar='آنِسَة'`, `lemma_ar_bare='نسي'`, `gloss='Miss'`, `pos='verb'`). CAMeL's MLE wrongly analyzed آنِسَة as a verb+3ms_dobj, so the lemma got created with mismatched fields. 129 sentence_words for "to forget" surfaces inherited the "Miss" gloss.
+
+Fix: `_step2_morphology` now also returns `base_lemma_vocalized` (CAMeL lex with diacritics). `process_textbook_page` uses it for `lemma_ar` when the stripped form matches `import_bare`; falls back to the OCR surface for integral-al lemmas like الذي.
+
+### Prod cleanup (2026-05-15)
+
+| Action | Count |
+|---|---|
+| Quran inflected canonicals classified | 71 (45 LOOKS_CANONICAL, 26 actionable) |
+| LINK_EXISTING applied (Quran) | 2 |
+| PROMOTE_NEW (CAMeL-trusted) | 17 new canonicals |
+| MANUAL_OVERRIDES (CAMeL gave wrong lex) | 6 |
+| SUSPEND (Quran compound) | 1 (#2872 يايها) |
+| Homograph split for ن.ز.ل | Form I #3569 / Form II #3587 / Form IV #3588 |
+| OCR al-display rewrites | 114 lemmas |
+| OCR chimera deletions | 3 lemmas (#2307, #3450, #3452) + 28 ReviewLogs + 134 SW + 38 sentence targets NULL'd |
+| Manual bare fix | 1 (#1527 إلزامي 'زامي' → 'الزامي') |
+
+After delete + remap pass, the 18 Anisa-form surfaces routed correctly to #2462 (proper noun canonical). 8 forget/intensify surfaces stay NULL because no clean canonical exists yet — sentences containing them stay inactive (correct fail-closed behavior).
+
+### Three audit/cleanup methodology lessons
+
+1. **Don't use `build_lemma_lookup` for "is this canonical in the DB" checks.** Its Pass 3 generates verb conjugations and noun inflections, so `lookup['نزل']` returns a lemma whose actual bare is `نزلنا`. My first audit pass produced bogus LINK_EXISTING matches (lemma → another inflected form of the same root, or common noun → proper name like #3071 صالح "Sālih"). Use `db.query(Lemma).filter(Lemma.lemma_ar_bare == lex_bare)` with POS compatibility check instead.
+
+2. **Suspending a ULK doesn't stop the bare-form lookup.** Chimera lemmas with suspended ULK were still found by `fix_null_lemma_ids.remap_unmapped_sentence_words` because the comprehensive lookup only filters by `canonical_lemma_id IS NULL`, not by ULK state. For "totally clean", the Lemma row itself has to be deleted (or its bare changed to a non-Arabic value).
+
+3. **Bare-form-keyed lemma identity has a homograph limitation.** Form I نَزَلَ "to descend" and Form II نَزَّلَ "to send down" both have bare `نزل` because `strip_diacritics` removes shadda. They cannot be distinguished by the lemma_lookup. The codebase already supports homographs via storage (no DB unique constraint on `lemma_ar_bare`) and `ALLOW_HOMOGRAPH` in `import_scaffold_lemmas`, but `build_lemma_lookup` collides on the bare key. Properly fixing this means vocalized-aware lookup, a separate canonical-key field, or accepting per-pair homograph entries. See IDEAS.md.
+
+### Verify
+
+```bash
+# نَزَّلْنَا is now a variant of Form II canonical (not an inflected canonical)
+ssh alif "cd /opt/alif/backend && PYTHONPATH=/opt/limbic .venv/bin/python3 -c 'from app.database import SessionLocal; from app.models import Lemma; db = SessionLocal(); print(db.get(Lemma, 2878).canonical_lemma_id)'"
+# Expected: 3587 (Form II homograph)
+
+# الماشي #3457 now displays without al-
+# Expected: lemma_ar = 'ماشِي' (no al-)
+
+# Chimera #2307 is gone
+# Expected: None
+```
+
+### Follow-ups deferred
+
+- 8 NULL'd sentence_words awaiting clean canonicals for نَسِيَ / إِنْسَان / اشتدّ (would be a 5-min `import_scaffold_lemmas` addition).
+- The bare-form homograph collision is structural — opened in IDEAS.md but not scheduled.
+- Rare-word-warning UI (issue #3 in user's bug list today) handed off via `.claude/prompts/rare-word-warning-handoff.md`.
+
+---
+
 ## 2026-05-15: Vocalize-before-transliterate gate
 
 ### What

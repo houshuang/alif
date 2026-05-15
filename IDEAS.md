@@ -4,6 +4,50 @@
 
 ---
 
+## 🔵 [OPEN 2026-05-15] Vocalized-aware lemma identity for homographs
+
+Today's Form I/II/IV cleanup on the ن.ز.ل root revealed a structural limitation: `lemma_ar_bare` is the unit of dedup (via `build_lemma_lookup`), but `strip_diacritics` removes shadda — so نَزَلَ (Form I "descend") and نَزَّلَ (Form II "send down") collapse to the same bare key `نزل`. They are dictionary-distinct verbs with different patterns, glosses, and conjugation paradigms, but the lookup can't tell them apart.
+
+The codebase already supports homograph **storage** — `Lemma.lemma_ar_bare` has no DB unique constraint, and `import_scaffold_lemmas.py:ALLOW_HOMOGRAPH` opts curated entries into homograph creation (e.g. قَدِمَ "come" vs قَدَمَ "precede"). The 2026-05-15 fix demonstrated this for ن.ز.ل by creating three distinct canonicals (#3569, #3587, #3588) all with bare `نزل`. But `build_lemma_lookup` still hits a collision on the bare key: lookup returns whichever homograph was inserted first, so future imports of the other forms misroute.
+
+Three possible fixes:
+
+1. **Vocalized-aware lookup.** Keep `lemma_ar_bare` as today but also index by `lemma_ar` (stripped of case-ending nunation only). The lookup takes both the input surface and a CAMeL-resolved lex, and picks the homograph whose vocalized form best matches the lex (e.g. shadda presence/absence). Probably 1-2 day change touching `build_lemma_lookup`, `lookup_lemma`, `find_best_db_match`, and a few callers.
+2. **Separate canonical-key column.** Add `Lemma.canonical_key` that includes whatever distinguishes homographs (e.g. shadda-preserved consonantal skeleton, or verb form roman numeral). Migrations + scripts + lookup rewiring. Bigger, more invasive.
+3. **Accept manual homograph entries only.** Don't auto-import a second form-of-same-bare; require an `ALLOW_HOMOGRAPH` curation pass. Limits the bug but doesn't fix the import paths.
+
+Reference: see `research/experiment-log.md:2026-05-15: Quran + OCR lemma canonicalization rewrite` for the incident, `backend/scripts/split_nzl_homograph_2026_05_15.py` for the current workaround.
+
+---
+
+## 🔵 [OPEN 2026-05-15] Rare-word warning + per-word suspend on intro cards
+
+When the system introduces a word **not in the top 3000 frequency core** (or with no frequency data at all), the intro card should show:
+
+- A warning banner with the actual `FrequencyCoreEntry.core_rank` (or "not in core")
+- A "Suspend this word" button that sets `UserLemmaKnowledge.knowledge_state="suspended"` AND deactivates pending Sentences with that word (`sentences.target_lemma_id` cascade)
+
+Motivation: rare words (e.g. plant names for hair dye, niche classical vocabulary) leak into intro rotation from OCR/Quran/book imports. User wants per-word agency at intro time, not silent filtering upstream.
+
+Settled specs: threshold = top 3000 (matches `ALIF_FREQ_CORE_INTAKE_MAX_RANK`); banner on the card; warning shows rank + source count; suspend is user-clicked, not automatic. Handoff prompt for next session at `.claude/prompts/rare-word-warning-handoff.md`.
+
+---
+
+## 🔵 [OPEN 2026-05-15] Scaffold canonicals for orphaned NULL surfaces post-chimera
+
+After the 2026-05-15 chimera deletion (#2307 آنِسَة/نسي + #3450 + #3452, see scripts-catalog.md), 8 sentence_words have `lemma_id=NULL` because no clean canonical exists yet for the underlying words. They concentrate in:
+
+- نَسِيَ "to forget" (Form I) and أَنْسَى "to make forget" (Form IV) — surfaces like نَسِيَ, نَسِيتُ, تَنْسَى, يَنْسَى, أَنْسَ, أَنْسَاهُ
+- اِشْتَدَّ "to intensify" (Form VIII) — surfaces like اِشْتَدَّتْ, يَشْتَدُّ
+- إِنْسَان "human" — root ا.ن.س, surfaces like إِنْسَانًا
+- نِسْيَان "forgetfulness" (masdar of نَسِيَ) — surfaces like النِّسْيَانُ
+- أُنْس "intimacy, familiarity" — root ا.ن.س, surface like أُنْسِي
+- أَنَاس "people" — surface أناس
+
+Quick fix: add to `import_scaffold_lemmas.py:SCAFFOLD_WORDS` with diacritized form + gloss + pos for each. After re-import, `fix_null_lemma_ids.remap_unmapped_sentence_words` picks them up automatically and the affected sentences activate. ~6-8 entries, 5-min curation.
+
+---
+
 ## 🔵 [OPEN 2026-05-15] Review queue for letter-drift vocalization proposals
 
 The 2026-05-15 tashkeel backfill rejected 15 of 132 unvocalized lemmas because the LLM's proposal changed letters, not just diacritics — e.g. restoring a dropped hamza or fixing an OCR-corrupted character. The strict letter-match validator in `lemma_vocalization.validate_proposal()` blocks these by design (silent letter mutation via the vocalization path would let unverified corrections slip in), so those lemmas remain unvocalized.
