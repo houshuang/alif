@@ -4,6 +4,20 @@
 
 ---
 
+## 🔵 [OPEN 2026-05-15] Review queue for letter-drift vocalization proposals
+
+The 2026-05-15 tashkeel backfill rejected 15 of 132 unvocalized lemmas because the LLM's proposal changed letters, not just diacritics — e.g. restoring a dropped hamza or fixing an OCR-corrupted character. The strict letter-match validator in `lemma_vocalization.validate_proposal()` blocks these by design (silent letter mutation via the vocalization path would let unverified corrections slip in), so those lemmas remain unvocalized.
+
+Several rejections are probably *correct* fixes the LLM is volunteering. Worth building a small review queue:
+
+- Re-run the vocalize prompt for the 15 (and any future rejections), but capture the proposal even when letters changed.
+- Surface them in More → Admin alongside the existing flag-resolution UI: original lemma_ar, proposed vocalized form, diff highlights, gloss, root.
+- Tap-to-approve commits both the letter change and the vocalization in one step; tap-to-reject marks the lemma as "vocalization deferred — needs better data" so it stops being retried.
+
+Not urgent — the runtime gate already covers new imports, and the residuals only show up as ugly translits on whichever cards happen to surface them.
+
+---
+
 ## 🟢 [DONE 2026-05-13] Two regression fixes — variant re-admit + select_next_words perf
 
 After the frequency-core supply fix went out, sessions still showed 0 intros and `build_session` was taking 3.4s. Two underlying bugs:

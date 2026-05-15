@@ -4,6 +4,39 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-05-15: Vocalize-before-transliterate gate
+
+### What
+
+Triggered by lemma 3496 showing as `الغلام` / `al-ghlām` on the inline word-info pill — the user expected the vocalized `الغُلَام` / `al-ghulām` that the surrounding sentence translit already used. Tracing the value back through `routers/review.py:word_lookup` showed the backend just returns `Lemma.lemma_ar` and `Lemma.transliteration_ala_lc` verbatim. So the failure was upstream: 132 of 3,077 canonical lemmas had no diacritics on `lemma_ar`, and the romanizer faithfully turned them into translits without short vowels.
+
+Two changes shipped in PR #77 (commit `a96c2ba`):
+
+1. **Runtime gate**: new `app/services/lemma_vocalization.py` wraps the Claude Haiku tashkeel prompt + validation. `enrich_lemmas_batch()` runs it as **Step 1a** before transliteration. Any newly-imported lemma whose `lemma_ar` lacks diacritics gets vocalized first; the romanizer then has short-vowel info to encode. Prevents the regression class from reappearing.
+2. **Backfill script** (`scripts/vocalize_unvocalized_lemmas.py`): filter broadened from `lemma_ar == lemma_ar_bare` (which missed clitic-attached forms like الغلام vs غلام — same lemma stem, different lengths) to "lemma_ar contains zero diacritic marks". Validation now compares the LLM proposal against `lemma_ar` itself rather than `lemma_ar_bare`, so attached al-prefixes survive the vocalization step.
+
+### Backfill results (prod, 2026-05-15)
+
+| Outcome | Count |
+|---|---|
+| Vocalized successfully | 117 |
+| LLM returned bare form unchanged | 5 |
+| Rejected for letter drift | 15 |
+| Skipped (non-Arabic script: Hebrew, Latin) | 9 |
+
+After `backfill_transliteration.py`: 118 transliterations refreshed (incl. lemma 3496 → `al-ghulām`). Verified via `/api/review/word-lookup/3496`.
+
+### Why letter-drift rejections matter
+
+Of the 15 rejected, several are likely *correct* lemma fixes the LLM is volunteering — restoring a dropped hamza, fixing an OCR-corrupted character, etc. The validation rejects them because the change exceeds "diacritics only", and silently mutating letters via this path would let unverified corrections slip in. The right follow-up is a separate review path that surfaces these proposals for one-by-one approval, not loosening the gate. Filed as an idea entry in IDEAS.md.
+
+### Verify
+
+- `SELECT lemma_ar, transliteration_ala_lc FROM lemmas WHERE lemma_id = 3496;` should return `الْغُلَام` / `al-ghulām`.
+- Spot-check the inline word pill on the actual card — it now matches the sentence's italic translit.
+
+---
+
 ## 2026-05-14: OCR multi-page-spread + in-app burst camera
 
 ### What
