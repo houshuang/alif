@@ -9,6 +9,7 @@ from app.services.morphology import (
     find_best_db_match,
     find_matching_analysis,
     get_base_lemma,
+    get_best_lemma_mle,
     get_word_features,
     is_variant_form,
 )
@@ -59,3 +60,40 @@ class TestStubFallback:
         assert result["words"][1]["word"] == "كتاب"
         if not CAMEL_AVAILABLE:
             assert result["source"] == "stub"
+
+
+@pytest.mark.skipif(not CAMEL_AVAILABLE, reason="needs CAMeL Tools")
+class TestMleSurfaceFidelity:
+    """The MLE disambiguator can pick an analysis whose vocalized form drops
+    gemination present in the input. get_best_lemma_mle must override MLE in
+    that case by scanning analyzer analyses for a shadda-preserving one."""
+
+    def test_form2_preserves_shadda(self):
+        """نَزَّلْنَا (Form II "we sent down") must lemmatize to a Form II lex
+        (shadda preserved). Without this fix, MLE alone picks نَزِل (Form I,
+        weak-verb misanalysis) — confirmed via _get_disambiguator probe."""
+        from app.services.sentence_validator import strip_diacritics
+        SHADDA = "ّ"
+        result = get_best_lemma_mle("نَزَّلْنَا")
+        assert result is not None
+        # Form II has gemination — shadda must survive in the lex
+        assert SHADDA in result["lex"], f"shadda dropped in lex: {result['lex']!r}"
+        # And the consonantal skeleton is نزل
+        assert strip_diacritics(result["lex"]) == "نزل"
+
+    def test_unmarked_form1_unchanged(self):
+        """No shadda in input → no fidelity override; behaviour identical
+        to the previous MLE-only path."""
+        from app.services.sentence_validator import strip_diacritics
+        result = get_best_lemma_mle("كَتَبَ")
+        assert result is not None
+        assert strip_diacritics(result["lex"]) == "كتب"
+
+    def test_definite_noun_strips_al(self):
+        """Regression: CAMeL identifies prc0='Al_det' for الماشي and lex='ماشِي'
+        — no shadda involved, MLE pick is fine, but we want to confirm the
+        surface-fidelity check doesn't accidentally regress this path."""
+        from app.services.sentence_validator import strip_diacritics
+        result = get_best_lemma_mle("الماشي")
+        assert result is not None
+        assert strip_diacritics(result["lex"]) == "ماشي"
