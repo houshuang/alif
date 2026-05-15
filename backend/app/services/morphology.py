@@ -131,36 +131,53 @@ def get_base_lemma(word: str) -> str | None:
     return None
 
 
+_SHADDA = "ّ"
+
+
+def _pack_analysis(a: dict) -> dict:
+    return {
+        "lex": a.get("lex"),
+        "root": a.get("root"),
+        "pos": a.get("pos"),
+        "enc0": a.get("enc0", ""),
+    }
+
+
 def get_best_lemma_mle(word: str) -> dict | None:
     """Get the most likely base lemma using MLE disambiguation.
 
-    Returns dict with lex, root, pos from the MLE-selected analysis,
-    or falls back to top analyzer result. Returns None if CAMeL unavailable.
+    The MLE disambiguator can pick an analysis whose vocalized form (`diac`)
+    drops gemination that's present in the input — observed for نَزَّلْنَا
+    (Form II "we sent down") where MLE returns lex=نَزِل (Form I "to descend")
+    even though the input has explicit shadda. When the input carries shadda
+    but the MLE pick's diac doesn't, we prefer the first analyzer analysis
+    whose diac preserves it. Falls back to the MLE pick (then top analyzer
+    result) if no faithful analysis exists.
+
+    Returns dict with lex, root, pos, enc0 — or None if CAMeL unavailable.
     """
+    surface_has_shadda = _SHADDA in word
+
     disambig = _get_disambiguator()
+    mle_pick: dict | None = None
     if disambig:
         try:
             results = disambig.disambiguate([word])
             if results and results[0].analyses:
-                top = results[0].analyses[0].analysis
-                return {
-                    "lex": top.get("lex"),
-                    "root": top.get("root"),
-                    "pos": top.get("pos"),
-                    "enc0": top.get("enc0", ""),
-                }
+                mle_pick = results[0].analyses[0].analysis
         except Exception:
             logger.debug("MLE disambiguation failed for %s, falling back", word)
 
+    if mle_pick is not None:
+        if surface_has_shadda and _SHADDA not in (mle_pick.get("diac") or ""):
+            for a in analyze_word_camel(word):
+                if _SHADDA in (a.get("diac") or ""):
+                    return _pack_analysis(a)
+        return _pack_analysis(mle_pick)
+
     analyses = analyze_word_camel(word)
     if analyses:
-        top = analyses[0]
-        return {
-            "lex": top.get("lex"),
-            "root": top.get("root"),
-            "pos": top.get("pos"),
-            "enc0": top.get("enc0", ""),
-        }
+        return _pack_analysis(analyses[0])
     return None
 
 

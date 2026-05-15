@@ -1,10 +1,18 @@
 """Add tashkeel (full diacritization) to lemmas whose lemma_ar lacks vowels.
 
-Identifies lemmas where lemma_ar == lemma_ar_bare (i.e., never had any
-diacritics stored) and uses Claude CLI to add proper tashkeel based on the
-bare form, gloss, and POS. Validates each output: stripped vocalized form
-must equal the original bare form. Skips non-Arabic-script lemmas (Hebrew,
-Latin, etc.).
+Identifies lemmas where lemma_ar contains no diacritic marks at all
+(U+064B–U+065F, U+0670) and uses Claude CLI to add proper tashkeel based on
+the existing letter sequence (including any attached al-prefix), gloss, and
+POS. Skips non-Arabic-script lemmas (Hebrew, Latin, etc.).
+
+The old filter `lemma_ar == lemma_ar_bare` missed lemmas where lemma_ar
+differs from lemma_ar_bare only by an attached clitic (e.g. الغلام vs
+غلام) — these were still fully unvocalized and producing garbage
+transliterations like `al-ghlām` instead of `al-ghulām`.
+
+The actual vocalization logic lives in `app/services/lemma_vocalization.py`
+so the runtime enrichment path can share it (so newly-imported unvocalized
+lemmas are caught and fixed before transliteration runs).
 
 After running, re-run backfill_transliteration.py and backfill_forms_translit.py
 to refresh transliterations for the newly-vocalized lemmas.
@@ -23,103 +31,36 @@ load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 from app.database import SessionLocal
 from app.models import Lemma
 from app.services.activity_log import log_activity
-from app.services.sentence_validator import strip_diacritics, normalize_alef
-from app.services.claude_code import generate_structured
-
-
-_ARABIC_RANGE = range(0x0600, 0x0700)
-
-
-def _is_arabic_script(text: str) -> bool:
-    """True if at least one char is in the Arabic Unicode block."""
-    return any(ord(c) in _ARABIC_RANGE for c in text)
-
-
-_SCHEMA = {
-    "type": "object",
-    "properties": {
-        "vocalized": {
-            "type": "array",
-            "items": {
-                "type": "object",
-                "properties": {
-                    "lemma_id": {"type": "integer"},
-                    "vocalized_ar": {"type": "string"},
-                },
-                "required": ["lemma_id", "vocalized_ar"],
-                "additionalProperties": False,
-            },
-        }
-    },
-    "required": ["vocalized"],
-    "additionalProperties": False,
-}
-
-
-_SYSTEM = """You are an expert in Arabic morphology and orthography.
-
-Your task: add full tashkeel (Arabic diacritical marks) to a list of Arabic
-lemmas given as bare unvocalized text plus an English gloss and part of speech.
-
-Rules:
-- Output the same word with proper diacritics (fatha, kasra, damma, sukun,
-  shadda where appropriate). Use lemma/dictionary form (no case ending).
-- For verbs, use the canonical past-tense 3rd-singular masculine form (the
-  citation form), e.g. "كَتَبَ" not "كتب".
-- For nouns and adjectives, use the singular indefinite form with no tanwīn.
-- For ت marbuṭa words ending in ة, do not add a final tanwin or vowel.
-- For function words / particles (e.g. قد, لو, كي, لقد), use their
-  conventional vocalization.
-- The unvocalized letters MUST remain identical — only diacritics are added.
-- If a word is foreign or you genuinely cannot vocalize it, output the bare
-  word unchanged.
-"""
-
-
-def _build_prompt(batch):
-    lines = ["Add tashkeel to each lemma. Reply with the JSON schema only.\n"]
-    for l in batch:
-        lines.append(f'  - lemma_id={l.lemma_id}, bare="{l.lemma_ar_bare}", pos={l.pos or "?"}, gloss="{l.gloss_en or "?"}"')
-    return "\n".join(lines)
-
-
-def vocalize_batch(batch, timeout=180):
-    """Returns dict {lemma_id: vocalized_ar} for the batch."""
-    prompt = _build_prompt(batch)
-    result = generate_structured(
-        prompt=prompt,
-        system_prompt=_SYSTEM,
-        json_schema=_SCHEMA,
-        model="haiku",
-        timeout=timeout,
-    )
-    return {entry["lemma_id"]: entry["vocalized_ar"] for entry in result.get("vocalized", [])}
+from app.services.lemma_vocalization import (
+    apply_vocalization,
+    is_arabic_script,
+    needs_vocalization,
+    validate_proposal,
+    vocalize_batch,
+)
 
 
 def main(dry_run=False, batch_size=20):
     db = SessionLocal()
     try:
-        rows = (
-            db.query(Lemma)
-            .filter(Lemma.lemma_ar == Lemma.lemma_ar_bare)
-            .order_by(Lemma.lemma_id)
-            .all()
-        )
+        # All lemmas where lemma_ar has no diacritic marks. The previous
+        # `lemma_ar == lemma_ar_bare` check missed cases like الغلام/غلام
+        # where the form differs only by an attached clitic.
+        candidates = db.query(Lemma).order_by(Lemma.lemma_id).all()
+        rows = [l for l in candidates if needs_vocalization(l) or
+                (l.lemma_ar and not is_arabic_script(l.lemma_ar))]
+        unvocalized = [l for l in rows if needs_vocalization(l)]
+        skipped_script = len(rows) - len(unvocalized)
 
-        arabic = [l for l in rows if _is_arabic_script(l.lemma_ar_bare or "")]
-        skipped_script = len(rows) - len(arabic)
-
-        print(f"Found {len(rows)} unvocalized lemmas")
-        print(f"  {len(arabic)} Arabic-script (will vocalize)")
-        print(f"  {skipped_script} non-Arabic-script (will skip)\n")
+        print(f"Found {len(unvocalized)} unvocalized Arabic-script lemmas")
+        print(f"  (skipping {skipped_script} non-Arabic-script rows)\n")
 
         updated = 0
         rejected_changed_letters = 0
-        rejected_no_diacritics = 0
         unchanged = 0
 
-        for i in range(0, len(arabic), batch_size):
-            batch = arabic[i : i + batch_size]
+        for i in range(0, len(unvocalized), batch_size):
+            batch = unvocalized[i : i + batch_size]
             print(f"--- Batch {i // batch_size + 1} ({len(batch)} lemmas) ---")
             try:
                 proposals = vocalize_batch(batch)
@@ -130,27 +71,22 @@ def main(dry_run=False, batch_size=20):
             for l in batch:
                 proposal = proposals.get(l.lemma_id)
                 if not proposal:
-                    print(f"  {l.lemma_id} {l.lemma_ar_bare}: no proposal")
+                    print(f"  {l.lemma_id} {l.lemma_ar}: no proposal")
                     continue
 
-                # Validate: stripped proposal must match original bare form
-                # (after normalizing alef variants — LLM often restores hamza
-                # forms like اعراب → إعراب, which is a valid correction).
-                stripped = strip_diacritics(proposal)
-                if normalize_alef(stripped) != normalize_alef(l.lemma_ar_bare):
-                    print(f"  {l.lemma_id} {l.lemma_ar_bare}: REJECTED (changed letters: got {stripped!r})")
-                    rejected_changed_letters += 1
-                    continue
-
-                # Validate: must contain at least one diacritic
-                if proposal == l.lemma_ar_bare:
-                    print(f"  {l.lemma_id} {l.lemma_ar_bare}: unchanged (LLM returned bare form)")
+                if proposal == l.lemma_ar:
+                    print(f"  {l.lemma_id} {l.lemma_ar}: unchanged (LLM returned bare form)")
                     unchanged += 1
                     continue
 
-                print(f"  {l.lemma_id} {l.lemma_ar_bare} -> {proposal}")
+                if not validate_proposal(proposal, l.lemma_ar):
+                    print(f"  {l.lemma_id} {l.lemma_ar}: REJECTED (letter drift: {proposal!r})")
+                    rejected_changed_letters += 1
+                    continue
+
+                print(f"  {l.lemma_id} {l.lemma_ar} -> {proposal}")
                 if not dry_run:
-                    l.lemma_ar = proposal
+                    apply_vocalization(l, proposal)
                 updated += 1
 
             if not dry_run:
