@@ -35,6 +35,7 @@ import {
   getConfusionHelp,
   generateUuid,
   logCardShown,
+  suspendWord,
   BASE_URL,
 } from "../lib/api";
 import {
@@ -1997,6 +1998,15 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
     const knownSiblings = card.root_family.filter(
       (s) => (s.state === "known" || s.state === "learning") && s.lemma_id !== card.lemma_id
     );
+    const freqRank = card.frequency_rank ?? null;
+    const freqSourceCount = card.frequency_source_count ?? null;
+    // Rare-word banner: rank outside top-3000 OR no FCE entry at all OR very
+    // thinly-sourced (≤1 frequency list). Function words don't reach this
+    // render (filtered upstream).
+    const isRareWord =
+      freqRank === null ||
+      freqRank > 3000 ||
+      (freqSourceCount !== null && freqSourceCount <= 1);
     const eiHasMnemonic = !!card.memory_hooks?.mnemonic;
     const eiHasEtymology = !!card.etymology?.derivation;
     const eiHasFunFact = !!card.memory_hooks?.fun_fact;
@@ -2175,6 +2185,56 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
             )}
           </View>
         </ScrollView>
+
+        {isRareWord && (
+          <View
+            style={{
+              marginHorizontal: 16,
+              marginBottom: 8,
+              padding: 12,
+              backgroundColor: "#fff3cd",
+              borderRadius: 10,
+              borderWidth: 1,
+              borderColor: "#ffe69c",
+            }}
+          >
+            <Text style={{ fontSize: 13, fontWeight: "600", color: "#664d03", marginBottom: 4 }}>
+              {freqRank === null
+                ? "Uncommon word — not in the top-3000 frequency core"
+                : freqRank > 3000
+                ? `Uncommon word — frequency rank #${freqRank}`
+                : `Thinly-sourced — rank #${freqRank}, only in ${freqSourceCount ?? 0} frequency list${(freqSourceCount ?? 0) === 1 ? "" : "s"}`}
+            </Text>
+            <Text style={{ fontSize: 12, color: "#856404", marginBottom: 10 }}>
+              You can skip it permanently if it's not worth learning right now.
+            </Text>
+            <Pressable
+              style={{
+                alignSelf: "flex-start",
+                paddingVertical: 8,
+                paddingHorizontal: 14,
+                borderRadius: 8,
+                borderWidth: 1,
+                borderColor: "#856404",
+                backgroundColor: "transparent",
+              }}
+              onPress={() => {
+                const lemmaId = card.lemma_id;
+                shownIntroLemmaIdsRef.current.add(lemmaId);
+                suspendWord(lemmaId, {
+                  frequency_rank: freqRank,
+                  source: "rare_word_banner",
+                }).catch(() => {});
+                introScrollRef.current?.scrollTo({ y: 0, animated: false });
+                advanceAfterSubmit("understood");
+              }}
+            >
+              <Text style={{ color: "#856404", fontWeight: "600", fontSize: 13 }}>
+                Suspend this word
+              </Text>
+            </Pressable>
+          </View>
+        )}
 
         <View style={styles.reintroActions}>
           <Pressable

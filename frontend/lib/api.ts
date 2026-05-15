@@ -1153,8 +1153,22 @@ export async function postponeWord(lemmaId: number): Promise<{ lemma_id: number;
   return fetchApi(`/api/words/${lemmaId}/postpone`, { method: "POST" });
 }
 
-export async function suspendWord(lemmaId: number): Promise<{ lemma_id: number; state: string }> {
-  return fetchApi(`/api/words/${lemmaId}/suspend`, { method: "POST" });
+export async function suspendWord(
+  lemmaId: number,
+  payload?: { frequency_rank?: number | null; source?: string },
+): Promise<{
+  lemma_id: number;
+  canonical_lemma_id?: number;
+  state: string;
+  previous_state?: string | null;
+  already_suspended?: boolean;
+  sentences_deactivated?: number;
+}> {
+  return fetchApi(`/api/words/${lemmaId}/suspend`, {
+    method: "POST",
+    body: payload ? JSON.stringify(payload) : undefined,
+    headers: payload ? { "Content-Type": "application/json" } : undefined,
+  });
 }
 
 export async function unsuspendWord(lemmaId: number): Promise<{ lemma_id: number; state: string }> {

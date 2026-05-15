@@ -458,6 +458,8 @@ class ReintroCardOut(BaseModel):
     wazn_meaning: str | None = None
     source: str | None = None
     intro_kind: str | None = None
+    frequency_rank: int | None = None
+    frequency_source_count: int | None = None
 
 
 class ReintroResultIn(BaseModel):

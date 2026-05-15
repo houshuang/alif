@@ -434,6 +434,8 @@ export interface ReintroCard {
   wazn_meaning?: string | null;
   source?: string | null;
   intro_kind?: string | null;
+  frequency_rank?: number | null;
+  frequency_source_count?: number | null;
 }
 
 export interface VerseWord {
