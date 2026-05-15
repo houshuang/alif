@@ -4,6 +4,51 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-05-15: Rare-word warning + per-word suspend (PR #79)
+
+### What
+
+Intro cards now expose `frequency_rank` and `frequency_source_count` from `FrequencyCoreEntry` (joined on canonical lemma_id). When a word surfaces with rank > 3000, no FCE entry at all, or `broad_source_count ≤ 1`, a yellow warning banner appears above the Continue button with a "Suspend this word" action.
+
+The suspend endpoint (`POST /api/words/{lemma_id}/suspend`) was upgraded to: resolve canonical via `resolve_canonical_lemma_id`, cascade-deactivate any active sentences whose `target_lemma_id` matches the variant or canonical, and accept an optional `{frequency_rank, source}` body that lands in the `word_suspended` interaction event.
+
+### Why
+
+User encountered an intro card glossed "vegetable color for hair" — `#1379 كَتَمٌ` "hair dye plant" from a wiktionary import. Audit of currently-learning lemmas found:
+
+- 229 of 2,189 active lemmas had no FCE entry, but 18 of the 19 most-reviewed were function words correctly excluded from FCE by `build_frequency_core.py` (intentional `--include-function-words=False` default). Only 1 (`أَم` disjunctive "or") was missing from `FUNCTION_WORDS` — added in the same PR.
+- 83 lemmas were in FCE at rank > 3000. Mostly textbook-scan modern food/clothing/loanword vocab (croissant, hamburger, manakish, hamburger, cantaloupe) — useless for the user's classical-literature goal.
+- The henna lemma sat at rank **1449** with `broad_source_count=1` — a single thinly-sourced frequency list listed it inside the top-3000, so rank-only logic missed it. This motivated the `broad_source_count ≤ 1` arm of the banner condition.
+
+The feature gives the user agency at the moment of introduction, not after. No retroactive cleanup, no auto-filtering — surface the rank and let the user decide.
+
+### Same session: data cleanup motivated by the audit
+
+Direct-to-main, activity-logged:
+
+- Suspended `#1946 قَمَرِيّ` (Comorian).
+- Bucket-2 inflected-form lemmas merged via the established `cleanup_clitic_leftovers.py` pattern (`reassign_refs` + `merge_or_drop_orphan_ulk`):
+  - `#2101 اقرئيه` (read.imp+pron) → `#398 قَرَأَ`
+  - `#2103 وَوَاظَبِي` (و+persevere.imp.f) → `#2604 واظَب`
+  - `#1633 طَّابِقِ` (floor + tanwin + anomalous shadda) → `#1632 طَابِق`
+  - Suspended non-lemma `#1593 بِنا` (preposition+pronoun)
+  - In-place display-form fixes on `#1543 مَعْلُومَات`, `#3218 خَفِيض`, `#2306 مَغْفِرَة`, `#1632 طَابِق` (remove trailing tanwin/kasra/anomalous shadda)
+- Cleaned up `#2529` residual (1 stale `review_log` row → `#398`).
+- Created verb `#3597 كَتَمَ` "to conceal, hide, keep secret" (root 810 ك-ت-م, translit `katama`, full `run_quality_gates(enrich=True)`) as a homograph of noun `#1379`. Repointed **9** SentenceWord rows whose surface was a verb-shape inflection (فَكَتَمَ، نكتم، تكتم، يَكْتُمُونَ، يَكْتُمْ، وكتمت + masdar بِكِتْمَانِ) from noun → verb. Suspended the noun. Reactivated the 9 sentences with refreshed `mappings_verified_at`.
+
+### Risks / known gaps
+
+- Banner condition uses `broad_source_count ≤ 1`, but the very-top FCE rank (#408 قال "to say", rank 1) also has `broad_source_count=1` — so the gate is noisy in practice. The frontend renders the rank in the banner copy ("rank #1449, only in 1 frequency list") so the user can tell at a glance whether the warning is real. May tune the threshold to `broad_source_count = 0 OR rank > N` after some live use.
+- The 9 reactivated sentences still have other bad noun-vs-verb mappings beyond henna (`مَلَك` angel mapped onto sentences using `مَلِك` king, `نَفْس` self onto `نَفَس` breath, `أمْر` matter onto verb `آمَر` "command", `فَلَمْ` "so didn't" onto `فِلْم` film, `سَرَّ` to gladden onto noun `سِرّ` secret). Reviewability gate filters those with NULL mappings, but the rest will surface bad glosses. Separate audit needed.
+
+### Verify
+
+- `pytest backend/tests/test_suspend_and_flags.py` — 7 new tests covering cascade, canonical resolution, payload, idempotency, FCE join (rank populated / null / follows canonical pointer).
+- Frontend: `npx jest --watchman=false --testPathPattern="types|api"` — suspendWord test passes with the optional payload.
+- Live: a fresh intro card on a rank > 3000 lemma should render the yellow banner; clicking Suspend should cascade-deactivate the word's active sentences and advance the card.
+
+---
+
 ## 2026-05-15: Quran + OCR lemma canonicalization rewrite
 
 ### What

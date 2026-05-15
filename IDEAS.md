@@ -20,16 +20,15 @@ Reference: see `research/experiment-log.md:2026-05-15: Quran + OCR lemma canonic
 
 ---
 
-## 🔵 [OPEN 2026-05-15] Rare-word warning + per-word suspend on intro cards
+## ✅ [DONE 2026-05-15, PR #79] Rare-word warning + per-word suspend on intro cards
 
-When the system introduces a word **not in the top 3000 frequency core** (or with no frequency data at all), the intro card should show:
+Shipped: `ReintroCardOut.frequency_rank` + `frequency_source_count` populated by FCE join on canonical lemma_id. Yellow banner on intro card fires when rank > 3000, rank null, OR `broad_source_count ≤ 1`. "Suspend this word" button posts to `POST /api/words/{id}/suspend` with `{frequency_rank, source: "rare_word_banner"}` payload — endpoint resolves canonical, cascades `is_active=False` to sentences targeting variant or canonical, logs the rank into the `word_suspended` interaction event for analytics.
 
-- A warning banner with the actual `FrequencyCoreEntry.core_rank` (or "not in core")
-- A "Suspend this word" button that sets `UserLemmaKnowledge.knowledge_state="suspended"` AND deactivates pending Sentences with that word (`sentences.target_lemma_id` cascade)
+Discovered during the work: `broad_source_count` is noisy as a primary signal (even `#408 قال` "to say" at rank 1 has count=1). The banner copy renders the rank ("rank #1449, only in 1 frequency list") so the user can tell at a glance whether a warning is real. Threshold may want tuning after live use.
 
-Motivation: rare words (e.g. plant names for hair dye, niche classical vocabulary) leak into intro rotation from OCR/Quran/book imports. User wants per-word agency at intro time, not silent filtering upstream.
-
-Settled specs: threshold = top 3000 (matches `ALIF_FREQ_CORE_INTAKE_MAX_RANK`); banner on the card; warning shows rank + source count; suspend is user-clicked, not automatic. Handoff prompt for next session at `.claude/prompts/rare-word-warning-handoff.md`.
+Follow-ups left open:
+- The OCR/text mapper has systemic noun-vs-verb homograph confusion on classical-style sentences (#1379 noun → verb fix exposed that #34564 alone had مَلَك→angel-instead-of-king, نَفْس→self-instead-of-breath, قِطْعَة→piece-instead-of-verb-to-cut). Worth a broader audit. See 2026-05-15 experiment-log entry.
+- Bucket-1 audit confirmed 18 of 19 active-learning lemmas missing from FCE are correctly excluded function words. `أَم` (disjunctive "or") was the one straggler — added to `FUNCTION_WORDS` in the PR squash.
 
 ---
 

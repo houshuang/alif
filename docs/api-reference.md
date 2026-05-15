@@ -7,7 +7,7 @@ Full endpoint list. See `backend/app/routers/` for implementation.
 |--------|------|-------------|
 | GET | `/api/words?limit=50&status=learning&category=function&sort=most_seen` | List words with knowledge state. category: function\|names. sort=most_seen orders by times_seen descending. Returns last_ratings (last 8 review ratings for sparkline) and knowledge_score. |
 | GET | `/api/words/{id}` | Word detail with review stats + root family + review history + forms_translit + pattern_examples (same-wazn words from touched roots). Returns `source_info` based on `ulk.source` (how the word was introduced to learning: book/story_import/duolingo/textbook_scan) with fallback to `lemma.source` (lexical data origin: wiktionary/avp_a1/etc) for generic ULK sources. |
-| POST | `/api/words/{lemma_id}/suspend` | Suspend a word (stops appearing in reviews) |
+| POST | `/api/words/{lemma_id}/suspend` | Suspend a word. Resolves canonical, sets ULK `knowledge_state="suspended"`, cascade-deactivates active sentences whose `target_lemma_id` matches the variant or canonical. Optional body `{frequency_rank, source}` is forwarded to the `word_suspended` interaction event for analytics (banner suspends pass `source="rare_word_banner"`). Returns `{lemma_id, canonical_lemma_id, state, previous_state, already_suspended, sentences_deactivated}`. |
 | POST | `/api/words/{lemma_id}/unsuspend` | Reactivate a suspended word with fresh FSRS card |
 
 ## Review
