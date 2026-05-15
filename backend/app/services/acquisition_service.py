@@ -66,17 +66,46 @@ def _reviews_span_calendar_days(db: Session, lemma_id: int, min_days: int) -> bo
     return len(dates) >= min_days
 
 
+DAILY_INTRO_CAP = 30  # ceiling on new acquiring promotions per UTC day; see start_acquisition
+
+
+def _daily_intro_count(db: Session, today_start: datetime) -> int:
+    """Count today's acquisitions that count toward the daily cap.
+
+    leech_reintro is excluded — those are re-introductions of words the
+    learner already knew, not net-new vocabulary.
+    """
+    return (
+        db.query(UserLemmaKnowledge)
+        .filter(
+            UserLemmaKnowledge.acquisition_started_at >= today_start,
+            (
+                UserLemmaKnowledge.source.is_(None)
+                | (UserLemmaKnowledge.source != "leech_reintro")
+            ),
+        )
+        .count()
+    )
+
+
 def start_acquisition(
     db: Session,
     lemma_id: int,
     source: str = "study",
     due_immediately: bool = False,
+    enforce_daily_cap: bool = True,
 ) -> UserLemmaKnowledge:
     """Start the acquisition process for a word.
 
     Creates or transitions ULK to acquiring state with box 1.
     If due_immediately=True, word is due right now (for auto-intro in current session).
     Otherwise, first review is due after BOX_INTERVALS[1] (4 hours).
+
+    When enforce_daily_cap is True (default) and the daily cap is hit, the
+    word is left in (or created in) `encountered` state instead of being
+    promoted. Callers must check `ulk.knowledge_state == "acquiring"` if
+    they need to behave differently when promotion was deferred.
+    leech_reintro bypasses the cap (re-introducing a known word).
     """
     from app.services.canonical_resolution import resolve_canonical_lemma_id
 
@@ -101,6 +130,39 @@ def start_acquisition(
     # Don't demote a known/learning canonical back to acquiring just because a
     # variant collateral path landed here. Return the existing row unchanged.
     if ulk and ulk.knowledge_state in ("known", "learning"):
+        return ulk
+
+    # Already acquiring — nothing to do, return as-is (not a new intro).
+    if ulk and ulk.knowledge_state == "acquiring":
+        return ulk
+
+    cap_hit = False
+    if enforce_daily_cap and source != "leech_reintro":
+        today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        if _daily_intro_count(db, today_start) >= DAILY_INTRO_CAP:
+            cap_hit = True
+            logger.info(
+                "Daily intro cap (%d) reached; lemma %s stays in encountered (source=%r)",
+                DAILY_INTRO_CAP, lemma_id, source,
+            )
+
+    if cap_hit:
+        if ulk:
+            # Don't promote — keep whatever state it was in (encountered, or other).
+            return ulk
+        # New unseen word — record it as encountered so it's tracked, but don't
+        # consume an intro slot today. It can be promoted on a future day.
+        ulk = UserLemmaKnowledge(
+            lemma_id=lemma_id,
+            knowledge_state="encountered",
+            source=source,
+            fsrs_card_json=None,
+            times_seen=0,
+            times_correct=0,
+            total_encounters=0,
+        )
+        db.add(ulk)
+        db.flush()
         return ulk
 
     if ulk:

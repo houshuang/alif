@@ -4,6 +4,21 @@
 
 ---
 
+## ✅ [DONE 2026-05-15] Enforce daily intro cap at chokepoint + smooth intro cards per session
+
+Prod prompted by 39 intros today (28 textbook_scan, 9 collateral, 1 book, 1 quran, 0 via the official `_auto_introduce_words` path that was the only one checking the daily cap). User saw sessions with 10-15 intro cards crammed up front because `_build_intro_cards` had an explicit "first-time intro cards are not capped" and `_ensure_session_words_have_intro_state` mass-promoted every encountered word at session-build time.
+
+Fix (branch `sh/intro-cap-enforcement`):
+1. **`start_acquisition()` enforces the daily cap (30/day) for every caller** — single chokepoint. When the cap is hit, new ULKs are created as `encountered` instead of `acquiring`; existing encountered ULKs are left in place. `leech_reintro` bypasses (re-introduction of known words).
+2. **`_ensure_session_words_have_intro_state` per-session cap of 6** — cold promoter no longer mass-promotes; the rest stay encountered until a later session.
+3. **`_build_intro_cards` first-time cards capped at `INTRO_NEW_CARDS_PER_SESSION = 6`** — was uncapped.
+4. **Comprehensibility gate counts `is_fresh_today` acquiring words as unknown** — sentence-with-many-just-promoted-words no longer reads as comprehensible. Fresh = acquired today, `times_correct == 0`; clears as soon as you successfully review the word once.
+5. Callers in `sentence_review_service.py` check `ulk.knowledge_state == "acquiring"` after `start_acquisition` to decide between acquisition-review and a quiet `total_encounters` bump.
+
+Reasoning notes saved in 2026-05-15 entry in `research/experiment-log.md`. Tests added: `test_acquisition.py::test_daily_cap_*` (5 cases).
+
+---
+
 ## 🔵 [OPEN 2026-05-15] Vocalized-aware lemma identity for homographs
 
 Today's Form I/II/IV cleanup on the ن.ز.ل root revealed a structural limitation: `lemma_ar_bare` is the unit of dedup (via `build_lemma_lookup`), but `strip_diacritics` removes shadda — so نَزَلَ (Form I "descend") and نَزَّلَ (Form II "send down") collapse to the same bare key `نزل`. They are dictionary-distinct verbs with different patterns, glosses, and conjugation paradigms, but the lookup can't tell them apart.

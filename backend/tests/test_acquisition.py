@@ -3,6 +3,7 @@ from datetime import datetime, timedelta, timezone
 from app.models import Lemma, ReviewLog, Root, UserLemmaKnowledge
 from app.services.acquisition_service import (
     BOX_INTERVALS,
+    DAILY_INTRO_CAP,
     FAST_GRAD_INTRO_GAP,
     GRADUATION_MIN_ACCURACY,
     GRADUATION_MIN_CALENDAR_DAYS,
@@ -859,3 +860,100 @@ def test_no_root_boost_without_siblings(db_session):
     fsrs_data = json.loads(ulk.fsrs_card_json) if isinstance(ulk.fsrs_card_json, str) else ulk.fsrs_card_json
     assert fsrs_data["stability"] >= card_good.stability * 0.95
     assert fsrs_data["stability"] <= card_good.stability * 1.05
+
+
+# --- Daily intro cap ---
+
+
+def _fill_daily_cap(db_session, count):
+    """Create `count` ULKs whose acquisition_started_at is today, simulating the daily cap."""
+    today_noon = datetime.now(timezone.utc).replace(hour=12, minute=0, second=0, microsecond=0)
+    for i in range(count):
+        lem = Lemma(
+            lemma_ar=f"كلمة{i}",
+            lemma_ar_bare=f"كلمة{i}",
+            gloss_en=f"word{i}",
+            pos="noun",
+        )
+        db_session.add(lem)
+        db_session.flush()
+        ulk = UserLemmaKnowledge(
+            lemma_id=lem.lemma_id,
+            knowledge_state="acquiring",
+            acquisition_box=1,
+            acquisition_next_due=today_noon + timedelta(hours=4),
+            acquisition_started_at=today_noon,
+            entered_acquiring_at=today_noon,
+            introduced_at=today_noon,
+            source="collateral",
+        )
+        db_session.add(ulk)
+    db_session.flush()
+
+
+def test_daily_cap_blocks_new_acquisition(db_session):
+    """When the daily cap is hit, a new word stays in encountered state."""
+    _fill_daily_cap(db_session, DAILY_INTRO_CAP)
+
+    lemma = _create_lemma(db_session, arabic="جديد", english="new")
+    ulk = start_acquisition(db_session, lemma.lemma_id, source="collateral")
+
+    assert ulk.knowledge_state == "encountered"
+    assert ulk.acquisition_started_at is None
+    assert ulk.acquisition_box is None
+
+
+def test_daily_cap_blocks_encountered_promotion(db_session):
+    """When the daily cap is hit, an existing encountered ULK stays encountered."""
+    _fill_daily_cap(db_session, DAILY_INTRO_CAP)
+
+    lemma = _create_lemma(db_session, arabic="آخر", english="other")
+    enc = UserLemmaKnowledge(
+        lemma_id=lemma.lemma_id,
+        knowledge_state="encountered",
+        source="textbook_scan",
+        total_encounters=3,
+    )
+    db_session.add(enc)
+    db_session.flush()
+
+    ulk = start_acquisition(db_session, lemma.lemma_id, source="collateral")
+
+    assert ulk.knowledge_state == "encountered"
+    assert ulk.acquisition_started_at is None
+
+
+def test_daily_cap_allows_leech_reintro_bypass(db_session):
+    """leech_reintro bypasses the daily cap — re-introducing a known word."""
+    _fill_daily_cap(db_session, DAILY_INTRO_CAP)
+
+    lemma = _create_lemma(db_session, arabic="مكرر", english="repeated")
+    ulk = start_acquisition(
+        db_session, lemma.lemma_id, source="leech_reintro"
+    )
+
+    assert ulk.knowledge_state == "acquiring"
+    assert ulk.acquisition_started_at is not None
+
+
+def test_daily_cap_enforce_off(db_session):
+    """When enforce_daily_cap=False, the cap is ignored (manual user intro)."""
+    _fill_daily_cap(db_session, DAILY_INTRO_CAP)
+
+    lemma = _create_lemma(db_session, arabic="يدوي", english="manual")
+    ulk = start_acquisition(
+        db_session, lemma.lemma_id, source="study", enforce_daily_cap=False
+    )
+
+    assert ulk.knowledge_state == "acquiring"
+
+
+def test_daily_cap_allows_under_limit(db_session):
+    """When today's count is below the cap, new acquisitions proceed normally."""
+    _fill_daily_cap(db_session, DAILY_INTRO_CAP - 5)
+
+    lemma = _create_lemma(db_session, arabic="ضمن", english="within")
+    ulk = start_acquisition(db_session, lemma.lemma_id, source="collateral")
+
+    assert ulk.knowledge_state == "acquiring"
+    assert ulk.acquisition_started_at is not None
