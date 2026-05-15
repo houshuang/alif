@@ -369,7 +369,12 @@ def _step1_extract_words(image_bytes: bytes) -> list[str]:
 def _step2_morphology(words: list[str]) -> list[dict]:
     """Step 2: Use CAMeL Tools for morphological analysis of each word.
 
-    Returns list of dicts with: arabic, bare, root, base_lemma, pos.
+    Returns list of dicts with: arabic, bare, root, base_lemma,
+    base_lemma_vocalized, pos.
+    `base_lemma_vocalized` is the CAMeL `lex` with diacritics — used by
+    process_textbook_page as the canonical dictionary form for lemma_ar
+    so the al- prefix and other clitics don't leak into the stored
+    headword (e.g. surface "الْمَاشِي" → base_lemma_vocalized "ماشِي").
     Falls back to basic normalization if CAMeL Tools unavailable.
     """
     from app.services.morphology import (
@@ -390,6 +395,7 @@ def _step2_morphology(words: list[str]) -> list[dict]:
             "bare": bare,
             "root": None,
             "base_lemma": bare,
+            "base_lemma_vocalized": None,
             "pos": None,
         }
 
@@ -401,6 +407,7 @@ def _step2_morphology(words: list[str]) -> list[dict]:
                 lex = mle_result.get("lex")
                 if lex:
                     entry["base_lemma"] = normalize_alef(strip_diacritics(lex))
+                    entry["base_lemma_vocalized"] = lex
             else:
                 analyses = analyze_word_camel(word)
                 if analyses:
@@ -410,6 +417,7 @@ def _step2_morphology(words: list[str]) -> list[dict]:
                     lex = top.get("lex")
                     if lex:
                         entry["base_lemma"] = normalize_alef(strip_diacritics(lex))
+                        entry["base_lemma_vocalized"] = lex
 
         results.append(entry)
     return results
@@ -524,6 +532,7 @@ def extract_words_from_image(image_bytes: bytes) -> tuple[list[dict], int | None
             "pos": entry.get("pos"),
             "root": root_str,
             "base_lemma": base_lemma if base_lemma != bare else None,
+            "base_lemma_vocalized": entry.get("base_lemma_vocalized"),
         })
 
     return results, page_number
@@ -699,6 +708,17 @@ def process_textbook_page(
                 english = (word_data.get("english") or "").strip()
                 pos = word_data.get("pos")
                 root_str = word_data.get("root")
+                # Prefer CAMeL's vocalized lex for the headword when its
+                # stripped bare matches our chosen import_bare. This avoids
+                # storing al-prefixed surfaces like 'الْمَاشِي' as the
+                # displayed lemma_ar when CAMeL clearly canonicalized to
+                # 'ماشِي' (prc0='Al_det'). Falls back to the OCR surface if
+                # CAMeL gave nothing or its stripped form would change the
+                # bare key.
+                import_lemma_ar = arabic
+                base_voc = word_data.get("base_lemma_vocalized")
+                if base_voc and normalize_alef(strip_diacritics(base_voc)) == normalize_alef(import_bare):
+                    import_lemma_ar = base_voc
 
                 # Never create a Lemma without an English gloss
                 if not english:
@@ -729,7 +749,7 @@ def process_textbook_page(
                     lemma_gloss = f"(name) {english}"
 
                 new_lemma = Lemma(
-                    lemma_ar=arabic,
+                    lemma_ar=import_lemma_ar,
                     lemma_ar_bare=import_bare,
                     root_id=root_id,
                     pos=pos,
