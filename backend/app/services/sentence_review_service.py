@@ -226,16 +226,23 @@ def submit_sentence_review(
         # Auto-introduce encountered words on collateral appearance —
         # every word in every sentence earns review credit, no exceptions.
         # Familiar words graduate instantly via Tier 0 (first correct → FSRS).
+        # The daily intro cap inside start_acquisition may defer promotion
+        # (leaves the word encountered); track the "deferred" state so we
+        # bump total_encounters but skip the acquisition-review submission.
+        cap_deferred = False
         if effective_lemma_id in encountered_lemma_ids:
             from app.services.acquisition_service import start_acquisition
-            start_acquisition(
+            promoted_ulk = start_acquisition(
                 db,
                 lemma_id=effective_lemma_id,
                 source="collateral",
                 due_immediately=False,
             )
-            acquiring_lemma_ids.add(effective_lemma_id)
-            encountered_lemma_ids.discard(effective_lemma_id)
+            if promoted_ulk.knowledge_state == "acquiring":
+                acquiring_lemma_ids.add(effective_lemma_id)
+                encountered_lemma_ids.discard(effective_lemma_id)
+            else:
+                cap_deferred = True
         # After redirect, multiple variant lemma_ids may map to the same canonical
         if effective_lemma_id in processed_effective_ids:
             continue
@@ -270,7 +277,8 @@ def submit_sentence_review(
             )
         )
 
-        # Auto-introduce unknown words into acquisition instead of straight to FSRS
+        # Auto-introduce unknown words into acquisition instead of straight to FSRS.
+        # Cap may defer promotion — in that case the new ULK is in 'encountered'.
         if effective_lemma_id not in knowledge_map:
             from app.services.acquisition_service import start_acquisition, submit_acquisition_review as _sar
             new_ulk = start_acquisition(
@@ -280,7 +288,18 @@ def submit_sentence_review(
                 due_immediately=False,
             )
             knowledge_map[effective_lemma_id] = new_ulk
-            acquiring_lemma_ids.add(effective_lemma_id)
+            if new_ulk.knowledge_state == "acquiring":
+                acquiring_lemma_ids.add(effective_lemma_id)
+            else:
+                cap_deferred = True
+
+        if cap_deferred:
+            # No review credit while word sits in encountered. Bump total_encounters
+            # so it's tracked, then move on to the next word.
+            knowledge = knowledge_map.get(effective_lemma_id)
+            if knowledge:
+                knowledge.total_encounters = (knowledge.total_encounters or 0) + 1
+            continue
 
         # Route acquiring words through acquisition service
         if effective_lemma_id in acquiring_lemma_ids:

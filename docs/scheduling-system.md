@@ -169,7 +169,7 @@ learn, and each enters acquisition immediately.
 
 **Gating conditions**:
 - **Reserved slots**: `INTRO_RESERVE_FRACTION` (30%) of session slots reserved for introductions, even when due queue exceeds limit. With limit=10, up to 3 slots are available.
-- **Daily intro target**: Reserved auto-intro stops once `DAILY_AUTO_INTRO_TARGET` (30) words have entered acquisition that day.
+- **Daily intro cap (2026-05-15)**: All paths that call `start_acquisition()` are now gated by `DAILY_INTRO_CAP = 30` enforced inside the function itself. When today's count of new acquisitions (excluding `leech_reintro`) hits 30, further calls create or leave the ULK in `encountered` state instead of promoting to acquiring. This includes OCR/textbook_scan, sentence-review collateral promotion, Quran promotion, the cold session-build promoter, and the auto-intro path. The previous `DAILY_AUTO_INTRO_TARGET` constant in `sentence_selector.py` is now redundant but kept for accuracy throttle calculations.
 - **Pipeline backlog gate**: Reserved intro slots suppressed when acquiring pipeline exceeds a dynamic threshold keyed on recent word-level ReviewLog accuracy (last 2 days, min 10 reviews). Current values in `sentence_selector.py`: `PIPELINE_BACKLOG_THRESHOLD = 80` (accuracy < 80%), `MID_ACCURACY_INTRO_BACKLOG_CAP = 120` (80–90%), `HIGH_ACCURACY_INTRO_BACKLOG_CAP = 200` (≥ 90%). The 40/60/120 earlier values were tightened upward during the aggressive intro trial. Undersized-session fill still works (when due < limit). Resumes automatically when pipeline drains below threshold.
 - **Low-tier intro gate**: When box-1 acquiring count exceeds `LOW_TIER_BLOCK_BACKLOG` (60), candidates whose source is in `LOW_TIER_INTRO_SOURCES` (`wiktionary`, `story_import`, `manual`, `flag_autocreate`, unsourced) are filtered out of the auto-intro candidate list, even during undersized-session fill. Active book/story words and high-tier sources (`textbook_scan`, `duolingo`, `avp_a1`) are unaffected. Forces the learner to clear actively-encountered backlog before introducing words from passive frequency lists.
 - Recent accuracy ≥ `AUTO_INTRO_ACCURACY_FLOOR` (70%) over last 10+ reviews
@@ -1638,7 +1638,9 @@ remaining cards on the next card advance. See Section 8 "Sentence Pre-Warming" f
 | `MIN_ACQUISITION_EXPOSURES` | 4 | Legacy alias for `BOX1_MIN_EXPOSURES` (kept for out-of-tree callers) |
 | `MAX_ACQUISITION_EXTRA_SLOTS` | 15 | Max extra cards for acquisition repetition |
 | `MAX_AUTO_INTRO_PER_SESSION` | 5 | Per-call cap on auto-intro words |
-| `DAILY_AUTO_INTRO_TARGET` | 30 | Daily cap for automatic new-word introductions during the aggressive trial |
+| `DAILY_AUTO_INTRO_TARGET` | 30 | Daily cap for automatic new-word introductions (used by `_auto_introduce_words` accuracy throttling) |
+| `DAILY_INTRO_CAP` | 30 | Hard ceiling enforced inside `start_acquisition()` for *every* path (OCR, collateral, Quran, book, cold-promoter, auto-intro). `leech_reintro` bypasses (2026-05-15) |
+| `INTRO_NEW_CARDS_PER_SESSION` | 6 | Per-session cap on first-time intro cards in `_build_intro_cards` and on cold-promoter promotions in `_ensure_session_words_have_intro_state` (2026-05-15) |
 | `HIGH_ACCURACY_INTRO_BACKLOG_CAP` | 120 | Acquiring-pipeline cap used at ≥90% recent accuracy during the 30/day trial |
 | `INTRO_RESERVE_FRACTION` | 0.3 | Fraction of session slots reserved for new words during the aggressive trial |
 | `AUTO_INTRO_ACCURACY_FLOOR` | 0.70 | Pause auto-intro if accuracy below this |
@@ -1665,6 +1667,7 @@ remaining cards on the next card advance. See Section 8 "Sentence Pre-Warming" f
 | Unknown scaffold cap | 2 | Hard cap on unknown non-target words per sentence |
 | Acquiring box-1 excluded | stability < 0.5 | Box-1 words don't count as "known" scaffold |
 | Encountered excluded | — | Merely seen words don't count as "known" scaffold |
+| Fresh-today excluded (2026-05-15) | acquired today, times_correct == 0 | Acquiring words promoted today with no successful review yet count as unknown for the comprehensibility gate. Clears after first correct review. Prevents sentences stuffed with just-promoted words from reading as comprehensible. |
 
 ### Frontend Session Staleness (`app/index.tsx`, `lib/offline-store.ts`)
 

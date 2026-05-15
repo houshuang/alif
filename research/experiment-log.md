@@ -4,6 +4,52 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-05-15: Enforce daily intro cap at chokepoint + smooth cards per session
+
+### What
+
+The 30/day intro cap (`DAILY_AUTO_INTRO_TARGET`) was only consulted by `_auto_introduce_words()` — the one official path. Every other path that called `start_acquisition()` bypassed it. Diagnostic on prod found 39 acquisitions started today: 28 from OCR/textbook_scan, 9 from sentence-review collateral, 1 from book, 1 from Quran, **0 from the capped path**. Sessions were stacking 10–15 intro cards because `_build_intro_cards` had `limit=len(new_card_ids)` (uncapped) and `_ensure_session_words_have_intro_state` mass-promoted every encountered word appearing in the upcoming session.
+
+Branch `sh/intro-cap-enforcement`:
+
+1. **`start_acquisition()` is now the chokepoint.** New constant `DAILY_INTRO_CAP = 30`; helper `_daily_intro_count()`. When the cap is hit, new ULKs are created in `encountered` state (so the lemma is tracked) instead of `acquiring`; existing encountered ULKs are left in place. `leech_reintro` bypasses the cap (re-introducing a known word doesn't count as net-new vocabulary). New parameter `enforce_daily_cap=True` lets manual user-initiated paths override if we need that later.
+2. **`_ensure_session_words_have_intro_state` is capped at `INTRO_NEW_CARDS_PER_SESSION = 6` per session-build.** Cold promoter no longer mass-promotes; the rest stay encountered for a future session.
+3. **`_build_intro_cards` first-time cards capped at 6.** Was previously `limit=len(new_card_ids)` with an explicit "first-time intro cards are not capped" comment.
+4. **Comprehensibility gate treats `is_fresh_today` as unknown.** A new `WordMeta.is_fresh_today` flag is `True` when `knowledge_state == "acquiring"` AND `times_correct == 0` AND `acquisition_started_at >= today_start (UTC)`. Both gate copies (`build_session` and `_find_pregenerated_sentences_for_words`) exclude these from the "known" scaffold count. The flag self-clears the moment the user successfully reviews the word once.
+5. **`sentence_review_service` handles the deferred promotion case.** When `start_acquisition` returns a ULK still in `encountered` state (cap hit), the review loop now skips the acquisition-review submission but still bumps `total_encounters`. The same `cap_deferred` flag covers both the encountered→acquiring path and the unknown→acquiring path.
+
+### Why
+
+User report (verbatim): "It has already introduced 39 new words today, and it seems to be continuing to introduce new words. By new words, I include words that are from OCR scans. They should also be limited to 30 per day. In many sessions, I got 10, 15 intro cards, and then a few sentences that had many different words that were new... I do want to learn many words per day, but we need to space it out more and have more example sentences with many words that I already know to some extent."
+
+Four product decisions, confirmed via questions before implementing:
+- Cap OCR words **at session-entry time**, not scan time — so a whole textbook page can be scanned and drained over multiple days.
+- Put the cap **inside `start_acquisition()`** as a single chokepoint, not a wrapper — harder for a future bypass to happen by accident.
+- Hard cap intro cards at **6 per session** (user pushed back on the 3-card draft: "i'd need 10 sessions to hit 30 cards per week? maybe 6?").
+- Count freshly-promoted words as unknown for the comprehensibility gate.
+
+### Expected behaviour
+
+- Daily count of net-new acquisitions never exceeds 30, regardless of OCR scans / sentence reviews / book imports.
+- Per session: at most 6 first-time intro cards. Cards for words promoted earlier today but not yet shown can appear in subsequent sessions.
+- Sentence selection: the user no longer sees sentences with 3+ words promoted-today-but-not-yet-reviewed; gate counts those as unknown so the `MAX_UNKNOWN_SCAFFOLD=2` ceiling does its job.
+- Encountered words sitting at cap (textbook-scan backlog) drain at ≤30/day over multiple days.
+
+### Risks / things to watch
+
+- **First-time cards capped at 6 but acquiring words from earlier-today can still appear in sentences without a card.** They count as `is_fresh_today` → unknown → gate limits them to ≤2 per sentence. The user may still see 1–2 unknown words per sentence without an intro card; that's the +1 learning principle.
+- **Per-session cold-promoter cap order is non-deterministic** (Python set iteration). Future polish: sort by `total_encounters DESC` so the most-seen encountered words promote first.
+- **`source != "leech_reintro"` bypass uses string equality.** If a future caller passes the wrong source, it'll count (correct fail-closed default).
+- **Activity logging not changed.** Could emit an `intro_cap_hit` event when `start_acquisition` defers a promotion.
+
+### Verify
+
+- `pytest backend/tests/test_acquisition.py -k daily_cap` — 5 new cases: blocks new acquisition, blocks encountered promotion, allows leech_reintro bypass, `enforce_daily_cap=False` override, under-limit allows.
+- Full suite: `pytest backend/` — prior tests still pass.
+- Live: after deploy, trigger OCR + a few reviews; query `SELECT source, COUNT(*) FROM user_lemma_knowledge WHERE acquisition_started_at >= date('now') GROUP BY source` — total ≤ 30. Sessions should not begin with >6 intro cards.
+
+---
+
 ## 2026-05-15: Rare-word warning + per-word suspend (PR #79)
 
 ### What

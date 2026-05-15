@@ -69,6 +69,9 @@ Prefer focused sessions. If a task has 4+ distinct parts, suggest breaking into 
 ## Target vs Collateral Words Are Equal
 - [Details](feedback_target_collateral_equal.md) — No distinction between target and collateral words for learning, credit, or intro cards. Repeated user feedback.
 
+## System-wide Caps Belong at the Chokepoint
+- [Details](feedback_intro_cap_chokepoint.md) — Daily intro cap lived in one caller for years; five other callers proliferated and bypassed it. Move caps into start_acquisition itself, not the auto-intro caller.
+
 ## Intro Card Overload (fixed 2026-03-30)
 - [Details](feedback_intro_card_overload.md) — Fixed: interleaved among sentences, dynamic cap. Never front-load.
 
@@ -131,6 +134,9 @@ Prefer focused sessions. If a task has 4+ distinct parts, suggest breaking into 
 
 ## Clitic-leftover audit — 95 lemmas, 88 cleaned (done 2026-05-06)
 - [Details](project_clitic_my_leftover_audit.md) — Broadened from 35 "my X" to all proclitics+enclitics. 75 ALREADY_LINKED stale-wiring cleanups, 7 link-to-existing, 6 create-new-canonical (ميثاق, طغيان, تجارة, اتقى, افسد, مجال). Script: `backend/scripts/cleanup_clitic_leftovers.py`.
+
+## iOS EAS Dev Build Gotchas (2026-05-14)
+- [Details](project_ios_dev_build_gotchas.md) — ATS arbitrary-loads required for Hetzner dev server, icon source HTMLs in `frontend/assets/sources/`, CgBI PNGs aren't broken, Apple PLA periodically blocks builds.
 
 ## Architecture Notes (not in CLAUDE.md)
 - FSRS stability floor: "known" with stability < 1.0 -> "lapsed"

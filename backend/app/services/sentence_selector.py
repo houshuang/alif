@@ -184,6 +184,10 @@ class WordMeta:
     is_function_word: bool = False
     is_proper_name: bool = False
     knowledge_state: str = "new"
+    # True for acquiring words promoted today with no successful review yet.
+    # The comprehensibility gate counts these as 'unknown' so a session full
+    # of just-promoted words doesn't read as comprehensible.
+    is_fresh_today: bool = False
 
 
 @dataclass
@@ -1227,6 +1231,7 @@ def build_session(
         logger.info(f"Lapsed words due (boosted for re-exposure): {len(lapsed_lemma_ids)}")
 
     # Build candidates
+    today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
     candidates: list[SentenceCandidate] = []
     for sent in sentences:
         sws = sw_by_sentence.get(sent.id, [])
@@ -1251,10 +1256,18 @@ def build_session(
             ) if effective_id else False
 
             k_state = "new"
+            is_fresh_today = False
             if effective_id:
                 k = knowledge_map.get(effective_id)
                 if k:
                     k_state = k.knowledge_state or "new"
+                    if k_state == "acquiring" and (k.times_correct or 0) == 0:
+                        started = k.acquisition_started_at
+                        if started:
+                            if started.tzinfo is None:
+                                started = started.replace(tzinfo=timezone.utc)
+                            if started >= today_start:
+                                is_fresh_today = True
 
             bare = strip_diacritics(sw.surface_form)
             is_func = _is_function_word(bare)
@@ -1273,6 +1286,7 @@ def build_session(
                 is_function_word=is_func,
                 is_proper_name=is_name,
                 knowledge_state=k_state,
+                is_fresh_today=is_fresh_today,
             )
             word_metas.append(wm)
 
@@ -1297,11 +1311,13 @@ def build_session(
             continue
 
         # Comprehensibility gate: skip sentences where <THRESHOLD of scaffold words are known.
+        # `is_fresh_today` words (promoted today, no successful review yet) count as unknown
+        # so a sentence stuffed with just-promoted words doesn't read as comprehensible.
         scaffold = [w for w in word_metas if not w.is_function_word and not w.is_due and not w.is_proper_name]
         total_scaffold = len(scaffold)
         known_scaffold = sum(
             1 for w in scaffold
-            if w.knowledge_state in ("known", "learning", "lapsed", "acquiring")
+            if w.knowledge_state in ("known", "learning", "lapsed", "acquiring") and not w.is_fresh_today
         )
         if total_scaffold > 0 and known_scaffold / total_scaffold < COMPREHENSIBILITY_THRESHOLD:
             continue
@@ -2026,6 +2042,12 @@ RESCUE_COOLDOWN_DAYS = 7
 
 INTRO_CARDS_BASE = 4
 INTRO_CARDS_MAX = 6
+# Ceiling on first-time intro cards in a single session. Without this, every
+# encountered word promoted to acquiring (via OCR + collateral + cold-promoter)
+# stacks an intro card up front; sessions filled with 10–15 cards before any
+# practice. The 30/day cap inside start_acquisition still controls absolute
+# volume — this just spaces it across roughly 5 sessions.
+INTRO_NEW_CARDS_PER_SESSION = 6
 TEXTBOOK_PRESERVE_INTRO_CAP = 4
 
 
@@ -2161,10 +2183,15 @@ def _build_intro_cards(
         return []
 
     cap = _dynamic_intro_cap(db)
-    # First-time intro cards are not capped: if the session will show a new
-    # word, the card must appear before its first sentence. The dynamic cap only
-    # limits rescue cards so remediation doesn't crowd out practice.
-    new_cards = _build_reintro_cards(db, new_card_ids, limit=len(new_card_ids))
+    # First-time intro cards are capped per session by INTRO_NEW_CARDS_PER_SESSION
+    # so a backlog of newly-acquiring words doesn't front-load 10+ cards. The
+    # daily 30-cap inside start_acquisition controls absolute volume; this cap
+    # smooths it across sessions. Rescue cards still use the dynamic cap below.
+    new_cards = _build_reintro_cards(
+        db,
+        new_card_ids,
+        limit=min(len(new_card_ids), INTRO_NEW_CARDS_PER_SESSION),
+    )
     textbook_cards = _build_reintro_cards(
         db,
         textbook_preserve_ids,
@@ -2316,6 +2343,7 @@ def _find_pregenerated_sentences_for_words(
     knowledge_map = {k.lemma_id: k for k in all_knowledge} if all_knowledge else {}
 
     # Build candidates with comprehensibility gate
+    today_start_fb = now.replace(hour=0, minute=0, second=0, microsecond=0)
     candidates: list[SentenceCandidate] = []
     for sent in sentences:
         sws = sw_by_sentence.get(sent.id, [])
@@ -2334,10 +2362,18 @@ def _find_pregenerated_sentences_for_words(
             )
 
             k_state = "new"
+            is_fresh_today = False
             if sw.lemma_id:
                 k = knowledge_map.get(sw.lemma_id) or knowledge_by_id.get(sw.lemma_id)
                 if k:
                     k_state = k.knowledge_state or "new"
+                    if k_state == "acquiring" and (k.times_correct or 0) == 0:
+                        started = k.acquisition_started_at
+                        if started:
+                            if started.tzinfo is None:
+                                started = started.replace(tzinfo=timezone.utc)
+                            if started >= today_start_fb:
+                                is_fresh_today = True
 
             bare = strip_diacritics(sw.surface_form)
             is_func = _is_function_word(bare)
@@ -2354,6 +2390,7 @@ def _find_pregenerated_sentences_for_words(
                 is_function_word=is_func,
                 is_proper_name=is_name,
                 knowledge_state=k_state,
+                is_fresh_today=is_fresh_today,
             )
             word_metas.append(wm)
 
@@ -2365,12 +2402,12 @@ def _find_pregenerated_sentences_for_words(
         if not due_covered:
             continue
 
-        # Comprehensibility gate (same logic as main gate).
+        # Comprehensibility gate (same logic as main gate; fresh-today acquiring counts as unknown).
         scaffold = [w for w in word_metas if not w.is_function_word and not w.is_due and not w.is_proper_name]
         total_scaffold = len(scaffold)
         known_scaffold = sum(
             1 for w in scaffold
-            if w.knowledge_state in ("known", "learning", "lapsed", "acquiring")
+            if w.knowledge_state in ("known", "learning", "lapsed", "acquiring") and not w.is_fresh_today
         )
         if total_scaffold > 0 and known_scaffold / total_scaffold < COMPREHENSIBILITY_THRESHOLD:
             continue
@@ -2566,8 +2603,15 @@ def _ensure_session_words_have_intro_state(
     if not candidate_ids:
         return False
 
+    # Per-session cap on the cold promoter so we don't mass-promote 10+
+    # encountered words at once. The 30/day cap inside start_acquisition
+    # still hard-limits absolute volume; this just shapes the curve so the
+    # session doesn't front-load 10 intro cards.
+    candidate_ids = candidate_ids[:INTRO_NEW_CARDS_PER_SESSION]
+
     from app.services.acquisition_service import start_acquisition
 
+    any_promoted = False
     for lid in candidate_ids:
         ulk = start_acquisition(
             db,
@@ -2576,7 +2620,9 @@ def _ensure_session_words_have_intro_state(
             due_immediately=False,
         )
         knowledge_by_id[lid] = ulk
-    return True
+        if ulk.knowledge_state == "acquiring":
+            any_promoted = True
+    return any_promoted
 
 
 def _drop_function_and_proper_name_lemma_ids(
