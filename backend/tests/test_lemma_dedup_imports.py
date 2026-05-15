@@ -98,6 +98,140 @@ class TestQuranLemmaCreateDedup:
         assert result_map.get("زمزم") is not None
         assert db_session.query(Lemma).count() == 1
 
+    def test_inflected_verb_creates_canonical_lemma(self, db_session):
+        """Conjugated verb form (نَزَّلْنَا "we sent down") must create the
+        canonical lemma at the citation form (نَزَّلَ), not at the inflected
+        surface.
+
+        Regression for 2026-05-15 user bug: نَزَّلْنَا was being introduced as
+        a textbook intro card with its own conjugation table. Before the fix,
+        Phase 2 LLM prompt asked for "bare as given" so the inflected form
+        leaked through. After the fix, CAMeL Tools canonicalizes upstream and
+        the LLM only sees the lex.
+        """
+        all_lemmas = db_session.query(Lemma).all()
+
+        with patch(
+            "app.services.morphology.get_best_lemma_mle"
+        ) as mock_mle, patch(
+            "app.services.morphology.CAMEL_AVAILABLE", True
+        ), patch(
+            "app.services.llm.generate_completion"
+        ) as mock_llm, patch(
+            "app.services.lemma_quality.run_quality_gates"
+        ):
+            mock_mle.return_value = {
+                "lex": "نَزَّلَ",
+                "root": "ن.ز.ل",
+                "pos": "verb",
+                "enc0": "",
+            }
+            mock_llm.return_value = [{
+                "bare": "نزل",
+                "gloss_en": "to send down",
+                "pos": "verb",
+                "is_name": False,
+                "root": "ن.ز.ل",
+            }]
+
+            result_map = _create_unknown_quran_lemmas(
+                db_session,
+                unknown_forms={"نزلنا": "نَزَّلْنَا"},
+                all_lemmas=all_lemmas,
+            )
+
+        assert db_session.query(Lemma).count() == 1
+        created = db_session.query(Lemma).first()
+        # Canonical form, not the inflected surface
+        assert created.lemma_ar_bare == "نزل"
+        assert created.lemma_ar == "نَزَّلَ"
+        # The infinitive gloss, not "we sent down"
+        assert created.gloss_en == "to send down"
+        # Result map still keyed by the original (inflected) bare for caller
+        assert result_map.get("نزلنا") == created.lemma_id
+
+    def test_multiple_inflected_forms_share_canonical(self, db_session):
+        """Two surfaces from the same root (نَزَّلْنَا and نَزَّلْتُ) must
+        collapse to a single canonical Lemma, not produce two."""
+        all_lemmas = db_session.query(Lemma).all()
+
+        mle_by_word = {
+            "نَزَّلْنَا": {"lex": "نَزَّلَ", "root": "ن.ز.ل", "pos": "verb", "enc0": ""},
+            "نَزَّلْتُ": {"lex": "نَزَّلَ", "root": "ن.ز.ل", "pos": "verb", "enc0": ""},
+        }
+
+        def mock_mle(word):
+            return mle_by_word.get(word)
+
+        with patch(
+            "app.services.morphology.get_best_lemma_mle", side_effect=mock_mle
+        ), patch(
+            "app.services.morphology.CAMEL_AVAILABLE", True
+        ), patch(
+            "app.services.llm.generate_completion"
+        ) as mock_llm, patch(
+            "app.services.lemma_quality.run_quality_gates"
+        ):
+            mock_llm.return_value = [{
+                "bare": "نزل",
+                "gloss_en": "to send down",
+                "pos": "verb",
+                "is_name": False,
+                "root": "ن.ز.ل",
+            }]
+
+            result_map = _create_unknown_quran_lemmas(
+                db_session,
+                unknown_forms={
+                    "نزلنا": "نَزَّلْنَا",
+                    "نزلت": "نَزَّلْتُ",
+                },
+                all_lemmas=all_lemmas,
+            )
+
+        # Single canonical Lemma row despite two distinct surfaces
+        assert db_session.query(Lemma).count() == 1
+        canonical = db_session.query(Lemma).first()
+        assert canonical.lemma_ar_bare == "نزل"
+        # Both surfaces point at the canonical
+        assert result_map.get("نزلنا") == canonical.lemma_id
+        assert result_map.get("نزلت") == canonical.lemma_id
+
+    def test_camel_canonical_already_in_db_just_links(self, db_session):
+        """If the canonical (نَزَّلَ) is already a Lemma, the inflected
+        surface (نَزَّلْنَا) must link to it — not create a duplicate."""
+        canonical = Lemma(
+            lemma_ar="نَزَّلَ", lemma_ar_bare="نزل",
+            gloss_en="to send down", pos="verb", source="seed",
+        )
+        db_session.add(canonical)
+        db_session.commit()
+        canonical_id = canonical.lemma_id
+
+        all_lemmas = db_session.query(Lemma).all()
+
+        with patch(
+            "app.services.morphology.get_best_lemma_mle"
+        ) as mock_mle, patch(
+            "app.services.morphology.CAMEL_AVAILABLE", True
+        ), patch(
+            "app.services.llm.generate_completion"
+        ) as mock_llm:
+            mock_mle.return_value = {
+                "lex": "نَزَّلَ", "root": "ن.ز.ل", "pos": "verb", "enc0": "",
+            }
+            result_map = _create_unknown_quran_lemmas(
+                db_session,
+                unknown_forms={"نزلنا": "نَزَّلْنَا"},
+                all_lemmas=all_lemmas,
+            )
+
+            # LLM must not have been called — canonical already in DB
+            mock_llm.assert_not_called()
+
+        assert result_map.get("نزلنا") == canonical_id
+        assert db_session.query(Lemma).count() == 1
+
 
 class TestBackfillFunctionWordsDedup:
     def test_dedup_via_clitic_strip(self, db_session, monkeypatch):

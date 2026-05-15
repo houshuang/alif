@@ -672,6 +672,59 @@ def lemmatize_quran_verses(db: Session, limit: int = 20) -> int:
     return len(verses)
 
 
+def _camel_canonicalize_unknowns(
+    unknown_forms: dict[str, str],
+    lemma_lookup: dict[str, int],
+) -> tuple[dict[str, int], dict[str, dict], dict[str, str]]:
+    """Lemmatize unknown Quran surfaces to dictionary forms via CAMeL Tools.
+
+    Splits the input into three buckets:
+      - already_resolved: surface_bare -> existing lemma_id (CAMeL canonical
+        is already in DB, link to it)
+      - canonical_groups: canonical_bare -> {lex_vocalized, root, pos,
+        surface_bares: [...]} for canonicals to create as new lemmas
+      - fallback_forms: surface_bare -> surface (CAMeL had no analysis,
+        fall back to LLM-only handling)
+
+    Multiple inflected surfaces sharing a canonical collapse into one group.
+    """
+    from app.services.morphology import CAMEL_AVAILABLE, get_best_lemma_mle
+
+    already_resolved: dict[str, int] = {}
+    canonical_groups: dict[str, dict] = {}
+    fallback_forms: dict[str, str] = {}
+
+    if not CAMEL_AVAILABLE:
+        return already_resolved, canonical_groups, dict(unknown_forms)
+
+    for surface_bare, surface in unknown_forms.items():
+        mle = get_best_lemma_mle(surface) or get_best_lemma_mle(strip_diacritics(surface))
+        lex = (mle or {}).get("lex") or ""
+        if not lex:
+            fallback_forms[surface_bare] = surface
+            continue
+
+        lex_bare = normalize_alef(strip_diacritics(lex))
+        if not lex_bare:
+            fallback_forms[surface_bare] = surface
+            continue
+
+        existing_id = lemma_lookup.get(lex_bare)
+        if existing_id is not None:
+            already_resolved[surface_bare] = existing_id
+            continue
+
+        entry = canonical_groups.setdefault(lex_bare, {
+            "lex_vocalized": lex,
+            "root": (mle or {}).get("root"),
+            "pos": (mle or {}).get("pos"),
+            "surface_bares": [],
+        })
+        entry["surface_bares"].append(surface_bare)
+
+    return already_resolved, canonical_groups, fallback_forms
+
+
 def _create_unknown_quran_lemmas(
     db: Session,
     unknown_forms: dict[str, str],  # bare_norm -> surface_form
@@ -679,8 +732,13 @@ def _create_unknown_quran_lemmas(
 ) -> dict[str, int]:
     """Create Lemma + ULK records for unknown Quran words via LLM translation.
 
-    Gets general Arabic glosses (not Quran-specific theological meanings),
-    roots, and triggers background enrichment for forms/etymology.
+    CAMeL Tools lemmatizes each surface to its dictionary form first, so
+    conjugated verbs and inflected nouns are stored at their citation forms
+    (نَزَّلَ for نَزَّلْنَا), not as fresh canonicals at the inflected form.
+    Multiple inflected surfaces sharing a canonical collapse into one Lemma row.
+
+    The LLM still supplies gloss + root + pos, but receives the canonical lex
+    so the gloss matches the dictionary form.
 
     Returns map of bare_norm -> new lemma_id.
     """
@@ -691,86 +749,90 @@ def _create_unknown_quran_lemmas(
     if not unknown_forms:
         return {}
 
-    # Batch LLM call — general Arabic meanings + root extraction
-    word_list = [{"bare": bare, "surface": surf} for bare, surf in unknown_forms.items()]
+    lemma_lookup = build_lemma_lookup(all_lemmas)
+    already_resolved, canonical_groups, fallback_forms = _camel_canonicalize_unknowns(
+        unknown_forms, lemma_lookup
+    )
+
+    # Build LLM batch: canonicals (preferred) + CAMeL-less fallbacks
+    word_list: list[dict] = []
+    for canon_bare, info in canonical_groups.items():
+        word_list.append({"bare": canon_bare, "surface": info["lex_vocalized"]})
+    for surface_bare, surface in fallback_forms.items():
+        word_list.append({"bare": surface_bare, "surface": surface})
+
     prompt = (
         "For each Arabic word, provide its GENERAL Arabic meaning (not Quran-specific "
         "theological meanings) and its consonantal root.\n\n"
+        "The inputs are already DICTIONARY forms wherever possible (3rd person masc "
+        "sing perfect for verbs, indefinite singular for nouns). Do NOT re-lemmatize "
+        "them — return the bare form unchanged. If you see an obviously inflected form "
+        "(verb with -na, -tu, -tum suffix; noun with -i/-u/-an case ending; possessive "
+        "with -hu, -ha etc.), still return the bare you received but mark the gloss "
+        "as the infinitive/citation meaning, never the conjugated/inflected meaning.\n\n"
         "Return a JSON array with:\n"
-        "- bare: the bare form (as given)\n"
+        "- bare: the bare form (return EXACTLY as given, do not change)\n"
         "- gloss_en: general Arabic meaning (short, 1-3 words). Use the everyday "
         "meaning, not a Quran-specific divine-attribute gloss. E.g. رحيم = "
-        "'merciful, compassionate' NOT 'Most Merciful'\n"
+        "'merciful, compassionate' NOT 'Most Merciful'. For verbs use the infinitive "
+        "('to send down'), not a conjugated meaning ('we sent down').\n"
         "- pos: part of speech (noun/verb/adj/adv/prep/particle/name)\n"
         "- root: consonantal root in dotted notation (e.g. ك.ت.ب), or null if none. "
-        "For derived forms (IV, V, VIII, X etc.), give the underlying trilateral root "
-        "(e.g. اِسْتَعَانَ → ع.و.ن, أَنْفَقَ → ن.ف.ق)\n"
+        "For derived forms (II, III, IV, V, VIII, X etc.), give the underlying "
+        "trilateral root (e.g. اِسْتَعَانَ → ع.و.ن, أَنْفَقَ → ن.ف.ق, نَزَّلَ → ن.ز.ل)\n"
         "- is_name: true if it's a proper noun\n\n"
         "Words:\n"
     )
     for w in word_list[:50]:  # cap batch size
         prompt += f"- {w['surface']} ({w['bare']})\n"
 
+    result_map: dict[str, int] = dict(already_resolved)
+    if not word_list:
+        return result_map
+
     try:
         result = generate_completion(prompt, json_mode=True, task_type="quran_lemma_translation", model_override="claude_haiku")
         translations = result if isinstance(result, list) else result.get("words", result.get("translations", []))
     except Exception as e:
         logger.warning(f"LLM translation failed for Quran lemmas: {e}")
-        return {}
+        return result_map
 
     if not isinstance(translations, list):
-        return {}
+        return result_map
 
-    # Load existing roots for linking
+    # Index translations by bare_norm of what we sent
+    trans_by_bare: dict[str, dict] = {}
+    for t in translations:
+        if not isinstance(t, dict):
+            continue
+        bn = normalize_alef(t.get("bare", ""))
+        if bn:
+            trans_by_bare[bn] = t
+
     all_roots = db.query(Root).all()
     root_by_dotted = {r.root: r for r in all_roots}
-
-    # Create lemmas
-    result_map: dict[str, int] = {}
     new_lemma_ids: list[int] = []
-    lemma_lookup = build_lemma_lookup(all_lemmas)
     existing_bare_set = {normalize_alef(l.lemma_ar_bare) for l in all_lemmas}
 
-    for t in translations:
-        bare = t.get("bare", "")
-        bare_norm = normalize_alef(bare)
-        if not bare_norm:
-            continue
+    def _resolve_root_id(root_str: str | None) -> int | None:
+        if not root_str:
+            return None
+        cleaned = re.sub(r'[^\u0600-\u06FF.]', '', root_str)
+        if not cleaned or not is_valid_root(cleaned):
+            return None
+        root = root_by_dotted.get(cleaned)
+        if not root:
+            root = Root(root=cleaned)
+            db.add(root)
+            db.flush()
+            root_by_dotted[cleaned] = root
+        return root.root_id
 
-        existing_id = lemma_lookup.get(bare_norm)
-        if existing_id is None:
-            existing_id = resolve_existing_lemma(bare, lemma_lookup)
-        if existing_id is not None:
-            result_map[bare_norm] = existing_id
-            continue
-
-        if bare_norm in existing_bare_set:
-            continue
-        gloss = t.get("gloss_en", "")
-        if not gloss:
-            continue
-        pos = t.get("pos", "noun")
-        is_name = t.get("is_name", False)
-
-        # Resolve root
-        root_id = None
-        root_str = t.get("root")
-        if root_str:
-            cleaned = re.sub(r'[^\u0600-\u06FF.]', '', root_str)
-            if cleaned and is_valid_root(cleaned):
-                root = root_by_dotted.get(cleaned)
-                if not root:
-                    root = Root(root=cleaned)
-                    db.add(root)
-                    db.flush()
-                    root_by_dotted[cleaned] = root
-                root_id = root.root_id
-
-        surface = unknown_forms.get(bare_norm, bare)
-
+    def _create_lemma(lemma_ar: str, lemma_ar_bare: str, gloss: str,
+                      pos: str | None, root_id: int | None, is_name: bool) -> Lemma:
         lemma = Lemma(
-            lemma_ar=surface,
-            lemma_ar_bare=bare,
+            lemma_ar=lemma_ar,
+            lemma_ar_bare=lemma_ar_bare,
             gloss_en=gloss,
             pos=pos,
             source="quran",
@@ -779,26 +841,87 @@ def _create_unknown_quran_lemmas(
         )
         db.add(lemma)
         db.flush()
-
-        result_map[bare_norm] = lemma.lemma_id
-        new_lemma_ids.append(lemma.lemma_id)
-        existing_bare_set.add(bare_norm)
-        lemma_lookup[bare_norm] = lemma.lemma_id
-
-        # Create "encountered" ULK — does NOT enter learning pipeline
+        bn = normalize_alef(lemma_ar_bare)
+        existing_bare_set.add(bn)
+        lemma_lookup[bn] = lemma.lemma_id
         existing_ulk = (
             db.query(UserLemmaKnowledge)
             .filter(UserLemmaKnowledge.lemma_id == lemma.lemma_id)
             .first()
         )
         if not existing_ulk:
-            ulk = UserLemmaKnowledge(
+            db.add(UserLemmaKnowledge(
                 lemma_id=lemma.lemma_id,
                 knowledge_state="encountered",
                 source="quran",
                 total_encounters=0,
-            )
-            db.add(ulk)
+            ))
+        new_lemma_ids.append(lemma.lemma_id)
+        return lemma
+
+    # Create one canonical lemma per CAMeL-detected canonical bare
+    for canon_bare, info in canonical_groups.items():
+        t = trans_by_bare.get(canon_bare, {})
+        gloss = (t.get("gloss_en") or "").strip()
+        if not gloss:
+            continue
+        pos = t.get("pos") or info.get("pos") or "noun"
+        is_name = bool(t.get("is_name", False))
+
+        # Prefer LLM root; fall back to CAMeL root (dotting it if needed)
+        root_str = t.get("root")
+        if not root_str and info.get("root"):
+            cr = info["root"]
+            if isinstance(cr, str):
+                root_str = ".".join(list(cr)) if "." not in cr and 1 < len(cr) <= 5 else cr
+
+        # Race: another iteration in this batch may have created it
+        existing_id = lemma_lookup.get(canon_bare)
+        if existing_id is None:
+            existing_id = resolve_existing_lemma(info["lex_vocalized"], lemma_lookup)
+        if existing_id is not None:
+            for sb in info["surface_bares"]:
+                result_map[sb] = existing_id
+            continue
+
+        lemma = _create_lemma(
+            lemma_ar=info["lex_vocalized"],
+            lemma_ar_bare=canon_bare,
+            gloss=gloss,
+            pos=pos,
+            root_id=_resolve_root_id(root_str),
+            is_name=is_name,
+        )
+        for sb in info["surface_bares"]:
+            result_map[sb] = lemma.lemma_id
+
+    # Fallback path for surfaces CAMeL couldn't analyze (original behaviour)
+    for surface_bare, surface in fallback_forms.items():
+        t = trans_by_bare.get(surface_bare, {})
+        gloss = (t.get("gloss_en") or "").strip()
+        if not gloss:
+            continue
+        pos = t.get("pos", "noun")
+        is_name = bool(t.get("is_name", False))
+
+        existing_id = lemma_lookup.get(surface_bare)
+        if existing_id is None:
+            existing_id = resolve_existing_lemma(surface_bare, lemma_lookup)
+        if existing_id is not None:
+            result_map[surface_bare] = existing_id
+            continue
+        if surface_bare in existing_bare_set:
+            continue
+
+        lemma = _create_lemma(
+            lemma_ar=surface,
+            lemma_ar_bare=surface_bare,
+            gloss=gloss,
+            pos=pos,
+            root_id=_resolve_root_id(t.get("root")),
+            is_name=is_name,
+        )
+        result_map[surface_bare] = lemma.lemma_id
 
     db.commit()
 
