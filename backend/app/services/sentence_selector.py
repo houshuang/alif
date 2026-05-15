@@ -20,6 +20,7 @@ from app.services.fsrs_service import parse_json_column
 from app.services.transliteration import transliterate_arabic, transliterate_forms
 
 from app.models import (
+    FrequencyCoreEntry,
     GrammarFeature,
     LearnerSettings,
     Lemma,
@@ -1956,6 +1957,22 @@ def _build_reintro_cards(
         )
 
 
+    # Batch-lookup FrequencyCoreEntry by canonical lemma_id for the rare-word
+    # warning banner. NULL rank = not in the top-3000 frequency curriculum
+    # (FrequencyCoreEntry deliberately excludes function words; cards reach
+    # here only after _drop_function_and_proper_name_lemma_ids upstream).
+    fce_lookup_ids = {
+        (lemma.canonical_lemma_id or lemma.lemma_id) for lemma in lemmas[:limit]
+    }
+    fce_map: dict[int, tuple[int, int]] = {}
+    if fce_lookup_ids:
+        for row in (
+            db.query(FrequencyCoreEntry.lemma_id, FrequencyCoreEntry.core_rank, FrequencyCoreEntry.broad_source_count)
+            .filter(FrequencyCoreEntry.lemma_id.in_(fce_lookup_ids))
+            .all()
+        ):
+            fce_map[row.lemma_id] = (row.core_rank, row.broad_source_count)
+
     cards = []
     for lemma in lemmas[:limit]:
         k = ulk_map.get(lemma.lemma_id)
@@ -1965,6 +1982,9 @@ def _build_reintro_cards(
         family = []
         if root_obj:
             family = get_root_family(db, root_obj.root_id)
+
+        canon_id = lemma.canonical_lemma_id or lemma.lemma_id
+        fce_rank, fce_source_count = fce_map.get(canon_id, (None, None))
 
         card = {
             "lemma_id": lemma.lemma_id,
@@ -1989,6 +2009,8 @@ def _build_reintro_cards(
             "wazn": lemma.wazn,
             "wazn_meaning": lemma.wazn_meaning,
             "source": _display_source(k, lemma),
+            "frequency_rank": fce_rank,
+            "frequency_source_count": fce_source_count,
         }
         if intro_kind:
             card["intro_kind"] = intro_kind

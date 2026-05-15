@@ -2,6 +2,7 @@ import json
 import math
 from typing import Optional
 from fastapi import APIRouter, Depends, Query, HTTPException
+from pydantic import BaseModel
 from sqlalchemy import case, func
 from sqlalchemy.orm import Session
 
@@ -17,10 +18,16 @@ from app.models import (
     StoryWord,
     UserLemmaKnowledge,
 )
+from app.services.canonical_resolution import resolve_canonical_lemma_id
 from app.services.fsrs_service import create_new_card
 from app.services.grammar_service import seed_grammar_features
 from app.services.interaction_logger import log_interaction
 from app.services.word_selector import get_root_family
+
+
+class SuspendWordIn(BaseModel):
+    frequency_rank: int | None = None
+    source: str | None = None  # e.g. "rare_word_banner", "settings"
 
 
 def knowledge_score(fsrs_card_json, times_seen: int, times_correct: int) -> int:
@@ -488,36 +495,68 @@ def postpone_word(lemma_id: int, db: Session = Depends(get_db)):
 
 
 @router.post("/{lemma_id}/suspend")
-def suspend_word(lemma_id: int, db: Session = Depends(get_db)):
-    """Suspend a word — stops appearing in reviews."""
+def suspend_word(
+    lemma_id: int,
+    payload: SuspendWordIn | None = None,
+    db: Session = Depends(get_db),
+):
+    """Suspend a word — stops appearing in reviews and cascade-deactivates any
+    active sentences targeting it. Resolves variants to canonical before
+    touching ULK state (per CLAUDE.md: canonical is the unit of scheduling)."""
     lemma = db.query(Lemma).filter(Lemma.lemma_id == lemma_id).first()
     if not lemma:
         raise HTTPException(404, "Word not found")
 
+    canonical_id = resolve_canonical_lemma_id(db, lemma_id)
     existing = (
         db.query(UserLemmaKnowledge)
-        .filter(UserLemmaKnowledge.lemma_id == lemma_id)
+        .filter(UserLemmaKnowledge.lemma_id == canonical_id)
         .first()
     )
 
     if existing:
         previous_state = existing.knowledge_state
-        if previous_state == "suspended":
-            return {"lemma_id": lemma_id, "state": "suspended", "already_suspended": True}
-        existing.knowledge_state = "suspended"
-        db.commit()
+        already_suspended = previous_state == "suspended"
+        if not already_suspended:
+            existing.knowledge_state = "suspended"
     else:
         previous_state = None
-        ulk = UserLemmaKnowledge(
-            lemma_id=lemma_id,
+        already_suspended = False
+        db.add(UserLemmaKnowledge(
+            lemma_id=canonical_id,
             knowledge_state="suspended",
             source="study",
-        )
-        db.add(ulk)
-        db.commit()
+        ))
 
-    log_interaction(event="word_suspended", lemma_id=lemma_id, previous_state=previous_state)
-    return {"lemma_id": lemma_id, "state": "suspended", "previous_state": previous_state}
+    # Cascade-deactivate active sentences. Target either the canonical or the
+    # variant (a sentence imported pre-canonical-redirect can still hold the
+    # variant's id in target_lemma_id).
+    target_ids = {canonical_id, lemma_id}
+    deactivated = (
+        db.query(Sentence)
+        .filter(Sentence.target_lemma_id.in_(target_ids))
+        .filter(Sentence.is_active == True)  # noqa: E712
+        .update({"is_active": False}, synchronize_session=False)
+    )
+    db.commit()
+
+    log_interaction(
+        event="word_suspended",
+        lemma_id=lemma_id,
+        canonical_lemma_id=canonical_id,
+        previous_state=previous_state,
+        sentences_deactivated=deactivated,
+        frequency_rank=(payload.frequency_rank if payload else None),
+        source=(payload.source if payload else None),
+    )
+    return {
+        "lemma_id": lemma_id,
+        "canonical_lemma_id": canonical_id,
+        "state": "suspended",
+        "previous_state": previous_state,
+        "already_suspended": already_suspended,
+        "sentences_deactivated": deactivated,
+    }
 
 
 @router.post("/{lemma_id}/unsuspend")

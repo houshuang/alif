@@ -121,6 +121,138 @@ def test_unsuspend_not_found(client):
     assert resp.status_code == 404
 
 
+# --- Rare-word suspend: cascade-deactivate sentences + canonical resolution ---
+
+def test_suspend_cascade_deactivates_active_sentences(client, db_session):
+    """Suspending a word should deactivate any active sentences targeting it."""
+    lemma = _seed_word(db_session, arabic="نَادِر", bare="نادر", gloss="rare")
+    s1 = _seed_sentence(db_session, lemma, text="هَذَا نَادِرٌ جِدّاً")
+    s2 = _seed_sentence(db_session, lemma, text="كَلِمَةٌ نَادِرَة")
+    s1.is_active = True
+    s2.is_active = True
+    db_session.commit()
+
+    resp = client.post(f"/api/words/{lemma.lemma_id}/suspend")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["sentences_deactivated"] == 2
+    assert data["canonical_lemma_id"] == lemma.lemma_id
+
+    db_session.refresh(s1)
+    db_session.refresh(s2)
+    assert s1.is_active is False
+    assert s2.is_active is False
+
+
+def test_suspend_resolves_canonical(client, db_session):
+    """Suspending a variant should redirect to the canonical's ULK."""
+    canonical = _seed_word(db_session, arabic="قَرَأَ", bare="قرا", gloss="to read")
+    variant = Lemma(
+        lemma_ar="اقرئيه", lemma_ar_bare="اقرئيه", gloss_en="read.imp+pron",
+        source="test", canonical_lemma_id=canonical.lemma_id,
+    )
+    db_session.add(variant)
+    db_session.commit()
+
+    resp = client.post(f"/api/words/{variant.lemma_id}/suspend")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["canonical_lemma_id"] == canonical.lemma_id
+
+    canon_ulk = db_session.query(UserLemmaKnowledge).filter_by(lemma_id=canonical.lemma_id).first()
+    assert canon_ulk.knowledge_state == "suspended"
+
+
+def test_suspend_accepts_frequency_rank_payload(client, db_session):
+    """Endpoint accepts optional payload with frequency_rank — logged but not stored."""
+    lemma = _seed_word(db_session, arabic="فُلْكُلُورِيّ", bare="فلكلوري", gloss="folkloric")
+    resp = client.post(
+        f"/api/words/{lemma.lemma_id}/suspend",
+        json={"frequency_rank": 4735, "source": "rare_word_banner"},
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["state"] == "suspended"
+
+
+def test_suspend_idempotent_no_extra_cascade(client, db_session):
+    """Re-suspending already-suspended word doesn't re-deactivate sentences."""
+    lemma = _seed_word(db_session, arabic="مَهْجُور", bare="مهجور", gloss="abandoned")
+    s = _seed_sentence(db_session, lemma)
+    s.is_active = True
+    db_session.commit()
+
+    client.post(f"/api/words/{lemma.lemma_id}/suspend")
+    db_session.refresh(s)
+    assert s.is_active is False
+
+    resp = client.post(f"/api/words/{lemma.lemma_id}/suspend")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["already_suspended"] is True
+    assert data["sentences_deactivated"] == 0
+
+
+# --- frequency_rank on intro cards ---
+
+def test_intro_card_includes_frequency_fields(db_session):
+    """_build_reintro_cards should populate frequency_rank from FrequencyCoreEntry."""
+    from app.models import FrequencyCoreEntry
+    from app.services.sentence_selector import _build_reintro_cards
+
+    lemma = _seed_word(db_session, arabic="غَرِيب", bare="غريب", gloss="strange")
+    lemma.gates_completed_at = datetime.now(timezone.utc)
+    db_session.add(FrequencyCoreEntry(
+        core_rank=4500, lemma_id=lemma.lemma_id, lemma_key="غريب",
+        display_form="غَرِيب", broad_source_count=2,
+    ))
+    db_session.commit()
+
+    cards = _build_reintro_cards(db_session, {lemma.lemma_id})
+    assert len(cards) == 1
+    assert cards[0]["frequency_rank"] == 4500
+    assert cards[0]["frequency_source_count"] == 2
+
+
+def test_intro_card_frequency_null_when_not_in_core(db_session):
+    """Lemma with no FrequencyCoreEntry gets frequency_rank=None."""
+    from app.services.sentence_selector import _build_reintro_cards
+
+    lemma = _seed_word(db_session, arabic="مَخْفِيّ", bare="مخفي", gloss="hidden")
+    lemma.gates_completed_at = datetime.now(timezone.utc)
+    db_session.commit()
+
+    cards = _build_reintro_cards(db_session, {lemma.lemma_id})
+    assert len(cards) == 1
+    assert cards[0]["frequency_rank"] is None
+    assert cards[0]["frequency_source_count"] is None
+
+
+def test_intro_card_frequency_uses_canonical(db_session):
+    """For a variant lemma, FCE lookup should follow the canonical pointer."""
+    from app.models import FrequencyCoreEntry
+    from app.services.sentence_selector import _build_reintro_cards
+
+    canon = _seed_word(db_session, arabic="قَلَم", bare="قلم", gloss="pen")
+    canon.gates_completed_at = datetime.now(timezone.utc)
+    db_session.add(FrequencyCoreEntry(
+        core_rank=1200, lemma_id=canon.lemma_id, lemma_key="قلم",
+        display_form="قَلَم", broad_source_count=4,
+    ))
+    variant = Lemma(
+        lemma_ar="بِالقَلَم", lemma_ar_bare="بالقلم", gloss_en="with-the-pen",
+        source="test", canonical_lemma_id=canon.lemma_id,
+        gates_completed_at=datetime.now(timezone.utc),
+    )
+    db_session.add(variant)
+    db_session.commit()
+
+    cards = _build_reintro_cards(db_session, {variant.lemma_id})
+    assert len(cards) == 1
+    assert cards[0]["frequency_rank"] == 1200
+    assert cards[0]["frequency_source_count"] == 4
+
+
 # --- Reactivation Helper Tests ---
 
 def test_reactivate_if_suspended(db_session):
