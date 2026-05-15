@@ -55,7 +55,8 @@ FUNCTION_WORD_GLOSSES: dict[str, str] = {
     # Single-letter clitics
     "ب": "in/by/with", "ل": "for/to", "ك": "like/as", "و": "and", "ف": "so/then",
     # Conjunctions
-    "او": "or", "أو": "or", "ان": "that", "أن": "that", "إن": "indeed",
+    "او": "or", "أو": "or", "ام": "or (disjunctive)", "أم": "or (disjunctive)",
+    "ان": "that", "أن": "that", "إن": "indeed",
     "لكن": "but", "ثم": "then (after delay)", "بل": "rather/nay",
     # Pronouns
     "انا": "I", "أنا": "I", "انت": "you (m)", "أنت": "you (m)",
