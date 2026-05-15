@@ -389,8 +389,9 @@ def enrich_lemmas_batch(lemma_ids: list[int]) -> dict:
         return {"enriched": 0}
 
     db = SessionLocal()
-    summary = {"forms": 0, "etymology": 0, "transliteration": 0, "memory_hooks": 0,
-                "roots": 0, "grammar": 0, "examples": 0, "total": len(lemma_ids)}
+    summary = {"forms": 0, "etymology": 0, "transliteration": 0, "vocalized": 0,
+                "memory_hooks": 0, "roots": 0, "grammar": 0, "examples": 0,
+                "total": len(lemma_ids)}
 
     try:
         lemmas = db.query(Lemma).filter(Lemma.lemma_id.in_(lemma_ids)).all()
@@ -399,6 +400,31 @@ def enrich_lemmas_batch(lemma_ids: list[int]) -> dict:
 
         # ── Step 1: Transliteration (deterministic, instant) ──
         from app.services.transliteration import transliterate_lemma
+
+        # Step 0: Vocalize any lemmas that arrived without diacritics.
+        # Without this, the transliteration loop below silently skips them
+        # (or worse, fallback paths produce broken translits like al-ghl\u0101m).
+        from app.services.lemma_vocalization import (
+            apply_vocalization,
+            needs_vocalization,
+            vocalize_batch,
+        )
+
+        unvocalized = [l for l in lemmas if needs_vocalization(l)]
+        if unvocalized:
+            try:
+                proposals = vocalize_batch(unvocalized)
+                for l in unvocalized:
+                    proposal = proposals.get(l.lemma_id)
+                    if proposal and apply_vocalization(l, proposal):
+                        summary["vocalized"] = summary.get("vocalized", 0) + 1
+                db.commit()
+            except Exception as e:
+                logger.warning(
+                    "Vocalization gate failed for %d lemmas: %s",
+                    len(unvocalized), e,
+                )
+                db.rollback()
 
         for lemma in lemmas:
             if lemma.transliteration_ala_lc:
