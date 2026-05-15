@@ -2182,28 +2182,42 @@ def _build_intro_cards(
     if not new_card_ids and not rescue_card_ids and not textbook_preserve_ids:
         return []
 
-    cap = _dynamic_intro_cap(db)
-    # First-time intro cards are capped per session by INTRO_NEW_CARDS_PER_SESSION
-    # so a backlog of newly-acquiring words doesn't front-load 10+ cards. The
-    # daily 30-cap inside start_acquisition controls absolute volume; this cap
-    # smooths it across sessions. Rescue cards still use the dynamic cap below.
+    rescue_dynamic_cap = _dynamic_intro_cap(db)
+    # `INTRO_NEW_CARDS_PER_SESSION` is the *total* ceiling on intro cards in a
+    # session — first-time + rescue + textbook-preserve combined. Without this
+    # the three per-category caps add up: 6 new + 4 textbook + 6 rescue = 16
+    # cards stacked at session start (2026-05-15 user report: "I keep getting
+    # 10 new intro cards"). Priority order: new (real learning) > rescue
+    # (re-teach) > textbook_preserve (informational).
+    total_budget = INTRO_NEW_CARDS_PER_SESSION
+
     new_cards = _build_reintro_cards(
         db,
         new_card_ids,
-        limit=min(len(new_card_ids), INTRO_NEW_CARDS_PER_SESSION),
+        limit=min(len(new_card_ids), total_budget),
     )
-    textbook_cards = _build_reintro_cards(
-        db,
-        textbook_preserve_ids,
-        limit=min(len(textbook_preserve_ids), TEXTBOOK_PRESERVE_INTRO_CAP),
-        intro_kind=TEXTBOOK_PRESERVE_INTRO_KIND,
-    )
-    rescue_limit = max(0, cap - len(new_cards))
+    remaining = max(0, total_budget - len(new_cards))
     rescue_cards = (
-        _build_reintro_cards(db, rescue_card_ids, limit=min(len(rescue_card_ids), rescue_limit))
-        if rescue_limit > 0 else []
+        _build_reintro_cards(
+            db,
+            rescue_card_ids,
+            limit=min(len(rescue_card_ids), remaining, rescue_dynamic_cap),
+        )
+        if remaining > 0 and rescue_dynamic_cap > 0
+        else []
     )
-    return new_cards + textbook_cards + rescue_cards
+    remaining = max(0, total_budget - len(new_cards) - len(rescue_cards))
+    textbook_cards = (
+        _build_reintro_cards(
+            db,
+            textbook_preserve_ids,
+            limit=min(len(textbook_preserve_ids), remaining, TEXTBOOK_PRESERVE_INTRO_CAP),
+            intro_kind=TEXTBOOK_PRESERVE_INTRO_KIND,
+        )
+        if remaining > 0
+        else []
+    )
+    return new_cards + rescue_cards + textbook_cards
 
 
 MAX_ON_DEMAND_PER_SESSION = 10

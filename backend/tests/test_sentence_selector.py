@@ -10,14 +10,17 @@ from app.services.fsrs_service import create_new_card
 from app.services.sentence_selector import (
     FRESHNESS_BASELINE,
     HIGH_ACCURACY_INTRO_BACKLOG_CAP,
+    INTRO_NEW_CARDS_PER_SESSION,
     INTRO_RESERVE_FRACTION,
     JACCARD_VETO_THRESHOLD,
     MAX_AUTO_INTRO_PER_SESSION,
     MID_ACCURACY_INTRO_BACKLOG_CAP,
     PIPELINE_BACKLOG_THRESHOLD,
     SESSION_SCAFFOLD_DECAY,
+    TEXTBOOK_PRESERVE_INTRO_GROUP,
     SentenceCandidate,
     WordMeta,
+    _build_intro_cards,
     _difficulty_match_quality,
     _find_pregenerated_sentences_for_words,
     _group_maintenance_passages,
@@ -1610,3 +1613,137 @@ class TestSelectionInfo:
         assert "due_coverage" in components
         assert "diversity" in components
         assert "session_diversity" in components
+
+
+class TestIntroCardTotalCap:
+    """Verify _build_intro_cards caps the TOTAL of new + rescue + textbook cards.
+
+    Per-category caps were stacking (6 new + 4 textbook + 6 rescue = up to 16
+    cards at session start). The 2026-05-15 fix made INTRO_NEW_CARDS_PER_SESSION
+    the total budget; this test pins the contract.
+    """
+
+    def _seed_acquiring_new(self, db, lemma_id, arabic):
+        lemma = Lemma(
+            lemma_id=lemma_id,
+            lemma_ar=arabic,
+            lemma_ar_bare=arabic,
+            pos="noun",
+            gloss_en=f"meaning {lemma_id}",
+            gates_completed_at=datetime.now(timezone.utc),
+        )
+        db.add(lemma)
+        db.add(UserLemmaKnowledge(
+            lemma_id=lemma_id,
+            knowledge_state="acquiring",
+            acquisition_box=1,
+            acquisition_started_at=datetime.now(timezone.utc),
+            entered_acquiring_at=datetime.now(timezone.utc),
+            introduced_at=datetime.now(timezone.utc),
+            times_seen=0,
+            times_correct=0,
+            total_encounters=1,
+            experiment_intro_shown_at=None,
+            source="collateral",
+        ))
+        db.flush()
+
+    def _seed_textbook_preserved(self, db, lemma_id, arabic):
+        lemma = Lemma(
+            lemma_id=lemma_id,
+            lemma_ar=arabic,
+            lemma_ar_bare=arabic,
+            pos="noun",
+            gloss_en=f"meaning {lemma_id}",
+            gates_completed_at=datetime.now(timezone.utc),
+        )
+        db.add(lemma)
+        db.add(UserLemmaKnowledge(
+            lemma_id=lemma_id,
+            knowledge_state="known",
+            fsrs_card_json=_make_card(stability_days=30.0, due_offset_hours=72),
+            introduced_at=datetime.now(timezone.utc),
+            times_seen=1,
+            times_correct=1,
+            total_encounters=1,
+            source="textbook_scan",
+            experiment_group=TEXTBOOK_PRESERVE_INTRO_GROUP,
+            experiment_intro_shown_at=None,
+        ))
+        db.flush()
+
+    def test_total_intro_cards_capped_across_categories(self, db_session):
+        # 10 new acquiring + 10 textbook-preserve = 20 eligible cards
+        new_ids = list(range(1001, 1011))
+        tb_ids = list(range(2001, 2011))
+        for i, lid in enumerate(new_ids):
+            self._seed_acquiring_new(db_session, lid, f"كلمة{i}")
+        for i, lid in enumerate(tb_ids):
+            self._seed_textbook_preserved(db_session, lid, f"كتاب{i}")
+        db_session.commit()
+
+        eligible = set(new_ids) | set(tb_ids)
+        knowledge_by_id = {
+            k.lemma_id: k
+            for k in db_session.query(UserLemmaKnowledge).filter(
+                UserLemmaKnowledge.lemma_id.in_(eligible)
+            ).all()
+        }
+
+        cards = _build_intro_cards(db_session, knowledge_by_id, eligible)
+        assert len(cards) <= INTRO_NEW_CARDS_PER_SESSION, (
+            f"Expected total intro cards <= {INTRO_NEW_CARDS_PER_SESSION}, got {len(cards)}"
+        )
+
+    def test_new_cards_take_priority_over_textbook(self, db_session):
+        # When both are eligible, the budget should fill with `new` first.
+        new_ids = list(range(1001, 1011))
+        tb_ids = list(range(2001, 2011))
+        for i, lid in enumerate(new_ids):
+            self._seed_acquiring_new(db_session, lid, f"كلمة{i}")
+        for i, lid in enumerate(tb_ids):
+            self._seed_textbook_preserved(db_session, lid, f"كتاب{i}")
+        db_session.commit()
+
+        eligible = set(new_ids) | set(tb_ids)
+        knowledge_by_id = {
+            k.lemma_id: k
+            for k in db_session.query(UserLemmaKnowledge).filter(
+                UserLemmaKnowledge.lemma_id.in_(eligible)
+            ).all()
+        }
+        cards = _build_intro_cards(db_session, knowledge_by_id, eligible)
+
+        # All returned cards should be "new" — textbook gets pushed out by priority.
+        textbook_in_result = [c for c in cards if c.get("intro_kind") == "textbook_preserve"]
+        assert textbook_in_result == [], (
+            f"Expected new cards to take priority, got textbook cards: {textbook_in_result}"
+        )
+
+    def test_textbook_fills_remaining_budget(self, db_session):
+        # 2 new + 10 textbook → cards = 2 new + 4 textbook (total 6, budget filled)
+        new_ids = [1001, 1002]
+        tb_ids = list(range(2001, 2011))
+        for i, lid in enumerate(new_ids):
+            self._seed_acquiring_new(db_session, lid, f"كلمة{i}")
+        for i, lid in enumerate(tb_ids):
+            self._seed_textbook_preserved(db_session, lid, f"كتاب{i}")
+        db_session.commit()
+
+        eligible = set(new_ids) | set(tb_ids)
+        knowledge_by_id = {
+            k.lemma_id: k
+            for k in db_session.query(UserLemmaKnowledge).filter(
+                UserLemmaKnowledge.lemma_id.in_(eligible)
+            ).all()
+        }
+        cards = _build_intro_cards(db_session, knowledge_by_id, eligible)
+
+        assert len(cards) <= INTRO_NEW_CARDS_PER_SESSION
+        kinds = [c.get("intro_kind") for c in cards]
+        new_count = sum(1 for k in kinds if k != "textbook_preserve")
+        tb_count = sum(1 for k in kinds if k == "textbook_preserve")
+        assert new_count == 2, f"Expected 2 new cards, got {new_count}"
+        assert tb_count == INTRO_NEW_CARDS_PER_SESSION - 2, (
+            f"Expected {INTRO_NEW_CARDS_PER_SESSION - 2} textbook cards, got {tb_count}"
+        )
