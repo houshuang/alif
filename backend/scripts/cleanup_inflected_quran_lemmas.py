@@ -74,12 +74,40 @@ from app.services.sentence_validator import (  # noqa: E402
     strip_diacritics,
 )
 from app.services.variant_detection import mark_variants  # noqa: E402
+from sqlalchemy.orm import Session  # noqa: E402
 
 REPORT_FILE = BACKEND_ROOT / "data" / "inflected_quran_audit.json"
 
 
-def _classify(lemma: Lemma, lemma_lookup: dict[str, int]) -> dict[str, Any]:
-    """Run CAMeL on a lemma and return classification info."""
+def _pos_compatible(camel_pos: str, candidate_pos: str | None,
+                    candidate_word_category: str | None) -> bool:
+    """Conservative POS gate for canonical linking.
+
+    - Never link a common form to a proper-name lemma (Salih the name
+      vs salih "righteous"): word_category='proper_name' OR pos='noun_prop'.
+    - Verbs must link to verbs. Nouns may link to nouns/adjs (Arabic
+      substantive overlap), never to verbs.
+    """
+    cand_pos = (candidate_pos or "").lower()
+    if candidate_word_category == "proper_name" or cand_pos == "noun_prop":
+        return False
+    cp = (camel_pos or "").lower()
+    if cp.startswith("verb"):
+        return cand_pos.startswith("verb")
+    if cp.startswith("noun") or cp.startswith("adj"):
+        return cand_pos.startswith("noun") or cand_pos.startswith("adj")
+    if cp.startswith("part") or cp == "particle":
+        return cand_pos.startswith("part") or cand_pos == "particle"
+    return cand_pos == cp
+
+
+def _classify(db: Session, lemma: Lemma) -> dict[str, Any]:
+    """Run CAMeL on a lemma and return classification info.
+
+    Uses DIRECT lemma_ar_bare equality on non-variant Lemma rows (not
+    build_lemma_lookup, which generates conjugation forms — that lookup
+    would falsely match a variant's own inflections back to itself).
+    """
     surface = lemma.lemma_ar or lemma.lemma_ar_bare or ""
     if not surface:
         return {"verdict": "NO_CAMEL", "reason": "empty surface"}
@@ -106,9 +134,35 @@ def _classify(lemma: Lemma, lemma_lookup: dict[str, int]) -> dict[str, Any]:
     if lex_bare == own_bare:
         return {"verdict": "LOOKS_CANONICAL", **info}
 
-    canonical_id = lemma_lookup.get(lex_bare)
-    if canonical_id is not None and canonical_id != lemma.lemma_id:
-        return {"verdict": "LINK_EXISTING", "canonical_id": canonical_id, **info}
+    candidates = (
+        db.query(Lemma)
+        .filter(
+            Lemma.lemma_ar_bare == lex_bare,
+            Lemma.lemma_id != lemma.lemma_id,
+            Lemma.canonical_lemma_id.is_(None),
+        )
+        .all()
+    )
+    valid = [
+        c for c in candidates
+        if _pos_compatible(info["camel_pos"], c.pos, c.word_category)
+    ]
+
+    if valid:
+        valid.sort(key=lambda c: (c.source == "quran", c.lemma_id))
+        return {
+            "verdict": "LINK_EXISTING",
+            "canonical_id": valid[0].lemma_id,
+            "canonical_lemma_ar": valid[0].lemma_ar,
+            "canonical_pos": valid[0].pos,
+            "canonical_source": valid[0].source,
+            "candidates_rejected": [
+                {"id": c.lemma_id, "pos": c.pos, "wc": c.word_category,
+                 "gloss": c.gloss_en, "source": c.source}
+                for c in candidates if c not in valid
+            ],
+            **info,
+        }
 
     return {"verdict": "PROMOTE_NEW", **info}
 
@@ -281,7 +335,7 @@ def main() -> None:
         detailed: list[dict[str, Any]] = []
 
         for lemma in quran_candidates:
-            classification = _classify(lemma, lemma_lookup)
+            classification = _classify(db, lemma)
             verdict = classification["verdict"]
             verdicts[verdict] += 1
             detailed.append({
