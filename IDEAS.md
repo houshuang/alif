@@ -4,6 +4,21 @@
 
 ---
 
+## 🔵 [OPEN 2026-05-17] Admin queue for incompatible same-bare correction proposals
+
+The 2026-05-17 sense-aware correction resolver stops wrong same-bare homographs from being accepted as repairs, but it still leaves a manual curation problem. Rejected verifier proposals like `شال / shawl / noun`, `أمين / trustworthy / adj`, `موضوع / topic / noun`, and `تأمل / contemplation / noun` are exactly the missing vocabulary/homograph entries the system needs.
+
+Build a small admin queue over `mapping_corrections_*.jsonl`, `mapping_reverify_failures_*.jsonl`, and `rescue_proposals_*.jsonl`:
+
+- Group by `(normalized Arabic bare, proposed_pos, proposed_gloss)` with example sentences and current wrong lemma(s).
+- Mark whether a compatible lemma already exists, whether an FCE row exists, and whether the proposal is a proper name/function word.
+- Approve creates/imports through the existing `import_scaffold_lemmas.py` / `run_quality_gates()` path, with `ALLOW_HOMOGRAPH` required when the bare already exists with a different sense.
+- Dismiss noisy POS-only overcalls so they stop polluting the queue.
+
+This closes the loop after fail-closed verification: bad mappings stay hidden immediately, and repeated legitimate proposals become curated vocabulary instead of recurring flags.
+
+---
+
 ## ✅ [DONE 2026-05-15] Enforce daily intro cap at chokepoint + smooth intro cards per session
 
 Prod prompted by 39 intros today (28 textbook_scan, 9 collateral, 1 book, 1 quran, 0 via the official `_auto_introduce_words` path that was the only one checking the daily cap). User saw sessions with 10-15 intro cards crammed up front because `_build_intro_cards` had an explicit "first-time intro cards are not capped" and `_ensure_session_words_have_intro_state` mass-promoted every encountered word at session-build time.

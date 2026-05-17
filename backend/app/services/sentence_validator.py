@@ -1503,6 +1503,119 @@ def _log_mapping_correction(
         pass
 
 
+_EN_GLOSS_STOPWORDS = {
+    "a", "an", "and", "as", "be", "by", "for", "from", "in", "into", "of",
+    "on", "or", "the", "to", "with",
+    "adj", "adjective", "adverb", "article", "conj", "conjunction", "noun",
+    "particle", "participle", "prep", "preposition", "pron", "pronoun",
+    "verb",
+}
+
+
+def _normalize_correction_pos(pos: str | None) -> str | None:
+    """Collapse LLM/CAMeL POS labels into broad compatibility buckets."""
+    if not pos:
+        return None
+    p = str(pos).strip().lower()
+    if not p:
+        return None
+    if "proper" in p or "noun_prop" in p:
+        return "proper_name"
+    if "verbal noun" in p or "masdar" in p:
+        return "noun"
+    if "verb" in p:
+        return "verb"
+    if "adj" in p or "adjective" in p:
+        return "adj"
+    if "prep" in p:
+        return "prep"
+    if "conj" in p:
+        return "conj"
+    if "pron" in p:
+        return "pron"
+    if "particle" in p or p in {"part", "part_neg", "part_verb"}:
+        return "particle"
+    if "adv" in p:
+        return "adv"
+    if "num" in p or "number" in p:
+        return "num"
+    if "participle" in p:
+        return "adj"
+    if "noun" in p:
+        return "noun"
+    return p
+
+
+def _pos_compatible(candidate_pos: str | None, proposed_pos: str | None) -> bool:
+    """Return whether a DB lemma POS can satisfy the verifier proposal."""
+    cand = _normalize_correction_pos(candidate_pos)
+    prop = _normalize_correction_pos(proposed_pos)
+    if not cand or not prop:
+        return True
+    if cand == prop:
+        return True
+    # Arabic participles are often stored as nouns or adjectives depending on
+    # the import path. Treat that drift as compatible only when the gloss also
+    # agrees; verbs are intentionally not compatible with noun/adj proposals.
+    if {cand, prop} <= {"noun", "adj"}:
+        return True
+    if cand in {"prep", "conj", "pron", "particle", "adv"} and prop in {
+        "prep", "conj", "pron", "particle", "adv",
+    }:
+        return True
+    return False
+
+
+def _gloss_tokens(gloss: str | None) -> set[str]:
+    """Small, deterministic English gloss token set for same-bare filtering."""
+    if not gloss:
+        return set()
+    text = str(gloss).lower()
+    # Drop parenthetical metadata but keep slash/comma-separated alternatives.
+    text = re.sub(r"\([^)]*\)", " ", text)
+    raw = re.findall(r"[a-z][a-z'-]*", text)
+    out: set[str] = set()
+    for token in raw:
+        token = token.strip("'")
+        if not token or token in _EN_GLOSS_STOPWORDS or len(token) < 3:
+            continue
+        # Cheap stemming is enough for glosses: bring/bringing, rule/ruling.
+        variants = {token}
+        for suffix in ("ing", "ed", "es", "s"):
+            if token.endswith(suffix) and len(token) > len(suffix) + 2:
+                variants.add(token[: -len(suffix)])
+        out.update(v for v in variants if v and v not in _EN_GLOSS_STOPWORDS)
+    return out
+
+
+def _candidate_matches_correction(
+    lemma,
+    correct_gloss: str,
+    correct_pos: str,
+) -> bool:
+    """Guard against accepting the wrong same-bare homograph as a correction.
+
+    The verifier proposes both a lemma form and a sense. Bare-form lookup alone
+    is not enough in Arabic: `شال` (shawl) and `شال` (to rise) normalize to the
+    same key, and accepting either as "the correction" re-stamps bad mappings as
+    verified. This helper is deliberately fail-closed: if the proposed POS/gloss
+    has no plausible overlap with the DB candidate, callers should reject or
+    hide the sentence instead of silently blessing a wrong lemma.
+    """
+    if not _pos_compatible(getattr(lemma, "pos", None), correct_pos):
+        return False
+
+    proposed_tokens = _gloss_tokens(correct_gloss)
+    if not proposed_tokens:
+        return True
+
+    candidate_tokens = _gloss_tokens(getattr(lemma, "gloss_en", None))
+    if not candidate_tokens:
+        return False
+
+    return bool(proposed_tokens & candidate_tokens)
+
+
 def correct_mapping(
     db,
     correct_ar: str,
@@ -1572,6 +1685,13 @@ def correct_mapping(
                 Lemma.lemma_id.in_(candidate_ids)
             ).all()
 
+    if not candidates:
+        return None
+
+    candidates = [
+        c for c in candidates
+        if _candidate_matches_correction(c, correct_gloss, correct_pos)
+    ]
     if not candidates:
         return None
 

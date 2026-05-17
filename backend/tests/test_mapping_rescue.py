@@ -132,6 +132,65 @@ def test_unfixable_issue_leaves_stale(db_session, patched_verifier):
     assert stats.sentences_rescued == 0
 
 
+def test_same_bare_wrong_sense_stays_unfixable(db_session, patched_verifier):
+    """Reverify must not stamp a wrong same-bare homograph as an overcall."""
+    wrong = _lemma(
+        db_session,
+        "شَالَ",
+        "to rise, to become elevated",
+        bare="شال",
+        pos="verb",
+    )
+    sent = _stale_sentence(db_session, [wrong.lemma_id], target_id=wrong.lemma_id)
+    db_session.commit()
+
+    def same_bare_wrong_sense(inputs, _lemma_map):
+        return [{"disambiguation": [], "issues": [
+            {
+                "position": 0,
+                "correct_lemma_ar": "شَال",
+                "correct_gloss": "shawl, scarf",
+                "correct_pos": "noun",
+                "explanation": "same bare, different sense",
+            }
+        ]} for _ in inputs]
+    patched_verifier(same_bare_wrong_sense)
+
+    stats = mapping_rescue.rescue_sentences_for_lemmas([wrong.lemma_id])
+
+    db_session.expire_all()
+    refreshed = db_session.query(Sentence).get(sent.id)
+    assert refreshed.mappings_verified_at == STALE
+    assert stats.sentences_unfixable == 1
+    assert stats.sentences_rescued == 0
+
+
+def test_compatible_same_lemma_overcall_still_stamps(db_session, patched_verifier):
+    """A verifier restating the current compatible lemma remains a harmless overcall."""
+    current = _lemma(db_session, "جَلَبَ", "to bring", bare="جلب", pos="verb")
+    sent = _stale_sentence(db_session, [current.lemma_id], target_id=current.lemma_id)
+    db_session.commit()
+
+    def compatible_same_lemma(inputs, _lemma_map):
+        return [{"disambiguation": [], "issues": [
+            {
+                "position": 0,
+                "correct_lemma_ar": "جَلَبَ",
+                "correct_gloss": "to bring",
+                "correct_pos": "verb",
+                "explanation": "same lemma",
+            }
+        ]} for _ in inputs]
+    patched_verifier(compatible_same_lemma)
+
+    stats = mapping_rescue.rescue_sentences_for_lemmas([current.lemma_id])
+
+    db_session.expire_all()
+    refreshed = db_session.query(Sentence).get(sent.id)
+    assert refreshed.mappings_verified_at > STALE
+    assert stats.sentences_rescued == 1
+
+
 def test_fixable_issue_via_existing_lemma(db_session, patched_verifier):
     """Verifier proposes a correction whose target lemma already exists in DB."""
     wrong = _lemma(db_session, "عَلِيّ", "Ali (name)")

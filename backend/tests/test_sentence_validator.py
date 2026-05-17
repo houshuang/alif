@@ -1203,6 +1203,50 @@ class TestCorrectMapping:
         )
         assert result == lem2.lemma_id
 
+    def test_reject_wrong_sense_same_bare_homograph(self, db_session):
+        """A same-bare candidate with the wrong gloss/POS is not a valid correction."""
+        from app.models import Lemma
+        from app.services.sentence_validator import correct_mapping
+
+        rise = Lemma(
+            lemma_ar="شَالَ",
+            lemma_ar_bare="شال",
+            gloss_en="to rise, to become elevated",
+            pos="verb",
+        )
+        db_session.add(rise)
+        db_session.flush()
+
+        result = correct_mapping(
+            db_session,
+            "شَال",
+            "shawl, scarf",
+            "noun",
+            current_lemma_id=rise.lemma_id,
+        )
+
+        assert result is None
+
+    def test_accept_matching_same_bare_homograph(self, db_session):
+        """A different same-bare candidate is accepted when its sense matches."""
+        from app.models import Lemma
+        from app.services.sentence_validator import correct_mapping
+
+        ask = Lemma(lemma_ar="سَأَلَ", lemma_ar_bare="سال", gloss_en="to ask", pos="verb")
+        flow = Lemma(lemma_ar="سَالَ", lemma_ar_bare="سال", gloss_en="to flow, to run", pos="verb")
+        db_session.add_all([ask, flow])
+        db_session.flush()
+
+        result = correct_mapping(
+            db_session,
+            "سَالَ",
+            "to flow",
+            "verb",
+            current_lemma_id=ask.lemma_id,
+        )
+
+        assert result == flow.lemma_id
+
     def test_returns_none_for_missing(self, db_session):
         """Returns None when the lemma doesn't exist at all."""
         from app.services.sentence_validator import correct_mapping

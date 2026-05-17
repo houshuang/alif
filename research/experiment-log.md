@@ -4,6 +4,55 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-05-17: Sense-aware correction resolver for lemmatization gates
+
+### What
+
+User reported several recent bad lemmatizations despite the verification gates. Prod flags confirmed 7 word-mapping flags between 2026-05-01 and 2026-05-16, including 3 on 2026-05-16 alone. Representative live examples:
+
+- `#45595`: `شَلّاً` "shawl" mapped to `#899 شَالَ` "to rise" after generation. The verifier initially flagged it, but the correction resolver accepted the only same-bare DB row.
+- `#39831`: `أَمِينٌ` "trustworthy" mapped to `#76 أُمّ` "mother"; rolling reverify stamped the corpus sentence as current on 2026-05-15.
+- `#34061`: `مَوْضُوعٌ` mapped to `#1678 أَضَعُ` "I put" through forms_json `passive_participle=موضوع`; `وَالتَّأَمُّلِ` mapped to `#637 أَمَلَ` "to hope".
+- `#37473`: `سِيقَانُهَا` "her legs" mapped to `#2202 سَاقَ` "to drive"; `تَسِيرَ` "to walk" mapped to `#137 سِيرَة` "biography".
+
+Branch `sh/lemmatization-gates-fail-closed` changes `correct_mapping()` from bare-form-only lookup to **bare + POS/gloss compatibility**. The verifier's proposed `correct_gloss` and `correct_pos` must plausibly match the DB candidate before the candidate can be applied or treated as a harmless `same_lemma` overcall. Wrong same-bare homographs now fail closed: generation discards them; rescue/reverify leaves them stale or NULLs the offending position so `reviewable_sentence_clauses()` hides the sentence.
+
+### Why
+
+The hard gates were individually present, but the final repair step was too weak:
+
+1. The deterministic mapper indexes direct lemmas, forms_json, and generated inflections. If a true canonical is missing, a derived form on an adjacent bad lemma can win.
+2. The LLM verifier often notices the bad mapping and proposes the right Arabic bare form plus gloss/POS.
+3. `correct_mapping()` previously checked only Arabic bare form. If any same-bare lemma existed, even with the wrong gloss/POS, it returned that row.
+4. The 2026-05-13 rolling reverify calibration then made this worse: `same_lemma` failures were treated as verifier overcalls. Because the lookup ignored gloss/POS, wrong same-bare homographs were re-stamped as verified.
+
+This is why adding more verifier passes did not hold: the verifier was often right, but the resolver collapsed its semantic correction back to an incompatible DB row.
+
+### Expected behaviour
+
+- A proposed `شال / shawl / noun` no longer resolves to `شال / to rise / verb`.
+- A proposed `سال / to flow / verb` can still resolve from `سال / to ask` to the separate `سال / to flow` row when that compatible row exists.
+- Rolling reverify still keeps genuinely pedantic same-lemma overcalls when the proposed sense matches the current DB lemma.
+- Missing compatible homographs become visible in `mapping_corrections_*.jsonl` / `mapping_reverify_failures_*.jsonl` instead of leaking to review.
+
+### Risks / watch
+
+- This is intentionally more fail-closed. Some synonym cases may reject sentences that could have been repaired (`pledge` vs `promise`) unless the DB gloss overlaps the verifier gloss. That is preferable to showing wrong lemmas; rejected proposals feed the existing missing-lemma curation path.
+- Existing bad rows remain in prod until a reverify sweep or flag path touches them. Run `reverify_active_sentences.py --dry-run --limit N` after deploy to estimate the new unfixable rate, then a real sweep if it is manageable.
+- The flag evaluator still contains a duplicated bare-form correction loop rather than delegating to `apply_corrections()`. It retires unfixable sentences, but the duplication violates the documented single-path invariant and should be cleaned up next.
+
+### Verify
+
+- `cd backend && .venv/bin/python -m pytest tests/test_sentence_validator.py tests/test_mapping_rescue.py tests/test_sentence_eligibility.py`
+- Result: 177 passed, 9 existing SQLAlchemy `Query.get()` warnings.
+- Prod-copy dry-run spot check, using `scripts/reverify_active_sentences.py --dry-run --sentence-id ...` against the 12 recent word-mapping flag sentences from 2026-04-20 through 2026-05-16:
+  - 10 sentences became unfixable/hidden with 15 failed positions: `#46039`, `#39831`, `#45595`, `#46040`, `#34061`, `#37473`, `#16362`, `#37090`, `#37101`, `#33051`.
+  - 1 sentence passed after its prior fix: `#41168`.
+  - 1 sentence would be corrected, not hidden: `#34681`.
+  - Crucially, `#45595` (`شَلّاً` "shawl" vs `شَالَ` "to rise") and the other same-bare/wrong-sense cases now fail closed as `not_found` instead of being stamped as `same_lemma` overcalls.
+
+---
+
 ## 2026-05-15: Enforce daily intro cap at chokepoint + smooth cards per session
 
 ### What
