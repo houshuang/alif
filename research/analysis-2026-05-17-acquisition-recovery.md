@@ -38,6 +38,18 @@ Implemented changes:
 6. `word_selector.introduce_word()` and `_auto_introduce_words()` now treat cap-deferred starts as `encountered`, not as successfully introduced words.
 7. One-shot repair script added: `backend/scripts/reset_fast_intro_promotions_2026_05_17.py`. It preserves review history and resets current acquiring Box-2/3 words whose first correct acquisition review happened inside the intro-card gap.
 
+## Production Apply Baseline
+
+Applied after deploy on 2026-05-17:
+
+- Backup: `/opt/alif-backups/alif_pre_fast_intro_reset_20260517_212152.db`.
+- Dry-run before apply: 65 candidates.
+- Candidate reasons: 43 `box2_one_fast_correct`, 22 `fast_correct_then_fail_low_acc`.
+- Old boxes: 63 from Box 2, 2 from Box 3.
+- Sources: 45 `textbook_scan`, 7 `frequency_core`, 6 `book`, 7 `collateral`.
+- Post-apply dry-run: 0 candidates.
+- Post-reset baseline: 125 acquiring total; Box 1 = 93 (92 due, 14 unreviewed), Box 2 = 20 (16 due), Box 3 = 12 (7 due), due total = 115.
+
 ## Operational Interpretation
 
 It is still fine to introduce 6-8 new words on a high-practice day while this backlog exists, if the day includes 100+ sentence reviews and accuracy is not slipping. The system should not introduce 30 new words at the start of the day under overload.

@@ -50,9 +50,15 @@ The target behavior is still aggressive: if the user reviews 100+ sentences in a
 - `cd frontend && npm run typecheck`
 - `cd frontend && npm test -- --runInBand`
 
-### Deploy runbook
+### Deploy
 
-After merge, deploy backend/frontend, then run the reset script against production once with `--apply`. Record the candidate count, reason/source breakdown, and post-reset Box distribution in the deployment notes or the next follow-up entry.
+- PR #81 was squash-merged to main as `9119f82`.
+- Deployed 2026-05-17 19:21 UTC with full backend/frontend restart: `alif-backend` active, `alif-expo` active, `GET http://127.0.0.1:3000/` returned `{"app":"alif","version":"0.1.0"}`.
+- Backup before data repair: `/opt/alif-backups/alif_pre_fast_intro_reset_20260517_212152.db`.
+- Reset dry-run before apply: 65 candidates (`box2_one_fast_correct` 43, `fast_correct_then_fail_low_acc` 22; old Box 2 = 63, old Box 3 = 2; sources: textbook_scan 45, frequency_core 7, book 6, collateral 7).
+- Reset apply committed the same 65 candidates and wrote `activity_log.event_type="fast_intro_promotions_reset"`.
+- Post-apply dry-run found 0 candidates.
+- Post-reset acquisition baseline: 125 acquiring total; Box 1 = 93 (92 due, 14 unreviewed), Box 2 = 20 (16 due), Box 3 = 12 (7 due), due total = 115.
 
 ---
 
