@@ -15,6 +15,7 @@ from app.services.word_selector import (
     _grammar_pattern_score_batch,
     _is_noise_lemma,
 )
+from app.services.acquisition_service import DAILY_INTRO_CAP
 from app.services.grammar_service import grammar_pattern_score
 
 
@@ -54,6 +55,25 @@ def _mark_known(db, lemma_id, state="known"):
     db.add(k)
     db.flush()
     return k
+
+
+def _fill_daily_intro_cap(db, count=DAILY_INTRO_CAP):
+    started_at = datetime.now(timezone.utc).replace(hour=12, minute=0, second=0, microsecond=0)
+    for i in range(count):
+        lemma = _create_lemma(db, f"سقف{i}", f"cap{i}")
+        db.add(UserLemmaKnowledge(
+            lemma_id=lemma.lemma_id,
+            knowledge_state="acquiring",
+            acquisition_box=2,
+            acquisition_next_due=started_at + timedelta(days=1),
+            acquisition_started_at=started_at,
+            entered_acquiring_at=started_at,
+            introduced_at=started_at,
+            source="collateral",
+            times_seen=1,
+            times_correct=1,
+        ))
+    db.flush()
 
 
 class TestFrequencyScore:
@@ -318,6 +338,25 @@ class TestIntroduceWord:
         assert knowledge.knowledge_state == "acquiring"
         assert knowledge.acquisition_box == 1
         assert knowledge.introduced_at is not None
+
+    def test_cap_deferred_introduction_returns_encountered(self, db_session):
+        _fill_daily_intro_cap(db_session)
+        lemma = _create_lemma(db_session, "مؤجل", "deferred", freq=100)
+        db_session.commit()
+
+        result = introduce_word(db_session, lemma.lemma_id)
+        assert result["state"] == "encountered"
+        assert result["already_known"] is False
+        assert result["cap_deferred"] is True
+
+        knowledge = (
+            db_session.query(UserLemmaKnowledge)
+            .filter(UserLemmaKnowledge.lemma_id == lemma.lemma_id)
+            .first()
+        )
+        assert knowledge is not None
+        assert knowledge.knowledge_state == "encountered"
+        assert knowledge.acquisition_started_at is None
 
     def test_already_known(self, db_session):
         lemma = _create_lemma(db_session, "كتاب", "book", freq=100)

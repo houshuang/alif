@@ -5,7 +5,8 @@ Words go through three acquisition boxes before graduating to FSRS:
   Box 2: 1-day interval (must be due before advancing)
   Box 3: 3-day interval (must be due before graduating)
 
-Box 1→2 is "encoding" — allowed within a single session for initial repetition.
+Box 1→2 is "encoding" — allowed within a single session for initial repetition,
+except when the review is still inside the intro-card working-memory window.
 Box 2→3 and 3→graduation enforce real inter-session spacing (sleep consolidation).
 
 Graduation is tiered (2026-03-03):
@@ -24,7 +25,7 @@ from typing import Optional
 
 from sqlalchemy.orm import Session
 
-from app.models import Lemma, ReviewLog, Root, UserLemmaKnowledge
+from app.models import Lemma, ReviewLog, Root, SentenceReviewLog, UserLemmaKnowledge
 from app.services.fsrs_service import create_new_card, parse_json_column, STATE_MAP
 from app.services.interaction_logger import log_interaction
 
@@ -44,6 +45,19 @@ ROOT_SIBLING_THRESHOLD = 2  # known root siblings needed for Easy graduation boo
 # was shown moments ago — that's working memory, not learning. Require this
 # much elapsed time since the intro card before allowing fast-grad.
 FAST_GRAD_INTRO_GAP = timedelta(minutes=10)
+# Correct reviews inside the intro-card gap count for exposure/accuracy, but
+# should stay in Box 1 and come back soon instead of proving consolidation.
+FAST_INTRO_RETRY_INTERVAL = timedelta(minutes=30)
+
+
+def _intro_shown_recently(ulk: UserLemmaKnowledge, now: datetime) -> bool:
+    intro_shown = ulk.experiment_intro_shown_at
+    if intro_shown is None:
+        return False
+    if intro_shown.tzinfo is None:
+        intro_shown = intro_shown.replace(tzinfo=timezone.utc)
+    gap = now - intro_shown
+    return timedelta(0) <= gap < FAST_GRAD_INTRO_GAP
 
 
 def _reviews_span_calendar_days(db: Session, lemma_id: int, min_days: int) -> bool:
@@ -68,6 +82,17 @@ def _reviews_span_calendar_days(db: Session, lemma_id: int, min_days: int) -> bo
 
 DAILY_INTRO_CAP = 30  # ceiling on new acquiring promotions per UTC day; see start_acquisition
 
+# Recovery-mode intro budget. These gates only bind when the acquisition
+# pipeline is overloaded; normal low-debt days keep the hard 30/day ceiling.
+RECOVERY_BOX1_UNREVIEWED_LIMIT = 5
+RECOVERY_BOX2_DUE_LIMIT = 30
+RECOVERY_MIN_SENTENCES_FOR_ANY_INTRO = 40
+RECOVERY_MIN_SENTENCES_FOR_FULL_BUDGET = 100
+RECOVERY_LOW_ACCURACY_FLOOR = 0.80
+RECOVERY_GOOD_ACCURACY_FLOOR = 0.85
+RECOVERY_MID_INTRO_BUDGET = 4
+RECOVERY_FULL_INTRO_BUDGET = 8
+
 
 def _daily_intro_count(db: Session, today_start: datetime) -> int:
     """Count today's acquisitions that count toward the daily cap.
@@ -86,6 +111,71 @@ def _daily_intro_count(db: Session, today_start: datetime) -> int:
         )
         .count()
     )
+
+
+def _recovery_backlog_counts(db: Session, now: datetime) -> tuple[int, int]:
+    """Return (unreviewed box-1 count, due box-2 count)."""
+    box1_unreviewed = (
+        db.query(UserLemmaKnowledge)
+        .filter(
+            UserLemmaKnowledge.knowledge_state == "acquiring",
+            UserLemmaKnowledge.acquisition_box == 1,
+            (UserLemmaKnowledge.times_seen == 0) | (UserLemmaKnowledge.times_seen.is_(None)),
+        )
+        .count()
+    )
+    box2_due = (
+        db.query(UserLemmaKnowledge)
+        .filter(
+            UserLemmaKnowledge.knowledge_state == "acquiring",
+            UserLemmaKnowledge.acquisition_box == 2,
+            UserLemmaKnowledge.acquisition_next_due <= now,
+        )
+        .count()
+    )
+    return box1_unreviewed, box2_due
+
+
+def _recovery_mode_intro_budget(db: Session, now: datetime, today_start: datetime) -> int:
+    """Return the effective daily intro budget under acquisition overload.
+
+    When Box 1/2 debt is normal, this returns DAILY_INTRO_CAP so the normal
+    aggressive learning path is unchanged. When the pipeline is overloaded,
+    new words must be earned by same-day sentence practice and accuracy.
+    """
+    box1_unreviewed, box2_due = _recovery_backlog_counts(db, now)
+    overloaded = (
+        box1_unreviewed >= RECOVERY_BOX1_UNREVIEWED_LIMIT
+        or box2_due >= RECOVERY_BOX2_DUE_LIMIT
+    )
+    if not overloaded:
+        return DAILY_INTRO_CAP
+
+    sentence_reviews_today = (
+        db.query(SentenceReviewLog)
+        .filter(SentenceReviewLog.reviewed_at >= today_start)
+        .count()
+    )
+    if sentence_reviews_today < RECOVERY_MIN_SENTENCES_FOR_ANY_INTRO:
+        return 0
+
+    word_reviews_today = (
+        db.query(ReviewLog)
+        .filter(ReviewLog.reviewed_at >= today_start)
+        .all()
+    )
+    accuracy = None
+    if len(word_reviews_today) >= 10:
+        accuracy = sum(1 for r in word_reviews_today if r.rating >= 3) / len(word_reviews_today)
+        if accuracy < RECOVERY_LOW_ACCURACY_FLOOR:
+            return 0
+
+    if accuracy is not None and accuracy < RECOVERY_GOOD_ACCURACY_FLOOR:
+        return RECOVERY_MID_INTRO_BUDGET
+
+    if sentence_reviews_today >= RECOVERY_MIN_SENTENCES_FOR_FULL_BUDGET:
+        return RECOVERY_FULL_INTRO_BUDGET
+    return RECOVERY_MID_INTRO_BUDGET
 
 
 def start_acquisition(
@@ -139,11 +229,14 @@ def start_acquisition(
     cap_hit = False
     if enforce_daily_cap and source != "leech_reintro":
         today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
-        if _daily_intro_count(db, today_start) >= DAILY_INTRO_CAP:
+        intro_count = _daily_intro_count(db, today_start)
+        effective_daily_cap = _recovery_mode_intro_budget(db, now, today_start)
+        if intro_count >= effective_daily_cap:
             cap_hit = True
             logger.info(
-                "Daily intro cap (%d) reached; lemma %s stays in encountered (source=%r)",
-                DAILY_INTRO_CAP, lemma_id, source,
+                "Daily intro budget (%d/%d) reached; lemma %s stays in encountered "
+                "(source=%r, today_count=%d)",
+                effective_daily_cap, DAILY_INTRO_CAP, lemma_id, source, intro_count,
             )
 
     if cap_hit:
@@ -279,6 +372,7 @@ def submit_acquisition_review(
     old_times_seen = ulk.times_seen or 0
     old_times_correct = ulk.times_correct or 0
     old_knowledge_state = ulk.knowledge_state
+    recent_intro = _intro_shown_recently(ulk, now)
 
     # Update review counts
     ulk.times_seen = old_times_seen + 1
@@ -301,25 +395,26 @@ def submit_acquisition_review(
     # learning, and bypassing acquisition robs the encoding phase.
     graduated = False
     if old_times_seen == 0 and rating_int >= 3:
-        intro_shown = ulk.experiment_intro_shown_at
-        if intro_shown is not None:
-            if intro_shown.tzinfo is None:
-                intro_shown = intro_shown.replace(tzinfo=timezone.utc)
-            recent_intro = (now - intro_shown) < FAST_GRAD_INTRO_GAP
-        else:
-            recent_intro = False
         if not recent_intro:
             _graduate(ulk, now, db=db)
             graduated = True
 
     # Box advancement logic
-    # Box 1→2: always allowed (encoding phase, within-session repetition)
+    # Box 1→2: allowed for encoding unless this is intro-card working memory
     # Box 2→3 and graduation: only when due (enforce inter-session spacing)
     if not graduated and rating_int >= 3:
         if old_box == 1:
-            # Box 1→2: always advance (encoding → consolidation handoff)
-            ulk.acquisition_box = 2
-            ulk.acquisition_next_due = now + BOX_INTERVALS[2]
+            if recent_intro:
+                # Still inside the intro-card working-memory window. Count the
+                # correct exposure, but keep the word in encoding instead of
+                # promoting it to next-day consolidation.
+                ulk.acquisition_box = 1
+                ulk.acquisition_next_due = now + FAST_INTRO_RETRY_INTERVAL
+            else:
+                # Box 1→2: advance once recognition is not just immediate
+                # recall of the intro card.
+                ulk.acquisition_box = 2
+                ulk.acquisition_next_due = now + BOX_INTERVALS[2]
         elif old_box == 2 and is_due:
             # Box 2→3: only when due (1-day interval honored)
             ulk.acquisition_box = 3
@@ -373,11 +468,13 @@ def submit_acquisition_review(
         new_times_correct = ulk.times_correct
         accuracy = new_times_correct / new_times_seen if new_times_seen > 0 else 0
 
-        # Tier 1: Perfect accuracy, 3+ reviews → graduate from any box
-        if accuracy >= 1.0 and new_times_seen >= 3:
+        # Tier 1: Perfect accuracy, 3+ reviews → graduate from any box.
+        # The intro-card gap blocks this too; otherwise three immediate
+        # same-session correct answers could still graduate on working memory.
+        if not recent_intro and accuracy >= 1.0 and new_times_seen >= 3:
             graduated = True
         # Tier 2: High accuracy (≥80%), 4+ reviews → graduate from box ≥ 2
-        elif accuracy >= 0.80 and new_times_seen >= 4 and ulk.acquisition_box >= 2:
+        elif not recent_intro and accuracy >= 0.80 and new_times_seen >= 4 and ulk.acquisition_box >= 2:
             graduated = True
         # Tier 3: Standard (existing criteria) — requires due for spacing
         elif is_due and (ulk.acquisition_box >= 3
@@ -410,6 +507,7 @@ def submit_acquisition_review(
             "pre_times_seen": old_times_seen,
             "pre_times_correct": old_times_correct,
             "pre_knowledge_state": old_knowledge_state,
+            "intro_working_memory_blocked": recent_intro and rating_int >= 3 and old_box == 1,
         },
     )
     db.add(log_entry)

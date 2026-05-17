@@ -729,7 +729,7 @@ def _auto_introduce_words(
         story_id = cand.get("story_id")
         try:
             result = introduce_word(db, lid, source=intro_source, due_immediately=True)
-            if result.get("already_known"):
+            if result.get("already_known") or result.get("state") != "acquiring":
                 continue
             if story_id:
                 lemma = db.query(Lemma).filter(Lemma.lemma_id == lid).first()

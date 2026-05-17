@@ -4,6 +4,58 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-05-17: Acquisition working-memory recovery gate + fast-promotion reset
+
+### What
+
+Live audit of the last five days found 107 net-new acquisitions, mostly `textbook_scan` (87) plus collateral (18). The active acquisition backlog had 125 words: Box 1 = 28, Box 2 = 83, Box 3 = 14. 105 acquiring words were due, including 70 in Box 2. Material availability was not the limiter: all 105 due acquiring words had reviewable sentences, 99 had 3+, and 28 had 5+.
+
+The bad pattern was fast promotion immediately after intro cards. Of 83 current Box-2 words, 74 had their first acquisition review less than two minutes after the intro card. 43 were Box 2 with exactly one fast correct; 31 had a fast first correct followed by later failure or low accuracy.
+
+Branch `sh/acquisition-working-memory-gate`:
+
+1. Expands `FAST_GRAD_INTRO_GAP` from a Tier-0 fast-grad guard into a full Box-1 working-memory guard. Correct reviews inside the post-intro window count as exposure, but cannot promote Box 1 -> 2 or trigger Tier 0/1/2 graduation.
+2. Adds `FAST_INTRO_RETRY_INTERVAL=30m` so blocked correct reviews stay in Box 1 and come back soon.
+3. Adds recovery-mode intro budgeting inside `start_acquisition()`: normal days keep `DAILY_INTRO_CAP=30`; overload days (Box-1 unreviewed >=5 or due Box-2 >=30) require same-day sentence practice before new words are allowed. Recovery budgets are 0 before 40 sentence reviews, 4 after 40 with acceptable accuracy, and 8 after 100 with >=85% word-review accuracy.
+4. Fixes `word_selector.introduce_word()` and `_auto_introduce_words()` so a cap-deferred start returns/remains `encountered` and is not counted or logged as an introduced word.
+5. Frontend session auto-skip no longer skips acquiring primary words or `acquisition_repeat` cards after one in-session correct answer.
+6. Adds one-shot repair script `reset_fast_intro_promotions_2026_05_17.py` to reset current Box-2/3 fast-promotion candidates to Box 1 due now while preserving all review history.
+
+### Why
+
+The May 15 cap fixed total daily intake and per-session intro-card count, but it did not address the quality of early practice. A correct answer seconds after seeing an intro card is usually working memory. Promoting that to Box 2 created a next-day due backlog whose words had not received enough contextual exposure.
+
+The target behavior is still aggressive: if the user reviews 100+ sentences in a day and accuracy holds, 6-8 new words is acceptable even during recovery. What should stop is a 30-word morning dump before the system has evidence that the current Box 1/2 debt is being practiced.
+
+### Expected behaviour
+
+- Intro cards remain capped at 6 per session.
+- Immediate correct answers after intro cards stay in Box 1.
+- Under current overload, new intros should be near 0 early in the day, then up to 4 or 8 only after real sentence volume.
+- Reset Box-2/3 fast-promotion words become due sentence practice rather than disappearing into next-day consolidation.
+- Acquisition repeat sentences are shown; they are not auto-skipped by the frontend after an earlier same-session correct.
+
+### Watch
+
+- Tomorrow: run the reset script in dry-run mode. Candidate count should be 0 or low after the production apply. If it rises, the intro-card promotion leak is still present.
+- Tomorrow: Box-1 unreviewed should drop below 5 after real review volume; due Box-2 should start falling from 70.
+- Next three days: if the user does 100+ sentence reviews/day and due Box-2 remains >=30, lower `RECOVERY_FULL_INTRO_BUDGET` from 8 to 6 temporarily.
+- Keep an eye on same-day word-review accuracy. If recovery mode keeps unlocking intros while accuracy is <85%, the word-review sample may be too sparse and should require more than the current 10 reviews.
+
+### Verify
+
+- `backend/.venv/bin/python -m pytest backend/tests/test_acquisition.py backend/tests/test_word_selector.py -q`
+- `backend/.venv/bin/python -m pytest backend/tests/test_sentence_selector.py -q`
+- `backend/.venv/bin/python -m py_compile backend/scripts/reset_fast_intro_promotions_2026_05_17.py backend/app/services/acquisition_service.py backend/app/services/word_selector.py backend/app/services/sentence_selector.py`
+- `cd frontend && npm run typecheck`
+- `cd frontend && npm test -- --runInBand`
+
+### Deploy runbook
+
+After merge, deploy backend/frontend, then run the reset script against production once with `--apply`. Record the candidate count, reason/source breakdown, and post-reset Box distribution in the deployment notes or the next follow-up entry.
+
+---
+
 ## 2026-05-17: Sense-aware correction resolver for lemmatization gates
 
 ### What

@@ -169,7 +169,7 @@ learn, and each enters acquisition immediately.
 
 **Gating conditions**:
 - **Reserved slots**: `INTRO_RESERVE_FRACTION` (30%) of session slots reserved for introductions, even when due queue exceeds limit. With limit=10, up to 3 slots are available.
-- **Daily intro cap (2026-05-15)**: All paths that call `start_acquisition()` are now gated by `DAILY_INTRO_CAP = 30` enforced inside the function itself. When today's count of new acquisitions (excluding `leech_reintro`) hits 30, further calls create or leave the ULK in `encountered` state instead of promoting to acquiring. This includes OCR/textbook_scan, sentence-review collateral promotion, Quran promotion, the cold session-build promoter, and the auto-intro path. The previous `DAILY_AUTO_INTRO_TARGET` constant in `sentence_selector.py` is now redundant but kept for accuracy throttle calculations.
+- **Daily intro cap (2026-05-15, recovery budget 2026-05-17)**: All paths that call `start_acquisition()` are gated by `DAILY_INTRO_CAP = 30` enforced inside the function itself. When today's count of new acquisitions (excluding `leech_reintro`) hits the effective budget, further calls create or leave the ULK in `encountered` state instead of promoting to acquiring. This includes OCR/textbook_scan, sentence-review collateral promotion, Quran promotion, the cold session-build promoter, and the auto-intro path. On normal low-debt days the effective budget is the full 30. When acquisition debt is high (`RECOVERY_BOX1_UNREVIEWED_LIMIT=5` or `RECOVERY_BOX2_DUE_LIMIT=30`), the budget is earned from same-day sentence practice: 0 before 40 sentence reviews, 4 after 40 reviews with acceptable accuracy, and 8 after 100 sentence reviews with >=85% word-review accuracy. This prevents introducing a fresh pile before the current Box 1/2 words have had real contextual practice while still allowing 6-8 new words on high-practice days.
 - **Pipeline backlog gate**: Reserved intro slots suppressed when acquiring pipeline exceeds a dynamic threshold keyed on recent word-level ReviewLog accuracy (last 2 days, min 10 reviews). Current values in `sentence_selector.py`: `PIPELINE_BACKLOG_THRESHOLD = 80` (accuracy < 80%), `MID_ACCURACY_INTRO_BACKLOG_CAP = 120` (80–90%), `HIGH_ACCURACY_INTRO_BACKLOG_CAP = 200` (≥ 90%). The 40/60/120 earlier values were tightened upward during the aggressive intro trial. Undersized-session fill still works (when due < limit). Resumes automatically when pipeline drains below threshold.
 - **Low-tier intro gate**: When box-1 acquiring count exceeds `LOW_TIER_BLOCK_BACKLOG` (60), candidates whose source is in `LOW_TIER_INTRO_SOURCES` (`wiktionary`, `story_import`, `manual`, `flag_autocreate`, unsourced) are filtered out of the auto-intro candidate list, even during undersized-session fill. Active book/story words and high-tier sources (`textbook_scan`, `duolingo`, `avp_a1`) are unaffected. Forces the learner to clear actively-encountered backlog before introducing words from passive frequency lists.
 - Recent accuracy ≥ `AUTO_INTRO_ACCURACY_FLOOR` (70%) over last 10+ reviews
@@ -348,8 +348,9 @@ limits how fast the encountered pool drains. Future tuning: count high-encounter
            └──────────────────────────┘──────────────────────────┘
                       Reset to Box 1
 
-     Box advancement rules (2026-02-14):
-       Box 1→2: ALWAYS allowed (within-session encoding phase)
+     Box advancement rules (2026-05-17):
+       Box 1→2: allowed within-session except inside the intro-card
+                working-memory gap
        Box 2→3: ONLY when acquisition_next_due <= now (enforce inter-session spacing)
        Graduation: Tiered — first-correct instant, perfect/high-acc fast-track, or standard (due + 2 cal days)
 
@@ -372,6 +373,8 @@ BOX_INTERVALS = {1: 4h, 2: 1d, 3: 3d}
 GRADUATION_MIN_REVIEWS = 5
 GRADUATION_MIN_ACCURACY = 0.60
 GRADUATION_MIN_CALENDAR_DAYS = 2
+FAST_GRAD_INTRO_GAP = 10m
+FAST_INTRO_RETRY_INTERVAL = 30m
 ```
 
 ### Graduation Criteria (Tiered — 2026-03-03)
@@ -382,7 +385,7 @@ Graduation uses a tiered system. Tier 0/1/2 can fire on **any review** (includin
 
 **Tier 0 — First-correct instant graduation**: If a word's very first review is correct (rating ≥ 3, `times_seen` was 0), it graduates immediately. Data shows 0% lapse rate for fast graduates. FSRS safety net catches false positives.
 
-**Tier 0 working-memory gate** (2026-04-27): if the intro card was shown within `FAST_GRAD_INTRO_GAP = 10 minutes` of the first review, Tier 0 is **skipped** and the word advances Box 1→2 normally. Production data showed 6/6 traceable fast-grads happened within 60 seconds of the intro card (4/6 within 30s) — that's working memory of the intro card, not knowledge. Words with no intro card shown (e.g. encountered → auto-introduced via collateral) bypass the gate and still fast-grad.
+**Intro working-memory gate** (expanded 2026-05-17): if the intro card was shown within `FAST_GRAD_INTRO_GAP = 10 minutes`, a correct review is counted as a real exposure but must not prove consolidation. During that window, Tier 0 is skipped, Box 1 stays Box 1, Tier 1/2 graduation is blocked, and the word is scheduled with `FAST_INTRO_RETRY_INTERVAL = 30 minutes`. Production data on 2026-05-17 showed most current Box 2 words had their first correct review within two minutes of the intro card; those were working-memory recognitions, not durable next-day readiness. Words with no intro card shown (e.g. encountered → auto-introduced via collateral) bypass the gate and can still fast-grad.
 
 **Tier 1 — Perfect accuracy**: 100% accuracy + 3+ reviews → graduate from any box. No calendar-day or due-date requirement.
 
@@ -402,7 +405,10 @@ This was a deliberate fix — see experiment-log.md.
 
 Box 1 is the "encoding" phase — initial exposure and within-session repetition. Research
 shows that massed practice (multiple exposures in a short window) is effective for initial
-encoding. Box 1→2 advancement is therefore unrestricted.
+encoding. Box 1→2 advancement is therefore allowed within-session only after the
+intro-card working-memory gap has passed. Immediate correct answers still count toward
+`times_seen` / `times_correct`, but they stay in Box 1 so the learner gets another
+sentence soon instead of a premature next-day Box 2 card.
 
 Boxes 2-3 are the "consolidation" phase — inter-session spacing with sleep cycles. The
 1-day and 3-day intervals enforce real memory consolidation. These must be due before
@@ -437,10 +443,12 @@ box-2 (consolidation). Box-2 was lowered from 4 → 2 on 2026-05-04 because a
 single correct rating in box-2 already triggers Tier 1 graduation, so the
 trailing 2 reps were on words the learner had just mastered.
 
-Additionally, the **frontend auto-skips a sentence card** when its primary
-lemma was already answered correctly earlier in the same session. Failed
-reviews still get the full re-teaching loop (intro + reps next session). The
-auto-skip is implemented as a single-pass forward scan in
+Additionally, the **frontend auto-skips mature duplicate sentence cards** when
+their primary lemma was already answered correctly earlier in the same session.
+Acquiring words and `acquisition_repeat` cards are excluded from this skip rule;
+those cards are the encoding loop and must remain visible even after one correct
+answer. Failed reviews still get the full re-teaching loop (intro + reps next
+session). The auto-skip is implemented as a single-pass forward scan in
 `frontend/app/index.tsx` (jumps directly to the first non-skippable slot, no
 per-card flicker). If the scan reaches the end of the session, results.total
 is bumped to `totalCards` so the session-complete screen fires (without this
@@ -1639,12 +1647,20 @@ remaining cards on the next card advance. See Section 8 "Sentence Pre-Warming" f
 | `MAX_ACQUISITION_EXTRA_SLOTS` | 15 | Max extra cards for acquisition repetition |
 | `MAX_AUTO_INTRO_PER_SESSION` | 5 | Per-call cap on auto-intro words |
 | `DAILY_AUTO_INTRO_TARGET` | 30 | Daily cap for automatic new-word introductions (used by `_auto_introduce_words` accuracy throttling) |
-| `DAILY_INTRO_CAP` | 30 | Hard ceiling enforced inside `start_acquisition()` for *every* path (OCR, collateral, Quran, book, cold-promoter, auto-intro). `leech_reintro` bypasses (2026-05-15) |
+| `DAILY_INTRO_CAP` | 30 | Maximum daily budget enforced inside `start_acquisition()` for *every* path (OCR, collateral, Quran, book, cold-promoter, auto-intro). On overload days the recovery budget below can lower the effective cap. `leech_reintro` bypasses (2026-05-15/17) |
+| `RECOVERY_BOX1_UNREVIEWED_LIMIT` | 5 | Overload trigger: unreviewed Box-1 acquiring words at or above this count switch intros to earned-budget mode |
+| `RECOVERY_BOX2_DUE_LIMIT` | 30 | Overload trigger: due Box-2 acquiring words at or above this count switch intros to earned-budget mode |
+| `RECOVERY_MIN_SENTENCES_FOR_ANY_INTRO` | 40 | In recovery mode, no net-new acquisition before this many same-day sentence reviews |
+| `RECOVERY_MIN_SENTENCES_FOR_FULL_BUDGET` | 100 | In recovery mode, allow the full earned budget only after this many same-day sentence reviews |
+| `RECOVERY_MID_INTRO_BUDGET` | 4 | Recovery-mode budget after the 40-sentence threshold with acceptable accuracy |
+| `RECOVERY_FULL_INTRO_BUDGET` | 8 | Recovery-mode budget after 100+ sentence reviews and >=85% word-review accuracy |
+| `RECOVERY_LOW_ACCURACY_FLOOR` / `RECOVERY_GOOD_ACCURACY_FLOOR` | 0.80 / 0.85 | Recovery-mode accuracy gates. <80% pauses intros; 80-85% keeps the mid budget; >=85% can unlock 8 after enough sentence practice |
 | `INTRO_NEW_CARDS_PER_SESSION` | 6 | Per-session cap on first-time intro cards in `_build_intro_cards` and on cold-promoter promotions in `_ensure_session_words_have_intro_state` (2026-05-15) |
-| `HIGH_ACCURACY_INTRO_BACKLOG_CAP` | 120 | Acquiring-pipeline cap used at ≥90% recent accuracy during the 30/day trial |
+| `HIGH_ACCURACY_INTRO_BACKLOG_CAP` | 200 | Acquiring-pipeline cap used at ≥90% recent accuracy during the 30/day trial |
+| `MID_ACCURACY_INTRO_BACKLOG_CAP` | 120 | Acquiring-pipeline cap used at 80-90% recent accuracy |
 | `INTRO_RESERVE_FRACTION` | 0.3 | Fraction of session slots reserved for new words during the aggressive trial |
 | `AUTO_INTRO_ACCURACY_FLOOR` | 0.70 | Pause auto-intro if accuracy below this |
-| `PIPELINE_BACKLOG_THRESHOLD` | 40 (base) | Suppress reserved intro slots when acquiring count exceeds this. Dynamic: 120 at ≥90% accuracy during the 30/day trial, 60 at ≥80%, 40 otherwise |
+| `PIPELINE_BACKLOG_THRESHOLD` | 80 (base) | Suppress reserved intro slots when acquiring count exceeds this. Dynamic: 200 at ≥90% accuracy, 120 at ≥80%, 80 otherwise |
 | `LOW_TIER_BLOCK_BACKLOG` | 60 | Block low-tier sources (wiktionary, story_import, manual, flag_autocreate, unsourced) from auto-intro when box-1 acquiring count exceeds this |
 | Adaptive intro bands | 0→3→5 | Slots at <70%/70-85%/≥85% accuracy |
 | `SESSION_SCAFFOLD_DECAY` | 0.5 | Per-appearance multiplier for scaffold words already in session |
@@ -1652,7 +1668,8 @@ remaining cards on the next card advance. See Section 8 "Sentence Pre-Warming" f
 | `SLOW_LANE_SESSION_FRACTION` | 0.10 | Max share of session budget spent on low/null-rank artifact slow-lane debt |
 | `MAIN_LANE_MAX_RANK` | 5000 | Frequency-core/proxy-rank cutoff that keeps due words in the main lane |
 | `JACCARD_VETO_THRESHOLD` | 0.7 | Hard veto: skip candidate sentence if lemma-set Jaccard ≥ this with any prior selection (2026-04-27) |
-| `FAST_GRAD_INTRO_GAP` | 10 min | Tier-0 instant-grad blocked if intro card was shown within this window (working-memory guard, 2026-04-27) |
+| `FAST_GRAD_INTRO_GAP` | 10 min | Correct reviews inside this post-intro window count as exposure but cannot promote Box 1→2 or graduate (working-memory guard, expanded 2026-05-17) |
+| `FAST_INTRO_RETRY_INTERVAL` | 30 min | Retry interval for correct Box 1 reviews blocked by `FAST_GRAD_INTRO_GAP` |
 | `NEVER_REVIEWED_BOOST` | 5.0 | Score multiplier for sentences targeting acquiring words with 0 reviews OR 0% accuracy |
 | `LAPSED_BOOST` | 3.0 | Score multiplier for sentences targeting any due word in `lapsed` state — drives aggressive re-exposure after a miss |
 | `OVERDUE_ESCALATION_DAYS` | 0.5 | Start boosting score after this many days overdue |

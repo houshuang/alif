@@ -1,13 +1,17 @@
 from datetime import datetime, timedelta, timezone
 
-from app.models import Lemma, ReviewLog, Root, UserLemmaKnowledge
+from app.models import Lemma, ReviewLog, Root, Sentence, SentenceReviewLog, UserLemmaKnowledge
 from app.services.acquisition_service import (
     BOX_INTERVALS,
     DAILY_INTRO_CAP,
     FAST_GRAD_INTRO_GAP,
+    FAST_INTRO_RETRY_INTERVAL,
     GRADUATION_MIN_ACCURACY,
     GRADUATION_MIN_CALENDAR_DAYS,
     GRADUATION_MIN_REVIEWS,
+    RECOVERY_BOX1_UNREVIEWED_LIMIT,
+    RECOVERY_FULL_INTRO_BUDGET,
+    RECOVERY_MIN_SENTENCES_FOR_FULL_BUDGET,
     ROOT_SIBLING_THRESHOLD,
     _count_known_root_siblings,
     get_acquisition_due,
@@ -138,7 +142,37 @@ def test_tier0_blocked_when_intro_just_shown(db_session):
 
     ulk = db_session.query(UserLemmaKnowledge).filter_by(lemma_id=lemma.lemma_id).first()
     assert ulk.knowledge_state == "acquiring"
-    assert ulk.acquisition_box == 2  # advanced box 1→2 (encoding handoff)
+    assert ulk.acquisition_box == 1  # stays in encoding; intro-card recall is working memory
+    expected_due = datetime.now(timezone.utc) + FAST_INTRO_RETRY_INTERVAL
+    actual_due = ulk.acquisition_next_due
+    if actual_due.tzinfo is None:
+        actual_due = actual_due.replace(tzinfo=timezone.utc)
+    assert expected_due - timedelta(seconds=5) <= actual_due <= expected_due + timedelta(seconds=5)
+    assert ulk.times_seen == 1
+    assert ulk.times_correct == 1
+    assert ulk.fsrs_card_json is None
+
+
+def test_recent_intro_correct_reviews_do_not_tier1_graduate(db_session):
+    """Multiple correct reviews inside FAST_GRAD_INTRO_GAP stay in box 1."""
+    lemma = _create_lemma(db_session)
+    start_acquisition(db_session, lemma.lemma_id)
+
+    ulk = db_session.query(UserLemmaKnowledge).filter_by(lemma_id=lemma.lemma_id).first()
+    ulk.experiment_intro_shown_at = datetime.now(timezone.utc) - timedelta(seconds=20)
+    db_session.flush()
+
+    for _ in range(3):
+        result = submit_acquisition_review(db_session, lemma.lemma_id, rating_int=3)
+        assert result.get("graduated") is not True
+        assert result["new_state"] == "acquiring"
+        assert result["acquisition_box"] == 1
+
+    ulk = db_session.query(UserLemmaKnowledge).filter_by(lemma_id=lemma.lemma_id).first()
+    assert ulk.knowledge_state == "acquiring"
+    assert ulk.acquisition_box == 1
+    assert ulk.times_seen == 3
+    assert ulk.times_correct == 3
     assert ulk.fsrs_card_json is None
 
 
@@ -880,14 +914,78 @@ def _fill_daily_cap(db_session, count):
         ulk = UserLemmaKnowledge(
             lemma_id=lem.lemma_id,
             knowledge_state="acquiring",
-            acquisition_box=1,
-            acquisition_next_due=today_noon + timedelta(hours=4),
+            acquisition_box=2,
+            acquisition_next_due=today_noon + timedelta(days=1),
             acquisition_started_at=today_noon,
             entered_acquiring_at=today_noon,
             introduced_at=today_noon,
             source="collateral",
+            times_seen=1,
+            times_correct=1,
         )
         db_session.add(ulk)
+    db_session.flush()
+
+
+def _create_box1_unreviewed_backlog(db_session, count):
+    """Create old unreviewed Box-1 words so recovery mode activates."""
+    started_at = datetime.now(timezone.utc) - timedelta(days=1)
+    for i in range(count):
+        lem = Lemma(
+            lemma_ar=f"متراكم{i}",
+            lemma_ar_bare=f"متراكم{i}",
+            gloss_en=f"backlog{i}",
+            pos="noun",
+        )
+        db_session.add(lem)
+        db_session.flush()
+        db_session.add(UserLemmaKnowledge(
+            lemma_id=lem.lemma_id,
+            knowledge_state="acquiring",
+            acquisition_box=1,
+            acquisition_next_due=started_at,
+            acquisition_started_at=started_at,
+            entered_acquiring_at=started_at,
+            introduced_at=started_at,
+            source="textbook_scan",
+            times_seen=0,
+            times_correct=0,
+        ))
+    db_session.flush()
+
+
+def _add_sentence_reviews_today(db_session, count):
+    sentence = Sentence(arabic_text="جملة اختبار", english_translation="test sentence")
+    db_session.add(sentence)
+    db_session.flush()
+    reviewed_at = datetime.now(timezone.utc)
+    for i in range(count):
+        db_session.add(SentenceReviewLog(
+            sentence_id=sentence.id,
+            comprehension="understood",
+            reviewed_at=reviewed_at,
+            client_review_id=f"recovery-sentence-{i}",
+        ))
+    db_session.flush()
+
+
+def _add_word_reviews_today(db_session, correct_count, total_count):
+    reviewed_at = datetime.now(timezone.utc)
+    for i in range(total_count):
+        lem = Lemma(
+            lemma_ar=f"مراجعة{i}",
+            lemma_ar_bare=f"مراجعة{i}",
+            gloss_en=f"review{i}",
+            pos="noun",
+        )
+        db_session.add(lem)
+        db_session.flush()
+        db_session.add(ReviewLog(
+            lemma_id=lem.lemma_id,
+            rating=3 if i < correct_count else 1,
+            reviewed_at=reviewed_at,
+            is_acquisition=False,
+        ))
     db_session.flush()
 
 
@@ -957,3 +1055,32 @@ def test_daily_cap_allows_under_limit(db_session):
 
     assert ulk.knowledge_state == "acquiring"
     assert ulk.acquisition_started_at is not None
+
+
+def test_recovery_mode_blocks_new_intro_until_sentence_practice(db_session):
+    """When Box-1 debt is high, new intros pause until enough sentence reviews happen."""
+    _create_box1_unreviewed_backlog(db_session, RECOVERY_BOX1_UNREVIEWED_LIMIT)
+
+    lemma = _create_lemma(db_session, arabic="مؤجل", english="deferred")
+    ulk = start_acquisition(db_session, lemma.lemma_id, source="textbook_scan")
+
+    assert ulk.knowledge_state == "encountered"
+    assert ulk.acquisition_started_at is None
+    assert ulk.acquisition_box is None
+
+
+def test_recovery_mode_allows_earned_full_budget_then_blocks(db_session):
+    """With overload plus 100+ sentence reviews and good accuracy, up to 8 intros are allowed."""
+    _create_box1_unreviewed_backlog(db_session, RECOVERY_BOX1_UNREVIEWED_LIMIT)
+    _add_sentence_reviews_today(db_session, RECOVERY_MIN_SENTENCES_FOR_FULL_BUDGET)
+    _add_word_reviews_today(db_session, correct_count=18, total_count=20)
+    _fill_daily_cap(db_session, RECOVERY_FULL_INTRO_BUDGET - 1)
+
+    allowed_lemma = _create_lemma(db_session, arabic="مسموح", english="allowed")
+    allowed = start_acquisition(db_session, allowed_lemma.lemma_id, source="textbook_scan")
+    assert allowed.knowledge_state == "acquiring"
+
+    blocked_lemma = _create_lemma(db_session, arabic="مؤجل٢", english="deferred2")
+    blocked = start_acquisition(db_session, blocked_lemma.lemma_id, source="textbook_scan")
+    assert blocked.knowledge_state == "encountered"
+    assert blocked.acquisition_started_at is None
