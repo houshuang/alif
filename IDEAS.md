@@ -4,6 +4,20 @@
 
 ---
 
+## ✅ [DONE 2026-05-17] Acquisition working-memory gate + recovery intro budget
+
+Prod audit of 2026-05-13 through 2026-05-17 found the aggressive intake was creating acquisition debt faster than sentence practice could consolidate it: 107 net-new acquisitions in five days, 125 current acquiring words, 70 due in Box 2, and 74 of 83 current Box-2 words whose first acquisition review happened less than two minutes after an intro card.
+
+Fix (branch `sh/acquisition-working-memory-gate`):
+
+1. Correct reviews inside `FAST_GRAD_INTRO_GAP` after an intro card no longer promote Box 1 -> 2 or trigger Tier 0/1/2 graduation. They still count as exposure and return after `FAST_INTRO_RETRY_INTERVAL=30m`.
+2. Recovery-mode intro budget activates only under real acquisition overload (Box-1 unreviewed >=5 or due Box-2 >=30). Normal days still allow the full `DAILY_INTRO_CAP=30`; overload days require practice first: 0 before 40 sentence reviews, 4 after 40 with acceptable accuracy, 8 after 100 with >=85% accuracy.
+3. `introduce_word()` and `_auto_introduce_words()` now preserve deferred starts as `encountered` and do not count them as introduced.
+4. Frontend auto-skip excludes acquiring primary words and `acquisition_repeat` cards, so repetition sentences remain visible.
+5. Added `reset_fast_intro_promotions_2026_05_17.py` to reset current Box-2/3 fast-promotion debt to Box 1 due now while preserving review history.
+
+Follow-up checks are documented in `research/analysis-2026-05-17-acquisition-recovery.md`: tomorrow, the reset script dry-run should stay at 0/low and Box-2 due should fall; by 2026-05-20, due Box 2 should be below 30 or clearly declining. If not, temporarily lower `RECOVERY_FULL_INTRO_BUDGET` from 8 to 6.
+
 ## 🔵 [OPEN 2026-05-17] Admin queue for incompatible same-bare correction proposals
 
 The 2026-05-17 sense-aware correction resolver stops wrong same-bare homographs from being accepted as repairs, but it still leaves a manual curation problem. Rejected verifier proposals like `شال / shawl / noun`, `أمين / trustworthy / adj`, `موضوع / topic / noun`, and `تأمل / contemplation / noun` are exactly the missing vocabulary/homograph entries the system needs.

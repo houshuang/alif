@@ -831,6 +831,17 @@ def introduce_word(
         if existing.knowledge_state == "encountered":
             # Transition encountered → acquiring
             ulk = start_acquisition(db, lemma_id, source=source, due_immediately=due_immediately)
+            if ulk.knowledge_state != "acquiring":
+                db.commit()
+                return {
+                    "lemma_id": lemma_id,
+                    "lemma_ar": lemma.lemma_ar,
+                    "gloss_en": lemma.gloss_en,
+                    "state": ulk.knowledge_state,
+                    "already_known": False,
+                    "cap_deferred": True,
+                    "introduced_at": None,
+                }
             from app.services.topic_service import record_introduction
             record_introduction(db)
             db.commit()
@@ -856,6 +867,17 @@ def introduce_word(
 
     # New word — start acquisition
     ulk = start_acquisition(db, lemma_id, source=source, due_immediately=due_immediately)
+    if ulk.knowledge_state != "acquiring":
+        db.commit()
+        return {
+            "lemma_id": lemma_id,
+            "lemma_ar": lemma.lemma_ar,
+            "gloss_en": lemma.gloss_en,
+            "state": ulk.knowledge_state,
+            "already_known": False,
+            "cap_deferred": True,
+            "introduced_at": None,
+        }
     from app.services.topic_service import record_introduction
     record_introduction(db)
     db.commit()

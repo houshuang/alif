@@ -430,10 +430,8 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
 
   // Auto-skip intro cards for words already answered correctly in this session
   // and auto-skip duplicate sentence cards whose primary lemma the learner
-  // already nailed in this session. One correct exposure is enough; further
-  // reps in the same session are massed practice with diminishing return.
-  // If the first exposure failed, all queued reps remain so the learner gets
-  // the intended re-teaching loop.
+  // already nailed in this session. Acquisition words are excluded: their
+  // queued repeat cards are the encoding loop, especially right after an intro.
   useEffect(() => {
     if (!sentenceSession || sessionSlots.length === 0 || submittingReview) return;
 
@@ -458,7 +456,14 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
       } else if (slot?.type === "sentence" && sentenceSession.items[slot.itemIndex]) {
         const item = sentenceSession.items[slot.itemIndex];
         const outcome = wordOutcomes.get(item.primary_lemma_id);
-        if (outcome && !outcome.failed) {
+        const primaryWord = item.words.find(
+          (w) => w.lemma_id === item.primary_lemma_id || w.canonical_lemma_id === item.primary_lemma_id,
+        );
+        const isAcquisitionRepeat = item.selection_info?.reason === "acquisition_repeat";
+        const isAcquiringPrimary =
+          primaryWord?.knowledge_state === "acquiring" ||
+          item.selection_info?.word_reason?.startsWith("Acquiring");
+        if (outcome && !outcome.failed && !isAcquisitionRepeat && !isAcquiringPrimary) {
           target++;
           continue;
         }
