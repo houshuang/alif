@@ -51,6 +51,11 @@ This is why adding more verifier passes did not hold: the verifier was often rig
   - 1 sentence would be corrected, not hidden: `#34681`.
   - Crucially, `#45595` (`شَلّاً` "shawl" vs `شَالَ` "to rise") and the other same-bare/wrong-sense cases now fail closed as `not_found` instead of being stamped as `same_lemma` overcalls.
 
+### Deploy
+
+- 2026-05-17 18:59 UTC: deployed backend commit `cd91fbb` to `/opt/alif` with `git pull --ff-only`, `backend/.venv/bin/pip install -e . --no-deps`, and `systemctl restart alif-backend`.
+- Post-deploy smoke: `GET http://127.0.0.1:3000/` returned `{"app":"alif","version":"0.1.0"}`. Live DB resolver check returned `None` for `شَال / shawl / noun` against current lemma `#899`, and still returned `899` for `شَالَ / to rise / verb`.
+
 ---
 
 ## 2026-05-15: Enforce daily intro cap at chokepoint + smooth cards per session
