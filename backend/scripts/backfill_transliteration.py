@@ -23,6 +23,7 @@ load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 from app.database import SessionLocal
 from app.models import Lemma
 from app.services.activity_log import log_activity
+from app.services.lemma_vocalization import lexical_diacritic_count
 from app.services.transliteration import transliterate_lemma
 
 
@@ -58,9 +59,6 @@ def backfill(dry_run=False, limit=2000, rerun_all=False):
     total_skipped = 0
     total_unchanged = 0
 
-    import re
-    diacritic_re = re.compile(r"[\u064B-\u065F\u0670]")
-
     for lemma in missing:
         source = lemma.lemma_ar or ""
         if not source.strip():
@@ -68,8 +66,9 @@ def backfill(dry_run=False, limit=2000, rerun_all=False):
             total_skipped += 1
             continue
 
-        # Skip undiacritized words — they produce garbage transliterations
-        if not diacritic_re.search(source):
+        # Skip unvocalized or case-ending-only words — they produce garbage
+        # transliterations. Run vocalize_unvocalized_lemmas.py first.
+        if lexical_diacritic_count(source) == 0:
             total_skipped += 1
             continue
 

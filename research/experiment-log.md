@@ -4,6 +4,29 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-05-18: Partial-vocalization word-card fix
+
+### What
+
+The inline missed-word card still showed `محظوظةً` as effectively unvocalized, with the ugly transliteration `mḥẓwẓa`, even though the sentence and form strip had the correct `مَحْظُوظَة` / `maḥẓūẓa`.
+
+Root cause: the 2026-05-15 vocalization gate only selected lemmas with **zero** diacritic marks. `محظوظةً` had a final tanwīn mark, so it bypassed the gate despite having no stem vowels. The frontend then trusted the cached lemma header/transliteration, while the form strip separately had enough data to show the better feminine form.
+
+Changes:
+
+1. `lemma_vocalization.needs_vocalization()` now counts lexical diacritics and ignores final case vowels/tanwīn. Case-ending-only lemmas are selected for vocalization/backfill.
+2. `backfill_transliteration.py` now skips case-ending-only sources, so reruns do not regenerate consonant-only transliterations before vocalization.
+3. Review `WordInfoCard` and wrap-up cards choose a better matching vocalized form from `forms_json` / `forms_translit` when the lemma header has no lexical vocalization.
+4. Word lookup cache version bumped so stale cached lookup payloads do not hide corrected display data for another 24 hours.
+
+### Verify
+
+- `backend/.venv/bin/python -m pytest backend/tests/test_lemma_vocalization.py -q`
+- `cd frontend && npm test -- --runInBand --runTestsByPath lib/__tests__/arabic-display.test.ts`
+- `cd frontend && npm run typecheck`
+
+---
+
 ## 2026-05-18: Treat textbook imports as high-priority new words
 
 ### What
