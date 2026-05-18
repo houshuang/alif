@@ -14,6 +14,7 @@ from app.models import (
     SentenceWord,
 )
 from app.services import mapping_rescue
+from app.services.sentence_eligibility import MAPPING_VERIFICATION_HARDENED_AT
 
 
 STALE = datetime(2026, 3, 1)  # before MAPPING_VERIFICATION_MIN_AT (2026-04-16)
@@ -349,3 +350,39 @@ def test_no_stale_sentences_is_noop(db_session, patched_verifier):
     stats = mapping_rescue.rescue_sentences_for_lemmas([lem.lemma_id])
     assert calls["n"] == 0
     assert stats.sentences_attempted == 0
+
+
+def test_reverify_sentences_before_only_checks_legacy_reviewable_stamps(
+    db_session,
+    patched_verifier,
+):
+    """JIT session reverify targets selected rows older than the hardening cutoff."""
+    old_lem = _lemma(db_session, "قَدِيم", "old")
+    fresh_lem = _lemma(db_session, "جَدِيد", "new")
+    legacy = _stale_sentence(db_session, [old_lem.lemma_id], target_id=old_lem.lemma_id)
+    legacy.mappings_verified_at = datetime(2026, 5, 13, 21, 30)
+    fresh = _stale_sentence(db_session, [fresh_lem.lemma_id], target_id=fresh_lem.lemma_id)
+    fresh.mappings_verified_at = datetime(2026, 5, 18, 8, 0)
+    db_session.commit()
+
+    seen_batches: list[list[str]] = []
+
+    def verifier(inputs, _lemma_map):
+        seen_batches.append([item["arabic"] for item in inputs])
+        return _no_issues(inputs, _lemma_map)
+
+    patched_verifier(verifier)
+
+    stats = mapping_rescue.reverify_sentences_before(
+        [legacy.id, fresh.id],
+        cutoff=MAPPING_VERIFICATION_HARDENED_AT,
+        batch_size=5,
+    )
+
+    db_session.expire_all()
+    refreshed_legacy = db_session.query(Sentence).get(legacy.id)
+    refreshed_fresh = db_session.query(Sentence).get(fresh.id)
+    assert stats.sentences_attempted == 1
+    assert seen_batches == [["جملة اختبار"]]
+    assert refreshed_legacy.mappings_verified_at >= MAPPING_VERIFICATION_HARDENED_AT
+    assert refreshed_fresh.mappings_verified_at == datetime(2026, 5, 18, 8, 0)

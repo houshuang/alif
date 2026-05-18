@@ -8,7 +8,7 @@ from sqlalchemy import case, func
 from sqlalchemy.orm import Session, joinedload
 
 from app.database import get_db, SessionLocal
-from app.models import GrammarFeature, Lemma, ReviewLog, Root, SentenceReviewLog, UserLemmaKnowledge
+from app.models import GrammarFeature, Lemma, ReviewLog, Root, Sentence, SentenceReviewLog, UserLemmaKnowledge
 from app.schemas import (
     BulkSyncIn,
     ConfusionAnalysisOut,
@@ -30,13 +30,106 @@ from app.services.listening import get_listening_candidates
 from app.services.interaction_logger import log_interaction
 from app.services.sentence_selector import build_session
 from app.services.sentence_review_service import submit_sentence_review, undo_sentence_review
-from app.services.sentence_eligibility import reviewable_sentence_clauses
+from app.services.sentence_eligibility import (
+    MAPPING_VERIFICATION_HARDENED_AT,
+    reviewable_sentence_clauses,
+)
 from app.services.sentence_validator import _is_function_word, FUNCTION_WORDS, FUNCTION_WORD_GLOSSES, strip_diacritics
 from app.services.transliteration import transliterate_arabic
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/review", tags=["review"])
+
+
+def _session_sentence_ids(result: dict) -> list[int]:
+    ids: list[int] = []
+    for item in result.get("items") or []:
+        item_ids = item.get("sentence_ids")
+        if not item_ids and item.get("sentence_id"):
+            item_ids = [item["sentence_id"]]
+        for sid in item_ids or []:
+            if sid:
+                ids.append(int(sid))
+    return list(dict.fromkeys(ids))
+
+
+def _hardened_reviewable_sentence_ids(db: Session, sentence_ids: list[int]) -> set[int]:
+    if not sentence_ids:
+        return set()
+    return {
+        sid for (sid,) in (
+            db.query(Sentence.id)
+            .filter(
+                Sentence.id.in_(sentence_ids),
+                reviewable_sentence_clauses(),
+                Sentence.mappings_verified_at >= MAPPING_VERIFICATION_HARDENED_AT,
+            )
+            .all()
+        )
+    }
+
+
+def _drop_unsafe_session_items(result: dict, unsafe_sentence_ids: set[int]) -> None:
+    if not unsafe_sentence_ids:
+        return
+    kept_items = []
+    covered_due_ids: set[int] = set()
+    for item in result.get("items") or []:
+        item_ids = item.get("sentence_ids")
+        if not item_ids and item.get("sentence_id"):
+            item_ids = [item["sentence_id"]]
+        if any(int(sid) in unsafe_sentence_ids for sid in (item_ids or [])):
+            continue
+        kept_items.append(item)
+        covered_due_ids.update(
+            int(lid)
+            for lid in (item.get("selection_info") or {}).get("due_lemma_ids", [])
+            if lid
+        )
+    result["items"] = kept_items
+    result["covered_due_words"] = len(covered_due_ids)
+
+
+def _ensure_session_mapping_hardened(db: Session, result: dict) -> set[int]:
+    """JIT reverify selected legacy-stamped sentences before returning them.
+
+    Session selection is intentionally DB-only for speed, but old
+    ``mappings_verified_at`` stamps predate the 2026-05-17 sense-aware
+    resolver. Reverify only the concrete selected sentence IDs whose stamps are
+    older than that deploy; any row that still is not freshly verified after
+    the attempt is unsafe for this response.
+    """
+    sentence_ids = _session_sentence_ids(result)
+    if not sentence_ids:
+        return set()
+
+    from app.services.mapping_rescue import reverify_sentences_before
+
+    stats = reverify_sentences_before(
+        sentence_ids,
+        cutoff=MAPPING_VERIFICATION_HARDENED_AT,
+    )
+    if stats.sentences_attempted or stats.llm_failures:
+        logger.info(
+            "Session JIT mapping reverify: attempted=%d passed=%d corrected=%d "
+            "unfixable=%d llm_failures=%d",
+            stats.sentences_attempted,
+            stats.sentences_passed,
+            stats.sentences_corrected,
+            stats.sentences_unfixable,
+            stats.llm_failures,
+        )
+
+    db.expire_all()
+    safe_ids = _hardened_reviewable_sentence_ids(db, sentence_ids)
+    unsafe_ids = set(sentence_ids) - safe_ids
+    if unsafe_ids:
+        logger.warning(
+            "Session JIT mapping reverify removed unsafe sentence IDs: %s",
+            sorted(unsafe_ids),
+        )
+    return unsafe_ids
 
 
 @router.get("/next-listening")
@@ -67,14 +160,30 @@ def next_sentences(
 ):
     """Get a sentence-based review session.
 
-    No LLM calls — session builds from pre-generated sentences (<1s).
+    Usually DB-only: session builds from pre-generated sentences. If selected
+    rows carry pre-hardening mapping stamps, those specific rows are reverified
+    before returning so old resolver mistakes do not leak into new sessions.
     Background warm_sentence_cache generates for uncovered words after.
     """
+    base_exclude = set(exclude) if exclude else set()
     result = build_session(
         db, limit=limit, mode=mode,
         log_events=not prefetch,
-        exclude_sentence_ids=set(exclude) if exclude else None,
+        exclude_sentence_ids=base_exclude or None,
     )
+
+    unsafe_ids = _ensure_session_mapping_hardened(db, result)
+    if unsafe_ids:
+        # Give the selector one chance to refill with different material. The
+        # second result is also hardened; if any selected legacy row cannot be
+        # verified, drop that item rather than returning an unsafe sentence.
+        result = build_session(
+            db, limit=limit, mode=mode,
+            log_events=not prefetch,
+            exclude_sentence_ids=base_exclude | unsafe_ids,
+        )
+        unsafe_ids = _ensure_session_mapping_hardened(db, result)
+        _drop_unsafe_session_items(result, unsafe_ids)
 
     # Listening mode is only for already-learned words — no intro candidates
     if mode == "listening":
