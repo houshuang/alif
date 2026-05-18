@@ -64,6 +64,7 @@ import StoryInfoModal from "../lib/review/StoryInfoModal";
 import WordInfoCard, { FocusWordMark } from "../lib/review/WordInfoCard";
 import { IntroducedWordsTable } from "../lib/IntroducedWordsTable";
 import { GraduatedWordsTable } from "../lib/GraduatedWordsTable";
+import { bestVocalizedDisplayForm } from "../lib/arabic-display";
 
 type ReadingCardState = "front" | "back";
 type ListeningCardState = "audio" | "arabic" | "answer";
@@ -1686,6 +1687,12 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
   // Wrap-up quiz flow
   if (inWrapUp && wrapUpCards.length > 0) {
     const wc = wrapUpCards[wrapUpIndex];
+    const wcDisplay = bestVocalizedDisplayForm({
+      lemmaAr: wc.lemma_ar,
+      lemmaTransliteration: wc.transliteration,
+      forms: wc.forms_json,
+      formsTranslit: wc.forms_translit,
+    });
     return (
       <View style={[styles.container, { paddingTop: Math.max(insets.top, 12) }]}>
         <View style={styles.progressContainer}>
@@ -1698,9 +1705,9 @@ export function ReviewScreen({ fixedMode }: { fixedMode: ReviewMode }) {
           showsVerticalScrollIndicator={false}
         >
           <View style={[styles.eiHero, { borderRadius: 16 }]}>
-            <Text style={styles.eiArabic}>{wc.lemma_ar}</Text>
-            {wc.transliteration && (
-              <Text style={styles.eiTranslit}>{wc.transliteration}</Text>
+            <Text style={styles.eiArabic}>{wcDisplay.arabic ?? wc.lemma_ar}</Text>
+            {wcDisplay.transliteration && (
+              <Text style={styles.eiTranslit}>{wcDisplay.transliteration}</Text>
             )}
             {wrapUpRevealed && (
               <>

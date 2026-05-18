@@ -6,6 +6,7 @@ import { WordLookupResult, ConfusionAnalysis } from "../types";
 import { getFrequencyBand, getCefrColor } from "../frequency";
 import { getGrammarParticleInfo, GrammarParticleInfo } from "../grammar-particles";
 import { FormsStrip } from "../WordCardComponents";
+import { bareArabicForm, bestVocalizedDisplayForm, stripArabicDiacritics } from "../arabic-display";
 
 export type FocusWordMark = "missed" | "did_not_recognize";
 
@@ -57,9 +58,6 @@ function glossesOverlap(a: string | null | undefined, b: string | null | undefin
 }
 
 const DIACRITICS_RE = /[\u0610-\u061A\u064B-\u065F\u0670\u06D6-\u06DC\u06DF-\u06E4\u06E7-\u06E8\u06EA-\u06ED]/g;
-function stripArabicDiacritics(text: string): string {
-  return text.replace(DIACRITICS_RE, "");
-}
 
 /** Split Arabic text into grapheme clusters (base char + following diacritics) */
 function splitArabicGraphemes(text: string): string[] {
@@ -118,9 +116,7 @@ function HighlightedArabic({
   );
 }
 function bareForm(text: string): string {
-  let s = stripArabicDiacritics(text).replace(/\u0640/g, ""); // strip tatweel
-  if (s.startsWith("\u0627\u0644")) s = s.slice(2); // strip al-prefix
-  return s;
+  return bareArabicForm(text);
 }
 
 const FORM_LABELS: Record<string, string> = {
@@ -301,9 +297,18 @@ function RevealedView({
 }) {
   if (!result) return null;
 
-  const lemmaAr = result.lemma_ar?.trim() || null;
+  const displayForm = bestVocalizedDisplayForm({
+    lemmaAr: result.lemma_ar,
+    lemmaTransliteration: result.transliteration,
+    surfaceForm,
+    surfaceTranslit,
+    forms: result.forms_json,
+    formsTranslit: result.forms_translit,
+  });
+  const lemmaAr = displayForm.arabic;
+  const displayTranslit = displayForm.transliteration;
   const posLabel = result.pos ? result.pos.replace(/_/g, " ") : null;
-  const formLabel = getFormLabel(surfaceForm ?? null, lemmaAr, result.forms_json ?? null);
+  const formLabel = getFormLabel(surfaceForm ?? null, result.lemma_ar?.trim() || lemmaAr, result.forms_json ?? null);
 
   // Known/learning siblings only, deduplicate by gloss overlap
   const knownSiblings = result.root_family.filter((s) => {
@@ -328,8 +333,8 @@ function RevealedView({
         {lemmaAr && (
           <Text style={styles.lemmaAr}>{lemmaAr}</Text>
         )}
-        {result.transliteration && (
-          <Text style={styles.translitText}>{result.transliteration}</Text>
+        {displayTranslit && (
+          <Text style={styles.translitText}>{displayTranslit}</Text>
         )}
         {posLabel && (
           <View style={styles.posPill}>
@@ -341,7 +346,7 @@ function RevealedView({
             <View style={styles.formPill}>
               <Text style={styles.formPillText}>{formLabel}</Text>
             </View>
-            {surfaceTranslit && surfaceTranslit !== result.transliteration && (
+            {surfaceTranslit && surfaceTranslit !== displayTranslit && (
               <Text style={styles.surfaceTranslitText}>{surfaceTranslit}</Text>
             )}
           </>

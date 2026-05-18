@@ -6,21 +6,24 @@ Used by:
   arriving via run_quality_gates() without diacritics, so the bad-translit
   pattern (al-ghlām for الغلام) can't reappear.
 
-A lemma is "unvocalized" when its lemma_ar contains zero diacritic marks
-(U+064B–U+065F, U+0670). Such lemmas produce broken ALA-LC transliterations
-because the romanizer has no short-vowel information to encode.
+A lemma is "unvocalized" when its lemma_ar contains no lexical diacritics.
+Final case vowels/tanwīn alone do not count: a form like ``محظوظةً`` still
+has no short-vowel information for the stem and produces broken ALA-LC output
+such as ``mḥẓwẓa``.
 """
 
 import re
 from typing import Iterable
 
 from app.models import Lemma
-from app.services.claude_code import generate_structured
 from app.services.sentence_validator import strip_diacritics, normalize_alef
 
 
 _ARABIC_RANGE = range(0x0600, 0x0700)
 _DIACRITIC_RE = re.compile(r"[ً-ٰٟ]")
+_ARABIC_BASE_RE = re.compile(r"[\u0621-\u064A\u066E-\u06D3\u06FA-\u06FF]")
+_CASE_ENDINGS = {"\u064B", "\u064C", "\u064D", "\u064E", "\u064F", "\u0650"}
+_TATWEEL = "\u0640"
 
 
 def is_arabic_script(text: str) -> bool:
@@ -31,14 +34,42 @@ def has_diacritic(text: str) -> bool:
     return bool(_DIACRITIC_RE.search(text or ""))
 
 
+def lexical_diacritic_count(text: str) -> int:
+    """Count stem-useful diacritics, ignoring final case vowels/tanwīn."""
+    chars = list((text or "").replace(_TATWEEL, ""))
+    base_indexes = [i for i, ch in enumerate(chars) if _ARABIC_BASE_RE.match(ch)]
+    if not base_indexes:
+        return 0
+
+    final_base_index = base_indexes[-1]
+    count = 0
+    for i, ch in enumerate(chars):
+        if not _DIACRITIC_RE.match(ch):
+            continue
+        previous_base = None
+        for j in range(i - 1, -1, -1):
+            if _ARABIC_BASE_RE.match(chars[j]):
+                previous_base = j
+                break
+
+        if (
+            len(base_indexes) > 1
+            and previous_base == final_base_index
+            and ch in _CASE_ENDINGS
+        ):
+            continue
+        count += 1
+    return count
+
+
 def needs_vocalization(lemma: Lemma) -> bool:
-    """True if the lemma's lemma_ar is Arabic-script and lacks any diacritic."""
+    """True if lemma_ar is Arabic-script and lacks lexical diacritics."""
     ar = lemma.lemma_ar or ""
     if not ar.strip():
         return False
     if not is_arabic_script(ar):
         return False
-    return not has_diacritic(ar)
+    return lexical_diacritic_count(ar) == 0
 
 
 _SCHEMA = {
@@ -104,6 +135,8 @@ def vocalize_batch(batch: list[Lemma], timeout: int = 180) -> dict[int, str]:
     Caller is responsible for validating the result against the original
     letter sequence — use `validate_proposal()` below.
     """
+    from app.services.claude_code import generate_structured
+
     prompt = _build_prompt(batch)
     result = generate_structured(
         prompt=prompt,
@@ -118,12 +151,13 @@ def vocalize_batch(batch: list[Lemma], timeout: int = 180) -> dict[int, str]:
 def validate_proposal(proposal: str, lemma_ar: str) -> bool:
     """True if `proposal` is a valid vocalization of `lemma_ar`.
 
-    The proposal must contain at least one diacritic and, after stripping
-    diacritics + normalizing alef variants, must letter-match the original.
+    The proposal must contain at least one lexical diacritic and, after
+    stripping diacritics + normalizing alef variants, must letter-match the
+    original.
     """
     if not proposal or not lemma_ar:
         return False
-    if not has_diacritic(proposal):
+    if lexical_diacritic_count(proposal) == 0:
         return False
     return normalize_alef(strip_diacritics(proposal)) == normalize_alef(lemma_ar)
 

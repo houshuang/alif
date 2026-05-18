@@ -1,14 +1,16 @@
-"""Add tashkeel (full diacritization) to lemmas whose lemma_ar lacks vowels.
+"""Add tashkeel (full diacritization) to lemmas whose lemma_ar lacks stem vowels.
 
-Identifies lemmas where lemma_ar contains no diacritic marks at all
-(U+064B–U+065F, U+0670) and uses Claude CLI to add proper tashkeel based on
-the existing letter sequence (including any attached al-prefix), gloss, and
-POS. Skips non-Arabic-script lemmas (Hebrew, Latin, etc.).
+Identifies lemmas where lemma_ar contains no lexical diacritics and uses
+Claude CLI to add proper tashkeel based on the existing letter sequence
+(including any attached al-prefix), gloss, and POS. Final case vowels/tanwīn
+alone do not count as lexical vocalization. Skips non-Arabic-script lemmas
+(Hebrew, Latin, etc.).
 
 The old filter `lemma_ar == lemma_ar_bare` missed lemmas where lemma_ar
 differs from lemma_ar_bare only by an attached clitic (e.g. الغلام vs
 غلام) — these were still fully unvocalized and producing garbage
-transliterations like `al-ghlām` instead of `al-ghulām`.
+transliterations like `al-ghlām` instead of `al-ghulām`. The current filter
+also catches forms with only a final case mark, e.g. `محظوظةً`.
 
 The actual vocalization logic lives in `app/services/lemma_vocalization.py`
 so the runtime enrichment path can share it (so newly-imported unvocalized
@@ -43,9 +45,8 @@ from app.services.lemma_vocalization import (
 def main(dry_run=False, batch_size=20):
     db = SessionLocal()
     try:
-        # All lemmas where lemma_ar has no diacritic marks. The previous
-        # `lemma_ar == lemma_ar_bare` check missed cases like الغلام/غلام
-        # where the form differs only by an attached clitic.
+        # All lemmas where lemma_ar has no lexical diacritics. The previous
+        # zero-diacritic check missed case-ending-only forms like محظوظةً.
         candidates = db.query(Lemma).order_by(Lemma.lemma_id).all()
         rows = [l for l in candidates if needs_vocalization(l) or
                 (l.lemma_ar and not is_arabic_script(l.lemma_ar))]
