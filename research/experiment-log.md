@@ -120,6 +120,8 @@ User flagged sentence `#45896`, created/stamped on 2026-05-13 before the sense-a
 
 Fix: add `MAPPING_VERIFICATION_HARDENED_AT = 2026-05-17 18:59` and a selected-ID JIT reverify path. `/api/review/next-sentences` now rechecks only the concrete selected sentence IDs whose stamps predate that hardening timestamp. Rows that pass/repair are stamped fresh; rows still unsafe are removed/replaced before the response. This keeps the old corpus available opportunistically without a huge sweep, while ensuring future sessions apply the latest hardening before display.
 
+Deploy: commit `4a7ebec` deployed 2026-05-18 05:23 UTC with backend restart. Smoke checks: root endpoint returned `{"app":"alif","version":"0.1.0"}`; `MAPPING_VERIFICATION_HARDENED_AT` loaded as `2026-05-17T18:59:00`; a live single-ID JIT check on legacy-stamped sentence `#46558` ran one verifier batch and nulled one unfixable position, making it non-reviewable before display.
+
 ---
 
 ## 2026-05-15: Enforce daily intro cap at chokepoint + smooth cards per session
