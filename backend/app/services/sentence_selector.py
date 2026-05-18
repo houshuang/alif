@@ -87,7 +87,8 @@ COMPREHENSIBILITY_THRESHOLD = 0.6  # min fraction of scaffold words that must be
 OLDEST_DUE_FIRST_BLOCK = 5  # first cards should shrink aged debt before normal set cover
 PASSAGE_MIN_SENTENCES = 3
 PASSAGE_MAX_SENTENCES = 5
-PASSAGE_MIN_DUE_PER_SENTENCE = 1.25
+PASSAGE_MIN_DUE_WORDS = 3
+PASSAGE_PREFERRED_DUE_WORDS = 4
 PASSAGE_REVIEW_STATES = {"known", "learning", "lapsed"}
 LLM_UNREVIEWED_QUALITY_MULTIPLIER = 0.55
 
@@ -219,10 +220,40 @@ def _is_maintenance_passage_candidate(
 def _candidate_group_due_density(group: list[SentenceCandidate]) -> float:
     if not group:
         return 0.0
+    return len(_candidate_group_due_ids(group)) / len(group)
+
+
+def _candidate_group_due_ids(group: list[SentenceCandidate]) -> set[int]:
     due_ids: set[int] = set()
     for candidate in group:
         due_ids |= candidate.due_words_covered
-    return len(due_ids) / len(group)
+    return due_ids
+
+
+def _is_viable_maintenance_passage_group(
+    group: list[SentenceCandidate],
+    knowledge_by_id: dict[int, UserLemmaKnowledge],
+) -> bool:
+    """Passage cards must earn their reading cost with enough due reviews."""
+    if len(group) < PASSAGE_MIN_SENTENCES:
+        return False
+    if len(_candidate_group_due_ids(group)) < PASSAGE_MIN_DUE_WORDS:
+        return False
+    due_members = [c for c in group if c.due_words_covered]
+    return bool(due_members) and all(
+        _is_maintenance_passage_candidate(c, knowledge_by_id)
+        for c in due_members
+    )
+
+
+def _maintenance_passage_sort_key(group: list[SentenceCandidate]) -> tuple:
+    due_count = len(_candidate_group_due_ids(group))
+    return (
+        due_count >= PASSAGE_PREFERRED_DUE_WORDS,
+        due_count,
+        _candidate_group_due_density(group),
+        max((c.sentence_id for c in group), default=0),
+    )
 
 
 def _group_maintenance_passages(
@@ -256,13 +287,8 @@ def _group_maintenance_passages(
                 and getattr(c.sentence, "source", None) == "passage"
             ]
             story_group.sort(key=lambda c: c.sentence_id)
-            due_members = [c for c in story_group if c.due_words_covered]
-            if (
-                len(story_group) >= PASSAGE_MIN_SENTENCES
-                and due_members
-                and all(_is_maintenance_passage_candidate(c, knowledge_by_id) for c in due_members)
-            ):
-                group = story_group[:PASSAGE_MAX_SENTENCES]
+            group = story_group[:PASSAGE_MAX_SENTENCES]
+            if _is_viable_maintenance_passage_group(group, knowledge_by_id):
                 groups.append(group)
                 used_sentence_ids.update(c.sentence_id for c in group)
                 continue
@@ -285,26 +311,14 @@ def _best_generated_passage_seed(
         ):
             groups.setdefault(story_id, []).append(candidate)
 
-    viable = [
-        sorted(group, key=lambda c: c.sentence_id)[:PASSAGE_MAX_SENTENCES]
-        for group in groups.values()
-        if len(group) >= PASSAGE_MIN_SENTENCES
-        and any(c.due_words_covered for c in group)
-        and all(
-            _is_maintenance_passage_candidate(c, knowledge_by_id)
-            for c in group
-            if c.due_words_covered
-        )
-    ]
+    viable = []
+    for group in groups.values():
+        sorted_group = sorted(group, key=lambda c: c.sentence_id)[:PASSAGE_MAX_SENTENCES]
+        if _is_viable_maintenance_passage_group(sorted_group, knowledge_by_id):
+            viable.append(sorted_group)
     if not viable:
         return []
-    viable.sort(
-        key=lambda group: (
-            len(set().union(*(c.due_words_covered for c in group))),
-            max(c.sentence_id for c in group),
-        ),
-        reverse=True,
-    )
+    viable.sort(key=_maintenance_passage_sort_key, reverse=True)
     return viable[0]
 
 

@@ -22,6 +22,7 @@ from app.services.sentence_selector import (
     _build_intro_cards,
     _difficulty_match_quality,
     _find_pregenerated_sentences_for_words,
+    _best_generated_passage_seed,
     _group_maintenance_passages,
     _ensure_session_words_have_intro_state,
     _intro_backlog_threshold_for_accuracy,
@@ -231,6 +232,22 @@ class TestMaintenancePassageGrouping:
             self._candidate(1, 101, story_id=10, source="passage"),
             self._candidate(2, story_id=10, source="passage"),
             self._candidate(3, 103, story_id=10, source="passage"),
+            self._candidate(4, 104, story_id=10, source="passage"),
+        ]
+        knowledge = {
+            lid: UserLemmaKnowledge(lemma_id=lid, knowledge_state="known")
+            for lid in {101, 103, 104}
+        }
+
+        groups = _group_maintenance_passages(candidates, knowledge)
+
+        assert [[c.sentence_id for c in group] for group in groups] == [[1, 2, 3, 4]]
+
+    def test_generated_passage_group_requires_three_due_words(self):
+        candidates = [
+            self._candidate(1, 101, story_id=10, source="passage"),
+            self._candidate(2, story_id=10, source="passage"),
+            self._candidate(3, 103, story_id=10, source="passage"),
         ]
         knowledge = {
             lid: UserLemmaKnowledge(lemma_id=lid, knowledge_state="known")
@@ -239,7 +256,27 @@ class TestMaintenancePassageGrouping:
 
         groups = _group_maintenance_passages(candidates, knowledge)
 
-        assert [[c.sentence_id for c in group] for group in groups] == [[1, 2, 3]]
+        assert [[c.sentence_id for c in group] for group in groups] == [[1], [2], [3]]
+
+    def test_generated_passage_seed_prefers_due_dense_group(self):
+        sparse = [
+            self._candidate(1, 101, story_id=10, source="passage"),
+            self._candidate(2, 102, story_id=10, source="passage"),
+            self._candidate(3, 103, story_id=10, source="passage"),
+        ]
+        dense = [
+            self._candidate(4, 201, 202, story_id=20, source="passage"),
+            self._candidate(5, 203, story_id=20, source="passage"),
+            self._candidate(6, 204, story_id=20, source="passage"),
+        ]
+        knowledge = {
+            lid: UserLemmaKnowledge(lemma_id=lid, knowledge_state="known")
+            for lid in {101, 102, 103, 201, 202, 203, 204}
+        }
+
+        seed = _best_generated_passage_seed(sparse + dense, knowledge)
+
+        assert [c.sentence_id for c in seed] == [4, 5, 6]
 
 
 class TestScaffoldFreshness:

@@ -264,6 +264,24 @@ def test_group_maintenance_passages_includes_connector_rows_without_due_words():
     knowledge = {
         1: SimpleNamespace(knowledge_state="known"),
         3: SimpleNamespace(knowledge_state="known"),
+        4: SimpleNamespace(knowledge_state="known"),
+    }
+    candidates = [
+        _candidate(1, "passage", 10, {1}),
+        _candidate(2, "passage", 10, set()),
+        _candidate(3, "passage", 10, {3}),
+        _candidate(4, "passage", 10, {4}),
+    ]
+
+    groups = _group_maintenance_passages(candidates, knowledge)
+
+    assert [[c.sentence_id for c in group] for group in groups] == [[1, 2, 3, 4]]
+
+
+def test_group_maintenance_passages_requires_three_due_words():
+    knowledge = {
+        1: SimpleNamespace(knowledge_state="known"),
+        3: SimpleNamespace(knowledge_state="known"),
     }
     candidates = [
         _candidate(1, "passage", 10, {1}),
@@ -273,7 +291,7 @@ def test_group_maintenance_passages_includes_connector_rows_without_due_words():
 
     groups = _group_maintenance_passages(candidates, knowledge)
 
-    assert [[c.sentence_id for c in group] for group in groups] == [[1, 2, 3]]
+    assert [[c.sentence_id for c in group] for group in groups] == [[1], [2], [3]]
 
 
 def test_agentic_passage_generation_sends_wide_target_pool(monkeypatch):
