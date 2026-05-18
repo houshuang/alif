@@ -9,6 +9,7 @@ from datetime import datetime, timezone
 
 from app.models import Lemma, Sentence, SentenceWord
 from app.services.sentence_eligibility import (
+    MAPPING_VERIFICATION_HARDENED_AT,
     not_has_unmapped_words,
     reviewable_sentence_clauses,
 )
@@ -135,16 +136,23 @@ def test_reviewable_clause_excludes_stale_mapping_stamp(db_session):
         words=[("بيت", l1.lemma_id)],
     )
     sentinel.mappings_verified_at = datetime(2000, 1, 1)
+    legacy_pre_hardening = _sentence_with_words(
+        db_session,
+        sentence_id=900_033,
+        words=[("بيت", l1.lemma_id)],
+    )
+    legacy_pre_hardening.mappings_verified_at = datetime(2026, 5, 13, 21, 30)
     current = _sentence_with_words(
         db_session,
         sentence_id=900_032,
         words=[("بيت", l1.lemma_id)],
     )
+    current.mappings_verified_at = MAPPING_VERIFICATION_HARDENED_AT
     db_session.commit()
 
     rows = (
         db_session.query(Sentence)
-        .filter(Sentence.id.in_([stale.id, sentinel.id, current.id]))
+        .filter(Sentence.id.in_([stale.id, sentinel.id, legacy_pre_hardening.id, current.id]))
         .filter(reviewable_sentence_clauses())
         .all()
     )

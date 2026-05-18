@@ -35,21 +35,27 @@ def not_has_unmapped_words():
     )
 
 
-MAPPING_VERIFICATION_MIN_AT = datetime(2026, 4, 16)
+# Historical baseline: same-lemma correction failures became fail-closed here.
+MAPPING_VERIFICATION_BASELINE_AT = datetime(2026, 4, 16)
 
 # The correction resolver became sense-aware at this deploy. Rows verified
-# before this timestamp passed the older bare-form-only repair path and must be
-# rechecked before they are safe to show in new sessions.
+# before this timestamp passed the older bare-form-only repair path and are not
+# safe to show until a background rescue/reverify path stamps them fresh.
 MAPPING_VERIFICATION_HARDENED_AT = datetime(2026, 5, 17, 18, 59)
+
+# Active runtime cutoff. Keep the older baseline constant for documentation and
+# targeted maintenance scripts, but review-facing selection must track the
+# newest verifier hardening.
+MAPPING_VERIFICATION_MIN_AT = MAPPING_VERIFICATION_HARDENED_AT
 
 
 def has_current_mapping_verification():
     """SQL clause: sentence passed the current generation-time mapping gate.
 
     The mapping verifier has been hardened repeatedly. Rows stamped before the
-    2026-04-16 same-lemma rejection fix predate the current fail-closed
-    semantics, and the 2000-01-01 sentinel used by corpus enrichment is only a
-    processing claim. Neither should be reviewable without re-verification.
+    active cutoff predate the current fail-closed semantics, and the 2000-01-01
+    sentinel used by corpus enrichment is only a processing claim. Neither
+    should be reviewable without re-verification.
     """
     return and_(
         Sentence.mappings_verified_at.isnot(None),

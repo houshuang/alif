@@ -180,13 +180,15 @@ This is why adding more verifier passes did not hold: the verifier was often rig
 - 2026-05-17 18:59 UTC: deployed backend commit `cd91fbb` to `/opt/alif` with `git pull --ff-only`, `backend/.venv/bin/pip install -e . --no-deps`, and `systemctl restart alif-backend`.
 - Post-deploy smoke: `GET http://127.0.0.1:3000/` returned `{"app":"alif","version":"0.1.0"}`. Live DB resolver check returned `None` for `شَال / shawl / noun` against current lemma `#899`, and still returned `899` for `شَالَ / to rise / verb`.
 
-### Follow-up: 2026-05-18 just-in-time session hardening
+### Follow-up: 2026-05-18 request-path hardening attempt and rollback
 
 User flagged sentence `#45896`, created/stamped on 2026-05-13 before the sense-aware resolver deploy: `اللَّهْفَةُ تَمْلَأُ قَلْبَهَا...`; `تَمْلَأُ` was mapped to `#475 مُلَّا` "mullah" instead of missing lemma `ملأ` "to fill". The new resolver rejects that mapping, but `/api/review/next-sentences` had trusted the old May 13 `mappings_verified_at` because `MAPPING_VERIFICATION_MIN_AT` was still 2026-04-16.
 
-Fix: add `MAPPING_VERIFICATION_HARDENED_AT = 2026-05-17 18:59` and a selected-ID JIT reverify path. `/api/review/next-sentences` now rechecks only the concrete selected sentence IDs whose stamps predate that hardening timestamp. Rows that pass/repair are stamped fresh; rows still unsafe are removed/replaced before the response. This keeps the old corpus available opportunistically without a huge sweep, while ensuring future sessions apply the latest hardening before display.
+Initial fix: add `MAPPING_VERIFICATION_HARDENED_AT = 2026-05-17 18:59` and a selected-ID JIT reverify path. `/api/review/next-sentences` rechecked only the concrete selected sentence IDs whose stamps predated that hardening timestamp. Rows that passed/repaired were stamped fresh; rows still unsafe were removed/replaced before the response.
 
 Deploy: commit `4a7ebec` deployed 2026-05-18 05:23 UTC with backend restart. Smoke checks: root endpoint returned `{"app":"alif","version":"0.1.0"}`; `MAPPING_VERIFICATION_HARDENED_AT` loaded as `2026-05-17T18:59:00`; a live single-ID JIT check on legacy-stamped sentence `#46558` ran one verifier batch and nulled one unfixable position, making it non-reviewable before display.
+
+Rollback/final fix: the JIT path was unsafe in production. At 2026-05-18 05:27-05:28 UTC, `/api/review/next-sentences` returned 500s with `sqlite3.OperationalError: database is locked`: session build was writing intro/acquisition state while the JIT verifier ran LLM-backed reverify/write batches in separate DB sessions. The replacement keeps the quality guarantee without request-time LLM: `MAPPING_VERIFICATION_MIN_AT` now equals `MAPPING_VERIFICATION_HARDENED_AT`, so pre-hardening stamps fail the normal SQL `reviewable_sentence_clauses()` gate. Warm-cache gap counts now use reviewable sentence counts only, so hidden legacy rows no longer make a lemma look covered. Legacy rows re-enter only after warm-cache rescue or maintenance verification stamps them fresh outside the response path.
 
 ---
 

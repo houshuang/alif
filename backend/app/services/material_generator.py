@@ -18,7 +18,10 @@ from sqlalchemy.orm import aliased
 from app.database import SessionLocal
 from app.models import Lemma, Sentence, SentenceWord, Story, UserLemmaKnowledge
 from app.services.fsrs_service import parse_json_column
-from app.services.sentence_eligibility import has_current_mapping_verification
+from app.services.sentence_eligibility import (
+    has_current_mapping_verification,
+    reviewable_sentence_clauses,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -1761,11 +1764,11 @@ def _warm_sentence_cache_impl(llm_model: str = "claude_sonnet") -> dict:
         # owns lifecycle rotation.
         total_active = (
             db.query(func.count(Sentence.id))
-            .filter(Sentence.is_active == True)
+            .filter(reviewable_sentence_clauses())
             .scalar() or 0
         )
         if total_active >= PIPELINE_CAP:
-            logger.warning(f"Warm cache: over safety cap after rotation ({total_active} >= {PIPELINE_CAP}), skipping")
+            logger.warning(f"Warm cache: over reviewable safety cap after rotation ({total_active} >= {PIPELINE_CAP}), skipping")
             return stats
 
         # Collect all words needing sentences
@@ -1792,7 +1795,7 @@ def _warm_sentence_cache_impl(llm_model: str = "claude_sonnet") -> dict:
                 db.query(Sentence.target_lemma_id, func.count(Sentence.id))
                 .filter(
                     Sentence.target_lemma_id.in_(cohort),
-                    Sentence.is_active == True,
+                    reviewable_sentence_clauses(),
                 )
                 .group_by(Sentence.target_lemma_id)
                 .all()
@@ -1816,7 +1819,10 @@ def _warm_sentence_cache_impl(llm_model: str = "claude_sonnet") -> dict:
                 continue
             count = (
                 db.query(func.count(Sentence.id))
-                .filter(Sentence.target_lemma_id == lid, Sentence.is_active == True)
+                .filter(
+                    Sentence.target_lemma_id == lid,
+                    reviewable_sentence_clauses(),
+                )
                 .scalar() or 0
             )
             if count < MIN_SENTENCES_PER_WORD:
@@ -1844,7 +1850,7 @@ def _warm_sentence_cache_impl(llm_model: str = "claude_sonnet") -> dict:
                     db.query(func.count(Sentence.id))
                     .filter(
                         Sentence.target_lemma_id == lid,
-                        Sentence.is_active == True,
+                        reviewable_sentence_clauses(),
                         or_(
                             Sentence.last_reading_shown_at.is_(None),
                             Sentence.last_reading_shown_at < recency_cutoff,

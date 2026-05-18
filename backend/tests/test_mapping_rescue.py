@@ -17,7 +17,7 @@ from app.services import mapping_rescue
 from app.services.sentence_eligibility import MAPPING_VERIFICATION_HARDENED_AT
 
 
-STALE = datetime(2026, 3, 1)  # before MAPPING_VERIFICATION_MIN_AT (2026-04-16)
+STALE = datetime(2026, 3, 1)  # before the active mapping verification cutoff
 
 
 def _lemma(db, ar, gloss="x", bare=None, pos=None) -> Lemma:
@@ -352,11 +352,11 @@ def test_no_stale_sentences_is_noop(db_session, patched_verifier):
     assert stats.sentences_attempted == 0
 
 
-def test_reverify_sentences_before_only_checks_legacy_reviewable_stamps(
+def test_reverify_sentences_before_only_checks_explicit_pre_cutoff_stamps(
     db_session,
     patched_verifier,
 ):
-    """JIT session reverify targets selected rows older than the hardening cutoff."""
+    """Explicit reverify targets selected rows older than the hardening cutoff."""
     old_lem = _lemma(db_session, "قَدِيم", "old")
     fresh_lem = _lemma(db_session, "جَدِيد", "new")
     legacy = _stale_sentence(db_session, [old_lem.lemma_id], target_id=old_lem.lemma_id)

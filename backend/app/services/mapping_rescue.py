@@ -2,9 +2,10 @@
 
 Called from ``warm_sentence_cache`` after the gap-detection phase and before LLM
 generation. The reviewability gate (``has_current_mapping_verification``) treats
-any sentence with ``mappings_verified_at`` < 2026-04-16, NULL, or equal to the
-2000-01-01 corpus sentinel as untrustworthy and hides it from review selection.
-That leaves a long tail of structurally fine sentences stuck in purgatory.
+any sentence with ``mappings_verified_at`` older than the active verifier cutoff,
+NULL, or equal to the 2000-01-01 corpus sentinel as untrustworthy and hides it
+from review selection. That leaves a long tail of structurally fine sentences
+stuck in purgatory.
 
 Rather than draining the backlog globally on a schedule (expensive, blind),
 this module rescues *only* the stale sentences attached to lemmas the warm
@@ -755,13 +756,17 @@ def reverify_sentences_before(
 
     db = SessionLocal()
     try:
-        from app.services.sentence_eligibility import reviewable_sentence_clauses
+        from app.services.sentence_eligibility import not_has_unmapped_words
         ids = [
             r[0] for r in db.query(Sentence.id)
             .filter(
                 Sentence.id.in_(list(set(sentence_ids))),
-                reviewable_sentence_clauses(),
-                Sentence.mappings_verified_at < cutoff_naive,
+                Sentence.is_active == True,  # noqa: E712
+                not_has_unmapped_words(),
+                or_(
+                    Sentence.mappings_verified_at.is_(None),
+                    Sentence.mappings_verified_at < cutoff_naive,
+                ),
             )
             .order_by(Sentence.mappings_verified_at.asc())
             .all()
