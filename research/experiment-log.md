@@ -114,6 +114,12 @@ This is why adding more verifier passes did not hold: the verifier was often rig
 - 2026-05-17 18:59 UTC: deployed backend commit `cd91fbb` to `/opt/alif` with `git pull --ff-only`, `backend/.venv/bin/pip install -e . --no-deps`, and `systemctl restart alif-backend`.
 - Post-deploy smoke: `GET http://127.0.0.1:3000/` returned `{"app":"alif","version":"0.1.0"}`. Live DB resolver check returned `None` for `شَال / shawl / noun` against current lemma `#899`, and still returned `899` for `شَالَ / to rise / verb`.
 
+### Follow-up: 2026-05-18 just-in-time session hardening
+
+User flagged sentence `#45896`, created/stamped on 2026-05-13 before the sense-aware resolver deploy: `اللَّهْفَةُ تَمْلَأُ قَلْبَهَا...`; `تَمْلَأُ` was mapped to `#475 مُلَّا` "mullah" instead of missing lemma `ملأ` "to fill". The new resolver rejects that mapping, but `/api/review/next-sentences` had trusted the old May 13 `mappings_verified_at` because `MAPPING_VERIFICATION_MIN_AT` was still 2026-04-16.
+
+Fix: add `MAPPING_VERIFICATION_HARDENED_AT = 2026-05-17 18:59` and a selected-ID JIT reverify path. `/api/review/next-sentences` now rechecks only the concrete selected sentence IDs whose stamps predate that hardening timestamp. Rows that pass/repair are stamped fresh; rows still unsafe are removed/replaced before the response. This keeps the old corpus available opportunistically without a huge sweep, while ensuring future sessions apply the latest hardening before display.
+
 ---
 
 ## 2026-05-15: Enforce daily intro cap at chokepoint + smooth cards per session

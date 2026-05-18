@@ -729,6 +729,55 @@ def reverify_oldest_active_sentences(
     )
 
 
+def reverify_sentences_before(
+    sentence_ids: list[int],
+    *,
+    cutoff: datetime,
+    batch_size: int = REVERIFY_BATCH_SIZE,
+) -> ReverifyStats:
+    """Reverify explicit reviewable sentence IDs with stamps older than cutoff.
+
+    This is the just-in-time counterpart to the global sweeps: callers can pass
+    the concrete sentences about to be shown, and only rows whose
+    ``mappings_verified_at`` predates a hardening timestamp pay the LLM cost.
+    If verification cannot stamp a row fresh, the caller should treat it as
+    unsafe for the current response.
+    """
+    stats = ReverifyStats()
+    if not sentence_ids:
+        return stats
+
+    cutoff_naive = (
+        cutoff.astimezone(timezone.utc).replace(tzinfo=None)
+        if cutoff.tzinfo is not None
+        else cutoff
+    )
+
+    db = SessionLocal()
+    try:
+        from app.services.sentence_eligibility import reviewable_sentence_clauses
+        ids = [
+            r[0] for r in db.query(Sentence.id)
+            .filter(
+                Sentence.id.in_(list(set(sentence_ids))),
+                reviewable_sentence_clauses(),
+                Sentence.mappings_verified_at < cutoff_naive,
+            )
+            .order_by(Sentence.mappings_verified_at.asc())
+            .all()
+        ]
+    finally:
+        db.close()
+
+    if not ids:
+        return stats
+
+    return reverify_all_active_sentences(
+        batch_size=batch_size,
+        sentence_ids=ids,
+    )
+
+
 def rescue_sentences_for_lemmas(
     gap_lemma_ids: list[int],
     *,

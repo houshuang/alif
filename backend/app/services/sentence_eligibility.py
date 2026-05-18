@@ -37,6 +37,11 @@ def not_has_unmapped_words():
 
 MAPPING_VERIFICATION_MIN_AT = datetime(2026, 4, 16)
 
+# The correction resolver became sense-aware at this deploy. Rows verified
+# before this timestamp passed the older bare-form-only repair path and must be
+# rechecked before they are safe to show in new sessions.
+MAPPING_VERIFICATION_HARDENED_AT = datetime(2026, 5, 17, 18, 59)
+
 
 def has_current_mapping_verification():
     """SQL clause: sentence passed the current generation-time mapping gate.
