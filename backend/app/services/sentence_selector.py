@@ -1896,11 +1896,22 @@ def build_session(
 
 MAX_REINTRO_PER_SESSION = 3
 STRUGGLING_MIN_SEEN = 3
-TEXTBOOK_PRESERVE_INTRO_GROUP = "textbook_preserve_intro"
-TEXTBOOK_PRESERVE_INTRO_KIND = "textbook_preserve"
 
 
 _GENERIC_ULK_SOURCES = {None, "study", "encountered", "auto_intro", "collateral", "leech_reintro"}
+
+
+def _intro_source_priority(source: str | None) -> int:
+    """Priority for choosing which cold words get scarce intro-card slots."""
+    return {
+        "textbook_scan": 100,
+        "book": 90,
+        "story_import": 80,
+        "duolingo": 70,
+        "frequency_core": 60,
+        "collateral": 20,
+    }.get(source, 0)
+
 
 def _display_source(ulk, lemma) -> str | None:
     """Return only specific learning provenance, not dictionary provenance.
@@ -1932,7 +1943,9 @@ def _build_reintro_cards(
         .all()
     )
 
-    # Sort by times_seen descending (most seen but still failing = highest priority)
+    # Sort by times_seen descending (most seen but still failing = highest
+    # priority). For first-time cards where times_seen ties at zero, preserve
+    # curriculum priority so textbook-scan words beat incidental collateral.
     ulk_map: dict[int, UserLemmaKnowledge] = {}
     for k in db.query(UserLemmaKnowledge).filter(
         UserLemmaKnowledge.lemma_id.in_(struggling_ids)
@@ -1940,7 +1953,12 @@ def _build_reintro_cards(
         ulk_map[k.lemma_id] = k
 
     lemmas.sort(
-        key=lambda l: (ulk_map.get(l.lemma_id) and ulk_map[l.lemma_id].times_seen) or 0,
+        key=lambda l: (
+            (ulk_map.get(l.lemma_id) and ulk_map[l.lemma_id].times_seen) or 0,
+            _intro_source_priority(
+                ulk_map[l.lemma_id].source if l.lemma_id in ulk_map else None
+            ),
+        ),
         reverse=True,
     )
 
@@ -2048,7 +2066,6 @@ INTRO_CARDS_MAX = 6
 # practice. The 30/day cap inside start_acquisition still controls absolute
 # volume — this just spaces it across roughly 5 sessions.
 INTRO_NEW_CARDS_PER_SESSION = 6
-TEXTBOOK_PRESERVE_INTRO_CAP = 4
 
 
 def _dynamic_intro_cap(db: Session) -> int:
@@ -2077,21 +2094,17 @@ def _build_intro_cards(
     knowledge_by_id: dict[int, UserLemmaKnowledge],
     eligible_ids: set[int],
 ) -> list[dict]:
-    """Build intro cards for new, struggling, and preserved textbook words.
+    """Build intro cards for new and struggling words.
 
-    Three categories:
+    Two categories:
     1. New words (times_seen == 0) — first-encounter teaching card
     2. Rescue words (acquiring, ≥4 reviews, <50% accuracy) — re-teaching
        for stuck words, with a 7-day cooldown between rescue cards.
-    3. Newly preserved textbook words — one-time card-only intro for words
-       with no real review history yet.
 
-    New/rescue cards are limited to non-function words that appear in this
-    session. Preserved textbook cards are intentionally independent of sentence
-    scheduling so a scan can preserve current knowledge without forcing the
-    word back through acquisition. Already-reviewed familiar words are filtered
-    out. First-time intro cards are uncapped; rescue cards use the dynamic cap
-    (4 base, up to 6) after first-time cards are placed.
+    Cards are limited to non-function words that appear in this session.
+    Textbook imports are ordinary new words now: they stay encountered until
+    promoted by start_acquisition(), where they count against the same daily
+    and recovery budgets as all other new vocabulary.
     """
     now = datetime.now(timezone.utc)
     cooldown_cutoff = now - timedelta(days=RESCUE_COOLDOWN_DAYS)
@@ -2152,43 +2165,12 @@ def _build_intro_cards(
         new_card_ids &= kept
         rescue_card_ids &= kept
 
-    textbook_preserve_ids = {
-        row[0]
-        for row in (
-            db.query(UserLemmaKnowledge.lemma_id)
-            .join(Lemma, Lemma.lemma_id == UserLemmaKnowledge.lemma_id)
-            .filter(
-                UserLemmaKnowledge.knowledge_state == "known",
-                UserLemmaKnowledge.experiment_group == TEXTBOOK_PRESERVE_INTRO_GROUP,
-                UserLemmaKnowledge.experiment_intro_shown_at.is_(None),
-                (UserLemmaKnowledge.times_seen.is_(None)) | (UserLemmaKnowledge.times_seen <= 1),
-                (UserLemmaKnowledge.times_correct.is_(None)) | (UserLemmaKnowledge.times_correct <= 1),
-                (UserLemmaKnowledge.total_encounters.is_(None)) | (UserLemmaKnowledge.total_encounters < 5),
-                Lemma.gates_completed_at.isnot(None),
-            )
-            .order_by(UserLemmaKnowledge.introduced_at.asc(), UserLemmaKnowledge.lemma_id.asc())
-            .limit(TEXTBOOK_PRESERVE_INTRO_CAP * 2)
-            .all()
-        )
-    }
-    if textbook_preserve_ids:
-        textbook_preserve_ids = set(
-            _drop_function_and_proper_name_lemma_ids(db, textbook_preserve_ids)
-        )
-        textbook_preserve_ids = set(
-            sorted(textbook_preserve_ids)[:TEXTBOOK_PRESERVE_INTRO_CAP]
-        )
-
-    if not new_card_ids and not rescue_card_ids and not textbook_preserve_ids:
+    if not new_card_ids and not rescue_card_ids:
         return []
 
     rescue_dynamic_cap = _dynamic_intro_cap(db)
-    # `INTRO_NEW_CARDS_PER_SESSION` is the *total* ceiling on intro cards in a
-    # session — first-time + rescue + textbook-preserve combined. Without this
-    # the three per-category caps add up: 6 new + 4 textbook + 6 rescue = 16
-    # cards stacked at session start (2026-05-15 user report: "I keep getting
-    # 10 new intro cards"). Priority order: new (real learning) > rescue
-    # (re-teach) > textbook_preserve (informational).
+    # `INTRO_NEW_CARDS_PER_SESSION` is the total ceiling on intro cards in a
+    # session. Priority order: new (real learning) > rescue (re-teach).
     total_budget = INTRO_NEW_CARDS_PER_SESSION
 
     new_cards = _build_reintro_cards(
@@ -2206,18 +2188,7 @@ def _build_intro_cards(
         if remaining > 0 and rescue_dynamic_cap > 0
         else []
     )
-    remaining = max(0, total_budget - len(new_cards) - len(rescue_cards))
-    textbook_cards = (
-        _build_reintro_cards(
-            db,
-            textbook_preserve_ids,
-            limit=min(len(textbook_preserve_ids), remaining, TEXTBOOK_PRESERVE_INTRO_CAP),
-            intro_kind=TEXTBOOK_PRESERVE_INTRO_KIND,
-        )
-        if remaining > 0
-        else []
-    )
-    return new_cards + rescue_cards + textbook_cards
+    return new_cards + rescue_cards
 
 
 MAX_ON_DEMAND_PER_SESSION = 10
@@ -2621,16 +2592,30 @@ def _ensure_session_words_have_intro_state(
     # encountered words at once. The 30/day cap inside start_acquisition
     # still hard-limits absolute volume; this just shapes the curve so the
     # session doesn't front-load 10 intro cards.
+    candidate_ids.sort(
+        key=lambda lid: _intro_source_priority(
+            knowledge_by_id[lid].source if lid in knowledge_by_id else None
+        ),
+        reverse=True,
+    )
     candidate_ids = candidate_ids[:INTRO_NEW_CARDS_PER_SESSION]
 
     from app.services.acquisition_service import start_acquisition
 
     any_promoted = False
     for lid in candidate_ids:
+        existing = knowledge_by_id.get(lid)
+        intro_source = (
+            existing.source
+            if existing
+            and existing.source
+            in {"textbook_scan", "book", "story_import", "duolingo", "frequency_core"}
+            else "collateral"
+        )
         ulk = start_acquisition(
             db,
             lemma_id=lid,
-            source="collateral",
+            source=intro_source,
             due_immediately=False,
         )
         knowledge_by_id[lid] = ulk

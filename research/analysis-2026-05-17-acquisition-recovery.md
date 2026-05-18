@@ -109,3 +109,38 @@ By 2026-05-20, check:
 - Sentence review volume per new word is rising. The important measure is not just new-word count, but whether new words get multiple contextual exposures in the first 24-72 hours.
 
 If those are true, keep allowing the aggressive 6-8/day recovery budget on high-practice days. If Box 2 due remains above 30 after three days of 100+ sentence reviews/day, lower `RECOVERY_FULL_INTRO_BUDGET` from 8 to 6 temporarily.
+
+## Addendum - 2026-05-18 Textbook Imports
+
+Textbook OCR imports now count as new-word candidates. Future scanned unknowns
+stay `encountered` with `source="textbook_scan"` until promoted through
+`start_acquisition()`, so they obey the same normal/recovery intro budgets as
+other new vocabulary. The high source priority remains: when the budget opens,
+`textbook_scan` candidates should still outrank ordinary collateral/wiki
+candidates.
+
+Additional quick check after the next scan:
+
+```bash
+ssh alif 'cd /opt/alif/backend && PYTHONPATH=/opt/limbic .venv/bin/python3 - <<"PY"
+from app.database import SessionLocal
+from app.models import UserLemmaKnowledge
+
+db = SessionLocal()
+rows = (
+    db.query(UserLemmaKnowledge)
+    .filter(UserLemmaKnowledge.source == "textbook_scan")
+    .order_by(UserLemmaKnowledge.id.desc())
+    .limit(20)
+    .all()
+)
+for r in rows:
+    has_card = bool(r.fsrs_card_json and r.fsrs_card_json != "null")
+    print(r.id, r.lemma_id, r.knowledge_state, has_card, r.acquisition_started_at)
+db.close()
+PY'
+```
+
+For freshly scanned unknowns, expect `knowledge_state="encountered"`,
+`has_card=False`, and no immediate `acquisition_started_at` unless a later
+session legitimately promoted the word inside the intro budget.

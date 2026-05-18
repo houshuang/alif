@@ -180,18 +180,20 @@ learn, and each enters acquisition immediately.
 
 ### 3.3 OCR / Textbook Scan
 
-**Path**: `POST /api/ocr/scan-pages?preserve_known=true|false` → Gemini Vision extraction
-**Initial state**: `known` with an FSRS review card when `preserve_known=true` (default); only newly preserved/unreviewed words may get a one-time card-only intro;
-`encountered` (no FSRS card) when `preserve_known=false`
+**Path**: `POST /api/ocr/scan-pages` → Gemini Vision extraction
+**Initial state**: `encountered` (no FSRS card). Legacy `preserve_known` /
+`start_acquiring` params are accepted for old clients but ignored for learning
+state.
 **Source**: `"textbook_scan"`
 **Code**: `ocr_service.py`
 **Intro-card rule**: OCR `total_encounters` is treated as import occurrence count, not learner familiarity, so repeated textbook-scan words can still get first-time intro cards when they enter acquisition.
 
-Textbook scan is a preservation path: the user is saying "I know this word now;
-keep it in the system." Preserved words skip new-word acquisition and enter the
-regular review pool as known cards. With preservation disabled, words are parked
-as encountered and become Learn mode candidates with an `encountered_bonus` of
-0.5. Variant words detected post-import are redirected to their canonical lemma;
+Textbook scan is vocabulary/source intake, not proof of knowledge. Scanned words
+are parked as encountered candidates, keep the high-priority `textbook_scan`
+source, and only become acquiring via `start_acquisition()`. That means they
+count against the same daily/recovery intro budgets as other new words, while
+still ranking very high in `select_next_words()` (`textbook_scan` tier +220).
+Variant words detected post-import are redirected to their canonical lemma;
 variant-scoped ULKs are reset to encountered.
 
 ### 3.4 Story Import

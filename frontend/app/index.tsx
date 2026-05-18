@@ -175,9 +175,8 @@ function buildInterleavedSession(
     result.push({ type: "sentence" as const, itemIndex: sentIdx });
   }
 
-  // 5. Textbook-preservation cards are intentionally card-only: the scan means
-  //    "I know this now, preserve it", not "force an immediate sentence".
-  //    Keep those intros even when the sentence session is otherwise full.
+  // 5. Legacy textbook-preservation cards were intentionally card-only. The
+  //    backend no longer emits them, but cached sessions may still contain one.
   const preservedTextbookOrphans = introCards
     .map((c, i) => ({ card: c, introIndex: i }))
     .filter(

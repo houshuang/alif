@@ -896,7 +896,7 @@ export interface ExtractedWord {
   arabic: string;
   arabic_bare: string;
   english: string | null;
-  status: "new" | "existing" | "existing_new_card";
+  status: "new" | "existing";
   lemma_id: number;
   knowledge_state: string;
   root?: string | null;
