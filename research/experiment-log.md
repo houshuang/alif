@@ -4,6 +4,65 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-05-18: Treat textbook imports as high-priority new words
+
+### What
+
+User clarified that textbook imports should count as new words, not as a
+separate "known now" preservation path. Branch `sh/textbook-imports-new-words`
+changes the OCR/textbook pipeline so scanned unknown words create or refresh
+`UserLemmaKnowledge` rows as `encountered` with `source="textbook_scan"`, no
+FSRS card, and no `textbook_preserve_intro` exception.
+
+The old `preserve_known` / `start_acquiring` query params are still accepted for
+backwards compatibility, but they no longer alter learning state. Existing
+legacy preserved-known rows are not retroactively demoted, because that would be
+a destructive data change; instead, the session builder no longer renders
+legacy `textbook_preserve_intro` card-only intros.
+
+### Why
+
+The previous preservation design made a scan imply "I know this now." In the
+current learning model, OCR is better understood as high-value vocabulary
+intake: scanned words should be prioritized aggressively, but still need intro
+budgeting, sentence practice, and real review evidence before promotion.
+
+### Expected behaviour
+
+- A future textbook scan creates `encountered` textbook candidates, not `known`
+  FSRS cards.
+- Those candidates keep very high word-selection priority via
+  `source="textbook_scan"` (`select_next_words()` tier +220).
+- Promotion to `acquiring` goes through `start_acquisition()`, so scanned words
+  count against the daily/recovery intro budgets.
+- Once promoted, they receive ordinary intro cards and sentence practice, capped
+  with the rest of new/rescue cards.
+- Legacy card-only textbook-preserve intros should disappear from new sessions.
+
+### Watch
+
+- Tomorrow: after any new scan, query recent `textbook_scan` ULKs and confirm
+  new scan-created rows are `encountered` with `fsrs_card_json IS NULL`.
+- Tomorrow: build a session after scanning and confirm any scanned-word intro is
+  a normal new-word intro, not `intro_kind="textbook_preserve"`.
+- Next few days: confirm `textbook_scan` candidates still appear near the top of
+  Learn/auto-intro selection when intro budget opens, ahead of generic
+  collateral/wiki candidates.
+- Do not demote old known textbook rows unless a separate audit shows they are
+  harmful; suppressing their legacy cards is enough for this policy change.
+
+### Verify
+
+- `backend/.venv/bin/python -m py_compile backend/app/services/ocr_service.py backend/app/routers/ocr.py backend/app/services/sentence_selector.py`
+- `backend/.venv/bin/python -m pytest backend/tests/test_ocr.py backend/tests/test_sentence_selector.py backend/tests/test_acquisition.py -q`
+- `cd frontend && npm run typecheck`
+
+### Deploy
+
+- Pending.
+
+---
+
 ## 2026-05-17: Acquisition working-memory recovery gate + fast-promotion reset
 
 ### What
@@ -113,6 +172,12 @@ This is why adding more verifier passes did not hold: the verifier was often rig
 
 - 2026-05-17 18:59 UTC: deployed backend commit `cd91fbb` to `/opt/alif` with `git pull --ff-only`, `backend/.venv/bin/pip install -e . --no-deps`, and `systemctl restart alif-backend`.
 - Post-deploy smoke: `GET http://127.0.0.1:3000/` returned `{"app":"alif","version":"0.1.0"}`. Live DB resolver check returned `None` for `شَال / shawl / noun` against current lemma `#899`, and still returned `899` for `شَالَ / to rise / verb`.
+
+### Follow-up: 2026-05-18 just-in-time session hardening
+
+User flagged sentence `#45896`, created/stamped on 2026-05-13 before the sense-aware resolver deploy: `اللَّهْفَةُ تَمْلَأُ قَلْبَهَا...`; `تَمْلَأُ` was mapped to `#475 مُلَّا` "mullah" instead of missing lemma `ملأ` "to fill". The new resolver rejects that mapping, but `/api/review/next-sentences` had trusted the old May 13 `mappings_verified_at` because `MAPPING_VERIFICATION_MIN_AT` was still 2026-04-16.
+
+Fix: add `MAPPING_VERIFICATION_HARDENED_AT = 2026-05-17 18:59` and a selected-ID JIT reverify path. `/api/review/next-sentences` now rechecks only the concrete selected sentence IDs whose stamps predate that hardening timestamp. Rows that pass/repair are stamped fresh; rows still unsafe are removed/replaced before the response. This keeps the old corpus available opportunistically without a huge sweep, while ensuring future sessions apply the latest hardening before display.
 
 ---
 

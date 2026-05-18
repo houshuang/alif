@@ -41,7 +41,6 @@ logger = logging.getLogger(__name__)
 
 MIN_SENTENCES_PER_WORD = 3
 MAX_GLOSS_LENGTH = 50
-TEXTBOOK_PRESERVE_INTRO_GROUP = "textbook_preserve_intro"
 
 # Common patterns indicating a wiktionary-style definition rather than a concise gloss
 _VERBOSE_PATTERNS = [
@@ -59,22 +58,17 @@ _VERBOSE_PATTERNS = [
 ]
 
 
-def _make_preserved_known_card(now: datetime) -> dict:
-    """Create an FSRS review card for a textbook word the user says they know."""
-    from fsrs import Card, Rating
+def _record_textbook_encounter(db: Session, lemma_id: int) -> UserLemmaKnowledge:
+    """Record textbook provenance without treating the scan as proof of knowledge.
 
-    from app.services.fsrs_service import scheduler
-
-    card, _ = scheduler.review_card(Card(), Rating.Easy, now)
-    return card.to_dict()
-
-
-def _preserve_textbook_knowledge(db: Session, lemma_id: int) -> UserLemmaKnowledge:
-    """Mark a textbook-scanned word as known without treating it as new acquisition."""
+    Textbook scans are vocabulary/source intake. They should create encountered
+    rows for unknown words, not known FSRS cards or card-only intro exceptions.
+    Promotion to acquiring happens later through start_acquisition(), where the
+    normal daily/recovery new-word budget applies.
+    """
     from app.services.canonical_resolution import resolve_canonical_lemma_id
 
     lemma_id = resolve_canonical_lemma_id(db, lemma_id)
-    now = datetime.now(timezone.utc)
     ulk = (
         db.query(UserLemmaKnowledge)
         .filter(UserLemmaKnowledge.lemma_id == lemma_id)
@@ -84,49 +78,34 @@ def _preserve_textbook_knowledge(db: Session, lemma_id: int) -> UserLemmaKnowled
     if not ulk:
         ulk = UserLemmaKnowledge(
             lemma_id=lemma_id,
-            knowledge_state="known",
-            fsrs_card_json=_make_preserved_known_card(now),
-            last_reviewed=now,
-            introduced_at=now,
-            times_seen=1,
-            times_correct=1,
+            knowledge_state="encountered",
+            fsrs_card_json=None,
+            times_seen=0,
+            times_correct=0,
             total_encounters=1,
             source="textbook_scan",
-            experiment_group=TEXTBOOK_PRESERVE_INTRO_GROUP,
         )
         db.add(ulk)
         db.flush()
         return ulk
 
-    _OVERRIDABLE_SOURCES = {None, "study", "encountered", "auto_intro", "collateral", "leech_reintro", "wiktionary"}
-    if ulk.source in _OVERRIDABLE_SOURCES:
+    _OVERRIDABLE_SOURCES = {
+        None,
+        "study",
+        "encountered",
+        "auto_intro",
+        "collateral",
+        "leech_reintro",
+        "wiktionary",
+    }
+    if ulk.knowledge_state == "encountered" or ulk.source in _OVERRIDABLE_SOURCES:
         ulk.source = "textbook_scan"
 
     # An explicit suspension should continue to win over passive import.
     if ulk.knowledge_state == "suspended":
         return ulk
 
-    has_review_history = (ulk.times_seen or 0) > 0 or (ulk.times_correct or 0) > 0
-    is_unreviewed_encounter = ulk.knowledge_state == "encountered" and not has_review_history
-    if (
-        is_unreviewed_encounter
-        and (ulk.total_encounters or 0) < 5
-        and ulk.experiment_intro_shown_at is None
-    ):
-        ulk.experiment_group = TEXTBOOK_PRESERVE_INTRO_GROUP
-
-    if ulk.knowledge_state != "known" or not ulk.fsrs_card_json:
-        ulk.knowledge_state = "known"
-        ulk.fsrs_card_json = _make_preserved_known_card(now)
-        ulk.last_reviewed = now
-        ulk.introduced_at = ulk.introduced_at or now
-        ulk.times_seen = max(ulk.times_seen or 0, 1)
-        ulk.times_correct = max(ulk.times_correct or 0, 1)
-
-    ulk.acquisition_box = None
-    ulk.acquisition_next_due = None
-    ulk.acquisition_started_at = None
-    ulk.entered_acquiring_at = None
+    ulk.total_encounters = (ulk.total_encounters or 0) + 1
     db.flush()
     return ulk
 
@@ -542,13 +521,16 @@ def process_textbook_page(
     db: Session,
     upload: PageUpload,
     image_bytes: bytes,
-    preserve_known: bool = True,
+    preserve_known: bool = False,
 ) -> None:
     """Process a single textbook page image: OCR, match words, import new ones.
 
     This runs as a background task. Updates the PageUpload record with results.
-    Triggers sentence generation for newly imported words.
+    Triggers sentence generation for imported words. The preserve_known flag is
+    kept for old callers, but textbook scans now always enter as encountered
+    new-word candidates rather than known review cards.
     """
+    _ = preserve_known
     try:
         upload.status = "processing"
         db.commit()
@@ -600,7 +582,7 @@ def process_textbook_page(
         new_count = 0
         existing_count = 0
         new_lemma_ids: list[int] = []
-        preserved_known_ids: list[int] = []
+        textbook_lemma_ids: set[int] = set()
 
         seen_bares: set[str] = set()  # dedup within this page
 
@@ -650,18 +632,11 @@ def process_textbook_page(
                 ulk = knowledge_map.get(lemma_id)
 
                 if ulk:
-                    ulk.total_encounters = (ulk.total_encounters or 0) + 1
-                    if preserve_known:
-                        ulk = _preserve_textbook_knowledge(db, lemma_id)
-                        lemma_id = ulk.lemma_id
-                        lemma = db.query(Lemma).filter(Lemma.lemma_id == lemma_id).first()
-                        knowledge_map[lemma_id] = ulk
-                        preserved_known_ids.append(lemma_id)
-                    else:
-                        # Update source to textbook_scan if it was a weaker source.
-                        _OVERRIDABLE_SOURCES = {None, "study", "encountered", "auto_intro", "collateral", "leech_reintro", "wiktionary"}
-                        if ulk.source in _OVERRIDABLE_SOURCES:
-                            ulk.source = "textbook_scan"
+                    ulk = _record_textbook_encounter(db, lemma_id)
+                    lemma_id = ulk.lemma_id
+                    lemma = db.query(Lemma).filter(Lemma.lemma_id == lemma_id).first()
+                    knowledge_map[lemma_id] = ulk
+                    textbook_lemma_ids.add(lemma_id)
                     existing_count += 1
                     results.append({
                         "arabic": lemma.lemma_ar if lemma else arabic,
@@ -673,28 +648,17 @@ def process_textbook_page(
                     })
                 else:
                     # Lemma exists but no knowledge record
-                    if preserve_known:
-                        new_ulk = _preserve_textbook_knowledge(db, lemma_id)
-                        lemma_id = new_ulk.lemma_id
-                        lemma = db.query(Lemma).filter(Lemma.lemma_id == lemma_id).first()
-                        preserved_known_ids.append(lemma_id)
-                    else:
-                        new_ulk = UserLemmaKnowledge(
-                            lemma_id=lemma_id,
-                            knowledge_state="encountered",
-                            fsrs_card_json=None,
-                            source="textbook_scan",
-                            total_encounters=1,
-                        )
-                        db.add(new_ulk)
-                        db.flush()
+                    new_ulk = _record_textbook_encounter(db, lemma_id)
+                    lemma_id = new_ulk.lemma_id
+                    lemma = db.query(Lemma).filter(Lemma.lemma_id == lemma_id).first()
+                    textbook_lemma_ids.add(lemma_id)
                     knowledge_map[lemma_id] = new_ulk
                     existing_count += 1
                     results.append({
                         "arabic": lemma.lemma_ar if lemma else arabic,
                         "arabic_bare": bare,
                         "english": lemma.gloss_en if lemma else word_data.get("english"),
-                        "status": "existing_new_card",
+                        "status": "existing",
                         "lemma_id": lemma_id,
                         "knowledge_state": new_ulk.knowledge_state,
                     })
@@ -760,19 +724,8 @@ def process_textbook_page(
                 db.add(new_lemma)
                 db.flush()
 
-                if preserve_known:
-                    new_ulk = _preserve_textbook_knowledge(db, new_lemma.lemma_id)
-                    preserved_known_ids.append(new_lemma.lemma_id)
-                else:
-                    new_ulk = UserLemmaKnowledge(
-                        lemma_id=new_lemma.lemma_id,
-                        knowledge_state="encountered",
-                        fsrs_card_json=None,
-                        source="textbook_scan",
-                        total_encounters=1,
-                    )
-                    db.add(new_ulk)
-                    db.flush()
+                new_ulk = _record_textbook_encounter(db, new_lemma.lemma_id)
+                textbook_lemma_ids.add(new_ulk.lemma_id)
 
                 # Update lookup for subsequent words in same batch
                 lemma_lookup[import_bare] = new_lemma.lemma_id
@@ -814,7 +767,7 @@ def process_textbook_page(
             gate_result = run_quality_gates(db, new_lemma_ids)
             variants_detected = gate_result.get("variants", 0)
 
-            if preserve_known and variants_detected:
+            if variants_detected:
                 variant_lemmas = db.query(Lemma).filter(
                     Lemma.lemma_id.in_(new_lemma_ids),
                     Lemma.canonical_lemma_id.isnot(None),
@@ -822,15 +775,19 @@ def process_textbook_page(
                 variant_ids = {vl.lemma_id for vl in variant_lemmas}
                 for vlem in variant_lemmas:
                     vulk = knowledge_map.get(vlem.lemma_id)
-                    if vulk and vulk.knowledge_state == "known":
+                    if vulk and vulk.knowledge_state not in ("suspended",):
                         vulk.knowledge_state = "encountered"
                         vulk.fsrs_card_json = None
                         vulk.last_reviewed = None
                         vulk.experiment_group = None
                         vulk.experiment_intro_shown_at = None
+                        vulk.acquisition_box = None
+                        vulk.acquisition_next_due = None
+                        vulk.acquisition_started_at = None
+                        vulk.entered_acquiring_at = None
                     if vlem.canonical_lemma_id:
-                        canonical_ulk = _preserve_textbook_knowledge(db, vlem.canonical_lemma_id)
-                        preserved_known_ids.append(canonical_ulk.lemma_id)
+                        canonical_ulk = _record_textbook_encounter(db, vlem.canonical_lemma_id)
+                        textbook_lemma_ids.add(canonical_ulk.lemma_id)
                 db.commit()
 
         log_interaction(
@@ -847,15 +804,15 @@ def process_textbook_page(
         backfill_root_meanings(db)
         db.commit()
 
-        # Generate material for preserved textbook words so future review can
-        # reinforce them, but do not run them through the new-word intro path.
+        # Generate material for textbook words so they can later enter the
+        # normal new-word acquisition path with ready sentence practice.
         if not variant_ids and new_lemma_ids:
             variant_ids = {
                 r[0] for r in db.query(Lemma.lemma_id)
                 .filter(Lemma.lemma_id.in_(new_lemma_ids), Lemma.canonical_lemma_id.isnot(None))
                 .all()
             }
-        gen_ids = [lid for lid in set(new_lemma_ids) | set(preserved_known_ids) if lid not in variant_ids]
+        gen_ids = [lid for lid in set(new_lemma_ids) | textbook_lemma_ids if lid not in variant_ids]
         _schedule_material_generation(db, gen_ids)
 
     except Exception as e:
@@ -954,14 +911,18 @@ def process_batch(
     db: Session,
     batch_id: str,
     file_images: list[tuple[str, bytes]],
-    preserve_known: bool = True,
+    preserve_known: bool = False,
 ) -> None:
     """Process an entire batch of textbook page images.
 
     1. OCR all pages in parallel (no DB needed)
     2. Dedupe extracted words across all pages
     3. Single DB transaction to import words + update page records
+
+    The preserve_known flag is accepted for backwards compatibility only.
+    Textbook scans are stored as high-priority encountered/new-word candidates.
     """
+    _ = preserve_known
     uploads = (
         db.query(PageUpload)
         .filter(PageUpload.batch_id == batch_id)
@@ -1046,7 +1007,7 @@ def process_batch(
 
     seen_bares: set[str] = set()  # dedupe across ALL pages
     new_lemma_ids: list[int] = []
-    preserved_known_ids: list[int] = []
+    textbook_lemma_ids: set[int] = set()
     # Track per-word results indexed same as all_extracted
     word_results: list[dict | None] = [None] * len(all_extracted)
 
@@ -1090,18 +1051,11 @@ def process_batch(
             ulk = knowledge_map.get(lemma_id)
 
             if ulk:
-                ulk.total_encounters = (ulk.total_encounters or 0) + 1
-                if preserve_known:
-                    ulk = _preserve_textbook_knowledge(db, lemma_id)
-                    lemma_id = ulk.lemma_id
-                    lemma = db.query(Lemma).filter(Lemma.lemma_id == lemma_id).first()
-                    knowledge_map[lemma_id] = ulk
-                    preserved_known_ids.append(lemma_id)
-                else:
-                    # Update source to textbook_scan if it was a weaker source.
-                    _OVERRIDABLE_SOURCES = {None, "study", "encountered", "auto_intro", "collateral", "leech_reintro", "wiktionary"}
-                    if ulk.source in _OVERRIDABLE_SOURCES:
-                        ulk.source = "textbook_scan"
+                ulk = _record_textbook_encounter(db, lemma_id)
+                lemma_id = ulk.lemma_id
+                lemma = db.query(Lemma).filter(Lemma.lemma_id == lemma_id).first()
+                knowledge_map[lemma_id] = ulk
+                textbook_lemma_ids.add(lemma_id)
                 word_results[idx] = {
                     "arabic": lemma.lemma_ar if lemma else arabic,
                     "arabic_bare": bare,
@@ -1111,27 +1065,16 @@ def process_batch(
                     "knowledge_state": ulk.knowledge_state,
                 }
             else:
-                if preserve_known:
-                    new_ulk = _preserve_textbook_knowledge(db, lemma_id)
-                    lemma_id = new_ulk.lemma_id
-                    lemma = db.query(Lemma).filter(Lemma.lemma_id == lemma_id).first()
-                    preserved_known_ids.append(lemma_id)
-                else:
-                    new_ulk = UserLemmaKnowledge(
-                        lemma_id=lemma_id,
-                        knowledge_state="encountered",
-                        fsrs_card_json=None,
-                        source="textbook_scan",
-                        total_encounters=1,
-                    )
-                    db.add(new_ulk)
-                    db.flush()
+                new_ulk = _record_textbook_encounter(db, lemma_id)
+                lemma_id = new_ulk.lemma_id
+                lemma = db.query(Lemma).filter(Lemma.lemma_id == lemma_id).first()
+                textbook_lemma_ids.add(lemma_id)
                 knowledge_map[lemma_id] = new_ulk
                 word_results[idx] = {
                     "arabic": lemma.lemma_ar if lemma else arabic,
                     "arabic_bare": bare,
                     "english": lemma.gloss_en if lemma else word_data.get("english"),
-                    "status": "existing_new_card",
+                    "status": "existing",
                     "lemma_id": lemma_id,
                     "knowledge_state": new_ulk.knowledge_state,
                 }
@@ -1183,19 +1126,8 @@ def process_batch(
             db.add(new_lemma)
             db.flush()
 
-            if preserve_known:
-                new_ulk = _preserve_textbook_knowledge(db, new_lemma.lemma_id)
-                preserved_known_ids.append(new_lemma.lemma_id)
-            else:
-                new_ulk = UserLemmaKnowledge(
-                    lemma_id=new_lemma.lemma_id,
-                    knowledge_state="encountered",
-                    fsrs_card_json=None,
-                    source="textbook_scan",
-                    total_encounters=1,
-                )
-                db.add(new_ulk)
-                db.flush()
+            new_ulk = _record_textbook_encounter(db, new_lemma.lemma_id)
+            textbook_lemma_ids.add(new_ulk.lemma_id)
 
             lemma_lookup[import_bare] = new_lemma.lemma_id
             if import_bare != bare:
@@ -1226,7 +1158,7 @@ def process_batch(
             continue
         page_results = [word_results[i] for i in indices if word_results[i] is not None]
         new_count = sum(1 for r in page_results if r["status"] == "new")
-        existing_count = sum(1 for r in page_results if r["status"] in ("existing", "existing_new_card"))
+        existing_count = sum(1 for r in page_results if r["status"] == "existing")
         upload.status = "completed"
         upload.extracted_words_json = page_results
         upload.new_words = new_count
@@ -1252,7 +1184,7 @@ def process_batch(
         gate_result = run_quality_gates(db, new_lemma_ids)
         variants_detected = gate_result.get("variants", 0)
 
-        if preserve_known and variants_detected:
+        if variants_detected:
             variant_lemmas = db.query(Lemma).filter(
                 Lemma.lemma_id.in_(new_lemma_ids),
                 Lemma.canonical_lemma_id.isnot(None),
@@ -1260,15 +1192,19 @@ def process_batch(
             variant_ids = {vl.lemma_id for vl in variant_lemmas}
             for vlem in variant_lemmas:
                 vulk = knowledge_map.get(vlem.lemma_id)
-                if vulk and vulk.knowledge_state == "known":
+                if vulk and vulk.knowledge_state not in ("suspended",):
                     vulk.knowledge_state = "encountered"
                     vulk.fsrs_card_json = None
                     vulk.last_reviewed = None
                     vulk.experiment_group = None
                     vulk.experiment_intro_shown_at = None
+                    vulk.acquisition_box = None
+                    vulk.acquisition_next_due = None
+                    vulk.acquisition_started_at = None
+                    vulk.entered_acquiring_at = None
                 if vlem.canonical_lemma_id:
-                    canonical_ulk = _preserve_textbook_knowledge(db, vlem.canonical_lemma_id)
-                    preserved_known_ids.append(canonical_ulk.lemma_id)
+                    canonical_ulk = _record_textbook_encounter(db, vlem.canonical_lemma_id)
+                    textbook_lemma_ids.add(canonical_ulk.lemma_id)
             _commit_with_retry(db, "batch-variant-revert")
 
     total_new = sum(u.new_words or 0 for u in uploads)
@@ -1287,21 +1223,21 @@ def process_batch(
     backfill_root_meanings(db)
     _commit_with_retry(db, "batch-root-backfill")
 
-    # Sentence generation for preserved textbook words makes future review
-    # possible without treating them as new acquisition targets.
+    # Sentence generation for textbook words makes future review possible
+    # before they enter the normal acquisition budget.
     if not variant_ids and new_lemma_ids:
         variant_ids = {
             r[0] for r in db.query(Lemma.lemma_id)
             .filter(Lemma.lemma_id.in_(new_lemma_ids), Lemma.canonical_lemma_id.isnot(None))
             .all()
         }
-    all_needing_gen = set(preserved_known_ids) - variant_ids
+    all_needing_gen = textbook_lemma_ids - variant_ids
     # Also include new lemmas saved without preservation (they may be introduced later).
     all_needing_gen |= set(lid for lid in new_lemma_ids if lid not in variant_ids)
     gen_ids = list(all_needing_gen)
     logger.info(
         "Batch %s: scheduling sentence generation for %d words "
-        "(%d new lemmas, %d preserved as known)",
-        batch_id, len(gen_ids), len(new_lemma_ids), len(preserved_known_ids),
+        "(%d new lemmas, %d textbook encounters)",
+        batch_id, len(gen_ids), len(new_lemma_ids), len(textbook_lemma_ids),
     )
     _schedule_material_generation(db, gen_ids)
