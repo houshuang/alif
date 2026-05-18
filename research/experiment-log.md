@@ -59,7 +59,14 @@ budgeting, sentence practice, and real review evidence before promotion.
 
 ### Deploy
 
-- Pending.
+- PR #82 was squash-merged to main as `f829550`.
+- Deployed 2026-05-18 05:29 UTC with full backend/frontend restart:
+  `alif-backend` active, `alif-expo` active, and
+  `GET http://127.0.0.1:3000/` returned `{"app":"alif","version":"0.1.0"}`.
+- Post-deploy review smoke:
+  `GET /api/review/next-sentences?limit=5&mode=reading&prefetch=true`
+  returned 5 items and 0 intro cards. No textbook-preserve intro kind was
+  emitted.
 
 ---
 
