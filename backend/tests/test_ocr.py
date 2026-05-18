@@ -204,6 +204,72 @@ class TestProcessTextbookPage:
         assert mock_schedule.call_args.args[1] == [lemma.lemma_id]
 
     @patch("app.services.ocr_service._schedule_material_generation")
+    @patch("app.services.import_quality.classify_lemmas")
+    @patch("app.services.ocr_service.extract_words_from_image")
+    def test_standard_classification_overrides_ambiguous_noun_prop(
+        self, mock_extract, mock_classify, mock_schedule, mock_backfill, db_session
+    ):
+        from app.services.ocr_service import process_textbook_page
+
+        upload = PageUpload(batch_id="test_jawad", filename="page1.jpg", status="pending")
+        db_session.add(upload)
+        db_session.commit()
+
+        mock_extract.return_value = ([
+            {
+                "arabic": "الْجَوَادُ",
+                "arabic_bare": "الجواد",
+                "english": "horse, steed",
+                "pos": "noun_prop",
+                "root": "ج.و.د",
+                "base_lemma": "جواد",
+                "base_lemma_vocalized": "جَوَاد",
+            },
+        ], None)
+        mock_classify.return_value = ([{"arabic": "الجواد", "word_category": "standard"}], [])
+
+        process_textbook_page(db_session, upload, b"fake_image", preserve_known=True)
+
+        jawad = db_session.query(Lemma).filter(Lemma.lemma_ar_bare == "جواد").one()
+        assert jawad.pos == "noun"
+        assert jawad.word_category is None
+        assert jawad.gloss_en == "horse, steed"
+        assert upload.extracted_words_json[0]["status"] == "new"
+        assert mock_schedule.call_args.args[1] == [jawad.lemma_id]
+
+    @patch("app.services.ocr_service._schedule_material_generation")
+    @patch("app.services.import_quality.classify_lemmas")
+    @patch("app.services.ocr_service.extract_words_from_image")
+    def test_proper_name_classification_still_stores_inert_name(
+        self, mock_extract, mock_classify, mock_schedule, mock_backfill, db_session
+    ):
+        from app.services.ocr_service import process_textbook_page
+
+        upload = PageUpload(batch_id="test_name", filename="page1.jpg", status="pending")
+        db_session.add(upload)
+        db_session.commit()
+
+        mock_extract.return_value = ([
+            {
+                "arabic": "الرَّازِيُّ",
+                "arabic_bare": "الرازي",
+                "english": "al-Razi",
+                "pos": "noun_prop",
+                "root": None,
+                "base_lemma": "رازي",
+                "base_lemma_vocalized": "رَازِيّ",
+            },
+        ], None)
+        mock_classify.return_value = ([{"arabic": "الرازي", "word_category": "proper_name"}], [])
+
+        process_textbook_page(db_session, upload, b"fake_image", preserve_known=True)
+
+        razi = db_session.query(Lemma).filter(Lemma.lemma_ar_bare == "رازي").one()
+        assert razi.pos == "noun_prop"
+        assert razi.word_category == "proper_name"
+        assert razi.gloss_en == "(name) al-Razi"
+
+    @patch("app.services.ocr_service._schedule_material_generation")
     @patch("app.services.ocr_service.extract_words_from_image")
     def test_textbook_scan_does_not_demote_already_reviewed_word(
         self, mock_extract, mock_schedule, mock_backfill, db_session
