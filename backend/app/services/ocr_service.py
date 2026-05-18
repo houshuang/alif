@@ -476,7 +476,7 @@ def _step3_translate(word_entries: list[dict]) -> list[dict]:
                         t = trans_by_bare.get(entry["bare"], {})
                     raw_gloss = t.get("english")
                     entry["english"] = validate_gloss(raw_gloss) or raw_gloss
-                    if t.get("pos") and not entry.get("pos"):
+                    if t.get("pos"):
                         entry["pos"] = t["pos"]
             all_results.extend(batch)
         except Exception:
@@ -484,6 +484,42 @@ def _step3_translate(word_entries: list[dict]) -> list[dict]:
             all_results.extend(batch)
 
     return all_results
+
+
+def _build_import_category_maps(
+    useful: list[dict],
+) -> tuple[dict[str, str], dict[str, str]]:
+    """Return category and cleaned-form lookups from import-quality output."""
+    category_by_bare: dict[str, str] = {}
+    cleaned_by_bare: dict[str, str] = {}
+    for u in useful:
+        bare = u.get("arabic")
+        if not bare:
+            continue
+        cat = u.get("word_category", "standard")
+        category_by_bare[bare] = cat
+        if u.get("cleaned_arabic"):
+            cleaned = u["cleaned_arabic"]
+            cleaned_by_bare[bare] = cleaned
+            category_by_bare[cleaned] = cat
+    return category_by_bare, cleaned_by_bare
+
+
+def _normalize_import_pos(pos: str | None, word_category: str | None) -> str | None:
+    """Do not let ambiguous CAMeL noun_prop force normal vocabulary inert."""
+    if pos == "noun_prop" and word_category != "proper_name":
+        return "noun"
+    return pos
+
+
+def _storage_word_category(category_by_bare: dict[str, str], *bares: str | None) -> str | None:
+    for bare in bares:
+        if not bare:
+            continue
+        cat = category_by_bare.get(bare)
+        if cat in ("proper_name", "onomatopoeia"):
+            return cat
+    return None
 
 
 def extract_words_from_image(image_bytes: bytes) -> tuple[list[dict], int | None]:
@@ -571,14 +607,7 @@ def process_textbook_page(
             {"arabic": w.get("arabic_bare", ""), "english": w.get("english", "")}
             for w in extracted
         ])
-        _category_by_bare: dict[str, str] = {}
-        _cleaned_by_bare: dict[str, str] = {}
-        for u in useful:
-            cat = u.get("word_category", "standard")
-            if cat in ("proper_name", "onomatopoeia"):
-                _category_by_bare[u["arabic"]] = cat
-            if u.get("cleaned_arabic"):
-                _cleaned_by_bare[u["arabic"]] = u["cleaned_arabic"]
+        _category_by_bare, _cleaned_by_bare = _build_import_category_maps(useful)
         if rejected:
             rejected_bares = {r["arabic"] for r in rejected}
             extracted = [w for w in extracted if w.get("arabic_bare", "") not in rejected_bares]
@@ -743,7 +772,8 @@ def process_textbook_page(
                         db.flush()
                         root_id = new_root.root_id
 
-                word_cat = _category_by_bare.get(import_bare)
+                word_cat = _storage_word_category(_category_by_bare, import_bare, bare)
+                pos = _normalize_import_pos(pos, word_cat)
                 lemma_gloss = english
                 if word_cat == "proper_name" and english and not english.startswith("(name)"):
                     lemma_gloss = f"(name) {english}"
@@ -1026,14 +1056,7 @@ def process_batch(
         {"arabic": w.get("arabic_bare", ""), "english": w.get("english", "")}
         for w in all_extracted
     ])
-    _category_by_bare: dict[str, str] = {}
-    _cleaned_by_bare: dict[str, str] = {}
-    for u in useful:
-        cat = u.get("word_category", "standard")
-        if cat in ("proper_name", "onomatopoeia"):
-            _category_by_bare[u["arabic"]] = cat
-        if u.get("cleaned_arabic"):
-            _cleaned_by_bare[u["arabic"]] = u["cleaned_arabic"]
+    _category_by_bare, _cleaned_by_bare = _build_import_category_maps(useful)
     rejected_bares = {r["arabic"] for r in rejected} if rejected else set()
 
     # --- Phase 3: Single DB import ---
@@ -1166,7 +1189,8 @@ def process_batch(
                     db.flush()
                     root_id = new_root.root_id
 
-            word_cat = _category_by_bare.get(import_bare)
+            word_cat = _storage_word_category(_category_by_bare, import_bare, bare)
+            pos = _normalize_import_pos(pos, word_cat)
             lemma_gloss = english
             if word_cat == "proper_name" and english and not english.startswith("(name)"):
                 lemma_gloss = f"(name) {english}"
