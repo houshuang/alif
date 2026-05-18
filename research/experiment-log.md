@@ -190,6 +190,8 @@ Deploy: commit `4a7ebec` deployed 2026-05-18 05:23 UTC with backend restart. Smo
 
 Rollback/final fix: the JIT path was unsafe in production. At 2026-05-18 05:27-05:28 UTC, `/api/review/next-sentences` returned 500s with `sqlite3.OperationalError: database is locked`: session build was writing intro/acquisition state while the JIT verifier ran LLM-backed reverify/write batches in separate DB sessions. The replacement keeps the quality guarantee without request-time LLM: `MAPPING_VERIFICATION_MIN_AT` now equals `MAPPING_VERIFICATION_HARDENED_AT`, so pre-hardening stamps fail the normal SQL `reviewable_sentence_clauses()` gate. Warm-cache gap counts now use reviewable sentence counts only, so hidden legacy rows no longer make a lemma look covered. Legacy rows re-enter only after warm-cache rescue or maintenance verification stamps them fresh outside the response path.
 
+Deploy: commit `e43619e` deployed 2026-05-18 05:38 UTC with backend restart. The old backend was waiting on a warm-cache Claude child during shutdown and systemd killed it after timeout; the new backend started cleanly. Smoke checks: `prefetch=true` and normal `/api/review/next-sentences?limit=10&mode=reading` both returned 200 in ~2s with 17 items, and all 20 returned sentence IDs had `mappings_verified_at >= 2026-05-17 18:59` (minimum stamp `2026-05-18T04:18:51.128005`).
+
 ---
 
 ## 2026-05-15: Enforce daily intro cap at chokepoint + smooth cards per session
