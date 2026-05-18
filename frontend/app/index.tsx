@@ -4069,7 +4069,9 @@ const styles = StyleSheet.create({
     color: colors.arabic,
     writingDirection: "rtl",
     textAlign: "center",
-    lineHeight: 64,
+    lineHeight: 72,
+    paddingTop: 8,
+    includeFontPadding: true,
   },
   cardToggles: {
     flexDirection: "row" as const,
