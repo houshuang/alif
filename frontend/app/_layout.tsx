@@ -169,6 +169,16 @@ function LayoutInner({ online }: { online: boolean }) {
           }}
         />
         <Tabs.Screen
+          name="polyglot-review"
+          options={{
+            href: elHref("polyglot-review"),
+            title: "Review",
+            headerShown: false,
+            tabBarLabel: "Review",
+            tabBarIcon: ({ color, size }) => <Ionicons name="layers-outline" size={size} color={color} />,
+          }}
+        />
+        <Tabs.Screen
           name="polyglot-stats"
           options={{ href: null, title: "Modern Greek Stats" }}
         />

@@ -159,3 +159,77 @@ export type LanguageStats = {
 export async function getLanguageStats(languageCode: string): Promise<LanguageStats> {
   return get(`/api/stats?language_code=${encodeURIComponent(languageCode)}`);
 }
+
+// ─── Reviews ───────────────────────────────────────────────────────────────
+
+export type DueLemma = {
+  lemma_id: number;
+  lemma_form: string;
+  lemma_bare: string;
+  gloss_en: string | null;
+  state: string;
+  acquisition_box: number | null;
+  next_due: string;
+};
+
+export type ReviewRating = 1 | 2 | 3 | 4;
+
+export type ReviewResult = {
+  lemma_id: number;
+  new_state: string;
+  acquisition_box: number | null;
+  graduated: boolean | null;
+  next_due: string;
+  duplicate: boolean;
+  leech_suspended: boolean;
+};
+
+export type AcquisitionStats = {
+  total_acquiring: number;
+  box_1: number;
+  box_2: number;
+  box_3: number;
+  due_now: number;
+};
+
+async function post<T>(path: string, body: unknown): Promise<T> {
+  const res = await fetch(`${POLYGLOT_BASE_URL}${path}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throw new Error(`${path}: ${res.status}`);
+  return res.json();
+}
+
+export async function getDueLemmas(
+  languageCode: string,
+  limit: number = 50,
+): Promise<DueLemma[]> {
+  return get(`/api/reviews/due?language_code=${encodeURIComponent(languageCode)}&limit=${limit}`);
+}
+
+export async function submitReview(
+  lemmaId: number,
+  rating: ReviewRating,
+  opts: {
+    responseMs?: number;
+    sessionId?: string;
+    clientReviewId?: string;
+    comprehensionSignal?: "understood" | "partial" | "no_idea";
+  } = {},
+): Promise<ReviewResult> {
+  return post("/api/reviews/submit", {
+    lemma_id: lemmaId,
+    rating,
+    response_ms: opts.responseMs,
+    session_id: opts.sessionId,
+    client_review_id: opts.clientReviewId,
+    comprehension_signal: opts.comprehensionSignal,
+    review_mode: "reading",
+  });
+}
+
+export async function getReviewStats(): Promise<AcquisitionStats> {
+  return get("/api/reviews/stats");
+}
