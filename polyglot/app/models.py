@@ -181,6 +181,14 @@ class ReviewLog(Base):
     review_mode = Column(String(20), default="reading")
     sentence_id = Column(Integer, ForeignKey("sentences.id"), nullable=True)
     is_acquisition = Column(Boolean, default=False, server_default="0")
+    # Offline idempotency: client supplies a UUID; if the request arrives twice
+    # we return the existing review without applying it again. Mirrors Alif's
+    # `client_review_id` field used by the React Native offline queue.
+    client_review_id = Column(String(50), nullable=True, unique=True, index=True)
+    # Free-text learner self-assessment: understood / partial / no_idea. Optional —
+    # the FSRS rating is the load-bearing signal, but this captures the user's
+    # subjective state for later analysis.
+    comprehension_signal = Column(String(20), nullable=True)
 
     lemma = relationship("Lemma", back_populates="reviews")
 

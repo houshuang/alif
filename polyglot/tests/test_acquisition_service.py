@@ -1,0 +1,295 @@
+"""Acquisition service: Leitner box transitions, tiered graduation, daily cap,
+variant redirect."""
+from datetime import datetime, timedelta, timezone
+
+from app.models import Lemma, ReviewLog, UserLemmaKnowledge
+from app.services import acquisition_service
+from app.services.acquisition_service import (
+    BOX_INTERVALS,
+    DAILY_INTRO_CAP,
+    get_acquisition_due,
+    get_acquisition_stats,
+    start_acquisition,
+    submit_acquisition_review,
+)
+
+
+def _seed_lemma(db, *, form="βιβλίο", bare="βιβλιο", canonical=None) -> Lemma:
+    lemma = Lemma(
+        language_code="el", lemma_form=form, lemma_bare=bare, source="test",
+        canonical_lemma_id=canonical,
+    )
+    db.add(lemma)
+    db.flush()
+    return lemma
+
+
+def test_start_acquisition_creates_box1_ulk(tmp_db):
+    with tmp_db() as db:
+        lemma = _seed_lemma(db)
+        ulk = start_acquisition(db, lemma_id=lemma.lemma_id, source="reading_intake")
+        db.commit()
+        assert ulk.knowledge_state == "acquiring"
+        assert ulk.acquisition_box == 1
+        assert ulk.source == "reading_intake"
+        assert ulk.acquisition_started_at is not None
+        assert ulk.entered_acquiring_at is not None
+
+
+def test_start_acquisition_due_immediately(tmp_db):
+    with tmp_db() as db:
+        lemma = _seed_lemma(db)
+        ulk = start_acquisition(
+            db, lemma_id=lemma.lemma_id, due_immediately=True, source="reading_intake",
+        )
+        db.commit()
+        now = datetime.now(timezone.utc)
+        due = ulk.acquisition_next_due
+        if due.tzinfo is None:
+            due = due.replace(tzinfo=timezone.utc)
+        # Due either now or in the very recent past (within the second
+        # of the function call). Crucially NOT the 4h Box-1 delay.
+        assert due <= now
+        assert (now - due) < timedelta(minutes=1)
+
+
+def test_start_acquisition_redirects_variants_to_canonical(tmp_db):
+    """A variant must end up scheduling on its canonical, not on itself."""
+    with tmp_db() as db:
+        canonical = _seed_lemma(db, form="C", bare="c")
+        variant = _seed_lemma(db, form="V", bare="v", canonical=canonical.lemma_id)
+        db.commit()
+
+        ulk = start_acquisition(db, lemma_id=variant.lemma_id, source="reading_intake")
+        db.commit()
+        assert ulk.lemma_id == canonical.lemma_id
+        # No ULK should exist for the variant
+        variant_ulks = (
+            db.query(UserLemmaKnowledge).filter_by(lemma_id=variant.lemma_id).all()
+        )
+        assert variant_ulks == []
+
+
+def test_start_acquisition_idempotent_for_acquiring(tmp_db):
+    with tmp_db() as db:
+        lemma = _seed_lemma(db)
+        ulk1 = start_acquisition(db, lemma_id=lemma.lemma_id, source="reading_intake")
+        db.commit()
+        original_started_at = ulk1.acquisition_started_at
+        ulk2 = start_acquisition(db, lemma_id=lemma.lemma_id, source="study")
+        db.commit()
+        assert ulk1.id == ulk2.id
+        # Did not reset the timer
+        assert ulk2.acquisition_started_at == original_started_at
+
+
+def test_start_acquisition_does_not_demote_known(tmp_db):
+    with tmp_db() as db:
+        lemma = _seed_lemma(db)
+        ulk = UserLemmaKnowledge(
+            lemma_id=lemma.lemma_id,
+            knowledge_state="known",
+            fsrs_card_json={"due": "2030-01-01T00:00:00+00:00"},
+            source="test",
+        )
+        db.add(ulk)
+        db.commit()
+        returned = start_acquisition(db, lemma_id=lemma.lemma_id, source="reading_intake")
+        db.commit()
+        assert returned.knowledge_state == "known"
+        # FSRS card preserved
+        assert returned.fsrs_card_json is not None
+
+
+def test_daily_cap_routes_overflow_to_encountered(tmp_db, monkeypatch):
+    """Once the daily intro cap is hit, additional lemmas should stay
+    encountered rather than promote to acquiring."""
+    # Tiny cap so the test doesn't have to create 30 rows
+    monkeypatch.setattr(acquisition_service, "DAILY_INTRO_CAP", 2)
+    # Disable recovery-mode so cap=2 is the binding ceiling, not the
+    # accuracy-gated lower budget.
+    monkeypatch.setattr(
+        acquisition_service, "_recovery_mode_intro_budget",
+        lambda db, now, today_start: 2,
+    )
+
+    with tmp_db() as db:
+        for i in range(3):
+            lemma = _seed_lemma(db, form=f"w{i}", bare=f"w{i}")
+            start_acquisition(db, lemma_id=lemma.lemma_id, source="reading_intake")
+            db.commit()
+
+        states = [u.knowledge_state for u in db.query(UserLemmaKnowledge).order_by(UserLemmaKnowledge.id).all()]
+        # First two promote to acquiring; third is parked as encountered
+        assert states[:2] == ["acquiring", "acquiring"]
+        assert states[2] == "encountered"
+
+
+def test_tier0_first_correct_graduates_immediately(tmp_db):
+    with tmp_db() as db:
+        lemma = _seed_lemma(db)
+        start_acquisition(db, lemma_id=lemma.lemma_id, due_immediately=True, source="test")
+        db.commit()
+        result = submit_acquisition_review(db, lemma_id=lemma.lemma_id, rating_int=3)
+        assert result["graduated"] is True
+        assert result["new_state"] == "learning"
+        ulk = db.query(UserLemmaKnowledge).filter_by(lemma_id=lemma.lemma_id).one()
+        assert ulk.acquisition_box is None
+        assert ulk.graduated_at is not None
+        assert ulk.fsrs_card_json is not None
+
+
+def test_rating_again_resets_to_box1(tmp_db):
+    with tmp_db() as db:
+        lemma = _seed_lemma(db)
+        # Pre-existing acquiring at Box 2
+        ulk = UserLemmaKnowledge(
+            lemma_id=lemma.lemma_id,
+            knowledge_state="acquiring",
+            acquisition_box=2,
+            acquisition_next_due=datetime.now(timezone.utc) - timedelta(hours=1),
+            acquisition_started_at=datetime.now(timezone.utc),
+            entered_acquiring_at=datetime.now(timezone.utc),
+            source="test",
+            times_seen=1,
+            times_correct=1,
+        )
+        db.add(ulk)
+        db.commit()
+        result = submit_acquisition_review(db, lemma_id=lemma.lemma_id, rating_int=1)
+        assert result["acquisition_box"] == 1
+        assert result["graduated"] is not True
+
+
+def test_rating_hard_stays_in_same_box(tmp_db):
+    with tmp_db() as db:
+        lemma = _seed_lemma(db)
+        ulk = UserLemmaKnowledge(
+            lemma_id=lemma.lemma_id,
+            knowledge_state="acquiring",
+            acquisition_box=2,
+            acquisition_next_due=datetime.now(timezone.utc) - timedelta(minutes=5),
+            acquisition_started_at=datetime.now(timezone.utc),
+            entered_acquiring_at=datetime.now(timezone.utc),
+            source="test",
+            times_seen=2,
+            times_correct=1,
+        )
+        db.add(ulk)
+        db.commit()
+        result = submit_acquisition_review(db, lemma_id=lemma.lemma_id, rating_int=2)
+        assert result["acquisition_box"] == 2
+
+
+def test_box_advances_on_good_when_due(tmp_db):
+    """Box 1 → 2 via Good. (Tier 0 graduation kicks in on first review for a
+    truly-new word; here we simulate a word that already has prior failure
+    history so the times_seen>0 path is taken.)"""
+    with tmp_db() as db:
+        lemma = _seed_lemma(db)
+        ulk = UserLemmaKnowledge(
+            lemma_id=lemma.lemma_id,
+            knowledge_state="acquiring",
+            acquisition_box=1,
+            acquisition_next_due=datetime.now(timezone.utc) - timedelta(minutes=5),
+            acquisition_started_at=datetime.now(timezone.utc),
+            entered_acquiring_at=datetime.now(timezone.utc),
+            source="test",
+            times_seen=1,
+            times_correct=0,
+        )
+        db.add(ulk)
+        db.commit()
+        result = submit_acquisition_review(db, lemma_id=lemma.lemma_id, rating_int=3)
+        # 50% accuracy after this review (1 correct of 2 seen) — no Tier 2 grad
+        assert result["graduated"] is not True
+        assert result["acquisition_box"] == 2
+
+
+def test_tier1_perfect_accuracy_graduates(tmp_db):
+    """100% accuracy after 3+ reviews → graduate from any box."""
+    with tmp_db() as db:
+        lemma = _seed_lemma(db)
+        ulk = UserLemmaKnowledge(
+            lemma_id=lemma.lemma_id,
+            knowledge_state="acquiring",
+            acquisition_box=1,
+            acquisition_next_due=datetime.now(timezone.utc) - timedelta(minutes=5),
+            acquisition_started_at=datetime.now(timezone.utc),
+            entered_acquiring_at=datetime.now(timezone.utc),
+            source="test",
+            times_seen=2,
+            times_correct=2,
+        )
+        db.add(ulk)
+        db.commit()
+        result = submit_acquisition_review(db, lemma_id=lemma.lemma_id, rating_int=3)
+        # 3 seen, 3 correct → 100% → Tier 1 grad
+        assert result["graduated"] is True
+        assert result["new_state"] == "learning"
+
+
+def test_acquisition_due_filter(tmp_db):
+    with tmp_db() as db:
+        future = _seed_lemma(db, form="future", bare="future")
+        past = _seed_lemma(db, form="past", bare="past")
+        db.add(UserLemmaKnowledge(
+            lemma_id=future.lemma_id, knowledge_state="acquiring",
+            acquisition_box=1, acquisition_next_due=datetime.now(timezone.utc) + timedelta(hours=1),
+            acquisition_started_at=datetime.now(timezone.utc),
+            entered_acquiring_at=datetime.now(timezone.utc),
+            source="test",
+        ))
+        db.add(UserLemmaKnowledge(
+            lemma_id=past.lemma_id, knowledge_state="acquiring",
+            acquisition_box=1, acquisition_next_due=datetime.now(timezone.utc) - timedelta(minutes=5),
+            acquisition_started_at=datetime.now(timezone.utc),
+            entered_acquiring_at=datetime.now(timezone.utc),
+            source="test",
+        ))
+        db.commit()
+        due = get_acquisition_due(db)
+        assert past.lemma_id in due
+        assert future.lemma_id not in due
+
+
+def test_acquisition_stats(tmp_db):
+    with tmp_db() as db:
+        for box in (1, 2, 3):
+            lemma = _seed_lemma(db, form=f"b{box}", bare=f"b{box}")
+            db.add(UserLemmaKnowledge(
+                lemma_id=lemma.lemma_id, knowledge_state="acquiring",
+                acquisition_box=box, acquisition_next_due=datetime.now(timezone.utc),
+                acquisition_started_at=datetime.now(timezone.utc),
+                entered_acquiring_at=datetime.now(timezone.utc),
+                source="test",
+            ))
+        db.commit()
+        stats = get_acquisition_stats(db)
+        assert stats["total_acquiring"] == 3
+        assert stats["box_1"] == 1
+        assert stats["box_2"] == 1
+        assert stats["box_3"] == 1
+        assert stats["due_now"] == 3
+
+
+def test_falls_back_to_fsrs_for_non_acquiring(tmp_db):
+    """If submit_acquisition_review is called for a learning-state ULK, it
+    must delegate to FSRS rather than mutate the box. Defensive bug-net."""
+    with tmp_db() as db:
+        lemma = _seed_lemma(db)
+        from app.services.fsrs_service import create_new_card
+        ulk = UserLemmaKnowledge(
+            lemma_id=lemma.lemma_id,
+            knowledge_state="learning",
+            fsrs_card_json=create_new_card(),
+            source="test",
+        )
+        db.add(ulk)
+        db.commit()
+        result = submit_acquisition_review(db, lemma_id=lemma.lemma_id, rating_int=3)
+        # FSRS path: no acquisition_box in result
+        assert result.get("acquisition_box") in (None, 0)
+        # ReviewLog row should have is_acquisition=False
+        log = db.query(ReviewLog).filter_by(lemma_id=lemma.lemma_id).one()
+        assert log.is_acquisition is False

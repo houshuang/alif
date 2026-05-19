@@ -46,6 +46,14 @@ These should be preserved across changes:
 
 8. **Verification failure ≠ success.** If the quality gate's Claude call fails (timeout, parse error), the function returns `None` and tokens stay unverified. We never silently treat an LLM failure as "all good." When *any* batch on a page returns `None`, `mappings_verified_at` is left NULL so the next page-view retries. Per-word `verified_at` is still set for tokens whose batch succeeded, so retries only re-send the failed batches.
 
+9. **Canonical lemma is the unit of scheduling.** Variant lemmas (`Lemma.canonical_lemma_id NOT NULL`) must never get their own `UserLemmaKnowledge` row. Every code path that creates a ULK redirects through `canonical_resolution.resolve_canonical_lemma_id(db, lemma_id)` at entry. Currently the redirect lives in `start_acquisition`, the `/api/reviews/submit` and `/api/reviews/introduce` handlers, and (transitively) `reading_intake.mark_lemma(state='unknown')`. **When adding a new ULK-creation path, redirect at function entry — don't trust callers.**
+
+10. **Mark-unknown enters the SRS engine.** `reading_intake.mark_lemma(state='unknown')` calls `start_acquisition(due_immediately=True)`, so a tapped unknown word lands in Leitner Box 1 with the first review due now. Daily intro cap still binds; cap-exceeded marks stay `encountered` and promote on a future day. Don't reintroduce a standalone `unknown` state in this flow — the whole point of the port is that unknown-flagged words actually flow into review.
+
+11. **Review log idempotency via `client_review_id`.** When the frontend retries a submission after offline reconciliation, the second call must observe the post-state from the first, not apply a second FSRS step. The unique index on `ReviewLog.client_review_id` enforces this at the DB level; the service code reads it first and returns `duplicate=True`.
+
+12. **Intro-card working-memory gate is intentionally NOT ported.** Alif blocks fast-promotion within ~10 minutes of an intro card via `experiment_intro_shown_at`, because three correct answers seconds after an intro card is working memory, not learning. Polyglot has no intro cards yet, so the field is absent. When polyglot adds intro cards (likely as part of the sentence-review UI), port the field + `_intro_shown_recently` guard from Alif. Until then, Tier 0/1/2 graduation can fire on tight time scales — acceptable for a small dogfood user, dangerous for a production cohort.
+
 ## Gates audit — ported from Alif vs deferred
 
 | Alif gate | Polyglot status | File / notes |
@@ -60,17 +68,21 @@ These should be preserved across changes:
 | Gloss-on-demand | **Ported** | `lemma_gloss.py` runs only when user marks unknown |
 | `--json-schema` for constrained CLI decoding | **Ported** | Uses `structured_output` field |
 | Two-phase commit (NLP work outside DB transaction) | **Ported** | `process_page` does compute-then-write |
-| No bare word cards (sentences only) | N/A (no FSRS yet) | will apply when sentence review lands |
-| FSRS scheduling | **Deferred** | py-fsrs in pyproject but no service yet |
-| Acquisition Leitner 3-box | **Deferred** | schema fields present; no scheduler |
-| Session builder | **Deferred** | |
+| No bare word cards (sentences only) | **Deferred** | will apply when sentence-review UI lands; today reviews submit by lemma_id directly |
+| FSRS scheduling | **Ported** | `fsrs_service.py` — py-fsrs v6, desired_retention=0.95 (Alif's optimizer fit; refit when polyglot has its own data). Mnemonic regeneration deferred. |
+| Acquisition Leitner 3-box | **Ported** | `acquisition_service.py` — 4h/1d/3d intervals + tiered graduation (Tier 0 first-correct, Tier 1 100%, Tier 2 ≥80%, Tier 3 standard). Intro-card working-memory gate NOT ported (polyglot has no intro cards yet — see note below). |
+| Session builder | **Deferred** | reviews submit by lemma_id today; session loop ports later |
 | Intro card filter | **Deferred** | |
 | Comprehensibility gate | **Deferred** (only relevant for sentence generation) | |
-| Variant chain resolution everywhere | **Partial** | `canonical_lemma_id` field exists; need explicit resolver helper before sentence generation |
-| Proper-name handling (filter from review) | **Schema in place** | `Lemma.word_category='proper_name'`; resolver enforces it at filter sites |
+| Variant chain resolution everywhere | **Ported** | `canonical_resolution.py` — multi-hop resolver with cycle protection. `start_acquisition` and the reviews router redirect at function entry. |
+| Proper-name handling (filter from review) | **Schema in place** | `Lemma.word_category='proper_name'`; will be enforced at sentence-selector filter sites when those land |
+| Leech auto-management | **Ported** | `leech_service.py` — sliding-window detection (last 8 reviews <50% accuracy), graduated cooldowns (3d/7d/14d), preserved stats across cycles, low-priority multiplier on rare lemmas (rank > 5000). |
 | Listening readiness gate | N/A (no TTS yet) | |
 | Audio cache by SHA256 | N/A | |
-| Daily intro cap | **Deferred** | will apply when scheduling lands |
+| Daily intro cap | **Ported** | `DAILY_INTRO_CAP=30` net-new acquisitions per UTC day, enforced inside `start_acquisition`. Recovery-mode budget kicks in under Box 1/2 overload (same thresholds as Alif). `leech_reintro` bypasses the cap. |
+| Review log idempotency | **Ported** | `ReviewLog.client_review_id` is unique + indexed; submit returns `duplicate=True` for replay. Mirrors Alif's offline-queue contract. |
+| Interaction log JSONL | **Ported** | `interaction_logger.py` — daily files at `polyglot/data/logs/interactions_YYYY-MM-DD.jsonl`. Disabled when `TESTING=1`. |
+| Activity log (ActivityLog table) | **Ported** | `activity_log.py` — service-level events (batch jobs, leech sweeps). Used by leech_service. |
 
 ## Development workflow
 

@@ -3,8 +3,8 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.database import engine, Base, SessionLocal
-from app.routers import languages, texts, profile, stats
+from app.database import engine, Base, SessionLocal, ensure_schema
+from app.routers import languages, texts, profile, reviews, stats
 
 
 def _seed_languages():
@@ -50,6 +50,7 @@ def _seed_languages():
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     Base.metadata.create_all(bind=engine)
+    ensure_schema()
     _seed_languages()
     yield
 
@@ -72,6 +73,7 @@ app.add_middleware(
 app.include_router(languages.router)
 app.include_router(texts.router)
 app.include_router(profile.router)
+app.include_router(reviews.router)
 app.include_router(stats.router)
 
 

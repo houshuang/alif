@@ -354,13 +354,39 @@ def bulk_mark_remaining_known(db: Session, story_id: int, page_number: int) -> i
 def mark_lemma(db: Session, lemma_id: int, state: str, *, fetch_gloss: bool = True) -> UserLemmaKnowledge:
     """Set the user's knowledge state for a lemma. Creates ULK if missing.
 
-    When `state='unknown'` and the lemma has no gloss yet, fetches a tiny
-    gloss in the same call (synchronously). The UI can show a spinner during
-    the ~2-3s mark→gloss round-trip.
+    Behaviour by ``state``:
+      - ``known``: ULK state set to ``known``; cognate propagation runs.
+      - ``unknown``: enters the SRS engine immediately. The lemma is routed
+        through ``start_acquisition`` with ``source='reading_intake'`` and
+        ``due_immediately=True``, so it lands in Box 1 with the next review
+        due now. The daily intro cap still applies: cap-exceeded marks
+        remain in ``encountered`` state and promote on a future day.
+        A tiny English gloss is also fetched if missing.
+      - ``encountered``: lightweight state-only update; no SRS enrolment.
+      - ``ignore``: state-only update; learner has opted out of this lemma.
     """
     valid = {"known", "unknown", "encountered", "ignore"}
     if state not in valid:
         raise ValueError(f"Invalid state {state!r}; expected one of {valid}")
+
+    # 'unknown' has its own pipeline — enrol into acquisition, fetch gloss.
+    if state == "unknown":
+        from app.services.acquisition_service import start_acquisition
+        ulk = start_acquisition(
+            db,
+            lemma_id=lemma_id,
+            source="reading_intake",
+            due_immediately=True,
+        )
+        db.commit()
+        db.refresh(ulk)
+        if fetch_gloss:
+            try:
+                from app.services.lemma_gloss import ensure_gloss
+                ensure_gloss(db, lemma_id)
+            except Exception as e:
+                log.warning("Gloss fetch failed for lemma_id=%d: %s", lemma_id, e)
+        return ulk
 
     ulk = db.query(UserLemmaKnowledge).filter(
         UserLemmaKnowledge.lemma_id == lemma_id
@@ -376,23 +402,10 @@ def mark_lemma(db: Session, lemma_id: int, state: str, *, fetch_gloss: bool = Tr
         db.add(ulk)
     else:
         ulk.knowledge_state = state
-    if state == "unknown":
-        ulk.entered_acquiring_at = ulk.entered_acquiring_at or now
     db.commit()
     db.refresh(ulk)
 
-    # Marking known: propagate to Modern↔Ancient cognate as 'encountered'.
     if state == "known":
         propagate_known_via_cognate(db, lemma_id)
-
-    # Marking unknown: fetch a tiny English gloss if missing. Per "defer as
-    # much work as possible" — only words the user actively flags get a
-    # gloss; the rest stay glossless until they're marked too.
-    if state == "unknown" and fetch_gloss:
-        try:
-            from app.services.lemma_gloss import ensure_gloss
-            ensure_gloss(db, lemma_id)
-        except Exception as e:
-            log.warning("Gloss fetch failed for lemma_id=%d: %s", lemma_id, e)
 
     return ulk

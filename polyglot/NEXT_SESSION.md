@@ -5,6 +5,27 @@ Read this FIRST before touching anything under `polyglot/`. Also read
 `polyglot/CLAUDE.md` (project rules + gates audit) and the root
 `/Users/stian/src/alif/CLAUDE.md` (especially the new "Polyglot" bullet).
 
+## Done in the 2026-05-19 overnight pass
+
+- **Quality-gate fixes** (PR #84) — caps-heading handling, partial-failure
+  idempotency, model routing.
+- **FSRS + acquisition + leech port** — full SRS engine on polyglot's
+  schema. Files: `services/{canonical_resolution,interaction_logger,
+  activity_log,fsrs_service,acquisition_service,leech_service}.py`.
+- **Reviews router** — `POST /api/reviews/{submit,introduce}` + `GET
+  /api/reviews/{due,stats}`. Auto-routes acquisition vs FSRS, redirects
+  variants to canonical, reactivates suspended leeches.
+- **Mark-unknown → SRS** — `reading_intake.mark_lemma(state='unknown')`
+  now calls `start_acquisition(due_immediately=True)`. Tapped unknowns
+  flow into Box 1 with first review due now (subject to daily cap).
+- **ReviewLog idempotency** — `client_review_id` + `comprehension_signal`
+  columns, plus `database.ensure_schema()` startup hook that ALTERs them
+  onto existing DBs.
+- **78 tests** passing — 34 new in `test_{canonical_resolution,
+  fsrs_service,acquisition_service,leech_service,reviews_router}.py`.
+
+What's still deferred from this briefing (open scope below):
+
 ## Context
 
 Stian has been building Alif (Arabic learning) for 100 days. On 2026-05-19 we
