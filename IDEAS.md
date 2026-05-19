@@ -24,6 +24,25 @@ Test coverage: 30 backend tests + tsc-clean frontend. Imported `22-0021-02_Istor
 
 What's deferred (next-session work): sentence review, FSRS scheduling, acquisition Leitner 3-box, session builder, audio, Ancient Greek lemmatization (OdyCy wire-up), Latin POS via LatinCy. Schema fields are in place on UserLemmaKnowledge so the port is mechanical when the time comes. See `polyglot/NEXT_SESSION.md`.
 
+## ✅ [DONE 2026-05-18] Treat textbook imports as high-priority new words
+
+Textbook OCR is now vocabulary intake, not proof of knowledge. Future scanned
+unknown words create/refresh `encountered` ULKs with `source="textbook_scan"`,
+no FSRS card, and no card-only `textbook_preserve_intro` exception. The old
+`preserve_known` and `start_acquiring` request flags remain accepted but are
+ignored for learning state.
+
+The high priority remains: `source="textbook_scan"` is preserved when a scanned
+word later enters acquisition, and `word_selector.py` ranks textbook-scan
+learning provenance at +220, ahead of ordinary book/story/collateral/wiki
+candidates. Legacy known textbook-preserve rows are not retroactively demoted;
+their old card-only intro path is simply no longer rendered.
+
+Follow-up: tomorrow, after any new scan, verify scan-created ULKs are
+`encountered` with no FSRS card; within a few days, confirm textbook candidates
+still rise quickly when the recovery intro budget opens, without bypassing the
+daily/new-word caps.
+
 ## ✅ [DONE 2026-05-17] Acquisition working-memory gate + recovery intro budget
 
 Prod audit of 2026-05-13 through 2026-05-17 found the aggressive intake was creating acquisition debt faster than sentence practice could consolidate it: 107 net-new acquisitions in five days, 125 current acquiring words, 70 due in Box 2, and 74 of 83 current Box-2 words whose first acquisition review happened less than two minutes after an intro card.

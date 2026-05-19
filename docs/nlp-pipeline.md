@@ -46,6 +46,8 @@ Active in production (`VERIFY_MAPPINGS_LLM=1`). After disambiguation and `map_to
 
 High-volume paths use `batch_verify_sentences()` instead of per-sentence `mapping_verification` calls. Sentence generation already verifies deterministic survivors in `batch_verification` calls. Since 2026-05-11, `update_material.py` Step A2 verifies corpus/book enrichment candidates in chunks of `ALIF_CORPUS_VERIFY_BATCH_SIZE` (default 10), and cron/warm-cache multi-target generation verifies generated candidates in chunks of `ALIF_MULTI_TARGET_VERIFY_BATCH_SIZE` (default 10). These paths no longer launch one Claude Code session per sentence for mapping verification. Lower-volume import cleanup paths still use the single-sentence verifier where preserving path-specific failure semantics matters.
 
+Since 2026-05-18, the runtime reviewability cutoff is the 2026-05-17 sense-aware resolver deploy (`MAPPING_VERIFICATION_MIN_AT = 2026-05-17 18:59`). `/api/review/next-sentences` does **not** run LLM verification synchronously; selected sentences must already have current stamps. Legacy rows are refreshed by warm-cache rescue/maintenance outside the response path, which avoids both a huge sweep and request-time SQLite lock contention.
+
 ## Flag-Driven Feedback Loop
 When a user flags a word mapping and the flag evaluator fixes it:
 1. **Fix or retire**: If the correct lemma exists in DB, the mapping is fixed. If the correct lemma is NOT in the DB, the **sentence is retired** (`is_active=False`) — lemmas are never auto-created from flag reports to avoid introducing unvetted words into the review pipeline.

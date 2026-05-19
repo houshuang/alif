@@ -1,6 +1,7 @@
 from datetime import datetime, timezone
 
 import pytest
+from starlette.background import BackgroundTasks
 
 from app.models import Lemma, UserLemmaKnowledge, Sentence, SentenceWord, ReviewLog
 from app.services.fsrs_service import create_new_card
@@ -251,3 +252,61 @@ def test_next_sentences_prefetch_skips_logging(client, db_session, monkeypatch):
     assert "items" in data
     assert "session_start" not in router_events
     assert "sentence_selected" not in selector_events
+
+
+def test_next_sentences_commits_flushed_intro_state_before_background(db_session, monkeypatch):
+    """Regression: a flushed encountered ULK must not stay open into warm cache."""
+    from sqlalchemy.orm import sessionmaker
+    from app.routers import review
+
+    lemma = Lemma(lemma_id=4242, lemma_ar="جديد", lemma_ar_bare="جديد", gloss_en="new")
+    db_session.add(lemma)
+    db_session.commit()
+
+    def _fake_build_session(db, **_kwargs):
+        db.add(
+            UserLemmaKnowledge(
+                lemma_id=lemma.lemma_id,
+                knowledge_state="encountered",
+                source="collateral",
+                total_encounters=0,
+            )
+        )
+        db.flush()
+        return {
+            "session_id": "lock-regression",
+            "items": [],
+            "total_due_words": 0,
+            "covered_due_words": 0,
+            "intro_candidates": [],
+            "reintro_cards": [],
+            "experiment_intro_cards": [],
+            "grammar_intro_needed": [],
+            "grammar_refresher_needed": [],
+        }
+
+    monkeypatch.setattr(review, "build_session", _fake_build_session)
+    monkeypatch.setattr(review, "_ensure_session_mapping_hardened", lambda *_args: set())
+    monkeypatch.setattr(review, "log_interaction", lambda *_args, **_kwargs: None)
+
+    result = review.next_sentences(
+        limit=10,
+        mode="reading",
+        prefetch=False,
+        exclude=[],
+        background_tasks=BackgroundTasks(),
+        db=db_session,
+    )
+
+    assert result["session_id"] == "lock-regression"
+    assert not db_session.in_transaction()
+
+    OtherSession = sessionmaker(bind=db_session.bind)
+    other = OtherSession()
+    try:
+        persisted = other.query(UserLemmaKnowledge).filter_by(
+            lemma_id=lemma.lemma_id,
+        ).one()
+        assert persisted.knowledge_state == "encountered"
+    finally:
+        other.close()

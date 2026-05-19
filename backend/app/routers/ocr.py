@@ -65,7 +65,7 @@ def _load_saved_images(batch_id: str) -> list[tuple[str, bytes]] | None:
 def _process_batch_background(
     batch_id: str,
     file_images: list[tuple[str, bytes]],
-    preserve_known: bool = True,
+    preserve_known: bool = False,
 ) -> None:
     """Background task: OCR all pages, dedupe words, single DB import."""
     db = SessionLocal()
@@ -95,7 +95,7 @@ def _process_batch_background(
 async def scan_textbook_pages(
     background_tasks: BackgroundTasks,
     files: list[UploadFile] = File(...),
-    preserve_known: bool = Query(default=True),
+    preserve_known: bool = Query(default=False),
     start_acquiring: bool | None = Query(default=None),
     db: Session = Depends(get_db),
 ):
@@ -148,11 +148,12 @@ async def scan_textbook_pages(
     # Save images to disk for retry on failure
     _save_uploads(batch_id, file_images)
 
-    # Backward compatibility: older clients sent start_acquiring=true/false.
-    effective_preserve_known = preserve_known if start_acquiring is None else start_acquiring
+    # Backward compatibility: older clients sent preserve_known/start_acquiring.
+    # Textbook words are always imported as encountered/new-word candidates now.
+    _ = preserve_known, start_acquiring
 
     # Single background task for the entire batch
-    background_tasks.add_task(_process_batch_background, batch_id, file_images, effective_preserve_known)
+    background_tasks.add_task(_process_batch_background, batch_id, file_images, False)
 
     return {
         "batch_id": batch_id,
@@ -232,7 +233,7 @@ def list_uploads(
 def retry_batch(
     batch_id: str,
     background_tasks: BackgroundTasks,
-    preserve_known: bool = Query(default=True),
+    preserve_known: bool = Query(default=False),
     start_acquiring: bool | None = Query(default=None),
     db: Session = Depends(get_db),
 ):
@@ -263,8 +264,9 @@ def retry_batch(
         u.completed_at = None
     db.commit()
 
-    effective_preserve_known = preserve_known if start_acquiring is None else start_acquiring
-    background_tasks.add_task(_process_batch_background, batch_id, file_images, effective_preserve_known)
+    # Backward compatibility: keep accepting legacy flags, but ignore them.
+    _ = preserve_known, start_acquiring
+    background_tasks.add_task(_process_batch_background, batch_id, file_images, False)
 
     return {
         "batch_id": batch_id,

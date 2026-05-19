@@ -9,6 +9,7 @@ import pytest
 
 from app.models import Lemma, Root, Sentence, SentenceWord, UserLemmaKnowledge
 from app.services.fsrs_service import create_new_card
+from app.services.sentence_eligibility import MAPPING_VERIFICATION_HARDENED_AT
 from app.simulation.runner import run_simulation
 from app.simulation.student import BEGINNER, CASUAL, STRONG
 
@@ -106,7 +107,7 @@ def _seed_simulation_data(db):
 
     # Create sentences covering words 1-15 (the ones with active states)
     # Each sentence has its target word + 2 known scaffold words
-    verified_at = datetime(2026, 5, 1, tzinfo=timezone.utc)
+    verified_at = MAPPING_VERIFICATION_HARDENED_AT
     for i in range(1, 16):
         sent = Sentence(
             id=i,

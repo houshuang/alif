@@ -26,3 +26,4 @@ def test_single_letter_particles_keep_their_mark():
 def test_validation_rejects_case_ending_only_proposals():
     assert not validate_proposal("محظوظةً", "محظوظة")
     assert validate_proposal("مَحْظُوظَة", "محظوظة")
+    assert validate_proposal("مَحْظُوظَة", "محظوظةً")

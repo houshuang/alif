@@ -2,9 +2,10 @@
 
 Called from ``warm_sentence_cache`` after the gap-detection phase and before LLM
 generation. The reviewability gate (``has_current_mapping_verification``) treats
-any sentence with ``mappings_verified_at`` < 2026-04-16, NULL, or equal to the
-2000-01-01 corpus sentinel as untrustworthy and hides it from review selection.
-That leaves a long tail of structurally fine sentences stuck in purgatory.
+any sentence with ``mappings_verified_at`` older than the active verifier cutoff,
+NULL, or equal to the 2000-01-01 corpus sentinel as untrustworthy and hides it
+from review selection. That leaves a long tail of structurally fine sentences
+stuck in purgatory.
 
 Rather than draining the backlog globally on a schedule (expensive, blind),
 this module rescues *only* the stale sentences attached to lemmas the warm
@@ -725,6 +726,59 @@ def reverify_oldest_active_sentences(
     # Delegate to the existing sweep machinery with the explicit ID list.
     return reverify_all_active_sentences(
         batch_size=REVERIFY_BATCH_SIZE,
+        sentence_ids=ids,
+    )
+
+
+def reverify_sentences_before(
+    sentence_ids: list[int],
+    *,
+    cutoff: datetime,
+    batch_size: int = REVERIFY_BATCH_SIZE,
+) -> ReverifyStats:
+    """Reverify explicit reviewable sentence IDs with stamps older than cutoff.
+
+    This is the just-in-time counterpart to the global sweeps: callers can pass
+    the concrete sentences about to be shown, and only rows whose
+    ``mappings_verified_at`` predates a hardening timestamp pay the LLM cost.
+    If verification cannot stamp a row fresh, the caller should treat it as
+    unsafe for the current response.
+    """
+    stats = ReverifyStats()
+    if not sentence_ids:
+        return stats
+
+    cutoff_naive = (
+        cutoff.astimezone(timezone.utc).replace(tzinfo=None)
+        if cutoff.tzinfo is not None
+        else cutoff
+    )
+
+    db = SessionLocal()
+    try:
+        from app.services.sentence_eligibility import not_has_unmapped_words
+        ids = [
+            r[0] for r in db.query(Sentence.id)
+            .filter(
+                Sentence.id.in_(list(set(sentence_ids))),
+                Sentence.is_active == True,  # noqa: E712
+                not_has_unmapped_words(),
+                or_(
+                    Sentence.mappings_verified_at.is_(None),
+                    Sentence.mappings_verified_at < cutoff_naive,
+                ),
+            )
+            .order_by(Sentence.mappings_verified_at.asc())
+            .all()
+        ]
+    finally:
+        db.close()
+
+    if not ids:
+        return stats
+
+    return reverify_all_active_sentences(
+        batch_size=batch_size,
         sentence_ids=ids,
     )
 

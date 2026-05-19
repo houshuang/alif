@@ -159,7 +159,7 @@ def validate_proposal(proposal: str, lemma_ar: str) -> bool:
         return False
     if lexical_diacritic_count(proposal) == 0:
         return False
-    return normalize_alef(strip_diacritics(proposal)) == normalize_alef(lemma_ar)
+    return normalize_alef(strip_diacritics(proposal)) == normalize_alef(strip_diacritics(lemma_ar))
 
 
 def apply_vocalization(lemma: Lemma, proposal: str) -> bool:

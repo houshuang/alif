@@ -17,13 +17,14 @@ from app.services.sentence_selector import (
     MID_ACCURACY_INTRO_BACKLOG_CAP,
     PIPELINE_BACKLOG_THRESHOLD,
     SESSION_SCAFFOLD_DECAY,
-    TEXTBOOK_PRESERVE_INTRO_GROUP,
     SentenceCandidate,
     WordMeta,
     _build_intro_cards,
     _difficulty_match_quality,
     _find_pregenerated_sentences_for_words,
+    _best_generated_passage_seed,
     _group_maintenance_passages,
+    _ensure_session_words_have_intro_state,
     _intro_backlog_threshold_for_accuracy,
     _intro_slots_for_accuracy,
     _is_near_duplicate_of_selected,
@@ -231,6 +232,22 @@ class TestMaintenancePassageGrouping:
             self._candidate(1, 101, story_id=10, source="passage"),
             self._candidate(2, story_id=10, source="passage"),
             self._candidate(3, 103, story_id=10, source="passage"),
+            self._candidate(4, 104, story_id=10, source="passage"),
+        ]
+        knowledge = {
+            lid: UserLemmaKnowledge(lemma_id=lid, knowledge_state="known")
+            for lid in {101, 103, 104}
+        }
+
+        groups = _group_maintenance_passages(candidates, knowledge)
+
+        assert [[c.sentence_id for c in group] for group in groups] == [[1, 2, 3, 4]]
+
+    def test_generated_passage_group_requires_three_due_words(self):
+        candidates = [
+            self._candidate(1, 101, story_id=10, source="passage"),
+            self._candidate(2, story_id=10, source="passage"),
+            self._candidate(3, 103, story_id=10, source="passage"),
         ]
         knowledge = {
             lid: UserLemmaKnowledge(lemma_id=lid, knowledge_state="known")
@@ -239,7 +256,27 @@ class TestMaintenancePassageGrouping:
 
         groups = _group_maintenance_passages(candidates, knowledge)
 
-        assert [[c.sentence_id for c in group] for group in groups] == [[1, 2, 3]]
+        assert [[c.sentence_id for c in group] for group in groups] == [[1], [2], [3]]
+
+    def test_generated_passage_seed_prefers_due_dense_group(self):
+        sparse = [
+            self._candidate(1, 101, story_id=10, source="passage"),
+            self._candidate(2, 102, story_id=10, source="passage"),
+            self._candidate(3, 103, story_id=10, source="passage"),
+        ]
+        dense = [
+            self._candidate(4, 201, 202, story_id=20, source="passage"),
+            self._candidate(5, 203, story_id=20, source="passage"),
+            self._candidate(6, 204, story_id=20, source="passage"),
+        ]
+        knowledge = {
+            lid: UserLemmaKnowledge(lemma_id=lid, knowledge_state="known")
+            for lid in {101, 102, 103, 201, 202, 203, 204}
+        }
+
+        seed = _best_generated_passage_seed(sparse + dense, knowledge)
+
+        assert [c.sentence_id for c in seed] == [4, 5, 6]
 
 
 class TestScaffoldFreshness:
@@ -1306,7 +1343,92 @@ class TestIntroCardsForSessionWords:
         finally:
             fresh.close()
 
-    def test_textbook_preserved_known_gets_card_without_acquisition(self, db_session):
+    def test_textbook_encountered_promotion_preserves_high_priority_source(self, db_session):
+        _seed_word(db_session, 1, "كتاب", "book", due_hours=-1)
+        textbook = Lemma(
+            lemma_id=4,
+            lemma_ar="قلم",
+            lemma_ar_bare="قلم",
+            pos="noun",
+            gloss_en="pen",
+            gates_completed_at=datetime.now(timezone.utc),
+        )
+        db_session.add(textbook)
+        db_session.add(UserLemmaKnowledge(
+            lemma_id=4,
+            knowledge_state="encountered",
+            fsrs_card_json=None,
+            introduced_at=None,
+            times_seen=0,
+            times_correct=0,
+            total_encounters=1,
+            source="textbook_scan",
+        ))
+        _seed_sentence(
+            db_session,
+            1,
+            "كتاب قلم",
+            "book pen",
+            1,
+            [("كتاب", 1), ("قلم", 4)],
+        )
+        db_session.commit()
+
+        result = build_session(db_session, limit=1)
+        assert [c["lemma_id"] for c in result["experiment_intro_cards"]] == [4]
+        assert result["experiment_intro_cards"][0]["source"] == "textbook_scan"
+
+        persisted = db_session.query(UserLemmaKnowledge).filter_by(lemma_id=4).one()
+        assert persisted.knowledge_state == "acquiring"
+        assert persisted.source == "textbook_scan"
+        assert persisted.acquisition_started_at is not None
+
+    def test_textbook_scan_candidates_win_intro_promotion_cap(self, db_session):
+        ids = list(range(100, 109))
+        textbook_ids = {100, 101, 102, 103, 104}
+        knowledge_by_id = {}
+
+        for lid in ids:
+            db_session.add(Lemma(
+                lemma_id=lid,
+                lemma_ar=f"كلمة{lid}",
+                lemma_ar_bare=f"كلمة{lid}",
+                pos="noun",
+                gloss_en=f"meaning {lid}",
+                gates_completed_at=datetime.now(timezone.utc),
+            ))
+            source = "textbook_scan" if lid in textbook_ids else "collateral"
+            ulk = UserLemmaKnowledge(
+                lemma_id=lid,
+                knowledge_state="encountered",
+                fsrs_card_json=None,
+                introduced_at=None,
+                times_seen=0,
+                times_correct=0,
+                total_encounters=1,
+                source=source,
+            )
+            db_session.add(ulk)
+            knowledge_by_id[lid] = ulk
+        db_session.commit()
+
+        promoted = _ensure_session_words_have_intro_state(
+            db_session,
+            set(ids),
+            knowledge_by_id,
+        )
+
+        assert promoted is True
+        acquired = {
+            ulk.lemma_id
+            for ulk in db_session.query(UserLemmaKnowledge).filter(
+                UserLemmaKnowledge.knowledge_state == "acquiring"
+            )
+        }
+        assert len(acquired) <= INTRO_NEW_CARDS_PER_SESSION
+        assert textbook_ids <= acquired
+
+    def test_legacy_textbook_preserve_group_does_not_get_card(self, db_session):
         _seed_word(db_session, 1, "كتاب", "book", due_hours=-1)
         textbook_lemma = Lemma(
             lemma_id=4,
@@ -1343,13 +1465,11 @@ class TestIntroCardsForSessionWords:
         result = build_session(db_session, limit=1)
         ulk = db_session.query(UserLemmaKnowledge).filter_by(lemma_id=4).one()
 
-        assert [(c["lemma_id"], c.get("intro_kind")) for c in result["experiment_intro_cards"]] == [
-            (4, "textbook_preserve")
-        ]
+        assert 4 not in {c["lemma_id"] for c in result["experiment_intro_cards"]}
         assert ulk.knowledge_state == "known"
         assert ulk.acquisition_box is None
 
-    def test_reviewed_textbook_preserved_known_does_not_get_intro_card(self, db_session):
+    def test_reviewed_legacy_textbook_preserve_row_does_not_get_intro_card(self, db_session):
         _seed_word(db_session, 1, "كتاب", "book", due_hours=-1)
         textbook_lemma = Lemma(
             lemma_id=4,
@@ -1623,7 +1743,7 @@ class TestIntroCardTotalCap:
     the total budget; this test pins the contract.
     """
 
-    def _seed_acquiring_new(self, db, lemma_id, arabic):
+    def _seed_acquiring_new(self, db, lemma_id, arabic, source="collateral"):
         lemma = Lemma(
             lemma_id=lemma_id,
             lemma_ar=arabic,
@@ -1644,11 +1764,11 @@ class TestIntroCardTotalCap:
             times_correct=0,
             total_encounters=1,
             experiment_intro_shown_at=None,
-            source="collateral",
+            source=source,
         ))
         db.flush()
 
-    def _seed_textbook_preserved(self, db, lemma_id, arabic):
+    def _seed_legacy_textbook_preserved(self, db, lemma_id, arabic):
         lemma = Lemma(
             lemma_id=lemma_id,
             lemma_ar=arabic,
@@ -1667,19 +1787,19 @@ class TestIntroCardTotalCap:
             times_correct=1,
             total_encounters=1,
             source="textbook_scan",
-            experiment_group=TEXTBOOK_PRESERVE_INTRO_GROUP,
+            experiment_group="textbook_preserve_intro",
             experiment_intro_shown_at=None,
         ))
         db.flush()
 
     def test_total_intro_cards_capped_across_categories(self, db_session):
-        # 10 new acquiring + 10 textbook-preserve = 20 eligible cards
+        # 10 new acquiring + 10 legacy textbook-preserve rows = only new cards.
         new_ids = list(range(1001, 1011))
         tb_ids = list(range(2001, 2011))
         for i, lid in enumerate(new_ids):
             self._seed_acquiring_new(db_session, lid, f"كلمة{i}")
         for i, lid in enumerate(tb_ids):
-            self._seed_textbook_preserved(db_session, lid, f"كتاب{i}")
+            self._seed_legacy_textbook_preserved(db_session, lid, f"كتاب{i}")
         db_session.commit()
 
         eligible = set(new_ids) | set(tb_ids)
@@ -1695,14 +1815,13 @@ class TestIntroCardTotalCap:
             f"Expected total intro cards <= {INTRO_NEW_CARDS_PER_SESSION}, got {len(cards)}"
         )
 
-    def test_new_cards_take_priority_over_textbook(self, db_session):
-        # When both are eligible, the budget should fill with `new` first.
+    def test_legacy_textbook_preserve_rows_are_ignored_when_new_cards_exist(self, db_session):
         new_ids = list(range(1001, 1011))
         tb_ids = list(range(2001, 2011))
         for i, lid in enumerate(new_ids):
             self._seed_acquiring_new(db_session, lid, f"كلمة{i}")
         for i, lid in enumerate(tb_ids):
-            self._seed_textbook_preserved(db_session, lid, f"كتاب{i}")
+            self._seed_legacy_textbook_preserved(db_session, lid, f"كتاب{i}")
         db_session.commit()
 
         eligible = set(new_ids) | set(tb_ids)
@@ -1714,20 +1833,18 @@ class TestIntroCardTotalCap:
         }
         cards = _build_intro_cards(db_session, knowledge_by_id, eligible)
 
-        # All returned cards should be "new" — textbook gets pushed out by priority.
         textbook_in_result = [c for c in cards if c.get("intro_kind") == "textbook_preserve"]
-        assert textbook_in_result == [], (
-            f"Expected new cards to take priority, got textbook cards: {textbook_in_result}"
-        )
+        assert textbook_in_result == []
 
-    def test_textbook_fills_remaining_budget(self, db_session):
-        # 2 new + 10 textbook → cards = 2 new + 4 textbook (total 6, budget filled)
+    def test_legacy_textbook_preserve_rows_do_not_fill_remaining_budget(self, db_session):
+        # Textbook imports now become encountered/acquiring new words through
+        # the normal budget; legacy known preserve rows should not create cards.
         new_ids = [1001, 1002]
         tb_ids = list(range(2001, 2011))
         for i, lid in enumerate(new_ids):
             self._seed_acquiring_new(db_session, lid, f"كلمة{i}")
         for i, lid in enumerate(tb_ids):
-            self._seed_textbook_preserved(db_session, lid, f"كتاب{i}")
+            self._seed_legacy_textbook_preserved(db_session, lid, f"كتاب{i}")
         db_session.commit()
 
         eligible = set(new_ids) | set(tb_ids)
@@ -1744,6 +1861,31 @@ class TestIntroCardTotalCap:
         new_count = sum(1 for k in kinds if k != "textbook_preserve")
         tb_count = sum(1 for k in kinds if k == "textbook_preserve")
         assert new_count == 2, f"Expected 2 new cards, got {new_count}"
-        assert tb_count == INTRO_NEW_CARDS_PER_SESSION - 2, (
-            f"Expected {INTRO_NEW_CARDS_PER_SESSION - 2} textbook cards, got {tb_count}"
-        )
+        assert tb_count == 0
+
+    def test_textbook_scan_new_cards_win_total_cap_ties(self, db_session):
+        textbook_ids = [1001, 1002, 1003]
+        collateral_ids = list(range(2001, 2008))
+        for i, lid in enumerate(textbook_ids):
+            self._seed_acquiring_new(
+                db_session,
+                lid,
+                f"كتاب{i}",
+                source="textbook_scan",
+            )
+        for i, lid in enumerate(collateral_ids):
+            self._seed_acquiring_new(db_session, lid, f"كلمة{i}")
+        db_session.commit()
+
+        eligible = set(textbook_ids) | set(collateral_ids)
+        knowledge_by_id = {
+            k.lemma_id: k
+            for k in db_session.query(UserLemmaKnowledge).filter(
+                UserLemmaKnowledge.lemma_id.in_(eligible)
+            ).all()
+        }
+        cards = _build_intro_cards(db_session, knowledge_by_id, eligible)
+        card_ids = {c["lemma_id"] for c in cards}
+
+        assert len(cards) == INTRO_NEW_CARDS_PER_SESSION
+        assert set(textbook_ids) <= card_ids

@@ -9,7 +9,6 @@ import {
   Image,
   ScrollView,
   Platform,
-  Switch,
   Animated,
 } from "react-native";
 import { useFocusEffect } from "expo-router";
@@ -40,7 +39,6 @@ export default function ScannerScreen() {
   const [history, setHistory] = useState<BatchSummary[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [expandedBatch, setExpandedBatch] = useState<string | null>(null);
-  const [preserveKnown, setPreserveKnown] = useState(true);
   const [cameraOpen, setCameraOpen] = useState(false);
   const [cameraCaptures, setCameraCaptures] = useState<string[]>([]);
   const [capturing, setCapturing] = useState(false);
@@ -165,7 +163,7 @@ export default function ScannerScreen() {
     setViewMode("history");
 
     try {
-      const batch = await scanTextbookPages(selectedImages, preserveKnown);
+      const batch = await scanTextbookPages(selectedImages);
       setCurrentBatch(batch);
       setSelectedImages([]);
 
@@ -286,19 +284,8 @@ export default function ScannerScreen() {
               ))}
             </ScrollView>
 
-            <View style={styles.toggleRow}>
-              <Text style={styles.toggleLabel}>Preserve as known</Text>
-              <Switch
-                value={preserveKnown}
-                onValueChange={setPreserveKnown}
-                trackColor={{ false: "#555", true: colors.accent + "80" }}
-                thumbColor={preserveKnown ? colors.accent : "#999"}
-              />
-            </View>
             <Text style={styles.toggleHint}>
-              {preserveKnown
-                ? "Textbook words will be saved as known review cards"
-                : "Words will be saved only, without review scheduling"}
+              Textbook words are saved as high-priority learning candidates.
             </Text>
 
             <Pressable
@@ -456,7 +443,7 @@ export default function ScannerScreen() {
 
   async function handleRetry(batchId: string) {
     try {
-      const batch = await retryBatch(batchId, preserveKnown);
+      const batch = await retryBatch(batchId);
       setCurrentBatch(batch);
       startPolling(batchId);
     } catch (e) {
@@ -832,18 +819,6 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     textAlign: "center",
     marginTop: 4,
-  },
-  toggleRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginTop: 12,
-    paddingHorizontal: 4,
-  },
-  toggleLabel: {
-    color: colors.text,
-    fontSize: fonts.body,
-    fontWeight: "600",
   },
   toggleHint: {
     color: colors.textSecondary,
