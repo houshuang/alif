@@ -50,6 +50,7 @@
     ],
     "extra": {
       "apiUrl": "http://46.225.75.29:3000",
+      "polyglotApiUrl": "http://46.225.75.29:3001",
       "router": {},
       "eas": {
         "projectId": "20b68974-631b-4074-83df-64d741f72325"

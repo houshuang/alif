@@ -1,0 +1,13 @@
+.venv/
+.pytest_cache/
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+polyglot.db
+polyglot.db-shm
+polyglot.db-wal
+data/logs/
+data/hf_cache/
+data/frequency/*.tsv
+.env

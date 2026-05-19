@@ -4,6 +4,26 @@
 
 ---
 
+## 🟢 [IN PROGRESS 2026-05-19] Polyglot — multilingual sister app (Modern Greek primary)
+
+Built `polyglot/` as a sibling backend for Modern Greek, Ancient Greek, and Latin. Decision: fork-then-converge — Phase 1 is a separate Python package + venv + SQLite + systemd; Phase 2 (after ~6 weeks of dogfooding) extracts a shared `alif_core/` package. Frontend (`frontend/`) talks to both backends; user picks language via a Globe tab. Detailed gate-by-gate Alif comparison + project rules in `polyglot/CLAUDE.md`.
+
+Reading-as-mapping is the MVP UX:
+- Lazy PDF intake (textbook imports in <1s, pages tokenized on first view)
+- Tap unknowns → bottom-bar lookup + auto-gloss when marked unknown
+- Next-page presumes everything you didn't tap is known (huge intermediate-learner accelerator)
+- Modern↔Ancient Greek cognate auto-linking + 'encountered'-state propagation (semantic-drift-aware)
+- External L1 cognate detection (en/no/de/fr/it/es) — opt-in
+
+Lemmatization stack:
+- simplemma (pure-Python dictionary lemmatizer; works for Modern Greek + Latin + others)
+- LLM quality gate (`lemma_quality.py`) using Claude CLI with `--json-schema` constrained decoding; catches homograph/POS/proper-noun errors simplemma misses. On test page 11 of the Greek high-school history textbook, made 10 real corrections (χώρα/χωρώ, Τίγρης proper-noun, etc).
+- Tiny gloss generation on-demand (when user marks unknown) — Haiku, ~2s.
+
+Test coverage: 30 backend tests + tsc-clean frontend. Imported `22-0021-02_Istoria-tou-Archaiou-Kosmou_A-Lykeiou_Vivlio-Mathiti.pdf` (298 pages, modern Greek prose on ancient world history) as the seed text.
+
+What's deferred (next-session work): sentence review, FSRS scheduling, acquisition Leitner 3-box, session builder, audio, Ancient Greek lemmatization (OdyCy wire-up), Latin POS via LatinCy. Schema fields are in place on UserLemmaKnowledge so the port is mechanical when the time comes. See `polyglot/NEXT_SESSION.md`.
+
 ## ✅ [DONE 2026-05-18] Treat textbook imports as high-priority new words
 
 Textbook OCR is now vocabulary intake, not proof of knowledge. Future scanned
