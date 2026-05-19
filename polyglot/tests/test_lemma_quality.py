@@ -136,9 +136,10 @@ def test_skipped_when_already_verified(tmp_db, force_gate_enabled, monkeypatch):
         assert len(calls) == first_calls  # no additional calls
 
 
-def test_llm_failure_does_not_crash(tmp_db, force_gate_enabled, monkeypatch):
-    """If Claude returns None (subprocess failure), gate should leave tokens
-    unverified but not raise — caller can retry later."""
+def test_llm_failure_leaves_page_unverified(tmp_db, force_gate_enabled, monkeypatch):
+    """If every batch returns None (subprocess failure), the page must NOT be
+    stamped — otherwise the next view treats unverified tokens as gated. The
+    caller can retry on the next page view."""
     with tmp_db() as db:
         story = reading_intake.import_paste(db, language_code="el", body="βιβλίο σπίτι")
         page, _ = reading_intake.get_page_view(db, story.id, 1)
@@ -149,4 +150,130 @@ def test_llm_failure_does_not_crash(tmp_db, force_gate_enabled, monkeypatch):
         corrected = lemma_quality.verify_page_mappings(db, page, force=True)
         assert corrected == 0
         db.refresh(page)
-        assert page.mappings_verified_at is not None  # still stamped (gate ran)
+        assert page.mappings_verified_at is None
+
+
+def test_partial_batch_failure_leaves_page_unverified(tmp_db, force_gate_enabled, monkeypatch):
+    """If one batch succeeds and one fails, the page must NOT be stamped —
+    next page-view retries. Tokens from the successful batch still get
+    per-word verified_at so they aren't re-sent."""
+    # Force tiny batch size so two batches fire
+    monkeypatch.setattr(lemma_quality, "BATCH_SIZE", 1)
+    monkeypatch.setenv("POLYGLOT_QG_SKIP_IDENTITY", "0")
+
+    with tmp_db() as db:
+        story = reading_intake.import_paste(db, language_code="el", body="βιβλίο σπίτι")
+        page, _ = reading_intake.get_page_view(db, story.id, 1)
+
+        call_count = {"n": 0}
+
+        def fake_call(chunk, language_name):
+            call_count["n"] += 1
+            if call_count["n"] == 1:
+                return [Verdict(pageword_id=c.pageword_id, verdict="ok") for c in chunk]
+            return None
+
+        monkeypatch.setattr(lemma_quality, "_call_claude", fake_call)
+
+        lemma_quality.verify_page_mappings(db, page, force=True)
+        assert call_count["n"] >= 2
+        db.refresh(page)
+        assert page.mappings_verified_at is None
+
+        verified_words = (
+            db.query(PageWord)
+            .filter(PageWord.page_id == page.id, PageWord.verified_at.isnot(None))
+            .all()
+        )
+        assert len(verified_words) >= 1
+        unverified_words = (
+            db.query(PageWord)
+            .filter(PageWord.page_id == page.id, PageWord.verified_at.is_(None))
+            .all()
+        )
+        assert len(unverified_words) >= 1
+
+
+def test_all_caps_surface_bypasses_identity_skip(tmp_db, force_gate_enabled, monkeypatch):
+    """Greek caps strip accents, so an all-caps surface like ΠΟΛΙΤΙΣΜΟΙ that
+    simplemma lemmatised to the unaccented πολιτισμοι would match the
+    identity-skip filter — we'd never send it to Claude. With the fix, the
+    verifier sees it and can propose the accented citation form."""
+    with tmp_db() as db:
+        # Pre-create the unaccented lemma simplemma would return on a caps token
+        unaccented = Lemma(language_code="el", lemma_form="πολιτισμοι",
+                           lemma_bare="πολιτισμοι", source="reading_intake")
+        db.add(unaccented); db.commit()
+
+        story = reading_intake.import_paste(db, language_code="el", body="ΠΟΛΙΤΙΣΜΟΙ")
+        page, _ = reading_intake.get_page_view(db, story.id, 1)
+        word = db.query(PageWord).filter(PageWord.page_id == page.id).first()
+        word.lemma_id = unaccented.lemma_id
+        db.commit()
+
+        chunks_seen = []
+
+        def fake_call(chunk, language_name):
+            chunks_seen.extend(chunk)
+            return [Verdict(pageword_id=c.pageword_id, verdict="wrong",
+                            correct_lemma="πολιτισμός", reason="add accent")
+                    for c in chunk]
+
+        monkeypatch.setattr(lemma_quality, "_call_claude", fake_call)
+        # POLYGLOT_QG_SKIP_IDENTITY left at default ("1") — the all-caps check
+        # is what should let the token through, not the env var.
+        lemma_quality.verify_page_mappings(db, page, force=True)
+        assert any(c.surface == "ΠΟΛΙΤΙΣΜΟΙ" for c in chunks_seen), \
+            "all-caps token must reach the verifier even when identity-skip is on"
+
+
+def test_heading_sentence_words_excluded_from_batch(tmp_db, force_gate_enabled, monkeypatch):
+    """A short all-caps sentence is a heading. Its tokens are stamped
+    verified_at + quality_note='heading' and never reach the LLM batch."""
+    monkeypatch.setenv("POLYGLOT_QG_SKIP_IDENTITY", "0")
+
+    with tmp_db() as db:
+        # Heading sentence (3 all-caps tokens) + a body sentence on next line
+        story = reading_intake.import_paste(
+            db, language_code="el",
+            body="ΕΛΛΗΝΙΚΟΣ ΠΟΛΙΤΙΣΜΟΣ ΑΡΧΑΙΟΤΗΤΑ.\nΤο βιβλίο είναι ωραίο."
+        )
+        page, _ = reading_intake.get_page_view(db, story.id, 1)
+
+        chunks_seen = []
+
+        def fake_call(chunk, language_name):
+            chunks_seen.extend(chunk)
+            return [Verdict(pageword_id=c.pageword_id, verdict="ok") for c in chunk]
+
+        monkeypatch.setattr(lemma_quality, "_call_claude", fake_call)
+        lemma_quality.verify_page_mappings(db, page, force=True)
+
+        # No all-caps token should have been sent to the verifier
+        assert not any(c.surface.isupper() and any(ch.isalpha() for ch in c.surface)
+                       for c in chunks_seen)
+
+        heading_words = (
+            db.query(PageWord)
+            .filter(PageWord.page_id == page.id, PageWord.quality_note == "heading")
+            .all()
+        )
+        assert len(heading_words) >= 3
+        assert all(w.verified_at is not None for w in heading_words)
+
+
+def test_model_alias_resolution():
+    assert lemma_quality._resolve_model("sonnet") == "claude-sonnet-4-5-20250929"
+    assert lemma_quality._resolve_model("haiku") == "claude-haiku-4-5"
+    assert lemma_quality._resolve_model("SONNET") == "claude-sonnet-4-5-20250929"
+    # Pass-through for explicit model ids
+    assert lemma_quality._resolve_model("claude-opus-4-6") == "claude-opus-4-6"
+
+
+def test_is_all_caps_detection():
+    assert lemma_quality._is_all_caps("ΠΟΛΙΤΙΣΜΟΙ")
+    assert lemma_quality._is_all_caps("HELLO")
+    assert not lemma_quality._is_all_caps("Βιβλίο")
+    assert not lemma_quality._is_all_caps("πολιτισμός")
+    assert not lemma_quality._is_all_caps("123")  # no letters
+    assert not lemma_quality._is_all_caps("")

@@ -40,8 +40,34 @@ log = logging.getLogger(__name__)
 
 QUALITY_GATE_ENABLED = os.environ.get("POLYGLOT_QUALITY_GATE", "0") == "1"
 BATCH_SIZE = int(os.environ.get("POLYGLOT_QG_BATCH", "25"))
-MODEL = os.environ.get("POLYGLOT_QG_MODEL", "claude-sonnet-4-5-20250929")
 TIMEOUT_S = int(os.environ.get("POLYGLOT_QG_TIMEOUT", "240"))
+
+# Model routing. Accept either a full Anthropic model id or the shortname
+# "sonnet"/"haiku" so users can A/B cost vs quality without remembering the
+# version string. Sonnet stays default — Haiku is ~10x cheaper but hasn't been
+# validated against the homograph rules yet.
+_MODEL_ALIASES = {
+    "sonnet": "claude-sonnet-4-5-20250929",
+    "haiku": "claude-haiku-4-5",
+}
+
+
+def _resolve_model(raw: str) -> str:
+    return _MODEL_ALIASES.get(raw.strip().lower(), raw)
+
+
+MODEL = _resolve_model(os.environ.get("POLYGLOT_QG_MODEL", "sonnet"))
+
+# Heading detection: a sentence_index counts as a heading when ≥80% of its
+# letter-bearing tokens are all-caps, total tokens fall in
+# [HEADING_MIN_WORDS, HEADING_MAX_WORDS]. Headings are stamped verified_at +
+# quality_note='heading' and never sent to the LLM. The minimum guards
+# isolated all-caps tokens (emphasis, acronyms) from being mis-classified —
+# they fall through to the verifier instead, which can propose a citation
+# form.
+HEADING_UPPERCASE_RATIO = 0.80
+HEADING_MIN_WORDS = 2
+HEADING_MAX_WORDS = 10
 
 # Greek function words that don't need verification. Article forms, common
 # prepositions, conjunctions, common particles. Listed by normalized
@@ -133,14 +159,20 @@ def verify_page_mappings(
 
     # Build sentence index → text map for context lookup
     sentences = _build_sentence_index(words)
+    heading_indices = _detect_heading_sentence_indices(words)
+    if heading_indices:
+        _mark_heading_words(db, words, heading_indices)
 
     # Filter to interesting tokens
     language_code = page.story.language_code
     function_words = FUNCTION_WORD_SETS.get(language_code, set())
+    skip_identity_default = os.environ.get("POLYGLOT_QG_SKIP_IDENTITY", "1") == "1"
     interesting: list[TokenCheck] = []
     lemmas_by_id = _load_lemmas_for_words(db, words)
     for w in words:
         if not w.lemma_id:
+            continue
+        if w.sentence_index in heading_indices:
             continue
         lemma = lemmas_by_id.get(w.lemma_id)
         if not lemma:
@@ -150,9 +182,10 @@ def verify_page_mappings(
         if w.verified_at and not force:
             continue
         # Skip when the lemma is identical to the surface — simplemma made no
-        # mapping decision. Still verifiable but lower-yield; we'd burn the
-        # budget on these. (Caller can opt in via env var if needed.)
-        if os.environ.get("POLYGLOT_QG_SKIP_IDENTITY", "1") == "1":
+        # mapping decision. Exception: all-caps surfaces, where the equality
+        # is a false signal (Greek caps shed accents). The verifier still
+        # needs to see those so it can propose the citation form.
+        if skip_identity_default and not _is_all_caps(w.surface_form):
             if lemma.lemma_form.lower() == w.surface_form.lower():
                 continue
         interesting.append(TokenCheck(
@@ -168,16 +201,20 @@ def verify_page_mappings(
         _stamp_verified(db, page, failures=0)
         return 0
 
-    # Batch
+    # Batch. Any batch returning None counts as a partial failure — we leave
+    # mappings_verified_at NULL so the next page-view retries. Stamping anyway
+    # would silently swallow unverified tokens (see CLAUDE.md hard invariant #8).
     corrected = 0
     unclear = 0
+    any_batch_failed = False
     for chunk_start in range(0, len(interesting), BATCH_SIZE):
         chunk = interesting[chunk_start:chunk_start + BATCH_SIZE]
         verdicts = _call_claude(chunk, language_name=_LANG_DISPLAY[language_code])
         if verdicts is None:
+            any_batch_failed = True
             log.warning("Page %d: batch %d returned no verdicts (LLM failure?)",
                         page.id, chunk_start // BATCH_SIZE)
-            continue  # leave those tokens unverified, try next batch
+            continue
         for v in verdicts:
             applied = _apply_verdict(db, v, language_code)
             if applied == "corrected":
@@ -186,15 +223,61 @@ def verify_page_mappings(
                 unclear += 1
         db.commit()
 
-    _stamp_verified(db, page, failures=unclear)
-    log.info("Page %d verified: %d corrected, %d unclear, %d checked",
-             page.id, corrected, unclear, len(interesting))
+    if any_batch_failed:
+        page.quality_gate_failures = unclear
+        db.commit()
+        log.info("Page %d partial: %d corrected, %d unclear, %d checked, "
+                 "left unverified for retry", page.id, corrected, unclear, len(interesting))
+    else:
+        _stamp_verified(db, page, failures=unclear)
+        log.info("Page %d verified: %d corrected, %d unclear, %d checked",
+                 page.id, corrected, unclear, len(interesting))
     return corrected
 
 
 # ─── Internals ─────────────────────────────────────────────────────────────
 
 _LANG_DISPLAY = {"el": "Modern Greek", "grc": "Ancient Greek", "la": "Latin"}
+
+
+def _is_all_caps(surface: str) -> bool:
+    """True when the token has letters and none of them are lowercase.
+
+    Used to bypass the identity-skip: Greek uppercase strips accents, so a
+    surface like ΠΟΛΙΤΙΣΜΟΙ lowercases to πολιτισμοι (no accent), which
+    equals the unaccented lemma simplemma falls back to — the identity check
+    would wrongly mark it as "no decision to verify."
+    """
+    has_alpha = False
+    for c in surface:
+        if c.isalpha():
+            has_alpha = True
+            if c.islower():
+                return False
+    return has_alpha
+
+
+def _detect_heading_sentence_indices(words: list[PageWord]) -> set[int]:
+    """Return sentence_index values that look like section/chapter headings.
+
+    Heuristic: a sentence with ≤HEADING_MAX_WORDS tokens where at least
+    HEADING_UPPERCASE_RATIO of the letter-bearing tokens are all-caps. PDFs
+    typeset headings in caps without accents; those don't carry vocabulary
+    value, so we keep them out of the LLM batch.
+    """
+    by_idx: dict[int, list[PageWord]] = {}
+    for w in words:
+        by_idx.setdefault(w.sentence_index, []).append(w)
+    out: set[int] = set()
+    for idx, ws in by_idx.items():
+        letter_tokens = [w for w in ws if any(c.isalpha() for c in w.surface_form)]
+        n = len(letter_tokens)
+        if n < HEADING_MIN_WORDS or n > HEADING_MAX_WORDS:
+            continue
+        caps = sum(1 for w in letter_tokens if _is_all_caps(w.surface_form))
+        if caps / n >= HEADING_UPPERCASE_RATIO:
+            out.add(idx)
+    return out
 
 
 def _build_sentence_index(words: list[PageWord]) -> dict[int, str]:
@@ -380,4 +463,17 @@ def _apply_verdict(db: Session, v: Verdict, language_code: str) -> str:
 def _stamp_verified(db: Session, page: Page, *, failures: int):
     page.mappings_verified_at = datetime.now(timezone.utc)
     page.quality_gate_failures = failures
+    db.commit()
+
+
+def _mark_heading_words(db: Session, words: list[PageWord], heading_indices: set[int]) -> None:
+    """Stamp heading-sentence words so they're excluded from the LLM batch
+    and from later review-eligibility checks. We use quality_note='heading'
+    rather than is_function_word=True because headings aren't grammatical
+    function words — they're meta-text outside the vocabulary stream."""
+    now = datetime.now(timezone.utc)
+    for w in words:
+        if w.sentence_index in heading_indices and w.verified_at is None:
+            w.verified_at = now
+            w.quality_note = "heading"
     db.commit()

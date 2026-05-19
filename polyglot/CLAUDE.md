@@ -32,9 +32,9 @@ These should be preserved across changes:
 
 1. **Lazy page processing.** Pages are tokenized + LLM-verified only when first viewed (`GET /api/texts/{sid}/pages/{n}`). Importing a 300-page textbook must be fast — the cost is paid per-page-view, not upfront. Implemented in `app/services/reading_intake.py:process_page`.
 
-2. **Quality gate is the lemmatization safety net.** simplemma misclassifies homographs (χώρα → χωρώ), proper nouns (Τίγρης → τίγρη), POS confusions (adj↔noun). The LLM-in-context gate (`app/services/lemma_quality.py`) catches these. Enabled by `POLYGLOT_QUALITY_GATE=1`. **Do not skip this for "speed" — Alif spent months retroactively fixing bad mappings; we don't redo that mistake here.** Cost per page on Sonnet: ~$0.30-0.50, ~2-3 minutes (gated by Claude Max plan so it's free to the user).
+2. **Quality gate is the lemmatization safety net.** simplemma misclassifies homographs (χώρα → χωρώ), proper nouns (Τίγρης → τίγρη), POS confusions (adj↔noun). The LLM-in-context gate (`app/services/lemma_quality.py`) catches these. Enabled by `POLYGLOT_QUALITY_GATE=1`. **Do not skip this for "speed" — Alif spent months retroactively fixing bad mappings; we don't redo that mistake here.** Cost per page on Sonnet: ~$0.30-0.50, ~2-3 minutes (gated by Claude Max plan so it's free to the user). Model is switchable via `POLYGLOT_QG_MODEL=haiku` (~10x cheaper) once homograph quality is validated.
 
-3. **Bulk-mark presumes content lemmas only.** `bulk_mark_remaining_known()` skips lemmas where `word_category='function_word'` OR `lemma_bare` is in `FUNCTION_WORD_SETS`. This list is intentionally conservative; add to it if real-world reading surfaces false positives.
+3. **Bulk-mark presumes content lemmas only.** `bulk_mark_remaining_known()` skips lemmas where `word_category='function_word'` OR `lemma_bare` is in `FUNCTION_WORD_SETS`. This list is intentionally conservative; add to it if real-world reading surfaces false positives. Heading sentences (≥80% all-caps tokens, ≤10 words) are marked `quality_note='heading'` by the quality gate and should be excluded from review eligibility — they're meta-text, not vocabulary.
 
 4. **Cognate propagation is 'encountered', not 'known'.** When user marks Modern φιλία as known, the Ancient cognate (via `cognate_lemma_id`) becomes `encountered` (NOT `known`). Semantic drift between Modern↔Ancient Greek is real (Modern άλογο "horse" ↔ Ancient ἄλογος "irrational"). Auto-promoting would create silent errors.
 
@@ -44,7 +44,7 @@ These should be preserved across changes:
 
 7. **`structured_output` field of Claude CLI output, not `result`.** When using `--json-schema`, the Claude CLI puts structured data in a *separate* field. The `result` field is left empty. See `_call_claude` parsing in `lemma_quality.py` — don't regress this.
 
-8. **Verification failure ≠ success.** If the quality gate's Claude call fails (timeout, parse error), the function returns `None` and tokens stay unverified. We never silently treat an LLM failure as "all good." Page-level fallback: leave `mappings_verified_at` set but with `quality_gate_failures` reflecting the gap.
+8. **Verification failure ≠ success.** If the quality gate's Claude call fails (timeout, parse error), the function returns `None` and tokens stay unverified. We never silently treat an LLM failure as "all good." When *any* batch on a page returns `None`, `mappings_verified_at` is left NULL so the next page-view retries. Per-word `verified_at` is still set for tokens whose batch succeeded, so retries only re-send the failed batches.
 
 ## Gates audit — ported from Alif vs deferred
 
