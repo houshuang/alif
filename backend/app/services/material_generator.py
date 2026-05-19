@@ -9,13 +9,15 @@ import json
 import logging
 import os
 import threading
+import time
+import uuid
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from sqlalchemy import exists, func
 from sqlalchemy.orm import aliased
 
-from app.database import SessionLocal
+from app.database import SessionLocal, db_operation_context
 from app.models import Lemma, Sentence, SentenceWord, Story, UserLemmaKnowledge
 from app.services.fsrs_service import parse_json_column
 from app.services.sentence_eligibility import (
@@ -1701,24 +1703,40 @@ def warm_sentence_cache(llm_model: str = "claude_sonnet") -> dict:
     Args:
         llm_model: Model override for sentence generation. Default: claude_sonnet (free via CLI).
     """
-    # Prevent concurrent runs from overlapping prefetches — skip if already running
-    if not _warm_cache_lock.acquire(blocking=False):
-        logger.info("Warm cache: skipping, another run already in progress")
-        return {"skipped": True}
-    lock_handle = None
-    try:
-        lock_handle = _try_acquire_material_update_lock()
-        if lock_handle is None:
-            logger.info("Warm cache: skipping, material update/backfill is already running")
-            return {"skipped": True, "reason": "material_update_active"}
-        return _warm_sentence_cache_impl(llm_model)
-    finally:
-        if lock_handle is not None:
-            _release_material_update_lock(lock_handle)
-        _warm_cache_lock.release()
+    run_id = uuid.uuid4().hex[:8]
+    started_at = time.monotonic()
+    with db_operation_context(f"warm_sentence_cache run={run_id}"):
+        logger.info("Warm cache %s: start model=%s", run_id, llm_model)
+        # Prevent concurrent runs from overlapping prefetches — skip if already running
+        if not _warm_cache_lock.acquire(blocking=False):
+            logger.info("Warm cache %s: skipping, another run already in progress", run_id)
+            return {"skipped": True}
+        lock_handle = None
+        try:
+            lock_handle = _try_acquire_material_update_lock()
+            if lock_handle is None:
+                logger.info(
+                    "Warm cache %s: skipping, material update/backfill is already running",
+                    run_id,
+                )
+                return {"skipped": True, "reason": "material_update_active"}
+            return _warm_sentence_cache_impl(llm_model, run_id=run_id)
+        finally:
+            if lock_handle is not None:
+                _release_material_update_lock(lock_handle)
+            _warm_cache_lock.release()
+            logger.info(
+                "Warm cache %s: end duration=%.2fs",
+                run_id,
+                time.monotonic() - started_at,
+            )
 
 
-def _warm_sentence_cache_impl(llm_model: str = "claude_sonnet") -> dict:
+def _warm_sentence_cache_impl(
+    llm_model: str = "claude_sonnet",
+    *,
+    run_id: str | None = None,
+) -> dict:
     from app.services.cohort_service import get_focus_cohort
     from app.services.word_selector import select_next_words
     from app.services.topic_service import ensure_active_topic
@@ -1745,8 +1763,10 @@ def _warm_sentence_cache_impl(llm_model: str = "claude_sonnet") -> dict:
         "mapping_rescue": {},
         "mapping_reverify": {},
     }
+    run_label = run_id or "manual"
 
     # ── Phase 1: DB read ──
+    logger.info("Warm cache %s: phase 1 read start", run_label)
     db = SessionLocal()
     try:
         # Compute due-date tiers for tier-aware decisions
@@ -1899,7 +1919,7 @@ def _warm_sentence_cache_impl(llm_model: str = "claude_sonnet") -> dict:
         ))
 
         if not gap_word_ids:
-            logger.info(f"Warm cache: no gaps found")
+            logger.info("Warm cache %s: no gaps found", run_label)
             return stats
 
         # Load lemmas for gap words
@@ -1938,6 +1958,12 @@ def _warm_sentence_cache_impl(llm_model: str = "claude_sonnet") -> dict:
         ]
         lemma_lookup = build_lemma_lookup(active_lemmas)
         mapping_lookup = build_comprehensive_lemma_lookup(db)
+        logger.info(
+            "Warm cache %s: phase 1 read done gaps=%d known_words=%d",
+            run_label,
+            len(gap_word_ids),
+            len(known_words),
+        )
     except Exception:
         logger.exception("Error in warm_sentence_cache (read phase)")
         return stats
@@ -1947,6 +1973,11 @@ def _warm_sentence_cache_impl(llm_model: str = "claude_sonnet") -> dict:
     # ── Phase 1.5: Lazy rescue of stale-verified sentences for gap lemmas ─────
     # Cheap LLM verification on existing material before paying to generate
     # new sentences. If rescue closes the gap, drop the lemma from generation.
+    logger.info(
+        "Warm cache %s: phase 1.5 mapping rescue start gaps=%d",
+        run_label,
+        len(gap_word_ids),
+    )
     try:
         from app.services.mapping_rescue import rescue_sentences_for_lemmas
 
@@ -1963,6 +1994,11 @@ def _warm_sentence_cache_impl(llm_model: str = "claude_sonnet") -> dict:
             )
     except Exception:
         logger.exception("Warm cache: mapping rescue raised; continuing with generation")
+    logger.info(
+        "Warm cache %s: phase 1.5 mapping rescue done remaining_gaps=%d",
+        run_label,
+        len(gap_word_ids),
+    )
 
     # ── Phase 1.6: Pre-verify the oldest-stamped active sentences ─────────
     # The one-shot reverify_active_sentences.py sweep brings every active
@@ -1970,20 +2006,27 @@ def _warm_sentence_cache_impl(llm_model: str = "claude_sonnet") -> dict:
     # per-warm-pass reverify rolls that over: each call re-checks the oldest
     # ~30 sentences (whose mappings_verified_at is at least 1 day old). The
     # full active corpus rolls over every ~12 days at typical usage.
+    logger.info("Warm cache %s: phase 1.6 reverify start", run_label)
     try:
         from app.services.mapping_rescue import reverify_oldest_active_sentences
         reverify_stats = reverify_oldest_active_sentences(max_sentences=30, min_age_days=1)
         stats["mapping_reverify"] = reverify_stats.to_dict()
     except Exception:
         logger.exception("Warm cache: reverify raised; continuing with generation")
+    logger.info("Warm cache %s: phase 1.6 reverify done", run_label)
 
     # If rescue cleared the gap list, the generation phase below no-ops cleanly
-    # (empty groups → empty validated → empty writes). Phase 3d (maintenance
-    # passages) and Phase 4 (NULL-stamp verification) still run as designed.
+    # (empty groups → empty validated → empty writes). Later maintenance and
+    # NULL-stamp verification phases still run as designed.
 
     # ── Phase 2: LLM generation (no DB lock) ──
     groups = group_words_for_multi_target(word_dicts)
     all_results: list[tuple[list[dict], dict[str, int]]] = []  # (results, target_bares) per group
+    logger.info(
+        "Warm cache %s: phase 2 multi-target generation start groups=%d",
+        run_label,
+        len(groups),
+    )
 
     for group in groups:
         try:
@@ -2000,12 +2043,18 @@ def _warm_sentence_cache_impl(llm_model: str = "claude_sonnet") -> dict:
             all_results.append((results, target_bares))
         except Exception:
             logger.warning(f"Warm cache: multi-target failed for group")
+    logger.info(
+        "Warm cache %s: phase 2 multi-target generation done result_groups=%d",
+        run_label,
+        len(all_results),
+    )
 
     # ── Phase 3a: Validate multi-target sentences (batched LLM disambig + verify) ──
     # DB reads only — a dedicated session means we never autoflush a write
     # during an LLM call, which was the source of repeated lock contention.
     validated: list[tuple[object, list]] = []
     if all_results:
+        logger.info("Warm cache %s: phase 3a validation start", run_label)
         db = SessionLocal()
         try:
             candidates = [
@@ -2020,10 +2069,20 @@ def _warm_sentence_cache_impl(llm_model: str = "claude_sonnet") -> dict:
             logger.exception("Warm cache: failed to validate multi-target sentences")
         finally:
             db.close()
+        logger.info(
+            "Warm cache %s: phase 3a validation done validated=%d",
+            run_label,
+            len(validated),
+        )
 
     # ── Phase 3b: Write validated sentences (pure DB, milliseconds) ──
     multi_covered: set[int] = set()
     if validated:
+        logger.info(
+            "Warm cache %s: phase 3b multi-target write start validated=%d",
+            run_label,
+            len(validated),
+        )
         db = SessionLocal()
         try:
             for mres, mappings in validated:
@@ -2039,12 +2098,22 @@ def _warm_sentence_cache_impl(llm_model: str = "claude_sonnet") -> dict:
             multi_covered.clear()
         finally:
             db.close()
+        logger.info(
+            "Warm cache %s: phase 3b multi-target write done generated=%d",
+            run_label,
+            stats["multi_target"],
+        )
 
     # Single-target fallback for any word not actually covered by a written
     # multi-target sentence. This is intentionally after validation/write so a
     # failed group does not consume the only rescue attempt for an acquiring gap.
     single_covered: set[int] = set()
     remaining = [lid for lid in gap_word_ids if lid not in multi_covered]
+    logger.info(
+        "Warm cache %s: phase 3c single-target fallback start remaining=%d",
+        run_label,
+        len(remaining),
+    )
     for lid in remaining:
         try:
             stored = generate_material_for_word(
@@ -2055,11 +2124,17 @@ def _warm_sentence_cache_impl(llm_model: str = "claude_sonnet") -> dict:
                 single_covered.add(lid)
         except Exception:
             logger.warning(f"Warm cache: failed for word {lid}")
+    logger.info(
+        "Warm cache %s: phase 3c single-target fallback done covered=%d",
+        run_label,
+        len(single_covered),
+    )
 
-    # ── Phase 3c: Update per-lemma generation backoff tracking ──
+    # ── Phase 3d: Update per-lemma generation backoff tracking ──
     # Each lemma in gap_word_ids was an attempt. Success = covered by a
     # multi-target write or a single-target call; failure = no new sentences.
     if gap_word_ids:
+        logger.info("Warm cache %s: phase 3d generation outcomes start", run_label)
         db = SessionLocal()
         try:
             covered_all = multi_covered | single_covered
@@ -2069,12 +2144,14 @@ def _warm_sentence_cache_impl(llm_model: str = "claude_sonnet") -> dict:
             logger.warning("Warm cache: failed to record generation outcomes")
         finally:
             db.close()
+        logger.info("Warm cache %s: phase 3d generation outcomes done", run_label)
 
-    # ── Phase 3d: Seed cohesive maintenance passages ───────────────────
+    # ── Phase 3e: Seed cohesive maintenance passages ───────────────────
     # Runs after normal sentence generation and never blocks session response
     # because warm_sentence_cache is a FastAPI background task. Conservative
     # cap prevents every app open from spending an LLM call.
     try:
+        logger.info("Warm cache %s: phase 3e maintenance passage check start", run_label)
         db = SessionLocal()
         try:
             now = datetime.now(timezone.utc)
@@ -2117,11 +2194,13 @@ def _warm_sentence_cache_impl(llm_model: str = "claude_sonnet") -> dict:
             stats["maintenance_passages"] += 1
     except Exception:
         logger.warning("Warm cache: maintenance passage generation skipped", exc_info=True)
+    logger.info("Warm cache %s: phase 3e maintenance passage check done", run_label)
 
     # ── Phase 4: Verify unverified active sentences (batch catch-up) ──
     # IMPORTANT: Don't hold DB session during LLM calls — they can hang for minutes
     # and block all other writes (caused "database is locked" cascades).
     MAX_VERIFY_BATCH = 20
+    logger.info("Warm cache %s: phase 4 unverified mapping catch-up start", run_label)
     db = SessionLocal()
     try:
         unverified_ids = [
@@ -2149,12 +2228,18 @@ def _warm_sentence_cache_impl(llm_model: str = "claude_sonnet") -> dict:
             logger.warning("Warm cache: verification phase failed")
         finally:
             db.close()
+    logger.info(
+        "Warm cache %s: phase 4 unverified mapping catch-up done count=%d",
+        run_label,
+        len(unverified_ids),
+    )
 
     # ── Phase 5: Backfill empty glosses on active lemmas ──
     # Catches any lemmas that slipped through import without English translations.
     # Only processes a small batch per warm-cache run to stay fast.
     from sqlalchemy import or_ as sa_or_
     MAX_GLOSS_BACKFILL = 10
+    logger.info("Warm cache %s: phase 5 gloss backfill start", run_label)
     db = SessionLocal()
     try:
         empty_gloss_lemmas = (
@@ -2208,8 +2293,9 @@ def _warm_sentence_cache_impl(llm_model: str = "claude_sonnet") -> dict:
         logger.warning("Warm cache: gloss backfill read phase failed")
     finally:
         db.close()
+    logger.info("Warm cache %s: phase 5 gloss backfill done", run_label)
 
-    logger.info(f"Warm cache complete: {stats}")
+    logger.info("Warm cache %s complete: %s", run_label, stats)
     return stats
 
 

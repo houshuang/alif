@@ -7,7 +7,12 @@ from datetime import datetime, timedelta, timezone
 from sqlalchemy import case, func
 from sqlalchemy.orm import Session, joinedload
 
-from app.database import get_db, SessionLocal
+from app.database import (
+    db_operation_context,
+    get_db,
+    SessionLocal,
+    set_session_context,
+)
 from app.models import GrammarFeature, Lemma, ReviewLog, Root, Sentence, SentenceReviewLog, UserLemmaKnowledge
 from app.schemas import (
     BulkSyncIn,
@@ -30,13 +35,107 @@ from app.services.listening import get_listening_candidates
 from app.services.interaction_logger import log_interaction
 from app.services.sentence_selector import build_session
 from app.services.sentence_review_service import submit_sentence_review, undo_sentence_review
-from app.services.sentence_eligibility import reviewable_sentence_clauses
+from app.services.sentence_eligibility import (
+    MAPPING_VERIFICATION_HARDENED_AT,
+    reviewable_sentence_clauses,
+)
+from app.services.lemma_vocalization import lexical_diacritic_count
 from app.services.sentence_validator import _is_function_word, FUNCTION_WORDS, FUNCTION_WORD_GLOSSES, strip_diacritics
-from app.services.transliteration import transliterate_arabic
+from app.services.transliteration import transliterate_arabic, transliterate_lemma
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/review", tags=["review"])
+
+
+def _session_sentence_ids(result: dict) -> list[int]:
+    ids: list[int] = []
+    for item in result.get("items") or []:
+        item_ids = item.get("sentence_ids")
+        if not item_ids and item.get("sentence_id"):
+            item_ids = [item["sentence_id"]]
+        for sid in item_ids or []:
+            if sid:
+                ids.append(int(sid))
+    return list(dict.fromkeys(ids))
+
+
+def _hardened_reviewable_sentence_ids(db: Session, sentence_ids: list[int]) -> set[int]:
+    if not sentence_ids:
+        return set()
+    return {
+        sid for (sid,) in (
+            db.query(Sentence.id)
+            .filter(
+                Sentence.id.in_(sentence_ids),
+                reviewable_sentence_clauses(),
+                Sentence.mappings_verified_at >= MAPPING_VERIFICATION_HARDENED_AT,
+            )
+            .all()
+        )
+    }
+
+
+def _drop_unsafe_session_items(result: dict, unsafe_sentence_ids: set[int]) -> None:
+    if not unsafe_sentence_ids:
+        return
+    kept_items = []
+    covered_due_ids: set[int] = set()
+    for item in result.get("items") or []:
+        item_ids = item.get("sentence_ids")
+        if not item_ids and item.get("sentence_id"):
+            item_ids = [item["sentence_id"]]
+        if any(int(sid) in unsafe_sentence_ids for sid in (item_ids or [])):
+            continue
+        kept_items.append(item)
+        covered_due_ids.update(
+            int(lid)
+            for lid in (item.get("selection_info") or {}).get("due_lemma_ids", [])
+            if lid
+        )
+    result["items"] = kept_items
+    result["covered_due_words"] = len(covered_due_ids)
+
+
+def _ensure_session_mapping_hardened(db: Session, result: dict) -> set[int]:
+    """JIT reverify selected legacy-stamped sentences before returning them.
+
+    Session selection is intentionally DB-only for speed, but old
+    ``mappings_verified_at`` stamps predate the 2026-05-17 sense-aware
+    resolver. Reverify only the concrete selected sentence IDs whose stamps are
+    older than that deploy; any row that still is not freshly verified after
+    the attempt is unsafe for this response.
+    """
+    sentence_ids = _session_sentence_ids(result)
+    if not sentence_ids:
+        return set()
+
+    from app.services.mapping_rescue import reverify_sentences_before
+
+    stats = reverify_sentences_before(
+        sentence_ids,
+        cutoff=MAPPING_VERIFICATION_HARDENED_AT,
+    )
+    if stats.sentences_attempted or stats.llm_failures:
+        logger.info(
+            "Session JIT mapping reverify: attempted=%d passed=%d corrected=%d "
+            "unfixable=%d llm_failures=%d",
+            stats.sentences_attempted,
+            stats.sentences_passed,
+            stats.sentences_corrected,
+            stats.sentences_unfixable,
+            stats.llm_failures,
+        )
+
+    db.expire_all()
+    safe_ids = _hardened_reviewable_sentence_ids(db, sentence_ids)
+    unsafe_ids = set(sentence_ids) - safe_ids
+    if unsafe_ids:
+        logger.warning(
+            "Session JIT mapping reverify removed unsafe sentence IDs: %s",
+            sorted(unsafe_ids),
+        )
+    return unsafe_ids
 
 
 @router.get("/next-listening")
@@ -67,58 +166,88 @@ def next_sentences(
 ):
     """Get a sentence-based review session.
 
-    DB-only: session builds from pre-generated sentences that already pass the
-    runtime reviewability gate. Legacy pre-hardening mapping stamps stay hidden
-    until background warm-cache/cron verification refreshes them.
+    Usually DB-only: session builds from pre-generated sentences. If selected
+    rows carry pre-hardening mapping stamps, those specific rows are reverified
+    before returning so old resolver mistakes do not leak into new sessions.
+    Background warm_sentence_cache generates for uncovered words after.
     """
-    base_exclude = set(exclude) if exclude else set()
-    result = build_session(
-        db, limit=limit, mode=mode,
-        log_events=not prefetch,
-        exclude_sentence_ids=base_exclude or None,
+    context_label = (
+        f"GET /api/review/next-sentences mode={mode} "
+        f"prefetch={prefetch} limit={limit}"
     )
-
-    # Listening mode is only for already-learned words — no intro candidates
-    if mode == "listening":
-        result["intro_candidates"] = []
-
-    # Quran verse cards suspended (2026-04-07) — re-enable by uncommenting
-    # if mode == "reading":
-    #     try:
-    #         from app.services.quran_service import select_verse_cards
-    #         result["verse_cards"] = select_verse_cards(db)
-    #     except Exception as e:
-    #         logging.getLogger(__name__).warning(f"Verse card selection failed: {e}")
-    #         result["verse_cards"] = []
-    # else:
-    #     result["verse_cards"] = []
-    result["verse_cards"] = []
-
-    if not prefetch:
-        sentence_ids_shown = {
-            sid
-            for item in result["items"]
-            for sid in (item.get("sentence_ids") or ([item.get("sentence_id")] if item.get("sentence_id") else []))
-            if sid
-        }
-        log_interaction(
-            event="session_start",
-            session_id=result["session_id"],
-            review_mode=mode,
-            total_due_words=result["total_due_words"],
-            covered_due_words=result["covered_due_words"],
-            sentence_count=len(sentence_ids_shown),
-            card_count=len(result["items"]),
-            passage_count=len([i for i in result["items"] if i.get("card_type") == "passage"]),
-            fallback_count=len([i for i in result["items"] if not i.get("sentence_id")]),
-            intro_candidates=len(result.get("intro_candidates", [])),
-            verse_cards=len(result.get("verse_cards", [])),
+    set_session_context(db, context_label)
+    with db_operation_context(context_label):
+        base_exclude = set(exclude) if exclude else set()
+        result = build_session(
+            db, limit=limit, mode=mode,
+            log_events=not prefetch,
+            exclude_sentence_ids=base_exclude or None,
         )
-        # Trigger background generation so next session has more sentences
-        from app.services.material_generator import warm_sentence_cache
-        background_tasks.add_task(warm_sentence_cache)
 
-    return result
+        unsafe_ids = _ensure_session_mapping_hardened(db, result)
+        if unsafe_ids:
+            # Give the selector one chance to refill with different material. The
+            # second result is also hardened; if any selected legacy row cannot be
+            # verified, drop that item rather than returning an unsafe sentence.
+            result = build_session(
+                db, limit=limit, mode=mode,
+                log_events=not prefetch,
+                exclude_sentence_ids=base_exclude | unsafe_ids,
+            )
+            unsafe_ids = _ensure_session_mapping_hardened(db, result)
+            _drop_unsafe_session_items(result, unsafe_ids)
+
+        # Listening mode is only for already-learned words — no intro candidates
+        if mode == "listening":
+            result["intro_candidates"] = []
+
+        # Quran verse cards suspended (2026-04-07) — re-enable by uncommenting
+        # if mode == "reading":
+        #     try:
+        #         from app.services.quran_service import select_verse_cards
+        #         result["verse_cards"] = select_verse_cards(db)
+        #     except Exception as e:
+        #         logging.getLogger(__name__).warning(f"Verse card selection failed: {e}")
+        #         result["verse_cards"] = []
+        # else:
+        #     result["verse_cards"] = []
+        result["verse_cards"] = []
+
+        # FastAPI runs BackgroundTasks before dependency finalizers. Commit the
+        # request-scoped session here so a flushed write cannot hold SQLite's
+        # writer lock throughout warm_sentence_cache.
+        try:
+            db.commit()
+        except Exception:
+            logger.exception("next_sentences: failed to commit session build")
+            db.rollback()
+            raise
+
+        if not prefetch:
+            sentence_ids_shown = {
+                sid
+                for item in result["items"]
+                for sid in (item.get("sentence_ids") or ([item.get("sentence_id")] if item.get("sentence_id") else []))
+                if sid
+            }
+            log_interaction(
+                event="session_start",
+                session_id=result["session_id"],
+                review_mode=mode,
+                total_due_words=result["total_due_words"],
+                covered_due_words=result["covered_due_words"],
+                sentence_count=len(sentence_ids_shown),
+                card_count=len(result["items"]),
+                passage_count=len([i for i in result["items"] if i.get("card_type") == "passage"]),
+                fallback_count=len([i for i in result["items"] if not i.get("sentence_id")]),
+                intro_candidates=len(result.get("intro_candidates", [])),
+                verse_cards=len(result.get("verse_cards", [])),
+            )
+            # Trigger background generation so next session has more sentences
+            from app.services.material_generator import warm_sentence_cache
+            background_tasks.add_task(warm_sentence_cache)
+
+        return result
 
 
 @router.post("/warm-sentences", status_code=202)
@@ -188,6 +317,23 @@ def _compute_forms_translit(forms_json: dict | None) -> dict | None:
     return result or None
 
 
+def _lemma_display_transliteration(lemma: Lemma) -> str | None:
+    """Prefer transliteration from the current vocalized lemma over stale DB text."""
+    if lemma.lemma_ar and lexical_diacritic_count(lemma.lemma_ar) > 0:
+        try:
+            return transliterate_lemma(lemma.lemma_ar) or lemma.transliteration_ala_lc
+        except Exception:
+            pass
+    if lemma.transliteration_ala_lc:
+        return lemma.transliteration_ala_lc
+    if lemma.lemma_ar:
+        try:
+            return transliterate_arabic(lemma.lemma_ar) or None
+        except Exception:
+            pass
+    return None
+
+
 @router.get("/word-lookup/{lemma_id}")
 def word_lookup(lemma_id: int, db: Session = Depends(get_db)):
     """Look up a word's details during sentence review. Returns root family for known-root prediction."""
@@ -235,7 +381,7 @@ def word_lookup(lemma_id: int, db: Session = Depends(get_db)):
         "lemma_id": lemma.lemma_id,
         "lemma_ar": lemma.lemma_ar,
         "gloss_en": lemma.gloss_en,
-        "transliteration": lemma.transliteration_ala_lc,
+        "transliteration": _lemma_display_transliteration(lemma),
         "root": root_obj.root if root_obj else None,
         "root_meaning": root_obj.core_meaning_en if root_obj else None,
         "root_id": root_obj.root_id if root_obj else None,
@@ -256,10 +402,6 @@ def word_lookup(lemma_id: int, db: Session = Depends(get_db)):
         "root_family": [],
         "pattern_examples": [],
     }
-
-    # Ensure transliteration is always present (compute on-the-fly if missing)
-    if not result["transliteration"] and lemma.lemma_ar:
-        result["transliteration"] = transliterate_arabic(lemma.lemma_ar)
 
     if root_obj:
         siblings = (
@@ -284,7 +426,7 @@ def word_lookup(lemma_id: int, db: Session = Depends(get_db)):
                 "lemma_ar": sib.lemma_ar,
                 "gloss_en": sib.gloss_en,
                 "pos": sib.pos,
-                "transliteration": sib.transliteration_ala_lc,
+                "transliteration": _lemma_display_transliteration(sib),
                 "state": sib_knowledge.knowledge_state if sib_knowledge else "new",
             })
 
@@ -322,7 +464,7 @@ def word_lookup(lemma_id: int, db: Session = Depends(get_db)):
                 "lemma_id": ex.lemma_id,
                 "lemma_ar": ex.lemma_ar,
                 "gloss_en": ex.gloss_en,
-                "transliteration": ex.transliteration_ala_lc,
+                "transliteration": _lemma_display_transliteration(ex),
                 "root": ex_root.root if ex_root else None,
                 "root_meaning": ex_root.core_meaning_en if ex_root else None,
                 "knowledge_state": ks,
@@ -643,7 +785,7 @@ def wrap_up_quiz(body: WrapUpIn, db: Session = Depends(get_db)):
                     "lemma_id": ex.lemma_id,
                     "lemma_ar": ex.lemma_ar,
                     "gloss_en": ex.gloss_en,
-                    "transliteration": ex.transliteration_ala_lc,
+                    "transliteration": _lemma_display_transliteration(ex),
                     "root": ex_root.root if ex_root else None,
                     "root_meaning": ex_root.core_meaning_en if ex_root else None,
                     "knowledge_state": ks,
@@ -668,7 +810,7 @@ def wrap_up_quiz(body: WrapUpIn, db: Session = Depends(get_db)):
                     "lemma_id": sib.lemma_id,
                     "lemma_ar": sib.lemma_ar,
                     "gloss_en": sib.gloss_en,
-                    "transliteration": sib.transliteration_ala_lc,
+                    "transliteration": _lemma_display_transliteration(sib),
                     "state": sibling_ulk.get(sib.lemma_id, "new"),
                 })
 
@@ -677,7 +819,7 @@ def wrap_up_quiz(body: WrapUpIn, db: Session = Depends(get_db)):
             lemma_ar=lemma.lemma_ar,
             lemma_ar_bare=lemma.lemma_ar_bare,
             gloss_en=lemma.gloss_en,
-            transliteration=lemma.transliteration_ala_lc,
+            transliteration=_lemma_display_transliteration(lemma),
             pos=lemma.pos,
             forms_json=lemma.forms_json,
             root=root_obj.root if root_obj else None,
