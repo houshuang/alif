@@ -43,17 +43,18 @@ def test_bulk_mark_skips_already_marked(tmp_db):
         )
         _, tokens = reading_intake.get_page_view(db, story.id, 1)
         target = next(t for t in tokens if t["lemma_id"])
-        # Explicitly mark this lemma as unknown
+        # Explicitly mark this lemma as unknown (now enrols into acquisition)
         reading_intake.mark_lemma(db, lemma_id=target["lemma_id"], state="unknown", fetch_gloss=False)
 
         # Bulk-mark the rest
         reading_intake.bulk_mark_remaining_known(db, story.id, 1)
 
-        # The explicitly-unknown lemma should still be 'unknown'
+        # The explicitly-flagged lemma should still be in the acquisition
+        # pipeline, NOT overwritten to 'known' by bulk-mark.
         ulk = db.query(UserLemmaKnowledge).filter(
             UserLemmaKnowledge.lemma_id == target["lemma_id"]
         ).first()
-        assert ulk.knowledge_state == "unknown"
+        assert ulk.knowledge_state == "acquiring"
 
 
 def test_bulk_mark_creates_known_uses(tmp_db):

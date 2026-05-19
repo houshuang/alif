@@ -46,8 +46,15 @@ def test_mark_lemma_creates_ulk(tmp_db):
         page, tokens = reading_intake.get_page_view(db, story.id, 1)
         target = next(t for t in tokens if t["lemma_id"] is not None)
 
-        ulk = reading_intake.mark_lemma(db, lemma_id=target["lemma_id"], state="unknown")
-        assert ulk.knowledge_state == "unknown"
+        ulk = reading_intake.mark_lemma(
+            db, lemma_id=target["lemma_id"], state="unknown", fetch_gloss=False,
+        )
+        # mark_lemma(state='unknown') routes through start_acquisition, so the
+        # word lands in Leitner Box 1 (acquiring) rather than parking in a
+        # standalone 'unknown' state. The intent — "user wants to learn this
+        # word" — is identical; the new state engages the SRS engine.
+        assert ulk.knowledge_state == "acquiring"
+        assert ulk.acquisition_box == 1
         assert ulk.entered_acquiring_at is not None
         assert ulk.source == "reading_intake"
 
@@ -58,7 +65,9 @@ def test_mark_lemma_updates_existing(tmp_db):
         page, tokens = reading_intake.get_page_view(db, story.id, 1)
         lemma_id = next(t["lemma_id"] for t in tokens if t["lemma_id"])
 
-        reading_intake.mark_lemma(db, lemma_id=lemma_id, state="unknown")
+        reading_intake.mark_lemma(db, lemma_id=lemma_id, state="unknown", fetch_gloss=False)
+        # Marking as 'known' after enrolment is allowed — the learner is
+        # signalling that they actually do know the word.
         reading_intake.mark_lemma(db, lemma_id=lemma_id, state="known")
         ulks = db.query(UserLemmaKnowledge).filter(
             UserLemmaKnowledge.lemma_id == lemma_id

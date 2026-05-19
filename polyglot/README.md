@@ -100,6 +100,81 @@ Hetzner VM (same host as Alif), separate systemd service `polyglot-backend`
 on port 3001, separate SQLite at `/opt/polyglot/data/polyglot.db`. No
 overlap with Alif's data, services, or process tree.
 
+## SRS engine (FSRS + Acquisition)
+
+Polyglot's review pipeline mirrors Alif's, stripped of Arabic-specific
+machinery. See `app/services/{fsrs_service,acquisition_service,leech_service,canonical_resolution}.py`
+and the `/api/reviews/*` endpoints.
+
+**Lifecycle** (per lemma):
+
+```
+                              ┌──────────────────┐
+                              │  encountered     │ ← daily intro cap hit;
+                              │  (no scheduling) │   stays parked
+                              └────────┬─────────┘
+                                       │ (cap opens on a future day)
+                                       ▼
+   mark unknown                 ┌────────────┐    Tier 0 first correct
+   POST /reviews/introduce ───▶ │ acquiring  │ ─────────┐
+                                │  Box 1     │          │
+                                │  4h        │          ▼
+                                └─────┬──────┘     ┌──────────┐
+                                  Good│ (when due) │ learning │
+                                      ▼            │  (FSRS)  │
+                                ┌────────────┐     └────┬─────┘
+                                │ acquiring  │          │ Good × N
+                                │  Box 2     │          ▼
+                                │  1d        │     ┌──────────┐
+                                └─────┬──────┘     │  known   │
+                                  Good│            └────┬─────┘
+                                      ▼                 │ Again
+                                ┌────────────┐          ▼
+                                │ acquiring  │     ┌──────────┐
+                                │  Box 3     │     │  lapsed  │
+                                │  3d        │     └──────────┘
+                                └─────┬──────┘
+                                      │ Tier 3 graduation
+                                      ▼
+                                  learning (FSRS)
+
+   (any state with low rolling accuracy) ──▶ suspended (leech)
+                                                  │ cooldown elapses
+                                                  ▼
+                                              acquiring Box 1
+```
+
+**Endpoints:**
+
+| Method | Path                       | Purpose                                          |
+|--------|----------------------------|--------------------------------------------------|
+| POST   | `/api/reviews/introduce`   | Enrol a lemma into acquisition (Box 1)           |
+| POST   | `/api/reviews/submit`      | Apply a review (auto-routes acquisition vs FSRS) |
+| GET    | `/api/reviews/due`         | Lemmas whose next review is due                  |
+| GET    | `/api/reviews/stats`       | Box distribution + due-count                     |
+
+**Tiered graduation** (acquisition → FSRS):
+
+| Tier | Trigger                                                    | Notes                            |
+|------|------------------------------------------------------------|----------------------------------|
+| 0    | First review is correct (rating ≥ 3, times_seen was 0)     | Instant graduation               |
+| 1    | 100% accuracy across ≥ 3 reviews                           | Graduate from any box            |
+| 2    | ≥ 80% accuracy across ≥ 4 reviews, currently in Box ≥ 2    | Graduate from Box 2 or 3         |
+| 3    | Box 3, ≥ 5 reviews, ≥ 60% accuracy, ≥ 2 distinct UTC days  | Standard path                    |
+
+**Leech management:**
+
+A word becomes a leech when the sliding window over the last 8 reviews
+drops below 50% accuracy (requires ≥ 5 reviews to fire). Suspended leeches
+have graduated cooldowns (3d → 7d → 14d on repeated suspensions), with a
+4× multiplier for low-priority lemmas (`frequency_rank > 5000`). Stats are
+preserved across cycles — the word must genuinely improve recent
+performance to escape.
+
+**Daily intro cap:** 30 net-new acquisitions per UTC day. Under acquisition
+overload (Box 1/2 debt), recovery-mode reduces this to 0 / 4 / 8 based on
+same-day review practice and accuracy. `leech_reintro` bypasses the cap.
+
 ## What's built (end of session 2026-05-19)
 
 - **PDF intake** — multi-page Greek textbook (`Istoria tou Archaiou Kosmou`,
@@ -137,13 +212,17 @@ overlap with Alif's data, services, or process tree.
 
 ## What's deliberately missing (Phase 2+)
 
-- **Sentence generation** (need to copy/adapt `material_generator` from Alif)
-- **FSRS scheduling loop** (need to copy `fsrs_service` + `acquisition_service`)
-- **Session builder** (need to copy + generalize)
+- **Sentence generation** (need to copy/adapt `material_generator` from Alif —
+  ~2.5 KLOC with Greek-specific prompt tuning)
+- **Session builder** (sentence picking + intro cards interleaving — depends
+  on sentence generation landing first)
 - **Audio** (Greek TTS — ElevenLabs supports it; decide cost discipline first)
 - **Ancient Greek lemmatization** (OdyCy model wiring; stub exists)
 - **Latin lemmatization** (LatinCy or stick with simplemma; stub exists)
-- **Variant chain resolver** (`canonical_lemma_id` field exists; helper not yet)
+- **Intro-card working-memory gate** (Alif's `_intro_shown_recently` —
+  ports when intro cards land in the UI)
+- **Mnemonic generation on failure** (Alif regenerates memory hooks for
+  lapsed/struggling words; deferred)
 
 See `CLAUDE.md` (this directory) for the full gates audit comparing what's
 ported from Alif vs deferred.

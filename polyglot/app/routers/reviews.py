@@ -1,0 +1,270 @@
+"""Review endpoints — submit reviews, list due lemmas, pipeline stats.
+
+Three endpoints:
+    POST /api/reviews/submit  — single review, routes acquisition vs FSRS
+    GET  /api/reviews/due     — lemma ids whose next review is due
+    GET  /api/reviews/stats   — counts by state + Box distribution
+
+This router exposes the SRS engine. The actual review UX (sentence cards,
+session loop) is a separate layer — for now it can be exercised via the
+HTTP boundary, which keeps the engine testable without UI dependencies.
+"""
+from __future__ import annotations
+
+from datetime import datetime, timezone
+from typing import Literal, Optional
+
+from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel, Field
+from sqlalchemy.orm import Session
+
+from app.database import get_db
+from app.models import Lemma, Language, UserLemmaKnowledge
+from app.services.acquisition_service import (
+    get_acquisition_stats,
+    start_acquisition,
+    submit_acquisition_review,
+)
+from app.services.canonical_resolution import resolve_canonical_lemma_id
+from app.services.fsrs_service import (
+    parse_json_column,
+    reactivate_if_suspended,
+    submit_review as submit_fsrs_review,
+)
+from app.services.leech_service import check_single_word_leech
+
+router = APIRouter(prefix="/api/reviews", tags=["reviews"])
+
+
+class ReviewRequest(BaseModel):
+    lemma_id: int
+    rating: int = Field(..., ge=1, le=4, description="1=Again 2=Hard 3=Good 4=Easy")
+    response_ms: Optional[int] = None
+    session_id: Optional[str] = None
+    review_mode: str = "reading"
+    comprehension_signal: Optional[Literal["understood", "partial", "no_idea"]] = None
+    client_review_id: Optional[str] = None
+    sentence_id: Optional[int] = None
+
+
+class ReviewResponse(BaseModel):
+    lemma_id: int
+    new_state: str
+    acquisition_box: Optional[int] = None
+    graduated: Optional[bool] = None
+    next_due: str = ""
+    duplicate: bool = False
+    leech_suspended: bool = False
+
+
+@router.post("/submit", response_model=ReviewResponse)
+def submit(req: ReviewRequest, db: Session = Depends(get_db)) -> ReviewResponse:
+    """Submit a single review.
+
+    Routing:
+        - Variant lemmas are redirected to canonical before any state read.
+        - Suspended (leech) lemmas auto-reactivate to learning state with a
+          fresh FSRS card before applying the review.
+        - acquiring → submit_acquisition_review
+        - everything else → submit_review (FSRS)
+        - After applying, the lemma is re-checked for leech status.
+    """
+    canonical_id = resolve_canonical_lemma_id(db, req.lemma_id)
+
+    reactivate_if_suspended(db, canonical_id, source="leech_reintro")
+
+    ulk = (
+        db.query(UserLemmaKnowledge)
+        .filter(UserLemmaKnowledge.lemma_id == canonical_id)
+        .first()
+    )
+
+    if ulk and ulk.knowledge_state == "acquiring":
+        result = submit_acquisition_review(
+            db,
+            lemma_id=canonical_id,
+            rating_int=req.rating,
+            response_ms=req.response_ms,
+            session_id=req.session_id,
+            review_mode=req.review_mode,
+            comprehension_signal=req.comprehension_signal,
+            client_review_id=req.client_review_id,
+            sentence_id=req.sentence_id,
+        )
+    else:
+        result = submit_fsrs_review(
+            db,
+            lemma_id=canonical_id,
+            rating_int=req.rating,
+            response_ms=req.response_ms,
+            session_id=req.session_id,
+            review_mode=req.review_mode,
+            comprehension_signal=req.comprehension_signal,
+            client_review_id=req.client_review_id,
+            sentence_id=req.sentence_id,
+        )
+
+    leech_suspended = False
+    if not result.get("duplicate"):
+        leech_suspended = check_single_word_leech(db, canonical_id)
+
+    return ReviewResponse(
+        lemma_id=canonical_id,
+        new_state=result.get("new_state", "unknown"),
+        acquisition_box=result.get("acquisition_box"),
+        graduated=result.get("graduated"),
+        next_due=result.get("next_due", "") or "",
+        duplicate=result.get("duplicate", False),
+        leech_suspended=leech_suspended,
+    )
+
+
+class IntroduceRequest(BaseModel):
+    lemma_id: int
+    source: str = "study"
+    due_immediately: bool = True
+
+
+class IntroduceResponse(BaseModel):
+    lemma_id: int
+    state: str
+    acquisition_box: Optional[int] = None
+    next_due: str = ""
+
+
+@router.post("/introduce", response_model=IntroduceResponse)
+def introduce(req: IntroduceRequest, db: Session = Depends(get_db)) -> IntroduceResponse:
+    """Bring a lemma into acquisition.
+
+    Use when the learner has explicitly indicated they want to start
+    learning a specific word (e.g., from a manual lookup). The reading-
+    intake "mark unknown" flow uses this internally.
+    """
+    canonical_id = resolve_canonical_lemma_id(db, req.lemma_id)
+    ulk = start_acquisition(
+        db,
+        lemma_id=canonical_id,
+        source=req.source,
+        due_immediately=req.due_immediately,
+    )
+    db.commit()
+
+    next_due = ""
+    if ulk.acquisition_next_due:
+        next_due = ulk.acquisition_next_due.isoformat()
+    elif ulk.fsrs_card_json:
+        card = parse_json_column(ulk.fsrs_card_json)
+        next_due = card.get("due", "")
+
+    return IntroduceResponse(
+        lemma_id=canonical_id,
+        state=ulk.knowledge_state,
+        acquisition_box=ulk.acquisition_box,
+        next_due=next_due,
+    )
+
+
+class DueLemmaSummary(BaseModel):
+    lemma_id: int
+    lemma_form: str
+    lemma_bare: str
+    gloss_en: Optional[str]
+    state: str
+    acquisition_box: Optional[int]
+    next_due: str
+
+
+@router.get("/due")
+def due(
+    language_code: str,
+    limit: int = 50,
+    db: Session = Depends(get_db),
+) -> list[DueLemmaSummary]:
+    """Lemmas whose next review is due, scoped to one language.
+
+    Returns acquisition-due first (in box order), then FSRS-due. Capped at
+    ``limit`` rows; clients should paginate when polyglot grows beyond
+    that scale.
+    """
+    if not db.query(Language).filter(Language.code == language_code).first():
+        raise HTTPException(status_code=400, detail=f"Unknown language: {language_code}")
+
+    now = datetime.now(timezone.utc)
+
+    acquiring_due = (
+        db.query(UserLemmaKnowledge, Lemma)
+        .join(Lemma, Lemma.lemma_id == UserLemmaKnowledge.lemma_id)
+        .filter(
+            Lemma.language_code == language_code,
+            UserLemmaKnowledge.knowledge_state == "acquiring",
+            UserLemmaKnowledge.acquisition_next_due.isnot(None),
+            UserLemmaKnowledge.acquisition_next_due <= now,
+        )
+        .order_by(
+            UserLemmaKnowledge.acquisition_box.asc(),
+            UserLemmaKnowledge.acquisition_next_due.asc(),
+        )
+        .limit(limit)
+        .all()
+    )
+
+    out: list[DueLemmaSummary] = []
+    for ulk, lemma in acquiring_due:
+        out.append(DueLemmaSummary(
+            lemma_id=lemma.lemma_id,
+            lemma_form=lemma.lemma_form,
+            lemma_bare=lemma.lemma_bare,
+            gloss_en=lemma.gloss_en,
+            state=ulk.knowledge_state,
+            acquisition_box=ulk.acquisition_box,
+            next_due=ulk.acquisition_next_due.isoformat() if ulk.acquisition_next_due else "",
+        ))
+
+    if len(out) >= limit:
+        return out
+
+    remaining = limit - len(out)
+    fsrs_candidates = (
+        db.query(UserLemmaKnowledge, Lemma)
+        .join(Lemma, Lemma.lemma_id == UserLemmaKnowledge.lemma_id)
+        .filter(
+            Lemma.language_code == language_code,
+            UserLemmaKnowledge.knowledge_state.in_(["learning", "known", "lapsed"]),
+            UserLemmaKnowledge.fsrs_card_json.isnot(None),
+        )
+        .all()
+    )
+    fsrs_due_pairs: list[tuple[datetime, UserLemmaKnowledge, Lemma]] = []
+    for ulk, lemma in fsrs_candidates:
+        card = parse_json_column(ulk.fsrs_card_json)
+        due_str = card.get("due")
+        if not due_str:
+            continue
+        try:
+            due_dt = datetime.fromisoformat(due_str.replace("Z", "+00:00"))
+        except ValueError:
+            continue
+        if due_dt.tzinfo is None:
+            due_dt = due_dt.replace(tzinfo=timezone.utc)
+        if due_dt <= now:
+            fsrs_due_pairs.append((due_dt, ulk, lemma))
+
+    fsrs_due_pairs.sort(key=lambda t: t[0])
+    for due_dt, ulk, lemma in fsrs_due_pairs[:remaining]:
+        out.append(DueLemmaSummary(
+            lemma_id=lemma.lemma_id,
+            lemma_form=lemma.lemma_form,
+            lemma_bare=lemma.lemma_bare,
+            gloss_en=lemma.gloss_en,
+            state=ulk.knowledge_state,
+            acquisition_box=None,
+            next_due=due_dt.isoformat(),
+        ))
+
+    return out
+
+
+@router.get("/stats")
+def stats(db: Session = Depends(get_db)) -> dict:
+    """Pipeline stats: acquisition boxes + due counts."""
+    return get_acquisition_stats(db)

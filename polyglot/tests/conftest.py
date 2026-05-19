@@ -21,9 +21,13 @@ def tmp_db(monkeypatch):
     monkeypatch.setattr(database, "engine", test_engine)
     monkeypatch.setattr(database, "SessionLocal", TestSession)
 
-    from app.database import Base
+    from app.database import Base, ensure_schema
     from app import models  # noqa: F401 — ensure all tables register
     Base.metadata.create_all(bind=test_engine)
+    # New columns added via _ADDITIVE_COLUMN_DELTAS are folded into create_all
+    # for fresh test DBs (the model already defines them), but ensure_schema
+    # also runs here so the test path exercises the same code as production.
+    ensure_schema()
 
     # Seed languages
     with TestSession() as db:
