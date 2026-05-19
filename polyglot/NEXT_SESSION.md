@@ -7,22 +7,36 @@ Read this FIRST before touching anything under `polyglot/`. Also read
 
 ## Done in the 2026-05-19 overnight pass
 
-- **Quality-gate fixes** (PR #84) — caps-heading handling, partial-failure
-  idempotency, model routing.
-- **FSRS + acquisition + leech port** — full SRS engine on polyglot's
-  schema. Files: `services/{canonical_resolution,interaction_logger,
-  activity_log,fsrs_service,acquisition_service,leech_service}.py`.
-- **Reviews router** — `POST /api/reviews/{submit,introduce}` + `GET
-  /api/reviews/{due,stats}`. Auto-routes acquisition vs FSRS, redirects
-  variants to canonical, reactivates suspended leeches.
-- **Mark-unknown → SRS** — `reading_intake.mark_lemma(state='unknown')`
-  now calls `start_acquisition(due_immediately=True)`. Tapped unknowns
-  flow into Box 1 with first review due now (subject to daily cap).
-- **ReviewLog idempotency** — `client_review_id` + `comprehension_signal`
-  columns, plus `database.ensure_schema()` startup hook that ALTERs them
-  onto existing DBs.
-- **78 tests** passing — 34 new in `test_{canonical_resolution,
-  fsrs_service,acquisition_service,leech_service,reviews_router}.py`.
+Three back-to-back PRs landed on main (all squash-merged, branches deleted):
+
+- **PR #84** — Quality-gate fixes: caps-heading identity-skip bypass,
+  partial-failure idempotency (`mappings_verified_at` stays NULL when any
+  batch fails), heading detection (≥80% all-caps + ≤10 tokens), Sonnet/
+  Haiku alias routing via `POLYGLOT_QG_MODEL`.
+- **PR #85** — FSRS + acquisition + leech engine ported. Files:
+  `services/{canonical_resolution,interaction_logger,activity_log,
+  fsrs_service,acquisition_service,leech_service}.py` + new `reviews`
+  router. New schema columns on `ReviewLog`: `client_review_id` (unique,
+  for offline idempotency), `comprehension_signal`. Schema deltas applied
+  idempotently by `database.ensure_schema()` on startup.
+- **PR #86** — Review tab frontend: transitional bare-word UX over the
+  SRS engine. New screen `app/polyglot-review.tsx`, API client gains
+  `getDueLemmas`/`submitReview`/`getReviewStats`. Tab gated to Modern
+  Greek mode.
+
+End-to-end loop now works without sentence generation: mark unknown →
+Box 1 → review (rate Again/Hard/Good/Easy) → graduates via Tier 0/1/2/3
+→ enters FSRS. Leech detection runs after every review and on bulk sweep.
+
+Test counts after this overnight pass:
+- Polyglot backend: **78 tests passing** (was 35 at start)
+- Frontend: **84 tests passing** (unchanged — typecheck covers the new screen)
+
+Files modified at `polyglot/CLAUDE.md` — gates audit table now lists
+FSRS/Acquisition/Leech/Variant-resolver/Daily-cap as **Ported**, with
+inline notes on the intentional intro-card-gate omission (see Hard
+Invariant #12). `polyglot/README.md` now has a full lifecycle diagram +
+endpoint table + tier graduation table + leech description.
 
 What's still deferred from this briefing (open scope below):
 
@@ -55,33 +69,28 @@ Concrete priorities:
 
 ### 1. Port Alif's sentence-review pipeline to polyglot
 
-The whole point of Alif is sentence-based SRS. Polyglot has reading + marking
-but no FSRS-driven review session. Words marked unknown sit in
-`UserLemmaKnowledge` with `entered_acquiring_at` set but never get reviewed.
+**Status: SRS engine landed (PR #85). Sentence-side pipeline still open.**
 
-What to port from `backend/app/services/`:
+Remaining files to port from `backend/app/services/`:
 
-- `acquisition_service.py` — Leitner 3-box (4h → 1d → 3d). The Polyglot
-  `UserLemmaKnowledge` schema already carries the right fields
-  (`acquisition_box`, `acquisition_next_due`, `acquisition_started_at`,
-  `entered_acquiring_at`, `graduated_at`, `leech_suspended_at`,
-  `leech_count`). Just need to port the state-transition logic.
-- `fsrs_service.py` — py-fsrs v6 integration. `fsrs_card_json` field is
-  already on ULK. Same exact integration should work — FSRS doesn't care
-  about language.
-- `material_generator.py` — sentence generation for `unknown` lemmas. Will
-  need a Greek-tuned prompt (different sentence rules, different difficulty
-  signals).
-- `sentence_selector.py` — pick the next-best sentence for review. Honor
-  function-word exclusion, comprehensibility, scaffold count.
-- `session_builder.py` — assemble a review session for the user (intro
-  cards + sentences + reintro). Polyglot's UI needs a "Review" tab next to
-  "Reading" in Modern Greek mode.
-- `sentence_review_service.py` — apply review results to ULK + FSRS + ledger.
-- `interaction_logger.py` — JSONL daily logs at
-  `polyglot/data/logs/interactions_YYYY-MM-DD.jsonl`. Format identical to
-  Alif's per CLAUDE.md.
-- `leech_service.py` — suspend / reintroduce leeches.
+- `material_generator.py` (~2.5 KLOC) — sentence generation for `unknown`
+  lemmas. Will need a Greek-tuned prompt (different sentence rules,
+  different difficulty signals from Arabic).
+- `sentence_selector.py` (~2.9 KLOC) — pick the next-best sentence for
+  review. Honor function-word exclusion, comprehensibility, scaffold count.
+- `session_builder.py` — assemble a review session (intro cards +
+  sentences + reintro). Replaces the polyglot `GET /api/reviews/due`
+  flat list with structured session payloads.
+- `sentence_review_service.py` (~574 lines) — apply review results to
+  ULK + FSRS + the broader sentence ledger. Required when sentences carry
+  multiple lemmas (collateral credit semantics).
+
+When this lands, also flip Hard Invariant #12 in `polyglot/CLAUDE.md`
+(intro-card working-memory gate) from "intentionally omitted" to "ported"
+by adding `UserLemmaKnowledge.experiment_intro_shown_at` and porting
+`_intro_shown_recently` from Alif's acquisition_service. Without it,
+Tier 0/1/2 graduation can fire on tight time scales — fine for solo
+dogfood, dangerous if polyglot ships to others.
 
 Important: see `polyglot/CLAUDE.md` "Hard invariants" — keep the **quality
 gate is mandatory** discipline. When sentence generation lands, every
