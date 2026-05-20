@@ -48,6 +48,11 @@ log = logging.getLogger(__name__)
 
 BODY_CLEAN_ENABLED = os.environ.get("POLYGLOT_BODY_CLEAN", "1") == "1"
 TIMEOUT_S = int(os.environ.get("POLYGLOT_BODY_CLEAN_TIMEOUT", "180"))
+# Audit-failure retries. LLM non-determinism means a second attempt often
+# passes — Haiku's most common mistake is truncating a removed segment at the
+# wrong sentence boundary, which retries away. After this many retries we
+# accept the page can't be cleaned and let the caller fall back to body_src.
+MAX_AUDIT_RETRIES = int(os.environ.get("POLYGLOT_BODY_CLEAN_RETRIES", "2"))
 
 _MODEL_ALIASES = {
     "sonnet": "claude-sonnet-4-5-20250929",
@@ -79,6 +84,12 @@ def clean_body(body_src: str, language_code: str) -> CleanResult | None:
     Short-circuits to a trivially-cleaned result if body_src is too small to
     contain pollution (one line, no newlines, ≤200 chars). That covers
     blank pages and short paste imports — no LLM call worth the latency.
+
+    Audit-failure retry loop: when Haiku truncates a sidebar at the wrong
+    sentence boundary (or otherwise paraphrases a removed segment), the
+    audit rejects the result. We retry up to ``MAX_AUDIT_RETRIES`` times —
+    LLM non-determinism usually breaks the deadlock. After exhausting
+    retries we return None and let the caller fall back to body_src.
     """
     if not body_src or not body_src.strip():
         return CleanResult(cleaned="", removed=[], hyphen_joins=[])
@@ -86,7 +97,20 @@ def clean_body(body_src: str, language_code: str) -> CleanResult | None:
         return CleanResult(cleaned=body_src.strip(), removed=[], hyphen_joins=[])
 
     language_name = _LANG_DISPLAY.get(language_code, language_code)
+    for attempt in range(MAX_AUDIT_RETRIES + 1):
+        result = _clean_body_once(body_src, language_name)
+        if result is not None:
+            if attempt > 0:
+                log.info("body_clean succeeded on attempt %d/%d",
+                         attempt + 1, MAX_AUDIT_RETRIES + 1)
+            return result
+    log.warning("body_clean exhausted %d retries — falling back to raw body_src",
+                MAX_AUDIT_RETRIES + 1)
+    return None
 
+
+def _clean_body_once(body_src: str, language_name: str) -> CleanResult | None:
+    """One Haiku attempt. Returns None on LLM failure or audit failure."""
     schema = {
         "type": "object",
         "properties": {

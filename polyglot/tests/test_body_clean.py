@@ -174,6 +174,34 @@ def test_footnote_digit_detach_inside_removed_segment_passes_audit(monkeypatch):
     assert "Βαβυλωνία" not in out.cleaned
 
 
+def test_retries_on_audit_failure(monkeypatch):
+    """First attempt fails audit (Haiku truncated a removed segment),
+    second attempt succeeds — clean_body should keep trying."""
+    src = "Real chapter prose here that's long enough to skip the bypass. " * 5 + "\n"
+    bad = {
+        "cleaned": "Real chapter prose",
+        "removed": ["this never appeared in source"],
+        "hyphen_joins": [],
+    }
+    good = {
+        "cleaned": src.strip(),
+        "removed": [],
+        "hyphen_joins": [],
+    }
+    seq = [bad, good]
+    call_count = {"n": 0}
+
+    def fake_run(*a, **k):
+        i = call_count["n"]
+        call_count["n"] += 1
+        return _fake_proc(seq[i] if i < len(seq) else good)
+
+    monkeypatch.setattr(body_clean.subprocess, "run", fake_run)
+    out = body_clean.clean_body(src, "el")
+    assert out is not None
+    assert call_count["n"] == 2
+
+
 def test_control_char_in_source_passes_audit(monkeypatch):
     """PyMuPDF leaks C0 control chars (BEL=0x07 in front of footnote markers,
     among others). Haiku correctly drops them; audit shouldn't punish that."""
