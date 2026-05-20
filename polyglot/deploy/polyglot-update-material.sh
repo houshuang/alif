@@ -43,6 +43,12 @@ PAGES_MAX_PER_RUN="${POLYGLOT_PAGES_AHEAD_MAX_PER_RUN:-5}"
 PAGES_TIMEOUT_SECONDS="${POLYGLOT_PAGES_AHEAD_TIMEOUT_SECONDS:-1200}"
 
 export PYTHONUNBUFFERED=1
+# Belt-and-suspenders: explicitly point at polyglot's DB so the cron run
+# doesn't depend on env_file loading order (the systemd unit sets this via
+# EnvironmentFile, but cron has its own minimal environment). Caused a
+# silent write to alif.db on first run (2026-05-20).
+export DATABASE_URL="${DATABASE_URL:-sqlite:////opt/alif/polyglot/polyglot.db}"
+export POLYGLOT_QUALITY_GATE="${POLYGLOT_QUALITY_GATE:-1}"
 
 run_phase() {
   local name="$1"
