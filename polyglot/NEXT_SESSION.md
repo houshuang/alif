@@ -7,9 +7,39 @@ Read this FIRST before touching anything under `polyglot/`. Also read
 
 ## Done in the 2026-05-20 session (cumulative)
 
-Five PRs landed (squash-merged, branches deleted):
+Six PRs landed (squash-merged, branches deleted):
 
-- **PR #4 (this session) — Greek-tuned `material_generator` port**.
+- **PR #5 (this session) — frontend sentence-bearing review UI**.
+  `frontend/app/polyglot-review.tsx` rewritten from the transitional bare-word
+  card to a sentence card that mirrors Alif's `SentenceReadingCard` +
+  `ReadingActions` (`frontend/app/index.tsx`). Two-stage reveal (front →
+  "Show Translation" → back), per-word tap cycles off → missed (red) →
+  confused (yellow) → off, 3-signal comprehension model, middle action
+  button label toggles "Know All" ↔ "Continue" based on whether any words
+  are marked. Content-lemma filter for marking (function words and proper
+  names show gloss on tap but never accrue missed/confused state, mirroring
+  `sentence_review_service`'s backend skip). API client gains
+  `getReviewSession`, `submitSentenceReview`, `undoSentenceReview` (calling
+  `GET /api/reviews/session` and `POST /api/reviews/submit-sentence`,
+  `/undo-sentence`) plus the `SentencePayload` / `WordRender` /
+  `SentenceReviewSubmission` / `WordReviewResult` shapes. Helpers extracted
+  to `frontend/lib/polyglot-review-helpers.ts` (mark cycle, signal
+  derivation, content-word filter, lemma_id extraction) with 12 new Jest
+  tests. Cut vs Alif (all language-driven per `polyglot/CLAUDE.md` §
+  "Ground design and code in Alif"): tashkeel toggle, transliteration,
+  lookup panel with root/etymology/memory hooks, confusion-help fetch,
+  intro cards, audio, wrap-up quiz, session-end journey. Frontend tests:
+  **96 passing** (was 84). Backend tests unchanged at 144. Gates audit
+  "No bare word cards" row updated to reflect end-to-end wiring.
+
+  Codified a new project-level rule in this session: **polyglot mirrors
+  Alif's design and code by default; divergence requires a specific
+  Greek/Latin-driven reason**. Lives in `polyglot/CLAUDE.md` § "Ground
+  design and code in Alif" + the root `CLAUDE.md` Polyglot bullet. Triggered
+  by an early misstep in this session where I asked UX questions Alif had
+  already answered before reading `index.tsx`.
+
+- **PR #4 — Greek-tuned `material_generator` port**.
   LLM-driven sentence generation closing the loop with the picker. Files:
   `services/material_generator.py` (+`sentence_validator.py` for Greek-flavored
   tokenize / map / validate primitives). One Sonnet generation call + one Haiku
@@ -93,24 +123,36 @@ all 7 redirect sites.
 
 Backend tests: **92 passing** (was 78 at session start).
 
-## What's next — sentence-review pipeline port (1 PR remaining)
+## What's next — backend loop is end-to-end; next is depth
 
-PR #4 (material generation) shipped this session. The backend loop is now
-functionally complete: the picker pulls sentences, the generator fills gaps,
-the write-side service distributes credit. Only the frontend swap is left
-before learners see the new UX.
+PR #5 shipped this session. The user-facing loop is now complete: read
+→ tap unknown → review session pulls sentences → tap-cycle marks
+missed/confused → comprehension signal → FSRS scheduling. No further
+PRs are required to make polyglot usable for daily Greek dogfooding.
 
-- **PR #5 (next) — frontend sentence-bearing review UI**. Update
-  `frontend/app/polyglot-review.tsx` to call `/api/reviews/session` and
-  render a sentence-shaped card (text, tap-for-gloss, 1–4 rating).
-  Replaces the bare-word UX from PR #86. Preserve offline reconciliation
-  (`client_review_id`). Flip Hard Invariant #12 if intro cards land here
-  too (port `experiment_intro_shown_at` + `_intro_shown_recently`).
-  Branch: `sh/polyglot-sentence-review-ui`.
+Suggested next priorities (no specific PR order; pick by what surfaces
+during dogfooding):
 
-**Recommendation for the next session**: start with PR #5. After this,
-the loop is end-to-end for the user: read → tap unknown → see sentences
-during review → rate → FSRS scheduling.
+- **Intro-card working-memory gate** (Hard Invariant #12). Polyglot's
+  Tier 0/1/2 graduation can currently fire on tight time scales because
+  there's no `experiment_intro_shown_at` field gating it. Port the field
+  + `_intro_shown_recently` guard from Alif's
+  `app/services/acquisition_service.py`. Add the experiment-intro card
+  to the session builder + a frontend intro-card screen interleaved with
+  sentence cards (Alif's `buildInterleavedSession` is the reference,
+  `frontend/app/index.tsx:99–198`).
+- **Quality-gate Haiku cost-discipline experiment**. Sonnet runs
+  ~$0.30-0.50/page; Haiku is 10× cheaper and the verify task is bounded.
+  See "Quality gate improvements" below.
+- **Ancient Greek + Latin language paths**. OdyCy + LatinCy smoke tests
+  on the Sophocles/Thucydides PDF in
+  `~/Library/CloudStorage/Dropbox/Greek/Textbooks/`.
+- **Greek TTS via ElevenLabs**. Same model Alif uses
+  (`eleven_multilingual_v2`). Cost discipline like Alif — only generate
+  for sentences that will be shown.
+- **Cron deploy of `polyglot-update-material.sh`** if dogfooding shows
+  the warm cache lagging behind acquiring growth. Install steps in the
+  next paragraph.
 
 Suggested PR #5 entry points to read first in the new session:
 - `frontend/app/polyglot-review.tsx` — current bare-word screen.

@@ -173,6 +173,7 @@ export type DueLemma = {
 };
 
 export type ReviewRating = 1 | 2 | 3 | 4;
+export type ComprehensionSignal = "understood" | "partial" | "no_idea";
 
 export type ReviewResult = {
   lemma_id: number;
@@ -216,7 +217,7 @@ export async function submitReview(
     responseMs?: number;
     sessionId?: string;
     clientReviewId?: string;
-    comprehensionSignal?: "understood" | "partial" | "no_idea";
+    comprehensionSignal?: ComprehensionSignal;
   } = {},
 ): Promise<ReviewResult> {
   return post("/api/reviews/submit", {
@@ -232,4 +233,102 @@ export async function submitReview(
 
 export async function getReviewStats(): Promise<AcquisitionStats> {
   return get("/api/reviews/stats");
+}
+
+// ─── Sentence review ───────────────────────────────────────────────────────
+// Mirrors Alif's sentence-review API (see frontend/lib/api.ts). Fields that
+// polyglot's POST /api/reviews/submit-sentence does not accept are intentionally
+// dropped (no audio_play_count, no lookup_count, no confusion_candidate_lemma_ids,
+// no parent_card_type) per `polyglot/CLAUDE.md` § "Ground design and code in Alif".
+
+export type WordRender = {
+  position: number;
+  surface_form: string;
+  lemma_id: number | null;
+  lemma_form: string | null;
+  gloss_en: string | null;
+  is_target: boolean;
+  is_function_word: boolean;
+  is_proper_name: boolean;
+  knowledge_state: string;
+};
+
+export type SentencePayload = {
+  sentence_id: number;
+  text: string;
+  translation_en: string | null;
+  target_lemma_id: number;
+  source: string | null;
+  page_id: number | null;
+  words: WordRender[];
+  selection_reason: string;
+  score: number;
+};
+
+export type SentenceReviewSubmission = {
+  sentence_id: number;
+  primary_lemma_id?: number | null;
+  comprehension_signal: ComprehensionSignal;
+  missed_lemma_ids: number[];
+  confused_lemma_ids?: number[];
+  response_ms: number;
+  session_id: string;
+  review_mode?: string;
+  client_review_id: string;
+};
+
+export type WordReviewResult = {
+  lemma_id: number;
+  rating: number;
+  credit_type: string;
+  new_state: string;
+  next_due: string;
+};
+
+export type SentenceReviewResult = {
+  word_results: WordReviewResult[];
+  duplicate: boolean;
+  leech_suspended_lemma_ids: number[];
+};
+
+export async function getReviewSession(
+  languageCode: string,
+  limit: number = 15,
+): Promise<SentencePayload[]> {
+  return get(
+    `/api/reviews/session?language_code=${encodeURIComponent(languageCode)}&limit=${limit}`,
+  );
+}
+
+export async function getNextSentence(
+  lemmaId: number,
+  languageCode: string,
+): Promise<SentencePayload | null> {
+  const res = await fetch(
+    `${POLYGLOT_BASE_URL}/api/reviews/next-sentence?lemma_id=${lemmaId}&language_code=${encodeURIComponent(languageCode)}`,
+  );
+  if (!res.ok) throw new Error(`/api/reviews/next-sentence: ${res.status}`);
+  const body = await res.text();
+  if (!body || body === "null") return null;
+  return JSON.parse(body);
+}
+
+export async function submitSentenceReview(
+  submission: SentenceReviewSubmission,
+): Promise<SentenceReviewResult> {
+  return post("/api/reviews/submit-sentence", {
+    sentence_id: submission.sentence_id,
+    primary_lemma_id: submission.primary_lemma_id ?? null,
+    comprehension_signal: submission.comprehension_signal,
+    missed_lemma_ids: submission.missed_lemma_ids,
+    confused_lemma_ids: submission.confused_lemma_ids ?? [],
+    response_ms: submission.response_ms,
+    session_id: submission.session_id,
+    review_mode: submission.review_mode ?? "reading",
+    client_review_id: submission.client_review_id,
+  });
+}
+
+export async function undoSentenceReview(clientReviewId: string): Promise<{ undone: boolean; reviews_removed: number }> {
+  return post("/api/reviews/undo-sentence", { client_review_id: clientReviewId });
 }

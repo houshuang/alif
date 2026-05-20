@@ -1,13 +1,30 @@
 /**
- * Polyglot review screen — bare-word card UX over the FSRS + acquisition engine.
+ * Polyglot sentence-review screen.
  *
- * Transitional layout: today reviews are submitted by lemma_id only (no
- * sentence wrapper). When the sentence-review pipeline lands, this screen
- * upgrades to sentence cards. The button row + rating semantics stay.
+ * Ports Alif's sentence-review UX (`frontend/app/index.tsx`, SentenceReadingCard
+ * + ReadingActions + handleWordTap + handleSentenceSubmit) to Modern Greek,
+ * following `polyglot/CLAUDE.md` § "Ground design and code in Alif".
  *
- * Talks to /api/reviews/{due,submit,stats} on the polyglot backend.
+ * Two-stage reveal: front shows the Greek sentence alone; "Show Translation"
+ * flips to the back with the English. On either side the learner can:
+ *   - tap a content word to cycle off → missed (red) → confused (yellow) → off
+ *   - tap "No idea" → comprehension_signal="no_idea"
+ *   - tap the middle button (label "Know All" with no marks → "Continue" with
+ *     any marks) → comprehension_signal derived from marks
+ *
+ * Function words and proper names are tappable for gloss reveal but never
+ * accumulate marks — same content-lemma filter as sentence_review_service.
+ *
+ * Cut vs Alif (with reasons):
+ *   - tashkeel toggle dot — Greek has no analogous opt-out diacritics
+ *   - transliteration line — polyglot doesn't compute it
+ *   - lookup panel with root/etymology/memory hooks — polyglot has no such infra
+ *   - confusion-help fetch — polyglot has no /confusion-help endpoint
+ *   - intro cards / passages / verses — deferred per Hard Invariant #12
+ *   - audio controls / listening mode — no TTS in polyglot yet
+ *   - wrap-up quiz / session-end journey — deferred
  */
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   View, Text, Pressable, StyleSheet, ActivityIndicator, ScrollView,
 } from "react-native";
@@ -15,9 +32,27 @@ import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useLanguage } from "../lib/language-context";
 import {
-  getDueLemmas, submitReview, getReviewStats,
-  type DueLemma, type AcquisitionStats, type ReviewRating,
+  getReviewSession,
+  submitSentenceReview,
+  getReviewStats,
+  type SentencePayload,
+  type WordRender,
+  type AcquisitionStats,
+  type ComprehensionSignal,
 } from "../lib/polyglot-api";
+import {
+  cycleMark,
+  deriveSignal,
+  emptyMarks,
+  generateClientReviewId,
+  generateSessionId,
+  hasAnyMarks,
+  isContentWord,
+  lemmaIdsFromMarks,
+  markStateAt,
+  middleButtonLabel,
+  type MarkSets,
+} from "../lib/polyglot-review-helpers";
 
 const C = {
   bg: "#0f0f1a",
@@ -25,90 +60,116 @@ const C = {
   border: "#2a2a40",
   text: "#e0e0f0",
   textDim: "#9090a8",
+  textMuted: "#6a6a82",
   accent: "#7aa2f7",
-  again: "#c95f6f",
-  hard: "#d4a06b",
+  target: "#bb9af7",
+  missed: "#c95f6f",
+  confused: "#d4a06b",
   good: "#74c096",
-  easy: "#7aa2f7",
+  noIdea: "#c95f6f",
 };
 
-const RATINGS: { value: ReviewRating; label: string; color: string; desc: string }[] = [
-  { value: 1, label: "Again", color: C.again, desc: "Forgot — start over" },
-  { value: 2, label: "Hard",  color: C.hard,  desc: "Recalled with effort" },
-  { value: 3, label: "Good",  color: C.good,  desc: "Knew it" },
-  { value: 4, label: "Easy",  color: C.easy,  desc: "Trivially" },
-];
-
-function clientReviewId(): string {
-  // Cheap UUIDv4-ish, only needs to be unique within the offline queue.
-  return "rv-" + Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
-}
+type CardState = "front" | "back";
 
 export default function PolyglotReview() {
   const router = useRouter();
   const { language } = useLanguage();
-  // The language switcher today tracks only 'ar' / 'el'. When polyglot adds
-  // grc/la support to the switcher, extend this map and the underlying
-  // AppLanguage union together.
   const languageCode = language === "el" ? "el" : "el";
 
-  const [queue, setQueue] = useState<DueLemma[]>([]);
+  const [session, setSession] = useState<SentencePayload[]>([]);
   const [stats, setStats] = useState<AcquisitionStats | null>(null);
   const [index, setIndex] = useState(0);
-  const [showAnswer, setShowAnswer] = useState(false);
+  const [cardState, setCardState] = useState<CardState>("front");
+  const [marks, setMarks] = useState<MarkSets>(emptyMarks);
+  const [glossWordIdx, setGlossWordIdx] = useState<number | null>(null);
+
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [shownAt, setShownAt] = useState<number>(Date.now());
 
-  const loadQueue = useCallback(async () => {
+  const sessionIdRef = useRef<string>(generateSessionId());
+  const shownAtRef = useRef<number>(Date.now());
+
+  const current = session[index];
+
+  const loadSession = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const [due, s] = await Promise.all([
-        getDueLemmas(languageCode, 20),
+      const [items, s] = await Promise.all([
+        getReviewSession(languageCode, 15),
         getReviewStats(),
       ]);
-      setQueue(due);
+      sessionIdRef.current = generateSessionId();
+      setSession(items);
       setStats(s);
       setIndex(0);
-      setShowAnswer(false);
-      setShownAt(Date.now());
+      setCardState("front");
+      setMarks(emptyMarks());
+      setGlossWordIdx(null);
+      shownAtRef.current = Date.now();
     } catch (e: any) {
-      setError(e?.message ?? "Failed to load review queue");
+      setError(e?.message ?? "Failed to load review session");
     } finally {
       setLoading(false);
     }
   }, [languageCode]);
 
-  useEffect(() => { loadQueue(); }, [loadQueue]);
+  useEffect(() => { void loadSession(); }, [loadSession]);
 
-  const current = queue[index];
+  const advanceCard = useCallback(() => {
+    setCardState("back");
+    setGlossWordIdx(null);
+  }, []);
 
-  const rate = useCallback(async (rating: ReviewRating) => {
+  const flipToFront = useCallback(() => {
+    setCardState("front");
+    setGlossWordIdx(null);
+  }, []);
+
+  const handleWordTap = useCallback((wordIdx: number) => {
+    if (!current) return;
+    const word = current.words[wordIdx];
+    if (!word) return;
+    if (isContentWord(word)) {
+      setMarks((prev) => cycleMark(prev, wordIdx));
+    }
+    setGlossWordIdx((cur) => (cur === wordIdx ? null : wordIdx));
+  }, [current]);
+
+  const handleSubmit = useCallback(async (signal: ComprehensionSignal) => {
     if (!current || submitting) return;
     setSubmitting(true);
     try {
-      const responseMs = Date.now() - shownAt;
-      await submitReview(current.lemma_id, rating, {
-        responseMs,
-        clientReviewId: clientReviewId(),
+      const { missed, confused } = lemmaIdsFromMarks(marks, current.words);
+      const responseMs = Date.now() - shownAtRef.current;
+      await submitSentenceReview({
+        sentence_id: current.sentence_id,
+        primary_lemma_id: current.target_lemma_id,
+        comprehension_signal: signal,
+        missed_lemma_ids: missed,
+        confused_lemma_ids: confused,
+        response_ms: responseMs,
+        session_id: sessionIdRef.current,
+        client_review_id: generateClientReviewId(),
+        review_mode: "reading",
       });
-      // Advance. If we're at the end, refetch — there may be more due now
-      // (or graduations / leech reactivations may have changed the queue).
-      if (index + 1 >= queue.length) {
-        await loadQueue();
+
+      if (index + 1 >= session.length) {
+        await loadSession();
       } else {
         setIndex(index + 1);
-        setShowAnswer(false);
-        setShownAt(Date.now());
+        setCardState("front");
+        setMarks(emptyMarks());
+        setGlossWordIdx(null);
+        shownAtRef.current = Date.now();
       }
     } catch (e: any) {
       setError(e?.message ?? "Submit failed");
     } finally {
       setSubmitting(false);
     }
-  }, [current, submitting, shownAt, queue.length, index, loadQueue]);
+  }, [current, submitting, marks, index, session.length, loadSession]);
 
   if (loading) {
     return (
@@ -122,7 +183,7 @@ export default function PolyglotReview() {
     return (
       <View style={styles.center}>
         <Text style={styles.errorText}>{error}</Text>
-        <Pressable style={styles.button} onPress={loadQueue}>
+        <Pressable style={styles.button} onPress={loadSession}>
           <Text style={styles.buttonText}>Retry</Text>
         </Pressable>
       </View>
@@ -133,7 +194,7 @@ export default function PolyglotReview() {
     return (
       <View style={styles.center}>
         <Ionicons name="checkmark-circle-outline" size={64} color={C.good} />
-        <Text style={styles.emptyTitle}>Nothing due right now</Text>
+        <Text style={styles.emptyTitle}>No sentences ready</Text>
         <Text style={styles.emptySubtitle}>
           {stats
             ? `${stats.total_acquiring} word${stats.total_acquiring === 1 ? "" : "s"} in the acquisition pipeline`
@@ -151,61 +212,217 @@ export default function PolyglotReview() {
         <Pressable style={styles.button} onPress={() => router.back()}>
           <Text style={styles.buttonText}>Back</Text>
         </Pressable>
-        <Pressable style={[styles.button, styles.buttonGhost]} onPress={loadQueue}>
+        <Pressable style={[styles.button, styles.buttonGhost]} onPress={loadSession}>
           <Text style={styles.buttonText}>Refresh</Text>
         </Pressable>
       </View>
     );
   }
 
+  const hasMarks = hasAnyMarks(marks);
+  const glossWord = glossWordIdx != null ? current.words[glossWordIdx] : null;
+
   return (
     <ScrollView contentContainerStyle={styles.root}>
       <View style={styles.header}>
         <Text style={styles.progress}>
-          {index + 1} / {queue.length}
+          {index + 1} / {session.length}
         </Text>
-        {current.acquisition_box != null && (
-          <Text style={styles.boxBadge}>Box {current.acquisition_box}</Text>
-        )}
-        <Text style={styles.stateBadge}>{current.state}</Text>
+        <Text style={styles.stateBadge}>
+          {current.selection_reason || "review"}
+        </Text>
       </View>
 
       <View style={styles.card}>
-        <Text style={styles.lemmaForm}>{current.lemma_form}</Text>
-        <Text style={styles.lemmaBare}>{current.lemma_bare}</Text>
-        {showAnswer ? (
-          <View style={styles.answerArea}>
-            <Text style={styles.gloss}>
-              {current.gloss_en ?? "(no gloss yet)"}
-            </Text>
-          </View>
-        ) : (
-          <Pressable style={styles.revealButton} onPress={() => setShowAnswer(true)}>
-            <Text style={styles.revealText}>Tap to reveal</Text>
-          </Pressable>
-        )}
+        <SentenceCard
+          payload={current}
+          cardState={cardState}
+          marks={marks}
+          onWordTap={handleWordTap}
+          glossWordIdx={glossWordIdx}
+        />
+        {glossWord ? <GlossLine word={glossWord} /> : null}
       </View>
 
-      {showAnswer && (
-        <View style={styles.ratingsRow}>
-          {RATINGS.map((r) => (
-            <Pressable
-              key={r.value}
-              style={[styles.ratingButton, { borderColor: r.color }]}
-              onPress={() => rate(r.value)}
-              disabled={submitting}
-            >
-              <Text style={[styles.ratingLabel, { color: r.color }]}>{r.label}</Text>
-              <Text style={styles.ratingDesc}>{r.desc}</Text>
-            </Pressable>
-          ))}
-        </View>
-      )}
+      <ReadingActions
+        cardState={cardState}
+        hasMarks={hasMarks}
+        onAdvance={advanceCard}
+        onFlipBack={flipToFront}
+        onSubmit={handleSubmit}
+        submitting={submitting}
+      />
 
       {submitting && (
         <ActivityIndicator color={C.accent} style={{ marginTop: 16 }} />
       )}
     </ScrollView>
+  );
+}
+
+function SentenceCard({
+  payload,
+  cardState,
+  marks,
+  onWordTap,
+  glossWordIdx,
+}: {
+  payload: SentencePayload;
+  cardState: CardState;
+  marks: MarkSets;
+  onWordTap: (idx: number) => void;
+  glossWordIdx: number | null;
+}) {
+  const showAnswer = cardState === "back";
+  const words = useMemo(
+    () => [...payload.words].sort((a, b) => a.position - b.position),
+    [payload.words],
+  );
+
+  return (
+    <>
+      <Text style={styles.sentenceGreek}>
+        {words.map((word, i) => {
+          const state = markStateAt(marks, i);
+          const isContent = isContentWord(word);
+          const isFocused = glossWordIdx === i;
+          let wordStyle = undefined;
+          if (state === "missed") wordStyle = styles.missedWord;
+          else if (state === "confused") wordStyle = styles.confusedWord;
+          else if (isFocused) wordStyle = styles.focusedWord;
+          else if (word.is_target) wordStyle = styles.targetWord;
+          else if (!isContent) wordStyle = styles.functionWord;
+
+          return (
+            <Text key={`w-${i}`}>
+              {i > 0 ? " " : null}
+              <Text
+                onPress={() => onWordTap(i)}
+                style={wordStyle}
+              >
+                {word.surface_form}
+              </Text>
+            </Text>
+          );
+        })}
+      </Text>
+
+      <View
+        style={[
+          styles.answerSection,
+          !showAnswer && styles.answerSectionHidden,
+        ]}
+      >
+        <View style={styles.divider} />
+        {showAnswer && payload.translation_en ? (
+          <Text style={styles.sentenceEnglish}>{payload.translation_en}</Text>
+        ) : (
+          <Text style={styles.sentenceEnglish}> </Text>
+        )}
+      </View>
+    </>
+  );
+}
+
+function GlossLine({ word }: { word: WordRender }) {
+  const tag = word.is_function_word
+    ? "function word"
+    : word.is_proper_name
+      ? "proper name"
+      : word.is_target
+        ? "target"
+        : word.knowledge_state;
+  return (
+    <View style={styles.glossLine}>
+      <Text style={styles.glossLemma}>
+        {word.lemma_form ?? word.surface_form}
+      </Text>
+      <Text style={styles.glossTag}>{tag}</Text>
+      <Text style={styles.glossText}>
+        {word.gloss_en ?? "(no gloss)"}
+      </Text>
+    </View>
+  );
+}
+
+function ReadingActions({
+  cardState,
+  hasMarks,
+  onAdvance,
+  onFlipBack,
+  onSubmit,
+  submitting,
+}: {
+  cardState: CardState;
+  hasMarks: boolean;
+  onAdvance: () => void;
+  onFlipBack: () => void;
+  onSubmit: (signal: ComprehensionSignal) => Promise<void> | void;
+  submitting: boolean;
+}) {
+  const signal = deriveSignal(hasMarks);
+  const middleLabel = middleButtonLabel(hasMarks);
+
+  if (cardState === "front") {
+    return (
+      <View style={styles.actionRow}>
+        <Pressable
+          style={[styles.actionButton, styles.noIdeaButton, submitting && styles.actionButtonDisabled]}
+          onPress={() => void onSubmit("no_idea")}
+          disabled={submitting}
+        >
+          <Text style={styles.noIdeaButtonText}>No idea</Text>
+        </Pressable>
+        <Pressable
+          style={[
+            styles.actionButton,
+            hasMarks ? styles.continueButton : styles.gotItButton,
+            submitting && styles.actionButtonDisabled,
+          ]}
+          onPress={() => void onSubmit(signal)}
+          disabled={submitting}
+        >
+          <Text style={styles.actionButtonText}>{middleLabel}</Text>
+        </Pressable>
+        <Pressable
+          style={[styles.actionButton, styles.showButton, submitting && styles.actionButtonDisabled]}
+          onPress={onAdvance}
+          disabled={submitting}
+        >
+          <Text style={styles.showButtonText}>Show Translation</Text>
+        </Pressable>
+      </View>
+    );
+  }
+
+  return (
+    <View style={styles.actionRow}>
+      <Pressable
+        style={[styles.actionButton, styles.noIdeaButton, submitting && styles.actionButtonDisabled]}
+        onPress={() => void onSubmit("no_idea")}
+        disabled={submitting}
+      >
+        <Text style={styles.noIdeaButtonText}>No idea</Text>
+      </Pressable>
+      <Pressable
+        style={[
+          styles.actionButton,
+          hasMarks ? styles.continueButton : styles.gotItButton,
+          submitting && styles.actionButtonDisabled,
+        ]}
+        onPress={() => void onSubmit(signal)}
+        disabled={submitting}
+      >
+        <Text style={styles.actionButtonText}>{middleLabel}</Text>
+      </Pressable>
+      <Pressable
+        style={[styles.actionButton, styles.showButton, submitting && styles.actionButtonDisabled]}
+        onPress={onFlipBack}
+        disabled={submitting}
+      >
+        <Text style={styles.showButtonText}>Hide Translation</Text>
+      </Pressable>
+    </View>
   );
 }
 
@@ -230,51 +447,76 @@ const styles = StyleSheet.create({
     flexDirection: "row", alignItems: "center", marginBottom: 24, gap: 12,
   },
   progress: { color: C.textDim, fontSize: 14, flex: 1 },
-  boxBadge: {
-    color: C.accent, fontSize: 12, fontWeight: "600",
-    backgroundColor: C.surface, paddingHorizontal: 8, paddingVertical: 4,
-    borderRadius: 8, borderColor: C.border, borderWidth: 1,
-  },
   stateBadge: {
     color: C.textDim, fontSize: 12,
     backgroundColor: C.surface, paddingHorizontal: 8, paddingVertical: 4,
     borderRadius: 8, borderColor: C.border, borderWidth: 1,
   },
   card: {
-    backgroundColor: C.surface, padding: 32, borderRadius: 16,
-    alignItems: "center", borderWidth: 1, borderColor: C.border,
+    backgroundColor: C.surface, padding: 24, borderRadius: 16,
+    borderWidth: 1, borderColor: C.border, minHeight: 220,
   },
-  lemmaForm: {
-    color: C.text, fontSize: 36, fontWeight: "600", letterSpacing: 0.5,
+  sentenceGreek: {
+    color: C.text, fontSize: 26, lineHeight: 40, textAlign: "center",
   },
-  lemmaBare: { color: C.textDim, fontSize: 14, marginTop: 4 },
-  answerArea: { marginTop: 24, alignItems: "center" },
-  gloss: { color: C.accent, fontSize: 22 },
-  revealButton: {
-    marginTop: 32, paddingHorizontal: 24, paddingVertical: 12,
-    backgroundColor: C.bg, borderRadius: 12,
-    borderWidth: 1, borderColor: C.border,
+  targetWord: { color: C.target, fontWeight: "600" },
+  functionWord: { color: C.textMuted },
+  focusedWord: { color: C.accent, fontWeight: "600" },
+  missedWord: {
+    color: C.missed,
+    textDecorationLine: "underline",
+    textDecorationColor: C.missed,
   },
-  revealText: { color: C.textDim, fontSize: 16 },
-  ratingsRow: {
+  confusedWord: {
+    color: C.confused,
+    textDecorationLine: "underline",
+    textDecorationColor: C.confused,
+  },
+  answerSection: { marginTop: 20 },
+  answerSectionHidden: { opacity: 0 },
+  divider: {
+    height: 1, backgroundColor: C.border, marginBottom: 16,
+  },
+  sentenceEnglish: {
+    color: C.textDim, fontSize: 18, lineHeight: 26, textAlign: "center",
+  },
+  glossLine: {
+    marginTop: 16, paddingTop: 12,
+    borderTopWidth: 1, borderTopColor: C.border,
+    flexDirection: "row", alignItems: "baseline", gap: 8, flexWrap: "wrap",
+  },
+  glossLemma: { color: C.text, fontSize: 18, fontWeight: "600" },
+  glossTag: {
+    color: C.textMuted, fontSize: 11,
+    backgroundColor: C.bg, paddingHorizontal: 6, paddingVertical: 2,
+    borderRadius: 6, overflow: "hidden",
+  },
+  glossText: { color: C.accent, fontSize: 16, flex: 1 },
+  actionRow: {
     flexDirection: "row", marginTop: 24, gap: 8,
   },
-  ratingButton: {
-    flex: 1, padding: 12, borderRadius: 12, borderWidth: 1.5,
-    alignItems: "center", backgroundColor: C.surface,
+  actionButton: {
+    flex: 1, paddingVertical: 14, borderRadius: 12,
+    alignItems: "center", justifyContent: "center",
+    backgroundColor: C.surface, borderWidth: 1.5,
   },
-  ratingLabel: { fontWeight: "600", fontSize: 14, marginBottom: 4 },
-  ratingDesc: { color: C.textDim, fontSize: 10, textAlign: "center" },
+  actionButtonDisabled: { opacity: 0.5 },
+  actionButtonText: { color: C.text, fontWeight: "600", fontSize: 14 },
+  noIdeaButton: { borderColor: C.noIdea },
+  noIdeaButtonText: { color: C.noIdea, fontWeight: "600", fontSize: 14 },
+  gotItButton: { borderColor: C.good },
+  continueButton: { borderColor: C.accent },
+  showButton: { borderColor: C.border },
+  showButtonText: { color: C.textDim, fontWeight: "600", fontSize: 14 },
   button: {
     backgroundColor: C.accent, paddingHorizontal: 24, paddingVertical: 12,
     borderRadius: 12, marginTop: 16,
   },
   buttonGhost: {
-    backgroundColor: "transparent",
-    borderWidth: 1, borderColor: C.border,
+    backgroundColor: "transparent", borderWidth: 1, borderColor: C.border,
   },
   buttonText: { color: C.text, fontWeight: "600" },
-  errorText: { color: C.again, marginBottom: 16 },
+  errorText: { color: C.missed, marginBottom: 16 },
   emptyTitle: { color: C.text, fontSize: 20, marginTop: 16, fontWeight: "600" },
   emptySubtitle: { color: C.textDim, marginTop: 8 },
   statsRow: { flexDirection: "row", marginTop: 24, gap: 24 },
