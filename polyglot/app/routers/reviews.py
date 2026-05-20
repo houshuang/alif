@@ -36,6 +36,11 @@ from app.services.sentence_review_service import (
     submit_sentence_review,
     undo_sentence_review,
 )
+from app.services.sentence_selector import (
+    DEFAULT_SESSION_LIMIT,
+    build_session,
+    pick_sentence_for_lemma,
+)
 
 router = APIRouter(prefix="/api/reviews", tags=["reviews"])
 
@@ -367,3 +372,94 @@ def undo_sentence(
     """
     result = undo_sentence_review(db, client_review_id=req.client_review_id)
     return SentenceUndoResponse(**result)
+
+
+class WordRenderOut(BaseModel):
+    position: int
+    surface_form: str
+    lemma_id: Optional[int]
+    lemma_form: Optional[str]
+    gloss_en: Optional[str]
+    is_target: bool
+    is_function_word: bool
+    is_proper_name: bool
+    knowledge_state: str
+
+
+class SentencePayloadOut(BaseModel):
+    sentence_id: int
+    text: str
+    translation_en: Optional[str]
+    target_lemma_id: int
+    source: Optional[str]
+    page_id: Optional[int]
+    words: list[WordRenderOut]
+    selection_reason: str
+    score: float
+
+
+def _payload_to_pydantic(payload) -> SentencePayloadOut:
+    return SentencePayloadOut(
+        sentence_id=payload.sentence_id,
+        text=payload.text,
+        translation_en=payload.translation_en,
+        target_lemma_id=payload.target_lemma_id,
+        source=payload.source,
+        page_id=payload.page_id,
+        words=[
+            WordRenderOut(
+                position=w.position,
+                surface_form=w.surface_form,
+                lemma_id=w.lemma_id,
+                lemma_form=w.lemma_form,
+                gloss_en=w.gloss_en,
+                is_target=w.is_target,
+                is_function_word=w.is_function_word,
+                is_proper_name=w.is_proper_name,
+                knowledge_state=w.knowledge_state,
+            )
+            for w in payload.words
+        ],
+        selection_reason=payload.selection_reason,
+        score=payload.score,
+    )
+
+
+@router.get("/next-sentence", response_model=Optional[SentencePayloadOut])
+def next_sentence(
+    lemma_id: int,
+    language_code: str,
+    db: Session = Depends(get_db),
+) -> Optional[SentencePayloadOut]:
+    """Pick the best sentence covering ``lemma_id`` for review.
+
+    Returns ``null`` (HTTP 200 with empty body) when no eligible sentence
+    exists yet — caller should defer to generation (PR #4) or surface a
+    "no material" UX state.
+    """
+    if not db.query(Language).filter(Language.code == language_code).first():
+        raise HTTPException(status_code=400, detail=f"Unknown language: {language_code}")
+    payload = pick_sentence_for_lemma(db, lemma_id=lemma_id, language_code=language_code)
+    if payload is None:
+        return None
+    return _payload_to_pydantic(payload)
+
+
+@router.get("/session", response_model=list[SentencePayloadOut])
+def session(
+    language_code: str,
+    limit: int = DEFAULT_SESSION_LIMIT,
+    db: Session = Depends(get_db),
+) -> list[SentencePayloadOut]:
+    """Build a sentence review session for the language.
+
+    Walks acquisition-due (Box 1/2/3) then FSRS-due, picks one sentence per
+    lemma, dedupes within the session. Lemmas with no eligible sentence are
+    silently skipped — the response is shorter than ``limit`` when material
+    is sparse, which is the right signal for the frontend to surface
+    "generate more material" UX.
+    """
+    if not db.query(Language).filter(Language.code == language_code).first():
+        raise HTTPException(status_code=400, detail=f"Unknown language: {language_code}")
+    payloads = build_session(db, language_code=language_code, limit=limit)
+    return [_payload_to_pydantic(p) for p in payloads]
