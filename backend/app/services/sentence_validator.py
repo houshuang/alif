@@ -209,6 +209,29 @@ def strip_tanwin_alif(text: str) -> str:
     return text
 
 
+def final_alef_variants(text: str) -> list[str]:
+    """Return word-final alef ↔ alef-maksura variants.
+
+    Final-weak verbs and some defective nouns alternate ا (U+0627) and ى
+    (U+0649) word-finally with no semantic difference (ذَرَا ↔ ذَرَى,
+    رَأَى ↔ رَأَا). Writers don't distinguish reliably and CAMeL stores
+    different lemmas with different conventions, so the surface form chosen
+    by the LLM may not match the stored bare. Mirrors the alef-maksura ↔
+    ya handling in ``build_lemma_lookup`` Pass 1b (line ~1051).
+
+    Returns a single-element list when no swap applies, so callers can do
+    ``for v in final_alef_variants(t): ...`` unconditionally.
+    """
+    if len(text) < 3:
+        return [text]
+    last = text[-1]
+    if last == "ا":
+        return [text, text[:-1] + "ى"]
+    if last == "ى":
+        return [text, text[:-1] + "ا"]
+    return [text]
+
+
 def normalize_arabic(text: str) -> str:
     """Full normalization: Quranic→MSA, strip diacritics, tatweel, normalize alef.
 
@@ -1976,15 +1999,17 @@ def validate_sentence_multi_target(
     }
     proper_names_normalized = {name for name in proper_names_normalized if name}
 
-    # Build expanded target forms for each target (with/without al-prefix)
+    # Build expanded target forms for each target (with/without al-prefix,
+    # plus word-final ا ↔ ى swap for final-weak verbs).
     target_form_map: dict[str, str] = {}  # normalized_form -> original_bare
     for bare in target_bares:
         norm = normalize_alef(bare)
-        target_form_map[norm] = bare
-        if not norm.startswith("ال"):
-            target_form_map["ال" + norm] = bare
-        if norm.startswith("ال") and len(norm) > 2:
-            target_form_map[norm[2:]] = bare
+        for variant in final_alef_variants(norm):
+            target_form_map[variant] = bare
+            if not variant.startswith("ال"):
+                target_form_map["ال" + variant] = bare
+            if variant.startswith("ال") and len(variant) > 2:
+                target_form_map[variant[2:]] = bare
 
     targets_found: dict[str, bool] = {bare: False for bare in target_bares}
     unknown_words: list[str] = []
@@ -2131,14 +2156,14 @@ def validate_sentence(
 
     Note on the target-word check (asymmetry vs known-word check):
         The target check below uses an **exact-form match** on
-        ``target_bare`` (with ال-prefix variants and clitic stripping),
-        NOT ``lookup_lemma``. PR #42 (2026-04-20) added ``lookup_lemma``
-        for the *known*-word check (delegated to ``known_lemma_lookup``
-        below) but deliberately did not extend it to the target. The
-        target word is the lemma the user is studying, so demanding
-        its surface in the sentence keeps the LLM honest — without
-        this gate, generation can drift to a related-root word that
-        is easier to fit grammatically.
+        ``target_bare`` (with ال-prefix variants, clitic stripping, and
+        word-final ا ↔ ى swap for final-weak verbs), NOT ``lookup_lemma``.
+        PR #42 (2026-04-20) added ``lookup_lemma`` for the *known*-word
+        check (delegated to ``known_lemma_lookup`` below) but deliberately
+        did not extend it to the target. The target word is the lemma the
+        user is studying, so demanding its surface in the sentence keeps
+        the LLM honest — without this gate, generation can drift to a
+        related-root word that is easier to fit grammatically.
 
         Symptom that may tempt you to relax this: textbook_scan lemmas
         where ``lemma_ar`` and ``lemma_ar_bare`` carry different
@@ -2148,7 +2173,9 @@ def validate_sentence(
         target-match check. Before changing this, measure the
         proportion of "Target word ... not found" failures that are
         genuine inflectional mismatch vs. corrupt source data; the
-        2026-05-03 investigation found the latter dominated.
+        2026-05-03 investigation found the latter dominated. The
+        word-final ا ↔ ى variant added 2026-05-20 is orthographic, not
+        morphological, and mirrors ``build_lemma_lookup`` Pass 1b.
     """
     tokens = tokenize(arabic_text)
     if not tokens:
@@ -2173,12 +2200,15 @@ def validate_sentence(
         bare_clean = strip_tatweel(bare)
         bare_normalized = normalize_alef(bare_clean)
 
-        # Check: is it the target word? (with ال prefix + tanwin-alif handling)
-        target_forms = [target_normalized]
-        if not target_normalized.startswith("ال"):
-            target_forms.append("ال" + target_normalized)
-        if target_normalized.startswith("ال") and len(target_normalized) > 2:
-            target_forms.append(target_normalized[2:])
+        # Check: is it the target word? (with ال prefix + tanwin-alif +
+        # word-final ا ↔ ى handling for final-weak verbs.)
+        target_forms = []
+        for variant in final_alef_variants(target_normalized):
+            target_forms.append(variant)
+            if not variant.startswith("ال"):
+                target_forms.append("ال" + variant)
+            if variant.startswith("ال") and len(variant) > 2:
+                target_forms.append(variant[2:])
 
         # Try both the token as-is and with tanwin-alif stripped
         token_forms = [bare_normalized]

@@ -898,6 +898,7 @@ def step_backfill_sentences(
         words_needing.append({
             "lemma_id": wt.lemma_id,
             "lemma_ar": lemma.lemma_ar,
+            "lemma_ar_bare": lemma.lemma_ar_bare,
             "gloss_en": lemma.gloss_en or "",
             "pos": lemma.pos or "",
             "root_id": lemma.root_id,

@@ -467,10 +467,13 @@ def generate_validated_sentences_multi_target(
     Returns:
         List of validated MultiTargetGeneratedSentence objects.
     """
-    # Build target bare forms -> lemma_id mapping
+    # Build target bare forms -> lemma_id mapping. Prefer the precomputed
+    # bare form when callers include it; strip_diacritics drops the implicit
+    # ya from defective participles (طَاغٌ → "طاغ") and the validator can't
+    # then match the correct surface (الطاغي).
     target_bares: dict[str, int] = {}
     for tw in target_words:
-        bare = strip_diacritics(tw["lemma_ar"])
+        bare = tw.get("lemma_ar_bare") or strip_diacritics(tw["lemma_ar"])
         target_bares[bare] = tw["lemma_id"]
 
     # Include target bares in known set for validation

@@ -196,6 +196,7 @@ def acquiring_material_gaps(db, limit: int = 40) -> list[dict]:
         gap = {
             "lemma_id": lemma.lemma_id,
             "lemma_ar": lemma.lemma_ar,
+            "lemma_ar_bare": lemma.lemma_ar_bare,
             "gloss_en": lemma.gloss_en or "",
             "pos": lemma.pos or "",
             "root_id": lemma.root_id,
@@ -484,6 +485,7 @@ def generate_material_for_word(lemma_id: int, needed: int = 2, model_override: s
             return 0
         # Snapshot lemma data for use after DB close
         lemma_ar = lemma.lemma_ar
+        lemma_ar_bare = lemma.lemma_ar_bare
         gloss_en = lemma.gloss_en or ""
         target_lemma_id = lemma.lemma_id
         # Phase 4: snapshot canonical example to anchor the correct sense in
@@ -537,7 +539,10 @@ def generate_material_for_word(lemma_id: int, needed: int = 2, model_override: s
     if not clean_target or " " in clean_target or "too_short" in san_warnings:
         logger.warning(f"Skipping generation for uncleanable lemma {lemma_id}: {lemma_ar!r}")
         return 0
-    target_bare = strip_diacritics(clean_target)
+    # Prefer the precomputed bare form. strip_diacritics(lemma_ar) drops the
+    # implicit ya from defective participles (طَاغٌ → "طاغ") so the validator
+    # can't match the correct inflected surface (الطاغي).
+    target_bare = lemma_ar_bare or strip_diacritics(clean_target)
     all_bare_forms = set(lemma_lookup.keys())
 
     # Phase 4: ask Sonnet for at least 5 candidates. Tier A (2026-04-20)
@@ -1938,6 +1943,7 @@ def _warm_sentence_cache_impl(
                 word_dicts.append({
                     "lemma_id": lid,
                     "lemma_ar": lem.lemma_ar,
+                    "lemma_ar_bare": lem.lemma_ar_bare,
                     "gloss_en": lem.gloss_en or "",
                     "pos": lem.pos or "",
                     "root_id": lem.root_id,
@@ -2039,7 +2045,13 @@ def _warm_sentence_cache_impl(
                 lemma_lookup=lemma_lookup,
                 model_override=llm_model,
             )
-            target_bares = {strip_diacritics(tw["lemma_ar"]): tw["lemma_id"] for tw in group}
+            # Defective participles like طَاغٌ store bare="طاغي" (CAMeL includes
+            # the implicit ya); strip_diacritics(lemma_ar) drops it and produces
+            # "طاغ", which the validator can't match against الطاغي.
+            target_bares = {
+                (tw.get("lemma_ar_bare") or strip_diacritics(tw["lemma_ar"])): tw["lemma_id"]
+                for tw in group
+            }
             all_results.append((results, target_bares))
         except Exception:
             logger.warning(f"Warm cache: multi-target failed for group")
@@ -2294,6 +2306,22 @@ def _warm_sentence_cache_impl(
     finally:
         db.close()
     logger.info("Warm cache %s: phase 5 gloss backfill done", run_label)
+
+    # ── Phase 6: pipeline watchdog ──
+    # Surface any single lemma that burnt >=30 validation failures in 24h
+    # with zero acceptances. Caught 2026-05-20: three lemmas accumulated 461
+    # failures over a week with no alert.
+    try:
+        from app.config import settings as _wd_settings
+        from app.services.pipeline_watchdog import check_and_alert
+        db = SessionLocal()
+        try:
+            stuck = check_and_alert(db, _wd_settings.log_dir)
+            stats["stuck_lemma_alerts"] = [s.lemma_id for s in stuck]
+        finally:
+            db.close()
+    except Exception:
+        logger.exception("Warm cache: pipeline watchdog failed; continuing")
 
     logger.info("Warm cache %s complete: %s", run_label, stats)
     return stats

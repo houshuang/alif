@@ -46,6 +46,24 @@ class TestStripDiacritics:
         assert strip_diacritics("") == ""
 
 
+class TestFinalAlefVariants:
+    def test_alef_to_maksura(self):
+        from app.services.sentence_validator import final_alef_variants
+        assert set(final_alef_variants("ذرا")) == {"ذرا", "ذرى"}
+
+    def test_maksura_to_alef(self):
+        from app.services.sentence_validator import final_alef_variants
+        assert set(final_alef_variants("ذرى")) == {"ذرى", "ذرا"}
+
+    def test_no_swap_on_other_endings(self):
+        from app.services.sentence_validator import final_alef_variants
+        assert final_alef_variants("كتاب") == ["كتاب"]
+
+    def test_no_swap_too_short(self):
+        from app.services.sentence_validator import final_alef_variants
+        assert final_alef_variants("ها") == ["ها"]
+
+
 class TestNormalizeAlef:
     def test_hamza_above(self):
         assert normalize_alef("أحمد") == "احمد"
@@ -210,6 +228,40 @@ class TestValidateSentence:
         )
         assert result.valid is True
         assert result.target_found is True
+
+    def test_final_alef_maksura_matches_alef_target(self):
+        """target=ذرا (final ا) should match surface ذَرَى (final ى).
+
+        Final-weak verbs alternate ا ↔ ى word-finally with no semantic
+        change. Without the swap, every ذَرَى surface failed validation
+        when the stored bare was ذرا.
+        """
+        result = validate_sentence(
+            arabic_text="ذَرَى الفَلَّاحُ الحُبُوبَ",
+            target_bare="ذرا",
+            known_bare_forms={"فلاح", "حبوب"},
+        )
+        assert result.target_found is True
+
+    def test_final_alef_target_matches_alef_maksura_surface(self):
+        """target=ذرى (final ى) should match surface ذَرَا (final ا)."""
+        result = validate_sentence(
+            arabic_text="ذَرَا الفَلَّاحُ القَمْحَ",
+            target_bare="ذرى",
+            known_bare_forms={"فلاح", "قمح"},
+        )
+        assert result.target_found is True
+
+    def test_final_alef_swap_respects_minimum_length(self):
+        """Don't swap word-final on 1–2-char targets; could collide with
+        function words. Only applies to len>=3."""
+        # Bare "ها" should NOT match "هى" via the swap.
+        result = validate_sentence(
+            arabic_text="هى البِنْت",
+            target_bare="ها",
+            known_bare_forms={"بنت"},
+        )
+        assert result.target_found is False
 
     def test_realistic_beginner_sentence(self):
         """A realistic beginner sentence with mix of word types.
@@ -654,6 +706,22 @@ class TestMapTokensToLemmas:
 
         assert result.valid is True
         assert any("لَيْلَى" in word for word in result.known_words)
+
+    def test_multi_target_final_alef_swap(self):
+        """Multi-target path should also accept ا ↔ ى word-final swap."""
+        from app.services.sentence_validator import validate_sentence_multi_target
+
+        lemmas = [_FakeLemma(575, "ذرا"), _FakeLemma(99, "ريح")]
+        lookup = build_lemma_lookup(lemmas)
+        result = validate_sentence_multi_target(
+            arabic_text="ذَرَى الفَلَّاحُ الرِّيحَ.",
+            target_bares={"ذرا": 575},
+            known_bare_forms=set(lookup.keys()) | {"فلاح"},
+            min_targets=1,
+            known_lemma_lookup=lookup,
+        )
+        # Surface ذَرَى should be classified as a target despite stored bare ذرا.
+        assert result.targets_found.get("ذرا") is True
 
     def test_function_word_detection_ignores_wrapping_punctuation(self):
         from app.services.sentence_validator import _is_function_word
