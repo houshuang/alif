@@ -291,6 +291,31 @@ def test_variant_credit_goes_to_canonical(tmp_db):
         assert db.query(UserLemmaKnowledge).filter_by(lemma_id=variant_id).all() == []
 
 
+def test_multi_hop_variant_chain_resolves_to_root(tmp_db):
+    """A→B→C variant chain where only A is in the sentence must resolve all
+    the way to C — not stop at B (which would break the local logic that the
+    pre-loaded-map shortcut allowed in earlier drafts of this service)."""
+    with tmp_db() as db:
+        root = _seed_lemma(db, form="root", bare="root")
+        mid = _seed_lemma(db, form="mid", bare="mid", canonical=root.lemma_id)
+        leaf = _seed_lemma(db, form="leaf", bare="leaf", canonical=mid.lemma_id)
+        _seed_learning(db, root.lemma_id)
+        sentence = _seed_sentence(db, lemma_surfaces=[(leaf.lemma_id, "l")])
+        db.commit()
+        sid, root_id, mid_id, leaf_id = sentence.id, root.lemma_id, mid.lemma_id, leaf.lemma_id
+
+    with tmp_db() as db:
+        result = submit_sentence_review(db, sentence_id=sid, comprehension_signal="understood")
+        # Credit must land on the root canonical, not the intermediate
+        assert result["word_results"][0]["lemma_id"] == root_id
+        # Neither intermediate variant got a ULK
+        assert db.query(UserLemmaKnowledge).filter_by(lemma_id=mid_id).all() == []
+        assert db.query(UserLemmaKnowledge).filter_by(lemma_id=leaf_id).all() == []
+        # Root's ReviewLog properly tagged
+        log = db.query(ReviewLog).filter_by(lemma_id=root_id).one()
+        assert log.credit_type == "collateral"
+
+
 # ─── Auto-introduction (FOUNDATIONAL invariant) ────────────────────────────
 
 

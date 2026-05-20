@@ -42,7 +42,7 @@ from app.services.acquisition_service import (
     start_acquisition,
     submit_acquisition_review,
 )
-from app.services.canonical_resolution import resolve_canonical_via_map
+from app.services.canonical_resolution import resolve_canonical_lemma_id
 from app.services.fsrs_service import parse_json_column, submit_review
 from app.services.leech_service import check_single_word_leech
 from app.services.lemma_quality import FUNCTION_WORD_SETS
@@ -160,12 +160,14 @@ def submit_sentence_review(
     # canonicals to SentenceWord.lemma_id at storage time, but if an
     # external import path ever wrote a variant we re-resolve here so
     # Hard Invariant #9 holds without trusting the caller. Use the
-    # pre-loaded map pattern (sentence_harvest's choice) so we don't
-    # do N queries per sentence.
-    canonical_by_id: dict[int, int | None] = {lo.lemma_id: lo.canonical_lemma_id for lo in lemma_objs}
+    # DB-backed resolver so multi-hop chains (A→B→C) follow correctly
+    # even when the intermediate canonical isn't in this sentence —
+    # `resolve_canonical_via_map` with a sentence-local map would stop at
+    # the first hop. Sentences are small (~10 lemmas) so the N queries
+    # are cheap.
     variant_to_canonical: dict[int, int] = {}
     for lid in lemma_ids_in_sentence:
-        canonical = resolve_canonical_via_map(lid, canonical_by_id)
+        canonical = resolve_canonical_lemma_id(db, lid)
         if canonical != lid:
             variant_to_canonical[lid] = canonical
 
