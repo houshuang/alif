@@ -40,7 +40,12 @@ def test_ensure_gloss_handles_cli_failure(tmp_db, monkeypatch):
 
 def test_mark_unknown_triggers_gloss(tmp_db, monkeypatch):
     """End-to-end: mark a lemma 'unknown' → its gloss gets populated via the
-    integration in reading_intake.mark_lemma."""
+    integration in reading_intake.mark_lemma.
+
+    Disable BATCH_GLOSS so the upfront process_page gloss call doesn't preempt
+    this test's mock of the single-form code path.
+    """
+    monkeypatch.setattr(reading_intake, "BATCH_GLOSS_ENABLED", False)
     with tmp_db() as db:
         story = reading_intake.import_paste(db, language_code="el", body="ταξίδι")
         _, tokens = reading_intake.get_page_view(db, story.id, 1)
@@ -71,3 +76,54 @@ def test_batch_gloss(tmp_db, monkeypatch):
         assert l1.gloss_en == "book"
         assert l2.gloss_en == "house"
         assert l3.gloss_en == "family"  # unchanged
+
+
+def test_batch_gloss_skips_function_words_and_proper_names(tmp_db, monkeypatch):
+    """Function words and proper names don't get LLM calls — the gloss is
+    either uninteresting (articles, particles) or self-evident (a name)."""
+    with tmp_db() as db:
+        article = Lemma(language_code="el", lemma_form="ο", lemma_bare="ο",
+                        word_category="function_word", source="m")
+        name = Lemma(language_code="el", lemma_form="Τίγρης", lemma_bare="τιγρης",
+                     word_category="proper_name", source="m")
+        content = Lemma(language_code="el", lemma_form="βιβλίο", lemma_bare="βιβλιο", source="m")
+        db.add_all([article, name, content]); db.commit()
+
+        sent_to_llm = {"lemmas": None}
+
+        def fake_call(lemmas, language_code):
+            sent_to_llm["lemmas"] = [l.lemma_form for l in lemmas]
+            return ["book"]
+
+        monkeypatch.setattr(lemma_gloss, "_call_claude_for_gloss_batch", fake_call)
+
+        count = lemma_gloss.ensure_glosses_batch(
+            db, [article.lemma_id, name.lemma_id, content.lemma_id]
+        )
+        assert count == 1
+        # The LLM never saw the article or the proper name.
+        assert sent_to_llm["lemmas"] == ["βιβλίο"]
+
+
+def test_batch_gloss_chunks_large_input(tmp_db, monkeypatch):
+    """A batch of 120 lemmas with chunk_size=50 should produce 3 CLI calls
+    (50 + 50 + 20), each chunk committing independently."""
+    monkeypatch.setattr(lemma_gloss, "BATCH_CHUNK_SIZE", 50)
+    with tmp_db() as db:
+        lemmas = []
+        for i in range(120):
+            l = Lemma(language_code="el", lemma_form=f"λ{i}", lemma_bare=f"λ{i}", source="m")
+            lemmas.append(l)
+        db.add_all(lemmas); db.commit()
+
+        chunk_sizes: list[int] = []
+
+        def fake_call(chunk, language_code):
+            chunk_sizes.append(len(chunk))
+            return [f"gloss-{l.lemma_form}" for l in chunk]
+
+        monkeypatch.setattr(lemma_gloss, "_call_claude_for_gloss_batch", fake_call)
+
+        count = lemma_gloss.ensure_glosses_batch(db, [l.lemma_id for l in lemmas])
+        assert count == 120
+        assert chunk_sizes == [50, 50, 20]

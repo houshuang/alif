@@ -25,6 +25,9 @@ log = logging.getLogger(__name__)
 
 GLOSS_MODEL = os.environ.get("POLYGLOT_GLOSS_MODEL", "claude-haiku-4-5-20251001")
 TIMEOUT_S = int(os.environ.get("POLYGLOT_GLOSS_TIMEOUT", "60"))
+# Haiku reliably handles ~50 lemma definitions in one structured-output call;
+# larger batches start dropping entries. Configurable for tuning.
+BATCH_CHUNK_SIZE = int(os.environ.get("POLYGLOT_GLOSS_CHUNK", "50"))
 LANG_DISPLAY = {"el": "Modern Greek", "grc": "Ancient Greek", "la": "Latin"}
 
 
@@ -49,11 +52,24 @@ def ensure_gloss(db: Session, lemma_id: int, *, context: str | None = None, forc
 
 
 def ensure_glosses_batch(db: Session, lemma_ids: list[int]) -> int:
-    """Gloss multiple lemmas in one CLI call. Returns the count that were
-    successfully glossed. Useful for batching when user marks many at once."""
+    """Gloss multiple lemmas in chunked Haiku calls. Returns the count that
+    were successfully glossed.
+
+    Filters performed before LLM call (free to skip — they don't need gloss):
+      - already-glossed lemmas (idempotent)
+      - function words (e.g. articles, particles — gloss is uninteresting)
+      - proper names (lemma_form is the gloss)
+
+    Chunked at ``BATCH_CHUNK_SIZE`` lemmas per call because Haiku starts
+    dropping entries when asked for too many at once. Each chunk commits
+    independently so a later-chunk failure doesn't lose earlier work and
+    doesn't hold the SQLite write lock across multiple LLM calls
+    (CLAUDE.md rule #10).
+    """
     targets = [
         l for l in db.query(Lemma).filter(Lemma.lemma_id.in_(lemma_ids)).all()
         if not l.gloss_en
+        and l.word_category not in ("function_word", "proper_name")
     ]
     if not targets:
         return 0
@@ -62,12 +78,14 @@ def ensure_glosses_batch(db: Session, lemma_ids: list[int]) -> int:
         by_lang.setdefault(l.language_code, []).append(l)
     glossed = 0
     for lang, lemmas in by_lang.items():
-        results = _call_claude_for_gloss_batch(lemmas, lang)
-        for lemma, gloss in zip(lemmas, results):
-            if gloss:
-                lemma.gloss_en = gloss
-                glossed += 1
-        db.commit()
+        for i in range(0, len(lemmas), BATCH_CHUNK_SIZE):
+            chunk = lemmas[i:i + BATCH_CHUNK_SIZE]
+            results = _call_claude_for_gloss_batch(chunk, lang)
+            for lemma, gloss in zip(chunk, results):
+                if gloss:
+                    lemma.gloss_en = gloss
+                    glossed += 1
+            db.commit()
     return glossed
 
 
