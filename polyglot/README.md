@@ -198,8 +198,12 @@ same-day review practice and accuracy. `leech_reintro` bypasses the cap.
 - **Bulk-mark remaining** — `POST /api/texts/{sid}/pages/{n}/mark_remaining`.
   Next-page presumes user knew everything they didn't tap. Function words
   excluded.
-- **Stats endpoint** — `GET /api/stats?language_code=el`. Lemma counts by
-  state + story progress.
+- **Stats endpoint** — `GET /api/stats?language_code=el`. One round-trip
+  payload covering knowledge breakdown by state, Leitner box distribution,
+  FSRS stability histogram, today's activity (reviews, pages read, new
+  lemmas, graduated, streak), last-14-day activity, frequency-rank coverage
+  bands (when a frequency list is loaded), enriched story progress, and the
+  most recent `ActivityLog` entries.
 - **Expo frontend** — `frontend/app/polyglot.tsx`. Tap-to-lookup with a
   single-line bottom bar (preserves reading flow), four mark actions
   (known/unknown/encountered/ignore), next-page button that triggers
@@ -207,8 +211,12 @@ same-day review practice and accuracy. `leech_reintro` bypasses the cap.
 - **Language switcher** — Globe tab in the Expo tab bar. `LanguageContext`
   persists the active language via AsyncStorage; tab visibility flips
   between Arabic-mode and Modern-Greek-mode based on selection.
-- **Stats screen** — `polyglot-stats.tsx`. Knowledge-state breakdown with
-  progress bars + per-story progress.
+- **Stats screen** — `polyglot-stats.tsx`. Mirrors Alif's Today / Vocabulary
+  / Activity layout: today's hero tiles, lifecycle funnel
+  (Seen → Acq → Learn → Known), Leitner boxes, FSRS stability bar, frequency
+  core bands, 14-day activity chart, story progress, and recent activity
+  feed. Every section is gated on having data so an early-stage DB renders
+  cleanly. Reached as a tab — no in-page back button.
 
 ## What's deliberately missing (Phase 2+)
 

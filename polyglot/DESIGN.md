@@ -969,7 +969,7 @@ Used for the "what's been happening" UI surface.
 
 | Method | Path                                       | Purpose                                                   |
 |--------|--------------------------------------------|-----------------------------------------------------------|
-| GET    | `/api/stats?language_code=...`             | Lemma counts by state + per-story progress                |
+| GET    | `/api/stats?language_code=...`             | One-shot dashboard payload: knowledge breakdown by state, Leitner box distribution, FSRS stability histogram, today (reviews / pages / new lemmas / graduated / streak), last-14-day activity, frequency-rank coverage bands (null when no frequency list loaded), enriched story progress, recent `ActivityLog` entries |
 
 ---
 
