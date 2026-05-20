@@ -127,9 +127,15 @@ def _gen_response(targets_and_text: list[tuple[int, str, str]]) -> _FakeProc:
 
 
 def _verify_response(verdicts: list[dict] | None = None) -> _FakeProc:
-    """Fake Haiku verification response. By default returns no decisions
-    (which is treated as all-ok per candidate)."""
+    """Fake Haiku verification response."""
     return _FakeProc(stdout=_envelope({"decisions": verdicts or []}))
+
+
+def _verify_ok_response(positions: tuple[int, ...] = (1, 2, 3)) -> _FakeProc:
+    return _verify_response([
+        {"sentence_index": 0, "position": pos, "verdict": "ok"}
+        for pos in positions
+    ])
 
 
 def test_batch_generate_happy_path(tmp_db, fake_claude):
@@ -147,7 +153,7 @@ def test_batch_generate_happy_path(tmp_db, fake_claude):
 
     fake_claude["script"] = [
         _gen_response([(0, "το βιβλίο είναι μεγάλο", "The book is big.")]),
-        _verify_response(),
+        _verify_ok_response(),
     ]
 
     result = mg.batch_generate_material(
@@ -230,6 +236,8 @@ def test_verifier_wrong_verdict_discards_candidate(tmp_db, fake_claude):
         _verify_response([
             {"sentence_index": 0, "position": 1, "verdict": "wrong",
              "correct_lemma": "βιβλιά", "reason": "test"},
+            {"sentence_index": 0, "position": 2, "verdict": "ok"},
+            {"sentence_index": 0, "position": 3, "verdict": "ok"},
         ]),
     ]
 
@@ -280,7 +288,7 @@ def test_canonical_redirect_at_entry(tmp_db, fake_claude):
 
     fake_claude["script"] = [
         _gen_response([(0, "το βιβλίο είναι μεγάλο", "The book is big.")]),
-        _verify_response(),
+        _verify_ok_response(),
     ]
 
     result = mg.batch_generate_material(
@@ -325,6 +333,58 @@ def test_unmapped_token_drops_candidate(tmp_db, fake_claude):
     assert result["generated"] == 0
 
 
+def test_incomplete_verifier_response_discards_candidate(tmp_db, fake_claude):
+    """A verifier response must cover every mapped content position."""
+    with tmp_db() as db:
+        target = _seed_lemma(db, form="βιβλίο", bare="βιβλιο", gloss="book")
+        _seed_acquiring(db, target.lemma_id)
+        _seed_lemma(db, form="μεγάλο", bare="μεγαλο", gloss="big")
+        _seed_lemma(db, form="είναι", bare="ειμαι", gloss="to be")
+        db.commit()
+        target_id = target.lemma_id
+
+    fake_claude["script"] = [
+        _gen_response([(0, "το βιβλίο είναι μεγάλο", "The book is big.")]),
+        _verify_response([
+            {"sentence_index": 0, "position": 1, "verdict": "ok"},
+        ]),
+    ]
+
+    result = mg.batch_generate_material(
+        language_code="el",
+        lemma_ids=[target_id],
+        sentences_per_target=1,
+    )
+    assert result["generated"] == 0
+
+    with tmp_db() as db:
+        assert db.query(Sentence).count() == 0
+
+
+def test_function_word_lemma_without_gloss_passes_gloss_gate(tmp_db, fake_claude):
+    """Reading intake can create function-word Lemma rows without glosses."""
+    with tmp_db() as db:
+        target = _seed_lemma(db, form="βιβλίο", bare="βιβλιο", gloss="book")
+        _seed_acquiring(db, target.lemma_id)
+        _seed_lemma(db, form="το", bare="το", gloss="", word_category="function_word")
+        _seed_lemma(db, form="μεγάλο", bare="μεγαλο", gloss="big")
+        _seed_lemma(db, form="είναι", bare="ειμαι", gloss="to be")
+        db.commit()
+        target_id = target.lemma_id
+
+    fake_claude["script"] = [
+        _gen_response([(0, "το βιβλίο είναι μεγάλο", "The book is big.")]),
+        _verify_ok_response((0, 1, 2, 3)),
+    ]
+
+    result = mg.batch_generate_material(
+        language_code="el",
+        lemma_ids=[target_id],
+        sentences_per_target=1,
+    )
+    assert result["generated"] == 1
+
+
 # ─── Warm-cache tests ────────────────────────────────────────────────────────
 
 
@@ -350,13 +410,20 @@ def test_warm_cache_fills_only_below_target(tmp_db, fake_claude):
                 mappings_verified_at=datetime.now(timezone.utc),
             )
             db.add(s)
+            db.flush()
+            db.add(SentenceWord(
+                sentence_id=s.id,
+                position=1,
+                surface_form="σπίτι",
+                lemma_id=already_full.lemma_id,
+            ))
         db.commit()
         needy_id = needy.lemma_id
         full_id = already_full.lemma_id
 
     fake_claude["script"] = [
         _gen_response([(0, "το βιβλίο είναι μεγάλο", "The book is big.")]),
-        _verify_response(),
+        _verify_ok_response(),
     ]
 
     result = mg.warm_sentence_cache(language_code="el", max_lemmas=10,
@@ -381,6 +448,36 @@ def test_warm_cache_no_op_when_no_gaps(tmp_db, fake_claude):
     """No acquiring/learning/known lemmas → no LLM calls, no rows written."""
     with tmp_db() as db:
         # Nothing seeded.
+        db.commit()
+
+    result = mg.warm_sentence_cache(language_code="el", max_lemmas=10)
+    assert result["gap_count"] == 0
+    assert result["generated"] == 0
+    assert fake_claude["calls"] == []
+
+
+def test_warm_cache_counts_harvested_sentenceword_coverage(tmp_db, fake_claude):
+    """Harvested textbook sentences have SentenceWord coverage but no target_lemma_id."""
+    with tmp_db() as db:
+        target = _seed_lemma(db, form="βιβλίο", bare="βιβλιο", gloss="book")
+        _seed_acquiring(db, target.lemma_id)
+        for _ in range(mg.ACTIVE_TARGET):
+            s = Sentence(
+                language_code="el",
+                text="το βιβλίο είναι μεγάλο",
+                source="textbook",
+                target_lemma_id=None,
+                is_active=True,
+                mappings_verified_at=datetime.now(timezone.utc),
+            )
+            db.add(s)
+            db.flush()
+            db.add(SentenceWord(
+                sentence_id=s.id,
+                position=1,
+                surface_form="βιβλίο",
+                lemma_id=target.lemma_id,
+            ))
         db.commit()
 
     result = mg.warm_sentence_cache(language_code="el", max_lemmas=10)

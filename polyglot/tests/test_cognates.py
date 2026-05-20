@@ -1,8 +1,11 @@
 """Cognate infrastructure tests. The external-cognate LLM path is mocked —
 we test only the wiring (schema fields, auto-link, propagation).
 """
+import json
+
 from app.models import Lemma, UserLemmaKnowledge, UserProfile
 from app.services import reading_intake
+from app.services import cognate_detector
 from app.services.cognate_detector import (
     link_intra_greek_cognates,
     propagate_known_via_cognate,
@@ -107,6 +110,34 @@ def test_user_profile_defaults(tmp_db):
         assert "en" in p.known_languages
         assert "no" in p.known_languages
         assert p.cognate_auto_mark_threshold == "high"
+
+
+def test_external_cognate_parser_reads_structured_output(monkeypatch):
+    class FakeProc:
+        returncode = 0
+        stderr = ""
+        stdout = json.dumps({
+            "structured_output": [
+                {
+                    "lemma": "φιλοσοφία",
+                    "cognates": [
+                        {"lang": "English", "form": "philosophy", "transparency": "high"}
+                    ],
+                }
+            ],
+            "result": "",
+        })
+
+    monkeypatch.setattr(cognate_detector.subprocess, "run", lambda *args, **kwargs: FakeProc())
+    lemma = Lemma(language_code="el", lemma_form="φιλοσοφία", lemma_bare="φιλοσοφια")
+
+    result = cognate_detector._call_claude_for_cognates(
+        [lemma],
+        source_language="Modern Greek",
+        l1_names=["English"],
+    )
+
+    assert result == [[{"lang": "English", "form": "philosophy", "transparency": "high"}]]
 
 
 def test_reading_intake_auto_links_on_import(tmp_db):

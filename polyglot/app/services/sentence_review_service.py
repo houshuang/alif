@@ -189,9 +189,9 @@ def submit_sentence_review(
         .all()
     )
     knowledge_map: dict[int, UserLemmaKnowledge] = {ulk.lemma_id: ulk for ulk in ulk_objs}
-    suspended_lemma_ids = {
+    inactive_lemma_ids = {
         lid for lid, ulk in knowledge_map.items()
-        if ulk.knowledge_state == "suspended"
+        if ulk.knowledge_state in {"suspended", "ignore"}
     }
 
     word_results: list[dict] = []
@@ -206,7 +206,7 @@ def submit_sentence_review(
             continue
         if lemma_id in proper_name_lemma_ids or effective_lemma_id in proper_name_lemma_ids:
             continue
-        if lemma_id in suspended_lemma_ids or effective_lemma_id in suspended_lemma_ids:
+        if lemma_id in inactive_lemma_ids or effective_lemma_id in inactive_lemma_ids:
             continue
 
         # Rating + is_confused decided BEFORE acquisition promotion so the
@@ -266,13 +266,25 @@ def submit_sentence_review(
             else "collateral"
         )
 
+        knowledge = knowledge_map.get(effective_lemma_id)
+        if (
+            knowledge
+            and knowledge.knowledge_state == "known"
+            and knowledge.fsrs_card_json is None
+        ):
+            # Bulk-marked/cognate-known lemmas have no scheduler card yet.
+            # Sentence review should acknowledge the exposure without pulling
+            # them into FSRS; an explicit "unknown" action can restart
+            # acquisition later.
+            knowledge.total_encounters = (knowledge.total_encounters or 0) + 1
+            continue
+
         word_client_id = (
             f"{client_review_id}:{effective_lemma_id}"
             if client_review_id
             else None
         )
 
-        knowledge = knowledge_map.get(effective_lemma_id)
         if knowledge and knowledge.knowledge_state == "acquiring":
             result = submit_acquisition_review(
                 db,
@@ -407,25 +419,33 @@ def undo_sentence_review(
 
     for log in review_logs:
         fsrs_data = parse_json_column(log.fsrs_log_json)
-        pre_card = fsrs_data.get("pre_card") if fsrs_data else None
-        pre_times_seen = fsrs_data.get("pre_times_seen") if fsrs_data else None
-        pre_times_correct = fsrs_data.get("pre_times_correct") if fsrs_data else None
-        pre_knowledge_state = fsrs_data.get("pre_knowledge_state") if fsrs_data else None
 
         ulk = (
             db.query(UserLemmaKnowledge)
             .filter(UserLemmaKnowledge.lemma_id == log.lemma_id)
             .first()
         )
-        if ulk:
-            if pre_card is not None:
-                ulk.fsrs_card_json = pre_card
-            if pre_times_seen is not None:
-                ulk.times_seen = pre_times_seen
-            if pre_times_correct is not None:
-                ulk.times_correct = pre_times_correct
-            if pre_knowledge_state is not None:
-                ulk.knowledge_state = pre_knowledge_state
+        if ulk and fsrs_data:
+            if "pre_card" in fsrs_data:
+                ulk.fsrs_card_json = fsrs_data.get("pre_card")
+            if "pre_times_seen" in fsrs_data:
+                ulk.times_seen = fsrs_data.get("pre_times_seen")
+            if "pre_times_correct" in fsrs_data:
+                ulk.times_correct = fsrs_data.get("pre_times_correct")
+            if "pre_total_encounters" in fsrs_data:
+                ulk.total_encounters = fsrs_data.get("pre_total_encounters")
+            if "pre_knowledge_state" in fsrs_data:
+                ulk.knowledge_state = fsrs_data.get("pre_knowledge_state")
+            if "pre_acquisition_box" in fsrs_data:
+                ulk.acquisition_box = fsrs_data.get("pre_acquisition_box")
+            if "pre_acquisition_next_due" in fsrs_data:
+                ulk.acquisition_next_due = _parse_snapshot_datetime(
+                    fsrs_data.get("pre_acquisition_next_due")
+                )
+            if "pre_graduated_at" in fsrs_data:
+                ulk.graduated_at = _parse_snapshot_datetime(
+                    fsrs_data.get("pre_graduated_at")
+                )
 
         db.delete(log)
 
@@ -451,3 +471,19 @@ def undo_sentence_review(
 
     db.commit()
     return {"undone": True, "reviews_removed": len(review_logs)}
+
+
+def _parse_snapshot_datetime(value) -> Optional[datetime]:
+    if not value:
+        return None
+    if isinstance(value, datetime):
+        return value
+    if isinstance(value, str):
+        try:
+            dt = datetime.fromisoformat(value.replace("Z", "+00:00"))
+        except ValueError:
+            return None
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt
+    return None

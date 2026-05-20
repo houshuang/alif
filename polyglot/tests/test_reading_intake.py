@@ -3,6 +3,8 @@
 already loaded for the test process. Tests that touch the pipeline are marked
 slow.
 """
+from datetime import datetime, timezone
+
 from app.services import reading_intake
 from app.models import Story, Page, PageWord, Lemma, UserLemmaKnowledge
 
@@ -38,6 +40,35 @@ def test_get_page_processes_lazily(tmp_db):
         first_processed = page.processed_at
         page2, _ = reading_intake.get_page_view(db, story.id, 1)
         assert page2.processed_at == first_processed
+
+
+def test_get_page_retries_quality_gate_for_processed_unverified_page(tmp_db, monkeypatch):
+    from app.services import sentence_harvest
+
+    monkeypatch.setattr(reading_intake.lemma_quality, "QUALITY_GATE_ENABLED", False)
+    with tmp_db() as db:
+        story = reading_intake.import_paste(db, language_code="el", body="βιβλίο σπίτι")
+        page, _ = reading_intake.get_page_view(db, story.id, 1)
+        assert page.processed_at is not None
+        assert page.mappings_verified_at is None
+        story_id = story.id
+
+    calls = {"verify": 0}
+
+    def fake_verify(db, page):
+        calls["verify"] += 1
+        page.mappings_verified_at = datetime.now(timezone.utc)
+        db.commit()
+        return 0
+
+    monkeypatch.setattr(reading_intake.lemma_quality, "QUALITY_GATE_ENABLED", True)
+    monkeypatch.setattr(reading_intake.lemma_quality, "verify_page_mappings", fake_verify)
+    monkeypatch.setattr(sentence_harvest, "harvest_page_sentences", lambda db, page: 0)
+
+    with tmp_db() as db:
+        page, _ = reading_intake.get_page_view(db, story_id, 1)
+        assert calls["verify"] == 1
+        assert page.mappings_verified_at is not None
 
 
 def test_mark_lemma_creates_ulk(tmp_db):

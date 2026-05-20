@@ -399,6 +399,14 @@ Tokens:
             correct_lemma=d.get("correct_lemma") or None,
             reason=d.get("reason") or None,
         ))
+    covered = {v.pageword_id for v in out}
+    missing = by_id - covered
+    if missing:
+        log.error(
+            "Quality gate returned incomplete decisions: missing pageword ids %s",
+            sorted(missing)[:10],
+        )
+        return None
     return out
 
 

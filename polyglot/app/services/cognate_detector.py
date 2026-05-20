@@ -237,13 +237,20 @@ Lemmas:
     proc = subprocess.run(cmd, capture_output=True, text=True, timeout=180)
     if proc.returncode != 0:
         raise RuntimeError(f"claude CLI failed: {proc.stderr[:500]}")
-    # CLI wraps output as {"result": "..."} — parse the result string as JSON
+    # With --json-schema, recent Claude CLI builds put constrained JSON in
+    # structured_output. Older builds used result, so keep that fallback.
     try:
         wrapper = json.loads(proc.stdout)
-        result = wrapper.get("result", proc.stdout) if isinstance(wrapper, dict) else proc.stdout
-        parsed = json.loads(result) if isinstance(result, str) else result
+        structured = wrapper.get("structured_output") if isinstance(wrapper, dict) else None
+        if isinstance(structured, list):
+            parsed = structured
+        else:
+            result = wrapper.get("result", proc.stdout) if isinstance(wrapper, dict) else proc.stdout
+            parsed = json.loads(result) if isinstance(result, str) else result
     except json.JSONDecodeError as e:
         raise RuntimeError(f"could not parse claude JSON output: {e}") from e
+    if not isinstance(parsed, list):
+        raise RuntimeError("claude JSON output did not contain a cognate list")
 
     # Align response order with input — match by lemma form, fall back to position
     by_form = {entry["lemma"]: entry.get("cognates", []) for entry in parsed if isinstance(entry, dict)}

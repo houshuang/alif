@@ -269,6 +269,28 @@ def test_suspended_lemma_skipped(tmp_db):
         assert all(wr["lemma_id"] != suspended_id for wr in result["word_results"])
 
 
+def test_ignored_lemma_skipped(tmp_db):
+    with tmp_db() as db:
+        good = _seed_lemma(db, form="g", bare="g")
+        ignored_l = _seed_lemma(db, form="ignore-me", bare="ignore-me")
+        _seed_learning(db, good.lemma_id)
+        db.add(UserLemmaKnowledge(
+            lemma_id=ignored_l.lemma_id,
+            knowledge_state="ignore",
+            source="test",
+        ))
+        sentence = _seed_sentence(db, lemma_surfaces=[(good.lemma_id, "g"), (ignored_l.lemma_id, "i")])
+        db.commit()
+        sid, ignored_id = sentence.id, ignored_l.lemma_id
+
+    with tmp_db() as db:
+        result = submit_sentence_review(db, sentence_id=sid, comprehension_signal="understood")
+        assert all(wr["lemma_id"] != ignored_id for wr in result["word_results"])
+        assert db.query(ReviewLog).filter_by(lemma_id=ignored_id).all() == []
+        ulk = db.query(UserLemmaKnowledge).filter_by(lemma_id=ignored_id).one()
+        assert ulk.knowledge_state == "ignore"
+
+
 # ─── Canonical resolution ──────────────────────────────────────────────────
 
 
@@ -425,6 +447,30 @@ def test_learning_lemma_routes_through_fsrs(tmp_db):
         log = db.query(ReviewLog).filter_by(lemma_id=lemma_id).one()
         assert log.is_acquisition is False
         assert result["word_results"][0]["new_state"] in {"learning", "known", "lapsed"}
+
+
+def test_bulk_known_without_card_gets_encounter_credit_only(tmp_db):
+    with tmp_db() as db:
+        lemma = _seed_lemma(db, form="known", bare="known")
+        db.add(UserLemmaKnowledge(
+            lemma_id=lemma.lemma_id,
+            knowledge_state="known",
+            fsrs_card_json=None,
+            total_encounters=2,
+            source="bulk_mark",
+        ))
+        sentence = _seed_sentence(db, lemma_surfaces=[(lemma.lemma_id, "known")])
+        db.commit()
+        sid, lemma_id = sentence.id, lemma.lemma_id
+
+    with tmp_db() as db:
+        result = submit_sentence_review(db, sentence_id=sid, comprehension_signal="understood")
+        assert result["word_results"] == []
+        assert db.query(ReviewLog).filter_by(lemma_id=lemma_id).all() == []
+        ulk = db.query(UserLemmaKnowledge).filter_by(lemma_id=lemma_id).one()
+        assert ulk.knowledge_state == "known"
+        assert ulk.fsrs_card_json is None
+        assert ulk.total_encounters == 3
 
 
 # ─── Tagging + sentence-level audit row ────────────────────────────────────
@@ -648,3 +694,37 @@ def test_undo_idempotent_returns_false_on_replay(tmp_db):
         assert r1["undone"] is True
         r2 = undo_sentence_review(db, client_review_id="undo-replay")
         assert r2["undone"] is False
+
+
+def test_undo_restores_acquisition_graduation_snapshot(tmp_db):
+    with tmp_db() as db:
+        lemma = _seed_lemma(db, form="acq", bare="acq")
+        ulk = _seed_acquiring(db, lemma.lemma_id, box=1, times_seen=0)
+        original_due = ulk.acquisition_next_due
+        sentence = _seed_sentence(db, lemma_surfaces=[(lemma.lemma_id, "acq")])
+        db.commit()
+        sid, lemma_id = sentence.id, lemma.lemma_id
+
+    with tmp_db() as db:
+        submit_sentence_review(
+            db,
+            sentence_id=sid,
+            comprehension_signal="understood",
+            client_review_id="undo-acq",
+        )
+        ulk = db.query(UserLemmaKnowledge).filter_by(lemma_id=lemma_id).one()
+        assert ulk.knowledge_state == "learning"
+        assert ulk.fsrs_card_json is not None
+        assert ulk.graduated_at is not None
+
+    with tmp_db() as db:
+        result = undo_sentence_review(db, client_review_id="undo-acq")
+        assert result["undone"] is True
+        ulk = db.query(UserLemmaKnowledge).filter_by(lemma_id=lemma_id).one()
+        assert ulk.knowledge_state == "acquiring"
+        assert ulk.acquisition_box == 1
+        assert ulk.acquisition_next_due is not None
+        assert ulk.acquisition_next_due.replace(tzinfo=timezone.utc) == original_due.replace(tzinfo=timezone.utc)
+        assert ulk.fsrs_card_json is None
+        assert ulk.graduated_at is None
+        assert ulk.times_seen == 0

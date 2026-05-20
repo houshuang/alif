@@ -365,8 +365,13 @@ def submit_acquisition_review(
         )
 
     old_box = ulk.acquisition_box or 1
+    old_acquisition_box = ulk.acquisition_box
+    old_acquisition_next_due = ulk.acquisition_next_due
+    old_graduated_at = ulk.graduated_at
+    old_fsrs_card_json = parse_json_column(ulk.fsrs_card_json) if ulk.fsrs_card_json is not None else None
     old_times_seen = ulk.times_seen or 0
     old_times_correct = ulk.times_correct or 0
+    old_total_encounters = ulk.total_encounters or 0
     old_knowledge_state = ulk.knowledge_state
     recent_intro = _intro_shown_recently(ulk, now)
 
@@ -471,7 +476,20 @@ def submit_acquisition_review(
             "graduated": graduated,
             "pre_times_seen": old_times_seen,
             "pre_times_correct": old_times_correct,
+            "pre_total_encounters": old_total_encounters,
             "pre_knowledge_state": old_knowledge_state,
+            "pre_card": old_fsrs_card_json,
+            "pre_acquisition_box": old_acquisition_box,
+            "pre_acquisition_next_due": (
+                old_acquisition_next_due.isoformat()
+                if old_acquisition_next_due is not None
+                else None
+            ),
+            "pre_graduated_at": (
+                old_graduated_at.isoformat()
+                if old_graduated_at is not None
+                else None
+            ),
             "intro_working_memory_blocked": recent_intro and rating_int >= 3 and old_box == 1,
         },
     )

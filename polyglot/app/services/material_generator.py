@@ -163,6 +163,7 @@ def _gen_prompt(language_code: str, targets: list[GenTarget],
         + f" — {t.gloss_en or '(no gloss)'}"
         for i, t in enumerate(targets)
     )
+    register_instruction = _register_instruction(language_code)
     return f"""You are generating natural {lang} practice sentences for a learner.
 
 For each target lemma below, produce {sentences_per_target} short sentences
@@ -172,7 +173,7 @@ should be the new word.
 
 Rules:
 - Use the target lemma exactly once per sentence (any inflected form is fine).
-- Stay in modern, everyday register. No headlines, no all-caps, no proper-noun
+- {register_instruction} No headlines, no all-caps, no proper-noun
   heavy contexts unless the target itself is a proper noun.
 - Provide a faithful English translation. Do not transliterate.
 - Reuse vocabulary from the known-words pool wherever natural.
@@ -185,6 +186,20 @@ Targets:
 Return JSON with this shape, one entry per generated sentence:
 {{"sentences": [{{"target_index": <int>, "text": "<sentence>", "english": "<translation>"}}, ...]}}
 """
+
+
+def _register_instruction(language_code: str) -> str:
+    if language_code == "grc":
+        return (
+            "Use a classical Attic-style prose register; avoid Koine, late, "
+            "or modern forms unless the target itself requires them."
+        )
+    if language_code == "la":
+        return (
+            "Use classical Latin prose in a Caesar/Cicero-style register; "
+            "avoid ecclesiastical or modern Neo-Latin phrasing."
+        )
+    return "Stay in modern, everyday register."
 
 
 def _gen_schema() -> dict:
@@ -381,13 +396,19 @@ def verify_sentence_mappings_llm(
     if not candidates:
         return []
     items: list[dict] = []
+    expected_positions: set[tuple[int, int]] = set()
     for s_idx, cand in enumerate(candidates):
         for m in cand["mappings"]:
             if m.lemma_id is None:
                 continue
             lemma = lemma_by_id.get(m.lemma_id)
             if lemma is None:
-                continue
+                log.warning(
+                    "Verification snapshot missing lemma_id=%s for candidate=%s position=%s",
+                    m.lemma_id, s_idx, m.position,
+                )
+                return None
+            expected_positions.add((s_idx, m.position))
             items.append({
                 "sentence_index": s_idx,
                 "position": m.position,
@@ -442,6 +463,27 @@ def verify_sentence_mappings_llm(
             correct_lemma=(d.get("correct_lemma") or None),
             reason=(d.get("reason") or None),
         ))
+
+    covered_positions = {
+        (decision.sentence_index, decision.position)
+        for verdicts in per_candidate
+        for decision in verdicts
+    }
+    if covered_positions != expected_positions:
+        missing = sorted(expected_positions - covered_positions)[:20]
+        extra = sorted(covered_positions - expected_positions)[:20]
+        _log_pipeline({
+            "event": "verify_incomplete",
+            "language_code": language_code,
+            "candidate_count": len(candidates),
+            "expected": len(expected_positions),
+            "covered": len(covered_positions),
+            "missing": missing,
+            "extra": extra,
+            "elapsed_s": round(elapsed, 1),
+            "model": VERIFY_MODEL,
+        })
+        return None
 
     _log_pipeline({
         "event": "verify_returned",
@@ -691,6 +733,8 @@ def batch_generate_material(
             m.surface_form for m in cand["mappings"]
             if m.lemma_id is not None
             and m.lemma_id in lemma_by_id
+            and lemma_by_id[m.lemma_id].word_category != "function_word"
+            and lemma_by_id[m.lemma_id].lemma_bare not in function_words
             and not (lemma_by_id[m.lemma_id].gloss_en or "").strip()
         ]
         if empty_gloss:
@@ -804,13 +848,15 @@ def _due_lemmas_missing_material(
     lemmas are filtered out (only canonicals get material).
     """
     sentence_counts = dict(
-        db.query(Sentence.target_lemma_id, func.count(Sentence.id))
+        db.query(SentenceWord.lemma_id, func.count(func.distinct(Sentence.id)))
+        .join(Sentence, Sentence.id == SentenceWord.sentence_id)
         .filter(
             Sentence.language_code == language_code,
             Sentence.is_active.is_(True),
             Sentence.mappings_verified_at.isnot(None),
+            SentenceWord.lemma_id.isnot(None),
         )
-        .group_by(Sentence.target_lemma_id)
+        .group_by(SentenceWord.lemma_id)
         .all()
     )
 

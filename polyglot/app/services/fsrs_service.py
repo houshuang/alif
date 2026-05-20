@@ -159,6 +159,7 @@ def submit_review(
     old_card_dict = card.to_dict() if card_data else None
     old_times_seen = knowledge.times_seen or 0
     old_times_correct = knowledge.times_correct or 0
+    old_total_encounters = knowledge.total_encounters or 0
     old_knowledge_state = knowledge.knowledge_state
 
     now = datetime.now(timezone.utc)
@@ -194,6 +195,7 @@ def submit_review(
             "pre_card": old_card_dict,
             "pre_times_seen": old_times_seen,
             "pre_times_correct": old_times_correct,
+            "pre_total_encounters": old_total_encounters,
             "pre_knowledge_state": old_knowledge_state,
         },
     )

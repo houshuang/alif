@@ -25,7 +25,7 @@ from sqlalchemy.orm import Session
 from app.models import Lemma, Story, Page, PageWord, UserLemmaKnowledge
 from app.services import pdf_extract
 from app.services.cognate_detector import link_intra_greek_cognates, propagate_known_via_cognate
-from app.services.lemma_quality import verify_page_mappings, QUALITY_GATE_ENABLED
+from app.services import lemma_quality
 from app.services.languages import (
     NLPProvider, ProviderUnavailable, Token, get_provider,
 )
@@ -119,6 +119,8 @@ def process_page(db: Session, page: Page, *, force: bool = False) -> Page:
     transaction. Mirrors Alif's lock-discipline pattern.
     """
     if page.processed_at and not force:
+        if page.mappings_verified_at is None:
+            _run_quality_gate_and_harvest(db, page)
         return page
 
     provider: NLPProvider = get_provider(page.story.language_code)
@@ -205,25 +207,27 @@ def process_page(db: Session, page: Page, *, force: bool = False) -> Page:
     # by POLYGLOT_QUALITY_GATE=1 — for the MVP we want users to opt in once
     # they trust their prompt tuning. Runs synchronously to keep the model
     # of "page is verified by the time you see it" simple.
-    if QUALITY_GATE_ENABLED and not force:
+    if not force:
+        _run_quality_gate_and_harvest(db, page)
+
+    return page
+
+
+def _run_quality_gate_and_harvest(db: Session, page: Page) -> None:
+    """Retry the idempotent quality gate, then harvest once mappings are verified."""
+    if lemma_quality.QUALITY_GATE_ENABLED and page.mappings_verified_at is None:
         try:
-            verify_page_mappings(db, page)
+            lemma_quality.verify_page_mappings(db, page)
             db.refresh(page)
         except Exception as e:
             log.warning("Quality gate failed for page %d: %s", page.id, e)
 
-    # Harvest reviewable Sentence rows from PageWord. Only fires when the
-    # quality gate stamped `mappings_verified_at`; the harvest itself short-
-    # circuits otherwise. Cheap (DB-only) so safe to inline in the page-view
-    # critical path.
     if page.mappings_verified_at is not None:
         try:
             from app.services.sentence_harvest import harvest_page_sentences
             harvest_page_sentences(db, page)
         except Exception as e:
             log.warning("Sentence harvest failed for page %d: %s", page.id, e)
-
-    return page
 
 
 # ─── Views ─────────────────────────────────────────────────────────────────
@@ -237,7 +241,10 @@ def get_page_view(db: Session, story_id: int, page_number: int) -> tuple[Page, l
     )
     if not page:
         return None
-    if page.processed_at is None:
+    if (
+        page.processed_at is None
+        or (lemma_quality.QUALITY_GATE_ENABLED and page.mappings_verified_at is None)
+    ):
         process_page(db, page)
     return _build_token_view(db, page)
 
@@ -374,7 +381,7 @@ def mark_lemma(db: Session, lemma_id: int, state: str, *, fetch_gloss: bool = Tr
         remain in ``encountered`` state and promote on a future day.
         A tiny English gloss is also fetched if missing.
       - ``encountered``: lightweight state-only update; no SRS enrolment.
-      - ``ignore``: state-only update; learner has opted out of this lemma.
+      - ``ignore``: mark as a proper name / out-of-band token and remove from SRS.
     """
     valid = {"known", "unknown", "encountered", "ignore"}
     if state not in valid:
@@ -417,6 +424,10 @@ def mark_lemma(db: Session, lemma_id: int, state: str, *, fetch_gloss: bool = Tr
         db.add(ulk)
     else:
         ulk.knowledge_state = state
+    if state == "ignore":
+        lemma = db.get(Lemma, lemma_id)
+        if lemma is not None:
+            lemma.word_category = "proper_name"
     db.commit()
     db.refresh(ulk)
 

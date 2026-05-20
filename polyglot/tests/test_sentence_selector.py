@@ -391,6 +391,20 @@ def test_session_skips_lemmas_without_eligible_sentences(tmp_db):
         assert bundle.sentences[0].sentence_id == sa.id
 
 
+def test_acquisition_without_material_does_not_starve_fsrs_due(tmp_db):
+    with tmp_db() as db:
+        acquiring = _seed_lemma(db, form="ἀνετοιμο")
+        fsrs_due = _seed_lemma(db, form="λόγος")
+        _seed_acquiring(db, acquiring.lemma_id)
+        _seed_known(db, fsrs_due.lemma_id, state="learning")
+        sent = _seed_sentence(db, lemma_surfaces=[(fsrs_due.lemma_id, "λόγος")], text="λόγος")
+        db.commit()
+
+        bundle = build_session(db, language_code="el", limit=1)
+        assert len(bundle.sentences) == 1
+        assert bundle.sentences[0].sentence_id == sent.id
+
+
 def test_session_dedupes_sentences(tmp_db):
     """If one sentence covers two due lemmas, it's used once."""
     with tmp_db() as db:

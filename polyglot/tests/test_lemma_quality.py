@@ -1,11 +1,12 @@
 """Quality-gate tests with Claude CLI mocked. The real CLI path runs in a
 separate manual smoke test (see scripts/qg_smoke.py)."""
+import json
 from datetime import datetime, timezone
 
 import pytest
 
 from app.services import reading_intake, lemma_quality
-from app.services.lemma_quality import Verdict
+from app.services.lemma_quality import TokenCheck, Verdict
 from app.models import Lemma, Page, PageWord
 
 
@@ -18,10 +19,12 @@ def test_apply_ok_verdict_stamps_verified(tmp_db, force_gate_enabled, monkeypatc
     """Mock Claude returning verdict=ok for every token. Should stamp
     verified_at on every PageWord and on the Page."""
     with tmp_db() as db:
+        monkeypatch.setattr(lemma_quality, "QUALITY_GATE_ENABLED", False)
         story = reading_intake.import_paste(db, language_code="el", body="βιβλίο σπίτι")
         page, _ = reading_intake.get_page_view(db, story.id, 1)
         # Pre-test: mappings_verified_at is NULL
         assert page.mappings_verified_at is None
+        monkeypatch.setattr(lemma_quality, "QUALITY_GATE_ENABLED", True)
 
         # Mock Claude → every token is OK
         def fake_call(chunk, language_name):
@@ -141,8 +144,11 @@ def test_llm_failure_leaves_page_unverified(tmp_db, force_gate_enabled, monkeypa
     stamped — otherwise the next view treats unverified tokens as gated. The
     caller can retry on the next page view."""
     with tmp_db() as db:
+        monkeypatch.setattr(lemma_quality, "QUALITY_GATE_ENABLED", False)
         story = reading_intake.import_paste(db, language_code="el", body="βιβλίο σπίτι")
         page, _ = reading_intake.get_page_view(db, story.id, 1)
+        assert page.mappings_verified_at is None
+        monkeypatch.setattr(lemma_quality, "QUALITY_GATE_ENABLED", True)
 
         monkeypatch.setattr(lemma_quality, "_call_claude", lambda chunk, language_name: None)
         monkeypatch.setenv("POLYGLOT_QG_SKIP_IDENTITY", "0")
@@ -151,6 +157,26 @@ def test_llm_failure_leaves_page_unverified(tmp_db, force_gate_enabled, monkeypa
         assert corrected == 0
         db.refresh(page)
         assert page.mappings_verified_at is None
+
+
+def test_empty_llm_decisions_count_as_failure(monkeypatch):
+    class FakeProc:
+        returncode = 0
+        stderr = ""
+        stdout = json.dumps({"structured_output": {"decisions": []}, "result": ""})
+
+    monkeypatch.setattr(lemma_quality.subprocess, "run", lambda *args, **kwargs: FakeProc())
+    verdicts = lemma_quality._call_claude([
+        TokenCheck(
+            pageword_id=123,
+            surface="βιβλίο",
+            proposed_lemma="βιβλίο",
+            proposed_gloss="book",
+            sentence_context="το βιβλίο",
+        )
+    ], "Modern Greek")
+
+    assert verdicts is None
 
 
 def test_partial_batch_failure_leaves_page_unverified(tmp_db, force_gate_enabled, monkeypatch):

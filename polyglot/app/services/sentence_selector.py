@@ -578,8 +578,6 @@ def build_session(
     now = datetime.now(timezone.utc)
 
     acquiring = _acquisition_due_lemmas(db, language_code, now, limit)
-    remaining = max(0, limit - len(acquiring))
-    fsrs = _fsrs_due_lemmas(db, language_code, now, remaining) if remaining else []
 
     selected: list[SentencePayload] = []
     used_sentence_ids: set[int] = set()
@@ -597,6 +595,9 @@ def build_session(
             continue
         used_sentence_ids.add(payload.sentence_id)
         selected.append(payload)
+
+    remaining = max(0, limit - len(selected))
+    fsrs = _fsrs_due_lemmas(db, language_code, now, remaining) if remaining else []
 
     for ulk, lemma, _due in fsrs:
         if len(selected) >= limit:
