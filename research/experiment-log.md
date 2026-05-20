@@ -4,6 +4,34 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-05-20: Letter-free OCR tokens rejected at import
+
+### What
+
+User spotted `١٤` and `٨٢٦١٤٩٣٥` on the Stats screen under "10 NEW WORDS STARTED" — Gemini OCR had extracted page numbers / footnote markers as Arabic words, the import path created real Lemma rows for them with English glosses like "14", and they propagated to ULK + ReviewLog + Sentence.target_lemma_id.
+
+Root cause: `sanitize_arabic_word` only filtered `len(bare) < 2`, not letter-free strings. The same codebase already had `_WORD_CHAR` at sentence_validator.py:36 used by `tokenize_display` for exactly this problem (its docstring named `١٤` as the example), but the import boundary never picked it up.
+
+PR #99 wires `_WORD_CHAR` into `sanitize_arabic_word` (returns `no_letters` warning); the 3 OCR call-sites in `ocr_service.py` and `story_service._import_unknown_words` all skip on it. PR #100 added the missing FK handling (ReviewLog + Sentence.target_lemma_id) to the cleanup script.
+
+### Prod cleanup (2026-05-20)
+
+`backend/scripts/cleanup_numeric_ocr_lemmas.py --apply` removed:
+- 2 Lemmas (`#1650` "82614935", `#1970` "14")
+- 2 UserLemmaKnowledge rows (both today-created `acquisition_started_at`)
+- 7 ReviewLog rows (4 + 3 — proof the junk had reached actual sessions)
+- 4 SentenceWord lemma_ids nulled
+- 38 Sentence.target_lemma_id nulled (19 + 19 — sentences that had been generated targeting numerals)
+
+Backup: `/opt/alif-backups/alif_pre_numeric_cleanup_20260520_173246.db`.
+
+### Verify
+
+- `cd backend && python3 -m pytest tests/test_sentence_validator.py::TestSanitizeArabicWord` — 22 passing, new cases for ASCII / Arabic-Indic / Persian digit strings.
+- Open Stats screen: "NEW WORDS STARTED" should show 8 entries (was 10), with no numeric rows.
+
+---
+
 ## 2026-05-18: Partial-vocalization word-card fix
 
 ### What
