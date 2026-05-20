@@ -441,28 +441,67 @@ def mark_lemma(db: Session, lemma_id: int, state: str, *, fetch_gloss: bool = Tr
 # ─── Front-matter detection ───────────────────────────────────────────────
 
 
+# Greek front-matter section titles. School textbooks reliably use these as
+# section headers on the publishing/TOC/preface pages, so a page whose first
+# few hundred characters contain any of them is almost certainly not
+# reading content.
+_GREEK_FRONT_MATTER_MARKERS = (
+    "ΠΕΡΙΕΧΟΜΕΝΑ",          # Contents
+    "ΠΡΟΛΟΓΟΣ",             # Preface
+    "ΣΤΟΙΧΕΙΑ ΕΚ",          # Catches "ΣΤΟΙΧΕΙΑ ΕΚΔΟΣΗΣ" and "ΕΠΑΝΕΚΔΟΣΗΣ"
+    "ΣΤΟΙΧΕΙΑ ΑΡΧΙΚΗΣ",
+    "ΥΠΟΥΡΓΕΙΟ",            # Ministry — copyright stamp on Greek school books
+    "ISBN",
+)
+# Real chapter content uses section numbering like "1.1" or "2.3". Both
+# the body and the TOC contain these, but the TOC is also dot-heavy and is
+# rejected separately.
+import re as _re
+_SECTION_NUMBER_PATTERN = _re.compile(r"\b\d+\.\d+\b")
+
+
 def _is_content_page(body_src: str | None) -> bool:
     """True iff this page looks like actual reading material.
 
-    Heuristic on raw extracted text (no NLP, no LLM):
+    Layered heuristic on raw extracted text (no NLP, no LLM):
 
-    - At least 200 characters of body — skips blanks and single-line dividers.
-    - At least 100 alphabetic characters — skips number-heavy index pages.
-    - Less than 40% of letters are uppercase — skips title pages, copyright
-      boilerplate (typeset entirely in caps), and pure-heading divider pages.
+    - At least 500 characters of body — skips blanks, dividers, chapter title
+      pages (which are typically just an image caption).
+    - At least 200 alphabetic characters — skips number-heavy index pages.
+    - Less than 40% of letters are uppercase — skips all-caps copyright /
+      title-page boilerplate.
+    - First 300 characters contain none of the Greek front-matter markers
+      (ΠΕΡΙΕΧΟΜΕΝΑ, ΠΡΟΛΟΓΟΣ, ΣΤΟΙΧΕΙΑ ΕΚΔΟΣΗΣ, ΥΠΟΥΡΓΕΙΟ, ISBN). Catches
+      TOC, preface, and publishing-info pages.
+    - Dots (".") make up < 8% of characters — TOC pages use dot-leader
+      filler between entries and their page numbers; this is a strong TOC
+      signature.
+    - Contains a section-number pattern like "1.1" or "2.3" — positive
+      signal that the page is chapter content rather than a continuation of
+      a preface, an introduction without numbered sections, etc.
 
-    The thresholds are tuned for Greek school textbooks where front-matter is
-    typically the Ministry-of-Education copyright page (all caps), a TOC
-    (digit-heavy), a preface, and a chapter title page (caps + image
-    caption). Real prose pages comfortably clear the bar.
+    Thresholds were calibrated against the Greek "Ιστορία του Αρχαίου
+    Κόσμου" textbook (298 pages) where actual chapter content starts on
+    page 11. Pages 1-10 are all front-matter and all get rejected; page 11
+    passes.
     """
-    if not body_src or len(body_src) < 200:
+    if not body_src or len(body_src) < 500:
         return False
     letters = [c for c in body_src if c.isalpha()]
-    if len(letters) < 100:
+    if len(letters) < 200:
         return False
-    uppercase_ratio = sum(1 for c in letters if c.isupper()) / len(letters)
-    return uppercase_ratio < 0.40
+    upper_ratio = sum(1 for c in letters if c.isupper()) / len(letters)
+    if upper_ratio >= 0.40:
+        return False
+    first_chunk = body_src[:300]
+    if any(marker in first_chunk for marker in _GREEK_FRONT_MATTER_MARKERS):
+        return False
+    dot_ratio = body_src.count(".") / len(body_src)
+    if dot_ratio > 0.08:
+        return False
+    if not _SECTION_NUMBER_PATTERN.search(body_src):
+        return False
+    return True
 
 
 def first_content_page_number(db: Session, story_id: int) -> int:
