@@ -7,9 +7,29 @@ Read this FIRST before touching anything under `polyglot/`. Also read
 
 ## Done in the 2026-05-20 session (cumulative)
 
-Four PRs landed (squash-merged, branches deleted):
+Five PRs landed (squash-merged, branches deleted):
 
-- **PR #3 (this session) — `sentence_selector` + minimal `build_session` port**.
+- **PR #4 (this session) — Greek-tuned `material_generator` port**.
+  LLM-driven sentence generation closing the loop with the picker. Files:
+  `services/material_generator.py` (+`sentence_validator.py` for Greek-flavored
+  tokenize / map / validate primitives). One Sonnet generation call + one Haiku
+  verification call per batch (defaults: `POLYGLOT_GEN_MODEL=sonnet`,
+  `POLYGLOT_VERIFY_MODEL=haiku`, `POLYGLOT_BATCH_WORD_SIZE=4`,
+  `POLYGLOT_SENTENCES_PER_TARGET=2`). Three-phase read/LLM/write pattern; SQLite
+  write lock never held across LLM calls. Mandatory verification gate (Hard
+  Invariant): total verifier failure discards the entire batch; per-sentence
+  "wrong" verdict drops that candidate. Glossless-target check at function
+  entry. Canonical resolution at write time. Function-word tokens may carry
+  `lemma_id=NULL` (matches `sentence_harvest`). `warm_sentence_cache(language,
+  max_lemmas)` finds acquiring/learning/known/lapsed lemmas below
+  `POLYGLOT_ACTIVE_TARGET=3` reviewable sentences and fills them in
+  `BATCH_WORD_SIZE` chunks. Endpoints: `POST /api/materials/generate`,
+  `POST /api/materials/warm-cache`. CLI: `scripts/warm_sentence_cache.py`.
+  Cron wrapper: `deploy/polyglot-update-material.sh`. Backend tests:
+  **144 passing** (was 134). Gates audit gains "Material generation" + "Warm
+  sentence cache" rows, both **Ported**.
+
+- **PR #3 — `sentence_selector` + minimal `build_session` port**.
   Read-side spine: `pick_sentence_for_lemma(db, lemma_id, language_code,
   exclude_sentence_ids=None)` returns the best Sentence for a due lemma, or
   `None` if no eligible row exists (defer to generation in PR #4). Source
@@ -73,19 +93,14 @@ all 7 redirect sites.
 
 Backend tests: **92 passing** (was 78 at session start).
 
-## What's next — sentence-review pipeline port (2 PRs remaining)
+## What's next — sentence-review pipeline port (1 PR remaining)
 
-Per Stian's 2026-05-20 direction ("full Alif port, one branch + multiple
-PRs as I land pieces"), the remaining work breaks down as:
+PR #4 (material generation) shipped this session. The backend loop is now
+functionally complete: the picker pulls sentences, the generator fills gaps,
+the write-side service distributes credit. Only the frontend swap is left
+before learners see the new UX.
 
-- **PR #4 — Greek-tuned `material_generator` port** (next). Port from
-  `backend/app/services/material_generator.py` (2.5 KLOC). LLM-generated
-  sentences for due lemmas where no textbook sentence covers them — i.e.
-  the cases where PR #3's picker returns `None`. New Greek prompt (no
-  tashkeel, simplemma for output verification). Mandatory verification
-  gate (Hard Invariant). `claude_sonnet` via CLI for batch paths. Cron
-  `warm_sentence_cache`. Branch: `sh/polyglot-material-generator`.
-- **PR #5 — frontend sentence-bearing review UI**. Update
+- **PR #5 (next) — frontend sentence-bearing review UI**. Update
   `frontend/app/polyglot-review.tsx` to call `/api/reviews/session` and
   render a sentence-shaped card (text, tap-for-gloss, 1–4 rating).
   Replaces the bare-word UX from PR #86. Preserve offline reconciliation
@@ -93,13 +108,34 @@ PRs as I land pieces"), the remaining work breaks down as:
   too (port `experiment_intro_shown_at` + `_intro_shown_recently`).
   Branch: `sh/polyglot-sentence-review-ui`.
 
-**Recommendation for the next session**: start with PR #4. The picker
-now exists and will return `None` for any due lemma without a covering
-Sentence row — that's the gap PR #4 fills via LLM generation. After
-PR #4 lands, the loop is functional backend-end (UI is still bare-word
-from PR #86, sentences exist and submit via PR #2).
+**Recommendation for the next session**: start with PR #5. After this,
+the loop is end-to-end for the user: read → tap unknown → see sentences
+during review → rate → FSRS scheduling.
 
-Suggested PR #4 entry points to read first in the new session:
+Suggested PR #5 entry points to read first in the new session:
+- `frontend/app/polyglot-review.tsx` — current bare-word screen.
+- `frontend/lib/polyglot-api.ts` — API client; add `getReviewSession()` +
+  `submitSentenceReview()`.
+- `backend/.../sentence_selector.SentencePayload` — shape returned from
+  `GET /api/reviews/session?language_code=el`.
+- `polyglot/app/services/sentence_review_service.submit_sentence_review` —
+  endpoint at `POST /api/reviews/submit-sentence`; takes `sentence_id`,
+  comprehension, response_ms, client_review_id.
+
+**Operational note for PR #4** (this session's work): the cron wrapper
+at `polyglot/deploy/polyglot-update-material.sh` exists but isn't installed
+yet on Hetzner. Install when ready:
+```bash
+scp polyglot/deploy/polyglot-update-material.sh alif:/opt/polyglot-update-material.sh
+ssh alif chmod +x /opt/polyglot-update-material.sh
+# Add to crontab:
+# 45 */3 * * * /opt/polyglot-update-material.sh >> /var/log/polyglot-update-material.log 2>&1
+```
+The 45-minute offset is deliberate — it puts the polyglot cron 15 minutes
+after Alif's `30 */3 * * *`, so they don't both hit Claude CLI at the same
+minute.
+
+Stale: previously-suggested PR #4 entry points (now done):
 - `backend/app/services/material_generator.py` — the generation pipeline
   (~2.5 KLOC). Single sentence and batch paths; the bounded legacy batch
   path (`batch_generate_material` / `generate_material_for_word`) is
@@ -190,15 +226,14 @@ Concrete priorities:
 
 **Status: SRS engine landed (PR #85). Sentence harvest landed (PR #89).
 sentence_review_service landed (PR #2 of the 2026-05-20 sequence).
-sentence_selector + minimal build_session landed (PR #3 of the 2026-05-20
-sequence). Remaining: material_generator (PR #4), frontend sentence-review
+sentence_selector + minimal build_session landed (PR #3). Material generator +
+warm cache landed (PR #4 — this session). Remaining: frontend sentence-review
 UI (PR #5). See "What's next" section above for the concrete PR breakdown.**
 
-Files still to port from `backend/app/services/`:
-
-- `material_generator.py` (~2.5 KLOC) — sentence generation for lemmas
-  where the picker returns `None`. Will need a Greek-tuned prompt
-  (different sentence rules, different difficulty signals from Arabic).
+No further backend services from `backend/app/services/` need straight ports
+for the core review loop. Deferred-by-design pieces (intro cards, sentence
+rotation/lifecycle, audio, multi-target story sentences) live behind explicit
+gates in `polyglot/CLAUDE.md` and will be ported as their use cases emerge.
 
 When this lands, also flip Hard Invariant #12 in `polyglot/CLAUDE.md`
 (intro-card working-memory gate) from "intentionally omitted" to "ported"
