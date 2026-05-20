@@ -107,14 +107,17 @@ def submit_review(
 ) -> dict:
     """Apply a learner rating to the FSRS card for `lemma_id`.
 
-    Variant lemmas should already have been redirected to canonical before
-    this call (see `canonical_resolution.resolve_canonical_lemma_id`). This
-    function trusts its caller on that — re-resolving here would mask bugs
-    in upstream wiring.
+    Variant lemmas are redirected to their canonical at function entry per
+    Hard Invariant #9 — the canonical is the unit of scheduling, and ULK
+    rows must never grow on variants.
 
     Returns a dict with `lemma_id`, `new_state`, `next_due`. Sets `duplicate=True`
     when a matching `client_review_id` already exists.
     """
+    from app.services.canonical_resolution import resolve_canonical_lemma_id
+
+    lemma_id = resolve_canonical_lemma_id(db, lemma_id)
+
     if client_review_id:
         existing = (
             db.query(ReviewLog)

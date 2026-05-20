@@ -5,6 +5,21 @@ Read this FIRST before touching anything under `polyglot/`. Also read
 `polyglot/CLAUDE.md` (project rules + gates audit) and the root
 `/Users/stian/src/alif/CLAUDE.md` (especially the new "Polyglot" bullet).
 
+## Done in the 2026-05-20 follow-up
+
+- Plugged 5 ULK-creation sites that bypassed `resolve_canonical_lemma_id` —
+  the Alif "36 variant ULKs" 2026-05-06 incident in waiting. Sites fixed:
+  `fsrs_service.submit_review`, `acquisition_service.submit_acquisition_review`,
+  `reading_intake.mark_lemma` (all non-unknown branches), and the two cognate
+  paths (`propagate_known_via_cognate`, `_auto_mark_known`). Regression suite
+  in `tests/test_canonical_resolution.py` asserts variant-in → canonical-out
+  on every entry point.
+- Reconciled doc drift: `polyglot/CLAUDE.md` gates table previously said
+  "resolver not wired" (was already wired in PR #85). Now accurately lists
+  all 7 redirect sites.
+
+Backend tests: **83 passing** (was 78).
+
 ## Done in the 2026-05-19 overnight pass
 
 Three back-to-back PRs landed on main (all squash-merged, branches deleted):
@@ -99,11 +114,13 @@ generated sentence must go through verify-and-correct (the same way Alif's
 generation path that skips it — that's how Alif accumulated 29 bad mappings
 in March (see CLAUDE.md root, "Hard Invariants").
 
-Same goes for the **canonical lemma scheduling invariant** — port
-`canonical_resolution.py` so `start_acquisition()` and any direct
-`UserLemmaKnowledge(...)` creation redirects to the canonical lemma_id
-before creating the ULK. The polyglot model has `canonical_lemma_id` but no
-resolver helper yet.
+The **canonical lemma scheduling invariant** is fully wired as of the
+2026-05-20 follow-up (see Done section above) — all current ULK-creation
+sites redirect through `resolve_canonical_lemma_id` at function entry, with
+regression tests. **When the sentence-review pipeline lands, any new
+ULK-creation sites it introduces must add the same redirect at entry —
+don't trust callers** (Hard Invariant #9). Sentence review will additionally
+need `resolve_canonical_via_map` for batch session-builder hot paths.
 
 ### 2. Quality gate improvements
 
