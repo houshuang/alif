@@ -101,8 +101,17 @@ def get_page(story_id: int, page_number: int, db: Session = Depends(get_db)):
 def mark_word(story_id: int, req: MarkWordRequest, db: Session = Depends(get_db)):
     ulk = reading_intake.mark_lemma(db, lemma_id=req.lemma_id, state=req.state)
     # Return the (possibly newly-fetched) gloss so the frontend can display it
-    # without an extra round-trip.
+    # without an extra round-trip. `clear` returns no ULK (it was deleted);
+    # we still return the gloss so the lookup bar can keep showing English
+    # after the tap-cycle reaches its "unmark" position.
     from app.models import Lemma
+    if ulk is None:
+        lemma = db.get(Lemma, req.lemma_id)
+        return {
+            "lemma_id": req.lemma_id,
+            "state": None,
+            "gloss_en": lemma.gloss_en if lemma else None,
+        }
     lemma = db.get(Lemma, ulk.lemma_id)
     return {
         "lemma_id": ulk.lemma_id,

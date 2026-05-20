@@ -107,6 +107,31 @@ def test_mark_lemma_updates_existing(tmp_db):
         assert ulks[0].knowledge_state == "known"
 
 
+def test_mark_lemma_clear_deletes_ulk(tmp_db):
+    """`clear` is the third tap in the reading screen's cycle
+    (unknown → encountered → clear). It must delete the ULK so the lemma
+    returns to a "no state" baseline."""
+    with tmp_db() as db:
+        story = reading_intake.import_paste(db, language_code="el", body="βιβλίο")
+        page, tokens = reading_intake.get_page_view(db, story.id, 1)
+        lemma_id = next(t["lemma_id"] for t in tokens if t["lemma_id"])
+
+        reading_intake.mark_lemma(db, lemma_id=lemma_id, state="unknown", fetch_gloss=False)
+        assert db.query(UserLemmaKnowledge).filter(
+            UserLemmaKnowledge.lemma_id == lemma_id
+        ).count() == 1
+
+        result = reading_intake.mark_lemma(db, lemma_id=lemma_id, state="clear")
+        assert result is None
+        assert db.query(UserLemmaKnowledge).filter(
+            UserLemmaKnowledge.lemma_id == lemma_id
+        ).count() == 0
+
+        # Idempotent: clearing again on a lemma without a ULK is a no-op.
+        result2 = reading_intake.mark_lemma(db, lemma_id=lemma_id, state="clear")
+        assert result2 is None
+
+
 def test_page_view_classifies_token_states(tmp_db):
     with tmp_db() as db:
         story = reading_intake.import_paste(db, language_code="el", body="βιβλίο σπίτι")

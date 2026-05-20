@@ -389,7 +389,7 @@ def bulk_mark_remaining_known(db: Session, story_id: int, page_number: int) -> i
     return count
 
 
-def mark_lemma(db: Session, lemma_id: int, state: str, *, fetch_gloss: bool = True) -> UserLemmaKnowledge:
+def mark_lemma(db: Session, lemma_id: int, state: str, *, fetch_gloss: bool = True) -> UserLemmaKnowledge | None:
     """Set the user's knowledge state for a lemma. Creates ULK if missing.
 
     Behaviour by ``state``:
@@ -402,10 +402,25 @@ def mark_lemma(db: Session, lemma_id: int, state: str, *, fetch_gloss: bool = Tr
         A tiny English gloss is also fetched if missing.
       - ``encountered``: lightweight state-only update; no SRS enrolment.
       - ``ignore``: mark as a proper name / out-of-band token and remove from SRS.
+      - ``clear``: drop the ULK entirely so the lemma returns to its pre-tap
+        "no state" — used to undo an accidental tap from the reading screen's
+        tap-cycle (red → yellow → clear). Audit history in ReviewLog is left
+        intact. Returns None when the ULK was deleted (or didn't exist).
     """
-    valid = {"known", "unknown", "encountered", "ignore"}
+    valid = {"known", "unknown", "encountered", "ignore", "clear"}
     if state not in valid:
         raise ValueError(f"Invalid state {state!r}; expected one of {valid}")
+
+    if state == "clear":
+        from app.services.canonical_resolution import resolve_canonical_lemma_id
+        canonical_id = resolve_canonical_lemma_id(db, lemma_id)
+        existing = db.query(UserLemmaKnowledge).filter(
+            UserLemmaKnowledge.lemma_id == canonical_id
+        ).first()
+        if existing is not None:
+            db.delete(existing)
+            db.commit()
+        return None
 
     from app.services.canonical_resolution import resolve_canonical_lemma_id
 

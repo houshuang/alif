@@ -37,7 +37,15 @@ function isAlphabetic(s: string): boolean {
 }
 
 function isStandaloneHyphen(surface: string): boolean {
-  return surface === "-" || surface === "‐" || surface === "‑" || surface === "–";
+  // Only ASCII hyphen (U+002D) and Unicode hyphen (U+2010) — these are the
+  // characters PDF extractors use for line-break soft-hyphens.
+  // NOT included:
+  //   '‑' (U+2011 non-breaking hyphen) — explicitly does NOT break a word
+  //   '–' (U+2013 en-dash) — Greek parenthetical marker (Τίγρης – ανατολικά –)
+  //   '—' (U+2014 em-dash) — same role in English typography
+  // Treating en/em-dashes as soft-hyphens silently concatenates adjacent
+  // words (Τίγρηςανατολικάκαι), which was the visible bug pre-fix.
+  return surface === "-" || surface === "‐";
 }
 
 /**
@@ -99,8 +107,10 @@ export function renderTokens(tokens: readonly TokenView[]): RenderedSpan[] {
 
     // Hyphen-prefix tokens like `-νευί` (from `Νι\n-νευί` extraction):
     // strip the leading dash and append to the previous span without a space.
+    // Only ASCII hyphen + U+2010 hyphen; en/em-dashes excluded (see comment
+    // in isStandaloneHyphen).
     if (
-      /^[-‐‑–][\p{L}]/u.test(t.surface) &&
+      /^[-‐][\p{L}]/u.test(t.surface) &&
       out.length > 0 &&
       isAlphabetic(out[out.length - 1].surface)
     ) {
@@ -119,7 +129,7 @@ export function renderTokens(tokens: readonly TokenView[]): RenderedSpan[] {
     let surface = t.surface;
     let strippedTrailingHyphen = false;
     if (
-      /[\p{L}][-‐‑–]$/u.test(surface) &&
+      /[\p{L}][-‐]$/u.test(surface) &&
       i + 1 < tokens.length &&
       isAlphabetic(tokens[i + 1].surface)
     ) {
