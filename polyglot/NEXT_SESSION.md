@@ -7,7 +7,29 @@ Read this FIRST before touching anything under `polyglot/`. Also read
 
 ## Done in the 2026-05-20 session (cumulative)
 
-Three PRs landed (squash-merged, branches deleted):
+Four PRs landed (squash-merged, branches deleted):
+
+- **PR #3 (this session) — `sentence_selector` + minimal `build_session` port**.
+  Read-side spine: `pick_sentence_for_lemma(db, lemma_id, language_code,
+  exclude_sentence_ids=None)` returns the best Sentence for a due lemma, or
+  `None` if no eligible row exists (defer to generation in PR #4). Source
+  preference: (1) page-first when ALL content scaffold lemmas are
+  `known`/`learning` (3× score bonus, `selection_reason="page_first_all_known"`),
+  (2) any harvested sentence scored by `(0.3 + 0.7 × comprehensibility) ×
+  source_bonus`, (3) `None`. Function words and proper names excluded from
+  scaffold counting (via `FUNCTION_WORD_SETS[language_code]` AND
+  `Lemma.word_category`). Canonical resolution at function entry (Hard
+  Invariant #9). Respects `is_active` + `mappings_verified_at` (Hard
+  Invariant #2). `build_session` walks acquisition-due (Box 1→2→3) then
+  FSRS-due, picks one sentence per lemma, dedupes sentence_id within session,
+  caps at `limit`. New endpoints `GET /api/reviews/next-sentence?lemma_id&
+  language_code` (returns SentencePayload or null) and `GET /api/reviews/
+  session?language_code&limit` (returns list[SentencePayload]). Backend
+  tests: **134 passing** (was 113). Gates audit row "No bare word cards"
+  flipped from Partial → Ported; "Session builder" and "Comprehensibility
+  gate" updated.
+
+Three PRs landed earlier in the session:
 
 - **PR #2 (was #90) — `sentence_review_service` port**. Write-side spine of
   the sentence-review pipeline: one comprehension signal (understood /
@@ -51,26 +73,18 @@ all 7 redirect sites.
 
 Backend tests: **92 passing** (was 78 at session start).
 
-## What's next — sentence-review pipeline port (3 PRs remaining)
+## What's next — sentence-review pipeline port (2 PRs remaining)
 
 Per Stian's 2026-05-20 direction ("full Alif port, one branch + multiple
 PRs as I land pieces"), the remaining work breaks down as:
 
-- **PR #3 — `sentence_selector` + `session_builder` port** (next). Port from
-  `backend/app/services/sentence_selector.py` (2.9 KLOC including
-  `build_session`). The read-side spine: pick the next best sentence for
-  a due lemma; assemble a structured session. Drop awzān/clitic/Hindawi
-  Arabic-isms; keep the gates listed in `polyglot/CLAUDE.md` gates audit.
-  Needs to use Greek `FUNCTION_WORD_SETS` and respect `mappings_verified_at`
-  on Sentence rows. New endpoints `GET /api/reviews/next-sentence`,
-  `GET /api/reviews/session`. Branch: `sh/polyglot-sentence-selector`.
-- **PR #4 — Greek-tuned `material_generator` port**. Port from
+- **PR #4 — Greek-tuned `material_generator` port** (next). Port from
   `backend/app/services/material_generator.py` (2.5 KLOC). LLM-generated
-  sentences for due lemmas where no textbook sentence covers them. New
-  Greek prompt (no tashkeel, simplemma for output verification). Mandatory
-  verification gate (Hard Invariant). `claude_sonnet` via CLI for batch
-  paths. Cron `warm_sentence_cache`. Branch:
-  `sh/polyglot-material-generator`.
+  sentences for due lemmas where no textbook sentence covers them — i.e.
+  the cases where PR #3's picker returns `None`. New Greek prompt (no
+  tashkeel, simplemma for output verification). Mandatory verification
+  gate (Hard Invariant). `claude_sonnet` via CLI for batch paths. Cron
+  `warm_sentence_cache`. Branch: `sh/polyglot-material-generator`.
 - **PR #5 — frontend sentence-bearing review UI**. Update
   `frontend/app/polyglot-review.tsx` to call `/api/reviews/session` and
   render a sentence-shaped card (text, tap-for-gloss, 1–4 rating).
@@ -79,27 +93,30 @@ PRs as I land pieces"), the remaining work breaks down as:
   too (port `experiment_intro_shown_at` + `_intro_shown_recently`).
   Branch: `sh/polyglot-sentence-review-ui`.
 
-**Recommendation for the next session**: start with PR #3. It's the
-biggest of the remaining ports (~2.9 KLOC of Alif logic to read, port,
-and trim) — give it its own session to avoid the context-window blowouts
-Stian's auto-memory flags. PR #2 is now landed so the read-side selector
-has a clearly-defined consumer (`submit_sentence_review`) to feed.
+**Recommendation for the next session**: start with PR #4. The picker
+now exists and will return `None` for any due lemma without a covering
+Sentence row — that's the gap PR #4 fills via LLM generation. After
+PR #4 lands, the loop is functional backend-end (UI is still bare-word
+from PR #86, sentences exist and submit via PR #2).
 
-Suggested PR #3 entry points to read first in the new session:
-- `backend/app/services/sentence_selector.py` — the picker logic
-  (~1.4 KLOC including ranking)
-- `backend/app/services/session_builder.py` (lives inside the selector
-  file in Alif as `build_session`) — assembles intro cards + sentences +
-  reintros
-- Skip Arabic-specifics: awzān-weighted scaffold count, clitic stripping
-  in surface-form lookups, Hindawi corpus tier prioritisation, listening-
-  readiness gate (no TTS in polyglot yet)
-- Use Greek's `FUNCTION_WORD_SETS` for the function-word exclusion gate
-  (`lemma_quality.FUNCTION_WORD_SETS[language_code]`)
-- Respect `Sentence.mappings_verified_at` on every candidate (HI #2)
-- Filter out lemmas where `gates_completed_at IS NULL` if polyglot has
-  the equivalent — check `Lemma.gates_completed_at`; today reading_intake
-  doesn't set it, so this filter may be a no-op until import_quality lands
+Suggested PR #4 entry points to read first in the new session:
+- `backend/app/services/material_generator.py` — the generation pipeline
+  (~2.5 KLOC). Single sentence and batch paths; the bounded legacy batch
+  path (`batch_generate_material` / `generate_material_for_word`) is
+  what production uses today.
+- Skip Arabic-specifics: tashkeel, clitic stripping in verification,
+  awzān-weighted prompts, Hindawi-tier seed selection, the
+  `sentence_self_correct.py` tool-enabled session (it's gated off in
+  Alif as of 2026-05-12 due to empty-result failures).
+- New Greek prompt template: no tashkeel, simplemma to verify the
+  generated sentence's lemma assignments, function-word exclusion via
+  `FUNCTION_WORD_SETS[language_code]`.
+- Mandatory verification gate (Hard Invariant #2): every generated
+  sentence must pass `lemma_quality.verify_page_lemmas` (or equivalent
+  per-sentence variant) before `mappings_verified_at` is stamped.
+  Without it, the picker will reject the row.
+- Cron warm: a background job that pre-generates for the top-N due
+  lemmas missing material — mirrors Alif's `update_material.py`.
 
 Open scope from the original 2026-05-19 briefing — quality gate
 improvements (all-caps Greek headings via sentence-case in verify prompt,
@@ -171,26 +188,17 @@ Concrete priorities:
 
 ### 1. Port Alif's sentence-review pipeline to polyglot
 
-**Status: SRS engine landed (PR #85). Sentence harvest from textbook pages
-landed (PR #89). Remaining: sentence_review_service, sentence_selector +
-session_builder, material_generator, frontend sentence-review UI. See
-"What's next" section above for the concrete PR breakdown and
-recommended ordering.**
+**Status: SRS engine landed (PR #85). Sentence harvest landed (PR #89).
+sentence_review_service landed (PR #2 of the 2026-05-20 sequence).
+sentence_selector + minimal build_session landed (PR #3 of the 2026-05-20
+sequence). Remaining: material_generator (PR #4), frontend sentence-review
+UI (PR #5). See "What's next" section above for the concrete PR breakdown.**
 
 Files still to port from `backend/app/services/`:
 
-- `material_generator.py` (~2.5 KLOC) — sentence generation for `unknown`
-  lemmas. Will need a Greek-tuned prompt (different sentence rules,
-  different difficulty signals from Arabic).
-- `sentence_selector.py` (~2.9 KLOC) — pick the next-best sentence for
-  review. Honor function-word exclusion, comprehensibility, scaffold count.
-  `session_builder` (assemble intro cards + sentences + reintro) lives
-  inside `sentence_selector.py` in Alif (function `build_session`), not as
-  a separate file. Replaces the polyglot `GET /api/reviews/due` flat list
-  with structured session payloads.
-- `sentence_review_service.py` (~574 lines) — apply review results to
-  ULK + FSRS + the broader sentence ledger. Required when sentences carry
-  multiple lemmas (collateral credit semantics).
+- `material_generator.py` (~2.5 KLOC) — sentence generation for lemmas
+  where the picker returns `None`. Will need a Greek-tuned prompt
+  (different sentence rules, different difficulty signals from Arabic).
 
 When this lands, also flip Hard Invariant #12 in `polyglot/CLAUDE.md`
 (intro-card working-memory gate) from "intentionally omitted" to "ported"
