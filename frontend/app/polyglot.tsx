@@ -24,32 +24,34 @@ import {
   type StorySummary, type PageView, type TokenView, type MarkState,
 } from "../lib/polyglot-api";
 
+// Reading palette. We treat the page as a book, not a flashcard surface:
+// every word in body text renders in the same warm ink color, function
+// words included. Knowledge state is exposed only when the user explicitly
+// taps a word — see the lookup bar at the bottom and the `selectedHighlight`
+// style for the in-flow tap accent.
 const C = {
-  bg: "#0f0f1a",
-  surface: "#1a1a2e",
-  border: "#2a2a40",
-  text: "#e0e0f0",
-  textDim: "#9090a8",
-  accent: "#7aa2f7",
-  known: "#3a3a52",          // already known — fades into background
-  acquiring: "#d4a06b",       // orange — actively learning
-  encountered: "#506a8e",     // muted blue — seen, not claimed
-  unknown: "#c95f6f",         // red — marked unknown
-  newWord: "#e0e0f0",         // default — never seen
-  oov: "#5a5a70",
+  bg: "#14121a",             // warm slate — softer than pure black for long reading
+  surface: "#1d1a26",        // bottom-bar surface
+  border: "#2f2a3a",
+  ink: "#ede4cf",            // body text — warm off-white, "paper ink"
+  inkMuted: "#a89c83",       // for chrome (page number, headers)
+  accent: "#a98ef0",          // tap highlight + chevrons
+  // State colors — used ONLY in the lookup bar and tap state, never in body
+  known: "#3a3a52",
+  acquiring: "#d4a06b",
+  encountered: "#506a8e",
+  unknown: "#c95f6f",
   ignored: "#3a3a3a",
 };
 
-function tokenColor(t: TokenView): string {
-  // Function words always faded — they're noise for an intermediate learner.
-  if (t.is_function_word) return C.known;
+// The lookup-bar uses these colors to indicate state. Body text never does.
+function lookupStateColor(t: TokenView): string {
   if (t.is_known) return C.known;
   if (t.is_unknown) return C.unknown;
   if (t.is_acquiring) return C.acquiring;
   if (t.is_encountered) return C.encountered;
   if (t.is_ignored) return C.ignored;
-  if (t.is_oov) return C.oov;
-  return C.newWord;
+  return C.accent;
 }
 
 export default function Polyglot() {
@@ -136,10 +138,7 @@ export default function Polyglot() {
           <ActivityIndicator color={C.accent} style={{ marginTop: 40 }} />
         ) : stories.length === 0 ? (
           <Text style={styles.empty}>
-            No texts yet. From the project shell, import a PDF:
-            {"\n\n"}curl -X POST http://localhost:3001/api/texts/pdf \
-            {"\n"}     -H 'Content-Type: application/json' \
-            {"\n"}     -d {`'{"language_code":"el","pdf_path":"..."}'`}
+            No texts yet. Import a PDF or paste Greek text via the API.
           </Text>
         ) : (
           <ScrollView>
@@ -179,18 +178,23 @@ export default function Polyglot() {
         <ActivityIndicator color={C.accent} style={{ marginTop: 40 }} />
       ) : (
         <ScrollView ref={scrollRef} contentContainerStyle={styles.pageBody}>
-          <Text style={styles.greekText}>
-            {pageData.tokens.map((t, i) => (
-              <Text
-                key={i}
-                style={[styles.token, { color: tokenColor(t) }]}
-                onPress={() => !t.is_punctuation && t.lemma_id && setSelected(t)}
-              >
-                {t.surface}
-                {!t.is_punctuation ? " " : ""}
-              </Text>
-            ))}
-          </Text>
+          <View style={styles.column}>
+            <Text style={styles.greekText} selectable={false}>
+              {pageData.tokens.map((t, i) => {
+                const isSelected = selected != null && selected.position === t.position;
+                return (
+                  <Text
+                    key={i}
+                    style={isSelected ? styles.tokenSelected : styles.token}
+                    onPress={() => !t.is_punctuation && t.lemma_id && setSelected(t)}
+                  >
+                    {t.surface}
+                    {!t.is_punctuation ? " " : ""}
+                  </Text>
+                );
+              })}
+            </Text>
+          </View>
         </ScrollView>
       )}
 
@@ -209,7 +213,7 @@ export default function Polyglot() {
                 : "  →  (mark unknown to fetch gloss)"}
             </Text>
             <Pressable onPress={() => setSelected(null)} style={styles.lookupClose}>
-              <Ionicons name="close" size={20} color={C.textDim} />
+              <Ionicons name="close" size={20} color={C.inkMuted} />
             </Pressable>
           </View>
           <View style={styles.lookupActions}>
@@ -256,50 +260,87 @@ export default function Polyglot() {
   );
 }
 
+// Book-reader typography. The body text uses a serif on iOS (Georgia is
+// bundled, has solid Greek polytonic coverage) and falls back to the system
+// serif elsewhere. Line-height ~1.65× font size is the Bringhurst sweet spot.
+const SERIF = Platform.select({
+  ios: "Georgia",
+  android: "serif",
+  default: "Georgia, 'Noto Serif', serif",
+});
+const BODY_FONT_SIZE = 20;
+const BODY_LINE_HEIGHT = 33;
+const READING_MAX_WIDTH = 680;          // measure cap for tablet/web
+
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: C.bg, paddingTop: 40 },
   headerRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center",
-              paddingHorizontal: 16, marginBottom: 8 },
-  headerLink: { color: C.accent, fontSize: 14 },
-  pageLabel: { color: C.textDim, fontSize: 14 },
+              paddingHorizontal: 24, marginBottom: 12 },
+  headerLink: { color: C.accent, fontSize: 13, letterSpacing: 0.2 },
+  pageLabel: { color: C.inkMuted, fontSize: 12, letterSpacing: 0.8 },
 
-  h1: { fontSize: 28, fontWeight: "700", color: C.text, marginBottom: 4, paddingHorizontal: 16 },
-  sub: { fontSize: 13, color: C.textDim, marginBottom: 16, paddingHorizontal: 16 },
-  empty: { color: C.textDim, marginTop: 24, paddingHorizontal: 16,
+  h1: { fontSize: 28, fontWeight: "700", color: C.ink, marginBottom: 4,
+        paddingHorizontal: 24, fontFamily: SERIF },
+  sub: { fontSize: 13, color: C.inkMuted, marginBottom: 20, paddingHorizontal: 24 },
+  empty: { color: C.inkMuted, marginTop: 24, paddingHorizontal: 24,
            fontFamily: Platform.select({ ios: "Menlo", default: "monospace" }), fontSize: 12 },
 
   storyRow: { flexDirection: "row", alignItems: "center",
-              marginHorizontal: 16, paddingVertical: 14, paddingHorizontal: 12,
-              backgroundColor: C.surface, borderRadius: 8, marginBottom: 8,
+              marginHorizontal: 24, paddingVertical: 16, paddingHorizontal: 16,
+              backgroundColor: C.surface, borderRadius: 10, marginBottom: 10,
               borderWidth: 1, borderColor: C.border },
-  storyTitle: { color: C.text, fontSize: 16, fontWeight: "600" },
-  storyMeta: { color: C.textDim, fontSize: 12, marginTop: 4 },
-  chevron: { color: C.textDim, fontSize: 24 },
+  storyTitle: { color: C.ink, fontSize: 17, fontWeight: "600", fontFamily: SERIF },
+  storyMeta: { color: C.inkMuted, fontSize: 12, marginTop: 4 },
+  chevron: { color: C.inkMuted, fontSize: 24 },
 
-  pageBody: { paddingHorizontal: 16, paddingBottom: 220 },
-  greekText: { fontSize: 19, lineHeight: 32, color: C.text },
-  token: { fontSize: 19, lineHeight: 32 },
+  // Page body: generous margins, max-width on wider screens to keep the
+  // measure (line length) within a comfortable read.
+  pageBody: { paddingHorizontal: 28, paddingTop: 8, paddingBottom: 220,
+              alignItems: "center" },
+  column: { maxWidth: READING_MAX_WIDTH, width: "100%" },
+  greekText: {
+    fontSize: BODY_FONT_SIZE,
+    lineHeight: BODY_LINE_HEIGHT,
+    color: C.ink,
+    fontFamily: SERIF,
+  },
+  // The default token: same color as body — function words look identical to
+  // content words. Knowledge state is invisible in body text by design.
+  token: {
+    fontSize: BODY_FONT_SIZE,
+    lineHeight: BODY_LINE_HEIGHT,
+    color: C.ink,
+    fontFamily: SERIF,
+  },
+  tokenSelected: {
+    fontSize: BODY_FONT_SIZE,
+    lineHeight: BODY_LINE_HEIGHT,
+    color: C.accent,
+    fontFamily: SERIF,
+    textDecorationLine: "underline",
+    textDecorationColor: C.accent,
+  },
 
   lookupBar: { backgroundColor: C.surface, borderTopWidth: 1, borderColor: C.border,
-               paddingVertical: 10, paddingHorizontal: 16 },
+               paddingVertical: 12, paddingHorizontal: 20 },
   lookupRow: { flexDirection: "row", alignItems: "center", flexWrap: "nowrap" },
-  lookupSurface: { color: C.text, fontSize: 17, fontWeight: "600" },
-  lookupLemma: { color: C.textDim, fontSize: 15 },
-  lookupPos: { color: C.accent, fontSize: 11, textTransform: "uppercase" },
-  lookupGloss: { color: C.text, fontSize: 14, flex: 1 },
+  lookupSurface: { color: C.ink, fontSize: 17, fontWeight: "600", fontFamily: SERIF },
+  lookupLemma: { color: C.inkMuted, fontSize: 15, fontFamily: SERIF },
+  lookupPos: { color: C.accent, fontSize: 11, textTransform: "uppercase", letterSpacing: 0.6 },
+  lookupGloss: { color: C.ink, fontSize: 14, flex: 1, fontFamily: SERIF },
   lookupClose: { padding: 4 },
-  lookupActions: { flexDirection: "row", marginTop: 8, gap: 6 },
-  actionBtn: { flex: 1, paddingVertical: 8, borderRadius: 6, alignItems: "center" },
-  actionText: { color: C.text, fontSize: 12, fontWeight: "600" },
+  lookupActions: { flexDirection: "row", marginTop: 10, gap: 6 },
+  actionBtn: { flex: 1, paddingVertical: 9, borderRadius: 8, alignItems: "center" },
+  actionText: { color: C.ink, fontSize: 12, fontWeight: "600", letterSpacing: 0.3 },
 
   pageNav: { flexDirection: "row", justifyContent: "space-between",
-             paddingHorizontal: 16, paddingVertical: 12, gap: 8,
+             paddingHorizontal: 20, paddingVertical: 14, gap: 8,
              borderTopWidth: 1, borderColor: C.border, backgroundColor: C.surface },
-  navBtn: { paddingVertical: 12, paddingHorizontal: 18, borderRadius: 6,
+  navBtn: { paddingVertical: 12, paddingHorizontal: 18, borderRadius: 8,
             backgroundColor: C.bg, borderWidth: 1, borderColor: C.border },
-  navBtnPrimary: { flex: 1, paddingVertical: 12, paddingHorizontal: 18, borderRadius: 6,
+  navBtnPrimary: { flex: 1, paddingVertical: 12, paddingHorizontal: 18, borderRadius: 8,
                    backgroundColor: C.accent, alignItems: "center" },
   navBtnDisabled: { opacity: 0.4 },
-  navBtnText: { color: C.text, fontSize: 14 },
-  navBtnPrimaryText: { color: "#0f0f1a", fontSize: 14, fontWeight: "700" },
+  navBtnText: { color: C.ink, fontSize: 14 },
+  navBtnPrimaryText: { color: "#14121a", fontSize: 14, fontWeight: "700", letterSpacing: 0.4 },
 });
