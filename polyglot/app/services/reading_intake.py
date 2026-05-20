@@ -24,6 +24,7 @@ from sqlalchemy.orm import Session
 
 from app.models import Lemma, Story, Page, PageWord, UserLemmaKnowledge
 from app.services import body_clean as body_clean_svc
+from app.services import lemma_gloss
 from app.services import pdf_extract
 from app.services.cognate_detector import link_intra_greek_cognates, propagate_known_via_cognate
 from app.services import lemma_quality
@@ -32,6 +33,13 @@ from app.services.languages import (
 )
 
 log = logging.getLogger(__name__)
+
+import os as _os
+# Batch-gloss every new lemma on the page right after tokenization, so the
+# reader sees English meanings the instant a tap surfaces a lookup. Default
+# on — Haiku is cheap (~$0.001 per 50 lemmas, free under Max). Disable for
+# tests / cost-sensitive environments.
+BATCH_GLOSS_ENABLED = _os.environ.get("POLYGLOT_BATCH_GLOSS", "1") == "1"
 
 
 def _split_into_sentences(text: str) -> list[str]:
@@ -221,6 +229,21 @@ def process_page(db: Session, page: Page, *, force: bool = False) -> Page:
     db.refresh(page)
     log.info("Processed page %d of story %d: %d tokens, %d unique lemmas",
              page.page_number, page.story_id, word_rows, len(bare_to_lemma_id))
+
+    # Phase 2b: batch-fetch English glosses for every lemma on the page that
+    # doesn't have one yet. This is what makes the tap-to-lookup feel instant
+    # — when the user taps a word, the gloss is already cached. Skips
+    # function words + proper names internally. Lock-safe: ensure_glosses_batch
+    # commits between chunks so the SQLite write lock is released between
+    # Haiku calls (CLAUDE.md rule #10).
+    if BATCH_GLOSS_ENABLED:
+        try:
+            page_lemma_ids = list(bare_to_lemma_id.values())
+            n_glossed = lemma_gloss.ensure_glosses_batch(db, page_lemma_ids)
+            if n_glossed > 0:
+                log.info("Glossed %d new lemmas on page %d", n_glossed, page.id)
+        except Exception as e:
+            log.warning("Batch gloss failed for page %d: %s", page.id, e)
 
     # Quality gate: LLM-in-context verification of lemma assignments. Gated
     # by POLYGLOT_QUALITY_GATE=1 — for the MVP we want users to opt in once

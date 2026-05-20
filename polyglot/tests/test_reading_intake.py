@@ -107,6 +107,52 @@ def test_mark_lemma_updates_existing(tmp_db):
         assert ulks[0].knowledge_state == "known"
 
 
+def test_process_page_batch_glosses_new_lemmas(tmp_db, monkeypatch):
+    """process_page should call ensure_glosses_batch for every lemma on the
+    page right after Phase 2 commit, so the user sees English meanings the
+    instant a tap lands."""
+    monkeypatch.setattr(reading_intake, "BATCH_GLOSS_ENABLED", True)
+    called_with: list[list[int]] = []
+
+    def fake_batch(db, lemma_ids):
+        called_with.append(list(lemma_ids))
+        return 0
+
+    from app.services import lemma_gloss
+    monkeypatch.setattr(lemma_gloss, "ensure_glosses_batch", fake_batch)
+    monkeypatch.setattr(reading_intake.lemma_quality, "QUALITY_GATE_ENABLED", False)
+    monkeypatch.setattr(reading_intake.body_clean_svc, "BODY_CLEAN_ENABLED", False)
+
+    with tmp_db() as db:
+        story = reading_intake.import_paste(db, language_code="el", body="βιβλίο σπίτι")
+        page, _ = reading_intake.get_page_view(db, story.id, 1)
+        assert page.processed_at is not None
+        assert len(called_with) == 1
+        # Both content lemmas (βιβλίο, σπίτι) should have been queued.
+        assert len(called_with[0]) == 2
+
+
+def test_process_page_skips_batch_gloss_when_disabled(tmp_db, monkeypatch):
+    """POLYGLOT_BATCH_GLOSS=0 disables the upfront gloss call so cost-sensitive
+    deployments can opt out."""
+    monkeypatch.setattr(reading_intake, "BATCH_GLOSS_ENABLED", False)
+    called = {"n": 0}
+
+    def fake_batch(db, lemma_ids):
+        called["n"] += 1
+        return 0
+
+    from app.services import lemma_gloss
+    monkeypatch.setattr(lemma_gloss, "ensure_glosses_batch", fake_batch)
+    monkeypatch.setattr(reading_intake.lemma_quality, "QUALITY_GATE_ENABLED", False)
+    monkeypatch.setattr(reading_intake.body_clean_svc, "BODY_CLEAN_ENABLED", False)
+
+    with tmp_db() as db:
+        story = reading_intake.import_paste(db, language_code="el", body="βιβλίο")
+        reading_intake.get_page_view(db, story.id, 1)
+        assert called["n"] == 0
+
+
 def test_mark_lemma_clear_deletes_ulk(tmp_db):
     """`clear` is the third tap in the reading screen's cycle
     (unknown → encountered → clear). It must delete the ULK so the lemma
