@@ -4,6 +4,39 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-05-20: Stuck-target validation: caller bug + orthographic widening + watchdog
+
+### What
+
+The 7-day learning audit on 2026-05-20 surfaced 461 `Target word ... not found in sentence` validation failures concentrated on three lemmas:
+
+| Lemma | bare | failures (7d) | accepts | root cause |
+|---|---|---|---|---|
+| `#895` جَانٍ (guilty) | `جان` | 202 | 0 | bare lacks the explicit ya every surface form carries (الجاني, جانياً) |
+| `#575` ذَرَا (to scatter) | `ذرا` | 185 | 0 | final-weak verb; LLM writes ذَرَى, validator only matched ذَرَا |
+| `#3277` طَاغٌ (tyrant) | `طاغي` | 74 | 0 | bare correct; Phase 2 caller passed `strip_diacritics(lemma_ar)="طاغ"` instead |
+
+20% of multi-target groups (68/348) ended the week with zero accepted sentences.
+
+### Fix
+
+1. **Caller bug (Bug A)** in `material_generator.py` Phase 2, `material_generator.generate_material_for_word`, `material_generator.acquiring_material_gaps`, `update_material.py:898`, and `sentence_generator.generate_validated_sentences_multi_target` — all sites now use `lemma.lemma_ar_bare` (with `strip_diacritics(lemma_ar)` fallback) as the validator target. The generator entry point also accepts `tw["lemma_ar_bare"]` for defense-in-depth.
+2. **Validator extension** in `sentence_validator.py`: new helper `final_alef_variants(text)` adds the word-final ا ↔ ى swap to `target_form_map` in both `validate_sentence` and `validate_sentence_multi_target`. Orthographic only, not morphological — mirrors `build_lemma_lookup` Pass 1b's ya-variant indexing. Capped at len≥3 so 1-2-char targets don't collide with function words.
+3. **Data repair** via `scripts/fix_target_validation_2026_05_20.py`: rewrites lemma `#895` bare from `جان` → `جاني` (and `lemma_ar` from `جَانٍ` → `جَانِي`), clears `generation_failed_count`/`generation_backoff_until` on all three lemmas. Honors the 2026-05-03 investigation conclusion ("repair data; don't soften the target check for morphological cases") since the implicit-ya bare is genuine data corruption, not a missing orthographic variant.
+4. **Watchdog** new module `app/services/pipeline_watchdog.py`. Phase 6 of `warm_sentence_cache` aggregates the last 24h of pipeline JSONL events by lemma_id; any lemma with ≥30 failures and 0 accepts emits a `pipeline_target_stuck` ActivityLog row (idempotent within the window). Visible in the More tab → Activity feed.
+
+### Why this hits, not weakens
+
+Investigation discipline: read prior history first. The `validate_sentence` docstring (added after the 2026-05-03 investigation) explicitly warned against widening the target check for morphological mismatches and said the fix is upstream data repair. The جان bare repair follows that prescription. The ذرا alef-maksura case is orthographic — same category as `build_lemma_lookup` Pass 1b, which already does the symmetric ya-variant indexing on the known-word side. The طاغ case was a plain caller bug.
+
+### Verify
+
+- `python3 -m pytest tests/test_sentence_validator.py tests/test_pipeline_watchdog.py` (171 + 4 cases green)
+- After deploy: re-run `pipeline_stats.py --days 1`; expect Top `batch_validation_failed` issues to no longer be dominated by `جان`/`ذرا`/`طاغ`.
+- Within 24h after deploy: `python3 scripts/fix_target_validation_2026_05_20.py --apply` on prod; expect `#895` to start producing sentences via the cron.
+
+---
+
 ## 2026-05-20: Letter-free OCR tokens rejected at import
 
 ### What
