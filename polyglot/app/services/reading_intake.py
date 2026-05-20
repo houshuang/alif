@@ -435,3 +435,149 @@ def mark_lemma(db: Session, lemma_id: int, state: str, *, fetch_gloss: bool = Tr
         propagate_known_via_cognate(db, lemma_id)
 
     return ulk
+
+
+# ─── Page warming (cron) ───────────────────────────────────────────────────
+
+
+DEFAULT_PAGES_AHEAD_BUFFER = 5
+
+
+def _last_viewed_page_number(db: Session, story_id: int) -> int:
+    """Highest page_number the user has actually opened, or 0 if none yet.
+
+    `Page.viewed_at` is stamped only by the GET /pages/{n} endpoint — cron-
+    warmed pages do NOT stamp it, so this returns "how far the user has
+    read," not "how far the cron has warmed."
+    """
+    from sqlalchemy import func as _func
+    result = (
+        db.query(_func.max(Page.page_number))
+        .filter(Page.story_id == story_id, Page.viewed_at.isnot(None))
+        .scalar()
+    )
+    return int(result or 0)
+
+
+def _verified_pages_ahead(db: Session, story_id: int, last_viewed: int) -> int:
+    """Count pages already through the quality gate beyond the last-viewed
+    page. This is the buffer the cron tries to keep ≥ ``buffer`` deep.
+    """
+    return (
+        db.query(Page)
+        .filter(
+            Page.story_id == story_id,
+            Page.page_number > last_viewed,
+            Page.mappings_verified_at.isnot(None),
+        )
+        .count()
+    )
+
+
+def warm_pages_ahead(
+    db: Session,
+    story_id: int,
+    *,
+    buffer: int = DEFAULT_PAGES_AHEAD_BUFFER,
+    max_to_warm: int | None = None,
+) -> dict:
+    """Ensure ``buffer`` verified pages exist beyond the last-viewed page.
+
+    Reads the last-viewed page number (highest ``page_number`` with non-null
+    ``viewed_at``), counts how many later pages have already passed the
+    quality gate, and processes additional pages forward until the buffer is
+    full. Each page processed costs one Sonnet call (~$0.30-0.50, ~2-3 min)
+    so a buffer of 5 has bounded daily cost: it only refills as the user
+    reads, never further.
+
+    Returns a summary dict for cron logging.
+    Skipped silently if the story has no unverified pages remaining beyond
+    the user's current position (whole book gated through, or buffer is
+    already past the end).
+    """
+    from app.models import Story as _Story
+
+    story = db.get(_Story, story_id)
+    if story is None:
+        return {"story_id": story_id, "error": "story not found"}
+
+    last_viewed = _last_viewed_page_number(db, story_id)
+    ahead_before = _verified_pages_ahead(db, story_id, last_viewed)
+
+    summary: dict = {
+        "story_id": story_id,
+        "story_title": story.title,
+        "last_viewed": last_viewed,
+        "ahead_before": ahead_before,
+        "pages_warmed": [],
+        "errors": [],
+    }
+
+    if ahead_before >= buffer:
+        summary["ahead_after"] = ahead_before
+        return summary
+
+    needed = buffer - ahead_before
+    if max_to_warm is not None:
+        needed = min(needed, max_to_warm)
+
+    candidates: list[Page] = (
+        db.query(Page)
+        .filter(
+            Page.story_id == story_id,
+            Page.page_number > last_viewed,
+            Page.mappings_verified_at.is_(None),
+        )
+        .order_by(Page.page_number.asc())
+        .limit(needed)
+        .all()
+    )
+
+    for page in candidates:
+        try:
+            process_page(db, page)
+        except Exception as e:
+            log.warning("warm_pages_ahead: page %d of story %d failed: %s",
+                        page.page_number, story_id, e)
+            summary["errors"].append((page.page_number, str(e)))
+            continue
+        # Only count it as warmed if the quality gate actually finished.
+        db.refresh(page)
+        if page.mappings_verified_at is not None:
+            summary["pages_warmed"].append(page.page_number)
+
+    summary["ahead_after"] = _verified_pages_ahead(db, story_id, last_viewed)
+    return summary
+
+
+def warm_all_active_stories(
+    db: Session,
+    language_code: str,
+    *,
+    buffer: int = DEFAULT_PAGES_AHEAD_BUFFER,
+    max_to_warm_per_story: int | None = None,
+) -> list[dict]:
+    """Run warm_pages_ahead for every active story in ``language_code``.
+
+    Used by the cron wrapper. Iterates stories oldest-first so newly-imported
+    books don't starve out the one the user is actively reading.
+    """
+    from app.models import Story as _Story
+
+    stories = (
+        db.query(_Story)
+        .filter(_Story.language_code == language_code, _Story.status == "active")
+        .order_by(_Story.created_at.asc())
+        .all()
+    )
+    summaries: list[dict] = []
+    for story in stories:
+        s = warm_pages_ahead(
+            db,
+            story_id=story.id,
+            buffer=buffer,
+            max_to_warm=max_to_warm_per_story,
+        )
+        summaries.append(s)
+    return summaries
+
