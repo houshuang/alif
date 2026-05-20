@@ -114,6 +114,9 @@ Prefer focused sessions. If a task has 4+ distinct parts, suggest breaking into 
 ## Check Prior Work Before Proposing Pipeline Fixes
 - [Details](feedback_check_prior_work_first.md) — For long-iterated areas (gen pipeline / FSRS / sentence selector / validator / lemma quality), the first three reads before drafting a fix are `git log -3mo`, `grep IDEAS.md docs/scripts-catalog.md research/experiment-log.md`, and `ls backend/scripts/`. Codified as CLAUDE.md Critical Rule #14. Caught 2026-05-03 about to weaken same_lemma + re-add lookup_lemma + miss two existing scripts.
 
+## Polyglot Mirrors Alif's Design and Code (2026-05-20)
+- [Details](feedback_polyglot_mirror_alif.md) — When working in polyglot/, mirror Alif by default. Divergence only for specific Greek/Latin-driven reasons. Read Alif's equivalent file FIRST before designing any polyglot screen/service. Don't ask UX questions Alif has already answered. Caught 2026-05-20: asked AskUserQuestion about polyglot sentence-review UX before reading Alif's index.tsx.
+
 ## Verify Before Recommending
 - [Details](feedback_verify_before_recommending.md) — Check crontab before "you should run X"; check denominator filter symmetry before quoting a ratio. Got caught twice same session (2026-04-21).
 

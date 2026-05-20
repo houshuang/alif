@@ -18,10 +18,33 @@ This is the **second backend** in the `alif/` monorepo. It is *not* Alif. It ser
 
 **Same monorepo, totally separate code.** `backend/` does not import from `polyglot/` and vice versa. The frontend (`frontend/`) talks to *both* — the active backend is chosen by the user's language selection (see `frontend/lib/language-context.tsx`).
 
+## Ground design and code in Alif
+
+**Alif is 100+ days of iteration and daily real-user testing.** Every UI affordance, scheduling constant, gate, review semantic, payload shape, button label, and empty-state copy line in Alif has a history — a bug, a confusion, a feature request, a thing that worked after several that didn't. Polyglot is not a fresh design exercise. It is a port. **Mirror Alif by default. Divergence requires a specific Greek/Latin-driven reason, recorded in the change itself (PR body, CLAUDE.md note, or experiment log).**
+
+Concretely, this applies to:
+
+- **UI / UX.** Before designing or porting any screen, read Alif's equivalent file (the actual TSX, not just the docs). Sentence card layout, two-stage reveal, per-word tap semantics, action-row positioning, button labels (including the toggling label trick — see Alif's "Know All" → "Continue" middle button), tashkeel-toggle analogues, empty-state copy, session-end framing. Do not invent a "cleaner" rating model, a "simpler" partial flow, or a "more modern" gesture. Real users have already filtered Alif's choices.
+- **Scheduling / SRS values.** FSRS desired-retention, Leitner intervals (4h / 1d / 3d), daily intro cap (30), tier graduation thresholds, leech detection window (8 reviews, <50%), comprehension-aware cooldowns (7d / 2d / 4h) — copy verbatim. Polyglot doesn't have its own data yet to justify a refit.
+- **Data model + API shape.** Field names, payload structure, idempotency keys (`client_review_id`), enum string values (`understood` / `partial` / `no_idea`, not `understood` / `partial` / `none`). Phase-2 `alif_core` extraction will be vastly easier if both backends already speak the same dialect.
+- **Code structure.** Where reasonable, mirror file layout, function names, and helper boundaries. `submit_sentence_review`, `start_acquisition`, `_intro_shown_recently` — same names. Future diffing into shared code expects this.
+
+**Specific, defensible reasons to diverge — language-driven, not preference-driven:**
+
+- Arabic-specific machinery doesn't apply: clitic stripping, awzān, tashkeel toggle, Hindawi-tier seed selection, CAMeL Tools morphology, root-pattern reasoning, mappings against an Arabic frequency core. **Cut, don't port.**
+- Greek/Latin-specific needs that Alif doesn't have: simplemma lemmatization, accent restoration on all-caps headings, Modern↔Ancient cognate auto-linking, L1 cognate detection (φιλοσοφία → philosophy). **Add, don't try to retrofit into Alif's shape.**
+- Endpoints polyglot has intentionally not built yet (no TTS → no `audio_play_count`, no confusion-help service → no `confusion_candidate_lemma_ids`, no intro cards → no `experiment_intro_shown_at`). When porting an Alif client call, **drop the fields the polyglot backend doesn't accept** rather than inventing a stub.
+
+**Before introducing a feature or making a design choice without an Alif analogue**: search Alif first. If Alif doesn't have it, ask which case applies:
+1. Alif doesn't need it (e.g. cognate auto-linking — Arabic has fewer transparent cognates). Adding it in polyglot is fine.
+2. Alif hasn't implemented it yet but plans to (suspect). Mirror Alif's absence — don't preempt Alif's eventual design, because when Alif does add it, you'll either have to retrofit polyglot to match or fork the design permanently. Neither is what we want.
+
+The Phase-2 `alif_core` extraction (see bottom of this file) is the eventual payoff for this discipline. The more divergent polyglot becomes from Alif, the smaller the shared surface, and the more we end up maintaining two divergent systems forever.
+
 ## When working in polyglot/
 
 - **Always run `polyglot/.venv/bin/python`**, not `backend/.venv/bin/python`. The venvs have incompatible binary deps (Arabic uses arm64 torch, polyglot has its own setup).
-- **Don't reach into `backend/`** for "I'll just copy this Alif service." Most of Alif's code carries Arabic-specific assumptions (clitic stripping, awzān, tashkeel, Hindawi corpus). When you need a piece of FSRS / acquisition / session-building, port it deliberately as part of the Phase-2 `alif_core` extraction — don't copy verbatim.
+- **Code-port discipline (complements the design rule above).** When porting an Alif service, read it before you write the polyglot version, then strip Arabic-specific assumptions (clitic stripping, awzān, tashkeel, Hindawi corpus) and keep the rest. Don't copy verbatim — port deliberately, mindful of Phase-2 `alif_core` extraction — but don't reinvent either.
 - **Don't apply Arabic invariants to Greek.** The "no auto-create lemmas" rule from Alif's CLAUDE.md was tuned for the bookCorpus + LLM-generated-sentence pipeline. In polyglot, the LLM quality gate is *allowed* to create new Lemma rows (with `source='quality_gate'`) because the source of truth is an authentic imported text and the correct lemma must be representable. See `app/services/lemma_quality.py` — there's a comment block making this explicit.
 - **Use `simplemma` for lemmatization, not GR-NLP-TOOLKIT.** GR-NLP-TOOLKIT 0.3.0 does not include a lemmatizer — only POS, NER, morphology, dependency parsing. We learned this the hard way (see commit history). For Modern Greek lemmas: simplemma. For richer POS/morph (when needed): GR-NLP-TOOLKIT.
 - **The HuggingFace cache is project-local.** `app/services/languages/el.py` sets `HF_HOME` to `polyglot/data/hf_cache/` *at module import time* — must run before any transformers/torch import. Don't move it out of that file or you'll re-trigger the sandbox-write permission error.
@@ -68,7 +91,7 @@ These should be preserved across changes:
 | Gloss-on-demand | **Ported** | `lemma_gloss.py` runs only when user marks unknown |
 | `--json-schema` for constrained CLI decoding | **Ported** | Uses `structured_output` field |
 | Two-phase commit (NLP work outside DB transaction) | **Ported** | `process_page` does compute-then-write |
-| No bare word cards (sentences only) | **Ported** | Read- and write-side both wired. Read-side: `sentence_selector.pick_sentence_for_lemma` + `sentence_selector.build_session` (PR #3) → `GET /api/reviews/next-sentence` and `GET /api/reviews/session`. Write-side: `sentence_review_service.submit_sentence_review` + `POST /api/reviews/submit-sentence` (PR #2). The bare-word `POST /api/reviews/submit` endpoint stays as the transitional UX path from PR #86 until the frontend (PR #5) switches over. |
+| No bare word cards (sentences only) | **Ported** | Read- and write-side both wired and now served end-to-end. Read-side: `sentence_selector.pick_sentence_for_lemma` + `sentence_selector.build_session` (PR #3) → `GET /api/reviews/next-sentence` and `GET /api/reviews/session`. Write-side: `sentence_review_service.submit_sentence_review` + `POST /api/reviews/submit-sentence` (PR #2). Frontend: `frontend/app/polyglot-review.tsx` (PR #5) is now a sentence card — two-stage reveal, per-word tap cycling off → missed (red) → confused (yellow), 3-signal comprehension model, middle button label toggles "Know All"↔"Continue" based on marks. Mirrors Alif's `SentenceReadingCard` + `ReadingActions` design verbatim, with Arabic-specific bits cut (tashkeel toggle, transliteration, lookup panel, confusion analysis, intro cards, audio). The bare-word `POST /api/reviews/submit` endpoint remains for ad-hoc lookups but is no longer the primary review surface. |
 | Sentence review (per-word credit, collateral semantics) | **Ported** | `sentence_review_service.py` — distributes one comprehension signal across every content lemma in the sentence (target + collateral), honouring Hard Invariant FOUNDATIONAL. Function words and proper names skipped. Variant-in → canonical-out at function entry. Cap-deferred encountered words bump `total_encounters` without a review. New tables: `sentence_review_log`; new ReviewLog columns: `credit_type`, `was_confused`. Includes `undo_sentence_review` that restores pre-state from `fsrs_log_json` snapshots. |
 | FSRS scheduling | **Ported** | `fsrs_service.py` — py-fsrs v6, desired_retention=0.95 (Alif's optimizer fit; refit when polyglot has its own data). Mnemonic regeneration deferred. |
 | Acquisition Leitner 3-box | **Ported** | `acquisition_service.py` — 4h/1d/3d intervals + tiered graduation (Tier 0 first-correct, Tier 1 100%, Tier 2 ≥80%, Tier 3 standard). Intro-card working-memory gate NOT ported (polyglot has no intro cards yet — see note below). |
