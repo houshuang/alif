@@ -23,6 +23,7 @@ from pathlib import Path
 from sqlalchemy.orm import Session
 
 from app.models import Lemma, Story, Page, PageWord, UserLemmaKnowledge
+from app.services import body_clean as body_clean_svc
 from app.services import pdf_extract
 from app.services.cognate_detector import link_intra_greek_cognates, propagate_known_via_cognate
 from app.services import lemma_quality
@@ -126,8 +127,26 @@ def process_page(db: Session, page: Page, *, force: bool = False) -> Page:
     provider: NLPProvider = get_provider(page.story.language_code)
     language_code = page.story.language_code
 
+    # Phase 0: structural cleanup (LLM). Strips page numbers, headers, footers,
+    # bibliographies, footnote definitions; joins soft-hyphen line breaks;
+    # detaches footnote-marker digits fused into words. Persisted on the Page
+    # so re-tokenization doesn't pay the LLM cost twice. Falls back to
+    # body_src on LLM failure — tokenizer still works, just on noisier input.
+    if body_clean_svc.BODY_CLEAN_ENABLED and (page.body_clean is None or force):
+        result = body_clean_svc.clean_body(page.body_src, language_code)
+        if result is not None:
+            page.body_clean = result.cleaned
+            db.commit()
+            log.info(
+                "Cleaned page %d: %d→%d chars, %d removed segments, %d hyphen-joins",
+                page.id, len(page.body_src), len(result.cleaned),
+                len(result.removed), len(result.hyphen_joins),
+            )
+
+    source_text = page.body_clean if page.body_clean else page.body_src
+
     # Phase 1: pure compute
-    sentences = _split_into_sentences(page.body_src)
+    sentences = _split_into_sentences(source_text)
     tokens_with_meta: list[tuple[int, Token, int]] = []  # (sentence_idx, token, global_pos)
     global_pos = 0
     for s_idx, sentence in enumerate(sentences):

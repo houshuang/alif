@@ -266,6 +266,7 @@ class Page(Base):
     story_id = Column(Integer, ForeignKey("stories.id"), nullable=False, index=True)
     page_number = Column(Integer, nullable=False)
     body_src = Column(Text, nullable=False)
+    body_clean = Column(Text, nullable=True)               # Haiku-cleaned prose; tokenizer reads from here when set
     processed_at = Column(DateTime, nullable=True)         # tokenized + simplemma lemmatized
     mappings_verified_at = Column(DateTime, nullable=True) # quality gate (LLM-in-context) pass
     viewed_at = Column(DateTime, nullable=True)            # last time user opened the page

@@ -55,6 +55,8 @@ These should be preserved across changes:
 
 1. **Lazy page processing.** Pages are tokenized + LLM-verified only when first viewed (`GET /api/texts/{sid}/pages/{n}`). Importing a 300-page textbook must be fast — the cost is paid per-page-view, not upfront. Implemented in `app/services/reading_intake.py:process_page`.
 
+   Two LLM passes happen per page: (a) **body-clean** (Haiku, `body_clean.py`) — strips page numbers, headers, footers, bibliographies, footnote definitions; joins soft-hyphen line breaks; detaches footnote-marker digits fused to words. Cleaned prose lands in `page.body_clean` and the tokenizer reads from there. (b) **quality gate** (Sonnet, `lemma_quality.py`) — per-token lemma verification. The body-clean pass runs first because it dictates what the tokenizer sees; sending raw PyMuPDF text to the tokenizer creates phantom lemmas (`σιτηρών1`, `μη`, `χάνημα`, etc.) the user will never want to learn. Gated by `POLYGLOT_BODY_CLEAN=1` (default on); falls back to raw `body_src` on LLM failure.
+
 2. **Quality gate is the lemmatization safety net.** simplemma misclassifies homographs (χώρα → χωρώ), proper nouns (Τίγρης → τίγρη), POS confusions (adj↔noun). The LLM-in-context gate (`app/services/lemma_quality.py`) catches these. Enabled by `POLYGLOT_QUALITY_GATE=1`. **Do not skip this for "speed" — Alif spent months retroactively fixing bad mappings; we don't redo that mistake here.** Cost per page on Sonnet: ~$0.30-0.50, ~2-3 minutes (gated by Claude Max plan so it's free to the user). Model is switchable via `POLYGLOT_QG_MODEL=haiku` (~10x cheaper) once homograph quality is validated.
 
 3. **Bulk-mark presumes content lemmas only.** `bulk_mark_remaining_known()` skips lemmas where `word_category='function_word'` OR `lemma_bare` is in `FUNCTION_WORD_SETS`. This list is intentionally conservative; add to it if real-world reading surfaces false positives. Heading sentences (≥80% all-caps tokens, ≤10 words) are marked `quality_note='heading'` by the quality gate and should be excluded from review eligibility — they're meta-text, not vocabulary.
@@ -81,6 +83,7 @@ These should be preserved across changes:
 
 | Alif gate | Polyglot status | File / notes |
 |---|---|---|
+| PDF body cleanup (page numbers, headers, footnotes, bibliographies, soft-hyphens) | **Ported (polyglot-original)** | `app/services/body_clean.py` — Haiku via CLI, verbatim-audit on removed segments (soft-hyphen + footnote-digit + control-char tolerant), persisted as `Page.body_clean`. Alif doesn't have this because Alif imports from cleaned corpora rather than raw PDFs. |
 | Lemma quality verification (sentence-context LLM check) | **Ported** | `app/services/lemma_quality.py` |
 | Mapping correction pipeline (`apply_corrections`) | **Ported** | `_apply_verdict()` in lemma_quality.py |
 | Verification failure ≠ success | **Ported** | `_call_claude` returns `None` on failure |
