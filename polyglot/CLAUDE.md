@@ -9,7 +9,7 @@ This is the **second backend** in the `alif/` monorepo. It is *not* Alif. It ser
 | Languages | Arabic (MSA) | Modern Greek, Ancient Greek, Latin |
 | Primary use case | FSRS-driven sentence review | Reading-as-mapping (intermediate learner) |
 | Port (dev) | 8000 | 3001 |
-| Port (prod) | 3000 | not yet deployed |
+| Port (prod) | 3000 | 3002 (port 3001 is occupied by an unrelated Next.js service on the shared host) |
 | DB file | `backend/alif.db` | `polyglot/polyglot.db` |
 | systemd service | `alif-backend` | (not yet) |
 | Python package | `alif-backend` | `polyglot-backend` |
