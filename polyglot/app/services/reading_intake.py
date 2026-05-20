@@ -4,12 +4,21 @@ Flow:
 1. **Import** (POST /api/texts) creates a Story and Page rows with raw text
    only — no tokenization. PDFs are extracted page-by-page; pastes become a
    single Page.
-2. **View page** (GET /api/texts/{story_id}/pages/{n}) tokenizes that page
-   on first request, creates Lemma rows for new lemmas (with NULL gloss),
-   creates PageWord rows, stamps `processed_at`. Subsequent views are cached.
-3. **Mark** (PATCH .../mark) updates UserLemmaKnowledge. When a lemma is
-   first marked `unknown`, we fetch a tiny gloss (deferred to a separate
-   service — for now the Lemma keeps NULL gloss).
+2. **View page** (GET /api/texts/{story_id}/pages/{n}) on first request:
+   - **Phase 0**: body-clean via Haiku (strips footers/footnotes/headers,
+     joins soft-hyphens; persisted to ``Page.body_clean``).
+   - **Phase 1**: simplemma tokenize + lemmatize the cleaned text.
+   - **Phase 2**: create Lemma rows for new bare forms, create PageWord
+     rows, stamp ``processed_at``. Commit.
+   - **Phase 2b**: batch-gloss every content lemma on the page in chunks
+     of 50 via Haiku; cached on ``Lemma.gloss_en`` for the DB lifetime so
+     subsequent encounters of the same lemma cost nothing.
+   - **Phase 3**: per-token quality gate (Sonnet) verifying lemma
+     assignments and stamping ``mappings_verified_at``.
+   Subsequent views early-return — no phases re-run unless ``force=True``.
+3. **Mark** (PATCH .../mark) updates UserLemmaKnowledge. Phase 2b means
+   ``mark_lemma(state='unknown')``'s ``ensure_gloss`` is usually a cache
+   hit; the single-form fallback only fires for batch-failed chunks.
 4. **Expand** (deferred) fetches etymology, examples, conjugations for a
    lemma on explicit request.
 """

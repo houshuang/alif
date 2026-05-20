@@ -1,13 +1,21 @@
-"""Tiny gloss generation — called on-demand when a user marks a lemma as
-'unknown' or otherwise wants a quick English equivalent.
+"""English-gloss generation for lemmas.
 
-Deferred from page processing per the "defer as much work as possible"
-directive: most words on a page are never looked up. We pay the LLM call only
-for the words the user actually engages with.
+Two entry points:
 
-Batched by the caller (e.g. mark a page of unknowns at once) — but the
-single-lemma path is fine for the modal's "mark unknown → see gloss" loop,
-since one Claude CLI call is ~2-3s and the modal can show a spinner.
+- ``ensure_glosses_batch(db, lemma_ids)`` — chunked batch over Haiku CLI.
+  Called from ``reading_intake.process_page`` Phase 2b so EVERY content
+  lemma on a page has a cached gloss by the time the user sees the page.
+  Chunks at ``POLYGLOT_GLOSS_CHUNK=50`` lemmas per call (Haiku drops
+  entries beyond that). Filters function words + proper names before the
+  LLM. Per-chunk commit keeps the SQLite write lock released between
+  calls (CLAUDE.md rule #10).
+- ``ensure_gloss(db, lemma_id)`` — single-lemma fallback called from
+  ``reading_intake.mark_lemma(state='unknown')``. Almost always a cache
+  hit after the batch pass; only fires for lemmas whose batch chunk
+  failed. ~3s when it does hit the LLM; the UI shows "…" during the wait.
+
+Cost: ~$0.001 per 50 lemmas on Haiku (free under Max plan). A fresh page
+of 200 lemmas is ~4 chunks ≈ 20s; subsequent pages mostly cache-hit.
 """
 from __future__ import annotations
 
