@@ -285,6 +285,7 @@ def _build_token_view(db: Session, page: Page) -> tuple[Page, list[dict]]:
             "pos": lemma.pos if lemma else None,
             "gloss_en": lemma.gloss_en if lemma else None,
             "is_function_word": lemma is not None and lemma.word_category == "function_word",
+            "is_heading": w.quality_note == "heading",
             "is_known": state == "known",
             "is_acquiring": state in ("acquiring", "learning"),
             "is_encountered": state == "encountered",
@@ -435,6 +436,53 @@ def mark_lemma(db: Session, lemma_id: int, state: str, *, fetch_gloss: bool = Tr
         propagate_known_via_cognate(db, lemma_id)
 
     return ulk
+
+
+# ─── Front-matter detection ───────────────────────────────────────────────
+
+
+def _is_content_page(body_src: str | None) -> bool:
+    """True iff this page looks like actual reading material.
+
+    Heuristic on raw extracted text (no NLP, no LLM):
+
+    - At least 200 characters of body — skips blanks and single-line dividers.
+    - At least 100 alphabetic characters — skips number-heavy index pages.
+    - Less than 40% of letters are uppercase — skips title pages, copyright
+      boilerplate (typeset entirely in caps), and pure-heading divider pages.
+
+    The thresholds are tuned for Greek school textbooks where front-matter is
+    typically the Ministry-of-Education copyright page (all caps), a TOC
+    (digit-heavy), a preface, and a chapter title page (caps + image
+    caption). Real prose pages comfortably clear the bar.
+    """
+    if not body_src or len(body_src) < 200:
+        return False
+    letters = [c for c in body_src if c.isalpha()]
+    if len(letters) < 100:
+        return False
+    uppercase_ratio = sum(1 for c in letters if c.isupper()) / len(letters)
+    return uppercase_ratio < 0.40
+
+
+def first_content_page_number(db: Session, story_id: int) -> int:
+    """Return the lowest page_number whose body_src passes ``_is_content_page``.
+
+    Falls back to 1 when the heuristic rejects every page (e.g. a brand-new
+    story where pages still haven't been imported, or a very short text where
+    no page reaches the threshold). The frontend uses this so the user lands
+    on actual reading material instead of a copyright page on first open.
+    """
+    rows = (
+        db.query(Page.page_number, Page.body_src)
+        .filter(Page.story_id == story_id)
+        .order_by(Page.page_number.asc())
+        .all()
+    )
+    for page_number, body_src in rows:
+        if _is_content_page(body_src):
+            return page_number
+    return 1
 
 
 # ─── Page warming (cron) ───────────────────────────────────────────────────

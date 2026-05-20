@@ -45,6 +45,12 @@ export type StorySummary = {
   unknown_count: number;
   status: string;
   created_at: string;
+  /**
+   * First page whose body_src passes the "looks like real reading content"
+   * heuristic — skips copyright pages, blank dividers, all-caps title pages.
+   * When the user opens a story, the reader should land here, not at page 1.
+   */
+  first_content_page_number: number;
 };
 
 export type TokenView = {
@@ -58,6 +64,10 @@ export type TokenView = {
   pos: string | null;
   gloss_en: string | null;
   is_function_word: boolean;
+  /** True iff the quality gate classified this token's sentence as a
+   *  heading (chapter/section title or running header). UI MUST NOT render
+   *  these inline with body prose. */
+  is_heading: boolean;
   is_known: boolean;
   is_acquiring: boolean;
   is_encountered: boolean;
