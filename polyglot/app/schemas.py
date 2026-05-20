@@ -96,7 +96,7 @@ class PageView(BaseModel):
 
 class MarkWordRequest(BaseModel):
     lemma_id: int
-    state: str = Field(..., description="'known' | 'unknown' | 'encountered' | 'ignore'")
+    state: str = Field(..., description="'known' | 'unknown' | 'encountered' | 'ignore' | 'clear'")
 
 
 # ─── User profile / cognates ───────────────────────────────────────────────

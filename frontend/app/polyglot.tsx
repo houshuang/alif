@@ -3,11 +3,12 @@
  *
  * UX model:
  *   1. **Story list** — pick a text (currently only the Greek history textbook).
- *   2. **Reading view** — colored tokens by knowledge state. Tap a content
- *      word → see lemma + gloss in a single line at the bottom (doesn't
- *      break reading flow). Tap "Unknown" / "Known" / "Encountered" inline.
- *   3. **Next page** — every un-tapped content word is presumed known.
- *      This is the central UX accelerator for intermediate learners.
+ *   2. **Reading view** — book typography, every word the same warm ink.
+ *      Tap a content word → it's marked unknown and the English gloss appears
+ *      at the bottom. No buttons, no state pickers — the act of tapping IS
+ *      the answer ("I don't know this one"). Misclicks get sorted in review.
+ *   3. **Next page** — every un-tapped content word is presumed known. The
+ *      only page-nav action; no Prev (forward reading only).
  *   4. **Lazy** — pages are tokenized + LLM-verified only when first viewed.
  *
  * Talks to the polyglot backend (separate from Alif). See polyglot-api.ts.
@@ -22,39 +23,40 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import {
   listStories, getPage, markWord, markRemainingKnown,
-  type StorySummary, type PageView, type TokenView, type MarkState,
+  type StorySummary, type PageView, type TokenView,
 } from "../lib/polyglot-api";
 import { renderTokens } from "../lib/polyglot-render-helpers";
 
 // Reading palette. We treat the page as a book, not a flashcard surface:
 // every word in body text renders in the same warm ink color, function
-// words included. Knowledge state is exposed only when the user explicitly
-// taps a word — see the lookup bar at the bottom and the `selectedHighlight`
-// style for the in-flow tap accent.
+// words included. The only in-body color signal is the user's *current
+// session* tap-cycle state — red (don't know) or yellow (recognize after
+// seeing English). Server-persisted knowledge state (the user's history
+// across sessions) is intentionally invisible in the prose so the reader
+// experience is the same on day 1 and day 50.
 const C = {
   bg: "#14121a",             // warm slate — softer than pure black for long reading
   surface: "#1d1a26",        // bottom-bar surface
   border: "#2f2a3a",
   ink: "#ede4cf",            // body text — warm off-white, "paper ink"
   inkMuted: "#a89c83",       // for chrome (page number, headers)
-  accent: "#a98ef0",          // tap highlight + chevrons
-  // State colors — used ONLY in the lookup bar and tap state, never in body
-  known: "#3a3a52",
-  acquiring: "#d4a06b",
-  encountered: "#506a8e",
-  unknown: "#c95f6f",
-  ignored: "#3a3a3a",
+  accent: "#a98ef0",         // selection underline
+  cycleRed: "#c95f6f",       // tap 1: "no idea" — full SRS enrollment
+  cycleYellow: "#d4a06b",    // tap 2: "recognize after seeing English"
 };
 
-// The lookup-bar uses these colors to indicate state. Body text never does.
-function lookupStateColor(t: TokenView): string {
-  if (t.is_known) return C.known;
-  if (t.is_unknown) return C.unknown;
-  if (t.is_acquiring) return C.acquiring;
-  if (t.is_encountered) return C.encountered;
-  if (t.is_ignored) return C.ignored;
-  return C.accent;
-}
+// Tap-cycle positions, in order. Tapping a word advances by one position
+// (wrapping after the third). See handleTap. The third position is a true
+// "unmark" — the backend deletes the ULK row and the body styling reverts.
+//
+// Why "no_idea" / "recognize" rather than the backend's "unknown" /
+// "encountered" terms: the backend names describe SRS lifecycle stages;
+// these names describe what the user is *expressing* with the tap.
+const CYCLE: { state: "unknown" | "encountered" | "clear"; label: string }[] = [
+  { state: "unknown",     label: "no idea" },
+  { state: "encountered", label: "recognize" },
+  { state: "clear",       label: "untapped" },
+];
 
 export default function Polyglot() {
   const router = useRouter();
@@ -64,6 +66,13 @@ export default function Polyglot() {
   const [pageData, setPageData] = useState<PageView | null>(null);
   const [loading, setLoading] = useState(false);
   const [selected, setSelected] = useState<TokenView | null>(null);
+  // Per-page tap-cycle positions, keyed by lemma_id. 0 = unknown (red),
+  // 1 = encountered (yellow), 2 = clear (no state). Tapping a word advances
+  // by one (wrapping). Reset on page change so each page is its own
+  // independent session of taps. Same lemma appearing at two positions on
+  // one page shares state — natural since both are the same word.
+  const [cyclePositions, setCyclePositions] = useState<Record<number, number>>({});
+  const [glossByLemma, setGlossByLemma] = useState<Record<number, string | null>>({});
   const [bulkMarking, setBulkMarking] = useState(false);
   const scrollRef = useRef<ScrollView>(null);
   const insets = useSafeAreaInsets();
@@ -73,6 +82,8 @@ export default function Polyglot() {
   const loadPage = useCallback(async (sid: number, p: number) => {
     setLoading(true);
     setSelected(null);
+    setCyclePositions({});
+    setGlossByLemma({});
     try {
       const data = await getPage(sid, p);
       setPageData(data);
@@ -95,27 +106,38 @@ export default function Polyglot() {
     loadPage(storyId, startPage);
   }, [storyId, loadPage, stories]);
 
-  const handleMark = useCallback(async (state: MarkState) => {
-    if (!selected?.lemma_id || !storyId) return;
+  // Tap-cycle handler. The act of tapping a word advances its position in
+  // the three-state cycle:
+  //   tap 1 → "no idea" (red, enrols in SRS)
+  //   tap 2 → "recognize" (yellow, light tracking, no SRS)
+  //   tap 3 → "untapped" (clear, ULK deleted, treated as if never tapped)
+  //   tap 4 → back to "no idea"
+  // Tapping a different word selects it fresh at position 0. The backend
+  // ALWAYS receives the resulting state, including "clear" which truly
+  // deletes the ULK (see reading_intake.mark_lemma).
+  const handleTap = useCallback(async (t: TokenView) => {
+    if (!t.lemma_id || !storyId) return;
+    const lemmaId = t.lemma_id;
+    // Advance from whatever this lemma's last cycle position was (even if
+    // the focus has since moved to another word). Re-tapping a lemma always
+    // means "advance one more position" — not "reset to red." Otherwise
+    // glancing at a different word, then returning, would silently undo the
+    // earlier cycle progress.
+    const nextPos = ((cyclePositions[lemmaId] ?? -1) + 1) % CYCLE.length;
+    const nextState = CYCLE[nextPos].state;
+
+    setSelected(t);
+    setCyclePositions((prev) => ({ ...prev, [lemmaId]: nextPos }));
+
     try {
-      const res = await markWord(storyId, selected.lemma_id, state);
-      // Optimistic update of the selected token so user sees feedback instantly
-      setSelected({
-        ...selected,
-        is_known: state === "known",
-        is_unknown: state === "unknown",
-        is_encountered: state === "encountered",
-        is_ignored: state === "ignore",
-        is_new: false,
-        gloss_en: res.gloss_en ?? selected.gloss_en,
-      });
-      // Re-fetch page for full coloring update — small page, so cheap
-      const fresh = await getPage(storyId, pageNumber);
-      setPageData(fresh);
+      const res = await markWord(storyId, lemmaId, nextState);
+      if (res.gloss_en != null) {
+        setGlossByLemma((prev) => ({ ...prev, [lemmaId]: res.gloss_en }));
+      }
     } catch (e) {
-      console.warn("Mark failed:", e);
+      console.warn(`Tap-cycle to ${nextState} failed:`, e);
     }
-  }, [selected, storyId, pageNumber]);
+  }, [selected, cyclePositions, storyId]);
 
   const handleNextPage = useCallback(async () => {
     if (!pageData || !storyId) return;
@@ -128,10 +150,6 @@ export default function Polyglot() {
       setBulkMarking(false);
     }
   }, [pageData, storyId, pageNumber, loadPage]);
-
-  const handlePrevPage = useCallback(() => {
-    if (storyId && pageNumber > 1) loadPage(storyId, pageNumber - 1);
-  }, [storyId, pageNumber, loadPage]);
 
   // ─── Story list ──────────────────────────────────────────────────────
   if (storyId == null) {
@@ -198,15 +216,22 @@ export default function Polyglot() {
                 // continuous prose.
                 pageData.tokens.filter((t) => !t.is_heading),
               ).map((span, i) => {
+                const lemmaId = span.token.lemma_id;
+                const cyclePos = lemmaId != null ? cyclePositions[lemmaId] : undefined;
+                const cycleStyle =
+                  cyclePos === 0 ? styles.tokenCycleRed
+                  : cyclePos === 1 ? styles.tokenCycleYellow
+                  : undefined;
                 const isSelected =
                   selected != null && selected.position === span.token.position;
+                const tokenStyle = cycleStyle ?? (isSelected ? styles.tokenSelected : styles.token);
                 return (
-                  <Text key={i} style={isSelected ? styles.tokenSelected : styles.token}>
+                  <Text key={i} style={tokenStyle}>
                     {span.leadingSpace}
                     <Text
                       onPress={
                         !span.isPunctuation && span.token.lemma_id
-                          ? () => setSelected(span.token)
+                          ? () => handleTap(span.token)
                           : undefined
                       }
                     >
@@ -220,61 +245,41 @@ export default function Polyglot() {
         </ScrollView>
       )}
 
-      {/* Single-line lookup bar — doesn't break reading flow */}
-      {selected && (
-        <View style={styles.lookupBar}>
-          <View style={styles.lookupRow}>
-            <Text style={styles.lookupSurface}>{selected.surface}</Text>
-            {selected.lemma_form && selected.lemma_form !== selected.surface && (
-              <Text style={styles.lookupLemma}> · {selected.lemma_form}</Text>
-            )}
-            {selected.pos && <Text style={styles.lookupPos}> · {selected.pos.toLowerCase()}</Text>}
-            <Text style={styles.lookupGloss} numberOfLines={1}>
-              {selected.gloss_en
-                ? `  →  ${selected.gloss_en}`
-                : "  →  (mark unknown to fetch gloss)"}
-            </Text>
-            <Pressable onPress={() => setSelected(null)} style={styles.lookupClose}>
-              <Ionicons name="close" size={20} color={C.inkMuted} />
-            </Pressable>
+      {/* Lookup bar — surface word + English gloss + close. No lemma,
+          no POS, no action buttons. Cycle dot reflects current tap state. */}
+      {selected && selected.lemma_id != null && (() => {
+        const lemmaId = selected.lemma_id;
+        const pos = cyclePositions[lemmaId];
+        const dotColor =
+          pos === 0 ? C.cycleRed
+          : pos === 1 ? C.cycleYellow
+          : C.inkMuted;
+        const gloss = glossByLemma[lemmaId] ?? selected.gloss_en;
+        return (
+          <View style={styles.lookupBar}>
+            <View style={styles.lookupRow}>
+              <View style={[styles.lookupDot, { backgroundColor: dotColor }]} />
+              <Text style={styles.lookupSurface}>{selected.surface}</Text>
+              <Text style={styles.lookupGloss} numberOfLines={2}>
+                {gloss ? `  ${gloss}` : "  …"}
+              </Text>
+              <Pressable onPress={() => setSelected(null)} style={styles.lookupClose}>
+                <Ionicons name="close" size={20} color={C.inkMuted} />
+              </Pressable>
+            </View>
           </View>
-          <View style={styles.lookupActions}>
-            <Pressable style={[styles.actionBtn, { backgroundColor: C.known }]}
-              onPress={() => handleMark("known")}>
-              <Text style={styles.actionText}>Known</Text>
-            </Pressable>
-            <Pressable style={[styles.actionBtn, { backgroundColor: C.unknown }]}
-              onPress={() => handleMark("unknown")}>
-              <Text style={styles.actionText}>Unknown</Text>
-            </Pressable>
-            <Pressable style={[styles.actionBtn, { backgroundColor: C.encountered }]}
-              onPress={() => handleMark("encountered")}>
-              <Text style={styles.actionText}>Encountered</Text>
-            </Pressable>
-            <Pressable style={[styles.actionBtn, { backgroundColor: C.ignored }]}
-              onPress={() => handleMark("ignore")}>
-              <Text style={styles.actionText}>Ignore</Text>
-            </Pressable>
-          </View>
-        </View>
-      )}
+        );
+      })()}
 
-      {/* Page nav */}
+      {/* Page nav — single "Next" button. No Prev (forward reading only). */}
       <View style={styles.pageNav}>
-        <Pressable
-          style={[styles.navBtn, pageData?.page_number === 1 && styles.navBtnDisabled]}
-          onPress={handlePrevPage}
-          disabled={pageData?.page_number === 1}
-        >
-          <Text style={styles.navBtnText}>‹ Prev</Text>
-        </Pressable>
         <Pressable
           style={[styles.navBtnPrimary, bulkMarking && styles.navBtnDisabled]}
           onPress={handleNextPage}
           disabled={!pageData || pageData.page_number >= pageData.total_pages || bulkMarking}
         >
           <Text style={styles.navBtnPrimaryText}>
-            {bulkMarking ? "Marking…" : "Next → (presume rest known)"}
+            {bulkMarking ? "Marking…" : "Next →"}
           </Text>
         </Pressable>
       </View>
@@ -340,32 +345,42 @@ const styles = StyleSheet.create({
   tokenSelected: {
     fontSize: BODY_FONT_SIZE,
     lineHeight: BODY_LINE_HEIGHT,
-    color: C.accent,
+    color: C.ink,
     fontFamily: SERIF,
     textDecorationLine: "underline",
     textDecorationColor: C.accent,
   },
+  // In-body cycle colors. Underline + tinted text so the cycle state is
+  // visible without losing the prose's serif feel.
+  tokenCycleRed: {
+    fontSize: BODY_FONT_SIZE,
+    lineHeight: BODY_LINE_HEIGHT,
+    color: C.cycleRed,
+    fontFamily: SERIF,
+    textDecorationLine: "underline",
+    textDecorationColor: C.cycleRed,
+  },
+  tokenCycleYellow: {
+    fontSize: BODY_FONT_SIZE,
+    lineHeight: BODY_LINE_HEIGHT,
+    color: C.cycleYellow,
+    fontFamily: SERIF,
+    textDecorationLine: "underline",
+    textDecorationColor: C.cycleYellow,
+  },
 
   lookupBar: { backgroundColor: C.surface, borderTopWidth: 1, borderColor: C.border,
-               paddingVertical: 12, paddingHorizontal: 20 },
+               paddingVertical: 14, paddingHorizontal: 20 },
   lookupRow: { flexDirection: "row", alignItems: "center", flexWrap: "nowrap" },
+  lookupDot: { width: 10, height: 10, borderRadius: 5, marginRight: 10 },
   lookupSurface: { color: C.ink, fontSize: 17, fontWeight: "600", fontFamily: SERIF },
-  lookupLemma: { color: C.inkMuted, fontSize: 15, fontFamily: SERIF },
-  lookupPos: { color: C.accent, fontSize: 11, textTransform: "uppercase", letterSpacing: 0.6 },
-  lookupGloss: { color: C.ink, fontSize: 14, flex: 1, fontFamily: SERIF },
-  lookupClose: { padding: 4 },
-  lookupActions: { flexDirection: "row", marginTop: 10, gap: 6 },
-  actionBtn: { flex: 1, paddingVertical: 9, borderRadius: 8, alignItems: "center" },
-  actionText: { color: C.ink, fontSize: 12, fontWeight: "600", letterSpacing: 0.3 },
+  lookupGloss: { color: C.ink, fontSize: 15, flex: 1, fontFamily: SERIF },
+  lookupClose: { padding: 4, marginLeft: 8 },
 
-  pageNav: { flexDirection: "row", justifyContent: "space-between",
-             paddingHorizontal: 20, paddingVertical: 14, gap: 8,
+  pageNav: { paddingHorizontal: 20, paddingVertical: 14,
              borderTopWidth: 1, borderColor: C.border, backgroundColor: C.surface },
-  navBtn: { paddingVertical: 12, paddingHorizontal: 18, borderRadius: 8,
-            backgroundColor: C.bg, borderWidth: 1, borderColor: C.border },
-  navBtnPrimary: { flex: 1, paddingVertical: 12, paddingHorizontal: 18, borderRadius: 8,
+  navBtnPrimary: { paddingVertical: 12, paddingHorizontal: 18, borderRadius: 8,
                    backgroundColor: C.accent, alignItems: "center" },
   navBtnDisabled: { opacity: 0.4 },
-  navBtnText: { color: C.ink, fontSize: 14 },
-  navBtnPrimaryText: { color: "#14121a", fontSize: 14, fontWeight: "700", letterSpacing: 0.4 },
+  navBtnPrimaryText: { color: "#14121a", fontSize: 15, fontWeight: "700", letterSpacing: 0.4 },
 });

@@ -85,7 +85,7 @@ export type PageView = {
   tokens: TokenView[];
 };
 
-export type MarkState = "known" | "unknown" | "encountered" | "ignore";
+export type MarkState = "known" | "unknown" | "encountered" | "ignore" | "clear";
 
 export type CognateInfo = {
   lang: string;

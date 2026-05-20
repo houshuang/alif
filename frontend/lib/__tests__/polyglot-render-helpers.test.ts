@@ -107,6 +107,32 @@ describe("renderTokens — soft-hyphen joining", () => {
     expect(joined([tok("Αυστραλο-Ασιατικός"), tok(",")]))
       .toBe("Αυστραλο-Ασιατικός,");
   });
+
+  it("does NOT join words across an en-dash (Greek parenthetical)", () => {
+    // The visible bug at page 11: tokens around `Τίγρης – ανατολικά – και`
+    // had the en-dashes silently consumed, producing `Τίγρηςανατολικάκαι`.
+    // En-dash (U+2013) is a parenthetical marker in Greek, NOT a
+    // line-break soft-hyphen. The dashes must survive into the output.
+    const tokens = [
+      tok("Τίγρης"), tok("–", { is_punctuation: true }),
+      tok("ανατολικά"), tok("–", { is_punctuation: true }),
+      tok("και"),
+    ];
+    const out = joined(tokens);
+    expect(out).toContain("Τίγρης");
+    expect(out).toContain("ανατολικά");
+    expect(out).toContain("και");
+    expect(out).toContain("–");
+    expect(out).not.toContain("Τίγρηςανατολικά");
+    expect(out).not.toContain("ανατολικάκαι");
+  });
+
+  it("does NOT join words across a non-breaking hyphen (U+2011)", () => {
+    // Same logic: non-breaking hyphen explicitly does NOT line-break, so
+    // dropping it would be wrong.
+    const tokens = [tok("A"), tok("‑"), tok("B")];
+    expect(joined(tokens)).toContain("‑");
+  });
 });
 
 describe("renderTokens — combined real-world example", () => {
