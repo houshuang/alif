@@ -268,6 +268,7 @@ class Page(Base):
     body_src = Column(Text, nullable=False)
     processed_at = Column(DateTime, nullable=True)         # tokenized + simplemma lemmatized
     mappings_verified_at = Column(DateTime, nullable=True) # quality gate (LLM-in-context) pass
+    viewed_at = Column(DateTime, nullable=True)            # last time user opened the page
     quality_gate_failures = Column(Integer, default=0)     # tokens the gate left as 'unclear'
     total_words = Column(Integer, default=0)
     known_count = Column(Integer, default=0)

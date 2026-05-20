@@ -71,11 +71,20 @@ def get_story(story_id: int, db: Session = Depends(get_db)):
 
 @router.get("/{story_id}/pages/{page_number}", response_model=PageView)
 def get_page(story_id: int, page_number: int, db: Session = Depends(get_db)):
-    """Lazy: tokenizes + lemmatizes on first request."""
+    """Lazy: tokenizes + lemmatizes on first request.
+
+    Stamps ``page.viewed_at`` after the (possibly slow) processing returns —
+    this is the signal `warm_pages_ahead` uses to decide which pages need
+    pre-warming. Cron-warmed pages don't stamp this; only actual user views do.
+    """
+    from datetime import datetime, timezone
+
     result = reading_intake.get_page_view(db, story_id, page_number)
     if result is None:
         raise HTTPException(status_code=404, detail="Page not found")
     page, tokens = result
+    page.viewed_at = datetime.now(timezone.utc)
+    db.commit()
     total_pages = (
         db.query(func.count(Page.id)).filter(Page.story_id == story_id).scalar() or 0
     )

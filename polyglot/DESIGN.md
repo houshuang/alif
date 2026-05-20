@@ -440,6 +440,36 @@ client_review_id (unique). Used for undo.
 
 ## 8. Core systems
 
+### 8.0 Page pre-warming (cron — added 2026-05-20)
+
+To avoid the 2-3 min Sonnet wait when the user flips to a fresh page, a
+cron task keeps a configurable buffer (default 5) of *already-verified*
+pages ahead of the user's last-viewed position. The signal:
+
+- `Page.viewed_at` — stamped by `GET /api/texts/{sid}/pages/{n}` on each
+  user view. Cron-warmed pages do NOT stamp it; only real opens do.
+- `last_viewed = max(page_number where viewed_at IS NOT NULL)` per story.
+- `pages_ahead = count(page_number > last_viewed AND mappings_verified_at IS NOT NULL)`.
+- If `pages_ahead < buffer`, the cron processes the next pages forward
+  until the buffer fills.
+
+Mechanics live in `reading_intake.warm_pages_ahead(story_id, buffer=5)`
+and `warm_all_active_stories(language_code)`. CLI:
+`scripts/warm_pages_ahead.py`. Cron entry-point:
+`deploy/polyglot-update-material.sh` runs this phase *before* the
+sentence-cache warm — newly verified pages are the source of new
+lemmas that the sentence cache then needs to cover.
+
+**Cost shape**: bounded by reading speed. The buffer only refills as
+the user advances. Per-page Sonnet quality-gate is ~$0.30-0.50. Worst
+case per cron pass: 5 pages = ~$2.50. If you read 0 pages, the cron
+does 0 work.
+
+**Known limitation**: skipping pages (read page 100 before pages 1-99)
+leaves earlier pages lazy — next time you go back, you eat the wait.
+Acceptable for sequential reading; revisit if random-access becomes
+common.
+
 ### 8.1 Reading-as-mapping (the entry flow)
 
 The flow that defines polyglot. Inspired by Tadoku-style extensive reading
@@ -1144,6 +1174,9 @@ proof-of-shape, not proof-of-concept.
 | `POLYGLOT_BATCH_WORD_SIZE`        | `4`         | Target lemmas per generation batch                              |
 | `POLYGLOT_SENTENCES_PER_TARGET`   | `2`         | Sentences requested per lemma per batch                          |
 | `POLYGLOT_ACTIVE_TARGET`          | `3`         | Min reviewable sentences per active lemma (warm-cache threshold) |
+| `POLYGLOT_PAGES_AHEAD_BUFFER`     | `5`         | Verified pages the cron keeps ahead of the user's last view      |
+| `POLYGLOT_PAGES_AHEAD_MAX_PER_RUN`| `5`         | Cap on pages warmed per story per cron pass (safety valve)        |
+| `POLYGLOT_PAGES_AHEAD_TIMEOUT_SECONDS`| `1200`  | Cron-pass timeout for the page-warm phase                         |
 | `POLYGLOT_DETECT_COGNATES`        | `0`         | Enable external L1 cognate detection                            |
 | `POLYGLOT_AUTO_MARK_COGNATES`     | `0`         | Auto-mark high-confidence L1 cognates as `known`                |
 | `TESTING`                         | `0`         | Disable interaction logger and similar test-aware paths          |

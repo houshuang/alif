@@ -8,7 +8,12 @@
 #     45 */3 * * * /opt/polyglot-update-material.sh >> /var/log/polyglot-update-material.log 2>&1
 #
 # One pass per run, in order:
-#   1. warm_sentence_cache for Modern Greek (primary)
+#   1. warm_pages_ahead for Modern Greek (primary)
+#      — keeps the next N (default 5) unread pages of every active story
+#        already through the quality gate, so the user never waits when
+#        flipping pages. Runs first because freshly verified pages are the
+#        source of new lemmas that the sentence cache then needs to cover.
+#   2. warm_sentence_cache for Modern Greek
 #      — finds acquiring/learning/known lemmas below ACTIVE_TARGET sentence
 #        coverage and generates more via Claude CLI (Sonnet) + Haiku verify.
 #
@@ -33,6 +38,9 @@ LANGUAGE="${POLYGLOT_WARM_LANGUAGE:-el}"
 MAX_LEMMAS="${POLYGLOT_WARM_MAX_LEMMAS:-16}"
 SENTENCES_PER_TARGET="${POLYGLOT_WARM_SENTENCES_PER_TARGET:-2}"
 TIMEOUT_SECONDS="${POLYGLOT_WARM_TIMEOUT_SECONDS:-1200}"
+PAGES_BUFFER="${POLYGLOT_PAGES_AHEAD_BUFFER:-5}"
+PAGES_MAX_PER_RUN="${POLYGLOT_PAGES_AHEAD_MAX_PER_RUN:-5}"
+PAGES_TIMEOUT_SECONDS="${POLYGLOT_PAGES_AHEAD_TIMEOUT_SECONDS:-1200}"
 
 export PYTHONUNBUFFERED=1
 
@@ -52,6 +60,12 @@ run_phase() {
 }
 
 echo "[$TIMESTAMP] Polyglot material cron start" >> "$LOG"
+
+run_phase "warm_pages_ahead" timeout "$PAGES_TIMEOUT_SECONDS" \
+  "$VENV" scripts/warm_pages_ahead.py \
+  --language "$LANGUAGE" \
+  --buffer "$PAGES_BUFFER" \
+  --max-per-story "$PAGES_MAX_PER_RUN"
 
 run_phase "warm_sentence_cache" timeout "$TIMEOUT_SECONDS" \
   "$VENV" scripts/warm_sentence_cache.py \
