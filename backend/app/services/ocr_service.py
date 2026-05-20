@@ -340,7 +340,12 @@ def _step1_extract_words(image_bytes: bytes) -> list[str]:
     cleaned = []
     for w in raw:
         sanitized, warnings = sanitize_arabic_word(w)
-        if sanitized and "multi_word" not in warnings and "too_short" not in warnings:
+        if (
+            sanitized
+            and "multi_word" not in warnings
+            and "too_short" not in warnings
+            and "no_letters" not in warnings
+        ):
             cleaned.append(sanitized)
     return cleaned, page_number
 
@@ -620,9 +625,14 @@ def process_textbook_page(
             if not arabic:
                 continue
 
-            # Sanitize: strip punctuation, reject multi-word
+            # Sanitize: strip punctuation, reject multi-word + letter-free tokens
             arabic, san_warnings = sanitize_arabic_word(arabic)
-            if not arabic or "multi_word" in san_warnings or "too_short" in san_warnings:
+            if (
+                not arabic
+                or "multi_word" in san_warnings
+                or "too_short" in san_warnings
+                or "no_letters" in san_warnings
+            ):
                 continue
 
             # Compute bare form and get base_lemma from morphological analysis
@@ -1040,7 +1050,12 @@ def process_batch(
             continue
 
         arabic, san_warnings = sanitize_arabic_word(arabic)
-        if not arabic or "multi_word" in san_warnings or "too_short" in san_warnings:
+        if (
+            not arabic
+            or "multi_word" in san_warnings
+            or "too_short" in san_warnings
+            or "no_letters" in san_warnings
+        ):
             continue
 
         bare = compute_bare_form(arabic)
