@@ -7,6 +7,8 @@ from app.services import acquisition_service
 from app.services.acquisition_service import (
     BOX_INTERVALS,
     DAILY_INTRO_CAP,
+    FAST_GRAD_INTRO_GAP,
+    FAST_INTRO_RETRY_INTERVAL,
     get_acquisition_due,
     get_acquisition_stats,
     start_acquisition,
@@ -227,6 +229,106 @@ def test_tier1_perfect_accuracy_graduates(tmp_db):
         # 3 seen, 3 correct → 100% → Tier 1 grad
         assert result["graduated"] is True
         assert result["new_state"] == "learning"
+
+
+# ─── Intro-card working-memory gate (Hard Invariant #12) ────────────────
+
+
+def test_recent_intro_blocks_tier0_first_correct_grad(tmp_db):
+    """First-correct graduation must NOT fire within FAST_GRAD_INTRO_GAP of
+    the intro card — three correct answers seconds after seeing the card is
+    working memory, not learning.
+    """
+    with tmp_db() as db:
+        lemma = _seed_lemma(db)
+        start_acquisition(db, lemma_id=lemma.lemma_id, due_immediately=True, source="test")
+        ulk = db.query(UserLemmaKnowledge).filter_by(lemma_id=lemma.lemma_id).one()
+        ulk.experiment_intro_shown_at = datetime.now(timezone.utc) - timedelta(minutes=2)
+        db.commit()
+
+        result = submit_acquisition_review(db, lemma_id=lemma.lemma_id, rating_int=3)
+
+        assert result["graduated"] is not True
+        assert result["new_state"] == "acquiring"
+        assert result["acquisition_box"] == 1
+        # Reschedule comes via FAST_INTRO_RETRY_INTERVAL, not BOX_INTERVALS[2]
+        ulk = db.query(UserLemmaKnowledge).filter_by(lemma_id=lemma.lemma_id).one()
+        next_due = ulk.acquisition_next_due.replace(tzinfo=timezone.utc) if ulk.acquisition_next_due.tzinfo is None else ulk.acquisition_next_due
+        gap = next_due - datetime.now(timezone.utc)
+        # Should be ~FAST_INTRO_RETRY_INTERVAL (30 min), not BOX_INTERVALS[2] (1 day)
+        assert gap < FAST_INTRO_RETRY_INTERVAL + timedelta(seconds=10)
+        assert gap > FAST_INTRO_RETRY_INTERVAL - timedelta(seconds=10)
+
+
+def test_intro_older_than_window_allows_tier0_grad(tmp_db):
+    """Once the working-memory window has passed, Tier 0 graduation works."""
+    with tmp_db() as db:
+        lemma = _seed_lemma(db)
+        start_acquisition(db, lemma_id=lemma.lemma_id, due_immediately=True, source="test")
+        ulk = db.query(UserLemmaKnowledge).filter_by(lemma_id=lemma.lemma_id).one()
+        ulk.experiment_intro_shown_at = (
+            datetime.now(timezone.utc) - FAST_GRAD_INTRO_GAP - timedelta(seconds=1)
+        )
+        db.commit()
+
+        result = submit_acquisition_review(db, lemma_id=lemma.lemma_id, rating_int=3)
+        assert result["graduated"] is True
+
+
+def test_recent_intro_blocks_box1_to_box2_advancement(tmp_db):
+    """When a Box-1 word with prior failure history gets a correct review
+    inside the intro window, it stays in Box 1 (FAST_INTRO_RETRY) instead of
+    advancing to Box 2 — the encoding phase isn't done yet.
+    """
+    with tmp_db() as db:
+        lemma = _seed_lemma(db)
+        now = datetime.now(timezone.utc)
+        ulk = UserLemmaKnowledge(
+            lemma_id=lemma.lemma_id,
+            knowledge_state="acquiring",
+            acquisition_box=1,
+            acquisition_next_due=now - timedelta(minutes=5),
+            acquisition_started_at=now,
+            entered_acquiring_at=now,
+            experiment_intro_shown_at=now - timedelta(minutes=2),
+            source="test",
+            times_seen=1,
+            times_correct=0,
+        )
+        db.add(ulk)
+        db.commit()
+
+        result = submit_acquisition_review(db, lemma_id=lemma.lemma_id, rating_int=3)
+        assert result["graduated"] is not True
+        assert result["acquisition_box"] == 1
+
+
+def test_recent_intro_blocks_tier1_perfect_grad(tmp_db):
+    """100% accuracy + 3 reviews shouldn't graduate when all three correct
+    answers happened inside the working-memory window — same anti-pattern,
+    just spread across reviews instead of a single first-correct.
+    """
+    with tmp_db() as db:
+        lemma = _seed_lemma(db)
+        now = datetime.now(timezone.utc)
+        ulk = UserLemmaKnowledge(
+            lemma_id=lemma.lemma_id,
+            knowledge_state="acquiring",
+            acquisition_box=1,
+            acquisition_next_due=now - timedelta(minutes=5),
+            acquisition_started_at=now,
+            entered_acquiring_at=now,
+            experiment_intro_shown_at=now - timedelta(minutes=2),
+            source="test",
+            times_seen=2,
+            times_correct=2,
+        )
+        db.add(ulk)
+        db.commit()
+
+        # This is the third correct review → would normally trigger Tier 1.
+        result = submit_acquisition_review(db, lemma_id=lemma.lemma_id, rating_int=3)
+        assert result["graduated"] is not True
 
 
 def test_acquisition_due_filter(tmp_db):

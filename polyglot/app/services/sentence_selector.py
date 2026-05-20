@@ -42,7 +42,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 from sqlalchemy.orm import Session, joinedload
@@ -97,6 +97,41 @@ class SentencePayload:
 
 
 @dataclass
+class IntroCardPayload:
+    """First-encounter teaching card for a never-shown acquiring lemma, or a
+    re-teaching card for a stuck rescue lemma. Polyglot's intro card is
+    intentionally lean compared to Alif's (no root, no wazn, no audio, no
+    memory hooks) — what we have is the form + gloss + POS + an optional
+    Modern↔Ancient cognate pointer (the one Greek-specific affordance).
+
+    The session response carries these alongside ``sentences``; the frontend
+    interleaves them before their target sentence and posts
+    ``/api/reviews/experiment-intro-ack`` on display to stamp
+    ``experiment_intro_shown_at``.
+    """
+    lemma_id: int
+    lemma_form: str
+    lemma_bare: str
+    gloss_en: Optional[str]
+    pos: Optional[str]
+    intro_kind: str  # "new" | "rescue"
+    times_seen: int
+    cognate_lemma_id: Optional[int] = None
+    cognate_lemma_form: Optional[str] = None
+
+
+@dataclass
+class SessionBundle:
+    """A built session: sentences plus intro cards for content lemmas
+    appearing in those sentences that haven't been introduced yet. Mirrors
+    Alif's ``SentenceSessionOut`` (items + experiment_intro_cards) — the
+    frontend interleaves intro cards before their target sentence.
+    """
+    sentences: list["SentencePayload"]
+    intro_cards: list[IntroCardPayload] = field(default_factory=list)
+
+
+@dataclass
 class _Scored:
     sentence: Sentence
     score: float
@@ -105,6 +140,16 @@ class _Scored:
     scaffold_known: int
     page_first: bool
     selection_reason: str
+
+
+# Intro card constants — ported from Alif. The dynamic-cap heuristic and
+# rescue-cooldown values mirror ``sentence_selector._build_intro_cards``.
+INTRO_CARDS_BASE = 4
+INTRO_CARDS_MAX = 6
+INTRO_NEW_CARDS_PER_SESSION = 6
+RESCUE_MIN_SEEN = 4
+RESCUE_MAX_ACCURACY = 0.50
+RESCUE_COOLDOWN_DAYS = 7
 
 
 def pick_sentence_for_lemma(
@@ -366,12 +411,156 @@ def _acquisition_due_lemmas(
     )
 
 
+def _dynamic_intro_cap(db: Session) -> int:
+    """Scale intro-card budget by un-introed acquiring backlog.
+
+    Base 4, +1 per 15 un-introed acquiring lemmas, capped at 6 — Alif's
+    2026-04-27 calibration after sessions filled with 10+ intros became
+    unreadable. The hard daily-30 cap in ``start_acquisition`` still gates
+    absolute net-new volume; this just spreads the in-session reveals.
+    """
+    unintro_count = (
+        db.query(UserLemmaKnowledge)
+        .filter(
+            UserLemmaKnowledge.knowledge_state == "acquiring",
+            (UserLemmaKnowledge.times_seen == 0) | (UserLemmaKnowledge.times_seen.is_(None)),
+            UserLemmaKnowledge.experiment_intro_shown_at.is_(None),
+        )
+        .count()
+    )
+    return min(INTRO_CARDS_MAX, INTRO_CARDS_BASE + unintro_count // 15)
+
+
+def _build_intro_cards(
+    db: Session,
+    sentences: list[SentencePayload],
+) -> list[IntroCardPayload]:
+    """Build first-encounter + rescue intro cards for lemmas in this session.
+
+    Two categories (mirrors Alif's ``_build_intro_cards``):
+
+    - **New** — ``knowledge_state='acquiring'``, ``times_seen=0``,
+      ``experiment_intro_shown_at IS NULL``, ``times_correct=0``. These are
+      lemmas the learner has never been reviewed on; first encounter must
+      teach them before the gate fires.
+    - **Rescue** — ``≥ RESCUE_MIN_SEEN`` reviews, accuracy below
+      ``RESCUE_MAX_ACCURACY``, intro either never shown or shown more than
+      ``RESCUE_COOLDOWN_DAYS`` ago. Re-teach for stuck words.
+
+    Eligibility is restricted to lemmas appearing in the picked sentences —
+    showing an intro card for a word the learner won't see in this session is
+    wasted attention. Function words and proper names never get a card.
+    """
+    eligible_ids: set[int] = set()
+    for sent in sentences:
+        for w in sent.words:
+            if w.lemma_id is None:
+                continue
+            if w.is_function_word or w.is_proper_name:
+                continue
+            eligible_ids.add(w.lemma_id)
+    if not eligible_ids:
+        return []
+
+    now = datetime.now(timezone.utc)
+    cooldown_cutoff = now - timedelta(days=RESCUE_COOLDOWN_DAYS)
+
+    ulks = (
+        db.query(UserLemmaKnowledge)
+        .filter(UserLemmaKnowledge.lemma_id.in_(eligible_ids))
+        .all()
+    )
+    lemmas = {
+        lemma.lemma_id: lemma
+        for lemma in db.query(Lemma).filter(Lemma.lemma_id.in_(eligible_ids)).all()
+    }
+
+    new_ids: list[int] = []
+    rescue_ids: list[int] = []
+    for ulk in ulks:
+        if ulk.knowledge_state != "acquiring":
+            continue
+        lemma = lemmas.get(ulk.lemma_id)
+        if lemma is None or lemma.word_category in ("function_word", "proper_name"):
+            continue
+
+        times_seen = ulk.times_seen or 0
+        times_correct = ulk.times_correct or 0
+
+        if (
+            times_seen == 0
+            and ulk.experiment_intro_shown_at is None
+            and times_correct == 0
+        ):
+            new_ids.append(ulk.lemma_id)
+            continue
+
+        if times_seen >= RESCUE_MIN_SEEN:
+            accuracy = times_correct / times_seen
+            if accuracy < RESCUE_MAX_ACCURACY:
+                if ulk.experiment_intro_shown_at is None:
+                    rescue_ids.append(ulk.lemma_id)
+                else:
+                    shown_at = ulk.experiment_intro_shown_at
+                    if shown_at.tzinfo is None:
+                        shown_at = shown_at.replace(tzinfo=timezone.utc)
+                    if shown_at < cooldown_cutoff:
+                        rescue_ids.append(ulk.lemma_id)
+
+    if not new_ids and not rescue_ids:
+        return []
+
+    # Order intro cards by the order their target sentence appears in the
+    # session so the frontend can splice them in linearly without resorting.
+    sentence_order: dict[int, int] = {}
+    for idx, sent in enumerate(sentences):
+        for w in sent.words:
+            if w.lemma_id is not None and w.lemma_id not in sentence_order:
+                sentence_order[w.lemma_id] = idx
+    new_ids.sort(key=lambda lid: sentence_order.get(lid, 10**9))
+    rescue_ids.sort(key=lambda lid: sentence_order.get(lid, 10**9))
+
+    total_budget = INTRO_NEW_CARDS_PER_SESSION
+    rescue_budget = _dynamic_intro_cap(db)
+
+    selected_new = new_ids[:total_budget]
+    remaining = max(0, total_budget - len(selected_new))
+    selected_rescue = rescue_ids[: min(remaining, rescue_budget)]
+
+    out: list[IntroCardPayload] = []
+    for lid, kind in [(i, "new") for i in selected_new] + [(i, "rescue") for i in selected_rescue]:
+        lemma = lemmas[lid]
+        ulk = next((u for u in ulks if u.lemma_id == lid), None)
+        cognate_id: Optional[int] = lemma.cognate_lemma_id
+        cognate_form: Optional[str] = None
+        if cognate_id is not None:
+            cog = db.query(Lemma).filter(Lemma.lemma_id == cognate_id).first()
+            if cog is not None:
+                cognate_form = cog.lemma_form
+        out.append(
+            IntroCardPayload(
+                lemma_id=lemma.lemma_id,
+                lemma_form=lemma.lemma_form,
+                lemma_bare=lemma.lemma_bare,
+                gloss_en=lemma.gloss_en,
+                pos=lemma.pos,
+                intro_kind=kind,
+                times_seen=(ulk.times_seen or 0) if ulk else 0,
+                cognate_lemma_id=cognate_id,
+                cognate_lemma_form=cognate_form,
+            )
+        )
+    return out
+
+
 def build_session(
     db: Session,
     language_code: str,
     limit: int = DEFAULT_SESSION_LIMIT,
-) -> list[SentencePayload]:
-    """Assemble a session: pick one sentence per due lemma, up to ``limit``.
+) -> SessionBundle:
+    """Assemble a session: pick one sentence per due lemma, up to ``limit``,
+    and emit intro cards for any never-shown acquiring lemmas in those
+    sentences.
 
     Order: acquisition-due first (Box 1 → 2 → 3, then by due time), then
     FSRS-due (oldest due first). For each lemma we call the picker; if the
@@ -384,7 +573,7 @@ def build_session(
     diversity/Jaccard machinery.
     """
     if not db.query(Language).filter(Language.code == language_code).first():
-        return []
+        return SessionBundle(sentences=[])
 
     now = datetime.now(timezone.utc)
 
@@ -423,4 +612,5 @@ def build_session(
         used_sentence_ids.add(payload.sentence_id)
         selected.append(payload)
 
-    return selected
+    intro_cards = _build_intro_cards(db, selected)
+    return SessionBundle(sentences=selected, intro_cards=intro_cards)

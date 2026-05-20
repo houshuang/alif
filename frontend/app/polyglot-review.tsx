@@ -32,15 +32,19 @@ import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useLanguage } from "../lib/language-context";
 import {
+  ackExperimentIntro,
   getReviewSession,
   submitSentenceReview,
   getReviewStats,
+  type IntroCard,
+  type ReviewSessionBundle,
   type SentencePayload,
   type WordRender,
   type AcquisitionStats,
   type ComprehensionSignal,
 } from "../lib/polyglot-api";
 import {
+  buildInterleavedSlots,
   cycleMark,
   deriveSignal,
   emptyMarks,
@@ -52,6 +56,7 @@ import {
   markStateAt,
   middleButtonLabel,
   type MarkSets,
+  type SessionSlot,
 } from "../lib/polyglot-review-helpers";
 
 const C = {
@@ -76,7 +81,11 @@ export default function PolyglotReview() {
   const { language } = useLanguage();
   const languageCode = language === "el" ? "el" : "el";
 
-  const [session, setSession] = useState<SentencePayload[]>([]);
+  const [bundle, setBundle] = useState<ReviewSessionBundle>({
+    sentences: [],
+    intro_cards: [],
+  });
+  const [slots, setSlots] = useState<SessionSlot[]>([]);
   const [stats, setStats] = useState<AcquisitionStats | null>(null);
   const [index, setIndex] = useState(0);
   const [cardState, setCardState] = useState<CardState>("front");
@@ -89,19 +98,38 @@ export default function PolyglotReview() {
 
   const sessionIdRef = useRef<string>(generateSessionId());
   const shownAtRef = useRef<number>(Date.now());
+  // Lemmas whose intro card was displayed this UI session, used to suppress
+  // re-firing the same card on a prefetch reload before the server's ack has
+  // propagated. Mirrors Alif's `alreadyShownIntroLemmaIds` parameter.
+  const shownIntroLemmaIdsRef = useRef<Set<number>>(new Set());
 
-  const current = session[index];
+  const currentSlot: SessionSlot | undefined = slots[index];
+  const currentSentence: SentencePayload | undefined =
+    currentSlot?.type === "sentence"
+      ? bundle.sentences[currentSlot.sentenceIndex]
+      : undefined;
+  const currentIntro: IntroCard | undefined =
+    currentSlot?.type === "intro"
+      ? bundle.intro_cards[currentSlot.introIndex]
+      : undefined;
 
   const loadSession = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const [items, s] = await Promise.all([
+      const [next, s] = await Promise.all([
         getReviewSession(languageCode, 15),
         getReviewStats(),
       ]);
       sessionIdRef.current = generateSessionId();
-      setSession(items);
+      setBundle(next);
+      setSlots(
+        buildInterleavedSlots(
+          next.sentences,
+          next.intro_cards,
+          shownIntroLemmaIdsRef.current,
+        ),
+      );
       setStats(s);
       setIndex(0);
       setCardState("front");
@@ -117,6 +145,21 @@ export default function PolyglotReview() {
 
   useEffect(() => { void loadSession(); }, [loadSession]);
 
+  // Stamp the server timestamp the instant we land on an intro slot. This is
+  // what arms the working-memory gate: a correct review on this lemma within
+  // FAST_GRAD_INTRO_GAP (10 min) is treated as working memory, not learning.
+  useEffect(() => {
+    if (!currentIntro) return;
+    if (shownIntroLemmaIdsRef.current.has(currentIntro.lemma_id)) return;
+    shownIntroLemmaIdsRef.current.add(currentIntro.lemma_id);
+    void ackExperimentIntro(currentIntro.lemma_id, sessionIdRef.current).catch(() => {
+      // Best-effort: a transient ack failure means the next session may
+      // re-show the card, which is benign. The gate timing is also "best
+      // effort" — if the ack didn't land, no working-memory gate fires this
+      // time, but the user still gets the intro card UI.
+    });
+  }, [currentIntro]);
+
   const advanceCard = useCallback(() => {
     setCardState("back");
     setGlossWordIdx(null);
@@ -128,24 +171,36 @@ export default function PolyglotReview() {
   }, []);
 
   const handleWordTap = useCallback((wordIdx: number) => {
-    if (!current) return;
-    const word = current.words[wordIdx];
+    if (!currentSentence) return;
+    const word = currentSentence.words[wordIdx];
     if (!word) return;
     if (isContentWord(word)) {
       setMarks((prev) => cycleMark(prev, wordIdx));
     }
     setGlossWordIdx((cur) => (cur === wordIdx ? null : wordIdx));
-  }, [current]);
+  }, [currentSentence]);
+
+  const advanceSlot = useCallback(() => {
+    if (index + 1 >= slots.length) {
+      void loadSession();
+    } else {
+      setIndex(index + 1);
+      setCardState("front");
+      setMarks(emptyMarks());
+      setGlossWordIdx(null);
+      shownAtRef.current = Date.now();
+    }
+  }, [index, slots.length, loadSession]);
 
   const handleSubmit = useCallback(async (signal: ComprehensionSignal) => {
-    if (!current || submitting) return;
+    if (!currentSentence || submitting) return;
     setSubmitting(true);
     try {
-      const { missed, confused } = lemmaIdsFromMarks(marks, current.words);
+      const { missed, confused } = lemmaIdsFromMarks(marks, currentSentence.words);
       const responseMs = Date.now() - shownAtRef.current;
       await submitSentenceReview({
-        sentence_id: current.sentence_id,
-        primary_lemma_id: current.target_lemma_id,
+        sentence_id: currentSentence.sentence_id,
+        primary_lemma_id: currentSentence.target_lemma_id,
         comprehension_signal: signal,
         missed_lemma_ids: missed,
         confused_lemma_ids: confused,
@@ -154,22 +209,17 @@ export default function PolyglotReview() {
         client_review_id: generateClientReviewId(),
         review_mode: "reading",
       });
-
-      if (index + 1 >= session.length) {
-        await loadSession();
-      } else {
-        setIndex(index + 1);
-        setCardState("front");
-        setMarks(emptyMarks());
-        setGlossWordIdx(null);
-        shownAtRef.current = Date.now();
-      }
+      advanceSlot();
     } catch (e: any) {
       setError(e?.message ?? "Submit failed");
     } finally {
       setSubmitting(false);
     }
-  }, [current, submitting, marks, index, session.length, loadSession]);
+  }, [currentSentence, submitting, marks, advanceSlot]);
+
+  const handleIntroContinue = useCallback(() => {
+    advanceSlot();
+  }, [advanceSlot]);
 
   if (loading) {
     return (
@@ -190,7 +240,7 @@ export default function PolyglotReview() {
     );
   }
 
-  if (!current) {
+  if (!currentSlot) {
     return (
       <View style={styles.center}>
         <Ionicons name="checkmark-circle-outline" size={64} color={C.good} />
@@ -219,23 +269,59 @@ export default function PolyglotReview() {
     );
   }
 
+  if (currentIntro) {
+    return (
+      <ScrollView contentContainerStyle={styles.root}>
+        <View style={styles.header}>
+          <Text style={styles.progress}>
+            {index + 1} / {slots.length}
+          </Text>
+          <Text style={styles.stateBadge}>
+            {currentIntro.intro_kind === "rescue" ? "rescue card" : "new word"}
+          </Text>
+        </View>
+        <IntroCardView card={currentIntro} />
+        <View style={styles.actionRow}>
+          <Pressable
+            style={[styles.actionButton, styles.gotItButton]}
+            onPress={handleIntroContinue}
+          >
+            <Text style={styles.actionButtonText}>Got it — continue</Text>
+          </Pressable>
+        </View>
+      </ScrollView>
+    );
+  }
+
+  if (!currentSentence) {
+    // Defensive: a slot pointed at a sentence index we don't have. Treat as
+    // end-of-session rather than crash; loadSession() resets.
+    return (
+      <View style={styles.center}>
+        <Pressable style={styles.button} onPress={loadSession}>
+          <Text style={styles.buttonText}>Refresh</Text>
+        </Pressable>
+      </View>
+    );
+  }
+
   const hasMarks = hasAnyMarks(marks);
-  const glossWord = glossWordIdx != null ? current.words[glossWordIdx] : null;
+  const glossWord = glossWordIdx != null ? currentSentence.words[glossWordIdx] : null;
 
   return (
     <ScrollView contentContainerStyle={styles.root}>
       <View style={styles.header}>
         <Text style={styles.progress}>
-          {index + 1} / {session.length}
+          {index + 1} / {slots.length}
         </Text>
         <Text style={styles.stateBadge}>
-          {current.selection_reason || "review"}
+          {currentSentence.selection_reason || "review"}
         </Text>
       </View>
 
       <View style={styles.card}>
         <SentenceCard
-          payload={current}
+          payload={currentSentence}
           cardState={cardState}
           marks={marks}
           onWordTap={handleWordTap}
@@ -257,6 +343,30 @@ export default function PolyglotReview() {
         <ActivityIndicator color={C.accent} style={{ marginTop: 16 }} />
       )}
     </ScrollView>
+  );
+}
+
+function IntroCardView({ card }: { card: IntroCard }) {
+  const isRescue = card.intro_kind === "rescue";
+  return (
+    <View style={styles.introCard}>
+      <Text style={styles.introHeading}>
+        {isRescue ? "Let's revisit this word" : "New word"}
+      </Text>
+      <Text style={styles.introLemma}>{card.lemma_form}</Text>
+      {card.pos ? <Text style={styles.introPos}>{card.pos}</Text> : null}
+      <Text style={styles.introGloss}>{card.gloss_en ?? "(no gloss)"}</Text>
+      {card.cognate_lemma_form ? (
+        <Text style={styles.introCognate}>
+          cognate: {card.cognate_lemma_form}
+        </Text>
+      ) : null}
+      {isRescue ? (
+        <Text style={styles.introHint}>
+          You've seen this {card.times_seen} times but it hasn't stuck yet.
+        </Text>
+      ) : null}
+    </View>
   );
 }
 
@@ -456,6 +566,17 @@ const styles = StyleSheet.create({
     backgroundColor: C.surface, padding: 24, borderRadius: 16,
     borderWidth: 1, borderColor: C.border, minHeight: 220,
   },
+  introCard: {
+    backgroundColor: C.surface, padding: 28, borderRadius: 16,
+    borderWidth: 1, borderColor: C.target, minHeight: 220,
+    alignItems: "center", justifyContent: "center", gap: 14,
+  },
+  introHeading: { color: C.target, fontSize: 13, letterSpacing: 1.4, textTransform: "uppercase" },
+  introLemma: { color: C.text, fontSize: 36, fontWeight: "600" },
+  introPos: { color: C.textMuted, fontSize: 13, fontStyle: "italic" },
+  introGloss: { color: C.accent, fontSize: 20, textAlign: "center" },
+  introCognate: { color: C.textDim, fontSize: 14, marginTop: 4 },
+  introHint: { color: C.confused, fontSize: 12, marginTop: 6, textAlign: "center" },
   sentenceGreek: {
     color: C.text, fontSize: 26, lineHeight: 40, textAlign: "center",
   },

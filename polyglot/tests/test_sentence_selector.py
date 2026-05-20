@@ -358,8 +358,9 @@ def test_session_empty_when_nothing_due(tmp_db):
         ulk.fsrs_card_json = {**(ulk.fsrs_card_json or {}), "due": future}
         _seed_sentence(db, lemma_surfaces=[(target.lemma_id, "λόγος")])
         db.commit()
-        session = build_session(db, language_code="el", limit=10)
-        assert session == []
+        bundle = build_session(db, language_code="el", limit=10)
+        assert bundle.sentences == []
+        assert bundle.intro_cards == []
 
 
 def test_session_picks_one_sentence_per_due_lemma(tmp_db):
@@ -371,9 +372,9 @@ def test_session_picks_one_sentence_per_due_lemma(tmp_db):
         sa = _seed_sentence(db, lemma_surfaces=[(a.lemma_id, "λόγος")], text="A")
         sb = _seed_sentence(db, lemma_surfaces=[(b.lemma_id, "κόσμος")], text="B")
         db.commit()
-        session = build_session(db, language_code="el", limit=10)
-        assert len(session) == 2
-        ids = {s.sentence_id for s in session}
+        bundle = build_session(db, language_code="el", limit=10)
+        assert len(bundle.sentences) == 2
+        ids = {s.sentence_id for s in bundle.sentences}
         assert ids == {sa.id, sb.id}
 
 
@@ -385,9 +386,9 @@ def test_session_skips_lemmas_without_eligible_sentences(tmp_db):
         _seed_acquiring(db, b.lemma_id)
         sa = _seed_sentence(db, lemma_surfaces=[(a.lemma_id, "λόγος")], text="A")
         db.commit()
-        session = build_session(db, language_code="el", limit=10)
-        assert len(session) == 1
-        assert session[0].sentence_id == sa.id
+        bundle = build_session(db, language_code="el", limit=10)
+        assert len(bundle.sentences) == 1
+        assert bundle.sentences[0].sentence_id == sa.id
 
 
 def test_session_dedupes_sentences(tmp_db):
@@ -403,11 +404,11 @@ def test_session_dedupes_sentences(tmp_db):
             text="λόγος κόσμος",
         )
         db.commit()
-        session = build_session(db, language_code="el", limit=10)
+        bundle = build_session(db, language_code="el", limit=10)
         # First due lemma gets the shared sentence; second is skipped because
         # the only candidate is now excluded.
-        assert len(session) == 1
-        assert session[0].sentence_id == shared.id
+        assert len(bundle.sentences) == 1
+        assert bundle.sentences[0].sentence_id == shared.id
 
 
 def test_session_respects_limit(tmp_db):
@@ -417,8 +418,8 @@ def test_session_respects_limit(tmp_db):
             _seed_acquiring(db, lemma.lemma_id, box=1, due_offset_s=-60 - i)
             _seed_sentence(db, lemma_surfaces=[(lemma.lemma_id, f"λ{i}")], text=f"S{i}")
         db.commit()
-        session = build_session(db, language_code="el", limit=3)
-        assert len(session) == 3
+        bundle = build_session(db, language_code="el", limit=3)
+        assert len(bundle.sentences) == 3
 
 
 # ─── HTTP endpoint smoke tests ──────────────────────────────────────────
@@ -477,7 +478,7 @@ def test_endpoint_next_sentence_returns_null_when_no_material(tmp_db):
         app.dependency_overrides.clear()
 
 
-def test_endpoint_session_returns_list(tmp_db):
+def test_endpoint_session_returns_bundle(tmp_db):
     with tmp_db() as db:
         a = _seed_lemma(db, form="λόγος")
         _seed_acquiring(db, a.lemma_id, box=1)
@@ -489,8 +490,14 @@ def test_endpoint_session_returns_list(tmp_db):
         resp = client.get("/api/reviews/session", params={"language_code": "el", "limit": 10})
         assert resp.status_code == 200
         body = resp.json()
-        assert isinstance(body, list)
-        assert len(body) == 1
+        assert isinstance(body, dict)
+        assert "sentences" in body and "intro_cards" in body
+        assert len(body["sentences"]) == 1
+        # Newly-introduced acquiring lemma → emits a "new" intro card
+        assert len(body["intro_cards"]) == 1
+        card = body["intro_cards"][0]
+        assert card["intro_kind"] == "new"
+        assert card["lemma_form"] == "λόγος"
     finally:
         app.dependency_overrides.clear()
 

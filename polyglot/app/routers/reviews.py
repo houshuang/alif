@@ -38,6 +38,7 @@ from app.services.sentence_review_service import (
 )
 from app.services.sentence_selector import (
     DEFAULT_SESSION_LIMIT,
+    IntroCardPayload,
     build_session,
     pick_sentence_for_lemma,
 )
@@ -445,21 +446,100 @@ def next_sentence(
     return _payload_to_pydantic(payload)
 
 
-@router.get("/session", response_model=list[SentencePayloadOut])
+class IntroCardOut(BaseModel):
+    lemma_id: int
+    lemma_form: str
+    lemma_bare: str
+    gloss_en: Optional[str]
+    pos: Optional[str]
+    intro_kind: str
+    times_seen: int
+    cognate_lemma_id: Optional[int] = None
+    cognate_lemma_form: Optional[str] = None
+
+
+class SessionBundleOut(BaseModel):
+    sentences: list[SentencePayloadOut]
+    intro_cards: list[IntroCardOut] = []
+
+
+def _intro_card_to_pydantic(card: IntroCardPayload) -> IntroCardOut:
+    return IntroCardOut(
+        lemma_id=card.lemma_id,
+        lemma_form=card.lemma_form,
+        lemma_bare=card.lemma_bare,
+        gloss_en=card.gloss_en,
+        pos=card.pos,
+        intro_kind=card.intro_kind,
+        times_seen=card.times_seen,
+        cognate_lemma_id=card.cognate_lemma_id,
+        cognate_lemma_form=card.cognate_lemma_form,
+    )
+
+
+@router.get("/session", response_model=SessionBundleOut)
 def session(
     language_code: str,
     limit: int = DEFAULT_SESSION_LIMIT,
     db: Session = Depends(get_db),
-) -> list[SentencePayloadOut]:
+) -> SessionBundleOut:
     """Build a sentence review session for the language.
 
     Walks acquisition-due (Box 1/2/3) then FSRS-due, picks one sentence per
-    lemma, dedupes within the session. Lemmas with no eligible sentence are
-    silently skipped — the response is shorter than ``limit`` when material
-    is sparse, which is the right signal for the frontend to surface
-    "generate more material" UX.
+    lemma, dedupes within the session. Returns sentences + intro cards for
+    never-shown acquiring lemmas appearing in those sentences (the frontend
+    interleaves intro cards before their target sentence and posts
+    ``/api/reviews/experiment-intro-ack`` on display). Lemmas with no
+    eligible sentence are silently skipped — a shorter-than-``limit``
+    response is the right signal for the frontend to surface "generate more
+    material" UX.
     """
     if not db.query(Language).filter(Language.code == language_code).first():
         raise HTTPException(status_code=400, detail=f"Unknown language: {language_code}")
-    payloads = build_session(db, language_code=language_code, limit=limit)
-    return [_payload_to_pydantic(p) for p in payloads]
+    bundle = build_session(db, language_code=language_code, limit=limit)
+    return SessionBundleOut(
+        sentences=[_payload_to_pydantic(p) for p in bundle.sentences],
+        intro_cards=[_intro_card_to_pydantic(c) for c in bundle.intro_cards],
+    )
+
+
+class ExperimentIntroAckRequest(BaseModel):
+    lemma_id: int
+    session_id: Optional[str] = None
+
+
+class ExperimentIntroAckResponse(BaseModel):
+    lemma_id: int
+    stamped: bool
+
+
+@router.post("/experiment-intro-ack", response_model=ExperimentIntroAckResponse)
+def experiment_intro_ack(
+    req: ExperimentIntroAckRequest,
+    db: Session = Depends(get_db),
+) -> ExperimentIntroAckResponse:
+    """Acknowledge that an intro card was shown for ``lemma_id``.
+
+    Stamps ``UserLemmaKnowledge.experiment_intro_shown_at`` so that:
+
+    1. ``_intro_shown_recently`` blocks Tier 0/1/2 fast-graduation paths and
+       Box 1→2 advancement for ~10 minutes — three correct answers within
+       seconds of seeing the card is working memory, not learning.
+    2. ``_build_intro_cards`` won't re-emit the same card in the next
+       session (rescue cards observe a 7-day cooldown via the same field).
+
+    Variant lemmas are redirected to canonical at entry. Missing ULKs are
+    silently no-op'd — an intro card without a ULK is a frontend bug, not a
+    state we want to fabricate.
+    """
+    canonical_id = resolve_canonical_lemma_id(db, req.lemma_id)
+    ulk = (
+        db.query(UserLemmaKnowledge)
+        .filter(UserLemmaKnowledge.lemma_id == canonical_id)
+        .first()
+    )
+    if ulk is None:
+        return ExperimentIntroAckResponse(lemma_id=canonical_id, stamped=False)
+    ulk.experiment_intro_shown_at = datetime.now(timezone.utc)
+    db.commit()
+    return ExperimentIntroAckResponse(lemma_id=canonical_id, stamped=True)
