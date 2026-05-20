@@ -46,6 +46,8 @@ _ADDITIVE_COLUMN_DELTAS: list[tuple[str, str, str]] = [
     # (table, column, sqlite_type)
     ("review_log", "client_review_id", "VARCHAR(50)"),
     ("review_log", "comprehension_signal", "VARCHAR(20)"),
+    ("review_log", "credit_type", "VARCHAR(20)"),
+    ("review_log", "was_confused", "BOOLEAN DEFAULT 0"),
     ("sentences", "page_id", "INTEGER REFERENCES pages(id)"),
     ("sentences", "sentence_index_in_page", "INTEGER"),
 ]
@@ -56,6 +58,8 @@ _ADDITIVE_INDEX_DELTAS: list[tuple[str, str, str, bool]] = [
     ("ix_review_log_client_review_id", "review_log", "client_review_id", True),
     ("ix_sentences_page_id", "sentences", "page_id", False),
     ("uq_sentences_page_sidx", "sentences", "page_id, sentence_index_in_page", True),
+    ("ix_sentence_review_log_client_review_id", "sentence_review_log", "client_review_id", True),
+    ("ix_sentence_review_log_sentence_id", "sentence_review_log", "sentence_id", False),
 ]
 
 

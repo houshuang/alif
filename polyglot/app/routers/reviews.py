@@ -32,6 +32,10 @@ from app.services.fsrs_service import (
     submit_review as submit_fsrs_review,
 )
 from app.services.leech_service import check_single_word_leech
+from app.services.sentence_review_service import (
+    submit_sentence_review,
+    undo_sentence_review,
+)
 
 router = APIRouter(prefix="/api/reviews", tags=["reviews"])
 
@@ -268,3 +272,98 @@ def due(
 def stats(db: Session = Depends(get_db)) -> dict:
     """Pipeline stats: acquisition boxes + due counts."""
     return get_acquisition_stats(db)
+
+
+class SentenceReviewRequest(BaseModel):
+    sentence_id: int
+    comprehension_signal: Literal["understood", "partial", "no_idea"]
+    primary_lemma_id: Optional[int] = None
+    missed_lemma_ids: list[int] = Field(default_factory=list)
+    confused_lemma_ids: list[int] = Field(default_factory=list)
+    response_ms: Optional[int] = None
+    session_id: Optional[str] = None
+    review_mode: str = "reading"
+    client_review_id: Optional[str] = None
+
+
+class SentenceReviewWordResult(BaseModel):
+    lemma_id: int
+    rating: int
+    credit_type: str
+    new_state: str
+    next_due: str
+
+
+class SentenceReviewResponse(BaseModel):
+    word_results: list[SentenceReviewWordResult]
+    duplicate: bool
+    leech_suspended_lemma_ids: list[int]
+
+
+@router.post("/submit-sentence", response_model=SentenceReviewResponse)
+def submit_sentence(
+    req: SentenceReviewRequest,
+    db: Session = Depends(get_db),
+) -> SentenceReviewResponse:
+    """Submit a sentence-level review.
+
+    Distributes the comprehension signal across every content lemma in the
+    sentence (function words and proper names are skipped). Variant lemmas
+    are credited to their canonical at function entry.
+
+    Rejects sentences that haven't passed the quality gate
+    (``mappings_verified_at IS NULL``) with HTTP 400 — Hard Invariant #2.
+    """
+    from app.models import Sentence as _Sentence
+    sentence = db.query(_Sentence).filter(_Sentence.id == req.sentence_id).first()
+    if not sentence:
+        raise HTTPException(status_code=404, detail=f"Sentence {req.sentence_id} not found")
+    if sentence.mappings_verified_at is None:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Sentence {req.sentence_id} has no mappings_verified_at — "
+                   f"not yet eligible for review (reviewability gate)",
+        )
+
+    result = submit_sentence_review(
+        db,
+        sentence_id=req.sentence_id,
+        comprehension_signal=req.comprehension_signal,
+        primary_lemma_id=req.primary_lemma_id,
+        missed_lemma_ids=req.missed_lemma_ids,
+        confused_lemma_ids=req.confused_lemma_ids,
+        response_ms=req.response_ms,
+        session_id=req.session_id,
+        review_mode=req.review_mode,
+        client_review_id=req.client_review_id,
+    )
+
+    return SentenceReviewResponse(
+        word_results=[SentenceReviewWordResult(**wr) for wr in result["word_results"]],
+        duplicate=result["duplicate"],
+        leech_suspended_lemma_ids=result["leech_suspended_lemma_ids"],
+    )
+
+
+class SentenceUndoRequest(BaseModel):
+    client_review_id: str
+
+
+class SentenceUndoResponse(BaseModel):
+    undone: bool
+    reviews_removed: int
+
+
+@router.post("/undo-sentence", response_model=SentenceUndoResponse)
+def undo_sentence(
+    req: SentenceUndoRequest,
+    db: Session = Depends(get_db),
+) -> SentenceUndoResponse:
+    """Reverse a previously submitted sentence review by client_review_id.
+
+    Restores pre-review FSRS card state from each ReviewLog's fsrs_log_json
+    snapshot, then deletes the rows. Idempotent — second call returns
+    ``undone=False``.
+    """
+    result = undo_sentence_review(db, client_review_id=req.client_review_id)
+    return SentenceUndoResponse(**result)
