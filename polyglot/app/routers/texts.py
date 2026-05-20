@@ -111,6 +111,22 @@ def mark_remaining_known(story_id: int, page_number: int, db: Session = Depends(
     return {"page_number": page_number, "newly_known": count}
 
 
+@router.post("/{story_id}/extract-sentences")
+def extract_sentences(story_id: int, force: bool = False, db: Session = Depends(get_db)):
+    """Harvest reviewable Sentence rows from every verified page in a story.
+
+    Normally runs implicitly as part of page-view processing. Use this endpoint
+    to backfill sentences for pages that were imported before the harvest service
+    existed, or to re-harvest after a quality-gate sweep (`force=True` deletes
+    and rebuilds).
+    """
+    if not db.query(Story).filter(Story.id == story_id).first():
+        raise HTTPException(status_code=404, detail="Story not found")
+    from app.services.sentence_harvest import harvest_story_sentences
+    created = harvest_story_sentences(db, story_id, force=force)
+    return {"story_id": story_id, "sentences_created": created}
+
+
 # ─── helpers ───────────────────────────────────────────────────────────────
 
 def _check_language(db: Session, code: str):

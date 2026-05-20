@@ -212,6 +212,17 @@ def process_page(db: Session, page: Page, *, force: bool = False) -> Page:
         except Exception as e:
             log.warning("Quality gate failed for page %d: %s", page.id, e)
 
+    # Harvest reviewable Sentence rows from PageWord. Only fires when the
+    # quality gate stamped `mappings_verified_at`; the harvest itself short-
+    # circuits otherwise. Cheap (DB-only) so safe to inline in the page-view
+    # critical path.
+    if page.mappings_verified_at is not None:
+        try:
+            from app.services.sentence_harvest import harvest_page_sentences
+            harvest_page_sentences(db, page)
+        except Exception as e:
+            log.warning("Sentence harvest failed for page %d: %s", page.id, e)
+
     return page
 
 

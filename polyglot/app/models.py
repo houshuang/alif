@@ -136,9 +136,14 @@ class Sentence(Base):
     text = Column(Text, nullable=False)
     translation_en = Column(Text)
     transliteration = Column(Text, nullable=True)
-    source = Column(String(20))                        # llm/manual/import/story
+    source = Column(String(20))                        # llm/manual/import/story/textbook
     story_id = Column(Integer, ForeignKey("stories.id"), nullable=True, index=True)
     target_lemma_id = Column(Integer, ForeignKey("lemmas.lemma_id"), nullable=True, index=True)
+
+    # For sentences harvested from textbook pages: provenance + idempotency key.
+    # NULL for LLM-generated or pasted sentences.
+    page_id = Column(Integer, ForeignKey("pages.id"), nullable=True, index=True)
+    sentence_index_in_page = Column(Integer, nullable=True)
 
     difficulty_score = Column(Float, nullable=True)
     audio_url = Column(Text, nullable=True)
@@ -150,7 +155,12 @@ class Sentence(Base):
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
     story = relationship("Story", foreign_keys=[story_id])
+    page = relationship("Page", foreign_keys=[page_id])
     words = relationship("SentenceWord", back_populates="sentence", cascade="all, delete-orphan")
+
+    __table_args__ = (
+        UniqueConstraint("page_id", "sentence_index_in_page", name="uq_sentences_page_sidx"),
+    )
 
 
 class SentenceWord(Base):
