@@ -1,13 +1,24 @@
 /**
- * Polyglot API client — separate backend from Alif (different port + DB).
+ * Polyglot API client — separate backend from Alif (different DB + process).
  *
- * Modern Greek, Ancient Greek, and Latin reading-as-mapping. Polyglot runs at
- * `polyglotApiUrl` from expoConfig.extra (defaults to localhost:3001).
+ * Modern Greek, Ancient Greek, and Latin reading-as-mapping. The polyglot
+ * service lives on its own port (3002 in prod) but is fronted by a
+ * transparent reverse proxy mounted at `/polyglot` on the alif backend
+ * — see `backend/app/routers/polyglot_proxy.py`. The client therefore
+ * uses `apiUrl + /polyglot` so iOS / web only needs to know ONE host:port.
+ *
+ * `polyglotApiUrl` in expoConfig.extra remains as an explicit override for
+ * dev setups where alif isn't running (e.g. talking directly to a local
+ * polyglot uvicorn on :3001).
  */
 import Constants from "expo-constants";
 
-export const POLYGLOT_BASE_URL =
-  Constants.expoConfig?.extra?.polyglotApiUrl ?? "http://localhost:3001";
+const ALIF_API_URL: string =
+  Constants.expoConfig?.extra?.apiUrl ?? "http://localhost:3000";
+const POLYGLOT_OVERRIDE: string | undefined =
+  Constants.expoConfig?.extra?.polyglotApiUrl;
+
+export const POLYGLOT_BASE_URL = POLYGLOT_OVERRIDE ?? `${ALIF_API_URL}/polyglot`;
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 
