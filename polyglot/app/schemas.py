@@ -50,6 +50,12 @@ class StorySummary(BaseModel):
     unknown_count: int
     status: str
     created_at: datetime
+    # First page that looks like actual reading content rather than
+    # bureaucratic front-matter (copyright pages, blank dividers, TOC, all-
+    # caps title pages). Detected heuristically — see
+    # reading_intake.first_content_page_number. When the user opens a story
+    # they should land on this page, not page 1.
+    first_content_page_number: int = 1
 
 
 # ─── Page view ─────────────────────────────────────────────────────────────
@@ -65,6 +71,10 @@ class TokenView(BaseModel):
     pos: str | None
     gloss_en: str | None
     is_function_word: bool
+    # True when the quality gate classified this token's sentence as a heading
+    # (all-caps + short → chapter/section title or running header). The frontend
+    # SHOULD NOT render these inline with body prose — they're meta-text.
+    is_heading: bool = False
     is_known: bool
     is_acquiring: bool
     is_encountered: bool

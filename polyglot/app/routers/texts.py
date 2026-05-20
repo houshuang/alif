@@ -23,7 +23,7 @@ def list_stories(db: Session = Depends(get_db)):
             .filter(Page.story_id == s.id, Page.processed_at.isnot(None))
             .scalar() or 0
         )
-        out.append(_story_summary(s, processed))
+        out.append(_story_summary(s, processed, db=db))
     return out
 
 
@@ -37,7 +37,7 @@ def import_paste(req: PasteImportRequest, db: Session = Depends(get_db)):
         title=req.title,
         author=req.author,
     )
-    return _story_summary(story, 0)
+    return _story_summary(story, 0, db=db)
 
 
 @router.post("/pdf", response_model=StorySummary)
@@ -53,7 +53,7 @@ def import_pdf(req: PdfImportRequest, db: Session = Depends(get_db)):
         )
     except FileNotFoundError:
         raise HTTPException(status_code=404, detail=f"PDF not found: {req.pdf_path}")
-    return _story_summary(story, 0)
+    return _story_summary(story, 0, db=db)
 
 
 @router.get("/{story_id}", response_model=StorySummary)
@@ -66,7 +66,7 @@ def get_story(story_id: int, db: Session = Depends(get_db)):
         .filter(Page.story_id == story.id, Page.processed_at.isnot(None))
         .scalar() or 0
     )
-    return _story_summary(story, processed)
+    return _story_summary(story, processed, db=db)
 
 
 @router.get("/{story_id}/pages/{page_number}", response_model=PageView)
@@ -143,7 +143,12 @@ def _check_language(db: Session, code: str):
         raise HTTPException(status_code=400, detail=f"Unknown language: {code}")
 
 
-def _story_summary(s: Story, processed_pages: int) -> StorySummary:
+def _story_summary(s: Story, processed_pages: int, db: Session | None = None) -> StorySummary:
+    first_content = (
+        reading_intake.first_content_page_number(db, s.id)
+        if db is not None
+        else 1
+    )
     return StorySummary(
         id=s.id,
         language_code=s.language_code,
@@ -157,4 +162,5 @@ def _story_summary(s: Story, processed_pages: int) -> StorySummary:
         unknown_count=s.unknown_count or 0,
         status=s.status,
         created_at=s.created_at,
+        first_content_page_number=first_content,
     )

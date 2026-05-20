@@ -82,7 +82,15 @@ export default function Polyglot() {
     }
   }, []);
 
-  useEffect(() => { if (storyId != null) loadPage(storyId, 1); }, [storyId, loadPage]);
+  useEffect(() => {
+    if (storyId == null) return;
+    // Land on the first "real content" page (skip copyright / TOC / title
+    // pages) instead of always page 1. Falls back to 1 if the heuristic
+    // didn't surface a content page.
+    const story = stories?.find((s) => s.id === storyId);
+    const startPage = story?.first_content_page_number ?? 1;
+    loadPage(storyId, startPage);
+  }, [storyId, loadPage, stories]);
 
   const handleMark = useCallback(async (state: MarkState) => {
     if (!selected?.lemma_id || !storyId) return;
@@ -180,19 +188,26 @@ export default function Polyglot() {
         <ScrollView ref={scrollRef} contentContainerStyle={styles.pageBody}>
           <View style={styles.column}>
             <Text style={styles.greekText} selectable={false}>
-              {pageData.tokens.map((t, i) => {
-                const isSelected = selected != null && selected.position === t.position;
-                return (
-                  <Text
-                    key={i}
-                    style={isSelected ? styles.tokenSelected : styles.token}
-                    onPress={() => !t.is_punctuation && t.lemma_id && setSelected(t)}
-                  >
-                    {t.surface}
-                    {!t.is_punctuation ? " " : ""}
-                  </Text>
-                );
-              })}
+              {pageData.tokens
+                // Headings (chapter/section titles, running page headers
+                // injected by the PDF extractor) are meta-text; drop them
+                // entirely from the prose flow. Punctuation that sits
+                // inside a heading sentence is dropped too — it'd otherwise
+                // leave orphan periods or numbers floating in the body.
+                .filter((t) => !t.is_heading)
+                .map((t, i) => {
+                  const isSelected = selected != null && selected.position === t.position;
+                  return (
+                    <Text
+                      key={i}
+                      style={isSelected ? styles.tokenSelected : styles.token}
+                      onPress={() => !t.is_punctuation && t.lemma_id && setSelected(t)}
+                    >
+                      {t.surface}
+                      {!t.is_punctuation ? " " : ""}
+                    </Text>
+                  );
+                })}
             </Text>
           </View>
         </ScrollView>
