@@ -5,9 +5,28 @@ Read this FIRST before touching anything under `polyglot/`. Also read
 `polyglot/CLAUDE.md` (project rules + gates audit) and the root
 `/Users/stian/src/alif/CLAUDE.md` (especially the new "Polyglot" bullet).
 
-## Done in the 2026-05-20 session
+## Done in the 2026-05-20 session (cumulative)
 
-Two PRs landed (squash-merged, branches deleted):
+Three PRs landed (squash-merged, branches deleted):
+
+- **PR #2 (was #90) — `sentence_review_service` port**. Write-side spine of
+  the sentence-review pipeline: one comprehension signal (understood /
+  partial / no_idea) distributed across every content lemma in the sentence,
+  honouring Hard Invariant FOUNDATIONAL ("every word earns review credit").
+  Function words and proper names skipped, suspended skipped, variants
+  redirected at entry, encountered/unknown auto-promoted via
+  `start_acquisition`, daily-cap deferred path bumps `total_encounters`
+  without a review, acquiring vs FSRS routing, post-submit ReviewLog tagging
+  with `credit_type` + `was_confused` + `sentence_id`, sentence-level audit
+  row in new `sentence_review_log` table, idempotency via composite
+  `client_review_id`, undo restores pre-state from `fsrs_log_json`. New
+  endpoints `POST /api/reviews/submit-sentence` and `POST /api/reviews/undo-sentence`.
+  Schema deltas (additive) on `ReviewLog`: `credit_type`, `was_confused`.
+  Backend tests: **113 passing** (was 92 at session start). Gates audit row
+  "No bare word cards" moved to **Partially ported** (write-side ready,
+  read-side pending PR #3).
+
+Previously landed earlier in the session:
 
 - **PR #88** — Canonical-resolver leak fix. Plugged 5 ULK-creation sites
   that bypassed `resolve_canonical_lemma_id` — the Alif "36 variant ULKs"
@@ -32,20 +51,12 @@ all 7 redirect sites.
 
 Backend tests: **92 passing** (was 78 at session start).
 
-## What's next — sentence-review pipeline port (4 PRs remaining)
+## What's next — sentence-review pipeline port (3 PRs remaining)
 
 Per Stian's 2026-05-20 direction ("full Alif port, one branch + multiple
 PRs as I land pieces"), the remaining work breaks down as:
 
-- **PR #2 — `sentence_review_service` port** (next). Port from
-  `backend/app/services/sentence_review_service.py` (574 lines). The
-  spine of the sentence-review write path: when a sentence is reviewed,
-  apply credit to every content lemma (target + collateral), honouring
-  Hard Invariant FOUNDATIONAL ("every word in every sentence earns
-  review credit"). Drop Arabic-specific clitic logic. Wires through
-  `canonical_resolution` at function entry. New endpoint
-  `POST /api/reviews/submit-sentence`. Branch: `sh/polyglot-sentence-review-service`.
-- **PR #3 — `sentence_selector` + `session_builder` port**. Port from
+- **PR #3 — `sentence_selector` + `session_builder` port** (next). Port from
   `backend/app/services/sentence_selector.py` (2.9 KLOC including
   `build_session`). The read-side spine: pick the next best sentence for
   a due lemma; assemble a structured session. Drop awzān/clitic/Hindawi
@@ -68,15 +79,27 @@ PRs as I land pieces"), the remaining work breaks down as:
   too (port `experiment_intro_shown_at` + `_intro_shown_recently`).
   Branch: `sh/polyglot-sentence-review-ui`.
 
-**Recommendation for the next session**: start with PR #2. It's the
-smallest of the remaining ports, foundational for PR #3 (selector picks
-candidates; review service applies credit), and the dependencies it needs
-(`canonical_resolution`, `fsrs_service`, `acquisition_service`,
-`leech_service`, `interaction_logger`) are all already in place.
+**Recommendation for the next session**: start with PR #3. It's the
+biggest of the remaining ports (~2.9 KLOC of Alif logic to read, port,
+and trim) — give it its own session to avoid the context-window blowouts
+Stian's auto-memory flags. PR #2 is now landed so the read-side selector
+has a clearly-defined consumer (`submit_sentence_review`) to feed.
 
-PR #3 deserves its own session — 2.9 KLOC of Alif logic to read, port,
-and trim. Doing it after PR #2 in the same session would risk the
-context-window blowouts Stian's auto-memory flags.
+Suggested PR #3 entry points to read first in the new session:
+- `backend/app/services/sentence_selector.py` — the picker logic
+  (~1.4 KLOC including ranking)
+- `backend/app/services/session_builder.py` (lives inside the selector
+  file in Alif as `build_session`) — assembles intro cards + sentences +
+  reintros
+- Skip Arabic-specifics: awzān-weighted scaffold count, clitic stripping
+  in surface-form lookups, Hindawi corpus tier prioritisation, listening-
+  readiness gate (no TTS in polyglot yet)
+- Use Greek's `FUNCTION_WORD_SETS` for the function-word exclusion gate
+  (`lemma_quality.FUNCTION_WORD_SETS[language_code]`)
+- Respect `Sentence.mappings_verified_at` on every candidate (HI #2)
+- Filter out lemmas where `gates_completed_at IS NULL` if polyglot has
+  the equivalent — check `Lemma.gates_completed_at`; today reading_intake
+  doesn't set it, so this filter may be a no-op until import_quality lands
 
 Open scope from the original 2026-05-19 briefing — quality gate
 improvements (all-caps Greek headings via sentence-case in verify prompt,

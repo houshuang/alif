@@ -177,6 +177,23 @@ class SentenceWord(Base):
     sentence = relationship("Sentence", back_populates="words")
 
 
+class SentenceReviewLog(Base):
+    """One row per sentence-level submission. Per-word ReviewLog rows still
+    exist alongside this — they carry the FSRS state changes; this row carries
+    the sentence-shaped signal (comprehension, mode, response time).
+    """
+    __tablename__ = "sentence_review_log"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    sentence_id = Column(Integer, ForeignKey("sentences.id"), nullable=False, index=True)
+    session_id = Column(String(50), nullable=True, index=True)
+    reviewed_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), index=True)
+    comprehension = Column(String(20), nullable=False)  # understood/partial/no_idea
+    response_ms = Column(Integer, nullable=True)
+    review_mode = Column(String(20), default="reading")
+    client_review_id = Column(String(50), nullable=True, unique=True, index=True)
+
+
 class ReviewLog(Base):
     __tablename__ = "review_log"
 
@@ -199,6 +216,12 @@ class ReviewLog(Base):
     # the FSRS rating is the load-bearing signal, but this captures the user's
     # subjective state for later analysis.
     comprehension_signal = Column(String(20), nullable=True)
+    # Sentence-review pipeline metadata. credit_type distinguishes the lemma the
+    # sentence was selected for ("primary") from the surrounding scaffold
+    # ("collateral"). was_confused captures the partial→rating-2 audit case
+    # where the learner knew the word but didn't recognize it in context.
+    credit_type = Column(String(20), nullable=True)
+    was_confused = Column(Boolean, default=False, server_default="0")
 
     lemma = relationship("Lemma", back_populates="reviews")
 
