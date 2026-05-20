@@ -349,7 +349,7 @@ class UserProfile(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     known_languages = Column(JSON, nullable=False, default=lambda: ["en", "no", "de", "fr", "it", "es"])
     native_language = Column(String(8), nullable=False, default="no")
-    cognate_auto_mark_threshold = Column(String(10), default="high")  # high/medium/never
+    cognate_auto_mark_threshold = Column(String(10), default="high")  # high/medium/low/never
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc),
                         onupdate=lambda: datetime.now(timezone.utc))
 

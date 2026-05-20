@@ -10,4 +10,5 @@ polyglot.db-wal
 data/logs/
 data/hf_cache/
 data/frequency/*.tsv
+data/frequency/*.txt
 .env
