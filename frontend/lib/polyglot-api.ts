@@ -169,12 +169,69 @@ export type LanguageStats = {
   new: number;
   by_state: {
     known: number;
-    acquiring: number;
+    learning: number;
+    lapsed: number;
+    acquiring: number;        // legacy: acquiring + learning
+    acquiring_only: number;
     encountered: number;
     unknown: number;
     ignored: number;
+    suspended: number;
   };
-  stories: { id: number; title: string | null; page_count: number | null; processed_pages: number }[];
+  leitner: {
+    total_acquiring: number;
+    box_1: number;
+    box_2: number;
+    box_3: number;
+    due_now: number;
+  };
+  fsrs: {
+    tracked: number;
+    stability_buckets: { label: string; count: number }[];
+  };
+  today: {
+    reviews: number;
+    sentence_reviews: number;
+    pages_read: number;
+    new_lemmas: number;
+    graduated: number;
+    marked_unknown: number;
+    streak: number;
+  };
+  history_14d: {
+    date: string;
+    reviews: number;
+    pages_read: number;
+    new_lemmas: number;
+  }[];
+  frequency: {
+    source: string;
+    total_entries: number;
+    bands: {
+      top_n: number;
+      learned: number;
+      acquiring: number;
+      encountered: number;
+      unmapped: number;
+      new: number;
+      coverage_pct: number;
+    }[];
+  } | null;
+  stories: {
+    id: number;
+    title: string | null;
+    page_count: number | null;
+    processed_pages: number;
+    viewed_pages: number;
+    total_words: number;
+    known_count: number;
+    unknown_count: number;
+  }[];
+  activity: {
+    event_type: string;
+    summary: string;
+    created_at: string | null;
+  }[];
 };
 
 export async function getLanguageStats(languageCode: string): Promise<LanguageStats> {
