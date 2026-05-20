@@ -98,6 +98,7 @@ These scripts are designed to run periodically against the generation pipeline b
 - `cleanup_glosses.py` — Clean up gloss text.
 - `cleanup_lemma_text.py` — Clean up lemma text fields.
 - `cleanup_dirty_bare_forms.py` — LLM-powered cleanup of dirty bare forms (ال-prefix, ه→ة). Asks LLM to classify each candidate — correctly distinguishes OCR artifacts from legitimate ال-integral words. Dry-run by default, `--apply` to commit.
+- `cleanup_numeric_ocr_lemmas.py` — Delete OCR-imported Lemmas whose bare form is digits only (Arabic-Indic ٠-٩, Extended ۰-۹, ASCII 0-9). Source of these rows was page numbers / ISBNs / footnote markers that Gemini OCR returned as "Arabic words"; the import-side `no_letters` guard in `sanitize_arabic_word` (PR sh/ocr-reject-numerals) prevents new ones. Per Lemma: deletes ULK rows, NULLs `SentenceWord.lemma_id` + `StoryWord.lemma_id` (storage gate allows NULL for OCR imports; runtime gate hides affected sentences), then hard-deletes the Lemma. Dry-run by default, `--apply` to commit. Logs to ActivityLog.
 - `merge_al_lemmas.py` — Merge al-prefixed duplicate lemmas.
 - `merge_lemma_variants.py` — Merge identified variant lemmas.
 - `identify_leeches.py` — Find high-review low-accuracy words, optional --suspend.

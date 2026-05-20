@@ -267,6 +267,13 @@ def sanitize_arabic_word(text: str) -> tuple[str, list[str]]:
     if not cleaned:
         return "", ["empty_after_clean"]
 
+    # Reject tokens with no letters — Arabic-Indic numerals (١٤, ٨٢٦١٤٩٣٥),
+    # ASCII digits, ligature/marks-only fragments. OCR routinely emits these
+    # as "words" from page numbers, ISBNs, footnote markers.
+    if not _WORD_CHAR.search(cleaned):
+        warnings.append("no_letters")
+        return cleaned, warnings
+
     # Reject single-character bare forms — typically abbreviations
     # (ج for plural, ص for page, م for year, etc.) not real vocabulary
     bare = normalize_arabic(cleaned)

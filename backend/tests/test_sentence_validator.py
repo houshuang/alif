@@ -895,6 +895,30 @@ class TestSanitizeArabicWord:
         assert result == "مِن"
         assert "too_short" not in warnings
 
+    def test_arabic_indic_digits_rejected(self):
+        """OCR-extracted page numbers like ١٤ must not become lemmas."""
+        result, warnings = sanitize_arabic_word("١٤")
+        assert "no_letters" in warnings
+
+    def test_long_arabic_indic_digit_string_rejected(self):
+        """ISBN/footnote artifacts like ٨٢٦١٤٩٣٥ must not become lemmas."""
+        result, warnings = sanitize_arabic_word("٨٢٦١٤٩٣٥")
+        assert "no_letters" in warnings
+
+    def test_ascii_digits_rejected(self):
+        result, warnings = sanitize_arabic_word("2024")
+        assert "no_letters" in warnings
+
+    def test_extended_arabic_indic_digits_rejected(self):
+        """Persian-style digits (U+06F0–U+06F9)."""
+        result, warnings = sanitize_arabic_word("۱۴")
+        assert "no_letters" in warnings
+
+    def test_letter_with_digit_kept(self):
+        """A real word with a stray digit (rare but possible) is not rejected."""
+        result, warnings = sanitize_arabic_word("كتاب2")
+        assert "no_letters" not in warnings
+
 
 class TestComputeBareForm:
     def test_basic(self):

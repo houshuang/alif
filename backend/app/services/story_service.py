@@ -37,6 +37,7 @@ from app.services.sentence_validator import (
     strip_tatweel,
     tokenize,
     _is_function_word,
+    _WORD_CHAR,
     lookup_lemma,
 )
 from app.services.morphology import find_best_db_match, get_word_features, is_valid_root
@@ -301,7 +302,7 @@ def _import_unknown_words(
         if sw.lemma_id is not None or sw.is_function_word:
             continue
         bare = normalize_alef(strip_diacritics(sw.surface_form))
-        if bare in seen_bares or len(bare) < 2:
+        if bare in seen_bares or len(bare) < 2 or not _WORD_CHAR.search(bare):
             continue
         seen_bares.add(bare)
         unknown_words.append(sw)
