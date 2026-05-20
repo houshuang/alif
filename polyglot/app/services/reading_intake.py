@@ -369,6 +369,10 @@ def mark_lemma(db: Session, lemma_id: int, state: str, *, fetch_gloss: bool = Tr
     if state not in valid:
         raise ValueError(f"Invalid state {state!r}; expected one of {valid}")
 
+    from app.services.canonical_resolution import resolve_canonical_lemma_id
+
+    lemma_id = resolve_canonical_lemma_id(db, lemma_id)
+
     # 'unknown' has its own pipeline — enrol into acquisition, fetch gloss.
     if state == "unknown":
         from app.services.acquisition_service import start_acquisition

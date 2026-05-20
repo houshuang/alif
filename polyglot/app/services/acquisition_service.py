@@ -295,7 +295,14 @@ def submit_acquisition_review(
 
     Falls back to FSRS submit when the lemma isn't actually in acquisition
     state (defensive — should rarely happen in practice).
+
+    Variant lemmas are redirected to their canonical at function entry per
+    Hard Invariant #9.
     """
+    from app.services.canonical_resolution import resolve_canonical_lemma_id
+
+    lemma_id = resolve_canonical_lemma_id(db, lemma_id)
+
     if client_review_id:
         existing = (
             db.query(ReviewLog)

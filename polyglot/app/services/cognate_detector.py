@@ -73,25 +73,31 @@ def propagate_known_via_cognate(db: Session, lemma_id: int):
     """When a lemma is marked known, mark its cognate (Modern↔Ancient) as
     'encountered' so the user sees it pre-flagged in future pages without
     auto-promoting to 'known'. Semantic drift is real — let the user confirm.
+
+    The cognate target is redirected to its canonical before ULK lookup/create
+    per Hard Invariant #9.
     """
+    from app.services.canonical_resolution import resolve_canonical_lemma_id
+
     lemma = db.get(Lemma, lemma_id)
     if not lemma or not lemma.cognate_lemma_id:
         return
+    target_id = resolve_canonical_lemma_id(db, lemma.cognate_lemma_id)
     cognate_ulk = (
         db.query(UserLemmaKnowledge)
-        .filter(UserLemmaKnowledge.lemma_id == lemma.cognate_lemma_id)
+        .filter(UserLemmaKnowledge.lemma_id == target_id)
         .first()
     )
     if cognate_ulk is not None:
         return  # don't overwrite existing state
     db.add(UserLemmaKnowledge(
-        lemma_id=lemma.cognate_lemma_id,
+        lemma_id=target_id,
         knowledge_state="encountered",
         source="cognate_propagation",
         introduced_at=datetime.now(timezone.utc),
     ))
     db.commit()
-    log.info("Propagated 'encountered' to cognate lemma_id=%d", lemma.cognate_lemma_id)
+    log.info("Propagated 'encountered' to cognate lemma_id=%d", target_id)
 
 
 # ─── External L1 cognates (LLM-based) ──────────────────────────────────────
@@ -253,16 +259,22 @@ def _has_high_transparency(cognates: list[dict], threshold: str) -> bool:
 
 
 def _auto_mark_known(db: Session, lemma: Lemma):
-    """Create a ULK in 'known' state for a lemma with high-transparency cognate."""
+    """Create a ULK in 'known' state for a lemma with high-transparency cognate.
+
+    Redirects to canonical at entry per Hard Invariant #9.
+    """
+    from app.services.canonical_resolution import resolve_canonical_lemma_id
+
+    target_id = resolve_canonical_lemma_id(db, lemma.lemma_id)
     existing = (
         db.query(UserLemmaKnowledge)
-        .filter(UserLemmaKnowledge.lemma_id == lemma.lemma_id)
+        .filter(UserLemmaKnowledge.lemma_id == target_id)
         .first()
     )
     if existing:
         return
     db.add(UserLemmaKnowledge(
-        lemma_id=lemma.lemma_id,
+        lemma_id=target_id,
         knowledge_state="known",
         source="cognate",
         introduced_at=datetime.now(timezone.utc),
