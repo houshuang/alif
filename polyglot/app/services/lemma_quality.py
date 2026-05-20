@@ -155,6 +155,12 @@ def verify_page_mappings(
         .all()
     )
     if not words:
+        # Blank / image-only pages (e.g. chapter dividers in scanned textbooks)
+        # have nothing to verify. Stamp them as verified so the page-warm cron
+        # doesn't retry them on every pass and so they count toward the
+        # "pages ahead" buffer. Parallels the `if not interesting` branch below.
+        log.info("Page %d: no tokens, marking as trivially verified", page.id)
+        _stamp_verified(db, page, failures=0)
         return 0
 
     # Build sentence index → text map for context lookup

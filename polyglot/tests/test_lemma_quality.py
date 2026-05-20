@@ -303,3 +303,28 @@ def test_is_all_caps_detection():
     assert not lemma_quality._is_all_caps("πολιτισμός")
     assert not lemma_quality._is_all_caps("123")  # no letters
     assert not lemma_quality._is_all_caps("")
+
+
+def test_blank_page_stamped_as_trivially_verified(tmp_db, force_gate_enabled, monkeypatch):
+    """A page with zero PageWord rows (e.g. an image-only or blank page in a
+    scanned textbook) must still be stamped as verified — otherwise the
+    page-warm cron retries it forever and the buffer count is wrong.
+    Caught on the deployed Greek textbook 2026-05-20 (page 5).
+    """
+    from app.models import Story
+
+    monkeypatch.setattr(lemma_quality, "_call_claude",
+                        lambda chunk, lang: pytest.fail("should not call LLM for empty page"))
+    with tmp_db() as db:
+        story = Story(language_code="el", title="t", source="paste", page_count=1)
+        db.add(story); db.flush()
+        page = Page(story_id=story.id, page_number=1, body_src="",
+                    processed_at=datetime.now(timezone.utc))
+        db.add(page); db.commit()
+        assert db.query(PageWord).filter(PageWord.page_id == page.id).count() == 0
+        assert page.mappings_verified_at is None
+
+        lemma_quality.verify_page_mappings(db, page, force=True)
+
+        db.refresh(page)
+        assert page.mappings_verified_at is not None
