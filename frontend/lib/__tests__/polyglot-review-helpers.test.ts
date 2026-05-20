@@ -1,4 +1,5 @@
 import {
+  buildInterleavedSlots,
   cycleMark,
   deriveSignal,
   emptyMarks,
@@ -8,7 +9,7 @@ import {
   markStateAt,
   middleButtonLabel,
 } from "../polyglot-review-helpers";
-import type { WordRender } from "../polyglot-api";
+import type { IntroCard, SentencePayload, WordRender } from "../polyglot-api";
 
 function word(overrides: Partial<WordRender> = {}): WordRender {
   return {
@@ -125,5 +126,101 @@ describe("lemmaIdsFromMarks", () => {
     const { missed, confused } = lemmaIdsFromMarks(emptyMarks(), words);
     expect(missed).toEqual([]);
     expect(confused).toEqual([]);
+  });
+});
+
+describe("buildInterleavedSlots", () => {
+  function intro(lemmaId: number, lemmaForm: string, kind: "new" | "rescue" = "new"): IntroCard {
+    return {
+      lemma_id: lemmaId,
+      lemma_form: lemmaForm,
+      lemma_bare: lemmaForm,
+      gloss_en: "gloss",
+      pos: "noun",
+      intro_kind: kind,
+      times_seen: 0,
+      cognate_lemma_id: null,
+      cognate_lemma_form: null,
+    };
+  }
+  function sent(id: number, lemmaIds: number[]): SentencePayload {
+    return {
+      sentence_id: id,
+      text: lemmaIds.join(" "),
+      translation_en: "t",
+      target_lemma_id: lemmaIds[0],
+      source: "test",
+      page_id: null,
+      words: lemmaIds.map((lid, i) => ({
+        position: i,
+        surface_form: String(lid),
+        lemma_id: lid,
+        lemma_form: String(lid),
+        gloss_en: "g",
+        is_target: i === 0,
+        is_function_word: false,
+        is_proper_name: false,
+        knowledge_state: "acquiring",
+      })),
+      selection_reason: "test",
+      score: 1.0,
+    };
+  }
+
+  it("returns a flat sentence list when there are no intro cards", () => {
+    const slots = buildInterleavedSlots([sent(1, [10]), sent(2, [20])], []);
+    expect(slots).toEqual([
+      { type: "sentence", sentenceIndex: 0 },
+      { type: "sentence", sentenceIndex: 1 },
+    ]);
+  });
+
+  it("emits an intro card before the sentence that contains its lemma", () => {
+    const slots = buildInterleavedSlots(
+      [sent(1, [10, 20]), sent(2, [20])],
+      [intro(10, "α"), intro(20, "β")],
+    );
+    expect(slots).toEqual([
+      { type: "intro", introIndex: 0 },
+      { type: "intro", introIndex: 1 },
+      { type: "sentence", sentenceIndex: 0 },
+      { type: "sentence", sentenceIndex: 1 },
+    ]);
+  });
+
+  it("does not re-emit an intro card whose lemma already appeared", () => {
+    const slots = buildInterleavedSlots(
+      [sent(1, [10]), sent(2, [10, 20]), sent(3, [10])],
+      [intro(10, "α"), intro(20, "β")],
+    );
+    expect(slots).toEqual([
+      { type: "intro", introIndex: 0 },
+      { type: "sentence", sentenceIndex: 0 },
+      { type: "intro", introIndex: 1 },
+      { type: "sentence", sentenceIndex: 1 },
+      { type: "sentence", sentenceIndex: 2 },
+    ]);
+  });
+
+  it("flushes orphan intros (no covering sentence) at the front", () => {
+    const slots = buildInterleavedSlots(
+      [sent(1, [10])],
+      [intro(10, "α"), intro(99, "orphan")],
+    );
+    expect(slots[0]).toEqual({ type: "intro", introIndex: 1 });
+    expect(slots).toContainEqual({ type: "intro", introIndex: 0 });
+    expect(slots).toContainEqual({ type: "sentence", sentenceIndex: 0 });
+  });
+
+  it("suppresses intros for lemmas already shown earlier in the UI session", () => {
+    const slots = buildInterleavedSlots(
+      [sent(1, [10, 20])],
+      [intro(10, "α"), intro(20, "β")],
+      new Set([10]),
+    );
+    expect(slots).toEqual([
+      { type: "intro", introIndex: 1 },
+      { type: "sentence", sentenceIndex: 0 },
+    ]);
   });
 });

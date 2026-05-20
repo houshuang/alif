@@ -50,6 +50,7 @@ _ADDITIVE_COLUMN_DELTAS: list[tuple[str, str, str]] = [
     ("review_log", "was_confused", "BOOLEAN DEFAULT 0"),
     ("sentences", "page_id", "INTEGER REFERENCES pages(id)"),
     ("sentences", "sentence_index_in_page", "INTEGER"),
+    ("user_lemma_knowledge", "experiment_intro_shown_at", "DATETIME"),
 ]
 
 # Indexes that should exist once the columns above are present.

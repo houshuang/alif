@@ -5,6 +5,36 @@ Read this FIRST before touching anything under `polyglot/`. Also read
 `polyglot/CLAUDE.md` (project rules + gates audit) and the root
 `/Users/stian/src/alif/CLAUDE.md` (especially the new "Polyglot" bullet).
 
+## Done in the 2026-05-21 session
+
+- **PR #6 (this session) — intro-card working-memory gate (Hard Invariant #12)**.
+  Ported the field + guard from Alif and wired the full end-to-end intro-card
+  surface. Schema: `UserLemmaKnowledge.experiment_intro_shown_at` nullable
+  DATETIME, added to `_ADDITIVE_COLUMN_DELTAS` for idempotent migration.
+  Acquisition: `FAST_GRAD_INTRO_GAP=10min` + `FAST_INTRO_RETRY_INTERVAL=30min`
+  constants, `_intro_shown_recently(ulk, now)` helper, and the four guards in
+  `submit_acquisition_review` (Tier 0 first-correct, Box 1→2 transition,
+  Tier 1 perfect, Tier 2 ≥80%). Correct reviews inside the window count for
+  exposure but keep the word in Box 1 on the 30min retry. Session builder:
+  `sentence_selector._build_intro_cards` emits "new" + "rescue" cards for
+  acquiring lemmas in the picked sentences, ordered by their target
+  sentence's position so the frontend can splice linearly. `build_session`
+  now returns a `SessionBundle` (sentences + intro_cards) instead of a flat
+  list. Endpoint: new `POST /api/reviews/experiment-intro-ack` stamps the
+  field and is variant-redirected. Frontend: `polyglot-api.ts` gains
+  `IntroCard` + `ReviewSessionBundle` types and `ackExperimentIntro`.
+  `polyglot-review-helpers.ts` gains `buildInterleavedSlots(sentences,
+  introCards, alreadyShownLemmaIds)` — trimmed port of Alif's
+  `buildInterleavedSession`: intro card before its target sentence, no
+  re-emission, orphans flushed at the front, in-session dedup via the
+  already-shown set ref. `polyglot-review.tsx` now consumes the bundle,
+  builds slots, renders `IntroCardView` for intro slots (form + gloss + pos
+  + optional cognate + rescue hint), and posts the ack on display via
+  `useEffect` keyed on `currentIntro`. Backend tests: **152 passing** (was
+  144; +4 acquisition-gate, +3 ack-endpoint, +1 session-skip-already-shown).
+  Frontend tests: **101 passing** (was 96; +5 `buildInterleavedSlots`).
+  Gates audit + Hard Invariant #12 updated in `polyglot/CLAUDE.md`.
+
 ## Done in the 2026-05-20 session (cumulative)
 
 Six PRs landed (squash-merged, branches deleted):

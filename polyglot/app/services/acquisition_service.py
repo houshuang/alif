@@ -6,10 +6,6 @@ standard). Differences:
 
 - No Arabic-specific enrichment (root/pattern). Polyglot doesn't have those
   models.
-- No intro-card working-memory gate. Alif blocks fast-promotion within
-  ``FAST_GRAD_INTRO_GAP`` of an intro card; polyglot has no intro cards yet,
-  so the gate is omitted. When polyglot adds intro cards, port the
-  ``experiment_intro_shown_at`` field and re-introduce ``_intro_shown_recently``.
 - No memory-hooks regeneration. Mnemonics are deferred (see polyglot/IDEAS).
 
 Lifecycle:
@@ -42,6 +38,15 @@ BOX_INTERVALS = {
 GRADUATION_MIN_REVIEWS = 5
 GRADUATION_MIN_ACCURACY = 0.60
 GRADUATION_MIN_CALENDAR_DAYS = 2
+
+# Tier-0 / Tier-1 / Tier-2 fast-grad and Box 1→2 advancement must NOT fire
+# when the intro card was shown moments ago — that's working memory, not
+# learning. Require this much elapsed time since the intro card before
+# allowing fast paths.
+FAST_GRAD_INTRO_GAP = timedelta(minutes=10)
+# Correct reviews inside the intro-card gap count for exposure/accuracy, but
+# should stay in Box 1 and come back soon instead of proving consolidation.
+FAST_INTRO_RETRY_INTERVAL = timedelta(minutes=30)
 
 # Daily intro budget. Mirrors Alif's policy: 30 net-new acquisitions per UTC day
 # under normal load; recovery-mode budget kicks in when Box 1/2 debt piles up.
@@ -136,6 +141,20 @@ def _recovery_mode_intro_budget(db: Session, now: datetime, today_start: datetim
     if len(reviews_today) >= RECOVERY_MIN_REVIEWS_FOR_FULL_BUDGET:
         return RECOVERY_FULL_INTRO_BUDGET
     return RECOVERY_MID_INTRO_BUDGET
+
+
+def _intro_shown_recently(ulk: UserLemmaKnowledge, now: datetime) -> bool:
+    """True iff an intro card was shown for this lemma within the
+    working-memory window. Tier 0/1/2 graduation and Box 1→2 advancement
+    are blocked while this returns True.
+    """
+    intro_shown = ulk.experiment_intro_shown_at
+    if intro_shown is None:
+        return False
+    if intro_shown.tzinfo is None:
+        intro_shown = intro_shown.replace(tzinfo=timezone.utc)
+    gap = now - intro_shown
+    return timedelta(0) <= gap < FAST_GRAD_INTRO_GAP
 
 
 def _reviews_span_calendar_days(db: Session, lemma_id: int, min_days: int) -> bool:
@@ -349,6 +368,7 @@ def submit_acquisition_review(
     old_times_seen = ulk.times_seen or 0
     old_times_correct = ulk.times_correct or 0
     old_knowledge_state = ulk.knowledge_state
+    recent_intro = _intro_shown_recently(ulk, now)
 
     ulk.times_seen = old_times_seen + 1
     if rating_int >= 3:
@@ -364,15 +384,25 @@ def submit_acquisition_review(
         is_due = acq_due <= now
 
     graduated = False
-    # Tier 0: first correct review → graduate immediately
-    if old_times_seen == 0 and rating_int >= 3:
+    # Tier 0: first correct review → graduate immediately.
+    # Blocked when the intro card was shown within FAST_GRAD_INTRO_GAP — a
+    # correct rating seconds after the intro is working memory, not learning,
+    # and bypassing acquisition robs the encoding phase.
+    if old_times_seen == 0 and rating_int >= 3 and not recent_intro:
         _graduate(ulk, now)
         graduated = True
 
     if not graduated and rating_int >= 3:
         if old_box == 1:
-            ulk.acquisition_box = 2
-            ulk.acquisition_next_due = now + BOX_INTERVALS[2]
+            if recent_intro:
+                # Still inside the intro-card working-memory window. Count the
+                # correct exposure, but keep the word in encoding and come
+                # back soon instead of advancing to next-day consolidation.
+                ulk.acquisition_box = 1
+                ulk.acquisition_next_due = now + FAST_INTRO_RETRY_INTERVAL
+            else:
+                ulk.acquisition_box = 2
+                ulk.acquisition_next_due = now + BOX_INTERVALS[2]
         elif old_box == 2 and is_due:
             ulk.acquisition_box = 3
             ulk.acquisition_next_due = now + BOX_INTERVALS[3]
@@ -401,11 +431,13 @@ def submit_acquisition_review(
         new_times_correct = ulk.times_correct
         accuracy = new_times_correct / new_times_seen if new_times_seen > 0 else 0
 
-        # Tier 1: perfect accuracy, ≥ 3 reviews → graduate from any box
-        if accuracy >= 1.0 and new_times_seen >= 3:
+        # Tier 1: perfect accuracy, ≥ 3 reviews → graduate from any box.
+        # The intro-card gap blocks this too; otherwise three immediate
+        # same-session correct answers could still graduate on working memory.
+        if not recent_intro and accuracy >= 1.0 and new_times_seen >= 3:
             graduated = True
         # Tier 2: ≥ 80% accuracy, ≥ 4 reviews → graduate from Box ≥ 2
-        elif accuracy >= 0.80 and new_times_seen >= 4 and (ulk.acquisition_box or 1) >= 2:
+        elif not recent_intro and accuracy >= 0.80 and new_times_seen >= 4 and (ulk.acquisition_box or 1) >= 2:
             graduated = True
         # Tier 3: standard — Box 3, ≥ 5 reviews, ≥ 60% accuracy, ≥ 2 calendar days
         elif (
@@ -440,6 +472,7 @@ def submit_acquisition_review(
             "pre_times_seen": old_times_seen,
             "pre_times_correct": old_times_correct,
             "pre_knowledge_state": old_knowledge_state,
+            "intro_working_memory_blocked": recent_intro and rating_int >= 3 and old_box == 1,
         },
     )
     db.add(log_entry)

@@ -284,3 +284,112 @@ def test_submit_reactivates_suspended_word(tmp_db):
             assert refreshed.knowledge_state != "suspended"
     finally:
         _cleanup()
+
+
+def test_experiment_intro_ack_stamps_field(tmp_db):
+    """POST /api/reviews/experiment-intro-ack must stamp
+    ``experiment_intro_shown_at`` so the working-memory gate and the
+    intro-card dedup both fire on the next call."""
+    client, factory = _client(tmp_db)
+    try:
+        with factory() as db:
+            lemma = _seed_lemma(db, form="λόγος")
+            db.commit()
+            start_acquisition(db, lemma_id=lemma.lemma_id, source="test")
+            db.commit()
+            lemma_id = lemma.lemma_id
+
+        r = client.post(
+            "/api/reviews/experiment-intro-ack",
+            json={"lemma_id": lemma_id, "session_id": "s1"},
+        )
+        assert r.status_code == 200
+        body = r.json()
+        assert body["lemma_id"] == lemma_id
+        assert body["stamped"] is True
+
+        with factory() as db:
+            ulk = db.query(UserLemmaKnowledge).filter_by(lemma_id=lemma_id).one()
+            assert ulk.experiment_intro_shown_at is not None
+    finally:
+        _cleanup()
+
+
+def test_experiment_intro_ack_no_ulk_is_noop(tmp_db):
+    """No ULK row → ack returns stamped=False rather than fabricating state."""
+    client, factory = _client(tmp_db)
+    try:
+        with factory() as db:
+            lemma = _seed_lemma(db, form="λόγος")
+            db.commit()
+            lemma_id = lemma.lemma_id
+
+        r = client.post("/api/reviews/experiment-intro-ack", json={"lemma_id": lemma_id})
+        assert r.status_code == 200
+        assert r.json()["stamped"] is False
+    finally:
+        _cleanup()
+
+
+def test_experiment_intro_ack_redirects_variants_to_canonical(tmp_db):
+    """Ack on a variant lemma must stamp the canonical's ULK."""
+    client, factory = _client(tmp_db)
+    try:
+        with factory() as db:
+            canonical = _seed_lemma(db, form="C", bare="c")
+            variant = _seed_lemma(db, form="V", bare="v", canonical=canonical.lemma_id)
+            db.commit()
+            start_acquisition(db, lemma_id=canonical.lemma_id, source="test")
+            db.commit()
+            variant_id = variant.lemma_id
+            canonical_id = canonical.lemma_id
+
+        r = client.post("/api/reviews/experiment-intro-ack", json={"lemma_id": variant_id})
+        assert r.status_code == 200
+        assert r.json()["lemma_id"] == canonical_id
+        with factory() as db:
+            ulk = db.query(UserLemmaKnowledge).filter_by(lemma_id=canonical_id).one()
+            assert ulk.experiment_intro_shown_at is not None
+    finally:
+        _cleanup()
+
+
+def test_session_intro_cards_skip_already_shown(tmp_db):
+    """Once an intro card has been ack'd, the next session must not re-emit it."""
+    client, factory = _client(tmp_db)
+    try:
+        from app.models import Sentence, SentenceWord
+
+        with factory() as db:
+            lemma = _seed_lemma(db, form="λόγος")
+            db.commit()
+            start_acquisition(db, lemma_id=lemma.lemma_id, source="test", due_immediately=True)
+            sent = Sentence(
+                language_code="el", text="λόγος καλός.",
+                source="test", is_active=True,
+                mappings_verified_at=datetime.now(timezone.utc),
+            )
+            db.add(sent)
+            db.flush()
+            db.add(SentenceWord(
+                sentence_id=sent.id, position=0, surface_form="λόγος",
+                lemma_id=lemma.lemma_id,
+            ))
+            db.commit()
+            lemma_id = lemma.lemma_id
+
+        r1 = client.get("/api/reviews/session", params={"language_code": "el"})
+        assert r1.status_code == 200
+        assert len(r1.json()["intro_cards"]) == 1
+
+        r_ack = client.post(
+            "/api/reviews/experiment-intro-ack",
+            json={"lemma_id": lemma_id},
+        )
+        assert r_ack.status_code == 200
+
+        r2 = client.get("/api/reviews/session", params={"language_code": "el"})
+        assert r2.status_code == 200
+        assert r2.json()["intro_cards"] == []
+    finally:
+        _cleanup()

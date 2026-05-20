@@ -6,7 +6,7 @@
  * `frontend/app/index.tsx` (`toggleMissed` at line ~814, `handleSentenceSubmit`
  * at line ~1143) — see `polyglot/CLAUDE.md` § "Ground design and code in Alif".
  */
-import type { ComprehensionSignal, WordRender } from "./polyglot-api";
+import type { ComprehensionSignal, IntroCard, SentencePayload, WordRender } from "./polyglot-api";
 
 export type MarkState = "off" | "missed" | "confused";
 
@@ -98,6 +98,81 @@ export function lemmaIdsFromMarks(
     if (w && w.lemma_id != null && isContentWord(w)) confused.push(w.lemma_id);
   }
   return { missed, confused };
+}
+
+/**
+ * Slot type for the interleaved review session.
+ *
+ * Polyglot has just two card types today: intro cards and sentence cards.
+ * Alif's `buildInterleavedSession` (frontend/app/index.tsx:99-198) also
+ * handles passages, verses, and deprecated intro candidates — none of which
+ * polyglot emits yet, so the logic here is the trimmed core: emit an unshown
+ * intro card before the sentence whose target lemma it covers. Orphan intros
+ * (whose target lemma isn't in any sentence) are flushed at the front so the
+ * learner never gets a card for a word they won't then see in context.
+ */
+export type SessionSlot =
+  | { type: "intro"; introIndex: number }
+  | { type: "sentence"; sentenceIndex: number };
+
+/**
+ * Interleave intro cards before their target sentence so the learner never
+ * sees a content word before its introduction. Mirrors Alif's pattern but
+ * drops the wind-down + warm-up reshuffling — polyglot sessions are short
+ * enough today that linear order works fine; revisit when sessions grow.
+ *
+ * `alreadyShownLemmaIds` lets the caller suppress intros for lemmas already
+ * displayed in the current UI session, even if the server hasn't observed
+ * the ack yet. This prevents an intro from re-firing while a network request
+ * is in flight.
+ */
+export function buildInterleavedSlots(
+  sentences: readonly SentencePayload[],
+  introCards: readonly IntroCard[],
+  alreadyShownLemmaIds: ReadonlySet<number> = new Set(),
+): SessionSlot[] {
+  // `introIndex` is an index into the original `introCards` array so the
+  // consumer can do `bundle.intro_cards[slot.introIndex]` directly. Filtering
+  // for already-shown cards happens by skipping at slot-emit time rather than
+  // by reshaping the array, preserving that contract.
+  const lemmaToIntroIdx = new Map<number, number>();
+  introCards.forEach((c, i) => {
+    if (!alreadyShownLemmaIds.has(c.lemma_id)) {
+      lemmaToIntroIdx.set(c.lemma_id, i);
+    }
+  });
+
+  if (lemmaToIntroIdx.size === 0) {
+    return sentences.map((_, i) => ({ type: "sentence", sentenceIndex: i }));
+  }
+
+  const slots: SessionSlot[] = [];
+  const shown = new Set<number>();
+
+  for (let si = 0; si < sentences.length; si++) {
+    const sentence = sentences[si];
+    for (const word of sentence.words) {
+      if (word.lemma_id == null) continue;
+      const introIdx = lemmaToIntroIdx.get(word.lemma_id);
+      if (introIdx !== undefined && !shown.has(word.lemma_id)) {
+        slots.push({ type: "intro", introIndex: introIdx });
+        shown.add(word.lemma_id);
+      }
+    }
+    slots.push({ type: "sentence", sentenceIndex: si });
+  }
+
+  // Orphan intros: lemma never appeared in any sentence (e.g. proper-name
+  // collateral that the picker dropped). Flush at the front so the cards
+  // still get a chance to land before the learner finishes the session.
+  const orphanIntros: SessionSlot[] = [];
+  introCards.forEach((c, i) => {
+    if (alreadyShownLemmaIds.has(c.lemma_id)) return;
+    if (!shown.has(c.lemma_id)) {
+      orphanIntros.push({ type: "intro", introIndex: i });
+    }
+  });
+  return [...orphanIntros, ...slots];
 }
 
 export function generateClientReviewId(): string {

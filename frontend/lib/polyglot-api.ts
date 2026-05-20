@@ -291,13 +291,40 @@ export type SentenceReviewResult = {
   leech_suspended_lemma_ids: number[];
 };
 
+export type IntroCard = {
+  lemma_id: number;
+  lemma_form: string;
+  lemma_bare: string;
+  gloss_en: string | null;
+  pos: string | null;
+  intro_kind: "new" | "rescue";
+  times_seen: number;
+  cognate_lemma_id: number | null;
+  cognate_lemma_form: string | null;
+};
+
+export type ReviewSessionBundle = {
+  sentences: SentencePayload[];
+  intro_cards: IntroCard[];
+};
+
 export async function getReviewSession(
   languageCode: string,
   limit: number = 15,
-): Promise<SentencePayload[]> {
+): Promise<ReviewSessionBundle> {
   return get(
     `/api/reviews/session?language_code=${encodeURIComponent(languageCode)}&limit=${limit}`,
   );
+}
+
+export async function ackExperimentIntro(
+  lemmaId: number,
+  sessionId?: string,
+): Promise<{ lemma_id: number; stamped: boolean }> {
+  return post("/api/reviews/experiment-intro-ack", {
+    lemma_id: lemmaId,
+    session_id: sessionId ?? null,
+  });
 }
 
 export async function getNextSentence(
