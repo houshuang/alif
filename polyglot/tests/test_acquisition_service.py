@@ -105,11 +105,10 @@ def test_start_acquisition_does_not_demote_known(tmp_db):
 
 def test_daily_cap_routes_overflow_to_encountered(tmp_db, monkeypatch):
     """Once the daily intro cap is hit, additional lemmas should stay
-    encountered rather than promote to acquiring."""
-    # Tiny cap so the test doesn't have to create 30 rows
+    encountered rather than promote to acquiring. Uses ``source='study'``
+    because cap-exempt sources (``reading_intake`` / ``leech_reintro``) bypass
+    the cap by design."""
     monkeypatch.setattr(acquisition_service, "DAILY_INTRO_CAP", 2)
-    # Disable recovery-mode so cap=2 is the binding ceiling, not the
-    # accuracy-gated lower budget.
     monkeypatch.setattr(
         acquisition_service, "_recovery_mode_intro_budget",
         lambda db, now, today_start: 2,
@@ -118,13 +117,68 @@ def test_daily_cap_routes_overflow_to_encountered(tmp_db, monkeypatch):
     with tmp_db() as db:
         for i in range(3):
             lemma = _seed_lemma(db, form=f"w{i}", bare=f"w{i}")
-            start_acquisition(db, lemma_id=lemma.lemma_id, source="reading_intake")
+            start_acquisition(db, lemma_id=lemma.lemma_id, source="study")
             db.commit()
 
         states = [u.knowledge_state for u in db.query(UserLemmaKnowledge).order_by(UserLemmaKnowledge.id).all()]
-        # First two promote to acquiring; third is parked as encountered
         assert states[:2] == ["acquiring", "acquiring"]
         assert states[2] == "encountered"
+
+
+def test_reading_intake_bypasses_daily_cap(tmp_db, monkeypatch):
+    """User reading-screen red taps must always enrol in acquiring, even when
+    the cap is exhausted. The 'I don't know this' signal is data — capturing
+    it is separate from how the scheduler paces practice. Regression for the
+    2026-05-20 incident where 23/28 first-day red taps silently downgraded."""
+    monkeypatch.setattr(acquisition_service, "DAILY_INTRO_CAP", 1)
+    monkeypatch.setattr(
+        acquisition_service, "_recovery_mode_intro_budget",
+        lambda db, now, today_start: 0,
+    )
+
+    with tmp_db() as db:
+        for i in range(5):
+            lemma = _seed_lemma(db, form=f"r{i}", bare=f"r{i}")
+            start_acquisition(
+                db,
+                lemma_id=lemma.lemma_id,
+                source="reading_intake",
+                due_immediately=True,
+            )
+            db.commit()
+
+        states = [u.knowledge_state for u in db.query(UserLemmaKnowledge).all()]
+        assert states == ["acquiring"] * 5
+
+
+def test_cap_exempt_intros_dont_consume_budget(tmp_db, monkeypatch):
+    """A reading_intake tap must not eat into the cap quota that gates other
+    sources. Otherwise a heavy reading session would lock out study/auto-intro
+    flows for the rest of the day."""
+    monkeypatch.setattr(acquisition_service, "DAILY_INTRO_CAP", 2)
+    monkeypatch.setattr(
+        acquisition_service, "_recovery_mode_intro_budget",
+        lambda db, now, today_start: 2,
+    )
+
+    with tmp_db() as db:
+        # 10 exempt acquisitions burn no cap budget
+        for i in range(10):
+            lemma = _seed_lemma(db, form=f"rx{i}", bare=f"rx{i}")
+            start_acquisition(db, lemma_id=lemma.lemma_id, source="reading_intake")
+            db.commit()
+        # Both non-exempt acquisitions still fit under the cap of 2
+        for i in range(2):
+            lemma = _seed_lemma(db, form=f"sx{i}", bare=f"sx{i}")
+            start_acquisition(db, lemma_id=lemma.lemma_id, source="study")
+            db.commit()
+
+        acquiring = (
+            db.query(UserLemmaKnowledge)
+            .filter(UserLemmaKnowledge.knowledge_state == "acquiring")
+            .count()
+        )
+        assert acquiring == 12
 
 
 def test_tier0_first_correct_graduates_immediately(tmp_db):

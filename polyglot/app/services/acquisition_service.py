@@ -48,18 +48,29 @@ FAST_GRAD_INTRO_GAP = timedelta(minutes=10)
 # should stay in Box 1 and come back soon instead of proving consolidation.
 FAST_INTRO_RETRY_INTERVAL = timedelta(minutes=30)
 
-# Daily intro budget. Mirrors Alif's policy: 30 net-new acquisitions per UTC day
-# under normal load; recovery-mode budget kicks in when Box 1/2 debt piles up.
+# Daily intro budget. 30 net-new acquisitions per UTC day under normal load;
+# recovery-mode budget kicks in when Box 1/2 debt piles up. Recovery thresholds
+# are intentionally looser than Alif's: in polyglot the dominant source of new
+# acquisitions is the user's reading-screen red taps, which carry a `source` in
+# CAP_EXEMPT_SOURCES and bypass the cap entirely. The cap only paces sources
+# that aren't an explicit user "I don't know this" signal.
 DAILY_INTRO_CAP = 30
 
-RECOVERY_BOX1_UNREVIEWED_LIMIT = 5
-RECOVERY_BOX2_DUE_LIMIT = 30
-RECOVERY_MIN_REVIEWS_FOR_ANY_INTRO = 20
+RECOVERY_BOX1_UNREVIEWED_LIMIT = 50
+RECOVERY_BOX2_DUE_LIMIT = 100
+RECOVERY_MIN_REVIEWS_FOR_ANY_INTRO = 5
 RECOVERY_MIN_REVIEWS_FOR_FULL_BUDGET = 60
 RECOVERY_LOW_ACCURACY_FLOOR = 0.80
 RECOVERY_GOOD_ACCURACY_FLOOR = 0.85
 RECOVERY_MID_INTRO_BUDGET = 4
 RECOVERY_FULL_INTRO_BUDGET = 8
+
+# Sources whose acquisitions bypass the daily intro cap entirely. These carry
+# an explicit signal that the system MUST honour — leech re-introductions
+# (system-driven rescue of stuck words) and reading-screen "I don't know this"
+# taps (user-driven; capturing the unknown-fact is data, separate from how the
+# scheduler paces it). Other sources go through the normal cap.
+CAP_EXEMPT_SOURCES = frozenset({"leech_reintro", "reading_intake"})
 
 # Sources that subsequent callers are allowed to overwrite. Strong sources
 # (`textbook_scan`, `reading_intake`) should win when they upgrade a weak
@@ -69,14 +80,18 @@ _HIGH_PRIORITY_SOURCES = {"textbook_scan", "reading_intake", "frequency_core"}
 
 
 def _daily_intro_count(db: Session, today_start: datetime) -> int:
-    """Count today's net-new acquisitions (excludes leech reintroductions)."""
+    """Count today's net-new acquisitions for cap purposes.
+
+    Excludes sources in ``CAP_EXEMPT_SOURCES`` — those bypass the cap, so they
+    must not also consume budget that would block other-source intros.
+    """
     return (
         db.query(UserLemmaKnowledge)
         .filter(
             UserLemmaKnowledge.acquisition_started_at >= today_start,
             (
                 UserLemmaKnowledge.source.is_(None)
-                | (UserLemmaKnowledge.source != "leech_reintro")
+                | UserLemmaKnowledge.source.notin_(CAP_EXEMPT_SOURCES)
             ),
         )
         .count()
@@ -190,7 +205,9 @@ def start_acquisition(
     - ``due_immediately=True`` skips the 4h Box-1 interval (use for words the
       user just marked unknown — they should see practice immediately).
     - ``enforce_daily_cap=True`` (default) honours the daily intro budget; if
-      the cap is hit, the row stays/becomes ``encountered`` instead.
+      the cap is hit, the row stays/becomes ``encountered`` instead. Sources
+      in ``CAP_EXEMPT_SOURCES`` (``leech_reintro``, ``reading_intake``) bypass
+      the cap entirely — see the constant for the data-vs-scheduling rationale.
 
     Variant lemmas are redirected to their canonical at entry. Existing
     ``learning``/``known`` rows are never demoted back to acquiring — the
@@ -222,7 +239,7 @@ def start_acquisition(
         return ulk
 
     cap_hit = False
-    if enforce_daily_cap and source != "leech_reintro":
+    if enforce_daily_cap and source not in CAP_EXEMPT_SOURCES:
         today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
         intro_count = _daily_intro_count(db, today_start)
         effective_cap = _recovery_mode_intro_budget(db, now, today_start)
