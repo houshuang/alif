@@ -46,8 +46,8 @@ export default function PolyglotStats() {
   const totalMarked =
     stats.by_state.known + stats.by_state.acquiring + stats.by_state.encountered +
     stats.by_state.unknown + stats.by_state.ignored;
-  const knownPct = stats.total_lemmas > 0
-    ? Math.round((stats.by_state.known / stats.total_lemmas) * 100)
+  const knownPct = totalMarked > 0
+    ? Math.round((stats.by_state.known / totalMarked) * 100)
     : 0;
 
   return (
@@ -55,7 +55,9 @@ export default function PolyglotStats() {
       <BackHeader onBack={() => router.back()} />
       <ScrollView contentContainerStyle={s.body}>
         <Text style={s.h1}>Modern Greek</Text>
-        <Text style={s.h2}>{stats.total_lemmas} lemmas encountered · {knownPct}% known</Text>
+        <Text style={s.h2}>
+          {totalMarked} marked · {knownPct}% known · {stats.total_lemmas} words in your texts
+        </Text>
 
         <View style={s.card}>
           <Text style={s.cardLabel}>Knowledge breakdown</Text>
