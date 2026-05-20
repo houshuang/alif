@@ -18,11 +18,13 @@ import {
   Platform,
 } from "react-native";
 import { useRouter } from "expo-router";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import {
   listStories, getPage, markWord, markRemainingKnown,
   type StorySummary, type PageView, type TokenView, type MarkState,
 } from "../lib/polyglot-api";
+import { renderTokens } from "../lib/polyglot-render-helpers";
 
 // Reading palette. We treat the page as a book, not a flashcard surface:
 // every word in body text renders in the same warm ink color, function
@@ -64,6 +66,7 @@ export default function Polyglot() {
   const [selected, setSelected] = useState<TokenView | null>(null);
   const [bulkMarking, setBulkMarking] = useState(false);
   const scrollRef = useRef<ScrollView>(null);
+  const insets = useSafeAreaInsets();
 
   useEffect(() => { listStories().then(setStories).catch(() => setStories([])); }, []);
 
@@ -133,7 +136,7 @@ export default function Polyglot() {
   // ─── Story list ──────────────────────────────────────────────────────
   if (storyId == null) {
     return (
-      <View style={styles.screen}>
+      <View style={[styles.screen, { paddingTop: insets.top + 8 }]}>
         <View style={styles.headerRow}>
           <Pressable onPress={() => router.push("/languages")}><Text style={styles.headerLink}>‹ Languages</Text></Pressable>
           <Pressable onPress={() => router.push("/polyglot-stats")}>
@@ -169,7 +172,7 @@ export default function Polyglot() {
 
   // ─── Page view ───────────────────────────────────────────────────────
   return (
-    <View style={styles.screen}>
+    <View style={[styles.screen, { paddingTop: insets.top + 8 }]}>
       <View style={styles.headerRow}>
         <Pressable onPress={() => { setStoryId(null); setPageData(null); setSelected(null); }}>
           <Text style={styles.headerLink}>‹ Library</Text>
@@ -188,26 +191,30 @@ export default function Polyglot() {
         <ScrollView ref={scrollRef} contentContainerStyle={styles.pageBody}>
           <View style={styles.column}>
             <Text style={styles.greekText} selectable={false}>
-              {pageData.tokens
+              {renderTokens(
                 // Headings (chapter/section titles, running page headers
                 // injected by the PDF extractor) are meta-text; drop them
-                // entirely from the prose flow. Punctuation that sits
-                // inside a heading sentence is dropped too — it'd otherwise
-                // leave orphan periods or numbers floating in the body.
-                .filter((t) => !t.is_heading)
-                .map((t, i) => {
-                  const isSelected = selected != null && selected.position === t.position;
-                  return (
+                // entirely before computing spacing so the body reads as
+                // continuous prose.
+                pageData.tokens.filter((t) => !t.is_heading),
+              ).map((span, i) => {
+                const isSelected =
+                  selected != null && selected.position === span.token.position;
+                return (
+                  <Text key={i} style={isSelected ? styles.tokenSelected : styles.token}>
+                    {span.leadingSpace}
                     <Text
-                      key={i}
-                      style={isSelected ? styles.tokenSelected : styles.token}
-                      onPress={() => !t.is_punctuation && t.lemma_id && setSelected(t)}
+                      onPress={
+                        !span.isPunctuation && span.token.lemma_id
+                          ? () => setSelected(span.token)
+                          : undefined
+                      }
                     >
-                      {t.surface}
-                      {!t.is_punctuation ? " " : ""}
+                      {span.surface}
                     </Text>
-                  );
-                })}
+                  </Text>
+                );
+              })}
             </Text>
           </View>
         </ScrollView>
@@ -288,7 +295,10 @@ const BODY_LINE_HEIGHT = 33;
 const READING_MAX_WIDTH = 680;          // measure cap for tablet/web
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: C.bg, paddingTop: 40 },
+  // Top inset is applied dynamically via useSafeAreaInsets in the component
+  // body so iOS notch / Android status-bar height get the right value
+  // instead of the previous static 40.
+  screen: { flex: 1, backgroundColor: C.bg },
   headerRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center",
               paddingHorizontal: 24, marginBottom: 12 },
   headerLink: { color: C.accent, fontSize: 13, letterSpacing: 0.2 },
@@ -310,7 +320,7 @@ const styles = StyleSheet.create({
 
   // Page body: generous margins, max-width on wider screens to keep the
   // measure (line length) within a comfortable read.
-  pageBody: { paddingHorizontal: 28, paddingTop: 8, paddingBottom: 220,
+  pageBody: { paddingHorizontal: 28, paddingTop: 20, paddingBottom: 220,
               alignItems: "center" },
   column: { maxWidth: READING_MAX_WIDTH, width: "100%" },
   greekText: {
