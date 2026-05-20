@@ -180,7 +180,12 @@ function LayoutInner({ online }: { online: boolean }) {
         />
         <Tabs.Screen
           name="polyglot-stats"
-          options={{ href: null, title: "Modern Greek Stats" }}
+          options={{
+            href: elHref("polyglot-stats"),
+            title: "Modern Greek Stats",
+            tabBarLabel: "Stats",
+            tabBarIcon: ({ color, size }) => <Ionicons name="bar-chart-outline" size={size} color={color} />,
+          }}
         />
 
         {/* ─── Globe (always visible) ──────────────────────────────── */}
