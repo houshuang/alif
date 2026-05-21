@@ -44,6 +44,15 @@ _ACCEPT_EVENTS = {"sentence_accepted", "multi_target_accepted"}
 # successful generation — don't trigger false alarms.
 DEFAULT_FAILURE_THRESHOLD = 30
 
+# Softer tier — catches lemmas escaping the strict 0-accept gate. Triggered
+# by the 2026-05-20 audit: #65 had 43 failures + 4 accepts in 24h (ratio
+# 9.3%) and went undetected at the strict threshold for a week. The soft
+# tier catches that exact shape within ~1 day. Reported as a separate event
+# (``pipeline_target_struggling``) so the strict alert keeps its zero-FP
+# meaning.
+STRUGGLING_FAILURE_THRESHOLD = 15
+STRUGGLING_ACCEPT_RATIO = 0.15
+
 
 class StuckLemma(NamedTuple):
     lemma_id: int
@@ -216,13 +225,117 @@ def emit_stuck_lemma_alert(
     )
 
 
+def find_struggling_lemmas(
+    log_dir: Path,
+    window_hours: int = 24,
+    failure_threshold: int = STRUGGLING_FAILURE_THRESHOLD,
+    accept_ratio: float = STRUGGLING_ACCEPT_RATIO,
+    exclude_lemma_ids: set[int] | None = None,
+) -> list[StuckLemma]:
+    """Return lemmas with >=failure_threshold failures AND accept-rate below
+    ``accept_ratio``. Distinct from ``find_stuck_lemmas`` — these lemmas
+    occasionally produce sentences but are net-losing on every cron pass.
+
+    Pass ``exclude_lemma_ids`` to skip lemmas already reported as fully
+    stuck, so the same row doesn't show up in both event types.
+    """
+    exclude = exclude_lemma_ids or set()
+    agg = aggregate_failures_by_lemma(log_dir, window_hours=window_hours)
+    struggling = []
+    for lid, stats in agg.items():
+        if lid in exclude:
+            continue
+        fails = stats["failures"]
+        accepts = stats["accepts"]
+        if fails < failure_threshold:
+            continue
+        if accepts >= fails * accept_ratio:
+            continue  # producing enough sentences to be considered healthy
+        struggling.append(StuckLemma(
+            lemma_id=lid,
+            failure_count=fails,
+            accept_count=accepts,
+            sample_issues=stats["issues"],
+        ))
+    struggling.sort(key=lambda s: -s.failure_count)
+    return struggling
+
+
+def emit_struggling_lemma_alert(
+    db: Session,
+    struggling: list[StuckLemma],
+    window_hours: int = 24,
+) -> ActivityLog | None:
+    """Emit a ``pipeline_target_struggling`` ActivityLog row.
+
+    Idempotent against the previous identical alert in the same window, same
+    as the strict-tier alert.
+    """
+    if not struggling:
+        return None
+    lemma_ids = sorted(s.lemma_id for s in struggling)
+    cutoff = datetime.now(timezone.utc) - timedelta(hours=window_hours)
+    existing = (
+        db.query(ActivityLog)
+        .filter(
+            ActivityLog.event_type == "pipeline_target_struggling",
+            ActivityLog.created_at >= cutoff,
+        )
+        .order_by(ActivityLog.created_at.desc())
+        .first()
+    )
+    if existing:
+        prev_ids = sorted((existing.detail_json or {}).get("lemma_ids") or [])
+        if prev_ids == lemma_ids:
+            return None
+
+    lemma_rows = db.query(Lemma).filter(Lemma.lemma_id.in_(lemma_ids)).all()
+    lemma_by_id = {l.lemma_id: l for l in lemma_rows}
+    summaries = []
+    detail_items = []
+    for s in struggling:
+        lem = lemma_by_id.get(s.lemma_id)
+        ar = lem.lemma_ar if lem else "?"
+        gloss = (lem.gloss_en if lem else "") or "?"
+        ratio = (s.accept_count / s.failure_count * 100) if s.failure_count else 0.0
+        summaries.append(
+            f"{ar} ({gloss}): {s.failure_count} fails / {s.accept_count} accepts ({ratio:.0f}%)"
+        )
+        detail_items.append({
+            "lemma_id": s.lemma_id,
+            "lemma_ar": ar,
+            "gloss_en": gloss,
+            "failure_count": s.failure_count,
+            "accept_count": s.accept_count,
+            "sample_issues": s.sample_issues,
+        })
+    summary = (
+        f"{len(struggling)} lemma(s) struggling in generation "
+        f"({window_hours}h, <{STRUGGLING_ACCEPT_RATIO*100:.0f}% accept): "
+        + "; ".join(summaries[:3])
+        + ("…" if len(summaries) > 3 else "")
+    )
+    return log_activity(
+        db,
+        event_type="pipeline_target_struggling",
+        summary=summary,
+        detail={
+            "lemma_ids": lemma_ids,
+            "window_hours": window_hours,
+            "items": detail_items,
+        },
+    )
+
+
 def check_and_alert(
     db: Session,
     log_dir: Path,
     window_hours: int = 24,
     failure_threshold: int = DEFAULT_FAILURE_THRESHOLD,
-) -> list[StuckLemma]:
-    """Convenience wrapper: aggregate, decide, emit. Returns the stuck list."""
+) -> dict:
+    """Convenience wrapper: run both tiers, decide, emit. Returns
+    ``{"stuck": [...], "struggling": [...]}``.
+    """
     stuck = find_stuck_lemmas(
         log_dir,
         window_hours=window_hours,
@@ -230,4 +343,13 @@ def check_and_alert(
     )
     if stuck:
         emit_stuck_lemma_alert(db, stuck, window_hours=window_hours)
-    return stuck
+
+    struggling = find_struggling_lemmas(
+        log_dir,
+        window_hours=window_hours,
+        exclude_lemma_ids={s.lemma_id for s in stuck},
+    )
+    if struggling:
+        emit_struggling_lemma_alert(db, struggling, window_hours=window_hours)
+
+    return {"stuck": stuck, "struggling": struggling}

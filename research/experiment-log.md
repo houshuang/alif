@@ -4,6 +4,47 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-05-21: Chimera cleanup + prevention (Phases A-D of audit)
+
+### What
+
+Follow-up to the 2026-05-20 stuck-target fixes. A DB-wide audit surfaced 7 more chimera lemmas with bare/ar shape mismatches:
+
+| Category | Pattern | Lemmas |
+|---|---|---|
+| D1 — Form V verb bare = 3-letter root | `tashajja3a/شجع` etc. | #2757, #2925, #3095, #3173 |
+| D4 — Defective ـٍ participle missing explicit ya | `ghaazin/غاز` etc. | #908, #1240, #1859 |
+| Cross-meaning (the #65 laptop shape) | gloss "laptop" / data "repentance" | #65 (already fixed) |
+| Skipped — homograph | عَالٍ "high" #2522 vs "loud" #2208 | follow-up merge candidate |
+
+### Phase A — data repair (applied to prod 2026-05-21)
+
+`backend/scripts/fix_target_validation_2026_05_20.py` + `/tmp/repair_chimeras_phase_a.py` rewrote `lemma_ar_bare` (and `lemma_ar` vocalization) for 7 lemmas, clearing `generation_failed_count` / `generation_backoff_until`. All preserved their existing review history (`lemma_id` unchanged).
+
+### Phase B — chokepoint validation in `run_quality_gates`
+
+New `app/services/bare_shape_check.py` runs as Gate 1b. Auto-corrects Form V/VI/VII/VIII/X verbs whose bare is the 3-letter root by deriving the stem from `lemma_ar`. Auto-appends ya to defective `ـٍ` participles missing it. Skips collisions and emits `import_chimera_warning` ActivityLog for forms_json values that look cross-root (needs human judgment). One check, all import paths benefit because every import goes through `run_quality_gates`.
+
+### Phase C — softer watchdog tier
+
+`pipeline_watchdog.py` gained `find_struggling_lemmas` / `emit_struggling_lemma_alert`. New event type `pipeline_target_struggling` fires at ≥15 failures + <15% accept ratio (the 2026-05-20 #65 shape, which had a few accepts and slipped through the strict 0-accept gate for a week). `check_and_alert` now returns `{"stuck": [...], "struggling": [...]}`.
+
+### Phase D — DB-wide chimera audit every cron pass
+
+New `app/services/chimera_audit.py` runs as `warm_sentence_cache` Phase 7. Five categories D1..D5 covering Form V/VI verbs, Form VII/VIII verbs, Form X verbs, defective participles, cross-root forms_json. Emits `chimera_audit_findings` ActivityLog when the candidate set changes — idempotent within 24h so the More tab stays clean. CLI runner at `backend/scripts/chimera_audit.py` for manual invocation.
+
+### Why this is the structural fix
+
+The root cause is that the lemma row stores three fields (`lemma_ar`, `lemma_ar_bare`, `forms_json`) without an invariant tying them to one root. Imports trust each source. Phase B closes the front door (new imports get auto-corrected or warned). Phase C catches escapees within ~1 day (softer threshold catches the #65 shape that strict misses). Phase D is the DB-wide safety net for the historical population.
+
+### Verify
+
+- Tests: `python3 -m pytest tests/test_bare_shape_check.py tests/test_pipeline_watchdog.py tests/test_chimera_audit.py tests/test_sentence_validator.py` → 216 green
+- Post-deploy: `python3 scripts/chimera_audit.py` should return 0 candidates (or 1 for the deferred #2522 homograph)
+- Watch the More tab → Activity feed; if any new lemma trips the import-time check, it'll appear as `import_chimera_warning`
+
+---
+
 ## 2026-05-20: Stuck-target validation: caller bug + orthographic widening + watchdog
 
 ### What
