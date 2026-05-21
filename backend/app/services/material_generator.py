@@ -2316,12 +2316,30 @@ def _warm_sentence_cache_impl(
         from app.services.pipeline_watchdog import check_and_alert
         db = SessionLocal()
         try:
-            stuck = check_and_alert(db, _wd_settings.log_dir)
-            stats["stuck_lemma_alerts"] = [s.lemma_id for s in stuck]
+            result = check_and_alert(db, _wd_settings.log_dir)
+            stats["stuck_lemma_alerts"] = [s.lemma_id for s in result["stuck"]]
+            stats["struggling_lemma_alerts"] = [s.lemma_id for s in result["struggling"]]
         finally:
             db.close()
     except Exception:
         logger.exception("Warm cache: pipeline watchdog failed; continuing")
+
+    # ── Phase 7: chimera audit ──
+    # DB-wide structural scan for lemmas whose lemma_ar / lemma_ar_bare /
+    # forms_json disagree (Form V/VI/VII/VIII/X stem-vs-root, defective
+    # participles missing ya, cross-root forms_json). Idempotent
+    # ActivityLog emission so the More-tab feed stays clean. Caught
+    # 2026-05-21: 8 historical chimeras across the DB.
+    try:
+        from app.services.chimera_audit import check_and_alert as _ca_check
+        db = SessionLocal()
+        try:
+            cands = _ca_check(db)
+            stats["chimera_candidates"] = len(cands)
+        finally:
+            db.close()
+    except Exception:
+        logger.exception("Warm cache: chimera audit failed; continuing")
 
     logger.info("Warm cache %s complete: %s", run_label, stats)
     return stats

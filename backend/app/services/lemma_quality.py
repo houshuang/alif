@@ -256,6 +256,42 @@ def run_quality_gates(
     finalize_summary = finalize_new_lemmas(db, lemma_ids)
     db.commit()
 
+    # ── Gate 1b: Bare-shape consistency (chimera prevention) ──────────────
+    # Catches Form V/VI/VII/VIII/X verbs stored with the 3-letter root as bare,
+    # defective participles whose bare lacks the implicit ya, and forms_json
+    # values from a different root. Auto-corrects the first two; warns on the
+    # third. Source: 2026-05-20 chimera audit, see bare_shape_check.py.
+    shape_results = []
+    try:
+        from app.services.bare_shape_check import check_and_correct_bare_shape
+        shape_results = check_and_correct_bare_shape(db, lemma_ids)
+        if shape_results:
+            db.commit()
+            from app.services.activity_log import log_activity
+            corrected = [r for r in shape_results if r.auto_corrected]
+            warned = [r for r in shape_results if r.warnings]
+            log_activity(
+                db,
+                event_type="import_chimera_warning",
+                summary=(
+                    f"Bare-shape check: {len(corrected)} auto-corrected, "
+                    f"{len(warned)} warned across {len(lemma_ids)} new lemmas"
+                ),
+                detail={
+                    "auto_corrected": [
+                        {"lemma_id": r.lemma_id, "new_bare": r.new_bare}
+                        for r in corrected
+                    ],
+                    "warnings": [
+                        {"lemma_id": r.lemma_id, "warnings": r.warnings}
+                        for r in warned
+                    ],
+                },
+            )
+    except Exception:
+        logger.exception("bare_shape_check failed; continuing without")
+        db.rollback()
+
     # ── Gate 2: Variant detection (LLM + deterministic) ────────────────────
     variants_marked = 0
     if not skip_variants:
@@ -307,6 +343,8 @@ def run_quality_gates(
 
     summary = {
         "finalize": finalize_summary,
+        "shape_corrected": sum(1 for r in shape_results if r.auto_corrected),
+        "shape_warned": sum(1 for r in shape_results if r.warnings),
         "variants": variants_marked,
         "enriched": enriched,
         "stamped": stamped,

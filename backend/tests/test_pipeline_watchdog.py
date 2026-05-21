@@ -10,9 +10,11 @@ import pytest
 from app.models import ActivityLog, Lemma
 from app.services.pipeline_watchdog import (
     DEFAULT_FAILURE_THRESHOLD,
+    STRUGGLING_FAILURE_THRESHOLD,
     aggregate_failures_by_lemma,
     check_and_alert,
     find_stuck_lemmas,
+    find_struggling_lemmas,
 )
 
 
@@ -88,8 +90,8 @@ def test_check_and_alert_emits_activity_log(tmp_path, db_session):
     }] * (DEFAULT_FAILURE_THRESHOLD + 5)
     log_dir = _write_log(tmp_path, entries)
 
-    stuck = check_and_alert(db_session, log_dir)
-    assert any(s.lemma_id == lemma_id for s in stuck)
+    result = check_and_alert(db_session, log_dir)
+    assert any(s.lemma_id == lemma_id for s in result["stuck"])
 
     alert = (
         db_session.query(ActivityLog)
@@ -106,3 +108,69 @@ def test_check_and_alert_emits_activity_log(tmp_path, db_session):
         ActivityLog.event_type == "pipeline_target_stuck"
     ).count()
     assert count_after == 1
+
+
+def test_struggling_tier_catches_low_accept_ratio(tmp_path):
+    """The #65-shape case: high fails + a few accepts (<15% ratio) should be
+    flagged by the struggling tier even though the strict tier ignores it."""
+    entries = (
+        [{"event": "batch_validation_failed", "lemma_id": 65, "ts": _now_ts()}] * 40
+        + [{"event": "sentence_accepted", "lemma_id": 65, "ts": _now_ts()}] * 2
+    )
+    log_dir = _write_log(tmp_path, entries)
+    stuck = find_stuck_lemmas(log_dir)
+    struggling = find_struggling_lemmas(log_dir)
+    assert 65 not in {s.lemma_id for s in stuck}, "strict tier should skip"
+    assert 65 in {s.lemma_id for s in struggling}
+
+
+def test_struggling_tier_excludes_healthy_lemmas(tmp_path):
+    # 15 fails + 5 accepts = 33% ratio, healthy. NOT struggling.
+    entries = (
+        [{"event": "batch_validation_failed", "lemma_id": 88, "ts": _now_ts()}] * 15
+        + [{"event": "sentence_accepted", "lemma_id": 88, "ts": _now_ts()}] * 5
+    )
+    log_dir = _write_log(tmp_path, entries)
+    struggling = find_struggling_lemmas(log_dir)
+    assert 88 not in {s.lemma_id for s in struggling}
+
+
+def test_struggling_tier_excludes_stuck_ids(tmp_path):
+    # The exclude_lemma_ids param prevents double-reporting a fully stuck lemma.
+    entries = (
+        [{"event": "batch_validation_failed", "lemma_id": 5, "ts": _now_ts()}] * 50
+    )
+    log_dir = _write_log(tmp_path, entries)
+    struggling = find_struggling_lemmas(log_dir, exclude_lemma_ids={5})
+    assert struggling == []
+
+
+def test_check_and_alert_emits_both_tier_alerts(tmp_path, db_session):
+    strict_lem = Lemma(lemma_ar="ا", lemma_ar_bare="strict_lem", gloss_en="x")
+    soft_lem = Lemma(lemma_ar="ب", lemma_ar_bare="soft_lem", gloss_en="y")
+    db_session.add_all([strict_lem, soft_lem])
+    db_session.commit()
+
+    entries = (
+        # Strict: >=30 fails, 0 accepts
+        [{"event": "batch_validation_failed", "lemma_id": strict_lem.lemma_id,
+          "ts": _now_ts()}] * (DEFAULT_FAILURE_THRESHOLD + 2)
+        # Soft: >=15 fails, ~5% accept ratio (well under 15%)
+        + [{"event": "batch_validation_failed", "lemma_id": soft_lem.lemma_id,
+            "ts": _now_ts()}] * 40
+        + [{"event": "sentence_accepted", "lemma_id": soft_lem.lemma_id,
+            "ts": _now_ts()}] * 1
+    )
+    log_dir = _write_log(tmp_path, entries)
+    result = check_and_alert(db_session, log_dir)
+    assert any(s.lemma_id == strict_lem.lemma_id for s in result["stuck"])
+    assert any(s.lemma_id == soft_lem.lemma_id for s in result["struggling"])
+
+    strict_alert = db_session.query(ActivityLog).filter(
+        ActivityLog.event_type == "pipeline_target_stuck"
+    ).first()
+    soft_alert = db_session.query(ActivityLog).filter(
+        ActivityLog.event_type == "pipeline_target_struggling"
+    ).first()
+    assert strict_alert is not None
+    assert soft_alert is not None
