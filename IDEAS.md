@@ -26,11 +26,13 @@ When a lemma has `enrichment_status='done_flagged'`, the enrichment is still wri
 
 ---
 
-## 🔵 [OPEN 2026-05-21] Polyglot: pre-existing lemma_quality test failure
+## ✅ [DONE 2026-05-21] Polyglot: pre-existing lemma_quality test failure
 
-`tests/test_lemma_quality.py::test_partial_batch_failure_leaves_page_unverified` fails on main. Confirmed pre-existing (also fails on PR #110's baseline, predates PR #114). The body-clean / quality-gate `verify_page_mappings` stamps `Page.mappings_verified_at` even when one of multiple Haiku batches returns `None`, which violates the "verification failure ≠ success" invariant. Real bug — transient Haiku failures during page imports get silently baked in.
+`tests/test_lemma_quality.py::test_partial_batch_failure_leaves_page_unverified` was failing on main. Real bug — transient Haiku failures during force re-runs (or after an earlier successful pass) carried a stale `mappings_verified_at` stamp even when one of the new batches returned `None`, violating the "verification failure ≠ success" invariant.
 
-Fix: in `verify_page_mappings`, only stamp `mappings_verified_at` when ALL batches succeed. Per-word `verified_at` can still be set for tokens whose batch succeeded, but the page-level stamp gates the next page-view retry, so it must be all-or-nothing.
+Root cause: the function correctly avoided **adding** a stamp on partial failure, but never **cleared** the pre-existing page stamp or per-word `verified_at` from a prior successful pass. The per-word filter already honored `force=True` ("re-verify from scratch"); the page-level stamp didn't.
+
+Fix: in `verify_page_mappings`, after building the `interesting` list and before the batch loop, NULL `page.mappings_verified_at` + `page.quality_gate_failures` and reset `verified_at` on every word about to be re-batched. Natural fall-through then leaves the page in the correct unverified state on any partial failure. Per-word `verified_at` for tokens whose new batch succeeds gets re-stamped by `_apply_verdict`. All 13 lemma_quality tests + 26 reading_intake/sentence_harvest tests still green.
 
 ---
 
