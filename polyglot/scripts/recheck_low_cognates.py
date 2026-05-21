@@ -5,14 +5,25 @@ The original cognate detector at threshold=low let in two distinct kinds of
 match: (a) "mitir/patir-style" — semantically clear, recognizable via Romance
 reflexes or widespread Greek-derived prefixes (geo-/hydro-/photo-); and (b)
 "rare-loanword" — only recognizable via medical/botanical/theological/
-linguistic jargon (alopecia, picric, latria, paralipsis). Sample audit shows
-~50% of low-best marks are (b).
+linguistic jargon (alopecia, picric, latria, paralipsis).
 
 This script re-judges each low-best lemma with a tighter prompt and deletes
 the cognate-source ULK for the ones the second pass calls unrecognizable.
 The Lemma row + its cognates_json stay — only the ULK is removed, so the
 lemma reverts to "no knowledge state" and will be auto-introduced on next
 reading like any other unknown word.
+
+**Important caveat (2026-05-21 lesson):** the recheck still relies on LLM
+judgment of "would a reader recognize this," which has a blind spot — both
+this script and the original detector accept "etymological link + same
+gloss" as recognizable, without ever checking that the Greek surface form
+actually transliterates to anything like the proposed cognate. πτυχίο
+"survived" the recheck despite sharing zero letters with English "diploma".
+For production use, prefer running `import_subtlex_gr.py --threshold medium`
+so this recheck is never needed. A proper fix would add a transliteration-
+distance gate (deterministic, no LLM); not built yet.
+
+See polyglot/CLAUDE.md Hard Invariant 6 for the full lesson.
 
 Usage:
     .venv/bin/python scripts/recheck_low_cognates.py --batch 25
