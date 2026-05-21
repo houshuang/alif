@@ -46,9 +46,12 @@ PAGES_BUFFER="${POLYGLOT_PAGES_AHEAD_BUFFER:-5}"
 PAGES_MAX_PER_RUN="${POLYGLOT_PAGES_AHEAD_MAX_PER_RUN:-5}"
 PAGES_TIMEOUT_SECONDS="${POLYGLOT_PAGES_AHEAD_TIMEOUT_SECONDS:-1200}"
 # 2026-05-21: third phase enriches lemmas with philological data (etymology,
-# diachrony, cognates, quotes, register). Per-run cap kept conservative so a
-# bad batch doesn't blow the whole Claude budget; cron runs every 3h so 10
-# lemmas/run = ~80 lemmas/day, enough to cover engaged vocabulary in a week.
+# diachrony, cognates, quotes, register). Selector prioritises active study:
+# acquiring (sorted by next-due) → learning/lapsed → encountered. `known`
+# lemmas are excluded — once a word is learnt the lookup card stops being
+# load-bearing. See find_unenriched_lemmas docstring for the full policy.
+# Per-run cap kept conservative so a bad batch doesn't blow the whole Claude
+# budget; cron runs every 3h.
 ENRICH_MAX_LEMMAS="${POLYGLOT_ENRICH_MAX_LEMMAS:-10}"
 ENRICH_TIMEOUT_SECONDS="${POLYGLOT_ENRICH_TIMEOUT_SECONDS:-1800}"
 
