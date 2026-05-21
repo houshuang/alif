@@ -24,9 +24,13 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import {
   listStories, getPage, markWord, markRemainingKnown,
+  getLemmaDetail,
   type StorySummary, type PageView, type TokenView,
+  type LemmaDetail,
 } from "../lib/polyglot-api";
 import { renderTokens } from "../lib/polyglot-render-helpers";
+import PolyglotLookupCard from "../lib/polyglot-lookup-card";
+import { POLYGLOT_COLORS } from "../lib/polyglot-design-colors";
 
 // Per-page tap-cycle persistence. Red (0) and yellow (1) marks survive
 // page navigation and app reloads so the user keeps the visual record of
@@ -76,13 +80,20 @@ async function saveCyclePositions(
 // English). Marks persist per (story, page) in AsyncStorage so navigating
 // away and back preserves the exact taps the user made on that page,
 // independent of how the backend's ULK state has evolved since.
+//
+// 2026-05-21: palette aligned with the polyglot Modern Editorial design
+// (POLYGLOT_COLORS in lib/polyglot-design-colors.ts). The reader keeps the
+// serif Greek body — Cormorant Garamond / Georgia is the same family Modern
+// Editorial uses for the detail screen — but trades the dark warm-slate
+// surface for a light editorial one. Same visual language across reader,
+// lookup card, intro card, and the new lemma detail page.
 const C = {
-  bg: "#14121a",             // warm slate — softer than pure black for long reading
-  surface: "#1d1a26",        // bottom-bar surface
-  border: "#2f2a3a",
-  ink: "#ede4cf",            // body text — warm off-white, "paper ink"
-  inkMuted: "#a89c83",       // for chrome (page number, headers)
-  accent: "#a98ef0",         // selection underline
+  bg: POLYGLOT_COLORS.bg,
+  surface: POLYGLOT_COLORS.surface,
+  border: POLYGLOT_COLORS.border,
+  ink: POLYGLOT_COLORS.text,
+  inkMuted: POLYGLOT_COLORS.textSecondary,
+  accent: POLYGLOT_COLORS.accent,
   cycleRed: "#c95f6f",       // tap 1: "no idea" — full SRS enrollment
   cycleYellow: "#d4a06b",    // tap 2: "recognize after seeing English"
 };
@@ -116,6 +127,12 @@ export default function Polyglot() {
   // word.
   const [cyclePositions, setCyclePositions] = useState<Record<number, number>>({});
   const [glossByLemma, setGlossByLemma] = useState<Record<number, string | null>>({});
+  // Lazy-fetched lemma detail (with enrichment) for the currently-tapped
+  // word. The lookup card renders the head row immediately from `selected`
+  // (already loaded as part of the page); enrichment streams in here when
+  // available. Keyed by lemma_id so re-tapping the same word reuses the cache.
+  const [lemmaDetailCache, setLemmaDetailCache] = useState<Record<number, LemmaDetail>>({});
+  const detailRequestRef = useRef(0);
   const [bulkMarking, setBulkMarking] = useState(false);
   const scrollRef = useRef<ScrollView>(null);
   const insets = useSafeAreaInsets();
@@ -152,6 +169,25 @@ export default function Polyglot() {
     const startPage = story?.first_content_page_number ?? 1;
     loadPage(storyId, startPage);
   }, [storyId, loadPage, stories]);
+
+  // Lazy-fetch full lemma detail (with enrichment) when a word is tapped.
+  // The lookup card renders immediately from `selected`; enrichment fills in
+  // as soon as the network round-trip completes. detailRequestRef guards
+  // against stale responses if the user taps another word mid-flight.
+  useEffect(() => {
+    if (selected?.lemma_id == null) return;
+    const lemmaId = selected.lemma_id;
+    if (lemmaDetailCache[lemmaId]) return;  // already fetched
+    const reqId = ++detailRequestRef.current;
+    getLemmaDetail(lemmaId)
+      .then((detail) => {
+        if (detailRequestRef.current !== reqId) return;
+        setLemmaDetailCache((prev) => ({ ...prev, [lemmaId]: detail }));
+      })
+      .catch(() => {
+        // Best-effort: lookup card still renders without enrichment.
+      });
+  }, [selected, lemmaDetailCache]);
 
   // Tap-cycle handler. The act of tapping a word advances its position in
   // the three-state cycle:
@@ -296,28 +332,32 @@ export default function Polyglot() {
         </ScrollView>
       )}
 
-      {/* Lookup bar — surface word + English gloss + close. No lemma,
-          no POS, no action buttons. Cycle dot reflects current tap state. */}
+      {/* Lookup card — Modern Editorial. Renders the basic head row from the
+          already-loaded `selected` token, then streams in enrichment lazily.
+          The "View full philology ›" link routes to /polyglot-lemma/{id}. */}
       {selected && selected.lemma_id != null && (() => {
         const lemmaId = selected.lemma_id;
         const pos = cyclePositions[lemmaId];
         const dotColor =
           pos === 0 ? C.cycleRed
           : pos === 1 ? C.cycleYellow
-          : C.inkMuted;
+          : null;
         const gloss = glossByLemma[lemmaId] ?? selected.gloss_en;
+        const detail = lemmaDetailCache[lemmaId];
         return (
-          <View style={styles.lookupBar}>
-            <View style={styles.lookupRow}>
-              <View style={[styles.lookupDot, { backgroundColor: dotColor }]} />
-              <Text style={styles.lookupSurface}>{selected.surface}</Text>
-              <Text style={styles.lookupGloss} numberOfLines={2}>
-                {gloss ? `  ${gloss}` : "  …"}
-              </Text>
-              <Pressable onPress={() => setSelected(null)} style={styles.lookupClose}>
-                <Ionicons name="close" size={20} color={C.inkMuted} />
-              </Pressable>
-            </View>
+          <View style={styles.lookupSlot}>
+            <PolyglotLookupCard
+              lemmaForm={selected.lemma_form ?? selected.surface}
+              glossEn={gloss}
+              pos={selected.pos}
+              ancientForm={detail?.cognate_lemma_form ?? detail?.enrichment?.etymology?.ancient_form ?? null}
+              enrichment={detail?.enrichment ?? null}
+              frequencyRank={detail?.frequency_rank ?? null}
+              cycleColor={dotColor}
+              surfaceForm={selected.surface}
+              onViewDetails={() => router.push(`/polyglot-lemma/${lemmaId}`)}
+              onClose={() => setSelected(null)}
+            />
           </View>
         );
       })()}
@@ -420,13 +460,8 @@ const styles = StyleSheet.create({
     textDecorationColor: C.cycleYellow,
   },
 
-  lookupBar: { backgroundColor: C.surface, borderTopWidth: 1, borderColor: C.border,
-               paddingVertical: 14, paddingHorizontal: 20 },
-  lookupRow: { flexDirection: "row", alignItems: "center", flexWrap: "nowrap" },
-  lookupDot: { width: 10, height: 10, borderRadius: 5, marginRight: 10 },
-  lookupSurface: { color: C.ink, fontSize: 17, fontWeight: "600", fontFamily: SERIF },
-  lookupGloss: { color: C.ink, fontSize: 15, flex: 1, fontFamily: SERIF },
-  lookupClose: { padding: 4, marginLeft: 8 },
+  lookupSlot: { paddingHorizontal: 12, paddingTop: 8, paddingBottom: 4,
+                borderTopWidth: 1, borderColor: C.border, backgroundColor: C.bg },
 
   pageNav: { paddingHorizontal: 20, paddingVertical: 14,
              borderTopWidth: 1, borderColor: C.border, backgroundColor: C.surface },
