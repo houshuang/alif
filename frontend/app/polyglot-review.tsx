@@ -7,13 +7,20 @@
  *
  * Two-stage reveal: front shows the Greek sentence alone; "Show Translation"
  * flips to the back with the English. On either side the learner can:
- *   - tap a content word to cycle off → missed (red) → confused (yellow) → off
+ *   - tap a word to cycle off → missed (red) → confused (yellow) → off
  *   - tap "No idea" → comprehension_signal="no_idea"
  *   - tap the middle button (label "Know All" with no marks → "Continue" with
  *     any marks) → comprehension_signal derived from marks
  *
- * Function words and proper names are tappable for gloss reveal but never
- * accumulate marks — same content-lemma filter as sentence_review_service.
+ * No word carries a pre-applied highlight — not the scheduling target, not
+ * the function-word/proper-name class, not the most-recently-tapped word.
+ * Mirrors Alif's index.tsx: only the user's own mark cycle is visible.
+ * Function words and proper names can be tapped (so the gloss card appears)
+ * and visually cycle alongside content words, but `lemmaIdsFromMarks` filters
+ * them out of the submission payload — same content-lemma filter as
+ * sentence_review_service on the backend. The gloss / missed-word card is
+ * driven entirely by the last word currently in red/yellow; cycle that word
+ * back to off and the card disappears.
  *
  * Cut vs Alif (with reasons):
  *   - tashkeel toggle dot — Greek has no analogous opt-out diacritics
@@ -56,7 +63,6 @@ import {
   generateClientReviewId,
   generateSessionId,
   hasAnyMarks,
-  isContentWord,
   lemmaIdsFromMarks,
   markStateAt,
   middleButtonLabel,
@@ -78,8 +84,7 @@ const C = {
   text: "#2a1c0c",        // burnt umber
   textDim: "#5a3a1a",     // warm brown — used for English translation
   textMuted: "#8a6a3a",   // tan — used for chrome labels only, NEVER for words
-  accent: "#8a4a1a",      // burnt orange — target word, primary button, progress fill
-  target: "#8a4a1a",      // same accent; italic, not bold
+  accent: "#8a4a1a",      // burnt orange — primary button, progress fill
   missed: "#b85a3a",      // burnt red — marked-missed underline
   confused: "#c79858",    // amber — marked-confused underline
   good: "#7a8a4a",        // moss
@@ -208,11 +213,13 @@ export default function PolyglotReview() {
   const handleWordTap = useCallback((wordIdx: number) => {
     if (!currentSentence) return;
     const word = currentSentence.words[wordIdx];
-    if (!word) return;
-    if (isContentWord(word)) {
-      setMarks((prev) => cycleMark(prev, wordIdx));
-    }
-    setGlossWordIdx((cur) => (cur === wordIdx ? null : wordIdx));
+    if (!word || word.lemma_id == null) return;
+    setMarks((prev) => {
+      const next = cycleMark(prev, wordIdx);
+      const nextState = markStateAt(next, wordIdx);
+      setGlossWordIdx(nextState === "off" ? null : wordIdx);
+      return next;
+    });
   }, [currentSentence]);
 
   const advanceSlot = useCallback(() => {
@@ -294,7 +301,13 @@ export default function PolyglotReview() {
             </>
           ) : null}
         </View>
-        <Pressable style={styles.button} onPress={() => router.back()}>
+        <Pressable
+          style={styles.button}
+          onPress={() => {
+            if (router.canGoBack()) router.back();
+            else router.push("/polyglot");
+          }}
+        >
           <Text style={styles.buttonText}>Back</Text>
         </Pressable>
         <Pressable style={[styles.button, styles.buttonGhost]} onPress={loadSession}>
@@ -358,7 +371,6 @@ export default function PolyglotReview() {
           cardState={cardState}
           marks={marks}
           onWordTap={handleWordTap}
-          glossWordIdx={glossWordIdx}
         />
         {glossWord && glossWord.lemma_id != null ? (
           <View style={styles.lookupSlot}>
@@ -375,7 +387,6 @@ export default function PolyglotReview() {
               frequencyRank={lemmaDetailCache[glossWord.lemma_id]?.frequency_rank ?? null}
               surfaceForm={glossWord.surface_form}
               onViewDetails={() => router.push(`/polyglot-lemma/${glossWord.lemma_id}`)}
-              onClose={() => setGlossWordIdx(null)}
             />
           </View>
         ) : null}
@@ -536,13 +547,11 @@ function SentenceCard({
   cardState,
   marks,
   onWordTap,
-  glossWordIdx,
 }: {
   payload: SentencePayload;
   cardState: CardState;
   marks: MarkSets;
   onWordTap: (idx: number) => void;
-  glossWordIdx: number | null;
 }) {
   const showAnswer = cardState === "back";
   const words = useMemo(
@@ -555,14 +564,15 @@ function SentenceCard({
       <Text style={styles.sentenceGreek}>
         {words.map((word, i) => {
           const state = markStateAt(marks, i);
-          const isContent = isContentWord(word);
-          const isFocused = glossWordIdx === i;
-          let wordStyle = undefined;
-          if (state === "missed") wordStyle = styles.missedWord;
-          else if (state === "confused") wordStyle = styles.confusedWord;
-          else if (isFocused) wordStyle = styles.focusedWord;
-          else if (word.is_target) wordStyle = styles.targetWord;
-          else if (!isContent) wordStyle = styles.functionWord;
+          // Nothing in the sentence carries a pre-applied highlight — not the
+          // scheduling target, not the currently-glossed word, not function
+          // words. The only visible signal is the user's own mark cycle:
+          // missed (red underline) or confused (yellow underline). See
+          // Alif's index.tsx ~line 2877 for the source pattern.
+          const wordStyle =
+            state === "missed" ? styles.missedWord
+            : state === "confused" ? styles.confusedWord
+            : undefined;
 
           return (
             <Text key={`w-${i}`}>
@@ -786,12 +796,6 @@ const styles = StyleSheet.create({
     color: C.text, fontSize: 30, lineHeight: 46, textAlign: "left",
     fontFamily: POLYGLOT_FONTS.greekDisplay, letterSpacing: 0.2,
   },
-  // Target word: italic burnt-orange, NOT bold. Folio mockup spec.
-  targetWord: { color: C.target, fontStyle: "italic" },
-  // Function words: same color as content text — no fade. User explicitly
-  // ruled out fading in design-explorer turn 22.
-  functionWord: { color: C.text },
-  focusedWord: { color: C.accent, fontStyle: "italic" },
   missedWord: {
     color: C.missed,
     textDecorationLine: "underline",
