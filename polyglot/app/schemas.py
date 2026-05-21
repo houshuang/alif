@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 # ─── Languages ─────────────────────────────────────────────────────────────
@@ -127,3 +127,77 @@ class LemmaCognatesOut(BaseModel):
     cognates: list[CognateInfo]
     detected_at: datetime | None
     cognate_lemma_id: int | None       # Modern↔Ancient Greek link (if any)
+
+
+# ─── Lemma enrichment (philology / etymology / diachrony / quotes) ──────────
+# Single source of truth for the LemmaEnrichment shape. Both the enrichment
+# service (lemma_philology.py) and the frontend (frontend/lib/types.ts) target
+# this shape; the corresponding TS interfaces mirror it 1:1 and a Jest test
+# loads the same JSON fixture this module emits.
+#
+# Eras are normalized to a fixed enum so the frontend can color-code stages
+# without per-lemma surprises.
+
+LEMMA_ERA = ("Mycenaean", "Homeric", "Classical", "Koine", "Byzantine", "Modern")
+LemmaEra = str  # constrained at JSON-schema layer in lemma_philology._gen_schema
+
+
+class LemmaEtymology(BaseModel):
+    pie_root: str | None = None        # e.g. "*ḱerd- (heart)"
+    ancient_form: str | None = None    # polytonic, e.g. "καρδία"
+    origin_note: str                   # 1-2 sentence prose origin
+    morphology: str | None = None      # e.g. "ἀ- (neg) + λόγος (reason)"
+
+
+class LemmaDiachronyStage(BaseModel):
+    era: str                           # one of LEMMA_ERA
+    form: str                          # form at this era (often shifted)
+    meaning: str                       # meaning at this era
+    note: str | None = None            # one-liner context
+
+
+class LemmaCognate(BaseModel):
+    language: str                      # "English" / "Latin" / "German" / etc.
+    form: str
+    relation: str                      # see lemma_philology._gen_schema enum
+    gloss_en: str | None = None        # for non-English cognates
+    note: str | None = None            # false-friend warning, semantic drift
+
+
+class LemmaQuote(BaseModel):
+    text: str                          # ≤25 words
+    source: str                        # "Plato, Republic 439d"
+    era: str                           # one of LEMMA_ERA
+    translation_en: str
+
+
+class LemmaRegister(BaseModel):
+    formality: str | None = None       # "formal" | "neutral" | "colloquial" | "literary"
+    collocations: list[str] = Field(default_factory=list)
+    false_friends_en: list[str] = Field(default_factory=list)
+    usage_note: str | None = None
+
+
+class LemmaEnrichment(BaseModel):
+    """Philological enrichment payload for a single lemma. Carried in
+    `Lemma.enrichment_json` and surfaced to the learner in the lookup card +
+    lemma detail screen (Modern Editorial design, 2026-05-21)."""
+    model_config = ConfigDict(protected_namespaces=())
+
+    version: int = 1
+    etymology: LemmaEtymology | None = None
+    diachrony: list[LemmaDiachronyStage] = Field(default_factory=list)
+    cognates: list[LemmaCognate] = Field(default_factory=list)
+    quotes: list[LemmaQuote] = Field(default_factory=list)
+    register: LemmaRegister | None = None
+
+
+class LemmaEnrichmentRequest(BaseModel):
+    lemma_ids: list[int]
+    language_code: str = "el"
+
+
+class LemmaEnrichmentBatchResult(BaseModel):
+    enriched: int
+    failed_lemma_ids: list[int]
+    skipped_lemma_ids: list[int]       # glossless / variant / function word

@@ -58,6 +58,9 @@ class Lemma(Base):
     # NULL = never checked; [] = checked, none found.
     cognates_json = Column(JSON, nullable=True)
     cognates_detected_at = Column(DateTime, nullable=True)
+    enrichment_json = Column(JSON, nullable=True)
+    enrichment_status = Column(String(20), nullable=True)
+    enriched_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
     language = relationship("Language")

@@ -251,6 +251,7 @@ function LayoutInner({ online }: { online: boolean }) {
         <Tabs.Screen name="root/[id]" options={{ href: null, title: "Root Detail" }} />
         <Tabs.Screen name="pattern/[id]" options={{ href: null, title: "Pattern Detail" }} />
         <Tabs.Screen name="words" options={{ href: null, title: "Words" }} />
+        <Tabs.Screen name="polyglot-lemma/[id]" options={{ href: null, title: "Lemma Detail" }} />
       </Tabs>
     </>
   );

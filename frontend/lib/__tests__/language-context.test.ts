@@ -91,6 +91,7 @@ describe("routeLanguage classifier", () => {
   test("polyglot deep paths and future polyglot-* screens classify as 'el'", () => {
     expect(routeLanguage("/polyglot/some-deep-path")).toBe("el");
     expect(routeLanguage("/polyglot-anything-new")).toBe("el");
+    expect(routeLanguage("/polyglot-lemma/1245")).toBe("el");
   });
 
   test("homePathFor returns the right entry route per language", () => {

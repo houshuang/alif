@@ -28,6 +28,10 @@ from app.services.material_generator import (
     batch_generate_material,
     warm_sentence_cache,
 )
+from app.services.lemma_philology import (
+    batch_enrich,
+    find_unenriched_lemmas,
+)
 
 
 router = APIRouter(prefix="/api/materials", tags=["materials"])
@@ -79,3 +83,43 @@ def warm_cache(req: WarmCacheRequest) -> WarmCacheResponse:
         sentences_per_target=req.sentences_per_target,
     )
     return WarmCacheResponse(**result)
+
+
+# ─── Lemma philology enrichment ─────────────────────────────────────────────
+
+
+class EnrichRequest(BaseModel):
+    language_code: str = "el"
+    lemma_ids: Optional[list[int]] = None
+    max_lemmas: int = Field(default=10, ge=1, le=50)
+    include_failed: bool = False
+
+
+class EnrichResponse(BaseModel):
+    enriched: int
+    failed_lemma_ids: list[int]
+    skipped_lemma_ids: list[int]
+
+
+@router.post("/enrich-philology", response_model=EnrichResponse)
+def enrich_philology(req: EnrichRequest) -> EnrichResponse:
+    """Run philology enrichment.
+
+    Two modes:
+    - Caller supplies ``lemma_ids`` explicitly → enrich exactly those.
+    - Caller omits ``lemma_ids`` → pick up to ``max_lemmas`` un-enriched
+      lemmas from the engaged-vocabulary pool (those with a ULK row), ranked
+      by frequency. Used by the cron wrapper.
+    """
+    if req.lemma_ids:
+        ids = req.lemma_ids
+    else:
+        ids = find_unenriched_lemmas(
+            language_code=req.language_code,
+            limit=req.max_lemmas,
+            include_failed=req.include_failed,
+        )
+    if not ids:
+        return EnrichResponse(enriched=0, failed_lemma_ids=[], skipped_lemma_ids=[])
+    result = batch_enrich(language_code=req.language_code, lemma_ids=ids)
+    return EnrichResponse(**result)

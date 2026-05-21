@@ -381,6 +381,100 @@ export type IntroCard = {
   cognate_lemma_form: string | null;
 };
 
+// ─── Lemma philology enrichment ─────────────────────────────────────────────
+// Mirrors `polyglot/app/schemas.py::LemmaEnrichment` 1:1. Shape parity is
+// enforced by frontend/lib/__tests__/polyglot-enrichment-shape.test.ts which
+// loads a backend-emitted fixture and asserts the TS interface accepts it.
+// When changing this shape: edit schemas.py FIRST, regen the fixture, then
+// update here.
+
+export type LemmaEra =
+  | "Mycenaean"
+  | "Homeric"
+  | "Classical"
+  | "Koine"
+  | "Byzantine"
+  | "Modern";
+
+export type LemmaCognateRelation =
+  | "loanword-from-greek"
+  | "shared-pie-root"
+  | "calque"
+  | "descendant"
+  | "borrowed-via-latin";
+
+export type LemmaFormality = "formal" | "neutral" | "colloquial" | "literary";
+
+export type LemmaEtymology = {
+  pie_root: string | null;
+  ancient_form: string | null;
+  origin_note: string;
+  morphology: string | null;
+};
+
+export type LemmaDiachronyStage = {
+  era: LemmaEra;
+  form: string;
+  meaning: string;
+  note: string | null;
+};
+
+export type LemmaCognate = {
+  language: string;
+  form: string;
+  relation: LemmaCognateRelation;
+  gloss_en: string | null;
+  note: string | null;
+};
+
+export type LemmaQuote = {
+  text: string;
+  source: string;
+  era: LemmaEra;
+  translation_en: string;
+};
+
+export type LemmaRegister = {
+  formality: LemmaFormality | null;
+  collocations: string[];
+  false_friends_en: string[];
+  usage_note: string | null;
+};
+
+export type LemmaEnrichment = {
+  version: number;
+  etymology: LemmaEtymology | null;
+  diachrony: LemmaDiachronyStage[];
+  cognates: LemmaCognate[];
+  quotes: LemmaQuote[];
+  register: LemmaRegister | null;
+};
+
+// Mirrors the `/api/lemmas/{lemma_id}/detail` response (profile.py).
+export type LemmaDetail = {
+  lemma_id: number;
+  language_code: string;
+  lemma_form: string;
+  lemma_bare: string;
+  pos: string | null;
+  gloss_en: string | null;
+  frequency_rank: number | null;
+  cefr_level: string | null;
+  word_category: string | null;
+  cognate_lemma_id: number | null;
+  cognate_lemma_form: string | null;
+  external_cognates: { lang: string; form: string; transparency: string; note?: string | null }[];
+  enrichment: LemmaEnrichment | null;
+  enrichment_status: string | null;
+  enriched_at: string | null;
+  knowledge_state: string | null;
+  times_seen: number;
+};
+
+export async function getLemmaDetail(lemmaId: number): Promise<LemmaDetail> {
+  return get(`/api/lemmas/${lemmaId}/detail`);
+}
+
 export type ReviewSessionBundle = {
   sentences: SentencePayload[];
   intro_cards: IntroCard[];

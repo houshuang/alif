@@ -1,0 +1,432 @@
+{
+  "lemmas": [
+    {
+      "lemma_form": "άλογο",
+      "enrichment": {
+        "version": 1,
+        "etymology": {
+          "pie_root": "*leǵ- (to collect, gather, speak)",
+          "ancient_form": "ἄλογος",
+          "origin_note": "Originally an adjective meaning 'without reason, irrational' (ἀ- privative + λόγος 'reason, speech'). The semantic shift to 'horse' occurred in Byzantine Greek when τὸ ἄλογον 'the irrational [creature]' became the standard word for horse, displacing classical ἵππος. Horses were the archetypal irrational animals, lacking human λόγος.",
+          "morphology": "ἀ- (negative) + λόγος (reason) → 'without reason'"
+        },
+        "diachrony": [
+          {
+            "era": "Classical",
+            "form": "ἄλογος",
+            "meaning": "irrational, without reason, contrary to logic",
+            "note": "Philosophical term used by Plato and Aristotle for the non-rational parts of soul or nature"
+          },
+          {
+            "era": "Byzantine",
+            "form": "τὸ ἄλογον",
+            "meaning": "the irrational creature, specifically horse",
+            "note": "Neuter substantive narrowed from any irrational animal to horse, replacing ἵππος as the common word"
+          },
+          {
+            "era": "Modern",
+            "form": "άλογο",
+            "meaning": "horse",
+            "note": "Complete lexicalization; etymological sense unknown to most speakers"
+          }
+        ],
+        "cognates": [
+          {
+            "language": "English",
+            "form": "illogical",
+            "relation": "loanword-from-greek",
+            "gloss_en": null,
+            "note": "Same ἀ- + logic construction, preserves the original 'without reason' sense lost in Greek"
+          },
+          {
+            "language": "English",
+            "form": "hippopotamus",
+            "relation": "loanword-from-greek",
+            "gloss_en": null,
+            "note": "Contains ἵππος, the classical word that άλογο replaced"
+          },
+          {
+            "language": "Latin",
+            "form": "equus",
+            "relation": "shared-pie-root",
+            "gloss_en": "horse",
+            "note": "From PIE *h₁éḱwos; Romance languages kept this root while Greek took the 'irrational animal' path"
+          },
+          {
+            "language": "English",
+            "form": "analog",
+            "relation": "borrowed-via-latin",
+            "gloss_en": null,
+            "note": "Contains same ἀ- prefix but from λόγος 'ratio', meaning proportional"
+          }
+        ],
+        "quotes": [
+          {
+            "text": "τὸ ἄλογον τῆς ψυχῆς",
+            "source": "Plato, Republic 439d",
+            "era": "Classical",
+            "translation_en": "the irrational part of the soul"
+          },
+          {
+            "text": "τὰ ἄλογα ζῷα",
+            "source": "Aristotle, Politics 1254b",
+            "era": "Classical",
+            "translation_en": "the irrational animals"
+          }
+        ],
+        "register": {
+          "formality": "neutral",
+          "collocations": [
+            "άλογο κούρσας",
+            "καβαλάω το άλογο",
+            "άγριο άλογο",
+            "ούτε άλογο ούτε γάιδαρος"
+          ],
+          "false_friends_en": [
+            "analog"
+          ],
+          "usage_note": "Standard modern word for horse; ἵππος survives only in learned compounds like ιπποδρόμιο (racecourse) and ιπποπόταμος (hippopotamus)"
+        }
+      }
+    },
+    {
+      "lemma_form": "λόγος",
+      "enrichment": {
+        "version": 1,
+        "etymology": {
+          "pie_root": "*leǵ- (to collect, gather, speak)",
+          "ancient_form": "λόγος",
+          "origin_note": "From PIE *leǵ- 'to collect, gather,' extended to 'speak' (speaking as gathering words). Homer uses it for speech, tale, and reckoning. Heraclitus elevates it to cosmic organizing principle. By the classical period it encompasses reason, argument, ratio, proportion, and any form of structured rational discourse.",
+          "morphology": null
+        },
+        "diachrony": [
+          {
+            "era": "Homeric",
+            "form": "λόγος",
+            "meaning": "word, speech, tale, account, reckoning",
+            "note": "Everyday language: what is said, a story told, or a numerical calculation"
+          },
+          {
+            "era": "Classical",
+            "form": "λόγος",
+            "meaning": "rational discourse, argument, reason, proportion, account",
+            "note": "Heraclitus' cosmic principle; Plato's dialectic; Aristotle's logic; mathematical ratio"
+          },
+          {
+            "era": "Koine",
+            "form": "ὁ Λόγος",
+            "meaning": "The Word (divine creative principle)",
+            "note": "John 1:1 fuses Greek philosophical logos with Hebrew dabar (divine word/deed), making it theological"
+          },
+          {
+            "era": "Byzantine",
+            "form": "λόγος",
+            "meaning": "sermon, theological treatise, account, reason",
+            "note": "Patristic literature uses it for homilies and theological arguments"
+          },
+          {
+            "era": "Modern",
+            "form": "λόγος",
+            "meaning": "word, reason, speech, account; 'λόγω' (by reason of)",
+            "note": "Full semantic range preserved from everyday speech to philosophical weight"
+          }
+        ],
+        "cognates": [
+          {
+            "language": "English",
+            "form": "logic",
+            "relation": "borrowed-via-latin",
+            "gloss_en": null,
+            "note": "From λογική (τέχνη), the art of reasoning"
+          },
+          {
+            "language": "English",
+            "form": "catalogue",
+            "relation": "loanword-from-greek",
+            "gloss_en": null,
+            "note": "κατά + λόγος, a complete listing or account"
+          },
+          {
+            "language": "Latin",
+            "form": "legere",
+            "relation": "shared-pie-root",
+            "gloss_en": "to read, gather, collect",
+            "note": "Same PIE root with sense 'gather' → 'gather written words' → 'read'"
+          },
+          {
+            "language": "English",
+            "form": "lexicon",
+            "relation": "loanword-from-greek",
+            "gloss_en": null,
+            "note": "From related λέξις (word, expression)"
+          },
+          {
+            "language": "German",
+            "form": "lesen",
+            "relation": "shared-pie-root",
+            "gloss_en": "to read",
+            "note": "Germanic cognate from PIE *leǵ-"
+          }
+        ],
+        "quotes": [
+          {
+            "text": "ἐν ἀρχῇ ἦν ὁ λόγος",
+            "source": "John 1:1 (Septuagint)",
+            "era": "Koine",
+            "translation_en": "In the beginning was the Word"
+          },
+          {
+            "text": "τοῦ λόγου δὲ ἐόντος ξυνοῦ ζώουσιν οἱ πολλοὶ ὡς ἰδίαν ἔχοντες φρόνησιν",
+            "source": "Heraclitus, fragment 2",
+            "era": "Classical",
+            "translation_en": "Though the Logos is common, most live as if they had a private understanding"
+          },
+          {
+            "text": "ὁ ἄνθρωπος φύσει πολιτικὸν ζῷον καὶ λόγον ἔχον",
+            "source": "Aristotle, Politics 1253a",
+            "era": "Classical",
+            "translation_en": "Man is by nature a political animal and one possessing logos"
+          }
+        ],
+        "register": {
+          "formality": "neutral",
+          "collocations": [
+            "δίνω το λόγο μου",
+            "χωρίς λόγο",
+            "λόγω του ότι",
+            "λογής λογής",
+            "ο λόγος του"
+          ],
+          "false_friends_en": [
+            "logo"
+          ],
+          "usage_note": "Retains full classical semantic range in modern Greek; equally comfortable in everyday speech (my word, his speech) and philosophical contexts (human reason, rational account)"
+        }
+      }
+    },
+    {
+      "lemma_form": "καρδιά",
+      "enrichment": {
+        "version": 1,
+        "etymology": {
+          "pie_root": "*ḱerd- (heart)",
+          "ancient_form": "καρδία",
+          "origin_note": "Direct descendant of PIE *ḱerd- 'heart,' preserved with remarkable stability across Indo-European languages. Used literally for the physical organ and figuratively for the emotional and intellectual center. In Homer, the heart thinks as well as feels. Modern form drops the iota subscript of ancient -ίᾳ.",
+          "morphology": null
+        },
+        "diachrony": [
+          {
+            "era": "Homeric",
+            "form": "καρδίη / κραδίη",
+            "meaning": "heart (physical organ), seat of thought, emotion, and will",
+            "note": "Homeric psychology locates both thinking and feeling in the heart"
+          },
+          {
+            "era": "Classical",
+            "form": "καρδία",
+            "meaning": "heart (anatomical), seat of emotion, courage, desire",
+            "note": "Medical writers focus on physical organ; literary texts emphasize emotional center"
+          },
+          {
+            "era": "Koine",
+            "form": "καρδία",
+            "meaning": "heart, inner self, spiritual center",
+            "note": "New Testament uses it for moral/spiritual core: pure heart, hard heart, believing with the heart"
+          },
+          {
+            "era": "Byzantine",
+            "form": "καρδία",
+            "meaning": "heart (anatomical and spiritual/emotional)",
+            "note": "Both medical anatomy and spiritual literature (hesychasm focuses on prayer of the heart)"
+          },
+          {
+            "era": "Modern",
+            "form": "καρδιά",
+            "meaning": "heart (anatomical and emotional), courage, core, center",
+            "note": "Full metaphorical range: love, courage, sincerity, center of anything"
+          }
+        ],
+        "cognates": [
+          {
+            "language": "English",
+            "form": "heart",
+            "relation": "shared-pie-root",
+            "gloss_en": null,
+            "note": "Germanic reflex of PIE *ḱerd- with identical semantic range"
+          },
+          {
+            "language": "Latin",
+            "form": "cor, cordis",
+            "relation": "shared-pie-root",
+            "gloss_en": "heart",
+            "note": "Yields English 'cordial,' 'accord,' 'record,' 'courage' (via French cœur)"
+          },
+          {
+            "language": "English",
+            "form": "cardiac",
+            "relation": "loanword-from-greek",
+            "gloss_en": null,
+            "note": "Medical terminology borrowed from Greek"
+          },
+          {
+            "language": "French",
+            "form": "cœur",
+            "relation": "descendant",
+            "gloss_en": "heart",
+            "note": "From Latin cor"
+          },
+          {
+            "language": "English",
+            "form": "core",
+            "relation": "borrowed-via-latin",
+            "gloss_en": null,
+            "note": "Via French cœur from Latin cor, meaning center/heart of something"
+          }
+        ],
+        "quotes": [
+          {
+            "text": "κραδίη δέ οἱ ἔνδον ἐμέμυκεν",
+            "source": "Homer, Iliad 18.79",
+            "era": "Homeric",
+            "translation_en": "and his heart groaned within him"
+          },
+          {
+            "text": "μακάριοι οἱ καθαροὶ τῇ καρδίᾳ",
+            "source": "Matthew 5:8",
+            "era": "Koine",
+            "translation_en": "Blessed are the pure in heart"
+          },
+          {
+            "text": "Στην καρδιά μου να έχω πάντα την Ιθάκη",
+            "source": "Cavafy, Ithaca",
+            "era": "Modern",
+            "translation_en": "To always have Ithaca in my heart"
+          }
+        ],
+        "register": {
+          "formality": "neutral",
+          "collocations": [
+            "από καρδιάς",
+            "ραγίζω την καρδιά",
+            "καρδιά λιονταριού",
+            "με την καρδιά μου",
+            "στην καρδιά της πόλης"
+          ],
+          "false_friends_en": [
+            "card"
+          ],
+          "usage_note": "Equally natural for anatomical organ (heart attack, heart surgery) and emotional/metaphorical center (speak from the heart, lion-hearted, heart of the city); idiomatically productive"
+        }
+      }
+    },
+    {
+      "lemma_form": "φιλία",
+      "enrichment": {
+        "version": 1,
+        "etymology": {
+          "pie_root": "*bʰil- (to love, be fond)",
+          "ancient_form": "φιλία",
+          "origin_note": "From φίλος 'friend, dear one' (related to φιλέω 'to love') with abstract noun suffix -ία. Classical philosophy distinguishes φιλία (friendship-love between equals) from ἔρως (passionate desire) and ἀγάπη (selfless love). Aristotle devotes Nicomachean Ethics books 8-9 to analyzing three types of φιλία: based on utility, pleasure, or shared virtue.",
+          "morphology": "φίλος (friend, beloved) + -ία (abstract noun suffix) → 'friendship, affection'"
+        },
+        "diachrony": [
+          {
+            "era": "Classical",
+            "form": "φιλία",
+            "meaning": "friendship, love between equals, affection",
+            "note": "Central ethical concept; Aristotle distinguishes utility-friendship, pleasure-friendship, and virtue-friendship"
+          },
+          {
+            "era": "Koine",
+            "form": "φιλία",
+            "meaning": "friendship, worldly affection",
+            "note": "NT rarely uses it (James 4:4 condemns 'friendship with the world'), preferring ἀγάπη for Christian love"
+          },
+          {
+            "era": "Byzantine",
+            "form": "φιλία",
+            "meaning": "friendship, affection",
+            "note": "Less philosophically technical; standard word for friendship alongside ἀγάπη"
+          },
+          {
+            "era": "Modern",
+            "form": "φιλία",
+            "meaning": "friendship",
+            "note": "Standard word for friendship; lost classical philosophical granularity (Aristotle's three types no longer encoded in the word)"
+          }
+        ],
+        "cognates": [
+          {
+            "language": "English",
+            "form": "philosophy",
+            "relation": "loanword-from-greek",
+            "gloss_en": null,
+            "note": "φιλο- + σοφία, love of wisdom"
+          },
+          {
+            "language": "English",
+            "form": "Philadelphia",
+            "relation": "loanword-from-greek",
+            "gloss_en": null,
+            "note": "φιλο- + ἀδελφός, brotherly love"
+          },
+          {
+            "language": "English",
+            "form": "-phile suffix",
+            "relation": "loanword-from-greek",
+            "gloss_en": null,
+            "note": "Productive in English for 'lover of X': bibliophile, Francophile, audiophile"
+          },
+          {
+            "language": "English",
+            "form": "philanthropy",
+            "relation": "loanword-from-greek",
+            "gloss_en": null,
+            "note": "φιλο- + ἄνθρωπος, love of humanity"
+          },
+          {
+            "language": "Latin",
+            "form": "amicitia",
+            "relation": "calque",
+            "gloss_en": "friendship",
+            "note": "Not cognate but semantic parallel; from amicus (friend), as φιλία from φίλος"
+          }
+        ],
+        "quotes": [
+          {
+            "text": "ἡ φιλία ἰσότης ἐστί",
+            "source": "Pythagoras (attributed), cited by Diogenes Laertius",
+            "era": "Classical",
+            "translation_en": "Friendship is equality"
+          },
+          {
+            "text": "ὁ φίλος ἄλλος αὐτός",
+            "source": "Aristotle (attribution debated), Nicomachean Ethics tradition",
+            "era": "Classical",
+            "translation_en": "A friend is another self"
+          },
+          {
+            "text": "ἡ φιλία τοῦ κόσμου ἔχθρα τοῦ θεοῦ ἐστιν",
+            "source": "James 4:4",
+            "era": "Koine",
+            "translation_en": "Friendship with the world is enmity with God"
+          }
+        ],
+        "register": {
+          "formality": "neutral",
+          "collocations": [
+            "δεσμοί φιλίας",
+            "αληθινή φιλία",
+            "φιλία που κρατάει χρόνια",
+            "φιλία και αγάπη",
+            "σχέσεις φιλίας"
+          ],
+          "false_friends_en": [
+            "philia"
+          ],
+          "usage_note": "Slightly more formal or literary than simply φίλοι (friends); used to emphasize the quality, depth, or abstract concept of friendship rather than just naming the relationship"
+        }
+      }
+    }
+  ]
+}

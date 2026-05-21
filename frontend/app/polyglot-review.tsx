@@ -36,13 +36,18 @@ import {
   getReviewSession,
   submitSentenceReview,
   getReviewStats,
+  getLemmaDetail,
   type IntroCard,
+  type LemmaDetail,
   type ReviewSessionBundle,
   type SentencePayload,
   type WordRender,
   type AcquisitionStats,
   type ComprehensionSignal,
 } from "../lib/polyglot-api";
+import PolyglotLookupCard from "../lib/polyglot-lookup-card";
+import { POLYGLOT_COLORS, POLYGLOT_RADIUS } from "../lib/polyglot-design-colors";
+import { POLYGLOT_FONTS } from "../lib/polyglot-design-tokens";
 import {
   buildInterleavedSlots,
   cycleMark,
@@ -59,19 +64,23 @@ import {
   type SessionSlot,
 } from "../lib/polyglot-review-helpers";
 
+// 2026-05-21: palette aligned with the polyglot Modern Editorial design
+// (POLYGLOT_COLORS in lib/polyglot-design-colors.ts). Replaces the previous
+// dark-blue scheme so the review screen reads as part of the same surface
+// family as the reader (polyglot.tsx) and the lemma detail page.
 const C = {
-  bg: "#0f0f1a",
-  surface: "#1a1a2e",
-  border: "#2a2a40",
-  text: "#e0e0f0",
-  textDim: "#9090a8",
-  textMuted: "#6a6a82",
-  accent: "#7aa2f7",
-  target: "#bb9af7",
-  missed: "#c95f6f",
+  bg: POLYGLOT_COLORS.bg,
+  surface: POLYGLOT_COLORS.surface,
+  border: POLYGLOT_COLORS.border,
+  text: POLYGLOT_COLORS.text,
+  textDim: POLYGLOT_COLORS.textSecondary,
+  textMuted: POLYGLOT_COLORS.textTertiary,
+  accent: POLYGLOT_COLORS.accent,
+  target: POLYGLOT_COLORS.quote,        // re-uses quote-section purple for target highlight
+  missed: POLYGLOT_COLORS.warning,
   confused: "#d4a06b",
-  good: "#74c096",
-  noIdea: "#c95f6f",
+  good: POLYGLOT_COLORS.cognate,
+  noIdea: POLYGLOT_COLORS.warning,
 };
 
 type CardState = "front" | "back";
@@ -91,6 +100,11 @@ export default function PolyglotReview() {
   const [cardState, setCardState] = useState<CardState>("front");
   const [marks, setMarks] = useState<MarkSets>(emptyMarks);
   const [glossWordIdx, setGlossWordIdx] = useState<number | null>(null);
+  // Lazy-fetched lemma detail for the tapped word + intro card. Same pattern
+  // as polyglot.tsx — render the head row immediately from what we have, then
+  // stream enrichment in. detailRequestRef guards against stale responses.
+  const [lemmaDetailCache, setLemmaDetailCache] = useState<Record<number, LemmaDetail>>({});
+  const detailRequestRef = useRef(0);
 
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -159,6 +173,24 @@ export default function PolyglotReview() {
       // time, but the user still gets the intro card UI.
     });
   }, [currentIntro]);
+
+  // Lazy-fetch full lemma detail for the current intro card AND the currently
+  // glossed word. Same dedup pattern as polyglot.tsx: detailRequestRef guards
+  // stale responses, lemmaDetailCache memoises by lemma_id.
+  useEffect(() => {
+    const targetLemmaId =
+      currentIntro?.lemma_id ??
+      (glossWordIdx != null ? currentSentence?.words[glossWordIdx]?.lemma_id ?? null : null);
+    if (targetLemmaId == null) return;
+    if (lemmaDetailCache[targetLemmaId]) return;
+    const reqId = ++detailRequestRef.current;
+    getLemmaDetail(targetLemmaId)
+      .then((detail) => {
+        if (detailRequestRef.current !== reqId) return;
+        setLemmaDetailCache((prev) => ({ ...prev, [targetLemmaId]: detail }));
+      })
+      .catch(() => {});
+  }, [currentIntro, glossWordIdx, currentSentence, lemmaDetailCache]);
 
   const advanceCard = useCallback(() => {
     setCardState("back");
@@ -280,7 +312,11 @@ export default function PolyglotReview() {
             {currentIntro.intro_kind === "rescue" ? "rescue card" : "new word"}
           </Text>
         </View>
-        <IntroCardView card={currentIntro} />
+        <IntroCardView
+          card={currentIntro}
+          detail={lemmaDetailCache[currentIntro.lemma_id] ?? null}
+          onViewDetails={() => router.push(`/polyglot-lemma/${currentIntro.lemma_id}`)}
+        />
         <View style={styles.actionRow}>
           <Pressable
             style={[styles.actionButton, styles.gotItButton]}
@@ -327,7 +363,25 @@ export default function PolyglotReview() {
           onWordTap={handleWordTap}
           glossWordIdx={glossWordIdx}
         />
-        {glossWord ? <GlossLine word={glossWord} /> : null}
+        {glossWord && glossWord.lemma_id != null ? (
+          <View style={styles.lookupSlot}>
+            <PolyglotLookupCard
+              lemmaForm={glossWord.lemma_form ?? glossWord.surface_form}
+              glossEn={glossWord.gloss_en}
+              pos={null}
+              ancientForm={
+                lemmaDetailCache[glossWord.lemma_id]?.cognate_lemma_form ??
+                lemmaDetailCache[glossWord.lemma_id]?.enrichment?.etymology?.ancient_form ??
+                null
+              }
+              enrichment={lemmaDetailCache[glossWord.lemma_id]?.enrichment ?? null}
+              frequencyRank={lemmaDetailCache[glossWord.lemma_id]?.frequency_rank ?? null}
+              surfaceForm={glossWord.surface_form}
+              onViewDetails={() => router.push(`/polyglot-lemma/${glossWord.lemma_id}`)}
+              onClose={() => setGlossWordIdx(null)}
+            />
+          </View>
+        ) : null}
       </View>
 
       <ReadingActions
@@ -346,26 +400,136 @@ export default function PolyglotReview() {
   );
 }
 
-function IntroCardView({ card }: { card: IntroCard }) {
+/**
+ * Modern Editorial intro card. Renders the head row + chips immediately from
+ * the IntroCard payload (gloss, POS, cognate). When `detail` arrives via the
+ * lazy fetch in PolyglotReview, three optional sections show below the hero:
+ * an etymology paragraph, a mini 3-column "across time" peek, and the top
+ * literary quote. Mirrors the "Teach iPhone · Refined Alif Stack" mockup
+ * thumbs-up'd in design-explorer round 1.
+ *
+ * Intentionally lean compared to the full lemma detail screen — the goal is
+ * 10-20 seconds of reading. A "View full philology ›" link takes the curious
+ * reader to the detail page when they want to go deeper.
+ */
+function IntroCardView({
+  card,
+  detail,
+  onViewDetails,
+}: {
+  card: IntroCard;
+  detail: LemmaDetail | null;
+  onViewDetails: () => void;
+}) {
   const isRescue = card.intro_kind === "rescue";
+  const enrichment = detail?.enrichment;
+  const ancientForm = card.cognate_lemma_form ?? enrichment?.etymology?.ancient_form ?? null;
+  const pieRoot = enrichment?.etymology?.pie_root ?? null;
+  const morph = enrichment?.etymology?.morphology ?? null;
+  const originNote = enrichment?.etymology?.origin_note ?? null;
+  const drift = enrichment?.diachrony ?? [];
+  const topQuote = enrichment && enrichment.quotes.length > 0 ? enrichment.quotes[0] : null;
+
   return (
-    <View style={styles.introCard}>
-      <Text style={styles.introHeading}>
-        {isRescue ? "Let's revisit this word" : "New word"}
-      </Text>
-      <Text style={styles.introLemma}>{card.lemma_form}</Text>
-      {card.pos ? <Text style={styles.introPos}>{card.pos}</Text> : null}
-      <Text style={styles.introGloss}>{card.gloss_en ?? "(no gloss)"}</Text>
-      {card.cognate_lemma_form ? (
-        <Text style={styles.introCognate}>
-          cognate: {card.cognate_lemma_form}
-        </Text>
+    <View style={styles.introWrap}>
+      {/* Hero card */}
+      <View style={styles.introHero}>
+        <Text style={styles.introHeroLemma}>{card.lemma_form}</Text>
+        <Text style={styles.introHeroLabel}>Meaning</Text>
+        <Text style={styles.introHeroGloss}>{card.gloss_en ?? "(no gloss)"}</Text>
+        <View style={styles.introChips}>
+          {card.pos ? (
+            <View style={[styles.introChip, { backgroundColor: POLYGLOT_COLORS.surfaceMuted }]}>
+              <Text style={[styles.introChipText, { color: POLYGLOT_COLORS.textSecondary }]}>
+                {card.pos}
+              </Text>
+            </View>
+          ) : null}
+          {ancientForm ? (
+            <View style={[styles.introChip, { backgroundColor: POLYGLOT_COLORS.cognateTint }]}>
+              <Text style={[styles.introChipText, { color: POLYGLOT_COLORS.cognate }]}>
+                Ancient{"  "}
+                <Text style={[styles.introChipGreek, { color: POLYGLOT_COLORS.cognate }]}>
+                  {ancientForm}
+                </Text>
+              </Text>
+            </View>
+          ) : null}
+          {pieRoot ? (
+            <View style={[styles.introChip, { backgroundColor: POLYGLOT_COLORS.etymologyTint }]}>
+              <Text style={[styles.introChipText, { color: POLYGLOT_COLORS.etymology }]}>
+                {pieRoot}
+              </Text>
+            </View>
+          ) : null}
+        </View>
+        {isRescue ? (
+          <Text style={styles.introRescueHint}>
+            You've seen this {card.times_seen} times but it hasn't stuck yet.
+          </Text>
+        ) : null}
+      </View>
+
+      {/* Etymology — only when enrichment loaded */}
+      {originNote ? (
+        <View style={[styles.introSection, { borderColor: POLYGLOT_COLORS.etymology + "33" }]}>
+          <Text style={[styles.introSectionLabel, { color: POLYGLOT_COLORS.etymology }]}>
+            Etymology
+          </Text>
+          <Text style={styles.introSectionBody}>{originNote}</Text>
+          {morph ? (
+            <View style={styles.introMorph}>
+              <Text style={styles.introMorphText}>{morph}</Text>
+            </View>
+          ) : null}
+        </View>
       ) : null}
-      {isRescue ? (
-        <Text style={styles.introHint}>
-          You've seen this {card.times_seen} times but it hasn't stuck yet.
-        </Text>
+
+      {/* Mini-drift — 2-3 stages inline */}
+      {drift.length >= 2 ? (
+        <View style={[styles.introSection, { borderColor: POLYGLOT_COLORS.border }]}>
+          <Text style={[styles.introSectionLabel, { color: POLYGLOT_COLORS.text }]}>
+            Across time
+          </Text>
+          <View style={styles.miniDrift}>
+            {drift.slice(0, 3).map((stage, idx) => (
+              <View
+                key={`mini-${idx}`}
+                style={[
+                  styles.miniStage,
+                  idx < Math.min(drift.length, 3) - 1 && styles.miniStageDivider,
+                ]}
+              >
+                <Text style={[styles.miniEra, { color: POLYGLOT_COLORS.text }]}>{stage.era}</Text>
+                <Text style={styles.miniForm}>{stage.form}</Text>
+                <Text style={styles.miniMeaning} numberOfLines={2}>
+                  {stage.meaning}
+                </Text>
+              </View>
+            ))}
+          </View>
+        </View>
       ) : null}
+
+      {/* Top quote */}
+      {topQuote ? (
+        <View style={[styles.introSection, { borderColor: POLYGLOT_COLORS.quote + "33" }]}>
+          <Text style={[styles.introSectionLabel, { color: POLYGLOT_COLORS.quote }]}>
+            In the literature
+          </Text>
+          <Text style={styles.introQuoteText}>{topQuote.text}</Text>
+          <Text style={styles.introQuoteSource}>
+            {topQuote.source} · {topQuote.era}
+          </Text>
+          <Text style={styles.introQuoteTrans}>"{topQuote.translation_en}"</Text>
+        </View>
+      ) : null}
+
+      {/* View details — always offered (even when enrichment hasn't streamed
+       *  in yet — the detail page will eagerly load it). */}
+      <Pressable onPress={onViewDetails} hitSlop={8} style={styles.viewDetailsRow}>
+        <Text style={styles.viewDetailsLink}>View full philology ›</Text>
+      </Pressable>
     </View>
   );
 }
@@ -431,27 +595,6 @@ function SentenceCard({
         )}
       </View>
     </>
-  );
-}
-
-function GlossLine({ word }: { word: WordRender }) {
-  const tag = word.is_function_word
-    ? "function word"
-    : word.is_proper_name
-      ? "proper name"
-      : word.is_target
-        ? "target"
-        : word.knowledge_state;
-  return (
-    <View style={styles.glossLine}>
-      <Text style={styles.glossLemma}>
-        {word.lemma_form ?? word.surface_form}
-      </Text>
-      <Text style={styles.glossTag}>{tag}</Text>
-      <Text style={styles.glossText}>
-        {word.gloss_en ?? "(no gloss)"}
-      </Text>
-    </View>
   );
 }
 
@@ -566,17 +709,71 @@ const styles = StyleSheet.create({
     backgroundColor: C.surface, padding: 24, borderRadius: 16,
     borderWidth: 1, borderColor: C.border, minHeight: 220,
   },
-  introCard: {
-    backgroundColor: C.surface, padding: 28, borderRadius: 16,
-    borderWidth: 1, borderColor: C.target, minHeight: 220,
-    alignItems: "center", justifyContent: "center", gap: 14,
+  /* Intro card — Modern Editorial. Hero card stacked with optional etymology /
+   * mini-drift / quote sections, each shown only when enrichment loaded. */
+  introWrap: { gap: 10 },
+  introHero: {
+    backgroundColor: C.surface, padding: 18, borderRadius: POLYGLOT_RADIUS.card,
+    borderWidth: 1, borderColor: C.border, alignItems: "center", gap: 6,
   },
-  introHeading: { color: C.target, fontSize: 13, letterSpacing: 1.4, textTransform: "uppercase" },
-  introLemma: { color: C.text, fontSize: 36, fontWeight: "600" },
-  introPos: { color: C.textMuted, fontSize: 13, fontStyle: "italic" },
-  introGloss: { color: C.accent, fontSize: 20, textAlign: "center" },
-  introCognate: { color: C.textDim, fontSize: 14, marginTop: 4 },
-  introHint: { color: C.confused, fontSize: 12, marginTop: 6, textAlign: "center" },
+  introHeroLemma: {
+    fontFamily: POLYGLOT_FONTS.greekDisplay, fontSize: 48, color: C.text, lineHeight: 52,
+  },
+  introHeroLabel: {
+    fontSize: 10, letterSpacing: 1.6, textTransform: "uppercase",
+    color: C.textMuted, marginTop: 6,
+  },
+  introHeroGloss: {
+    fontSize: 20, fontFamily: POLYGLOT_FONTS.greekDisplay, fontStyle: "italic", color: C.text,
+  },
+  introChips: {
+    flexDirection: "row", gap: 5, marginTop: 10, flexWrap: "wrap", justifyContent: "center",
+  },
+  introChip: { paddingHorizontal: 9, paddingVertical: 4, borderRadius: POLYGLOT_RADIUS.chip },
+  introChipText: { fontSize: 11, fontWeight: "600" },
+  introChipGreek: { fontFamily: POLYGLOT_FONTS.greekDisplay, fontStyle: "italic", fontSize: 13 },
+  introRescueHint: {
+    color: POLYGLOT_COLORS.warning, fontSize: 12, marginTop: 6, textAlign: "center",
+  },
+
+  introSection: {
+    backgroundColor: C.surface, padding: 14, borderRadius: POLYGLOT_RADIUS.card,
+    borderWidth: 1, gap: 6,
+  },
+  introSectionLabel: {
+    fontSize: 10, letterSpacing: 1.4, textTransform: "uppercase", fontWeight: "700",
+  },
+  introSectionBody: { fontSize: 13, color: C.text, lineHeight: 19 },
+  introMorph: {
+    marginTop: 6, padding: 8, backgroundColor: POLYGLOT_COLORS.etymologyTint,
+    borderRadius: 6, alignItems: "center",
+  },
+  introMorphText: {
+    fontFamily: POLYGLOT_FONTS.greekDisplay, fontSize: 14, color: POLYGLOT_COLORS.etymology,
+  },
+  miniDrift: { flexDirection: "row", gap: 0, marginTop: 2 },
+  miniStage: { flex: 1, paddingHorizontal: 6, paddingVertical: 6, alignItems: "center" },
+  miniStageDivider: { borderRightWidth: 1, borderRightColor: C.border },
+  miniEra: {
+    fontSize: 9, letterSpacing: 1.2, textTransform: "uppercase",
+    fontWeight: "700", marginBottom: 4,
+  },
+  miniForm: {
+    fontFamily: POLYGLOT_FONTS.greekDisplay, fontSize: 17, color: C.text,
+    lineHeight: 21, marginBottom: 3,
+  },
+  miniMeaning: { fontSize: 10, color: C.textDim, textAlign: "center", lineHeight: 13 },
+  introQuoteText: {
+    fontFamily: POLYGLOT_FONTS.greekDisplay, fontSize: 17, fontStyle: "italic",
+    color: C.text, lineHeight: 23, marginTop: 2,
+  },
+  introQuoteSource: {
+    fontSize: 10, letterSpacing: 0.8, textTransform: "uppercase",
+    color: C.textMuted, marginTop: 4,
+  },
+  introQuoteTrans: { fontSize: 12, color: C.textDim, marginTop: 4, fontStyle: "italic" },
+  viewDetailsRow: { alignSelf: "center", paddingVertical: 8 },
+  viewDetailsLink: { color: C.accent, fontSize: 13, fontWeight: "600" },
   sentenceGreek: {
     color: C.text, fontSize: 26, lineHeight: 40, textAlign: "center",
   },
@@ -601,18 +798,11 @@ const styles = StyleSheet.create({
   sentenceEnglish: {
     color: C.textDim, fontSize: 18, lineHeight: 26, textAlign: "center",
   },
-  glossLine: {
-    marginTop: 16, paddingTop: 12,
-    borderTopWidth: 1, borderTopColor: C.border,
-    flexDirection: "row", alignItems: "baseline", gap: 8, flexWrap: "wrap",
-  },
-  glossLemma: { color: C.text, fontSize: 18, fontWeight: "600" },
-  glossTag: {
-    color: C.textMuted, fontSize: 11,
-    backgroundColor: C.bg, paddingHorizontal: 6, paddingVertical: 2,
-    borderRadius: 6, overflow: "hidden",
-  },
-  glossText: { color: C.accent, fontSize: 16, flex: 1 },
+  /* Tapped-word lookup card slot — sits below the sentence inside the same
+   * sentence-card container. The PolyglotLookupCard component carries its
+   * own visual frame, so the slot just provides separation from the sentence
+   * above. */
+  lookupSlot: { marginTop: 14, paddingTop: 12, borderTopWidth: 1, borderTopColor: C.border },
   actionRow: {
     flexDirection: "row", marginTop: 24, gap: 8,
   },
