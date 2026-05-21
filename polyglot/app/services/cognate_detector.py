@@ -125,6 +125,8 @@ def detect_external_cognates(
     lemmas: list[Lemma],
     *,
     force: bool = False,
+    auto_mark: bool | None = None,
+    batch_size: int | None = None,
 ) -> int:
     """Detect L1 cognates for a batch of lemmas via Claude CLI. Stamps
     `cognates_json` + `cognates_detected_at`. Optionally auto-marks high-
@@ -133,7 +135,9 @@ def detect_external_cognates(
     Returns the count of lemmas successfully processed.
 
     Gated by POLYGLOT_DETECT_COGNATES=1 — off by default so we can iterate on
-    prompt quality before live use.
+    prompt quality before live use. Pass ``auto_mark`` / ``batch_size`` to
+    override the env-derived defaults (used by bulk-import scripts that set
+    their own policy regardless of the deployment's env).
     """
     if not COGNATE_DETECTION_ENABLED and not force:
         log.debug("Cognate detection disabled (POLYGLOT_DETECT_COGNATES != 1)")
@@ -145,6 +149,8 @@ def detect_external_cognates(
 
     profile = get_user_profile(db)
     known_languages = profile.known_languages or ["en"]
+    effective_auto_mark = COGNATE_AUTO_MARK if auto_mark is None else auto_mark
+    effective_batch = COGNATE_BATCH_SIZE if batch_size is None else batch_size
 
     # Group by language (rare but defensive)
     by_lang: dict[str, list[Lemma]] = {}
@@ -157,8 +163,8 @@ def detect_external_cognates(
 
     processed = 0
     for lang_code, group in by_lang.items():
-        for i in range(0, len(group), COGNATE_BATCH_SIZE):
-            chunk = group[i:i + COGNATE_BATCH_SIZE]
+        for i in range(0, len(group), effective_batch):
+            chunk = group[i:i + effective_batch]
             try:
                 results = _call_claude_for_cognates(
                     chunk,
@@ -173,7 +179,7 @@ def detect_external_cognates(
                 lemma.cognates_json = cognates
                 lemma.cognates_detected_at = now
                 processed += 1
-                if COGNATE_AUTO_MARK and _has_high_transparency(cognates, profile.cognate_auto_mark_threshold):
+                if effective_auto_mark and _has_high_transparency(cognates, profile.cognate_auto_mark_threshold):
                     _auto_mark_known(db, lemma)
             db.commit()
     return processed
@@ -191,27 +197,33 @@ def _call_claude_for_cognates(
     CLAUDE.md — without it Sonnet wraps JSON in prose and parsing breaks).
     """
     schema = {
-        "type": "array",
-        "items": {
-            "type": "object",
-            "properties": {
-                "lemma": {"type": "string"},
-                "cognates": {
-                    "type": "array",
-                    "items": {
-                        "type": "object",
-                        "properties": {
-                            "lang": {"type": "string"},
-                            "form": {"type": "string"},
-                            "transparency": {"type": "string", "enum": ["high", "medium", "low"]},
-                            "note": {"type": "string"},
+        "type": "object",
+        "properties": {
+            "results": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "lemma": {"type": "string"},
+                        "cognates": {
+                            "type": "array",
+                            "items": {
+                                "type": "object",
+                                "properties": {
+                                    "lang": {"type": "string"},
+                                    "form": {"type": "string"},
+                                    "transparency": {"type": "string", "enum": ["high", "medium", "low"]},
+                                    "note": {"type": "string"},
+                                },
+                                "required": ["lang", "form", "transparency"],
+                            },
                         },
-                        "required": ["lang", "form", "transparency"],
                     },
+                    "required": ["lemma", "cognates"],
                 },
             },
-            "required": ["lemma", "cognates"],
         },
+        "required": ["results"],
     }
     lemma_list = "\n".join(f"- {l.lemma_form} ({l.pos or '?'})" for l in lemmas)
     l1_csv = ", ".join(l1_names)
@@ -242,18 +254,19 @@ Lemmas:
     try:
         wrapper = json.loads(proc.stdout)
         structured = wrapper.get("structured_output") if isinstance(wrapper, dict) else None
-        if isinstance(structured, list):
-            parsed = structured
+        if isinstance(structured, dict):
+            payload = structured
         else:
             result = wrapper.get("result", proc.stdout) if isinstance(wrapper, dict) else proc.stdout
-            parsed = json.loads(result) if isinstance(result, str) else result
+            payload = json.loads(result) if isinstance(result, str) else result
     except json.JSONDecodeError as e:
         raise RuntimeError(f"could not parse claude JSON output: {e}") from e
-    if not isinstance(parsed, list):
-        raise RuntimeError("claude JSON output did not contain a cognate list")
+    entries = payload.get("results") if isinstance(payload, dict) else None
+    if not isinstance(entries, list):
+        raise RuntimeError("claude JSON output did not contain a results array")
 
     # Align response order with input — match by lemma form, fall back to position
-    by_form = {entry["lemma"]: entry.get("cognates", []) for entry in parsed if isinstance(entry, dict)}
+    by_form = {entry["lemma"]: entry.get("cognates", []) for entry in entries if isinstance(entry, dict)}
     return [by_form.get(l.lemma_form, []) for l in lemmas]
 
 
