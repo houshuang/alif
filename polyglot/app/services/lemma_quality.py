@@ -207,6 +207,20 @@ def verify_page_mappings(
         _stamp_verified(db, page, failures=0)
         return 0
 
+    # Reset verification state on the page and on every word about to be
+    # re-batched. Without this, a force-rerun that hits a partial batch
+    # failure would inherit the stale page stamp (and stale per-word stamps)
+    # from the prior successful pass — silently re-verifying the page even
+    # though some tokens never got fresh verdicts. CLAUDE.md hard invariant
+    # #8: verification failure ≠ success.
+    interesting_pw_ids = {tc.pageword_id for tc in interesting}
+    for w in words:
+        if w.id in interesting_pw_ids and w.verified_at is not None:
+            w.verified_at = None
+    page.mappings_verified_at = None
+    page.quality_gate_failures = None
+    db.commit()
+
     # Batch. Any batch returning None counts as a partial failure — we leave
     # mappings_verified_at NULL so the next page-view retries. Stamping anyway
     # would silently swallow unverified tokens (see CLAUDE.md hard invariant #8).
