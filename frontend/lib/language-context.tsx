@@ -12,10 +12,12 @@
  */
 import React, { createContext, useContext, useEffect, useState } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import type { AppLanguage } from "./language-routes";
+
+export type { AppLanguage } from "./language-routes";
+export { routeLanguage, homePathFor } from "./language-routes";
 
 const STORAGE_KEY = "@app:active-language";
-
-export type AppLanguage = "ar" | "el";
 
 type LanguageContextValue = {
   language: AppLanguage;
