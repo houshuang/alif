@@ -180,9 +180,10 @@ during dogfooding):
 - **Greek TTS via ElevenLabs**. Same model Alif uses
   (`eleven_multilingual_v2`). Cost discipline like Alif — only generate
   for sentences that will be shown.
-- **Cron deploy of `polyglot-update-material.sh`** if dogfooding shows
-  the warm cache lagging behind acquiring growth. Install steps in the
-  next paragraph.
+- ~~**Cron deploy of `polyglot-update-material.sh`**~~ — done 2026-05-20.
+  Running at `45 */3 * * *` on Hetzner with three phases (warm_pages_ahead
+  → warm_sentence_cache → enrich_lemma_philology, the last with
+  `--include-failed` so flagged enrichment doesn't linger).
 
 Suggested PR #5 entry points to read first in the new session:
 - `frontend/app/polyglot-review.tsx` — current bare-word screen.
@@ -194,18 +195,16 @@ Suggested PR #5 entry points to read first in the new session:
   endpoint at `POST /api/reviews/submit-sentence`; takes `sentence_id`,
   comprehension, response_ms, client_review_id.
 
-**Operational note for PR #4** (this session's work): the cron wrapper
-at `polyglot/deploy/polyglot-update-material.sh` exists but isn't installed
-yet on Hetzner. Install when ready:
+**Operational note (historical):** the cron wrapper at
+`polyglot/deploy/polyglot-update-material.sh` is installed on Hetzner
+at `45 */3 * * *` (45-minute offset from Alif's `30 */3 * * *` so they
+don't hit Claude CLI at the same minute). Update procedure:
+
 ```bash
 scp polyglot/deploy/polyglot-update-material.sh alif:/opt/polyglot-update-material.sh
 ssh alif chmod +x /opt/polyglot-update-material.sh
-# Add to crontab:
-# 45 */3 * * * /opt/polyglot-update-material.sh >> /var/log/polyglot-update-material.log 2>&1
 ```
-The 45-minute offset is deliberate — it puts the polyglot cron 15 minutes
-after Alif's `30 */3 * * *`, so they don't both hit Claude CLI at the same
-minute.
+Then restart the backend if the change touches a service the cron calls.
 
 Stale: previously-suggested PR #4 entry points (now done):
 - `backend/app/services/material_generator.py` — the generation pipeline

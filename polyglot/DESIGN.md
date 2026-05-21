@@ -470,6 +470,82 @@ leaves earlier pages lazy — next time you go back, you eat the wait.
 Acceptable for sequential reading; revisit if random-access becomes
 common.
 
+### 8.0a Lemma philology enrichment (cron phase 3 — added 2026-05-21)
+
+After warming pages and sentences, the cron enriches lemmas with
+philological data (etymology + diachrony + cognates + literary quotes +
+register/collocations) for the lookup card and lemma detail screen.
+Mechanics in `app/services/lemma_philology.py`; CLI:
+`scripts/enrich_lemma_philology.py`; endpoint:
+`POST /api/materials/enrich-philology`.
+
+**Selection policy.** `find_unenriched_lemmas` orders by review proximity:
+
+1. `acquiring` — sorted by `acquisition_next_due` ASC. The picker tends
+   to surface these next, so enriching by next-due means the lookup
+   card is ready when the lemma shows up in the next session.
+2. `learning` + `lapsed` — sorted by `frequency_rank` ASC.
+3. `encountered` — frequency fallback.
+
+`known` lemmas are **excluded** — once graduated, the lookup card stops
+being load-bearing for memory-hook reinforcement. Diverges from Alif's
+backfill scripts which include `known` because Arabic FSRS cards keep
+cycling through long stability windows. Also skipped at all paths:
+glossless, variant (`canonical_lemma_id IS NOT NULL`), function-word,
+proper-name.
+
+**Pipeline.** Per chunk (`POLYGLOT_ENRICH_BATCH_SIZE=4` lemmas):
+
+1. **Sonnet generation** — single CLI call with `--json-schema`,
+   structured output gives full enrichment for all lemmas in the chunk.
+2. **Haiku verify** — single CLI call on etymology + diachrony only
+   (quotes / cognates / register are memory hooks where mild inaccuracy
+   is acceptable). Returns per-lemma verdict: `ok` /
+   `etymology_issue` / `diachrony_issue` + a correction note.
+3. **Sonnet self-correct (NEW 2026-05-21)** — for each flagged lemma,
+   pass the original payload + verifier note back to Sonnet. Re-verify
+   with Haiku. Loop up to `SELF_CORRECT_MAX_ATTEMPTS=2` rounds.
+4. **Write** — single per-chunk commit. Three-phase read/LLM/write
+   pattern: DB session is closed before any LLM call, reopened only for
+   the write. SQLite write lock held only during the fast per-chunk
+   commit (~ms). Mirrors `material_generator`'s discipline.
+
+**Status taxonomy on `Lemma.enrichment_status`**:
+
+| Status            | Meaning                                                  |
+|-------------------|----------------------------------------------------------|
+| `done`            | Sonnet + Haiku OK (possibly after self-correct rounds)   |
+| `done_unverified` | Haiku verifier itself failed to run; Sonnet payload kept |
+| `done_partial`    | Verifier persistently flagged after 2 self-correct rounds. The flagged top-level field is **stripped** (`etymology=None` or `diachrony=[]`) before write so a wrong PIE root never reaches the lookup card. `_verifier_note` records `stripped: True` |
+| `failed`          | Sonnet itself never produced a parseable payload         |
+| `done_flagged`    | **Legacy** — no longer written by new code. Pre-self-correct rows in production are drained by the cron's `--include-failed` flag |
+
+**Concurrency.** `_enrich_lock` (process-level `threading.Lock`)
+prevents overlapping cron runs from picking the same un-enriched
+lemmas and double-spending Claude budget. Mirrors
+`material_generator._warm_cache_lock`. A second call returns
+`{"skipped": True, "reason": "enrich_busy"}` immediately without any
+LLM work.
+
+**Cleanup.** The cron passes `--include-failed`, so on every 3h pass it
+also re-picks `failed`, `done_flagged` (legacy), and `done_partial`
+rows. Combined with the self-correct loop, this means no flagged or
+failed enrichment ever lingers — every pass either converges them to
+`done` or strips the bad field. Selector still excludes `known`, so
+graduated lemmas don't drain budget on retries.
+
+**Cost shape.** At `POLYGLOT_ENRICH_MAX_LEMMAS=30` per run × ~70s base
+per batch (Sonnet generate + Haiku verify) + ~40s × 30% flag rate for
+self-correct + re-verify ≈ ~15 min per cron run. Comfortably under the
+30-min phase timeout. Worst case (all flagged, both rounds) ≈ 21 min.
+With 8 cron runs/day this caps daily inflow at 240 lemmas/day.
+
+**Output shape.** Sonnet returns `LemmaEnrichment` (Pydantic, defined
+once in `app/schemas.py`; mirrored 1:1 in `frontend/lib/polyglot-api.ts`
+and asserted by `polyglot-enrichment-shape.test.ts`). The payload is
+surfaced in the lookup card (`polyglot-lookup-card.tsx`) and the
+detail screen (`polyglot-lemma/[id].tsx`).
+
 ### 8.1 Reading-as-mapping (the entry flow)
 
 The flow that defines polyglot. Inspired by Tadoku-style extensive reading
@@ -1069,7 +1145,8 @@ Source of truth lives in `polyglot/CLAUDE.md`. Summarized here for design-doc co
 | Intro card filter                                    | **Ported** (new + rescue, dedup, dynamic cap) |
 | Comprehensibility gate                               | **Ported** (picker-side) |
 | Material generation (LLM sentences)                  | **Ported**               |
-| Warm sentence cache                                  | **Ported** (cron not yet installed) |
+| Warm sentence cache                                  | **Ported** + cron live (`polyglot-update-material.sh` at `45 */3`) |
+| Lemma philology enrichment                           | **Polyglot-original** (cron phase 3 with self-correct loop) |
 | Variant chain resolution                             | **Ported**               |
 | Proper-name handling (filter from review)            | **Schema in place** (enforcement at picker pending) |
 | Leech auto-management                                | **Ported**               |
@@ -1089,12 +1166,11 @@ canonical to-do source). Priorities are not in order — pick based on what
 surfaces in dogfooding.
 
 ### 13.1 Operational
-- **Cron install of `polyglot-update-material.sh`** on Hetzner. Script
-  exists in `polyglot/deploy/`; not yet `scp`'d. 45-min offset from Alif's
-  cron (30 */3 → 45 */3) so they don't hit Claude CLI at the same minute.
-- **Deploy polyglot-backend systemd unit**. Service file pattern mirrors
-  `alif-backend`. Port 3001. Frontend's `app.json` already has
-  `polyglotApiUrl` placeholder.
+- ~~**Cron install of `polyglot-update-material.sh`**~~ — done 2026-05-20.
+  Running on Hetzner at `45 */3 * * *`. Three phases: warm_pages_ahead →
+  warm_sentence_cache → enrich_lemma_philology (`--include-failed`).
+- ~~**Deploy polyglot-backend systemd unit**~~ — done 2026-05-20. Service
+  `polyglot-backend.service` is `active` on Hetzner. Port 3001.
 
 ### 13.2 Quality
 - **Haiku cost-discipline experiment** for the quality gate. Sonnet runs
@@ -1197,6 +1273,14 @@ proof-of-shape, not proof-of-concept.
 | `POLYGLOT_PAGES_AHEAD_BUFFER`     | `5`         | Verified pages the cron keeps ahead of the user's last view      |
 | `POLYGLOT_PAGES_AHEAD_MAX_PER_RUN`| `5`         | Cap on pages warmed per story per cron pass (safety valve)        |
 | `POLYGLOT_PAGES_AHEAD_TIMEOUT_SECONDS`| `1200`  | Cron-pass timeout for the page-warm phase                         |
+| `POLYGLOT_ENRICH_MODEL`           | `sonnet`    | Model used by philology enrichment generation                    |
+| `POLYGLOT_ENRICH_VERIFY_MODEL`    | `haiku`     | Model used by enrichment fact-verify (etymology + diachrony)     |
+| `POLYGLOT_ENRICH_BATCH_SIZE`      | `4`         | Lemmas per Sonnet enrichment call                                |
+| `POLYGLOT_ENRICH_TIMEOUT`         | `240`       | Per-call timeout for Sonnet generation / self-correct (seconds)  |
+| `POLYGLOT_ENRICH_VERIFY_TIMEOUT`  | `180`       | Per-call timeout for Haiku verify / re-verify (seconds)          |
+| `POLYGLOT_ENRICH_SELF_CORRECT_MAX`| `2`         | Max self-correct rounds before stripping the flagged field       |
+| `POLYGLOT_ENRICH_MAX_LEMMAS`      | `30`        | Lemmas per cron run (`scripts/enrich_lemma_philology.py`)        |
+| `POLYGLOT_ENRICH_TIMEOUT_SECONDS` | `1800`     | Cron-pass timeout for the enrichment phase (in `polyglot-update-material.sh`) |
 | `POLYGLOT_DETECT_COGNATES`        | `0`         | Enable external L1 cognate detection                            |
 | `POLYGLOT_AUTO_MARK_COGNATES`     | `0`         | Auto-mark high-confidence L1 cognates as `known`                |
 | `TESTING`                         | `0`         | Disable interaction logger and similar test-aware paths          |
