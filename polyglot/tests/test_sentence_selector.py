@@ -13,6 +13,7 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 
+import pytest
 from fastapi.testclient import TestClient
 
 from app.database import get_db
@@ -64,6 +65,7 @@ def _seed_sentence(
     is_active: bool = True,
     source: str = "textbook",
     page_id: int | None = None,
+    times_shown: int = 0,
 ) -> Sentence:
     sentence = Sentence(
         language_code=language_code,
@@ -73,6 +75,7 @@ def _seed_sentence(
         sentence_index_in_page=0 if page_id else None,
         is_active=is_active,
         mappings_verified_at=datetime.now(timezone.utc) if verified else None,
+        times_shown=times_shown,
     )
     db.add(sentence)
     db.flush()
@@ -87,13 +90,17 @@ def _seed_sentence(
     return sentence
 
 
-def _seed_page(db, *, story_id: int, page_number: int = 1) -> Page:
+def _seed_page(
+    db, *, story_id: int, page_number: int = 1,
+    viewed_at: datetime | None = None,
+) -> Page:
     page = Page(
         story_id=story_id,
         page_number=page_number,
         body_src="dummy",
         processed_at=datetime.now(timezone.utc),
         mappings_verified_at=datetime.now(timezone.utc),
+        viewed_at=viewed_at,
     )
     db.add(page)
     db.flush()
@@ -201,7 +208,11 @@ def test_exclude_sentence_ids_skipped(tmp_db):
         assert result.sentence_id == b.id
 
 
-def test_page_first_all_known_ranks_above_other_sources(tmp_db):
+def test_llm_outranks_textbook_at_equal_comprehensibility(tmp_db):
+    """2026-05-21 picker change: LLM source bonus > textbook source bonus, and
+    PAGE_FIRST_BONUS is retired. At equal all-known comprehensibility, the
+    fresh LLM sentence beats the page sentence — review wants novel context.
+    """
     with tmp_db() as db:
         target = _seed_lemma(db, form="λόγος")
         scaffold = _seed_lemma(db, form="ο")
@@ -210,14 +221,12 @@ def test_page_first_all_known_ranks_above_other_sources(tmp_db):
         story = _seed_story(db)
         page = _seed_page(db, story_id=story.id)
 
-        # Non-page LLM sentence with same all-known scaffold
         llm_sent = _seed_sentence(
             db,
             lemma_surfaces=[(scaffold.lemma_id, "ο"), (target.lemma_id, "λόγος")],
             text="ο λόγος (llm)",
             source="llm",
         )
-        # Page sentence with same all-known scaffold — should win
         page_sent = _seed_sentence(
             db,
             lemma_surfaces=[(scaffold.lemma_id, "ο"), (target.lemma_id, "λόγος")],
@@ -229,8 +238,10 @@ def test_page_first_all_known_ranks_above_other_sources(tmp_db):
 
         result = pick_sentence_for_lemma(db, lemma_id=target.lemma_id, language_code="el")
         assert result is not None
-        assert result.sentence_id == page_sent.id
-        assert result.selection_reason == "page_first_all_known"
+        assert result.sentence_id == llm_sent.id
+        assert result.selection_reason == "llm_fresh"
+        # Page sentence still exists as a fallback — not deleted from DB.
+        assert db.query(Sentence).filter(Sentence.id == page_sent.id).first() is not None
 
 
 def test_page_first_unknown_scaffold_falls_back_to_other_source(tmp_db):
@@ -523,3 +534,157 @@ def test_endpoint_session_unknown_language(tmp_db):
         assert resp.status_code == 400
     finally:
         app.dependency_overrides.clear()
+
+
+# ─── 2026-05-21 picker change: LLM-first + page cooldown ─────────────────────
+
+
+def test_recently_viewed_page_sentence_is_penalised(tmp_db):
+    """A page sentence whose page was viewed within PAGE_COOLDOWN_DAYS is
+    softly penalised. With no LLM alternative, it still wins (graceful
+    fallback) — but its score reflects the penalty."""
+    from app.services.sentence_selector import RECENT_PAGE_PENALTY
+
+    with tmp_db() as db:
+        target = _seed_lemma(db, form="λόγος")
+        scaffold = _seed_lemma(db, form="ο")
+        _seed_known(db, scaffold.lemma_id, state="known")
+
+        story = _seed_story(db)
+        recent_page = _seed_page(
+            db, story_id=story.id,
+            viewed_at=datetime.now(timezone.utc) - timedelta(days=1),
+        )
+        page_sent = _seed_sentence(
+            db,
+            lemma_surfaces=[(scaffold.lemma_id, "ο"), (target.lemma_id, "λόγος")],
+            text="ο λόγος",
+            source="textbook",
+            page_id=recent_page.id,
+        )
+        db.commit()
+
+        result = pick_sentence_for_lemma(db, lemma_id=target.lemma_id, language_code="el")
+        assert result is not None
+        assert result.sentence_id == page_sent.id  # only candidate
+        assert result.selection_reason == "page_cooldown_fallback"
+        # base = 1.0 * source_bonus (1.0 for textbook) * penalty
+        assert result.score == pytest.approx(1.0 * 1.0 * RECENT_PAGE_PENALTY)
+
+
+def test_fresh_llm_beats_recently_viewed_page(tmp_db):
+    """Two candidates: recently-viewed page sentence + fresh LLM sentence,
+    both fully comprehensible. The LLM wins decisively because the page is
+    in cooldown AND has the lower source bonus."""
+    with tmp_db() as db:
+        target = _seed_lemma(db, form="λόγος")
+        scaffold = _seed_lemma(db, form="ο")
+        _seed_known(db, scaffold.lemma_id, state="known")
+
+        story = _seed_story(db)
+        recent_page = _seed_page(
+            db, story_id=story.id,
+            viewed_at=datetime.now(timezone.utc) - timedelta(days=2),
+        )
+        page_sent = _seed_sentence(
+            db,
+            lemma_surfaces=[(scaffold.lemma_id, "ο"), (target.lemma_id, "λόγος")],
+            text="ο λόγος (page)",
+            source="textbook",
+            page_id=recent_page.id,
+        )
+        llm_sent = _seed_sentence(
+            db,
+            lemma_surfaces=[(scaffold.lemma_id, "ο"), (target.lemma_id, "λόγος")],
+            text="ο λόγος (llm)",
+            source="llm",
+        )
+        db.commit()
+
+        result = pick_sentence_for_lemma(db, lemma_id=target.lemma_id, language_code="el")
+        assert result is not None
+        assert result.sentence_id == llm_sent.id
+        assert result.selection_reason == "llm_fresh"
+
+
+def test_old_page_view_no_longer_penalised(tmp_db):
+    """A page viewed >7 days ago drops out of the cooldown set and scores
+    like an ordinary textbook sentence — no penalty."""
+    with tmp_db() as db:
+        target = _seed_lemma(db, form="λόγος")
+        scaffold = _seed_lemma(db, form="ο")
+        _seed_known(db, scaffold.lemma_id, state="known")
+
+        story = _seed_story(db)
+        old_page = _seed_page(
+            db, story_id=story.id,
+            viewed_at=datetime.now(timezone.utc) - timedelta(days=30),
+        )
+        page_sent = _seed_sentence(
+            db,
+            lemma_surfaces=[(scaffold.lemma_id, "ο"), (target.lemma_id, "λόγος")],
+            text="ο λόγος",
+            source="textbook",
+            page_id=old_page.id,
+        )
+        db.commit()
+
+        result = pick_sentence_for_lemma(db, lemma_id=target.lemma_id, language_code="el")
+        assert result is not None
+        assert result.selection_reason != "page_cooldown_fallback"
+        # score = base 1.0 * source_bonus 1.0 * no_penalty 1.0
+        assert result.score == pytest.approx(1.0)
+
+
+def test_never_viewed_page_not_penalised(tmp_db):
+    """Pages whose viewed_at IS NULL never enter the cooldown — the learner
+    hasn't read them yet, so re-showing isn't redundant."""
+    with tmp_db() as db:
+        target = _seed_lemma(db, form="λόγος")
+        scaffold = _seed_lemma(db, form="ο")
+        _seed_known(db, scaffold.lemma_id, state="known")
+
+        story = _seed_story(db)
+        unread_page = _seed_page(db, story_id=story.id, viewed_at=None)
+        _seed_sentence(
+            db,
+            lemma_surfaces=[(scaffold.lemma_id, "ο"), (target.lemma_id, "λόγος")],
+            source="textbook",
+            page_id=unread_page.id,
+        )
+        db.commit()
+
+        result = pick_sentence_for_lemma(db, lemma_id=target.lemma_id, language_code="el")
+        assert result is not None
+        assert result.selection_reason != "page_cooldown_fallback"
+        assert result.score == pytest.approx(1.0)
+
+
+def test_tie_break_prefers_never_shown_llm_sentence(tmp_db):
+    """Two LLM sentences with identical comprehensibility + source bonus.
+    The one with the smaller times_shown wins — review prefers novel context
+    over revisited."""
+    with tmp_db() as db:
+        target = _seed_lemma(db, form="λόγος")
+        scaffold = _seed_lemma(db, form="ο")
+        _seed_known(db, scaffold.lemma_id, state="known")
+
+        shown_sent = _seed_sentence(
+            db,
+            lemma_surfaces=[(scaffold.lemma_id, "ο"), (target.lemma_id, "λόγος")],
+            text="ο λόγος (shown 5x)",
+            source="llm",
+            times_shown=5,
+        )
+        fresh_sent = _seed_sentence(
+            db,
+            lemma_surfaces=[(scaffold.lemma_id, "ο"), (target.lemma_id, "λόγος")],
+            text="ο λόγος (never shown)",
+            source="llm",
+            times_shown=0,
+        )
+        db.commit()
+
+        result = pick_sentence_for_lemma(db, lemma_id=target.lemma_id, language_code="el")
+        assert result is not None
+        assert result.sentence_id == fresh_sent.id
