@@ -24,24 +24,12 @@ import { colors } from "../lib/theme";
 import { netStatus, useNetStatus } from "../lib/net-status";
 import { flushQueue } from "../lib/sync-queue";
 import { syncEvents } from "../lib/sync-events";
-import { LanguageProvider, useLanguage, type AppLanguage } from "../lib/language-context";
-
-// Classify which language a given route belongs to. The Globe tab
-// (`/languages`) is shared and never triggers a redirect; everything under
-// `/polyglot*` is Greek; everything else is Arabic. Keeping this rule keyed
-// off URL prefix means new Greek screens inherit isolation by following the
-// existing `polyglot-*` file-naming convention.
-function routeLanguage(pathname: string): AppLanguage | "shared" {
-  if (pathname === "/languages") return "shared";
-  if (pathname === "/polyglot" || pathname.startsWith("/polyglot/") || pathname.startsWith("/polyglot-")) {
-    return "el";
-  }
-  return "ar";
-}
-
-function homePathFor(lang: AppLanguage): string {
-  return lang === "el" ? "/polyglot" : "/";
-}
+import {
+  LanguageProvider,
+  useLanguage,
+  routeLanguage,
+  homePathFor,
+} from "../lib/language-context";
 
 export default function Layout() {
   const [fontsLoaded] = useFonts({
