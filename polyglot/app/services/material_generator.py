@@ -100,8 +100,24 @@ SENTENCES_PER_TARGET = max(1, int(os.environ.get("POLYGLOT_SENTENCES_PER_TARGET"
 ACTIVE_TARGET = max(1, int(os.environ.get("POLYGLOT_ACTIVE_TARGET", "3")))
 
 # Known-words sample passed to the generation prompt. Larger = more lexical
-# diversity in generated sentences, but the prompt gets bigger.
-KNOWN_SAMPLE_SIZE = 60
+# diversity in generated sentences, but the prompt gets bigger. Bumped from
+# 60 → 500 on 2026-05-21 once polyglot's engaged-vocabulary pool grew to
+# ~2.4k lemmas. With only 60, Sonnet ran out of scaffold vocabulary fast and
+# reached for words outside the DB (78% validation-rejection rate). Matches
+# Alif's sample size — Alif has been generating well from the get-go with
+# this value.
+KNOWN_SAMPLE_SIZE = 500
+
+# Minimum weight for inverse-frequency sampling. Floors a hugely-overused
+# word's probability so it can still appear occasionally if the LLM really
+# wants it — but most picks go to under-represented vocabulary.
+MIN_SAMPLE_WEIGHT = 0.05
+
+# Words covered by more than this many existing sentences land on the
+# "avoid" list passed to the LLM as an explicit instruction. The threshold
+# is computed dynamically per run (max of MEDIAN * 1.5 and ABS_FLOOR).
+AVOID_ABS_FLOOR = 3
+MAX_AVOID_WORDS = 30
 
 LANG_DISPLAY = {
     "el": "Modern Greek",
@@ -154,9 +170,11 @@ class GeneratedSentence:
 
 
 def _gen_prompt(language_code: str, targets: list[GenTarget],
-                known_sample: list[str], sentences_per_target: int) -> str:
+                known_sample: list[str], sentences_per_target: int,
+                avoid_words: Optional[list[str]] = None) -> str:
     lang = LANG_DISPLAY.get(language_code, language_code)
     known_block = ", ".join(known_sample[:KNOWN_SAMPLE_SIZE]) or "(none)"
+    avoid_block = ", ".join(avoid_words) if avoid_words else "(none)"
     target_block = "\n".join(
         f"  {i}. {t.lemma_form}"
         + (f" ({t.pos})" if t.pos else "")
@@ -167,18 +185,26 @@ def _gen_prompt(language_code: str, targets: list[GenTarget],
     return f"""You are generating natural {lang} practice sentences for a learner.
 
 For each target lemma below, produce {sentences_per_target} short sentences
-(6–12 words each) that use the lemma in its primary sense. Prefer sentences
-the learner can almost-decode using the known-words pool — only the target
-should be the new word.
+(6–12 words each) that use the lemma in its primary sense. Every non-target
+word in the sentence MUST come from the known-words pool below — sentences
+that reach for vocabulary outside the pool will be rejected by the validator
+and the work wasted.
 
 Rules:
 - Use the target lemma exactly once per sentence (any inflected form is fine).
 - {register_instruction} No headlines, no all-caps, no proper-noun
   heavy contexts unless the target itself is a proper noun.
 - Provide a faithful English translation. Do not transliterate.
-- Reuse vocabulary from the known-words pool wherever natural.
+- Use only vocabulary from the known-words pool below for every non-target
+  word. If you can't construct a natural sentence within this constraint,
+  return fewer sentences rather than reaching outside the pool.
+- Avoid the listed over-represented words — pick less-used vocabulary from
+  the pool to keep the corpus diverse.
 
-Known-words pool (sample): {known_block}
+Known-words pool ({len(known_sample)} words available, all in the learner's vocabulary):
+{known_block}
+
+Words to avoid (already over-represented): {avoid_block}
 
 Targets:
 {target_block}
@@ -261,6 +287,7 @@ def generate_sentences_batch(
     targets: list[GenTarget],
     known_sample: list[str],
     sentences_per_target: int = SENTENCES_PER_TARGET,
+    avoid_words: Optional[list[str]] = None,
 ) -> list[GeneratedSentence]:
     """One Sonnet call → list of (target_index, text, english).
 
@@ -269,7 +296,8 @@ def generate_sentences_batch(
     """
     if not targets:
         return []
-    prompt = _gen_prompt(language_code, targets, known_sample, sentences_per_target)
+    prompt = _gen_prompt(language_code, targets, known_sample,
+                        sentences_per_target, avoid_words=avoid_words)
     cmd = [
         "claude", "-p",
         "--output-format", "json",
@@ -500,25 +528,113 @@ def verify_sentence_mappings_llm(
 # ─── Orchestration ─────────────────────────────────────────────────────────
 
 
-def _snapshot_known_sample(db: Session, language_code: str, exclude_lemma_ids: set[int]) -> list[str]:
-    """Bare forms the learner already knows. Used as scaffold hints in the
-    generation prompt.
+def _snapshot_known_pool(
+    db: Session, language_code: str, exclude_lemma_ids: set[int],
+) -> list[dict]:
+    """Full engaged-vocabulary pool. Each entry is
+    ``{"lemma_id": int, "lemma_form": str}``.
 
-    Drawn from acquiring/learning/known states. Excludes target lemmas so the
-    LLM doesn't accidentally treat them as "already known."
+    Drawn from acquiring/learning/known ULK states (the lemmas the learner
+    has *touched*), filtered to canonical lemmas (skip variants — they re-use
+    the canonical's identity downstream). Function words + proper names are
+    NOT excluded here; the validator handles those separately and they
+    sometimes belong inside generated sentences as connectives.
+
+    Returns the full pool so caller can apply inverse-frequency weighting.
+    No SQLite limit — at ~2.4k engaged lemmas this is still <1ms.
     """
     rows = (
-        db.query(Lemma.lemma_form)
+        db.query(Lemma.lemma_id, Lemma.lemma_form)
         .join(UserLemmaKnowledge, UserLemmaKnowledge.lemma_id == Lemma.lemma_id)
         .filter(
             Lemma.language_code == language_code,
+            Lemma.canonical_lemma_id.is_(None),
             UserLemmaKnowledge.knowledge_state.in_(["acquiring", "learning", "known"]),
-            ~Lemma.lemma_id.in_(exclude_lemma_ids) if exclude_lemma_ids else True,
         )
-        .limit(400)
+    )
+    if exclude_lemma_ids:
+        rows = rows.filter(~Lemma.lemma_id.in_(exclude_lemma_ids))
+    return [
+        {"lemma_id": lid, "lemma_form": lf}
+        for lid, lf in rows.all()
+        if lf
+    ]
+
+
+def _content_sentence_counts(db: Session, language_code: str) -> dict[int, int]:
+    """For every lemma_id, how many active+verified Sentence rows reference
+    it. Powers the inverse-frequency weighting AND the avoid-list — words
+    that already appear in many sentences should be down-weighted (don't
+    keep generating more material for already-saturated vocabulary).
+    """
+    from sqlalchemy import func
+    rows = (
+        db.query(SentenceWord.lemma_id, func.count(func.distinct(Sentence.id)))
+        .join(Sentence, Sentence.id == SentenceWord.sentence_id)
+        .filter(
+            Sentence.language_code == language_code,
+            Sentence.is_active.is_(True),
+            Sentence.mappings_verified_at.isnot(None),
+            SentenceWord.lemma_id.isnot(None),
+        )
+        .group_by(SentenceWord.lemma_id)
         .all()
     )
-    return [r[0] for r in rows if r[0]]
+    return {lid: cnt for lid, cnt in rows}
+
+
+def _sample_known_words_weighted(
+    pool: list[dict],
+    counts: dict[int, int],
+    sample_size: int = KNOWN_SAMPLE_SIZE,
+) -> list[str]:
+    """Inverse-frequency weighted sampling. Words appearing in many existing
+    sentences get lower probability so the LLM is nudged toward
+    under-represented vocabulary. Jittered to keep selection non-deterministic
+    across runs. Returns lemma_form strings.
+
+    Ported from Alif's ``sample_known_words_weighted`` in sentence_generator.py
+    — same shape, same weighting law, smaller surface to keep polyglot lean.
+    """
+    import random
+    if len(pool) <= sample_size:
+        return [w["lemma_form"] for w in pool]
+
+    weighted: list[tuple[float, dict]] = []
+    for w in pool:
+        cnt = counts.get(w["lemma_id"], 0)
+        weight = max(MIN_SAMPLE_WEIGHT, 1.0 / (1 + cnt))
+        jittered = weight * random.uniform(0.5, 1.5)
+        weighted.append((jittered, w))
+    weighted.sort(key=lambda x: x[0], reverse=True)
+    return [w["lemma_form"] for _, w in weighted[:sample_size]]
+
+
+def _compute_avoid_words(
+    pool: list[dict],
+    counts: dict[int, int],
+) -> Optional[list[str]]:
+    """Return up to MAX_AVOID_WORDS lemma_form strings the LLM should avoid.
+
+    Threshold: a lemma is "over-represented" if its sentence count is at
+    least max(median * 1.5, AVOID_ABS_FLOOR). Ports the threshold logic from
+    Alif's ``get_avoid_words`` so the polyglot corpus stays diverse for the
+    same reasons.
+    """
+    import statistics
+    if not counts:
+        return None
+    vals = sorted(counts.values())
+    median = statistics.median(vals)
+    threshold = max(median * 1.5, AVOID_ABS_FLOOR)
+    by_id_to_form = {w["lemma_id"]: w["lemma_form"] for w in pool}
+    over = [
+        (lid, cnt) for lid, cnt in counts.items()
+        if cnt >= threshold and lid in by_id_to_form
+    ]
+    over.sort(key=lambda x: x[1], reverse=True)
+    result = [by_id_to_form[lid] for lid, _ in over[:MAX_AVOID_WORDS]]
+    return result or None
 
 
 def batch_generate_material(
@@ -576,11 +692,15 @@ def batch_generate_material(
             return {"generated": 0, "words_covered": 0, "words_failed": lemma_ids}
 
         lemma_lookup = build_lemma_lookup(db, language_code)
-        known_sample = _snapshot_known_sample(
+        known_pool = _snapshot_known_pool(
             db, language_code, exclude_lemma_ids={t.lemma_id for t in targets}
         )
+        sentence_counts = _content_sentence_counts(db, language_code)
     finally:
         db.close()
+
+    known_sample = _sample_known_words_weighted(known_pool, sentence_counts, KNOWN_SAMPLE_SIZE)
+    avoid_words = _compute_avoid_words(known_pool, sentence_counts)
 
     # ── Phase 2a: Sonnet generation ──
     raw_sentences = generate_sentences_batch(
@@ -588,6 +708,7 @@ def batch_generate_material(
         targets=targets,
         known_sample=known_sample,
         sentences_per_target=sentences_per_target,
+        avoid_words=avoid_words,
     )
     if not raw_sentences:
         return {
