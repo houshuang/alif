@@ -26,17 +26,24 @@ The three gates the picker DOES honor (Hard Invariants from
   content lemmas. ``FUNCTION_WORD_SETS[language_code]`` and
   ``Lemma.word_category in ('function_word', 'proper_name')`` both exclude.
 
-Source preference (per 2026-05-20 spec):
+Source preference (per 2026-05-21 spec — flipped from the 2026-05-20 original):
 
-1. **Page-first, all-known**: a textbook page sentence (``Sentence.page_id IS
-   NOT NULL``) whose every content scaffold lemma is already known →
-   ``known`` or ``learning`` state. Zero-friction: the user has already read
-   that page.
-2. **Any harvested sentence**, ranked by comprehensibility × source bonus.
-   Lower-comprehensibility sentences still rank above nothing — the learner
-   benefits from collateral scaffold even when not every word is known.
-3. **None**, when no eligible sentence covers the lemma. Caller should fall
-   back to generation (PR #4) or skip the lemma for this session.
+1. **Fresh LLM sentence preferred**. A novel context proves the word stuck;
+   re-showing the page-of-record right after the learner read it on the page
+   is zero-friction recall, which is exactly what we DON'T want at review
+   time. Source bonus puts ``llm`` above ``textbook``/``story``/``import``.
+2. **Recently-viewed page sentences are softly penalised**. If a candidate
+   sentence's page was viewed within ``PAGE_COOLDOWN_DAYS`` (7) days,
+   its score is multiplied by ``RECENT_PAGE_PENALTY`` (0.2). It still ranks
+   above nothing — we'd rather show a stale page sentence than skip the lemma
+   for the session if no LLM sentence covers it yet (graceful fallback during
+   the lag between tapping unknown and the cron generating).
+3. **Never-shown sentences win tie-breakers**. Within a single score class,
+   prefer sentences with the lowest ``times_shown`` count; among equal
+   ``times_shown``, prefer the most recently created (newer LLM material
+   beats older).
+4. **None**, when no eligible sentence covers the lemma at all. Caller
+   defers to generation or skips the lemma.
 """
 from __future__ import annotations
 
@@ -47,7 +54,7 @@ from typing import Optional
 
 from sqlalchemy.orm import Session, joinedload
 
-from app.models import Lemma, Sentence, SentenceWord, UserLemmaKnowledge, Language
+from app.models import Lemma, Page, Sentence, SentenceWord, UserLemmaKnowledge, Language
 from app.services.canonical_resolution import resolve_canonical_lemma_id
 from app.services.fsrs_service import parse_json_column
 from app.services.lemma_quality import FUNCTION_WORD_SETS
@@ -58,15 +65,25 @@ logger = logging.getLogger(__name__)
 KNOWN_STATES = frozenset({"known", "learning"})
 DEFAULT_SESSION_LIMIT = 15
 
-PAGE_FIRST_BONUS = 3.0
 SOURCE_BONUS = {
-    "textbook": 1.4,
-    "story": 1.2,
-    "import": 1.2,
+    # 2026-05-21: LLM now outranks textbook/story/import. The picker is run at
+    # *review* time, when the goal is to test recall in a novel context — not
+    # to re-show the page-of-record the learner just finished reading.
+    "llm": 1.5,
+    "textbook": 1.0,
+    "story": 1.0,
+    "import": 1.0,
     "manual": 1.0,
-    "llm": 1.0,
 }
 DEFAULT_SOURCE_BONUS = 1.0
+
+# Soft penalty applied when a candidate sentence's page was viewed within the
+# cooldown window. Multiplicative: a strong (~0.2) penalty drops the page
+# sentence below any sane LLM/manual alternative, but keeps it as a fallback
+# in case no novel material exists yet (e.g. tapped-unknown words whose
+# enrichment cron hasn't run). Set to 1.0 to disable.
+PAGE_COOLDOWN_DAYS = 7
+RECENT_PAGE_PENALTY = 0.2
 
 
 @dataclass
@@ -138,8 +155,9 @@ class _Scored:
     comprehensibility: float
     scaffold_total: int
     scaffold_known: int
-    page_first: bool
+    page_first: bool                    # retained for back-compat / introspection
     selection_reason: str
+    times_shown: int = 0                # for tie-break: prefer never-shown
 
 
 # Intro card constants — ported from Alif. The dynamic-cap heuristic and
@@ -207,6 +225,8 @@ def pick_sentence_for_lemma(
         ):
             ulks_by_lemma[ulk.lemma_id] = ulk
 
+    recent_page_view_ids = _load_recent_page_view_ids(db, candidates)
+
     scored: list[_Scored] = []
     for sent in candidates:
         result = _score_candidate(
@@ -215,6 +235,7 @@ def pick_sentence_for_lemma(
             lemmas_by_id=lemmas_by_id,
             ulks_by_lemma=ulks_by_lemma,
             function_words=function_words,
+            recent_page_view_ids=recent_page_view_ids,
         )
         if result is not None:
             scored.append(result)
@@ -222,8 +243,12 @@ def pick_sentence_for_lemma(
     if not scored:
         return None
 
+    # Sort by score (desc), then prefer never-shown sentences (smaller
+    # times_shown), then newer-created (larger id ≈ newer in practice for the
+    # polyglot DB since ids are autoincrement). Reverse turns "smaller
+    # times_shown wins" into the right order by negating.
     scored.sort(
-        key=lambda c: (c.score, c.scaffold_total, -c.sentence.id),
+        key=lambda c: (c.score, -c.times_shown, c.sentence.id),
         reverse=True,
     )
     best = scored[0]
@@ -236,12 +261,53 @@ def pick_sentence_for_lemma(
     )
 
 
+def _load_recent_page_view_ids(db: Session, candidates: list[Sentence]) -> set[int]:
+    """Return the set of ``Page.id`` values whose ``viewed_at`` is within the
+    cooldown window. Pages whose ``viewed_at IS NULL`` aren't returned (the
+    learner hasn't read them yet, so no cooldown).
+
+    Batched to one query covering every candidate's page_id rather than a
+    per-candidate Page lookup. Returns an empty set when no candidates have
+    a page_id at all.
+    """
+    page_ids = {s.page_id for s in candidates if s.page_id is not None}
+    if not page_ids:
+        return set()
+    cutoff = datetime.now(timezone.utc) - timedelta(days=PAGE_COOLDOWN_DAYS)
+    rows = (
+        db.query(Page.id)
+        .filter(Page.id.in_(page_ids), Page.viewed_at.isnot(None))
+        .all()
+    )
+    # SQLite stores datetimes as naive strings — re-fetch viewed_at and
+    # compare in Python so the timezone story matches the rest of the codebase
+    # (see CLAUDE.md "SQLite naive datetime pitfall"). One extra round-trip
+    # but avoids cross-DB datetime semantics.
+    if not rows:
+        return set()
+    detailed = (
+        db.query(Page.id, Page.viewed_at)
+        .filter(Page.id.in_({r[0] for r in rows}))
+        .all()
+    )
+    recent: set[int] = set()
+    for page_id, viewed_at in detailed:
+        if viewed_at is None:
+            continue
+        if viewed_at.tzinfo is None:
+            viewed_at = viewed_at.replace(tzinfo=timezone.utc)
+        if viewed_at >= cutoff:
+            recent.add(page_id)
+    return recent
+
+
 def _score_candidate(
     sentence: Sentence,
     target_canonical_id: int,
     lemmas_by_id: dict[int, Lemma],
     ulks_by_lemma: dict[int, UserLemmaKnowledge],
     function_words: set,
+    recent_page_view_ids: Optional[set[int]] = None,
 ) -> Optional[_Scored]:
     has_target = False
     scaffold_total = 0
@@ -278,12 +344,28 @@ def _score_candidate(
 
     base = 0.3 + 0.7 * comprehensibility
     source_bonus = SOURCE_BONUS.get(sentence.source or "", DEFAULT_SOURCE_BONUS)
+
+    # Page cooldown — a page sentence whose page was viewed within the last
+    # PAGE_COOLDOWN_DAYS gets a strong multiplicative penalty so any fresh LLM
+    # alternative outranks it. Pages never viewed (viewed_at IS NULL) and
+    # pages viewed long ago receive no penalty.
+    recent_pages = recent_page_view_ids or set()
+    page_recently_viewed = (
+        sentence.page_id is not None and sentence.page_id in recent_pages
+    )
+    cooldown_bonus = RECENT_PAGE_PENALTY if page_recently_viewed else 1.0
+
+    # `page_first` is retained for back-compat (selection_reason + dataclass
+    # field) but no longer feeds the score. The new ranking is LLM-first.
     page_first = sentence.page_id is not None and all_known
-    page_bonus = PAGE_FIRST_BONUS if page_first else 1.0
 
-    score = base * source_bonus * page_bonus
+    score = base * source_bonus * cooldown_bonus
 
-    if page_first:
+    if page_recently_viewed:
+        reason = "page_cooldown_fallback"
+    elif sentence.source == "llm":
+        reason = "llm_fresh" if all_known else "llm_partial_scaffold"
+    elif page_first:
         reason = "page_first_all_known"
     elif all_known:
         reason = "all_scaffold_known"
@@ -300,6 +382,7 @@ def _score_candidate(
         scaffold_known=scaffold_known,
         page_first=page_first,
         selection_reason=reason,
+        times_shown=sentence.times_shown or 0,
     )
 
 

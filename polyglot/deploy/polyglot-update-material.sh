@@ -16,6 +16,10 @@
 #   2. warm_sentence_cache for Modern Greek
 #      — finds acquiring/learning/known lemmas below ACTIVE_TARGET sentence
 #        coverage and generates more via Claude CLI (Sonnet) + Haiku verify.
+#   3. enrich_lemma_philology for Modern Greek
+#      — fills LemmaEnrichment (etymology, diachrony, cognates, quotes,
+#        register) for engaged lemmas. Surfaced in the lookup card + lemma
+#        detail screen (Modern Editorial design).
 #
 # Future passes (deferred — no harvest-side fixes needed yet):
 #   - rotate_stale_sentences (when pipeline tiers land)
@@ -41,6 +45,12 @@ TIMEOUT_SECONDS="${POLYGLOT_WARM_TIMEOUT_SECONDS:-1200}"
 PAGES_BUFFER="${POLYGLOT_PAGES_AHEAD_BUFFER:-5}"
 PAGES_MAX_PER_RUN="${POLYGLOT_PAGES_AHEAD_MAX_PER_RUN:-5}"
 PAGES_TIMEOUT_SECONDS="${POLYGLOT_PAGES_AHEAD_TIMEOUT_SECONDS:-1200}"
+# 2026-05-21: third phase enriches lemmas with philological data (etymology,
+# diachrony, cognates, quotes, register). Per-run cap kept conservative so a
+# bad batch doesn't blow the whole Claude budget; cron runs every 3h so 10
+# lemmas/run = ~80 lemmas/day, enough to cover engaged vocabulary in a week.
+ENRICH_MAX_LEMMAS="${POLYGLOT_ENRICH_MAX_LEMMAS:-10}"
+ENRICH_TIMEOUT_SECONDS="${POLYGLOT_ENRICH_TIMEOUT_SECONDS:-1800}"
 
 export PYTHONUNBUFFERED=1
 # Belt-and-suspenders: explicitly point at polyglot's DB so the cron run
@@ -78,6 +88,11 @@ run_phase "warm_sentence_cache" timeout "$TIMEOUT_SECONDS" \
   --language "$LANGUAGE" \
   --max-lemmas "$MAX_LEMMAS" \
   --sentences-per-target "$SENTENCES_PER_TARGET"
+
+run_phase "enrich_lemma_philology" timeout "$ENRICH_TIMEOUT_SECONDS" \
+  "$VENV" scripts/enrich_lemma_philology.py \
+  --language "$LANGUAGE" \
+  --max-lemmas "$ENRICH_MAX_LEMMAS"
 
 echo "[$TIMESTAMP] Polyglot material cron done" >> "$LOG"
 echo "---" >> "$LOG"
