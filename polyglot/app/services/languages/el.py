@@ -109,10 +109,12 @@ class ModernGreekProvider:
         # simplemma's dictionary is lowercase — uppercase headings ("ΠΟΛΙΤΙΣΜΟΙ")
         # won't match unless we fold case first. We still feed the original
         # case to simplemma in case it has casing rules; if that returns the
-        # surface unchanged, retry with .lower().
-        lemma = simplemma.lemmatize(surface, lang=self._SIMPLEMMA_LANG)
+        # surface unchanged, retry with .lower(). greedy=True (2026-05-21) lets
+        # simplemma match comparatives + irregular plurals it'd otherwise leave
+        # unchanged — small but free recall gain.
+        lemma = simplemma.lemmatize(surface, lang=self._SIMPLEMMA_LANG, greedy=True)
         if lemma == surface and not surface.islower():
-            lemma = simplemma.lemmatize(surface.lower(), lang=self._SIMPLEMMA_LANG)
+            lemma = simplemma.lemmatize(surface.lower(), lang=self._SIMPLEMMA_LANG, greedy=True)
         confidence = 1.0 if lemma.lower() != surface.lower() else 0.5
         return LemmaCandidate(
             lemma=lemma,

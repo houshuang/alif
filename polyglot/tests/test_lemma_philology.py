@@ -26,6 +26,22 @@ def _envelope(structured: dict) -> str:
     return json.dumps({"structured_output": structured, "result": ""})
 
 
+def _verify_ok_for(*lemma_ids: int) -> _FakeProc:
+    """Canned 'all OK' verifier response covering the given lemma_ids."""
+    return _FakeProc(stdout=_envelope({
+        "verdicts": [
+            {"lemma_id": lid, "verdict": "ok"} for lid in lemma_ids
+        ],
+    }))
+
+
+def _verify_flagged_for(lemma_id: int, kind: str = "etymology_issue",
+                       note: str = "PIE root incorrect") -> _FakeProc:
+    return _FakeProc(stdout=_envelope({
+        "verdicts": [{"lemma_id": lemma_id, "verdict": kind, "note": note}],
+    }))
+
+
 def _seed_lemma(db, *, form: str, gloss: str = "x", pos: str = "noun",
                 cognate_id: int | None = None,
                 canonical: int | None = None,
@@ -105,7 +121,8 @@ def _good_payload(form: str) -> dict:
 
 
 def test_batch_enrich_happy_path(tmp_db, fake_claude):
-    """One lemma, one valid enrichment → row written with status=done."""
+    """One lemma, one valid enrichment + verifier passes → row written with
+    status=done. Two Claude calls total: Sonnet generation + Haiku verify."""
     with tmp_db() as db:
         lemma = _seed_lemma(db, form="καρδιά", gloss="heart")
         db.commit()
@@ -114,20 +131,90 @@ def test_batch_enrich_happy_path(tmp_db, fake_claude):
     fake_claude["script"].append(_FakeProc(stdout=_envelope({
         "lemmas": [{"lemma_form": "καρδιά", "enrichment": _good_payload("καρδιά")}],
     })))
+    fake_claude["script"].append(_verify_ok_for(lemma_id))
 
     result = lp.batch_enrich(language_code="el", lemma_ids=[lemma_id])
 
     assert result["enriched"] == 1
     assert result["failed_lemma_ids"] == []
     assert result["skipped_lemma_ids"] == []
-    assert len(fake_claude["calls"]) == 1
+    assert len(fake_claude["calls"]) == 2
 
     with tmp_db() as db:
         lemma = db.query(Lemma).filter(Lemma.lemma_id == lemma_id).first()
         assert lemma.enrichment_status == "done"
         assert lemma.enrichment_json is not None
         assert lemma.enrichment_json["etymology"]["origin_note"].startswith("Origin note")
+        assert "_verifier_note" not in lemma.enrichment_json
         assert lemma.enriched_at is not None
+
+
+def test_verifier_flagged_writes_done_flagged(tmp_db, fake_claude):
+    """When Haiku flags etymology, the payload is still written but status
+    becomes 'done_flagged' and the verifier note is attached to enrichment_json."""
+    with tmp_db() as db:
+        lemma = _seed_lemma(db, form="στο", gloss="in the")
+        db.commit()
+        lemma_id = lemma.lemma_id
+
+    fake_claude["script"].append(_FakeProc(stdout=_envelope({
+        "lemmas": [{"lemma_form": "στο", "enrichment": _good_payload("στο")}],
+    })))
+    fake_claude["script"].append(_verify_flagged_for(
+        lemma_id, "etymology_issue", "PIE *steh₂- is wrong",
+    ))
+
+    result = lp.batch_enrich(language_code="el", lemma_ids=[lemma_id])
+    assert result["enriched"] == 1
+
+    with tmp_db() as db:
+        lemma = db.query(Lemma).filter(Lemma.lemma_id == lemma_id).first()
+        assert lemma.enrichment_status == "done_flagged"
+        assert lemma.enrichment_json["_verifier_note"]["verdict"] == "etymology_issue"
+        assert "PIE *steh₂-" in lemma.enrichment_json["_verifier_note"]["note"]
+
+
+def test_verifier_failure_writes_done_unverified(tmp_db, fake_claude):
+    """When the Haiku verifier call itself fails (timeout / non-zero exit),
+    the Sonnet output is still written but stamped 'done_unverified' so a
+    later cron can re-pick if desired."""
+    with tmp_db() as db:
+        lemma = _seed_lemma(db, form="καρδιά", gloss="heart")
+        db.commit()
+        lemma_id = lemma.lemma_id
+
+    fake_claude["script"].append(_FakeProc(stdout=_envelope({
+        "lemmas": [{"lemma_form": "καρδιά", "enrichment": _good_payload("καρδιά")}],
+    })))
+    # Verifier call fails (non-zero exit)
+    fake_claude["script"].append(_FakeProc(stdout="", stderr="boom", returncode=1))
+
+    result = lp.batch_enrich(language_code="el", lemma_ids=[lemma_id])
+    assert result["enriched"] == 1
+
+    with tmp_db() as db:
+        lemma = db.query(Lemma).filter(Lemma.lemma_id == lemma_id).first()
+        assert lemma.enrichment_status == "done_unverified"
+        assert lemma.enrichment_json is not None  # Sonnet payload written
+
+
+def test_find_unenriched_with_include_failed_picks_done_flagged(tmp_db, fake_claude):
+    """Manual `--include-failed` re-pick should grab done_flagged lemmas too,
+    so a prompt improvement can clean up known-bad enrichment."""
+    with tmp_db() as db:
+        a = _seed_lemma(db, form="στο", gloss="in the")
+        _seed_ulk(db, a.lemma_id)
+        a.enrichment_status = "done_flagged"
+        a.enrichment_json = {"version": 1, "etymology": {"origin_note": "bad"}}
+        db.commit()
+        a_id = a.lemma_id
+
+    # Without include_failed, the done_flagged lemma is skipped.
+    assert lp.find_unenriched_lemmas(language_code="el", limit=10) == []
+    # With include_failed, it shows up.
+    assert lp.find_unenriched_lemmas(
+        language_code="el", limit=10, include_failed=True,
+    ) == [a_id]
 
 
 def test_glossless_lemma_is_skipped(tmp_db, fake_claude):
@@ -208,6 +295,8 @@ def test_partial_response_marks_missing_as_failed(tmp_db, fake_claude):
     fake_claude["script"].append(_FakeProc(stdout=_envelope({
         "lemmas": [{"lemma_form": "καρδιά", "enrichment": _good_payload("καρδιά")}],
     })))
+    # Verifier only sees καρδιά (λόγος was never parsed); OK for it.
+    fake_claude["script"].append(_verify_ok_for(ids[0]))
 
     result = lp.batch_enrich(language_code="el", lemma_ids=ids)
 

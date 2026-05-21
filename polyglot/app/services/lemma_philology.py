@@ -55,7 +55,9 @@ def _resolve_model(raw: str) -> str:
 
 
 ENRICH_MODEL = _resolve_model(os.environ.get("POLYGLOT_ENRICH_MODEL", "sonnet"))
+VERIFY_MODEL = _resolve_model(os.environ.get("POLYGLOT_ENRICH_VERIFY_MODEL", "haiku"))
 ENRICH_TIMEOUT_S = int(os.environ.get("POLYGLOT_ENRICH_TIMEOUT", "240"))
+VERIFY_TIMEOUT_S = int(os.environ.get("POLYGLOT_ENRICH_VERIFY_TIMEOUT", "180"))
 ENRICH_BATCH_SIZE = max(1, int(os.environ.get("POLYGLOT_ENRICH_BATCH_SIZE", "4")))
 
 LANG_DISPLAY = {
@@ -116,10 +118,28 @@ cognates, and how the word lives in literature.
 
 For each lemma, produce a structured JSON entry. Field guidance:
 
+FACTUAL ACCURACY ON PHILOLOGY:
+- These claims will be surfaced to a learner who trusts the app's etymology.
+  A wrong PIE root or a wrong claim about what a word meant in Byzantine
+  Greek is a real problem — much worse than an honest "we don't know."
+- If you are not confident a PIE root is correct, set `pie_root: null`
+  rather than guess. Same for any diachronic stage: omit the stage rather
+  than invent a plausible-sounding meaning.
+- When citing a derivation that is one of multiple competing hypotheses,
+  say so explicitly in origin_note ("one hypothesis is...", "traditionally
+  derived from X, though some scholars prefer Y"). Don't present
+  hypotheses as fact.
+- DO NOT chain etymology through unrelated roots. E.g., for a contracted
+  form, the PIE root field should be the root of the SEMANTIC PARENT (the
+  preposition's source, not the article's source). When in doubt, set null.
+
 ETYMOLOGY (1 object):
 - pie_root: the reconstructed Proto-Indo-European root with asterisk and gloss
-  in parentheses, e.g. "*ḱerd- (heart)". Null only if etymology is truly opaque
-  or non-IE (Pre-Greek substrate, Semitic loan, etc.).
+  in parentheses, e.g. "*ḱerd- (heart)". Null when:
+  * etymology is truly opaque or non-IE (Pre-Greek substrate, Semitic loan)
+  * the word is a contraction/compound where the PIE root field would be
+    ambiguous (which constituent's root?)
+  * you are not confident in the reconstruction
 - ancient_form: the Ancient Greek citation form with full polytonic accents,
   e.g. "ἄλογος", "λόγος", "καρδία". For Latin or Ancient Greek lemmas, this is
   the parent/source form.
@@ -136,6 +156,10 @@ DIACHRONY (ordered list, ancient to modern):
   an optional one-line note for context.
 - Skip eras with no meaningful change — only include a stage when the meaning
   or register shifts.
+- If you don't know what a word specifically meant in a particular era, OMIT
+  that stage. Never claim "in Byzantine Greek X meant Y" unless you are
+  confident — that's the exact kind of error the learner will catch when
+  they look it up.
 
 COGNATES (list, 3-6 entries):
 - Cross-language relatives. Pick high-utility ones for an English speaker.
@@ -375,6 +399,175 @@ def _enrich_batch_call(
     return parsed
 
 
+# ─── Fact-verification pass (Haiku) ────────────────────────────────────────
+# Mirrors material_generator's verify pattern: after Sonnet generates rich
+# content, send the *factual* slices (etymology + diachrony) to Haiku for a
+# cheap accuracy check. Per user spec (2026-05-21), quotes/cognates/register
+# are NOT verified — those are memory hooks where mild inaccuracy is fine.
+# Etymology and diachrony are claims the learner will trust, so wrong PIE
+# roots and wrong "in era X this meant Y" are real problems.
+
+
+def _verify_prompt(language_code: str, items: list[dict]) -> str:
+    lang = LANG_DISPLAY.get(language_code, language_code)
+    block_lines = []
+    for it in items:
+        e = it["etymology"] or {}
+        block_lines.append(
+            f"[lemma_id={it['lemma_id']}] {it['lemma_form']} ({it['gloss_en']})\n"
+            f"  etymology.pie_root: {e.get('pie_root')!r}\n"
+            f"  etymology.ancient_form: {e.get('ancient_form')!r}\n"
+            f"  etymology.origin_note: {e.get('origin_note', '')[:300]!r}\n"
+            f"  etymology.morphology: {e.get('morphology')!r}\n"
+            f"  diachrony stages:"
+        )
+        for stage in it["diachrony"]:
+            block_lines.append(
+                f"    - era={stage['era']}, form={stage['form']!r}, "
+                f"meaning={stage['meaning'][:120]!r}"
+            )
+    items_block = "\n".join(block_lines)
+    return f"""You are a {lang} philology fact-checker. For each lemma below,
+review ONLY the etymology and diachrony claims (ignore quotes, cognates,
+register — those are not your concern). Flag anything that is:
+
+1. A clearly WRONG PIE root attribution (e.g. claiming a root that gives a
+   different word entirely, or chaining etymology through an unrelated form).
+2. A WRONG factual claim about what a word meant in a specific era.
+3. A FOLK ETYMOLOGY presented as fact (e.g. "ξέρω derives from ξηρός 'dry'"
+   is a popular folk etymology, not the standard derivation).
+
+DO NOT flag:
+- Anything you're not >90% confident is wrong (when uncertain, mark "ok").
+- Stylistic disagreements, prose phrasing, or "I would have said it
+  differently" issues.
+- Quote attributions, cognate choices, register classification — those are
+  out of scope here.
+
+For each lemma, return a verdict:
+- "ok": etymology + diachrony look correct (or any errors are too minor to bother).
+- "etymology_issue": specific factual problem in the etymology block. Put the
+  correction in `note`.
+- "diachrony_issue": specific factual problem in one of the diachrony stages.
+  Put the correction in `note`.
+
+Be parsimonious — most should come back "ok". Only flag when you're confident
+the published claim would be challenged by a philology reference.
+
+Lemmas:
+{items_block}
+"""
+
+
+def _verify_schema() -> dict:
+    return {
+        "type": "object",
+        "properties": {
+            "verdicts": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "lemma_id": {"type": "integer"},
+                        "verdict": {
+                            "type": "string",
+                            "enum": ["ok", "etymology_issue", "diachrony_issue"],
+                        },
+                        "note": {"type": ["string", "null"]},
+                    },
+                    "required": ["lemma_id", "verdict"],
+                },
+            },
+        },
+        "required": ["verdicts"],
+    }
+
+
+@dataclass
+class _Verdict:
+    lemma_id: int
+    verdict: str   # "ok" | "etymology_issue" | "diachrony_issue"
+    note: Optional[str]
+
+
+def _verify_enrichment_facts(
+    language_code: str,
+    parsed: dict[str, LemmaEnrichment],
+    targets: list[_EnrichTarget],
+) -> dict[int, _Verdict]:
+    """Haiku check on etymology + diachrony factual accuracy. Returns
+    ``{lemma_id: _Verdict}`` covering only lemmas that came back from
+    Sonnet (others fail upstream and never reach here).
+
+    On total LLM failure, returns an empty dict — caller treats this as
+    "no extra information" and writes the Sonnet output as-is. This is
+    intentional: the verifier is best-effort. A timed-out Haiku shouldn't
+    block the user from seeing enrichment that's probably fine.
+    """
+    targets_by_form = {t.lemma_form: t for t in targets}
+    items: list[dict] = []
+    for form, e in parsed.items():
+        t = targets_by_form.get(form)
+        if t is None:
+            continue
+        items.append({
+            "lemma_id": t.lemma_id,
+            "lemma_form": form,
+            "gloss_en": t.gloss_en,
+            "etymology": e.etymology.model_dump() if e.etymology else None,
+            "diachrony": [s.model_dump() for s in e.diachrony],
+        })
+    if not items:
+        return {}
+
+    cmd = [
+        "claude", "-p",
+        "--output-format", "json",
+        "--model", VERIFY_MODEL,
+        "--json-schema", json.dumps(_verify_schema()),
+        _verify_prompt(language_code, items),
+    ]
+    started = time.time()
+    structured = _call_cli(cmd, VERIFY_TIMEOUT_S)
+    elapsed = time.time() - started
+    if not structured:
+        _log_pipeline({
+            "event": "verify_failed",
+            "language_code": language_code,
+            "lemma_ids": [it["lemma_id"] for it in items],
+            "elapsed_s": round(elapsed, 1),
+            "model": VERIFY_MODEL,
+        })
+        return {}
+
+    verdicts: dict[int, _Verdict] = {}
+    for v in structured.get("verdicts", []) or []:
+        if not isinstance(v, dict):
+            continue
+        lid = v.get("lemma_id")
+        kind = v.get("verdict")
+        if not isinstance(lid, int) or kind not in ("ok", "etymology_issue", "diachrony_issue"):
+            continue
+        verdicts[lid] = _Verdict(
+            lemma_id=lid, verdict=kind, note=v.get("note") or None,
+        )
+
+    flagged = [v for v in verdicts.values() if v.verdict != "ok"]
+    _log_pipeline({
+        "event": "verify_returned",
+        "language_code": language_code,
+        "lemma_count": len(items),
+        "verdict_count": len(verdicts),
+        "flagged": [
+            {"lemma_id": v.lemma_id, "verdict": v.verdict, "note": v.note}
+            for v in flagged
+        ],
+        "elapsed_s": round(elapsed, 1),
+        "model": VERIFY_MODEL,
+    })
+    return verdicts
+
+
 # ─── Orchestration ─────────────────────────────────────────────────────────
 
 
@@ -461,7 +654,14 @@ def batch_enrich(
             _stamp_failure(language_code, [t.lemma_id for t in chunk])
             continue
 
-        chunk_enriched, chunk_failed = _write_chunk(language_code, chunk, parsed)
+        # Best-effort fact-check on etymology + diachrony. Returns {} on
+        # total Haiku failure — we still write the Sonnet output as-is, just
+        # without a verifier-clean stamp.
+        verdicts = _verify_enrichment_facts(language_code, parsed, chunk)
+
+        chunk_enriched, chunk_failed = _write_chunk(
+            language_code, chunk, parsed, verdicts=verdicts,
+        )
         total_enriched += chunk_enriched
         failed.extend(chunk_failed)
 
@@ -485,11 +685,20 @@ def _write_chunk(
     language_code: str,
     chunk: list[_EnrichTarget],
     parsed: dict[str, LemmaEnrichment],
+    verdicts: Optional[dict[int, _Verdict]] = None,
 ) -> tuple[int, list[int]]:
     """Persist parsed enrichments for one chunk. Returns (enriched, failed_ids).
 
     Phase 3 of the read/LLM/write pattern. Single commit per chunk.
+
+    When ``verdicts`` flags a lemma as ``etymology_issue`` / ``diachrony_issue``,
+    the payload is still written (since rejecting it loses all 5 slices including
+    the unverified-OK ones), but ``enrichment_status`` is stamped as
+    ``done_flagged`` and the verifier's note is appended to the payload's
+    ``_verifier_note`` field so downstream consumers can react. ``done`` =
+    Sonnet + Haiku both OK; ``done_unverified`` = Haiku failed to run.
     """
+    verdicts = verdicts or {}
     now = datetime.now(timezone.utc)
     enriched = 0
     failed: list[int] = []
@@ -505,8 +714,18 @@ def _write_chunk(
                 lemma.enrichment_status = "failed"
                 failed.append(target.lemma_id)
                 continue
-            lemma.enrichment_json = payload.model_dump(mode="json")
-            lemma.enrichment_status = "done"
+            data = payload.model_dump(mode="json")
+            verdict = verdicts.get(target.lemma_id)
+            if verdict is None:
+                lemma.enrichment_status = "done_unverified"
+            elif verdict.verdict == "ok":
+                lemma.enrichment_status = "done"
+            else:
+                lemma.enrichment_status = "done_flagged"
+                data["_verifier_note"] = {
+                    "verdict": verdict.verdict, "note": verdict.note,
+                }
+            lemma.enrichment_json = data
             lemma.enriched_at = now
             enriched += 1
         db.commit()
@@ -550,6 +769,11 @@ def find_unenriched_lemmas(
     actually engaged with them) — no point philologizing words no one studies.
     Order: by frequency_rank when present (so the most common words enrich
     first), then lemma_id.
+
+    With ``include_failed=True``, also re-picks lemmas whose previous
+    enrichment failed entirely (status='failed') OR was written but flagged
+    by the verifier (status='done_flagged'). Use to clean up known-bad
+    enrichment after a prompt improvement.
     """
     from sqlalchemy import or_
     from app.models import UserLemmaKnowledge
@@ -558,7 +782,11 @@ def find_unenriched_lemmas(
     try:
         status_filter = Lemma.enrichment_status.is_(None)
         if include_failed:
-            status_filter = or_(status_filter, Lemma.enrichment_status == "failed")
+            status_filter = or_(
+                status_filter,
+                Lemma.enrichment_status == "failed",
+                Lemma.enrichment_status == "done_flagged",
+            )
         rows = (
             db.query(Lemma.lemma_id, Lemma.frequency_rank)
             .join(UserLemmaKnowledge, UserLemmaKnowledge.lemma_id == Lemma.lemma_id)
