@@ -1000,9 +1000,22 @@ Mirrors Alif's `SentenceReadingCard` + `ReadingActions` design.
 
 - Sentence card: front (Greek alone) → "Show Translation" → back
   (Greek + English under divider).
-- Per-word tap: cycles off → missed (red underline) → confused (yellow
-  underline) → off. Function words / proper names show gloss but don't
-  accumulate marks.
+- **No pre-applied highlight on any word.** Not the scheduling target,
+  not the function-word / proper-name class, not the
+  most-recently-tapped word. The only visible signal is the user's own
+  mark cycle. Matches Alif `index.tsx:2877` (2026-05-21 alignment —
+  the previous Folio render italicised `is_target` words and the
+  currently-glossed word).
+- Per-word tap: any word with a `lemma_id` cycles
+  off → missed (red underline) → confused (yellow underline) → off.
+  Function words and proper names cycle visually too, but
+  `lemmaIdsFromMarks` strips them from the submission payload, so
+  FSRS / acquisition credit is still content-only (same content-lemma
+  filter as `sentence_review_service` on the backend).
+- **Gloss / missed-word card is mark-driven**, not a separate "tapped"
+  state. The card shows for the most recently red/yellow word; cycling
+  that word back to off hides the card. There is no standalone close
+  button — close-via-cycle.
 - Three-button action row, middle label toggles "Know All" / "Continue".
 - Intro card: rendered when slot type is `intro`. Form + gloss + POS +
   optional cognate pointer. "Got it — continue" advances. Ack posted on
@@ -1011,6 +1024,13 @@ Mirrors Alif's `SentenceReadingCard` + `ReadingActions` design.
 **Slot-based progression**: the session is a list of `SessionSlot`
 (`intro` or `sentence`); `index` walks the slots. `slots.length` is the
 displayed total.
+
+**Back navigation from `polyglot-lemma/[id]`**: reachable from the
+reader gloss card, the intro card, and the sentence-review gloss card.
+Uses a single `goBack()` helper with `router.canGoBack()` and a
+`/polyglot` fallback (mirrors Alif's `word/[id].tsx` pattern) so back
+returns the learner to wherever they came from — not always to the
+reader.
 
 ### 11.4 Stats screen (`frontend/app/polyglot-stats.tsx`)
 
