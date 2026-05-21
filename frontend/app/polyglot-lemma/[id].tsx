@@ -77,12 +77,17 @@ export default function PolyglotLemmaDetailScreen() {
     );
   }
 
+  const goBack = () => {
+    if (router.canGoBack()) router.back();
+    else router.replace("/polyglot");
+  };
+
   if (error || !detail) {
     return (
       <SafeAreaView style={styles.loadingWrap} edges={["top"]}>
         <Stack.Screen options={{ headerShown: false }} />
         <View style={styles.topbar}>
-          <Pressable onPress={() => router.back()} hitSlop={10}>
+          <Pressable onPress={goBack} hitSlop={10}>
             <Text style={styles.backLink}>‹ Back</Text>
           </Pressable>
         </View>
@@ -116,8 +121,8 @@ export default function PolyglotLemmaDetailScreen() {
     <SafeAreaView style={styles.root} edges={["top"]}>
       <Stack.Screen options={{ headerShown: false }} />
       <View style={styles.topbar}>
-        <Pressable onPress={() => router.back()} hitSlop={10}>
-          <Text style={styles.backLink}>‹ Reader</Text>
+        <Pressable onPress={goBack} hitSlop={10}>
+          <Text style={styles.backLink}>‹ Back</Text>
         </Pressable>
         <Text style={styles.breadcrumb}>
           {detail.language_code === "el" ? "Modern Greek" : detail.language_code} · lemma · #{detail.lemma_id}
