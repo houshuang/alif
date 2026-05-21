@@ -14,9 +14,11 @@ Three independently-runnable phases:
 
   3. ``cognates`` run ``detect_external_cognates`` over every promoted lemma
                  that lacks ``cognates_detected_at``. With the user profile's
-                 ``cognate_auto_mark_threshold`` set to 'low' and
-                 POLYGLOT_AUTO_MARK_COGNATES=1, this also stamps
+                 ``cognate_auto_mark_threshold`` set per ``--threshold``
+                 (default 'medium') this also stamps
                  UserLemmaKnowledge(state='known', source='cognate') inline.
+                 ``low`` is supported but discouraged — see CLAUDE.md
+                 Hard Invariant 6 for the 2026-05-21 form-blindness lesson.
 
 Default ``all`` runs the three phases in order; any phase can be re-run
 independently (each is idempotent).
@@ -307,8 +309,9 @@ def main(argv: list[str] | None = None) -> int:
                         help=f"Path to SUBTLEX-GR_restricted.txt (default {DEFAULT_DATA_PATH})")
     parser.add_argument("--gloss-batch", type=int, default=20)
     parser.add_argument("--cognate-batch", type=int, default=20)
-    parser.add_argument("--threshold", choices=["high", "medium", "low", "never"], default="low",
-                        help="Auto-mark transparency floor (default 'low')")
+    parser.add_argument("--threshold", choices=["high", "medium", "low", "never"], default="medium",
+                        help="Auto-mark transparency floor (default 'medium'; 'low' is form-blind — "
+                             "see polyglot/CLAUDE.md Hard Invariant 6)")
     parser.add_argument("--skip-threshold-update", action="store_true",
                         help="Don't touch UserProfile.cognate_auto_mark_threshold")
     args = parser.parse_args(argv)
