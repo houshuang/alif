@@ -53,6 +53,9 @@ _ADDITIVE_COLUMN_DELTAS: list[tuple[str, str, str]] = [
     ("user_lemma_knowledge", "experiment_intro_shown_at", "DATETIME"),
     ("pages", "viewed_at", "DATETIME"),
     ("pages", "body_clean", "TEXT"),
+    ("lemmas", "enrichment_json", "JSON"),
+    ("lemmas", "enrichment_status", "VARCHAR(20)"),
+    ("lemmas", "enriched_at", "DATETIME"),
 ]
 
 # Indexes that should exist once the columns above are present.

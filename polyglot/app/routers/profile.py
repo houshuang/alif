@@ -3,7 +3,13 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.models import Lemma, UserProfile
-from app.schemas import UserProfileOut, UserProfileUpdate, LemmaCognatesOut, CognateInfo
+from app.schemas import (
+    CognateInfo,
+    LemmaCognatesOut,
+    LemmaEnrichment,
+    UserProfileOut,
+    UserProfileUpdate,
+)
 from app.services.cognate_detector import get_user_profile, detect_external_cognates
 
 router = APIRouter(prefix="/api", tags=["profile"])
@@ -53,6 +59,58 @@ def get_lemma_cognates(lemma_id: int, db: Session = Depends(get_db)):
         detected_at=lemma.cognates_detected_at,
         cognate_lemma_id=lemma.cognate_lemma_id,
     )
+
+
+@router.get("/lemmas/{lemma_id}/detail")
+def get_lemma_detail(lemma_id: int, db: Session = Depends(get_db)):
+    """Full lemma payload for the detail screen: base info + cognate (Ancient
+    Greek) form + parsed enrichment_json (if any) + ULK summary.
+
+    Surfaces everything the Modern Editorial detail screen needs in one
+    round-trip. Returns 404 if the lemma doesn't exist.
+    """
+    lemma = db.get(Lemma, lemma_id)
+    if not lemma:
+        raise HTTPException(status_code=404, detail="lemma not found")
+
+    cognate_form = None
+    if lemma.cognate_lemma_id:
+        cog = db.get(Lemma, lemma.cognate_lemma_id)
+        if cog is not None:
+            cognate_form = cog.lemma_form
+
+    enrichment = None
+    if lemma.enrichment_json:
+        try:
+            enrichment = LemmaEnrichment.model_validate(lemma.enrichment_json).model_dump(mode="json")
+        except Exception:
+            enrichment = None  # corrupt — let caller refresh
+
+    knowledge_state = None
+    times_seen = 0
+    if lemma.knowledge is not None:
+        knowledge_state = lemma.knowledge.knowledge_state
+        times_seen = lemma.knowledge.times_seen or 0
+
+    return {
+        "lemma_id": lemma.lemma_id,
+        "language_code": lemma.language_code,
+        "lemma_form": lemma.lemma_form,
+        "lemma_bare": lemma.lemma_bare,
+        "pos": lemma.pos,
+        "gloss_en": lemma.gloss_en,
+        "frequency_rank": lemma.frequency_rank,
+        "cefr_level": lemma.cefr_level,
+        "word_category": lemma.word_category,
+        "cognate_lemma_id": lemma.cognate_lemma_id,
+        "cognate_lemma_form": cognate_form,
+        "external_cognates": lemma.cognates_json or [],
+        "enrichment": enrichment,
+        "enrichment_status": lemma.enrichment_status,
+        "enriched_at": lemma.enriched_at.isoformat() if lemma.enriched_at else None,
+        "knowledge_state": knowledge_state,
+        "times_seen": times_seen,
+    }
 
 
 @router.post("/cognates/detect")
