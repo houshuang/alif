@@ -113,18 +113,23 @@ def test_user_profile_defaults(tmp_db):
 
 
 def test_external_cognate_parser_reads_structured_output(monkeypatch):
+    """The Anthropic tool-use API rejects top-level type:'array' schemas
+    with HTTP 400, so the cognate detector wraps the results array in a
+    {results: [...]} object. The parser must unwrap that key."""
     class FakeProc:
         returncode = 0
         stderr = ""
         stdout = json.dumps({
-            "structured_output": [
-                {
-                    "lemma": "φιλοσοφία",
-                    "cognates": [
-                        {"lang": "English", "form": "philosophy", "transparency": "high"}
-                    ],
-                }
-            ],
+            "structured_output": {
+                "results": [
+                    {
+                        "lemma": "φιλοσοφία",
+                        "cognates": [
+                            {"lang": "English", "form": "philosophy", "transparency": "high"}
+                        ],
+                    }
+                ],
+            },
             "result": "",
         })
 
@@ -138,6 +143,31 @@ def test_external_cognate_parser_reads_structured_output(monkeypatch):
     )
 
     assert result == [[{"lang": "English", "form": "philosophy", "transparency": "high"}]]
+
+
+def test_external_cognate_parser_rejects_bare_array(monkeypatch):
+    """Regression guard for the latent bug fixed in PR #107: if structured_output
+    is a bare array (legacy shape), the parser must not silently accept it."""
+    class FakeProc:
+        returncode = 0
+        stderr = ""
+        stdout = json.dumps({
+            "structured_output": [
+                {"lemma": "φιλοσοφία", "cognates": []},
+            ],
+            "result": "",
+        })
+
+    monkeypatch.setattr(cognate_detector.subprocess, "run", lambda *args, **kwargs: FakeProc())
+    lemma = Lemma(language_code="el", lemma_form="φιλοσοφία", lemma_bare="φιλοσοφια")
+
+    import pytest
+    with pytest.raises(RuntimeError):
+        cognate_detector._call_claude_for_cognates(
+            [lemma],
+            source_language="Modern Greek",
+            l1_names=["English"],
+        )
 
 
 def test_reading_intake_auto_links_on_import(tmp_db):

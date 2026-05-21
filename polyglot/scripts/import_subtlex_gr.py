@@ -43,7 +43,8 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT))
 
 from app.database import SessionLocal  # noqa: E402
-from app.models import FrequencyEntry, Lemma, UserProfile  # noqa: E402
+from app.models import FrequencyEntry, Lemma, UserLemmaKnowledge, UserProfile  # noqa: E402
+from app.services.activity_log import log_activity  # noqa: E402
 from app.services.cognate_detector import (  # noqa: E402
     detect_external_cognates,
     link_intra_greek_cognates,
@@ -323,6 +324,19 @@ def main(argv: list[str] | None = None) -> int:
             phase_promote(db, top_n=args.top, gloss_batch=args.gloss_batch)
         if args.phase in ("cognates", "all"):
             phase_cognates(db, batch=args.cognate_batch)
+
+        if args.phase == "all":
+            cog_ulks = (db.query(UserLemmaKnowledge)
+                        .filter(UserLemmaKnowledge.source == "cognate").count())
+            log_activity(
+                db,
+                event_type="frequency_seed_completed",
+                summary=f"SUBTLEX-GR top-{args.top} import + cognate auto-mark "
+                        f"(threshold={args.threshold}); {cog_ulks} cognate ULKs in pool",
+                detail={"top_n": args.top, "threshold": args.threshold,
+                        "cognate_ulks": cog_ulks},
+                language_code=LANG,
+            )
     finally:
         db.close()
     return 0
