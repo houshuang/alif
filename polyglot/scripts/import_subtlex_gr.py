@@ -35,7 +35,6 @@ import csv
 import logging
 import sys
 import time
-from collections import defaultdict
 from pathlib import Path
 
 from sqlalchemy.orm import Session
@@ -128,18 +127,10 @@ def phase_ingest(db: Session, *, data_path: Path, top_n: int) -> int:
             if not lemma_bare:
                 continue
             entry = agg.get(lemma_bare)
-            is_proper = _looks_like_proper_name(surface, lemma)
             if entry is None:
-                agg[lemma_bare] = {
-                    "display": lemma,
-                    "count": freq,
-                    "proper_votes": 1 if is_proper else 0,
-                    "total_votes": 1,
-                }
+                agg[lemma_bare] = {"display": lemma, "count": freq}
             else:
                 entry["count"] += freq
-                entry["proper_votes"] += 1 if is_proper else 0
-                entry["total_votes"] += 1
                 # Prefer the lowercase/canonical display if any surface lemmatized
                 # to a lowercase form (handles "Ααρών"/"ααρών" co-occurrence).
                 if lemma[0].islower() and entry["display"][0].isupper():
@@ -179,13 +170,10 @@ def phase_ingest(db: Session, *, data_path: Path, top_n: int) -> int:
 
 # ─── Phase 2: promote ─────────────────────────────────────────────────────
 
-PROPER_NAME_MAJORITY = 0.5
-
-
-def _classify(lemma_bare: str, display: str, is_proper_majority: bool) -> str | None:
+def _classify(lemma_bare: str, display: str) -> str | None:
     if lemma_bare in FUNCTION_WORD_SETS.get(LANG, set()):
         return "function_word"
-    if is_proper_majority:
+    if display[:1].isupper():
         return "proper_name"
     return None
 
@@ -220,12 +208,7 @@ def phase_promote(db: Session, *, top_n: int, gloss_batch: int) -> tuple[int, in
             if existing.frequency_rank is None or existing.frequency_rank > entry.rank:
                 existing.frequency_rank = entry.rank
             continue
-        # Need a "fresh" Provider-supplied bare to be sure (cheap)
-        category = _classify(
-            entry.lemma_key,
-            entry.display_form,
-            is_proper_majority=entry.display_form[:1].isupper(),
-        )
+        category = _classify(entry.lemma_key, entry.display_form)
         lemma = Lemma(
             language_code=LANG,
             lemma_form=entry.display_form,
