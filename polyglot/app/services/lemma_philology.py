@@ -569,6 +569,182 @@ def _verify_enrichment_facts(
     return verdicts
 
 
+# ─── Self-correct pass ─────────────────────────────────────────────────────
+# When the Haiku verifier flags etymology / diachrony, send the bad payload +
+# the verifier's correction note back to Sonnet for ONE corrective call, then
+# re-verify. Loop up to SELF_CORRECT_MAX_ATTEMPTS times. After that, accept
+# defeat — strip the flagged field (etymology=None or diachrony=[]) and stamp
+# `done_partial` so a wrong PIE root never reaches the lookup card.
+
+
+SELF_CORRECT_MAX_ATTEMPTS = max(0, int(os.environ.get("POLYGLOT_ENRICH_SELF_CORRECT_MAX", "2")))
+
+
+def _self_correct_prompt(
+    language_code: str,
+    target: _EnrichTarget,
+    payload: LemmaEnrichment,
+    verdict: _Verdict,
+) -> str:
+    lang = LANG_DISPLAY.get(language_code, language_code)
+    payload_json = json.dumps(payload.model_dump(mode="json"), ensure_ascii=False, indent=2)
+    issue_label = "etymology" if verdict.verdict == "etymology_issue" else "diachrony"
+    return f"""You are a {lang} philology assistant. A previous draft enrichment
+for the lemma below was flagged by an independent fact-checker. Produce a
+CORRECTED version that fixes the specific {issue_label} issue noted, while
+preserving everything the fact-checker did not flag.
+
+Lemma: {target.lemma_form}
+POS: {target.pos}
+Gloss: {target.gloss_en}
+
+Original enrichment (JSON):
+{payload_json}
+
+Fact-checker verdict: {verdict.verdict}
+Fact-checker note:
+{verdict.note}
+
+Rules for the correction:
+- Address the specific factual problem identified above.
+- Preserve all OTHER content (other diachrony stages, cognates, quotes,
+  register, etc.) byte-for-byte unless the same content is downstream of the
+  flagged claim.
+- If the correction would require new information you are not confident in
+  (e.g. "what's the RIGHT PIE root if this one is wrong?"), set that
+  specific field to null rather than guessing. A null is correct; a
+  plausible-sounding wrong fact is the failure mode we are trying to fix.
+- Return the FULL enrichment payload (etymology + diachrony + cognates +
+  quotes + register), not just the changed slice.
+- Style rules: polytonic for Ancient/Koine/Byzantine, monotonic for Modern.
+  Plain English translations. version: 1.
+"""
+
+
+def _self_correct_call(
+    language_code: str,
+    target: _EnrichTarget,
+    payload: LemmaEnrichment,
+    verdict: _Verdict,
+) -> Optional[LemmaEnrichment]:
+    """One Sonnet self-correct call. Returns the corrected enrichment or
+    ``None`` on LLM failure / parse failure / lemma mismatch."""
+    prompt = _self_correct_prompt(language_code, target, payload, verdict)
+    cmd = [
+        "claude", "-p",
+        "--output-format", "json",
+        "--model", ENRICH_MODEL,
+        "--json-schema", json.dumps(_gen_schema()),
+        prompt,
+    ]
+    started = time.time()
+    structured = _call_cli(cmd, ENRICH_TIMEOUT_S)
+    elapsed = time.time() - started
+    if not structured:
+        _log_pipeline({
+            "event": "self_correct_failed",
+            "language_code": language_code,
+            "lemma_id": target.lemma_id,
+            "elapsed_s": round(elapsed, 1),
+            "model": ENRICH_MODEL,
+        })
+        return None
+    for item in structured.get("lemmas", []) or []:
+        if not isinstance(item, dict):
+            continue
+        if item.get("lemma_form") != target.lemma_form:
+            continue
+        e = item.get("enrichment")
+        if not isinstance(e, dict):
+            continue
+        try:
+            corrected = LemmaEnrichment.model_validate(e)
+        except Exception as ex:
+            log.warning("Self-correct payload failed validation for %s: %s", target.lemma_form, ex)
+            return None
+        _log_pipeline({
+            "event": "self_correct_returned",
+            "language_code": language_code,
+            "lemma_id": target.lemma_id,
+            "original_verdict": verdict.verdict,
+            "elapsed_s": round(elapsed, 1),
+            "model": ENRICH_MODEL,
+        })
+        return corrected
+    return None
+
+
+def _self_correct_pass(
+    language_code: str,
+    chunk: list[_EnrichTarget],
+    parsed: dict[str, LemmaEnrichment],
+    verdicts: dict[int, _Verdict],
+) -> None:
+    """For each flagged lemma in the chunk, try up to SELF_CORRECT_MAX_ATTEMPTS
+    self-correct + re-verify rounds. Mutates ``parsed`` and ``verdicts`` in
+    place so the final state reflects the best version we could produce.
+
+    Loop semantics per lemma:
+      attempt 1: self-correct → re-verify
+                 - if OK, done.
+                 - if still flagged, loop.
+                 - if re-verifier itself failed, accept the corrected payload
+                   and clear the verdict (caller writes `done_unverified`).
+                 - if Sonnet self-correct failed, break (caller keeps the
+                   pre-correct state).
+      attempt 2: same as attempt 1.
+      after loop: caller looks at the final verdict — if still flagged, the
+                  write phase strips the bad field and stamps `done_partial`.
+    """
+    if SELF_CORRECT_MAX_ATTEMPTS <= 0:
+        return
+    by_id = {t.lemma_id: t for t in chunk}
+    flagged_ids = [lid for lid, v in verdicts.items() if v.verdict != "ok"]
+    for lid in flagged_ids:
+        target = by_id.get(lid)
+        if target is None:
+            continue
+        if target.lemma_form not in parsed:
+            continue
+        for attempt in range(1, SELF_CORRECT_MAX_ATTEMPTS + 1):
+            current_verdict = verdicts.get(lid)
+            if current_verdict is None or current_verdict.verdict == "ok":
+                break
+            corrected = _self_correct_call(
+                language_code, target, parsed[target.lemma_form], current_verdict,
+            )
+            if corrected is None:
+                # Sonnet self-correct gave up; keep prior payload + verdict.
+                break
+            parsed[target.lemma_form] = corrected
+            re_verdicts = _verify_enrichment_facts(
+                language_code, {target.lemma_form: corrected}, [target],
+            )
+            new_verdict = re_verdicts.get(lid)
+            if new_verdict is None:
+                # Re-verifier itself failed. Accept the corrected payload as
+                # best-effort and clear the verdict so the caller writes
+                # `done_unverified`.
+                verdicts.pop(lid, None)
+                _log_pipeline({
+                    "event": "self_correct_reverify_failed",
+                    "language_code": language_code,
+                    "lemma_id": lid,
+                    "attempt": attempt,
+                })
+                break
+            verdicts[lid] = new_verdict
+            _log_pipeline({
+                "event": "self_correct_attempt_done",
+                "language_code": language_code,
+                "lemma_id": lid,
+                "attempt": attempt,
+                "verdict_after": new_verdict.verdict,
+            })
+            if new_verdict.verdict == "ok":
+                break
+
+
 # ─── Orchestration ─────────────────────────────────────────────────────────
 
 
@@ -678,6 +854,12 @@ def batch_enrich(
             # without a verifier-clean stamp.
             verdicts = _verify_enrichment_facts(language_code, parsed, chunk)
 
+            # Self-correct flagged lemmas inline so bad facts never reach the
+            # lookup card. Mutates parsed + verdicts in place; persistent flags
+            # after SELF_CORRECT_MAX_ATTEMPTS get their bad field stripped in
+            # _write_chunk and stamped `done_partial`.
+            _self_correct_pass(language_code, chunk, parsed, verdicts)
+
             chunk_enriched, chunk_failed = _write_chunk(
                 language_code, chunk, parsed, verdicts=verdicts,
             )
@@ -712,12 +894,16 @@ def _write_chunk(
 
     Phase 3 of the read/LLM/write pattern. Single commit per chunk.
 
-    When ``verdicts`` flags a lemma as ``etymology_issue`` / ``diachrony_issue``,
-    the payload is still written (since rejecting it loses all 5 slices including
-    the unverified-OK ones), but ``enrichment_status`` is stamped as
-    ``done_flagged`` and the verifier's note is appended to the payload's
-    ``_verifier_note`` field so downstream consumers can react. ``done`` =
-    Sonnet + Haiku both OK; ``done_unverified`` = Haiku failed to run.
+    Status taxonomy:
+      - ``done``           — Sonnet + Haiku both OK (possibly after self-correct).
+      - ``done_unverified``— Haiku verifier itself failed to run; payload kept.
+      - ``done_partial``   — verifier persistently flagged after the self-correct
+                             pass exhausted attempts. The flagged top-level
+                             field is STRIPPED before writing so a wrong PIE
+                             root / wrong diachrony stage never reaches the
+                             lookup card. ``_verifier_note`` records the final
+                             verdict + ``stripped=True``.
+      - ``failed``         — Sonnet itself never produced a parseable payload.
     """
     verdicts = verdicts or {}
     now = datetime.now(timezone.utc)
@@ -742,10 +928,18 @@ def _write_chunk(
             elif verdict.verdict == "ok":
                 lemma.enrichment_status = "done"
             else:
-                lemma.enrichment_status = "done_flagged"
+                # Persistent flag after self-correct. Strip the flagged
+                # top-level field so the bad fact never ships to the UI.
+                if verdict.verdict == "etymology_issue":
+                    data["etymology"] = None
+                elif verdict.verdict == "diachrony_issue":
+                    data["diachrony"] = []
                 data["_verifier_note"] = {
-                    "verdict": verdict.verdict, "note": verdict.note,
+                    "verdict": verdict.verdict,
+                    "note": verdict.note,
+                    "stripped": True,
                 }
+                lemma.enrichment_status = "done_partial"
             lemma.enrichment_json = data
             lemma.enriched_at = now
             enriched += 1
@@ -805,9 +999,14 @@ def find_unenriched_lemmas(
          Drained last so the cron eventually covers every engaged lemma.
 
     With ``include_failed=True``, also re-picks lemmas whose previous
-    enrichment failed entirely (status='failed') OR was written but flagged
-    by the verifier (status='done_flagged'). Use to clean up known-bad
-    enrichment after a prompt improvement.
+    enrichment fell short of clean:
+      - ``failed``        — Sonnet never produced a parseable payload.
+      - ``done_flagged``  — legacy (pre-self-correct) verifier-flagged rows.
+      - ``done_partial``  — verifier persistently flagged after self-correct;
+                            field was stripped. Retry in case a prompt
+                            improvement or fresh model run produces a clean
+                            verdict.
+    The cron passes ``--include-failed`` by default so these never linger.
     """
     from sqlalchemy import or_
     from app.models import UserLemmaKnowledge
@@ -820,6 +1019,7 @@ def find_unenriched_lemmas(
                 status_filter,
                 Lemma.enrichment_status == "failed",
                 Lemma.enrichment_status == "done_flagged",
+                Lemma.enrichment_status == "done_partial",
             )
         rows = (
             db.query(

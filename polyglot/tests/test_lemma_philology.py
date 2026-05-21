@@ -149,19 +149,77 @@ def test_batch_enrich_happy_path(tmp_db, fake_claude):
         assert lemma.enriched_at is not None
 
 
-def test_verifier_flagged_writes_done_flagged(tmp_db, fake_claude):
-    """When Haiku flags etymology, the payload is still written but status
-    becomes 'done_flagged' and the verifier note is attached to enrichment_json."""
+def test_self_correct_recovers_flagged_lemma(tmp_db, fake_claude):
+    """Verifier flags → self-correct → re-verify OK → final status `done`.
+    The corrected payload replaces the flagged one and no `_verifier_note`
+    is attached (since we got to clean)."""
     with tmp_db() as db:
         lemma = _seed_lemma(db, form="στο", gloss="in the")
         db.commit()
         lemma_id = lemma.lemma_id
 
+    # 1. Original Sonnet generation
     fake_claude["script"].append(_FakeProc(stdout=_envelope({
         "lemmas": [{"lemma_form": "στο", "enrichment": _good_payload("στο")}],
     })))
+    # 2. Haiku verify flags it
     fake_claude["script"].append(_verify_flagged_for(
         lemma_id, "etymology_issue", "PIE *steh₂- is wrong",
+    ))
+    # 3. Sonnet self-correct (different payload — pretend pie_root is now null)
+    corrected = _good_payload("στο")
+    corrected["etymology"]["pie_root"] = None
+    corrected["etymology"]["origin_note"] = "Corrected note."
+    fake_claude["script"].append(_FakeProc(stdout=_envelope({
+        "lemmas": [{"lemma_form": "στο", "enrichment": corrected}],
+    })))
+    # 4. Haiku re-verify passes
+    fake_claude["script"].append(_verify_ok_for(lemma_id))
+
+    result = lp.batch_enrich(language_code="el", lemma_ids=[lemma_id])
+    assert result["enriched"] == 1
+
+    with tmp_db() as db:
+        lemma = db.query(Lemma).filter(Lemma.lemma_id == lemma_id).first()
+        assert lemma.enrichment_status == "done"
+        assert lemma.enrichment_json["etymology"]["pie_root"] is None
+        assert lemma.enrichment_json["etymology"]["origin_note"] == "Corrected note."
+        assert "_verifier_note" not in lemma.enrichment_json
+
+
+def test_self_correct_max_attempts_strips_flagged_field(tmp_db, fake_claude, monkeypatch):
+    """Persistent flag through both self-correct attempts → `done_partial`,
+    the flagged top-level field is stripped, and `_verifier_note` records
+    `stripped: True` so the UI knows the omission was deliberate."""
+    monkeypatch.setattr(lp, "SELF_CORRECT_MAX_ATTEMPTS", 2)
+    with tmp_db() as db:
+        lemma = _seed_lemma(db, form="στο", gloss="in the")
+        db.commit()
+        lemma_id = lemma.lemma_id
+
+    # 1. Original Sonnet generation
+    fake_claude["script"].append(_FakeProc(stdout=_envelope({
+        "lemmas": [{"lemma_form": "στο", "enrichment": _good_payload("στο")}],
+    })))
+    # 2. Haiku verify flags (etymology issue)
+    fake_claude["script"].append(_verify_flagged_for(
+        lemma_id, "etymology_issue", "PIE *steh₂- is wrong",
+    ))
+    # 3. Sonnet self-correct attempt 1
+    fake_claude["script"].append(_FakeProc(stdout=_envelope({
+        "lemmas": [{"lemma_form": "στο", "enrichment": _good_payload("στο")}],
+    })))
+    # 4. Haiku re-verify still flags
+    fake_claude["script"].append(_verify_flagged_for(
+        lemma_id, "etymology_issue", "Still wrong",
+    ))
+    # 5. Sonnet self-correct attempt 2
+    fake_claude["script"].append(_FakeProc(stdout=_envelope({
+        "lemmas": [{"lemma_form": "στο", "enrichment": _good_payload("στο")}],
+    })))
+    # 6. Haiku re-verify still flags
+    fake_claude["script"].append(_verify_flagged_for(
+        lemma_id, "etymology_issue", "Still wrong on round 2",
     ))
 
     result = lp.batch_enrich(language_code="el", lemma_ids=[lemma_id])
@@ -169,9 +227,53 @@ def test_verifier_flagged_writes_done_flagged(tmp_db, fake_claude):
 
     with tmp_db() as db:
         lemma = db.query(Lemma).filter(Lemma.lemma_id == lemma_id).first()
-        assert lemma.enrichment_status == "done_flagged"
-        assert lemma.enrichment_json["_verifier_note"]["verdict"] == "etymology_issue"
-        assert "PIE *steh₂-" in lemma.enrichment_json["_verifier_note"]["note"]
+        assert lemma.enrichment_status == "done_partial"
+        # Etymology block stripped — bad PIE root can't ship to UI
+        assert lemma.enrichment_json["etymology"] is None
+        # Other slices preserved (diachrony, cognates, quotes, register)
+        assert len(lemma.enrichment_json["diachrony"]) > 0
+        assert len(lemma.enrichment_json["cognates"]) > 0
+        # Verifier note records the strip
+        note = lemma.enrichment_json["_verifier_note"]
+        assert note["verdict"] == "etymology_issue"
+        assert note["stripped"] is True
+
+
+def test_self_correct_sonnet_failure_strips_field(tmp_db, fake_claude):
+    """If Sonnet self-correct itself fails (LLM error), the original flag
+    sticks and the write phase strips the field + stamps `done_partial`.
+    Important: a failed self-correct must NOT leave a `done_flagged` (bad
+    payload exposed) row — the strip happens regardless of why the verdict
+    is still flagged."""
+    with tmp_db() as db:
+        lemma = _seed_lemma(db, form="στο", gloss="in the")
+        db.commit()
+        lemma_id = lemma.lemma_id
+
+    # 1. Sonnet generation
+    fake_claude["script"].append(_FakeProc(stdout=_envelope({
+        "lemmas": [{"lemma_form": "στο", "enrichment": _good_payload("στο")}],
+    })))
+    # 2. Haiku verify flags diachrony this time
+    fake_claude["script"].append(_verify_flagged_for(
+        lemma_id, "diachrony_issue", "Byzantine stage is wrong",
+    ))
+    # 3. Sonnet self-correct FAILS (non-zero exit)
+    fake_claude["script"].append(_FakeProc(stdout="", stderr="boom", returncode=1))
+
+    result = lp.batch_enrich(language_code="el", lemma_ids=[lemma_id])
+    assert result["enriched"] == 1
+
+    with tmp_db() as db:
+        lemma = db.query(Lemma).filter(Lemma.lemma_id == lemma_id).first()
+        assert lemma.enrichment_status == "done_partial"
+        # Diachrony stripped this time
+        assert lemma.enrichment_json["diachrony"] == []
+        # Etymology preserved
+        assert lemma.enrichment_json["etymology"] is not None
+        note = lemma.enrichment_json["_verifier_note"]
+        assert note["verdict"] == "diachrony_issue"
+        assert note["stripped"] is True
 
 
 def test_verifier_failure_writes_done_unverified(tmp_db, fake_claude):
@@ -198,23 +300,34 @@ def test_verifier_failure_writes_done_unverified(tmp_db, fake_claude):
         assert lemma.enrichment_json is not None  # Sonnet payload written
 
 
-def test_find_unenriched_with_include_failed_picks_done_flagged(tmp_db, fake_claude):
-    """Manual `--include-failed` re-pick should grab done_flagged lemmas too,
-    so a prompt improvement can clean up known-bad enrichment."""
+def test_find_unenriched_with_include_failed_picks_partial_and_legacy_flagged(tmp_db, fake_claude):
+    """`include_failed=True` must re-pick three statuses so they don't linger:
+      - `failed`        — Sonnet itself never produced a payload.
+      - `done_flagged`  — legacy (pre-self-correct) rows in production.
+      - `done_partial`  — verifier persistently flagged after self-correct.
+    The cron passes `--include-failed` by default for exactly this reason."""
     with tmp_db() as db:
         a = _seed_lemma(db, form="στο", gloss="in the")
+        b = _seed_lemma(db, form="απο", gloss="from")
+        c = _seed_lemma(db, form="με", gloss="with")
         _seed_ulk(db, a.lemma_id)
+        _seed_ulk(db, b.lemma_id)
+        _seed_ulk(db, c.lemma_id)
         a.enrichment_status = "done_flagged"
         a.enrichment_json = {"version": 1, "etymology": {"origin_note": "bad"}}
+        b.enrichment_status = "done_partial"
+        b.enrichment_json = {"version": 1, "etymology": None}
+        c.enrichment_status = "failed"
         db.commit()
-        a_id = a.lemma_id
+        ids = {a.lemma_id, b.lemma_id, c.lemma_id}
 
-    # Without include_failed, the done_flagged lemma is skipped.
+    # Without include_failed, all three are skipped (only NULL picked).
     assert lp.find_unenriched_lemmas(language_code="el", limit=10) == []
-    # With include_failed, it shows up.
-    assert lp.find_unenriched_lemmas(
+    # With include_failed, all three show up.
+    picked = lp.find_unenriched_lemmas(
         language_code="el", limit=10, include_failed=True,
-    ) == [a_id]
+    )
+    assert set(picked) == ids
 
 
 def test_glossless_lemma_is_skipped(tmp_db, fake_claude):

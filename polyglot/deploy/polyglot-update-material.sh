@@ -97,7 +97,8 @@ run_phase "warm_sentence_cache" timeout "$TIMEOUT_SECONDS" \
 run_phase "enrich_lemma_philology" timeout "$ENRICH_TIMEOUT_SECONDS" \
   "$VENV" scripts/enrich_lemma_philology.py \
   --language "$LANGUAGE" \
-  --max-lemmas "$ENRICH_MAX_LEMMAS"
+  --max-lemmas "$ENRICH_MAX_LEMMAS" \
+  --include-failed
 
 echo "[$TIMESTAMP] Polyglot material cron done" >> "$LOG"
 echo "---" >> "$LOG"
