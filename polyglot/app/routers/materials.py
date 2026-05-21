@@ -108,8 +108,9 @@ def enrich_philology(req: EnrichRequest) -> EnrichResponse:
     Two modes:
     - Caller supplies ``lemma_ids`` explicitly → enrich exactly those.
     - Caller omits ``lemma_ids`` → pick up to ``max_lemmas`` un-enriched
-      lemmas from the engaged-vocabulary pool (those with a ULK row), ranked
-      by frequency. Used by the cron wrapper.
+      lemmas from the engaged-vocabulary pool, prioritised by review proximity:
+      acquiring (next-due first) → learning/lapsed → encountered. `known`
+      lemmas are excluded. Used by the cron wrapper.
     """
     if req.lemma_ids:
         ids = req.lemma_ids

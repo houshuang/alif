@@ -378,6 +378,28 @@ def test_find_unenriched_buckets_acquiring_before_encountered(tmp_db):
     assert ids == expected
 
 
+def test_batch_enrich_skips_when_lock_held(tmp_db, fake_claude):
+    """Concurrency lock: a second concurrent call returns immediately without
+    spending any Claude budget. Mirrors warm_sentence_cache's lock pattern —
+    prevents two overlapping cron runs from double-enriching the same lemmas
+    when per-run caps are raised."""
+    with tmp_db() as db:
+        lemma = _seed_lemma(db, form="καρδιά", gloss="heart")
+        db.commit()
+        lemma_id = lemma.lemma_id
+
+    assert lp._enrich_lock.acquire(blocking=False)
+    try:
+        result = lp.batch_enrich(language_code="el", lemma_ids=[lemma_id])
+    finally:
+        lp._enrich_lock.release()
+
+    assert result["skipped"] is True
+    assert result["reason"] == "enrich_busy"
+    assert result["enriched"] == 0
+    assert fake_claude["calls"] == []
+
+
 def test_fixture_round_trip_matches_pydantic_shape():
     """The real-world enrichment fixture from the POC must parse cleanly into
     LemmaEnrichment. Guard against silent drift between the prompt's JSON

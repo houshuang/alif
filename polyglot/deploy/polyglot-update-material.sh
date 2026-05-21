@@ -50,9 +50,11 @@ PAGES_TIMEOUT_SECONDS="${POLYGLOT_PAGES_AHEAD_TIMEOUT_SECONDS:-1200}"
 # acquiring (sorted by next-due) → learning/lapsed → encountered. `known`
 # lemmas are excluded — once a word is learnt the lookup card stops being
 # load-bearing. See find_unenriched_lemmas docstring for the full policy.
-# Per-run cap kept conservative so a bad batch doesn't blow the whole Claude
-# budget; cron runs every 3h.
-ENRICH_MAX_LEMMAS="${POLYGLOT_ENRICH_MAX_LEMMAS:-10}"
+# Cap sized for heavy-reading days: at ~70s/batch × 4 lemmas/batch, 30 lemmas
+# takes ~9 min — well under the 30-min phase timeout, leaving headroom for
+# slow Claude responses. An in-process lock in batch_enrich prevents two
+# overlapping cron runs from double-spending Claude on the same lemmas.
+ENRICH_MAX_LEMMAS="${POLYGLOT_ENRICH_MAX_LEMMAS:-30}"
 ENRICH_TIMEOUT_SECONDS="${POLYGLOT_ENRICH_TIMEOUT_SECONDS:-1800}"
 
 export PYTHONUNBUFFERED=1
