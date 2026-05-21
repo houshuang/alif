@@ -29,6 +29,7 @@ import json
 import logging
 import os
 import subprocess
+import threading
 import time
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -617,6 +618,9 @@ def _snapshot_targets(db: Session, language_code: str, lemma_ids: list[int]) -> 
     return targets, skipped
 
 
+_enrich_lock = threading.Lock()
+
+
 def batch_enrich(
     language_code: str,
     lemma_ids: list[int],
@@ -628,57 +632,74 @@ def batch_enrich(
     Internally splits ``lemma_ids`` into chunks of ``ENRICH_BATCH_SIZE`` and
     issues one Sonnet call per chunk. Each chunk independently commits, so a
     partial run still yields persisted enrichment for the successful chunks.
+
+    Process-level non-blocking lock prevents overlapping runs from picking the
+    same un-enriched lemmas and double-spending Claude budget. Mirrors
+    ``material_generator._warm_cache_lock``. Returns ``{"skipped": True,
+    "reason": "enrich_busy"}`` if another run is already in progress.
     """
     if not lemma_ids:
         return {"enriched": 0, "failed_lemma_ids": [], "skipped_lemma_ids": []}
 
-    db = database.SessionLocal()
+    if not _enrich_lock.acquire(blocking=False):
+        log.info("Enrichment already running; skipping this invocation")
+        return {
+            "skipped": True,
+            "reason": "enrich_busy",
+            "enriched": 0,
+            "failed_lemma_ids": [],
+            "skipped_lemma_ids": list(lemma_ids),
+        }
     try:
-        targets, skipped = _snapshot_targets(db, language_code, lemma_ids)
+        db = database.SessionLocal()
+        try:
+            targets, skipped = _snapshot_targets(db, language_code, lemma_ids)
+        finally:
+            db.close()
+
+        if not targets:
+            return {"enriched": 0, "failed_lemma_ids": [], "skipped_lemma_ids": skipped}
+
+        total_enriched = 0
+        failed: list[int] = []
+
+        for i in range(0, len(targets), ENRICH_BATCH_SIZE):
+            chunk = targets[i:i + ENRICH_BATCH_SIZE]
+            parsed = _enrich_batch_call(language_code, chunk)
+            if parsed is None:
+                # Total LLM failure for this chunk — mark all as failed and stamp
+                # status='failed' so the next cron can retry on a fresh run.
+                failed.extend(t.lemma_id for t in chunk)
+                _stamp_failure(language_code, [t.lemma_id for t in chunk])
+                continue
+
+            # Best-effort fact-check on etymology + diachrony. Returns {} on
+            # total Haiku failure — we still write the Sonnet output as-is, just
+            # without a verifier-clean stamp.
+            verdicts = _verify_enrichment_facts(language_code, parsed, chunk)
+
+            chunk_enriched, chunk_failed = _write_chunk(
+                language_code, chunk, parsed, verdicts=verdicts,
+            )
+            total_enriched += chunk_enriched
+            failed.extend(chunk_failed)
+
+        _log_pipeline({
+            "event": "batch_enrich_done",
+            "language_code": language_code,
+            "requested": len(lemma_ids),
+            "eligible": len(targets),
+            "enriched": total_enriched,
+            "failed": len(failed),
+            "skipped": len(skipped),
+        })
+        return {
+            "enriched": total_enriched,
+            "failed_lemma_ids": failed,
+            "skipped_lemma_ids": skipped,
+        }
     finally:
-        db.close()
-
-    if not targets:
-        return {"enriched": 0, "failed_lemma_ids": [], "skipped_lemma_ids": skipped}
-
-    total_enriched = 0
-    failed: list[int] = []
-
-    for i in range(0, len(targets), ENRICH_BATCH_SIZE):
-        chunk = targets[i:i + ENRICH_BATCH_SIZE]
-        parsed = _enrich_batch_call(language_code, chunk)
-        if parsed is None:
-            # Total LLM failure for this chunk — mark all as failed and stamp
-            # status='failed' so the next cron can retry on a fresh run.
-            failed.extend(t.lemma_id for t in chunk)
-            _stamp_failure(language_code, [t.lemma_id for t in chunk])
-            continue
-
-        # Best-effort fact-check on etymology + diachrony. Returns {} on
-        # total Haiku failure — we still write the Sonnet output as-is, just
-        # without a verifier-clean stamp.
-        verdicts = _verify_enrichment_facts(language_code, parsed, chunk)
-
-        chunk_enriched, chunk_failed = _write_chunk(
-            language_code, chunk, parsed, verdicts=verdicts,
-        )
-        total_enriched += chunk_enriched
-        failed.extend(chunk_failed)
-
-    _log_pipeline({
-        "event": "batch_enrich_done",
-        "language_code": language_code,
-        "requested": len(lemma_ids),
-        "eligible": len(targets),
-        "enriched": total_enriched,
-        "failed": len(failed),
-        "skipped": len(skipped),
-    })
-    return {
-        "enriched": total_enriched,
-        "failed_lemma_ids": failed,
-        "skipped_lemma_ids": skipped,
-    }
+        _enrich_lock.release()
 
 
 def _write_chunk(
