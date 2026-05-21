@@ -4,6 +4,93 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-05-21: Polyglot picker LLM-first + page-sentence cooldown (PR #111)
+
+### What
+
+Polyglot's `sentence_selector.pick_sentence_for_lemma` ranking flipped. Previously the textbook page-of-record won via `PAGE_FIRST_BONUS=3.0` whenever every scaffold word was known. After the flip:
+
+- `SOURCE_BONUS["llm"]=1.5` (was 1.0), outranks `textbook/story/import=1.0`.
+- New `RECENT_PAGE_PENALTY=0.2` multiplicative penalty when a candidate's page was viewed within `PAGE_COOLDOWN_DAYS=7` days. Older page views / never-viewed pages escape the penalty.
+- Retired `PAGE_FIRST_BONUS`. The `page_first` boolean is kept on `_Scored` for introspection but no longer feeds the score.
+- Tie-break: `(score, -times_shown, sentence.id)` so within a score class, fresh/unseen LLM material always wins ties.
+
+### Why
+
+The picker is run at **review time**. The textbook page sentence is zero-friction recall when the learner has just read the page — that's wrong for review days later, where the goal is to test recall in a novel context. The 7-day cooldown is the rough threshold below which "I just read this" is still load-bearing.
+
+### Risks + how we kept them small
+
+- A recently-viewed page sentence is **penalised but still served when no LLM alternative exists** (graceful fallback). The learner never gets a blank session during the lag between tapping unknown and the warm-cache generating.
+- The change is observable only as the warm-cache cron builds up multiple LLM-generated alternatives per lemma. Many polyglot lemmas have just one sentence today — the picker has nothing to rank yet — so the impact phases in gradually.
+
+### How to verify
+
+- `tests/test_sentence_selector.py::test_llm_outranks_textbook_at_equal_comprehensibility` (LLM wins at parity)
+- `tests/test_sentence_selector.py::test_recently_viewed_page_sentence_is_penalised` (penalty maths)
+- `tests/test_sentence_selector.py::test_old_page_view_no_longer_penalised` (>7 days drops out)
+- `tests/test_sentence_selector.py::test_never_viewed_page_not_penalised` (NULL viewed_at excluded)
+- `tests/test_sentence_selector.py::test_tie_break_prefers_never_shown_llm_sentence`
+- Production observability: as `Sentence.times_shown` accumulates, `selection_reason` should show `llm_fresh` dominating once warm cache has filled in alternatives.
+
+---
+
+## 2026-05-21: Polyglot lemma philology enrichment + Modern Editorial design (PR #110)
+
+### What
+
+Three layers of new infrastructure for surfacing philological depth on Greek lemmas to the learner:
+
+1. **Data model** — three new columns on `Lemma`: `enrichment_json` (JSON), `enrichment_status` (String), `enriched_at` (DateTime). Pydantic `LemmaEnrichment` schema (`app/schemas.py`) carries etymology + diachrony stages + cognates + literary quotes + register/collocations. One source of truth, mirrored 1:1 in `frontend/lib/polyglot-api.ts`.
+2. **Generation service** — `app/services/lemma_philology.py` runs Claude Sonnet via `claude -p --json-schema` over batches of 4 lemmas. Three-phase read/LLM/write. Endpoint `POST /api/materials/enrich-philology`. CLI `scripts/enrich_lemma_philology.py`. Eligibility: canonical lemmas with a gloss and a ULK row (engaged vocabulary only — no point philologizing words the learner hasn't touched).
+3. **Frontend surface** — Modern Editorial design (selected via design-explorer round 2). New shared lookup card (`frontend/lib/polyglot-lookup-card.tsx`) replaces the one-line gloss bar in the reader AND the bare GlossLine in the review screen. New full-detail screen at `frontend/app/polyglot-lemma/[id].tsx` with a color-coded era timeline. Shared design tokens at `frontend/lib/polyglot-design-colors.ts` (pure constants, Jest-readable) + `frontend/lib/polyglot-design-tokens.ts` (Platform-dependent fonts). Hidden route registered in `_layout.tsx`.
+
+### Why
+
+The reader's existing tap surface was a one-line gloss bar — fine for "what does this mean?" but nothing to dwell on for a curious literate learner. Greek words have rich semantic histories (semantic drift across eras, cognates across Indo-European, attested usages in named texts) that the existing UI couldn't carry.
+
+### Risks + how we caught them
+
+- **Pydantic↔TS shape drift** — caught by `frontend/lib/__tests__/polyglot-enrichment-shape.test.ts` which loads a real Sonnet-emitted fixture and asserts the TS `LemmaEnrichment` interface accepts it. Both fail together on a future schema change.
+- **Empty-state UX** — every surface (lookup card, intro card, detail page) renders the header even when `enrichment=null`. Detail page shows "No philology yet — appears after next enrichment pass" instead of empty scroll.
+- **Cron budget** — capped at 10 lemmas/pass × 8 runs/day = ~80 lemmas/day. ~300 engaged lemmas takes a week to backfill.
+
+### How to verify
+
+- Manual: `curl -s http://localhost:3002/api/lemmas/215/detail` should return enriched JSON for είμαι.
+- Tests: `tests/test_lemma_philology.py` (8 cases), `frontend/lib/__tests__/polyglot-enrichment-shape.test.ts` (6 cases).
+
+---
+
+## 2026-05-21: Polyglot enrichment quality pass — bigger vocab sample, greedy lemmatizer, Haiku fact-verify (PR #114)
+
+### What
+
+Quality fixes after observing the initial enrichment + sentence-gen output:
+
+1. **Sentence generation**: `KNOWN_SAMPLE_SIZE` bumped 60 → 500 (matches Alif). New `_sample_known_words_weighted` with inverse-frequency weighting + `_compute_avoid_words` listing top ~30 over-represented content lemmas. Prompt strengthened: every non-target word MUST come from the pool. `simplemma.lemmatize` now uses `greedy=True` to catch ~3% more inflected forms (comparatives, irregular plurals).
+2. **Enrichment quality**: prompt overhaul — explicit "factual accuracy" section. Sonnet now sets `pie_root: null` when uncertain rather than guessing, omits a diachrony stage if unsure rather than inventing a meaning, and flags folk etymologies as hypotheses rather than fact.
+3. **Haiku fact-verify pass**: new `_verify_enrichment_facts` covers etymology + diachrony slices only (quotes/cognates/register skipped per user spec — those are memory hooks where accuracy doesn't matter). Verdicts: `ok` / `etymology_issue` / `diachrony_issue` + a note. New `Lemma.enrichment_status` values: `done` (Sonnet + Haiku both OK), `done_flagged` (Sonnet output written + `_verifier_note` attached to enrichment_json), `done_unverified` (Haiku call failed entirely — Sonnet payload kept). `find_unenriched_lemmas(include_failed=True)` now also re-picks `done_flagged` for prompt-improvement reruns.
+
+### Why
+
+The initial backfill of 10 lemmas (manual run, no verifier) produced 2/10 with factual errors visible on a careful read: στο claimed PIE `*steh₂-` (wrong — that root gives ἵστημι, not the prepositional contraction); ξέρω presented the disputed "from ξηρός" derivation as fact. Per user spec, philology must be solid even if literary quotes can be imprecise.
+
+The sentence-gen 78% rejection rate (logged 2026-05-21 09:45 cron run) was wasteful Claude budget — Sonnet was reaching for vocabulary outside the DB because we only gave it 60 scaffold words.
+
+### Risks + how we kept them small
+
+- The verifier can over-flag (case in point: re-enriched όλος, the verifier disputes `*solh₂-` vs `*solw-` — both are defensible in current scholarship). `done_flagged` doesn't *delete* the enrichment — it writes the Sonnet payload + attaches the verifier note so downstream UI can surface "verified with concerns" instead of hiding the lemma.
+- Sample size bump means a longer prompt (more tokens) but Claude Sonnet handles 500-word vocab lists comfortably. The acceptance-rate improvement should dominate.
+
+### How to verify
+
+- Tests: `tests/test_lemma_philology.py::test_verifier_flagged_writes_done_flagged`, `test_verifier_failure_writes_done_unverified`, `test_find_unenriched_with_include_failed_picks_done_flagged`.
+- Re-enrich audit (2026-05-21 11:14 UTC): of the 10 backfilled lemmas, 5 came back `done`, 5 `done_flagged`. The two original error cases (στο, ξέρω) both have `pie_root: null` now — Sonnet correctly punts instead of guessing.
+- Next cron pass (every 3h at :45 UTC) shows the sentence-gen acceptance rate. Pre-change: 22% (27 / 100+ candidates). Target: >60%.
+
+---
+
 ## 2026-05-21: Chimera cleanup + prevention (Phases A-D of audit)
 
 ### What

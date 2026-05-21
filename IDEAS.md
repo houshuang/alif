@@ -4,6 +4,44 @@
 
 ---
 
+## 🔵 [OPEN 2026-05-21] Polyglot enrichment verifier may be over-flagging
+
+Round 1 of the Haiku fact-verify pass (PR #114) flagged 5 of 10 backfilled lemmas as `done_flagged`. At least one of those (#685 όλος) is a verifier disagreement about scholarly form (`*solh₂-` vs `*solw-`), where both PIE reconstructions are defensible in current literature. The verifier prompt deliberately errs on "flag when unsure" but may be too aggressive — a 50% flag rate undermines the signal.
+
+**Possible refinements**:
+- Lower the verifier's sensitivity: only flag when the claim is *demonstrably* wrong (a published source contradicts it), not when it's "one of two competing reconstructions."
+- Add a third verdict `ok_minor_quibble` that still writes `done` but logs the note for offline review.
+- Calibrate by sampling 20 more lemmas and checking which `done_flagged` cases are real errors vs. verifier pedantry. Tune the prompt accordingly.
+
+Don't tune until we have ~30+ enrichments to look at — sample of 10 isn't enough signal.
+
+---
+
+## 🔵 [OPEN 2026-05-21] Surface `done_flagged` enrichment as "verified with concerns" in UI
+
+When a lemma has `enrichment_status='done_flagged'`, the enrichment is still written + a `_verifier_note` field is attached. The lemma detail page currently renders it identically to `done` — the learner has no signal that the verifier raised an issue. Worth surfacing:
+- Small subtle indicator in the detail page header ("verified with concerns" with a tooltip showing the verifier's note).
+- The lookup card could just render normally (the user is in flow; don't disrupt).
+- Optional: a "report this enrichment" link that flips status to `failed` + queues re-enrichment.
+
+---
+
+## 🔵 [OPEN 2026-05-21] Polyglot: pre-existing lemma_quality test failure
+
+`tests/test_lemma_quality.py::test_partial_batch_failure_leaves_page_unverified` fails on main. Confirmed pre-existing (also fails on PR #110's baseline, predates PR #114). The body-clean / quality-gate `verify_page_mappings` stamps `Page.mappings_verified_at` even when one of multiple Haiku batches returns `None`, which violates the "verification failure ≠ success" invariant. Real bug — transient Haiku failures during page imports get silently baked in.
+
+Fix: in `verify_page_mappings`, only stamp `mappings_verified_at` when ALL batches succeed. Per-word `verified_at` can still be set for tokens whose batch succeeded, but the page-level stamp gates the next page-view retry, so it must be all-or-nothing.
+
+---
+
+## 🔵 [OPEN 2026-05-21] Polyglot: import more Greek vocab (16 of 33 unknown words today are genuinely missing)
+
+Today's sentence-gen audit: 33 unique words flagged "unknown" by validator. 16 are genuinely missing from the 5,690-lemma DB. Examples: `αιγών` (goats gen.pl), `αυτοφυή` (autochthonous), `δασικός` (forest, adj.), `εκτροφής` (breeding gen.), `ευρήματα` (findings), `οριοθετηθεί` (be delimited), `ποικιλία` (variety), `σιτηρό` (cereal), `συστηματικής` (systematic gen.).
+
+These are common-enough modern Greek words but missing from the SUBTLEX-GR top-3k frequency-list import. Worth a follow-up frequency-list pass that pulls 3k–10k SUBTLEX-GR entries (or supplements with the National Corpus of Greek / Hellenic National Corpus) to fill the gap. With more vocab in the DB, the picker's lookup succeeds for more inflected forms and the validator's rejection rate drops further.
+
+---
+
 ## 🟢 [IN PROGRESS 2026-05-19] Polyglot — multilingual sister app (Modern Greek primary)
 
 Built `polyglot/` as a sibling backend for Modern Greek, Ancient Greek, and Latin. Decision: fork-then-converge — Phase 1 is a separate Python package + venv + SQLite + systemd; Phase 2 (after ~6 weeks of dogfooding) extracts a shared `alif_core/` package. Frontend (`frontend/`) talks to both backends; user picks language via a Globe tab. Detailed gate-by-gate Alif comparison + project rules in `polyglot/CLAUDE.md`.
