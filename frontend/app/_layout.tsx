@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { View, Text, Pressable, StyleSheet, AppState, ActivityIndicator } from "react-native";
-import { Tabs } from "expo-router";
+import { Tabs, useRouter, usePathname } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { Ionicons } from "@expo/vector-icons";
 import { useFonts } from "expo-font";
@@ -24,7 +24,24 @@ import { colors } from "../lib/theme";
 import { netStatus, useNetStatus } from "../lib/net-status";
 import { flushQueue } from "../lib/sync-queue";
 import { syncEvents } from "../lib/sync-events";
-import { LanguageProvider, useLanguage } from "../lib/language-context";
+import { LanguageProvider, useLanguage, type AppLanguage } from "../lib/language-context";
+
+// Classify which language a given route belongs to. The Globe tab
+// (`/languages`) is shared and never triggers a redirect; everything under
+// `/polyglot*` is Greek; everything else is Arabic. Keeping this rule keyed
+// off URL prefix means new Greek screens inherit isolation by following the
+// existing `polyglot-*` file-naming convention.
+function routeLanguage(pathname: string): AppLanguage | "shared" {
+  if (pathname === "/languages") return "shared";
+  if (pathname === "/polyglot" || pathname.startsWith("/polyglot/") || pathname.startsWith("/polyglot-")) {
+    return "el";
+  }
+  return "ar";
+}
+
+function homePathFor(lang: AppLanguage): string {
+  return lang === "el" ? "/polyglot" : "/";
+}
 
 export default function Layout() {
   const [fontsLoaded] = useFonts({
@@ -77,13 +94,38 @@ export default function Layout() {
 function LayoutInner({ online }: { online: boolean }) {
   // The active language drives which tabs are visible. Globe (`languages`)
   // is always visible — that's where the user switches.
-  const { language } = useLanguage();
+  const { language, ready } = useLanguage();
+  const router = useRouter();
+  const pathname = usePathname();
   const isArabic = language === "ar";
   const isGreek = language === "el";
 
   // href: null = hidden tab. Tab files still exist but don't show in the bar.
   const arHref = (path: string) => (isArabic ? undefined : (null as any));
   const elHref = (path: string) => (isGreek ? undefined : (null as any));
+
+  // Keep the active route in sync with the active language. Without this, a
+  // cold start with stored language "el" briefly resolves URL "/" to the
+  // Arabic Reading screen (because AsyncStorage hadn't loaded yet when Expo
+  // Router picked the initial route) — leaving Arabic content under a Greek
+  // tab bar. Also catches web reloads on a route that belongs to the other
+  // language.
+  useEffect(() => {
+    if (!ready) return;
+    const r = routeLanguage(pathname);
+    if (r === "shared") return;
+    if (r !== language) {
+      router.replace(homePathFor(language) as any);
+    }
+  }, [ready, language, pathname, router]);
+
+  if (!ready) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color={colors.accent} />
+      </View>
+    );
+  }
 
   return (
     <>

@@ -18,6 +18,7 @@ import {
   View, Text, Pressable, StyleSheet, ScrollView, ActivityIndicator,
   Platform,
 } from "react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -27,13 +28,54 @@ import {
 } from "../lib/polyglot-api";
 import { renderTokens } from "../lib/polyglot-render-helpers";
 
+// Per-page tap-cycle persistence. Red (0) and yellow (1) marks survive
+// page navigation and app reloads so the user keeps the visual record of
+// what they've tapped on this specific page, regardless of how the
+// backend's ULK state has since evolved (a red tap becomes 'acquiring',
+// later may graduate to 'known' — but the user still sees their red).
+// Cleared marks (cycle position 2) are dropped from storage.
+const CYCLE_STORAGE_PREFIX = "@polyglot:cyclePos";
+const cycleStorageKey = (sid: number, pn: number) =>
+  `${CYCLE_STORAGE_PREFIX}:${sid}:${pn}`;
+
+async function loadCyclePositions(
+  sid: number, pn: number,
+): Promise<Record<number, number>> {
+  try {
+    const raw = await AsyncStorage.getItem(cycleStorageKey(sid, pn));
+    if (!raw) return {};
+    const parsed = JSON.parse(raw);
+    return typeof parsed === "object" && parsed != null ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+async function saveCyclePositions(
+  sid: number, pn: number, positions: Record<number, number>,
+): Promise<void> {
+  const filtered: Record<number, number> = {};
+  for (const [k, v] of Object.entries(positions)) {
+    if (v === 0 || v === 1) filtered[Number(k)] = v;
+  }
+  try {
+    if (Object.keys(filtered).length === 0) {
+      await AsyncStorage.removeItem(cycleStorageKey(sid, pn));
+    } else {
+      await AsyncStorage.setItem(cycleStorageKey(sid, pn), JSON.stringify(filtered));
+    }
+  } catch {
+    // ignore — non-critical persistence
+  }
+}
+
 // Reading palette. We treat the page as a book, not a flashcard surface:
 // every word in body text renders in the same warm ink color, function
-// words included. The only in-body color signal is the user's *current
-// session* tap-cycle state — red (don't know) or yellow (recognize after
-// seeing English). Server-persisted knowledge state (the user's history
-// across sessions) is intentionally invisible in the prose so the reader
-// experience is the same on day 1 and day 50.
+// words included. The only in-body color signal is the user's tap-cycle
+// state on this page — red (don't know) or yellow (recognize after seeing
+// English). Marks persist per (story, page) in AsyncStorage so navigating
+// away and back preserves the exact taps the user made on that page,
+// independent of how the backend's ULK state has evolved since.
 const C = {
   bg: "#14121a",             // warm slate — softer than pure black for long reading
   surface: "#1d1a26",        // bottom-bar surface
@@ -68,9 +110,10 @@ export default function Polyglot() {
   const [selected, setSelected] = useState<TokenView | null>(null);
   // Per-page tap-cycle positions, keyed by lemma_id. 0 = unknown (red),
   // 1 = encountered (yellow), 2 = clear (no state). Tapping a word advances
-  // by one (wrapping). Reset on page change so each page is its own
-  // independent session of taps. Same lemma appearing at two positions on
-  // one page shares state — natural since both are the same word.
+  // by one (wrapping). Restored from AsyncStorage on page load so red/yellow
+  // marks persist across navigation and app reloads. Same lemma appearing at
+  // two positions on one page shares state — natural since both are the same
+  // word.
   const [cyclePositions, setCyclePositions] = useState<Record<number, number>>({});
   const [glossByLemma, setGlossByLemma] = useState<Record<number, string | null>>({});
   const [bulkMarking, setBulkMarking] = useState(false);
@@ -85,7 +128,11 @@ export default function Polyglot() {
     setCyclePositions({});
     setGlossByLemma({});
     try {
-      const data = await getPage(sid, p);
+      const [data, savedPositions] = await Promise.all([
+        getPage(sid, p),
+        loadCyclePositions(sid, p),
+      ]);
+      setCyclePositions(savedPositions);
       setPageData(data);
       setPageNumber(data.page_number);
       scrollRef.current?.scrollTo({ y: 0, animated: false });
@@ -127,7 +174,11 @@ export default function Polyglot() {
     const nextState = CYCLE[nextPos].state;
 
     setSelected(t);
-    setCyclePositions((prev) => ({ ...prev, [lemmaId]: nextPos }));
+    setCyclePositions((prev) => {
+      const next = { ...prev, [lemmaId]: nextPos };
+      saveCyclePositions(storyId, pageNumber, next);
+      return next;
+    });
 
     try {
       const res = await markWord(storyId, lemmaId, nextState);
@@ -137,7 +188,7 @@ export default function Polyglot() {
     } catch (e) {
       console.warn(`Tap-cycle to ${nextState} failed:`, e);
     }
-  }, [selected, cyclePositions, storyId]);
+  }, [selected, cyclePositions, storyId, pageNumber]);
 
   const handleNextPage = useCallback(async () => {
     if (!pageData || !storyId) return;
