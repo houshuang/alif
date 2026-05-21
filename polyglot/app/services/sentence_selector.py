@@ -364,7 +364,7 @@ def _score_candidate(
     if page_recently_viewed:
         reason = "page_cooldown_fallback"
     elif sentence.source == "llm":
-        reason = "llm_fresh" if all_known else "llm_partial_scaffold"
+        reason = "llm_fresh" if all_known else "llm_with_gaps"
     elif page_first:
         reason = "page_first_all_known"
     elif all_known:

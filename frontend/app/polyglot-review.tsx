@@ -64,23 +64,26 @@ import {
   type SessionSlot,
 } from "../lib/polyglot-review-helpers";
 
-// 2026-05-21: palette aligned with the polyglot Modern Editorial design
-// (POLYGLOT_COLORS in lib/polyglot-design-colors.ts). Replaces the previous
-// dark-blue scheme so the review screen reads as part of the same surface
-// family as the reader (polyglot.tsx) and the lemma detail page.
+// 2026-05-21 round 2: Renaissance Folio palette — picked + iterated through
+// 3 rounds of design-explorer (session b0b63950). Cream parchment ground,
+// burnt-umber text, italic burnt-orange target word, no function-word fade.
+// Local to this screen on purpose — POLYGLOT_COLORS still drives the reader
+// (polyglot.tsx) and lemma-detail page until those screens get their own
+// Folio pass. See /Users/stian/.claude/design-explorer/mockups/polyglot-folio/.
 const C = {
-  bg: POLYGLOT_COLORS.bg,
-  surface: POLYGLOT_COLORS.surface,
-  border: POLYGLOT_COLORS.border,
-  text: POLYGLOT_COLORS.text,
-  textDim: POLYGLOT_COLORS.textSecondary,
-  textMuted: POLYGLOT_COLORS.textTertiary,
-  accent: POLYGLOT_COLORS.accent,
-  target: POLYGLOT_COLORS.quote,        // re-uses quote-section purple for target highlight
-  missed: POLYGLOT_COLORS.warning,
-  confused: "#d4a06b",
-  good: POLYGLOT_COLORS.cognate,
-  noIdea: POLYGLOT_COLORS.warning,
+  bg: "#f4ecd6",          // parchment cream
+  surface: "#efe5c8",     // cream, slightly darker for nested cards
+  border: "#dbcfae",      // hairline tan
+  borderStrong: "#c4a878",
+  text: "#2a1c0c",        // burnt umber
+  textDim: "#5a3a1a",     // warm brown — used for English translation
+  textMuted: "#8a6a3a",   // tan — used for chrome labels only, NEVER for words
+  accent: "#8a4a1a",      // burnt orange — target word, primary button, progress fill
+  target: "#8a4a1a",      // same accent; italic, not bold
+  missed: "#b85a3a",      // burnt red — marked-missed underline
+  confused: "#c79858",    // amber — marked-confused underline
+  good: "#7a8a4a",        // moss
+  noIdea: "#b85a3a",
 };
 
 type CardState = "front" | "back";
@@ -295,7 +298,7 @@ export default function PolyglotReview() {
           <Text style={styles.buttonText}>Back</Text>
         </Pressable>
         <Pressable style={[styles.button, styles.buttonGhost]} onPress={loadSession}>
-          <Text style={styles.buttonText}>Refresh</Text>
+          <Text style={[styles.buttonText, styles.buttonGhostText]}>Refresh</Text>
         </Pressable>
       </View>
     );
@@ -304,14 +307,11 @@ export default function PolyglotReview() {
   if (currentIntro) {
     return (
       <ScrollView contentContainerStyle={styles.root}>
-        <View style={styles.header}>
-          <Text style={styles.progress}>
-            {index + 1} / {slots.length}
-          </Text>
-          <Text style={styles.stateBadge}>
-            {currentIntro.intro_kind === "rescue" ? "rescue card" : "new word"}
-          </Text>
-        </View>
+        <ProgressHeader
+          label={currentIntro.intro_kind === "rescue" ? "rescue card" : "new word"}
+          current={index + 1}
+          total={slots.length}
+        />
         <IntroCardView
           card={currentIntro}
           detail={lemmaDetailCache[currentIntro.lemma_id] ?? null}
@@ -319,10 +319,10 @@ export default function PolyglotReview() {
         />
         <View style={styles.actionRow}>
           <Pressable
-            style={[styles.actionButton, styles.gotItButton]}
+            style={[styles.actionButton, styles.primaryButton]}
             onPress={handleIntroContinue}
           >
-            <Text style={styles.actionButtonText}>Got it — continue</Text>
+            <Text style={styles.primaryButtonText}>Got it — continue</Text>
           </Pressable>
         </View>
       </ScrollView>
@@ -346,14 +346,11 @@ export default function PolyglotReview() {
 
   return (
     <ScrollView contentContainerStyle={styles.root}>
-      <View style={styles.header}>
-        <Text style={styles.progress}>
-          {index + 1} / {slots.length}
-        </Text>
-        <Text style={styles.stateBadge}>
-          {currentSentence.selection_reason || "review"}
-        </Text>
-      </View>
+      <ProgressHeader
+        label={currentSentence.selection_reason || "review"}
+        current={index + 1}
+        total={slots.length}
+      />
 
       <View style={styles.card}>
         <SentenceCard
@@ -615,39 +612,10 @@ function ReadingActions({
 }) {
   const signal = deriveSignal(hasMarks);
   const middleLabel = middleButtonLabel(hasMarks);
-
-  if (cardState === "front") {
-    return (
-      <View style={styles.actionRow}>
-        <Pressable
-          style={[styles.actionButton, styles.noIdeaButton, submitting && styles.actionButtonDisabled]}
-          onPress={() => void onSubmit("no_idea")}
-          disabled={submitting}
-        >
-          <Text style={styles.noIdeaButtonText}>No idea</Text>
-        </Pressable>
-        <Pressable
-          style={[
-            styles.actionButton,
-            hasMarks ? styles.continueButton : styles.gotItButton,
-            submitting && styles.actionButtonDisabled,
-          ]}
-          onPress={() => void onSubmit(signal)}
-          disabled={submitting}
-        >
-          <Text style={styles.actionButtonText}>{middleLabel}</Text>
-        </Pressable>
-        <Pressable
-          style={[styles.actionButton, styles.showButton, submitting && styles.actionButtonDisabled]}
-          onPress={onAdvance}
-          disabled={submitting}
-        >
-          <Text style={styles.showButtonText}>Show Translation</Text>
-        </Pressable>
-      </View>
-    );
-  }
-
+  const isFront = cardState === "front";
+  // Primary fills the action that advances the user forward. On the front
+  // that's "Show Translation"; on the back it's the middle "Got it"/"Continue".
+  // The opposite button stays outlined; "No idea" stays ghost.
   return (
     <View style={styles.actionRow}>
       <Pressable
@@ -660,21 +628,53 @@ function ReadingActions({
       <Pressable
         style={[
           styles.actionButton,
-          hasMarks ? styles.continueButton : styles.gotItButton,
+          isFront ? styles.outlinedButton : styles.primaryButton,
           submitting && styles.actionButtonDisabled,
         ]}
         onPress={() => void onSubmit(signal)}
         disabled={submitting}
       >
-        <Text style={styles.actionButtonText}>{middleLabel}</Text>
+        <Text style={isFront ? styles.outlinedButtonText : styles.primaryButtonText}>
+          {middleLabel}
+        </Text>
       </Pressable>
       <Pressable
-        style={[styles.actionButton, styles.showButton, submitting && styles.actionButtonDisabled]}
-        onPress={onFlipBack}
+        style={[
+          styles.actionButton,
+          isFront ? styles.primaryButton : styles.outlinedButton,
+          submitting && styles.actionButtonDisabled,
+        ]}
+        onPress={isFront ? onAdvance : onFlipBack}
         disabled={submitting}
       >
-        <Text style={styles.showButtonText}>Hide Translation</Text>
+        <Text style={isFront ? styles.primaryButtonText : styles.outlinedButtonText}>
+          {isFront ? "Show Translation" : "Hide Translation"}
+        </Text>
       </Pressable>
+    </View>
+  );
+}
+
+/**
+ * Folio progress header — caption row above a hairline track. Replaces the
+ * old "1/21 + chip" pair. The label slot doubles as the sentence's
+ * selection_reason for diagnostics. Filled by `progressFill` per ratio.
+ */
+function ProgressHeader({
+  label,
+  current,
+  total,
+}: { label: string; current: number; total: number }) {
+  const ratio = total > 0 ? Math.max(0, Math.min(1, current / total)) : 0;
+  return (
+    <View style={styles.header}>
+      <View style={styles.progressRow}>
+        <Text style={styles.progressLabel}>{label}</Text>
+        <Text style={styles.progressCount}>{current} / {total}</Text>
+      </View>
+      <View style={styles.progressTrack}>
+        <View style={[styles.progressFill, { width: `${ratio * 100}%` }]} />
+      </View>
     </View>
   );
 }
@@ -690,25 +690,33 @@ function Stat({ label, value }: { label: string; value: number }) {
 
 const styles = StyleSheet.create({
   root: {
-    backgroundColor: C.bg, flexGrow: 1, padding: 16, paddingTop: 24,
+    backgroundColor: C.bg, flexGrow: 1, paddingHorizontal: 24, paddingTop: 32, paddingBottom: 32,
   },
   center: {
     flex: 1, alignItems: "center", justifyContent: "center",
     backgroundColor: C.bg, padding: 24,
   },
-  header: {
-    flexDirection: "row", alignItems: "center", marginBottom: 24, gap: 12,
+  // Header: progress label row + filled-track bar. Replaces the old "1/21 + chip"
+  // line per design-explorer round 3 (Alif-style progress bar at top).
+  header: { marginBottom: 32 },
+  progressRow: {
+    flexDirection: "row", justifyContent: "space-between", alignItems: "baseline",
+    marginBottom: 8,
   },
-  progress: { color: C.textDim, fontSize: 14, flex: 1 },
-  stateBadge: {
-    color: C.textDim, fontSize: 12,
-    backgroundColor: C.surface, paddingHorizontal: 8, paddingVertical: 4,
-    borderRadius: 8, borderColor: C.border, borderWidth: 1,
+  progressLabel: {
+    color: C.textMuted, fontSize: 12, fontWeight: "600",
+    letterSpacing: 0.3, textTransform: "lowercase",
   },
-  card: {
-    backgroundColor: C.surface, padding: 24, borderRadius: 16,
-    borderWidth: 1, borderColor: C.border, minHeight: 220,
+  progressCount: {
+    color: C.textMuted, fontSize: 12, fontWeight: "600", letterSpacing: 0.3,
   },
+  progressTrack: {
+    height: 3, backgroundColor: C.border, borderRadius: 1.5, overflow: "hidden",
+  },
+  progressFill: { height: "100%", backgroundColor: C.accent, borderRadius: 1.5 },
+  // Card: no chrome — the parchment IS the surface. Padding-only layout per
+  // Folio mockup (no border, no rounded corners on the sentence container).
+  card: { paddingTop: 16, minHeight: 220 },
   /* Intro card — Modern Editorial. Hero card stacked with optional etymology /
    * mini-drift / quote sections, each shown only when enrichment loaded. */
   introWrap: { gap: 10 },
@@ -775,11 +783,15 @@ const styles = StyleSheet.create({
   viewDetailsRow: { alignSelf: "center", paddingVertical: 8 },
   viewDetailsLink: { color: C.accent, fontSize: 13, fontWeight: "600" },
   sentenceGreek: {
-    color: C.text, fontSize: 26, lineHeight: 40, textAlign: "center",
+    color: C.text, fontSize: 30, lineHeight: 46, textAlign: "left",
+    fontFamily: POLYGLOT_FONTS.greekDisplay, letterSpacing: 0.2,
   },
-  targetWord: { color: C.target, fontWeight: "600" },
-  functionWord: { color: C.textMuted },
-  focusedWord: { color: C.accent, fontWeight: "600" },
+  // Target word: italic burnt-orange, NOT bold. Folio mockup spec.
+  targetWord: { color: C.target, fontStyle: "italic" },
+  // Function words: same color as content text — no fade. User explicitly
+  // ruled out fading in design-explorer turn 22.
+  functionWord: { color: C.text },
+  focusedWord: { color: C.accent, fontStyle: "italic" },
   missedWord: {
     color: C.missed,
     textDecorationLine: "underline",
@@ -790,43 +802,44 @@ const styles = StyleSheet.create({
     textDecorationLine: "underline",
     textDecorationColor: C.confused,
   },
-  answerSection: { marginTop: 20 },
+  // Answer reveal: 48px hairline rule + italic translation.
+  answerSection: { marginTop: 24, alignItems: "flex-start" },
   answerSectionHidden: { opacity: 0 },
-  divider: {
-    height: 1, backgroundColor: C.border, marginBottom: 16,
-  },
+  divider: { height: 1, width: 48, backgroundColor: C.textMuted, marginBottom: 16 },
   sentenceEnglish: {
-    color: C.textDim, fontSize: 18, lineHeight: 26, textAlign: "center",
+    color: C.textDim, fontSize: 20, lineHeight: 28, textAlign: "left",
+    fontFamily: POLYGLOT_FONTS.greekDisplay, fontStyle: "italic",
   },
   /* Tapped-word lookup card slot — sits below the sentence inside the same
    * sentence-card container. The PolyglotLookupCard component carries its
    * own visual frame, so the slot just provides separation from the sentence
    * above. */
   lookupSlot: { marginTop: 14, paddingTop: 12, borderTopWidth: 1, borderTopColor: C.border },
-  actionRow: {
-    flexDirection: "row", marginTop: 24, gap: 8,
-  },
+  // Folio actions: three slim buttons, ghost · primary · outlined. Hairline
+  // borders, 4px radius, DM Sans 600. Primary fills when it's the user's
+  // "right" answer for the current card-state (Show on front, Continue on back).
+  actionRow: { flexDirection: "row", marginTop: 32, gap: 8 },
   actionButton: {
-    flex: 1, paddingVertical: 14, borderRadius: 12,
+    flex: 1, paddingVertical: 14, paddingHorizontal: 8, borderRadius: 4,
     alignItems: "center", justifyContent: "center",
-    backgroundColor: C.surface, borderWidth: 1.5,
+    borderWidth: 1, borderColor: C.accent, backgroundColor: "transparent",
   },
   actionButtonDisabled: { opacity: 0.5 },
-  actionButtonText: { color: C.text, fontWeight: "600", fontSize: 14 },
-  noIdeaButton: { borderColor: C.noIdea },
-  noIdeaButtonText: { color: C.noIdea, fontWeight: "600", fontSize: 14 },
-  gotItButton: { borderColor: C.good },
-  continueButton: { borderColor: C.accent },
-  showButton: { borderColor: C.border },
-  showButtonText: { color: C.textDim, fontWeight: "600", fontSize: 14 },
+  outlinedButton: { borderColor: C.accent, backgroundColor: "transparent" },
+  outlinedButtonText: { color: C.accent, fontWeight: "600", fontSize: 14, letterSpacing: 0.3 },
+  primaryButton: { backgroundColor: C.accent, borderColor: C.accent },
+  primaryButtonText: { color: C.bg, fontWeight: "600", fontSize: 14, letterSpacing: 0.3 },
+  noIdeaButton: { borderColor: "transparent" },
+  noIdeaButtonText: { color: C.missed, fontWeight: "600", fontSize: 14, letterSpacing: 0.3 },
   button: {
     backgroundColor: C.accent, paddingHorizontal: 24, paddingVertical: 12,
-    borderRadius: 12, marginTop: 16,
+    borderRadius: 4, marginTop: 16,
   },
   buttonGhost: {
-    backgroundColor: "transparent", borderWidth: 1, borderColor: C.border,
+    backgroundColor: "transparent", borderWidth: 1, borderColor: C.accent,
   },
-  buttonText: { color: C.text, fontWeight: "600" },
+  buttonText: { color: C.bg, fontWeight: "600" },
+  buttonGhostText: { color: C.accent },
   errorText: { color: C.missed, marginBottom: 16 },
   emptyTitle: { color: C.text, fontSize: 20, marginTop: 16, fontWeight: "600" },
   emptySubtitle: { color: C.textDim, marginTop: 8 },
