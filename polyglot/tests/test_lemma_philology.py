@@ -319,6 +319,65 @@ def test_find_unenriched_picks_engaged_vocabulary(tmp_db, monkeypatch):
     assert ids == [engaged_id]
 
 
+def test_find_unenriched_excludes_known_state(tmp_db):
+    """`known` lemmas are already learnt — skip them (2026-05-21 policy)."""
+    with tmp_db() as db:
+        learnt = _seed_lemma(db, form="γράφω", gloss="write")
+        active = _seed_lemma(db, form="τρώω", gloss="eat")
+        db.commit()
+        # `known` ULK — should be excluded
+        ulk1 = UserLemmaKnowledge(
+            lemma_id=learnt.lemma_id,
+            knowledge_state="known",
+            acquisition_box=3,
+        )
+        db.add(ulk1)
+        # `acquiring` ULK — should be included
+        _seed_ulk(db, active.lemma_id)
+        db.commit()
+        active_id = active.lemma_id
+
+    ids = lp.find_unenriched_lemmas(language_code="el", limit=10)
+    assert ids == [active_id]
+
+
+def test_find_unenriched_buckets_acquiring_before_encountered(tmp_db):
+    """Bucket order: acquiring → learning/lapsed → encountered. Within
+    acquiring, sort by `acquisition_next_due` ASC so the next-to-be-reviewed
+    lemma's lookup card is ready when it shows up."""
+    soon = datetime(2026, 5, 21, 0, 0, tzinfo=timezone.utc)
+    later = datetime(2026, 5, 25, 0, 0, tzinfo=timezone.utc)
+    with tmp_db() as db:
+        acq_later = _seed_lemma(db, form="γράφω", gloss="write")
+        acq_soon = _seed_lemma(db, form="τρώω", gloss="eat")
+        learning = _seed_lemma(db, form="πίνω", gloss="drink")
+        encountered = _seed_lemma(db, form="βλέπω", gloss="see")
+        db.commit()
+        db.add(UserLemmaKnowledge(
+            lemma_id=acq_later.lemma_id,
+            knowledge_state="acquiring", acquisition_box=1,
+            acquisition_next_due=later,
+        ))
+        db.add(UserLemmaKnowledge(
+            lemma_id=acq_soon.lemma_id,
+            knowledge_state="acquiring", acquisition_box=1,
+            acquisition_next_due=soon,
+        ))
+        db.add(UserLemmaKnowledge(
+            lemma_id=learning.lemma_id,
+            knowledge_state="learning",
+        ))
+        db.add(UserLemmaKnowledge(
+            lemma_id=encountered.lemma_id,
+            knowledge_state="encountered",
+        ))
+        db.commit()
+        expected = [acq_soon.lemma_id, acq_later.lemma_id, learning.lemma_id, encountered.lemma_id]
+
+    ids = lp.find_unenriched_lemmas(language_code="el", limit=10)
+    assert ids == expected
+
+
 def test_fixture_round_trip_matches_pydantic_shape():
     """The real-world enrichment fixture from the POC must parse cleanly into
     LemmaEnrichment. Guard against silent drift between the prompt's JSON

@@ -756,19 +756,32 @@ def _stamp_failure(language_code: str, lemma_ids: list[int]) -> None:
         db.close()
 
 
+_ACTIVE_STATES = ("acquiring", "learning", "lapsed")
+_BACKFILL_STATES = ("encountered",)
+_ELIGIBLE_STATES = _ACTIVE_STATES + _BACKFILL_STATES
+
+
 def find_unenriched_lemmas(
     language_code: str = "el",
     limit: int = 10,
     include_failed: bool = False,
 ) -> list[int]:
-    """Return lemma_ids that still need enrichment.
+    """Return lemma_ids that still need enrichment, prioritised by review proximity.
 
-    Selection criteria mirror the philology service's own eligibility:
-    canonical, not function-word/proper-name, has a gloss. Among eligible
-    lemmas, prefer those with a UserLemmaKnowledge row (the learner has
-    actually engaged with them) — no point philologizing words no one studies.
-    Order: by frequency_rank when present (so the most common words enrich
-    first), then lemma_id.
+    Eligibility: canonical, not function-word/proper-name, has a gloss, has a
+    UserLemmaKnowledge row, and ``knowledge_state != 'known'``. Already-known
+    lemmas are excluded by design (2026-05-21) — the lookup card shows
+    enrichment when the learner is still building a memory hook for a word, not
+    after they've graduated it.
+
+    Order (priority buckets, drained in sequence):
+      0. ``acquiring`` — sorted by ``acquisition_next_due`` ASC. The picker
+         tends to surface these next, so enriching by next-due means the
+         lookup card is ready when the lemma shows up in the next session.
+      1. ``learning`` + ``lapsed`` — FSRS-engaged but no acquisition due-date;
+         sorted by ``frequency_rank`` ASC (most common first).
+      2. ``encountered`` — tapped but not yet enrolled; same frequency order.
+         Drained last so the cron eventually covers every engaged lemma.
 
     With ``include_failed=True``, also re-picks lemmas whose previous
     enrichment failed entirely (status='failed') OR was written but flagged
@@ -788,7 +801,12 @@ def find_unenriched_lemmas(
                 Lemma.enrichment_status == "done_flagged",
             )
         rows = (
-            db.query(Lemma.lemma_id, Lemma.frequency_rank)
+            db.query(
+                Lemma.lemma_id,
+                Lemma.frequency_rank,
+                UserLemmaKnowledge.knowledge_state,
+                UserLemmaKnowledge.acquisition_next_due,
+            )
             .join(UserLemmaKnowledge, UserLemmaKnowledge.lemma_id == Lemma.lemma_id)
             .filter(
                 Lemma.language_code == language_code,
@@ -797,11 +815,30 @@ def find_unenriched_lemmas(
                     ["function_word", "proper_name"]
                 )),
                 Lemma.gloss_en.isnot(None),
+                UserLemmaKnowledge.knowledge_state.in_(_ELIGIBLE_STATES),
                 status_filter,
             )
             .all()
         )
     finally:
         db.close()
-    rows.sort(key=lambda r: (r[1] is None, r[1] or 0, r[0]))
+
+    far_future = datetime.max.replace(tzinfo=timezone.utc).timestamp()
+
+    def _sort_key(row):
+        lemma_id, freq_rank, state, next_due = row
+        if state == "acquiring":
+            if next_due is None:
+                due_ts = far_future
+            else:
+                if next_due.tzinfo is None:
+                    next_due = next_due.replace(tzinfo=timezone.utc)
+                due_ts = next_due.timestamp()
+            return (0, due_ts, lemma_id)
+        if state in ("learning", "lapsed"):
+            return (1, freq_rank is None, freq_rank or 0, lemma_id)
+        # encountered (backfill bucket)
+        return (2, freq_rank is None, freq_rank or 0, lemma_id)
+
+    rows.sort(key=_sort_key)
     return [r[0] for r in rows[:limit]]
