@@ -96,6 +96,6 @@ describe("routeLanguage classifier", () => {
 
   test("homePathFor returns the right entry route per language", () => {
     expect(homePathFor("ar")).toBe("/");
-    expect(homePathFor("el")).toBe("/polyglot");
+    expect(homePathFor("el")).toBe("/polyglot-review");
   });
 });

@@ -34,6 +34,9 @@ export function routeLanguage(pathname: string): AppLanguage | "shared" {
   return "ar";
 }
 
+// Entry route per language. Greek lands on Review (the first Greek tab) so
+// switching into Greek drops the learner straight into sentence review rather
+// than the Reading screen. Reading is still reachable via its own tab.
 export function homePathFor(lang: AppLanguage): string {
-  return lang === "el" ? "/polyglot" : "/";
+  return lang === "el" ? "/polyglot-review" : "/";
 }

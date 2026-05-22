@@ -37,6 +37,7 @@ import {
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter } from "expo-router";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useLanguage } from "../lib/language-context";
 import {
@@ -119,6 +120,7 @@ type ReviewSnapshot = {
 
 export default function PolyglotReview() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { language } = useLanguage();
   const languageCode = language === "el" ? "el" : "el";
 
@@ -295,14 +297,12 @@ export default function PolyglotReview() {
       .catch(() => {});
   }, [currentIntro, glossWordIdx, currentSentence, lemmaDetailCache]);
 
+  // Reveal the translation. Mirrors Alif: the reveal is one-way (no "Hide"),
+  // and the tapped-word gloss card stays open across the flip — keep
+  // glossWordIdx so the missed/confused word the learner opened on the front
+  // is still explained on the back.
   const advanceCard = useCallback(() => {
     setCardState("back");
-    setGlossWordIdx(null);
-  }, []);
-
-  const flipToFront = useCallback(() => {
-    setCardState("front");
-    setGlossWordIdx(null);
   }, []);
 
   const handleWordTap = useCallback((wordIdx: number) => {
@@ -421,26 +421,30 @@ export default function PolyglotReview() {
 
   if (currentIntro) {
     return (
-      <ScrollView contentContainerStyle={styles.root}>
+      <View style={[styles.container, { paddingTop: Math.max(insets.top, 12) }]}>
         <ProgressHeader
           label={currentIntro.intro_kind === "rescue" ? "rescue card" : "new word"}
           current={index + 1}
           total={slots.length}
         />
-        <IntroCardView
-          card={currentIntro}
-          detail={lemmaDetailCache[currentIntro.lemma_id] ?? null}
-          onViewDetails={() => { persistSnapshot(); router.push(`/polyglot-lemma/${currentIntro.lemma_id}`); }}
-        />
-        <View style={styles.actionRow}>
-          <Pressable
-            style={[styles.actionButton, styles.primaryButton]}
-            onPress={handleIntroContinue}
-          >
-            <Text style={styles.primaryButtonText}>Got it — continue</Text>
-          </Pressable>
+        <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
+          <IntroCardView
+            card={currentIntro}
+            detail={lemmaDetailCache[currentIntro.lemma_id] ?? null}
+            onViewDetails={() => { persistSnapshot(); router.push(`/polyglot-lemma/${currentIntro.lemma_id}`); }}
+          />
+        </ScrollView>
+        <View style={styles.bottomActions}>
+          <View style={styles.actionRow}>
+            <Pressable
+              style={[styles.actionButton, styles.continueButton]}
+              onPress={handleIntroContinue}
+            >
+              <Text style={styles.actionButtonText}>Got it — continue</Text>
+            </Pressable>
+          </View>
         </View>
-      </ScrollView>
+      </View>
     );
   }
 
@@ -460,53 +464,48 @@ export default function PolyglotReview() {
   const glossWord = glossWordIdx != null ? currentSentence.words[glossWordIdx] : null;
 
   return (
-    <ScrollView contentContainerStyle={styles.root}>
-      <ProgressHeader
-        label={currentSentence.selection_reason || "review"}
-        current={index + 1}
-        total={slots.length}
-      />
+    <View style={[styles.container, { paddingTop: Math.max(insets.top, 12) }]}>
+      <ProgressHeader current={index + 1} total={slots.length} />
 
-      <View style={styles.card}>
-        <SentenceCard
-          payload={currentSentence}
+      <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
+        <View style={styles.card}>
+          <SentenceCard
+            payload={currentSentence}
+            cardState={cardState}
+            marks={marks}
+            onWordTap={handleWordTap}
+          />
+          {glossWord && glossWord.lemma_id != null ? (
+            <View style={styles.lookupSlot}>
+              <PolyglotLookupCard
+                lemmaForm={glossWord.lemma_form ?? glossWord.surface_form}
+                glossEn={glossWord.gloss_en}
+                pos={null}
+                ancientForm={
+                  lemmaDetailCache[glossWord.lemma_id]?.cognate_lemma_form ??
+                  lemmaDetailCache[glossWord.lemma_id]?.enrichment?.etymology?.ancient_form ??
+                  null
+                }
+                enrichment={lemmaDetailCache[glossWord.lemma_id]?.enrichment ?? null}
+                frequencyRank={lemmaDetailCache[glossWord.lemma_id]?.frequency_rank ?? null}
+                surfaceForm={glossWord.surface_form}
+                onViewDetails={() => { persistSnapshot(); router.push(`/polyglot-lemma/${glossWord.lemma_id}`); }}
+              />
+            </View>
+          ) : null}
+        </View>
+      </ScrollView>
+
+      <View style={styles.bottomActions}>
+        <ReadingActions
           cardState={cardState}
-          marks={marks}
-          onWordTap={handleWordTap}
+          hasMarks={hasMarks}
+          onAdvance={advanceCard}
+          onSubmit={handleSubmit}
+          submitting={submitting}
         />
-        {glossWord && glossWord.lemma_id != null ? (
-          <View style={styles.lookupSlot}>
-            <PolyglotLookupCard
-              lemmaForm={glossWord.lemma_form ?? glossWord.surface_form}
-              glossEn={glossWord.gloss_en}
-              pos={null}
-              ancientForm={
-                lemmaDetailCache[glossWord.lemma_id]?.cognate_lemma_form ??
-                lemmaDetailCache[glossWord.lemma_id]?.enrichment?.etymology?.ancient_form ??
-                null
-              }
-              enrichment={lemmaDetailCache[glossWord.lemma_id]?.enrichment ?? null}
-              frequencyRank={lemmaDetailCache[glossWord.lemma_id]?.frequency_rank ?? null}
-              surfaceForm={glossWord.surface_form}
-              onViewDetails={() => { persistSnapshot(); router.push(`/polyglot-lemma/${glossWord.lemma_id}`); }}
-            />
-          </View>
-        ) : null}
       </View>
-
-      <ReadingActions
-        cardState={cardState}
-        hasMarks={hasMarks}
-        onAdvance={advanceCard}
-        onFlipBack={flipToFront}
-        onSubmit={handleSubmit}
-        submitting={submitting}
-      />
-
-      {submitting && (
-        <ActivityIndicator color={C.accent} style={{ marginTop: 16 }} />
-      )}
-    </ScrollView>
+    </View>
   );
 }
 
@@ -711,23 +710,22 @@ function ReadingActions({
   cardState,
   hasMarks,
   onAdvance,
-  onFlipBack,
   onSubmit,
   submitting,
 }: {
   cardState: CardState;
   hasMarks: boolean;
   onAdvance: () => void;
-  onFlipBack: () => void;
   onSubmit: (signal: ComprehensionSignal) => Promise<void> | void;
   submitting: boolean;
 }) {
   const signal = deriveSignal(hasMarks);
   const middleLabel = middleButtonLabel(hasMarks);
   const isFront = cardState === "front";
-  // Primary fills the action that advances the user forward. On the front
-  // that's "Show Translation"; on the back it's the middle "Got it"/"Continue".
-  // The opposite button stays outlined; "No idea" stays ghost.
+  // Mirrors Alif's ReadingActions (index.tsx) verbatim: left "No idea", a
+  // middle button whose label toggles "Know All" (no marks) → "Continue"
+  // (any marks), and a right slot that holds "Show Translation" on the front
+  // and an empty spacer on the back. The reveal is one-way — no "Hide".
   return (
     <View style={styles.actionRow}>
       <Pressable
@@ -740,49 +738,47 @@ function ReadingActions({
       <Pressable
         style={[
           styles.actionButton,
-          isFront ? styles.outlinedButton : styles.primaryButton,
+          hasMarks ? styles.continueButton : styles.gotItButton,
           submitting && styles.actionButtonDisabled,
         ]}
         onPress={() => void onSubmit(signal)}
         disabled={submitting}
       >
-        <Text style={isFront ? styles.outlinedButtonText : styles.primaryButtonText}>
-          {middleLabel}
-        </Text>
+        <Text style={styles.actionButtonText}>{middleLabel}</Text>
       </Pressable>
-      <Pressable
-        style={[
-          styles.actionButton,
-          isFront ? styles.primaryButton : styles.outlinedButton,
-          submitting && styles.actionButtonDisabled,
-        ]}
-        onPress={isFront ? onAdvance : onFlipBack}
-        disabled={submitting}
-      >
-        <Text style={isFront ? styles.primaryButtonText : styles.outlinedButtonText}>
-          {isFront ? "Show Translation" : "Hide Translation"}
-        </Text>
-      </Pressable>
+      {isFront ? (
+        <Pressable
+          style={[styles.actionButton, styles.showButton, submitting && styles.actionButtonDisabled]}
+          onPress={onAdvance}
+          disabled={submitting}
+        >
+          <Text style={styles.showButtonText}>Show Translation</Text>
+        </Pressable>
+      ) : (
+        <View style={styles.actionButtonSpacer} />
+      )}
     </View>
   );
 }
 
 /**
- * Folio progress header — caption row above a hairline track. Replaces the
- * old "1/21 + chip" pair. The label slot doubles as the sentence's
- * selection_reason for diagnostics. Filled by `progressFill` per ratio.
+ * Folio progress header — a "Card X of Y" caption above a hairline track,
+ * mirroring Alif's ProgressBar (index.tsx). `label` is an optional small
+ * tag shown on the left (used by intro cards: "new word" / "rescue card");
+ * sentence cards pass none, so the header is just the count + track — no
+ * internal selection_reason diagnostics leak into the UI.
  */
 function ProgressHeader({
   label,
   current,
   total,
-}: { label: string; current: number; total: number }) {
+}: { label?: string; current: number; total: number }) {
   const ratio = total > 0 ? Math.max(0, Math.min(1, current / total)) : 0;
   return (
     <View style={styles.header}>
       <View style={styles.progressRow}>
-        <Text style={styles.progressLabel}>{label}</Text>
-        <Text style={styles.progressCount}>{current} / {total}</Text>
+        <Text style={styles.progressLabel}>{label ?? ""}</Text>
+        <Text style={styles.progressCount}>Card {current} of {total}</Text>
       </View>
       <View style={styles.progressTrack}>
         <View style={[styles.progressFill, { width: `${ratio * 100}%` }]} />
@@ -801,16 +797,21 @@ function Stat({ label, value }: { label: string; value: number }) {
 }
 
 const styles = StyleSheet.create({
-  root: {
-    backgroundColor: C.bg, flexGrow: 1, paddingHorizontal: 24, paddingTop: 32, paddingBottom: 32,
+  // Flex column so the action row pins to the bottom of the screen (mirrors
+  // Alif index.tsx: container → ProgressBar → ScrollView(flex) → bottomActions).
+  // paddingTop is applied inline from safe-area insets.
+  container: {
+    flex: 1, backgroundColor: C.bg, paddingHorizontal: 24, paddingBottom: 16,
   },
+  scroll: { flex: 1 },
+  scrollContent: { flexGrow: 1, paddingTop: 8, paddingBottom: 12 },
+  bottomActions: { paddingTop: 8 },
   center: {
     flex: 1, alignItems: "center", justifyContent: "center",
     backgroundColor: C.bg, padding: 24,
   },
-  // Header: progress label row + filled-track bar. Replaces the old "1/21 + chip"
-  // line per design-explorer round 3 (Alif-style progress bar at top).
-  header: { marginBottom: 32 },
+  // Header: progress count row + filled-track bar (Alif-style progress bar).
+  header: { marginBottom: 12 },
   progressRow: {
     flexDirection: "row", justifyContent: "space-between", alignItems: "baseline",
     marginBottom: 8,
@@ -921,22 +922,27 @@ const styles = StyleSheet.create({
    * own visual frame, so the slot just provides separation from the sentence
    * above. */
   lookupSlot: { marginTop: 14, paddingTop: 12, borderTopWidth: 1, borderTopColor: C.border },
-  // Folio actions: three slim buttons, ghost · primary · outlined. Hairline
-  // borders, 4px radius, DM Sans 600. Primary fills when it's the user's
-  // "right" answer for the current card-state (Show on front, Continue on back).
-  actionRow: { flexDirection: "row", marginTop: 32, gap: 8 },
+  // Action row mirrors Alif's ReadingActions: three equal filled buttons,
+  // 14px radius, 52px min height, pinned at the bottom. "No idea" is a soft
+  // bordered ghost; the middle is moss-green ("Know All") → burnt-orange
+  // ("Continue"); "Show Translation" is burnt-orange. Back side drops the
+  // right button to a flex spacer (no "Hide Translation").
+  actionRow: { flexDirection: "row", gap: 10, width: "100%" },
   actionButton: {
-    flex: 1, paddingVertical: 14, paddingHorizontal: 8, borderRadius: 4,
+    flex: 1, minHeight: 52, paddingVertical: 10, borderRadius: 14,
     alignItems: "center", justifyContent: "center",
-    borderWidth: 1, borderColor: C.accent, backgroundColor: "transparent",
   },
   actionButtonDisabled: { opacity: 0.5 },
-  outlinedButton: { borderColor: C.accent, backgroundColor: "transparent" },
-  outlinedButtonText: { color: C.accent, fontWeight: "600", fontSize: 14, letterSpacing: 0.3 },
-  primaryButton: { backgroundColor: C.accent, borderColor: C.accent },
-  primaryButtonText: { color: C.bg, fontWeight: "600", fontSize: 14, letterSpacing: 0.3 },
-  noIdeaButton: { borderColor: "transparent" },
-  noIdeaButtonText: { color: C.missed, fontWeight: "600", fontSize: 14, letterSpacing: 0.3 },
+  actionButtonSpacer: { flex: 1 },
+  actionButtonText: { color: "#fff", fontSize: 15, fontWeight: "600", textAlign: "center" },
+  gotItButton: { backgroundColor: C.good },
+  continueButton: { backgroundColor: C.accent },
+  showButton: { backgroundColor: C.accent },
+  showButtonText: { color: "#fff", fontSize: 15, fontWeight: "600", textAlign: "center" },
+  noIdeaButton: {
+    backgroundColor: C.surface, borderWidth: 1, borderColor: C.noIdea + "55",
+  },
+  noIdeaButtonText: { color: C.noIdea, fontSize: 15, fontWeight: "600", textAlign: "center" },
   button: {
     backgroundColor: C.accent, paddingHorizontal: 24, paddingVertical: 12,
     borderRadius: 4, marginTop: 16,

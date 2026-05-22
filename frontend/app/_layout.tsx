@@ -1,6 +1,7 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { View, Text, Pressable, StyleSheet, AppState, ActivityIndicator } from "react-native";
 import { Tabs, useRouter, usePathname } from "expo-router";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
 import { Ionicons } from "@expo/vector-icons";
 import { useFonts } from "expo-font";
@@ -91,10 +92,13 @@ export default function Layout() {
 
 function LayoutInner({ online }: { online: boolean }) {
   // The active language drives which tabs are visible. Globe (`languages`)
-  // is always visible — that's where the user switches.
-  const { language, ready } = useLanguage();
+  // is always visible — tapping it opens a small popover (see below) rather
+  // than navigating to a full screen.
+  const { language, setLanguage, ready } = useLanguage();
   const router = useRouter();
   const pathname = usePathname();
+  const insets = useSafeAreaInsets();
+  const [pickerOpen, setPickerOpen] = useState(false);
   const isArabic = language === "ar";
   const isGreek = language === "el";
 
@@ -198,16 +202,8 @@ function LayoutInner({ online }: { online: boolean }) {
         />
 
         {/* ─── Modern Greek (Polyglot) tabs ────────────────────────── */}
-        <Tabs.Screen
-          name="polyglot"
-          options={{
-            href: elHref("polyglot"),
-            title: "Reading",
-            headerShown: false,
-            tabBarLabel: "Reading",
-            tabBarIcon: ({ color, size }) => <Ionicons name="book-outline" size={size} color={color} />,
-          }}
-        />
+        {/* Review is the first Greek tab — switching into Greek lands here
+            (see homePathFor in language-routes.ts). Reading follows. */}
         <Tabs.Screen
           name="polyglot-review"
           options={{
@@ -216,6 +212,16 @@ function LayoutInner({ online }: { online: boolean }) {
             headerShown: false,
             tabBarLabel: "Review",
             tabBarIcon: ({ color, size }) => <Ionicons name="layers-outline" size={size} color={color} />,
+          }}
+        />
+        <Tabs.Screen
+          name="polyglot"
+          options={{
+            href: elHref("polyglot"),
+            title: "Reading",
+            headerShown: false,
+            tabBarLabel: "Reading",
+            tabBarIcon: ({ color, size }) => <Ionicons name="book-outline" size={size} color={color} />,
           }}
         />
         <Tabs.Screen
@@ -229,12 +235,21 @@ function LayoutInner({ online }: { online: boolean }) {
         />
 
         {/* ─── Globe (always visible) ──────────────────────────────── */}
+        {/* Tapping the globe opens a small popover anchored over it instead of
+            navigating to the full `languages` screen (which stays as a route
+            fallback). preventDefault stops the tab from switching. */}
         <Tabs.Screen
           name="languages"
           options={{
             title: "Languages",
             tabBarLabel: "Languages",
             tabBarIcon: ({ color, size }) => <Ionicons name="globe-outline" size={size} color={color} />,
+          }}
+          listeners={{
+            tabPress: (e) => {
+              e.preventDefault();
+              setPickerOpen((open) => !open);
+            },
           }}
         />
 
@@ -263,9 +278,48 @@ function LayoutInner({ online }: { online: boolean }) {
         <Tabs.Screen name="words" options={{ href: null, title: "Words" }} />
         <Tabs.Screen name="polyglot-lemma/[id]" options={{ href: null, title: "Lemma Detail" }} />
       </Tabs>
+
+      {pickerOpen && (
+        <Pressable style={styles.pickerBackdrop} onPress={() => setPickerOpen(false)}>
+          <Pressable
+            style={[styles.pickerCard, { bottom: insets.bottom + 56 }]}
+            onPress={() => {}}
+          >
+            {LANGUAGE_OPTIONS.map((opt) => {
+              const active = opt.code === language;
+              return (
+                <Pressable
+                  key={opt.code}
+                  style={styles.pickerRow}
+                  onPress={() => {
+                    setPickerOpen(false);
+                    if (opt.code !== language) {
+                      setLanguage(opt.code);
+                      router.replace(homePathFor(opt.code) as any);
+                    }
+                  }}
+                >
+                  <Text style={styles.pickerNative}>{opt.native}</Text>
+                  <Text style={styles.pickerName}>{opt.name}</Text>
+                  {active ? (
+                    <Ionicons name="checkmark" size={18} color={colors.accent} />
+                  ) : (
+                    <View style={styles.pickerCheckSpacer} />
+                  )}
+                </Pressable>
+              );
+            })}
+          </Pressable>
+        </Pressable>
+      )}
     </>
   );
 }
+
+const LANGUAGE_OPTIONS: { code: "ar" | "el"; native: string; name: string }[] = [
+  { code: "ar", native: "العربية", name: "Arabic" },
+  { code: "el", native: "Ελληνικά", name: "Greek" },
+];
 
 const styles = StyleSheet.create({
   loadingContainer: {
@@ -284,5 +338,51 @@ const styles = StyleSheet.create({
     color: "#1a1a2e",
     fontSize: 13,
     fontWeight: "600",
+  },
+  // Language popover: a small card floating above the globe tab (bottom-right),
+  // over a dim full-screen backdrop that closes on outside tap.
+  pickerBackdrop: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: "rgba(0,0,0,0.25)",
+  },
+  pickerCard: {
+    position: "absolute",
+    right: 8,
+    minWidth: 200,
+    backgroundColor: colors.surface,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingVertical: 6,
+    shadowColor: "#000",
+    shadowOpacity: 0.35,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 10,
+  },
+  pickerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 11,
+  },
+  pickerNative: {
+    color: colors.text,
+    fontSize: 18,
+    fontWeight: "700",
+    minWidth: 78,
+  },
+  pickerName: {
+    color: colors.textSecondary,
+    fontSize: 13,
+    flex: 1,
+  },
+  pickerCheckSpacer: {
+    width: 18,
   },
 });
