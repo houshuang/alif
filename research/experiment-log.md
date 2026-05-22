@@ -4,6 +4,46 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-05-22: Triaged five abandoned 2026-03-21 experiment PRs against production data
+
+### What prompted it
+
+A repo-hygiene pass closed all open PRs. Five (#21–#25) were 2-month-old conflicting
+algorithm experiments. Rather than merge stale code, we re-evaluated each *idea*
+against current main + production data (44,741 reviews, 2,071 known words). Full
+write-up: `analysis-2026-05-22-stale-pr-ideas.md`.
+
+### Findings (production data)
+
+- **Dynamic session sizing (#22)** — REJECTED. Sessions already median 11 / mean 12
+  sentence-reviews (proposed base was 10); size does not track accuracy buckets; low-accuracy
+  sessions are smaller (self-quit). No ceiling effect to relieve.
+- **Response-time / fluency signal (#23)** — REJECTED. Next-review lapse rate after a
+  slow-correct review = 10.5% vs 12.7% after fast-correct: slowness predicts *fewer* lapses,
+  opposite of the hypothesis. 17% coverage; `response_ms` is whole-sentence reading time
+  (25s median), not per-word recognition.
+- **Familiar-encountered gate (#25)** — REJECTED. Only 2 encountered words have ≥8
+  encounters; exactly 1 sentence would become newly eligible. The 2026-03-18 collateral
+  auto-introduction flow already drains encountered words (85 exist total). The "dead-zone"
+  the idea targeted is empty.
+- **Rasm confusable-pair exclusion (#24)** — DEFERRED. Same-rasm co-occurrence correlates
+  with higher confusion (2.71% vs 1.75% was_confused) but the absolute is tiny (9 reviews);
+  interleaving-vs-spacing literature is mixed.
+- **Mnemonic regeneration (#21)** — REFRAMED to a memory-hook *quality gate*. Regeneration
+  is ~80% already shipped; the real lever is gating on quality. 77 stuck words still carry a
+  hook; the existing gate trusts the LLM's lenient self-eval and strips scores before storage.
+  Calibrating the bar against user ratings before building (independent critic → persist score
+  → display gate). See `eval-hook-quality-2026-05-22.html`.
+
+### Lesson
+
+Real data inverted the code-level read: #25 looked strongest on code inspection (a real
+documented dead-zone with plumbing precedent) but production data showed it obsolete — the
+March collateral-intro flow already solved it. A 2-month-old idea can be correct-in-March
+and obsolete-now. Always check current data, not just current code, before reviving stale work.
+
+---
+
 ## 2026-05-22: Two lemma-quality bugs — inflected-form-as-lemma + etymology↔gloss mismatch
 
 ### What prompted it
