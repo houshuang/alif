@@ -136,6 +136,17 @@ function LayoutInner({ online }: { online: boolean }) {
         </View>
       )}
       <Tabs
+        // Every screen — including detail pages like word/[id] and
+        // polyglot-lemma/[id] — is a flat sibling tab here (no <Stack>). The
+        // bottom-tab default backBehavior is "firstRoute", so router.back() from
+        // any detail jumps to the FIRST tab (index = Arabic Reading), not the
+        // tab you opened it from. Alif tolerated this by luck (its detail screens
+        // open from index), but Polyglot opens the philology page from
+        // polyglot-review, so back landed on Arabic index → the language-sync
+        // effect then bounced to /polyglot (Greek Reading) — never Review.
+        // "history" makes back return to the previously focused tab, so
+        // philology → back → polyglot-review works (and reader → back → reader).
+        backBehavior="history"
         screenOptions={{
           headerStyle: { backgroundColor: colors.surface },
           headerTintColor: colors.text,
