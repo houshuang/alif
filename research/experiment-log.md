@@ -4,6 +4,54 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-05-22: Memory-hook mnemonics DISABLED — quality not reliably gateable
+
+### What prompted it
+
+Triage of PR #21 (mnemonic regeneration) reframed the problem to *quality-gating* memory
+hooks — most stored mnemonics are weak; the user wanted only genuinely good ones shown, without
+wasting tokens. We tried to build an automated quality gate (independent LLM critic) calibrated
+to the user's taste.
+
+### Experiment
+
+Two calibration batches via the calibration-eval skill (`research/eval-hook-quality-2026-05-22.html`
++ `-batch2-`): the user rated 49 hooks (batch 1) then 45 fresh hooks (batch 2). Batch 1 = teaching
+examples; batch 2 = held-out validation. An independent CLI-Sonnet critic (json-schema constrained)
+was iterated: v1 (sound-led rubric) κ=0.44, v2 (picturability-led) κ=0.29, v3 (few-shot with the 49
+labels) on held-out batch 2 → **κ = −0.12 (worse than chance)**.
+
+### Findings
+
+- The criteria *invert* across sessions: tight-sound + picturable + absurd hooks (RUM-MAN→pomegranate,
+  GNAW→grow, TORPEDO→expel) were rated **bad** in batch 2, while loose/abstract ones (IKKE→stay,
+  AVID→want, IST-HIER→ashamed) were rated **great** — the opposite of batch 1.
+- Likely true driver is "semantic inevitability" (does the meaning fall out *necessarily*: AVID *is*
+  want; a HEADER *causes* head numbness) — but that is subjective, holistic, and not stable across the
+  user's own sessions (batch 1 was 71% bad, batch 2 56%). That combination caps achievable κ near zero.
+- The existing generation gate trusts the LLM's *self-evaluated* scores (lenient) and strips them
+  before storage, so quality was never persisted or auditable.
+
+### Decision
+
+**Turn mnemonics OFF** (a missing hook is better than a bad one — the user's own generation prompt
+already says this). Do NOT ship an automated upfront gate; the held-out test says it isn't learnable.
+
+- Generation: `memory_hooks.memory_hooks_enabled()` gated on `ALIF_MEMORY_HOOKS_ENABLED` (default off);
+  short-circuits both `generate_memory_hooks` and `regenerate_memory_hooks_premium` (covers all 5
+  trigger sites). Stops token spend.
+- Display: `frontend/lib/feature-flags.ts` `SHOW_MNEMONIC_HOOKS=false` gates the mnemonic on all three
+  screens (review, learn, word detail). Cognates/collocations/usage_context/fun_fact are unaffected.
+- Reversible via the two flags. Future revisit would need either many more labels (the held-out κ says
+  ~49 is far too few) or an outcome-based in-app thumbs signal, not more rubric tweaking.
+
+### How to verify
+
+`pytest tests/test_memory_hooks.py` (pure-function tests still pass). In the app, mnemonics no longer
+appear; cognate/etymology sections still do. No new `memory_hooks_json` rows created while the flag is off.
+
+---
+
 ## 2026-05-22: Triaged five abandoned 2026-03-21 experiment PRs against production data
 
 ### What prompted it
