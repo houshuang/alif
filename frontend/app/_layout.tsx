@@ -20,6 +20,14 @@ import {
   NotoSans_400Regular,
   NotoSans_400Regular_Italic,
 } from "@expo-google-fonts/noto-sans";
+// Greek display/body face for Polyglot. Loaded here (the single useFonts call
+// for the whole app) so it's actually available at runtime — the prior
+// Cormorant Garamond reference in polyglot-design-tokens was never registered,
+// so Greek silently fell back to Georgia (web) / system sans (iOS).
+import {
+  EBGaramond_400Regular,
+  EBGaramond_600SemiBold,
+} from "@expo-google-fonts/eb-garamond";
 import { colors } from "../lib/theme";
 import { netStatus, useNetStatus } from "../lib/net-status";
 import { flushQueue } from "../lib/sync-queue";
@@ -41,6 +49,8 @@ export default function Layout() {
     NotoNaskhArabic_700Bold,
     NotoSans_400Regular,
     NotoSans_400Regular_Italic,
+    EBGaramond_400Regular,
+    EBGaramond_600SemiBold,
   });
   const online = useNetStatus();
 

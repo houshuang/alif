@@ -502,7 +502,6 @@ const styles = StyleSheet.create({
   gloss: {
     fontSize: POLYGLOT_TYPE.gloss,
     fontFamily: POLYGLOT_FONTS.greekDisplay,
-    fontStyle: "italic",
     marginTop: 6,
     color: POLYGLOT_COLORS.text,
   },
@@ -523,7 +522,6 @@ const styles = StyleSheet.create({
   },
   chipGreek: {
     fontFamily: POLYGLOT_FONTS.greekDisplay,
-    fontStyle: "italic",
     fontSize: 13,
   },
 
@@ -623,7 +621,6 @@ const styles = StyleSheet.create({
   },
   stageNote: {
     fontSize: POLYGLOT_TYPE.meta,
-    fontStyle: "italic",
     color: POLYGLOT_COLORS.textSecondary,
     marginTop: 4,
     lineHeight: 17,
@@ -683,7 +680,6 @@ const styles = StyleSheet.create({
   qtext: {
     fontFamily: POLYGLOT_FONTS.greekDisplay,
     fontSize: 17,
-    fontStyle: "italic",
     color: POLYGLOT_COLORS.text,
     lineHeight: 23,
   },
@@ -763,7 +759,6 @@ const styles = StyleSheet.create({
   emptyHintText: {
     fontSize: POLYGLOT_TYPE.bodySmall,
     color: POLYGLOT_COLORS.textTertiary,
-    fontStyle: "italic",
     textAlign: "center",
   },
 });

@@ -213,7 +213,6 @@ const styles = StyleSheet.create({
     fontFamily: POLYGLOT_FONTS.greekBody,
     fontSize: POLYGLOT_TYPE.body,
     color: POLYGLOT_COLORS.textTertiary,
-    fontStyle: "italic",
   },
   posPill: {
     backgroundColor: POLYGLOT_COLORS.surfaceMuted,
@@ -249,7 +248,6 @@ const styles = StyleSheet.create({
     fontSize: POLYGLOT_TYPE.glossInline,
     color: POLYGLOT_COLORS.text,
     fontFamily: POLYGLOT_FONTS.greekDisplay,
-    fontStyle: "italic",
   },
   metaRow: {
     flexDirection: "row",
@@ -277,13 +275,11 @@ const styles = StyleSheet.create({
     fontFamily: POLYGLOT_FONTS.greekDisplay,
     fontSize: 16,
     color: POLYGLOT_COLORS.cognate,
-    fontStyle: "italic",
   },
   driftPeek: {
     flex: 1,
     fontSize: POLYGLOT_TYPE.bodySmall,
     color: POLYGLOT_COLORS.textSecondary,
-    fontStyle: "italic",
   },
   quoteBlock: {
     paddingHorizontal: 12,
@@ -297,7 +293,6 @@ const styles = StyleSheet.create({
   quoteText: {
     fontFamily: POLYGLOT_FONTS.greekDisplay,
     fontSize: 17,
-    fontStyle: "italic",
     color: POLYGLOT_COLORS.text,
     lineHeight: 22,
   },
