@@ -1,13 +1,30 @@
 """Tests for the DB-wide chimera audit (Phase 7 of warm_sentence_cache)."""
 from __future__ import annotations
 
+import pytest
+
 from app.models import ActivityLog, Lemma
 from app.services.chimera_audit import (
     ChimeraCandidate,
     check_and_alert,
     emit_chimera_alert,
     find_chimera_candidates,
+    _etym_gloss_matches_derivation,
 )
+
+
+@pytest.mark.parametrize("gloss,derivation,expected", [
+    # genuine loanwords — pre-filter should EXCLUDE (match=True)
+    ("jacket", "From English 'jacket', from Middle French 'jaquette'", True),
+    ("television", "From French 'télévision', combining Greek τῆλε", True),  # accent
+    ("cakes", "From English 'cake'", True),  # bidirectional: cake' in cakes
+    ("pizza", "From Italian 'pizza' (savory pie)", True),
+    # real mismatches — pre-filter should KEEP as suspect (match=False)
+    ("repentance, returning to God", "From English 'laptop' (portable computer)", False),
+    ("tour", "From European languages; likely from French 'joule'", False),
+])
+def test_d6_prefilter_overlap(gloss, derivation, expected):
+    assert _etym_gloss_matches_derivation(gloss, derivation) is expected
 
 
 def test_d1_form_v_root_bare(db_session):

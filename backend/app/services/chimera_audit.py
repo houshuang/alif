@@ -22,13 +22,17 @@ ActivityLog emission in ``emit_chimera_alert``.
 """
 from __future__ import annotations
 
+import json
 import logging
 import os
 import re
+import unicodedata
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 from typing import Optional
 
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.models import ActivityLog, Lemma, Root
@@ -183,11 +187,19 @@ def find_chimera_candidates(db: Session) -> list[ChimeraCandidate]:
 
 # ── D6: etymology_json that describes a different word than the gloss ──────
 # Cheap deterministic pre-filter (no LLM) then a bounded LLM coherence confirm.
-# The pre-filter keeps genuine loanwords (gloss "jacket" ↔ "From English
-# 'jacket'") out by requiring zero content-word overlap between gloss and
-# derivation, so the LLM only sees true suspects (the #65 laptop/repentance
-# case). Filling the gap left by bare_shape_check, which only inspects
-# forms_json, never the etymology_json.
+# The pre-filter excludes genuine loanwords (gloss "jacket" ↔ "From English
+# 'jacket'") by an accent-aware overlap between gloss and derivation, so the
+# LLM mostly sees true suspects (the #65 laptop/repentance case). Fills the gap
+# left by bare_shape_check, which only inspects forms_json, never etymology_json.
+#
+# The pre-filter can't textually exclude every loanword (gloss "living room" ↔
+# "From French 'salon'" share no string), so the *cron* path only LLM-checks
+# lemmas created since the last run (id-floor checkpoint) — the inline coherence
+# gate in lemma_enrichment is the real generation-time guard, and the one-time
+# cleanup_etymology_mismatches.py sweep handled the historical backlog. A manual
+# `chimera_audit.py --etymology` (since_lemma_id=0) re-scans everything.
+
+_ETYM_CHECKPOINT_FILE = Path(__file__).resolve().parents[2] / "data" / "etym_coherence_checkpoint.json"
 
 _ETYM_STOPWORDS = frozenset({
     "from", "the", "a", "an", "of", "to", "or", "and", "in", "into", "via",
@@ -202,11 +214,34 @@ _ETYM_STOPWORDS = frozenset({
 })
 
 
+def _strip_accents(text: str) -> str:
+    return "".join(
+        c for c in unicodedata.normalize("NFKD", (text or "").lower())
+        if not unicodedata.combining(c)
+    )
+
+
 def _etym_tokens(text: str) -> set[str]:
     return {
         t for t in re.findall(r"[a-z]+", (text or "").lower())
         if len(t) > 2 and t not in _ETYM_STOPWORDS
     }
+
+
+def _etym_gloss_matches_derivation(gloss: str, derivation: str) -> bool:
+    """True if the etymology plausibly belongs to this gloss (genuine loanword).
+
+    Accent-aware and bidirectional: a gloss content word appearing in the
+    derivation (television ↔ télévision), or a quoted source word appearing in
+    the gloss (cake' ↔ cakes). Cheap funnel only — the LLM is the arbiter for
+    survivors.
+    """
+    deriv_norm = _strip_accents(derivation)
+    gloss_norm = _strip_accents(gloss)
+    if any(t in deriv_norm for t in _etym_tokens(gloss)):
+        return True
+    quoted = re.findall(r"'([^']+)'", deriv_norm)
+    return any(len(q) > 2 and q in gloss_norm for q in quoted)
 
 
 def _is_loanword_mode(etym: dict) -> bool:
@@ -221,19 +256,20 @@ def find_etymology_incoherence_candidates(
     db: Session,
     limit: int = 30,
     llm_verify: bool = True,
+    since_lemma_id: int = 0,
 ) -> list[ChimeraCandidate]:
     """Find lemmas whose etymology_json describes a different word than the gloss.
 
     Pre-filter (cheap): a loanword-mode etymology (no root_meaning / pattern,
     "From <lang>..." derivation) on a lemma that HAS an Arabic root, where the
-    gloss shares no content word with the derivation. That funnels out genuine
-    loanwords (gloss "jacket" ↔ "From English 'jacket'") and leaves true
-    suspects (gloss "repentance" ↔ a "laptop" etymology — the #65 case).
+    gloss does not match the derivation (accent-aware, bidirectional). That
+    funnels out genuine loanwords and leaves true suspects (gloss "repentance"
+    ↔ a "laptop" etymology — the #65 case).
 
-    With ``llm_verify`` (default), suspects are confirmed by a Haiku coherence
-    pass and only confirmed-incoherent ones are returned. With it off, the raw
-    pre-filter suspects are returned (note marks them unverified) for a cheap
-    CLI dry run.
+    ``since_lemma_id`` restricts to lemmas created after that id (the cron passes
+    the checkpoint floor so it only checks new arrivals). ``llm_verify`` (default)
+    confirms suspects with a Haiku pass and returns only confirmed-incoherent
+    ones; off returns the raw pre-filter suspects (unverified) for a cheap CLI run.
     """
     suspects: list[Lemma] = []
     rows = (
@@ -242,16 +278,16 @@ def find_etymology_incoherence_candidates(
             Lemma.canonical_lemma_id.is_(None),
             Lemma.root_id.isnot(None),
             Lemma.etymology_json.isnot(None),
+            Lemma.lemma_id > since_lemma_id,
         )
+        .order_by(Lemma.lemma_id)
         .all()
     )
     for lem in rows:
         etym = lem.etymology_json if isinstance(lem.etymology_json, dict) else None
         if not etym or not _is_loanword_mode(etym):
             continue
-        gloss_tokens = _etym_tokens(lem.gloss_en or "")
-        deriv_tokens = _etym_tokens(etym.get("derivation") or "")
-        if gloss_tokens and (gloss_tokens & deriv_tokens):
+        if _etym_gloss_matches_derivation(lem.gloss_en or "", etym.get("derivation") or ""):
             continue  # source word matches the gloss → genuine loanword
         suspects.append(lem)
         if len(suspects) >= limit:
@@ -359,18 +395,44 @@ def emit_chimera_alert(
     )
 
 
+def _read_etym_checkpoint() -> int:
+    """Highest lemma_id already D6-checked, persisted in a small JSON file."""
+    try:
+        return int(json.loads(_ETYM_CHECKPOINT_FILE.read_text()).get("max_lemma_id", 0))
+    except Exception:
+        return 0
+
+
+def _write_etym_checkpoint(max_lemma_id: int) -> None:
+    try:
+        _ETYM_CHECKPOINT_FILE.parent.mkdir(parents=True, exist_ok=True)
+        _ETYM_CHECKPOINT_FILE.write_text(json.dumps({
+            "max_lemma_id": max_lemma_id,
+            "updated_at": datetime.now(timezone.utc).isoformat(),
+        }))
+    except Exception:
+        logger.warning("Could not write etym coherence checkpoint", exc_info=True)
+
+
 def check_and_alert(db: Session) -> list[ChimeraCandidate]:
     """Convenience wrapper for cron / warm-cache callers.
 
     Runs the structural D1..D5 scan plus the LLM-confirmed D6 etymology
-    coherence check (bounded; set ``ALIF_ETYM_COHERENCE_AUDIT=0`` to skip).
-    The D6 LLM calls run before any ActivityLog write, so no SQLite write lock
-    is held during them.
+    coherence check (set ``ALIF_ETYM_COHERENCE_AUDIT=0`` to skip). D6 only
+    LLM-checks lemmas created since the last run (id-floor checkpoint), so the
+    cron stays cheap — the inline generation-time gate is the real guard. D6 LLM
+    calls run before any ActivityLog write, so no SQLite write lock is held.
     """
     candidates = find_chimera_candidates(db)
     if os.environ.get("ALIF_ETYM_COHERENCE_AUDIT", "1") == "1":
         try:
-            candidates += find_etymology_incoherence_candidates(db)
+            floor = _read_etym_checkpoint()
+            current_max = db.query(func.max(Lemma.lemma_id)).scalar() or 0
+            if current_max > floor:
+                candidates += find_etymology_incoherence_candidates(
+                    db, limit=50, since_lemma_id=floor,
+                )
+                _write_etym_checkpoint(current_max)
         except Exception:
             logger.exception("Etymology coherence audit failed; continuing")
     if candidates:
