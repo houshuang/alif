@@ -31,6 +31,7 @@ import {
 import { renderTokens } from "../lib/polyglot-render-helpers";
 import PolyglotLookupCard from "../lib/polyglot-lookup-card";
 import { POLYGLOT_COLORS } from "../lib/polyglot-design-colors";
+import { POLYGLOT_FONTS } from "../lib/polyglot-design-tokens";
 
 // Per-page tap-cycle persistence. Red (0) and yellow (1) marks survive
 // page navigation and app reloads so the user keeps the visual record of
@@ -100,11 +101,10 @@ type ReadingCursor = {
 // independent of how the backend's ULK state has evolved since.
 //
 // 2026-05-21: palette aligned with the polyglot Modern Editorial design
-// (POLYGLOT_COLORS in lib/polyglot-design-colors.ts). The reader keeps the
-// serif Greek body — Cormorant Garamond / Georgia is the same family Modern
-// Editorial uses for the detail screen — but trades the dark warm-slate
-// surface for a light editorial one. Same visual language across reader,
-// lookup card, intro card, and the new lemma detail page.
+// (POLYGLOT_COLORS in lib/polyglot-design-colors.ts). The reader shares the
+// EB Garamond Greek body the sentence-review and lemma-detail screens use, but
+// trades the dark warm-slate surface for a light editorial one. Same visual
+// language across reader, lookup card, intro card, and lemma detail page.
 const C = {
   bg: POLYGLOT_COLORS.bg,
   surface: POLYGLOT_COLORS.surface,
@@ -484,16 +484,14 @@ export default function Polyglot() {
   );
 }
 
-// Book-reader typography. The body text uses a serif on iOS (Georgia is
-// bundled, has solid Greek polytonic coverage) and falls back to the system
-// serif elsewhere. Line-height ~1.65× font size is the Bringhurst sweet spot.
-const SERIF = Platform.select({
-  ios: "Georgia",
-  android: "serif",
-  default: "Georgia, 'Noto Serif', serif",
-});
-const BODY_FONT_SIZE = 20;
-const BODY_LINE_HEIGHT = 33;
+// Book-reader typography. Body prose is EB Garamond (greekBody / 400) — the
+// same Greek face the sentence-review and lemma-detail screens use, loaded via
+// @expo-google-fonts in app/_layout.tsx. Headings use greekDisplay (SemiBold).
+// EB Garamond's x-height runs a touch smaller than Georgia's, so the body is
+// nudged to 21px; line-height ~1.6× is the Bringhurst sweet spot.
+const SERIF = POLYGLOT_FONTS.greekBody;
+const BODY_FONT_SIZE = 21;
+const BODY_LINE_HEIGHT = 34;
 const READING_MAX_WIDTH = 680;          // measure cap for tablet/web
 
 const styles = StyleSheet.create({
@@ -506,8 +504,8 @@ const styles = StyleSheet.create({
   headerLink: { color: C.accent, fontSize: 13, letterSpacing: 0.2 },
   pageLabel: { color: C.inkMuted, fontSize: 12, letterSpacing: 0.8 },
 
-  h1: { fontSize: 28, fontWeight: "700", color: C.ink, marginBottom: 4,
-        paddingHorizontal: 24, fontFamily: SERIF },
+  h1: { fontSize: 28, color: C.ink, marginBottom: 4,
+        paddingHorizontal: 24, fontFamily: POLYGLOT_FONTS.greekDisplay },
   sub: { fontSize: 13, color: C.inkMuted, marginBottom: 20, paddingHorizontal: 24 },
   empty: { color: C.inkMuted, marginTop: 24, paddingHorizontal: 24,
            fontFamily: Platform.select({ ios: "Menlo", default: "monospace" }), fontSize: 12 },
@@ -516,7 +514,7 @@ const styles = StyleSheet.create({
               marginHorizontal: 24, paddingVertical: 16, paddingHorizontal: 16,
               backgroundColor: C.surface, borderRadius: 10, marginBottom: 10,
               borderWidth: 1, borderColor: C.border },
-  storyTitle: { color: C.ink, fontSize: 17, fontWeight: "600", fontFamily: SERIF },
+  storyTitle: { color: C.ink, fontSize: 17, fontFamily: POLYGLOT_FONTS.greekDisplay },
   storyMeta: { color: C.inkMuted, fontSize: 12, marginTop: 4 },
   chevron: { color: C.inkMuted, fontSize: 24 },
 
