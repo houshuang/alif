@@ -19,9 +19,12 @@
  * slice is empty rather than rendering a skeleton — a missing diachrony list
  * usually means the cron just hasn't enriched this lemma yet.
  */
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Animated,
+  Dimensions,
+  PanResponder,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -39,6 +42,9 @@ import {
   eraColor,
 } from "../../lib/polyglot-design-colors";
 import { POLYGLOT_FONTS } from "../../lib/polyglot-design-tokens";
+
+const SCREEN_WIDTH = Dimensions.get("window").width;
+const SWIPE_BACK_THRESHOLD = 90; // px of rightward drag that commits to "back"
 
 export default function PolyglotLemmaDetailScreen() {
   const params = useLocalSearchParams<{ id: string }>();
@@ -68,6 +74,49 @@ export default function PolyglotLemmaDetailScreen() {
     };
   }, [lemmaId]);
 
+  const goBack = useCallback(() => {
+    if (router.canGoBack()) router.back();
+    else router.replace("/polyglot");
+  }, [router]);
+  const goBackRef = useRef(goBack);
+  goBackRef.current = goBack;
+
+  // Swipe-right-to-go-back. This screen lives in the Tabs navigator (not a
+  // native stack), so it gets no built-in edge-swipe gesture — we add one with
+  // PanResponder, mirroring the horizontal-pan pattern in WordInfoCard. Only a
+  // clearly-horizontal rightward drag is captured, so vertical scrolling of the
+  // philology body still works. translateX is reset whenever the lemma changes
+  // so a tab that's reused (rather than remounted) doesn't stay slid off-screen.
+  const translateX = useRef(new Animated.Value(0)).current;
+  useEffect(() => { translateX.setValue(0); }, [lemmaId, translateX]);
+  const panResponder = useRef(
+    PanResponder.create({
+      onMoveShouldSetPanResponder: (_, g) =>
+        g.dx > 12 && Math.abs(g.dx) > Math.abs(g.dy) * 2,
+      onMoveShouldSetPanResponderCapture: (_, g) =>
+        g.dx > 20 && Math.abs(g.dx) > Math.abs(g.dy) * 3,
+      onPanResponderMove: (_, g) => {
+        if (g.dx > 0) translateX.setValue(g.dx);
+      },
+      onPanResponderRelease: (_, g) => {
+        if (g.dx > SWIPE_BACK_THRESHOLD) {
+          Animated.timing(translateX, {
+            toValue: SCREEN_WIDTH,
+            duration: 160,
+            useNativeDriver: true,
+          }).start(() => goBackRef.current());
+        } else {
+          Animated.spring(translateX, {
+            toValue: 0,
+            useNativeDriver: true,
+            tension: 120,
+            friction: 9,
+          }).start();
+        }
+      },
+    }),
+  ).current;
+
   if (loading) {
     return (
       <SafeAreaView style={styles.loadingWrap} edges={["top"]}>
@@ -77,31 +126,31 @@ export default function PolyglotLemmaDetailScreen() {
     );
   }
 
-  const goBack = () => {
-    if (router.canGoBack()) router.back();
-    else router.replace("/polyglot");
-  };
-
   if (error || !detail) {
     return (
-      <SafeAreaView style={styles.loadingWrap} edges={["top"]}>
-        <Stack.Screen options={{ headerShown: false }} />
-        <View style={styles.topbar}>
-          <Pressable onPress={goBack} hitSlop={10}>
-            <Text style={styles.backLink}>‹ Back</Text>
-          </Pressable>
-        </View>
-        <View style={{ padding: 24, alignItems: "center", gap: 8 }}>
-          <Text style={{ color: POLYGLOT_COLORS.text, fontSize: 16 }}>
-            Couldn't load lemma {lemmaId}.
-          </Text>
-          {error ? (
-            <Text style={{ color: POLYGLOT_COLORS.textSecondary, fontSize: 12 }}>
-              {error}
+      <Animated.View
+        style={[styles.root, { transform: [{ translateX }] }]}
+        {...panResponder.panHandlers}
+      >
+        <SafeAreaView style={styles.loadingWrap} edges={["top"]}>
+          <Stack.Screen options={{ headerShown: false }} />
+          <View style={styles.topbar}>
+            <Pressable onPress={goBack} hitSlop={10}>
+              <Text style={styles.backLink}>‹ Back</Text>
+            </Pressable>
+          </View>
+          <View style={{ padding: 24, alignItems: "center", gap: 8 }}>
+            <Text style={{ color: POLYGLOT_COLORS.text, fontSize: 16 }}>
+              Couldn't load lemma {lemmaId}.
             </Text>
-          ) : null}
-        </View>
-      </SafeAreaView>
+            {error ? (
+              <Text style={{ color: POLYGLOT_COLORS.textSecondary, fontSize: 12 }}>
+                {error}
+              </Text>
+            ) : null}
+          </View>
+        </SafeAreaView>
+      </Animated.View>
     );
   }
 
@@ -118,6 +167,10 @@ export default function PolyglotLemmaDetailScreen() {
   const ancientForm = detail.cognate_lemma_form ?? etymology?.ancient_form ?? null;
 
   return (
+    <Animated.View
+      style={[styles.root, { transform: [{ translateX }] }]}
+      {...panResponder.panHandlers}
+    >
     <SafeAreaView style={styles.root} edges={["top"]}>
       <Stack.Screen options={{ headerShown: false }} />
       <View style={styles.topbar}>
@@ -295,6 +348,7 @@ export default function PolyglotLemmaDetailScreen() {
         ) : null}
       </ScrollView>
     </SafeAreaView>
+    </Animated.View>
   );
 }
 
