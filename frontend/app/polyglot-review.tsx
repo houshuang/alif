@@ -222,6 +222,11 @@ export default function PolyglotReview() {
             setGlossWordIdx(snap.glossWordIdx);
             sessionIdRef.current = snap.sessionId;
             shownIntroLemmaIdsRef.current = new Set(snap.shownIntroLemmaIds ?? []);
+            // Restart the response-time clock on resume. Deliberate: response_ms
+            // is analytics-only (no scheduling impact), and the alternative —
+            // restoring the original shownAt — would fold the (often multi-minute)
+            // philology-reading detour into response_ms, polluting fast/slow
+            // signals far worse than under-counting pre-detour time does.
             shownAtRef.current = Date.now();
             setLoading(false);
             return;
@@ -314,6 +319,13 @@ export default function PolyglotReview() {
 
   const advanceSlot = useCallback(() => {
     if (index + 1 >= slots.length) {
+      // Final slot consumed — drop the snapshot before loading the next session.
+      // Non-final slots advance the snapshot past the submitted card via the
+      // index bump below, but on the last slot we don't bump index; without this
+      // clear, a failed/interrupted reload would leave the snapshot pointing at
+      // the just-submitted card, and a remount could rehydrate and let the user
+      // re-submit it (a fresh client_review_id bypasses backend idempotency).
+      AsyncStorage.removeItem(REVIEW_SNAPSHOT_KEY).catch(() => {});
       void loadSession();
     } else {
       setIndex(index + 1);

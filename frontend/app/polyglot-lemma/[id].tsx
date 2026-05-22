@@ -98,13 +98,21 @@ export default function PolyglotLemmaDetailScreen() {
       onPanResponderMove: (_, g) => {
         if (g.dx > 0) translateX.setValue(g.dx);
       },
+      // Don't relinquish the gesture once we've claimed it.
+      onPanResponderTerminationRequest: () => false,
       onPanResponderRelease: (_, g) => {
         if (g.dx > SWIPE_BACK_THRESHOLD) {
           Animated.timing(translateX, {
             toValue: SCREEN_WIDTH,
             duration: 160,
             useNativeDriver: true,
-          }).start(() => goBackRef.current());
+          }).start(() => {
+            goBackRef.current();
+            // Reset for the reuse case: if this tab is kept alive (not
+            // remounted) and the same lemma is reopened, the lemmaId effect
+            // won't refire, so leave translateX at 0 rather than off-screen.
+            translateX.setValue(0);
+          });
         } else {
           Animated.spring(translateX, {
             toValue: 0,
@@ -113,6 +121,16 @@ export default function PolyglotLemmaDetailScreen() {
             friction: 9,
           }).start();
         }
+      },
+      // If the gesture is interrupted mid-drag (release never fires), spring the
+      // half-dragged screen back into place instead of leaving it offset.
+      onPanResponderTerminate: () => {
+        Animated.spring(translateX, {
+          toValue: 0,
+          useNativeDriver: true,
+          tension: 120,
+          friction: 9,
+        }).start();
       },
     }),
   ).current;
