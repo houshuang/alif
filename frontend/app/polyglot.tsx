@@ -73,6 +73,24 @@ async function saveCyclePositions(
   }
 }
 
+// Reading-cursor persistence. The lemma-detail screen is a hidden sibling tab,
+// not a stacked route, so navigating into it tears this reader down; on return
+// React rebuilds it fresh and the mount effect would otherwise reload the
+// story's first content page — losing your page, scroll, and open lookup card.
+// We stash that cursor and restore it on remount. Recency-gated (CURSOR_TTL_MS)
+// so a genuine cold start long afterwards still opens on the story list rather
+// than hijacking straight into the last page read.
+const CURSOR_STORAGE_KEY = "@polyglot:readingCursor";
+const CURSOR_TTL_MS = 15 * 60 * 1000;
+
+type ReadingCursor = {
+  storyId: number;
+  pageNumber: number;
+  scrollY: number;
+  selectedPosition: number | null; // token position of the open lookup-card word
+  savedAt: number;
+};
+
 // Reading palette. We treat the page as a book, not a flashcard surface:
 // every word in body text renders in the same warm ink color, function
 // words included. The only in-body color signal is the user's tap-cycle
@@ -135,6 +153,15 @@ export default function Polyglot() {
   const detailRequestRef = useRef(0);
   const [bulkMarking, setBulkMarking] = useState(false);
   const scrollRef = useRef<ScrollView>(null);
+  // Reading-cursor machinery (see CURSOR_STORAGE_KEY). scrollYRef tracks the
+  // live scroll offset; pendingScrollYRef carries a to-be-restored offset until
+  // the ScrollView has laid out; pendingRestoreRef/overridePageRef drive the
+  // restore path; restoredRef makes restoration fire at most once.
+  const scrollYRef = useRef(0);
+  const pendingScrollYRef = useRef<number | null>(null);
+  const pendingRestoreRef = useRef<ReadingCursor | null>(null);
+  const overridePageRef = useRef<number | null>(null);
+  const restoredRef = useRef(false);
   const insets = useSafeAreaInsets();
 
   useEffect(() => { listStories().then(setStories).catch(() => setStories([])); }, []);
@@ -150,9 +177,23 @@ export default function Polyglot() {
         loadCyclePositions(sid, p),
       ]);
       setCyclePositions(savedPositions);
+      // If this load is restoring a saved cursor for this exact page, re-apply
+      // the scroll offset (deferred to onContentSizeChange, once laid out) and
+      // re-open the lookup card; otherwise start the page at the top.
+      const restore = pendingRestoreRef.current;
+      if (restore && restore.storyId === sid && restore.pageNumber === data.page_number) {
+        pendingRestoreRef.current = null;
+        pendingScrollYRef.current = restore.scrollY > 0 ? restore.scrollY : null;
+        if (restore.selectedPosition != null) {
+          const tok = data.tokens.find((t) => t.position === restore.selectedPosition);
+          if (tok) setSelected(tok);
+        }
+      } else {
+        pendingScrollYRef.current = null;
+        scrollRef.current?.scrollTo({ y: 0, animated: false });
+      }
       setPageData(data);
       setPageNumber(data.page_number);
-      scrollRef.current?.scrollTo({ y: 0, animated: false });
     } catch (e) {
       console.warn("Page load failed:", e);
     } finally {
@@ -162,13 +203,59 @@ export default function Polyglot() {
 
   useEffect(() => {
     if (storyId == null) return;
-    // Land on the first "real content" page (skip copyright / TOC / title
-    // pages) instead of always page 1. Falls back to 1 if the heuristic
-    // didn't surface a content page.
+    // overridePageRef is set when restoring a saved cursor — load that exact
+    // page rather than jumping to the first content page. Otherwise land on the
+    // first "real content" page (skip copyright / TOC / title pages), falling
+    // back to 1 if the heuristic didn't surface one.
+    const override = overridePageRef.current;
+    overridePageRef.current = null;
     const story = stories?.find((s) => s.id === storyId);
-    const startPage = story?.first_content_page_number ?? 1;
-    loadPage(storyId, startPage);
+    const page = override ?? story?.first_content_page_number ?? 1;
+    loadPage(storyId, page);
   }, [storyId, loadPage, stories]);
+
+  // Restore the last reading position after a remount. Only auto-resumes when
+  // the cursor is fresh (the detail round-trip is seconds) and we're still on
+  // the story list — a stale cursor from a previous day leaves you on the list.
+  useEffect(() => {
+    if (restoredRef.current) return;
+    if (stories == null) return;   // wait for the story list to resolve
+    if (storyId != null) return;   // already reading — nothing to restore
+    restoredRef.current = true;
+    (async () => {
+      try {
+        const raw = await AsyncStorage.getItem(CURSOR_STORAGE_KEY);
+        if (!raw) return;
+        const cur: ReadingCursor = JSON.parse(raw);
+        if (cur?.storyId == null) return;
+        if (Date.now() - (cur.savedAt ?? 0) > CURSOR_TTL_MS) return;
+        if (!stories.some((s) => s.id === cur.storyId)) return;
+        pendingRestoreRef.current = cur;
+        overridePageRef.current = cur.pageNumber;
+        setStoryId(cur.storyId);
+      } catch {
+        // ignore — fall back to the story list
+      }
+    })();
+  }, [stories, storyId]);
+
+  // Persist the reading cursor so the restore effect above can land you back on
+  // the same page, scroll offset, and open lookup card. Fires on any cursor
+  // change; skipped mid-restore so it can't clobber a not-yet-applied offset.
+  const persistCursor = useCallback(() => {
+    if (storyId == null) return;
+    if (pendingScrollYRef.current != null) return; // restore in flight
+    const cursor: ReadingCursor = {
+      storyId,
+      pageNumber,
+      scrollY: scrollYRef.current,
+      selectedPosition: selected?.position ?? null,
+      savedAt: Date.now(),
+    };
+    AsyncStorage.setItem(CURSOR_STORAGE_KEY, JSON.stringify(cursor)).catch(() => {});
+  }, [storyId, pageNumber, selected]);
+
+  useEffect(() => { persistCursor(); }, [persistCursor]);
 
   // Lazy-fetch full lemma detail (with enrichment) when a word is tapped.
   // The lookup card renders immediately from `selected`; enrichment fills in
@@ -279,7 +366,13 @@ export default function Polyglot() {
   return (
     <View style={[styles.screen, { paddingTop: insets.top + 8 }]}>
       <View style={styles.headerRow}>
-        <Pressable onPress={() => { setStoryId(null); setPageData(null); setSelected(null); }}>
+        <Pressable onPress={() => {
+          // Explicitly leaving for the library is a deliberate "done reading
+          // here" — drop the cursor so a later remount doesn't auto-resume
+          // back into this book.
+          AsyncStorage.removeItem(CURSOR_STORAGE_KEY).catch(() => {});
+          setStoryId(null); setPageData(null); setSelected(null);
+        }}>
           <Text style={styles.headerLink}>‹ Library</Text>
         </Pressable>
         <Text style={styles.pageLabel}>
@@ -293,7 +386,20 @@ export default function Polyglot() {
       {loading || !pageData ? (
         <ActivityIndicator color={C.accent} style={{ marginTop: 40 }} />
       ) : (
-        <ScrollView ref={scrollRef} contentContainerStyle={styles.pageBody}>
+        <ScrollView
+          ref={scrollRef}
+          contentContainerStyle={styles.pageBody}
+          scrollEventThrottle={100}
+          onScroll={(e) => { scrollYRef.current = e.nativeEvent.contentOffset.y; }}
+          onContentSizeChange={() => {
+            const y = pendingScrollYRef.current;
+            pendingScrollYRef.current = null;
+            if (y != null && y > 0) {
+              scrollRef.current?.scrollTo({ y, animated: false });
+              scrollYRef.current = y;
+            }
+          }}
+        >
           <View style={styles.column}>
             <Text style={styles.greekText} selectable={false}>
               {renderTokens(
@@ -355,7 +461,7 @@ export default function Polyglot() {
               frequencyRank={detail?.frequency_rank ?? null}
               cycleColor={dotColor}
               surfaceForm={selected.surface}
-              onViewDetails={() => router.push(`/polyglot-lemma/${lemmaId}`)}
+              onViewDetails={() => { persistCursor(); router.push(`/polyglot-lemma/${lemmaId}`); }}
               onClose={() => setSelected(null)}
             />
           </View>
