@@ -26,24 +26,36 @@ The three gates the picker DOES honor (Hard Invariants from
   content lemmas. ``FUNCTION_WORD_SETS[language_code]`` and
   ``Lemma.word_category in ('function_word', 'proper_name')`` both exclude.
 
-Source preference (per 2026-05-21 spec — flipped from the 2026-05-20 original):
+Source preference (per 2026-05-22 spec — strengthened from the 2026-05-21
+multiplier so generated material is *strictly* preferred):
 
-1. **Fresh LLM sentence preferred**. A novel context proves the word stuck;
-   re-showing the page-of-record right after the learner read it on the page
-   is zero-friction recall, which is exactly what we DON'T want at review
-   time. Source bonus puts ``llm`` above ``textbook``/``story``/``import``.
-2. **Recently-viewed page sentences are softly penalised**. If a candidate
-   sentence's page was viewed within ``PAGE_COOLDOWN_DAYS`` (7) days,
-   its score is multiplied by ``RECENT_PAGE_PENALTY`` (0.2). It still ranks
-   above nothing — we'd rather show a stale page sentence than skip the lemma
-   for the session if no LLM sentence covers it yet (graceful fallback during
-   the lag between tapping unknown and the cron generating).
-3. **Never-shown sentences win tie-breakers**. Within a single score class,
-   prefer sentences with the lowest ``times_shown`` count; among equal
+1. **Generated (LLM) sentences strictly outrank textbook sentences.** Source
+   is the *primary* sort key, not a score multiplier. Any ``llm`` sentence
+   beats any non-``llm`` (textbook page-of-record) sentence regardless of
+   comprehensibility. Review wants recall in a novel context — re-showing the
+   page the learner just read is zero-friction recognition, not recall. The
+   previous (2026-05-21) ``llm × 1.5`` multiplier was not strong enough: a
+   fully-comprehensible textbook sentence (score ``1.0``) still beat a
+   half-comprehensible llm sentence (``0.65 × 1.5 = 0.975``), so book
+   sentences kept surfacing at review time.
+2. **Within a tier, comprehensibility + page cooldown order candidates.**
+   ``score = (0.3 + 0.7·comprehensibility) · cooldown``. A textbook sentence
+   whose page was viewed within ``PAGE_COOLDOWN_DAYS`` (7) days is multiplied
+   by ``RECENT_PAGE_PENALTY`` (0.2) so older / unread-page fallbacks rank
+   above the page the learner just finished reading.
+3. **Never-shown sentences win tie-breakers**. Within a single (tier, score)
+   class, prefer sentences with the lowest ``times_shown`` count; among equal
    ``times_shown``, prefer the most recently created (newer LLM material
    beats older).
 4. **None**, when no eligible sentence covers the lemma at all. Caller
    defers to generation or skips the lemma.
+
+Book sentences remain a graceful fallback: when no generated sentence covers
+the lemma yet — the lag between tapping an unknown word and the warm-cache
+cron generating — the picker still returns the textbook sentence rather than
+skipping the lemma for the session. Those fallback sentences are translated
+lazily by ``material_generator.translate_untranslated_sentences`` in the cron
+so a fallback never reaches the screen without an English line.
 """
 from __future__ import annotations
 
@@ -65,17 +77,11 @@ logger = logging.getLogger(__name__)
 KNOWN_STATES = frozenset({"known", "learning"})
 DEFAULT_SESSION_LIMIT = 15
 
-SOURCE_BONUS = {
-    # 2026-05-21: LLM now outranks textbook/story/import. The picker is run at
-    # *review* time, when the goal is to test recall in a novel context — not
-    # to re-show the page-of-record the learner just finished reading.
-    "llm": 1.5,
-    "textbook": 1.0,
-    "story": 1.0,
-    "import": 1.0,
-    "manual": 1.0,
-}
-DEFAULT_SOURCE_BONUS = 1.0
+# 2026-05-22: source is the PRIMARY sort key (a tier), not a score multiplier.
+# Any sentence whose source is in GENERATED_SOURCES strictly outranks every
+# other ("book"/page-of-record) candidate — see the module docstring for why
+# the old multiplier wasn't strong enough.
+GENERATED_SOURCES = frozenset({"llm"})
 
 # Soft penalty applied when a candidate sentence's page was viewed within the
 # cooldown window. Multiplicative: a strong (~0.2) penalty drops the page
@@ -157,6 +163,7 @@ class _Scored:
     scaffold_known: int
     page_first: bool                    # retained for back-compat / introspection
     selection_reason: str
+    generated: bool = False             # primary sort tier: llm strictly beats book
     times_shown: int = 0                # for tie-break: prefer never-shown
 
 
@@ -243,12 +250,13 @@ def pick_sentence_for_lemma(
     if not scored:
         return None
 
-    # Sort by score (desc), then prefer never-shown sentences (smaller
-    # times_shown), then newer-created (larger id ≈ newer in practice for the
-    # polyglot DB since ids are autoincrement). Reverse turns "smaller
-    # times_shown wins" into the right order by negating.
+    # Sort by source tier first (generated strictly beats book), then score
+    # (desc), then prefer never-shown sentences (smaller times_shown), then
+    # newer-created (larger id ≈ newer in practice for the polyglot DB since
+    # ids are autoincrement). Reverse turns "generated first" and "smaller
+    # times_shown wins" into the right order by booleans-as-ints / negation.
     scored.sort(
-        key=lambda c: (c.score, -c.times_shown, c.sentence.id),
+        key=lambda c: (c.generated, c.score, -c.times_shown, c.sentence.id),
         reverse=True,
     )
     best = scored[0]
@@ -343,12 +351,13 @@ def _score_candidate(
         all_known = (scaffold_known == scaffold_total)
 
     base = 0.3 + 0.7 * comprehensibility
-    source_bonus = SOURCE_BONUS.get(sentence.source or "", DEFAULT_SOURCE_BONUS)
+    generated = (sentence.source or "") in GENERATED_SOURCES
 
-    # Page cooldown — a page sentence whose page was viewed within the last
-    # PAGE_COOLDOWN_DAYS gets a strong multiplicative penalty so any fresh LLM
-    # alternative outranks it. Pages never viewed (viewed_at IS NULL) and
-    # pages viewed long ago receive no penalty.
+    # Page cooldown — a textbook sentence whose page was viewed within the last
+    # PAGE_COOLDOWN_DAYS gets a strong multiplicative penalty so an older /
+    # never-read page fallback outranks it. Pages never viewed (viewed_at IS
+    # NULL) and pages viewed long ago receive no penalty. Only orders within
+    # the book tier now — the generated tier wins outright regardless.
     recent_pages = recent_page_view_ids or set()
     page_recently_viewed = (
         sentence.page_id is not None and sentence.page_id in recent_pages
@@ -356,10 +365,11 @@ def _score_candidate(
     cooldown_bonus = RECENT_PAGE_PENALTY if page_recently_viewed else 1.0
 
     # `page_first` is retained for back-compat (selection_reason + dataclass
-    # field) but no longer feeds the score. The new ranking is LLM-first.
+    # field) but no longer feeds the score. The ranking is generated-first
+    # (the `generated` tier in the sort key), then this within-tier score.
     page_first = sentence.page_id is not None and all_known
 
-    score = base * source_bonus * cooldown_bonus
+    score = base * cooldown_bonus
 
     if page_recently_viewed:
         reason = "page_cooldown_fallback"
@@ -382,6 +392,7 @@ def _score_candidate(
         scaffold_known=scaffold_known,
         page_first=page_first,
         selection_reason=reason,
+        generated=generated,
         times_shown=sentence.times_shown or 0,
     )
 

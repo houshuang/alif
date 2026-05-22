@@ -82,8 +82,15 @@ def _resolve_model(raw: str) -> str:
 
 GEN_MODEL = _resolve_model(os.environ.get("POLYGLOT_GEN_MODEL", "sonnet"))
 VERIFY_MODEL = _resolve_model(os.environ.get("POLYGLOT_VERIFY_MODEL", "haiku"))
+# Translation of harvested book sentences is structurally simpler than
+# generation — Haiku is plenty, and 10× cheaper.
+TRANSLATE_MODEL = _resolve_model(os.environ.get("POLYGLOT_TRANSLATE_MODEL", "haiku"))
 GEN_TIMEOUT_S = int(os.environ.get("POLYGLOT_GEN_TIMEOUT", "240"))
 VERIFY_TIMEOUT_S = int(os.environ.get("POLYGLOT_VERIFY_TIMEOUT", "180"))
+TRANSLATE_TIMEOUT_S = int(os.environ.get("POLYGLOT_TRANSLATE_TIMEOUT", "180"))
+# Sentences per translation LLM call. Translation is short and uniform, so we
+# batch generously — one Haiku call covers a whole page's worth of fallbacks.
+TRANSLATE_BATCH_SIZE = max(1, int(os.environ.get("POLYGLOT_TRANSLATE_BATCH_SIZE", "12")))
 
 # Cap each batch to a reasonable size — Alif measured the sweet spot at 4-6
 # targets per Sonnet call. More than that and the prompt context noise
@@ -127,6 +134,7 @@ LANG_DISPLAY = {
 
 
 _warm_cache_lock = threading.Lock()
+_translate_lock = threading.Lock()
 
 
 def _log_dir() -> Path:
@@ -1093,3 +1101,240 @@ def warm_sentence_cache(
         }
     finally:
         _warm_cache_lock.release()
+
+
+# ─── Book-sentence translation ──────────────────────────────────────────────
+#
+# Harvested textbook sentences (``sentence_harvest``) are created with
+# ``translation_en = NULL`` — harvesting is pure DB compute and holds no LLM
+# call (write-lock discipline). The picker prefers generated sentences, but a
+# book sentence is still served as a graceful fallback when no LLM sentence
+# covers a due lemma yet. Without this pass those fallbacks render with a blank
+# English line. We translate them lazily in the cron (the "pre-warm" window),
+# never on the read path.
+
+
+def _translate_prompt(language_code: str, items: list[dict]) -> str:
+    lang = LANG_DISPLAY.get(language_code, language_code)
+    block = "\n".join(f"[id={it['id']}] «{it['text']}»" for it in items)
+    return f"""You are translating {lang} sentences to English for a learner.
+
+Translate each sentence below to faithful, natural English. Do not
+transliterate, do not add notes or commentary, and keep each translation to a
+single concise English rendering of the input.
+
+Each translation must reference the bracketed id so we can route it back.
+Skip nothing.
+
+Sentences:
+{block}
+
+Return JSON with this shape:
+{{"translations": [{{"id": <int>, "english": "<translation>"}}, ...]}}
+"""
+
+
+def _translate_schema() -> dict:
+    return {
+        "type": "object",
+        "properties": {
+            "translations": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "id": {"type": "integer"},
+                        "english": {"type": "string"},
+                    },
+                    "required": ["id", "english"],
+                },
+            },
+        },
+        "required": ["translations"],
+    }
+
+
+def translate_sentences_batch(
+    language_code: str,
+    items: list[dict],
+) -> dict[int, str]:
+    """One Haiku call → ``{sentence_id: english}``.
+
+    ``items`` is a list of ``{"id": int, "text": str}``. Returns an empty dict
+    on total LLM failure (caller skips that batch). Only ids present in the
+    request are accepted back; empty translations are dropped.
+    """
+    if not items:
+        return {}
+    requested_ids = {it["id"] for it in items}
+    cmd = [
+        "claude", "-p",
+        "--output-format", "json",
+        "--model", TRANSLATE_MODEL,
+        "--json-schema", json.dumps(_translate_schema()),
+        _translate_prompt(language_code, items),
+    ]
+    started = time.time()
+    structured = _call_cli(cmd, TRANSLATE_TIMEOUT_S)
+    elapsed = time.time() - started
+    if not structured:
+        _log_pipeline({
+            "event": "translate_batch_failed",
+            "language_code": language_code,
+            "sentence_ids": sorted(requested_ids),
+            "elapsed_s": round(elapsed, 1),
+            "model": TRANSLATE_MODEL,
+        })
+        return {}
+
+    out: dict[int, str] = {}
+    for t in structured.get("translations", []) or []:
+        if not isinstance(t, dict):
+            continue
+        sid = t.get("id")
+        english = (t.get("english") or "").strip()
+        if not isinstance(sid, int) or sid not in requested_ids or not english:
+            continue
+        out[sid] = english
+
+    _log_pipeline({
+        "event": "translate_batch_returned",
+        "language_code": language_code,
+        "requested": len(requested_ids),
+        "returned": len(out),
+        "elapsed_s": round(elapsed, 1),
+        "model": TRANSLATE_MODEL,
+    })
+    return out
+
+
+def _untranslated_sentence_rows(
+    db: Session,
+    language_code: str,
+    limit: int,
+) -> list[tuple[int, str]]:
+    """Active + verified sentences that lack an English translation AND cover a
+    lemma in active study (acquiring/learning/known/lapsed).
+
+    Scoping to active-study lemmas is both correct and frugal: those are the
+    only book sentences the picker can serve as a fallback, so a sentence
+    covering only never-engaged vocabulary would never be shown and isn't worth
+    a Claude call. Newest sentences first — freshly harvested pages are the
+    ones the learner is most likely reading right now. Joining the ULK table
+    (rather than an ``IN`` over thousands of ids) keeps the statement bounded.
+    """
+    rows = (
+        db.query(Sentence.id, Sentence.text)
+        .join(SentenceWord, SentenceWord.sentence_id == Sentence.id)
+        .join(UserLemmaKnowledge, UserLemmaKnowledge.lemma_id == SentenceWord.lemma_id)
+        .filter(
+            Sentence.language_code == language_code,
+            Sentence.is_active.is_(True),
+            Sentence.mappings_verified_at.isnot(None),
+            (Sentence.translation_en.is_(None))
+            | (func.length(func.trim(Sentence.translation_en)) == 0),
+            UserLemmaKnowledge.knowledge_state.in_(
+                ["acquiring", "learning", "known", "lapsed"]
+            ),
+        )
+        .distinct()
+        .order_by(Sentence.id.desc())
+        .limit(limit)
+        .all()
+    )
+    return [(sid, text) for sid, text in rows if text]
+
+
+def translate_untranslated_sentences(
+    language_code: str = "el",
+    *,
+    max_sentences: int = 200,
+    batch_size: int = TRANSLATE_BATCH_SIZE,
+) -> dict:
+    """Background task: fill ``translation_en`` for untranslated book sentences
+    covering active-study lemmas.
+
+    Three-phase, write-lock-safe: read pending ids+text (commit/close), call
+    Claude with no DB session open, then write each batch's results in a fast
+    per-batch commit. Idempotent — the write only fills rows whose translation
+    is still NULL/empty, so a concurrent reader or a re-run never clobbers an
+    existing translation. Locked so two cron passes don't double-spend Claude.
+    """
+    if not _translate_lock.acquire(blocking=False):
+        return {"skipped": True, "reason": "translate_busy"}
+
+    run_id = uuid.uuid4().hex[:8]
+    started = time.monotonic()
+    try:
+        # ── Phase 1: read ──
+        db = database.SessionLocal()
+        try:
+            pending = _untranslated_sentence_rows(db, language_code, max_sentences)
+        finally:
+            db.close()
+
+        if not pending:
+            _log_pipeline({
+                "event": "translate_no_pending",
+                "language_code": language_code,
+                "run_id": run_id,
+            })
+            return {"run_id": run_id, "pending": 0, "translated": 0}
+
+        total_translated = 0
+        for i in range(0, len(pending), batch_size):
+            batch = pending[i:i + batch_size]
+            items = [{"id": sid, "text": text} for sid, text in batch]
+
+            # ── Phase 2: LLM (no DB session open) ──
+            translations = translate_sentences_batch(language_code, items)
+            if not translations:
+                continue
+
+            # ── Phase 3: write (fast per-batch commit) ──
+            db = database.SessionLocal()
+            try:
+                written = 0
+                for sid, english in translations.items():
+                    eng = (english or "").strip()
+                    if not eng:
+                        continue
+                    written += (
+                        db.query(Sentence)
+                        .filter(
+                            Sentence.id == sid,
+                            Sentence.language_code == language_code,
+                            (Sentence.translation_en.is_(None))
+                            | (func.length(func.trim(Sentence.translation_en)) == 0),
+                        )
+                        .update(
+                            {Sentence.translation_en: eng},
+                            synchronize_session=False,
+                        )
+                    )
+                db.commit()
+                total_translated += written
+            except Exception:
+                db.rollback()
+                log.exception(
+                    "Failed to write translations batch (language=%s)", language_code
+                )
+            finally:
+                db.close()
+
+        elapsed = time.monotonic() - started
+        _log_pipeline({
+            "event": "translate_done",
+            "language_code": language_code,
+            "run_id": run_id,
+            "pending": len(pending),
+            "translated": total_translated,
+            "elapsed_s": round(elapsed, 1),
+        })
+        return {
+            "run_id": run_id,
+            "pending": len(pending),
+            "translated": total_translated,
+        }
+    finally:
+        _translate_lock.release()

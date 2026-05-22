@@ -16,7 +16,12 @@
 #   2. warm_sentence_cache for Modern Greek
 #      — finds acquiring/learning/known lemmas below ACTIVE_TARGET sentence
 #        coverage and generates more via Claude CLI (Sonnet) + Haiku verify.
-#   3. enrich_lemma_philology for Modern Greek
+#   3. translate_sentences for Modern Greek
+#      — fills translation_en for harvested book sentences (left NULL by the
+#        harvest, which holds no LLM call) that cover an active-study lemma, so
+#        the picker's book-sentence fallback never renders blank. Haiku, lazy:
+#        only ever runs here, never on the read path.
+#   4. enrich_lemma_philology for Modern Greek
 #      — fills LemmaEnrichment (etymology, diachrony, cognates, quotes,
 #        register) for engaged lemmas. Surfaced in the lookup card + lemma
 #        detail screen (Modern Editorial design).
@@ -45,7 +50,12 @@ TIMEOUT_SECONDS="${POLYGLOT_WARM_TIMEOUT_SECONDS:-1200}"
 PAGES_BUFFER="${POLYGLOT_PAGES_AHEAD_BUFFER:-5}"
 PAGES_MAX_PER_RUN="${POLYGLOT_PAGES_AHEAD_MAX_PER_RUN:-5}"
 PAGES_TIMEOUT_SECONDS="${POLYGLOT_PAGES_AHEAD_TIMEOUT_SECONDS:-1200}"
-# 2026-05-21: third phase enriches lemmas with philological data (etymology,
+# 2026-05-22: translate harvested book sentences whose translation_en is still
+# NULL (covering an active-study lemma). Haiku, batched 12/call — 200 sentences
+# is ~17 calls, comfortably under the phase timeout.
+TRANSLATE_MAX_SENTENCES="${POLYGLOT_TRANSLATE_MAX_SENTENCES:-200}"
+TRANSLATE_TIMEOUT_SECONDS="${POLYGLOT_TRANSLATE_TIMEOUT_SECONDS:-1200}"
+# 2026-05-21: fourth phase enriches lemmas with philological data (etymology,
 # diachrony, cognates, quotes, register). Selector prioritises active study:
 # acquiring (sorted by next-due) → learning/lapsed → encountered. `known`
 # lemmas are excluded — once a word is learnt the lookup card stops being
@@ -93,6 +103,11 @@ run_phase "warm_sentence_cache" timeout "$TIMEOUT_SECONDS" \
   --language "$LANGUAGE" \
   --max-lemmas "$MAX_LEMMAS" \
   --sentences-per-target "$SENTENCES_PER_TARGET"
+
+run_phase "translate_sentences" timeout "$TRANSLATE_TIMEOUT_SECONDS" \
+  "$VENV" scripts/translate_sentences.py \
+  --language "$LANGUAGE" \
+  --max-sentences "$TRANSLATE_MAX_SENTENCES"
 
 run_phase "enrich_lemma_philology" timeout "$ENRICH_TIMEOUT_SECONDS" \
   "$VENV" scripts/enrich_lemma_philology.py \
