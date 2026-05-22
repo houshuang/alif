@@ -31,9 +31,9 @@
  *   - audio controls / listening mode — no TTS in polyglot yet
  *   - wrap-up quiz / session-end journey — deferred
  */
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
-  View, Text, Pressable, StyleSheet, ActivityIndicator, ScrollView,
+  View, Text, Pressable, StyleSheet, ActivityIndicator, ScrollView, Modal,
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter } from "expo-router";
@@ -365,6 +365,20 @@ export default function PolyglotReview() {
     advanceSlot();
   }, [advanceSlot]);
 
+  // Manual "Refresh session" — discard the in-flight session (and its snapshot)
+  // and pull a fresh one from the server. loadSession clears the snapshot when
+  // the new session is empty; a non-empty one is re-persisted by the snapshot
+  // effect. Mirrors Alif's "Refresh session" overflow action (index.tsx).
+  const handleRefreshSession = useCallback(() => {
+    AsyncStorage.removeItem(REVIEW_SNAPSHOT_KEY).catch(() => {});
+    void loadSession();
+  }, [loadSession]);
+
+  const handleBackToReader = useCallback(() => {
+    if (router.canGoBack()) router.back();
+    else router.push("/polyglot");
+  }, [router]);
+
   if (loading) {
     return (
       <View style={styles.center}>
@@ -426,6 +440,9 @@ export default function PolyglotReview() {
           label={currentIntro.intro_kind === "rescue" ? "rescue card" : "new word"}
           current={index + 1}
           total={slots.length}
+          trailing={
+            <OverflowMenu onRefresh={handleRefreshSession} onBack={handleBackToReader} />
+          }
         />
         <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
           <IntroCardView
@@ -465,7 +482,13 @@ export default function PolyglotReview() {
 
   return (
     <View style={[styles.container, { paddingTop: Math.max(insets.top, 12) }]}>
-      <ProgressHeader current={index + 1} total={slots.length} />
+      <ProgressHeader
+        current={index + 1}
+        total={slots.length}
+        trailing={
+          <OverflowMenu onRefresh={handleRefreshSession} onBack={handleBackToReader} />
+        }
+      />
 
       <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
         <View style={styles.card}>
@@ -772,17 +795,63 @@ function ProgressHeader({
   label,
   current,
   total,
-}: { label?: string; current: number; total: number }) {
+  trailing,
+}: { label?: string; current: number; total: number; trailing?: ReactNode }) {
   const ratio = total > 0 ? Math.max(0, Math.min(1, current / total)) : 0;
   return (
     <View style={styles.header}>
       <View style={styles.progressRow}>
         <Text style={styles.progressLabel}>{label ?? ""}</Text>
-        <Text style={styles.progressCount}>Card {current} of {total}</Text>
+        <View style={styles.progressRight}>
+          <Text style={styles.progressCount}>Card {current} of {total}</Text>
+          {trailing}
+        </View>
       </View>
       <View style={styles.progressTrack}>
         <View style={[styles.progressFill, { width: `${ratio * 100}%` }]} />
       </View>
+    </View>
+  );
+}
+
+/**
+ * Overflow ("...") menu — Alif's ActionMenu shape (index.tsx) ported lean.
+ * Bottom-sheet modal with the actions polyglot actually supports: "Refresh
+ * session" (the affordance the user was missing) and "Back to reader". Alif's
+ * Ask AI / suspend / flag items are cut — polyglot has no endpoints for them
+ * (polyglot/CLAUDE.md: drop fields the backend doesn't accept, don't stub).
+ */
+function OverflowMenu({
+  onRefresh,
+  onBack,
+}: { onRefresh: () => void; onBack: () => void }) {
+  const [visible, setVisible] = useState(false);
+  const run = (fn: () => void) => () => { setVisible(false); fn(); };
+  return (
+    <View>
+      <Pressable onPress={() => setVisible(true)} hitSlop={10} style={styles.menuTrigger}>
+        <Ionicons name="ellipsis-horizontal" size={20} color={C.textMuted} />
+      </Pressable>
+      <Modal
+        visible={visible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setVisible(false)}
+      >
+        <Pressable style={styles.menuBackdrop} onPress={() => setVisible(false)}>
+          <View style={styles.menuSheet} onStartShouldSetResponder={() => true}>
+            <View style={styles.menuHandle} />
+            <Pressable style={styles.menuItem} onPress={run(onRefresh)}>
+              <Ionicons name="refresh-outline" size={20} color={C.text} />
+              <Text style={styles.menuLabel}>Refresh session</Text>
+            </Pressable>
+            <Pressable style={styles.menuItem} onPress={run(onBack)}>
+              <Ionicons name="arrow-back-outline" size={20} color={C.text} />
+              <Text style={styles.menuLabel}>Back to reader</Text>
+            </Pressable>
+          </View>
+        </Pressable>
+      </Modal>
     </View>
   );
 }
@@ -813,9 +882,10 @@ const styles = StyleSheet.create({
   // Header: progress count row + filled-track bar (Alif-style progress bar).
   header: { marginBottom: 12 },
   progressRow: {
-    flexDirection: "row", justifyContent: "space-between", alignItems: "baseline",
+    flexDirection: "row", justifyContent: "space-between", alignItems: "center",
     marginBottom: 8,
   },
+  progressRight: { flexDirection: "row", alignItems: "center", gap: 12 },
   progressLabel: {
     color: C.textMuted, fontSize: 12, fontWeight: "600",
     letterSpacing: 0.3, textTransform: "lowercase",
@@ -823,6 +893,25 @@ const styles = StyleSheet.create({
   progressCount: {
     color: C.textMuted, fontSize: 12, fontWeight: "600", letterSpacing: 0.3,
   },
+  // Overflow ("...") menu — bottom-sheet styled to the Folio palette, mirroring
+  // Alif's ActionMenu sheet (rounded top, drag handle, full-width rows).
+  menuTrigger: { width: 28, height: 28, alignItems: "center", justifyContent: "center" },
+  menuBackdrop: {
+    flex: 1, backgroundColor: "rgba(0,0,0,0.45)", justifyContent: "flex-end",
+  },
+  menuSheet: {
+    backgroundColor: C.surface, borderTopLeftRadius: 16, borderTopRightRadius: 16,
+    paddingTop: 8, paddingBottom: 34, borderWidth: 1, borderColor: C.border,
+  },
+  menuHandle: {
+    width: 36, height: 4, borderRadius: 2, backgroundColor: C.textMuted,
+    alignSelf: "center", marginBottom: 8, opacity: 0.5,
+  },
+  menuItem: {
+    flexDirection: "row", alignItems: "center", gap: 14,
+    paddingVertical: 14, paddingHorizontal: 20,
+  },
+  menuLabel: { color: C.text, fontSize: 16 },
   progressTrack: {
     height: 3, backgroundColor: C.border, borderRadius: 1.5, overflow: "hidden",
   },

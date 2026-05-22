@@ -456,6 +456,106 @@ def test_warm_cache_no_op_when_no_gaps(tmp_db, fake_claude):
     assert fake_claude["calls"] == []
 
 
+# ─── Book-sentence translation ───────────────────────────────────────────────
+
+
+def _translate_response(mapping: dict[int, str]) -> _FakeProc:
+    """Fake Haiku translation response: {sentence_id: english}."""
+    return _FakeProc(stdout=_envelope({
+        "translations": [{"id": sid, "english": eng} for sid, eng in mapping.items()],
+    }))
+
+
+def _seed_book_sentence(db, lemma_id: int, *, surface: str = "βιβλίο",
+                        text: str = "το βιβλίο είναι μεγάλο",
+                        translation_en: str | None = None) -> Sentence:
+    s = Sentence(
+        language_code="el",
+        text=text,
+        source="textbook",
+        translation_en=translation_en,
+        is_active=True,
+        mappings_verified_at=datetime.now(timezone.utc),
+    )
+    db.add(s)
+    db.flush()
+    db.add(SentenceWord(
+        sentence_id=s.id, position=0, surface_form=surface, lemma_id=lemma_id,
+    ))
+    db.flush()
+    return s
+
+
+def test_translate_fills_untranslated_book_sentence(tmp_db, fake_claude):
+    """A NULL-translation book sentence covering an active-study lemma gets its
+    translation_en filled by the Haiku pass."""
+    with tmp_db() as db:
+        lemma = _seed_lemma(db, form="βιβλίο", bare="βιβλιο", gloss="book")
+        _seed_acquiring(db, lemma.lemma_id)
+        s = _seed_book_sentence(db, lemma.lemma_id)
+        db.commit()
+        sid = s.id
+
+    fake_claude["script"] = [_translate_response({sid: "The book is big."})]
+
+    result = mg.translate_untranslated_sentences(language_code="el", max_sentences=50)
+    assert result["pending"] == 1
+    assert result["translated"] == 1
+
+    with tmp_db() as db:
+        row = db.query(Sentence).filter(Sentence.id == sid).first()
+        assert row.translation_en == "The book is big."
+
+
+def test_translate_skips_sentence_with_no_active_lemma(tmp_db, fake_claude):
+    """A book sentence whose only lemma is never-engaged (no ULK) is not a
+    pickable fallback, so it's not worth a Claude call — nothing pending."""
+    with tmp_db() as db:
+        lemma = _seed_lemma(db, form="βιβλίο", bare="βιβλιο", gloss="book")
+        # No ULK → not in active study.
+        _seed_book_sentence(db, lemma.lemma_id)
+        db.commit()
+
+    result = mg.translate_untranslated_sentences(language_code="el")
+    assert result["pending"] == 0
+    assert result["translated"] == 0
+    assert fake_claude["calls"] == []
+
+
+def test_translate_skips_already_translated(tmp_db, fake_claude):
+    """Idempotent: sentences that already have a translation are not re-sent."""
+    with tmp_db() as db:
+        lemma = _seed_lemma(db, form="βιβλίο", bare="βιβλιο", gloss="book")
+        _seed_acquiring(db, lemma.lemma_id)
+        _seed_book_sentence(db, lemma.lemma_id, translation_en="Already done.")
+        db.commit()
+
+    result = mg.translate_untranslated_sentences(language_code="el")
+    assert result["pending"] == 0
+    assert fake_claude["calls"] == []
+
+
+def test_translate_batch_failure_writes_nothing(tmp_db, fake_claude):
+    """LLM failure (non-zero exit) → translations dropped, translation_en stays
+    NULL (verification-failure-≠-success applied to translation)."""
+    with tmp_db() as db:
+        lemma = _seed_lemma(db, form="βιβλίο", bare="βιβλιο", gloss="book")
+        _seed_acquiring(db, lemma.lemma_id)
+        s = _seed_book_sentence(db, lemma.lemma_id)
+        db.commit()
+        sid = s.id
+
+    fake_claude["script"] = [_FakeProc(stdout="", stderr="boom", returncode=1)]
+
+    result = mg.translate_untranslated_sentences(language_code="el")
+    assert result["pending"] == 1
+    assert result["translated"] == 0
+
+    with tmp_db() as db:
+        row = db.query(Sentence).filter(Sentence.id == sid).first()
+        assert row.translation_en is None
+
+
 def test_warm_cache_counts_harvested_sentenceword_coverage(tmp_db, fake_claude):
     """Harvested textbook sentences have SentenceWord coverage but no target_lemma_id."""
     with tmp_db() as db:
