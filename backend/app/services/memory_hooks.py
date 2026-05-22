@@ -4,11 +4,21 @@ Called as a background task when words enter acquisition, or via backfill script
 """
 
 import logging
+import os
 
 from app.database import SessionLocal
 from app.models import Lemma
 
 logger = logging.getLogger(__name__)
+
+
+def memory_hooks_enabled() -> bool:
+    """Master switch for mnemonic generation. Disabled by default since 2026-05-22:
+    a calibration study found most auto-generated mnemonics low-quality and the
+    quality boundary not reliably gateable (held-out kappa = -0.12). Set
+    ALIF_MEMORY_HOOKS_ENABLED=1 to re-enable. See
+    research/analysis-2026-05-22-stale-pr-ideas.md."""
+    return os.getenv("ALIF_MEMORY_HOOKS_ENABLED", "0") == "1"
 
 SYSTEM_PROMPT = """You generate memory hooks for Arabic (MSA) vocabulary using the keyword mnemonic method (Atkinson & Raugh 1975). The learner speaks: English, Norwegian, Swedish, Danish, Hindi, German, French, Italian, Spanish, Greek, Latin, Indonesian, and some Russian.
 
@@ -276,6 +286,9 @@ def generate_memory_hooks(lemma_id: int) -> None:
     with Sonnet for quality. Since hooks are always background tasks
     and Claude CLI is free, there's no cost to better quality.
     """
+    if not memory_hooks_enabled():
+        return
+
     from app.services.llm import generate_completion, AllProvidersFailed
 
     db = SessionLocal()
@@ -345,6 +358,9 @@ def regenerate_memory_hooks_premium(lemma_id: int) -> None:
     picks the best. Uses Sonnet (stronger model) for better quality.
     Always overwrites existing hooks.
     """
+    if not memory_hooks_enabled():
+        return
+
     from app.services.llm import generate_completion, AllProvidersFailed
 
     db = SessionLocal()

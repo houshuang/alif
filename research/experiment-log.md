@@ -4,6 +4,94 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-05-22: Memory-hook mnemonics DISABLED — quality not reliably gateable
+
+### What prompted it
+
+Triage of PR #21 (mnemonic regeneration) reframed the problem to *quality-gating* memory
+hooks — most stored mnemonics are weak; the user wanted only genuinely good ones shown, without
+wasting tokens. We tried to build an automated quality gate (independent LLM critic) calibrated
+to the user's taste.
+
+### Experiment
+
+Two calibration batches via the calibration-eval skill (`research/eval-hook-quality-2026-05-22.html`
++ `-batch2-`): the user rated 49 hooks (batch 1) then 45 fresh hooks (batch 2). Batch 1 = teaching
+examples; batch 2 = held-out validation. An independent CLI-Sonnet critic (json-schema constrained)
+was iterated: v1 (sound-led rubric) κ=0.44, v2 (picturability-led) κ=0.29, v3 (few-shot with the 49
+labels) on held-out batch 2 → **κ = −0.12 (worse than chance)**.
+
+### Findings
+
+- The criteria *invert* across sessions: tight-sound + picturable + absurd hooks (RUM-MAN→pomegranate,
+  GNAW→grow, TORPEDO→expel) were rated **bad** in batch 2, while loose/abstract ones (IKKE→stay,
+  AVID→want, IST-HIER→ashamed) were rated **great** — the opposite of batch 1.
+- Likely true driver is "semantic inevitability" (does the meaning fall out *necessarily*: AVID *is*
+  want; a HEADER *causes* head numbness) — but that is subjective, holistic, and not stable across the
+  user's own sessions (batch 1 was 71% bad, batch 2 56%). That combination caps achievable κ near zero.
+- The existing generation gate trusts the LLM's *self-evaluated* scores (lenient) and strips them
+  before storage, so quality was never persisted or auditable.
+
+### Decision
+
+**Turn mnemonics OFF** (a missing hook is better than a bad one — the user's own generation prompt
+already says this). Do NOT ship an automated upfront gate; the held-out test says it isn't learnable.
+
+- Generation: `memory_hooks.memory_hooks_enabled()` gated on `ALIF_MEMORY_HOOKS_ENABLED` (default off);
+  short-circuits both `generate_memory_hooks` and `regenerate_memory_hooks_premium` (covers all 5
+  trigger sites). Stops token spend.
+- Display: `frontend/lib/feature-flags.ts` `SHOW_MNEMONIC_HOOKS=false` gates the mnemonic on all three
+  screens (review, learn, word detail). Cognates/collocations/usage_context/fun_fact are unaffected.
+- Reversible via the two flags. Future revisit would need either many more labels (the held-out κ says
+  ~49 is far too few) or an outcome-based in-app thumbs signal, not more rubric tweaking.
+
+### How to verify
+
+`pytest tests/test_memory_hooks.py` (pure-function tests still pass). In the app, mnemonics no longer
+appear; cognate/etymology sections still do. No new `memory_hooks_json` rows created while the flag is off.
+
+---
+
+## 2026-05-22: Triaged five abandoned 2026-03-21 experiment PRs against production data
+
+### What prompted it
+
+A repo-hygiene pass closed all open PRs. Five (#21–#25) were 2-month-old conflicting
+algorithm experiments. Rather than merge stale code, we re-evaluated each *idea*
+against current main + production data (44,741 reviews, 2,071 known words). Full
+write-up: `analysis-2026-05-22-stale-pr-ideas.md`.
+
+### Findings (production data)
+
+- **Dynamic session sizing (#22)** — REJECTED. Sessions already median 11 / mean 12
+  sentence-reviews (proposed base was 10); size does not track accuracy buckets; low-accuracy
+  sessions are smaller (self-quit). No ceiling effect to relieve.
+- **Response-time / fluency signal (#23)** — REJECTED. Next-review lapse rate after a
+  slow-correct review = 10.5% vs 12.7% after fast-correct: slowness predicts *fewer* lapses,
+  opposite of the hypothesis. 17% coverage; `response_ms` is whole-sentence reading time
+  (25s median), not per-word recognition.
+- **Familiar-encountered gate (#25)** — REJECTED. Only 2 encountered words have ≥8
+  encounters; exactly 1 sentence would become newly eligible. The 2026-03-18 collateral
+  auto-introduction flow already drains encountered words (85 exist total). The "dead-zone"
+  the idea targeted is empty.
+- **Rasm confusable-pair exclusion (#24)** — DEFERRED. Same-rasm co-occurrence correlates
+  with higher confusion (2.71% vs 1.75% was_confused) but the absolute is tiny (9 reviews);
+  interleaving-vs-spacing literature is mixed.
+- **Mnemonic regeneration (#21)** — REFRAMED to a memory-hook *quality gate*. Regeneration
+  is ~80% already shipped; the real lever is gating on quality. 77 stuck words still carry a
+  hook; the existing gate trusts the LLM's lenient self-eval and strips scores before storage.
+  Calibrating the bar against user ratings before building (independent critic → persist score
+  → display gate). See `eval-hook-quality-2026-05-22.html`.
+
+### Lesson
+
+Real data inverted the code-level read: #25 looked strongest on code inspection (a real
+documented dead-zone with plumbing precedent) but production data showed it obsolete — the
+March collateral-intro flow already solved it. A 2-month-old idea can be correct-in-March
+and obsolete-now. Always check current data, not just current code, before reviving stale work.
+
+---
+
 ## 2026-05-22: Two lemma-quality bugs — inflected-form-as-lemma + etymology↔gloss mismatch
 
 ### What prompted it
