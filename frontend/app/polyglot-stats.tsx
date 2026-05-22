@@ -550,7 +550,7 @@ const s = StyleSheet.create({
   },
   cardTitle: { color: C.text, fontSize: 14, fontWeight: "600" },
   cardSub: { color: C.textDim, fontSize: 12 },
-  emptyText: { color: C.textDim, fontStyle: "italic", fontSize: 13 },
+  emptyText: { color: C.textDim, fontSize: 13 },
 
   // Today tiles
   tileGrid: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
@@ -667,5 +667,5 @@ const s = StyleSheet.create({
   activityTime: { color: C.textFaint, fontSize: 10, marginTop: 2 },
 
   error: { color: C.unknown, padding: 20 },
-  footer: { color: C.textFaint, fontSize: 11, marginTop: 14, fontStyle: "italic", textAlign: "center" },
+  footer: { color: C.textFaint, fontSize: 11, marginTop: 14, textAlign: "center" },
 });

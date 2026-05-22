@@ -844,14 +844,14 @@ const styles = StyleSheet.create({
     color: C.textMuted, marginTop: 6,
   },
   introHeroGloss: {
-    fontSize: 20, fontFamily: POLYGLOT_FONTS.greekDisplay, fontStyle: "italic", color: C.text,
+    fontSize: 21, fontFamily: POLYGLOT_FONTS.greekBody, color: C.text,
   },
   introChips: {
     flexDirection: "row", gap: 5, marginTop: 10, flexWrap: "wrap", justifyContent: "center",
   },
   introChip: { paddingHorizontal: 9, paddingVertical: 4, borderRadius: POLYGLOT_RADIUS.chip },
   introChipText: { fontSize: 11, fontWeight: "600" },
-  introChipGreek: { fontFamily: POLYGLOT_FONTS.greekDisplay, fontStyle: "italic", fontSize: 13 },
+  introChipGreek: { fontFamily: POLYGLOT_FONTS.greekDisplay, fontSize: 13 },
   introRescueHint: {
     color: POLYGLOT_COLORS.warning, fontSize: 12, marginTop: 6, textAlign: "center",
   },
@@ -884,19 +884,19 @@ const styles = StyleSheet.create({
   },
   miniMeaning: { fontSize: 10, color: C.textDim, textAlign: "center", lineHeight: 13 },
   introQuoteText: {
-    fontFamily: POLYGLOT_FONTS.greekDisplay, fontSize: 17, fontStyle: "italic",
-    color: C.text, lineHeight: 23, marginTop: 2,
+    fontFamily: POLYGLOT_FONTS.greekBody, fontSize: 18,
+    color: C.text, lineHeight: 25, marginTop: 2,
   },
   introQuoteSource: {
     fontSize: 10, letterSpacing: 0.8, textTransform: "uppercase",
     color: C.textMuted, marginTop: 4,
   },
-  introQuoteTrans: { fontSize: 12, color: C.textDim, marginTop: 4, fontStyle: "italic" },
+  introQuoteTrans: { fontSize: 12, color: C.textDim, marginTop: 4 },
   viewDetailsRow: { alignSelf: "center", paddingVertical: 8 },
   viewDetailsLink: { color: C.accent, fontSize: 13, fontWeight: "600" },
   sentenceGreek: {
-    color: C.text, fontSize: 30, lineHeight: 46, textAlign: "left",
-    fontFamily: POLYGLOT_FONTS.greekDisplay, letterSpacing: 0.2,
+    color: C.text, fontSize: 32, lineHeight: 48, textAlign: "left",
+    fontFamily: POLYGLOT_FONTS.greekBody, letterSpacing: 0.2,
   },
   missedWord: {
     color: C.missed,
@@ -913,8 +913,8 @@ const styles = StyleSheet.create({
   answerSectionHidden: { opacity: 0 },
   divider: { height: 1, width: 48, backgroundColor: C.textMuted, marginBottom: 16 },
   sentenceEnglish: {
-    color: C.textDim, fontSize: 20, lineHeight: 28, textAlign: "left",
-    fontFamily: POLYGLOT_FONTS.greekDisplay, fontStyle: "italic",
+    color: C.textDim, fontSize: 21, lineHeight: 29, textAlign: "left",
+    fontFamily: POLYGLOT_FONTS.greekBody,
   },
   /* Tapped-word lookup card slot — sits below the sentence inside the same
    * sentence-card container. The PolyglotLookupCard component carries its
