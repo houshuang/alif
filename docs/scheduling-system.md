@@ -1364,6 +1364,9 @@ Normal word → Leech detected → Auto-suspended
   (rating ≤ 2), not on word introduction. For leeches being reintroduced, hooks
   likely already exist from previous failures. If the existing mnemonic didn't prevent
   lapsing, it gets regenerated with the premium overgenerate-and-rank method.
+  **NOTE (2026-05-22): mnemonic generation is DISABLED by default** (`ALIF_MEMORY_HOOKS_ENABLED`,
+  off) — calibration showed mnemonic quality not reliably gateable; see
+  `docs/design-principles.md`. These triggers no-op while disabled.
 
 ### Root-Sibling Interference Guard
 
