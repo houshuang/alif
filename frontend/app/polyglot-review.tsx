@@ -35,6 +35,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   View, Text, Pressable, StyleSheet, ActivityIndicator, ScrollView,
 } from "react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useLanguage } from "../lib/language-context";
@@ -93,6 +94,29 @@ const C = {
 
 type CardState = "front" | "back";
 
+// In-flight session snapshot. The lemma-detail screen is a hidden sibling tab
+// (no <Stack> anywhere — see polyglot/CLAUDE.md), so opening it tears this
+// screen down; on return React rebuilds it and the mount would otherwise
+// loadSession() a *fresh* server-generated session, dropping the learner's
+// place — sentence, reveal state, and word marks. We snapshot the whole session
+// and rehydrate it on remount. Recency-gated so a genuine cold start still pulls
+// a new session. `marks` is flattened to arrays because Set isn't JSON-safe.
+const REVIEW_SNAPSHOT_KEY = "@polyglot:reviewSnapshot";
+const REVIEW_SNAPSHOT_TTL_MS = 15 * 60 * 1000;
+
+type ReviewSnapshot = {
+  bundle: ReviewSessionBundle;
+  slots: SessionSlot[];
+  stats: AcquisitionStats | null;
+  index: number;
+  cardState: CardState;
+  marks: { missed: number[]; confused: number[] };
+  glossWordIdx: number | null;
+  sessionId: string;
+  shownIntroLemmaIds: number[];
+  savedAt: number;
+};
+
 export default function PolyglotReview() {
   const router = useRouter();
   const { language } = useLanguage();
@@ -124,6 +148,7 @@ export default function PolyglotReview() {
   // re-firing the same card on a prefetch reload before the server's ack has
   // propagated. Mirrors Alif's `alreadyShownIntroLemmaIds` parameter.
   const shownIntroLemmaIdsRef = useRef<Set<number>>(new Set());
+  const restoredRef = useRef(false);
 
   const currentSlot: SessionSlot | undefined = slots[index];
   const currentSentence: SentencePayload | undefined =
@@ -144,20 +169,24 @@ export default function PolyglotReview() {
         getReviewStats(),
       ]);
       sessionIdRef.current = generateSessionId();
-      setBundle(next);
-      setSlots(
-        buildInterleavedSlots(
-          next.sentences,
-          next.intro_cards,
-          shownIntroLemmaIdsRef.current,
-        ),
+      const nextSlots = buildInterleavedSlots(
+        next.sentences,
+        next.intro_cards,
+        shownIntroLemmaIdsRef.current,
       );
+      setBundle(next);
+      setSlots(nextSlots);
       setStats(s);
       setIndex(0);
       setCardState("front");
       setMarks(emptyMarks());
       setGlossWordIdx(null);
       shownAtRef.current = Date.now();
+      // An empty fresh session means any prior snapshot is spent — drop it so a
+      // later remount doesn't rehydrate an already-finished session.
+      if (nextSlots.length === 0) {
+        AsyncStorage.removeItem(REVIEW_SNAPSHOT_KEY).catch(() => {});
+      }
     } catch (e: any) {
       setError(e?.message ?? "Failed to load review session");
     } finally {
@@ -165,7 +194,68 @@ export default function PolyglotReview() {
     }
   }, [languageCode]);
 
-  useEffect(() => { void loadSession(); }, [loadSession]);
+  // On mount, rehydrate an in-flight session if one was snapshotted recently
+  // (the lemma-detail round-trip remounts this screen — see persistSnapshot);
+  // otherwise pull a fresh session from the server.
+  useEffect(() => {
+    if (restoredRef.current) return;
+    restoredRef.current = true;
+    (async () => {
+      try {
+        const raw = await AsyncStorage.getItem(REVIEW_SNAPSHOT_KEY);
+        if (raw) {
+          const snap: ReviewSnapshot = JSON.parse(raw);
+          if (
+            snap &&
+            Date.now() - (snap.savedAt ?? 0) <= REVIEW_SNAPSHOT_TTL_MS &&
+            snap.slots?.length
+          ) {
+            setBundle(snap.bundle);
+            setSlots(snap.slots);
+            setStats(snap.stats);
+            setIndex(snap.index);
+            setCardState(snap.cardState);
+            setMarks({
+              missed: new Set(snap.marks?.missed ?? []),
+              confused: new Set(snap.marks?.confused ?? []),
+            });
+            setGlossWordIdx(snap.glossWordIdx);
+            sessionIdRef.current = snap.sessionId;
+            shownIntroLemmaIdsRef.current = new Set(snap.shownIntroLemmaIds ?? []);
+            shownAtRef.current = Date.now();
+            setLoading(false);
+            return;
+          }
+        }
+      } catch {
+        // ignore — fall through to a fresh session
+      }
+      void loadSession();
+    })();
+  }, [loadSession]);
+
+  // Snapshot the in-flight session so the mount effect can rehydrate it after a
+  // remount. Fires on any session-state change, and again with the freshest
+  // state right before navigating into the detail screen. Skipped when there's
+  // no session yet.
+  const persistSnapshot = useCallback(() => {
+    if (slots.length === 0) return;
+    const snap: ReviewSnapshot = {
+      bundle,
+      slots,
+      stats,
+      index,
+      cardState,
+      marks: { missed: Array.from(marks.missed), confused: Array.from(marks.confused) },
+      glossWordIdx,
+      sessionId: sessionIdRef.current,
+      shownIntroLemmaIds: Array.from(shownIntroLemmaIdsRef.current),
+      savedAt: Date.now(),
+    };
+    AsyncStorage.setItem(REVIEW_SNAPSHOT_KEY, JSON.stringify(snap)).catch(() => {});
+  }, [bundle, slots, stats, index, cardState, marks, glossWordIdx]);
+
+  useEffect(() => { persistSnapshot(); }, [persistSnapshot]);
 
   // Stamp the server timestamp the instant we land on an intro slot. This is
   // what arms the working-memory gate: a correct review on this lemma within
@@ -328,7 +418,7 @@ export default function PolyglotReview() {
         <IntroCardView
           card={currentIntro}
           detail={lemmaDetailCache[currentIntro.lemma_id] ?? null}
-          onViewDetails={() => router.push(`/polyglot-lemma/${currentIntro.lemma_id}`)}
+          onViewDetails={() => { persistSnapshot(); router.push(`/polyglot-lemma/${currentIntro.lemma_id}`); }}
         />
         <View style={styles.actionRow}>
           <Pressable
@@ -386,7 +476,7 @@ export default function PolyglotReview() {
               enrichment={lemmaDetailCache[glossWord.lemma_id]?.enrichment ?? null}
               frequencyRank={lemmaDetailCache[glossWord.lemma_id]?.frequency_rank ?? null}
               surfaceForm={glossWord.surface_form}
-              onViewDetails={() => router.push(`/polyglot-lemma/${glossWord.lemma_id}`)}
+              onViewDetails={() => { persistSnapshot(); router.push(`/polyglot-lemma/${glossWord.lemma_id}`); }}
             />
           </View>
         ) : null}
