@@ -4,6 +4,30 @@ Running lab notebook for Alif's learning algorithm. Each entry documents what ch
 
 ---
 
+## 2026-05-22: Two lemma-quality bugs — inflected-form-as-lemma + etymology↔gloss mismatch
+
+### What prompted it
+
+Two review-card screenshots: (1) اعْبُدُوا ("worship!", imperative 2pl of عَبَدَ) was stored as its own lemma #2873 (`source=quran`, `canonical_lemma_id=NULL`, gloss "worship (pl.)"); (2) تَوْب ("repentance", lemma #65, root ت.و.ب) carried an `etymology_json` entirely about **"laptop"** (`derivation: "From English 'laptop'..."`, `related_loanwords: ["laptop","desktop"]`).
+
+### Root causes
+
+- **Inflected-as-lemma**: creation-time bug already fixed in code 2026-05-15 (`quran_service._camel_canonicalize_unknowns` reduces surfaces to dictionary form before lemma creation). #2873 was created 2026-04-01, a **leftover** the curated one-off sweep (`apply_quran_inflected_cleanup_2026_05_15.py`, 21 cases) didn't cover. Variant detection can only attach a variant to a canonical that already exists, so the first time a verb appears only as a conjugation it slips through as a brand-new canonical.
+- **Etymology↔gloss mismatch**: enrichment-time **hallucination**, no guard. `_generate_etymology_batch` (Claude Haiku) was free to frame any word as native-root or foreign-loanword. Given the bare string توب — literally the "-top" tail of لابتوب (laptop) — it invented a complete laptop etymology and ignored the gloss "repentance" + the root it was handed. Matching back to rows is by `lemma_id` (robust, not positional) and **no laptop lemma exists**, so this is not batch-misalignment — it's content hallucination stored verbatim because nothing validated etymology↔meaning coherence. `bare_shape_check` already flagged #65 via its forms_json ("لابتوبات") but never inspected the etymology_json. Sizing: the structural signature "loanword-mode etymology on a rooted word" = 138 lemmas, but ~137 are genuine loanwords (صالون, جاكيت, تلفزيون…) whose etymologies are correct — they merely got a spurious root_id. The reliable signal is gloss↔etymology coherence, not structure.
+
+### Changes
+
+- **Inflected-as-lemma (Part A)**: re-run `cleanup_inflected_quran_lemmas.py` to sweep remaining `source=quran` canonicals (~67); اعبدوا → PROMOTE_NEW عَبَدَ with FK reassignment of its 8 sentence_words + 4 sentence targets. No new code.
+- **Etymology (Part B), defense-in-depth in `lemma_enrichment.py`**:
+  1. Prompt hardening: anchor derivation on the gloss + root; forbid a foreign-loanword origin for a word with an Arabic root unless the meaning is itself a borrowed concept; warn against surface-string coincidences. Switched to `json_schema` constrained decoding.
+  2. Inline coherence gate `verify_etymology_coherence_batch()` (Haiku yes/no, asymmetric like `verify_and_correct_mappings_llm`) wired into `enrich_lemmas_batch` Step 3 — drops incoherent etymologies before they're written (left NULL → regenerate). Fails open on LLM error.
+  3. Recurring detection: new D6 dimension in `chimera_audit` (cheap gloss↔derivation overlap pre-filter → LLM confirm), in `check_and_alert` (cron Phase 7), gated by `ALIF_ETYM_COHERENCE_AUDIT`.
+  4. One-time sweep `scripts/cleanup_etymology_mismatches.py` (high-signal candidates) + regenerate #65.
+
+### Verify
+
+Live-tested the gate + prompt: coherence gate flags {65} (laptop) and passes #178 (jacket); hardened prompt regenerates توب as "tūb = repentance (from root ت.و.ب …)", no laptop. Tests in `tests/test_lemma_enrichment.py`. On prod: backup DB, run Part A apply + Part B `--regenerate`, run `chimera_audit.py --etymology` (expect 0 after sweep).
+
 ## 2026-05-21: Polyglot picker LLM-first + page-sentence cooldown (PR #111)
 
 ### What

@@ -10,6 +10,7 @@ Five categories, each catching a different chimera shape (documented in the
   D3 — Form X verbs with root-only bare
   D4 — Defective ـٍ noun whose bare lacks the explicit ya
   D5 — forms_json field from a different root than bare
+  D6 — etymology_json describes a different word than the gloss (LLM-confirmed)
 
 This module is the importable engine. The companion CLI runner is
 ``scripts/chimera_audit.py``. It is also called from ``warm_sentence_cache``
@@ -22,6 +23,7 @@ ActivityLog emission in ``emit_chimera_alert``.
 from __future__ import annotations
 
 import logging
+import os
 import re
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
@@ -29,7 +31,7 @@ from typing import Optional
 
 from sqlalchemy.orm import Session
 
-from app.models import ActivityLog, Lemma
+from app.models import ActivityLog, Lemma, Root
 from app.services.activity_log import log_activity
 
 logger = logging.getLogger(__name__)
@@ -179,6 +181,123 @@ def find_chimera_candidates(db: Session) -> list[ChimeraCandidate]:
     return out
 
 
+# ── D6: etymology_json that describes a different word than the gloss ──────
+# Cheap deterministic pre-filter (no LLM) then a bounded LLM coherence confirm.
+# The pre-filter keeps genuine loanwords (gloss "jacket" ↔ "From English
+# 'jacket'") out by requiring zero content-word overlap between gloss and
+# derivation, so the LLM only sees true suspects (the #65 laptop/repentance
+# case). Filling the gap left by bare_shape_check, which only inspects
+# forms_json, never the etymology_json.
+
+_ETYM_STOPWORDS = frozenset({
+    "from", "the", "a", "an", "of", "to", "or", "and", "in", "into", "via",
+    "by", "with", "for", "its", "this", "that", "which", "also", "as",
+    "original", "originally", "meaning", "means", "word", "sense", "modern",
+    "colloquial", "informal", "spoken", "likely", "probably", "reinforced",
+    "english", "french", "latin", "greek", "italian", "spanish", "persian",
+    "turkish", "arabic", "chinese", "aramaic", "portuguese", "german",
+    "dutch", "nahuatl", "european", "universal", "nursery", "ancient",
+    "loanword", "loanwords", "borrowed", "borrowing", "cognate", "cognates",
+    "derived", "root", "pattern", "form", "verb", "noun", "adjective",
+})
+
+
+def _etym_tokens(text: str) -> set[str]:
+    return {
+        t for t in re.findall(r"[a-z]+", (text or "").lower())
+        if len(t) > 2 and t not in _ETYM_STOPWORDS
+    }
+
+
+def _is_loanword_mode(etym: dict) -> bool:
+    return (
+        not etym.get("root_meaning")
+        and not etym.get("pattern")
+        and (etym.get("derivation") or "").strip().lower().startswith("from ")
+    )
+
+
+def find_etymology_incoherence_candidates(
+    db: Session,
+    limit: int = 30,
+    llm_verify: bool = True,
+) -> list[ChimeraCandidate]:
+    """Find lemmas whose etymology_json describes a different word than the gloss.
+
+    Pre-filter (cheap): a loanword-mode etymology (no root_meaning / pattern,
+    "From <lang>..." derivation) on a lemma that HAS an Arabic root, where the
+    gloss shares no content word with the derivation. That funnels out genuine
+    loanwords (gloss "jacket" ↔ "From English 'jacket'") and leaves true
+    suspects (gloss "repentance" ↔ a "laptop" etymology — the #65 case).
+
+    With ``llm_verify`` (default), suspects are confirmed by a Haiku coherence
+    pass and only confirmed-incoherent ones are returned. With it off, the raw
+    pre-filter suspects are returned (note marks them unverified) for a cheap
+    CLI dry run.
+    """
+    suspects: list[Lemma] = []
+    rows = (
+        db.query(Lemma)
+        .filter(
+            Lemma.canonical_lemma_id.is_(None),
+            Lemma.root_id.isnot(None),
+            Lemma.etymology_json.isnot(None),
+        )
+        .all()
+    )
+    for lem in rows:
+        etym = lem.etymology_json if isinstance(lem.etymology_json, dict) else None
+        if not etym or not _is_loanword_mode(etym):
+            continue
+        gloss_tokens = _etym_tokens(lem.gloss_en or "")
+        deriv_tokens = _etym_tokens(etym.get("derivation") or "")
+        if gloss_tokens and (gloss_tokens & deriv_tokens):
+            continue  # source word matches the gloss → genuine loanword
+        suspects.append(lem)
+        if len(suspects) >= limit:
+            break
+
+    if not suspects:
+        return []
+
+    def _cand(lem: Lemma, note: str) -> ChimeraCandidate:
+        return ChimeraCandidate(
+            lemma_id=lem.lemma_id, category="D6",
+            lemma_ar=lem.lemma_ar or "", lemma_ar_bare=lem.lemma_ar_bare or "",
+            gloss_en=lem.gloss_en or "", note=note,
+        )
+
+    if not llm_verify:
+        return [
+            _cand(l, "etymology may not match gloss (unverified): "
+                     f"{((l.etymology_json or {}).get('derivation') or '')[:80]}")
+            for l in suspects
+        ]
+
+    from app.services.lemma_enrichment import verify_etymology_coherence_batch
+
+    root_ids = {l.root_id for l in suspects if l.root_id}
+    roots_by_id: dict = {}
+    if root_ids:
+        for r in db.query(Root).filter(Root.root_id.in_(root_ids)).all():
+            roots_by_id[r.root_id] = r
+
+    by_id = {l.lemma_id: l for l in suspects}
+    out: list[ChimeraCandidate] = []
+    for i in range(0, len(suspects), 10):
+        chunk = [(l, l.etymology_json) for l in suspects[i:i + 10]]
+        incoherent = verify_etymology_coherence_batch(chunk, roots_by_id)
+        if not incoherent:  # None (LLM failure) or empty → nothing this chunk
+            continue
+        for lid in incoherent:
+            lem = by_id.get(lid)
+            if lem:
+                out.append(_cand(
+                    lem, "etymology describes a different word: "
+                         f"{((lem.etymology_json or {}).get('derivation') or '')[:80]}"))
+    return out
+
+
 def emit_chimera_alert(
     db: Session,
     candidates: list[ChimeraCandidate],
@@ -241,8 +360,19 @@ def emit_chimera_alert(
 
 
 def check_and_alert(db: Session) -> list[ChimeraCandidate]:
-    """Convenience wrapper for cron / warm-cache callers."""
+    """Convenience wrapper for cron / warm-cache callers.
+
+    Runs the structural D1..D5 scan plus the LLM-confirmed D6 etymology
+    coherence check (bounded; set ``ALIF_ETYM_COHERENCE_AUDIT=0`` to skip).
+    The D6 LLM calls run before any ActivityLog write, so no SQLite write lock
+    is held during them.
+    """
     candidates = find_chimera_candidates(db)
+    if os.environ.get("ALIF_ETYM_COHERENCE_AUDIT", "1") == "1":
+        try:
+            candidates += find_etymology_incoherence_candidates(db)
+        except Exception:
+            logger.exception("Etymology coherence audit failed; continuing")
     if candidates:
         emit_chimera_alert(db, candidates)
     return candidates

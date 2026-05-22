@@ -89,6 +89,11 @@ _FORMS_BATCH_SCHEMA = {
 
 ETYMOLOGY_SYSTEM_PROMPT = """You are an Arabic etymology and morphology expert. For each word, generate structured etymology data that helps a language learner understand word origins.
 
+CRITICAL — the etymology MUST match the word's given meaning:
+- The `derivation` you produce must explain how THIS word came to mean its given `meaning`. Never give an origin that describes a different, unrelated word.
+- If the word has a consonantal `root`, treat it as a native Arabic word and derive it from that root. Do NOT invent a foreign/loanword origin for a word that has an Arabic root, UNLESS the given meaning is itself obviously a borrowed modern concept (e.g. television, radio, computer, pizza).
+- Beware surface-string coincidences: a word's letters may resemble an unrelated foreign word. Anchor on the MEANING and ROOT you are given, never on what the letters look or sound like.
+
 There are TWO types of words:
 
 1. NATIVE ARABIC WORDS (have a consonantal root):
@@ -98,20 +103,92 @@ There are TWO types of words:
 - derivation: a short formula showing how root + pattern = meaning (e.g. "maktab = place of writing = office/desk")
 - semantic_field: 2-4 related concepts (e.g. "literacy, education, correspondence")
 - related_loanwords: English or other European words borrowed from this Arabic root, if any. Return empty array [] if none.
-- cultural_note: brief cultural context if relevant, otherwise null
+- cultural_note: brief cultural context if relevant; omit if none.
 
-2. LOANWORDS and FOREIGN-ORIGIN WORDS (pizza, chocolate, cinema, tea, computer, etc.):
-- root_meaning: null
-- pattern: null
-- pattern_meaning: null
-- derivation: "From [source language] '[original word]' ([meaning])" — trace the borrowing path if it went through intermediate languages
+2. LOANWORDS and FOREIGN-ORIGIN WORDS (pizza, chocolate, cinema, tea, computer, etc.) — ONLY when the given meaning is itself a borrowed concept:
+- omit root_meaning, pattern, pattern_meaning
+- derivation: "From [source language] '[original word]' ([meaning])" — the source word's meaning must match THIS word's given meaning; trace the borrowing path if it went through intermediate languages
 - semantic_field: 2-4 related concepts
 - related_loanwords: cognates in other languages borrowed from the same source. Return [] if none.
-- cultural_note: when/how the word entered Arabic, or interesting cultural context. null if nothing notable.
+- cultural_note: when/how the word entered Arabic, or interesting cultural context; omit if nothing notable.
 
-ONLY return null for the whole entry for closed-class function words.
+Omit (do not include) any field that does not apply rather than setting it to null. Return an empty object {} for the etymology of closed-class function words (particles, pronouns).
 
 Return JSON array: [{"lemma_id": 1, "etymology": {...}}]"""
+
+
+ETYMOLOGY_COHERENCE_SYSTEM_PROMPT = """You are an Arabic lexicography fact-checker. You are given Arabic words, each with its English meaning, its consonantal root (if any), and a proposed etymology. Your only job is to catch etymologies that describe a DIFFERENT word than the one given — usually an LLM hallucination triggered by a surface-string coincidence.
+
+For each word, decide whether the proposed etymology could plausibly explain a word that means the given meaning.
+
+Answer "coherent": false ONLY when the etymology clearly describes an unrelated word or concept — e.g. meaning "repentance" but the etymology is about "laptop"; meaning "lion" but the etymology traces a word for "table". When in doubt, answer true. A correct loanword etymology whose source word matches the meaning (meaning "jacket", from English "jacket") is coherent.
+
+Return JSON: {"results": [{"lemma_id": 1, "coherent": true, "reason": "..."}]}"""
+
+ETYMOLOGY_BATCH_SIZE = 10
+
+_ETYMOLOGY_STRING_FIELDS = (
+    "root_meaning", "pattern", "pattern_meaning",
+    "derivation", "semantic_field", "cultural_note",
+)
+
+_ETYMOLOGY_OBJECT_SCHEMA = {
+    "type": "object",
+    "properties": {
+        **{f: {"type": "string"} for f in _ETYMOLOGY_STRING_FIELDS},
+        "related_loanwords": {"type": "array", "items": {"type": "string"}},
+    },
+    "additionalProperties": False,
+}
+
+_ETYMOLOGY_BATCH_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "words": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "lemma_id": {"type": "integer"},
+                    "etymology": _ETYMOLOGY_OBJECT_SCHEMA,
+                },
+                "required": ["lemma_id", "etymology"],
+            },
+        },
+    },
+    "required": ["words"],
+}
+
+_COHERENCE_BATCH_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "results": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "lemma_id": {"type": "integer"},
+                    "coherent": {"type": "boolean"},
+                    "reason": {"type": "string"},
+                },
+                "required": ["lemma_id", "coherent"],
+            },
+        },
+    },
+    "required": ["results"],
+}
+
+
+def _normalize_etymology(etym: dict) -> dict:
+    """Ensure a generated etymology dict carries all expected keys.
+
+    The schema lets the model omit inapplicable fields; downstream rows and
+    the frontend expect a stable shape, so fill gaps with None / [].
+    """
+    out = {f: etym.get(f) for f in _ETYMOLOGY_STRING_FIELDS}
+    rl = etym.get("related_loanwords")
+    out["related_loanwords"] = rl if isinstance(rl, list) else []
+    return out
 
 
 ROOTS_SYSTEM_PROMPT = """You are an Arabic morphology expert. For each Arabic word, extract its consonantal root (جذر).
@@ -344,19 +421,21 @@ def _generate_etymology_batch(lemmas: list[Lemma], roots_by_id: dict) -> dict[in
             f"- lemma_id={lemma.lemma_id}, word={lemma.lemma_ar_bare}{pos_hint}{gloss}{root_info}{root_meaning}"
         )
 
-    prompt = f"""Generate etymology data for each Arabic word:
-
-{chr(10).join(lines)}
-
-Return JSON array: [{{"lemma_id": 1, "etymology": {{"root_meaning": "...", "pattern": "...", "pattern_meaning": "...", "derivation": "...", "semantic_field": "...", "related_loanwords": [...], "cultural_note": null}}}}]
-
-Use null for etymology if the word has no meaningful root derivation (particles, pronouns, etc.)."""
+    prompt = (
+        "Generate etymology data for each Arabic word:\n\n"
+        + "\n".join(lines)
+        + "\n\nReturn JSON exactly in this shape:\n"
+        '{"words": [{"lemma_id": 1, "etymology": {"root_meaning": "...", "pattern": "...", '
+        '"pattern_meaning": "...", "derivation": "...", "semantic_field": "...", '
+        '"related_loanwords": [], "cultural_note": "..."}}]}\n'
+        "Omit any field that does not apply. Use an empty etymology object {} for function words."
+    )
 
     try:
         result = generate_completion(
             prompt=prompt,
             system_prompt=ETYMOLOGY_SYSTEM_PROMPT,
-            json_mode=True,
+            json_schema=_ETYMOLOGY_BATCH_SCHEMA,
             temperature=0.3,
             model_override="claude_haiku",
             task_type="enrichment_etymology",
@@ -364,17 +443,106 @@ Use null for etymology if the word has no meaningful root derivation (particles,
     except AllProvidersFailed:
         return {}
 
-    items = result if isinstance(result, list) else result.get("words", result.get("etymologies", []))
+    items: Any
+    if isinstance(result, list):
+        items = result
+    elif isinstance(result, dict):
+        items = result.get("words", result.get("etymologies", result.get("items", [])))
+    else:
+        items = []
     if not isinstance(items, list):
         return {}
 
-    out = {}
+    requested_ids = {lemma.lemma_id for lemma in lemmas}
+    out: dict[int, dict] = {}
     for item in items:
+        if not isinstance(item, dict):
+            continue
         lid = item.get("lemma_id")
+        if not isinstance(lid, int) or lid not in requested_ids:
+            continue
         etym = item.get("etymology")
-        if lid and isinstance(etym, dict) and etym.get("derivation"):
-            out[lid] = etym
+        if isinstance(etym, dict) and etym.get("derivation"):
+            out[lid] = _normalize_etymology(etym)
     return out
+
+
+def verify_etymology_coherence_batch(
+    candidates: list[tuple[Lemma, dict]],
+    roots_by_id: dict | None = None,
+) -> set[int] | None:
+    """Flag etymologies that describe a different word than the lemma.
+
+    candidates: (lemma, etymology_dict) pairs to check.
+
+    Returns the set of lemma_ids judged INCOHERENT — the etymology clearly
+    describes an unrelated word (e.g. a "laptop" etymology on تَوْب
+    "repentance"). Returns None if the LLM call fails, so callers fail open
+    and never drop an etymology on a transient error.
+    """
+    from app.services.llm import generate_completion
+
+    pairs = [(l, e) for (l, e) in candidates if isinstance(e, dict) and e.get("derivation")]
+    if not pairs:
+        return set()
+
+    roots_by_id = roots_by_id or {}
+    lines = []
+    for lemma, etym in pairs:
+        root = roots_by_id.get(lemma.root_id)
+        root_info = f", root={root.root}" if root else ""
+        deriv = etym.get("derivation") or ""
+        field = etym.get("semantic_field") or ""
+        lines.append(
+            f'- lemma_id={lemma.lemma_id}, word={lemma.lemma_ar_bare}, '
+            f'meaning="{lemma.gloss_en}"{root_info}, '
+            f'etymology_derivation="{deriv}", semantic_field="{field}"'
+        )
+
+    prompt = (
+        "Check whether each proposed etymology matches the word's given meaning:\n\n"
+        + "\n".join(lines)
+        + '\n\nReturn JSON: {"results": [{"lemma_id": 1, "coherent": true, "reason": "..."}]}'
+    )
+
+    try:
+        result = generate_completion(
+            prompt=prompt,
+            system_prompt=ETYMOLOGY_COHERENCE_SYSTEM_PROMPT,
+            json_schema=_COHERENCE_BATCH_SCHEMA,
+            temperature=0.0,
+            model_override="claude_haiku",
+            task_type="enrichment_etymology_verify",
+            cli_only=True,
+        )
+    except Exception as e:  # noqa: BLE001 — fail open: never drop on transient error
+        logger.warning("Etymology coherence check failed: %s", e)
+        return None
+
+    if isinstance(result, dict):
+        items = result.get("results", result.get("words", result.get("items", [])))
+    elif isinstance(result, list):
+        items = result
+    else:
+        items = []
+    if not isinstance(items, list):
+        return None
+
+    requested_ids = {l.lemma_id for (l, _) in pairs}
+    incoherent: set[int] = set()
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        lid = item.get("lemma_id")
+        if not isinstance(lid, int) or lid not in requested_ids:
+            continue
+        if item.get("coherent") is False:
+            incoherent.add(lid)
+            logger.info(
+                "Etymology flagged incoherent for lemma %s: %s",
+                lid, item.get("reason", ""),
+            )
+    return incoherent
 
 
 def enrich_lemmas_batch(lemma_ids: list[int]) -> dict:
@@ -389,7 +557,8 @@ def enrich_lemmas_batch(lemma_ids: list[int]) -> dict:
         return {"enriched": 0}
 
     db = SessionLocal()
-    summary = {"forms": 0, "etymology": 0, "transliteration": 0, "vocalized": 0,
+    summary = {"forms": 0, "etymology": 0, "etymology_rejected": 0,
+                "transliteration": 0, "vocalized": 0,
                 "memory_hooks": 0, "roots": 0, "grammar": 0, "examples": 0,
                 "total": len(lemma_ids)}
 
@@ -475,15 +644,32 @@ def enrich_lemmas_batch(lemma_ids: list[int]) -> dict:
                 for root in db.query(Root).filter(Root.root_id.in_(root_ids)).all():
                     roots_by_id[root.root_id] = root
 
-            batch_size = 10
-            for i in range(0, len(need_etymology), batch_size):
-                batch = need_etymology[i:i + batch_size]
+            for i in range(0, len(need_etymology), ETYMOLOGY_BATCH_SIZE):
+                batch = need_etymology[i:i + ETYMOLOGY_BATCH_SIZE]
                 try:
                     etym_map = _generate_etymology_batch(batch, roots_by_id)
                     etym_results.update(etym_map)
                     time.sleep(1)
                 except Exception:
                     logger.warning(f"Etymology batch failed for lemmas {[l.lemma_id for l in batch]}")
+
+            # Coherence gate: drop any freshly generated etymology the verifier
+            # judges to describe a different word (hallucination — e.g. a "laptop"
+            # etymology on تَوْب "repentance"). Fails open (None → drop nothing).
+            # Session is clean here (results held in dicts, applied in Step 4), so
+            # the verify LLM call holds no write lock.
+            if etym_results:
+                lemma_by_id = {l.lemma_id: l for l in need_etymology}
+                pairs = [(lemma_by_id[lid], e) for lid, e in etym_results.items()
+                         if lid in lemma_by_id]
+                for i in range(0, len(pairs), ETYMOLOGY_BATCH_SIZE):
+                    chunk = pairs[i:i + ETYMOLOGY_BATCH_SIZE]
+                    incoherent = verify_etymology_coherence_batch(chunk, roots_by_id)
+                    if incoherent:
+                        for lid in incoherent:
+                            etym_results.pop(lid, None)
+                            summary["etymology_rejected"] += 1
+                    time.sleep(1)
 
         # ── Step 4: Batch-apply all LLM results to DB ──
         for lemma in lemmas:
