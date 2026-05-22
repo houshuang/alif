@@ -1,5 +1,11 @@
 /**
- * Language picker — appears as the Globe tab in the bottom bar.
+ * Language picker — full-screen fallback.
+ *
+ * The live picker is now a small popover anchored over the globe tab (see
+ * LANGUAGE_OPTIONS + the pickerBackdrop overlay in `app/_layout.tsx`); the
+ * globe's tabPress is intercepted so this screen is no longer navigated to in
+ * normal use. It's retained as a route fallback (e.g. a direct `/languages`
+ * deep link on web) and to keep the globe tab registered.
  *
  * Acts like a menu: tapping a language flips the active language (persisted
  * via LanguageContext) and routes to that language's primary screen. The
