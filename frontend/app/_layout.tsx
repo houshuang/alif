@@ -121,14 +121,15 @@ function LayoutInner({ online }: { online: boolean }) {
     }
   }, [ready, language, pathname, router]);
 
-  if (!ready) {
-    return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color={colors.accent} />
-      </View>
-    );
-  }
-
+  // NOTE: do NOT early-return a non-navigator (e.g. a bare spinner) while
+  // `!ready`. The language-sync effect above calls router.replace(homePathFor)
+  // the moment `ready` flips true for a stored "el" language. If the <Tabs>
+  // navigator only mounts at that same moment, the replace races the mount:
+  // getRootState() can't resolve the tab navigator yet, so expo-router emits a
+  // raw REPLACE action (instead of JUMP_TO) that no navigator handles —
+  // "The action 'REPLACE' with payload {name:'polyglot-review'} was not handled
+  // by any navigator." Keep <Tabs> mounted from the first render and overlay
+  // the spinner instead, so the redirect always targets a stable navigator.
   return (
     <>
       <StatusBar style="light" />
@@ -323,6 +324,12 @@ function LayoutInner({ online }: { online: boolean }) {
           </Pressable>
         </Pressable>
       )}
+
+      {!ready && (
+        <View style={styles.loadingOverlay}>
+          <ActivityIndicator size="large" color={colors.accent} />
+        </View>
+      )}
     </>
   );
 }
@@ -335,6 +342,19 @@ const LANGUAGE_OPTIONS: { code: "ar" | "el"; native: string; name: string }[] = 
 const styles = StyleSheet.create({
   loadingContainer: {
     flex: 1,
+    backgroundColor: colors.bg,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  // Covers the (now always-mounted) tab navigator while AsyncStorage resolves
+  // the stored language, so the wrong-language screen never flashes before the
+  // language-sync redirect runs. See the note above the return in LayoutInner.
+  loadingOverlay: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
     backgroundColor: colors.bg,
     alignItems: "center",
     justifyContent: "center",
