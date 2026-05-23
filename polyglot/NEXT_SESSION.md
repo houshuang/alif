@@ -5,6 +5,27 @@ Read this FIRST before touching anything under `polyglot/`. Also read
 `polyglot/CLAUDE.md` (project rules + gates audit) and the root
 `/Users/stian/src/alif/CLAUDE.md` (especially the new "Polyglot" bullet).
 
+## Current production status — 2026-05-23
+
+- Production no longer depends on Claude Max. `codex-cli 0.133.0` is installed
+  on the VM and Polyglot uses `POLYGLOT_LLM_PROVIDER=codex`,
+  `POLYGLOT_CODEX_MODEL=gpt-5.5`, `CODEX_HOME=/opt/alif/.codex`. Token
+  material lives in `/opt/alif/.codex` + `/opt/alif/.env`; do not print it.
+- All structured LLM calls route through `app/services/llm_cli.py`: body clean,
+  glossing, citation repair, quality gate, sentence generation/verification,
+  sentence translation, philology enrichment, cognates, and lemma audits.
+- Lemma cleanup is applied in production: 5,073 lemmas, 0 ungated lemmas,
+  150 function words, 170 proper names, foreign-key check clean. New lemmas are
+  citation-audited before study state can attach (`POLYGLOT_LEMMA_REPAIR=1`).
+- Material cron runs every 3 hours via `/opt/polyglot-update-material.sh`:
+  warm pages, warm sentence cache, translate harvested textbook sentences,
+  enrich philology. A bounded Codex smoke pass on 2026-05-23 generated 1
+  sentence, translated 1 textbook sentence, and enriched 1 lemma successfully.
+- Current coverage after that pass: 231 LLM sentences, 208 harvested textbook
+  sentences (198 translated), 137 enriched lemmas. Urgent acquiring lemmas all
+  have at least one sentence; 29 due acquiring lemmas are still below the
+  3-sentence target, so sentence generation should keep running for catch-up.
+
 ## Done in the 2026-05-21 session
 
 - **PR #6 (this session) — intro-card working-memory gate (Hard Invariant #12)**.

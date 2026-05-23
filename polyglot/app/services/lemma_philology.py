@@ -1,8 +1,8 @@
 """Philological enrichment for lemmas.
 
-Generates ``Lemma.enrichment_json`` payloads using Claude Sonnet via the
-``claude -p --json-schema`` CLI. Surfaced in the lookup card + lemma detail
-screen (Modern Editorial design).
+Generates ``Lemma.enrichment_json`` payloads using the configured structured
+LLM CLI. Surfaced in the lookup card + lemma detail screen (Modern Editorial
+design).
 
 Pipeline mirrors ``material_generator.batch_generate_material`` for SQLite
 write-lock discipline:
@@ -41,6 +41,7 @@ from sqlalchemy.orm import Session
 from app import database
 from app.models import Lemma
 from app.schemas import LemmaEnrichment
+from app.services.llm_cli import call_structured_json, resolve_model
 
 log = logging.getLogger(__name__)
 
@@ -52,7 +53,7 @@ _MODEL_ALIASES = {
 
 
 def _resolve_model(raw: str) -> str:
-    return _MODEL_ALIASES.get(raw.strip().lower(), raw)
+    return resolve_model(raw, _MODEL_ALIASES)
 
 
 ENRICH_MODEL = _resolve_model(os.environ.get("POLYGLOT_ENRICH_MODEL", "sonnet"))
@@ -310,39 +311,23 @@ def _gen_schema() -> dict:
 # ─── CLI call ──────────────────────────────────────────────────────────────
 
 
-def _call_cli(cmd: list[str], timeout_s: int) -> Optional[dict]:
-    """Run ``claude -p --json-schema`` and return parsed ``structured_output``.
-
-    Mirrors ``material_generator._call_cli`` — same fallback to ``result`` if
-    structured_output is absent (some CLI builds). Returns ``None`` on any
-    failure (timeout, non-zero, parse error).
-    """
-    try:
-        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout_s)
-    except subprocess.TimeoutExpired:
-        log.warning("Claude CLI timed out after %ds", timeout_s)
-        return None
-    if proc.returncode != 0:
-        log.warning("Claude CLI failed (exit %d): %s", proc.returncode, proc.stderr[:500])
-        return None
-    try:
-        wrapper = json.loads(proc.stdout)
-    except json.JSONDecodeError:
-        log.warning("Could not parse CLI envelope JSON: %s", proc.stdout[:300])
-        return None
-    if not isinstance(wrapper, dict):
-        return None
-    structured = wrapper.get("structured_output")
-    if isinstance(structured, dict):
-        return structured
-    result_str = wrapper.get("result", "")
-    if not result_str:
-        return None
-    try:
-        parsed = json.loads(result_str)
-        return parsed if isinstance(parsed, dict) else None
-    except json.JSONDecodeError:
-        return None
+def _call_llm(
+    *,
+    prompt: str,
+    schema: dict,
+    model: str,
+    timeout_s: int,
+    log_context: str,
+) -> Optional[dict]:
+    """Run the configured structured-output LLM CLI."""
+    return call_structured_json(
+        prompt=prompt,
+        schema=schema,
+        model=model,
+        timeout_s=timeout_s,
+        log_context=log_context,
+        runner=subprocess.run,
+    )
 
 
 def _enrich_batch_call(
@@ -357,15 +342,14 @@ def _enrich_batch_call(
     if not targets:
         return {}
     prompt = _gen_prompt(language_code, targets)
-    cmd = [
-        "claude", "-p",
-        "--output-format", "json",
-        "--model", ENRICH_MODEL,
-        "--json-schema", json.dumps(_gen_schema()),
-        prompt,
-    ]
     started = time.time()
-    structured = _call_cli(cmd, ENRICH_TIMEOUT_S)
+    structured = _call_llm(
+        prompt=prompt,
+        schema=_gen_schema(),
+        model=ENRICH_MODEL,
+        timeout_s=ENRICH_TIMEOUT_S,
+        log_context="lemma_enrichment",
+    )
     elapsed = time.time() - started
     if not structured:
         _log_pipeline({
@@ -521,15 +505,14 @@ def _verify_enrichment_facts(
     if not items:
         return {}
 
-    cmd = [
-        "claude", "-p",
-        "--output-format", "json",
-        "--model", VERIFY_MODEL,
-        "--json-schema", json.dumps(_verify_schema()),
-        _verify_prompt(language_code, items),
-    ]
     started = time.time()
-    structured = _call_cli(cmd, VERIFY_TIMEOUT_S)
+    structured = _call_llm(
+        prompt=_verify_prompt(language_code, items),
+        schema=_verify_schema(),
+        model=VERIFY_MODEL,
+        timeout_s=VERIFY_TIMEOUT_S,
+        log_context="lemma_enrichment_verify",
+    )
     elapsed = time.time() - started
     if not structured:
         _log_pipeline({
@@ -630,15 +613,14 @@ def _self_correct_call(
     """One Sonnet self-correct call. Returns the corrected enrichment or
     ``None`` on LLM failure / parse failure / lemma mismatch."""
     prompt = _self_correct_prompt(language_code, target, payload, verdict)
-    cmd = [
-        "claude", "-p",
-        "--output-format", "json",
-        "--model", ENRICH_MODEL,
-        "--json-schema", json.dumps(_gen_schema()),
-        prompt,
-    ]
     started = time.time()
-    structured = _call_cli(cmd, ENRICH_TIMEOUT_S)
+    structured = _call_llm(
+        prompt=prompt,
+        schema=_gen_schema(),
+        model=ENRICH_MODEL,
+        timeout_s=ENRICH_TIMEOUT_S,
+        log_context="lemma_enrichment_self_correct",
+    )
     elapsed = time.time() - started
     if not structured:
         _log_pipeline({

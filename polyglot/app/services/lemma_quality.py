@@ -4,8 +4,8 @@ Mirrors Alif's `verify_and_correct_mappings_llm` + `apply_corrections` pattern,
 adapted to read-and-mark rather than sentence-generation:
 
 - After simplemma assigns lemmas to a page, batch the (surface, proposed_lemma,
-  sentence_context) tuples and send to Claude CLI with a JSON schema.
-- For each token, Claude returns verdict ∈ {ok, wrong, unclear} and, when wrong,
+  sentence_context) tuples and send to the configured LLM CLI with a JSON schema.
+- For each token, the LLM returns verdict ∈ {ok, wrong, unclear} and, when wrong,
   the correct_lemma in citation form.
 - Corrections: find an existing Lemma by normalised bare form; if not present,
   CREATE one with `source='quality_gate'` so the page mapping has somewhere to
@@ -23,7 +23,6 @@ Gated by POLYGLOT_QUALITY_GATE=1 — off by default while we tune the prompt.
 """
 from __future__ import annotations
 
-import json
 import logging
 import os
 import subprocess
@@ -35,6 +34,7 @@ from sqlalchemy.orm import Session
 
 from app.models import Lemma, Page, PageWord
 from app.services.languages import get_provider
+from app.services.llm_cli import call_structured_json, resolve_model
 
 log = logging.getLogger(__name__)
 
@@ -53,7 +53,7 @@ _MODEL_ALIASES = {
 
 
 def _resolve_model(raw: str) -> str:
-    return _MODEL_ALIASES.get(raw.strip().lower(), raw)
+    return resolve_model(raw, _MODEL_ALIASES)
 
 
 MODEL = _resolve_model(os.environ.get("POLYGLOT_QG_MODEL", "sonnet"))
@@ -80,9 +80,22 @@ EL_FUNCTION_WORDS: set[str] = {
     "ενας", "μια", "ενα", "μιας", "ενος",
     # prepositions
     "σε", "για", "με", "απο", "προς", "παρα", "κατα", "ως", "εως",
+    # σε + article crasis (στον/στην/στο…) — preposition+article fused into one
+    # token. These are function words, not vocabulary; without them the
+    # lemmatizer maps the fused form to a content lemma and the verifier
+    # correctly flags it (2026-05-22 yield audit: ~half of all verify
+    # rejections were σε-crasis / article mis-maps).
+    "στον", "στην", "στο", "στη", "στους", "στις", "στα",
+    "στου", "στης", "στων",
     # common particles / conjunctions
     "και", "ή", "αλλα", "οτι", "πως", "γιατι", "αν", "ομως", "λοιπον",
     "μη", "μην", "δεν", "θα", "να", "ας",
+    # additional closed-class forms observed in the lemma audit; keep this list
+    # narrow so lexical adverbs (e.g. δωρεάν, πλήρως, φέτος) remain learnable.
+    "προτου", "ωσπου", "αμα", "εστω", "προ", "συν", "υπερ", "εφοσον",
+    "υπ", "εφ", "οσον", "παρολο", "παρολα", "διχως", "ημων", "εντος",
+    "οτου", "ενωπιον", "δα", "αφ", "βασει", "προκειμενου", "καμμια",
+    "κεινος", "κεινον", "κεινο", "νατος", "αραγε", "ιδου", "ειθε", "μπας",
     # demonstratives
     "αυτος", "αυτη", "αυτο", "αυτοι", "αυτες", "αυτα",
     # pronouns
@@ -321,7 +334,7 @@ def _load_lemmas_for_words(db: Session, words: list[PageWord]) -> dict[int, Lemm
 
 
 def _call_claude(chunk: list[TokenCheck], language_name: str) -> list[Verdict] | None:
-    """Single Claude CLI call covering BATCH_SIZE tokens. Returns None on
+    """Single structured LLM call covering BATCH_SIZE tokens. Returns None on
     total LLM failure so callers can distinguish failure from empty-result."""
     schema = {
         "type": "object",
@@ -366,44 +379,17 @@ Return one decision per token, keyed by the bracketed id. Skip nothing.
 Tokens:
 {items_block}
 """
-    cmd = [
-        "claude", "-p",
-        "--output-format", "json",
-        "--model", MODEL,
-        "--json-schema", json.dumps(schema),
-        prompt,
-    ]
-    try:
-        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=TIMEOUT_S)
-    except subprocess.TimeoutExpired:
-        log.error("Quality gate batch timed out after %ds", TIMEOUT_S)
+    structured = call_structured_json(
+        prompt=prompt,
+        schema=schema,
+        model=MODEL,
+        timeout_s=TIMEOUT_S,
+        log_context="quality_gate",
+        runner=subprocess.run,
+    )
+    if not isinstance(structured, dict):
         return None
-    if proc.returncode != 0:
-        log.error("claude CLI failed: %s", proc.stderr[:500])
-        return None
-    # When --json-schema is set, the CLI puts structured output in
-    # `structured_output` (a JSON object) and leaves `result` empty. Older
-    # docs said `result` would contain the JSON string; check both.
-    try:
-        wrapper = json.loads(proc.stdout)
-    except json.JSONDecodeError as e:
-        log.error("Could not parse CLI envelope: %s\n%s", e, proc.stdout[:500])
-        return None
-    if not isinstance(wrapper, dict):
-        log.error("Unexpected CLI output shape: %s", proc.stdout[:300])
-        return None
-    structured = wrapper.get("structured_output")
-    if isinstance(structured, dict):
-        decisions = structured.get("decisions", [])
-    else:
-        # Fallback: try to parse `result` as JSON (legacy path)
-        result_str = wrapper.get("result", "")
-        try:
-            parsed = json.loads(result_str) if result_str else {}
-            decisions = parsed.get("decisions", []) if isinstance(parsed, dict) else []
-        except json.JSONDecodeError:
-            log.error("No structured_output and result isn't JSON: %s", result_str[:300])
-            return None
+    decisions = structured.get("decisions", [])
 
     by_id = {c.pageword_id for c in chunk}
     out: list[Verdict] = []

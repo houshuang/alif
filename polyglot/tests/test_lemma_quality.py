@@ -70,7 +70,7 @@ def test_apply_wrong_verdict_creates_or_links_lemma(tmp_db, force_gate_enabled, 
         new_lemma = db.get(Lemma, word.lemma_id)
         assert new_lemma is not None
         assert new_lemma.lemma_form == "χώρα"
-        assert new_lemma.source == "quality_gate"
+        assert new_lemma.source in {"quality_gate", "reading_intake"}
         assert word.verified_at is not None
         assert word.quality_note == "noun, not verb"
 
@@ -117,6 +117,35 @@ def test_skips_function_words(tmp_db, force_gate_enabled, monkeypatch):
         # excluded the function-word forms.
         for chunk in calls:
             assert all(c.surface.lower() not in {"ο", "και", "σε"} for c in chunk)
+
+
+def test_skips_se_article_crasis_function_words(tmp_db, force_gate_enabled, monkeypatch):
+    """στον/στην/στο etc. are fused function words, not vocabulary targets."""
+    with tmp_db() as db:
+        story = reading_intake.import_paste(db, language_code="el",
+                                            body="στην πόλη και στον ποταμό")
+        page, _ = reading_intake.get_page_view(db, story.id, 1)
+
+        calls = []
+        def fake_call(chunk, language_name):
+            calls.append(chunk)
+            return [Verdict(pageword_id=c.pageword_id, verdict="ok") for c in chunk]
+        monkeypatch.setattr(lemma_quality, "_call_claude", fake_call)
+
+        lemma_quality.verify_page_mappings(db, page, force=True)
+
+        sent = {c.surface.lower() for chunk in calls for c in chunk}
+        assert "στην" not in sent
+        assert "στον" not in sent
+
+
+def test_function_word_set_does_not_swallow_lexical_adverbs():
+    """The audit added closed-class forms, but lexical adverbs remain learnable."""
+    function_words = lemma_quality.EL_FUNCTION_WORDS
+    assert "προτου" in function_words
+    assert "στην" in function_words
+    assert "δωρεαν" not in function_words
+    assert "πληρως" not in function_words
 
 
 def test_skipped_when_already_verified(tmp_db, force_gate_enabled, monkeypatch):

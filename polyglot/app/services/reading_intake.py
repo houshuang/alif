@@ -50,6 +50,13 @@ import os as _os
 # tests / cost-sensitive environments.
 BATCH_GLOSS_ENABLED = _os.environ.get("POLYGLOT_BATCH_GLOSS", "1") == "1"
 
+# Citation-form repair: the configured LLM judges every newly-created lemma's form before it
+# can enter the study pool, so simplemma can never leave an inflected surface
+# form (εξελίχθηκαν, πλεονάσματος) in the vocabulary. Opt-in like the quality
+# gate — defaults off so tests/dev don't hit the LLM; production enables it via
+# POLYGLOT_LEMMA_REPAIR=1 (systemd EnvironmentFile + cron wrapper).
+LEMMA_REPAIR_ENABLED = _os.environ.get("POLYGLOT_LEMMA_REPAIR", "0") == "1"
+
 
 def _split_into_sentences(text: str) -> list[str]:
     """Cheap splitter: ·;.!?\\n plus Greek question mark ;. Keeps delimiters
@@ -64,6 +71,39 @@ def _lookup_lemma(db: Session, language_code: str, lemma_bare: str) -> Lemma | N
         .filter(Lemma.language_code == language_code, Lemma.lemma_bare == lemma_bare)
         .first()
     )
+
+
+def _repair_lemma_before_study(db: Session, lemma_id: int) -> int | None:
+    """Return the live lemma_id to study after the citation gate.
+
+    If the LLM says the row is junk, the lemma is retired and ``None`` is
+    returned so the caller does not create a ULK for a non-word. LLM failure is
+    also treated as "do not study yet" rather than silently trusting an
+    unaudited simplemma row.
+    """
+    if not LEMMA_REPAIR_ENABLED:
+        return lemma_id
+    lemma = db.get(Lemma, lemma_id)
+    if lemma is None:
+        return None
+    if lemma.gates_completed_at is not None:
+        return lemma_id
+    try:
+        from app.services.lemma_integrity import repair_lemma
+        res = repair_lemma(db, lemma.language_code, lemma_id)
+    except Exception as e:
+        log.warning("Lemma citation repair failed before study lemma_id=%d: %s", lemma_id, e)
+        return None
+    if res.action == "merge" and res.target_id is not None:
+        return res.target_id
+    if res.action == "retire":
+        db.commit()
+        return None
+    if res.action == "skip":
+        log.warning("Lemma citation repair skipped before study lemma_id=%d: %s",
+                    lemma_id, res.detail)
+        return None
+    return lemma_id
 
 
 # ─── Import ────────────────────────────────────────────────────────────────
@@ -190,6 +230,7 @@ def process_page(db: Session, page: Page, *, force: bool = False) -> Page:
         db.query(PageWord).filter(PageWord.page_id == page.id).delete()
 
     bare_to_lemma_id: dict[str, int] = {}
+    new_lemma_ids: list[int] = []
     for surface, (lemma_form, lemma_bare, pos) in surface_to_lemma.items():
         if lemma_bare in bare_to_lemma_id:
             continue
@@ -216,6 +257,7 @@ def process_page(db: Session, page: Page, *, force: bool = False) -> Page:
         if lemma_bare in FUNCTION_WORD_SETS.get(language_code, set()):
             new_lemma.word_category = "function_word"
         bare_to_lemma_id[lemma_bare] = new_lemma.lemma_id
+        new_lemma_ids.append(new_lemma.lemma_id)
 
     word_rows = 0
     for s_idx, tok, g_pos in tokens_with_meta:
@@ -253,6 +295,21 @@ def process_page(db: Session, page: Page, *, force: bool = False) -> Page:
                 log.info("Glossed %d new lemmas on page %d", n_glossed, page.id)
         except Exception as e:
             log.warning("Batch gloss failed for page %d: %s", page.id, e)
+
+    # Phase 2c: citation-form repair. The configured LLM judges every newly-created lemma's
+    # form (with the just-fetched gloss as a disambiguating hint) and rewrites
+    # any inflected surface form to its dictionary citation form before the
+    # lemma can be studied. Runs after the gloss pass (gloss hint) and before
+    # the quality gate (so the gate verifies corrected mappings). Lock-safe:
+    # repair_lemmas holds no write lock across its LLM calls.
+    if LEMMA_REPAIR_ENABLED and new_lemma_ids:
+        try:
+            from app.services.lemma_integrity import repair_lemmas
+            actions = repair_lemmas(db, language_code, new_lemma_ids)
+            if actions:
+                log.info("Citation-repaired page %d new lemmas: %s", page.id, actions)
+        except Exception as e:
+            log.warning("Lemma citation repair failed for page %d: %s", page.id, e)
 
     # Quality gate: LLM-in-context verification of lemma assignments. Gated
     # by POLYGLOT_QUALITY_GATE=1 — for the MVP we want users to opt in once
@@ -383,39 +440,63 @@ def bulk_mark_remaining_known(db: Session, story_id: int, page_number: int) -> i
     language_code = page.story.language_code
     function_word_bares = FUNCTION_WORD_SETS.get(language_code, set())
 
-    # Collect distinct lemma_ids on the page
-    lemma_ids = {
-        w.lemma_id
-        for w in db.query(PageWord).filter(PageWord.page_id == page.id).all()
-        if w.lemma_id is not None
-    }
-    if not lemma_ids:
-        return 0
+    def _eligible_ids() -> list[int]:
+        # Collect distinct lemma_ids on the page
+        lemma_ids = {
+            w.lemma_id
+            for w in db.query(PageWord).filter(PageWord.page_id == page.id).all()
+            if w.lemma_id is not None
+        }
+        if not lemma_ids:
+            return []
 
-    # Filter out lemmas that already have any ULK
-    already_known_ids = {
-        ulk.lemma_id
-        for ulk in db.query(UserLemmaKnowledge).filter(
-            UserLemmaKnowledge.lemma_id.in_(lemma_ids)
-        ).all()
-    }
-    pending_ids = lemma_ids - already_known_ids
+        # Filter out lemmas that already have any ULK
+        already_known_ids = {
+            ulk.lemma_id
+            for ulk in db.query(UserLemmaKnowledge).filter(
+                UserLemmaKnowledge.lemma_id.in_(lemma_ids)
+            ).all()
+        }
+        pending_ids = lemma_ids - already_known_ids
 
-    # Filter out function words (don't enrol them in scheduling)
-    lemmas = db.query(Lemma).filter(Lemma.lemma_id.in_(pending_ids)).all()
-    eligible_ids = [
-        l.lemma_id for l in lemmas
-        if l.word_category != "function_word"
-        and l.lemma_bare not in function_word_bares
-    ]
+        # Filter out function words / proper names (don't enrol them in scheduling)
+        lemmas = db.query(Lemma).filter(Lemma.lemma_id.in_(pending_ids)).all()
+        return [
+            l.lemma_id for l in lemmas
+            if l.word_category not in ("function_word", "proper_name", "not_word")
+            and l.lemma_bare not in function_word_bares
+        ]
+
+    eligible_ids = _eligible_ids()
     if not eligible_ids:
         return 0
+
+    # If a page was processed before the citation gate existed (or a previous
+    # gate attempt failed), batch-repair before bulk-enrolling "known" rows.
+    if LEMMA_REPAIR_ENABLED:
+        repair_ids = [
+            lid for (lid,) in db.query(Lemma.lemma_id)
+            .filter(Lemma.lemma_id.in_(eligible_ids), Lemma.gates_completed_at.is_(None))
+            .all()
+        ]
+        if repair_ids:
+            try:
+                from app.services.lemma_integrity import repair_lemmas
+                actions = repair_lemmas(db, language_code, repair_ids)
+                log.info("Citation-repaired bulk-known candidates on page %d: %s",
+                         page.id, actions)
+            except Exception as e:
+                log.warning("Bulk-known citation repair failed for page %d: %s", page.id, e)
+                return 0
+            eligible_ids = _eligible_ids()
+            if not eligible_ids:
+                return 0
 
     # Bulk-mark via mark_lemma so cognate propagation runs uniformly
     count = 0
     for lid in eligible_ids:
-        mark_lemma(db, lemma_id=lid, state="known", fetch_gloss=False)
-        count += 1
+        if mark_lemma(db, lemma_id=lid, state="known", fetch_gloss=False) is not None:
+            count += 1
     log.info("Bulk-marked %d lemmas as known on page %d of story %d",
              count, page_number, story_id)
     return count
@@ -456,7 +537,18 @@ def mark_lemma(db: Session, lemma_id: int, state: str, *, fetch_gloss: bool = Tr
 
     from app.services.canonical_resolution import resolve_canonical_lemma_id
 
+    repaired_id = _repair_lemma_before_study(db, lemma_id)
+    if repaired_id is None:
+        return None
+    lemma_id = repaired_id
+
     lemma_id = resolve_canonical_lemma_id(db, lemma_id)
+    lemma = db.get(Lemma, lemma_id)
+    if lemma is None:
+        return None
+    if state != "ignore" and lemma.word_category in ("function_word", "proper_name", "not_word"):
+        db.commit()
+        return None
 
     # 'unknown' has its own pipeline — enrol into acquisition, fetch gloss.
     if state == "unknown":
@@ -733,4 +825,3 @@ def warm_all_active_stories(
         )
         summaries.append(s)
     return summaries
-

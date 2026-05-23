@@ -31,7 +31,6 @@ Usage:
 from __future__ import annotations
 
 import argparse
-import json
 import logging
 import subprocess
 import sys
@@ -44,11 +43,15 @@ sys.path.insert(0, str(REPO_ROOT))
 from app.database import SessionLocal  # noqa: E402
 from app.models import Lemma, UserLemmaKnowledge  # noqa: E402
 from app.services.activity_log import log_activity  # noqa: E402
+from app.services.llm_cli import call_structured_json, resolve_model  # noqa: E402
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 log = logging.getLogger("recheck_low_cognates")
 
-MODEL = "claude-sonnet-4-5-20250929"
+MODEL = resolve_model("sonnet", {
+    "sonnet": "claude-sonnet-4-5-20250929",
+    "haiku": "claude-haiku-4-5-20251001",
+})
 TIMEOUT_S = 180
 
 
@@ -99,26 +102,17 @@ def _call_claude(items: list[dict]) -> list[dict]:
             f"{cog.get('lang','?')} \"{cog.get('form','')}\" — {cog.get('note','')[:120]}"
         )
     prompt = PROMPT_HEADER + "\n" + "\n".join(lines)
-    cmd = [
-        "claude", "-p",
-        "--output-format", "json",
-        "--model", MODEL,
-        "--json-schema", json.dumps(schema),
-        prompt,
-    ]
-    proc = subprocess.run(cmd, capture_output=True, text=True, timeout=TIMEOUT_S)
-    if proc.returncode != 0:
-        raise RuntimeError(f"claude CLI failed (rc={proc.returncode}): {proc.stderr[:400]}")
-    wrapper = json.loads(proc.stdout)
-    structured = wrapper.get("structured_output") if isinstance(wrapper, dict) else None
-    if isinstance(structured, dict):
-        payload = structured
-    else:
-        result = wrapper.get("result", proc.stdout) if isinstance(wrapper, dict) else proc.stdout
-        payload = json.loads(result) if isinstance(result, str) else result
+    payload = call_structured_json(
+        prompt=prompt,
+        schema=schema,
+        model=MODEL,
+        timeout_s=TIMEOUT_S,
+        log_context="recheck_low_cognates",
+        runner=subprocess.run,
+    )
     entries = payload.get("results") if isinstance(payload, dict) else None
     if not isinstance(entries, list):
-        raise RuntimeError("missing 'results' array in Claude output")
+        raise RuntimeError("missing 'results' array in LLM output")
     return entries
 
 

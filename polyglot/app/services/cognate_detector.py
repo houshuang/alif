@@ -9,7 +9,7 @@ Two distinct concerns:
    it isn't automatically 'known').
 
 2. **External L1 cognates** (`detect_external_cognates`): LLM-based. For each
-   new lemma, ask Claude whether it has transparent cognates in the user's
+   new lemma, ask the configured LLM whether it has transparent cognates in the user's
    known languages (English, Norwegian, German, French, Italian, Spanish by
    default). Results stamped to `Lemma.cognates_json`. If transparency is
    'high' and the profile's threshold allows, auto-create a ULK in 'known'
@@ -21,7 +21,6 @@ on auto-marking.
 """
 from __future__ import annotations
 
-import json
 import logging
 import os
 import subprocess
@@ -31,12 +30,19 @@ from datetime import datetime, timezone
 from sqlalchemy.orm import Session
 
 from app.models import Lemma, UserLemmaKnowledge, UserProfile
+from app.services.llm_cli import call_structured_json, resolve_model
 
 log = logging.getLogger(__name__)
 
 COGNATE_DETECTION_ENABLED = os.environ.get("POLYGLOT_DETECT_COGNATES", "0") == "1"
 COGNATE_AUTO_MARK = os.environ.get("POLYGLOT_AUTO_MARK_COGNATES", "0") == "1"
 COGNATE_BATCH_SIZE = int(os.environ.get("POLYGLOT_COGNATE_BATCH", "20"))
+_MODEL_ALIASES = {
+    "sonnet": "claude-sonnet-4-5-20250929",
+    "haiku": "claude-haiku-4-5-20251001",
+}
+COGNATE_MODEL = resolve_model(os.environ.get("POLYGLOT_COGNATE_MODEL", "sonnet"), _MODEL_ALIASES)
+COGNATE_TIMEOUT_S = int(os.environ.get("POLYGLOT_COGNATE_TIMEOUT", "180"))
 
 
 # ─── Modern ↔ Ancient bare-form linking ────────────────────────────────────
@@ -128,7 +134,7 @@ def detect_external_cognates(
     auto_mark: bool | None = None,
     batch_size: int | None = None,
 ) -> int:
-    """Detect L1 cognates for a batch of lemmas via Claude CLI. Stamps
+    """Detect L1 cognates for a batch of lemmas via the configured LLM. Stamps
     `cognates_json` + `cognates_detected_at`. Optionally auto-marks high-
     transparency cognates as known.
 
@@ -191,10 +197,7 @@ def _call_claude_for_cognates(
     source_language: str,
     l1_names: list[str],
 ) -> list[list[dict]]:
-    """Single Claude CLI call covering up to COGNATE_BATCH_SIZE lemmas.
-
-    Uses `--json-schema` for constrained decoding (mandatory for CLI per
-    CLAUDE.md — without it Sonnet wraps JSON in prose and parsing breaks).
+    """Single structured LLM call covering up to COGNATE_BATCH_SIZE lemmas.
     """
     schema = {
         "type": "object",
@@ -239,31 +242,17 @@ Skip languages where no cognate exists. Skip lemmas with no cognates anywhere. R
 Lemmas:
 {lemma_list}
 """
-    cmd = [
-        "claude", "-p",
-        "--output-format", "json",
-        "--model", "claude-sonnet-4-5-20250929",
-        "--json-schema", json.dumps(schema),
-        prompt,
-    ]
-    proc = subprocess.run(cmd, capture_output=True, text=True, timeout=180)
-    if proc.returncode != 0:
-        raise RuntimeError(f"claude CLI failed: {proc.stderr[:500]}")
-    # With --json-schema, recent Claude CLI builds put constrained JSON in
-    # structured_output. Older builds used result, so keep that fallback.
-    try:
-        wrapper = json.loads(proc.stdout)
-        structured = wrapper.get("structured_output") if isinstance(wrapper, dict) else None
-        if isinstance(structured, dict):
-            payload = structured
-        else:
-            result = wrapper.get("result", proc.stdout) if isinstance(wrapper, dict) else proc.stdout
-            payload = json.loads(result) if isinstance(result, str) else result
-    except json.JSONDecodeError as e:
-        raise RuntimeError(f"could not parse claude JSON output: {e}") from e
+    payload = call_structured_json(
+        prompt=prompt,
+        schema=schema,
+        model=COGNATE_MODEL,
+        timeout_s=COGNATE_TIMEOUT_S,
+        log_context="cognate_detector",
+        runner=subprocess.run,
+    )
     entries = payload.get("results") if isinstance(payload, dict) else None
     if not isinstance(entries, list):
-        raise RuntimeError("claude JSON output did not contain a results array")
+        raise RuntimeError("LLM JSON output did not contain a results array")
 
     # Align response order with input — match by lemma form, fall back to position
     by_form = {entry["lemma"]: entry.get("cognates", []) for entry in entries if isinstance(entry, dict)}

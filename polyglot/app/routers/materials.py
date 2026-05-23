@@ -26,6 +26,7 @@ from pydantic import BaseModel, Field
 from app.services.material_generator import (
     SENTENCES_PER_TARGET,
     batch_generate_material,
+    translate_untranslated_sentences,
     warm_sentence_cache,
 )
 from app.services.lemma_philology import (
@@ -83,6 +84,32 @@ def warm_cache(req: WarmCacheRequest) -> WarmCacheResponse:
         sentences_per_target=req.sentences_per_target,
     )
     return WarmCacheResponse(**result)
+
+
+# ─── Book-sentence translation ──────────────────────────────────────────────
+
+
+class TranslateRequest(BaseModel):
+    language_code: str = "el"
+    max_sentences: int = Field(default=200, ge=1, le=1000)
+
+
+class TranslateResponse(BaseModel):
+    run_id: Optional[str] = None
+    skipped: bool = False
+    reason: Optional[str] = None
+    pending: int = 0
+    translated: int = 0
+
+
+@router.post("/translate-sentences", response_model=TranslateResponse)
+def translate_sentences(req: TranslateRequest) -> TranslateResponse:
+    """Fill ``translation_en`` for untranslated harvested book sentences."""
+    result = translate_untranslated_sentences(
+        language_code=req.language_code,
+        max_sentences=req.max_sentences,
+    )
+    return TranslateResponse(**result)
 
 
 # ─── Lemma philology enrichment ─────────────────────────────────────────────

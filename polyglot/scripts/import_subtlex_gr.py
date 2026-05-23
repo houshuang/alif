@@ -35,6 +35,7 @@ from __future__ import annotations
 import argparse
 import csv
 import logging
+import os
 import sys
 import time
 from pathlib import Path
@@ -54,6 +55,7 @@ from app.services.cognate_detector import (  # noqa: E402
 from app.services.languages.el import ModernGreekProvider  # noqa: E402
 from app.services.lemma_gloss import ensure_glosses_batch  # noqa: E402
 from app.services.lemma_quality import FUNCTION_WORD_SETS  # noqa: E402
+from app.services.lemma_integrity import repair_lemmas  # noqa: E402
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 log = logging.getLogger("import_subtlex_gr")
@@ -196,7 +198,8 @@ def phase_promote(db: Session, *, top_n: int, gloss_batch: int) -> tuple[int, in
     )
     log.info("Promoting up to %d FrequencyEntry rows", len(rows))
 
-    created_ids: list[int] = []
+    created_count = 0
+    repair_ids: list[int] = []
     linked = 0
     for entry in rows:
         existing = (
@@ -224,35 +227,27 @@ def phase_promote(db: Session, *, top_n: int, gloss_batch: int) -> tuple[int, in
         db.flush()
         link_intra_greek_cognates(db, lemma)
         entry.lemma_id = lemma.lemma_id
-        if category is None:
-            created_ids.append(lemma.lemma_id)
+        created_count += 1
+        if category != "function_word":
+            repair_ids.append(lemma.lemma_id)
     db.commit()
-    log.info("Created %d new Lemma rows, linked %d existing", len(created_ids), linked)
+    log.info("Created %d new Lemma rows, linked %d existing", created_count, linked)
 
-    log.info("Glossing %d new content lemmas in batches of %d", len(created_ids), gloss_batch)
+    log.info("Glossing %d new non-function lemmas in batches of %d", len(repair_ids), gloss_batch)
     glossed = 0
-    for i in range(0, len(created_ids), gloss_batch):
-        chunk = created_ids[i:i + gloss_batch]
+    for i in range(0, len(repair_ids), gloss_batch):
+        chunk = repair_ids[i:i + gloss_batch]
         try:
             glossed += ensure_glosses_batch(db, chunk)
         except Exception as e:
             log.warning("Gloss batch failed at offset %d: %s", i, e)
         if (i // gloss_batch) % 5 == 0:
-            log.info("  ... glossed %d / %d", glossed, len(created_ids))
+            log.info("  ... glossed %d / %d", glossed, len(repair_ids))
 
-    # Stamp gates_completed_at for everything that has a gloss
-    from datetime import datetime, timezone
-    now = datetime.now(timezone.utc)
-    stamped = (
-        db.query(Lemma)
-        .filter(Lemma.lemma_id.in_(created_ids),
-                Lemma.gloss_en.isnot(None),
-                Lemma.gates_completed_at.is_(None))
-        .update({Lemma.gates_completed_at: now}, synchronize_session=False)
-    )
-    db.commit()
-    log.info("Stamped gates_completed_at on %d lemmas", stamped)
-    return len(created_ids), linked
+    if os.environ.get("POLYGLOT_LEMMA_REPAIR", "0") == "1" and repair_ids:
+        actions = repair_lemmas(db, LANG, repair_ids)
+        log.info("Citation-repaired promoted frequency lemmas: %s", actions)
+    return created_count, linked
 
 
 # ─── Phase 3: external cognate detection ─────────────────────────────────

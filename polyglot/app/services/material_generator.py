@@ -2,8 +2,8 @@
 
 Picks up where ``sentence_selector.pick_sentence_for_lemma`` leaves off: when
 no harvested textbook sentence covers a due lemma, this module generates one
-via Claude CLI and writes a ``Sentence`` + ``SentenceWord`` row that the picker
-can find on the next session.
+via the configured LLM CLI and writes a ``Sentence`` + ``SentenceWord`` row
+that the picker can find on the next session.
 
 Pipeline (mirrors Alif's three-phase pattern for SQLite write-lock discipline):
 
@@ -58,6 +58,7 @@ from app.services.canonical_resolution import (
     resolve_canonical_via_map,
 )
 from app.services.lemma_quality import FUNCTION_WORD_SETS
+from app.services.llm_cli import call_structured_json, resolve_model
 from app.services.sentence_validator import (
     Mapping,
     build_lemma_lookup,
@@ -77,13 +78,16 @@ _MODEL_ALIASES = {
 
 
 def _resolve_model(raw: str) -> str:
-    return _MODEL_ALIASES.get(raw.strip().lower(), raw)
+    return resolve_model(raw, _MODEL_ALIASES)
 
 
 GEN_MODEL = _resolve_model(os.environ.get("POLYGLOT_GEN_MODEL", "sonnet"))
 VERIFY_MODEL = _resolve_model(os.environ.get("POLYGLOT_VERIFY_MODEL", "haiku"))
 GEN_TIMEOUT_S = int(os.environ.get("POLYGLOT_GEN_TIMEOUT", "240"))
 VERIFY_TIMEOUT_S = int(os.environ.get("POLYGLOT_VERIFY_TIMEOUT", "180"))
+TRANSLATE_MODEL = _resolve_model(os.environ.get("POLYGLOT_TRANSLATE_MODEL", "haiku"))
+TRANSLATE_TIMEOUT_S = int(os.environ.get("POLYGLOT_TRANSLATE_TIMEOUT", "180"))
+TRANSLATE_BATCH_SIZE = max(1, int(os.environ.get("POLYGLOT_TRANSLATE_BATCH_SIZE", "50")))
 
 # Cap each batch to a reasonable size — Alif measured the sweet spot at 4-6
 # targets per Sonnet call. More than that and the prompt context noise
@@ -127,6 +131,7 @@ LANG_DISPLAY = {
 
 
 _warm_cache_lock = threading.Lock()
+_translate_lock = threading.Lock()
 
 
 def _log_dir() -> Path:
@@ -249,37 +254,23 @@ def _gen_schema() -> dict:
     }
 
 
-def _call_cli(cmd: list[str], timeout_s: int) -> Optional[dict]:
-    """Run a ``claude -p --json-schema`` invocation and return the parsed
-    ``structured_output`` dict. None on any failure (parse, timeout, non-zero).
-    """
-    try:
-        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout_s)
-    except subprocess.TimeoutExpired:
-        log.warning("Claude CLI timed out after %ds", timeout_s)
-        return None
-    if proc.returncode != 0:
-        log.warning("Claude CLI failed (exit %d): %s", proc.returncode, proc.stderr[:500])
-        return None
-    try:
-        wrapper = json.loads(proc.stdout)
-    except json.JSONDecodeError:
-        log.warning("Could not parse CLI envelope JSON: %s", proc.stdout[:300])
-        return None
-    if not isinstance(wrapper, dict):
-        return None
-    structured = wrapper.get("structured_output")
-    if isinstance(structured, dict):
-        return structured
-    # Legacy fallback: some CLI builds put JSON in `result`.
-    result_str = wrapper.get("result", "")
-    if not result_str:
-        return None
-    try:
-        parsed = json.loads(result_str)
-        return parsed if isinstance(parsed, dict) else None
-    except json.JSONDecodeError:
-        return None
+def _call_llm(
+    *,
+    prompt: str,
+    schema: dict,
+    model: str,
+    timeout_s: int,
+    log_context: str,
+) -> Optional[dict]:
+    """Run the configured structured-output LLM CLI. None on total failure."""
+    return call_structured_json(
+        prompt=prompt,
+        schema=schema,
+        model=model,
+        timeout_s=timeout_s,
+        log_context=log_context,
+        runner=subprocess.run,
+    )
 
 
 def generate_sentences_batch(
@@ -298,15 +289,14 @@ def generate_sentences_batch(
         return []
     prompt = _gen_prompt(language_code, targets, known_sample,
                         sentences_per_target, avoid_words=avoid_words)
-    cmd = [
-        "claude", "-p",
-        "--output-format", "json",
-        "--model", GEN_MODEL,
-        "--json-schema", json.dumps(_gen_schema()),
-        prompt,
-    ]
     started = time.time()
-    structured = _call_cli(cmd, GEN_TIMEOUT_S)
+    structured = _call_llm(
+        prompt=prompt,
+        schema=_gen_schema(),
+        model=GEN_MODEL,
+        timeout_s=GEN_TIMEOUT_S,
+        log_context="material_generation",
+    )
     elapsed = time.time() - started
 
     if not structured:
@@ -450,15 +440,14 @@ def verify_sentence_mappings_llm(
         # Nothing content-bearing to verify. Treat as all-ok per candidate.
         return [[] for _ in candidates]
 
-    cmd = [
-        "claude", "-p",
-        "--output-format", "json",
-        "--model", VERIFY_MODEL,
-        "--json-schema", json.dumps(_verify_schema()),
-        _verify_prompt(language_code, items),
-    ]
     started = time.time()
-    structured = _call_cli(cmd, VERIFY_TIMEOUT_S)
+    structured = _call_llm(
+        prompt=_verify_prompt(language_code, items),
+        schema=_verify_schema(),
+        model=VERIFY_MODEL,
+        timeout_s=VERIFY_TIMEOUT_S,
+        log_context="material_verification",
+    )
     elapsed = time.time() - started
     if not structured:
         _log_pipeline({
@@ -1093,3 +1082,150 @@ def warm_sentence_cache(
         }
     finally:
         _warm_cache_lock.release()
+
+
+# ─── Harvested-sentence translation backfill ──────────────────────────────
+
+
+def _translation_schema() -> dict:
+    return {
+        "type": "object",
+        "properties": {
+            "translations": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "sentence_id": {"type": "integer"},
+                        "english": {"type": "string"},
+                    },
+                    "required": ["sentence_id", "english"],
+                },
+            },
+        },
+        "required": ["translations"],
+    }
+
+
+def _translation_prompt(language_code: str, rows: list[dict]) -> str:
+    lang = LANG_DISPLAY.get(language_code, language_code)
+    block = "\n".join(f"[{row['sentence_id']}] {row['text']}" for row in rows)
+    return f"""Translate each {lang} sentence below into natural, faithful English.
+
+Rules:
+- Preserve the sentence's meaning and tense.
+- Do not transliterate.
+- Do not explain or add notes.
+- Return one translation per sentence_id. Skip nothing.
+
+Sentences:
+{block}
+"""
+
+
+def _find_untranslated_harvested_sentences(language_code: str, limit: int) -> list[dict]:
+    db = database.SessionLocal()
+    try:
+        rows = (
+            db.query(Sentence.id, Sentence.text)
+            .join(SentenceWord, SentenceWord.sentence_id == Sentence.id)
+            .join(UserLemmaKnowledge, UserLemmaKnowledge.lemma_id == SentenceWord.lemma_id)
+            .filter(
+                Sentence.language_code == language_code,
+                Sentence.source == "textbook",
+                Sentence.is_active.is_(True),
+                Sentence.mappings_verified_at.isnot(None),
+                (Sentence.translation_en.is_(None) | (func.length(func.trim(Sentence.translation_en)) == 0)),
+                UserLemmaKnowledge.knowledge_state.in_(
+                    ["acquiring", "learning", "known", "lapsed"]
+                ),
+            )
+            .distinct()
+            .order_by(Sentence.id)
+            .limit(limit)
+            .all()
+        )
+        return [{"sentence_id": sid, "text": text} for sid, text in rows]
+    finally:
+        db.close()
+
+
+def translate_untranslated_sentences(
+    language_code: str = "el",
+    *,
+    max_sentences: int = 200,
+) -> dict:
+    """Fill ``translation_en`` for untranslated harvested textbook sentences.
+
+    Only sentences that already passed the mapping verifier and cover an active
+    study lemma are considered. LLM calls happen without a DB session open.
+    """
+    if not _translate_lock.acquire(blocking=False):
+        return {"skipped": True, "reason": "translate_busy", "pending": 0, "translated": 0}
+
+    run_id = uuid.uuid4().hex[:8]
+    try:
+        pending = _find_untranslated_harvested_sentences(language_code, max_sentences)
+        if not pending:
+            _log_pipeline({
+                "event": "translate_no_gaps",
+                "language_code": language_code,
+                "run_id": run_id,
+            })
+            return {"run_id": run_id, "pending": 0, "translated": 0}
+
+        translated = 0
+        for start in range(0, len(pending), TRANSLATE_BATCH_SIZE):
+            chunk = pending[start:start + TRANSLATE_BATCH_SIZE]
+            structured = _call_llm(
+                prompt=_translation_prompt(language_code, chunk),
+                schema=_translation_schema(),
+                model=TRANSLATE_MODEL,
+                timeout_s=TRANSLATE_TIMEOUT_S,
+                log_context="sentence_translation",
+            )
+            if not isinstance(structured, dict):
+                _log_pipeline({
+                    "event": "translate_batch_failed",
+                    "language_code": language_code,
+                    "run_id": run_id,
+                    "sentence_ids": [row["sentence_id"] for row in chunk],
+                    "model": TRANSLATE_MODEL,
+                })
+                continue
+
+            by_id = {
+                item.get("sentence_id"): (item.get("english") or "").strip()
+                for item in structured.get("translations", []) or []
+                if isinstance(item, dict)
+            }
+            db = database.SessionLocal()
+            try:
+                for row in chunk:
+                    english = by_id.get(row["sentence_id"])
+                    if not english:
+                        continue
+                    sentence = db.get(Sentence, row["sentence_id"])
+                    if sentence is None:
+                        continue
+                    if (sentence.translation_en or "").strip():
+                        continue
+                    sentence.translation_en = english
+                    translated += 1
+                db.commit()
+            except Exception:
+                db.rollback()
+                log.exception("Failed to write sentence translations")
+            finally:
+                db.close()
+
+        _log_pipeline({
+            "event": "translate_done",
+            "language_code": language_code,
+            "run_id": run_id,
+            "pending": len(pending),
+            "translated": translated,
+        })
+        return {"run_id": run_id, "pending": len(pending), "translated": translated}
+    finally:
+        _translate_lock.release()

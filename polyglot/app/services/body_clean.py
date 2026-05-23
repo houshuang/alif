@@ -9,8 +9,8 @@ break a single word across two lines (``διαρ-\\nρέουν`` → two tokens,
 junk). Tokenizing this raw text creates phantom lemmas the user will never
 want to learn.
 
-This service is the structural cleanup pass. For each Page we ask Haiku
-(via Claude CLI, free under Max plan) to return the cleaned reading prose
+This service is the structural cleanup pass. For each Page we ask an LLM
+(Claude CLI by default, Codex headless when configured) to return the cleaned reading prose
 plus an audit list of every segment it removed. The cleaned text is what
 ``process_page`` then tokenizes.
 
@@ -36,12 +36,13 @@ model via ``POLYGLOT_BODY_CLEAN_MODEL=haiku`` (default) or ``=sonnet``.
 """
 from __future__ import annotations
 
-import json
 import logging
 import os
 import re
 import subprocess
 from dataclasses import dataclass
+
+from app.services.llm_cli import call_structured_json, resolve_model
 
 log = logging.getLogger(__name__)
 
@@ -61,7 +62,7 @@ _MODEL_ALIASES = {
 
 
 def _resolve_model(raw: str) -> str:
-    return _MODEL_ALIASES.get(raw.strip().lower(), raw)
+    return resolve_model(raw, _MODEL_ALIASES)
 
 
 MODEL = _resolve_model(os.environ.get("POLYGLOT_BODY_CLEAN_MODEL", "haiku"))
@@ -127,41 +128,15 @@ def _clean_body_once(body_src: str, language_name: str) -> CleanResult | None:
         "required": ["cleaned", "removed"],
     }
     prompt = _build_prompt(body_src, language_name)
-    cmd = [
-        "claude", "-p",
-        "--output-format", "json",
-        "--model", MODEL,
-        "--json-schema", json.dumps(schema),
-        prompt,
-    ]
-    try:
-        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=TIMEOUT_S)
-    except subprocess.TimeoutExpired:
-        log.error("body_clean timed out after %ds (%d chars)", TIMEOUT_S, len(body_src))
-        return None
-    if proc.returncode != 0:
-        log.error("body_clean CLI failed: %s", proc.stderr[:500])
-        return None
-
-    try:
-        wrapper = json.loads(proc.stdout)
-    except json.JSONDecodeError as e:
-        log.error("body_clean envelope parse failed: %s\n%s", e, proc.stdout[:500])
-        return None
-    if not isinstance(wrapper, dict):
-        log.error("body_clean unexpected CLI shape: %s", proc.stdout[:300])
-        return None
-
-    structured = wrapper.get("structured_output")
+    structured = call_structured_json(
+        prompt=prompt,
+        schema=schema,
+        model=MODEL,
+        timeout_s=TIMEOUT_S,
+        log_context="body_clean",
+        runner=subprocess.run,
+    )
     if not isinstance(structured, dict):
-        # Legacy `result` fallback, matches lemma_quality._call_claude pattern.
-        result_str = wrapper.get("result", "")
-        try:
-            structured = json.loads(result_str) if result_str else None
-        except json.JSONDecodeError:
-            structured = None
-    if not isinstance(structured, dict):
-        log.error("body_clean no structured output: %s", proc.stdout[:300])
         return None
 
     cleaned = structured.get("cleaned")
