@@ -3,7 +3,7 @@
 #
 # Installed at /opt/polyglot-update-material.sh on the Hetzner VM; intended
 # crontab line (run every 3 hours offset from Alif's so they don't both hammer
-# the Claude CLI at the same minute):
+# the LLM CLI at the same minute):
 #
 #     45 */3 * * * /opt/polyglot-update-material.sh >> /var/log/polyglot-update-material.log 2>&1
 #
@@ -15,8 +15,11 @@
 #        source of new lemmas that the sentence cache then needs to cover.
 #   2. warm_sentence_cache for Modern Greek
 #      — finds acquiring/learning/known lemmas below ACTIVE_TARGET sentence
-#        coverage and generates more via Claude CLI (Sonnet) + Haiku verify.
-#   3. enrich_lemma_philology for Modern Greek
+#        coverage and generates more via the configured structured LLM CLI.
+#   3. translate_sentences for Modern Greek
+#      — fills English translations for harvested textbook sentences that cover
+#        active-study lemmas.
+#   4. enrich_lemma_philology for Modern Greek
 #      — fills LemmaEnrichment (etymology, diachrony, cognates, quotes,
 #        register) for engaged lemmas. Surfaced in the lookup card + lemma
 #        detail screen (Modern Editorial design).
@@ -45,6 +48,8 @@ TIMEOUT_SECONDS="${POLYGLOT_WARM_TIMEOUT_SECONDS:-1200}"
 PAGES_BUFFER="${POLYGLOT_PAGES_AHEAD_BUFFER:-5}"
 PAGES_MAX_PER_RUN="${POLYGLOT_PAGES_AHEAD_MAX_PER_RUN:-5}"
 PAGES_TIMEOUT_SECONDS="${POLYGLOT_PAGES_AHEAD_TIMEOUT_SECONDS:-1200}"
+TRANSLATE_MAX_SENTENCES="${POLYGLOT_TRANSLATE_MAX_SENTENCES:-200}"
+TRANSLATE_TIMEOUT_SECONDS="${POLYGLOT_TRANSLATE_TIMEOUT_SECONDS:-900}"
 # 2026-05-21: third phase enriches lemmas with philological data (etymology,
 # diachrony, cognates, quotes, register). Selector prioritises active study:
 # acquiring (sorted by next-due) → learning/lapsed → encountered. `known`
@@ -53,7 +58,7 @@ PAGES_TIMEOUT_SECONDS="${POLYGLOT_PAGES_AHEAD_TIMEOUT_SECONDS:-1200}"
 # Cap sized for heavy-reading days: at ~70s/batch × 4 lemmas/batch, 30 lemmas
 # takes ~9 min — well under the 30-min phase timeout, leaving headroom for
 # slow Claude responses. An in-process lock in batch_enrich prevents two
-# overlapping cron runs from double-spending Claude on the same lemmas.
+# overlapping cron runs from double-spending LLM calls on the same lemmas.
 ENRICH_MAX_LEMMAS="${POLYGLOT_ENRICH_MAX_LEMMAS:-30}"
 ENRICH_TIMEOUT_SECONDS="${POLYGLOT_ENRICH_TIMEOUT_SECONDS:-1800}"
 
@@ -64,6 +69,13 @@ export PYTHONUNBUFFERED=1
 # silent write to alif.db on first run (2026-05-20).
 export DATABASE_URL="${DATABASE_URL:-sqlite:////opt/alif/polyglot/polyglot.db}"
 export POLYGLOT_QUALITY_GATE="${POLYGLOT_QUALITY_GATE:-1}"
+export POLYGLOT_LEMMA_REPAIR="${POLYGLOT_LEMMA_REPAIR:-1}"
+export POLYGLOT_LLM_PROVIDER="${POLYGLOT_LLM_PROVIDER:-codex}"
+export POLYGLOT_CODEX_MODEL="${POLYGLOT_CODEX_MODEL:-gpt-5.5}"
+export POLYGLOT_CODEX_REASONING_EFFORT="${POLYGLOT_CODEX_REASONING_EFFORT:-medium}"
+export POLYGLOT_CODEX_HOME="${POLYGLOT_CODEX_HOME:-/opt/alif/.codex}"
+export CODEX_HOME="${CODEX_HOME:-$POLYGLOT_CODEX_HOME}"
+export OPENAI_API_KEY="${OPENAI_API_KEY:-${OPENAI_KEY:-}}"
 
 run_phase() {
   local name="$1"
@@ -93,6 +105,11 @@ run_phase "warm_sentence_cache" timeout "$TIMEOUT_SECONDS" \
   --language "$LANGUAGE" \
   --max-lemmas "$MAX_LEMMAS" \
   --sentences-per-target "$SENTENCES_PER_TARGET"
+
+run_phase "translate_sentences" timeout "$TRANSLATE_TIMEOUT_SECONDS" \
+  "$VENV" scripts/translate_sentences.py \
+  --language "$LANGUAGE" \
+  --max-sentences "$TRANSLATE_MAX_SENTENCES"
 
 run_phase "enrich_lemma_philology" timeout "$ENRICH_TIMEOUT_SECONDS" \
   "$VENV" scripts/enrich_lemma_philology.py \

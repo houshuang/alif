@@ -40,6 +40,13 @@ def test_tokenize_handles_apostrophe_elision():
     assert "τ'" in surfaces or "τ'" in "".join(surfaces)
 
 
+def test_common_irregular_is_lemmatized_for_generation_validation():
+    p = ModernGreekProvider()
+    cand = p.lemmatize("είναι")
+    assert cand.lemma == "είμαι"
+    assert cand.lemma_bare == "ειμαι"
+
+
 @pytest.mark.slow
 def test_lemmatize_with_pipeline():
     """Requires gr-nlp-toolkit installed and model downloaded."""

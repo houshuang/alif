@@ -19,7 +19,6 @@ of 200 lemmas is ~4 chunks ≈ 20s; subsequent pages mostly cache-hit.
 """
 from __future__ import annotations
 
-import json
 import logging
 import os
 import subprocess
@@ -28,10 +27,21 @@ from datetime import datetime, timezone
 from sqlalchemy.orm import Session
 
 from app.models import Lemma
+from app.services.llm_cli import call_structured_json, resolve_model
 
 log = logging.getLogger(__name__)
 
-GLOSS_MODEL = os.environ.get("POLYGLOT_GLOSS_MODEL", "claude-haiku-4-5-20251001")
+_MODEL_ALIASES = {
+    "sonnet": "claude-sonnet-4-5-20250929",
+    "haiku": "claude-haiku-4-5-20251001",
+}
+
+
+def _resolve_model(raw: str) -> str:
+    return resolve_model(raw, _MODEL_ALIASES)
+
+
+GLOSS_MODEL = _resolve_model(os.environ.get("POLYGLOT_GLOSS_MODEL", "claude-haiku-4-5-20251001"))
 TIMEOUT_S = int(os.environ.get("POLYGLOT_GLOSS_TIMEOUT", "60"))
 # Haiku reliably handles ~50 lemma definitions in one structured-output call;
 # larger batches start dropping entries. Configurable for tuning.
@@ -41,7 +51,7 @@ LANG_DISPLAY = {"el": "Modern Greek", "grc": "Ancient Greek", "la": "Latin"}
 
 def ensure_gloss(db: Session, lemma_id: int, *, context: str | None = None, force: bool = False) -> Lemma | None:
     """Return the lemma with a populated `gloss_en`. If missing and not
-    force=False, runs Claude. Idempotent — once glossed, returns immediately.
+    force=False, runs the configured LLM. Idempotent — once glossed, returns immediately.
     """
     lemma = db.get(Lemma, lemma_id)
     if lemma is None:
@@ -113,29 +123,15 @@ def _call_claude_for_gloss(lemma: Lemma, *, context: str | None) -> str | None:
     prompt = f"""Give a tiny English gloss for this {lang_name} lemma. Stay under 6 words. If it's a verb, gloss in dictionary form (e.g. "to read"). If a noun, just the bare noun ("book", not "the book"). No examples, no etymology, just the gloss.{ctx_block}
 
 Lemma: {lemma.lemma_form}{f" ({lemma.pos})" if lemma.pos else ""}"""
-    cmd = [
-        "claude", "-p",
-        "--output-format", "json",
-        "--model", GLOSS_MODEL,
-        "--json-schema", json.dumps(schema),
-        prompt,
-    ]
-    try:
-        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=TIMEOUT_S)
-    except subprocess.TimeoutExpired:
-        log.warning("Gloss CLI timeout for lemma_id=%d", lemma.lemma_id)
-        return None
-    if proc.returncode != 0:
-        log.warning("Gloss CLI failed: %s", proc.stderr[:300])
-        return None
-    try:
-        wrapper = json.loads(proc.stdout)
-        structured = wrapper.get("structured_output") if isinstance(wrapper, dict) else None
-        if isinstance(structured, dict):
-            return structured.get("gloss")
-    except json.JSONDecodeError:
-        pass
-    return None
+    structured = call_structured_json(
+        prompt=prompt,
+        schema=schema,
+        model=GLOSS_MODEL,
+        timeout_s=TIMEOUT_S,
+        log_context=f"gloss lemma_id={lemma.lemma_id}",
+        runner=subprocess.run,
+    )
+    return structured.get("gloss") if isinstance(structured, dict) else None
 
 
 def _call_claude_for_gloss_batch(lemmas: list[Lemma], language_code: str) -> list[str | None]:
@@ -165,24 +161,16 @@ def _call_claude_for_gloss_batch(lemmas: list[Lemma], language_code: str) -> lis
 
 Lemmas:
 {lemma_list}"""
-    cmd = [
-        "claude", "-p",
-        "--output-format", "json",
-        "--model", GLOSS_MODEL,
-        "--json-schema", json.dumps(schema),
-        prompt,
-    ]
-    try:
-        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=TIMEOUT_S)
-    except subprocess.TimeoutExpired:
+    structured = call_structured_json(
+        prompt=prompt,
+        schema=schema,
+        model=GLOSS_MODEL,
+        timeout_s=TIMEOUT_S,
+        log_context=f"gloss batch {language_code}",
+        runner=subprocess.run,
+    )
+    if not isinstance(structured, dict):
         return [None] * len(lemmas)
-    if proc.returncode != 0:
-        return [None] * len(lemmas)
-    try:
-        wrapper = json.loads(proc.stdout)
-        structured = wrapper.get("structured_output") if isinstance(wrapper, dict) else None
-        glosses = (structured or {}).get("glosses", []) if isinstance(structured, dict) else []
-    except json.JSONDecodeError:
-        return [None] * len(lemmas)
+    glosses = structured.get("glosses", []) or []
     by_form = {g["lemma"]: g["gloss"] for g in glosses if isinstance(g, dict) and "lemma" in g}
     return [by_form.get(l.lemma_form) for l in lemmas]

@@ -44,6 +44,13 @@ def _strip_accents_monotonic(form: str) -> str:
 # Greek + Latin word characters + apostrophe (for elisions like τ'άλλο)
 _TOKEN_RE = re.compile(r"[Ͱ-Ͽἀ-῿\w']+|[^\w\s]", re.UNICODE)
 
+# simplemma leaves a few extremely common Modern Greek forms unreduced in some
+# versions. Keep this list tiny: broad citation-form authority belongs to the
+# LLM gate, but deterministic generation validation must not reject "είναι".
+_LEMMA_OVERRIDES = {
+    "ειναι": "είμαι",
+}
+
 
 class ModernGreekProvider:
     code = "el"
@@ -101,10 +108,17 @@ class ModernGreekProvider:
         return out
 
     def lemmatize(self, surface: str, context: str | None = None) -> LemmaCandidate:
+        surface_bare = self.normalize_bare(surface)
+        override = _LEMMA_OVERRIDES.get(surface_bare)
         try:
             self._ensure_simplemma()
         except ProviderUnavailable:
-            return LemmaCandidate(lemma=surface, lemma_bare=self.normalize_bare(surface), confidence=0.0)
+            lemma = override or surface
+            return LemmaCandidate(
+                lemma=lemma,
+                lemma_bare=self.normalize_bare(lemma),
+                confidence=1.0 if override else 0.0,
+            )
         import simplemma
         # simplemma's dictionary is lowercase — uppercase headings ("ΠΟΛΙΤΙΣΜΟΙ")
         # won't match unless we fold case first. We still feed the original
@@ -115,6 +129,7 @@ class ModernGreekProvider:
         lemma = simplemma.lemmatize(surface, lang=self._SIMPLEMMA_LANG, greedy=True)
         if lemma == surface and not surface.islower():
             lemma = simplemma.lemmatize(surface.lower(), lang=self._SIMPLEMMA_LANG, greedy=True)
+        lemma = override or lemma
         confidence = 1.0 if lemma.lower() != surface.lower() else 0.5
         return LemmaCandidate(
             lemma=lemma,

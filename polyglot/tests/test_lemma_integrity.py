@@ -6,7 +6,9 @@ from app.models import (
     Lemma, UserLemmaKnowledge, ReviewLog, Sentence, SentenceWord, Page,
     PageWord, Story, FrequencyEntry, ContentFlag,
 )
-from app.services.lemma_integrity import apply_citation_fix, merge_lemma_into
+from app.services.lemma_integrity import (
+    apply_citation_fix, merge_lemma_into, retire_noise_lemma,
+)
 
 
 def _lemma(db, form, bare, **kw):
@@ -58,7 +60,7 @@ def test_merge_repoints_all_fks_and_deletes_duplicate(tmp_db):
         db.add(SentenceWord(sentence_id=sent.id, position=0, surface_form="καθίσματα",
                             lemma_id=dup.lemma_id))
         db.add(PageWord(page_id=page.id, position=0, surface_form="καθίσματα",
-                        lemma_id=dup.lemma_id))
+                        lemma_id=dup.lemma_id, original_lemma_id=dup.lemma_id))
         db.add(ReviewLog(lemma_id=dup.lemma_id, rating=3,
                          reviewed_at=datetime.now(timezone.utc)))
         db.add(FrequencyEntry(language_code="el", source="subtlex_gr", rank=500,
@@ -74,6 +76,7 @@ def test_merge_repoints_all_fks_and_deletes_duplicate(tmp_db):
         assert db.query(Sentence).filter_by(id=sent.id).first().target_lemma_id == canonical.lemma_id
         assert db.query(SentenceWord).first().lemma_id == canonical.lemma_id
         assert db.query(PageWord).first().lemma_id == canonical.lemma_id
+        assert db.query(PageWord).first().original_lemma_id == canonical.lemma_id
         assert db.query(ReviewLog).first().lemma_id == canonical.lemma_id
         assert db.query(FrequencyEntry).first().lemma_id == canonical.lemma_id
         assert db.query(ContentFlag).first().lemma_id == canonical.lemma_id
@@ -134,6 +137,42 @@ def test_apply_fix_merges_when_citation_already_exists(tmp_db):
         assert db.query(UserLemmaKnowledge).first().lemma_id == canonical.lemma_id
 
 
+def test_apply_fix_does_not_merge_accent_distinct_homographs(tmp_db):
+    with tmp_db() as db:
+        athena = _lemma(db, "Αθηνά", "αθηνα", gloss_en="Athena")
+        athens_genitive = _lemma(db, "αθηνών", "αθηνων", gloss_en="of Athens")
+        db.commit()
+
+        res = apply_citation_fix(
+            db, athens_genitive.lemma_id, "Αθήνα",
+            pos="proper_noun", gloss="Athens", word_category="proper_name",
+        )
+        db.commit()
+
+        assert res.action == "rename"
+        assert db.get(Lemma, athena.lemma_id).lemma_form == "Αθηνά"
+        athens = db.get(Lemma, athens_genitive.lemma_id)
+        assert athens.lemma_form == "Αθήνα"
+        assert athens.lemma_bare == "αθηνα"
+        assert athens.gloss_en == "Athens"
+
+
+def test_content_fix_clears_overbroad_word_category(tmp_db):
+    with tmp_db() as db:
+        lemma = _lemma(db, "Κινέζος", "κινεζος", gloss_en="Chinese person",
+                       word_category="proper_name")
+        db.commit()
+
+        res = apply_citation_fix(
+            db, lemma.lemma_id, "Κινέζος",
+            pos="noun", gloss="Chinese person", clear_word_category=True,
+        )
+        db.commit()
+
+        assert res.action == "noop"
+        assert db.get(Lemma, lemma.lemma_id).word_category is None
+
+
 def test_self_ref_pointers_move_on_merge(tmp_db):
     with tmp_db() as db:
         canonical = _lemma(db, "κάθισμα", "καθισμα")
@@ -146,3 +185,41 @@ def test_self_ref_pointers_move_on_merge(tmp_db):
         db.commit()
         assert db.get(Lemma, other.lemma_id).canonical_lemma_id == canonical.lemma_id
         assert db.get(Lemma, cog.lemma_id).cognate_lemma_id == canonical.lemma_id
+
+
+def test_retire_noise_lemma_nulls_nullable_refs_and_deletes_study_rows(tmp_db):
+    with tmp_db() as db:
+        junk = _lemma(db, "γωγής", "γωγης")
+        story = Story(language_code="el", title="t", source="paste"); db.add(story); db.flush()
+        page = Page(story_id=story.id, page_number=1, body_src="x"); db.add(page); db.flush()
+        sent = Sentence(language_code="el", text="...", source="llm",
+                        target_lemma_id=junk.lemma_id, is_active=True)
+        db.add(sent); db.flush()
+        db.add(SentenceWord(sentence_id=sent.id, position=0, surface_form="γωγής",
+                            lemma_id=junk.lemma_id))
+        db.add(PageWord(page_id=page.id, position=0, surface_form="γωγής",
+                        lemma_id=junk.lemma_id, original_lemma_id=junk.lemma_id))
+        db.add(FrequencyEntry(language_code="el", source="subtlex_gr", rank=501,
+                              lemma_key="γωγης", display_form="γωγής",
+                              lemma_id=junk.lemma_id))
+        db.add(ContentFlag(content_type="lemma", lemma_id=junk.lemma_id))
+        db.add(ReviewLog(lemma_id=junk.lemma_id, rating=1,
+                         reviewed_at=datetime.now(timezone.utc)))
+        _ulk(db, junk.lemma_id, state="acquiring")
+        db.commit()
+
+        res = retire_noise_lemma(db, junk.lemma_id, reason="OCR fragment")
+        db.commit()
+
+        assert res.action == "retire"
+        assert db.get(Lemma, junk.lemma_id) is None
+        assert db.query(Sentence).first().target_lemma_id is None
+        assert db.query(Sentence).first().is_active is False
+        assert db.query(SentenceWord).first().lemma_id is None
+        pw = db.query(PageWord).first()
+        assert pw.lemma_id is None
+        assert pw.original_lemma_id is None
+        assert db.query(FrequencyEntry).first().lemma_id is None
+        assert db.query(ContentFlag).first().lemma_id is None
+        assert db.query(ReviewLog).count() == 0
+        assert db.query(UserLemmaKnowledge).count() == 0

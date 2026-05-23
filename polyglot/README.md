@@ -75,9 +75,13 @@ works; lemmatization raises `ProviderUnavailable` until the toolkit is loaded.
 3. **PATCH `/api/texts/{id}/mark`** with `{lemma_id, state}` updates ULK.
    States: `known` (skip from review), `unknown` (enter acquisition queue),
    `encountered` (seen but not claimed), `ignore` (proper names, mistakes).
-4. **(Later)** sentence generation for words marked `unknown` reuses the
-   `material_generator` pipeline pattern from Alif.
-5. **(Later)** FSRS-driven session loop, copied from Alif's `session_builder`.
+4. **Background material loop** keeps review material ready:
+   `warm_sentence_cache` generates verified LLM sentences for active-study
+   lemmas below the coverage target, `translate_sentences` backfills English
+   translations for harvested textbook sentences, and
+   `enrich_lemma_philology` backfills etymology/diachrony/register payloads.
+5. **FSRS-driven sentence review** uses sentence cards, intro cards, per-word
+   collateral credit, and canonical lemma scheduling.
 
 ## Running
 
@@ -94,11 +98,35 @@ python3 -m pytest               # fast (regex + DB), skips slow toolkit tests
 python3 -m pytest -m slow       # requires gr-nlp-toolkit installed
 ```
 
-## Deployment (later)
+## Production
 
-Hetzner VM (same host as Alif), separate systemd service `polyglot-backend`
-on port 3001, separate SQLite at `/opt/polyglot/data/polyglot.db`. No
-overlap with Alif's data, services, or process tree.
+Hetzner VM (same host as Alif), separate systemd service
+`polyglot-backend` on port `3002`, separate SQLite at
+`/opt/alif/polyglot/polyglot.db`. No overlap with Alif's data, services, or
+process tree.
+
+LLM work goes through `app/services/llm_cli.py`. Production runs Codex
+headless:
+
+```bash
+POLYGLOT_LLM_PROVIDER=codex
+POLYGLOT_CODEX_MODEL=gpt-5.5
+POLYGLOT_CODEX_HOME=/opt/alif/.codex
+CODEX_HOME=/opt/alif/.codex
+```
+
+The VM has `codex-cli 0.133.0` installed at `/usr/bin/codex`; auth is stored
+under `/opt/alif/.codex` and initialized from the shared OpenAI API key in
+`/opt/alif/.env`. Do not print or commit token values.
+
+The material cron is installed as:
+
+```cron
+45 */3 * * * /opt/polyglot-update-material.sh >> /var/log/polyglot-update-material.log 2>&1
+```
+
+One pass runs, in order: page warm/quality gate, sentence generation,
+textbook-sentence translation, and philology enrichment.
 
 ## SRS engine (FSRS + Acquisition)
 
@@ -175,21 +203,20 @@ performance to escape.
 overload (Box 1/2 debt), recovery-mode reduces this to 0 / 4 / 8 based on
 same-day review practice and accuracy. `leech_reintro` bypasses the cap.
 
-## What's built (end of session 2026-05-19)
+## What's built (production as of 2026-05-23)
 
 - **PDF intake** — multi-page Greek textbook (`Istoria tou Archaiou Kosmou`,
   298 pages) imports in <1s. Pages tokenize lazily on first view.
 - **Lemmatization** — `simplemma` for Modern Greek + Latin. Pure-Python, no
   ML deps required for the common path. `gr-nlp-toolkit` available for
   richer POS/morphology when needed; loads lazily.
-- **LLM quality gate** — `lemma_quality.py`. After simplemma assigns lemmas,
-  Claude verifies each non-trivial mapping in sentence context. On test page
-  11 of the textbook, made 10 real corrections (χώρα/χωρώ homograph,
-  Τίγρης proper-noun recognition, adj/noun POS disambiguation,
-  bibliographic citation parsing). Gated by `POLYGLOT_QUALITY_GATE=1`.
-- **Tiny gloss on demand** — `lemma_gloss.py`. When user marks a word unknown,
-  a short English gloss is fetched (Haiku, ~2s). Other words stay glossless
-  until the user cares.
+- **LLM quality gate + citation repair** — `lemma_quality.py` verifies
+  per-token mappings in sentence context; `lemma_integrity.py` audits every
+  newly-created lemma before it can enter study. This closes the simplemma
+  failure mode where inflected forms like `εξελίχθηκαν` became study lemmas.
+  Production has `POLYGLOT_QUALITY_GATE=1` and `POLYGLOT_LEMMA_REPAIR=1`.
+- **Tiny gloss cache** — `lemma_gloss.py`. Page processing batch-glosses new
+  content lemmas; `ensure_gloss` is the single-lemma fallback.
 - **Modern↔Ancient cognate linking** — bare-form match auto-links, propagation
   marks the cognate as `encountered` (not `known`, due to semantic drift).
 - **External L1 cognates** — `cognate_detector.py`. Opt-in via
@@ -217,18 +244,27 @@ same-day review practice and accuracy. `leech_reintro` bypasses the cap.
   core bands, 14-day activity chart, story progress, and recent activity
   feed. Every section is gated on having data so an early-stage DB renders
   cleanly. Reached as a tab — no in-page back button.
+- **Sentence review and generation** — `sentence_selector.py`,
+  `sentence_review_service.py`, and `material_generator.py` are active.
+  Generated sentences are mandatory-verifier gated before write; the warm
+  cache targets `POLYGLOT_ACTIVE_TARGET=3` active verified sentences per
+  active-study lemma.
+- **Philology enrichment** — `lemma_philology.py` fills `Lemma.enrichment_json`
+  with etymology, diachrony, cognates, literary quotes, register, and
+  collocations. The fact-check/self-correct pass strips persistently flagged
+  etymology/diachrony fields rather than publishing dubious claims.
+- **Textbook-sentence translation backfill** — `translate_sentences.py` fills
+  `translation_en` for harvested textbook sentences that cover active-study
+  lemmas.
+- **Codex headless runtime** — all structured LLM calls can be switched by
+  `POLYGLOT_LLM_PROVIDER`. Production is set to `codex`; Claude remains a
+  supported local fallback for tests and dev runs.
 
 ## What's deliberately missing (Phase 2+)
 
-- **Sentence generation** (need to copy/adapt `material_generator` from Alif —
-  ~2.5 KLOC with Greek-specific prompt tuning)
-- **Session builder** (sentence picking + intro cards interleaving — depends
-  on sentence generation landing first)
 - **Audio** (Greek TTS — ElevenLabs supports it; decide cost discipline first)
 - **Ancient Greek lemmatization** (OdyCy model wiring; stub exists)
 - **Latin lemmatization** (LatinCy or stick with simplemma; stub exists)
-- **Intro-card working-memory gate** (Alif's `_intro_shown_recently` —
-  ports when intro cards land in the UI)
 - **Mnemonic generation on failure** (Alif regenerates memory hooks for
   lapsed/struggling words; deferred)
 
