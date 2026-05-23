@@ -190,6 +190,9 @@ and the `/api/reviews/*` endpoints.
 | POST   | `/api/reviews/submit`      | Apply a review (auto-routes acquisition vs FSRS) |
 | GET    | `/api/reviews/due`         | Lemmas whose next review is due                  |
 | GET    | `/api/reviews/stats`       | Box distribution + due-count                     |
+| POST   | `/api/chat/ask`            | Ask AI about the current polyglot review context |
+| POST   | `/api/flags`               | Report a sentence/word issue for review          |
+| GET    | `/api/flags`               | List reported content flags                      |
 
 **Tiered graduation** (acquisition → FSRS):
 
