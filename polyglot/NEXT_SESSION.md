@@ -26,8 +26,8 @@ Read this FIRST before touching anything under `polyglot/`. Also read
   sentence, translated 1 textbook sentence, and enriched 1 lemma successfully.
 - Current generated review coverage must be measured against retrieval targets,
   not all assumed-known cognates/pre-known rows. Corrected 2026-05-23 query:
-  146 retrieval targets (all acquiring + FSRS-card learning/known/lapsed), 50
-  with zero quality-approved generated LLM coverage, 134 below the 3-sentence
+  149 retrieval targets (all acquiring + FSRS-card learning/known/lapsed), 51
+  with zero quality-approved generated LLM coverage, 136 below the 3-sentence
   generated target. Active material: 193 quality-approved LLM sentences, 185
   active harvested textbook sentences (178 translated), 184 enriched lemmas.
   Textbook sentences are picker fallbacks and do not count toward generated
