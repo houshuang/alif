@@ -39,13 +39,34 @@ if [ "$(git rev-parse "$BRANCH")" != "$(git rev-parse "origin/$BRANCH")" ]; then
 fi
 
 echo "==> Pulling origin/$BRANCH on $REMOTE"
-ssh "$REMOTE" "
-  set -e
-  cd '$REMOTE_DIR'
-  git fetch origin '$BRANCH'
-  git checkout '$BRANCH'
-  git pull --ff-only origin '$BRANCH'
-"
+ssh "$REMOTE" "REMOTE_DIR='$REMOTE_DIR' BRANCH='$BRANCH' bash -s" <<'REMOTE_DEPLOY'
+set -euo pipefail
+cd "$REMOTE_DIR"
+git fetch origin "$BRANCH"
+git checkout "$BRANCH"
+
+backup_dir="/tmp/alif-deploy-drift-$(date -u +%Y%m%dT%H%M%SZ)"
+if [ -n "$(git status --porcelain --untracked-files=no)" ]; then
+  mkdir -p "$backup_dir"
+  git diff > "$backup_dir/tracked.diff" || true
+  git status --porcelain --untracked-files=no > "$backup_dir/status.txt"
+  echo "Backed up tracked drift to $backup_dir"
+fi
+
+# Remove only untracked files that are tracked in origin/main. This clears old
+# scp-created code files without touching runtime state such as .env, .venv, DBs,
+# logs, or any other untracked file that Git does not own.
+while IFS= read -r path; do
+  [ -n "$path" ] || continue
+  if git cat-file -e "origin/$BRANCH:$path" 2>/dev/null; then
+    mkdir -p "$backup_dir/untracked/$(dirname "$path")"
+    cp -p "$path" "$backup_dir/untracked/$path" 2>/dev/null || true
+    rm -f -- "$path"
+  fi
+done < <(git ls-files -o --exclude-standard)
+
+git reset --hard "origin/$BRANCH"
+REMOTE_DEPLOY
 
 echo "==> Installing Polyglot package"
 ssh "$REMOTE" "
