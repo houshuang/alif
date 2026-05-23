@@ -53,17 +53,24 @@ if [ -n "$(git status --porcelain --untracked-files=no)" ]; then
   echo "Backed up tracked drift to $backup_dir"
 fi
 
-# Remove only untracked files that are tracked in origin/main. This clears old
-# scp-created code files without touching runtime state such as .env, .venv, DBs,
-# logs, or any other untracked file that Git does not own.
+# Remove untracked files in code-owned paths. This clears old scp-created code
+# files without touching runtime state such as .env, .venv, DBs, data, or logs.
 while IFS= read -r path; do
   [ -n "$path" ] || continue
-  if git cat-file -e "origin/$BRANCH:$path" 2>/dev/null; then
-    mkdir -p "$backup_dir/untracked/$(dirname "$path")"
-    cp -p "$path" "$backup_dir/untracked/$path" 2>/dev/null || true
-    rm -f -- "$path"
-  fi
-done < <(git ls-files -o --exclude-standard)
+  mkdir -p "$backup_dir/untracked/$(dirname "$path")"
+  cp -p "$path" "$backup_dir/untracked/$path" 2>/dev/null || true
+  rm -f -- "$path"
+done < <(
+  git ls-files -o --exclude-standard -- \
+    polyglot/app \
+    polyglot/deploy \
+    polyglot/scripts \
+    polyglot/tests \
+    polyglot/CLAUDE.md \
+    polyglot/DESIGN.md \
+    polyglot/NEXT_SESSION.md \
+    polyglot/README.md
+)
 
 git reset --hard "origin/$BRANCH"
 REMOTE_DEPLOY

@@ -74,7 +74,7 @@ def _rebuild_sentence_words(db, sentence: Sentence, *, dry_run: bool) -> str:
             rebuilt_shape.append((pos, surface, None, False))
         else:
             old = next(content_iter)
-            rebuilt_shape.append((pos, surface, old.lemma_id, bool(old.is_target_word)))
+            rebuilt_shape.append((pos, surface, old["lemma_id"], old["is_target_word"]))
 
     if existing_shape == rebuilt_shape:
         return "unchanged"
