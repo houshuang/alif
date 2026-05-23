@@ -50,6 +50,12 @@ def test_empty_input_returns_empty_cleaned(monkeypatch):
     assert out.cleaned == ""
 
 
+def test_normalize_pdf_artifacts_keeps_real_dashes():
+    src = "φιλο-\nσοφία γεράνια1. Τίγρης –\n ανατολικά"
+    out = body_clean.normalize_pdf_artifacts(src, collapse_whitespace=True)
+    assert out == "φιλοσοφία γεράνια. Τίγρης – ανατολικά"
+
+
 def test_happy_path_removes_and_joins(monkeypatch):
     src = (
         "10\n"
@@ -82,6 +88,19 @@ def test_happy_path_removes_and_joins(monkeypatch):
     assert "γεράνι ή γερανός" not in out.cleaned
     assert len(out.removed) == 3
     assert out.hyphen_joins == ["διαρρέουν", "ανατολικά"]
+
+
+def test_deterministic_pdf_artifacts_join_only_linebreak_hyphens():
+    src = (
+        "Η δομή κατοίκη-\n"
+        "σαν εκεί. Ο Τίγρης –\n"
+        "ανατολικά – και ο θεός- προστάτης μένει."
+    )
+    cleaned = body_clean.normalize_pdf_artifacts(src, collapse_whitespace=True)
+    assert "κατοίκησαν" in cleaned
+    assert "κατοίκη- σαν" not in cleaned
+    assert "Τίγρης – ανατολικά" in cleaned
+    assert "θεός- προστάτης" in cleaned
 
 
 def test_hallucinated_removal_discards_result(monkeypatch):

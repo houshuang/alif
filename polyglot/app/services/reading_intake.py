@@ -189,7 +189,11 @@ def process_page(db: Session, page: Page, *, force: bool = False) -> Page:
     # detaches footnote-marker digits fused into words. Persisted on the Page
     # so re-tokenization doesn't pay the LLM cost twice. Falls back to
     # body_src on LLM failure — tokenizer still works, just on noisier input.
-    if body_clean_svc.BODY_CLEAN_ENABLED and (page.body_clean is None or force):
+    body_clean_missing = (
+        page.body_clean is None
+        or (not page.body_clean.strip() and bool((page.body_src or "").strip()))
+    )
+    if body_clean_svc.BODY_CLEAN_ENABLED and (body_clean_missing or force):
         result = body_clean_svc.clean_body(page.body_src, language_code)
         if result is not None:
             page.body_clean = result.cleaned
@@ -200,7 +204,11 @@ def process_page(db: Session, page: Page, *, force: bool = False) -> Page:
                 len(result.removed), len(result.hyphen_joins),
             )
 
-    source_text = page.body_clean if page.body_clean else page.body_src
+    raw_source_text = page.body_clean if page.body_clean and page.body_clean.strip() else page.body_src
+    source_text = body_clean_svc.normalize_pdf_artifacts(
+        raw_source_text,
+        collapse_whitespace=True,
+    )
 
     # Phase 1: pure compute
     sentences = _split_into_sentences(source_text)

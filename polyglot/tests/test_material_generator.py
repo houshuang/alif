@@ -152,7 +152,7 @@ def test_batch_generate_happy_path(tmp_db, fake_claude):
         target_id = target.lemma_id
 
     fake_claude["script"] = [
-        _gen_response([(0, "το βιβλίο είναι μεγάλο", "The book is big.")]),
+        _gen_response([(0, "το βιβλίο είναι μεγάλο.", "The book is big.")]),
         _verify_ok_response(),
     ]
 
@@ -169,7 +169,7 @@ def test_batch_generate_happy_path(tmp_db, fake_claude):
         sentences = db.query(Sentence).all()
         assert len(sentences) == 1
         s = sentences[0]
-        assert s.text == "το βιβλίο είναι μεγάλο"
+        assert s.text == "το βιβλίο είναι μεγάλο."
         assert s.target_lemma_id == target_id
         assert s.source == "llm"
         assert s.mappings_verified_at is not None
@@ -181,10 +181,13 @@ def test_batch_generate_happy_path(tmp_db, fake_claude):
         # sentence_harvest's behaviour).
         assert words
         from app.services.lemma_quality import FUNCTION_WORD_SETS
-        from app.services.sentence_validator import normalize_bare
+        from app.services.sentence_validator import is_punctuation_surface, normalize_bare
         funcs = FUNCTION_WORD_SETS["el"]
+        assert any(w.lemma_id is None and is_punctuation_surface(w.surface_form) for w in words)
         for w in words:
             if w.lemma_id is None:
+                if is_punctuation_surface(w.surface_form):
+                    continue
                 assert normalize_bare(w.surface_form, "el") in funcs, \
                     f"unmapped content word: {w.surface_form}"
         target_words = [w for w in words if w.is_target_word]

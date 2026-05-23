@@ -153,8 +153,10 @@ def _clean_body_once(body_src: str, language_name: str) -> CleanResult | None:
         )
         return None
 
+    cleaned = normalize_pdf_artifacts(cleaned).strip()
+
     return CleanResult(
-        cleaned=cleaned.strip(),
+        cleaned=cleaned,
         removed=[r for r in removed if isinstance(r, str)],
         hyphen_joins=[h for h in hyphen_joins if isinstance(h, str)],
     )
@@ -200,7 +202,13 @@ def _verify_removals(body_src: str, removed: list) -> bool:
     return True
 
 
-_SOFTHYPHEN_LINEBREAK = re.compile(r"[-‐‑–][ \t]*\n[ \t]*")
+# Only characters that PDF extractors use as discretionary line-break hyphens.
+# Do not include non-breaking hyphen (U+2011) or en/em dashes: those are real
+# punctuation in the Greek textbook data ("Τίγρης – ανατολικά –").
+_SOFTHYPHEN_LINEBREAK = re.compile(
+    r"(?<=[^\W\d_])[-‐\u00ad][ \t]*(?:\r?\n|\r)[ \t]*(?=[^\W\d_])",
+    re.UNICODE,
+)
 # Trailing digit(s) immediately after a letter, when followed by a non-word
 # char or end-of-string — the footnote-marker pattern (γεράνια1. → γεράνια.).
 # `[^\W\d_]` is the Unicode-letter idiom in plain `re` (no `regex` dependency).
@@ -220,6 +228,29 @@ def _normalize_for_audit(s: str) -> str:
     s = _SOFTHYPHEN_LINEBREAK.sub("", s)
     s = _FOOTNOTE_DIGIT.sub(r"\1", s)
     return " ".join(s.split())
+
+
+def normalize_pdf_artifacts(s: str, *, collapse_whitespace: bool = False) -> str:
+    """Apply deterministic PDF cleanup that is always safe for kept prose.
+
+    This is deliberately narrower than the LLM body cleaner: it does not drop
+    headers, captions, or citations. It only removes extractor artifacts that
+    should never become PageWord/SentenceWord data:
+
+    - control characters leaked by PyMuPDF
+    - true end-of-line soft-hyphen splits between letters
+    - footnote-marker digits fused to the preceding word
+
+    ``collapse_whitespace`` is useful for tokenization fallbacks: raw PDF pages
+    have line wraps that are not sentence boundaries, so collapsing whitespace
+    prevents the splitter from treating every physical line as its own sentence.
+    """
+    s = _CONTROL_CHARS.sub("", s or "")
+    s = _SOFTHYPHEN_LINEBREAK.sub("", s)
+    s = _FOOTNOTE_DIGIT.sub(r"\1", s)
+    if collapse_whitespace:
+        return " ".join(s.split())
+    return s
 
 
 def _build_prompt(body_src: str, language_name: str) -> str:

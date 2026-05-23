@@ -19,7 +19,6 @@ protocol; this module's dataclasses match Alif's so callers transfer.
 from __future__ import annotations
 
 import logging
-import re
 from dataclasses import dataclass, field
 from typing import Optional
 
@@ -37,6 +36,7 @@ class Mapping:
     surface_form: str
     lemma_id: Optional[int]
     is_target: bool = False
+    is_punctuation: bool = False
     alternative_lemma_ids: list[int] = field(default_factory=list)
 
 
@@ -52,7 +52,9 @@ class ValidationResult:
     issues: list[str] = field(default_factory=list)
 
 
-_PUNCT_RE = re.compile(r"^[\W_]+$", re.UNICODE)
+def is_punctuation_surface(surface: str) -> bool:
+    """True for tokens that carry punctuation/layout, not vocabulary."""
+    return bool(surface) and not any(c.isalpha() for c in surface)
 
 
 def normalize_bare(form: str, language_code: str) -> str:
@@ -73,20 +75,24 @@ def normalize_bare(form: str, language_code: str) -> str:
         return form.lower()
 
 
-def tokenize_display(text: str, language_code: str) -> list[tuple[int, str]]:
-    """Return ``[(position, surface_form), ...]`` skipping pure-punctuation tokens.
+def tokenize_display(
+    text: str,
+    language_code: str,
+    *,
+    include_punctuation: bool = True,
+) -> list[tuple[int, str]]:
+    """Return ``[(position, surface_form), ...]`` for display storage.
 
     Position is the provider's running index (matches ``PageWord.position``
-    semantics — including punctuation in the count). Callers typically only
-    care about content tokens.
+    semantics). Punctuation is included by default so generated sentences and
+    harvested textbook sentences use the same stored shape: real words are
+    rows with lemma mappings, punctuation is a row with ``lemma_id=NULL``.
     """
     provider = get_provider(language_code)
     tokens = provider.tokenize(text)
     out: list[tuple[int, str]] = []
     for tok in tokens:
-        if tok.is_punctuation:
-            continue
-        if _PUNCT_RE.match(tok.surface):
+        if not include_punctuation and (tok.is_punctuation or is_punctuation_surface(tok.surface)):
             continue
         out.append((tok.position, tok.surface))
     return out
@@ -129,14 +135,23 @@ def map_tokens_to_lemmas(
     target_lemma_id: int,
     target_bare: str,
 ) -> list[Mapping]:
-    """For each content token, lemmatize via simplemma and look up.
+    """For each display token, lemmatize content words and look them up.
 
-    Returns one ``Mapping`` per token. ``lemma_id is None`` means we couldn't
-    find a matching DB lemma — caller will discard the sentence (the picker
-    requires every SentenceWord to point at a real lemma).
+    Returns one ``Mapping`` per token. Punctuation is preserved as a mapping
+    with ``lemma_id=None`` and ``is_punctuation=True`` so the stored sentence
+    can reconstruct the original text without inventing a lemma.
     """
     out: list[Mapping] = []
     for position, surface in tokens:
+        if is_punctuation_surface(surface):
+            out.append(Mapping(
+                position=position,
+                surface_form=surface,
+                lemma_id=None,
+                is_punctuation=True,
+            ))
+            continue
+
         bare_via_lemmatizer = _lemmatize_to_bare(surface, language_code)
         bare_via_surface = normalize_bare(surface, language_code)
 
@@ -179,6 +194,8 @@ def validate_sentence(
         return result
 
     for position, surface in tokens:
+        if is_punctuation_surface(surface):
+            continue
         bare = _lemmatize_to_bare(surface, language_code)
         if bare in function_word_bares or normalize_bare(surface, language_code) in function_word_bares:
             result.function_words.append(surface)

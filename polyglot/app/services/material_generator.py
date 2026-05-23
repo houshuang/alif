@@ -758,7 +758,8 @@ def batch_generate_material(
         # genuinely couldn't map.
         unmapped = [
             m.surface_form for m in mappings
-            if m.lemma_id is None
+            if not m.is_punctuation
+            and m.lemma_id is None
             and normalize_bare(m.surface_form, language_code) not in function_words
         ]
         if unmapped:
@@ -845,7 +846,8 @@ def batch_generate_material(
         # empty gloss_en. The picker enforces this on the read side too.
         empty_gloss = [
             m.surface_form for m in cand["mappings"]
-            if m.lemma_id is not None
+            if not m.is_punctuation
+            and m.lemma_id is not None
             and m.lemma_id in lemma_by_id
             and lemma_by_id[m.lemma_id].word_category != "function_word"
             and lemma_by_id[m.lemma_id].lemma_bare not in function_words
