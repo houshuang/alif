@@ -17,8 +17,11 @@
 #      — finds acquiring/learning/known lemmas below ACTIVE_TARGET sentence
 #        coverage and generates more via the configured structured LLM CLI.
 #   3. translate_sentences for Modern Greek
-#      — fills English translations for harvested textbook sentences that cover
-#        active-study lemmas.
+#      — fills translation_en for harvested book sentences (left NULL by the
+#        harvest, which holds no LLM call) that cover an active-study lemma, so
+#        the picker's book-sentence fallback never renders blank. Runs through
+#        the configured structured LLM CLI, lazily here and never on the read
+#        path.
 #   4. enrich_lemma_philology for Modern Greek
 #      — fills LemmaEnrichment (etymology, diachrony, cognates, quotes,
 #        register) for engaged lemmas. Surfaced in the lookup card + lemma
@@ -42,22 +45,33 @@ VENV="${POLYGLOT_PYTHON:-$WORKDIR/.venv/bin/python3}"
 PYTHONPATH_VALUE="${PYTHONPATH:-/opt/limbic}"
 
 LANGUAGE="${POLYGLOT_WARM_LANGUAGE:-el}"
-MAX_LEMMAS="${POLYGLOT_WARM_MAX_LEMMAS:-16}"
+# 2026-05-22: bumped 16→48. With the picker now strictly preferring generated
+# sentences over book fallbacks, the engaged-vocabulary pool (~2.1k active
+# lemmas) had only ~98 LLM sentences — 1,890 active lemmas had zero generated
+# coverage. At 16 lemmas/run × 8 runs/day the backlog cleared too slowly. 48 ×
+# 8 = ~384 lemma-attempts/day (×SENTENCES_PER_TARGET), clearing the backlog in
+# days while comfortably keeping up with new acquiring words (≤30/day cap).
+MAX_LEMMAS="${POLYGLOT_WARM_MAX_LEMMAS:-48}"
 SENTENCES_PER_TARGET="${POLYGLOT_WARM_SENTENCES_PER_TARGET:-2}"
-TIMEOUT_SECONDS="${POLYGLOT_WARM_TIMEOUT_SECONDS:-1200}"
+# 1200→1800: 48 lemmas / BATCH_WORD_SIZE=4 = 12 Sonnet+Haiku batches; at up to
+# ~2 min/batch worst case that's ~24 min, so give the phase 30 min of headroom.
+TIMEOUT_SECONDS="${POLYGLOT_WARM_TIMEOUT_SECONDS:-1800}"
 PAGES_BUFFER="${POLYGLOT_PAGES_AHEAD_BUFFER:-5}"
 PAGES_MAX_PER_RUN="${POLYGLOT_PAGES_AHEAD_MAX_PER_RUN:-5}"
 PAGES_TIMEOUT_SECONDS="${POLYGLOT_PAGES_AHEAD_TIMEOUT_SECONDS:-1200}"
+# 2026-05-22: translate harvested book sentences whose translation_en is still
+# NULL (covering an active-study lemma). Batched at 12/call by default — 200
+# sentences is ~17 calls, comfortably under the phase timeout.
 TRANSLATE_MAX_SENTENCES="${POLYGLOT_TRANSLATE_MAX_SENTENCES:-200}"
-TRANSLATE_TIMEOUT_SECONDS="${POLYGLOT_TRANSLATE_TIMEOUT_SECONDS:-900}"
-# 2026-05-21: third phase enriches lemmas with philological data (etymology,
+TRANSLATE_TIMEOUT_SECONDS="${POLYGLOT_TRANSLATE_TIMEOUT_SECONDS:-1200}"
+# 2026-05-21: fourth phase enriches lemmas with philological data (etymology,
 # diachrony, cognates, quotes, register). Selector prioritises active study:
 # acquiring (sorted by next-due) → learning/lapsed → encountered. `known`
 # lemmas are excluded — once a word is learnt the lookup card stops being
 # load-bearing. See find_unenriched_lemmas docstring for the full policy.
 # Cap sized for heavy-reading days: at ~70s/batch × 4 lemmas/batch, 30 lemmas
 # takes ~9 min — well under the 30-min phase timeout, leaving headroom for
-# slow Claude responses. An in-process lock in batch_enrich prevents two
+# slow LLM responses. An in-process lock in batch_enrich prevents two
 # overlapping cron runs from double-spending LLM calls on the same lemmas.
 ENRICH_MAX_LEMMAS="${POLYGLOT_ENRICH_MAX_LEMMAS:-30}"
 ENRICH_TIMEOUT_SECONDS="${POLYGLOT_ENRICH_TIMEOUT_SECONDS:-1800}"

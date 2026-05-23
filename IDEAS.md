@@ -4,6 +4,18 @@
 
 ---
 
+## 🧹 [TRIAGE 2026-05-22] Five abandoned 2026-03-21 experiment PRs — evaluated against production data
+
+Closed PRs #21–#25 (2-month-old, all conflicting). Re-evaluated each *idea* (not the stale code) against dev logs + production data (44,741 reviews). Full analysis: `research/analysis-2026-05-22-stale-pr-ideas.md`. **Do not re-propose the four below without new data.**
+
+- **[REJECTED] Dynamic session sizing by accuracy** (was PR #22, idea below at "Dynamic Session Limit"). Sessions already run median 11 / mean 12 sentence-reviews (above the proposed base of 10); session size does not rise with accuracy buckets; low-accuracy sessions are *smaller* (users self-quit). No ceiling to relieve.
+- **[REJECTED] Response-time / fluency signal** (was PR #23). Hypothesis falsified: next-review lapse after a slow-correct review is 10.5% vs 12.7% after fast-correct — slowness predicts *fewer* lapses, not more. Only 17% coverage; the captured `response_ms` is whole-sentence reading time (25s median), not word recognition.
+- **[REJECTED] Familiar-encountered comprehensibility gate** (was PR #25, idea below at "Comprehensibility Gate — Count Familiar Encountered Words as Known"). Only 2 encountered words have ≥8 encounters; exactly 1 sentence would become newly eligible. The 2026-03-18 collateral auto-introduction flow already drains encountered words (only 85 exist). Dead-zone is empty.
+- **[DEFERRED] Rasm confusable-pair session exclusion** (was PR #24, idea below at "Session Builder: No Same-Rasm Pairs in Same Session"). Directionally real (same-rasm co-occurrence: 2.71% was_confused vs 1.75% clean) but tiny absolute magnitude (9 confused reviews); literature on interleaving-vs-spacing for confusables is mixed. Not worth session-builder complexity now.
+- **[DONE — disabled] Mnemonic regeneration → memory-hook quality gate → mnemonics turned OFF** (was PR #21). The regeneration mechanism was ~80% already shipped. Reframed to *quality-gating* since hooks are mostly low-quality. Two calibration rounds (49 + 45 user ratings, `research/eval-hook-quality-2026-05-22.html` + `-batch2-`) showed **the quality boundary is not reliably learnable**: held-out Cohen's κ = **−0.12** (worse than chance), and the criteria *inverted* across sessions (tight-sound/picturable hooks rejected in batch 2, loose/abstract ones accepted). Likely real driver is subjective "semantic inevitability," which an LLM critic can't judge consistently and which isn't stable across the user's own sessions. **Decision (2026-05-22): turn mnemonics OFF.** Generation gated behind `ALIF_MEMORY_HOOKS_ENABLED` (default off) at the `memory_hooks.py` chokepoint; display gated behind `frontend/lib/feature-flags.ts` `SHOW_MNEMONIC_HOOKS=false`. Cognates/collocations/usage/fun-fact are unaffected (not part of the quality problem). Reversible via the two flags. Full write-up: `research/analysis-2026-05-22-stale-pr-ideas.md`.
+
+---
+
 ## 🔵 [OPEN 2026-05-21] Polyglot enrichment verifier may be over-flagging
 
 Round 1 of the Haiku fact-verify pass (PR #114) flagged 5 of 10 backfilled lemmas as `done_flagged`. At least one of those (#685 όλος) is a verifier disagreement about scholarly form (`*solh₂-` vs `*solw-`), where both PIE reconstructions are defensible in current literature. The verifier prompt deliberately errs on "flag when unsure" but may be too aggressive — a 50% flag rate undermines the signal.

@@ -83,11 +83,15 @@ def _resolve_model(raw: str) -> str:
 
 GEN_MODEL = _resolve_model(os.environ.get("POLYGLOT_GEN_MODEL", "sonnet"))
 VERIFY_MODEL = _resolve_model(os.environ.get("POLYGLOT_VERIFY_MODEL", "haiku"))
+# Translation of harvested book sentences is structurally simpler than
+# generation — Haiku is plenty, and 10× cheaper.
+TRANSLATE_MODEL = _resolve_model(os.environ.get("POLYGLOT_TRANSLATE_MODEL", "haiku"))
 GEN_TIMEOUT_S = int(os.environ.get("POLYGLOT_GEN_TIMEOUT", "240"))
 VERIFY_TIMEOUT_S = int(os.environ.get("POLYGLOT_VERIFY_TIMEOUT", "180"))
-TRANSLATE_MODEL = _resolve_model(os.environ.get("POLYGLOT_TRANSLATE_MODEL", "haiku"))
 TRANSLATE_TIMEOUT_S = int(os.environ.get("POLYGLOT_TRANSLATE_TIMEOUT", "180"))
-TRANSLATE_BATCH_SIZE = max(1, int(os.environ.get("POLYGLOT_TRANSLATE_BATCH_SIZE", "50")))
+# Sentences per translation LLM call. Translation is short and uniform, so we
+# batch generously — one Haiku call covers a whole page's worth of fallbacks.
+TRANSLATE_BATCH_SIZE = max(1, int(os.environ.get("POLYGLOT_TRANSLATE_BATCH_SIZE", "12")))
 
 # Cap each batch to a reasonable size — Alif measured the sweet spot at 4-6
 # targets per Sonnet call. More than that and the prompt context noise
@@ -1084,10 +1088,38 @@ def warm_sentence_cache(
         _warm_cache_lock.release()
 
 
-# ─── Harvested-sentence translation backfill ──────────────────────────────
+# ─── Book-sentence translation ──────────────────────────────────────────────
+#
+# Harvested textbook sentences (``sentence_harvest``) are created with
+# ``translation_en = NULL`` — harvesting is pure DB compute and holds no LLM
+# call (write-lock discipline). The picker prefers generated sentences, but a
+# book sentence is still served as a graceful fallback when no LLM sentence
+# covers a due lemma yet. Without this pass those fallbacks render with a blank
+# English line. We translate them lazily in the cron (the "pre-warm" window),
+# never on the read path.
 
 
-def _translation_schema() -> dict:
+def _translate_prompt(language_code: str, items: list[dict]) -> str:
+    lang = LANG_DISPLAY.get(language_code, language_code)
+    block = "\n".join(f"[id={it['id']}] «{it['text']}»" for it in items)
+    return f"""You are translating {lang} sentences to English for a learner.
+
+Translate each sentence below to faithful, natural English. Do not
+transliterate, do not add notes or commentary, and keep each translation to a
+single concise English rendering of the input.
+
+Each translation must reference the bracketed id so we can route it back.
+Skip nothing.
+
+Sentences:
+{block}
+
+Return JSON with this shape:
+{{"translations": [{{"id": <int>, "english": "<translation>"}}, ...]}}
+"""
+
+
+def _translate_schema() -> dict:
     return {
         "type": "object",
         "properties": {
@@ -1096,10 +1128,10 @@ def _translation_schema() -> dict:
                 "items": {
                     "type": "object",
                     "properties": {
-                        "sentence_id": {"type": "integer"},
+                        "id": {"type": "integer"},
                         "english": {"type": "string"},
                     },
-                    "required": ["sentence_id", "english"],
+                    "required": ["id", "english"],
                 },
             },
         },
@@ -1107,125 +1139,188 @@ def _translation_schema() -> dict:
     }
 
 
-def _translation_prompt(language_code: str, rows: list[dict]) -> str:
-    lang = LANG_DISPLAY.get(language_code, language_code)
-    block = "\n".join(f"[{row['sentence_id']}] {row['text']}" for row in rows)
-    return f"""Translate each {lang} sentence below into natural, faithful English.
+def translate_sentences_batch(
+    language_code: str,
+    items: list[dict],
+) -> dict[int, str]:
+    """One configured LLM call → ``{sentence_id: english}``.
 
-Rules:
-- Preserve the sentence's meaning and tense.
-- Do not transliterate.
-- Do not explain or add notes.
-- Return one translation per sentence_id. Skip nothing.
+    ``items`` is a list of ``{"id": int, "text": str}``. Returns an empty dict
+    on total LLM failure (caller skips that batch). Only ids present in the
+    request are accepted back; empty translations are dropped.
+    """
+    if not items:
+        return {}
+    requested_ids = {it["id"] for it in items}
+    started = time.time()
+    structured = _call_llm(
+        prompt=_translate_prompt(language_code, items),
+        schema=_translate_schema(),
+        model=TRANSLATE_MODEL,
+        timeout_s=TRANSLATE_TIMEOUT_S,
+        log_context="sentence_translation",
+    )
+    elapsed = time.time() - started
+    if not structured:
+        _log_pipeline({
+            "event": "translate_batch_failed",
+            "language_code": language_code,
+            "sentence_ids": sorted(requested_ids),
+            "elapsed_s": round(elapsed, 1),
+            "model": TRANSLATE_MODEL,
+        })
+        return {}
 
-Sentences:
-{block}
-"""
+    out: dict[int, str] = {}
+    for t in structured.get("translations", []) or []:
+        if not isinstance(t, dict):
+            continue
+        sid = t.get("id")
+        english = (t.get("english") or "").strip()
+        if not isinstance(sid, int) or sid not in requested_ids or not english:
+            continue
+        out[sid] = english
+
+    _log_pipeline({
+        "event": "translate_batch_returned",
+        "language_code": language_code,
+        "requested": len(requested_ids),
+        "returned": len(out),
+        "elapsed_s": round(elapsed, 1),
+        "model": TRANSLATE_MODEL,
+    })
+    return out
 
 
-def _find_untranslated_harvested_sentences(language_code: str, limit: int) -> list[dict]:
-    db = database.SessionLocal()
-    try:
-        rows = (
-            db.query(Sentence.id, Sentence.text)
-            .join(SentenceWord, SentenceWord.sentence_id == Sentence.id)
-            .join(UserLemmaKnowledge, UserLemmaKnowledge.lemma_id == SentenceWord.lemma_id)
-            .filter(
-                Sentence.language_code == language_code,
-                Sentence.source == "textbook",
-                Sentence.is_active.is_(True),
-                Sentence.mappings_verified_at.isnot(None),
-                (Sentence.translation_en.is_(None) | (func.length(func.trim(Sentence.translation_en)) == 0)),
-                UserLemmaKnowledge.knowledge_state.in_(
-                    ["acquiring", "learning", "known", "lapsed"]
-                ),
-            )
-            .distinct()
-            .order_by(Sentence.id)
-            .limit(limit)
-            .all()
+def _untranslated_sentence_rows(
+    db: Session,
+    language_code: str,
+    limit: int,
+) -> list[tuple[int, str]]:
+    """Active + verified sentences that lack an English translation AND cover a
+    lemma in active study (acquiring/learning/known/lapsed).
+
+    Scoping to active-study lemmas is both correct and frugal: those are the
+    only book sentences the picker can serve as a fallback, so a sentence
+    covering only never-engaged vocabulary would never be shown and isn't worth
+    an LLM call. Newest sentences first — freshly harvested pages are the
+    ones the learner is most likely reading right now. Joining the ULK table
+    (rather than an ``IN`` over thousands of ids) keeps the statement bounded.
+    """
+    rows = (
+        db.query(Sentence.id, Sentence.text)
+        .join(SentenceWord, SentenceWord.sentence_id == Sentence.id)
+        .join(UserLemmaKnowledge, UserLemmaKnowledge.lemma_id == SentenceWord.lemma_id)
+        .filter(
+            Sentence.language_code == language_code,
+            Sentence.source == "textbook",
+            Sentence.is_active.is_(True),
+            Sentence.mappings_verified_at.isnot(None),
+            (Sentence.translation_en.is_(None))
+            | (func.length(func.trim(Sentence.translation_en)) == 0),
+            UserLemmaKnowledge.knowledge_state.in_(
+                ["acquiring", "learning", "known", "lapsed"]
+            ),
         )
-        return [{"sentence_id": sid, "text": text} for sid, text in rows]
-    finally:
-        db.close()
+        .distinct()
+        .order_by(Sentence.id.desc())
+        .limit(limit)
+        .all()
+    )
+    return [(sid, text) for sid, text in rows if text]
 
 
 def translate_untranslated_sentences(
     language_code: str = "el",
     *,
     max_sentences: int = 200,
+    batch_size: int = TRANSLATE_BATCH_SIZE,
 ) -> dict:
-    """Fill ``translation_en`` for untranslated harvested textbook sentences.
+    """Background task: fill ``translation_en`` for untranslated book sentences
+    covering active-study lemmas.
 
-    Only sentences that already passed the mapping verifier and cover an active
-    study lemma are considered. LLM calls happen without a DB session open.
+    Three-phase, write-lock-safe: read pending ids+text (commit/close), call
+    the configured LLM with no DB session open, then write each batch's results
+    in a fast per-batch commit. Idempotent — the write only fills rows whose
+    translation is still NULL/empty, so a concurrent reader or a re-run never
+    clobbers an existing translation. Locked so two cron passes don't
+    double-spend LLM budget.
     """
     if not _translate_lock.acquire(blocking=False):
         return {"skipped": True, "reason": "translate_busy", "pending": 0, "translated": 0}
 
     run_id = uuid.uuid4().hex[:8]
+    started = time.monotonic()
     try:
-        pending = _find_untranslated_harvested_sentences(language_code, max_sentences)
+        # ── Phase 1: read ──
+        db = database.SessionLocal()
+        try:
+            pending = _untranslated_sentence_rows(db, language_code, max_sentences)
+        finally:
+            db.close()
+
         if not pending:
             _log_pipeline({
-                "event": "translate_no_gaps",
+                "event": "translate_no_pending",
                 "language_code": language_code,
                 "run_id": run_id,
             })
             return {"run_id": run_id, "pending": 0, "translated": 0}
 
-        translated = 0
-        for start in range(0, len(pending), TRANSLATE_BATCH_SIZE):
-            chunk = pending[start:start + TRANSLATE_BATCH_SIZE]
-            structured = _call_llm(
-                prompt=_translation_prompt(language_code, chunk),
-                schema=_translation_schema(),
-                model=TRANSLATE_MODEL,
-                timeout_s=TRANSLATE_TIMEOUT_S,
-                log_context="sentence_translation",
-            )
-            if not isinstance(structured, dict):
-                _log_pipeline({
-                    "event": "translate_batch_failed",
-                    "language_code": language_code,
-                    "run_id": run_id,
-                    "sentence_ids": [row["sentence_id"] for row in chunk],
-                    "model": TRANSLATE_MODEL,
-                })
+        total_translated = 0
+        for i in range(0, len(pending), batch_size):
+            batch = pending[i:i + batch_size]
+            items = [{"id": sid, "text": text} for sid, text in batch]
+
+            # ── Phase 2: LLM (no DB session open) ──
+            translations = translate_sentences_batch(language_code, items)
+            if not translations:
                 continue
 
-            by_id = {
-                item.get("sentence_id"): (item.get("english") or "").strip()
-                for item in structured.get("translations", []) or []
-                if isinstance(item, dict)
-            }
+            # ── Phase 3: write (fast per-batch commit) ──
             db = database.SessionLocal()
             try:
-                for row in chunk:
-                    english = by_id.get(row["sentence_id"])
-                    if not english:
+                written = 0
+                for sid, english in translations.items():
+                    eng = (english or "").strip()
+                    if not eng:
                         continue
-                    sentence = db.get(Sentence, row["sentence_id"])
-                    if sentence is None:
-                        continue
-                    if (sentence.translation_en or "").strip():
-                        continue
-                    sentence.translation_en = english
-                    translated += 1
+                    written += (
+                        db.query(Sentence)
+                        .filter(
+                            Sentence.id == sid,
+                            Sentence.language_code == language_code,
+                            (Sentence.translation_en.is_(None))
+                            | (func.length(func.trim(Sentence.translation_en)) == 0),
+                        )
+                        .update(
+                            {Sentence.translation_en: eng},
+                            synchronize_session=False,
+                        )
+                    )
                 db.commit()
+                total_translated += written
             except Exception:
                 db.rollback()
-                log.exception("Failed to write sentence translations")
+                log.exception(
+                    "Failed to write translations batch (language=%s)", language_code
+                )
             finally:
                 db.close()
 
+        elapsed = time.monotonic() - started
         _log_pipeline({
             "event": "translate_done",
             "language_code": language_code,
             "run_id": run_id,
             "pending": len(pending),
-            "translated": translated,
+            "translated": total_translated,
+            "elapsed_s": round(elapsed, 1),
         })
-        return {"run_id": run_id, "pending": len(pending), "translated": translated}
+        return {
+            "run_id": run_id,
+            "pending": len(pending),
+            "translated": total_translated,
+        }
     finally:
         _translate_lock.release()

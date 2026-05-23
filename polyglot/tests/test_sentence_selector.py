@@ -244,6 +244,47 @@ def test_llm_outranks_textbook_at_equal_comprehensibility(tmp_db):
         assert db.query(Sentence).filter(Sentence.id == page_sent.id).first() is not None
 
 
+def test_generated_strictly_beats_more_comprehensible_textbook(tmp_db):
+    """2026-05-22: source is a strict tier, not a multiplier. A half-
+    comprehensible LLM sentence must beat a fully-comprehensible textbook
+    sentence — the exact case the old ``llm × 1.5`` multiplier got wrong
+    (1.0 textbook > 0.45 llm). Review always prefers a novel generated
+    context over the page-of-record, even when the book sentence reads easier.
+    """
+    with tmp_db() as db:
+        target = _seed_lemma(db, form="λόγος")
+        known_scaffold = _seed_lemma(db, form="ο")
+        _seed_known(db, known_scaffold.lemma_id, state="known")
+        unknown_scaffold = _seed_lemma(db, form="ξένο")  # content word, no ULK
+
+        story = _seed_story(db)
+        page = _seed_page(db, story_id=story.id)
+
+        # Textbook: fully comprehensible (only known scaffold) → score 1.0.
+        textbook_sent = _seed_sentence(
+            db,
+            lemma_surfaces=[(known_scaffold.lemma_id, "ο"), (target.lemma_id, "λόγος")],
+            text="ο λόγος (textbook)",
+            source="textbook",
+            page_id=page.id,
+        )
+        # LLM: has an unknown content scaffold → comprehensibility 0 → score 0.3.
+        llm_sent = _seed_sentence(
+            db,
+            lemma_surfaces=[(unknown_scaffold.lemma_id, "ξένο"), (target.lemma_id, "λόγος")],
+            text="ξένο λόγος (llm)",
+            source="llm",
+        )
+        db.commit()
+
+        result = pick_sentence_for_lemma(db, lemma_id=target.lemma_id, language_code="el")
+        assert result is not None
+        assert result.sentence_id == llm_sent.id
+        assert result.selection_reason == "llm_with_gaps"
+        # Textbook fallback still in DB — strict tier orders, doesn't delete.
+        assert db.query(Sentence).filter(Sentence.id == textbook_sent.id).first() is not None
+
+
 def test_page_first_unknown_scaffold_falls_back_to_other_source(tmp_db):
     with tmp_db() as db:
         target = _seed_lemma(db, form="λόγος")

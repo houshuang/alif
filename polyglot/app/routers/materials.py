@@ -104,7 +104,9 @@ class TranslateResponse(BaseModel):
 
 @router.post("/translate-sentences", response_model=TranslateResponse)
 def translate_sentences(req: TranslateRequest) -> TranslateResponse:
-    """Fill ``translation_en`` for untranslated harvested book sentences."""
+    """Fill ``translation_en`` for untranslated harvested book sentences that
+    cover an active-study lemma. Used by the cron wrapper; safe to call
+    interactively (idempotent, bounded by ``max_sentences``)."""
     result = translate_untranslated_sentences(
         language_code=req.language_code,
         max_sentences=req.max_sentences,

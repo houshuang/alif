@@ -1,0 +1,807 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title id="page-title">Evaluation</title>
+<style>
+  :root {
+    --bg: #eff1f5; --surface: #ffffff; --mantle: #e6e9ef;
+    --text: #4c4f69; --dim: #6c6f85; --faint: #9ca0b0;
+    --green: #40a02b; --red: #d20f39; --yellow: #df8e1d; --blue: #1e66f5;
+    --purple: #8839ef; --teal: #179299;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font: 15px/1.6 -apple-system, system-ui, sans-serif; background: var(--bg); color: var(--text); }
+
+  /* Layout modes */
+  .layout-single { max-width: 720px; margin: 0 auto; padding: 16px 24px; }
+  .layout-split { display: grid; grid-template-columns: 1fr 1fr; height: calc(100vh - 48px); }
+  .layout-split .context-panel { background: var(--mantle); overflow-y: auto; padding: 16px 20px; border-right: 1px solid #ccd0da; }
+  .layout-split .main-panel { overflow-y: auto; padding: 16px 24px; }
+
+  /* Top bar */
+  .topbar {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 8px 20px; background: var(--surface); border-bottom: 1px solid #ccd0da;
+    font-size: 13px; color: var(--dim); flex-wrap: wrap; gap: 6px;
+    position: sticky; top: 0; z-index: 100;
+  }
+  .topbar .progress-text { font-weight: 600; }
+  .topbar .stats { display: flex; gap: 12px; align-items: center; }
+  .topbar .stat-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 3px; vertical-align: middle; }
+  .topbar button {
+    background: none; border: 1px solid #ccd0da; border-radius: 4px;
+    padding: 3px 12px; cursor: pointer; font-size: 12px; color: var(--dim); font-family: inherit;
+  }
+  .topbar button:hover { background: var(--mantle); }
+  .topbar button.primary { background: var(--blue); color: white; border-color: var(--blue); }
+  .topbar button.primary:hover { opacity: 0.9; }
+
+  /* Progress bar */
+  .progress-bar { height: 3px; background: var(--mantle); width: 100%; }
+  .progress-bar .fill { height: 100%; background: var(--blue); transition: width 0.2s; }
+
+  /* Card */
+  .card {
+    background: var(--surface); border-radius: 10px; padding: 20px 24px;
+    margin: 16px 0; border-left: 4px solid #ccd0da;
+    animation: slideUp 0.15s ease-out;
+  }
+  @keyframes slideUp { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+  .card.no-anim { animation: none; }
+  .card.rated-good { border-left-color: var(--green); }
+  .card.rated-bad { border-left-color: var(--red); }
+  .card.rated-skip { border-left-color: var(--faint); opacity: 0.6; }
+  .card.rated-partial { border-left-color: var(--yellow); }
+
+  .card-id { font-size: 11px; color: var(--faint); font-family: monospace; margin-bottom: 4px; }
+  .card-content { font-size: 16px; font-weight: 500; margin-bottom: 8px; line-height: 1.5; }
+  .card-context { font-size: 13px; color: var(--dim); margin-bottom: 12px; line-height: 1.5; }
+  .card-output { font-size: 14px; background: var(--mantle); padding: 10px 14px; border-radius: 6px; margin-bottom: 12px; line-height: 1.5; }
+  .card-output-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: var(--dim); margin-bottom: 4px; }
+  .card-meta { font-size: 12px; color: var(--faint); margin-bottom: 12px; }
+
+  /* Compare mode */
+  .compare-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px; }
+  .compare-col { background: var(--mantle); padding: 10px 14px; border-radius: 6px; font-size: 14px; line-height: 1.5; }
+  .compare-col-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: var(--dim); margin-bottom: 4px; }
+
+  /* Dimension labels + buttons */
+  .dim-label {
+    font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px;
+    color: var(--dim); margin: 12px 0 6px;
+  }
+  .btn-row { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 8px; }
+  .btn {
+    padding: 7px 16px; border: 1px solid #ccd0da; border-radius: 6px;
+    background: var(--surface); cursor: pointer; font-size: 13px; color: var(--text);
+    transition: all 0.1s; font-family: inherit;
+  }
+  .btn:hover { background: var(--mantle); }
+  .btn .key-hint {
+    display: inline-block; width: 18px; height: 18px; line-height: 18px;
+    text-align: center; border-radius: 3px; background: var(--mantle);
+    font-size: 11px; font-weight: 700; margin-right: 6px; font-family: monospace;
+  }
+  .btn.active-green { background: #d5f0cd; border-color: var(--green); color: var(--green); font-weight: 600; }
+  .btn.active-red { background: #fdd; border-color: var(--red); color: var(--red); font-weight: 600; }
+  .btn.active-yellow { background: #fef3cd; border-color: var(--yellow); color: #8a6d00; font-weight: 600; }
+  .btn.active-gray { background: #e8e8e8; border-color: var(--faint); color: var(--faint); font-weight: 600; }
+  .btn.active-blue { background: #dbeafe; border-color: var(--blue); color: var(--blue); font-weight: 600; }
+  .btn.active-purple { background: #f0e6ff; border-color: var(--purple); color: var(--purple); font-weight: 600; }
+  .btn.active-teal { background: #d5f5f6; border-color: var(--teal); color: var(--teal); font-weight: 600; }
+
+  /* Text input for corrections */
+  .correction-input {
+    width: 100%; padding: 8px 12px; border: 1px solid #ccd0da; border-radius: 6px;
+    font-size: 14px; margin-top: 4px; font-family: inherit;
+  }
+  .correction-input:focus { outline: none; border-color: var(--blue); }
+
+  /* Navigation */
+  .nav-bottom { display: flex; justify-content: space-between; align-items: center; padding: 12px 0; margin-top: 8px; }
+  .nav-bottom button {
+    padding: 8px 20px; border-radius: 6px; border: 1px solid #ccd0da;
+    background: var(--surface); cursor: pointer; font-size: 14px; font-family: inherit;
+  }
+  .nav-bottom button:hover { background: var(--mantle); }
+  .nav-bottom .nav-hint { font-size: 12px; color: var(--faint); }
+
+  /* Key legend */
+  .key-legend { font-size: 12px; color: var(--faint); margin-top: 12px; text-align: center; }
+  .key-legend kbd {
+    display: inline-block; padding: 1px 5px; border: 1px solid #ccd0da; border-radius: 3px;
+    background: var(--surface); font-family: monospace; font-size: 11px;
+  }
+
+  /* Done screen */
+  .done-screen { text-align: center; padding: 60px 24px; }
+  .done-screen h2 { font-size: 24px; margin-bottom: 12px; }
+  .done-screen .done-stats { font-size: 16px; color: var(--dim); margin-bottom: 24px; line-height: 1.8; }
+  .done-screen button { font-size: 16px; padding: 12px 32px; }
+
+  /* Filter indicator */
+  .filter-active { background: var(--blue) !important; color: white !important; border-color: var(--blue) !important; }
+
+  /* Toast */
+  .toast {
+    position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+    background: #333; color: #fff; padding: 10px 24px; border-radius: 8px;
+    font-size: 14px; font-weight: 500; z-index: 999; opacity: 0; transition: opacity 0.2s;
+  }
+  .toast.show { opacity: 1; }
+
+  @media(max-width: 700px) {
+    .layout-split { grid-template-columns: 1fr; }
+    .layout-split .context-panel { max-height: 35vh; }
+    .compare-row { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<div class="topbar" id="topbar">
+  <span class="progress-text" id="progress">Loading...</span>
+  <div class="stats" id="stats"></div>
+  <div style="display:flex;gap:6px">
+    <button id="filter-btn" onclick="H.toggleFilter()">Unrated only</button>
+    <button onclick="H.copyClipboard()" class="primary">Copy results</button>
+    <button onclick="H.exportJSON()">Export JSON</button>
+  </div>
+</div>
+<div class="progress-bar"><div class="fill" id="progress-fill"></div></div>
+
+<div id="root"></div>
+<div class="toast" id="toast"></div>
+
+<script>
+// ─── Harness core ───────────────────────────────────────────────────
+const H = {
+  config: null,
+  data: null,
+  evals: {},
+  current: 0,
+  filterUnrated: false,
+  filteredIndices: null,
+
+  // Timing: track seconds per rating for fatigue detection
+  _itemStartTime: null,
+  _timings: [],
+
+  // Gold items: set of indices in this.data that are gold (known-answer) items
+  _goldPositions: new Set(),
+
+  init(config, data) {
+    this.config = config;
+
+    // Inject gold items at random positions if configured
+    if (config.goldItems && config.goldItems.length) {
+      const goldRatio = config.goldRatio || 0.15;
+      const targetGoldCount = Math.max(1, Math.round(data.length * goldRatio));
+      const goldsToInsert = config.goldItems.length <= targetGoldCount
+        ? config.goldItems
+        : config.goldItems.slice(0, targetGoldCount);
+
+      // Generate random insertion positions (spread evenly with jitter)
+      const totalLen = data.length + goldsToInsert.length;
+      const positions = [];
+      for (let i = 0; i < goldsToInsert.length; i++) {
+        // Spread evenly across the data range with random jitter
+        const basePos = Math.round((i + 0.5) * data.length / goldsToInsert.length);
+        const jitter = Math.floor(Math.random() * Math.max(1, Math.floor(data.length / goldsToInsert.length / 2)));
+        const pos = Math.max(0, Math.min(data.length, basePos + jitter - Math.floor(jitter / 2)));
+        positions.push(pos);
+      }
+      // Sort descending so insertions don't shift earlier indices
+      positions.sort((a, b) => b - a);
+
+      // Tag gold items and insert
+      const merged = [...data];
+      for (let i = 0; i < positions.length; i++) {
+        const goldItem = { ...goldsToInsert[goldsToInsert.length - 1 - i], _isGold: true };
+        merged.splice(positions[i], 0, goldItem);
+      }
+
+      this.data = merged;
+      // Build the gold positions set
+      this._goldPositions = new Set();
+      merged.forEach((item, idx) => { if (item._isGold) this._goldPositions.add(idx); });
+    } else {
+      this.data = data;
+      this._goldPositions = new Set();
+    }
+
+    document.getElementById('page-title').textContent = config.title || 'Evaluation';
+
+    // Load persisted evals
+    const stored = localStorage.getItem(config.storageKey);
+    if (stored) {
+      try { this.evals = JSON.parse(stored); } catch(e) {}
+    }
+
+    // Load persisted position
+    const pos = localStorage.getItem(config.storageKey + '_pos');
+    if (pos) this.current = Math.min(parseInt(pos) || 0, this.data.length - 1);
+
+    // Load persisted timings
+    const timings = localStorage.getItem(config.storageKey + '_timings');
+    if (timings) { try { this._timings = JSON.parse(timings); } catch(e) {} }
+
+    this._itemStartTime = Date.now();
+    this.render();
+    this.setupKeyboard();
+  },
+
+  isGold(idx) { return this._goldPositions.has(idx); },
+
+  realItemCount() { return this.data.length - this._goldPositions.size; },
+
+  save() {
+    localStorage.setItem(this.config.storageKey, JSON.stringify(this.evals));
+    localStorage.setItem(this.config.storageKey + '_pos', String(this.current));
+  },
+
+  getEval(idx) { return this.evals[idx] || {}; },
+
+  setEval(idx, dim, value) {
+    if (!this.evals[idx]) this.evals[idx] = {};
+    // Toggle: clicking same value deselects
+    if (this.evals[idx][dim] === value) {
+      delete this.evals[idx][dim];
+    } else {
+      this.evals[idx][dim] = value;
+    }
+    this.save();
+  },
+
+  setNote(idx, text) {
+    if (!this.evals[idx]) this.evals[idx] = {};
+    this.evals[idx]._note = text;
+    this.save();
+  },
+
+  getVisibleIndices() {
+    if (!this.filterUnrated) return this.data.map((_, i) => i);
+    return this.data.map((_, i) => i).filter(i => {
+      const ev = this.getEval(i);
+      const dims = this.config.dimensions || [];
+      return !dims.length || !dims.some(d => ev[d.name] !== undefined);
+    });
+  },
+
+  ratedCount() {
+    const dims = this.config.dimensions || [];
+    if (!dims.length) return 0;
+    const primaryDim = dims[0].name;
+    return this.data.filter((_, i) => !this.isGold(i) && this.getEval(i)[primaryDim] !== undefined).length;
+  },
+
+  dimStats() {
+    const stats = {};
+    const dims = this.config.dimensions || [];
+    dims.forEach(d => {
+      stats[d.name] = {};
+      d.options.forEach(o => { stats[d.name][o.value] = 0; });
+    });
+    this.data.forEach((_, i) => {
+      if (this.isGold(i)) return; // exclude gold items from visible stats
+      const ev = this.getEval(i);
+      dims.forEach(d => {
+        const val = ev[d.name];
+        if (val !== undefined && stats[d.name][val] !== undefined) {
+          stats[d.name][val]++;
+        }
+      });
+    });
+    return stats;
+  },
+
+  toggleFilter() {
+    this.filterUnrated = !this.filterUnrated;
+    document.getElementById('filter-btn').className = this.filterUnrated ? 'filter-active' : '';
+    const vis = this.getVisibleIndices();
+    if (vis.length > 0 && !vis.includes(this.current)) {
+      this.current = vis[0];
+    }
+    this.render();
+  },
+
+  navigate(delta) {
+    const vis = this.getVisibleIndices();
+    if (!vis.length) return;
+    const curPos = vis.indexOf(this.current);
+    let newPos;
+    if (curPos === -1) {
+      newPos = delta > 0 ? 0 : vis.length - 1;
+    } else {
+      newPos = Math.max(0, Math.min(vis.length - 1, curPos + delta));
+    }
+    this.current = vis[newPos];
+    this._itemStartTime = Date.now();
+    this.save();
+    this.render();
+    // Scroll main panel to top
+    const mp = document.querySelector('.main-panel') || document.querySelector('.layout-single');
+    if (mp) mp.scrollTop = 0;
+  },
+
+  // autoAdvance is handled inline in rate() — immediate, no timeout, no re-render of current card
+
+  rate(dim, value) {
+    // Record timing for primary dimension ratings
+    const dims = this.config.dimensions || [];
+    if (dims.length && dim === dims[0].name && this._itemStartTime) {
+      const elapsed = (Date.now() - this._itemStartTime) / 1000;
+      this._timings.push({ idx: this.current, seconds: Math.round(elapsed * 10) / 10 });
+      localStorage.setItem(this.config.storageKey + '_timings', JSON.stringify(this._timings));
+    }
+
+    this.setEval(this.current, dim, value);
+    // Auto-advance immediately after rating primary dimension (no re-render of current card)
+    if (dims.length && dim === dims[0].name && this.config.autoAdvance !== false) {
+      this._skipAnim = true;
+      this.navigate(1);
+      this._skipAnim = false;
+    } else {
+      this.render();
+    }
+  },
+
+  // ─── Render ─────────────────────────────────────────────
+  render() {
+    const vis = this.getVisibleIndices();
+    const rated = this.ratedCount();
+    const total = this.realItemCount(); // exclude gold items from displayed total
+    const pct = total ? Math.round(rated / total * 100) : 0;
+
+    // Progress with estimated time remaining
+    let progressText = `${rated}/${total} rated (${pct}%)`;
+    // Item position excludes gold items so the denominator matches the progress total
+    const visNonGold = vis.filter(i => !this.isGold(i));
+    if (this.isGold(this.current)) {
+      // On a gold item: show position of the nearest preceding non-gold item
+      const visPos = vis.indexOf(this.current);
+      let precedingNonGold = 0;
+      for (let j = 0; j < visPos; j++) {
+        if (!this.isGold(vis[j])) precedingNonGold++;
+      }
+      progressText += ` · Item ${precedingNonGold + 1}/${visNonGold.length}`;
+    } else {
+      const posInNonGold = visNonGold.indexOf(this.current);
+      progressText += ` · Item ${posInNonGold + 1}/${visNonGold.length}`;
+    }
+
+    if (this._timings.length >= 3) {
+      const recent = this._timings.slice(-10).map(t => t.seconds).filter(t => t < 120);
+      if (recent.length) {
+        const avgSec = recent.reduce((a, b) => a + b, 0) / recent.length;
+        const remaining = total - rated;
+        if (remaining > 0) {
+          const estMin = Math.ceil(remaining * avgSec / 60);
+          progressText += ` · ~${estMin}min left`;
+        }
+      }
+    }
+    document.getElementById('progress').textContent = progressText;
+    document.getElementById('progress-fill').style.width = `${pct}%`;
+
+    // Stats
+    const stats = this.dimStats();
+    const dims = this.config.dimensions || [];
+    let statsHtml = '';
+    if (dims.length) {
+      const d = dims[0];
+      d.options.forEach(o => {
+        const color = o.color || 'gray';
+        const count = stats[d.name][o.value] || 0;
+        statsHtml += `<span><span class="stat-dot" style="background:var(--${color})"></span>${o.label}: ${count}</span>`;
+      });
+    }
+    document.getElementById('stats').innerHTML = statsHtml;
+
+    // Done?
+    if (vis.length === 0 && this.filterUnrated) {
+      this.renderDone();
+      return;
+    }
+    if (this.current >= this.data.length) {
+      this.renderDone();
+      return;
+    }
+
+    const item = this.data[this.current];
+    const ev = this.getEval(this.current);
+    const type = this.config.type || 'rate';
+
+    // Determine layout
+    const hasContext = item.context || type === 'compare';
+    const root = document.getElementById('root');
+
+    let html = '';
+    if (hasContext && type !== 'compare') {
+      html += `<div class="layout-split">`;
+      html += `<div class="context-panel">${this.renderContext(item)}</div>`;
+      html += `<div class="main-panel">${this.renderCard(item, ev, this.current)}</div>`;
+      html += `</div>`;
+    } else {
+      html += `<div class="layout-single">${this.renderCard(item, ev, this.current)}</div>`;
+    }
+    root.innerHTML = html;
+  },
+
+  renderContext(item) {
+    if (!item.context) return '';
+    if (typeof item.context === 'string') return `<div style="font-size:14px;line-height:1.6;white-space:pre-wrap">${esc(item.context)}</div>`;
+    // context can be an array of {label, text} sections
+    return item.context.map(c =>
+      `<div style="margin-bottom:12px"><div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--dim);margin-bottom:4px">${esc(c.label)}</div><div style="font-size:14px;line-height:1.5;white-space:pre-wrap">${esc(c.text)}</div></div>`
+    ).join('');
+  },
+
+  renderCard(item, ev, idx) {
+    const type = this.config.type || 'rate';
+    const dims = this.config.dimensions || [];
+
+    // Border class based on primary dimension rating
+    let borderClass = '';
+    if (dims.length && ev[dims[0].name]) {
+      const opt = dims[0].options.find(o => o.value === ev[dims[0].name]);
+      if (opt) borderClass = `rated-${opt.color === 'green' ? 'good' : opt.color === 'red' ? 'bad' : opt.color === 'faint' ? 'skip' : 'partial'}`;
+    }
+
+    const animClass = this._skipAnim ? 'no-anim' : '';
+    let html = `<div class="card ${borderClass} ${animClass}">`;
+
+    // ID
+    if (item.id !== undefined) {
+      html += `<div class="card-id">#${item.id}</div>`;
+    }
+
+    // Content
+    html += `<div class="card-content">${esc(item.content || item.title || item.text || '')}</div>`;
+
+    // Metadata
+    if (item.meta) {
+      html += `<div class="card-meta">${esc(item.meta)}</div>`;
+    }
+
+    // Type-specific rendering
+    if (type === 'compare') {
+      html += `<div class="compare-row">`;
+      html += `<div class="compare-col"><div class="compare-col-label">A${item.label_a ? ': ' + esc(item.label_a) : ''}</div>${esc(item.output_a || '')}</div>`;
+      html += `<div class="compare-col"><div class="compare-col-label">B${item.label_b ? ': ' + esc(item.label_b) : ''}</div>${esc(item.output_b || '')}</div>`;
+      html += `</div>`;
+    } else if (item.output) {
+      html += `<div class="card-output-label">${esc(item.output_label || 'System output')}</div>`;
+      html += `<div class="card-output">${esc(item.output)}</div>`;
+    }
+
+    // Dimensions
+    dims.forEach((d, di) => {
+      // Skip conditional dimensions
+      if (d.showWhen) {
+        const cond = d.showWhen;
+        const depVal = ev[cond.dimension];
+        if (Array.isArray(cond.values) ? !cond.values.includes(depVal) : depVal !== cond.value) return;
+      }
+
+      const keyRow = di === 0 ? '123456789' : di === 1 ? 'qwerty' : 'asdfgh';
+      html += `<div class="dim-label">${esc(d.label || d.name)}</div>`;
+      html += `<div class="btn-row">`;
+      d.options.forEach((o, oi) => {
+        const key = d.keys ? d.keys[oi] : keyRow[oi];
+        const active = ev[d.name] === o.value;
+        const colorClass = active ? `active-${o.color || 'blue'}` : '';
+        html += `<button class="btn ${colorClass}" onclick="H.rate('${d.name}','${o.value}')">`;
+        if (key) html += `<span class="key-hint">${key}</span>`;
+        html += `${esc(o.label)}</button>`;
+      });
+      html += `</div>`;
+    });
+
+    // Note/correction input
+    if (this.config.allowNotes !== false) {
+      const showNote = !this.config.noteOnlyWhen || (
+        this.config.noteOnlyWhen.dimension &&
+        this.config.noteOnlyWhen.values &&
+        this.config.noteOnlyWhen.values.includes(ev[this.config.noteOnlyWhen.dimension])
+      );
+      if (showNote) {
+        html += `<div class="dim-label">${esc(this.config.noteLabel || 'Notes / correction')}</div>`;
+        html += `<input class="correction-input" placeholder="${esc(this.config.notePlaceholder || 'Optional note...')}"
+          value="${esc(ev._note || '')}" onchange="H.setNote(${idx}, this.value)" onfocus="H._inputFocused=true" onblur="H._inputFocused=false">`;
+      }
+    }
+
+    html += `</div>`; // card
+
+    // Navigation
+    const vis = this.getVisibleIndices();
+    const pos = vis.indexOf(idx);
+    html += `<div class="nav-bottom">`;
+    html += `<button onclick="H.navigate(-1)" ${pos <= 0 ? 'disabled' : ''}>← Previous</button>`;
+    html += `<span class="nav-hint"><kbd>←</kbd> <kbd>→</kbd> navigate · <kbd>c</kbd> copy · <kbd>e</kbd> export</span>`;
+    html += `<button onclick="H.navigate(1)" ${pos >= vis.length - 1 ? 'disabled' : ''}>Next →</button>`;
+    html += `</div>`;
+
+    // Key legend
+    html += `<div class="key-legend">`;
+    dims.forEach((d, di) => {
+      const keyRow = di === 0 ? '123456789' : di === 1 ? 'qwerty' : 'asdfgh';
+      d.options.forEach((o, oi) => {
+        const key = d.keys ? d.keys[oi] : keyRow[oi];
+        if (key) html += `<kbd>${key}</kbd> ${esc(o.label)}  `;
+      });
+      html += ' · ';
+    });
+    html += `<kbd>←</kbd><kbd>→</kbd> nav · <kbd>Space</kbd> skip · <kbd>c</kbd> copy · <kbd>e</kbd> export</div>`;
+
+    return html;
+  },
+
+  renderDone() {
+    const rated = this.ratedCount();
+    const total = this.realItemCount();
+    const stats = this.dimStats();
+    const dims = this.config.dimensions || [];
+
+    let statsText = '';
+    if (dims.length) {
+      dims.forEach(d => {
+        statsText += `<strong>${d.label || d.name}:</strong> `;
+        statsText += d.options.map(o => `${o.label}: ${stats[d.name][o.value] || 0}`).join(' · ');
+        statsText += '<br>';
+      });
+    }
+
+    document.getElementById('root').innerHTML = `
+      <div class="done-screen">
+        <h2>Evaluation complete</h2>
+        <div class="done-stats">${rated}/${total} items rated<br>${statsText}</div>
+        <div style="display:flex;gap:12px;justify-content:center">
+          <button class="btn primary" onclick="H.copyClipboard()" style="font-size:16px;padding:12px 32px">Copy to clipboard</button>
+          <button class="btn" onclick="H.exportJSON()" style="font-size:16px;padding:12px 32px">Export JSON</button>
+        </div>
+        <div style="margin-top:24px">
+          <button class="btn" onclick="H.filterUnrated=false;document.getElementById('filter-btn').className='';H.current=0;H.render()">Review all items</button>
+        </div>
+      </div>`;
+  },
+
+  // ─── Keyboard ──────────────────────────────────────────
+  setupKeyboard() {
+    document.addEventListener('keydown', e => {
+      if (this._inputFocused) return;
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+
+      const dims = this.config.dimensions || [];
+      const keyRows = ['123456789', 'qwerty', 'asdfgh'];
+
+      // Check dimension key bindings
+      for (let di = 0; di < dims.length; di++) {
+        const d = dims[di];
+        const keys = d.keys || keyRows[di];
+        for (let oi = 0; oi < d.options.length; oi++) {
+          if (e.key === keys[oi]) {
+            e.preventDefault();
+            this.rate(d.name, d.options[oi].value);
+            return;
+          }
+        }
+      }
+
+      // Navigation
+      if (e.key === 'ArrowLeft') { e.preventDefault(); this.navigate(-1); }
+      if (e.key === 'ArrowRight') { e.preventDefault(); this.navigate(1); }
+      if (e.key === ' ') { e.preventDefault(); this.navigate(1); } // space = skip
+      if (e.key === 'Backspace') { e.preventDefault(); this.navigate(-1); }
+
+      // Actions
+      if (e.key === 'c') { e.preventDefault(); this.copyClipboard(); }
+      if (e.key === 'e') { e.preventDefault(); this.exportJSON(); }
+      if (e.key === 'f') { e.preventDefault(); this.toggleFilter(); }
+    });
+  },
+
+  // ─── Gold item analysis ───────────────────────────────
+  goldResults() {
+    if (!this._goldPositions.size) return null;
+    const dims = this.config.dimensions || [];
+    const results = [];
+    this._goldPositions.forEach(idx => {
+      const item = this.data[idx];
+      const ev = this.getEval(idx);
+      const expected = item.expected || {};
+      const mismatches = {};
+      let matched = true;
+      for (const [dim, expectedVal] of Object.entries(expected)) {
+        const actualVal = ev[dim];
+        if (actualVal !== expectedVal) {
+          matched = false;
+          mismatches[dim] = { expected: expectedVal, actual: actualVal || '(unrated)' };
+        }
+      }
+      results.push({ id: item.id, expected, actual: ev, matched, mismatches });
+    });
+    const matchCount = results.filter(r => r.matched).length;
+    return { total: results.length, matched: matchCount, items: results };
+  },
+
+  // ─── Export ────────────────────────────────────────────
+  buildClipboardText() {
+    const dims = this.config.dimensions || [];
+    const stats = this.dimStats();
+    const rated = this.ratedCount();
+    const total = this.realItemCount();
+    const title = this.config.title || 'Evaluation';
+    const date = new Date().toISOString().slice(0, 10);
+
+    let text = `# ${title} — Results (${date})\n`;
+    text += `# ${rated}/${total} items rated\n\n`;
+
+    // Summary stats
+    text += `## Summary\n`;
+    if (dims.length) {
+      dims.forEach(d => {
+        d.options.forEach(o => {
+          const count = stats[d.name][o.value] || 0;
+          const pct = rated ? Math.round(count / rated * 100) : 0;
+          text += `- ${o.label}: ${count} (${pct}%)\n`;
+        });
+        text += '\n';
+      });
+    }
+
+    // Compact mode: only include IDs + ratings + notes, skip full content to save tokens
+    const maxLabel = this.config.clipboardMaxLabel || 60;
+    function shortContent(item, idx) {
+      const label = item.content || item.title || item.text || `Item ${idx}`;
+      return label.length > maxLabel ? label.slice(0, maxLabel - 3) + '...' : label;
+    }
+
+    // Items with notes/corrections (most valuable signal) — exclude gold items
+    const noted = [];
+    this.data.forEach((item, i) => {
+      if (this.isGold(i)) return;
+      const ev = this.getEval(i);
+      if (ev._note) noted.push({ idx: i, item, ev });
+    });
+    if (noted.length) {
+      text += `## Notes & Corrections\n`;
+      noted.forEach(({ idx, item, ev }) => {
+        text += `- #${item.id || idx}: "${shortContent(item, idx)}" — ${ev._note}\n`;
+      });
+      text += '\n';
+    }
+
+    // Items rated negatively (options with color "red") — exclude gold items
+    if (dims.length) {
+      const primaryDim = dims[0];
+      const badOpts = primaryDim.options.filter(o => o.color === 'red');
+      badOpts.forEach(badOpt => {
+        const badItems = [];
+        this.data.forEach((item, i) => {
+          if (this.isGold(i)) return;
+          const ev = this.getEval(i);
+          if (ev[primaryDim.name] === badOpt.value) badItems.push({ idx: i, item, ev });
+        });
+        if (badItems.length) {
+          text += `## Items rated "${badOpt.label}"\n`;
+          badItems.forEach(({ idx, item, ev }) => {
+            let line = `- #${item.id || idx}: "${shortContent(item, idx)}"`;
+            if (ev._note) line += ` (note: ${ev._note})`;
+            text += line + '\n';
+          });
+          text += '\n';
+        }
+      });
+    }
+
+    // Self-consistency (gold items)
+    const goldRes = this.goldResults();
+    if (goldRes) {
+      const pct = goldRes.total ? Math.round(goldRes.matched / goldRes.total * 100) : 0;
+      text += `## Self-Consistency (gold items)\n`;
+      text += `- ${goldRes.matched}/${goldRes.total} gold items matched expected (${pct}%)\n`;
+      const mismatched = goldRes.items.filter(r => !r.matched);
+      if (mismatched.length) {
+        text += `- Mismatches:\n`;
+        mismatched.forEach(r => {
+          for (const [dim, info] of Object.entries(r.mismatches)) {
+            text += `  - #${r.id}: expected "${info.expected}", rated "${info.actual}"\n`;
+          }
+        });
+      }
+      text += '\n';
+    }
+
+    // Timing summary
+    if (this._timings.length) {
+      const times = this._timings.map(t => t.seconds).filter(t => t < 120); // exclude pauses
+      const avg = times.reduce((a, b) => a + b, 0) / times.length;
+      const total = times.reduce((a, b) => a + b, 0);
+      text += `## Timing\n`;
+      text += `- avg ${avg.toFixed(1)}s/item, total ${Math.round(total / 60)}min ${Math.round(total % 60)}s\n\n`;
+    }
+
+    // Full eval data as compact JSON (IDs + ratings only, no content) — exclude gold items
+    text += `## Raw ratings (JSON)\n\`\`\`json\n`;
+    const compact = {};
+    this.data.forEach((_, i) => {
+      if (this.isGold(i)) return;
+      const ev = this.getEval(i);
+      if (Object.keys(ev).length) {
+        const id = this.data[i].id !== undefined ? this.data[i].id : i;
+        compact[id] = { ...ev };
+      }
+    });
+    text += JSON.stringify(compact) + '\n\`\`\`\n';
+
+    return text;
+  },
+
+  copyClipboard() {
+    const text = this.buildClipboardText();
+    navigator.clipboard.writeText(text).then(() => {
+      this.toast('Copied to clipboard — paste into Claude');
+    }).catch(() => {
+      // Fallback
+      const ta = document.createElement('textarea');
+      ta.value = text; document.body.appendChild(ta); ta.select();
+      document.execCommand('copy'); document.body.removeChild(ta);
+      this.toast('Copied to clipboard — paste into Claude');
+    });
+  },
+
+  exportJSON() {
+    const result = {
+      config: { title: this.config.title, type: this.config.type, dimensions: this.config.dimensions },
+      date: new Date().toISOString(),
+      totalItems: this.realItemCount(),
+      ratedCount: this.ratedCount(),
+      stats: this.dimStats(),
+      evals: {},
+    };
+    // Exclude gold items from evals export
+    this.data.forEach((_, i) => {
+      if (this.isGold(i)) return;
+      const ev = this.getEval(i);
+      if (Object.keys(ev).length) {
+        result.evals[i] = ev;
+      }
+    });
+    // Add gold results if applicable
+    const goldRes = this.goldResults();
+    if (goldRes) result.goldResults = goldRes;
+
+    const blob = new Blob([JSON.stringify(result, null, 2)], { type: 'application/json' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `${(this.config.storageKey || 'eval').replace(/[^a-z0-9_-]/gi, '-')}-results.json`;
+    a.click();
+  },
+
+  toast(msg) {
+    const el = document.getElementById('toast');
+    el.textContent = msg;
+    el.classList.add('show');
+    setTimeout(() => el.classList.remove('show'), 2000);
+  },
+};
+
+function esc(s) {
+  if (!s) return '';
+  const d = document.createElement('div');
+  d.textContent = String(s);
+  return d.innerHTML;
+}
+
+// ─── Boot ────────────────────────────────────────────────
+// Config and data are injected by the assembler as JSON
+const CONFIG = /*CONFIG_SLOT*/{"title": "Memory Hook Quality — Batch 2 (validation set)", "type": "rate", "storageKey": "alif-hook-calibration-2026-05-22-batch2", "autoAdvance": true, "allowNotes": true, "noteLabel": "What's wrong? (optional, one tap)", "notePlaceholder": "e.g. loose sound / abstract meaning / circular / mundane scene", "noteOnlyWhen": {"dimension": "quality", "values": ["bad"]}, "dimensions": [{"name": "quality", "label": "Keep this mnemonic? (tight sound-alike + picturable meaning + absurd memorable scene)", "options": [{"value": "great", "label": "Great — definitely keep", "color": "green"}, {"value": "usable", "label": "Usable — fine to show", "color": "yellow"}, {"value": "bad", "label": "Bad — hide it", "color": "red"}]}]}/*END_CONFIG*/;
+const DATA = /*DATA_SLOT*/[{"id": 1, "content": "You are so hungry for DINNER that you grab A SHARP (ASHĀ) knife to carve the roast immediately.", "meta": "عَشاء  (ʿashāʾ)  =  dinner   ·  noun"}, {"id": 2, "content": "You GNAW on a magic bone and feel yourself GROWING taller with each bite—your legs stretch, your arms extend, the bone's power making you GROW uncontrollably.", "meta": "نَمَا  (namā)  =  to grow   ·  verb"}, {"id": 3, "content": "You're a collector who shouts 'ALL 'EM!' as you grab snow globes from every corner of the WORLD, each tiny sphere containing a different nation that you shake and study", "meta": "عَالَمٌ  (ʿālam)  =  world   ·  noun"}, {"id": 4, "content": "You meet a RUM MAN (a pirate) who refuses all alcohol and instead cracks open pomegranates, drinking their juice while explaining that pomegranate wine is the only 'rum' he'll touch.", "meta": "رُمَّانٌ  (rummān)  =  pomegranate   ·  noun"}, {"id": 5, "content": "You’re at a store and the cashier says, “No cash.” You pull out a giant glowing coupon shaped like a MONSTER burger labeled EAT-A-MON. You hand it over, and the cashier TRUSTS you and lets you walk out with the items NOW—because you’ll pay later. As you leave, the burger-coupon stamps the receipt with the word “credit” in big letters.", "meta": "اِئْتِمَان  (iʾtimān)  =  credit   ·  noun"}, {"id": 6, "content": "You see a gold coin GLEAM in the mud, so you reach down to LAMA-it (like 'grab it' in Italian 'lama' - blade) and see it shine.", "meta": "لَمَعَ  (lamaʿa)  =  to glisten, to gleam   ·  verb"}, {"id": 7, "content": "You're WALKING across a bridge, but halfway you stop and turn around — the 'but' in your journey makes you reverse direction.", "meta": "وَلَكِنْ  (walakin)  =  but   ·  conj"}, {"id": 8, "content": "You’re at the exit gate with your suitcase, but a guard blocks you and shouts “IKKE!” (NOT!). Every time you try to leave, he slams down an “IKKE” sign and physically pushes you back into the building, forcing you to REMAIN and CONTINUE YOUR STAY (iqāma) inside.", "meta": "إِقَامَة  (iqāma)  =  stay   ·  noun"}, {"id": 9, "content": "You STEAM ALL your vegetables to USE them in the healthiest way possible—the steam rising as you actively employ this cooking method, transforming raw produce into usable nutrition.", "meta": "اسْتَعْمَلَ  (staʿmala)  =  to use   ·  verb"}, {"id": 10, "content": "Bullies HARASS you in the schoolyard, but you spot an opening in the fence and ESCAPE through it, leaving them yelling at empty air.", "meta": "هَرَب  (harab)  =  to escape   ·  verb"}, {"id": 11, "content": "You stand AS LONG AS your TALLER MA allows you to stay outside — the duration depends on her permission, just like طالَما expresses duration.", "meta": "طالَما  (ṭālamā)  =  as long as   ·  conj"}, {"id": 12, "content": "You HADDA witness it — the shocking event happens right before your eyes and you had to see it all unfold.", "meta": "حَدَثَ  (ḥadatha)  =  to happen   ·  verb"}, {"id": 13, "content": "Your child is lost in the crowd, you're panicking, then you see a sign pointing 'AT MY ANNA'—you follow it, find her, and you're instantly reassured as relief floods through you.", "meta": "اطْمَأَنَ  (ṭmaʾana)  =  to be reassured   ·  verb"}, {"id": 14, "content": "You watch an AMISH person wandering blindly through a modern city, confused by cars and electronics, completely lost in the urban maze.", "meta": "عَمِه  (ʿamih)  =  wandering blindly   ·  verb"}, {"id": 15, "content": "A WAITER rushes over carrying a bowstring on a silver platter. You grab it and immediately STRING the bow in front of him—looping the cord through the notches and pulling hard until the bow is ready to fire. The WAITER literally PROVIDED you WITH A STRING for your bow.", "meta": "وَتَرَ  (watara)  =  to string (as a bow), to provide with a string   ·  verb"}, {"id": 16, "content": "You pull back the curtain to SEE TARA (the star) shining through your window, the fabric swooshing dramatically as you reveal the night sky.", "meta": "سِتَارَة  (sitāra)  =  curtain   ·  noun"}, {"id": 17, "content": "You're stuck in a traffic JAM of cows (MOO-ing) who are KAI-ing (kicking) your car because you accidentally drove through their refugee CAMP", "meta": "مُخَيَّم  (mukhayyam)  =  camp   ·  noun"}, {"id": 18, "content": "You DOJA yourself by reclining flat in tall grass, hiding from the search party scanning the field above.", "meta": "اضْطَجَعَ  (ḍṭajaʿa)  =  to recline   ·  verb"}, {"id": 19, "content": "You reach up and GRASP the edge of a MASK that's slipping off your face—you must HOLD it firmly in place or everyone will see your identity.", "meta": "مَسَكَ  (masaka)  =  to hold, grasp   ·  verb"}, {"id": 20, "content": "You learn to dance the TURF HULA on grass during your childhood summer camp—spinning in circles with a plastic hoop while the counselors clap and your knees are always scraped.", "meta": "طُفُولَة  (ṭufūla)  =  childhood   ·  noun"}, {"id": 21, "content": "You bid farewell as your friend WAVED from the departing train—you both wave frantically, hands cutting through the air in that universal goodbye gesture until the train disappears.", "meta": "وَدَّع  (waddaʿ)  =  to bid farewell   ·  verb"}, {"id": 22, "content": "You are making a giant pie and have TO FATten the crust because you have too many APPLES (TUFFAH).", "meta": "تُفَّاح  (tuffāḥ)  =  apples   ·  noun"}, {"id": 23, "content": "You are EXHAUSTED after trying to ride a MOOR-HOG (MUR-HAQ) through a muddy swamp all day.", "meta": "مُرْهَق  (murhaq)  =  exhausted   ·  adj"}, {"id": 24, "content": "You fire a TORPEDO straight at an enemy ship—the explosive missile strikes and the impact forcefully **EXPELS** all the crew members overboard, blasting them into the water as the ship breaks apart and drives everyone away from the wreckage.", "meta": "طَرَدَ  (ṭarada)  =  to expel   ·  noun"}, {"id": 25, "content": "Your grandmother's SHAWL becomes a protective sheath — you sheathe the fragile heirloom vase by wrapping the SHAWL around it, layer by layer, until it's completely hidden and protected.", "meta": "شَامَ  (shāma)  =  to sheath   ·  verb"}, {"id": 26, "content": "You're holding five HAMS in your hands when suddenly they start doing a synchronized dance—all five hams kick their legs in perfect rhythm, showing you that there are exactly FIVE of them performing this ridiculous ham-ballet.", "meta": "خَمْسَة  (khamsa)  =  five   ·  adj"}, {"id": 27, "content": "You HIT the DOOR wildly, demanding they start BRINGING the supplies through—each strike forces them to BRING more items to you, and you shout 'iḥḍār means BRINGING!'", "meta": "إِحْضَار  (iḥḍār)  =  bringing   ·  noun"}, {"id": 28, "content": "You JOIN the secret society by completing their test: catch up to a speeding AL TACO truck and ENROLL yourself by leaping through the service window mid-drive.", "meta": "الْتَحَقَ  (al-taḥaqa)  =  to join / enroll   ·  verb"}, {"id": 29, "content": "You're lost in the desert, radioing 'ROGER, ROGER!' into your walkie-talkie, hoping with every fiber that someone will respond and save you — each 'roger' carries your desperate hope for rescue.", "meta": "رَجا  (rajā)  =  to hope   ·  verb"}, {"id": 30, "content": "You watch A SHAMAN CONTRIBUTE his healing herbs to the communal medicine pile—his CONTRIBUTION is his share of the tribe's collective healing power.", "meta": "أَسْهَمَ  (ashama)  =  to contribute   ·  noun"}, {"id": 31, "content": "You're building a survival kit and you RELY on each component: you ITEM ADD each tool carefully to your backpack because you RELY on having the right equipment when disaster strikes.", "meta": "اِعْتَمَد  (iʿtamad)  =  to rely   ·  verb"}, {"id": 32, "content": "You're tossing SLAW in a bowl with rhythmic motions that mirror your prayer movements—each toss of cabbage becomes a prostration, the mixing spoon your connection to the divine, prayer choreographed as cooking.", "meta": "صَلاة  (ṣalāa)  =  prayer   ·  noun"}, {"id": 33, "content": "You walk into a strict KA-DER training camp (KADER) where recruits beg for strength. You raise your hand and you watch yourself GRANT ability, WITHHOLD ability, and MEASURE exactly how much power each person gets—like turning a dial. The KADER can’t overrule you: you are **al-Qādir**, the One who is fully able/powerful and who determines the measure of everything.", "meta": "قادِر  (al-qādir)  =  Al-Qadir   ·  proper_name"}, {"id": 34, "content": "You’re building a LEGO fortress, but it keeps wobbling. You slam down a huge FOUR-WHEELED QUAD and use it like a heavy press: you **PRESS it down to set the BASE**, and then you stencil a big sign on that BASE that says **RULE**—the QUAD is literally forcing the base/rule to be established (قَاعِدَة / qāʿida).", "meta": "قَاعِدَةُ  (qāʿida)  =  rule, base   ·  noun"}, {"id": 35, "content": "You’re trying to PUT ON your SOCKS, but a sleek JAGUAR keeps batting them away like toys. You chase it, grab the JAGUAR by the collar, and it finally lets you slide the SOCKS onto your feet—then it purrs and curls up on your socked toes.", "meta": "جَوَارِب  (jawārib)  =  socks   ·  noun"}, {"id": 36, "content": "You’re in a street market and you need to pay in lira. You pull out a shiny harp called a LYRE, and the vendor refuses it—so you pluck the LYRE and, with each note, real coins pop out and stack into a neat pile of lira in your hand; you hand over the lira and the vendor finally gives you the goods.", "meta": "لِيرَة  (lyra)  =  lira (currency)   ·  noun"}, {"id": 37, "content": "You try to maintain a SERENE meditation, but the old chair's constant creaking under you shatters every moment of peace—serenity versus creak in battle.", "meta": "صَرِير  (ṣarīr)  =  creaking   ·  noun"}, {"id": 38, "content": "You HEADER a soccer ball with your forehead and instant numbness explodes across your skull—the numbness pulses outward from where the ball struck, making your whole head feel dead.", "meta": "خَدَّر  (khaddar)  =  numbness   ·  noun"}, {"id": 39, "content": "You suddenly rip open a BAG and TA-DA—everything flies out suddenly in all directions, catching you off guard.", "meta": "بَغْتَة  (baghta)  =  suddenly   ·  verb"}, {"id": 40, "content": "At a formal dinner, someone announces 'The person who broke the vase IST HIER!' pointing at you, and waves of shame crash over you as all eyes turn, feeling ashamed.", "meta": "اسْتَحْيَا  (stḥyā)  =  to feel ashamed   ·  noun"}, {"id": 41, "content": "You DECIDE by hitting a CARER with your final choice stamped on a document, making it firm and fixed.", "meta": "قَرَّرَ  (qarrara)  =  to decide   ·  verb"}, {"id": 42, "content": "You see danger ahead AND HORROR fills you as you warn everyone to evacuate immediately.", "meta": "أَنْذَرَ  (andhara)  =  to warn, to caution   ·  verb"}, {"id": 43, "content": "You're AVID for chocolate cake, pointing eagerly and saying 'I want that!' The more AVID you are, the stronger you want something.", "meta": "أَوِد  (awid)  =  to want   ·  verb"}, {"id": 44, "content": "You shake your sleeping friend's shoulder shouting 'I CAUGHT YA!' (ayqaẓa) — catching them in the act of sleeping and forcing them to awaken from their slumber as they jolt upright.", "meta": "أَيْقَظَ  (ayqaẓa)  =  to awaken   ·  verb"}, {"id": 45, "content": "Every morning, you grab a bar of SOAP that glows with dawn light, washing your face as the sun rises and illuminates your bathroom.", "meta": "صُبْحٌ  (ṣubḥ)  =  morning   ·  noun"}]/*END_DATA*/;
+if (CONFIG && DATA) H.init(CONFIG, DATA);
+</script>
+</body>
+</html>
