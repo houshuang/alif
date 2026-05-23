@@ -46,6 +46,8 @@ def test_stats_empty_language(tmp_db):
         assert body["by_state"]["known"] == 0
         assert body["leitner"]["total_acquiring"] == 0
         assert body["fsrs"]["tracked"] == 0
+        assert body["recovery"]["pre_known"] == 0
+        assert body["recovery"]["recovered_once"] == 0
         assert body["today"]["reviews"] == 0
         assert body["today"]["streak"] == 0
         assert len(body["history_14d"]) == 14
@@ -208,3 +210,107 @@ def test_stats_frequency_block(tmp_db):
         assert first["unmapped"] == 1
     finally:
         _cleanup()
+
+
+def test_stats_recovery_block(tmp_db):
+    client, factory = _client(tmp_db)
+    try:
+        with factory() as db:
+            now = datetime.utcnow()
+
+            pre = Lemma(language_code="el", lemma_form="pre", lemma_bare="pre", source="test")
+            db.add(pre); db.flush()
+            db.add(UserLemmaKnowledge(
+                lemma_id=pre.lemma_id,
+                knowledge_state="known",
+                knowledge_origin="pre_known",
+            ))
+
+            cog = Lemma(language_code="el", lemma_form="cog", lemma_bare="cog", source="test")
+            db.add(cog); db.flush()
+            db.add(UserLemmaKnowledge(
+                lemma_id=cog.lemma_id,
+                knowledge_state="known",
+                knowledge_origin="cognate_known",
+            ))
+
+            recovered = Lemma(language_code="el", lemma_form="rec", lemma_bare="rec", source="test")
+            db.add(recovered); db.flush()
+            db.add(UserLemmaKnowledge(
+                lemma_id=recovered.lemma_id,
+                knowledge_state="learning",
+                first_failed_at=now - timedelta(days=3),
+                first_correct_after_failure_at=now - timedelta(days=2),
+                graduated_at=now - timedelta(days=2),
+                fsrs_card_json={"stability": 30.0, "difficulty": 5.0, "state": 1},
+            ))
+
+            open_word = Lemma(language_code="el", lemma_form="open", lemma_bare="open", source="test")
+            db.add(open_word); db.flush()
+            db.add(UserLemmaKnowledge(
+                lemma_id=open_word.lemma_id,
+                knowledge_state="acquiring",
+                first_failed_at=now,
+                failure_count=1,
+            ))
+            db.commit()
+
+        body = client.get("/api/stats?language_code=el").json()
+        rec = body["recovery"]
+        assert rec["pre_known"] == 1
+        assert rec["cognate_known"] == 1
+        assert rec["ever_failed"] == 2
+        assert rec["recovered_once"] == 1
+        assert rec["graduated_after_failure"] == 1
+        assert rec["stable_after_failure_21d"] == 1
+        assert rec["failed_not_yet_recovered"] == 1
+        assert rec["still_acquiring_after_failure"] == 1
+        assert body["today"]["marked_unknown"] == 1
+    finally:
+        _cleanup()
+
+
+def test_backfill_knowledge_lifecycle(tmp_db):
+    from app.services.knowledge_lifecycle import backfill_knowledge_lifecycle
+
+    with tmp_db() as db:
+        now = datetime.utcnow()
+        pre = Lemma(language_code="el", lemma_form="pre", lemma_bare="pre", source="test")
+        db.add(pre); db.flush()
+        db.add(UserLemmaKnowledge(
+            lemma_id=pre.lemma_id,
+            knowledge_state="known",
+            source="reading_intake",
+        ))
+
+        failed = Lemma(language_code="el", lemma_form="fail", lemma_bare="fail", source="test")
+        db.add(failed); db.flush()
+        db.add(UserLemmaKnowledge(
+            lemma_id=failed.lemma_id,
+            knowledge_state="learning",
+            source="reading_intake",
+            entered_acquiring_at=now - timedelta(days=2),
+        ))
+        db.add(ReviewLog(
+            lemma_id=failed.lemma_id,
+            rating=1,
+            reviewed_at=now - timedelta(days=1),
+        ))
+        db.add(ReviewLog(
+            lemma_id=failed.lemma_id,
+            rating=3,
+            reviewed_at=now,
+        ))
+        db.commit()
+
+        result = backfill_knowledge_lifecycle(db)
+
+        assert result["changed"] > 0
+        db.refresh(pre.knowledge)
+        assert pre.knowledge.knowledge_origin == "pre_known"
+
+        db.refresh(failed.knowledge)
+        assert failed.knowledge.knowledge_origin == "marked_unknown"
+        assert failed.knowledge.first_failed_at is not None
+        assert failed.knowledge.failure_count == 2  # inferred red tap + review Again
+        assert failed.knowledge.first_correct_after_failure_at is not None

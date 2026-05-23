@@ -189,6 +189,21 @@ export type LanguageStats = {
     tracked: number;
     stability_buckets: { label: string; count: number }[];
   };
+  recovery: {
+    pre_known: number;
+    cognate_known: number;
+    ever_failed: number;
+    recovered_once: number;
+    graduated_after_failure: number;
+    stable_after_failure_7d: number;
+    stable_after_failure_21d: number;
+    stable_after_failure_60d: number;
+    currently_known_after_failure: number;
+    learning_after_failure: number;
+    still_acquiring_after_failure: number;
+    lapsed_after_failure: number;
+    failed_not_yet_recovered: number;
+  };
   today: {
     reviews: number;
     sentence_reviews: number;

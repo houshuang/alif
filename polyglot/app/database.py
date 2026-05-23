@@ -56,6 +56,11 @@ _ADDITIVE_COLUMN_DELTAS: list[tuple[str, str, str]] = [
     ("lemmas", "enrichment_json", "JSON"),
     ("lemmas", "enrichment_status", "VARCHAR(20)"),
     ("lemmas", "enriched_at", "DATETIME"),
+    ("user_lemma_knowledge", "knowledge_origin", "VARCHAR(30)"),
+    ("user_lemma_knowledge", "first_failed_at", "DATETIME"),
+    ("user_lemma_knowledge", "last_failed_at", "DATETIME"),
+    ("user_lemma_knowledge", "failure_count", "INTEGER DEFAULT 0"),
+    ("user_lemma_knowledge", "first_correct_after_failure_at", "DATETIME"),
 ]
 
 # Indexes that should exist once the columns above are present.
@@ -66,6 +71,9 @@ _ADDITIVE_INDEX_DELTAS: list[tuple[str, str, str, bool]] = [
     ("uq_sentences_page_sidx", "sentences", "page_id, sentence_index_in_page", True),
     ("ix_sentence_review_log_client_review_id", "sentence_review_log", "client_review_id", True),
     ("ix_sentence_review_log_sentence_id", "sentence_review_log", "sentence_id", False),
+    ("ix_user_lemma_knowledge_knowledge_origin", "user_lemma_knowledge", "knowledge_origin", False),
+    ("ix_user_lemma_knowledge_first_failed_at", "user_lemma_knowledge", "first_failed_at", False),
+    ("ix_user_lemma_knowledge_first_correct_after_failure_at", "user_lemma_knowledge", "first_correct_after_failure_at", False),
 ]
 
 

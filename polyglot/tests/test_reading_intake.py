@@ -6,6 +6,7 @@ slow.
 from datetime import datetime, timezone
 
 from app.services import reading_intake
+from app.services.acquisition_service import submit_acquisition_review
 from app.models import Story, Page, PageWord, Lemma, UserLemmaKnowledge
 
 
@@ -105,6 +106,48 @@ def test_mark_lemma_updates_existing(tmp_db):
         ).all()
         assert len(ulks) == 1
         assert ulks[0].knowledge_state == "known"
+
+
+def test_mark_unknown_records_failure_lifecycle(tmp_db):
+    with tmp_db() as db:
+        story = reading_intake.import_paste(db, language_code="el", body="βιβλίο")
+        _, tokens = reading_intake.get_page_view(db, story.id, 1)
+        lemma_id = next(t["lemma_id"] for t in tokens if t["lemma_id"])
+
+        ulk = reading_intake.mark_lemma(
+            db, lemma_id=lemma_id, state="unknown", fetch_gloss=False,
+        )
+
+        assert ulk.knowledge_state == "acquiring"
+        assert ulk.knowledge_origin == "marked_unknown"
+        assert ulk.first_failed_at is not None
+        assert ulk.last_failed_at is not None
+        assert ulk.failure_count == 1
+
+        submit_acquisition_review(db, lemma_id=lemma_id, rating_int=3)
+        db.refresh(ulk)
+        assert ulk.first_correct_after_failure_at is not None
+
+
+def test_mark_unknown_restarts_bulk_known_word(tmp_db):
+    with tmp_db() as db:
+        story = reading_intake.import_paste(db, language_code="el", body="βιβλίο")
+        _, tokens = reading_intake.get_page_view(db, story.id, 1)
+        lemma_id = next(t["lemma_id"] for t in tokens if t["lemma_id"])
+
+        known = reading_intake.mark_lemma(db, lemma_id=lemma_id, state="known")
+        assert known.knowledge_state == "known"
+        assert known.knowledge_origin == "pre_known"
+
+        restarted = reading_intake.mark_lemma(
+            db, lemma_id=lemma_id, state="unknown", fetch_gloss=False,
+        )
+
+        assert restarted.knowledge_state == "acquiring"
+        assert restarted.acquisition_box == 1
+        assert restarted.knowledge_origin == "pre_known"
+        assert restarted.first_failed_at is not None
+        assert restarted.failure_count == 1
 
 
 def test_process_page_batch_glosses_new_lemmas(tmp_db, monkeypatch):

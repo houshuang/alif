@@ -90,11 +90,14 @@ export default function PolyglotStats() {
       <ScrollView contentContainerStyle={s.body}>
         <Text style={s.h1}>{languageName}</Text>
         <Text style={s.h2}>
-          {stats.by_state.known.toLocaleString()} known {"·"} {stats.total_lemmas.toLocaleString()} encountered {"·"} {knownPct}%
+          {stats.recovery.recovered_once.toLocaleString()} recovered {"·"} {stats.recovery.pre_known.toLocaleString()} pre-known {"·"} {knownPct}% known
         </Text>
 
         <SectionHeader label="Today" />
         <TodayCard today={stats.today} />
+
+        <SectionHeader label="Recovery" />
+        <RecoveryCard recovery={stats.recovery} />
 
         <SectionHeader label="Vocabulary" />
         <LifecycleCard byState={stats.by_state} total={stats.total_lemmas} unseen={stats.new} />
@@ -143,6 +146,94 @@ function SectionHeader({ label }: { label: string }) {
     <View style={s.sectionHeader}>
       <Text style={s.sectionHeaderText}>{label.toUpperCase()}</Text>
       <View style={s.sectionHeaderLine} />
+    </View>
+  );
+}
+
+// ── Recovery ──────────────────────────────────────────────────────────────
+
+function RecoveryCard({ recovery }: { recovery: LanguageStats["recovery"] }) {
+  const recoveredPct = recovery.ever_failed > 0
+    ? Math.round((recovery.recovered_once / recovery.ever_failed) * 100)
+    : 0;
+  const stages = [
+    { label: "Failed", count: recovery.ever_failed, color: C.unknown },
+    { label: "Correct", count: recovery.recovered_once, color: C.learning },
+    { label: "Graduated", count: recovery.graduated_after_failure, color: C.good },
+    { label: "21d+", count: recovery.stable_after_failure_21d, color: STABILITY_COLORS["21-60d"] },
+  ];
+  const flowTotal = Math.max(recovery.ever_failed, 1);
+
+  return (
+    <View style={s.card}>
+      <View style={s.heroRow}>
+        <Text style={[s.heroNum, { color: C.good }]}>
+          {recovery.recovered_once.toLocaleString()}
+        </Text>
+        <Text style={s.heroLabel}>recovered words</Text>
+      </View>
+
+      <View style={s.recoveryBars}>
+        {stages.slice(1).map((stage, i) => {
+          const pct = Math.min(stage.count / flowTotal, 1);
+          return (
+            <View key={stage.label} style={s.recoveryTrack}>
+              <View
+                style={[
+                  s.recoveryFill,
+                  {
+                    width: `${Math.max(pct * 100, stage.count > 0 ? 3 : 0)}%`,
+                    backgroundColor: stage.color,
+                    opacity: i === 0 ? 0.85 : 0.65,
+                  },
+                ]}
+              />
+            </View>
+          );
+        })}
+      </View>
+
+      <View style={s.flowLabels}>
+        {stages.map((stage) => (
+          <View key={stage.label} style={s.flowLabelCell}>
+            <Text style={[s.flowCount, { color: stage.color }]}>{stage.count}</Text>
+            <Text style={s.flowName}>{stage.label}</Text>
+          </View>
+        ))}
+      </View>
+
+      <View style={s.chipRow}>
+        <View style={s.chip}>
+          <Text style={s.chipLabel}>Rate</Text>
+          <Text style={[s.chipValue, { color: C.good }]}>{recoveredPct}%</Text>
+        </View>
+        <View style={s.chip}>
+          <Text style={s.chipLabel}>Pre-known</Text>
+          <Text style={s.chipValue}>{recovery.pre_known}</Text>
+        </View>
+        {recovery.cognate_known > 0 && (
+          <View style={s.chip}>
+            <Text style={s.chipLabel}>Cognates</Text>
+            <Text style={s.chipValue}>{recovery.cognate_known}</Text>
+          </View>
+        )}
+        {recovery.failed_not_yet_recovered > 0 && (
+          <View style={s.chip}>
+            <Text style={s.chipLabel}>Open</Text>
+            <Text style={[s.chipValue, { color: C.warn }]}>
+              {recovery.failed_not_yet_recovered}
+            </Text>
+          </View>
+        )}
+        {recovery.stable_after_failure_60d > 0 && (
+          <View style={s.chip}>
+            <Text style={s.chipLabel}>60d+</Text>
+            <Text style={[s.chipValue, { color: STABILITY_COLORS["60d+"] }]}>
+              {recovery.stable_after_failure_60d}
+            </Text>
+          </View>
+        )}
+      </View>
     </View>
   );
 }
@@ -565,6 +656,11 @@ const s = StyleSheet.create({
   heroRow: { flexDirection: "row", alignItems: "baseline", gap: 10, marginBottom: 14 },
   heroNum: { fontSize: 38, fontWeight: "700", color: C.text },
   heroLabel: { fontSize: 14, color: C.textDim },
+  recoveryBars: { gap: 4, marginBottom: 8 },
+  recoveryTrack: {
+    height: 5, borderRadius: 3, backgroundColor: C.surfaceAlt, overflow: "hidden",
+  },
+  recoveryFill: { height: "100%", borderRadius: 3 },
   flowStrip: { flexDirection: "row", borderRadius: 5, overflow: "hidden", marginBottom: 6 },
   flowLabels: { flexDirection: "row", justifyContent: "space-between", marginTop: 4 },
   flowLabelCell: { alignItems: "center", flex: 1 },

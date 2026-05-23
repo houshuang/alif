@@ -26,6 +26,13 @@ from sqlalchemy.orm import Session
 from app.models import ReviewLog, UserLemmaKnowledge
 from app.services.fsrs_service import parse_json_column, STATE_MAP
 from app.services.interaction_logger import log_interaction
+from app.services.knowledge_lifecycle import (
+    ORIGIN_MARKED_UNKNOWN,
+    origin_for_acquisition,
+    record_review_result,
+    set_origin_if_missing,
+    snapshot as lifecycle_snapshot,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -198,6 +205,7 @@ def start_acquisition(
     source: str = "study",
     due_immediately: bool = False,
     enforce_daily_cap: bool = True,
+    restart_known: bool = False,
 ) -> UserLemmaKnowledge:
     """Start (or re-start) the acquisition process for a word.
 
@@ -232,7 +240,7 @@ def start_acquisition(
         .first()
     )
 
-    if ulk and ulk.knowledge_state in ("known", "learning"):
+    if ulk and ulk.knowledge_state in ("known", "learning") and not restart_known:
         return ulk
 
     if ulk and ulk.knowledge_state == "acquiring":
@@ -258,6 +266,7 @@ def start_acquisition(
             lemma_id=lemma_id,
             knowledge_state="encountered",
             source=source,
+            knowledge_origin=origin_for_acquisition(source, due_immediately=due_immediately),
             fsrs_card_json=None,
             times_seen=0,
             times_correct=0,
@@ -281,6 +290,12 @@ def start_acquisition(
         ):
             ulk.source = source
         ulk.fsrs_card_json = None
+        set_origin_if_missing(
+            ulk,
+            ORIGIN_MARKED_UNKNOWN if restart_known else origin_for_acquisition(
+                source, due_immediately=due_immediately,
+            ),
+        )
     else:
         ulk = UserLemmaKnowledge(
             lemma_id=lemma_id,
@@ -291,6 +306,7 @@ def start_acquisition(
             entered_acquiring_at=now,
             introduced_at=now,
             source=source,
+            knowledge_origin=origin_for_acquisition(source, due_immediately=due_immediately),
             fsrs_card_json=None,
             times_seen=0,
             times_correct=0,
@@ -390,6 +406,7 @@ def submit_acquisition_review(
     old_times_correct = ulk.times_correct or 0
     old_total_encounters = ulk.total_encounters or 0
     old_knowledge_state = ulk.knowledge_state
+    old_lifecycle = lifecycle_snapshot(ulk)
     recent_intro = _intro_shown_recently(ulk, now)
 
     ulk.times_seen = old_times_seen + 1
@@ -474,6 +491,8 @@ def submit_acquisition_review(
     if graduated:
         _graduate(ulk, now)
 
+    record_review_result(ulk, rating_int, now)
+
     log_entry = ReviewLog(
         lemma_id=lemma_id,
         rating=rating_int,
@@ -508,6 +527,7 @@ def submit_acquisition_review(
                 else None
             ),
             "intro_working_memory_blocked": recent_intro and rating_int >= 3 and old_box == 1,
+            **old_lifecycle,
         },
     )
     db.add(log_entry)

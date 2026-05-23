@@ -22,6 +22,11 @@ from app.models import (
     Lemma, UserLemmaKnowledge, Story, Page, Language,
     ReviewLog, SentenceReviewLog, FrequencyEntry, ActivityLog,
 )
+from app.services.fsrs_service import parse_json_column
+from app.services.knowledge_lifecycle import (
+    ORIGIN_COGNATE_KNOWN,
+    ORIGIN_PRE_KNOWN,
+)
 
 router = APIRouter(prefix="/api/stats", tags=["stats"])
 
@@ -159,6 +164,7 @@ def get_stats(language_code: str, db: Session = Depends(get_db)) -> dict[str, An
         "tracked": len(fsrs_rows),
         "stability_buckets": stability_buckets,
     }
+    recovery = _recovery_progress(db, language_code)
 
     # ── 4. Today's activity ──────────────────────────────────────────────
     reviews_today = (
@@ -207,8 +213,7 @@ def get_stats(language_code: str, db: Session = Depends(get_db)) -> dict[str, An
         .join(Lemma, Lemma.lemma_id == UserLemmaKnowledge.lemma_id)
         .filter(
             Lemma.language_code == language_code,
-            UserLemmaKnowledge.knowledge_state == "unknown",
-            UserLemmaKnowledge.introduced_at >= today_start,
+            UserLemmaKnowledge.first_failed_at >= today_start,
         )
         .scalar() or 0
     )
@@ -348,12 +353,75 @@ def get_stats(language_code: str, db: Session = Depends(get_db)) -> dict[str, An
         "by_state": by_state,
         "leitner": leitner,
         "fsrs": fsrs,
+        "recovery": recovery,
         "today": today,
         "history_14d": history,
         "frequency": frequency_block,
         "stories": stories,
         "activity": activity,
     }
+
+
+def _recovery_progress(db: Session, language_code: str) -> dict[str, int]:
+    rows = (
+        db.query(UserLemmaKnowledge)
+        .join(Lemma, Lemma.lemma_id == UserLemmaKnowledge.lemma_id)
+        .filter(Lemma.language_code == language_code)
+        .all()
+    )
+
+    stats = {
+        "pre_known": 0,
+        "cognate_known": 0,
+        "ever_failed": 0,
+        "recovered_once": 0,
+        "graduated_after_failure": 0,
+        "stable_after_failure_7d": 0,
+        "stable_after_failure_21d": 0,
+        "stable_after_failure_60d": 0,
+        "currently_known_after_failure": 0,
+        "learning_after_failure": 0,
+        "still_acquiring_after_failure": 0,
+        "lapsed_after_failure": 0,
+        "failed_not_yet_recovered": 0,
+    }
+
+    for ulk in rows:
+        if ulk.knowledge_origin == ORIGIN_PRE_KNOWN:
+            stats["pre_known"] += 1
+        if ulk.knowledge_origin == ORIGIN_COGNATE_KNOWN:
+            stats["cognate_known"] += 1
+        if ulk.first_failed_at is None:
+            continue
+
+        stats["ever_failed"] += 1
+        if ulk.first_correct_after_failure_at is not None:
+            stats["recovered_once"] += 1
+        else:
+            stats["failed_not_yet_recovered"] += 1
+        if ulk.graduated_at is not None:
+            stats["graduated_after_failure"] += 1
+
+        if ulk.knowledge_state == "known":
+            stats["currently_known_after_failure"] += 1
+        elif ulk.knowledge_state == "learning":
+            stats["learning_after_failure"] += 1
+        elif ulk.knowledge_state == "acquiring":
+            stats["still_acquiring_after_failure"] += 1
+        elif ulk.knowledge_state == "lapsed":
+            stats["lapsed_after_failure"] += 1
+
+        card_json = parse_json_column(ulk.fsrs_card_json, default={})
+        stability = card_json.get("stability") if isinstance(card_json, dict) else None
+        if isinstance(stability, (int, float)):
+            if stability >= 7:
+                stats["stable_after_failure_7d"] += 1
+            if stability >= 21:
+                stats["stable_after_failure_21d"] += 1
+            if stability >= 60:
+                stats["stable_after_failure_60d"] += 1
+
+    return stats
 
 
 # ── frequency progress (top-N bands) ──────────────────────────────────────

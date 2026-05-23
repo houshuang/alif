@@ -92,6 +92,11 @@ class UserLemmaKnowledge(Base):
     total_encounters = Column(Integer, default=0)
     distinct_contexts = Column(Integer, default=0)
     source = Column(String(30), default="reading_intake")  # reading_intake/manual/encountered/auto_intro/...
+    knowledge_origin = Column(String(30), nullable=True, index=True)
+    first_failed_at = Column(DateTime, nullable=True, index=True)
+    last_failed_at = Column(DateTime, nullable=True)
+    failure_count = Column(Integer, default=0, server_default="0")
+    first_correct_after_failure_at = Column(DateTime, nullable=True, index=True)
 
     acquisition_box = Column(Integer, nullable=True)
     acquisition_next_due = Column(DateTime, nullable=True)

@@ -30,6 +30,10 @@ from datetime import datetime, timezone
 from sqlalchemy.orm import Session
 
 from app.models import Lemma, UserLemmaKnowledge, UserProfile
+from app.services.knowledge_lifecycle import (
+    ORIGIN_COGNATE_KNOWN,
+    ORIGIN_COGNATE_PROPAGATION,
+)
 from app.services.llm_cli import call_structured_json, resolve_model
 
 log = logging.getLogger(__name__)
@@ -100,6 +104,7 @@ def propagate_known_via_cognate(db: Session, lemma_id: int):
         lemma_id=target_id,
         knowledge_state="encountered",
         source="cognate_propagation",
+        knowledge_origin=ORIGIN_COGNATE_PROPAGATION,
         introduced_at=datetime.now(timezone.utc),
     ))
     db.commit()
@@ -286,6 +291,7 @@ def _auto_mark_known(db: Session, lemma: Lemma):
         lemma_id=target_id,
         knowledge_state="known",
         source="cognate",
+        knowledge_origin=ORIGIN_COGNATE_KNOWN,
         introduced_at=datetime.now(timezone.utc),
     ))
     log.info("Auto-marked %s as known via L1 cognate", lemma.lemma_form)

@@ -561,12 +561,18 @@ def mark_lemma(db: Session, lemma_id: int, state: str, *, fetch_gloss: bool = Tr
     # 'unknown' has its own pipeline — enrol into acquisition, fetch gloss.
     if state == "unknown":
         from app.services.acquisition_service import start_acquisition
+        from app.services.knowledge_lifecycle import (
+            ORIGIN_MARKED_UNKNOWN,
+            record_failure,
+        )
         ulk = start_acquisition(
             db,
             lemma_id=lemma_id,
             source="reading_intake",
             due_immediately=True,
+            restart_known=True,
         )
+        record_failure(ulk, datetime.now(timezone.utc), origin=ORIGIN_MARKED_UNKNOWN)
         db.commit()
         db.refresh(ulk)
         if fetch_gloss:
@@ -581,16 +587,29 @@ def mark_lemma(db: Session, lemma_id: int, state: str, *, fetch_gloss: bool = Tr
         UserLemmaKnowledge.lemma_id == lemma_id
     ).first()
     now = datetime.now(timezone.utc)
+    from app.services.knowledge_lifecycle import (
+        ORIGIN_MARKED_RECOGNIZED,
+        ORIGIN_PRE_KNOWN,
+        set_origin_if_missing,
+    )
+    origin = None
+    if state == "known":
+        origin = ORIGIN_PRE_KNOWN
+    elif state == "encountered":
+        origin = ORIGIN_MARKED_RECOGNIZED
+
     if ulk is None:
         ulk = UserLemmaKnowledge(
             lemma_id=lemma_id,
             knowledge_state=state,
             introduced_at=now,
             source="reading_intake",
+            knowledge_origin=origin,
         )
         db.add(ulk)
     else:
         ulk.knowledge_state = state
+        set_origin_if_missing(ulk, origin)
     if state == "ignore":
         lemma = db.get(Lemma, lemma_id)
         if lemma is not None:

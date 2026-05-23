@@ -24,6 +24,10 @@ from fsrs import Scheduler, Card, Rating, State
 from sqlalchemy.orm import Session
 
 from app.models import UserLemmaKnowledge, ReviewLog
+from app.services.knowledge_lifecycle import (
+    record_review_result,
+    snapshot as lifecycle_snapshot,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -161,6 +165,7 @@ def submit_review(
     old_times_correct = knowledge.times_correct or 0
     old_total_encounters = knowledge.total_encounters or 0
     old_knowledge_state = knowledge.knowledge_state
+    old_lifecycle = lifecycle_snapshot(knowledge)
 
     now = datetime.now(timezone.utc)
     new_card, _review_log = scheduler.review_card(card, fsrs_rating, now)
@@ -176,6 +181,7 @@ def submit_review(
     knowledge.times_seen = old_times_seen + 1
     if rating_int >= 3:
         knowledge.times_correct = old_times_correct + 1
+    record_review_result(knowledge, rating_int, now)
 
     log_entry = ReviewLog(
         lemma_id=lemma_id,
@@ -197,6 +203,7 @@ def submit_review(
             "pre_times_correct": old_times_correct,
             "pre_total_encounters": old_total_encounters,
             "pre_knowledge_state": old_knowledge_state,
+            **old_lifecycle,
         },
     )
     db.add(log_entry)

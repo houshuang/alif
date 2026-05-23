@@ -51,6 +51,9 @@ def _seed_languages():
 async def lifespan(app: FastAPI):
     Base.metadata.create_all(bind=engine)
     ensure_schema()
+    from app.services.knowledge_lifecycle import backfill_knowledge_lifecycle
+    with SessionLocal() as db:
+        backfill_knowledge_lifecycle(db)
     _seed_languages()
     yield
 

@@ -446,6 +446,22 @@ def undo_sentence_review(
                 ulk.graduated_at = _parse_snapshot_datetime(
                     fsrs_data.get("pre_graduated_at")
                 )
+            if "pre_knowledge_origin" in fsrs_data:
+                ulk.knowledge_origin = fsrs_data.get("pre_knowledge_origin")
+            if "pre_first_failed_at" in fsrs_data:
+                ulk.first_failed_at = _parse_snapshot_datetime(
+                    fsrs_data.get("pre_first_failed_at")
+                )
+            if "pre_last_failed_at" in fsrs_data:
+                ulk.last_failed_at = _parse_snapshot_datetime(
+                    fsrs_data.get("pre_last_failed_at")
+                )
+            if "pre_failure_count" in fsrs_data:
+                ulk.failure_count = fsrs_data.get("pre_failure_count")
+            if "pre_first_correct_after_failure_at" in fsrs_data:
+                ulk.first_correct_after_failure_at = _parse_snapshot_datetime(
+                    fsrs_data.get("pre_first_correct_after_failure_at")
+                )
 
         db.delete(log)
 
