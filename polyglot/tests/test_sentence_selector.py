@@ -66,7 +66,30 @@ def _seed_sentence(
     source: str = "textbook",
     page_id: int | None = None,
     times_shown: int = 0,
+    quality_state: str = "auto",
 ) -> Sentence:
+    now = datetime.now(timezone.utc)
+    reviewed_at = None
+    quality_natural = None
+    quality_translation_correct = None
+    quality_reason = None
+    if source == "llm" and quality_state == "auto":
+        quality_state = "approved"
+    if quality_state == "approved":
+        reviewed_at = now
+        quality_natural = True
+        quality_translation_correct = True
+        quality_reason = "ok"
+    elif quality_state == "failed":
+        reviewed_at = now
+        quality_natural = False
+        quality_translation_correct = True
+        quality_reason = "unnatural"
+    elif quality_state == "unreviewed" or quality_state == "auto":
+        pass
+    else:
+        raise ValueError(f"unknown quality_state={quality_state!r}")
+
     sentence = Sentence(
         language_code=language_code,
         text=text or " ".join(s for _, s in lemma_surfaces),
@@ -74,7 +97,11 @@ def _seed_sentence(
         page_id=page_id,
         sentence_index_in_page=0 if page_id else None,
         is_active=is_active,
-        mappings_verified_at=datetime.now(timezone.utc) if verified else None,
+        mappings_verified_at=now if verified else None,
+        quality_reviewed_at=reviewed_at,
+        quality_natural=quality_natural,
+        quality_translation_correct=quality_translation_correct,
+        quality_reason=quality_reason,
         times_shown=times_shown,
     )
     db.add(sentence)
@@ -283,6 +310,60 @@ def test_generated_strictly_beats_more_comprehensible_textbook(tmp_db):
         assert result.selection_reason == "llm_with_gaps"
         # Textbook fallback still in DB — strict tier orders, doesn't delete.
         assert db.query(Sentence).filter(Sentence.id == textbook_sent.id).first() is not None
+
+
+def test_failed_quality_llm_is_skipped(tmp_db):
+    with tmp_db() as db:
+        target = _seed_lemma(db, form="λόγος")
+        scaffold = _seed_lemma(db, form="ο")
+        _seed_known(db, scaffold.lemma_id, state="known")
+
+        failed_llm = _seed_sentence(
+            db,
+            lemma_surfaces=[(scaffold.lemma_id, "ο"), (target.lemma_id, "λόγος")],
+            text="ο λόγος (bad llm)",
+            source="llm",
+            quality_state="failed",
+        )
+        textbook_sent = _seed_sentence(
+            db,
+            lemma_surfaces=[(scaffold.lemma_id, "ο"), (target.lemma_id, "λόγος")],
+            text="ο λόγος (textbook)",
+            source="textbook",
+        )
+        db.commit()
+
+        result = pick_sentence_for_lemma(db, lemma_id=target.lemma_id, language_code="el")
+        assert result is not None
+        assert result.sentence_id == textbook_sent.id
+        assert db.query(Sentence).filter(Sentence.id == failed_llm.id).first() is not None
+
+
+def test_unreviewed_llm_is_penalized_below_clear_textbook(tmp_db):
+    with tmp_db() as db:
+        target = _seed_lemma(db, form="λόγος")
+        known_scaffold = _seed_lemma(db, form="ο")
+        _seed_known(db, known_scaffold.lemma_id, state="known")
+        unknown_scaffold = _seed_lemma(db, form="ξένο")
+
+        textbook_sent = _seed_sentence(
+            db,
+            lemma_surfaces=[(known_scaffold.lemma_id, "ο"), (target.lemma_id, "λόγος")],
+            text="ο λόγος (textbook)",
+            source="textbook",
+        )
+        _seed_sentence(
+            db,
+            lemma_surfaces=[(unknown_scaffold.lemma_id, "ξένο"), (target.lemma_id, "λόγος")],
+            text="ξένο λόγος (legacy llm)",
+            source="llm",
+            quality_state="unreviewed",
+        )
+        db.commit()
+
+        result = pick_sentence_for_lemma(db, lemma_id=target.lemma_id, language_code="el")
+        assert result is not None
+        assert result.sentence_id == textbook_sent.id
 
 
 def test_page_first_unknown_scaffold_falls_back_to_other_source(tmp_db):

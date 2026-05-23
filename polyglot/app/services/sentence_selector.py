@@ -27,17 +27,18 @@ The three gates the picker DOES honor (Hard Invariants from
   ``Lemma.word_category in ('function_word', 'proper_name')`` both exclude.
 
 Source preference (per 2026-05-22 spec — strengthened from the 2026-05-21
-multiplier so generated material is *strictly* preferred):
+multiplier so quality-approved generated material is *strictly* preferred):
 
-1. **Generated (LLM) sentences strictly outrank textbook sentences.** Source
-   is the *primary* sort key, not a score multiplier. Any ``llm`` sentence
-   beats any non-``llm`` (textbook page-of-record) sentence regardless of
+1. **Quality-approved generated sentences strictly outrank textbook sentences.**
+   Source is the *primary* sort key, not a score multiplier. Any reviewed-good
+   ``llm`` sentence beats any non-``llm`` (textbook page-of-record) sentence regardless of
    comprehensibility. Review wants recall in a novel context — re-showing the
    page the learner just read is zero-friction recognition, not recall. The
    previous (2026-05-21) ``llm × 1.5`` multiplier was not strong enough: a
    fully-comprehensible textbook sentence (score ``1.0``) still beat a
    half-comprehensible llm sentence (``0.65 × 1.5 = 0.975``), so book
-   sentences kept surfacing at review time.
+   sentences kept surfacing at review time. Unreviewed legacy ``llm`` rows are
+   kept as penalized fallback; quality-failed ``llm`` rows are skipped.
 2. **Within a tier, comprehensibility + page cooldown order candidates.**
    ``score = (0.3 + 0.7·comprehensibility) · cooldown``. A textbook sentence
    whose page was viewed within ``PAGE_COOLDOWN_DAYS`` (7) days is multiplied
@@ -78,10 +79,11 @@ KNOWN_STATES = frozenset({"known", "learning"})
 DEFAULT_SESSION_LIMIT = 15
 
 # 2026-05-22: source is the PRIMARY sort key (a tier), not a score multiplier.
-# Any sentence whose source is in GENERATED_SOURCES strictly outranks every
-# other ("book"/page-of-record) candidate — see the module docstring for why
-# the old multiplier wasn't strong enough.
+# Any quality-approved sentence whose source is in GENERATED_SOURCES strictly
+# outranks every other ("book"/page-of-record) candidate — see the module
+# docstring for why the old multiplier wasn't strong enough.
 GENERATED_SOURCES = frozenset({"llm"})
+LLM_UNREVIEWED_QUALITY_MULTIPLIER = 0.55
 
 # Soft penalty applied when a candidate sentence's page was viewed within the
 # cooldown window. Multiplicative: a strong (~0.2) penalty drops the page
@@ -90,6 +92,31 @@ GENERATED_SOURCES = frozenset({"llm"})
 # enrichment cron hasn't run). Set to 1.0 to disable.
 PAGE_COOLDOWN_DAYS = 7
 RECENT_PAGE_PENALTY = 0.2
+
+
+def _quality_multiplier_for_sentence(sent: Sentence) -> float:
+    """Prefer quality-reviewed LLM rows, but keep unreviewed rows as fallback."""
+    if (sent.source or "") not in GENERATED_SOURCES:
+        return 1.0
+
+    natural = getattr(sent, "quality_natural", None)
+    translation_correct = getattr(sent, "quality_translation_correct", None)
+    if natural is False or translation_correct is False:
+        return 0.0
+    if natural is True and translation_correct is True:
+        return 1.0
+    if getattr(sent, "quality_reviewed_at", None) is not None:
+        return 1.0
+    return LLM_UNREVIEWED_QUALITY_MULTIPLIER
+
+
+def _is_quality_approved_generated(sent: Sentence) -> bool:
+    if (sent.source or "") not in GENERATED_SOURCES:
+        return False
+    return (
+        getattr(sent, "quality_natural", None) is True
+        and getattr(sent, "quality_translation_correct", None) is True
+    )
 
 
 @dataclass
@@ -164,7 +191,7 @@ class _Scored:
     scaffold_known: int
     page_first: bool                    # retained for back-compat / introspection
     selection_reason: str
-    generated: bool = False             # primary sort tier: llm strictly beats book
+    generated: bool = False             # primary sort tier: approved llm strictly beats book
     times_shown: int = 0                # for tie-break: prefer never-shown
 
 
@@ -352,7 +379,11 @@ def _score_candidate(
         all_known = (scaffold_known == scaffold_total)
 
     base = 0.3 + 0.7 * comprehensibility
-    generated = (sentence.source or "") in GENERATED_SOURCES
+    quality_multiplier = _quality_multiplier_for_sentence(sentence)
+    if quality_multiplier <= 0:
+        return None
+
+    generated = _is_quality_approved_generated(sentence)
 
     # Page cooldown — a textbook sentence whose page was viewed within the last
     # PAGE_COOLDOWN_DAYS gets a strong multiplicative penalty so an older /
@@ -370,12 +401,14 @@ def _score_candidate(
     # (the `generated` tier in the sort key), then this within-tier score.
     page_first = sentence.page_id is not None and all_known
 
-    score = base * cooldown_bonus
+    score = base * cooldown_bonus * quality_multiplier
 
     if page_recently_viewed:
         reason = "page_cooldown_fallback"
-    elif sentence.source == "llm":
+    elif generated:
         reason = "llm_fresh" if all_known else "llm_with_gaps"
+    elif (sentence.source or "") in GENERATED_SOURCES:
+        reason = "llm_unreviewed"
     elif page_first:
         reason = "page_first_all_known"
     elif all_known:

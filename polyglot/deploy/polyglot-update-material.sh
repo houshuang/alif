@@ -14,16 +14,19 @@
 #        already through the quality gate, so the user never waits when
 #        flipping pages. Runs first because freshly verified pages are the
 #        source of new lemmas that the sentence cache then needs to cover.
-#   2. warm_sentence_cache for Modern Greek
+#   2. review_existing_sentences for Modern Greek
+#      — backfills the sentence quality gate for legacy LLM-generated rows and
+#        retires rows that are unnatural or mistranslated.
+#   3. warm_sentence_cache for Modern Greek
 #      — finds acquiring/learning/known lemmas below ACTIVE_TARGET sentence
 #        coverage and generates more via the configured structured LLM CLI.
-#   3. translate_sentences for Modern Greek
+#   4. translate_sentences for Modern Greek
 #      — fills translation_en for harvested book sentences (left NULL by the
 #        harvest, which holds no LLM call) that cover an active-study lemma, so
 #        the picker's book-sentence fallback never renders blank. Runs through
 #        the configured structured LLM CLI, lazily here and never on the read
 #        path.
-#   4. enrich_lemma_philology for Modern Greek
+#   5. enrich_lemma_philology for Modern Greek
 #      — fills LemmaEnrichment (etymology, diachrony, cognates, quotes,
 #        register) for engaged lemmas. Surfaced in the lookup card + lemma
 #        detail screen (Modern Editorial design).
@@ -59,6 +62,9 @@ TIMEOUT_SECONDS="${POLYGLOT_WARM_TIMEOUT_SECONDS:-1800}"
 PAGES_BUFFER="${POLYGLOT_PAGES_AHEAD_BUFFER:-5}"
 PAGES_MAX_PER_RUN="${POLYGLOT_PAGES_AHEAD_MAX_PER_RUN:-5}"
 PAGES_TIMEOUT_SECONDS="${POLYGLOT_PAGES_AHEAD_TIMEOUT_SECONDS:-1200}"
+REVIEW_EXISTING_MAX_SENTENCES="${POLYGLOT_REVIEW_EXISTING_MAX_SENTENCES:-80}"
+REVIEW_EXISTING_BATCH_SIZE="${POLYGLOT_REVIEW_EXISTING_BATCH_SIZE:-10}"
+REVIEW_EXISTING_TIMEOUT_SECONDS="${POLYGLOT_REVIEW_EXISTING_TIMEOUT_SECONDS:-900}"
 # 2026-05-22: translate harvested book sentences whose translation_en is still
 # NULL (covering an active-study lemma). Batched at 12/call by default — 200
 # sentences is ~17 calls, comfortably under the phase timeout.
@@ -113,6 +119,14 @@ run_phase "warm_pages_ahead" timeout "$PAGES_TIMEOUT_SECONDS" \
   --language "$LANGUAGE" \
   --buffer "$PAGES_BUFFER" \
   --max-per-story "$PAGES_MAX_PER_RUN"
+
+run_phase "review_existing_sentences" timeout "$REVIEW_EXISTING_TIMEOUT_SECONDS" \
+  "$VENV" scripts/review_existing_sentences.py \
+  --language "$LANGUAGE" \
+  --source llm \
+  --only-unreviewed \
+  --limit "$REVIEW_EXISTING_MAX_SENTENCES" \
+  --batch-size "$REVIEW_EXISTING_BATCH_SIZE"
 
 run_phase "warm_sentence_cache" timeout "$TIMEOUT_SECONDS" \
   "$VENV" scripts/warm_sentence_cache.py \

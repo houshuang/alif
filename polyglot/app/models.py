@@ -161,6 +161,10 @@ class Sentence(Base):
     last_reading_comprehension = Column(String(20), nullable=True)
     is_active = Column(Boolean, default=True, server_default="1")
     mappings_verified_at = Column(DateTime, nullable=True)
+    quality_reviewed_at = Column(DateTime, nullable=True)
+    quality_natural = Column(Boolean, nullable=True)
+    quality_translation_correct = Column(Boolean, nullable=True)
+    quality_reason = Column(Text, nullable=True)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
     story = relationship("Story", foreign_keys=[story_id])

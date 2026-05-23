@@ -8,9 +8,9 @@ that the picker can find on the next session.
 Pipeline (mirrors Alif's three-phase pattern for SQLite write-lock discipline):
 
     Phase 1 — DB read:   pull target lemmas + active known vocabulary, close.
-    Phase 2 — LLM work:  one Sonnet call generates N sentences; one Haiku call
-                         verifies each per-position lemma mapping. No DB lock
-                         held across either call.
+    Phase 2 — LLM work:  one Sonnet call generates N sentences; Haiku verifies
+                         per-position lemma mappings and reviews sentence
+                         quality. No DB lock held across those calls.
     Phase 3 — DB write:  open fresh session, write verified sentences in a
                          single commit (milliseconds).
 
@@ -21,6 +21,9 @@ Hard invariants honored:
   is only stamped on sentences whose mapping verdicts all passed. Mirror of
   Alif's "all sentence generation must go through generate_material_for_word"
   invariant.
+- **Quality review mandatory** — every verified candidate passes through
+  ``review_sentences_quality`` before storage. Failures are discarded and
+  approvals are stamped on the row.
 - **Canonical at write time** — SentenceWord.lemma_id is resolved through
   ``resolve_canonical_via_map`` before insert. Defense in depth: the picker
   re-resolves on read.
@@ -30,9 +33,10 @@ Hard invariants honored:
   knowledge state.
 - **DB lock discipline** — LLM calls happen with no SQLAlchemy session open.
 
-Cost defaults: Sonnet for generation, Haiku for verification (10× cheaper, and
-verification is structurally simpler than generation). Both overridable via
-``POLYGLOT_GEN_MODEL`` and ``POLYGLOT_VERIFY_MODEL``.
+Cost defaults: Sonnet for generation, Haiku for verification + quality review
+(10× cheaper, and those checks are structurally simpler than generation).
+Overridable via ``POLYGLOT_GEN_MODEL``, ``POLYGLOT_VERIFY_MODEL``, and
+``POLYGLOT_QUALITY_MODEL``.
 """
 from __future__ import annotations
 
@@ -83,11 +87,15 @@ def _resolve_model(raw: str) -> str:
 
 GEN_MODEL = _resolve_model(os.environ.get("POLYGLOT_GEN_MODEL", "sonnet"))
 VERIFY_MODEL = _resolve_model(os.environ.get("POLYGLOT_VERIFY_MODEL", "haiku"))
+# Candidate-level sentence quality review. This mirrors Alif's naturalness +
+# translation gate and is deliberately separate from lemma-mapping verification.
+QUALITY_MODEL = _resolve_model(os.environ.get("POLYGLOT_QUALITY_MODEL", "haiku"))
 # Translation of harvested book sentences is structurally simpler than
 # generation — Haiku is plenty, and 10× cheaper.
 TRANSLATE_MODEL = _resolve_model(os.environ.get("POLYGLOT_TRANSLATE_MODEL", "haiku"))
 GEN_TIMEOUT_S = int(os.environ.get("POLYGLOT_GEN_TIMEOUT", "240"))
 VERIFY_TIMEOUT_S = int(os.environ.get("POLYGLOT_VERIFY_TIMEOUT", "180"))
+QUALITY_TIMEOUT_S = int(os.environ.get("POLYGLOT_QUALITY_TIMEOUT", "180"))
 TRANSLATE_TIMEOUT_S = int(os.environ.get("POLYGLOT_TRANSLATE_TIMEOUT", "180"))
 # Sentences per translation LLM call. Translation is short and uniform, so we
 # batch generously — one Haiku call covers a whole page's worth of fallbacks.
@@ -334,6 +342,184 @@ def generate_sentences_batch(
         "model": GEN_MODEL,
     })
     return out
+
+
+# ─── Sentence Quality Review ───────────────────────────────────────────────
+
+
+@dataclass
+class SentenceQualityReview:
+    sentence_index: int
+    natural: bool
+    translation_correct: bool
+    reason: str
+
+
+def _quality_prompt(language_code: str, items: list[dict]) -> str:
+    lang = LANG_DISPLAY.get(language_code, language_code)
+    block_lines = []
+    for it in items:
+        target_line = ""
+        if it.get("target") or it.get("target_gloss"):
+            target_line = (
+                f"\n    target: {it.get('target') or '(unknown)'}"
+                f" — {it.get('target_gloss') or '(no gloss)'}"
+            )
+        block_lines.append(
+            f"[{it['id']}] {lang}: {it['text']}\n"
+            f"    English: {it['english'] or '(missing)'}"
+            f"{target_line}"
+        )
+    items_block = "\n\n".join(block_lines)
+    return f"""Review each {lang} sentence for a language-learning review card.
+
+The learner sees one standalone sentence and its English translation. Be
+strict: the corpus is generated in bulk, so rejecting a weak candidate is cheap.
+
+For each item, judge:
+1. `natural`: grammatically correct, complete, and something a real speaker
+   could plausibly write or say in some ordinary, textbook, historical, or
+   explanatory context.
+2. `translation_correct`: the English faithfully matches the source sentence.
+
+Reject with `natural=false` for:
+- Semantic nonsense or word salad: words individually fit but the proposition
+  does not form a coherent scene or claim.
+- Forced vocabulary combinations, especially abstract noun chains like
+  "the work constitutes supervision by the center" with no plausible context.
+- Catalog/list fragments: comma-separated nouns, headings, labels, or glossary
+  snippets without a real predicate and complete thought.
+- Grammar/agreement/case/preposition errors or wrong register for the language.
+- Wrong target sense when a target gloss is supplied.
+
+Accept simple or textbook-like sentences when they are coherent and complete.
+
+Return one review per item, keyed by the bracketed id.
+
+Sentences:
+{items_block}
+"""
+
+
+def _quality_schema() -> dict:
+    return {
+        "type": "object",
+        "properties": {
+            "reviews": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "id": {"type": "integer"},
+                        "natural": {"type": "boolean"},
+                        "translation_correct": {"type": "boolean"},
+                        "reason": {"type": "string"},
+                    },
+                    "required": ["id", "natural", "translation_correct", "reason"],
+                },
+            },
+        },
+        "required": ["reviews"],
+    }
+
+
+def _fail_closed_quality_reviews(count: int, reason: str) -> list[SentenceQualityReview]:
+    return [
+        SentenceQualityReview(
+            sentence_index=i,
+            natural=False,
+            translation_correct=False,
+            reason=reason,
+        )
+        for i in range(count)
+    ]
+
+
+def review_sentences_quality(
+    language_code: str,
+    sentences: list[dict],
+) -> list[SentenceQualityReview]:
+    """Review candidate sentences for naturalness + translation fidelity.
+
+    `sentences` entries should contain `text` and `english`; `target` and
+    `target_gloss` are optional sense anchors. On total LLM failure or an
+    incomplete response, fail closed so generated material never becomes
+    reviewable just because the reviewer was unavailable.
+    """
+    if not sentences:
+        return []
+
+    items = [
+        {
+            "id": i,
+            "text": (s.get("text") or "").strip(),
+            "english": (s.get("english") or s.get("translation_en") or "").strip(),
+            "target": (s.get("target") or "").strip(),
+            "target_gloss": (s.get("target_gloss") or "").strip(),
+        }
+        for i, s in enumerate(sentences)
+    ]
+    started = time.time()
+    structured = _call_llm(
+        prompt=_quality_prompt(language_code, items),
+        schema=_quality_schema(),
+        model=QUALITY_MODEL,
+        timeout_s=QUALITY_TIMEOUT_S,
+        log_context="material_quality",
+    )
+    elapsed = time.time() - started
+    if not structured:
+        _log_pipeline({
+            "event": "quality_failed",
+            "language_code": language_code,
+            "candidate_count": len(sentences),
+            "elapsed_s": round(elapsed, 1),
+            "model": QUALITY_MODEL,
+        })
+        return _fail_closed_quality_reviews(len(sentences), "quality review unavailable")
+
+    raw_reviews = structured.get("reviews", []) if isinstance(structured, dict) else []
+    if not isinstance(raw_reviews, list):
+        return _fail_closed_quality_reviews(len(sentences), "quality review parse error")
+
+    by_id: dict[int, SentenceQualityReview] = {}
+    for item in raw_reviews:
+        if not isinstance(item, dict):
+            continue
+        idx = item.get("id")
+        if not isinstance(idx, int) or not (0 <= idx < len(sentences)):
+            continue
+        by_id[idx] = SentenceQualityReview(
+            sentence_index=idx,
+            natural=bool(item.get("natural", False)),
+            translation_correct=bool(item.get("translation_correct", False)),
+            reason=str(item.get("reason", ""))[:500],
+        )
+
+    if set(by_id) != set(range(len(sentences))):
+        missing = sorted(set(range(len(sentences))) - set(by_id))
+        _log_pipeline({
+            "event": "quality_incomplete",
+            "language_code": language_code,
+            "candidate_count": len(sentences),
+            "missing": missing[:20],
+            "elapsed_s": round(elapsed, 1),
+            "model": QUALITY_MODEL,
+        })
+        return _fail_closed_quality_reviews(len(sentences), "quality review incomplete")
+
+    _log_pipeline({
+        "event": "quality_returned",
+        "language_code": language_code,
+        "candidate_count": len(sentences),
+        "approved": sum(
+            1 for r in by_id.values()
+            if r.natural and r.translation_correct
+        ),
+        "elapsed_s": round(elapsed, 1),
+        "model": QUALITY_MODEL,
+    })
+    return [by_id[i] for i in range(len(sentences))]
 
 
 # ─── Verification ──────────────────────────────────────────────────────────
@@ -872,6 +1058,49 @@ def batch_generate_material(
             "words_failed": target_indexed_ids,
         }
 
+    # ── Phase 2d: sentence-level naturalness + translation quality ──
+    # Mapping verification only proves that each token points at a plausible
+    # lemma. It does not catch grammatically parseable but meaningless review
+    # cards. Mirror Alif's fail-closed candidate quality gate before storage.
+    target_by_id = {t.lemma_id: t for t in targets}
+    quality_reviews = review_sentences_quality(
+        language_code,
+        [
+            {
+                "text": cand["text"],
+                "english": cand["translation_en"],
+                "target": target_by_id.get(cand["target_lemma_id"]).lemma_form
+                if target_by_id.get(cand["target_lemma_id"]) else "",
+                "target_gloss": target_by_id.get(cand["target_lemma_id"]).gloss_en
+                if target_by_id.get(cand["target_lemma_id"]) else "",
+            }
+            for cand in accepted
+        ],
+    )
+    quality_filtered: list[dict] = []
+    for cand, review in zip(accepted, quality_reviews):
+        if review.natural and review.translation_correct:
+            cand["quality_review"] = review
+            quality_filtered.append(cand)
+            continue
+        _log_pipeline({
+            "event": "quality_rejected",
+            "language_code": language_code,
+            "lemma_id": cand["target_lemma_id"],
+            "text": cand["text"],
+            "natural": review.natural,
+            "translation_correct": review.translation_correct,
+            "reason": review.reason[:200],
+        })
+    accepted = quality_filtered
+
+    if not accepted:
+        return {
+            "generated": 0,
+            "words_covered": 0,
+            "words_failed": target_indexed_ids,
+        }
+
     # ── Phase 3: DB write (fast, single commit) ──
     db = database.SessionLocal()
     stored = 0
@@ -879,6 +1108,7 @@ def batch_generate_material(
     try:
         now = datetime.now(timezone.utc)
         for cand in accepted:
+            review = cand.get("quality_review")
             sentence = Sentence(
                 language_code=language_code,
                 text=cand["text"],
@@ -887,6 +1117,12 @@ def batch_generate_material(
                 target_lemma_id=cand["target_lemma_id"],
                 is_active=True,
                 mappings_verified_at=now,
+                quality_reviewed_at=now if review is not None else None,
+                quality_natural=bool(review.natural) if review is not None else None,
+                quality_translation_correct=(
+                    bool(review.translation_correct) if review is not None else None
+                ),
+                quality_reason=review.reason[:500] if review is not None else None,
                 created_at=now,
             )
             db.add(sentence)

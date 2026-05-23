@@ -145,6 +145,16 @@ def _verify_ok_response(positions: tuple[int, ...] = (1, 2, 3)) -> _FakeProc:
     ])
 
 
+def _quality_response(reviews: list[dict] | None = None) -> _FakeProc:
+    if reviews is None:
+        reviews = [
+            {"id": 0, "natural": True, "translation_correct": True, "reason": "ok"},
+        ]
+    return _FakeProc(stdout=_envelope({
+        "reviews": reviews,
+    }))
+
+
 def test_batch_generate_happy_path(tmp_db, fake_claude):
     """One target, one valid sentence, no verifier complaints → 1 row written
     with mappings_verified_at stamped."""
@@ -161,6 +171,7 @@ def test_batch_generate_happy_path(tmp_db, fake_claude):
     fake_claude["script"] = [
         _gen_response([(0, "το βιβλίο είναι μεγάλο.", "The book is big.")]),
         _verify_ok_response(),
+        _quality_response(),
     ]
 
     result = mg.batch_generate_material(
@@ -180,6 +191,10 @@ def test_batch_generate_happy_path(tmp_db, fake_claude):
         assert s.target_lemma_id == target_id
         assert s.source == "llm"
         assert s.mappings_verified_at is not None
+        assert s.quality_reviewed_at is not None
+        assert s.quality_natural is True
+        assert s.quality_translation_correct is True
+        assert s.quality_reason == "ok"
         assert s.is_active is True
 
         words = db.query(SentenceWord).filter(SentenceWord.sentence_id == s.id).all()
@@ -301,6 +316,7 @@ def test_canonical_redirect_at_entry(tmp_db, fake_claude):
     fake_claude["script"] = [
         _gen_response([(0, "το βιβλίο είναι μεγάλο", "The book is big.")]),
         _verify_ok_response(),
+        _quality_response(),
     ]
 
     result = mg.batch_generate_material(
@@ -373,6 +389,41 @@ def test_incomplete_verifier_response_discards_candidate(tmp_db, fake_claude):
         assert db.query(Sentence).count() == 0
 
 
+def test_quality_rejection_discards_candidate(tmp_db, fake_claude):
+    """A sentence can pass token mapping but still fail the meaning gate."""
+    with tmp_db() as db:
+        target = _seed_lemma(db, form="βιβλίο", bare="βιβλιο", gloss="book")
+        _seed_acquiring(db, target.lemma_id)
+        _seed_lemma(db, form="μεγάλο", bare="μεγαλο", gloss="big")
+        _seed_lemma(db, form="είναι", bare="ειμαι", gloss="to be")
+        db.commit()
+        target_id = target.lemma_id
+
+    fake_claude["script"] = [
+        _gen_response([(0, "το βιβλίο είναι μεγάλο", "The book is big.")]),
+        _verify_ok_response(),
+        _quality_response([
+            {
+                "id": 0,
+                "natural": False,
+                "translation_correct": True,
+                "reason": "forced vocabulary combination",
+            },
+        ]),
+    ]
+
+    result = mg.batch_generate_material(
+        language_code="el",
+        lemma_ids=[target_id],
+        sentences_per_target=1,
+    )
+    assert result["generated"] == 0
+    assert result["words_failed"] == [target_id]
+
+    with tmp_db() as db:
+        assert db.query(Sentence).count() == 0
+
+
 def test_function_word_lemma_without_gloss_passes_gloss_gate(tmp_db, fake_claude):
     """Reading intake can create function-word Lemma rows without glosses."""
     with tmp_db() as db:
@@ -387,6 +438,7 @@ def test_function_word_lemma_without_gloss_passes_gloss_gate(tmp_db, fake_claude
     fake_claude["script"] = [
         _gen_response([(0, "το βιβλίο είναι μεγάλο", "The book is big.")]),
         _verify_ok_response((0, 1, 2, 3)),
+        _quality_response(),
     ]
 
     result = mg.batch_generate_material(
@@ -436,6 +488,7 @@ def test_warm_cache_fills_only_below_target(tmp_db, fake_claude):
     fake_claude["script"] = [
         _gen_response([(0, "το βιβλίο είναι μεγάλο", "The book is big.")]),
         _verify_ok_response(),
+        _quality_response(),
     ]
 
     result = mg.warm_sentence_cache(language_code="el", max_lemmas=10,
