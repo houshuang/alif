@@ -6,6 +6,11 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 
+@pytest.fixture(autouse=True)
+def _disable_interaction_logging(monkeypatch):
+    monkeypatch.setenv("TESTING", "1")
+
+
 @pytest.fixture
 def tmp_db(monkeypatch):
     """Per-test SQLite DB. Patches app.database engine/SessionLocal so tests

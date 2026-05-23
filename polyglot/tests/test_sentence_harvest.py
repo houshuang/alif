@@ -272,7 +272,7 @@ def test_harvest_story_walks_verified_pages(tmp_db):
         story, p1 = _seed_story(db)
         # Add second page, also verified
         p2 = Page(
-            story_id=story.id, page_number=2, body_src="x",
+            story_id=story.id, page_number=2, body_src="β.",
             processed_at=datetime.now(timezone.utc),
             mappings_verified_at=datetime.now(timezone.utc),
         )
@@ -280,7 +280,7 @@ def test_harvest_story_walks_verified_pages(tmp_db):
         db.flush()
         # Add a third page that's NOT verified — must be skipped
         p3 = Page(
-            story_id=story.id, page_number=3, body_src="y",
+            story_id=story.id, page_number=3, body_src="γ.",
             processed_at=datetime.now(timezone.utc),
             mappings_verified_at=None,
         )

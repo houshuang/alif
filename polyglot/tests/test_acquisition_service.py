@@ -16,10 +16,17 @@ from app.services.acquisition_service import (
 )
 
 
-def _seed_lemma(db, *, form="βιβλίο", bare="βιβλιο", canonical=None) -> Lemma:
+def _seed_lemma(
+    db,
+    *,
+    form="βιβλίο",
+    bare="βιβλιο",
+    canonical=None,
+    word_category=None,
+) -> Lemma:
     lemma = Lemma(
         language_code="el", lemma_form=form, lemma_bare=bare, source="test",
-        canonical_lemma_id=canonical,
+        canonical_lemma_id=canonical, word_category=word_category,
     )
     db.add(lemma)
     db.flush()
@@ -193,6 +200,54 @@ def test_tier0_first_correct_graduates_immediately(tmp_db):
         assert ulk.acquisition_box is None
         assert ulk.graduated_at is not None
         assert ulk.fsrs_card_json is not None
+
+
+def test_collateral_first_correct_does_not_graduate_or_advance_before_due(tmp_db):
+    with tmp_db() as db:
+        lemma = _seed_lemma(db)
+        ulk = start_acquisition(
+            db,
+            lemma_id=lemma.lemma_id,
+            due_immediately=False,
+            source="collateral",
+        )
+        original_due = ulk.acquisition_next_due
+        db.commit()
+
+        result = submit_acquisition_review(db, lemma_id=lemma.lemma_id, rating_int=3)
+
+        assert result["graduated"] is not True
+        assert result["new_state"] == "acquiring"
+        assert result["acquisition_box"] == 1
+        ulk = db.query(UserLemmaKnowledge).filter_by(lemma_id=lemma.lemma_id).one()
+        assert ulk.fsrs_card_json is None
+        assert ulk.acquisition_box == 1
+        assert ulk.acquisition_next_due.replace(tzinfo=timezone.utc) == original_due.replace(tzinfo=timezone.utc)
+        log = db.query(ReviewLog).filter_by(lemma_id=lemma.lemma_id).one()
+        assert log.fsrs_log_json["collateral_fast_graduation_blocked"] is True
+        assert log.fsrs_log_json["early_review_advancement_blocked"] is True
+
+
+def test_due_collateral_first_correct_can_advance_but_not_fast_graduate(tmp_db):
+    with tmp_db() as db:
+        lemma = _seed_lemma(db)
+        ulk = start_acquisition(
+            db,
+            lemma_id=lemma.lemma_id,
+            due_immediately=False,
+            source="collateral",
+        )
+        ulk.acquisition_next_due = datetime.now(timezone.utc) - timedelta(minutes=5)
+        db.commit()
+
+        result = submit_acquisition_review(db, lemma_id=lemma.lemma_id, rating_int=3)
+
+        assert result["graduated"] is not True
+        assert result["new_state"] == "acquiring"
+        assert result["acquisition_box"] == 2
+        ulk = db.query(UserLemmaKnowledge).filter_by(lemma_id=lemma.lemma_id).one()
+        assert ulk.fsrs_card_json is None
+        assert ulk.acquisition_box == 2
 
 
 def test_rating_again_resets_to_box1(tmp_db):
@@ -407,6 +462,35 @@ def test_acquisition_due_filter(tmp_db):
         due = get_acquisition_due(db)
         assert past.lemma_id in due
         assert future.lemma_id not in due
+
+
+def test_acquisition_due_filter_skips_noncontent_lemmas(tmp_db):
+    with tmp_db() as db:
+        content = _seed_lemma(db, form="content", bare="content")
+        function_word = _seed_lemma(
+            db,
+            form="εξαιτίας",
+            bare="εξαιτιας",
+            word_category="function_word",
+        )
+        now = datetime.now(timezone.utc)
+        for lemma in (content, function_word):
+            db.add(UserLemmaKnowledge(
+                lemma_id=lemma.lemma_id,
+                knowledge_state="acquiring",
+                acquisition_box=1,
+                acquisition_next_due=now - timedelta(minutes=5),
+                acquisition_started_at=now,
+                entered_acquiring_at=now,
+                source="test",
+            ))
+        db.commit()
+
+        due = get_acquisition_due(db)
+        stats = get_acquisition_stats(db)
+        assert due == [content.lemma_id]
+        assert stats["total_acquiring"] == 1
+        assert stats["due_now"] == 1
 
 
 def test_acquisition_stats(tmp_db):

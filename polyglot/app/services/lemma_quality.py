@@ -118,6 +118,26 @@ GRC_FUNCTION_WORDS: set[str] = {
 
 
 FUNCTION_WORD_SETS = {"el": EL_FUNCTION_WORDS, "la": LA_FUNCTION_WORDS, "grc": GRC_FUNCTION_WORDS}
+NONCONTENT_WORD_CATEGORIES = frozenset({"function_word", "proper_name", "not_word"})
+
+
+def is_noncontent_lemma(
+    lemma: Lemma,
+    *,
+    language_code: str | None = None,
+    function_words: set[str] | None = None,
+) -> bool:
+    """True for lemmas that should not enter vocabulary scheduling.
+
+    These lemmas can still be mapped in sentences for readability and quality
+    gates, but they are scaffolding rather than study targets.
+    """
+    if lemma.word_category in NONCONTENT_WORD_CATEGORIES:
+        return True
+    bares = function_words
+    if bares is None and language_code is not None:
+        bares = FUNCTION_WORD_SETS.get(language_code, set())
+    return bool(bares and lemma.lemma_bare in bares)
 
 
 # ─── Dataclasses ──────────────────────────────────────────────────────────

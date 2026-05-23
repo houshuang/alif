@@ -248,6 +248,25 @@ def test_proper_name_skipped(tmp_db):
         assert db.query(ReviewLog).filter_by(lemma_id=name_id).all() == []
 
 
+def test_not_word_skipped(tmp_db):
+    with tmp_db() as db:
+        content = _seed_lemma(db, form="λέξη", bare="λεξη")
+        junk = _seed_lemma(db, form="ocrfrag", bare="ocrfrag", word_category="not_word")
+        _seed_learning(db, content.lemma_id)
+        _seed_learning(db, junk.lemma_id)
+        sentence = _seed_sentence(
+            db,
+            lemma_surfaces=[(content.lemma_id, "λέξη"), (junk.lemma_id, "ocrfrag")],
+        )
+        db.commit()
+        sid, junk_id = sentence.id, junk.lemma_id
+
+    with tmp_db() as db:
+        result = submit_sentence_review(db, sentence_id=sid, comprehension_signal="understood")
+        assert all(wr["lemma_id"] != junk_id for wr in result["word_results"])
+        assert db.query(ReviewLog).filter_by(lemma_id=junk_id).all() == []
+
+
 def test_suspended_lemma_skipped(tmp_db):
     with tmp_db() as db:
         good = _seed_lemma(db, form="g", bare="g")
@@ -379,6 +398,34 @@ def test_unknown_lemma_auto_creates_ulk(tmp_db):
         ulk = db.query(UserLemmaKnowledge).filter_by(lemma_id=lemma_id).one()
         # Either graduated to learning (Tier 0) or sitting in acquiring
         assert ulk.knowledge_state in ("learning", "acquiring")
+
+
+def test_unknown_collateral_word_does_not_graduate_from_same_sentence(tmp_db):
+    with tmp_db() as db:
+        lemma = _seed_lemma(db, form="collateral", bare="collateral")
+        sentence = _seed_sentence(db, lemma_surfaces=[(lemma.lemma_id, "c")])
+        db.commit()
+        sid, lemma_id = sentence.id, lemma.lemma_id
+
+    with tmp_db() as db:
+        result = submit_sentence_review(
+            db,
+            sentence_id=sid,
+            comprehension_signal="understood",
+        )
+
+        assert result["word_results"][0]["new_state"] == "acquiring"
+        ulk = db.query(UserLemmaKnowledge).filter_by(lemma_id=lemma_id).one()
+        assert ulk.knowledge_state == "acquiring"
+        assert ulk.acquisition_box == 1
+        assert ulk.fsrs_card_json is None
+        due = ulk.acquisition_next_due
+        if due.tzinfo is None:
+            due = due.replace(tzinfo=timezone.utc)
+        assert due > datetime.now(timezone.utc) + timedelta(hours=3)
+        log = db.query(ReviewLog).filter_by(lemma_id=lemma_id).one()
+        assert log.fsrs_log_json["collateral_fast_graduation_blocked"] is True
+        assert log.credit_type == "collateral"
 
 
 def test_daily_cap_deferred_bumps_total_encounters_but_no_review(tmp_db, monkeypatch):

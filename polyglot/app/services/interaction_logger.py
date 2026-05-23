@@ -7,11 +7,19 @@ future shared analyzer can ingest both feeds.
 Disabled when `TESTING=1` is set so unit tests don't pollute the dev log.
 """
 import json
+import logging
 import os
 from datetime import datetime, timezone
 from pathlib import Path
 
 from app.config import settings
+
+logger = logging.getLogger(__name__)
+_TESTING_TRUE_VALUES = {"1", "true", "yes", "on"}
+
+
+def _testing_enabled() -> bool:
+    return os.environ.get("TESTING", "").strip().lower() in _TESTING_TRUE_VALUES
 
 
 def _get_log_path() -> Path:
@@ -30,7 +38,7 @@ def log_interaction(
     session_id: str | None = None,
     **extra,
 ) -> None:
-    if os.environ.get("TESTING"):
+    if _testing_enabled():
         return
     entry = {
         "ts": datetime.now(timezone.utc).isoformat(),
@@ -44,6 +52,9 @@ def log_interaction(
     }
     entry = {k: v for k, v in entry.items() if v is not None}
 
-    log_path = _get_log_path()
-    with open(log_path, "a") as f:
-        f.write(json.dumps(entry, ensure_ascii=False) + "\n")
+    try:
+        log_path = _get_log_path()
+        with open(log_path, "a") as f:
+            f.write(json.dumps(entry, ensure_ascii=False) + "\n")
+    except OSError:
+        logger.exception("Failed to append interaction log event=%s", event)

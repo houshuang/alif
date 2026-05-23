@@ -673,9 +673,11 @@ period where FSRS's normal intervals are too generous.
   - **Good (3+)**: advance one box, or graduate per tier rule below.
   - **Hard (2)**: stay in same box, refresh timer if due.
   - **Again (1)**: reset to Box 1.
-- **Due-date gating**: Box 2+ advancement requires the timer to have
-  elapsed. Box 1→2 within the same session is allowed (encoding) unless
-  the intro-card working-memory gate fires.
+- **Due-date gating**: advancement requires the timer to have elapsed.
+  Early correct exposures still count for accuracy/encounters, but do not
+  advance the box or reset the due timer. This matters for collateral
+  sentence exposure, where the learner did not explicitly ask to learn the
+  word.
 
 **Tiered graduation** (first match wins):
 
@@ -686,8 +688,10 @@ period where FSRS's normal intervals are too generous.
 | 2    | ≥ 80% accuracy across ≥ 4 reviews, Box ≥ 2                    |
 | 3    | Box 3, ≥ 5 reviews, ≥ 60% accuracy, ≥ 2 distinct UTC days     |
 
-Tier 0 / 1 / 2 are blocked by the intro-card working-memory gate (Hard
-Invariant #12 — see § 8.10).
+Tier 0 / 1 / 2 are blocked unless the review is due, non-collateral, and
+outside the intro-card working-memory gate (Hard Invariant #12 — see §
+8.10). Collateral words can advance on later due reviews, but same-sentence
+correctness cannot graduate them immediately.
 
 ### 8.7 Daily intro cap + recovery mode
 
@@ -802,27 +806,33 @@ Read-side spine of review. Two functions:
 given a due lemma, returns the best Sentence row covering it, or `None`.
 
 - Variant lemma → canonical at entry.
+- Non-content targets are refused at entry (`function_word`, `proper_name`,
+  `not_word`, or language function-word bare forms).
 - Exclude already-used sentences (within-session dedup).
-- Three preference tiers:
-  1. **Page-first, all-known**: a textbook page sentence whose every
-     content scaffold lemma is already `known`/`learning`. 3× score
-     bonus, `selection_reason="page_first_all_known"`. Zero-friction —
-     the user has already read that page.
-  2. **Any harvested sentence**, ranked by
-     `(0.3 + 0.7 × comprehensibility) × source_bonus`. Lower-
-     comprehensibility sentences still rank above nothing.
-  3. **None**: caller defers to generation or skips the lemma.
+- Generated (`source="llm"`) sentences are the primary sort tier and
+  strictly outrank textbook sentences. Textbook material is a fallback when
+  generation has not filled the cache yet.
+- Within a tier, score is
+  `(0.3 + 0.7 × comprehensibility) × page_cooldown × sentence_recency`.
+  `RECENT_PAGE_PENALTY=0.2` applies to textbook pages viewed in the last 7
+  days. `RECENT_SENTENCE_PENALTY=0.25` applies to any sentence shown in the
+  last 24h, so the same generated sentence does not keep winning when a
+  fresher candidate exists.
+- Payload diagnostics include `candidate_count`, `llm_candidate_count`,
+  `selected_times_shown`, and `selected_recently_shown`.
 
 **`build_session(db, language_code, limit) -> SessionBundle`**: assembles
 a session.
 
 - Walks acquisition-due first (Box 1 → 2 → 3, then by due time), then
   FSRS-due (oldest due first).
+- Filters non-content due rows before selection.
 - For each lemma: call picker; if None, skip; else add sentence to
   selected list and used-set.
 - After sentences are picked, `_build_intro_cards` emits intro/rescue
   cards for lemmas in the session.
-- Returns `SessionBundle(sentences, intro_cards)`.
+- Returns `SessionBundle(sentences, intro_cards, skipped_due_lemmas)` so
+  the router can log why due lemmas had no sentence.
 
 ### 8.12 Sentence review (`sentence_review_service.py`)
 
@@ -832,16 +842,18 @@ Write-side spine. The Foundational Invariant lives here.
 
 - Pre-load the sentence's lemma map; resolve all variants → canonical at
   entry via `resolve_canonical_via_map`.
-- For each content lemma in the sentence (function words + proper names
-  skipped):
+- For each content lemma in the sentence (function words, proper names,
+  junk/OCR fragments, and language function-word bare forms skipped):
   - If in `missed_lemma_ids`: rate Again (1).
   - If in `confused_lemma_ids`: rate Hard (2).
   - Else: derive rating from `comprehension_signal` — `understood` → Good
-    (3), `partial` → Hard (2) for collateral / Good for target,
-    `no_idea` → Again (1).
+    (3), `partial` → Good (3) for unmarked words, `no_idea` → Again (1).
 - Route per-lemma: encountered → `start_acquisition` first; acquiring →
   `submit_acquisition_review`; learning/known/lapsed → `submit_review`
   (FSRS).
+- New/encountered collateral lemmas are introduced with `source="collateral"`
+  and `due_immediately=False`; the first same-sentence correct exposure
+  cannot graduate or advance them before due.
 - Cap-deferred encountered words bump `total_encounters` without a
   review (the cap discipline shouldn't punish the learner — they did read
   the word).
@@ -876,9 +888,16 @@ Two complementary streams:
 
 **Interaction log** (`interaction_logger.py`): JSONL daily files at
 `polyglot/data/logs/interactions_YYYY-MM-DD.jsonl`. Append-only. Events:
-`review`, `sentence_review`, `card_shown`, `auto_introduce`,
-`experiment_intro_shown`, `word_graduated`, `leech_suspended`. Disabled
-when `TESTING=1` (set in conftest).
+`review`, `next_sentence_selected`, `session_built`, `sentence_review`,
+`card_shown`, `auto_introduce`, `experiment_intro_shown`, `word_graduated`,
+`leech_suspended`. Disabled only for truthy testing values
+(`TESTING=1/true/yes/on`; `TESTING=0` logs normally).
+
+Session-build events include selected sentence IDs, target lemmas, source,
+selection reason, score, candidate counts, selected times-shown, recent-repeat
+flag, intro lemma IDs, and skipped-due diagnostics. Sentence-review events
+include comprehension signal, missed/confused IDs, response time, duplicate
+status, per-word results, and leech suspensions.
 
 **Activity log** (`activity_log.py`): `ActivityLog` SQL table. Service-
 level events — batch generation runs, leech sweeps, manual data fixes.

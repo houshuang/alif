@@ -67,6 +67,7 @@ def _seed_sentence(
     page_id: int | None = None,
     times_shown: int = 0,
     quality_state: str = "auto",
+    last_reading_shown_at: datetime | None = None,
 ) -> Sentence:
     now = datetime.now(timezone.utc)
     reviewed_at = None
@@ -103,6 +104,7 @@ def _seed_sentence(
         quality_translation_correct=quality_translation_correct,
         quality_reason=quality_reason,
         times_shown=times_shown,
+        last_reading_shown_at=last_reading_shown_at,
     )
     db.add(sentence)
     db.flush()
@@ -439,6 +441,44 @@ def test_proper_name_lemmas_dont_count_in_scaffold(tmp_db):
         assert result is not None
         # Proper name excluded from scaffold counting → effectively single-word sentence
         assert result.selection_reason in ("all_scaffold_known", "page_first_all_known")
+
+
+def test_noncontent_target_lemma_is_never_scheduled(tmp_db):
+    """Function-word/proper/junk lemmas may appear in sentence mappings, but
+    they must not be selected as the target review word."""
+    with tmp_db() as db:
+        function_target = _seed_lemma(
+            db,
+            form="εξαιτίας",
+            bare="εξαιτιας",
+            word_category="function_word",
+        )
+        content_target = _seed_lemma(db, form="λόγος")
+        _seed_acquiring(db, function_target.lemma_id, box=1, due_offset_s=-3600)
+        _seed_acquiring(db, content_target.lemma_id, box=1, due_offset_s=-60)
+        function_sentence = _seed_sentence(
+            db,
+            lemma_surfaces=[(function_target.lemma_id, "εξαιτίας")],
+            text="εξαιτίας",
+            source="llm",
+        )
+        content_sentence = _seed_sentence(
+            db,
+            lemma_surfaces=[(content_target.lemma_id, "λόγος")],
+            text="λόγος",
+            source="llm",
+        )
+        db.commit()
+
+        assert pick_sentence_for_lemma(
+            db,
+            lemma_id=function_target.lemma_id,
+            language_code="el",
+        ) is None
+
+        bundle = build_session(db, language_code="el", limit=10)
+        assert [s.sentence_id for s in bundle.sentences] == [content_sentence.id]
+        assert all(s.sentence_id != function_sentence.id for s in bundle.sentences)
 
 
 def test_canonical_resolution_at_entry(tmp_db):
@@ -810,3 +850,45 @@ def test_tie_break_prefers_never_shown_llm_sentence(tmp_db):
         result = pick_sentence_for_lemma(db, lemma_id=target.lemma_id, language_code="el")
         assert result is not None
         assert result.sentence_id == fresh_sent.id
+
+
+def test_recently_shown_sentence_penalty_prefers_fresher_generated_context(tmp_db):
+    """A recently reviewed all-known generated sentence should not keep
+    beating every alternative just because it has the cleanest scaffold."""
+    with tmp_db() as db:
+        target = _seed_lemma(db, form="λόγος")
+        known_scaffold = _seed_lemma(db, form="ο")
+        unknown_scaffold = _seed_lemma(db, form="ξένο")
+        _seed_known(db, known_scaffold.lemma_id, state="known")
+
+        recent_best_scaffold = _seed_sentence(
+            db,
+            lemma_surfaces=[
+                (known_scaffold.lemma_id, "ο"),
+                (target.lemma_id, "λόγος"),
+            ],
+            text="ο λόγος (recent)",
+            source="llm",
+            times_shown=3,
+            last_reading_shown_at=datetime.now(timezone.utc) - timedelta(hours=1),
+        )
+        fresh_with_gap = _seed_sentence(
+            db,
+            lemma_surfaces=[
+                (known_scaffold.lemma_id, "ο"),
+                (unknown_scaffold.lemma_id, "ξένο"),
+                (target.lemma_id, "λόγος"),
+            ],
+            text="ο ξένο λόγος (fresh)",
+            source="llm",
+        )
+        db.commit()
+
+        result = pick_sentence_for_lemma(db, lemma_id=target.lemma_id, language_code="el")
+        assert result is not None
+        assert result.sentence_id == fresh_with_gap.id
+        assert result.selection_reason == "llm_with_gaps"
+        assert result.candidate_count == 2
+        assert result.llm_candidate_count == 2
+        assert result.selected_recently_shown is False
+        assert db.query(Sentence).filter_by(id=recent_best_scaffold.id).one()

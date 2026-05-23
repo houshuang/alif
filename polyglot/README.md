@@ -138,6 +138,16 @@ The material cron is installed as:
 One pass runs, in order: page warm/quality gate, sentence generation,
 textbook-sentence translation, and philology enrichment.
 
+Production maintenance scripts are dry-run first. To find old function-word,
+proper-name, or junk lemmas that are still in active study states:
+
+```bash
+cd /opt/alif/polyglot
+.venv/bin/python scripts/cleanup_noncontent_study_state.py --language el --dry-run
+```
+
+Back up `polyglot.db` before running the same command with `--apply`.
+
 ## SRS engine (FSRS + Acquisition)
 
 Polyglot's review pipeline mirrors Alif's, stripped of Arabic-specific
@@ -198,10 +208,15 @@ and the `/api/reviews/*` endpoints.
 
 | Tier | Trigger                                                    | Notes                            |
 |------|------------------------------------------------------------|----------------------------------|
-| 0    | First review is correct (rating ≥ 3, times_seen was 0)     | Instant graduation               |
-| 1    | 100% accuracy across ≥ 3 reviews                           | Graduate from any box            |
-| 2    | ≥ 80% accuracy across ≥ 4 reviews, currently in Box ≥ 2    | Graduate from Box 2 or 3         |
+| 0    | First due, non-collateral review is correct (rating ≥ 3, times_seen was 0) | Instant graduation |
+| 1    | 100% accuracy across ≥ 3 due, non-collateral reviews       | Graduate from any box            |
+| 2    | ≥ 80% accuracy across ≥ 4 due, non-collateral reviews, currently in Box ≥ 2 | Graduate from Box 2 or 3 |
 | 3    | Box 3, ≥ 5 reviews, ≥ 60% accuracy, ≥ 2 distinct UTC days  | Standard path                    |
+
+Collateral sentence exposure is deliberately slower: if a word is first
+introduced because it appeared in a reviewed sentence, the same sentence can
+count as exposure but cannot graduate the word or advance Box 1 before its
+scheduled due time.
 
 **Leech management:**
 
@@ -261,7 +276,13 @@ same-day review practice and accuracy. `leech_reintro` bypasses the cap.
   `sentence_review_service.py`, and `material_generator.py` are active.
   Generated sentences are mandatory-verifier gated before write; the warm
   cache targets `POLYGLOT_ACTIVE_TARGET=3` active verified sentences per
-  active-study lemma.
+  active-study lemma. Review sessions filter non-content lemmas out of due
+  queues, prefer generated sentences over page-of-record text, and apply a
+  24h soft repeat penalty to recently shown sentences.
+- **Production interaction logs** — `interactions_YYYY-MM-DD.jsonl` captures
+  session builds, selected sentence diagnostics, sentence-review payloads,
+  per-word results, and skipped-due reasons. `TESTING=0` does not disable
+  logging; only truthy testing values do.
 - **Philology enrichment** — `lemma_philology.py` fills `Lemma.enrichment_json`
   with etymology, diachrony, cognates, literary quotes, register, and
   collocations. The fact-check/self-correct pass strips persistently flagged

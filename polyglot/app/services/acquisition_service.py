@@ -23,16 +23,18 @@ from typing import Optional
 
 from sqlalchemy.orm import Session
 
-from app.models import ReviewLog, UserLemmaKnowledge
+from app.models import Lemma, ReviewLog, UserLemmaKnowledge
 from app.services.fsrs_service import parse_json_column, STATE_MAP
 from app.services.interaction_logger import log_interaction
 from app.services.knowledge_lifecycle import (
+    ORIGIN_COLLATERAL,
     ORIGIN_MARKED_UNKNOWN,
     origin_for_acquisition,
     record_review_result,
     set_origin_if_missing,
     snapshot as lifecycle_snapshot,
 )
+from app.services.lemma_quality import is_noncontent_lemma
 
 logger = logging.getLogger(__name__)
 
@@ -177,6 +179,16 @@ def _intro_shown_recently(ulk: UserLemmaKnowledge, now: datetime) -> bool:
         intro_shown = intro_shown.replace(tzinfo=timezone.utc)
     gap = now - intro_shown
     return timedelta(0) <= gap < FAST_GRAD_INTRO_GAP
+
+
+def _is_collateral_acquisition(ulk: UserLemmaKnowledge) -> bool:
+    """Collateral words need spaced confirmation before fast graduation.
+
+    A collateral row means the learner saw the word inside a sentence, but did
+    not explicitly mark it unknown or request study. Treat it as useful
+    exposure data, not as enough evidence for same-session graduation.
+    """
+    return ulk.knowledge_origin == ORIGIN_COLLATERAL or ulk.source == "collateral"
 
 
 def _reviews_span_calendar_days(db: Session, lemma_id: int, min_days: int) -> bool:
@@ -408,6 +420,7 @@ def submit_acquisition_review(
     old_knowledge_state = ulk.knowledge_state
     old_lifecycle = lifecycle_snapshot(ulk)
     recent_intro = _intro_shown_recently(ulk, now)
+    collateral_acquisition = _is_collateral_acquisition(ulk)
 
     ulk.times_seen = old_times_seen + 1
     if rating_int >= 3:
@@ -423,11 +436,12 @@ def submit_acquisition_review(
         is_due = acq_due <= now
 
     graduated = False
-    # Tier 0: first correct review → graduate immediately.
-    # Blocked when the intro card was shown within FAST_GRAD_INTRO_GAP — a
-    # correct rating seconds after the intro is working memory, not learning,
-    # and bypassing acquisition robs the encoding phase.
-    if old_times_seen == 0 and rating_int >= 3 and not recent_intro:
+    fast_graduation_allowed = is_due and not recent_intro and not collateral_acquisition
+
+    # Tier 0: first correct review → graduate immediately, but only when this
+    # is a due, explicit-acquisition card rather than a same-session collateral
+    # encounter or intro-card working-memory check.
+    if old_times_seen == 0 and rating_int >= 3 and fast_graduation_allowed:
         _graduate(ulk, now)
         graduated = True
 
@@ -439,6 +453,10 @@ def submit_acquisition_review(
                 # back soon instead of advancing to next-day consolidation.
                 ulk.acquisition_box = 1
                 ulk.acquisition_next_due = now + FAST_INTRO_RETRY_INTERVAL
+            elif not is_due:
+                # Same-session collateral or otherwise early exposure: count
+                # it, but preserve the existing due time and box.
+                ulk.acquisition_box = 1
             else:
                 ulk.acquisition_box = 2
                 ulk.acquisition_next_due = now + BOX_INTERVALS[2]
@@ -471,12 +489,17 @@ def submit_acquisition_review(
         accuracy = new_times_correct / new_times_seen if new_times_seen > 0 else 0
 
         # Tier 1: perfect accuracy, ≥ 3 reviews → graduate from any box.
-        # The intro-card gap blocks this too; otherwise three immediate
-        # same-session correct answers could still graduate on working memory.
-        if not recent_intro and accuracy >= 1.0 and new_times_seen >= 3:
+        # The due/intro/collateral gate blocks same-session correctness from
+        # standing in for spaced retrieval.
+        if fast_graduation_allowed and accuracy >= 1.0 and new_times_seen >= 3:
             graduated = True
         # Tier 2: ≥ 80% accuracy, ≥ 4 reviews → graduate from Box ≥ 2
-        elif not recent_intro and accuracy >= 0.80 and new_times_seen >= 4 and (ulk.acquisition_box or 1) >= 2:
+        elif (
+            fast_graduation_allowed
+            and accuracy >= 0.80
+            and new_times_seen >= 4
+            and (ulk.acquisition_box or 1) >= 2
+        ):
             graduated = True
         # Tier 3: standard — Box 3, ≥ 5 reviews, ≥ 60% accuracy, ≥ 2 calendar days
         elif (
@@ -527,6 +550,13 @@ def submit_acquisition_review(
                 else None
             ),
             "intro_working_memory_blocked": recent_intro and rating_int >= 3 and old_box == 1,
+            "review_was_due": is_due,
+            "collateral_fast_graduation_blocked": (
+                collateral_acquisition and rating_int >= 3
+            ),
+            "early_review_advancement_blocked": (
+                rating_int >= 3 and old_box == 1 and not is_due and not recent_intro
+            ),
             **old_lifecycle,
         },
     )
@@ -583,7 +613,8 @@ def get_acquisition_due(
         now = datetime.now(timezone.utc)
 
     rows = (
-        db.query(UserLemmaKnowledge.lemma_id)
+        db.query(UserLemmaKnowledge, Lemma)
+        .join(Lemma, Lemma.lemma_id == UserLemmaKnowledge.lemma_id)
         .filter(
             UserLemmaKnowledge.knowledge_state == "acquiring",
             UserLemmaKnowledge.acquisition_box.isnot(None),
@@ -591,16 +622,26 @@ def get_acquisition_due(
         )
         .all()
     )
-    return [r[0] for r in rows]
+    return [
+        ulk.lemma_id
+        for ulk, lemma in rows
+        if not is_noncontent_lemma(lemma, language_code=lemma.language_code)
+    ]
 
 
 def get_acquisition_stats(db: Session) -> dict:
     """Summary stats for the acquisition pipeline."""
-    acquiring = (
-        db.query(UserLemmaKnowledge)
+    acquiring_rows = (
+        db.query(UserLemmaKnowledge, Lemma)
+        .join(Lemma, Lemma.lemma_id == UserLemmaKnowledge.lemma_id)
         .filter(UserLemmaKnowledge.knowledge_state == "acquiring")
         .all()
     )
+    acquiring = [
+        ulk
+        for ulk, lemma in acquiring_rows
+        if not is_noncontent_lemma(lemma, language_code=lemma.language_code)
+    ]
 
     box_counts = {1: 0, 2: 0, 3: 0}
     for ulk in acquiring:

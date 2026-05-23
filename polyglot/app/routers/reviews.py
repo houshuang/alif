@@ -31,7 +31,9 @@ from app.services.fsrs_service import (
     reactivate_if_suspended,
     submit_review as submit_fsrs_review,
 )
+from app.services.interaction_logger import log_interaction
 from app.services.leech_service import check_single_word_leech
+from app.services.lemma_quality import FUNCTION_WORD_SETS, is_noncontent_lemma
 from app.services.sentence_review_service import (
     submit_sentence_review,
     undo_sentence_review,
@@ -201,6 +203,8 @@ def due(
 
     now = datetime.now(timezone.utc)
 
+    function_words = FUNCTION_WORD_SETS.get(language_code, set())
+
     acquiring_due = (
         db.query(UserLemmaKnowledge, Lemma)
         .join(Lemma, Lemma.lemma_id == UserLemmaKnowledge.lemma_id)
@@ -214,12 +218,17 @@ def due(
             UserLemmaKnowledge.acquisition_box.asc(),
             UserLemmaKnowledge.acquisition_next_due.asc(),
         )
-        .limit(limit)
         .all()
     )
 
     out: list[DueLemmaSummary] = []
     for ulk, lemma in acquiring_due:
+        if is_noncontent_lemma(
+            lemma,
+            language_code=language_code,
+            function_words=function_words,
+        ):
+            continue
         out.append(DueLemmaSummary(
             lemma_id=lemma.lemma_id,
             lemma_form=lemma.lemma_form,
@@ -229,6 +238,8 @@ def due(
             acquisition_box=ulk.acquisition_box,
             next_due=ulk.acquisition_next_due.isoformat() if ulk.acquisition_next_due else "",
         ))
+        if len(out) >= limit:
+            return out
 
     if len(out) >= limit:
         return out
@@ -246,6 +257,12 @@ def due(
     )
     fsrs_due_pairs: list[tuple[datetime, UserLemmaKnowledge, Lemma]] = []
     for ulk, lemma in fsrs_candidates:
+        if is_noncontent_lemma(
+            lemma,
+            language_code=language_code,
+            function_words=function_words,
+        ):
+            continue
         card = parse_json_column(ulk.fsrs_card_json)
         due_str = card.get("due")
         if not due_str:
@@ -398,6 +415,10 @@ class SentencePayloadOut(BaseModel):
     words: list[WordRenderOut]
     selection_reason: str
     score: float
+    candidate_count: int = 0
+    llm_candidate_count: int = 0
+    selected_times_shown: int = 0
+    selected_recently_shown: bool = False
 
 
 def _payload_to_pydantic(payload) -> SentencePayloadOut:
@@ -425,6 +446,10 @@ def _payload_to_pydantic(payload) -> SentencePayloadOut:
         ],
         selection_reason=payload.selection_reason,
         score=payload.score,
+        candidate_count=payload.candidate_count,
+        llm_candidate_count=payload.llm_candidate_count,
+        selected_times_shown=payload.selected_times_shown,
+        selected_recently_shown=payload.selected_recently_shown,
     )
 
 
@@ -444,7 +469,31 @@ def next_sentence(
         raise HTTPException(status_code=400, detail=f"Unknown language: {language_code}")
     payload = pick_sentence_for_lemma(db, lemma_id=lemma_id, language_code=language_code)
     if payload is None:
+        log_interaction(
+            event="next_sentence_selected",
+            app="polyglot",
+            context="reviews/next-sentence",
+            lemma_id=lemma_id,
+            language_code=language_code,
+            selected=False,
+        )
         return None
+    log_interaction(
+        event="next_sentence_selected",
+        app="polyglot",
+        context="reviews/next-sentence",
+        lemma_id=payload.target_lemma_id,
+        language_code=language_code,
+        selected=True,
+        sentence_id=payload.sentence_id,
+        source=payload.source,
+        selection_reason=payload.selection_reason,
+        score=payload.score,
+        candidate_count=payload.candidate_count,
+        llm_candidate_count=payload.llm_candidate_count,
+        selected_times_shown=payload.selected_times_shown,
+        selected_recently_shown=payload.selected_recently_shown,
+    )
     return _payload_to_pydantic(payload)
 
 
@@ -499,6 +548,38 @@ def session(
     if not db.query(Language).filter(Language.code == language_code).first():
         raise HTTPException(status_code=400, detail=f"Unknown language: {language_code}")
     bundle = build_session(db, language_code=language_code, limit=limit)
+    log_interaction(
+        event="session_built",
+        app="polyglot",
+        context="reviews/session",
+        language_code=language_code,
+        requested_limit=limit,
+        selected_count=len(bundle.sentences),
+        intro_count=len(bundle.intro_cards),
+        selected=[
+            {
+                "sentence_id": p.sentence_id,
+                "target_lemma_id": p.target_lemma_id,
+                "source": p.source,
+                "selection_reason": p.selection_reason,
+                "score": p.score,
+                "candidate_count": p.candidate_count,
+                "llm_candidate_count": p.llm_candidate_count,
+                "selected_times_shown": p.selected_times_shown,
+                "selected_recently_shown": p.selected_recently_shown,
+            }
+            for p in bundle.sentences
+        ],
+        intro_lemma_ids=[c.lemma_id for c in bundle.intro_cards],
+        skipped_due=[
+            {
+                "lemma_id": skipped.lemma_id,
+                "queue": skipped.queue,
+                "reason": skipped.reason,
+            }
+            for skipped in bundle.skipped_due_lemmas
+        ],
+    )
     return SessionBundleOut(
         sentences=[_payload_to_pydantic(p) for p in bundle.sentences],
         intro_cards=[_intro_card_to_pydantic(c) for c in bundle.intro_cards],

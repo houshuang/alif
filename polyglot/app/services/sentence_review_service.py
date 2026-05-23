@@ -44,8 +44,9 @@ from app.services.acquisition_service import (
 )
 from app.services.canonical_resolution import resolve_canonical_lemma_id
 from app.services.fsrs_service import parse_json_column, submit_review
+from app.services.interaction_logger import log_interaction
 from app.services.leech_service import check_single_word_leech
-from app.services.lemma_quality import FUNCTION_WORD_SETS
+from app.services.lemma_quality import FUNCTION_WORD_SETS, is_noncontent_lemma
 
 logger = logging.getLogger(__name__)
 
@@ -72,9 +73,10 @@ def submit_sentence_review(
         no_idea               → all rate 1
 
     Content-lemma filter: function words (word_category='function_word' OR in
-    FUNCTION_WORD_SETS for the sentence's language) and proper names
-    (word_category='proper_name') are skipped — they carry a lemma_id only so
-    the sentence passes the reviewability gate.
+    FUNCTION_WORD_SETS for the sentence's language), proper names
+    (word_category='proper_name'), and junk/OCR fragments
+    (word_category='not_word') are skipped — they carry a lemma_id only so the
+    sentence passes the reviewability gate.
 
     `primary_lemma_id` may be omitted for textbook-harvested sentences (no
     target word, all credit is collateral). When supplied, that lemma's
@@ -92,6 +94,16 @@ def submit_sentence_review(
             .first()
         )
         if existing_sentence_log:
+            log_interaction(
+                event="sentence_review",
+                app="polyglot",
+                context="sentence_review_service",
+                session_id=session_id,
+                sentence_id=sentence_id,
+                duplicate=True,
+                duplicate_source="sentence_log",
+                client_review_id=client_review_id,
+            )
             return {"word_results": [], "duplicate": True, "leech_suspended_lemma_ids": []}
         existing_word_log = (
             db.query(ReviewLog)
@@ -99,6 +111,16 @@ def submit_sentence_review(
             .first()
         )
         if existing_word_log:
+            log_interaction(
+                event="sentence_review",
+                app="polyglot",
+                context="sentence_review_service",
+                session_id=session_id,
+                sentence_id=sentence_id,
+                duplicate=True,
+                duplicate_source="word_log",
+                client_review_id=client_review_id,
+            )
             return {"word_results": [], "duplicate": True, "leech_suspended_lemma_ids": []}
 
     sentence = (
@@ -134,6 +156,19 @@ def submit_sentence_review(
             response_ms, session_id, review_mode, client_review_id,
         )
         db.commit()
+        _log_sentence_review_interaction(
+            sentence=sentence,
+            comprehension_signal=comprehension_signal,
+            primary_lemma_id=primary_lemma_id,
+            missed_lemma_ids=missed_lemma_ids or [],
+            confused_lemma_ids=confused_lemma_ids or [],
+            response_ms=response_ms,
+            session_id=session_id,
+            review_mode=review_mode,
+            client_review_id=client_review_id,
+            word_results=[],
+            leech_suspended=[],
+        )
         return {"word_results": [], "duplicate": False, "leech_suspended_lemma_ids": []}
 
     language_code = sentence.language_code
@@ -146,15 +181,10 @@ def submit_sentence_review(
     )
     lemma_map: dict[int, Lemma] = {lo.lemma_id: lo for lo in lemma_objs}
 
-    function_word_lemma_ids: set[int] = set()
-    proper_name_lemma_ids: set[int] = set()
+    noncontent_lemma_ids: set[int] = set()
     for lo in lemma_objs:
-        is_fw_by_category = lo.word_category == "function_word"
-        is_fw_by_bare = lo.lemma_bare in function_word_bares
-        if is_fw_by_category or is_fw_by_bare:
-            function_word_lemma_ids.add(lo.lemma_id)
-        if lo.word_category == "proper_name":
-            proper_name_lemma_ids.add(lo.lemma_id)
+        if is_noncontent_lemma(lo, function_words=function_word_bares):
+            noncontent_lemma_ids.add(lo.lemma_id)
 
     # Defensive canonical resolution. Sentence_harvest already writes
     # canonicals to SentenceWord.lemma_id at storage time, but if an
@@ -177,10 +207,8 @@ def submit_sentence_review(
     if canonical_ids_needed:
         for lo in db.query(Lemma).filter(Lemma.lemma_id.in_(canonical_ids_needed)).all():
             lemma_map[lo.lemma_id] = lo
-            if lo.word_category == "function_word" or lo.lemma_bare in function_word_bares:
-                function_word_lemma_ids.add(lo.lemma_id)
-            if lo.word_category == "proper_name":
-                proper_name_lemma_ids.add(lo.lemma_id)
+            if is_noncontent_lemma(lo, function_words=function_word_bares):
+                noncontent_lemma_ids.add(lo.lemma_id)
 
     all_ulk_ids = lemma_ids_in_sentence | set(variant_to_canonical.values())
     ulk_objs = (
@@ -201,10 +229,8 @@ def submit_sentence_review(
         effective_lemma_id = variant_to_canonical.get(lemma_id, lemma_id)
 
         # Check both variant and canonical for filter membership — handles the
-        # rare case of a variant pointing to a function-word/proper-name root.
-        if lemma_id in function_word_lemma_ids or effective_lemma_id in function_word_lemma_ids:
-            continue
-        if lemma_id in proper_name_lemma_ids or effective_lemma_id in proper_name_lemma_ids:
+        # rare case of a variant pointing to a non-content root.
+        if lemma_id in noncontent_lemma_ids or effective_lemma_id in noncontent_lemma_ids:
             continue
         if lemma_id in inactive_lemma_ids or effective_lemma_id in inactive_lemma_ids:
             continue
@@ -361,6 +387,20 @@ def submit_sentence_review(
 
     db.commit()
 
+    _log_sentence_review_interaction(
+        sentence=sentence,
+        comprehension_signal=comprehension_signal,
+        primary_lemma_id=primary_lemma_id,
+        missed_lemma_ids=missed_lemma_ids or [],
+        confused_lemma_ids=confused_lemma_ids or [],
+        response_ms=response_ms,
+        session_id=session_id,
+        review_mode=review_mode,
+        client_review_id=client_review_id,
+        word_results=word_results,
+        leech_suspended=leech_suspended,
+    )
+
     return {
         "word_results": word_results,
         "duplicate": False,
@@ -391,6 +431,44 @@ def _log_sentence_review(
     sentence.times_shown = (sentence.times_shown or 0) + 1
     sentence.last_reading_shown_at = now
     sentence.last_reading_comprehension = comprehension_signal
+
+
+def _log_sentence_review_interaction(
+    *,
+    sentence: Sentence,
+    comprehension_signal: str,
+    primary_lemma_id: Optional[int],
+    missed_lemma_ids: list[int],
+    confused_lemma_ids: list[int],
+    response_ms: Optional[int],
+    session_id: Optional[str],
+    review_mode: str,
+    client_review_id: Optional[str],
+    word_results: list[dict],
+    leech_suspended: list[int],
+) -> None:
+    """Append the interaction log event used for production analysis."""
+    log_interaction(
+        event="sentence_review",
+        app="polyglot",
+        context="sentence_review_service",
+        session_id=session_id,
+        response_ms=response_ms,
+        sentence_id=sentence.id,
+        sentence_source=sentence.source,
+        sentence_target_lemma_id=sentence.target_lemma_id,
+        language_code=sentence.language_code,
+        comprehension_signal=comprehension_signal,
+        primary_lemma_id=primary_lemma_id,
+        missed_lemma_ids=missed_lemma_ids,
+        confused_lemma_ids=confused_lemma_ids,
+        review_mode=review_mode,
+        client_review_id=client_review_id,
+        duplicate=False,
+        reviewed_word_count=len(word_results),
+        word_results=word_results,
+        leech_suspended_lemma_ids=leech_suspended,
+    )
 
 
 def undo_sentence_review(

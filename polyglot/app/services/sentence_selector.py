@@ -70,7 +70,7 @@ from sqlalchemy.orm import Session, joinedload
 from app.models import Lemma, Page, Sentence, SentenceWord, UserLemmaKnowledge, Language
 from app.services.canonical_resolution import resolve_canonical_lemma_id
 from app.services.fsrs_service import parse_json_column
-from app.services.lemma_quality import FUNCTION_WORD_SETS
+from app.services.lemma_quality import FUNCTION_WORD_SETS, is_noncontent_lemma
 
 logger = logging.getLogger(__name__)
 
@@ -92,6 +92,12 @@ LLM_UNREVIEWED_QUALITY_MULTIPLIER = 0.55
 # enrichment cron hasn't run). Set to 1.0 to disable.
 PAGE_COOLDOWN_DAYS = 7
 RECENT_PAGE_PENALTY = 0.2
+
+# Generated sentences can otherwise repeat when the target word returns quickly
+# and the same all-known scaffold still dominates the score. This is only a
+# penalty, not a veto, so one-candidate words still have material.
+SENTENCE_RECENCY_HOURS = 24
+RECENT_SENTENCE_PENALTY = 0.25
 
 
 def _quality_multiplier_for_sentence(sent: Sentence) -> float:
@@ -145,6 +151,10 @@ class SentencePayload:
     words: list[WordRender] = field(default_factory=list)
     selection_reason: str = ""
     score: float = 0.0
+    candidate_count: int = 0
+    llm_candidate_count: int = 0
+    selected_times_shown: int = 0
+    selected_recently_shown: bool = False
 
 
 @dataclass
@@ -180,6 +190,14 @@ class SessionBundle:
     """
     sentences: list["SentencePayload"]
     intro_cards: list[IntroCardPayload] = field(default_factory=list)
+    skipped_due_lemmas: list["SkippedDueLemma"] = field(default_factory=list)
+
+
+@dataclass
+class SkippedDueLemma:
+    lemma_id: int
+    queue: str
+    reason: str
 
 
 @dataclass
@@ -193,6 +211,7 @@ class _Scored:
     selection_reason: str
     generated: bool = False             # primary sort tier: approved llm strictly beats book
     times_shown: int = 0                # for tie-break: prefer never-shown
+    recently_shown: bool = False
 
 
 # Intro card constants — ported from Alif. The dynamic-cap heuristic and
@@ -222,6 +241,19 @@ def pick_sentence_for_lemma(
         return None
 
     exclude = set(exclude_sentence_ids or ())
+    function_words = FUNCTION_WORD_SETS.get(language_code, set())
+
+    target_lemma = (
+        db.query(Lemma)
+        .filter(Lemma.lemma_id == canonical_id, Lemma.language_code == language_code)
+        .first()
+    )
+    if target_lemma is None or is_noncontent_lemma(
+        target_lemma,
+        language_code=language_code,
+        function_words=function_words,
+    ):
+        return None
 
     candidate_rows: list[Sentence] = (
         db.query(Sentence)
@@ -239,8 +271,8 @@ def pick_sentence_for_lemma(
     candidates = [s for s in candidate_rows if s.id not in exclude]
     if not candidates:
         return None
-
-    function_words = FUNCTION_WORD_SETS.get(language_code, set())
+    candidate_count = len(candidates)
+    llm_candidate_count = sum(1 for s in candidates if (s.source or "") in GENERATED_SOURCES)
 
     all_lemma_ids: set[int] = set()
     for sent in candidates:
@@ -294,6 +326,8 @@ def pick_sentence_for_lemma(
         lemmas_by_id=lemmas_by_id,
         ulks_by_lemma=ulks_by_lemma,
         function_words=function_words,
+        candidate_count=candidate_count,
+        llm_candidate_count=llm_candidate_count,
     )
 
 
@@ -358,9 +392,7 @@ def _score_candidate(
         lemma = lemmas_by_id.get(sw.lemma_id)
         if lemma is None:
             continue
-        if lemma.word_category in ("function_word", "proper_name"):
-            continue
-        if lemma.lemma_bare in function_words:
+        if is_noncontent_lemma(lemma, function_words=function_words):
             continue
 
         scaffold_total += 1
@@ -401,7 +433,10 @@ def _score_candidate(
     # (the `generated` tier in the sort key), then this within-tier score.
     page_first = sentence.page_id is not None and all_known
 
-    score = base * cooldown_bonus * quality_multiplier
+    recently_shown = _sentence_recently_shown(sentence)
+    sentence_recency_penalty = RECENT_SENTENCE_PENALTY if recently_shown else 1.0
+
+    score = base * cooldown_bonus * quality_multiplier * sentence_recency_penalty
 
     if page_recently_viewed:
         reason = "page_cooldown_fallback"
@@ -417,6 +452,8 @@ def _score_candidate(
         reason = "comprehensible"
     else:
         reason = "best_available"
+    if recently_shown:
+        reason = f"{reason}_recent_repeat"
 
     return _Scored(
         sentence=sentence,
@@ -428,7 +465,18 @@ def _score_candidate(
         selection_reason=reason,
         generated=generated,
         times_shown=sentence.times_shown or 0,
+        recently_shown=recently_shown,
     )
+
+
+def _sentence_recently_shown(sentence: Sentence) -> bool:
+    shown_at = sentence.last_reading_shown_at
+    if shown_at is None:
+        return False
+    if shown_at.tzinfo is None:
+        shown_at = shown_at.replace(tzinfo=timezone.utc)
+    cutoff = datetime.now(timezone.utc) - timedelta(hours=SENTENCE_RECENCY_HOURS)
+    return shown_at >= cutoff
 
 
 def _build_payload(
@@ -437,6 +485,8 @@ def _build_payload(
     lemmas_by_id: dict[int, Lemma],
     ulks_by_lemma: dict[int, UserLemmaKnowledge],
     function_words: set,
+    candidate_count: int = 0,
+    llm_candidate_count: int = 0,
 ) -> SentencePayload:
     sent = best.sentence
     words: list[WordRender] = []
@@ -476,6 +526,10 @@ def _build_payload(
         words=words,
         selection_reason=best.selection_reason,
         score=best.score,
+        candidate_count=candidate_count,
+        llm_candidate_count=llm_candidate_count,
+        selected_times_shown=best.times_shown,
+        selected_recently_shown=best.recently_shown,
     )
 
 
@@ -503,6 +557,8 @@ def _fsrs_due_lemmas(
     )
     rows: list[tuple[UserLemmaKnowledge, Lemma, datetime]] = []
     for ulk, lemma in candidates:
+        if is_noncontent_lemma(lemma, language_code=language_code):
+            continue
         card = parse_json_column(ulk.fsrs_card_json)
         due_str = card.get("due")
         if not due_str:
@@ -525,7 +581,8 @@ def _acquisition_due_lemmas(
     now: datetime,
     limit: int,
 ) -> list[tuple[UserLemmaKnowledge, Lemma]]:
-    return (
+    function_words = FUNCTION_WORD_SETS.get(language_code, set())
+    rows = (
         db.query(UserLemmaKnowledge, Lemma)
         .join(Lemma, Lemma.lemma_id == UserLemmaKnowledge.lemma_id)
         .filter(
@@ -538,9 +595,17 @@ def _acquisition_due_lemmas(
             UserLemmaKnowledge.acquisition_box.asc(),
             UserLemmaKnowledge.acquisition_next_due.asc(),
         )
-        .limit(limit)
         .all()
     )
+    return [
+        (ulk, lemma)
+        for ulk, lemma in rows
+        if not is_noncontent_lemma(
+            lemma,
+            language_code=language_code,
+            function_words=function_words,
+        )
+    ][:limit]
 
 
 def _dynamic_intro_cap(db: Session) -> int:
@@ -613,7 +678,7 @@ def _build_intro_cards(
         if ulk.knowledge_state != "acquiring":
             continue
         lemma = lemmas.get(ulk.lemma_id)
-        if lemma is None or lemma.word_category in ("function_word", "proper_name"):
+        if lemma is None or is_noncontent_lemma(lemma):
             continue
 
         times_seen = ulk.times_seen or 0
@@ -713,6 +778,7 @@ def build_session(
 
     selected: list[SentencePayload] = []
     used_sentence_ids: set[int] = set()
+    skipped_due: list[SkippedDueLemma] = []
 
     for ulk, lemma in acquiring:
         if len(selected) >= limit:
@@ -724,6 +790,11 @@ def build_session(
             exclude_sentence_ids=used_sentence_ids,
         )
         if payload is None:
+            skipped_due.append(SkippedDueLemma(
+                lemma_id=lemma.lemma_id,
+                queue="acquisition",
+                reason="no_eligible_sentence",
+            ))
             continue
         used_sentence_ids.add(payload.sentence_id)
         selected.append(payload)
@@ -741,9 +812,18 @@ def build_session(
             exclude_sentence_ids=used_sentence_ids,
         )
         if payload is None:
+            skipped_due.append(SkippedDueLemma(
+                lemma_id=lemma.lemma_id,
+                queue="fsrs",
+                reason="no_eligible_sentence",
+            ))
             continue
         used_sentence_ids.add(payload.sentence_id)
         selected.append(payload)
 
     intro_cards = _build_intro_cards(db, selected)
-    return SessionBundle(sentences=selected, intro_cards=intro_cards)
+    return SessionBundle(
+        sentences=selected,
+        intro_cards=intro_cards,
+        skipped_due_lemmas=skipped_due,
+    )
