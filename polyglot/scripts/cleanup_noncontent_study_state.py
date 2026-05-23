@@ -19,6 +19,8 @@ import sys
 from collections import Counter
 from pathlib import Path
 
+from sqlalchemy import null
+
 REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT))
 
@@ -100,7 +102,7 @@ def main() -> int:
             ulk.knowledge_state = "ignore"
             ulk.acquisition_box = None
             ulk.acquisition_next_due = None
-            ulk.fsrs_card_json = None
+            ulk.fsrs_card_json = null()
             ulk.leech_suspended_at = None
         db.commit()
         log.info("Retired %d active non-content ULKs to ignore", len(rows))
