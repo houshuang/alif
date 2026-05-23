@@ -140,9 +140,16 @@ def test_harvest_force_replays(tmp_db):
         # First harvest creates 1 sentence; second (no force) is a no-op.
         assert harvest_page_sentences(db, page) == 1
         assert harvest_page_sentences(db, page) == 0
-        # Force replays — same end state, but the create returns 1 again.
+        first_sentence_id = (
+            db.query(Sentence).filter(Sentence.page_id == page.id).one().id
+        )
+        # Force replays in place — same end state and same sentence id.
         assert harvest_page_sentences(db, page, force=True) == 1
         assert db.query(Sentence).filter(Sentence.page_id == page.id).count() == 1
+        assert (
+            db.query(Sentence).filter(Sentence.page_id == page.id).one().id
+            == first_sentence_id
+        )
 
 
 def test_harvest_skips_caps_headings(tmp_db):
@@ -169,6 +176,55 @@ def test_harvest_skips_caps_headings(tmp_db):
         sids = [s.sentence_index_in_page for s in
                 db.query(Sentence).filter(Sentence.page_id == page.id).all()]
         assert sids == [1]
+
+
+def test_harvest_skips_page_boundary_fragments(tmp_db):
+    """Page breaks can cut through a sentence or word; those fragments should
+    stay in PageWord for the reader but not become reusable review sentences."""
+    with tmp_db() as db:
+        story, p1 = _seed_story(db, body="Η οργάνωση της παρα")
+        story.page_count = 2
+        p1.body_clean = "Η οργάνωση της παρα"
+        p2 = Page(
+            story_id=story.id,
+            page_number=2,
+            body_src="γωγής ολοκληρώθηκε. Νέα πρόταση.",
+            body_clean="γωγής ολοκληρώθηκε. Νέα πρόταση.",
+            processed_at=datetime.now(timezone.utc),
+            mappings_verified_at=datetime.now(timezone.utc),
+        )
+        db.add(p2)
+        db.flush()
+
+        l_org = _add_lemma(db, "οργάνωση", "οργανωση")
+        l_prod = _add_lemma(db, "παραγωγή", "παραγωγη")
+        l_new = _add_lemma(db, "νέος", "νεος")
+
+        _add_word(db, p1, 0, "Η", 0)
+        _add_word(db, p1, 1, "οργάνωση", 0, l_org)
+        _add_word(db, p1, 2, "της", 0)
+        _add_word(db, p1, 3, "παρα", 0, l_prod)
+
+        _add_word(db, p2, 0, "γωγής", 0, l_prod)
+        _add_word(db, p2, 1, "ολοκληρώθηκε", 0, l_prod)
+        _add_word(db, p2, 2, ".", 0)
+        _add_word(db, p2, 3, "Νέα", 1, l_new)
+        _add_word(db, p2, 4, "πρόταση", 1, l_new)
+        _add_word(db, p2, 5, ".", 1)
+        db.commit()
+
+        assert harvest_page_sentences(db, p1) == 0
+        assert harvest_page_sentences(db, p2) == 1
+
+        sentences = (
+            db.query(Sentence)
+            .filter(Sentence.page_id.in_([p1.id, p2.id]))
+            .order_by(Sentence.page_id, Sentence.sentence_index_in_page)
+            .all()
+        )
+        assert [(s.page_id, s.sentence_index_in_page, s.text) for s in sentences] == [
+            (p2.id, 1, "Νέα πρόταση."),
+        ]
 
 
 def test_harvest_resolves_variant_lemmas_to_canonical(tmp_db):

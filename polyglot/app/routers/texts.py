@@ -135,8 +135,8 @@ def extract_sentences(story_id: int, force: bool = False, db: Session = Depends(
 
     Normally runs implicitly as part of page-view processing. Use this endpoint
     to backfill sentences for pages that were imported before the harvest service
-    existed, or to re-harvest after a quality-gate sweep (`force=True` deletes
-    and rebuilds).
+    existed, or to re-harvest after a quality-gate sweep (`force=True` updates
+    existing sentence ids in place and deactivates stale fragments).
     """
     if not db.query(Story).filter(Story.id == story_id).first():
         raise HTTPException(status_code=404, detail="Story not found")

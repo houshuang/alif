@@ -12,13 +12,15 @@ Per page, the script:
 1. Calls ``body_clean.clean_body(page.body_src, language_code)`` and
    stores the result in ``page.body_clean``. Skips pages where
    body_clean has non-empty text unless ``--force``.
-2. Deletes harvested ``Sentence`` rows attached to the page (and their
-   ``SentenceWord`` children via cascade). Without this, harvested
-   sentences would point at PageWords that no longer exist.
+2. Deactivates harvested ``Sentence`` rows attached to the page without
+   deleting them. Review logs point at ``sentences.id`` directly, so those
+   ids must remain stable.
 3. Deletes ``PageWord`` rows for the page.
 4. Nulls ``processed_at``, ``mappings_verified_at``, ``quality_gate_failures``.
    The next ``GET /api/texts/{sid}/pages/{n}`` triggers re-tokenization
-   from ``body_clean`` and the quality gate from scratch.
+   from ``body_clean`` and the quality gate from scratch. With
+   ``--reprocess``, this script immediately re-tokenizes and rewrites
+   ``SentenceWord`` rows from the newly cleaned ``PageWord`` rows.
 
 The currently-unreferenced Lemmas (junk like ``σιτηρών1``) are left in
 place — a separate cleanup script can prune them once the dust settles.
@@ -39,6 +41,7 @@ processing a full book on the server.
 from __future__ import annotations
 
 import argparse
+from collections import defaultdict
 import json
 import logging
 import os
@@ -46,26 +49,25 @@ import sys
 from datetime import datetime, timezone
 
 from app.database import SessionLocal
-from app.models import Page, PageWord, Sentence, Story
+from app.models import Page, PageWord, Sentence, SentenceWord, Story
 from app.services import body_clean
 
 
 def _reset_page_processing(db, page: Page) -> int:
-    """Delete PageWord + harvested Sentence rows for the page. Returns the
-    number of PageWord rows deleted (useful for progress logging)."""
-    sentence_ids = [
-        s.id for s in db.query(Sentence).filter(Sentence.page_id == page.id).all()
-    ]
-    if sentence_ids:
-        # SentenceWord cascade via FK is set on the relationship; explicit
-        # delete here keeps it independent of ORM-cascade configuration.
-        from app.models import SentenceWord
-        db.query(SentenceWord).filter(
-            SentenceWord.sentence_id.in_(sentence_ids)
-        ).delete(synchronize_session=False)
-        db.query(Sentence).filter(Sentence.id.in_(sentence_ids)).delete(
-            synchronize_session=False
-        )
+    """Reset a page for re-tokenization without deleting reviewed sentences.
+
+    Review logs reference ``sentences.id`` directly, so a reprocess must keep
+    those ids stable. Existing harvested sentences are made inactive until the
+    new PageWord rows are built and synced back into SentenceWord below.
+    Returns the number of PageWord rows deleted for progress logging.
+    """
+    db.query(Sentence).filter(Sentence.page_id == page.id).update(
+        {
+            Sentence.is_active: False,
+            Sentence.mappings_verified_at: None,
+        },
+        synchronize_session=False,
+    )
     pw_count = (
         db.query(PageWord).filter(PageWord.page_id == page.id).delete(
             synchronize_session=False
@@ -76,6 +78,129 @@ def _reset_page_processing(db, page: Page) -> int:
     page.quality_gate_failures = 0
     page.total_words = 0
     return pw_count
+
+
+def _sync_harvested_sentences_for_page(db, page: Page) -> dict[str, int]:
+    """Refresh textbook Sentence/SentenceWord rows from current PageWord rows.
+
+    This mirrors ``sentence_harvest.harvest_page_sentences`` but updates
+    existing ``Sentence`` rows in place so historical review logs keep their
+    foreign keys. Rows for sentence indices that no longer survive cleanup
+    remain in the table as inactive provenance records.
+    """
+    stats = {
+        "sentences_created": 0,
+        "sentences_updated": 0,
+        "sentences_deactivated": 0,
+        "sentence_words_rewritten": 0,
+    }
+    if page.mappings_verified_at is None:
+        return stats
+
+    from app.services.canonical_resolution import resolve_canonical_via_map
+    from app.services.lemma_quality import _detect_heading_sentence_indices
+    from app.services.sentence_harvest import (
+        _canonical_map_for,
+        _detect_page_boundary_sentence_indices,
+        _reconstruct_sentence_text,
+    )
+
+    page_words = (
+        db.query(PageWord)
+        .filter(PageWord.page_id == page.id)
+        .order_by(PageWord.position)
+        .all()
+    )
+    heading_indices = _detect_heading_sentence_indices(page_words)
+    boundary_indices = _detect_page_boundary_sentence_indices(db, page, page_words)
+
+    by_idx: dict[int, list[PageWord]] = defaultdict(list)
+    for word in page_words:
+        by_idx[word.sentence_index].append(word)
+
+    lemma_ids = {word.lemma_id for word in page_words if word.lemma_id is not None}
+    canonical_map = _canonical_map_for(db, lemma_ids)
+    existing = {
+        sentence.sentence_index_in_page: sentence
+        for sentence in db.query(Sentence).filter(Sentence.page_id == page.id).all()
+        if sentence.sentence_index_in_page is not None
+    }
+
+    keep_indices: set[int] = set()
+    language_code = page.story.language_code
+    for sentence_index in sorted(by_idx):
+        if sentence_index in heading_indices or sentence_index in boundary_indices:
+            continue
+
+        words = sorted(by_idx[sentence_index], key=lambda word: word.position)
+        if not any(word.lemma_id is not None for word in words):
+            continue
+
+        text = _reconstruct_sentence_text(words)
+        if not text:
+            continue
+
+        keep_indices.add(sentence_index)
+        sentence = existing.get(sentence_index)
+        if sentence is None:
+            sentence = Sentence(
+                language_code=language_code,
+                text=text,
+                source="textbook",
+                story_id=page.story_id,
+                page_id=page.id,
+                sentence_index_in_page=sentence_index,
+                is_active=True,
+                mappings_verified_at=page.mappings_verified_at,
+            )
+            db.add(sentence)
+            db.flush()
+            stats["sentences_created"] += 1
+        else:
+            if sentence.text != text:
+                sentence.translation_en = None
+                sentence.transliteration = None
+                sentence.audio_url = None
+            sentence.language_code = language_code
+            sentence.text = text
+            sentence.source = "textbook"
+            sentence.story_id = page.story_id
+            sentence.page_id = page.id
+            sentence.sentence_index_in_page = sentence_index
+            sentence.is_active = True
+            sentence.mappings_verified_at = page.mappings_verified_at
+            db.query(SentenceWord).filter(
+                SentenceWord.sentence_id == sentence.id
+            ).delete(synchronize_session=False)
+            stats["sentences_updated"] += 1
+
+        for word in words:
+            lemma_id = word.lemma_id
+            if lemma_id is not None:
+                lemma_id = resolve_canonical_via_map(lemma_id, canonical_map)
+            db.add(
+                SentenceWord(
+                    sentence_id=sentence.id,
+                    position=word.position,
+                    surface_form=word.surface_form,
+                    lemma_id=lemma_id,
+                    is_target_word=False,
+                )
+            )
+            stats["sentence_words_rewritten"] += 1
+
+    stale_q = db.query(Sentence).filter(Sentence.page_id == page.id)
+    if keep_indices:
+        stale_q = stale_q.filter(~Sentence.sentence_index_in_page.in_(keep_indices))
+    stats["sentences_deactivated"] = stale_q.update(
+        {
+            Sentence.is_active: False,
+            Sentence.mappings_verified_at: None,
+        },
+        synchronize_session=False,
+    )
+    db.commit()
+    return stats
 
 
 def main() -> int:
@@ -117,6 +242,10 @@ def main() -> int:
         "pages_skipped_already_clean": 0,
         "pages_failed": 0,
         "pagewords_deleted": 0,
+        "sentences_created": 0,
+        "sentences_updated": 0,
+        "sentences_deactivated": 0,
+        "sentence_words_rewritten": 0,
         "errors": [],
     }
 
@@ -192,10 +321,15 @@ def main() -> int:
                     db.refresh(page)
                     process_page(db, page)
                     db.refresh(page)
+                    sync_stats = _sync_harvested_sentences_for_page(db, page)
+                    for key, value in sync_stats.items():
+                        summary[key] += value
                     log.info(
-                        "Reprocessed story=%d page=%d: processed_at=%s mappings_verified_at=%s",
+                        "Reprocessed story=%d page=%d: processed_at=%s "
+                        "mappings_verified_at=%s sentence_sync=%s",
                         story.id, page.page_number,
                         page.processed_at, page.mappings_verified_at,
+                        sync_stats,
                     )
             if args.max_pages is not None and summary["pages_cleaned"] >= args.max_pages:
                 break

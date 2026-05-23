@@ -19,6 +19,8 @@ Hard invariants honoured:
 - **Heading exclusion**: caps-heading sentences detected by the quality gate
   carry no vocabulary value and should not surface as review material. We
   reuse `_detect_heading_sentence_indices` from `lemma_quality`.
+- **Page-boundary exclusion**: sentences cut by PDF page breaks are omitted
+  rather than stored as reusable review material.
 - **Idempotency**: re-running for the same page is a no-op. The
   `(page_id, sentence_index_in_page)` unique constraint enforces it at the DB
   level; the service short-circuits earlier via a count check to avoid the
@@ -31,15 +33,20 @@ SQLite treats NULL as distinct in unique indexes.
 from __future__ import annotations
 
 import logging
+import re
 from datetime import datetime, timezone
 
 from sqlalchemy.orm import Session
 
 from app.models import Lemma, Page, PageWord, Sentence, SentenceWord
+from app.services import body_clean as body_clean_svc
 from app.services.canonical_resolution import resolve_canonical_via_map
 from app.services.lemma_quality import _detect_heading_sentence_indices
 
 log = logging.getLogger(__name__)
+
+
+_SENTENCE_TERMINAL_RE = re.compile(r"""[.!?;·»”’")\]]\s*$""")
 
 
 def _reconstruct_sentence_text(words: list[PageWord]) -> str:
@@ -76,12 +83,69 @@ def _canonical_map_for(db: Session, lemma_ids: set[int]) -> dict[int, int | None
     return {lid: canonical for lid, canonical in rows}
 
 
+def _page_text_for_boundary(page: Page) -> str:
+    raw = (
+        page.body_clean
+        if page.body_clean and page.body_clean.strip()
+        else page.body_src
+    )
+    return body_clean_svc.normalize_pdf_artifacts(raw or "", collapse_whitespace=True)
+
+
+def _ends_with_sentence_terminal(text: str) -> bool:
+    return bool(_SENTENCE_TERMINAL_RE.search((text or "").strip()))
+
+
+def _detect_page_boundary_sentence_indices(
+    db: Session,
+    page: Page,
+    page_words: list[PageWord],
+) -> set[int]:
+    """Return sentence indices that are page-boundary fragments.
+
+    PDF pages can cut through a sentence, and sometimes through a word
+    (``δημιουρ-`` / ``γούνται``). Those fragments should stay visible in the
+    reader's page text but must not become reusable review sentences.
+    """
+    if not page_words:
+        return set()
+
+    by_idx: dict[int, list[PageWord]] = {}
+    for word in page_words:
+        by_idx.setdefault(word.sentence_index, []).append(word)
+    if not by_idx:
+        return set()
+
+    out: set[int] = set()
+    first_idx = min(by_idx)
+    last_idx = max(by_idx)
+
+    this_text = _page_text_for_boundary(page)
+    if this_text and not _ends_with_sentence_terminal(this_text):
+        out.add(last_idx)
+
+    previous_page = (
+        db.query(Page)
+        .filter(Page.story_id == page.story_id)
+        .filter(Page.page_number == page.page_number - 1)
+        .first()
+    )
+    if previous_page is not None:
+        previous_text = _page_text_for_boundary(previous_page)
+        if previous_text and not _ends_with_sentence_terminal(previous_text):
+            out.add(first_idx)
+
+    return out
+
+
 def harvest_page_sentences(db: Session, page: Page, *, force: bool = False) -> int:
     """Create Sentence + SentenceWord rows from a page's PageWord rows.
 
-    Returns the number of Sentence rows created (0 if already harvested or
-    page not verified). Idempotent unless `force=True`, in which case existing
-    rows for the page are deleted first and the harvest replayed.
+    Returns the number of Sentence rows created/refreshed (0 if already
+    harvested or page not verified). Idempotent unless `force=True`, in which
+    case existing rows for the page are updated in place and stale rows are
+    deactivated. Sentence ids are never deleted because review logs reference
+    them directly.
 
     Pre-conditions:
         - Page must have `mappings_verified_at` set (quality gate passed).
@@ -100,9 +164,19 @@ def harvest_page_sentences(db: Session, page: Page, *, force: bool = False) -> i
         )
         return 0
 
+    existing_by_idx: dict[int, Sentence] = {}
     if force:
-        db.query(Sentence).filter(Sentence.page_id == page.id).delete()
-        db.commit()
+        existing_sentences = (
+            db.query(Sentence).filter(Sentence.page_id == page.id).all()
+        )
+        existing_by_idx = {
+            sentence.sentence_index_in_page: sentence
+            for sentence in existing_sentences
+            if sentence.sentence_index_in_page is not None
+        }
+        for sentence in existing_sentences:
+            sentence.is_active = False
+            sentence.mappings_verified_at = None
     else:
         existing = (
             db.query(Sentence).filter(Sentence.page_id == page.id).count()
@@ -120,6 +194,7 @@ def harvest_page_sentences(db: Session, page: Page, *, force: bool = False) -> i
         return 0
 
     heading_indices = _detect_heading_sentence_indices(page_words)
+    boundary_indices = _detect_page_boundary_sentence_indices(db, page, page_words)
 
     by_idx: dict[int, list[PageWord]] = {}
     for w in page_words:
@@ -131,9 +206,10 @@ def harvest_page_sentences(db: Session, page: Page, *, force: bool = False) -> i
     now = datetime.now(timezone.utc)
     language_code = page.story.language_code
     created = 0
+    kept_indices: set[int] = set()
 
     for s_idx in sorted(by_idx):
-        if s_idx in heading_indices:
+        if s_idx in heading_indices or s_idx in boundary_indices:
             continue
         words = by_idx[s_idx]
         # Sentences with no content lemmas are pure-punctuation artefacts from
@@ -145,18 +221,38 @@ def harvest_page_sentences(db: Session, page: Page, *, force: bool = False) -> i
         if not text:
             continue
 
-        sentence = Sentence(
-            language_code=language_code,
-            text=text,
-            source="textbook",
-            story_id=page.story_id,
-            page_id=page.id,
-            sentence_index_in_page=s_idx,
-            is_active=True,
-            mappings_verified_at=page.mappings_verified_at,
-        )
-        db.add(sentence)
-        db.flush()
+        kept_indices.add(s_idx)
+        sentence = existing_by_idx.get(s_idx)
+        if sentence is None:
+            sentence = Sentence(
+                language_code=language_code,
+                text=text,
+                source="textbook",
+                story_id=page.story_id,
+                page_id=page.id,
+                sentence_index_in_page=s_idx,
+                is_active=True,
+                mappings_verified_at=page.mappings_verified_at,
+            )
+            db.add(sentence)
+            db.flush()
+        else:
+            if sentence.text != text:
+                sentence.translation_en = None
+                sentence.transliteration = None
+                sentence.audio_url = None
+            sentence.language_code = language_code
+            sentence.text = text
+            sentence.source = "textbook"
+            sentence.story_id = page.story_id
+            sentence.target_lemma_id = None
+            sentence.page_id = page.id
+            sentence.sentence_index_in_page = s_idx
+            sentence.is_active = True
+            sentence.mappings_verified_at = page.mappings_verified_at
+            db.query(SentenceWord).filter(
+                SentenceWord.sentence_id == sentence.id
+            ).delete(synchronize_session=False)
 
         for w in sorted(words, key=lambda x: x.position):
             lemma_id = w.lemma_id
@@ -170,6 +266,16 @@ def harvest_page_sentences(db: Session, page: Page, *, force: bool = False) -> i
                 is_target_word=False,
             ))
         created += 1
+
+    if force:
+        stale = [
+            sentence
+            for idx, sentence in existing_by_idx.items()
+            if idx not in kept_indices
+        ]
+        for sentence in stale:
+            sentence.is_active = False
+            sentence.mappings_verified_at = None
 
     db.commit()
     log.info(
