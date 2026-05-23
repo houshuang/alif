@@ -4,7 +4,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.database import engine, Base, SessionLocal, ensure_schema
-from app.routers import languages, texts, profile, reviews, stats, materials
+from app.routers import chat, flags, languages, materials, profile, reviews, stats, texts
 
 
 def _seed_languages():
@@ -76,6 +76,8 @@ app.include_router(profile.router)
 app.include_router(reviews.router)
 app.include_router(stats.router)
 app.include_router(materials.router)
+app.include_router(flags.router)
+app.include_router(chat.router)
 
 
 @app.get("/")

@@ -41,7 +41,9 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useLanguage } from "../lib/language-context";
 import {
+  askPolyglotAI,
   ackExperimentIntro,
+  flagPolyglotContent,
   getReviewSession,
   submitSentenceReview,
   getReviewStats,
@@ -72,6 +74,7 @@ import {
   type SessionSlot,
 } from "../lib/polyglot-review-helpers";
 import { renderTokens } from "../lib/polyglot-render-helpers";
+import ActionMenu from "../lib/review/ActionMenu";
 
 // 2026-05-21 round 2: Renaissance Folio palette — picked + iterated through
 // 3 rounds of design-explorer (session b0b63950). Cream parchment ground,
@@ -478,8 +481,100 @@ export default function PolyglotReview() {
     );
   }
 
+  const sentence = currentSentence;
   const hasMarks = hasAnyMarks(marks);
-  const glossWord = glossWordIdx != null ? currentSentence.words[glossWordIdx] : null;
+  const glossWord = glossWordIdx != null ? sentence.words[glossWordIdx] : null;
+  const wordsForContext = [...sentence.words].sort((a, b) => a.position - b.position);
+  const languageName =
+    languageCode === "el" ? "Modern Greek"
+    : languageCode === "grc" ? "Ancient Greek"
+    : languageCode === "la" ? "Latin"
+    : "the target language";
+  const focusedLemmaId = glossWord?.lemma_id ?? sentence.target_lemma_id ?? null;
+  const focusedLemmaForm = glossWord?.lemma_form ?? glossWord?.surface_form ?? null;
+
+  function buildAskAIContext(): string {
+    const parts: string[] = [
+      "Screen: polyglot review",
+      `Language: ${languageName} (${languageCode})`,
+      `Card: ${index + 1}/${slots.length}`,
+      `Phase: ${cardState}`,
+      `Sentence ID: ${sentence.sentence_id}`,
+      `Sentence: ${sentence.text}`,
+      `English: ${sentence.translation_en ?? "(none)"}`,
+      `Target lemma ID: ${sentence.target_lemma_id}`,
+    ];
+
+    parts.push("Words:");
+    wordsForContext.forEach((word, i) => {
+      const mark = markStateAt(marks, i);
+      const status =
+        word.is_function_word ? "function"
+        : word.is_proper_name ? "proper_name"
+        : word.knowledge_state || "new";
+      parts.push([
+        `${i + 1}. ${word.surface_form}`,
+        `lemma_id=${word.lemma_id ?? "none"}`,
+        `lemma=${word.lemma_form ?? "unknown"}`,
+        `gloss=${word.gloss_en ?? "unknown"}`,
+        `status=${status}`,
+        `mark=${mark}`,
+      ].join(" | "));
+    });
+
+    if (glossWord) {
+      parts.push(
+        `Lookup focus: surface=${glossWord.surface_form}, lemma_id=${glossWord.lemma_id ?? "none"}, lemma=${glossWord.lemma_form ?? "unknown"}, gloss=${glossWord.gloss_en ?? "unknown"}`,
+      );
+    }
+
+    return parts.join("\n");
+  }
+
+  function buildAskAIAutoExplainPrompt(): string | null {
+    const parts: string[] = [
+      `Explain how this ${languageName} sentence works — how the words combine to produce the meaning.`,
+      "",
+      "Focus on:",
+      "- What the sentence is really saying, including tone and nuance",
+      "- Why the English translation works, and any better alternatives",
+      "- Grammar or word forms worth noticing only when they affect the meaning",
+      "- Cognates, older forms, or etymology only when they clarify the sentence",
+      "",
+      "Don't list every word mechanically. I can see the glosses already.",
+    ];
+
+    const marked = wordsForContext
+      .map((word, i) => ({ word, i, mark: markStateAt(marks, i) }))
+      .filter((entry) => entry.mark !== "off");
+
+    if (marked.length > 0) {
+      parts.push(
+        "",
+        "I marked some words below. For each marked word, identify the lemma, explain the surface form, and give one short recognition tip.",
+      );
+    }
+
+    parts.push("", "Words:");
+    wordsForContext.forEach((word, i) => {
+      const mark = markStateAt(marks, i);
+      const prefix = mark === "off" ? "" : `[${mark.toUpperCase()}] `;
+      const role =
+        word.is_function_word ? "function"
+        : word.is_proper_name ? "proper name"
+        : word.knowledge_state || "content";
+      parts.push(
+        `${prefix}${i + 1}. ${word.surface_form} — lemma ${word.lemma_form ?? "unknown"}, gloss ${word.gloss_en ?? "unknown"}, ${role}`,
+      );
+    });
+
+    parts.push("", `Sentence: ${sentence.text}`);
+    if (sentence.translation_en) {
+      parts.push(`Given translation: ${sentence.translation_en}`);
+    }
+
+    return parts.join("\n");
+  }
 
   return (
     <View style={[styles.container, { paddingTop: Math.max(insets.top, 12) }]}>
@@ -487,14 +582,34 @@ export default function PolyglotReview() {
         current={index + 1}
         total={slots.length}
         trailing={
-          <OverflowMenu onRefresh={handleRefreshSession} onBack={handleBackToReader} />
+          <ActionMenu
+            focusedLemmaId={focusedLemmaId}
+            focusedLemmaAr={focusedLemmaForm}
+            sentenceId={sentence.sentence_id}
+            askAIContextBuilder={buildAskAIContext}
+            askAIScreen="polyglot-review"
+            askAIAutoExplainPrompt={buildAskAIAutoExplainPrompt}
+            askAIClient={askPolyglotAI}
+            flagContentClient={flagPolyglotContent}
+            onBack={handleBackToReader}
+            extraActions={[
+              {
+                icon: "refresh-outline" as const,
+                label: "Refresh session",
+                onPress: handleRefreshSession,
+              },
+            ]}
+            showFocusedWordActions={false}
+            sentenceReportLabel="Report sentence"
+            sentenceReportContentType="sentence"
+          />
         }
       />
 
       <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
         <View style={styles.card}>
           <SentenceCard
-            payload={currentSentence}
+            payload={sentence}
             cardState={cardState}
             marks={marks}
             onWordTap={handleWordTap}
@@ -845,11 +960,9 @@ function ProgressHeader({
 }
 
 /**
- * Overflow ("...") menu — Alif's ActionMenu shape (index.tsx) ported lean.
- * Bottom-sheet modal with the actions polyglot actually supports: "Refresh
- * session" (the affordance the user was missing) and "Back to reader". Alif's
- * Ask AI / suspend / flag items are cut — polyglot has no endpoints for them
- * (polyglot/CLAUDE.md: drop fields the backend doesn't accept, don't stub).
+ * Overflow ("...") menu for intro cards, where there is no sentence to report
+ * or explain yet. Sentence cards use the shared Alif ActionMenu with polyglot
+ * chat/report clients.
  */
 function OverflowMenu({
   onRefresh,

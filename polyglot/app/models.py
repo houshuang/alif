@@ -357,6 +357,18 @@ class UserProfile(Base):
                         onupdate=lambda: datetime.now(timezone.utc))
 
 
+class ChatMessage(Base):
+    __tablename__ = "chat_messages"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    conversation_id = Column(String(50), nullable=False, index=True)
+    screen = Column(String(50), nullable=True)
+    role = Column(String(20), nullable=False)
+    content = Column(Text, nullable=False)
+    context_summary = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+
 class ContentFlag(Base):
     __tablename__ = "content_flags"
 

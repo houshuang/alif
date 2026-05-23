@@ -16,6 +16,19 @@ import { colors, fonts } from "./theme";
 import { askAI, flagContent } from "./api";
 import MarkdownMessage from "./MarkdownMessage";
 
+export type AskAIClient = (
+  question: string,
+  context: string,
+  screen: string,
+  conversationId?: string,
+) => Promise<{ answer: string; conversation_id: string }>;
+
+export type FlagContentClient = (data: {
+  content_type: string;
+  lemma_id?: number;
+  sentence_id?: number;
+}) => Promise<{ flag_id: number; status: string }>;
+
 interface ChatMessage {
   role: "user" | "assistant";
   content: string;
@@ -31,6 +44,8 @@ interface AskAIProps {
   onClose?: () => void;
   sentenceId?: number | null;
   focusedLemmaId?: number | null;
+  askAIClient?: AskAIClient;
+  flagContentClient?: FlagContentClient;
 }
 
 export default function AskAI({
@@ -41,6 +56,8 @@ export default function AskAI({
   onClose,
   sentenceId,
   focusedLemmaId,
+  askAIClient = askAI,
+  flagContentClient = flagContent,
 }: AskAIProps) {
   const hasAutoPrompt = !!(autoOpen && autoExplainPrompt);
   const [visible, setVisible] = useState(!!autoOpen);
@@ -105,7 +122,7 @@ export default function AskAI({
       const doAutoSend = async () => {
         try {
           const context = contextBuilder();
-          const result = await askAI(autoExplainPrompt!, context, screen, conversationId);
+          const result = await askAIClient(autoExplainPrompt!, context, screen, conversationId);
           setConversationId(result.conversation_id);
           setLastFailedQuestion(null);
           setMessages((prev) => [...prev, { role: "assistant", content: result.answer }]);
@@ -146,7 +163,7 @@ export default function AskAI({
 
     try {
       const context = contextBuilder();
-      const result = await askAI(question, context, screen, conversationId);
+      const result = await askAIClient(question, context, screen, conversationId);
       setConversationId(result.conversation_id);
       setLastFailedQuestion(null);
       setMessages((prev) => [...prev, { role: "assistant", content: result.answer }]);
@@ -182,7 +199,7 @@ export default function AskAI({
       const chatSummary = messages
         .map((m) => `${m.role}: ${m.content}`)
         .join("\n\n");
-      await flagContent({
+      await flagContentClient({
         content_type: "word_mapping",
         sentence_id: sentenceId,
         ...(focusedLemmaId ? { lemma_id: focusedLemmaId } : {}),

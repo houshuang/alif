@@ -10,7 +10,7 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { colors, fonts } from "../theme";
 import { suspendWord, flagContent } from "../api";
-import AskAI from "../AskAI";
+import AskAI, { type AskAIClient, type FlagContentClient } from "../AskAI";
 
 export interface ExtraAction {
   icon: keyof typeof Ionicons.glyphMap;
@@ -28,6 +28,12 @@ interface ActionMenuProps {
   onWordSuspended?: (lemmaId: number) => void;
   onBack?: (() => void) | null;
   extraActions?: ExtraAction[];
+  askAIClient?: AskAIClient;
+  flagContentClient?: FlagContentClient;
+  suspendWordClient?: (lemmaId: number) => Promise<unknown>;
+  showFocusedWordActions?: boolean;
+  sentenceReportLabel?: string;
+  sentenceReportContentType?: string;
 }
 
 type ToastState = { message: string; key: number } | null;
@@ -42,6 +48,12 @@ export default function ActionMenu({
   onWordSuspended,
   onBack,
   extraActions,
+  askAIClient,
+  flagContentClient = flagContent,
+  suspendWordClient = suspendWord,
+  showFocusedWordActions = true,
+  sentenceReportLabel,
+  sentenceReportContentType = "sentence",
 }: ActionMenuProps) {
   const [menuVisible, setMenuVisible] = useState(false);
   const [askAIVisible, setAskAIVisible] = useState(false);
@@ -80,7 +92,7 @@ export default function ActionMenu({
     if (!focusedLemmaId) return;
     setMenuVisible(false);
     try {
-      await suspendWord(focusedLemmaId);
+      await suspendWordClient(focusedLemmaId);
       showToast("Word suspended");
       onWordSuspended?.(focusedLemmaId);
     } catch (e) {
@@ -93,7 +105,7 @@ export default function ActionMenu({
     if (!focusedLemmaId) return;
     setMenuVisible(false);
     try {
-      await flagContent({ content_type: "word_gloss", lemma_id: focusedLemmaId });
+      await flagContentClient({ content_type: "word_gloss", lemma_id: focusedLemmaId });
       showToast("Flagged for review");
     } catch (e) {
       console.warn("flag failed:", e);
@@ -105,7 +117,7 @@ export default function ActionMenu({
     if (!sentenceId) return;
     setMenuVisible(false);
     try {
-      await flagContent({
+      await flagContentClient({
         content_type: type,
         sentence_id: sentenceId,
         ...(includeLemma && focusedLemmaId ? { lemma_id: focusedLemmaId } : {}),
@@ -152,7 +164,7 @@ export default function ActionMenu({
               onPress={handleAskAI}
             />
 
-            {focusedLemmaId && (
+            {focusedLemmaId && showFocusedWordActions && (
               <>
                 <MenuItem
                   icon="pause-circle-outline"
@@ -169,7 +181,13 @@ export default function ActionMenu({
 
             {sentenceId && (
               <>
-                {!sentenceFlagExpanded ? (
+                {sentenceReportLabel ? (
+                  <MenuItem
+                    icon="flag-outline"
+                    label={sentenceReportLabel}
+                    onPress={() => handleFlagSentence(sentenceReportContentType)}
+                  />
+                ) : !sentenceFlagExpanded ? (
                   <MenuItem
                     icon="flag-outline"
                     label="Flag sentence..."
@@ -226,6 +244,8 @@ export default function ActionMenu({
           onClose={() => { setAskAIVisible(false); setAutoExplainPrompt(null); }}
           sentenceId={sentenceId}
           focusedLemmaId={focusedLemmaId}
+          askAIClient={askAIClient}
+          flagContentClient={flagContentClient}
         />
       )}
 
@@ -271,6 +291,8 @@ function AskAIModal({
   onClose,
   sentenceId,
   focusedLemmaId,
+  askAIClient,
+  flagContentClient,
 }: {
   contextBuilder: () => string;
   screen: string;
@@ -278,6 +300,8 @@ function AskAIModal({
   onClose: () => void;
   sentenceId?: number | null;
   focusedLemmaId?: number | null;
+  askAIClient?: AskAIClient;
+  flagContentClient?: FlagContentClient;
 }) {
   return (
     <AskAI
@@ -288,6 +312,8 @@ function AskAIModal({
       onClose={onClose}
       sentenceId={sentenceId}
       focusedLemmaId={focusedLemmaId}
+      askAIClient={askAIClient}
+      flagContentClient={flagContentClient}
     />
   );
 }

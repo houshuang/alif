@@ -313,6 +313,36 @@ export async function getReviewStats(): Promise<AcquisitionStats> {
   return get("/api/reviews/stats");
 }
 
+// ─── Chat + reports ───────────────────────────────────────────────────────
+
+export type PolyglotAskAIResponse = {
+  answer: string;
+  conversation_id: string;
+};
+
+export async function askPolyglotAI(
+  question: string,
+  context: string,
+  screen: string,
+  conversationId?: string,
+): Promise<PolyglotAskAIResponse> {
+  const res = await fetch(`${POLYGLOT_BASE_URL}/api/chat/ask`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ question, context, screen, conversation_id: conversationId }),
+  });
+  if (!res.ok) throw new Error(`/api/chat/ask: ${res.status}`);
+  return res.json();
+}
+
+export async function flagPolyglotContent(data: {
+  content_type: string;
+  lemma_id?: number;
+  sentence_id?: number;
+}): Promise<{ flag_id: number; status: string }> {
+  return post("/api/flags", data);
+}
+
 // ─── Sentence review ───────────────────────────────────────────────────────
 // Mirrors Alif's sentence-review API (see frontend/lib/api.ts). Fields that
 // polyglot's POST /api/reviews/submit-sentence does not accept are intentionally
