@@ -257,6 +257,41 @@ def test_page_view_classifies_token_states(tmp_db):
         assert any(t["is_new"] for t in word_tokens)
 
 
+def test_page_view_treats_function_word_bare_as_noncontent(tmp_db):
+    """Legacy rows may have a function-word bare form before word_category was
+    backfilled. The reader should still grey them out and not show them as new
+    vocabulary."""
+    with tmp_db() as db:
+        story = Story(language_code="el", body_src="παρά", source="paste", page_count=1)
+        db.add(story)
+        db.flush()
+        page = Page(story_id=story.id, page_number=1, body_src="παρά")
+        db.add(page)
+        db.flush()
+        lemma = Lemma(
+            language_code="el",
+            lemma_form="παρά",
+            lemma_bare="παρα",
+            source="test",
+            word_category=None,
+        )
+        db.add(lemma)
+        db.flush()
+        db.add(PageWord(
+            page_id=page.id,
+            position=0,
+            surface_form="παρά",
+            lemma_id=lemma.lemma_id,
+            sentence_index=0,
+        ))
+        db.commit()
+
+        _, tokens = reading_intake._build_token_view(db, page)
+        token = tokens[0]
+        assert token["is_function_word"] is True
+        assert token["is_new"] is False
+
+
 # ─── warm_pages_ahead ─────────────────────────────────────────────────────
 
 

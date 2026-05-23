@@ -63,6 +63,28 @@ def _seed_acquiring(db, lemma_id: int, *, box: int = 1) -> UserLemmaKnowledge:
     return ulk
 
 
+def _seed_known(
+    db,
+    lemma_id: int,
+    *,
+    source: str = "reading_intake",
+    knowledge_origin: str | None = None,
+    fsrs_card_json: dict | None = None,
+) -> UserLemmaKnowledge:
+    kwargs = dict(
+        lemma_id=lemma_id,
+        knowledge_state="known",
+        source=source,
+        knowledge_origin=knowledge_origin,
+    )
+    if fsrs_card_json is not None:
+        kwargs["fsrs_card_json"] = fsrs_card_json
+    ulk = UserLemmaKnowledge(**kwargs)
+    db.add(ulk)
+    db.flush()
+    return ulk
+
+
 # ─── Pure-function tests for sentence_validator ──────────────────────────────
 
 
@@ -453,8 +475,9 @@ def test_function_word_lemma_without_gloss_passes_gloss_gate(tmp_db, fake_claude
 
 
 def test_warm_cache_fills_only_below_target(tmp_db, fake_claude):
-    """warm_sentence_cache picks lemmas with fewer than ACTIVE_TARGET active
-    sentences. Lemmas already meeting the target are skipped."""
+    """warm_sentence_cache picks lemmas with fewer than ACTIVE_TARGET generated
+    quality-approved sentences. Lemmas already meeting the generated target are
+    skipped."""
     with tmp_db() as db:
         needy = _seed_lemma(db, form="βιβλίο", bare="βιβλιο", gloss="book")
         _seed_acquiring(db, needy.lemma_id)
@@ -468,10 +491,12 @@ def test_warm_cache_fills_only_below_target(tmp_db, fake_claude):
             s = Sentence(
                 language_code="el",
                 text="το σπίτι είναι μεγάλο",
-                source="manual",
+                source="llm",
                 target_lemma_id=already_full.lemma_id,
                 is_active=True,
                 mappings_verified_at=datetime.now(timezone.utc),
+                quality_natural=True,
+                quality_translation_correct=True,
             )
             db.add(s)
             db.flush()
@@ -506,7 +531,7 @@ def test_warm_cache_fills_only_below_target(tmp_db, fake_claude):
             Sentence.source == "llm",
         ).count()
         assert for_needy == 1
-        assert for_full == 0
+        assert for_full == mg.ACTIVE_TARGET
 
 
 def test_warm_cache_no_op_when_no_gaps(tmp_db, fake_claude):
@@ -519,6 +544,73 @@ def test_warm_cache_no_op_when_no_gaps(tmp_db, fake_claude):
     assert result["gap_count"] == 0
     assert result["generated"] == 0
     assert fake_claude["calls"] == []
+
+
+def test_warm_cache_skips_assumed_known_cognates_without_card(tmp_db, fake_claude):
+    """Cognate-known rows are scaffold vocabulary, not retrieval targets, until
+    the learner misses them and they enter acquisition/FSRS."""
+    with tmp_db() as db:
+        cognate = _seed_lemma(db, form="φιλοσοφία", bare="φιλοσοφια", gloss="philosophy")
+        _seed_known(
+            db,
+            cognate.lemma_id,
+            source="cognate",
+            knowledge_origin="cognate_known",
+            fsrs_card_json=None,
+        )
+        db.commit()
+
+    result = mg.warm_sentence_cache(language_code="el", max_lemmas=10)
+    assert result["gap_count"] == 0
+    assert result["generated"] == 0
+    assert fake_claude["calls"] == []
+
+
+def test_warm_cache_includes_fsrs_known_card(tmp_db, fake_claude):
+    """A known word with an FSRS card is a review target and should get
+    generated material when below coverage."""
+    with tmp_db() as db:
+        target = _seed_lemma(db, form="βιβλίο", bare="βιβλιο", gloss="book")
+        _seed_known(
+            db,
+            target.lemma_id,
+            fsrs_card_json={"due": datetime.now(timezone.utc).isoformat()},
+        )
+        _seed_lemma(db, form="μεγάλο", bare="μεγαλο", gloss="big")
+        _seed_lemma(db, form="είναι", bare="ειμαι", gloss="to be")
+        db.commit()
+        target_id = target.lemma_id
+
+    fake_claude["script"] = [
+        _gen_response([(0, "το βιβλίο είναι μεγάλο.", "The book is big.")]),
+        _verify_ok_response(),
+        _quality_response(),
+    ]
+
+    result = mg.warm_sentence_cache(language_code="el", max_lemmas=10,
+                                    sentences_per_target=1)
+    assert result["gap_count"] == 1
+    assert result["generated"] == 1
+
+    with tmp_db() as db:
+        assert db.query(Sentence).filter(
+            Sentence.target_lemma_id == target_id,
+            Sentence.source == "llm",
+        ).count() == 1
+
+
+def test_generation_prompt_rejects_catalog_fragments():
+    target = mg.GenTarget(
+        lemma_id=1,
+        lemma_form="βιβλίο",
+        lemma_bare="βιβλιο",
+        gloss_en="book",
+        pos="noun",
+    )
+    prompt = mg._gen_prompt("el", [target], ["είμαι", "μεγάλο"], 1)
+    assert "complete, ordinary sentences" in prompt
+    assert "colon-separated vocabulary lists" in prompt
+    assert "dictionary-backed lemmatizer" in prompt
 
 
 # ─── Book-sentence translation ───────────────────────────────────────────────
@@ -621,11 +713,14 @@ def test_translate_batch_failure_writes_nothing(tmp_db, fake_claude):
         assert row.translation_en is None
 
 
-def test_warm_cache_counts_harvested_sentenceword_coverage(tmp_db, fake_claude):
-    """Harvested textbook sentences have SentenceWord coverage but no target_lemma_id."""
+def test_warm_cache_does_not_count_harvested_sentenceword_coverage(tmp_db, fake_claude):
+    """Textbook sentences are review fallbacks; they do not satisfy the
+    generated-material target."""
     with tmp_db() as db:
         target = _seed_lemma(db, form="βιβλίο", bare="βιβλιο", gloss="book")
         _seed_acquiring(db, target.lemma_id)
+        _seed_lemma(db, form="μεγάλο", bare="μεγαλο", gloss="big")
+        _seed_lemma(db, form="είναι", bare="ειμαι", gloss="to be")
         for _ in range(mg.ACTIVE_TARGET):
             s = Sentence(
                 language_code="el",
@@ -644,8 +739,21 @@ def test_warm_cache_counts_harvested_sentenceword_coverage(tmp_db, fake_claude):
                 lemma_id=target.lemma_id,
             ))
         db.commit()
+        target_id = target.lemma_id
 
-    result = mg.warm_sentence_cache(language_code="el", max_lemmas=10)
-    assert result["gap_count"] == 0
-    assert result["generated"] == 0
-    assert fake_claude["calls"] == []
+    fake_claude["script"] = [
+        _gen_response([(0, "το βιβλίο είναι μεγάλο.", "The book is big.")]),
+        _verify_ok_response(),
+        _quality_response(),
+    ]
+
+    result = mg.warm_sentence_cache(language_code="el", max_lemmas=10,
+                                    sentences_per_target=1)
+    assert result["gap_count"] == 1
+    assert result["generated"] == 1
+
+    with tmp_db() as db:
+        assert db.query(Sentence).filter(
+            Sentence.target_lemma_id == target_id,
+            Sentence.source == "llm",
+        ).count() == 1

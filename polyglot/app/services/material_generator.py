@@ -52,7 +52,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
-from sqlalchemy import func
+from sqlalchemy import and_, func, or_
 from sqlalchemy.orm import Session
 
 from app import database
@@ -61,7 +61,7 @@ from app.services.canonical_resolution import (
     resolve_canonical_lemma_id,
     resolve_canonical_via_map,
 )
-from app.services.lemma_quality import FUNCTION_WORD_SETS
+from app.services.lemma_quality import FUNCTION_WORD_SETS, is_noncontent_lemma
 from app.services.llm_cli import call_structured_json, resolve_model
 from app.services.sentence_validator import (
     Mapping,
@@ -208,9 +208,18 @@ that reach for vocabulary outside the pool will be rejected by the validator
 and the work wasted.
 
 Rules:
-- Use the target lemma exactly once per sentence (any inflected form is fine).
+- Use the target lemma exactly once per sentence.
 - {register_instruction} No headlines, no all-caps, no proper-noun
   heavy contexts unless the target itself is a proper noun.
+- Write complete, ordinary sentences with a finite verb. Do not return
+  headings, fragments, colon-separated vocabulary lists, or comma chains of
+  loosely related nouns.
+- For Modern Greek, prefer surface forms that a dictionary-backed lemmatizer
+  can map back to the citation forms in the known-words pool. When a target
+  form is itself usable in a natural sentence, use that exact form instead of
+  an obscure inflection.
+- Include articles and prepositions where natural; clipped textbook-heading
+  style is rejected by the quality gate.
 - Provide a faithful English translation. Do not transliterate.
 - Use only vocabulary from the known-words pool below for every non-target
   word. If you can't construct a natural sentence within this constraint,
@@ -1192,20 +1201,26 @@ def _due_lemmas_missing_material(
     target_count: int,
     limit: int,
 ) -> list[int]:
-    """Lemmas in active study (acquiring/learning/known/lapsed) with fewer than
-    ``target_count`` active+verified sentences.
+    """Review-target lemmas with fewer than ``target_count`` generated
+    quality-approved sentences.
 
     Acquiring words sorted first by ``acquisition_next_due`` ASC so the warm
-    cache prioritizes what the next session will actually pull. Variant
-    lemmas are filtered out (only canonicals get material).
+    cache prioritizes what the next session will actually pull. FSRS-backed
+    ``learning``/``known``/``lapsed`` cards are eligible too. Bulk-known and
+    cognate-known rows without an FSRS card are assumed-known scaffolding, not
+    retrieval targets, until the learner marks them missed and they enter
+    acquisition. Variant and non-content lemmas are filtered out.
     """
     sentence_counts = dict(
         db.query(SentenceWord.lemma_id, func.count(func.distinct(Sentence.id)))
         .join(Sentence, Sentence.id == SentenceWord.sentence_id)
         .filter(
             Sentence.language_code == language_code,
+            Sentence.source == "llm",
             Sentence.is_active.is_(True),
             Sentence.mappings_verified_at.isnot(None),
+            Sentence.quality_natural.is_(True),
+            Sentence.quality_translation_correct.is_(True),
             SentenceWord.lemma_id.isnot(None),
         )
         .group_by(SentenceWord.lemma_id)
@@ -1218,17 +1233,33 @@ def _due_lemmas_missing_material(
         .filter(
             Lemma.language_code == language_code,
             Lemma.canonical_lemma_id.is_(None),
-            UserLemmaKnowledge.knowledge_state.in_(
-                ["acquiring", "learning", "known", "lapsed"]
+            or_(
+                UserLemmaKnowledge.knowledge_state == "acquiring",
+                and_(
+                    UserLemmaKnowledge.knowledge_state.in_(
+                        ["learning", "known", "lapsed"]
+                    ),
+                    UserLemmaKnowledge.fsrs_card_json.isnot(None),
+                ),
             ),
             (Lemma.word_category.is_(None) | Lemma.word_category.notin_(
-                ["function_word", "proper_name"]
+                ["function_word", "proper_name", "not_word"]
             )),
             Lemma.gloss_en.isnot(None),
             func.length(func.trim(Lemma.gloss_en)) > 0,
         )
         .all()
     )
+    function_words = FUNCTION_WORD_SETS.get(language_code, set())
+    rows = [
+        (lemma, ulk)
+        for lemma, ulk in rows
+        if not is_noncontent_lemma(
+            lemma,
+            language_code=language_code,
+            function_words=function_words,
+        )
+    ]
 
     def _due_sort_key(item):
         lemma, ulk = item

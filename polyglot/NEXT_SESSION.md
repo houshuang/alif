@@ -14,17 +14,51 @@ Read this FIRST before touching anything under `polyglot/`. Also read
 - All structured LLM calls route through `app/services/llm_cli.py`: body clean,
   glossing, citation repair, quality gate, sentence generation/verification,
   sentence translation, philology enrichment, cognates, and lemma audits.
-- Lemma cleanup is applied in production: 5,073 lemmas, 0 ungated lemmas,
-  150 function words, 170 proper names, foreign-key check clean. New lemmas are
+- Lemma cleanup is applied in production: 5,082 lemmas, 0 ungated content
+  lemmas, 152 function words, 169 proper names, foreign-key check clean. New lemmas are
   citation-audited before study state can attach (`POLYGLOT_LEMMA_REPAIR=1`).
+  2026-05-23 backfill marked legacy `λοιπόν` + `παρά` rows as
+  `function_word`; future quality-gate and intake paths stamp bare-form
+  function words automatically.
 - Material cron runs every 3 hours via `/opt/polyglot-update-material.sh`:
   warm pages, warm sentence cache, translate harvested textbook sentences,
   enrich philology. A bounded Codex smoke pass on 2026-05-23 generated 1
   sentence, translated 1 textbook sentence, and enriched 1 lemma successfully.
-- Current coverage after that pass: 231 LLM sentences, 208 harvested textbook
-  sentences (198 translated), 137 enriched lemmas. Urgent acquiring lemmas all
-  have at least one sentence; 29 due acquiring lemmas are still below the
-  3-sentence target, so sentence generation should keep running for catch-up.
+- Current generated review coverage must be measured against retrieval targets,
+  not all assumed-known cognates/pre-known rows. Corrected 2026-05-23 query:
+  146 retrieval targets (all acquiring + FSRS-card learning/known/lapsed), 50
+  with zero quality-approved generated LLM coverage, 134 below the 3-sentence
+  generated target. Active material: 193 quality-approved LLM sentences, 185
+  active harvested textbook sentences (178 translated), 184 enriched lemmas.
+  Textbook sentences are picker fallbacks and do not count toward generated
+  coverage. Cognate-known/bulk-known rows without FSRS cards are scaffold
+  vocabulary only until missed.
+
+## Done in the 2026-05-23 follow-up
+
+- Warm sentence cache now targets actual retrieval queues instead of every
+  active-looking content lemma: all `acquiring` rows plus
+  `learning`/`known`/`lapsed` rows with an FSRS card. Cognate-known and
+  bulk-pre-known rows without an FSRS card are assumed-known scaffolding, so
+  the cron no longer spends generation budget on them unless the learner later
+  marks them missed and they enter acquisition/FSRS.
+- Generated-material coverage now counts only active, verified,
+  quality-approved `source="llm"` sentences. Harvested textbook sentences stay
+  as graceful picker fallbacks, but they do not satisfy the 3-generated-sentence
+  target.
+- The sentence-generation prompt was tightened against the 2026-05-23 log
+  failures: no heading/list fragments, require complete ordinary sentences
+  with finite verbs, prefer Modern Greek surface forms the dictionary-backed
+  mapper can resolve, and avoid clipped article-less textbook-heading style.
+- Function-word handling was hardened. Quality-gate corrections now create or
+  update a corrected lemma as `word_category="function_word"` when its bare
+  form is in `FUNCTION_WORD_SETS`; page intake does the same for existing
+  legacy rows; the reader treats bare-form function words as non-content even
+  when an old row lacks `word_category`.
+- Production backfill: `λοιπόν` and `παρά` marked `function_word`, returning
+  ungated content lemmas to 0.
+- Verification: `arch -x86_64 .venv/bin/python -m pytest` in `polyglot/`:
+  274 passed, 2 deselected.
 
 ## Done in the 2026-05-21 session
 

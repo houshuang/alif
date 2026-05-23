@@ -467,6 +467,7 @@ def _apply_verdict(db: Session, v: Verdict, language_code: str) -> str:
         .filter(Lemma.language_code == language_code, Lemma.lemma_bare == correct_bare)
         .first()
     )
+    function_words = FUNCTION_WORD_SETS.get(language_code, set())
     if target is None:
         # Create — quality_gate is an authorised lemma source for polyglot
         # (in contrast to Alif, where bookCorpus prefers retire over create).
@@ -475,9 +476,14 @@ def _apply_verdict(db: Session, v: Verdict, language_code: str) -> str:
             lemma_form=v.correct_lemma,
             lemma_bare=correct_bare,
             source="quality_gate",
+            word_category=(
+                "function_word" if correct_bare in function_words else None
+            ),
         )
         db.add(target)
         db.flush()
+    elif correct_bare in function_words and target.word_category is None:
+        target.word_category = "function_word"
 
     if pw.lemma_id == target.lemma_id:
         # LLM disagreed with itself or said "wrong" but proposed same lemma

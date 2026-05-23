@@ -7,7 +7,7 @@ import pytest
 
 from app.services import reading_intake, lemma_quality
 from app.services.lemma_quality import TokenCheck, Verdict
-from app.models import Lemma, Page, PageWord
+from app.models import Lemma, Page, PageWord, Story
 
 
 @pytest.fixture
@@ -73,6 +73,51 @@ def test_apply_wrong_verdict_creates_or_links_lemma(tmp_db, force_gate_enabled, 
         assert new_lemma.source in {"quality_gate", "reading_intake"}
         assert word.verified_at is not None
         assert word.quality_note == "noun, not verb"
+
+
+def test_wrong_verdict_creates_function_word_lemma(tmp_db):
+    """If the verifier corrects a token to a closed-class form such as παρά,
+    the created lemma must be classified as non-content immediately."""
+    with tmp_db() as db:
+        story = Story(language_code="el", body_src="παρά", source="paste", page_count=1)
+        db.add(story)
+        db.flush()
+        page = Page(story_id=story.id, page_number=1, body_src="παρά")
+        db.add(page)
+        db.flush()
+        wrong = Lemma(
+            language_code="el",
+            lemma_form="παράς",
+            lemma_bare="παρας",
+            source="test",
+        )
+        db.add(wrong)
+        db.flush()
+        word = PageWord(
+            page_id=page.id,
+            position=0,
+            surface_form="παρά",
+            lemma_id=wrong.lemma_id,
+            sentence_index=0,
+        )
+        db.add(word)
+        db.commit()
+        word_id = word.id
+        wrong_id = wrong.lemma_id
+
+        applied = lemma_quality._apply_verdict(
+            db,
+            Verdict(pageword_id=word_id, verdict="wrong", correct_lemma="παρά"),
+            "el",
+        )
+        assert applied == "corrected"
+
+        db.flush()
+        db.refresh(word)
+        target = db.query(Lemma).filter_by(language_code="el", lemma_bare="παρα").one()
+        assert target.word_category == "function_word"
+        assert word.lemma_id == target.lemma_id
+        assert word.original_lemma_id == wrong_id
 
 
 def test_apply_unclear_verdict_marks_but_doesnt_change(tmp_db, force_gate_enabled, monkeypatch):

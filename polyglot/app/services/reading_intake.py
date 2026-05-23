@@ -244,6 +244,12 @@ def process_page(db: Session, page: Page, *, force: bool = False) -> Page:
             continue
         existing = _lookup_lemma(db, language_code, lemma_bare)
         if existing:
+            from app.services.lemma_quality import FUNCTION_WORD_SETS
+            if (
+                existing.word_category is None
+                and lemma_bare in FUNCTION_WORD_SETS.get(language_code, set())
+            ):
+                existing.word_category = "function_word"
             bare_to_lemma_id[lemma_bare] = existing.lemma_id
             continue
         new_lemma = Lemma(
@@ -383,6 +389,8 @@ def _build_token_view(db: Session, page: Page) -> tuple[Page, list[dict]]:
             UserLemmaKnowledge.lemma_id.in_(lemma_ids)
         ).all()
     } if lemma_ids else {}
+    language_code = page.story.language_code
+    function_word_bares = lemma_quality.FUNCTION_WORD_SETS.get(language_code, set())
 
     tokens = []
     for w in words:
@@ -390,6 +398,13 @@ def _build_token_view(db: Session, page: Page) -> tuple[Page, list[dict]]:
         ulk = knowledge_by_lemma.get(w.lemma_id) if w.lemma_id else None
         state = ulk.knowledge_state if ulk else None
         is_punct = lemma is None and not any(c.isalpha() for c in w.surface_form)
+        is_function_word = bool(
+            lemma is not None
+            and (
+                lemma.word_category == "function_word"
+                or lemma.lemma_bare in function_word_bares
+            )
+        )
         tokens.append({
             "position": w.position,
             "surface": w.surface_form,
@@ -400,14 +415,14 @@ def _build_token_view(db: Session, page: Page) -> tuple[Page, list[dict]]:
             "lemma_bare": lemma.lemma_bare if lemma else None,
             "pos": lemma.pos if lemma else None,
             "gloss_en": lemma.gloss_en if lemma else None,
-            "is_function_word": lemma is not None and lemma.word_category == "function_word",
+            "is_function_word": is_function_word,
             "is_heading": w.quality_note == "heading",
             "is_known": state == "known",
             "is_acquiring": state in ("acquiring", "learning"),
             "is_encountered": state == "encountered",
             "is_unknown": state == "unknown",
             "is_ignored": state == "ignore",
-            "is_new": ulk is None and lemma is not None and lemma.word_category != "function_word",
+            "is_new": ulk is None and lemma is not None and not is_function_word,
             "is_oov": lemma is None and not is_punct,
         })
     return page, tokens
