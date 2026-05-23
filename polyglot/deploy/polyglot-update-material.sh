@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
 # Versioned material cron wrapper for Polyglot.
 #
-# Installed at /opt/polyglot-update-material.sh on the Hetzner VM; intended
-# crontab line (run every 3 hours offset from Alif's so they don't both hammer
-# the LLM CLI at the same minute):
+# Installed at /opt/polyglot-update-material.sh on the Hetzner VM as a symlink
+# to /opt/alif/polyglot/deploy/polyglot-update-material.sh by
+# deploy/deploy-polyglot.sh; intended crontab line (run every 3 hours offset
+# from Alif's so they don't both hammer the LLM CLI at the same minute):
 #
 #     45 */3 * * * /opt/polyglot-update-material.sh >> /var/log/polyglot-update-material.log 2>&1
 #
@@ -33,8 +34,7 @@
 #     pipeline yet — for now Page imports drive the lemma pool).
 #
 # Update procedure:
-#   scp polyglot/deploy/polyglot-update-material.sh alif:/opt/polyglot-update-material.sh
-#   ssh alif chmod +x /opt/polyglot-update-material.sh
+#   commit to main, then run polyglot/deploy/deploy-polyglot.sh
 
 set -u
 

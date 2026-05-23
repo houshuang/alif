@@ -233,8 +233,9 @@ ssh alif "cd /opt/alif && git pull && systemctl restart alif-expo"
 # Full deploy (both):
 ssh alif "cd /opt/alif && git pull && cd backend && .venv/bin/pip install -e . --no-deps -q && systemctl restart alif-backend && systemctl restart alif-expo"
 
-# Cron wrapper (only when deploy/alif-update-material.sh changed):
-scp deploy/alif-update-material.sh alif:/opt/alif-update-material.sh && ssh alif "chmod +x /opt/alif-update-material.sh"
+# Cron wrapper:
+# scripts/deploy.sh links /opt/alif-update-material.sh to deploy/alif-update-material.sh
+# from the checked-out Git main. Do not scp cron wrappers to production.
 
 # Expo URL (always display after deploy):
 # exp://alifstian.duckdns.org:8081

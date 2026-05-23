@@ -29,7 +29,7 @@ echo "  TypeScript OK"
 
 echo ""
 echo "=== Deploying to $SERVER ==="
-ssh $SERVER "cd $REMOTE_DIR && git pull && cd backend && .venv/bin/pip install -e . --quiet && cd .. && systemctl restart alif-backend && cd frontend && npm install && cd .. && systemctl restart alif-expo"
+ssh $SERVER "cd $REMOTE_DIR && git pull --ff-only && ln -sfn $REMOTE_DIR/deploy/alif-update-material.sh /opt/alif-update-material.sh && chmod +x $REMOTE_DIR/deploy/alif-update-material.sh && cd backend && .venv/bin/pip install -e . --quiet && cd .. && systemctl restart alif-backend && cd frontend && npm install && cd .. && systemctl restart alif-expo"
 
 echo "Waiting for startup..."
 sleep 10

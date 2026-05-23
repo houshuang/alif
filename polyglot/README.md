@@ -119,6 +119,16 @@ The VM has `codex-cli 0.133.0` installed at `/usr/bin/codex`; auth is stored
 under `/opt/alif/.codex` and initialized from the shared OpenAI API key in
 `/opt/alif/.env`. Do not print or commit token values.
 
+Deploys go through Git `main`; do not `scp` application files or cron wrappers
+to the VM. The deploy script pushes local `main` if needed, pulls
+`origin/main` inside `/opt/alif`, symlinks `/opt/polyglot-update-material.sh`
+to the checked-out wrapper, reinstalls the package, restarts systemd, and
+health-checks port `3002`:
+
+```bash
+polyglot/deploy/deploy-polyglot.sh
+```
+
 The material cron is installed as:
 
 ```cron

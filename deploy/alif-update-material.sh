@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Versioned material cron wrapper.
 #
-# Installed at /opt/alif-update-material.sh on the Hetzner VM; invoked every
+# Installed at /opt/alif-update-material.sh on the Hetzner VM as a symlink to
+# /opt/alif/deploy/alif-update-material.sh by scripts/deploy.sh; invoked every
 # 3 hours via the system crontab:
 #
 #     30 */3 * * * /opt/alif-update-material.sh >> /var/log/alif-update-material.log 2>&1
@@ -12,9 +13,7 @@
 #   3. plan small material jobs
 #   4. execute a bounded number of queued jobs
 #
-# Update procedure: edit this file in the repo, then
-#   scp deploy/alif-update-material.sh alif:/opt/alif-update-material.sh
-#   ssh alif chmod +x /opt/alif-update-material.sh
+# Update procedure: commit to main, then run scripts/deploy.sh.
 # Then verify with a dry-run pass:
 #   ssh alif /opt/alif-update-material.sh
 #

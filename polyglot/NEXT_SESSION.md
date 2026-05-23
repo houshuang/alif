@@ -216,14 +216,15 @@ Suggested PR #5 entry points to read first in the new session:
   endpoint at `POST /api/reviews/submit-sentence`; takes `sentence_id`,
   comprehension, response_ms, client_review_id.
 
-**Operational note (historical):** the cron wrapper at
-`polyglot/deploy/polyglot-update-material.sh` is installed on Hetzner
-at `45 */3 * * *` (45-minute offset from Alif's `30 */3 * * *` so they
-don't hit Claude CLI at the same minute). Update procedure:
+**Operational note:** the cron wrapper at
+`polyglot/deploy/polyglot-update-material.sh` runs on Hetzner at
+`45 */3 * * *` (45-minute offset from Alif's `30 */3 * * *` so they don't hit
+the LLM CLI at the same minute). `/opt/polyglot-update-material.sh` should be a
+symlink to the repo checkout. Update by committing to `main` and deploying from
+Git:
 
 ```bash
-scp polyglot/deploy/polyglot-update-material.sh alif:/opt/polyglot-update-material.sh
-ssh alif chmod +x /opt/polyglot-update-material.sh
+polyglot/deploy/deploy-polyglot.sh
 ```
 Then restart the backend if the change touches a service the cron calls.
 
@@ -419,13 +420,17 @@ Alif: only generate audio for sentences that will be shown. Add a
 Polyglot deployed to Hetzner alongside Alif:
 - Code: `/opt/alif/polyglot/`
 - venv: `/opt/alif/polyglot/.venv/`
-- systemd: `polyglot-backend` on port 3001 (managed by `polyglot-backend.service`)
+- systemd: `polyglot-backend` on port 3002 (managed by `polyglot-backend.service`;
+  port 3001 is occupied by another service on the shared host)
 - DB: `/opt/alif/polyglot/polyglot.db`
 - Frontend's `app.json` has `polyglotApiUrl` pointing to the server.
 
-Deploy command (mirrors Alif's pattern):
+Deploy from Git `main` only; do not `scp` changed files or cron wrappers to the
+server. The deploy script pushes `main` if needed, pulls `origin/main` on the
+VM, symlinks `/opt/polyglot-update-material.sh` to the repo copy, reinstalls
+the package, restarts systemd, and health-checks port 3002:
 ```bash
-ssh alif "cd /opt/alif && git pull && cd polyglot && .venv/bin/pip install -e . --no-deps -q && systemctl restart polyglot-backend"
+polyglot/deploy/deploy-polyglot.sh
 ```
 
 ## Working knowledge

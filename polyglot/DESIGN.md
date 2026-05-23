@@ -254,7 +254,7 @@ alif/
 │   │       ├── interaction_logger.py # JSONL daily logs
 │   │       └── activity_log.py       # Batch event ActivityLog table
 │   ├── deploy/
-│   │   └── polyglot-update-material.sh   # Cron wrapper (not yet installed)
+│   │   └── polyglot-update-material.sh   # Cron wrapper (symlinked from /opt on prod)
 │   ├── scripts/
 │   │   └── warm_sentence_cache.py
 │   ├── tests/

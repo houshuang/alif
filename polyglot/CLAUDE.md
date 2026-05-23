@@ -11,7 +11,7 @@ This is the **second backend** in the `alif/` monorepo. It is *not* Alif. It ser
 | Port (dev) | 8000 | 3001 |
 | Port (prod) | 3000 | 3002 (port 3001 is occupied by an unrelated Next.js service on the shared host) |
 | DB file | `backend/alif.db` | `polyglot/polyglot.db` |
-| systemd service | `alif-backend` | (not yet) |
+| systemd service | `alif-backend` | `polyglot-backend` |
 | Python package | `alif-backend` | `polyglot-backend` |
 | Heavy NLP | CAMeL Tools (Arabic morphology) | simplemma + GR-NLP-TOOLKIT + Claude verifier |
 | Frontend tab | "Reading" / "Stories" / "Listening" etc. | "Reading" (polyglot.tsx) |
@@ -132,6 +132,20 @@ POLYGLOT_QUALITY_GATE=1 .venv/bin/uvicorn app.main:app --port 3001  # with quali
 .venv/bin/python -m pytest                              # tests (fast)
 .venv/bin/python -m pytest -m slow                      # tests requiring real NLP models
 ```
+
+## Deployment
+
+Polyglot deploys from Git `main`; do not `scp` changed files or cron wrappers
+to production. From local `main`, after tests pass:
+
+```bash
+polyglot/deploy/deploy-polyglot.sh
+```
+
+The script pushes `main` if needed, pulls `origin/main` in `/opt/alif`, links
+`/opt/polyglot-update-material.sh` to the repo copy under
+`/opt/alif/polyglot/deploy/`, reinstalls `polyglot-backend`, restarts
+`polyglot-backend`, and health-checks port `3002`.
 
 ## Code style — same as Alif
 
